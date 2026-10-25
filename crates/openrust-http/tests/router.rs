@@ -346,6 +346,11 @@ async fn cors_allows_listed_origin_and_preflight_with_request_id() -> TestResult
         preflight.headers().get(header::ACCESS_CONTROL_MAX_AGE),
         Some(&"600".parse()?)
     );
+    assert!(
+        to_bytes(preflight.into_body(), usize::MAX)
+            .await?
+            .is_empty()
+    );
 
     let denied = router
         .oneshot(
@@ -383,6 +388,35 @@ async fn cors_preflight_rejects_unlisted_origin() -> TestResult {
             .headers()
             .contains_key(header::ACCESS_CONTROL_ALLOW_ORIGIN)
     );
+    assert!(to_bytes(response.into_body(), usize::MAX).await?.is_empty());
+    Ok(())
+}
+
+#[tokio::test]
+async fn cors_origin_error_is_wrapped_outside_preflight() -> TestResult {
+    let mut config = FrameworkConfig::default();
+    config.server.cors.enabled = true;
+    config.server.cors.allowed_origins = vec!["https://example.com".into()];
+    let response = router_with_config(config)
+        .await?
+        .oneshot(
+            Request::get("/api/not-found")
+                .header(header::ORIGIN, "https://example.com")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    assert_eq!(response.headers()[header::CONTENT_TYPE], "application/json");
+    assert_eq!(
+        response.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN),
+        Some(&"https://example.com".parse()?)
+    );
+    let request_id = response.headers()["x-request-id"].to_str()?.to_owned();
+    let body = json_body(response).await;
+    assert_eq!(body["success"], false);
+    assert_eq!(body["code"], "not_found");
+    assert!(body["data"].is_null());
+    assert_eq!(body["request_id"], request_id);
     Ok(())
 }
 

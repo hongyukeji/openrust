@@ -125,11 +125,11 @@ API 格式是框架对外的契约，生成器、文档和所有用户项目都�
 | `code` | 总是 | 稳定的 `snake_case` 业务码。成功时为 `ok` |
 | `message` | 总是 | 面向用户的提示文字 |
 | `data` | 总是 | 业务数据。没有数据时为 `null` |
-| `meta` | 仅分页集合 | `page`、`per_page`、`total`、`total_pages` |
+| `meta` | 仅分页集合 | `PageMeta { page, per_page, total, total_pages }` |
 | `errors` | 仅校验失败 | 格式为 `{字段: [消息]}` |
 | `request_id` | 总是 | 与响应头 `x-request-id` 相同 |
 
-- 包装由框架统一完成。handler 照常返回 `Json(T)`、`Paginated<T>`、`Created<T>`、`NoContent` 或 `Err(Error)`，不需要手写包装结构。如果需要返回非 JSON 内容（文件、流、HTML、`/health`），直接返回原始响应，不做包装。
+- 包装由框架统一完成。handler 照常返回 `Json(T)`、`Paginated<T>`、`Created<T>`、`NoContent` 或 `Err(Error)`，不需要手写包装结构。不包装清单：非 JSON 内容（文件、流、HTML、`/health`）与 CORS 预检响应（`OPTIONS` 且带 `Access-Control-Request-Method`）。预检只由浏览器读取响应头，成功和拒绝时都保留 tower-http 的空正文。
 - 配置项 `[api] http_status`：
   - `"always_ok"`（默认）：所有包装响应的 HTTP 状态码都是 200，客户端只依赖正文。
   - `"semantic"`：正文结构不变，同时按 §4 的表格设置 HTTP 状态码，适合接入网关、监控或开放给第三方的 API。

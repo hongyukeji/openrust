@@ -4,6 +4,10 @@ All notable changes to OpenRust are documented here. The format follows [Keep a 
 
 ## [Unreleased]
 
+### Fixed
+
+- Preserved typed `PageMeta` in API responses and documented empty CORS preflight bodies while keeping ordinary cross-origin errors wrapped.
+
 ### Added
 
 - Added OpenRust `Json` / `Path` / `Query` extractors, `Created::with_location`, and JSON envelope fallbacks for common HTTP rejections.

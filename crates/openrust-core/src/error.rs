@@ -254,6 +254,19 @@ pub fn current_http_status_mode() -> HttpStatusMode {
     response_context().http_status
 }
 
+/// Typed pagination metadata attached to a successful page response.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct PageMeta {
+    /// One-based page number.
+    pub page: u64,
+    /// Number of items per page.
+    pub per_page: u64,
+    /// Total number of items.
+    pub total: u64,
+    /// Total number of pages.
+    pub total_pages: u64,
+}
+
 /// JSON envelope shared by successful and failed API responses.
 #[derive(Debug, Clone, Serialize)]
 pub struct ApiResponse<T: Serialize> {
@@ -267,7 +280,7 @@ pub struct ApiResponse<T: Serialize> {
     pub data: Option<T>,
     /// Pagination metadata when present.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub meta: Option<serde_json::Value>,
+    pub meta: Option<PageMeta>,
     /// Field-level validation errors when present.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub errors: Option<ValidationErrors>,
@@ -298,8 +311,8 @@ impl<T: Serialize> ApiResponse<T> {
 
     /// Adds pagination metadata to a successful response.
     #[must_use]
-    pub fn with_meta<M: Serialize>(mut self, meta: M) -> Self {
-        self.meta = serde_json::to_value(meta).ok();
+    pub fn with_meta(mut self, meta: PageMeta) -> Self {
+        self.meta = Some(meta);
         self
     }
 
@@ -423,6 +436,28 @@ mod tests {
             )
             .status(),
             StatusCode::PAYMENT_REQUIRED
+        );
+    }
+
+    #[test]
+    fn page_meta_is_preserved_in_response() {
+        let meta = PageMeta {
+            page: 2,
+            per_page: 20,
+            total: 57,
+            total_pages: 3,
+        };
+        let response = ApiResponse::success(vec![21_u64]).with_meta(meta);
+        assert_eq!(response.meta, Some(meta));
+        let json = serde_json::to_value(response).unwrap_or_default();
+        assert_eq!(
+            json["meta"],
+            serde_json::json!({
+                "page": 2,
+                "per_page": 20,
+                "total": 57,
+                "total_pages": 3,
+            })
         );
     }
 }

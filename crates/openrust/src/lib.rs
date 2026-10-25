@@ -6,7 +6,7 @@ use std::process::ExitCode;
 
 pub use openrust_core::{
     ApiResponse, App, AppBuilder, AppState, Application, BoxFuture, Command, Error,
-    MissingServiceError, NoConfig, Plugin, Result, ValidationErrors, config, lifecycle,
+    MissingServiceError, NoConfig, PageMeta, Plugin, Result, ValidationErrors, config, lifecycle,
 };
 
 /// HTTP layer: routing, extractors, middleware, `serve`.

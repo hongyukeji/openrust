@@ -34,8 +34,8 @@
 ### API 速查
 
 - 资源路径用复数、kebab-case 名词，JSON API 挂在 `/api`；字段与枚举用 `snake_case`。
-- 单资源返回统一包装的 `data` 对象；分页集合用 `Paginated<T>` 的 `data` 数组与 `meta`。
-- 时间使用 RFC 3339 UTC（`Z`）；JSON 成功与错误均为 `application/json` 的 `ApiResponse<T>` 包装，正文 `request_id` 与响应头 `x-request-id` 一致。
+- 单资源返回统一包装的 `data` 对象；分页集合用 `Paginated<T>` 的 `data` 数组与强类型 `PageMeta`。
+- 时间使用 RFC 3339 UTC（`Z`）；JSON 成功与错误均为 `application/json` 的 `ApiResponse<T>` 包装，正文 `request_id` 与响应头 `x-request-id` 一致。CORS 预检（`OPTIONS` 且带 `Access-Control-Request-Method`）只返回协议响应头，成功与拒绝时正文均为空，不包装。
 - `[api] http_status` 默认 `always_ok`（包装响应一律 200），可选 `semantic`；状态码与稳定 `code` 对照见 [ADR-008 §4](decisions/adr-008-api-conventions.md#4-错误)。
 
 ### 能力接入 apps/server

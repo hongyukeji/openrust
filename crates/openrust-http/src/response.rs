@@ -8,7 +8,7 @@ use axum::http::{HeaderValue, StatusCode, header, request::Parts};
 use axum::response::{IntoResponse, Response};
 use openrust_core::config::HttpStatusMode;
 use openrust_core::error::current_http_status_mode;
-use openrust_core::{ApiResponse, Error, Result, ValidationErrors};
+use openrust_core::{ApiResponse, Error, PageMeta, Result, ValidationErrors};
 use serde::{Deserialize, Serialize};
 
 /// Marks a successful response as created in semantic HTTP mode.
@@ -184,19 +184,11 @@ impl<T> Paginated<T> {
 
 impl<T: Serialize> IntoResponse for Paginated<T> {
     fn into_response(self) -> Response {
-        #[derive(Serialize)]
-        struct Meta {
-            page: u64,
-            per_page: u64,
-            total: u64,
-            total_pages: u64,
-        }
-
         let total_pages = NonZeroU64::new(self.params.per_page).map_or(0, |page_size| {
             self.total / page_size.get() + u64::from(!self.total.is_multiple_of(page_size.get()))
         });
         ApiResponse::success(self.items)
-            .with_meta(Meta {
+            .with_meta(PageMeta {
                 page: self.params.page,
                 per_page: self.params.per_page,
                 total: self.total,

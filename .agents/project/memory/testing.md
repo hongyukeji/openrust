@@ -18,7 +18,7 @@ RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 
 当前覆盖：默认 `always_ok` 与 `semantic` 状态码、成功/错误包装、`request_id` 头正文一致、415/422/413/408/500 兜底、`Location`/`Allow`/`Retry-After`、非法配置及原始 `/health`。
 
-测试数：`openrust-core` 30 个单元测试（含配置目录覆盖、`.env` 选择生产时跳过其余变量、无 HTTP 插件的命令边界），`openrust-http` 48 个集成测试（`tests/router.rs` 32 个、`tests/resource.rs` 16 个），`openrust-server` 5 个集成测试；`openrust` 1 个单元测试。
+测试数：`openrust-core` 31 个单元测试（含分页 `PageMeta` 保留、配置目录覆盖、`.env` 选择生产时跳过其余变量、无 HTTP 插件的命令边界），`openrust-http` 49 个集成测试（`tests/router.rs` 33 个、`tests/resource.rs` 16 个），`openrust-server` 5 个集成测试；`openrust` 1 个单元测试。
 
 ## 双库集成（M2 起）
 
