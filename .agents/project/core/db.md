@@ -20,4 +20,4 @@
 
 ## 验证
 
-`cargo test -p openrust-db` 验证默认配置、URL 遮蔽、未初始化句柄、pool 参数和 backend feature 校验。设置 `OPENRUST_TEST_DATABASE_URL` 后，`tests/connection.rs` 连接真实服务并执行查询，验证事务提交与回滚；MySQL 强制 Rustls TLS，并断言协商了 TLS 且连接会话时区为 `+00:00`。支持 PostgreSQL 14+ / MySQL 8.0+。
+`cargo test -p openrust-db` 验证默认配置、URL 遮蔽、未初始化句柄、pool 参数和 backend feature 校验。设置 `OPENRUST_TEST_DATABASE_URL` 后，`tests/connection.rs` 连接真实服务并执行查询，验证事务提交/回滚与 `SKIP LOCKED`；MySQL 强制 Rustls TLS，并断言协商了 TLS 且连接会话时区为 `+00:00`。支持 PostgreSQL 14+ / MySQL 8.0+。
