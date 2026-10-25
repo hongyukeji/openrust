@@ -1,5 +1,6 @@
 //! Extractors: [`Validated`] for validated input and [`Inject`] for services.
 
+use std::future::{Future, ready};
 use std::ops::Deref;
 use std::sync::Arc;
 
@@ -30,8 +31,12 @@ where
 {
     type Rejection = Error;
 
-    async fn from_request_parts(_parts: &mut Parts, state: &S) -> Result<Self> {
-        Ok(Self(AppState::from_ref(state).get::<T>()?))
+    fn from_request_parts(
+        _parts: &mut Parts,
+        state: &S,
+    ) -> impl Future<Output = Result<Self>> + Send {
+        // Lookup is synchronous; no `.await` is needed.
+        ready(AppState::from_ref(state).get::<T>().map(Self))
     }
 }
 
