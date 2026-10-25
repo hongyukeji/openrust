@@ -3,12 +3,12 @@
 //! Sources are merged in this order, later layers overriding earlier ones:
 //!
 //! 1. crate defaults ([`FrameworkConfig::default`])
-//! 2. `config/default.toml`
-//! 3. `config/<env>.toml` where `<env>` comes from `OPENRUST_ENV` (`development` by default)
+//! 2. `<config-dir>/default.toml`
+//! 3. `<config-dir>/<env>.toml` where `<env>` comes from `OPENRUST_ENV` (`development` by default)
 //! 4. environment variables prefixed `OPENRUST_`, nested with `__` (`OPENRUST_SERVER__PORT=4000` → `server.port`)
 //!
-//! Bootstrap loads `.env` outside production so it can supply `OPENRUST_ENV` and development
-//! secrets. A process-level `OPENRUST_ENV=production` skips `.env` entirely.
+//! Bootstrap reads only `OPENRUST_ENV` from `.env` to select the environment when the process
+//! does not set it. Production skips loading the entire `.env` file.
 
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -21,6 +21,8 @@ use serde::{Deserialize, Serialize};
 
 /// Environment variable selecting the runtime environment.
 pub const ENV_VAR: &str = "OPENRUST_ENV";
+/// Environment variable selecting the configuration directory.
+pub const CONFIG_DIR_VAR: &str = "OPENRUST_CONFIG_DIR";
 /// Prefix of environment variables that override configuration keys.
 pub const ENV_PREFIX: &str = "OPENRUST_";
 /// Directory holding `default.toml` and per-environment files, relative to the working directory.
@@ -271,6 +273,19 @@ pub fn load_dotenv() -> Option<PathBuf> {
     dotenvy::dotenv().ok()
 }
 
+/// Reads only `OPENRUST_ENV` from `.env` without changing process variables.
+pub(crate) fn dotenv_environment() -> Result<Environment, ConfigError> {
+    let Ok(entries) = dotenvy::from_path_iter(".env") else {
+        return Ok(Environment::Development);
+    };
+    for entry in entries.flatten() {
+        if entry.0 == ENV_VAR && !entry.1.trim().is_empty() {
+            return entry.1.parse();
+        }
+    }
+    Ok(Environment::Development)
+}
+
 /// Builds the merged configuration source for one environment.
 #[derive(Debug, Clone)]
 pub struct ConfigLoader {
@@ -279,9 +294,19 @@ pub struct ConfigLoader {
 }
 
 impl ConfigLoader {
-    /// Uses [`DEFAULT_CONFIG_DIR`] and the environment from `OPENRUST_ENV`.
+    /// Uses `OPENRUST_CONFIG_DIR` (or [`DEFAULT_CONFIG_DIR`]) and `OPENRUST_ENV`.
     pub fn from_env() -> Result<Self, ConfigError> {
-        Ok(Self::new(DEFAULT_CONFIG_DIR, Environment::from_env()?))
+        Ok(Self::from_environment(Environment::from_env()?))
+    }
+
+    /// Uses `OPENRUST_CONFIG_DIR` (or [`DEFAULT_CONFIG_DIR`]) and the selected environment.
+    pub(crate) fn from_environment(env: Environment) -> Self {
+        Self::new(
+            std::env::var_os(CONFIG_DIR_VAR)
+                .filter(|value| !value.is_empty())
+                .map_or_else(|| PathBuf::from(DEFAULT_CONFIG_DIR), PathBuf::from),
+            env,
+        )
     }
 
     /// Uses an explicit directory and environment.
@@ -392,6 +417,51 @@ mod tests {
                 "env is pinned by the loader"
             );
             assert_eq!(config.app.name, "OpenRust", "defaults fill missing keys");
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn config_dir_environment_override_loads_selected_directory() {
+        figment::Jail::expect_with(|jail| {
+            jail.set_env(CONFIG_DIR_VAR, "");
+            jail.clear_env();
+            jail.create_dir("custom")?;
+            jail.create_file("custom/default.toml", "[server]\nport = 4321")?;
+            jail.set_env(CONFIG_DIR_VAR, "custom");
+            let loader = ConfigLoader::from_env()
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            assert_eq!(loader.config_dir(), Path::new("custom"));
+            assert_eq!(
+                loader
+                    .load_framework()
+                    .map_err(|error| figment::Error::from(error.to_string()))?
+                    .server
+                    .port,
+                4321
+            );
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn config_dir_defaults_to_working_directory_config() {
+        figment::Jail::expect_with(|jail| {
+            jail.set_env(CONFIG_DIR_VAR, "");
+            jail.clear_env();
+            jail.create_dir("config")?;
+            jail.create_file("config/default.toml", "[server]\nport = 4567")?;
+            let loader = ConfigLoader::from_env()
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            assert_eq!(loader.config_dir(), Path::new("config"));
+            assert_eq!(
+                loader
+                    .load_framework()
+                    .map_err(|error| figment::Error::from(error.to_string()))?
+                    .server
+                    .port,
+                4567
+            );
             Ok(())
         });
     }

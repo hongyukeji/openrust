@@ -33,6 +33,7 @@ apps/
 ```
 
 - 根 `Cargo.toml` 中设 `members = ["crates/*", "apps/*"]`，并设 `default-members = ["apps/server"]`，在根目录直接 `cargo run` 就会启动聚合入口。
+- 仓库 `.cargo/config.toml` 为开发用 Cargo 命令设置 `OPENRUST_CONFIG_DIR=apps/server/config`；`Server::build` 显式安装 `HttpPlugin`。
 - 应用类型命名为 `Server`，不叫 `App`，避免与 `openrust::App` 冲突（ADR-006 §4）。
 - 启动命令：
   - `cargo run`，等价于 `cargo run -p openrust-server`，默认执行 `serve`；

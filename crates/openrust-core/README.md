@@ -9,7 +9,7 @@ This crate owns the contracts every other OpenRust crate builds on:
 - [`Plugin`] — the single extension point for framework capabilities, application modules and third-party packages: build services, commands and hooks, then finish once everything is wired.
 - [`Command`] — runtime commands exposed by the application binary (`serve`, `migrate`, `queue work`, …). Commands reject extra arguments by default; commands that take them implement `accepts_args`.
 - [`Error`] / [`Result`] / [`ProblemDetails`] — one error type for the whole framework, rendered as RFC 9457 `application/problem+json` when it reaches HTTP.
-- [`config`] — layered configuration: crate defaults → `config/default.toml` → `config/<env>.toml` → environment variables prefixed `OPENRUST_`. Bootstrap loads `.env` outside production. A process-level `OPENRUST_ENV=production` skips `.env`; when unset, `.env` may select the environment.
+- [`config`] — layered configuration: crate defaults → `config/default.toml` → `config/<env>.toml` → environment variables prefixed `OPENRUST_`. `OPENRUST_CONFIG_DIR` selects the configuration directory (default: `config` relative to the working directory). Bootstrap first reads only `OPENRUST_ENV` from `.env` when the process has not set it; if the selected environment is production, it skips loading all `.env` variables. Process environment variables take precedence.
 - [`lifecycle`] — bootstrap sequence and graceful-shutdown signal.
 
 `openrust-core` deliberately depends only on `axum-core` (for `IntoResponse`), `http`, `serde`, `figment`, `tokio` and `tracing`. HTTP routing, databases and other capabilities live in their own crates. Applications depend on the facade crate `openrust`, not on this crate directly.

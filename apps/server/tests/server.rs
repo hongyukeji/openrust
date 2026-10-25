@@ -8,16 +8,13 @@ mod routes;
 use openrust::ServiceExt;
 use openrust::http::axum::body::{Body, to_bytes};
 use openrust::http::axum::http::{Request, StatusCode};
-use openrust::http::{HttpPlugin, build_router};
+use openrust::http::build_router;
 use openrust::{config, lifecycle};
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
 async fn router() -> Result<openrust::http::axum::Router, openrust::Error> {
-    let app = lifecycle::bootstrap_with::<app::Server>(|builder| {
-        builder.plugin(HttpPlugin);
-    })
-    .await?;
+    let app = lifecycle::bootstrap::<app::Server>().await?;
     build_router(&app)
 }
 

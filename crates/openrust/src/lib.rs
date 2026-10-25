@@ -44,11 +44,7 @@ pub fn run<A: Application>() -> ExitCode {
         Err(error) => return fail(&format!("cannot start tokio runtime: {error}")),
     };
     runtime.block_on(async {
-        let app = match lifecycle::bootstrap_with::<A>(|app| {
-            app.plugin(http::HttpPlugin);
-        })
-        .await
-        {
+        let app = match lifecycle::bootstrap::<A>().await {
             Ok(app) => app,
             Err(error) => return fail(&format!("bootstrap failed: {error}")),
         };

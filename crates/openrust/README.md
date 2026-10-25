@@ -6,6 +6,7 @@ The facade also re-exports `tokio` and `tower::ServiceExt` so an application wit
 
 ```rust,no_run
 use openrust::prelude::*;
+use openrust::http::HttpPlugin;
 
 struct App;
 
@@ -13,7 +14,7 @@ impl Application for App {
     type Config = NoConfig;
 
     fn build(app: &mut AppBuilder) {
-        app.routes(|r| r.get("/", hello));
+        app.plugin(HttpPlugin).routes(|r| r.get("/", hello));
     }
 }
 
@@ -26,4 +27,4 @@ fn main() -> std::process::ExitCode {
 }
 ```
 
-`openrust::run` loads configuration, installs tracing, builds and finishes plugins and dispatches the first command-line argument as a command (`serve` when absent), so the application binary doubles as its own CLI: `my-app serve`, `my-app config show`, `my-app help`.
+`openrust::run` loads configuration, installs tracing, builds and finishes the application's plugins, and dispatches the first command-line argument as a command (`serve` when absent). Applications install `HttpPlugin` to provide `serve`, `/health` and HTTP routing. The application binary doubles as its own CLI: `my-app serve`, `my-app config show`, `my-app help`.

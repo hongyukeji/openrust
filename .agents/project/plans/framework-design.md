@@ -101,7 +101,8 @@ impl Application for Blog {
     type Config = AppConfig;
 
     fn build(app: &mut AppBuilder) {
-        app.plugin(DatabasePlugin)
+        app.plugin(HttpPlugin)
+            .plugin(DatabasePlugin)
             .plugin(AuthPlugin)
             .plugin(QueuePlugin)
             .routes(routes::register)
@@ -114,13 +115,14 @@ impl Application for Blog {
 `routes` / `jobs` / `schedule` 是各能力 crate 通过扩展 trait 挂在 `AppBuilder` 上的方法（如 `AppBuilderHttpExt::routes`），注册内容存入 `AppBuilder::extension_mut::<T>()`，构建后由 `App::extension::<T>()` 读取。核心 crate 因此不依赖任何能力 crate。
 
 - `openrust::run` 解析子命令：无参数或 `serve` 启动服务；`migrate` / `db seed` / `queue work` / `schedule run` / `routes` / `config show` 由框架与各 plugin 构建。应用二进制本身就是运行期 CLI，无需额外安装。
-- 生命周期（`openrust_core::lifecycle::bootstrap`）：加载 `.env` → 加载配置 → 初始化 `tracing` → 提取 `Application::Config` 并注册为服务 → `Application::build` → 依次调用 plugin `build`（含构建期间新增的 plugin）→ 冻结为 `App` → 调用 plugin `finish` → 分发命令（默认 `serve`）→ 监听并处理 `SIGTERM` / `SIGINT` 优雅停机。
+- 生命周期（`openrust_core::lifecycle::bootstrap`）：确定环境，非生产时加载 `.env` → 加载配置 → 初始化 `tracing` → 提取 `Application::Config` 并注册为服务 → `Application::build` → 依次调用 plugin `build`（含构建期间新增的 plugin）→ 冻结为 `App` → 调用 plugin `finish` → 分发命令（默认 `serve`）→ 监听并处理 `SIGTERM` / `SIGINT` 优雅停机。
 - `AppState` 是按 `TypeId` 索引的只读服务注册表，业务服务通过 `app.insert(MyService::new(...))` 注册，handler 用 `Inject<MyService>` 取用；缺少注册在请求时返回 500 Problem，内部错误包含类型名，不 panic。框架 crate 之间的硬依赖在 plugin `build` 中用 `app.get::<T>()` 检查并在启动时报错。
 - `Plugin` 是业务模块与第三方包的唯一扩展入口：一个 crate 暴露一个 plugin 即可带入路由、迁移、配置段和命令。不做动态加载。
 
 ## 配置
 
 - 分层合并，后者覆盖前者：crate 默认值 → `config/default.toml` → `config/{env}.toml` → `.env`（仅非生产环境自动加载）→ 环境变量。
+- `OPENRUST_CONFIG_DIR` 指定配置目录，默认是工作目录下的 `config/`；进程 `OPENRUST_ENV` 优先，否则仅从 `.env` 读取环境名，若最终为 production 则不注入 `.env` 的任何变量。
 - 环境变量前缀后接单下划线、层级间用双下划线：`OPENRUST_DATABASE__URL` 对应 `[database] url`。敏感值优先来自环境变量，模板文件中不出现真实值。
 - 通用变量 `DATABASE_URL` / `PORT` 分别映射 `database.url` / `server.port`；同一键的 `OPENRUST_` 变量优先。Redis 配置段实现时接入 `REDIS_URL`。
 - 当前 `FrameworkConfig` 的类型化结构包含 `app` / `server` / `log`；后续能力 crate 各自定义 `database` / `auth` / `queue` / `cache` / `storage` / `mail` 配置段，业务配置通过 `Application::Config` 关联类型接入，使用 `#[derive(Deserialize)]`。

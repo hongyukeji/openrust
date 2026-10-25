@@ -257,10 +257,10 @@ impl App {
             })
             .max_by_key(|command| command.name().split_whitespace().count())
             .ok_or_else(|| {
-                let input = args
-                    .first()
-                    .filter(|_| !available.is_empty())
-                    .map_or_else(|| name.to_owned(), |arg| format!("{name} {arg}"));
+                let input = std::iter::once(name)
+                    .chain(args.iter().map(String::as_str))
+                    .collect::<Vec<_>>()
+                    .join(" ");
                 let hint = if available.is_empty() {
                     "run `help` to list commands".to_owned()
                 } else {
@@ -347,6 +347,24 @@ mod tests {
         let app = AppBuilder::new(FrameworkConfig::default(), Figment::new()).build();
         let error = app.run_command("nope", Vec::new()).await.err();
         assert_eq!(error.as_ref().map(Error::code), Some("unknown_command"));
+        assert_eq!(
+            error.as_ref().map(ToString::to_string).as_deref(),
+            Some("unknown command `nope`; run `help` to list commands")
+        );
+    }
+
+    #[tokio::test]
+    async fn serve_is_unknown_without_http_plugin() -> Result<()> {
+        let mut builder = AppBuilder::new(FrameworkConfig::default(), Figment::new());
+        builder.command(crate::command::HelpCommand);
+        let app = builder.build();
+        let error = app.run_command("serve", Vec::new()).await.err();
+        assert_eq!(error.as_ref().map(Error::code), Some("unknown_command"));
+        assert_eq!(
+            error.as_ref().map(ToString::to_string).as_deref(),
+            Some("unknown command `serve`; run `help` to list commands")
+        );
+        Ok(())
     }
 
     struct NestedCommand;
@@ -396,12 +414,12 @@ mod tests {
         builder.command(NestedCommand);
         let app = builder.build();
         let error = app
-            .run_command("config", vec!["unknown".into()])
+            .run_command("config", vec!["foo".into(), "bar".into()])
             .await
             .err();
         assert_eq!(
             error.as_ref().map(ToString::to_string).as_deref(),
-            Some("unknown command `config unknown`; available: config show")
+            Some("unknown command `config foo bar`; available: config show")
         );
     }
 

@@ -1,0 +1,3 @@
+# Repository development only: point root-level cargo commands at the integration server config.
+[env]
+OPENRUST_CONFIG_DIR = { value = "apps/server/config", relative = true }

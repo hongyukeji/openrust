@@ -1,3 +1,4 @@
+use openrust::http::HttpPlugin;
 use openrust::prelude::*;
 
 use crate::routes;
@@ -8,6 +9,6 @@ impl Application for Server {
     type Config = NoConfig;
 
     fn build(app: &mut AppBuilder) {
-        app.routes(routes::register);
+        app.plugin(HttpPlugin).routes(routes::register);
     }
 }

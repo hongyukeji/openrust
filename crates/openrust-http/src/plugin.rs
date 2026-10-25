@@ -51,7 +51,7 @@ impl AppBuilderHttpExt for AppBuilder {
 
 /// Installs the HTTP capability: `serve` command, default middleware and `GET /health`.
 ///
-/// The facade's `openrust::run` adds this plugin automatically.
+/// Applications install this explicitly with `app.plugin(HttpPlugin)`.
 pub struct HttpPlugin;
 
 impl Plugin for HttpPlugin {

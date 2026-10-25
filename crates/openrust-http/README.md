@@ -2,7 +2,7 @@
 
 HTTP layer of the [OpenRust](https://github.com/hongyukeji/openrust) framework, built on `axum` and `tower`.
 
-- [`HttpPlugin`] — registers the `serve` command, the default middleware stack and `/health`.
+- [`HttpPlugin`] — install with `app.plugin(HttpPlugin)` to register the `serve` command, the default middleware stack and `/health`.
 - [`AppBuilderHttpExt::routes`] — the hook an application uses to contribute routes.
 - [`Routes`] — thin routing convention over `axum::Router`: `get`/`post`/…, `nest(prefix, …)`, `merge`, `layer`.
 - [`Resource`] and [`ResourceActions`] — register only the controller actions that exist; `Routes::resource` maps `list`/`create` to the collection and `get`/`update`/`delete` to `{id}`. `resource_with` filters them with `only` or `except`.

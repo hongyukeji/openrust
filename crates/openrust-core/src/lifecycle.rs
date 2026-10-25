@@ -17,8 +17,6 @@ pub async fn bootstrap<A: Application>() -> Result<App> {
 }
 
 /// Like [`bootstrap`], but lets the caller add default plugins before [`Application::build`].
-///
-/// The facade crate uses this to install the HTTP plugin so every application serves by default.
 pub async fn bootstrap_with<A: Application>(defaults: impl FnOnce(&mut AppBuilder)) -> Result<App> {
     let loader = bootstrap_config_loader()?;
     let framework = loader.load_framework()?;
@@ -35,12 +33,16 @@ pub async fn bootstrap_with<A: Application>(defaults: impl FnOnce(&mut AppBuilde
 }
 
 fn bootstrap_config_loader() -> Result<ConfigLoader> {
-    // Process OPENRUST_ENV decides whether .env is safe to read; when unset, load it first
-    // under the development default, then resolve the final environment it may specify.
-    if !Environment::from_env()?.is_production() {
+    // Select the environment before loading any other .env key.
+    let env = if std::env::var(config::ENV_VAR).is_ok_and(|value| !value.trim().is_empty()) {
+        Environment::from_env()?
+    } else {
+        config::dotenv_environment()?
+    };
+    if !env.is_production() {
         config::load_dotenv();
     }
-    Ok(ConfigLoader::from_env()?)
+    Ok(ConfigLoader::from_environment(env))
 }
 
 /// Runs plugin building and finishing on an assembled builder.
@@ -106,6 +108,7 @@ pub async fn shutdown_signal() {
 #[allow(clippy::result_large_err)]
 mod tests {
     use super::*;
+    use crate::config::NoConfig;
     use crate::plugin::{BoxFuture, Plugin};
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -117,11 +120,38 @@ mod tests {
             jail.set_env("OPENRUST_ENV", "");
             jail.set_env("OPENRUST_SERVER__PORT", "");
             jail.clear_env();
-            jail.create_file(".env", "OPENRUST_SERVER__PORT=4999\n")?;
+            jail.create_file(".env", "OPENRUST_ENV=test\nOPENRUST_SERVER__PORT=4999\n")?;
             jail.set_env("OPENRUST_ENV", "production");
             let loader = bootstrap_config_loader()
                 .map_err(|error| figment::Error::from(error.to_string()))?;
             assert_eq!(loader.environment(), Environment::Production);
+            assert_eq!(
+                loader
+                    .load_framework()
+                    .map_err(|error| figment::Error::from(error.to_string()))?
+                    .server
+                    .port,
+                3000
+            );
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn dotenv_selected_production_does_not_load_other_keys() {
+        figment::Jail::expect_with(|jail| {
+            jail.set_env("OPENRUST_ENV", "");
+            jail.set_env("OPENRUST_SERVER__PORT", "");
+            jail.clear_env();
+            jail.create_file(
+                ".env",
+                "OPENRUST_ENV=production\nOPENRUST_SERVER__PORT=4999\n",
+            )?;
+            let loader = bootstrap_config_loader()
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            assert_eq!(loader.environment(), Environment::Production);
+            assert!(std::env::var("OPENRUST_ENV").is_err());
+            assert!(std::env::var("OPENRUST_SERVER__PORT").is_err());
             assert_eq!(
                 loader
                     .load_framework()
@@ -155,6 +185,31 @@ mod tests {
             );
             Ok(())
         });
+    }
+
+    struct WithoutHttp;
+
+    impl Application for WithoutHttp {
+        type Config = NoConfig;
+
+        fn build(_app: &mut AppBuilder) {}
+    }
+
+    #[tokio::test]
+    async fn bootstrap_without_http_exposes_only_builtin_commands() -> Result<()> {
+        let app = bootstrap::<WithoutHttp>().await?;
+        let names: Vec<&str> = app.commands().map(crate::command::Command::name).collect();
+        assert_eq!(names, ["help", "config show"]);
+        assert_eq!(
+            app.run_command("serve", Vec::new())
+                .await
+                .err()
+                .as_ref()
+                .map(ToString::to_string)
+                .as_deref(),
+            Some("unknown command `serve`; run `help` to list commands")
+        );
+        Ok(())
     }
 
     #[derive(Default)]

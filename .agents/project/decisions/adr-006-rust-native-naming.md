@@ -74,7 +74,8 @@
 
 ### 3. 配置与环境变量
 
-- 配置文件为 TOML，分层合并：crate 默认值 → `config/default.toml` → `config/{env}.toml` → `.env`（仅非生产环境）→ 环境变量。
+- 配置文件为 TOML，分层合并：crate 默认值 → `config/default.toml` → `config/{env}.toml` → `.env`（最终环境非生产时）→ 环境变量。
+- 配置目录可由 `OPENRUST_CONFIG_DIR` 指定，默认相对工作目录的 `config/`。先例：loco 的 `LOCO_CONFIG_FOLDER`。
 - 环境选择用 `OPENRUST_ENV`，取值 `development` / `test` / `production`。依据：loco `LOCO_ENV`、Rocket `ROCKET_PROFILE`。
 - 覆盖配置用 `OPENRUST_<SECTION>__<KEY>`：前缀后接单下划线，嵌套层级之间用双下划线，例如 `OPENRUST_SERVER__PORT`、`OPENRUST_SERVER__CORS__ENABLED`。依据：Rocket `ROCKET_*`、Pavex 和 zero2prod 的“前缀 + 单下划线”写法。
 - 识别 12-factor 通用变量：`DATABASE_URL` 对应 `database.url`，`REDIS_URL` 对应 Redis 连接，`PORT` 对应 `server.port`。依据：loco、sqlx、diesel、Heroku 惯例。若同时设置了 `OPENRUST_` 前缀的变量，以它为准。
