@@ -6,11 +6,13 @@
 
 ## 当前里程碑
 
-M0、M1、M2 已完成。M1 生成项目的 `cargo test` 验收通过。M2 `openrust-db` 连接池、事务辅助、SeaORM 迁移 runner、UTC/JSON 方言列 helper、应用 seed 命令、`openrust-test` 每用例数据库隔离、`openrust new --db postgres|mysql`、`generate model` / `generate migration` 均已实现；数据库扩展沿用 SeaORM `DatabaseConnection`、`Db` 与 Plugin 生命周期，外部自定义连接可复用迁移、seed 和事务入口。`DatabasePlugin` 检查 PostgreSQL 14+ / MySQL 8.0+；MySQL 使用强制 TLS。两库连接、事务、`SKIP LOCKED`、迁移、列类型、seed 命令、隔离和生成项目编译/测试均已验证。当前 M3 认证 API contract 待办见 `todo.md`。
+M0、M1、M2 已完成。M1 生成项目的 `cargo test` 验收通过。M2 `openrust-db` 连接池、事务辅助、SeaORM 迁移 runner、UTC/JSON 方言列 helper、应用 seed 命令、`openrust-test` 每用例数据库隔离、`openrust new --db postgres|mysql`、`generate model` / `generate migration` 均已实现；数据库扩展沿用 SeaORM `DatabaseConnection`、`Db` 与 Plugin 生命周期，外部自定义连接可复用迁移、seed 和事务入口。`DatabasePlugin` 检查 PostgreSQL 14+ / MySQL 8.0+；MySQL 使用强制 TLS。两库连接、事务、`SKIP LOCKED`、迁移、列类型、seed 命令、隔离和生成项目编译/测试均已验证。当前 M3 认证 API contract 已定义，运行能力实现待完成，见 `todo.md`。
 
 实现与生成器命名遵循 [ADR-006](decisions/adr-006-rust-native-naming.md)：项目采用 `controllers/`、`models/_entities/` 和独立 `migration/` crate；全局 CLI 为 `new`、`dev`、`generate` / `g`，运行期命令由项目二进制提供。
 
 ## 执行校准
+
+- 标准应用默认 Redis，由开发者要求并在 [ADR-015](decisions/adr-015-redis-default-calibration.md) 确认；memory/file 显式选择，库默认 feature 保持可组合。不得沿用 ADR-014 原 memory 默认或隐式 memory fallback；此为待 M5 实现的 contract。
 
 - `todo.md` 当前功能簇必须与实际代码 WIP 一致；新需求先合入既有范围，当前簇闭环后再切换。已提交的成果不因旧提示词再次成为开发任务。
 - 基础读写分离为新增 v1 必交付范围，尚未实现；按 [专题计划](plans/v1-database-read-write-splitting.md) 在当前认证簇闭环后作为 M2 增补领取。默认单库，认证/幂等/队列等关键读取使用主库；不沿用旧 v2 候选表述。

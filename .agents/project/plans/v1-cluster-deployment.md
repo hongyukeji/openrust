@@ -7,7 +7,7 @@
 ## 必须支持的拓扑
 
 - 一个负载均衡入口，至少两个 API 副本；worker 与 scheduler 可独立运行多个副本，使用共享 PostgreSQL 或 MySQL，按需使用 Redis 和共享存储。
-- 单机与集群均为正式拓扑：默认应用无需 Redis，使用进程内 memory cache；Redis 按需启用，见 [ADR-013](../decisions/adr-013-deployment-and-redis-cache-default.md) 与 [ADR-014](../decisions/adr-014-cache-driver-and-store-contract.md)。进程内 memory、节点本地 file 和本地磁盘不能作为集群权威共享状态；依赖共享语义的能力必须显式配置兼容的共享后端。
+- 单机与集群均为正式拓扑：标准应用默认 Redis（见 [ADR-015](../decisions/adr-015-redis-default-calibration.md)），memory/file 显式选择，库层 feature 按需组合，见 [ADR-013](../decisions/adr-013-deployment-and-redis-cache-default.md) 与 [ADR-014](../decisions/adr-014-cache-driver-and-store-contract.md)。进程内 memory、节点本地 file 和本地磁盘不能作为集群权威共享状态；依赖共享语义的能力必须显式配置兼容的共享后端。
 - 不将黏性会话作为 HTTP 身份、幂等或授权正确性的前提。实时连接在建立后由所在节点维护，但消息必须能路由到其他节点上的目标连接。
 - 不要求框架实现数据库 HA、负载均衡控制面或自研共识协议；提供依赖要求、配置示例和故障行为。节点故障容错不等于数据库/存储已具备高可用。
 - 复用既有能力与 [v1 覆盖计划](v1-capability-coverage.md)，每类职责仍一个入口。集群支持不改变本地加密不依赖外部服务的约束。

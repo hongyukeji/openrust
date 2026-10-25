@@ -274,7 +274,7 @@ queue.dispatch(SendWelcomeEmail { user_id }).delay(Duration::from_secs(60)).awai
 
 ## 缓存、存储、邮件与短信
 
-- `Cache`：`get` / `insert` / `remove` / `get_or_insert_with` / `increment`；default/named store 与 driver 注册按 ADR-014；默认 memory，file 与 feature 可选 Redis；值使用 serde JSON 序列化，原子能力不得由普通 get/set 伪装；不做 tag 失效。该接口尚未实现。
+- `Cache`：`get` / `insert` / `remove` / `get_or_insert_with` / `increment`；default/named store 与 driver 注册按 ADR-014；标准应用默认 Redis（ADR-015），memory/file 显式选择，库层 Redis feature 可选；值使用 serde JSON 序列化，原子能力不得由普通 get/set 伪装；不做 tag 失效。该接口尚未实现。
 - `Storage`：封装 OpenDAL `Operator`，`storage.store("public")` 提供 `read` / `write` / `delete` / `url` / `presign_read`；本地磁盘默认，S3 兼容通过 `storage-s3` feature。
 - `Mail`：`trait Email` 产出 `lettre::Message`，提供信封与内容（minijinja 邮件模板或纯文本），`mailer.send(mail)` 与 `mailer.queue(mail)`；driver smtp（lettre）/ log / fake；开发环境 compose 中提供 Mailpit。
 - 短信：v1 版本提供统一发送入口、可扩展供应商适配、至少一个真实实现及 log/fake；默认本地无付费依赖，生产必须显式配置真实供应商。M4 接入队列化发送；具体命名与供应商 contract 待设计，边界与验收见 [ADR-011](../decisions/adr-011-sms-and-communication-baseline.md)。验证码机制与短信传输分离，短信登录不因发送能力加入而默认启用。

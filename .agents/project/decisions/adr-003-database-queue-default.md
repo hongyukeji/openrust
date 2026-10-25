@@ -1,6 +1,6 @@
 # ADR-003 数据库队列为默认，Redis 可选
 
-- 状态：Partially Superseded（缓存默认值由 [ADR-014](adr-014-cache-driver-and-store-contract.md) 修订；队列/会话与验证结论仍有效）
+- 状态：Partially Superseded（缓存默认值由 [ADR-015](adr-015-redis-default-calibration.md) 确认；队列/会话与验证结论仍有效）
 - 日期：2026-10-25
 
 ## 背景
@@ -9,7 +9,7 @@
 
 ## 决策
 
-- 队列使用数据库 `jobs` / `failed_jobs` 表，会话使用数据库 store；缓存默认策略由 ADR-014 定为无需外部服务的进程内 memory。
+- 队列使用数据库 `jobs` / `failed_jobs` 表，会话使用数据库 store；标准应用缓存默认策略由 ADR-015 定为 Redis。
 - Redis 队列与 session store 仍为可选适配；`cache-redis` 由应用按需启用。底层库仍按 feature 组合；集群共享缓存需求见 ADR-013/ADR-014。
 - 队列引擎**自研**（拉取、重试退避、延迟、失败表、优雅停机），不封装 `apalis`；依据见「验证」。
 

@@ -25,7 +25,7 @@ OpenRust 定位为 Rust 应用开发的“瑞士军刀”：以高性能为基�
 | 应用内核 | **自有内核，基于 axum + tower + tokio；Loco 只作参考与对标**（[ADR-001](../decisions/adr-001-own-kernel-on-axum.md)） | Loco 1.2 只有 `db-sqlite` / `db-postgres` feature，队列后端为 Redis / Postgres / SQLite，无 MySQL 路径，支持 MySQL 等于长期维护 fork。建立在 Loco 之上，OpenRust 只剩模板层，目录、配置、CLI、认证、错误模型全部由 Loco 决定，无法保证设计一致性与统一的 Rust 风格。Loco 本身基于 axum，OpenRust 直接使用同一底层并复用成熟 crate，自研面集中在应用层约定 |
 | ORM | SeaORM 2.x + `sea-orm-migration`；SQLx 直连作为显式逃生口（[ADR-002](../decisions/adr-002-seaorm-dual-database.md)） | 唯一同时覆盖 PostgreSQL / MySQL 的成熟 Rust ORM，带迁移与实体生成 |
 | 数据库 | PostgreSQL 14+（推荐默认）与 MySQL 8.0+（同等正式支持）；SQLite 不在 v1 版本 | 两者都支持 `SKIP LOCKED`、CTE、JSON；SQLite 增加第三条验证矩阵但不是目标部署环境 |
-| 缓存 | memory 默认，无需外部服务；file 与 feature 可选 Redis 显式选择 | 单机默认简单；需跨节点共享时配置 Redis 等符合契约的后端；队列/会话仍默认数据库，见 ADR-013/ADR-014 |
+| 缓存 | 标准应用默认 Redis，memory/file 显式选择，库层 Redis feature 可选 | 单机与集群共用默认缓存方案；共享/原子语义仍按契约校验，默认值见 ADR-015；队列/会话仍默认数据库，见 ADR-013/ADR-014 |
 | 认证 | Cookie 会话（Web）与个人访问令牌（API）为默认认证方式；密码 Argon2id；JWT 不在 v1 版本（[ADR-004](../decisions/adr-004-session-and-token-auth.md)） | 有状态令牌可撤销、可审计；JWT 作为 v2 评估候选 `auth-jwt` feature |
 | 授权 | `Policy` + 最小 `roles` / `permissions` 模型；DataScope、多租户不在 v1 版本 | 覆盖绝大多数应用的授权需求，不引入特定业务系统的数据范围概念 |
 | 队列 | 自有数据库队列（`SKIP LOCKED`），M0 对比 `apalis` 后定稿（[ADR-003](../decisions/adr-003-database-queue-default.md)） | 范围有界（拉取、重试、退避、失败表），自有实现可完全控制 Schema 与双库行为 |
@@ -65,7 +65,7 @@ OpenRust 定位为 Rust 应用开发的“瑞士军刀”：以高性能为基�
 | 统一入口与第三方扩展 | 按 [ADR-009](../decisions/adr-009-extensible-capability-drivers.md) 提供驱动契约、注册、配置、错误语义、示例与契约测试；用独立适配示例检查第三方是否需要修改框架 |
 | 基础读写分离 | v1 数据层增补，默认单库；主库/只读副本、事务固定主库、强制主库、请求内写后保持主库、故障策略与真实双库复制验收见 [专题计划](v1-database-read-write-splitting.md)；尚未实现 |
 | 数据库可扩展 | M2 集中后端及方言差异；v1 正式交付仍为 PostgreSQL/MySQL。明确 SeaORM 边界，不承诺任意数据库或数据模型直接替换 |
-| 缓存可替换 | M5 交付统一 `Cache` 与 default/named store、可注册 driver；默认 memory，无需外部服务，file 与 feature 可选 Redis 显式选择；契约测试验证 TTL、序列化、错误及原子能力边界。Redis 开发服务按需启用 |
+| 缓存可替换 | M5 交付统一 `Cache` 与 default/named store、可注册 driver；标准应用默认 Redis（ADR-015），memory/file 显式选择，库层 Redis feature 可选；契约测试验证 TTL、序列化、错误及原子能力边界。标准应用开发编排按默认配置启用 Redis |
 | 邮件与短信 | M3 提供发送、模板、供应商扩展与本地/测试路径；M4 接入队列化发送；真实适配和验收按 [短信决策](../decisions/adr-011-sms-and-communication-baseline.md) |
 | 高性能且按需启用 | 能力通过 feature 按需组合；在明确硬件、并发、数据规模及依赖环境下记录吞吐、延迟分位数与资源占用，评估中间件和驱动开销，不以微基准推断整体性能 |
 | 完整通用底座 | 多实例使用、上传下载、通用 Session/限流、签名、API 输出、查询体验与常用任务编排均按覆盖计划交付；具体 API/命名与默认值待决策 |
@@ -93,7 +93,7 @@ cd blog
 openrust dev
 ```
 
-`openrust new` 默认生成注册与登录、一个 scaffold 资源、一封邮件、一个 job 和请求测试。`openrust dev` 一条命令按项目配置启动所需依赖容器（数据库、可选 Redis、Mailpit），执行迁移并运行服务；默认 memory cache 不要求 Redis。`/health` 返回 200，`/docs` 展示 OpenAPI，注册 / 登录可用，`cargo test` 全绿。
+`openrust new` 默认生成注册与登录、一个 scaffold 资源、一封邮件、一个 job 和请求测试。`openrust dev` 一条命令按项目配置启动所需依赖容器（标准应用为数据库、Redis、Mailpit），执行迁移并运行服务；显式选择 memory/file 时可不启动 Redis。`/health` 返回 200，`/docs` 展示 OpenAPI，注册 / 登录可用，`cargo test` 全绿。
 
 ```bash
 openrust generate scaffold post title:string body:text published_at:date_time? author:references
@@ -113,7 +113,7 @@ openrust queue work
 | M2 数据层 | `openrust-db`（连接池、迁移运行器、`src/seed.rs`、事务、`dialect` 边界）、`generate model` / `generate migration`、`migrate` / `db seed`、`openrust-test` 数据库隔离、模板 `--db`、CI 双库矩阵 | 空 PostgreSQL / MySQL 均初始化成功；重复 `migrate` 幂等；`rollback` 可用；生成实体直接编译；每个数据功能有双库测试证据 |
 | M3 邮件、短信、认证与授权 | 短信发送与供应商扩展（范围与验收见 ADR-011）、`openrust-mail`（smtp / log / fake）、`openrust-auth`（用户约定、Argon2id、Cookie 会话、个人访问令牌、`CurrentUser`、注册 / 登录 / 登出 / 密码重置 / 邮箱验证、Policy、角色权限、登录限流）、`generate mailer` / `generate policy`，国际化、出站 HTTP、加密与密钥、审计（按通用能力计划） | 短信真实供应商与 log/fake 路径验证（实发需目标与费用授权）；全部认证流程有集成测试；令牌撤销即时生效；错误密码限流可验证；Policy 拒绝返回 403 包装错误 |
 | M4 队列、调度与事件 | `openrust-queue`（database driver、重试退避、`failed_jobs`、`queue work`、调度器与锁、`schedule run` / `schedule list`）、`openrust-events`、队列化邮件与短信、`generate job`，请求幂等、事务一致性、锁、常用任务编排与薄通知层（按专题计划） | 任务失败 → 重试 → 失败表 → 手动重试成功；多副本调度不重复；worker 停机不丢任务；两库皆验证 |
-| M5 缓存、存储与可观测性 | `openrust-cache`（memory 默认、file、feature 可选 Redis；driver/store contract 见 ADR-014）、`openrust-storage`（local / s3）、JSON 日志、请求 ID、`/ready`、`otel` / `metrics` feature、panic 捕获、WebSocket/SSE 与上传下载（按专题计划） | 三驱动基础契约测试；file 临时目录验证；Redis 真实集成验证；扩展示例只用公开契约；S3 兼容路径用 MinIO 集成验证；`/ready` 依赖超时正确报告 |
+| M5 缓存、存储与可观测性 | `openrust-cache`（标准应用默认 Redis、显式 memory/file、库层 Redis feature 可选；driver/store contract 见 ADR-014）、`openrust-storage`（local / s3）、JSON 日志、请求 ID、`/ready`、`otel` / `metrics` feature、panic 捕获、WebSocket/SSE 与上传下载（按专题计划） | 三驱动基础契约测试；file 临时目录验证；Redis 真实集成验证；扩展示例只用公开契约；S3 兼容路径用 MinIO 集成验证；`/ready` 依赖超时正确报告 |
 | M6 开发者体验与 v1 发布 | mdBook 文档站（Diátaxis、迁移对照页、`coming-from-axum`）、`examples/blog` 黄金路径示例、Dockerfile / compose 模板、`routes` / `config show` / `doctor` / `db status`、`generate` / `g`（`scaffold`、`controller`、`model`、`migration`、`job`、`mailer`、`policy`、`command`）与快照测试、`cargo semver-checks`、新手走查、v1 正式发布 | 新开发者按文档从空目录到部署在 30 分钟内完成且不读框架源码；本文件验收原则全部达标；发布动作由开发者执行 |
 
 里程碑按依赖顺序推进，每个里程碑结束时黄金路径必须比上一里程碑更完整，不允许跳过验收进入下一阶段。

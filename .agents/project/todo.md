@@ -21,8 +21,8 @@
 
 ## M5 缓存驱动与 store（M5 领取）
 
-- 按 [ADR-014](decisions/adr-014-cache-driver-and-store-contract.md) 实现 `openrust-cache` 与 `CachePlugin`：memory 默认、file、feature 可选 Redis；default/named stores、custom driver 注册、统一序列化/TTL/错误与原子能力边界。
-- 默认生成项目无需 Redis；Redis 配置读取 `REDIS_URL`，同键 `OPENRUST_` 环境变量优先。共享缓存用途在集群配置中必须选择可用共享 driver，禁止静默退化。
+- 按 [ADR-014](decisions/adr-014-cache-driver-and-store-contract.md) 实现 `openrust-cache` 与 `CachePlugin`：标准应用默认 Redis、显式 memory/file、库层 Redis feature 可选（默认值按 ADR-015）；default/named stores、custom driver 注册、统一序列化/TTL/错误与原子能力边界。
+- 标准生成项目显式启用 `cache-redis` 并配置 Redis default store；开发编排按配置提供 Redis，缺失配置/feature 或服务故障不得隐式回退 memory；Redis 配置读取 `REDIS_URL`，同键 `OPENRUST_` 环境变量优先。共享缓存用途在集群配置中必须选择可用共享 driver，禁止静默退化。
 - 验收：统一基础契约测试；file 临时目录安全路径、过期、原子替换、并发及 I/O 错误；Redis 真实集成；默认/file/redis feature 组合；`apps/server` 接入；独立公开扩展示例与 README/core 事实。
 
 ## 阻塞

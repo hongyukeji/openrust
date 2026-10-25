@@ -2,12 +2,12 @@
 
 > 受众：AI Agent
 > 更新：2026-10-25
-> 摘要：M0、M1、M2 已完成；M3 邮件能力已实现，当前推进认证 API contract。
+> 摘要：M0、M1、M2 已完成；M3 邮件能力已实现，认证 API contract 已定义、实现待完成；读写分离为新增数据层待办。
 
 | 项 | 状态 |
 | --- | --- |
 | v1 版本计划与框架设计 | 已定稿，见 `plans/` |
-| ADR-001 至 ADR-008 | 已接受 |
+| 架构决策 | 以 `decisions/` 中有效状态为准；缓存标准应用默认 Redis（ADR-015），driver/store contract 见 ADR-014，均不代表缓存已实现 |
 | 仓库基线（许可证、README、工具链声明、Agent 契约、CHANGELOG、贡献与安全政策） | 已就位 |
 | workspace、lint 基线、CI 工作流 | 已就位；CI 双库 job 已启用，MSRV 为 Rust 1.97 |
 | `openrust-core` | 已实现并测试：配置分层、错误与 `ApiResponse<T>` 包装渲染、注册表、plugin 级联、空格嵌套命令 |
@@ -18,6 +18,7 @@
 | `openrust-test` | `TestDatabase` 为每个用例创建并迁移独立库；PostgreSQL 迁移模板克隆，MySQL 独立建库；`close().await` 清理；两库集成测试通过 |
 | `openrust-mail` | `Email` / `Mailer`，log、fake、可选 SMTP Rustls driver；已接入 facade、server 与项目模板 |
 | `apps/server` | M1 聚合入口已实现：默认 HTTP、配置文件、`/health`、根路由与无端口集成测试 |
-| 其余 8 个 crate | 空壳，README 标注规划 surface 与里程碑 |
-| 验证证据 | 本机 `cargo fmt / clippy -D warnings / test / doc` 通过，见 `memory/testing.md` |
+| `openrust-auth` / `openrust-cache` / `openrust-queue` / `openrust-events` / `openrust-storage` | 当前均为 crate 骨架；认证与缓存 contract 已定义，尚未实现对应运行能力 |
+| v1 新增范围 | 基础读写分离、流程钩子及集群等按专题计划补做，不能用原 M2 完成标签代替验收 |
+| 验证证据 | 既有测试记录见 `memory/testing.md`；文档校准不代表重新执行全量构建，真实 SMTP 投递及完整集群/复制拓扑尚无验收证据 |
 | M2 验收 | 双库数据库测试、model/migration 生成项目编译与测试、生成迁移 up/status/down、默认与 all-features workspace 验证通过；详见 `memory/testing.md` |

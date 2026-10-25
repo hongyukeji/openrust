@@ -36,7 +36,7 @@
 | --- | --- | --- |
 | 队列 | 自研数据库队列（[ADR-003](decisions/adr-003-database-queue-default.md)，不依赖 `apalis`） | `queue-redis`（`redis` crate） |
 | 调度 | 自研 `Schedule` + `cron` 解析 | — |
-| 缓存 | memory 默认（无需外部服务）；file 与 Redis 可选，contract 见 [ADR-014](decisions/adr-014-cache-driver-and-store-contract.md) | `cache-redis` 按需启用；默认和 file driver 在 M5 选型/实现 |
+| 缓存 | 标准应用默认 Redis（ADR-015）；memory/file 显式选择，contract 见 [ADR-014](decisions/adr-014-cache-driver-and-store-contract.md) | 库层 `cache-redis` 可选，标准应用显式启用；各 driver 在 M5 实现 |
 | 存储 | `opendal`（fs） | `storage-s3` |
 | 邮件 | `lettre` 0.11（SMTP）+ log + fake | `mail-smtp` 用 Tokio + Rustls 强制 STARTTLS；log 为默认 driver；新增的 `quoted_printable` 传递依赖为 0BSD，已加入许可证允许清单 |
 | 模板 | `minijinja`（仅邮件） | `templates` |
