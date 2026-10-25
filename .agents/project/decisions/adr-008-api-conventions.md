@@ -1,11 +1,11 @@
 # ADR-008 HTTP API 交互规范与数据格式
 
 - 状态：Accepted
-- 日期：2026-10-25（同日修订：响应改为统一包装结构，替代 problem+json）
+- 日期：2026-10-25（同日修订：响应改为统一包装结构）
 
 ## 背景
 
-框架已经实现了 problem+json 错误、`Created` / `NoContent` / `Paginated`、`PageParams`、`x-request-id`，但没有一份统一的 API 规范。与此同时存在两处不一致：
+框架此前实现了结构化错误、`Created` / `NoContent` / `Paginated`、`PageParams`、`x-request-id`，但没有一份统一的 API 规范。与此同时存在两处不一致：
 
 - prelude 导出的 axum `Json` / `Path` / `Query` 在请求解析失败时返回纯文本；
 - 未匹配路由的 404、请求超时的 408 返回空正文。
@@ -63,7 +63,7 @@ API 格式是框架对外的契约，生成器、文档和所有用户项目都�
 
 - **所有错误都使用 §7 的统一包装结构**，`success = false`。请求解析失败、未匹配路由、方法不允许、超时、请求体过大、panic 都在此列。框架不返回纯文本错误，也不返回空正文。
 - `code` 是稳定的 `snake_case` 机器码，客户端按它分支处理。`message` 是可以直接展示给用户的提示。字段校验失败时附带 `errors`，格式为 `{字段: [消息]}`。5xx 不暴露内部细节。
-- 业务可以用 `Error::custom(code, message)` 定义自己的码，例如 `order_already_paid`。
+- 业务可以用 `Error::custom(code, message)` 定义自己的码，例如 `order_already_paid`；其 semantic 状态默认 400。需要其他状态时用 `Error::custom_with_status(status, code, message)`。限流可用 `Error::rate_limited(seconds)` 附带 `Retry-After`。
 - 框架内置的 `code`，以及 `[api] http_status = "semantic"` 时对应的 HTTP 状态码：
 
 | 情形 | `code` | semantic 下的状态码 |
@@ -98,6 +98,8 @@ API 格式是框架对外的契约，生成器、文档和所有用户项目都�
 - OpenAPI 由 `utoipa` 生成，非生产环境挂在 `/docs`，在后续里程碑实现。
 
 ### 7. 统一响应结构
+
+公共包装类型名为 `ApiResponse<T>`（Rust 的 `Response` 已由 HTTP 库占用）；`Error::to_api_response()` 与成功响应类型共用该结构。
 
 成功示例：
 

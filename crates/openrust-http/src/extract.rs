@@ -10,12 +10,12 @@ use axum::extract::{Json as AxumJson, Path as AxumPath, Query as AxumQuery};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use http::request::Parts;
-use openrust_core::{AppState, Error, Result, ValidationErrors};
+use openrust_core::{ApiResponse, AppState, Error, Result, ValidationErrors};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use validator::{Validate, ValidationErrorsKind};
 
-/// JSON body extractor with OpenRust problem responses on failure. Also serializes JSON responses.
+/// JSON body extractor with OpenRust envelope errors and responses.
 pub struct Json<T>(pub T);
 
 impl<S, T> FromRequest<S> for Json<T>
@@ -35,14 +35,14 @@ where
 
 impl<T: Serialize> IntoResponse for Json<T> {
     fn into_response(self) -> Response {
-        AxumJson(self.0).into_response()
+        ApiResponse::success(self.0).into_response()
     }
 }
 
 fn json_error(rejection: JsonRejection) -> Error {
     let detail = rejection.body_text();
     match rejection {
-        JsonRejection::MissingJsonContentType(_) => Error::custom(
+        JsonRejection::MissingJsonContentType(_) => Error::custom_with_status(
             StatusCode::UNSUPPORTED_MEDIA_TYPE,
             "unsupported_media_type",
             detail,
@@ -63,13 +63,13 @@ fn json_error(rejection: JsonRejection) -> Error {
             Error::validation_with_detail(detail, errors)
         }
         JsonRejection::BytesRejection(error) if error.status() == StatusCode::PAYLOAD_TOO_LARGE => {
-            Error::custom(StatusCode::PAYLOAD_TOO_LARGE, "payload_too_large", detail)
+            Error::custom_with_status(StatusCode::PAYLOAD_TOO_LARGE, "payload_too_large", detail)
         }
         _ => Error::BadRequest(detail),
     }
 }
 
-/// Path parameter extractor with OpenRust problem responses on failure.
+/// Path parameter extractor with OpenRust envelope errors on failure.
 pub struct Path<T>(pub T);
 
 impl<S, T> FromRequestParts<S> for Path<T>
@@ -87,7 +87,7 @@ where
     }
 }
 
-/// Query parameter extractor with OpenRust problem responses on failure.
+/// Query parameter extractor with OpenRust envelope errors on failure.
 pub struct Query<T>(pub T);
 
 impl<S, T> FromRequestParts<S> for Query<T>

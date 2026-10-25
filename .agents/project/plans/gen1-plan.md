@@ -41,7 +41,7 @@
 | --- | --- |
 | 项目生成器与模板（双库） | 管理后台 UI 与前端脚手架 |
 | 应用内核、Plugin、配置、生命周期、优雅停机 | 动态插件加载、插件市场 |
-| HTTP 路由约定、中间件栈、验证、Problem Details、OpenAPI | GraphQL、gRPC、WebSocket 封装 |
+| HTTP 路由约定、中间件栈、验证、统一响应包装、OpenAPI | GraphQL、gRPC、WebSocket 封装 |
 | 数据库连接池、迁移、`src/seed.rs`、`fake::Dummy` 测试数据、事务、双库方言边界 | SQLite、多租户、读写分离 |
 | Cookie 会话与个人访问令牌、密码重置、邮箱验证、Policy、角色权限 | OAuth / 社交登录、SSO、DataScope |
 | 队列、调度、事件（进程内） | 外部消息总线、工作流引擎 |
@@ -78,9 +78,9 @@ openrust queue work
 | 里程碑 | 交付 | 验收 |
 | --- | --- | --- |
 | M0 决策与基线 | ADR：自有内核、ORM 与双库、队列引擎、认证形态；预留 crates.io 名；workspace 骨架、`[workspace.lints]`、CI（fmt / clippy / test / deny / MSRV / 双库服务）；技术 spike：SeaORM 2 双库迁移、`SKIP LOCKED` 队列、axum 提取器组合 | CI 全绿；spike 结论写入 ADR；未通过的技术假设在进入 M1 前替换 |
-| M1 内核与 HTTP | `openrust-core`（Application / AppBuilder / Plugin / Config / Error / 生命周期）、`openrust-http`（路由约定、中间件栈、`Validated`、Problem Details、健康检查）、CLI `new` / `dev` / `serve`、无数据库模板 | `openrust new` 生成项目 `cargo test` 通过；`/health` 200；验证失败返回 422 problem+json；缺失配置启动失败并指出键名 |
+| M1 内核与 HTTP | `openrust-core`（Application / AppBuilder / Plugin / Config / Error / 生命周期）、`openrust-http`（路由约定、中间件栈、`Validated`、统一响应包装、健康检查）、CLI `new` / `dev` / `serve`、无数据库模板 | `openrust new` 生成项目 `cargo test` 通过；`/health` 200；验证失败返回 422 统一 JSON 包装；缺失配置启动失败并指出键名 |
 | M2 数据层 | `openrust-db`（连接池、迁移运行器、`src/seed.rs`、事务、`dialect` 边界）、`generate model` / `generate migration`、`migrate` / `db seed`、`openrust-test` 数据库隔离、模板 `--db`、CI 双库矩阵 | 空 PostgreSQL / MySQL 均初始化成功；重复 `migrate` 幂等；`rollback` 可用；生成实体直接编译；每个数据功能有双库测试证据 |
-| M3 邮件、认证与授权 | `openrust-mail`（smtp / log / fake）、`openrust-auth`（用户约定、Argon2id、Cookie 会话、个人访问令牌、`CurrentUser`、注册 / 登录 / 登出 / 密码重置 / 邮箱验证、Policy、角色权限、登录限流）、`generate mailer` / `generate policy` | 全部认证流程有集成测试；令牌撤销即时生效；错误密码限流可验证；Policy 拒绝返回 403 Problem |
+| M3 邮件、认证与授权 | `openrust-mail`（smtp / log / fake）、`openrust-auth`（用户约定、Argon2id、Cookie 会话、个人访问令牌、`CurrentUser`、注册 / 登录 / 登出 / 密码重置 / 邮箱验证、Policy、角色权限、登录限流）、`generate mailer` / `generate policy` | 全部认证流程有集成测试；令牌撤销即时生效；错误密码限流可验证；Policy 拒绝返回 403 包装错误 |
 | M4 队列、调度与事件 | `openrust-queue`（database driver、重试退避、`failed_jobs`、`queue work`、调度器与锁、`schedule run` / `schedule list`）、`openrust-events`、队列化邮件、`generate job` | 任务失败 → 重试 → 失败表 → 手动重试成功；多副本调度不重复；worker 停机不丢任务；两库皆验证 |
 | M5 缓存、存储与可观测性 | `openrust-cache`（memory / redis）、`openrust-storage`（local / s3）、JSON 日志、请求 ID、`/ready`、`otel` / `metrics` feature、panic 捕获 | fake driver 测试覆盖；S3 兼容路径用 MinIO 集成验证；`/ready` 依赖超时正确报告 |
 | M6 开发者体验与 0.1 发布 | mdBook 文档站（Diátaxis、迁移对照页、`coming-from-axum`）、`examples/blog` 黄金路径示例、Dockerfile / compose 模板、`routes` / `config show` / `doctor` / `db status`、`generate` / `g`（`scaffold`、`controller`、`model`、`migration`、`job`、`mailer`、`policy`、`command`）与快照测试、`cargo semver-checks`、新手走查、发布 0.1.0 | 新开发者按文档从空目录到部署在 30 分钟内完成且不读框架源码；本文件验收原则全部达标；发布动作由开发者执行 |

@@ -1,10 +1,12 @@
-//! The framework error type and its RFC 9457 rendering.
+//! Framework errors and the shared JSON response envelope.
 
 use std::collections::BTreeMap;
 
+use crate::config::HttpStatusMode;
 use axum_core::response::{IntoResponse, Response};
 use http::{HeaderValue, StatusCode, header};
 use serde::Serialize;
+use std::future::Future;
 
 use crate::config::ConfigError;
 
@@ -74,14 +76,17 @@ pub enum Error {
     /// The caller exceeded a rate limit.
     #[error("too many requests")]
     RateLimited,
+    /// The caller exceeded a rate limit; retry after the given seconds.
+    #[error("too many requests")]
+    RateLimitedWithRetryAfter(u64),
     /// Configuration could not be loaded or is invalid. Only occurs during bootstrap.
     #[error("configuration error: {0}")]
     Config(#[from] ConfigError),
-    /// Application-defined error with an explicit status and stable machine-readable code.
+    /// Application-defined error with an optional semantic status and stable code.
     #[error("{message}")]
     Custom {
         /// HTTP status to respond with.
-        status: StatusCode,
+        status: Option<StatusCode>,
         /// Stable `snake_case` code for clients to branch on.
         code: String,
         /// Human-readable detail safe to expose.
@@ -102,12 +107,30 @@ impl Error {
     }
 
     /// Builds an application-defined error with a stable `code`.
-    pub fn custom(status: StatusCode, code: impl Into<String>, message: impl Into<String>) -> Self {
+    pub fn custom(code: impl Into<String>, message: impl Into<String>) -> Self {
         Self::Custom {
-            status,
+            status: None,
             code: code.into(),
             message: message.into(),
         }
+    }
+
+    /// Builds an application-defined error with an explicit semantic HTTP status.
+    pub fn custom_with_status(
+        status: StatusCode,
+        code: impl Into<String>,
+        message: impl Into<String>,
+    ) -> Self {
+        Self::Custom {
+            status: Some(status),
+            code: code.into(),
+            message: message.into(),
+        }
+    }
+
+    /// Builds a rate-limit error carrying a `Retry-After` delay in seconds.
+    pub fn rate_limited(retry_after_secs: u64) -> Self {
+        Self::RateLimitedWithRetryAfter(retry_after_secs)
     }
 
     /// Builds a structural validation error with a readable detail.
@@ -127,8 +150,8 @@ impl Error {
             Self::NotFound(_) => StatusCode::NOT_FOUND,
             Self::Conflict(_) => StatusCode::CONFLICT,
             Self::Validation(_) | Self::ValidationDetail { .. } => StatusCode::UNPROCESSABLE_ENTITY,
-            Self::RateLimited => StatusCode::TOO_MANY_REQUESTS,
-            Self::Custom { status, .. } => *status,
+            Self::RateLimited | Self::RateLimitedWithRetryAfter(_) => StatusCode::TOO_MANY_REQUESTS,
+            Self::Custom { status, .. } => status.unwrap_or(StatusCode::BAD_REQUEST),
             Self::Config(_) | Self::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
@@ -142,7 +165,7 @@ impl Error {
             Self::NotFound(_) => "not_found",
             Self::Conflict(_) => "conflict",
             Self::Validation(_) | Self::ValidationDetail { .. } => "validation_failed",
-            Self::RateLimited => "rate_limited",
+            Self::RateLimited | Self::RateLimitedWithRetryAfter(_) => "rate_limited",
             Self::Config(_) => "configuration_error",
             Self::Custom { code, .. } => code,
             Self::Internal(_) => "internal_error",
@@ -154,31 +177,19 @@ impl Error {
         self.status().is_server_error()
     }
 
-    /// Renders the error as a problem document, hiding server-side details.
-    pub fn to_problem(&self) -> ProblemDetails {
-        let status = self.status();
-        let detail = if self.is_server_error() {
-            None
+    /// Renders the error in the common JSON envelope, hiding server details.
+    pub fn to_api_response(&self) -> ApiResponse<()> {
+        let message = if self.is_server_error() {
+            "internal server error".to_owned()
         } else {
-            match self {
-                Self::Validation(_) => Some("One or more fields failed validation.".to_owned()),
-                Self::ValidationDetail { detail, .. } => Some(detail.clone()),
-                other => Some(other.to_string()),
-            }
+            self.to_string()
         };
         let errors = match self {
             Self::Validation(errors) => Some(errors.clone()),
             Self::ValidationDetail { errors, .. } if !errors.is_empty() => Some(errors.clone()),
             _ => None,
         };
-        ProblemDetails {
-            type_uri: format!("urn:openrust:problem:{}", self.code()),
-            title: status.canonical_reason().unwrap_or("Error").to_owned(),
-            status: status.as_u16(),
-            code: self.code().to_owned(),
-            detail,
-            errors,
-        }
+        ApiResponse::failure(self.code(), message, self.status(), errors)
     }
 }
 
@@ -201,39 +212,168 @@ impl IntoResponse for Error {
         } else {
             tracing::debug!(error = %self, code = self.code(), "request rejected");
         }
-        self.to_problem().into_response()
+        let mut response = self.to_api_response().into_response();
+        if let Self::RateLimitedWithRetryAfter(seconds) = self
+            && let Ok(value) = HeaderValue::from_str(&seconds.to_string())
+        {
+            response.headers_mut().insert(header::RETRY_AFTER, value);
+        }
+        response
     }
 }
 
-/// RFC 9457 problem document. Serialized as `application/problem+json`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct ProblemDetails {
-    /// Problem type URI; OpenRust uses `urn:openrust:problem:<code>`.
-    #[serde(rename = "type")]
-    pub type_uri: String,
-    /// Short human-readable summary, the HTTP reason phrase by default.
-    pub title: String,
-    /// HTTP status code.
-    pub status: u16,
-    /// Stable machine-readable code, mirrors [`Error::code`].
-    pub code: String,
-    /// Human-readable explanation specific to this occurrence.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub detail: Option<String>,
-    /// Field-level validation failures, present for `validation_failed`.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub errors: Option<ValidationErrors>,
+/// Per-request response context set by the HTTP middleware.
+#[derive(Debug, Clone)]
+pub struct ResponseContext {
+    /// Correlation ID shared by the response header and body.
+    pub request_id: String,
+    /// Configured HTTP status policy.
+    pub http_status: HttpStatusMode,
 }
 
-impl IntoResponse for ProblemDetails {
+tokio::task_local! {
+    static RESPONSE_CONTEXT: ResponseContext;
+}
+
+/// Runs a request future with its immutable rendering context.
+pub async fn with_response_context<F: Future>(context: ResponseContext, future: F) -> F::Output {
+    RESPONSE_CONTEXT.scope(context, future).await
+}
+
+fn response_context() -> ResponseContext {
+    RESPONSE_CONTEXT
+        .try_with(Clone::clone)
+        .unwrap_or(ResponseContext {
+            request_id: "-".to_owned(),
+            http_status: HttpStatusMode::AlwaysOk,
+        })
+}
+
+/// Returns the status policy active for the current request.
+pub fn current_http_status_mode() -> HttpStatusMode {
+    response_context().http_status
+}
+
+/// JSON envelope shared by successful and failed API responses.
+#[derive(Debug, Clone, Serialize)]
+pub struct ApiResponse<T: Serialize> {
+    /// Whether the operation succeeded.
+    pub success: bool,
+    /// Stable machine-readable code.
+    pub code: String,
+    /// Message safe to display to the caller.
+    pub message: String,
+    /// Response payload; `null` for errors and empty results.
+    pub data: Option<T>,
+    /// Pagination metadata when present.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub meta: Option<serde_json::Value>,
+    /// Field-level validation errors when present.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub errors: Option<ValidationErrors>,
+    /// Correlation ID, equal to the `x-request-id` header.
+    pub request_id: String,
+    #[serde(skip)]
+    status: StatusCode,
+    #[serde(skip)]
+    mode: HttpStatusMode,
+}
+
+impl<T: Serialize> ApiResponse<T> {
+    /// Wraps a successful payload.
+    pub fn success(data: T) -> Self {
+        let context = response_context();
+        Self {
+            success: true,
+            code: "ok".to_owned(),
+            message: "ok".to_owned(),
+            data: Some(data),
+            meta: None,
+            errors: None,
+            request_id: context.request_id,
+            status: StatusCode::OK,
+            mode: context.http_status,
+        }
+    }
+
+    /// Adds pagination metadata to a successful response.
+    #[must_use]
+    pub fn with_meta<M: Serialize>(mut self, meta: M) -> Self {
+        self.meta = serde_json::to_value(meta).ok();
+        self
+    }
+
+    /// Sets the semantic HTTP status, used for created results.
+    #[must_use]
+    pub fn with_status(mut self, status: StatusCode) -> Self {
+        self.status = status;
+        self
+    }
+
+    fn failure(
+        code: &str,
+        message: String,
+        status: StatusCode,
+        errors: Option<ValidationErrors>,
+    ) -> Self {
+        let context = response_context();
+        Self {
+            success: false,
+            code: code.to_owned(),
+            message,
+            data: None,
+            meta: None,
+            errors,
+            request_id: context.request_id,
+            status,
+            mode: context.http_status,
+        }
+    }
+}
+
+impl ApiResponse<()> {
+    /// Builds a successful response with `data: null`.
+    pub fn empty() -> Self {
+        let mut response = Self::success(());
+        response.data = None;
+        response
+    }
+}
+
+impl<T: Serialize> IntoResponse for ApiResponse<T> {
     fn into_response(self) -> Response {
-        let status = StatusCode::from_u16(self.status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
-        let body = serde_json::to_vec(&self).unwrap_or_else(|_| b"{}".to_vec());
+        let request_id = HeaderValue::from_str(&self.request_id).ok();
+        let mode = self.mode;
+        let (semantic_status, body) = match serde_json::to_vec(&self) {
+            Ok(body) => (self.status, body),
+            Err(error) => {
+                tracing::error!(%error, "response serialization failed");
+                let mut fallback = Self::failure(
+                    "internal_error",
+                    "internal server error".to_owned(),
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    None,
+                );
+                fallback.request_id.clone_from(&self.request_id);
+                let body = serde_json::to_vec(&fallback).unwrap_or_else(|_| {
+                    b"{\"success\":false,\"code\":\"internal_error\",\"message\":\"internal server error\",\"data\":null,\"request_id\":\"-\"}".to_vec()
+                });
+                (StatusCode::INTERNAL_SERVER_ERROR, body)
+            }
+        };
+        let status = if mode == HttpStatusMode::AlwaysOk {
+            StatusCode::OK
+        } else {
+            semantic_status
+        };
         let mut response = (status, body).into_response();
         response.headers_mut().insert(
             header::CONTENT_TYPE,
-            HeaderValue::from_static("application/problem+json"),
+            HeaderValue::from_static("application/json"),
         );
+        if let Some(request_id) = request_id {
+            response.headers_mut().insert("x-request-id", request_id);
+        }
         response
     }
 }
@@ -243,94 +383,46 @@ mod tests {
     use super::*;
 
     #[test]
-    fn client_errors_expose_detail_and_code() {
-        let error = Error::NotFound("post 42 not found".into());
-        let problem = error.to_problem();
-        assert_eq!(problem.status, 404);
-        assert_eq!(problem.code, "not_found");
-        assert_eq!(problem.detail.as_deref(), Some("post 42 not found"));
-        assert_eq!(problem.type_uri, "urn:openrust:problem:not_found");
+    fn client_error_has_code_and_message() {
+        let response = Error::NotFound("post 42 not found".into()).to_api_response();
+        assert_eq!(response.code, "not_found");
+        assert_eq!(response.message, "post 42 not found");
+        assert!(!response.success);
     }
 
     #[test]
-    fn internal_errors_hide_their_source() {
-        let error = Error::internal(std::io::Error::other("database password is hunter2"));
-        let problem = error.to_problem();
-        assert_eq!(problem.status, 500);
-        assert_eq!(problem.detail, None);
+    fn internal_error_hides_source() {
+        let response = Error::internal(std::io::Error::other("secret")).to_api_response();
+        assert_eq!(response.message, "internal server error");
         assert!(
-            !serde_json::to_string(&problem)
+            !serde_json::to_string(&response)
                 .unwrap_or_default()
-                .contains("hunter2")
+                .contains("secret")
         );
     }
 
     #[test]
     fn validation_errors_are_listed_per_field() {
         let mut errors = ValidationErrors::new();
-        errors.add("email", "must be a valid email");
-        errors.add("email", "is already taken");
-        let problem = Error::from(errors).to_problem();
-        assert_eq!(problem.status, 422);
-        let json = serde_json::to_value(&problem).unwrap_or_default();
-        assert_eq!(json["errors"]["email"].as_array().map(Vec::len), Some(2));
+        errors.add("email", "invalid");
+        let response = Error::Validation(errors).to_api_response();
+        assert_eq!(response.errors.as_ref().map(|e| e.iter().count()), Some(1));
     }
 
     #[test]
-    fn custom_errors_keep_status_and_code() {
-        let error = Error::custom(
-            StatusCode::PAYMENT_REQUIRED,
-            "quota_exceeded",
-            "plan limit reached",
-        );
-        assert_eq!(error.status(), StatusCode::PAYMENT_REQUIRED);
-        assert_eq!(error.code(), "quota_exceeded");
+    fn custom_status_defaults_to_bad_request() {
         assert_eq!(
-            error.to_problem().detail.as_deref(),
-            Some("plan limit reached")
+            Error::custom("quota_exceeded", "limit reached").status(),
+            StatusCode::BAD_REQUEST
         );
-    }
-
-    #[test]
-    fn structural_validation_keeps_detail_and_field() {
-        let mut errors = ValidationErrors::new();
-        errors.add("pages", "expected an integer");
-        let problem =
-            Error::validation_with_detail("pages must be an integer", errors).to_problem();
-        assert_eq!(problem.status, 422);
-        assert_eq!(problem.code, "validation_failed");
-        assert_eq!(problem.detail.as_deref(), Some("pages must be an integer"));
         assert_eq!(
-            problem.errors.as_ref().map(|errors| errors.iter().count()),
-            Some(1)
-        );
-    }
-
-    #[test]
-    fn api_status_codes_remain_stable() {
-        for (status, code) in [
-            (StatusCode::METHOD_NOT_ALLOWED, "method_not_allowed"),
-            (StatusCode::REQUEST_TIMEOUT, "request_timeout"),
-            (StatusCode::PAYLOAD_TOO_LARGE, "payload_too_large"),
-            (StatusCode::UNSUPPORTED_MEDIA_TYPE, "unsupported_media_type"),
-        ] {
-            let error = Error::custom(status, code, "rejected");
-            assert_eq!(error.status(), status);
-            assert_eq!(error.code(), code);
-            assert_eq!(error.to_problem().code, code);
-        }
-    }
-
-    #[test]
-    fn problem_response_uses_problem_json_content_type() {
-        let response = Error::Unauthorized.into_response();
-        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-        assert_eq!(
-            response
-                .headers()
-                .get(header::CONTENT_TYPE)
-                .and_then(|v| v.to_str().ok()),
-            Some("application/problem+json")
+            Error::custom_with_status(
+                StatusCode::PAYMENT_REQUIRED,
+                "quota_exceeded",
+                "limit reached"
+            )
+            .status(),
+            StatusCode::PAYMENT_REQUIRED
         );
     }
 }

@@ -1,18 +1,18 @@
 //! Default middleware stack.
 //!
-//! Outermost to innermost: set `x-request-id` → propagate it to the response → tracing span →
-//! CORS → problem status mapping → request timeout → compression → panic capture. Application layers added via [`Routes::layer`](crate::Routes::layer)
+//! Outermost to innermost: set `x-request-id` → response context → propagate it to the response → tracing span →
+//! CORS → status mapping → request timeout → compression → panic capture. Application layers added via [`Routes::layer`](crate::Routes::layer)
 //! run inside this stack.
 
 use std::any::Any;
 use std::time::Duration;
 
 use axum::Router;
-use axum::extract::Request;
+use axum::extract::{Request, State};
 use axum::http::{HeaderName, HeaderValue, Method, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
-use openrust_core::config::{ConfigError, CorsConfig, ServerConfig};
-use openrust_core::{Error, Result};
+use openrust_core::config::{ApiConfig, ConfigError, CorsConfig, ServerConfig};
+use openrust_core::{Error, ResponseContext, Result, with_response_context};
 use tower_http::catch_panic::CatchPanicLayer;
 use tower_http::compression::CompressionLayer;
 use tower_http::cors::{Any as AnyOrigin, CorsLayer};
@@ -21,7 +21,7 @@ use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::TraceLayer;
 
 /// Wraps `router` in the default stack.
-pub fn apply(router: Router, server: &ServerConfig) -> Result<Router> {
+pub fn apply(router: Router, server: &ServerConfig, api: &ApiConfig) -> Result<Router> {
     let cors = if server.cors.enabled {
         Some(cors_layer(&server.cors)?)
     } else {
@@ -37,7 +37,7 @@ pub fn apply(router: Router, server: &ServerConfig) -> Result<Router> {
         StatusCode::REQUEST_TIMEOUT,
         Duration::from_secs(server.request_timeout_secs),
     ));
-    let router = router.layer(axum::middleware::map_response(problem_status));
+    let router = router.layer(axum::middleware::map_response(envelope_status));
     let router = if let Some(cors) = cors {
         router.layer(cors)
     } else {
@@ -46,16 +46,53 @@ pub fn apply(router: Router, server: &ServerConfig) -> Result<Router> {
     Ok(router
         .layer(TraceLayer::new_for_http().make_span_with(request_span))
         .layer(PropagateRequestIdLayer::x_request_id())
-        .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid)))
+        .layer(axum::middleware::from_fn_with_state(
+            api.clone(),
+            response_context,
+        ))
+        .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
+        .layer(axum::middleware::from_fn(normalize_request_id)))
 }
 
-async fn problem_status(response: Response) -> Response {
+async fn normalize_request_id(mut request: Request, next: axum::middleware::Next) -> Response {
+    if request
+        .headers()
+        .get("x-request-id")
+        .is_some_and(|value| value.to_str().is_err())
+    {
+        request.headers_mut().remove("x-request-id");
+    }
+    next.run(request).await
+}
+
+async fn response_context(
+    State(api): State<ApiConfig>,
+    request: Request,
+    next: axum::middleware::Next,
+) -> Response {
+    let request_id = request
+        .headers()
+        .get("x-request-id")
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("-")
+        .to_owned();
+    with_response_context(
+        ResponseContext {
+            request_id,
+            http_status: api.http_status,
+        },
+        next.run(request),
+    )
+    .await
+}
+
+async fn envelope_status(response: Response) -> Response {
     if response.status() == StatusCode::REQUEST_TIMEOUT
         && !response
             .headers()
             .contains_key(axum::http::header::CONTENT_TYPE)
     {
-        Error::custom(
+        Error::custom_with_status(
             StatusCode::REQUEST_TIMEOUT,
             "request_timeout",
             "request timed out",
@@ -63,11 +100,9 @@ async fn problem_status(response: Response) -> Response {
         .into_response()
     } else if response.status() == StatusCode::PAYLOAD_TOO_LARGE
         && response.headers().get(axum::http::header::CONTENT_TYPE)
-            != Some(&axum::http::HeaderValue::from_static(
-                "application/problem+json",
-            ))
+            != Some(&axum::http::HeaderValue::from_static("application/json"))
     {
-        Error::custom(
+        Error::custom_with_status(
             StatusCode::PAYLOAD_TOO_LARGE,
             "payload_too_large",
             "request body too large",

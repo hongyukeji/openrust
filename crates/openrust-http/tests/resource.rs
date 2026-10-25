@@ -1,12 +1,12 @@
 //! Resource routing and response contracts through axum's one-shot service.
 
-use axum::Json;
 use axum::body::{Body, to_bytes};
 use axum::extract::Path;
 use axum::http::{Method, Request, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use openrust_core::config::FrameworkConfig;
 use openrust_core::{AppBuilder, finalize};
+use openrust_http::Json;
 use openrust_http::{
     Action, AppBuilderHttpExt, Created, NoContent, PageParams, Paginated, Resource,
     ResourceActions, Routes, build_router,
@@ -80,7 +80,9 @@ impl Resource for FilteredBeforeRegistration {
 async fn router(
     f: impl Fn(Routes) -> Routes + Send + Sync + 'static,
 ) -> openrust_core::Result<axum::Router> {
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment::Figment::new());
+    let mut config = FrameworkConfig::default();
+    config.api.http_status = openrust_core::config::HttpStatusMode::Semantic;
+    let mut builder = AppBuilder::new(config, figment::Figment::new());
     builder.routes(f);
     let app = finalize(builder).await?;
     build_router(&app)
@@ -292,11 +294,11 @@ async fn created_and_no_content_have_their_status_and_body_contract() -> TestRes
     let response = send(router.clone(), Method::POST, "/created").await?;
     assert_eq!(response.status(), StatusCode::CREATED);
     assert_eq!(response.headers()[header::CONTENT_TYPE], "application/json");
-    assert_eq!(json_body(response).await?, json!({"id": 42}));
+    assert_eq!(json_body(response).await?["data"], json!({"id": 42}));
 
     let response = send(router, Method::DELETE, "/no-content").await?;
-    assert_eq!(response.status(), StatusCode::NO_CONTENT);
-    assert_eq!(body(response).await?, Vec::<u8>::new());
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(json_body(response).await?["data"], Value::Null);
     Ok(())
 }
 
@@ -311,12 +313,14 @@ async fn pagination_defaults_and_json_shape() -> TestResult {
     let response = send(router.clone(), Method::GET, "/page").await?;
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(response.headers()[header::CONTENT_TYPE], "application/json");
+    let page = json_body(response).await?;
+    assert_eq!(page["data"], json!(["a", "b"]));
     assert_eq!(
-        json_body(response).await?,
-        json!({"data": ["a", "b"], "meta": {"page": 1, "per_page": 20, "total": 57, "total_pages": 3}})
+        page["meta"],
+        json!({"page": 1, "per_page": 20, "total": 57, "total_pages": 3})
     );
     assert_eq!(
-        json_body(send(router, Method::GET, "/params?page=3&per_page=10").await?).await?,
+        json_body(send(router, Method::GET, "/params?page=3&per_page=10").await?).await?["data"],
         json!({"page": 3, "per_page": 10, "offset": 20, "limit": 10})
     );
     Ok(())
@@ -326,7 +330,7 @@ async fn pagination_defaults_and_json_shape() -> TestResult {
 async fn pagination_per_page_only_keeps_default_page() -> TestResult {
     let router = router(|routes| routes.get("/params", pagination_params)).await?;
     assert_eq!(
-        json_body(send(router, Method::GET, "/params?per_page=50").await?).await?,
+        json_body(send(router, Method::GET, "/params?per_page=50").await?).await?["data"],
         json!({"page": 1, "per_page": 50, "offset": 0, "limit": 50})
     );
     Ok(())
@@ -344,7 +348,7 @@ async fn pagination_accepts_largest_database_offset() -> TestResult {
             )
             .await?
         )
-        .await?,
+        .await?["data"],
         json!({"page": 9_223_372_036_854_775_808_u64, "per_page": 1, "offset": i64::MAX, "limit": 1})
     );
     Ok(())
@@ -359,18 +363,15 @@ async fn pagination_rejects_database_offset_overflow_as_page_error() -> TestResu
     ] {
         let response = send(router.clone(), Method::GET, &format!("/page?{query}")).await?;
         assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
-        assert_eq!(
-            response.headers()[header::CONTENT_TYPE],
-            "application/problem+json"
-        );
-        let problem = json_body(response).await?;
-        assert_eq!(problem["errors"]["page"], json!(["is too large"]));
+        assert_eq!(response.headers()[header::CONTENT_TYPE], "application/json");
+        let envelope = json_body(response).await?;
+        assert_eq!(envelope["errors"]["page"], json!(["is too large"]));
     }
     Ok(())
 }
 
 #[tokio::test]
-async fn pagination_rejects_out_of_range_and_invalid_fields_as_problems() -> TestResult {
+async fn pagination_rejects_out_of_range_and_invalid_fields_as_envelopes() -> TestResult {
     let router = router(|routes| routes.get("/page", paginated)).await?;
     for (query, field) in [
         ("page=0", "page"),
@@ -387,18 +388,15 @@ async fn pagination_rejects_out_of_range_and_invalid_fields_as_problems() -> Tes
             StatusCode::UNPROCESSABLE_ENTITY,
             "{query}"
         );
-        assert_eq!(
-            response.headers()[header::CONTENT_TYPE],
-            "application/problem+json"
-        );
-        let problem = json_body(response).await?;
-        assert_eq!(problem["code"], "validation_failed");
-        assert!(problem["errors"][field].is_array(), "{query}: {problem}");
+        assert_eq!(response.headers()[header::CONTENT_TYPE], "application/json");
+        let envelope = json_body(response).await?;
+        assert_eq!(envelope["code"], "validation_failed");
+        assert!(envelope["errors"][field].is_array(), "{query}: {envelope}");
     }
     let response = send(router, Method::GET, "/page?page=0&per_page=101").await?;
-    let problem = json_body(response).await?;
-    assert!(problem["errors"]["page"].is_array());
-    assert!(problem["errors"]["per_page"].is_array());
+    let envelope = json_body(response).await?;
+    assert!(envelope["errors"]["page"].is_array());
+    assert!(envelope["errors"]["per_page"].is_array());
     Ok(())
 }
 
@@ -424,7 +422,7 @@ async fn total_pages_cover_zero_exact_and_partial_pages() -> TestResult {
 fn created_location_is_set_and_invalid_value_is_safe() -> TestResult {
     let response =
         Created::with_location("/api/posts/42", Json(json!({"id": 42})))?.into_response();
-    assert_eq!(response.status(), StatusCode::CREATED);
+    assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(response.headers()[header::LOCATION], "/api/posts/42");
     let invalid = Created::with_location("/api/posts/\n", Json(json!({"id": 42})));
     assert!(invalid.is_err());
@@ -432,10 +430,7 @@ fn created_location_is_set_and_invalid_value_is_safe() -> TestResult {
         .err()
         .map(IntoResponse::into_response)
         .ok_or("expected error")?;
-    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
-    assert_eq!(
-        response.headers()[header::CONTENT_TYPE],
-        "application/problem+json"
-    );
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers()[header::CONTENT_TYPE], "application/json");
     Ok(())
 }

@@ -15,5 +15,8 @@ keywords.workspace = true
 [dependencies]
 openrust.workspace = true
 
+[dev-dependencies]
+serde_json.workspace = true
+
 [lints]
 workspace = true

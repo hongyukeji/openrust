@@ -266,7 +266,7 @@ impl App {
                 } else {
                     format!("available: {}", available.join(", "))
                 };
-                Error::custom(
+                Error::custom_with_status(
                     http::StatusCode::BAD_REQUEST,
                     "unknown_command",
                     format!("unknown command `{input}`; {hint}"),
@@ -277,7 +277,7 @@ impl App {
         if !command.accepts_args()
             && let Some(argument) = remaining.first()
         {
-            return Err(Error::custom(
+            return Err(Error::custom_with_status(
                 http::StatusCode::BAD_REQUEST,
                 "unexpected_argument",
                 format!(

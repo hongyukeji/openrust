@@ -12,6 +12,8 @@ pub mod plugin;
 pub use app::{App, AppBuilder, AppState, Application, MissingServiceError};
 pub use command::Command;
 pub use config::NoConfig;
-pub use error::{Error, ProblemDetails, Result, ValidationErrors};
+pub use error::{
+    ApiResponse, Error, ResponseContext, Result, ValidationErrors, with_response_context,
+};
 pub use lifecycle::{bootstrap, bootstrap_with, finalize, shutdown_signal};
 pub use plugin::{BoxFuture, Plugin};

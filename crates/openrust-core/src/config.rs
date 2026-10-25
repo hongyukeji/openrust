@@ -114,8 +114,29 @@ pub struct FrameworkConfig {
     pub app: AppConfig,
     /// `[server]` section.
     pub server: ServerConfig,
+    /// `[api]` section.
+    pub api: ApiConfig,
     /// `[log]` section.
     pub log: LogConfig,
+}
+
+/// `[api]` section: JSON response policy.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ApiConfig {
+    /// HTTP status policy for framework JSON responses.
+    pub http_status: HttpStatusMode,
+}
+
+/// HTTP status policy for framework JSON responses.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HttpStatusMode {
+    /// Always return HTTP 200 and use the response code in the body.
+    #[default]
+    AlwaysOk,
+    /// Preserve semantic HTTP status codes alongside the response body.
+    Semantic,
 }
 
 /// `[app]` section: identity of the application.
@@ -520,6 +541,47 @@ mod tests {
         assert_eq!(server.cors.expose_headers, ["x-request-id"]);
         assert!(!server.cors.allow_credentials);
         assert_eq!(server.cors.max_age_secs, 600);
+    }
+
+    #[test]
+    fn api_http_status_defaults_overrides_and_rejects_invalid_value() {
+        figment::Jail::expect_with(|jail| {
+            jail.create_dir("config")?;
+            jail.create_file("config/default.toml", "[api]\nhttp_status = \"semantic\"")?;
+            let loader = ConfigLoader::new("config", Environment::Test);
+            assert_eq!(
+                FrameworkConfig::default().api.http_status,
+                HttpStatusMode::AlwaysOk
+            );
+            assert_eq!(
+                loader
+                    .load_framework()
+                    .map_err(|e| figment::Error::from(e.to_string()))?
+                    .api
+                    .http_status,
+                HttpStatusMode::Semantic
+            );
+            jail.set_env("OPENRUST_API__HTTP_STATUS", "always_ok");
+            assert_eq!(
+                loader
+                    .load_framework()
+                    .map_err(|e| figment::Error::from(e.to_string()))?
+                    .api
+                    .http_status,
+                HttpStatusMode::AlwaysOk
+            );
+            jail.set_env("OPENRUST_API__HTTP_STATUS", "invalid");
+            let error = loader
+                .load_framework()
+                .err()
+                .map(|e| e.to_string())
+                .unwrap_or_default();
+            assert!(
+                error.to_ascii_lowercase().contains("api.http_status"),
+                "{error}"
+            );
+            Ok(())
+        });
     }
 
     #[test]

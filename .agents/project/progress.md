@@ -10,8 +10,8 @@
 | ADR-001 至 ADR-008 | 已接受 |
 | 仓库基线（许可证、README、工具链声明、Agent 契约、CHANGELOG、贡献与安全政策） | 已就位 |
 | workspace、lint 基线、CI 工作流 | 已就位；CI 的双库 job 预置但禁用，M2 启用 |
-| `openrust-core` | 已实现并测试：配置分层、错误与 Problem 渲染、注册表、plugin 级联、空格嵌套命令 |
-| `openrust-http` | 已实现并测试：`Routes`、`Resource` / `ResourceActions`、`Created` / `NoContent` / `PageParams` / `Paginated`、OpenRust `Json` / `Path` / `Query`、`Inject`、`Validated`、404/405/408/413 Problem 兜底、`Created::with_location`、含 gzip/br 与 CORS 的中间件栈、`/health`、`serve` |
+| `openrust-core` | 已实现并测试：配置分层、错误与 `ApiResponse<T>` 包装渲染、注册表、plugin 级联、空格嵌套命令 |
+| `openrust-http` | 已实现并测试：`Routes`、`Resource` / `ResourceActions`、`Created` / `NoContent` / `PageParams` / `Paginated`、OpenRust `Json` / `Path` / `Query`、`Inject`、`Validated`、404/405/408/413 包装兜底、`Created::with_location`、含 gzip/br 与 CORS 的中间件栈、`/health`、`serve` |
 | `openrust` / `openrust-cli` | 门面 `run` 与 CLI 转发可用 |
 | `apps/server` | M1 聚合入口已实现：默认 HTTP、配置文件、`/health`、根路由与无端口集成测试 |
 | 其余 8 个 crate | 空壳，README 标注规划 surface 与里程碑 |

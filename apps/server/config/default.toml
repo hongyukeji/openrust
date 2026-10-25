@@ -20,3 +20,6 @@ enabled = false
 # expose_headers = ["x-request-id"]
 # allow_credentials = false
 # max_age_secs = 600
+
+[api]
+http_status = "always_ok"

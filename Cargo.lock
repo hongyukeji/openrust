@@ -906,6 +906,7 @@ name = "openrust-server"
 version = "0.0.0"
 dependencies = [
  "openrust",
+ "serde_json",
 ]
 
 [[package]]

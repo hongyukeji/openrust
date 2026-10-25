@@ -27,9 +27,9 @@ fn health_has_request_id() -> TestResult {
             .await?;
         assert_eq!(response.status(), StatusCode::OK);
         assert!(response.headers().contains_key("x-request-id"));
-        assert!(
-            std::str::from_utf8(&to_bytes(response.into_body(), usize::MAX).await?)?.contains("ok")
-        );
+        let body: serde_json::Value =
+            serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await?)?;
+        assert_eq!(body, serde_json::json!({"status": "ok"}));
         Ok(())
     })
 }
@@ -42,10 +42,14 @@ fn root_reports_server_name_and_version() -> TestResult {
             .oneshot(Request::get("/").body(Body::empty())?)
             .await?;
         assert_eq!(response.status(), StatusCode::OK);
+        let request_id = response.headers()["x-request-id"].to_str()?.to_owned();
         let body = to_bytes(response.into_body(), usize::MAX).await?;
-        let text = std::str::from_utf8(&body)?;
-        assert!(text.contains("\"name\":\"openrust-server\""), "{text}");
-        assert!(text.contains(env!("CARGO_PKG_VERSION")), "{text}");
+        let json: serde_json::Value = serde_json::from_slice(&body)?;
+        assert_eq!(json["success"], true);
+        assert_eq!(json["code"], "ok");
+        assert_eq!(json["data"]["name"], "openrust-server");
+        assert_eq!(json["data"]["version"], env!("CARGO_PKG_VERSION"));
+        assert_eq!(json["request_id"], request_id);
         Ok(())
     })
 }
@@ -78,26 +82,28 @@ fn default_config_loads_from_package_directory() -> TestResult {
     let framework = loader.load_framework()?;
     assert_eq!(framework.app.name, "openrust-server");
     assert_eq!(framework.server.port, 3000);
+    assert_eq!(framework.api.http_status, config::HttpStatusMode::AlwaysOk);
     assert!(framework.server.compression.enabled);
     assert!(!framework.server.cors.enabled);
     Ok(())
 }
 
 #[test]
-fn unknown_route_returns_404_problem() -> TestResult {
+fn unknown_route_returns_envelope() -> TestResult {
     openrust::tokio::runtime::Runtime::new()?.block_on(async {
         let response = router()
             .await?
             .oneshot(Request::get("/nope").body(Body::empty())?)
             .await?;
-        assert_eq!(response.status(), StatusCode::NOT_FOUND);
-        assert_eq!(
-            response.headers()["content-type"],
-            "application/problem+json"
-        );
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.headers()["content-type"], "application/json");
         assert!(response.headers().contains_key("x-request-id"));
+        let request_id = response.headers()["x-request-id"].to_str()?.to_owned();
         let body = to_bytes(response.into_body(), usize::MAX).await?;
-        assert!(std::str::from_utf8(&body)?.contains("\"code\":\"not_found\""));
+        let json: serde_json::Value = serde_json::from_slice(&body)?;
+        assert_eq!(json["success"], false);
+        assert_eq!(json["code"], "not_found");
+        assert_eq!(json["request_id"], request_id);
         Ok(())
     })
 }

@@ -90,7 +90,7 @@
 | 提取器 | `Inject<T>`、`Validated<T>`、`CurrentUser` | `shaku_axum::Inject`；axum-valid `Valid<T>`。备选名会与 tower、axum、actix、bevy 的已有类型重名 |
 | 路由 | `Routes::nest(prefix, f)`（空前缀或 `/` 时 merge）、`merge`、`layer`、`resource::<R>(path)`、`resource_with` | axum、Poem、loco 都用 `nest`；actix `web::resource` |
 | 资源动作 | `Action::{List, Get, Create, Update, Delete}`；`ResourceActions::{list, get, create, update, delete}`；映射为 list → GET path、create → POST path、get → GET path/{id}、update → PUT 和 PATCH path/{id}、delete → DELETE path/{id} | 开发者已定；与 Google AIP 标准方法一致。生成器生成的 handler 函数名需避开与 `axum::routing::{get, delete}` 重名（loco 用 `get_one` / `remove`），具体在生成器实现时定 |
-| 响应 | `Created<T>`、`NoContent`、`PageParams { page, per_page }`、`Paginated<T>` | axum 的类型化响应风格；`per_page` 与 GitHub REST API 一致 |
+| 响应 | `Created<T>`、`NoContent`、`PageParams { page, per_page }`、`Paginated<T>`、`ApiResponse<T>` | axum 的类型化响应风格；`per_page` 与 GitHub REST API 一致 |
 | 命令 | `trait Command`，名称为空格分隔的多个词，如 `config show`；`accepts_args()` 声明是否接收名称后的参数，默认不接收 | 同第 2 节；参数需由命令显式声明，参照 clap 的参数定义 |
 | 邮件 | `trait Email`，产出 `lettre::Message`，由 `Mailer` 发送 | lettre 与 loco 的 `Mailer` |
 | 缓存 | `get` / `insert` / `remove` / `get_or_insert_with` / `increment` | moka、std `HashMap`、loco cache |

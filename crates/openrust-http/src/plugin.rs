@@ -78,12 +78,12 @@ pub fn build_router(app: &App) -> Result<Router> {
         .into_router()
         .fallback(|| async { Error::NotFound("route not found".into()) })
         .method_not_allowed_fallback(|| async {
-            Error::custom(
+            Error::custom_with_status(
                 StatusCode::METHOD_NOT_ALLOWED,
                 "method_not_allowed",
                 "method not allowed",
             )
         })
         .with_state(app.state().clone());
-    middleware::apply(stateful, &app.config().server)
+    middleware::apply(stateful, &app.config().server, &app.config().api)
 }

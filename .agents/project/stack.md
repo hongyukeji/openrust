@@ -13,7 +13,7 @@
 | 限流 | `tower_governor` | 登录等端点限流 |
 | 会话 | `tower-sessions` | 数据库 store 默认，Redis store 可选 |
 | OpenAPI | `utoipa` + `utoipa-axum` | 从类型生成文档，`/docs` 非生产默认开启 |
-| 序列化 | `serde` + `serde_json` | — |
+| 序列化 | `serde` + `serde_json` | `apps/server` 集成测试用 `serde_json` 比对包装字段与请求 ID |
 | 验证 | `validator` | M0 评估 `garde` 后定稿 |
 | 配置 | `figment` | 已采用；错误信息含键名（测试覆盖） |
 | 日志 / 追踪 | `tracing` + `tracing-subscriber`；可选 `opentelemetry` / `metrics` | — |

@@ -3,14 +3,15 @@
 use std::collections::HashMap;
 use std::num::NonZeroU64;
 
-use axum::Json;
 use axum::extract::{FromRequestParts, Query};
 use axum::http::{HeaderValue, StatusCode, header, request::Parts};
 use axum::response::{IntoResponse, Response};
-use openrust_core::{Error, Result, ValidationErrors};
+use openrust_core::config::HttpStatusMode;
+use openrust_core::error::current_http_status_mode;
+use openrust_core::{ApiResponse, Error, Result, ValidationErrors};
 use serde::{Deserialize, Serialize};
 
-/// Wraps a response with HTTP 201 Created.
+/// Marks a successful response as created in semantic HTTP mode.
 ///
 /// ```
 /// use openrust_http::{Created, Json};
@@ -23,18 +24,22 @@ pub struct Created<T>(pub T);
 
 impl<T: IntoResponse> IntoResponse for Created<T> {
     fn into_response(self) -> Response {
-        (StatusCode::CREATED, self.0).into_response()
+        let mut response = self.0.into_response();
+        if current_http_status_mode() == HttpStatusMode::Semantic {
+            *response.status_mut() = StatusCode::CREATED;
+        }
+        response
     }
 }
 
-/// A 201 response with a validated `Location` header.
+/// A created response with a validated `Location` header.
 pub struct Located<T> {
     location: HeaderValue,
     body: T,
 }
 
 impl<T> Created<T> {
-    /// Creates a 201 response with `Location`; invalid header values return a 500 problem.
+    /// Creates a response with `Location`; invalid header values return an internal error.
     pub fn with_location(location: &str, body: T) -> Result<Located<T>> {
         let location = HeaderValue::from_str(location).map_err(Error::internal)?;
         Ok(Located { location, body })
@@ -51,12 +56,12 @@ impl<T: IntoResponse> IntoResponse for Located<T> {
     }
 }
 
-/// Responds with HTTP 204 and an empty body.
+/// Responds with a successful envelope containing `data: null`.
 pub struct NoContent;
 
 impl IntoResponse for NoContent {
     fn into_response(self) -> Response {
-        StatusCode::NO_CONTENT.into_response()
+        ApiResponse::empty().into_response()
     }
 }
 
@@ -187,24 +192,16 @@ impl<T: Serialize> IntoResponse for Paginated<T> {
             total_pages: u64,
         }
 
-        #[derive(Serialize)]
-        struct Page<T> {
-            data: Vec<T>,
-            meta: Meta,
-        }
-
         let total_pages = NonZeroU64::new(self.params.per_page).map_or(0, |page_size| {
             self.total / page_size.get() + u64::from(!self.total.is_multiple_of(page_size.get()))
         });
-        Json(Page {
-            data: self.items,
-            meta: Meta {
+        ApiResponse::success(self.items)
+            .with_meta(Meta {
                 page: self.params.page,
                 per_page: self.params.per_page,
                 total: self.total,
                 total_pages,
-            },
-        })
-        .into_response()
+            })
+            .into_response()
     }
 }

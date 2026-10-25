@@ -29,4 +29,4 @@ fn main() -> std::process::ExitCode {
 
 `openrust::run` loads configuration, installs tracing, builds and finishes the application's plugins, and dispatches the first command-line argument as a command (`serve` when absent). Applications install `HttpPlugin` to provide `serve`, `/health` and HTTP routing. The application binary doubles as its own CLI: `my-app serve`, `my-app config show`, `my-app help`.
 
-The prelude exports OpenRust `Json<T>`, `Path<T>` and `Query<T>` extractors. They render parse failures as problem+json; `Json<T>` is also a response type. Axum's original types remain available through `openrust::http::axum`. For example, `async fn show() -> Json<&'static str> { Json("ok") }` returns JSON.
+The prelude exports OpenRust `Json<T>`, `Path<T>` and `Query<T>` extractors. They render parse failures as `ApiResponse<T>` JSON envelopes; `Json<T>` is also a response type. Axum's original types remain available through `openrust::http::axum`. For example, `async fn show() -> Json<&'static str> { Json("ok") }` returns JSON.

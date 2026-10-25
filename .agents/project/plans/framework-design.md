@@ -11,7 +11,7 @@ OpenRust 追求的优雅是 Rust 语境下的优雅：靠类型、trait 和约�
 1. **约定优于配置，但约定可见**：目录、命名、路由、迁移和配置键有默认约定；每个约定在生成代码或文档中可查，不藏在宏展开里。
 2. **显式依赖**：服务在 `Plugin` 中用 `AppBuilder::insert` 注册，处理函数用 `Inject<T>` 声明依赖，签名即依赖清单；不提供全局 Service Locator、运行期反射容器或静态 Facade。
 3. **一件事一个明显做法**：每类能力只有一个官方入口（验证只用 `Validated<T>`，授权只用 `Policy`），不保留多套并存。
-4. **错误是一等公民**：框架错误统一为 `openrust::Error`，自动映射为 RFC 9457 Problem Details 响应；库代码禁止 `unwrap` / `expect` / `panic!`。
+4. **错误是一等公民**：框架错误统一为 `openrust::Error`，自动映射为 `ApiResponse<T>` 统一包装响应；库代码禁止 `unwrap` / `expect` / `panic!`。
 5. **宏只做派生，不做控制流**：`#[derive(...)]` 和少量属性宏用于消除样板；不用宏改变程序结构或隐藏调用关系。
 6. **可替换但不过度抽象**：缓存、队列、存储、邮件各一个 trait、多个 driver；trait 只覆盖已有 driver 的共同能力，不预留假想扩展点。
 7. **生成即普通代码**：CLI 生成的文件是开发者会亲手写出的代码，可读、可改、可删，无框架专属注解。
@@ -26,7 +26,7 @@ openrust/
 ├── crates/
 │   ├── openrust/              # 门面 crate：re-export、prelude、feature 开关
 │   ├── openrust-core/         # Application、AppBuilder、Plugin、Config、Error、生命周期
-│   ├── openrust-http/         # Router 约定、提取器、中间件栈、Problem Details、健康检查
+│   ├── openrust-http/         # Router 约定、提取器、中间件栈、统一响应包装、健康检查
 │   ├── openrust-db/           # 连接池、迁移运行器、事务、方言边界
 │   ├── openrust-auth/         # 用户约定、密码哈希、认证策略、Policy、密码重置、邮箱验证
 │   ├── openrust-queue/        # Job、Queue driver、重试、失败表、调度器
@@ -116,7 +116,7 @@ impl Application for Blog {
 
 - `openrust::run` 解析子命令：无参数或 `serve` 启动服务；`migrate` / `db seed` / `queue work` / `schedule run` / `routes` / `config show` 由框架与各 plugin 构建。应用二进制本身就是运行期 CLI，无需额外安装。
 - 生命周期（`openrust_core::lifecycle::bootstrap`）：确定环境，非生产时加载 `.env` → 加载配置 → 初始化 `tracing` → 提取 `Application::Config` 并注册为服务 → `Application::build` → 依次调用 plugin `build`（含构建期间新增的 plugin）→ 冻结为 `App` → 调用 plugin `finish` → 分发命令（默认 `serve`）→ 监听并处理 `SIGTERM` / `SIGINT` 优雅停机。
-- `AppState` 是按 `TypeId` 索引的只读服务注册表，业务服务通过 `app.insert(MyService::new(...))` 注册，handler 用 `Inject<MyService>` 取用；缺少注册在请求时返回 500 Problem，内部错误包含类型名，不 panic。框架 crate 之间的硬依赖在 plugin `build` 中用 `app.get::<T>()` 检查并在启动时报错。
+- `AppState` 是按 `TypeId` 索引的只读服务注册表，业务服务通过 `app.insert(MyService::new(...))` 注册，handler 用 `Inject<MyService>` 取用；缺少注册在请求时返回 500 包装，内部错误包含类型名，不 panic。框架 crate 之间的硬依赖在 plugin `build` 中用 `app.get::<T>()` 检查并在启动时报错。
 - `Plugin` 是业务模块与第三方包的唯一扩展入口：一个 crate 暴露一个 plugin 即可带入路由、迁移、配置段和命令。不做动态加载。
 
 ## 配置
@@ -161,9 +161,9 @@ pub async fn create(
 
 ## 错误模型
 
-- 单一 `openrust::Error` 枚举：`BadRequest` / `NotFound` / `Unauthorized` / `Forbidden` / `Validation` / `Conflict` / `RateLimited` / `Config` / `Custom` / `Internal`。业务自定义错误通过 `Error::custom(status, code, message)` 或 `impl From<DomainError> for Error` 接入。
-- `Error` 实现 `IntoResponse`，输出 `application/problem+json`：`type`（`urn:openrust:problem:<code>`）/ `title` / `status` / `code` / `detail`，验证错误追加 `errors: { field: [message] }`。请求关联靠响应头 `x-request-id`，不在正文重复。
-- 5xx 错误（`Internal` / `Config`）不返回 `detail`，细节只进入日志；`Error::Internal` 包装任意 `std::error::Error`，数据库等能力 crate 的错误通过 `From` 进入该变体或映射为 `NotFound` / `Conflict`。
+- 单一 `openrust::Error` 枚举：`BadRequest` / `NotFound` / `Unauthorized` / `Forbidden` / `Validation` / `Conflict` / `RateLimited` / `Config` / `Custom` / `Internal`。业务自定义错误通过 `Error::custom(code, message)` 或 `Error::custom_with_status(status, code, message)` 或 `impl From<DomainError> for Error` 接入。
+- `Error` 实现 `IntoResponse`，输出 `application/json` 的 `ApiResponse<T>`：`success` / `code` / `message` / `data` / `request_id`，验证错误追加 `errors: { field: [message] }`；正文 `request_id` 与响应头 `x-request-id` 一致。
+- 5xx 错误（`Internal` / `Config`）只返回通用 `message`，细节只进入日志；`Error::Internal` 包装任意 `std::error::Error`，数据库等能力 crate 的错误通过 `From` 进入该变体或映射为 `NotFound` / `Conflict`。
 - 库 crate 使用 `thiserror`；`anyhow` 只出现在二进制边界。
 
 ## 数据层
@@ -213,10 +213,10 @@ queue.dispatch(SendWelcomeEmail { user_id }).delay(Duration::from_secs(60)).awai
 ## 可观测性
 
 - `tracing` 为唯一日志与追踪入口；`[log] format = "text" | "json"`，`RUST_LOG` 优先于 `[log] level`；请求 span 含 `request_id` / method / uri，状态与耗时由 `TraceLayer` 记录。
-- `x-request-id` 入站沿用、缺失时生成 UUID、出站写回；中间件固定顺序为请求 ID → 传播 → 追踪 span → CORS → 超时（408）→ 压缩 → panic 捕获（500 Problem）。
+- `x-request-id` 入站沿用、缺失时生成 UUID、出站写回；中间件固定顺序为请求 ID → 请求作用域上下文 → 传播 → 追踪 span → CORS → 超时（408）→ 压缩 → panic 捕获（500 包装）。
 - `/health` 只报告进程存活；`/ready` 带超时检查数据库、队列、缓存依赖并逐项报告。
 - 可选 feature：`otel` 导出 OTLP；`metrics` 暴露 Prometheus 端点。
-- handler panic 由 `catch_panic` 捕获并转换为 500 Problem 响应，进程不退出。
+- handler panic 由 `catch_panic` 捕获并转换为 500 包装响应，进程不退出。
 
 ## CLI
 
@@ -228,7 +228,7 @@ queue.dispatch(SendWelcomeEmail { user_id }).delay(Duration::from_secs(60)).awai
 
 ## 测试工具
 
-- `TestApp::spawn().await` 以 `OPENRUST_ENV=test` 启动应用并自动使用 fake driver；`app.client().post("/api/posts").json(&input).send().await` 返回可链式断言的响应（`assert_status` / `assert_json_path` / `assert_problem`）。
+- `TestApp::spawn().await` 以 `OPENRUST_ENV=test` 启动应用并自动使用 fake driver；`app.client().post("/api/posts").json(&input).send().await` 返回可链式断言的响应（`assert_status` / `assert_json_path` / `assert_envelope`）。
 - 数据库隔离按「数据层」约定，每个用例独立数据库。
 - fake driver 断言：`Queue::fake().assert_dispatched::<SendWelcomeEmail>()`、`Mailer::fake().assert_sent_to("a@b.c")`、`Storage::fake().assert_exists(path)`。
 - 测试数据由 `fake::Dummy` 与普通 builder 构造；数据库初始化通过 `src/seed.rs` 的 async 函数完成。
