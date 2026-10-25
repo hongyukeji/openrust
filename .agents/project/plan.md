@@ -12,6 +12,8 @@ M0、M1、M2 已完成。M1 生成项目的 `cargo test` 验收通过。M2 `open
 
 ## 执行校准
 
+- AI 平台仅为独立产品规划，不进入当前框架功能簇；收到明确启动指令后，产品代码只在 `projects/*` 分支及独立 worktree 开发，执行 [产品隔离规则](plans/ai-platform-product.md#分支与工作区硬性约束)，不为产品妥协框架契约。
+
 - 标准应用默认 Redis，由开发者要求并在 [ADR-015](decisions/adr-015-redis-default-calibration.md) 确认；memory/file 显式选择，库默认 feature 保持可组合。不得沿用 ADR-014 原 memory 默认或隐式 memory fallback；此为待 M5 实现的 contract。
 
 - `todo.md` 当前功能簇必须与实际代码 WIP 一致；新需求先合入既有范围，当前簇闭环后再切换。已提交的成果不因旧提示词再次成为开发任务。
