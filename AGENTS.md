@@ -46,7 +46,7 @@ Agent 不替代开发者做方向决策、发布判断和对外动作；开发�
 | 文档写作 | `style.md` |
 | 最近验证 | `memory/testing.md` / `memory/verification.md` |
 
-不全量读取 `docs/`、`target/`、`Cargo.lock`。项目 skills 位于 `.agents/skills/<name>/SKILL.md`，按任务名称与描述匹配后再读正文。
+`docs/` 于 M6 以 mdBook 建立；在此之前，用户文档写在各 crate 的 `README.md`。不全量读取 `docs/`、`target/`、`Cargo.lock`。项目 skills 位于 `.agents/skills/<name>/SKILL.md`，按任务名称与描述匹配后再读正文。
 
 ## 4. `.agents/project/` 目录约定
 

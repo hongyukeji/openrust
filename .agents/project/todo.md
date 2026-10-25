@@ -6,7 +6,6 @@
 
 ## M1 内核与 HTTP（进行中）
 
-- **下一个功能簇**：按 ADR-006 补齐仓库元文件（`CHANGELOG.md`、贡献、安全与行为准则）。
 - `#[openrust::resource]` 宏从 `controllers/` 模块的 `list`/`get`/`create`/`update`/`delete` 动作函数生成 `impl Resource`（函数名避让 `axum::routing` 冲突的方案见 ADR-006 §4）。
 - `openrust-cli`：`new <name> --db postgres|mysql`（M1 先生成无数据库模板，M2 加 `--db`）、`dev`、`serve` 代理；模板放 `templates/`，生成后 `cargo test` 通过的快照测试。
 - 启用 CI `databases` job 的前提是 `openrust-db` 存在，归 M2。
