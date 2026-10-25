@@ -6,7 +6,7 @@
 
 ## 当前里程碑
 
-M0 决策与基线已完成。M1 内核与 HTTP 进行中，HTTP 资源路由、响应类型、CORS 与压缩已在 `main` 实现；其余 M1 任务见 `todo.md`。
+M0 决策与基线已完成。M1 内核与 HTTP 进行中，HTTP 资源路由、响应类型、CORS、压缩及聚合启动入口已在 `main` 实现；其余 M1 任务见 `todo.md`。
 
 实现与生成器命名遵循 [ADR-006](decisions/adr-006-rust-native-naming.md)：项目采用 `controllers/`、`models/_entities/` 和独立 `migration/` crate；全局 CLI 为 `new`、`dev`、`generate` / `g`，运行期命令由项目二进制提供。
 
@@ -15,7 +15,7 @@ M0 决策与基线已完成。M1 内核与 HTTP 进行中，HTTP 资源路由、
 | 里程碑 | 主题 | 主要 crate |
 | --- | --- | --- |
 | M0 | 决策与基线 | workspace、CI、spikes |
-| M1 | 内核与 HTTP | `openrust-core`、`openrust-http`、`openrust-cli`（`new` / `dev` / `serve`） |
+| M1 | 内核与 HTTP | `openrust-core`、`openrust-http`、`apps/server`、`openrust-cli`（`new` / `dev` / `serve`） |
 | M2 | 数据层 | `openrust-db`、`openrust-test`、模板 `--db` |
 | M3 | 邮件、认证与授权 | `openrust-mail`、`openrust-auth` |
 | M4 | 队列、调度与事件 | `openrust-queue`、`openrust-events` |

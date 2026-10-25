@@ -10,12 +10,13 @@
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
+cargo test -p openrust-server
 cargo doc --workspace --no-deps
 cargo deny check            # 本机 cargo-deny 0.20：advisories / bans / licenses / sources 全部 ok
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 ```
 
-当前覆盖：`openrust-core` 25 个单元测试（含配置默认值、部分 TOML、环境变量数组、`.env` 环境隔离与命令边界），`openrust-http` 34 个集成测试（`tests/router.rs` 19 个、`tests/resource.rs` 15 个）。
+当前覆盖：`openrust-core` 25 个单元测试（含配置默认值、部分 TOML、环境变量数组、`.env` 环境隔离与命令边界），`openrust-http` 34 个集成测试（`tests/router.rs` 19 个、`tests/resource.rs` 15 个），`openrust-server` 4 个集成测试。
 
 ## 双库集成（M2 起）
 

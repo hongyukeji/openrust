@@ -16,6 +16,7 @@ keywords.workspace = true
 openrust-core.workspace = true
 openrust-http.workspace = true
 tokio.workspace = true
+tower.workspace = true
 tracing.workspace = true
 
 [lints]

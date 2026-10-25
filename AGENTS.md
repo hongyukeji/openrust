@@ -128,6 +128,7 @@ Agent 不替代开发者做方向决策、发布判断和对外动作；开发�
 
 - [ ] §6.3 匹配范围的验证实际执行并通过
 - [ ] 公共行为变化有测试
+- [ ] 新能力已接入 `apps/server` 并有集成测试（ADR-007）
 - [ ] 受影响 `docs/`、crate `README.md` 已更新
 - [ ] 受影响 `.agents/project/`（`context.md` / `todo.md` / `plan.md` / `core/<crate>.md` / 必要时 ADR）已更新
 - [ ] commit 已创建且无无关 diff

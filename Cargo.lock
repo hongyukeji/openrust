@@ -808,6 +808,7 @@ dependencies = [
  "openrust-core",
  "openrust-http",
  "tokio",
+ "tower",
  "tracing",
 ]
 
@@ -898,6 +899,13 @@ name = "openrust-queue"
 version = "0.0.0"
 dependencies = [
  "openrust-core",
+]
+
+[[package]]
+name = "openrust-server"
+version = "0.0.0"
+dependencies = [
+ "openrust",
 ]
 
 [[package]]

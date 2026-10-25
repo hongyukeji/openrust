@@ -7,6 +7,7 @@
 ## 分层
 
 ```text
+apps/server ── openrust（仓库聚合入口、集成验证宿主）
 openrust-cli ───────────────┐           （全局工具：new / dev / generate <kind>，代理运行命令）
                             ▼
 openrust（门面：prelude、feature、re-export）
@@ -27,6 +28,7 @@ openrust-test ── 依赖门面，提供 TestApp 与 fake driver 断言
 - 数据库驱动、Redis、S3、SMTP、OpenTelemetry 一律通过 feature 开启；门面 crate 默认不含数据库驱动。
 - 单库专属 SQL 只能出现在 `openrust-db::dialect`，并同时提供 PostgreSQL 与 MySQL 分支。
 - 生成的应用只依赖门面 `openrust`（及 `openrust-test` 作为 dev-dependency），不直接依赖子 crate。
+- `apps/server` 同样只依赖门面，随已实现能力扩展并补集成测试；它不发布。
 
 ## 当前状态
 
@@ -36,6 +38,7 @@ openrust-test ── 依赖门面，提供 TestApp 与 fake driver 断言
 | `openrust-http` | M0 已实现：`HttpPlugin` / `Routes` / `Validated` / `Inject` / 中间件栈 / `/health` / `serve`，见 [core/http.md](core/http.md) |
 | `openrust` | 门面与 `run`，见 [core/facade.md](core/facade.md) |
 | `openrust-cli` | 仅转发运行命令，见 [core/cli.md](core/cli.md) |
+| `apps/server` | M1 聚合入口：HTTP、默认中间件、`/health` 与根路由，见 [core/server.md](core/server.md) |
 | 其余 crate | 空壳，README 列出规划 surface |
 
 ## 扩展模型

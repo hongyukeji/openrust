@@ -14,6 +14,20 @@
 
 OpenRust is built on `tokio`, `axum`, `tower` and `SeaORM`, with explicit Rust types and conventional project structure.
 
+## Run in this repository
+
+The non-published [integration server](apps/server/README.md) runs the currently implemented framework capabilities without external services:
+
+```bash
+cargo run
+curl --noproxy '*' http://127.0.0.1:3000/health
+cargo run -p openrust-server -- config show
+cargo run -p openrust-server -- help
+cargo test -p openrust-server
+```
+
+The repository root `config` link points to `apps/server/config`, so `cargo run` reads the server's configuration. `OPENRUST_SERVER__PORT=4000 cargo run` overrides its port; `PORT=4000 cargo run` also works.
+
 ## The golden path
 
 ```bash

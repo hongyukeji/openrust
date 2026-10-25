@@ -2,6 +2,8 @@
 
 Facade crate of the [OpenRust](https://github.com/hongyukeji/openrust) framework. Applications depend on this crate only; it re-exports the kernel (`openrust-core`), the HTTP layer (`openrust-http`) and, behind Cargo features, every other capability.
 
+The facade also re-exports `tokio` and `tower::ServiceExt` so an application with only an `openrust` dependency can exercise its HTTP router in an integration test.
+
 ```rust,no_run
 use openrust::prelude::*;
 

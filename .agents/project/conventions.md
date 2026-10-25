@@ -29,7 +29,13 @@
 
 ## 框架规范
 
-权威来源：[ADR-006](decisions/adr-006-rust-native-naming.md)。本节是动手前的检查清单，与 ADR 冲突时以 ADR 为准。
+权威来源：[ADR-006](decisions/adr-006-rust-native-naming.md) 与 [ADR-007](decisions/adr-007-aggregate-server-entry.md)。本节是动手前的检查清单，与 ADR 冲突时以 ADR 为准。
+
+### 能力接入 apps/server
+
+- 每个已实现的新能力在同一功能簇内接入 `apps/server`，并补聚合应用集成测试；这是能力完成定义的一部分。
+- 不需要外部服务的能力始终启用；需要外部服务的能力按 ADR-007 添加 feature 并转发给门面。当前 M1 不设空 feature。
+- `openrust-server` 的正式依赖只包含门面 `openrust`，不承载业务资源。
 
 ### 起名前三问
 

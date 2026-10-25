@@ -9,7 +9,7 @@
 | 能力 | 选型 | 说明 |
 | --- | --- | --- |
 | 异步运行时 | `tokio` 1.x | 唯一运行时 |
-| HTTP | `axum` 0.8 + `tower` + `tower-http` | 路由、提取器、中间件；`tower-http` 启用 `cors`、`compression-gzip`、`compression-br` 以支持配置化跨域与 gzip/br 协商，另有 request-id、trace、timeout、catch-panic |
+| HTTP | `axum` 0.8 + `tower` + `tower-http` | 路由、提取器、中间件；`tower-http` 启用 `cors`、`compression-gzip`、`compression-br` 以支持配置化跨域与 gzip/br 协商，另有 request-id、trace、timeout、catch-panic；门面直接依赖并导出 `tower::ServiceExt` 供单依赖应用测试路由 |
 | 限流 | `tower_governor` | 登录等端点限流 |
 | 会话 | `tower-sessions` | 数据库 store 默认，Redis store 可选 |
 | OpenAPI | `utoipa` + `utoipa-axum` | 从类型生成文档，`/docs` 非生产默认开启 |

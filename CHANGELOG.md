@@ -6,6 +6,7 @@ All notable changes to OpenRust are documented here. The format follows [Keep a 
 
 ### Added
 
+- Added the non-published `apps/server` integration host as the workspace default for `cargo run`.
 - Established the Cargo workspace, shared lint policy, dual license, CI baseline and framework architecture decisions.
 - Added the application core with layered configuration, typed service registry, plugin lifecycle, runtime commands and structured HTTP errors.
 - Added HTTP routing, resource actions, typed responses, validation and injection extractors, health route, middleware, CORS and compression.

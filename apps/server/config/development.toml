@@ -1,0 +1,4 @@
+# Development uses the defaults in default.toml.
+[app]
+
+[server]

@@ -12,6 +12,12 @@ pub use openrust_core::{
 /// HTTP layer: routing, extractors, middleware, `serve`.
 pub use openrust_http as http;
 
+/// Service extension methods for testing an HTTP router without binding a listener.
+pub use tower::ServiceExt;
+
+/// Tokio runtime for applications depending only on the facade.
+pub use tokio;
+
 /// Everything a typical `app.rs`, controller or plugin needs.
 pub mod prelude {
     pub use crate::http::axum::extract::{Path, Query, State};

@@ -1,0 +1,22 @@
+[app]
+name = "openrust-server"
+url = "http://localhost:3000"
+
+[server]
+host = "127.0.0.1"
+port = 3000
+request_timeout_secs = 30
+shutdown_timeout_secs = 10
+
+[server.compression]
+enabled = true
+
+[server.cors]
+enabled = false
+# To enable CORS, set enabled = true and list exact origins:
+# allowed_origins = ["https://example.com"]
+# allowed_methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+# allowed_headers = ["content-type", "authorization", "x-request-id"]
+# expose_headers = ["x-request-id"]
+# allow_credentials = false
+# max_age_secs = 600
