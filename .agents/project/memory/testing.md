@@ -18,15 +18,19 @@ RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 
 当前覆盖：默认 `always_ok` 与 `semantic` 状态码、成功/错误包装、`request_id` 头正文一致、415/422/413/408/500 兜底、`Location`/`Allow`/`Retry-After`、非法配置及统一包装的 `/health`。
 
+M2：`openrust-db` 有 5 个无外部服务单测；`tests/connection.rs` 与 `apps/server` facade 集成各 1 个双库连接测试。PostgreSQL 14 与 MySQL 8.0 的真实连接、`SELECT 1` 通过；MySQL 强制 TLS，测试断言非空 TLS cipher 与 `+00:00` 会话时区。测试服务通过 `compose.ci.yaml` 启动。
+
 测试数：`openrust-core` 31 个单元测试（含分页 `PageMeta` 保留、配置目录覆盖、`.env` 选择生产时跳过其余变量、无 HTTP 插件的命令边界），`openrust-http` 49 个集成测试（`tests/router.rs` 33 个、`tests/resource.rs` 16 个），`openrust-server` 6 个集成测试（含资源宏全部动作路由映射）；`openrust` 1 个单元测试。
 
 ## 双库集成（M2 起）
 
 ```bash
-docker compose -f compose.ci.yaml up -d postgres mysql
+docker compose -f compose.ci.yaml up -d --wait postgres mysql
 OPENRUST_TEST_DATABASE_URL=postgres://openrust:openrust@localhost:5432/openrust_test cargo test -p openrust-db --features db-postgres
 OPENRUST_TEST_DATABASE_URL=mysql://openrust:openrust@localhost:3306/openrust_test cargo test -p openrust-db --features db-mysql
 ```
+
+`compose.ci.yaml` uses the minimum supported PostgreSQL 14 and MySQL 8.0 images. If those ports are already occupied, set `OPENRUST_TEST_POSTGRES_PORT` / `OPENRUST_TEST_MYSQL_PORT` when starting Compose and use the mapped ports in the URLs. The CI database job uses equivalent service containers.
 
 ## 模板快照（M1 起）
 

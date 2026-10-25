@@ -16,9 +16,15 @@ keywords.workspace = true
 openrust-core.workspace = true
 openrust-http.workspace = true
 openrust-macros.workspace = true
+openrust-db = { workspace = true, optional = true }
 tokio.workspace = true
 tower.workspace = true
 tracing.workspace = true
 
 [lints]
 workspace = true
+
+[features]
+default = []
+db-postgres = ["dep:openrust-db", "openrust-db/db-postgres"]
+db-mysql = ["dep:openrust-db", "openrust-db/db-mysql"]

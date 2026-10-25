@@ -6,7 +6,7 @@ default-members = ["apps/server"]
 [workspace.package]
 version = "0.0.0"
 edition = "2024"
-rust-version = "1.92"
+rust-version = "1.97"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/hongyukeji/openrust"
 homepage = "https://github.com/hongyukeji/openrust"
@@ -47,6 +47,8 @@ validator = { version = "0.21", features = ["derive"] }
 clap = { version = "4.6", features = ["derive"] }
 quote = "1.0"
 syn = { version = "2.0", features = ["full"] }
+sea-orm = { version = "2.0.4", default-features = false, features = ["macros", "with-chrono", "with-json", "runtime-tokio-rustls"] }
+sqlx = { version = "0.9", default-features = false }
 toml = "1.1"
 insta = "1.49"
 

@@ -4,17 +4,15 @@
 > 更新：2026-10-25
 > 摘要：只放未完成且可领取的功能簇。完成即删除，证据进 commit、`core/<crate>.md` 与 `memory/`。
 
-## M1 内核与 HTTP（进行中）
-
-- 启用 CI `databases` job 的前提是 `openrust-db` 存在，归 M2。
+## 后续里程碑
 
 - OpenAPI：后续里程碑用 `utoipa` 生成 schema，并在非生产环境挂载 `/docs`（ADR-008 §6）。
 
-## M2 数据层（M1 收口后领取）
+## M2 数据层（进行中）
 
-
+- `openrust-db` 连接池 / plugin 首个功能簇已实现；workspace 与 CI 按 ADR-005 更新至 Rust 1.97，MySQL driver 强制 TLS 并移除 `mysql-rsa`。
 - 在最低支持版本 PostgreSQL 14 与 MySQL 8.0 上复测 ADR-002 / ADR-003 的迁移与 `SKIP LOCKED` 结论（spike 只测了 PG 15/18、MySQL 8.4）。
-- `memory/testing.md` 引用的 `compose.ci.yaml` 不存在：随 `databases` job 一并补齐或改正引用。
+- 后续 `openrust-db` 功能簇：迁移 runner、UTC/JSON dialect helper、事务辅助与 seed/CLI，再接入 `openrust-test` 数据库隔离和 `openrust new --db` 模板。
 
 ## M3 邮件、认证与授权（M2 收口后领取）
 

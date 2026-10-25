@@ -2,17 +2,17 @@
 
 > 受众：AI Agent
 > 更新：2026-10-25
-> 摘要：OpenRust 是全新的开源 Rust 应用开发框架，当前处于第一代 M1 阶段。
+> 摘要：OpenRust 是全新的开源 Rust 应用开发框架，当前处于第一代 M2 阶段。
 
 ## 当前状态
 
 | 项 | 值 |
 | --- | --- |
 | 版本 | 0.0.0（未发布，crates.io 名称未预留） |
-| 阶段 | 第一代 M0「决策与基线」已完成，M1「内核与 HTTP」进行中；HTTP 资源、响应、CLI 与资源控制器宏已实现，余项见 `todo.md` |
+| 阶段 | 第一代 M0、M1 已完成，M2「数据层」进行中；`openrust-db` 连接池与双库连接验证已实现，后续工作见 `todo.md` |
 | 仓库 | `https://github.com/hongyukeji/openrust`（公开，默认分支 `main`，已推送）；本地 `/Users/Home/Codes/Rust/openrust` |
 | 协作模式 | 单开发者 + AI Agent；Claude 负责方案与设计，Codex 负责实现与验证 |
-| 本机工具链 | Rust stable 1.99.1（`rustup`），MSRV 1.92；`cargo-deny` 0.20 已安装 |
+| 本机工具链 | Rust stable 1.99.1（`rustup`），MSRV 1.97；`cargo-deny` 0.20 已安装 |
 
 ## 固定约束
 

@@ -13,7 +13,7 @@ openrust-cli ───────────────┐           （全�
 openrust（门面：prelude、feature、re-export）
    ├── openrust-http ─── openrust-core
    ├── openrust-macros（re-export `#[openrust::resource]`）
-   ├── openrust-db ──── openrust-core
+   ├── openrust-db ──── openrust-core + SeaORM（可选 PostgreSQL / MySQL drivers）
    ├── openrust-auth ── openrust-http + openrust-db + openrust-mail
    ├── openrust-queue ─ openrust-db（database driver）
    ├── openrust-events  openrust-core（+ openrust-queue 可选）
@@ -37,6 +37,7 @@ openrust-test ── 依赖门面，提供 TestApp 与 fake driver 断言
 | `openrust-core` | M0 已实现：`Application` / `AppBuilder` / `App` / `AppState` / `Plugin` / `Command` / `Error` / 配置分层 / 生命周期，见 [core/core.md](core/core.md) |
 | `openrust-http` | M0 已实现：`HttpPlugin` / `Routes` / `Validated` / `Inject` / 中间件栈 / `/health` / `serve`，见 [core/http.md](core/http.md) |
 | `openrust` | 门面与 `run`，见 [core/facade.md](core/facade.md) |
+| `openrust-db` | M2 `DatabaseConfig` / `DatabasePlugin` / `Db` 连接池，见 [core/db.md](core/db.md) |
 | `openrust-macros` | `#[openrust::resource]` 控制器宏，见 [core/macros.md](core/macros.md) |
 | `openrust-cli` | 生成项目、启动开发服务并代理运行命令，见 [core/cli.md](core/cli.md) |
 | `apps/server` | M1 聚合入口：HTTP、默认中间件、`/health` 与根路由，见 [core/server.md](core/server.md) |

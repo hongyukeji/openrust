@@ -10,6 +10,13 @@ pub use openrust_core::{
 };
 pub use openrust_macros::resource;
 
+/// Database layer, enabled by the `db-postgres` or `db-mysql` facade feature.
+#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+pub use openrust_db as database;
+
+#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+pub use openrust_db::{DatabaseConfig, DatabasePlugin, Db};
+
 /// HTTP layer: routing, extractors, middleware, `serve`.
 pub use openrust_http as http;
 
@@ -31,6 +38,8 @@ pub mod prelude {
     pub use crate::{
         App, AppBuilder, Application, BoxFuture, Command, Error, NoConfig, Plugin, Result,
     };
+    #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+    pub use crate::{DatabaseConfig, DatabasePlugin, Db};
 }
 
 /// Boots `A` and runs the command named by the first argument (`serve` by default).

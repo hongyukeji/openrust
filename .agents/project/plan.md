@@ -2,11 +2,11 @@
 
 > 受众：AI Agent
 > 更新：2026-10-25
-> 摘要：第一代共 M0-M6 七个里程碑，当前在 M1。详细交付与验收见 [第一代计划](plans/gen1-plan.md)「里程碑」。
+> 摘要：第一代共 M0-M6 七个里程碑，当前在 M2。详细交付与验收见 [第一代计划](plans/gen1-plan.md)「里程碑」。
 
 ## 当前里程碑
 
-M0 决策与基线已完成。M1 内核与 HTTP 进行中，资源路由、响应类型、CORS、压缩、聚合启动入口、CLI 的 `new` / `dev` / `serve` 及资源控制器宏已在 `main` 实现；其余任务见 `todo.md`。
+M0 决策与基线、M1 内核与 HTTP 已完成。M1 生成项目的 `cargo test` 验收通过。M2 `openrust-db` 连接池首个功能簇已实现；workspace MSRV 为 Rust 1.97，MySQL 使用强制 TLS，并在 PostgreSQL 14 / MySQL 8.0 验证连接。后续数据层工作见 `todo.md`。
 
 实现与生成器命名遵循 [ADR-006](decisions/adr-006-rust-native-naming.md)：项目采用 `controllers/`、`models/_entities/` 和独立 `migration/` crate；全局 CLI 为 `new`、`dev`、`generate` / `g`，运行期命令由项目二进制提供。
 

@@ -24,8 +24,8 @@
 
 | 能力 | 选型 | 说明 |
 | --- | --- | --- |
-| ORM / 迁移 | `sea-orm` 2.x + `sea-orm-migration` | 2026-10 已有 2.0，基于 `sqlx` 0.9 |
-| 直连逃生口 | `sqlx` 0.9 | 仅通过 `db.sqlx()` 显式使用 |
+| ORM / 迁移 | `sea-orm` 2.0.4 + `sea-orm-migration` | 采用 M0 双库迁移 spike 验证的版本；连接驱动按 `db-postgres` / `db-mysql` feature 开启 |
+| SQLx 支持 | `sqlx` 0.9 | MySQL driver 强制 TLS（Rustls）；不启用存在安全公告的 RSA 非 TLS 认证路径；公开 `db.sqlx()` 逃生口后续实现 |
 | 数据库 | PostgreSQL 14+、MySQL 8.0+ | 均支持 `SKIP LOCKED`、CTE、JSON |
 | 密码哈希 | `argon2`（Argon2id） | 参数可配置 |
 

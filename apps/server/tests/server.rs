@@ -5,12 +5,20 @@ mod app;
 #[path = "../src/routes.rs"]
 mod routes;
 
+#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+use figment::Figment;
+#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+use figment::providers::Format;
 use openrust::ServiceExt;
+#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+use openrust::config::FrameworkConfig;
 use openrust::http::axum::body::{Body, to_bytes};
 use openrust::http::axum::http::{Request, StatusCode};
 use openrust::http::build_router;
 use openrust::prelude::{AppBuilder, AppBuilderHttpExt, Application, Json};
 use openrust::{config, lifecycle};
+#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+use sea_orm::ConnectionTrait;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -129,6 +137,27 @@ fn resource_macro_registers_controller_actions() -> TestResult {
             assert_eq!(json["success"], true, "{method} {uri}");
             assert_eq!(json["data"], expected, "{method} {uri}");
         }
+        Ok(())
+    })
+}
+
+#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+#[test]
+fn database_plugin_is_available_through_the_facade() -> TestResult {
+    openrust::tokio::runtime::Runtime::new()?.block_on(async {
+        let Ok(url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+            eprintln!("skipping database connection: OPENRUST_TEST_DATABASE_URL is unset");
+            return Ok(());
+        };
+        let source = format!("[database]\nurl = {url:?}\n");
+        let figment = Figment::new().merge(figment::providers::Toml::string(&source));
+        let mut builder = AppBuilder::new(FrameworkConfig::default(), figment);
+        builder.plugin(openrust::http::HttpPlugin);
+        builder.plugin(openrust::DatabasePlugin);
+
+        let app = lifecycle::finalize(builder).await?;
+        let database = app.state().try_get::<openrust::Db>()?.connection()?;
+        database.execute_unprepared("SELECT 1").await?;
         Ok(())
     })
 }

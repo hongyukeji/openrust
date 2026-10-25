@@ -16,7 +16,15 @@ keywords.workspace = true
 openrust.workspace = true
 
 [dev-dependencies]
+figment.workspace = true
 serde_json.workspace = true
+sea-orm.workspace = true
+tokio.workspace = true
 
 [lints]
 workspace = true
+
+[features]
+default = []
+db-postgres = ["openrust/db-postgres"]
+db-mysql = ["openrust/db-mysql"]

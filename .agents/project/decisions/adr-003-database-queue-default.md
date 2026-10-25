@@ -36,7 +36,7 @@ MySQL 5.7.44 执行 `FOR UPDATE SKIP LOCKED` 报 1064 语法错误，确认 8.0+
 - PostgreSQL 可单语句 `UPDATE … WHERE id IN (SELECT … FOR UPDATE SKIP LOCKED) RETURNING *`；MySQL 无 `RETURNING`，必须在事务内先 `SELECT … FOR UPDATE SKIP LOCKED` 再 `UPDATE`。两库统一使用事务内两步写法即可，PostgreSQL 单语句作为后续优化。
 - 时间一律取数据库时钟（PostgreSQL `now()`，MySQL `UTC_TIMESTAMP(6)`）计算 `available_at` / `reserved_at`，避免多副本时钟偏差；MySQL 列默认值需用表达式写法 `DEFAULT (UTC_TIMESTAMP(6))`。
 - `sqlx` 0.9 拒绝未标注的动态 SQL 字符串，拼接方言片段必须经 `AssertSqlSafe` 显式包装（仅限框架内部、不含用户输入的片段）。
-- `sqlx` 0.9 连接 MySQL 8 默认认证（`caching_sha2_password`）在非 TLS 下需启用 `mysql-rsa` feature，否则连接失败；`openrust-db` 的 feature 设计需覆盖。
+- `openrust-db` 的 MySQL driver 强制 TLS（Rustls），集成测试验证会话已协商 TLS。不得启用 `mysql-rsa`：其 `rsa 0.10.0-rc.19` 触发 RUSTSEC-2023-0071，且当前没有安全升级；不支持非 TLS MySQL 连接。
 
 ### `apalis` 评估
 
