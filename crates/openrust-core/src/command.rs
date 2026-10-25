@@ -17,6 +17,11 @@ pub trait Command: Send + Sync + 'static {
     /// One-line description shown by `help`.
     fn about(&self) -> &'static str;
 
+    /// Whether this command accepts arguments after its name. Defaults to no arguments.
+    fn accepts_args(&self) -> bool {
+        false
+    }
+
     /// Executes the command with the remaining arguments.
     fn run<'a>(&'a self, app: &'a App, args: Vec<String>) -> BoxFuture<'a, Result<()>>;
 }

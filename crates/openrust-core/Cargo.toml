@@ -1,6 +1,6 @@
 [package]
 name = "openrust-core"
-description = "Application kernel of the OpenRust framework: application builder, service providers, configuration, errors and lifecycle"
+description = "Application kernel of the OpenRust framework: application builder, plugins, configuration, errors and lifecycle"
 readme = "README.md"
 version.workspace = true
 edition.workspace = true

@@ -1,6 +1,6 @@
 //! Bootstrap sequence and shutdown signal.
 //!
-//! [`bootstrap`] performs, in order: load `.env`, load configuration, initialise `tracing`,
+//! [`bootstrap`] performs, in order: load `.env` outside production, load configuration, initialise `tracing`,
 //! extract the application's own configuration, let the [`Application`] build plugins,
 //! run every plugin's `build`, freeze the builder, then run every plugin's `finish`.
 
@@ -8,7 +8,7 @@ use tracing_subscriber::EnvFilter;
 
 use crate::app::{App, AppBuilder, Application};
 use crate::command::{ConfigShowCommand, HelpCommand};
-use crate::config::{self, ConfigLoader, LogConfig, LogFormat};
+use crate::config::{self, ConfigLoader, Environment, LogConfig, LogFormat};
 use crate::error::Result;
 
 /// Boots `A` from the working directory's configuration.
@@ -20,8 +20,7 @@ pub async fn bootstrap<A: Application>() -> Result<App> {
 ///
 /// The facade crate uses this to install the HTTP plugin so every application serves by default.
 pub async fn bootstrap_with<A: Application>(defaults: impl FnOnce(&mut AppBuilder)) -> Result<App> {
-    config::load_dotenv();
-    let loader = ConfigLoader::from_env()?;
+    let loader = bootstrap_config_loader()?;
     let framework = loader.load_framework()?;
     init_tracing(&framework.log);
     tracing::debug!(env = %framework.app.env, config_dir = %loader.config_dir().display(), "configuration loaded");
@@ -33,6 +32,15 @@ pub async fn bootstrap_with<A: Application>(defaults: impl FnOnce(&mut AppBuilde
     defaults(&mut builder);
     A::build(&mut builder);
     finalize(builder).await
+}
+
+fn bootstrap_config_loader() -> Result<ConfigLoader> {
+    // Process OPENRUST_ENV decides whether .env is safe to read; when unset, load it first
+    // under the development default, then resolve the final environment it may specify.
+    if !Environment::from_env()?.is_production() {
+        config::load_dotenv();
+    }
+    Ok(ConfigLoader::from_env()?)
 }
 
 /// Runs plugin building and finishing on an assembled builder.
@@ -94,11 +102,60 @@ pub async fn shutdown_signal() {
 }
 
 #[cfg(test)]
+// `figment::Jail` closures return `figment::Result`, whose error type is large by design.
+#[allow(clippy::result_large_err)]
 mod tests {
     use super::*;
     use crate::plugin::{BoxFuture, Plugin};
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicBool, Ordering};
+
+    // Jail restores the working directory and process environment after each closure.
+    #[test]
+    fn production_bootstrap_ignores_dotenv() {
+        figment::Jail::expect_with(|jail| {
+            jail.set_env("OPENRUST_ENV", "");
+            jail.set_env("OPENRUST_SERVER__PORT", "");
+            jail.clear_env();
+            jail.create_file(".env", "OPENRUST_SERVER__PORT=4999\n")?;
+            jail.set_env("OPENRUST_ENV", "production");
+            let loader = bootstrap_config_loader()
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            assert_eq!(loader.environment(), Environment::Production);
+            assert_eq!(
+                loader
+                    .load_framework()
+                    .map_err(|error| figment::Error::from(error.to_string()))?
+                    .server
+                    .port,
+                3000
+            );
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn development_bootstrap_loads_dotenv_then_resolves_environment() {
+        figment::Jail::expect_with(|jail| {
+            // Track both keys before dotenvy sets them, so Jail restores their original values.
+            jail.set_env("OPENRUST_ENV", "");
+            jail.set_env("OPENRUST_SERVER__PORT", "");
+            jail.clear_env();
+            jail.create_file(".env", "OPENRUST_ENV=test\nOPENRUST_SERVER__PORT=4999\n")?;
+            let loader = bootstrap_config_loader()
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            assert_eq!(loader.environment(), Environment::Test);
+            assert_eq!(
+                loader
+                    .load_framework()
+                    .map_err(|error| figment::Error::from(error.to_string()))?
+                    .server
+                    .port,
+                4999
+            );
+            Ok(())
+        });
+    }
 
     #[derive(Default)]
     struct Log(Mutex<Vec<&'static str>>);

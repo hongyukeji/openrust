@@ -7,8 +7,8 @@
 //! 3. `config/<env>.toml` where `<env>` comes from `OPENRUST_ENV` (`development` by default)
 //! 4. environment variables prefixed `OPENRUST_`, nested with `__` (`OPENRUST_SERVER__PORT=4000` → `server.port`)
 //!
-//! `.env` files are loaded by [`load_dotenv`] before anything else so they can supply `OPENRUST_ENV`
-//! and secrets during development. Production deployments should not ship a `.env` file.
+//! Bootstrap loads `.env` outside production so it can supply `OPENRUST_ENV` and development
+//! secrets. A process-level `OPENRUST_ENV=production` skips `.env` entirely.
 
 use std::fmt;
 use std::path::{Path, PathBuf};

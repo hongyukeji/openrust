@@ -239,6 +239,11 @@ impl App {
 
     /// Runs the command called `name` with `args`.
     pub async fn run_command(&self, name: &str, args: Vec<String>) -> Result<()> {
+        let available: Vec<&str> = self
+            .commands()
+            .filter(|command| command.name().split_whitespace().next() == Some(name))
+            .map(Command::name)
+            .collect();
         let command = self
             .commands()
             .filter(|command| {
@@ -252,16 +257,36 @@ impl App {
             })
             .max_by_key(|command| command.name().split_whitespace().count())
             .ok_or_else(|| {
+                let input = args
+                    .first()
+                    .filter(|_| !available.is_empty())
+                    .map_or_else(|| name.to_owned(), |arg| format!("{name} {arg}"));
+                let hint = if available.is_empty() {
+                    "run `help` to list commands".to_owned()
+                } else {
+                    format!("available: {}", available.join(", "))
+                };
                 Error::custom(
                     http::StatusCode::BAD_REQUEST,
                     "unknown_command",
-                    format!("unknown command `{name}`; run `help` to list commands"),
+                    format!("unknown command `{input}`; {hint}"),
                 )
             })?;
         let consumed = command.name().split_whitespace().count() - 1;
-        command
-            .run(self, args.into_iter().skip(consumed).collect())
-            .await
+        let remaining: Vec<String> = args.into_iter().skip(consumed).collect();
+        if !command.accepts_args()
+            && let Some(argument) = remaining.first()
+        {
+            return Err(Error::custom(
+                http::StatusCode::BAD_REQUEST,
+                "unexpected_argument",
+                format!(
+                    "unexpected argument `{argument}` for `{}`; run `help` to list commands",
+                    command.name()
+                ),
+            ));
+        }
+        command.run(self, remaining).await
     }
 }
 
@@ -335,6 +360,10 @@ mod tests {
             "Test nested command"
         }
 
+        fn accepts_args(&self) -> bool {
+            true
+        }
+
         fn run<'a>(&'a self, _app: &'a App, args: Vec<String>) -> BoxFuture<'a, Result<()>> {
             Box::pin(async move {
                 assert_eq!(args, ["--json"]);
@@ -359,5 +388,36 @@ mod tests {
             Some("unknown_command")
         );
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn unknown_nested_command_names_input_and_available_command() {
+        let mut builder = AppBuilder::new(FrameworkConfig::default(), Figment::new());
+        builder.command(NestedCommand);
+        let app = builder.build();
+        let error = app
+            .run_command("config", vec!["unknown".into()])
+            .await
+            .err();
+        assert_eq!(
+            error.as_ref().map(ToString::to_string).as_deref(),
+            Some("unknown command `config unknown`; available: config show")
+        );
+    }
+
+    #[tokio::test]
+    async fn config_show_rejects_extra_argument() {
+        let mut builder = AppBuilder::new(FrameworkConfig::default(), Figment::new());
+        builder.command(crate::command::ConfigShowCommand);
+        let app = builder.build();
+        let error = app
+            .run_command("config", vec!["show".into(), "--typo".into()])
+            .await
+            .err();
+        assert_eq!(error.as_ref().map(Error::code), Some("unexpected_argument"));
+        assert_eq!(
+            error.as_ref().map(ToString::to_string).as_deref(),
+            Some("unexpected argument `--typo` for `config show`; run `help` to list commands")
+        );
     }
 }
