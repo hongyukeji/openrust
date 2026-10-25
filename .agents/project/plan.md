@@ -6,7 +6,7 @@
 
 ## 当前里程碑
 
-M0、M1、M2 已完成。M1 生成项目的 `cargo test` 验收通过。M2 `openrust-db` 连接池、事务辅助、SeaORM 迁移 runner、UTC/JSON 方言列 helper、应用 seed 命令、`openrust-test` 每用例数据库隔离、`openrust new --db postgres|mysql`、`generate model` / `generate migration` 均已实现；workspace MSRV 为 Rust 1.97，MySQL 使用强制 TLS。PostgreSQL 14 / MySQL 8.0 的连接、事务、`SKIP LOCKED`、迁移、列类型、seed 命令、数据库隔离，以及双库生成项目编译、测试与生成迁移 up/status/down 均已验证。当前开始 M3，见 `todo.md`。
+M0、M1、M2 已完成。M1 生成项目的 `cargo test` 验收通过。M2 `openrust-db` 连接池、事务辅助、SeaORM 迁移 runner、UTC/JSON 方言列 helper、应用 seed 命令、`openrust-test` 每用例数据库隔离、`openrust new --db postgres|mysql`、`generate model` / `generate migration` 均已实现；数据库扩展沿用 SeaORM `DatabaseConnection`、`Db` 与 Plugin 生命周期，外部自定义连接可复用迁移、seed 和事务入口。`DatabasePlugin` 检查 PostgreSQL 14+ / MySQL 8.0+；MySQL 使用强制 TLS。两库连接、事务、`SKIP LOCKED`、迁移、列类型、seed 命令、隔离和生成项目编译/测试均已验证。当前 M3 认证 API contract 待办见 `todo.md`。
 
 实现与生成器命名遵循 [ADR-006](decisions/adr-006-rust-native-naming.md)：项目采用 `controllers/`、`models/_entities/` 和独立 `migration/` crate；全局 CLI 为 `new`、`dev`、`generate` / `g`，运行期命令由项目二进制提供。
 

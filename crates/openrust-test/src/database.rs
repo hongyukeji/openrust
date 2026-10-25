@@ -7,7 +7,7 @@ use std::{
 };
 
 use openrust_core::{Error, Result};
-use openrust_db::sea_orm_migration::MigratorTrait;
+use openrust_db::{DatabaseBackend, sea_orm_migration::MigratorTrait};
 use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection};
 use url::Url;
 
@@ -37,35 +37,19 @@ impl TestDatabase {
         M: MigratorTrait + Send + Sync + 'static,
     {
         let parsed = Url::parse(admin_url).map_err(Error::internal)?;
-        let scheme = parsed.scheme();
-        let is_postgres = matches!(scheme, "postgres" | "postgresql");
-        let is_mysql = scheme == "mysql";
-        if !is_postgres && !is_mysql {
-            return Err(Error::custom(
-                "unsupported_test_database",
-                "database isolation supports PostgreSQL and MySQL URLs",
-            ));
-        }
-        #[cfg(not(feature = "db-postgres"))]
-        if is_postgres {
+        let backend = DatabaseBackend::from_url(admin_url)?;
+        if !backend.is_enabled() {
             return Err(Error::custom(
                 "database_feature_disabled",
-                "enable the openrust-test db-postgres feature",
-            ));
-        }
-        #[cfg(not(feature = "db-mysql"))]
-        if is_mysql {
-            return Err(Error::custom(
-                "database_feature_disabled",
-                "enable the openrust-test db-mysql feature",
+                format!("enable the openrust-test {} feature", backend.feature()),
             ));
         }
         let database_name = unique_database_name();
         let database_url = url_for_database(&parsed, &database_name);
         let admin = connect(admin_url).await?;
 
-        let setup = match (is_postgres, is_mysql) {
-            (true, false) => {
+        let setup = match backend {
+            DatabaseBackend::PostgreSql => {
                 #[cfg(feature = "db-postgres")]
                 {
                     create_postgres_database::<M>(&admin, &parsed, &database_name).await
@@ -78,7 +62,7 @@ impl TestDatabase {
                     ))
                 }
             }
-            (false, true) => {
+            DatabaseBackend::MySql => {
                 #[cfg(feature = "db-mysql")]
                 {
                     create_mysql_database::<M>(&admin, &database_url, &database_name).await
@@ -91,10 +75,6 @@ impl TestDatabase {
                     ))
                 }
             }
-            _ => Err(Error::custom(
-                "unsupported_test_database",
-                "database isolation supports PostgreSQL and MySQL URLs",
-            )),
         };
 
         if let Err(error) = setup {
@@ -253,7 +233,7 @@ async fn connect(url: &str) -> Result<DatabaseConnection> {
     let mut options = ConnectOptions::new(url.to_owned());
     options.max_connections(2).min_connections(0);
     #[cfg(feature = "db-mysql")]
-    if url.starts_with("mysql:") {
+    if DatabaseBackend::from_url(url)? == DatabaseBackend::MySql {
         options.map_sqlx_mysql_opts(|mysql| mysql.ssl_mode(sqlx::mysql::MySqlSslMode::Required));
         options.after_connect(|connection| {
             Box::pin(async move {

@@ -26,6 +26,8 @@ M2：`openrust-db` 有迁移参数与连接配置单测；`tests/connection.rs` 
 
 M3 邮件：`cargo test -p openrust-mail --all-features` 覆盖 fake 发送、SMTP 强制 STARTTLS transport 配置、凭据配对校验和密码 Debug 脱敏；`cargo clippy -p openrust-mail --all-targets --all-features -- -D warnings` 通过。`cargo test -p openrust-server --test server` 验证聚合应用注册 Mailer。修改后的 CLI 无数据库、PostgreSQL、MySQL 模板生成项目均通过 `cargo check` / `cargo test`。
 
+数据库扩展 contract：`cargo test -p openrust-db --features db-postgres` 与 `--features db-mysql` 分别连接本地 PostgreSQL 14 / MySQL 8.0，内置连接插件的最低版本校验通过；迁移测试通过自定义 `Plugin` 注册并初始化 `Db`，随后运行现有 `MigrationPlugin`、`SeedPlugin`、事务与 backend 查询；重复初始化报错。`DatabaseBackend` 集中官方 URL scheme 与 feature 检查，并被 `openrust-test` 共用。`cargo test -p openrust-test --features db-postgres` 与 `--features db-mysql` 的真实每用例隔离测试通过。`dialect` 单测验证 PostgreSQL/MySQL SQL 和 SQLite 明确拒绝。修改方言 helper 返回 `Result` 后，生成的 `--db postgres` / `--db mysql` 项目使用本地 facade patch 分别通过 `cargo check` 与 `cargo test`。
+
 测试数：`openrust-core` 31 个单元测试（含分页 `PageMeta` 保留、配置目录覆盖、`.env` 选择生产时跳过其余变量、无 HTTP 插件的命令边界），`openrust-http` 49 个集成测试（`tests/router.rs` 33 个、`tests/resource.rs` 16 个），`openrust-server` 6 个集成测试（含资源宏全部动作路由映射）；`openrust` 1 个单元测试。
 
 ## 双库集成（M2 起）

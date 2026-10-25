@@ -236,7 +236,7 @@ pub async fn create(
 
 ## 数据层
 
-- SeaORM 2.x 作为 ORM，`sea-orm-migration` 管理迁移；SQLx 直连通过 `db.sqlx()` 显式获取，使用点必须在代码评审中可见。
+- SeaORM 2.x 作为 ORM，`sea-orm-migration` 管理迁移；`db.sqlx()` 当前尚未实现，不属于公共 contract；若后续提供 SQLx 直连入口，须先明确 feature、连接生命周期和使用边界。
 - 命名约定：表名 snake_case 复数；主键 `id BIGINT` 自增；`created_at` / `updated_at` 必备；软删除通过 `--soft-delete` 生成 `deleted_at` 并接入查询默认过滤；`--uuid` 生成 UUIDv7 主键。
 - 时间统一 UTC：PostgreSQL 用 `timestamptz`，MySQL 用 `DATETIME(6)`；JSON 列 PostgreSQL 用 `jsonb`，MySQL 用 `json`；框架表不使用数组、枚举等单库特性。
 - 双库边界：迁移只用 `sea-orm-migration` 可移植列类型；必须分方言的 SQL 集中在 `openrust-db::dialect`，每个分支必须同时提供两库实现并有双库测试。

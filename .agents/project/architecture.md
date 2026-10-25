@@ -47,4 +47,4 @@ openrust-test ── 依赖门面，提供 TestApp 与 fake driver 断言
 
 应用模块与第三方包都通过实现 `Plugin` 接入：`build` 阶段向 `AppBuilder` 插入服务并追加路由、迁移、配置段、命令与调度；所有插件构建完成并冻结后依次调用 `finish`。不提供动态插件加载。
 
-能力驱动的设计与审查遵循 [ADR-009](decisions/adr-009-extensible-capability-drivers.md)：提供常用默认实现与可由第三方接入的公共契约，集中后端差异，明确能力边界。该决策记录数据库和缓存需求，不代表所有扩展入口及驱动已经实现；多实例使用及其他通用机制按 [v1 覆盖计划](plans/v1-capability-coverage.md) 交付，具体命名与布局仍待决策。
+能力驱动的设计与审查遵循 [ADR-009](decisions/adr-009-extensible-capability-drivers.md)：提供常用默认实现与可由第三方接入的公共契约，集中后端差异，明确能力边界。数据库扩展沿用 SeaORM `DatabaseConnection`、`Db` 和 `Plugin` 生命周期；v1 正式支持 PostgreSQL/MySQL，不把其他 backend 的连接成功视为完整框架支持。该决策记录数据库和缓存需求，不代表所有扩展入口及驱动已经实现；多实例使用及其他通用机制按 [v1 覆盖计划](plans/v1-capability-coverage.md) 交付，具体命名与布局仍待决策。

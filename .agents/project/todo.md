@@ -10,7 +10,7 @@
 
 ## M3 邮件、认证与授权（进行中）
 
-- 当前功能簇：实现 `openrust-mail` 的 `Email` / `Mailer` 与 log、fake、SMTP drivers，接入门面和 `apps/server` 并覆盖测试。
+- 当前功能簇：为认证 API 补充公共 contract 与 ADR，再实现业务用户映射、路由认证配置和身份注入。
 - 认证 API 进入实现前补充 ADR：定义业务自有用户类型如何映射到 `CurrentUser` / `OptionalUser`、路由认证配置与身份注入契约；现有 ADR-004 明确了安全策略但未定公共 API。
 
 ## M4/M5 Redis 驱动（对应里程碑时领取）

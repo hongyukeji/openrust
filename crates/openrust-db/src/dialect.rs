@@ -1,31 +1,39 @@
 //! PostgreSQL and MySQL schema types with OpenRust's UTC and JSON conventions.
 
 use sea_orm_migration::sea_orm::sea_query::IntoIden;
-use sea_orm_migration::sea_orm::{DbBackend, sea_query::ColumnDef};
+use sea_orm_migration::sea_orm::{DbBackend, DbErr, sea_query::ColumnDef};
 
 /// Creates a non-null UTC timestamp column for a supported database backend.
 ///
 /// PostgreSQL uses `TIMESTAMP WITH TIME ZONE`; MySQL uses `DATETIME(6)` to retain microseconds
 /// without the `TIMESTAMP` year-2038 limit. MySQL values are UTC because `DatabasePlugin` sets each
 /// connection's session time zone to `+00:00`.
-pub fn timestamp_utc(name: impl IntoIden, backend: DbBackend) -> ColumnDef {
+pub fn timestamp_utc(name: impl IntoIden, backend: DbBackend) -> Result<ColumnDef, DbErr> {
     let mut column = ColumnDef::new(name);
     match backend {
         DbBackend::MySql => column.custom("DATETIME(6)"),
-        _ => column.timestamp_with_time_zone(),
+        DbBackend::Postgres => column.timestamp_with_time_zone(),
+        _ => return Err(unsupported_backend(backend)),
     };
-    column.not_null().take()
+    Ok(column.not_null().take())
 }
 
 /// Creates a non-null JSON column using the native portable type for each supported backend.
 ///
 /// PostgreSQL uses `JSONB`; MySQL uses `JSON`. Query expressions that inspect JSON values remain
 /// backend-specific and belong in the dialect boundary too.
-pub fn json(name: impl IntoIden, backend: DbBackend) -> ColumnDef {
+pub fn json(name: impl IntoIden, backend: DbBackend) -> Result<ColumnDef, DbErr> {
     match backend {
-        DbBackend::MySql => ColumnDef::new(name).json().not_null().take(),
-        _ => ColumnDef::new(name).json_binary().not_null().take(),
+        DbBackend::MySql => Ok(ColumnDef::new(name).json().not_null().take()),
+        DbBackend::Postgres => Ok(ColumnDef::new(name).json_binary().not_null().take()),
+        _ => Err(unsupported_backend(backend)),
     }
+}
+
+fn unsupported_backend(backend: DbBackend) -> DbErr {
+    DbErr::Migration(format!(
+        "OpenRust UTC and JSON schema helpers support PostgreSQL and MySQL, got {backend:?}"
+    ))
 }
 
 #[cfg(test)]
@@ -43,11 +51,11 @@ mod tests {
     }
 
     #[test]
-    fn schema_helpers_emit_the_required_backend_types() {
+    fn schema_helpers_emit_the_required_backend_types() -> Result<(), DbErr> {
         let postgres = Table::create()
             .table(Probe::Table)
-            .col(timestamp_utc(Probe::CreatedAt, DbBackend::Postgres))
-            .col(json(Probe::Payload, DbBackend::Postgres))
+            .col(timestamp_utc(Probe::CreatedAt, DbBackend::Postgres)?)
+            .col(json(Probe::Payload, DbBackend::Postgres)?)
             .to_string(PostgresQueryBuilder);
         let postgres = postgres.to_ascii_uppercase();
         assert!(postgres.contains("TIMESTAMP WITH TIME ZONE"));
@@ -55,11 +63,18 @@ mod tests {
 
         let mysql = Table::create()
             .table(Probe::Table)
-            .col(timestamp_utc(Probe::CreatedAt, DbBackend::MySql))
-            .col(json(Probe::Payload, DbBackend::MySql))
+            .col(timestamp_utc(Probe::CreatedAt, DbBackend::MySql)?)
+            .col(json(Probe::Payload, DbBackend::MySql)?)
             .to_string(MysqlQueryBuilder);
         let mysql = mysql.to_ascii_uppercase();
         assert!(mysql.contains("DATETIME(6)"));
         assert!(mysql.contains("JSON"));
+        Ok(())
+    }
+
+    #[test]
+    fn schema_helpers_reject_unimplemented_backends() {
+        assert!(timestamp_utc(Probe::CreatedAt, DbBackend::Sqlite).is_err());
+        assert!(json(Probe::Payload, DbBackend::Sqlite).is_err());
     }
 }

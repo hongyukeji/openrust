@@ -3,13 +3,68 @@
 
 use figment::Figment;
 use figment::providers::{Format, Toml};
-use openrust_core::{AppBuilder, config::FrameworkConfig, lifecycle};
-use openrust_db::{DatabasePlugin, Db, MigrationPlugin, SeedPlugin, dialect, sea_orm_migration};
-use sea_orm::{ConnectionTrait, DbBackend, Statement};
+use openrust_core::{
+    App, AppBuilder, BoxFuture, Error, Plugin, Result as FrameworkResult, config::FrameworkConfig,
+    lifecycle,
+};
+use openrust_db::{
+    DatabaseConfig, Db, MigrationPlugin, SeedPlugin, dialect, sea_orm, sea_orm_migration,
+};
+use sea_orm::{ConnectOptions, ConnectionTrait, Database, DbBackend, Statement};
 use sea_orm_migration::prelude::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 static SEED_RUNS: AtomicUsize = AtomicUsize::new(0);
+
+struct CustomConnectionPlugin;
+
+impl Plugin for CustomConnectionPlugin {
+    fn build(&self, app: &mut AppBuilder) -> FrameworkResult<()> {
+        if app.get::<Db>().is_some() {
+            return Err(Error::custom(
+                "database_service_already_registered",
+                "register only one database plugin per application",
+            ));
+        }
+        let config = app.section::<DatabaseConfig>("database")?;
+        app.insert(config);
+        app.insert(Db::default());
+        Ok(())
+    }
+
+    fn finish<'a>(&'a self, app: &'a App) -> BoxFuture<'a, FrameworkResult<()>> {
+        Box::pin(async move {
+            let config = app.state().try_get::<DatabaseConfig>()?;
+            let url = config
+                .url
+                .as_ref()
+                .ok_or_else(|| Error::custom("missing_database_url", "database.url is required"))?;
+            let mysql = url.starts_with("mysql:");
+            #[cfg(feature = "db-mysql")]
+            let mut options = ConnectOptions::new(url.clone());
+            #[cfg(not(feature = "db-mysql"))]
+            let options = ConnectOptions::new(url.clone());
+            if mysql {
+                #[cfg(feature = "db-mysql")]
+                {
+                    options.map_sqlx_mysql_opts(|mysql| {
+                        mysql.ssl_mode(sqlx::mysql::MySqlSslMode::Required)
+                    });
+                    options.after_connect(|connection| {
+                        Box::pin(async move {
+                            connection
+                                .execute_unprepared("SET time_zone = '+00:00'")
+                                .await?;
+                            Ok(())
+                        })
+                    });
+                }
+            }
+            let connection = Database::connect(options).await.map_err(Error::internal)?;
+            app.state().try_get::<Db>()?.initialize(connection)
+        })
+    }
+}
 
 async fn seed_probe(_database: Db) -> openrust_core::Result<()> {
     SEED_RUNS.fetch_add(1, Ordering::SeqCst);
@@ -49,11 +104,11 @@ impl MigrationTrait for CreateProbe {
                     .col(dialect::timestamp_utc(
                         OpenrustMigrationProbe::CreatedAt,
                         manager.get_database_backend(),
-                    ))
+                    )?)
                     .col(dialect::json(
                         OpenrustMigrationProbe::Payload,
                         manager.get_database_backend(),
-                    ))
+                    )?)
                     .to_owned(),
             )
             .await
@@ -90,7 +145,7 @@ async fn migration_command_applies_repeats_reports_and_rolls_back()
     let figment = Figment::new().merge(Toml::string(&source));
     let mut builder = AppBuilder::new(FrameworkConfig::default(), figment);
     builder
-        .plugin(DatabasePlugin)
+        .plugin(CustomConnectionPlugin)
         .plugin(MigrationPlugin::<TestMigrator>::new())
         .plugin(SeedPlugin::new(seed_probe));
 
@@ -107,6 +162,9 @@ async fn migration_command_applies_repeats_reports_and_rolls_back()
     );
 
     let database = app.state().try_get::<Db>()?.connection()?;
+    let db_service = app.state().try_get::<Db>()?;
+    assert_eq!(db_service.backend()?, database.get_database_backend());
+    assert!(db_service.initialize(database.clone()).is_err());
     let row = database
         .query_one_raw(Statement::from_string(
             database.get_database_backend(),

@@ -7,11 +7,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use openrust_core::{App, AppBuilder, BoxFuture, Error, Plugin, Result, config::ConfigError};
-#[cfg(feature = "db-mysql")]
 use sea_orm::ConnectionTrait;
-use sea_orm::{
-    ConnectOptions, Database, DatabaseConnection, DatabaseTransaction, TransactionTrait,
-};
+use sea_orm::{ConnectOptions, Database, Statement, TransactionTrait};
 use serde::Deserialize;
 use std::sync::OnceLock;
 
@@ -20,8 +17,62 @@ mod migration;
 mod seed;
 
 pub use migration::MigrationPlugin;
+pub use sea_orm;
+pub use sea_orm::{DatabaseConnection, DatabaseTransaction, DbBackend};
 pub use sea_orm_migration;
 pub use seed::SeedPlugin;
+
+/// A database backend included in OpenRust's official PostgreSQL/MySQL feature set.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DatabaseBackend {
+    /// PostgreSQL 14 or newer.
+    PostgreSql,
+    /// MySQL 8.0 or newer.
+    MySql,
+}
+
+impl DatabaseBackend {
+    /// Identifies one of the official backends from its connection URL scheme.
+    ///
+    /// # Errors
+    ///
+    /// Returns a configuration error for URL schemes outside the official backend set.
+    pub fn from_url(url: &str) -> Result<Self> {
+        if url.starts_with("postgres://") || url.starts_with("postgresql://") {
+            Ok(Self::PostgreSql)
+        } else if url.starts_with("mysql://") {
+            Ok(Self::MySql)
+        } else {
+            Err(Error::custom(
+                "unsupported_database_backend",
+                "OpenRust officially supports PostgreSQL and MySQL database URLs",
+            ))
+        }
+    }
+
+    /// Returns whether this backend's Cargo feature is enabled in `openrust-db`.
+    pub const fn is_enabled(self) -> bool {
+        match self {
+            Self::PostgreSql => cfg!(feature = "db-postgres"),
+            Self::MySql => cfg!(feature = "db-mysql"),
+        }
+    }
+
+    /// Cargo feature required to compile this backend.
+    pub const fn feature(self) -> &'static str {
+        match self {
+            Self::PostgreSql => "db-postgres",
+            Self::MySql => "db-mysql",
+        }
+    }
+
+    fn name(self) -> &'static str {
+        match self {
+            Self::PostgreSql => "PostgreSQL",
+            Self::MySql => "MySQL",
+        }
+    }
+}
 
 /// Database connection and pool settings from the `[database]` configuration section.
 #[derive(Clone, Deserialize)]
@@ -70,6 +121,34 @@ pub struct Db {
 }
 
 impl Db {
+    /// Installs a SeaORM connection supplied by a custom database plugin.
+    ///
+    /// Custom plugins can register `Db::default()` during `build`, then connect and call this
+    /// method during `finish`. The connection must use a backend supported by SeaORM. This keeps
+    /// transactions, migrations, and seeds on the same framework service; custom plugins remain
+    /// responsible for validating capabilities their application requires.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when this handle has already been initialized.
+    pub fn initialize(&self, connection: DatabaseConnection) -> Result<()> {
+        self.connection.set(connection).map_err(|_| {
+            Error::custom(
+                "database_already_initialized",
+                "database connection pool was initialized more than once",
+            )
+        })
+    }
+
+    /// Returns the initialized SeaORM backend for this connection.
+    ///
+    /// # Errors
+    ///
+    /// Returns an internal error if the pool is not initialized.
+    pub fn backend(&self) -> Result<DbBackend> {
+        Ok(self.connection()?.get_database_backend())
+    }
+
     /// Returns a clone of the initialized SeaORM connection pool.
     ///
     /// # Errors
@@ -119,6 +198,12 @@ pub struct DatabasePlugin;
 
 impl Plugin for DatabasePlugin {
     fn build(&self, app: &mut AppBuilder) -> Result<()> {
+        if app.get::<Db>().is_some() {
+            return Err(Error::custom(
+                "database_service_already_registered",
+                "register only one database plugin per application",
+            ));
+        }
         let config = app.section::<DatabaseConfig>("database")?;
         validate_config(&config)?;
         app.insert(config);
@@ -141,13 +226,14 @@ impl Plugin for DatabasePlugin {
                 .min_connections(config.min_connections)
                 .connect_timeout(Duration::from_secs(config.connect_timeout_secs))
                 .acquire_timeout(Duration::from_secs(config.acquire_timeout_secs));
+            let backend = DatabaseBackend::from_url(url)?;
             #[cfg(feature = "db-mysql")]
-            if backend_name(url) == "MySQL" {
+            if backend == DatabaseBackend::MySql {
                 options.map_sqlx_mysql_opts(|mysql_options| {
                     mysql_options.ssl_mode(sqlx::mysql::MySqlSslMode::Required)
                 });
             }
-            if backend_name(url) == "MySQL" {
+            if backend == DatabaseBackend::MySql {
                 #[cfg(feature = "db-mysql")]
                 options.after_connect(|connection| {
                     Box::pin(async move {
@@ -161,14 +247,11 @@ impl Plugin for DatabasePlugin {
             let connection = Database::connect(options).await.map_err(|_| {
                 Error::Config(ConfigError::Invalid(format!(
                     "could not connect to configured {} database",
-                    backend_name(url)
+                    backend.name()
                 )))
             })?;
-            db.connection.set(connection).map_err(|_| {
-                Error::Config(ConfigError::Invalid(
-                    "database connection pool was initialized more than once".into(),
-                ))
-            })?;
+            validate_server_version(&connection, backend).await?;
+            db.initialize(connection)?;
             Ok(())
         })
     }
@@ -186,12 +269,12 @@ fn validate_config(config: &DatabaseConfig) -> Result<()> {
     }
 
     if let Some(url) = config.url.as_deref() {
-        let backend = backend_name(url);
-        let enabled = (backend == "PostgreSQL" && cfg!(feature = "db-postgres"))
-            || (backend == "MySQL" && cfg!(feature = "db-mysql"));
-        if !enabled {
+        let backend = DatabaseBackend::from_url(url)?;
+        if !backend.is_enabled() {
             return Err(Error::Config(ConfigError::Invalid(format!(
-                "{backend} database URL requires the matching openrust-db feature"
+                "{} database URL requires openrust-db feature `{}`",
+                backend.name(),
+                backend.feature()
             ))));
         }
     }
@@ -199,13 +282,60 @@ fn validate_config(config: &DatabaseConfig) -> Result<()> {
     Ok(())
 }
 
-fn backend_name(url: &str) -> &'static str {
-    if url.starts_with("postgres://") || url.starts_with("postgresql://") {
-        "PostgreSQL"
-    } else if url.starts_with("mysql://") {
-        "MySQL"
-    } else {
-        "unsupported"
+async fn validate_server_version(
+    connection: &sea_orm::DatabaseConnection,
+    backend: DatabaseBackend,
+) -> Result<()> {
+    let (sea_backend, query) = match backend {
+        DatabaseBackend::PostgreSql => (
+            DbBackend::Postgres,
+            "SELECT current_setting('server_version_num') AS version",
+        ),
+        DatabaseBackend::MySql => (DbBackend::MySql, "SELECT VERSION() AS version"),
+    };
+    let version = connection
+        .query_one_raw(Statement::from_string(sea_backend, query.to_owned()))
+        .await
+        .map_err(|_| {
+            Error::Config(ConfigError::Invalid(format!(
+                "could not verify configured {} database version",
+                backend.name()
+            )))
+        })?
+        .and_then(|row| row.try_get::<String>("", "version").ok())
+        .ok_or_else(|| {
+            Error::Config(ConfigError::Invalid(format!(
+                "could not verify configured {} database version",
+                backend.name()
+            )))
+        })?;
+    if !is_server_version_supported(&version, backend) {
+        let minimum = match backend {
+            DatabaseBackend::PostgreSql => "14",
+            DatabaseBackend::MySql => "8.0",
+        };
+        return Err(Error::Config(ConfigError::Invalid(format!(
+            "configured {} database version is unsupported; OpenRust requires {minimum} or newer",
+            backend.name()
+        ))));
+    }
+    Ok(())
+}
+
+fn is_server_version_supported(version: &str, backend: DatabaseBackend) -> bool {
+    match backend {
+        DatabaseBackend::PostgreSql => version
+            .parse::<u32>()
+            .is_ok_and(|server_version| server_version >= 140_000),
+        DatabaseBackend::MySql => {
+            if version.to_ascii_lowercase().contains("mariadb") {
+                return false;
+            }
+            let mut parts = version.split('.');
+            let major = parts.next().and_then(|part| part.parse::<u32>().ok());
+            let minor = parts.next().and_then(|part| part.parse::<u32>().ok());
+            matches!((major, minor), (Some(major), Some(minor)) if (major, minor) >= (8, 0))
+        }
     }
 }
 
@@ -269,5 +399,46 @@ mod tests {
             validate_config(&config).is_ok(),
             cfg!(feature = "db-postgres")
         );
+    }
+
+    #[test]
+    fn official_backend_detection_rejects_unknown_url_schemes() {
+        assert!(matches!(
+            DatabaseBackend::from_url("postgresql://user@host/db"),
+            Ok(DatabaseBackend::PostgreSql)
+        ));
+        assert!(matches!(
+            DatabaseBackend::from_url("mysql://user@host/db"),
+            Ok(DatabaseBackend::MySql)
+        ));
+        assert!(DatabaseBackend::from_url("sqlite::memory:").is_err());
+    }
+
+    #[test]
+    fn minimum_database_versions_are_checked_explicitly() {
+        assert!(is_server_version_supported(
+            "140000",
+            DatabaseBackend::PostgreSql
+        ));
+        assert!(!is_server_version_supported(
+            "130012",
+            DatabaseBackend::PostgreSql
+        ));
+        assert!(is_server_version_supported(
+            "8.0.36",
+            DatabaseBackend::MySql
+        ));
+        assert!(!is_server_version_supported(
+            "5.7.44",
+            DatabaseBackend::MySql
+        ));
+        assert!(!is_server_version_supported(
+            "10.6.18-MariaDB",
+            DatabaseBackend::MySql
+        ));
+        assert!(!is_server_version_supported(
+            "unknown",
+            DatabaseBackend::MySql
+        ));
     }
 }

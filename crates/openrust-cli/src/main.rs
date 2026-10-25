@@ -580,7 +580,7 @@ fn render_migration(module: &str, table: &str, fields: &[Field]) -> String {
             FieldType::DateTime => {
                 let _ = writeln!(
                     source,
-                    "                    .col(openrust::database::dialect::timestamp_utc({table_type}::{}, manager.get_database_backend()){} )",
+                    "                    .col(openrust::database::dialect::timestamp_utc({table_type}::{}, manager.get_database_backend())?{} )",
                     field.variant,
                     if field.nullable { ".null()" } else { "" }
                 );
@@ -588,7 +588,7 @@ fn render_migration(module: &str, table: &str, fields: &[Field]) -> String {
             FieldType::Json => {
                 let _ = writeln!(
                     source,
-                    "                    .col(openrust::database::dialect::json({table_type}::{}, manager.get_database_backend()){} )",
+                    "                    .col(openrust::database::dialect::json({table_type}::{}, manager.get_database_backend())?{} )",
                     field.variant,
                     if field.nullable { ".null()" } else { "" }
                 );

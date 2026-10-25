@@ -9,11 +9,14 @@
 
 ## 决策
 
-- ORM 与迁移使用 `sea-orm` 2.x + `sea-orm-migration`；SQLx 直连只通过 `db.sqlx()` 显式获取。
+- ORM 与迁移使用 `sea-orm` 2.x + `sea-orm-migration`。SQLx 直连不属于当前 `Db` 公共 API；如后续提供逃生口，必须单独定义生命周期与事务语义。
 - 正式支持 PostgreSQL 14+ 与 MySQL 8.0+，PostgreSQL 为推荐默认；SQLite 不在第一代。
 - 迁移只使用可移植列类型；时间 PostgreSQL `timestamptz` / MySQL `DATETIME(6)`，JSON `jsonb` / `json`；框架表不用数组、枚举等单库特性。
 - 单库 SQL 集中在 `openrust-db::dialect`，必须同时提供两库分支并有双库测试；CI 以 service 容器运行双库矩阵。
 - 生成项目在创建时选择一个后端并只启用对应 feature，不要求运行时切换。
+- `Db` 保持 SeaORM 连接与事务入口；自定义 `Plugin` 可在 `build` 注册 `Db::default()`，并在 `finish` 连接后调用 `Db::initialize()`。同一应用只注册一个数据库插件。
+- PostgreSQL 14+ 与 MySQL 8.0+ 是 v1 正式支持矩阵。其他 SeaORM 后端可由独立扩展接入 `Db`，但不因此获得框架功能支持；扩展必须验证其迁移、方言、锁及所用能力，并自行提供适配和测试隔离。
+- UTC/JSON schema helper 对 PostgreSQL、MySQL 显式生成对应类型；其他 SeaORM backend 返回迁移错误，不回退套用 PostgreSQL 方言。
 
 ## 影响
 

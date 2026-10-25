@@ -25,6 +25,12 @@
 - 统一 `Db` 使用入口，将连接初始化、后端识别与必要能力检查，以及迁移、UTC/JSON、锁等方言差异集中管理，避免认证、会话、队列中散布数据库判断。
 - 切换主要通过编译期 feature 与连接配置完成，不要求运行中热切换；切换驱动不负责跨库迁移已有数据。
 - 现有连接与事务 API 使用 SeaORM 类型；其支持范围构成当前扩展边界。ORM 未支持的数据库还需要底层适配，不能仅实现连接插件就宣称支持。
+- 数据库扩展复用 `Db`、`DatabasePlugin` 约定与 `Plugin` 生命周期，不增加通用 ORM/driver trait。自定义插件在 `build` 注册唯一 `Db::default()`，在 `finish` 建立 SeaORM `DatabaseConnection` 并调用一次性的 `Db::initialize()`；框架 `MigrationPlugin`、`SeedPlugin`、事务辅助继续使用该服务。注册重复或重复初始化必须报错。
+- 内置 backend URL scheme 和 feature 检查由 `openrust-db::DatabaseBackend` 统一提供，并由 `openrust-test` 共用；自定义插件可直接接入 SeaORM 后端并自行管理连接配置。SeaORM `DbBackend` 是实际连接类型，不扩展为 OpenRust 专属 SQL/ORM trait。
+- 内置 `DatabasePlugin` 建连后校验 PostgreSQL 14+ / MySQL 8.0+，版本不足或无法识别时启动失败。自定义插件绕过内置连接初始化时，必须自行执行适用的版本与能力检查。
+- `Db::backend()` 提供已初始化连接的 SeaORM backend。官方 v1 仅 PostgreSQL 14+ 与 MySQL 8.0+；扩展可连接 SeaORM 支持的其他关系型 backend，但须自行校验自身及所用框架能力，适配迁移、UTC/JSON、锁、生成器与测试隔离，不能因 CRUD 或成功连接宣称框架全功能兼容。
+- 新增关系型 backend 要进入官方支持矩阵，仍需增补 feature、连接默认值、安全策略、能力检查、方言、迁移/seed、测试隔离、生成器、文档与真实集成验证。MongoDB 等不同数据模型不适用此 `Db` 替换契约。
+- `openrust-db::dialect` 对未支持 backend 明确返回迁移错误；`openrust-test::TestDatabase` 的 PostgreSQL 模板复制与 MySQL 迁移重放是 backend 专属实现，新增 backend 必须单独实现，不能由连接插件自动继承。
 - MongoDB 等不同数据模型不承诺直接替换关系型数据库。能够 CRUD 不代表满足迁移、会话、数据库队列等全部要求。
 - 用 PostgreSQL 与 MySQL 的真实集成测试验证公共契约和差异行为。保留必要的专属能力入口，并明确其可移植性限制。
 
