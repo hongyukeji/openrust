@@ -122,10 +122,9 @@
 - **已实现代码**（0.0.0，可以做破坏性变更）：`openrust-core`（plugin、app、command、config）、`openrust-http`（resource、routes、plugin、extract）、门面 prelude、示例、各 crate README、测试。
 - **设计与计划文档**：`plans/framework-design.md`、`plans/gen1-plan.md`、`architecture.md`、`context.md`、`todo.md`、`roadmap.md`，以及 ADR-001、ADR-002、ADR-004 中的术语。决策内容不变。
 
-## 验证
+## 执行
 
-- 每次提交前运行旧名扫描。除本 ADR、`CHANGELOG.md` 与 `docs/` 迁移对照页外，命中数应为 0。命令见 [memory/testing.md](../memory/testing.md)。
-- 新增或修改公共名称的 PR 或 commit，必须在本 ADR 中能找到对应条目。
+规范即约束：Agent 开发时按本 ADR 与 conventions.md「框架规范」起名，不设额外的旧名扫描门禁。新增或修改公共名称时，本 ADR 中应能找到对应条目；找不到的先补条目。
 
 ## 调研依据
 

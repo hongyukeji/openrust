@@ -80,7 +80,6 @@ cargo semver-checks            # 发布前
 | `openrust-db` / `openrust-queue` / `openrust-auth` | 另在 PostgreSQL 与 MySQL 各跑集成测试，见 `memory/testing.md` |
 | 模板与生成器 | 双库模板快照测试：生成项目后 `cargo check` + `cargo test` |
 | 文档-only | `git diff --check` + 相对链接检查 + `rg` 旧路径扫描 |
-| 任意改动 | ADR-006 旧名扫描，命令见 `memory/testing.md` |
 
 测试原则：框架是底层通用机制，每个公共行为都应有单元或集成测试；新建测试文件前必须能一句话说清它能发现哪个缺陷。fake driver 的断言放在 `openrust-test`。
 
