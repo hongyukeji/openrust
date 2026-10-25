@@ -70,7 +70,7 @@
 - **全局命令**：`openrust new <name> [--db postgres|mysql]`、`openrust dev`。其余命令转发给项目二进制。
 - **生成器**：`openrust generate <kind>`，别名 `g`。kind 包括 `scaffold`、`controller`、`model`、`migration`、`job`、`mailer`、`policy`、`command`。
   - 字段 DSL 使用 loco / Rails 的小写类型名，例如 `title:string published_at:date_time?`。`references` 表示外键，`?` 表示可空。
-- **运行期命令**：`serve`（默认）、`migrate`、`db seed`、`db reset`、`db status`、`queue work`、`schedule run`、`schedule list`、`routes`、`config show`、`doctor`。
+- **运行期命令**：`serve`（默认）、`migrate`、`db seed`、`db reset`、`db status`、`queue work`、`schedule run`、`schedule list`、`routes`、`config show`、`doctor`。`migrate` 接受 `up [steps]`（默认，全部待迁移）、`down [steps]`（默认回滚一步）和 `status`。
 
 ### 3. 配置与环境变量
 
@@ -86,6 +86,7 @@
 | 领域 | 名称 | 依据 |
 | --- | --- | --- |
 | 扩展单元 | `trait Plugin { fn build(&self, app); fn finish(&self, app) }`；`AppBuilder::plugin()`；能力 crate 导出 `<Capability>Plugin`，如 `HttpPlugin`、`DatabasePlugin` | Bevy `Plugin::build/finish`、summer-rs `Plugin`、Tauri `Builder::plugin`。语义：先对所有插件调用 `build`（含期间新增），冻结后再调用 `finish` |
+| 数据库迁移 | `MigrationPlugin<M>::new()` 注册 `migrate [up [steps]|down [steps]|status]`；`M` 实现 `sea_orm_migration::MigratorTrait` | SeaORM migration 的 `MigratorTrait` 与其 up/down/status 生命周期；迁移由应用 crate 定义，数据库能力 crate 负责运行 |
 | 服务注册表 | `AppBuilder::insert(service)` / `AppBuilder::get::<T>()`；`AppState::get -> Option<Arc<T>>`；`AppState::try_get -> Result<Arc<T>>`；缺失时返回 `MissingServiceError` | `http::Extensions::insert/get`；std 中 `try_*` 返回 `Result`；RAG C-WORD-ORDER |
 | 提取器 | `Inject<T>`、`Validated<T>`、`CurrentUser` | `shaku_axum::Inject`；axum-valid `Valid<T>`。备选名会与 tower、axum、actix、bevy 的已有类型重名 |
 | 路由 | `Routes::nest(prefix, f)`（空前缀或 `/` 时 merge）、`merge`、`layer`、`resource::<R>(path)`、`resource_with` | axum、Poem、loco 都用 `nest`；actix `web::resource` |

@@ -29,8 +29,10 @@ impl Application for App {
 
 The plugin installs a cloneable `Db` service and opens its pool during application finalization. `Db::connection()` returns a SeaORM `DatabaseConnection`; `Db::transaction()` commits successful callbacks and rolls back callbacks that return an error. Its `Debug` output does not include the configured URL. A missing URL, disabled backend, invalid pool settings, or failed connection stops startup with a configuration error.
 
+Register `MigrationPlugin::<Migrator>::new()` to add the runtime `migrate` command for an application migrator implementing `sea_orm_migration::MigratorTrait`. The migration API is re-exported as `openrust::database::sea_orm_migration`. Run `migrate` or `migrate up [steps]` to apply pending migrations, `migrate down [steps]` to roll back migrations (one by default), and `migrate status` to list applied and pending migrations. MySQL DDL may implicitly commit; if a migration fails, inspect and clean up its partial schema before retrying.
+
 MySQL connections require TLS using Rustls. Configure the server certificate and trust chain through the MySQL URL/server deployment; plaintext MySQL connections are rejected. PostgreSQL TLS behavior follows the URL and server configuration.
 
 ## Scope
 
-The connection provider is implemented. Migration execution, transaction helpers, seed support, database commands, dialect helpers, per-test database isolation, and the `--db` project template remain in M2 scope.
+Connection pooling, transaction helpers, and the runtime migration command are implemented. Seed support, UTC/JSON dialect helpers, per-test database isolation, and the `--db` project template remain in M2 scope.

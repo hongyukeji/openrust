@@ -10,9 +10,8 @@
 
 ## M2 数据层（进行中）
 
-- `openrust-db` 连接池 / plugin、`Db::transaction` 已实现；Rust 1.97 MSRV、MySQL 强制 TLS，以及 PostgreSQL 14 / MySQL 8.0 的连接、事务和 `SKIP LOCKED` 验收已完成。
-- 在最低支持版本 PostgreSQL 14 与 MySQL 8.0 上复测 ADR-002 迁移结论（spike 只测了 PG 15/18、MySQL 8.4）。
-- 后续 `openrust-db` 功能簇：迁移 runner、UTC/JSON dialect helper 与 seed/CLI，再接入 `openrust-test` 数据库隔离和 `openrust new --db` 模板。
+- `openrust-db` 连接池 / plugin、`Db::transaction`、`MigrationPlugin` 与运行期迁移命令已实现；Rust 1.97 MSRV、MySQL 强制 TLS，以及 PostgreSQL 14 / MySQL 8.0 的连接、事务、`SKIP LOCKED`、迁移 up/down/status 验收已完成。
+- 后续 M2 数据层功能簇：UTC/JSON dialect helper 与 seed，再接入 `openrust-test` 数据库隔离和 `openrust new --db` 模板。
 
 ## M3 邮件、认证与授权（M2 收口后领取）
 

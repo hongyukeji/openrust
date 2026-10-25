@@ -48,4 +48,4 @@ M0 Spike A（2026-10-25）：独立项目用 `sea-orm` / `sea-orm-migration` 2.0
 - 提供迁移辅助（`dialect::timestamp_utc(name)`、`dialect::json(name)`），封装上述时间与 JSON 分支，框架表与生成器模板只经过辅助函数，禁止直接调用 `timestamp_with_time_zone()`。
 - 连接层在 MySQL 上设置 `time_zone = '+00:00'`，业务代码统一使用 `chrono::Utc`。
 - 迁移测试同时断言 `information_schema` 中的列类型（`timestamp with time zone` / `datetime(6)`、`jsonb` / `json`），防止回退到 `timestamp`。
-- 迁移 CLI 只承诺 `up`、`down`、`status` 幂等；失败恢复策略对 MySQL 文档化为“需人工清理”。
+- 迁移 CLI 由 `MigrationPlugin<M>` 注册，接受 `up`、`down [steps]`、`status`；重复 `up` 与 `status` 幂等。失败恢复策略对 MySQL 文档化为“需检查并人工清理部分 schema 后再重试”。

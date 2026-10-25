@@ -15,6 +15,11 @@ use sea_orm::{
 use serde::Deserialize;
 use std::sync::OnceLock;
 
+mod migration;
+
+pub use migration::MigrationPlugin;
+pub use sea_orm_migration;
+
 /// Database connection and pool settings from the `[database]` configuration section.
 #[derive(Clone, Deserialize)]
 #[serde(default)]

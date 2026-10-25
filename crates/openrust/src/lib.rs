@@ -15,7 +15,7 @@ pub use openrust_macros::resource;
 pub use openrust_db as database;
 
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
-pub use openrust_db::{DatabaseConfig, DatabasePlugin, Db};
+pub use openrust_db::{DatabaseConfig, DatabasePlugin, Db, MigrationPlugin};
 
 /// HTTP layer: routing, extractors, middleware, `serve`.
 pub use openrust_http as http;
@@ -39,7 +39,7 @@ pub mod prelude {
         App, AppBuilder, Application, BoxFuture, Command, Error, NoConfig, Plugin, Result,
     };
     #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
-    pub use crate::{DatabaseConfig, DatabasePlugin, Db};
+    pub use crate::{DatabaseConfig, DatabasePlugin, Db, MigrationPlugin};
 }
 
 /// Boots `A` and runs the command named by the first argument (`serve` by default).

@@ -15,13 +15,14 @@ keywords.workspace = true
 [dependencies]
 openrust-core.workspace = true
 sea-orm.workspace = true
+sea-orm-migration.workspace = true
 serde.workspace = true
 sqlx = { workspace = true, optional = true }
 
 [features]
 default = []
-db-postgres = ["sea-orm/sqlx-postgres"]
-db-mysql = ["sea-orm/sqlx-mysql", "dep:sqlx", "sqlx/mysql"]
+db-postgres = ["sea-orm/sqlx-postgres", "sea-orm-migration/sqlx-postgres"]
+db-mysql = ["sea-orm/sqlx-mysql", "sea-orm-migration/sqlx-mysql", "dep:sqlx", "sqlx/mysql"]
 
 [dev-dependencies]
 figment.workspace = true
