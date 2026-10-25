@@ -4,11 +4,106 @@ use std::future::{Future, ready};
 use std::ops::Deref;
 use std::sync::Arc;
 
-use axum::extract::{FromRef, FromRequest, FromRequestParts, Json, Query, Request};
+use axum::extract::rejection::JsonRejection;
+use axum::extract::{FromRef, FromRequest, FromRequestParts, Request};
+use axum::extract::{Json as AxumJson, Path as AxumPath, Query as AxumQuery};
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
 use http::request::Parts;
 use openrust_core::{AppState, Error, Result, ValidationErrors};
+use serde::Serialize;
 use serde::de::DeserializeOwned;
 use validator::{Validate, ValidationErrorsKind};
+
+/// JSON body extractor with OpenRust problem responses on failure. Also serializes JSON responses.
+pub struct Json<T>(pub T);
+
+impl<S, T> FromRequest<S> for Json<T>
+where
+    S: Send + Sync,
+    T: DeserializeOwned,
+{
+    type Rejection = Error;
+
+    async fn from_request(req: Request, state: &S) -> Result<Self> {
+        AxumJson::<T>::from_request(req, state)
+            .await
+            .map(|AxumJson(value)| Self(value))
+            .map_err(json_error)
+    }
+}
+
+impl<T: Serialize> IntoResponse for Json<T> {
+    fn into_response(self) -> Response {
+        AxumJson(self.0).into_response()
+    }
+}
+
+fn json_error(rejection: JsonRejection) -> Error {
+    let detail = rejection.body_text();
+    match rejection {
+        JsonRejection::MissingJsonContentType(_) => Error::custom(
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            "unsupported_media_type",
+            detail,
+        ),
+        JsonRejection::JsonDataError(_) => {
+            let mut errors = ValidationErrors::new();
+            // Axum includes the serde path before the parser's message.
+            let reason = detail
+                .split_once(": ")
+                .map_or(detail.as_str(), |(_, reason)| reason);
+            if let Some((path, _)) = reason.split_once(": ") {
+                if !path.is_empty() && !path.contains(' ') {
+                    errors.add(path, reason);
+                }
+            } else if let Some(field) = reason.split('`').nth(1) {
+                errors.add(field, reason);
+            }
+            Error::validation_with_detail(detail, errors)
+        }
+        JsonRejection::BytesRejection(error) if error.status() == StatusCode::PAYLOAD_TOO_LARGE => {
+            Error::custom(StatusCode::PAYLOAD_TOO_LARGE, "payload_too_large", detail)
+        }
+        _ => Error::BadRequest(detail),
+    }
+}
+
+/// Path parameter extractor with OpenRust problem responses on failure.
+pub struct Path<T>(pub T);
+
+impl<S, T> FromRequestParts<S> for Path<T>
+where
+    S: Send + Sync,
+    T: DeserializeOwned + Send,
+{
+    type Rejection = Error;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self> {
+        AxumPath::<T>::from_request_parts(parts, state)
+            .await
+            .map(|AxumPath(value)| Self(value))
+            .map_err(|rejection| Error::BadRequest(rejection.body_text()))
+    }
+}
+
+/// Query parameter extractor with OpenRust problem responses on failure.
+pub struct Query<T>(pub T);
+
+impl<S, T> FromRequestParts<S> for Query<T>
+where
+    S: Send + Sync,
+    T: DeserializeOwned,
+{
+    type Rejection = Error;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self> {
+        AxumQuery::<T>::from_request_parts(parts, state)
+            .await
+            .map(|AxumQuery(value)| Self(value))
+            .map_err(|rejection| Error::BadRequest(rejection.body_text()))
+    }
+}
 
 /// Fetches a service registered with `AppBuilder::insert`.
 ///
@@ -42,8 +137,8 @@ where
 
 /// Deserialises the inner extractor and runs its `validator` rules.
 ///
-/// Deserialisation failures answer `400 bad_request`; rule failures answer `422 validation_failed`
-/// with one message list per field. Supported inner extractors: [`Json`] and [`Query`].
+/// Deserialisation failures follow the inner extractor (`400`, `413`, `415`, or `422`).
+/// Rule failures answer `422 validation_failed` with one message list per field. Supported inner extractors: [`Json`] and [`Query`].
 pub struct Validated<T>(pub T);
 
 impl<T> Deref for Validated<T> {
@@ -62,9 +157,7 @@ where
     type Rejection = Error;
 
     async fn from_request(req: Request, state: &S) -> Result<Self> {
-        let Json(value) = Json::<T>::from_request(req, state)
-            .await
-            .map_err(|rejection| Error::BadRequest(rejection.body_text()))?;
+        let Json(value) = Json::<T>::from_request(req, state).await?;
         value.validate().map_err(|errors| convert(&errors))?;
         Ok(Self(Json(value)))
     }
@@ -78,9 +171,7 @@ where
     type Rejection = Error;
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self> {
-        let Query(value) = Query::<T>::from_request_parts(parts, state)
-            .await
-            .map_err(|rejection| Error::BadRequest(rejection.body_text()))?;
+        let Query(value) = Query::<T>::from_request_parts(parts, state).await?;
         value.validate().map_err(|errors| convert(&errors))?;
         Ok(Self(Query(value)))
     }

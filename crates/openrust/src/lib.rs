@@ -20,12 +20,12 @@ pub use tokio;
 
 /// Everything a typical `app.rs`, controller or plugin needs.
 pub mod prelude {
-    pub use crate::http::axum::extract::{Path, Query, State};
+    pub use crate::http::axum::extract::State;
+    pub use crate::http::axum::http::StatusCode;
     pub use crate::http::axum::response::IntoResponse;
-    pub use crate::http::axum::{Json, http::StatusCode};
     pub use crate::http::{
-        Action, AppBuilderHttpExt, Created, Inject, NoContent, PageParams, Paginated, Resource,
-        ResourceActions, Routes, Validated,
+        Action, AppBuilderHttpExt, Created, Inject, Json, NoContent, PageParams, Paginated, Path,
+        Query, Resource, ResourceActions, Routes, Validated,
     };
     pub use crate::{
         App, AppBuilder, Application, BoxFuture, Command, Error, NoConfig, Plugin, Result,
@@ -61,4 +61,16 @@ fn fail(message: &str) -> ExitCode {
     // tracing may not be installed yet (configuration failed), so always write to stderr.
     eprintln!("error: {message}");
     ExitCode::FAILURE
+}
+
+#[cfg(test)]
+mod tests {
+    use super::prelude::*;
+
+    #[test]
+    fn prelude_json_is_a_response() {
+        let response = Json("ok").into_response();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.headers()["content-type"], "application/json");
+    }
 }

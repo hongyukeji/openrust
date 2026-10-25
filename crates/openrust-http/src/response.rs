@@ -5,7 +5,7 @@ use std::num::NonZeroU64;
 
 use axum::Json;
 use axum::extract::{FromRequestParts, Query};
-use axum::http::{StatusCode, request::Parts};
+use axum::http::{HeaderValue, StatusCode, header, request::Parts};
 use axum::response::{IntoResponse, Response};
 use openrust_core::{Error, Result, ValidationErrors};
 use serde::{Deserialize, Serialize};
@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 /// Wraps a response with HTTP 201 Created.
 ///
 /// ```
-/// use openrust_http::{Created, axum::Json};
+/// use openrust_http::{Created, Json};
 ///
 /// async fn create() -> Created<Json<&'static str>> {
 ///     Created(Json("created"))
@@ -24,6 +24,30 @@ pub struct Created<T>(pub T);
 impl<T: IntoResponse> IntoResponse for Created<T> {
     fn into_response(self) -> Response {
         (StatusCode::CREATED, self.0).into_response()
+    }
+}
+
+/// A 201 response with a validated `Location` header.
+pub struct Located<T> {
+    location: HeaderValue,
+    body: T,
+}
+
+impl<T> Created<T> {
+    /// Creates a 201 response with `Location`; invalid header values return a 500 problem.
+    pub fn with_location(location: &str, body: T) -> Result<Located<T>> {
+        let location = HeaderValue::from_str(location).map_err(Error::internal)?;
+        Ok(Located { location, body })
+    }
+}
+
+impl<T: IntoResponse> IntoResponse for Located<T> {
+    fn into_response(self) -> Response {
+        let mut response = Created(self.body).into_response();
+        response
+            .headers_mut()
+            .insert(header::LOCATION, self.location);
+        response
     }
 }
 

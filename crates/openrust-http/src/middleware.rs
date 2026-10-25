@@ -1,7 +1,7 @@
 //! Default middleware stack.
 //!
 //! Outermost to innermost: set `x-request-id` → propagate it to the response → tracing span →
-//! CORS → request timeout → compression → panic capture. Application layers added via [`Routes::layer`](crate::Routes::layer)
+//! CORS → problem status mapping → request timeout → compression → panic capture. Application layers added via [`Routes::layer`](crate::Routes::layer)
 //! run inside this stack.
 
 use std::any::Any;
@@ -37,6 +37,7 @@ pub fn apply(router: Router, server: &ServerConfig) -> Result<Router> {
         StatusCode::REQUEST_TIMEOUT,
         Duration::from_secs(server.request_timeout_secs),
     ));
+    let router = router.layer(axum::middleware::map_response(problem_status));
     let router = if let Some(cors) = cors {
         router.layer(cors)
     } else {
@@ -46,6 +47,35 @@ pub fn apply(router: Router, server: &ServerConfig) -> Result<Router> {
         .layer(TraceLayer::new_for_http().make_span_with(request_span))
         .layer(PropagateRequestIdLayer::x_request_id())
         .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid)))
+}
+
+async fn problem_status(response: Response) -> Response {
+    if response.status() == StatusCode::REQUEST_TIMEOUT
+        && !response
+            .headers()
+            .contains_key(axum::http::header::CONTENT_TYPE)
+    {
+        Error::custom(
+            StatusCode::REQUEST_TIMEOUT,
+            "request_timeout",
+            "request timed out",
+        )
+        .into_response()
+    } else if response.status() == StatusCode::PAYLOAD_TOO_LARGE
+        && response.headers().get(axum::http::header::CONTENT_TYPE)
+            != Some(&axum::http::HeaderValue::from_static(
+                "application/problem+json",
+            ))
+    {
+        Error::custom(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "payload_too_large",
+            "request body too large",
+        )
+        .into_response()
+    } else {
+        response
+    }
 }
 
 fn invalid(key: &str, detail: &str) -> Error {

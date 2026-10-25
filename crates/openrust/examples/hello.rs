@@ -13,8 +13,8 @@ impl Application for Hello {
     }
 }
 
-async fn hello() -> &'static str {
-    "Hello from OpenRust"
+async fn hello() -> Json<&'static str> {
+    Json("Hello from OpenRust")
 }
 
 fn main() -> std::process::ExitCode {

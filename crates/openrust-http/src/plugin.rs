@@ -1,7 +1,8 @@
 //! [`HttpPlugin`] and the route registration hook.
 
 use axum::Router;
-use openrust_core::{App, AppBuilder, Plugin, Result};
+use axum::http::StatusCode;
+use openrust_core::{App, AppBuilder, Error, Plugin, Result};
 
 use crate::health;
 use crate::middleware;
@@ -73,6 +74,16 @@ pub fn build_router(app: &App) -> Result<Router> {
             routes = builder(routes);
         }
     }
-    let stateful = routes.into_router().with_state(app.state().clone());
+    let stateful = routes
+        .into_router()
+        .fallback(|| async { Error::NotFound("route not found".into()) })
+        .method_not_allowed_fallback(|| async {
+            Error::custom(
+                StatusCode::METHOD_NOT_ALLOWED,
+                "method_not_allowed",
+                "method not allowed",
+            )
+        })
+        .with_state(app.state().clone());
     middleware::apply(stateful, &app.config().server)
 }

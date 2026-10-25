@@ -82,3 +82,22 @@ fn default_config_loads_from_package_directory() -> TestResult {
     assert!(!framework.server.cors.enabled);
     Ok(())
 }
+
+#[test]
+fn unknown_route_returns_404_problem() -> TestResult {
+    openrust::tokio::runtime::Runtime::new()?.block_on(async {
+        let response = router()
+            .await?
+            .oneshot(Request::get("/nope").body(Body::empty())?)
+            .await?;
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            response.headers()["content-type"],
+            "application/problem+json"
+        );
+        assert!(response.headers().contains_key("x-request-id"));
+        let body = to_bytes(response.into_body(), usize::MAX).await?;
+        assert!(std::str::from_utf8(&body)?.contains("\"code\":\"not_found\""));
+        Ok(())
+    })
+}

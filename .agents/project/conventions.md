@@ -29,7 +29,14 @@
 
 ## 框架规范
 
-权威来源：[ADR-006](decisions/adr-006-rust-native-naming.md) 与 [ADR-007](decisions/adr-007-aggregate-server-entry.md)。本节是动手前的检查清单，与 ADR 冲突时以 ADR 为准。
+权威来源：[ADR-006](decisions/adr-006-rust-native-naming.md) 、[ADR-007](decisions/adr-007-aggregate-server-entry.md) 与 [ADR-008](decisions/adr-008-api-conventions.md)。本节是动手前的检查清单，与 ADR 冲突时以 ADR 为准。
+
+### API 速查
+
+- 资源路径用复数、kebab-case 名词，JSON API 挂在 `/api`；字段与枚举用 `snake_case`。
+- 单资源返回裸对象；分页集合用 `Paginated<T>` 的 `data` / `meta`。
+- 时间使用 RFC 3339 UTC（`Z`）；错误一律为 `application/problem+json`，响应头包含 `x-request-id`。
+- 状态码与稳定 `code` 对照见 [ADR-008 §4](decisions/adr-008-api-conventions.md#4-错误)。
 
 ### 能力接入 apps/server
 

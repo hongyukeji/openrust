@@ -16,7 +16,7 @@ cargo deny check            # 本机 cargo-deny 0.20：advisories / bans / licen
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 ```
 
-当前覆盖：`openrust-core` 30 个单元测试（含配置目录覆盖、`.env` 选择生产时跳过其余变量、无 HTTP 插件的命令边界），`openrust-http` 34 个集成测试（`tests/router.rs` 19 个、`tests/resource.rs` 15 个），`openrust-server` 4 个集成测试。
+当前覆盖：`openrust-core` 32 个单元测试（含配置目录覆盖、`.env` 选择生产时跳过其余变量、无 HTTP 插件的命令边界），`openrust-http` 45 个集成测试（`tests/router.rs` 29 个、`tests/resource.rs` 16 个），`openrust-server` 5 个集成测试；`openrust` 1 个单元测试。
 
 ## 双库集成（M2 起）
 

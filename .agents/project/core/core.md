@@ -16,7 +16,7 @@
 | `plugin` | `Plugin { name, build(&mut AppBuilder), finish(&App) -> BoxFuture }`；`BoxFuture` |
 | `command` | `Command { name, about, accepts_args, run }`；额外参数默认拒绝；内置 `help`、`config show`（密钥遮蔽） |
 | `config` | 分层 `ConfigLoader`（默认值 → `OPENRUST_CONFIG_DIR` 指定目录的 `default.toml` / `<env>.toml` → `OPENRUST_*`；目录默认是工作目录下的 `config`）；`Environment`（`OPENRUST_ENV`）；进程变量优先，未设置时仅从 `.env` 预读环境，最终为生产环境则完全不加载 `.env`；`FrameworkConfig { app, server, log }`，其中 `ServerConfig` 包含 `compression` 与 `cors` 默认配置；`NoConfig`；`load_dotenv`；`redact_secrets` |
-| `error` | `Error` 枚举（`BadRequest` / `Unauthorized` / `Forbidden` / `NotFound` / `Conflict` / `Validation` / `RateLimited` / `Config` / `Custom` / `Internal`），`status()` / `code()` / `to_problem()`，`IntoResponse` 输出 `application/problem+json`；`ValidationErrors`；`ProblemDetails` |
+| `error` | `Error` 枚举（`BadRequest` / `Unauthorized` / `Forbidden` / `NotFound` / `Conflict` / `Validation` / `ValidationDetail` / `RateLimited` / `Config` / `Custom` / `Internal`），`status()` / `code()` / `to_problem()`；`validation_with_detail` 用于 JSON 结构错误，`custom` 承载 405/408/413/415 等稳定码，`IntoResponse` 输出 `application/problem+json`；`ValidationErrors`；`ProblemDetails` |
 | `lifecycle` | `bootstrap` / `bootstrap_with(defaults)` / `finalize(builder)` / `init_tracing` / `shutdown_signal` |
 
 ## 约束

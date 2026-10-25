@@ -12,9 +12,9 @@ pub mod routes;
 pub mod serve;
 
 pub use axum;
-pub use extract::{Inject, Validated};
+pub use extract::{Inject, Json, Path, Query, Validated};
 pub use plugin::{AppBuilderHttpExt, HttpPlugin, RouteRegistry, build_router};
 pub use resource::{Action, Resource, ResourceActions};
-pub use response::{Created, NoContent, PageParams, Paginated};
+pub use response::{Created, Located, NoContent, PageParams, Paginated};
 pub use routes::Routes;
 pub use serve::{ServeCommand, serve};

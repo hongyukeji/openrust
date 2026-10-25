@@ -4,8 +4,8 @@ use axum::body::{Body, to_bytes};
 use axum::http::{Request, StatusCode, header};
 use openrust_core::config::FrameworkConfig;
 use openrust_core::{AppBuilder, finalize};
-use openrust_http::axum::Json;
 use openrust_http::{AppBuilderHttpExt, HttpPlugin, Inject, Validated, build_router};
+use openrust_http::{Json, Path, Query};
 use serde::Deserialize;
 use tower::ServiceExt;
 use validator::Validate;
@@ -57,10 +57,33 @@ async fn router_with_config(config: FrameworkConfig) -> openrust_core::Result<ax
                     .get("/boom", boom)
                     .get("/large", large)
                     .get("/slow", slow)
+                    .post("/raw", create_raw)
+                    .get("/items/{id}", item)
+                    .get("/search", search)
+                    .get("/own-404", own_not_found)
             })
         });
     let app = finalize(builder).await?;
     build_router(&app)
+}
+
+#[derive(Deserialize, serde::Serialize)]
+struct RawPost {
+    title: String,
+    pages: u32,
+}
+
+async fn create_raw(Json(input): Json<RawPost>) -> Json<RawPost> {
+    Json(input)
+}
+async fn item(Path(id): Path<u64>) -> Json<u64> {
+    Json(id)
+}
+async fn search(Query(id): Query<RawPost>) -> Json<String> {
+    Json(id.title)
+}
+async fn own_not_found() -> openrust_core::Error {
+    openrust_core::Error::NotFound("my resource is absent".into())
 }
 
 async fn large() -> String {
@@ -350,9 +373,14 @@ async fn cors_timeout_retains_allow_origin() -> TestResult {
         .await?;
     assert_eq!(response.status(), StatusCode::REQUEST_TIMEOUT);
     assert_eq!(
+        response.headers()[header::CONTENT_TYPE],
+        "application/problem+json"
+    );
+    assert_eq!(
         response.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN),
         Some(&"https://example.com".parse()?)
     );
+    assert_eq!(json_body(response).await["code"], "request_timeout");
     Ok(())
 }
 
@@ -548,5 +576,172 @@ async fn disabled_cors_ignores_other_invalid_fields() -> TestResult {
         )
         .await?;
     assert_eq!(response.status(), StatusCode::OK);
+    Ok(())
+}
+
+#[tokio::test]
+async fn json_syntax_is_400_problem() -> TestResult {
+    let response = router()
+        .await?
+        .oneshot(
+            Request::post("/api/raw")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from("{broken"))?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(json_body(response).await["code"], "bad_request");
+    Ok(())
+}
+
+#[tokio::test]
+async fn json_content_type_is_415_problem() -> TestResult {
+    let response = router()
+        .await?
+        .oneshot(Request::post("/api/raw").body(Body::from("{}"))?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
+    assert_eq!(json_body(response).await["code"], "unsupported_media_type");
+    Ok(())
+}
+
+#[tokio::test]
+async fn json_field_type_is_422_problem() -> TestResult {
+    let response = router()
+        .await?
+        .oneshot(
+            Request::post("/api/raw")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"title":"hello","pages":"wrong"}"#))?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    let body = json_body(response).await;
+    assert_eq!(body["code"], "validation_failed");
+    assert!(
+        body["detail"]
+            .as_str()
+            .is_some_and(|detail| detail.contains("pages"))
+    );
+    assert!(body["errors"]["pages"].is_array(), "{body}");
+    Ok(())
+}
+
+#[tokio::test]
+async fn oversized_json_is_413_problem() -> TestResult {
+    let response = router()
+        .await?
+        .oneshot(
+            Request::post("/api/raw")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(vec![b' '; 3_000_000]))?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
+    assert_eq!(json_body(response).await["code"], "payload_too_large");
+    Ok(())
+}
+
+#[tokio::test]
+async fn path_and_query_parse_errors_are_400_problems() -> TestResult {
+    for uri in ["/api/items/nope", "/api/search?title=x&pages=nope"] {
+        let response = router()
+            .await?
+            .oneshot(Request::get(uri).body(Body::empty())?)
+            .await?;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(json_body(response).await["code"], "bad_request");
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn unknown_route_is_404_problem_with_request_id() -> TestResult {
+    let response = router()
+        .await?
+        .oneshot(Request::get("/unknown").body(Body::empty())?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    assert!(response.headers().contains_key("x-request-id"));
+    assert_eq!(
+        response.headers()[header::CONTENT_TYPE],
+        "application/problem+json"
+    );
+    assert_eq!(json_body(response).await["code"], "not_found");
+    Ok(())
+}
+
+#[tokio::test]
+async fn wrong_method_is_405_problem_with_allow() -> TestResult {
+    let response = router()
+        .await?
+        .oneshot(Request::post("/api/greet").body(Body::empty())?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED);
+    assert!(response.headers().contains_key(header::ALLOW));
+    assert_eq!(json_body(response).await["code"], "method_not_allowed");
+    Ok(())
+}
+
+#[tokio::test]
+async fn handler_404_keeps_its_detail() -> TestResult {
+    let response = router()
+        .await?
+        .oneshot(Request::get("/api/own-404").body(Body::empty())?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    let body = json_body(response).await;
+    assert_eq!(body["detail"], "my resource is absent");
+    Ok(())
+}
+
+#[tokio::test]
+async fn cors_applies_to_fallback_problems() -> TestResult {
+    let mut config = FrameworkConfig::default();
+    config.server.cors.enabled = true;
+    config.server.cors.allowed_origins = vec!["https://example.com".into()];
+    let router = router_with_config(config).await?;
+    for (method, uri, status) in [
+        ("GET", "/nope", StatusCode::NOT_FOUND),
+        ("POST", "/api/greet", StatusCode::METHOD_NOT_ALLOWED),
+    ] {
+        let response = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(method)
+                    .uri(uri)
+                    .header(header::ORIGIN, "https://example.com")
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(response.status(), status);
+        assert_eq!(
+            response.headers()[header::CONTENT_TYPE],
+            "application/problem+json"
+        );
+        assert_eq!(
+            response.headers()[header::ACCESS_CONTROL_ALLOW_ORIGIN],
+            "https://example.com"
+        );
+        assert!(response.headers().contains_key("x-request-id"));
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn missing_json_field_is_422_with_field_error() -> TestResult {
+    let response = router()
+        .await?
+        .oneshot(
+            Request::post("/api/raw")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"pages":1}"#))?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    let body = json_body(response).await;
+    assert_eq!(body["code"], "validation_failed");
+    assert!(body["errors"]["title"].is_array(), "{body}");
     Ok(())
 }

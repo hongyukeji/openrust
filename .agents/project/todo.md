@@ -10,6 +10,8 @@
 - `openrust-cli`：`new <name> --db postgres|mysql`（M1 先生成无数据库模板，M2 加 `--db`）、`dev`、`serve` 代理；模板放 `templates/`，生成后 `cargo test` 通过的快照测试。
 - 启用 CI `databases` job 的前提是 `openrust-db` 存在，归 M2。
 
+- OpenAPI：后续里程碑用 `utoipa` 生成 schema，并在非生产环境挂载 `/docs`（ADR-008 §6）。
+
 ## M2 数据层（M1 收口后领取）
 
 

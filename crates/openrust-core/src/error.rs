@@ -45,7 +45,7 @@ impl ValidationErrors {
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
-    /// Malformed request: unreadable body, wrong content type, bad parameters.
+    /// Malformed request: unreadable body or bad parameters.
     #[error("{0}")]
     BadRequest(String),
     /// The caller is not authenticated.
@@ -63,6 +63,14 @@ pub enum Error {
     /// Input was well-formed but failed validation rules.
     #[error("validation failed")]
     Validation(ValidationErrors),
+    /// Parsed input failed structural validation with a readable reason.
+    #[error("{detail}")]
+    ValidationDetail {
+        /// Explanation of the parse failure.
+        detail: String,
+        /// Field paths available from the parser.
+        errors: ValidationErrors,
+    },
     /// The caller exceeded a rate limit.
     #[error("too many requests")]
     RateLimited,
@@ -102,6 +110,14 @@ impl Error {
         }
     }
 
+    /// Builds a structural validation error with a readable detail.
+    pub fn validation_with_detail(detail: impl Into<String>, errors: ValidationErrors) -> Self {
+        Self::ValidationDetail {
+            detail: detail.into(),
+            errors,
+        }
+    }
+
     /// HTTP status this error renders as.
     pub fn status(&self) -> StatusCode {
         match self {
@@ -110,7 +126,7 @@ impl Error {
             Self::Forbidden(_) => StatusCode::FORBIDDEN,
             Self::NotFound(_) => StatusCode::NOT_FOUND,
             Self::Conflict(_) => StatusCode::CONFLICT,
-            Self::Validation(_) => StatusCode::UNPROCESSABLE_ENTITY,
+            Self::Validation(_) | Self::ValidationDetail { .. } => StatusCode::UNPROCESSABLE_ENTITY,
             Self::RateLimited => StatusCode::TOO_MANY_REQUESTS,
             Self::Custom { status, .. } => *status,
             Self::Config(_) | Self::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
@@ -125,7 +141,7 @@ impl Error {
             Self::Forbidden(_) => "forbidden",
             Self::NotFound(_) => "not_found",
             Self::Conflict(_) => "conflict",
-            Self::Validation(_) => "validation_failed",
+            Self::Validation(_) | Self::ValidationDetail { .. } => "validation_failed",
             Self::RateLimited => "rate_limited",
             Self::Config(_) => "configuration_error",
             Self::Custom { code, .. } => code,
@@ -146,11 +162,13 @@ impl Error {
         } else {
             match self {
                 Self::Validation(_) => Some("One or more fields failed validation.".to_owned()),
+                Self::ValidationDetail { detail, .. } => Some(detail.clone()),
                 other => Some(other.to_string()),
             }
         };
         let errors = match self {
             Self::Validation(errors) => Some(errors.clone()),
+            Self::ValidationDetail { errors, .. } if !errors.is_empty() => Some(errors.clone()),
             _ => None,
         };
         ProblemDetails {
@@ -271,6 +289,36 @@ mod tests {
             error.to_problem().detail.as_deref(),
             Some("plan limit reached")
         );
+    }
+
+    #[test]
+    fn structural_validation_keeps_detail_and_field() {
+        let mut errors = ValidationErrors::new();
+        errors.add("pages", "expected an integer");
+        let problem =
+            Error::validation_with_detail("pages must be an integer", errors).to_problem();
+        assert_eq!(problem.status, 422);
+        assert_eq!(problem.code, "validation_failed");
+        assert_eq!(problem.detail.as_deref(), Some("pages must be an integer"));
+        assert_eq!(
+            problem.errors.as_ref().map(|errors| errors.iter().count()),
+            Some(1)
+        );
+    }
+
+    #[test]
+    fn api_status_codes_remain_stable() {
+        for (status, code) in [
+            (StatusCode::METHOD_NOT_ALLOWED, "method_not_allowed"),
+            (StatusCode::REQUEST_TIMEOUT, "request_timeout"),
+            (StatusCode::PAYLOAD_TOO_LARGE, "payload_too_large"),
+            (StatusCode::UNSUPPORTED_MEDIA_TYPE, "unsupported_media_type"),
+        ] {
+            let error = Error::custom(status, code, "rejected");
+            assert_eq!(error.status(), status);
+            assert_eq!(error.code(), code);
+            assert_eq!(error.to_problem().code, code);
+        }
     }
 
     #[test]
