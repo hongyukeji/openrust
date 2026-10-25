@@ -36,6 +36,8 @@ Agent 不替代开发者做方向决策、发布判断和对外动作；开发�
 
 每次会话先读：`AGENTS.md`、`.agents/project/README.md`、`context.md` 的固定约束与本任务相关段落、`todo.md` 的本任务待办、`plan.md` 的当前里程碑。已注入或本会话已读且未变化的内容不重复读取；长文件先用 `rg -n` 定位。
 
+领取或切换功能簇、上下文压缩后恢复、收到新需求时，先核对 Git/WIP、`todo.md` 与 `plan.md`「执行校准」。相关计划有变化时读取最新差异；不得沿用旧提示词中的范围或阶段替代仓库最新要求。
+
 | 任务类型 | 补读 |
 | --- | --- |
 | 架构 / crate 边界 / 公共 API 设计 | `architecture.md`、`plans/framework-design.md`、相关 ADR |
