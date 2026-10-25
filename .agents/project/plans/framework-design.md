@@ -169,7 +169,7 @@ pub async fn store(
 ```
 
 - `resource` 按约定映射 `index` / `show` / `store` / `update` / `destroy`，缺失动作不注册；`only` / `except` 裁剪。
-- 预置中间件栈从外到内：请求 ID 设置 → 请求 ID 回传 → 追踪 span → 超时 → 压缩 → CORS → panic 捕获；业务中间件在路由组上追加。
+- 预置中间件栈从外到内：请求 ID 设置 → 请求 ID 回传 → 追踪 span → CORS → 超时 → 压缩 → panic 捕获；业务中间件在路由组上追加。
 - 输入验证只通过 `Validated<T>`；授权只通过 `Policy`；事务边界在 `services/`，控制器不直接开事务。
 - 响应辅助类型：`Created` / `NoContent` / `Paginated<T>`；分页参数与响应结构全框架统一。
 - OpenAPI 由 `utoipa` 生成，`/docs` 在非生产环境默认开启。
@@ -228,7 +228,7 @@ queue.dispatch(SendWelcomeEmail { user_id }).delay(Duration::from_secs(60)).awai
 ## 可观测性
 
 - `tracing` 为唯一日志与追踪入口；`[log] format = "text" | "json"`，`RUST_LOG` 优先于 `[log] level`；请求 span 含 `request_id` / method / uri，状态与耗时由 `TraceLayer` 记录。
-- `x-request-id` 入站沿用、缺失时生成 UUID、出站写回；中间件固定顺序为请求 ID → 传播 → 追踪 span → 超时（408）→ panic 捕获（500 Problem）。
+- `x-request-id` 入站沿用、缺失时生成 UUID、出站写回；中间件固定顺序为请求 ID → 传播 → 追踪 span → CORS → 超时（408）→ 压缩 → panic 捕获（500 Problem）。
 - `/health` 只报告进程存活；`/ready` 带超时检查数据库、队列、缓存依赖并逐项报告。
 - 可选 feature：`otel` 导出 OTLP；`metrics` 暴露 Prometheus 端点。
 - handler panic 由 `catch_panic` 捕获并转换为 500 Problem 响应，进程不退出。

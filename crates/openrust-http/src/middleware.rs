@@ -1,7 +1,7 @@
 //! Default middleware stack.
 //!
 //! Outermost to innermost: set `x-request-id` → propagate it to the response → tracing span →
-//! request timeout → compression → CORS → panic capture. Application layers added via [`Routes::layer`](crate::Routes::layer)
+//! CORS → request timeout → compression → panic capture. Application layers added via [`Routes::layer`](crate::Routes::layer)
 //! run inside this stack.
 
 use std::any::Any;
@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use axum::Router;
 use axum::extract::Request;
-use axum::http::{HeaderName, HeaderValue, Method, StatusCode};
+use axum::http::{HeaderName, HeaderValue, Method, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 use openrust_core::config::{ConfigError, CorsConfig, ServerConfig};
 use openrust_core::{Error, Result};
@@ -28,21 +28,21 @@ pub fn apply(router: Router, server: &ServerConfig) -> Result<Router> {
         None
     };
     let router = router.layer(CatchPanicLayer::custom(panic_response));
-    let router = if let Some(cors) = cors {
-        router.layer(cors)
-    } else {
-        router
-    };
     let router = if server.compression.enabled {
         router.layer(CompressionLayer::new())
     } else {
         router
     };
+    let router = router.layer(TimeoutLayer::with_status_code(
+        StatusCode::REQUEST_TIMEOUT,
+        Duration::from_secs(server.request_timeout_secs),
+    ));
+    let router = if let Some(cors) = cors {
+        router.layer(cors)
+    } else {
+        router
+    };
     Ok(router
-        .layer(TimeoutLayer::with_status_code(
-            StatusCode::REQUEST_TIMEOUT,
-            Duration::from_secs(server.request_timeout_secs),
-        ))
         .layer(TraceLayer::new_for_http().make_span_with(request_span))
         .layer(PropagateRequestIdLayer::x_request_id())
         .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid)))
@@ -57,11 +57,60 @@ fn parse_list<T: std::str::FromStr>(values: &[String], key: &str) -> Result<Vec<
         .iter()
         .enumerate()
         .map(|(index, value)| {
-            value
-                .parse()
-                .map_err(|_| invalid(&format!("server.cors.{key}[{index}]"), "invalid value"))
+            value.parse().map_err(|_| {
+                invalid(
+                    &format!("server.cors.{key}[{index}]"),
+                    &format!("invalid value {value:?}"),
+                )
+            })
         })
         .collect()
+}
+
+fn validate_wildcard(values: &[String], key: &str, allow_credentials: bool) -> Result<()> {
+    if let Some(index) = values.iter().position(|value| value == "*") {
+        let item_key = format!("server.cors.{key}[{index}]");
+        if allow_credentials {
+            return Err(invalid(
+                &item_key,
+                "cannot be \"*\" when server.cors.allow_credentials = true",
+            ));
+        }
+        if values.len() != 1 {
+            return Err(invalid(
+                &item_key,
+                "\"*\" cannot be mixed with concrete values",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_origin(origin: &str, index: usize) -> Result<HeaderValue> {
+    let key = format!("server.cors.allowed_origins[{index}]");
+    let valid = origin.parse::<Uri>().is_ok_and(|uri| {
+        matches!(uri.scheme_str(), Some("http" | "https"))
+            && uri.authority().is_some_and(|authority| {
+                let authority_text = authority.as_str();
+                let has_port = if authority_text.starts_with('[') {
+                    authority_text
+                        .split_once(']')
+                        .is_some_and(|(_, rest)| rest.starts_with(':'))
+                } else {
+                    authority_text.contains(':')
+                };
+                !authority.host().is_empty()
+                    && !authority_text.contains('@')
+                    && (!has_port || authority.port_u16().is_some())
+                    && origin == format!("{}://{authority}", uri.scheme_str().unwrap_or_default())
+            })
+    });
+    if !valid {
+        return Err(invalid(&key, &format!("invalid origin {origin:?}")));
+    }
+    origin
+        .parse()
+        .map_err(|_| invalid(&key, &format!("invalid origin {origin:?}")))
 }
 
 fn cors_layer(config: &CorsConfig) -> Result<CorsLayer> {
@@ -88,11 +137,30 @@ fn cors_layer(config: &CorsConfig) -> Result<CorsLayer> {
     if wildcard {
         layer = layer.allow_origin(AnyOrigin);
     } else {
-        layer = layer.allow_origin(parse_list::<HeaderValue>(
-            &config.allowed_origins,
-            "allowed_origins",
-        )?);
+        layer = layer.allow_origin(
+            config
+                .allowed_origins
+                .iter()
+                .enumerate()
+                .map(|(index, origin)| validate_origin(origin, index))
+                .collect::<Result<Vec<_>>>()?,
+        );
     }
+    validate_wildcard(
+        &config.allowed_methods,
+        "allowed_methods",
+        config.allow_credentials,
+    )?;
+    validate_wildcard(
+        &config.allowed_headers,
+        "allowed_headers",
+        config.allow_credentials,
+    )?;
+    validate_wildcard(
+        &config.expose_headers,
+        "expose_headers",
+        config.allow_credentials,
+    )?;
     let methods = parse_list::<Method>(&config.allowed_methods, "allowed_methods")?;
     let headers = parse_list::<HeaderName>(&config.allowed_headers, "allowed_headers")?;
     let exposed = parse_list::<HeaderName>(&config.expose_headers, "expose_headers")?;

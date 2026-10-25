@@ -437,11 +437,10 @@ mod tests {
     }
 
     #[test]
-    fn partial_cors_toml_keeps_field_defaults() {
+    fn partial_cors_toml_keeps_field_defaults() -> Result<(), toml::de::Error> {
         let parsed: FrameworkConfig = toml::from_str(
             "[server.cors]\nenabled = true\nallowed_origins = [\"https://example.com\"]",
-        )
-        .unwrap_or_default();
+        )?;
         assert!(parsed.server.cors.enabled);
         assert_eq!(parsed.server.cors.allowed_origins, ["https://example.com"]);
         assert_eq!(
@@ -449,6 +448,7 @@ mod tests {
             CorsConfig::default().allowed_methods
         );
         assert_eq!(parsed.server.cors.max_age_secs, 600);
+        Ok(())
     }
 
     #[test]

@@ -56,6 +56,7 @@ async fn router_with_config(config: FrameworkConfig) -> openrust_core::Result<ax
                     .get("/missing", missing)
                     .get("/boom", boom)
                     .get("/large", large)
+                    .get("/slow", slow)
             })
         });
     let app = finalize(builder).await?;
@@ -64,6 +65,11 @@ async fn router_with_config(config: FrameworkConfig) -> openrust_core::Result<ax
 
 async fn large() -> String {
     "compressible response ".repeat(100)
+}
+
+async fn slow() -> &'static str {
+    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    "late"
 }
 
 async fn json_body(response: axum::response::Response) -> serde_json::Value {
@@ -237,6 +243,7 @@ async fn cors_allows_listed_origin_and_preflight_with_request_id() -> TestResult
     let mut config = FrameworkConfig::default();
     config.server.cors.enabled = true;
     config.server.cors.allowed_origins = vec!["https://example.com".into()];
+    config.server.cors.expose_headers = vec!["x-total-count".into()];
     let router = router_with_config(config).await?;
     let response = router
         .clone()
@@ -254,7 +261,7 @@ async fn cors_allows_listed_origin_and_preflight_with_request_id() -> TestResult
         response
             .headers()
             .get(header::ACCESS_CONTROL_EXPOSE_HEADERS),
-        Some(&"x-request-id".parse()?)
+        Some(&"x-total-count".parse()?)
     );
 
     let preflight = router
@@ -271,15 +278,17 @@ async fn cors_allows_listed_origin_and_preflight_with_request_id() -> TestResult
         .await?;
     assert_eq!(preflight.status(), StatusCode::OK);
     assert!(preflight.headers().contains_key("x-request-id"));
-    assert!(
+    assert_eq!(
         preflight
             .headers()
-            .contains_key(header::ACCESS_CONTROL_ALLOW_METHODS)
+            .get(header::ACCESS_CONTROL_ALLOW_METHODS),
+        Some(&"GET,POST,PUT,PATCH,DELETE,OPTIONS".parse()?)
     );
-    assert!(
+    assert_eq!(
         preflight
             .headers()
-            .contains_key(header::ACCESS_CONTROL_ALLOW_HEADERS)
+            .get(header::ACCESS_CONTROL_ALLOW_HEADERS),
+        Some(&"content-type,authorization,x-request-id".parse()?)
     );
     assert_eq!(
         preflight.headers().get(header::ACCESS_CONTROL_MAX_AGE),
@@ -297,6 +306,52 @@ async fn cors_allows_listed_origin_and_preflight_with_request_id() -> TestResult
         !denied
             .headers()
             .contains_key(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn cors_preflight_rejects_unlisted_origin() -> TestResult {
+    let mut config = FrameworkConfig::default();
+    config.server.cors.enabled = true;
+    config.server.cors.allowed_origins = vec!["https://example.com".into()];
+    let response = router_with_config(config)
+        .await?
+        .oneshot(
+            Request::builder()
+                .method("OPTIONS")
+                .uri("/health")
+                .header(header::ORIGIN, "https://other.example")
+                .header(header::ACCESS_CONTROL_REQUEST_METHOD, "POST")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert!(
+        !response
+            .headers()
+            .contains_key(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn cors_timeout_retains_allow_origin() -> TestResult {
+    let mut config = FrameworkConfig::default();
+    config.server.request_timeout_secs = 1;
+    config.server.cors.enabled = true;
+    config.server.cors.allowed_origins = vec!["https://example.com".into()];
+    let response = router_with_config(config)
+        .await?
+        .oneshot(
+            Request::get("/api/slow")
+                .header(header::ORIGIN, "https://example.com")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::REQUEST_TIMEOUT);
+    assert_eq!(
+        response.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN),
+        Some(&"https://example.com".parse()?)
     );
     Ok(())
 }
@@ -369,22 +424,114 @@ async fn invalid_cors_config_returns_keyed_errors() {
 }
 
 #[tokio::test]
-async fn invalid_cors_methods_and_headers_return_keyed_errors() {
+async fn invalid_cors_origin_reports_escaped_value() {
+    for origin in [
+        "bad\norigin",
+        "https://example.com/",
+        "https://example.com/path",
+        "https://example.com?x=1",
+        "https://example.com:bad",
+        "example.com",
+    ] {
+        let mut config = FrameworkConfig::default();
+        config.server.cors.enabled = true;
+        config.server.cors.allowed_origins = vec![origin.into()];
+        let error = router_with_config(config)
+            .await
+            .err()
+            .map(|error| error.to_string())
+            .unwrap_or_default();
+        assert!(
+            error.contains(&format!(
+                "server.cors.allowed_origins[0]: invalid origin {origin:?}"
+            )),
+            "{error}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn cors_wildcards_with_credentials_return_errors() {
     for key in ["allowed_methods", "allowed_headers", "expose_headers"] {
         let mut config = FrameworkConfig::default();
         config.server.cors.enabled = true;
         config.server.cors.allowed_origins = vec!["https://example.com".into()];
+        config.server.cors.allow_credentials = true;
         match key {
-            "allowed_methods" => config.server.cors.allowed_methods = vec!["BAD METHOD".into()],
-            "allowed_headers" => config.server.cors.allowed_headers = vec!["bad header".into()],
-            _ => config.server.cors.expose_headers = vec!["bad header".into()],
+            "allowed_methods" => config.server.cors.allowed_methods = vec!["*".into()],
+            "allowed_headers" => config.server.cors.allowed_headers = vec!["*".into()],
+            _ => config.server.cors.expose_headers = vec!["*".into()],
         }
         let error = router_with_config(config)
             .await
             .err()
             .map(|error| error.to_string())
             .unwrap_or_default();
-        assert!(error.contains(&format!("server.cors.{key}[0]")), "{error}");
+        assert!(
+            error.contains(&format!(
+                "server.cors.{key}[0]: cannot be \"*\" when server.cors.allow_credentials = true"
+            )),
+            "{error}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn cors_mixed_wildcards_return_errors() {
+    for key in ["allowed_methods", "allowed_headers", "expose_headers"] {
+        let mut config = FrameworkConfig::default();
+        config.server.cors.enabled = true;
+        config.server.cors.allowed_origins = vec!["https://example.com".into()];
+        match key {
+            "allowed_methods" => {
+                config.server.cors.allowed_methods = vec!["GET".into(), "*".into()];
+            }
+            "allowed_headers" => {
+                config.server.cors.allowed_headers = vec!["content-type".into(), "*".into()];
+            }
+            _ => config.server.cors.expose_headers = vec!["x-total-count".into(), "*".into()],
+        }
+        let error = router_with_config(config)
+            .await
+            .err()
+            .map(|error| error.to_string())
+            .unwrap_or_default();
+        assert!(
+            error.contains(&format!(
+                "server.cors.{key}[1]: \"*\" cannot be mixed with concrete values"
+            )),
+            "{error}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn invalid_cors_methods_and_headers_return_keyed_errors() {
+    for key in ["allowed_methods", "allowed_headers", "expose_headers"] {
+        let mut config = FrameworkConfig::default();
+        config.server.cors.enabled = true;
+        config.server.cors.allowed_origins = vec!["https://example.com".into()];
+        let invalid_value = if key == "allowed_methods" {
+            config.server.cors.allowed_methods = vec!["BAD METHOD".into()];
+            "BAD METHOD"
+        } else if key == "allowed_headers" {
+            config.server.cors.allowed_headers = vec!["bad header".into()];
+            "bad header"
+        } else {
+            config.server.cors.expose_headers = vec!["bad header".into()];
+            "bad header"
+        };
+        let error = router_with_config(config)
+            .await
+            .err()
+            .map(|error| error.to_string())
+            .unwrap_or_default();
+        assert!(
+            error.contains(&format!(
+                "server.cors.{key}[0]: invalid value {invalid_value:?}"
+            )),
+            "{error}"
+        );
     }
 }
 

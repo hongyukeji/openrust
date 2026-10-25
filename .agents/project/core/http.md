@@ -17,11 +17,13 @@
 | `resource` | `Resource` 显式登记动作；`only` 连续调用取交集、`except` 裁剪；路径去尾斜杠后注册集合与成员，`update` 同时映射 PUT / PATCH |
 | `response` | `Created<T>` → 201；`NoContent` → 204 空正文；直接提取 `PageParams` 默认 1/20，并校验页数、每页 1..=100 与 offset 不超过 `i64::MAX`；`Paginated<T>` 输出 `data` 与 `meta` |
 | `extract` | `Inject<T>`（从 `AppState` 取服务，缺失 → 500 Problem）；`Validated<Json<T>>` / `Validated<Query<T>>`（反序列化失败 → 400，规则失败 → 422，嵌套路径 `a.b[0].c`） |
-| `middleware` | `apply(router, &ServerConfig) -> Result<Router>`：请求 ID → 传播 → `TraceLayer` span → 超时 408 → 可选 gzip/br 压缩 → 可选 CORS → `CatchPanic` → 500 Problem；启用 CORS 时在组层前逐项校验配置 |
+| `middleware` | `apply(router, &ServerConfig) -> Result<Router>`：请求 ID → 传播 → `TraceLayer` span → 可选 CORS → 超时 408 → 可选 gzip/br 压缩 → `CatchPanic` → 500 Problem；启用 CORS 时在组层前逐项校验配置 |
 | `health` | `GET /health` → `{"status":"ok"}` |
 | `serve` | `serve(&App)` 绑定 `[server] host:port`，优雅停机；`ServeCommand` |
 
 `pub use axum` 供门面 re-export。
+
+CORS 具体 origin 仅接受 `http://` 或 `https://` 加主机及可选端口，不接受路径、查询或尾部 `/`；错误包含配置键和转义后的原值。方法、请求头与暴露头的 `"*"` 不能与具体值混用，启用 credentials 时三者均不得使用 `"*"`。CORS 位于超时层外，408 响应保留允许来源头。
 
 ## 后续边界
 
