@@ -11,7 +11,7 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 cargo doc --workspace --no-deps
-cargo deny check            # 本机未装 cargo-deny 时由 CI 执行
+cargo deny check            # 本机 cargo-deny 0.20：advisories / bans / licenses / sources 全部 ok
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 ```
 
