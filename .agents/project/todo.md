@@ -14,9 +14,11 @@
 - 本簇验收前按 [执行校准](plan.md#执行校准) 核对契约：共享会话与跨节点撤销、认证所需全局限流/验证码边界、注册/登录公开扩展点及 `Inject` 共存；后续 M3 任务按完整 v1 覆盖清单逐簇领取，不以身份注入完成代替整个 M3。
 - 认证 API 进入实现前补充 ADR：定义业务自有用户类型如何映射到 `CurrentUser` / `OptionalUser`、路由认证配置与身份注入契约；现有 ADR-004 明确了安全策略但未定公共 API。
 
-## M4/M5 Redis 驱动（对应里程碑时领取）
+## M5 缓存驱动与 store（M5 领取）
 
-- Redis 驱动建立配置段时，将 `REDIS_URL` 映射到连接配置，并保证同键的 `OPENRUST_` 变量优先。
+- 按 [ADR-014](decisions/adr-014-cache-driver-and-store-contract.md) 实现 `openrust-cache` 与 `CachePlugin`：memory 默认、file、feature 可选 Redis；default/named stores、custom driver 注册、统一序列化/TTL/错误与原子能力边界。
+- 默认生成项目无需 Redis；Redis 配置读取 `REDIS_URL`，同键 `OPENRUST_` 环境变量优先。共享缓存用途在集群配置中必须选择可用共享 driver，禁止静默退化。
+- 验收：统一基础契约测试；file 临时目录安全路径、过期、原子替换、并发及 I/O 错误；Redis 真实集成；默认/file/redis feature 组合；`apps/server` 接入；独立公开扩展示例与 README/core 事实。
 
 ## 阻塞
 

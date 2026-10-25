@@ -6,7 +6,7 @@
 
 ## v1：完整通用底座
 
-- 交付可独立开发 API 与服务的 Rust 框架，单机起步、按需扩展集群；标准应用默认 Redis 缓存，保留 memory/file 选择，见 [ADR-013](decisions/adr-013-deployment-and-redis-cache-default.md)。通用基础能力开箱即用、按需组合并可扩展。
+- 交付可独立开发 API 与服务的 Rust 框架，单机起步、按需扩展集群；默认缓存无需外部服务，集群共享缓存按需选择 Redis，保留 memory/file 选择，见 [ADR-013](decisions/adr-013-deployment-and-redis-cache-default.md) 与 [ADR-014](decisions/adr-014-cache-driver-and-store-contract.md)。通用基础能力开箱即用、按需组合并可扩展。
 - 包含数据、认证/授权/会话、验证码、国际化、本地加密与轮换、签名、审计、幂等、限流、缓存/锁/多实例、存储/上传下载、邮件/SMS/薄通知层、队列/常用编排/调度、WebSocket/SSE、CLI/生成器/测试与部署。
 - 集群部署是必须项，包含多 API/worker/scheduler、共享状态、跨节点在线投递和滚动/故障恢复，按 [集群计划](plans/v1-cluster-deployment.md) 双库多副本验收。性能基线、资源边界、第三方扩展与干净环境完整路径同为完成条件。
 - 入口：[v1 总计划](plans/gen1-plan.md)、[能力覆盖与归属](plans/v1-capability-coverage.md)。v1 不承担后台业务 UI、组织管理与部门数据权限的固定模型。

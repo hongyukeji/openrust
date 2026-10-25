@@ -1,6 +1,6 @@
 [package]
 name = "openrust-cache"
-description = "Cache abstraction for the OpenRust framework with in-memory and Redis drivers"
+description = "Cache capability for the OpenRust framework (M5 implementation pending)"
 readme = "README.md"
 version.workspace = true
 edition.workspace = true

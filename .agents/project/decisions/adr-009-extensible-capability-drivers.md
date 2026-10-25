@@ -37,11 +37,11 @@
 ### 缓存边界
 
 - 公共能力入口为 `Cache`；支持通过配置选择缓存驱动，业务尽量使用同一基础接口。
-- 需求范围包括 Redis、进程内 memory 与 file；标准应用默认 Redis，memory/file 显式可选，默认值以 [ADR-013](adr-013-deployment-and-redis-cache-default.md) 为准。其他实现允许后续扩展，不要求 v1 全部内置。
+- 需求范围包括进程内 memory、file 与 feature 可选 Redis；默认使用无需外部服务的 memory，file/Redis 显式选择，具体 contract 见 [ADR-014](adr-014-cache-driver-and-store-contract.md)。其他实现允许后续扩展，不要求 v1 全部内置。
 - driver 是实现方式，如 memory、file、redis；命名实例是某种驱动加具体配置。`store` 仅为命名实例概念，不能替代公共能力名 `Cache`。
-- 多实例使用能力已按 [v1 覆盖计划](../plans/v1-capability-coverage.md) 纳入范围；默认实例保持简单路径，`stores` / `connections` 等具体命名与配置布局仍待 contract 决策，不建立平行缓存入口。
+- 多实例使用能力已按 [v1 覆盖计划](../plans/v1-capability-coverage.md) 纳入范围；default store 与具名 store contract 见 [ADR-014](adr-014-cache-driver-and-store-contract.md)，不建立平行缓存入口。
 - 统一基础读写、删除、TTL 与序列化约定，区分未命中和驱动故障；明确增减、条件写入和锁的原子性及适用范围。缓存 tag 等后续能力不因此提前加入。
-- memory 仅进程内共享；file 需处理安全路径映射、过期、原子文件替换、并发与 I/O 错误，不承诺跨主机共享或分布式锁；Redis 等外部驱动按 feature 可选启用。
+- memory 仅进程内共享；file 需处理安全路径映射、过期、原子文件替换、并发与 I/O 错误，不承诺跨主机共享或分布式锁；Redis 等外部驱动按 feature 可选启用。需要跨节点共享的功能不得静默降级到本地实现。
 - 各驱动执行公共契约测试并补后端专项验证。扩展能力的命名与行为按 Rust 惯例设计，不机械复制其他语言的 API。
 
 ## 影响与执行
