@@ -53,6 +53,7 @@ url = "2.5"
 sqlx = { version = "0.9", default-features = false }
 toml = "1.1"
 insta = "1.49"
+lettre = { version = "0.11", default-features = false, features = ["builder"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

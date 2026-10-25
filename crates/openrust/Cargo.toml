@@ -16,6 +16,7 @@ keywords.workspace = true
 openrust-core.workspace = true
 openrust-http.workspace = true
 openrust-macros.workspace = true
+openrust-mail.workspace = true
 openrust-db = { workspace = true, optional = true }
 tokio.workspace = true
 tower.workspace = true
@@ -28,3 +29,5 @@ workspace = true
 default = []
 db-postgres = ["dep:openrust-db", "openrust-db/db-postgres"]
 db-mysql = ["dep:openrust-db", "openrust-db/db-mysql"]
+mail-smtp = ["openrust-mail/mail-smtp"]
+test-util = ["openrust-mail/test-util"]

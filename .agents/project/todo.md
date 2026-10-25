@@ -10,7 +10,8 @@
 
 ## M3 邮件、认证与授权（进行中）
 
-- `openrust-auth` 起步验收：确认 `CurrentUser` 能与 `Inject` 共存于同一 handler，并添加测试；随后依据 M3 contract 扩展认证、会话、授权与通信功能。
+- 当前功能簇：实现 `openrust-mail` 的 `Email` / `Mailer` 与 log、fake、SMTP drivers，接入门面和 `apps/server` 并覆盖测试。
+- 认证 API 进入实现前补充 ADR：定义业务自有用户类型如何映射到 `CurrentUser` / `OptionalUser`、路由认证配置与身份注入契约；现有 ADR-004 明确了安全策略但未定公共 API。
 
 ## M4/M5 Redis 驱动（对应里程碑时领取）
 

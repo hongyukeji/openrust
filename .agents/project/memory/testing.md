@@ -24,6 +24,8 @@ M2：`openrust-db` 有迁移参数与连接配置单测；`tests/connection.rs` 
 
 生成器验收：两种数据库模板均生成 model 与多份 migration 后通过 `cargo check` / `cargo test`。运行生成项目的迁移命令在 PostgreSQL 14 / MySQL 8.0 空数据库验证 up、重复 up、status、down、up，包含 UTC 时间、JSON 与外键列。`openrust-db/tests/migration.rs` 需要专用空数据库 URL；不要复用已有其他迁移历史的数据库。CLI 单测、默认/all-features workspace clippy 与 test、all-features rustdoc、Rust 1.97 MSRV 检查和 `cargo deny check` 均通过。
 
+M3 邮件：`cargo test -p openrust-mail --all-features` 覆盖 fake 发送、SMTP 强制 STARTTLS transport 配置、凭据配对校验和密码 Debug 脱敏；`cargo clippy -p openrust-mail --all-targets --all-features -- -D warnings` 通过。`cargo test -p openrust-server --test server` 验证聚合应用注册 Mailer。修改后的 CLI 无数据库、PostgreSQL、MySQL 模板生成项目均通过 `cargo check` / `cargo test`。
+
 测试数：`openrust-core` 31 个单元测试（含分页 `PageMeta` 保留、配置目录覆盖、`.env` 选择生产时跳过其余变量、无 HTTP 插件的命令边界），`openrust-http` 49 个集成测试（`tests/router.rs` 33 个、`tests/resource.rs` 16 个），`openrust-server` 6 个集成测试（含资源宏全部动作路由映射）；`openrust` 1 个单元测试。
 
 ## 双库集成（M2 起）

@@ -38,7 +38,7 @@
 | 调度 | 自研 `Schedule` + `cron` 解析 | — |
 | 缓存 | `moka`（进程内） | `cache-redis` |
 | 存储 | `opendal`（fs） | `storage-s3` |
-| 邮件 | `lettre`（SMTP）+ log + fake | — |
+| 邮件 | `lettre` 0.11（SMTP）+ log + fake | `mail-smtp` 用 Tokio + Rustls 强制 STARTTLS；log 为默认 driver；新增的 `quoted_printable` 传递依赖为 0BSD，已加入许可证允许清单 |
 | 模板 | `minijinja`（仅邮件） | `templates` |
 
 ## 工具链

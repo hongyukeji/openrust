@@ -14,6 +14,18 @@ keywords.workspace = true
 
 [dependencies]
 openrust-core.workspace = true
+lettre.workspace = true
+serde.workspace = true
+tracing.workspace = true
+
+[features]
+default = []
+mail-smtp = ["lettre/smtp-transport", "lettre/tokio1-rustls-tls"]
+test-util = []
+
+[dev-dependencies]
+figment.workspace = true
+tokio.workspace = true
 
 [lints]
 workspace = true

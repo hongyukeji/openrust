@@ -16,3 +16,6 @@ enabled = false
 
 [api]
 http_status = "always_ok"
+
+[mail]
+driver = "log"

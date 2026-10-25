@@ -1,4 +1,5 @@
 use openrust::http::HttpPlugin;
+use openrust::mail::MailerPlugin;
 use openrust::prelude::*;
 
 use crate::routes;
@@ -9,6 +10,6 @@ impl Application for {{type_name}} {
     type Config = NoConfig;
 
     fn build(app: &mut AppBuilder) {
-        app.plugin(HttpPlugin){{database_plugins}}{{migration_plugin}}.routes(routes::register);
+        app.plugin(HttpPlugin).plugin(MailerPlugin){{database_plugins}}{{migration_plugin}}.routes(routes::register);
     }
 }

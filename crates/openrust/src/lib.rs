@@ -10,6 +10,9 @@ pub use openrust_core::{
 };
 pub use openrust_macros::resource;
 
+/// Email delivery layer.
+pub use openrust_mail as mail;
+
 /// Database layer, enabled by the `db-postgres` or `db-mysql` facade feature.
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 pub use openrust_db as database;
@@ -35,6 +38,7 @@ pub mod prelude {
         Action, AppBuilderHttpExt, Created, Inject, Json, NoContent, PageParams, Paginated, Path,
         Query, Resource, ResourceActions, Routes, Validated,
     };
+    pub use crate::mail::{Email, MailConfig, Mailer, MailerPlugin};
     pub use crate::{
         App, AppBuilder, Application, BoxFuture, Command, Error, NoConfig, Plugin, Result,
     };

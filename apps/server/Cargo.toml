@@ -28,3 +28,4 @@ workspace = true
 default = []
 db-postgres = ["openrust/db-postgres"]
 db-mysql = ["openrust/db-mysql"]
+mail-smtp = ["openrust/mail-smtp"]

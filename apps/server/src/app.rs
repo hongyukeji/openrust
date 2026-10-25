@@ -9,6 +9,8 @@ impl Application for Server {
     type Config = NoConfig;
 
     fn build(app: &mut AppBuilder) {
-        app.plugin(HttpPlugin).routes(routes::register);
+        app.plugin(HttpPlugin)
+            .plugin(openrust::mail::MailerPlugin)
+            .routes(routes::register);
     }
 }

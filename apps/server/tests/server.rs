@@ -22,6 +22,15 @@ use sea_orm::ConnectionTrait;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
+#[test]
+fn mailer_plugin_is_registered_by_the_assembled_server() -> TestResult {
+    openrust::tokio::runtime::Runtime::new()?.block_on(async {
+        let app = lifecycle::bootstrap::<app::Server>().await?;
+        app.state().try_get::<openrust::mail::Mailer>()?;
+        Ok(())
+    })
+}
+
 struct ResourceMacroApp;
 
 impl Application for ResourceMacroApp {
