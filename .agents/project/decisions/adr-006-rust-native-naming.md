@@ -1,11 +1,11 @@
 # ADR-006 框架命名、目录与命令约定
 
-- 状态：Accepted
+- 状态：Partially Superseded（配置/环境变量部分由 [ADR-016](adr-016-neutral-application-namespaces.md) 替代；其余命名契约仍有效）
 - 日期：2026-10-25（同日依主流 Rust 框架调研修订）
 
 ## 背景
 
-初版设计按 Laravel 的概念起草，代码与文档里留下了 `ServiceProvider::register/boot`、`index/show/store/update/destroy`、`make:*`、`config:show`、`Mailable`、`Seeder`、`APP_ENV` 等只属于单一生态的词。OpenRust 的用户有很多是从 PHP、Ruby、Python、Java、JS、Go 转来的。目标是新手和老手都能很快上手，开箱即用。所以命名既要让 Rust 开发者觉得地道，也要让跨语言开发者一眼认得，而且不能特立独行。
+初版设计按 Laravel 的概念起草，代码与文档里留下了 `ServiceProvider::register/boot`、`index/show/store/update/destroy`、`make:*`、`config:show`、`Mailable`、`Seeder` 等带有其他生态习惯的词。OpenRust 的用户有很多是从 PHP、Ruby、Python、Java、JS、Go 转来的。目标是新手和老手都能很快上手，开箱即用。所以命名既要让 Rust 开发者觉得地道，也要让跨语言开发者一眼认得，而且不能特立独行。
 
 本 ADR 是 OpenRust 命名、目录与命令的唯一权威来源。日常操作清单见 [conventions.md「框架规范」](../conventions.md#框架规范)。
 
@@ -74,12 +74,9 @@
 
 ### 3. 配置与环境变量
 
-- 配置文件为 TOML，分层合并：crate 默认值 → `config/default.toml` → `config/{env}.toml` → `.env`（最终环境非生产时）→ 环境变量。
-- 配置目录可由 `OPENRUST_CONFIG_DIR` 指定，默认相对工作目录的 `config/`。先例：loco 的 `LOCO_CONFIG_FOLDER`。
-- 环境选择用 `OPENRUST_ENV`，取值 `development` / `test` / `production`。依据：loco `LOCO_ENV`、Rocket `ROCKET_PROFILE`。
-- 覆盖配置用 `OPENRUST_<SECTION>__<KEY>`：前缀后接单下划线，嵌套层级之间用双下划线，例如 `OPENRUST_SERVER__PORT`、`OPENRUST_SERVER__CORS__ENABLED`。依据：Rocket `ROCKET_*`、Pavex 和 zero2prod 的“前缀 + 单下划线”写法。
-- 识别 12-factor 通用变量：`DATABASE_URL` 对应 `database.url`，`REDIS_URL` 对应 Redis 连接，`PORT` 对应 `server.port`。依据：loco、sqlx、diesel、Heroku 惯例。若同时设置了 `OPENRUST_` 前缀的变量，以它为准。
-- 不回退读取 `APP_ENV`、`RAILS_ENV`、`NODE_ENV`，避免同机多应用时误读。
+本节由 [ADR-016](adr-016-neutral-application-namespaces.md) 校准：应用默认 `APP_ENV`、`APP_CONFIG_DIR` 与 `APP_<SECTION>__<KEY>`，启动前可显式选择其他命名空间；同键优先于 `DATABASE_URL` / `REDIS_URL` / `PORT`。原 OPENRUST_ 品牌前缀不再是目标 contract，当前实现迁移见 `todo.md`。
+
+TOML 分层、环境引导与生产 `.env` 保护保持有效，具体兼容、表前缀与实现验收按 ADR-016；不混读其他应用命名空间。
 
 ### 4. 库 API
 

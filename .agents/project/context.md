@@ -16,6 +16,8 @@
 
 ## 固定约束
 
+- 应用中性命名按 [ADR-016](decisions/adr-016-neutral-application-namespaces.md)：默认环境变量 `APP_`（允许启动前定制命名空间），默认表前缀 `tb_`（可改自定义或空前缀并支持显式表映射）；代码、schema、模板迁移尚待实现，旧品牌前缀不能作为新设计 contract。
+
 - AI 平台为基于 OpenRust 的独立产品，最终按 [OpenRouter 对标计划](plans/ai-platform-openrouter-parity.md) 复刻公开功能与流程（MVP 非终点），须待框架 v1/v2 完整体成熟后再由开发者决定立项，平台完全体 P0–P8 验收通过并获上线批准后才对外开放；当前仅规划、不启动实现，后续开发必须使用 `projects/*` 分支和独立 worktree，产品业务不得进入框架核心或改变通用契约，详见 [产品计划](plans/ai-platform-product.md)。
 
 - 领取/切换功能簇、压缩恢复或收到新需求时，按 [执行校准](plan.md#执行校准) 核对最新计划、Git/WIP 与待办；旧消息不能覆盖已确认范围，原阶段完成不能替代新增能力验收。

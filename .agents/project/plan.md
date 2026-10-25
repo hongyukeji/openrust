@@ -12,6 +12,8 @@ M0、M1、M2 已完成。M1 生成项目的 `cargo test` 验收通过。M2 `open
 
 ## 执行校准
 
+- 命名校准按 [ADR-016](decisions/adr-016-neutral-application-namespaces.md)：应用配置默认 `APP_`，表默认 `tb_`，均可定制；当前代码仍待迁移。当前认证 schema/生成物验收必须核对新命名，配置加载和表解析按独立功能簇处理，禁止直接改生产表或覆盖他人 WIP。
+
 - AI 平台仅为独立产品规划，不进入当前框架功能簇；须先完成框架 v1/v2 完整体成熟验收再由开发者决定是否立项，平台完全体 P0–P8 及 [上线门禁](plans/ai-platform-product.md#启动开发与上线硬性门禁) 全通过才可上线，不允许阶段性对外开放。收到明确启动指令后，产品代码只在 `projects/*` 分支及独立 worktree 开发，执行 [产品隔离规则](plans/ai-platform-product.md#分支与工作区硬性约束)，不为产品妥协框架契约。
 
 - 标准应用默认 Redis，由开发者要求并在 [ADR-015](decisions/adr-015-redis-default-calibration.md) 确认；memory/file 显式选择，库默认 feature 保持可组合。不得沿用 ADR-014 原 memory 默认或隐式 memory fallback；此为待 M5 实现的 contract。

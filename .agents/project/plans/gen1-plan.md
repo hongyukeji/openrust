@@ -102,7 +102,7 @@ openrust g job PublishPost
 openrust queue work
 ```
 
-生成的代码无需修改即可编译、通过测试；字段 DSL 采用小写类型名，`?` 表示可空，`references` 表示外键。开发者只补业务规则。部署：`docker build` 产出单二进制镜像，`OPENRUST_ENV=production` 下执行 `blog migrate && blog serve`。MySQL 路径以 `--db mysql` 走完同一流程。
+生成的代码无需修改即可编译、通过测试；字段 DSL 采用小写类型名，`?` 表示可空，`references` 表示外键。开发者只补业务规则。部署：`docker build` 产出单二进制镜像，`APP_ENV=production`（目标命名见 ADR-016，代码迁移待实现） 下执行 `blog migrate && blog serve`。MySQL 路径以 `--db mysql` 走完同一流程。
 
 ## 里程碑
 

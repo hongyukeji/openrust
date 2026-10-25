@@ -71,7 +71,7 @@ ADR-006 未覆盖的公共名称，先在 ADR-006 补一行并写明先例，再
 | 资源动作 | `list` / `get` / `create` / `update` / `delete` | `Action::List` |
 | CLI 子命令 | 空格嵌套，kebab-case，不用冒号 | `db seed`、`config show` |
 | 生成器 | `generate <kind>`，别名 `g` | `openrust g scaffold post title:string` |
-| 环境变量 | 环境用 `OPENRUST_ENV`；覆盖用 `OPENRUST_<SECTION>__<KEY>`；同时识别 `DATABASE_URL` / `REDIS_URL` / `PORT` | `OPENRUST_SERVER__PORT=8080` |
+| 环境变量 | 应用默认 `APP_ENV` / `APP_<SECTION>__<KEY>`，启动前可定制命名空间（ADR-016）；同时识别 `DATABASE_URL` / `REDIS_URL` / `PORT` | `APP_SERVER__PORT=8080` |
 | 配置文件 | `config/default.toml`、`config/{env}.toml`，格式为 TOML | — |
 | 项目元数据 | 写入 `[package.metadata.openrust]` | 不另建元数据文件 |
 | 生成项目目录 | `controllers/`、`models/`（含 `_entities/`）、`services/`、`policies/`、`jobs/`、`events/`、`mailers/`、`middleware/`，外加 `src/seed.rs`、`migration/` crate、`templates/mail/` | 见 ADR-006 §1 |

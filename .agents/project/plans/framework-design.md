@@ -190,9 +190,10 @@ impl Application for Blog {
 ## 配置
 
 - 分层合并，后者覆盖前者：crate 默认值 → `config/default.toml` → `config/{env}.toml` → `.env`（仅非生产环境自动加载）→ 环境变量。
-- `OPENRUST_CONFIG_DIR` 指定配置目录，默认是工作目录下的 `config/`；进程 `OPENRUST_ENV` 优先，否则仅从 `.env` 读取环境名，若最终为 production 则不注入 `.env` 的任何变量。
-- 环境变量前缀后接单下划线、层级间用双下划线：`OPENRUST_DATABASE__URL` 对应 `[database] url`。敏感值优先来自环境变量，模板文件中不出现真实值。
-- 通用变量 `DATABASE_URL` / `PORT` 分别映射 `database.url` / `server.port`；同一键的 `OPENRUST_` 变量优先。Redis 配置段实现时接入 `REDIS_URL`。
+- 默认应用命名空间 `APP_`，允许在配置加载前显式定制，具体契约与待实施边界见 [ADR-016](../decisions/adr-016-neutral-application-namespaces.md)。
+- `APP_CONFIG_DIR` 指定配置目录，默认是工作目录下的 `config/`；进程 `APP_ENV` 优先，否则仅从 `.env` 读取环境名，若最终为 production 则不注入 `.env` 的任何变量。
+- 环境变量前缀后接单下划线、层级间用双下划线：`APP_DATABASE__URL` 对应 `[database] url`。敏感值优先来自环境变量，模板文件中不出现真实值。
+- 通用变量 `DATABASE_URL` / `PORT` 分别映射 `database.url` / `server.port`；同一键的所选应用命名空间（默认 `APP_`）变量优先。Redis 配置段实现时接入 `REDIS_URL`。
 - 当前 `FrameworkConfig` 的类型化结构包含 `app` / `server` / `log`；后续能力 crate 各自定义 `database` / `auth` / `queue` / `cache` / `storage` / `mail` 配置段，业务配置通过 `Application::Config` 关联类型接入，使用 `#[derive(Deserialize)]`。
 - 启动时整体校验；缺失或类型错误立即退出，错误信息包含完整配置键与来源层。`config show` 输出合并结果并遮蔽密钥。
 
@@ -235,6 +236,8 @@ pub async fn create(
 - 库 crate 使用 `thiserror`；`anyhow` 只出现在二进制边界。
 
 ## 数据层
+
+- 表命名按 ADR-016：默认 `tb_`，允许空/自定义前缀与完整表映射；共用迁移/查询/关联解析，尚待实现，不自动改名已存在表。
 
 - SeaORM 2.x 作为 ORM，`sea-orm-migration` 管理迁移；`db.sqlx()` 当前尚未实现，不属于公共 contract；若后续提供 SQLx 直连入口，须先明确 feature、连接生命周期和使用边界。
 - 命名约定：表名 snake_case 复数；主键 `id BIGINT` 自增；`created_at` / `updated_at` 必备；软删除通过 `--soft-delete` 生成 `deleted_at` 并接入查询默认过滤；`--uuid` 生成 UUIDv7 主键。
@@ -298,7 +301,7 @@ queue.dispatch(SendWelcomeEmail { user_id }).delay(Duration::from_secs(60)).awai
 
 ## 测试工具
 
-- `TestApp::spawn().await` 以 `OPENRUST_ENV=test` 启动应用并自动使用 fake driver；`app.client().post("/api/posts").json(&input).send().await` 返回可链式断言的响应（`assert_status` / `assert_json_path` / `assert_envelope`）。
+- `TestApp::spawn().await` 以 `APP_ENV=test` 启动应用并自动使用 fake driver；`app.client().post("/api/posts").json(&input).send().await` 返回可链式断言的响应（`assert_status` / `assert_json_path` / `assert_envelope`）。
 - 数据库隔离按「数据层」约定，每个用例独立数据库。
 - fake driver 断言：`Queue::fake().assert_dispatched::<SendWelcomeEmail>()`、`Mailer::fake().assert_sent_to("a@b.c")`、`Storage::fake().assert_exists(path)`。
 - 测试数据由 `fake::Dummy` 与普通 builder 构造；数据库初始化通过 `src/seed.rs` 的 async 函数完成。

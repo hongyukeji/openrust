@@ -23,7 +23,7 @@
 
 ## 决策
 
-- 配置采用 `[cache] default_store = "default"` 和 `[cache.stores.<name>] driver = "memory|file|redis"` 的类型化模型；每个 store 可定义自己的 namespace 与驱动配置。环境覆盖遵循 ADR-006，Redis URL 使用 `REDIS_URL`，同键 `OPENRUST_` 环境变量优先。实际字段结构在 M5 Spec 中按当前配置 parser 与 Rust 类型再校准，不提前固定供应商参数。
+- 配置采用 `[cache] default_store = "default"` 和 `[cache.stores.<name>] driver = "memory|file|redis"` 的类型化模型；每个 store 可定义自己的 namespace 与驱动配置。环境覆盖遵循 ADR-006，Redis URL 使用 `REDIS_URL`，同键所选应用命名空间（默认 `APP_`）变量优先（ADR-016）。实际字段结构在 M5 Spec 中按当前配置 parser 与 Rust 类型再校准，不提前固定供应商参数。
 - 业务注入 `Cache` 使用 default store；需要特定实例时通过 `Cache::store("name")` 显式选择并获得结果类型。`Cache` 保持唯一公共能力名，`store` 只表示命名实例。
 - 缓存值使用 serde JSON 编解码，错误类型区分未命中、序列化失败、配置/能力错误与驱动 I/O/协议故障。每个 store 的 namespace 与逻辑 key 按驱动一致拼接；后端 key 不接受路径片段作为路径。
 - memory 状态只在一个进程内共享。file 将逻辑 key 稳定散列为文件名，限制在配置根目录内；写入用同目录临时文件加原子替换，过期读取返回未命中，并提供有界清理入口；并发读写保证不暴露半文件，竞争写入按最后一次完整替换生效，不承诺多机共享、线性一致更新、原子计数或锁。
