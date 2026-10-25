@@ -4,6 +4,7 @@
 
 - [OpenRust v1 版本开发计划](gen1-plan.md)：目标、关键决策、能力范围、黄金路径、M0-M6 里程碑、验收原则、质量门禁、风险与 AI 协作分工。
 - [OpenRust 框架设计](framework-design.md)：设计原则、crate 与应用布局、内核、配置、路由、错误、数据、认证、异步、CLI、测试工具与框架代码规范。
+- [v1 性能与开箱即用补强计划](v1-performance-and-readiness.md)：完整使用路径与性能验收、待决策问题、推荐方案及推进顺序。
 
 执行约束：
 
