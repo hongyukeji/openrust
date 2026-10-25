@@ -10,6 +10,8 @@ use axum::routing::{self, MethodRouter, Route};
 use openrust_core::AppState;
 use tower::{Layer, Service};
 
+use crate::resource::{Resource, ResourceActions};
+
 /// Collects routes for an application. Converted into an [`axum::Router`] when the server starts.
 ///
 /// Every method consumes and returns `Self` so route tables read top-down:
@@ -90,6 +92,22 @@ impl Routes {
         T: 'static,
     {
         self.route(path, routing::delete(handler))
+    }
+
+    /// Registers the actions explicitly supplied by a resource controller.
+    #[must_use]
+    pub fn resource<R: Resource>(self, path: &str) -> Self {
+        self.resource_with::<R>(path, |actions| actions)
+    }
+
+    /// Registers a resource after applying `f` to its actions.
+    #[must_use]
+    pub fn resource_with<R: Resource>(
+        self,
+        path: &str,
+        f: impl FnOnce(ResourceActions) -> ResourceActions,
+    ) -> Self {
+        f(R::actions(ResourceActions::new())).mount(self, path)
     }
 
     /// Nests the routes built by `f` under `prefix`. An empty or `/` prefix merges instead.

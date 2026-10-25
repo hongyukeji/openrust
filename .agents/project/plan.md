@@ -6,7 +6,7 @@
 
 ## 当前里程碑
 
-M0 决策与基线。骨架、lint、CI、内核与 HTTP 层已落地；Spike A / B 已完成，结论见 ADR-002 / ADR-003。进入 M1 的条件：CI 全绿。
+M0 决策与基线。骨架、lint、CI、内核与 HTTP 层已落地；Spike A / B 已完成，结论见 ADR-002 / ADR-003。M1 的 HTTP 资源路由与响应类型已实现；其余 M1 任务见 `todo.md`。进入 M1 的条件：CI 全绿。
 
 ## 里程碑顺序
 

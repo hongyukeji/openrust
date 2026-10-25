@@ -19,7 +19,10 @@ pub mod prelude {
     pub use crate::http::axum::extract::{Path, Query, State};
     pub use crate::http::axum::response::IntoResponse;
     pub use crate::http::axum::{Json, http::StatusCode};
-    pub use crate::http::{AppBuilderHttpExt, Inject, Routes, Validated};
+    pub use crate::http::{
+        Action, AppBuilderHttpExt, Created, Inject, NoContent, PageParams, Paginated, Resource,
+        ResourceActions, Routes, Validated,
+    };
     pub use crate::{
         App, AppBuilder, Application, BoxFuture, Command, Error, NoConfig, Result, ServiceProvider,
     };

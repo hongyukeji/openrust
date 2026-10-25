@@ -10,7 +10,8 @@
 
 ## M1 内核与 HTTP（M0 收口后领取）
 
-- `Routes::resource::<C>(path)` 约定与 `Created<T>` / `NoContent` / `Paginated<T>` 响应类型，含测试。
+- [x] `Routes::resource::<R>(path)` 约定与 `Created<T>` / `NoContent` / `PageParams` / `Paginated<T>` 响应类型，含测试。
+- `#[openrust::resource]` 宏从控制器模块的 `index`/`show`/`store`/`update`/`destroy` 函数生成 `impl Resource`。
 - CORS、压缩层接入默认栈并由 `[server]` 配置开关。
 - `openrust-cli`：`new <name> --db postgres|mysql`（M1 先生成无数据库模板，M2 加 `--db`）、`dev`、`serve` 代理；模板放 `templates/`，生成后 `cargo test` 通过的快照测试。
 - 启用 CI `databases` job 的前提是 `openrust-db` 存在，归 M2。
