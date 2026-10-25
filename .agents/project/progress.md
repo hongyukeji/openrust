@@ -7,7 +7,7 @@
 | 项 | 状态 |
 | --- | --- |
 | 第一代计划与框架设计 | 已定稿，见 `plans/` |
-| ADR-001 至 ADR-007 | 已接受 |
+| ADR-001 至 ADR-008 | 已接受 |
 | 仓库基线（许可证、README、工具链声明、Agent 契约、CHANGELOG、贡献与安全政策） | 已就位 |
 | workspace、lint 基线、CI 工作流 | 已就位；CI 的双库 job 预置但禁用，M2 启用 |
 | `openrust-core` | 已实现并测试：配置分层、错误与 Problem 渲染、注册表、plugin 级联、空格嵌套命令 |
