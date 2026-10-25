@@ -5,7 +5,7 @@ use axum::http::{Request, StatusCode, header};
 use openrust_core::config::FrameworkConfig;
 use openrust_core::{AppBuilder, finalize};
 use openrust_http::axum::Json;
-use openrust_http::{AppBuilderHttpExt, HttpProvider, Inject, Validated, build_router};
+use openrust_http::{AppBuilderHttpExt, HttpPlugin, Inject, Validated, build_router};
 use serde::Deserialize;
 use tower::ServiceExt;
 use validator::Validate;
@@ -26,7 +26,7 @@ async fn greet(Inject(greeting): Inject<Greeting>) -> &'static str {
     greeting.0
 }
 
-async fn store(Validated(Json(input)): Validated<Json<CreatePost>>) -> Json<String> {
+async fn create(Validated(Json(input)): Validated<Json<CreatePost>>) -> Json<String> {
     Json(input.title)
 }
 
@@ -47,12 +47,12 @@ async fn router() -> openrust_core::Result<axum::Router> {
 async fn router_with_config(config: FrameworkConfig) -> openrust_core::Result<axum::Router> {
     let mut builder = AppBuilder::new(config, figment::Figment::new());
     builder
-        .provider(HttpProvider)
-        .provide(Greeting("hello"))
+        .plugin(HttpPlugin)
+        .insert(Greeting("hello"))
         .routes(|r| {
-            r.group("/api", |api| {
+            r.nest("/api", |api| {
                 api.get("/greet", greet)
-                    .post("/posts", store)
+                    .post("/posts", create)
                     .get("/missing", missing)
                     .get("/boom", boom)
                     .get("/large", large)
@@ -80,7 +80,7 @@ async fn json_body(response: axum::response::Response) -> serde_json::Value {
 }
 
 #[tokio::test]
-async fn health_and_request_id_are_installed_by_the_provider() -> TestResult {
+async fn health_and_request_id_are_installed_by_the_plugin() -> TestResult {
     let response = router()
         .await?
         .oneshot(Request::get("/health").body(Body::empty())?)

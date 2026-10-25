@@ -10,7 +10,7 @@ use openrust_core::{AppState, Error, Result, ValidationErrors};
 use serde::de::DeserializeOwned;
 use validator::{Validate, ValidationErrorsKind};
 
-/// Fetches a service registered with `AppBuilder::provide`.
+/// Fetches a service registered with `AppBuilder::insert`.
 ///
 /// Missing registrations surface as an internal error naming the type, never as a panic.
 pub struct Inject<T>(pub Arc<T>);
@@ -36,7 +36,7 @@ where
         state: &S,
     ) -> impl Future<Output = Result<Self>> + Send {
         // Lookup is synchronous; no `.await` is needed.
-        ready(AppState::from_ref(state).get::<T>().map(Self))
+        ready(AppState::from_ref(state).try_get::<T>().map(Self))
     }
 }
 

@@ -5,16 +5,14 @@
 use std::process::ExitCode;
 
 pub use openrust_core::{
-    App, AppBuilder, AppState, Application, BoxFuture, Command, Error, NoConfig, ProblemDetails,
-    Result, ServiceNotRegistered, ServiceProvider, ValidationErrors, config, lifecycle,
+    App, AppBuilder, AppState, Application, BoxFuture, Command, Error, MissingServiceError,
+    NoConfig, Plugin, ProblemDetails, Result, ValidationErrors, config, lifecycle,
 };
 
 /// HTTP layer: routing, extractors, middleware, `serve`.
-pub mod http {
-    pub use openrust_http::*;
-}
+pub use openrust_http as http;
 
-/// Everything a typical `app.rs`, controller or provider needs.
+/// Everything a typical `app.rs`, controller or plugin needs.
 pub mod prelude {
     pub use crate::http::axum::extract::{Path, Query, State};
     pub use crate::http::axum::response::IntoResponse;
@@ -24,7 +22,7 @@ pub mod prelude {
         ResourceActions, Routes, Validated,
     };
     pub use crate::{
-        App, AppBuilder, Application, BoxFuture, Command, Error, NoConfig, Result, ServiceProvider,
+        App, AppBuilder, Application, BoxFuture, Command, Error, NoConfig, Plugin, Result,
     };
 }
 
@@ -41,7 +39,7 @@ pub fn run<A: Application>() -> ExitCode {
     };
     runtime.block_on(async {
         let app = match lifecycle::bootstrap_with::<A>(|app| {
-            app.provider(http::HttpProvider);
+            app.plugin(http::HttpPlugin);
         })
         .await
         {

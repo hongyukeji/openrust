@@ -16,24 +16,24 @@ use tower::ServiceExt;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-async fn index() -> &'static str {
-    "index"
+async fn list() -> &'static str {
+    "list"
 }
 
-async fn show(Path(id): Path<String>) -> String {
-    format!("show:{id}")
+async fn get(Path(id): Path<String>) -> String {
+    format!("get:{id}")
 }
 
-async fn store() -> &'static str {
-    "store"
+async fn create() -> &'static str {
+    "create"
 }
 
 async fn update(Path(id): Path<String>) -> String {
     format!("update:{id}")
 }
 
-async fn destroy(Path(id): Path<String>) -> String {
-    format!("destroy:{id}")
+async fn delete(Path(id): Path<String>) -> String {
+    format!("delete:{id}")
 }
 
 struct Posts;
@@ -41,19 +41,19 @@ struct Posts;
 impl Resource for Posts {
     fn actions(actions: ResourceActions) -> ResourceActions {
         actions
-            .destroy(destroy)
-            .show(show)
-            .store(store)
+            .delete(delete)
+            .get(get)
+            .create(create)
             .update(update)
-            .index(index)
+            .list(list)
     }
 }
 
-struct IndexOnly;
+struct ListOnly;
 
-impl Resource for IndexOnly {
+impl Resource for ListOnly {
     fn actions(actions: ResourceActions) -> ResourceActions {
-        actions.index(index)
+        actions.list(list)
     }
 }
 
@@ -70,10 +70,10 @@ struct FilteredBeforeRegistration;
 impl Resource for FilteredBeforeRegistration {
     fn actions(actions: ResourceActions) -> ResourceActions {
         actions
-            .only(&[Action::Index, Action::Show])
-            .except(&[Action::Show])
-            .show(show)
-            .index(index)
+            .only(&[Action::List, Action::Get])
+            .except(&[Action::Get])
+            .get(get)
+            .list(list)
     }
 }
 
@@ -108,12 +108,12 @@ async fn json_body(response: Response) -> Result<Value, Box<dyn std::error::Erro
 async fn all_resource_actions_map_to_the_expected_methods_and_paths() -> TestResult {
     let router = router(|routes| routes.resource::<Posts>("/posts")).await?;
     for (method, path, expected) in [
-        (Method::GET, "/posts", "index"),
-        (Method::POST, "/posts", "store"),
-        (Method::GET, "/posts/42", "show:42"),
+        (Method::GET, "/posts", "list"),
+        (Method::POST, "/posts", "create"),
+        (Method::GET, "/posts/42", "get:42"),
         (Method::PUT, "/posts/42", "update:42"),
         (Method::PATCH, "/posts/42", "update:42"),
-        (Method::DELETE, "/posts/42", "destroy:42"),
+        (Method::DELETE, "/posts/42", "delete:42"),
     ] {
         let response = send(router.clone(), method, path).await?;
         assert_eq!(response.status(), StatusCode::OK, "{path}");
@@ -125,7 +125,7 @@ async fn all_resource_actions_map_to_the_expected_methods_and_paths() -> TestRes
 #[tokio::test]
 async fn trailing_slash_resource_path_uses_one_collection_and_member_base() -> TestResult {
     let router = router(|routes| routes.resource::<Posts>("/posts/")).await?;
-    for (path, expected) in [("/posts", "index"), ("/posts/42", "show:42")] {
+    for (path, expected) in [("/posts", "list"), ("/posts/42", "get:42")] {
         let response = send(router.clone(), Method::GET, path).await?;
         assert_eq!(response.status(), StatusCode::OK, "{path}");
         assert_eq!(body(response).await?, expected.as_bytes());
@@ -137,9 +137,9 @@ async fn trailing_slash_resource_path_uses_one_collection_and_member_base() -> T
 async fn empty_and_slash_resource_paths_work_inside_groups() -> TestResult {
     for path in ["", "/"] {
         let router =
-            router(move |routes| routes.group("/posts", |group| group.resource::<Posts>(path)))
+            router(move |routes| routes.nest("/posts", |group| group.resource::<Posts>(path)))
                 .await?;
-        for (request_path, expected) in [("/posts", "index"), ("/posts/42", "show:42")] {
+        for (request_path, expected) in [("/posts", "list"), ("/posts/42", "get:42")] {
             let response = send(router.clone(), Method::GET, request_path).await?;
             assert_eq!(response.status(), StatusCode::OK, "{path}: {request_path}");
             assert_eq!(body(response).await?, expected.as_bytes());
@@ -149,11 +149,25 @@ async fn empty_and_slash_resource_paths_work_inside_groups() -> TestResult {
 }
 
 #[tokio::test]
+async fn empty_and_slash_nest_prefixes_merge_at_root() -> TestResult {
+    for prefix in ["", "/"] {
+        let router =
+            router(move |routes| routes.nest(prefix, |nested| nested.resource::<Posts>("/posts")))
+                .await?;
+        assert_eq!(
+            send(router, Method::GET, "/posts").await?.status(),
+            StatusCode::OK
+        );
+    }
+    Ok(())
+}
+
+#[tokio::test]
 async fn absent_actions_do_not_create_paths_and_registered_paths_reject_other_methods() -> TestResult
 {
     let router = router(|routes| {
         routes
-            .resource::<IndexOnly>("/posts")
+            .resource::<ListOnly>("/posts")
             .resource::<Empty>("/empty")
     })
     .await?;
@@ -172,9 +186,9 @@ async fn absent_actions_do_not_create_paths_and_registered_paths_reject_other_me
 #[tokio::test]
 async fn only_and_except_filter_registered_actions_in_nested_groups() -> TestResult {
     let router = router(|routes| {
-        routes.group("/api", |api| {
-            api.resource_with::<Posts>("/only", |a| a.only(&[Action::Show, Action::Update]))
-                .resource_with::<Posts>("/except", |a| a.except(&[Action::Store, Action::Destroy]))
+        routes.nest("/api", |api| {
+            api.resource_with::<Posts>("/only", |a| a.only(&[Action::Get, Action::Update]))
+                .resource_with::<Posts>("/except", |a| a.except(&[Action::Create, Action::Delete]))
                 .resource_with::<Posts>("/none", |a| a.only(&[]))
         })
     })
@@ -229,8 +243,8 @@ async fn repeated_only_calls_intersect_registered_actions() -> TestResult {
     let router = router(|routes| {
         routes.resource_with::<Posts>("/posts", |actions| {
             actions
-                .only(&[Action::Index, Action::Show])
-                .only(&[Action::Show, Action::Store])
+                .only(&[Action::List, Action::Get])
+                .only(&[Action::Get, Action::Create])
         })
     })
     .await?;

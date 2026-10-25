@@ -1,7 +1,7 @@
-//! [`HttpProvider`] and the route registration hook.
+//! [`HttpPlugin`] and the route registration hook.
 
 use axum::Router;
-use openrust_core::{App, AppBuilder, Result, ServiceProvider};
+use openrust_core::{App, AppBuilder, Plugin, Result};
 
 use crate::health;
 use crate::middleware;
@@ -31,7 +31,7 @@ impl RouteRegistry {
 /// Adds [`routes`](AppBuilderHttpExt::routes) to [`AppBuilder`].
 pub trait AppBuilderHttpExt {
     /// Contributes routes. Call it from [`Application::build`](openrust_core::Application::build)
-    /// or from a provider's `register`; builders run in registration order.
+    /// or from a plugin's `build`; builders run in registration order.
     fn routes<F>(&mut self, builder: F) -> &mut Self
     where
         F: Fn(Routes) -> Routes + Send + Sync + 'static;
@@ -51,15 +51,15 @@ impl AppBuilderHttpExt for AppBuilder {
 
 /// Installs the HTTP capability: `serve` command, default middleware and `GET /health`.
 ///
-/// The facade's `openrust::run` adds this provider automatically.
-pub struct HttpProvider;
+/// The facade's `openrust::run` adds this plugin automatically.
+pub struct HttpPlugin;
 
-impl ServiceProvider for HttpProvider {
+impl Plugin for HttpPlugin {
     fn name(&self) -> &'static str {
         "http"
     }
 
-    fn register(&self, app: &mut AppBuilder) -> Result<()> {
+    fn build(&self, app: &mut AppBuilder) -> Result<()> {
         app.command(ServeCommand).routes(health::routes);
         Ok(())
     }

@@ -3,7 +3,7 @@
 use openrust_core::{App, BoxFuture, Command, Error, Result, shutdown_signal};
 use tokio::net::TcpListener;
 
-use crate::provider::build_router;
+use crate::plugin::build_router;
 
 /// Binds `[server] host:port` and serves until a shutdown signal arrives.
 pub async fn serve(app: &App) -> Result<()> {

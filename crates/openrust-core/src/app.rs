@@ -10,7 +10,7 @@ use serde::de::DeserializeOwned;
 use crate::command::Command;
 use crate::config::{ConfigError, FrameworkConfig};
 use crate::error::{Error, Result};
-use crate::provider::ServiceProvider;
+use crate::plugin::Plugin;
 
 /// Implemented once per project to describe how the application is assembled.
 ///
@@ -24,7 +24,7 @@ use crate::provider::ServiceProvider;
 ///     type Config = NoConfig;
 ///
 ///     fn build(app: &mut AppBuilder) {
-///         // app.provider(DatabaseProvider).routes(routes::register);
+///         // app.plugin(DatabasePlugin).routes(routes::register);
 ///         let _ = app;
 ///     }
 /// }
@@ -35,14 +35,14 @@ pub trait Application: Send + Sync + 'static {
     /// [`NoConfig`](crate::config::NoConfig) when there is none.
     type Config: DeserializeOwned + Send + Sync + 'static;
 
-    /// Registers providers, routes, commands and services.
+    /// Registers plugins, routes, commands and services.
     fn build(app: &mut AppBuilder);
 }
 
 /// Error returned when a handler or command asks for a service nobody registered.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-#[error("service `{0}` is not registered; call `AppBuilder::provide` from a ServiceProvider")]
-pub struct ServiceNotRegistered(pub &'static str);
+#[error("service `{0}` is not registered; call `AppBuilder::insert` from a Plugin")]
+pub struct MissingServiceError(pub &'static str);
 
 #[derive(Default)]
 struct Registry {
@@ -63,12 +63,12 @@ impl Registry {
 
 type Extensions = HashMap<TypeId, Box<dyn Any + Send + Sync>>;
 
-/// Mutable assembly stage. Providers add services, commands and crate-specific hooks here.
+/// Mutable assembly stage. Plugins add services, commands and crate-specific hooks here.
 pub struct AppBuilder {
     framework: FrameworkConfig,
     figment: Figment,
     services: Registry,
-    providers: Vec<Box<dyn ServiceProvider>>,
+    plugins: Vec<Box<dyn Plugin>>,
     commands: Vec<Box<dyn Command>>,
     extensions: Extensions,
 }
@@ -80,7 +80,7 @@ impl AppBuilder {
             framework,
             figment,
             services: Registry::default(),
-            providers: Vec::new(),
+            plugins: Vec::new(),
             commands: Vec::new(),
             extensions: Extensions::new(),
         }
@@ -96,20 +96,20 @@ impl AppBuilder {
         Ok(self.figment.extract_inner(key)?)
     }
 
-    /// Queues a provider. Providers added while another provider registers are processed too.
-    pub fn provider(&mut self, provider: impl ServiceProvider) -> &mut Self {
-        self.providers.push(Box::new(provider));
+    /// Queues a plugin. Plugins added while another plugin builds are processed too.
+    pub fn plugin(&mut self, plugin: impl Plugin) -> &mut Self {
+        self.plugins.push(Box::new(plugin));
         self
     }
 
     /// Registers a service, retrievable later via [`AppState::get`]. One instance per type.
-    pub fn provide<T: Send + Sync + 'static>(&mut self, service: T) -> &mut Self {
+    pub fn insert<T: Send + Sync + 'static>(&mut self, service: T) -> &mut Self {
         self.services.insert(service);
         self
     }
 
-    /// Looks up a service already registered by an earlier provider.
-    pub fn service<T: Send + Sync + 'static>(&self) -> Option<Arc<T>> {
+    /// Looks up a service already registered by an earlier plugin.
+    pub fn get<T: Send + Sync + 'static>(&self) -> Option<Arc<T>> {
         self.services.get()
     }
 
@@ -122,7 +122,7 @@ impl AppBuilder {
     /// Mutable access to a crate-specific hook container, created on first use.
     ///
     /// Capability crates use this to collect registrations (route builders, migrations, jobs)
-    /// during `register` and read them back from [`App::extension`] after the build.
+    /// during `build` and read them back from [`App::extension`] after the build.
     pub fn extension_mut<T: Default + Send + Sync + 'static>(&mut self) -> &mut T {
         let entry = self
             .extensions
@@ -134,15 +134,15 @@ impl AppBuilder {
             .unwrap_or_else(|| unreachable!("extension stored under a mismatched TypeId"))
     }
 
-    pub(crate) fn take_providers(&mut self) -> Vec<Box<dyn ServiceProvider>> {
-        std::mem::take(&mut self.providers)
+    pub(crate) fn take_plugins(&mut self) -> Vec<Box<dyn Plugin>> {
+        std::mem::take(&mut self.plugins)
     }
 
-    pub(crate) fn has_pending_providers(&self) -> bool {
-        !self.providers.is_empty()
+    pub(crate) fn has_pending_plugins(&self) -> bool {
+        !self.plugins.is_empty()
     }
 
-    /// Freezes the builder. Prefer [`finalize`](crate::lifecycle::finalize), which also runs providers.
+    /// Freezes the builder. Prefer [`finalize`](crate::lifecycle::finalize), which also runs plugins.
     pub fn build(self) -> App {
         App {
             state: AppState {
@@ -175,15 +175,15 @@ impl AppState {
         &self.inner.framework
     }
 
-    /// Returns the registered service of type `T`, or [`ServiceNotRegistered`] as an internal error.
-    pub fn get<T: Send + Sync + 'static>(&self) -> Result<Arc<T>> {
-        self.try_get()
-            .ok_or_else(|| Error::internal(ServiceNotRegistered(type_name::<T>())))
+    /// Returns the registered service of type `T`, if any.
+    pub fn get<T: Send + Sync + 'static>(&self) -> Option<Arc<T>> {
+        self.inner.services.get()
     }
 
-    /// Returns the registered service of type `T`, if any.
-    pub fn try_get<T: Send + Sync + 'static>(&self) -> Option<Arc<T>> {
-        self.inner.services.get()
+    /// Returns the registered service of type `T`, or an error naming the missing type.
+    pub fn try_get<T: Send + Sync + 'static>(&self) -> Result<Arc<T>> {
+        self.get()
+            .ok_or_else(|| Error::internal(MissingServiceError(type_name::<T>())))
     }
 }
 
@@ -215,7 +215,7 @@ impl App {
         self.state.config()
     }
 
-    /// Merged configuration source, for commands such as `config:show`.
+    /// Merged configuration source, for commands such as `config show`.
     pub fn figment(&self) -> &Figment {
         &self.figment
     }
@@ -239,20 +239,36 @@ impl App {
 
     /// Runs the command called `name` with `args`.
     pub async fn run_command(&self, name: &str, args: Vec<String>) -> Result<()> {
-        let command = self.commands().find(|c| c.name() == name).ok_or_else(|| {
-            Error::custom(
-                http::StatusCode::BAD_REQUEST,
-                "unknown_command",
-                format!("unknown command `{name}`; run `help` to list commands"),
-            )
-        })?;
-        command.run(self, args).await
+        let command = self
+            .commands()
+            .filter(|command| {
+                let mut words = command.name().split_whitespace();
+                words.next() == Some(name)
+                    && words
+                        .clone()
+                        .zip(args.iter())
+                        .all(|(word, arg)| word == arg)
+                    && words.count() <= args.len()
+            })
+            .max_by_key(|command| command.name().split_whitespace().count())
+            .ok_or_else(|| {
+                Error::custom(
+                    http::StatusCode::BAD_REQUEST,
+                    "unknown_command",
+                    format!("unknown command `{name}`; run `help` to list commands"),
+                )
+            })?;
+        let consumed = command.name().split_whitespace().count() - 1;
+        command
+            .run(self, args.into_iter().skip(consumed).collect())
+            .await
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::plugin::BoxFuture;
 
     #[derive(Debug, PartialEq)]
     struct Counter(u32);
@@ -263,13 +279,23 @@ mod tests {
     #[test]
     fn services_are_typed_and_shared() {
         let mut builder = AppBuilder::new(FrameworkConfig::default(), Figment::new());
-        builder.provide(Counter(7));
+        builder.insert(Counter(7));
         let app = builder.build();
-        assert_eq!(app.state().get::<Counter>().ok().map(|c| c.0), Some(7));
-        assert!(app.state().try_get::<String>().is_none());
+        assert_eq!(app.state().get::<Counter>().map(|c| c.0), Some(7));
+    }
+
+    #[test]
+    fn get_returns_none_for_missing_service() {
+        let app = AppBuilder::new(FrameworkConfig::default(), Figment::new()).build();
+        assert!(app.state().get::<String>().is_none());
+    }
+
+    #[test]
+    fn try_get_reports_missing_type_name() {
+        let app = AppBuilder::new(FrameworkConfig::default(), Figment::new()).build();
         let error = app
             .state()
-            .get::<String>()
+            .try_get::<String>()
             .err()
             .map(|e| e.to_string())
             .unwrap_or_default();
@@ -296,5 +322,42 @@ mod tests {
         let app = AppBuilder::new(FrameworkConfig::default(), Figment::new()).build();
         let error = app.run_command("nope", Vec::new()).await.err();
         assert_eq!(error.as_ref().map(Error::code), Some("unknown_command"));
+    }
+
+    struct NestedCommand;
+
+    impl Command for NestedCommand {
+        fn name(&self) -> &'static str {
+            "config show"
+        }
+
+        fn about(&self) -> &'static str {
+            "Test nested command"
+        }
+
+        fn run<'a>(&'a self, _app: &'a App, args: Vec<String>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                assert_eq!(args, ["--json"]);
+                Ok(())
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn nested_command_consumes_its_name_words() -> Result<()> {
+        let mut builder = AppBuilder::new(FrameworkConfig::default(), Figment::new());
+        builder.command(NestedCommand);
+        let app = builder.build();
+        app.run_command("config", vec!["show".into(), "--json".into()])
+            .await?;
+        assert_eq!(
+            app.run_command("config", vec!["other".into()])
+                .await
+                .err()
+                .as_ref()
+                .map(Error::code),
+            Some("unknown_command")
+        );
+        Ok(())
     }
 }

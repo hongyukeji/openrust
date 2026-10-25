@@ -4,13 +4,12 @@ use std::fmt::Write as _;
 
 use crate::app::App;
 use crate::error::Result;
-use crate::provider::BoxFuture;
+use crate::plugin::BoxFuture;
 
 /// A named command runnable as `<app-binary> <name> [args…]`.
 ///
-/// Providers register commands during [`ServiceProvider::register`](crate::ServiceProvider::register);
-/// the HTTP crate contributes `serve`, the database crate `migrate`, and so on. Names use `:` to
-/// group related commands (`queue:work`, `db:seed`).
+/// Plugins build commands during [`Plugin::build`](crate::Plugin::build);
+/// the HTTP crate contributes `serve`, the database crate `migrate`, and so on. Names use space-separated words for nested commands (`queue work`, `db seed`).
 pub trait Command: Send + Sync + 'static {
     /// Command name as typed on the command line.
     fn name(&self) -> &'static str;
@@ -22,7 +21,7 @@ pub trait Command: Send + Sync + 'static {
     fn run<'a>(&'a self, app: &'a App, args: Vec<String>) -> BoxFuture<'a, Result<()>>;
 }
 
-/// Lists registered commands.
+/// Lists builded commands.
 pub(crate) struct HelpCommand;
 
 impl Command for HelpCommand {
@@ -55,7 +54,7 @@ pub(crate) struct ConfigShowCommand;
 
 impl Command for ConfigShowCommand {
     fn name(&self) -> &'static str {
-        "config:show"
+        "config show"
     }
 
     fn about(&self) -> &'static str {

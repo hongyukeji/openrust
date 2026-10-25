@@ -39,7 +39,7 @@ impl ValidationErrors {
 
 /// The single error type of the framework.
 ///
-/// Every failure that can reach a handler, a command or a provider is expressed with this type,
+/// Every failure that can reach a handler, a command or a plugin is expressed with this type,
 /// so `?` works uniformly and HTTP rendering happens in exactly one place. Client errors carry a
 /// message that is safe to show to callers; [`Error::Internal`] hides its source and is only logged.
 #[derive(Debug, thiserror::Error)]

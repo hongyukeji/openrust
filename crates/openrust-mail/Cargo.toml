@@ -1,6 +1,6 @@
 [package]
 name = "openrust-mail"
-description = "Mail layer of the OpenRust framework: Mailable, Mailer and smtp/log/fake drivers"
+description = "Mail layer of the OpenRust framework: Email, Mailer and smtp/log/fake drivers"
 readme = "README.md"
 version.workspace = true
 edition.workspace = true

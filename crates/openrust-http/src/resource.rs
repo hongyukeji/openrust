@@ -10,15 +10,15 @@ use crate::routes::Routes;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Action {
     /// List resources at the collection path.
-    Index,
-    /// Show one resource by ID.
-    Show,
+    List,
+    /// Get one resource by ID.
+    Get,
     /// Create a resource.
-    Store,
+    Create,
     /// Replace or partially update a resource.
     Update,
     /// Delete a resource.
-    Destroy,
+    Delete,
 }
 
 /// Collects handlers that a resource controller actually implements.
@@ -26,11 +26,11 @@ pub enum Action {
 /// `only` and `except` filter registered handlers, independent of registration order.
 #[derive(Default)]
 pub struct ResourceActions {
-    index: Option<MethodRouter<AppState>>,
-    show: Option<MethodRouter<AppState>>,
-    store: Option<MethodRouter<AppState>>,
+    list: Option<MethodRouter<AppState>>,
+    get: Option<MethodRouter<AppState>>,
+    create: Option<MethodRouter<AppState>>,
     update: Option<MethodRouter<AppState>>,
-    destroy: Option<MethodRouter<AppState>>,
+    delete: Option<MethodRouter<AppState>>,
     only: Option<Vec<Action>>,
     excluded: Vec<Action>,
 }
@@ -43,34 +43,34 @@ impl ResourceActions {
 
     /// Registers `GET {path}`.
     #[must_use]
-    pub fn index<H, T>(mut self, handler: H) -> Self
+    pub fn list<H, T>(mut self, handler: H) -> Self
     where
         H: Handler<T, AppState>,
         T: 'static,
     {
-        self.index = Some(routing::get(handler));
+        self.list = Some(routing::get(handler));
         self
     }
 
     /// Registers `GET {path}/{id}`.
     #[must_use]
-    pub fn show<H, T>(mut self, handler: H) -> Self
+    pub fn get<H, T>(mut self, handler: H) -> Self
     where
         H: Handler<T, AppState>,
         T: 'static,
     {
-        self.show = Some(routing::get(handler));
+        self.get = Some(routing::get(handler));
         self
     }
 
     /// Registers `POST {path}`.
     #[must_use]
-    pub fn store<H, T>(mut self, handler: H) -> Self
+    pub fn create<H, T>(mut self, handler: H) -> Self
     where
         H: Handler<T, AppState>,
         T: 'static,
     {
-        self.store = Some(routing::post(handler));
+        self.create = Some(routing::post(handler));
         self
     }
 
@@ -87,12 +87,12 @@ impl ResourceActions {
 
     /// Registers `DELETE {path}/{id}`.
     #[must_use]
-    pub fn destroy<H, T>(mut self, handler: H) -> Self
+    pub fn delete<H, T>(mut self, handler: H) -> Self
     where
         H: Handler<T, AppState>,
         T: 'static,
     {
-        self.destroy = Some(routing::delete(handler));
+        self.delete = Some(routing::delete(handler));
         self
     }
 
@@ -121,20 +121,20 @@ impl ResourceActions {
             self.only.as_ref().is_none_or(|only| only.contains(&action))
                 && !self.excluded.contains(&action)
         };
-        if !keep(Action::Index) {
-            self.index = None;
+        if !keep(Action::List) {
+            self.list = None;
         }
-        if !keep(Action::Show) {
-            self.show = None;
+        if !keep(Action::Get) {
+            self.get = None;
         }
-        if !keep(Action::Store) {
-            self.store = None;
+        if !keep(Action::Create) {
+            self.create = None;
         }
         if !keep(Action::Update) {
             self.update = None;
         }
-        if !keep(Action::Destroy) {
-            self.destroy = None;
+        if !keep(Action::Delete) {
+            self.delete = None;
         }
     }
 
@@ -142,11 +142,11 @@ impl ResourceActions {
         self.apply_filters();
         let base = path.trim_end_matches('/');
         let collection_path = if base.is_empty() { "/" } else { base };
-        let collection = [self.index, self.store]
+        let collection = [self.list, self.create]
             .into_iter()
             .flatten()
             .reduce(MethodRouter::merge);
-        let member = [self.show, self.update, self.destroy]
+        let member = [self.get, self.update, self.delete]
             .into_iter()
             .flatten()
             .reduce(MethodRouter::merge);
@@ -167,11 +167,11 @@ impl ResourceActions {
 /// use openrust_http::{Resource, ResourceActions, Routes};
 ///
 /// struct Posts;
-/// async fn index() -> &'static str { "posts" }
+/// async fn list() -> &'static str { "posts" }
 ///
 /// impl Resource for Posts {
 ///     fn actions(actions: ResourceActions) -> ResourceActions {
-///         actions.index(index)
+///         actions.list(list)
 ///     }
 /// }
 ///

@@ -1,8 +1,8 @@
 //! Bootstrap sequence and shutdown signal.
 //!
 //! [`bootstrap`] performs, in order: load `.env`, load configuration, initialise `tracing`,
-//! extract the application's own configuration, let the [`Application`] register providers,
-//! run every provider's `register`, freeze the builder, then run every provider's `boot`.
+//! extract the application's own configuration, let the [`Application`] build plugins,
+//! run every plugin's `build`, freeze the builder, then run every plugin's `finish`.
 
 use tracing_subscriber::EnvFilter;
 
@@ -16,9 +16,9 @@ pub async fn bootstrap<A: Application>() -> Result<App> {
     bootstrap_with::<A>(|_| {}).await
 }
 
-/// Like [`bootstrap`], but lets the caller add default providers before [`Application::build`].
+/// Like [`bootstrap`], but lets the caller add default plugins before [`Application::build`].
 ///
-/// The facade crate uses this to install the HTTP provider so every application serves by default.
+/// The facade crate uses this to install the HTTP plugin so every application serves by default.
 pub async fn bootstrap_with<A: Application>(defaults: impl FnOnce(&mut AppBuilder)) -> Result<App> {
     config::load_dotenv();
     let loader = ConfigLoader::from_env()?;
@@ -28,29 +28,29 @@ pub async fn bootstrap_with<A: Application>(defaults: impl FnOnce(&mut AppBuilde
 
     let app_config: A::Config = loader.load()?;
     let mut builder = AppBuilder::new(framework, loader.figment());
-    builder.provide(app_config);
+    builder.insert(app_config);
     builder.command(HelpCommand).command(ConfigShowCommand);
     defaults(&mut builder);
     A::build(&mut builder);
     finalize(builder).await
 }
 
-/// Runs provider registration and boot on an assembled builder.
+/// Runs plugin building and finishing on an assembled builder.
 ///
 /// Exposed so tests can build applications without touching the environment.
 pub async fn finalize(mut builder: AppBuilder) -> Result<App> {
-    let mut registered = Vec::new();
-    while builder.has_pending_providers() {
-        for provider in builder.take_providers() {
-            tracing::trace!(provider = provider.name(), "registering");
-            provider.register(&mut builder)?;
-            registered.push(provider);
+    let mut built = Vec::new();
+    while builder.has_pending_plugins() {
+        for plugin in builder.take_plugins() {
+            tracing::trace!(plugin = plugin.name(), "building");
+            plugin.build(&mut builder)?;
+            built.push(plugin);
         }
     }
     let app = builder.build();
-    for provider in &registered {
-        tracing::trace!(provider = provider.name(), "booting");
-        provider.boot(&app).await?;
+    for plugin in &built {
+        tracing::trace!(plugin = plugin.name(), "finishing");
+        plugin.finish(&app).await?;
     }
     Ok(app)
 }
@@ -96,7 +96,7 @@ pub async fn shutdown_signal() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::provider::{BoxFuture, ServiceProvider};
+    use crate::plugin::{BoxFuture, Plugin};
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -104,33 +104,33 @@ mod tests {
     struct Log(Mutex<Vec<&'static str>>);
 
     struct Second;
-    impl ServiceProvider for Second {
-        fn register(&self, app: &mut AppBuilder) -> Result<()> {
+    impl Plugin for Second {
+        fn build(&self, app: &mut AppBuilder) -> Result<()> {
             app.extension_mut::<Log>()
                 .0
                 .lock()
-                .map(|mut l| l.push("second:register"))
+                .map(|mut l| l.push("second:build"))
                 .ok();
             Ok(())
         }
     }
 
     struct First;
-    impl ServiceProvider for First {
-        fn register(&self, app: &mut AppBuilder) -> Result<()> {
+    impl Plugin for First {
+        fn build(&self, app: &mut AppBuilder) -> Result<()> {
             app.extension_mut::<Log>()
                 .0
                 .lock()
-                .map(|mut l| l.push("first:register"))
+                .map(|mut l| l.push("first:build"))
                 .ok();
-            app.provider(Second);
-            app.provide(AtomicBool::new(false));
+            app.plugin(Second);
+            app.insert(AtomicBool::new(false));
             Ok(())
         }
-        fn boot<'a>(&'a self, app: &'a App) -> BoxFuture<'a, Result<()>> {
+        fn finish<'a>(&'a self, app: &'a App) -> BoxFuture<'a, Result<()>> {
             Box::pin(async move {
                 app.state()
-                    .get::<AtomicBool>()?
+                    .try_get::<AtomicBool>()?
                     .store(true, Ordering::SeqCst);
                 Ok(())
             })
@@ -138,20 +138,20 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn providers_added_during_register_are_processed_and_booted() -> Result<()> {
+    async fn plugins_added_during_build_are_processed_and_finished() -> Result<()> {
         let mut builder = AppBuilder::new(
             crate::config::FrameworkConfig::default(),
             figment::Figment::new(),
         );
-        builder.provider(First);
+        builder.plugin(First);
         let app = finalize(builder).await?;
         let log = app
             .extension::<Log>()
             .and_then(|l| l.0.lock().ok().map(|l| l.clone()));
-        assert_eq!(log, Some(vec!["first:register", "second:register"]));
+        assert_eq!(log, Some(vec!["first:build", "second:build"]));
         assert!(
-            app.state().get::<AtomicBool>()?.load(Ordering::SeqCst),
-            "boot ran"
+            app.state().try_get::<AtomicBool>()?.load(Ordering::SeqCst),
+            "finish ran"
         );
         Ok(())
     }

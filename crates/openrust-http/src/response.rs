@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 /// ```
 /// use openrust_http::{Created, axum::Json};
 ///
-/// async fn store() -> Created<Json<&'static str>> {
+/// async fn create() -> Created<Json<&'static str>> {
 ///     Created(Json("created"))
 /// }
 /// ```

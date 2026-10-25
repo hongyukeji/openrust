@@ -23,7 +23,7 @@ use crate::resource::{Resource, ResourceActions};
 /// async fn show() -> &'static str { "post" }
 ///
 /// fn register(routes: Routes) -> Routes {
-///     routes.group("/api", |api| api.get("/posts", index).get("/posts/{id}", show))
+///     routes.nest("/api", |api| api.get("/posts", index).get("/posts/{id}", show))
 /// }
 /// ```
 #[derive(Default)]
@@ -124,7 +124,7 @@ impl Routes {
 
     /// Nests the routes built by `f` under `prefix`. An empty or `/` prefix merges instead.
     #[must_use]
-    pub fn group(mut self, prefix: &str, f: impl FnOnce(Routes) -> Routes) -> Self {
+    pub fn nest(mut self, prefix: &str, f: impl FnOnce(Routes) -> Routes) -> Self {
         let inner = f(Routes::new()).router;
         self.router = if prefix.is_empty() || prefix == "/" {
             self.router.merge(inner)

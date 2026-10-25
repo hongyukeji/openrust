@@ -24,4 +24,4 @@ fn main() -> std::process::ExitCode {
 }
 ```
 
-`openrust::run` loads configuration, installs tracing, boots providers and dispatches the first command-line argument as a command (`serve` when absent), so the application binary doubles as its own CLI: `my-app serve`, `my-app config:show`, `my-app help`.
+`openrust::run` loads configuration, installs tracing, builds and finishes plugins and dispatches the first command-line argument as a command (`serve` when absent), so the application binary doubles as its own CLI: `my-app serve`, `my-app config show`, `my-app help`.

@@ -3,11 +3,11 @@
 //! Sources are merged in this order, later layers overriding earlier ones:
 //!
 //! 1. crate defaults ([`FrameworkConfig::default`])
-//! 2. `config/app.toml`
-//! 3. `config/<env>.toml` where `<env>` comes from `APP_ENV` (`development` by default)
-//! 4. environment variables prefixed `APP__`, nested with `__` (`APP__SERVER__PORT=4000` → `server.port`)
+//! 2. `config/default.toml`
+//! 3. `config/<env>.toml` where `<env>` comes from `OPENRUST_ENV` (`development` by default)
+//! 4. environment variables prefixed `OPENRUST_`, nested with `__` (`OPENRUST_SERVER__PORT=4000` → `server.port`)
 //!
-//! `.env` files are loaded by [`load_dotenv`] before anything else so they can supply `APP_ENV`
+//! `.env` files are loaded by [`load_dotenv`] before anything else so they can supply `OPENRUST_ENV`
 //! and secrets during development. Production deployments should not ship a `.env` file.
 
 use std::fmt;
@@ -20,10 +20,10 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 /// Environment variable selecting the runtime environment.
-pub const ENV_VAR: &str = "APP_ENV";
+pub const ENV_VAR: &str = "OPENRUST_ENV";
 /// Prefix of environment variables that override configuration keys.
-pub const ENV_PREFIX: &str = "APP__";
-/// Directory holding `app.toml` and per-environment files, relative to the working directory.
+pub const ENV_PREFIX: &str = "OPENRUST_";
+/// Directory holding `default.toml` and per-environment files, relative to the working directory.
 pub const DEFAULT_CONFIG_DIR: &str = "config";
 
 /// Configuration failures. Only possible during bootstrap.
@@ -34,7 +34,7 @@ pub enum ConfigError {
     /// The message names the key and the source layer. Boxed to keep [`crate::Error`] small.
     #[error("{0}")]
     Source(Box<figment::Error>),
-    /// `APP_ENV` holds a value other than `development`, `test` or `production`.
+    /// `OPENRUST_ENV` holds a value other than `development`, `test` or `production`.
     #[error("unknown environment `{0}` in {ENV_VAR}; expected development, test or production")]
     UnknownEnvironment(String),
     /// Values were loaded but violate a framework invariant.
@@ -48,7 +48,7 @@ impl From<figment::Error> for ConfigError {
     }
 }
 
-/// Runtime environment, selected by `APP_ENV`.
+/// Runtime environment, selected by `OPENRUST_ENV`.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Environment {
@@ -62,7 +62,7 @@ pub enum Environment {
 }
 
 impl Environment {
-    /// Reads the environment from `APP_ENV`, defaulting to [`Environment::Development`].
+    /// Reads the environment from `OPENRUST_ENV`, defaulting to [`Environment::Development`].
     pub fn from_env() -> Result<Self, ConfigError> {
         match std::env::var(ENV_VAR) {
             Ok(value) if !value.trim().is_empty() => value.parse(),
@@ -122,7 +122,7 @@ pub struct FrameworkConfig {
 pub struct AppConfig {
     /// Human-readable name used in logs and mail.
     pub name: String,
-    /// Runtime environment. Always overwritten by `APP_ENV` after loading.
+    /// Runtime environment. Always overwritten by `OPENRUST_ENV` after loading.
     pub env: Environment,
     /// Public base URL used to build absolute links.
     pub url: String,
@@ -279,7 +279,7 @@ pub struct ConfigLoader {
 }
 
 impl ConfigLoader {
-    /// Uses [`DEFAULT_CONFIG_DIR`] and the environment from `APP_ENV`.
+    /// Uses [`DEFAULT_CONFIG_DIR`] and the environment from `OPENRUST_ENV`.
     pub fn from_env() -> Result<Self, ConfigError> {
         Ok(Self::new(DEFAULT_CONFIG_DIR, Environment::from_env()?))
     }
@@ -305,11 +305,27 @@ impl ConfigLoader {
     /// The layered [`Figment`] every section is extracted from.
     pub fn figment(&self) -> Figment {
         Figment::from(Serialized::defaults(FrameworkConfig::default()))
-            .merge(Toml::file(self.config_dir.join("app.toml")))
+            .merge(Toml::file(self.config_dir.join("default.toml")))
             .merge(Toml::file(
                 self.config_dir.join(format!("{}.toml", self.env)),
             ))
-            .merge(Env::prefixed(ENV_PREFIX).split("__"))
+            .merge(
+                Env::raw()
+                    .only(&["DATABASE_URL", "PORT"])
+                    .map(|key| {
+                        if key == "PORT" {
+                            "server.port".into()
+                        } else {
+                            "database.url".into()
+                        }
+                    })
+                    .split("."),
+            )
+            .merge(
+                Env::prefixed(ENV_PREFIX)
+                    .filter(|key| key != "ENV")
+                    .split("__"),
+            )
     }
 
     /// Extracts the whole merged configuration into `T`.
@@ -355,11 +371,11 @@ mod tests {
         figment::Jail::expect_with(|jail| {
             jail.create_dir("config")?;
             jail.create_file(
-                "config/app.toml",
+                "config/default.toml",
                 "[server]\nport = 4000\nhost = \"0.0.0.0\"",
             )?;
             jail.create_file("config/test.toml", "[server]\nport = 5000")?;
-            jail.set_env("APP__SERVER__HOST", "10.0.0.1");
+            jail.set_env("OPENRUST_SERVER__HOST", "10.0.0.1");
 
             let loader = ConfigLoader::new("config", Environment::Test);
             let config = loader
@@ -367,7 +383,7 @@ mod tests {
                 .map_err(|e| figment::Error::from(e.to_string()))?;
             assert_eq!(
                 config.server.port, 5000,
-                "environment file overrides app.toml"
+                "environment file overrides default.toml"
             );
             assert_eq!(config.server.host, "10.0.0.1", "env var overrides files");
             assert_eq!(
@@ -384,7 +400,7 @@ mod tests {
     fn wrong_type_reports_key_name() {
         figment::Jail::expect_with(|jail| {
             jail.create_dir("config")?;
-            jail.create_file("config/app.toml", "[server]\nport = \"not-a-port\"")?;
+            jail.create_file("config/default.toml", "[server]\nport = \"not-a-port\"")?;
             let error = ConfigLoader::new("config", Environment::Development)
                 .load_framework()
                 .err()
@@ -455,7 +471,7 @@ mod tests {
     fn cors_list_environment_override_uses_figment_array_syntax() {
         figment::Jail::expect_with(|jail| {
             jail.set_env(
-                "APP__SERVER__CORS__ALLOWED_ORIGINS",
+                "OPENRUST_SERVER__CORS__ALLOWED_ORIGINS",
                 "[\"https://example.com\", \"https://other.example\"]",
             );
             let config = ConfigLoader::new("missing-config", Environment::Test)
@@ -464,6 +480,56 @@ mod tests {
             assert_eq!(
                 config.server.cors.allowed_origins,
                 ["https://example.com", "https://other.example"]
+            );
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn conventional_variables_map_to_sections_and_prefixed_values_win() {
+        figment::Jail::expect_with(|jail| {
+            jail.set_env("DATABASE_URL", "postgres://common/database");
+            jail.set_env("PORT", "4100");
+            let loader = ConfigLoader::new("missing-config", Environment::Test);
+            let database: serde_json::Value = loader.figment().extract_inner("database")?;
+            assert_eq!(database["url"], "postgres://common/database");
+            assert_eq!(
+                loader
+                    .load_framework()
+                    .map_err(|error| figment::Error::from(error.to_string()))?
+                    .server
+                    .port,
+                4100
+            );
+
+            jail.set_env("OPENRUST_DATABASE__URL", "postgres://prefixed/database");
+            jail.set_env("OPENRUST_SERVER__PORT", "4200");
+            let database: serde_json::Value = loader.figment().extract_inner("database")?;
+            assert_eq!(database["url"], "postgres://prefixed/database");
+            assert_eq!(
+                loader
+                    .load_framework()
+                    .map_err(|error| figment::Error::from(error.to_string()))?
+                    .server
+                    .port,
+                4200
+            );
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn environment_selection_uses_only_openrust_env() {
+        figment::Jail::expect_with(|jail| {
+            jail.set_env(concat!("APP", "_ENV"), "production");
+            assert_eq!(
+                Environment::from_env().map_err(|error| figment::Error::from(error.to_string()))?,
+                Environment::Development
+            );
+            jail.set_env("OPENRUST_ENV", "test");
+            assert_eq!(
+                Environment::from_env().map_err(|error| figment::Error::from(error.to_string()))?,
+                Environment::Test
             );
             Ok(())
         });

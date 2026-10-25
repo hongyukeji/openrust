@@ -1,6 +1,6 @@
 [package]
 name = "openrust-db"
-description = "Database layer of the OpenRust framework: connection pool, migrations, seeders, factories, transactions and the PostgreSQL/MySQL dialect boundary"
+description = "Database layer of the OpenRust framework: connection pool, migrations, seeding, transactions and the PostgreSQL/MySQL dialect boundary"
 readme = "README.md"
 version.workspace = true
 edition.workspace = true

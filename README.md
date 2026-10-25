@@ -9,10 +9,10 @@
 - **Convention over configuration, without magic.** Directory layout, naming, routing, migrations and configuration keys follow visible conventions. Dependencies are explicit Rust types; there is no runtime container, no reflection, no facade.
 - **One obvious way.** Each capability has one official entry point: `Validated<T>` for input, `Policy` for authorization, `Job` for background work.
 - **Batteries included, drivers swappable.** Database queue, in-process cache, local storage and SMTP mail work out of the box; Redis and S3-compatible drivers are Cargo features.
-- **Generated code is ordinary code.** Everything `openrust make:*` produces is readable, editable and testable Rust.
+- **Generated code is ordinary code.** Everything `openrust generate` produces is readable, editable and testable Rust.
 - **Testable by default.** Every capability ships a fake driver and assertions, so business tests never need a live Redis, SMTP server or object store.
 
-OpenRust is built on `tokio`, `axum`, `tower` and `SeaORM`, and takes its developer-experience inspiration from Laravel and Rails.
+OpenRust is built on `tokio`, `axum`, `tower` and `SeaORM`, with explicit Rust types and conventional project structure.
 
 ## The golden path
 

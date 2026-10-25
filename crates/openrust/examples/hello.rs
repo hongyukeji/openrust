@@ -2,9 +2,9 @@
 
 use openrust::prelude::*;
 
-struct App;
+struct Hello;
 
-impl Application for App {
+impl Application for Hello {
     type Config = NoConfig;
 
     fn build(app: &mut AppBuilder) {
@@ -17,5 +17,5 @@ async fn hello() -> &'static str {
 }
 
 fn main() -> std::process::ExitCode {
-    openrust::run::<App>()
+    openrust::run::<Hello>()
 }

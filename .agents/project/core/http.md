@@ -12,8 +12,8 @@
 
 | 模块 | 内容 |
 | --- | --- |
-| `provider` | `HttpProvider`（注册 `serve` 与 `/health`）；`AppBuilderHttpExt::routes(Fn(Routes) -> Routes)`；`RouteRegistry` 扩展；`build_router(&App) -> Result<Router>` |
-| `routes` | `Routes`：`route` / `get` / `post` / `put` / `patch` / `delete` / `resource` / `resource_with` / `group(prefix, f)` / `merge` / `layer` / `into_router`；`group("")` 或 `"/"` 走 merge |
+| `plugin` | `HttpPlugin`（注册 `serve` 与 `/health`）；`AppBuilderHttpExt::routes(Fn(Routes) -> Routes)`；`RouteRegistry` 扩展；`build_router(&App) -> Result<Router>` |
+| `routes` | `Routes`：`route` / `get` / `post` / `put` / `patch` / `delete` / `resource` / `resource_with` / `nest(prefix, f)` / `merge` / `layer` / `into_router`；`nest("")` 或 `"/"` 走 merge |
 | `resource` | `Resource` 显式登记动作；`only` 连续调用取交集、`except` 裁剪；路径去尾斜杠后注册集合与成员，`update` 同时映射 PUT / PATCH |
 | `response` | `Created<T>` → 201；`NoContent` → 204 空正文；直接提取 `PageParams` 默认 1/20，并校验页数、每页 1..=100 与 offset 不超过 `i64::MAX`；`Paginated<T>` 输出 `data` 与 `meta` |
 | `extract` | `Inject<T>`（从 `AppState` 取服务，缺失 → 500 Problem）；`Validated<Json<T>>` / `Validated<Query<T>>`（反序列化失败 → 400，规则失败 → 422，嵌套路径 `a.b[0].c`） |

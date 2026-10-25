@@ -11,7 +11,7 @@ repository = "https://github.com/hongyukeji/openrust"
 homepage = "https://github.com/hongyukeji/openrust"
 authors = ["OpenRust Contributors"]
 categories = ["web-programming", "web-programming::http-server"]
-keywords = ["framework", "web", "axum", "laravel", "rails"]
+keywords = ["framework", "web", "axum", "batteries-included", "backend"]
 
 [workspace.dependencies]
 openrust = { path = "crates/openrust", version = "0.0.0" }
