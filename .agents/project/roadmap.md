@@ -12,7 +12,7 @@
 
 - JWT 无状态认证 driver（`auth-jwt` feature）。
 - OAuth / 社交登录 Provider。
-- 通知中心：邮件、短信、推送统一 `Notification` 抽象。
+- 通知中心：在第一代邮件/短信独立能力之上，评估多渠道编排、站内信与推送；第一代短信范围见 [ADR-010](decisions/adr-010-sms-and-communication-baseline.md)。
 - SQLite 作为开发与测试数据库。
 - 页面渲染脚手架与表单 CSRF 示例（在 `templates` feature 之上）。
 - 缓存 tag 失效、读写分离连接池。

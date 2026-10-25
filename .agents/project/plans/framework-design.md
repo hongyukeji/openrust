@@ -204,11 +204,12 @@ queue.dispatch(SendWelcomeEmail { user_id }).delay(Duration::from_secs(60)).awai
 - 调度：`schedule.job(PruneTokens).daily_at("03:00")`，`schedule.command("cache clear").every_hour()`；通过数据库锁保证多副本只执行一次；`schedule run` 支持常驻循环与单次 tick 两种运行方式。
 - 事件：`#[derive(Event)]` 定义，`app.listen::<UserRegistered, SendWelcomeListener>()` 注册；监听器可标记 `queued` 走队列。第一代只做进程内分发，不接外部消息总线。
 
-## 缓存、存储与邮件
+## 缓存、存储、邮件与短信
 
 - `Cache`：`get` / `insert` / `remove` / `get_or_insert_with` / `increment`；memory（moka）默认，redis 可选；值使用 serde 序列化；不做 tag 失效。
 - `Storage`：封装 OpenDAL `Operator`，`storage.store("public")` 提供 `read` / `write` / `delete` / `url` / `presign_read`；本地磁盘默认，S3 兼容通过 `storage-s3` feature。
 - `Mail`：`trait Email` 产出 `lettre::Message`，提供信封与内容（minijinja 邮件模板或纯文本），`mailer.send(mail)` 与 `mailer.queue(mail)`；driver smtp（lettre）/ log / fake；开发环境 compose 中提供 Mailpit。
+- 短信：第一代提供统一发送入口、可扩展供应商适配、至少一个真实实现及 log/fake；默认本地无付费依赖，生产必须显式配置真实供应商。M4 接入队列化发送；具体命名与供应商 contract 待设计，边界与验收见 [ADR-010](../decisions/adr-010-sms-and-communication-baseline.md)。验证码机制与短信传输分离，短信登录不因发送能力加入而默认启用。
 
 ## 可观测性
 

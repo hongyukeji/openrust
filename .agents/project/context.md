@@ -16,6 +16,7 @@
 
 ## 固定约束
 
+- 第一代包含邮件与短信通信能力；短信真实供应商及公共 API 待选型设计，验证码机制为补充评估项，多渠道通知中心仍是后续候选，见 [ADR-010](decisions/adr-010-sms-and-communication-baseline.md)。
 - 默认实现满足常见需求，公开扩展契约承接差异需求；数据库、缓存等能力复用既有插件与配置机制，具体边界见 [ADR-009](decisions/adr-009-extensible-capability-drivers.md)。缓存多命名实例尚待评估，不是已确认必做项。
 - OpenRust 不是任何既有项目的移植，没有兼容包袱；设计以 [第一代计划](plans/gen1-plan.md) 与 [框架设计](plans/framework-design.md) 为准。
 - 应用内核自研，基于 `tokio` + `axum` + `tower`；Loco 只作参考与对标（[ADR-001](decisions/adr-001-own-kernel-on-axum.md)）。

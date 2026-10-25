@@ -7,7 +7,7 @@
 ## 目标与边界
 
 - OpenRust 是独立的开源 Rust 应用开发框架，仓库 `https://github.com/hongyukeji/openrust`。
-- 第一代交付「框架底座」：项目生成、配置、HTTP、数据库、认证授权、任务、缓存、存储、邮件、CLI、测试工具和部署路径全部可用；业务开发者拿到项目后只写 `controllers` / `models` / `services` / `policies` / `jobs`。
+- 第一代交付「框架底座」：项目生成、配置、HTTP、数据库、认证授权、任务、缓存、存储、邮件、短信、CLI、测试工具和部署路径全部可用；业务开发者拿到项目后只写 `controllers` / `models` / `services` / `policies` / `jobs`。
 - 设计风格采用 Rust 生态熟悉的类型、trait 与显式依赖，以可见的项目约定提供统一开发入口。
 - 核心开发者画像：构建 API 服务与后台系统的中小团队和独立开发者，熟悉 Rust 基础，不想自己拼装 axum / SeaORM / tower 生态。
 - OpenRust 不是任何既有项目的移植，没有兼容包袱；所有约定按第一代目标从零设计。
@@ -29,6 +29,7 @@
 | 验证 | `validator` derive；M0 评估 `garde` | 生态成熟，与 serde 配合良好 |
 | 存储 | OpenDAL；本地默认，S3 兼容为 `storage-s3` feature | 一个适配层覆盖所有对象存储，不自写 SDK 封装 |
 | 邮件 | lettre SMTP + log + fake driver | 密码重置与邮箱验证依赖邮件，必须进入第一代 |
+| 短信 | 统一发送入口、至少一个真实供应商适配、log / fake driver；供应商待选型 | 第一代范围与验收边界见 [ADR-010](../decisions/adr-010-sms-and-communication-baseline.md) |
 | 模板 | minijinja 为可选 `templates` feature，第一代只服务邮件模板 | API 优先；页面渲染脚手架与表单 CSRF 示例列入 0.2 候选，不做 Blade 等价物 |
 | 管理后台 / 插件市场 | 不在第一代 | 由 `Plugin` 扩展模型承载第三方包，不做动态加载 |
 | 许可证与名称 | MIT OR Apache-2.0；crate 名 `openrust`、`openrust-cli`、`openrust-*`（[ADR-005](../decisions/adr-005-license-naming-msrv.md)） | 2026-10-25 核实 crates.io 上 `openrust` 与 `openrust-core` 未被占用；开发者在 M0 发布 0.0.0 占位版本预留 |
@@ -45,7 +46,7 @@
 | 数据库连接池、迁移、`src/seed.rs`、`fake::Dummy` 测试数据、事务、双库方言边界 | SQLite、多租户、读写分离 |
 | Cookie 会话与个人访问令牌、密码重置、邮箱验证、Policy、角色权限 | OAuth / 社交登录、SSO、DataScope |
 | 队列、调度、事件（进程内） | 外部消息总线、工作流引擎 |
-| 缓存、存储、邮件及 fake driver | 短信、推送、通知中心 |
+| 缓存、存储、邮件、短信及 fake driver | 推送、通知中心 |
 | 可观测性：tracing、请求 ID、健康与就绪检查、可选 OTLP / Prometheus | APM 后端、告警 |
 | CLI 全集、测试工具、文档站、示例应用、Dockerfile / compose | 云平台一键部署、Kubernetes Operator |
 
@@ -80,8 +81,8 @@ openrust queue work
 | M0 决策与基线 | ADR：自有内核、ORM 与双库、队列引擎、认证形态；预留 crates.io 名；workspace 骨架、`[workspace.lints]`、CI（fmt / clippy / test / deny / MSRV / 双库服务）；技术 spike：SeaORM 2 双库迁移、`SKIP LOCKED` 队列、axum 提取器组合 | CI 全绿；spike 结论写入 ADR；未通过的技术假设在进入 M1 前替换 |
 | M1 内核与 HTTP | `openrust-core`（Application / AppBuilder / Plugin / Config / Error / 生命周期）、`openrust-http`（路由约定、中间件栈、`Validated`、统一响应包装、健康检查）、CLI `new` / `dev` / `serve`、无数据库模板 | `openrust new` 生成项目 `cargo test` 通过；`/health` 200；验证失败返回 422 统一 JSON 包装；缺失配置启动失败并指出键名 |
 | M2 数据层 | `openrust-db`（连接池、迁移运行器、`src/seed.rs`、事务、`dialect` 边界）、`generate model` / `generate migration`、`migrate` / `db seed`、`openrust-test` 数据库隔离、模板 `--db`、CI 双库矩阵 | 空 PostgreSQL / MySQL 均初始化成功；重复 `migrate` 幂等；`rollback` 可用；生成实体直接编译；每个数据功能有双库测试证据 |
-| M3 邮件、认证与授权 | `openrust-mail`（smtp / log / fake）、`openrust-auth`（用户约定、Argon2id、Cookie 会话、个人访问令牌、`CurrentUser`、注册 / 登录 / 登出 / 密码重置 / 邮箱验证、Policy、角色权限、登录限流）、`generate mailer` / `generate policy` | 全部认证流程有集成测试；令牌撤销即时生效；错误密码限流可验证；Policy 拒绝返回 403 包装错误 |
-| M4 队列、调度与事件 | `openrust-queue`（database driver、重试退避、`failed_jobs`、`queue work`、调度器与锁、`schedule run` / `schedule list`）、`openrust-events`、队列化邮件、`generate job` | 任务失败 → 重试 → 失败表 → 手动重试成功；多副本调度不重复；worker 停机不丢任务；两库皆验证 |
+| M3 邮件、短信、认证与授权 | 短信发送与供应商扩展（范围与验收见 ADR-010）、`openrust-mail`（smtp / log / fake）、`openrust-auth`（用户约定、Argon2id、Cookie 会话、个人访问令牌、`CurrentUser`、注册 / 登录 / 登出 / 密码重置 / 邮箱验证、Policy、角色权限、登录限流）、`generate mailer` / `generate policy` | 短信真实供应商与 log/fake 路径验证（实发需目标与费用授权）；全部认证流程有集成测试；令牌撤销即时生效；错误密码限流可验证；Policy 拒绝返回 403 包装错误 |
+| M4 队列、调度与事件 | `openrust-queue`（database driver、重试退避、`failed_jobs`、`queue work`、调度器与锁、`schedule run` / `schedule list`）、`openrust-events`、队列化邮件与短信、`generate job` | 任务失败 → 重试 → 失败表 → 手动重试成功；多副本调度不重复；worker 停机不丢任务；两库皆验证 |
 | M5 缓存、存储与可观测性 | `openrust-cache`（memory / redis）、`openrust-storage`（local / s3）、JSON 日志、请求 ID、`/ready`、`otel` / `metrics` feature、panic 捕获 | fake driver 测试覆盖；S3 兼容路径用 MinIO 集成验证；`/ready` 依赖超时正确报告 |
 | M6 开发者体验与 0.1 发布 | mdBook 文档站（Diátaxis、迁移对照页、`coming-from-axum`）、`examples/blog` 黄金路径示例、Dockerfile / compose 模板、`routes` / `config show` / `doctor` / `db status`、`generate` / `g`（`scaffold`、`controller`、`model`、`migration`、`job`、`mailer`、`policy`、`command`）与快照测试、`cargo semver-checks`、新手走查、发布 0.1.0 | 新开发者按文档从空目录到部署在 30 分钟内完成且不读框架源码；本文件验收原则全部达标；发布动作由开发者执行 |
 
