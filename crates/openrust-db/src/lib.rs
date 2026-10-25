@@ -15,6 +15,7 @@ use sea_orm::{
 use serde::Deserialize;
 use std::sync::OnceLock;
 
+pub mod dialect;
 mod migration;
 
 pub use migration::MigrationPlugin;

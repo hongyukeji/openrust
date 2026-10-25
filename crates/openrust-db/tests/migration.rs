@@ -4,8 +4,8 @@
 use figment::Figment;
 use figment::providers::{Format, Toml};
 use openrust_core::{AppBuilder, config::FrameworkConfig, lifecycle};
-use openrust_db::{DatabasePlugin, Db, MigrationPlugin, sea_orm_migration};
-use sea_orm::{ConnectionTrait, Statement};
+use openrust_db::{DatabasePlugin, Db, MigrationPlugin, dialect, sea_orm_migration};
+use sea_orm::{ConnectionTrait, DbBackend, Statement};
 use sea_orm_migration::prelude::*;
 
 struct TestMigrator;
@@ -38,6 +38,14 @@ impl MigrationTrait for CreateProbe {
                             .not_null()
                             .primary_key(),
                     )
+                    .col(dialect::timestamp_utc(
+                        OpenrustMigrationProbe::CreatedAt,
+                        manager.get_database_backend(),
+                    ))
+                    .col(dialect::json(
+                        OpenrustMigrationProbe::Payload,
+                        manager.get_database_backend(),
+                    ))
                     .to_owned(),
             )
             .await
@@ -59,6 +67,8 @@ impl MigrationTrait for CreateProbe {
 enum OpenrustMigrationProbe {
     Table,
     Id,
+    CreatedAt,
+    Payload,
 }
 
 #[tokio::test]
@@ -89,6 +99,36 @@ async fn migration_command_applies_repeats_reports_and_rolls_back()
         .await?
         .ok_or("migration-created table query returned no row")?;
     assert_eq!(row.try_get::<i64>("", "row_count")?, 0);
+
+    let postgres = database.get_database_backend() == DbBackend::Postgres;
+    for (column, expected_type) in [
+        (
+            "created_at",
+            if postgres {
+                "timestamp with time zone"
+            } else {
+                "datetime(6)"
+            },
+        ),
+        ("payload", if postgres { "jsonb" } else { "json" }),
+    ] {
+        let (schema_filter, type_column) = if postgres {
+            ("table_schema = current_schema()", "data_type")
+        } else {
+            ("table_schema = DATABASE()", "column_type")
+        };
+        let query = format!(
+            "SELECT {type_column} AS column_type FROM information_schema.columns WHERE {schema_filter} AND table_name = 'openrust_migration_probe' AND column_name = '{column}'"
+        );
+        let row = database
+            .query_one_raw(Statement::from_string(
+                database.get_database_backend(),
+                query,
+            ))
+            .await?
+            .ok_or("migration column metadata query returned no row")?;
+        assert_eq!(row.try_get::<String>("", "column_type")?, expected_type);
+    }
 
     app.run_command("migrate", vec!["down".into()]).await?;
     app.run_command("migrate", vec!["up".into()]).await?;
