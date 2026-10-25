@@ -204,7 +204,7 @@ pub fn register(routes: Routes) -> Routes {
     routes
         .nest("/api", |api| {
             api.resource::<controllers::posts>("/posts")
-               .middleware(auth::token())
+               .layer(AuthLayer::required(AuthMode::SessionOrToken))
         })
         .get("/health", health::live)
 }
@@ -216,7 +216,7 @@ pub async fn create(
     Validated(Json(input)): Validated<Json<CreatePost>>,
 ) -> Result<Created<Json<PostResponse>>> {
     PostPolicy::authorize(&user, PostAction::Create, None)?;
-    let post = posts.create(&user, input).await?;
+    let post = posts.create(user.id(), input).await?;
     Ok(Created(Json(post.into())))
 }
 ```
@@ -246,12 +246,12 @@ pub async fn create(
 
 ## 认证与授权
 
-- 用户表约定：`id` / `name` / `email`（唯一）/ `password_hash` / `email_verified_at` / `created_at` / `updated_at`；业务通过迁移追加字段，不要求继承框架结构体。
+- 用户表约定：`id` / `name` / `email`（唯一）/ `password_hash` / `email_verified_at` / `disabled_at`（nullable）/ `created_at` / `updated_at`；业务通过迁移追加字段，不要求继承框架结构体。
 - 密码 Argon2id，参数可配置并带安全默认值；登录、注册、密码重置端点默认接入限流。
-- Cookie 会话使用数据库存储，Redis 可选；配合表单时启用 CSRF。个人访问令牌存储 SHA-256 哈希，支持前缀、能力列表和过期时间；具体认证 API 由认证 ADR 定名。JWT 不在 v1 版本，列为后续候选。
-- `CurrentUser` 提取器按路由组所选认证方式解析用户；`OptionalUser` 用于匿名可访问路由。
+- Cookie 会话使用数据库存储，Redis 可选；通过 Cookie Session 认证的 unsafe method 校验 CSRF。个人访问令牌存储 SHA-256 哈希，支持前缀、能力列表和过期时间；身份及路由 contract 见 ADR-012。JWT 不在 v1 版本，列为后续候选。
+- `CurrentUser` / `OptionalUser` 与路由认证模式按 ADR-012；身份只暴露 ID、认证来源和 PAT 能力元数据，业务 handler 通过注入自己的 service 加载领域用户。
 - 内置流程：注册、登录、登出、密码重置（令牌表 + 邮件）、邮箱验证（签名 URL）。
-- 授权：`Policy` trait 按资源定义动作枚举；`roles` / `permissions` / 关联表提供最小角色权限模型，`user.can("posts.publish")` 与 `Policy` 组合。DataScope、多租户不在 v1 版本。
+- 授权：`Policy` trait 按资源定义动作枚举；`roles` / `permissions` / 关联表提供最小角色权限模型。授权查询与缓存/撤销时限由 M3 授权 contract 定义；DataScope、多租户不在 v1 版本。
 
 ## 队列、调度与事件
 
