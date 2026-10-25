@@ -27,9 +27,14 @@ fn health_has_request_id() -> TestResult {
             .await?;
         assert_eq!(response.status(), StatusCode::OK);
         assert!(response.headers().contains_key("x-request-id"));
+        let response_request_id = response.headers()["x-request-id"].to_str()?.to_owned();
         let body: serde_json::Value =
             serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await?)?;
-        assert_eq!(body, serde_json::json!({"status": "ok"}));
+        assert_eq!(body["success"], true);
+        assert_eq!(body["code"], "ok");
+        assert_eq!(body["message"], "ok");
+        assert_eq!(body["data"], serde_json::json!({"status": "ok"}));
+        assert_eq!(body["request_id"], response_request_id);
         Ok(())
     })
 }

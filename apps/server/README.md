@@ -15,4 +15,4 @@ The server reads `apps/server/config/default.toml` and `apps/server/config/devel
 
 New framework capabilities are connected here in the same feature change, with an integration test. Capabilities without external services are always enabled; external services use a forwarded feature when implemented. See [ADR-007](../../.agents/project/decisions/adr-007-aggregate-server-entry.md).
 
-`/` returns the `ApiResponse<T>` JSON envelope; `/health` remains raw `{"status":"ok"}`. `[api] http_status` defaults to `always_ok`; set `OPENRUST_API__HTTP_STATUS=semantic` for semantic HTTP status codes. Every API envelope has a `request_id` matching `x-request-id`.
+`/` and `/health` return the `ApiResponse<T>` JSON envelope; health status is in `data.status`. `[api] http_status` defaults to `always_ok`; set `OPENRUST_API__HTTP_STATUS=semantic` for semantic HTTP status codes. Every API envelope has a `request_id` matching `x-request-id`.

@@ -1,6 +1,6 @@
 //! Liveness endpoint.
 
-use axum::Json;
+use openrust_core::ApiResponse;
 use serde::Serialize;
 
 use crate::routes::Routes;
@@ -14,8 +14,8 @@ pub struct Health {
 
 /// Liveness probe: answers as long as the process serves requests. Dependency checks belong to
 /// the readiness endpoint added by the capability crates.
-pub async fn live() -> Json<Health> {
-    Json(Health { status: "ok" })
+pub async fn live() -> ApiResponse<Health> {
+    ApiResponse::success(Health { status: "ok" })
 }
 
 /// Registers `GET /health`.

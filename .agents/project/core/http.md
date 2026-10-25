@@ -18,7 +18,7 @@
 | `response` | `Created<T>` → semantic 201 / 默认 200，`with_location` 返回 `Result<Located<T>>`（非法值 → 500 包装）；`NoContent` → 200 包装，`data: null`；直接提取 `PageParams` 默认 1/20，并校验页数、每页 1..=100 与 offset 不超过 `i64::MAX`；`Paginated<T>` 输出 `data` 与 `meta` |
 | `extract` | `Inject<T>`（从 `AppState` 取服务，缺失 → 500 包装）；OpenRust `Json<T>` / `Path<T>` / `Query<T>`（解析失败 → 400/415/422/413 包装），`Validated<Json<T>>` / `Validated<Query<T>>`（先解析，规则失败 → 422，嵌套路径 `a.b[0].c`） |
 | `middleware` | `apply(router, &ServerConfig) -> Result<Router>`：请求 ID → 传播 → `TraceLayer` span → 可选 CORS → 超时 408 包装 → 可选 gzip/br 压缩 → `CatchPanic` → 500 包装；404 fallback、405 fallback（保留 `Allow`）、413 包装；启用 CORS 时在组层前逐项校验配置 |
-| `health` | `GET /health` → `{"status":"ok"}` |
+| `health` | `GET /health` → success `ApiResponse<Health>`，`data.status = "ok"` |
 | `serve` | `serve(&App)` 绑定 `[server] host:port`，优雅停机；`ServeCommand` |
 
 `pub use axum` 供门面 re-export。
@@ -35,4 +35,4 @@ CORS 预检（`OPTIONS` 且带 `Access-Control-Request-Method`）保持 tower-ht
 
 ## 验证
 
-`cargo test -p openrust-http`：`tests/router.rs` 用 `oneshot` 覆盖 health 与请求 ID、`Inject` 命中与缺失、`Validated` 的 422 / 400 / 200、panic → 500、压缩协商、CORS 响应与配置错误；`tests/resource.rs` 覆盖路由动作、裁剪、嵌套、响应状态与分页错误/结构。
+`cargo test -p openrust-http`：`tests/router.rs` 用 `oneshot` 覆盖 health 统一包装及请求 ID、`Inject` 命中与缺失、`Validated` 的 422 / 400 / 200、panic → 500、压缩协商、CORS 响应与配置错误；`tests/resource.rs` 覆盖路由动作、裁剪、嵌套、响应状态与分页错误/结构。

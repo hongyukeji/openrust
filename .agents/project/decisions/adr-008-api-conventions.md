@@ -129,7 +129,7 @@ API 格式是框架对外的契约，生成器、文档和所有用户项目都�
 | `errors` | 仅校验失败 | 格式为 `{字段: [消息]}` |
 | `request_id` | 总是 | 与响应头 `x-request-id` 相同 |
 
-- 包装由框架统一完成。handler 照常返回 `Json(T)`、`Paginated<T>`、`Created<T>`、`NoContent` 或 `Err(Error)`，不需要手写包装结构。不包装清单：非 JSON 内容（文件、流、HTML、`/health`）与 CORS 预检响应（`OPTIONS` 且带 `Access-Control-Request-Method`）。预检只由浏览器读取响应头，成功和拒绝时都保留 tower-http 的空正文。
+- 包装由框架统一完成。handler 照常返回 `Json(T)`、`Paginated<T>`、`Created<T>`、`NoContent` 或 `Err(Error)`，不需要手写包装结构。JSON 响应（包括 `/health`）都使用此结构；非 JSON 内容（文件、流、HTML）不包装。CORS 预检响应（`OPTIONS` 且带 `Access-Control-Request-Method`）是协议例外，只返回响应头，成功和拒绝时都保留 tower-http 的空正文。
 - 配置项 `[api] http_status`：
   - `"always_ok"`（默认）：所有包装响应的 HTTP 状态码都是 200，客户端只依赖正文。
   - `"semantic"`：正文结构不变，同时按 §4 的表格设置 HTTP 状态码，适合接入网关、监控或开放给第三方的 API。

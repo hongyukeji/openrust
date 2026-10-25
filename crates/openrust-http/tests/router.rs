@@ -142,7 +142,13 @@ async fn health_and_request_id_are_installed_by_the_plugin() -> TestResult {
         response.headers().contains_key("x-request-id"),
         "request id is propagated"
     );
-    assert_eq!(json_body(response).await["status"], "ok");
+    let request_id = response.headers()["x-request-id"].to_str()?.to_owned();
+    let body = json_body(response).await;
+    assert_eq!(body["success"], true);
+    assert_eq!(body["code"], "ok");
+    assert_eq!(body["message"], "ok");
+    assert_eq!(body["data"]["status"], "ok");
+    assert_eq!(body["request_id"], request_id);
     Ok(())
 }
 
