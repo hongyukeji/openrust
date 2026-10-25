@@ -16,12 +16,13 @@
 
 ## 固定约束
 
-- 国际化、WebSocket、统一出站 HTTP、通用加密与密钥、审计、请求幂等均纳入 v1，最小范围及待决策建议见 [通用能力计划](plans/v1-common-capabilities.md)；SSE 和完整实时消息平台仍不自动纳入。
+- v1 完整通用底座按 [能力覆盖与归属](plans/v1-capability-coverage.md) 交付；常见底层机制由框架整合，每类职责一个入口，不让业务开发者重复搭建，不因复用 Rust 库而省略框架接入与验收。
+- 国际化、WebSocket、统一出站 HTTP、通用加密与密钥、审计、请求幂等均纳入 v1，最小范围及待决策建议见 [通用能力计划](plans/v1-common-capabilities.md)；SSE 等其他通用机制按能力覆盖计划补齐，完整实时消息平台另行扩展。
 - 性能与开箱即用补强按 [专题计划](plans/v1-performance-and-readiness.md) 执行；其中验收要求与待决策建议分开记录，实施前先确定 contract，不以规划代替完成证据。
 - 框架定位：Rust 应用开发的“瑞士军刀”，以高性能为基础，提供开箱即用的常用能力和稳定扩展机制，让开发者直接进入业务开发，减少重复搭建底层设施。性能须以代表性场景实测，不因使用 Rust 就宣称更快。
 - 规划名称统一为“v1 版本”，原 `plans/gen1-plan.md` 路径暂保留以兼容引用；当前开发包版本仍以 `Cargo.toml` 为准，发布与 tag 由开发者执行。
-- v1 版本包含邮件与短信通信能力；短信真实供应商及公共 API 待选型设计，验证码机制纳入 v1 设计，具体流程与公共契约待决策，多渠道通知中心仍是后续候选，见 [ADR-011](decisions/adr-011-sms-and-communication-baseline.md)。
-- 默认实现满足常见需求，公开扩展契约承接差异需求；数据库、缓存等能力复用既有插件与配置机制，具体边界见 [ADR-009](decisions/adr-009-extensible-capability-drivers.md)。缓存多命名实例尚待评估，不是已确认必做项。
+- v1 版本包含邮件与短信通信能力；短信真实供应商及公共 API 待选型设计，验证码机制纳入 v1 设计，具体流程与公共契约待决策，薄多渠道通知编排纳入 v1，业务通知中心/UI 仍是后续候选，见 [ADR-011](decisions/adr-011-sms-and-communication-baseline.md)。
+- 默认实现满足常见需求，公开扩展契约承接差异需求；数据库、缓存等能力复用既有插件与配置机制，具体边界见 [ADR-009](decisions/adr-009-extensible-capability-drivers.md)。多实例使用能力纳入 v1，具体命名和配置布局待决策，不建立平行缓存入口。
 - OpenRust 不是任何既有项目的移植，没有兼容包袱；设计以 [v1 版本计划](plans/gen1-plan.md) 与 [框架设计](plans/framework-design.md) 为准。
 - 应用内核自研，基于 `tokio` + `axum` + `tower`；Loco 只作参考与对标（[ADR-001](decisions/adr-001-own-kernel-on-axum.md)）。
 - v1 版本正式支持 PostgreSQL 14+ 与 MySQL 8.0+；每个数据功能必须有双库证据（[ADR-002](decisions/adr-002-seaorm-dual-database.md)）。

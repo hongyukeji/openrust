@@ -6,6 +6,7 @@
 - [OpenRust 框架设计](framework-design.md)：设计原则、crate 与应用布局、内核、配置、路由、错误、数据、认证、异步、CLI、测试工具与框架代码规范。
 - [v1 性能与开箱即用补强计划](v1-performance-and-readiness.md)：完整使用路径与性能验收、待决策问题、推荐方案及推进顺序。
 - [v1 通用能力补齐计划](v1-common-capabilities.md)：国际化、WebSocket、HTTP 客户端、加密与密钥、审计和请求幂等的范围、建议与验收。
+- [v1 通用能力覆盖与归属](v1-capability-coverage.md)：完整通用底座的补齐清单、单一职责归属、决策建议与完成定义。
 
 执行约束：
 

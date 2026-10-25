@@ -12,11 +12,11 @@
 
 - JWT 无状态认证 driver（`auth-jwt` feature）。
 - OAuth / 社交登录 Provider。
-- 通知中心：在 v1 版本邮件/短信独立能力之上，评估多渠道编排、站内信与推送；v1 版本短信范围见 [ADR-011](decisions/adr-011-sms-and-communication-baseline.md)。
+- 业务通知中心、收件箱 UI 与移动推送供应商；薄多渠道编排已纳入 v1，见 [能力覆盖计划](plans/v1-capability-coverage.md)。
 - SQLite 作为开发与测试数据库。
 - 页面渲染脚手架与表单 CSRF 示例（在 `templates` feature 之上）。
 - 缓存 tag 失效、读写分离连接池。
-- SSE 与跨实例实时广播；WebSocket 基础能力已纳入 v1，见 [通用能力计划](plans/v1-common-capabilities.md)。
+- 跨实例实时广播与可靠历史重放；WebSocket/SSE 基础能力已纳入 v1。
 
 ## 更远
 
