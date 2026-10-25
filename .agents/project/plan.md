@@ -13,6 +13,7 @@ M0、M1、M2 已完成。M1 生成项目的 `cargo test` 验收通过。M2 `open
 ## 执行校准
 
 - `todo.md` 当前功能簇必须与实际代码 WIP 一致；新需求先合入既有范围，当前簇闭环后再切换。已提交的成果不因旧提示词再次成为开发任务。
+- 基础读写分离为新增 v1 必交付范围，尚未实现；按 [专题计划](plans/v1-database-read-write-splitting.md) 在当前认证簇闭环后作为 M2 增补领取。默认单库，认证/幂等/队列等关键读取使用主库；不沿用旧 v2 候选表述。
 - M0-M2 等阶段完成仅代表对应已验收范围；后来补入的事务钩子、集群等要求仍需按依赖补做，不能被旧阶段标签遮蔽。
 - 每次领取/切换功能簇，对照 [v1 能力覆盖](plans/v1-capability-coverage.md)、[通用能力](plans/v1-common-capabilities.md)、[性能补强](plans/v1-performance-and-readiness.md) 和 [集群要求](plans/v1-cluster-deployment.md) 定位相关未完成项；不能只沿最初 M0-M6 简表推进。
 - M3 不限于身份提取器：短信、国际化、HTTP、安全、审计、验证码、通用 Session/限流和流程扩展按专题计划逐簇推进。认证 contract 现在就覆盖共享会话、跨节点撤销、全局配额/验证码与公开业务扩展点，不能留到 M6 才补单机假设。

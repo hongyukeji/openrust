@@ -32,6 +32,7 @@
 - 默认实现满足常见需求，公开扩展契约承接差异需求；数据库、缓存等能力复用既有插件与配置机制，具体边界见 [ADR-009](decisions/adr-009-extensible-capability-drivers.md)。缓存 driver/store contract 见 [ADR-014](decisions/adr-014-cache-driver-and-store-contract.md)，代码仍待 M5。
 - OpenRust 不是任何既有项目的移植，没有兼容包袱；设计以 [v1 版本计划](plans/gen1-plan.md) 与 [框架设计](plans/framework-design.md) 为准。
 - 应用内核自研，基于 `tokio` + `axum` + `tower`；Loco 只作参考与对标（[ADR-001](decisions/adr-001-own-kernel-on-axum.md)）。
+- 基础读写分离已纳入 v1、尚未实现：默认单库，可选主库/只读副本、事务固定主库、显式强制主库及请求内写后保持主库；当前功能簇闭环后按 [数据层增补计划](plans/v1-database-read-write-splitting.md) 领取，不再作为 v2 候选。
 - v1 版本正式支持 PostgreSQL 14+ 与 MySQL 8.0+；每个数据功能必须有双库证据（[ADR-002](decisions/adr-002-seaorm-dual-database.md)）。
 - 同时支持单机与集群；标准应用默认进程内 memory cache，无需外部服务；file 与 Redis 显式选择。需要跨节点共享语义时必须明确配置共享后端，不能静默退化；队列/会话仍默认共享数据库，部署边界见 [ADR-013](decisions/adr-013-deployment-and-redis-cache-default.md)。缓存实现待 M5。
 - 认证默认为 Cookie 会话 + 个人访问令牌，JWT 不在 v1 版本（[ADR-004](decisions/adr-004-session-and-token-auth.md)）。

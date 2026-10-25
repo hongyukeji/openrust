@@ -47,7 +47,7 @@ OpenRust 定位为 Rust 应用开发的“瑞士军刀”：以高性能为基�
 | 项目生成器与模板（双库） | 管理后台 UI 与前端脚手架 |
 | 应用内核、Plugin、配置、生命周期、优雅停机 | 动态插件加载、插件市场 |
 | HTTP 路由约定、中间件栈、验证、统一响应包装、OpenAPI、WebSocket、SSE | GraphQL、gRPC |
-| 数据库连接池、迁移、`src/seed.rs`、`fake::Dummy` 测试数据、事务、双库方言边界 | SQLite、多租户、读写分离 |
+| 数据库连接池、迁移、`src/seed.rs`、`fake::Dummy` 测试数据、事务、双库方言边界、可选基础读写分离 | SQLite、多租户、分库分表与跨库事务 |
 | Cookie 会话与个人访问令牌、密码重置、邮箱验证、Policy、角色权限 | OAuth / 社交登录、SSO、DataScope |
 | 队列、常用任务链/批处理、调度、事件（进程内） | 外部消息总线、任意 DAG 工作流引擎 |
 | 缓存与锁、存储与上传下载、邮件、短信、薄通知编排及 fake driver | 移动推送供应商、业务通知中心/UI |
@@ -63,6 +63,7 @@ OpenRust 定位为 Rust 应用开发的“瑞士军刀”：以高性能为基�
 | --- | --- |
 | 聚合启动入口 | `apps/server` 作为仓库开发与集成验证宿主，使用门面组装已实现能力；具体状态见 [server 事实](../core/server.md) 与 ADR-007 |
 | 统一入口与第三方扩展 | 按 [ADR-009](../decisions/adr-009-extensible-capability-drivers.md) 提供驱动契约、注册、配置、错误语义、示例与契约测试；用独立适配示例检查第三方是否需要修改框架 |
+| 基础读写分离 | v1 数据层增补，默认单库；主库/只读副本、事务固定主库、强制主库、请求内写后保持主库、故障策略与真实双库复制验收见 [专题计划](v1-database-read-write-splitting.md)；尚未实现 |
 | 数据库可扩展 | M2 集中后端及方言差异；v1 正式交付仍为 PostgreSQL/MySQL。明确 SeaORM 边界，不承诺任意数据库或数据模型直接替换 |
 | 缓存可替换 | M5 交付统一 `Cache` 与 default/named store、可注册 driver；默认 memory，无需外部服务，file 与 feature 可选 Redis 显式选择；契约测试验证 TTL、序列化、错误及原子能力边界。Redis 开发服务按需启用 |
 | 邮件与短信 | M3 提供发送、模板、供应商扩展与本地/测试路径；M4 接入队列化发送；真实适配和验收按 [短信决策](../decisions/adr-011-sms-and-communication-baseline.md) |

@@ -7,6 +7,7 @@
 ## v1：完整通用底座
 
 - 交付可独立开发 API 与服务的 Rust 框架，单机起步、按需扩展集群；默认缓存无需外部服务，集群共享缓存按需选择 Redis，保留 memory/file 选择，见 [ADR-013](decisions/adr-013-deployment-and-redis-cache-default.md) 与 [ADR-014](decisions/adr-014-cache-driver-and-store-contract.md)。通用基础能力开箱即用、按需组合并可扩展。
+- 数据层包含默认单库、按需启用的基础读写分离，范围与真实复制验收见 [专题计划](plans/v1-database-read-write-splitting.md)；已纳入 v1，尚未实现。
 - 包含数据、认证/授权/会话、验证码、国际化、本地加密与轮换、签名、审计、幂等、限流、缓存/锁/多实例、存储/上传下载、邮件/SMS/薄通知层、队列/常用编排/调度、WebSocket/SSE、CLI/生成器/测试与部署。
 - 集群部署是必须项，包含多 API/worker/scheduler、共享状态、跨节点在线投递和滚动/故障恢复，按 [集群计划](plans/v1-cluster-deployment.md) 双库多副本验收。性能基线、资源边界、第三方扩展与干净环境完整路径同为完成条件。
 - 入口：[v1 总计划](plans/gen1-plan.md)、[能力覆盖与归属](plans/v1-capability-coverage.md)。v1 不承担后台业务 UI、组织管理与部门数据权限的固定模型。
@@ -15,7 +16,7 @@
 
 - 交付可运行、可生成业务模块的官方后台套件，复用 v1 公共能力，后端为 Rust，前端栈在 B1 决策。
 - 核心包含用户/角色/菜单/按钮权限、部门/岗位/DataScope、字典/参数、日志与在线会话、公告/收件箱、文件、任务/监控页面、前后端代码生成及基础导入导出。
-- OAuth/SSO/MFA、JWT、多租户、更多数据库、缓存 tag/读写分离、持久离线消息/重放、移动推送、SSR Starter、扩展目录等归 v2 评估候选，采用门槛与建议见 [v2 后台计划](plans/v2-admin-platform.md)。
+- OAuth/SSO/MFA、JWT、多租户、更多数据库、缓存 tag、持久离线消息/重放、移动推送、SSR Starter、扩展目录等归 v2 评估候选，采用门槛与建议见 [v2 后台计划](plans/v2-admin-platform.md)。
 - v2 不重做 v1 的认证、缓存、队列、通信或存储，不使纯 API 应用强制依赖后台。
 
 ## 不作为两个版本核心承诺

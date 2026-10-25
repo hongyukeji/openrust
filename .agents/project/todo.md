@@ -14,6 +14,11 @@
 - 本簇验收前按 [执行校准](plan.md#执行校准) 核对契约：共享会话与跨节点撤销、认证所需全局限流/验证码边界、注册/登录公开扩展点及 `Inject` 共存；后续 M3 任务按完整 v1 覆盖清单逐簇领取，不以身份注入完成代替整个 M3。
 - ADR-012 已定义身份/路由 contract；本簇后续仍需形成独立授权 API 与角色/权限变更传播 contract，不把身份提取实现当作 M3 完成。
 
+## M2 数据层增补：基础读写分离（当前 M3 功能簇闭环后领取）
+
+- 按 [读写分离计划](plans/v1-database-read-write-splitting.md) 先确定公共 contract，再扩展 `openrust-db`；默认单库、可选副本、事务/锁定读取固定主库、显式主库与请求内写后保持主库、可配置故障回退。当前状态：待开发，不打断认证 WIP。
+- 核对认证撤销/权限、幂等、队列/调度、迁移等主库路径；完成 PostgreSQL/MySQL 真实复制拓扑与故障/延迟验证，更新模板、README 和事实文档，不能以多个连接池代替验收。
+
 ## M5 缓存驱动与 store（M5 领取）
 
 - 按 [ADR-014](decisions/adr-014-cache-driver-and-store-contract.md) 实现 `openrust-cache` 与 `CachePlugin`：memory 默认、file、feature 可选 Redis；default/named stores、custom driver 注册、统一序列化/TTL/错误与原子能力边界。
