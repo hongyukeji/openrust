@@ -2,9 +2,11 @@
 
 > 受众：AI Agent
 > 更新：2026-10-25
-> 摘要：OpenRust 第一代框架底座的架构设计：设计原则、crate 与应用目录布局、内核、配置、路由、错误、数据、认证、异步能力、CLI、测试工具与框架代码规范。目标、里程碑与验收见 [gen1-plan.md](gen1-plan.md)。
+> 摘要：OpenRust v1 版本框架底座的架构设计：设计原则、crate 与应用目录布局、内核、配置、路由、错误、数据、认证、异步能力、CLI、测试工具与框架代码规范。目标、里程碑与验收见 [gen1-plan.md](gen1-plan.md)。
 
 ## 设计原则
+
+框架定位与 v1 已确认需求以 [v1 计划](gen1-plan.md) 为准：提供高性能、开箱即用且可扩展的通用底座，让开发者集中于业务开发；性能结论必须有代表性场景证据。
 
 OpenRust 追求的优雅是 Rust 语境下的优雅：靠类型、trait 和约定减少样板，不靠运行期魔法。
 
@@ -31,7 +33,7 @@ openrust/
 │   ├── openrust-auth/         # 用户约定、密码哈希、认证策略、Policy、密码重置、邮箱验证
 │   ├── openrust-queue/        # Job、Queue driver、重试、失败表、调度器
 │   ├── openrust-events/       # Event / Listener
-│   ├── openrust-cache/        # Cache trait、memory / redis driver
+│   ├── openrust-cache/        # Cache trait、memory / file / redis driver
 │   ├── openrust-storage/      # Storage trait、OpenDAL 适配
 │   ├── openrust-mail/         # Email、Mailer、smtp / log / fake driver
 │   ├── openrust-macros/       # Resource 属性宏；M4 加 Job、Event derive
@@ -43,7 +45,7 @@ openrust/
 └── xtask/                     # 仓库维护任务：双库矩阵、模板快照测试、发布检查
 ```
 
-crate 拆分按发布与编译边界确定。第一代允许 `events` 与调度器先作为 `core` / `queue` 的模块，出现独立发布需求再拆出；不为拆而拆。
+crate 拆分按发布与编译边界确定。v1 版本允许 `events` 与调度器先作为 `core` / `queue` 的模块，出现独立发布需求再拆出；不为拆而拆。
 
 ## 生成的应用布局
 
@@ -180,10 +182,10 @@ pub async fn create(
 
 - 用户表约定：`id` / `name` / `email`（唯一）/ `password_hash` / `email_verified_at` / `created_at` / `updated_at`；业务通过迁移追加字段，不要求继承框架结构体。
 - 密码 Argon2id，参数可配置并带安全默认值；登录、注册、密码重置端点默认接入限流。
-- Cookie 会话使用数据库存储，Redis 可选；配合表单时启用 CSRF。个人访问令牌存储 SHA-256 哈希，支持前缀、能力列表和过期时间；具体认证 API 由认证 ADR 定名。JWT 不在第一代，列为后续候选。
+- Cookie 会话使用数据库存储，Redis 可选；配合表单时启用 CSRF。个人访问令牌存储 SHA-256 哈希，支持前缀、能力列表和过期时间；具体认证 API 由认证 ADR 定名。JWT 不在 v1 版本，列为后续候选。
 - `CurrentUser` 提取器按路由组所选认证方式解析用户；`OptionalUser` 用于匿名可访问路由。
 - 内置流程：注册、登录、登出、密码重置（令牌表 + 邮件）、邮箱验证（签名 URL）。
-- 授权：`Policy` trait 按资源定义动作枚举；`roles` / `permissions` / 关联表提供最小角色权限模型，`user.can("posts.publish")` 与 `Policy` 组合。DataScope、多租户不在第一代。
+- 授权：`Policy` trait 按资源定义动作枚举；`roles` / `permissions` / 关联表提供最小角色权限模型，`user.can("posts.publish")` 与 `Policy` 组合。DataScope、多租户不在 v1 版本。
 
 ## 队列、调度与事件
 
@@ -202,14 +204,14 @@ queue.dispatch(SendWelcomeEmail { user_id }).delay(Duration::from_secs(60)).awai
 - Queue driver：`database`（`jobs` 表 + `SKIP LOCKED`，两库皆支持）默认；`redis` 可选 feature；`sync` 用于测试与开发期同步执行。
 - 失败处理：超过重试次数进入 `failed_jobs` 表；提供失败任务检查与手动重试能力；worker 收到停机信号后完成当前任务再退出，不丢任务。
 - 调度：`schedule.job(PruneTokens).daily_at("03:00")`，`schedule.command("cache clear").every_hour()`；通过数据库锁保证多副本只执行一次；`schedule run` 支持常驻循环与单次 tick 两种运行方式。
-- 事件：`#[derive(Event)]` 定义，`app.listen::<UserRegistered, SendWelcomeListener>()` 注册；监听器可标记 `queued` 走队列。第一代只做进程内分发，不接外部消息总线。
+- 事件：`#[derive(Event)]` 定义，`app.listen::<UserRegistered, SendWelcomeListener>()` 注册；监听器可标记 `queued` 走队列。v1 版本只做进程内分发，不接外部消息总线。
 
 ## 缓存、存储、邮件与短信
 
-- `Cache`：`get` / `insert` / `remove` / `get_or_insert_with` / `increment`；memory（moka）默认，redis 可选；值使用 serde 序列化；不做 tag 失效。
+- `Cache`：`get` / `insert` / `remove` / `get_or_insert_with` / `increment`；memory（moka）默认，file 文件缓存与可选 redis 按 ADR-009 接入；值使用 serde 序列化；不做 tag 失效。
 - `Storage`：封装 OpenDAL `Operator`，`storage.store("public")` 提供 `read` / `write` / `delete` / `url` / `presign_read`；本地磁盘默认，S3 兼容通过 `storage-s3` feature。
 - `Mail`：`trait Email` 产出 `lettre::Message`，提供信封与内容（minijinja 邮件模板或纯文本），`mailer.send(mail)` 与 `mailer.queue(mail)`；driver smtp（lettre）/ log / fake；开发环境 compose 中提供 Mailpit。
-- 短信：第一代提供统一发送入口、可扩展供应商适配、至少一个真实实现及 log/fake；默认本地无付费依赖，生产必须显式配置真实供应商。M4 接入队列化发送；具体命名与供应商 contract 待设计，边界与验收见 [ADR-011](../decisions/adr-011-sms-and-communication-baseline.md)。验证码机制与短信传输分离，短信登录不因发送能力加入而默认启用。
+- 短信：v1 版本提供统一发送入口、可扩展供应商适配、至少一个真实实现及 log/fake；默认本地无付费依赖，生产必须显式配置真实供应商。M4 接入队列化发送；具体命名与供应商 contract 待设计，边界与验收见 [ADR-011](../decisions/adr-011-sms-and-communication-baseline.md)。验证码机制与短信传输分离，短信登录不因发送能力加入而默认启用。
 
 ## 可观测性
 
@@ -251,5 +253,5 @@ queue.dispatch(SendWelcomeEmail { user_id }).delay(Duration::from_secs(60)).awai
 
 ## 相关
 
-- [OpenRust 第一代开发计划](gen1-plan.md)
+- [OpenRust v1 版本开发计划](gen1-plan.md)
 - [开发计划索引](README.md)

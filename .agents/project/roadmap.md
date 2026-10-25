@@ -2,17 +2,17 @@
 
 > 受众：AI Agent
 > 更新：2026-10-25
-> 摘要：第一代之后的方向。当前执行任务只写 `todo.md`。
+> 摘要：v1 版本之后的方向。当前执行任务只写 `todo.md`。
 
-## 0.1（第一代）
+## v1 版本
 
-框架底座：见 [第一代计划](plans/gen1-plan.md)。
+框架底座：见 [v1 版本计划](plans/gen1-plan.md)。
 
-## 0.2 候选
+## v1 之后的候选
 
 - JWT 无状态认证 driver（`auth-jwt` feature）。
 - OAuth / 社交登录 Provider。
-- 通知中心：在第一代邮件/短信独立能力之上，评估多渠道编排、站内信与推送；第一代短信范围见 [ADR-011](decisions/adr-011-sms-and-communication-baseline.md)。
+- 通知中心：在 v1 版本邮件/短信独立能力之上，评估多渠道编排、站内信与推送；v1 版本短信范围见 [ADR-011](decisions/adr-011-sms-and-communication-baseline.md)。
 - SQLite 作为开发与测试数据库。
 - 页面渲染脚手架与表单 CSRF 示例（在 `templates` feature 之上）。
 - 缓存 tag 失效、读写分离连接池。

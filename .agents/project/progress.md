@@ -6,7 +6,7 @@
 
 | 项 | 状态 |
 | --- | --- |
-| 第一代计划与框架设计 | 已定稿，见 `plans/` |
+| v1 版本计划与框架设计 | 已定稿，见 `plans/` |
 | ADR-001 至 ADR-008 | 已接受 |
 | 仓库基线（许可证、README、工具链声明、Agent 契约、CHANGELOG、贡献与安全政策） | 已就位 |
 | workspace、lint 基线、CI 工作流 | 已就位；CI 双库 job 已启用，MSRV 为 Rust 1.97 |

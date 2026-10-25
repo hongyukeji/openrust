@@ -15,8 +15,8 @@
 | `todo.md` | 唯一活跃任务队列，只放未完成且可领取的功能簇 |
 | `plan.md` | 当前里程碑、优先级、crate 路由和验证入口 |
 | `progress.md` | 当前交付与验证摘要，不保存逐日流水 |
-| `roadmap.md` | 第一代之后的版本方向 |
-| `plans/` | 第一代开发计划与框架设计方案；进入开发后按功能簇拆入 `todo.md` |
+| `roadmap.md` | v1 之后的版本方向 |
+| `plans/` | v1 版本开发计划与框架设计方案；进入开发后按功能簇拆入 `todo.md` |
 | `architecture.md` / `stack.md` / `conventions.md` | 架构、技术栈和工程规范 |
 | `style.md` | 文档写作、文件命名和清理规范 |
 | `decisions/` | 仍有效或明确标记为 Superseded 的架构决策 |
@@ -24,7 +24,7 @@
 | `scripts/` | 提交脚本 |
 | [`../skills/`](../skills/README.md) | 专项工作流；按任务读取 |
 
-代码落地后按 crate 新增 `core/<crate>.md` 保存各 crate 当前事实；第一代只有框架 crate，没有业务模块目录。
+代码落地后按 crate 新增 `core/<crate>.md` 保存各 crate 当前事实；v1 版本只有框架 crate，没有业务模块目录。
 
 ## 维护规则
 

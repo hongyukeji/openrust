@@ -2,31 +2,33 @@
 
 > 受众：AI Agent
 > 更新：2026-10-25
-> 摘要：OpenRust 是全新的开源 Rust 应用开发框架，当前处于第一代 M2 阶段。
+> 摘要：OpenRust 是全新的开源 Rust 应用开发框架，当前处于 v1 版本 M2 阶段。
 
 ## 当前状态
 
 | 项 | 值 |
 | --- | --- |
 | 版本 | 0.0.0（未发布，crates.io 名称未预留） |
-| 阶段 | 第一代 M0、M1 已完成，M2「数据层」进行中；`openrust-db` 连接池、事务与迁移 runner 已实现，后续工作见 `todo.md` |
+| 阶段 | v1 版本 M0、M1 已完成，M2「数据层」进行中；`openrust-db` 连接池、事务与迁移 runner 已实现，后续工作见 `todo.md` |
 | 仓库 | `https://github.com/hongyukeji/openrust`（公开，默认分支 `main`，已推送）；本地 `/Users/Home/Codes/Rust/openrust` |
 | 协作模式 | 单开发者 + AI Agent；Claude 负责方案与设计，Codex 负责实现与验证 |
 | 本机工具链 | Rust stable 1.99.1（默认）与 Rust 1.97.0 MSRV（`rustup`），`cargo-deny` 0.20 已安装 |
 
 ## 固定约束
 
-- 第一代包含邮件与短信通信能力；短信真实供应商及公共 API 待选型设计，验证码机制为补充评估项，多渠道通知中心仍是后续候选，见 [ADR-011](decisions/adr-011-sms-and-communication-baseline.md)。
+- 框架定位：Rust 应用开发的“瑞士军刀”，以高性能为基础，提供开箱即用的常用能力和稳定扩展机制，让开发者直接进入业务开发，减少重复搭建底层设施。性能须以代表性场景实测，不因使用 Rust 就宣称更快。
+- 规划名称统一为“v1 版本”，原 `plans/gen1-plan.md` 路径暂保留以兼容引用；当前开发包版本仍以 `Cargo.toml` 为准，发布与 tag 由开发者执行。
+- v1 版本包含邮件与短信通信能力；短信真实供应商及公共 API 待选型设计，验证码机制为补充评估项，多渠道通知中心仍是后续候选，见 [ADR-011](decisions/adr-011-sms-and-communication-baseline.md)。
 - 默认实现满足常见需求，公开扩展契约承接差异需求；数据库、缓存等能力复用既有插件与配置机制，具体边界见 [ADR-009](decisions/adr-009-extensible-capability-drivers.md)。缓存多命名实例尚待评估，不是已确认必做项。
-- OpenRust 不是任何既有项目的移植，没有兼容包袱；设计以 [第一代计划](plans/gen1-plan.md) 与 [框架设计](plans/framework-design.md) 为准。
+- OpenRust 不是任何既有项目的移植，没有兼容包袱；设计以 [v1 版本计划](plans/gen1-plan.md) 与 [框架设计](plans/framework-design.md) 为准。
 - 应用内核自研，基于 `tokio` + `axum` + `tower`；Loco 只作参考与对标（[ADR-001](decisions/adr-001-own-kernel-on-axum.md)）。
-- 第一代正式支持 PostgreSQL 14+ 与 MySQL 8.0+；每个数据功能必须有双库证据（[ADR-002](decisions/adr-002-seaorm-dual-database.md)）。
+- v1 版本正式支持 PostgreSQL 14+ 与 MySQL 8.0+；每个数据功能必须有双库证据（[ADR-002](decisions/adr-002-seaorm-dual-database.md)）。
 - Redis 不是必需依赖；数据库队列、进程内缓存、数据库会话为默认（[ADR-003](decisions/adr-003-database-queue-default.md)）。
-- 认证默认为 Cookie 会话 + 个人访问令牌，JWT 不在第一代（[ADR-004](decisions/adr-004-session-and-token-auth.md)）。
+- 认证默认为 Cookie 会话 + 个人访问令牌，JWT 不在 v1 版本（[ADR-004](decisions/adr-004-session-and-token-auth.md)）。
 - 许可证 MIT OR Apache-2.0；Edition 2024；MSRV 为 stable 减两个小版本（[ADR-005](decisions/adr-005-license-naming-msrv.md)）。
 - 生成项目布局、CLI、配置键与公共 API 命名以 [ADR-006](decisions/adr-006-rust-native-naming.md) 为唯一 contract；M6 才建立 mdBook `docs/`，此前用户文档维护在 crate README。
 - 库 crate 禁止 `unsafe`、`unwrap` / `expect` / `panic`；公共项必须有文档。细则见 [conventions.md](conventions.md)。
-- 功能范围以计划的「第一代能力范围」为准，不在里程碑内追加能力；新需求先进 `roadmap.md`。
+- 功能范围以计划的「v1 版本能力范围」为准，不在里程碑内追加能力；新需求先进 `roadmap.md`。
 
 ## 对外动作（仅开发者执行）
 

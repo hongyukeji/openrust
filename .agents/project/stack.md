@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-25
-> 摘要：第一代选型。已用依赖的版本以根 `Cargo.toml` 的 `[workspace.dependencies]` 为准（2026-10-25 锁定：tokio 1.54、axum 0.8.9、axum-core 0.5、tower 0.5、tower-http 0.7、figment 0.10、validator 0.21、clap 4.6、thiserror 2、serde 1、tracing 0.1）；未引入的只列主版本线与选型理由。
+> 摘要：v1 版本选型。已用依赖的版本以根 `Cargo.toml` 的 `[workspace.dependencies]` 为准（2026-10-25 锁定：tokio 1.54、axum 0.8.9、axum-core 0.5、tower 0.5、tower-http 0.7、figment 0.10、validator 0.21、clap 4.6、thiserror 2、serde 1、tracing 0.1）；未引入的只列主版本线与选型理由。
 
 ## 运行时与 HTTP
 

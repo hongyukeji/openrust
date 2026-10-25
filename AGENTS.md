@@ -26,7 +26,7 @@ Agent 不替代开发者做方向决策、发布判断和对外动作；开发�
 7. `.agents/project/architecture.md` / `conventions.md` / `stack.md`
 8. `.agents/project/decisions/`（ADR）
 9. `.agents/project/core/<crate>.md`（各 crate 当前事实）
-10. `.agents/project/plans/`（第一代计划与框架设计）
+10. `.agents/project/plans/`（v1 版本计划与框架设计）
 11. `docs/`（面向用户的正式文档）
 12. 聊天记录
 
@@ -63,10 +63,10 @@ Agent 不替代开发者做方向决策、发布判断和对外动作；开发�
 ├── architecture.md   # crate 分层与依赖规则
 ├── conventions.md    # 代码 / 测试 / 文档 / Git 规范
 ├── stack.md          # 技术栈与版本政策
-├── roadmap.md        # 第一代之后的方向
+├── roadmap.md        # v1 版本之后的方向
 ├── decisions/        # ADR，每决策一文件 adr-NNN-<topic>.md
 ├── core/             # 每个 crate 一文件的当前事实
-├── plans/            # 第一代计划与框架设计
+├── plans/            # v1 版本计划与框架设计
 ├── memory/           # 测试与验收基线
 └── scripts/          # 提交脚本
 ```

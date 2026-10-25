@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-25
-> 摘要：第一代共 M0-M6 七个里程碑，当前在 M2。详细交付与验收见 [第一代计划](plans/gen1-plan.md)「里程碑」。
+> 摘要：v1 版本共 M0-M6 七个里程碑，当前在 M2。详细交付与验收见 [v1 版本计划](plans/gen1-plan.md)「里程碑」。
 
 ## 当前里程碑
 
@@ -20,7 +20,7 @@ M0 决策与基线、M1 内核与 HTTP 已完成。M1 生成项目的 `cargo tes
 | M3 | 邮件、认证与授权 | `openrust-mail`、`openrust-auth` |
 | M4 | 队列、调度与事件 | `openrust-queue`、`openrust-events` |
 | M5 | 缓存、存储与可观测性 | `openrust-cache`、`openrust-storage`、`openrust-http` 可观测性 |
-| M6 | 开发者体验与 0.1 发布 | `docs/`、`examples/blog`、模板、生成器全集 |
+| M6 | 开发者体验与 v1 发布 | `docs/`、`examples/blog`、模板、生成器全集 |
 
 ## 路由
 
@@ -29,8 +29,8 @@ M0 决策与基线、M1 内核与 HTTP 已完成。M1 生成项目的 `cargo tes
 | 架构 / crate 边界 | [architecture.md](architecture.md)、[框架设计](plans/framework-design.md)、`decisions/` |
 | 编码 / Git / 验证 | [conventions.md](conventions.md) |
 | 依赖 / 版本 | [stack.md](stack.md) |
-| 里程碑范围与验收 | [第一代计划](plans/gen1-plan.md) |
-| 第一代之后 | [roadmap.md](roadmap.md) |
+| 里程碑范围与验收 | [v1 版本计划](plans/gen1-plan.md) |
+| v1 版本之后 | [roadmap.md](roadmap.md) |
 
 ## 验证入口
 
