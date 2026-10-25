@@ -20,6 +20,10 @@ OpenRust 追求的优雅是 Rust 语境下的优雅：靠类型、trait 和约�
 8. **可测试是默认值**：每个能力自带 fake driver 和测试工具，业务测试不需要真实 Redis、SMTP 或对象存储。
 9. **最小默认，按需开启**：核心路径只依赖 tokio / axum / tower / serde / tracing；数据库驱动、Redis、S3、OpenTelemetry 等通过 Cargo feature 开启。
 
+## v1 通用能力补齐
+
+国际化、WebSocket、统一出站 HTTP、加密与密钥管理、审计和请求幂等纳入 v1。其最小范围、推荐方案、里程碑与验收见 [通用能力计划](v1-common-capabilities.md)。优先复用既有能力 crate 与成熟实现；公共 API、配置和依赖选型先定 contract，不自动为每项能力新增 crate。
+
 ## 框架仓库布局
 
 ```text

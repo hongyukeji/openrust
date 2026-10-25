@@ -16,7 +16,7 @@
 - SQLite 作为开发与测试数据库。
 - 页面渲染脚手架与表单 CSRF 示例（在 `templates` feature 之上）。
 - 缓存 tag 失效、读写分离连接池。
-- WebSocket / SSE 约定。
+- SSE 与跨实例实时广播；WebSocket 基础能力已纳入 v1，见 [通用能力计划](plans/v1-common-capabilities.md)。
 
 ## 更远
 

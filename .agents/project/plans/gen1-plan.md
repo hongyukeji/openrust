@@ -11,7 +11,7 @@ OpenRust 定位为 Rust 应用开发的“瑞士军刀”：以高性能为基�
 规划统一称为“v1 版本”；本文件沿用 `gen1-plan.md` 路径，当前包版本以 `Cargo.toml` 为准。本计划不代表已发布，不执行版本、tag 或发布操作。
 
 - OpenRust 是独立的开源 Rust 应用开发框架，仓库 `https://github.com/hongyukeji/openrust`。
-- v1 版本交付「框架底座」：项目生成、配置、HTTP、数据库、认证授权、任务、缓存、存储、邮件、短信、CLI、测试工具和部署路径全部可用；业务开发者拿到项目后只写 `controllers` / `models` / `services` / `policies` / `jobs`。
+- v1 版本交付「框架底座」：项目生成、配置、HTTP、数据库、认证授权、任务、缓存、存储、邮件、短信、国际化、WebSocket、出站 HTTP、加密、审计、请求幂等、CLI、测试工具和部署路径全部可用；业务开发者拿到项目后只写 `controllers` / `models` / `services` / `policies` / `jobs`。
 - 设计风格采用 Rust 生态熟悉的类型、trait 与显式依赖，以可见的项目约定提供统一开发入口。
 - 核心开发者画像：构建 API 服务与后台系统的中小团队和独立开发者，熟悉 Rust 基础，不想自己拼装 axum / SeaORM / tower 生态。
 - OpenRust 不是任何既有项目的移植，没有兼容包袱；所有约定按 v1 版本目标从零设计。
@@ -46,11 +46,12 @@ OpenRust 定位为 Rust 应用开发的“瑞士军刀”：以高性能为基�
 | --- | --- |
 | 项目生成器与模板（双库） | 管理后台 UI 与前端脚手架 |
 | 应用内核、Plugin、配置、生命周期、优雅停机 | 动态插件加载、插件市场 |
-| HTTP 路由约定、中间件栈、验证、统一响应包装、OpenAPI | GraphQL、gRPC、WebSocket 封装 |
+| HTTP 路由约定、中间件栈、验证、统一响应包装、OpenAPI、WebSocket | GraphQL、gRPC、SSE 封装 |
 | 数据库连接池、迁移、`src/seed.rs`、`fake::Dummy` 测试数据、事务、双库方言边界 | SQLite、多租户、读写分离 |
 | Cookie 会话与个人访问令牌、密码重置、邮箱验证、Policy、角色权限 | OAuth / 社交登录、SSO、DataScope |
 | 队列、调度、事件（进程内） | 外部消息总线、工作流引擎 |
 | 缓存、存储、邮件、短信及 fake driver | 推送、通知中心 |
+| 国际化、出站 HTTP、加密与密钥管理、审计、请求幂等 | 后台业务 UI、完整聊天/消息平台 |
 | 可观测性：tracing、请求 ID、健康与就绪检查、可选 OTLP / Prometheus | APM 后端、告警 |
 | CLI 全集、测试工具、文档站、示例应用、Dockerfile / compose | 云平台一键部署、Kubernetes Operator |
 
@@ -66,11 +67,13 @@ OpenRust 定位为 Rust 应用开发的“瑞士军刀”：以高性能为基�
 | 缓存可替换 | M5 交付统一 `Cache` 入口与 memory/file/可选 Redis，支持配置选择驱动并验证 TTL、错误和并发语义；默认无需外部服务 |
 | 邮件与短信 | M3 提供发送、模板、供应商扩展与本地/测试路径；M4 接入队列化发送；真实适配和验收按 [短信决策](../decisions/adr-011-sms-and-communication-baseline.md) |
 | 高性能且按需启用 | 能力通过 feature 按需组合；在明确硬件、并发、数据规模及依赖环境下记录吞吐、延迟分位数与资源占用，评估中间件和驱动开销，不以微基准推断整体性能 |
-| 待评估建议 | 缓存多命名实例、上传下载示例补强及统一出站 HTTP 能力仍待范围评估；通用验证码纳入 v1 设计，具体流程与契约见补强计划 |
+| 待评估建议 | 缓存多命名实例、上传下载示例补强仍待范围评估；通用验证码纳入 v1 设计，具体流程与契约见补强计划 |
 
 Laravel 等成熟框架用于能力与体验对照，API 与命名遵循 Rust 惯例；v1 不承诺复制其完整生态。数据库/Rust 支持政策、现有实现盘点等说明性讨论不另算新增功能。
 
 性能、开发编排、异步一致性、生产边界及验收补强见 [v1 补强计划](v1-performance-and-readiness.md)。该计划纳入验收补强，并提供待决策方案；具体公共 API 与默认值须先定 contract。验证码升级为 v1 设计项，是否启用短信登录仍需独立评估。
+
+国际化、WebSocket、出站 HTTP、加密与密钥、审计、请求幂等已纳入 v1，范围、建议与验收见 [通用能力补齐计划](v1-common-capabilities.md)。具体 API/依赖选型先定 contract；不将底层框架原生支持视为 OpenRust 已完成接入。
 
 ## 开箱即用的定义
 
@@ -101,9 +104,9 @@ openrust queue work
 | M0 决策与基线 | ADR：自有内核、ORM 与双库、队列引擎、认证形态；预留 crates.io 名；workspace 骨架、`[workspace.lints]`、CI（fmt / clippy / test / deny / MSRV / 双库服务）；技术 spike：SeaORM 2 双库迁移、`SKIP LOCKED` 队列、axum 提取器组合 | CI 全绿；spike 结论写入 ADR；未通过的技术假设在进入 M1 前替换 |
 | M1 内核与 HTTP | `openrust-core`（Application / AppBuilder / Plugin / Config / Error / 生命周期）、`openrust-http`（路由约定、中间件栈、`Validated`、统一响应包装、健康检查）、CLI `new` / `dev` / `serve`、无数据库模板 | `openrust new` 生成项目 `cargo test` 通过；`/health` 200；验证失败返回 422 统一 JSON 包装；缺失配置启动失败并指出键名 |
 | M2 数据层 | `openrust-db`（连接池、迁移运行器、`src/seed.rs`、事务、`dialect` 边界）、`generate model` / `generate migration`、`migrate` / `db seed`、`openrust-test` 数据库隔离、模板 `--db`、CI 双库矩阵 | 空 PostgreSQL / MySQL 均初始化成功；重复 `migrate` 幂等；`rollback` 可用；生成实体直接编译；每个数据功能有双库测试证据 |
-| M3 邮件、短信、认证与授权 | 短信发送与供应商扩展（范围与验收见 ADR-011）、`openrust-mail`（smtp / log / fake）、`openrust-auth`（用户约定、Argon2id、Cookie 会话、个人访问令牌、`CurrentUser`、注册 / 登录 / 登出 / 密码重置 / 邮箱验证、Policy、角色权限、登录限流）、`generate mailer` / `generate policy` | 短信真实供应商与 log/fake 路径验证（实发需目标与费用授权）；全部认证流程有集成测试；令牌撤销即时生效；错误密码限流可验证；Policy 拒绝返回 403 包装错误 |
-| M4 队列、调度与事件 | `openrust-queue`（database driver、重试退避、`failed_jobs`、`queue work`、调度器与锁、`schedule run` / `schedule list`）、`openrust-events`、队列化邮件与短信、`generate job` | 任务失败 → 重试 → 失败表 → 手动重试成功；多副本调度不重复；worker 停机不丢任务；两库皆验证 |
-| M5 缓存、存储与可观测性 | `openrust-cache`（memory / file / redis，按 ADR-009）、`openrust-storage`（local / s3）、JSON 日志、请求 ID、`/ready`、`otel` / `metrics` feature、panic 捕获 | fake driver 测试覆盖；S3 兼容路径用 MinIO 集成验证；`/ready` 依赖超时正确报告 |
+| M3 邮件、短信、认证与授权 | 短信发送与供应商扩展（范围与验收见 ADR-011）、`openrust-mail`（smtp / log / fake）、`openrust-auth`（用户约定、Argon2id、Cookie 会话、个人访问令牌、`CurrentUser`、注册 / 登录 / 登出 / 密码重置 / 邮箱验证、Policy、角色权限、登录限流）、`generate mailer` / `generate policy`，国际化、出站 HTTP、加密与密钥、审计（按通用能力计划） | 短信真实供应商与 log/fake 路径验证（实发需目标与费用授权）；全部认证流程有集成测试；令牌撤销即时生效；错误密码限流可验证；Policy 拒绝返回 403 包装错误 |
+| M4 队列、调度与事件 | `openrust-queue`（database driver、重试退避、`failed_jobs`、`queue work`、调度器与锁、`schedule run` / `schedule list`）、`openrust-events`、队列化邮件与短信、`generate job`，请求幂等与事务一致性（按通用能力计划） | 任务失败 → 重试 → 失败表 → 手动重试成功；多副本调度不重复；worker 停机不丢任务；两库皆验证 |
+| M5 缓存、存储与可观测性 | `openrust-cache`（memory / file / redis，按 ADR-009）、`openrust-storage`（local / s3）、JSON 日志、请求 ID、`/ready`、`otel` / `metrics` feature、panic 捕获、WebSocket（按通用能力计划） | fake driver 测试覆盖；S3 兼容路径用 MinIO 集成验证；`/ready` 依赖超时正确报告 |
 | M6 开发者体验与 v1 发布 | mdBook 文档站（Diátaxis、迁移对照页、`coming-from-axum`）、`examples/blog` 黄金路径示例、Dockerfile / compose 模板、`routes` / `config show` / `doctor` / `db status`、`generate` / `g`（`scaffold`、`controller`、`model`、`migration`、`job`、`mailer`、`policy`、`command`）与快照测试、`cargo semver-checks`、新手走查、v1 正式发布 | 新开发者按文档从空目录到部署在 30 分钟内完成且不读框架源码；本文件验收原则全部达标；发布动作由开发者执行 |
 
 里程碑按依赖顺序推进，每个里程碑结束时黄金路径必须比上一里程碑更完整，不允许跳过验收进入下一阶段。
