@@ -14,7 +14,7 @@
 | `openrust-http` | 已实现并测试：`Routes`、`Resource` / `ResourceActions`、`Created` / `NoContent` / `PageParams` / `Paginated`、OpenRust `Json` / `Path` / `Query`、`Inject`、`Validated`、404/405/408/413 包装兜底、`Created::with_location`、含 gzip/br 与 CORS 的中间件栈、`/health`、`serve` |
 | `openrust-macros` | `#[openrust::resource]` 从控制器动作关联函数生成 `Resource` 实现，并由 `apps/server` 集成测试覆盖 |
 | `openrust` / `openrust-cli` | 门面 `run`、无数据库项目生成、`dev` / `serve` 与运行命令代理可用 |
-| `openrust-db` | `DatabaseConfig` / `DatabasePlugin` / `Db`、事务提交与回滚、`MigrationPlugin<M>` 的 up/down/status 命令、UTC timestamp / JSON 方言列 helper、可选 PostgreSQL / MySQL features；MySQL 强制 Rustls TLS；PostgreSQL 14 / MySQL 8.0 集成验证通过 |
+| `openrust-db` | `DatabaseConfig` / `DatabasePlugin` / `Db`、事务提交与回滚、`MigrationPlugin<M>` 的 up/down/status 命令、`SeedPlugin` 的 `db seed`、UTC timestamp / JSON 方言列 helper、可选 PostgreSQL / MySQL features；MySQL 强制 Rustls TLS；PostgreSQL 14 / MySQL 8.0 集成验证通过 |
 | `apps/server` | M1 聚合入口已实现：默认 HTTP、配置文件、`/health`、根路由与无端口集成测试 |
 | 其余 8 个 crate | 空壳，README 标注规划 surface 与里程碑 |
 | 验证证据 | 本机 `cargo fmt / clippy -D warnings / test / doc` 通过，见 `memory/testing.md` |

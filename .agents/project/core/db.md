@@ -12,13 +12,14 @@
 - `Db` 是可克隆服务句柄；`connection()` 返回 SeaORM `DatabaseConnection`。插件完成初始化前调用会返回内部错误。
 - `Db::transaction()` 将闭包放在 SeaORM 事务中执行；回调成功则提交，回调返回错误则回滚，数据库与回调错误统一映射为框架内部错误。
 - `MigrationPlugin<M>` 注册 `migrate` 命令，调用应用 migrator 的 `up`、`down` 和 `status`；`sea_orm_migration` 从 `openrust::database` re-export。
+- `SeedPlugin::new(seed_fn)` 注册 `db seed`；异步回调接收 `Db`，种子数据与幂等性由应用负责。
 - `dialect::timestamp_utc(name, backend)` 生成 PostgreSQL `TIMESTAMP WITH TIME ZONE` / MySQL `DATETIME(6)`；`dialect::json(name, backend)` 生成 PostgreSQL `JSONB` / MySQL `JSON`。
 - `db-postgres` 与 `db-mysql` 是可选 feature；未启用 backend feature 时门面默认不包含 `openrust-db`。
 - 数据库连接失败只给出 backend 名，不把连接 URL 或驱动错误写入启动错误。
 
 ## 后续边界
 
-seed、每用例独立数据库测试，以及 `openrust new --db` 模板仍在 M2 范围。
+每用例独立数据库测试，以及 `openrust new --db` 模板仍在 M2 范围。
 
 ## 验证
 

@@ -33,8 +33,10 @@ For portable migration columns, `openrust::database::dialect::timestamp_utc(name
 
 Register `MigrationPlugin::<Migrator>::new()` to add the runtime `migrate` command for an application migrator implementing `sea_orm_migration::MigratorTrait`. The migration API is re-exported as `openrust::database::sea_orm_migration`. Run `migrate` or `migrate up [steps]` to apply pending migrations, `migrate down [steps]` to roll back migrations (one by default), and `migrate status` to list applied and pending migrations. MySQL DDL may implicitly commit; if a migration fails, inspect and clean up its partial schema before retrying.
 
+Register `SeedPlugin::new(seed_fn)` alongside `DatabasePlugin` to expose `db seed`. The async function receives a cloneable `Db` handle and returns `openrust::Result<()>`; the application owns seed data and idempotency.
+
 MySQL connections require TLS using Rustls. Configure the server certificate and trust chain through the MySQL URL/server deployment; plaintext MySQL connections are rejected. PostgreSQL TLS behavior follows the URL and server configuration.
 
 ## Scope
 
-Connection pooling, transaction helpers, migration commands, and UTC/JSON dialect helpers are implemented. Seed support, per-test database isolation, and the `--db` project template remain in M2 scope.
+Connection pooling, transaction helpers, migration commands, UTC/JSON dialect helpers, and application-defined seed commands are implemented. Per-test database isolation and the `--db` project template remain in M2 scope.

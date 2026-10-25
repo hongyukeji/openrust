@@ -6,7 +6,7 @@
 
 ## 当前里程碑
 
-M0 决策与基线、M1 内核与 HTTP 已完成。M1 生成项目的 `cargo test` 验收通过。M2 `openrust-db` 连接池、事务辅助、SeaORM 迁移 runner 与 UTC/JSON 方言列 helper 已实现；workspace MSRV 为 Rust 1.97，MySQL 使用强制 TLS，并在 PostgreSQL 14 / MySQL 8.0 验证连接、事务、`SKIP LOCKED`、迁移和列类型。后续数据层工作见 `todo.md`。
+M0 决策与基线、M1 内核与 HTTP 已完成。M1 生成项目的 `cargo test` 验收通过。M2 `openrust-db` 连接池、事务辅助、SeaORM 迁移 runner、UTC/JSON 方言列 helper 与应用 seed 命令已实现；workspace MSRV 为 Rust 1.97，MySQL 使用强制 TLS，并在 PostgreSQL 14 / MySQL 8.0 验证连接、事务、`SKIP LOCKED`、迁移、列类型和 seed 命令。后续数据层工作见 `todo.md`。
 
 实现与生成器命名遵循 [ADR-006](decisions/adr-006-rust-native-naming.md)：项目采用 `controllers/`、`models/_entities/` 和独立 `migration/` crate；全局 CLI 为 `new`、`dev`、`generate` / `g`，运行期命令由项目二进制提供。
 

@@ -17,9 +17,11 @@ use std::sync::OnceLock;
 
 pub mod dialect;
 mod migration;
+mod seed;
 
 pub use migration::MigrationPlugin;
 pub use sea_orm_migration;
+pub use seed::SeedPlugin;
 
 /// Database connection and pool settings from the `[database]` configuration section.
 #[derive(Clone, Deserialize)]

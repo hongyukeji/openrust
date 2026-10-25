@@ -4,9 +4,17 @@
 use figment::Figment;
 use figment::providers::{Format, Toml};
 use openrust_core::{AppBuilder, config::FrameworkConfig, lifecycle};
-use openrust_db::{DatabasePlugin, Db, MigrationPlugin, dialect, sea_orm_migration};
+use openrust_db::{DatabasePlugin, Db, MigrationPlugin, SeedPlugin, dialect, sea_orm_migration};
 use sea_orm::{ConnectionTrait, DbBackend, Statement};
 use sea_orm_migration::prelude::*;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+static SEED_RUNS: AtomicUsize = AtomicUsize::new(0);
+
+async fn seed_probe(_database: Db) -> openrust_core::Result<()> {
+    SEED_RUNS.fetch_add(1, Ordering::SeqCst);
+    Ok(())
+}
 
 struct TestMigrator;
 
@@ -83,12 +91,20 @@ async fn migration_command_applies_repeats_reports_and_rolls_back()
     let mut builder = AppBuilder::new(FrameworkConfig::default(), figment);
     builder
         .plugin(DatabasePlugin)
-        .plugin(MigrationPlugin::<TestMigrator>::new());
+        .plugin(MigrationPlugin::<TestMigrator>::new())
+        .plugin(SeedPlugin::new(seed_probe));
 
     let app = lifecycle::finalize(builder).await?;
     app.run_command("migrate", vec![]).await?;
     app.run_command("migrate", vec!["up".into()]).await?;
     app.run_command("migrate", vec!["status".into()]).await?;
+    app.run_command("db", vec!["seed".into()]).await?;
+    assert_eq!(SEED_RUNS.load(Ordering::SeqCst), 1);
+    assert!(
+        app.run_command("db", vec!["seed".into(), "unexpected".into()])
+            .await
+            .is_err()
+    );
 
     let database = app.state().try_get::<Db>()?.connection()?;
     let row = database
