@@ -8,6 +8,7 @@
 - [v1 通用能力补齐计划](v1-common-capabilities.md)：国际化、WebSocket、HTTP 客户端、加密与密钥、审计和请求幂等的范围、建议与验收。
 - [v1 通用能力覆盖与归属](v1-capability-coverage.md)：完整通用底座的补齐清单、单一职责归属、决策建议与完成定义。
 - [v2 现成后台开发计划](v2-admin-platform.md)：复用 v1 的后台套件、核心模块、扩展候选、版本分工与 B1-B5 验收。
+- [v1 集群部署与多副本一致性](v1-cluster-deployment.md)：共享状态、跨节点实时投递、任务竞争、滚动发布与必须通过的集群验收。
 
 执行约束：
 
