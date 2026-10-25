@@ -4,4 +4,6 @@
 
 每个技能使用 `<name>/SKILL.md` 并带 YAML `name` / `description`。Codex 从当前目录向 Git 根目录扫描本目录，先加载名称与描述，匹配任务后再读正文；其他 Agent 通过 `AGENTS.md` §3 路由按需读取。
 
-当前尚无专项技能。进入 M1 后按需补充：项目模板维护、生成器快照测试、双库矩阵排错。
+- [implement-crate](implement-crate/SKILL.md)：按已定 contract 实现或扩展一个 `openrust-*` crate。
+
+后续按需补充：项目模板维护、生成器快照测试、双库矩阵排错。

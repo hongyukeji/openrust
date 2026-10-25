@@ -9,7 +9,7 @@
 OpenRust 追求的优雅是 Rust 语境下的优雅：靠类型、trait 和约定减少样板，不靠运行期魔法。
 
 1. **约定优于配置，但约定可见**：目录、命名、路由、迁移和配置键有默认约定；每个约定在生成代码或文档中可查，不藏在宏展开里。
-2. **显式依赖**：服务通过 `AppState` 与 `FromRef` 传递，处理函数签名即依赖清单；不提供全局 Service Locator、运行期反射容器或静态 Facade。
+2. **显式依赖**：服务在 `ServiceProvider` 中用 `provide` 注册，处理函数用 `Inject<T>` 声明依赖，签名即依赖清单；不提供全局 Service Locator、运行期反射容器或静态 Facade。
 3. **一件事一个明显做法**：每类能力只有一个官方入口（验证只用 `Validated<T>`，授权只用 `Policy`），不保留多套并存。
 4. **错误是一等公民**：框架错误统一为 `openrust::Error`，自动映射为 RFC 9457 Problem Details 响应；库代码禁止 `unwrap` / `expect` / `panic!`。
 5. **宏只做派生，不做控制流**：`#[derive(...)]` 和少量属性宏用于消除样板；不用宏改变程序结构或隐藏调用关系。
@@ -22,7 +22,7 @@ OpenRust 追求的优雅是 Rust 语境下的优雅：靠类型、trait 和约�
 
 | Laravel | OpenRust | 说明 |
 | --- | --- | --- |
-| Service Container / Facade | `AppState` + `FromRef` + `ServiceProvider` | 编译期装配，处理函数用 `State<T>` 声明依赖；不提供 Facade |
+| Service Container / Facade | `AppState` 类型化注册表 + `Inject<T>` 提取器 + `ServiceProvider` | 处理函数用 `Inject<T>` 声明依赖，缺失注册返回 500 Problem 而非 panic；不提供 Facade |
 | Service Provider | `trait ServiceProvider` | 注册服务、路由、迁移、命令、调度；框架能力与业务模块共用同一机制 |
 | Artisan | `openrust` CLI + 应用二进制子命令 | `new` / `dev` / `make:*` 由全局 CLI 提供；`serve` / `migrate` / `queue:work` 等由应用二进制提供 |
 | Routing | axum `Router` + `Routes` 约定 | 资源路由、路由组、前缀、中间件组、`route:list` |
@@ -108,7 +108,7 @@ blog/
 
 ```rust
 // src/main.rs
-fn main() -> openrust::Result<()> {
+fn main() -> std::process::ExitCode {
     openrust::run::<app::App>()
 }
 
@@ -116,20 +116,24 @@ fn main() -> openrust::Result<()> {
 pub struct App;
 
 impl Application for App {
-    type Config = AppConfig;
+    type Config = AppConfig;   // 无应用配置时用 NoConfig
 
-    fn providers() -> Vec<Box<dyn ServiceProvider>> {
-        vec![Box::new(DatabaseProvider), Box::new(AuthProvider), Box::new(QueueProvider)]
+    fn build(app: &mut AppBuilder) {
+        app.provider(DatabaseProvider)
+            .provider(AuthProvider)
+            .provider(QueueProvider)
+            .routes(routes::register)
+            .migrations(migrations::all)
+            .schedule(schedule::register);
     }
-    fn routes(routes: Routes) -> Routes { routes::register(routes) }
-    fn migrations() -> Vec<Box<dyn MigrationTrait>> { migrations::all() }
-    fn schedule(schedule: &mut Schedule) { schedule::register(schedule) }
 }
 ```
 
+`routes` / `migrations` / `schedule` 是各能力 crate 通过扩展 trait 挂在 `AppBuilder` 上的方法（如 `AppBuilderHttpExt::routes`），注册内容存入 `AppBuilder::extension_mut::<T>()`，构建后由 `App::extension::<T>()` 读取。核心 crate 因此不依赖任何能力 crate。
+
 - `openrust::run` 解析子命令：无参数或 `serve` 启动服务；`migrate` / `db:seed` / `queue:work` / `schedule:run` / `route:list` / `config:show` 由框架与各 provider 注册。应用二进制本身就是运行期 CLI，无需额外安装。
-- `AppBuilder` 生命周期：加载配置 → 初始化日志 → 依次调用 provider `register`（注册服务到 `AppState`、追加路由、迁移、命令、调度）→ 调用 provider `boot`（需要其他服务就绪的初始化）→ 构建 `Router` → 监听并处理 `SIGTERM` / `SIGINT` 优雅停机。
-- `AppState` 是框架生成的聚合结构，业务服务通过 `app.provide(MyService::new(...))` 注册，handler 用 `State<MyService>` 取用；缺少注册在启动时报错而非请求时 panic。
+- 生命周期（`openrust_core::lifecycle::bootstrap`）：加载 `.env` → 加载配置 → 初始化 `tracing` → 提取 `Application::Config` 并注册为服务 → `Application::build` → 依次调用 provider `register`（含注册期间新增的 provider）→ 冻结为 `App` → 调用 provider `boot` → 分发命令（默认 `serve`）→ 监听并处理 `SIGTERM` / `SIGINT` 优雅停机。
+- `AppState` 是按 `TypeId` 索引的只读服务注册表，业务服务通过 `app.provide(MyService::new(...))` 注册，handler 用 `Inject<MyService>` 取用；缺少注册在请求时返回 500 Problem 并写明类型名，不 panic。框架 crate 之间的硬依赖在 provider `register` 中用 `app.service::<T>()` 检查并在启动时报错。
 - `ServiceProvider` 是业务模块与第三方包的唯一扩展入口：一个 crate 暴露一个 provider 即可带入路由、迁移、配置段和命令。不做动态加载。
 
 ## 配置
@@ -154,7 +158,7 @@ pub fn register(routes: Routes) -> Routes {
 
 // src/controllers/posts.rs
 pub async fn store(
-    State(posts): State<PostService>,
+    Inject(posts): Inject<PostService>,
     user: CurrentUser,
     Validated(Json(input)): Validated<Json<CreatePost>>,
 ) -> Result<Created<Json<PostResponse>>> {
@@ -173,8 +177,8 @@ pub async fn store(
 ## 错误模型
 
 - 单一 `openrust::Error` 枚举：`NotFound` / `Unauthorized` / `Forbidden` / `Validation` / `Conflict` / `UnprocessableEntity` / `RateLimited` / `Config` / `Database` / `Queue` / `Internal`。业务自定义错误通过 `Error::custom(status, code, message)` 或 `impl From<DomainError> for Error` 接入。
-- 所有错误实现 `IntoResponse`，输出 `application/problem+json`：`type` / `title` / `status` / `detail` / `instance` / `trace_id`，验证错误追加 `errors: { field: [message] }`。
-- `Internal` 与 `Database` 错误只返回通用描述与 `trace_id`，细节进入日志；开发环境可配置返回完整错误链。
+- `Error` 实现 `IntoResponse`，输出 `application/problem+json`：`type`（`urn:openrust:problem:<code>`）/ `title` / `status` / `code` / `detail`，验证错误追加 `errors: { field: [message] }`。请求关联靠响应头 `x-request-id`，不在正文重复。
+- 5xx 错误（`Internal` / `Config`）不返回 `detail`，细节只进入日志；`Error::Internal` 包装任意 `std::error::Error`，数据库等能力 crate 的错误通过 `From` 进入该变体或映射为 `NotFound` / `Conflict`。
 - 库 crate 使用 `thiserror`；`anyhow` 只出现在二进制边界。
 
 ## 数据层
@@ -223,8 +227,8 @@ queue.dispatch(SendWelcomeEmail { user_id }).delay(Duration::from_secs(60)).awai
 
 ## 可观测性
 
-- `tracing` 为唯一日志与追踪入口；开发环境彩色文本，生产环境 JSON；请求 span 含 `request_id` / method / path / status / latency。
-- `x-request-id` 入站沿用、出站写回；`trace_id` 出现在日志与错误响应中。
+- `tracing` 为唯一日志与追踪入口；`[log] format = "text" | "json"`，`RUST_LOG` 优先于 `[log] level`；请求 span 含 `request_id` / method / uri，状态与耗时由 `TraceLayer` 记录。
+- `x-request-id` 入站沿用、缺失时生成 UUID、出站写回；中间件固定顺序为请求 ID → 传播 → 追踪 span → 超时（408）→ panic 捕获（500 Problem）。
 - `/health` 只报告进程存活；`/ready` 带超时检查数据库、队列、缓存依赖并逐项报告。
 - 可选 feature：`otel` 导出 OTLP；`metrics` 暴露 Prometheus 端点。
 - handler panic 由 `catch_panic` 捕获并转换为 500 Problem 响应，进程不退出。

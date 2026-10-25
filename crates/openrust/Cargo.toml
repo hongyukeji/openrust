@@ -1,0 +1,22 @@
+[package]
+name = "openrust"
+description = "OpenRust: an opinionated, batteries-included Rust application framework. Create a project, run one command, start writing business code."
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+categories.workspace = true
+keywords.workspace = true
+
+[dependencies]
+openrust-core.workspace = true
+openrust-http.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[lints]
+workspace = true

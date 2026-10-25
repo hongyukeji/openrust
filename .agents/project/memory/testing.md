@@ -2,17 +2,20 @@
 
 > 受众：AI Agent
 > 更新：2026-10-25
-> 摘要：当前可复验的测试命令。代码尚未开始，以下为 M0 起生效的约定。
+> 摘要：当前可复验的测试命令。
 
-## 本地
+## 本地（当前全部通过）
 
 ```bash
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 cargo doc --workspace --no-deps
-cargo deny check
+cargo deny check            # 本机未装 cargo-deny 时由 CI 执行
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 ```
+
+当前覆盖：`openrust-core` 13 个单元测试（配置、错误、注册表、生命周期），`openrust-http` 6 个集成测试（`tests/router.rs`）。
 
 ## 双库集成（M2 起）
 

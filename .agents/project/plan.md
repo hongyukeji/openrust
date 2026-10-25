@@ -6,7 +6,7 @@
 
 ## 当前里程碑
 
-M0 决策与基线。活跃功能簇见 [todo.md](todo.md)。进入 M1 的条件：M0 五个功能簇全部完成，三个 spike 结论写入 ADR，CI 全绿。
+M0 决策与基线。骨架、lint、CI、内核与 HTTP 层已落地；剩余 Spike A / B 见 [todo.md](todo.md)。进入 M1 的条件：两个 spike 结论写入 ADR-002 / ADR-003，CI 全绿。
 
 ## 里程碑顺序
 

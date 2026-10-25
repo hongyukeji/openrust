@@ -1,0 +1,19 @@
+[package]
+name = "openrust-events"
+description = "In-process events and listeners for the OpenRust framework"
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+categories.workspace = true
+keywords.workspace = true
+
+[dependencies]
+openrust-core.workspace = true
+
+[lints]
+workspace = true

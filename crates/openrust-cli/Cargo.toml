@@ -1,0 +1,26 @@
+[package]
+name = "openrust-cli"
+description = "The `openrust` command line: create projects, run the development environment, generate code and proxy runtime commands to the application binary"
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+categories = ["command-line-utilities", "development-tools"]
+keywords.workspace = true
+
+[[bin]]
+name = "openrust"
+path = "src/main.rs"
+# 与门面 lib `openrust` 的文档输出路径冲突；二进制无公共 API，不生成文档。
+doc = false
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+
+[lints]
+workspace = true

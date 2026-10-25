@@ -9,14 +9,14 @@
 | 项 | 值 |
 | --- | --- |
 | 版本 | 0.0.0（未发布，crates.io 名称未预留） |
-| 阶段 | 第一代 M0「决策与基线」待开始 |
+| 阶段 | 第一代 M0「决策与基线」进行中：workspace、lint、CI、`openrust-core` / `openrust-http` / 门面 / CLI 转发已实现，Spike A / B 待做 |
 | 仓库 | `https://github.com/hongyukeji/openrust`（远端尚未创建）；本地 `/Users/Home/Codes/Rust/openrust` |
 | 协作模式 | 单开发者 + AI Agent；Claude 负责方案与设计，Codex 负责实现与验证 |
-| 本机工具链 | 2026-10-25 本机未安装 `rustup` / `cargo`；M0 第一个功能簇前由开发者安装 stable |
+| 本机工具链 | Rust stable 1.94（`rustup`），MSRV 1.92；`cargo-deny` 未安装，由 CI 执行 |
 
 ## 固定约束
 
-- OpenRust 不是任何既有项目的 Rust 移植，不承诺与 OpenSpring 或其他项目兼容；设计以 [第一代计划](plans/gen1-plan.md) 与 [框架设计](plans/framework-design.md) 为准。
+- OpenRust 不是任何既有项目的移植，没有兼容包袱；设计以 [第一代计划](plans/gen1-plan.md) 与 [框架设计](plans/framework-design.md) 为准。
 - 应用内核自研，基于 `tokio` + `axum` + `tower`；Loco 只作参考与对标（[ADR-001](decisions/adr-001-own-kernel-on-axum.md)）。
 - 第一代正式支持 PostgreSQL 14+ 与 MySQL 8.0+；每个数据功能必须有双库证据（[ADR-002](decisions/adr-002-seaorm-dual-database.md)）。
 - Redis 不是必需依赖；数据库队列、进程内缓存、数据库会话为默认（[ADR-003](decisions/adr-003-database-queue-default.md)）。

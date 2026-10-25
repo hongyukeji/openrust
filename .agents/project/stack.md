@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-25
-> 摘要：第一代选型。具体版本在 M0 写入 workspace `Cargo.toml` 时锁定，以当时 crates.io 稳定版为准；此处只列主版本线与选型理由。
+> 摘要：第一代选型。已用依赖的版本以根 `Cargo.toml` 的 `[workspace.dependencies]` 为准（2026-10-25 锁定：tokio 1.54、axum 0.8.9、axum-core 0.5、tower 0.5、tower-http 0.7、figment 0.10、validator 0.21、clap 4.6、thiserror 2、serde 1、tracing 0.1）；未引入的只列主版本线与选型理由。
 
 ## 运行时与 HTTP
 
@@ -15,7 +15,7 @@
 | OpenAPI | `utoipa` + `utoipa-axum` | 从类型生成文档，`/docs` 非生产默认开启 |
 | 序列化 | `serde` + `serde_json` | — |
 | 验证 | `validator` | M0 评估 `garde` 后定稿 |
-| 配置 | `figment`（候选）或自研 `toml` + env 合并 | M1 验证 figment 的错误信息是否满足「键名 + 来源层」要求 |
+| 配置 | `figment` | 已采用；错误信息含键名（测试覆盖） |
 | 日志 / 追踪 | `tracing` + `tracing-subscriber`；可选 `opentelemetry` / `metrics` | — |
 | 时间 | `chrono`（UTC） | SeaORM 兼容，生态最广 |
 | ID | `uuid`（v7） | `--uuid` 生成器选项 |

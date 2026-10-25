@@ -76,8 +76,8 @@ validate_message_text() {
 
 cmd_example() {
   cat <<'EOF'
-AI_AGENT_SOURCE="Codex GPT-5 (xhigh)" ./.agents/project/scripts/commit feat "完善队列运维体验" "补齐事件日志、恢复入口和后台视图。" -- openspring-starters/openspring-starter-system views/admin/src/views/monitor/queue
-AI_AGENT_SOURCE="Codex GPT-5 (xhigh)" ./.agents/project/scripts/commit "feat(queue)" "完善队列运维体验" "补齐事件日志、恢复入口和后台视图。" -- openspring-starters/openspring-starter-system views/admin/src/views/monitor/queue
+AI_AGENT_SOURCE="Codex GPT-5 (xhigh)" ./.agents/project/scripts/commit feat "补齐队列失败任务重试" "新增 failed_jobs 表与 queue:retry 命令。" -- crates/openrust-queue
+AI_AGENT_SOURCE="Codex GPT-5 (xhigh)" ./.agents/project/scripts/commit "feat(queue)" "补齐队列失败任务重试" "新增 failed_jobs 表与 queue:retry 命令。" -- crates/openrust-queue
 
 # 校验最近一次提交：
 ./.agents/project/scripts/commit validate HEAD

@@ -1,0 +1,2 @@
+# 项目与技术专名不需要反引号。`..` 保留 clippy 默认词表。
+doc-valid-idents = ["OpenRust", "PostgreSQL", "MySQL", "OpenDAL", "OpenAPI", "OpenTelemetry", "SeaORM", "SQLx", "GitHub", ".."]

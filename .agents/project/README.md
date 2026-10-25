@@ -24,7 +24,7 @@
 | `scripts/` | 提交脚本 |
 | [`../skills/`](../skills/README.md) | 专项工作流；按任务读取 |
 
-代码落地后按 crate 新增 `core/<crate>.md` 保存各 crate 当前事实；第一代尚无业务模块、Starter 或插件目录。
+代码落地后按 crate 新增 `core/<crate>.md` 保存各 crate 当前事实；第一代只有框架 crate，没有业务模块目录。
 
 ## 维护规则
 

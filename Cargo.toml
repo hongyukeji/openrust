@@ -1,0 +1,75 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.92"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/hongyukeji/openrust"
+homepage = "https://github.com/hongyukeji/openrust"
+authors = ["OpenRust Contributors"]
+categories = ["web-programming", "web-programming::http-server"]
+keywords = ["framework", "web", "axum", "laravel", "rails"]
+
+[workspace.dependencies]
+openrust = { path = "crates/openrust", version = "0.0.0" }
+openrust-core = { path = "crates/openrust-core", version = "0.0.0" }
+openrust-http = { path = "crates/openrust-http", version = "0.0.0" }
+openrust-auth = { path = "crates/openrust-auth", version = "0.0.0" }
+openrust-cache = { path = "crates/openrust-cache", version = "0.0.0" }
+openrust-cli = { path = "crates/openrust-cli", version = "0.0.0" }
+openrust-db = { path = "crates/openrust-db", version = "0.0.0" }
+openrust-events = { path = "crates/openrust-events", version = "0.0.0" }
+openrust-macros = { path = "crates/openrust-macros", version = "0.0.0" }
+openrust-mail = { path = "crates/openrust-mail", version = "0.0.0" }
+openrust-queue = { path = "crates/openrust-queue", version = "0.0.0" }
+openrust-storage = { path = "crates/openrust-storage", version = "0.0.0" }
+openrust-test = { path = "crates/openrust-test", version = "0.0.0" }
+
+tokio = { version = "1.54", features = ["rt-multi-thread", "macros", "signal", "net", "time"] }
+axum = { version = "0.8", features = ["macros"] }
+axum-core = "0.5"
+tower = "0.5"
+tower-http = { version = "0.7", features = ["trace", "request-id", "timeout", "catch-panic", "util"] }
+http = "1.5"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
+figment = { version = "0.10", features = ["toml", "env"] }
+dotenvy = "0.15"
+validator = { version = "0.21", features = ["derive"] }
+clap = { version = "4.6", features = ["derive"] }
+toml = "1.1"
+insta = "1.49"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "deny"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+dbg_macro = "deny"
+print_stdout = "warn"
+# 错误语义由 openrust::Error 统一文档化，不要求每个函数重复写 `# Errors` 章节。
+missing_errors_doc = "allow"
+# crate 名已表达能力域，类型名允许重复该前缀（如 `QueueConfig`）。
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+
+[profile.dev]
+opt-level = 0
+
+[profile.dev.package."*"]
+# 依赖以 O2 编译一次后缓存，显著缩短开发期增量构建。
+opt-level = 2
