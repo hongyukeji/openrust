@@ -49,6 +49,7 @@ quote = "1.0"
 syn = { version = "2.0", features = ["full"] }
 sea-orm = { version = "2.0.4", default-features = false, features = ["macros", "with-chrono", "with-json", "runtime-tokio-rustls"] }
 sea-orm-migration = { version = "2.0.4", default-features = false, features = ["runtime-tokio-rustls"] }
+url = "2.5"
 sqlx = { version = "0.9", default-features = false }
 toml = "1.1"
 insta = "1.49"

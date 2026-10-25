@@ -14,6 +14,19 @@ keywords.workspace = true
 
 [dependencies]
 openrust-core.workspace = true
+openrust-db = { workspace = true, optional = true }
+sea-orm.workspace = true
+sqlx = { workspace = true, optional = true }
+url.workspace = true
+tokio.workspace = true
+
+[features]
+default = []
+db-postgres = ["dep:openrust-db", "openrust-db/db-postgres"]
+db-mysql = ["dep:openrust-db", "openrust-db/db-mysql", "dep:sqlx", "sqlx/mysql"]
+
+[dev-dependencies]
+sea-orm-migration.workspace = true
 
 [lints]
 workspace = true

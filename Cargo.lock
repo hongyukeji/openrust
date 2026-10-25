@@ -1985,6 +1985,12 @@ name = "openrust-test"
 version = "0.0.0"
 dependencies = [
  "openrust-core",
+ "openrust-db",
+ "sea-orm",
+ "sea-orm-migration",
+ "sqlx",
+ "tokio",
+ "url",
 ]
 
 [[package]]
