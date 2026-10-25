@@ -37,7 +37,7 @@ openrust-test ── 依赖门面，提供 TestApp 与 fake driver 断言
 | `openrust-core` | M0 已实现：`Application` / `AppBuilder` / `App` / `AppState` / `Plugin` / `Command` / `Error` / 配置分层 / 生命周期，见 [core/core.md](core/core.md) |
 | `openrust-http` | M0 已实现：`HttpPlugin` / `Routes` / `Validated` / `Inject` / 中间件栈 / `/health` / `serve`，见 [core/http.md](core/http.md) |
 | `openrust` | 门面与 `run`，见 [core/facade.md](core/facade.md) |
-| `openrust-cli` | 仅转发运行命令，见 [core/cli.md](core/cli.md) |
+| `openrust-cli` | 生成项目、启动开发服务并代理运行命令，见 [core/cli.md](core/cli.md) |
 | `apps/server` | M1 聚合入口：HTTP、默认中间件、`/health` 与根路由，见 [core/server.md](core/server.md) |
 | 其余 crate | 空壳，README 列出规划 surface |
 

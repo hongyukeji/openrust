@@ -1,0 +1,11 @@
+---
+source: crates/openrust-cli/src/main.rs
+expression: "cargo_manifest(\"my-app\")"
+---
+[package]
+name = "my-app"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+openrust = "0.0.0"

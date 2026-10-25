@@ -1,0 +1,82 @@
+---
+source: crates/openrust-cli/src/main.rs
+expression: snapshot
+---
+--- Cargo.toml ---
+[package]
+name = "blog"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+openrust = "0.0.0"
+
+--- config/default.toml ---
+[app]
+name = "blog"
+url = "http://localhost:3000"
+
+[server]
+host = "127.0.0.1"
+port = 3000
+request_timeout_secs = 30
+shutdown_timeout_secs = 10
+
+[server.compression]
+enabled = true
+
+[server.cors]
+enabled = false
+
+[api]
+http_status = "always_ok"
+
+--- src/main.rs ---
+//! Application entry point.
+
+mod app;
+mod routes;
+
+fn main() -> std::process::ExitCode {
+    openrust::run::<app::Blog>()
+}
+
+--- src/app.rs ---
+use openrust::http::HttpPlugin;
+use openrust::prelude::*;
+
+use crate::routes;
+
+pub struct Blog;
+
+impl Application for Blog {
+    type Config = NoConfig;
+
+    fn build(app: &mut AppBuilder) {
+        app.plugin(HttpPlugin).routes(routes::register);
+    }
+}
+
+--- src/routes.rs ---
+use openrust::prelude::*;
+
+pub fn register(routes: Routes) -> Routes {
+    routes.get("/", root)
+}
+
+async fn root() -> Json<std::collections::BTreeMap<&'static str, &'static str>> {
+    Json(std::collections::BTreeMap::from([("name", env!("CARGO_PKG_NAME"))]))
+}
+
+--- tests/application.rs ---
+#[test]
+fn application_package_is_generated() {
+    assert_eq!(env!("CARGO_PKG_NAME"), "blog");
+}
+
+--- AGENTS.md ---
+# Application guide
+
+This project is built with OpenRust. Run `openrust dev` to start the development server and `cargo test` to run its tests.
+
+Application code lives in `src/`; HTTP handlers belong in `src/controllers/`, and routes are registered in `src/routes.rs`.

@@ -31,7 +31,8 @@ OPENRUST_TEST_DATABASE_URL=mysql://openrust:openrust@localhost:3306/openrust_tes
 ## 模板快照（M1 起）
 
 ```bash
-cargo run -p openrust-cli -- new /tmp/openrust-smoke --db postgres && cargo test --manifest-path /tmp/openrust-smoke/Cargo.toml
+cargo run -p openrust-cli -- new /tmp/openrust-smoke
+OPENRUST_PATH="$PWD/crates/openrust" cargo test --manifest-path /tmp/openrust-smoke/Cargo.toml --config "patch.crates-io.openrust.path=\"$OPENRUST_PATH\""
 ```
 
-每个里程碑把新增的测试入口写在这里，替换过期命令。
+生成模板使用 crates.io 版本依赖；在发布前进行本地模板集成测试时，以上 Cargo patch 将 `openrust` 指向当前仓库门面 crate。CLI 自身的模板内容由快照测试覆盖。
