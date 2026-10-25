@@ -93,7 +93,7 @@ cd blog
 openrust dev
 ```
 
-`openrust new` 默认生成注册与登录、一个 scaffold 资源、一封邮件、一个 job 和请求测试。`openrust dev` 一条命令启动依赖容器（数据库、Redis、Mailpit）、执行迁移并运行服务；`/health` 返回 200，`/docs` 展示 OpenAPI，注册 / 登录可用，`cargo test` 全绿。
+`openrust new` 默认生成注册与登录、一个 scaffold 资源、一封邮件、一个 job 和请求测试。`openrust dev` 一条命令按项目配置启动所需依赖容器（数据库、可选 Redis、Mailpit），执行迁移并运行服务；默认 memory cache 不要求 Redis。`/health` 返回 200，`/docs` 展示 OpenAPI，注册 / 登录可用，`cargo test` 全绿。
 
 ```bash
 openrust generate scaffold post title:string body:text published_at:date_time? author:references
