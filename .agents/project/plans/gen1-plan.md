@@ -25,7 +25,7 @@ OpenRust 定位为 Rust 应用开发的“瑞士军刀”：以高性能为基�
 | 应用内核 | **自有内核，基于 axum + tower + tokio；Loco 只作参考与对标**（[ADR-001](../decisions/adr-001-own-kernel-on-axum.md)） | Loco 1.2 只有 `db-sqlite` / `db-postgres` feature，队列后端为 Redis / Postgres / SQLite，无 MySQL 路径，支持 MySQL 等于长期维护 fork。建立在 Loco 之上，OpenRust 只剩模板层，目录、配置、CLI、认证、错误模型全部由 Loco 决定，无法保证设计一致性与统一的 Rust 风格。Loco 本身基于 axum，OpenRust 直接使用同一底层并复用成熟 crate，自研面集中在应用层约定 |
 | ORM | SeaORM 2.x + `sea-orm-migration`；SQLx 直连作为显式逃生口（[ADR-002](../decisions/adr-002-seaorm-dual-database.md)） | 唯一同时覆盖 PostgreSQL / MySQL 的成熟 Rust ORM，带迁移与实体生成 |
 | 数据库 | PostgreSQL 14+（推荐默认）与 MySQL 8.0+（同等正式支持）；SQLite 不在 v1 版本 | 两者都支持 `SKIP LOCKED`、CTE、JSON；SQLite 增加第三条验证矩阵但不是目标部署环境 |
-| Redis | 可选 driver，不是必需依赖 | 默认队列、缓存、会话分别用数据库表与进程内实现；多实例共享时再启用 Redis |
+| Redis | 标准应用默认缓存后端；memory/file 可显式选择 | 单机和集群均支持，开发编排提供 Redis；队列/会话仍默认数据库，见 ADR-012 |
 | 认证 | Cookie 会话（Web）与个人访问令牌（API）为默认认证方式；密码 Argon2id；JWT 不在 v1 版本（[ADR-004](../decisions/adr-004-session-and-token-auth.md)） | 有状态令牌可撤销、可审计；JWT 作为 v2 评估候选 `auth-jwt` feature |
 | 授权 | `Policy` + 最小 `roles` / `permissions` 模型；DataScope、多租户不在 v1 版本 | 覆盖绝大多数应用的授权需求，不引入特定业务系统的数据范围概念 |
 | 队列 | 自有数据库队列（`SKIP LOCKED`），M0 对比 `apalis` 后定稿（[ADR-003](../decisions/adr-003-database-queue-default.md)） | 范围有界（拉取、重试、退避、失败表），自有实现可完全控制 Schema 与双库行为 |
@@ -64,7 +64,7 @@ OpenRust 定位为 Rust 应用开发的“瑞士军刀”：以高性能为基�
 | 聚合启动入口 | `apps/server` 作为仓库开发与集成验证宿主，使用门面组装已实现能力；具体状态见 [server 事实](../core/server.md) 与 ADR-007 |
 | 统一入口与第三方扩展 | 按 [ADR-009](../decisions/adr-009-extensible-capability-drivers.md) 提供驱动契约、注册、配置、错误语义、示例与契约测试；用独立适配示例检查第三方是否需要修改框架 |
 | 数据库可扩展 | M2 集中后端及方言差异；v1 正式交付仍为 PostgreSQL/MySQL。明确 SeaORM 边界，不承诺任意数据库或数据模型直接替换 |
-| 缓存可替换 | M5 交付统一 `Cache` 入口与 memory/file/可选 Redis，支持配置选择驱动并验证 TTL、错误和并发语义；默认无需外部服务 |
+| 缓存可替换 | M5 交付统一 `Cache` 入口，默认 Redis、memory/file 显式可选，支持配置选择驱动并验证 TTL、错误和并发语义；默认模板配套 Redis 开发编排 |
 | 邮件与短信 | M3 提供发送、模板、供应商扩展与本地/测试路径；M4 接入队列化发送；真实适配和验收按 [短信决策](../decisions/adr-011-sms-and-communication-baseline.md) |
 | 高性能且按需启用 | 能力通过 feature 按需组合；在明确硬件、并发、数据规模及依赖环境下记录吞吐、延迟分位数与资源占用，评估中间件和驱动开销，不以微基准推断整体性能 |
 | 完整通用底座 | 多实例使用、上传下载、通用 Session/限流、签名、API 输出、查询体验与常用任务编排均按覆盖计划交付；具体 API/命名与默认值待决策 |
@@ -92,7 +92,7 @@ cd blog
 openrust dev
 ```
 
-`openrust new` 默认生成注册与登录、一个 scaffold 资源、一封邮件、一个 job 和请求测试。`openrust dev` 一条命令启动依赖容器（数据库、Mailpit）、执行迁移并运行服务；`/health` 返回 200，`/docs` 展示 OpenAPI，注册 / 登录可用，`cargo test` 全绿。
+`openrust new` 默认生成注册与登录、一个 scaffold 资源、一封邮件、一个 job 和请求测试。`openrust dev` 一条命令启动依赖容器（数据库、Redis、Mailpit）、执行迁移并运行服务；`/health` 返回 200，`/docs` 展示 OpenAPI，注册 / 登录可用，`cargo test` 全绿。
 
 ```bash
 openrust generate scaffold post title:string body:text published_at:date_time? author:references

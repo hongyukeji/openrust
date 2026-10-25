@@ -1,6 +1,6 @@
 # ADR-003 数据库队列为默认，Redis 可选
 
-- 状态：Accepted
+- 状态：Partially Superseded（缓存默认值由 [ADR-012](adr-012-deployment-and-redis-cache-default.md) 替代；队列/会话与验证结论仍有效）
 - 日期：2026-10-25
 
 ## 背景
@@ -9,8 +9,8 @@
 
 ## 决策
 
-- 队列、会话、缓存默认不依赖 Redis：队列使用数据库 `jobs` / `failed_jobs` 表，会话使用数据库 store，缓存使用进程内 `moka`。
-- Redis 作为 `queue-redis` / `cache-redis` feature 与 session store 选项提供，用于多实例共享与高吞吐场景。
+- 队列使用数据库 `jobs` / `failed_jobs` 表，会话使用数据库 store；原进程内缓存默认值由 ADR-012 改为标准应用默认 Redis，memory/file 仍可显式选择。
+- Redis 队列与 session store 仍为可选适配；`cache-redis` 由标准应用模板显式启用。底层库仍按 feature 组合，参考 ADR-012 区分编译选择与应用默认配置。
 - 队列引擎**自研**（拉取、重试退避、延迟、失败表、优雅停机），不封装 `apalis`；依据见「验证」。
 
 ## 影响
