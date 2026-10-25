@@ -26,7 +26,7 @@ OpenRust 定位为 Rust 应用开发的“瑞士军刀”：以高性能为基�
 | ORM | SeaORM 2.x + `sea-orm-migration`；SQLx 直连作为显式逃生口（[ADR-002](../decisions/adr-002-seaorm-dual-database.md)） | 唯一同时覆盖 PostgreSQL / MySQL 的成熟 Rust ORM，带迁移与实体生成 |
 | 数据库 | PostgreSQL 14+（推荐默认）与 MySQL 8.0+（同等正式支持）；SQLite 不在 v1 版本 | 两者都支持 `SKIP LOCKED`、CTE、JSON；SQLite 增加第三条验证矩阵但不是目标部署环境 |
 | 缓存 | 标准应用默认 Redis，memory/file 显式选择，库层 Redis feature 可选 | 单机与集群共用默认缓存方案；共享/原子语义仍按契约校验，默认值见 ADR-015；队列/会话仍默认数据库，见 ADR-013/ADR-014 |
-| 认证 | Cookie 会话（Web）与个人访问令牌（API）为默认认证方式；密码 Argon2id；JWT 不在 v1 版本（[ADR-004](../decisions/adr-004-session-and-token-auth.md)） | 有状态令牌可撤销、可审计；JWT 作为 v2 评估候选 `auth-jwt` feature |
+| 认证 | 前后端分离 API 默认使用 Bearer JWT access token + 可轮换 refresh token；通用 Cookie Session 显式可选；PAT 面向自动化集成；密码 Argon2id（[ADR-018](../decisions/adr-018-jwt-primary-authentication.md)） | 短期 access token 限制撤销窗口；需立即撤销时使用共享状态，集群不能依赖进程内 denylist |
 | 授权 | `Policy` + 最小 `roles` / `permissions` 模型；DataScope、多租户不在 v1 版本 | 覆盖绝大多数应用的授权需求，不引入特定业务系统的数据范围概念 |
 | 队列 | 自有数据库队列（`SKIP LOCKED`），M0 对比 `apalis` 后定稿（[ADR-003](../decisions/adr-003-database-queue-default.md)） | 范围有界（拉取、重试、退避、失败表），自有实现可完全控制 Schema 与双库行为 |
 | 配置 | TOML 分层 + 环境变量 + `.env`；类型化结构启动校验 | 与 Rust 生态习惯一致，错误在启动时暴露 |
@@ -48,7 +48,7 @@ OpenRust 定位为 Rust 应用开发的“瑞士军刀”：以高性能为基�
 | 应用内核、Plugin、配置、生命周期、优雅停机 | 动态插件加载、插件市场 |
 | HTTP 路由约定、中间件栈、验证、统一响应包装、OpenAPI、WebSocket、SSE | GraphQL、gRPC |
 | 数据库连接池、迁移、`src/seed.rs`、`fake::Dummy` 测试数据、事务、双库方言边界、可选基础读写分离 | SQLite、多租户、分库分表与跨库事务 |
-| Cookie 会话与个人访问令牌、密码重置、邮箱验证、Policy、角色权限 | OAuth / 社交登录、SSO、DataScope |
+| JWT access/refresh token、可选 Cookie 会话、可选 PAT、密码重置、邮箱验证、Policy、角色权限 | OAuth / 社交登录、SSO、DataScope |
 | 队列、常用任务链/批处理、调度、事件（进程内） | 外部消息总线、任意 DAG 工作流引擎 |
 | 缓存与锁、存储与上传下载、邮件、短信、薄通知编排及 fake driver | 移动推送供应商、业务通知中心/UI |
 | 国际化、出站 HTTP、加密与密钥管理、审计、请求幂等 | 后台业务 UI、完整聊天/消息平台 |
@@ -111,7 +111,7 @@ openrust queue work
 | M0 决策与基线 | ADR：自有内核、ORM 与双库、队列引擎、认证形态；预留 crates.io 名；workspace 骨架、`[workspace.lints]`、CI（fmt / clippy / test / deny / MSRV / 双库服务）；技术 spike：SeaORM 2 双库迁移、`SKIP LOCKED` 队列、axum 提取器组合 | CI 全绿；spike 结论写入 ADR；未通过的技术假设在进入 M1 前替换 |
 | M1 内核与 HTTP | `openrust-core`（Application / AppBuilder / Plugin / Config / Error / 生命周期）、`openrust-http`（路由约定、中间件栈、`Validated`、统一响应包装、健康检查）、CLI `new` / `dev` / `serve`、无数据库模板 | `openrust new` 生成项目 `cargo test` 通过；`/health` 200；验证失败返回 422 统一 JSON 包装；缺失配置启动失败并指出键名 |
 | M2 数据层 | `openrust-db`（连接池、迁移运行器、`src/seed.rs`、事务、`dialect` 边界）、`generate model` / `generate migration`、`migrate` / `db seed`、`openrust-test` 数据库隔离、模板 `--db`、CI 双库矩阵 | 空 PostgreSQL / MySQL 均初始化成功；重复 `migrate` 幂等；`rollback` 可用；生成实体直接编译；每个数据功能有双库测试证据 |
-| M3 邮件、短信、认证与授权 | 短信发送与供应商扩展（范围与验收见 ADR-011）、`openrust-mail`（smtp / log / fake）、`openrust-auth`（用户约定、Argon2id、Cookie 会话、个人访问令牌、`CurrentUser`、注册 / 登录 / 登出 / 密码重置 / 邮箱验证、Policy、角色权限、登录限流）、`generate mailer` / `generate policy`，国际化、出站 HTTP、加密与密钥、审计（按通用能力计划） | 短信真实供应商与 log/fake 路径验证（实发需目标与费用授权）；全部认证流程有集成测试；令牌撤销即时生效；错误密码限流可验证；Policy 拒绝返回 403 包装错误 |
+| M3 邮件、短信、认证与授权 | 短信发送与供应商扩展（范围与验收见 ADR-011）、`openrust-mail`（smtp / log / fake）、`openrust-auth`（用户约定、Argon2id、JWT access/refresh、可选 Session 与 PAT、`CurrentUser`、注册 / 登录 / 登出 / 密码重置 / 邮箱验证、Policy、角色权限、登录限流）、`generate mailer` / `generate policy`，国际化、出站 HTTP、加密与密钥、审计（按通用能力计划） | 短信真实供应商与 log/fake 路径验证（实发需目标与费用授权）；全部认证流程有集成测试；refresh 撤销跨节点生效、JWT access 撤销窗口符合 contract；错误密码限流可验证；Policy 拒绝返回 403 包装错误 |
 | M4 队列、调度与事件 | `openrust-queue`（database driver、重试退避、`failed_jobs`、`queue work`、调度器与锁、`schedule run` / `schedule list`）、`openrust-events`、队列化邮件与短信、`generate job`，请求幂等、事务一致性、锁、常用任务编排与薄通知层（按专题计划） | 任务失败 → 重试 → 失败表 → 手动重试成功；多副本调度不重复；worker 停机不丢任务；两库皆验证 |
 | M5 缓存、存储与可观测性 | `openrust-cache`（标准应用默认 Redis、显式 memory/file、库层 Redis feature 可选；driver/store contract 见 ADR-014）、`openrust-storage`（local / s3）、JSON 日志、请求 ID、`/ready`、`otel` / `metrics` feature、panic 捕获、WebSocket/SSE 与上传下载（按专题计划） | 三驱动基础契约测试；file 临时目录验证；Redis 真实集成验证；扩展示例只用公开契约；S3 兼容路径用 MinIO 集成验证；`/ready` 依赖超时正确报告 |
 | M6 开发者体验与 v1 发布 | mdBook 文档站（Diátaxis、迁移对照页、`coming-from-axum`）、`examples/blog` 黄金路径示例、Dockerfile / compose 模板、`routes` / `config show` / `doctor` / `db status`、`generate` / `g`（`scaffold`、`controller`、`model`、`migration`、`job`、`mailer`、`policy`、`command`）与快照测试、`cargo semver-checks`、新手走查、v1 正式发布 | 新开发者按文档从空目录到部署在 30 分钟内完成且不读框架源码；本文件验收原则全部达标；发布动作由开发者执行 |

@@ -11,6 +11,8 @@
 ## M3 邮件、认证与授权（进行中）
 
 - 当前功能簇：按 [ADR-012](decisions/adr-012-auth-current-user-contract.md) 实现业务用户 ID 映射、路由认证配置和身份注入，并覆盖共享 Session/PAT 撤销、CSRF 与 `Inject` 共存。
+- 最新认证默认方向按 [ADR-018](decisions/adr-018-jwt-primary-authentication.md)：前后端分离 API 以 JWT access/refresh 为主，Session 可选，PAT 用于自动化集成。当前 Session/PAT WIP 不等于默认方案已实现；认证路由、登录流程和生成项目需按新 contract 校准。
+- 后续工作：优先实现 JWT Bearer 验证与签发、refresh 哈希存储/轮换/撤销及跨节点语义；接入通用 Session 全局中间件及 PostgreSQL/MySQL store 作为可选模式；公开 PAT 创建、一次性凭据返回、列举/撤销生命周期。认证流程与 `apps/server`/生成项目示例闭环后再关闭当前簇。自定义认证器仅验证扩展路径，不替代默认数据库实现验收。
 - 本簇验收前按 [执行校准](plan.md#执行校准) 核对契约：共享会话与跨节点撤销、认证所需全局限流/验证码边界、注册/登录公开扩展点及 `Inject` 共存；后续 M3 任务按完整 v1 覆盖清单逐簇领取，不以身份注入完成代替整个 M3。
 - ADR-012 已定义身份/路由 contract；本簇后续仍需形成独立授权 API 与角色/权限变更传播 contract，不把身份提取实现当作 M3 完成。
 

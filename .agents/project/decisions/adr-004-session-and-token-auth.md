@@ -1,6 +1,6 @@
 # ADR-004 认证默认为 Cookie 会话与个人访问令牌
 
-- 状态：Accepted（CSRF 与身份路由 contract 由 ADR-012 细化）
+- 状态：Superseded（默认认证方式由 [ADR-018](adr-018-jwt-primary-authentication.md) 替代；账户、密码与通用流程决定在不冲突时继续有效）
 - 日期：2026-10-25
 
 ## 背景
@@ -12,7 +12,7 @@
 - 提供两种认证方式：Cookie 会话（数据库存储默认；凡通过 Cookie Session 认证的 unsafe method 均校验 CSRF）与个人访问令牌（存储 SHA-256 哈希，支持前缀、能力列表、过期时间）。具体身份与路由 API 见 ADR-012。
 - 密码哈希 Argon2id，参数可配置并带安全默认值；登录、注册、密码重置端点默认限流。
 - 内置流程：注册、登录、登出、密码重置、邮箱验证；授权用 `Policy` + 最小角色权限模型。
-- JWT 不在第一代；作为 0.2 候选 `auth-jwt` feature。DataScope 与多租户不在第一代。
+- （已由 ADR-018 替代）JWT 不在第一代；曾作为 0.2 候选 `auth-jwt` feature。DataScope 与多租户不在第一代的决定仍有效。
 
 ## 影响
 
