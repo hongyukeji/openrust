@@ -11,6 +11,7 @@ M0、M1、M2 已完成。M1 生成项目的 `cargo test` 验收通过。M2 `open
 实现与生成器命名遵循 [ADR-006](decisions/adr-006-rust-native-naming.md)：项目采用 `controllers/`、`models/_entities/` 和独立 `migration/` crate；全局 CLI 为 `new`、`dev`、`generate` / `g`，运行期命令由项目二进制提供。
 
 ## 执行校准
+- 目录布局按 [ADR-020](decisions/adr-020-workspace-layout-and-loco-practices.md)：保持 crates + `apps/server` workspace，各 package 的 `src/` / `tests/` 各司其职；根 `examples/` 放完整业务示例；运行时配置在项目根 `config/`，`src/config` 仅为 Rust 模块。不要把本 workspace 重构成 Loco 的单主包，也不移除聚合启动与集成测试宿主。
 - 命名/布局按 [ADR-019](decisions/adr-019-neutral-crate-directories-and-app-package.md)：能力 crate 目录改为中性名，发布包名保留 `openrust-*`，`apps/server` 包与二进制名为 `server`。这是当前 M3 Agent 必须执行的独立迁移提交；迁移时保护认证 WIP，并核对所有路径引用和生成/运行入口。
 
 - 命名校准按 [ADR-016](decisions/adr-016-neutral-application-namespaces.md)：应用配置默认 `APP_`，表默认 `tb_`，均可定制；当前代码仍待迁移。当前认证 schema/生成物验收必须核对新命名，配置加载和表解析按独立功能簇处理，禁止直接改生产表或覆盖他人 WIP。

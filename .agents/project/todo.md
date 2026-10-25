@@ -9,6 +9,7 @@
 - OpenAPI：后续里程碑用 `utoipa` 生成 schema，并在非生产环境挂载 `/docs`（ADR-008 §6）。
 
 ## M3 邮件、认证与授权（进行中）
+- 目录调整遵循 [ADR-020](decisions/adr-020-workspace-layout-and-loco-practices.md)：本次命名迁移只按 ADR-019 调整 crate 目录名与聚合应用包名，不移动到单一根 `src/`，不删除 `apps/server`，不迁移运行配置到 `src/config`。M6 再按根 `examples/` 交付完整示例应用。
 
 - 当前功能簇：按 [ADR-012](decisions/adr-012-auth-current-user-contract.md) 实现业务用户 ID 映射、路由认证配置和身份注入，并覆盖共享 Session/PAT 撤销、CSRF 与 `Inject` 共存。
 - 最新认证默认方向按 [ADR-018](decisions/adr-018-jwt-primary-authentication.md)：前后端分离 API 以 JWT access/refresh 为主，Session 可选，PAT 用于自动化集成。当前 Session/PAT WIP 不等于默认方案已实现；认证路由、登录流程和生成项目需按新 contract 校准。

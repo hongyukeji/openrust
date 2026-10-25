@@ -18,6 +18,7 @@
 
 - 应用中性命名按 [ADR-016](decisions/adr-016-neutral-application-namespaces.md)：默认环境变量 `APP_`（允许启动前定制命名空间），默认表前缀 `tb_`（可改自定义或空前缀并支持显式表映射）；代码、schema、模板迁移尚待实现，旧品牌前缀不能作为新设计 contract。
 - 仓库源码目录采用中性能力名（如 `crates/core`、`crates/cache`），可发布 Cargo 包继续使用 `openrust-*` 名称；聚合应用 `apps/server` 的 Cargo 包和二进制命名为 `server`。当前 M3 执行者负责按 [ADR-019](decisions/adr-019-neutral-crate-directories-and-app-package.md) 落地并单独验证提交。
+- 仓库保持多 package workspace：各 crate 与 `apps/server` 各自使用 `src/` / `tests/`；根不增单 package 式 `src/`/`tests/`，保留聚合入口，业务示例集中根 `examples/`。应用运行时文件放项目根 `config/`，`src/config` 只放 Rust 配置代码；按 [ADR-020](decisions/adr-020-workspace-layout-and-loco-practices.md) 借鉴 Loco 的示例、测试与配置发现实践，不照搬其单主包拓扑。
 
 - AI 平台为基于 OpenRust 的独立产品，最终按 [OpenRouter 对标计划](plans/ai-platform-openrouter-parity.md) 复刻公开功能与流程（MVP 非终点），须待框架 v1/v2 完整体成熟后再由开发者决定立项，平台完全体 P0–P8 验收通过并获上线批准后才对外开放；当前仅规划、不启动实现，后续开发必须使用 `projects/*` 分支和独立 worktree，产品业务不得进入框架核心或改变通用契约，详见 [产品计划](plans/ai-platform-product.md)。
 
