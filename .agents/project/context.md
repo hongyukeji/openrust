@@ -22,6 +22,7 @@
 - Redis 不是必需依赖；数据库队列、进程内缓存、数据库会话为默认（[ADR-003](decisions/adr-003-database-queue-default.md)）。
 - 认证默认为 Cookie 会话 + 个人访问令牌，JWT 不在第一代（[ADR-004](decisions/adr-004-session-and-token-auth.md)）。
 - 许可证 MIT OR Apache-2.0；Edition 2024；MSRV 为 stable 减两个小版本（[ADR-005](decisions/adr-005-license-naming-msrv.md)）。
+- 生成项目布局、CLI、配置键与公共 API 命名以 [ADR-006](decisions/adr-006-rust-native-naming.md) 为唯一 contract；M6 才建立 mdBook `docs/`，此前用户文档维护在 crate README。
 - 库 crate 禁止 `unsafe`、`unwrap` / `expect` / `panic`；公共项必须有文档。细则见 [conventions.md](conventions.md)。
 - 功能范围以计划的「第一代能力范围」为准，不在里程碑内追加能力；新需求先进 `roadmap.md`。
 

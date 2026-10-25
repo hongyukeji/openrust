@@ -7,7 +7,7 @@
 ## 分层
 
 ```text
-openrust-cli ───────────────┐           （全局工具：new / dev / make:*，代理运行命令）
+openrust-cli ───────────────┐           （全局工具：new / dev / generate <kind>，代理运行命令）
                             ▼
 openrust（门面：prelude、feature、re-export）
    ├── openrust-http ─── openrust-core
@@ -32,12 +32,12 @@ openrust-test ── 依赖门面，提供 TestApp 与 fake driver 断言
 
 | crate | 状态 |
 | --- | --- |
-| `openrust-core` | M0 已实现：`Application` / `AppBuilder` / `App` / `AppState` / `ServiceProvider` / `Command` / `Error` / 配置分层 / 生命周期，见 [core/core.md](core/core.md) |
-| `openrust-http` | M0 已实现：`HttpProvider` / `Routes` / `Validated` / `Inject` / 中间件栈 / `/health` / `serve`，见 [core/http.md](core/http.md) |
+| `openrust-core` | M0 已实现：`Application` / `AppBuilder` / `App` / `AppState` / `Plugin` / `Command` / `Error` / 配置分层 / 生命周期，见 [core/core.md](core/core.md) |
+| `openrust-http` | M0 已实现：`HttpPlugin` / `Routes` / `Validated` / `Inject` / 中间件栈 / `/health` / `serve`，见 [core/http.md](core/http.md) |
 | `openrust` | 门面与 `run`，见 [core/facade.md](core/facade.md) |
 | `openrust-cli` | 仅转发运行命令，见 [core/cli.md](core/cli.md) |
 | 其余 crate | 空壳，README 列出规划 surface |
 
 ## 扩展模型
 
-应用模块与第三方包都通过实现 `ServiceProvider` 接入：注册服务到 `AppState`、追加路由、迁移、配置段、命令与调度。不提供动态插件加载。
+应用模块与第三方包都通过实现 `Plugin` 接入：`build` 阶段向 `AppBuilder` 插入服务并追加路由、迁移、配置段、命令与调度；所有插件构建完成并冻结后依次调用 `finish`。不提供动态插件加载。

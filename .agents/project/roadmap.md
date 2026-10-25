@@ -20,7 +20,7 @@
 
 ## 更远
 
-- 官方扩展包目录（基于 `ServiceProvider` 的 crate 集合）。
+- 官方扩展包目录（基于 `Plugin` 的 crate 集合）。
 - 多租户与数据范围（DataScope）扩展包。
 - 管理后台脚手架。
 

@@ -9,7 +9,7 @@
 
 ## 决策
 
-OpenRust 自研应用内核（`Application` / `AppBuilder` / `ServiceProvider` / `AppState` / `Config` / `Error` / 生命周期），直接建立在 `tokio` + `axum` + `tower` 之上，复用成熟 crate 承担 HTTP、ORM、会话、邮件、存储等底层能力。Loco 与 Rails / Laravel 作为设计参考与对标对象，不作为依赖。
+OpenRust 自研应用内核（`Application` / `AppBuilder` / `Plugin` / `AppState` / `Config` / `Error` / 生命周期），直接建立在 `tokio` + `axum` + `tower` 之上，复用成熟 crate 承担 HTTP、ORM、会话、邮件、存储等底层能力。Loco 与其他语言框架只作设计参考与对标对象，不作为依赖。
 
 ## 影响
 
