@@ -66,7 +66,7 @@ impl ServiceProvider for HttpProvider {
 }
 
 /// Builds the final [`Router`] from every registered route builder, wrapped in the default stack.
-pub fn build_router(app: &App) -> Router {
+pub fn build_router(app: &App) -> Result<Router> {
     let mut routes = Routes::new();
     if let Some(registry) = app.extension::<RouteRegistry>() {
         for builder in &registry.builders {

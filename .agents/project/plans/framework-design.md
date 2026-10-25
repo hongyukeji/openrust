@@ -169,7 +169,7 @@ pub async fn store(
 ```
 
 - `resource` 按约定映射 `index` / `show` / `store` / `update` / `destroy`，缺失动作不注册；`only` / `except` 裁剪。
-- 预置中间件栈顺序固定：请求 ID → 追踪 span → 超时 → 压缩 → CORS → 错误与 panic 捕获；业务中间件在路由组上追加。
+- 预置中间件栈从外到内：请求 ID 设置 → 请求 ID 回传 → 追踪 span → 超时 → 压缩 → CORS → panic 捕获；业务中间件在路由组上追加。
 - 输入验证只通过 `Validated<T>`；授权只通过 `Policy`；事务边界在 `services/`，控制器不直接开事务。
 - 响应辅助类型：`Created` / `NoContent` / `Paginated<T>`；分页参数与响应结构全框架统一。
 - OpenAPI 由 `utoipa` 生成，`/docs` 在非生产环境默认开启。

@@ -7,11 +7,12 @@ use crate::provider::build_router;
 
 /// Binds `[server] host:port` and serves until a shutdown signal arrives.
 pub async fn serve(app: &App) -> Result<()> {
+    let router = build_router(app)?;
     let addr = app.config().server.bind_addr();
     let listener = TcpListener::bind(&addr).await?;
     let local = listener.local_addr()?;
     tracing::info!(app = %app.config().app.name, env = %app.config().app.env, "listening on http://{local}");
-    axum::serve(listener, build_router(app))
+    axum::serve(listener, router)
         .with_graceful_shutdown(shutdown_signal())
         .await
         .map_err(Error::internal)

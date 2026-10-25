@@ -15,7 +15,7 @@
 | `app` | `Application { type Config; fn build(&mut AppBuilder) }`；`AppBuilder`（`provider` / `provide` / `service` / `command` / `section` / `extension_mut`，全部 `&mut self` 链式）；`App`（`state` / `config` / `figment` / `commands` / `extension` / `run_command`）；`AppState`（`get` / `try_get`，按 `TypeId` 的只读注册表）；`ServiceNotRegistered` |
 | `provider` | `ServiceProvider { name, register(&mut AppBuilder), boot(&App) -> BoxFuture }`；`BoxFuture` |
 | `command` | `Command { name, about, run }`；内置 `help`、`config:show`（密钥遮蔽） |
-| `config` | 分层 `ConfigLoader`（默认值 → `config/app.toml` → `config/<env>.toml` → `APP__*`）；`Environment`（`APP_ENV`）；`FrameworkConfig { app, server, log }`；`NoConfig`；`load_dotenv`；`redact_secrets` |
+| `config` | 分层 `ConfigLoader`（默认值 → `config/app.toml` → `config/<env>.toml` → `APP__*`）；`Environment`（`APP_ENV`）；`FrameworkConfig { app, server, log }`，其中 `ServerConfig` 包含 `compression` 与 `cors` 默认配置；`NoConfig`；`load_dotenv`；`redact_secrets` |
 | `error` | `Error` 枚举（`BadRequest` / `Unauthorized` / `Forbidden` / `NotFound` / `Conflict` / `Validation` / `RateLimited` / `Config` / `Custom` / `Internal`），`status()` / `code()` / `to_problem()`，`IntoResponse` 输出 `application/problem+json`；`ValidationErrors`；`ProblemDetails` |
 | `lifecycle` | `bootstrap` / `bootstrap_with(defaults)` / `finalize(builder)` / `init_tracing` / `shutdown_signal` |
 

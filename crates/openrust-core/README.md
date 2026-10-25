@@ -13,3 +13,5 @@ This crate owns the contracts every other OpenRust crate builds on:
 - [`lifecycle`] — bootstrap sequence and graceful-shutdown signal.
 
 `openrust-core` deliberately depends only on `axum-core` (for `IntoResponse`), `http`, `serde`, `figment`, `tokio` and `tracing`. HTTP routing, databases and other capabilities live in their own crates. Applications depend on the facade crate `openrust`, not on this crate directly.
+
+`ServerConfig` includes `[server.compression]` (enabled by default) and `[server.cors]` (disabled by default). The latter defaults to an empty origin list, GET/POST/PUT/PATCH/DELETE/OPTIONS methods, `content-type`/`authorization`/`x-request-id` request headers, `x-request-id` exposed header, credentials disabled and a 600-second preflight cache. Environment variables use `APP__SERVER__CORS__ENABLED=true`; list values use Figment array syntax, for example `APP__SERVER__CORS__ALLOWED_ORIGINS='["https://example.com", "https://other.example"]'`.

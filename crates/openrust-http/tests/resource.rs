@@ -83,7 +83,7 @@ async fn router(
     let mut builder = AppBuilder::new(FrameworkConfig::default(), figment::Figment::new());
     builder.routes(f);
     let app = finalize(builder).await?;
-    Ok(build_router(&app))
+    build_router(&app)
 }
 
 async fn send(router: axum::Router, method: Method, path: &str) -> TestResultResponse {

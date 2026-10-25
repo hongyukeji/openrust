@@ -150,6 +150,10 @@ pub struct ServerConfig {
     pub request_timeout_secs: u64,
     /// Grace period for in-flight requests after a shutdown signal.
     pub shutdown_timeout_secs: u64,
+    /// Response compression settings.
+    pub compression: CompressionConfig,
+    /// Cross-origin request settings.
+    pub cors: CorsConfig,
 }
 
 impl ServerConfig {
@@ -166,6 +170,60 @@ impl Default for ServerConfig {
             port: 3000,
             request_timeout_secs: 30,
             shutdown_timeout_secs: 10,
+            compression: CompressionConfig::default(),
+            cors: CorsConfig::default(),
+        }
+    }
+}
+
+/// `[server.compression]` section: negotiated gzip and Brotli responses.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CompressionConfig {
+    /// Enables response compression.
+    pub enabled: bool,
+}
+
+impl Default for CompressionConfig {
+    fn default() -> Self {
+        Self { enabled: true }
+    }
+}
+
+/// `[server.cors]` section: cross-origin response policy.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CorsConfig {
+    /// Enables CORS responses.
+    pub enabled: bool,
+    /// Exact origins, or `["*"]` for every origin.
+    pub allowed_origins: Vec<String>,
+    /// Methods permitted in preflight requests.
+    pub allowed_methods: Vec<String>,
+    /// Request headers permitted in preflight requests.
+    pub allowed_headers: Vec<String>,
+    /// Response headers visible to browser clients.
+    pub expose_headers: Vec<String>,
+    /// Allows browser clients to send credentials.
+    pub allow_credentials: bool,
+    /// Preflight cache lifetime in seconds.
+    pub max_age_secs: u64,
+}
+
+impl Default for CorsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            allowed_origins: Vec::new(),
+            allowed_methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+                .map(str::to_owned)
+                .to_vec(),
+            allowed_headers: ["content-type", "authorization", "x-request-id"]
+                .map(str::to_owned)
+                .to_vec(),
+            expose_headers: vec!["x-request-id".to_owned()],
+            allow_credentials: false,
+            max_age_secs: 600,
         }
     }
 }
@@ -360,5 +418,54 @@ mod tests {
         assert_eq!(value["database"]["password"], "********");
         assert_eq!(value["mail"]["smtp"]["token"], "********");
         assert_eq!(value["app"]["name"], "Blog");
+    }
+
+    #[test]
+    fn server_middleware_defaults_are_complete() {
+        let server = ServerConfig::default();
+        assert!(server.compression.enabled);
+        assert!(!server.cors.enabled);
+        assert_eq!(server.cors.allowed_origins, Vec::<String>::new());
+        assert_eq!(server.cors.allowed_methods.len(), 6);
+        assert_eq!(
+            server.cors.allowed_headers,
+            ["content-type", "authorization", "x-request-id"]
+        );
+        assert_eq!(server.cors.expose_headers, ["x-request-id"]);
+        assert!(!server.cors.allow_credentials);
+        assert_eq!(server.cors.max_age_secs, 600);
+    }
+
+    #[test]
+    fn partial_cors_toml_keeps_field_defaults() {
+        let parsed: FrameworkConfig = toml::from_str(
+            "[server.cors]\nenabled = true\nallowed_origins = [\"https://example.com\"]",
+        )
+        .unwrap_or_default();
+        assert!(parsed.server.cors.enabled);
+        assert_eq!(parsed.server.cors.allowed_origins, ["https://example.com"]);
+        assert_eq!(
+            parsed.server.cors.allowed_methods,
+            CorsConfig::default().allowed_methods
+        );
+        assert_eq!(parsed.server.cors.max_age_secs, 600);
+    }
+
+    #[test]
+    fn cors_list_environment_override_uses_figment_array_syntax() {
+        figment::Jail::expect_with(|jail| {
+            jail.set_env(
+                "APP__SERVER__CORS__ALLOWED_ORIGINS",
+                "[\"https://example.com\", \"https://other.example\"]",
+            );
+            let config = ConfigLoader::new("missing-config", Environment::Test)
+                .load_framework()
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            assert_eq!(
+                config.server.cors.allowed_origins,
+                ["https://example.com", "https://other.example"]
+            );
+            Ok(())
+        });
     }
 }

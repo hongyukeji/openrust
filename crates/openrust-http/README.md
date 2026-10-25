@@ -10,7 +10,9 @@ HTTP layer of the [OpenRust](https://github.com/hongyukeji/openrust) framework, 
 - [`PageParams`] and [`Paginated<T>`] — validated `page`/`per_page` query parameters and a JSON response with `data` and `meta`.
 - [`Validated`] — extractor that deserialises `Json<T>` or `Query<T>` and runs `validator` rules, answering `422` problem documents on failure.
 - [`Inject`] — extractor that fetches a service registered with `AppBuilder::provide`.
-- [`middleware::apply`] — request id, tracing span, timeout and panic capture, in a fixed order.
+- [`middleware::apply`] — request id, tracing span, timeout, gzip/br compression, CORS and panic capture, in a fixed order. It returns a configuration error before listening if enabled CORS settings are invalid.
+
+`[server.compression] enabled = true` negotiates gzip and Brotli using `Accept-Encoding`; set it to `false` to disable compression. `[server.cors]` is disabled by default. To enable it, set `enabled = true` and `allowed_origins = ["https://example.com"]` (or `["*"]` without credentials). Methods, request headers, exposed headers, credentials and preflight `max_age_secs` are configurable. An enabled CORS policy with no origins, mixed wildcard origins, wildcard origins with credentials, or invalid HTTP origin/method/header values is rejected during router construction. `build_router(&App)` now returns `Result<Router>`; `serve` builds the router before binding its listener.
 
 ```rust
 use openrust_http::{AppBuilderHttpExt, Inject, Routes, Validated};

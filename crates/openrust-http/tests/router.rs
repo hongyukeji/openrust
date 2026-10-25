@@ -41,7 +41,11 @@ async fn boom() -> &'static str {
 }
 
 async fn router() -> openrust_core::Result<axum::Router> {
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment::Figment::new());
+    router_with_config(FrameworkConfig::default()).await
+}
+
+async fn router_with_config(config: FrameworkConfig) -> openrust_core::Result<axum::Router> {
+    let mut builder = AppBuilder::new(config, figment::Figment::new());
     builder
         .provider(HttpProvider)
         .provide(Greeting("hello"))
@@ -51,10 +55,15 @@ async fn router() -> openrust_core::Result<axum::Router> {
                     .post("/posts", store)
                     .get("/missing", missing)
                     .get("/boom", boom)
+                    .get("/large", large)
             })
         });
     let app = finalize(builder).await?;
-    Ok(build_router(&app))
+    build_router(&app)
+}
+
+async fn large() -> String {
+    "compressible response ".repeat(100)
 }
 
 async fn json_body(response: axum::response::Response) -> serde_json::Value {
@@ -154,5 +163,243 @@ async fn panics_become_500_problems() -> TestResult {
         .await?;
     assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
     assert_eq!(json_body(response).await["code"], "internal_error");
+    Ok(())
+}
+
+#[tokio::test]
+async fn compression_negotiates_gzip_and_br_and_respects_absence() -> TestResult {
+    for (accept, expected) in [
+        (Some("gzip"), Some("gzip")),
+        (Some("br"), Some("br")),
+        (None, None),
+    ] {
+        let mut request = Request::get("/api/large");
+        if let Some(accept) = accept {
+            request = request.header(header::ACCEPT_ENCODING, accept);
+        }
+        let response = router()
+            .await?
+            .oneshot(request.body(Body::empty())?)
+            .await?;
+        assert_eq!(
+            response
+                .headers()
+                .get(header::CONTENT_ENCODING)
+                .and_then(|v| v.to_str().ok()),
+            expected
+        );
+        let bytes = to_bytes(response.into_body(), usize::MAX).await?;
+        if expected.is_some() {
+            assert!(bytes.len() < 2200);
+        } else {
+            assert_eq!(bytes.len(), 2200);
+        }
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn disabled_compression_ignores_accept_encoding() -> TestResult {
+    let mut config = FrameworkConfig::default();
+    config.server.compression.enabled = false;
+    let response = router_with_config(config)
+        .await?
+        .oneshot(
+            Request::get("/api/large")
+                .header(header::ACCEPT_ENCODING, "gzip")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert!(!response.headers().contains_key(header::CONTENT_ENCODING));
+    Ok(())
+}
+
+#[tokio::test]
+async fn cors_is_disabled_by_default() -> TestResult {
+    let response = router()
+        .await?
+        .oneshot(
+            Request::get("/health")
+                .header(header::ORIGIN, "https://example.com")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert!(
+        !response
+            .headers()
+            .contains_key(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn cors_allows_listed_origin_and_preflight_with_request_id() -> TestResult {
+    let mut config = FrameworkConfig::default();
+    config.server.cors.enabled = true;
+    config.server.cors.allowed_origins = vec!["https://example.com".into()];
+    let router = router_with_config(config).await?;
+    let response = router
+        .clone()
+        .oneshot(
+            Request::get("/health")
+                .header(header::ORIGIN, "https://example.com")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(
+        response.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN),
+        Some(&"https://example.com".parse()?)
+    );
+    assert_eq!(
+        response
+            .headers()
+            .get(header::ACCESS_CONTROL_EXPOSE_HEADERS),
+        Some(&"x-request-id".parse()?)
+    );
+
+    let preflight = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("OPTIONS")
+                .uri("/health")
+                .header(header::ORIGIN, "https://example.com")
+                .header(header::ACCESS_CONTROL_REQUEST_METHOD, "POST")
+                .header(header::ACCESS_CONTROL_REQUEST_HEADERS, "content-type")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(preflight.status(), StatusCode::OK);
+    assert!(preflight.headers().contains_key("x-request-id"));
+    assert!(
+        preflight
+            .headers()
+            .contains_key(header::ACCESS_CONTROL_ALLOW_METHODS)
+    );
+    assert!(
+        preflight
+            .headers()
+            .contains_key(header::ACCESS_CONTROL_ALLOW_HEADERS)
+    );
+    assert_eq!(
+        preflight.headers().get(header::ACCESS_CONTROL_MAX_AGE),
+        Some(&"600".parse()?)
+    );
+
+    let denied = router
+        .oneshot(
+            Request::get("/health")
+                .header(header::ORIGIN, "https://other.example")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert!(
+        !denied
+            .headers()
+            .contains_key(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn cors_wildcard_and_credentials_have_expected_headers() -> TestResult {
+    let mut config = FrameworkConfig::default();
+    config.server.cors.enabled = true;
+    config.server.cors.allowed_origins = vec!["*".into()];
+    let response = router_with_config(config.clone())
+        .await?
+        .oneshot(
+            Request::get("/health")
+                .header(header::ORIGIN, "https://example.com")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(
+        response.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN),
+        Some(&"*".parse()?)
+    );
+
+    config.server.cors.allowed_origins = vec!["https://example.com".into()];
+    config.server.cors.allow_credentials = true;
+    let response = router_with_config(config)
+        .await?
+        .oneshot(
+            Request::get("/health")
+                .header(header::ORIGIN, "https://example.com")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(
+        response
+            .headers()
+            .get(header::ACCESS_CONTROL_ALLOW_CREDENTIALS),
+        Some(&"true".parse()?)
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn invalid_cors_config_returns_keyed_errors() {
+    let cases = [
+        (vec![], false, "server.cors.allowed_origins"),
+        (
+            vec!["*", "https://example.com"],
+            false,
+            "server.cors.allowed_origins",
+        ),
+        (vec!["*"], true, "server.cors.allow_credentials"),
+        (
+            vec!["https://example.com", "bad\norigin"],
+            false,
+            "server.cors.allowed_origins[1]",
+        ),
+    ];
+    for (origins, credentials, key) in cases {
+        let mut config = FrameworkConfig::default();
+        config.server.cors.enabled = true;
+        config.server.cors.allowed_origins = origins.into_iter().map(str::to_owned).collect();
+        config.server.cors.allow_credentials = credentials;
+        let error = router_with_config(config)
+            .await
+            .err()
+            .map(|error| error.to_string())
+            .unwrap_or_default();
+        assert!(error.contains(key), "{error}");
+    }
+}
+
+#[tokio::test]
+async fn invalid_cors_methods_and_headers_return_keyed_errors() {
+    for key in ["allowed_methods", "allowed_headers", "expose_headers"] {
+        let mut config = FrameworkConfig::default();
+        config.server.cors.enabled = true;
+        config.server.cors.allowed_origins = vec!["https://example.com".into()];
+        match key {
+            "allowed_methods" => config.server.cors.allowed_methods = vec!["BAD METHOD".into()],
+            "allowed_headers" => config.server.cors.allowed_headers = vec!["bad header".into()],
+            _ => config.server.cors.expose_headers = vec!["bad header".into()],
+        }
+        let error = router_with_config(config)
+            .await
+            .err()
+            .map(|error| error.to_string())
+            .unwrap_or_default();
+        assert!(error.contains(&format!("server.cors.{key}[0]")), "{error}");
+    }
+}
+
+#[tokio::test]
+async fn disabled_cors_ignores_other_invalid_fields() -> TestResult {
+    let mut config = FrameworkConfig::default();
+    config.server.cors.allowed_origins = vec!["bad\norigin".into()];
+    let response = router_with_config(config)
+        .await?
+        .oneshot(
+            Request::get("/health")
+                .header(header::ORIGIN, "https://example.com")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
     Ok(())
 }
