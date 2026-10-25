@@ -8,13 +8,9 @@
 
 - OpenAPI：后续里程碑用 `utoipa` 生成 schema，并在非生产环境挂载 `/docs`（ADR-008 §6）。
 
-## M2 数据层（进行中）
+## M3 邮件、认证与授权（进行中）
 
-- 后续 M2 功能簇：`generate model` / `generate migration` 与数据库层 M2 验收收口。
-
-## M3 邮件、认证与授权（M2 收口后领取）
-
-- 确认 `CurrentUser` 能与 `Inject` 共存于同一 handler，在 `openrust-auth` 测试中覆盖。
+- `openrust-auth` 起步验收：确认 `CurrentUser` 能与 `Inject` 共存于同一 handler，并添加测试；随后依据 M3 contract 扩展认证、会话、授权与通信功能。
 
 ## M4/M5 Redis 驱动（对应里程碑时领取）
 

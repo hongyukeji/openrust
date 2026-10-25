@@ -6,9 +6,13 @@ use std::fs;
 use std::io::Write;
 use std::path::Path;
 use std::process::{Command as Process, ExitCode};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, bail};
 use clap::{Parser, Subcommand, ValueEnum};
+
+static MIGRATION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 /// OpenRust command line.
 #[derive(Debug, Parser)]
@@ -32,9 +36,24 @@ enum Builtin {
     Dev,
     /// Run the application's server command.
     Serve,
+    /// Generate application models and database migrations.
+    #[command(alias = "g")]
+    Generate {
+        #[arg(value_enum)]
+        kind: GeneratorKind,
+        /// Model or table name followed by `field:type` declarations.
+        #[arg(required = true)]
+        values: Vec<String>,
+    },
     /// Any other command is forwarded to the application binary in the current project.
     #[command(external_subcommand)]
     Forward(Vec<String>),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+enum GeneratorKind {
+    Model,
+    Migration,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -83,6 +102,10 @@ fn run(cli: Cli) -> anyhow::Result<ExitCode> {
         }
         Some(Builtin::Dev) => run_project(&["serve"], true),
         Some(Builtin::Serve) => run_project(&["serve"], false),
+        Some(Builtin::Generate { kind, values }) => {
+            generate(kind, &values, &std::env::current_dir()?)?;
+            Ok(ExitCode::SUCCESS)
+        }
         Some(Builtin::Forward(args)) => forward(&args),
     }
 }
@@ -220,10 +243,6 @@ fn populate_project(
         files.extend([
             ("migration/Cargo.toml", migration_manifest(name, database)),
             ("migration/src/lib.rs", migration_lib()),
-            (
-                "migration/src/m20261025_000001_create_posts.rs",
-                initial_migration(),
-            ),
         ]);
     }
     for (relative_path, contents) in files {
@@ -293,11 +312,361 @@ fn migration_manifest(name: &str, database: DatabaseBackend) -> String {
 }
 
 fn migration_lib() -> String {
-    "//! Application database migrations.\n\nmod m20261025_000001_create_posts;\n\nuse openrust::database::sea_orm_migration::prelude::*;\n\npub struct Migrator;\n\n#[openrust::database::sea_orm_migration::async_trait::async_trait]\nimpl MigratorTrait for Migrator {\n    fn migrations() -> Vec<Box<dyn MigrationTrait>> {\n        vec![Box::new(m20261025_000001_create_posts::Migration)]\n    }\n}\n".to_owned()
+    "//! Application database migrations.\n\nuse openrust::database::sea_orm_migration::prelude::*;\n\npub struct Migrator;\n\n#[openrust::database::sea_orm_migration::async_trait::async_trait]\nimpl MigratorTrait for Migrator {\n    fn migrations() -> Vec<Box<dyn MigrationTrait>> {\n        vec![]\n    }\n}\n".to_owned()
 }
 
-fn initial_migration() -> String {
-    "//! Creates the starter posts table.\n\nuse openrust::database::{dialect, sea_orm_migration::prelude::*};\n\n#[derive(DeriveIden)]\nenum Posts {\n    Table,\n    Id,\n    Title,\n    CreatedAt,\n}\n\npub struct Migration;\n\nimpl MigrationName for Migration {\n    fn name(&self) -> &'static str {\n        \"m20261025_000001_create_posts\"\n    }\n}\n\n#[openrust::database::sea_orm_migration::async_trait::async_trait]\nimpl MigrationTrait for Migration {\n    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {\n        manager\n            .create_table(\n                Table::create()\n                    .table(Posts::Table)\n                    .if_not_exists()\n                    .col(ColumnDef::new(Posts::Id).big_integer().not_null().primary_key())\n                    .col(ColumnDef::new(Posts::Title).string().not_null())\n                    .col(dialect::timestamp_utc(Posts::CreatedAt, manager.get_database_backend()))\n                    .to_owned(),\n            )\n            .await\n    }\n\n    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {\n        manager\n            .drop_table(Table::drop().table(Posts::Table).if_exists().to_owned())\n            .await\n    }\n}\n".to_owned()
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum FieldType {
+    String,
+    Text,
+    Integer,
+    BigInteger,
+    Boolean,
+    DateTime,
+    Json,
+    References,
+}
+
+impl FieldType {
+    fn parse(value: &str) -> Option<Self> {
+        match value {
+            "string" => Some(Self::String),
+            "text" => Some(Self::Text),
+            "integer" => Some(Self::Integer),
+            "big_integer" => Some(Self::BigInteger),
+            "boolean" => Some(Self::Boolean),
+            "date_time" => Some(Self::DateTime),
+            "json" => Some(Self::Json),
+            "references" => Some(Self::References),
+            _ => None,
+        }
+    }
+
+    fn rust_type(self) -> &'static str {
+        match self {
+            Self::String | Self::Text => "String",
+            Self::Integer => "i32",
+            Self::BigInteger | Self::References => "i64",
+            Self::Boolean => "bool",
+            Self::DateTime => "DateTimeUtc",
+            Self::Json => "Json",
+        }
+    }
+
+    fn migration_builder(self) -> Option<&'static str> {
+        match self {
+            Self::String => Some("string"),
+            Self::Text => Some("text"),
+            Self::Integer => Some("integer"),
+            Self::BigInteger | Self::References => Some("big_integer"),
+            Self::Boolean => Some("boolean"),
+            Self::DateTime | Self::Json => None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct Field {
+    column: String,
+    variant: String,
+    kind: FieldType,
+    nullable: bool,
+}
+
+fn generate(kind: GeneratorKind, values: &[String], current_dir: &Path) -> anyhow::Result<()> {
+    if !current_dir.join("Cargo.toml").is_file() {
+        bail!("no Cargo.toml in the current directory; run this inside an OpenRust project");
+    }
+    match kind {
+        GeneratorKind::Model => generate_model(values, current_dir),
+        GeneratorKind::Migration => generate_migration(values, current_dir),
+    }
+}
+
+fn generate_model(values: &[String], project_dir: &Path) -> anyhow::Result<()> {
+    let (name, fields) = parse_model_arguments(values)?;
+    let manifest = fs::read_to_string(project_dir.join("Cargo.toml"))?;
+    if !manifest.contains("db-postgres") && !manifest.contains("db-mysql") {
+        bail!("model generation requires an application created with `openrust new --db`");
+    }
+    let module = normalize_identifier(name)?;
+    let table = pluralize(&module);
+    let model_file = project_dir.join(format!("src/models/_entities/{module}.rs"));
+    if model_file.exists() {
+        bail!("model already exists: {}", model_file.display());
+    }
+    let entity_module = project_dir.join("src/models/_entities/mod.rs");
+    let models_module = project_dir.join("src/models/mod.rs");
+    let main_file = project_dir.join("src/main.rs");
+    let generated = render_model(&table, &fields);
+    fs::write(&model_file, generated)?;
+    append_module(
+        &entity_module,
+        &format!("pub mod {module};"),
+        "//! Generated model entities.\n",
+    )?;
+    append_module(
+        &models_module,
+        "pub mod _entities;",
+        "//! Application models.\n",
+    )?;
+    append_module(
+        &main_file,
+        "pub mod models;",
+        "//! Application entry point.\n",
+    )?;
+    print_generated(&format!("Generated model `{module}` for table `{table}`."))?;
+    Ok(())
+}
+
+fn generate_migration(values: &[String], project_dir: &Path) -> anyhow::Result<()> {
+    let (name, fields) = parse_model_arguments(values)?;
+    let table = normalize_identifier(name)?;
+    let migration_dir = project_dir.join("migration/src");
+    if !migration_dir.join("lib.rs").is_file() {
+        bail!("migration generation requires a project created with `openrust new --db`");
+    }
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|error| anyhow::anyhow!("system clock is before Unix epoch: {error}"))?
+        .as_micros();
+    let sequence = MIGRATION_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let module = format!(
+        "m{timestamp}_{}_{}_create_{table}",
+        std::process::id(),
+        sequence
+    );
+    let migration_file = migration_dir.join(format!("{module}.rs"));
+    let lib_file = migration_dir.join("lib.rs");
+    let registry = fs::read_to_string(&lib_file)?;
+    if registry.contains(&format!("mod {module};")) || migration_file.exists() {
+        bail!("migration already exists: {module}");
+    }
+    let updated_registry = register_migration(&registry, &module)?;
+    fs::write(&migration_file, render_migration(&module, &table, &fields))?;
+    fs::write(lib_file, updated_registry)?;
+    print_generated(&format!(
+        "Generated migration `{module}` for table `{table}`."
+    ))?;
+    Ok(())
+}
+
+fn parse_model_arguments(values: &[String]) -> anyhow::Result<(&str, Vec<Field>)> {
+    let Some((name, fields)) = values.split_first() else {
+        bail!("usage: openrust generate model <name> <field:type>...");
+    };
+    let mut parsed = Vec::with_capacity(fields.len());
+    let mut columns = std::collections::HashSet::from(["id".to_owned()]);
+    for declaration in fields {
+        let Some((field_name, field_type)) = declaration.split_once(':') else {
+            bail!("invalid field `{declaration}`; expected `field:type`");
+        };
+        let name = normalize_identifier(field_name)?;
+        let nullable = field_type.ends_with('?');
+        let field_type = field_type.strip_suffix('?').unwrap_or(field_type);
+        let kind = FieldType::parse(field_type)
+            .with_context(|| format!("unsupported field type `{field_type}`"))?;
+        let column = if kind == FieldType::References {
+            format!("{name}_id")
+        } else {
+            name.clone()
+        };
+        if !columns.insert(column.clone()) {
+            bail!("duplicate or reserved database column `{column}`");
+        }
+        parsed.push(Field {
+            variant: pascal_case(&column),
+            column,
+            kind,
+            nullable,
+        });
+    }
+    if parsed.is_empty() {
+        bail!("at least one field is required");
+    }
+    Ok((name, parsed))
+}
+
+fn normalize_identifier(value: &str) -> anyhow::Result<String> {
+    let normalized = value.replace('-', "_");
+    let keywords = [
+        "as", "async", "await", "break", "const", "continue", "crate", "dyn", "else", "enum",
+        "extern", "false", "fn", "for", "if", "impl", "in", "let", "loop", "match", "mod", "move",
+        "mut", "pub", "ref", "return", "self", "static", "struct", "super", "trait", "true",
+        "type", "unsafe", "use", "where", "while",
+    ];
+    if !normalized
+        .chars()
+        .next()
+        .is_some_and(|character| character.is_ascii_lowercase())
+        || !normalized.chars().all(|character| {
+            character == '_' || character.is_ascii_lowercase() || character.is_ascii_digit()
+        })
+        || keywords.contains(&normalized.as_str())
+        || normalized.len() > 63
+    {
+        bail!("`{value}` must be a snake_case ASCII identifier");
+    }
+    Ok(normalized)
+}
+
+fn pascal_case(value: &str) -> String {
+    value
+        .split('_')
+        .filter(|part| !part.is_empty())
+        .map(|part| {
+            let mut characters = part.chars();
+            characters.next().map_or_else(String::new, |first| {
+                first.to_ascii_uppercase().to_string() + characters.as_str()
+            })
+        })
+        .collect()
+}
+
+fn pluralize(value: &str) -> String {
+    if let Some(stem) = value.strip_suffix('y')
+        && !stem.is_empty()
+        && stem
+            .chars()
+            .last()
+            .is_some_and(|character| !"aeiou".contains(character))
+    {
+        format!("{stem}ies")
+    } else if value.ends_with('s')
+        || value.ends_with('x')
+        || value.ends_with("ch")
+        || value.ends_with("sh")
+    {
+        format!("{value}es")
+    } else {
+        format!("{value}s")
+    }
+}
+
+fn render_model(table: &str, fields: &[Field]) -> String {
+    use std::fmt::Write as _;
+    let mut source = format!(
+        "//! SeaORM entity generated for table `{table}`.\n\nuse openrust::database::sea_orm_migration::sea_orm;\nuse sea_orm::entity::prelude::*;\n\n#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]\n#[sea_orm(table_name = \"{table}\")]\npub struct Model {{\n    #[sea_orm(primary_key)]\n    pub id: i64,\n"
+    );
+    for field in fields {
+        let type_name = field.kind.rust_type();
+        let field_type = if field.nullable {
+            format!("Option<{type_name}>")
+        } else {
+            type_name.to_owned()
+        };
+        let _ = writeln!(source, "    pub {}: {field_type},", field.column);
+    }
+    source.push_str("}\n\n#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]\npub enum Relation {}\n\nimpl ActiveModelBehavior for ActiveModel {}\n");
+    source
+}
+
+fn render_migration(module: &str, table: &str, fields: &[Field]) -> String {
+    use std::fmt::Write as _;
+    let table_type = pascal_case(table);
+    let mut source = format!(
+        "//! Creates the `{table}` table.\n\nuse openrust::database::sea_orm_migration::prelude::*;\n\n#[derive(DeriveIden)]\nenum {table_type} {{\n    Table,\n    Id,\n"
+    );
+    for field in fields {
+        let _ = writeln!(source, "    {},", field.variant);
+    }
+    let _ = write!(
+        source,
+        "}}\n\npub struct Migration;\n\nimpl MigrationName for Migration {{\n    fn name(&self) -> &'static str {{\n        \"{module}\"\n    }}\n}}\n\n#[openrust::database::sea_orm_migration::async_trait::async_trait]\nimpl MigrationTrait for Migration {{\n    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {{\n        manager\n            .create_table(\n                Table::create()\n                    .table({table_type}::Table)\n                    .if_not_exists()\n                    .col(ColumnDef::new({table_type}::Id).big_integer().not_null().auto_increment().primary_key())\n"
+    );
+    for field in fields {
+        let nullable = if field.nullable { "null" } else { "not_null" };
+        match field.kind {
+            FieldType::DateTime => {
+                let _ = writeln!(
+                    source,
+                    "                    .col(openrust::database::dialect::timestamp_utc({table_type}::{}, manager.get_database_backend()){} )",
+                    field.variant,
+                    if field.nullable { ".null()" } else { "" }
+                );
+            }
+            FieldType::Json => {
+                let _ = writeln!(
+                    source,
+                    "                    .col(openrust::database::dialect::json({table_type}::{}, manager.get_database_backend()){} )",
+                    field.variant,
+                    if field.nullable { ".null()" } else { "" }
+                );
+            }
+            kind => {
+                let _ = writeln!(
+                    source,
+                    "                    .col(ColumnDef::new({table_type}::{}).{}().{}())",
+                    field.variant,
+                    kind.migration_builder().unwrap_or("big_integer"),
+                    nullable
+                );
+            }
+        }
+    }
+    for field in fields
+        .iter()
+        .filter(|field| field.kind == FieldType::References)
+    {
+        let referenced_table = pluralize(field.column.trim_end_matches("_id"));
+        let _ = writeln!(
+            source,
+            "                    .foreign_key(ForeignKey::create().name(\"{table}_{0}_fkey\").from_tbl({table_type}::Table).from_col({table_type}::{0}).to_tbl(\"{referenced_table}\").to_col(\"id\"))",
+            field.variant
+        );
+    }
+    let _ = write!(
+        source,
+        "                    .to_owned(),\n            )\n            .await?;\n        Ok(())\n    }}\n\n    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {{\n        manager\n            .drop_table(Table::drop().table({table_type}::Table).if_exists().to_owned())\n            .await\n    }}\n}}\n"
+    );
+    source
+}
+
+fn append_module(path: &Path, module: &str, header: &str) -> anyhow::Result<()> {
+    use std::fmt::Write as _;
+    let mut contents = if path.exists() {
+        fs::read_to_string(path)?
+    } else {
+        header.to_owned()
+    };
+    if contents.lines().any(|line| line.trim() == module) {
+        return Ok(());
+    }
+    let _ = writeln!(contents, "{module}");
+    fs::write(path, contents)?;
+    Ok(())
+}
+
+fn register_migration(registry: &str, module: &str) -> anyhow::Result<String> {
+    use std::fmt::Write as _;
+    let Some(migrations_start) = registry.find("vec![") else {
+        bail!("migration registry does not match the generated project template");
+    };
+    let Some(migrations_end) = registry[migrations_start..].find(']') else {
+        bail!("migration registry has an unterminated migration list");
+    };
+    if registry.contains(&format!("mod {module};")) {
+        bail!("migration already exists: {module}");
+    }
+    let insertion = migrations_start + migrations_end;
+    let migration_expression = if registry[migrations_start + "vec![".len()..insertion]
+        .trim()
+        .is_empty()
+    {
+        format!("Box::new({module}::Migration)")
+    } else {
+        format!(", Box::new({module}::Migration)")
+    };
+    let mut updated = registry.to_owned();
+    updated.insert_str(insertion, &migration_expression);
+    let _ = writeln!(updated, "mod {module};");
+    Ok(updated)
+}
+
+fn print_generated(message: &str) -> anyhow::Result<()> {
+    let mut stdout = std::io::stdout().lock();
+    writeln!(stdout, "{message}")?;
+    Ok(())
 }
 
 /// Executes the project binary and returns its exit code.
@@ -409,9 +778,9 @@ mod tests {
             assert!(project.join("migration/Cargo.toml").is_file());
             assert!(project.join("migration/src/lib.rs").is_file());
             assert!(
-                project
-                    .join("migration/src/m20261025_000001_create_posts.rs")
-                    .is_file()
+                fs::read_to_string(project.join("migration/src/lib.rs"))
+                    .expect("read empty migration registry")
+                    .contains("vec![]")
             );
             let app = fs::read_to_string(project.join("src/app.rs")).expect("read generated app");
             assert!(app.contains("DatabasePlugin"));
@@ -420,6 +789,66 @@ mod tests {
             assert!(project.join(".env.example").is_file());
         }
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn model_and_migration_generators_render_fields_and_register_repeated_migrations() {
+        let root =
+            std::env::temp_dir().join(format!("openrust-cli-generate-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("create temporary test directory");
+        let project = root.join("blog");
+        populate_project(&project, "blog", "Blog", Some(DatabaseBackend::Postgres))
+            .expect("generate database project");
+
+        let model = [
+            "post",
+            "title:string",
+            "published_at:date_time?",
+            "metadata:json",
+            "author:references",
+        ]
+        .map(str::to_owned);
+        generate_model(&model, &project).expect("generate model");
+        let entity = fs::read_to_string(project.join("src/models/_entities/post.rs"))
+            .expect("read generated model");
+        assert!(entity.contains("pub title: String"));
+        assert!(entity.contains("pub published_at: Option<DateTimeUtc>"));
+        assert!(entity.contains("pub author_id: i64"));
+
+        generate_migration(
+            &[
+                "posts".to_owned(),
+                "title:string".to_owned(),
+                "published_at:date_time?".to_owned(),
+                "metadata:json".to_owned(),
+                "author:references".to_owned(),
+            ],
+            &project,
+        )
+        .expect("generate model migration");
+        for (table, field) in [("comments", "body:text"), ("labels", "slug:string")] {
+            generate_migration(&[table.to_owned(), field.to_owned()], &project)
+                .expect("generate migration");
+        }
+        let registry = fs::read_to_string(project.join("migration/src/lib.rs"))
+            .expect("read migration registry");
+        assert!(registry.contains("create_posts::Migration"));
+        assert!(registry.contains("create_comments::Migration"));
+        assert!(registry.contains("create_labels::Migration"));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn generator_rejects_invalid_identifiers_and_unknown_types() {
+        let invalid = ["UpperCase", "9items", "type"];
+        for name in invalid {
+            assert!(normalize_identifier(name).is_err());
+        }
+        let values = ["post".to_owned(), "title:unknown".to_owned()];
+        assert!(parse_model_arguments(&values).is_err());
+        let parsed = Cli::try_parse_from(["openrust", "g", "model", "post", "title:string"]);
+        assert!(parsed.is_ok());
     }
 
     #[test]

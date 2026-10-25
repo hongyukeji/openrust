@@ -2,11 +2,11 @@
 
 > 受众：AI Agent
 > 更新：2026-10-25
-> 摘要：v1 版本共 M0-M6 七个里程碑，当前在 M2。详细交付与验收见 [v1 版本计划](plans/gen1-plan.md)「里程碑」。
+> 摘要：v1 版本共 M0-M6 七个里程碑，当前在 M3。详细交付与验收见 [v1 版本计划](plans/gen1-plan.md)「里程碑」。
 
 ## 当前里程碑
 
-M0 决策与基线、M1 内核与 HTTP 已完成。M1 生成项目的 `cargo test` 验收通过。M2 `openrust-db` 连接池、事务辅助、SeaORM 迁移 runner、UTC/JSON 方言列 helper、应用 seed 命令、`openrust-test` 每用例数据库隔离和 `openrust new --db postgres|mysql` 模板已实现；workspace MSRV 为 Rust 1.97，MySQL 使用强制 TLS，并在 PostgreSQL 14 / MySQL 8.0 验证连接、事务、`SKIP LOCKED`、迁移、列类型、seed 命令和数据库隔离；双库生成项目的 `cargo check` / `cargo test` 通过。后续数据层工作见 `todo.md`。
+M0、M1、M2 已完成。M1 生成项目的 `cargo test` 验收通过。M2 `openrust-db` 连接池、事务辅助、SeaORM 迁移 runner、UTC/JSON 方言列 helper、应用 seed 命令、`openrust-test` 每用例数据库隔离、`openrust new --db postgres|mysql`、`generate model` / `generate migration` 均已实现；workspace MSRV 为 Rust 1.97，MySQL 使用强制 TLS。PostgreSQL 14 / MySQL 8.0 的连接、事务、`SKIP LOCKED`、迁移、列类型、seed 命令、数据库隔离，以及双库生成项目编译、测试与生成迁移 up/status/down 均已验证。当前开始 M3，见 `todo.md`。
 
 实现与生成器命名遵循 [ADR-006](decisions/adr-006-rust-native-naming.md)：项目采用 `controllers/`、`models/_entities/` 和独立 `migration/` crate；全局 CLI 为 `new`、`dev`、`generate` / `g`，运行期命令由项目二进制提供。
 
