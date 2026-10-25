@@ -13,6 +13,9 @@ Cargo.lock.bak
 *.swp
 .DS_Store
 
+# AI agent worktrees
+/.claude/worktrees/
+
 # Local environment
 .env
 .env.*.local
