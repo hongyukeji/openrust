@@ -33,7 +33,7 @@
 
 | 能力 | 默认 | 可选 feature |
 | --- | --- | --- |
-| 队列 | 自研数据库队列（M0 spike 对比 `apalis`） | `queue-redis`（`redis` crate） |
+| 队列 | 自研数据库队列（[ADR-003](decisions/adr-003-database-queue-default.md)，不依赖 `apalis`） | `queue-redis`（`redis` crate） |
 | 调度 | 自研 `Schedule` + `cron` 解析 | — |
 | 缓存 | `moka`（进程内） | `cache-redis` |
 | 存储 | `opendal`（fs） | `storage-s3` |
