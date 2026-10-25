@@ -21,7 +21,8 @@
 
 | 对象 | 规则 | 示例 |
 | --- | --- | --- |
-| crate | `openrust-<capability>` | `openrust-queue` |
+| 可发布 crate 的 Cargo 包名 | `openrust-<capability>`；源码目录使用中性能力名 | 包 `openrust-queue`，目录 `crates/queue` |
+| 聚合应用 Cargo 包名 | 按 `apps/<role>` 使用中性名称，`publish = false` | 目录 `apps/server`，包/二进制 `server` |
 | driver 类型 | `<Backend><Capability>` | `RedisCache`、`DatabaseQueue` |
 | 配置结构 | `<Capability>Config` | `QueueConfig` |
 | 错误类型 | `<Capability>Error` | `QueueError` |
@@ -44,7 +45,7 @@
 
 - 每个已实现的新能力在同一功能簇内接入 `apps/server`，并补聚合应用集成测试；这是能力完成定义的一部分。
 - 不需要外部服务的能力始终启用；需要外部服务的能力按 ADR-007 添加 feature 并转发给门面。当前 M1 不设空 feature。
-- `openrust-server` 的正式依赖只包含门面 `openrust`，不承载业务资源。
+- `server` 的正式依赖只包含门面 `openrust`，不承载业务资源。
 
 ### 起名前三问
 
