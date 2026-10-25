@@ -14,7 +14,7 @@ Loco 的框架主体是仓库根 Cargo package，因此根 `src/`、根 `tests/`
 - 保持 OpenRust workspace 结构：能力 crate 位于 `crates/<capability>/`，内部聚合启动与集成验证宿主位于 `apps/server/`。每个 Cargo package 自己拥有 `src/`，需要集成测试的 package 自己拥有 `tests/`；workspace 根目录不新增一个承载框架主体的 `src/` 或泛化 `tests/`。
 - 保留 `apps/server`。它不是用户业务应用的替代物，而是只依赖 `openrust` 门面的聚合启动入口和集成验证宿主。移除它会丢失统一启动、门面 API 的端到端验证及能力接入验收锚点；这些职责需要显式承接后，才有理由重新评估其位置。
 - 独立业务示例统一放仓库根 `examples/`，例如计划中的 `examples/blog`；示例应用应能通过明确的 Cargo workspace/package 配置独立构建和测试。单个 crate 的最小 API 示例仍可遵循 Cargo 约定放在该 crate 的 `examples/`。
-- 应用的 TOML/YAML 等运行时配置文件放在应用根目录 `config/`，与 `src/` 并列，使配置可独立挂载、编辑和部署；`src/config.rs` 或 `src/config/` 用于 Rust 配置加载、类型和校验代码，不用于存放运行时配置文件。
+- 应用的 TOML/YAML 等运行时配置文件放在应用根目录 `config/`，与 `src/` 并列，使配置可独立挂载、编辑和部署；Rust 配置加载、类型和校验代码采用 `src/config/` 模块目录（`mod.rs` 为入口），不把运行时配置文件放入源码目录。
 - 借鉴 Loco 的独立业务示例、清晰的应用级测试、可预测的配置发现和生成项目启动验收；不照搬其单主包拓扑，也不因此把 OpenRust 的多个框架 crate 收并到一个 package。
 
 ## 影响与迁移

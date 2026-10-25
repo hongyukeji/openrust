@@ -18,7 +18,7 @@
 
 - 应用中性命名按 [ADR-016](decisions/adr-016-neutral-application-namespaces.md)：默认环境变量 `APP_`（允许启动前定制命名空间），默认表前缀 `tb_`（可改自定义或空前缀并支持显式表映射）；代码、schema、模板迁移尚待实现，旧品牌前缀不能作为新设计 contract。
 - OpenRust 核心目标架构按 [ADR-021](decisions/adr-021-loco-style-module-layout.md)：根 `src/` 放框架能力 modules，`apps/` 保留为同一仓库/workspace 内应用目录约定，`examples/` 放可复用示例，根 `tests/` 验证框架公共 API。当前 `apps/server` 是内部集成宿主；等根测试与示例覆盖其职责后才决定移除该应用，不删除 `apps/` 约定。当前 M3 认证 WIP 闭环前不搬代码。
-- 生成项目中的运行时配置文件在项目根 `config/`；`src/config.rs` 放 Rust 配置代码，不将 TOML/YAML 文件置于 `src/`。
+- 生成项目中的运行时配置文件在项目根 `config/`；Rust 配置代码放 `src/config/` 模块目录，建议以 `mod.rs` 为入口，按复杂度拆分，不将 TOML/YAML 文件置于 `src/`。
 
 - AI 平台为基于 OpenRust 的独立产品，最终按 [OpenRouter 对标计划](plans/ai-platform-openrouter-parity.md) 复刻公开功能与流程（MVP 非终点），须待框架 v1/v2 完整体成熟后再由开发者决定立项，平台完全体 P0–P8 验收通过并获上线批准后才对外开放；当前仅规划、不启动实现，后续开发必须使用 `projects/*` 分支和独立 worktree，产品业务不得进入框架核心或改变通用契约，详见 [产品计划](plans/ai-platform-product.md)。
 

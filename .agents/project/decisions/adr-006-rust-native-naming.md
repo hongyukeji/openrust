@@ -38,7 +38,8 @@
 ├── src/
 │   ├── main.rs             # 只调用 openrust::run::<App>()
 │   ├── app.rs              # impl Application：plugins、routes、jobs、schedule
-│   ├── config.rs           # 业务配置
+│   ├── config/             # Rust 配置加载、业务配置类型与校验模块
+│   │   └── mod.rs
 │   ├── routes.rs
 │   ├── schedule.rs
 │   ├── seed.rs             # `db seed` 入口，普通 async fn
