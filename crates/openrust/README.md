@@ -31,6 +31,6 @@ fn main() -> std::process::ExitCode {
 
 The facade re-exports the resource controller macro as `#[openrust::resource]`. Apply it to an inherent controller `impl` containing `list`, `get`, `create`, `update` and/or `delete` associated handlers to implement `Resource`.
 
-Enable `db-postgres` or `db-mysql` to include the optional database layer and use `DatabasePlugin`, `Db`, and `MigrationPlugin` from the facade. The SeaORM migration API is re-exported under `openrust::database::sea_orm_migration`. See the [`openrust-db` README](../openrust-db/README.md) for connection and migration commands.
+Enable `db-postgres` or `db-mysql` to include the optional database layer and use `DatabasePlugin`, `Db`, `MigrationPlugin`, and `SeedPlugin` from the facade. The SeaORM migration API is re-exported under `openrust::database::sea_orm_migration`. See the [`openrust-db` README](../openrust-db/README.md) for connection and migration commands.
 
 The prelude exports OpenRust `Json<T>`, `Path<T>` and `Query<T>` extractors. They render parse failures as `ApiResponse<T>` JSON envelopes; `Json<T>` is also a response type. Axum's original types remain available through `openrust::http::axum`. For example, `async fn show() -> Json<&'static str> { Json("ok") }` returns JSON.

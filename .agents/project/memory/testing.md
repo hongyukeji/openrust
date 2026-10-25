@@ -20,6 +20,8 @@ RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 
 M2：`openrust-db` 有迁移参数与连接配置单测；`tests/connection.rs` 覆盖连接、事务提交/回滚、`SKIP LOCKED`，`tests/migration.rs` 覆盖运行期 migrate up 重复执行、status、down/重放、`db seed` 命令调用，并查询 `information_schema` 验证时间与 JSON 列类型。`openrust-test/tests/database.rs` 在 PostgreSQL 14 / MySQL 8.0 验证每用例独立库、迁移和数据隔离；MySQL 隔离测试用 root admin URL。MySQL 强制 TLS，测试断言非空 TLS cipher 与 `+00:00` 会话时区。MSRV `cargo +1.97.0 check --workspace --all-targets --all-features` 通过。测试服务通过 `compose.ci.yaml` 启动。
 
+`openrust new --db postgres` 与 `--db mysql` 生成项目均通过 `cargo check` 和 `cargo test`；仓库内验收用 Cargo `patch.crates-io.openrust.path` 指向本地 facade。`openrust-cli` 单测覆盖两种模板文件与插件注册。
+
 测试数：`openrust-core` 31 个单元测试（含分页 `PageMeta` 保留、配置目录覆盖、`.env` 选择生产时跳过其余变量、无 HTTP 插件的命令边界），`openrust-http` 49 个集成测试（`tests/router.rs` 33 个、`tests/resource.rs` 16 个），`openrust-server` 6 个集成测试（含资源宏全部动作路由映射）；`openrust` 1 个单元测试。
 
 ## 双库集成（M2 起）

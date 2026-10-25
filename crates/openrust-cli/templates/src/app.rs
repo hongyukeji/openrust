@@ -9,6 +9,6 @@ impl Application for {{type_name}} {
     type Config = NoConfig;
 
     fn build(app: &mut AppBuilder) {
-        app.plugin(HttpPlugin).routes(routes::register);
+        app.plugin(HttpPlugin){{database_plugins}}{{migration_plugin}}.routes(routes::register);
     }
 }

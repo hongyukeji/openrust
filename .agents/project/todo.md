@@ -10,7 +10,7 @@
 
 ## M2 数据层（进行中）
 
-- 后续 M2 功能簇：`generate model` / `generate migration`、`openrust new --db` 模板与数据库层 M2 验收收口。
+- 后续 M2 功能簇：`generate model` / `generate migration` 与数据库层 M2 验收收口。
 
 ## M3 邮件、认证与授权（M2 收口后领取）
 
