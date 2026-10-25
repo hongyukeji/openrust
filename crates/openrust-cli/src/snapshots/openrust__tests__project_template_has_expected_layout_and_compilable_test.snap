@@ -28,6 +28,7 @@ host = "127.0.0.1"
 port = 3000
 request_timeout_secs = 30
 shutdown_timeout_secs = 10
+trusted_proxy_ranges = []
 
 [server.compression]
 enabled = true
@@ -40,6 +41,12 @@ http_status = "always_ok"
 
 [mail]
 driver = "log"
+
+[session]
+secure = true
+http_only = true
+same_site = "lax"
+ttl_secs = 1209600
 
 --- src/main.rs ---
 //! Application entry point.
@@ -64,7 +71,9 @@ impl Application for Blog {
     type Config = NoConfig;
 
     fn build(app: &mut AppBuilder) {
-        app.plugin(HttpPlugin).plugin(MailerPlugin).routes(routes::register);
+        app.plugin(HttpPlugin)
+            .plugin(MailerPlugin)
+            .routes(routes::register);
     }
 }
 
@@ -76,13 +85,19 @@ pub fn register(routes: Routes) -> Routes {
 }
 
 async fn root() -> Json<std::collections::BTreeMap<&'static str, &'static str>> {
-    Json(std::collections::BTreeMap::from([("name", env!("CARGO_PKG_NAME"))]))
+    Json(std::collections::BTreeMap::from([(
+        "name",
+        env!("CARGO_PKG_NAME"),
+    )]))
 }
 
 --- tests/application.rs ---
 #[test]
 fn application_package_is_generated() {
-    assert_eq!(env!("CARGO_PKG_NAME"), "blog");
+    assert_eq!(
+        env!("CARGO_PKG_NAME"),
+        "blog"
+    );
 }
 
 --- AGENTS.md ---

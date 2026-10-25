@@ -1,7 +1,21 @@
+[package]
+name = "openrust"
+description = "OpenRust: an opinionated, batteries-included Rust application framework. Create a project, run one command, start writing business code."
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+categories.workspace = true
+keywords.workspace = true
+
 [workspace]
 resolver = "3"
-members = ["crates/*", "apps/*"]
-default-members = ["apps/server"]
+members = ["crates/openrust-cli", "crates/openrust-macros", "crates/openrust-test", "apps/server"]
+default-members = [".", "crates/openrust-cli", "crates/openrust-macros", "crates/openrust-test", "apps/server"]
 
 [workspace.package]
 version = "0.0.0"
@@ -15,18 +29,9 @@ categories = ["web-programming", "web-programming::http-server"]
 keywords = ["framework", "web", "axum", "batteries-included", "backend"]
 
 [workspace.dependencies]
-openrust = { path = "crates/openrust", version = "0.0.0" }
-openrust-core = { path = "crates/openrust-core", version = "0.0.0" }
-openrust-http = { path = "crates/openrust-http", version = "0.0.0" }
-openrust-auth = { path = "crates/openrust-auth", version = "0.0.0" }
-openrust-cache = { path = "crates/openrust-cache", version = "0.0.0" }
+openrust = { path = ".", version = "0.0.0" }
 openrust-cli = { path = "crates/openrust-cli", version = "0.0.0" }
-openrust-db = { path = "crates/openrust-db", version = "0.0.0" }
-openrust-events = { path = "crates/openrust-events", version = "0.0.0" }
 openrust-macros = { path = "crates/openrust-macros", version = "0.0.0" }
-openrust-mail = { path = "crates/openrust-mail", version = "0.0.0" }
-openrust-queue = { path = "crates/openrust-queue", version = "0.0.0" }
-openrust-storage = { path = "crates/openrust-storage", version = "0.0.0" }
 openrust-test = { path = "crates/openrust-test", version = "0.0.0" }
 
 tokio = { version = "1.54", features = ["rt-multi-thread", "macros", "signal", "net", "time"] }
@@ -34,6 +39,11 @@ axum = { version = "0.8", features = ["macros"] }
 axum-core = "0.5"
 tower = "0.5"
 tower-http = { version = "0.7", features = ["trace", "request-id", "timeout", "catch-panic", "util", "cors", "compression-gzip", "compression-br"] }
+tower-sessions = { version = "0.15", default-features = false, features = ["axum-core"] }
+jsonwebtoken = { version = "11.1", default-features = false, features = ["aws_lc_rs"] }
+argon2 = "0.6"
+base64 = "0.22"
+getrandom = "0.3"
 http = "1.5"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -49,6 +59,11 @@ quote = "1.0"
 syn = { version = "2.0", features = ["full"] }
 sea-orm = { version = "2.0.4", default-features = false, features = ["macros", "with-chrono", "with-json", "runtime-tokio-rustls"] }
 sea-orm-migration = { version = "2.0.4", default-features = false, features = ["runtime-tokio-rustls"] }
+sha2 = "0.10"
+subtle = "2.6"
+chrono = { version = "0.4", features = ["serde"] }
+time = { version = "0.3", features = ["serde"] }
+async-trait = "0.1"
 url = "2.5"
 sqlx = { version = "0.9", default-features = false }
 toml = "1.1"
@@ -74,6 +89,63 @@ missing_errors_doc = "allow"
 # crate 名已表达能力域，类型名允许重复该前缀（如 `QueueConfig`）。
 module_name_repetitions = "allow"
 must_use_candidate = "allow"
+
+[dependencies]
+axum.workspace = true
+axum-core.workspace = true
+argon2 = { workspace = true, optional = true }
+async-trait.workspace = true
+base64 = { workspace = true, optional = true }
+chrono = { workspace = true, optional = true }
+dotenvy.workspace = true
+figment.workspace = true
+getrandom = { workspace = true, optional = true }
+http.workspace = true
+jsonwebtoken = { workspace = true, optional = true }
+lettre.workspace = true
+openrust-macros.workspace = true
+sea-orm.workspace = true
+sea-orm-migration.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+sqlx = { workspace = true, optional = true }
+subtle = { workspace = true, optional = true }
+thiserror.workspace = true
+time = { workspace = true, optional = true }
+tokio.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+tower-sessions = { workspace = true, optional = true }
+toml.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+validator.workspace = true
+
+[dev-dependencies]
+figment = { workspace = true, features = ["test"] }
+serde_json.workspace = true
+tower-sessions = { workspace = true, features = ["memory-store"] }
+
+[features]
+default = []
+db-postgres = ["sea-orm/sqlx-postgres", "sea-orm-migration/sqlx-postgres"]
+db-mysql = ["sea-orm/sqlx-mysql", "sea-orm-migration/sqlx-mysql", "dep:sqlx", "sqlx/mysql"]
+auth = [
+    "dep:argon2",
+    "dep:base64",
+    "dep:chrono",
+    "dep:getrandom",
+    "dep:jsonwebtoken",
+    "dep:subtle",
+    "dep:time",
+    "dep:tower-sessions",
+]
+mail-smtp = ["lettre/smtp-transport", "lettre/tokio1-rustls-tls"]
+test-util = []
+
+[lints]
+workspace = true
 
 [profile.dev]
 opt-level = 0

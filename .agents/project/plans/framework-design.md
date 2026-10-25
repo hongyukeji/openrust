@@ -82,6 +82,36 @@ OpenSpring 可作为设计参考，编程思想与问题解决方法可以跨语
 - v1 参考通用基础设施与多副本正确性；v2 再参考后台产品模块与操作流程。采纳后仍执行本项目双库、集群、安全、性能与易用性验收，不能用参考项目可用代替本项目证据。
 - 借鉴思路不要求复制代码；实际复用代码时核对许可证、记录来源并按要求保留声明。
 
+## 框架参考与对标
+
+按用户指定顺序参考 Loco、Laravel、Goravel、OpenSpring、RuoYi 若依、芋道。六者按同一套维度综合横向评估：整体架构与模块边界、项目结构与启动体验、通用能力覆盖、扩展机制、测试与工具链、性能与资源边界、部署运维和安全性。不设唯一优先对象，不把任何一个参考项目限定为某一类设计的专属来源；按项目定位解释证据适用范围，最终以 OpenRust 的 Rust 语义、V1/V2 范围和自身验证结果决策。
+
+| 参考对象（按指定顺序） | 项目类型与范围说明 |
+| --- | --- |
+| [Loco](https://github.com/loco-rs/loco) | Rust 应用框架；与其余参照对象按相同维度综合对照 |
+| [Laravel](https://laravel.com/docs) | PHP 应用框架；与其余参照对象按相同维度综合对照 |
+| [Goravel](https://www.goravel.dev/) | Go 应用框架；与其余参照对象按相同维度综合对照 |
+| OpenSpring | Java 应用框架；需要借鉴具体实现时先只读核对当前源码，再按相同维度综合对照 |
+| [若依（RuoYi）](https://github.com/yangzongzhuan/RuoYi-Vue) | Java 后台管理框架；后台业务模型和 UI 的落位按 V1/V2 边界判断 |
+| [芋道（RuoYi-Vue-Pro）](https://github.com/YunaiV/ruoyi-vue-pro) | Java 后台开发平台；后台业务模块是否适用按 V1/V2 边界判断 |
+
+综合评估时只提炼能解决 OpenRust 实际问题的设计，不直接照搬 PHP/Go/Java 运行时机制、术语或业务模块；RuoYi 与芋道的后台范围不会因此进入 V1 框架 core。
+
+OpenRouter 是独立 AI 平台产品的产品对标对象，不列入上述框架参考清单。
+
+### 对标审计：已规划能力与候选缺口
+
+按上述框架的官方功能面与本仓库 V1/V2 计划交叉检查后，认证授权、验证、缓存/多实例、邮件短信、队列调度、事件、文件存储、国际化、加密、审计、限流、幂等、实时通信、CLI/生成器、测试、集群和现成后台均已有对应计划。对标项目提供某项能力并不自动成为 OpenRust 的承诺；以下是现有计划中尚未明确安排、值得保留入口评估的项目：
+
+| 候选 | 当前规划状态 | 建议归属与判断 |
+| --- | --- | --- |
+| gRPC 服务端/客户端 | Gen1 明确将 gRPC 与 GraphQL 排除在 V1 范围外，后续路线没有具体评估项 | 加入 V2 候选评估；仅在内部服务/跨语言 RPC 用户需求明确时设计，评估与现有 HTTP/auth/config/health/telemetry 的集成，不列为 V1 阻塞 |
+| GraphQL | Gen1 明确不纳入 V1，后续路线没有具体评估项 | 加入 V2 候选评估；仅在客户端需要按需组合图数据且 REST/OpenAPI 无法合理满足时评估，优先复用认证、授权、限流和可观测性契约 |
+| 数据库测试工厂/fixtures | 当前使用 `fake::Dummy` 和普通 builder；不提供通用 Factory trait（ADR-006、ADR-010） | 保持 V1 无隐式工厂系统；V2 评估轻量、显式、可组合的测试数据构造工具是否能减少真实数据库集成测试样板。不得复制 ORM 或要求所有模型实现框架 trait |
+| 服务端页面渲染 | V1 API 优先；页面渲染仅列为 V2 评估候选 | 保留 V2 候选；若采纳，作为可选 starter/feature，不使纯 API 项目依赖模板引擎或承担 CSRF/页面栈配置 |
+
+不作为未规划缺口的项目：RuoYi 的组织/菜单/数据权限 UI 已归 V2；OAuth/SSO/MFA、多租户、更多数据库、持久离线消息已列为候选；GraphQL 明确不属于 V1；任意流程引擎、支付、电商、CRM/ERP 属于产品模块，不因出现在参考项目中而塞入通用 core。候选只记录评估入口，不代表已承诺实现。
+
 ## v1 通用能力补齐
 
 国际化、WebSocket、统一出站 HTTP、加密与密钥管理、审计和请求幂等纳入 v1。其最小范围、推荐方案、里程碑与验收见 [通用能力计划](v1-common-capabilities.md)。优先复用既有能力 crate 与成熟实现；公共 API、配置和依赖选型先定 contract，不自动为每项能力新增 crate。
@@ -90,28 +120,19 @@ OpenSpring 可作为设计参考，编程思想与问题解决方法可以跨语
 
 ```text
 openrust/
-├── Cargo.toml                 # workspace、[workspace.lints]、统一依赖版本
+├── Cargo.toml                 # 根 openrust package 与 workspace
+├── src/                       # 已实现的 config、core、http、db、auth、mail 模块
+├── tests/                     # 框架公共 API 集成测试
+├── examples/                  # 可运行示例
 ├── crates/
-│   ├── openrust/              # 门面 crate：re-export、prelude、feature 开关
-│   ├── openrust-core/         # Application、AppBuilder、Plugin、Config、Error、生命周期
-│   ├── openrust-http/         # Router 约定、提取器、中间件栈、统一响应包装、健康检查
-│   ├── openrust-db/           # 连接池、迁移运行器、事务、方言边界
-│   ├── openrust-auth/         # 用户约定、密码哈希、认证策略、Policy、密码重置、邮箱验证
-│   ├── openrust-queue/        # Job、Queue driver、重试、失败表、调度器
-│   ├── openrust-events/       # Event / Listener
-│   ├── openrust-cache/        # Cache trait、memory / file / redis driver
-│   ├── openrust-storage/      # Storage trait、OpenDAL 适配
-│   ├── openrust-mail/         # Email、Mailer、smtp / log / fake driver
-│   ├── openrust-macros/       # Resource 属性宏；M4 加 Job、Event derive
-│   ├── openrust-test/         # TestApp、HTTP 测试客户端、数据库隔离、fake driver 断言
-│   └── openrust-cli/          # `openrust` 二进制：new / dev / generate <kind> / 运行命令代理
-├── templates/                 # `openrust new` 项目模板（按数据库后端渲染）
-├── examples/blog/             # 黄金路径示例应用，CI 每次构建
-├── docs/                      # mdBook 文档站
-└── xtask/                     # 仓库维护任务：双库矩阵、模板快照测试、发布检查
+│   ├── openrust-cli/          # `openrust` 命令、模板与运行命令代理
+│   ├── openrust-macros/       # proc-macro package
+│   └── openrust-test/         # 用户 dev-dependency：数据库隔离与测试辅助
+├── apps/server/               # 聚合启动与集成验收宿主
+└── docs/                      # M6 建立 mdBook 文档站
 ```
 
-crate 拆分按发布与编译边界确定。v1 版本允许 `events` 与调度器先作为 `core` / `queue` 的模块，出现独立发布需求再拆出；不为拆而拆。
+框架能力直接作为根 package 的 Rust 模块；尚未实现的 queue、events、cache、storage 在各自里程碑以非空实现落入 `src/`，不预建空模块。独立 package 仅保留 CLI、proc-macro、用户测试工具和聚合 server 等明确的发布或验收边界。详细依据见 [ADR-021](../decisions/adr-021-loco-style-module-layout.md)。
 
 ## 生成的应用布局
 
@@ -242,7 +263,7 @@ pub async fn create(
 - SeaORM 2.x 作为 ORM，`sea-orm-migration` 管理迁移；`db.sqlx()` 当前尚未实现，不属于公共 contract；若后续提供 SQLx 直连入口，须先明确 feature、连接生命周期和使用边界。
 - 命名约定：表名 snake_case 复数；主键 `id BIGINT` 自增；`created_at` / `updated_at` 必备；软删除通过 `--soft-delete` 生成 `deleted_at` 并接入查询默认过滤；`--uuid` 生成 UUIDv7 主键。
 - 时间统一 UTC：PostgreSQL 用 `timestamptz`，MySQL 用 `DATETIME(6)`；JSON 列 PostgreSQL 用 `jsonb`，MySQL 用 `json`；框架表不使用数组、枚举等单库特性。
-- 双库边界：迁移只用 `sea-orm-migration` 可移植列类型；必须分方言的 SQL 集中在 `openrust-db::dialect`，每个分支必须同时提供两库实现并有双库测试。
+- 双库边界：迁移只用 `sea-orm-migration` 可移植列类型；必须分方言的 SQL 集中在 `openrust::db::dialect`，每个分支必须同时提供两库实现并有双库测试。
 - 事务：`db.transaction(|tx| async move { ... }).await`，闭包返回 `Err` 自动回滚；服务层接收 `&DatabaseTransaction` 或 `&Db` 的统一 `ConnectionTrait`。
 - 连接池参数、慢查询日志阈值、语句超时在 `[database]` 配置段统一。
 - 测试隔离：每个测试用例使用独立数据库，由迁移后的模板库复制（PostgreSQL `CREATE DATABASE ... TEMPLATE`，MySQL 迁移结果缓存后重放），测试结束丢弃。
@@ -301,8 +322,9 @@ queue.dispatch(SendWelcomeEmail { user_id }).delay(Duration::from_secs(60)).awai
 
 ## 测试工具
 
-- `TestApp::spawn().await` 以 `APP_ENV=test` 启动应用并自动使用 fake driver；`app.client().post("/api/posts").json(&input).send().await` 返回可链式断言的响应（`assert_status` / `assert_json_path` / `assert_envelope`）。
-- 数据库隔离按「数据层」约定，每个用例独立数据库。
+- 本节是目标设计示例，不是当前 API。M6 按 [ADR-023](../decisions/adr-023-loco-application-experience-evaluation.md) 实现薄 `TestApp` / HTTP assertions：复用 finalize、公开 router 与 Tower oneshot；driver/fake 通过显式 plugin 或配置替换，不默认静默替换。
+- 响应入口可提供状态、headers、JSON path 与 OpenRust envelope 断言；具体 builder/response API 在 M6 contract 中确定，不把示意调用当作已实现公共 API。
+- 数据库隔离按「数据层」约定复用现有 `TestDatabase`，每个用例独立数据库；当前 `openrust-test` 只交付该数据库隔离工具。
 - fake driver 断言：`Queue::fake().assert_dispatched::<SendWelcomeEmail>()`、`Mailer::fake().assert_sent_to("a@b.c")`、`Storage::fake().assert_exists(path)`。
 - 测试数据由 `fake::Dummy` 与普通 builder 构造；数据库初始化通过 `src/seed.rs` 的 async 函数完成。
 - 时间通过 `Clock` 服务注入，测试可冻结或推进。

@@ -1,50 +1,59 @@
 # 架构
 
 > 受众：AI Agent
-> 更新：2026-10-25
-> 摘要：OpenRust 的 crate 分层与依赖方向。详细设计见 [框架设计](plans/framework-design.md)，代码落地后各 crate 事实写入 `core/<crate>.md`。
+> 更新：2026-10-26
+> 摘要：根 `openrust` package 以 Rust modules 承载框架能力；CLI、proc-macro、测试工具与聚合应用保留独立 workspace package。详细设计见 [框架设计](plans/framework-design.md)。
 
-## 分层
+## Workspace 与源码布局
 
 ```text
-apps/server ── openrust（仓库聚合入口、集成验证宿主）
-openrust-cli ───────────────┐           （全局工具：new / dev / generate <kind>，代理运行命令）
-                            ▼
-openrust（门面：prelude、feature、re-export）
-   ├── openrust-http ─── openrust-core
-   ├── openrust-macros（re-export `#[openrust::resource]`）
-   ├── openrust-db ──── openrust-core + SeaORM（可选 PostgreSQL / MySQL drivers）
-   ├── openrust-auth ── openrust-http + openrust-db + openrust-mail
-   ├── openrust-queue ─ openrust-db（database driver）
-   ├── openrust-events  openrust-core（+ openrust-queue 可选）
-   └── openrust-cache / openrust-storage / openrust-mail ── openrust-core
-openrust-test ── 依赖门面，提供 TestApp 与 fake driver 断言
+openrust (根 package + workspace)
+├── src/config/      # Rust 配置加载、类型与校验
+├── src/core/        # Application、AppBuilder、Plugin、Command、Error
+├── src/http/        # Axum routes、extractors、Tower middleware、serve
+├── src/db/          # SeaORM 连接、迁移、seed、方言及 table resolver
+├── src/auth/        # JWT、Session、refresh、PAT、认证流程与 Policy
+├── src/mail/        # Email/Mailer 与可选 SMTP
+├── tests/           # 框架公共 API 集成测试
+└── examples/        # 可运行示例
+crates/openrust-cli/     # 独立 `openrust` 命令行与模板
+crates/openrust-macros/  # proc-macro package
+crates/openrust-test/    # 用户 dev-dependency 测试工具
+apps/server/             # 同仓库集成宿主；通过验收替代后才可移除
 ```
+
+框架源码 Rust 模块与运行时配置文件分开：源码位于根 `src/config/`，每个应用（含生成项目）在自身项目根 `config/` 放 TOML/YAML。仓库 `apps/` 是 workspace 内应用目录约定；`openrust new` 创建的是独立项目，具有自己的 `src/`、`config/` 和 `Cargo.toml`。
+
+`cargo metadata --no-deps` 的五个 workspace package 为：根 `openrust`（框架），`openrust-cli`（命令分发），`openrust-macros`（proc-macro 技术边界），`openrust-test`（用户测试 dev-dependency），`openrust-server`（聚合启动与验收宿主）。未实现的 cache/events/queue/storage 空壳已移除；计划中的能力在对应里程碑作为根 package modules 实现，不预建空模块。
 
 ## 依赖规则
 
-- 所有能力 crate 只依赖 `openrust-core` 与所需的同层 crate，不反向依赖门面 `openrust`。
-- `openrust-core` 只依赖 tokio / serde / tracing / figment 与 `axum-core`（仅为让 `Error` 实现 `IntoResponse`，避免用户面对两种 `Result`），不依赖 axum 路由层或任何数据库驱动。
-- 数据库驱动、Redis、S3、SMTP、OpenTelemetry 一律通过 feature 开启；门面 crate 默认不含数据库驱动。
-- 单库专属 SQL 只能出现在 `openrust-db::dialect`，并同时提供 PostgreSQL 与 MySQL 分支。
-- 生成的应用只依赖门面 `openrust`（及 `openrust-test` 作为 dev-dependency），不直接依赖子 crate。
-- `apps/server` 同样只依赖门面，随已实现能力扩展并补集成测试；它不发布。
+- 所有框架能力属于同一个 `openrust` package，内部引用沿 `core/config` 等 module boundary；公共稳定入口保持 `openrust::...`。
+- 根 package 可选数据库 driver、SMTP 等依赖由 Cargo features 控制；默认构建无需数据库驱动或外部服务。
+- PostgreSQL 与 MySQL 的 schema/SQL 差异集中在 `db::dialect` 及明确的数据库适配入口，需为两库提供分支和真实测试。
+- 生成应用只依赖 `openrust`；`openrust-test` 单向依赖 `openrust`，根框架不得反向依赖测试工具。
+- `apps/server` 只依赖公开 facade；继续承载尚未由根 `tests/` / `examples/` 等价接替的启动、feature 组合、生成项目和双库验收。
+- 只有存在技术或分发理由时才保留 package；不得为规划中的能力机械增设空 crate 或空 module。
+
+`openrust-test` 当前提供 `TestDatabase` 隔离工具；公共 `TestApp` / HTTP response assertions 是计划中的 M6 测试体验补齐，不应按 crate 描述或历史计划文字误判为已实现。
 
 ## 当前状态
 
-| crate | 状态 |
+| 边界 | 当前实现与事实 |
 | --- | --- |
-| `openrust-core` | M0 已实现：`Application` / `AppBuilder` / `App` / `AppState` / `Plugin` / `Command` / `Error` / 配置分层 / 生命周期，见 [core/core.md](core/core.md) |
-| `openrust-http` | M0 已实现：`HttpPlugin` / `Routes` / `Validated` / `Inject` / 中间件栈 / `/health` / `serve`，见 [core/http.md](core/http.md) |
-| `openrust` | 门面与 `run`，见 [core/facade.md](core/facade.md) |
-| `openrust-db` | M2 `DatabaseConfig` / `DatabasePlugin` / `Db` 连接池、事务和 `MigrationPlugin`，见 [core/db.md](core/db.md) |
-| `openrust-macros` | `#[openrust::resource]` 控制器宏，见 [core/macros.md](core/macros.md) |
-| `openrust-cli` | 生成项目、启动开发服务并代理运行命令，见 [core/cli.md](core/cli.md) |
-| `apps/server` | M1 聚合入口：HTTP、默认中间件、`/health` 与根路由，见 [core/server.md](core/server.md) |
-| 其余 crate | 空壳，README 列出规划 surface |
+| `openrust::core`、`openrust::config` | Application/AppBuilder/AppState/Plugin/Command、错误与生命周期、分层配置；见 [core/core.md](core/core.md) |
+| `openrust::http` | HttpPlugin、Routes、Validated、Inject、中间件、health/serve；根 `tests/http_*.rs` 覆盖 HTTP 行为；见 [core/http.md](core/http.md) |
+| `openrust::db` | SeaORM 双库、连接池、事务、migration/seed、方言与表名解析；基础读写分离尚未实现；见 [core/db.md](core/db.md) |
+| `openrust::auth` | JWT、Session、refresh、PAT、验证码、AuthFlows、Policy/RBAC 的现有 WIP 已随源码迁移；继续独立按 M3 验收，不把路径迁移算成功能完成；见 [core/auth.md](core/auth.md) |
+| `openrust::mail` | Email/Mailer 的 log、fake、可选 SMTP；见 [core/mail.md](core/mail.md) |
+| `openrust-cli` | new/dev/generate 与模板，见 [core/cli.md](core/cli.md) |
+| `openrust-macros` | `#[openrust::resource]` proc-macro，见 [core/macros.md](core/macros.md) |
+| `openrust-test` | PostgreSQL/MySQL `TestDatabase`，见 [core/test.md](core/test.md) |
+| `apps/server` | 聚合入口及启动/数据库/认证集成验证，见 [core/server.md](core/server.md) |
+| cache/events/queue/storage | 尚未实现；按 v1 计划后续在 root package 按能力实现 |
 
 ## 扩展模型
 
-应用模块与第三方包都通过实现 `Plugin` 接入：`build` 阶段向 `AppBuilder` 插入服务并追加路由、迁移、配置段、命令与调度；所有插件构建完成并冻结后依次调用 `finish`。不提供动态插件加载。
+应用模块与第三方包都通过 `Plugin` 接入：`build` 阶段同步注册服务、命令、路由、迁移、配置段等；所有插件构建完成并冻结后按注册序依次调用异步 `finish`。HTTP 路由复用 `RouteRegistry` 与 Tower middleware。当前没有并列的全局 Hooks API，也没有插件 shutdown callback；生命周期扩展边界见 [ADR-023](decisions/adr-023-loco-application-experience-evaluation.md)。不提供动态插件加载。
 
-能力驱动的设计与审查遵循 [ADR-009](decisions/adr-009-extensible-capability-drivers.md)：提供常用默认实现与可由第三方接入的公共契约，集中后端差异，明确能力边界。数据库扩展沿用 SeaORM `DatabaseConnection`、`Db` 和 `Plugin` 生命周期；v1 正式支持 PostgreSQL/MySQL，不把其他 backend 的连接成功视为完整框架支持。该决策记录数据库和缓存需求，不代表所有扩展入口及驱动已经实现；多实例使用及其他通用机制按 [v1 覆盖计划](plans/v1-capability-coverage.md) 交付，具体命名与布局仍待决策。
+能力驱动遵循 [ADR-009](decisions/adr-009-extensible-capability-drivers.md)：提供可靠默认实现与可由第三方接入的公开契约，集中后端差异并明确能力边界。数据库扩展沿用 SeaORM `DatabaseConnection`、`Db` 和 Plugin 生命周期；v1 官方支持 PostgreSQL/MySQL，不把其他 backend 的连接成功视为完整框架支持。集群部署跨里程碑推进，memory、本地 file、单节点磁盘不能充当共享权威状态，详见 [集群计划](plans/v1-cluster-deployment.md)。

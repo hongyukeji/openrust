@@ -1,7 +1,7 @@
 //! Verifies that test database instances run migrations in isolated databases.
 #![cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 
-use openrust_db::sea_orm_migration::{self, MigratorTrait};
+use openrust::database::sea_orm_migration::{self, MigratorTrait};
 use openrust_test::TestDatabase;
 use sea_orm::{ConnectionTrait, Statement};
 use sea_orm_migration::prelude::*;

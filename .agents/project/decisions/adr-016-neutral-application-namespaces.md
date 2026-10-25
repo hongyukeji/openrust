@@ -1,6 +1,6 @@
 # ADR-016 中性应用配置命名空间与数据库表前缀
 
-- 状态：Accepted（设计契约；配置加载器、表解析及调用方迁移待实现）
+- 状态：Accepted（APP_ 配置命名空间、数据库表名解析及框架/模板调用方已实现并验证）
 - 日期：2026-10-25
 - 替代：ADR-006 的品牌化环境变量契约；框架持久表的品牌化命名按本 ADR 迁移。crate、Rust 模块与 CLI 产品名不因本决定变更。
 
@@ -38,7 +38,21 @@
 
 ## 实施与验收
 
-- 当前认证 WIP 保留，当前簇 schema/生成物最终验收前必须核对本 ADR；配置/命名属于独立跨 crate 功能簇，先评估影响，按既有工作循环实施，不把文档决定冒充代码已改。
+- 当前认证 WIP 保留，当前簇 schema/生成物最终验收前必须核对本 ADR；配置/命名按独立跨 crate 功能簇实施，不把文档决定冒充代码已改。
 - 配置验证默认 APP_、自定义命名空间、通用变量覆盖优先级、错误命名空间、生产 `.env` 保护以及旧前缀不误读；同步 CLI 子进程、apps/server 与生成模板。生成项目验证 `.gitignore` 忽略真实环境文件并保留示例文件。
 - 在 PostgreSQL/MySQL 验证默认 tb_、空前缀、自定义前缀、完整表映射、索引/外键/关联、迁移 up/down、认证/Session/PAT、冲突/非法名称和既有数据迁移。验证命名不能导致越权、平行用户表或错误数据库访问。
-- 代码实现后执行全量 Rust 门禁、双库与生成项目检查，更新 core/README/测试基线与迁移说明。当前仅记录计划，不执行数据库改名或运行配置变更。
+- 代码实现后执行全量 Rust 门禁、双库与生成项目检查，更新 core/README/测试基线与迁移说明。改变表名前缀或映射不自动重命名现有数据库对象。
+
+## 当前实现状态
+
+- 默认 `APP_` 配置读取、`Application::config_namespace()` 自定义前缀、环境与 `.env` 引导、配置目录选择及前缀变量覆盖已在 `openrust-core` 实现；CLI、仓库启动配置、生成模板和用户文档已迁移到该 contract。未保留 `OPENRUST_` 运行时兼容别名。测试工具专用 `OPENRUST_TEST_*` 变量属于独立命名空间。
+- 表前缀/映射 contract 已在 `openrust-db` 实现：`DatabaseConfig` 及 `Db` 持有 resolver；`MigrationPlugin` 与 `TestDatabase` 使用显式 task-local scope；AuthMigration 和认证 Session/PAT/refresh 查询已接入 resolver。历史 PostgreSQL 14 与 MySQL 8.0 真实隔离库均验证默认、空前缀、自定义前缀、完整 users 映射和认证流程；独立空库验证迁移 runner up/status/down。无 URL 时按设计跳过的测试入口不作为数据库验证证据。
+
+### 迁移期表名解析器 contract
+
+- `DatabaseConfig` 提供 `table_prefix`（缺省 `tb_`，空值表示无前缀）与 `table_names`（逻辑名到完整物理名映射）。显式映射优先于前缀；映射值不再加前缀。
+- `Db` 持有启动时验证后的不可变 resolver；业务受管查询和 seed 用 `Db::table_name` / `Db::quoted_table_name`，不散布 backend 类型判断。
+- SeaORM 的 `MigrationTrait::up/down` 只有 `SchemaManager` 参数，不能直接收到 `Application` 或 `DatabaseConfig`。`MigrationPlugin` 在一次迁移调用内用 Tokio task-local scope 提供当前 `DatabaseTableNames`；OpenRust 内置迁移在没有 scope 时明确失败。第三方 migration 需要自定义表名时调用 `DatabaseTableNames::current()`。
+- `openrust-test::TestDatabase` 默认使用默认 resolver，并提供传入 resolver 的隔离数据库入口；它与生产 migration runner 采用相同 scope，避免测试 schema 与应用查询不一致。
+- 标识符限定为 ASCII 字母/下划线开头，后续只含字母/数字/下划线，不允许 schema 分隔符或 SQL 片段；连接初始化按 PostgreSQL 63-byte 与 MySQL 64-byte 表名限制校验。生成器与框架查询按 backend 正确引用标识符。
+- 前缀和映射只影响之后执行的迁移与访问，不自动改名现有表、索引或数据。手写实体和原生 SQL 不自动重写，使用方必须显式采用同一 resolver；无配置时保留当前 `tb_*` 物理名。

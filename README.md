@@ -2,7 +2,7 @@
 
 > An opinionated, batteries-included Rust application framework. Create a project, run one command, and start writing business code.
 
-**Status: pre-alpha, design phase.** Nothing is published to crates.io yet. The first generation delivers the framework foundation: project generator, configuration, HTTP conventions, database (PostgreSQL and MySQL), authentication and authorization, queue, scheduler, events, cache, storage, mail, CLI, testing tools and deployment path.
+**Status: v1 in active development.** Nothing is published to crates.io yet. The v1 scope includes configuration, HTTP conventions, PostgreSQL/MySQL, authentication and authorization, queue, scheduler, events, cache, storage, mail, CLI, testing tools and deployment support; planned capabilities are not complete until their implementation and acceptance evidence are recorded.
 
 ## Goals
 
@@ -19,14 +19,14 @@ OpenRust is built on `tokio`, `axum`, `tower` and `SeaORM`, with explicit Rust t
 The non-published [integration server](apps/server/README.md) runs the currently implemented framework capabilities without external services:
 
 ```bash
-cargo run
+cargo run -p openrust-server
 curl --noproxy '*' http://127.0.0.1:3000/health
 cargo run -p openrust-server -- config show
 cargo run -p openrust-server -- help
 cargo test -p openrust-server
 ```
 
-For repository development, `.cargo/config.toml` sets `OPENRUST_CONFIG_DIR=apps/server/config`, so root-level `cargo run` reads the server's configuration. Applications default to `config/` relative to their working directory. `OPENRUST_SERVER__PORT=4000 cargo run` overrides the server's port; `PORT=4000 cargo run` also works.
+For repository development, `.cargo/config.toml` sets `APP_CONFIG_DIR=apps/server/config`, so root-level `cargo run` reads the server's configuration. Applications default to `config/` relative to their working directory. `APP_SERVER__PORT=4000 cargo run` overrides the server's port; `PORT=4000 cargo run` also works. Applications can override `Application::config_namespace()` to use a prefix such as `SHOP_`. The framework package is at the repository root; implemented capabilities live in `src/config/`, `src/core/`, `src/db/`, `src/http/`, `src/mail/` and feature-gated `src/auth/`. Runtime TOML/YAML remains in each application's root `config/` directory. `apps/server` is this workspace's integration host, while `openrust new` creates a separate project with its own `src/` and `config/`.
 
 ## The golden path
 

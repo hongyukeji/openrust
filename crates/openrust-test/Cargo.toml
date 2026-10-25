@@ -1,6 +1,6 @@
 [package]
 name = "openrust-test"
-description = "Testing toolkit for OpenRust applications: TestApp, HTTP test client, database isolation, factories and fake-driver assertions"
+description = "Testing utilities for OpenRust applications: PostgreSQL and MySQL database isolation"
 readme = "README.md"
 version.workspace = true
 edition.workspace = true
@@ -13,8 +13,7 @@ categories.workspace = true
 keywords.workspace = true
 
 [dependencies]
-openrust-core.workspace = true
-openrust-db = { workspace = true, optional = true }
+openrust = { workspace = true, optional = true }
 sea-orm.workspace = true
 sqlx = { workspace = true, optional = true }
 url.workspace = true
@@ -22,8 +21,8 @@ tokio.workspace = true
 
 [features]
 default = []
-db-postgres = ["dep:openrust-db", "openrust-db/db-postgres"]
-db-mysql = ["dep:openrust-db", "openrust-db/db-mysql", "dep:sqlx", "sqlx/mysql"]
+db-postgres = ["dep:openrust", "openrust/db-postgres"]
+db-mysql = ["dep:openrust", "openrust/db-mysql", "dep:sqlx", "sqlx/mysql"]
 
 [dev-dependencies]
 sea-orm-migration.workspace = true

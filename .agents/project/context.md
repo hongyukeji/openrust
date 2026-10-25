@@ -1,7 +1,7 @@
 # 项目上下文
 
 > 受众：AI Agent
-> 更新：2026-10-25
+> 更新：2026-10-26
 > 摘要：OpenRust 是全新的开源 Rust 应用开发框架，当前处于 v1 版本 M3 阶段。
 
 ## 当前状态
@@ -9,15 +9,15 @@
 | 项 | 值 |
 | --- | --- |
 | 版本 | 0.0.0（未发布，crates.io 名称未预留） |
-| 阶段 | v1 版本 M0、M1、M2 已完成，当前进入 M3「邮件、认证与授权」；当前功能簇见 `todo.md` |
+| 阶段 | v1 版本 M0、M1、M2 基线已完成；根 package 模块迁移已实现并通过验证，当前进行 M2 读写分离 contract/实现；M3 认证 WIP 保留 |
 | 仓库 | `https://github.com/hongyukeji/openrust`（公开，默认分支 `main`，已推送）；本地 `/Users/Home/Codes/Rust/openrust` |
 | 协作模式 | 单开发者 + AI Agent；Claude 负责方案与设计，Codex 负责实现与验证 |
 | 本机工具链 | Rust stable 1.99.1（默认）与 Rust 1.97.0 MSRV（`rustup`），`cargo-deny` 0.20 已安装 |
 
 ## 固定约束
 
-- 应用中性命名按 [ADR-016](decisions/adr-016-neutral-application-namespaces.md)：默认环境变量 `APP_`（允许启动前定制命名空间），默认表前缀 `tb_`（可改自定义或空前缀并支持显式表映射）；代码、schema、模板迁移尚待实现，旧品牌前缀不能作为新设计 contract。
-- OpenRust 核心目标架构按 [ADR-021](decisions/adr-021-loco-style-module-layout.md)：根 `src/` 放框架能力 modules，`apps/` 保留为同一仓库/workspace 内应用目录约定，`examples/` 放可复用示例，根 `tests/` 验证框架公共 API。当前 `apps/server` 是内部集成宿主；等根测试与示例覆盖其职责后才决定移除该应用，不删除 `apps/` 约定。当前 M3 认证 WIP 闭环前不搬代码。
+- 应用中性命名按 [ADR-016](decisions/adr-016-neutral-application-namespaces.md)：默认环境变量 `APP_`（`Application::config_namespace()` 允许启动前定制，core/bootstrap 已实现），默认表前缀 `tb_`，支持自定义/空前缀和显式全名映射；数据库 resolver 已贯通连接、迁移、TestDatabase 与认证 SQL，并经 PostgreSQL/MySQL 验证。旧品牌前缀不能作为新设计 contract。
+- OpenRust 核心目标架构按 [ADR-021](decisions/adr-021-loco-style-module-layout.md)：根 `src/` 放框架能力 modules，`apps/` 保留为同一仓库/workspace 内应用目录约定，`examples/` 放可复用示例，根 `tests/` 验证框架公共 API。当前 `apps/server` 是内部集成宿主；等根测试与示例覆盖其职责后才决定移除该应用，不删除 `apps/` 约定。源码迁移前已对既有 M3 WIP 做双库和生成项目预检；迁移后仍须复验，路径调整不代表 M3 功能完成。
 - 生成项目中的运行时配置文件在项目根 `config/`；Rust 配置代码放 `src/config/` 模块目录，建议以 `mod.rs` 为入口，按复杂度拆分，不将 TOML/YAML 文件置于 `src/`。
 
 - AI 平台为基于 OpenRust 的独立产品，最终按 [OpenRouter 对标计划](plans/ai-platform-openrouter-parity.md) 复刻公开功能与流程（MVP 非终点），须待框架 v1/v2 完整体成熟后再由开发者决定立项，平台完全体 P0–P8 验收通过并获上线批准后才对外开放；当前仅规划、不启动实现，后续开发必须使用 `projects/*` 分支和独立 worktree，产品业务不得进入框架核心或改变通用契约，详见 [产品计划](plans/ai-platform-product.md)。
@@ -37,11 +37,11 @@
 - v1 版本包含邮件与短信通信能力；短信真实供应商及公共 API 待选型设计，验证码机制纳入 v1 设计，具体流程与公共契约待决策，薄多渠道通知编排纳入 v1，业务通知中心/UI 归 v2 后台套件，见 [ADR-011](decisions/adr-011-sms-and-communication-baseline.md)。
 - 默认实现满足常见需求，公开扩展契约承接差异需求；数据库、缓存等能力复用既有插件与配置机制，具体边界见 [ADR-009](decisions/adr-009-extensible-capability-drivers.md)。缓存 driver/store contract 见 [ADR-014](decisions/adr-014-cache-driver-and-store-contract.md)，代码仍待 M5。
 - OpenRust 不是任何既有项目的移植，没有兼容包袱；设计以 [v1 版本计划](plans/gen1-plan.md) 与 [框架设计](plans/framework-design.md) 为准。
-- 应用内核自研，基于 `tokio` + `axum` + `tower`；Loco 只作参考与对标（[ADR-001](decisions/adr-001-own-kernel-on-axum.md)）。
-- 基础读写分离已纳入 v1、尚未实现：默认单库，可选主库/只读副本、事务固定主库、显式强制主库及请求内写后保持主库；当前功能簇闭环后按 [数据层增补计划](plans/v1-database-read-write-splitting.md) 领取，不再作为 v2 候选。
-- v1 版本正式支持 PostgreSQL 14+ 与 MySQL 8.0+；每个数据功能必须有双库证据（[ADR-002](decisions/adr-002-seaorm-dual-database.md)）。
+- 应用内核自研，基于 `tokio` + `axum` + `tower`；按统一维度综合评估以下参考框架：Loco、Laravel、Goravel、OpenSpring、RuoYi 若依、芋道；不将任何一个框架作为底层依赖或完整复制目标，见 [框架参考与对标](plans/framework-design.md#框架参考与对标)。OpenRouter 是独立产品的对标对象，不属于框架参考清单。
+- 基础读写分离已纳入 v1、尚未实现：默认单库，可选主库/只读副本、事务固定主库、显式强制主库及请求内写后保持主库；当前根模块迁移验证后进入此功能簇，不再作为 v2 候选。
+- 日常本地开发、Compose 和常规 CI 使用 PostgreSQL 16、MySQL 8.4 LTS；Redis 能力落地后选主流 Extended Support 版本。只有主版本跨度较大、涉及版本专属行为或出现明确兼容风险时，才增加额外版本专项验证；v1 发布前必须定稿并验证最低支持版本。当前运行时 PostgreSQL 版本检查接受 `16+`；历史 PostgreSQL 14 / MySQL 8.0 测试仅作历史证据。每个数据功能仍须有 PostgreSQL/MySQL 双库证据（[ADR-002](decisions/adr-002-seaorm-dual-database.md)）。
 - 同时支持单机与集群；标准应用默认 Redis cache，memory/file 显式选择，库 feature 保持可组合，见 [ADR-015](decisions/adr-015-redis-default-calibration.md)。需要跨节点共享语义时必须明确配置共享后端，不能静默退化；队列/会话仍默认共享数据库，部署边界见 [ADR-013](decisions/adr-013-deployment-and-redis-cache-default.md)。缓存实现待 M5。
-- 认证以 Bearer JWT access token 为前后端分离 API 的主要路径；高熵 refresh token 轮换并存储哈希。通用 Cookie Session 保留为显式可选项，PAT 面向自动化/服务集成，三者复用同一主体与授权入口；按 [ADR-018](decisions/adr-018-jwt-primary-authentication.md) 实施。当前认证代码 WIP 尚未符合该默认方向。
+- 认证以 Bearer JWT access token 为前后端分离 API 的主要路径；高熵 refresh token 轮换并存储哈希。通用 Cookie Session 保留为显式可选项，PAT 面向自动化/服务集成，三者复用同一主体与授权入口；按 [ADR-018](decisions/adr-018-jwt-primary-authentication.md) 实施。AuthFlows、验证码/限流、Policy/RBAC 与可选 Session helper 已实现；根模块迁移后的认证数据库集成和两种 `--auth` 生成项目 HTTP e2e 在 PostgreSQL 16 / MySQL 8.4 上通过。M3 仍有完整 v1 覆盖与总验收待办，当前仅暂停功能开发以优先底层读写分离。
 - 许可证 MIT OR Apache-2.0；Edition 2024；MSRV 为 stable 减两个小版本（[ADR-005](decisions/adr-005-license-naming-msrv.md)）。
 - 生成项目布局、CLI、配置键与公共 API 命名以 [ADR-006](decisions/adr-006-rust-native-naming.md) 为唯一 contract；M6 才建立 mdBook `docs/`，此前用户文档维护在 crate README。
 - 库 crate 禁止 `unsafe`、`unwrap` / `expect` / `panic`；公共项必须有文档。细则见 [conventions.md](conventions.md)。

@@ -1,6 +1,6 @@
 # ADR-021 主框架包与 Loco 风格的能力模块布局
 
-- 状态：Accepted（目标架构已确认；迁移待 M3 认证功能簇闭环后实施）
+- 状态：Accepted（目标架构已确认；根 package/source 迁移与适用验收已完成）
 - 日期：2026-10-25
 - 参考：[Loco 仓库结构](https://github.com/loco-rs/loco)
 - 替代：[ADR-019](adr-019-neutral-crate-directories-and-app-package.md) 的“逐能力 crate 目录迁移”与 [ADR-020](adr-020-workspace-layout-and-loco-practices.md) 的“保持当前多能力 package 布局”部分；保留其配置文件与 Rust 配置模块分离原则。
@@ -20,7 +20,7 @@ Loco 的框架主体是一个 Cargo package，在 `src/` 下按功能组织 Rust
 - 根 `tests/` 承担主框架公共 API 的集成测试；crate/unit tests 放在对应源文件或 package 的 `tests/`。根 `examples/` 放可运行的完整示例应用（如 blog/demo），承担面向用户的示范和端到端 smoke test。测试或示例不能仅为复刻旧目录而复制一套 server harness。
 - 当前 `apps/server` 是框架自己的聚合启动/集成验证宿主，不等同于用户业务应用。只有在根 `tests/` 与 `examples/` 覆盖它的启动、默认 feature、插件组合、生成项目、数据库双库等验收后，才可移除这个具体 package；这不改变 `apps/` 作为仓库内应用目录约定。不得先删除现有宿主再补测试。框架仓库本身是库，不要求根 `cargo run` 启动一个伪产品应用；开发启动示例使用明示的 example 命令，生成的用户应用仍在其 `src/main.rs` 统一启动。
 - 框架与用户生成项目的 Rust 配置逻辑都采用 `src/config/` 模块目录（以 `src/config/mod.rs` 为入口，按真实复杂度拆分子模块）；运行时 TOML/YAML 配置文件继续放在项目根 `config/`，不放入编译源码目录。两处 `config/` 含义不同：源码目录放 Rust 代码，项目根目录放可部署配置文件。
-- M3 认证功能簇结束前不搬动它当前的代码 WIP。其闭环后按独立架构迁移功能簇执行，保持发布包版本、feature 行为、公共 `openrust::...` 导入、生成项目和双库/集群验收一致。
+- 默认依赖顺序为 M3 认证闭环后再迁移；本次开发者明确要求优先处理框架底层调整，因此先用 PostgreSQL/MySQL 与生成项目验收既有认证 WIP、冻结其功能范围，再将代码按路径迁入根 package。不得把该次路径适配宣称为 M3 新功能或覆盖认证 WIP。
 
 ## 影响与迁移
 
@@ -29,6 +29,13 @@ Loco 的框架主体是一个 Cargo package，在 `src/` 下按功能组织 Rust
 - 一次性合并当前能力源码与 manifest 配置，逐个保持 feature 启停、可选依赖、公开 re-export 和错误行为；按 `git mv` 保留历史可追踪性。未发布的 `openrust-*` capability packages 可在迁移中移除；CLI/macros 等保留 package 的发布名不变。
 - 更新根 workspace/package manifest、所有保留工具 crate 的依赖、CI、命令、模板、README、ADR 与 `.agents/project/core/` 事实。移除 package 前先确认没有外部用户依赖；当前版本尚未发布，不需要维护旧 package 的运行时兼容层。
 - 若某能力后来确有独立发布、编译隔离或扩展生态需求，可在证据充分后从模块提取为 package；不预先拆分。
+
+## 当前迁移实施
+
+- 根目录现在同时是 `openrust` package 与 workspace root；成员为 `openrust`、`openrust-cli`、`openrust-macros`、`openrust-test`、`openrust-server`。各保留理由见 [迁移 Spec](../plans/module-layout-migration-spec.md)。
+- 已迁入 core/config、HTTP、DB、auth、mail 源码；HTTP 测试在根 `tests/`，完整 hello 示例在根 `examples/`，真实 DB/auth 测试在仍保留的 `apps/server/tests/`。
+- 所有 capability packages 均未发布；模块迁移后旧 package manifests 和空壳已移除。`openrust-test` 保持单向依赖，未造成根 package 反向依赖。
+- `apps/server` 暂不移除，因它仍承担聚合启动、feature 组合、生成项目与双库验收。
 
 ## 验收
 

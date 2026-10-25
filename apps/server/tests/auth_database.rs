@@ -1,0 +1,1224 @@
+//! PostgreSQL and MySQL integration checks for shared account and credential state.
+#![cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
+
+use std::{collections::HashMap, error::Error as StdError, sync::Arc};
+
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD;
+use figment::{Figment, providers::Format};
+use openrust::auth::{
+    AuthFlows, AuthLayer, AuthMigration, AuthMode, AuthPlugin, AuthPolicyMigration,
+    AuthRefreshTokenMigration, AuthSource, AuthVerificationCodeMigration, CurrentUser,
+    DatabaseSessionStore, JwtConfig, JwtPlugin, JwtTokens, PasswordConfig, Passwords,
+    PersonalAccessTokens, Policy, RefreshTokens, Session, SessionPlugin, VerificationCodePolicy,
+    VerificationCodes,
+};
+use openrust::core::RateLimiter;
+use openrust::database::sea_orm::{ConnectionTrait, Statement};
+use openrust::database::sea_orm_migration::{MigratorTrait, prelude::*};
+use openrust::database::{
+    DatabaseBackend, DatabasePlugin, DatabaseRateLimitMigration, DatabaseRateLimitStore, Db,
+};
+use openrust::http::axum::body::{Body, to_bytes};
+use openrust::http::axum::http::{Request, StatusCode};
+use openrust::http::{AppBuilderHttpExt, HttpPlugin, Inject, Json, Routes, build_router};
+use openrust::{App, AppBuilder, Result, config::FrameworkConfig, lifecycle::finalize};
+use openrust_test::TestDatabase;
+use sha2::{Digest, Sha256};
+use time::Duration;
+use tower::ServiceExt;
+use tower_sessions::SessionStore;
+use tower_sessions::session::{Id, Record};
+
+type TestResult = Result<(), Box<dyn StdError>>;
+
+struct AuthMigrator;
+
+impl MigratorTrait for AuthMigrator {
+    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+        vec![
+            Box::new(AuthMigration),
+            Box::new(AuthRefreshTokenMigration),
+            Box::new(AuthVerificationCodeMigration),
+            Box::new(AuthPolicyMigration),
+            Box::new(DatabaseRateLimitMigration),
+        ]
+    }
+}
+
+struct Marker;
+
+async fn current_user(user: CurrentUser, Inject(_marker): Inject<Marker>) -> Result<Json<String>> {
+    Ok(Json(format!(
+        "{}:{}:{}",
+        user.id(),
+        user.source() == AuthSource::PersonalAccessToken,
+        user.has_ability("posts:read")
+    )))
+}
+
+async fn create_session(session: Session) -> Result<Json<&'static str>> {
+    session
+        .insert("openrust.auth.user_id", 1_i64)
+        .await
+        .map_err(openrust::Error::internal)?;
+    session
+        .insert("openrust.auth.csrf_hash", hex_sha256("csrf-secret"))
+        .await
+        .map_err(openrust::Error::internal)?;
+    Ok(Json("created"))
+}
+
+async fn logout(session: Session) -> Result<Json<&'static str>> {
+    session.flush().await.map_err(openrust::Error::internal)?;
+    Ok(Json("logged out"))
+}
+
+async fn check_policy(user: CurrentUser, Inject(policy): Inject<Policy>) -> Result<Json<bool>> {
+    Ok(Json(policy.allows(&user, "posts:read").await?))
+}
+
+async fn require_policy(
+    user: CurrentUser,
+    Inject(policy): Inject<Policy>,
+) -> Result<Json<&'static str>> {
+    policy.authorize(&user, "posts:read").await?;
+    Ok(Json("allowed"))
+}
+
+async fn app_router(url: &str, table_prefix: &str) -> Result<(App, openrust::http::axum::Router)> {
+    let source = format!(
+        "[database]\nurl = {url:?}\ntable_prefix = {table_prefix:?}\n\n[database.table_names]\nusers = \"mapped_accounts\"\n"
+    );
+    let figment = Figment::new().merge(figment::providers::Toml::string(&source));
+    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment);
+    builder
+        .plugin(DatabasePlugin)
+        .plugin(SessionPlugin::new())
+        .plugin(JwtPlugin::with_config(JwtConfig::new(
+            "openrust-test-issuer",
+            "openrust-test-audience",
+            "auth-test-key",
+            std::collections::BTreeMap::from([(
+                "auth-test-key".to_owned(),
+                STANDARD.encode([0x53_u8; 32]),
+            )]),
+        )))
+        .plugin(AuthPlugin::new())
+        .plugin(HttpPlugin)
+        .insert(Marker)
+        .routes(|routes: Routes| {
+            routes
+                .merge(
+                    Routes::new()
+                        .get("/auth/current", current_user)
+                        .post("/auth/current", current_user)
+                        .layer(AuthLayer::required(AuthMode::SessionOrToken)),
+                )
+                .merge(Routes::new().get("/auth/session", create_session))
+                .merge(Routes::new().post("/auth/logout", logout))
+                .merge(
+                    Routes::new()
+                        .get("/auth/policy", check_policy)
+                        .get("/auth/policy-authorize", require_policy)
+                        .layer(AuthLayer::required(AuthMode::Jwt)),
+                )
+                .merge(
+                    Routes::new()
+                        .get("/auth/policy-pat", check_policy)
+                        .layer(AuthLayer::required(AuthMode::PersonalAccessToken)),
+                )
+        });
+    let app = finalize(builder).await?;
+    assert_eq!(
+        app.state().try_get::<Db>()?.table_name("users")?,
+        "mapped_accounts",
+        "the configured full-name mapping must override the table prefix"
+    );
+    let router = build_router(&app)?;
+    Ok((app, router))
+}
+
+fn hex_sha256(value: &str) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut output = String::with_capacity(64);
+    for byte in Sha256::digest(value.as_bytes()) {
+        output.push(char::from(HEX[usize::from(byte >> 4)]));
+        output.push(char::from(HEX[usize::from(byte & 0x0f)]));
+    }
+    output
+}
+
+async fn read_response(response: openrust::http::axum::response::Response) -> TestResult {
+    let status = response.status();
+    let body = to_bytes(response.into_body(), usize::MAX).await?;
+    let json: serde_json::Value = serde_json::from_slice(&body)?;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["data"], "1:false:false");
+    Ok(())
+}
+
+#[tokio::test]
+#[allow(clippy::too_many_lines)]
+async fn auth_migration_and_shared_revocation_work_on_the_configured_database() -> TestResult {
+    let Ok(url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+        eprintln!(
+            "skipping authentication database integration: OPENRUST_TEST_DATABASE_URL is unset"
+        );
+        return Ok(());
+    };
+    let backend = DatabaseBackend::from_url(&url)?;
+    if !backend.is_enabled() {
+        eprintln!(
+            "skipping authentication database integration: configured backend feature is disabled"
+        );
+        return Ok(());
+    }
+
+    let table_names = openrust::database::DatabaseTableNames::new(
+        "it_",
+        std::collections::BTreeMap::from([("users".to_owned(), "mapped_accounts".to_owned())]),
+    )?;
+    let database =
+        TestDatabase::create_with_table_names::<AuthMigrator>(&url, table_names.clone()).await?;
+    let connection = database.connection()?;
+    let backend = connection.get_database_backend();
+    let session_db = Db::with_table_names(table_names);
+    session_db.initialize(connection.clone())?;
+    let session_store = DatabaseSessionStore::new(session_db.clone());
+    let mut collision_record = Record {
+        id: Id::default(),
+        data: HashMap::default(),
+        expiry_date: time::OffsetDateTime::now_utc() + Duration::minutes(5),
+    };
+    session_store.create(&mut collision_record).await?;
+    assert!(session_store.create(&mut collision_record).await.is_err());
+    assert_eq!(
+        session_store.load(&collision_record.id).await?.as_ref(),
+        Some(&collision_record)
+    );
+    session_store.delete(&collision_record.id).await?;
+    session_store.save(&collision_record).await?;
+    assert!(session_store.load(&collision_record.id).await?.is_none());
+    let mut expired_record = Record {
+        id: Id::default(),
+        data: HashMap::default(),
+        expiry_date: time::OffsetDateTime::now_utc() - Duration::minutes(1),
+    };
+    session_store.create(&mut expired_record).await?;
+    assert!(session_store.load(&expired_record.id).await?.is_none());
+    let user_sql = match backend {
+        openrust::database::DbBackend::Postgres | openrust::database::DbBackend::MySql => {
+            "INSERT INTO mapped_accounts (email, password_hash, created_at, updated_at) VALUES ('user@example.test', 'unused', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+        }
+        _ => return Err("auth migration selected an unsupported backend".into()),
+    };
+    connection.execute_unprepared(user_sql).await?;
+    let id_row = connection
+        .query_one_raw(Statement::from_string(
+            backend,
+            "SELECT id FROM mapped_accounts WHERE email = 'user@example.test'".to_owned(),
+        ))
+        .await?
+        .ok_or("auth account insert returned no row")?;
+    let user_id = id_row.try_get::<i64>("", "id")?;
+
+    let refresh_tokens = RefreshTokens::new(session_db.clone());
+    let expires_at = chrono::Utc::now() + chrono::Duration::hours(1);
+    let issued = refresh_tokens.issue(user_id, expires_at).await?;
+    let initial_token = issued.expose().to_owned();
+    let initial_hash = hex_sha256(&initial_token);
+    let stored_refresh = connection
+        .query_one_raw(Statement::from_sql_and_values(
+            backend,
+            match backend {
+                openrust::database::DbBackend::Postgres => {
+                    "SELECT token_hash FROM it_auth_refresh_tokens WHERE token_hash = $1"
+                }
+                openrust::database::DbBackend::MySql => {
+                    "SELECT token_hash FROM it_auth_refresh_tokens WHERE token_hash = ?"
+                }
+                _ => return Err("refresh migration selected an unsupported backend".into()),
+            },
+            [initial_hash.clone().into()],
+        ))
+        .await?
+        .ok_or("refresh token was not persisted")?;
+    assert_eq!(
+        stored_refresh.try_get::<String>("", "token_hash")?,
+        initial_hash
+    );
+    assert!(!initial_hash.contains(&initial_token));
+    let rotated = refresh_tokens.rotate(&initial_token).await?;
+    assert_eq!(rotated.user_id(), user_id);
+    assert_eq!(rotated.expires_at().timestamp(), expires_at.timestamp());
+    let successor = rotated.token().expose().to_owned();
+    assert!(refresh_tokens.rotate(&initial_token).await.is_err());
+    let family_row = connection
+        .query_one_raw(Statement::from_string(
+            backend,
+            format!(
+                "SELECT COUNT(*) AS revoked_count FROM it_auth_refresh_tokens WHERE token_hash IN ('{}', '{}') AND revoked_at IS NOT NULL",
+                initial_hash,
+                hex_sha256(&successor)
+            ),
+        ))
+        .await?
+        .ok_or("refresh family revocation query returned no row")?;
+    assert_eq!(family_row.try_get::<i64>("", "revoked_count")?, 2);
+    let single_revoked = refresh_tokens
+        .issue(user_id, chrono::Utc::now() + chrono::Duration::hours(1))
+        .await?;
+    refresh_tokens.revoke(single_revoked.expose()).await?;
+    assert!(
+        refresh_tokens
+            .rotate(single_revoked.expose())
+            .await
+            .is_err()
+    );
+    let account_token = refresh_tokens
+        .issue(user_id, chrono::Utc::now() + chrono::Duration::hours(1))
+        .await?;
+    assert_eq!(refresh_tokens.revoke_all_for_user(user_id).await?, 1);
+    assert!(refresh_tokens.rotate(account_token.expose()).await.is_err());
+
+    let pat_sql = match backend {
+        openrust::database::DbBackend::Postgres => {
+            "INSERT INTO it_personal_access_tokens (user_id, name, token_prefix, token_hash, abilities, expires_at, created_at) VALUES ($1, 'integration', 'test', $2, '[\"posts:read\"]'::jsonb, NULL, CURRENT_TIMESTAMP)"
+        }
+        openrust::database::DbBackend::MySql => {
+            "INSERT INTO it_personal_access_tokens (user_id, name, token_prefix, token_hash, abilities, expires_at, created_at) VALUES (?, 'integration', 'test', ?, '[\"posts:read\"]', NULL, CURRENT_TIMESTAMP)"
+        }
+        _ => return Err("auth migration selected an unsupported backend".into()),
+    };
+    let pat_hash = hex_sha256("pat-secret");
+    connection
+        .execute_raw(Statement::from_sql_and_values(
+            backend,
+            pat_sql,
+            [user_id.into(), pat_hash.clone().into()],
+        ))
+        .await?;
+
+    let (app_a, router_a) = app_router(database.url(), "it_").await?;
+    let (app_b, router_b) = app_router(database.url(), "it_").await?;
+    let verification_codes = app_a.state().try_get::<VerificationCodes>()?;
+    let verification_codes_b = app_b.state().try_get::<VerificationCodes>()?;
+    let code_policy = VerificationCodePolicy::new(
+        6,
+        std::time::Duration::from_secs(3600),
+        std::time::Duration::from_secs(60),
+        2,
+    )?;
+    let issued_code = verification_codes
+        .issue("email.verify", "code-user@example.test", code_policy)
+        .await?;
+    let binding_hash = hex_sha256("email.verify\0code-user@example.test");
+    let (verification_query, verification_value) = match backend {
+        openrust::database::DbBackend::Postgres => (
+            "SELECT key_hash, code_hash FROM it_verification_codes WHERE key_hash = $1",
+            binding_hash.into(),
+        ),
+        openrust::database::DbBackend::MySql => (
+            "SELECT key_hash, code_hash FROM it_verification_codes WHERE key_hash = ?",
+            binding_hash.into(),
+        ),
+        _ => return Err("auth migration selected an unsupported backend".into()),
+    };
+    let verification_row = connection
+        .query_one_raw(Statement::from_sql_and_values(
+            backend,
+            verification_query,
+            [verification_value],
+        ))
+        .await?
+        .ok_or("verification challenge was not persisted")?;
+    let persisted_key = verification_row.try_get::<String>("", "key_hash")?;
+    let persisted_hash = verification_row.try_get::<String>("", "code_hash")?;
+    assert_eq!(
+        persisted_key,
+        hex_sha256("email.verify\0code-user@example.test")
+    );
+    assert!(persisted_hash.starts_with("$argon2id$"));
+    assert!(!persisted_hash.contains(issued_code.code()));
+    match verification_codes
+        .issue("email.verify", "code-user@example.test", code_policy)
+        .await
+    {
+        Err(openrust::Error::RateLimitedWithRetryAfter(seconds)) => assert!(seconds > 0),
+        Err(error) => return Err(format!("unexpected resend error: {error:?}").into()),
+        Ok(_) => return Err("resend cooldown allowed a duplicate code".into()),
+    }
+    assert!(
+        !verification_codes
+            .verify(
+                "password.reset",
+                "code-user@example.test",
+                issued_code.code()
+            )
+            .await?
+    );
+    assert!(
+        !verification_codes
+            .verify("email.verify", "other@example.test", issued_code.code())
+            .await?
+    );
+    assert!(
+        !verification_codes
+            .verify("email.verify", "code-user@example.test", "not-a-code")
+            .await?
+    );
+    let wrong_code = if issued_code.code() == "000000" {
+        "000001"
+    } else {
+        "000000"
+    };
+    assert!(
+        !verification_codes
+            .verify("email.verify", "code-user@example.test", wrong_code)
+            .await?
+    );
+    assert!(
+        !verification_codes
+            .verify("email.verify", "code-user@example.test", wrong_code)
+            .await?
+    );
+    assert!(
+        !verification_codes
+            .verify("email.verify", "code-user@example.test", issued_code.code())
+            .await?
+    );
+
+    let one_time_code = verification_codes
+        .issue("email.verify", "race-user@example.test", code_policy)
+        .await?;
+    let first_codes = verification_codes.clone();
+    let first_code = one_time_code.code().to_owned();
+    let second_code = first_code.clone();
+    let (first_result, second_result) = tokio::join!(
+        first_codes.verify("email.verify", "race-user@example.test", &first_code),
+        verification_codes_b.verify("email.verify", "race-user@example.test", &second_code),
+    );
+    assert_eq!(u8::from(first_result?) + u8::from(second_result?), 1);
+    drop(first_codes);
+    let expiry_policy = VerificationCodePolicy::new(
+        6,
+        std::time::Duration::from_secs(1),
+        std::time::Duration::from_secs(1),
+        2,
+    )?;
+    let expired_code = verification_codes
+        .issue("email.verify", "expired-user@example.test", expiry_policy)
+        .await?;
+    tokio::time::sleep(std::time::Duration::from_millis(1_100)).await;
+    assert!(
+        !verification_codes
+            .verify(
+                "email.verify",
+                "expired-user@example.test",
+                expired_code.code()
+            )
+            .await?
+    );
+    let personal_access_tokens = app_a.state().try_get::<PersonalAccessTokens>()?;
+    let issued_pat = personal_access_tokens
+        .issue(
+            user_id,
+            "integration lifecycle",
+            &["posts:read".to_owned()],
+            Some(chrono::Utc::now() + chrono::Duration::hours(1)),
+        )
+        .await?;
+    let issued_pat_raw = issued_pat.expose().to_owned();
+    assert!(!format!("{issued_pat:?}").contains(&issued_pat_raw));
+    let pat_hash = hex_sha256(&issued_pat_raw);
+    let stored_pat = connection
+        .query_one_raw(Statement::from_sql_and_values(
+            backend,
+            match backend {
+                openrust::database::DbBackend::Postgres => {
+                    "SELECT token_hash FROM it_personal_access_tokens WHERE token_hash = $1"
+                }
+                openrust::database::DbBackend::MySql => {
+                    "SELECT token_hash FROM it_personal_access_tokens WHERE token_hash = ?"
+                }
+                _ => return Err("PAT migration selected an unsupported backend".into()),
+            },
+            [pat_hash.clone().into()],
+        ))
+        .await?
+        .ok_or("issued PAT was not persisted")?;
+    assert_eq!(stored_pat.try_get::<String>("", "token_hash")?, pat_hash);
+    assert!(!pat_hash.contains(&issued_pat_raw));
+    let listed_pats = personal_access_tokens.list_for_user(user_id).await?;
+    let issued_pat_info = listed_pats
+        .iter()
+        .find(|pat| pat.token_prefix == issued_pat_raw.chars().take(24).collect::<String>())
+        .ok_or("issued PAT metadata was not listed")?;
+    assert_eq!(issued_pat_info.abilities, ["posts:read"]);
+    assert!(
+        personal_access_tokens
+            .issue(user_id + 10_000, "unknown account", &[], None)
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        personal_access_tokens.list_for_user(user_id + 1).await?,
+        Vec::new()
+    );
+    assert!(
+        !personal_access_tokens
+            .revoke(user_id + 1, issued_pat_info.id)
+            .await?
+    );
+    assert!(
+        personal_access_tokens
+            .list_for_user(user_id)
+            .await?
+            .iter()
+            .find(|pat| pat.id == issued_pat_info.id)
+            .is_some_and(|pat| pat.revoked_at.is_none())
+    );
+    let expired_pat = personal_access_tokens
+        .issue(
+            user_id,
+            "expired",
+            &[],
+            Some(chrono::Utc::now() - chrono::Duration::seconds(1)),
+        )
+        .await;
+    assert!(expired_pat.is_err());
+    let app_refresh_tokens = app_a.state().try_get::<RefreshTokens>()?;
+    let concurrent = app_refresh_tokens
+        .issue(user_id, chrono::Utc::now() + chrono::Duration::hours(1))
+        .await?;
+    let concurrent_raw = concurrent.expose().to_owned();
+    let (rotation_a, rotation_b) = tokio::join!(
+        app_refresh_tokens.rotate(&concurrent_raw),
+        app_refresh_tokens.rotate(&concurrent_raw)
+    );
+    assert_ne!(rotation_a.is_ok(), rotation_b.is_ok());
+    let successful_rotation = rotation_a
+        .ok()
+        .or_else(|| rotation_b.ok())
+        .ok_or("one concurrent refresh rotation must win")?;
+    assert!(
+        app_refresh_tokens
+            .rotate(successful_rotation.token().expose())
+            .await
+            .is_err(),
+        "the concurrent loser must revoke the family, including the winner's successor"
+    );
+    let revoke_race = app_refresh_tokens
+        .issue(user_id, chrono::Utc::now() + chrono::Duration::hours(1))
+        .await?;
+    let revoke_race_raw = revoke_race.expose().to_owned();
+    let (racing_rotation, _) = tokio::join!(
+        app_refresh_tokens.rotate(&revoke_race_raw),
+        app_refresh_tokens.revoke_all_for_user(user_id)
+    );
+    if let Ok(racing_rotation) = racing_rotation {
+        assert!(
+            app_refresh_tokens
+                .rotate(racing_rotation.token().expose())
+                .await
+                .is_err(),
+            "account-wide revocation must include a concurrent successor"
+        );
+    }
+    let pat_request = Request::get("/auth/current")
+        .header("authorization", format!("Bearer {issued_pat_raw}"))
+        .body(Body::empty())?;
+    let pat_response = router_a.clone().oneshot(pat_request).await?;
+    let pat_body = to_bytes(pat_response.into_body(), usize::MAX).await?;
+    let pat_json: serde_json::Value = serde_json::from_slice(&pat_body)?;
+    assert_eq!(pat_json["data"], "1:true:true");
+    let used_row = connection
+        .query_one_raw(Statement::from_string(
+            backend,
+            format!(
+                "SELECT COUNT(*) AS was_used FROM it_personal_access_tokens WHERE token_hash = '{pat_hash}' AND last_used_at IS NOT NULL"
+            ),
+        ))
+        .await?
+        .ok_or("personal token usage query returned no row")?;
+    assert_eq!(used_row.try_get::<i64>("", "was_used")?, 1);
+
+    let session_response = router_a
+        .clone()
+        .oneshot(Request::get("/auth/session").body(Body::empty())?)
+        .await?;
+    let set_cookie = session_response
+        .headers()
+        .get("set-cookie")
+        .ok_or("Session middleware did not set a cookie")?
+        .to_str()?;
+    assert!(set_cookie.contains("HttpOnly"));
+    assert!(set_cookie.contains("Secure"));
+    assert!(set_cookie.contains("SameSite=Lax"));
+    let session_cookie = set_cookie
+        .split(';')
+        .next()
+        .ok_or("Session cookie was empty")?
+        .to_owned();
+    read_response(
+        router_a
+            .clone()
+            .oneshot(
+                Request::get("/auth/current")
+                    .header("cookie", &session_cookie)
+                    .body(Body::empty())?,
+            )
+            .await?,
+    )
+    .await?;
+    let post_missing_csrf = router_a
+        .clone()
+        .oneshot(
+            Request::post("/auth/current")
+                .header("cookie", &session_cookie)
+                .body(Body::empty())?,
+        )
+        .await?;
+    let body = to_bytes(post_missing_csrf.into_body(), usize::MAX).await?;
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&body)?["code"],
+        "forbidden"
+    );
+    read_response(
+        router_a
+            .clone()
+            .oneshot(
+                Request::post("/auth/current")
+                    .header("cookie", &session_cookie)
+                    .header("x-csrf-token", "csrf-secret")
+                    .body(Body::empty())?,
+            )
+            .await?,
+    )
+    .await?;
+    router_a
+        .clone()
+        .oneshot(
+            Request::post("/auth/logout")
+                .header("cookie", &session_cookie)
+                .body(Body::empty())?,
+        )
+        .await?;
+    let revoked_session = router_b
+        .clone()
+        .oneshot(
+            Request::get("/auth/current")
+                .header("cookie", &session_cookie)
+                .body(Body::empty())?,
+        )
+        .await?;
+    let revoked_body = to_bytes(revoked_session.into_body(), usize::MAX).await?;
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&revoked_body)?["code"],
+        "unauthorized"
+    );
+
+    let pat_request = Request::get("/auth/current")
+        .header("authorization", "Bearer pat-secret")
+        .body(Body::empty())?;
+    let pat_still_valid = router_b.clone().oneshot(pat_request).await?;
+    let pat_body = to_bytes(pat_still_valid.into_body(), usize::MAX).await?;
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&pat_body)?["data"],
+        "1:true:true"
+    );
+
+    assert!(
+        personal_access_tokens
+            .revoke(user_id, issued_pat_info.id)
+            .await?
+    );
+    let revoked_pat = router_b
+        .clone()
+        .oneshot(
+            Request::get("/auth/current")
+                .header("authorization", format!("Bearer {issued_pat_raw}"))
+                .body(Body::empty())?,
+        )
+        .await?;
+    let revoked_pat_body = to_bytes(revoked_pat.into_body(), usize::MAX).await?;
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&revoked_pat_body)?["code"],
+        "unauthorized"
+    );
+    let account_wide_pat = personal_access_tokens
+        .issue(user_id, "account-wide revoke", &[], None)
+        .await?;
+    let account_wide_prefix = account_wide_pat
+        .expose()
+        .chars()
+        .take(24)
+        .collect::<String>();
+    let account_wide_id = personal_access_tokens
+        .list_for_user(user_id)
+        .await?
+        .into_iter()
+        .find(|pat| pat.token_prefix == account_wide_prefix)
+        .ok_or("account-wide PAT metadata was not listed")?
+        .id;
+    assert_eq!(
+        personal_access_tokens.revoke_all_for_user(user_id).await?,
+        2
+    );
+    assert!(
+        personal_access_tokens
+            .list_for_user(user_id)
+            .await?
+            .iter()
+            .filter(|pat| pat.id == issued_pat_info.id || pat.id == account_wide_id)
+            .all(|pat| pat.revoked_at.is_some())
+    );
+    drop(router_a);
+    drop(router_b);
+    drop(app_refresh_tokens);
+    drop(personal_access_tokens);
+    drop(refresh_tokens);
+    drop(session_store);
+    drop(session_db);
+    drop(verification_codes);
+    drop(verification_codes_b);
+    drop(app_a);
+    drop(app_b);
+    drop(connection);
+    database.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
+#[allow(clippy::too_many_lines)] // One fixture keeps the complete credential lifecycle on one isolated database.
+async fn auth_flows_run_registration_login_refresh_reset_and_logout_on_the_configured_database()
+-> TestResult {
+    let Ok(url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+        eprintln!("skipping authentication flow integration: OPENRUST_TEST_DATABASE_URL is unset");
+        return Ok(());
+    };
+    let backend = DatabaseBackend::from_url(&url)?;
+    if !backend.is_enabled() {
+        eprintln!(
+            "skipping authentication flow integration: configured backend feature is disabled"
+        );
+        return Ok(());
+    }
+    let table_names = openrust::database::DatabaseTableNames::new(
+        "flow_",
+        std::collections::BTreeMap::from([("users".to_owned(), "mapped_accounts".to_owned())]),
+    )?;
+    let database =
+        TestDatabase::create_with_table_names::<AuthMigrator>(&url, table_names.clone()).await?;
+    let db = Db::with_table_names(table_names);
+    let connection = database.connection()?;
+    connection
+        .query_one_raw(Statement::from_string(
+            connection.get_database_backend(),
+            "SELECT id FROM mapped_accounts LIMIT 0".to_owned(),
+        ))
+        .await?;
+    db.initialize(connection.clone())?;
+    let passwords = Passwords::new(PasswordConfig {
+        memory_kib: 19_456,
+        iterations: 1,
+        parallelism: 1,
+    })?;
+    let codes = VerificationCodes::new(
+        openrust::auth::DatabaseVerificationCodeStore::new(db.clone()),
+        passwords.clone(),
+    );
+    let jwt = JwtTokens::new(JwtConfig::new(
+        "openrust-tests",
+        "openrust-test-client",
+        "test-key",
+        std::collections::BTreeMap::from([("test-key".to_owned(), STANDARD.encode([7_u8; 32]))]),
+    ))?;
+    let flows = AuthFlows::new(
+        db.clone(),
+        passwords,
+        jwt.clone(),
+        RefreshTokens::new(db.clone()),
+        codes,
+        RateLimiter::new(DatabaseRateLimitStore::new(db.clone())),
+    )
+    .with_code_policy(VerificationCodePolicy::new(
+        6,
+        std::time::Duration::from_secs(600),
+        std::time::Duration::from_secs(1),
+        5,
+    )?);
+    let (session_app, session_router) = app_router(database.url(), "flow_").await?;
+
+    let code = flows
+        .register("Flow.User@example.test", "initial-password", "127.0.0.1")
+        .await?
+        .ok_or("new account was not registered")?;
+    assert!(
+        flows
+            .request_email_verification("flow.user@example.test", "127.0.0.1")
+            .await?
+            .is_none()
+    );
+    assert!(
+        flows
+            .register("flow.user@example.test", "ignored-password", "127.0.0.1")
+            .await?
+            .is_none()
+    );
+    connection
+        .execute_unprepared(
+            "ALTER TABLE mapped_accounts ADD CONSTRAINT reject_test_email CHECK (email <> 'reject@example.test')",
+        )
+        .await?;
+    assert!(
+        flows
+            .register("reject@example.test", "initial-password", "127.0.0.1")
+            .await
+            .is_err(),
+        "non-unique constraint failures must propagate instead of looking like duplicate emails"
+    );
+    assert!(
+        flows
+            .login("flow.user@example.test", "initial-password", "127.0.0.1")
+            .await
+            .is_err()
+    );
+    let wrong_code = if code.code() == "000000" {
+        "000001"
+    } else {
+        "000000"
+    };
+    assert!(
+        !flows
+            .verify_email("flow.user@example.test", wrong_code, "127.0.0.1")
+            .await?
+    );
+    assert!(
+        flows
+            .verify_email("flow.user@example.test", code.code(), "127.0.0.1")
+            .await?
+    );
+
+    let session_store = Arc::new(DatabaseSessionStore::new(db.clone()));
+    let session = Session::new(None, session_store.clone(), None);
+    session.insert("app.preference", "compact").await?;
+    session.save().await?;
+    let old_session_id = session
+        .id()
+        .ok_or("Session middleware did not assign an initial ID")?;
+    let stale_request = Session::new(Some(old_session_id), session_store.clone(), None);
+    assert_eq!(
+        stale_request.get::<String>("app.preference").await?,
+        Some("compact".to_owned())
+    );
+    assert!(
+        flows
+            .login_session(
+                "flow.user@example.test",
+                "wrong-password",
+                "session-login-source",
+                &session,
+            )
+            .await
+            .is_err()
+    );
+    assert_eq!(session.id(), Some(old_session_id));
+    assert!(session.get::<i64>("openrust.auth.user_id").await?.is_none());
+
+    let session_credentials = flows
+        .login_session(
+            "flow.user@example.test",
+            "initial-password",
+            "session-login-source",
+            &session,
+        )
+        .await?;
+    assert_eq!(session_credentials.user_id(), 1);
+    assert!(!session_credentials.csrf_token().contains('='));
+    assert!(!format!("{session_credentials:?}").contains(session_credentials.csrf_token()));
+    assert!(session.id().is_none());
+    session.save().await?;
+    let logged_in_session_id = session
+        .id()
+        .ok_or("Session middleware did not persist rotated login ID")?;
+    assert_ne!(logged_in_session_id, old_session_id);
+    let csrf_hash = session
+        .get::<String>("openrust.auth.csrf_hash")
+        .await?
+        .ok_or("CSRF digest was not stored in the session")?;
+    assert_eq!(csrf_hash, hex_sha256(session_credentials.csrf_token()));
+    assert_ne!(csrf_hash, session_credentials.csrf_token());
+    assert_eq!(
+        session.get::<String>("app.preference").await?,
+        Some("compact".to_owned())
+    );
+    assert!(session_store.load(&old_session_id).await?.is_none());
+
+    let session_cookie = format!("openrust_session={logged_in_session_id}");
+    read_response(
+        session_router
+            .clone()
+            .oneshot(
+                Request::get("/auth/current")
+                    .header("cookie", &session_cookie)
+                    .body(Body::empty())?,
+            )
+            .await?,
+    )
+    .await?;
+    let denied_post = session_router
+        .clone()
+        .oneshot(
+            Request::post("/auth/current")
+                .header("cookie", &session_cookie)
+                .body(Body::empty())?,
+        )
+        .await?;
+    let denied_body = to_bytes(denied_post.into_body(), usize::MAX).await?;
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&denied_body)?["code"],
+        "forbidden"
+    );
+    read_response(
+        session_router
+            .clone()
+            .oneshot(
+                Request::post("/auth/current")
+                    .header("cookie", &session_cookie)
+                    .header("x-csrf-token", session_credentials.csrf_token())
+                    .body(Body::empty())?,
+            )
+            .await?,
+    )
+    .await?;
+
+    stale_request.insert("app.stale", true).await?;
+    stale_request.save().await?;
+    assert!(session_store.load(&old_session_id).await?.is_none());
+    assert_eq!(session.get::<i64>("openrust.auth.user_id").await?, Some(1));
+
+    flows
+        .logout_session("session-logout-source", &session)
+        .await?;
+    assert!(session.id().is_none());
+    session.save().await?;
+    let anonymous_session_id = session
+        .id()
+        .ok_or("logout Session ID was not reissued for retained app data")?;
+    assert_ne!(anonymous_session_id, logged_in_session_id);
+    assert!(session.get::<i64>("openrust.auth.user_id").await?.is_none());
+    assert!(
+        session
+            .get::<String>("openrust.auth.csrf_hash")
+            .await?
+            .is_none()
+    );
+    assert_eq!(
+        session.get::<String>("app.preference").await?,
+        Some("compact".to_owned())
+    );
+    assert!(session_store.load(&logged_in_session_id).await?.is_none());
+    let revoked_session = session_router
+        .clone()
+        .oneshot(
+            Request::get("/auth/current")
+                .header("cookie", &session_cookie)
+                .body(Body::empty())?,
+        )
+        .await?;
+    let revoked_body = to_bytes(revoked_session.into_body(), usize::MAX).await?;
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&revoked_body)?["code"],
+        "unauthorized"
+    );
+
+    let credentials = flows
+        .login("flow.user@example.test", "initial-password", "127.0.0.1")
+        .await?;
+    assert!(jwt.verify_access_token(credentials.access_token()).is_ok());
+    let rotated = flows
+        .refresh(credentials.refresh_token().expose(), "127.0.0.1")
+        .await?;
+    assert!(jwt.verify_access_token(rotated.access_token()).is_ok());
+    assert!(
+        flows
+            .refresh(credentials.refresh_token().expose(), "127.0.0.1")
+            .await
+            .is_err()
+    );
+
+    let reset_code = flows
+        .request_password_reset("flow.user@example.test", "127.0.0.1")
+        .await?
+        .ok_or("eligible account did not receive reset code")?;
+    assert!(
+        flows
+            .request_password_reset("flow.user@example.test", "127.0.0.1")
+            .await?
+            .is_none()
+    );
+    assert!(
+        flows
+            .request_password_reset("unknown@example.test", "127.0.0.1")
+            .await?
+            .is_none()
+    );
+    assert!(
+        flows
+            .reset_password(
+                "flow.user@example.test",
+                reset_code.code(),
+                "replacement-password",
+                "127.0.0.1",
+            )
+            .await?
+    );
+    assert!(
+        flows
+            .login("flow.user@example.test", "initial-password", "127.0.0.1")
+            .await
+            .is_err()
+    );
+    let replacement = flows
+        .login(
+            "flow.user@example.test",
+            "replacement-password",
+            "127.0.0.1",
+        )
+        .await?;
+    flows
+        .logout(replacement.refresh_token().expose(), "127.0.0.1")
+        .await?;
+    assert!(
+        flows
+            .refresh(replacement.refresh_token().expose(), "127.0.0.1")
+            .await
+            .is_err()
+    );
+
+    drop(stale_request);
+    drop(session);
+    drop(session_store);
+    drop(session_router);
+    drop(session_app);
+    drop(flows);
+    drop(db);
+    drop(connection);
+    database.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
+// This single fixture verifies both route-level role checks and PAT scope intersection.
+#[allow(clippy::too_many_lines)]
+async fn policy_grants_and_revocations_are_visible_to_authenticated_routes() -> TestResult {
+    let Ok(url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+        eprintln!("skipping Policy integration: OPENRUST_TEST_DATABASE_URL is unset");
+        return Ok(());
+    };
+    let backend = DatabaseBackend::from_url(&url)?;
+    if !backend.is_enabled() {
+        return Ok(());
+    }
+    let names = openrust::database::DatabaseTableNames::new(
+        "policy_",
+        std::collections::BTreeMap::from([("users".to_owned(), "mapped_accounts".to_owned())]),
+    )?;
+    let database = TestDatabase::create_with_table_names::<AuthMigrator>(&url, names).await?;
+    let (app, router) = app_router(database.url(), "policy_").await?;
+    let connection = app.state().try_get::<Db>()?.connection()?;
+    connection.execute_unprepared(
+        "INSERT INTO mapped_accounts (email, password_hash, created_at, updated_at) VALUES ('policy@example.test', 'unused', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+    ).await?;
+    let user_id = connection
+        .query_one_raw(Statement::from_string(
+            connection.get_database_backend(),
+            "SELECT id FROM mapped_accounts WHERE email = 'policy@example.test'".to_owned(),
+        ))
+        .await?
+        .ok_or("policy account insert returned no row")?
+        .try_get::<i64>("", "id")?;
+    let policy = app.state().try_get::<Policy>()?;
+    let role = policy.ensure_role("content-editor").await?;
+    policy.assign_role(user_id, role).await?;
+    let tokens = app.state().try_get::<PersonalAccessTokens>()?;
+    let scoped_token = tokens
+        .issue(user_id, "scoped", &["posts:read".to_owned()], None)
+        .await?;
+    let unscoped_token = tokens
+        .issue(user_id, "unscoped", &["posts:write".to_owned()], None)
+        .await?;
+    let jwt = app.state().try_get::<JwtTokens>()?;
+    let token = jwt.issue_access_token(user_id)?;
+    let request = || {
+        Request::get("/auth/policy")
+            .header("authorization", format!("Bearer {token}"))
+            .body(Body::empty())
+    };
+    let before = router.clone().oneshot(request()?).await?;
+    assert_eq!(before.status(), StatusCode::OK);
+    let body: serde_json::Value =
+        serde_json::from_slice(&to_bytes(before.into_body(), usize::MAX).await?)?;
+    assert_eq!(body["data"], false, "{body}");
+    let denied = router
+        .clone()
+        .oneshot(
+            Request::get("/auth/policy-authorize")
+                .header("authorization", format!("Bearer {token}"))
+                .body(Body::empty())?,
+        )
+        .await?;
+    let denied_body: serde_json::Value =
+        serde_json::from_slice(&to_bytes(denied.into_body(), usize::MAX).await?)?;
+    assert_eq!(denied_body["success"], false);
+    assert_eq!(denied_body["code"], "forbidden");
+
+    policy.grant_permission(role, "posts:read").await?;
+    let granted = router.clone().oneshot(request()?).await?;
+    let body: serde_json::Value =
+        serde_json::from_slice(&to_bytes(granted.into_body(), usize::MAX).await?)?;
+    assert_eq!(body["data"], true);
+
+    let scoped = router
+        .clone()
+        .oneshot(
+            Request::get("/auth/policy-pat")
+                .header("authorization", format!("Bearer {}", scoped_token.expose()))
+                .body(Body::empty())?,
+        )
+        .await?;
+    let body: serde_json::Value =
+        serde_json::from_slice(&to_bytes(scoped.into_body(), usize::MAX).await?)?;
+    assert_eq!(body["data"], true);
+    let unscoped = router
+        .clone()
+        .oneshot(
+            Request::get("/auth/policy-pat")
+                .header(
+                    "authorization",
+                    format!("Bearer {}", unscoped_token.expose()),
+                )
+                .body(Body::empty())?,
+        )
+        .await?;
+    let body: serde_json::Value =
+        serde_json::from_slice(&to_bytes(unscoped.into_body(), usize::MAX).await?)?;
+    assert_eq!(body["data"], false);
+
+    let second_role = policy.ensure_role("content-auditor").await?;
+    policy.grant_permission(second_role, "posts:read").await?;
+    policy.assign_role(user_id, second_role).await?;
+    policy.revoke_role(user_id, role).await?;
+    let inherited = router.clone().oneshot(request()?).await?;
+    let body: serde_json::Value =
+        serde_json::from_slice(&to_bytes(inherited.into_body(), usize::MAX).await?)?;
+    assert_eq!(body["data"], true);
+
+    policy.revoke_permission(second_role, "posts:read").await?;
+    let revoked = router.clone().oneshot(request()?).await?;
+    let body: serde_json::Value =
+        serde_json::from_slice(&to_bytes(revoked.into_body(), usize::MAX).await?)?;
+    assert_eq!(body["data"], false);
+    drop(connection);
+    drop(tokens);
+    drop(policy);
+    drop(router);
+    drop(app);
+    database.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn auth_migrations_use_default_empty_prefix_and_full_name_mapping() -> TestResult {
+    let Ok(url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+        eprintln!("skipping table-name migration matrix: OPENRUST_TEST_DATABASE_URL is unset");
+        return Ok(());
+    };
+    let backend = DatabaseBackend::from_url(&url)?;
+    if !backend.is_enabled() {
+        return Ok(());
+    }
+    let cases = [
+        (
+            openrust::database::DatabaseTableNames::default(),
+            [
+                "tb_users",
+                "tb_sessions",
+                "tb_personal_access_tokens",
+                "tb_auth_refresh_tokens",
+                "tb_verification_codes",
+                "tb_roles",
+                "tb_permissions",
+                "tb_user_roles",
+                "tb_role_permissions",
+            ],
+        ),
+        (
+            openrust::database::DatabaseTableNames::new("", std::collections::BTreeMap::default())?,
+            [
+                "users",
+                "sessions",
+                "personal_access_tokens",
+                "auth_refresh_tokens",
+                "verification_codes",
+                "roles",
+                "permissions",
+                "user_roles",
+                "role_permissions",
+            ],
+        ),
+        (
+            openrust::database::DatabaseTableNames::new(
+                "custom_",
+                std::collections::BTreeMap::from([("users".to_owned(), "accounts".to_owned())]),
+            )?,
+            [
+                "accounts",
+                "custom_sessions",
+                "custom_personal_access_tokens",
+                "custom_auth_refresh_tokens",
+                "custom_verification_codes",
+                "custom_roles",
+                "custom_permissions",
+                "custom_user_roles",
+                "custom_role_permissions",
+            ],
+        ),
+    ];
+    for (table_names, expected_names) in cases {
+        let database =
+            TestDatabase::create_with_table_names::<AuthMigrator>(&url, table_names).await?;
+        let connection = database.connection()?;
+        for table_name in expected_names {
+            let (sql, value) = match connection.get_database_backend() {
+                openrust::database::DbBackend::Postgres => (
+                    "SELECT COUNT(*) AS row_count FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = $1",
+                    table_name.into(),
+                ),
+                openrust::database::DbBackend::MySql => (
+                    "SELECT COUNT(*) AS row_count FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?",
+                    table_name.into(),
+                ),
+                _ => return Err("auth migration selected an unsupported backend".into()),
+            };
+            let row = connection
+                .query_one_raw(Statement::from_sql_and_values(
+                    connection.get_database_backend(),
+                    sql,
+                    [value],
+                ))
+                .await?
+                .ok_or("table-name verification returned no row")?;
+            assert_eq!(
+                row.try_get::<i64>("", "row_count")?,
+                1,
+                "missing table {table_name}"
+            );
+        }
+        drop(connection);
+        database.close().await?;
+    }
+    Ok(())
+}

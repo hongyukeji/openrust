@@ -28,6 +28,19 @@ The admin user needs database creation and deletion privileges. MySQL connection
 TLS and set session time zone to UTC. Explicit `close().await` waits for deletion; dropping the guard schedules best-effort cleanup
 while a Tokio runtime is active.
 
+When migrations use configured table prefixes or full-name mappings, pass the same immutable resolver used by the application:
+
+```rust,ignore
+let names = openrust_db::DatabaseTableNames::new("shop_", Default::default())?;
+let database = openrust_test::TestDatabase::create_with_table_names::<migration::Migrator>(
+    &std::env::var("OPENRUST_TEST_DATABASE_URL")?,
+    names,
+)
+.await?;
+```
+
+The resolver is scoped to migration execution for both PostgreSQL and MySQL. `create()` continues to use the default `tb_` resolver.
+
 ## Scope
 
 Per-test database isolation is implemented. `TestApp`, HTTP response assertions, factories, and

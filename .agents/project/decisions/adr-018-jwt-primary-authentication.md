@@ -1,6 +1,6 @@
 # ADR-018 API 默认 JWT 与可选 Session
 
-- 状态：Accepted（方向已确认；认证运行时与流程仍待按本决策实现）
+- 状态：Accepted（JWT runtime、AuthFlows 与路由已实现；v1 M3 总验收继续进行）
 - 日期：2026-10-25
 - 替代：[ADR-004](adr-004-session-and-token-auth.md) 的默认认证方式；补充 [ADR-012](adr-012-auth-current-user-contract.md) 的 credential 路由 contract 与 [ADR-017](adr-017-generic-session-runtime.md) 的可选 Session contract。
 
@@ -22,7 +22,8 @@ OpenRust 的主要场景是前后端分离 API 服务，因此用户登录后应
 
 ## 影响与迁移
 
-- JWT、refresh token 轮换与撤销进入 v1 认证交付范围；Cookie Session 为可选能力，不再是默认路径。具体 JWT crate/算法支持、配置结构、表结构、token claims 和错误响应在实现 Spec 中核验后定稿。
+- JWT、refresh token 轮换与撤销进入 v1 认证交付范围；Cookie Session 为可选能力，不再是默认路径。运行时、配置与 claims 的实现 contract 由 [ADR-022](adr-022-jwt-runtime-contract.md) 细化。
+- 可复用的账号流程 service 与应用自有 HTTP 路由边界见 [ADR-024](adr-024-authentication-flow-service.md)；这项 contract 不代表流程已实现。
 - 当前认证实现 WIP 的 Session 与 PAT 可以保留为能力实现输入，但生成流程、认证选择和验收必须以本 ADR 为准。不得把现有代码状态当作产品默认决策。
 - 旧 ADR-004 的账户字段、密码哈希、内置注册与找回密码等决定在不冲突时继续有效；其 Cookie Session/PAT 默认顺序和 JWT 排除条款已由本 ADR 替代。
 

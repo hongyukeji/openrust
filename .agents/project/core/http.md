@@ -1,4 +1,4 @@
-# openrust-http
+# `openrust::http`
 
 > 受众：AI Agent
 > 更新：2026-10-25
@@ -6,13 +6,13 @@
 
 ## 边界
 
-基于 `axum` 0.8 + `tower-http`。提供路由约定、提取器、默认中间件、`/health` 与 `serve`；认证、OpenAPI、限流在后续里程碑加入。
+基于 `axum` 0.8 + `tower-http`。提供路由约定、提取器、默认中间件、`/health` 与 `serve`；core 已提供可供 HTTP 与业务复用的 `RateLimiter` 服务契约，DatabasePlugin 提供双库共享 store。HTTP 限流 middleware、请求 key 提取/策略组合仍需在 M3 接入时另行明确和实现；OpenAPI 在后续里程碑。
 
 ## 当前实现
 
 | 模块 | 内容 |
 | --- | --- |
-| `plugin` | `HttpPlugin`（注册 `serve` 与 `/health`）；`AppBuilderHttpExt::routes(Fn(Routes) -> Routes)`；`RouteRegistry` 扩展；`build_router(&App) -> Result<Router>` |
+| `plugin` | `HttpPlugin`（注册 `serve` 与 `/health`）；`AppBuilderHttpExt::routes(Fn(Routes) -> Routes)`；`RouteRegistry` 扩展；`build_router(&App) -> Result<Router>` 在任何 route layer 前向请求扩展注入最终 `AppState`，供跨能力中间件读取 |
 | `routes` | `Routes`：`route` / `get` / `post` / `put` / `patch` / `delete` / `resource` / `resource_with` / `nest(prefix, f)` / `merge` / `layer` / `into_router`；`nest("")` 或 `"/"` 走 merge |
 | `resource` | `Resource` 显式登记动作；`#[openrust::resource]` 从 controller inherent impl 的动作关联函数生成实现；`only` 连续调用取交集、`except` 裁剪；路径去尾斜杠后注册集合与成员，`update` 同时映射 PUT / PATCH |
 | `response` | `Created<T>` → semantic 201 / 默认 200，`with_location` 返回 `Result<Located<T>>`（非法值 → 500 包装）；`NoContent` → 200 包装，`data: null`；直接提取 `PageParams` 默认 1/20，并校验页数、每页 1..=100 与 offset 不超过 `i64::MAX`；`Paginated<T>` 输出 `data` 与 `meta` |
@@ -29,9 +29,9 @@ CORS 预检（`OPTIONS` 且带 `Access-Control-Request-Method`）保持 tower-ht
 
 ## 后续边界
 
-- 限流（M3）；OpenAPI `/docs`（后续里程碑）。
+- HTTP 限流 middleware 与请求身份/key 组合（M3）；OpenAPI `/docs`（后续里程碑）。
 - `/ready` 聚合各能力 crate 的检查（M5）。
 
 ## 验证
 
-`cargo test -p openrust-http`：`tests/router.rs` 用 `oneshot` 覆盖 health 统一包装及请求 ID、`Inject` 命中与缺失、`Validated` 的 422 / 400 / 200、panic → 500、压缩协商、CORS 响应与配置错误；`tests/resource.rs` 覆盖路由动作、裁剪、嵌套、响应状态与分页错误/结构。
+`cargo test -p openrust --test http_router --test http_resource`：`tests/router.rs` 用 `oneshot` 覆盖 health 统一包装及请求 ID、`Inject` 命中与缺失、`Validated` 的 422 / 400 / 200、panic → 500、压缩协商、CORS 响应与配置错误；`tests/resource.rs` 覆盖路由动作、裁剪、嵌套、响应状态与分页错误/结构。

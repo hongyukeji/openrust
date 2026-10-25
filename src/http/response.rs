@@ -1,0 +1,199 @@
+//! Common HTTP response wrappers and validated pagination parameters.
+
+use std::collections::HashMap;
+use std::num::NonZeroU64;
+
+use crate::config::HttpStatusMode;
+use crate::core::error::current_http_status_mode;
+use crate::core::{ApiResponse, Error, PageMeta, Result, ValidationErrors};
+use axum::extract::{FromRequestParts, Query};
+use axum::http::{HeaderValue, StatusCode, header, request::Parts};
+use axum::response::{IntoResponse, Response};
+use serde::{Deserialize, Serialize};
+
+/// Marks a successful response as created in semantic HTTP mode.
+///
+/// ```
+/// use openrust::http::{Created, Json};
+///
+/// async fn create() -> Created<Json<&'static str>> {
+///     Created(Json("created"))
+/// }
+/// ```
+pub struct Created<T>(pub T);
+
+impl<T: IntoResponse> IntoResponse for Created<T> {
+    fn into_response(self) -> Response {
+        let mut response = self.0.into_response();
+        if current_http_status_mode() == HttpStatusMode::Semantic {
+            *response.status_mut() = StatusCode::CREATED;
+        }
+        response
+    }
+}
+
+/// A created response with a validated `Location` header.
+pub struct Located<T> {
+    location: HeaderValue,
+    body: T,
+}
+
+impl<T> Created<T> {
+    /// Creates a response with `Location`; invalid header values return an internal error.
+    pub fn with_location(location: &str, body: T) -> Result<Located<T>> {
+        let location = HeaderValue::from_str(location).map_err(Error::internal)?;
+        Ok(Located { location, body })
+    }
+}
+
+impl<T: IntoResponse> IntoResponse for Located<T> {
+    fn into_response(self) -> Response {
+        let mut response = Created(self.body).into_response();
+        response
+            .headers_mut()
+            .insert(header::LOCATION, self.location);
+        response
+    }
+}
+
+/// Responds with a successful envelope containing `data: null`.
+pub struct NoContent;
+
+impl IntoResponse for NoContent {
+    fn into_response(self) -> Response {
+        ApiResponse::empty().into_response()
+    }
+}
+
+/// One-based pagination parameters extracted from a query string.
+///
+/// Direct extraction defaults to page 1 and 20 items per page, and validates both fields
+/// and the zero-based offset against the `i64` database range. `Query<PageParams>`
+/// only deserializes the fields and does not perform this validation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+pub struct PageParams {
+    /// One-based page number, at least 1.
+    #[serde(default = "default_page")]
+    pub page: u64,
+    /// Page size, between 1 and 100.
+    #[serde(default = "default_per_page")]
+    pub per_page: u64,
+}
+
+const fn default_page() -> u64 {
+    1
+}
+
+const fn default_per_page() -> u64 {
+    20
+}
+
+impl Default for PageParams {
+    fn default() -> Self {
+        Self {
+            page: default_page(),
+            per_page: default_per_page(),
+        }
+    }
+}
+
+impl PageParams {
+    /// Zero-based offset; saturates if the product exceeds `u64`.
+    pub fn offset(self) -> u64 {
+        self.page.saturating_sub(1).saturating_mul(self.per_page)
+    }
+
+    /// Maximum number of items to fetch.
+    pub fn limit(self) -> u64 {
+        self.per_page
+    }
+}
+
+impl<S: Send + Sync> FromRequestParts<S> for PageParams {
+    type Rejection = Error;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self> {
+        let Query(values) = Query::<HashMap<String, String>>::from_request_parts(parts, state)
+            .await
+            .map_err(|rejection| {
+                let mut errors = ValidationErrors::new();
+                errors.add("query", rejection.body_text());
+                Error::Validation(errors)
+            })?;
+        let mut errors = ValidationErrors::new();
+        let page = parse_param(&values, "page", default_page(), &mut errors);
+        let per_page = parse_param(&values, "per_page", default_per_page(), &mut errors);
+        if page == 0 {
+            errors.add("page", "must be at least 1");
+        }
+        if !(1..=100).contains(&per_page) {
+            errors.add("per_page", "must be between 1 and 100");
+        }
+        if page != 0
+            && (1..=100).contains(&per_page)
+            && (page - 1)
+                .checked_mul(per_page)
+                .is_none_or(|offset| offset > i64::MAX as u64)
+        {
+            errors.add("page", "is too large");
+        }
+        if !errors.is_empty() {
+            return Err(Error::Validation(errors));
+        }
+        Ok(Self { page, per_page })
+    }
+}
+
+fn parse_param(
+    values: &HashMap<String, String>,
+    field: &str,
+    default: u64,
+    errors: &mut ValidationErrors,
+) -> u64 {
+    values.get(field).map_or(default, |value| {
+        value.parse::<u64>().unwrap_or_else(|_| {
+            errors.add(field, "must be a non-negative integer");
+            default
+        })
+    })
+}
+
+/// A JSON page with its pagination metadata.
+///
+/// ```
+/// use openrust::http::{PageParams, Paginated};
+///
+/// let page = Paginated::new(vec!["post"], PageParams::default(), 1);
+/// ```
+pub struct Paginated<T> {
+    items: Vec<T>,
+    params: PageParams,
+    total: u64,
+}
+
+impl<T> Paginated<T> {
+    /// Builds a page from its items, validated parameters and total item count.
+    pub fn new(items: Vec<T>, params: PageParams, total: u64) -> Self {
+        Self {
+            items,
+            params,
+            total,
+        }
+    }
+}
+
+impl<T: Serialize> IntoResponse for Paginated<T> {
+    fn into_response(self) -> Response {
+        let total_pages = NonZeroU64::new(self.params.per_page).map_or(0, |page_size| {
+            self.total / page_size.get() + u64::from(!self.total.is_multiple_of(page_size.get()))
+        });
+        ApiResponse::success(self.items)
+            .with_meta(PageMeta {
+                page: self.params.page,
+                per_page: self.params.per_page,
+                total: self.total,
+                total_pages,
+            })
+            .into_response()
+    }
+}

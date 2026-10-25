@@ -25,7 +25,7 @@
 | `scripts/` | 提交脚本 |
 | [`../skills/`](../skills/README.md) | 专项工作流；按任务读取 |
 
-代码落地后按 crate 新增 `core/<crate>.md` 保存各 crate 当前事实；v1 版本只有框架 crate，没有业务模块目录。
+代码落地后按框架模块或保留的独立 package 在 `core/` 维护当前事实；认证模块事实见 `core/auth.md`。v1 框架能力放在根 `openrust` package，不为业务能力预建空 crate。
 
 ## 维护规则
 

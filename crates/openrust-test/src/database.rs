@@ -6,8 +6,10 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use openrust_core::{Error, Result};
-use openrust_db::{DatabaseBackend, sea_orm_migration::MigratorTrait};
+use openrust::{
+    Error, Result,
+    database::{DatabaseBackend, DatabaseTableNames, sea_orm_migration::MigratorTrait},
+};
 use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection};
 use url::Url;
 
@@ -36,6 +38,17 @@ impl TestDatabase {
     where
         M: MigratorTrait + Send + Sync + 'static,
     {
+        Self::create_with_table_names::<M>(admin_url, DatabaseTableNames::default()).await
+    }
+
+    /// Creates an isolated database and runs migrations in the supplied table-name scope.
+    pub async fn create_with_table_names<M>(
+        admin_url: &str,
+        table_names: DatabaseTableNames,
+    ) -> Result<Self>
+    where
+        M: MigratorTrait + Send + Sync + 'static,
+    {
         let parsed = Url::parse(admin_url).map_err(Error::internal)?;
         let backend = DatabaseBackend::from_url(admin_url)?;
         if !backend.is_enabled() {
@@ -52,7 +65,13 @@ impl TestDatabase {
             DatabaseBackend::PostgreSql => {
                 #[cfg(feature = "db-postgres")]
                 {
-                    create_postgres_database::<M>(&admin, &parsed, &database_name).await
+                    create_postgres_database::<M>(
+                        &admin,
+                        &parsed,
+                        &database_name,
+                        table_names.clone(),
+                    )
+                    .await
                 }
                 #[cfg(not(feature = "db-postgres"))]
                 {
@@ -65,7 +84,13 @@ impl TestDatabase {
             DatabaseBackend::MySql => {
                 #[cfg(feature = "db-mysql")]
                 {
-                    create_mysql_database::<M>(&admin, &database_url, &database_name).await
+                    create_mysql_database::<M>(
+                        &admin,
+                        &database_url,
+                        &database_name,
+                        table_names.clone(),
+                    )
+                    .await
                 }
                 #[cfg(not(feature = "db-mysql"))]
                 {
@@ -181,6 +206,7 @@ async fn create_postgres_database<M>(
     admin: &DatabaseConnection,
     base_url: &Url,
     database_name: &str,
+    table_names: DatabaseTableNames,
 ) -> Result<()>
 where
     M: MigratorTrait + Send + Sync + 'static,
@@ -190,7 +216,10 @@ where
     let template_url = url_for_database(base_url, &template_name);
     let migration = async {
         let template = connect(&template_url).await?;
-        let result = M::up(&template, None).await.map_err(Error::internal);
+        let result = table_names
+            .scope(M::up(&template, None))
+            .await
+            .map_err(Error::internal);
         let close_result = template.close().await.map_err(Error::internal);
         result?;
         close_result
@@ -217,13 +246,17 @@ async fn create_mysql_database<M>(
     admin: &DatabaseConnection,
     database_url: &str,
     database_name: &str,
+    table_names: DatabaseTableNames,
 ) -> Result<()>
 where
     M: MigratorTrait + Send + Sync + 'static,
 {
     execute(admin, &format!("CREATE DATABASE {database_name}")).await?;
     let database = connect(database_url).await?;
-    let result = M::up(&database, None).await.map_err(Error::internal);
+    let result = table_names
+        .scope(M::up(&database, None))
+        .await
+        .map_err(Error::internal);
     let close_result = database.close().await.map_err(Error::internal);
     result?;
     close_result

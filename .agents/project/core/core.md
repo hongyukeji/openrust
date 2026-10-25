@@ -1,7 +1,7 @@
-# openrust-core
+# `openrust::core`
 
 > 受众：AI Agent
-> 更新：2026-10-25
+> 更新：2026-10-26
 > 摘要：应用内核当前事实。
 
 ## 边界
@@ -12,11 +12,12 @@
 
 | 模块 | 内容 |
 | --- | --- |
-| `app` | `Application { type Config; fn build(&mut AppBuilder) }`；`AppBuilder`（`plugin` / `insert` / `get` / `command` / `section` / `extension_mut`，注册方法为 `&mut self` 链式，`get` 为只读）；`App`（`state` / `config` / `figment` / `commands` / `extension` / `run_command`）；`AppState`（`get` / `try_get`，按 `TypeId` 的只读注册表）；`MissingServiceError` |
+| `app` | `Application { type Config; fn config_namespace() -> &'static str; fn build(&mut AppBuilder) }`，默认命名空间 `APP_`；`AppBuilder`（`plugin` / `insert` / `get` / `command` / `section` / `extension_mut`，注册方法为 `&mut self` 链式，`get` 为只读）；`App`（`state` / `config` / `figment` / `commands` / `extension` / `run_command`）；`AppState`（`get` / `try_get`，按 `TypeId` 的只读注册表）；`MissingServiceError` |
 | `plugin` | `Plugin { name, build(&mut AppBuilder), finish(&App) -> BoxFuture }`；`BoxFuture` |
 | `command` | `Command { name, about, accepts_args, run }`；额外参数默认拒绝；内置 `help`、`config show`（密钥遮蔽） |
-| `config` | 分层 `ConfigLoader`（默认值 → `OPENRUST_CONFIG_DIR` 指定目录的 `default.toml` / `<env>.toml` → `OPENRUST_*`；目录默认是工作目录下的 `config`）；`Environment`（`OPENRUST_ENV`）；进程变量优先，未设置时仅从 `.env` 预读环境，最终为生产环境则完全不加载 `.env`；`FrameworkConfig { app, server, api, log }`，其中 `ServerConfig` 包含 `compression` 与 `cors` 默认配置；`NoConfig`；`load_dotenv`；`redact_secrets` |
+| `config` | 分层 `ConfigLoader`（默认值 → 所选命名空间 `CONFIG_DIR` 指定目录的 `default.toml` / `<env>.toml` → 所选前缀环境变量；缺省为 `APP_`，目录默认是工作目录下的 `config`）；`Environment`（缺省 `APP_ENV`）；进程变量优先，未设置时仅从所选前缀的 `.env` 环境键预读环境，最终为生产环境则完全不加载 `.env`；`FrameworkConfig { app, server, api, log }`，其中 `ServerConfig` 包含 `compression` 与 `cors` 默认配置；`NoConfig`；`load_dotenv`；`redact_secrets` |
 | `error` | `Error` 枚举（`BadRequest` / `Unauthorized` / `Forbidden` / `NotFound` / `Conflict` / `Validation` / `ValidationDetail` / `RateLimited` / `RateLimitedWithRetryAfter` / `Config` / `Custom` / `Internal`），`status()` / `code()` / `to_api_response()`；`validation_with_detail` 用于 JSON 结构错误，`custom_with_status` 承载 405/408/413/415 等稳定码，`IntoResponse` 输出 `application/json`；`ApiResponse<T>`、请求作用域 `ResponseContext`、`ValidationErrors` |
+| `rate_limit` | `RateLimiter` 与 `RateLimitStore`；按稳定 key 原子消费固定窗口，服务统一策略校验和 429/Retry-After 语义，store 故障传播；core 不决定 HTTP 身份来源或中间件 |
 | `lifecycle` | `bootstrap` / `bootstrap_with(defaults)` / `finalize(builder)` / `init_tracing` / `shutdown_signal` |
 
 分页 `meta` 使用 `Option<PageMeta>`，`with_meta` 直接保留强类型值。
@@ -34,4 +35,6 @@
 
 ## 验证
 
-`cargo test -p openrust-core`：配置分层、键名报错、密钥遮蔽、错误渲染、注册表、plugin 级联构建与 finish。
+`cargo test -p openrust`：配置分层、APP_ 默认和自定义命名空间、`.env` 引导、前缀优先级、错误键名、密钥遮蔽、错误渲染、注册表与 plugin 级联构建/finish。
+
+限流单测验证 quota 边界、固定窗口重试语义、非法策略和存储故障关闭。

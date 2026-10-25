@@ -1,0 +1,793 @@
+//! Database-backed account and credential lifecycle orchestration.
+
+use std::{
+    sync::{Arc, OnceLock},
+    time::Duration,
+};
+
+use crate::core::{App, AppBuilder, BoxFuture, Error, Plugin, RateLimiter, Result};
+use crate::db::Db;
+use crate::db::sea_orm::{ConnectionTrait, DbBackend, SqlErr, Statement};
+use base64::Engine as _;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use chrono::{Duration as ChronoDuration, Utc};
+
+use crate::auth::{
+    EncodedPasswordHash, IssuedRefreshToken, IssuedVerificationCode, JwtTokens, Passwords,
+    RefreshTokens, Session, VerificationCodePolicy, VerificationCodes,
+    database::{AUTH_CSRF_HASH_KEY, AUTH_USER_ID_KEY},
+};
+
+const REQUEST_LIMIT: u64 = 5;
+const REQUEST_WINDOW: Duration = Duration::from_mins(15);
+const EMAIL_VERIFICATION_PURPOSE: &str = "auth.email_verification";
+const PASSWORD_RESET_PURPOSE: &str = "auth.password_reset";
+
+/// Shared account credential workflows. HTTP routes and message delivery remain application-owned.
+#[derive(Clone)]
+pub struct AuthFlows {
+    db: Db,
+    passwords: Passwords,
+    jwt: JwtTokens,
+    refresh: RefreshTokens,
+    codes: VerificationCodes,
+    limiter: RateLimiter,
+    refresh_lifetime: ChronoDuration,
+    code_policy: VerificationCodePolicy,
+}
+
+impl std::fmt::Debug for AuthFlows {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("AuthFlows")
+    }
+}
+
+impl AuthFlows {
+    /// Creates workflows from the application's required shared services.
+    pub fn new(
+        db: Db,
+        passwords: Passwords,
+        jwt: JwtTokens,
+        refresh: RefreshTokens,
+        codes: VerificationCodes,
+        limiter: RateLimiter,
+    ) -> Self {
+        Self {
+            db,
+            passwords,
+            jwt,
+            refresh,
+            codes,
+            limiter,
+            refresh_lifetime: ChronoDuration::days(30),
+            code_policy: VerificationCodePolicy::default(),
+        }
+    }
+
+    /// Sets the maximum lifetime of a refresh-token family.
+    #[must_use]
+    pub fn with_refresh_lifetime(mut self, lifetime: ChronoDuration) -> Self {
+        self.refresh_lifetime = lifetime;
+        self
+    }
+
+    /// Sets the policy for email verification and password reset codes.
+    #[must_use]
+    pub fn with_code_policy(mut self, policy: VerificationCodePolicy) -> Self {
+        self.code_policy = policy;
+        self
+    }
+
+    /// Creates an unverified account and returns a code for caller-managed delivery.
+    ///
+    /// `None` means the address already exists; callers should return the same public response
+    /// they use for a newly registered address to avoid account enumeration.
+    pub async fn register(
+        &self,
+        email: &str,
+        password: &str,
+        request_source: &str,
+    ) -> Result<Option<IssuedVerificationCode>> {
+        let email = normalize_email(email)?;
+        self.limit("register", request_source, &email).await?;
+        let password_hash = self.passwords.hash(password).await?;
+        let connection = self.db.connection()?;
+        let backend = connection.get_database_backend();
+        let sql = match backend {
+            DbBackend::Postgres => {
+                "INSERT INTO tb_users (email, password_hash, created_at, updated_at) VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+            }
+            DbBackend::MySql => {
+                "INSERT INTO tb_users (email, password_hash, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6))"
+            }
+            _ => return Err(unsupported_backend()),
+        };
+        let result = connection
+            .execute_raw(Statement::from_sql_and_values(
+                backend,
+                &crate::auth::resolve_auth_sql(&self.db, sql)?,
+                [
+                    email.clone().into(),
+                    password_hash.as_str().to_owned().into(),
+                ],
+            ))
+            .await;
+        let result = match result {
+            Ok(result) => result,
+            Err(error) if matches!(error.sql_err(), Some(SqlErr::UniqueConstraintViolation(_))) => {
+                return Ok(None);
+            }
+            Err(error) => return Err(Error::internal(error)),
+        };
+        if result.rows_affected() == 0 {
+            return Ok(None);
+        }
+        self.issue_code_uniform(EMAIL_VERIFICATION_PURPOSE, &email)
+            .await
+    }
+
+    /// Verifies an email address with one purpose-bound code.
+    pub async fn verify_email(
+        &self,
+        email: &str,
+        code: &str,
+        request_source: &str,
+    ) -> Result<bool> {
+        let email = normalize_email(email)?;
+        self.limit("verify_email", request_source, &email).await?;
+        if !self
+            .codes
+            .verify(EMAIL_VERIFICATION_PURPOSE, &email, code)
+            .await?
+        {
+            return Ok(false);
+        }
+        let connection = self.db.connection()?;
+        let backend = connection.get_database_backend();
+        let sql = match backend {
+            DbBackend::Postgres => {
+                "UPDATE tb_users SET email_verified_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE email = $1 AND email_verified_at IS NULL AND disabled_at IS NULL"
+            }
+            DbBackend::MySql => {
+                "UPDATE tb_users SET email_verified_at = CURRENT_TIMESTAMP(6), updated_at = CURRENT_TIMESTAMP(6) WHERE email = ? AND email_verified_at IS NULL AND disabled_at IS NULL"
+            }
+            _ => return Err(unsupported_backend()),
+        };
+        let result = connection
+            .execute_raw(Statement::from_sql_and_values(
+                backend,
+                &crate::auth::resolve_auth_sql(&self.db, sql)?,
+                [email.into()],
+            ))
+            .await
+            .map_err(Error::internal)?;
+        Ok(result.rows_affected() == 1)
+    }
+
+    /// Requests an email verification code for an existing, unverified, enabled account.
+    ///
+    /// `None` means the account is absent, disabled, or already verified. Public handlers should
+    /// return the same response for both outcomes.
+    pub async fn request_email_verification(
+        &self,
+        email: &str,
+        request_source: &str,
+    ) -> Result<Option<IssuedVerificationCode>> {
+        let email = normalize_email(email)?;
+        self.limit("request_email_verification", request_source, &email)
+            .await?;
+        let connection = self.db.connection()?;
+        let backend = connection.get_database_backend();
+        let sql = match backend {
+            DbBackend::Postgres => {
+                "SELECT id FROM tb_users WHERE email = $1 AND email_verified_at IS NULL AND disabled_at IS NULL"
+            }
+            DbBackend::MySql => {
+                "SELECT id FROM tb_users WHERE email = ? AND email_verified_at IS NULL AND disabled_at IS NULL"
+            }
+            _ => return Err(unsupported_backend()),
+        };
+        if connection
+            .query_one_raw(Statement::from_sql_and_values(
+                backend,
+                &crate::auth::resolve_auth_sql(&self.db, sql)?,
+                [email.clone().into()],
+            ))
+            .await
+            .map_err(Error::internal)?
+            .is_none()
+        {
+            return Ok(None);
+        }
+        self.issue_code_uniform(EMAIL_VERIFICATION_PURPOSE, &email)
+            .await
+    }
+
+    /// Authenticates a verified account and issues an access/refresh credential pair.
+    pub async fn login(
+        &self,
+        email: &str,
+        password: &str,
+        request_source: &str,
+    ) -> Result<AuthCredentials> {
+        let user_id = self
+            .authenticate_password(email, password, request_source)
+            .await?;
+        let access_token = self.jwt.issue_access_token(user_id)?;
+        let expires_at = Utc::now() + self.refresh_lifetime;
+        let refresh_token = self.refresh.issue(user_id, expires_at).await?;
+        Ok(AuthCredentials {
+            user_id,
+            access_token,
+            refresh_token,
+            refresh_expires_at: expires_at,
+        })
+    }
+
+    /// Authenticates a verified account, rotates its Cookie Session ID, and returns a CSRF token.
+    ///
+    /// This optional Session login path does not issue JWT or refresh credentials. The caller
+    /// must return the CSRF token to the client through its application response.
+    pub async fn login_session(
+        &self,
+        email: &str,
+        password: &str,
+        request_source: &str,
+        session: &Session,
+    ) -> Result<SessionCredentials> {
+        let user_id = self
+            .authenticate_password(email, password, request_source)
+            .await?;
+        bind_session(session, user_id).await
+    }
+
+    /// Removes the authenticated identity from a Cookie Session and rotates its ID.
+    ///
+    /// Other application-owned Session values are retained. Routes should require
+    /// `AuthMode::Session` before calling this method.
+    pub async fn logout_session(&self, request_source: &str, session: &Session) -> Result<()> {
+        let user_id = session
+            .get::<i64>(AUTH_USER_ID_KEY)
+            .await
+            .map_err(Error::internal)?
+            .ok_or(Error::Unauthorized)?;
+        self.limit("logout_session", request_source, &user_id.to_string())
+            .await?;
+        clear_session(session).await
+    }
+
+    async fn authenticate_password(
+        &self,
+        email: &str,
+        password: &str,
+        request_source: &str,
+    ) -> Result<i64> {
+        let email = normalize_email(email)?;
+        self.limit("login", request_source, &email).await?;
+        let connection = self.db.connection()?;
+        let backend = connection.get_database_backend();
+        let sql = match backend {
+            DbBackend::Postgres => {
+                "SELECT id, password_hash FROM tb_users WHERE email = $1 AND email_verified_at IS NOT NULL AND disabled_at IS NULL"
+            }
+            DbBackend::MySql => {
+                "SELECT id, password_hash FROM tb_users WHERE email = ? AND email_verified_at IS NOT NULL AND disabled_at IS NULL"
+            }
+            _ => return Err(unsupported_backend()),
+        };
+        let Some(row) = connection
+            .query_one_raw(Statement::from_sql_and_values(
+                backend,
+                &crate::auth::resolve_auth_sql(&self.db, sql)?,
+                [email.into()],
+            ))
+            .await
+            .map_err(Error::internal)?
+        else {
+            self.passwords.hash(password).await?;
+            return Err(Error::Unauthorized);
+        };
+        let user_id = row.try_get::<i64>("", "id").map_err(Error::internal)?;
+        let encoded = row
+            .try_get::<String>("", "password_hash")
+            .map_err(Error::internal)?;
+        let Ok(hash) = EncodedPasswordHash::parse(encoded) else {
+            self.passwords.hash(password).await?;
+            return Err(Error::Unauthorized);
+        };
+        if !self.passwords.verify(password, &hash).await? {
+            return Err(Error::Unauthorized);
+        }
+        Ok(user_id)
+    }
+
+    /// Atomically rotates a refresh credential and returns its successor pair.
+    pub async fn refresh(&self, token: &str, request_source: &str) -> Result<AuthCredentials> {
+        self.limit("refresh", request_source, &digest(token))
+            .await?;
+        let user_id = self.refresh.user_id_for_token(token).await?;
+        // Sign before consuming the old refresh credential so signing failure cannot burn it.
+        let access_token = self.jwt.issue_access_token(user_id)?;
+        let rotated = self.refresh.rotate(token).await?;
+        let (user_id, refresh_token, refresh_expires_at) = rotated.into_parts();
+        Ok(AuthCredentials {
+            user_id,
+            access_token,
+            refresh_token,
+            refresh_expires_at,
+        })
+    }
+
+    /// Revokes the presented refresh-token family.
+    pub async fn logout(&self, token: &str, request_source: &str) -> Result<()> {
+        self.limit("logout", request_source, &digest(token)).await?;
+        self.refresh.revoke(token).await
+    }
+
+    /// Requests a password reset code, returning it only for an eligible account.
+    ///
+    /// HTTP handlers should always return the same public response whether this returns `Some`
+    /// or `None` and send the code only when present.
+    pub async fn request_password_reset(
+        &self,
+        email: &str,
+        request_source: &str,
+    ) -> Result<Option<IssuedVerificationCode>> {
+        let email = normalize_email(email)?;
+        self.limit("password_reset", request_source, &email).await?;
+        if !self.eligible_account(&email).await? {
+            return Ok(None);
+        }
+        self.issue_code_uniform(PASSWORD_RESET_PURPOSE, &email)
+            .await
+    }
+
+    /// Consumes a password reset code, replaces the password, and revokes refresh families.
+    pub async fn reset_password(
+        &self,
+        email: &str,
+        code: &str,
+        new_password: &str,
+        request_source: &str,
+    ) -> Result<bool> {
+        let email = normalize_email(email)?;
+        self.limit("password_reset_confirm", request_source, &email)
+            .await?;
+        let password_hash = self.passwords.hash(new_password).await?;
+        if !self
+            .codes
+            .verify(PASSWORD_RESET_PURPOSE, &email, code)
+            .await?
+        {
+            return Ok(false);
+        }
+        let db = self.db.clone();
+        self.db
+            .transaction(|transaction| {
+                let db = db.clone();
+                let email = email.clone();
+                let password_hash = password_hash.as_str().to_owned();
+                Box::pin(async move {
+                    let backend = transaction.get_database_backend();
+                    let select = match backend {
+                        DbBackend::Postgres => "SELECT id FROM tb_users WHERE email = $1 AND disabled_at IS NULL FOR UPDATE",
+                        DbBackend::MySql => "SELECT id FROM tb_users WHERE email = ? AND disabled_at IS NULL FOR UPDATE",
+                        _ => return Err(unsupported_backend()),
+                    };
+                    let Some(row) = transaction.query_one_raw(Statement::from_sql_and_values(
+                        backend,
+                        &crate::auth::resolve_auth_sql(&db, select)?,
+                        [email.into()],
+                    )).await.map_err(Error::internal)? else {
+                        return Ok(false);
+                    };
+                    let user_id = row.try_get::<i64>("", "id").map_err(Error::internal)?;
+                    let update = match backend {
+                        DbBackend::Postgres => "UPDATE tb_users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND disabled_at IS NULL",
+                        DbBackend::MySql => "UPDATE tb_users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP(6) WHERE id = ? AND disabled_at IS NULL",
+                        _ => return Err(unsupported_backend()),
+                    };
+                    let result = transaction.execute_raw(Statement::from_sql_and_values(
+                        backend,
+                        &crate::auth::resolve_auth_sql(&db, update)?,
+                        [password_hash.into(), user_id.into()],
+                    )).await.map_err(Error::internal)?;
+                    if result.rows_affected() != 1 {
+                        return Ok(false);
+                    }
+                    crate::auth::refresh::revoke_all_for_user_in_transaction(transaction, &db, user_id).await?;
+                    Ok(true)
+                })
+            })
+            .await
+    }
+
+    async fn eligible_account(&self, email: &str) -> Result<bool> {
+        let connection = self.db.connection()?;
+        let backend = connection.get_database_backend();
+        let sql = match backend {
+            DbBackend::Postgres => {
+                "SELECT id FROM tb_users WHERE email = $1 AND email_verified_at IS NOT NULL AND disabled_at IS NULL"
+            }
+            DbBackend::MySql => {
+                "SELECT id FROM tb_users WHERE email = ? AND email_verified_at IS NOT NULL AND disabled_at IS NULL"
+            }
+            _ => return Err(unsupported_backend()),
+        };
+        Ok(connection
+            .query_one_raw(Statement::from_sql_and_values(
+                backend,
+                &crate::auth::resolve_auth_sql(&self.db, sql)?,
+                [email.to_owned().into()],
+            ))
+            .await
+            .map_err(Error::internal)?
+            .is_some())
+    }
+
+    async fn issue_code_uniform(
+        &self,
+        purpose: &str,
+        email: &str,
+    ) -> Result<Option<IssuedVerificationCode>> {
+        match self.codes.issue(purpose, email, self.code_policy).await {
+            Ok(code) => Ok(Some(code)),
+            Err(Error::RateLimited | Error::RateLimitedWithRetryAfter(_)) => Ok(None),
+            Err(error) => Err(error),
+        }
+    }
+
+    async fn limit(&self, endpoint: &str, source: &str, identity: &str) -> Result<()> {
+        if source.is_empty()
+            || source.len() > 160
+            || source.bytes().any(|byte| byte.is_ascii_control())
+        {
+            return Err(Error::BadRequest("invalid trusted request source".into()));
+        }
+        let key = format!("auth:{endpoint}:{source}:{}", digest(identity));
+        self.limiter
+            .check(&key, REQUEST_LIMIT, REQUEST_WINDOW)
+            .await?;
+        Ok(())
+    }
+}
+
+/// Registers [`AuthFlows`] after `DatabasePlugin`, `AuthPlugin`, and `JwtPlugin`.
+pub struct AuthFlowsPlugin {
+    refresh_lifetime: ChronoDuration,
+    code_policy: VerificationCodePolicy,
+    expected: OnceLock<Arc<AuthFlows>>,
+}
+
+impl AuthFlowsPlugin {
+    /// Creates the application flow service with the documented 30-day refresh lifetime.
+    pub fn new() -> Self {
+        Self {
+            refresh_lifetime: ChronoDuration::days(30),
+            code_policy: VerificationCodePolicy::default(),
+            expected: OnceLock::new(),
+        }
+    }
+
+    /// Sets the maximum refresh-token family lifetime, bounded to one second through one year.
+    #[must_use]
+    pub fn with_refresh_lifetime(mut self, lifetime: ChronoDuration) -> Self {
+        self.refresh_lifetime = lifetime;
+        self
+    }
+
+    /// Sets the policy for email verification and password reset codes.
+    #[must_use]
+    pub fn with_code_policy(mut self, policy: VerificationCodePolicy) -> Self {
+        self.code_policy = policy;
+        self
+    }
+}
+
+impl Default for AuthFlowsPlugin {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Plugin for AuthFlowsPlugin {
+    fn name(&self) -> &'static str {
+        "auth-flows"
+    }
+
+    fn build(&self, app: &mut AppBuilder) -> Result<()> {
+        if app.get::<AuthFlows>().is_some() {
+            return Err(Error::custom(
+                "auth_flows_already_registered",
+                "register only one AuthFlowsPlugin per application",
+            ));
+        }
+        if !(1..=31_536_000).contains(&self.refresh_lifetime.num_seconds()) {
+            return Err(Error::Config(crate::config::ConfigError::Invalid(
+                "auth flow refresh lifetime must be between 1 second and 365 days".into(),
+            )));
+        }
+        let required = |name: &'static str| {
+            Error::custom(
+                "auth_flow_dependency_missing",
+                format!("AuthFlowsPlugin requires {name} to be registered first"),
+            )
+        };
+        let db = app
+            .get::<Db>()
+            .map(|value| (*value).clone())
+            .ok_or_else(|| required("DatabasePlugin"))?;
+        let passwords = app
+            .get::<Passwords>()
+            .map(|value| (*value).clone())
+            .ok_or_else(|| required("AuthPlugin"))?;
+        let jwt = app
+            .get::<JwtTokens>()
+            .map(|value| (*value).clone())
+            .ok_or_else(|| required("JwtPlugin"))?;
+        let refresh = app
+            .get::<RefreshTokens>()
+            .map(|value| (*value).clone())
+            .ok_or_else(|| required("AuthPlugin with DatabasePlugin"))?;
+        let codes = app
+            .get::<VerificationCodes>()
+            .map(|value| (*value).clone())
+            .ok_or_else(|| required("AuthPlugin with DatabasePlugin"))?;
+        let limiter = app
+            .get::<RateLimiter>()
+            .map(|value| (*value).clone())
+            .ok_or_else(|| required("DatabasePlugin shared rate limiter"))?;
+        app.insert(
+            AuthFlows::new(db, passwords, jwt, refresh, codes, limiter)
+                .with_refresh_lifetime(self.refresh_lifetime)
+                .with_code_policy(self.code_policy),
+        );
+        self.expected
+            .set(
+                app.get::<AuthFlows>()
+                    .ok_or_else(|| Error::internal(MissingRegisteredFlows))?,
+            )
+            .map_err(|_| {
+                Error::custom(
+                    "auth_flows_plugin_reused",
+                    "AuthFlowsPlugin can only build once",
+                )
+            })?;
+        Ok(())
+    }
+
+    fn finish<'a>(&'a self, app: &'a App) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            let expected = self
+                .expected
+                .get()
+                .ok_or_else(|| Error::internal(MissingRegisteredFlows))?;
+            let registered = app.state().try_get::<AuthFlows>()?;
+            if !Arc::ptr_eq(expected, &registered) {
+                return Err(Error::custom(
+                    "auth_flows_replaced",
+                    "a later plugin replaced the AuthFlows service",
+                ));
+            }
+            Ok(())
+        })
+    }
+}
+
+#[derive(Debug)]
+struct MissingRegisteredFlows;
+
+impl std::fmt::Display for MissingRegisteredFlows {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("AuthFlowsPlugin built without registering its service")
+    }
+}
+
+impl std::error::Error for MissingRegisteredFlows {}
+
+/// One-time credential pair returned by successful login or refresh.
+pub struct AuthCredentials {
+    user_id: i64,
+    access_token: String,
+    refresh_token: IssuedRefreshToken,
+    refresh_expires_at: chrono::DateTime<Utc>,
+}
+
+/// One-time CSRF credential returned by successful Cookie Session login.
+pub struct SessionCredentials {
+    user_id: i64,
+    csrf_token: String,
+}
+
+impl SessionCredentials {
+    /// Returns the account ID associated with the Cookie Session.
+    pub const fn user_id(&self) -> i64 {
+        self.user_id
+    }
+
+    /// Returns the CSRF token once for the application response.
+    pub fn csrf_token(&self) -> &str {
+        &self.csrf_token
+    }
+}
+
+impl std::fmt::Debug for SessionCredentials {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("SessionCredentials")
+            .field("user_id", &self.user_id)
+            .field("csrf_token", &"[REDACTED]")
+            .finish()
+    }
+}
+
+impl AuthCredentials {
+    /// Returns the account ID associated with the credential pair.
+    pub const fn user_id(&self) -> i64 {
+        self.user_id
+    }
+    /// Returns the signed short-lived bearer access token.
+    pub fn access_token(&self) -> &str {
+        &self.access_token
+    }
+    /// Returns the opaque refresh token for this response.
+    pub fn refresh_token(&self) -> &IssuedRefreshToken {
+        &self.refresh_token
+    }
+    /// Returns the refresh-family expiry, which refresh does not extend.
+    pub const fn refresh_expires_at(&self) -> chrono::DateTime<Utc> {
+        self.refresh_expires_at
+    }
+}
+
+impl std::fmt::Debug for AuthCredentials {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("AuthCredentials")
+            .field("user_id", &self.user_id)
+            .field("access_token", &"[REDACTED]")
+            .field("refresh_token", &self.refresh_token)
+            .field("refresh_expires_at", &self.refresh_expires_at)
+            .finish()
+    }
+}
+
+fn normalize_email(email: &str) -> Result<String> {
+    let normalized = email.trim().to_ascii_lowercase();
+    if normalized.is_empty()
+        || normalized.len() > 320
+        || normalized.bytes().any(|byte| byte.is_ascii_control())
+        || !normalized.contains('@')
+    {
+        return Err(Error::BadRequest("invalid email address".into()));
+    }
+    Ok(normalized)
+}
+
+async fn bind_session(session: &Session, user_id: i64) -> Result<SessionCredentials> {
+    let mut random = [0_u8; 32];
+    getrandom::fill(&mut random).map_err(Error::internal)?;
+    let csrf_token = URL_SAFE_NO_PAD.encode(random);
+    let csrf_hash = digest(&csrf_token);
+
+    session.cycle_id().await.map_err(Error::internal)?;
+    remove_auth_values(session).await?;
+    if let Err(error) = session.insert(AUTH_CSRF_HASH_KEY, csrf_hash).await {
+        let _ = remove_auth_values(session).await;
+        return Err(Error::internal(error));
+    }
+    if let Err(error) = session.insert(AUTH_USER_ID_KEY, user_id).await {
+        let _ = remove_auth_values(session).await;
+        return Err(Error::internal(error));
+    }
+
+    Ok(SessionCredentials {
+        user_id,
+        csrf_token,
+    })
+}
+
+async fn remove_auth_values(session: &Session) -> Result<()> {
+    session
+        .remove_value(AUTH_USER_ID_KEY)
+        .await
+        .map_err(Error::internal)?;
+    session
+        .remove_value(AUTH_CSRF_HASH_KEY)
+        .await
+        .map_err(Error::internal)?;
+    Ok(())
+}
+
+async fn clear_session(session: &Session) -> Result<()> {
+    remove_auth_values(session).await?;
+    session.cycle_id().await.map_err(Error::internal)
+}
+
+fn digest(value: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let bytes = Sha256::digest(value.as_bytes());
+    let mut output = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        use std::fmt::Write as _;
+        let _ = write!(output, "{byte:02x}");
+    }
+    output
+}
+
+fn unsupported_backend() -> Error {
+    Error::custom(
+        "unsupported_auth_database",
+        "authentication requires PostgreSQL or MySQL",
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use tower_sessions::{MemoryStore, Session, SessionStore};
+
+    use super::{AUTH_CSRF_HASH_KEY, AUTH_USER_ID_KEY, bind_session, clear_session, digest};
+
+    #[tokio::test]
+    async fn session_login_rotates_id_preserves_app_data_and_redacts_csrf()
+    -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let store = Arc::new(MemoryStore::default());
+        let session = Session::new(None, store.clone(), None);
+        session.insert("app.preference", "compact").await?;
+        session.save().await?;
+        let old_id = session.id().ok_or_else(|| {
+            crate::Error::internal(std::io::Error::other("session ID missing after save"))
+        })?;
+        let credentials = bind_session(&session, 42).await?;
+        let csrf_token = credentials.csrf_token().to_owned();
+        assert_eq!(credentials.user_id(), 42);
+        assert!(!format!("{credentials:?}").contains(&csrf_token));
+        assert!(session.id().is_none());
+        session.save().await?;
+        let new_id = session.id().ok_or_else(|| {
+            crate::Error::internal(std::io::Error::other(
+                "rotated session ID missing after save",
+            ))
+        })?;
+        assert_ne!(new_id, old_id);
+        assert_eq!(session.get::<i64>(AUTH_USER_ID_KEY).await?, Some(42));
+        let csrf_hash = session
+            .get::<String>(AUTH_CSRF_HASH_KEY)
+            .await?
+            .ok_or_else(|| crate::Error::internal(std::io::Error::other("CSRF hash missing")))?;
+        assert_eq!(csrf_hash, digest(&csrf_token));
+        assert_ne!(csrf_hash, csrf_token);
+        assert_eq!(
+            session.get::<String>("app.preference").await?,
+            Some("compact".to_owned())
+        );
+
+        assert!(
+            store
+                .load(&old_id)
+                .await
+                .map_err(crate::Error::internal)?
+                .is_none()
+        );
+
+        clear_session(&session).await?;
+        assert!(session.id().is_none());
+        session.save().await?;
+        assert!(session.get::<i64>(AUTH_USER_ID_KEY).await?.is_none());
+        assert!(session.get::<String>(AUTH_CSRF_HASH_KEY).await?.is_none());
+        assert_eq!(
+            session.get::<String>("app.preference").await?,
+            Some("compact".to_owned())
+        );
+        assert!(
+            store
+                .load(&new_id)
+                .await
+                .map_err(crate::Error::internal)?
+                .is_none()
+        );
+        Ok(())
+    }
+}

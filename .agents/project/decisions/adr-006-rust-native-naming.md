@@ -13,11 +13,11 @@
 
 按优先级：
 
-1. **主流 Rust 框架已有共识的，照做。** 参照对象：loco-rs、axum、Rocket、actix-web、Poem、Salvo、Pavex、Bevy、SeaORM、sqlx-cli。其中 loco-rs 是唯一流行、基于 SeaORM、带生成器的全栈 Rust 框架，与 OpenRust 定位最接近，是**生成项目布局与 CLI 的首要参照**。
+1. **优先遵循 Rust 生态惯例，并综合对照目标框架。** axum、Tower、Rocket、actix-web、Poem、Salvo、Pavex、Bevy、SeaORM、sqlx-cli 用于核对 Rust API、HTTP、插件和数据层惯例；参考框架按 Loco、Laravel、Goravel、OpenSpring、RuoYi 若依、芋道的顺序进行统一维度评估，见 [框架设计「框架参考与对标」](../plans/framework-design.md#框架参考与对标)。不存在单一框架对所有设计拥有优先权。
 2. **没有共识的，用跨语言通用的 Web 框架词汇**，如 controllers、models、migrations、seeds、jobs、mailers、middleware，前提是不违反 Rust API 惯例。
 3. **不自造词，也不用单一生态的行话**，例如 Laravel 的 `Mailable` / `ServiceProvider` / `boot` / `Guard` / `disk`、Rocket 的 `Fairing`、OpenDAL 的 `Operator`。
 4. **分两层**：
-   - **生成项目的布局与 CLI**：追求一眼熟悉，以 loco 和跨语言框架为准。
+   - **生成项目的布局与 CLI**：保持 Rust 项目惯例清晰，并按[框架参考与对标](../plans/framework-design.md#框架参考与对标)的统一维度综合检查六个参考项目；采用通用、可读的概念，不因单一项目的术语或目录形式形成特例。
    - **库 API**：保持 Rust 惯用写法，以 std、axum 和 [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/)（下称 RAG）为准，包括 C-CASE、C-CONV、C-GETTER、C-WORD-ORDER、C-CTOR。
 
 新增或修改公共名称前，先查本 ADR。本 ADR 没有覆盖的名称，先在这里补一行并写明先例，再写代码。

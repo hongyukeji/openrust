@@ -2,6 +2,7 @@
 
 #![forbid(unsafe_code)]
 
+use std::fmt::Write as FmtWrite;
 use std::fs;
 use std::io::Write;
 use std::path::Path;
@@ -31,6 +32,9 @@ enum Builtin {
         /// Add a PostgreSQL or MySQL connection and migration crate.
         #[arg(long, value_enum)]
         db: Option<DatabaseBackend>,
+        /// Add database-backed authentication and an authenticated example route (requires `--db`).
+        #[arg(long, requires = "db")]
+        auth: bool,
     },
     /// Run the application in development mode.
     Dev,
@@ -96,8 +100,8 @@ fn run(cli: Cli) -> anyhow::Result<ExitCode> {
             Cli::parse_from(["openrust", "--help"]);
             Ok(ExitCode::SUCCESS)
         }
-        Some(Builtin::New { name, db }) => {
-            create_project(&name, db, &std::env::current_dir()?)?;
+        Some(Builtin::New { name, db, auth }) => {
+            create_project(&name, db, auth, &std::env::current_dir()?)?;
             Ok(ExitCode::SUCCESS)
         }
         Some(Builtin::Dev) => run_project(&["serve"], true),
@@ -114,8 +118,12 @@ fn run(cli: Cli) -> anyhow::Result<ExitCode> {
 fn create_project(
     name: &str,
     database: Option<DatabaseBackend>,
+    auth: bool,
     current_dir: &Path,
 ) -> anyhow::Result<()> {
+    if auth && database.is_none() {
+        bail!("authentication requires a database; use `openrust new --db postgres|mysql --auth`");
+    }
     let name_path = Path::new(name);
     if name_path
         .components()
@@ -168,7 +176,7 @@ fn create_project(
         bail!("project name must contain at least one letter or digit");
     }
 
-    let result = populate_project(&project_dir, project_name, &type_name, database);
+    let result = populate_project(&project_dir, project_name, &type_name, database, auth);
     if result.is_err() {
         let _ = fs::remove_dir_all(&project_dir);
     }
@@ -192,10 +200,10 @@ fn populate_project(
     name: &str,
     crate_name: &str,
     database: Option<DatabaseBackend>,
+    auth: bool,
 ) -> anyhow::Result<()> {
     fs::create_dir(project_dir)
         .with_context(|| format!("failed to create {}", project_dir.display()))?;
-    let module_name = name.replace('-', "_");
     for directory in [
         "config",
         "src/controllers",
@@ -216,16 +224,16 @@ fn populate_project(
     }
 
     let mut files = vec![
-        ("Cargo.toml", cargo_manifest(name, database)),
+        ("Cargo.toml", cargo_manifest(name, database, auth)),
         (".gitignore", include_str!("../templates/.gitignore").to_owned()),
-        (".env.example", env_example(name, database)),
-        ("config/default.toml", include_str!("../templates/config/default.toml").replace("{{name}}", name)),
+        (".env.example", env_example(name, database, auth)),
+        ("config/default.toml", default_config(name, auth)),
         ("config/development.toml", include_str!("../templates/config/development.toml").to_owned()),
         ("config/test.toml", "[app]\nname = \"{{name}}\"\n".replace("{{name}}", name)),
         ("config/production.toml", "[app]\nname = \"{{name}}\"\n".replace("{{name}}", name)),
         ("src/main.rs", main_source(crate_name, database)),
-        ("src/app.rs", app_source(crate_name, &module_name, database)),
-        ("src/routes.rs", include_str!("../templates/src/routes.rs").to_owned()),
+        ("src/app.rs", app_source(crate_name, database, auth)),
+        ("src/routes.rs", routes_source(auth)),
         ("src/schedule.rs", "//! Application schedule.\n".to_owned()),
         ("src/seed.rs", seed_source(database)),
         ("src/controllers/mod.rs", "//! HTTP controllers.\n".to_owned()),
@@ -237,13 +245,23 @@ fn populate_project(
         ("src/events/mod.rs", "//! Application events.\n".to_owned()),
         ("src/mailers/mod.rs", "//! Email messages.\n".to_owned()),
         ("src/middleware/mod.rs", "//! Application middleware.\n".to_owned()),
-        ("tests/application.rs", "#[test]\nfn application_package_is_generated() {\n    assert_eq!(env!(\"CARGO_PKG_NAME\"), \"{{name}}\");\n}\n".replace("{{name}}", name)),
+        ("tests/application.rs", "#[test]\nfn application_package_is_generated() {\n    assert_eq!(\n        env!(\"CARGO_PKG_NAME\"),\n        \"{{name}}\"\n    );\n}\n".replace("{{name}}", name)),
         ("AGENTS.md", include_str!("../templates/AGENTS.md").to_owned()),
     ];
+    if auth {
+        files.push((
+            "tests/auth_flows.rs",
+            include_str!("../templates/tests/auth_flows.rs")
+                .replace("OpenRustGeneratedApplication", crate_name),
+        ));
+    }
     if let Some(database) = database {
         files.extend([
-            ("migration/Cargo.toml", migration_manifest(name, database)),
-            ("migration/src/lib.rs", migration_lib()),
+            (
+                "migration/Cargo.toml",
+                migration_manifest(name, database, auth),
+            ),
+            ("migration/src/lib.rs", migration_lib(auth)),
         ]);
     }
     for (relative_path, contents) in files {
@@ -253,21 +271,45 @@ fn populate_project(
     Ok(())
 }
 
-fn cargo_manifest(name: &str, database: Option<DatabaseBackend>) -> String {
+fn cargo_manifest(name: &str, database: Option<DatabaseBackend>, auth: bool) -> String {
     let mut manifest = include_str!("../templates/Cargo.toml").replace("{{name}}", name);
-    if let Some(database) = database {
+    if database.is_some() || auth {
+        let mut features = Vec::new();
+        if let Some(database) = database {
+            features.push(database.feature());
+        }
+        if auth {
+            features.push("auth");
+        }
         manifest = manifest.replace(
             "openrust = \"0.0.0\"",
-            &format!("openrust = {{ version = \"0.0.0\", features = [\"{}\"] }}\n{name}-migration = {{ path = \"migration\" }}", database.feature()),
+            &format!("openrust = {{ version = \"0.0.0\", features = {features:?} }}\nopenrust-migration = {{ package = \"{name}-migration\", path = \"migration\" }}"),
         );
+    }
+    if auth {
+        manifest.push_str("serde = { version = \"1\", features = [\"derive\"] }\n\n[dev-dependencies]\nbase64 = \"0.22\"\nfigment = { version = \"0.10\", features = [\"toml\"] }\nserde_json = \"1\"\ntokio = { version = \"1\", features = [\"io-util\", \"macros\", \"net\", \"rt-multi-thread\"] }\n");
+        if let Some(database) = database {
+            let _ = FmtWrite::write_fmt(
+                &mut manifest,
+                format_args!(
+                    "openrust-test = {{ version = \"0.0.0\", features = [\"{}\"] }}\n",
+                    database.feature()
+                ),
+            );
+        }
     }
     manifest
 }
 
-fn app_source(crate_name: &str, module_name: &str, database: Option<DatabaseBackend>) -> String {
+fn app_source(crate_name: &str, database: Option<DatabaseBackend>, auth: bool) -> String {
     let plugins = if database.is_some() {
         format!(
-            ".plugin(DatabasePlugin)\n            .plugin(MigrationPlugin::<{module_name}_migration::Migrator>::new())\n            .plugin(SeedPlugin::new(crate::seed::run))"
+            "\n            .plugin(DatabasePlugin){}\n            .plugin(MigrationPlugin::<openrust_migration::Migrator>::new())\n            .plugin(SeedPlugin::new(crate::seed::run))",
+            if auth {
+                "\n            .plugin(openrust::auth::JwtPlugin::new())\n            .plugin(openrust::auth::AuthPlugin::new())\n            .plugin(openrust::auth::AuthFlowsPlugin::new())"
+            } else {
+                ""
+            }
         )
     } else {
         String::new()
@@ -276,6 +318,20 @@ fn app_source(crate_name: &str, module_name: &str, database: Option<DatabaseBack
         .replace("{{type_name}}", crate_name)
         .replace("{{database_plugins}}", &plugins)
         .replace("{{migration_plugin}}", "")
+}
+
+fn routes_source(auth: bool) -> String {
+    let mut source = include_str!("../templates/src/routes.rs").to_owned();
+    let (registration, handler) = if auth {
+        (
+            "    routes\n        .get(\"/api/me\", current_user)\n        .layer(openrust::auth::AuthLayer::required(\n            openrust::auth::AuthMode::Jwt,\n        ))\n        .post(\"/auth/register\", auth_register)\n        .post(\n            \"/auth/request-email-verification\",\n            auth_request_email_verification,\n        )\n        .post(\"/auth/verify-email\", auth_verify_email)\n        .post(\"/auth/login\", auth_login)\n        .post(\"/auth/refresh\", auth_refresh)\n        .post(\"/auth/logout\", auth_logout)\n        .post(\"/auth/password-reset\", auth_request_password_reset)\n        .post(\"/auth/password-reset/confirm\", auth_reset_password)\n        .get(\"/\", root)\n        .merge(Routes::new().get(\"/api/me/pat\", current_user).layer(\n            openrust::auth::AuthLayer::required(openrust::auth::AuthMode::PersonalAccessToken),\n        ))".to_owned(),
+            include_str!("../templates/src/auth_routes.rs").to_owned(),
+        )
+    } else {
+        ("    routes.get(\"/\", root)".to_owned(), String::new())
+    };
+    source = source.replace("{{routes}}", &registration);
+    source.replace("{{auth_handler}}", &handler)
 }
 
 fn main_source(crate_name: &str, database: Option<DatabaseBackend>) -> String {
@@ -288,13 +344,28 @@ fn main_source(crate_name: &str, database: Option<DatabaseBackend>) -> String {
     }
 }
 
-fn env_example(name: &str, database: Option<DatabaseBackend>) -> String {
-    let mut contents = "OPENRUST_ENV=development\n".to_owned();
+fn env_example(name: &str, database: Option<DatabaseBackend>, auth: bool) -> String {
+    let mut contents = "APP_ENV=development\n".to_owned();
     if let Some(database) = database {
         use std::fmt::Write as _;
         let _ = writeln!(contents, "DATABASE_URL={}", database.url(name));
     }
+    if auth {
+        contents.push_str(
+            "APP_AUTH__JWT__KEYS__LOCAL=\n# Generate a key with: openssl rand -base64 32\n",
+        );
+    }
     contents
+}
+
+fn default_config(name: &str, auth: bool) -> String {
+    let mut config = include_str!("../templates/config/default.toml").replace("{{name}}", name);
+    if auth {
+        config.push_str("\n[auth.jwt]\nissuer = \"http://localhost:3000\"\naudience = \"");
+        config.push_str(name);
+        config.push_str("\"\nactive_key_id = \"local\"\nkeys = {}\n");
+    }
+    config
 }
 
 fn seed_source(database: Option<DatabaseBackend>) -> String {
@@ -305,15 +376,25 @@ fn seed_source(database: Option<DatabaseBackend>) -> String {
     }
 }
 
-fn migration_manifest(name: &str, database: DatabaseBackend) -> String {
+fn migration_manifest(name: &str, database: DatabaseBackend, auth: bool) -> String {
+    let mut features = vec![database.feature()];
+    if auth {
+        features.push("auth");
+    }
     format!(
-        "[package]\nname = \"{name}-migration\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nopenrust = {{ version = \"0.0.0\", features = [\"{}\"] }}\n",
-        database.feature()
+        "[package]\nname = \"{name}-migration\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nopenrust = {{ version = \"0.0.0\", features = {features:?} }}\n"
     )
 }
 
-fn migration_lib() -> String {
-    "//! Application database migrations.\n\nuse openrust::database::sea_orm_migration::prelude::*;\n\npub struct Migrator;\n\n#[openrust::database::sea_orm_migration::async_trait::async_trait]\nimpl MigratorTrait for Migrator {\n    fn migrations() -> Vec<Box<dyn MigrationTrait>> {\n        vec![]\n    }\n}\n".to_owned()
+fn migration_lib(auth: bool) -> String {
+    let migrations = if auth {
+        "vec![\n            Box::new(openrust::auth::AuthMigration),\n            Box::new(openrust::auth::AuthRefreshTokenMigration),\n            Box::new(openrust::auth::AuthVerificationCodeMigration),\n            Box::new(openrust::auth::AuthPolicyMigration),\n            Box::new(openrust::database::DatabaseRateLimitMigration),\n        ]"
+    } else {
+        "vec![]"
+    };
+    format!(
+        "//! Application database migrations.\n\nuse openrust::database::sea_orm_migration::prelude::*;\n\npub struct Migrator;\n\n#[openrust::database::sea_orm_migration::async_trait::async_trait]\nimpl MigratorTrait for Migrator {{\n    fn migrations() -> Vec<Box<dyn MigrationTrait>> {{\n        {migrations}\n    }}\n}}\n"
+    )
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -678,7 +759,7 @@ fn run_project(args: &[&str], development: bool) -> anyhow::Result<ExitCode> {
     let mut command = Process::new("cargo");
     command.arg("run").arg("--quiet").arg("--").args(args);
     if development {
-        command.env("OPENRUST_ENV", "development");
+        command.env("APP_ENV", "development");
     }
     command
         .status()
@@ -718,7 +799,7 @@ mod tests {
 
     #[test]
     fn generated_manifest_matches_starter_template() {
-        insta::assert_snapshot!(cargo_manifest("my-app", None));
+        insta::assert_snapshot!(cargo_manifest("my-app", None, false));
     }
 
     #[test]
@@ -727,7 +808,7 @@ mod tests {
         let project = root.join("blog");
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).expect("create temporary test directory");
-        populate_project(&project, "blog", "Blog", None).expect("generate project");
+        populate_project(&project, "blog", "Blog", None, false).expect("generate project");
         for path in [
             "Cargo.toml",
             ".gitignore",
@@ -779,7 +860,7 @@ mod tests {
             (DatabaseBackend::Mysql, "db-mysql"),
         ] {
             let project = root.join(feature);
-            populate_project(&project, "blog", "Blog", Some(backend))
+            populate_project(&project, "blog", "Blog", Some(backend), false)
                 .expect("generate database project");
             let manifest =
                 fs::read_to_string(project.join("Cargo.toml")).expect("read generated manifest");
@@ -793,10 +874,77 @@ mod tests {
             );
             let app = fs::read_to_string(project.join("src/app.rs")).expect("read generated app");
             assert!(app.contains("DatabasePlugin"));
-            assert!(app.contains("blog_migration::Migrator"));
+            assert!(app.contains("openrust_migration::Migrator"));
             assert!(app.contains("SeedPlugin"));
             assert!(project.join(".env.example").is_file());
         }
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn auth_templates_register_auth_plugin_migration_and_protected_route() {
+        let root = std::env::temp_dir().join(format!("openrust-cli-auth-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("create temporary test directory");
+        for (backend, feature) in [
+            (DatabaseBackend::Postgres, "db-postgres"),
+            (DatabaseBackend::Mysql, "db-mysql"),
+        ] {
+            let project = root.join(feature);
+            populate_project(&project, "blog", "Blog", Some(backend), true)
+                .expect("generate database-backed auth project");
+            let manifest = fs::read_to_string(project.join("Cargo.toml"))
+                .expect("read generated app manifest");
+            assert!(manifest.contains(feature));
+            assert!(manifest.contains("openrust-test"));
+            assert!(manifest.contains("figment"));
+            assert!(manifest.contains("serde_json"));
+            let http_test = fs::read_to_string(project.join("tests/auth_flows.rs"))
+                .expect("read generated auth HTTP integration test");
+            assert!(http_test.contains("app::Blog::build(&mut builder)"));
+            assert!(http_test.contains("into_make_service_with_connect_info"));
+            assert!(http_test.contains("/auth/password-reset/confirm"));
+            assert!(!http_test.contains("{{type_name}}"));
+            assert!(manifest.contains("\"auth\""));
+            let migration_manifest = fs::read_to_string(project.join("migration/Cargo.toml"))
+                .expect("read generated migration manifest");
+            assert!(migration_manifest.contains("\"auth\""));
+            let migration = fs::read_to_string(project.join("migration/src/lib.rs"))
+                .expect("read generated migration registry");
+            assert!(migration.contains("openrust::auth::AuthMigration"));
+            assert!(migration.contains("openrust::auth::AuthRefreshTokenMigration"));
+            assert!(migration.contains("openrust::auth::AuthVerificationCodeMigration"));
+            assert!(migration.contains("openrust::auth::AuthPolicyMigration"));
+            assert!(migration.contains("openrust::database::DatabaseRateLimitMigration"));
+            let app = fs::read_to_string(project.join("src/app.rs")).expect("read generated app");
+            assert!(app.contains("AuthPlugin::new()"));
+            assert!(app.contains("JwtPlugin::new()"));
+            assert!(app.contains("AuthFlowsPlugin::new()"));
+            assert!(!app.contains("SessionPlugin::new()"));
+            let routes =
+                fs::read_to_string(project.join("src/routes.rs")).expect("read generated routes");
+            assert!(routes.contains("AuthLayer::required("));
+            assert!(routes.contains("AuthMode::Jwt"));
+            assert!(routes.contains("/api/me/pat"));
+            assert!(routes.contains("AuthMode::PersonalAccessToken"));
+            assert!(routes.contains("CurrentUser"));
+            assert!(routes.contains("/auth/register"));
+            assert!(routes.contains("/auth/verify-email"));
+            assert!(routes.contains("/auth/refresh"));
+            assert!(routes.contains("/auth/password-reset/confirm"));
+            assert!(routes.contains("ClientIp"));
+            let auth_test = fs::read_to_string(project.join("tests/auth_flows.rs"))
+                .expect("read generated auth HTTP integration test");
+            assert!(auth_test.contains("trusted_proxy_ranges"));
+            let config = fs::read_to_string(project.join("config/default.toml"))
+                .expect("read generated auth config");
+            assert!(config.contains("[auth.jwt]"));
+            assert!(config.contains("keys = {}"));
+            let env = fs::read_to_string(project.join(".env.example"))
+                .expect("read generated environment example");
+            assert!(env.contains("APP_AUTH__JWT__KEYS__LOCAL="));
+        }
+        assert!(Cli::try_parse_from(["openrust", "new", "blog", "--auth"]).is_err());
         let _ = fs::remove_dir_all(root);
     }
 
@@ -807,8 +955,14 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).expect("create temporary test directory");
         let project = root.join("blog");
-        populate_project(&project, "blog", "Blog", Some(DatabaseBackend::Postgres))
-            .expect("generate database project");
+        populate_project(
+            &project,
+            "blog",
+            "Blog",
+            Some(DatabaseBackend::Postgres),
+            false,
+        )
+        .expect("generate database project");
 
         let model = [
             "post",
@@ -866,10 +1020,10 @@ mod tests {
             std::env::temp_dir().join(format!("openrust-cli-invalid-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).expect("create temporary test directory");
-        assert!(create_project("../outside", None, &root).is_err());
-        assert!(create_project("--", None, &root).is_err());
+        assert!(create_project("../outside", None, false, &root).is_err());
+        assert!(create_project("--", None, false, &root).is_err());
         fs::create_dir(root.join("existing")).expect("create existing destination");
-        assert!(create_project("existing", None, &root).is_err());
+        assert!(create_project("existing", None, false, &root).is_err());
         let _ = fs::remove_dir_all(root);
     }
 }

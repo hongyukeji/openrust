@@ -114,7 +114,7 @@ Agent 不替代开发者做方向决策、发布判断和对外动作；开发�
 | 改动范围 | 验证 |
 | --- | --- |
 | 任意 crate 源码 | `cargo fmt --all --check`、`cargo clippy --workspace --all-targets -- -D warnings`、`cargo test --workspace`、`cargo doc --workspace --no-deps` |
-| `openrust-db` / `openrust-queue` / `openrust-auth` 等数据相关 crate | 另在 PostgreSQL 与 MySQL 各跑集成测试 |
+| `openrust::db` / `openrust::queue` / `openrust::auth` 等数据相关模块 | 另在 PostgreSQL 与 MySQL 各跑集成测试 |
 | 模板与生成器 | 生成项目后 `cargo check` + `cargo test` |
 | 文档 / skill-only | `git diff --check` + 链接检查 + `rg` 旧引用扫描，不跑全量构建 |
 

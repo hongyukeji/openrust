@@ -1,9 +1,14 @@
-# openrust（门面）
+# `openrust` 根 package 当前事实
 
-> 受众：AI Agent
-> 更新：2026-10-25
-> 摘要：应用唯一依赖的 crate。
+> 更新：2026-10-26
+> 摘要：根 package 是框架唯一公共 facade 与实现 package；能力模块位于根 `src/`。
 
-- 在 crate 根直接 re-export `ApiResponse<T>`、`PageMeta` 与 `#[openrust::resource]`；`openrust::http` = `openrust-http`；`openrust::ServiceExt` 与 `openrust::tokio` 供只依赖门面的应用做路由集成测试；`prelude` 含 `Application` / `AppBuilder` / `Error` / `Result` / `NoConfig` / `Inject` / `Validated` / `Routes` / `Resource` / `ResourceActions` / `Action` / `Created` / `NoContent` / `PageParams` / `Paginated` / `AppBuilderHttpExt` / OpenRust 的 `Json` / `Path` / `Query`、axum 的 `State` / `StatusCode`；原生 axum 类型可从 `http::axum` 访问。
-- `run::<A>() -> ExitCode`：建 tokio 运行时 → `bootstrap` 执行应用显式注册的插件 → 第一个参数作为命令（默认 `serve`）→ 错误写 stderr 并返回失败码；应用需安装 `HttpPlugin` 才有 `serve` 命令。
-- `db-postgres` / `db-mysql` feature 可选依赖并 re-export `openrust-db` 为 `openrust::database`，同时将 `DatabaseConfig` / `DatabasePlugin` / `Db` / `MigrationPlugin` 提供在门面根与 prelude；SeaORM migration API 位于 `openrust::database::sea_orm_migration`；默认 feature 不带数据库 driver。
+- 根 `src/lib.rs` 声明 config/core/db/http/mail，以及 feature-gated auth；对外主路径继续是 `openrust::...`。
+- 根直接 re-export `ApiResponse<T>`、`PageMeta`、`#[openrust::resource]`、`ServiceExt` 与 Tokio。`openrust::prelude` 提供常用 HTTP、core、mail、db、auth 类型；Axum 类型由 `openrust::http::axum` 公开。
+- `db-postgres` / `db-mysql` 启用 SeaORM 对应 backend，并提供 `openrust::database` 别名与常用 DB 类型；默认 feature 不含具体数据库 driver。
+- `auth` 启用 JWT、Session、认证流程与授权模块；依赖 DB feature 的认证流程在运行时要求配置相应数据库及迁移。
+- `mail-smtp` 可选启用 SMTP transport；`test-util` 提供邮件 fake。运行配置保持在应用项目根 `config/`。
+- Workspace 保留 package：根 `openrust` 框架、`openrust-cli` 命令行与模板、`openrust-macros` proc-macro、`openrust-test` 测试工具、`openrust-server` 集成宿主。各理由见 [ADR-021](../decisions/adr-021-loco-style-module-layout.md)。
+- `openrust-test` 单向依赖 `openrust`；根 package 不依赖测试工具，避免依赖环。
+
+`cargo metadata --no-deps --format-version 1` 验收根 package `openrust` 及 workspace 五个成员；default、auth/database features 与 all-features 的验证按 [testing memory](../memory/testing.md) 记录。

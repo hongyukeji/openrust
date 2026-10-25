@@ -49,7 +49,7 @@
 
 ### 起名前三问
 
-1. 主流 Rust 框架（loco-rs、axum、Rocket、actix-web、Poem、Salvo、Pavex、Bevy、SeaORM）有共识吗？有就照做。
+1. Rust 生态（axum、Tower、Rocket、actix-web、Poem、Salvo、Pavex、Bevy、SeaORM）有惯例吗？优先采用成熟惯例；跨框架能力对标按 [框架参考与对标](plans/framework-design.md#框架参考与对标) 的职责分工进行。
 2. 没有共识时，跨语言开发者最熟悉的 Web 框架词是什么？例如 controllers、models、migrations、jobs、mailers、middleware。
 3. 这个词是否自造，或者只属于单一生态？例如 `Mailable`、`ServiceProvider`、`boot`、`Guard`、`disk`、`Fairing`、`Operator`。是的话，不用。
 
@@ -59,7 +59,7 @@ ADR-006 未覆盖的公共名称，先在 ADR-006 补一行并写明先例，再
 
 | 层 | 目标 | 参照 |
 | --- | --- | --- |
-| 生成项目布局、CLI、配置文件 | 跨语言开发者一眼熟悉 | loco-rs 优先，其次 Rails / Django / Laravel 共有的通用词 |
+| 生成项目布局、CLI、配置文件 | Rust 惯例清晰，跨语言开发者易理解 | 按[框架参考与对标](plans/framework-design.md#框架参考与对标)的统一维度综合评估六个参考项目；采用通用词，不照搬单一生态术语 |
 | 库 API（类型、trait、方法） | Rust 惯用 | std、axum、tower、[Rust API Guidelines](https://rust-lang.github.io/api-guidelines/) |
 
 ### 速查

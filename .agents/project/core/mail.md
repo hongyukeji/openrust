@@ -1,4 +1,4 @@
-# openrust-mail 当前事实
+# `openrust::mail` 当前事实
 
 ## 已实现
 

@@ -176,7 +176,7 @@ fn config_show_runs_and_redacts_secrets() -> TestResult {
     let output = std::process::Command::new(env!("CARGO_BIN_EXE_openrust-server"))
         .args(["config", "show"])
         .current_dir(env!("CARGO_MANIFEST_DIR"))
-        .env("OPENRUST_API__TOKEN", "server-secret-value")
+        .env("APP_API__TOKEN", "server-secret-value")
         .output()?;
     assert!(
         output.status.success(),

@@ -1,0 +1,261 @@
+use std::sync::OnceLock;
+
+use crate::core::{Error, Result};
+use crate::db::sea_orm::{ConnectionTrait, DbBackend, Statement};
+use crate::db::{DatabaseConnection, Db};
+use sha2::{Digest, Sha256};
+use subtle::ConstantTimeEq;
+
+use crate::auth::{AuthCredential, AuthPrincipal, AuthSource, Authenticator};
+
+#[derive(Default)]
+pub(super) struct DatabaseAuthenticator {
+    db: OnceLock<Db>,
+}
+
+impl DatabaseAuthenticator {
+    pub(super) fn initialize(&self, db: Db) -> Result<()> {
+        self.db.set(db).map_err(|_| {
+            Error::custom(
+                "auth_database_already_initialized",
+                "database authenticator was initialized more than once",
+            )
+        })
+    }
+
+    async fn authenticate_session(
+        &self,
+        db: &Db,
+        connection: &DatabaseConnection,
+        backend: DbBackend,
+        credential: &AuthCredential<'_>,
+    ) -> Result<AuthPrincipal> {
+        let session = credential
+            .session()
+            .ok_or_else(|| Error::internal(MissingSession))?;
+        let user_id = session
+            .get::<i64>(AUTH_USER_ID_KEY)
+            .await
+            .map_err(Error::internal)?
+            .ok_or(Error::Unauthorized)?;
+        let sql = match backend {
+            DbBackend::Postgres => "SELECT id FROM tb_users WHERE id = $1 AND disabled_at IS NULL",
+            DbBackend::MySql => "SELECT id FROM tb_users WHERE id = ? AND disabled_at IS NULL",
+            _ => return Err(unsupported_auth_database()),
+        };
+        let statement = Statement::from_sql_and_values(
+            backend,
+            &crate::auth::resolve_auth_sql(db, sql)?,
+            [user_id.into()],
+        );
+        let row = connection
+            .query_one_raw(statement)
+            .await
+            .map_err(Error::internal)?;
+        if row.is_none() {
+            return Err(Error::Unauthorized);
+        }
+        if !is_safe_method(credential.method().as_str()) {
+            let submitted = credential
+                .csrf_token()
+                .ok_or_else(|| Error::Forbidden("invalid CSRF token".into()))?;
+            let stored = session
+                .get::<String>(AUTH_CSRF_HASH_KEY)
+                .await
+                .map_err(Error::internal)?;
+            let Some(stored) = stored else {
+                return Err(Error::Forbidden("invalid CSRF token".into()));
+            };
+            let submitted_hash = sha256_hex(submitted);
+            if stored.len() != submitted_hash.len()
+                || !bool::from(stored.as_bytes().ct_eq(submitted_hash.as_bytes()))
+            {
+                return Err(Error::Forbidden("invalid CSRF token".into()));
+            }
+        }
+        Ok(AuthPrincipal::new(user_id, None))
+    }
+
+    async fn authenticate_token(
+        &self,
+        db: &Db,
+        connection: &DatabaseConnection,
+        backend: DbBackend,
+        credential: &AuthCredential<'_>,
+    ) -> Result<AuthPrincipal> {
+        let value = credential
+            .value()
+            .ok_or_else(|| Error::internal(MissingToken))?;
+        let hash = sha256_hex(value);
+        let sql = match backend {
+            DbBackend::Postgres => {
+                "SELECT p.user_id, p.abilities FROM tb_personal_access_tokens p JOIN tb_users u ON u.id = p.user_id WHERE p.token_hash = $1 AND p.revoked_at IS NULL AND (p.expires_at IS NULL OR p.expires_at > CURRENT_TIMESTAMP) AND u.disabled_at IS NULL"
+            }
+            DbBackend::MySql => {
+                "SELECT p.user_id, p.abilities FROM tb_personal_access_tokens p JOIN tb_users u ON u.id = p.user_id WHERE p.token_hash = ? AND p.revoked_at IS NULL AND (p.expires_at IS NULL OR p.expires_at > CURRENT_TIMESTAMP) AND u.disabled_at IS NULL"
+            }
+            _ => {
+                return Err(Error::custom(
+                    "unsupported_auth_database",
+                    "authentication requires PostgreSQL or MySQL",
+                ));
+            }
+        };
+        let statement = Statement::from_sql_and_values(
+            backend,
+            &crate::auth::resolve_auth_sql(db, sql)?,
+            [hash.clone().into()],
+        );
+        let row = connection
+            .query_one_raw(statement)
+            .await
+            .map_err(Error::internal)?;
+        let Some(row) = row else {
+            return Err(Error::Unauthorized);
+        };
+        let user_id = row.try_get::<i64>("", "user_id").map_err(Error::internal)?;
+        let abilities = row
+            .try_get::<serde_json::Value>("", "abilities")
+            .map_err(Error::internal)?
+            .as_array()
+            .ok_or_else(|| Error::internal(InvalidAbilities))?
+            .iter()
+            .map(|value| {
+                value
+                    .as_str()
+                    .map(str::to_owned)
+                    .ok_or_else(|| Error::internal(InvalidAbilities))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let update = match backend {
+            DbBackend::Postgres => {
+                "UPDATE tb_personal_access_tokens SET last_used_at = CURRENT_TIMESTAMP WHERE token_hash = $1 AND revoked_at IS NULL"
+            }
+            DbBackend::MySql => {
+                "UPDATE tb_personal_access_tokens SET last_used_at = CURRENT_TIMESTAMP WHERE token_hash = ? AND revoked_at IS NULL"
+            }
+            _ => {
+                return Err(Error::custom(
+                    "unsupported_auth_database",
+                    "authentication requires PostgreSQL or MySQL",
+                ));
+            }
+        };
+        connection
+            .execute_raw(Statement::from_sql_and_values(
+                backend,
+                &crate::auth::resolve_auth_sql(db, update)?,
+                [hash.into()],
+            ))
+            .await
+            .map_err(Error::internal)?;
+        Ok(AuthPrincipal::new(user_id, Some(abilities)))
+    }
+}
+
+impl Authenticator for DatabaseAuthenticator {
+    fn authenticate<'a>(
+        &'a self,
+        credential: AuthCredential<'a>,
+    ) -> crate::core::BoxFuture<'a, Result<AuthPrincipal>> {
+        Box::pin(async move {
+            let db = self
+                .db
+                .get()
+                .ok_or_else(|| Error::internal(DatabaseNotReady))?;
+            let connection = db.connection()?;
+            let backend = db.backend()?;
+            match credential.source() {
+                AuthSource::Jwt => Err(Error::internal(UnexpectedJwtCredential)),
+                AuthSource::Session => {
+                    self.authenticate_session(db, &connection, backend, &credential)
+                        .await
+                }
+                AuthSource::PersonalAccessToken => {
+                    self.authenticate_token(db, &connection, backend, &credential)
+                        .await
+                }
+            }
+        })
+    }
+}
+
+fn sha256_hex(value: &str) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let digest = Sha256::digest(value.as_bytes());
+    let mut output = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        output.push(char::from(HEX[usize::from(byte >> 4)]));
+        output.push(char::from(HEX[usize::from(byte & 0x0f)]));
+    }
+    output
+}
+
+fn is_safe_method(method: &str) -> bool {
+    matches!(method, "GET" | "HEAD" | "OPTIONS" | "TRACE")
+}
+
+pub(crate) const AUTH_USER_ID_KEY: &str = "openrust.auth.user_id";
+pub(crate) const AUTH_CSRF_HASH_KEY: &str = "openrust.auth.csrf_hash";
+
+fn unsupported_auth_database() -> Error {
+    Error::custom(
+        "unsupported_auth_database",
+        "authentication requires PostgreSQL or MySQL",
+    )
+}
+
+#[derive(Debug)]
+struct MissingSession;
+
+impl std::fmt::Display for MissingSession {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("Cookie authentication requires a shared Session")
+    }
+}
+
+impl std::error::Error for MissingSession {}
+
+#[derive(Debug)]
+struct MissingToken;
+
+impl std::fmt::Display for MissingToken {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("personal access token authentication requires a token value")
+    }
+}
+
+impl std::error::Error for MissingToken {}
+
+#[derive(Debug)]
+struct DatabaseNotReady;
+
+impl std::fmt::Display for DatabaseNotReady {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("authenticator database has not been registered")
+    }
+}
+
+impl std::error::Error for DatabaseNotReady {}
+
+#[derive(Debug)]
+struct InvalidAbilities;
+
+impl std::fmt::Display for InvalidAbilities {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("personal token abilities must be a JSON array of strings")
+    }
+}
+
+impl std::error::Error for InvalidAbilities {}
+
+#[derive(Debug)]
+struct UnexpectedJwtCredential;
+
+impl std::fmt::Display for UnexpectedJwtCredential {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("JWT credentials must be validated by JwtTokens")
+    }
+}
+
+impl std::error::Error for UnexpectedJwtCredential {}

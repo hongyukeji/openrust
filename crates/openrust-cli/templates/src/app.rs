@@ -10,6 +10,8 @@ impl Application for {{type_name}} {
     type Config = NoConfig;
 
     fn build(app: &mut AppBuilder) {
-        app.plugin(HttpPlugin).plugin(MailerPlugin){{database_plugins}}{{migration_plugin}}.routes(routes::register);
+        app.plugin(HttpPlugin)
+            .plugin(MailerPlugin){{database_plugins}}
+            .routes(routes::register);
     }
 }

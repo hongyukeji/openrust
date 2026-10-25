@@ -16,16 +16,28 @@ keywords.workspace = true
 openrust.workspace = true
 
 [dev-dependencies]
+axum.workspace = true
+base64.workspace = true
+chrono.workspace = true
 figment.workspace = true
+openrust-test.workspace = true
 serde_json.workspace = true
 sea-orm.workspace = true
+serde.workspace = true
+sha2.workspace = true
+sqlx.workspace = true
+time.workspace = true
 tokio.workspace = true
+tower.workspace = true
+tower-sessions = { workspace = true, features = ["memory-store"] }
+validator.workspace = true
 
 [lints]
 workspace = true
 
 [features]
 default = []
-db-postgres = ["openrust/db-postgres"]
-db-mysql = ["openrust/db-mysql"]
+db-postgres = ["openrust/db-postgres", "openrust-test/db-postgres"]
+db-mysql = ["openrust/db-mysql", "openrust-test/db-mysql"]
+auth = ["openrust/auth"]
 mail-smtp = ["openrust/mail-smtp"]

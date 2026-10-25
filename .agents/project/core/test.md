@@ -15,8 +15,8 @@
 
 ## 后续边界
 
-`TestApp`、HTTP response assertions、Factory 与 fake driver assertions 仍在 M3-M5 范围。
+`TestApp` 与 HTTP response assertions 是 M6 待实现项，按 [ADR-023](../decisions/adr-023-loco-application-experience-evaluation.md) 复用应用 finalize、公开 router、Tower oneshot 与本 crate 数据库隔离工具。Factory 与 fake driver assertions 仅随具体能力 contract 逐项补齐，不属于当前已交付 surface。
 
 ## 验证
 
-`tests/database.rs` 在 PostgreSQL 14 和 MySQL 8.0 上分别创建两个实例，验证迁移表存在、数据彼此隔离并显式删除数据库。CI 的 MySQL 隔离步骤使用 root admin URL；其他普通集成测试使用最低权限 `openrust` 用户。
+`tests/database.rs` 历史验证曾在 PostgreSQL 14 和 MySQL 8.0 上分别创建两个实例，验证迁移表存在、数据彼此隔离并显式删除数据库。CI 的 MySQL 隔离步骤使用 root admin URL；其他普通集成测试使用最低权限 `openrust` 用户。

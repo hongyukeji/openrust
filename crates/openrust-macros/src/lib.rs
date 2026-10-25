@@ -7,7 +7,7 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{ImplItem, ItemImpl, parse_macro_input};
 
-/// Generates an HTTP [`Resource`](https://docs.rs/openrust-http/latest/openrust_http/trait.Resource.html)
+/// Generates an HTTP [`Resource`](https://docs.rs/openrust/latest/openrust/http/resource/trait.Resource.html)
 /// implementation from action methods in an inherent controller implementation.
 ///
 /// Recognized methods are `list`, `get`, `create`, `update`, and `delete`. They must be
