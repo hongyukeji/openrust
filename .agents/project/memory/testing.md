@@ -18,7 +18,7 @@ RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 
 当前覆盖：默认 `always_ok` 与 `semantic` 状态码、成功/错误包装、`request_id` 头正文一致、415/422/413/408/500 兜底、`Location`/`Allow`/`Retry-After`、非法配置及统一包装的 `/health`。
 
-M2：`openrust-db` 有 5 个无外部服务单测；`tests/connection.rs` 与 `apps/server` facade 集成各 1 个双库连接测试。PostgreSQL 14 与 MySQL 8.0 的真实连接、`SELECT 1` 通过；MySQL 强制 TLS，测试断言非空 TLS cipher 与 `+00:00` 会话时区。测试服务通过 `compose.ci.yaml` 启动。
+M2：`openrust-db` 有 5 个无外部服务单测；`tests/connection.rs` 有连接、事务提交/回滚两项真实数据库集成测试，`apps/server` facade 有双库连接集成测试。PostgreSQL 14 与 MySQL 8.0 上的连接与事务测试通过；MySQL 强制 TLS，测试断言非空 TLS cipher 与 `+00:00` 会话时区。MSRV `cargo +1.97.0 check --workspace --all-targets --all-features` 通过。测试服务通过 `compose.ci.yaml` 启动。
 
 测试数：`openrust-core` 31 个单元测试（含分页 `PageMeta` 保留、配置目录覆盖、`.env` 选择生产时跳过其余变量、无 HTTP 插件的命令边界），`openrust-http` 49 个集成测试（`tests/router.rs` 33 个、`tests/resource.rs` 16 个），`openrust-server` 6 个集成测试（含资源宏全部动作路由映射）；`openrust` 1 个单元测试。
 

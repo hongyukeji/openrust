@@ -6,10 +6,12 @@ use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 
-use openrust_core::{App, AppBuilder, Error, Plugin, Result, config::ConfigError};
+use openrust_core::{App, AppBuilder, BoxFuture, Error, Plugin, Result, config::ConfigError};
 #[cfg(feature = "db-mysql")]
 use sea_orm::ConnectionTrait;
-use sea_orm::{ConnectOptions, Database, DatabaseConnection};
+use sea_orm::{
+    ConnectOptions, Database, DatabaseConnection, DatabaseTransaction, TransactionTrait,
+};
 use serde::Deserialize;
 use std::sync::OnceLock;
 
@@ -70,6 +72,25 @@ impl Db {
             .get()
             .cloned()
             .ok_or_else(|| Error::internal(DatabaseNotReady))
+    }
+
+    /// Runs an operation in a database transaction.
+    ///
+    /// The callback's error rolls back the transaction. A successful callback commits it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an internal error if the pool is not initialized, transaction setup or completion
+    /// fails, or the callback returns an error.
+    pub async fn transaction<T, F>(&self, callback: F) -> Result<T>
+    where
+        T: Send,
+        F: for<'a> FnOnce(&'a DatabaseTransaction) -> BoxFuture<'a, Result<T>> + Send,
+    {
+        self.connection()?
+            .transaction(callback)
+            .await
+            .map_err(Error::internal)
     }
 }
 

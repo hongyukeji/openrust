@@ -10,13 +10,14 @@
 - `DatabasePlugin` 验证 pool 参数与 URL 对应的 backend feature，在 `finish` 阶段连接 SeaORM pool。
 - MySQL pool 的每条新连接将会话时区设为 `+00:00`，与 ADR-002 一致。
 - `Db` 是可克隆服务句柄；`connection()` 返回 SeaORM `DatabaseConnection`。插件完成初始化前调用会返回内部错误。
+- `Db::transaction()` 将闭包放在 SeaORM 事务中执行；回调成功则提交，回调返回错误则回滚，数据库与回调错误统一映射为框架内部错误。
 - `db-postgres` 与 `db-mysql` 是可选 feature；未启用 backend feature 时门面默认不包含 `openrust-db`。
 - 数据库连接失败只给出 backend 名，不把连接 URL 或驱动错误写入启动错误。
 
 ## 后续边界
 
-迁移 runner、UTC/JSON dialect helper、事务辅助、seed 与 CLI、每用例独立数据库测试，以及 `openrust new --db` 模板仍在 M2 范围。
+迁移 runner、UTC/JSON dialect helper、seed 与 CLI、每用例独立数据库测试，以及 `openrust new --db` 模板仍在 M2 范围。
 
 ## 验证
 
-`cargo test -p openrust-db` 验证默认配置、URL 遮蔽、未初始化句柄、pool 参数和 backend feature 校验。设置 `OPENRUST_TEST_DATABASE_URL` 后，`tests/connection.rs` 连接真实服务并执行查询；MySQL 强制 Rustls TLS，并断言协商了 TLS 且连接会话时区为 `+00:00`。支持 PostgreSQL 14+ / MySQL 8.0+。
+`cargo test -p openrust-db` 验证默认配置、URL 遮蔽、未初始化句柄、pool 参数和 backend feature 校验。设置 `OPENRUST_TEST_DATABASE_URL` 后，`tests/connection.rs` 连接真实服务并执行查询，验证事务提交与回滚；MySQL 强制 Rustls TLS，并断言协商了 TLS 且连接会话时区为 `+00:00`。支持 PostgreSQL 14+ / MySQL 8.0+。

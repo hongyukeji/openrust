@@ -27,7 +27,7 @@ impl Application for App {
 }
 ```
 
-The plugin installs a cloneable `Db` service and opens its pool during application finalization. `Db::connection()` returns a SeaORM `DatabaseConnection`; its `Debug` output does not include the configured URL. A missing URL, disabled backend, invalid pool settings, or failed connection stops startup with a configuration error.
+The plugin installs a cloneable `Db` service and opens its pool during application finalization. `Db::connection()` returns a SeaORM `DatabaseConnection`; `Db::transaction()` commits successful callbacks and rolls back callbacks that return an error. Its `Debug` output does not include the configured URL. A missing URL, disabled backend, invalid pool settings, or failed connection stops startup with a configuration error.
 
 MySQL connections require TLS using Rustls. Configure the server certificate and trust chain through the MySQL URL/server deployment; plaintext MySQL connections are rejected. PostgreSQL TLS behavior follows the URL and server configuration.
 
