@@ -17,6 +17,8 @@
 
 ## 命名
 
+- 应用层可见的默认配置名、环境变量前缀、持久表名、生成模板和部署示例采用跨语言中性名称；框架自身 crate、CLI、Rust 模块可保留 `openrust` 产品名。按 [ADR-006](decisions/adr-006-rust-native-naming.md) 与 [ADR-016](decisions/adr-016-neutral-application-namespaces.md) 执行。
+
 | 对象 | 规则 | 示例 |
 | --- | --- | --- |
 | crate | `openrust-<capability>` | `openrust-queue` |
@@ -73,6 +75,7 @@ ADR-006 未覆盖的公共名称，先在 ADR-006 补一行并写明先例，再
 | 生成器 | `generate <kind>`，别名 `g` | `openrust g scaffold post title:string` |
 | 环境变量 | 应用默认 `APP_ENV` / `APP_<SECTION>__<KEY>`，启动前可定制命名空间（ADR-016）；同时识别 `DATABASE_URL` / `REDIS_URL` / `PORT` | `APP_SERVER__PORT=8080` |
 | 配置文件 | `config/default.toml`、`config/{env}.toml`，格式为 TOML | — |
+| 本地敏感配置 | `.env` 仅作本地/非生产环境覆盖；提交 `.env.example` 占位模板，所有 `.env` 与 `.env.*` 默认忽略，例外仅为 `*.example`；不要把真实凭据写入被跟踪配置文件 | `cp .env.example .env` |
 | 项目元数据 | 写入 `[package.metadata.openrust]` | 不另建元数据文件 |
 | 生成项目目录 | `controllers/`、`models/`（含 `_entities/`）、`services/`、`policies/`、`jobs/`、`events/`、`mailers/`、`middleware/`，外加 `src/seed.rs`、`migration/` crate、`templates/mail/` | 见 ADR-006 §1 |
 | 邮件、缓存、队列与测试 | `Email`；`Cache::get/insert/remove/get_or_insert_with`；`Job::run`；`TestApp::spawn().await` | 见 ADR-006 §4 |
@@ -95,6 +98,7 @@ cargo semver-checks            # 发布前
 | `openrust-db` / `openrust-queue` / `openrust-auth` | 另在 PostgreSQL 与 MySQL 各跑集成测试，见 `memory/testing.md` |
 | 模板与生成器 | 双库模板快照测试：生成项目后 `cargo check` + `cargo test` |
 | 文档-only | `git diff --check` + 相对链接检查 + `rg` 旧路径扫描 |
+| 生成项目模板 | 双库模板快照测试；检查真实 `.env` / `.env.*` 忽略且 `.env.example` 可跟踪，生成项目后 `cargo check` + `cargo test` |
 
 测试原则：框架是底层通用机制，每个公共行为都应有单元或集成测试；新建测试文件前必须能一句话说清它能发现哪个缺陷。fake driver 的断言放在 `openrust-test`。
 

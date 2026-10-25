@@ -217,6 +217,7 @@ fn populate_project(
 
     let mut files = vec![
         ("Cargo.toml", cargo_manifest(name, database)),
+        (".gitignore", include_str!("../templates/.gitignore").to_owned()),
         (".env.example", env_example(name, database)),
         ("config/default.toml", include_str!("../templates/config/default.toml").replace("{{name}}", name)),
         ("config/development.toml", include_str!("../templates/config/development.toml").to_owned()),
@@ -729,6 +730,7 @@ mod tests {
         populate_project(&project, "blog", "Blog", None).expect("generate project");
         for path in [
             "Cargo.toml",
+            ".gitignore",
             "src/main.rs",
             "src/app.rs",
             "src/routes.rs",
@@ -740,6 +742,7 @@ mod tests {
         }
         let snapshot = [
             "Cargo.toml",
+            ".gitignore",
             "config/default.toml",
             "src/main.rs",
             "src/app.rs",
@@ -757,6 +760,12 @@ mod tests {
         .collect::<Vec<_>>()
         .join("\n");
         insta::assert_snapshot!(snapshot);
+        let gitignore =
+            fs::read_to_string(project.join(".gitignore")).expect("read generated gitignore");
+        assert!(gitignore.lines().any(|line| line == ".env"));
+        assert!(gitignore.lines().any(|line| line == ".env.*"));
+        assert!(gitignore.lines().any(|line| line == "!.env.example"));
+        assert!(gitignore.lines().any(|line| line == "!.env.*.example"));
         let _ = fs::remove_dir_all(root);
     }
 
