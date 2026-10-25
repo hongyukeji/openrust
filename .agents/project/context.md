@@ -16,7 +16,7 @@
 
 ## 固定约束
 
-- AI 平台为基于 OpenRust 的独立产品，当前仅规划、不启动实现；后续开发必须使用 `projects/*` 分支和独立 worktree，产品业务不得进入框架核心或改变通用契约，详见 [产品计划](plans/ai-platform-product.md)。
+- AI 平台为基于 OpenRust 的独立产品，最终按 [OpenRouter 对标计划](plans/ai-platform-openrouter-parity.md) 复刻公开功能与流程（MVP 非终点），当前仅规划、不启动实现；后续开发必须使用 `projects/*` 分支和独立 worktree，产品业务不得进入框架核心或改变通用契约，详见 [产品计划](plans/ai-platform-product.md)。
 
 - 领取/切换功能簇、压缩恢复或收到新需求时，按 [执行校准](plan.md#执行校准) 核对最新计划、Git/WIP 与待办；旧消息不能覆盖已确认范围，原阶段完成不能替代新增能力验收。
 - 用户给出的扩展示例不是穷举清单；Agent 在每个功能簇主动评估常见校验/转换/替换/通知需求，复用合适机制并记录取舍，灵活补齐合理扩展点，不机械增加每个方法的前后钩子，见 [自主判断规则](plans/framework-design.md#开发-agent-的自主扩展性判断)。

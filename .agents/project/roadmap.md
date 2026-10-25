@@ -21,7 +21,7 @@
 
 ## 基于框架的独立产品
 
-- [AI 平台开发计划](plans/ai-platform-product.md)：暂称 AI Platform，首版模型网关、计费账本与客户/运营闭环；独立于框架 v1/v2，尚未启动。产品开发必须使用 `projects/*` 分支与独立 worktree，产品代码不回灌框架主线，通用改进按框架流程单独验证和审查。
+- [AI 平台开发计划](plans/ai-platform-product.md)：暂称 AI Platform，首版模型网关、计费账本与客户/运营闭环，最终按 [完整对标计划](plans/ai-platform-openrouter-parity.md) 复刻 OpenRouter 公开功能与流程，P4–P8 为必交付阶段；独立于框架 v1/v2，尚未启动。产品开发必须使用 `projects/*` 分支与独立 worktree，产品代码不回灌框架主线，通用改进按框架流程单独验证和审查。
 
 ## 不作为两个版本核心承诺
 
