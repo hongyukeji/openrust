@@ -15,6 +15,7 @@ keywords.workspace = true
 [dependencies]
 openrust-core.workspace = true
 openrust-http.workspace = true
+openrust-macros.workspace = true
 tokio.workspace = true
 tower.workspace = true
 tracing.workspace = true

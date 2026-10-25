@@ -8,6 +8,7 @@ pub use openrust_core::{
     ApiResponse, App, AppBuilder, AppState, Application, BoxFuture, Command, Error,
     MissingServiceError, NoConfig, PageMeta, Plugin, Result, ValidationErrors, config, lifecycle,
 };
+pub use openrust_macros::resource;
 
 /// HTTP layer: routing, extractors, middleware, `serve`.
 pub use openrust_http as http;

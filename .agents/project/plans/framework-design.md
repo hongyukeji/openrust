@@ -34,7 +34,7 @@ openrust/
 │   ├── openrust-cache/        # Cache trait、memory / redis driver
 │   ├── openrust-storage/      # Storage trait、OpenDAL 适配
 │   ├── openrust-mail/         # Email、Mailer、smtp / log / fake driver
-│   ├── openrust-macros/       # 派生宏：Job、Event、Validate 辅助
+│   ├── openrust-macros/       # Resource 属性宏；M4 加 Job、Event derive
 │   ├── openrust-test/         # TestApp、HTTP 测试客户端、数据库隔离、fake driver 断言
 │   └── openrust-cli/          # `openrust` 二进制：new / dev / generate <kind> / 运行命令代理
 ├── templates/                 # `openrust new` 项目模板（按数据库后端渲染）

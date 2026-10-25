@@ -48,6 +48,7 @@
 | 模板渲染（生成器） | `minijinja` |
 | 文件监听（`openrust dev`） | `watchexec` 库 |
 | 快照测试 | `insta` |
+| 过程宏 | `syn` + `quote` | 解析控制器 impl 项并生成 `Resource` 实现；避免手工拼装 token 与语法错误 |
 | 假数据 | `fake` |
 | 依赖审计 | `cargo-deny`、`cargo-audit` |
 | 语义化版本检查 | `cargo-semver-checks` |

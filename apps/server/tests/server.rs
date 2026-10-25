@@ -9,9 +9,51 @@ use openrust::ServiceExt;
 use openrust::http::axum::body::{Body, to_bytes};
 use openrust::http::axum::http::{Request, StatusCode};
 use openrust::http::build_router;
+use openrust::prelude::{AppBuilder, AppBuilderHttpExt, Application, Json};
 use openrust::{config, lifecycle};
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
+
+struct ResourceMacroApp;
+
+impl Application for ResourceMacroApp {
+    type Config = openrust::NoConfig;
+
+    fn build(app: &mut AppBuilder) {
+        app.plugin(openrust::http::HttpPlugin)
+            .routes(|routes| routes.resource::<MacroPosts>("/api/posts"));
+    }
+}
+
+struct MacroPosts;
+
+#[openrust::resource]
+impl MacroPosts {
+    async fn list() -> Json<&'static str> {
+        openrust::tokio::task::yield_now().await;
+        Json("list")
+    }
+
+    async fn get() -> Json<&'static str> {
+        openrust::tokio::task::yield_now().await;
+        Json("get")
+    }
+
+    async fn create() -> Json<&'static str> {
+        openrust::tokio::task::yield_now().await;
+        Json("create")
+    }
+
+    async fn update() -> Json<&'static str> {
+        openrust::tokio::task::yield_now().await;
+        Json("update")
+    }
+
+    async fn delete() -> Json<&'static str> {
+        openrust::tokio::task::yield_now().await;
+        Json("delete")
+    }
+}
 
 async fn router() -> Result<openrust::http::axum::Router, openrust::Error> {
     let app = lifecycle::bootstrap::<app::Server>().await?;
@@ -55,6 +97,38 @@ fn root_reports_server_name_and_version() -> TestResult {
         assert_eq!(json["data"]["name"], "openrust-server");
         assert_eq!(json["data"]["version"], env!("CARGO_PKG_VERSION"));
         assert_eq!(json["request_id"], request_id);
+        Ok(())
+    })
+}
+
+#[test]
+fn resource_macro_registers_controller_actions() -> TestResult {
+    openrust::tokio::runtime::Runtime::new()?.block_on(async {
+        let app = lifecycle::bootstrap::<ResourceMacroApp>().await?;
+        let router = build_router(&app)?;
+        for (method, uri, expected) in [
+            ("GET", "/api/posts", "list"),
+            ("GET", "/api/posts/42", "get"),
+            ("POST", "/api/posts", "create"),
+            ("PUT", "/api/posts/42", "update"),
+            ("PATCH", "/api/posts/42", "update"),
+            ("DELETE", "/api/posts/42", "delete"),
+        ] {
+            let response = router
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method(method)
+                        .uri(uri)
+                        .body(Body::empty())?,
+                )
+                .await?;
+            assert_eq!(response.status(), StatusCode::OK, "{method} {uri}");
+            let body = to_bytes(response.into_body(), usize::MAX).await?;
+            let json: serde_json::Value = serde_json::from_slice(&body)?;
+            assert_eq!(json["success"], true, "{method} {uri}");
+            assert_eq!(json["data"], expected, "{method} {uri}");
+        }
         Ok(())
     })
 }

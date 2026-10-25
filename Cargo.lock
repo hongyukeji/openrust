@@ -836,6 +836,7 @@ version = "0.0.0"
 dependencies = [
  "openrust-core",
  "openrust-http",
+ "openrust-macros",
  "tokio",
  "tower",
  "tracing",
@@ -916,6 +917,10 @@ dependencies = [
 [[package]]
 name = "openrust-macros"
 version = "0.0.0"
+dependencies = [
+ "quote",
+ "syn 2.0.119",
+]
 
 [[package]]
 name = "openrust-mail"

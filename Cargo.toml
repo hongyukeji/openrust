@@ -45,6 +45,8 @@ figment = { version = "0.10", features = ["toml", "env"] }
 dotenvy = "0.15"
 validator = { version = "0.21", features = ["derive"] }
 clap = { version = "4.6", features = ["derive"] }
+quote = "1.0"
+syn = { version = "2.0", features = ["full"] }
 toml = "1.1"
 insta = "1.49"
 

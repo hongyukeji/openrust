@@ -1,6 +1,6 @@
 [package]
 name = "openrust-macros"
-description = "Derive macros for the OpenRust framework (Job, Event)"
+description = "Procedural macros for the OpenRust framework"
 readme = "README.md"
 version.workspace = true
 edition.workspace = true
@@ -11,6 +11,10 @@ homepage.workspace = true
 authors.workspace = true
 categories.workspace = true
 keywords.workspace = true
+
+[dependencies]
+quote.workspace = true
+syn.workspace = true
 
 [lib]
 proc-macro = true
