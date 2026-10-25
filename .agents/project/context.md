@@ -9,7 +9,7 @@
 | 项 | 值 |
 | --- | --- |
 | 版本 | 0.0.0（未发布，crates.io 名称未预留） |
-| 阶段 | 第一代 M0「决策与基线」进行中：workspace、lint、CI、`openrust-core` / `openrust-http` / 门面 / CLI 转发已实现，Spike A / B 待做 |
+| 阶段 | 第一代 M0「决策与基线」进行中：workspace、lint、CI、`openrust-core` / `openrust-http` / 门面 / CLI 转发已实现，Spike A 已完成（结论见 ADR-002），Spike B 待做 |
 | 仓库 | `https://github.com/hongyukeji/openrust`（公开，默认分支 `main`，已推送）；本地 `/Users/Home/Codes/Rust/openrust` |
 | 协作模式 | 单开发者 + AI Agent；Claude 负责方案与设计，Codex 负责实现与验证 |
 | 本机工具链 | Rust stable 1.99.1（`rustup`），MSRV 1.92；`cargo-deny` 0.20 已安装 |
