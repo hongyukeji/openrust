@@ -1,0 +1,4 @@
+# 开发统一使用 stable；MSRV 由 workspace Cargo.toml 的 rust-version 声明并在 CI 单独验证。
+[toolchain]
+channel = "stable"
+components = ["rustfmt", "clippy"]

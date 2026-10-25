@@ -1,0 +1,144 @@
+#!/usr/bin/env bash
+# commit — 规范化创建 / 校验 Git 提交信息（自包含，配套 commit.cmd）。
+#   commit <type>[optional scope] <中文主题> <说明> [-- <path>...]  按项目规范创建 commit
+#   commit validate [<ref>|--file <file>]             校验提交信息，默认读 stdin
+#   commit example                                    打印示例
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "${WORK_ROOT:-$SCRIPT_DIR/../../..}" && pwd)"
+TYPES="feat fix docs style refactor perf test build ci chore revert"
+
+usage() { awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "${BASH_SOURCE[0]}"; }
+
+die() {
+  echo "commit: $*" >&2
+  exit 1
+}
+
+is_type() {
+  case " $TYPES " in
+    *" $1 "*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+commit_prefix_type() {
+  local prefix="$1"
+  if [[ "$prefix" =~ ^([a-z]+)(\([a-z0-9][a-z0-9._/-]*\))?$ ]]; then
+    printf '%s\n' "${BASH_REMATCH[1]}"
+    return 0
+  fi
+  return 1
+}
+
+is_commit_prefix() {
+  local type
+  type="$(commit_prefix_type "$1")" || return 1
+  is_type "$type"
+}
+
+agent_label() {
+  local label=""
+  if [ -n "${AI_AGENT_SOURCE:-}" ]; then
+    label="$AI_AGENT_SOURCE"
+  elif [ -n "${AI_AGENT:-}" ]; then
+    label="$AI_AGENT"
+  elif [ -n "${AI_AGENT_NAME:-}" ] && [ -n "${AI_AGENT_MODEL:-}" ]; then
+    label="$AI_AGENT_NAME $AI_AGENT_MODEL"
+    local effort="${AI_REASONING_EFFORT:-${CLAUDE_CODE_EFFORT_LEVEL:-}}"
+    if [ -n "$effort" ]; then
+      label="$label ($effort)"
+    fi
+  else
+    die "缺少 AI-Agent 来源。请设置 AI_AGENT_SOURCE，例如：AI_AGENT_SOURCE='Codex GPT-5 (xhigh)' ./.agents/project/scripts/commit feat '主题' '说明'"
+  fi
+  printf '%s\n' "$label"
+}
+
+validate_message_text() {
+  local message="$1"
+  local subject
+  local last_non_empty
+  subject="$(printf '%s\n' "$message" | sed -n '1p')"
+  last_non_empty="$(printf '%s\n' "$message" | awk 'NF { line=$0 } END { print line }')"
+
+  if ! printf '%s\n' "$subject" | grep -Eq '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9][a-z0-9._/-]*\))?: .+'; then
+    die "提交标题格式错误：${subject}；必须是 '<type>[(scope)]: <中文主题>'"
+  fi
+  if ! printf '%s\n' "$message" | grep -Eq '^AI-Agent: .+'; then
+    die "提交正文缺少 AI-Agent 来源行"
+  fi
+  if ! printf '%s\n' "$last_non_empty" | grep -Eq '^AI-Agent: .+'; then
+    die "AI-Agent 来源行必须是提交正文最后一个非空行"
+  fi
+}
+
+cmd_example() {
+  cat <<'EOF'
+AI_AGENT_SOURCE="Codex GPT-5 (xhigh)" ./.agents/project/scripts/commit feat "完善队列运维体验" "补齐事件日志、恢复入口和后台视图。" -- openspring-starters/openspring-starter-system views/admin/src/views/monitor/queue
+AI_AGENT_SOURCE="Codex GPT-5 (xhigh)" ./.agents/project/scripts/commit "feat(queue)" "完善队列运维体验" "补齐事件日志、恢复入口和后台视图。" -- openspring-starters/openspring-starter-system views/admin/src/views/monitor/queue
+
+# 校验最近一次提交：
+./.agents/project/scripts/commit validate HEAD
+
+# 校验某个提交：
+./.agents/project/scripts/commit validate 85fd6aa84
+EOF
+}
+
+cmd_validate() {
+  local message
+  if [ $# -eq 0 ]; then
+    message="$(cat)"
+  elif [ "$1" = "--file" ]; then
+    [ $# -eq 2 ] || die "用法：commit validate --file <file>"
+    message="$(cat "$2")"
+  else
+    [ $# -eq 1 ] || die "用法：commit validate [<ref>|--file <file>]"
+    message="$(git -C "$ROOT_DIR" log -1 --format=%B "$1")"
+  fi
+  validate_message_text "$message"
+  echo "commit: 提交信息校验通过"
+}
+
+cmd_create() {
+  [ $# -ge 3 ] || { usage; exit 1; }
+  local type="$1"
+  local subject="$2"
+  local body="$3"
+  local agent
+  shift 3
+  if [ "${1:-}" = "--" ]; then
+    shift
+  fi
+
+  is_commit_prefix "$type" || die "未知提交类型或 scope：${type}；允许 type：${TYPES}；scope 只允许小写字母、数字、点、下划线、斜杠和短横线"
+  [ -n "$subject" ] || die "提交主题不能为空"
+  [ -n "$body" ] || die "提交说明不能为空"
+  agent="$(agent_label)"
+
+  validate_message_text "$(printf '%s: %s\n\n%s\n\nAI-Agent: %s\n' "$type" "$subject" "$body" "$agent")"
+
+  if [ $# -gt 0 ]; then
+    git -C "$ROOT_DIR" commit --only -m "$type: $subject" -m "$body" -m "AI-Agent: $agent" -- "$@"
+  else
+    git -C "$ROOT_DIR" commit -m "$type: $subject" -m "$body" -m "AI-Agent: $agent"
+  fi
+}
+
+case "${1:-}" in
+  -h|--help|"")
+    usage
+    ;;
+  validate)
+    shift
+    cmd_validate "$@"
+    ;;
+  example)
+    cmd_example
+    ;;
+  *)
+    cmd_create "$@"
+    ;;
+esac

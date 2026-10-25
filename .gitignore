@@ -1,0 +1,18 @@
+# Rust
+/target/
+**/target/
+Cargo.lock.bak
+
+# Generated projects and spikes
+/tmp/
+/.openrust-dev/
+
+# Editors and OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Local environment
+.env
+.env.*.local
