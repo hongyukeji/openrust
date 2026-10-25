@@ -46,3 +46,5 @@ openrust-test ── 依赖门面，提供 TestApp 与 fake driver 断言
 ## 扩展模型
 
 应用模块与第三方包都通过实现 `Plugin` 接入：`build` 阶段向 `AppBuilder` 插入服务并追加路由、迁移、配置段、命令与调度；所有插件构建完成并冻结后依次调用 `finish`。不提供动态插件加载。
+
+能力驱动的设计与审查遵循 [ADR-009](decisions/adr-009-extensible-capability-drivers.md)：提供常用默认实现与可由第三方接入的公共契约，集中后端差异，明确能力边界。该决策记录数据库和缓存需求，不代表所有扩展入口及驱动已经实现；缓存多命名实例仍待评估。

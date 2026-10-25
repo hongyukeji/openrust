@@ -16,6 +16,7 @@
 
 ## 固定约束
 
+- 默认实现满足常见需求，公开扩展契约承接差异需求；数据库、缓存等能力复用既有插件与配置机制，具体边界见 [ADR-009](decisions/adr-009-extensible-capability-drivers.md)。缓存多命名实例尚待评估，不是已确认必做项。
 - OpenRust 不是任何既有项目的移植，没有兼容包袱；设计以 [第一代计划](plans/gen1-plan.md) 与 [框架设计](plans/framework-design.md) 为准。
 - 应用内核自研，基于 `tokio` + `axum` + `tower`；Loco 只作参考与对标（[ADR-001](decisions/adr-001-own-kernel-on-axum.md)）。
 - 第一代正式支持 PostgreSQL 14+ 与 MySQL 8.0+；每个数据功能必须有双库证据（[ADR-002](decisions/adr-002-seaorm-dual-database.md)）。
