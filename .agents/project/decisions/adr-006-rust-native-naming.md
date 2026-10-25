@@ -1,6 +1,6 @@
 # ADR-006 框架命名、目录与命令约定
 
-- 状态：Partially Superseded（配置/环境变量部分由 [ADR-016](adr-016-neutral-application-namespaces.md) 替代；其余命名契约仍有效）
+- 状态：Partially Superseded（仓库 package/module 布局由 [ADR-021](adr-021-loco-style-module-layout.md) 替代；配置/环境变量部分由 [ADR-016](adr-016-neutral-application-namespaces.md) 替代；生成项目 API、目录和命令命名仍有效）
 - 日期：2026-10-25（同日依主流 Rust 框架调研修订）
 
 ## 背景
@@ -102,7 +102,7 @@ TOML 分层、环境引导与生产 `.env` 保护保持有效，具体兼容、�
 
 ### 5. 仓库与元数据
 
-- workspace 结构保持不变：`crates/*`，crate 名为 `openrust-*`（kebab-case），每个 crate 内是 `src/`、`tests/`、`examples/`。与 rust-analyzer、Bevy、ripgrep 一致。
+- 仓库实现布局按 [ADR-021](adr-021-loco-style-module-layout.md)：主框架能力按模块组织在根 `src/`；只为 CLI、proc-macro 等真实技术边界保留独立 package。应用生成布局仍按本 ADR §1。
 - `Cargo.toml` 的 keywords 设为 `framework`、`web`、`axum`、`batteries-included`、`backend`，不写其他框架名。
 - README 用 Rust 原生的表述介绍自己，不写“inspired by Laravel and Rails”。
 - 根目录补齐 `CHANGELOG.md`（Keep a Changelog 格式）、`CONTRIBUTING.md`、`SECURITY.md`、`CODE_OF_CONDUCT.md`（引用 Rust Code of Conduct）。不新增 `rustfmt.toml`。

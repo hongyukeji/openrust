@@ -9,14 +9,12 @@
 - OpenAPI：后续里程碑用 `utoipa` 生成 schema，并在非生产环境挂载 `/docs`（ADR-008 §6）。
 
 ## M3 邮件、认证与授权（进行中）
-- 目录调整遵循 [ADR-020](decisions/adr-020-workspace-layout-and-loco-practices.md)：本次命名迁移只按 ADR-019 调整 crate 目录名与聚合应用包名，不移动到单一根 `src/`，不删除 `apps/server`，不迁移运行配置到 `src/config`。M6 再按根 `examples/` 交付完整示例应用。
 
 - 当前功能簇：按 [ADR-012](decisions/adr-012-auth-current-user-contract.md) 实现业务用户 ID 映射、路由认证配置和身份注入，并覆盖共享 Session/PAT 撤销、CSRF 与 `Inject` 共存。
 - 最新认证默认方向按 [ADR-018](decisions/adr-018-jwt-primary-authentication.md)：前后端分离 API 以 JWT access/refresh 为主，Session 可选，PAT 用于自动化集成。当前 Session/PAT WIP 不等于默认方案已实现；认证路由、登录流程和生成项目需按新 contract 校准。
 - 后续工作：优先实现 JWT Bearer 验证与签发、refresh 哈希存储/轮换/撤销及跨节点语义；接入通用 Session 全局中间件及 PostgreSQL/MySQL store 作为可选模式；公开 PAT 创建、一次性凭据返回、列举/撤销生命周期。认证流程与 `apps/server`/生成项目示例闭环后再关闭当前簇。自定义认证器仅验证扩展路径，不替代默认数据库实现验收。
 - 本簇验收前按 [执行校准](plan.md#执行校准) 核对契约：共享会话与跨节点撤销、认证所需全局限流/验证码边界、注册/登录公开扩展点及 `Inject` 共存；后续 M3 任务按完整 v1 覆盖清单逐簇领取，不以身份注入完成代替整个 M3。
 - ADR-012 已定义身份/路由 contract；本簇后续仍需形成独立授权 API 与角色/权限变更传播 contract，不把身份提取实现当作 M3 完成。
-- 当前 M3 执行者必须按 [ADR-019](decisions/adr-019-neutral-crate-directories-and-app-package.md) 完成源码目录与聚合应用命名迁移，并作为独立变更提交：将 `crates/openrust-<capability>` 目录改为 `crates/<capability>`（门面 `crates/openrust` 保留）；保持所有可发布 Cargo 包名及 Rust import 不变；将 `apps/server` 包名/二进制名改为 `server` 并保持 `publish = false`。更新 workspace 路径、`-p`/运行命令、`CARGO_BIN_EXE_*`、脚本、文档、模板及 CI 中的路径引用；逐项辨别文件路径与包名，不能误改公开包名。迁移前核对共享 WIP，迁移只做机械路径/宿主包调整，不与认证行为改动混成一个提交；运行完整 §6.3 Rust 验证及生成项目检查，`rg` 清查旧目录和旧二进制名，再更新项目事实。
 
 ## 配置与数据命名校准（待领取）
 

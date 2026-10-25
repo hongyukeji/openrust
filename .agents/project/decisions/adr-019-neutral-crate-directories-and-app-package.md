@@ -1,6 +1,6 @@
 # ADR-019 中性 crate 目录与聚合应用包名
 
-- 状态：Accepted（方向已确认；迁移待当前 M3 执行者落地）
+- 状态：Partially Superseded（能力目录重命名由 [ADR-021](adr-021-loco-style-module-layout.md) 收敛为主框架包内模块；若仍保留的独立 package，目录继续采用中性名称。内部 `apps/server` package 命名不再实施，因为宿主将由 tests/examples 接替。）
 - 日期：2026-10-25
 - 关联：[ADR-006](adr-006-rust-native-naming.md)、[ADR-007](adr-007-aggregate-server-entry.md)
 

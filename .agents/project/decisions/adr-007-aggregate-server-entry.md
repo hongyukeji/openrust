@@ -1,6 +1,6 @@
 # ADR-007 聚合启动入口 `apps/server`
 
-- 状态：Accepted
+- 状态：Superseded for target architecture（目标由 [ADR-021](adr-021-loco-style-module-layout.md) 取代；迁移验收前 `apps/server` 仍是当前集成宿主）
 - 日期：2026-10-25
 
 ## 背景

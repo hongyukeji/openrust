@@ -1,6 +1,6 @@
 # ADR-020 Workspace 布局与 Loco 借鉴边界
 
-- 状态：Accepted
+- 状态：Partially Superseded（package/module 与 `apps/server` 拓扑由 [ADR-021](adr-021-loco-style-module-layout.md) 替代；配置文件与 Rust 配置代码分离、示例独立组织的原则仍有效。）
 - 日期：2026-10-25
 - 参考：[Loco 仓库](https://github.com/loco-rs/loco)
 - 关联：[ADR-006](adr-006-rust-native-naming.md)、[ADR-007](adr-007-aggregate-server-entry.md)、[ADR-019](adr-019-neutral-crate-directories-and-app-package.md)
