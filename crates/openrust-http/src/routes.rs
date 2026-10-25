@@ -95,12 +95,24 @@ impl Routes {
     }
 
     /// Registers the actions explicitly supplied by a resource controller.
+    ///
+    /// # Panics
+    ///
+    /// Axum panics during registration if a route conflicts with an existing route
+    /// (the same path and method, or different parameter names at the same position).
+    /// Member routes always use the parameter name `id`.
     #[must_use]
     pub fn resource<R: Resource>(self, path: &str) -> Self {
         self.resource_with::<R>(path, |actions| actions)
     }
 
     /// Registers a resource after applying `f` to its actions.
+    ///
+    /// # Panics
+    ///
+    /// Axum panics during registration if a route conflicts with an existing route
+    /// (the same path and method, or different parameter names at the same position).
+    /// Member routes always use the parameter name `id`.
     #[must_use]
     pub fn resource_with<R: Resource>(
         self,

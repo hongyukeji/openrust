@@ -55,4 +55,6 @@ fn routes(routes: Routes) -> Routes {
 }
 ```
 
-`PageParams` defaults to `page=1&per_page=20`; extraction accepts `page >= 1` and `1 <= per_page <= 100`. Invalid values return a 422 `application/problem+json` response with field-level `errors`. `offset()` is zero-based and `limit()` returns the page size. `Paginated::new(items, params, total)` emits `{"data": [...], "meta": {"page": 1, "per_page": 20, "total": 57, "total_pages": 3}}`.
+Resource paths discard trailing slashes before registering the collection and `{id}` member routes; an empty path inside `group("/posts", …)` responds at `/posts` and `/posts/{id}`. Repeated `only` calls keep the intersection of their action lists. Axum panics at registration on route conflicts, including a member parameter name other than `id` at the same path position.
+
+`PageParams` defaults to `page=1&per_page=20`; direct extraction accepts `page >= 1`, `1 <= per_page <= 100`, and an offset no larger than `i64::MAX`. Invalid values return a 422 `application/problem+json` response with field-level `errors`. `Query<PageParams>` only deserializes and does not validate these bounds. `offset()` is zero-based and `limit()` returns the page size. `Paginated::new(items, params, total)` emits `{"data": [...], "meta": {"page": 1, "per_page": 20, "total": 57, "total_pages": 3}}`.

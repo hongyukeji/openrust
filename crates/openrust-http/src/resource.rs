@@ -96,7 +96,7 @@ impl ResourceActions {
         self
     }
 
-    /// Retains only the listed registered actions.
+    /// Retains only the listed registered actions. Repeated calls intersect their lists.
     #[must_use]
     pub fn only(mut self, actions: &[Action]) -> Self {
         self.only = Some(match self.only {
@@ -140,6 +140,8 @@ impl ResourceActions {
 
     pub(crate) fn mount(mut self, mut routes: Routes, path: &str) -> Routes {
         self.apply_filters();
+        let base = path.trim_end_matches('/');
+        let collection_path = if base.is_empty() { "/" } else { base };
         let collection = [self.index, self.store]
             .into_iter()
             .flatten()
@@ -149,10 +151,10 @@ impl ResourceActions {
             .flatten()
             .reduce(MethodRouter::merge);
         if let Some(router) = collection {
-            routes = routes.route(path, router);
+            routes = routes.route(collection_path, router);
         }
         if let Some(router) = member {
-            let member_path = format!("{}/{{id}}", path.trim_end_matches('/'));
+            let member_path = format!("{base}/{{id}}");
             routes = routes.route(&member_path, router);
         }
         routes

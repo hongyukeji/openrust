@@ -123,6 +123,32 @@ async fn all_resource_actions_map_to_the_expected_methods_and_paths() -> TestRes
 }
 
 #[tokio::test]
+async fn trailing_slash_resource_path_uses_one_collection_and_member_base() -> TestResult {
+    let router = router(|routes| routes.resource::<Posts>("/posts/")).await?;
+    for (path, expected) in [("/posts", "index"), ("/posts/42", "show:42")] {
+        let response = send(router.clone(), Method::GET, path).await?;
+        assert_eq!(response.status(), StatusCode::OK, "{path}");
+        assert_eq!(body(response).await?, expected.as_bytes());
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn empty_and_slash_resource_paths_work_inside_groups() -> TestResult {
+    for path in ["", "/"] {
+        let router =
+            router(move |routes| routes.group("/posts", |group| group.resource::<Posts>(path)))
+                .await?;
+        for (request_path, expected) in [("/posts", "index"), ("/posts/42", "show:42")] {
+            let response = send(router.clone(), Method::GET, request_path).await?;
+            assert_eq!(response.status(), StatusCode::OK, "{path}: {request_path}");
+            assert_eq!(body(response).await?, expected.as_bytes());
+        }
+    }
+    Ok(())
+}
+
+#[tokio::test]
 async fn absent_actions_do_not_create_paths_and_registered_paths_reject_other_methods() -> TestResult
 {
     let router = router(|routes| {
@@ -198,6 +224,31 @@ async fn filters_apply_even_when_declared_before_handlers() -> TestResult {
     Ok(())
 }
 
+#[tokio::test]
+async fn repeated_only_calls_intersect_registered_actions() -> TestResult {
+    let router = router(|routes| {
+        routes.resource_with::<Posts>("/posts", |actions| {
+            actions
+                .only(&[Action::Index, Action::Show])
+                .only(&[Action::Show, Action::Store])
+        })
+    })
+    .await?;
+    assert_eq!(
+        send(router.clone(), Method::GET, "/posts/1")
+            .await?
+            .status(),
+        StatusCode::OK
+    );
+    for (method, path) in [(Method::GET, "/posts"), (Method::POST, "/posts")] {
+        assert_eq!(
+            send(router.clone(), method, path).await?.status(),
+            StatusCode::NOT_FOUND
+        );
+    }
+    Ok(())
+}
+
 async fn created() -> Created<Json<Value>> {
     Created(Json(json!({"id": 42})))
 }
@@ -254,6 +305,53 @@ async fn pagination_defaults_and_json_shape() -> TestResult {
         json_body(send(router, Method::GET, "/params?page=3&per_page=10").await?).await?,
         json!({"page": 3, "per_page": 10, "offset": 20, "limit": 10})
     );
+    Ok(())
+}
+
+#[tokio::test]
+async fn pagination_per_page_only_keeps_default_page() -> TestResult {
+    let router = router(|routes| routes.get("/params", pagination_params)).await?;
+    assert_eq!(
+        json_body(send(router, Method::GET, "/params?per_page=50").await?).await?,
+        json!({"page": 1, "per_page": 50, "offset": 0, "limit": 50})
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn pagination_accepts_largest_database_offset() -> TestResult {
+    let router = router(|routes| routes.get("/params", pagination_params)).await?;
+    assert_eq!(
+        json_body(
+            send(
+                router,
+                Method::GET,
+                "/params?page=9223372036854775808&per_page=1"
+            )
+            .await?
+        )
+        .await?,
+        json!({"page": 9_223_372_036_854_775_808_u64, "per_page": 1, "offset": i64::MAX, "limit": 1})
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn pagination_rejects_database_offset_overflow_as_page_error() -> TestResult {
+    let router = router(|routes| routes.get("/page", paginated)).await?;
+    for query in [
+        "page=9223372036854775809&per_page=1",
+        "page=18446744073709551615&per_page=100",
+    ] {
+        let response = send(router.clone(), Method::GET, &format!("/page?{query}")).await?;
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(
+            response.headers()[header::CONTENT_TYPE],
+            "application/problem+json"
+        );
+        let problem = json_body(response).await?;
+        assert_eq!(problem["errors"]["page"], json!(["is too large"]));
+    }
     Ok(())
 }
 

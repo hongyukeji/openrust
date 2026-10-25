@@ -38,7 +38,9 @@ impl IntoResponse for NoContent {
 
 /// One-based pagination parameters extracted from a query string.
 ///
-/// Extraction defaults to page 1 and 20 items per page, and validates both fields.
+/// Direct extraction defaults to page 1 and 20 items per page, and validates both fields
+/// and the zero-based offset against the `i64` database range. `Query<PageParams>`
+/// only deserializes the fields and does not perform this validation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 pub struct PageParams {
     /// One-based page number, at least 1.
@@ -97,6 +99,14 @@ impl<S: Send + Sync> FromRequestParts<S> for PageParams {
         }
         if !(1..=100).contains(&per_page) {
             errors.add("per_page", "must be between 1 and 100");
+        }
+        if page != 0
+            && (1..=100).contains(&per_page)
+            && (page - 1)
+                .checked_mul(per_page)
+                .is_none_or(|offset| offset > i64::MAX as u64)
+        {
+            errors.add("page", "is too large");
         }
         if !errors.is_empty() {
             return Err(Error::Validation(errors));
