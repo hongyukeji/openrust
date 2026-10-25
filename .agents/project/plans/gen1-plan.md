@@ -26,7 +26,7 @@ OpenRust 定位为 Rust 应用开发的“瑞士军刀”：以高性能为基�
 | ORM | SeaORM 2.x + `sea-orm-migration`；SQLx 直连作为显式逃生口（[ADR-002](../decisions/adr-002-seaorm-dual-database.md)） | 唯一同时覆盖 PostgreSQL / MySQL 的成熟 Rust ORM，带迁移与实体生成 |
 | 数据库 | PostgreSQL 14+（推荐默认）与 MySQL 8.0+（同等正式支持）；SQLite 不在 v1 版本 | 两者都支持 `SKIP LOCKED`、CTE、JSON；SQLite 增加第三条验证矩阵但不是目标部署环境 |
 | Redis | 可选 driver，不是必需依赖 | 默认队列、缓存、会话分别用数据库表与进程内实现；多实例共享时再启用 Redis |
-| 认证 | Cookie 会话（Web）与个人访问令牌（API）为默认认证方式；密码 Argon2id；JWT 不在 v1 版本（[ADR-004](../decisions/adr-004-session-and-token-auth.md)） | 有状态令牌可撤销、可审计；JWT 作为后续版本候选 `auth-jwt` feature |
+| 认证 | Cookie 会话（Web）与个人访问令牌（API）为默认认证方式；密码 Argon2id；JWT 不在 v1 版本（[ADR-004](../decisions/adr-004-session-and-token-auth.md)） | 有状态令牌可撤销、可审计；JWT 作为 v2 评估候选 `auth-jwt` feature |
 | 授权 | `Policy` + 最小 `roles` / `permissions` 模型；DataScope、多租户不在 v1 版本 | 覆盖绝大多数应用的授权需求，不引入特定业务系统的数据范围概念 |
 | 队列 | 自有数据库队列（`SKIP LOCKED`），M0 对比 `apalis` 后定稿（[ADR-003](../decisions/adr-003-database-queue-default.md)） | 范围有界（拉取、重试、退避、失败表），自有实现可完全控制 Schema 与双库行为 |
 | 配置 | TOML 分层 + 环境变量 + `.env`；类型化结构启动校验 | 与 Rust 生态习惯一致，错误在启动时暴露 |
@@ -34,7 +34,7 @@ OpenRust 定位为 Rust 应用开发的“瑞士军刀”：以高性能为基�
 | 存储 | OpenDAL；本地默认，S3 兼容为 `storage-s3` feature | 一个适配层覆盖所有对象存储，不自写 SDK 封装 |
 | 邮件 | lettre SMTP + log + fake driver | 密码重置与邮箱验证依赖邮件，必须进入 v1 版本 |
 | 短信 | 统一发送入口、至少一个真实供应商适配、log / fake driver；供应商待选型 | v1 版本范围与验收边界见 [ADR-011](../decisions/adr-011-sms-and-communication-baseline.md) |
-| 模板 | minijinja 为可选 `templates` feature，v1 版本只服务邮件模板 | API 优先；页面渲染脚手架与表单 CSRF 示例列入后续版本候选，不做 Blade 等价物 |
+| 模板 | minijinja 为可选 `templates` feature，v1 版本只服务邮件模板 | API 优先；页面渲染脚手架与表单 CSRF 示例列入 v2 评估候选，不做 Blade 等价物 |
 | 管理后台 / 插件市场 | 不在 v1 版本 | 由 `Plugin` 扩展模型承载第三方包，不做动态加载 |
 | 许可证与名称 | MIT OR Apache-2.0；crate 名 `openrust`、`openrust-cli`、`openrust-*`（[ADR-005](../decisions/adr-005-license-naming-msrv.md)） | 2026-10-25 核实 crates.io 上 `openrust` 与 `openrust-core` 未被占用；开发者在 M0 发布 0.0.0 占位版本预留 |
 | Rust 版本 | Edition 2024；MSRV 为当前 stable 减两个小版本 | 既用新语法，又给下游留升级窗口 |
@@ -76,6 +76,8 @@ Laravel 等成熟框架用于能力与体验对照，API 与命名遵循 Rust �
 国际化、WebSocket、出站 HTTP、加密与密钥、审计、请求幂等已纳入 v1，范围、建议与验收见 [通用能力补齐计划](v1-common-capabilities.md)。具体 API/依赖选型先定 contract；不将底层框架原生支持视为 OpenRust 已完成接入。
 
 通用底座完整性以 [能力覆盖与归属](v1-capability-coverage.md) 为准：补齐常见开发机制，既有能力在原入口完善，新增机制明确唯一归属；不将“已有底层库”或“待设计”作为省略交付的理由。
+
+版本分工见 [v2 后台计划](v2-admin-platform.md)：v1 提供完整通用机制，v2 提供用户/组织/菜单等现成模块与 UI；本文件“不纳入”表示不属 v1，v2 核心与候选状态以对应计划为准。v2 不复制 v1 实现。
 
 ## 开箱即用的定义
 
