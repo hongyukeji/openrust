@@ -1,133 +1,147 @@
-# ADR-006 Rust 生态命名与目录约定
+# ADR-006 框架命名、目录与命令约定
 
 - 状态：Accepted
-- 日期：2026-10-25
+- 日期：2026-10-25（同日依主流 Rust 框架调研修订）
 
 ## 背景
 
-OpenRust 的定位是 Rust 原生框架，但当前代码、设计文档与元数据里还留着 Laravel / Rails / Spring 的术语：`ServiceProvider::register/boot`、`index/show/store/update/destroy`、`make:*`、`config:show` 冒号命令、`resources/mail`、`Mailable`、`Seeder`、`Cache::put/forget/remember`、`storage.disk()`，Cargo `keywords` 里还有 `laravel` / `rails`。其中不少词在 Rust 社区并不通用，Rust 开发者需要额外“翻译”。另有几处命名违反 Rust API Guidelines（下文简称 RAG），或与 std / axum 的惯用语义相反。
+初版设计按 Laravel 的概念起草，代码与文档里留下了 `ServiceProvider::register/boot`、`index/show/store/update/destroy`、`make:*`、`config:show`、`Mailable`、`Seeder`、`APP_ENV` 等只属于单一生态的词。OpenRust 的用户有很多是从 PHP、Ruby、Python、Java、JS、Go 转来的。目标是新手和老手都能很快上手，开箱即用。所以命名既要让 Rust 开发者觉得地道，也要让跨语言开发者一眼认得，而且不能特立独行。
 
-开发者已定：资源动作改为 `list/get/create/update/delete`；其余待定项由开发者授权按 Rust 生态约定俗成的做法决定（见「待定项结论」）。
+本 ADR 是 OpenRust 命名、目录与命令的唯一权威来源。日常操作清单见 [conventions.md「框架规范」](../conventions.md#框架规范)。
 
-审计依据：RAG（C-CASE、C-CONV、C-GETTER、C-WORD-ORDER、C-CTOR）；std / `http::Extensions` 的 `get`/`insert` 语义；axum（`Router::nest/merge`、`State`、`Extension`、`FromRef`）；bevy（`Plugin::build`、`App::add_plugins`）；actix-web（`web::resource`、`web::Data`）；sea-orm-cli（`migration/` crate、`generate entity`）；sqlx-cli / diesel_cli（`DATABASE_URL`、`migrate run`、空格分隔子命令）；askama / tera / minijinja（`templates/`）；moka（`insert/get/invalidate/get_with`）；OpenDAL（`read/write/delete/presign_read`）；cargo-leptos / cargo-dist（`[package.metadata.*]`）；loco-rs 本身就是 Rails 风格，只作反例或参照，不当作共识依据。
+## 判定规则
+
+按优先级：
+
+1. **主流 Rust 框架已有共识的，照做。** 参照对象：loco-rs、axum、Rocket、actix-web、Poem、Salvo、Pavex、Bevy、SeaORM、sqlx-cli。其中 loco-rs 是唯一流行、基于 SeaORM、带生成器的全栈 Rust 框架，与 OpenRust 定位最接近，是**生成项目布局与 CLI 的首要参照**。
+2. **没有共识的，用跨语言通用的 Web 框架词汇**，如 controllers、models、migrations、seeds、jobs、mailers、middleware，前提是不违反 Rust API 惯例。
+3. **不自造词，也不用单一生态的行话**，例如 Laravel 的 `Mailable` / `ServiceProvider` / `boot` / `Guard` / `disk`、Rocket 的 `Fairing`、OpenDAL 的 `Operator`。
+4. **分两层**：
+   - **生成项目的布局与 CLI**：追求一眼熟悉，以 loco 和跨语言框架为准。
+   - **库 API**：保持 Rust 惯用写法，以 std、axum 和 [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/)（下称 RAG）为准，包括 C-CASE、C-CONV、C-GETTER、C-WORD-ORDER、C-CTOR。
+
+新增或修改公共名称前，先查本 ADR。本 ADR 没有覆盖的名称，先在这里补一行并写明先例，再写代码。
 
 ## 决策
 
-1. 公共 API 遵循 RAG 和 std / axum 语义。同一概念已有 Rust 通用词时用通用词，不沿用 PHP/Ruby/Java 框架术语。
-2. 已经符合 Rust 习惯的名字不改，即使它在别的生态里也存在（`App`、`Resource`、`Validated`、`Job`、`Policy`、`middleware`、`.env` 等）。
-3. 运行期命令改用 clap / cargo 风格：空格分隔的嵌套子命令加 kebab-case，不用冒号分组。
-4. 生成项目的布局对齐 sea-orm-cli 和模板引擎的默认约定：`migration/` 独立 crate、`templates/`、项目元数据放在 `[package.metadata.openrust]`。
-5. 对外表述不再写“inspired by Laravel and Rails”。与其他框架的概念对照移到 `docs/` 的迁移指南，不进设计原则。
+### 1. 生成项目布局（`openrust new`）
 
-## 待定项结论
+```text
+<app>/
+├── Cargo.toml              # [package.metadata.openrust] 存放项目元数据，不另建 openrust.toml
+├── .env.example
+├── config/
+│   ├── default.toml        # 默认配置
+│   ├── development.toml
+│   ├── test.toml
+│   └── production.toml
+├── src/
+│   ├── main.rs             # 只调用 openrust::run::<App>()
+│   ├── app.rs              # impl Application：plugins、routes、jobs、schedule
+│   ├── config.rs           # 业务配置
+│   ├── routes.rs
+│   ├── schedule.rs
+│   ├── seed.rs             # `db seed` 入口，普通 async fn
+│   ├── controllers/        # handler 函数，一资源一文件
+│   ├── models/             # 业务 impl；SeaORM 生成的实体放 models/_entities/
+│   ├── services/
+│   ├── policies/
+│   ├── jobs/
+│   ├── events/
+│   ├── mailers/
+│   └── middleware/
+├── migration/              # 独立 workspace 成员 crate（sea-orm-cli 默认）
+├── templates/mail/         # 邮件模板（askama / tera / minijinja 默认目录）
+├── tests/
+├── compose.yaml
+├── Dockerfile
+└── AGENTS.md               # 供 AI 辅助的新用户使用（loco 先例）
+```
 
-本节结论优先于下方变更清单中的备选写法。
+依据：
+- loco 生成项目使用 `src/{controllers,models,models/_entities,workers,mailers,tasks}` 与 `migration/`。
+- salvo-cli 使用 `models/`。
+- 没有流行的 Rust 生成器使用 `handlers/` 目录。文档中把函数称为 handler，与 axum 和 loco 一致。
+- 测试数据用 `fake::Dummy` 加 builder，不提供 `Seeder` / `Factory` trait。
 
-| 项 | 结论 | 依据 |
+### 2. CLI
+
+- 子命令用空格嵌套，名称用 kebab-case，不用冒号。依据：cargo、sqlx-cli（`sqlx migrate run`）、sea-orm-cli、`cargo loco db migrate`。
+- **全局命令**：`openrust new <name> [--db postgres|mysql]`、`openrust dev`。其余命令转发给项目二进制。
+- **生成器**：`openrust generate <kind>`，别名 `g`。kind 包括 `scaffold`、`controller`、`model`、`migration`、`job`、`mailer`、`policy`、`command`。
+  - 字段 DSL 使用 loco / Rails 的小写类型名，例如 `title:string published_at:date_time?`。`references` 表示外键，`?` 表示可空。
+- **运行期命令**：`serve`（默认）、`migrate`、`db seed`、`db reset`、`db status`、`queue work`、`schedule run`、`schedule list`、`routes`、`config show`、`doctor`。
+
+### 3. 配置与环境变量
+
+- 配置文件为 TOML，分层合并：crate 默认值 → `config/default.toml` → `config/{env}.toml` → `.env`（仅非生产环境）→ 环境变量。
+- 环境选择用 `OPENRUST_ENV`，取值 `development` / `test` / `production`。依据：loco `LOCO_ENV`、Rocket `ROCKET_PROFILE`。
+- 覆盖配置用 `OPENRUST_<SECTION>__<KEY>`：前缀后接单下划线，嵌套层级之间用双下划线，例如 `OPENRUST_SERVER__PORT`、`OPENRUST_SERVER__CORS__ENABLED`。依据：Rocket `ROCKET_*`、Pavex 和 zero2prod 的“前缀 + 单下划线”写法。
+- 识别 12-factor 通用变量：`DATABASE_URL` 对应 `database.url`，`REDIS_URL` 对应 Redis 连接，`PORT` 对应 `server.port`。依据：loco、sqlx、diesel、Heroku 惯例。若同时设置了 `OPENRUST_` 前缀的变量，以它为准。
+- 不回退读取 `APP_ENV`、`RAILS_ENV`、`NODE_ENV`，避免同机多应用时误读。
+
+### 4. 库 API
+
+| 领域 | 名称 | 依据 |
 | --- | --- | --- |
-| `ServiceProvider { register, boot }` | `Plugin { build, finish }`，`AppBuilder::plugin()`，`HttpProvider` → `HttpPlugin` | bevy：先对所有插件调用 `build`，全部完成后再调用 `finish`，与原两阶段语义一致 |
-| 环境变量 | `OPENRUST_ENV`、前缀 `OPENRUST__`；数据库连接同时识别标准 `DATABASE_URL` | Rocket `ROCKET_*`、loco `LOCO_ENV`；sqlx / diesel / sea-orm-cli 读 `DATABASE_URL` |
-| `Routes::group` | 改为 `Routes::nest`（空前缀仍 merge） | axum `Router::nest` |
-| `controllers/`、`models/` | `handlers/`、`entities/` | axum handler 术语；SeaORM `generate entity` 惯用输出 |
-| `Seeder` / `Factory` | 去掉；`src/seed.rs` 普通 async fn + `fake::Dummy` | Rust 测试数据惯例 |
-| `Mailable` | `trait Email`，产出 `lettre::Message` | lettre 术语 |
-| `storage.disk()`、`SessionGuard` / `TokenGuard` | 不在本 ADR 定名；`openrust-storage` / `openrust-auth` 实现时对齐所选底层库（OpenDAL / object_store、axum-login）的词汇，并在对应 ADR 记录 | 底层库未最终选定，先定原则 |
-| `Inject<T>` | 保留 | `shaku_axum::Inject` 先例；备选名均与 tower / axum / actix / bevy 既有类型冲突 |
-| `docs/` | M6 以 mdBook 建立；AGENTS.md 注明在此之前用户文档写在 crate `README.md`（rustdoc） | mdBook 是 Rust 官方文档工具 |
-| `config/app.toml` | 改为 `config/default.toml` | config-rs 层级惯例 |
+| 扩展单元 | `trait Plugin { fn build(&self, app); fn finish(&self, app) }`；`AppBuilder::plugin()`；能力 crate 导出 `<Capability>Plugin`，如 `HttpPlugin`、`DatabasePlugin` | Bevy `Plugin::build/finish`、summer-rs `Plugin`、Tauri `Builder::plugin`。语义：先对所有插件调用 `build`（含期间新增），冻结后再调用 `finish` |
+| 服务注册表 | `AppBuilder::insert(service)` / `AppBuilder::get::<T>()`；`AppState::get -> Option<Arc<T>>`；`AppState::try_get -> Result<Arc<T>>`；缺失时返回 `MissingServiceError` | `http::Extensions::insert/get`；std 中 `try_*` 返回 `Result`；RAG C-WORD-ORDER |
+| 提取器 | `Inject<T>`、`Validated<T>`、`CurrentUser` | `shaku_axum::Inject`；axum-valid `Valid<T>`。备选名会与 tower、axum、actix、bevy 的已有类型重名 |
+| 路由 | `Routes::nest(prefix, f)`（空前缀或 `/` 时 merge）、`merge`、`layer`、`resource::<R>(path)`、`resource_with` | axum、Poem、loco 都用 `nest`；actix `web::resource` |
+| 资源动作 | `Action::{List, Get, Create, Update, Delete}`；`ResourceActions::{list, get, create, update, delete}`；映射为 list → GET path、create → POST path、get → GET path/{id}、update → PUT 和 PATCH path/{id}、delete → DELETE path/{id} | 开发者已定；与 Google AIP 标准方法一致。生成器生成的 handler 函数名需避开与 `axum::routing::{get, delete}` 重名（loco 用 `get_one` / `remove`），具体在生成器实现时定 |
+| 响应 | `Created<T>`、`NoContent`、`PageParams { page, per_page }`、`Paginated<T>` | axum 的类型化响应风格；`per_page` 与 GitHub REST API 一致 |
+| 命令 | `trait Command`，名称为空格分隔的多个词，如 `config show` | 同第 2 节 |
+| 邮件 | `trait Email`，产出 `lettre::Message`，由 `Mailer` 发送 | lettre 与 loco 的 `Mailer` |
+| 缓存 | `get` / `insert` / `remove` / `get_or_insert_with` / `increment` | moka、std `HashMap`、loco cache |
+| 存储 | `storage.store("public")`，方法为 `read` / `write` / `delete` / `url` / `presign_read` | loco `StoreDriver`、object_store `ObjectStore`、`std::fs` 的 `read` / `write` |
+| 队列 | `trait Job { async fn run(self, ctx: &JobContext) }` | apalis、fang |
+| 认证 | 由认证 ADR 决定，不使用 `Guard`，因为 Rocket 的 request guard 和 actix 的路由谓词已占用这个词 | — |
+| 测试 | `TestApp::spawn().await` | zero2prod `spawn_app`、axum-test `TestServer::new` |
+| 错误 | `openrust::Error` 变体以代码为准：`NotFound` / `Unauthorized` / `Forbidden` / `Validation` / `Conflict` / `RateLimited` / `Config` / `Database` / `Queue` / `Internal` | RAG C-GOOD-ERR |
+| 门面 | `openrust::prelude` 与 `pub use openrust_http as http;` 这类 crate 级 re-export；示例和模板中的用户类型不叫 `App`，避免与 `openrust::App` 重名 | Bevy 和 tokio 的门面写法 |
 
-## 变更清单
+### 5. 仓库与元数据
 
-### (A) 已实现代码，需要立即改（0.0.0，可破坏性变更）
+- workspace 结构保持不变：`crates/*`，crate 名为 `openrust-*`（kebab-case），每个 crate 内是 `src/`、`tests/`、`examples/`。与 rust-analyzer、Bevy、ripgrep 一致。
+- `Cargo.toml` 的 keywords 设为 `framework`、`web`、`axum`、`batteries-included`、`backend`，不写其他框架名。
+- README 用 Rust 原生的表述介绍自己，不写“inspired by Laravel and Rails”。
+- 根目录补齐 `CHANGELOG.md`（Keep a Changelog 格式）、`CONTRIBUTING.md`、`SECURITY.md`、`CODE_OF_CONDUCT.md`（引用 Rust Code of Conduct）。不新增 `rustfmt.toml`。
+- `docs/` 在 M6 用 mdBook 建立，按 Diátaxis 分为 Tutorials、How-to、Reference、Explanation 四部分。其中设一页“从其他框架迁移”，列出 Laravel、Rails、Django、Spring、Express/NestJS、axum 与 OpenRust 概念的对照。其他框架的词汇只出现在这一页，不进入 API。另设一页 coming-from-axum。
 
-| 当前 | 建议 | 依据 | 影响文件 | 置信度 |
-| --- | --- | --- | --- | --- |
-| `Action::{Index,Show,Store,Update,Destroy}`，`ResourceActions::{index,show,store,update,destroy}` | `Action::{List,Get,Create,Update,Delete}`，`ResourceActions::{list,get,create,update,delete}` | 已定；同 Google AIP-131~135 标准方法与 K8s/gRPC 动词 | `openrust-http/src/resource.rs`、`routes.rs` doctest、`tests/resource.rs`（约 30 处）、`tests/router.rs`、`openrust-http/README.md`、`openrust/src/lib.rs` prelude 文档、`todo.md:9`（`#[openrust::resource]` 宏函数名） | 高 |
-| `ServiceProvider { register, boot }`、`AppBuilder::provider()`、`HttpProvider` | `Plugin { build, start }`（或 `build`/`finish`）、`AppBuilder::plugin()`、`HttpPlugin`；`<Capability>Provider` 命名规则改为 `<Capability>Plugin` | bevy `Plugin::build(&self, &mut App)` 加 `finish/cleanup` 的两阶段模型是 Rust 社区最熟悉的扩展单元；`register/boot` 是 Laravel ServiceProvider 原词 | `openrust-core/src/provider.rs`、`app.rs`、`lifecycle.rs`、`lib.rs`；`openrust-http/src/provider.rs`；facade prelude；README；`conventions.md` 命名表；`framework-design.md`；ADR-001 文中术语 | 中 |
-| `AppState::get -> Result`、`AppState::try_get -> Option` | `get -> Option<Arc<T>>`，`try_get -> Result<Arc<T>>`（或 `require`） | std/`http::Extensions::get` 返回 `Option`；`try_*` 在 std 中表示返回 `Result`（`try_from`、`RefCell::try_borrow`）。现状语义与 std 相反 | `openrust-core/src/app.rs`、`provider.rs` doctest、`openrust-http/src/extract.rs` | 高 |
-| `AppBuilder::provide(service)` / `AppBuilder::service::<T>()` | `AppBuilder::insert(service)` / `AppBuilder::get::<T>()`，与 `AppState` 对齐 | `http::Extensions::insert/get`、bevy `insert_resource`；同一注册表两端用同一组动词 | `app.rs`、`lifecycle.rs`、`openrust-http/README.md` 示例、设计文档 | 中 |
-| `ServiceNotRegistered`（错误类型） | `MissingServiceError` | RAG C-WORD-ORDER：错误类型以 `Error` 结尾（`ParseIntError`、`RecvError`） | `openrust-core/src/app.rs`、`lib.rs`、facade re-export | 高 |
-| `Command::name()` 返回 `config:show`；文档示例 `queue:work`、`db:seed` | `config show`（嵌套子命令）；命名规则改为空格分组加 kebab-case | cargo / sqlx-cli（`sqlx migrate run`）、sea-orm-cli（`migrate up`）、diesel（`migration run`）都用空格嵌套子命令；冒号是 Artisan/Rake 写法 | `openrust-core/src/command.rs`（含 trait 文档）、`app.rs:218` 注释、`lifecycle.rs`、`core/core.md` | 高 |
-| 环境变量 `APP_ENV`、前缀 `APP__` | `OPENRUST_ENV`、`OPENRUST__`（或保留 `APP_` 但另加 `OPENRUST_ENV` 别名）；同时识别标准 `DATABASE_URL` | Rocket `ROCKET_PROFILE`/`ROCKET_*`、loco `LOCO_ENV`；sqlx/diesel/sea-orm-cli 都读 `DATABASE_URL`；`APP_ENV` 是 Laravel 原名，同机多应用时容易冲突 | `openrust-core/src/config.rs`（常量与文档）、`lifecycle.rs`、`framework-design.md` 配置节、`context.md` | 中 |
-| `Routes::group(prefix, f)` | `Routes::nest(prefix, f)`（空前缀时仍 merge）；或保留 `group` 并注明对应 axum `nest` | axum `Router::nest/merge`；`group` 是 Laravel `Route::group` | `routes.rs`、`tests/router.rs`、README、设计文档 | 中 |
-| 示例与设计里用户结构体名为 `struct App`，与 prelude 导出的 `openrust::App` 同名 | 模板里用户类型改为项目名（如 `struct Blog`），或 `prelude` 不导出 `App` | 同名遮蔽能编译，但文档里 `App` 指两个类型，读者分不清 | `openrust/examples/hello.rs`、`framework-design.md` 内核节、`openrust/src/lib.rs` | 中 |
-| 框架 `config::AppConfig`（`[app]` 段）与设计中业务配置 `src/config.rs: AppConfig` 同名 | 业务模板改用 `Config`（`type Config = Config;`）或 `BlogConfig` | 避免同一项目内两个 `AppConfig` | `framework-design.md` 布局与内核节 | 中 |
-| `Cargo.toml` `keywords = [..., "laravel", "rails"]` | `["framework", "web", "axum", "batteries-included", "backend"]` | crates.io 关键词用于检索 Rust 能力，不用于类比其他框架 | 根 `Cargo.toml` | 高 |
-| `README.md`：“takes its developer-experience inspiration from Laravel and Rails”；Goals 中的 `openrust make:*` | “Built on tokio, axum, tower and SeaORM; conventions are expressed as Rust types and traits.”；`openrust generate …` | 对外定位用 Rust 原生表述 | `README.md`、`openrust-cli/README.md:11` | 高 |
-| `pub mod http { pub use openrust_http::*; }` | `pub use openrust_http as http;` | 门面 crate 惯用写法（`bevy::prelude` / `tokio` re-export 方式），文档路径更清楚 | `openrust/src/lib.rs` | 低 |
+### 6. 开箱即用
 
-### (B) 设计文档与计划（未实现 crate）
+- `openrust new` 默认生成可以直接跑通的完整样例：注册和登录、一个 scaffold 资源、一封邮件、一个 job，以及请求测试。配合 `compose.yaml`，`openrust dev` 一条命令即可启动。
+- `doctor` 检查配置、数据库连接和迁移状态。`routes` 输出每条路由的方法、路径和 handler。
 
-| 当前 | 建议 | 依据 | 影响文件 | 置信度 |
-| --- | --- | --- | --- | --- |
-| 生成器 `openrust make:model|controller|...` | `openrust generate <kind>`（别名 `g`） | sea-orm-cli `generate entity`、diesel `migration generate`、`cargo generate`；`make:` 是 Artisan 写法 | `framework-design.md` CLI 节、`gen1-plan.md`、README、`core/cli.md` | 高 |
-| 应用命令 `db:seed` `db:reset` `queue:work` `queue:failed` `queue:retry` `schedule:run` `schedule:list` `route:list` `key:generate` `user:create` | `db seed` `db reset` `queue work` `queue failed` `queue retry` `schedule run` `schedule list` `routes`（同 `cargo loco routes`）`secret generate` `user create`；建议应用二进制内部也用 clap 解析 | 同 A 中命令行条目 | `framework-design.md`、`gen1-plan.md`、`plan.md` | 高 |
-| `src/controllers/` 与 “Controller” 术语 | `src/handlers/`；文档统称 handler | axum 官方把处理函数称为 handler，zero2prod 等常见 axum 项目用 `routes/`/`handlers/`；controller 是 MVC/Rails 词汇 | `framework-design.md` 布局、路由节、Laravel 映射表 | 中 |
-| `src/models/` | `src/entities/`（sea-orm-cli `generate entity` 的惯用输出），业务 `impl` 同文件或放 `services/` | SeaORM 文档与 CLI 的 Entity 术语 | 布局、数据层节 | 中 |
-| `src/migrations/` | 独立 workspace 成员 `migration/`（`migration/src/lib.rs` 中 `Migrator`、`m20260101_000001_create_users.rs`） | `sea-orm-cli migrate init` 默认生成，loco 同样采用；可单独 `cargo run -p migration` | 布局、`.migrations(migrations::all)` 示例、ADR-002 | 高 |
-| `src/seeders/` + `Seeder` trait + `Factory` trait（`UserFactory::new().count(3)`） | `src/seed.rs`（`db seed` 入口，普通 async fn）；测试数据用 `fake` crate 的 `Dummy` derive 加 builder，不另造 `Factory` trait | Rust 测试数据惯例是 `fake::Dummy` / builder；Seeder/Factory 是 Laravel 类名 | 布局、测试工具节、`openrust-db` 规划 | 中 |
-| `resources/mail/` 邮件模板 | `templates/mail/` | askama、tera、minijinja 示例的默认目录都是 crate 根下的 `templates/` | 布局、邮件节 | 高 |
-| `src/mails/` + `Mailable` trait | `src/mail/` + `trait Email`（产出 `lettre::Message`），`Mailer` 保留 | lettre 的 `Message`/`Transport` 术语；`Mailable` 是 Laravel 专有词 | 邮件节、`openrust-mail` 规划、`conventions.md` | 中 |
-| `openrust.toml` 项目元数据 | 根 `Cargo.toml` 的 `[package.metadata.openrust]` | cargo-leptos `[package.metadata.leptos]`、cargo-dist、cargo-deb 均用 metadata 表；少一个根文件 | 布局、`openrust-cli` 规划 | 中 |
-| `config/app.toml` + `config/<env>.toml` | 保留，或把 `app.toml` 改为 `default.toml` | config-rs 层级示例使用 `config/default.toml` + `config/{run_mode}.toml` | `config.rs`、布局 | 低 |
-| `Cache::put/forget/remember` | `insert/remove/get_or_insert_with`，保留 `get/increment` | moka `insert/invalidate/get_with`；std `HashMap::insert/remove`、`Option::get_or_insert_with` | 缓存节、`openrust-cache` 规划 | 高 |
-| `storage.disk("public").put/get/delete/url/temporary_url` | `storage.operator("public")`（或 `bucket`），方法 `write/read/delete/url/presign_read` | OpenDAL `Operator::write/read/presign_read`；`disk` 是 Laravel Filesystem 术语 | 存储节、`openrust-storage` 规划 | 中 |
-| `impl Handle for Job { async fn handle(self, ctx) }` | 把方法并入 `trait Job { async fn run(self, ctx: &JobContext) }` | apalis / fang 以 `run`/`execute` 为主；单独 `Handle` trait 是 Laravel `handle()` 的影子 | 队列节、`openrust-queue` 规划 | 中 |
-| `SessionGuard` / `TokenGuard` | `SessionAuth` / `TokenAuth`（或 axum-login 的 backend 术语） | axum-login `AuthSession`/`AuthnBackend`；Guard 是 Laravel Auth 术语 | 认证节、ADR-004 | 低 |
-| `TestApp::boot()` | `TestApp::spawn().await` | zero2prod `spawn_app`、axum-test `TestServer::new`；`boot` 是 Laravel 生命周期词 | 测试工具节 | 中 |
-| `Error` 变体列表含 `UnprocessableEntity`，实现为 `Validation` | 设计文档改为与代码一致 | 文档漂移 | `framework-design.md` 错误模型节 | 高 |
-| “Laravel 概念映射”一节、“文档站信息架构对齐 Laravel” | 改名“与其他框架的概念对照”并移入 `docs/` 迁移指南；信息架构参考 Rust 官方书籍与 Bevy Book：Getting Started → Guides → Reference → Deployment | 设计原则不以外部框架为基准 | `framework-design.md`、`conventions.md:53`、`gen1-plan.md:11` | 高 |
-| 模型生成 DSL `title:string published_at:datetime?` | 保留语法，类型名对齐 Rust/SeaORM（`String`、`Text`、`Option<DateTimeUtc>`），或同时接受两种写法 | 与生成代码中的类型对应 | CLI 节 | 低 |
+## 明确不改
 
-### (C) 需要补的元文件
+`App` / `AppBuilder` / `AppState` / `Application`、`Resource` trait、`Validated`、`Inject`、`Policy`、`Job`、`Event`、`.env` 与 dotenvy、`compose.yaml`、feature 名（`db-postgres`、`test-util`）、`openrust-cli` 的二进制名 `openrust`、`thiserror` / `anyhow` 的分工。这些名称已经符合 Rust 惯例或跨语言通用。
 
-| 文件 | 建议 | 依据 | 置信度 |
-| --- | --- | --- | --- |
-| `CHANGELOG.md`（根目录，单一） | Keep a Changelog 格式，带 `## [Unreleased]`；git-cliff 用 keepachangelog 模板生成 | ripgrep、cargo-dist 用根目录 CHANGELOG；本仓库版本已统一为 `workspace.package.version`，不必每个 crate 一份 | 高 |
-| `CONTRIBUTING.md` | 面向人类贡献者：构建与验证命令、提交格式、双许可声明，链接 `AGENTS.md` | tokio、axum、bevy、rust-analyzer 均有 | 高 |
-| `SECURITY.md` | 写明私下报告渠道（GitHub Security Advisories），0.1 前补齐 | tokio、rustls、hyper 均有；框架涉及认证与会话 | 中 |
-| `CODE_OF_CONDUCT.md` | 直接引用 Rust Code of Conduct | tokio、axum 的做法 | 中 |
-| `docs/` | M6 以 mdBook 建立；在此之前 AGENTS.md 注明用户文档写在 crate `README.md` | 消除悬空引用 | 中 |
-| `rustfmt.toml` | **不新增**。edition 2024 会被 cargo fmt 自动识别，默认风格就是社区共识；`imports_granularity` 等仍是 nightly 选项 | rust-analyzer、tokio 用默认风格 | 高 |
-| README 徽章 | 首次发布后加 crates.io、docs.rs、CI、MSRV 1.92、license 徽章 | axum、tokio README 惯例 | 低 |
-| `.github/` PR/Issue 模板 | 可选，暂缓 | — | 低 |
+## 影响
 
-## 不改的项与理由
-
-| 项 | 理由 |
-| --- | --- |
-| workspace `crates/*`、`resolver = "3"`、`xtask/`、`examples/` | 与 rust-analyzer、bevy、ripgrep 的布局一致；xtask 是 matklad 提出的通行模式 |
-| crate 名 `openrust-*`（kebab-case）与 `openrust-cli` → 二进制 `openrust` | 同 tokio-*、sea-orm-cli、diesel_cli → `diesel`。RAG C-CASE 不建议给 crate 加 `-rs`/`-rust` 前后缀，但 `openrust` 是整体品牌名，不是 `rust-` 前缀；名称已按 ADR-005 预留 |
-| `Application` / `AppBuilder` / `App` / `AppState` | bevy、actix 都用 `App`；Builder 模式符合 RAG；`AppState` 是 axum 文档的标准叫法 |
-| `Resource` trait 与 `Routes::resource` | actix-web 有 `web::resource(path)`；“resource”是 REST 通用词，不是 Rails 专有 |
-| `Validated<T>` | 同 axum-valid `Valid<T>`、axum_garde `WithValidation`，是 Rust 社区的提取器形态 |
-| `Inject<T>` | 保留。Rust 已有先例 `shaku_axum::Inject`；备选名 `Service<T>`、`Extension<T>`、`Data<T>`、`Res<T>` 分别与 tower、axum、actix、bevy 的既有类型冲突 |
-| `Created<T>` / `NoContent` / `PageParams { page, per_page }` / `Paginated` | 类型化响应是 axum 风格；`per_page` 与 GitHub REST API 一致 |
-| `AppBuilderHttpExt`、`into_router`、`to_problem`、`as_str`、`from_env`、`resource_with` | 分别符合 `*Ext` 扩展 trait 命名、C-CONV、C-CTOR 惯例 |
-| `only` / `except` | 英语里自然，且不是框架专有词；不引入谓词闭包，避免过度设计 |
-| `Policy`、`Job`、`Event`/`Listener`、`middleware/`、`services/`、`jobs/`、`events/`、`tests/` | 都是通用软件术语；`Policy` 在 casbin、cedar-policy、oso 中通用 |
-| `.env` + dotenvy、`compose.yaml`、`Dockerfile`、`development/test/production` | sqlx、diesel、loco 都用 `.env`；其余与语言生态无关 |
-| `openrust new` / `openrust dev` | 同 `cargo new`；`dev` 与 cargo-leptos `watch`、trunk `serve` 同类，语义清楚 |
-| feature 名 `db-postgres`、`test-util` 等 | `test-util` 与 tokio 一致；kebab-case 符合 Cargo 惯例 |
-| `Error` 枚举变体、`thiserror`/`anyhow` 分工 | 符合 RAG C-GOOD-ERR 与社区分工 |
-| `ValidationErrors` 与 `validator::ValidationErrors` 同名 | 门面内不会同时 glob 导入，暂不改；用户确实冲突时再考虑 `FieldErrors`（低） |
-
-## 影响范围
-
-- 公共 API：`openrust-core`（provider、app、command、config 常量）、`openrust-http`（resource、routes、provider、extract）、门面 `openrust` prelude。0.0.0 尚未发布，没有下游用户。
-- 测试：`crates/openrust-http/tests/{resource,router}.rs`、core 单元测试、全部 doctest。
-- 文档：根 `README.md`、各 crate `README.md`（即 rustdoc）、`.agents/project/{conventions,context,todo,plan,architecture}.md`、`core/{core,http,cli,facade}.md`、`plans/{framework-design,gen1-plan}.md`、ADR-001/002/004 中的术语。
-- 元数据：根 `Cargo.toml` `keywords`。
-
-## 迁移步骤
-
-1. `refactor`（代码）：(A) 全部条目，包括资源动作、`Plugin`、`AppState` / `AppBuilder` 注册表动词、`MissingServiceError`、`config show`、`OPENRUST_ENV` / `OPENRUST__` / `DATABASE_URL`、`nest`、`config/default.toml`、keywords、README 定位、门面 re-export、示例类型名。同步全部调用方、测试、crate README、`.agents/project`。
-2. `docs`：`framework-design.md` / `gen1-plan.md` / `conventions.md` / `context.md` 按 (B) 与「待定项结论」改写；Laravel 映射表删除，迁移指南留待 M6 `docs/`。
-3. `chore`：新增 (C) 中 `CHANGELOG.md`、`CONTRIBUTING.md`、`SECURITY.md`、`CODE_OF_CONDUCT.md`，AGENTS.md 标注 `docs/` 于 M6 建立。
+- **已实现代码**（0.0.0，可以做破坏性变更）：`openrust-core`（plugin、app、command、config）、`openrust-http`（resource、routes、plugin、extract）、门面 prelude、示例、各 crate README、测试。
+- **设计与计划文档**：`plans/framework-design.md`、`plans/gen1-plan.md`、`architecture.md`、`context.md`、`todo.md`、`roadmap.md`，以及 ADR-001、ADR-002、ADR-004 中的术语。决策内容不变。
 
 ## 验证
 
-- 代码簇：`cargo fmt --all --check`、`cargo clippy --workspace --all-targets -- -D warnings`、`cargo test --workspace`、`cargo doc --workspace --no-deps`。
-- 旧名扫描，结果应为 0：`rg -n --hidden -g '!target' -g '!.git' -e 'Action::(Index|Show|Store|Destroy)' -e '\.(index|show|store|destroy)\(' -e 'ServiceProvider' -e 'ServiceNotRegistered' -e '[a-z]+:(show|work|seed|list|run|generate)\b' -e 'make:' -e 'APP_ENV' -e 'resources/mail' -e 'Mailable' -i -e 'laravel|rails'`。迁移指南中刻意保留的对照词除外。
-- 文档簇：`git diff --check`，以及相对链接可解析。
-- 新增测试：`AppState::get` 返回 `None` 与 `try_get` 返回 `MissingServiceError` 各一条，用于发现语义回退；`config show` 命令可被 `run_command("config", ["show"])` 或等价形式调用。
+- 每次提交前运行旧名扫描。除本 ADR、`CHANGELOG.md` 与 `docs/` 迁移对照页外，命中数应为 0。命令见 [memory/testing.md](../memory/testing.md)。
+- 新增或修改公共名称的 PR 或 commit，必须在本 ADR 中能找到对应条目。
+
+## 调研依据
+
+- **loco**：
+  - [base_template](https://github.com/loco-rs/loco/tree/HEAD/loco-new/base_template)
+  - [app.rs](https://github.com/loco-rs/loco/blob/HEAD/src/app.rs)
+  - [environment.rs](https://github.com/loco-rs/loco/blob/HEAD/src/environment.rs)
+  - [cli.rs](https://github.com/loco-rs/loco/blob/HEAD/src/cli.rs)
+  - [scaffold controller](https://github.com/loco-rs/loco/blob/HEAD/loco-gen/src/templates/scaffold/api/controller.t)
+  - [storage](https://github.com/loco-rs/loco/tree/HEAD/src/storage)
+  - [coming-from-axum](https://github.com/loco-rs/loco/blob/HEAD/website/src/content/docs/docs/explanation/coming-from-axum.md)
+- **Rocket**：[fairing](https://github.com/rwf2/Rocket/blob/HEAD/core/lib/src/fairing/mod.rs)、[config](https://github.com/rwf2/Rocket/blob/HEAD/core/lib/src/config/config.rs)
+- **Pavex**：[template](https://github.com/LukeMathWalker/pavex/tree/HEAD/compiler/pavexc_cli/template)
+- **Salvo**：[salvo-cli classic](https://github.com/salvo-rs/salvo-cli/tree/HEAD/templates/classic)、[Depot](https://github.com/salvo-rs/salvo/blob/HEAD/crates/core/src/depot.rs)
+- **summer-rs**：[Plugin](https://github.com/summer-rs/summer-rs/blob/HEAD/summer/src/plugin/mod.rs)、[env](https://github.com/summer-rs/summer-rs/blob/HEAD/summer/src/config/env.rs)
+- **Bevy**：[Plugin](https://github.com/bevyengine/bevy/blob/HEAD/crates/bevy_app/src/plugin.rs)
+- **SeaORM**：[axum_example](https://github.com/SeaQL/sea-orm/tree/HEAD/examples/axum_example)
+- **Poem**：[router](https://github.com/poem-web/poem/blob/HEAD/poem/src/route/router.rs)
+- 未逐条复核、依据 docs.rs 既有知识：axum `Router`、actix-web `web::scope`、Tauri `Builder::plugin`。
