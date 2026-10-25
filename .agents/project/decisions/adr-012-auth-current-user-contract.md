@@ -22,14 +22,18 @@ ADR-004 已确定 Cookie 会话与个人访问令牌为 v1 认证方式，但没
 ## 决策
 
 - 身份 API 为 `CurrentUser` 与 `OptionalUser(Option<CurrentUser>)`。二者实现 Axum `FromRequestParts<AppState>`，可与 `Inject<T>` 同时用于 handler，并在 body extractor 前提取。
+- `AuthPlugin::new()` 安装框架默认数据库认证器；`AuthPlugin::with_authenticator(authenticator)` 用于应用或第三方替换。公共扩展契约为 `pub trait Authenticator: Send + Sync + 'static { fn authenticate<'a>(&'a self, credential: AuthCredential<'a>) -> BoxFuture<'a, Result<AuthPrincipal>>; }`，其中 `BoxFuture` 与 `Result` 复用 `openrust_core`。路由层负责判定缺失与双凭据冲突，认证器只收到单一已选来源；`AuthPrincipal` 只含用户 ID 和可选 PAT abilities，不允许服务自报认证来源。凭据无效、过期、撤销或账户禁用返回 `Error::Unauthorized`；CSRF 由路由层校验并返回 `Error::Forbidden`；后端故障返回内部错误或明确 5xx，不能转换成匿名或 401。Session principal 不得包含 abilities；PAT 必须包含 abilities（空列表合法）。类型与所选 credential 不匹配属于框架/扩展契约错误，返回 500。
+- `AuthCredential` 私有字段且不实现 `Debug` / `Serialize`，仅由可信 `AuthLayer` 构造；Session variant 含 session cookie、unsafe method 时的 `x-csrf-token` 与 method，PAT variant 只含 Bearer token。默认 session cookie 名为 `openrust_session`。认证器不得记录 credential 或其派生 secret。
+- 认证器通过 `AuthCredential` 的只读访问器取得所选 session/PAT 值、method 与 CSRF token；`AuthPrincipal::new(user_id, token_abilities)` 是认证器构造已验证主体的唯一入口。路由层忽略认证器提供的来源信息，并按所选 credential kind 构造最终身份。
+- `AuthService` 包装 `Arc<dyn Authenticator>` 并作为唯一服务类型加入 `AppState`，构造与注册由 `AuthPlugin` 私有管理。插件 `build` 检查此前已注册的同类型服务；`finish` 再以 `Arc::ptr_eq` 校验最终服务仍是本插件注册实例，从而发现后续插件静默覆盖。`AuthPlugin::new()` 的默认数据库认证器还须在 `finish` 校验 `Db` 已注册；自定义认证器不依赖 `Db`。插件注册顺序不影响路由，因为 `build_router` 完成后认证 middleware 才从请求扩展读取最终 `AppState`。`AuthPlugin` 缺失或服务被替换时应用启动失败；若路由独立组装而没有对应服务，请求返回统一 500。
 - `CurrentUser` 提供 `id() -> i64`、`source() -> AuthSource` 与 `token_abilities() -> Option<&[String]>`。`AuthSource` 只有 `Session` 和 `PersonalAccessToken`；Session 返回 `None`，PAT 返回 `Some(abilities)`。空 PAT 能力列表不允许任何受能力限制的操作，能力按精确字符串匹配，不支持 `*` 通配符。身份字段不可由请求参数、JSON body 或客户端自报 header 构造。
 - 业务用户类型由应用持有。handler 注入业务 `UserService` 并按 `CurrentUser::id()` 查询；OpenRust 不自动装载或强制领域用户实现 `AuthUser` / `UserResolver` trait，也不要求继承框架结构体。认证账户表使用 ADR-004 的通用字段并包含 nullable `disabled_at`；非空时账户不可认证。业务字段通过迁移扩展。
 - 路由使用 `AuthLayer::required(AuthMode)` 或 `AuthLayer::optional(AuthMode)` 并通过现有 `Routes::layer` 应用。`AuthMode` 为 `Session`、`PersonalAccessToken`、`SessionOrToken`；每路由仅认证所选来源。
 - Required 缺少所选凭据返回 401；Optional 缺少所选凭据返回 `OptionalUser(None)`。仅所选认证来源参与解析，未选来源的凭据忽略且绝不作为回退。所选来源提供无效、过期、撤销或账户 `disabled_at` 非空的凭据时一律返回 401，不把错误凭据视为匿名。`CurrentUser` 出现在 Optional 匿名请求时返回 401。
-- `SessionOrToken` 请求若同时提供 Cookie session 与 Bearer token（无论其中一个是否有效），返回 400 `ambiguous_credentials`，不按顺序回退或合并身份；只有单一来源存在时才解析该来源。使用 Session 完成认证的所有 unsafe method 都必须通过 CSRF 校验，包括 `SessionOrToken` 选择 Session 的分支；PAT 请求不使用 Cookie session，故不做 CSRF 校验。该规则细化并取代 ADR-004 中“配合表单时启用”的条件式表述。Token 模式从 `Authorization: Bearer` 读取个人访问令牌。
+- `AuthLayer` 根据 `AuthMode` 从 `Cookie: openrust_session=...` / `Authorization: Bearer ...` 选择 credential。`SessionOrToken` 同时出现 session cookie 与任何 `Authorization` 头时（无论值是否有效或格式正确）返回 400 `ambiguous_credentials`，不调用认证器；重复的 session cookie 或重复 `Authorization` 头也返回 400。所选来源缺失仅在 Optional 模式产生匿名；空 session 值、空/格式错误 Bearer 值及 Token 模式下不支持的 Authorization scheme 均为 401，Optional 不得降级为匿名。SessionOrToken 的 Authorization 头存在但不是单个有效 Bearer 格式时返回 401，不回退到 Cookie。Session-only 忽略 Authorization，Token-only 忽略 Cookie。使用 Session 完成认证的所有 unsafe method 都必须通过 CSRF 校验，包括 `SessionOrToken` 选择 Session 的分支；PAT 请求不使用 Cookie session，故不做 CSRF 校验。该规则细化并取代 ADR-004 中“配合表单时启用”的条件式表述。
 - 若 handler 使用 `CurrentUser` / `OptionalUser` 但路由未安装认证层，返回内部配置错误，而不是伪造匿名或空身份。
-- Policy 返回拒绝时用框架统一 403；PAT 能力与用户角色权限取交集，能力不足不能被角色权限覆盖。PAT/Session 撤销、登出或账户禁用事务提交后，之后开始的每个认证请求必须观察到失效；已在提交前通过认证的在途请求不撤销。角色/权限变更的跨节点传播时限由 M3 授权与集群 contract 另行定义。
-- 认证层所需 `AppState` 通过 HTTP 全局 Tower 扩展提供，在每个 route layer 之前执行。具体实现应优先调整现有 `build_router` 与 middleware stack，不增加并行路由系统。当前 route builder 注册时取不到最终 `AppState`，因此缺少 `AuthService` 在认证路由首个请求时返回 500；不宣称启动时已校验。
+- `AuthLayer` 依据被选择的 credential kind 构建 `CurrentUser::source()`，并验证 principal 元数据：PAT 必须返回 abilities（空列表合法但不具备任何受限能力），Session 不得带 PAT abilities。Policy 返回拒绝时用框架统一 403；PAT 能力与用户角色权限取交集，能力不足不能被角色权限覆盖。PAT/Session 撤销、登出或账户禁用事务提交后，之后开始的每个认证请求必须观察到失效；已在提交前通过认证的在途请求不撤销。角色/权限变更的跨节点传播时限由 M3 授权与集群 contract 另行定义。
+- 认证层所需 `AppState` 通过 HTTP 全局 Tower 扩展提供，在每个 route layer 之前执行。具体实现应优先调整现有 `build_router` 与 middleware stack，不增加并行路由系统。正常应用由 `AuthPlugin::finish` 在启动时校验服务注册；缺失插件或认证层被脱离应用单独组装时，请求返回统一 500。
 
 ## 跨语言参考
 

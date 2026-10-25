@@ -171,7 +171,7 @@ impl Application for Blog {
     fn build(app: &mut AppBuilder) {
         app.plugin(HttpPlugin)
             .plugin(DatabasePlugin)
-            .plugin(AuthPlugin)
+            .plugin(AuthPlugin::new())
             .plugin(QueuePlugin)
             .routes(routes::register)
             .jobs(jobs::register)
@@ -249,6 +249,7 @@ pub async fn create(
 - 用户表约定：`id` / `name` / `email`（唯一）/ `password_hash` / `email_verified_at` / `disabled_at`（nullable）/ `created_at` / `updated_at`；业务通过迁移追加字段，不要求继承框架结构体。
 - 密码 Argon2id，参数可配置并带安全默认值；登录、注册、密码重置端点默认接入限流。
 - Cookie 会话使用数据库存储，Redis 可选；通过 Cookie Session 认证的 unsafe method 校验 CSRF。个人访问令牌存储 SHA-256 哈希，支持前缀、能力列表和过期时间；身份及路由 contract 见 ADR-012。JWT 不在 v1 版本，列为后续候选。
+- `AuthPlugin::new()` 注册框架数据库认证器；`AuthPlugin::with_authenticator` 接受公开 `Authenticator` 实现供第三方替换。启动检查默认数据库依赖与认证服务未被后续插件覆盖；凭据缺失仅在 Optional 路由返回匿名，格式错误、重复凭据或已提供但无效的凭据不能降级。Session/PAT 选择、CSRF、principal 校验与 4xx/5xx 语义以 ADR-012 为准。
 - `CurrentUser` / `OptionalUser` 与路由认证模式按 ADR-012；身份只暴露 ID、认证来源和 PAT 能力元数据，业务 handler 通过注入自己的 service 加载领域用户。
 - 内置流程：注册、登录、登出、密码重置（令牌表 + 邮件）、邮箱验证（签名 URL）。
 - 授权：`Policy` trait 按资源定义动作枚举；`roles` / `permissions` / 关联表提供最小角色权限模型。授权查询与缓存/撤销时限由 M3 授权 contract 定义；DataScope、多租户不在 v1 版本。
