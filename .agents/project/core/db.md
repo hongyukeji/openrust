@@ -10,7 +10,7 @@
 
 - `DatabaseConfig` 从 `[database]` 读取 URL、池大小和连接/获取超时；自定义 `Debug` 会遮蔽 URL。
 - `DatabaseBackend` 集中解析官方 PostgreSQL/MySQL URL scheme 与 feature 状态；它只描述 v1 官方支持集合，扩展插件可用 `Db::backend()` 读取 SeaORM 实际 backend。
-- `DatabasePlugin` 验证 pool 参数与 URL 对应的 backend feature，在 `finish` 阶段连接 SeaORM pool；运行时当前接受 PostgreSQL 16+ / MySQL 8.4+。本项目日常开发基线为 PostgreSQL 18 / MySQL 8.4 / Redis 8；数据库常规 CI 使用 PostgreSQL 18 / MySQL 8.4。运行时门槛不是最终发布支持承诺，v1 发布前须按定稿最低版本调整。
+- `DatabasePlugin` 验证 pool 参数与 URL 对应的 backend feature，在 `finish` 阶段连接 SeaORM pool；运行时当前接受 PostgreSQL 16+ / MySQL 8.4 LTS+。本项目日常开发基线为 PostgreSQL 18 / MySQL 8.4 LTS / Redis 8；数据库常规 CI 使用 PostgreSQL 18 / MySQL 8.4。运行时门槛不是最终发布支持承诺，v1 发布前须按定稿最低版本调整。
 - `DatabasePlugin` 注册 `openrust::core::RateLimiter`，其官方 `DatabaseRateLimitStore` 通过当前 `Db` 实例在 PostgreSQL/MySQL 上原子更新固定窗口记录；`DatabaseRateLimitMigration` 由应用 migrator 显式注册，启动不会自动建表。
 - 限流 key 仅存 SHA-256 digest（不抵抗低熵输入猜测）；每个 store 实例每 256 次消费最多清理 512 行已过期记录，窗口长度一并持久化。缺少迁移、数据库故障与不支持 backend 均以错误传播，不作为未命中或放行。
 - 自定义 `Plugin` 可在 build 注册 `Db::default()`，finish 建立 SeaORM `DatabaseConnection` 后调用 `Db::initialize()`；`initialize_with_replicas()` 接受同 backend 的主库和副本连接；`Db::backend()` 读取主库 backend。一个应用仅注册一个数据库插件；自定义插件负责自身连接配置及所需能力校验。
@@ -29,7 +29,7 @@
 
 ## 后续边界
 
-官方 v1 数据库支持限定 PostgreSQL 与 MySQL。日常开发基线为 PostgreSQL 18 / MySQL 8.4 / Redis 8，数据库 CI 使用 PostgreSQL 18 / MySQL 8.4。PostgreSQL 16 保留为历史验证证据。只在跨度较大、涉及版本专属行为或出现明确兼容风险时专项验证其他版本。发布前按届时官方生命周期确定并验证最低支持版本；PostgreSQL 14 / MySQL 8.0 仅为历史测试证据。其他 SeaORM backend 可通过自定义连接插件提供 `Db`，但须自行完成该应用使用到的迁移、方言、能力验证和测试隔离适配；不表示认证、队列等所有框架功能兼容。新增官方 backend 需独立完成 feature、能力检查、方言、生成器及双向测试闭环。
+官方 v1 数据库支持限定 PostgreSQL 与 MySQL。日常开发基线为 PostgreSQL 18 / MySQL 8.4 LTS / Redis 8，数据库 CI 使用 PostgreSQL 18 / MySQL 8.4。PostgreSQL 16 保留为历史验证证据。只在跨度较大、涉及版本专属行为或出现明确兼容风险时专项验证其他版本。发布前按届时官方生命周期确定并验证最低支持版本；PostgreSQL 14 / MySQL 8.0 仅为历史测试证据。其他 SeaORM backend 可通过自定义连接插件提供 `Db`，但须自行完成该应用使用到的迁移、方言、能力验证和测试隔离适配；不表示认证、队列等所有框架功能兼容。新增官方 backend 需独立完成 feature、能力检查、方言、生成器及双向测试闭环。
 
 ## 验证
 

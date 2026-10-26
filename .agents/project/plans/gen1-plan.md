@@ -24,7 +24,7 @@ OpenRust 定位为 Rust 应用开发的“瑞士军刀”：以高性能为基�
 | --- | --- | --- |
 | 应用内核 | **自有内核，基于 axum + tower + tokio；参考框架综合对标**（[ADR-001](../decisions/adr-001-own-kernel-on-axum.md)） | Loco、Laravel、Goravel、OpenSpring、RuoYi 若依、芋道按[框架参考与对标](framework-design.md#框架参考与对标)的统一维度综合评估；各项目适用领域影响证据权重，但不设单一优先对象。OpenRust 不依赖或完整复制任何一个；MySQL/PostgreSQL 双库、Rust API 惯例与自有公共契约由 OpenRust 自行验证 |
 | ORM | SeaORM 2.x + `sea-orm-migration`；SQLx 直连作为显式逃生口（[ADR-002](../decisions/adr-002-seaorm-dual-database.md)） | 唯一同时覆盖 PostgreSQL / MySQL 的成熟 Rust ORM，带迁移与实体生成 |
-| 数据库 | PostgreSQL 与 MySQL 同等正式支持；SQLite 不在 v1 版本 | 日常开发和 Compose 使用 PostgreSQL 18 / MySQL 8.4 / Redis 8；常规 CI 使用 PostgreSQL 18 / MySQL 8.4，Redis 能力在 M5 落地后加入集成服务。只在跨度较大、涉及版本专属行为或存在明确兼容风险时，才增加其他版本专项验证；正式最低支持版本在发布前按届时生命周期确定并验证。PostgreSQL 14 / MySQL 8.0 仅是历史测试证据 |
+| 数据库 | PostgreSQL 与 MySQL 同等正式支持；SQLite 不在 v1 版本 | 日常开发和 Compose 使用 PostgreSQL 18 / MySQL 8.4 LTS / Redis 8；常规 CI 使用 PostgreSQL 18 / MySQL 8.4，Redis 能力在 M5 落地后加入集成服务。只在跨度较大、涉及版本专属行为或存在明确兼容风险时，才增加其他版本专项验证；正式最低支持版本在发布前按届时生命周期确定并验证。PostgreSQL 14 / MySQL 8.0 仅是历史测试证据 |
 | 缓存 | 标准应用默认 Redis，memory/file 显式选择，库层 Redis feature 可选 | 单机与集群共用默认缓存方案；共享/原子语义仍按契约校验，默认值见 ADR-015；队列/会话仍默认数据库，见 ADR-013/ADR-014 |
 | 认证 | 前后端分离 API 默认使用 Bearer JWT access token + 可轮换 refresh token；通用 Cookie Session 显式可选；PAT 面向自动化集成；密码 Argon2id（[ADR-018](../decisions/adr-018-jwt-primary-authentication.md)） | 短期 access token 限制撤销窗口；需立即撤销时使用共享状态，集群不能依赖进程内 denylist |
 | 授权 | `Policy` + 最小 `roles` / `permissions` 模型；DataScope、多租户不在 v1 版本 | 覆盖绝大多数应用的授权需求，不引入特定业务系统的数据范围概念 |
@@ -116,7 +116,7 @@ openrust queue work
 | M5 缓存、存储与可观测性 | `openrust::cache`（标准应用默认 Redis、显式 memory/file、库层 Redis feature 可选；driver/store contract 见 ADR-014）、`openrust::storage`（local / s3）、JSON 日志、请求 ID、`/ready`、`otel` / `metrics` feature、panic 捕获、WebSocket/SSE 与上传下载（按专题计划） | 三驱动基础契约测试；file 临时目录验证；Redis 真实集成验证；扩展示例只用公开契约；S3 兼容路径用 MinIO 集成验证；`/ready` 依赖超时正确报告 |
 | M6 开发者体验与 v1 发布 | mdBook 文档站（Diátaxis、迁移对照页、`coming-from-axum`）、`examples/blog` 黄金路径示例、Dockerfile / compose 模板、`routes` / `config show` / 只读 `doctor` / `db status`、`generate` / `g`（`scaffold`、`controller`、`model`、`migration`、`job`、`mailer`、`policy`、`command`）与快照测试、`openrust-test` `TestApp` / HTTP response assertions、`cargo semver-checks`、新手走查、v1 正式发布 | 新开发者按文档从空目录到部署在 30 分钟内完成且不读框架源码；本文件验收原则全部达标；发布动作由开发者执行 |
 
-v1 发布验收还必须重新核实 PostgreSQL、MySQL、Redis 的官方稳定版本与支持周期：日常开发基线采用 PostgreSQL 18、MySQL 8.4、Redis 8；只有主版本跨度较大或存在明确兼容风险时，才临时测试其他版本。版本升级时重新核实；发布前明确并验证数据库最低支持版本。同步更新运行时版本门槛、CI/Compose 镜像、模板、文档与兼容性说明。Redis 版本选择及集群共享语义也须在发布前以真实服务验证。PostgreSQL 官方版本政策不使用“LTS”称谓，Redis 官方使用“Extended Support”类别。
+v1 发布验收还必须重新核实 PostgreSQL、MySQL、Redis 的官方稳定版本与支持周期：日常开发基线采用 PostgreSQL 18、MySQL 8.4 LTS、Redis 8；只有主版本跨度较大或存在明确兼容风险时，才临时测试其他版本。版本升级时重新核实；发布前明确并验证数据库最低支持版本。同步更新运行时版本门槛、CI/Compose 镜像、模板、文档与兼容性说明。Redis 版本选择及集群共享语义也须在发布前以真实服务验证。PostgreSQL 官方版本政策不使用“LTS”称谓，Redis 官方使用“Extended Support”类别。
 
 里程碑按依赖顺序推进，每个里程碑结束时黄金路径必须比上一里程碑更完整，不允许跳过验收进入下一阶段。
 

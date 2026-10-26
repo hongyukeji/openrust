@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-26
-> 摘要：根 `openrust` 模块迁移已独立提交；M2 读写分离已实现，并在 PostgreSQL 18.6 / MySQL 8.4.13 真实复制拓扑验证。模块化配置与 `.env` 功能簇已实现并通过 workspace 验证；M3 总验收与完整集群验收未关闭。日常开发基线为 PostgreSQL 18 / MySQL 8.4 / Redis 8。
+> 摘要：根 `openrust` 模块迁移已独立提交；M2 读写分离已实现，并在 PostgreSQL 18.6 / MySQL 8.4.13 真实复制拓扑验证。模块化配置与 `.env` 功能簇已实现并通过 workspace 验证；M3 总验收与完整集群验收未关闭。日常开发基线为 PostgreSQL 18 / MySQL 8.4 LTS / Redis 8；PostgreSQL 16 测试仅作历史专项证据。
 
 | 项 | 状态 |
 | --- | --- |

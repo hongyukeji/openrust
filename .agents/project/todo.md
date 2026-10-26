@@ -25,19 +25,15 @@
 - 保留应用根 `config/default.toml`、环境 TOML 的 Figment 分层；`.env` / `.env.example` 承载本地敏感值与常见覆盖项，进程环境变量优先，production 不加载 `.env`。不改变 ADR-016 的 `APP_` 与命名空间 contract。
 - Spec 与取舍记入 [ADR-030](decisions/adr-030-modular-configuration.md)。验证覆盖配置来源优先级、环境选择、敏感值脱敏、`.env` 生产隔离、生成项目变量和旧 API re-export；通过证据见本次提交及 `memory/verification.md`。
 
-## 暂停后的开发顺序
-
-- 按用户最新指示，当前配置功能簇完成后暂停正常功能开发，等待其他代理完成框架底层调整；M3 认证 WIP 与双库/生成项目剩余验收继续保留，不在本次提交中混入。
-
 ## 已完成的底层调整
 
 - 根 `openrust` 模块迁移已独立提交；M2 读写分离已按 [ADR-029](decisions/adr-029-database-read-routing.md) 实现并通过 PostgreSQL 18 / MySQL 8.4 真实复制拓扑验证。
 - 根模块迁移依据 [迁移 Spec](plans/module-layout-migration-spec.md)；既有 M3 WIP 的双库数据库测试与 PostgreSQL/MySQL 生成项目 HTTP e2e 已在迁移后复验通过。M3 认证实现继续保留为独立待办，不计入迁移成果。
 - PostgreSQL 18 / MySQL 8.4 测试服务使用现有 `compose.ci.yaml`。当前根 tests/examples 与 server 验收职责映射见迁移 Spec；由于聚合启动、生成项目与双库验收仍由 `apps/server` 承担，继续保留该 package。
 
-## M3 邮件、认证与授权（暂停功能开发；保留既有 WIP）
+## M3 邮件、认证与授权（当前优先功能簇）
 
-- ADR-021 根 package/source 迁移已完成实现、验证和独立本地提交；M3 代码仅做必要模块路径适配并保留功能 WIP。ADR-019 的逐 crate 目录改名与 `apps/server` 改名不执行。迁移后的 PG16/MySQL8.4 双库测试与生成项目 HTTP e2e 均复验通过。
+- ADR-021 根 package/source 迁移已完成实现、验证和独立本地提交；M3 代码仅做必要模块路径适配并保留功能 WIP。ADR-019 的逐 crate 目录改名与 `apps/server` 改名不执行。迁移后的历史 PostgreSQL 16 / MySQL 8.4 双库测试与生成项目 HTTP e2e 均复验通过；当前日常基线以 PostgreSQL 18 / MySQL 8.4 为准。
 - 当前功能簇：完成 [ADR-012](decisions/adr-012-auth-current-user-contract.md) 的业务用户 ID 映射、路由认证配置和身份注入闭环。运行时 WIP 已加入 `AuthLayer`、身份提取器、默认数据库认证器与 `AuthMigration`；CLI 已支持 `openrust new --db postgres|mysql --auth`，生成数据库认证插件、迁移和受保护的身份示例路由。
 - 当前 WIP 已按 [ADR-017](decisions/adr-017-generic-session-runtime.md) 增加通用 `SessionPlugin`、SeaORM 双库 store 与认证/CSRF 共用路径；其 store、错误包装和跨实例撤销已有 PostgreSQL/MySQL 测试。不要重做这部分。
 - [ADR-022](decisions/adr-022-jwt-runtime-contract.md) 已完成独立 contract review；当前实现含 `JwtConfig`、密钥环、HS256 签发/验证及 JWT 路由认证，并接入 facade、`apps/server` 测试和 `--auth` 默认模板。认证双库增量测试、PostgreSQL/MySQL 生成项目 check/test 已验证；本簇剩余项见下文。
