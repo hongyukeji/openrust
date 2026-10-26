@@ -130,6 +130,21 @@ impl Policy {
             .await
     }
 
+    /// Grants a permission inside a caller-owned transaction so related audit records can commit
+    /// atomically with the authorization change.
+    pub async fn grant_permission_in_transaction(
+        &self,
+        transaction: &DatabaseTransaction,
+        role_id: i64,
+        permission: &str,
+    ) -> Result<()> {
+        if role_id <= 0 {
+            return Err(Error::BadRequest("role ID must be positive".into()));
+        }
+        validate_name(permission, "permission")?;
+        grant_permission_in_transaction(transaction, &self.db, role_id, permission.trim()).await
+    }
+
     /// Removes one permission grant from a role without deleting the permission itself.
     pub async fn revoke_permission(&self, role_id: i64, permission: &str) -> Result<()> {
         if role_id <= 0 {

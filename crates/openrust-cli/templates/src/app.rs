@@ -1,8 +1,8 @@
 use openrust::http::HttpPlugin;
 use openrust::i18n::I18nPlugin;
 use openrust::mail::MailerPlugin;
-use openrust::sms::SmsPlugin;
 use openrust::prelude::*;
+use openrust::sms::SmsPlugin;
 
 use crate::routes;
 

@@ -9,6 +9,7 @@
 ```text
 openrust (根 package + workspace)
 ├── src/config/      # Rust 配置加载、类型与校验
+├── src/audit.rs     # 显式审计与可替换 sink
 ├── src/core/        # Application、AppBuilder、Plugin、Command、Error
 ├── src/http/        # Axum routes、extractors、Tower middleware、serve
 ├── src/db/          # SeaORM 连接、迁移、seed、方言及 table resolver
@@ -44,6 +45,7 @@ apps/server/             # 同仓库集成宿主；通过验收替代后才可�
 | `openrust::core`、`openrust::config` | Application/AppBuilder/AppState/Plugin/Command、错误与生命周期、分层配置；见 [core/core.md](core/core.md) |
 | `openrust::http` | HttpPlugin、Routes、Validated、Inject、中间件、health/serve；根 `tests/http_*.rs` 覆盖 HTTP 行为；见 [core/http.md](core/http.md) |
 | `openrust::db` | SeaORM 双库、连接池、事务、migration/seed、方言与表名解析；显式只读副本路由和 task-local 主库 scope 已实现，完整集群验收仍未完成；见 [core/db.md](core/db.md) |
+| `openrust::audit` | 显式事件、详情白名单/脱敏、数据库与自定义 sink、事务内写入和有界清理；见 [core/audit.md](core/audit.md) |
 | `openrust::auth` | JWT、Session、refresh、PAT、验证码、AuthFlows、Policy/RBAC 的现有 WIP 已随源码迁移；继续独立按 M3 验收，不把路径迁移算成功能完成；见 [core/auth.md](core/auth.md) |
 | `openrust::mail` | Email/Mailer 的 log、fake、可选 SMTP；见 [core/mail.md](core/mail.md) |
 | `openrust-cli` | new/dev/generate 与模板，见 [core/cli.md](core/cli.md) |

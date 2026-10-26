@@ -4,6 +4,7 @@
 
 use std::process::ExitCode;
 
+pub mod audit;
 pub mod config;
 pub mod core;
 pub mod db;
@@ -48,6 +49,9 @@ pub use tokio;
 
 /// Everything a typical `app.rs`, controller or plugin needs.
 pub mod prelude {
+    pub use crate::audit::{
+        Audit, AuditEvent, AuditOutcome, AuditPlugin, AuditPolicy, AuditSubject,
+    };
     #[cfg(feature = "auth")]
     pub use crate::auth::{
         AuthCredential, AuthLayer, AuthMigration, AuthMode, AuthPlugin, AuthPrincipal, AuthSource,

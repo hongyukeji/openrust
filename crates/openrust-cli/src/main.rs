@@ -442,8 +442,10 @@ fn app_source(
             "\n            .plugin(DatabasePlugin){}\n            .plugin(MigrationPlugin::<openrust_migration::Migrator>::new())\n            .plugin(SeedPlugin::new(crate::seed::run))",
             if auth {
                 "\n            .plugin(openrust::auth::JwtPlugin::new())\n            .plugin(openrust::auth::AuthPlugin::new())\n            .plugin(openrust::auth::AuthFlowsPlugin::new())"
+                    .to_owned()
+                    + "\n            .plugin(openrust::audit::AuditPlugin::database())"
             } else {
-                ""
+                String::new()
             }
         )
     } else {
@@ -546,7 +548,7 @@ fn migration_manifest(name: &str, database: DatabaseBackend, auth: bool) -> Stri
 
 fn migration_lib(auth: bool) -> String {
     let migrations = if auth {
-        "vec![\n            Box::new(openrust::auth::AuthMigration),\n            Box::new(openrust::auth::AuthRefreshTokenMigration),\n            Box::new(openrust::auth::AuthVerificationCodeMigration),\n            Box::new(openrust::auth::AuthPolicyMigration),\n            Box::new(openrust::database::DatabaseRateLimitMigration),\n        ]"
+        "vec![\n            Box::new(openrust::auth::AuthMigration),\n            Box::new(openrust::auth::AuthRefreshTokenMigration),\n            Box::new(openrust::auth::AuthVerificationCodeMigration),\n            Box::new(openrust::auth::AuthPolicyMigration),\n            Box::new(openrust::database::DatabaseRateLimitMigration),\n            Box::new(openrust::audit::DatabaseAuditMigration),\n        ]"
     } else {
         "vec![]"
     };
@@ -1142,10 +1144,12 @@ mod tests {
             assert!(migration.contains("openrust::auth::AuthVerificationCodeMigration"));
             assert!(migration.contains("openrust::auth::AuthPolicyMigration"));
             assert!(migration.contains("openrust::database::DatabaseRateLimitMigration"));
+            assert!(migration.contains("openrust::audit::DatabaseAuditMigration"));
             let app = fs::read_to_string(project.join("src/app.rs")).expect("read generated app");
             assert!(app.contains("AuthPlugin::new()"));
             assert!(app.contains("JwtPlugin::new()"));
             assert!(app.contains("AuthFlowsPlugin::new()"));
+            assert!(app.contains("AuditPlugin::database()"));
             assert!(!app.contains("SessionPlugin::new()"));
             let routes =
                 fs::read_to_string(project.join("src/routes.rs")).expect("read generated routes");

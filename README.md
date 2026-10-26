@@ -26,9 +26,11 @@ cargo run -p openrust-server -- help
 cargo test -p openrust-server
 ```
 
-For repository development, `.cargo/config.toml` sets `APP_CONFIG_DIR=apps/server/config`, so root-level `cargo run` reads the server's configuration. Applications default to `config/` relative to their working directory. `APP_SERVER__PORT=4000 cargo run` overrides the server's port; `PORT=4000 cargo run` also works. Applications can override `Application::config_namespace()` to use a prefix such as `SHOP_`. The framework package is at the repository root; implemented capabilities live in `src/config/`, `src/core/`, `src/db/`, `src/http/`, `src/mail/` and feature-gated `src/auth/`. Runtime TOML/YAML remains in each application's root `config/` directory. `apps/server` is this workspace's integration host, while `openrust new` creates a separate project with its own `src/` and `config/`.
+For repository development, `.cargo/config.toml` sets `APP_CONFIG_DIR=apps/server/config`, so root-level `cargo run` reads the server's configuration. Applications default to `config/` relative to their working directory. `APP_SERVER__PORT=4000 cargo run` overrides the server's port; `PORT=4000 cargo run` also works. Applications can override `Application::config_namespace()` to use a prefix such as `SHOP_`. The framework package is at the repository root; implemented capabilities live in `src/audit.rs`, `src/config/`, `src/core/`, `src/db/`, `src/http/`, `src/i18n.rs`, `src/mail/`, `src/sms.rs`, and feature-gated `src/auth/` and `src/security.rs`. Runtime TOML/YAML remains in each application's root `config/` directory. `apps/server` is this workspace's integration host, while `openrust new` creates a separate project with its own `src/` and `config/`.
 
 Application data encryption is an opt-in `encryption` feature. Register `openrust::security::EncryptionPlugin`, configure a 32-byte key ring under `[security.encryption]`, and generate local key material with `openrust key generate`. The active key encrypts new values; prior keys decrypt old values during a controlled rotation. Keep keys outside version control.
+
+Explicit audit records use `openrust::audit::Audit` with the database sink or a custom `AuditSink`. Add `DatabaseAuditMigration` to the application migrator. Details are denied by default, require an allowlist, and redact sensitive field names. Critical database changes can insert a validated audit record in the same transaction; see the [audit module guide](src/audit/README.md).
 
 ## The golden path
 

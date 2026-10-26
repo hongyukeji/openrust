@@ -25,8 +25,8 @@ M0、M1、M2 当前已验收范围完成；根模块迁移与读写分离均已�
 - 基础读写分离已按 [ADR-029](decisions/adr-029-database-read-routing.md) 实现：默认单库、显式只读副本入口、task-local 主库 scope、无静默故障回退；真实双库复制拓扑测试见专题计划。完整性能/集群验收仍按其各自计划推进。
 - M0-M2 等阶段完成仅代表对应已验收范围；后来补入的事务钩子、集群等要求仍需按依赖补做，不能被旧阶段标签遮蔽。
 - 每次领取/切换功能簇，对照 [v1 能力覆盖](plans/v1-capability-coverage.md)、[通用能力](plans/v1-common-capabilities.md)、[性能补强](plans/v1-performance-and-readiness.md) 和 [集群要求](plans/v1-cluster-deployment.md) 定位相关未完成项；不能只沿最初 M0-M6 简表推进。
-- M3 不限于身份提取器：Mailer/SmsSender、SMTP/Twilio adapter 与本机 Mailpit 按 ADR-033 接入；Twilio 实际号码投递仍待开发者提供授权凭据与目标。ADR-031 统一出站 HTTP client、ADR-032 请求级国际化与 ADR-034 应用数据加密/本地密钥轮换已实现；后续继续审计认证闭环、审计与事务/业务流程扩展点。认证 contract 现在就覆盖共享会话、跨节点撤销、全局配额/验证码与公开业务扩展点，不能留到 M6 才补单机假设。
-- M3 认证已有能力已在当前基线补验：PostgreSQL 18 与 MySQL 8.4 的认证数据库流程各 4 项通过；两种新生成 `--auth` 项目分别通过格式检查、`cargo check` 和真实 TCP HTTP 数据库流程。CLI 生成包名的格式敏感断言已修复；国际化、出站 HTTP、通信框架与应用数据加密已实现，下一项按 `todo.md` 推进 M3 审计与事务/业务流程扩展。Twilio 实发仍待授权目标与凭据。
+- M3 不限于身份提取器：Mailer/SmsSender、SMTP/Twilio adapter 与本机 Mailpit 按 ADR-033 接入；Twilio 实际号码投递仍待开发者提供授权凭据与目标。ADR-031 统一出站 HTTP client、ADR-032 请求级国际化与 ADR-034 应用数据加密/本地密钥轮换已实现；审计按 ADR-035 完成并验证。认证 contract 现在就覆盖共享会话、跨节点撤销、全局配额/验证码与公开业务扩展点，不能留到 M6 才补单机假设。
+- M3 认证已有能力已在当前基线补验：PostgreSQL 18 与 MySQL 8.4 的认证数据库流程各 5 项通过；两种新生成 `--auth` 项目分别通过格式检查、`cargo check` 和真实 TCP HTTP 数据库流程。审计数据库 sink 已双库验证；下一项按 `todo.md` 推进 M3 签名/限时链接及剩余能力。Twilio 实发仍待授权目标与凭据。
 - 在既有 `progress.md` / `core/` / `memory/testing.md` 分别记录契约、实现、实际验证与提交边界，不另建平行任务队列或历史状态表。fake/编译检查不替代真实 SMTP/短信、双库或集群验收；外部条件缺失如实标注。
 - 旧排队消息仅作设计输入，已被更新的称谓、范围和措辞以当前仓库为准。收到消息后先去重合并，不将“已排队”当成“已接收”，不重复应用已有提交。
 - 每个功能簇按 [扩展性自主判断](plans/framework-design.md#开发-agent-的自主扩展性判断) 主动评估接入场景并记录取舍；继续只实施 v1，v2 后台不得提前展开。

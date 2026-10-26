@@ -34,7 +34,8 @@
 ## M3 邮件、认证与授权（当前优先功能簇）
 
 - M3 通信框架能力已实现：Mailer/SmsSender 独立公开驱动、log/fake、SMTP/Twilio adapter、显式 locale 与 CLI `--sms-twilio`；本机 Mailpit STARTTLS 限制范围内的明文 SMTP 已实测。Twilio REST 由 transport 契约测试覆盖，尚缺已授权账号凭据与真实目标的实发证据；不得把协议测试写成短信送达验收。复用 ADR-031 出站 HTTP、ADR-032 国际化，M3 外部短信验收仍需已授权目标与凭据。
-- M3 应用数据加密/本地密钥轮换按 [ADR-034](decisions/adr-034-application-encryption-and-key-rotation.md) 完成独立功能簇：可选 `encryption` feature、OS 随机 nonce、AAD/context、active-write/history-read key ring、脱敏配置、`openrust key generate` 与 CLI `--encryption` 模板；default/all-features workspace 门禁、生成项目真实 check/test 和 server 配置脱敏测试通过。crate 实现审计状态作为 v1 发布前复核项记录；下一个 M3 功能簇为审计与事务/业务流程扩展点。
+- M3 应用数据加密/本地密钥轮换已按 [ADR-034](decisions/adr-034-application-encryption-and-key-rotation.md) 独立提交 `e5e86f2`；实现 crate 审计状态作为 v1 发布前复核项。
+- 下一功能簇：M3 签名与限时链接能力。基于现有加密/JWT 和邮箱验证路径先明确独立用途、密钥用途隔离、签发/验证/过期/撤销语义，再按完整 contract 实现并覆盖生成认证项目与双库相关流程。
 
 - ADR-021 根 package/source 迁移已完成实现、验证和独立本地提交；M3 代码仅做必要模块路径适配并保留功能 WIP。ADR-019 的逐 crate 目录改名与 `apps/server` 改名不执行。迁移后的历史 PostgreSQL 16 / MySQL 8.4 双库测试与生成项目 HTTP e2e 均复验通过；当前日常基线以 PostgreSQL 18 / MySQL 8.4 为准。
 - 当前功能簇：完成 [ADR-012](decisions/adr-012-auth-current-user-contract.md) 的业务用户 ID 映射、路由认证配置和身份注入闭环。运行时 WIP 已加入 `AuthLayer`、身份提取器、默认数据库认证器与 `AuthMigration`；CLI 已支持 `openrust new --db postgres|mysql --auth`，生成数据库认证插件、迁移和受保护的身份示例路由。

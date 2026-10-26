@@ -6,6 +6,10 @@ use std::{collections::HashMap, error::Error as StdError, sync::Arc};
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
 use figment::{Figment, providers::Format};
+use openrust::audit::{
+    Audit, AuditEvent, AuditOutcome, AuditPolicy, AuditSubject, DatabaseAuditMigration,
+    DatabaseAuditSink,
+};
 use openrust::auth::{
     AuthFlows, AuthLayer, AuthMigration, AuthMode, AuthPlugin, AuthPolicyMigration,
     AuthRefreshTokenMigration, AuthSource, AuthVerificationCodeMigration, CurrentUser,
@@ -42,6 +46,7 @@ impl MigratorTrait for AuthMigrator {
             Box::new(AuthVerificationCodeMigration),
             Box::new(AuthPolicyMigration),
             Box::new(DatabaseRateLimitMigration),
+            Box::new(DatabaseAuditMigration),
         ]
     }
 }
@@ -94,6 +99,7 @@ async fn app_router(url: &str, table_prefix: &str) -> Result<(App, openrust::htt
     let mut builder = AppBuilder::new(FrameworkConfig::default(), figment);
     builder
         .plugin(DatabasePlugin)
+        .plugin(openrust::audit::AuditPlugin::database())
         .plugin(SessionPlugin::new())
         .plugin(JwtPlugin::with_config(JwtConfig::new(
             "openrust-test-issuer",
@@ -130,6 +136,7 @@ async fn app_router(url: &str, table_prefix: &str) -> Result<(App, openrust::htt
                 )
         });
     let app = finalize(builder).await?;
+    assert!(app.state().get::<Audit>().is_some());
     assert_eq!(
         app.state().try_get::<Db>()?.table_name("users")?,
         "mapped_accounts",
@@ -167,8 +174,8 @@ async fn auth_migration_and_shared_revocation_work_on_the_configured_database() 
         );
         return Ok(());
     };
-    let backend = DatabaseBackend::from_url(&url)?;
-    if !backend.is_enabled() {
+    let feature_backend = DatabaseBackend::from_url(&url)?;
+    if !feature_backend.is_enabled() {
         eprintln!(
             "skipping authentication database integration: configured backend feature is disabled"
         );
@@ -1220,5 +1227,175 @@ async fn auth_migrations_use_default_empty_prefix_and_full_name_mapping() -> Tes
         drop(connection);
         database.close().await?;
     }
+    Ok(())
+}
+
+#[tokio::test]
+#[allow(clippy::too_many_lines)]
+async fn audit_and_permission_change_share_a_transaction_on_the_configured_database() -> TestResult
+{
+    let Ok(url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+        eprintln!("skipping audit database integration: OPENRUST_TEST_DATABASE_URL is unset");
+        return Ok(());
+    };
+    let backend = DatabaseBackend::from_url(&url)?;
+    if !backend.is_enabled() {
+        return Ok(());
+    }
+    let names = openrust::database::DatabaseTableNames::new(
+        "audit_it_",
+        std::collections::BTreeMap::from([(
+            "audit_records".to_owned(),
+            "mapped_audit_log".to_owned(),
+        )]),
+    )?;
+    let database =
+        TestDatabase::create_with_table_names::<AuthMigrator>(&url, names.clone()).await?;
+    let connection = database.connection()?;
+    let backend = connection.get_database_backend();
+    let db = Db::with_table_names(names);
+    db.initialize(connection.clone())?;
+    let policy = Policy::new(db.clone());
+    let role_id = policy.ensure_role("audit-reviewer").await?;
+    let sink = DatabaseAuditSink::new(db.clone());
+    let audit = Audit::new(sink.clone(), AuditPolicy::default());
+    let record = audit.prepare(
+        AuditEvent::new(
+            "permission.grant",
+            AuditSubject::new("role", role_id.to_string())?,
+            AuditOutcome::Succeeded,
+        )?
+        .actor(AuditSubject::new("user", "9001")?),
+    )?;
+    db.transaction(|transaction| {
+        let policy = policy.clone();
+        let sink = sink.clone();
+        let record = record;
+        Box::pin(async move {
+            policy
+                .grant_permission_in_transaction(transaction, role_id, "reports:read")
+                .await?;
+            sink.record_in_transaction(transaction, &record).await?;
+            Ok(())
+        })
+    })
+    .await?;
+
+    let table = db.quoted_table_name("audit_records")?;
+    let count_sql = format!("SELECT COUNT(*) AS count FROM {table}");
+    let count = connection
+        .query_one_raw(Statement::from_string(backend, count_sql.clone()))
+        .await?
+        .ok_or("audit count query returned no row")?
+        .try_get::<i64>("", "count")?;
+    assert_eq!(count, 1);
+    let stored = connection
+        .query_one_raw(Statement::from_string(
+            backend,
+            format!(
+                "SELECT action, actor_id, outcome FROM {table} WHERE action = 'permission.grant'"
+            ),
+        ))
+        .await?
+        .ok_or("audit record was not persisted")?;
+    assert_eq!(stored.try_get::<String>("", "action")?, "permission.grant");
+    assert_eq!(stored.try_get::<String>("", "actor_id")?, "9001");
+    assert_eq!(stored.try_get::<String>("", "outcome")?, "succeeded");
+
+    let failed_record = audit.prepare(AuditEvent::new(
+        "permission.grant",
+        AuditSubject::new("role", role_id.to_string())?,
+        AuditOutcome::Succeeded,
+    )?)?;
+    let rollback = db
+        .transaction(|transaction| {
+            let policy = policy.clone();
+            let sink = sink.clone();
+            Box::pin(async move {
+                policy
+                    .grant_permission_in_transaction(transaction, role_id, "reports:write")
+                    .await?;
+                sink.record_in_transaction(transaction, &failed_record)
+                    .await?;
+                Err::<(), _>(openrust::Error::BadRequest("exercise rollback".into()))
+            })
+        })
+        .await;
+    assert!(rollback.is_err());
+    let count = connection
+        .query_one_raw(Statement::from_string(backend, count_sql.clone()))
+        .await?
+        .ok_or("audit count query returned no row")?
+        .try_get::<i64>("", "count")?;
+    assert_eq!(count, 1, "rolled back audit record must not remain");
+    let permission =
+        "SELECT COUNT(*) AS count FROM audit_it_permissions WHERE name = 'reports:write'";
+    let count = connection
+        .query_one_raw(Statement::from_string(backend, permission.to_owned()))
+        .await?
+        .ok_or("permission count query returned no row")?
+        .try_get::<i64>("", "count")?;
+    assert_eq!(
+        count, 0,
+        "permission mutation must roll back with audit insert"
+    );
+
+    let purge_event = AuditEvent::new(
+        "account.updated",
+        AuditSubject::new("account", "77")?,
+        AuditOutcome::Succeeded,
+    )?;
+    audit.record(purge_event).await?;
+    let purge_event = AuditEvent::new(
+        "account.updated",
+        AuditSubject::new("account", "78")?,
+        AuditOutcome::Succeeded,
+    )?;
+    audit.record(purge_event).await?;
+    let cutoff = std::time::SystemTime::now() + std::time::Duration::from_secs(2);
+    assert_eq!(sink.purge_before(cutoff, 1).await?, 1);
+    let count = connection
+        .query_one_raw(Statement::from_string(backend, count_sql.clone()))
+        .await?
+        .ok_or("audit count query returned no row")?
+        .try_get::<i64>("", "count")?;
+    assert_eq!(count, 2, "one purge call must respect its batch bound");
+    assert_eq!(sink.purge_before(cutoff, 2).await?, 2);
+    assert_eq!(sink.purge_before(cutoff, 2).await?, 0);
+
+    connection
+        .execute_unprepared(&format!("DROP TABLE {table}"))
+        .await?;
+    let audit_failure_record = audit.prepare(AuditEvent::new(
+        "permission.grant",
+        AuditSubject::new("role", role_id.to_string())?,
+        AuditOutcome::Succeeded,
+    )?)?;
+    let audit_write_failure = db
+        .transaction(|transaction| {
+            let policy = policy.clone();
+            let sink = sink.clone();
+            Box::pin(async move {
+                policy
+                    .grant_permission_in_transaction(transaction, role_id, "reports:audit-failure")
+                    .await?;
+                sink.record_in_transaction(transaction, &audit_failure_record)
+                    .await
+            })
+        })
+        .await;
+    assert!(audit_write_failure.is_err());
+    let count = connection
+        .query_one_raw(Statement::from_string(
+            backend,
+            "SELECT COUNT(*) AS count FROM audit_it_permissions WHERE name = 'reports:audit-failure'".to_owned(),
+        ))
+        .await?
+        .ok_or("permission count query returned no row")?
+        .try_get::<i64>("", "count")?;
+    assert_eq!(
+        count, 0,
+        "audit insert failure must roll back permission changes"
+    );
     Ok(())
 }

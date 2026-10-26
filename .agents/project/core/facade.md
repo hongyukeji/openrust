@@ -1,9 +1,9 @@
 # `openrust` 根 package 当前事实
 
 > 更新：2026-10-26
-> 摘要：根 package 是框架唯一公共 facade 与实现 package；能力模块位于根 `src/`，包括 `openrust::mail`、`openrust::sms` 与可选 `openrust::security`。
+> 摘要：根 package 是框架唯一公共 facade 与实现 package；能力模块位于根 `src/`，包括 `openrust::audit`、`openrust::mail`、`openrust::sms` 与可选 `openrust::security`。
 
-- 根 `src/lib.rs` 声明 config/core/db/http/mail/sms，以及 feature-gated auth 与 security；对外主路径继续是 `openrust::...`。
+- 根 `src/lib.rs` 声明 audit/config/core/db/http/i18n/mail/sms，以及 feature-gated auth 与 security；对外主路径继续是 `openrust::...`。
 - 根直接 re-export `ApiResponse<T>`、`PageMeta`、`#[openrust::resource]`、`ServiceExt` 与 Tokio。`openrust::prelude` 提供常用 HTTP、core、mail、db、auth 类型；Axum 类型由 `openrust::http::axum` 公开。
 - `db-postgres` / `db-mysql` 启用 SeaORM 对应 backend，并提供 `openrust::database` 别名与常用 DB 类型；默认 feature 不含具体数据库 driver。
 - `auth` 启用 JWT、Session、认证流程与授权模块；依赖 DB feature 的认证流程在运行时要求配置相应数据库及迁移。

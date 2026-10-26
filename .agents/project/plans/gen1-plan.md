@@ -74,7 +74,7 @@ Laravel 等成熟框架用于能力与体验对照，API 与命名遵循 Rust �
 
 性能、开发编排、异步一致性、生产边界及验收补强见 [v1 补强计划](v1-performance-and-readiness.md)。该计划纳入验收补强，并提供待决策方案；具体公共 API 与默认值须先定 contract。验证码升级为 v1 设计项，是否启用短信登录仍需独立评估。
 
-国际化、统一出站 HTTP、应用数据加密与本地密钥轮换已分别按 ADR-032、ADR-031、ADR-034 实现并独立验证；WebSocket、审计、请求幂等仍按 [通用能力补齐计划](v1-common-capabilities.md) 推进。具体 API/依赖选型先定 contract；不将底层框架原生支持视为 OpenRust 已完成接入。
+国际化、统一出站 HTTP、应用数据加密与本地密钥轮换已分别按 ADR-032、ADR-031、ADR-034 实现并独立验证；审计按 ADR-035 提供显式入口和数据库事务 sink；WebSocket、请求幂等仍按 [通用能力补齐计划](v1-common-capabilities.md) 推进。具体 API/依赖选型先定 contract；不将底层框架原生支持视为 OpenRust 已完成接入。
 
 通用底座完整性以 [能力覆盖与归属](v1-capability-coverage.md) 为准：补齐常见开发机制，既有能力在原入口完善，新增机制明确唯一归属；不将“已有底层库”或“待设计”作为省略交付的理由。
 
@@ -111,7 +111,7 @@ openrust queue work
 | M0 决策与基线 | ADR：自有内核、ORM 与双库、队列引擎、认证形态；预留 crates.io 名；workspace 骨架、`[workspace.lints]`、CI（fmt / clippy / test / deny / MSRV / 双库服务）；技术 spike：SeaORM 2 双库迁移、`SKIP LOCKED` 队列、axum 提取器组合 | CI 全绿；spike 结论写入 ADR；未通过的技术假设在进入 M1 前替换 |
 | M1 内核与 HTTP | `openrust::core`（Application / AppBuilder / Plugin / Config / Error / 生命周期）、`openrust::http`（路由约定、中间件栈、`Validated`、统一响应包装、健康检查）、CLI `new` / `dev` / `serve`、无数据库模板 | `openrust new` 生成项目 `cargo test` 通过；`/health` 200；验证失败返回 422 统一 JSON 包装；缺失配置启动失败并指出键名 |
 | M2 数据层 | `openrust::db`（连接池、迁移运行器、seed、事务、`dialect` 边界）、`generate model` / `generate migration`、`migrate` / `db seed`、`openrust-test` 数据库隔离、模板 `--db`、CI 双库矩阵 | 空 PostgreSQL / MySQL 均初始化成功；重复 `migrate` 幂等；`rollback` 可用；生成实体直接编译；每个数据功能有双库测试证据 |
-| M3 邮件、短信、认证与授权 | `openrust::sms`（log / fake / Twilio REST，contract 见 ADR-033；真实供应商实发需授权）、`openrust::mail`（SMTP / log / fake / 本地 Mailpit）、`openrust::auth`（用户约定、Argon2id、JWT access/refresh、可选 Session 与 PAT、`CurrentUser`、注册 / 登录 / 登出 / 密码重置 / 邮箱验证、Policy、角色权限、登录限流）、`generate mailer` / `generate policy`，国际化、出站 HTTP、加密与密钥、审计（按通用能力计划） | Twilio 协议、log/fake 与 Mailpit SMTP 验证；真实供应商短信实发需授权目标与费用；全部认证流程有集成测试；refresh 撤销跨节点生效、JWT access 撤销窗口符合 contract；错误密码限流可验证；Policy 拒绝返回 403 包装错误 |
+| M3 邮件、短信、认证与授权 | `openrust::sms`（log / fake / Twilio REST，contract 见 ADR-033；真实供应商实发需授权）、`openrust::mail`（SMTP / log / fake / 本地 Mailpit）、`openrust::auth`（用户约定、Argon2id、JWT access/refresh、可选 Session 与 PAT、`CurrentUser`、注册 / 登录 / 登出 / 密码重置 / 邮箱验证、Policy、角色权限、登录限流）、`openrust::audit`（ADR-035）、`generate mailer` / `generate policy`，国际化、出站 HTTP、加密与密钥 | Twilio 协议、log/fake 与 Mailpit SMTP 验证；真实供应商短信实发需授权目标与费用；全部认证流程有集成测试；refresh 撤销跨节点生效、JWT access 撤销窗口符合 contract；错误密码限流可验证；Policy 拒绝返回 403 包装错误 |
 | M4 队列、调度与事件 | `openrust::queue`（database driver、重试退避、`failed_jobs`、`queue work`、调度器与锁、`schedule run` / `schedule list`）、`openrust::events`、队列化邮件与短信、`generate job`，请求幂等、事务一致性、锁、常用任务编排与薄通知层（按专题计划） | 任务失败 → 重试 → 失败表 → 手动重试成功；多副本调度不重复；worker 停机不丢任务；两库皆验证 |
 | M5 缓存、存储与可观测性 | `openrust::cache`（标准应用默认 Redis、显式 memory/file、库层 Redis feature 可选；driver/store contract 见 ADR-014）、`openrust::storage`（local / s3）、JSON 日志、请求 ID、`/ready`、`otel` / `metrics` feature、panic 捕获、WebSocket/SSE 与上传下载（按专题计划） | 三驱动基础契约测试；file 临时目录验证；Redis 真实集成验证；扩展示例只用公开契约；S3 兼容路径用 MinIO 集成验证；`/ready` 依赖超时正确报告 |
 | M6 开发者体验与 v1 发布 | mdBook 文档站（Diátaxis、迁移对照页、`coming-from-axum`）、`examples/blog` 黄金路径示例、Dockerfile / compose 模板、`routes` / `config show` / 只读 `doctor` / `db status`、`generate` / `g`（`scaffold`、`controller`、`model`、`migration`、`job`、`mailer`、`policy`、`command`）与快照测试、`openrust-test` `TestApp` / HTTP response assertions、`cargo semver-checks`、新手走查、v1 正式发布 | 新开发者按文档从空目录到部署在 30 分钟内完成且不读框架源码；本文件验收原则全部达标；发布动作由开发者执行 |

@@ -15,3 +15,5 @@
 - ADR-033 邮件/SMS：Mailpit v1.32.0 本机 SMTP 实收、Twilio adapter 请求协议/超时/无重试测试及 `--sms-twilio` 生成项目 check/test 通过；缺真实 Twilio 账号与授权目标，未宣称 SMS 实发。
 
 2026-10-26 ADR-034 应用数据加密/密钥轮换已完成本地实现与完整验证：default/all-features workspace tests、all-features clippy、warnings-denied docs、`cargo deny check`、CLI 生成 `--encryption` 项目的 check/test 与配置脱敏运行均通过；RFC 8452 已知向量测试通过。`aes-gcm-siv` v0.12.1 文档当前说明 crate 实现本身无完整独立安全审计，因此把实现审计与目标平台性能复核保留为 v1 发布前事项；未将算法标准化表述为实现审计认证。
+
+2026-10-26 ADR-035 审计实现验收：PostgreSQL 18 / MySQL 8.4 `auth_database` 各 5 项全通过，包含真实表名 resolver、事务提交/回滚、审计写故障回滚和有界清理；两种数据库的生成 `--auth` 项目均通过格式、check 与真实 HTTP auth flow。workspace default/all-features tests/clippy、warnings-denied docs、no-default-features check、`cargo deny check` 均通过，cargo-deny 仅输出已有重复依赖及未使用 MPL allowance 警告。未提供审计查询 API，也未承诺不可篡改或可靠远程 sink 投递。
