@@ -1,33 +1,33 @@
-# Changelog
+# 变更日志
 
-All notable changes to OpenRust are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). OpenRust has not published a release yet.
+OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)。OpenRust 尚未发布正式版本。
 
 ## [Unreleased]
 
 ### Fixed
 
-- Preserved typed `PageMeta` in API responses and documented empty CORS preflight bodies while keeping ordinary cross-origin errors wrapped.
+- 在 API 响应中保留类型化 `PageMeta`；明确 CORS 预检响应正文为空，同时普通跨域错误仍使用统一包装。
 
 ### Added
 
-- Added shared fixed-window rate limiting and purpose-bound one-time verification codes with PostgreSQL/MySQL storage.
+- 新增共享固定窗口限流，以及使用 PostgreSQL/MySQL 存储、绑定用途的一次性验证码。
 
-- Added OpenRust `Json` / `Path` / `Query` extractors, `Created::with_location`, and JSON envelope fallbacks for common HTTP rejections.
+- 新增 OpenRust `Json` / `Path` / `Query` 提取器、`Created::with_location`，并为常见 HTTP 拒绝响应提供 JSON envelope 回退。
 
-- Added the non-published `apps/server` integration host as the workspace default for `cargo run`.
-- Established the Cargo workspace, shared lint policy, dual license, CI baseline and framework architecture decisions.
-- Added the application core with layered configuration, typed service registry, plugin lifecycle, runtime commands and structured HTTP errors and configurable JSON envelopes.
-- Added HTTP routing, resource actions, typed responses, validation and injection extractors, health route, middleware, CORS and compression.
-- Added the facade application runner, a minimal example and a CLI that forwards runtime commands to the project binary.
-- Added contributor, security and community guidance.
+- 新增不发布的 `apps/server` 集成宿主，并设为 workspace 中 `cargo run` 的默认目标。
+- 建立 Cargo workspace、共享 lint 策略、双许可证、CI 基线和框架架构决策。
+- 新增应用核心，包括分层配置、类型化服务注册表、插件生命周期、运行时命令、结构化 HTTP 错误和可配置 JSON envelope。
+- 新增 HTTP 路由、资源操作、类型化响应、校验与注入提取器、健康路由、中间件、CORS 和压缩。
+- 新增 facade 应用运行入口、最小示例，以及可将运行时命令转发给项目二进制的 CLI。
+- 新增贡献、安全和社区指南。
 
 ### Changed
 
-- Switched the default runtime configuration namespace to `APP_`; applications can select one custom prefix through `Application::config_namespace()`.
-- Switched all OpenRust JSON success and error responses to `ApiResponse<T>` and added `[api] http_status` (`always_ok` or `semantic`), request ID body/header parity, and rate-limit retry headers.
+- 将默认运行时配置命名空间切换为 `APP_`；应用可通过 `Application::config_namespace()` 选择一个自定义前缀。
+- 将所有 OpenRust JSON 成功和错误响应统一为 `ApiResponse<T>`，并新增 `[api] http_status`（`always_ok` 或 `semantic`）、请求 ID 正文/响应头一致性及限流重试响应头。
 
-- Switched the facade prelude to OpenRust extractors and aligned validation, timeout and unmatched-route responses with ADR-008.
+- 将 facade prelude 切换为 OpenRust 提取器，并按照 ADR-008 统一校验、超时和未匹配路由响应。
 
-- Adopted ADR-006 names across the implemented API: `Plugin::build/finish`, `AppBuilder::plugin/insert/get`, `AppState::get/try_get`, `HttpPlugin`, `Routes::nest` and resource actions `list/get/create/update/delete`.
-- Switched runtime configuration to `config/default.toml`, `OPENRUST_ENV` and `OPENRUST_<SECTION>__<KEY>`; `DATABASE_URL` and `PORT` map to the corresponding sections, with prefixed values taking priority.
-- Changed the configuration command to `config show` and documented the future `openrust generate` CLI.
+- 按照 ADR-006 在已实现 API 中统一采用以下名称：`Plugin::build/finish`、`AppBuilder::plugin/insert/get`、`AppState::get/try_get`、`HttpPlugin`、`Routes::nest`，以及资源操作 `list/get/create/update/delete`。
+- 将运行时配置切换为 `config/default.toml`、`OPENRUST_ENV` 和 `OPENRUST_<SECTION>__<KEY>`；`DATABASE_URL` 和 `PORT` 映射到对应配置区段，带前缀的变量优先。
+- 将配置命令改为 `config show`，并记录未来的 `openrust generate` CLI 规划。

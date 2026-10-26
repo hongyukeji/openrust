@@ -14,8 +14,7 @@
 
 | 功能簇 | 范围与交付 | 验收 |
 | --- | --- | --- |
-| C1 默认文档入口中文化 **in_progress** | 根 README、CONTRIBUTING、SECURITY、CODE_OF_CONDUCT 的第一方说明、CHANGELOG 说明，以及 `src/**/README.md`、`cli/`、`macros/`、`testing/`、`apps/` 文档；保留许可与引用原文。先使用/启动说明，再能力/贡献说明 | 中文入口可按当前源码操作；标题翻译后的链接/锚点、代码围栏与术语一致；被 include_str! 引用的 README 仍能生成文档、示例有效 |
-| C2 Rustdoc 与源码注释中文化 **pending** | 根 `src/` 的公开 API 说明优先，再处理 `cli/`、`macros/`、`testing/`、`apps/`、`examples/`、`tests/` 普通注释；配置/脚本中的第一方解释同步，Clap 派生帮助注释归 C3 | 不改标识符、行为和运行时消息；逐条保留前提、错误/并发/安全边界；按 AGENTS.md 执行适用源码门禁、Rustdoc 和 doctest，检查文档链接 |
+| C2 Rustdoc 与源码注释中文化 **in_progress** | 根 `src/` 的公开 API 说明优先，再处理 `cli/`、`macros/`、`testing/`、`apps/`、`examples/`、`tests/` 普通注释；配置/脚本中的第一方解释同步，Clap 派生帮助注释归 C3 | 不改标识符、行为和运行时消息；逐条保留前提、错误/并发/安全边界；按 AGENTS.md 执行适用源码门禁、Rustdoc 和 doctest，检查文档链接 |
 | C3 生成说明与 CLI 帮助收口 **pending** | `cli/templates/`、生成器内嵌文字、生成的 AGENTS/配置/.env 示例注释、Cargo 元数据描述与 CLI help；从源头整改并同步快照，复查 C1/C2 英文残留 | 实际查看命令帮助；生成无库与 PostgreSQL/MySQL 应用，检查中文说明且 check/test 通过；快照来自真实产物；残留英文仅为技术词/来源例外，不删除 i18n 英文资源 |
 
 ## M4：异步与流程扩展

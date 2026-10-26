@@ -1,14 +1,12 @@
-# Mail
+# 邮件
 
-`MailConfig` is defined in `openrust::config::mailer` and re-exported from `openrust::mail`.
-Keep runtime TOML in the application root `config/`; `.env` may supply local SMTP credentials, while
-production reads secrets from process environment variables and ignores `.env`.
+`MailConfig` 定义于 `openrust::config::mailer`，并从 `openrust::mail` 重新导出。运行时 TOML 配置放在应用根目录的 `config/`；本地 SMTP 凭据可通过 `.env` 提供。生产环境从进程环境变量读取秘密，并忽略 `.env`。
 
-Mail layer of the [OpenRust](https://github.com/hongyukeji/openrust) framework. Implement `Email::message` to build a `lettre::Message`, then send it through the `Mailer` service. `MailerPlugin` registers the log driver by default. Enable `mail-smtp` and set `[mail] driver = "smtp"`, `smtp_host`, and optionally matching `smtp_username` / `smtp_password` fields to send over mandatory STARTTLS. SMTP credentials are redacted from `Debug` output. STARTTLS is required by default; only an unauthenticated localhost/loopback development sink such as Mailpit may explicitly set `smtp_starttls = false`, and production rejects that setting. Start the local Mailpit service with `docker compose -f compose.ci.yaml up -d mailpit`, then use `APP_MAIL__DRIVER=smtp`, `APP_MAIL__SMTP_HOST=127.0.0.1`, `APP_MAIL__SMTP_PORT=1025`, and `APP_MAIL__SMTP_STARTTLS=false`. The default `log` driver is rejected in production, so a live mail provider must be configured explicitly. Enable `test-util` to use `FakeMailer` in tests with `sent_count` and `assert_sent_to` assertions. SMS is a sibling service in `openrust::sms`; both use public driver traits, explicit locale selection and non-retrying single submissions. Twilio is available with `sms-twilio` (which enables `http-client`) and requires `sms.account_sid`, `sms.api_key_sid`, `sms.api_key_secret`, and exactly one of `sms.from` / `sms.messaging_service_sid`. Credentials and message data are redacted from debug output; production rejects the log driver.
+OpenRust 框架的邮件能力。实现 `Email::message` 来构造 `lettre::Message`，然后通过 `Mailer` 服务发送。`MailerPlugin` 默认注册 log driver。启用 `mail-smtp`，并设置 `[mail] driver = "smtp"`、`smtp_host`，还可按需设置成对的 `smtp_username` / `smtp_password` 字段，以使用强制 STARTTLS 的 SMTP 发送邮件。SMTP 凭据在 `Debug` 输出中会被隐藏。默认要求 STARTTLS；只有 Mailpit 等未认证的 localhost/loopback 开发接收端可以显式设置 `smtp_starttls = false`，生产环境会拒绝该设置。使用 `docker compose -f compose.ci.yaml up -d mailpit` 启动本地 Mailpit 服务，然后设置 `APP_MAIL__DRIVER=smtp`、`APP_MAIL__SMTP_HOST=127.0.0.1`、`APP_MAIL__SMTP_PORT=1025` 和 `APP_MAIL__SMTP_STARTTLS=false`。生产环境拒绝默认的 `log` driver，因此必须显式配置实际邮件供应商。启用 `test-util` 后，可在测试中使用 `FakeMailer` 的 `sent_count` 和 `assert_sent_to` 断言。SMS 是 `openrust::sms` 中的同级服务；两者都使用公开 driver trait、显式 locale 选择，并且单次提交不会自动重试。启用 `sms-twilio`（同时启用 `http-client`）即可使用 Twilio；配置时必须设置 `sms.account_sid`、`sms.api_key_sid`、`sms.api_key_secret`，并在 `sms.from` 与 `sms.messaging_service_sid` 中二选一。凭据和消息数据在 debug 输出中会被隐藏；生产环境拒绝 log driver。
 
-`Mailer::send` sends immediately. Queue integration is added with the queue capability in M4. An accepted submission is not a delivery receipt.
+`Mailer::send` 会立即发送。队列能力在 M4 中集成。供应商接受提交不代表邮件已送达。
 
-To localize a message, select a `Locale` from the request's `RequestLocale` or explicitly for a background task. `LocalizedEmail::new` renders separate subject/body keys from the shared `I18n` catalog with named arguments and builds a plain-text `lettre::Message`; applications can still implement `Email` for custom multipart or HTML formats. The mail transport does not infer a locale from global state; callers choose it when building the message.
+要本地化邮件，请从请求的 `RequestLocale` 中选择 `Locale`，或为后台任务显式指定 locale。`LocalizedEmail::new` 会从共享 `I18n` catalog 中读取独立的主题和正文 key，使用命名参数渲染，并构造纯文本 `lettre::Message`；应用仍可自行实现 `Email`，以使用自定义 multipart 或 HTML 格式。邮件传输层不会从全局状态推断 locale；调用方须在构造消息时选择。
 
 ```rust,no_run
 use openrust::mail::{Email, Mailer, lettre::Message};
@@ -32,7 +30,7 @@ async fn send(mailer: &Mailer) -> Result<()> {
 }
 ```
 
-For SMTP, add `features = ["mail-smtp"]` to the `openrust` dependency and configure:
+使用 SMTP 时，在 `openrust` 依赖中添加 `features = ["mail-smtp"]`，并进行如下配置：
 
 ```toml
 [mail]

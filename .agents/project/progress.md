@@ -32,13 +32,14 @@
 
 - 原 M0–M2 基础范围和 M3 本地认证/安全运行时已验收；Mailer/Policy 生成器、公开 HTTP 路由限流与数据输出/查询边界均已提交并完成适用验证。
 - M4 仅部分完成；单项 scheduler/worker 多进程测试不等于完整集群验收。
-- M4 类型化事件与 queued listener 已在 PostgreSQL 18.6 与 MySQL 8.4 完成双库事务/worker 验收；源码 workspace 交付现已验收，当前先完成 C1–C3，再推进 M4 后续簇。
+- M4 类型化事件与 queued listener 已在 PostgreSQL 18.6 与 MySQL 8.4 完成双库事务/worker 验收；源码 workspace 交付和 C1 默认文档中文化现已验收，当前先完成 C2–C3，再推进 M4 后续簇。
+- C1 默认文档入口中文化：根 README、贡献/安全/行为准则/变更日志及框架模块 README 已按简体中文优先更新，保留代码、技术标识符、链接和许可证原文。13 个变更 Markdown 的本地链接/锚点、`git diff --check`、warnings-denied Rustdoc 与框架 doctest 通过；详见 `.agents/project/memory/verification.md`。
 - M5/M6 尚有成组能力未交付；没有可宣称已完成的 v1 性能基线、全部最低版本兼容性或完整集群验收。
 - v1 完整验收通过后按已授权顺序进入 v2；Admin 已确定 pure-admin 精简国际化版 + Element Plus，App 使用 uni-app，PC 仅规划设计。当前只完成选型与文档校准，未创建端侧应用或安装前端依赖；AI 平台仅规划并隔离，尚未立项。
 
 ## 下一步
 
-先完成 C1–C3 中文整改，再按 [todo.md](todo.md) 推进 M4 修正/扩展、M5、M6。组件整合与 Laravel 式体验按 ADR-001；数据库/队列扩展限制和 worker 停机问题已明确为待修边界，静态发现不表示代码已修复。不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
+先完成 C2–C3 中文整改，再按 [todo.md](todo.md) 推进 M4 修正/扩展、M5、M6。组件整合与 Laravel 式体验按 ADR-001；数据库/队列扩展限制和 worker 停机问题已明确为待修边界，静态发现不表示代码已修复。不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
 
 ## 本次文档核对范围
 

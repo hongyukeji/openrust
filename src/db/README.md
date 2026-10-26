@@ -1,24 +1,21 @@
-# Database
+# 数据库
 
-`DatabaseConfig` is defined in `openrust::config::database` and re-exported from `openrust::database`.
-Runtime settings stay in the generated application's root `config/` directory; use `.env` for local
-credentials and process environment variables for deployed secrets. Production bootstrap ignores
-`.env`.
+`DatabaseConfig` 定义于 `openrust::config::database`，并从 `openrust::database` 重新导出。运行时配置保存在生成应用根目录的 `config/`；本地凭据可放入 `.env`，部署环境的秘密应通过进程环境变量提供。生产启动时会忽略 `.env`。
 
-Database module of the [OpenRust](https://github.com/hongyukeji/openrust) framework (milestone M2).
+OpenRust 框架的数据库模块。
 
-## Connect a database
+## 连接数据库
 
-Enable one backend feature and register `DatabasePlugin` with the application:
+启用一个 backend feature，并在应用中注册 `DatabasePlugin`：
 
 ```toml
 [dependencies]
 openrust = { version = "0.0.0", features = ["db-postgres"] }
 ```
 
-Set `DATABASE_URL` or `APP_DATABASE__URL` to a PostgreSQL or MySQL connection URL. Pool defaults are 10 maximum connections, 1 minimum connection, a 5-second connect timeout, and a 30-second acquire timeout. Override them in `[database]` or with `APP_DATABASE__MAX_CONNECTIONS`, `MIN_CONNECTIONS`, `CONNECT_TIMEOUT_SECS`, and `ACQUIRE_TIMEOUT_SECS`. Applications using a custom namespace replace `APP_` with the value returned by `Application::config_namespace()`.
+将 `DATABASE_URL` 或 `APP_DATABASE__URL` 设置为 PostgreSQL 或 MySQL 连接 URL。连接池默认最多 10 个连接、最少 1 个连接，连接超时为 5 秒，获取连接超时为 30 秒。可在 `[database]` 中覆盖这些值，也可使用 `APP_DATABASE__MAX_CONNECTIONS`、`MIN_CONNECTIONS`、`CONNECT_TIMEOUT_SECS` 和 `ACQUIRE_TIMEOUT_SECS`。应用使用自定义命名空间时，将 `APP_` 替换为 `Application::config_namespace()` 返回的前缀。
 
-Framework-owned tables use the `tb_` prefix by default. Set `table_prefix` to change it (an empty string disables the prefix), or map selected logical names to complete physical table names:
+框架管理的表默认使用 `tb_` 前缀。设置 `table_prefix` 可更改前缀（空字符串表示不使用前缀）；也可以将指定的逻辑表名映射为完整物理表名：
 
 ```toml
 [database]
@@ -28,7 +25,7 @@ table_prefix = "app_"
 users = "accounts"
 ```
 
-Explicit mappings take precedence and are not prefixed. Names must be ASCII identifiers; PostgreSQL's 63-byte and MySQL's 64-byte limits are checked at startup. `Db::table_name()` returns a validated physical name and `Db::quoted_table_name()` returns its backend-quoted form. `MigrationPlugin` and `TestDatabase::create_with_table_names()` scope the same resolver to each migration call. Handwritten migrations that create framework-related tables can read `DatabaseTableNames::current()`; calls outside those migration scopes return `None`. Raw SQL is not globally rewritten: framework authentication SQL resolves its own table names, while application SQL must use the `Db` resolver. Renaming configured tables does not migrate existing schemas or data.
+显式映射优先级更高，且不会再添加前缀。表名必须是 ASCII 标识符；启动时会检查 PostgreSQL 的 63 字节和 MySQL 的 64 字节限制。`Db::table_name()` 返回经过校验的物理表名；`Db::quoted_table_name()` 返回按 backend 转义后的形式。`MigrationPlugin` 和 `TestDatabase::create_with_table_names()` 会在每次迁移调用期间设置相同的 resolver。创建框架相关表的手写迁移可读取 `DatabaseTableNames::current()`；在迁移作用域外调用会返回 `None`。框架不会全局重写原始 SQL：框架认证 SQL 会自行解析表名，应用 SQL 则必须使用 `Db` resolver。修改表名配置不会迁移现有 schema 或数据。
 
 ```rust,ignore
 use openrust::{Application, AppBuilder, DatabasePlugin, NoConfig};
@@ -44,9 +41,9 @@ impl Application for App {
 }
 ```
 
-The plugin installs a cloneable `Db` service and opens its pool during application finalization. Daily development uses PostgreSQL 18, MySQL 8.4, and Redis 8. Database integration CI uses PostgreSQL 18 and MySQL 8.4; Redis integration joins CI with the M5 cache implementation. The current runtime version check accepts the provisional minimums PostgreSQL 14+ and MySQL 8.0+. Full framework compatibility at these minimum versions must still be verified before v1 release. Redis has a provisional minimum of 6.2+ and a daily development baseline of 8; its driver and compatibility validation are pending M5. Additional version checks are reserved for significant version gaps or concrete compatibility risks. `Db::connection()` returns a SeaORM `DatabaseConnection`; `Db::transaction()` commits successful callbacks and rolls back callbacks that return an error. Its `Debug` output does not include configured URLs. A missing URL, disabled backend, invalid pool settings, or failed connection stops startup with a configuration error.
+该 plugin 会注册可克隆的 `Db` 服务，并在应用完成组装时创建连接池。日常开发使用 PostgreSQL 18、MySQL 8.4 和 Redis 8；数据库集成 CI 使用 PostgreSQL 18 与 MySQL 8.4。Redis 集成会在 M5 缓存能力落地后加入 CI。当前运行时版本检查接受暂定最低版本 PostgreSQL 14+ 和 MySQL 8.0+；v1 发布前仍须验证框架在这些最低版本上的完整兼容性。Redis 暂定最低版本为 6.2+，日常开发基线为 8；其 driver 和兼容性验证待 M5 完成。只有主版本跨度较大或存在具体兼容风险时才增加额外版本专项检查。`Db::connection()` 返回 SeaORM `DatabaseConnection`；`Db::transaction()` 会提交成功的回调，并回滚返回错误的回调。其 `Debug` 输出不包含已配置的 URL。若 URL 缺失、backend 未启用、连接池配置无效或连接失败，启动会以配置错误终止。
 
-Optional read replicas are configured explicitly and must use the same backend:
+只读副本可选配置，但必须与主库使用相同 backend：
 
 ```toml
 [database]
@@ -54,9 +51,9 @@ url = "postgres://app:secret@primary/app"
 read_replicas = ["postgres://app:secret@replica-a/app", "postgres://app:secret@replica-b/app"]
 ```
 
-`Db::connection()` and `Db::primary_connection()` always return the primary. `Db::read_connection()` round-robins configured replicas, or returns the primary when none are configured. Use it only for read-only operations that can tolerate replication lag; the framework does not inspect SQL, retry queries, or fall back after errors. `Db::with_primary(future)` temporarily makes this handle's `read_connection()` return the primary for the current Tokio task, which is useful for a write followed by a read in one work unit. Independently spawned tasks do not inherit that scope. Transactions, migrations, seeds, and framework critical paths stay on the primary. A configured replica connection or backend validation failure stops startup. Every replica has its own pool using the configured pool limits, so the maximum total connection count is `(replicas + 1) * max_connections`. This configures connections only; database replication, consistency, and replica read-only permissions remain deployment responsibilities.
+`Db::connection()` 和 `Db::primary_connection()` 始终返回主库连接。`Db::read_connection()` 会轮询已配置副本；没有副本时返回主库。只应将它用于可接受复制延迟的只读操作；框架不会检查 SQL、重试查询，也不会在出错后回退。`Db::with_primary(future)` 会临时让当前 Tokio task 中此 handle 的 `read_connection()` 返回主库，适用于同一工作单元内先写后读。独立 spawn 的 task 不会继承该作用域。事务、迁移、seed 和框架关键路径始终使用主库。副本连接或 backend 校验失败会导致启动失败。每个副本都有使用相同连接池上限的独立连接池，因此最大总连接数为 `(replicas + 1) * max_connections`。该配置只管理连接；数据库复制、一致性和副本只读权限仍由部署环境负责。
 
-`DatabasePlugin` also registers the shared `openrust::core::RateLimiter` using PostgreSQL or MySQL storage. Add `DatabaseRateLimitMigration` to the application's migrator before using it; schema changes remain explicit and are never run automatically at startup:
+`DatabasePlugin` 还会使用 PostgreSQL 或 MySQL 存储注册共享的 `openrust::core::RateLimiter`。使用前请将 `DatabaseRateLimitMigration` 加入应用 migrator；schema 变更必须显式执行，启动时不会自动运行：
 
 ```rust,ignore
 use openrust::database::DatabaseRateLimitMigration;
@@ -66,20 +63,20 @@ fn migrations() -> Vec<Box<dyn MigrationTrait>> {
 }
 ```
 
-Use `RateLimiter::check` with a stable key containing the policy identity, a positive limit, and a whole-second window. The fixed-window counter is atomic across application nodes sharing the same database. It consumes over-limit attempts and returns HTTP 429 with `Retry-After`; storage or missing-table errors fail closed. Database rows store a SHA-256 digest rather than the raw key, which is pseudonymization and does not protect guessable values such as email addresses. Each store instance opportunistically cleans up to 512 expired rows every 256 consumes; custom stores must document their own retention behavior. Memory or local-file implementations are not supplied as shared cluster stores.
+调用 `RateLimiter::check` 时，key 应稳定并包含策略标识，同时提供正数上限和整秒窗口。共享同一数据库的应用节点之间，固定窗口计数器具有原子性。超限请求仍会计数并返回带 `Retry-After` 的 HTTP 429；存储故障或缺失表会失败关闭。数据库行保存 SHA-256 摘要而非原始 key，这属于假名化，不足以保护电子邮件地址等可猜测值。每个 store 实例每累计 256 次消费，会尝试清理最多 512 条过期记录；自定义 store 必须说明自己的保留策略。框架不提供可用于集群共享的内存或本地文件实现。
 
-The model generator keeps integer auto-increment IDs by default. Opt into `UUIDv7` primary keys or soft deletion on both the entity and migration commands:
+模型生成器默认保留整数自增 ID。可在实体和迁移命令中同时选择 `UUIDv7` 主键或软删除：
 
 ```bash
 openrust generate model post --uuid-id --soft-delete title:string
 openrust generate migration posts --uuid-id --soft-delete title:string
 ```
 
-`--uuid-id` adds the `db-uuid` feature to both generated packages, stores UUID IDs in the selected database, and fills missing insert IDs with `UUIDv7` in the application process. `--soft-delete` adds nullable UTC `deleted_at` and an explicit `Entity::not_deleted()` query helper; queries and raw SQL that do not call that helper continue to include deleted rows. The model and migration options must match. UUID and soft deletion are opt-in and do not change existing projects or tables.
+`--uuid-id` 会为两个生成 package 启用 `db-uuid` feature，在选定数据库中存储 UUID ID，并由应用进程使用 `UUIDv7` 补齐缺失的插入 ID。`--soft-delete` 会添加可空 UTC `deleted_at`，以及显式的 `Entity::not_deleted()` 查询 helper；未调用该 helper 的查询和原始 SQL 仍会包含已删除记录。模型和迁移选项必须一致。UUID 和软删除都需显式启用，不会修改现有项目或表。
 
 `apps/server/benches/db_routing.rs` 提供发布模式下主库与只读副本路由的 `SELECT 1` 微基准。运行 `cargo bench -p server --features db-routing-bench,db-postgres --bench db_routing`，或改用 `db-routing-bench,db-mysql`；设置 `OPENRUST_TEST_DATABASE_URL` 与 `OPENRUST_TEST_READ_REPLICA_URL`。结果只反映该窄查询的串行吞吐量及 p50/p95/p99，不代表业务负载，也不能证明副本提升了吞吐量。显式 `db-routing-bench` feature 避免默认 workspace 检查在没有后端时编译数据库基准。
 
-Applications may replace `DatabasePlugin` with a custom plugin when they need a different SeaORM connection strategy. Register one `Db::default()` during `build`, then initialize it after connecting during `finish`. A custom plugin with replicas can call `initialize_with_replicas(primary, replicas)`; all connections must report the same SeaORM backend:
+应用如需不同的 SeaORM 连接策略，可用自定义 plugin 替换 `DatabasePlugin`。在 `build` 阶段注册一个 `Db::default()`，再于 `finish` 阶段连接后初始化。带副本的自定义 plugin 可调用 `initialize_with_replicas(primary, replicas)`；所有连接必须报告相同的 SeaORM backend：
 
 ```rust,ignore
 impl Plugin for CustomDatabasePlugin {
@@ -100,16 +97,16 @@ impl Plugin for CustomDatabasePlugin {
 }
 ```
 
-`DatabaseBackend` centralizes the official PostgreSQL/MySQL URL scheme and feature checks. `Db::initialize` accepts a SeaORM `DatabaseConnection`; `Db::backend()` reports the connected SeaORM backend. A custom plugin owns its connection configuration and must validate capabilities required by its application. The official v1 database engines are PostgreSQL and MySQL. Their provisional minimums are PostgreSQL 14+ and MySQL 8.0+; daily development and database CI use PostgreSQL 18 and MySQL 8.4 LTS. Extra version checks are added when major-version gaps or concrete compatibility risks justify them; full compatibility at the provisional minimums remains a v1 release requirement. Other SeaORM backends do not automatically gain framework-wide support: migrations, UTC/JSON columns, locking, feature selection, project generation, and `TestDatabase` isolation need backend-specific implementation and verification. MongoDB and other different data models are outside this contract. Switching connections does not migrate existing data.
+`DatabaseBackend` 集中管理官方支持的 PostgreSQL/MySQL URL scheme 和 feature 检查。`Db::initialize` 接收 SeaORM `DatabaseConnection`；`Db::backend()` 报告已连接的 SeaORM backend。自定义 plugin 负责自己的连接配置，并须校验应用所需能力。v1 官方数据库引擎为 PostgreSQL 和 MySQL，暂定最低版本分别为 PostgreSQL 14+ 和 MySQL 8.0+；日常开发及数据库 CI 使用 PostgreSQL 18 和 MySQL 8.4 LTS。只有主版本跨度较大或存在具体兼容风险时才增加专项版本检查；暂定最低版本的完整兼容性仍是 v1 发布门槛。其他 SeaORM backend 不会自动获得框架级支持：迁移、UTC/JSON 列、锁、feature 选择、项目生成和 `TestDatabase` 隔离都需要各自实现与验证。MongoDB 等不同数据模型不在此契约范围内。切换连接不会迁移既有数据。
 
-For portable migration columns, `openrust::database::dialect::timestamp_utc(name, backend)` creates PostgreSQL `TIMESTAMP WITH TIME ZONE` or MySQL `DATETIME(6)`, and `dialect::json(name, backend)` creates PostgreSQL `JSONB` or MySQL `JSON`. Both return `Result<ColumnDef, DbErr>` and reject unhandled backends instead of silently using PostgreSQL SQL.
+为保证迁移列可移植，`openrust::database::dialect::timestamp_utc(name, backend)` 会创建 PostgreSQL `TIMESTAMP WITH TIME ZONE` 或 MySQL `DATETIME(6)`；`dialect::json(name, backend)` 会创建 PostgreSQL `JSONB` 或 MySQL `JSON`。两者均返回 `Result<ColumnDef, DbErr>`，遇到未处理的 backend 时会明确拒绝，而不会静默使用 PostgreSQL SQL。
 
-Register `MigrationPlugin::<Migrator>::new()` to add the runtime `migrate` command for an application migrator implementing `sea_orm_migration::MigratorTrait`. The migration API is re-exported as `openrust::database::sea_orm_migration`. Run `migrate` or `migrate up [steps]` to apply pending migrations, `migrate down [steps]` to roll back migrations (one by default), and `migrate status` to list applied and pending migrations. MySQL DDL may implicitly commit; if a migration fails, inspect and clean up its partial schema before retrying.
+注册 `MigrationPlugin::<Migrator>::new()`，即可为实现 `sea_orm_migration::MigratorTrait` 的应用 migrator 添加运行时 `migrate` 命令。迁移 API 通过 `openrust::database::sea_orm_migration` 重新导出。运行 `migrate` 或 `migrate up [steps]` 应用待执行迁移；运行 `migrate down [steps]` 回滚迁移（默认回滚一步）；运行 `migrate status` 查看已应用和待执行的迁移。MySQL DDL 可能隐式提交；迁移失败后，请检查并清理部分 schema 再重试。
 
-Register `SeedPlugin::new(seed_fn)` alongside `DatabasePlugin` to expose `db seed`. The async function receives a cloneable `Db` handle and returns `openrust::Result<()>`; the application owns seed data and idempotency.
+将 `SeedPlugin::new(seed_fn)` 与 `DatabasePlugin` 一并注册，即可提供 `db seed` 命令。异步函数接收可克隆的 `Db` handle，并返回 `openrust::Result<()>`；seed 数据及其幂等性由应用负责。
 
-MySQL connections require TLS using Rustls. Configure the server certificate and trust chain through the MySQL URL/server deployment; plaintext MySQL connections are rejected. PostgreSQL TLS behavior follows the URL and server configuration.
+MySQL 连接必须使用 Rustls TLS。通过 MySQL URL 或服务器部署配置服务器证书与信任链；明文 MySQL 连接会被拒绝。PostgreSQL TLS 行为由 URL 和服务器配置决定。
 
-## Scope
+## 能力范围
 
-Connection pooling, transaction helpers, custom SeaORM connection registration, migration commands, UTC/JSON dialect helpers, application-defined seed commands, per-test database isolation, and the PostgreSQL/MySQL project templates are implemented.
+连接池、事务 helper、自定义 SeaORM 连接注册、迁移命令、UTC/JSON dialect helper、应用自定义 seed 命令、按测试隔离数据库，以及 PostgreSQL/MySQL 项目模板均已实现。

@@ -6,10 +6,11 @@
 
 ## 当前已有证据
 
-[ADR-039](../decisions/adr-039-source-workspace-distribution.md) 的源码交付与包改名目前只有设计/文档，尚无实现验收。旧包名、旧模板 patch 的通过记录不能替代新源码 workspace 黄金路径。
+[ADR-039](../decisions/adr-039-source-workspace-distribution.md) 的源码交付与包改名已完成实现验收，干净源码生成/双应用隔离/双库证据见 [testing.md](testing.md)。旧包名和旧模板 patch 仅为历史记录。
 
 | 范围 | 已有通过记录 | 证据边界 |
 | --- | --- | --- |
+| C1 默认文档入口中文化 | 根 README、贡献/安全/行为准则/变更日志及 `src/**/README.md`、工具/宿主 README；13 个改动 Markdown 的相对链接与锚点检查、`git diff --check`、warnings-denied `cargo doc -p openrust --no-deps`、`cargo test -p openrust --doc` 通过 | 本簇仅整改默认入口说明，不覆盖 Rustdoc/源码注释（C2）或 CLI/生成模板说明（C3）；英文许可、引用和协议原文保留 |
 | V2 前端选型文档 | pure-admin 精简国际化版 + Element Plus 选型同步；102 个本地链接目标、11 个锚点和 2 个上游链接检查通过；diff 空白检查与旧选型引用扫描通过 | 仅文档验证；未创建前端应用、安装依赖或执行前后端运行验收，v2 仍须待 v1 完整通过后启动 |
 | 根模块/配置/目录 | workspace 默认/关键/all-features、clippy/test/doc/deny；配置层级、`.env` 生产隔离、脱敏与生成项目；工具目录/示例/测试分组迁移前后 5 packages、265 test-list entries 一致 | 不等于 v1 全部能力、最低版本或集群验收 |
 | HTTP/出站/i18n | 路由、响应、CORS、request ID；本机 TCP/fake client、受界 body/retry；locale 并发与生成项目中文错误 | 不等于第三方供应商发送、OpenAPI或实时通信验收 |
@@ -27,11 +28,11 @@
 
 ## 尚未关闭的门禁
 
-- 目录收尾通过 5-package/265-test-list 对比、workspace 门禁、双库 server 集成、生成项目及实际 hello TCP HTTP smoke；`apps/server` 有明确保留证据。以上不等同于 v1 集群或性能门禁。
+- 目录收尾通过 5-package/265-test-list 对比、workspace 门禁、双库 server 集成、生成项目及实际 hello TCP HTTP smoke；`apps/server` 有明确保留证据。ADR-039 源码交付已另行通过干净副本和双库验收。以上不等同于 v1 集群或性能门禁。
 - M4 公开流程扩展、幂等与共享锁、worker 停机修正/恢复和通知；M5 Db/Queue 外部执行边界、缓存/存储/实时/资源与可观测性；M6 开发编排/生成全集/测试工具/正式文档及源码升级。已交付的 HTTP 查询边界、类型化事件和有限任务编排不重复登记为未实现。
 - PostgreSQL/MySQL 负载均衡下至少两个 API 与多 worker/scheduler 的共享认证状态、配额/幂等、任务竞争、跨节点在线投递、共享文件、滚动升级及故障恢复。
 - Redis 与对象存储真实驱动语义；代表性业务负载 p50/p95/p99、吞吐、CPU、内存和资源上限；发布前设定基于实测的回归门槛。
-- 独立 consumer 的配置/注册/执行契约，构建与依赖成本，中文文档独立走查、保留业务的源码升级回归及平台/维护约定；详细验收只在 [补强计划](../plans/v1-performance-and-readiness.md) 维护。本次静态审查和文档校准不新增代码测试通过记录。
+- 独立 consumer 的配置/注册/执行契约，构建与依赖成本，C2/C3 完成后的中文文档独立走查、保留业务的源码升级回归及平台/维护约定；详细验收只在 [补强计划](../plans/v1-performance-and-readiness.md) 维护。本次文档工作不新增代码行为测试记录。
 - 暂定最低 PostgreSQL 14+ / MySQL 8.0+ / Redis 6.2+ 的完整承诺路径；日常只用 PG18/MySQL8.4/Redis8，额外矩阵按大跨度/明确兼容风险与发布门禁触发。运行时版本检查通过不等于最低版本功能已全部验证。
 - Twilio 实发需要开发者授权账号、凭据与目标；未满足则外部验收保持未通过，不能虚报投递成功。发布/tag/上线仍由独立授权决定。
 

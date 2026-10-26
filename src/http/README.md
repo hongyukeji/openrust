@@ -1,27 +1,27 @@
-# HTTP
+# HTTP 能力
 
-HTTP layer of the [OpenRust](https://github.com/hongyukeji/openrust) framework, built on `axum` and `tower`.
+OpenRust 框架基于 `axum` 和 `tower` 构建的 HTTP 层。
 
-- [`HttpPlugin`] — install with `app.plugin(HttpPlugin)` to register the `serve` command, the default middleware stack and `/health`.
-- [`AppBuilderHttpExt::routes`] — the hook an application uses to contribute routes.
-- [`AppBuilderHttpExt::http_layer`] — registers shared Tower request context around every route, outside route-level layers.
-- [`Routes`] — thin routing convention over `axum::Router`: `get`/`post`/…, `nest(prefix, …)`, `merge`, `layer`.
-- [`Resource`] and [`ResourceActions`] — register only the controller actions that exist; `Routes::resource` maps `list`/`create` to the collection and `get`/`update`/`delete` to `{id}`. `resource_with` filters them with `only` or `except`.
-- [`Created<T>`] and [`NoContent`] — a success envelope (201 in semantic mode) with optional `Location`, and a success envelope with `data: null` (HTTP 200).
-- [`PageParams`] and [`Paginated<T>`] — validated `page`/`per_page` query parameters and an API envelope with array `data` and pagination `meta`.
-- [`SortParams`] — parses ADR-008 comma-separated sort syntax only against an explicit field allowlist; applications map names to fixed ORM columns.
-- [`Json<T>`], [`Path<T>`] and [`Query<T>`] — axum-compatible extractors with API envelope rejections. `Json<T>` also implements `IntoResponse`.
-- [`Validated`] — runs `validator` after the OpenRust `Json<T>` or `Query<T>` extractor succeeds.
-- [`Inject`] — extractor that fetches a service registered with `AppBuilder::provide`.
-- [`ClientIp`] — resolves the socket peer by default and accepts `X-Forwarded-For` only from configured trusted proxy IPs/CIDRs.
-- [`RateLimitLayer`] — explicitly rate-limits selected routes through the registered shared `RateLimiter`; IP keys honor `ClientIp` trusted proxy rules, authenticated keys require an outer `AuthLayer`, and custom keys receive the request plus a policy scope.
-- [`middleware::apply`] — request id, tracing span, CORS, timeout, gzip/br compression and panic capture, from outermost to innermost. `build_router` injects the final `AppState` into request extensions before route layers execute, so capability middleware can use the application registry. It returns a configuration error before listening if enabled CORS settings are invalid.
+- [`HttpPlugin`]：通过 `app.plugin(HttpPlugin)` 注册 `serve` 命令、默认 middleware 栈和 `/health`。
+- [`AppBuilderHttpExt::routes`]：应用添加路由的入口。
+- [`AppBuilderHttpExt::http_layer`]：在所有路由外层注册共享 Tower 请求上下文，并置于路由级 layer 之外。
+- [`Routes`]：基于 `axum::Router` 的轻量路由约定，提供 `get` / `post` / …、`nest(prefix, …)`、`merge`、`layer`。
+- [`Resource`] 与 [`ResourceActions`]：只注册实际存在的 controller action；`Routes::resource` 将 `list` / `create` 映射到集合路由，将 `get` / `update` / `delete` 映射到 `{id}`。`resource_with` 可通过 `only` 或 `except` 过滤 action。
+- [`Created<T>`] 与 [`NoContent`]：成功响应封装；前者可选携带 `Location`（semantic 模式为 201），后者返回 `data: null`（HTTP 200）。
+- [`PageParams`] 与 [`Paginated<T>`]：校验 `page` / `per_page` 查询参数，并返回含数组 `data` 和分页 `meta` 的 API 封装。
+- [`SortParams`]：只按显式字段白名单解析 ADR-008 定义的逗号分隔排序语法；应用将字段名映射为固定 ORM 列。
+- [`Json<T>`]、[`Path<T>`] 与 [`Query<T>`]：兼容 axum 的 extractors，并将拒绝结果包装为 API 响应。`Json<T>` 还实现了 `IntoResponse`。
+- [`Validated`]：在 OpenRust 的 `Json<T>` 或 `Query<T>` extractor 成功后运行 `validator`。
+- [`Inject`]：提取由 `AppBuilder::provide` 注册的服务。
+- [`ClientIp`]：默认解析 socket peer；只有来自已配置可信代理 IP/CIDR 的请求才接受 `X-Forwarded-For`。
+- [`RateLimitLayer`]：通过已注册的共享 `RateLimiter` 对选定路由限流。IP key 遵循 `ClientIp` 的可信代理规则；认证用户 key 需要外层 `AuthLayer`；自定义 key 函数可取得请求及策略 scope。
+- [`middleware::apply`]：依次应用 request ID、tracing span、CORS、timeout、gzip/br 压缩和 panic 捕获。`build_router` 会在路由 layer 执行前将最终 `AppState` 注入请求扩展，使能力 middleware 能使用应用注册表。启用的 CORS 配置无效时，会在开始监听前返回配置错误。
 
-`[server.compression] enabled = true` negotiates gzip and Brotli using `Accept-Encoding`; set it to `false` to disable compression. `[server.cors]` is disabled by default. To enable it, set `enabled = true` and `allowed_origins = ["https://example.com"]` (or `["*"]` without credentials). Methods, request headers, exposed headers, credentials and preflight `max_age_secs` are configurable. Concrete origins must be `http://` or `https://` plus a host and optional port, without a path, query or trailing slash. Wildcards cannot be mixed with concrete values in any CORS list; credentials also forbid wildcard methods, request headers and exposed headers. Invalid settings return a keyed configuration error with the escaped value during router construction. CORS wraps the timeout layer, so allowed origins remain visible on 408 responses. `build_router(&App)` returns `Result<Router>`; `serve` builds the router before binding its listener.
+`[server.compression] enabled = true` 会根据 `Accept-Encoding` 协商 gzip 和 Brotli；设置为 `false` 可关闭压缩。`[server.cors]` 默认禁用。启用时，将 `enabled` 设为 `true`，并配置 `allowed_origins = ["https://example.com"]`（未启用 credentials 时也可用 `["*"]`）。Methods、request headers、exposed headers、credentials 和预检 `max_age_secs` 均可配置。具体 origin 必须是 `http://` 或 `https://`，后接主机和可选端口，不可包含路径、查询参数或尾部斜杠。CORS 列表中不能混用通配符和具体值；启用 credentials 时，methods、request headers 和 exposed headers 也不能使用通配符。路由构建时若发现配置无效，会返回包含配置 key 和转义值的错误。CORS layer 包裹 timeout layer，因此 408 响应仍保留允许来源信息。`build_router(&App)` 返回 `Result<Router>`；`serve` 会先构建 router，再绑定 listener。
 
-`[server].trusted_proxy_ranges` is empty by default. Entries accept an IP address or CIDR. When the direct socket peer is in a configured range, `ClientIp` parses `X-Forwarded-For` and walks from right to left across trusted proxy hops; it returns the first untrusted address. Otherwise it ignores forwarding headers. Invalid trusted ranges fail router construction, and malformed forwarded values from a trusted peer return a bad-request envelope.
+`[server].trusted_proxy_ranges` 默认为空。条目接受 IP 地址或 CIDR。若直接 socket peer 位于配置范围内，`ClientIp` 会解析 `X-Forwarded-For`，从右向左遍历可信代理链，并返回第一个不可信地址；否则忽略转发头。可信范围配置无效时 router 构建失败；来自可信 peer 的转发值格式错误时返回 bad-request 响应封装。
 
-Use a route layer to apply a shared fixed-window quota. The application must register a `RateLimiter`, normally via `DatabasePlugin`; storage failures fail closed. Each scope should identify one endpoint/policy and use one stable limit/window across every route instance. `by_user` requires the authentication layer to be added first so it executes before rate limiting; `by_user_or_client_ip` can also be used on routes where anonymous requests are allowed.
+使用 route layer 可应用共享固定窗口配额。应用必须注册 `RateLimiter`，通常通过 `DatabasePlugin` 注册；存储故障会失败关闭。每个 scope 应对应一个 endpoint/policy，并在所有路由实例中使用相同的 limit/window。`by_user` 要求先添加认证 layer，使其先于限流 layer 执行；允许匿名请求的路由也可使用 `by_user_or_client_ip`。
 
 ```rust,ignore
 use std::time::Duration;
@@ -34,7 +34,7 @@ fn routes(routes: Routes) -> Routes {
 }
 ```
 
-Each subsequent route layer wraps the earlier one. In this example, `AuthLayer` is outermost and runs first, then the rate-limit layer reads the verified account identity. Only routes covered by the layer are limited; health and fallback routes are unaffected unless explicitly wrapped. Custom key functions should return a bounded, stable, non-secret identity value.
+每个后续 route layer 都会包裹先前的 layer。在此示例中，`AuthLayer` 位于最外层并先执行，之后限流 layer 读取经过验证的账户身份。只有应用了该 layer 的路由会受限；除非显式包裹，health 与 fallback 路由不受影响。自定义 key 函数应返回有界、稳定且不含秘密的身份值。
 
 ```rust
 use openrust::http::{AppBuilderHttpExt, Inject, Json, Routes, Validated};
@@ -56,7 +56,7 @@ fn register(app: &mut AppBuilder) {
 }
 ```
 
-Resource controllers explicitly list their handlers; missing actions do not create a path. Filtering is applied after the controller registers its actions:
+Resource controller 会显式列出 handler；未实现的 action 不会创建路由。过滤器会在 controller 注册 action 后应用：
 
 ```rust
 use openrust::http::{Action, Resource, ResourceActions, Routes};
@@ -78,13 +78,13 @@ fn routes(routes: Routes) -> Routes {
 }
 ```
 
-Resource paths discard trailing slashes before registering the collection and `{id}` member routes; an empty path inside `nest("/posts", …)` responds at `/posts` and `/posts/{id}`. Repeated `only` calls keep the intersection of their action lists. Axum panics at registration on route conflicts, including a member parameter name other than `id` at the same path position.
+注册集合路由和 `{id}` 成员路由前，Resource path 会去掉尾部斜杠；`nest("/posts", …)` 中的空路径会响应 `/posts` 和 `/posts/{id}`。多次调用 `only` 会保留 action 列表的交集。若出现路由冲突（包括相同路径位置上的成员参数名不是 `id`），Axum 会在注册时 panic。
 
-`PageParams` defaults to `page=1&per_page=20`; direct extraction accepts `page >= 1`, `1 <= per_page <= 100`, and an offset no larger than `i64::MAX`. Invalid values return a `validation_failed` API envelope with field-level `errors`. `Query<PageParams>` only deserializes and does not validate these bounds. `offset()` is zero-based and `limit()` returns the page size. `Paginated::new(items, params, total)` emits `{"success": true, "code": "ok", "message": "ok", "data": [...], "meta": {"page": 1, "per_page": 20, "total": 57, "total_pages": 3}, "request_id": "..."}` using typed `PageMeta`.
+`PageParams` 默认为 `page=1&per_page=20`；直接提取时接受 `page >= 1`、`1 <= per_page <= 100`，且 offset 不得超过 `i64::MAX`。无效值会返回包含字段级 `errors` 的 `validation_failed` API 封装。`Query<PageParams>` 只负责反序列化，不会校验这些边界。`offset()` 从 0 开始，`limit()` 返回页大小。`Paginated::new(items, params, total)` 使用类型化 `PageMeta` 输出 `{"success": true, "code": "ok", "message": "ok", "data": [...], "meta": {"page": 1, "per_page": 20, "total": 57, "total_pages": 3}, "request_id": "..."}`。
 
-### Data output and query boundaries
+### 数据输出与查询边界
 
-Return an application DTO instead of serializing a SeaORM model. The DTO is the response field allowlist; never derive `Serialize` for a model that contains password hashes, internal notes, or other private columns. Use a typed query struct with `#[serde(deny_unknown_fields)]` so misspelled and unsupported filters fail. Map each filter to a fixed SeaORM column and validate `sort` before mapping it to columns:
+应返回应用 DTO，而不是直接序列化 SeaORM model。DTO 本身就是响应字段白名单；若 model 包含密码哈希、内部备注或其他私有列，切勿为其派生 `Serialize`。使用带 `#[serde(deny_unknown_fields)]` 的类型化 query struct，让拼写错误或不支持的过滤字段直接失败。将每个过滤字段映射到固定的 SeaORM 列，并在排序映射列之前校验 `sort`：
 
 ```rust,ignore
 #[derive(serde::Deserialize)]
@@ -119,19 +119,19 @@ for field in sort.fields() {
 }
 ```
 
-`SortParams` rejects unsupported, duplicate, malformed and overlong values without echoing request data. It does not build SQL or decide authorization. Query DTO fields form the filter allowlist; build SeaORM `Condition`s explicitly, never interpolate request field names into SQL.
+`SortParams` 会拒绝不支持、重复、格式错误或过长的值，且不会回显请求内容。它不负责生成 SQL 或决定授权。Query DTO 字段构成过滤白名单；应显式构造 SeaORM `Condition`，不要将请求字段名插入 SQL。
 
-`openrust generate model post --soft-delete title:string` and the matching `generate migration posts --soft-delete title:string` add nullable `deleted_at` and an explicit `Entity::not_deleted()` scope. The scope is opt-in; direct `Entity::find()` and raw SQL include deleted rows. Restore by setting `deleted_at` to `None` in an `ActiveModel`. `--uuid-id` on both commands opts into `UUIDv7` primary keys; existing projects keep integer IDs by default.
+`openrust generate model post --soft-delete title:string` 与对应的 `generate migration posts --soft-delete title:string` 会添加可空 `deleted_at` 和显式的 `Entity::not_deleted()` scope。该 scope 必须主动使用；直接调用 `Entity::find()` 或原始 SQL 仍会包含已删除记录。恢复记录时，在 `ActiveModel` 中将 `deleted_at` 设为 `None`。两个命令都可使用 `--uuid-id` 选择 `UUIDv7` 主键；现有项目仍默认使用整数 ID。
 
-For relations, define SeaORM `Relation`/`Related` edges for generated foreign keys, then eager-load a collection with `Entity::find_with_related(related::Entity)` or page parents first and call SeaORM 2 `load_many(related::Entity, db)`. Avoid querying each parent inside a loop. Apply authorization, soft-delete and tenant conditions to each relevant entity explicitly; relation loading does not infer those application policies. Page parents before batch loading to bound both parent and child work.
+关联关系应通过 SeaORM `Relation` / `Related` 为生成的外键定义边，然后使用 `Entity::find_with_related(related::Entity)` 预加载集合；也可先分页读取父记录，再调用 SeaORM 2 的 `load_many(related::Entity, db)`。不要在循环中逐条查询每个父记录。应为每个相关 entity 显式应用授权、软删除和租户条件；关系加载不会推断这些应用策略。批量加载前先分页父记录，以限制父子两侧的处理量。
 
-Request parsing follows [ADR-008](../../.agents/project/decisions/adr-008-api-conventions.md): malformed JSON, path and query values use `bad_request` (semantic HTTP 400); missing or non-JSON `Content-Type` uses `unsupported_media_type` (415); structurally valid JSON with missing or mistyped fields uses `validation_failed` (422) with a readable `message` and field `errors` when available; bodies over axum's default 2 MiB limit use `payload_too_large` (413). Validation rules also use 422. Unmatched routes use `not_found` (404), unsupported methods use `method_not_allowed` (405) with `Allow`, and timeouts use `request_timeout` (408). Parenthesized HTTP statuses apply in `semantic` mode. All are `application/json` envelopes with `x-request-id`; enabled CORS applies to these responses. CORS preflight requests (`OPTIONS` with `Access-Control-Request-Method`) keep tower-http's empty body on both allowed and rejected responses; browsers use only the protocol response headers. Ordinary cross-origin errors remain wrapped and include CORS headers for allowed origins. Handler-generated client errors retain their own message. Axum's original extractors remain available through [`axum`].
+请求解析遵循 [ADR-008](../../.agents/project/decisions/adr-008-api-conventions.md)：格式错误的 JSON、path 或 query 使用 `bad_request`（semantic 模式 HTTP 400）；缺少 `Content-Type` 或类型不是 JSON 时使用 `unsupported_media_type`（415）；结构有效但缺少字段或字段类型错误的 JSON 使用 `validation_failed`（422），并尽可能提供可读 `message` 和字段 `errors`；超过 axum 默认 2 MiB 限制的请求体使用 `payload_too_large`（413）。校验规则失败同样使用 422。未匹配路由使用 `not_found`（404），不支持的方法使用带 `Allow` 的 `method_not_allowed`（405），请求超时使用 `request_timeout`（408）。括号内的 HTTP 状态码仅在 `semantic` 模式适用。这些响应均使用带 `x-request-id` 的 `application/json` 封装；启用 CORS 时也会应用对应头部。CORS 预检请求（含 `Access-Control-Request-Method` 的 `OPTIONS`）无论允许或拒绝都保留 tower-http 的空 body；浏览器只使用协议响应头。普通跨域错误仍会包装，并为允许的 origin 返回 CORS 头。Handler 生成的客户端错误保留自身 message。原生 axum extractors 仍可通过 [`axum`] 使用。
 
-`Created::with_location("/api/posts/42", Json(post))?` returns a `Located<T>` response. Invalid `Location` header values return an `Error` that renders as an `internal_error` envelope (semantic HTTP 500); construction never panics. `Created(Json(post))` remains available when no location is needed.
+`Created::with_location("/api/posts/42", Json(post))?` 会返回 `Located<T>` 响应。无效的 `Location` header 值会返回一个渲染为 `internal_error` 封装的 `Error`（semantic 模式 HTTP 500）；构造过程不会 panic。不需要 location 时仍可使用 `Created(Json(post))`。
 
-### Outbound HTTP client
+### 出站 HTTP 客户端
 
-Enable the optional `http-client` feature to use `openrust::http::HttpClient`. A client clone shares its connection pool. Defaults are a 5-second connection timeout, 30-second total timeout, 1 MiB maximum response body, and no automatic redirects. JSON, URL-encoded form, multipart and streaming request bodies are supported; response status is returned as data and is not treated as a transport error. `HttpResponse::next_chunk` streams response data while enforcing the configured total body limit. Dropping the request future cancels local waiting, but cannot undo work already received by a remote server.
+启用可选的 `http-client` feature 后即可使用 `openrust::http::HttpClient`。克隆 client 会共享连接池。默认连接超时为 5 秒、总超时为 30 秒、响应 body 上限为 1 MiB，且不会自动跟随重定向。支持 JSON、URL 编码表单、multipart 和流式请求体；响应状态会作为数据返回，不会当成传输错误。`HttpResponse::next_chunk` 在流式读取响应时会持续检查总 body 上限。丢弃请求 future 会取消本地等待，但无法撤销远端服务器已经收到的工作。
 
 ```rust,ignore
 use openrust::http::{HttpClient, HttpClientConfig};
@@ -143,7 +143,7 @@ if response.status().is_success() {
 }
 ```
 
-The client does not retry automatically. To retry, the application must explicitly mark the operation with `idempotent()` and pass a `RetryPolicy`; policy allows at most five attempts and uses capped exponential backoff for transport failures and 502/503/504 responses. A request with a one-shot streaming body is rejected when replay is required. Redirects are disabled to avoid implicit target changes; this does not replace application-side SSRF destination validation. System proxy environment variables are ignored; configure `HttpClientConfig::proxy` explicitly when a proxy is required. `HttpTransport` and `TransportResponse::from_bytes` support deterministic fakes; injected transports receive built requests and do not use the network unless their implementation chooses to. Transport and decoding errors redact underlying details, and applications should not log authorization headers or sensitive bodies. Use the returned status to handle non-2xx responses explicitly.
+client 不会自动重试。应用如需重试，必须显式通过 `idempotent()` 标记操作并传入 `RetryPolicy`；策略最多尝试五次，对传输故障和 502/503/504 使用有上限的指数退避。需要重放时会拒绝只有一次机会的流式请求体。重定向默认关闭以避免目标被隐式改变，但这不能替代应用侧的 SSRF 目标校验。系统代理环境变量会被忽略；确实需要代理时，请显式配置 `HttpClientConfig::proxy`。`HttpTransport` 和 `TransportResponse::from_bytes` 可用于确定性 fake；注入的 transport 接收构造好的请求，除非其自身选择联网，否则不会访问网络。传输和解码错误会隐藏底层详情；应用不应记录 authorization header 或敏感 body。请显式检查返回状态并处理非 2xx 响应。
 
 ```rust,ignore
 use std::time::Duration;
@@ -158,4 +158,4 @@ let response = client
     .await?;
 ```
 
-`[api] http_status = "always_ok"` is the default: all framework JSON envelopes return HTTP 200. `semantic` retains the status table from ADR-008. The middleware stores the selected mode and request ID in request-scoped task context so success, extraction errors, fallbacks, timeouts, and panic responses share one policy. The JSON `/health` response uses the same envelope; non-JSON responses such as files, streams, and HTML remain raw.
+`[api] http_status = "always_ok"` 是默认值：所有框架 JSON 封装都返回 HTTP 200。`semantic` 沿用 ADR-008 的状态码表。middleware 会将选定模式和 request ID 保存在请求级 task context 中，使成功响应、提取错误、fallback、timeout 和 panic 响应遵循同一策略。JSON `/health` 响应也使用相同封装；文件、流和 HTML 等非 JSON 响应保持原始格式。

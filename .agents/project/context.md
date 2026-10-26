@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-26
-> 摘要：OpenRust 是全新的开源 Rust 应用开发框架，当前处于 v1 M4；源码 workspace 交付已完成，正在执行 C1–C3 文档中文化，随后继续补齐通用能力。
+> 摘要：OpenRust 是全新的开源 Rust 应用开发框架，当前处于 v1 M4；源码 workspace 交付和 C1 默认文档入口中文化已完成，当前执行 C2 Rustdoc 与注释整改。
 
 ## 当前状态
 
@@ -20,7 +20,7 @@
 
 - 项目语言采用 [简体中文为主、英文为辅](style.md#语言规范)：第一方文档、Rustdoc、源码/配置注释与生成模板说明立即按此编写；既有英文安排分批整改。完整英文文档待框架成熟后再评估，技术名称和原始许可证等例外保持有效，运行时 i18n 契约另行管理。
 
-- 源码交付与中性包名按 [ADR-039](decisions/adr-039-source-workspace-distribution.md) 已实现：开发者获取整套框架，在 `apps/<name>/` 开发业务；内部包为 `cli`、`macros`、`testing`、`server`，所有 package 禁用发布，根 `openrust`、`openrust::` API 与 CLI 命令名保留。生成器合并 workspace 成员并按应用定位启动和配置；干净源码副本、双应用隔离及 PostgreSQL 18/MySQL 8.4 验收通过。当前先执行 C1–C3 中文整改。
+- 源码交付与中性包名按 [ADR-039](decisions/adr-039-source-workspace-distribution.md) 已实现：开发者获取整套框架，在 `apps/<name>/` 开发业务；内部包为 `cli`、`macros`、`testing`、`server`，所有 package 禁用发布，根 `openrust`、`openrust::` API 与 CLI 命令名保留。生成器合并 workspace 成员并按应用定位启动和配置；干净源码副本、双应用隔离及 PostgreSQL 18/MySQL 8.4 验收通过。C1 默认文档入口已中文化，当前先完成 C2、C3。
 
 - 应用中性命名按 [ADR-016](decisions/adr-016-neutral-application-namespaces.md)：默认环境变量 `APP_`（`Application::config_namespace()` 允许启动前定制，core/bootstrap 已实现），默认表前缀 `tb_`，支持自定义/空前缀和显式全名映射；数据库 resolver 已贯通连接、迁移、TestDatabase 与认证 SQL，并经 PostgreSQL/MySQL 验证。旧品牌前缀不能作为新设计 contract。
 - 本地数据库、缓存等基础服务验证必须先检查并复用现有且版本/配置/连通性合适的服务（包括 Docker 容器和本机服务）；当前开发目标为 PostgreSQL 18、MySQL 8.4 LTS、Redis 8。只有没有合适服务，或现有服务确实无法用于本项测试时，才创建隔离的临时服务。优先用 `TestDatabase`、独立测试库/数据做隔离；不得为方便而重复创建服务，也不得擅自停止、删除、重建或改动已有容器、卷、数据和配置。新建临时服务时使用独立 Compose project 与必要的隔离端口，结束后只清理本任务明确创建且确认无其他使用者的资源。

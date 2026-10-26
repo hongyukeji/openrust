@@ -1,10 +1,10 @@
-# Contributing to OpenRust
+# 参与 OpenRust 贡献
 
-OpenRust is in pre-alpha development. Before changing code, read [AGENTS.md](AGENTS.md) for the repository workflow and [.agents/project/conventions.md](.agents/project/conventions.md) for code and Git conventions. Check the relevant crate README and `.agents/project/` facts for current contracts.
+OpenRust 目前处于 pre-alpha 开发阶段。修改代码前，请阅读 [AGENTS.md](AGENTS.md) 了解仓库工作流程，阅读 [.agents/project/conventions.md](.agents/project/conventions.md) 了解代码与 Git 约定，并查看相关 crate README 和 `.agents/project/` 当前事实以确认契约。
 
-## Build and verify
+## 构建与验证
 
-Install a Rust toolchain compatible with the workspace `rust-version`, then run:
+安装与 workspace `rust-version` 兼容的 Rust 工具链，然后运行：
 
 ```bash
 cargo check --workspace --all-targets
@@ -15,19 +15,19 @@ cargo doc --workspace --no-deps
 cargo deny check
 ```
 
-The five verification commands are `fmt`, `clippy`, `test`, `doc` and `deny`; `cargo check` is a quick build check. Data-related changes also require PostgreSQL and MySQL integration tests as described in [.agents/project/memory/testing.md](.agents/project/memory/testing.md).
+五项主要门禁是 `fmt`、`clippy`、`test`、`doc` 和 `deny`；`cargo check` 用于快速检查构建。数据相关变更还必须按照 [.agents/project/memory/testing.md](.agents/project/memory/testing.md) 执行 PostgreSQL 和 MySQL 集成测试。
 
-## Commits
+## 提交
 
-Use the repository [commit script](.agents/project/scripts/commit) with a conventional type and a Chinese subject:
+使用仓库的[提交脚本](.agents/project/scripts/commit)，采用约定的提交类型和中文主题：
 
 ```bash
 AI_AGENT_SOURCE="<agent> <model>" ./.agents/project/scripts/commit <type> "<中文主题>" "<说明>" -- <pathspec>...
 ./.agents/project/scripts/commit validate HEAD
 ```
 
-Keep one functional change per commit. See the Git section of [conventions.md](.agents/project/conventions.md) for accepted types and attribution rules.
+每次提交只包含一个功能变更。允许的提交类型和署名规则见 [conventions.md](.agents/project/conventions.md) 中的 Git 章节。
 
-## License
+## 许可证
 
 Contributions are dual licensed under [MIT](LICENSE-MIT) OR [Apache-2.0](LICENSE-APACHE), at your option. Unless you explicitly state otherwise, an intentional contribution is submitted under those terms without additional conditions.

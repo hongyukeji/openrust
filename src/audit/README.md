@@ -1,8 +1,8 @@
-# Audit
+# 审计
 
-`openrust::audit` records explicit security and business events through a replaceable `AuditSink`. The built-in `DatabaseAuditSink` stores records in the application's primary database. Add `DatabaseAuditMigration` to the application migrator; migrations are never run automatically.
+`openrust::audit` 通过可替换的 `AuditSink` 记录显式的安全与业务事件。内置的 `DatabaseAuditSink` 会将记录写入应用主数据库。请将 `DatabaseAuditMigration` 加入应用 migrator；迁移不会自动执行。
 
-Events contain an optional actor, action, object, outcome, timestamp, optional request ID and trusted source IP, and explicitly supplied details. Use stable, non-secret IDs for actors and objects; do not use email addresses, credentials, or user-provided free text as identifiers. `AuditPolicy` denies details by default and allowlists bounded scalar fields. Sensitive detail names are stored as `[REDACTED]`. Event and record debug output hides identifiers and detail values. Do not pass passwords, tokens, verification codes, raw requests/responses, SQL, or arbitrary error text as details.
+事件包含可选 actor、action、object、结果、时间戳、可选 request ID 和可信来源 IP，以及调用方显式提供的 details。actor 与 object 应使用稳定且不含秘密的 ID；不要用电子邮件地址、凭据或用户输入的自由文本作为标识符。`AuditPolicy` 默认拒绝 details，并通过白名单限制可记录的标量字段。敏感 detail 名称会以 `[REDACTED]` 保存。Event 和 record 的 `Debug` 输出会隐藏标识符与 detail 值。不要将密码、token、验证码、原始请求/响应、SQL 或任意错误文本作为 details 传入。
 
 ```rust,no_run
 use openrust::audit::{Audit, AuditEvent, AuditOutcome, AuditSubject};
@@ -16,6 +16,6 @@ async fn record_change(audit: &Audit, actor_id: i64, account_id: i64) -> openrus
 }
 ```
 
-For a critical database mutation, prepare the sanitized record first, then call `DatabaseAuditSink::record_in_transaction` with the same `DatabaseTransaction` as the business change. The outer transaction controls commit. If either write fails, propagate the error so both roll back. Records for denied, failed, or rolled-back operations must be written after the failed transaction ends. A post-commit sink error does not undo the business change.
+对于关键数据库变更，先准备完成脱敏的 record，再使用业务变更所用的同一个 `DatabaseTransaction` 调用 `DatabaseAuditSink::record_in_transaction`。外层事务负责提交；任一写入失败时都应传播错误，使两者一并回滚。拒绝、失败或已回滚操作的记录必须在失败事务结束后写入。提交后发生的 sink 错误不会撤销业务变更。
 
-Custom sinks implement the public `AuditSink` trait and can be registered with `AuditPlugin::with_sink`. Tests can use `openrust::audit::testing::FakeAuditSink` with the `test-util` feature. Sink failures propagate; no fallback, automatic retry, deduplication, or exactly-once guarantee is provided. The application owns audit query authorization and retention policy. `purge_before` removes at most the requested batch from the primary. The framework does not promise tamper-proof storage or legal compliance.
+自定义 sink 可实现公开的 `AuditSink` trait，并通过 `AuditPlugin::with_sink` 注册。启用 `test-util` feature 后，测试可使用 `openrust::audit::testing::FakeAuditSink`。Sink 故障会向上传播；框架不提供回退、自动重试、去重或 exactly-once 保证。审计查询授权与保留策略由应用负责。`purge_before` 最多从主库删除指定批量的记录。框架不承诺存储具备防篡改能力，也不保证满足特定法律合规要求。
