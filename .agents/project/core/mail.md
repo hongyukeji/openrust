@@ -9,7 +9,8 @@
 - `MailConfig` 定义在 `openrust::config::mailer`，通过 `openrust::mail` 兼容 re-export；SMTP 本地凭据可放 `.env`，production 忽略 `.env`。
 - `Email::message` 产出 `lettre::Message`；`Mailer::send` 通过公开 `MailDriver` 提交。
 - `LocalizedEmail` 使用 `I18n` catalog、显式 `Locale` 与命名参数渲染纯文本主题/正文；后台任务不依赖请求 task-local locale。
-- 当前没有 MiniJinja 或其他邮件模板引擎；纯文本消息插值不等于完整 HTML/模板渲染能力。
+- 可选 `mail-templates` 使用 MiniJinja 2.24；`EmailTemplateCatalog` 只注册 `include_str!` 嵌入式应用资源，不开文件/网络 loader。按 locale 分层覆盖并支持继承布局；HTML 自动转义、严格缺参失败，模板燃料和输出分别限制为 100,000 与 256 KiB；主题拒绝换行且最多 998 字节。
+- `RenderedEmail` 生成纯文本/HTML alternative，保留 lettre multipart 附件组合能力；新消息继续经现有 `Email`/`Mailer` driver。`openrust generate mailer` 生成中英模板与注册封装，并为应用启用 feature，不覆盖已有文件。
 - `MailerPlugin` 默认注册不记录内容的 `LogMailer`；production 选择 `log` 会启动失败。
 - `mail-smtp` 使用 Tokio / Rustls，默认要求 STARTTLS；只有无认证 loopback 开发服务可显式关闭 TLS。SMTP 密码 Debug 脱敏，`test-util` 暴露 `FakeMailer`。
 
@@ -26,4 +27,4 @@
 - 队列化 Mail/SMS、失败任务联动、薄多渠道通知和发送前后公共扩展仍待按 M4 及跨能力功能簇接入；已有 queue 模块不代表通信自动入队。
 - 认证验证码由 `VerificationCodes` 生成消费，发送仍由调用方选择渠道；本簇不启用短信登录或更改账号流程。
 
-V1 的安全模板/布局与生成体验按 [F3 邮件模板](../plans/v1-foundation-completion.md#f3-邮件模板) 补齐，复用现有 lettre/Email/Mailer；本轮仅更新目标，当前纯文本本地化边界不变。
+F3 已交付安全模板与生成体验。SMTP 本机实际投递和 Mailpit API 内容确认记录于 [测试基线](../memory/testing.md)；队列固定内容、通知编排仍由后续功能簇完成。

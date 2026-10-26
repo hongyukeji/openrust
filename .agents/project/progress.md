@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-26
-> 摘要：框架处于 v1 M4，尚未达到完整 v1。源码工作区、C1–C3 中文化、M3 认证流程扩展及 M4 共享锁、worker 生命周期、F1 日历调度和 F2 国际化已有本地提交与适用验收证据；完整剩余范围见待办。
+> 摘要：框架处于 v1 M4，尚未达到完整 v1。源码工作区、C1–C3 中文化、M3 认证流程扩展及 M4 共享锁、worker 生命周期、F1 日历调度、F2 国际化和已提交的 F3 邮件模板均有适用验收证据；完整剩余范围见待办。
 
 ## 源码 workspace 交付
 
@@ -32,18 +32,18 @@
 
 - 原 M0–M2 基础范围和 M3 本地认证/安全运行时已验收；Mailer/Policy 生成器、公开 HTTP 路由限流与数据输出/查询边界均已提交并完成适用验证。
 - M4 仅部分完成；单项 scheduler/worker 多进程测试不等于完整集群验收。
-- M4 类型化事件、queued listener、事务提交边界与 AuthFlows 注册/登录扩展已在 PostgreSQL 18/MySQL 8.4 完成双库验收；源码 workspace 交付和 C1–C3 中文化现已验收，共享锁与请求幂等已于 ADR-042 完成。Worker 生命周期修正与 F1 cron/IANA/DST、版本隔离、每 tick 有界补跑经双库专项验收。F2 通过中/英/波兰语、select/plural fallback、精确小数、跨时区日期、HTTP 并发 locale 测试及 clean-copy 生成项目 check/test；当前推进 F3 安全邮件模板。
+- M4 类型化事件、queued listener、事务提交边界与 AuthFlows 注册/登录扩展已在 PostgreSQL 18/MySQL 8.4 完成双库验收；源码 workspace 交付和 C1–C3 中文化现已验收，共享锁与请求幂等已于 ADR-042 完成。Worker 生命周期修正与 F1 cron/IANA/DST、版本隔离、每 tick 有界补跑经双库专项验收。F2 通过中/英/波兰语、select/plural fallback、精确小数、跨时区日期、HTTP 并发 locale 测试及 clean-copy 生成项目 check/test。F3 已提交可选 MiniJinja 邮件模板、严格变量/HTML 转义/布局与 MIME、CLI 中英模板生成器；Mailpit 实际 SMTP 收件及 API 的主题、文本、HTML 已确认。当前推进队列化通信与薄通知层。
 - C2 Rustdoc 与源码/配置注释中文化：覆盖根公开模块、`cli` 内部实现、`macros`、`testing`、`apps/server`、`examples` 与 `tests`；未改 API、运行时文案或行为。fmt、workspace clippy/test/doc、cargo deny、diff check 通过；PostgreSQL 18 和 MySQL 8.4 各通过 18 项 auth/db/queue/recovery/schedule 集成测试。生成模板入口注释快照按实际生成结果更新。
 - C3 生成说明与 CLI 帮助中文化：CLI 分组标题、帮助/版本选项、子命令说明、生成的应用指南、`.env.example` 注释及生成 Rustdoc 已中文化；Cargo 描述原已中文。CLI 15 项测试、workspace fmt/clippy/test/warnings-denied doc/cargo deny 通过；干净源码副本生成无数据库、PostgreSQL、MySQL 应用各自直接 check/test 通过。
 - C1 默认文档入口中文化：根 README、贡献/安全/行为准则/变更日志及框架模块 README 已按简体中文优先更新，保留代码、技术标识符、链接和许可证原文。13 个变更 Markdown 的本地链接/锚点、`git diff --check`、warnings-denied Rustdoc 与框架 doctest 通过；详见 `.agents/project/memory/verification.md`。
-- V1 底层补齐 F1–F10 的范围与依赖见 [专题计划](plans/v1-foundation-completion.md)；F1–F2 已落地，F3–F10 仍按待办顺序交付；若依/芋道仅 V2 参考。
+- V1 底层补齐 F1–F10 的范围与依赖见 [专题计划](plans/v1-foundation-completion.md)；F1–F3 已落地，F4–F10 仍按待办顺序交付；若依/芋道仅 V2 参考。
 - gRPC 已按 [ADR-040](decisions/adr-040-grpc-integration.md) 纳入 v1/M5，当前仅完成范围和规划；跨协议验证/上下文、出站安全/韧性及生产运行/迁移补强见 `todo.md`，没有新增代码或运行验收证据。
 - M5/M6 尚有成组能力未交付；没有可宣称已完成的 v1 性能基线、全部最低版本兼容性或完整集群验收。
 - v1 完整验收通过后按已授权顺序进入 v2；Admin 已确定 pure-admin 精简国际化版 + Element Plus，App 使用 uni-app，PC 仅规划设计。当前只完成选型与文档校准，未创建端侧应用或安装前端依赖；[AI模型平台](plans/ai-model-platform.md) 仅有规划，尚未开发，须等待用户明确要求开发并满足成熟门禁。
 
 ## 下一步
 
-按 [todo.md](todo.md) 推进 F3 安全邮件模板、M4 后续、M5、M6。Worker 与 scheduler 专项双库证据不覆盖生产多实例负载与完整集群门禁。组件整合与 Laravel 式体验按 ADR-001；不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
+按 [todo.md](todo.md) 推进队列化通信与薄通知层、M4 后续、M5、M6。Worker 与 scheduler 专项双库证据不覆盖生产多实例负载与完整集群门禁。组件整合与 Laravel 式体验按 ADR-001；不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
 
 ## 本次文档核对范围
 

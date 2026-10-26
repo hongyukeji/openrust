@@ -928,8 +928,12 @@ fn generate_mailer(values: &[String], project_dir: &Path) -> anyhow::Result<()> 
     let module = normalize_identifier(name)?;
     let type_name = pascal_case(&module);
     let mailer_file = project_dir.join(format!("src/mailers/{module}.rs"));
+    let template_dir = project_dir.join(format!("templates/mail/{module}"));
     if mailer_file.exists() {
         bail!("mailer already exists: {}", mailer_file.display());
+    }
+    if template_dir.exists() {
+        bail!("mailer templates already exist: {}", template_dir.display());
     }
     let module_file = project_dir.join("src/mailers/mod.rs");
     if module_file.exists()
@@ -940,7 +944,17 @@ fn generate_mailer(values: &[String], project_dir: &Path) -> anyhow::Result<()> 
         bail!("mailer module is already registered: {module}");
     }
     let main_file = project_dir.join("src/main.rs");
-    fs::write(mailer_file, render_mailer(&type_name))?;
+    enable_openrust_feature(project_dir, "mail-templates")?;
+    for (locale, text, html) in [
+        ("en", "Hello, {{ user }}", "<p>Hello, {{ user }}</p>"),
+        ("zh-CN", "您好，{{ user }}", "<p>您好，{{ user }}</p>"),
+    ] {
+        let locale_dir = template_dir.join(locale);
+        fs::create_dir_all(&locale_dir)?;
+        fs::write(locale_dir.join("text.txt"), format!("{text}\n"))?;
+        fs::write(locale_dir.join("html.html"), format!("{html}\n"))?;
+    }
+    fs::write(mailer_file, render_mailer(&type_name, &module))?;
     append_sorted_module(
         &module_file,
         &format!("pub mod {module};"),
@@ -986,10 +1000,109 @@ fn generate_policy(values: &[String], project_dir: &Path) -> anyhow::Result<()> 
     Ok(())
 }
 
-fn render_mailer(type_name: &str) -> String {
-    format!(
-        "//! OpenRust 生成的应用邮件类型。\n\nuse openrust::mail::{{\n    Email,\n    lettre::{{Message, message::Mailbox}},\n}};\n\n/// 可自定义的应用邮件。\n#[derive(Clone, Debug)]\npub struct {type_name} {{\n    /// 发件人地址。\n    pub from: String,\n    /// 收件人地址。\n    pub to: String,\n    /// 邮件主题。\n    pub subject: String,\n    /// 纯文本正文。\n    pub body: String,\n}}\n\nimpl Email for {type_name} {{\n    fn message(&self) -> openrust::Result<Message> {{\n        let from: Mailbox = self.from.parse().map_err(openrust::Error::internal)?;\n        let to: Mailbox = self.to.parse().map_err(openrust::Error::internal)?;\n        Message::builder()\n            .from(from)\n            .to(to)\n            .subject(&self.subject)\n            .body(self.body.clone())\n            .map_err(openrust::Error::internal)\n    }}\n}}\n"
-    )
+fn enable_openrust_feature(project_dir: &Path, feature: &str) -> anyhow::Result<()> {
+    let path = project_dir.join("Cargo.toml");
+    let source = fs::read_to_string(&path)?;
+    let mut document = source
+        .parse::<toml_edit::DocumentMut>()
+        .with_context(|| format!("{} is invalid TOML", path.display()))?;
+    let dependency = document
+        .get_mut("dependencies")
+        .and_then(toml_edit::Item::as_table_mut)
+        .and_then(|dependencies| dependencies.get_mut("openrust"))
+        .and_then(toml_edit::Item::as_value_mut)
+        .and_then(toml_edit::Value::as_inline_table_mut)
+        .with_context(|| format!("{} has no inline OpenRust dependency", path.display()))?;
+    if dependency.get("features").is_none() {
+        dependency.insert("features", toml_edit::Value::Array(toml_edit::Array::new()));
+    }
+    let features = dependency
+        .get_mut("features")
+        .and_then(toml_edit::Value::as_array_mut)
+        .with_context(|| format!("{} has an invalid OpenRust feature list", path.display()))?;
+    if !features
+        .iter()
+        .any(|existing| existing.as_str() == Some(feature))
+    {
+        features.push(feature);
+        fs::write(path, document.to_string())?;
+    }
+    Ok(())
+}
+
+fn render_mailer(type_name: &str, module: &str) -> String {
+    r#"//! OpenRust 生成的应用邮件类型。
+//! 请在 `i18n` catalog 中提供 `mailers.__MODULE__.subject`，并按需编辑 `templates/mail/__MODULE__/`。
+
+use std::collections::BTreeMap;
+
+use openrust::{
+    i18n::{I18n, Locale, MessageArgs},
+    mail::{Email, EmailTemplateBody, EmailTemplateCatalog, EmailTemplateError, lettre::Message},
+};
+
+/// 使用受信模板构建的邮件。
+pub struct __TYPE__(Message);
+
+impl __TYPE__ {
+    /// 注册嵌入式简体中文和英文模板。
+    pub fn register(catalog: &mut EmailTemplateCatalog) -> Result<(), EmailTemplateError> {
+        catalog.insert(
+            "en",
+            "__MODULE__/text.txt",
+            include_str!("../../templates/mail/__MODULE__/en/text.txt"),
+        )?;
+        catalog.insert(
+            "en",
+            "__MODULE__/html.html",
+            include_str!("../../templates/mail/__MODULE__/en/html.html"),
+        )?;
+        catalog.insert(
+            "zh-CN",
+            "__MODULE__/text.txt",
+            include_str!("../../templates/mail/__MODULE__/zh-CN/text.txt"),
+        )?;
+        catalog.insert(
+            "zh-CN",
+            "__MODULE__/html.html",
+            include_str!("../../templates/mail/__MODULE__/zh-CN/html.html"),
+        )?;
+        Ok(())
+    }
+
+    /// 按显式 locale 渲染邮件并构建 MIME alternative。
+    pub fn new(
+        catalog: &EmailTemplateCatalog,
+        i18n: &I18n,
+        locale: &Locale,
+        subject_args: &MessageArgs,
+        context: &BTreeMap<String, String>,
+        from: &str,
+        to: &str,
+    ) -> Result<Self, EmailTemplateError> {
+        let rendered = catalog.render_email(
+            i18n,
+            locale,
+            "mailers.__MODULE__.subject",
+            subject_args,
+            EmailTemplateBody {
+                text: "__MODULE__/text.txt",
+                html: Some("__MODULE__/html.html"),
+            },
+            context,
+        )?;
+        rendered.message(from, to).map(Self)
+    }
+}
+
+impl Email for __TYPE__ {
+    fn message(&self) -> openrust::Result<Message> {
+        Ok(self.0.clone())
+    }
+}
+"#
+    .replace("__TYPE__", type_name)
+    .replace("__MODULE__", module)
 }
 
 fn render_policy(type_name: &str, resource: &str) -> String {
@@ -1937,8 +2050,15 @@ mod tests {
         assert!(mailer.contains("impl Email for WelcomeEmail"));
         assert!(mailer.contains("OpenRust 生成的应用邮件类型"));
         assert!(!mailer.contains("Application email type generated"));
-        assert!(mailer.contains("pub from: String"));
-        assert!(mailer.contains(".body(self.body.clone())"));
+        assert!(mailer.contains("EmailTemplateCatalog"));
+        assert!(mailer.contains("mailers.welcome_email.subject"));
+        assert!(
+            mailer.contains("include_str!(\"../../templates/mail/welcome_email/zh-CN/html.html\")")
+        );
+        let template =
+            fs::read_to_string(project.join("templates/mail/welcome_email/zh-CN/html.html"))
+                .expect("read generated HTML template");
+        assert!(template.contains("您好，{{ user }}"));
         let policy = fs::read_to_string(project.join("src/policies/post.rs"))
             .expect("read generated policy");
         assert!(policy.contains("pub struct PostPolicy"));
@@ -1962,6 +2082,9 @@ mod tests {
         let main = fs::read_to_string(project.join("src/main.rs")).expect("read app entry");
         assert_eq!(main.matches("pub mod mailers;").count(), 1);
         assert_eq!(main.matches("pub mod policies;").count(), 1);
+        let manifest =
+            fs::read_to_string(project.join("Cargo.toml")).expect("read generated app manifest");
+        assert!(manifest.contains("mail-templates"));
         let _ = fs::remove_dir_all(root);
     }
 

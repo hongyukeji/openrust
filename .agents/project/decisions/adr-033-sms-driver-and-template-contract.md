@@ -1,6 +1,6 @@
 # ADR-033：短信供应商与通信模板 contract
 
-- 状态：Accepted（邮件/SMS 基础已实现；V1 安全邮件模板补强待交付）
+- 状态：Accepted（邮件/SMS 基础与 F3 安全邮件模板已实现；通知队列组合待交付）
 - 日期：2026-10-26
 - 供应商参考：[Twilio Messages resource](https://www.twilio.com/docs/messaging/api/message-resource) 与 [Twilio REST authentication](https://www.twilio.com/docs/usage/requests-to-twilio)。
 - 依据：[ADR-009](adr-009-extensible-capability-drivers.md)、[ADR-011](adr-011-sms-and-communication-baseline.md)、[ADR-031](adr-031-outbound-http-client.md)、[ADR-032](adr-032-request-internationalization.md)
@@ -19,7 +19,7 @@
 6. `Email` 和 `SmsMessage` 的内容由调用者明确准备；`LocalizedEmail` 使用 ADR-032 `I18n` catalog 与显式 `Locale` 渲染 subject/body keys 和命名参数，短信文本同样显式翻译，provider templates 参数独立传入。后台任务必须显式给 locale，不读取 task-local 或全局隐式状态。不为通信再造一套 i18n 消息语言或 catalog；邮件布局渲染按下述补强与同一国际化服务整合。
 7. 真实供应商 HTTP 协议用本机 TCP/注入 transport 验证请求格式、Basic auth、成功及错误/超时映射，不等同于真实账户发送或最终运营商送达。实发仅在开发者提供已授权目标和凭据后执行；否则记录缺失证据。
 8. M4 队列接入后由队列层定义异步、持久失败与重试；非幂等供应商调用的超时可能造成重复发送，不承诺 exactly-once。
-9. V1 必须交付可信应用资源的安全邮件模板与布局复用，输出 subject/text/HTML 后交给现有 `lettre::Message` 和 `Mailer`；直接复用 multipart/附件及发送 driver，不新建发送或重试系统。HTML 默认转义、缺必需变量明确失败，模板路径受限；队列重试固定内容或模板版本。成熟 renderer 的选择、公共签名与验收详见 [补齐计划](../plans/v1-foundation-completion.md)，当前基础 `LocalizedEmail` 不等于已完成此补强。
+9. F3 采用可选 `mail-templates` feature 与 MiniJinja 2.24；只接受 `include_str!` 嵌入的应用模板，不开任意文件/网络 loader。locale 精确项、同语言项、配置回退项按优先级组合，允许继承布局；HTML 自动转义、缺变量严格失败，执行燃料与输出有界。主题仍由共享 `I18n` 翻译，纯文本与可选 HTML 组成 MIME alternative；附件、`Email` 和 driver 复用 lettre/Mailer。生成器创建中英模板与注册包装，现有目录不覆盖。队列重试与通知固定内容/模板版本在后续通信队列簇实现。
 
 ## 验收边界
 

@@ -12,6 +12,11 @@ use crate::i18n::{I18n, Locale, MessageArgs};
 use lettre::AsyncTransport;
 use lettre::Message;
 
+#[cfg(feature = "mail-templates")]
+mod template;
+#[cfg(feature = "mail-templates")]
+pub use template::{EmailTemplateBody, EmailTemplateCatalog, EmailTemplateError, RenderedEmail};
+
 /// 重新导出 [`Email`] 实现使用的消息构建器与 SMTP 类型。
 pub use lettre;
 

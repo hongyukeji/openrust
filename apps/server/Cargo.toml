@@ -47,6 +47,7 @@ db-postgres = ["openrust/db-postgres", "testing/db-postgres"]
 db-mysql = ["openrust/db-mysql", "testing/db-mysql"]
 auth = ["openrust/auth"]
 mail-smtp = ["openrust/mail-smtp"]
+mail-templates = ["openrust/mail-templates"]
 sms-twilio = ["openrust/sms-twilio"]
 encryption = ["openrust/encryption"]
 queue = ["openrust/queue"]
@@ -84,6 +85,11 @@ path = "tests/http/client.rs"
 [[test]]
 name = "i18n"
 path = "tests/i18n/runtime.rs"
+
+[[test]]
+name = "mail_templates"
+path = "tests/mail/templates.rs"
+required-features = ["mail-templates"]
 
 [[test]]
 name = "queue"

@@ -50,14 +50,14 @@
 | 缓存 | 尚未实现；contract 要求标准应用默认 Redis、memory/file 显式选择（ADR-015、[ADR-014](decisions/adr-014-cache-driver-and-store-contract.md)） | M5 引入统一 Cache、命名 stores 与 drivers；`cache-redis` 是规划 feature，当前 manifest 不含它 |
 | 存储 | 尚未实现；规划以 `opendal` 提供本地和 S3 兼容路径 | `opendal` 依赖与 `storage-s3` feature 均待引入 |
 | 邮件 / 短信 | `lettre` 0.11 + log/fake；`mail-smtp` 启用 Tokio/Rustls STARTTLS，仅本机 loopback 可显式关闭；`sms-twilio` 复用 `http-client` 与 `base64` | 本机 Mailpit SMTP 实收已有验收记录；真实 Twilio 投递待授权账号和目标，log/fake 不能代替送达证据 |
-| 模板 | `LocalizedEmail` 与 `I18n` 消息参数插值；SMS 可传供应商 template SID | `minijinja` 尚未引入，也没有 `templates` feature；邮件按 ADR-033 复用 catalog，不在 v1 新增第二套引擎；不能将参数插值视为完整页面模板系统 |
+| 模板 | 可选 `mail-templates` 使用 MiniJinja `~2.24.0`（关闭默认 feature，仅 `builtins`、`fuel`、`multi_template`、`serde`、`unicode`）；`LocalizedEmail` 与 `I18n` 仍负责普通消息和主题翻译 | 仅受信任编译期应用资源、严格变量与自动 HTML 转义；不提供文件/网络 loader；邮件模板不扩展为通用页面模板系统 |
 
 ## 工具链
 
 | 用途 | 当前状态 |
 | --- | --- |
 | CLI 解析 | 已用 `clap`（derive） |
-| 模板渲染（生成器） | 当前为内置模板文件与 Rust 字符串生成；未使用 `minijinja` |
+| 模板渲染（生成器） | CLI 继续使用内置模板文件与 Rust 字符串生成；应用邮件的可选模板渲染由根 `openrust` 的 `mail-templates` feature 提供 |
 | 文件监听（`openrust dev`） | 尚未实现；当前仅以 development 环境启动应用，`watchexec` 是规划选型 |
 | 快照测试 | 已用 `insta` |
 | TOML 配置编辑 | CLI 使用 `toml_edit` 在整套源码 workspace 中合并应用成员，并保留根 `Cargo.toml` 的其余内容与注释；不引入额外 manifest 重写器 |
