@@ -1,0 +1,3 @@
+interface:
+  display_name: "Vue Best Practices"
+  short_description: "Build Vue admin components and reliable state"

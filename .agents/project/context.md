@@ -29,7 +29,7 @@
 - v1 在事务提交前后、注册/登录、文件上传等关键流程提供公开类型化扩展点，开发者通过注册钩子/监听器扩展而不改核心；同步校验与成功后事件、回滚/失败与集群投递边界分清，见 [设计规则](plans/framework-design.md#关键流程的公开扩展点)。
 - 允许按相关功能簇借鉴 OpenSpring 的优秀设计思想；先只读核对来源代码，评估已有能力并按 Rust 语义适配，记录取舍和验收，不机械移植或引入平行系统，见 [跨语言设计参考](plans/framework-design.md#跨语言设计参考)。
 - 集群部署是 v1 必须项：多 API/worker/scheduler、共享状态、跨节点实时投递、滚动发布及故障恢复必须有双库多副本证据，见 [集群计划](plans/v1-cluster-deployment.md)；进程内或节点本地能力不能冒充共享状态。
-- 版本分工：v1 交付完整通用框架，v2 交付类似若依使用体验的现成后台套件；后台复用 v1 公共能力，不把组织模型和前端依赖放进 core，见 [v2 计划](plans/v2-admin-platform.md) 与 [版本路线](roadmap.md)。当前先完成 v1 全部门禁，随后按最新开发委托继续 v2；AI 平台仍须另行立项。
+- 版本分工：v1 交付完整通用框架，v2 完善前端视图与现成后台套件：Rust 服务端、Vue Admin 管理界面、uni-app App；PC 端仅规划设计、暂不开发。Admin 视图骨架采用 Vue Vben Admin，版本与组件方案按 [v2 计划](plans/v2-admin-platform.md) 的 B1 锁定。后台复用 v1 公共能力，不把组织模型和前端依赖放进 core，见 [版本路线](roadmap.md)。当前先完成 v1 全部门禁再实施 v2；AI 平台仍须另行立项。
 - 通用加密与密钥轮换在框架进程内完成，默认不依赖第三方服务；普通路径只需密钥配置及加解密调用，采用当前密钥写入、历史密钥解密，不强制远程密钥中心或复杂算法配置，详见 [通用能力计划](plans/v1-common-capabilities.md)。
 - v1 完整通用底座按 [能力覆盖与归属](plans/v1-capability-coverage.md) 交付；常见底层机制由框架整合，每类职责一个入口，不让业务开发者重复搭建，不因复用 Rust 库而省略框架接入与验收。
 - 国际化、WebSocket、统一出站 HTTP、通用加密与密钥、签名链接、审计、请求幂等均纳入 v1。请求级国际化已按 [ADR-032](decisions/adr-032-request-internationalization.md) 实现；审计记录按 [ADR-035](decisions/adr-035-audit-recording.md) 接入数据库与可替换 sink，并支持同事务写入；签名链接按 [ADR-036](decisions/adr-036-signed-links.md) 实现用途隔离、过期校验和可选共享撤销；邮件/SMS driver 与 Twilio adapter 已按 [ADR-033](decisions/adr-033-sms-driver-and-template-contract.md) 实现，真实 Twilio 实发仍待授权账号与目标；其余范围及待决策建议见 [通用能力计划](plans/v1-common-capabilities.md)。SSE 等其他通用机制按能力覆盖计划补齐，完整实时消息平台另行扩展。

@@ -69,4 +69,6 @@
 
 ## 版本政策
 
+v2 端侧规划：Admin Web 使用 Vue Vben Admin（Vue 3 / TypeScript / Vite 路线），App 使用 uni-app；PC 端仅设计，暂不引入运行时。B1 锁定具体版本、UI 库、App 实现代际/渲染模式与目标平台，记录实际依赖和锁文件；目前这些前端依赖尚未安装，不属于 v1 Rust 核心依赖。范围、选型依据及验收见 [v2 计划](plans/v2-admin-platform.md)。
+
 Edition 2024；MSRV 为 stable 减两个小版本；0.x 期间破坏性变更只在次版本号；依赖升级随 Dependabot，升级主版本写 ADR。

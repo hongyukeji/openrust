@@ -1,0 +1,3 @@
+interface:
+  display_name: "uni-app Development"
+  short_description: "Build mobile flows with explicit platform checks"
