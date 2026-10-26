@@ -98,5 +98,9 @@ name = "schedule"
 path = "tests/schedule/coordination.rs"
 
 [[test]]
+name = "schedule_calendar"
+path = "tests/schedule/calendar.rs"
+
+[[test]]
 name = "server"
 path = "tests/server/aggregate.rs"

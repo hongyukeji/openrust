@@ -87,7 +87,10 @@ pub mod prelude {
         QueueMigration, QueuePlugin, QueueTask, TaskGroup,
     };
     #[cfg(feature = "queue")]
-    pub use crate::schedule::{ScheduleDefinition, ScheduleFrequency, ScheduleReport, Scheduler};
+    pub use crate::schedule::{
+        CronOptions, MissedRunPolicy, ScheduleDefinition, ScheduleFrequency, ScheduleReport,
+        Scheduler,
+    };
     #[cfg(feature = "encryption")]
     pub use crate::security::{EncryptionPlugin, Encryptor};
     #[cfg(feature = "signing")]

@@ -31,9 +31,8 @@
 
 ## F1 日历调度
 
-- 保留 interval/UTC daily；新增 cron 和显式 IANA 时区，采用成熟解析与时区组件。实施 Spec 明确字段数、支持语法及计划版本，不支持自然语言或任意 shell 调度。
-- 默认 UTC；建议 DST 不存在时间跳过、重复本地时间只触发一次，错过触发默认跳过，可配置有上限的补跑。最终语义必须在实现前定稿并写入 ADR-037，不能退回“是否做 cron”的范围评估。
-- 仍使用共享数据库 UTC 时钟和同事务派发；稳定 slot 身份要覆盖时区、重复时间与计划变更，限制每次扫描/补跑数量。部署说明要求各节点采用一致时区数据版本。
+- 保留 interval/UTC daily；新增 `cron-parser` 五字段表达式及 `chrono-tz` IANA 时区，不支持秒字段、自然语言或任意 shell。默认 UTC；DST gap 跳过、重复 wall minute 去重；默认跳过错过触发，catch-up 每 tick 上限 1–100。
+- 仍使用共享数据库 UTC 时钟和同事务派发；表达式/时区摘要隔离计划版本，首次启用不回填历史；补跑跳过已经持久化的槽，避免 DST fold 后旧槽阻塞水位。细节以 [ADR-037](../decisions/adr-037-queue-worker-lifecycle.md) 与 [调度事实](../core/schedule.md) 为准。
 - 验收：跨日/闰年、DST 重复与缺失、长时间停机、计划变更、双节点竞争和崩溃恢复；PostgreSQL/MySQL 均验证去重与有界补跑，不承诺外部副作用恰好一次。
 
 ## F2 国际化表达与格式化

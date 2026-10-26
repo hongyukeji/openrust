@@ -6,7 +6,7 @@
 
 ## 领取规则
 
-先核对 Git/WIP 和 [执行校准](plan.md#执行校准)。数据库队列、调度、活动唯一键及有限任务链/批次已提交，不重复实现。若存在并行 Agent 的 WIP，先保留并闭合其当前最小簇，再按以下顺序继续。共享锁与请求幂等已按 ADR-042 完成双库实现和验收；Worker 停机修正已完成进程内/双库 SIGTERM 基础验收，后续唯一 in_progress 为日历调度 F1。
+先核对 Git/WIP 和 [执行校准](plan.md#执行校准)。数据库队列、interval/UTC daily 调度、活动唯一键及有限任务链/批次已提交，不重复实现。共享锁与请求幂等已按 ADR-042 完成双库验收；Worker 停机修正和 F1 日历调度均已按 PostgreSQL/MySQL 专项验收。当前唯一 in_progress 为 F2 国际化表达与地区格式化。
 
 V1 参考 Loco、Laravel、Goravel、OpenSpring；若依/芋道仅 V2。新增必交范围与契约见 [底层补齐计划](plans/v1-foundation-completion.md)，当前进行中功能簇保持不变；可选启用的能力仍须开发验收。
 
@@ -18,10 +18,10 @@ V1 参考 Loco、Laravel、Goravel、OpenSpring；若依/芋道仅 V2。新增�
 | --- | --- | --- |
 | 共享锁与请求幂等（ADR-042） | 已交付 `SharedLocks`、fencing/事务内检查、显式 `RequestIdempotency` 与有界 JSON replay/清理；无 Redis 依赖 | PostgreSQL 18/MySQL 8.4 真实隔离库、多 Db pool 并发竞争、接管/旧 owner 防护、scope/指纹冲突、业务事务回滚与结果回放通过 |
 | Worker 租约与停机修正 | 按 ADR-037 修正 `work_once` 合作取消等待、shutdown deadline、token 条件重试；supervisor 收到信号后 drain、join 全部 worker 并传播错误。PG18/MySQL8.4 真实 SIGTERM 验证合作任务确认、不合作任务有界超时并释放 lease、同队列 pending job 不再领取；关闭 worker 连接池模拟数据库不可用时 supervisor 返回错误且原 lease 保留；双库旧 token 接管后 stale handler 不能确认新 worker 结果；强杀恢复测试复验 | 本地双库功能验收完成；生产多实例负载及完整集群留在 M4/M6 门禁 |
-| 日历调度 F1 **in_progress** | 按 [底层补齐计划](plans/v1-foundation-completion.md) 交付 cron/IANA/DST 与有界补跑；先定语法/时区/错过触发/计划变更语义，复用 ADR-037 数据库时钟与 slot 派发 | 双库 DST 重复/缺失、跨日停机、补跑上限、计划变更及双节点去重；不能用原 UTC daily 关闭任务 |
-| 国际化与邮件模板 F2/F3 | 分两簇：同一 catalog 增加复数/选择/地区格式化；安全邮件模板/布局复用 Mailer、lettre 与生成器 | 多语言/数字日期与并发隔离；转义/缺参、multipart、固定重试内容、生成项目及本机 SMTP 实收 |
+| 国际化表达与地区格式化 F2 **in_progress** | 在现有 catalog/locale 增加复数、有限选择、数字及日期地区格式化；保留 `{name}` 插值兼容，实施前选定成熟组件和数据边界 | 中文、英文及多复数规则语言；缺参/回退、并发隔离和跨时区日期；不改变协议字段及运行时 locale 契约 |
+| 安全邮件模板 F3 | 复用 Mailer、lettre 与生成器，提供受信应用资源的模板/布局，纯文本及可选 HTML | 注入转义、缺参、multipart、固定重试内容、生成项目和本机 SMTP 实收 |
 | 队列化通信与薄通知层 | 序列化邮件/SMS 作业与多渠道编排；复用 Mailer/SmsSender、locale、队列 retry；不新增独立重试系统 | 同事务派发、失败/重复投递边界、fake 与真实本机 SMTP；Twilio 实发仍需授权目标与凭据 |
-| M4 生成与集成收口 | `generate job`、可运行 API/worker/scheduler 组合示例；双库 CI 显式启用 queue 并运行进程测试 | `.github/workflows/ci.yml` 原数据库作业只启用 auth/db；当前结构簇已补 queue，验证时证明 queue/schedule/崩溃测试确实执行，缺 URL 不得作为通过；完成 M4 全部门禁 |
+| M4 生成与集成收口 | `generate job`、可运行 API/worker/scheduler 组合示例；双库 CI 显式启用 queue 并运行进程测试 | `.github/workflows/ci.yml` 数据库作业启用 queue 并运行 queue/schedule/calendar/recovery targets；生成项目与组合运行、缺 URL 不得作为通过；完成 M4 全部门禁 |
 
 ## M5：共享基础设施、通信与运行保障
 

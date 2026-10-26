@@ -20,7 +20,8 @@
 | 国际化 | `openrust::i18n` + `serde_json` | 当前是 JSON resource 与简单插值；F2 复数/选择/地区格式化已纳入 V1，成熟组件待选型，不表示已有相关依赖 |
 | 配置 | `figment` | 已采用；错误信息含键名（测试覆盖） |
 | 日志 / 追踪 | 已用 `tracing` + `tracing-subscriber` | `opentelemetry` / `metrics` 接入为 M5 规划，当前无对应依赖或 feature |
-| 时间 | `chrono`（UTC） | SeaORM 兼容，生态最广 |
+| 时间 | `chrono` + `chrono-tz` 0.10.4（IANA tzdb），队列 cron 使用 | SeaORM 兼容；`queue` feature 启用静态 IANA 时区表，构建/产物增加相应数据；集群节点须运行相同构建产物 |
+| cron 解析 | `cron-parser` 0.12（`queue` feature） | 只接受五字段表达式；可复用解析结果计算日历触发，DST gap 跳过且 fold 的两个绝对时刻有序返回，框架以本地 wall-slot 唯一键折叠重复分钟 |
 | ID | 已提供可选 UUIDv7，详见下表 `db-uuid` | 默认整数 ID；生成选项为 `--uuid-id`，不使用不存在的 `--uuid` |
 
 ## 数据
@@ -45,7 +46,7 @@
 | 能力 | 当前实现 | 待实现边界 |
 | --- | --- | --- |
 | 队列 | `queue` feature 下的自研数据库 driver（[ADR-003](decisions/adr-003-database-queue-default.md)，不依赖 `apalis`） | 当前无 `queue-redis` feature 或 Redis queue driver；M4 剩余范围见 [队列事实](core/queue.md) |
-| 调度 | `queue` feature；`Scheduler` + `Interval/DailyAtUtc`，当前仅 UTC | F1 cron/IANA/DST/有界补跑为 V1 必交，组件待引入，当前不存在相关实现保证 |
+| 调度 | `queue` feature；`Scheduler` + interval/UTC daily/五字段 cron，`cron-parser` 0.12 与 `chrono-tz` 0.10.4 | F1 已实现；cron 使用 IANA zoneinfo 表，DST gap 跳过、重复 wall minute 去重；有界补跑及双库验收见 ADR-037 |
 | 缓存 | 尚未实现；contract 要求标准应用默认 Redis、memory/file 显式选择（ADR-015、[ADR-014](decisions/adr-014-cache-driver-and-store-contract.md)） | M5 引入统一 Cache、命名 stores 与 drivers；`cache-redis` 是规划 feature，当前 manifest 不含它 |
 | 存储 | 尚未实现；规划以 `opendal` 提供本地和 S3 兼容路径 | `opendal` 依赖与 `storage-s3` feature 均待引入 |
 | 邮件 / 短信 | `lettre` 0.11 + log/fake；`mail-smtp` 启用 Tokio/Rustls STARTTLS，仅本机 loopback 可显式关闭；`sms-twilio` 复用 `http-client` 与 `base64` | 本机 Mailpit SMTP 实收已有验收记录；真实 Twilio 投递待授权账号和目标，log/fake 不能代替送达证据 |

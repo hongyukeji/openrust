@@ -643,6 +643,25 @@ impl QueuePlugin {
         )
     }
 
+    /// 注册一个五字段 cron 任务，按指定 IANA 时区计算触发时段。
+    pub fn schedule_cron<T: Serialize>(
+        &mut self,
+        key: &str,
+        queue: &str,
+        job_name: &str,
+        payload: &T,
+        expression: &str,
+        options: crate::schedule::CronOptions,
+    ) -> Result<&mut Self> {
+        let crate::schedule::CronOptions {
+            time_zone,
+            missed_runs,
+        } = options;
+        let frequency =
+            crate::schedule::ScheduleFrequency::cron(expression, &time_zone, missed_runs)?;
+        self.register_schedule(key, queue, job_name, payload, frequency)
+    }
+
     fn register_schedule<T: Serialize>(
         &mut self,
         key: &str,
@@ -2056,4 +2075,79 @@ fn new_id() -> Result<String> {
 #[allow(clippy::print_stdout)]
 fn print_requeued(id: &str) {
     println!("Requeued job {id}");
+}
+
+#[cfg(all(test, feature = "queue"))]
+mod tests {
+    use super::QueuePlugin;
+    use crate::schedule::{CronOptions, MissedRunPolicy};
+
+    #[test]
+    fn cron_registration_rejects_invalid_schedule_configuration()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let mut plugin = QueuePlugin::default();
+        plugin.schedule_cron(
+            "reports.daily",
+            "reports",
+            "reports.daily.v1",
+            &serde_json::json!({}),
+            "30 9 * * 1-5",
+            CronOptions::default(),
+        )?;
+        assert!(
+            plugin
+                .schedule_cron(
+                    "reports.invalid-expression",
+                    "reports",
+                    "reports.daily.v1",
+                    &serde_json::json!({}),
+                    "0 0 31 2 *",
+                    CronOptions::default(),
+                )
+                .is_err()
+        );
+        assert!(
+            plugin
+                .schedule_cron(
+                    "reports.invalid-time-zone",
+                    "reports",
+                    "reports.daily.v1",
+                    &serde_json::json!({}),
+                    "* * * * *",
+                    CronOptions {
+                        time_zone: "Mars/Olympus".to_owned(),
+                        missed_runs: MissedRunPolicy::Skip
+                    },
+                )
+                .is_err()
+        );
+        assert!(
+            plugin
+                .schedule_cron(
+                    "reports.invalid-catch-up",
+                    "reports",
+                    "reports.daily.v1",
+                    &serde_json::json!({}),
+                    "* * * * *",
+                    CronOptions {
+                        time_zone: "UTC".to_owned(),
+                        missed_runs: MissedRunPolicy::CatchUp { max_slots: 101 }
+                    },
+                )
+                .is_err()
+        );
+        assert!(
+            plugin
+                .schedule_cron(
+                    "reports.daily",
+                    "reports",
+                    "reports.daily.v1",
+                    &serde_json::json!({}),
+                    "* * * * *",
+                    CronOptions::default(),
+                )
+                .is_err()
+        );
+        Ok(())
+    }
 }

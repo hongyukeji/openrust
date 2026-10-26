@@ -67,6 +67,8 @@ sea-orm-migration = { version = "2.0.4", default-features = false, features = ["
 sha2 = "0.10"
 subtle = "2.6"
 chrono = { version = "0.4", features = ["serde"] }
+chrono-tz = "0.10.4"
+cron-parser = "0.12"
 uuid = { version = "1", features = ["v7", "serde"] }
 time = { version = "0.3", features = ["serde"] }
 zeroize = "1.9.1"
@@ -107,6 +109,8 @@ argon2 = { workspace = true, optional = true }
 async-trait.workspace = true
 base64 = { workspace = true, optional = true }
 chrono = { workspace = true, optional = true }
+chrono-tz = { workspace = true, optional = true }
+cron-parser = { workspace = true, optional = true }
 dotenvy.workspace = true
 figment.workspace = true
 getrandom.workspace = true
@@ -168,7 +172,7 @@ auth = [
     "dep:tower-sessions",
     "signing",
 ]
-queue = []
+queue = ["dep:chrono", "dep:chrono-tz", "dep:cron-parser"]
 signing = ["dep:base64", "dep:jsonwebtoken"]
 mail-smtp = ["lettre/smtp-transport", "lettre/tokio1-rustls-tls"]
 http-client = ["dep:reqwest"]

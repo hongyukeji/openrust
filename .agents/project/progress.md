@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-26
-> 摘要：框架处于 v1 M4，尚未达到完整 v1。目录迁移、M3 mailer/policy 生成器及 ADR-042 共享锁/请求幂等已完成相应验证和本地提交；完整剩余范围见待办。
+> 摘要：框架处于 v1 M4，尚未达到完整 v1。源码工作区、C1–C3 中文化、M3 认证流程扩展及 M4 共享锁、worker 生命周期和 F1 日历调度已有本地提交与双库证据；完整剩余范围见待办。
 
 ## 源码 workspace 交付
 
@@ -19,7 +19,7 @@
 | HTTP client 与 i18n | 统一有界出站调用/fake、请求级 locale、中英资源与应用 catalog；生成项目/本地 HTTP 验证 | 不等于外部供应商实发或完整语言格式化引擎 |
 | 邮件与短信 | Mailer/SmsSender、SMTP/log/fake、Twilio adapter、本地化模板；Mailpit 本机 SMTP 实收、Twilio 协议测试通过 | Twilio 真实账号投递待授权；队列发送和薄多渠道通知待补 |
 | 加密、签名、审计 | 进程内加密/key ring、用途隔离签名链接/可选共享撤销、可替换审计 sink/同事务审计；已有单测、双库相关路径与生成验证 | 加密实现审计/平台性能复核；不承诺任意远程 sink 可靠送达或审计不可篡改 |
-| 队列与 worker | 数据库任务、显式 handler、事务派发、有限并发/重试/失败保留/超时/lease/心跳；双库强杀恢复；活动唯一键、任务链/有限批次已提交；ADR-042 的跨实例锁与业务请求幂等已单独交付。Worker 在 PG18/MySQL8.4 真实 SIGTERM 下合作取消并确认、不合作超时并释放 lease、同队列 pending job 不再领取；连接池断开时 supervisor 返回错误且 lease 保留；新 worker 接管后旧 token 不能确认新结果；所有 worker join 后传播错误 | 生产多实例负载、公开执行扩展及完整负载集群仍待完成 |
+| 队列与 worker | 数据库任务、显式 handler、事务派发、有限并发/重试/失败保留/超时/lease/心跳；双库强杀恢复；活动唯一键、任务链/有限批次已提交；ADR-042 的跨实例锁与业务请求幂等已单独交付。Worker 在 PG18/MySQL8.4 真实 SIGTERM 下合作取消并确认、不合作超时并释放 lease、同队列 pending job 不再领取；连接池断开时 supervisor 返回错误且 lease 保留；新 worker 接管后旧 token 不能确认新结果；所有 worker join 后传播错误。F1 增加五字段 cron/IANA 时区、DST wall-slot 去重、计划版本隔离和每 tick 1–100 项补跑；PostgreSQL 18/MySQL 8.4 的独立进程竞争、计划变更和积压推进测试通过 | 生产多实例负载、公开执行扩展及完整负载集群仍待完成 |
 | M4 事件扩展 | `openrust::events` typed ordered listener、fail-fast 与事务上下文；queue feature 显式映射至已注册 Job；事务 before/after 边界及 AuthFlows 注册/登录事件按 ADR-041 验收。真实 PostgreSQL 18.6 与 MySQL 8.4 隔离库各通过事务拒绝/回滚/提交后 listener 错误、注册拒绝无账户、登录失败通知及登录成功事件失败无 refresh 泄漏；既有 queued listener 双库提交/回滚 worker 验收仍有效 | 不代表跨节点事件广播、exactly-once 或完整集群 |
 | 目录与测试入口收尾 | CLI/macros/test packages 已迁至 `cli/`、`macros/`、`testing/`；hello 位于 `examples/hello/main.rs`；根 HTTP 和 server integration targets 按能力分组并显式保留 target 名。迁移前后均为 5 个 package、265 个可列测试条目。PG18/MySQL8.4 server all-features 集成各 40 项通过；生成 PostgreSQL/MySQL `--auth` 项目各通过 fmt/check/真实 auth_flows HTTP test；hello TCP HTTP 200；workspace fmt/clippy/test/docs、deny 与 no-default check 通过。`apps/server` 保留；旧 `crates/` 源码和目录已移除。 | 无本簇剩余项 |
 | Scheduler | UTC interval/daily slot、数据库时钟、slot 与 job 原子去重、run/once/list；双库独立进程竞争/异常退出/SIGTERM 已验证 | 不含 cron/IANA/DST；生产资源、滚动升级和完整拓扑验收未完成 |
@@ -36,14 +36,14 @@
 - C2 Rustdoc 与源码/配置注释中文化：覆盖根公开模块、`cli` 内部实现、`macros`、`testing`、`apps/server`、`examples` 与 `tests`；未改 API、运行时文案或行为。fmt、workspace clippy/test/doc、cargo deny、diff check 通过；PostgreSQL 18 和 MySQL 8.4 各通过 18 项 auth/db/queue/recovery/schedule 集成测试。生成模板入口注释快照按实际生成结果更新。
 - C3 生成说明与 CLI 帮助中文化：CLI 分组标题、帮助/版本选项、子命令说明、生成的应用指南、`.env.example` 注释及生成 Rustdoc 已中文化；Cargo 描述原已中文。CLI 15 项测试、workspace fmt/clippy/test/warnings-denied doc/cargo deny 通过；干净源码副本生成无数据库、PostgreSQL、MySQL 应用各自直接 check/test 通过。
 - C1 默认文档入口中文化：根 README、贡献/安全/行为准则/变更日志及框架模块 README 已按简体中文优先更新，保留代码、技术标识符、链接和许可证原文。13 个变更 Markdown 的本地链接/锚点、`git diff --check`、warnings-denied Rustdoc 与框架 doctest 通过；详见 `.agents/project/memory/verification.md`。
-- V1 底层补齐 F1–F10 的范围、依赖与验收已确认并记录，见 [专题计划](plans/v1-foundation-completion.md)；若依/芋道仅 V2 参考。新增能力尚待实现，本轮没有新增代码测试通过记录，当前进行中功能簇以 `todo.md` 为准。
+- V1 底层补齐 F1–F10 的范围与依赖见 [专题计划](plans/v1-foundation-completion.md)；F1 已落地，F2–F10 仍按待办顺序交付；若依/芋道仅 V2 参考。
 - gRPC 已按 [ADR-040](decisions/adr-040-grpc-integration.md) 纳入 v1/M5，当前仅完成范围和规划；跨协议验证/上下文、出站安全/韧性及生产运行/迁移补强见 `todo.md`，没有新增代码或运行验收证据。
 - M5/M6 尚有成组能力未交付；没有可宣称已完成的 v1 性能基线、全部最低版本兼容性或完整集群验收。
 - v1 完整验收通过后按已授权顺序进入 v2；Admin 已确定 pure-admin 精简国际化版 + Element Plus，App 使用 uni-app，PC 仅规划设计。当前只完成选型与文档校准，未创建端侧应用或安装前端依赖；AI 已确认采用可选插件套件与完整平台应用；当前仅完成文档规划，独立门禁、全量目标与隔离要求继续有效，未实现或立项。
 
 ## 下一步
 
-按 [todo.md](todo.md) 推进日历调度 F1、M4 后续、M5、M6。Worker 专项已有双库单项证据，但不覆盖生产多实例负载与完整集群门禁。组件整合与 Laravel 式体验按 ADR-001；不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
+按 [todo.md](todo.md) 推进 F2 国际化表达与地区格式化、M4 后续、M5、M6。Worker 与 scheduler 专项双库证据不覆盖生产多实例负载与完整集群门禁。组件整合与 Laravel 式体验按 ADR-001；不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
 
 ## 本次文档核对范围
 
