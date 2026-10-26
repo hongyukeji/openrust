@@ -8,7 +8,7 @@
 
 | 能力 | 选型 | 说明 |
 | --- | --- | --- |
-| 异步运行时 | `tokio` 1.x | 唯一运行时；启用 `io-util` 支持有界流式 HTTP 服务验收与异步 I/O |
+| 异步运行时 | `tokio` 1.x | 唯一运行时；启用 `io-util` 支持 HTTP 验收与异步 I/O、`fs` 支持本地缓存异步文件操作 |
 | HTTP | `axum` 0.8 + `tower` + `tower-http` | 路由、提取器、中间件；`tower-http` 启用 `cors`、`compression-gzip`、`compression-br` 以支持配置化跨域与 gzip/br 协商，另有 request-id、trace、timeout、catch-panic；门面直接依赖并导出 `tower::ServiceExt` 供单依赖应用测试路由 |
 | 限流 | `openrust::core::RateLimiter` + `openrust::database::DatabaseRateLimitStore` | 已实现固定窗口服务与双库共享 store，AuthFlows 与通用 HTTP RateLimitLayer/key 策略已接入；gRPC 适配待实现，不额外依赖 governor |
 | 会话 | `tower-sessions` 0.15 | 复用 Axum/Tower 通用 Session 与 store contract；OpenRust 以 SeaORM 实现双库共享 store，Redis adapter 暂留后续 |
@@ -33,7 +33,7 @@
 | SQLx 支持 | `sqlx` 0.9 | MySQL driver 强制 TLS（Rustls）；不启用存在安全公告的 RSA 非 TLS 认证路径；`db.sqlx()` 尚未实现，若提供需先定义公开 API、feature 与连接生命周期 |
 | 数据库 | 暂定最低支持：PostgreSQL 14+、MySQL 8.0+；日常开发/Compose：PostgreSQL 18、MySQL 8.4 LTS；常规 CI：PostgreSQL 18、MySQL 8.4 | 运行时版本检查按暂定最低版本执行；PostgreSQL/MySQL 最低版本的完整兼容性仍须在 v1 发布验收中复核，不把单项历史测试等同于整套框架支持。仅在主版本跨度大或兼容风险显著时专项测试，不为每次日常 CI 追测所有版本。PostgreSQL 官方按主版本提供五年支持，不称 LTS |
 | UUIDv7 主键 | `uuid` 1.x（`v7`, `serde`），通过 `db-uuid` feature 同步启用 SeaORM/SeaQuery UUID codec | 仅在模型生成显式使用 `--uuid-id` 时启用；默认仍为自增整数。UUIDv7 由生成实体的 SeaORM `before_save` 在应用进程生成 |
-| Redis | 暂定最低支持：Redis 6.2+；日常开发/Compose：Redis 8；能力落地后按兼容风险增加专项测试 | Redis driver 和客户端依赖仍待 M5 引入；最低版本须经标准缓存路径与集群共享语义的真实兼容验收，发布前复核版本生命周期 |
+| Redis | 暂定最低支持：Redis 6.2+；日常开发/Compose：Redis 8；当前真实服务验收使用 Redis 8.10.2 | 缓存基础路径已通过 Redis 8.10.2；最低版本与集群共享语义仍需兼容专项验收，v1 发布前复核版本生命周期 |
 | 密码哈希 | `argon2` 0.6（Argon2id / PHC） | RustCrypto 实现；随机 salt；参数有界可配置；哈希与验证移入 Tokio blocking pool |
 | 认证与限流 key 摘要 | `sha2` 0.10 + `subtle` 2.6 | Session、PAT、CSRF 与数据库限流 key 存 SHA-256 摘要；CSRF 摘要比较使用常量时间比较。限流摘要仅避免原文持久化，不抵抗低熵 key 猜测 |
 | JWT | `jsonwebtoken` 11.1（`aws_lc_rs`） | 复用成熟 JWT 编解码与验证；避免 `rust_crypto` 带入被安全公告覆盖的 `rsa 0.9`；OpenRust 固定 HS256 并自行验证配置、kid、claims、密钥轮换与刷新凭据语义；MSRV 声明为 1.88，须由 workspace 1.97 验证 |
@@ -47,7 +47,7 @@
 | --- | --- | --- |
 | 队列 | `queue` feature 下的自研数据库 driver（[ADR-003](decisions/adr-003-database-queue-default.md)，不依赖 `apalis`） | 当前无 `queue-redis` feature 或 Redis queue driver；M4 剩余范围见 [队列事实](core/queue.md) |
 | 调度 | `queue` feature；`Scheduler` + interval/UTC daily/五字段 cron，`cron-parser` 0.12 与 `chrono-tz` 0.10.4 | F1 已实现；cron 使用 IANA zoneinfo 表，DST gap 跳过、重复 wall minute 去重；有界补跑及双库验收见 ADR-037 |
-| 缓存 | 尚未实现；contract 要求标准应用默认 Redis、memory/file 显式选择（ADR-015、[ADR-014](decisions/adr-014-cache-driver-and-store-contract.md)） | M5 引入统一 Cache、命名 stores 与 drivers；`cache-redis` 是规划 feature，当前 manifest 不含它 |
+| 缓存 | 根 `openrust::cache` 提供 Cache、命名 stores、memory/file 与公开 custom driver contract；Redis 由 `redis` 1.8.0、`connection-manager` + `tokio-rustls-comp` feature 提供 | `cache-redis` 可选 feature；标准生成应用启用 Redis 默认 store；Redis 6.2 最低版兼容、F4 tag/SWR/singleflight 尚待验收 |
 | 存储 | 尚未实现；规划以 `opendal` 提供本地和 S3 兼容路径 | `opendal` 依赖与 `storage-s3` feature 均待引入 |
 | 邮件 / 短信 | `lettre` 0.11 + log/fake；`mail-smtp` 启用 Tokio/Rustls STARTTLS，仅本机 loopback 可显式关闭；`sms-twilio` 复用 `http-client` 与 `base64` | 本机 Mailpit SMTP 实收已有验收记录；真实 Twilio 投递待授权账号和目标，log/fake 不能代替送达证据 |
 | 模板 | 可选 `mail-templates` 使用 MiniJinja `~2.24.0`（关闭默认 feature，仅 `builtins`、`fuel`、`multi_template`、`serde`、`unicode`）；`LocalizedEmail` 与 `I18n` 仍负责普通消息和主题翻译 | 仅受信任编译期应用资源、严格变量与自动 HTML 转义；不提供文件/网络 loader；邮件模板不扩展为通用页面模板系统 |

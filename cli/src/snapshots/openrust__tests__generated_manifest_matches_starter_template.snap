@@ -10,4 +10,4 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-openrust = { workspace = true }
+openrust = { workspace = true, features = ["cache-redis"] }

@@ -14,6 +14,8 @@ impl Application for Server {
             .plugin(openrust::i18n::I18nPlugin::default())
             .plugin(openrust::mail::MailerPlugin)
             .plugin(openrust::sms::SmsPlugin);
+        #[cfg(feature = "cache-redis")]
+        let app = app.plugin(openrust::cache::CachePlugin);
         #[cfg(feature = "encryption")]
         let app = app.plugin(openrust::security::EncryptionPlugin);
         app.routes(routes::register);

@@ -4,11 +4,12 @@
 
 use std::fmt::Write as FmtWrite;
 use std::fs;
-use std::io::Write;
+use std::io::{Read, Write};
+use std::net::{TcpStream, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 use std::process::{Command as Process, ExitCode};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, bail};
 use base64::Engine as _;
@@ -641,8 +642,8 @@ fn cargo_manifest(
     encryption: bool,
 ) -> String {
     let mut manifest = include_str!("../templates/Cargo.toml").replace("{{name}}", name);
-    if database.is_some() || auth || http_client || sms_twilio || encryption {
-        let mut features = Vec::new();
+    {
+        let mut features = vec!["cache-redis"];
         if let Some(database) = database {
             features.push(database.feature());
         }
@@ -745,7 +746,7 @@ fn env_example(
     auth: bool,
     encryption: bool,
 ) -> String {
-    let mut contents = "# 复制为 .env 供本地开发使用。不要提交填入实际值的 .env 文件。\n# 生产环境从进程环境变量读取配置，不读取此文件。\nAPP_ENV=development\n\n# 可选：覆盖 config/*.toml 中的配置项。\n# APP_SERVER__PORT=3000\n# APP_SERVER__HOST=127.0.0.1\n# APP_API__HTTP_STATUS=always_ok\n".to_owned();
+    let mut contents = "# 复制为 .env 供本地开发使用。不要提交填入实际值的 .env 文件。\n# 生产环境从进程环境变量读取配置，不读取此文件。\nAPP_ENV=development\n\n# 可选：覆盖 config/*.toml 中的配置项。\n# APP_SERVER__PORT=3000\n# APP_SERVER__HOST=127.0.0.1\n# APP_API__HTTP_STATUS=always_ok\n# REDIS_URL=redis://127.0.0.1:6379/\n".to_owned();
     if let Some(database) = database {
         use std::fmt::Write as _;
         contents.push('\n');
@@ -1713,11 +1714,158 @@ fn run_application(args: &[&str], development: bool) -> anyhow::Result<ExitCode>
         .args(args);
     if development {
         command.env("APP_ENV", "development");
+        if let Some(redis_url) = prepare_development_redis(&workspace.root, &app_dir)? {
+            command.env("REDIS_URL", redis_url);
+        }
     }
     command
         .status()
         .context("failed to start `cargo run`")
         .map(exit_code)
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "development Redis discovery, startup, and readiness form one bounded lifecycle"
+)]
+fn prepare_development_redis(
+    workspace_root: &Path,
+    app_dir: &Path,
+) -> anyhow::Result<Option<String>> {
+    let config_path = app_dir.join("config/default.toml");
+    if !config_path.is_file() {
+        return Ok(None);
+    }
+    let source = fs::read_to_string(&config_path)?;
+    let document = source
+        .parse::<toml_edit::DocumentMut>()
+        .with_context(|| format!("{} is invalid TOML", config_path.display()))?;
+    let Some(cache) = document.get("cache").and_then(toml_edit::Item::as_table) else {
+        return Ok(None);
+    };
+    let store_name = cache
+        .get("default_store")
+        .and_then(toml_edit::Item::as_str)
+        .unwrap_or("default");
+    let Some(store) = cache
+        .get("stores")
+        .and_then(toml_edit::Item::as_table)
+        .and_then(|stores| stores.get(store_name))
+        .and_then(toml_edit::Item::as_table)
+    else {
+        return Ok(None);
+    };
+    if store.get("driver").and_then(toml_edit::Item::as_str) != Some("redis") {
+        return Ok(None);
+    }
+
+    let nested_env = format!(
+        "APP_CACHE__STORES__{}__DSN",
+        store_name.to_ascii_uppercase()
+    );
+    let environment_keys = [nested_env.as_str(), "APP_REDIS_URL", "REDIS_URL"];
+    let mut dotenv = std::collections::HashMap::new();
+    if let Ok(entries) = dotenvy::from_path_iter(app_dir.join(".env")) {
+        for (key, value) in entries.flatten() {
+            dotenv.insert(key, value);
+        }
+    }
+    let dsn = environment_keys
+        .iter()
+        .find_map(|key| std::env::var(key).ok().map(|value| (0, value)))
+        .or_else(|| {
+            environment_keys
+                .iter()
+                .find_map(|key| dotenv.get(*key).cloned().map(|value| (1, value)))
+        })
+        .map(|(_, value)| value)
+        .or_else(|| {
+            store
+                .get("dsn")
+                .and_then(toml_edit::Item::as_str)
+                .map(str::to_owned)
+        })
+        .unwrap_or_else(|| "redis://127.0.0.1:6379/".to_owned());
+
+    let parsed = url::Url::parse(&dsn).context("configured Redis URL is invalid")?;
+    if parsed.scheme() != "redis" {
+        return Ok(None);
+    }
+    let Some(host) = parsed.host_str() else {
+        return Ok(None);
+    };
+    let is_loopback = host.eq_ignore_ascii_case("localhost")
+        || host
+            .parse::<std::net::IpAddr>()
+            .is_ok_and(|ip| ip.is_loopback());
+    if !is_loopback {
+        return Ok(None);
+    }
+    let port = parsed.port().unwrap_or(6379);
+    if redis_ping(host, port) {
+        return Ok(Some(dsn));
+    }
+
+    let compose_file = workspace_root.join("compose.ci.yaml");
+    if !compose_file.is_file() {
+        bail!(
+            "Redis is configured for local development but no Redis service is reachable and compose.ci.yaml is missing"
+        );
+    }
+    let project = workspace_root
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("openrust")
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || ch == '-' {
+                ch.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>();
+    let status = Process::new("docker")
+        .args(["compose", "--project-name", &format!("openrust-dev-{project}"), "-f"])
+        .arg(compose_file)
+        .args(["up", "-d", "redis"])
+        .env("OPENRUST_TEST_REDIS_PORT", port.to_string())
+        .status()
+        .context("failed to start Redis with Docker Compose; start a Redis service or install Docker Compose")?;
+    if !status.success() {
+        bail!("Docker Compose could not start the configured Redis development service");
+    }
+    for _ in 0..100 {
+        if redis_ping(host, port) {
+            return Ok(Some(dsn));
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    bail!("Redis development service did not become ready within 10 seconds")
+}
+
+fn redis_ping(host: &str, port: u16) -> bool {
+    let Ok(addresses) = (host, port).to_socket_addrs() else {
+        return false;
+    };
+    for address in addresses {
+        let Ok(mut stream) = TcpStream::connect_timeout(&address, Duration::from_millis(200))
+        else {
+            continue;
+        };
+        let _ = stream.set_read_timeout(Some(Duration::from_millis(200)));
+        if stream.write_all(b"*1\r\n$4\r\nPING\r\n").is_err() {
+            continue;
+        }
+        let mut response = [0_u8; 128];
+        if let Ok(length) = stream.read(&mut response) {
+            let response = &response[..length];
+            if response.starts_with(b"+PONG") || response.starts_with(b"-NOAUTH") {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 /// 在当前项目中运行 `cargo run --quiet -- <args>`，并返回相同的退出状态。
@@ -1826,21 +1974,24 @@ mod tests {
     #[test]
     fn generated_manifest_enables_requested_http_client_feature() {
         let manifest = cargo_manifest("my-app", None, false, true, false, false);
-        assert!(manifest.contains("features = [\"http-client\"]"));
+        assert!(manifest.contains("\"cache-redis\""));
+        assert!(manifest.contains("\"http-client\""));
         assert!(Cli::try_parse_from(["openrust", "new", "blog", "--http-client"]).is_ok());
     }
 
     #[test]
     fn generated_manifest_enables_twilio_sms_feature() {
         let manifest = cargo_manifest("my-app", None, false, false, true, false);
-        assert!(manifest.contains("features = [\"sms-twilio\"]"));
+        assert!(manifest.contains("\"cache-redis\""));
+        assert!(manifest.contains("\"sms-twilio\""));
         assert!(Cli::try_parse_from(["openrust", "new", "blog", "--sms-twilio"]).is_ok());
     }
 
     #[test]
     fn generated_manifest_and_project_enable_application_encryption() {
         let manifest = cargo_manifest("my-app", None, false, false, false, true);
-        assert!(manifest.contains("features = [\"encryption\"]"));
+        assert!(manifest.contains("\"cache-redis\""));
+        assert!(manifest.contains("\"encryption\""));
         assert!(Cli::try_parse_from(["openrust", "new", "blog", "--encryption"]).is_ok());
 
         let root =
@@ -1865,6 +2016,25 @@ mod tests {
     fn key_generation_print_value_is_a_32_byte_base64_secret() {
         let encoded = generate_key().expect("generate key");
         assert_eq!(STANDARD.decode(encoded).expect("decode key").len(), 32);
+    }
+
+    #[test]
+    fn development_reuses_a_live_local_redis_without_compose() {
+        let root =
+            std::env::temp_dir().join(format!("openrust-cli-redis-reuse-{}", std::process::id()));
+        let app = root.join("apps/blog");
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(app.join("config")).expect("create app config directory");
+        fs::write(
+            app.join("config/default.toml"),
+            "[cache]\ndefault_store = 'default'\n[cache.stores.default]\ndriver = 'redis'\ndsn = 'redis://127.0.0.1:6379/'\n",
+        )
+        .expect("write app config");
+        let redis_url = prepare_development_redis(&root, &app)
+            .expect("reuse existing Redis")
+            .expect("Redis URL is passed to the app");
+        assert_eq!(redis_url, "redis://127.0.0.1:6379/");
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]

@@ -25,6 +25,7 @@ use serde::{Deserialize, Serialize};
 pub mod api;
 pub mod app;
 pub mod auth;
+pub mod cache;
 pub mod database;
 pub mod logger;
 pub mod mailer;
@@ -39,6 +40,7 @@ pub mod sms;
 pub use api::{ApiConfig, HttpStatusMode};
 pub use app::{AppConfig, Environment};
 pub use auth::{JwtConfig, PasswordConfig, SessionConfig};
+pub use cache::{CacheConfig, CacheStoreConfig};
 pub use database::DatabaseConfig;
 pub use logger::{LogConfig, LogFormat};
 pub use mailer::MailConfig;
@@ -286,10 +288,12 @@ impl ConfigLoader {
             ))
             .merge(
                 Env::raw()
-                    .only(&["DATABASE_URL", "PORT"])
+                    .only(&["DATABASE_URL", "REDIS_URL", "PORT"])
                     .map(|key| {
                         if key == "PORT" {
                             "server.port".into()
+                        } else if key == "REDIS_URL" {
+                            "cache.stores.default.dsn".into()
                         } else {
                             "database.url".into()
                         }
@@ -299,6 +303,13 @@ impl ConfigLoader {
             .merge(
                 Env::prefixed(&self.namespace)
                     .filter(|key| key != "ENV" && key != "CONFIG_DIR")
+                    .map(|key| {
+                        if key == "REDIS_URL" {
+                            "cache.stores.default.dsn".into()
+                        } else {
+                            key.into()
+                        }
+                    })
                     .split("__"),
             )
     }

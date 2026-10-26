@@ -29,7 +29,7 @@ cargo run -p cli -- generate migration posts --uuid-id --soft-delete title:strin
 cargo run -p cli -- g migration labels slug:string
 ```
 
-`dev` 将 `APP_ENV` 设为 `development` 后运行该应用的 `serve`；`serve` 保留当前环境。其他命令转发给所选应用并保留退出码。当前 dev/serve 只负责启动，不提供文件监听、依赖服务编排、就绪等待或自动迁移。
+`dev` 将 `APP_ENV` 设为 `development` 后运行该应用的 `serve`；`serve` 保留当前环境。若默认缓存 store 配置为 loopback Redis，`dev` 会先探测服务：已有服务可用时直接复用，不可用时通过仓库 `compose.ci.yaml` 启动 Redis 并保留容器供后续本地开发复用。远端 Redis 由应用直接连接。其他命令转发给所选应用并保留退出码；当前不提供文件监听、就绪等待或自动迁移。
 
 ## 生成代码
 

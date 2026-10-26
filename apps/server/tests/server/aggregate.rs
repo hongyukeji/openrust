@@ -7,7 +7,7 @@ mod routes;
 
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 use figment::Figment;
-#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+#[cfg(any(feature = "db-postgres", feature = "db-mysql", feature = "cache-redis"))]
 use figment::providers::Format;
 use openrust::ServiceExt;
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
@@ -36,6 +36,27 @@ fn mailer_plugin_is_registered_by_the_assembled_server() -> TestResult {
         let app = test_server().await?;
         app.state().try_get::<openrust::mail::Mailer>()?;
         app.state().try_get::<openrust::sms::SmsSender>()?;
+        Ok(())
+    })
+}
+
+#[cfg(feature = "cache-redis")]
+#[test]
+fn cache_plugin_uses_the_configured_shared_redis_store() -> TestResult {
+    openrust::tokio::runtime::Runtime::new()?.block_on(async {
+        let app = test_server().await?;
+        let cache = app.state().try_get::<openrust::cache::Cache>()?;
+        let store = cache.default_store()?;
+        assert_eq!(store.scope(), openrust::cache::CacheScope::Shared);
+        let key = format!("server-test-{}", std::process::id());
+        cache
+            .set(&key, &"connected", Some(Duration::from_secs(10)))
+            .await?;
+        assert_eq!(
+            cache.get::<String>(&key).await?.as_deref(),
+            Some("connected")
+        );
+        cache.remove(&key).await?;
         Ok(())
     })
 }
@@ -92,6 +113,10 @@ async fn test_server() -> Result<openrust::App, openrust::Error> {
         config::Environment::Development,
     );
     let figment = loader.figment();
+    #[cfg(feature = "cache-redis")]
+    let figment = figment.merge(figment::providers::Toml::string(
+        "[cache]\ndefault_store = 'default'\n[cache.stores.default]\ndriver = 'redis'\nnamespace = 'server-test'\ndsn = 'redis://127.0.0.1:6379/'\n",
+    ));
     #[cfg(feature = "encryption")]
     let figment = figment
         .merge(("security.encryption.active_key_id", "local"))

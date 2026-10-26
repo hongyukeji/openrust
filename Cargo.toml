@@ -37,7 +37,7 @@ macros = { path = "macros", version = "0.0.0" }
 testing = { path = "testing", version = "0.0.0" }
 server = { path = "apps/server", version = "0.0.0" }
 
-tokio = { version = "1.54", features = ["rt-multi-thread", "macros", "signal", "net", "time", "io-util"] }
+tokio = { version = "1.54", features = ["rt-multi-thread", "macros", "signal", "net", "time", "io-util", "fs"] }
 tokio-stream = "0.1"
 axum = { version = "0.8", features = ["macros"] }
 axum-core = "0.5"
@@ -77,6 +77,7 @@ uuid = { version = "1", features = ["v7", "serde"] }
 time = { version = "0.3", features = ["serde"] }
 zeroize = "1.9.1"
 async-trait = "0.1"
+redis = { version = "1.8.0", default-features = false, features = ["connection-manager", "tokio-rustls-comp"] }
 url = "2.5"
 sqlx = { version = "0.9", default-features = false }
 toml = "1.1"
@@ -134,6 +135,7 @@ sea-orm.workspace = true
 sea-orm-migration.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+redis = { workspace = true, optional = true }
 sha2.workspace = true
 sqlx = { workspace = true, optional = true }
 subtle = { workspace = true, optional = true }
@@ -203,6 +205,7 @@ http-client = ["dep:reqwest"]
 sms-twilio = ["http-client", "dep:base64"]
 encryption = ["dep:aes-gcm-siv", "dep:base64", "dep:zeroize"]
 test-util = []
+cache-redis = ["dep:redis"]
 
 [lints]
 workspace = true

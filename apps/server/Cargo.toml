@@ -53,6 +53,7 @@ encryption = ["openrust/encryption"]
 queue = ["openrust/queue"]
 db-routing-bench = []
 http-client = ["openrust/http-client"]
+cache-redis = ["openrust/cache-redis"]
 
 [[test]]
 name = "auth"

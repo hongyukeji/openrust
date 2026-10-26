@@ -5,6 +5,7 @@
 use std::process::ExitCode;
 
 pub mod audit;
+pub mod cache;
 pub mod config;
 pub mod core;
 pub mod db;
@@ -68,11 +69,16 @@ pub mod prelude {
         AuthCredential, AuthLayer, AuthMigration, AuthMode, AuthPlugin, AuthPrincipal, AuthSource,
         Authenticator, CurrentUser, JwtConfig, JwtPlugin, JwtTokens, OptionalUser,
     };
+    pub use crate::cache::{
+        Cache, CacheBackend, CacheDriver, CacheDriverConfig, CacheDrivers, CachePlugin, CacheScope,
+        CacheStore,
+    };
     #[cfg(feature = "queue")]
     pub use crate::config::QueueConfig;
     #[cfg(feature = "signing")]
     pub use crate::config::SignedLinksConfig;
     pub use crate::config::SmsConfig;
+    pub use crate::config::{CacheConfig, CacheStoreConfig};
     pub use crate::events::{EventContext, Events, EventsPlugin};
     pub use crate::http::axum::extract::State;
     pub use crate::http::axum::http::StatusCode;

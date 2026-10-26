@@ -31,6 +31,15 @@ v1 需要让业务代码在合理范围内不依赖具体缓存后端，同时�
 - 第三方 driver 通过 `CacheDriver` 注册入口构建 `CacheBackend` 实例；基础 trait 只承诺 get/set/remove/TTL 的 bytes 语义。批量 API 可由基础操作逐项执行，不承诺批量原子性；驱动提供的真正批量原语可在契约测试证明后作为可选能力暴露。原子操作由明确的可选能力接口表达，不要求每个驱动假装支持全部能力。公开 trait 的最终异步边界和配置表示须在 M5 实现 Spec 中与依赖选择一并确定，并由独立扩展示例验证无需修改 OpenRust。
 - 所有内置 driver 跑同一基础契约测试；memory/file 用确定性单测，file 用临时目录验证 key 隔离、过期、替换、并发写和 I/O 故障；Redis 需真实服务集成验证。feature 矩阵覆盖默认、file、redis 和有效组合。
 
+## M5 基础实现细化
+
+- 基础 public API 已落在 `openrust::cache`：`Cache`、`CacheStore`、`CachePlugin`、`CacheDriver`、`CacheBackend`、`CacheDrivers` 与 `CacheDriverConfig`。driver backend 使用对象安全 async trait；扩展包在自己的 `Plugin::build` 中通过 `AppBuilder::extension_mut::<CacheDrivers>()` 注册，`CachePlugin::finish` 在所有插件 build 完成后读取配置并初始化。
+- 配置用 `[cache] default_store` 与 `[cache.stores.<name>]`；driver 专属选项保留为扁平 serde JSON 字段映射。store/key 命名空间统一在业务 API 层组合。零 TTL 被拒绝；TTL 统一传 `Option<Duration>`，Redis 转为毫秒，file 使用 Unix 毫秒过期时间。
+- 内置 driver 的作用域分别是 memory=`Process`、file=`NodeLocal`、Redis=`Shared`。file key 通过 SHA-256 映射为固定文件名，临时文件同目录 rename 替换；不提供多机共享、线性一致更新、锁或原子计数。memory/file 和 Redis 均只承诺基础 get/set/remove；原子能力与 F4 的 tag/SWR/singleflight 仍在后续功能簇。
+- Redis crate 选用 `redis` 1.8.0，默认 features 关闭，仅启用 `connection-manager` 与 `tokio-rustls-comp`，通过可选 `cache-redis` 启用；初始化时建立连接并失败关闭，I/O 错误不转为 miss，敏感 DSN 不进入错误或 Debug。最低 Redis 版本仍待 v1 发布前兼容专项验证。
+- `redis` 的 `xxhash-rust` 是非可选依赖，采用 OSI 批准的 Boost Software License 1.0；将 `BSL-1.0` 明确加入 `deny.toml` allowlist，不启用 Redis crate 的其他默认可选能力。
+- 标准 CLI 生成项目安装 CachePlugin、启用 `cache-redis` 并配置 Redis default store。`openrust dev` 仅在默认 store 使用 loopback Redis 且 PING 不可达时启动仓库 Compose Redis；可达服务复用不重建，启动的服务保留供后续开发复用。`serve` 不代替开发服务编排。
+
 ## 参考与取舍
 
 - Laravel 官方 Cache 文档：<https://laravel.com/docs/13.x/cache>，参考其默认 store、按名称选择 store 与注册 custom driver 的职责拆分。

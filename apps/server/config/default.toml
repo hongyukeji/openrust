@@ -34,6 +34,14 @@ driver = "log"
 [sms]
 driver = "log"
 
+[cache]
+default_store = "default"
+
+[cache.stores.default]
+driver = "redis"
+namespace = "server"
+dsn = "redis://127.0.0.1:6379/"
+
 [session]
 secure = true
 http_only = true

@@ -15,6 +15,6 @@
 - Workspace 保留 package：根 `openrust` 框架、`cli` 命令行与模板、`macros` proc-macro、`testing` 测试工具、`server` 集成宿主。源码交付与命名见 [ADR-039](../decisions/adr-039-source-workspace-distribution.md)。
 - `testing` 单向依赖 `openrust`；根 package 不依赖测试工具，避免依赖环。
 - 工具包已在工作区迁至 `cli/`、`macros/`、`testing/`；当前结构簇仍待验证与提交，不能把路径移动当作验收完成。独立 package 的编译边界与目录承接位置须先评估，不能把 proc-macro 机械并入普通库。
-- Cache、文件存储、通用事件总线、实时通信及 M5 可观测性仍待实现，未从 facade 导出；现有 feature 不代表自动安装对应 plugin。
+- `openrust::cache` 已提供统一 `Cache`、default/named store、memory/file drivers 与公开扩展契约；Redis client 由可选 `cache-redis` feature 启用。安装 `CachePlugin` 需显式配置 store，标准生成器默认 Redis；未安装插件不会连接 Redis。Storage、实时通信及 M5 其余可观测性仍待实现。
 
 `cargo metadata --no-deps --format-version 1` 验收根 package `openrust` 及 workspace 五个成员；default、auth/database features 与 all-features 的验证按 [testing memory](../memory/testing.md) 记录。

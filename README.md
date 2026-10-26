@@ -6,6 +6,8 @@
 
 ## 设计目标
 
+缓存使用 [`openrust::cache`](src/cache/README.md) 的统一 API，标准生成应用通过 `cache-redis` 使用 Redis；memory/file 与自定义 driver 均需显式选择。开发期 `openrust dev` 会复用或启动本地 Compose Redis。
+
 - **约定清晰，不依赖魔法。** 目录、命名、路由、迁移和配置键遵循可见约定。依赖通过明确的 Rust 类型表达，不使用运行时容器、反射或门面式动态注入。
 - **每项能力都有明确入口。** 例如，输入校验使用 `Validated<T>`，授权使用 `Policy`，后台任务使用 `Job`。
 - **常用能力开箱可用，驱动可替换。** v1 计划提供数据库队列、Redis 缓存、本地存储、SMTP 邮件和可扩展短信（含 Twilio 适配器），并支持显式选择 memory/file 缓存及可选的 S3 兼容存储。框架计划支持单机和集群部署；驱动通过 Cargo feature 与配置选择。

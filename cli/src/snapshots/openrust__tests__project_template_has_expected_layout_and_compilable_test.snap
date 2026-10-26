@@ -11,7 +11,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-openrust = { workspace = true }
+openrust = { workspace = true, features = ["cache-redis"] }
 
 --- .gitignore ---
 /target/
@@ -51,6 +51,14 @@ driver = "log"
 [sms]
 driver = "log"
 
+[cache]
+default_store = "default"
+
+[cache.stores.default]
+driver = "redis"
+namespace = "blog"
+dsn = "redis://127.0.0.1:6379/"
+
 [session]
 secure = true
 http_only = true
@@ -84,6 +92,7 @@ impl Application for Blog {
     fn build(app: &mut AppBuilder) {
         app.plugin(HttpPlugin)
             .plugin(I18nPlugin::default())
+            .plugin(openrust::cache::CachePlugin)
             .plugin(MailerPlugin)
             .plugin(SmsPlugin)
             .routes(routes::register);
