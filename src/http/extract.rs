@@ -5,6 +5,7 @@ use std::ops::Deref;
 use std::sync::Arc;
 
 use crate::core::{ApiResponse, AppState, Error, Result, ValidationErrors};
+use crate::validation::{Validate, validate};
 use axum::extract::rejection::JsonRejection;
 use axum::extract::{FromRef, FromRequest, FromRequestParts, Request};
 use axum::extract::{Json as AxumJson, Path as AxumPath, Query as AxumQuery};
@@ -13,7 +14,6 @@ use axum::response::{IntoResponse, Response};
 use http::request::Parts;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
-use validator::{Validate, ValidationErrorsKind};
 
 /// JSON 正文提取器，错误和响应遵循 OpenRust 统一封装。
 pub struct Json<T>(pub T);
@@ -158,7 +158,7 @@ where
 
     async fn from_request(req: Request, state: &S) -> Result<Self> {
         let Json(value) = Json::<T>::from_request(req, state).await?;
-        value.validate().map_err(|errors| convert(&errors))?;
+        let value = validate(value)?;
         Ok(Self(Json(value)))
     }
 }
@@ -172,58 +172,7 @@ where
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self> {
         let Query(value) = Query::<T>::from_request_parts(parts, state).await?;
-        value.validate().map_err(|errors| convert(&errors))?;
+        let value = validate(value)?;
         Ok(Self(Query(value)))
-    }
-}
-
-/// 将嵌套的 `validator` 错误展平为 `field.path` 键。
-fn convert(errors: &validator::ValidationErrors) -> Error {
-    let mut out = ValidationErrors::new();
-    collect(&mut out, "", errors);
-    Error::Validation(out)
-}
-
-fn collect(out: &mut ValidationErrors, prefix: &str, errors: &validator::ValidationErrors) {
-    for (field, kind) in errors.errors() {
-        let path = if prefix.is_empty() {
-            field.to_string()
-        } else {
-            format!("{prefix}.{field}")
-        };
-        match kind {
-            ValidationErrorsKind::Field(failures) => {
-                for failure in failures {
-                    let message = failure.message.as_ref().map_or_else(
-                        || {
-                            let key = format!("openrust.validation.{}", failure.code);
-                            let args = failure
-                                .params
-                                .iter()
-                                .map(|(name, value)| {
-                                    (
-                                        name.to_string(),
-                                        value
-                                            .as_str()
-                                            .map_or_else(|| value.to_string(), str::to_owned),
-                                    )
-                                })
-                                .collect();
-                            crate::i18n::translate_current(&key, &args)
-                                .filter(|message| message != &key)
-                                .unwrap_or_else(|| failure.code.to_string())
-                        },
-                        ToString::to_string,
-                    );
-                    out.add(path.clone(), message);
-                }
-            }
-            ValidationErrorsKind::Struct(nested) => collect(out, &path, nested),
-            ValidationErrorsKind::List(items) => {
-                for (index, nested) in items {
-                    collect(out, &format!("{path}[{index}]"), nested);
-                }
-            }
-        }
     }
 }

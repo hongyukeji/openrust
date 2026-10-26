@@ -16,7 +16,10 @@
 //! # }
 //! ```
 
-use crate::core::{AppBuilder, BoxFuture, Error, Plugin, Result};
+use crate::core::{
+    AppBuilder, BoxFuture, Cancellation, Error, ExecutionContext, ExecutionMetadata, Plugin,
+    Result, with_execution_context,
+};
 use crate::db::{DatabaseTransaction, Db, DbBackend};
 use sea_orm::{ConnectionTrait, Statement, TransactionTrait};
 use sea_orm_migration::prelude::*;
@@ -36,6 +39,8 @@ const MAX_DELAY_SECS: u64 = 2_592_000;
 const HEX: &[u8; 16] = b"0123456789abcdef";
 const CHAIN_JOB_NAME: &str = "openrust.internal.chain.v1";
 const BATCH_JOB_NAME: &str = "openrust.internal.batch.v1";
+const EXECUTION_ENVELOPE_KEY: &str = "__openrust_execution";
+const EXECUTION_ENVELOPE_VERSION: &str = "v1";
 type ProgressReporter = Arc<dyn Fn(Value) -> BoxFuture<'static, Result<()>> + Send + Sync>;
 
 /// 通过 [`QueuePlugin`] 显式注册的类型化任务处理器。
@@ -53,21 +58,23 @@ pub struct JobContext {
     id: String,
     attempt: u64,
     max_attempts: u64,
-    cancelled: tokio::sync::watch::Receiver<bool>,
+    cancelled: Cancellation,
     app_state: Option<crate::core::AppState>,
     progress_reporter: Option<ProgressReporter>,
+    metadata: ExecutionMetadata,
+    deadline: Option<tokio::time::Instant>,
 }
 
 impl JobContext {
     /// 为自定义 driver 创建一次任务尝试的上下文。
     ///
-    /// `cancelled` 应由 driver 持有对应的 sender，并在任务需要停止时发送 `true`。
+    /// `cancellation` 应由 driver 持有，并在任务需要停止时调用 [`Cancellation::cancel`]。
     /// 默认不支持进度写入；使用 [`JobContext::with_progress_reporter`] 显式提供后端实现。
     pub fn new(
         id: impl Into<String>,
         attempt: u64,
         max_attempts: u64,
-        cancelled: tokio::sync::watch::Receiver<bool>,
+        cancellation: Cancellation,
     ) -> Result<Self> {
         let id = id.into();
         if id.is_empty() || attempt == 0 || max_attempts == 0 || attempt > max_attempts {
@@ -80,9 +87,11 @@ impl JobContext {
             id,
             attempt,
             max_attempts,
-            cancelled,
+            cancelled: cancellation,
             app_state: None,
             progress_reporter: None,
+            metadata: ExecutionMetadata::default(),
+            deadline: None,
         })
     }
 
@@ -103,6 +112,20 @@ impl JobContext {
         self
     }
 
+    /// 设置任务执行的非敏感关联元数据。
+    #[must_use]
+    pub fn with_execution_metadata(mut self, metadata: ExecutionMetadata) -> Self {
+        self.metadata = metadata;
+        self
+    }
+
+    /// 设置当前尝试的单调时钟 deadline。
+    #[must_use]
+    pub fn with_deadline(mut self, deadline: tokio::time::Instant) -> Self {
+        self.deadline = Some(deadline);
+        self
+    }
+
     /// 持久化任务 ID。
     pub fn id(&self) -> &str {
         &self.id
@@ -115,9 +138,18 @@ impl JobContext {
     pub const fn max_attempts(&self) -> u64 {
         self.max_attempts
     }
+    /// 当前尝试的非敏感关联元数据。
+    pub fn metadata(&self) -> &ExecutionMetadata {
+        &self.metadata
+    }
+    /// 返回当前尝试的剩余时间预算。
+    pub fn remaining_budget(&self) -> Option<Duration> {
+        self.deadline
+            .map(|deadline| deadline.saturating_duration_since(tokio::time::Instant::now()))
+    }
     /// 返回 worker 停机流程是否请求了协作取消。
     pub fn is_cancelled(&self) -> bool {
-        *self.cancelled.borrow()
+        self.cancelled.is_cancelled()
     }
 
     /// 从 `queue work` worker 正常运行时取得应用中注册的服务。
@@ -134,10 +166,8 @@ impl JobContext {
     }
 
     /// 等待 worker 停机流程请求协作取消。
-    pub async fn cancelled(&mut self) {
-        if !self.is_cancelled() {
-            let _ = self.cancelled.changed().await;
-        }
+    pub async fn cancelled(&self) {
+        self.cancelled.cancelled().await;
     }
 
     /// 仅当本次尝试仍持有任务租约时，保存有界 JSON 进度。
@@ -261,7 +291,7 @@ impl JobRegistry {
                 format!("no handler is registered for job `{job_name}`"),
             )
         })?;
-        handler(payload, context).await
+        execute_handler(handler, payload, context).await
     }
 }
 
@@ -270,6 +300,61 @@ fn is_reserved_job_name(name: &str) -> bool {
         || name == BATCH_JOB_NAME
         || name == crate::notifications::EmailDeliveryJob::NAME
         || name == crate::notifications::SmsDeliveryJob::NAME
+}
+
+fn current_execution_metadata() -> ExecutionMetadata {
+    ExecutionContext::current()
+        .map(|context| context.metadata().clone())
+        .unwrap_or_default()
+}
+
+fn persist_execution_metadata(payload: Value, metadata: &ExecutionMetadata) -> Result<Value> {
+    if metadata.is_empty() {
+        return Ok(payload);
+    }
+    if payload.get(EXECUTION_ENVELOPE_KEY).is_some() {
+        return Err(Error::custom(
+            "queue_payload_reserved_field",
+            "job payload uses a reserved execution metadata field",
+        ));
+    }
+    let mut envelope = serde_json::Map::new();
+    envelope.insert(
+        EXECUTION_ENVELOPE_KEY.to_owned(),
+        serde_json::json!(EXECUTION_ENVELOPE_VERSION),
+    );
+    envelope.insert(
+        "metadata".to_owned(),
+        serde_json::to_value(metadata).map_err(Error::internal)?,
+    );
+    envelope.insert("payload".to_owned(), payload);
+    let wrapped = Value::Object(envelope);
+    validate_payload(&wrapped)?;
+    Ok(wrapped)
+}
+
+fn restore_execution_metadata(payload: Value) -> (Value, ExecutionMetadata) {
+    let is_envelope = payload.get(EXECUTION_ENVELOPE_KEY).and_then(Value::as_str)
+        == Some(EXECUTION_ENVELOPE_VERSION);
+    let Some(object) = payload.as_object() else {
+        return (payload, ExecutionMetadata::default());
+    };
+    let has_envelope_shape =
+        object.len() == 3 && object.contains_key("metadata") && object.contains_key("payload");
+    if !is_envelope || !has_envelope_shape {
+        return (payload, ExecutionMetadata::default());
+    }
+    let Some(metadata) = payload
+        .get("metadata")
+        .cloned()
+        .and_then(|value| serde_json::from_value::<ExecutionMetadata>(value).ok())
+    else {
+        return (payload, ExecutionMetadata::default());
+    };
+    let Some(body) = payload.get("payload").cloned() else {
+        return (payload, ExecutionMetadata::default());
+    };
+    (body, metadata)
 }
 
 #[derive(DeriveIden)]
@@ -523,6 +608,47 @@ pub trait QueueDriver: Send + Sync + 'static {
         payload: Value,
         options: DispatchOptions,
     ) -> BoxFuture<'a, Result<String>>;
+    /// 按需持久化与当前调用关联的非敏感元数据。
+    fn dispatch_with_metadata<'a>(
+        &'a self,
+        queue: &'a str,
+        job_name: &'a str,
+        payload: Value,
+        options: DispatchOptions,
+        metadata: ExecutionMetadata,
+    ) -> BoxFuture<'a, Result<String>> {
+        if metadata.is_empty() {
+            self.dispatch(queue, job_name, payload, options)
+        } else {
+            Box::pin(async {
+                Err(Error::custom(
+                    "queue_driver_metadata_unsupported",
+                    "this queue driver does not persist execution metadata",
+                ))
+            })
+        }
+    }
+    /// 在调用方事务中按需持久化执行元数据。
+    fn dispatch_in_transaction_with_metadata<'a>(
+        &'a self,
+        transaction: &'a DatabaseTransaction,
+        queue: &'a str,
+        job_name: &'a str,
+        payload: Value,
+        options: DispatchOptions,
+        metadata: ExecutionMetadata,
+    ) -> BoxFuture<'a, Result<String>> {
+        if metadata.is_empty() {
+            self.dispatch_in_transaction(transaction, queue, job_name, payload, options)
+        } else {
+            Box::pin(async {
+                Err(Error::custom(
+                    "queue_driver_metadata_unsupported",
+                    "this queue driver does not persist execution metadata",
+                ))
+            })
+        }
+    }
     /// 后端支持任务组执行时持久化任务组。
     fn dispatch_group<'a>(
         &'a self,
@@ -537,6 +663,7 @@ pub trait QueueDriver: Send + Sync + 'static {
             ))
         })
     }
+
     /// 后端支持时，在调用方事务中持久化任务组。
     fn dispatch_group_in_transaction<'a>(
         &'a self,
@@ -551,6 +678,46 @@ pub trait QueueDriver: Send + Sync + 'static {
                 "this queue driver does not support transactional task groups",
             ))
         })
+    }
+
+    /// 派发带有当前调用关联信息的任务组。
+    fn dispatch_group_with_metadata<'a>(
+        &'a self,
+        queue: &'a str,
+        group: TaskGroup,
+        options: DispatchOptions,
+        metadata: ExecutionMetadata,
+    ) -> BoxFuture<'a, Result<String>> {
+        if metadata.is_empty() {
+            self.dispatch_group(queue, group, options)
+        } else {
+            Box::pin(async {
+                Err(Error::custom(
+                    "queue_driver_metadata_unsupported",
+                    "this queue driver does not persist execution metadata",
+                ))
+            })
+        }
+    }
+    /// 在调用方事务中派发带有关联信息的任务组。
+    fn dispatch_group_in_transaction_with_metadata<'a>(
+        &'a self,
+        transaction: &'a DatabaseTransaction,
+        queue: &'a str,
+        group: TaskGroup,
+        options: DispatchOptions,
+        metadata: ExecutionMetadata,
+    ) -> BoxFuture<'a, Result<String>> {
+        if metadata.is_empty() {
+            self.dispatch_group_in_transaction(transaction, queue, group, options)
+        } else {
+            Box::pin(async {
+                Err(Error::custom(
+                    "queue_driver_metadata_unsupported",
+                    "this queue driver does not persist execution metadata",
+                ))
+            })
+        }
     }
     /// 至多运行指定队列中的一个就绪任务。
     fn run_next<'a>(&'a self, queue: &'a str) -> BoxFuture<'a, Result<bool>>;
@@ -876,6 +1043,37 @@ fn run_job<J: Job>(payload: Value, context: JobContext) -> BoxFuture<'static, Re
     })
 }
 
+async fn execute_handler(handler: JobFn, payload: Value, context: JobContext) -> Result<()> {
+    let handler_future = handler(payload, context.clone());
+    run_scoped(handler_future, &context).await
+}
+
+async fn run_scoped<'a>(
+    handler_future: BoxFuture<'a, Result<()>>,
+    context: &'a JobContext,
+) -> Result<()> {
+    let execution = ExecutionContext::new(
+        context.metadata.clone(),
+        context.deadline,
+        context.cancelled.clone(),
+    );
+    let i18n = context
+        .app_state
+        .as_ref()
+        .and_then(|state| state.try_get::<crate::i18n::I18n>().ok());
+    let task_future: BoxFuture<'a, Result<()>> = if let Some(i18n) = i18n {
+        let locale = context
+            .metadata
+            .locale()
+            .cloned()
+            .unwrap_or_else(|| i18n.select(None));
+        Box::pin(async move { i18n.with_locale(locale, handler_future).await })
+    } else {
+        handler_future
+    };
+    execution.run(task_future).await?
+}
+
 impl DatabaseQueue {
     /// 使用提供的数据库服务创建派发器。
     pub fn new(db: Db) -> Self {
@@ -912,6 +1110,18 @@ impl DatabaseQueue {
         Ok(id)
     }
 
+    async fn dispatch_value_with_metadata(
+        &self,
+        queue: &str,
+        job_name: &str,
+        payload: Value,
+        options: DispatchOptions,
+        metadata: &ExecutionMetadata,
+    ) -> Result<String> {
+        let payload = persist_execution_metadata(payload, metadata)?;
+        self.dispatch_value(queue, job_name, payload, options).await
+    }
+
     #[allow(clippy::too_many_lines)] // Claim, cancellation, lease renewal and completion form one token-bound attempt.
     async fn work_once(
         &self,
@@ -929,6 +1139,7 @@ impl DatabaseQueue {
             fail_job(&self.db, &claim, "queue_job_cancelled", 1).await?;
             return Ok(true);
         }
+        let (job_payload, metadata) = restore_execution_metadata(claim.payload.clone());
         let is_group = claim.job_name == CHAIN_JOB_NAME || claim.job_name == BATCH_JOB_NAME;
         let handler = self.registry.0.get(claim.job_name.as_str()).copied();
         if !is_group && handler.is_none() {
@@ -938,7 +1149,9 @@ impl DatabaseQueue {
                 format!("no handler is registered for job `{}`", claim.job_name),
             ));
         }
-        let (job_cancelled, job_cancellation) = tokio::sync::watch::channel(false);
+        let job_cancellation = Cancellation::new();
+        let deadline =
+            tokio::time::Instant::now() + Duration::from_secs(self.config.job_timeout_secs);
         let progress_db = self.db.clone();
         let progress_id = claim.id.clone();
         let progress_owner = claim.owner.clone();
@@ -947,8 +1160,8 @@ impl DatabaseQueue {
             id: claim.id.clone(),
             attempt: claim.attempts,
             max_attempts: claim.max_attempts,
-            cancelled: job_cancellation,
-            app_state,
+            cancelled: job_cancellation.clone(),
+            app_state: app_state.clone(),
             progress_reporter: Some(Arc::new(move |value| {
                 Box::pin(persist_database_progress(
                     progress_db.clone(),
@@ -958,10 +1171,12 @@ impl DatabaseQueue {
                     value,
                 ))
             })),
+            metadata: metadata.clone(),
+            deadline: Some(deadline),
         };
         let mut cancellation = self.cancelled.subscribe();
         let handler_future: BoxFuture<'static, Result<()>> = if is_group {
-            let payload = claim.payload.clone();
+            let payload = job_payload.clone();
             let registry = Arc::clone(&self.registry);
             Box::pin(async move {
                 let group =
@@ -969,16 +1184,41 @@ impl DatabaseQueue {
                 run_task_group(registry, group, context).await
             })
         } else if let Some(handler) = handler {
-            handler(claim.payload.clone(), context)
+            handler(job_payload, context)
         } else {
             return Err(Error::custom(
                 "unregistered_queue_job",
                 "claimed task has no registered handler",
             ));
         };
+        let execution =
+            ExecutionContext::new(metadata.clone(), Some(deadline), job_cancellation.clone());
+        let i18n = app_state
+            .as_ref()
+            .and_then(|state| state.try_get::<crate::i18n::I18n>().ok());
+        let locale = metadata
+            .locale()
+            .cloned()
+            .or_else(|| i18n.as_ref().map(|service| service.select(None)));
+        let task_future: BoxFuture<'static, Result<()>> =
+            if let (Some(i18n), Some(locale)) = (i18n, locale) {
+                Box::pin(async move { i18n.with_locale(locale, handler_future).await })
+            } else {
+                handler_future
+            };
+        let span = tracing::info_span!(
+            "queue.job.attempt",
+            job_id = %claim.id,
+            job_name = %claim.job_name,
+            attempt = claim.attempts,
+            request_id = metadata.request_id().unwrap_or("-"),
+        );
+        let task_future = tracing::Instrument::instrument(task_future, span);
+        let handler_future: BoxFuture<'static, Result<()>> =
+            Box::pin(with_execution_context(execution, task_future));
         tokio::pin!(handler_future);
         let mut shutdown_deadline = if *cancellation.borrow() {
-            job_cancelled.send_replace(true);
+            job_cancellation.cancel();
             Some(
                 tokio::time::Instant::now()
                     + Duration::from_secs(self.config.shutdown_timeout_secs),
@@ -999,13 +1239,13 @@ impl DatabaseQueue {
                 result = &mut handler_future => break Some(result),
                 _ = heartbeat.tick() => {
                     if !renew_job(&self.db, &claim, self.config.lease_secs).await? {
-                        job_cancelled.send_replace(true);
+                        job_cancellation.cancel();
                         break Some(Err(Error::custom("queue_lease_lost", "job lease ownership changed")));
                     }
                 }
                 changed = cancellation.changed() => {
                     if changed.is_ok() && *cancellation.borrow() && shutdown_deadline.is_none() {
-                        job_cancelled.send_replace(true);
+                        job_cancellation.cancel();
                         shutdown_deadline = Some(tokio::time::Instant::now() + Duration::from_secs(self.config.shutdown_timeout_secs));
                     }
                 }
@@ -1019,7 +1259,7 @@ impl DatabaseQueue {
                     break Some(Err(Error::custom("queue_shutdown_timeout", "job did not stop before the worker shutdown deadline")));
                 }
                 () = &mut timeout => {
-                    job_cancelled.send_replace(true);
+                    job_cancellation.cancel();
                     break None;
                 }
             }
@@ -1051,6 +1291,20 @@ impl DatabaseQueue {
     ) -> Result<String> {
         validate_options(&options)?;
         insert_or_get_job(&self.db, transaction, queue, job_name, &payload, &options).await
+    }
+
+    async fn dispatch_value_in_transaction_with_metadata(
+        &self,
+        transaction: &DatabaseTransaction,
+        queue: &str,
+        job_name: &str,
+        payload: Value,
+        options: DispatchOptions,
+        metadata: &ExecutionMetadata,
+    ) -> Result<String> {
+        let payload = persist_execution_metadata(payload, metadata)?;
+        self.dispatch_value_in_transaction(transaction, queue, job_name, payload, options)
+            .await
     }
 
     /// 使用新 ID 将失败任务重新入队，同时保留原失败记录。
@@ -1176,11 +1430,12 @@ impl Queue {
     ) -> Result<String> {
         validate_options(&options)?;
         self.driver
-            .dispatch(
+            .dispatch_with_metadata(
                 queue,
                 job_name,
                 serde_json::to_value(payload).map_err(Error::internal)?,
                 options,
+                current_execution_metadata(),
             )
             .await
     }
@@ -1212,12 +1467,13 @@ impl Queue {
         payload: &T,
     ) -> Result<String> {
         self.driver
-            .dispatch_in_transaction(
+            .dispatch_in_transaction_with_metadata(
                 transaction,
                 queue,
                 job_name,
                 serde_json::to_value(payload).map_err(Error::internal)?,
                 DispatchOptions::default(),
+                current_execution_metadata(),
             )
             .await
     }
@@ -1237,12 +1493,13 @@ impl Queue {
         };
         validate_options(&options)?;
         self.driver
-            .dispatch_in_transaction(
+            .dispatch_in_transaction_with_metadata(
                 transaction,
                 queue,
                 job_name,
                 serde_json::to_value(payload).map_err(Error::internal)?,
                 options,
+                current_execution_metadata(),
             )
             .await
     }
@@ -1326,7 +1583,12 @@ impl Queue {
     async fn dispatch_task_group(&self, queue: &str, group: TaskGroup) -> Result<String> {
         group.validate()?;
         self.driver
-            .dispatch_group(queue, group, DispatchOptions::default())
+            .dispatch_group_with_metadata(
+                queue,
+                group,
+                DispatchOptions::default(),
+                current_execution_metadata(),
+            )
             .await
     }
 
@@ -1338,7 +1600,13 @@ impl Queue {
     ) -> Result<String> {
         group.validate()?;
         self.driver
-            .dispatch_group_in_transaction(transaction, queue, group, DispatchOptions::default())
+            .dispatch_group_in_transaction_with_metadata(
+                transaction,
+                queue,
+                group,
+                DispatchOptions::default(),
+                current_execution_metadata(),
+            )
             .await
     }
 
@@ -1397,6 +1665,42 @@ impl QueueDriver for DatabaseQueue {
         })
     }
 
+    fn dispatch_with_metadata<'a>(
+        &'a self,
+        queue: &'a str,
+        job_name: &'a str,
+        payload: Value,
+        options: DispatchOptions,
+        metadata: ExecutionMetadata,
+    ) -> BoxFuture<'a, Result<String>> {
+        Box::pin(async move {
+            self.dispatch_value_with_metadata(queue, job_name, payload, options, &metadata)
+                .await
+        })
+    }
+
+    fn dispatch_in_transaction_with_metadata<'a>(
+        &'a self,
+        transaction: &'a DatabaseTransaction,
+        queue: &'a str,
+        job_name: &'a str,
+        payload: Value,
+        options: DispatchOptions,
+        metadata: ExecutionMetadata,
+    ) -> BoxFuture<'a, Result<String>> {
+        Box::pin(async move {
+            self.dispatch_value_in_transaction_with_metadata(
+                transaction,
+                queue,
+                job_name,
+                payload,
+                options,
+                &metadata,
+            )
+            .await
+        })
+    }
+
     fn dispatch_group<'a>(
         &'a self,
         queue: &'a str,
@@ -1432,6 +1736,50 @@ impl QueueDriver for DatabaseQueue {
                 job_name,
                 serde_json::to_value(group).map_err(Error::internal)?,
                 options,
+            )
+            .await
+        })
+    }
+
+    fn dispatch_group_with_metadata<'a>(
+        &'a self,
+        queue: &'a str,
+        group: TaskGroup,
+        options: DispatchOptions,
+        metadata: ExecutionMetadata,
+    ) -> BoxFuture<'a, Result<String>> {
+        Box::pin(async move {
+            group.validate()?;
+            let job_name = group.persisted_job_name();
+            self.dispatch_value_with_metadata(
+                queue,
+                job_name,
+                serde_json::to_value(group).map_err(Error::internal)?,
+                options,
+                &metadata,
+            )
+            .await
+        })
+    }
+
+    fn dispatch_group_in_transaction_with_metadata<'a>(
+        &'a self,
+        transaction: &'a DatabaseTransaction,
+        queue: &'a str,
+        group: TaskGroup,
+        options: DispatchOptions,
+        metadata: ExecutionMetadata,
+    ) -> BoxFuture<'a, Result<String>> {
+        Box::pin(async move {
+            group.validate()?;
+            let job_name = group.persisted_job_name();
+            self.dispatch_value_in_transaction_with_metadata(
+                transaction,
+                queue,
+                job_name,
+                serde_json::to_value(group).map_err(Error::internal)?,
+                options,
+                &metadata,
             )
             .await
         })
@@ -2248,8 +2596,90 @@ fn print_requeued(id: &str) {
 
 #[cfg(all(test, feature = "queue"))]
 mod tests {
-    use super::QueuePlugin;
+    use super::{
+        Job, JobContext, JobRegistry, QueuePlugin, persist_execution_metadata,
+        restore_execution_metadata,
+    };
+    use crate::core::{BoxFuture, Cancellation, ExecutionContext, ExecutionMetadata};
     use crate::schedule::{CronOptions, MissedRunPolicy};
+    use serde::Deserialize;
+    use std::time::Duration;
+
+    #[derive(Deserialize)]
+    struct ScopedJob;
+
+    impl Job for ScopedJob {
+        const NAME: &'static str = "tests.scoped";
+
+        fn handle(&self, _context: JobContext) -> BoxFuture<'_, crate::core::Result<()>> {
+            assert!(ExecutionContext::current().is_some());
+            Box::pin(async {
+                tokio::time::sleep(Duration::from_secs(30)).await;
+                Ok(())
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn registry_execute_installs_scope_and_enforces_deadline() -> crate::core::Result<()> {
+        let mut registry = JobRegistry::default();
+        registry.register_job::<ScopedJob>()?;
+        let deadline = tokio::time::Instant::now() + Duration::from_millis(10);
+        let context = JobContext::new("job-1", 1, 1, Cancellation::new())?
+            .with_execution_metadata(ExecutionMetadata::default().with_request_id("request-1")?)
+            .with_deadline(deadline);
+
+        assert!(
+            registry
+                .execute("tests.scoped", serde_json::json!({}), context)
+                .await
+                .is_err()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn execution_metadata_round_trips_and_legacy_payloads_stay_raw() -> crate::core::Result<()> {
+        let metadata = crate::core::ExecutionMetadata::default()
+            .with_request_id("request-42")?
+            .with_locale(crate::i18n::Locale::new("zh-CN")?);
+        let payload = serde_json::json!({"value": 7});
+        let stored = persist_execution_metadata(payload.clone(), &metadata)?;
+        let (restored_payload, restored_metadata) = restore_execution_metadata(stored);
+        assert_eq!(restored_payload, payload);
+        assert_eq!(restored_metadata, metadata);
+
+        let legacy = serde_json::json!({"value": 8});
+        let (restored_payload, restored_metadata) = restore_execution_metadata(legacy.clone());
+        assert_eq!(restored_payload, legacy);
+        assert!(restored_metadata.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn metadata_envelope_rejects_reserved_payload_key() -> crate::core::Result<()> {
+        let metadata = crate::core::ExecutionMetadata::default().with_request_id("request-42")?;
+        assert!(
+            persist_execution_metadata(
+                serde_json::json!({"__openrust_execution": "application-value"}),
+                &metadata
+            )
+            .is_err()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn malformed_legacy_envelope_shape_remains_an_application_payload() {
+        let legacy = serde_json::json!({
+            "__openrust_execution": "v1",
+            "metadata": {"request_id": "contains spaces"},
+            "payload": {"application": true}
+        });
+        let (restored_payload, metadata) = restore_execution_metadata(legacy.clone());
+        assert_eq!(restored_payload, legacy);
+        assert!(metadata.is_empty());
+    }
 
     #[test]
     fn cron_registration_rejects_invalid_schedule_configuration()

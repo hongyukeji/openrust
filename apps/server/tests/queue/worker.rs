@@ -27,6 +27,8 @@ static LAST_QUEUED_USER_ID: AtomicI64 = AtomicI64::new(0);
 static EVENT_TRANSACTION_CONTEXTS: AtomicUsize = AtomicUsize::new(0);
 static EVENT_NO_TRANSACTION_CONTEXTS: AtomicUsize = AtomicUsize::new(0);
 static ORDERED: std::sync::Mutex<Vec<usize>> = std::sync::Mutex::new(Vec::new());
+static EXECUTION_METADATA: std::sync::Mutex<Option<(Option<String>, Option<String>)>> =
+    std::sync::Mutex::new(None);
 
 struct QueueMigrator;
 
@@ -86,6 +88,27 @@ impl Job for OrderedJob {
                     "test order lock is poisoned",
                 )),
             }
+        })
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct MetadataJob;
+
+impl Job for MetadataJob {
+    const NAME: &'static str = "tests.metadata.v1";
+
+    fn handle(&self, context: JobContext) -> BoxFuture<'_, FrameworkResult<()>> {
+        let value = (
+            context.metadata().request_id().map(str::to_owned),
+            context.metadata().locale().map(ToString::to_string),
+        );
+        Box::pin(async move {
+            *EXECUTION_METADATA
+                .lock()
+                .map_err(|_| Error::custom("test_metadata_lock", "metadata lock is poisoned"))? =
+                Some(value);
+            Ok(())
         })
     }
 }
@@ -153,6 +176,7 @@ async fn database_queue_dispatch_worker_concurrency_failure_and_retry()
     queue_plugin.register_job::<AlwaysFailJob>()?;
     queue_plugin.register_job::<SlowJob>()?;
     queue_plugin.register_job::<OrderedJob>()?;
+    queue_plugin.register_job::<MetadataJob>()?;
     queue_plugin.register_job::<SignupNotificationJob>()?;
     let event_queue = format!("event{}", std::process::id());
     let mut events_plugin = EventsPlugin::new();
@@ -189,6 +213,63 @@ async fn database_queue_dispatch_worker_concurrency_failure_and_retry()
     let queue = app.state().try_get::<Queue>()?;
     let db = app.state().try_get::<Db>()?;
     let events = app.state().try_get::<Events>()?;
+
+    *EXECUTION_METADATA
+        .lock()
+        .map_err(|_| Error::custom("test_metadata_lock", "metadata lock is poisoned"))? = None;
+    let execution = openrust::ExecutionContext::new(
+        openrust::ExecutionMetadata::default()
+            .with_request_id("database-queue-request")?
+            .with_locale(openrust::i18n::Locale::new("zh-CN")?),
+        None,
+        openrust::Cancellation::new(),
+    );
+    let metadata_queue = format!("metadata{}", std::process::id());
+    openrust::with_execution_context(execution, async {
+        queue
+            .dispatch(&metadata_queue, MetadataJob::NAME, &())
+            .await
+    })
+    .await?;
+    assert!(queue.run_next(&metadata_queue).await?);
+    assert_eq!(
+        *EXECUTION_METADATA
+            .lock()
+            .map_err(|_| Error::custom("test_metadata_lock", "metadata lock is poisoned"))?,
+        Some((
+            Some("database-queue-request".to_owned()),
+            Some("zh-CN".to_owned())
+        ))
+    );
+
+    *EXECUTION_METADATA
+        .lock()
+        .map_err(|_| Error::custom("test_metadata_lock", "metadata lock is poisoned"))? = None;
+    let grouped_queue = format!("groupmetadata{}", std::process::id());
+    let execution = openrust::ExecutionContext::new(
+        openrust::ExecutionMetadata::default()
+            .with_request_id("group-request")?
+            .with_locale(openrust::i18n::Locale::new("zh-CN")?),
+        None,
+        openrust::Cancellation::new(),
+    );
+    openrust::with_execution_context(execution, async {
+        queue
+            .dispatch_chain(
+                &grouped_queue,
+                vec![QueueTask::new(MetadataJob::NAME, &())?],
+                GroupFailurePolicy::Stop,
+            )
+            .await
+    })
+    .await?;
+    assert!(queue.run_next(&grouped_queue).await?);
+    assert_eq!(
+        *EXECUTION_METADATA
+            .lock()
+            .map_err(|_| Error::custom("test_metadata_lock", "metadata lock is poisoned"))?,
+        Some((Some("group-request".to_owned()), Some("zh-CN".to_owned())))
+    );
 
     QUEUED_EVENT_HANDLED.store(0, Ordering::SeqCst);
     LAST_QUEUED_USER_ID.store(0, Ordering::SeqCst);

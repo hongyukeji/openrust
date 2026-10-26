@@ -57,7 +57,7 @@ struct ShutdownProbe {
 impl Job for ShutdownProbe {
     const NAME: &'static str = "tests.shutdown-probe.v1";
 
-    fn handle(&self, mut context: JobContext) -> BoxFuture<'_, FrameworkResult<()>> {
+    fn handle(&self, context: JobContext) -> BoxFuture<'_, FrameworkResult<()>> {
         let cooperative = self.cooperative;
         let disconnect_on_cancel = self.disconnect_on_cancel;
         Box::pin(async move {
@@ -163,7 +163,7 @@ async fn worker_sigterm_drains_cooperative_handler_and_times_out_other_handlers(
                 disconnect_on_cancel.to_string(),
             )
             .stdout(Stdio::null())
-            .stderr(Stdio::null())
+            .stderr(Stdio::inherit())
             .spawn()?;
         let observe = build_app(database.url()).await?;
         let db = observe.state().try_get::<Db>()?;

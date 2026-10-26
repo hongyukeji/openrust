@@ -401,14 +401,29 @@ impl App {
                 ),
             ));
         }
-        command.run(self, remaining).await
+        let i18n = self.state().try_get::<crate::i18n::I18n>().ok();
+        let mut metadata = crate::core::ExecutionMetadata::default();
+        let locale = i18n.as_ref().map(|service| service.select(None));
+        if let Some(locale) = &locale {
+            metadata = metadata.with_locale(locale.clone());
+        }
+        let execution =
+            crate::core::ExecutionContext::new(metadata, None, crate::core::Cancellation::new());
+        crate::core::with_execution_context(execution, async move {
+            if let (Some(i18n), Some(locale)) = (i18n, locale) {
+                i18n.with_locale(locale, command.run(self, remaining)).await
+            } else {
+                command.run(self, remaining).await
+            }
+        })
+        .await
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::plugin::BoxFuture;
+    use crate::core::{ExecutionContext, plugin::BoxFuture};
 
     #[derive(Debug, PartialEq)]
     struct Counter(u32);
@@ -500,6 +515,7 @@ mod tests {
         fn run<'a>(&'a self, _app: &'a App, args: Vec<String>) -> BoxFuture<'a, Result<()>> {
             Box::pin(async move {
                 assert_eq!(args, ["--json"]);
+                assert!(ExecutionContext::current().is_some());
                 Ok(())
             })
         }

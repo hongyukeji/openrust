@@ -8,7 +8,10 @@ use std::any::Any;
 use std::time::Duration;
 
 use crate::config::{ApiConfig, ConfigError, CorsConfig, ServerConfig};
-use crate::core::{Error, ResponseContext, Result, with_response_context};
+use crate::core::{
+    CancelOnDrop, Cancellation, Error, ExecutionContext, ExecutionMetadata, ResponseContext,
+    Result, with_execution_context, with_response_context,
+};
 use crate::i18n::{I18n, with_request_locale};
 use axum::Router;
 use axum::extract::{Request, State};
@@ -48,26 +51,40 @@ pub fn apply(router: Router, server: &ServerConfig, api: &ApiConfig) -> Result<R
         .layer(TraceLayer::new_for_http().make_span_with(request_span))
         .layer(PropagateRequestIdLayer::x_request_id())
         .layer(axum::middleware::from_fn_with_state(
-            api.clone(),
+            ResponseSettings {
+                api: api.clone(),
+                request_timeout: Duration::from_secs(server.request_timeout_secs),
+            },
             response_context,
         ))
         .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
         .layer(axum::middleware::from_fn(normalize_request_id)))
 }
 
+#[derive(Clone)]
+struct ResponseSettings {
+    api: ApiConfig,
+    request_timeout: Duration,
+}
+
 async fn normalize_request_id(mut request: Request, next: axum::middleware::Next) -> Response {
-    if request
-        .headers()
-        .get("x-request-id")
-        .is_some_and(|value| value.to_str().is_err())
-    {
+    let invalid_request_id = request.headers().get("x-request-id").is_some_and(|value| {
+        value.to_str().map_or(true, |request_id| {
+            request_id.is_empty()
+                || request_id.len() > 128
+                || !request_id
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || b"-_.:".contains(&byte))
+        })
+    });
+    if invalid_request_id {
         request.headers_mut().remove("x-request-id");
     }
     next.run(request).await
 }
 
 async fn response_context(
-    State(api): State<ApiConfig>,
+    State(settings): State<ResponseSettings>,
     request: Request,
     next: axum::middleware::Next,
 ) -> Response {
@@ -86,19 +103,42 @@ async fn response_context(
         .get(axum::http::header::ACCEPT_LANGUAGE)
         .and_then(|value| value.to_str().ok())
         .map(str::to_owned);
-    let response = with_response_context(
-        ResponseContext {
-            request_id,
-            http_status: api.http_status,
-        },
-        next.run(request),
-    );
-    match locale_service {
-        Some(i18n) => {
-            with_request_locale(i18n.as_ref().clone(), accept_language.as_deref(), response).await
-        }
-        None => response.await,
+    let locale = locale_service
+        .as_ref()
+        .map(|i18n| i18n.locale_for_request(accept_language.as_deref()));
+    let mut metadata = ExecutionMetadata::default();
+    if let Ok(updated) = metadata.clone().with_request_id(request_id.clone()) {
+        metadata = updated;
     }
+    if let Some(locale) = &locale {
+        metadata = metadata.with_locale(locale.clone());
+    }
+    let cancellation = Cancellation::new();
+    let cancel_on_drop = CancelOnDrop::new(cancellation.clone());
+    let execution = ExecutionContext::new(
+        metadata,
+        Some(tokio::time::Instant::now() + settings.request_timeout),
+        cancellation,
+    );
+    with_execution_context(execution, async move {
+        let response = with_response_context(
+            ResponseContext {
+                request_id,
+                http_status: settings.api.http_status,
+            },
+            async move {
+                let _cancel_on_drop = cancel_on_drop;
+                next.run(request).await
+            },
+        );
+        match (locale_service, locale) {
+            (Some(i18n), Some(locale)) => {
+                with_request_locale(i18n.as_ref().clone(), Some(locale.as_str()), response).await
+            }
+            _ => response.await,
+        }
+    })
+    .await
 }
 
 async fn envelope_status(response: Response) -> Response {

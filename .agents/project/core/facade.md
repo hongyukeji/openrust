@@ -5,6 +5,7 @@
 
 - 根 `src/lib.rs` 声明 audit/config/core/db/http/i18n/mail/sms，以及 feature-gated auth、queue/schedule、security 与 signing；对外主路径继续是 `openrust::...`。
 - 根直接 re-export `ApiResponse<T>`、`PageMeta`、`#[openrust::resource]`、`ServiceExt` 与 Tokio。`openrust::prelude` 提供常用 HTTP、core、mail、db、auth 类型；Axum 类型由 `openrust::http::axum` 公开。
+- `openrust::validation::{Validate, validate}` 复用 validator 与统一字段错误；`ExecutionContext` / `ExecutionMetadata` / `Cancellation` 提供单次请求、命令及 Job attempt 的显式作用域，细节见 [core](core.md) 与 [ADR-044](../decisions/adr-044-cross-protocol-execution-context.md)。
 - `db-postgres` / `db-mysql` 启用 SeaORM 对应 backend，并提供 `openrust::database` 别名与常用 DB 类型；默认 feature 不含具体数据库 driver。
 - `auth` 启用 JWT、Session、认证流程与授权模块；依赖 DB feature 的认证流程在运行时要求配置相应数据库及迁移。
 - `queue` 启用 `openrust::queue` 与 `openrust::schedule`；数据库 driver、worker 和 UTC 调度通过应用显式注册，当前功能与验收边界见 [queue](queue.md) / [schedule](schedule.md)。

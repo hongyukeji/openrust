@@ -626,7 +626,7 @@ impl I18n {
             .await
     }
 
-    fn locale_for_request(&self, accept_language: Option<&str>) -> Locale {
+    pub(crate) fn locale_for_request(&self, accept_language: Option<&str>) -> Locale {
         self.select(accept_language)
     }
 }

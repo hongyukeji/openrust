@@ -5,6 +5,7 @@ use axum::extract::{Extension, Request};
 use axum::http::{StatusCode, header};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
+use openrust::ExecutionContext;
 use openrust::config::FrameworkConfig;
 use openrust::core::{RateLimitBucket, RateLimitFuture, RateLimitStore, RateLimiter};
 use openrust::http::RateLimitLayer;
@@ -16,12 +17,14 @@ use openrust::http::{
 use openrust::http::{Json, Path, Query};
 use openrust::{AppBuilder, lifecycle::finalize};
 use serde::Deserialize;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tower::ServiceExt;
 use validator::Validate;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
+static REQUEST_CANCELLED: AtomicBool = AtomicBool::new(false);
 
 struct Greeting(&'static str);
 
@@ -89,6 +92,8 @@ async fn router_with_exact_config(config: FrameworkConfig) -> openrust::Result<a
                     .get("/boom", boom)
                     .get("/large", large)
                     .get("/slow", slow)
+                    .get("/execution", execution_context_info)
+                    .get("/cancel", cancellation_probe)
                     .post("/raw", create_raw)
                     .get("/items/{id}", item)
                     .get("/search", search)
@@ -149,6 +154,24 @@ async fn large() -> String {
 async fn slow() -> &'static str {
     tokio::time::sleep(std::time::Duration::from_secs(2)).await;
     "late"
+}
+
+async fn execution_context_info() -> Json<serde_json::Value> {
+    let current = ExecutionContext::current();
+    Json(serde_json::json!({
+        "request_id": current.as_ref().and_then(|context| context.metadata().request_id()),
+        "has_budget": current.as_ref().and_then(ExecutionContext::remaining_budget).is_some(),
+    }))
+}
+
+async fn cancellation_probe() -> &'static str {
+    if let Some(context) = ExecutionContext::current() {
+        tokio::spawn(async move {
+            context.cancelled().await;
+            REQUEST_CANCELLED.store(true, Ordering::SeqCst);
+        });
+    }
+    std::future::pending::<&'static str>().await
 }
 
 async fn json_body(response: axum::response::Response) -> serde_json::Value {
@@ -1012,6 +1035,38 @@ async fn always_ok_wraps_success_errors_and_fallbacks_with_matching_request_id()
             assert_eq!(body["message"], "internal server error");
         }
     }
+    Ok(())
+}
+
+#[tokio::test]
+async fn http_execution_context_contains_request_id_budget_and_timeout_cancels_children()
+-> TestResult {
+    let mut config = FrameworkConfig::default();
+    config.server.request_timeout_secs = 1;
+    let router = router_with_exact_config(config).await?;
+    let response = router
+        .clone()
+        .oneshot(
+            Request::get("/api/execution")
+                .header("x-request-id", "scope-123")
+                .body(Body::empty())?,
+        )
+        .await?;
+    let body = json_body(response).await;
+    assert_eq!(body["data"]["request_id"], "scope-123");
+    assert_eq!(body["data"]["has_budget"], true);
+
+    REQUEST_CANCELLED.store(false, Ordering::SeqCst);
+    let response = router
+        .oneshot(Request::get("/api/cancel").body(Body::empty())?)
+        .await?;
+    assert_eq!(json_body(response).await["code"], "request_timeout");
+    tokio::time::timeout(Duration::from_millis(100), async {
+        while !REQUEST_CANCELLED.load(Ordering::SeqCst) {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await?;
     Ok(())
 }
 

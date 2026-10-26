@@ -83,7 +83,7 @@ impl QueueDriver for MemoryQueue {
             else {
                 return Ok(false);
             };
-            let (_cancel, cancelled) = tokio::sync::watch::channel(false);
+            let cancelled = openrust::Cancellation::new();
             let context = JobContext::new("memory-1", 1, 1, cancelled)?
                 .with_progress_reporter(|_value| Box::pin(async { Ok(()) }));
             self.registry

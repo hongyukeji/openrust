@@ -1,8 +1,8 @@
 //! 通过公开 API 验证自定义队列 driver 的 typed Job 执行契约。
 
 use openrust::{
-    BoxFuture, Error, Result,
-    queue::{Job, JobContext, JobRegistry},
+    BoxFuture, Cancellation, Error, Result,
+    queue::{DispatchOptions, Job, JobContext, JobRegistry, Queue, QueueDriver},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -47,7 +47,7 @@ async fn public_registry_executes_typed_jobs_with_custom_context_behavior() -> R
 
     let progress = Arc::new(Mutex::new(None::<Value>));
     let progress_writer = Arc::clone(&progress);
-    let (_cancel, receiver) = tokio::sync::watch::channel(false);
+    let receiver = Cancellation::new();
     let context = JobContext::new("job-1", 1, 3, receiver)?.with_progress_reporter(move |value| {
         let progress_writer = Arc::clone(&progress_writer);
         Box::pin(async move {
@@ -69,7 +69,8 @@ async fn public_registry_executes_typed_jobs_with_custom_context_behavior() -> R
         Some(&json!({"value": 7}))
     );
 
-    let (_cancel, receiver) = tokio::sync::watch::channel(true);
+    let receiver = Cancellation::new();
+    receiver.cancel();
     let error = registry
         .execute(
             CancelledJob::NAME,
@@ -90,7 +91,7 @@ async fn public_registry_executes_typed_jobs_with_custom_context_behavior() -> R
         .execute(
             "contract.missing.v1",
             json!({}),
-            JobContext::new("job-3", 1, 1, tokio::sync::watch::channel(false).1)?,
+            JobContext::new("job-3", 1, 1, Cancellation::new())?,
         )
         .await
         .err()
@@ -106,7 +107,7 @@ async fn public_registry_executes_typed_jobs_with_custom_context_behavior() -> R
 
 #[tokio::test]
 async fn progress_without_driver_reporter_fails_explicitly() -> Result<()> {
-    let context = JobContext::new("job-1", 1, 1, tokio::sync::watch::channel(false).1)?;
+    let context = JobContext::new("job-1", 1, 1, Cancellation::new())?;
     let error = context
         .set_progress(&json!({"step": 1}))
         .await
@@ -118,7 +119,68 @@ async fn progress_without_driver_reporter_fails_explicitly() -> Result<()> {
 
 #[test]
 fn public_context_rejects_invalid_attempt_metadata() {
-    assert!(JobContext::new("", 1, 1, tokio::sync::watch::channel(false).1).is_err());
-    assert!(JobContext::new("job", 0, 1, tokio::sync::watch::channel(false).1).is_err());
-    assert!(JobContext::new("job", 2, 1, tokio::sync::watch::channel(false).1).is_err());
+    assert!(JobContext::new("", 1, 1, Cancellation::new()).is_err());
+    assert!(JobContext::new("job", 0, 1, Cancellation::new()).is_err());
+    assert!(JobContext::new("job", 2, 1, Cancellation::new()).is_err());
+}
+
+struct LegacyDriver;
+
+impl QueueDriver for LegacyDriver {
+    fn dispatch<'a>(
+        &'a self,
+        _queue: &'a str,
+        _job_name: &'a str,
+        _payload: Value,
+        _options: DispatchOptions,
+    ) -> BoxFuture<'a, Result<String>> {
+        Box::pin(async { Ok("legacy-job".to_owned()) })
+    }
+
+    fn dispatch_in_transaction<'a>(
+        &'a self,
+        _transaction: &'a openrust::db::DatabaseTransaction,
+        _queue: &'a str,
+        _job_name: &'a str,
+        _payload: Value,
+        _options: DispatchOptions,
+    ) -> BoxFuture<'a, Result<String>> {
+        Box::pin(async { Ok("legacy-job".to_owned()) })
+    }
+
+    fn run_next<'a>(&'a self, _queue: &'a str) -> BoxFuture<'a, Result<bool>> {
+        Box::pin(async { Ok(false) })
+    }
+
+    fn retry_failed<'a>(&'a self, _failed_id: &'a str) -> BoxFuture<'a, Result<String>> {
+        Box::pin(async { Ok("legacy-retry".to_owned()) })
+    }
+
+    fn reset_shutdown(&self) {}
+
+    fn request_shutdown(&self) {}
+
+    fn is_shutdown_requested(&self) -> bool {
+        false
+    }
+}
+
+#[tokio::test]
+async fn legacy_custom_driver_rejects_nonempty_execution_metadata() -> Result<()> {
+    let config = openrust::config::QueueConfig::default();
+    let queue = Queue::with_driver(LegacyDriver, &config)?;
+    let scope = openrust::ExecutionContext::new(
+        openrust::ExecutionMetadata::default().with_request_id("scope-123")?,
+        None,
+        Cancellation::new(),
+    );
+    let error = openrust::with_execution_context(
+        scope,
+        queue.dispatch("default", "contract.progress.v1", &json!({"value": 1})),
+    )
+    .await
+    .err()
+    .ok_or_else(|| Error::custom("test_expected_error", "metadata was silently discarded"))?;
+    assert_eq!(error.code(), "queue_driver_metadata_unsupported");
+    Ok(())
 }

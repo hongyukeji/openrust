@@ -23,13 +23,15 @@ pub mod security;
 #[cfg(feature = "signing")]
 pub mod signing;
 pub mod sms;
+pub mod validation;
 
 #[cfg(feature = "auth")]
 pub mod auth;
 
 pub use core::{
-    ApiResponse, App, AppBuilder, AppState, Application, BoxFuture, Command, Error,
-    MissingServiceError, NoConfig, PageMeta, Plugin, Result, ValidationErrors, lifecycle,
+    ApiResponse, App, AppBuilder, AppState, Application, BoxFuture, Cancellation, Command, Error,
+    ExecutionContext, ExecutionMetadata, MissingServiceError, NoConfig, PageMeta, Plugin, Result,
+    ValidationErrors, lifecycle, with_execution_context,
 };
 pub use macros::resource;
 
@@ -102,8 +104,10 @@ pub mod prelude {
         SignedLinkRevocationMigration, SignedLinkRevocationStore, SignedLinks, SignedLinksPlugin,
     };
     pub use crate::sms::{SmsContent, SmsDriver, SmsMessage, SmsPlugin, SmsReceipt, SmsSender};
+    pub use crate::validation::{Validate, validate};
     pub use crate::{
-        App, AppBuilder, Application, BoxFuture, Command, Error, NoConfig, Plugin, Result,
+        App, AppBuilder, Application, BoxFuture, Cancellation, Command, Error, ExecutionContext,
+        ExecutionMetadata, NoConfig, Plugin, Result,
     };
     #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
     pub use crate::{DatabaseConfig, DatabasePlugin, Db, MigrationPlugin, SeedPlugin};

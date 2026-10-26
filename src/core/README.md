@@ -9,6 +9,7 @@ OpenRust 框架的应用内核。
 - [`Plugin`]：框架能力、应用模块和第三方 package 的统一扩展点。宿主按静态顺序运行 `build` 并异步调用 `finish`；依赖插件可用 `try_get` 检查前序服务。后台任务由启动它的命令管理，不提供自动发现、卸载或全局关闭阶段。
 - [`Command`]：应用二进制对外提供的运行时命令（`serve`、`migrate`、`queue work` 等）。命令默认拒绝额外参数；接受参数的命令须实现 `accepts_args`。
 - [`Error`] / [`Result`] / [`ApiResponse<T>`] / [`PageMeta`]：统一错误类型、JSON 响应封装和类型化分页元数据。
+- [`ExecutionContext`] / [`ExecutionMetadata`] / [`Cancellation`]：单次 HTTP、命令或 Job 尝试的 task-local 关联信息、时间预算和合作取消；task-local 不自动传播至 `tokio::spawn`。
 - [`RateLimiter`] / [`RateLimitStore`]：固定窗口配额服务契约。存储故障向上传播；超限请求返回 429 和 `Retry-After`；每种实现都需说明共享范围与原子性边界。
 - `config`：类型化配置按领域组织在 `openrust::config::{app,api,auth,database,logger,mailer,server}`，并由统一的分层加载器合并：crate 默认值 → `config/default.toml` → `config/<env>.toml` → 非生产环境 `.env` → 进程环境变量。`APP_CONFIG_DIR` 用于指定运行时 TOML 目录（默认是相对于工作目录的 `config`）；`src/config/` 仅存放 Rust 代码。若进程尚未设置 `APP_ENV`，启动引导阶段才从 `.env` 读取；生产环境跳过整个 `.env` 文件。`Application::config_namespace()` 可选用其他有效前缀，如 `SHOP_`；只读取选定的命名空间。进程环境变量优先级最高，当前各能力模块中的配置路径继续通过重新导出保持兼容。
 - [`lifecycle`]：启动顺序与优雅停机信号处理。
@@ -22,6 +23,8 @@ HTTP 响应使用 `ApiResponse<T>`，包含 `success`、稳定的 `code`、安�
 `RateLimiter::check(key, limit, window)` 会在已注册的 `RateLimitStore` 中计入一次请求，并返回剩余配额；超限时返回带 `Retry-After` 的 429 错误。核心契约不决定 HTTP 身份提取方式或 middleware 策略。调用方应按策略命名 key，并对同一个 key 使用一致的时间窗口；存储故障不会被当成未超限。数据库 store 保存 SHA-256 摘要而非原始 key，但无法阻止对低熵值的猜测。
 
 `FrameworkConfig.i18n` 定义 locale 默认值。`I18nPlugin` 会注册不可变的 `I18n` 服务；HTTP middleware 解析 `Accept-Language`，并为当前 task 设置请求 locale。框架响应和内置 validator 规则消息使用该 locale，同时保留错误码与字段路径。应用消息可从 JSON 资源合并，并通过 `RequestLocale` 翻译；普通 `{name}` 文本保持兼容，也可用有限 `plural` / `select` 分支。`I18n::format_number` 接受精确十进制字符串；`format_date` 接受已按业务时区确定的日期，`format_datetime` 按传入 Chrono 值的本地墙上时间格式化。显式 task scope 使用 `I18n::with_locale`。
+
+`openrust::validation::validate(value)` 可在命令与 typed Job 中复用 HTTP `Validated<T>` 的 validator 错误转换。`ExecutionContext::current()` 读取单次调用的 metadata、剩余 budget 与 cancellation；子调用 deadline 不超过父级，子 timeout 不会取消父级。队列只允许有界 request ID 和 locale 入库，不序列化身份或请求凭据；见 [ADR-044](../../.agents/project/decisions/adr-044-cross-protocol-execution-context.md)。
 
 ```json
 {

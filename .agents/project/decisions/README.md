@@ -57,6 +57,7 @@
 | [040 gRPC 集成](adr-040-grpc-integration.md) | Accepted | v1 可选 server/client 与四类调用、协议/安全/运行/集群契约；尚未实现，替代旧 v2 候选范围 |
 | [041 事务与认证流程事件](adr-041-transaction-and-auth-flow-events.md) | Accepted | 标准 Db 提交边界与 AuthFlows typed events；direct after-commit 尽力通知、可靠副作用使用事务队列 |
 | [042 共享锁与请求幂等](adr-042-shared-locks-and-request-idempotency.md) | Accepted | PostgreSQL/MySQL 数据库租约/fencing 与显式请求结果快照；不等同外部副作用 exactly-once |
+| [044 协议无关验证与调用作用域](adr-044-cross-protocol-execution-context.md) | Accepted | 复用 validator/Error；单次调用 metadata/deadline/cancel/locale 与队列安全传递边界 |
 
 ## 队列、缓存与部署
 
