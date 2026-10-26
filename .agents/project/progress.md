@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-26
-> 摘要：框架处于 v1 M5，尚未达到完整 v1。源码工作区、C1–C3 中文化、M3 认证流程扩展及 M4 共享锁、worker 生命周期、F1 日历调度、F2 国际化、F3 邮件模板、队列化通知、job 生成集成、通用插件公开契约和 Db 外部扩展契约均有适用验收证据；完整剩余范围见待办。
+> 摘要：框架处于 v1 M5，尚未达到完整 v1。源码工作区、C1–C3 中文化、M3 认证流程扩展及 M4 共享锁、worker 生命周期、F1 日历调度、F2 国际化、F3 邮件模板、队列化通知、job 生成集成、通用插件公开契约、Db 与 Queue 外部扩展契约均有适用验收证据；完整剩余范围见待办。
 
 ## 源码 workspace 交付
 
@@ -30,6 +30,8 @@
 
 ## 阶段判定
 
+- M5 Queue 外部扩展契约：公开 `JobRegistry` 注册/执行 typed Job，`JobContext` 提供可注入取消、进度 reporter 与应用状态；独立 `examples/queue-custom-driver` 通过 `Queue::with_driver` 实际派发执行，且事务能力缺失时明确错误。3 项 consumer contract 测试覆盖进度、取消/错误、未知 job、重复注册及 feature 隔离；PostgreSQL 18 与 MySQL 8.4 分别通过 migration、queue、crash recovery、scheduler、calendar、notification 共 16 项真实服务测试。workspace fmt/clippy/default+all-features tests/warnings-denied docs/cargo deny 与独立 consumer clippy/run 通过；尚未验收完整集群与生产负载。
+
 - 原 M0–M2 基础范围和 M3 本地认证/安全运行时已验收；Mailer/Policy 生成器、公开 HTTP 路由限流与数据输出/查询边界均已提交并完成适用验证。
 - M4 仅部分完成；单项 scheduler/worker 多进程测试不等于完整集群验收。
 - M4 类型化事件、queued listener、事务提交边界与 AuthFlows 注册/登录扩展已在 PostgreSQL 18/MySQL 8.4 完成双库验收；源码 workspace 交付和 C1–C3 中文化现已验收，共享锁与请求幂等已于 ADR-042 完成。Worker 生命周期修正与 F1 cron/IANA/DST、版本隔离、每 tick 有界补跑经双库专项验收。F2 通过中/英/波兰语、select/plural fallback、精确小数、跨时区日期、HTTP 并发 locale 测试及 clean-copy 生成项目 check/test。F3 已提交可选 MiniJinja 邮件模板、严格变量/HTML 转义/布局与 MIME、CLI 中英模板生成器；Mailpit 实际 SMTP 收件及 API 的主题、文本、HTML 已确认。队列化通知与薄多渠道编排已完成双库与 SMTP 验收；M4 job 生成器、组合示例、双库 CI targets 和 workspace 门禁已完成，当前进入 M5 通用插件公开契约。
@@ -44,7 +46,7 @@
 
 ## 下一步
 
-按 [todo.md](todo.md) 推进 Queue 外部扩展契约及其后续 M5/M6 工作，再执行完整 v1 性能、生产就绪与集群门禁。Worker 与 scheduler 专项双库证据不覆盖生产多实例负载与完整集群门禁。组件整合与 Laravel 式体验按 ADR-001；不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
+按 [todo.md](todo.md) 推进跨协议验证与调用作用域及其后续 M5/M6 工作，再执行完整 v1 性能、生产就绪与集群门禁。Worker 与 scheduler 专项双库证据不覆盖生产多实例负载与完整集群门禁。组件整合与 Laravel 式体验按 ADR-001；不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
 
 ## 本次文档核对范围
 

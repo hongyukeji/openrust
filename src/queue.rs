@@ -36,6 +36,7 @@ const MAX_DELAY_SECS: u64 = 2_592_000;
 const HEX: &[u8; 16] = b"0123456789abcdef";
 const CHAIN_JOB_NAME: &str = "openrust.internal.chain.v1";
 const BATCH_JOB_NAME: &str = "openrust.internal.batch.v1";
+type ProgressReporter = Arc<dyn Fn(Value) -> BoxFuture<'static, Result<()>> + Send + Sync>;
 
 /// 通过 [`QueuePlugin`] 显式注册的类型化任务处理器。
 pub trait Job: DeserializeOwned + Send + Sync + 'static {
@@ -53,13 +54,55 @@ pub struct JobContext {
     attempt: u64,
     max_attempts: u64,
     cancelled: tokio::sync::watch::Receiver<bool>,
-    db: Db,
-    owner: String,
-    token: String,
     app_state: Option<crate::core::AppState>,
+    progress_reporter: Option<ProgressReporter>,
 }
 
 impl JobContext {
+    /// 为自定义 driver 创建一次任务尝试的上下文。
+    ///
+    /// `cancelled` 应由 driver 持有对应的 sender，并在任务需要停止时发送 `true`。
+    /// 默认不支持进度写入；使用 [`JobContext::with_progress_reporter`] 显式提供后端实现。
+    pub fn new(
+        id: impl Into<String>,
+        attempt: u64,
+        max_attempts: u64,
+        cancelled: tokio::sync::watch::Receiver<bool>,
+    ) -> Result<Self> {
+        let id = id.into();
+        if id.is_empty() || attempt == 0 || max_attempts == 0 || attempt > max_attempts {
+            return Err(Error::custom(
+                "invalid_queue_job_context",
+                "job context requires a non-empty id and a valid attempt range",
+            ));
+        }
+        Ok(Self {
+            id,
+            attempt,
+            max_attempts,
+            cancelled,
+            app_state: None,
+            progress_reporter: None,
+        })
+    }
+
+    /// 设置自定义 driver 的进度持久化行为。
+    #[must_use]
+    pub fn with_progress_reporter(
+        mut self,
+        reporter: impl Fn(Value) -> BoxFuture<'static, Result<()>> + Send + Sync + 'static,
+    ) -> Self {
+        self.progress_reporter = Some(Arc::new(reporter));
+        self
+    }
+
+    /// 设置自定义 worker 正在运行的应用服务状态。
+    #[must_use]
+    pub fn with_app_state(mut self, state: crate::core::AppState) -> Self {
+        self.app_state = Some(state);
+        self
+    }
+
     /// 持久化任务 ID。
     pub fn id(&self) -> &str {
         &self.id
@@ -112,57 +155,122 @@ impl JobContext {
                 "job progress exceeds 4 KiB",
             ));
         }
-        let connection = self.db.connection()?;
-        let backend = self.db.backend()?;
-        let table = self.db.quoted_table_name("jobs")?;
-        let (sql, values) = match backend {
-            DbBackend::Postgres => (
-                format!(
-                    "UPDATE {table} SET progress = $1::jsonb WHERE id = $2 AND reserved_by = $3 AND ownership_token = $4"
-                ),
-                vec![
-                    encoded.into(),
-                    self.id.clone().into(),
-                    self.owner.clone().into(),
-                    self.token.clone().into(),
-                ],
+        let reporter = self.progress_reporter.as_ref().ok_or_else(|| {
+            Error::custom(
+                "queue_progress_unsupported",
+                "this queue driver does not provide progress persistence",
+            )
+        })?;
+        reporter(value.clone()).await
+    }
+}
+
+async fn persist_database_progress(
+    db: Db,
+    id: String,
+    owner: String,
+    token: String,
+    value: Value,
+) -> Result<()> {
+    let encoded = serde_json::to_string(&value).map_err(Error::internal)?;
+    if encoded.len() > 4096 {
+        return Err(Error::custom(
+            "queue_progress_too_large",
+            "job progress exceeds 4 KiB",
+        ));
+    }
+    let connection = db.connection()?;
+    let backend = db.backend()?;
+    let table = db.quoted_table_name("jobs")?;
+    let (sql, values) = match backend {
+        DbBackend::Postgres => (
+            format!(
+                "UPDATE {table} SET progress = $1::jsonb WHERE id = $2 AND reserved_by = $3 AND ownership_token = $4"
             ),
-            DbBackend::MySql => (
-                format!(
-                    "UPDATE {table} SET progress = CAST(? AS JSON) WHERE id = ? AND reserved_by = ? AND ownership_token = ?"
-                ),
-                vec![
-                    encoded.into(),
-                    self.id.clone().into(),
-                    self.owner.clone().into(),
-                    self.token.clone().into(),
-                ],
+            vec![
+                encoded.into(),
+                id.clone().into(),
+                owner.clone().into(),
+                token.clone().into(),
+            ],
+        ),
+        DbBackend::MySql => (
+            format!(
+                "UPDATE {table} SET progress = CAST(? AS JSON) WHERE id = ? AND reserved_by = ? AND ownership_token = ?"
             ),
-            _ => {
-                return Err(Error::custom(
-                    "unsupported_queue_backend",
-                    "database queue requires PostgreSQL or MySQL",
-                ));
-            }
-        };
-        let result = connection
-            .execute_raw(Statement::from_sql_and_values(backend, sql, values))
-            .await
-            .map_err(Error::internal)?;
-        if result.rows_affected() == 0 {
+            vec![
+                encoded.into(),
+                id.clone().into(),
+                owner.clone().into(),
+                token.clone().into(),
+            ],
+        ),
+        _ => {
             return Err(Error::custom(
-                "queue_lease_lost",
-                "job lease ownership changed",
+                "unsupported_queue_backend",
+                "database queue requires PostgreSQL or MySQL",
             ));
         }
-        Ok(())
+    };
+    let result = connection
+        .execute_raw(Statement::from_sql_and_values(backend, sql, values))
+        .await
+        .map_err(Error::internal)?;
+    if result.rows_affected() == 0 {
+        return Err(Error::custom(
+            "queue_lease_lost",
+            "job lease ownership changed",
+        ));
     }
+    Ok(())
 }
 
 type JobFn = fn(Value, JobContext) -> BoxFuture<'static, Result<()>>;
 
+/// 可供队列 driver 复用的 typed Job 注册表。
 #[derive(Default, Clone)]
-pub(crate) struct JobRegistry(HashMap<&'static str, JobFn>);
+pub struct JobRegistry(HashMap<&'static str, JobFn>);
+
+impl JobRegistry {
+    /// 注册一个 typed Job；重复名称或框架保留名称会返回错误。
+    pub fn register_job<J: Job>(&mut self) -> Result<&mut Self> {
+        validate_name("job name", J::NAME, MAX_JOB_NAME)?;
+        if is_reserved_job_name(J::NAME) {
+            return Err(Error::custom(
+                "reserved_queue_job_name",
+                "job name is reserved for framework task groups",
+            ));
+        }
+        if self.0.contains_key(J::NAME) {
+            return Err(Error::custom(
+                "duplicate_queue_job",
+                format!("job handler `{}` is registered more than once", J::NAME),
+            ));
+        }
+        self.0.insert(J::NAME, run_job::<J>);
+        Ok(self)
+    }
+
+    /// 按持久化任务名反序列化并执行已注册的 Job。
+    pub async fn execute(&self, job_name: &str, payload: Value, context: JobContext) -> Result<()> {
+        validate_name("job name", job_name, MAX_JOB_NAME)?;
+        validate_payload(&payload)?;
+        let handler = self.0.get(job_name).copied().ok_or_else(|| {
+            Error::custom(
+                "unregistered_queue_job",
+                format!("no handler is registered for job `{job_name}`"),
+            )
+        })?;
+        handler(payload, context).await
+    }
+}
+
+fn is_reserved_job_name(name: &str) -> bool {
+    name == CHAIN_JOB_NAME
+        || name == BATCH_JOB_NAME
+        || name == crate::notifications::EmailDeliveryJob::NAME
+        || name == crate::notifications::SmsDeliveryJob::NAME
+}
 
 #[derive(DeriveIden)]
 #[allow(dead_code)]
@@ -608,24 +716,9 @@ pub struct QueuePlugin {
 impl QueuePlugin {
     /// 使用稳定的 [`Job::NAME`] 注册类型化 handler。
     pub fn register_job<J: Job>(&mut self) -> Result<&mut Self> {
-        validate_name("job name", J::NAME, MAX_JOB_NAME)?;
-        if J::NAME == CHAIN_JOB_NAME
-            || J::NAME == BATCH_JOB_NAME
-            || J::NAME == crate::notifications::EmailDeliveryJob::NAME
-            || J::NAME == crate::notifications::SmsDeliveryJob::NAME
-        {
-            return Err(Error::custom(
-                "reserved_queue_job_name",
-                "job name is reserved for framework task groups",
-            ));
-        }
-        if self.handlers.contains_key(J::NAME) {
-            return Err(Error::custom(
-                "duplicate_queue_job",
-                format!("job handler `{}` is registered more than once", J::NAME),
-            ));
-        }
-        self.handlers.insert(J::NAME, run_job::<J>);
+        let mut registry = JobRegistry(self.handlers.clone());
+        registry.register_job::<J>()?;
+        self.handlers = registry.0;
         Ok(self)
     }
 
@@ -846,15 +939,25 @@ impl DatabaseQueue {
             ));
         }
         let (job_cancelled, job_cancellation) = tokio::sync::watch::channel(false);
+        let progress_db = self.db.clone();
+        let progress_id = claim.id.clone();
+        let progress_owner = claim.owner.clone();
+        let progress_token = claim.token.clone();
         let context = JobContext {
             id: claim.id.clone(),
             attempt: claim.attempts,
             max_attempts: claim.max_attempts,
             cancelled: job_cancellation,
-            db: self.db.clone(),
-            owner: claim.owner.clone(),
-            token: claim.token.clone(),
             app_state,
+            progress_reporter: Some(Arc::new(move |value| {
+                Box::pin(persist_database_progress(
+                    progress_db.clone(),
+                    progress_id.clone(),
+                    progress_owner.clone(),
+                    progress_token.clone(),
+                    value,
+                ))
+            })),
         };
         let mut cancellation = self.cancelled.subscribe();
         let handler_future: BoxFuture<'static, Result<()>> = if is_group {

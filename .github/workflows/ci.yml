@@ -37,6 +37,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo check --workspace --all-targets --all-features
       - run: cargo run --locked --manifest-path examples/db-custom-sqlite/Cargo.toml
+      - run: cargo run --locked --manifest-path examples/queue-custom-driver/Cargo.toml
 
   deny:
     name: licenses and advisories

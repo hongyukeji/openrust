@@ -160,6 +160,11 @@ name = "plugin_contract"
 path = "tests/core/plugin_contract.rs"
 
 [[test]]
+name = "queue_driver_contract"
+path = "tests/queue/driver_contract.rs"
+required-features = ["queue"]
+
+[[test]]
 name = "http_resource"
 path = "tests/http/resource.rs"
 

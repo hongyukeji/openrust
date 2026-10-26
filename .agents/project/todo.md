@@ -28,8 +28,7 @@ V1 参考 Loco、Laravel、Goravel、OpenSpring；若依/芋道仅 V2。新增�
 | --- | --- | --- |
 | 通用插件公开契约 | 按 [ADR-009](decisions/adr-009-extensible-capability-drivers.md#通用插件交付阶段) 补齐应用配置、服务、命令与路由组合、缺依赖/冲突错误语义及资源归属；复用静态 `Plugin::build/finish`，不另建插件生命周期系统 | 独立 consumer 仅用公开 API 完成注册、配置、执行和错误验证；未启用功能隔离；不依赖 AI 项目；workspace 门禁通过 |
 | Db 外部扩展契约 | 在通用插件 contract 后复用 SeaORM/SeaQuery 建立公开最小 driver 边界；区分可用 backend 的连接/事务与不支持能力，官方数据库矩阵不自动扩大 | 独立 consumer 不改核心即可配置和连接；事务/错误双库验证；既有 PostgreSQL/MySQL 行为无回归 |
-| Queue 外部扩展契约 **in_progress** | 在 Db contract 后补可复用 typed Job 的装配与执行路径；JobContext、registry 与进度绑定数据库；非数据库 fixture 明确支持范围，不支持事务派发时失败关闭；不暴露内部租约 token | 独立 consumer 仅用公开 API 注册并执行 Job，覆盖取消/进度/错误；无队列 feature 隔离；原数据库队列双库回归通过 |
-| 跨协议验证与调用作用域 | [补齐计划](plans/v1-common-capabilities.md#5-协议无关验证与调用作用域)：复用 validator/Error、AppState 与现有上下文，补公开转换、剩余预算/取消/trace/locale 规则；不持久化请求凭据 | HTTP/命令/Job 同规则、并发身份/语言隔离与任务独立生命周期；gRPC 在 G2 接入并复验 |
+| 跨协议验证与调用作用域 **in_progress** | [补齐计划](plans/v1-common-capabilities.md#5-协议无关验证与调用作用域)：复用 validator/Error、AppState 与现有上下文，补公开转换、剩余预算/取消/trace/locale 规则；不持久化请求凭据 | HTTP/命令/Job 同规则、并发身份/语言隔离与任务独立生命周期；gRPC 在 G2 接入并复验 |
 | 有界运行与就绪切换 | 先在现有 HTTP 命令补清楚的 listener/task 所有权、就绪状态、启动失败清理和限时退出；gRPC/实时后续复用，按 [生产约定](plans/v1-performance-and-readiness.md#6-生产默认值与开发编排) | HTTP 长请求/后台任务、SIGTERM、drain 超时、取消/join 和失败退出码；不用通用 Plugin shutdown 重开已有决策 |
 | 缓存驱动与命名实例 | ADR-014/015：标准应用 Redis 默认，memory/file 显式选择；default/named stores、custom driver、TTL/序列化/原子边界；库 Redis feature 可选 | 三驱动契约、真实 Redis、file 安全路径/过期/原子替换/并发/错误、独立扩展示例；Redis 故障不隐式回退 |
 | 高级缓存 F4 | 基础 Cache 与共享锁后交付 tag、SWR、显式同键加载合并；按 [底层补齐计划](plans/v1-foundation-completion.md) 明确能力与作用域 | Redis 双节点失效/回填竞争、最大陈旧窗口、失败/取消及停机回收；不伪称跨节点恰好一次 |
