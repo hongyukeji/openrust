@@ -28,7 +28,7 @@
 
 | 能力 | 选型 | 说明 |
 | --- | --- | --- |
-| ORM / 迁移 | `sea-orm` 2.0.4 + `sea-orm-migration` 2.0.4 | 采用 M0 双库迁移 spike 验证的版本；tokio Rustls 默认运行时，数据库连接驱动按 `db-postgres` / `db-mysql` feature 开启 |
+| ORM / 迁移 | `sea-orm` 2.0.4 + `sea-orm-migration` 2.0.4 | 采用 M0 双库迁移 spike 验证的版本；tokio Rustls 默认运行时，OpenRust 官方连接驱动按 `db-postgres` / `db-mysql` feature 开启。外部自定义插件可通过同版本 SeaORM 依赖的 feature 统一选择其他 backend；SQLite 通用 `Db` 与应用自有迁移示例见 `examples/db-custom-sqlite/`，不代表 OpenRust 框架迁移、认证/队列或方言的完整支持 |
 | 数据库 URL | `url` 2.5 | `testing` 替换隔离数据库名时保留连接凭据和查询参数 |
 | SQLx 支持 | `sqlx` 0.9 | MySQL driver 强制 TLS（Rustls）；不启用存在安全公告的 RSA 非 TLS 认证路径；`db.sqlx()` 尚未实现，若提供需先定义公开 API、feature 与连接生命周期 |
 | 数据库 | 暂定最低支持：PostgreSQL 14+、MySQL 8.0+；日常开发/Compose：PostgreSQL 18、MySQL 8.4 LTS；常规 CI：PostgreSQL 18、MySQL 8.4 | 运行时版本检查按暂定最低版本执行；PostgreSQL/MySQL 最低版本的完整兼容性仍须在 v1 发布验收中复核，不把单项历史测试等同于整套框架支持。仅在主版本跨度大或兼容风险显著时专项测试，不为每次日常 CI 追测所有版本。PostgreSQL 官方按主版本提供五年支持，不称 LTS |

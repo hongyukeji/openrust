@@ -46,7 +46,7 @@
 - 数据库扩展复用 `Db`、`DatabasePlugin` 约定与 `Plugin` 生命周期，不增加通用 ORM/driver trait。自定义插件在 `build` 注册唯一 `Db::default()`，在 `finish` 建立 SeaORM `DatabaseConnection` 并调用一次性的 `Db::initialize()`；框架 `MigrationPlugin`、`SeedPlugin`、事务辅助继续使用该服务。注册重复或重复初始化必须报错。
 - 内置 backend URL scheme 和 feature 检查由 `openrust::db::DatabaseBackend` 统一提供，并由测试工具共用；外部接入契约要求自定义插件可连接 SeaORM 后端并自行管理连接配置，当前实现限制以 [数据层事实](../core/db.md#后续边界) 为准。SeaORM `DbBackend` 是实际连接类型，不扩展为 OpenRust 专属 SQL/ORM trait。
 - 当前内置 `DatabasePlugin` 建连后校验暂定最低 PostgreSQL 14+ / MySQL 8.0+；日常开发与 CI 基线为 PostgreSQL 18 / MySQL 8.4 LTS。最低版本完整能力矩阵仍须在发布前验证。自定义插件绕过内置连接初始化时，必须自行执行适用的版本与能力检查。
-- `Db::backend()` 提供已初始化连接的 SeaORM backend。官方 v1 暂定支持 PostgreSQL 14+ 与 MySQL 8.0+；其他关系型 backend 的外部接入应有可执行验收，须适配所用的迁移、UTC/JSON、锁与测试隔离，不能因 CRUD 或成功连接宣称框架全功能兼容。当前表名校验造成的接入限制须按活跃待办修正，不能将本条目标当作已实现。
+- `Db::backend()` 提供已初始化连接的 SeaORM backend。通用 `Db` 连接、事务、表名解析和应用自有 SeaORM migration 可由自定义插件接入 SQLite；这不代表 SQLite 属于官方 v1 支持矩阵。官方 v1 暂定支持 PostgreSQL 14+ 与 MySQL 8.0+；其他关系型 backend 的外部接入应有可执行验收，须适配所用的迁移、UTC/JSON、锁与测试隔离，不能因 CRUD 或成功连接宣称框架全功能兼容。
 - 新增关系型 backend 要进入官方支持矩阵，仍需增补 feature、连接默认值、安全策略、能力检查、方言、迁移/seed、测试隔离、生成器、文档与真实集成验证。MongoDB 等不同数据模型不适用此 `Db` 替换契约。
 - `openrust::db::dialect` 对未支持 backend 明确返回迁移错误；`testing::TestDatabase` 的 PostgreSQL 模板复制与 MySQL 迁移重放是 backend 专属实现，新增 backend 必须单独实现，不能由连接插件自动继承。
 - MongoDB 等不同数据模型不承诺直接替换关系型数据库。能够 CRUD 不代表满足迁移、会话、数据库队列等全部要求。

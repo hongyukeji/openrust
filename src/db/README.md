@@ -25,7 +25,7 @@ table_prefix = "app_"
 users = "accounts"
 ```
 
-显式映射优先级更高，且不会再添加前缀。表名必须是 ASCII 标识符；启动时会检查 PostgreSQL 的 63 字节和 MySQL 的 64 字节限制。`Db::table_name()` 返回经过校验的物理表名；`Db::quoted_table_name()` 返回按 backend 转义后的形式。`MigrationPlugin` 和 `TestDatabase::create_with_table_names()` 会在每次迁移调用期间设置相同的 resolver。创建框架相关表的手写迁移可读取 `DatabaseTableNames::current()`；在迁移作用域外调用会返回 `None`。框架不会全局重写原始 SQL：框架认证 SQL 会自行解析表名，应用 SQL 则必须使用 `Db` resolver。修改表名配置不会迁移现有 schema 或数据。
+显式映射优先级更高，且不会再添加前缀。表名必须是 ASCII 标识符，框架解析器限制物理表名最多 64 字节；PostgreSQL 另检查 63 字节、MySQL 检查 64 字节。SQLite 自定义连接使用双引号引用。`Db::table_name()` 返回经过校验的物理表名；`Db::quoted_table_name()` 返回按 backend 转义后的形式。`MigrationPlugin` 和 `TestDatabase::create_with_table_names()` 会在每次迁移调用期间设置相同的 resolver。创建框架相关表的手写迁移可读取 `DatabaseTableNames::current()`；在迁移作用域外调用会返回 `None`。框架不会全局重写原始 SQL：框架认证 SQL 会自行解析表名，应用 SQL 则必须使用 `Db` resolver。修改表名配置不会迁移现有 schema 或数据。
 
 ```rust,ignore
 use openrust::{Application, AppBuilder, DatabasePlugin, NoConfig};
@@ -131,7 +131,7 @@ impl Plugin for CustomDatabasePlugin {
 }
 ```
 
-`DatabaseBackend` 集中管理官方支持的 PostgreSQL/MySQL URL scheme 和 feature 检查。`Db::initialize` 接收 SeaORM `DatabaseConnection`；`Db::backend()` 报告已连接的 SeaORM backend。自定义 plugin 负责自己的连接配置，并须校验应用所需能力。v1 官方数据库引擎为 PostgreSQL 和 MySQL，暂定最低版本分别为 PostgreSQL 14+ 和 MySQL 8.0+；日常开发及数据库 CI 使用 PostgreSQL 18 和 MySQL 8.4 LTS。只有主版本跨度较大或存在具体兼容风险时才增加专项版本检查；暂定最低版本的完整兼容性仍是 v1 发布门槛。其他 SeaORM backend 不会自动获得框架级支持：迁移、UTC/JSON 列、锁、feature 选择、项目生成和 `TestDatabase` 隔离都需要各自实现与验证。MongoDB 等不同数据模型不在此契约范围内。切换连接不会迁移既有数据。
+`DatabaseBackend` 集中管理官方支持的 PostgreSQL/MySQL URL scheme 和 feature 检查。`Db::initialize` 接收 SeaORM `DatabaseConnection`；通用 `Db` 连接、事务、表名解析，以及自定义的 SeaORM `MigrationPlugin` 迁移均可用于 SQLite。SQLite 示例见 [`examples/db-custom-sqlite`](../../examples/db-custom-sqlite/README.md)。`Db::backend()` 报告已连接的 SeaORM backend。自定义 plugin 负责自己的连接配置，并须校验应用所需能力。v1 官方数据库引擎为 PostgreSQL 和 MySQL，暂定最低版本分别为 PostgreSQL 14+ 和 MySQL 8.0+；日常开发及数据库 CI 使用 PostgreSQL 18 和 MySQL 8.4 LTS。只有主版本跨度较大或存在具体兼容风险时才增加专项版本检查；暂定最低版本的完整兼容性仍是 v1 发布门槛。SQLite 连接不自动启用 OpenRust 方言 helper、认证/队列/协调等框架迁移、UTC/JSON 列能力、数据库共享锁或 `TestDatabase`；应用必须为自定义迁移及需要的能力自行适配和验证。其他 SeaORM backend 亦须满足相同要求，MongoDB 等不同数据模型不在此契约范围内。切换连接不会迁移既有数据。
 
 为保证迁移列可移植，`openrust::database::dialect::timestamp_utc(name, backend)` 会创建 PostgreSQL `TIMESTAMP WITH TIME ZONE` 或 MySQL `DATETIME(6)`；`dialect::json(name, backend)` 会创建 PostgreSQL `JSONB` 或 MySQL `JSON`。两者均返回 `Result<ColumnDef, DbErr>`，遇到未处理的 backend 时会明确拒绝，而不会静默使用 PostgreSQL SQL。
 

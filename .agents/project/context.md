@@ -2,14 +2,14 @@
 
 > 受众：AI Agent
 > 更新：2026-10-26
-> 摘要：OpenRust 是全新的开源 Rust 应用开发框架，当前处于 v1 M5；源码 workspace 交付、C1–C3 中文化、F1–F3 与队列化通知已完成；M4 job 生成与集成收口、M5 通用插件公开契约已完成；当前转入 Db 外部扩展契约。
+> 摘要：OpenRust 是全新的开源 Rust 应用开发框架，当前处于 v1 M5；源码 workspace 交付、C1–C3 中文化、F1–F3 与队列化通知已完成；M4 job 生成与集成收口、M5 通用插件公开契约及 Db 外部扩展契约已完成；当前转入 Queue 外部扩展契约。
 
 ## 当前状态
 
 | 项 | 值 |
 | --- | --- |
 | 版本 | 0.0.0（源码开发版本；整套 workspace 交付，不独立发布 Cargo 包） |
-| 阶段 | 原 M0–M2 基础范围和 M3 本地认证/安全运行时验收已完成；M4 队列/worker、UTC 调度、活动任务唯一键、有限任务链/批次、ADR-042 共享锁/请求幂等、worker 停机修正及 F1 cron/IANA/DST/有限补跑均已交付。Worker 停机、日历调度和队列化通知已在 PostgreSQL 18/MySQL 8.4 真实服务专项验收；F2 国际化与 F3 安全邮件模板已完成。M4 job 生成与集成收口、M5 通用插件公开契约已完成；生产负载与完整集群仍待最终门禁，当前开始 Db 外部扩展契约；Twilio 实发待授权。完成定义见 progress.md，不将阶段标签等同于全部交付 |
+| 阶段 | 原 M0–M2 基础范围和 M3 本地认证/安全运行时验收已完成；M4 队列/worker、UTC 调度、活动任务唯一键、有限任务链/批次、ADR-042 共享锁/请求幂等、worker 停机修正及 F1 cron/IANA/DST/有限补跑均已交付。Worker 停机、日历调度和队列化通知已在 PostgreSQL 18/MySQL 8.4 真实服务专项验收；F2 国际化与 F3 安全邮件模板已完成。M4 job 生成与集成收口、M5 通用插件公开契约及 Db 外部扩展契约已完成；SQLite 自定义 SeaORM consumer 已实测连接、应用迁移及提交/回滚，PG18/MySQL8.4 的连接与事务回归已实测；生产负载与完整集群仍待最终门禁，当前开始 Queue 外部扩展契约；Twilio 实发待授权。完成定义见 progress.md，不将阶段标签等同于全部交付 |
 | 仓库 | `https://github.com/hongyukeji/openrust`（公开，默认分支 `main`，已推送）；本地 `/Users/Home/Codes/Rust/openrust` |
 | 协作模式 | 单开发者 + AI Agent；Claude 负责方案与设计，Codex 负责实现与验证 |
 | 本机工具链 | Rust stable 1.99.1（默认）与 Rust 1.97.0 MSRV（`rustup`），`cargo-deny` 0.20 已安装 |

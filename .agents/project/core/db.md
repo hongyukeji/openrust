@@ -9,11 +9,11 @@
 - `DatabaseConfig` 定义在 `openrust::config::database`，旧的 `openrust::database::DatabaseConfig` 导出保持可用。运行 TOML 位于应用根 `config/`；本地 URL 可用 `.env`，生产环境使用进程变量。
 
 - `DatabaseConfig` 从 `[database]` 读取 URL、池大小和连接/获取超时；自定义 `Debug` 会遮蔽 URL。
-- `DatabaseBackend` 集中解析官方 PostgreSQL/MySQL URL scheme 与 feature 状态；它只描述 v1 官方支持集合，扩展插件可用 `Db::backend()` 读取 SeaORM 实际 backend。
+- `DatabaseBackend` 集中解析官方 PostgreSQL/MySQL URL scheme 与 feature 状态；它只描述 v1 官方支持集合，扩展插件可用 `Db::backend()` 读取 SeaORM 实际 backend。SQLite 不属于官方矩阵，可由自定义插件使用通用 `Db` 连接/事务接口。
 - `DatabasePlugin` 验证 pool 参数与 URL 对应的 backend feature，在 `finish` 阶段连接 SeaORM pool；运行时按暂定最低支持接受 PostgreSQL 14+ / MySQL 8.0+。日常开发基线为 PostgreSQL 18 / MySQL 8.4 LTS / Redis 8；数据库常规 CI 使用 PostgreSQL 18 / MySQL 8.4。v1 发布前须复核官方生命周期并完成最低版本能力矩阵验证。
 - `DatabasePlugin` 注册 `openrust::core::RateLimiter`，其官方 `DatabaseRateLimitStore` 通过当前 `Db` 实例在 PostgreSQL/MySQL 上原子更新固定窗口记录；`DatabaseRateLimitMigration` 由应用 migrator 显式注册，启动不会自动建表。
 - 限流 key 仅存 SHA-256 digest（不抵抗低熵输入猜测）；每个 store 实例每 256 次消费最多清理 512 行已过期记录，窗口长度一并持久化。缺少迁移、数据库故障与不支持 backend 均以错误传播，不作为未命中或放行。
-- 自定义 `Plugin` 可在 build 注册 `Db::default()`，finish 建立 SeaORM `DatabaseConnection` 后调用 `Db::initialize()`；`initialize_with_replicas()` 接受同 backend 的主库和副本连接；`Db::backend()` 读取主库 backend。一个应用仅注册一个数据库插件；自定义插件负责自身连接配置及所需能力校验。
+- 自定义 `Plugin` 可在 build 注册 `Db::default()`，finish 建立 SeaORM `DatabaseConnection` 后调用 `Db::initialize()`；`initialize_with_replicas()` 接受同 backend 的主库和副本连接；`Db::backend()` 读取主库 backend。一个应用仅注册一个数据库插件；自定义插件负责自身连接配置及所需能力校验。当前通用初始化与 `DatabaseTableNames` 支持 PostgreSQL、MySQL、SQLite；其他 SeaORM backend 在定义表名 quoting 前会明确拒绝。
 - MySQL pool 的每条新连接将会话时区设为 `+00:00`，与 ADR-002 一致。
 - `Db` 是可克隆服务句柄；`connection()` / `primary_connection()` 始终返回主库，`read_connection()` 显式轮询只读副本（未配置副本时返回主库）。`with_primary(future)` 让当前 Tokio task scope 内的读入口固定主库；独立 `tokio::spawn` 不继承 scope。插件完成初始化前调用会返回内部错误。
 - 读写分离使用显式 API，不解析 SQL；调用方须保证副本入口只执行可接受复制延迟的只读操作。官方插件连接并校验所有配置副本，任一失败即启动失败；不自动重试或回退。每个 pool 使用相同 pool 上限，因此副本数为 N 时总连接上限为 `(N + 1) * max_connections`。
@@ -36,7 +36,7 @@
 
 官方 v1 数据库支持限定 PostgreSQL 与 MySQL，暂定最低版本为 PostgreSQL 14+ / MySQL 8.0+。日常开发基线为 PostgreSQL 18 / MySQL 8.4 LTS / Redis 8，数据库 CI 使用 PostgreSQL 18 / MySQL 8.4。只在跨度较大、涉及版本专属行为或出现明确兼容风险时专项验证其他版本。v1 发布前按届时官方生命周期复核并验证最低版本下框架承诺的能力；已有 PostgreSQL 14 / MySQL 8.0 历史集成结果不单独代表当前完整支持。
 
-当前 `Db::initialize_with_replicas()` 会调用 `DatabaseTableNames::validate_backend()`，表名校验与 quoting 均只接受 PostgreSQL/MySQL；自定义插件目前只能替换这两种后端的连接初始化，不能装入 SQLite 等其他 SeaORM backend。ADR-009 的外部接入目标尚有实现差距，修正与独立 consumer 验收见 [todo.md](../todo.md)。其他后端还须适配实际使用的迁移、方言与测试隔离，不自动获得认证/队列兼容；新增官方 backend 仍需独立完成 feature、能力检查、方言、生成器及真实测试闭环。
+SQLite 自定义插件通过 SeaORM 自行创建连接后，可使用 `Db::initialize()`、`Db::transaction()`、通用表名解析与应用自有 SeaORM `MigrationPlugin`。该连接不使 SQLite 成为 OpenRust 官方支持后端：`DatabasePlugin`、官方 URL/feature 检查、方言 helper、框架认证/队列/协调迁移与 `TestDatabase` 仍限定 PostgreSQL/MySQL，调用不支持的能力时应显式失败。独立 consumer 示例见 `examples/db-custom-sqlite/`。其他 SeaORM backend 还须先实现受控的表名 quoting，再适配实际使用的迁移、方言与测试隔离；不能由连接成功推断认证/队列兼容。新增官方 backend 仍需独立完成 feature、能力检查、方言、生成器及真实测试闭环。
 
 ## 验证
 

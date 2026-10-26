@@ -57,19 +57,20 @@ impl DatabaseTableNames {
         Ok(physical)
     }
 
-    /// 为所选的受支持后端解析并引用物理表名。
+    /// 为 PostgreSQL、MySQL 或 SQLite 解析并引用物理表名。
     pub fn quote(&self, logical_name: &str, backend: DbBackend) -> Result<String> {
         let physical = self.resolve(logical_name)?;
         match backend {
             DbBackend::Postgres if physical.len() <= 63 => Ok(format!("\"{physical}\"")),
             DbBackend::MySql if physical.len() <= 64 => Ok(format!("`{physical}`")),
+            DbBackend::Sqlite => Ok(format!("\"{physical}\"")),
             DbBackend::Postgres => Err(invalid_name(
                 "PostgreSQL table names cannot exceed 63 bytes",
             )),
             DbBackend::MySql => Err(invalid_name("MySQL table names cannot exceed 64 bytes")),
             _ => Err(Error::custom(
                 "unsupported_database_backend",
-                "table-name resolution requires PostgreSQL or MySQL",
+                "table-name resolution does not support this SeaORM backend",
             )),
         }
     }
@@ -83,11 +84,11 @@ impl DatabaseTableNames {
         self.validate()?;
         let maximum = match backend {
             DbBackend::Postgres => 63,
-            DbBackend::MySql => 64,
+            DbBackend::MySql | DbBackend::Sqlite => 64,
             _ => {
                 return Err(Error::custom(
                     "unsupported_database_backend",
-                    "table-name resolution requires PostgreSQL or MySQL",
+                    "table-name resolution does not support this SeaORM backend",
                 ));
             }
         };
@@ -209,6 +210,21 @@ mod tests {
         let names = DatabaseTableNames::new("", BTreeMap::new())?;
         assert_eq!(names.quote("users", DbBackend::Postgres)?, "\"users\"");
         assert_eq!(names.quote("users", DbBackend::MySql)?, "`users`");
+        Ok(())
+    }
+
+    #[test]
+    fn validates_and_quotes_sqlite_names_for_custom_plugins() -> Result<()> {
+        let names = DatabaseTableNames::new(
+            "custom_",
+            BTreeMap::from([("users".to_owned(), "accounts".to_owned())]),
+        )?;
+        names.validate_backend(DbBackend::Sqlite)?;
+        assert_eq!(names.quote("users", DbBackend::Sqlite)?, "\"accounts\"");
+        assert_eq!(
+            names.quote("sessions", DbBackend::Sqlite)?,
+            "\"custom_sessions\""
+        );
         Ok(())
     }
 
