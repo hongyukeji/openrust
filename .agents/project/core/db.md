@@ -25,6 +25,7 @@
 - `DatabaseConfig` 支持 `table_prefix`（默认 `tb_`，空值禁用）和 `table_names` 完整物理名映射；`Db` 持有不可变 `DatabaseTableNames`，提供物理名与 backend quoting。标识符只允许 ASCII 字母/数字/下划线；连接初始化时按 PostgreSQL 63-byte、MySQL 64-byte 限制校验映射和框架核心表名。
 - `MigrationPlugin` 在每次 up/down/status 调用中用 Tokio task-local scope 提供 `DatabaseTableNames`；OpenRust AuthMigration 无 scope 时失败。手写 SeaORM migration 可用 `DatabaseTableNames::current()` 获取当前 resolver。`TestDatabase::create_with_table_names()` 用相同 scope 执行隔离迁移。
 - 认证迁移、Session/PAT/refresh-token SQL 使用同一 resolver；应用自行书写的 raw SQL 不自动改写，必须使用 `Db::table_name()` / `quoted_table_name()`。表名前缀或映射不会迁移既有 schema 或数据。
+- 按 [ADR-049](../decisions/adr-049-migration-execution-lock.md)，`MigrationPlugin<M>` 的 `up`、`down`、`status` 均在所选 Db 主库上取得独立 `migration_locks` 固定行的事务锁；resolver-aware 锁表惰性初始化，默认等待 30 秒，可通过 `with_lock_wait_timeout` 配置。竞争按 PostgreSQL/MySQL 驱动锁冲突短暂重试，超时 fail-closed；进程/连接退出释放行锁。仅保护同一物理数据库、相同 resolver 且通过 `MigrationPlugin` 执行的命令；直接 SeaORM/raw SQL/外部工具不受保护。DDL 仍由 SeaORM runner 管理，MySQL 隐式提交和部分 schema 清理由应用负责。PostgreSQL 18/MySQL 8.4 多进程等待超时与 owner 强杀恢复测试均通过。
 - `MigrationPlugin<M>` 注册 `migrate` 命令，调用应用 migrator 的 `up`、`down` 和 `status`；`sea_orm_migration` 从 `openrust::database` re-export。
 - `SeedPlugin::new(seed_fn)` 注册 `db seed`；异步回调接收 `Db`，种子数据与幂等性由应用负责。
 - `openrust generate model` 与 `generate migration` 可一致传入 `--uuid-id`（`db-uuid` feature，UUIDv7）及 `--soft-delete`（nullable UTC `deleted_at`）；实体生成显式 `Entity::not_deleted()` scope。删除范围不会自动作用于 `find()`、raw SQL 或其他入口，恢复由应用将 `deleted_at` 清空；模型和迁移选项须匹配。

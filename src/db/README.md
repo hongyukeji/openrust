@@ -153,7 +153,7 @@ impl Plugin for CustomDatabasePlugin {
 
 为保证迁移列可移植，`openrust::database::dialect::timestamp_utc(name, backend)` 会创建 PostgreSQL `TIMESTAMP WITH TIME ZONE` 或 MySQL `DATETIME(6)`；`dialect::json(name, backend)` 会创建 PostgreSQL `JSONB` 或 MySQL `JSON`。两者均返回 `Result<ColumnDef, DbErr>`，遇到未处理的 backend 时会明确拒绝，而不会静默使用 PostgreSQL SQL。
 
-注册 `MigrationPlugin::<Migrator>::new()`，即可为实现 `sea_orm_migration::MigratorTrait` 的应用 migrator 添加运行时 `migrate` 命令。迁移 API 通过 `openrust::database::sea_orm_migration` 重新导出。运行 `migrate` 或 `migrate up [steps]` 应用待执行迁移；运行 `migrate down [steps]` 回滚迁移（默认回滚一步）；运行 `migrate status` 查看已应用和待执行的迁移。具名数据库使用 `migrate --database <name> [up|down|status]` 选择目标；不指定时沿用默认数据库。MySQL DDL 可能隐式提交；迁移失败后，请检查并清理部分 schema 再重试。
+注册 `MigrationPlugin::<Migrator>::new()`，即可为实现 `sea_orm_migration::MigratorTrait` 的应用 migrator 添加运行时 `migrate` 命令。迁移 API 通过 `openrust::database::sea_orm_migration` 重新导出。运行 `migrate` 或 `migrate up [steps]` 应用待执行迁移；运行 `migrate down [steps]` 回滚迁移（默认回滚一步）；运行 `migrate status` 查看已应用和待执行的迁移。具名数据库使用 `migrate --database <name> [up|down|status]` 选择目标；不指定时沿用默认数据库。三种命令均先在所选主库获取事务行锁，默认最多等待 30 秒；应用可用 `MigrationPlugin::<Migrator>::new().with_lock_wait_timeout(std::time::Duration::from_secs(60))` 调整上限。锁表按当前表名 resolver 惰性创建，应用 migration 不应管理或删除它。该锁仅协调使用同一数据库、相同 resolver 并经此插件运行的命令；直接 SeaORM runner、原生 SQL 和外部迁移工具不受保护。进程退出会释放事务锁，但 MySQL DDL 可能已隐式提交；迁移失败后仍须检查并清理部分 schema 再重试。
 
 将 `SeedPlugin::new(seed_fn)` 与 `DatabasePlugin` 一并注册，即可提供 `db seed` 命令。异步函数接收可克隆的 `Db` handle，并返回 `openrust::Result<()>`；seed 数据及其幂等性由应用负责。
 

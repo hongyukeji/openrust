@@ -22,6 +22,7 @@ mod batch;
 mod coordination;
 pub mod dialect;
 mod migration;
+mod migration_lock;
 mod rate_limit;
 mod seed;
 mod table_names;

@@ -24,8 +24,10 @@ use sea_orm::{
 };
 use sea_orm_migration::prelude::*;
 use sha2::{Digest, Sha256};
+use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use testing::TestDatabase;
 use tower::ServiceExt;
 
 static SEED_RUNS: AtomicUsize = AtomicUsize::new(0);
@@ -276,6 +278,180 @@ impl MigratorTrait for EmptyMigrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
         Vec::new()
     }
+}
+
+struct LockProbeMigrator;
+
+impl MigratorTrait for LockProbeMigrator {
+    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+        vec![Box::new(LockProbeMigration)]
+    }
+}
+
+struct LockProbeMigration;
+
+impl MigrationName for LockProbeMigration {
+    fn name(&self) -> &'static str {
+        "m20261027_000001_migration_lock_probe"
+    }
+}
+
+#[sea_orm_migration::async_trait::async_trait]
+impl MigrationTrait for LockProbeMigration {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        if let Ok(path) = std::env::var("OPENRUST_MIGRATION_ACTIVE_FILE") {
+            std::fs::write(path, b"active").map_err(|error| DbErr::Migration(error.to_string()))?;
+        }
+        if let Ok(delay) = std::env::var("OPENRUST_MIGRATION_DELAY_MS")
+            && let Ok(delay) = delay.parse::<u64>()
+        {
+            tokio::time::sleep(Duration::from_millis(delay)).await;
+        }
+        let names = DatabaseTableNames::current().ok_or_else(|| {
+            DbErr::Migration("migration lock probe requires a table-name scope".into())
+        })?;
+        manager
+            .create_table(
+                Table::create()
+                    .table(Alias::new(
+                        names
+                            .resolve("migration_lock_probe")
+                            .map_err(|error| DbErr::Migration(error.to_string()))?,
+                    ))
+                    .col(
+                        ColumnDef::new(Alias::new("id"))
+                            .small_integer()
+                            .not_null()
+                            .primary_key(),
+                    )
+                    .to_owned(),
+            )
+            .await
+    }
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        let names = DatabaseTableNames::current().ok_or_else(|| {
+            DbErr::Migration("migration lock probe requires a table-name scope".into())
+        })?;
+        manager
+            .drop_table(
+                Table::drop()
+                    .table(Alias::new(
+                        names
+                            .resolve("migration_lock_probe")
+                            .map_err(|error| DbErr::Migration(error.to_string()))?,
+                    ))
+                    .if_exists()
+                    .to_owned(),
+            )
+            .await
+    }
+}
+
+async fn build_lock_probe_app(url: &str, timeout: Duration) -> FrameworkResult<App> {
+    let source = format!("[database]\nurl = {url:?}\ntable_prefix = 'migration_lock_test_'\n");
+    let mut builder = AppBuilder::new(
+        FrameworkConfig::default(),
+        Figment::new().merge(Toml::string(&source)),
+    );
+    builder
+        .plugin(DatabasePlugin)
+        .plugin(MigrationPlugin::<LockProbeMigrator>::new().with_lock_wait_timeout(timeout));
+    lifecycle::finalize(builder).await
+}
+
+fn spawn_lock_probe_migration(
+    url: &str,
+    active_file: &str,
+    delay_ms: u64,
+) -> std::io::Result<Child> {
+    Command::new(std::env::current_exe()?)
+        .args([
+            "--exact",
+            "child_migration_process_runs_migrations",
+            "--nocapture",
+        ])
+        .env("OPENRUST_MIGRATION_CHILD_URL", url)
+        .env("OPENRUST_MIGRATION_ACTIVE_FILE", active_file)
+        .env("OPENRUST_MIGRATION_DELAY_MS", delay_ms.to_string())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+}
+
+async fn wait_for_file(path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while !std::path::Path::new(path).exists() {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await?;
+    Ok(())
+}
+
+fn unique_migration_probe_path(label: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let stamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
+    Ok(std::env::temp_dir()
+        .join(format!(
+            "openrust-migration-{label}-{}-{stamp}",
+            std::process::id()
+        ))
+        .to_string_lossy()
+        .into_owned())
+}
+
+#[tokio::test]
+async fn migration_commands_serialize_timeout_and_recover_after_process_exit()
+-> Result<(), Box<dyn std::error::Error>> {
+    let Ok(admin_url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+        eprintln!("skipping migration lock integration: OPENRUST_TEST_DATABASE_URL is unset");
+        return Ok(());
+    };
+    let isolated = TestDatabase::create::<EmptyMigrator>(&admin_url).await?;
+    let app = build_lock_probe_app(isolated.url(), Duration::from_millis(150)).await?;
+
+    let first_path = unique_migration_probe_path("first")?;
+    let mut first = spawn_lock_probe_migration(isolated.url(), &first_path, 800)?;
+    wait_for_file(&first_path).await?;
+    let second_path = unique_migration_probe_path("second")?;
+    let mut second = spawn_lock_probe_migration(isolated.url(), &second_path, 0)?;
+    let timeout = app.run_command("migrate", vec!["status".into()]).await;
+    assert_eq!(
+        timeout.err().map(|error| error.code().to_owned()),
+        Some("migration_lock_timeout".to_owned())
+    );
+    let first_status = tokio::task::spawn_blocking(move || first.wait()).await??;
+    assert!(first_status.success());
+    let second_status = tokio::task::spawn_blocking(move || second.wait()).await??;
+    assert!(second_status.success());
+    assert!(!std::path::Path::new(&second_path).exists());
+    std::fs::remove_file(&first_path)?;
+
+    app.run_command("migrate", vec!["status".into()]).await?;
+    app.run_command("migrate", vec!["down".into()]).await?;
+    let crash_path = unique_migration_probe_path("crash")?;
+    let mut crashed = spawn_lock_probe_migration(isolated.url(), &crash_path, 10_000)?;
+    wait_for_file(&crash_path).await?;
+    crashed.kill()?;
+    let crash_status = tokio::task::spawn_blocking(move || crashed.wait()).await??;
+    assert!(!crash_status.success());
+    std::fs::remove_file(&crash_path)?;
+    app.run_command("migrate", vec!["up".into()]).await?;
+    app.run_command("migrate", vec!["down".into()]).await?;
+
+    drop(app);
+    isolated.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn child_migration_process_runs_migrations() -> Result<(), Box<dyn std::error::Error>> {
+    let Ok(url) = std::env::var("OPENRUST_MIGRATION_CHILD_URL") else {
+        return Ok(());
+    };
+    let app = build_lock_probe_app(&url, Duration::from_secs(10)).await?;
+    app.run_command("migrate", vec!["up".into()]).await?;
+    Ok(())
 }
 
 #[tokio::test]

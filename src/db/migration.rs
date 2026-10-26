@@ -1,22 +1,36 @@
 //! 基于 SeaORM migration 定义的运行时迁移命令。
 
 use std::marker::PhantomData;
+use std::time::Duration;
 
 use crate::core::{App, AppBuilder, BoxFuture, Command, Error, Plugin, Result};
 use sea_orm_migration::MigratorTrait;
 
-use crate::db::{Databases, Db};
+use crate::db::{Databases, Db, migration_lock::MigrationLock};
 
 /// 为应用的 migration 集注册 `migrate` 运行时命令。
 ///
 /// 将此插件与 [`DatabasePlugin`](crate::db::DatabasePlugin) 一同注册。migration 类型通常定义在应用的
 /// `migration` crate 中，并实现 [`MigratorTrait`]。
-pub struct MigrationPlugin<M>(PhantomData<fn() -> M>);
+pub struct MigrationPlugin<M> {
+    lock_wait_timeout: Duration,
+    marker: PhantomData<fn() -> M>,
+}
 
 impl<M> MigrationPlugin<M> {
     /// 为 `M` 创建迁移命令插件。
     pub fn new() -> Self {
-        Self(PhantomData)
+        Self {
+            lock_wait_timeout: super::migration_lock::default_wait_timeout(),
+            marker: PhantomData,
+        }
+    }
+
+    /// 设置等待其他迁移完成的最长时间；默认值为 30 秒。
+    #[must_use]
+    pub fn with_lock_wait_timeout(mut self, timeout: Duration) -> Self {
+        self.lock_wait_timeout = timeout;
+        self
     }
 }
 
@@ -31,12 +45,18 @@ where
     M: MigratorTrait + Send + Sync + 'static,
 {
     fn build(&self, app: &mut AppBuilder) -> Result<()> {
-        app.command(MigrationCommand::<M>(PhantomData));
+        app.command(MigrationCommand::<M> {
+            lock_wait_timeout: self.lock_wait_timeout,
+            marker: PhantomData,
+        });
         Ok(())
     }
 }
 
-struct MigrationCommand<M>(PhantomData<fn() -> M>);
+struct MigrationCommand<M> {
+    lock_wait_timeout: Duration,
+    marker: PhantomData<fn() -> M>,
+}
 
 impl<M> Command for MigrationCommand<M>
 where
@@ -62,41 +82,53 @@ where
             } else {
                 app.state().try_get::<Db>()?.as_ref().clone()
             };
+            let lock = MigrationLock::acquire(&db, self.lock_wait_timeout).await?;
             let database = db.connection()?;
             let table_names = db.table_names();
-            match action {
-                MigrationAction::Up(steps) => {
-                    table_names
-                        .scope(M::up(&database, steps))
-                        .await
-                        .map_err(Error::internal)?;
-                    print_migrations("Migrations applied.\n");
-                }
-                MigrationAction::Down(steps) => {
-                    table_names
-                        .scope(M::down(&database, Some(steps)))
-                        .await
-                        .map_err(Error::internal)?;
-                    print_migrations("Migrations rolled back.\n");
-                }
-                MigrationAction::Status => {
-                    let migrations = table_names
-                        .scope(M::get_migration_with_status(&database))
-                        .await
-                        .map_err(Error::internal)?;
-                    if migrations.is_empty() {
-                        print_migrations("No migrations registered.\n");
-                    } else {
-                        let mut output = String::new();
-                        for migration in migrations {
-                            use std::fmt::Write as _;
-                            let _ =
-                                writeln!(output, "{}: {}", migration.name(), migration.status());
+            let result: Result<()> = async {
+                match action {
+                    MigrationAction::Up(steps) => {
+                        table_names
+                            .scope(M::up(&database, steps))
+                            .await
+                            .map_err(Error::internal)?;
+                        print_migrations("Migrations applied.\n");
+                    }
+                    MigrationAction::Down(steps) => {
+                        table_names
+                            .scope(M::down(&database, Some(steps)))
+                            .await
+                            .map_err(Error::internal)?;
+                        print_migrations("Migrations rolled back.\n");
+                    }
+                    MigrationAction::Status => {
+                        let migrations = table_names
+                            .scope(M::get_migration_with_status(&database))
+                            .await
+                            .map_err(Error::internal)?;
+                        if migrations.is_empty() {
+                            print_migrations("No migrations registered.\n");
+                        } else {
+                            let mut output = String::new();
+                            for migration in migrations {
+                                use std::fmt::Write as _;
+                                let _ = writeln!(
+                                    output,
+                                    "{}: {}",
+                                    migration.name(),
+                                    migration.status()
+                                );
+                            }
+                            print_migrations(&output);
                         }
-                        print_migrations(&output);
                     }
                 }
+                Ok(())
             }
+            .await;
+            let release = lock.release().await;
+            result?;
+            release?;
             Ok(())
         })
     }
