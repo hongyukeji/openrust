@@ -17,3 +17,5 @@
 2026-10-26 ADR-034 应用数据加密/密钥轮换已完成本地实现与完整验证：default/all-features workspace tests、all-features clippy、warnings-denied docs、`cargo deny check`、CLI 生成 `--encryption` 项目的 check/test 与配置脱敏运行均通过；RFC 8452 已知向量测试通过。`aes-gcm-siv` v0.12.1 文档当前说明 crate 实现本身无完整独立安全审计，因此把实现审计与目标平台性能复核保留为 v1 发布前事项；未将算法标准化表述为实现审计认证。
 
 2026-10-26 ADR-035 审计实现验收：PostgreSQL 18 / MySQL 8.4 `auth_database` 各 5 项全通过，包含真实表名 resolver、事务提交/回滚、审计写故障回滚和有界清理；两种数据库的生成 `--auth` 项目均通过格式、check 与真实 HTTP auth flow。workspace default/all-features tests/clippy、warnings-denied docs、no-default-features check、`cargo deny check` 均通过，cargo-deny 仅输出已有重复依赖及未使用 MPL allowance 警告。未提供审计查询 API，也未承诺不可篡改或可靠远程 sink 投递。
+
+2026-10-26 ADR-036 签名链接：PostgreSQL 18 / MySQL 8.4 `auth_database` 各 6 项通过；新生成两种 backend `--auth` 项目均通过格式、check 与真实 TCP HTTP auth 流程，覆盖签名插件启动和撤销迁移。workspace default/all-features clippy/test、warnings-denied docs、no-default-features check、`cargo deny check` 通过；双库全量命令与生成项目命令在本轮实际执行，未依赖旧测试记录。

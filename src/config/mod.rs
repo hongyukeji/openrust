@@ -32,6 +32,7 @@ pub mod mailer;
 #[cfg(feature = "encryption")]
 pub mod security;
 pub mod server;
+pub mod signing;
 pub mod sms;
 
 pub use api::{ApiConfig, HttpStatusMode};
@@ -43,6 +44,7 @@ pub use mailer::MailConfig;
 #[cfg(feature = "encryption")]
 pub use security::EncryptionConfig;
 pub use server::{CompressionConfig, CorsConfig, ServerConfig};
+pub use signing::SignedLinksConfig;
 pub use sms::SmsConfig;
 
 /// Environment variable selecting the runtime environment.

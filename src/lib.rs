@@ -13,6 +13,8 @@ pub mod i18n;
 pub mod mail;
 #[cfg(feature = "encryption")]
 pub mod security;
+#[cfg(feature = "signing")]
+pub mod signing;
 pub mod sms;
 
 #[cfg(feature = "auth")]
@@ -57,6 +59,8 @@ pub mod prelude {
         AuthCredential, AuthLayer, AuthMigration, AuthMode, AuthPlugin, AuthPrincipal, AuthSource,
         Authenticator, CurrentUser, JwtConfig, JwtPlugin, JwtTokens, OptionalUser,
     };
+    #[cfg(feature = "signing")]
+    pub use crate::config::SignedLinksConfig;
     pub use crate::config::SmsConfig;
     pub use crate::http::axum::extract::State;
     pub use crate::http::axum::http::StatusCode;
@@ -71,6 +75,11 @@ pub mod prelude {
     pub use crate::mail::{Email, LocalizedEmail, MailConfig, Mailer, MailerPlugin};
     #[cfg(feature = "encryption")]
     pub use crate::security::{EncryptionPlugin, Encryptor};
+    #[cfg(feature = "signing")]
+    pub use crate::signing::{
+        DatabaseSignedLinkRevocationStore, SignedLink, SignedLinkClaims,
+        SignedLinkRevocationMigration, SignedLinkRevocationStore, SignedLinks, SignedLinksPlugin,
+    };
     pub use crate::sms::{SmsContent, SmsDriver, SmsMessage, SmsPlugin, SmsReceipt, SmsSender};
     pub use crate::{
         App, AppBuilder, Application, BoxFuture, Command, Error, NoConfig, Plugin, Result,

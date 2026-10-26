@@ -148,7 +148,9 @@ auth = [
     "dep:subtle",
     "dep:time",
     "dep:tower-sessions",
+    "signing",
 ]
+signing = ["dep:base64", "dep:getrandom", "dep:jsonwebtoken"]
 mail-smtp = ["lettre/smtp-transport", "lettre/tokio1-rustls-tls"]
 http-client = ["dep:reqwest"]
 sms-twilio = ["http-client", "dep:base64"]

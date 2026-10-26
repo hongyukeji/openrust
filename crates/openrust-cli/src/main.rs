@@ -444,6 +444,7 @@ fn app_source(
                 "\n            .plugin(openrust::auth::JwtPlugin::new())\n            .plugin(openrust::auth::AuthPlugin::new())\n            .plugin(openrust::auth::AuthFlowsPlugin::new())"
                     .to_owned()
                     + "\n            .plugin(openrust::audit::AuditPlugin::database())"
+                    + "\n            .plugin(\n                openrust::signing::SignedLinksPlugin::new().with_database_revocations_from_app(),\n            )"
             } else {
                 String::new()
             }
@@ -501,7 +502,7 @@ fn env_example(
     }
     if auth {
         contents.push_str(
-            "\n# Generate a key with: openssl rand -base64 32\nAPP_AUTH__JWT__KEYS__LOCAL=\n",
+            "\n# Generate independent keys with: openrust key generate\nAPP_AUTH__JWT__KEYS__LOCAL=\nAPP_SECURITY__SIGNED_LINKS__KEYS__LOCAL=\n",
         );
     }
     if encryption {
@@ -521,6 +522,7 @@ fn default_config(name: &str, auth: bool, encryption: bool) -> String {
         config.push_str("\n[auth.jwt]\nissuer = \"http://localhost:3000\"\naudience = \"");
         config.push_str(name);
         config.push_str("\"\nactive_key_id = \"local\"\nkeys = {}\n");
+        config.push_str("\n[security.signed_links]\nissuer = \"http://localhost:3000\"\nactive_key_id = \"local\"\nkeys = {}\n");
     }
     if encryption {
         config.push_str("\n[security.encryption]\nactive_key_id = \"local\"\nkeys = {}\n");
@@ -548,7 +550,7 @@ fn migration_manifest(name: &str, database: DatabaseBackend, auth: bool) -> Stri
 
 fn migration_lib(auth: bool) -> String {
     let migrations = if auth {
-        "vec![\n            Box::new(openrust::auth::AuthMigration),\n            Box::new(openrust::auth::AuthRefreshTokenMigration),\n            Box::new(openrust::auth::AuthVerificationCodeMigration),\n            Box::new(openrust::auth::AuthPolicyMigration),\n            Box::new(openrust::database::DatabaseRateLimitMigration),\n            Box::new(openrust::audit::DatabaseAuditMigration),\n        ]"
+        "vec![\n            Box::new(openrust::auth::AuthMigration),\n            Box::new(openrust::auth::AuthRefreshTokenMigration),\n            Box::new(openrust::auth::AuthVerificationCodeMigration),\n            Box::new(openrust::auth::AuthPolicyMigration),\n            Box::new(openrust::database::DatabaseRateLimitMigration),\n            Box::new(openrust::audit::DatabaseAuditMigration),\n            Box::new(openrust::signing::SignedLinkRevocationMigration),\n        ]"
     } else {
         "vec![]"
     };
@@ -1145,11 +1147,19 @@ mod tests {
             assert!(migration.contains("openrust::auth::AuthPolicyMigration"));
             assert!(migration.contains("openrust::database::DatabaseRateLimitMigration"));
             assert!(migration.contains("openrust::audit::DatabaseAuditMigration"));
+            assert!(migration.contains("openrust::signing::SignedLinkRevocationMigration"));
             let app = fs::read_to_string(project.join("src/app.rs")).expect("read generated app");
             assert!(app.contains("AuthPlugin::new()"));
             assert!(app.contains("JwtPlugin::new()"));
             assert!(app.contains("AuthFlowsPlugin::new()"));
             assert!(app.contains("AuditPlugin::database()"));
+            assert!(app.contains("SignedLinksPlugin::new().with_database_revocations_from_app()"));
+            let config = fs::read_to_string(project.join("config/default.toml"))
+                .expect("read generated signing config");
+            assert!(config.contains("[security.signed_links]"));
+            let env = fs::read_to_string(project.join(".env.example"))
+                .expect("read generated signing environment template");
+            assert!(env.contains("APP_SECURITY__SIGNED_LINKS__KEYS__LOCAL="));
             assert!(!app.contains("SessionPlugin::new()"));
             let routes =
                 fs::read_to_string(project.join("src/routes.rs")).expect("read generated routes");

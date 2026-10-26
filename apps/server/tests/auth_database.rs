@@ -26,6 +26,10 @@ use openrust::database::{
 use openrust::http::axum::body::{Body, to_bytes};
 use openrust::http::axum::http::{Request, StatusCode};
 use openrust::http::{AppBuilderHttpExt, HttpPlugin, Inject, Json, Routes, build_router};
+use openrust::signing::{
+    DatabaseSignedLinkRevocationStore, SignedLinkRevocationMigration, SignedLinkRevocationStore,
+    SignedLinks, SignedLinksConfig, SignedLinksPlugin,
+};
 use openrust::{App, AppBuilder, Result, config::FrameworkConfig, lifecycle::finalize};
 use openrust_test::TestDatabase;
 use sha2::{Digest, Sha256};
@@ -47,6 +51,7 @@ impl MigratorTrait for AuthMigrator {
             Box::new(AuthPolicyMigration),
             Box::new(DatabaseRateLimitMigration),
             Box::new(DatabaseAuditMigration),
+            Box::new(SignedLinkRevocationMigration),
         ]
     }
 }
@@ -110,6 +115,14 @@ async fn app_router(url: &str, table_prefix: &str) -> Result<(App, openrust::htt
                 STANDARD.encode([0x53_u8; 32]),
             )]),
         )))
+        .plugin(SignedLinksPlugin::with_config(SignedLinksConfig::new(
+            "openrust-test-issuer",
+            "link-key",
+            std::collections::BTreeMap::from([(
+                "link-key".to_owned(),
+                STANDARD.encode([0x71_u8; 32]),
+            )]),
+        )))
         .plugin(AuthPlugin::new())
         .plugin(HttpPlugin)
         .insert(Marker)
@@ -137,6 +150,7 @@ async fn app_router(url: &str, table_prefix: &str) -> Result<(App, openrust::htt
         });
     let app = finalize(builder).await?;
     assert!(app.state().get::<Audit>().is_some());
+    assert!(app.state().get::<SignedLinks>().is_some());
     assert_eq!(
         app.state().try_get::<Db>()?.table_name("users")?,
         "mapped_accounts",
@@ -162,6 +176,56 @@ async fn read_response(response: openrust::http::axum::response::Response) -> Te
     let json: serde_json::Value = serde_json::from_slice(&body)?;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(json["data"], "1:false:false");
+    Ok(())
+}
+
+#[tokio::test]
+async fn signed_link_revocation_is_shared_by_database_instances() -> TestResult {
+    let Ok(url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+        eprintln!("skipping signed-link database integration: OPENRUST_TEST_DATABASE_URL is unset");
+        return Ok(());
+    };
+    let backend = DatabaseBackend::from_url(&url)?;
+    if !backend.is_enabled() {
+        return Ok(());
+    }
+    let table_names = openrust::database::DatabaseTableNames::new(
+        "link_",
+        std::collections::BTreeMap::from([(
+            "signed_link_revocations".to_owned(),
+            "mapped_link_revocations".to_owned(),
+        )]),
+    )?;
+    let database =
+        TestDatabase::create_with_table_names::<AuthMigrator>(&url, table_names.clone()).await?;
+    let connection = database.connection()?;
+    let db = Db::with_table_names(table_names.clone());
+    db.initialize(connection.clone())?;
+    let config = SignedLinksConfig::new(
+        "openrust-test-issuer",
+        "link-key",
+        std::collections::BTreeMap::from([("link-key".to_owned(), STANDARD.encode([0x71_u8; 32]))]),
+    );
+    let issuer = SignedLinks::new(config.clone())?.with_database_revocations(db.clone());
+    let verifier = SignedLinks::new(config)?.with_database_revocations(db.clone());
+    let link = issuer.issue("email.verify", "user:71", 60)?;
+    verifier.verify(link.expose(), "email.verify").await?;
+    issuer.revoke(link.expose()).await?;
+    assert!(
+        verifier
+            .verify(link.expose(), "email.verify")
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        table_names.resolve("signed_link_revocations")?,
+        "mapped_link_revocations"
+    );
+    let revocations = DatabaseSignedLinkRevocationStore::new(db);
+    revocations.revoke(&"a".repeat(64), 0).await?;
+    assert_eq!(revocations.purge_expired(1).await?, 1);
+    drop(connection);
+    database.close().await?;
     Ok(())
 }
 

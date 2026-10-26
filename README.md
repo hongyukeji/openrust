@@ -30,6 +30,8 @@ For repository development, `.cargo/config.toml` sets `APP_CONFIG_DIR=apps/serve
 
 Application data encryption is an opt-in `encryption` feature. Register `openrust::security::EncryptionPlugin`, configure a 32-byte key ring under `[security.encryption]`, and generate local key material with `openrust key generate`. The active key encrypts new values; prior keys decrypt old values during a controlled rotation. Keep keys outside version control.
 
+Purpose-bound expiring links are available through the `signing` feature and `openrust::signing::SignedLinks`. They use a separate key ring under `[security.signed_links]`; add `SignedLinkRevocationMigration` and a shared database store when individual links need cross-instance revocation. See [the signed-links guide](src/signing/README.md).
+
 Explicit audit records use `openrust::audit::Audit` with the database sink or a custom `AuditSink`. Add `DatabaseAuditMigration` to the application migrator. Details are denied by default, require an allowlist, and redact sensitive field names. Critical database changes can insert a validated audit record in the same transaction; see the [audit module guide](src/audit/README.md).
 
 ## The golden path

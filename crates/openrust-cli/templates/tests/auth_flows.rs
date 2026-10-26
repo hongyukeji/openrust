@@ -91,10 +91,13 @@ async fn generated_auth_routes_run_over_http_with_isolated_database_and_fake_mai
     };
     let database = TestDatabase::create::<openrust_migration::Migrator>(&admin_url).await?;
     let key = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, [0x42_u8; 32]);
+    let link_key =
+        base64::Engine::encode(&base64::engine::general_purpose::STANDARD, [0x24_u8; 32]);
     let config = format!(
-        "[database]\nurl = {:?}\n\n[server]\ntrusted_proxy_ranges = [\"127.0.0.1/32\"]\n\n[auth.jwt]\nissuer = \"http://openrust.test\"\naudience = \"generated-auth-tests\"\nactive_key_id = \"test\"\n\n[auth.jwt.keys]\ntest = {:?}\n\n[mail]\ndriver = \"log\"\n\n[sms]\ndriver = \"log\"\n",
+        "[database]\nurl = {:?}\n\n[server]\ntrusted_proxy_ranges = [\"127.0.0.1/32\"]\n\n[auth.jwt]\nissuer = \"http://openrust.test\"\naudience = \"generated-auth-tests\"\nactive_key_id = \"test\"\n\n[auth.jwt.keys]\ntest = {:?}\n\n[security.signed_links]\nissuer = \"http://openrust.test\"\nactive_key_id = \"test-link\"\n\n[security.signed_links.keys]\ntest-link = {:?}\n\n[mail]\ndriver = \"log\"\n\n[sms]\ndriver = \"log\"\n",
         database.url(),
-        key
+        key,
+        link_key
     );
     let figment = Figment::new().merge(Toml::string(&config));
     let framework = figment
