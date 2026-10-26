@@ -19,7 +19,7 @@
 | HTTP client 与 i18n | 统一有界出站调用/fake、请求级 locale、中英资源与应用 catalog；生成项目/本地 HTTP 验证 | 不等于外部供应商实发或完整语言格式化引擎 |
 | 邮件与短信 | Mailer/SmsSender、SMTP/log/fake、Twilio adapter、本地化模板；Mailpit 本机 SMTP 实收、Twilio 协议测试通过 | Twilio 真实账号投递待授权；队列发送和薄多渠道通知待补 |
 | 加密、签名、审计 | 进程内加密/key ring、用途隔离签名链接/可选共享撤销、可替换审计 sink/同事务审计；已有单测、双库相关路径与生成验证 | 加密实现审计/平台性能复核；不承诺任意远程 sink 可靠送达或审计不可篡改 |
-| 队列与 worker | 数据库任务、显式 handler、事务派发、有限并发/重试/失败保留/超时/lease/心跳；双库强杀恢复；活动唯一键、任务链/有限批次已提交 | 事件、共享锁/请求幂等、旧 token 接管专项与完整负载集群 |
+| 队列与 worker | 数据库任务、显式 handler、事务派发、有限并发/重试/失败保留/超时/lease/心跳；双库强杀恢复；活动唯一键、任务链/有限批次已提交 | 合作停机/错误传播修正、公开执行扩展、共享锁/请求幂等、旧 token 接管专项与完整负载集群 |
 | M4 事件扩展 | `openrust::events` typed ordered listener、fail-fast 与事务上下文；queue feature 显式映射至已注册 Job；顺序/短路、mapper/store error、下游 consumer API 及 workspace 门禁通过。真实 PostgreSQL 18.6 与 MySQL 8.4 隔离库各通过事件事务回滚无任务、提交后 worker 消费、普通 dispatch 消费；测试明确释放 Events/Queue/Db/App 后由 TestDatabase 成功清理 | 仅验证单库事务队列路径；不代表跨节点事件广播、集群或 exactly-once |
 | 目录与测试入口收尾 | CLI/macros/test packages 已迁至 `cli/`、`macros/`、`testing/`；hello 位于 `examples/hello/main.rs`；根 HTTP 和 server integration targets 按能力分组并显式保留 target 名。迁移前后均为 5 个 package、265 个可列测试条目。PG18/MySQL8.4 server all-features 集成各 40 项通过；生成 PostgreSQL/MySQL `--auth` 项目各通过 fmt/check/真实 auth_flows HTTP test；hello TCP HTTP 200；workspace fmt/clippy/test/docs、deny 与 no-default check 通过。`apps/server` 保留；旧 `crates/` 源码和目录已移除。 | 无本簇剩余项 |
 | Scheduler | UTC interval/daily slot、数据库时钟、slot 与 job 原子去重、run/once/list；双库独立进程竞争/异常退出/SIGTERM 已验证 | 不含 cron/IANA/DST；生产资源、滚动升级和完整拓扑验收未完成 |
@@ -38,7 +38,7 @@
 
 ## 下一步
 
-先按 [ADR-039](decisions/adr-039-source-workspace-distribution.md) 完成源码 workspace、内部包名和生成/启动迁移，再按 [todo.md](todo.md) 推进 M4 公开流程扩展、M5、M6。不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
+先按 [ADR-039](decisions/adr-039-source-workspace-distribution.md) 完成源码 workspace、内部包名和生成/启动迁移，再完成 C1–C3 中文整改，按 [todo.md](todo.md) 推进 M4 修正/扩展、M5、M6。组件整合与 Laravel 式体验按 ADR-001；数据库/队列扩展限制和 worker 停机问题已明确为待修边界，静态发现不表示代码已修复。不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
 
 ## 本次文档核对范围
 

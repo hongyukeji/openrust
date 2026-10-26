@@ -32,7 +32,9 @@
 
 公开事务提交前/提交后扩展尚未实现；`Db::transaction` 当前只执行调用方闭包并提交或回滚。后续须明确嵌套事务、重试、回调次数、失败语义和提交后可靠投递边界，不承诺覆盖直接 SeaORM/原生 SQL 逃生口。
 
-官方 v1 数据库支持限定 PostgreSQL 与 MySQL，暂定最低版本为 PostgreSQL 14+ / MySQL 8.0+。日常开发基线为 PostgreSQL 18 / MySQL 8.4 LTS / Redis 8，数据库 CI 使用 PostgreSQL 18 / MySQL 8.4。只在跨度较大、涉及版本专属行为或出现明确兼容风险时专项验证其他版本。v1 发布前按届时官方生命周期复核并验证最低版本下框架承诺的能力；已有 PostgreSQL 14 / MySQL 8.0 历史集成结果不单独代表当前完整支持。其他 SeaORM backend 可通过自定义连接插件提供 `Db`，但须自行完成该应用使用到的迁移、方言、能力验证和测试隔离适配；不表示认证、队列等所有框架功能兼容。新增官方 backend 需独立完成 feature、能力检查、方言、生成器及双向测试闭环。
+官方 v1 数据库支持限定 PostgreSQL 与 MySQL，暂定最低版本为 PostgreSQL 14+ / MySQL 8.0+。日常开发基线为 PostgreSQL 18 / MySQL 8.4 LTS / Redis 8，数据库 CI 使用 PostgreSQL 18 / MySQL 8.4。只在跨度较大、涉及版本专属行为或出现明确兼容风险时专项验证其他版本。v1 发布前按届时官方生命周期复核并验证最低版本下框架承诺的能力；已有 PostgreSQL 14 / MySQL 8.0 历史集成结果不单独代表当前完整支持。
+
+当前 `Db::initialize_with_replicas()` 会调用 `DatabaseTableNames::validate_backend()`，表名校验与 quoting 均只接受 PostgreSQL/MySQL；自定义插件目前只能替换这两种后端的连接初始化，不能装入 SQLite 等其他 SeaORM backend。ADR-009 的外部接入目标尚有实现差距，修正与独立 consumer 验收见 [todo.md](../todo.md)。其他后端还须适配实际使用的迁移、方言与测试隔离，不自动获得认证/队列兼容；新增官方 backend 仍需独立完成 feature、能力检查、方言、生成器及真实测试闭环。
 
 ## 验证
 

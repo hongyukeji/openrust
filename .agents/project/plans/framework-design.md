@@ -10,12 +10,14 @@
 
 OpenRust 追求的优雅是 Rust 语境下的优雅：靠类型、trait 和约定减少样板，不靠运行期魔法。
 
+组件复用和开发体验以 [ADR-001](../decisions/adr-001-own-kernel-on-axum.md#成熟组件优先与-laravel-式开发体验) 为权威：优先整合成熟组件，以 Laravel 式一致约定和完整开发流程减少业务开发负担。框架承担整合与扩展契约；新抽象先证明其附加价值，已有稳定实现按实际问题迭代。
+
 1. **约定优于配置，但约定可见**：目录、命名、路由、迁移和配置键有默认约定；每个约定在生成代码或文档中可查，不藏在宏展开里。
 2. **显式依赖**：服务在 `Plugin` 中用 `AppBuilder::insert` 注册，处理函数用 `Inject<T>` 声明依赖，签名即依赖清单；不提供全局 Service Locator、运行期反射容器或静态 Facade。
 3. **一件事一个明显做法**：每类能力只有一个官方入口（验证只用 `Validated<T>`，授权只用 `Policy`），不保留多套并存。
 4. **错误是一等公民**：框架错误统一为 `openrust::Error`，自动映射为 `ApiResponse<T>` 统一包装响应；库代码禁止 `unwrap` / `expect` / `panic!`。
 5. **宏只做派生，不做控制流**：`#[derive(...)]` 和少量属性宏用于消除样板；不用宏改变程序结构或隐藏调用关系。
-6. **可替换但不过度抽象**：缓存、队列、存储、邮件各一个 trait、多个 driver；trait 只覆盖已有 driver 的共同能力，不预留假想扩展点。
+6. **可替换但不过度抽象**：按能力提供最小公开契约和 driver；以已实现行为及已确认的第三方接入场景定义边界，不因当前只有内置实现就封闭扩展，也不创建万能 driver 或假想接口。
 7. **生成即普通代码**：CLI 生成可读、可改的普通 Rust 代码；少量宏只减少样板，不隐藏控制流。
 8. **可测试是默认值**：适合替换的外部能力提供显式 fake；业务单元测试可隔离外部服务，驱动和集群验收仍必须使用真实服务。
 9. **最小默认，按需开启**：库默认 features 最小，具体依赖以 Cargo.toml 为准；数据库驱动、Redis、S3、OpenTelemetry 等通过 Cargo feature 开启。
@@ -84,7 +86,7 @@ OpenSpring 可作为设计参考，编程思想与问题解决方法可以跨语
 
 ## 框架参考与对标
 
-按用户指定顺序参考 Loco、Laravel、Goravel、OpenSpring、RuoYi 若依、芋道。六者按同一套维度综合横向评估：整体架构与模块边界、项目结构与启动体验、通用能力覆盖、扩展机制、测试与工具链、性能与资源边界、部署运维和安全性。不设唯一优先对象，不把任何一个参考项目限定为某一类设计的专属来源；按项目定位解释证据适用范围，最终以 OpenRust 的 Rust 语义、V1/V2 范围和自身验证结果决策。
+按用户指定顺序参考 Loco、Laravel、Goravel、OpenSpring、RuoYi 若依、芋道。六者按同一套维度综合横向评估：整体架构与模块边界、项目结构与启动体验、通用能力覆盖、扩展机制、测试与工具链、性能与资源边界、部署运维和安全性。Laravel 的设计思想与开发体验是明确偏好，不改变参考顺序，不把任何一个参考项目限定为某一类设计的专属来源；按项目定位解释证据适用范围，最终以 OpenRust 的 Rust 语义、V1/V2 范围和自身验证结果决策。
 
 | 参考对象（按指定顺序） | 项目类型与范围说明 |
 | --- | --- |
@@ -122,7 +124,7 @@ OpenRouter 是独立 AI 平台产品的产品对标对象，不列入上述框�
 
 工具包已在 `cli/`、`macros/`、`testing/`，旧 `crates/` 已移除。按 [ADR-039](../decisions/adr-039-source-workspace-distribution.md)，整套源码交付，内部包改为目录同名、全部禁用发布；proc-macro 不合入普通 library。`examples/<name>/`、`tests/<capability>/` 采用明确的 Cargo target/harness，不能靠嵌套目录自动发现测试。`apps/` 保留应用约定；`apps/server` 暂为集成宿主，删除或迁移须先替代其全部验收职责。
 
-未实现的 events/cache/storage 等能力在对应里程碑以实际实现进入 `src/`；不预建空模块或为每种能力创建独立 package。
+未实现的 cache/storage 等能力在对应里程碑以实际实现进入 `src/`；不预建空模块或为每种能力创建独立 package。事件当前事实见 [core/events.md](../core/events.md)。
 
 ## 生成的应用布局
 
@@ -173,8 +175,8 @@ apps/<app>/
 
 - 使用 `Routes`、`#[openrust::resource]` 和 `resource_with` 组合 handler；公共 API 以 [HTTP 事实](../core/http.md) 为准，不把模块名当 Rust 类型参数。
 - 输入统一经 `Validated<T>`；响应使用统一错误包装及 `Created` / `NoContent` / `Paginated<T>`。认证用 `CurrentUser` / `OptionalUser`，主要路径为 JWT；业务事务在 service 层。
-- 请求 ID、追踪、CORS、超时、压缩、panic 包装按当前 middleware 顺序执行。通用路由限流、OpenAPI/非生产文档 UI 属于待补范围；认证流程限流不等于已有任意路由限流 layer。
-- 查询过滤/排序、DTO 输出白名单、软删除等按 [能力覆盖](v1-capability-coverage.md) 补齐，复用 SeaORM，不另造 query language。
+- 请求 ID、追踪、CORS、超时、压缩、panic 包装按当前 middleware 顺序执行。通用路由限流已有显式 `RateLimitLayer`，配置与边界见 [HTTP 事实](../core/http.md)；OpenAPI/非生产文档 UI 仍待补齐。
+- 查询过滤/排序白名单、DTO 输出与显式软删除已有基础实现和示例，边界见 [HTTP 事实](../core/http.md) 与 [数据层事实](../core/db.md)。后续查询体验按 [能力覆盖](v1-capability-coverage.md) 补强，复用 SeaORM，不另造 query language。
 
 ## 错误模型
 
@@ -189,7 +191,7 @@ apps/<app>/
 - `Db::transaction` 控制提交/回滚，事务固定 primary；`read_connection()` 显式使用只读副本，`with_primary` 提供 task-local 写后读保护，无静默故障回退。多个独立 named connections 仍待实现，不能与 replicas 混为一谈。
 - 跨数据库 SQL 在 dialect 边界；框架表使用可移植类型。连接池、超时和慢查询按实际配置校验。声明支持新 backend 必须补驱动、迁移、方言及真实能力验证，不能仅因底层 ORM 支持就宣称框架支持。
 - TestDatabase 使用每用例隔离数据库；具体 PostgreSQL/MySQL 建库与清理实现见 [测试事实](../core/test.md)，PostgreSQL 已用模板克隆，MySQL 逐库运行迁移，不宣称已有 MySQL 迁移缓存。
-- 软删除、UUID 选项、查询 scopes 和关联加载体验属于后续补强，按对应生成器/双库验收闭环。事务扩展点遵守本文件公开流程规则。
+- UUIDv7 与显式软删除生成选项已经实现，范围及双库验收见 [数据层事实](../core/db.md)。查询 scopes 和关联加载体验在既有实现上补强；事务扩展点遵守本文件公开流程规则。
 
 ## 认证与授权
 
@@ -197,7 +199,7 @@ apps/<app>/
 - `AuthPlugin::new()` 使用数据库认证器，`with_authenticator` 支持替换。已提供但无效的凭据不降级匿名；密码使用 Argon2id。
 - `AuthFlows` 已含注册、登录、退出、密码重置、邮箱验证；后两者复用 VerificationCodes。独立 SignedLinks 提供用途隔离链接，不能把验证码流程写成已改用签名 URL。
 - 当前 `Policy` 是基于数据库的授权服务结构体，提供角色/权限及 PAT ability 交集；不是已实现的资源 Policy trait。资源策略/生成器如需新公开 API，先基于现有入口设计，不建立第二授权系统。
-- 共享 Session、refresh、验证码、限流等已有双库证据；公共注册/登录扩展点、任意路由限流及完整跨节点业务场景仍待补齐。JWT 即时撤销策略与 access token 存活窗口须明确，不默认声称纯 token 可即时全局撤销。
+- 共享 Session、refresh、验证码、限流等已有双库证据，通用 HTTP 限流复用同一服务；公共注册/登录扩展点及完整跨节点业务场景仍待补齐。JWT 即时撤销策略与 access token 存活窗口须明确，不默认声称纯 token 可即时全局撤销。
 
 ## 队列、调度与事件
 
@@ -224,7 +226,7 @@ apps/<app>/
 
 ## CLI
 
-当前 new、dev/serve 代理、model/migration 生成及运行时命令转发以 [CLI 事实](../core/cli.md) 为准。v1 补齐 mailer/policy/job/controller/scaffold/command、routes、只读 doctor、完整 dev 编排，按原能力里程碑交付，M6 做全集复验。
+当前 new、dev/serve 代理、model/migration/mailer/policy 生成及运行时命令转发以 [CLI 事实](../core/cli.md) 为准。v1 补齐 job/controller/scaffold/command、routes、只读 doctor、完整 dev 编排，按原能力里程碑交付，M6 做全集复验。
 
 生成器输出普通代码，默认不覆盖；字段 DSL、冲突、错误和 fmt 必须验证。模板当前使用内嵌文本/字符串渲染；是否使用 minijinja 取决于真实复杂度，未选用前不作为既定依赖。
 

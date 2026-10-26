@@ -15,7 +15,7 @@
 
 | ADR | 状态 | 当前归属与边界 |
 | --- | --- | --- |
-| [001 自有内核](adr-001-own-kernel-on-axum.md) | Accepted | Tokio/Axum/Tower；参考框架不作为框架内核依赖 |
+| [001 自有内核与组件整合](adr-001-own-kernel-on-axum.md) | Accepted | 成熟组件优先；自有组装与公开扩展，Laravel 式开发体验，Rust 惯用 API |
 | [002 SeaORM 与双库](adr-002-seaorm-dual-database.md) | Accepted | PostgreSQL/MySQL 正式矩阵；暂定最低与日常基线分开验证 |
 | [005 许可证与 MSRV](adr-005-license-naming-msrv.md) | Partially Superseded | MIT OR Apache-2.0、Edition、MSRV 有效；包命名与分发由 039 替代 |
 | [006 命名与命令](adr-006-rust-native-naming.md) | Partially Superseded | 通用命名有效；命名空间见 016，目录见 021，具体能力 contract 见各 ADR |
@@ -44,7 +44,7 @@
 | [018 JWT-first](adr-018-jwt-primary-authentication.md) | Accepted | API 主要认证路径、refresh、可选 Session/PAT |
 | [022 JWT runtime](adr-022-jwt-runtime-contract.md) | Accepted | claims、key ring 与失效语义 |
 | [024 AuthFlows](adr-024-authentication-flow-service.md) | Accepted | 流程 service 与应用 HTTP 路由分工 |
-| [025 共享限流](adr-025-shared-rate-limiter.md) | Accepted | 固定窗口与双库共享 store；不等于通用 HTTP middleware 已实现 |
+| [025 共享限流](adr-025-shared-rate-limiter.md) | Accepted | 固定窗口与双库共享 store；HTTP 接入事实见 core/http.md |
 | [026 验证码](adr-026-generic-verification-codes.md) | Accepted | 用途/身份隔离、原子消费、尝试和重发约束 |
 | [027 Policy/RBAC](adr-027-policy-and-basic-rbac.md) | Accepted | 最小角色权限 service，组织/DataScope 归 v2 |
 | [028 可信代理](adr-028-trusted-proxy-client-ip.md) | Accepted | 显式可信来源与 ClientIp；历史验证不等于全部集群验收 |

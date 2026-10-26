@@ -22,6 +22,8 @@
 
 新增或修改公共名称前，先查本 ADR。本 ADR 没有覆盖的名称，先在这里补一行并写明先例，再写代码。
 
+Laravel 式开发体验与成熟组件整合遵循 [ADR-001](adr-001-own-kernel-on-axum.md#成熟组件优先与-laravel-式开发体验)。设计思想和用户体验可以借鉴；本 ADR 的 Rust 命名规则不要求机械改写既有 API，也不要求重新封装上游已合适的类型。
+
 ## 决策
 
 ### 1. 生成项目布局（`openrust new`）
@@ -70,7 +72,7 @@
 
 - 子命令用空格嵌套，名称用 kebab-case，不用冒号。依据：cargo、sqlx-cli（`sqlx migrate run`）、sea-orm-cli、`cargo loco db migrate`。
 - **当前全局命令**：`openrust new <name> [--db postgres|mysql]`、`openrust dev`、`openrust serve`、`openrust generate`、`openrust key generate`；其余命令转发给项目二进制。
-- **生成器**：`openrust generate <kind>`，别名 `g`。当前 kind 为 `model`、`migration`；v1 待补 `scaffold`、`controller`、`job`、`mailer`、`policy`、`command`，按当前任务队列实现和验证。
+- **生成器**：`openrust generate <kind>`，别名 `g`。当前 kind 为 `model`、`migration`、`mailer`、`policy`，以 [CLI 事实](../core/cli.md) 为准；v1 待补 `scaffold`、`controller`、`job`、`command`，按当前任务队列实现和验证。
   - 字段 DSL 使用 loco / Rails 的小写类型名，例如 `title:string published_at:date_time?`。`references` 表示外键，`?` 表示可空。
 - **运行期命令**由应用注册的 Plugin 提供，不因全局 CLI 可转发就自动可用。现有入口包括 `serve`、`help`、`config show`、`migrate`、`db seed`、`queue work`、`schedule run`、`schedule list`；队列其他命令以 `QueuePlugin` 为准。`migrate` 接受 `up [steps]`、`down [steps]` 和 `status`。`db reset`、`db status`、`routes`、`doctor` 是待实现的 v1 入口；`doctor` 只读语义按 ADR-023。
 
@@ -108,9 +110,9 @@ TOML 分层、环境引导与生产 `.env` 保护保持有效，具体兼容、�
 
 - 仓库实现布局按 [ADR-021](adr-021-loco-style-module-layout.md)：主框架能力按模块组织在根 `src/`；只为 CLI、proc-macro 等真实技术边界保留独立 package。应用生成布局仍按本 ADR §1。
 - `Cargo.toml` 的 keywords 设为 `framework`、`web`、`axum`、`batteries-included`、`backend`，不写其他框架名。
-- README 用 Rust 原生的表述介绍自己，不写“inspired by Laravel and Rails”。
+- README 介绍 OpenRust 自身定位与实际能力，可以如实说明 Laravel 等设计来源；不把借鉴思想表述为 API 兼容、完整复刻或未经验证的能力优势。
 - 根目录补齐 `CHANGELOG.md`（Keep a Changelog 格式）、`CONTRIBUTING.md`、`SECURITY.md`、`CODE_OF_CONDUCT.md`（引用 Rust Code of Conduct）。不新增 `rustfmt.toml`。
-- `docs/` 在 M6 用 mdBook 建立，按 Diátaxis 分为 Tutorials、How-to、Reference、Explanation 四部分。其中设一页“从其他框架迁移”，列出 Laravel、Rails、Django、Spring、Express/NestJS、axum 与 OpenRust 概念的对照。其他框架的词汇只出现在这一页，不进入 API。另设一页 coming-from-axum。
+- `docs/` 在 M6 用 mdBook 建立，按 Diátaxis 分为 Tutorials、How-to、Reference、Explanation 四部分。其中设一页“从其他框架迁移”，集中维护 Laravel、Rails、Django、Spring、Express/NestJS、axum 与 OpenRust 概念对照；设计和说明文档可记录借鉴思想，公共 API 仍遵循本 ADR。另设一页 coming-from-axum。
 
 ### 6. 开箱即用
 

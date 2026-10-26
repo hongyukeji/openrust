@@ -18,6 +18,7 @@
 - 扩展契约是需要正式维护的公共能力：包含注册入口、生命周期、错误语义、文档与契约测试；不只写“以后可扩展”。检查内部枚举、具体类型及私有注册逻辑是否不必要地阻断外部实现。
 - 基础行为保持一致，后端特殊能力显式说明或校验；不承诺所有驱动完全等价，不以非原子操作模拟并宣称原子语义。
 - 按真实实现提炼最小契约，不自研通用 ORM，不提前创建庞大抽象或空壳 crate。公共 API 与命名仍遵循 ADR-006，具体 contract 形成后再实施。
+- 组件复用与框架整合价值遵循 [ADR-001](adr-001-own-kernel-on-axum.md#成熟组件优先与-laravel-式开发体验)。独立 consumer 必须验证配置、注册和实际执行；只暴露 trait、仅替换派发 facade 或只能访问内置构造器，不满足完整外部扩展要求。
 
 ### 数据库边界
 
@@ -26,9 +27,9 @@
 - 切换主要通过编译期 feature 与连接配置完成，不要求运行中热切换；切换驱动不负责跨库迁移已有数据。
 - 现有连接与事务 API 使用 SeaORM 类型；其支持范围构成当前扩展边界。ORM 未支持的数据库还需要底层适配，不能仅实现连接插件就宣称支持。
 - 数据库扩展复用 `Db`、`DatabasePlugin` 约定与 `Plugin` 生命周期，不增加通用 ORM/driver trait。自定义插件在 `build` 注册唯一 `Db::default()`，在 `finish` 建立 SeaORM `DatabaseConnection` 并调用一次性的 `Db::initialize()`；框架 `MigrationPlugin`、`SeedPlugin`、事务辅助继续使用该服务。注册重复或重复初始化必须报错。
-- 内置 backend URL scheme 和 feature 检查由 `openrust::db::DatabaseBackend` 统一提供，并由 `openrust-test` 共用；自定义插件可直接接入 SeaORM 后端并自行管理连接配置。SeaORM `DbBackend` 是实际连接类型，不扩展为 OpenRust 专属 SQL/ORM trait。
+- 内置 backend URL scheme 和 feature 检查由 `openrust::db::DatabaseBackend` 统一提供，并由测试工具共用；外部接入契约要求自定义插件可连接 SeaORM 后端并自行管理连接配置，当前实现限制以 [数据层事实](../core/db.md#后续边界) 为准。SeaORM `DbBackend` 是实际连接类型，不扩展为 OpenRust 专属 SQL/ORM trait。
 - 当前内置 `DatabasePlugin` 建连后校验暂定最低 PostgreSQL 14+ / MySQL 8.0+；日常开发与 CI 基线为 PostgreSQL 18 / MySQL 8.4 LTS。最低版本完整能力矩阵仍须在发布前验证。自定义插件绕过内置连接初始化时，必须自行执行适用的版本与能力检查。
-- `Db::backend()` 提供已初始化连接的 SeaORM backend。官方 v1 暂定支持 PostgreSQL 14+ 与 MySQL 8.0+；扩展可连接 SeaORM 支持的其他关系型 backend，但须自行校验自身及所用框架能力，适配迁移、UTC/JSON、锁、生成器与测试隔离，不能因 CRUD 或成功连接宣称框架全功能兼容。
+- `Db::backend()` 提供已初始化连接的 SeaORM backend。官方 v1 暂定支持 PostgreSQL 14+ 与 MySQL 8.0+；其他关系型 backend 的外部接入应有可执行验收，须适配所用的迁移、UTC/JSON、锁与测试隔离，不能因 CRUD 或成功连接宣称框架全功能兼容。当前表名校验造成的接入限制须按活跃待办修正，不能将本条目标当作已实现。
 - 新增关系型 backend 要进入官方支持矩阵，仍需增补 feature、连接默认值、安全策略、能力检查、方言、迁移/seed、测试隔离、生成器、文档与真实集成验证。MongoDB 等不同数据模型不适用此 `Db` 替换契约。
 - `openrust::db::dialect` 对未支持 backend 明确返回迁移错误；`openrust-test::TestDatabase` 的 PostgreSQL 模板复制与 MySQL 迁移重放是 backend 专属实现，新增 backend 必须单独实现，不能由连接插件自动继承。
 - MongoDB 等不同数据模型不承诺直接替换关系型数据库。能够 CRUD 不代表满足迁移、会话、数据库队列等全部要求。

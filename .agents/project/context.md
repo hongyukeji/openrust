@@ -16,6 +16,8 @@
 
 ## 固定约束
 
+- 设计取向按 [ADR-001](decisions/adr-001-own-kernel-on-axum.md#成熟组件优先与-laravel-式开发体验)：优先复用优秀第三方组件，统一配置、生命周期、错误、扩展契约与开发入口，以 Laravel 的约定优于配置和一致体验为重要参照；采用 Rust 惯用接口，按真实缺口补充实现。已验证能力不因本取向重写，六框架参考顺序及 V1/V2 范围保持不变。
+
 - 项目语言采用 [简体中文为主、英文为辅](style.md#语言规范)：第一方文档、Rustdoc、源码/配置注释与生成模板说明立即按此编写；既有英文安排分批整改。完整英文文档待框架成熟后再评估，技术名称和原始许可证等例外保持有效，运行时 i18n 契约另行管理。
 
 - 源码交付与中性包名按 [ADR-039](decisions/adr-039-source-workspace-distribution.md)：开发者获取整套框架，在 `apps/<name>/` 开发业务；内部包目标为 `cli`、`macros`、`testing`、`server`，全部 package 禁用发布，根 `openrust` 和 CLI 命令名保留。当前 manifest/生成器仍待迁移，先闭合或明确登记现有 WIP，再优先处理此底层任务。
@@ -47,7 +49,7 @@
 - 基础读写分离已按 [ADR-029](decisions/adr-029-database-read-routing.md) 纳入并实现：默认单库，可选同 backend 只读副本，显式 `read_connection()` 轮询，`connection()`/事务固定主库，`with_primary` task-local 写后读保护；PostgreSQL 18.6 / MySQL 8.4.13 真实复制暂停/追平测试通过。完整集群与代表性业务性能基线仍未完成。
 - 数据服务暂定最低支持 PostgreSQL 14+、MySQL 8.0+、Redis 6.2+；日常本地开发与 Compose 使用 PostgreSQL 18、MySQL 8.4 LTS、Redis 8，常规数据库 CI 使用 PostgreSQL 18 与 MySQL 8.4，Redis 集成在 M5 实现后纳入验证。运行时 PostgreSQL/MySQL 版本检查已与暂定下限对齐；最低版本的完整框架兼容性仍须在 v1 发布验收中复核，Redis 6.2+ 须待 M5 Redis driver 落地后做真实验证。仅在主版本跨度大、涉及版本专属行为或存在明确兼容风险时增加额外专项测试。每个数据功能仍须有 PostgreSQL/MySQL 双库证据（[ADR-002](decisions/adr-002-seaorm-dual-database.md)）。
 - 同时支持单机与集群；标准应用默认 Redis cache，memory/file 显式选择，库 feature 保持可组合，见 [ADR-015](decisions/adr-015-redis-default-calibration.md)。需要跨节点共享语义时必须明确配置共享后端，不能静默退化；队列/会话仍默认共享数据库，部署边界见 [ADR-013](decisions/adr-013-deployment-and-redis-cache-default.md)。缓存实现待 M5。
-- 认证以 Bearer JWT access token 为前后端分离 API 的主要路径；高熵 refresh token 轮换并存储哈希。通用 Cookie Session 保留为显式可选项，PAT 面向自动化/服务集成，三者复用同一主体与授权入口；按 [ADR-018](decisions/adr-018-jwt-primary-authentication.md) 实施。AuthFlows、验证码/限流、Policy/RBAC 与可选 Session helper 已实现；PostgreSQL 18 / MySQL 8.4 数据库与 runtime 测试、新生成项目完整 TCP HTTP 流程及 Mailer/Policy 生成器双库 check/test 均已通过。M3 运行时和生成器验收已关闭；通用 HTTP 边界仍待完成；真实 Twilio 送达需授权账号与目标。
+- 认证以 Bearer JWT access token 为前后端分离 API 的主要路径；高熵 refresh token 轮换并存储哈希。通用 Cookie Session 保留为显式可选项，PAT 面向自动化/服务集成，三者复用同一主体与授权入口；按 [ADR-018](decisions/adr-018-jwt-primary-authentication.md) 实施。AuthFlows、验证码/限流、Policy/RBAC 与可选 Session helper 已实现；PostgreSQL 18 / MySQL 8.4 数据库与 runtime 测试、新生成项目完整 TCP HTTP 流程及 Mailer/Policy 生成器双库 check/test 均已通过。M3 运行时、生成器及通用 HTTP 限流/查询边界已有验收；认证与事务公开流程扩展仍待 M4；真实 Twilio 送达需授权账号与目标。
 - 许可证 MIT OR Apache-2.0；Edition 2024；当前 MSRV 为 `Cargo.toml` 中的 1.97；升级政策为 stable 减两个小版本（[ADR-005](decisions/adr-005-license-naming-msrv.md)）。
 - 生成项目布局、CLI、配置键与公共 API 命名以 [ADR-006](decisions/adr-006-rust-native-naming.md) 为唯一 contract；M6 才建立 mdBook `docs/`，此前用户文档维护在 crate README。
 - 库 crate 禁止 `unsafe`、`unwrap` / `expect` / `panic`；公共项必须有文档。细则见 [conventions.md](conventions.md)。
