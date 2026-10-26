@@ -1,5 +1,5 @@
-# Application guide
+# 应用开发指南
 
-This project is built with OpenRust. Run `openrust dev` to start the development server and `cargo test` to run its tests.
+本项目基于 OpenRust。运行 `openrust dev` 启动开发服务器，运行 `cargo test` 执行测试。
 
-Application code lives in `src/`; HTTP handlers belong in `src/controllers/`, and routes are registered in `src/routes.rs`.
+应用代码位于 `src/`；HTTP 处理器放在 `src/controllers/`，路由在 `src/routes.rs` 中注册。

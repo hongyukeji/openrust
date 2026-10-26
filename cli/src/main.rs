@@ -13,12 +13,14 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use anyhow::{Context, bail};
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{
+    Arg, ArgAction, Command, CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum,
+};
 use serde_json::Value;
 
 static MIGRATION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
-/// OpenRust command line.
+/// OpenRust 框架的命令行工具。
 #[derive(Debug, Parser)]
 #[command(name = "openrust", version, about, long_about = None, disable_help_subcommand = true)]
 struct Cli {
@@ -28,58 +30,58 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Builtin {
-    /// Create a new OpenRust application from the built-in starter template.
+    /// 使用内置模板创建 OpenRust 应用。
     New {
         /// 应用名称；生成到 `apps/<name>/`。
         name: String,
-        /// Add a PostgreSQL or MySQL connection and migration crate.
+        /// 添加 PostgreSQL 或 MySQL 连接和迁移包。
         #[arg(long, value_enum)]
         db: Option<DatabaseBackend>,
-        /// Add database-backed authentication and an authenticated example route (requires `--db`).
+        /// 添加数据库认证能力和受保护的示例路由（需要 `--db`）。
         #[arg(long, requires = "db")]
         auth: bool,
-        /// Enable the optional outbound HTTP client.
+        /// 启用可选的出站 HTTP 客户端。
         #[arg(long)]
         http_client: bool,
-        /// Enable the optional Twilio SMS provider and outbound HTTP client.
+        /// 启用可选的 Twilio 短信驱动和出站 HTTP 客户端。
         #[arg(long)]
         sms_twilio: bool,
-        /// Enable application data encryption and key rotation.
+        /// 启用应用数据加密和密钥轮换。
         #[arg(long)]
         encryption: bool,
     },
-    /// Run the application in development mode.
+    /// 以开发模式运行应用。
     Dev,
-    /// Run the application's server command.
+    /// 运行应用的 server 命令。
     Serve,
-    /// Generate application models and database migrations.
+    /// 生成应用模型和数据库迁移。
     #[command(alias = "g")]
     Generate {
         #[arg(value_enum)]
         kind: GeneratorKind,
-        /// Model or table name followed by `field:type` declarations.
+        /// 模型或表名，后接 `field:type` 字段声明。
         #[arg(required = true)]
         values: Vec<String>,
-        /// Generate a `UUIDv7` primary key (use the same option for model and migration).
+        /// 生成 `UUIDv7` 主键（模型与迁移需使用相同选项）。
         #[arg(long)]
         uuid_id: bool,
-        /// Add a nullable UTC `deleted_at` column and explicit query scope.
+        /// 添加可空的 UTC `deleted_at` 列和显式查询范围。
         #[arg(long)]
         soft_delete: bool,
     },
-    /// Manage local application encryption keys.
+    /// 管理应用本地加密密钥。
     Key {
         #[command(subcommand)]
         command: KeyCommand,
     },
-    /// Any other command is forwarded to the application binary in the current project.
+    /// 其他命令将转发给当前项目的应用二进制程序。
     #[command(external_subcommand)]
     Forward(Vec<String>),
 }
 
 #[derive(Debug, Subcommand)]
 enum KeyCommand {
-    /// Generate a 32-byte encryption key and print its Base64 value.
+    /// 生成 32 字节加密密钥并输出其 Base64 值。
     Generate,
 }
 
@@ -241,7 +243,9 @@ impl DatabaseBackend {
 }
 
 fn main() -> ExitCode {
-    match run(Cli::parse()) {
+    let matches = localized_command().get_matches();
+    let cli = Cli::from_arg_matches(&matches).unwrap_or_else(|error| error.exit());
+    match run(cli) {
         Ok(code) => code,
         Err(error) => {
             eprintln!("error: {error:#}");
@@ -250,10 +254,51 @@ fn main() -> ExitCode {
     }
 }
 
+fn localized_command() -> Command {
+    fn localize(mut command: Command) -> Command {
+        let has_version = command.get_version().is_some();
+        let mut template = "{before-help}{about-with-newline}用法：{usage}\n".to_owned();
+        if command
+            .get_subcommands()
+            .any(|subcommand| !subcommand.is_hide_set())
+        {
+            template.push_str("\n命令：\n{subcommands}\n");
+        }
+        if command.get_positionals().next().is_some() {
+            template.push_str("\n参数：\n{positionals}\n");
+        }
+        template.push_str("\n选项：\n{options}\n");
+        template.push_str("{after-help}");
+        command = command
+            .help_template(template)
+            .disable_help_flag(true)
+            .disable_version_flag(true)
+            .arg(
+                Arg::new("help")
+                    .short('h')
+                    .long("help")
+                    .action(ArgAction::Help)
+                    .help("显示帮助信息并退出"),
+            );
+        if has_version {
+            command = command.arg(
+                Arg::new("version")
+                    .short('V')
+                    .long("version")
+                    .action(ArgAction::Version)
+                    .help("显示版本信息并退出"),
+            );
+        }
+        command.mut_subcommands(localize)
+    }
+
+    localize(Cli::command())
+}
+
 fn run(cli: Cli) -> anyhow::Result<ExitCode> {
     match cli.command {
         None => {
-            Cli::parse_from(["openrust", "--help"]);
+            localized_command().print_help()?;
             Ok(ExitCode::SUCCESS)
         }
         Some(Builtin::New {
@@ -517,28 +562,28 @@ fn populate_project(
         ("src/main.rs", main_source(crate_name, database)),
         ("src/app.rs", app_source(crate_name, database, auth, encryption)),
         ("src/routes.rs", routes_source(auth)),
-        ("src/schedule.rs", "//! Application schedule.\n".to_owned()),
+        ("src/schedule.rs", "//! 应用调度。\n".to_owned()),
         ("src/seed.rs", seed_source(database)),
         (
             "src/controllers/mod.rs",
-            "//! HTTP controllers.\n".to_owned(),
+            "//! HTTP 控制器。\n".to_owned(),
         ),
-        ("src/models/mod.rs", "//! Application models.\n".to_owned()),
+        ("src/models/mod.rs", "//! 应用模型。\n".to_owned()),
         ("src/models/_entities/.gitkeep", String::new()),
         (
             "src/services/mod.rs",
-            "//! Application services.\n".to_owned(),
+            "//! 应用服务。\n".to_owned(),
         ),
         (
             "src/policies/mod.rs",
-            "//! Authorization policies.\n".to_owned(),
+            "//! 授权策略。\n".to_owned(),
         ),
-        ("src/jobs/mod.rs", "//! Background jobs.\n".to_owned()),
-        ("src/events/mod.rs", "//! Application events.\n".to_owned()),
-        ("src/mailers/mod.rs", "//! Email messages.\n".to_owned()),
+        ("src/jobs/mod.rs", "//! 后台任务。\n".to_owned()),
+        ("src/events/mod.rs", "//! 应用事件。\n".to_owned()),
+        ("src/mailers/mod.rs", "//! 邮件类型。\n".to_owned()),
         (
             "src/middleware/mod.rs",
-            "//! Application middleware.\n".to_owned(),
+            "//! 应用中间件。\n".to_owned(),
         ),
         (
             "tests/application.rs",
@@ -699,7 +744,7 @@ fn env_example(
     auth: bool,
     encryption: bool,
 ) -> String {
-    let mut contents = "# Copy to .env for local development. Never commit the populated .env file.\n# Production reads configuration from process environment, not this file.\nAPP_ENV=development\n\n# Optional overrides for values in config/*.toml:\n# APP_SERVER__PORT=3000\n# APP_SERVER__HOST=127.0.0.1\n# APP_API__HTTP_STATUS=always_ok\n".to_owned();
+    let mut contents = "# 复制为 .env 供本地开发使用。不要提交填入实际值的 .env 文件。\n# 生产环境从进程环境变量读取配置，不读取此文件。\nAPP_ENV=development\n\n# 可选：覆盖 config/*.toml 中的配置项。\n# APP_SERVER__PORT=3000\n# APP_SERVER__HOST=127.0.0.1\n# APP_API__HTTP_STATUS=always_ok\n".to_owned();
     if let Some(database) = database {
         use std::fmt::Write as _;
         contents.push('\n');
@@ -707,16 +752,16 @@ fn env_example(
     }
     if auth {
         contents.push_str(
-            "\n# Generate independent keys with: openrust key generate\nAPP_AUTH__JWT__KEYS__LOCAL=\nAPP_SECURITY__SIGNED_LINKS__KEYS__LOCAL=\n",
+            "\n# 使用 openrust key generate 生成独立密钥。\nAPP_AUTH__JWT__KEYS__LOCAL=\nAPP_SECURITY__SIGNED_LINKS__KEYS__LOCAL=\n",
         );
     }
     if encryption {
         contents.push_str(
-            "\n# Generate with `openrust key generate`; keep this value in a secret store.\nAPP_SECURITY__ENCRYPTION__ACTIVE_KEY_ID=local\nAPP_SECURITY__ENCRYPTION__KEYS__LOCAL=\n",
+            "\n# 使用 `openrust key generate` 生成密钥，并将其保存在密钥存储中。\nAPP_SECURITY__ENCRYPTION__ACTIVE_KEY_ID=local\nAPP_SECURITY__ENCRYPTION__KEYS__LOCAL=\n",
         );
     }
     contents.push_str(
-        "\n# Optional SMTP delivery overrides:\n# APP_MAIL__DRIVER=smtp\n# APP_MAIL__SMTP_HOST=mail.example.com\n# APP_MAIL__SMTP_PORT=587\n# APP_MAIL__SMTP_STARTTLS=true\n# For local Mailpit on 127.0.0.1:1025 only, set SMTP_STARTTLS=false\n# APP_MAIL__SMTP_USERNAME=\n# APP_MAIL__SMTP_PASSWORD=\n# Optional Twilio SMS provider (sms-twilio feature):\n# APP_SMS__DRIVER=twilio\n# APP_SMS__ACCOUNT_SID=\n# APP_SMS__API_KEY_SID=\n# APP_SMS__API_KEY_SECRET=\n# Set exactly one of APP_SMS__FROM or APP_SMS__MESSAGING_SERVICE_SID\n",
+        "\n# 可选：SMTP 邮件投递配置。\n# APP_MAIL__DRIVER=smtp\n# APP_MAIL__SMTP_HOST=mail.example.com\n# APP_MAIL__SMTP_PORT=587\n# APP_MAIL__SMTP_STARTTLS=true\n# 本地 Mailpit 地址为 127.0.0.1:1025 时，将 SMTP_STARTTLS 设为 false。\n# APP_MAIL__SMTP_USERNAME=\n# APP_MAIL__SMTP_PASSWORD=\n# 可选：Twilio 短信驱动（sms-twilio feature）。\n# APP_SMS__DRIVER=twilio\n# APP_SMS__ACCOUNT_SID=\n# APP_SMS__API_KEY_SID=\n# APP_SMS__API_KEY_SECRET=\n# APP_SMS__FROM 和 APP_SMS__MESSAGING_SERVICE_SID 必须且只能设置一项。\n",
     );
     contents
 }
@@ -737,9 +782,9 @@ fn default_config(name: &str, auth: bool, encryption: bool) -> String {
 
 fn seed_source(database: Option<DatabaseBackend>) -> String {
     if database.is_some() {
-        "//! Application seed entry point.\n\nuse openrust::{Db, Result};\n\npub async fn run(_database: Db) -> Result<()> {\n    Ok(())\n}\n".to_owned()
+        "//! 应用数据填充入口。\n\nuse openrust::{Db, Result};\n\npub async fn run(_database: Db) -> Result<()> {\n    Ok(())\n}\n".to_owned()
     } else {
-        "//! Application seed entry point.\n".to_owned()
+        "//! 应用数据填充入口。\n".to_owned()
     }
 }
 
@@ -760,7 +805,7 @@ fn migration_lib(auth: bool) -> String {
         "vec![]"
     };
     format!(
-        "//! Application database migrations.\n\nuse openrust::database::sea_orm_migration::prelude::*;\n\npub struct Migrator;\n\n#[openrust::database::sea_orm_migration::async_trait::async_trait]\nimpl MigratorTrait for Migrator {{\n    fn migrations() -> Vec<Box<dyn MigrationTrait>> {{\n        {migrations}\n    }}\n}}\n"
+        "//! 应用数据库迁移。\n\nuse openrust::database::sea_orm_migration::prelude::*;\n\npub struct Migrator;\n\n#[openrust::database::sea_orm_migration::async_trait::async_trait]\nimpl MigratorTrait for Migrator {{\n    fn migrations() -> Vec<Box<dyn MigrationTrait>> {{\n        {migrations}\n    }}\n}}\n"
     )
 }
 
@@ -899,13 +944,9 @@ fn generate_mailer(values: &[String], project_dir: &Path) -> anyhow::Result<()> 
     append_sorted_module(
         &module_file,
         &format!("pub mod {module};"),
-        "//! Application email types.\n",
+        "//! 应用邮件类型。\n",
     )?;
-    append_module(
-        &main_file,
-        "pub mod mailers;",
-        "//! Application entry point.\n",
-    )?;
+    append_module(&main_file, "pub mod mailers;", "//! 应用入口。\n")?;
     print_generated(&format!("Generated mailer `{module}`."))?;
     Ok(())
 }
@@ -938,33 +979,29 @@ fn generate_policy(values: &[String], project_dir: &Path) -> anyhow::Result<()> 
     append_sorted_module(
         &module_file,
         &format!("pub mod {module};"),
-        "//! Application authorization policies.\n",
+        "//! 应用授权策略。\n",
     )?;
-    append_module(
-        &main_file,
-        "pub mod policies;",
-        "//! Application entry point.\n",
-    )?;
+    append_module(&main_file, "pub mod policies;", "//! 应用入口。\n")?;
     print_generated(&format!("Generated policy `{module}` for `{resource}`."))?;
     Ok(())
 }
 
 fn render_mailer(type_name: &str) -> String {
     format!(
-        "//! Application email type generated by OpenRust.\n\nuse openrust::mail::{{\n    Email,\n    lettre::{{Message, message::Mailbox}},\n}};\n\n/// A customizable application email.\n#[derive(Clone, Debug)]\npub struct {type_name} {{\n    /// Sender address.\n    pub from: String,\n    /// Recipient address.\n    pub to: String,\n    /// Subject line.\n    pub subject: String,\n    /// Plain-text body.\n    pub body: String,\n}}\n\nimpl Email for {type_name} {{\n    fn message(&self) -> openrust::Result<Message> {{\n        let from: Mailbox = self.from.parse().map_err(openrust::Error::internal)?;\n        let to: Mailbox = self.to.parse().map_err(openrust::Error::internal)?;\n        Message::builder()\n            .from(from)\n            .to(to)\n            .subject(&self.subject)\n            .body(self.body.clone())\n            .map_err(openrust::Error::internal)\n    }}\n}}\n"
+        "//! OpenRust 生成的应用邮件类型。\n\nuse openrust::mail::{{\n    Email,\n    lettre::{{Message, message::Mailbox}},\n}};\n\n/// 可自定义的应用邮件。\n#[derive(Clone, Debug)]\npub struct {type_name} {{\n    /// 发件人地址。\n    pub from: String,\n    /// 收件人地址。\n    pub to: String,\n    /// 邮件主题。\n    pub subject: String,\n    /// 纯文本正文。\n    pub body: String,\n}}\n\nimpl Email for {type_name} {{\n    fn message(&self) -> openrust::Result<Message> {{\n        let from: Mailbox = self.from.parse().map_err(openrust::Error::internal)?;\n        let to: Mailbox = self.to.parse().map_err(openrust::Error::internal)?;\n        Message::builder()\n            .from(from)\n            .to(to)\n            .subject(&self.subject)\n            .body(self.body.clone())\n            .map_err(openrust::Error::internal)\n    }}\n}}\n"
     )
 }
 
 fn render_policy(type_name: &str, resource: &str) -> String {
     let permissions = ["read", "create", "update", "delete"];
     let mut source = format!(
-        "//! Application authorization policy generated by OpenRust.\n\nuse openrust::auth::{{CurrentUser, Policy}};\n\n/// Authorization helpers for `{resource}`.\n#[derive(Clone, Debug)]\npub struct {type_name} {{\n    policy: Policy,\n}}\n\nimpl {type_name} {{\n    /// Creates the resource policy from the application's shared policy service.\n    pub fn new(policy: Policy) -> Self {{\n        Self {{ policy }}\n    }}\n\n"
+        "//! OpenRust 生成的应用授权策略。\n\nuse openrust::auth::{{CurrentUser, Policy}};\n\n/// `{resource}` 的授权辅助类型。\n#[derive(Clone, Debug)]\npub struct {type_name} {{\n    policy: Policy,\n}}\n\nimpl {type_name} {{\n    /// 使用应用共享的策略服务创建资源策略。\n    pub fn new(policy: Policy) -> Self {{\n        Self {{ policy }}\n    }}\n\n"
     );
     for permission in permissions {
         let constant = permission.to_ascii_uppercase();
         let _ = writeln!(
             source,
-            "    /// Permission required to {permission} {resource}.\n    pub const {constant}_PERMISSION: &'static str = \"{resource}:{permission}\";\n\n    /// Authorizes the `{resource}:{permission}` permission.\n    pub async fn authorize_{permission}(&self, user: &CurrentUser) -> openrust::Result<()> {{\n        self.policy.authorize(user, Self::{constant}_PERMISSION).await\n    }}\n"
+            "    /// 执行 {permission} {resource} 操作所需的权限。\n    pub const {constant}_PERMISSION: &'static str = \"{resource}:{permission}\";\n\n    /// 检查是否具有 `{resource}:{permission}` 权限。\n    pub async fn authorize_{permission}(&self, user: &CurrentUser) -> openrust::Result<()> {{\n        self.policy.authorize(user, Self::{constant}_PERMISSION).await\n    }}\n"
         );
     }
     if source.ends_with("\n\n") {
@@ -999,18 +1036,10 @@ fn generate_model(
     append_module(
         &entity_module,
         &format!("pub mod {module};"),
-        "//! Generated model entities.\n",
+        "//! 生成的模型实体。\n",
     )?;
-    append_module(
-        &models_module,
-        "pub mod _entities;",
-        "//! Application models.\n",
-    )?;
-    append_module(
-        &main_file,
-        "pub mod models;",
-        "//! Application entry point.\n",
-    )?;
+    append_module(&models_module, "pub mod _entities;", "//! 应用模型。\n")?;
+    append_module(&main_file, "pub mod models;", "//! 应用入口。\n")?;
     if uuid_id {
         enable_uuid_feature(project_dir)?;
     }
@@ -1168,7 +1197,7 @@ fn render_model(table: &str, fields: &[Field], uuid_id: bool, soft_delete: bool)
         "#[sea_orm(primary_key)]"
     };
     let mut source = format!(
-        "//! SeaORM entity generated for table `{table}`.\n\nuse openrust::database::sea_orm_migration::sea_orm;\nuse sea_orm::entity::prelude::*;\n\n#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]\n#[sea_orm(table_name = \"{table}\")]\npub struct Model {{\n    {id_attribute}\n    pub id: {id_type},\n"
+        "//! 为 `{table}` 表生成的 SeaORM 实体。\n\nuse openrust::database::sea_orm_migration::sea_orm;\nuse sea_orm::entity::prelude::*;\n\n#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]\n#[sea_orm(table_name = \"{table}\")]\npub struct Model {{\n    {id_attribute}\n    pub id: {id_type},\n"
     );
     for field in fields {
         let type_name = field.kind.rust_type();
@@ -1186,7 +1215,7 @@ fn render_model(table: &str, fields: &[Field], uuid_id: bool, soft_delete: bool)
         "}\n\n#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]\npub enum Relation {}\n",
     );
     if soft_delete {
-        source.push_str("\nimpl Entity {\n    /// Returns rows that have not been soft-deleted. Compose this scope with explicit authorization and filtering conditions.\n    pub fn not_deleted() -> Select<Self> {\n        Self::find().filter(Column::DeletedAt.is_null())\n    }\n}\n");
+        source.push_str("\nimpl Entity {\n    /// 返回尚未软删除的记录。请将此范围与显式授权及筛选条件组合使用。\n    pub fn not_deleted() -> Select<Self> {\n        Self::find().filter(Column::DeletedAt.is_null())\n    }\n}\n");
     }
     if uuid_id {
         source.push_str("\n#[openrust::database::sea_orm_migration::async_trait::async_trait]\nimpl ActiveModelBehavior for ActiveModel {\n    async fn before_save<C>(mut self, _db: &C, insert: bool) -> Result<Self, DbErr>\n    where\n        C: ConnectionTrait,\n    {\n        if insert && self.id.is_not_set() {\n            self.id = sea_orm::ActiveValue::Set(Uuid::now_v7());\n        }\n        Ok(self)\n    }\n}\n");
@@ -1206,7 +1235,7 @@ fn render_migration(
     use std::fmt::Write as _;
     let table_type = pascal_case(table);
     let mut source = format!(
-        "//! Creates the `{table}` table.\n\nuse openrust::database::sea_orm_migration::prelude::*;\n\n#[derive(DeriveIden)]\nenum {table_type} {{\n    Table,\n    Id,\n"
+        "//! 创建 `{table}` 表。\n\nuse openrust::database::sea_orm_migration::prelude::*;\n\n#[derive(DeriveIden)]\nenum {table_type} {{\n    Table,\n    Id,\n"
     );
     for field in fields {
         let _ = writeln!(source, "    {},", field.variant);
@@ -1473,6 +1502,37 @@ mod tests {
     }
 
     #[test]
+    fn command_help_uses_simplified_chinese_descriptions() {
+        let mut command = localized_command();
+        let help = command.render_help().to_string();
+        assert!(help.contains("用法："));
+        assert!(help.contains("命令："));
+        assert!(help.contains("选项："));
+        assert!(help.contains("使用内置模板创建 OpenRust 应用"));
+        assert!(help.contains("以开发模式运行应用"));
+        assert!(!help.contains("Create a new OpenRust application"));
+        assert!(!help.contains("Usage:"));
+        assert!(!help.contains("Print help"));
+        assert!(!help.contains("Print version"));
+
+        let new_help = command
+            .find_subcommand_mut("new")
+            .expect("new subcommand exists")
+            .render_help()
+            .to_string();
+        assert!(new_help.contains("添加数据库认证能力"));
+        assert!(new_help.contains("Twilio 短信驱动"));
+
+        let generate_help = command
+            .find_subcommand_mut("generate")
+            .expect("generate subcommand exists")
+            .render_help()
+            .to_string();
+        assert!(generate_help.contains("模型或表名"));
+        assert!(generate_help.contains("UUIDv7"));
+    }
+
+    #[test]
     fn generated_manifest_enables_requested_http_client_feature() {
         let manifest = cargo_manifest("my-app", None, false, true, false, false);
         assert!(manifest.contains("features = [\"http-client\"]"));
@@ -1566,7 +1626,11 @@ mod tests {
             .expect("read generated environment example");
         assert!(env_example.contains("APP_SERVER__PORT=3000"));
         assert!(env_example.contains("APP_MAIL__SMTP_PASSWORD="));
-        assert!(env_example.contains("Production reads configuration from process environment"));
+        assert!(env_example.contains("生产环境从进程环境变量读取配置"));
+        assert!(!env_example.contains("Production reads configuration"));
+        let guide = fs::read_to_string(project.join("AGENTS.md")).expect("read generated guide");
+        assert!(guide.contains("应用开发指南"));
+        assert!(!guide.contains("Application guide"));
         let _ = fs::remove_dir_all(root);
     }
 
@@ -1744,6 +1808,7 @@ mod tests {
         let entity = fs::read_to_string(project.join("src/models/_entities/post.rs"))
             .expect("read generated model");
         assert!(entity.contains("pub title: String"));
+        assert!(entity.contains("为 `posts` 表生成的 SeaORM 实体"));
         assert!(entity.contains("pub published_at: Option<DateTimeUtc>"));
         assert!(entity.contains("pub author_id: i64"));
 
@@ -1793,6 +1858,7 @@ mod tests {
             .find(|source| source.contains("uuid().not_null().primary_key()"))
             .unwrap_or_default();
         assert!(migration.contains(".uuid().not_null().primary_key()"));
+        assert!(migration.contains("创建 `entries` 表"));
         assert!(migration.contains("DeletedAt"));
         for (table, field) in [("comments", "body:text"), ("labels", "slug:string")] {
             generate_migration(
@@ -1859,7 +1925,7 @@ mod tests {
         generate_mailer(&["welcome_email".to_owned()], &project).expect("generate mailer");
         fs::write(
             project.join("src/mailers/mod.rs"),
-            "//! Application email types.\n/// Welcome email documentation.\npub mod welcome_email;\n",
+            "//! 应用邮件类型。\n/// 欢迎邮件说明。\npub mod welcome_email;\n",
         )
         .expect("add existing module documentation");
         generate_mailer(&["password_reset".to_owned()], &project).expect("generate second mailer");
@@ -1869,11 +1935,14 @@ mod tests {
         let mailer = fs::read_to_string(project.join("src/mailers/welcome_email.rs"))
             .expect("read generated mailer");
         assert!(mailer.contains("impl Email for WelcomeEmail"));
+        assert!(mailer.contains("OpenRust 生成的应用邮件类型"));
+        assert!(!mailer.contains("Application email type generated"));
         assert!(mailer.contains("pub from: String"));
         assert!(mailer.contains(".body(self.body.clone())"));
         let policy = fs::read_to_string(project.join("src/policies/post.rs"))
             .expect("read generated policy");
         assert!(policy.contains("pub struct PostPolicy"));
+        assert!(policy.contains("OpenRust 生成的应用授权策略"));
         assert!(policy.contains("\"posts:read\""));
         assert!(policy.contains("authorize_create"));
         assert!(policy.contains("authorize_update"));
@@ -1881,9 +1950,7 @@ mod tests {
         let mailer_modules = fs::read_to_string(project.join("src/mailers/mod.rs"))
             .expect("read mailer module registry");
         assert!(mailer_modules.contains("pub mod welcome_email;"));
-        assert!(
-            mailer_modules.contains("/// Welcome email documentation.\npub mod welcome_email;")
-        );
+        assert!(mailer_modules.contains("/// 欢迎邮件说明。\npub mod welcome_email;"));
         assert!(
             mailer_modules.find("pub mod password_reset;")
                 < mailer_modules.find("pub mod welcome_email;")

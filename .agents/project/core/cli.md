@@ -2,11 +2,13 @@
 
 > 受众：AI Agent
 > 更新：2026-10-26
-> 摘要：源码内 `openrust` 命令提供项目生成、开发启动与运行期命令代理；源码 workspace 生成模式待迁移。
+> 摘要：源码内 `openrust` 命令提供中文帮助、项目生成、开发启动与运行期命令代理；生成项目遵循根 workspace 和简体中文说明规范。
 
 ## 当前实现
 
-- package `cli` 位于仓库 `cli/`，二进制命令 `openrust` 保留；生成器迁移和完整验收仍在进行，详见 [ADR-039](../decisions/adr-039-source-workspace-distribution.md)。
+- package `cli` 位于仓库 `cli/`，二进制命令 `openrust` 保留；源码交付与应用隔离按 [ADR-039](../decisions/adr-039-source-workspace-distribution.md) 已完成。
+- `openrust --help` 及子命令帮助使用简体中文标题、选项说明和帮助/版本说明；命令、参数、配置键和协议值保留技术原名。
+- 新应用的 `AGENTS.md`、`.env.example` 注释、模块入口 Rustdoc，以及 Model/Migration/Mailer/Policy 生成 Rustdoc 使用简体中文；模板说明不改变应用邮件等运行时语言策略。
 
 - `openrust new <name>` 或 `openrust new apps/<name>` 在已识别的源码 workspace 中生成应用，并把应用及可选 migration 加为 workspace member；绝对/外部路径、同名 package、已有目录和非法多级目标会在写入前拒绝。`--db postgres|mysql` 增加 backend feature、数据库插件、migration crate、seed 入口与 `.env.example`。`--auth` 增加 JWT/Auth/AuthFlows plugins、账户/refresh/verification/Policy/限流 migrations、身份示例及注册、验证、登录、refresh、logout、密码重置 routes。
 - `openrust dev` 以 `APP_ENV=development` 启动当前应用的 `serve` 命令；`openrust serve` 不改环境变量。命令通过 Cargo metadata 定位 `apps/<name>`，显式运行该 package 的同名 binary，并从该应用目录加载配置。两者当前只代理一次 `cargo run`，没有文件监听重启、基础服务编排、就绪等待或自动迁移。

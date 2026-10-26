@@ -12,6 +12,7 @@
 | --- | --- | --- |
 | C1 默认文档入口中文化 | 根 README、贡献/安全/行为准则/变更日志及 `src/**/README.md`、工具/宿主 README；13 个改动 Markdown 的相对链接与锚点检查、`git diff --check`、warnings-denied `cargo doc -p openrust --no-deps`、`cargo test -p openrust --doc` 通过 | 本簇仅整改默认入口说明，不覆盖 Rustdoc/源码注释（C2）或 CLI/生成模板说明（C3）；英文许可、引用和协议原文保留 |
 | C2 Rustdoc 与源码/配置注释中文化 | 注释-only 改动；workspace fmt、clippy、test、warnings-denied doc、`cargo deny check`、`git diff --check` 通过；PostgreSQL 18/MySQL 8.4 各以 `auth,queue,db-<backend>` 执行 `auth_database`（6）、`db_connection`（4）、`db_migration`（1）、`queue`（1）、`queue_crash_recovery`（2）、`schedule`（4），均全部通过 | 不改 API/运行时文案/行为；生成入口 Rustdoc 改动同步快照；CLI 帮助、生成说明和模板注释仍属 C3 |
+| C3 生成说明与 CLI 帮助中文化 | CLI 15 项测试覆盖中文帮助/生成模板；workspace fmt、clippy、test、warnings-denied doc、`cargo deny check`、`git diff --check` 通过；在干净源码副本中用本地 workspace/path 依赖生成无数据库、PostgreSQL、MySQL 应用，各自 `cargo check` 与 `cargo test` 通过 | 真实渲染根命令、`new`、`generate` 帮助；快照取自生成器真实产物；未改变邮件/SMS 等运行时语言策略，也不表示数据库集成测试已在该副本执行 |
 | V2 前端选型文档 | pure-admin 精简国际化版 + Element Plus 选型同步；102 个本地链接目标、11 个锚点和 2 个上游链接检查通过；diff 空白检查与旧选型引用扫描通过 | 仅文档验证；未创建前端应用、安装依赖或执行前后端运行验收，v2 仍须待 v1 完整通过后启动 |
 | 根模块/配置/目录 | workspace 默认/关键/all-features、clippy/test/doc/deny；配置层级、`.env` 生产隔离、脱敏与生成项目；工具目录/示例/测试分组迁移前后 5 packages、265 test-list entries 一致 | 不等于 v1 全部能力、最低版本或集群验收 |
 | HTTP/出站/i18n | 路由、响应、CORS、request ID；本机 TCP/fake client、受界 body/retry；locale 并发与生成项目中文错误 | 不等于第三方供应商发送、OpenAPI或实时通信验收 |
