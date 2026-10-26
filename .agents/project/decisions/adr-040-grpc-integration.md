@@ -1,0 +1,57 @@
+# ADR-040 gRPC 纳入 v1 通用框架
+
+- 状态：Accepted（范围与集成边界已确认；尚未实现，公共签名和配置细节在实施 Spec 定稿）
+- 日期：2026-10-26
+- 依据：[ADR-001](adr-001-own-kernel-on-axum.md)、[v1 总计划](../plans/gen1-plan.md)、[能力覆盖](../plans/v1-capability-coverage.md)
+
+## 决策与原因
+
+v1 主攻通用框架底层能力，正式交付可选 gRPC 服务端与客户端，支持内部服务及跨语言调用。本决策替代旧计划中“gRPC 不纳入 v1、仅作 v2 候选”的范围限制；GraphQL 与后台业务的版本归属不变。使用者可只启用 HTTP，也可只启用 gRPC，或显式组合二者。
+
+采用 `tonic` / `prost` 生态整合 HTTP/2、Protobuf 与代码生成，复用 Tokio、Tower、现有 Plugin/AppState/Command 和配置加载；不自研 RPC 协议、不建立第二套容器、ORM、身份或错误体系。依赖版本、TLS provider、MSRV 与生成工具在实施时核实并登记 `stack.md`；规划不代表依赖已经安装。
+
+## 布局与入口
+
+- 框架归属根 package 的 `openrust::grpc` 与 `src/config/` 对应配置模块，使用可选 `grpc` feature；具体子 feature 按实际依赖设计。未启用时不引入 gRPC 运行时或要求 `protoc`，不预建空模块或独立发布包。“只启用 gRPC”指只装配并运行 RPC 服务，不要求本簇从现有依赖树移除 Axum/HTTP。
+- 应用持有 `proto/`、生成配置与普通 Rust 服务实现；复用官方生成工具，当前候选为 `tonic-prost-build`。明确生成源、descriptor、工具版本与可复现构建，工具缺失给修复说明，不自动全局安装工具。
+- 服务显式注册，共享已构建 AppState；默认使用独立监听地址/端口。允许独立运行或由同一命令 supervisor 显式联合 HTTP 运行，不要求首版同端口复用，不因启用 feature 暗中监听端口或启动 worker。
+- 客户端支持默认/命名端点、共享 Channel、配置校验及测试替换；直接复用生成的类型化 client/server，不逐方法包装。公开入口应允许独立 consumer 注册服务、替换客户端配置并运行，无需访问私有构造器。
+
+## 协议与公共语义
+
+| 范围 | v1 必须交付的行为 |
+| --- | --- |
+| 调用模型 | unary、服务端流、客户端流、双向流全部支持；半关闭、异常断连、消息顺序、流结束及错误有真实网络验证 |
+| 验证与错误 | Protobuf 输入经业务 DTO/现有验证规则处理；复用框架错误类别，集中映射为标准 `Status` 及有界脱敏 details。认证失败、无权限、参数错误、配额耗尽、deadline、取消和内部故障分别映射；不套 HTTP JSON envelope 或 always-200 模式 |
+| 认证与授权 | metadata Bearer 适配现有 JWT/PAT 与 Policy，区分用户身份和服务身份。mTLS 不自动授予业务权限；长流的令牌到期、撤销窗口及逐消息授权边界在 contract 明确。同步 interceptor 只处理同步 metadata；需要异步查库的认证使用 Tower layer，不 `block_on` |
+| TLS 与 mTLS | 复用成熟 TLS 实现，支持服务证书、信任根和可选客户端证书。生产直连默认 TLS；明文仅允许显式配置的开发或受信 TLS 终止拓扑，错误证书/配置不得自动降级。给出证书滚动更新与信任重叠说明 |
+| 时间与取消 | 明确连接、调用总预算、流空闲及整个流生命周期上限；传递剩余 deadline。`Endpoint::timeout` 不发送 `grpc-timeout`，须结合请求 timeout/metadata，并验证实际传播；只等到响应头不算流式总超时。取消通知关联工作并释放资源，不保证撤销已提交副作用 |
+| 资源与背压 | 限制收发消息、metadata、连接、全局在途调用、每连接 stream、缓冲与发送等待；压缩启用时验证解压后限额。过载返回明确状态，不用无限排队承接慢消费者；单连接限制不能代替全局限制 |
+| 重试 | 默认关闭应用层自动重试；只有声明幂等且可重放的 unary 调用可受控重试，重试与退避合计不超总预算。流式调用不自动缓存重放；客户端、代理与业务层避免叠加重试，复用通用出站策略原则 |
+| 健康与诊断 | 接入标准 gRPC health Check/Watch，复用框架 readiness 状态；停机先置 NOT_SERVING。reflection 为显式选项，生产默认关闭，启用时控制暴露范围；二者不泄露密钥或私有配置 |
+| 可观测性 | 记录服务/方法、状态、时延、在途/流资源，关联 HTTP、RPC 与任务的 trace；流指标覆盖至完成/错误。metadata 按白名单传播，身份凭据和业务载荷不默认记录，不使用高基数用户标签 |
+| 协议演进 | 应用采用版本化 Protobuf package/service；删除字段保留编号/名称，兼容新增与破坏变更分别验证。生成客户端与服务端进行新旧版本互通测试，不能只证明同版本编译成功 |
+
+## 生命周期与集群
+
+- 运行命令持有 listener、任务集合和退出信号，复用 ADR-037 的明确所有权原则。先撤就绪、停止新调用，再限时 drain，最后取消/abort 并 join；联合运行时一个 listener 启动或运行失败应关闭其他任务并返回失败，不能遗留后台服务。
+- HTTP 与实时流同步补有界退出，仍不新增通用 Plugin shutdown 或平行 Hooks。每个调用的取消与应用退出分开；独立排队任务不继承已经结束的请求取消令牌。
+- 支持静态/命名端点和 DNS/现有负载均衡部署，保留公开连接/端点解析扩展；至少验证一种能对 HTTP/2 多路复用正确分配 RPC 的方案。TCP 连接轮询不等于逐 RPC 均衡，单次 DNS 解析不等于动态服务发现。
+- 至少两个 gRPC 节点验证健康摘流、滚动升级、节点退出与客户端重连。已有流不自动迁移到其他节点；中断和业务恢复策略明确，不能宣称跨节点恢复任意流进度。
+- 本项不要求注册中心、配置中心、服务网格、RPC 网关或 gRPC-Web。后续按具体需求复用外部组件；gRPC 不改变单机部署的简单默认路径。
+
+## 实施顺序与验收
+
+1. 保留当前中文整改及 M4 正确性任务；进入 M5 后先补跨协议验证、调用作用域与有界运行边界，不重写已验证内核。当前领取顺序只在 [todo.md](../todo.md) 维护。
+2. G1：配置/注册、server/client、四种调用、Protobuf 生成与真实 TCP 示例；同簇完成生成项目 check/test，不把可运行入口拖到 M6。
+3. G2：JWT/PAT/Policy、TLS/mTLS、错误/验证、deadline/取消、限额/背压、health/reflection 与退出；测试无效凭据、错误 CA/域名/过期证书、超限、慢消费、异常断连和 SIGTERM。
+4. G3：宿主和独立 consumer、HTTP 与 RPC 显式联合运行、双节点代理/负载分配、滚动退出、新旧 proto 互通、观测链路；M6 做整体回归和性能收口。
+5. 无数据库 gRPC 示例必须可独立运行；涉及数据库认证/事务的路径在 PostgreSQL/MySQL 分别验证。执行默认、仅 gRPC、HTTP+gRPC、认证及有效 TLS/生成组合、MSRV 与仓库源码门禁，不只测试 all-features。
+
+四类调用的真实网络证据、故障和资源回收、生成项目、集群与文档全部齐备才算交付；本 ADR 不新增任何测试通过记录。
+
+## 一手参考
+
+- [gRPC 核心概念](https://grpc.io/docs/what-is-grpc/core-concepts/)、[deadline](https://grpc.io/docs/guides/deadlines/)、[health](https://grpc.io/docs/guides/health-checking/)、[reflection](https://grpc.io/docs/guides/reflection/)：协议行为参照。
+- [tonic](https://docs.rs/tonic/latest/tonic/)、[Endpoint](https://docs.rs/tonic/latest/tonic/transport/struct.Endpoint.html)、[Interceptor](https://docs.rs/tonic/latest/tonic/service/trait.Interceptor.html)、[生成工具](https://docs.rs/tonic-prost-build/latest/tonic_prost_build/)：Rust 集成与能力边界参照。
+- [Protobuf 演进规则](https://protobuf.dev/programming-guides/proto3/)、[Goravel gRPC](https://www.goravel.dev/the-basics/grpc.html)：兼容约定和框架使用体验参照；具体实现以 OpenRust 的安全约定与验收为准。

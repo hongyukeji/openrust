@@ -35,6 +35,7 @@
 - M4 类型化事件与 queued listener 已在 PostgreSQL 18.6 与 MySQL 8.4 完成双库事务/worker 验收；源码 workspace 交付、C1 默认文档和 C2 Rustdoc/源码注释中文化现已验收，当前先完成 C3，再推进 M4 后续簇。
 - C2 Rustdoc 与源码/配置注释中文化：覆盖根公开模块、`cli` 内部实现、`macros`、`testing`、`apps/server`、`examples` 与 `tests`；未改 API、运行时文案或行为。fmt、workspace clippy/test/doc、cargo deny、diff check 通过；PostgreSQL 18 和 MySQL 8.4 各通过 18 项 auth/db/queue/recovery/schedule 集成测试。生成模板入口注释快照按实际生成结果更新。
 - C1 默认文档入口中文化：根 README、贡献/安全/行为准则/变更日志及框架模块 README 已按简体中文优先更新，保留代码、技术标识符、链接和许可证原文。13 个变更 Markdown 的本地链接/锚点、`git diff --check`、warnings-denied Rustdoc 与框架 doctest 通过；详见 `.agents/project/memory/verification.md`。
+- gRPC 已按 [ADR-040](decisions/adr-040-grpc-integration.md) 纳入 v1/M5，当前仅完成范围和规划；跨协议验证/上下文、出站安全/韧性及生产运行/迁移补强见 `todo.md`，没有新增代码或运行验收证据。
 - M5/M6 尚有成组能力未交付；没有可宣称已完成的 v1 性能基线、全部最低版本兼容性或完整集群验收。
 - v1 完整验收通过后按已授权顺序进入 v2；Admin 已确定 pure-admin 精简国际化版 + Element Plus，App 使用 uni-app，PC 仅规划设计。当前只完成选型与文档校准，未创建端侧应用或安装前端依赖；AI 平台仅规划并隔离，尚未立项。
 

@@ -31,7 +31,7 @@
 | [029 读写路由](adr-029-database-read-routing.md) | Accepted | 显式副本、主库 scope；不实现复制/选主 |
 | [030 模块化配置](adr-030-modular-configuration.md) | Accepted | Rust 配置代码与运行时 config 分离；单一 ConfigLoader/.env 规则 |
 | [038 测试数据库隔离](adr-038-isolated-test-databases.md) | Accepted | 独立测试库与显式清理；原重复编号 011 校准 |
-| [039 源码交付与内部命名](adr-039-source-workspace-distribution.md) | Accepted | 整套 workspace、apps 业务、内部中性包名与禁用发布；实现待迁移 |
+| [039 源码交付与内部命名](adr-039-source-workspace-distribution.md) | Accepted | 整套 workspace、apps 业务、内部中性包名与禁用发布；当前交付证据见 progress.md |
 
 ## 认证、安全与通信
 
@@ -54,6 +54,7 @@
 | [034 本地加密](adr-034-application-encryption-and-key-rotation.md) | Accepted | 本地认证加密与轮换；实现审计/性能仍有发布复核项 |
 | [035 审计](adr-035-audit-recording.md) | Accepted | 脱敏、可替换 sink 与事务边界 |
 | [036 签名链接](adr-036-signed-links.md) | Accepted | 用途隔离、到期与可选共享撤销，独立于验证码 |
+| [040 gRPC 集成](adr-040-grpc-integration.md) | Accepted | v1 可选 server/client 与四类调用、协议/安全/运行/集群契约；尚未实现，替代旧 v2 候选范围 |
 
 ## 队列、缓存与部署
 

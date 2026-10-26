@@ -11,7 +11,8 @@ OpenRust 定位为 Rust 应用开发的“瑞士军刀”：以高性能为基�
 规划统一称为“v1 版本”；本文件沿用 `gen1-plan.md` 路径，当前包版本以 `Cargo.toml` 为准。本计划不代表已发布，不执行版本、tag 或发布操作。
 
 - OpenRust 是独立的开源 Rust 应用开发框架，仓库 `https://github.com/hongyukeji/openrust`。按 [ADR-039](../decisions/adr-039-source-workspace-distribution.md) 获取整套源码，在 `apps/<name>/` 开发业务；不独立发布 Cargo 包。
-- v1 版本交付「框架底座」：项目生成、配置、HTTP、数据库、认证授权、任务、缓存、存储、邮件、短信、国际化、WebSocket、出站 HTTP、加密、审计、请求幂等、CLI、测试工具和部署路径全部可用；业务开发者拿到项目后只写 `controllers` / `models` / `services` / `policies` / `jobs`。
+- v1 版本交付「框架底座」：项目生成、配置、HTTP/gRPC、数据库、认证授权、任务、缓存、存储、邮件、短信、国际化、WebSocket、出站 HTTP、加密、审计、请求幂等、CLI、测试工具和部署路径全部可用；业务开发者拿到项目后只写 `controllers` / `models` / `services` / `policies` / `jobs`。
+- v1 主攻框架底层通用机制：优先整合成熟组件，把配置、注册、生命周期、扩展、测试与部署约定做完整；v2 承接现成后台和业务 UI。Laravel 式开发体验按 ADR-001，能力不因属于某业务平台的底座就延后到 v2。
 - 设计风格采用 Rust 生态熟悉的类型、trait 与显式依赖，以可见的项目约定提供统一开发入口。
 - 核心开发者画像：构建 API 服务与后台系统的中小团队和独立开发者，熟悉 Rust 基础，不想自己拼装 axum / SeaORM / tower 生态。
 - OpenRust 不是任何既有项目的移植，没有兼容包袱；所有约定按 v1 版本目标从零设计。
@@ -30,7 +31,8 @@ OpenRust 定位为 Rust 应用开发的“瑞士军刀”：以高性能为基�
 | 授权 | `Policy` + 最小 `roles` / `permissions` 模型；DataScope、多租户不在 v1 版本 | 覆盖绝大多数应用的授权需求，不引入特定业务系统的数据范围概念 |
 | 队列 | 自有数据库队列（`SKIP LOCKED`），M0 对比 `apalis` 后定稿（[ADR-003](../decisions/adr-003-database-queue-default.md)） | 范围有界（拉取、重试、退避、失败表），自有实现可完全控制 Schema 与双库行为 |
 | 配置 | TOML 分层 + 环境变量 + `.env`；类型化结构启动校验 | 与 Rust 生态习惯一致，错误在启动时暴露 |
-| 验证 | `validator` derive（已选定） | 生态成熟，与 serde 配合良好 |
+| 验证 | `validator` derive（已选定） | 生态成熟，与 serde 配合良好；补 HTTP/gRPC/命令/Job 共用的验证与错误转换 |
+| gRPC | 可选 tonic/prost 集成，尚未引入 | 按 [ADR-040](../decisions/adr-040-grpc-integration.md) 在 M5 交付服务端/客户端、四类调用及生产边界，M6 整体验收 |
 | 存储 | OpenDAL；本地默认，S3 兼容为 `storage-s3` feature | 统一存储契约；只对实际接入并验证的后端承诺支持 |
 | 邮件 | lettre SMTP + log + fake driver | 密码重置与邮箱验证依赖邮件，必须进入 v1 版本 |
 | 短信 | 统一 `SmsSender`/`SmsDriver`、Twilio Messages REST、log / fake driver；真实账户发送需授权验收 | contract 与发送边界见 [ADR-033](../decisions/adr-033-sms-driver-and-template-contract.md) |
@@ -46,8 +48,8 @@ OpenRust 定位为 Rust 应用开发的“瑞士军刀”：以高性能为基�
 | --- | --- |
 | 项目生成器与模板（双库） | 管理后台 UI 与前端脚手架 |
 | 应用内核、Plugin、配置、生命周期、优雅停机 | 动态插件加载、插件市场 |
-| HTTP 路由约定、中间件栈、验证、统一响应包装、OpenAPI、WebSocket、SSE | GraphQL、gRPC |
-| 数据库连接池、迁移、`src/seed.rs`、`fake::Dummy` 测试数据、事务、双库方言边界、可选基础读写分离 | SQLite、多租户、分库分表与跨库事务 |
+| HTTP 路由约定、中间件栈、验证、统一响应包装、OpenAPI、WebSocket、SSE；gRPC 服务端/客户端及生成工具 | GraphQL、gRPC-Web 与自建服务治理控制面 |
+| 数据库连接池、迁移、`src/seed.rs`、显式测试数据 builder（`fake::Dummy` 按需评估）、事务、双库方言边界、可选基础读写分离 | SQLite、多租户、分库分表与跨库事务 |
 | JWT access/refresh token、可选 Cookie 会话、可选 PAT、密码重置、邮箱验证、Policy、角色权限 | OAuth / 社交登录、SSO、DataScope |
 | 队列、常用任务链/批处理、调度、事件（进程内） | 外部消息总线、任意 DAG 工作流引擎 |
 | 缓存与锁、存储与上传下载、邮件、短信、薄通知编排及 fake driver | 移动推送供应商、业务通知中心/UI |
@@ -55,7 +57,7 @@ OpenRust 定位为 Rust 应用开发的“瑞士军刀”：以高性能为基�
 | 可观测性：tracing、请求 ID、健康与就绪检查、可选 OTLP / Prometheus | APM 后端、告警 |
 | CLI 全集、测试工具、文档站、示例应用、Dockerfile / compose | 云平台一键部署、Kubernetes Operator |
 
-不纳入项若确有需求，先进入 `roadmap.md`，不在 v1 版本里程碑内追加。
+未确认的新方向先进入 `roadmap.md`；开发者明确调整范围时同步校准 ADR、主计划、待办和验收。gRPC 已按 ADR-040 从原排除项改为 v1 必交付。
 
 ## 已确认的设计要求与评估项
 
@@ -111,10 +113,10 @@ openrust queue work
 | --- | --- | --- |
 | M0 决策与基线 | ADR：自有内核、ORM 与双库、队列引擎、认证形态；workspace 骨架、`[workspace.lints]`、CI（fmt / clippy / test / deny / MSRV / 双库服务）；技术 spike：SeaORM 2 双库迁移、`SKIP LOCKED` 队列、axum 提取器组合 | CI 全绿；spike 结论写入 ADR；未通过的技术假设在进入 M1 前替换 |
 | M1 内核与 HTTP | `openrust::core`（Application / AppBuilder / Plugin / Config / Error / 生命周期）、`openrust::http`（路由约定、中间件栈、`Validated`、统一响应包装、健康检查）、CLI `new` / `dev` / `serve`、无数据库模板 | `openrust new` 生成项目 `cargo test` 通过；`/health` 200；验证失败 code=validation_failed；always_ok 模式 HTTP 200，semantic 模式 HTTP 422；缺失配置启动失败并指出键名 |
-| M2 数据层 | `openrust::db`（连接池、迁移运行器、seed、事务、`dialect` 边界）、`generate model` / `generate migration`、`migrate` / `db seed`、`openrust-test` 数据库隔离、模板 `--db`、CI 双库矩阵 | 空 PostgreSQL / MySQL 均初始化成功；重复 `migrate` 幂等；`rollback` 可用；生成实体直接编译；每个数据功能有双库测试证据 |
+| M2 数据层 | `openrust::db`（连接池、迁移运行器、seed、事务、`dialect` 边界）、`generate model` / `generate migration`、`migrate` / `db seed`、`testing` 数据库隔离、模板 `--db`、CI 双库矩阵 | 空 PostgreSQL / MySQL 均初始化成功；重复 `migrate` 幂等；`rollback` 可用；生成实体直接编译；每个数据功能有双库测试证据 |
 | M3 邮件、短信、认证与授权 | `openrust::sms`（log / fake / Twilio REST，contract 见 ADR-033；真实供应商实发需授权）、`openrust::mail`（SMTP / log / fake / 本地 Mailpit）、`openrust::auth`（用户约定、Argon2id、JWT access/refresh、可选 Session 与 PAT、`CurrentUser`、注册 / 登录 / 登出 / 密码重置 / 邮箱验证、Policy、角色权限、登录限流）、`openrust::audit`（ADR-035）、`openrust::signing`（ADR-036）、`generate mailer` / `generate policy`，国际化、出站 HTTP、加密与密钥 | Twilio 协议、log/fake 与 Mailpit SMTP 验证；认证/签名/审计、生成器双库项目 check/test 与 HTTP 流程通过。真实供应商短信实发需授权账号与目标；HTTP 限流与数据输出/查询边界均已实现并验证；跨 M3/M4/M5 业务流程扩展点按 todo.md 继续补齐 |
 | M4 队列、调度与事件 | `openrust::queue`（database driver、重试退避、`failed_jobs`、`queue work`、调度器与锁、`schedule run` / `schedule list`）、`openrust::events`、队列化邮件与短信、`generate job`，请求幂等、事务一致性、锁、常用任务编排与薄通知层（按专题计划） | 任务失败 → 重试 → 失败表 → 手动重试成功；多副本调度不重复；worker 停机不丢任务；两库皆验证 |
-| M5 缓存、存储与可观测性 | `openrust::cache`（标准应用默认 Redis、显式 memory/file、库层 Redis feature 可选；driver/store contract 见 ADR-014）、`openrust::storage`（local / s3）、JSON 日志、请求 ID、`/ready`、`otel` / `metrics` feature、panic 捕获、WebSocket/SSE 与上传下载（按专题计划） | 三驱动基础契约测试；file 临时目录验证；Redis 真实集成验证；扩展示例只用公开契约；S3 兼容路径用 MinIO 集成验证；`/ready` 依赖超时正确报告 |
+| M5 共享基础设施、通信与可观测性 | `openrust::cache`（标准应用默认 Redis、显式 memory/file、库层 Redis feature 可选；driver/store contract 见 ADR-014）、`openrust::storage`（local / s3）、JSON 日志、请求 ID、`/ready`、`otel` / `metrics` feature、panic 捕获、WebSocket/SSE、gRPC G1–G3、上传下载、跨协议验证/调用作用域、出站策略与生产运行/迁移协调（按专题计划） | gRPC 四类真实调用、TLS/认证/流资源、生成项目及双节点；三驱动基础契约测试；file 临时目录验证；Redis 真实集成验证；扩展示例只用公开契约；S3 兼容路径用 MinIO 集成验证；`/ready` 依赖超时正确报告 |
 | M6 开发者体验与 v1 发布 | mdBook 文档站（Diátaxis、迁移对照页、`coming-from-axum`）、`examples/blog` 黄金路径示例、Dockerfile / compose 模板、`routes` / `config show` / 只读 `doctor` / `db status` / 显式 `db reset`、`generate` / `g`（`scaffold`、`controller`、`model`、`migration`、`job`、`mailer`、`policy`、`command`）与快照测试、`testing` `TestApp` / HTTP response assertions、源码基线 API 兼容性检查、新手走查、v1 正式发布 | 新开发者获取完整源码后按文档从生成 apps 到部署在 30 分钟内完成且不读框架源码；本文件验收原则全部达标；发布动作由开发者执行 |
 
 当前暂定最低支持 PostgreSQL 14+、MySQL 8.0+、Redis 6.2+；日常开发基线采用 PostgreSQL 18、MySQL 8.4 LTS、Redis 8。v1 发布验收重新核实届时官方生命周期，并在最低版本真实服务上验证框架实际承诺的能力路径；Redis 6.2+ 的真实缓存/共享语义验证须待 M5 driver 实现后完成。只有主版本跨度较大或存在明确兼容风险时，才增加其他版本专项测试。版本升级时重新核实并同步运行时门槛、CI/Compose 镜像、模板、文档与兼容性说明。PostgreSQL 官方版本政策不使用“LTS”称谓，Redis 官方使用“Extended Support”类别。
@@ -126,7 +128,7 @@ openrust queue work
 - 集群按专题计划在 PostgreSQL/MySQL 上完成至少两个 API 和多 worker/scheduler 的共享状态、跨节点实时通信及滚动/故障恢复验收；不能以单机测试或黏性会话代替。
 - 黄金路径在 PostgreSQL 与 MySQL 上均可按文档走完，不要求开发者手工安装或配置数据库、邮件等依赖，也不要求阅读框架源码。
 - 每个首版数据访问、迁移、队列功能都有双库 CI 证据；数据库专属实现显式标注并集中在方言边界。
-- 关键边界有集成测试：认证与授权、事务回滚、任务重试与幂等、调度去重、配置缺失时的启动错误、优雅停机。
+- 关键边界有集成测试：认证与授权、事务回滚、任务重试与幂等、调度去重、配置缺失时的启动错误、有界停机和生产迁移竞争；gRPC 的四类调用、TLS/mTLS、Status、流式 deadline/背压、健康摘流、proto 演进与生成项目按 ADR-040 完整验收。
 - 每个公共类型与入口函数有简体中文优先的文档与可运行示例；第一方 README、Rustdoc、源码/配置注释、CLI 帮助与生成说明按 [语言规范](../style.md#语言规范) 完成整改，生成器产物在两库模板上有快照测试。完整英文文档待框架成熟后再评估，不作为 v1 完成前提。
 - 错误信息可操作：配置错误给出键名与来源，迁移错误给出文件名，启动失败给出缺失的 plugin 或服务。
 - 性能基线使用 `examples/blog` 的代表性路径与明确数据规模建立，记录吞吐、p50/p95/p99 延迟、CPU 与内存，以及环境、构建模式和测量方法；覆盖基础 HTTP、数据库访问、认证及队列场景，发布前据基线确定性能回归阈值，不预先承诺未经测量的数值。

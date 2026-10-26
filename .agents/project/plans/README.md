@@ -6,7 +6,7 @@
 - [目录收尾 Spec](module-layout-migration-spec.md)：优先完成剩余工具 package 路径、examples/tests 分目录、apps/server 职责评估与测试/CI 入口。
 - [OpenRust 框架设计](framework-design.md)：设计原则、模块与应用布局、内核、配置、路由、错误、数据、认证、异步、CLI、测试工具与框架代码规范。
 - [v1 性能与开箱即用补强计划](v1-performance-and-readiness.md)：完整使用路径与性能验收、待决策问题、推荐方案及推进顺序。
-- [v1 通用能力补齐计划](v1-common-capabilities.md)：国际化、WebSocket、HTTP 客户端、加密与密钥、审计和请求幂等的范围、建议与验收。
+- [v1 通用能力补齐计划](v1-common-capabilities.md)：WebSocket、gRPC、跨协议验证/调用作用域、出站安全/韧性、加密与密钥、请求幂等的范围与验收；gRPC 细则见 [ADR-040](../decisions/adr-040-grpc-integration.md)。
 - [v1 通用能力覆盖与归属](v1-capability-coverage.md)：完整通用底座的补齐清单、单一职责归属、决策建议与完成定义。
 - [v2 现成后台开发计划](v2-admin-platform.md)：复用 v1 的后台套件、核心模块、扩展候选、版本分工与 B1-B5 验收。
 - [v1 集群部署与多副本一致性](v1-cluster-deployment.md)：共享状态、跨节点实时投递、任务竞争、滚动发布与必须通过的集群验收。

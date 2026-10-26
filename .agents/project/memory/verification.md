@@ -32,6 +32,7 @@
 - 目录收尾通过 5-package/265-test-list 对比、workspace 门禁、双库 server 集成、生成项目及实际 hello TCP HTTP smoke；`apps/server` 有明确保留证据。ADR-039 源码交付已另行通过干净副本和双库验收。以上不等同于 v1 集群或性能门禁。
 - M4 公开流程扩展、幂等与共享锁、worker 停机修正/恢复和通知；M5 Db/Queue 外部执行边界、缓存/存储/实时/资源与可观测性；M6 开发编排/生成全集/测试工具/正式文档及源码升级。已交付的 HTTP 查询边界、类型化事件和有限任务编排不重复登记为未实现。
 - PostgreSQL/MySQL 负载均衡下至少两个 API 与多 worker/scheduler 的共享认证状态、配额/幂等、任务竞争、跨节点在线投递、共享文件、滚动升级及故障恢复。
+- gRPC 四类真实调用、TLS/mTLS、认证/Status、deadline/流取消/背压、health/reflection、生成项目、双节点滚动与 proto 新旧互通，按 [ADR-040](../decisions/adr-040-grpc-integration.md) 验收；当前未实现。跨协议验证/上下文、出站策略、迁移互斥与有界退出尚须实现和验证，不把本轮规划当通过证据。
 - Redis 与对象存储真实驱动语义；代表性业务负载 p50/p95/p99、吞吐、CPU、内存和资源上限；发布前设定基于实测的回归门槛。
 - 独立 consumer 的配置/注册/执行契约，构建与依赖成本，C2/C3 完成后的中文文档独立走查、保留业务的源码升级回归及平台/维护约定；详细验收只在 [补强计划](../plans/v1-performance-and-readiness.md) 维护。本次文档工作不新增代码行为测试记录。
 - 暂定最低 PostgreSQL 14+ / MySQL 8.0+ / Redis 6.2+ 的完整承诺路径；日常只用 PG18/MySQL8.4/Redis8，额外矩阵按大跨度/明确兼容风险与发布门禁触发。运行时版本检查通过不等于最低版本功能已全部验证。

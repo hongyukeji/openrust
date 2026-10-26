@@ -10,8 +10,9 @@
 | --- | --- | --- |
 | 异步运行时 | `tokio` 1.x | 唯一运行时 |
 | HTTP | `axum` 0.8 + `tower` + `tower-http` | 路由、提取器、中间件；`tower-http` 启用 `cors`、`compression-gzip`、`compression-br` 以支持配置化跨域与 gzip/br 协商，另有 request-id、trace、timeout、catch-panic；门面直接依赖并导出 `tower::ServiceExt` 供单依赖应用测试路由 |
-| 限流 | `openrust::core::RateLimiter` + `openrust::database::DatabaseRateLimitStore` | 已实现固定窗口服务与双库共享 store，AuthFlows 已调用；通用 HTTP middleware、请求 key/策略组合仍待实现，不额外依赖 governor |
+| 限流 | `openrust::core::RateLimiter` + `openrust::database::DatabaseRateLimitStore` | 已实现固定窗口服务与双库共享 store，AuthFlows 与通用 HTTP RateLimitLayer/key 策略已接入；gRPC 适配待实现，不额外依赖 governor |
 | 会话 | `tower-sessions` 0.15 | 复用 Axum/Tower 通用 Session 与 store contract；OpenRust 以 SeaORM 实现双库共享 store，Redis adapter 暂留后续 |
+| gRPC | 规划 `tonic` / `prost`、`tonic-prost-build` 及官方 health/reflection 组件，尚未引入 | [ADR-040](decisions/adr-040-grpc-integration.md) 已纳入 v1/M5；实施时核实版本、MSRV、TLS provider 与代码生成工具。可选 `grpc` feature，默认构建不要求 `protoc`；不自研 RPC 栈 |
 | OpenAPI | 规划 `utoipa` + `utoipa-axum`，尚未引入 | 类型 schema、统一响应文档与非生产 `/docs` 均待实现 |
 | 出站 HTTP | `reqwest` 0.13（Rustls） | `http-client` 可选 feature；共享连接池、JSON/query/form/multipart/stream、显式超时；禁止默认重定向和应用层重试，响应体由框架限额 |
 | 序列化 | `serde` + `serde_json` | `apps/server` 集成测试用 `serde_json` 比对包装字段与请求 ID |
@@ -20,7 +21,7 @@
 | 配置 | `figment` | 已采用；错误信息含键名（测试覆盖） |
 | 日志 / 追踪 | 已用 `tracing` + `tracing-subscriber` | `opentelemetry` / `metrics` 接入为 M5 规划，当前无对应依赖或 feature |
 | 时间 | `chrono`（UTC） | SeaORM 兼容，生态最广 |
-| ID | 规划 UUID v7，尚无框架直接 `uuid` 依赖 | 当前模型生成器使用整数 ID，`--uuid` 选项未实现；传递依赖不代表该生成能力已交付 |
+| ID | 已提供可选 UUIDv7，详见下表 `db-uuid` | 默认整数 ID；生成选项为 `--uuid-id`，不使用不存在的 `--uuid` |
 
 ## 数据
 

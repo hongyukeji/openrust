@@ -103,20 +103,26 @@ OpenRouter 是独立 AI 平台产品的产品对标对象，不列入上述框�
 
 ### 对标审计：已规划能力与候选缺口
 
-按上述框架的官方功能面与本仓库 V1/V2 计划交叉检查后，认证授权、验证、缓存/多实例、邮件短信、队列调度、事件、文件存储、国际化、加密、审计、限流、幂等、实时通信、CLI/生成器、测试、集群和现成后台均已有对应计划。对标项目提供某项能力并不自动成为 OpenRust 的承诺；以下是现有计划中尚未明确安排、值得保留入口评估的项目：
+依据六框架的一手文档、OpenSpring 本机源码及 OpenRust 当前代码/计划，底层能力的大类大多已经规划；主要缺口是 gRPC，以及跨能力组合时的公共契约和生产验收。以下按指定顺序综合比较，所列是本轮最有价值的证据，不限制各框架可借鉴的领域，也不构成性能排名。
 
-| 候选 | 当前规划状态 | 建议归属与判断 |
-| --- | --- | --- |
-| gRPC 服务端/客户端 | Gen1 明确将 gRPC 与 GraphQL 排除在 V1 范围外，后续路线没有具体评估项 | 加入 V2 候选评估；仅在内部服务/跨语言 RPC 用户需求明确时设计，评估与现有 HTTP/auth/config/health/telemetry 的集成，不列为 V1 阻塞 |
-| GraphQL | Gen1 明确不纳入 V1，后续路线没有具体评估项 | 加入 V2 候选评估；仅在客户端需要按需组合图数据且 REST/OpenAPI 无法合理满足时评估，优先复用认证、授权、限流和可观测性契约 |
-| 数据库测试工厂/fixtures | 当前用普通 builder，`fake::Dummy` 是可选待评估方案；不提供通用 Factory trait（ADR-006、ADR-010） | 保持 V1 无隐式工厂系统；V2 评估轻量、显式、可组合的测试数据构造工具是否能减少真实数据库集成测试样板。不得复制 ORM 或要求所有模型实现框架 trait |
-| 服务端页面渲染 | V1 API 优先；页面渲染仅列为 V2 评估候选 | 保留 V2 候选；若采纳，作为可选 starter/feature，不使纯 API 项目依赖模板引擎或承担 CSRF/页面栈配置 |
+| 参考框架与一手依据 | 对 OpenRust 的比较结论与落点 |
+| --- | --- |
+| Loco：[应用上下文](https://loco.rs/docs/explanation/appcontext-and-di/)、[调度](https://loco.rs/docs/how-to/schedule-jobs/)、[中间件](https://loco.rs/docs/how-to/add-middleware/) | OpenRust 已有显式 Plugin/AppState 与 HTTP 中间件；补调用作用域/退出组合验收、doctor 展示有效中间件与配置，评估常规日历调度；不新增平行 Hooks |
+| Laravel：[容器](https://laravel.com/framework/docs/container)、[上下文](https://laravel.com/framework/docs/context)、[调度](https://laravel.com/framework/docs/scheduling)、[查询](https://laravel.com/framework/docs/queries)、[测试](https://laravel.com/framework/docs/mocking) | 从业务开发流程检验约定是否连贯：调用与任务作用域、时间边界测试、分批查询、fake 断言和调度细节。现有 Cache/Queue/通知计划继续交付；不机械复制动态 Facade/ORM |
+| Goravel：[gRPC](https://www.goravel.dev/the-basics/grpc.html)、[验证](https://www.goravel.dev/the-basics/validation.html) | gRPC 是此次正式新增的 v1 交付项；借鉴服务/客户端配置和集成体验，复用验证与授权入口。TLS 配置失败关闭，不能为兼容而静默降级明文 |
+| OpenSpring：本地源码 `507ff4a774`，具体路径见下文 | 现有驱动/通知/队列组合可作参考；AI Provider 层已有隔离/熔断，Webhook 层已有地址检查，但不能推广成其全框架完整保证。OpenRust 补通用出站策略与按依赖隔离的契约，保留自身 Rust 实现边界 |
+| RuoYi-Vue：[官方手册](https://doc.ruoyi.vip/ruoyi-vue/document/htsc.html)、[仓库](https://github.com/yangzongzhuan/RuoYi-Vue) | 权限/数据范围、调度、监控和生成体验用于核对完整使用路径；查询授权扩展示例与运行底座归 v1，组织/部门模型与管理 UI 已归 v2。不能把 RuoYi-Cloud 治理能力算成 RuoYi-Vue 默认能力 |
+| 芋道：[仓库](https://github.com/YunaiV/ruoyi-vue-pro)、[数据权限](https://doc.iocoder.cn/data-permission/)、[多租户](https://doc.iocoder.cn/saas-tenant/) | 核对查询/异步/共享状态隔离的组合边界；组织权限模型、租户产品和业务套件按现有 v2 核心/候选区分。复用公开扩展先证明足够，不把商城、支付、CRM/ERP 或流程平台整体移入 core |
 
-不作为未规划缺口的项目：RuoYi 的组织/菜单/数据权限 UI 已归 V2；OAuth/SSO/MFA、多租户、更多数据库、持久离线消息已列为候选；GraphQL 明确不属于 V1；任意流程引擎、支付、电商、CRM/ERP 属于产品模块，不因出现在参考项目中而塞入通用 core。候选只记录评估入口，不代表已承诺实现。
+OpenSpring 只读证据路径：`openspring-core/openspring-core-ai/src/main/java/com/openspring/core/ai/model/support/AiModelResilienceExecutor.java`、`openspring-core/openspring-core-notification/src/main/java/com/openspring/core/notification/channel/NotificationWebhookEndpointGuard.java`。这两项是局部实现参考，本轮没有执行其测试，也不把简单 DNS 预检查视为已完整防御重绑定。
+
+新增范围、已有计划深化及调度决策关口集中维护于 [能力覆盖](v1-capability-coverage.md#对标后的缺口分类与决策关口)，执行只在 `todo.md` 领取。gRPC 按 [ADR-040](../decisions/adr-040-grpc-integration.md) 在 M5 完整交付并纳入 v1 门禁，不再是 v2 候选。
+
+GraphQL、显式测试工厂和服务端页面仍按 [后续评估](../roadmap.md#框架对标后的候选评估) 处理；OAuth/SSO/MFA、多租户和持久离线消息已有候选归属。保留已确认版本边界，不能把所有生态包或业务系统都改成 v1 必需能力，也不能将原本已纳入的底层机制遗漏到 v2。
 
 ## v1 通用能力补齐
 
-国际化、WebSocket、统一出站 HTTP、加密与密钥管理、审计和请求幂等纳入 v1。其最小范围、推荐方案、里程碑与验收见 [通用能力计划](v1-common-capabilities.md)。优先复用既有能力模块与成熟实现；公共 API、配置和依赖选型先定 contract，不自动为每项能力新增 crate。
+国际化、WebSocket/SSE、gRPC、统一出站 HTTP、加密与密钥管理、审计和请求幂等纳入 v1。其最小范围、推荐方案、里程碑与验收见 [通用能力计划](v1-common-capabilities.md)。优先复用既有能力模块与成熟实现；公共 API、配置和依赖选型先定 contract，不自动为每项能力新增 crate。
 
 ## 框架仓库布局
 
@@ -161,7 +167,8 @@ apps/<app>/
 - `Application::build` 使用 `AppBuilder::plugin/insert/command` 显式组装；HTTP 通过 `AppBuilderHttpExt::routes` 注册。队列通过 `QueuePlugin::register_job` 与 schedule 方法配置；不存在通用 `.jobs()` / `.schedule()` builder API。
 - `AppState` 是按类型索引的服务注册表；`Inject<T>` 读取服务。缺失服务返回受控错误，硬依赖在 plugin 构建阶段检查。
 - 生命周期是配置引导、tracing、应用 build、所有 plugin build（含动态追加）、冻结、顺序 finish、命令执行；不提供反射容器或平行 Hooks。
-- HTTP 服务与 worker/scheduler 命令各自持有并停止自己的任务；当前 Plugin 没有通用 shutdown 回调。取消、限时 drain、abort/join 与 lease 恢复遵守 [ADR-037](../decisions/adr-037-queue-worker-lifecycle.md)。
+- HTTP 服务与 worker/scheduler 命令各自持有并停止自己的任务；当前 Plugin 没有通用 shutdown 回调。取消、限时 drain、abort/join 与 lease 恢复遵守 [ADR-037](../decisions/adr-037-queue-worker-lifecycle.md)。HTTP/gRPC/实时流的有界运行和联合退出按 [生产补强](v1-performance-and-readiness.md#6-生产默认值与开发编排) 落地；仅调用 graceful shutdown 不等于所有后台任务都有退出截止。
+- 协议无关验证与单次调用/任务的上下文边界按 [补齐计划](v1-common-capabilities.md#5-协议无关验证与调用作用域) 实施；复用现有结构，不把身份、语言和取消等可变调用状态放入共享 AppState。
 - 运行时命令以应用 `help` 输出为准。`serve`、迁移/seed、queue/schedule 由注册 plugin 提供；routes/doctor 等目标命令未全部实现。
 
 ## 配置
@@ -207,7 +214,7 @@ apps/<app>/
 - `Queue::dispatch` / `dispatch_with_options` / `dispatch_in_transaction` 使用显式任务名和序列化参数；具体签名见源码与 [queue 事实](../core/queue.md)，不宣传未实现的 awaitable fluent dispatch builder。
 - 官方数据库 driver 已实现。唯一键只限制同一 queue/key 的活动任务重叠，完成后释放；不是永久请求幂等。执行至少一次，handler 自行保持业务幂等；外部副作用不能与数据库提交原子化。
 - worker 具有受界并发、重试/失败保留、超时、lease/ownership token、心跳和有限停机；任务链/有限批次已有实现，parent retry 可重跑成功子任务，失败策略和并发边界见 queue 事实；旧 token 接管与生产资源验收继续按 ADR-037。
-- 调度已支持数据库 UTC 时钟、interval/daily slots、slot 与 job 同事务去重、run/once/list。v1 首版不含 cron/IANA/DST；不承诺业务副作用 exactly-once。详见 [schedule 事实](../core/schedule.md)。
+- 调度已支持数据库 UTC 时钟、interval/daily slots、slot 与 job 同事务去重、run/once/list。现有首版不含 cron/IANA/DST，v1 日历调度补强按覆盖计划先完成决策；不承诺业务副作用 exactly-once。详见 [schedule 事实](../core/schedule.md)。
 - 类型化进程内有序事件与显式队列 listener 已实现，语义与边界见 [ADR-037](../decisions/adr-037-queue-worker-lifecycle.md) 及 [events 事实](../core/events.md)；不接外部事件总线。进程内通知可能因崩溃丢失，可靠路径复用事务内任务/outbox，不把单进程 listener 写成集群广播。
 - 原规划可选 Redis queue 与 sync 测试执行在 v1 的 M5 Redis 能力接入后补交，ADR-037 只关闭数据库基础簇的范围。当前没有对应 feature；先明确持久化、事务派发及 worker 能力差异，不承诺 Redis 与业务数据库共享原子事务，也不混同默认 Redis 缓存。
 
@@ -217,6 +224,10 @@ apps/<app>/
 - Storage 待实现：复用 OpenDAL，local/S3-compatible、命名实例、流式传输、上传检测发布边界与扩展点；具体 API 名先定 contract，不把示意接口当现有实现。
 - Mailer/公开 MailDriver 已有 SMTP/log/fake；LocalizedEmail 复用显式 Locale 和 i18n catalog。SmsSender/SmsDriver 支持文本/供应商模板与 Twilio adapter，production 禁止 log；本机 Mailpit 实收已有证据，Twilio 实发仍需授权账号与目标。
 - M4 增加队列化发送和薄多渠道通知；验证码与短信传输职责分离，默认不因此开启短信登录。不引入第二套邮件模板引擎或重试循环。
+
+## gRPC
+
+[ADR-040](../decisions/adr-040-grpc-integration.md) 定义可选 gRPC 服务端/客户端与四类调用的 v1 交付契约。复用应用装配、验证、认证、错误类别、配置及观测，保留 gRPC 的 Status/metadata/流式协议；当前尚无实现，不把可选 feature 或示例名称写成现有入口。
 
 ## 可观测性
 
@@ -232,7 +243,7 @@ apps/<app>/
 
 ## 测试工具
 
-- 当前 `openrust-test` 提供 TestDatabase；薄 TestApp/HTTP assertions 待 M6，复用 finalize/build_router/Tower oneshot，不复制运行时和数据库 fixture 系统。
+- 当前 `testing` 提供 TestDatabase；薄 TestApp/HTTP assertions 待 M6，复用 finalize/build_router/Tower oneshot，不复制运行时和数据库 fixture 系统。
 - fake 必须显式注入，不能静默替换生产驱动；fake 验证业务逻辑，真实数据库/Redis/SMTP/对象存储验证适配与跨节点行为。
 - 可控时钟只在存在时间边界测试需求时设计；队列/scheduler 的共享 UTC 数据库时钟不能由单进程冻结时间替代。
 

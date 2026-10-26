@@ -8,7 +8,7 @@
 
 - 交付可独立开发 API 与服务的 Rust 框架，单机起步、按需扩展集群；标准应用默认 Redis（见 [ADR-015](decisions/adr-015-redis-default-calibration.md)），库层 Redis feature 可选，保留显式 memory/file 选择且不静默回退，见 [ADR-013](decisions/adr-013-deployment-and-redis-cache-default.md) 与 [ADR-014](decisions/adr-014-cache-driver-and-store-contract.md)。缓存仍待 M5 实现，这里的默认是交付契约。
 - 数据层包含默认单库、按需启用的显式只读副本路由与主库 scope；已在 PostgreSQL/MySQL 真实复制拓扑验证。完整集群验收仍按 [专题计划](plans/v1-database-read-write-splitting.md) 与集群计划执行。
-- 包含数据、认证/授权/会话、验证码、国际化、本地加密与轮换、签名、审计、幂等、限流、缓存/锁/多实例、存储/上传下载、邮件/SMS/薄通知层、队列/常用编排/调度、WebSocket/SSE、CLI/生成器/测试与部署。
+- 包含数据、认证/授权/会话、验证码、国际化、本地加密与轮换、签名、审计、幂等、限流、缓存/锁/多实例、存储/上传下载、邮件/SMS/薄通知层、队列/常用编排/调度、WebSocket/SSE、gRPC server/client、CLI/生成器/测试与部署。gRPC 已正式纳入 v1，范围与完整验收见 [ADR-040](decisions/adr-040-grpc-integration.md)。
 - 集群部署是必须项，包含多 API/worker/scheduler、共享状态、跨节点在线投递和滚动/故障恢复，按 [集群计划](plans/v1-cluster-deployment.md) 双库多副本验收。性能基线、资源边界、第三方扩展与干净环境完整路径同为完成条件。
 - 入口：[v1 总计划](plans/gen1-plan.md)、[能力覆盖与归属](plans/v1-capability-coverage.md)。v1 不承担后台业务 UI、组织管理与部门数据权限的固定模型。
 - M0-M3 的局部验收与 M4 队列/调度基础不代表上述全部范围完成；目录/验收宿主调整、M4 剩余能力及 M5/M6 依赖顺序在 `todo.md` 领取，不在路线图创建另一份完成清单。
@@ -37,9 +37,8 @@
 
 按 Loco、Laravel、Goravel、OpenSpring、若依、芋道综合评估，职责划分与当前缺口见 [框架设计「框架参考与对标」](plans/framework-design.md#框架参考与对标)。在进入 v2 规划前可评估：
 
-- gRPC 服务端/客户端：V1 明确不包含；按内部服务 RPC 需求与 HTTP 中间件、认证、健康检查和可观测性的复用程度决定是否进入后续版本。
 - GraphQL：V1 明确不包含；按客户端按需组合数据的实际需求，评估是否需要独立集成，不能仅因参考框架支持而纳入。
-- 显式数据库测试工厂/fixtures：V1 使用 `fake::Dummy` 与普通 builder；只在集成测试重复样板明显时评估轻量工具，不建立隐式 Factory trait 或 ORM 替代品。
+- 显式数据库测试工厂/fixtures：V1 使用普通 builder，`fake::Dummy` 按实际需要评估、当前尚未引入；只在集成测试重复样板明显时评估轻量工具，不建立隐式 Factory trait 或 ORM 替代品。
 - 可选服务端页面渲染：V1 保持 API 优先；按目标用户对 Rust 服务端页面/表单的实际需求评估独立 starter 或 feature。
 
 以上是候选，不构成 v1/v2 必交付范围；OpenRouter 仅作为独立 AI 平台产品参考。
