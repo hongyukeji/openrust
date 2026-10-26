@@ -1,7 +1,7 @@
 # 根模块与目录收尾 Spec
 
 > 受众：AI Agent
-> 状态：目录迁移与适用验收完成；apps/server 评估结论为保留。等待本簇独立本地提交。
+> 状态：目录迁移与适用验收完成；apps/server 评估结论为保留。代码提交 `de6fc65`，验收文档提交 `c84a090`。
 > 决策：[ADR-021](../decisions/adr-021-loco-style-module-layout.md)。执行优先级见 [plan.md](../plan.md#执行校准)。
 
 ## Spec
