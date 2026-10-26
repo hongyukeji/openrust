@@ -12,7 +12,7 @@ pub struct ServerConfig {
     pub port: u16,
     /// 单个请求的超时时间（秒）；超过后返回 `408 Request Timeout`。
     pub request_timeout_secs: u64,
-    /// 收到关闭信号后，为处理中请求保留的宽限时间。
+    /// 收到关闭信号后，为处理中请求保留的宽限时间（1..=3600 秒）。
     pub shutdown_timeout_secs: u64,
     /// 允许提供 `X-Forwarded-For` 的代理 IP 地址或 CIDR。
     ///

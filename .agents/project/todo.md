@@ -28,8 +28,8 @@ V1 参考 Loco、Laravel、Goravel、OpenSpring；若依/芋道仅 V2。新增�
 | --- | --- | --- |
 | 通用插件公开契约 | 按 [ADR-009](decisions/adr-009-extensible-capability-drivers.md#通用插件交付阶段) 补齐应用配置、服务、命令与路由组合、缺依赖/冲突错误语义及资源归属；复用静态 `Plugin::build/finish`，不另建插件生命周期系统 | 独立 consumer 仅用公开 API 完成注册、配置、执行和错误验证；未启用功能隔离；不依赖 AI 项目；workspace 门禁通过 |
 | Db 外部扩展契约 | 在通用插件 contract 后复用 SeaORM/SeaQuery 建立公开最小 driver 边界；区分可用 backend 的连接/事务与不支持能力，官方数据库矩阵不自动扩大 | 独立 consumer 不改核心即可配置和连接；事务/错误双库验证；既有 PostgreSQL/MySQL 行为无回归 |
-| 有界运行与就绪切换 **in_progress** | 先在现有 HTTP 命令补清楚的 listener/task 所有权、就绪状态、启动失败清理和限时退出；gRPC/实时后续复用，按 [生产约定](plans/v1-performance-and-readiness.md#6-生产默认值与开发编排) | HTTP 长请求/后台任务、SIGTERM、drain 超时、取消/join 和失败退出码；不用通用 Plugin shutdown 重开已有决策 |
-| 缓存驱动与命名实例 | ADR-014/015：标准应用 Redis 默认，memory/file 显式选择；default/named stores、custom driver、TTL/序列化/原子边界；库 Redis feature 可选 | 三驱动契约、真实 Redis、file 安全路径/过期/原子替换/并发/错误、独立扩展示例；Redis 故障不隐式回退 |
+| 有界运行与就绪切换 | 已完成 HTTP listener/task 所有权、就绪状态、启动失败清理和限时退出；gRPC/实时后续复用，按 [生产约定](plans/v1-performance-and-readiness.md#6-生产默认值与开发编排) | 定向 HTTP TCP 生命周期测试、真实 `server` 子进程 SIGTERM、默认/all-features workspace 与其余门禁通过；不重开通用 Plugin shutdown |
+| 缓存驱动与命名实例 **in_progress** | ADR-014/015：标准应用 Redis 默认，memory/file 显式选择；default/named stores、custom driver、TTL/序列化/原子边界；库 Redis feature 可选 | 三驱动契约、真实 Redis、file 安全路径/过期/原子替换/并发/错误、独立扩展示例；Redis 故障不隐式回退 |
 | 高级缓存 F4 | 基础 Cache 与共享锁后交付 tag、SWR、显式同键加载合并；按 [底层补齐计划](plans/v1-foundation-completion.md) 明确能力与作用域 | Redis 双节点失效/回填竞争、最大陈旧窗口、失败/取消及停机回收；不伪称跨节点恰好一次 |
 | 多实例与可选驱动 | 明确默认/named database、cache、storage 等实例与生命周期；数据库已完成的主从路由不等于多个独立连接；可选 Redis Session/queue 及 sync 测试执行复用既有契约，先定与数据库 driver 不同的能力边界 | 实例命名/重复注册/未知名称/配置错误；会话过期/撤销、Redis 队列恢复与真实服务测试；sync 显式使用，不伪装持久化或跨后端事务派发；不引入全局 service locator |
 | 数据访问、查询授权 F5 与生产迁移 | 在既有组合任务补公开类型化授权规则，覆盖列表/详情/修改/删除/批量/关联；稳定键分批及迁移互斥分别成簇 | 双库权限与用户过滤 AND 合并、失败拒绝、原生 SQL 边界；有界数据处理和双进程迁移故障恢复 |

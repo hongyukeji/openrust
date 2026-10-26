@@ -136,7 +136,8 @@ impl Cancellation {
         }
     }
 
-    fn child(parent: &Self) -> Self {
+    /// 创建与父调用关联的子取消信号；父级取消会传播到子级，子级取消不会影响父级或兄弟。
+    pub fn child(parent: &Self) -> Self {
         Self {
             local: watch::channel(false).0,
             parent: Some(std::sync::Arc::new(parent.clone())),

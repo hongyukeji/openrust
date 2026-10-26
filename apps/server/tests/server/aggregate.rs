@@ -16,9 +16,17 @@ use openrust::http::axum::body::{Body, to_bytes};
 use openrust::http::axum::http::{Request, StatusCode};
 use openrust::http::build_router;
 use openrust::prelude::{AppBuilder, AppBuilderHttpExt, Application, Json};
+#[cfg(unix)]
+use openrust::tokio::io::{AsyncReadExt, AsyncWriteExt};
+#[cfg(unix)]
+use openrust::tokio::net::TcpStream;
 use openrust::{config, lifecycle};
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 use sea_orm::ConnectionTrait;
+#[cfg(unix)]
+use std::process::{Child, Command, Stdio};
+#[cfg(unix)]
+use std::time::Duration;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -119,6 +127,92 @@ fn health_has_request_id() -> TestResult {
         assert_eq!(body["request_id"], response_request_id);
         Ok(())
     })
+}
+
+#[cfg(unix)]
+#[test]
+fn serve_process_exits_successfully_after_sigterm() -> TestResult {
+    openrust::tokio::runtime::Runtime::new()?.block_on(async {
+        let reservation = std::net::TcpListener::bind("127.0.0.1:0")?;
+        let port = reservation.local_addr()?.port();
+        drop(reservation);
+        let mut child = ChildGuard(
+            Command::new(env!("CARGO_BIN_EXE_server"))
+                .env("APP_SERVER__HOST", "127.0.0.1")
+                .env("APP_SERVER__PORT", port.to_string())
+                .env("APP_SERVER__SHUTDOWN_TIMEOUT_SECS", "2")
+                .env("APP_SECURITY__ENCRYPTION__ACTIVE_KEY_ID", "test")
+                .env(
+                    "APP_SECURITY__ENCRYPTION__KEYS__TEST",
+                    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+                )
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn()?,
+        );
+        let address = format!("127.0.0.1:{port}");
+        openrust::tokio::time::timeout(Duration::from_secs(8), async {
+            loop {
+                if request_status(&address, "/ready")
+                    .await
+                    .is_ok_and(|status| status == 200)
+                {
+                    break;
+                }
+                openrust::tokio::time::sleep(Duration::from_millis(25)).await;
+            }
+        })
+        .await?;
+        let signal = std::process::Command::new("kill")
+            .args(["-TERM", &child.0.id().to_string()])
+            .status()?;
+        assert!(signal.success(), "could not send SIGTERM to server process");
+        let status = openrust::tokio::time::timeout(Duration::from_secs(6), async {
+            loop {
+                if let Some(status) = child.0.try_wait()? {
+                    return Ok::<_, std::io::Error>(status);
+                }
+                openrust::tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await??;
+        assert!(status.success(), "serve command exited with {status}");
+        Ok(())
+    })
+}
+
+#[cfg(unix)]
+async fn request_status(address: &str, path: &str) -> std::io::Result<u16> {
+    let mut stream = TcpStream::connect(address).await?;
+    stream
+        .write_all(
+            format!("GET {path} HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\n\r\n")
+                .as_bytes(),
+        )
+        .await?;
+    let mut response = Vec::new();
+    stream.read_to_end(&mut response).await?;
+    let response = String::from_utf8_lossy(&response);
+    response
+        .lines()
+        .next()
+        .and_then(|line| line.split_whitespace().nth(1))
+        .and_then(|status| status.parse().ok())
+        .ok_or_else(|| std::io::Error::other("server returned an invalid HTTP status line"))
+}
+
+#[cfg(unix)]
+struct ChildGuard(Child);
+
+#[cfg(unix)]
+#[cfg(unix)]
+impl Drop for ChildGuard {
+    fn drop(&mut self) {
+        if self.0.try_wait().ok().flatten().is_none() {
+            self.0.kill().ok();
+            self.0.wait().ok();
+        }
+    }
 }
 
 #[test]

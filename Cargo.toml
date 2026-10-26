@@ -37,7 +37,7 @@ macros = { path = "macros", version = "0.0.0" }
 testing = { path = "testing", version = "0.0.0" }
 server = { path = "apps/server", version = "0.0.0" }
 
-tokio = { version = "1.54", features = ["rt-multi-thread", "macros", "signal", "net", "time"] }
+tokio = { version = "1.54", features = ["rt-multi-thread", "macros", "signal", "net", "time", "io-util"] }
 tokio-stream = "0.1"
 axum = { version = "0.8", features = ["macros"] }
 axum-core = "0.5"

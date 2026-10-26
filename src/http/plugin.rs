@@ -108,7 +108,16 @@ impl Plugin for HttpPlugin {
     }
 
     fn build(&self, app: &mut AppBuilder) -> Result<()> {
-        app.command(ServeCommand).routes(health::routes);
+        let timeout = app.config().server.shutdown_timeout_secs;
+        if !(1..=3600).contains(&timeout) {
+            return Err(crate::config::ConfigError::Invalid(
+                "server.shutdown_timeout_secs must be 1..=3600 seconds".into(),
+            )
+            .into());
+        }
+        app.insert(health::ServerReadiness::default())
+            .command(ServeCommand)
+            .routes(health::routes);
         Ok(())
     }
 }
@@ -165,4 +174,27 @@ async fn expose_app_state(
 ) -> Response {
     request.extensions_mut().insert(state);
     next.run(request).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::HttpPlugin;
+    use crate::{
+        config::FrameworkConfig,
+        core::{AppBuilder, lifecycle},
+    };
+    use figment::Figment;
+
+    #[tokio::test]
+    async fn invalid_shutdown_timeout_fails_during_plugin_build() {
+        let mut config = FrameworkConfig::default();
+        config.server.shutdown_timeout_secs = 0;
+        let mut builder = AppBuilder::new(config, Figment::new());
+        builder.plugin(HttpPlugin);
+        let result = lifecycle::finalize(builder).await;
+        assert!(matches!(
+            result,
+            Err(ref error) if error.to_string().contains("server.shutdown_timeout_secs")
+        ));
+    }
 }

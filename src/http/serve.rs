@@ -1,7 +1,9 @@
-//! `serve` 命令。
+//! HTTP 服务器生命周期与 `serve` 命令。
 
 use crate::core::{App, BoxFuture, Command, Error, Result, shutdown_signal};
+use axum::Router;
 use std::net::SocketAddr;
+use std::{future::Future, time::Duration};
 use tokio::net::TcpListener;
 
 use crate::http::plugin::build_router;
@@ -13,13 +15,70 @@ pub async fn serve(app: &App) -> Result<()> {
     let listener = TcpListener::bind(&addr).await?;
     let local = listener.local_addr()?;
     tracing::info!(app = %app.config().app.name, env = %app.config().app.env, "listening on http://{local}");
-    axum::serve(
-        listener,
-        router.into_make_service_with_connect_info::<SocketAddr>(),
-    )
-    .with_graceful_shutdown(shutdown_signal())
-    .await
-    .map_err(Error::internal)
+    serve_listener(app, listener, router, shutdown_signal()).await
+}
+
+async fn serve_listener<F>(
+    app: &App,
+    listener: TcpListener,
+    router: Router,
+    shutdown: F,
+) -> Result<()>
+where
+    F: Future<Output = ()>,
+{
+    let readiness = app.state().try_get::<super::health::ServerReadiness>()?;
+    let timeout = Duration::from_secs(app.config().server.shutdown_timeout_secs);
+    let _readiness_guard = ReadinessGuard(readiness.clone());
+    readiness.begin_listening();
+    let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
+    let mut server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            router.into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .with_graceful_shutdown(async {
+            let _ = shutdown_rx.await;
+        })
+        .await
+    });
+    tokio::select! {
+        result = &mut server => {
+            readiness.set_ready(false);
+            match result {
+                Ok(Ok(())) => Err(Error::custom("http_server_stopped", "HTTP server stopped before a shutdown signal")),
+                Ok(Err(error)) => Err(Error::internal(error)),
+                Err(error) => Err(Error::internal(error)),
+            }
+        }
+        () = shutdown => {
+            readiness.set_ready(false);
+            let _ = shutdown_tx.send(());
+            match tokio::time::timeout(timeout, &mut server).await {
+                Ok(Ok(result)) => result.map_err(Error::internal),
+                Ok(Err(error)) => Err(Error::internal(error)),
+                Err(_) => {
+                    readiness.cancel_requests();
+                    if tokio::time::timeout(Duration::from_millis(100), &mut server)
+                        .await
+                        .is_err()
+                    {
+                        server.abort();
+                        let _ = server.await;
+                    }
+                    Err(Error::custom("http_shutdown_timeout", "HTTP server did not drain before the configured shutdown deadline"))
+                }
+            }
+        }
+    }
+}
+
+struct ReadinessGuard(std::sync::Arc<super::health::ServerReadiness>);
+
+impl Drop for ReadinessGuard {
+    fn drop(&mut self) {
+        self.0.set_ready(false);
+    }
 }
 
 /// `serve`：启动 HTTP 服务器。它是每个应用二进制的默认命令。
@@ -31,10 +90,238 @@ impl Command for ServeCommand {
     }
 
     fn about(&self) -> &'static str {
-        "Start the HTTP server"
+        "启动 HTTP 服务器"
     }
 
     fn run<'a>(&'a self, app: &'a App, _args: Vec<String>) -> BoxFuture<'a, Result<()>> {
         Box::pin(serve(app))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::serve_listener;
+    use crate::{
+        config::FrameworkConfig,
+        core::{AppBuilder, Error, lifecycle},
+        http::{AppBuilderHttpExt, HttpPlugin, build_router, health::ServerReadiness},
+    };
+    use axum::{body::Body, http::Request};
+    use figment::Figment;
+    use std::{io, net::SocketAddr, sync::Arc, time::Duration};
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::{TcpListener, TcpStream},
+        sync::Notify,
+    };
+    use tower::ServiceExt;
+
+    #[derive(Default)]
+    struct Probe {
+        started: Notify,
+        release: Notify,
+    }
+
+    async fn app(shutdown_timeout_secs: u64, probe: Arc<Probe>) -> crate::core::Result<crate::App> {
+        let mut config = FrameworkConfig::default();
+        config.server.shutdown_timeout_secs = shutdown_timeout_secs;
+        config.api.http_status = crate::config::HttpStatusMode::Semantic;
+        let mut builder = AppBuilder::new(config, Figment::new());
+        builder.plugin(HttpPlugin).routes(move |routes| {
+            let probe = Arc::clone(&probe);
+            routes.get("/blocked", move || {
+                let probe = Arc::clone(&probe);
+                async move {
+                    probe.started.notify_one();
+                    probe.release.notified().await;
+                    "finished"
+                }
+            })
+        });
+        lifecycle::finalize(builder).await
+    }
+
+    async fn send_request(address: SocketAddr, path: &str) -> io::Result<TcpStream> {
+        let mut stream = TcpStream::connect(address).await?;
+        stream
+            .write_all(
+                format!("GET {path} HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\n\r\n")
+                    .as_bytes(),
+            )
+            .await?;
+        Ok(stream)
+    }
+
+    async fn read_response(address: SocketAddr, path: &str) -> io::Result<Vec<u8>> {
+        let mut stream = send_request(address, path).await?;
+        let mut response = Vec::new();
+        stream.read_to_end(&mut response).await?;
+        Ok(response)
+    }
+
+    #[tokio::test]
+    async fn readiness_changes_after_bind_and_before_graceful_drain() -> crate::core::Result<()> {
+        let probe = Arc::new(Probe::default());
+        let app = app(2, Arc::clone(&probe)).await?;
+        let readiness = app.state().try_get::<ServerReadiness>()?;
+        let router = build_router(&app)?;
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .map_err(Error::internal)?;
+        let address = listener.local_addr().map_err(Error::internal)?;
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
+        let serve = tokio::spawn(async move {
+            serve_listener(&app, listener, router, async {
+                let _ = shutdown_rx.await;
+            })
+            .await
+        });
+
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while !readiness.is_ready() {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .map_err(Error::internal)?;
+        let ready_response = read_response(address, "/ready")
+            .await
+            .map_err(Error::internal)?;
+        assert!(String::from_utf8_lossy(&ready_response).starts_with("HTTP/1.1 200"));
+
+        let mut blocked = send_request(address, "/blocked")
+            .await
+            .map_err(Error::internal)?;
+        tokio::time::timeout(Duration::from_secs(2), probe.started.notified())
+            .await
+            .map_err(Error::internal)?;
+        shutdown_tx.send(()).map_err(|()| {
+            crate::core::Error::custom(
+                "test_shutdown_signal_lost",
+                "shutdown signal receiver closed",
+            )
+        })?;
+        tokio::time::timeout(Duration::from_secs(1), async {
+            while readiness.is_ready() {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .map_err(Error::internal)?;
+        assert!(!readiness.is_ready());
+        let next_request = tokio::time::timeout(
+            Duration::from_millis(100),
+            read_response(address, "/health"),
+        )
+        .await;
+        assert!(
+            next_request.is_err() || next_request.is_ok_and(|result| result.is_err()),
+            "server must stop accepting new requests during drain"
+        );
+        probe.release.notify_one();
+        let mut response = Vec::new();
+        blocked
+            .read_to_end(&mut response)
+            .await
+            .map_err(Error::internal)?;
+        assert!(String::from_utf8_lossy(&response).starts_with("HTTP/1.1 200"));
+        tokio::time::timeout(Duration::from_secs(2), serve)
+            .await
+            .map_err(Error::internal)?
+            .map_err(Error::internal)??;
+        assert!(!readiness.is_ready());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn non_cooperative_request_is_aborted_at_shutdown_deadline() -> crate::core::Result<()> {
+        let probe = Arc::new(Probe::default());
+        let app = app(1, Arc::clone(&probe)).await?;
+        let readiness = app.state().try_get::<ServerReadiness>()?;
+        let router = build_router(&app)?;
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .map_err(Error::internal)?;
+        let address = listener.local_addr().map_err(Error::internal)?;
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
+        let serve = tokio::spawn(async move {
+            serve_listener(&app, listener, router, async {
+                let _ = shutdown_rx.await;
+            })
+            .await
+        });
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while !readiness.is_ready() {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .map_err(Error::internal)?;
+        let mut blocked = send_request(address, "/blocked")
+            .await
+            .map_err(Error::internal)?;
+        tokio::time::timeout(Duration::from_secs(2), probe.started.notified())
+            .await
+            .map_err(Error::internal)?;
+        shutdown_tx.send(()).map_err(|()| {
+            crate::core::Error::custom(
+                "test_shutdown_signal_lost",
+                "shutdown signal receiver closed",
+            )
+        })?;
+        let result = tokio::time::timeout(Duration::from_secs(3), serve)
+            .await
+            .map_err(Error::internal)?
+            .map_err(Error::internal)?;
+        let Err(error) = result else {
+            return Err(Error::custom(
+                "test_expected_shutdown_timeout",
+                "non-cooperative request did not exceed the drain deadline",
+            ));
+        };
+        assert_eq!(error.code(), "http_shutdown_timeout");
+        assert!(!readiness.is_ready());
+        let mut response = Vec::new();
+        tokio::time::timeout(Duration::from_secs(1), blocked.read_to_end(&mut response))
+            .await
+            .map_err(Error::internal)?
+            .map_err(Error::internal)?;
+        assert!(
+            String::from_utf8_lossy(&response).starts_with("HTTP/1.1 503"),
+            "drained request response: {}",
+            String::from_utf8_lossy(&response)
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn bind_failure_never_marks_server_ready() -> crate::core::Result<()> {
+        let occupied = TcpListener::bind("127.0.0.1:0")
+            .await
+            .map_err(Error::internal)?;
+        let address = occupied.local_addr().map_err(Error::internal)?;
+        let mut config = FrameworkConfig::default();
+        config.server.host = address.ip().to_string();
+        config.server.port = address.port();
+        let mut builder = AppBuilder::new(config, Figment::new());
+        builder.plugin(HttpPlugin);
+        let app = lifecycle::finalize(builder).await?;
+        assert!(!app.state().try_get::<ServerReadiness>()?.is_ready());
+        let response = build_router(&app)?
+            .oneshot(
+                Request::get("/ready")
+                    .body(Body::empty())
+                    .map_err(Error::internal)?,
+            )
+            .await
+            .map_err(Error::internal)?;
+        assert_eq!(
+            response.status(),
+            axum::http::StatusCode::SERVICE_UNAVAILABLE
+        );
+        assert!(super::serve(&app).await.is_err());
+        assert!(!app.state().try_get::<ServerReadiness>()?.is_ready());
+        Ok(())
     }
 }

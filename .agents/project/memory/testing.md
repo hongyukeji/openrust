@@ -2,7 +2,11 @@
 
 > 受众：AI Agent
 > 更新：2026-10-26
-> 摘要：根 package 模块迁移、双库与生成项目当前可复验入口。
+> 摘要：源码交付、HTTP 生命周期、双库与生成项目当前可复验入口。
+
+## M5 HTTP 有界运行与就绪切换
+
+2026-10-26 定向测试：`cargo test -p openrust serve::tests -- --nocapture` 覆盖未绑定/绑定就绪、drain 中停止接入、在途请求完成、非合作请求到期取消及 bind 失败；`cargo test -p server --test server serve_process_exits_successfully_after_sigterm -- --nocapture` 通过真实 TCP readiness 和真实子进程 SIGTERM，all-features 下同一测试额外注入仅供测试的加密 key 后通过。全量门禁：fmt、diff check、all-target/all-features clippy、默认/all-features workspace tests、warnings-denied 默认/all-features docs、`cargo deny check` 和 `cargo check -p openrust --no-default-features` 均通过。deny 输出既有重复 crate 版本与未匹配 MPL allowance 警告，其余 advisories/bans/licenses/sources 通过。此项未改数据库/队列协议，不需要双库测试；未覆盖集群依赖 readiness 或跨节点 drain。
 
 ## ADR-039 源码交付验收
 

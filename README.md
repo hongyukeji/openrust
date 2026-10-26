@@ -97,6 +97,8 @@ db.transaction(|transaction| {
 
 队列只持久化白名单 `ExecutionMetadata`：最多 128 字节的安全 ASCII request ID 和规范化 locale。身份、token、Cookie、header、deadline 与取消句柄不会进入 payload。自定义 `QueueDriver` 若要接受当前调用中的关联 metadata，须实现 metadata-aware 派发方法；默认实现会在不支持时返回 `queue_driver_metadata_unsupported`。request ID 只用于日志关联，不构成 W3C trace parent 或 exactly-once 保证。
 
+HTTP 的 `/health` 用于存活检查，`/ready` 在 listener 已绑定且未停机时返回 200，停机或未启动时返回 503。收到 SIGINT/SIGTERM 后，服务器先切换为 not-ready，再按 `server.shutdown_timeout_secs` 等待在途请求；到期会合作取消请求并返回 `http_shutdown_timeout`，进程以失败退出。取消不会撤销已提交的副作用。
+
 ## v1 源码应用使用路径
 
 可以在仓库根目录生成应用；生成器会把应用及可选 migration package 加入 workspace，并使用本地依赖：

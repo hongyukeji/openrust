@@ -2,7 +2,7 @@
 
 OpenRust 框架基于 `axum` 和 `tower` 构建的 HTTP 层。
 
-- [`HttpPlugin`]：通过 `app.plugin(HttpPlugin)` 注册 `serve` 命令、默认 middleware 栈和 `/health`。
+- [`HttpPlugin`]：通过 `app.plugin(HttpPlugin)` 注册 `serve` 命令、默认 middleware 栈、存活探针 `/health` 和就绪探针 `/ready`。
 - [`AppBuilderHttpExt::routes`]：应用添加路由的入口。
 - [`AppBuilderHttpExt::http_layer`]：在所有路由外层注册共享 Tower 请求上下文，并置于路由级 layer 之外。
 - [`Routes`]：基于 `axum::Router` 的轻量路由约定，提供 `get` / `post` / …、`nest(prefix, …)`、`merge`、`layer`。
@@ -16,6 +16,8 @@ OpenRust 框架基于 `axum` 和 `tower` 构建的 HTTP 层。
 - [`ClientIp`]：默认解析 socket peer；只有来自已配置可信代理 IP/CIDR 的请求才接受 `X-Forwarded-For`。
 - [`RateLimitLayer`]：通过已注册的共享 `RateLimiter` 对选定路由限流。IP key 遵循 `ClientIp` 的可信代理规则；认证用户 key 需要外层 `AuthLayer`；自定义 key 函数可取得请求及策略 scope。
 - [`middleware::apply`]：依次应用 request ID、tracing span、CORS、timeout、gzip/br 压缩和 panic 捕获。`build_router` 会在路由 layer 执行前将最终 `AppState` 注入请求扩展，使能力 middleware 能使用应用注册表。启用的 CORS 配置无效时，会在开始监听前返回配置错误。
+
+`/health` 是进程存活探针；`/ready` 仅在 listener 绑定成功且未进入停机阶段时返回 HTTP 200，其余状态返回 503。收到 SIGINT/SIGTERM 后，服务器先将自身标为 not-ready 并停止接受连接，再按 `[server].shutdown_timeout_secs` 等待在途请求；到期会合作取消请求、强制终止剩余 server task 并以 `http_shutdown_timeout` 失败退出。请求取消会丢弃本地 handler future，不能撤销已提交的数据库或外部副作用。
 
 `[server.compression] enabled = true` 会根据 `Accept-Encoding` 协商 gzip 和 Brotli；设置为 `false` 可关闭压缩。`[server.cors]` 默认禁用。启用时，将 `enabled` 设为 `true`，并配置 `allowed_origins = ["https://example.com"]`（未启用 credentials 时也可用 `["*"]`）。Methods、request headers、exposed headers、credentials 和预检 `max_age_secs` 均可配置。具体 origin 必须是 `http://` 或 `https://`，后接主机和可选端口，不可包含路径、查询参数或尾部斜杠。CORS 列表中不能混用通配符和具体值；启用 credentials 时，methods、request headers 和 exposed headers 也不能使用通配符。路由构建时若发现配置无效，会返回包含配置 key 和转义值的错误。CORS layer 包裹 timeout layer，因此 408 响应仍保留允许来源信息。`build_router(&App)` 返回 `Result<Router>`；`serve` 会先构建 router，再绑定 listener。
 

@@ -98,6 +98,10 @@ async fn response_context(
         .extensions()
         .get::<crate::core::AppState>()
         .and_then(crate::core::AppState::get::<I18n>);
+    let server_readiness = request
+        .extensions()
+        .get::<crate::core::AppState>()
+        .and_then(crate::core::AppState::get::<super::health::ServerReadiness>);
     let accept_language = request
         .headers()
         .get(axum::http::header::ACCEPT_LANGUAGE)
@@ -113,12 +117,16 @@ async fn response_context(
     if let Some(locale) = &locale {
         metadata = metadata.with_locale(locale.clone());
     }
-    let cancellation = Cancellation::new();
+    let cancellation = server_readiness
+        .as_ref()
+        .map_or_else(Cancellation::new, |readiness| {
+            readiness.request_cancellation()
+        });
     let cancel_on_drop = CancelOnDrop::new(cancellation.clone());
     let execution = ExecutionContext::new(
         metadata,
         Some(tokio::time::Instant::now() + settings.request_timeout),
-        cancellation,
+        cancellation.clone(),
     );
     with_execution_context(execution, async move {
         let response = with_response_context(
@@ -128,7 +136,15 @@ async fn response_context(
             },
             async move {
                 let _cancel_on_drop = cancel_on_drop;
-                next.run(request).await
+                tokio::select! {
+                    biased;
+                    response = next.run(request) => response,
+                    () = cancellation.cancelled() => Error::custom_with_status(
+                        StatusCode::SERVICE_UNAVAILABLE,
+                        "server_draining",
+                        "server is shutting down",
+                    ).into_response(),
+                }
             },
         );
         match (locale_service, locale) {
