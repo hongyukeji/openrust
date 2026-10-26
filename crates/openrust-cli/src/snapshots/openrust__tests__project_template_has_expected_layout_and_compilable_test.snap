@@ -39,6 +39,10 @@ enabled = false
 [api]
 http_status = "always_ok"
 
+[i18n]
+default_locale = "en"
+fallback_locale = "en"
+
 [mail]
 driver = "log"
 
@@ -60,6 +64,7 @@ fn main() -> std::process::ExitCode {
 
 --- src/app.rs ---
 use openrust::http::HttpPlugin;
+use openrust::i18n::I18nPlugin;
 use openrust::mail::MailerPlugin;
 use openrust::prelude::*;
 
@@ -72,6 +77,7 @@ impl Application for Blog {
 
     fn build(app: &mut AppBuilder) {
         app.plugin(HttpPlugin)
+            .plugin(I18nPlugin::default())
             .plugin(MailerPlugin)
             .routes(routes::register);
     }

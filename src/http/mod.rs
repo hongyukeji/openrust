@@ -14,6 +14,7 @@ pub mod response;
 pub mod routes;
 pub mod serve;
 
+pub use crate::i18n::RequestLocale;
 pub use axum;
 #[cfg(feature = "http-client")]
 pub use client::{

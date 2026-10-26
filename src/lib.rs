@@ -8,6 +8,7 @@ pub mod config;
 pub mod core;
 pub mod db;
 pub mod http;
+pub mod i18n;
 pub mod mail;
 
 #[cfg(feature = "auth")]
@@ -55,6 +56,9 @@ pub mod prelude {
     pub use crate::http::{
         Action, AppBuilderHttpExt, Created, Inject, Json, NoContent, PageParams, Paginated, Path,
         Query, Resource, ResourceActions, Routes, Validated,
+    };
+    pub use crate::i18n::{
+        I18n, I18nConfig, I18nPlugin, Locale, MessageArgs, MessageCatalog, RequestLocale,
     };
     pub use crate::mail::{Email, MailConfig, Mailer, MailerPlugin};
     pub use crate::{

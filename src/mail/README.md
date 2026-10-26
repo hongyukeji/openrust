@@ -8,6 +8,8 @@ Mail layer of the [OpenRust](https://github.com/hongyukeji/openrust) framework. 
 
 `Mailer::send` sends immediately. Queue integration is added with the queue capability in M4.
 
+To localize a message, select a `Locale` from the request's `RequestLocale` or explicitly for a background task, translate the subject/body through the shared `I18n` catalog, then compose the resulting strings in the `Email`. The mail transport does not infer a locale from global state; callers choose it when building the message.
+
 ```rust,no_run
 use openrust::mail::{Email, Mailer, lettre::Message};
 use openrust::core::{Error, Result};

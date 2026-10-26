@@ -86,6 +86,8 @@ pub struct FrameworkConfig {
     pub api: ApiConfig,
     /// `[log]` section.
     pub log: LogConfig,
+    /// `[i18n]` locale defaults used by `I18nPlugin`.
+    pub i18n: crate::i18n::I18nConfig,
 }
 
 /// Marker for applications without configuration of their own: `type Config = NoConfig;`.

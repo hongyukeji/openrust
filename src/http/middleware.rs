@@ -9,6 +9,7 @@ use std::time::Duration;
 
 use crate::config::{ApiConfig, ConfigError, CorsConfig, ServerConfig};
 use crate::core::{Error, ResponseContext, Result, with_response_context};
+use crate::i18n::{I18n, with_request_locale};
 use axum::Router;
 use axum::extract::{Request, State};
 use axum::http::{HeaderName, HeaderValue, Method, StatusCode, Uri};
@@ -76,14 +77,28 @@ async fn response_context(
         .and_then(|value| value.to_str().ok())
         .unwrap_or("-")
         .to_owned();
-    with_response_context(
+    let locale_service = request
+        .extensions()
+        .get::<crate::core::AppState>()
+        .and_then(crate::core::AppState::get::<I18n>);
+    let accept_language = request
+        .headers()
+        .get(axum::http::header::ACCEPT_LANGUAGE)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned);
+    let response = with_response_context(
         ResponseContext {
             request_id,
             http_status: api.http_status,
         },
         next.run(request),
-    )
-    .await
+    );
+    match locale_service {
+        Some(i18n) => {
+            with_request_locale(i18n.as_ref().clone(), accept_language.as_deref(), response).await
+        }
+        None => response.await,
+    }
 }
 
 async fn envelope_status(response: Response) -> Response {

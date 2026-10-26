@@ -33,7 +33,7 @@
 
 ## M3 邮件、认证与授权（当前优先功能簇）
 
-- M3 子簇 ADR-031 统一出站 HTTP 已完成独立闭环并本地提交（见 `progress.md`、`memory/testing.md`）。下一个按 `v1-common-capabilities.md` 的顺序推进国际化，然后邮件/短信统一供应商能力；真实供应商发送缺少明确目标与凭据时如实记录，不阻止其他可验工作。
+- M3 当前功能簇：邮件/短信统一供应商能力与至少一个真实适配。复用已完成的 [ADR-031](decisions/adr-031-outbound-http-client.md) 出站 HTTP 和 [ADR-032](decisions/adr-032-request-internationalization.md) 国际化；先审计现有 Mailer/Auth WIP，再补缺口。真实供应商发送缺少明确目标与凭据时记录限制，继续完成不依赖外部条件的部分。
 
 - ADR-021 根 package/source 迁移已完成实现、验证和独立本地提交；M3 代码仅做必要模块路径适配并保留功能 WIP。ADR-019 的逐 crate 目录改名与 `apps/server` 改名不执行。迁移后的历史 PostgreSQL 16 / MySQL 8.4 双库测试与生成项目 HTTP e2e 均复验通过；当前日常基线以 PostgreSQL 18 / MySQL 8.4 为准。
 - 当前功能簇：完成 [ADR-012](decisions/adr-012-auth-current-user-contract.md) 的业务用户 ID 映射、路由认证配置和身份注入闭环。运行时 WIP 已加入 `AuthLayer`、身份提取器、默认数据库认证器与 `AuthMigration`；CLI 已支持 `openrust new --db postgres|mysql --auth`，生成数据库认证插件、迁移和受保护的身份示例路由。

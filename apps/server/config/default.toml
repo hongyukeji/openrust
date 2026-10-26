@@ -24,6 +24,10 @@ enabled = false
 [api]
 http_status = "always_ok"
 
+[i18n]
+default_locale = "en"
+fallback_locale = "en"
+
 [mail]
 driver = "log"
 

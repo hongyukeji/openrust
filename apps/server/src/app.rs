@@ -10,6 +10,7 @@ impl Application for Server {
 
     fn build(app: &mut AppBuilder) {
         app.plugin(HttpPlugin)
+            .plugin(openrust::i18n::I18nPlugin::default())
             .plugin(openrust::mail::MailerPlugin)
             .routes(routes::register);
     }

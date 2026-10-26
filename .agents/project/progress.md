@@ -2,12 +2,13 @@
 
 > 受众：AI Agent
 > 更新：2026-10-26
-> 摘要：根 `openrust` 模块迁移已独立提交；M2 读写分离已实现，并在 PostgreSQL 18.6 / MySQL 8.4.13 真实复制拓扑验证。模块化配置与 `.env` 功能簇已实现并通过 workspace 验证；M3 认证流程在当前 PostgreSQL 18 / MySQL 8.4 与新生成项目上复验，M3 总验收和完整集群验收仍未关闭。日常开发基线为 PostgreSQL 18 / MySQL 8.4 LTS / Redis 8；PostgreSQL 16 测试仅作历史专项证据。
+> 摘要：根 `openrust` 模块迁移已独立提交；M2 读写分离已实现，并在 PostgreSQL 18.6 / MySQL 8.4.13 真实复制拓扑验证。模块化配置、`.env`、统一出站 HTTP 与请求级国际化已独立实现；M3 认证流程在当前 PostgreSQL 18 / MySQL 8.4 与新生成项目上复验，M3 总验收和完整集群验收仍未关闭。日常开发基线为 PostgreSQL 18 / MySQL 8.4 LTS / Redis 8；PostgreSQL 16 测试仅作历史专项证据。
 
 | 项 | 状态 |
 | --- | --- |
 | v1 版本计划与框架设计 | 已定稿，见 `plans/` |
 | M3 统一出站 HTTP | 已完成独立功能簇：ADR-031、可选 `http-client`/CLI `--http-client`、reqwest 0.13 Rustls client、transport fake、受限 request/response stream、超时/取消、显式有界幂等重试。15 项 client tests、`apps/server` 集成、生成项目 check/test 和 default/all-features workspace fmt/clippy/test/doc、`cargo deny check` 通过；随本功能簇独立本地提交，不推送。真实第三方供应商不属于本 client 本地验收，后续 M3 供应商发送仍需已授权目标与凭据。 |
+| M3 请求级国际化 | 实现 `openrust::i18n`、中英框架消息、JSON 应用资源、TOML locale 默认/回退、Accept-Language q 值选择、请求 task-local 隔离、错误与 validator rule 本地化、显式 locale scope，并接入 `apps/server` 与新项目模板。6 项模块测试、5 项聚合 HTTP 测试、生成项目 check/test 与真实进程中文 404 smoke 通过；default/all-features workspace fmt/clippy/test、warnings-denied docs、`cargo deny check` 通过。提交前核对中。 |
 | 架构决策 | 以 `decisions/` 中有效状态为准；缓存标准应用默认 Redis（ADR-015），driver/store contract 见 ADR-014，均不代表缓存已实现 |
 | 仓库基线（许可证、README、工具链声明、Agent 契约、CHANGELOG、贡献与安全政策） | 已就位 |
 | workspace、lint 基线、CI 工作流 | 已就位；CI 双库 job 已启用，MSRV 为 Rust 1.97 |

@@ -179,10 +179,18 @@ impl Error {
 
     /// Renders the error in the common JSON envelope, hiding server details.
     pub fn to_api_response(&self) -> ApiResponse<()> {
-        let message = if self.is_server_error() {
+        let fallback = if self.is_server_error() {
             "internal server error".to_owned()
         } else {
             self.to_string()
+        };
+        let message = if self.is_server_error() {
+            fallback
+        } else {
+            let key = format!("openrust.error.{}", self.code());
+            crate::i18n::translate_current(&key, &crate::i18n::MessageArgs::new())
+                .filter(|translated| translated != &key)
+                .unwrap_or(fallback)
         };
         let errors = match self {
             Self::Validation(errors) => Some(errors.clone()),
@@ -299,7 +307,11 @@ impl<T: Serialize> ApiResponse<T> {
         Self {
             success: true,
             code: "ok".to_owned(),
-            message: "ok".to_owned(),
+            message: crate::i18n::translate_current(
+                "openrust.response.ok",
+                &crate::i18n::MessageArgs::new(),
+            )
+            .unwrap_or_else(|| "ok".to_owned()),
             data: Some(data),
             meta: None,
             errors: None,

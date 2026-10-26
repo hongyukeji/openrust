@@ -16,6 +16,7 @@
 | 出站 HTTP | `reqwest` 0.13（Rustls） | `http-client` 可选 feature；共享连接池、JSON/query/form/multipart/stream、显式超时；禁止默认重定向和应用层重试，响应体由框架限额 |
 | 序列化 | `serde` + `serde_json` | `apps/server` 集成测试用 `serde_json` 比对包装字段与请求 ID |
 | 验证 | `validator` | M0 评估 `garde` 后定稿 |
+| 国际化 | `openrust::i18n` + `serde_json` | 内置中英文框架消息；应用以 JSON resource 扩展；不引入表达式/复数 DSL 依赖 |
 | 配置 | `figment` | 已采用；错误信息含键名（测试覆盖） |
 | 日志 / 追踪 | `tracing` + `tracing-subscriber`；可选 `opentelemetry` / `metrics` | — |
 | 时间 | `chrono`（UTC） | SeaORM 兼容，生态最广 |

@@ -93,6 +93,7 @@ TOML 分层、环境引导与生产 `.env` 保护保持有效，具体兼容、�
 | 响应 | `Created<T>`、`NoContent`、`PageParams { page, per_page }`、`PageMeta { page, per_page, total, total_pages }`、`Paginated<T>`、`ApiResponse<T>` | axum 的类型化响应风格；`per_page` 与 GitHub REST API 一致；`PageMeta` 沿用 `PageParams` 的 `Page` 前缀并明确表示分页元数据 |
 | 命令 | `trait Command`，名称为空格分隔的多个词，如 `config show`；`accepts_args()` 声明是否接收名称后的参数，默认不接收 | 同第 2 节；参数需由命令显式声明，参照 clap 的参数定义 |
 | 邮件 | `trait Email`，产出 `lettre::Message`，由 `Mailer` 发送 | lettre 与 loco 的 `Mailer` |
+| 国际化 | `I18n` 服务、`I18nPlugin`、`Locale`、`RequestLocale`、`MessageCatalog`；请求上下文使用 `RequestLocale`，显式覆盖用 `I18n::with_locale` | Rust `locale` / `catalog` 通用词；避免自造 `TranslatorContext` 或全局 locale API |
 | 缓存 | `get` / `insert` / `remove` / `get_or_insert_with` / `increment` | moka、std `HashMap`、loco cache |
 | 存储 | `storage.store("public")`，方法为 `read` / `write` / `delete` / `url` / `presign_read` | loco `StoreDriver`、object_store `ObjectStore`、`std::fs` 的 `read` / `write` |
 | 队列 | `trait Job { async fn run(self, ctx: &JobContext) }` | apalis、fang |

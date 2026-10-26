@@ -39,6 +39,22 @@ openrust dev
 
 After `openrust dev` the database and mail catcher are running, migrations are applied, the server listens on `http://localhost:3000`, `/health` returns 200, `/docs` serves the OpenAPI UI, auth endpoints work and `cargo test` is green.
 
+## Request languages
+
+Generated applications install `I18nPlugin` by default. `[i18n] default_locale` and `fallback_locale` select the default language and final resource fallback; `Accept-Language` selects a supported request locale. The framework ships English and Simplified Chinese HTTP messages. Applications can merge JSON resources into `MessageCatalog`, use `RequestLocale` in handlers, or call `I18n::with_locale` for an explicit task scope. Templates support named `{name}` substitution; unknown keys stay visible as their key. This layer does not provide plural rules or locale-aware date/number formatting. See the [`I18n` API](src/i18n.rs).
+
+```rust
+use openrust::http::{Inject, Json};
+use openrust::i18n::{I18n, MessageArgs, RequestLocale};
+
+async fn greeting(locale: RequestLocale, Inject(i18n): Inject<I18n>) -> Json<String> {
+    let args = MessageArgs::from([("name".to_owned(), "Ada".to_owned())]);
+    Json(locale.translate(&i18n, "app.greeting", &args))
+}
+```
+
+Load an application JSON object into `MessageCatalog` at startup, for example `{"app.greeting":"Hello, {name}!"}` under the selected locale. Use the same explicit locale when composing an email or SMS outside a request.
+
 ## Documentation
 
 Design and plan documents live in [`.agents/project/plans/`](.agents/project/plans/README.md) during the design phase and will move to a public documentation site before the 0.1 release.

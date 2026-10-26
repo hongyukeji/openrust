@@ -194,10 +194,27 @@ fn collect(out: &mut ValidationErrors, prefix: &str, errors: &validator::Validat
         match kind {
             ValidationErrorsKind::Field(failures) => {
                 for failure in failures {
-                    let message = failure
-                        .message
-                        .as_ref()
-                        .map_or_else(|| failure.code.to_string(), ToString::to_string);
+                    let message = failure.message.as_ref().map_or_else(
+                        || {
+                            let key = format!("openrust.validation.{}", failure.code);
+                            let args = failure
+                                .params
+                                .iter()
+                                .map(|(name, value)| {
+                                    (
+                                        name.to_string(),
+                                        value
+                                            .as_str()
+                                            .map_or_else(|| value.to_string(), str::to_owned),
+                                    )
+                                })
+                                .collect();
+                            crate::i18n::translate_current(&key, &args)
+                                .filter(|message| message != &key)
+                                .unwrap_or_else(|| failure.code.to_string())
+                        },
+                        ToString::to_string,
+                    );
                     out.add(path.clone(), message);
                 }
             }

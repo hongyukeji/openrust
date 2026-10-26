@@ -27,3 +27,5 @@ The default template has no database dependency. Database generators require a p
 Auth-enabled projects include a real HTTP integration test at `tests/auth_flows.rs`. It starts a loopback listener, uses an isolated database and fake mail driver, and exercises the generated auth endpoints. Set `OPENRUST_TEST_DATABASE_URL` to an existing PostgreSQL or MySQL database whose test account can create and drop databases before running `cargo test`; when it is unset, the test reports that the database integration test was skipped.
 
 Before opening a generated project, verify its source and build with `cargo fmt --all --check`, `cargo check`, and `cargo test`. The auth integration test performs real database operations while sending verification messages through its test mail driver.
+
+The starter app installs `I18nPlugin` alongside HTTP and mail. Configure `i18n.default_locale` and `i18n.fallback_locale` in TOML, or use `APP_I18N__DEFAULT_LOCALE` / `APP_I18N__FALLBACK_LOCALE`; `Accept-Language` selects a supported locale per request. Applications can merge JSON message resources through `MessageCatalog`.

@@ -1,6 +1,6 @@
 # openrust-server
 
-Framework integration host for the currently implemented OpenRust capabilities. `Server::build` installs `HttpPlugin`, including `/health`, request IDs, configurable compression and CORS. `/` reports the server name and version. No external service is required at M1.
+Framework integration host for the currently implemented OpenRust capabilities. `Server::build` installs `HttpPlugin`, `I18nPlugin`, and the mailer. HTTP error messages follow the supported `Accept-Language` request preference, with English as the configured default. `/` reports the server name and version. No external service is required for these paths.
 
 Run from the repository root:
 
@@ -26,3 +26,5 @@ Applications using `AuthPlugin::new()` must register `DatabasePlugin` first and 
 The facade auth test also verifies that `AuthMode::Jwt` authenticates without registering `SessionPlugin`; the test uses explicit in-memory key configuration and never writes a secret to repository configuration.
 
 `/` and `/health` return the `ApiResponse<T>` JSON envelope; health status is in `data.status`. `[api] http_status` defaults to `always_ok`; set `APP_API__HTTP_STATUS=semantic` for semantic HTTP status codes. Every API envelope has a `request_id` matching `x-request-id`.
+
+The `[i18n]` section in `config/default.toml` configures `default_locale` and `fallback_locale`. Requests can send `Accept-Language: zh-CN`; supported framework messages then render in Simplified Chinese while response codes and validation field paths remain stable. Applications can register their own JSON catalog with `I18nPlugin` and inject `RequestLocale` in handlers.
