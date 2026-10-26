@@ -1,5 +1,6 @@
 //! HTTP 服务器生命周期与 `serve` 命令。
 
+use crate::core::lifecycle::BackgroundTasks;
 use crate::core::{App, BoxFuture, Command, Error, Result, shutdown_signal};
 use axum::Router;
 use std::net::SocketAddr;
@@ -45,6 +46,9 @@ where
     tokio::select! {
         result = &mut server => {
             readiness.set_ready(false);
+            let tasks = app.state().background_tasks().stop();
+            let deadline = tokio::time::Instant::now() + timeout;
+            let _ = BackgroundTasks::join_until(tasks, deadline).await;
             match result {
                 Ok(Ok(())) => Err(Error::custom("http_server_stopped", "HTTP server stopped before a shutdown signal")),
                 Ok(Err(error)) => Err(Error::internal(error)),
@@ -53,9 +57,16 @@ where
         }
         () = shutdown => {
             readiness.set_ready(false);
+            let deadline = tokio::time::Instant::now() + timeout;
+            let tasks = app.state().background_tasks().stop();
             let _ = shutdown_tx.send(());
-            match tokio::time::timeout(timeout, &mut server).await {
-                Ok(Ok(result)) => result.map_err(Error::internal),
+            let server_result = tokio::time::timeout_at(deadline, &mut server).await;
+            let task_result = BackgroundTasks::join_until(tasks, deadline).await;
+            match server_result {
+                Ok(Ok(result)) => {
+                    result.map_err(Error::internal)?;
+                    task_result
+                }
                 Ok(Err(error)) => Err(Error::internal(error)),
                 Err(_) => {
                     readiness.cancel_requests();
@@ -163,6 +174,19 @@ mod tests {
     async fn readiness_changes_after_bind_and_before_graceful_drain() -> crate::core::Result<()> {
         let probe = Arc::new(Probe::default());
         let app = app(2, Arc::clone(&probe)).await?;
+        let task_started = Arc::new(Notify::new());
+        let task_stopped = Arc::new(Notify::new());
+        let started_signal = Arc::clone(&task_started);
+        let stopped_signal = Arc::clone(&task_stopped);
+        app.state()
+            .background_tasks()
+            .handle()
+            .spawn(move |cancellation| async move {
+                started_signal.notify_one();
+                cancellation.cancelled().await;
+                stopped_signal.notify_one();
+            })?;
+        task_started.notified().await;
         let readiness = app.state().try_get::<ServerReadiness>()?;
         let router = build_router(&app)?;
         let listener = TcpListener::bind("127.0.0.1:0")
@@ -229,6 +253,7 @@ mod tests {
             .await
             .map_err(Error::internal)?
             .map_err(Error::internal)??;
+        task_stopped.notified().await;
         assert!(!readiness.is_ready());
 
         Ok(())

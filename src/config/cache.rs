@@ -14,6 +14,8 @@ pub struct CacheConfig {
     pub stores: BTreeMap<String, CacheStoreConfig>,
     /// 同进程同键 loader 的资源限制。
     pub singleflight: CacheSingleflightConfig,
+    /// stale-while-revalidate 的并发限制。
+    pub swr: CacheSwrConfig,
 }
 
 impl Default for CacheConfig {
@@ -22,6 +24,7 @@ impl Default for CacheConfig {
             default_store: "default".into(),
             stores: BTreeMap::new(),
             singleflight: CacheSingleflightConfig::default(),
+            swr: CacheSwrConfig::default(),
         }
     }
 }
@@ -44,6 +47,22 @@ impl Default for CacheSingleflightConfig {
             max_in_flight_keys: 128,
             max_waiters_per_key: 64,
             loader_timeout_secs: 30,
+        }
+    }
+}
+
+/// SWR 后台刷新的资源上限。
+#[derive(Clone, Deserialize)]
+#[serde(default)]
+pub struct CacheSwrConfig {
+    /// 同一应用实例中同时运行的刷新 loader 上限（1–256）。
+    pub max_in_flight_refreshes: usize,
+}
+
+impl Default for CacheSwrConfig {
+    fn default() -> Self {
+        Self {
+            max_in_flight_refreshes: 64,
         }
     }
 }

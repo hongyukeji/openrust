@@ -1,15 +1,24 @@
 //! Tag generations provide bounded logical invalidation without scanning keys.
 
-use std::{fmt::Write as _, time::Duration};
+use std::{fmt::Write as _, future::Future, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use super::{CacheBackend, CacheStore, Error, Result, normalize_ttl};
 
 /// 可选的原子 tag generation backend 能力。
 #[async_trait]
 pub trait CacheTagBackend: Send + Sync {
+    /// 返回该后端用于跨连接计算新鲜期的 Unix 毫秒时钟；默认实现读取本机系统时钟。
+    async fn now_millis(&self) -> Result<u64> {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|_| Error::custom("cache_clock_unavailable", "system clock is unavailable"))?
+            .as_millis()
+            .try_into()
+            .map_err(|_| Error::custom("cache_clock_unavailable", "system clock is out of range"))
+    }
     /// 返回 tag 当前 generation；从未使用的 tag 必须返回 `0`。
     async fn generation(&self, tag_key: &str) -> Result<u64>;
     /// 原子递增 tag generation。
@@ -58,6 +67,333 @@ impl TaggedCacheStore {
     /// 写入当前 generation；tagged 条目必须有有限 TTL。
     pub async fn set<T: Serialize>(&self, key: &str, value: &T, ttl: Duration) -> Result<()> {
         self.entry(key).await?.set(value, ttl).await
+    }
+
+    /// 在新鲜期返回当前值，在有限 stale 窗口内立即返回旧值并安排后台刷新；
+    /// 超过窗口后等待加载，且 tag generation 变化会使旧值与旧刷新失效。
+    pub async fn get_stale_while_revalidate<T, F, Fut>(
+        &self,
+        key: &str,
+        load_id: &str,
+        fresh_ttl: Duration,
+        stale_ttl: Duration,
+        loader: F,
+    ) -> Result<T>
+    where
+        T: Serialize + DeserializeOwned + Clone + Send + Sync + 'static,
+        F: Fn() -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Result<T>> + Send + 'static,
+    {
+        super::validate_load_id(load_id)?;
+        let fresh_ttl = normalize_ttl(fresh_ttl)?;
+        let stale_ttl = normalize_ttl(stale_ttl)?;
+        let total_ttl = fresh_ttl.checked_add(stale_ttl).ok_or_else(|| {
+            Error::custom(
+                "cache_invalid_ttl",
+                "SWR cache TTL exceeds supported limits",
+            )
+        })?;
+        let total_ttl = normalize_ttl(total_ttl)?;
+        let fresh_ms = u64::try_from(fresh_ttl.as_millis()).map_err(|_| {
+            Error::custom(
+                "cache_invalid_ttl",
+                "SWR fresh TTL exceeds supported limits",
+            )
+        })?;
+        let store = self.store.clone();
+        let flight_key = store.flight_key::<T>(key, load_id);
+
+        loop {
+            let entry = self.entry(key).await?;
+            if let Some(cached) = entry.get::<SwrValue<T>>().await?
+                && entry.is_current().await?
+            {
+                if entry.now_millis().await? < cached.fresh_until_ms {
+                    return Ok(cached.value);
+                }
+                self.schedule_refresh(entry, &flight_key, total_ttl, fresh_ms, loader);
+                return Ok(cached.value);
+            }
+
+            match store.singleflight.begin(flight_key.clone())? {
+                super::FlightRole::Leader(guard) => {
+                    return load_swr_leader(&entry, guard, &store, fresh_ms, total_ttl, &loader)
+                        .await;
+                }
+                super::FlightRole::Waiter(waiter) => {
+                    if let Some(bytes) = waiter.wait(store.singleflight.loader_timeout).await? {
+                        return serde_json::from_slice::<SwrValue<T>>(&bytes)
+                            .map(|cached| cached.value)
+                            .map_err(|_| {
+                                Error::custom(
+                                    "cache_deserialization_failed",
+                                    "cached value could not be decoded",
+                                )
+                            });
+                    }
+                }
+            }
+        }
+    }
+
+    fn schedule_refresh<T, F, Fut>(
+        &self,
+        entry: TaggedCacheEntry,
+        flight_key: &str,
+        total_ttl: Duration,
+        fresh_ms: u64,
+        loader: F,
+    ) where
+        T: Serialize + DeserializeOwned + Clone + Send + Sync + 'static,
+        F: Fn() -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Result<T>> + Send + 'static,
+    {
+        let store = self.store.clone();
+        let Ok(Some(guard)) = store.singleflight.try_begin_refresh(flight_key.to_owned()) else {
+            return;
+        };
+        let Some(permit) = store.refresh_limiter.acquire() else {
+            drop(guard);
+            return;
+        };
+        let shared_locks = store.shared_locks.clone();
+        let lease_ttl = store.singleflight.loader_timeout + Duration::from_secs(5);
+        let lock_key = format!("cache:swr:{}", digest(flight_key));
+        let timeout = store.singleflight.loader_timeout;
+        let spawn = store
+            .background_tasks
+            .spawn(move |cancellation| async move {
+                let _permit = permit;
+                let Some(current) = run_refresh(
+                    &entry,
+                    &loader,
+                    fresh_ms,
+                    total_ttl,
+                    timeout,
+                    &cancellation,
+                    shared_locks.as_ref(),
+                    &lock_key,
+                    lease_ttl,
+                )
+                .await
+                else {
+                    guard.finish(super::FlightState::Failed);
+                    return;
+                };
+                let Ok(bytes) = serde_json::to_vec(&current) else {
+                    guard.finish(super::FlightState::Failed);
+                    return;
+                };
+                guard.finish(super::FlightState::Ready(Arc::from(bytes)));
+            });
+        if let Err(error) = spawn {
+            tracing::debug!(
+                code = error.code(),
+                "background cache refresh was not scheduled"
+            );
+        }
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+struct SwrValue<T> {
+    value: T,
+    fresh_until_ms: u64,
+}
+
+async fn load_swr_leader<T, F, Fut>(
+    entry: &TaggedCacheEntry,
+    guard: super::FlightGuard,
+    store: &CacheStore,
+    fresh_ms: u64,
+    total_ttl: Duration,
+    loader: &F,
+) -> Result<T>
+where
+    T: Serialize + DeserializeOwned + Clone,
+    F: Fn() -> Fut,
+    Fut: Future<Output = Result<T>>,
+{
+    if let Some(cached) = entry.get::<SwrValue<T>>().await?
+        && entry.is_current().await?
+    {
+        let bytes = encode_swr(&cached)?;
+        guard.finish(super::FlightState::Ready(Arc::from(bytes)));
+        return Ok(cached.value);
+    }
+    let value = match tokio::time::timeout(store.singleflight.loader_timeout, loader()).await {
+        Ok(Ok(value)) => value,
+        Ok(Err(error)) => {
+            guard.finish(super::FlightState::Failed);
+            return Err(error);
+        }
+        Err(_) => {
+            guard.finish(super::FlightState::Failed);
+            return Err(Error::custom(
+                "cache_loader_timeout",
+                "cache loader exceeded its configured timeout",
+            ));
+        }
+    };
+    let cached = SwrValue {
+        value,
+        fresh_until_ms: entry.now_millis().await?.saturating_add(fresh_ms),
+    };
+    let bytes = encode_swr(&cached)?;
+    if let Err(error) = entry.set(&cached, total_ttl).await {
+        guard.finish(super::FlightState::Failed);
+        return Err(error);
+    }
+    guard.finish(super::FlightState::Ready(Arc::from(bytes)));
+    Ok(cached.value)
+}
+
+fn encode_swr<T: Serialize>(value: &SwrValue<T>) -> Result<Vec<u8>> {
+    serde_json::to_vec(value).map_err(|_| {
+        Error::custom(
+            "cache_serialization_failed",
+            "cache value could not be encoded",
+        )
+    })
+}
+
+#[allow(
+    clippy::too_many_arguments,
+    reason = "刷新仅依赖本次调用捕获的缓存与租约上下文"
+)]
+async fn run_refresh<T, F, Fut>(
+    entry: &TaggedCacheEntry,
+    loader: &F,
+    fresh_ms: u64,
+    total_ttl: Duration,
+    timeout: Duration,
+    cancellation: &crate::core::Cancellation,
+    shared_locks: Option<&crate::db::SharedLocks>,
+    lock_key: &str,
+    lease_ttl: Duration,
+) -> Option<SwrValue<T>>
+where
+    T: Serialize + DeserializeOwned + Clone,
+    F: Fn() -> Fut,
+    Fut: Future<Output = Result<T>>,
+{
+    let lease = if let Some(locks) = shared_locks {
+        match locks.acquire(lock_key, lease_ttl).await {
+            Ok(crate::db::LockAcquire::Acquired(lease)) => Some((locks, lease)),
+            Ok(crate::db::LockAcquire::Busy { .. }) => {
+                return wait_for_shared_refresh(entry, cancellation, timeout).await;
+            }
+            Err(error) => {
+                tracing::warn!(
+                    code = error.code(),
+                    "shared cache refresh lock unavailable; proceeding locally"
+                );
+                None
+            }
+        }
+    } else {
+        None
+    };
+    let current = match entry.is_current().await {
+        Ok(current) => current,
+        Err(error) => {
+            tracing::debug!(code = error.code(), "cache refresh tag check failed");
+            false
+        }
+    };
+    if !current {
+        if let Some((locks, lease)) = lease
+            && let Err(error) = locks.release(&lease).await
+        {
+            tracing::debug!(
+                code = error.code(),
+                "shared cache refresh lock release failed"
+            );
+        }
+        return None;
+    }
+    let refreshed = tokio::select! {
+        () = cancellation.cancelled() => None,
+        result = tokio::time::timeout(timeout, loader()) => match result {
+            Ok(Ok(value)) => Some(value),
+            Ok(Err(error)) => {
+                tracing::debug!(code = error.code(), "background cache refresh failed");
+                None
+            }
+            Err(_) => {
+                tracing::debug!("background cache refresh timed out");
+                None
+            }
+        }
+    };
+    let result = if let Some(value) = refreshed {
+        let fresh_until_ms = match entry.now_millis().await {
+            Ok(now) => Some(now.saturating_add(fresh_ms)),
+            Err(error) => {
+                tracing::debug!(code = error.code(), "cache refresh clock unavailable");
+                None
+            }
+        };
+        let Some(fresh_until_ms) = fresh_until_ms else {
+            if let Some((locks, lease)) = lease
+                && let Err(error) = locks.release(&lease).await
+            {
+                tracing::debug!(
+                    code = error.code(),
+                    "shared cache refresh lock release failed"
+                );
+            }
+            return None;
+        };
+        let cached = SwrValue {
+            value,
+            fresh_until_ms,
+        };
+        match entry.set(&cached, total_ttl).await {
+            Ok(()) => Some(cached),
+            Err(error) => {
+                tracing::debug!(code = error.code(), "background cache refresh write failed");
+                None
+            }
+        }
+    } else {
+        None
+    };
+    if let Some((locks, lease)) = lease
+        && let Err(error) = locks.release(&lease).await
+    {
+        tracing::debug!(
+            code = error.code(),
+            "shared cache refresh lock release failed"
+        );
+    }
+    result
+}
+
+async fn wait_for_shared_refresh<T>(
+    entry: &TaggedCacheEntry,
+    cancellation: &crate::core::Cancellation,
+    timeout: Duration,
+) -> Option<SwrValue<T>>
+where
+    T: DeserializeOwned,
+{
+    let deadline = tokio::time::Instant::now() + timeout;
+    loop {
+        if let Some(value) = entry.get::<SwrValue<T>>().await.ok().flatten()
+            && entry.is_current().await.ok() == Some(true)
+            && entry
+                .now_millis()
+                .await
+                .is_ok_and(|now| now < value.fresh_until_ms)
+        {
+            return Some(value);
+        }
+        tokio::select! {
+            () = cancellation.cancelled() => return None,
+            () = tokio::time::sleep_until(deadline) => return None,
+            () = tokio::time::sleep(Duration::from_millis(20)) => {}
+        }
     }
 }
 
@@ -115,6 +451,20 @@ impl TaggedCacheEntry {
     /// 删除该 generation 下的值。
     pub async fn remove(&self) -> Result<()> {
         self.store.backend.remove(&self.physical_key()?).await
+    }
+
+    async fn is_current(&self) -> Result<bool> {
+        let backend = tag_backend(self.store.backend.as_ref())?;
+        for (key, generation) in &self.generations {
+            if backend.generation(key).await? != *generation {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
+    async fn now_millis(&self) -> Result<u64> {
+        tag_backend(self.store.backend.as_ref())?.now_millis().await
     }
 
     fn physical_key(&self) -> Result<String> {

@@ -22,7 +22,9 @@ use serde::{Serialize, de::DeserializeOwned};
 
 use crate::core::{App, AppBuilder, BoxFuture, Error, Plugin, Result};
 
-pub use crate::config::cache::{CacheConfig, CacheSingleflightConfig, CacheStoreConfig};
+pub use crate::config::cache::{
+    CacheConfig, CacheSingleflightConfig, CacheStoreConfig, CacheSwrConfig,
+};
 
 /// 缓存实例可见的共享范围。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -156,6 +158,30 @@ struct SingleFlight {
     loader_timeout: Duration,
 }
 
+struct RefreshLimiter {
+    active: AtomicUsize,
+    maximum: usize,
+}
+
+struct RefreshPermit(Arc<RefreshLimiter>);
+
+impl RefreshLimiter {
+    fn acquire(self: &Arc<Self>) -> Option<RefreshPermit> {
+        self.active
+            .try_update(Ordering::AcqRel, Ordering::Acquire, |active| {
+                (active < self.maximum).then_some(active + 1)
+            })
+            .ok()
+            .map(|_| RefreshPermit(Arc::clone(self)))
+    }
+}
+
+impl Drop for RefreshPermit {
+    fn drop(&mut self) {
+        self.0.active.fetch_sub(1, Ordering::AcqRel);
+    }
+}
+
 struct Flight {
     state: tokio::sync::watch::Sender<FlightState>,
     waiters: AtomicUsize,
@@ -241,6 +267,34 @@ impl SingleFlight {
         });
         flights.insert(key.clone(), Arc::downgrade(&flight));
         Ok(FlightRole::Leader(FlightGuard {
+            registry: Arc::clone(self),
+            key,
+            flight,
+            active: true,
+        }))
+    }
+
+    fn try_begin_refresh(self: &Arc<Self>, key: String) -> Result<Option<FlightGuard>> {
+        let mut flights = self.flights.lock().map_err(|_| {
+            Error::custom(
+                "cache_singleflight_unavailable",
+                "cache loader coordination is unavailable",
+            )
+        })?;
+        flights.retain(|_, flight| flight.strong_count() > 0);
+        if flights.get(&key).and_then(Weak::upgrade).is_some() {
+            return Ok(None);
+        }
+        if flights.len() >= self.max_in_flight_keys {
+            return Ok(None);
+        }
+        let (state, _) = tokio::sync::watch::channel(FlightState::Running);
+        let flight = Arc::new(Flight {
+            state,
+            waiters: AtomicUsize::new(0),
+        });
+        flights.insert(key.clone(), Arc::downgrade(&flight));
+        Ok(Some(FlightGuard {
             registry: Arc::clone(self),
             key,
             flight,
@@ -395,6 +449,9 @@ pub struct CacheStore {
     namespace: String,
     backend: Arc<dyn CacheBackend>,
     singleflight: Arc<SingleFlight>,
+    background_tasks: crate::core::lifecycle::BackgroundTaskHandle,
+    refresh_limiter: Arc<RefreshLimiter>,
+    shared_locks: Option<crate::db::SharedLocks>,
 }
 
 impl CacheStore {
@@ -655,6 +712,20 @@ impl Plugin for CachePlugin {
                 ))));
             }
             let singleflight = SingleFlight::new(&config.singleflight)?;
+            if !(1..=256).contains(&config.swr.max_in_flight_refreshes) {
+                return Err(Error::Config(crate::config::ConfigError::Invalid(
+                    "cache.swr.max_in_flight_refreshes must be within 1..=256".into(),
+                )));
+            }
+            let background_tasks = app.state().background_tasks().handle();
+            let refresh_limiter = Arc::new(RefreshLimiter {
+                active: AtomicUsize::new(0),
+                maximum: config.swr.max_in_flight_refreshes,
+            });
+            let shared_locks = app
+                .state()
+                .get::<crate::db::SharedLocks>()
+                .map(|locks| (*locks).clone());
             let drivers = app.extension::<CacheDrivers>().ok_or_else(|| {
                 Error::custom(
                     "cache_driver_registry_missing",
@@ -683,6 +754,9 @@ impl Plugin for CachePlugin {
                         namespace: driver_config.namespace,
                         backend,
                         singleflight: Arc::clone(&singleflight),
+                        background_tasks: background_tasks.clone(),
+                        refresh_limiter: Arc::clone(&refresh_limiter),
+                        shared_locks: shared_locks.clone(),
                     },
                 );
             }
@@ -1047,6 +1121,18 @@ impl CacheBackend for RedisBackend {
 #[cfg(feature = "cache-redis")]
 #[async_trait]
 impl CacheTagBackend for RedisBackend {
+    async fn now_millis(&self) -> Result<u64> {
+        let mut connection = self.connection.clone();
+        let (seconds, microseconds): (u64, u64) = redis::cmd("TIME")
+            .query_async(&mut connection)
+            .await
+            .map_err(|_| backend_failure())?;
+        seconds
+            .checked_mul(1000)
+            .and_then(|millis| millis.checked_add(microseconds / 1000))
+            .ok_or_else(backend_failure)
+    }
+
     async fn generation(&self, tag_key: &str) -> Result<u64> {
         let mut connection = self.connection.clone();
         let value: Option<String> = redis::AsyncCommands::get(&mut connection, tag_key)
@@ -1123,11 +1209,29 @@ mod tests {
         namespace: &str,
         config: &CacheSingleflightConfig,
     ) -> CacheStore {
+        static TASKS: std::sync::OnceLock<crate::core::lifecycle::BackgroundTasks> =
+            std::sync::OnceLock::new();
+        let tasks = TASKS.get_or_init(crate::core::lifecycle::BackgroundTasks::default);
+        store_with_runtime(backend, namespace, config, tasks)
+    }
+
+    fn store_with_runtime(
+        backend: Arc<dyn CacheBackend>,
+        namespace: &str,
+        config: &CacheSingleflightConfig,
+        tasks: &crate::core::lifecycle::BackgroundTasks,
+    ) -> CacheStore {
         CacheStore {
             store_name: "test".to_owned(),
             backend,
             namespace: namespace.to_owned(),
             singleflight: SingleFlight::new(config).expect("valid singleflight test config"),
+            background_tasks: tasks.handle(),
+            refresh_limiter: Arc::new(RefreshLimiter {
+                active: AtomicUsize::new(0),
+                maximum: 64,
+            }),
+            shared_locks: None,
         }
     }
 
@@ -1258,6 +1362,9 @@ mod tests {
             namespace: String::new(),
             backend: Arc::clone(&cache_store.backend),
             singleflight: Arc::clone(&cache_store.singleflight),
+            background_tasks: cache_store.background_tasks.clone(),
+            refresh_limiter: Arc::clone(&cache_store.refresh_limiter),
+            shared_locks: None,
         };
         assert!(
             unnamespaced
@@ -1514,6 +1621,350 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn swr_returns_stale_during_refresh_and_shares_the_refreshed_value() -> Result<()> {
+        let tasks = crate::core::lifecycle::BackgroundTasks::default();
+        let cache = store_with_runtime(
+            Arc::new(MemoryBackend::default()),
+            "swr",
+            &CacheSingleflightConfig::default(),
+            &tasks,
+        );
+        let tagged = cache.tagged(&["profiles"])?;
+        let calls = Arc::new(AtomicUsize::new(0));
+        let loader = {
+            let calls = Arc::clone(&calls);
+            move || {
+                let calls = Arc::clone(&calls);
+                async move { Ok(calls.fetch_add(1, Ordering::AcqRel) + 1) }
+            }
+        };
+        assert_eq!(
+            tagged
+                .get_stale_while_revalidate(
+                    "profile:1",
+                    "profile-v1",
+                    Duration::from_millis(50),
+                    Duration::from_secs(2),
+                    loader,
+                )
+                .await?,
+            1
+        );
+        tokio::time::sleep(Duration::from_millis(60)).await;
+        let stale = tagged
+            .get_stale_while_revalidate(
+                "profile:1",
+                "profile-v1",
+                Duration::from_millis(50),
+                Duration::from_secs(2),
+                {
+                    let calls = Arc::clone(&calls);
+                    move || {
+                        let calls = Arc::clone(&calls);
+                        async move { Ok(calls.fetch_add(1, Ordering::AcqRel) + 1) }
+                    }
+                },
+            )
+            .await?;
+        assert_eq!(stale, 1);
+        let mut refreshed = stale;
+        for _ in 0..30 {
+            tokio::time::sleep(Duration::from_millis(2)).await;
+            refreshed = tagged
+                .get_stale_while_revalidate(
+                    "profile:1",
+                    "profile-v1",
+                    Duration::from_millis(50),
+                    Duration::from_secs(2),
+                    {
+                        let calls = Arc::clone(&calls);
+                        move || {
+                            let calls = Arc::clone(&calls);
+                            async move { Ok(calls.fetch_add(1, Ordering::AcqRel) + 1) }
+                        }
+                    },
+                )
+                .await?;
+            if refreshed != stale {
+                break;
+            }
+        }
+        assert_eq!(refreshed, 2);
+        assert_eq!(calls.load(Ordering::Acquire), 2);
+        tasks.shutdown_default(Duration::from_secs(1)).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn swr_does_not_serve_stale_after_tags_are_invalidated() -> Result<()> {
+        let tasks = crate::core::lifecycle::BackgroundTasks::default();
+        let cache = store_with_runtime(
+            Arc::new(MemoryBackend::default()),
+            "swr-invalidation",
+            &CacheSingleflightConfig::default(),
+            &tasks,
+        );
+        let tagged = cache.tagged(&["profiles"])?;
+        let calls = Arc::new(AtomicUsize::new(0));
+        let entered = Arc::new(tokio::sync::Notify::new());
+        let completed = Arc::new(tokio::sync::Notify::new());
+        let initial = {
+            let calls = Arc::clone(&calls);
+            move || {
+                let call = calls.fetch_add(1, Ordering::AcqRel) + 1;
+                async move { Ok(call) }
+            }
+        };
+        assert_eq!(
+            tagged
+                .get_stale_while_revalidate(
+                    "profile:1",
+                    "profile-v1",
+                    Duration::from_millis(20),
+                    Duration::from_secs(2),
+                    initial,
+                )
+                .await?,
+            1
+        );
+        tokio::time::sleep(Duration::from_millis(30)).await;
+        let stale = tagged
+            .get_stale_while_revalidate(
+                "profile:1",
+                "profile-v1",
+                Duration::from_millis(20),
+                Duration::from_secs(2),
+                {
+                    let calls = Arc::clone(&calls);
+                    let entered = Arc::clone(&entered);
+                    let completed = Arc::clone(&completed);
+                    move || {
+                        let calls = Arc::clone(&calls);
+                        let entered = Arc::clone(&entered);
+                        let completed = Arc::clone(&completed);
+                        async move {
+                            let call = calls.fetch_add(1, Ordering::AcqRel) + 1;
+                            entered.notify_one();
+                            tokio::time::sleep(Duration::from_millis(50)).await;
+                            completed.notify_one();
+                            Ok(call)
+                        }
+                    }
+                },
+            )
+            .await?;
+        assert_eq!(stale, 1);
+        entered.notified().await;
+        cache.invalidate_tags(&["profiles"]).await?;
+        completed.notified().await;
+        tokio::time::sleep(Duration::from_millis(5)).await;
+        let value = tagged
+            .get_stale_while_revalidate(
+                "profile:1",
+                "profile-v1",
+                Duration::from_secs(1),
+                Duration::from_secs(1),
+                {
+                    let calls = Arc::clone(&calls);
+                    move || {
+                        let calls = Arc::clone(&calls);
+                        async move { Ok(calls.fetch_add(1, Ordering::AcqRel) + 1) }
+                    }
+                },
+            )
+            .await?;
+        assert_eq!(value, 3);
+        tasks.shutdown_default(Duration::from_secs(1)).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn swr_refresh_failure_keeps_stale_only_until_the_maximum_window() -> Result<()> {
+        let tasks = crate::core::lifecycle::BackgroundTasks::default();
+        let cache = store_with_runtime(
+            Arc::new(MemoryBackend::default()),
+            "swr-expiry",
+            &CacheSingleflightConfig::default(),
+            &tasks,
+        );
+        let tagged = cache.tagged(&["records"])?;
+        assert_eq!(
+            tagged
+                .get_stale_while_revalidate(
+                    "record:1",
+                    "record-v1",
+                    Duration::from_millis(120),
+                    Duration::from_millis(500),
+                    || async { Ok(1_u8) },
+                )
+                .await?,
+            1
+        );
+        tokio::time::sleep(Duration::from_millis(140)).await;
+        assert_eq!(
+            tagged
+                .get_stale_while_revalidate(
+                    "record:1",
+                    "record-v1",
+                    Duration::from_millis(120),
+                    Duration::from_millis(500),
+                    || async { Err::<u8, Error>(Error::custom("source_failed", "refresh failed")) },
+                )
+                .await?,
+            1
+        );
+        tokio::time::sleep(Duration::from_millis(510)).await;
+        assert_eq!(
+            tagged
+                .get_stale_while_revalidate(
+                    "record:1",
+                    "record-v1",
+                    Duration::from_millis(120),
+                    Duration::from_millis(500),
+                    || async { Ok(3_u8) },
+                )
+                .await?,
+            3
+        );
+        tasks.shutdown_default(Duration::from_secs(1)).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn swr_shutdown_cancels_and_joins_a_running_refresh() -> Result<()> {
+        struct DropSignal(Arc<tokio::sync::Notify>);
+        impl Drop for DropSignal {
+            fn drop(&mut self) {
+                self.0.notify_one();
+            }
+        }
+
+        let tasks = crate::core::lifecycle::BackgroundTasks::default();
+        let cache = store_with_runtime(
+            Arc::new(MemoryBackend::default()),
+            "swr-shutdown",
+            &CacheSingleflightConfig::default(),
+            &tasks,
+        );
+        let tagged = cache.tagged(&["records"])?;
+        assert_eq!(
+            tagged
+                .get_stale_while_revalidate(
+                    "record:1",
+                    "record-v1",
+                    Duration::from_millis(20),
+                    Duration::from_secs(2),
+                    || async { Ok(1_u8) },
+                )
+                .await?,
+            1
+        );
+        tokio::time::sleep(Duration::from_millis(25)).await;
+        let entered = Arc::new(tokio::sync::Notify::new());
+        let dropped = Arc::new(tokio::sync::Notify::new());
+        assert_eq!(
+            tagged
+                .get_stale_while_revalidate(
+                    "record:1",
+                    "record-v1",
+                    Duration::from_millis(20),
+                    Duration::from_secs(2),
+                    {
+                        let entered = Arc::clone(&entered);
+                        let dropped = Arc::clone(&dropped);
+                        move || {
+                            let entered = Arc::clone(&entered);
+                            let dropped = Arc::clone(&dropped);
+                            async move {
+                                let _drop_signal = DropSignal(dropped);
+                                entered.notify_one();
+                                std::future::pending::<Result<u8>>().await
+                            }
+                        }
+                    },
+                )
+                .await?,
+            1
+        );
+        entered.notified().await;
+        tasks.shutdown_default(Duration::from_secs(1)).await?;
+        dropped.notified().await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn swr_caps_concurrent_refreshes_across_keys() -> Result<()> {
+        let tasks = crate::core::lifecycle::BackgroundTasks::default();
+        let mut cache = store_with_runtime(
+            Arc::new(MemoryBackend::default()),
+            "swr-capacity",
+            &CacheSingleflightConfig::default(),
+            &tasks,
+        );
+        cache.refresh_limiter = Arc::new(RefreshLimiter {
+            active: AtomicUsize::new(0),
+            maximum: 1,
+        });
+        let tagged = cache.tagged(&["records"])?;
+        for key in ["record:1", "record:2"] {
+            tagged
+                .get_stale_while_revalidate(
+                    key,
+                    "record-v1",
+                    Duration::from_millis(20),
+                    Duration::from_secs(2),
+                    || async { Ok(1_u8) },
+                )
+                .await?;
+        }
+        tokio::time::sleep(Duration::from_millis(25)).await;
+        let entered = Arc::new(tokio::sync::Notify::new());
+        let first_entered = Arc::clone(&entered);
+        assert_eq!(
+            tagged
+                .get_stale_while_revalidate(
+                    "record:1",
+                    "record-v1",
+                    Duration::from_millis(20),
+                    Duration::from_secs(2),
+                    move || {
+                        let entered = Arc::clone(&first_entered);
+                        async move {
+                            entered.notify_one();
+                            std::future::pending::<Result<u8>>().await
+                        }
+                    },
+                )
+                .await?,
+            1
+        );
+        entered.notified().await;
+        let second_calls = Arc::new(AtomicUsize::new(0));
+        let second = tagged
+            .get_stale_while_revalidate(
+                "record:2",
+                "record-v1",
+                Duration::from_millis(20),
+                Duration::from_secs(2),
+                {
+                    let second_calls = Arc::clone(&second_calls);
+                    move || {
+                        let second_calls = Arc::clone(&second_calls);
+                        async move {
+                            second_calls.fetch_add(1, Ordering::AcqRel);
+                            Ok(2_u8)
+                        }
+                    }
+                },
+            )
+            .await?;
+        assert_eq!(second, 1);
+        assert_eq!(second_calls.load(Ordering::Acquire), 0);
+        tasks.shutdown_default(Duration::from_secs(1)).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn plugin_requires_config_and_registers_named_memory_stores() -> Result<()> {
         use crate::core::{AppBuilder, lifecycle};
         use figment::providers::{Format, Toml};
@@ -1533,6 +1984,14 @@ mod tests {
             AppBuilder::new(crate::config::FrameworkConfig::default(), invalid_config);
         invalid_builder.plugin(CachePlugin);
         assert!(lifecycle::finalize(invalid_builder).await.is_err());
+
+        let invalid_swr = figment::Figment::new().merge(Toml::string(
+            "[cache]\ndefault_store = 'primary'\n[cache.stores.primary]\ndriver = 'memory'\n[cache.swr]\nmax_in_flight_refreshes = 0\n",
+        ));
+        let mut invalid_swr_builder =
+            AppBuilder::new(crate::config::FrameworkConfig::default(), invalid_swr);
+        invalid_swr_builder.plugin(CachePlugin);
+        assert!(lifecycle::finalize(invalid_swr_builder).await.is_err());
 
         let figment = figment::Figment::new().merge(Toml::string(
             "[cache]\ndefault_store = 'primary'\n[cache.stores.primary]\ndriver = 'memory'\nnamespace = 'main'\n[cache.stores.secondary]\ndriver = 'memory'\nnamespace = 'other'\n",

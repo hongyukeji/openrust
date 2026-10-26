@@ -25,7 +25,7 @@ use openrust::{config, lifecycle};
 use sea_orm::ConnectionTrait;
 #[cfg(unix)]
 use std::process::{Child, Command, Stdio};
-#[cfg(unix)]
+#[cfg(any(unix, feature = "cache-redis"))]
 use std::time::Duration;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
@@ -42,6 +42,10 @@ fn mailer_plugin_is_registered_by_the_assembled_server() -> TestResult {
 
 #[cfg(feature = "cache-redis")]
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "一个真实 Redis 聚合场景同时检查基础操作、tag、singleflight 与 SWR"
+)]
 fn cache_plugin_uses_the_configured_shared_redis_store() -> TestResult {
     openrust::tokio::runtime::Runtime::new()?.block_on(async {
         let app = test_server().await?;
@@ -104,6 +108,52 @@ fn cache_plugin_uses_the_configured_shared_redis_store() -> TestResult {
             assert_eq!(load.await??, "loaded");
         }
         assert_eq!(calls.load(std::sync::atomic::Ordering::Acquire), 1);
+
+        let second_app = test_server().await?;
+        let second_cache = second_app.state().try_get::<openrust::cache::Cache>()?;
+        let tagged_a = store.tagged(&["server-swr-integration"])?;
+        let tagged_b = second_cache
+            .default_store()?
+            .tagged(&["server-swr-integration"])?;
+        let swr_key = format!("profile-{}", std::process::id());
+        let initial = tagged_a
+            .get_stale_while_revalidate(
+                &swr_key,
+                "server-swr-v1",
+                Duration::from_millis(30),
+                Duration::from_secs(3),
+                || async { Ok("initial".to_owned()) },
+            )
+            .await?;
+        assert_eq!(initial, "initial");
+        openrust::tokio::time::sleep(Duration::from_millis(40)).await;
+        let stale = tagged_b
+            .get_stale_while_revalidate(
+                &swr_key,
+                "server-swr-v1",
+                Duration::from_millis(30),
+                Duration::from_secs(3),
+                || async { Ok("refreshed".to_owned()) },
+            )
+            .await?;
+        assert_eq!(stale, "initial");
+        let mut refreshed = stale;
+        for _ in 0..100 {
+            openrust::tokio::time::sleep(Duration::from_millis(5)).await;
+            refreshed = tagged_a
+                .get_stale_while_revalidate(
+                    &swr_key,
+                    "server-swr-v1",
+                    Duration::from_millis(30),
+                    Duration::from_secs(3),
+                    || async { Ok("refreshed".to_owned()) },
+                )
+                .await?;
+            if refreshed == "refreshed" {
+                break;
+            }
+        }
+        assert_eq!(refreshed, "refreshed");
         Ok(())
     })
 }

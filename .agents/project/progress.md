@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-26
-> 摘要：框架处于 v1 M5，尚未达到完整 v1。源码工作区、C1–C3 中文化、M3 认证流程扩展及 M4 共享锁、worker 生命周期、F1 日历调度、F2 国际化、F3 邮件模板、队列化通知、job 生成集成、通用插件公开契约、Db 与 Queue 外部扩展契约、跨协议验证/调用作用域和 HTTP 有界运行/就绪切换均有适用验收证据；M5 缓存驱动、命名实例、F4a tag generation 与 F4b 单进程加载合并已通过适用验收，当前进入 F4c stale-while-revalidate；完整剩余范围见待办。
+> 摘要：框架处于 v1 M5，尚未达到完整 v1。源码工作区、C1–C3 中文化、M3 认证流程扩展及 M4 共享锁、worker 生命周期、F1 日历调度、F2 国际化、F3 邮件模板、队列化通知、job 生成集成、通用插件公开契约、Db 与 Queue 外部扩展契约、跨协议验证/调用作用域和 HTTP 有界运行/就绪切换均有适用验收证据；M5 缓存驱动、命名实例、F4a tag generation、F4b 单进程加载合并和 F4c SWR 已通过适用验收，当前进入多实例与可选驱动；完整剩余范围见待办。
 
 ## 源码 workspace 交付
 
@@ -24,7 +24,7 @@
 | 目录与测试入口收尾 | CLI/macros/test packages 已迁至 `cli/`、`macros/`、`testing/`；hello 位于 `examples/hello/main.rs`；根 HTTP 和 server integration targets 按能力分组并显式保留 target 名。迁移前后均为 5 个 package、265 个可列测试条目。PG18/MySQL8.4 server all-features 集成各 40 项通过；生成 PostgreSQL/MySQL `--auth` 项目各通过 fmt/check/真实 auth_flows HTTP test；hello TCP HTTP 200；workspace fmt/clippy/test/docs、deny 与 no-default check 通过。`apps/server` 保留；旧 `crates/` 源码和目录已移除。 | 无本簇剩余项 |
 | Scheduler | UTC interval/daily slot、数据库时钟、slot 与 job 原子去重、run/once/list；双库独立进程竞争/异常退出/SIGTERM 已验证 | 不含 cron/IANA/DST；生产资源、滚动升级和完整拓扑验收未完成 |
 | CLI 与测试工具 | new、model/migration/mailer/policy/job 生成、dev/运行命令代理、TestDatabase；job 生成同时启用 app/migration queue feature、登记 QueueMigration 与 JobsPlugin；生成项目 PG18/MySQL8.4 check/test、双库队列 targets、真实 PostgreSQL API/worker/scheduler 组合通过 | controller/scaffold/command 生成器、依赖编排/watch、doctor、TestApp/HTTP assertions、黄金路径/正式文档 |
-| 缓存、存储、实时 | 统一 Cache 与 memory/file/Redis/custom drivers、named stores、tag generation 和有界单进程同键 loader 合并已实现；真实 Redis tag 与应用聚合 singleflight、workspace 门禁通过 | F4c SWR 与后台任务 join 进行中；local/S3 存储、上传扩展、WebSocket/SSE 及可观测性仍待完成 |
+| 缓存、存储、实时 | 统一 Cache 与 memory/file/Redis/custom drivers、named stores、tag generation 和有界单进程同键 loader 合并已实现；真实 Redis tag 与应用聚合 singleflight、workspace 门禁通过 | 完整分布式缓存生产负载仍待验证；local/S3 存储、上传扩展、WebSocket/SSE 及可观测性仍待完成 |
 
 具体 API 只在 [core/](core/) 维护，验收入口见 [testing.md](memory/testing.md)，声明边界见 [verification.md](memory/verification.md)。Git 中的未提交改动只算 WIP，不因文档先写“实现”而升为交付。
 
@@ -49,7 +49,7 @@
 
 ## 下一步
 
-按 [todo.md](todo.md) 推进 F4c stale-while-revalidate（先补齐应用级后台任务 join 生命周期）及其后续 M5/M6 工作，再执行完整 v1 性能、生产就绪与集群门禁。Worker 与 scheduler 专项双库证据不覆盖生产多实例负载与完整集群门禁。组件整合与 Laravel 式体验按 ADR-001；不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
+按 [todo.md](todo.md) 推进 M5 多实例与可选驱动及其后续 M5/M6 工作；F4c SWR 已通过专项验收，再执行完整 v1 性能、生产就绪与集群门禁。Worker 与 scheduler 专项双库证据不覆盖生产多实例负载与完整集群门禁。组件整合与 Laravel 式体验按 ADR-001；不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
 
 ## 本次文档核对范围
 

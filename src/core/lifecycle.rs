@@ -7,9 +7,134 @@
 use tracing_subscriber::EnvFilter;
 
 use crate::config::{self, ConfigLoader, Environment, LogConfig, LogFormat};
+use crate::core::Cancellation;
 use crate::core::app::{App, AppBuilder, Application};
 use crate::core::command::{ConfigShowCommand, HelpCommand};
-use crate::core::error::Result;
+use crate::core::error::{Error, Result};
+use std::sync::{Arc, Mutex, Weak};
+use tokio::{task::JoinSet, time::Instant};
+
+const MAX_BACKGROUND_TASKS: usize = 256;
+
+/// 应用拥有的合作式后台任务集合，供有界框架刷新任务使用。
+#[derive(Default)]
+pub(crate) struct BackgroundTasks {
+    inner: Arc<BackgroundTaskState>,
+}
+
+#[derive(Clone)]
+pub(crate) struct BackgroundTaskHandle {
+    inner: Weak<BackgroundTaskState>,
+}
+
+#[derive(Default)]
+struct BackgroundTaskState {
+    state: Mutex<BackgroundTaskSet>,
+    cancellation: Cancellation,
+}
+
+#[derive(Default)]
+struct BackgroundTaskSet {
+    tasks: Option<JoinSet<()>>,
+    closed: bool,
+}
+
+impl BackgroundTasks {
+    pub(crate) fn handle(&self) -> BackgroundTaskHandle {
+        BackgroundTaskHandle {
+            inner: Arc::downgrade(&self.inner),
+        }
+    }
+
+    pub(crate) fn stop(&self) -> JoinSet<()> {
+        self.inner.cancellation.cancel();
+        let mut state = self
+            .inner
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        state.closed = true;
+        state.tasks.take().unwrap_or_default()
+    }
+
+    pub(crate) async fn shutdown_default(&self, timeout: std::time::Duration) -> Result<()> {
+        let deadline = Instant::now() + timeout;
+        Self::join_until(self.stop(), deadline).await
+    }
+
+    pub(crate) async fn join_until(mut tasks: JoinSet<()>, deadline: Instant) -> Result<()> {
+        let joined = tokio::time::timeout_at(deadline, async {
+            let mut failed = false;
+            while let Some(result) = tasks.join_next().await {
+                if let Err(error) = result {
+                    tracing::error!(%error, "application background task failed");
+                    failed = true;
+                }
+            }
+            if failed {
+                Err(Error::custom(
+                    "background_task_failed",
+                    "an application background task failed",
+                ))
+            } else {
+                Ok(())
+            }
+        })
+        .await;
+        if let Ok(result) = joined {
+            result
+        } else {
+            tasks.abort_all();
+            while tasks.join_next().await.is_some() {}
+            Err(Error::custom(
+                "background_task_shutdown_timeout",
+                "application background tasks did not stop before the shutdown deadline",
+            ))
+        }
+    }
+}
+
+impl BackgroundTaskHandle {
+    pub(crate) fn spawn<F, Fut>(&self, task: F) -> Result<()>
+    where
+        F: FnOnce(Cancellation) -> Fut + Send + 'static,
+        Fut: std::future::Future<Output = ()> + Send + 'static,
+    {
+        let inner = self.inner.upgrade().ok_or_else(|| {
+            Error::custom(
+                "background_tasks_stopped",
+                "application background tasks have stopped",
+            )
+        })?;
+        let mut state = inner.state.lock().map_err(|_| {
+            Error::custom(
+                "background_tasks_unavailable",
+                "background task registry is unavailable",
+            )
+        })?;
+        if state.closed {
+            return Err(Error::custom(
+                "background_tasks_stopping",
+                "application background tasks are stopping",
+            ));
+        }
+        let tasks = state.tasks.get_or_insert_with(JoinSet::new);
+        while let Some(result) = tasks.try_join_next() {
+            if let Err(error) = result {
+                tracing::error!(%error, "application background task failed");
+            }
+        }
+        if tasks.len() >= MAX_BACKGROUND_TASKS {
+            return Err(Error::custom(
+                "background_task_capacity",
+                "application background task capacity is exhausted",
+            ));
+        }
+        let cancellation = inner.cancellation.clone();
+        tasks.spawn(async move { task(cancellation).await });
+        Ok(())
+    }
+}
 
 /// 从当前工作目录的配置引导启动 `A`。
 pub async fn bootstrap<A: Application>() -> Result<App> {
@@ -264,6 +389,51 @@ mod tests {
         assert!(
             app.state().try_get::<AtomicBool>()?.load(Ordering::SeqCst),
             "finish ran"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn app_background_tasks_are_cancelled_joined_and_closed() -> Result<()> {
+        let tasks = BackgroundTasks::default();
+        let handle = tasks.handle();
+        let started = Arc::new(tokio::sync::Notify::new());
+        let stopped = Arc::new(tokio::sync::Notify::new());
+        let task_started = Arc::clone(&started);
+        let task_stopped = Arc::clone(&stopped);
+        handle.spawn(move |cancellation| async move {
+            task_started.notify_one();
+            cancellation.cancelled().await;
+            task_stopped.notify_one();
+        })?;
+        started.notified().await;
+        tasks
+            .shutdown_default(std::time::Duration::from_secs(1))
+            .await?;
+        stopped.notified().await;
+        assert!(handle.spawn(|_| async {}).is_err());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn app_background_tasks_abort_after_shutdown_deadline() -> Result<()> {
+        let tasks = BackgroundTasks::default();
+        let handle = tasks.handle();
+        let started = Arc::new(tokio::sync::Notify::new());
+        let task_started = Arc::clone(&started);
+        handle.spawn(move |_| async move {
+            task_started.notify_one();
+            std::future::pending::<()>().await;
+        })?;
+        started.notified().await;
+        let result = BackgroundTasks::join_until(
+            tasks.stop(),
+            Instant::now() + std::time::Duration::from_millis(10),
+        )
+        .await;
+        assert_eq!(
+            result.err().as_ref().map(Error::code),
+            Some("background_task_shutdown_timeout")
         );
         Ok(())
     }

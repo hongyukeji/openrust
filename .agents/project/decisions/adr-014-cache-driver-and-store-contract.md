@@ -1,6 +1,6 @@
 # ADR-014 缓存驱动、命名实例与公共契约
 
-- 状态：Partially Superseded（标准应用默认值由 [ADR-015](adr-015-redis-default-calibration.md) 校准为 Redis；公共契约继续有效；基础驱动与 F4a tag generation 已实现，singleflight/SWR 继续按 todo 推进）
+- 状态：Partially Superseded（标准应用默认值由 [ADR-015](adr-015-redis-default-calibration.md) 校准为 Redis；公共契约继续有效；基础驱动与 F4a–F4c 已实现，跨节点生产负载仍待 v1 最终验收）
 - 日期：2026-10-25
 - 补充：ADR-009 能力驱动扩展原则；标准应用默认值以 ADR-015 的 Redis 决定为准。单机/集群部署边界仍以 ADR-013 为准。
 
@@ -55,6 +55,15 @@ v1 需要让业务代码在合理范围内不依赖具体缓存后端，同时�
 - leader 在 timeout 内加载、serde 编码并写入 cache 后再唤醒 waiter。loader 失败时 leader 保留原错误，waiter 收到通用 `cache_loader_failed`；leader 被取消时 RAII 通知 waiter，由一个 waiter 重新竞争并运行其可重复调用的 loader closure。timeout、I/O 与编解码错误不留存 flight 状态。
 - 仅对同一进程内 store clones 提供合并，不承诺多进程/节点只执行一次；跨节点工作由后续明确的 SWR 协调处理，loader 外部副作用仍须业务幂等。
 
+## F4c stale-while-revalidate contract
+
+- `TaggedCacheStore::get_stale_while_revalidate(key, load_id, fresh_ttl, stale_ttl, loader)` 仅在真实 tag 能力上开放。缓存值包含 fresh 截止时刻；后端 TTL 固定为 `fresh_ttl + stale_ttl`。fresh 期返回新值，stale 期只返回当前 tag generation 的旧值并尝试安排刷新，最终过期后等待 loader，不延长最大 stale 窗口。
+- Redis 用 `TIME` 作为跨连接 fresh 时钟；内存及自定义 tag backend 默认使用进程墙上时钟，分布式自定义 driver 应覆盖 `now_millis`。时钟失败按缓存错误处理，不伪装成 miss；跨节点 Redis 以 Redis 服务器时钟判定 fresh/stale。
+- 刷新受 `[cache.swr].max_in_flight_refreshes`、singleflight 在途 key 上限、配置的 loader timeout 和应用后台任务容量共同限制。应用命令退出、HTTP listener 停机或异常退出时取消刷新并在统一 shutdown deadline 内 join；超时后 abort 剩余 task。
+- 每次 stale 命中重新核验 tag generation；刷新写入仍通过 `set_if_generations_match`，tag 失效与旧刷新竞争时旧 generation 不可回填当前 key 空间。刷新 loader 失败保留尚未过期的 stale 值，达到 backend TTL 后不再返回。
+- 应用显式注册 `SharedLocks` 时，后台刷新会用数据库 lease 协调其它实例。它仅减少重复工作；锁不可用时转为本机 singleflight，锁忙的过期读等待共享结果至 loader timeout。租约过期/节点暂停仍可能重复执行，不保证 exactly-once；tag fencing 只保护失效边界，不保护任意外部副作用。
+- loader 被取消可能已产生外部副作用，业务仍须幂等。该 API 只适用于可重建缓存，不得作为权限、Session 撤销或其它权威状态。
+
 ## 参考与取舍
 
 - Laravel 官方 Cache 文档：<https://laravel.com/docs/13.x/cache>，参考其默认 store、按名称选择 store 与注册 custom driver 的职责拆分。
@@ -64,5 +73,5 @@ v1 需要让业务代码在合理范围内不依赖具体缓存后端，同时�
 ## 影响与实施顺序
 
 - ADR-009、ADR-013、上下文、栈、v1 计划与集群计划按 ADR-015 同步到标准应用 Redis 默认、显式 memory/file 与受校验的共享语义。
-- 实现顺序以 `todo.md` 为准；本 ADR 规定 contract 和验收；基础 Cache 与 memory/file/Redis driver、F4a tag generation 已实现，后续高级能力仍按 todo 验收。
+- 实现顺序以 `todo.md` 为准；本 ADR 规定 contract 和验收；基础 Cache 与 memory/file/Redis driver、F4a tag、F4b singleflight、F4c SWR 已实现，跨节点生产负载及集群验收仍按最终计划执行。
 - M5 实施已复核 `CacheDriver` / `CacheBackend` 的异步边界、TTL 毫秒精度、file 路径与 rename 行为及可选原子 tag 能力；不弱化本 ADR 的错误区分和作用域边界。完整 Redis Cluster client 与多 key 跨 slot 能力不在本簇保证内。

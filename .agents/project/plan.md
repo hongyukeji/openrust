@@ -12,7 +12,7 @@
 
 ## 执行校准
 
-**[ADR-039](decisions/adr-039-source-workspace-distribution.md) 的源码 workspace、包命名、生成器、应用启动/配置隔离和双库验收已完成并提交；C1–C3 中文化亦已完成。M3/M4 认证与事务流程扩展已按 ADR-041 完成双库验证并提交；ADR-042 共享锁与请求幂等已完成 PostgreSQL/MySQL 实际验收。Worker 租约/停机修正与 F1 日历调度已通过双库专项；F2 国际化、F3 邮件模板及队列化通知已完成适用验收；M4 `generate job`、API/worker/scheduler 组合示例与双库 CI targets 已完成并通过本地门禁。M5 通用插件公开契约、Db/Queue 外部扩展契约、跨协议验证与调用作用域均已完成适用验收；HTTP 有界运行与就绪切换已通过默认/all-features workspace 门禁和真实 TCP/SIGTERM 测试；M5 缓存 default/named stores、memory/file/Redis 与 custom driver 已完成真实 Redis、生成项目和 workspace 门禁验收；F4a tag generation 与 F4b 单进程加载合并已完成适用 Redis/并发验收及 workspace 门禁；当前按 [todo.md](todo.md) 推进 F4c stale-while-revalidate。**
+**[ADR-039](decisions/adr-039-source-workspace-distribution.md) 的源码 workspace、包命名、生成器、应用启动/配置隔离和双库验收已完成并提交；C1–C3 中文化亦已完成。M3/M4 认证与事务流程扩展已按 ADR-041 完成双库验证并提交；ADR-042 共享锁与请求幂等已完成 PostgreSQL/MySQL 实际验收。Worker 租约/停机修正与 F1 日历调度已通过双库专项；F2 国际化、F3 邮件模板及队列化通知已完成适用验收；M4 `generate job`、API/worker/scheduler 组合示例与双库 CI targets 已完成并通过本地门禁。M5 通用插件公开契约、Db/Queue 外部扩展契约、跨协议验证与调用作用域均已完成适用验收；HTTP 有界运行与就绪切换已通过默认/all-features workspace 门禁和真实 TCP/SIGTERM 测试；M5 缓存 default/named stores、memory/file/Redis 与 custom driver 已完成真实 Redis、生成项目和 workspace 门禁验收；F4a tag generation、F4b 单进程加载合并及 F4c stale-while-revalidate 已完成适用 Redis/并发验收及 workspace 门禁；当前按 [todo.md](todo.md) 推进多实例与可选驱动。**
 
 1. 目录收尾、M3 Mailer/Policy 生成器、公开 HTTP 路由限流及数据输出/查询边界、M4 类型化事件/queued listener 和 ADR-039 源码交付已完成；后续工作按 `todo.md` 当前优先级推进。
 2. 目录和内部 package 统一使用中性职责名，ADR-039 已完成；已完成目录迁移不重做。框架在 `src/`；CLI、proc-macro、测试工具保留独立 package 的技术边界，应用约定 `apps/` 保留；`apps/server` 继续承担集成宿主职责。见 [ADR-021](decisions/adr-021-loco-style-module-layout.md)。
@@ -38,7 +38,7 @@
 
 | 顺序 | 工作 | 完成门槛 |
 | --- | --- | --- |
-| 当前 | M5 高级缓存 F4c | stale-while-revalidate 与应用后台任务 join 生命周期 |
+| 当前 | M5 多实例与可选驱动 | 命名实例、可选 Redis Session/queue 与显式 sync 执行 |
 | M4 | 流程扩展、共享锁/幂等、worker 修正、日历调度、国际化/邮件模板与队列通知 | 双库并发/故障、DST/补跑、模板/通知、job 生成与组合运行 |
 | M5 | 插件公开契约与外部扩展、运行/迁移保障、缓存/存储、查询/租户、外部身份/MFA、数据交换、gRPC/实时/观测 | 独立扩展、真实驱动、跨协议/租户隔离、身份协议、双库与多节点资源边界 |
 | M6 | 插件模板/诊断/升级、CLI/dev/doctor、应用模板覆盖、fixtures/TestApp、OpenAPI、示例与正式文档 | 双库黄金路径、源码升级、构建成本及兼容/集群/性能门禁 |

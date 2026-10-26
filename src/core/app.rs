@@ -10,6 +10,7 @@ use serde::de::DeserializeOwned;
 use crate::config::{ConfigError, FrameworkConfig};
 use crate::core::command::Command;
 use crate::core::error::{Error, Result};
+use crate::core::lifecycle::BackgroundTasks;
 use crate::core::plugin::Plugin;
 
 /// 每个项目实现一次，用于描述应用的组装方式。
@@ -250,6 +251,7 @@ impl AppBuilder {
                 inner: Arc::new(StateInner {
                     framework: self.framework,
                     services: self.services,
+                    background_tasks: BackgroundTasks::default(),
                 }),
             },
             figment: self.figment,
@@ -276,6 +278,7 @@ fn validate_command_name(name: &str) -> Result<()> {
 struct StateInner {
     framework: FrameworkConfig,
     services: Registry,
+    background_tasks: BackgroundTasks,
 }
 
 /// 可低成本克隆、供每个请求和任务共享的句柄，包含配置和服务。
@@ -299,6 +302,10 @@ impl AppState {
     pub fn try_get<T: Send + Sync + 'static>(&self) -> Result<Arc<T>> {
         self.get()
             .ok_or_else(|| Error::internal(MissingServiceError(type_name::<T>())))
+    }
+
+    pub(crate) fn background_tasks(&self) -> &BackgroundTasks {
+        &self.inner.background_tasks
     }
 }
 
@@ -352,8 +359,30 @@ impl App {
             .and_then(|item| item.downcast_ref::<T>())
     }
 
-    /// 使用 `args` 运行名为 `name` 的命令。
+    /// 使用 `args` 运行名为 `name` 的命令；命令结束后会取消并在停机期限内 join 应用后台刷新任务。
     pub async fn run_command(&self, name: &str, args: Vec<String>) -> Result<()> {
+        let result = self.run_command_inner(name, args).await;
+        let shutdown = self
+            .state
+            .background_tasks()
+            .shutdown_default(std::time::Duration::from_secs(
+                self.config().server.shutdown_timeout_secs,
+            ))
+            .await;
+        match (result, shutdown) {
+            (Err(error), Err(shutdown_error)) => {
+                tracing::error!(
+                    code = shutdown_error.code(),
+                    "background task shutdown also failed"
+                );
+                Err(error)
+            }
+            (Err(error), Ok(())) => Err(error),
+            (Ok(()), result) => result,
+        }
+    }
+
+    async fn run_command_inner(&self, name: &str, args: Vec<String>) -> Result<()> {
         let available: Vec<&str> = self
             .commands()
             .filter(|command| command.name().split_whitespace().next() == Some(name))
@@ -481,6 +510,28 @@ mod tests {
             error.as_ref().map(ToString::to_string).as_deref(),
             Some("unknown command `nope`; run `help` to list commands")
         );
+    }
+
+    #[tokio::test]
+    async fn command_exit_cancels_and_joins_application_background_tasks() -> Result<()> {
+        let app = AppBuilder::new(FrameworkConfig::default(), Figment::new()).build();
+        let started = Arc::new(tokio::sync::Notify::new());
+        let stopped = Arc::new(tokio::sync::Notify::new());
+        let started_signal = Arc::clone(&started);
+        let stopped_signal = Arc::clone(&stopped);
+        app.state()
+            .background_tasks()
+            .handle()
+            .spawn(move |cancellation| async move {
+                started_signal.notify_one();
+                cancellation.cancelled().await;
+                stopped_signal.notify_one();
+            })?;
+        started.notified().await;
+        let error = app.run_command("missing", Vec::new()).await.err();
+        assert_eq!(error.as_ref().map(Error::code), Some("unknown_command"));
+        stopped.notified().await;
+        Ok(())
     }
 
     #[tokio::test]

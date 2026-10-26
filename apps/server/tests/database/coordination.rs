@@ -22,6 +22,147 @@ impl MigratorTrait for CoordinationMigrator {
     }
 }
 
+#[cfg(feature = "cache-redis")]
+async fn cache_app_with_shared_locks(db: Db) -> Result<openrust::App, Box<dyn std::error::Error>> {
+    use figment::{Figment, providers::Format};
+    let dsn = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379/".to_owned());
+    let figment = Figment::new().merge(figment::providers::Toml::string(&format!(
+        "[cache]\ndefault_store='default'\n[cache.stores.default]\ndriver='redis'\nnamespace='coordination-swr'\ndsn='{dsn}'\n"
+    )));
+    let mut builder =
+        openrust::AppBuilder::new(openrust::config::FrameworkConfig::default(), figment);
+    builder.insert(SharedLocks::new(db));
+    builder.plugin(openrust::cache::CachePlugin);
+    Ok(openrust::lifecycle::finalize(builder).await?)
+}
+
+#[cfg(feature = "cache-redis")]
+#[tokio::test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "同一隔离库场景端到端验证两个应用的共享锁与 Redis SWR"
+)]
+async fn f4c_swr_uses_shared_locks_across_apps_and_redis_connections()
+-> Result<(), Box<dyn std::error::Error>> {
+    let Ok(admin_url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+        eprintln!("skipping F4c shared SWR: OPENRUST_TEST_DATABASE_URL is unset");
+        return Ok(());
+    };
+    let tables = DatabaseTableNames::new("f4cswr_", BTreeMap::new())?;
+    let database =
+        TestDatabase::create_with_table_names::<CoordinationMigrator>(&admin_url, tables.clone())
+            .await?;
+    let first_connection = database.connection()?;
+    let first_db = Db::with_table_names(tables.clone());
+    first_db.initialize(first_connection)?;
+
+    let mut options = ConnectOptions::new(database.url().to_owned());
+    options.max_connections(2).min_connections(0);
+    #[cfg(feature = "db-mysql")]
+    if database.url().starts_with("mysql:") {
+        options.map_sqlx_mysql_opts(|mysql| {
+            mysql.ssl_mode(sea_orm::sqlx::mysql::MySqlSslMode::Required)
+        });
+        options.after_connect(|connection| {
+            Box::pin(async move {
+                connection
+                    .execute_unprepared("SET time_zone = '+00:00'")
+                    .await?;
+                Ok(())
+            })
+        });
+    }
+    let second_connection = Database::connect(options).await?;
+    let second_db = Db::with_table_names(tables);
+    second_db.initialize(second_connection)?;
+
+    let first = cache_app_with_shared_locks(first_db).await?;
+    let second = cache_app_with_shared_locks(second_db).await?;
+    let store_a = first
+        .state()
+        .try_get::<openrust::cache::Cache>()?
+        .default_store()?;
+    let store_b = second
+        .state()
+        .try_get::<openrust::cache::Cache>()?
+        .default_store()?;
+    let tags_a = store_a.tagged(&["coordination-swr"])?;
+    let tags_b = store_b.tagged(&["coordination-swr"])?;
+    let key = format!("profile-{}", std::process::id());
+    let initial = tags_a
+        .get_stale_while_revalidate(
+            &key,
+            "profile-v1",
+            Duration::from_millis(30),
+            Duration::from_secs(3),
+            || async { Ok("initial".to_owned()) },
+        )
+        .await?;
+    assert_eq!(initial, "initial");
+    tokio::time::sleep(Duration::from_millis(40)).await;
+    let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let calls_a = std::sync::Arc::clone(&calls);
+    let calls_b = std::sync::Arc::clone(&calls);
+    let (stale_a, stale_b) = tokio::join!(
+        tags_a.get_stale_while_revalidate(
+            &key,
+            "profile-v1",
+            Duration::from_millis(30),
+            Duration::from_secs(3),
+            move || {
+                let calls = std::sync::Arc::clone(&calls_a);
+                async move {
+                    calls.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+                    tokio::time::sleep(Duration::from_millis(60)).await;
+                    Ok("refreshed".to_owned())
+                }
+            },
+        ),
+        tags_b.get_stale_while_revalidate(
+            &key,
+            "profile-v1",
+            Duration::from_millis(30),
+            Duration::from_secs(3),
+            move || {
+                let calls = std::sync::Arc::clone(&calls_b);
+                async move {
+                    calls.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+                    tokio::time::sleep(Duration::from_millis(60)).await;
+                    Ok("refreshed".to_owned())
+                }
+            },
+        ),
+    );
+    assert_eq!(stale_a?, "initial");
+    assert_eq!(stale_b?, "initial");
+    let mut refreshed = String::new();
+    for _ in 0..100 {
+        tokio::time::sleep(Duration::from_millis(10)).await;
+        refreshed = tags_a
+            .get_stale_while_revalidate(
+                &key,
+                "profile-v1",
+                Duration::from_millis(30),
+                Duration::from_secs(3),
+                || async { Ok("refreshed".to_owned()) },
+            )
+            .await?;
+        if refreshed == "refreshed" {
+            break;
+        }
+    }
+    assert_eq!(refreshed, "refreshed");
+    assert_eq!(calls.load(std::sync::atomic::Ordering::Acquire), 1);
+    drop(tags_a);
+    drop(tags_b);
+    drop(store_a);
+    drop(store_b);
+    drop(first);
+    drop(second);
+    database.close().await?;
+    Ok(())
+}
+
 #[tokio::test]
 #[allow(clippy::too_many_lines)] // 将跨实例锁竞争与相关持久化语义保留在同一个集成场景中。
 async fn shared_locks_and_request_idempotency_are_database_scoped()

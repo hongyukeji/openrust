@@ -47,6 +47,9 @@ max_in_flight_keys = 128
 max_waiters_per_key = 64
 loader_timeout_secs = 30
 
+[cache.swr]
+max_in_flight_refreshes = 64
+
 [session]
 secure = true
 http_only = true
