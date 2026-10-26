@@ -8,6 +8,7 @@
 - `dispatch_unique` 和 `dispatch_unique_in_transaction` 按 `(queue, unique_key)` 数据库唯一键防止待执行/执行中的重叠派发；重复调用得到同一个活动 job ID。成功确认或迁入 `failed_jobs` 后活动 job 行删除，键随之释放。它不提供完成后的永久请求幂等记录。
 - `dispatch_chain` 顺序运行显式命名的子任务；`dispatch_batch` 按 1..=64 并发运行最多 128 项。组作为单个持久 parent job 储存，支持 `Stop` 与 `Continue` 失败策略、事务内派发及 completed/failed/total 进度。parent retry 会从头执行整个组，已成功子任务可能重跑；handler 仍须幂等。停止策略会取消尚在运行的异步 future，外部已提交副作用结果不确定。
 - 自定义 `QueueDriver` 需要显式实现 task group dispatch；默认实现返回 `queue_driver_group_unsupported`。
+- `openrust generate job <name>` 为数据库应用生成 serde payload 类型、`Job` handler、`JobsPlugin` 注册入口及 `QueueMigration` 登记，并同时启用 app/migration 的 `queue` feature。未实现 handler 返回 `job_not_implemented`，不会被误认为成功；API、worker、scheduler 通过同一应用分别运行，`serve` 不会自动拉起后台进程。组合示例位于 [`examples/queue/`](../../../examples/queue/README.md)。
 - Worker 支持有界进程内并发、租约心跳、ownership token 状态保护、指数退避、任务超时和租约过期后的崩溃恢复；SIGTERM/Ctrl-C 后停止领取并通知 handler 合作取消，等待配置期限，合作成功按 token 确认，超时按 token 释放为可重试任务；数据库连接池不可用时错误向 supervisor 传播、lease 保留等待到期；supervisor drain、join 全部 worker 并传播错误。PostgreSQL 18/MySQL 8.4 的真实 SIGTERM 验证覆盖 pending 任务不领取、合作成功确认、不合作任务超时/释放租约、连接池故障及旧 worker token 不能影响被接管任务；强杀 lease 恢复测试仍覆盖进程崩溃路径。
 - `JobContext::set_progress` 只写有界观测数据，不能作为业务事务或副作用确认。至少一次执行要求应用 handler 幂等；框架不保证数据库提交与邮件、短信或 HTTP 副作用 exactly-once。
 - `queue` 启用时内置 `openrust.notification.email.v1` 与 `openrust.notification.sms.v1` 两种 handler。`NotificationsPlugin` 必须在 `QueuePlugin` 之后注册；应用还需按实际渠道注册 `MailerPlugin` / `SmsPlugin`。标准 `queue work` 通过 `JobContext::service<T>` 从该应用的 `AppState` 取发送服务；直接 `Queue::run_next` 不带应用服务上下文。

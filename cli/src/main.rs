@@ -54,7 +54,7 @@ enum Builtin {
     Dev,
     /// 运行应用的 server 命令。
     Serve,
-    /// 生成应用模型和数据库迁移。
+    /// 生成模型、迁移、邮件、授权策略或后台任务。
     #[command(alias = "g")]
     Generate {
         #[arg(value_enum)]
@@ -91,6 +91,7 @@ enum GeneratorKind {
     Migration,
     Mailer,
     Policy,
+    Job,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -879,11 +880,14 @@ fn generate(
     match kind {
         GeneratorKind::Model => generate_model(values, uuid_id, soft_delete, &project_dir),
         GeneratorKind::Migration => generate_migration(values, uuid_id, soft_delete, &project_dir),
-        GeneratorKind::Mailer | GeneratorKind::Policy if uuid_id || soft_delete => {
+        GeneratorKind::Mailer | GeneratorKind::Policy | GeneratorKind::Job
+            if uuid_id || soft_delete =>
+        {
             bail!("--uuid-id and --soft-delete apply only to model and migration generators")
         }
         GeneratorKind::Mailer => generate_mailer(values, &project_dir),
         GeneratorKind::Policy => generate_policy(values, &project_dir),
+        GeneratorKind::Job => generate_job(values, &project_dir),
     }
 }
 
@@ -998,6 +1002,163 @@ fn generate_policy(values: &[String], project_dir: &Path) -> anyhow::Result<()> 
     append_module(&main_file, "pub mod policies;", "//! 应用入口。\n")?;
     print_generated(&format!("Generated policy `{module}` for `{resource}`."))?;
     Ok(())
+}
+
+fn generate_job(values: &[String], project_dir: &Path) -> anyhow::Result<()> {
+    let [name] = values else {
+        bail!("usage: openrust generate job <name>");
+    };
+    let module = normalize_identifier(name)?;
+    let type_name = format!("{}Job", pascal_case(&module));
+    let app_manifest_path = project_dir.join("Cargo.toml");
+    let app_manifest = fs::read_to_string(&app_manifest_path)?;
+    if !app_manifest.contains("db-postgres") && !app_manifest.contains("db-mysql") {
+        bail!("job generation requires an application created with `openrust new --db`");
+    }
+    let migration_manifest_path = project_dir.join("migration/Cargo.toml");
+    let migration_source = fs::read_to_string(&migration_manifest_path)
+        .context("job generation requires a database migration package")?;
+    let migration_lib_path = project_dir.join("migration/src/lib.rs");
+    let migration_registry = fs::read_to_string(&migration_lib_path)?;
+    let job_file = project_dir.join(format!("src/jobs/{module}.rs"));
+    if job_file.exists() {
+        bail!("job already exists: {}", job_file.display());
+    }
+    let module_file = project_dir.join("src/jobs/mod.rs");
+    let modules = fs::read_to_string(&module_file)?;
+    if modules
+        .lines()
+        .any(|line| line.trim() == format!("pub mod {module};"))
+    {
+        bail!("job module is already registered: {module}");
+    }
+    let main_file = project_dir.join("src/main.rs");
+    let main_source = fs::read_to_string(&main_file)?;
+    let app_file = project_dir.join("src/app.rs");
+    let app_source = fs::read_to_string(&app_file)?;
+    let updated_migration = register_queue_migration(&migration_registry)?;
+    let updated_app_manifest = enable_feature_source(&app_manifest, "queue", &app_manifest_path)?;
+    let updated_migration_manifest =
+        enable_feature_source(&migration_source, "queue", &migration_manifest_path)?;
+    let updated_app_manifest = add_serde_workspace_dependency(&updated_app_manifest)?;
+    let updated_app = if app_source.contains("crate::jobs::JobsPlugin") {
+        app_source
+    } else {
+        let updated = app_source.replace(
+            ".routes(routes::register);",
+            ".plugin(crate::jobs::JobsPlugin)\n            .routes(routes::register);",
+        );
+        if updated == app_source {
+            bail!("application source does not match the generated app template");
+        }
+        updated
+    };
+    let updated_main = if main_source.contains("mod jobs;") {
+        main_source
+    } else {
+        format!("{main_source}\nmod jobs;\n")
+    };
+    let updated_modules = if modules.contains("pub struct JobsPlugin;") {
+        if modules.contains(&format!(
+            "queue.register_job::<crate::jobs::{module}::{type_name}>()?;"
+        )) {
+            bail!("job handler is already registered: {module}");
+        }
+        append_sorted_module_content(&modules, &format!("pub mod {module};"))?.replace(
+            "        app.plugin(queue);",
+                &format!(
+                    "        queue.register_job::<crate::jobs::{module}::{type_name}>()?;\n        app.plugin(queue);"
+                ),
+        )
+    } else {
+        format!(
+            "{}\npub mod {module};\n\nuse openrust::core::{{AppBuilder, Plugin, Result}};\nuse openrust::queue::QueuePlugin;\n\n/// 注册应用的后台任务。\npub struct JobsPlugin;\n\nimpl Plugin for JobsPlugin {{\n    fn build(&self, app: &mut AppBuilder) -> Result<()> {{\n        let mut queue = QueuePlugin::default();\n        queue.register_job::<crate::jobs::{module}::{}>()?;\n        app.plugin(queue);\n        Ok(())\n    }}\n}}\n",
+            modules.trim_end(),
+            type_name,
+        )
+    };
+    fs::write(&job_file, render_job(&type_name, &module))?;
+    fs::write(&module_file, updated_modules)?;
+    fs::write(&main_file, updated_main)?;
+    fs::write(&app_file, updated_app)?;
+    fs::write(&app_manifest_path, updated_app_manifest)?;
+    fs::write(&migration_manifest_path, updated_migration_manifest)?;
+    fs::write(&migration_lib_path, updated_migration)?;
+    print_generated(&format!("Generated job `{module}`."))?;
+    Ok(())
+}
+
+fn render_job(type_name: &str, module: &str) -> String {
+    format!(
+        "//! 可由数据库队列执行的应用任务。\n\nuse openrust::core::{{BoxFuture, Error, Result}};\nuse openrust::queue::{{Job, JobContext}};\nuse serde::{{Deserialize, Serialize}};\n\n/// `{module}` 后台任务。\n#[derive(Debug, Clone, Serialize, Deserialize)]\npub struct {type_name};\n\nimpl Job for {type_name} {{\n    const NAME: &'static str = \"{module}.v1\";\n\n    fn handle(&self, _context: JobContext) -> BoxFuture<'_, Result<()>> {{\n        Box::pin(async {{\n            Err(Error::custom(\n                \"job_not_implemented\",\n                \"请先实现此任务的业务逻辑，再启动 worker\",\n            ))\n        }})\n    }}\n}}\n"
+    )
+}
+
+fn enable_feature_source(source: &str, feature: &str, path: &Path) -> anyhow::Result<String> {
+    let mut document = source
+        .parse::<toml_edit::DocumentMut>()
+        .with_context(|| format!("{} is invalid TOML", path.display()))?;
+    let dependency = document
+        .get_mut("dependencies")
+        .and_then(toml_edit::Item::as_table_mut)
+        .and_then(|dependencies| dependencies.get_mut("openrust"))
+        .and_then(toml_edit::Item::as_value_mut)
+        .and_then(toml_edit::Value::as_inline_table_mut)
+        .with_context(|| format!("{} has no inline OpenRust dependency", path.display()))?;
+    if dependency.get("features").is_none() {
+        dependency.insert("features", toml_edit::Value::Array(toml_edit::Array::new()));
+    }
+    let features = dependency
+        .get_mut("features")
+        .and_then(toml_edit::Value::as_array_mut)
+        .context("OpenRust feature list is invalid")?;
+    if !features.iter().any(|item| item.as_str() == Some(feature)) {
+        features.push(feature);
+    }
+    Ok(document.to_string())
+}
+
+fn add_serde_workspace_dependency(source: &str) -> anyhow::Result<String> {
+    let mut document = source
+        .parse::<toml_edit::DocumentMut>()
+        .context("application Cargo.toml is invalid TOML")?;
+    let dependencies = document
+        .get_mut("dependencies")
+        .and_then(toml_edit::Item::as_table_mut)
+        .context("application manifest has no dependencies table")?;
+    if !dependencies.contains_key("serde") {
+        let mut dependency = toml_edit::InlineTable::new();
+        dependency.insert("workspace", toml_edit::Value::from(true));
+        dependencies.insert(
+            "serde",
+            toml_edit::Item::Value(toml_edit::Value::InlineTable(dependency)),
+        );
+    }
+    Ok(document.to_string())
+}
+
+fn register_queue_migration(registry: &str) -> anyhow::Result<String> {
+    if registry.contains("openrust::queue::QueueMigration") {
+        return Ok(registry.to_owned());
+    }
+    let start = registry
+        .find("vec![")
+        .context("migration registry has no migrations vector")?;
+    let relative_end = registry[start..]
+        .find(']')
+        .context("migration list is unterminated")?;
+    let end = start + relative_end;
+    let list = &registry[start + "vec![".len()..end];
+    let separator = if list.trim().is_empty() {
+        ""
+    } else {
+        "\n            "
+    };
+    let suffix = if list.trim().is_empty() { "" } else { "," };
+    let insertion = format!("{suffix}{separator}Box::new(openrust::queue::QueueMigration)");
+    let mut updated = registry.to_owned();
+    updated.insert_str(end, &insertion);
+    Ok(updated)
 }
 
 fn enable_openrust_feature(project_dir: &Path, feature: &str) -> anyhow::Result<()> {
@@ -1445,39 +1606,55 @@ fn append_sorted_module(path: &Path, module: &str, header: &str) -> anyhow::Resu
     if contents.lines().any(|line| line.trim() == module) {
         return Ok(());
     }
+    let updated = append_sorted_module_content(&contents, module)?;
+    fs::write(path, updated)?;
+    Ok(())
+}
+
+fn append_sorted_module_content(contents: &str, module: &str) -> anyhow::Result<String> {
     let module_name = module
         .strip_prefix("pub mod ")
         .and_then(|name| name.strip_suffix(';'))
         .context("generated module declaration is invalid")?;
     let mut lines = contents.lines().map(str::to_owned).collect::<Vec<_>>();
-    let insertion = lines
+    let declarations = lines
         .iter()
         .enumerate()
-        .find_map(|(index, line)| {
-            let existing_name = line.trim().strip_prefix("pub mod ")?.strip_suffix(';')?;
-            if existing_name <= module_name {
-                return None;
-            }
-            let mut insertion = index;
-            while insertion > 0 {
-                let previous = lines[insertion - 1].trim();
-                if previous.starts_with("///")
-                    || previous.starts_with("// ")
-                    || previous.starts_with("/*")
-                {
-                    insertion -= 1;
-                } else {
-                    break;
-                }
-            }
-            Some(insertion)
+        .filter_map(|(index, line)| {
+            let name = line.trim().strip_prefix("pub mod ")?.strip_suffix(';')?;
+            Some((index, name))
         })
-        .unwrap_or(lines.len());
+        .collect::<Vec<_>>();
+    let mut insertion = declarations
+        .iter()
+        .find_map(|(index, name)| (*name > module_name).then_some(*index))
+        .or_else(|| declarations.last().map(|(index, _)| index + 1))
+        .unwrap_or_else(|| {
+            lines
+                .iter()
+                .take_while(|line| line.trim().starts_with("//!") || line.trim().is_empty())
+                .count()
+        });
+    if declarations
+        .iter()
+        .any(|(index, name)| *index == insertion && *name > module_name)
+    {
+        while insertion > 0 {
+            let previous = lines[insertion - 1].trim();
+            if previous.starts_with("///")
+                || previous.starts_with("// ")
+                || previous.starts_with("/*")
+            {
+                insertion -= 1;
+            } else {
+                break;
+            }
+        }
+    }
     lines.insert(insertion, module.to_owned());
     let mut updated = lines.join("\n");
     updated.push('\n');
-    fs::write(path, updated)?;
-    Ok(())
+    Ok(updated)
 }
 
 fn register_migration(registry: &str, module: &str) -> anyhow::Result<String> {
@@ -1642,6 +1819,7 @@ mod tests {
             .render_help()
             .to_string();
         assert!(generate_help.contains("模型或表名"));
+        assert!(generate_help.contains("policy, job"));
         assert!(generate_help.contains("UUIDv7"));
     }
 
@@ -2085,6 +2263,67 @@ mod tests {
         let manifest =
             fs::read_to_string(project.join("Cargo.toml")).expect("read generated app manifest");
         assert!(manifest.contains("mail-templates"));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn job_generator_enables_queue_registers_migration_and_fails_closed() {
+        let root =
+            std::env::temp_dir().join(format!("openrust-cli-job-generator-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("create temporary test directory");
+        let project = root.join("blog");
+        populate_project(
+            &project,
+            "blog",
+            "Blog",
+            Some(DatabaseBackend::Postgres),
+            false,
+            false,
+            false,
+            false,
+        )
+        .expect("generate database project");
+        assert!(Cli::try_parse_from(["openrust", "generate", "job", "welcome_email"]).is_ok());
+        generate_job(&["welcome_email".to_owned()], &project).expect("generate job");
+        let source = fs::read_to_string(project.join("src/jobs/welcome_email.rs"))
+            .expect("read generated job");
+        assert!(source.contains("WelcomeEmailJob"));
+        assert!(source.contains("job_not_implemented"));
+        assert!(source.contains("请先实现此任务的业务逻辑"));
+        let app = fs::read_to_string(project.join("src/app.rs")).expect("read app");
+        assert!(app.contains("crate::jobs::JobsPlugin"));
+        let migration = fs::read_to_string(project.join("migration/src/lib.rs"))
+            .expect("read migration registry");
+        assert!(migration.contains("openrust::queue::QueueMigration"));
+        let app_manifest =
+            fs::read_to_string(project.join("Cargo.toml")).expect("read app manifest");
+        assert!(app_manifest.contains("\"queue\""));
+        assert!(app_manifest.contains("serde = { workspace = true }"));
+        let migration_manifest = fs::read_to_string(project.join("migration/Cargo.toml"))
+            .expect("read migration manifest");
+        assert!(migration_manifest.contains("\"queue\""));
+        generate_job(&["audit".to_owned()], &project).expect("generate second job");
+        let modules =
+            fs::read_to_string(project.join("src/jobs/mod.rs")).expect("read jobs module");
+        assert_eq!(modules.matches("pub struct JobsPlugin;").count(), 1);
+        assert_eq!(
+            modules
+                .matches("queue.register_job::<crate::jobs::")
+                .count(),
+            2
+        );
+        assert!(modules.find("pub mod audit;") < modules.find("pub mod welcome_email;"));
+        let before = fs::read_dir(project.join("src/jobs"))
+            .expect("read jobs directory")
+            .count();
+        assert!(generate_job(&["welcome_email".to_owned()], &project).is_err());
+        assert_eq!(
+            fs::read_dir(project.join("src/jobs"))
+                .expect("read jobs directory after duplicate")
+                .count(),
+            before
+        );
         let _ = fs::remove_dir_all(root);
     }
 

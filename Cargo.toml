@@ -167,6 +167,11 @@ path = "tests/http/router.rs"
 name = "hello"
 path = "examples/hello/main.rs"
 
+[[example]]
+name = "queue-demo"
+path = "examples/queue/main.rs"
+required-features = ["queue"]
+
 [features]
 default = []
 db-postgres = ["sea-orm/sqlx-postgres", "sea-orm-migration/sqlx-postgres"]

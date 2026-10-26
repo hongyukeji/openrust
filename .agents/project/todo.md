@@ -6,7 +6,7 @@
 
 ## 领取规则
 
-先核对 Git/WIP 和 [执行校准](plan.md#执行校准)。数据库队列、interval/UTC daily 调度、活动唯一键及有限任务链/批次已提交，不重复实现。共享锁与请求幂等已按 ADR-042 完成双库验收；Worker 停机修正和 F1 日历调度均已按 PostgreSQL/MySQL 专项验收；F2 国际化、F3 安全邮件模板、M4 队列化通信与薄通知层均已完成适用验收。当前唯一 in_progress 为 M4 生成与集成收口。
+先核对 Git/WIP 和 [执行校准](plan.md#执行校准)。数据库队列、interval/UTC daily 调度、活动唯一键及有限任务链/批次已提交，不重复实现。共享锁与请求幂等已按 ADR-042 完成双库验收；Worker 停机修正和 F1 日历调度均已按 PostgreSQL/MySQL 专项验收；F2 国际化、F3 安全邮件模板、M4 队列化通信与薄通知层均已完成适用验收。M4 生成与集成收口已完成，双库 CI 命令已实际执行；生产多实例负载与完整集群仍属于后续门禁。当前唯一 in_progress 为 M5 通用插件公开契约。
 
 当前工作区另有 `.agents/project/memory/verification.md` 的未提交 WIP；本功能簇保留且不纳入提交。
 
@@ -21,13 +21,14 @@ V1 参考 Loco、Laravel、Goravel、OpenSpring；若依/芋道仅 V2。新增�
 | 共享锁与请求幂等（ADR-042） | 已交付 `SharedLocks`、fencing/事务内检查、显式 `RequestIdempotency` 与有界 JSON replay/清理；无 Redis 依赖 | PostgreSQL 18/MySQL 8.4 真实隔离库、多 Db pool 并发竞争、接管/旧 owner 防护、scope/指纹冲突、业务事务回滚与结果回放通过 |
 | Worker 租约与停机修正 | 按 ADR-037 修正 `work_once` 合作取消等待、shutdown deadline、token 条件重试；supervisor 收到信号后 drain、join 全部 worker 并传播错误。PG18/MySQL8.4 真实 SIGTERM 验证合作任务确认、不合作任务有界超时并释放 lease、同队列 pending job 不再领取；关闭 worker 连接池模拟数据库不可用时 supervisor 返回错误且原 lease 保留；双库旧 token 接管后 stale handler 不能确认新 worker 结果；强杀恢复测试复验 | 本地双库功能验收完成；生产多实例负载及完整集群留在 M4/M6 门禁 |
 | 国际化表达与地区格式化 F2 | ICU4X 2.3.x 支持 CLDR 复数、有限 select、精确小数与显式时区日期；普通文本和 `{name}` 兼容 | 中文/英文/波兰语、零/小数/缺参/回退、并发隔离、跨时区、干净源码生成 check/test 和 workspace 门禁通过；不改变协议字段及运行时 locale 契约 |
-| M4 生成与集成收口 **in_progress** | `generate job`、可运行 API/worker/scheduler 组合示例；双库 CI 显式启用 queue 并运行进程测试 | `.github/workflows/ci.yml` 数据库作业启用 queue 并运行 queue/schedule/calendar/recovery/notification targets；生成项目与组合运行、缺 URL 不得作为通过；完成 M4 全部门禁 |
 
 ## M5：共享基础设施、通信与运行保障
 
 | 功能簇 | 前置与交付 | 验收 |
 | --- | --- | --- |
-| 插件公开契约与数据库/队列外部扩展 | M5 首项，按 [ADR-009](decisions/adr-009-extensible-capability-drivers.md#通用插件交付阶段) 依次闭合通用插件、Db、Queue 三个子簇，分别验证提交。先补配置/服务/命令/路由组合、缺依赖和冲突失败语义、显式迁移组合及资源归属；复用静态 `Plugin::build/finish`，不用 AI 项目作为验收宿主。Db 初始化被 `DatabaseTableNames::validate_backend` 限制为双库，复用 SeaORM/SeaQuery 形成最小扩展边界；Queue 的 JobContext/registry/进度绑定数据库，补可复用 typed Job 的装配与执行契约。分别成簇，保留现有双库实现，不创建第二套 ORM/队列系统，不直接暴露内部租约令牌绕过安全规则 | 中性独立插件/consumer 不改核心、仅用公开 API 完成注册/配置/执行/错误与未启用隔离测试；迁移组合双库验证，实际接入不推迟到 M6；其他 SeaORM backend 的基础连接/事务与不支持能力明确区分，官方矩阵不自动扩大；非数据库队列 fixture 可执行同一 Job 并验证取消/进度，不支持事务派发时显式拒绝；原双库行为无回归 |
+| 通用插件公开契约 **in_progress** | 按 [ADR-009](decisions/adr-009-extensible-capability-drivers.md#通用插件交付阶段) 补齐应用配置、服务、命令与路由组合、缺依赖/冲突错误语义及资源归属；复用静态 `Plugin::build/finish`，不另建插件生命周期系统 | 独立 consumer 仅用公开 API 完成注册、配置、执行和错误验证；未启用功能隔离；不依赖 AI 项目；workspace 门禁通过 |
+| Db 外部扩展契约 | 在通用插件 contract 后复用 SeaORM/SeaQuery 建立公开最小 driver 边界；区分可用 backend 的连接/事务与不支持能力，官方数据库矩阵不自动扩大 | 独立 consumer 不改核心即可配置和连接；事务/错误双库验证；既有 PostgreSQL/MySQL 行为无回归 |
+| Queue 外部扩展契约 | 在 Db contract 后补可复用 typed Job 的装配与执行路径；JobContext、registry 与进度绑定数据库；非数据库 fixture 明确支持范围，不支持事务派发时失败关闭；不暴露内部租约 token | 独立 consumer 仅用公开 API 注册并执行 Job，覆盖取消/进度/错误；无队列 feature 隔离；原数据库队列双库回归通过 |
 | 跨协议验证与调用作用域 | [补齐计划](plans/v1-common-capabilities.md#5-协议无关验证与调用作用域)：复用 validator/Error、AppState 与现有上下文，补公开转换、剩余预算/取消/trace/locale 规则；不持久化请求凭据 | HTTP/命令/Job 同规则、并发身份/语言隔离与任务独立生命周期；gRPC 在 G2 接入并复验 |
 | 有界运行与就绪切换 | 先在现有 HTTP 命令补清楚的 listener/task 所有权、就绪状态、启动失败清理和限时退出；gRPC/实时后续复用，按 [生产约定](plans/v1-performance-and-readiness.md#6-生产默认值与开发编排) | HTTP 长请求/后台任务、SIGTERM、drain 超时、取消/join 和失败退出码；不用通用 Plugin shutdown 重开已有决策 |
 | 缓存驱动与命名实例 | ADR-014/015：标准应用 Redis 默认，memory/file 显式选择；default/named stores、custom driver、TTL/序列化/原子边界；库 Redis feature 可选 | 三驱动契约、真实 Redis、file 安全路径/过期/原子替换/并发/错误、独立扩展示例；Redis 故障不隐式回退 |
