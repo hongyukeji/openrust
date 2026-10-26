@@ -6,7 +6,7 @@
 
 ## 领取规则
 
-先核对 Git/WIP 和 [执行校准](plan.md#执行校准)。数据库队列、interval/UTC daily 调度、活动唯一键及有限任务链/批次已提交，不重复实现。共享锁与请求幂等已按 ADR-042 完成双库验收；Worker 停机修正和 F1 日历调度均已按 PostgreSQL/MySQL 专项验收；F2 国际化、F3 安全邮件模板、M4 队列化通信与薄通知层均已完成适用验收。M4 生成、M5 通用插件公开契约、Db/Queue 外部扩展契约、跨协议验证/调用作用域及 HTTP 有界运行/就绪切换均已完成对应专项和 workspace 验收。F4b 单进程同键加载合并与 F4c SWR 已完成并提交；命名数据库连接实例已按 ADR-045 完成 PostgreSQL 18/MySQL 8.4 实际验收；Redis Session 驱动已通过真实 Redis 验收；显式同步任务执行已按 ADR-043 收口；ADR-046 Redis Queue 已通过真实 Redis 8.10.2 多连接竞争、失败重试、强杀恢复、server Redis-only 接入和 workspace 门禁。ADR-047 查询授权与 ADR-048 稳定键分批均已完成双库与独立 consumer 验收；ADR-049 迁移互斥已通过双库多进程验收；ADR-050 存储与上传下载已通过 local/custom driver、真实 TCP 与 MinIO S3 专项及 workspace 门禁。完整集群仍属于后续门禁。
+先核对 Git/WIP 和 [执行校准](plan.md#执行校准)。数据库队列、interval/UTC daily 调度、活动唯一键及有限任务链/批次已提交，不重复实现。共享锁与请求幂等已按 ADR-042 完成双库验收；Worker 停机修正和 F1 日历调度均已按 PostgreSQL/MySQL 专项验收；F2 国际化、F3 安全邮件模板、M4 队列化通信与薄通知层均已完成适用验收。M4 生成、M5 通用插件公开契约、Db/Queue 外部扩展契约、跨协议验证/调用作用域及 HTTP 有界运行/就绪切换均已完成对应专项和 workspace 验收。F4b 单进程同键加载合并与 F4c SWR 已完成并提交；命名数据库连接实例已按 ADR-045 完成 PostgreSQL 18/MySQL 8.4 实际验收；Redis Session 驱动已通过真实 Redis 验收；显式同步任务执行已按 ADR-043 收口；ADR-046 Redis Queue 已通过真实 Redis 8.10.2 多连接竞争、失败重试、强杀恢复、server Redis-only 接入和 workspace 门禁。ADR-047 查询授权与 ADR-048 稳定键分批均已完成双库与独立 consumer 验收；ADR-049 迁移互斥已通过双库多进程验收；ADR-050 存储与上传下载、ADR-051 出站目标策略及 ADR-052 命名依赖韧性已完成适用的真实服务和 workspace 验收。完整集群仍属于后续门禁。
 
 当前工作区另有 `.agents/project/memory/verification.md` 的未提交 WIP；本功能簇保留且不纳入提交。
 
@@ -32,8 +32,7 @@ V1 参考 Loco、Laravel、Goravel、OpenSpring；若依/芋道仅 V2。新增�
 | Redis Queue 驱动 | 已按 [ADR-046](decisions/adr-046-redis-queue-driver.md) 实现可选 `queue-redis`；数据库默认保持不变，Redis/数据库不承诺跨资源原子性 | Redis 8.10.2 真实服务、多连接竞争与强杀恢复已完成；Redis Cluster 分片、最低版本和完整集群留在发布/集群门禁 |
 | 数据访问与生产迁移：稳定键有界分批 | 已按 [ADR-048](decisions/adr-048-stable-batch-reading.md) 交付 `BatchReader` 与授权查询接入 | PostgreSQL 18/MySQL 8.4 已真实验证单列/复合主键、升降序、多页、取消续读、callback 失败、scope 过滤及连接可继续使用；转入迁移互斥 |
 | 数据访问与生产迁移：迁移互斥 | 已按 [ADR-049](decisions/adr-049-migration-execution-lock.md) 以 resolver-aware 独立锁表和事务行锁保护 MigrationPlugin 的 up/down/status | PostgreSQL 18/MySQL 8.4 各 4 项真实 `db_migration` 集成通过，包含多进程互斥、等待超时、owner 强杀恢复、具名 DB 隔离及 up/down/status；fmt/clippy/default 与 all-features tests/docs/no-default/cargo deny 均通过；显式双库 targets 通过 |
-| 命名依赖隔离与可选熔断 **in_progress** | 复用 Tower/现有 HTTP 重试与资源约定，补有界并发/排队、熔断/半开、总预算、抖动及 Retry-After；gRPC G2 复用适用策略 | 故障依赖不耗尽另一依赖容量；取消释放、半开恢复、超时预算与幂等/流不可重放约束；不叠加重试循环 |
-| 可选外部身份与 MFA F7 | 出站策略/认证扩展后分簇交付 OAuth2/OIDC/SSO 客户端与 TOTP/恢复码；复用 AuthFlows/密钥/审计，不建设授权服务器 | 真实兼容 IdP、回调重放/issuer/PKCE/JWKS、绑定安全、挑战/恢复码竞争及双库状态；MFA 前不授完整权限 |
+| 可选外部身份与 MFA F7 **in_progress** | 已有出站策略、认证扩展和 ADR-052 韧性入口；实现 OAuth2/OIDC/SSO 客户端与 TOTP/恢复码；复用 AuthFlows/密钥/审计，不建设授权服务器 | 真实兼容 IdP、回调重放/issuer/PKCE/JWKS、绑定安全、挑战/恢复码竞争及双库状态；MFA 前不授完整权限 |
 | 可选租户隔离 F6 | 调用作用域、F5、缓存/队列/存储齐备后交付可信租户解析、公开隔离接入与审计；普通应用默认关闭 | 双库和两 API 节点下查询、关联/批量、缓存/锁、文件/任务不串租；缺上下文拒绝，RPC/实时随后复验 |
 | 通用 CSV/XLSX F8 | F5/F6 与存储/队列后，分别实现解析转换与任务化集成；不建业务页面 | 列映射/逐行错误、分批事务、压缩展开/公式注入、取消与内存边界；双库导入、授权导出与报告清理 |
 | gRPC G1 基础与生成 | [ADR-040](decisions/adr-040-grpc-integration.md)：可选 tonic/prost、配置/注册、默认/命名客户端、四种 RPC 与应用 proto 生成 | 无库真实 TCP 四种调用、独立 consumer；生成项目 check/test，默认构建无需 gRPC/protoc |

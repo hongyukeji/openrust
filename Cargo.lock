@@ -2781,6 +2781,7 @@ dependencies = [
  "futures-util",
  "getrandom 0.3.4",
  "http",
+ "httpdate",
  "icu_datetime",
  "icu_decimal",
  "icu_locale",

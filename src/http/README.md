@@ -145,7 +145,35 @@ if response.status().is_success() {
 }
 ```
 
-client 不会自动重试。应用如需重试，必须显式通过 `idempotent()` 标记操作并传入 `RetryPolicy`；策略最多尝试五次，对传输故障和 502/503/504 使用有上限的指数退避。需要重放时会拒绝只有一次机会的流式请求体。重定向默认关闭以避免目标被隐式改变，但这不能替代应用侧的 SSRF 目标校验。系统代理环境变量会被忽略；确实需要代理时，请显式配置 `HttpClientConfig::proxy`。`HttpTransport` 和 `TransportResponse::from_bytes` 可用于确定性 fake；注入的 transport 接收构造好的请求，除非其自身选择联网，否则不会访问网络。传输和解码错误会隐藏底层详情；应用不应记录 authorization header 或敏感 body。请显式检查返回状态并处理非 2xx 响应。
+client 默认不重试。应用如需重试，必须显式通过 `idempotent()` 标记操作并传入 `RetryPolicy`；策略最多尝试五次，对传输故障、429、502/503/504 使用有上限的指数退避与全抖动，并遵循受 `max_delay` 和 `retry_after_cap` 约束的秒数或 HTTP 日期 `Retry-After`。需要重放时会拒绝只有一次机会的流式请求体。重定向默认关闭以避免目标被隐式改变，但这不能替代应用侧的 SSRF 目标校验。系统代理环境变量会被忽略；确实需要代理时，请显式配置 `HttpClientConfig::proxy`。`HttpTransport` 和 `TransportResponse::from_bytes` 可用于确定性 fake；注入的 transport 接收构造好的请求，除非其自身选择联网，否则不会访问网络。传输和解码错误会隐藏底层详情；应用不应记录 authorization header 或敏感 body。请显式检查返回状态并处理非 2xx 响应。
+
+### 具名依赖隔离与熔断
+
+调用共享外部服务时，可为每个服务创建具名 `DependencyClient`。同一 `HttpClient` 克隆及同名、同策略的入口共享并发许可、等待队列与熔断状态；同名策略不一致会在创建时返回配置错误。容量和等待数分别有上限，等待超时计入请求总时限；取消会释放等待名额和并发许可。响应正文消费完成或响应对象释放后才归还并发许可。熔断按 transport/timeout 错误和 5xx 响应计失败，4xx 计成功；状态仅在当前进程内共享。
+
+```rust,ignore
+use openrust::http::{
+    CircuitBreakerPolicy, DependencyPolicy, HttpClient, HttpClientConfig,
+};
+use std::time::Duration;
+
+let client = HttpClient::new(HttpClientConfig::default())?;
+let payments = client.dependency("payments", DependencyPolicy {
+    max_in_flight: 16,
+    max_waiting: 32,
+    circuit_breaker: Some(CircuitBreakerPolicy {
+        failure_threshold: 5,
+        reset_timeout: Duration::from_secs(10),
+        half_open_max_calls: 1,
+    }),
+})?;
+let response = payments
+    .get("https://payments.example.test/health")
+    .send()
+    .await?;
+```
+
+`circuit_breaker: None` 时仍执行并发隔离。半开状态只允许配置数量的探测调用；取消探测会释放名额。每个名称仅在进程内限流，多个 API 副本要共享容量需由部署层实现。`DependencyClient` 支持 GET、POST 与通用 method，并提供 JSON、body、headers、query、bearer auth；响应 body 读取期间仍占用许可。
 
 ### 受限目标
 

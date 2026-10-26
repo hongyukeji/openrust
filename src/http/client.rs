@@ -1,9 +1,10 @@
 //! 具有明确资源限制的共享出站 HTTP 客户端。
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::str::FromStr;
-use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -11,6 +12,7 @@ use http::{HeaderMap, Method, StatusCode};
 use ipnet::IpNet;
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 use serde::de::DeserializeOwned;
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 /// [`HttpRequest::body`] 接受的请求正文类型。
 pub use reqwest::Body as HttpBody;
@@ -188,6 +190,12 @@ pub enum HttpClientError {
     /// 请求目标不符合受限出站策略。
     #[error("outbound HTTP target rejected by policy")]
     TargetRejected,
+    /// 命名依赖的并发等待队列已满。
+    #[error("outbound dependency queue is full")]
+    DependencyOverloaded,
+    /// 命名依赖的熔断器处于打开状态。
+    #[error("outbound dependency circuit is open")]
+    CircuitOpen,
 }
 
 /// 执行出站请求的传输层。实现不得记录请求中的秘密信息。
@@ -282,6 +290,8 @@ pub struct RetryPolicy {
     max_attempts: u8,
     base_delay: Duration,
     max_delay: Duration,
+    retry_after_cap: Duration,
+    jitter: bool,
 }
 
 impl RetryPolicy {
@@ -298,15 +308,72 @@ impl RetryPolicy {
             max_attempts,
             base_delay,
             max_delay,
+            retry_after_cap: max_delay,
+            jitter: true,
         })
     }
 
+    /// 设置 `Retry-After` 可延长退避的最大时长；超过总时限时仍由总时限优先截断。
+    #[must_use]
+    pub fn retry_after_cap(mut self, cap: Duration) -> Self {
+        self.retry_after_cap = cap;
+        self
+    }
+
+    /// 设置是否对指数退避应用全抖动。
+    #[must_use]
+    pub fn jitter(mut self, enabled: bool) -> Self {
+        self.jitter = enabled;
+        self
+    }
+
     fn delay(self, retry_index: u32) -> Duration {
-        self.base_delay
+        let ceiling = self
+            .base_delay
             .saturating_mul(2_u32.saturating_pow(retry_index))
-            .min(self.max_delay)
+            .min(self.max_delay);
+        if !self.jitter || ceiling.is_zero() {
+            return ceiling;
+        }
+        let nanos = u64::try_from(ceiling.as_nanos().min(u128::from(u64::MAX))).unwrap_or(u64::MAX);
+        Duration::from_nanos(jitter_value(nanos))
     }
 }
+
+/// 单个命名出站依赖的容量和可选熔断设置。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DependencyPolicy {
+    /// 同时执行的逻辑请求数。
+    pub max_in_flight: usize,
+    /// 等待并发许可的最大请求数；超出时立即拒绝。
+    pub max_waiting: usize,
+    /// 可选的连续失败熔断策略。
+    pub circuit_breaker: Option<CircuitBreakerPolicy>,
+}
+
+impl Default for DependencyPolicy {
+    fn default() -> Self {
+        Self {
+            max_in_flight: 32,
+            max_waiting: 64,
+            circuit_breaker: None,
+        }
+    }
+}
+
+/// 可选熔断器的阈值、冷却时间和半开探测并发上限。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CircuitBreakerPolicy {
+    /// 打开熔断器所需的连续失败数。
+    pub failure_threshold: u32,
+    /// 熔断打开后进入半开的等待时间。
+    pub reset_timeout: Duration,
+    /// 半开状态允许的并行探测数。
+    pub half_open_max_calls: usize,
+}
+
+/// 客户端克隆间共享的命名依赖注册表。
+type DependencyRegistry = Arc<Mutex<HashMap<String, (DependencyPolicy, Arc<DependencyRuntime>)>>>;
 
 /// 可复用的出站客户端。克隆实例共享底层连接池。
 #[derive(Clone)]
@@ -316,6 +383,366 @@ pub struct HttpClient {
     max_response_bytes: usize,
     timeout: Duration,
     target_policy: Option<Arc<HttpTargetPolicy>>,
+    dependencies: DependencyRegistry,
+}
+
+struct DependencyRuntime {
+    semaphore: Arc<Semaphore>,
+    waiting: AtomicUsize,
+    max_waiting: usize,
+    breaker: Option<(CircuitBreakerPolicy, Mutex<BreakerState>)>,
+}
+
+#[derive(Default)]
+struct BreakerState {
+    failures: u32,
+    opened_at: Option<tokio::time::Instant>,
+    half_open_calls: usize,
+}
+
+/// 共享使用同一命名依赖隔离状态的 HTTP 入口。
+#[derive(Clone)]
+pub struct DependencyClient {
+    name: Arc<str>,
+    client: HttpClient,
+    runtime: Arc<DependencyRuntime>,
+}
+
+impl HttpClient {
+    /// 获取按名称共享容量与熔断状态的出站依赖入口。
+    pub fn dependency(
+        &self,
+        name: impl Into<String>,
+        policy: DependencyPolicy,
+    ) -> Result<DependencyClient, HttpClientError> {
+        let name = name.into();
+        if name.trim().is_empty()
+            || policy.max_in_flight == 0
+            || policy.circuit_breaker.is_some_and(|breaker| {
+                breaker.failure_threshold == 0
+                    || breaker.reset_timeout.is_zero()
+                    || breaker.half_open_max_calls == 0
+            })
+        {
+            return Err(HttpClientError::InvalidConfig);
+        }
+        let mut dependencies = self
+            .dependencies
+            .lock()
+            .map_err(|_| HttpClientError::InvalidConfig)?;
+        let runtime = if let Some((existing, runtime)) = dependencies.get(&name) {
+            if existing != &policy {
+                return Err(HttpClientError::InvalidConfig);
+            }
+            Arc::clone(runtime)
+        } else {
+            let runtime = Arc::new(DependencyRuntime {
+                semaphore: Arc::new(Semaphore::new(policy.max_in_flight)),
+                waiting: AtomicUsize::new(0),
+                max_waiting: policy.max_waiting,
+                breaker: policy
+                    .circuit_breaker
+                    .map(|breaker| (breaker, Mutex::new(BreakerState::default()))),
+            });
+            dependencies.insert(name.clone(), (policy, Arc::clone(&runtime)));
+            runtime
+        };
+        Ok(DependencyClient {
+            name: Arc::from(name),
+            client: self.clone(),
+            runtime,
+        })
+    }
+}
+
+impl DependencyClient {
+    /// 返回此入口对应的依赖名称。
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// 创建依赖隔离范围内的 GET 请求。
+    pub fn get(&self, url: &str) -> DependencyRequest {
+        DependencyRequest {
+            dependency: self.clone(),
+            request: self.client.get(url),
+        }
+    }
+
+    /// 创建依赖隔离范围内的 POST 请求。
+    pub fn post(&self, url: &str) -> DependencyRequest {
+        DependencyRequest {
+            dependency: self.clone(),
+            request: self.client.post(url),
+        }
+    }
+
+    /// 创建依赖隔离范围内的通用请求。
+    pub fn request(&self, method: Method, url: &str) -> DependencyRequest {
+        DependencyRequest {
+            dependency: self.clone(),
+            request: self.client.request(method, url),
+        }
+    }
+
+    async fn acquire(
+        &self,
+        deadline: tokio::time::Instant,
+    ) -> Result<DependencyPermit, HttpClientError> {
+        self.check_breaker()?;
+        let permit = if let Ok(permit) = Arc::clone(&self.runtime.semaphore).try_acquire_owned() {
+            permit
+        } else {
+            let queued =
+                self.runtime
+                    .waiting
+                    .try_update(Ordering::AcqRel, Ordering::Acquire, |waiting| {
+                        (waiting < self.runtime.max_waiting).then_some(waiting + 1)
+                    });
+            if queued.is_err() {
+                return Err(HttpClientError::DependencyOverloaded);
+            }
+            let waiter = QueueWaiter(&self.runtime.waiting);
+            let acquired = tokio::time::timeout_at(
+                deadline,
+                Arc::clone(&self.runtime.semaphore).acquire_owned(),
+            )
+            .await;
+            drop(waiter);
+            acquired
+                .map_err(|_| HttpClientError::Timeout)?
+                .map_err(|_| HttpClientError::DependencyOverloaded)?
+        };
+        self.reserve_breaker_probe()?;
+        Ok(DependencyPermit {
+            dependency: self.clone(),
+            _permit: permit,
+            outcome_recorded: false,
+        })
+    }
+
+    fn check_breaker(&self) -> Result<(), HttpClientError> {
+        let Some((policy, state)) = &self.runtime.breaker else {
+            return Ok(());
+        };
+        let state = state.lock().map_err(|_| HttpClientError::CircuitOpen)?;
+        if let Some(opened_at) = state.opened_at {
+            if opened_at.elapsed() < policy.reset_timeout {
+                return Err(HttpClientError::CircuitOpen);
+            }
+            if state.half_open_calls >= policy.half_open_max_calls {
+                return Err(HttpClientError::CircuitOpen);
+            }
+        }
+        Ok(())
+    }
+
+    fn reserve_breaker_probe(&self) -> Result<(), HttpClientError> {
+        let Some((policy, state)) = &self.runtime.breaker else {
+            return Ok(());
+        };
+        let mut state = state.lock().map_err(|_| HttpClientError::CircuitOpen)?;
+        if let Some(opened_at) = state.opened_at {
+            if opened_at.elapsed() < policy.reset_timeout
+                || state.half_open_calls >= policy.half_open_max_calls
+            {
+                return Err(HttpClientError::CircuitOpen);
+            }
+            state.half_open_calls += 1;
+        }
+        Ok(())
+    }
+
+    fn record_outcome(&self, failed: bool) {
+        let Some((policy, state)) = &self.runtime.breaker else {
+            return;
+        };
+        let Ok(mut state) = state.lock() else {
+            return;
+        };
+        if failed {
+            state.failures = state.failures.saturating_add(1);
+            state.half_open_calls = state.half_open_calls.saturating_sub(1);
+            if state.failures >= policy.failure_threshold {
+                state.opened_at = Some(tokio::time::Instant::now());
+            }
+        } else {
+            state.failures = 0;
+            state.opened_at = None;
+            state.half_open_calls = 0;
+        }
+    }
+}
+
+/// 处于指定命名依赖容量与熔断范围内的请求。
+pub struct DependencyRequest {
+    dependency: DependencyClient,
+    request: HttpRequest,
+}
+
+impl DependencyRequest {
+    /// 设置 JSON 请求正文。
+    #[must_use]
+    pub fn json<T: serde::Serialize + ?Sized>(mut self, value: &T) -> Self {
+        self.request = self.request.json(value);
+        self
+    }
+
+    /// 设置 URL 编码的表单正文。
+    #[must_use]
+    pub fn form<T: serde::Serialize + ?Sized>(mut self, value: &T) -> Self {
+        self.request = self.request.form(value);
+        self
+    }
+
+    /// 设置 multipart 表单正文。
+    #[must_use]
+    pub fn multipart(mut self, form: MultipartForm) -> Self {
+        self.request = self.request.multipart(form);
+        self
+    }
+
+    /// 设置原始请求正文。
+    #[must_use]
+    pub fn body(mut self, body: HttpBody) -> Self {
+        self.request = self.request.body(body);
+        self
+    }
+
+    /// 设置请求头。
+    #[must_use]
+    pub fn headers(mut self, headers: HeaderMap) -> Self {
+        self.request = self.request.headers(headers);
+        self
+    }
+
+    /// 添加查询参数。
+    #[must_use]
+    pub fn query<T: serde::Serialize + ?Sized>(mut self, value: &T) -> Self {
+        self.request = self.request.query(value);
+        self
+    }
+
+    /// 设置 bearer authorization 值。
+    #[must_use]
+    pub fn bearer_auth(mut self, token: &str) -> Self {
+        self.request = self.request.bearer_auth(token);
+        self
+    }
+
+    /// 发送请求；排队时间计入客户端总时限。
+    pub async fn send(self) -> Result<HttpResponse, HttpClientError> {
+        let deadline = tokio::time::Instant::now() + self.request.timeout;
+        let permit = self.dependency.acquire(deadline).await?;
+        let mut request = self.request;
+        request.timeout = deadline.saturating_duration_since(tokio::time::Instant::now());
+        let result = match tokio::time::timeout_at(deadline, request.send()).await {
+            Ok(result) => result,
+            Err(_) => Err(HttpClientError::Timeout),
+        };
+        finish_dependency_response(permit, result)
+    }
+
+    /// 将请求声明为可安全重试，并在同一容量许可下执行所有尝试。
+    pub fn idempotent(self) -> IdempotentDependencyRequest {
+        IdempotentDependencyRequest {
+            dependency: self.dependency,
+            request: self.request.idempotent(),
+        }
+    }
+}
+
+/// 已声明幂等且受命名依赖隔离的请求。
+pub struct IdempotentDependencyRequest {
+    dependency: DependencyClient,
+    request: IdempotentHttpRequest,
+}
+
+impl IdempotentDependencyRequest {
+    /// 在总时限内排队并执行受限重试。
+    pub async fn send_with_retry(
+        self,
+        policy: RetryPolicy,
+    ) -> Result<HttpResponse, HttpClientError> {
+        let timeout = self.request.0.timeout;
+        let deadline = tokio::time::Instant::now() + timeout;
+        let permit = self.dependency.acquire(deadline).await?;
+        let mut request = self.request;
+        request.0.timeout = deadline.saturating_duration_since(tokio::time::Instant::now());
+        let result = match tokio::time::timeout_at(deadline, request.send_with_retry(policy)).await
+        {
+            Ok(result) => result,
+            Err(_) => Err(HttpClientError::Timeout),
+        };
+        finish_dependency_response(permit, result)
+    }
+}
+
+fn finish_dependency_response(
+    mut permit: DependencyPermit,
+    result: Result<HttpResponse, HttpClientError>,
+) -> Result<HttpResponse, HttpClientError> {
+    permit.record(&result);
+    result.map(|mut response| {
+        response.dependency_permit = Some(permit);
+        response
+    })
+}
+
+struct DependencyPermit {
+    dependency: DependencyClient,
+    _permit: OwnedSemaphorePermit,
+    outcome_recorded: bool,
+}
+
+struct QueueWaiter<'a>(&'a AtomicUsize);
+
+impl Drop for QueueWaiter<'_> {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::AcqRel);
+    }
+}
+
+impl DependencyPermit {
+    fn record(&mut self, result: &Result<HttpResponse, HttpClientError>) {
+        let outcome = match result {
+            Ok(response) => Some(response.status().is_server_error()),
+            Err(HttpClientError::Transport | HttpClientError::Timeout) => Some(true),
+            Err(_) => None,
+        };
+        if let Some(failed) = outcome {
+            self.dependency.record_outcome(failed);
+            self.outcome_recorded = true;
+        }
+    }
+
+    fn record_stream_failure(&self) {
+        self.dependency.record_outcome(true);
+    }
+}
+
+impl Drop for DependencyPermit {
+    fn drop(&mut self) {
+        if self.outcome_recorded {
+            return;
+        }
+        if let Some((_, state)) = &self.dependency.runtime.breaker
+            && let Ok(mut state) = state.lock()
+            && state.opened_at.is_some()
+        {
+            state.half_open_calls = state.half_open_calls.saturating_sub(1);
+        }
+    }
+}
+
+fn jitter_value(ceiling: u64) -> u64 {
+    use std::sync::atomic::AtomicU64;
+    static SEQUENCE: AtomicU64 = AtomicU64::new(0x9e37_79b9_7f4a_7c15);
+    let mut value = SEQUENCE.fetch_add(0x9e37_79b9_7f4a_7c15, Ordering::Relaxed);
+    value ^= value >> 12;
+    value ^= value << 25;
+    value ^= value >> 27;
+    value.wrapping_mul(0x2545_f491_4f6c_dd1d) % ceiling.saturating_add(1)
 }
 
 impl HttpClient {
@@ -340,6 +767,7 @@ impl HttpClient {
             max_response_bytes: config.max_response_bytes,
             timeout: config.timeout,
             target_policy: None,
+            dependencies: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 
@@ -382,6 +810,7 @@ impl HttpClient {
             max_response_bytes: config.max_response_bytes,
             timeout: config.timeout,
             target_policy: Some(policy),
+            dependencies: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 
@@ -408,6 +837,7 @@ impl HttpClient {
             max_response_bytes: config.max_response_bytes,
             timeout: config.timeout,
             target_policy: None,
+            dependencies: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 
@@ -790,18 +1220,21 @@ impl IdempotentHttpRequest {
                     if attempt + 1 < policy.max_attempts
                         && matches!(
                             response.status,
-                            StatusCode::BAD_GATEWAY
+                            StatusCode::TOO_MANY_REQUESTS
+                                | StatusCode::BAD_GATEWAY
                                 | StatusCode::SERVICE_UNAVAILABLE
                                 | StatusCode::GATEWAY_TIMEOUT
                         ) =>
                 {
+                    let retry_after = retry_after_delay(&response.headers, policy);
                     drop(response);
-                    tokio::time::timeout_at(
-                        deadline,
-                        tokio::time::sleep(policy.delay(u32::from(attempt))),
-                    )
-                    .await
-                    .map_err(|_| HttpClientError::Timeout)?;
+                    let delay = retry_after
+                        .map_or(policy.delay(u32::from(attempt)), |server_delay| {
+                            policy.delay(u32::from(attempt)).max(server_delay)
+                        });
+                    tokio::time::timeout_at(deadline, tokio::time::sleep(delay))
+                        .await
+                        .map_err(|_| HttpClientError::Timeout)?;
                 }
                 Ok(response) => {
                     return HttpResponse::from_transport(response, max_response_bytes, deadline);
@@ -827,6 +1260,21 @@ impl IdempotentHttpRequest {
     }
 }
 
+fn retry_after_delay(headers: &HeaderMap, policy: RetryPolicy) -> Option<Duration> {
+    let value = headers.get(http::header::RETRY_AFTER)?.to_str().ok()?;
+    let delay = value
+        .parse::<u64>()
+        .ok()
+        .map(Duration::from_secs)
+        .or_else(|| {
+            httpdate::parse_http_date(value).ok().map(|date| {
+                date.duration_since(std::time::SystemTime::now())
+                    .unwrap_or_default()
+            })
+        })?;
+    Some(delay.min(policy.retry_after_cap).min(policy.max_delay))
+}
+
 impl HttpResponse {
     fn from_transport(
         response: TransportResponse,
@@ -850,6 +1298,7 @@ impl HttpResponse {
             max_response_bytes,
             body_bytes_read: 0,
             deadline,
+            dependency_permit: None,
         })
     }
 }
@@ -862,6 +1311,7 @@ pub struct HttpResponse {
     max_response_bytes: usize,
     body_bytes_read: usize,
     deadline: tokio::time::Instant,
+    dependency_permit: Option<DependencyPermit>,
 }
 
 impl HttpResponse {
@@ -877,14 +1327,30 @@ impl HttpResponse {
 
     /// 读取一个响应块；到达 stream 末尾后返回 `None`。
     pub async fn next_chunk(&mut self) -> Result<Option<Vec<u8>>, HttpClientError> {
-        let Some(chunk) = tokio::time::timeout_at(self.deadline, self.body.next_chunk())
+        let next_chunk = tokio::time::timeout_at(self.deadline, self.body.next_chunk())
             .await
-            .map_err(|_| HttpClientError::Timeout)??
-        else {
-            return Ok(None);
+            .map_err(|_| HttpClientError::Timeout)
+            .and_then(|result| result);
+        let chunk = match next_chunk {
+            Ok(Some(chunk)) => chunk,
+            Ok(None) => {
+                self.dependency_permit.take();
+                return Ok(None);
+            }
+            Err(error) => {
+                if let Some(permit) = &self.dependency_permit {
+                    permit.record_stream_failure();
+                }
+                self.dependency_permit.take();
+                return Err(error);
+            }
         };
         let new_size = self.body_bytes_read.saturating_add(chunk.len());
         if new_size > self.max_response_bytes {
+            if let Some(permit) = &self.dependency_permit {
+                permit.record_stream_failure();
+            }
+            self.dependency_permit.take();
             return Err(HttpClientError::BodyTooLarge);
         }
         self.body_bytes_read = new_size;
@@ -925,7 +1391,7 @@ mod tests {
     use super::{
         HttpClient, HttpClientConfig, HttpClientError, HttpResponseBody, HttpTargetPolicy,
         HttpTransport, IpNet, RestrictedResolver, RetryPolicy, TransportResponse,
-        is_public_address,
+        is_public_address, retry_after_delay,
     };
 
     struct FakeTransport {
@@ -1031,6 +1497,74 @@ mod tests {
             HttpClient::new(config),
             Err(HttpClientError::InvalidConfig)
         ));
+    }
+
+    #[tokio::test]
+    async fn breaker_does_not_count_local_policy_rejections_as_dependency_failures()
+    -> Result<(), HttpClientError> {
+        let client = HttpClient::new(HttpClientConfig::default())?;
+        let dependency = client.dependency(
+            "catalog",
+            super::DependencyPolicy {
+                max_in_flight: 1,
+                max_waiting: 1,
+                circuit_breaker: Some(super::CircuitBreakerPolicy {
+                    failure_threshold: 1,
+                    reset_timeout: Duration::from_secs(1),
+                    half_open_max_calls: 1,
+                }),
+            },
+        )?;
+        let Some((_, breaker)) = &dependency.runtime.breaker else {
+            return Err(HttpClientError::InvalidConfig);
+        };
+        breaker
+            .lock()
+            .map_err(|_| HttpClientError::InvalidConfig)?
+            .failures = 1;
+        let mut permit = dependency
+            .acquire(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await?;
+        permit.record(&Err(HttpClientError::TargetRejected));
+        assert_eq!(
+            breaker
+                .lock()
+                .map_err(|_| HttpClientError::InvalidConfig)?
+                .failures,
+            1
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn retry_after_values_are_parsed_and_capped() -> Result<(), HttpClientError> {
+        let policy = RetryPolicy::new(3, Duration::from_millis(10), Duration::from_secs(4))?
+            .retry_after_cap(Duration::from_secs(2));
+        let mut headers = http::HeaderMap::new();
+        headers.insert(
+            http::header::RETRY_AFTER,
+            http::HeaderValue::from_static("30"),
+        );
+        assert_eq!(
+            retry_after_delay(&headers, policy),
+            Some(Duration::from_secs(2))
+        );
+        headers.insert(
+            http::header::RETRY_AFTER,
+            http::HeaderValue::from_static("invalid"),
+        );
+        assert_eq!(retry_after_delay(&headers, policy), None);
+        Ok(())
+    }
+
+    #[test]
+    fn retry_jitter_stays_within_the_exponential_ceiling() -> Result<(), HttpClientError> {
+        let policy = RetryPolicy::new(3, Duration::from_millis(10), Duration::from_millis(25))?;
+        for index in 0..100 {
+            assert!(policy.delay(1) <= Duration::from_millis(20));
+            assert!(policy.delay(index % 3) <= Duration::from_millis(25));
+        }
+        Ok(())
     }
 
     #[test]

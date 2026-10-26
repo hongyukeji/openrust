@@ -64,9 +64,9 @@ v1 正式交付可选 gRPC server/client，完整契约、组件方案、G1–G3
 这两项补既有 HTTP client 的公共整合边界，并供 gRPC 复用适用部分；分别成簇，先定最小 contract。当前客户端已有超时、取消、响应限额和显式幂等重试，不重复开发。
 
 - **目标安全策略已按 [ADR-051](../decisions/adr-051-http-target-security.md) 实现**：`HttpClient::restricted` 可选约束 HTTP/HTTPS、主机/端口、凭据和公网/内网 IP；受限 resolver 检查全部 DNS 结果并将同一地址集合交给 connector。重定向保持关闭，受限模式拒绝代理和自定义 transport。仅约束框架 HTTP client，不拦截 SeaORM、存储驱动或任意第三方网络连接；边界见 `core/http.md`。
-- **调用韧性**：按显式命名依赖维护有界并发/排队、可选熔断与半开探测。一个故障依赖不耗尽其他依赖容量；状态默认进程内，不能称全局共享限额。复用 Tower/现有能力，组件选型按 ADR-001，不要求服务发现控制面。
-- 与已有重试共同定义总预算、抖动退避、受界 Retry-After 和协议可重试分类；默认不重试，非幂等及一次性流不自动重放。记录重试、熔断、超时和隔离的组合顺序及计数口径，不嵌套多套重试循环；RPC 流不默认重试。
-- 验收：本地可控 resolver/transport 和真实测试服务分别覆盖受限地址、DNS 变化、跳转、代理边界、凭据泄漏与显式内网允许；双命名依赖一方故障、熔断打开/半开/恢复、排队拒绝/取消释放和总时限有证据。安全校验不访问真实云元数据或无关第三方目标。
+- **调用韧性已按 [ADR-052](../decisions/adr-052-named-dependency-resilience.md) 实现**：`HttpClient::dependency(name, policy)` 对同名配置共享有界并发/等待队列和可选熔断；等待、发送、重试共用客户端总时限，响应正文消费期间持有许可，取消释放队列和许可。熔断状态为进程内，按连续 transport/timeout 与 5xx 失败计数，4xx 清除连续失败。
+- `RetryPolicy` 默认关闭；仅 `idempotent()` 明确声明的可重放请求可重试，最多五次。transport/timeout、429、502、503、504 使用指数全抖动；`Retry-After` 秒数/HTTP 日期受 `max_delay` 与 `retry_after_cap` 限制，重试仍受总预算约束。RPC stream 不默认重试，gRPC 需在实现后另行复验。
+- 验收：目标安全已由 ADR-051 受控 resolver 与真实 TCP consumer 通过。韧性验收使用真实 loopback 服务覆盖双命名依赖隔离、容量与等待上限、取消释放、熔断打开/半开/恢复；单测覆盖重试上限、jitter 和 `Retry-After` 截断。安全校验不访问真实云元数据或无关第三方目标。
 - 参考 [OWASP SSRF 防护说明](https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html) 识别边界；该策略是应用可选能力，不替代部署侧网络访问控制，也不代表本轮已完成安全测试。
 
 ## 里程碑与交付证据

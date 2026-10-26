@@ -20,9 +20,10 @@ pub use crate::i18n::RequestLocale;
 pub use axum;
 #[cfg(feature = "http-client")]
 pub use client::{
-    HttpBody, HttpClient, HttpClientConfig, HttpClientError, HttpRequest, HttpResponse,
-    HttpResponseBody, HttpTargetPolicy, HttpTransport, HttpTransportRequest, IdempotentHttpRequest,
-    MultipartForm, RetryPolicy, TransportResponse,
+    CircuitBreakerPolicy, DependencyClient, DependencyPolicy, DependencyRequest, HttpBody,
+    HttpClient, HttpClientConfig, HttpClientError, HttpRequest, HttpResponse, HttpResponseBody,
+    HttpTargetPolicy, HttpTransport, HttpTransportRequest, IdempotentDependencyRequest,
+    IdempotentHttpRequest, MultipartForm, RetryPolicy, TransportResponse,
 };
 pub use client_ip::ClientIp;
 pub use extract::{Inject, Json, Path, Query, Validated};

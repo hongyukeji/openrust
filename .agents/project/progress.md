@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-27
-> 摘要：框架处于 v1 M5，尚未达到完整 v1。源码工作区、C1–C3 中文化、M3 认证流程扩展及 M4 共享锁、worker 生命周期、F1 日历调度、F2 国际化、F3 邮件模板、队列化通知、job 生成集成、通用插件公开契约、Db 与 Queue 外部扩展契约、跨协议验证/调用作用域和 HTTP 有界运行/就绪切换均有适用验收证据；M5 缓存驱动、命名实例、F4a tag generation、F4b 单进程加载合并和 F4c SWR 已通过适用验收，Redis Session 和 Redis Queue 均通过 Redis 8 真实服务验收；ADR-047 查询授权、ADR-048 稳定键分批和 ADR-049 迁移互斥已通过双库实际验收，ADR-050 存储与上传下载已通过 local/custom driver、真实 TCP、MinIO 与 workspace 门禁，ADR-051 受限出站目标策略已通过受控 DNS、真实 TCP 和适用 workspace 门禁；当前按待办推进命名依赖隔离与可选熔断，完整剩余范围见待办。
+> 摘要：框架处于 v1 M5，尚未达到完整 v1。源码工作区、C1–C3 中文化、M3 认证流程扩展及 M4 共享锁、worker 生命周期、F1 日历调度、F2 国际化、F3 邮件模板、队列化通知、job 生成集成、通用插件公开契约、Db 与 Queue 外部扩展契约、跨协议验证/调用作用域和 HTTP 有界运行/就绪切换均有适用验收证据；M5 缓存驱动、命名实例、F4a tag generation、F4b 单进程加载合并和 F4c SWR 已通过适用验收，Redis Session 和 Redis Queue 均通过 Redis 8 真实服务验收；ADR-047 查询授权、ADR-048 稳定键分批和 ADR-049 迁移互斥已通过双库实际验收，ADR-050 存储与上传下载已通过 local/custom driver、真实 TCP、MinIO 与 workspace 门禁，ADR-051 受限出站目标策略已通过受控 DNS 与真实 TCP；ADR-052 命名依赖韧性已通过 loopback TCP 和 workspace 门禁；当前按待办推进可选外部身份与 MFA F7，完整剩余范围见待办。
 
 ## 源码 workspace 交付
 
@@ -37,7 +37,7 @@
 - M5 HTTP 有界运行与就绪切换：新增应用级 `/ready`（listener 绑定后 200，停机/未启动时 503），保留 `/health` 存活语义；SIGINT/SIGTERM 先切换 not-ready 并停止接入，按 `shutdown_timeout_secs` drain，超时合作取消请求、join/终止 server task 并返回 `http_shutdown_timeout`。覆盖 listener bind 失败、请求 drain/超时和真实 server 子进程 SIGTERM。定向生命周期测试与真实 TCP SIGTERM 通过；`cargo fmt --all --check`、`git diff --check`、all-target/all-features clippy、默认与 all-features workspace tests、warnings-denied 默认/all-features docs、`cargo deny check`、no-default-features check 全部通过。`cargo deny` 有既有重复版本/MPL allowance 警告，advisories/bans/licenses/sources 均通过。测试仅验证单进程 HTTP 生命周期，不代表集群 readiness/依赖探测。
 
 - M5 Queue 外部扩展契约已提交 `d7d2132`：公开 `JobRegistry` 注册/执行 typed Job，`JobContext` 提供取消、进度 reporter 与应用状态；独立 consumer 经 `Queue::with_driver` 实际派发执行。PG18/MySQL8.4 队列及其相关 16 项双库真实服务回归通过；尚未验收完整集群与生产负载。
-- M5 跨协议调用作用域已提交 `19e56f4`：新增公共 `validation::validate`、`ExecutionContext` / `ExecutionMetadata` / `Cancellation`；HTTP request/timeout/cancel、命令 locale scope、数据库队列 metadata envelope、worker attempt deadline/cancel 与 request-id span 均已实现。PostgreSQL 18 与 MySQL 8.4 的真实 queue/migration/crash-recovery targets 各 7 项通过，包含持久化 worker 与任务链 metadata round-trip。后续 HTTP 有界运行/就绪切换另见本节；缓存、SWR、命名数据库连接、Redis Session、显式同步任务和 Redis Queue 均已完成适用验收；ADR-047 查询授权、ADR-048 稳定键有界分批、ADR-049 迁移互斥和 ADR-050 存储均已完成，当前推进出站目标安全策略。
+- M5 跨协议调用作用域已提交 `19e56f4`：新增公共 `validation::validate`、`ExecutionContext` / `ExecutionMetadata` / `Cancellation`；HTTP request/timeout/cancel、命令 locale scope、数据库队列 metadata envelope、worker attempt deadline/cancel 与 request-id span 均已实现。PostgreSQL 18 与 MySQL 8.4 的真实 queue/migration/crash-recovery targets 各 7 项通过，包含持久化 worker 与任务链 metadata round-trip。后续 HTTP 有界运行/就绪切换另见本节；缓存、SWR、命名数据库连接、Redis Session、显式同步任务和 Redis Queue 均已完成适用验收；ADR-047 查询授权、ADR-048 稳定键有界分批、ADR-049 迁移互斥、ADR-050 存储及 ADR-051/052 出站安全与韧性均已完成，当前推进可选外部身份与 MFA F7。
 
 - 原 M0–M2 基础范围和 M3 本地认证/安全运行时已验收；Mailer/Policy 生成器、公开 HTTP 路由限流与数据输出/查询边界均已提交并完成适用验证。
 - M4 仅部分完成；单项 scheduler/worker 多进程测试不等于完整集群验收。
@@ -53,7 +53,7 @@
 
 ## 下一步
 
-按 [todo.md](todo.md) 推进命名依赖隔离与可选熔断及后续 M5/M6 工作；ADR-049 数据库迁移互斥已通过双库验收，ADR-050 存储与上传下载已通过真实 MinIO 和 workspace 门禁，ADR-051 受限出站目标策略已完成。再执行完整 v1 性能、生产就绪与集群门禁。Worker 与 scheduler 专项双库证据不覆盖生产多实例负载与完整集群门禁。组件整合与 Laravel 式体验按 ADR-001；不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
+按 [todo.md](todo.md) 推进可选外部身份与 MFA F7 及后续 M5/M6 工作；ADR-049 数据库迁移互斥已通过双库验收，ADR-050 存储与上传下载已通过真实 MinIO 和 workspace 门禁，ADR-051 出站目标安全与 ADR-052 命名依赖韧性均已完成适用验收。再执行完整 v1 性能、生产就绪与集群门禁。Worker 与 scheduler 专项双库证据不覆盖生产多实例负载与完整集群门禁。组件整合与 Laravel 式体验按 ADR-001；不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
 
 ## 本次文档核对范围
 
@@ -78,3 +78,8 @@
 ## M5 ADR-051 出站目标策略
 
 `HttpClient::new` 与配置结构保持原行为；新增显式 `HttpClient::restricted`，约束协议、主机白名单、端口、URL userinfo 和公网/内网目标。18 项客户端单测覆盖默认拒绝、userinfo、混合/空 DNS 结果、内网规则重复登记与端口限制、显式 `Host` 拒绝，以及变化 resolver 只解析一次后连接同一已批准的本地 TCP 地址。`apps/server` 聚合 consumer 2 项通过，实测未授权私网、主机/端口不匹配、代理与 `Host` 覆写失败关闭、显式 host + CIDR + port 内网连接，以及带 Bearer 的 307 不跟随且第二 listener 未收到请求。workspace 默认与串行 all-features tests、default/all-features all-target clippy、warnings-denied Rustdoc、no-default-features check、`cargo deny check`、fmt 与 diff check 均通过；deny 仅保留既有未匹配 MPL-2.0 allowance 和重复版本警告。未访问公网或云 metadata；策略不约束任意第三方网络客户端、SeaORM、存储 driver 或网络 NAT。
+
+
+## M5 ADR-052 命名依赖隔离与可选熔断
+
+`HttpClient::dependency(name, policy)` 在同一客户端及克隆间按名称共享有界并发、等待队列和可选熔断；同名策略不一致会拒绝配置。HTTP 总时限涵盖排队、发送和重试，响应正文消费期间持有许可；取消释放等待槽和许可。熔断默认关闭、进程内共享，按连续 transport/timeout 错误和 5xx 计失败，冷却后限制半开探测，4xx 计为成功。显式幂等重试最多五次，采用全抖动指数退避，并对 429/502/503/504 处理受上限约束的秒数或 HTTP 日期 `Retry-After`。`cargo test -p openrust --features http-client http::client::tests -- --nocapture` 21 项通过；`cargo test -p server --all-features --test http_client -- --nocapture` 6 项通过，含真实 loopback TCP 上的跨依赖隔离、满队列拒绝/取消释放、流式响应持许可及队列等待超时、熔断打开/半开恢复。默认与串行 all-features workspace tests、default/all-features all-target Clippy、warnings-denied Rustdoc、no-default-features check、`cargo deny check`、fmt 和 diff check 全部通过。deny 仅保留既有重复版本及未匹配 MPL-2.0 allowance 警告。无外部服务依赖；不覆盖跨进程总限额，gRPC 尚未实现且未验收。
