@@ -31,7 +31,7 @@
 | 请求幂等 | 统一可选中间件/服务契约，复用数据库事务 | 身份与接口隔离、指纹、并发、响应重放、过期及崩溃恢复；与限流和任务去重分开 |
 | 通用 Session/Cookie | 公开会话能力，认证消费该能力 | 读写/删除/过期、会话轮换与失效、Cookie 属性、CSRF 接入；数据库默认、既定可选 Redis 适配，fake 与并发测试 |
 | 通用限流 | `openrust::core::RateLimiter` / `RateLimitStore`；DatabasePlugin 默认注册 PostgreSQL/MySQL 共享固定窗口 store，显式运行 `DatabaseRateLimitMigration` | 已实现通用策略校验、原子消费、429/Retry-After、失败关闭、摘要 key 和过期批量清理；双库验证独立实例共享及窗口重置。HTTP middleware/key 提取及各业务端点策略接入仍按对应功能簇完成；本地自定义 store 必须显式实现并标明共享边界 |
-| 基础读写分离 | `openrust::db`，复用 SeaORM 与既有 Plugin/配置 | 默认单库，按需主库/只读副本；事务及关键读取固定主库、显式主库、请求内写后保持主库和可配置故障策略；按 [专题计划](v1-database-read-write-splitting.md) 完成真实双库复制验收，尚未实现 |
+| 基础读写分离 | `openrust::db`，复用 SeaORM 与既有 Plugin/配置 | 已提供默认单库、可选同 backend 主/只读副本、显式副本轮询、事务固定主库及 task-local 主库 scope；副本故障显式报错、不自动重试或回退。PostgreSQL 18.6 / MySQL 8.4.13 真实复制暂停/追平已验证；完整多节点集群仍按 [专题计划](v1-database-read-write-splitting.md) 验收 |
 | ORM 与查询体验 | `openrust::db` 与现有 ORM；不自研第二个 ORM | 关联加载、批量操作、分页、软删除/恢复、事务、受控原生 SQL 及查询诊断有明确入口或直接复用说明；覆盖 N+1、数据泄漏和双库差异 |
 | API 数据输出 | 现有响应包装与 DTO/资源转换约定 | 字段白名单、敏感字段排除、关联数据与分页输出；生成物和 OpenAPI 一致，不重复建立响应体系 |
 | 缓存操作与锁 | `openrust::cache` 公共契约和独立锁能力契约（driver/store 见 [ADR-014](../decisions/adr-014-cache-driver-and-store-contract.md)） | 标准应用默认 Redis（ADR-015）、显式 memory/file、库层 Redis feature 可选；命名空间、统一 serde 序列化、TTL 与未命中/故障区分；基础/批量操作、条件写入与数值操作的原子性；锁的所有权、超时与释放规则明确，不支持时显式拒绝而非伪装成功 |

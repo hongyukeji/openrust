@@ -8,7 +8,7 @@
 
 以下是 v1 已承诺、尚未完整实现或验收的底层工作。它们分属不同功能簇和里程碑，不能当成一次性目录重构，也不能因为 M0-M2 基线完成就视为已交付。每次切换任务先核对本表及对应专题计划；专题计划是范围和验收标准的详细来源。
 
-1. **当前：实现数据库基础读写分离**：先基于 `Db`/`DatabasePlugin` 现有 API 写最小公共 contract，再在 `openrust::db` 实现可选只读副本、强制主库、事务/锁定读取固定主库、请求/工作单元内写后读一致性与清晰故障语义；最终必须用 PostgreSQL/MySQL 真实复制拓扑验收。
+1. **M2 数据库读写分离已实现并验证**：`Db` 提供显式只读副本路由与 task-local primary scope；PostgreSQL 18 / MySQL 8.4 真实复制暂停/追平及双 App 隔离测试通过。指标接入和完整业务负载性能测试归入通用可观测性与性能计划，不表示完整集群验收完成。
 2. **按 M4/M5/M6 分批补齐其他底层机制**：M4 前确定 worker/scheduler 安全停机、取消和租约恢复契约；M5 实现 Redis 默认缓存与 memory/file、命名 store，并补齐存储和可观测性；国际化、WebSocket、统一出站 HTTP、通用加密/密钥轮换、审计、请求幂等及事务/业务扩展点按各自专题计划排期实施。
 3. **集群是跨里程碑的 v1 强制验收项**：共享会话/限流/缓存、队列与调度竞争、跨节点实时路由、共享文件、故障恢复和滚动升级须在对应能力实现时逐步覆盖，最后按 [集群计划](plans/v1-cluster-deployment.md) 做 PostgreSQL/MySQL 多副本验收；单机测试或多个互不通信的进程不算集群验收。
 
@@ -20,9 +20,9 @@
 
 ## 当前优先：框架底层调整
 
-- 本轮 Spec：[框架底层调整](plans/foundation-adjustments-spec.md)。根 `openrust` 模块迁移已独立提交，并通过迁移后的 workspace、feature、双库与生成项目验证；当前进入 M2 读写分离 contract/实现，随后按 M4/M5/M6 依赖落地集群共享能力。配置源码固定在 `src/config/mod.rs`，运行配置仍在应用根 `config/`。
+- 本轮 Spec：[框架底层调整](plans/foundation-adjustments-spec.md)。根 `openrust` 模块迁移已独立提交；M2 读写分离已按 [ADR-029](decisions/adr-029-database-read-routing.md) 实现并通过 PostgreSQL 18 / MySQL 8.4 真实复制拓扑验证。配置源码固定在 `src/config/mod.rs`，运行配置仍在应用根 `config/`。
 - 根模块迁移依据 [迁移 Spec](plans/module-layout-migration-spec.md)；既有 M3 WIP 的双库数据库测试与 PostgreSQL/MySQL 生成项目 HTTP e2e 已在迁移后复验通过。M3 认证实现继续保留为独立待办，不计入迁移成果。
-- PostgreSQL 16 / MySQL 8.4 测试服务使用现有 `compose.ci.yaml`。当前根 tests/examples 与 server 验收职责映射见迁移 Spec；由于聚合启动、生成项目与双库验收仍由 `apps/server` 承担，继续保留该 package。
+- PostgreSQL 18 / MySQL 8.4 测试服务使用现有 `compose.ci.yaml`。当前根 tests/examples 与 server 验收职责映射见迁移 Spec；由于聚合启动、生成项目与双库验收仍由 `apps/server` 承担，继续保留该 package。
 
 ## M3 邮件、认证与授权（暂停功能开发；保留既有 WIP）
 
@@ -43,11 +43,6 @@
 - 本簇验收前按 [执行校准](plan.md#执行校准) 核对契约：共享会话与跨节点撤销、认证所需全局限流/验证码边界、注册/登录公开扩展点及 `Inject` 共存；后续 M3 任务按完整 v1 覆盖清单逐簇领取，不以身份注入完成代替整个 M3。
 - ADR-012 定义身份/路由 contract；授权 API 与角色/权限跨节点变更传播已由 ADR-027 定义为共享数据库实时读取。该实现不替代本簇端到端验收。
 
-## M2 数据层增补：基础读写分离（根模块迁移闭环后领取）
-
-- 按 [读写分离计划](plans/v1-database-read-write-splitting.md) 先确定公共 contract，再扩展 `openrust::db`；默认单库、可选副本、事务/锁定读取固定主库、显式主库与请求内写后保持主库、可配置故障回退。当前状态：待开发，不打断认证 WIP。
-- 核对认证撤销/权限、幂等、队列/调度、迁移等主库路径；完成 PostgreSQL/MySQL 真实复制拓扑与故障/延迟验证，更新模板、README 和事实文档，不能以多个连接池代替验收。
-
 ## M4 队列生命周期契约（M4 实施前）
 
 - 按 [ADR-023](decisions/adr-023-loco-application-experience-evaluation.md)，在实现 worker/scheduler 前，基于既有 `Plugin`/graceful shutdown 流程确定是否需要异步插件 shutdown 扩展，并定义顺序、错误聚合、超时、取消、join、租约释放与节点故障恢复。不得新增并列 `Hooks` 系统，也不能把 HTTP 连接 drain 等同于后台任务已安全停止。
@@ -67,4 +62,4 @@
 
 ## 阻塞
 
-- 读写分离的 PostgreSQL/MySQL 真实主从复制拓扑尚未准备；实现和单机契约测试可以继续，拓扑验收不得用两个互不复制的数据库代替。
+- 完整集群负载均衡、跨节点认证/幂等/队列等最终验收尚未完成；M2 读写路由的真实复制拓扑证据不替代这些集群门禁。

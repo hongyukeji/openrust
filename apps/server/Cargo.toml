@@ -35,6 +35,10 @@ validator.workspace = true
 [lints]
 workspace = true
 
+[[bench]]
+name = "db_routing"
+harness = false
+
 [features]
 default = []
 db-postgres = ["openrust/db-postgres", "openrust-test/db-postgres"]

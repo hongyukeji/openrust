@@ -43,7 +43,7 @@ apps/server/             # 同仓库集成宿主；通过验收替代后才可�
 | --- | --- |
 | `openrust::core`、`openrust::config` | Application/AppBuilder/AppState/Plugin/Command、错误与生命周期、分层配置；见 [core/core.md](core/core.md) |
 | `openrust::http` | HttpPlugin、Routes、Validated、Inject、中间件、health/serve；根 `tests/http_*.rs` 覆盖 HTTP 行为；见 [core/http.md](core/http.md) |
-| `openrust::db` | SeaORM 双库、连接池、事务、migration/seed、方言与表名解析；基础读写分离尚未实现；见 [core/db.md](core/db.md) |
+| `openrust::db` | SeaORM 双库、连接池、事务、migration/seed、方言与表名解析；显式只读副本路由和 task-local 主库 scope 已实现，完整集群验收仍未完成；见 [core/db.md](core/db.md) |
 | `openrust::auth` | JWT、Session、refresh、PAT、验证码、AuthFlows、Policy/RBAC 的现有 WIP 已随源码迁移；继续独立按 M3 验收，不把路径迁移算成功能完成；见 [core/auth.md](core/auth.md) |
 | `openrust::mail` | Email/Mailer 的 log、fake、可选 SMTP；见 [core/mail.md](core/mail.md) |
 | `openrust-cli` | new/dev/generate 与模板，见 [core/cli.md](core/cli.md) |

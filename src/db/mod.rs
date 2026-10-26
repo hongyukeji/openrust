@@ -4,6 +4,7 @@
 
 use std::fmt;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use crate::config::ConfigError;
@@ -12,6 +13,10 @@ use sea_orm::ConnectionTrait;
 use sea_orm::{ConnectOptions, Database, Statement, TransactionTrait};
 use serde::Deserialize;
 use std::sync::OnceLock;
+
+tokio::task_local! {
+    static PRIMARY_CONNECTION_SCOPE: (usize, DatabaseConnection);
+}
 
 pub mod dialect;
 mod migration;
@@ -30,7 +35,7 @@ pub use table_names::DatabaseTableNames;
 /// A database backend included in OpenRust's official PostgreSQL/MySQL feature set.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DatabaseBackend {
-    /// PostgreSQL 16 or newer, the current broad-adoption development target.
+    /// PostgreSQL 16 or newer; daily development and CI target PostgreSQL 18.
     PostgreSql,
     /// MySQL 8.4 or newer, the current broad-adoption LTS development target.
     MySql,
@@ -85,6 +90,8 @@ impl DatabaseBackend {
 pub struct DatabaseConfig {
     /// Database connection URL. `DATABASE_URL` and `APP_DATABASE__URL` map here.
     pub url: Option<String>,
+    /// Optional read-only replica URLs. Each replica uses the same pool limits as the primary.
+    pub read_replicas: Vec<String>,
     /// Maximum number of open pooled connections.
     pub max_connections: u32,
     /// Minimum number of open pooled connections.
@@ -103,6 +110,7 @@ impl Default for DatabaseConfig {
     fn default() -> Self {
         Self {
             url: None,
+            read_replicas: Vec::new(),
             max_connections: 10,
             min_connections: 1,
             connect_timeout_secs: 5,
@@ -117,6 +125,10 @@ impl fmt::Debug for DatabaseConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("DatabaseConfig")
             .field("url", &self.url.as_ref().map(|_| "[REDACTED]"))
+            .field(
+                "read_replicas",
+                &format_args!("{} configured", self.read_replicas.len()),
+            )
             .field("max_connections", &self.max_connections)
             .field("min_connections", &self.min_connections)
             .field("connect_timeout_secs", &self.connect_timeout_secs)
@@ -130,8 +142,15 @@ impl fmt::Debug for DatabaseConfig {
 /// Cloneable handle to the database connection pool registered by [`DatabasePlugin`].
 #[derive(Clone, Default)]
 pub struct Db {
-    connection: Arc<OnceLock<DatabaseConnection>>,
+    connections: Arc<OnceLock<DatabaseConnections>>,
     table_names: Arc<DatabaseTableNames>,
+    next_replica: Arc<AtomicUsize>,
+}
+
+#[derive(Clone)]
+struct DatabaseConnections {
+    primary: DatabaseConnection,
+    read_replicas: Vec<DatabaseConnection>,
 }
 
 impl Db {
@@ -146,21 +165,52 @@ impl Db {
     ///
     /// Returns an error when this handle has already been initialized.
     pub fn initialize(&self, connection: DatabaseConnection) -> Result<()> {
-        self.table_names
-            .validate_backend(connection.get_database_backend())?;
-        self.connection.set(connection).map_err(|_| {
-            Error::custom(
-                "database_already_initialized",
-                "database connection pool was initialized more than once",
-            )
-        })
+        self.initialize_with_replicas(connection, Vec::new())
+    }
+
+    /// Installs the primary and optional read-only replica pools for a custom database plugin.
+    ///
+    /// Every pool must use the same backend. The framework does not configure or verify database
+    /// replication; callers must ensure replicas are read-only and accept replication lag.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a pool has a different backend or this handle was already initialized.
+    pub fn initialize_with_replicas(
+        &self,
+        primary: DatabaseConnection,
+        read_replicas: Vec<DatabaseConnection>,
+    ) -> Result<()> {
+        let backend = primary.get_database_backend();
+        self.table_names.validate_backend(backend)?;
+        if read_replicas
+            .iter()
+            .any(|replica| replica.get_database_backend() != backend)
+        {
+            return Err(Error::custom(
+                "database_replica_backend_mismatch",
+                "all database read replicas must use the same backend as the primary",
+            ));
+        }
+        self.connections
+            .set(DatabaseConnections {
+                primary,
+                read_replicas,
+            })
+            .map_err(|_| {
+                Error::custom(
+                    "database_already_initialized",
+                    "database connection pools were initialized more than once",
+                )
+            })
     }
 
     /// Creates a database handle using the supplied immutable table-name resolver.
     pub fn with_table_names(table_names: DatabaseTableNames) -> Self {
         Self {
-            connection: Arc::new(OnceLock::new()),
+            connections: Arc::new(OnceLock::new()),
             table_names: Arc::new(table_names),
+            next_replica: Arc::new(AtomicUsize::new(0)),
         }
     }
 
@@ -189,7 +239,7 @@ impl Db {
     ///
     /// Returns an internal error if the pool is not initialized.
     pub fn backend(&self) -> Result<DbBackend> {
-        Ok(self.connection()?.get_database_backend())
+        Ok(self.primary_connection()?.get_database_backend())
     }
 
     /// Returns a clone of the initialized SeaORM connection pool.
@@ -198,10 +248,50 @@ impl Db {
     ///
     /// Returns an internal error if the database plugin has not finished initializing.
     pub fn connection(&self) -> Result<DatabaseConnection> {
-        self.connection
+        self.primary_connection()
+    }
+
+    /// Returns a clone of the primary SeaORM connection pool.
+    pub fn primary_connection(&self) -> Result<DatabaseConnection> {
+        self.connections
             .get()
-            .cloned()
+            .map(|connections| connections.primary.clone())
             .ok_or_else(|| Error::internal(DatabaseNotReady))
+    }
+
+    /// Returns a read connection selected by round robin, or the primary when no replicas exist.
+    ///
+    /// The caller must perform only read-only work that can tolerate replication lag. This method
+    /// does not inspect SQL and does not retry or fall back after a query error. Within
+    /// [`with_primary`](Self::with_primary), it always returns the primary.
+    pub fn read_connection(&self) -> Result<DatabaseConnection> {
+        let connections = self
+            .connections
+            .get()
+            .ok_or_else(|| Error::internal(DatabaseNotReady))?;
+        let handle_id = Arc::as_ptr(&self.connections) as usize;
+        if let Ok(Some(connection)) = PRIMARY_CONNECTION_SCOPE
+            .try_with(|(scope_id, connection)| (*scope_id == handle_id).then(|| connection.clone()))
+        {
+            return Ok(connection);
+        }
+        if connections.read_replicas.is_empty() {
+            return Ok(connections.primary.clone());
+        }
+        let index = next_replica_index(connections.read_replicas.len(), &self.next_replica);
+        Ok(connections.read_replicas[index].clone())
+    }
+
+    /// Runs a future in a task-local scope where [`read_connection`](Self::read_connection)
+    /// returns this handle's primary connection.
+    ///
+    /// The scope does not propagate to independently spawned Tokio tasks. Nesting scopes for the
+    /// same handle restores the outer scope when the inner future completes.
+    pub async fn with_primary<F: std::future::Future>(&self, future: F) -> Result<F::Output> {
+        let primary = self.primary_connection()?;
+        Ok(PRIMARY_CONNECTION_SCOPE
+            .scope((Arc::as_ptr(&self.connections) as usize, primary), future)
+            .await)
     }
 
     /// Runs an operation in a database transaction.
@@ -224,12 +314,16 @@ impl Db {
     }
 }
 
+fn next_replica_index(replica_count: usize, counter: &AtomicUsize) -> usize {
+    counter.fetch_add(1, Ordering::Relaxed) % replica_count
+}
+
 impl fmt::Debug for Db {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Db")
-            .field("initialized", &self.connection.get().is_some())
+            .field("initialized", &self.connections.get().is_some())
             .field("table_names", &self.table_names)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -268,38 +362,21 @@ impl Plugin for DatabasePlugin {
                     "missing database.url (set DATABASE_URL or APP_DATABASE__URL)".into(),
                 ))
             })?;
-            let mut options = ConnectOptions::new(url.to_owned());
-            options
-                .max_connections(config.max_connections)
-                .min_connections(config.min_connections)
-                .connect_timeout(Duration::from_secs(config.connect_timeout_secs))
-                .acquire_timeout(Duration::from_secs(config.acquire_timeout_secs));
             let backend = DatabaseBackend::from_url(url)?;
-            #[cfg(feature = "db-mysql")]
-            if backend == DatabaseBackend::MySql {
-                options.map_sqlx_mysql_opts(|mysql_options| {
-                    mysql_options.ssl_mode(sqlx::mysql::MySqlSslMode::Required)
-                });
+            let connection = connect_database(url, &config, backend, "primary").await?;
+            let mut replicas = Vec::with_capacity(config.read_replicas.len());
+            for (index, replica_url) in config.read_replicas.iter().enumerate() {
+                let replica_backend = DatabaseBackend::from_url(replica_url)?;
+                if replica_backend != backend {
+                    return Err(Error::Config(ConfigError::Invalid(format!(
+                        "database.read_replicas[{index}] must use the same backend as database.url"
+                    ))));
+                }
+                replicas.push(
+                    connect_database(replica_url, &config, replica_backend, "read replica").await?,
+                );
             }
-            if backend == DatabaseBackend::MySql {
-                #[cfg(feature = "db-mysql")]
-                options.after_connect(|connection| {
-                    Box::pin(async move {
-                        connection
-                            .execute_unprepared("SET time_zone = '+00:00'")
-                            .await?;
-                        Ok(())
-                    })
-                });
-            }
-            let connection = Database::connect(options).await.map_err(|_| {
-                Error::Config(ConfigError::Invalid(format!(
-                    "could not connect to configured {} database",
-                    backend.name()
-                )))
-            })?;
-            validate_server_version(&connection, backend).await?;
-            db.initialize(connection)?;
+            db.initialize_with_replicas(connection, replicas)?;
             Ok(())
         })
     }
@@ -328,7 +405,70 @@ fn validate_config(config: &DatabaseConfig) -> Result<()> {
         }
     }
 
+    for (index, url) in config.read_replicas.iter().enumerate() {
+        let backend = DatabaseBackend::from_url(url).map_err(|_| {
+            Error::Config(ConfigError::Invalid(format!(
+                "database.read_replicas[{index}] has an unsupported database URL"
+            )))
+        })?;
+        if !backend.is_enabled() {
+            return Err(Error::Config(ConfigError::Invalid(format!(
+                "database.read_replicas[{index}] requires the openrust feature `{}`",
+                backend.feature()
+            ))));
+        }
+        if config
+            .url
+            .as_deref()
+            .and_then(|primary| DatabaseBackend::from_url(primary).ok())
+            .is_some_and(|primary| primary != backend)
+        {
+            return Err(Error::Config(ConfigError::Invalid(format!(
+                "database.read_replicas[{index}] must use the same backend as database.url"
+            ))));
+        }
+    }
+
     Ok(())
+}
+
+async fn connect_database(
+    url: &str,
+    config: &DatabaseConfig,
+    backend: DatabaseBackend,
+    role: &str,
+) -> Result<DatabaseConnection> {
+    let mut options = ConnectOptions::new(url.to_owned());
+    options
+        .max_connections(config.max_connections)
+        .min_connections(config.min_connections)
+        .connect_timeout(Duration::from_secs(config.connect_timeout_secs))
+        .acquire_timeout(Duration::from_secs(config.acquire_timeout_secs));
+    #[cfg(feature = "db-mysql")]
+    if backend == DatabaseBackend::MySql {
+        options.map_sqlx_mysql_opts(|mysql_options| {
+            mysql_options.ssl_mode(sqlx::mysql::MySqlSslMode::Required)
+        });
+    }
+    #[cfg(feature = "db-mysql")]
+    if backend == DatabaseBackend::MySql {
+        options.after_connect(|connection| {
+            Box::pin(async move {
+                connection
+                    .execute_unprepared("SET time_zone = '+00:00'")
+                    .await?;
+                Ok(())
+            })
+        });
+    }
+    let connection = Database::connect(options).await.map_err(|_| {
+        Error::Config(ConfigError::Invalid(format!(
+            "could not connect to configured {} {role}",
+            backend.name()
+        )))
+    })?;
+    validate_server_version(&connection, backend).await?;
+    Ok(connection)
 }
 
 async fn validate_server_version(
@@ -407,6 +547,7 @@ mod tests {
     fn defaults_define_a_small_pool_without_a_connection_url() {
         let config = DatabaseConfig::default();
         assert_eq!(config.url, None);
+        assert_eq!(config.read_replicas, Vec::<String>::new());
         assert_eq!(config.max_connections, 10);
         assert_eq!(config.min_connections, 1);
         assert_eq!(config.connect_timeout_secs, 5);
@@ -422,6 +563,27 @@ mod tests {
         let rendered = format!("{config:?}");
         assert!(!rendered.contains("secret"));
         assert!(rendered.contains("[REDACTED]"));
+    }
+
+    #[test]
+    fn debug_does_not_render_replica_urls() {
+        let config = DatabaseConfig {
+            read_replicas: vec!["postgres://replica:secret@host/db".into()],
+            ..DatabaseConfig::default()
+        };
+        let rendered = format!("{config:?}");
+        assert!(!rendered.contains("secret"));
+        assert!(!rendered.contains("replica@"));
+        assert!(rendered.contains("1 configured"));
+    }
+
+    #[test]
+    fn replica_selection_round_robins_without_skipping_configured_entries() {
+        let counter = AtomicUsize::new(0);
+        let selected = (0..5)
+            .map(|_| next_replica_index(3, &counter))
+            .collect::<Vec<_>>();
+        assert_eq!(selected, [0, 1, 2, 0, 1]);
     }
 
     #[test]
@@ -446,6 +608,26 @@ mod tests {
         };
         assert_eq!(
             validate_config(&config).is_ok(),
+            cfg!(feature = "db-postgres")
+        );
+    }
+
+    #[test]
+    fn replica_backend_requires_its_feature_and_matches_primary() {
+        let postgres = DatabaseConfig {
+            url: Some("postgres://primary@localhost/db".into()),
+            read_replicas: vec!["mysql://replica@localhost/db".into()],
+            ..DatabaseConfig::default()
+        };
+        assert!(validate_config(&postgres).is_err());
+
+        let missing_feature = DatabaseConfig {
+            url: Some("postgres://primary@localhost/db".into()),
+            read_replicas: vec!["postgres://replica@localhost/db".into()],
+            ..DatabaseConfig::default()
+        };
+        assert_eq!(
+            validate_config(&missing_feature).is_ok(),
             cfg!(feature = "db-postgres")
         );
     }

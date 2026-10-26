@@ -27,8 +27,8 @@
 | ORM / 迁移 | `sea-orm` 2.0.4 + `sea-orm-migration` 2.0.4 | 采用 M0 双库迁移 spike 验证的版本；tokio Rustls 默认运行时，数据库连接驱动按 `db-postgres` / `db-mysql` feature 开启 |
 | 数据库 URL | `url` 2.5 | `openrust-test` 替换隔离数据库名时保留连接凭据和查询参数 |
 | SQLx 支持 | `sqlx` 0.9 | MySQL driver 强制 TLS（Rustls）；不启用存在安全公告的 RSA 非 TLS 认证路径；`db.sqlx()` 尚未实现，若提供需先定义公开 API、feature 与连接生命周期 |
-| 数据库 | 日常开发/Compose/常规 CI：PostgreSQL 18、MySQL 8.4 LTS；额外版本仅在主版本跨度或兼容风险显著时专项测试 | PostgreSQL 官方按主版本提供五年支持，不称 LTS；运行时当前接受 PostgreSQL 16+，这不等于最终发布支持承诺。PostgreSQL 16 为历史验证版本，不再是日常基线。v1 发布前按届时生命周期确定并验证最低支持版本；不为每次日常 CI 追测所有版本 |
-| Redis | 日常目标为部署较广且受支持的 Redis Extended Support 版本；能力落地后按兼容风险决定是否专项覆盖最新版本 | Redis 官方版本类别称 Extended，不称 LTS；发布前核实届时版本生命周期，并验证标准缓存路径与共享语义 |
+| 数据库 | 日常开发/Compose：PostgreSQL 18、MySQL 8.4、Redis 8；常规 CI 数据库：PostgreSQL 18、MySQL 8.4；额外版本仅在主版本跨度或兼容风险显著时专项测试 | PostgreSQL 官方按主版本提供五年支持，不称 LTS；运行时当前接受 PostgreSQL 16+，这不等于最终发布支持承诺。PostgreSQL 16 为历史验证版本，不再是日常基线。v1 发布前按届时生命周期确定并验证最低支持版本；不为每次日常 CI 追测所有版本 |
+| Redis | 日常开发目标：Redis 8；能力落地后按兼容风险决定是否专项覆盖最新版本 | Redis 官方版本类别称 Extended，不称 LTS；发布前核实届时版本生命周期，并验证标准缓存路径与共享语义 |
 | 密码哈希 | `argon2` 0.6（Argon2id / PHC） | RustCrypto 实现；随机 salt；参数有界可配置；哈希与验证移入 Tokio blocking pool |
 | 认证与限流 key 摘要 | `sha2` 0.10 + `subtle` 2.6 | Session、PAT、CSRF 与数据库限流 key 存 SHA-256 摘要；CSRF 摘要比较使用常量时间比较。限流摘要仅避免原文持久化，不抵抗低熵 key 猜测 |
 | JWT | `jsonwebtoken` 11.1（`aws_lc_rs`） | 复用成熟 JWT 编解码与验证；避免 `rust_crypto` 带入被安全公告覆盖的 `rsa 0.9`；OpenRust 固定 HS256 并自行验证配置、kid、claims、密钥轮换与刷新凭据语义；MSRV 声明为 1.88，须由 workspace 1.97 验证 |
