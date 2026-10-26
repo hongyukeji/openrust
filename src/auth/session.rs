@@ -3,11 +3,11 @@
 use std::sync::Arc;
 
 use crate::config::ConfigError;
+use crate::config::SessionConfig;
 use crate::core::{App, AppBuilder, BoxFuture, Error, Plugin, Result};
 use crate::db::sea_orm::{ConnectionTrait, DbBackend, Statement};
 use crate::db::{DatabaseConnection, Db};
 use chrono::{DateTime, Utc};
-use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use tower_sessions::cookie::SameSite;
 use tower_sessions::session::{Id, Record};
@@ -15,47 +15,6 @@ use tower_sessions::session_store::{self, SessionStore};
 use tower_sessions::{Expiry, SessionManagerLayer};
 
 use crate::http::AppBuilderHttpExt;
-
-/// Settings for the shared Cookie Session middleware.
-#[derive(Clone, Deserialize)]
-#[serde(default)]
-pub struct SessionConfig {
-    /// Cookie name. Defaults to `openrust_session`.
-    pub cookie_name: String,
-    /// Whether browsers send the cookie only over HTTPS. Defaults to `true`.
-    pub secure: bool,
-    /// Whether the cookie is inaccessible to JavaScript (`HttpOnly`). Defaults to `true`.
-    pub http_only: bool,
-    /// `SameSite` policy: `strict`, `lax`, or `none`. Defaults to `lax`.
-    pub same_site: String,
-    /// Inactivity lifetime, in seconds. Defaults to two weeks.
-    pub ttl_secs: u64,
-}
-
-impl Default for SessionConfig {
-    fn default() -> Self {
-        Self {
-            cookie_name: "openrust_session".to_owned(),
-            secure: true,
-            http_only: true,
-            same_site: "lax".to_owned(),
-            ttl_secs: 1_209_600,
-        }
-    }
-}
-
-impl std::fmt::Debug for SessionConfig {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter
-            .debug_struct("SessionConfig")
-            .field("cookie_name", &self.cookie_name)
-            .field("secure", &self.secure)
-            .field("http_only", &self.http_only)
-            .field("same_site", &self.same_site)
-            .field("ttl_secs", &self.ttl_secs)
-            .finish()
-    }
-}
 
 impl SessionConfig {
     fn validate(&self) -> Result<SameSite> {

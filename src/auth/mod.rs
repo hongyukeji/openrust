@@ -28,8 +28,9 @@ mod verification;
 
 use database::DatabaseAuthenticator;
 
+pub use crate::config::JwtConfig;
 pub use flows::{AuthCredentials, AuthFlows, AuthFlowsPlugin, SessionCredentials};
-pub use jwt::{JwtConfig, JwtPlugin, JwtTokens};
+pub use jwt::{JwtPlugin, JwtTokens};
 pub use migration::{
     AuthMigration, AuthPolicyMigration, AuthRefreshTokenMigration, AuthVerificationCodeMigration,
 };
@@ -62,10 +63,12 @@ pub(crate) fn resolve_auth_sql(db: &crate::db::Db, sql: &str) -> Result<String> 
     }
     Ok(resolved)
 }
-pub use password::{EncodedPasswordHash, PasswordConfig, Passwords};
+pub use crate::config::PasswordConfig;
+pub use crate::config::SessionConfig;
+pub use password::{EncodedPasswordHash, Passwords};
 pub use pat::{IssuedPersonalAccessToken, PersonalAccessTokenInfo, PersonalAccessTokens};
 pub use refresh::{IssuedRefreshToken, RefreshRotation, RefreshTokens};
-pub use session::{DatabaseSessionStore, SessionConfig, SessionPlugin};
+pub use session::{DatabaseSessionStore, SessionPlugin};
 pub use tower_sessions::Session;
 pub use verification::{
     DatabaseVerificationCodeStore, IssuedVerificationCode, VerificationChallenge,

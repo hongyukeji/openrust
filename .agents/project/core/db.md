@@ -6,6 +6,8 @@
 
 ## 当前实现
 
+- `DatabaseConfig` 定义在 `openrust::config::database`，旧的 `openrust::database::DatabaseConfig` 导出保持可用。运行 TOML 位于应用根 `config/`；本地 URL 可用 `.env`，生产环境使用进程变量。
+
 - `DatabaseConfig` 从 `[database]` 读取 URL、池大小和连接/获取超时；自定义 `Debug` 会遮蔽 URL。
 - `DatabaseBackend` 集中解析官方 PostgreSQL/MySQL URL scheme 与 feature 状态；它只描述 v1 官方支持集合，扩展插件可用 `Db::backend()` 读取 SeaORM 实际 backend。
 - `DatabasePlugin` 验证 pool 参数与 URL 对应的 backend feature，在 `finish` 阶段连接 SeaORM pool；运行时当前接受 PostgreSQL 16+ / MySQL 8.4+。本项目日常开发基线为 PostgreSQL 18 / MySQL 8.4 / Redis 8；数据库常规 CI 使用 PostgreSQL 18 / MySQL 8.4。运行时门槛不是最终发布支持承诺，v1 发布前须按定稿最低版本调整。

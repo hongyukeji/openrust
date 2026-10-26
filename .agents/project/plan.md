@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-26
-> 摘要：v1 版本共 M0-M6 七个里程碑；根 package 模块迁移与 M2 读写分离已完成。按最新指示，本次开发在当前 M2 功能簇闭环后暂停；M3 认证 WIP 保留，后续底层功能由后续代理按 todo 路由。详细交付与验收见 [v1 版本计划](plans/gen1-plan.md)「里程碑」。
+> 摘要：v1 版本共 M0-M6 七个里程碑；根 package 模块迁移、M2 读写分离及模块化配置与 `.env` 机制已完成。按用户最新指示，当前功能簇后暂停正常开发，等待其他代理处理框架底层调整；M3 认证 WIP 保留。详细交付与验收见 [v1 版本计划](plans/gen1-plan.md)「里程碑」。
 
 ## 当前里程碑
 
@@ -12,7 +12,7 @@ M0、M1、M2 当前已验收范围完成；根模块迁移与读写分离均已�
 
 ## 执行校准
 
-- **底层调整总览必读**：根模块迁移和 M2 基础读写分离已按计划实现、验证、提交。M4/M5/M6 能力与最终集群共享验收仍未完成；本轮按用户指示在 M2 闭环后暂停开发。专题计划中的能力在代码、测试和验收证据齐备前都仍属未完成。
+- **底层调整总览必读**：根模块迁移、M2 基础读写分离及 ADR-030 模块化配置与 `.env` 整理已实现并验证；配置簇后按用户指示暂停正常开发，等待其他代理完成底层调整。M4/M5/M6 能力与最终集群共享验收仍未完成。专题计划中的能力在代码、测试和验收证据齐备前都仍属未完成。
 - 根 `openrust` package 模块迁移按 [ADR-021](decisions/adr-021-loco-style-module-layout.md) 已独立实施并完成 workspace、feature、双库、生成项目、示例、文档和旧路径验证。ADR-019 的逐能力目录改名与 `apps/server` 包改名取消；根 tests/examples 尚未覆盖聚合宿主所有验收，故保留 server。
 - Loco 应用 Hooks、CLI 与测试体验的边界按 [ADR-023](decisions/adr-023-loco-application-experience-evaluation.md)：不增加平行 Hooks；M4 worker/scheduler 实施前定义取消及停机生命周期，M6 落地只读 doctor 与薄 TestApp/HTTP assertions；现有生成器按 gen1-plan 的里程碑执行。
 - 命名校准按 [ADR-016](decisions/adr-016-neutral-application-namespaces.md)：应用配置默认 `APP_`，表默认 `tb_`，均可定制。`APP_` 已在 core/bootstrap、CLI、模板和说明中实现；表名 resolver 已贯通 DatabaseConfig/Db、迁移、测试隔离及认证持久化查询，并通过 PostgreSQL/MySQL 真实映射矩阵验证。M3 仍有功能簇验收待补；禁止直接改生产表。

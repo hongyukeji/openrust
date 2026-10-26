@@ -18,9 +18,20 @@
 
 - OpenAPI：后续里程碑用 `utoipa` 生成 schema，并在非生产环境挂载 `/docs`（ADR-008 §6）。
 
-## 当前优先：框架底层调整
+## 已完成：模块化配置与 `.env`
 
-- 本轮 Spec：[框架底层调整](plans/foundation-adjustments-spec.md)。根 `openrust` 模块迁移已独立提交；M2 读写分离已按 [ADR-029](decisions/adr-029-database-read-routing.md) 实现并通过 PostgreSQL 18 / MySQL 8.4 真实复制拓扑验证。配置源码固定在 `src/config/mod.rs`，运行配置仍在应用根 `config/`。
+- 参考 Loco `src/config/{auth,database,logger,mailer,server}.rs` 的按能力拆分思路，以及 Laravel 的 `.env` 示例与进程环境覆盖习惯；OpenRust 采用 Rust typed config，不照搬 PHP facade、运行时任意字符串读取或 config cache。
+- 已将当前 `src/config/mod.rs` 的框架配置定义拆到有真实配置的子模块；认证、数据库、邮件配置类型集中到 `src/config/`，通过旧模块 re-export 保持现有公共路径。未为尚未实现的 cache/queue/storage 创建空配置模块。
+- 保留应用根 `config/default.toml`、环境 TOML 的 Figment 分层；`.env` / `.env.example` 承载本地敏感值与常见覆盖项，进程环境变量优先，production 不加载 `.env`。不改变 ADR-016 的 `APP_` 与命名空间 contract。
+- Spec 与取舍记入 [ADR-030](decisions/adr-030-modular-configuration.md)。验证覆盖配置来源优先级、环境选择、敏感值脱敏、`.env` 生产隔离、生成项目变量和旧 API re-export；通过证据见本次提交及 `memory/verification.md`。
+
+## 暂停后的开发顺序
+
+- 按用户最新指示，当前配置功能簇完成后暂停正常功能开发，等待其他代理完成框架底层调整；M3 认证 WIP 与双库/生成项目剩余验收继续保留，不在本次提交中混入。
+
+## 已完成的底层调整
+
+- 根 `openrust` 模块迁移已独立提交；M2 读写分离已按 [ADR-029](decisions/adr-029-database-read-routing.md) 实现并通过 PostgreSQL 18 / MySQL 8.4 真实复制拓扑验证。
 - 根模块迁移依据 [迁移 Spec](plans/module-layout-migration-spec.md)；既有 M3 WIP 的双库数据库测试与 PostgreSQL/MySQL 生成项目 HTTP e2e 已在迁移后复验通过。M3 认证实现继续保留为独立待办，不计入迁移成果。
 - PostgreSQL 18 / MySQL 8.4 测试服务使用现有 `compose.ci.yaml`。当前根 tests/examples 与 server 验收职责映射见迁移 Spec；由于聚合启动、生成项目与双库验收仍由 `apps/server` 承担，继续保留该 package。
 

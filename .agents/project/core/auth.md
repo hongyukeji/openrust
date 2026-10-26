@@ -6,6 +6,8 @@
 
 ## 当前实现
 
+- 配置结构位于 `openrust::config::auth`，旧的 `openrust::auth` 配置导出保持可用；本地 JWT 密钥可在 `.env` 设置，生成项目不写入真实密钥，production 忽略 `.env`。
+
 - `AuthPlugin::new()` 注册数据库认证器；`finish` 检查认证服务未被后续插件覆盖、`Db` 已注册且 SeaORM backend 是 PostgreSQL 或 MySQL。`AuthPlugin::with_authenticator` 使用应用或第三方实现，不依赖 `Db`。
 - `SessionPlugin` 通过 `tower-sessions` 安装通用 Cookie middleware；默认 `DatabaseSessionStore` 以 resolver 解析的 Session 表共享存储（默认 `tb_sessions`），支持自定义 `SessionStore`。PostgreSQL/MySQL 集成覆盖创建冲突、读取、过期、删除、禁止 save 复活已删除 ID，以及独立应用实例间撤销。
 - `Authenticator` 接收路由选中的 `AuthCredential`，返回用户 ID 与 PAT abilities；凭据字段不实现 `Debug` / 序列化。默认数据库实现验证共享 Session 身份和 CSRF，或验证 PAT 到期、撤销、用户禁用并更新 `last_used_at`。

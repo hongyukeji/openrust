@@ -150,7 +150,6 @@ openrust/
 ├── src/
 │   ├── main.rs             # 只调用 openrust::run::<App>()
 │   ├── app.rs              # impl Application：plugins、routes、jobs、schedule
-│   ├── config.rs
 │   ├── routes.rs
 │   ├── schedule.rs
 │   ├── seed.rs             # db seed 入口，普通 async fn
@@ -170,6 +169,8 @@ openrust/
 ├── Dockerfile
 └── AGENTS.md
 ```
+
+生成项目的 TOML 运行配置位于项目根 `config/`；CLI 当前不生成 Rust 配置模块。应用需要自定义 Rust 配置代码时，放在 `src/config/mod.rs` 与按域拆分的 `src/config/*.rs`，不要新建单文件 `src/config.rs`。
 
 测试数据通过 `fake::Dummy` 与普通 builder 构造，不设专用种子或工厂 trait。
 
@@ -338,7 +339,7 @@ queue.dispatch(SendWelcomeEmail { user_id }).delay(Duration::from_secs(60)).awai
 - 异步统一 tokio；trait 中的 async 方法使用原生 `async fn` 并通过 `Send` 约束保证可跨任务。
 - feature 命名：`db-postgres` / `db-mysql` / `queue-redis` / `cache-redis` / `storage-s3` / `mail-smtp` / `templates` / `otel` / `metrics`；feature 只做加法，门面 crate 默认不含任何数据库驱动，由生成的项目显式选择。
 - 命名：crate `openrust-<capability>`；driver 类型 `<Backend><Capability>`（`RedisCache` / `DatabaseQueue`）；配置 `<Capability>Config`；错误 `<Capability>Error`；plugin `<Capability>Plugin`。
-- crate 内部布局：`lib.rs`（文档 + re-export）/ `config.rs` / `error.rs` / `plugin.rs` / `drivers/` / `testing.rs`（`test-util` feature）。
+- crate 内部布局：`lib.rs`（文档 + re-export）/ `config/`（复杂配置以 `mod.rs` 为入口）/ `error.rs` / `plugin.rs` / `drivers/` / `testing.rs`（`test-util` feature）。
 - 公共 API 以 0.x 语义化版本发布，破坏性变更只在次版本号；内部项用 `#[doc(hidden)]` 与 `__private` 模块隔离；变更日志由 git-cliff 从提交生成。
 - M6 用 mdBook 建立 `docs/`，按 Diátaxis 分为 Tutorials、How-to、Reference、Explanation；另设「从其他框架迁移」概念对照页与 `coming-from-axum`。每个 crate 的 README 即 `lib.rs` 文档。
 - 模板快照测试是最重要的 CI 任务：每次 CI 对两种数据库各生成一个项目并执行 `cargo check` 与 `cargo test`。

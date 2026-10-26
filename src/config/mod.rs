@@ -1,23 +1,42 @@
 //! Layered configuration.
 //!
+//! Configuration definitions live in the domain modules under `config` and are merged by one
+//! [`ConfigLoader`]. Runtime TOML files stay in the application root's `config/` directory.
+//!
 //! Sources are merged in this order, later layers overriding earlier ones:
 //!
 //! 1. crate defaults ([`FrameworkConfig::default`])
 //! 2. `<config-dir>/default.toml`
 //! 3. `<config-dir>/<env>.toml` where `<env>` comes from `APP_ENV` (`development` by default)
-//! 4. environment variables prefixed `APP_`, nested with `__` (`APP_SERVER__PORT=4000` → `server.port`)
+//! 4. variables loaded from local `.env` in non-production, then process variables, prefixed with
+//!    `APP_` and nested with `__` (`APP_SERVER__PORT=4000` → `server.port`)
 //!
-//! Bootstrap reads only `APP_ENV` from `.env` to select the environment when the process
-//! does not set it. Production skips loading the entire `.env` file.
+//! Bootstrap reads only `APP_ENV` from `.env` to select the environment when the process does not
+//! set it. Production skips loading the entire `.env` file. Existing process variables take
+//! precedence over `.env` values.
 
-use std::fmt;
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 
 use figment::Figment;
 use figment::providers::{Env, Format, Serialized, Toml};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+
+pub mod api;
+pub mod app;
+pub mod auth;
+pub mod database;
+pub mod logger;
+pub mod mailer;
+pub mod server;
+
+pub use api::{ApiConfig, HttpStatusMode};
+pub use app::{AppConfig, Environment};
+pub use auth::{JwtConfig, PasswordConfig, SessionConfig};
+pub use database::DatabaseConfig;
+pub use logger::{LogConfig, LogFormat};
+pub use mailer::MailConfig;
+pub use server::{CompressionConfig, CorsConfig, ServerConfig};
 
 /// Environment variable selecting the runtime environment.
 pub const ENV_VAR: &str = "APP_ENV";
@@ -55,81 +74,6 @@ impl From<figment::Error> for ConfigError {
     }
 }
 
-/// Runtime environment, selected by `APP_ENV` by default.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Environment {
-    /// Local development: verbose logs, API docs enabled, `.env` honoured.
-    #[default]
-    Development,
-    /// Automated tests: fake drivers by default.
-    Test,
-    /// Production: JSON logs, no debug surfaces.
-    Production,
-}
-
-impl Environment {
-    /// Reads the environment from `APP_ENV`, defaulting to [`Environment::Development`].
-    pub fn from_env() -> Result<Self, ConfigError> {
-        Self::from_env_with_namespace(ENV_PREFIX)
-    }
-
-    /// Reads the environment selected by the configured application namespace.
-    ///
-    /// `namespace` must be an uppercase identifier ending in `_`, such as `SHOP_`.
-    pub fn from_env_with_namespace(namespace: &str) -> Result<Self, ConfigError> {
-        validate_namespace(namespace)?;
-        let key = format!("{namespace}ENV");
-        match std::env::var(&key) {
-            Ok(value) if !value.trim().is_empty() => {
-                value.parse().map_err(|error: ConfigError| match error {
-                    ConfigError::UnknownEnvironment { value, .. } => {
-                        ConfigError::UnknownEnvironment { key, value }
-                    }
-                    other => other,
-                })
-            }
-            _ => Ok(Self::Development),
-        }
-    }
-
-    /// Lowercase name used in file names and logs.
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Development => "development",
-            Self::Test => "test",
-            Self::Production => "production",
-        }
-    }
-
-    /// `true` only for [`Environment::Production`].
-    pub fn is_production(self) -> bool {
-        matches!(self, Self::Production)
-    }
-}
-
-impl FromStr for Environment {
-    type Err = ConfigError;
-
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        match value.trim().to_ascii_lowercase().as_str() {
-            "development" | "dev" | "local" => Ok(Self::Development),
-            "test" | "testing" => Ok(Self::Test),
-            "production" | "prod" => Ok(Self::Production),
-            other => Err(ConfigError::UnknownEnvironment {
-                key: ENV_VAR.to_owned(),
-                value: other.to_owned(),
-            }),
-        }
-    }
-}
-
-impl fmt::Display for Environment {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-
 /// Configuration owned by the framework. Applications add their own sections alongside.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
@@ -142,172 +86,6 @@ pub struct FrameworkConfig {
     pub api: ApiConfig,
     /// `[log]` section.
     pub log: LogConfig,
-}
-
-/// `[api]` section: JSON response policy.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default)]
-pub struct ApiConfig {
-    /// HTTP status policy for framework JSON responses.
-    pub http_status: HttpStatusMode,
-}
-
-/// HTTP status policy for framework JSON responses.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum HttpStatusMode {
-    /// Always return HTTP 200 and use the response code in the body.
-    #[default]
-    AlwaysOk,
-    /// Preserve semantic HTTP status codes alongside the response body.
-    Semantic,
-}
-
-/// `[app]` section: identity of the application.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default)]
-pub struct AppConfig {
-    /// Human-readable name used in logs and mail.
-    pub name: String,
-    /// Runtime environment. Always overwritten by the selected namespace after loading.
-    pub env: Environment,
-    /// Public base URL used to build absolute links.
-    pub url: String,
-}
-
-impl Default for AppConfig {
-    fn default() -> Self {
-        Self {
-            name: "OpenRust".to_owned(),
-            env: Environment::Development,
-            url: "http://localhost:3000".to_owned(),
-        }
-    }
-}
-
-/// `[server]` section: HTTP listener settings.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default)]
-pub struct ServerConfig {
-    /// Interface to bind.
-    pub host: String,
-    /// TCP port to bind.
-    pub port: u16,
-    /// Per-request timeout in seconds; exceeding it yields `408 Request Timeout`.
-    pub request_timeout_secs: u64,
-    /// Grace period for in-flight requests after a shutdown signal.
-    pub shutdown_timeout_secs: u64,
-    /// Proxy IP addresses or CIDRs allowed to supply `X-Forwarded-For`.
-    ///
-    /// An empty list ignores all forwarding headers and uses the socket peer address.
-    pub trusted_proxy_ranges: Vec<String>,
-    /// Response compression settings.
-    pub compression: CompressionConfig,
-    /// Cross-origin request settings.
-    pub cors: CorsConfig,
-}
-
-impl ServerConfig {
-    /// `host:port` suitable for binding a listener.
-    pub fn bind_addr(&self) -> String {
-        format!("{}:{}", self.host, self.port)
-    }
-}
-
-impl Default for ServerConfig {
-    fn default() -> Self {
-        Self {
-            host: "127.0.0.1".to_owned(),
-            port: 3000,
-            request_timeout_secs: 30,
-            shutdown_timeout_secs: 10,
-            trusted_proxy_ranges: Vec::new(),
-            compression: CompressionConfig::default(),
-            cors: CorsConfig::default(),
-        }
-    }
-}
-
-/// `[server.compression]` section: negotiated gzip and Brotli responses.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default)]
-pub struct CompressionConfig {
-    /// Enables response compression.
-    pub enabled: bool,
-}
-
-impl Default for CompressionConfig {
-    fn default() -> Self {
-        Self { enabled: true }
-    }
-}
-
-/// `[server.cors]` section: cross-origin response policy.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default)]
-pub struct CorsConfig {
-    /// Enables CORS responses.
-    pub enabled: bool,
-    /// Exact origins, or `["*"]` for every origin.
-    pub allowed_origins: Vec<String>,
-    /// Methods permitted in preflight requests.
-    pub allowed_methods: Vec<String>,
-    /// Request headers permitted in preflight requests.
-    pub allowed_headers: Vec<String>,
-    /// Response headers visible to browser clients.
-    pub expose_headers: Vec<String>,
-    /// Allows browser clients to send credentials.
-    pub allow_credentials: bool,
-    /// Preflight cache lifetime in seconds.
-    pub max_age_secs: u64,
-}
-
-impl Default for CorsConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            allowed_origins: Vec::new(),
-            allowed_methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
-                .map(str::to_owned)
-                .to_vec(),
-            allowed_headers: ["content-type", "authorization", "x-request-id"]
-                .map(str::to_owned)
-                .to_vec(),
-            expose_headers: vec!["x-request-id".to_owned()],
-            allow_credentials: false,
-            max_age_secs: 600,
-        }
-    }
-}
-
-/// `[log]` section.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default)]
-pub struct LogConfig {
-    /// `tracing` filter directive, e.g. `info` or `info,openrust=debug`. `RUST_LOG` takes precedence.
-    pub level: String,
-    /// Output format.
-    pub format: LogFormat,
-}
-
-impl Default for LogConfig {
-    fn default() -> Self {
-        Self {
-            level: "info".to_owned(),
-            format: LogFormat::Text,
-        }
-    }
-}
-
-/// Log output format.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum LogFormat {
-    /// Human-readable lines for terminals.
-    #[default]
-    Text,
-    /// One JSON object per line for log collectors.
-    Json,
 }
 
 /// Marker for applications without configuration of their own: `type Config = NoConfig;`.
@@ -500,6 +278,21 @@ pub fn redact_secrets(value: &mut serde_json::Value) {
 #[allow(clippy::result_large_err)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn domain_modules_preserve_capability_config_paths() {
+        #[cfg(feature = "auth")]
+        {
+            let _: Option<crate::auth::JwtConfig> = None::<auth::JwtConfig>;
+            let _: Option<crate::auth::PasswordConfig> = None::<auth::PasswordConfig>;
+            let _: Option<crate::auth::SessionConfig> = None::<auth::SessionConfig>;
+        }
+        #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+        {
+            let _: Option<crate::db::DatabaseConfig> = None::<database::DatabaseConfig>;
+        }
+        let _: Option<crate::mail::MailConfig> = None::<mailer::MailConfig>;
+    }
 
     #[test]
     fn layers_override_in_order() {

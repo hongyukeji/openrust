@@ -111,7 +111,7 @@ pub async fn shutdown_signal() {
 #[allow(clippy::result_large_err)]
 mod tests {
     use super::*;
-    use crate::config::NoConfig;
+    use crate::config::FrameworkConfig;
     use crate::core::plugin::{BoxFuture, Plugin};
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -190,17 +190,11 @@ mod tests {
         });
     }
 
-    struct WithoutHttp;
-
-    impl Application for WithoutHttp {
-        type Config = NoConfig;
-
-        fn build(_app: &mut AppBuilder) {}
-    }
-
     #[tokio::test]
-    async fn bootstrap_without_http_exposes_only_builtin_commands() -> Result<()> {
-        let app = bootstrap::<WithoutHttp>().await?;
+    async fn finalize_without_http_exposes_only_builtin_commands() -> Result<()> {
+        let mut builder = AppBuilder::new(FrameworkConfig::default(), figment::Figment::new());
+        builder.command(HelpCommand).command(ConfigShowCommand);
+        let app = finalize(builder).await?;
         let names: Vec<&str> = app
             .commands()
             .map(crate::core::command::Command::name)

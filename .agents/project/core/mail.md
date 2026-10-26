@@ -2,6 +2,8 @@
 
 ## 已实现
 
+- `MailConfig` 定义在 `openrust::config::mailer`，旧的 `openrust::mail::MailConfig` 导出保持可用；SMTP 本地凭据可放入 `.env`，production 忽略 `.env`。
+
 - `Email::message` 产出 `lettre::Message`；`Mailer::send` 通过 `MailDriver` 扩展入口交付邮件。
 - `MailerPlugin` 读取 `[mail]` 配置，默认注册不记录邮件内容的 `LogMailer`。
 - `mail-smtp` 启用 Tokio / Rustls 强制 STARTTLS SMTP driver；SMTP 密码的 Debug 输出已脱敏。

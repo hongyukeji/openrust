@@ -345,16 +345,20 @@ fn main_source(crate_name: &str, database: Option<DatabaseBackend>) -> String {
 }
 
 fn env_example(name: &str, database: Option<DatabaseBackend>, auth: bool) -> String {
-    let mut contents = "APP_ENV=development\n".to_owned();
+    let mut contents = "# Copy to .env for local development. Never commit the populated .env file.\n# Production reads configuration from process environment, not this file.\nAPP_ENV=development\n\n# Optional overrides for values in config/*.toml:\n# APP_SERVER__PORT=3000\n# APP_SERVER__HOST=127.0.0.1\n# APP_API__HTTP_STATUS=always_ok\n".to_owned();
     if let Some(database) = database {
         use std::fmt::Write as _;
+        contents.push('\n');
         let _ = writeln!(contents, "DATABASE_URL={}", database.url(name));
     }
     if auth {
         contents.push_str(
-            "APP_AUTH__JWT__KEYS__LOCAL=\n# Generate a key with: openssl rand -base64 32\n",
+            "\n# Generate a key with: openssl rand -base64 32\nAPP_AUTH__JWT__KEYS__LOCAL=\n",
         );
     }
+    contents.push_str(
+        "\n# Optional SMTP delivery overrides:\n# APP_MAIL__DRIVER=smtp\n# APP_MAIL__SMTP_HOST=mail.example.com\n# APP_MAIL__SMTP_PORT=587\n# APP_MAIL__SMTP_USERNAME=\n# APP_MAIL__SMTP_PASSWORD=\n",
+    );
     contents
 }
 
@@ -847,6 +851,11 @@ mod tests {
         assert!(gitignore.lines().any(|line| line == ".env.*"));
         assert!(gitignore.lines().any(|line| line == "!.env.example"));
         assert!(gitignore.lines().any(|line| line == "!.env.*.example"));
+        let env_example = fs::read_to_string(project.join(".env.example"))
+            .expect("read generated environment example");
+        assert!(env_example.contains("APP_SERVER__PORT=3000"));
+        assert!(env_example.contains("APP_MAIL__SMTP_PASSWORD="));
+        assert!(env_example.contains("Production reads configuration from process environment"));
         let _ = fs::remove_dir_all(root);
     }
 

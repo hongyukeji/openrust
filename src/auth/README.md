@@ -1,5 +1,10 @@
 # Authentication and authorization
 
+Authentication settings are defined in `openrust::config::auth` and re-exported through
+`openrust::auth` for compatibility. Keep runtime TOML in the application root `config/`; provide
+local signing keys through `.env` or the process environment, and never put key material in tracked
+configuration files. Production bootstrap ignores `.env` and uses process environment variables.
+
 Authentication and authorization capabilities for [OpenRust](https://github.com/hongyukeji/openrust).
 
 ## Current surface

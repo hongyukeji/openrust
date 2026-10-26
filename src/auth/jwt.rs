@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::config::ConfigError;
+use crate::config::{ConfigError, JwtConfig};
 use crate::core::{App, AppBuilder, BoxFuture, Error, Plugin, Result};
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
@@ -16,62 +16,6 @@ use serde::{Deserialize, Serialize};
 const ACCESS_TOKEN_TYPE: &str = "openrust-at+jwt";
 const MIN_KEY_BYTES: usize = 32;
 const MAX_IAT_FUTURE_SKEW_SECS: u64 = 30;
-
-/// JWT signing and verification settings. Key values are Base64-encoded CSPRNG output.
-#[derive(Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct JwtConfig {
-    issuer: String,
-    audience: String,
-    active_key_id: String,
-    keys: BTreeMap<String, String>,
-    #[serde(default = "default_access_ttl")]
-    access_ttl_secs: u64,
-    #[serde(default = "default_max_valid_ttl")]
-    max_valid_ttl_secs: u64,
-}
-
-impl JwtConfig {
-    /// Creates JWT settings from issuer, audience, active key ID and Base64 key ring.
-    pub fn new(
-        issuer: impl Into<String>,
-        audience: impl Into<String>,
-        active_key_id: impl Into<String>,
-        keys: BTreeMap<String, String>,
-    ) -> Self {
-        Self {
-            issuer: issuer.into(),
-            audience: audience.into(),
-            active_key_id: active_key_id.into(),
-            keys,
-            access_ttl_secs: default_access_ttl(),
-            max_valid_ttl_secs: default_max_valid_ttl(),
-        }
-    }
-
-    /// Sets access-token issuance and maximum accepted lifetime in seconds.
-    #[must_use]
-    pub fn with_ttl(mut self, access_ttl_secs: u64, max_valid_ttl_secs: u64) -> Self {
-        self.access_ttl_secs = access_ttl_secs;
-        self.max_valid_ttl_secs = max_valid_ttl_secs;
-        self
-    }
-}
-
-impl std::fmt::Debug for JwtConfig {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter
-            .debug_struct("JwtConfig")
-            .field("issuer", &self.issuer)
-            .field("audience", &self.audience)
-            .field("active_key_id", &self.active_key_id)
-            .field("key_ids", &self.keys.keys().collect::<Vec<_>>())
-            .field("keys", &"[REDACTED]")
-            .field("access_ttl_secs", &self.access_ttl_secs)
-            .field("max_valid_ttl_secs", &self.max_valid_ttl_secs)
-            .finish()
-    }
-}
 
 /// Shared signer and verifier for OpenRust access tokens.
 #[derive(Clone)]
@@ -388,14 +332,6 @@ impl std::fmt::Display for MissingJwtPluginBuild {
 }
 
 impl std::error::Error for MissingJwtPluginBuild {}
-
-fn default_access_ttl() -> u64 {
-    900
-}
-
-fn default_max_valid_ttl() -> u64 {
-    3_600
-}
 
 #[cfg(test)]
 #[allow(clippy::expect_used)] // Fixed test keys/config are valid fixtures; failures should identify the setup.

@@ -28,7 +28,7 @@
 | 错误类型 | `<Capability>Error` | `QueueError` |
 | 插件 | `<Capability>Plugin` | `DatabasePlugin` |
 | 提取器 | 名词或形容词 | `CurrentUser`、`Validated<T>` |
-| crate 内部布局 | `lib.rs` / `config.rs` / `error.rs` / `plugin.rs` / `drivers/` / `testing.rs` | — |
+| crate 内部布局 | `lib.rs` / 复杂配置模块 `config/mod.rs` / `error.rs` / `plugin.rs` / `drivers/` / `testing.rs` | — |
 
 ## 框架规范
 

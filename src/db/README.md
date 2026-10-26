@@ -1,5 +1,10 @@
 # Database
 
+`DatabaseConfig` is defined in `openrust::config::database` and re-exported from `openrust::database`.
+Runtime settings stay in the generated application's root `config/` directory; use `.env` for local
+credentials and process environment variables for deployed secrets. Production bootstrap ignores
+`.env`.
+
 Database module of the [OpenRust](https://github.com/hongyukeji/openrust) framework (milestone M2).
 
 ## Connect a database
@@ -63,7 +68,7 @@ fn migrations() -> Vec<Box<dyn MigrationTrait>> {
 
 Use `RateLimiter::check` with a stable key containing the policy identity, a positive limit, and a whole-second window. The fixed-window counter is atomic across application nodes sharing the same database. It consumes over-limit attempts and returns HTTP 429 with `Retry-After`; storage or missing-table errors fail closed. Database rows store a SHA-256 digest rather than the raw key, which is pseudonymization and does not protect guessable values such as email addresses. Each store instance opportunistically cleans up to 512 expired rows every 256 consumes; custom stores must document their own retention behavior. Memory or local-file implementations are not supplied as shared cluster stores.
 
-`apps/server/benches/db_routing.rs` provides a small release-mode `SELECT 1` comparison of primary and replica routes. Run it with `cargo bench -p openrust-server --features db-postgres --bench db_routing` or the `db-mysql` feature and set `OPENRUST_TEST_DATABASE_URL` plus `OPENRUST_TEST_READ_REPLICA_URL`. It reports serial throughput and p50/p95/p99 for that narrow query; it is not a representative workload benchmark and does not establish that replicas improve throughput.
+`apps/server/benches/db_routing.rs` provides a small release-mode `SELECT 1` comparison of primary and replica routes. Run it with `cargo bench -p openrust-server --features db-routing-bench,db-postgres --bench db_routing` or `db-routing-bench,db-mysql`, and set `OPENRUST_TEST_DATABASE_URL` plus `OPENRUST_TEST_READ_REPLICA_URL`. It reports serial throughput and p50/p95/p99 for that narrow query; it is not a representative workload benchmark and does not establish that replicas improve throughput. The explicit `db-routing-bench` feature prevents default workspace checks from compiling a database-only benchmark without a backend.
 
 Applications may replace `DatabasePlugin` with a custom plugin when they need a different SeaORM connection strategy. Register one `Db::default()` during `build`, then initialize it after connecting during `finish`. A custom plugin with replicas can call `initialize_with_replicas(primary, replicas)`; all connections must report the same SeaORM backend:
 

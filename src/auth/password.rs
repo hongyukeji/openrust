@@ -2,40 +2,18 @@
 
 use std::str::FromStr;
 
+use crate::config::PasswordConfig;
+use crate::config::auth::MIN_MEMORY_KIB;
 use crate::core::{Error, Result};
 use argon2::{
     Algorithm, Argon2, Params, Version,
     password_hash::{PasswordHasher, PasswordVerifier, phc::PasswordHash},
 };
-use serde::{Deserialize, Serialize};
 
 const MAX_PASSWORD_BYTES: usize = 1024;
-const MIN_MEMORY_KIB: u32 = 19_456;
 const MAX_MEMORY_KIB: u32 = 262_144;
 const MAX_ITERATIONS: u32 = 10;
 const MAX_PARALLELISM: u32 = 4;
-
-/// Argon2id parameters used for newly hashed passwords.
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct PasswordConfig {
-    /// Memory cost in kibibytes.
-    pub memory_kib: u32,
-    /// Number of Argon2 iterations.
-    pub iterations: u32,
-    /// Argon2 parallelism degree.
-    pub parallelism: u32,
-}
-
-impl Default for PasswordConfig {
-    fn default() -> Self {
-        Self {
-            memory_kib: MIN_MEMORY_KIB,
-            iterations: 2,
-            parallelism: 1,
-        }
-    }
-}
 
 /// Encoded PHC password hash. It deliberately does not implement `Debug`.
 #[derive(Clone, PartialEq, Eq)]

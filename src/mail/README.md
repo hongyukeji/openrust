@@ -1,5 +1,9 @@
 # Mail
 
+`MailConfig` is defined in `openrust::config::mailer` and re-exported from `openrust::mail`.
+Keep runtime TOML in the application root `config/`; `.env` may supply local SMTP credentials, while
+production reads secrets from process environment variables and ignores `.env`.
+
 Mail layer of the [OpenRust](https://github.com/hongyukeji/openrust) framework. Implement `Email::message` to build a `lettre::Message`, then send it through the `Mailer` service. `MailerPlugin` registers the log driver by default. Enable `mail-smtp` and set `[mail] driver = "smtp"`, `smtp_host`, and optionally matching `smtp_username` / `smtp_password` fields to send over mandatory STARTTLS. SMTP credentials are redacted from `Debug` output. Enable `test-util` to use `FakeMailer` in tests with `sent_count` and `assert_sent_to` assertions.
 
 `Mailer::send` sends immediately. Queue integration is added with the queue capability in M4.
