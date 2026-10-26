@@ -6,17 +6,17 @@
 
 ## 当前里程碑
 
-根 `openrust` package 已承载框架模块；原 M0–M2 基础范围及 M3 本地认证/安全运行时验收已有证据，Mailer/Policy 生成器已实现并验证。M4 已交付数据库队列/worker、UTC 调度、活动任务唯一键与有限任务链/批次。**这不代表通用 HTTP 边界、完整 M4 或 v1 完成**。状态只按源码、提交和相应验收判断。
+根 `openrust` package 已承载框架模块；原 M0–M2 基础范围及 M3 本地认证/安全运行时验收已有证据，Mailer/Policy 生成器和公开 HTTP 路由限流已实现并验证。M4 已交付数据库队列/worker、UTC 调度、活动任务唯一键与有限任务链/批次。**这不代表完整数据输出/查询边界、完整 M4 或 v1 完成**。状态只按源码、提交和相应验收判断。
 
 目录收尾已完成：工具包位于 `cli/`、`macros/`、`testing/`，examples/tests 按应用/能力分组；迁移前后 workspace package 数与 265 个可列测试条目一致，server 保留为真实进程/双库宿主。完整验证与提交见 [progress.md](progress.md) 和 [目录收尾 Spec](plans/module-layout-migration-spec.md)。
 
 ## 执行校准
 
-1. 目录收尾与验收入口、M3 Mailer/Policy 生成器已完成；后续按 `todo.md` 完成通用 HTTP 限流与数据输出/查询边界，之后恢复 M4。
+1. 目录收尾、M3 Mailer/Policy 生成器与公开 HTTP 路由限流已完成；当前按 `todo.md` 审计数据输出/查询边界，之后恢复 M4。
 2. 目录中性化与 Cargo package 名是不同决定。框架在 `src/`；CLI、proc-macro、测试工具保留独立 package 的技术边界，迁出顶层 `crates/`。应用约定 `apps/` 保留；`apps/server` 逐项审计启动、feature、双库、命令与进程测试职责，替代覆盖通过前保留。见 [ADR-021](decisions/adr-021-loco-style-module-layout.md)。
 3. `examples/` 和 `tests/` 按示例/能力分目录；不得只移动文件导致 Cargo 不再发现测试。迁移必须比较 targets 与用例数量，验证包路径、宏展开、模板、CI、文档和全部测试入口。
 4. 只保留一个实现功能簇 in_progress。每簇先定公开 contract，再实现、匹配验证、本地提交、更新事实。已有实现不重做；未提交 WIP、编译通过、fake、本地双库、完整集群分别报告。
-5. M3 Mailer/Policy 生成器已补交；通用 HTTP 限流/查询边界与跨事务业务流程扩展点仍按 `todo.md` 补齐，不能用“阶段已关闭”取消范围。
+5. M3 Mailer/Policy 生成器与通用路由限流已补交；数据输出/查询边界与跨事务业务流程扩展点仍按 `todo.md` 补齐，不能用“阶段已关闭”取消范围。
 6. 生命周期复用 `Plugin::build/finish`、Tower 与显式命令 supervisor；worker/scheduler 的取消、drain、join 按 [ADR-037](decisions/adr-037-queue-worker-lifecycle.md)。不建立平行 Hooks/DI/ORM；业务前置校验、提交后事件仍需公开类型化入口。
 7. 数据库事务内派发是可靠提交边界；after-commit 内存回调不等于可靠投递，活动任务唯一键也不等于永久请求幂等。任务、通知和业务扩展须分别定义重试、短路、失败及敏感载荷边界。
 8. 数据服务日常基线为 PostgreSQL 18 / MySQL 8.4 LTS / Redis 8；暂定最低为 PostgreSQL 14+ / MySQL 8.0+ / Redis 6.2+。最低完整能力、Redis driver 和发布时生命周期仍需验收，不在每簇重复全版本矩阵。先检查复用合适现有服务，规则见 [context.md](context.md#固定约束)。

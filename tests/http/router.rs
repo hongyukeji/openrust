@@ -6,6 +6,8 @@ use axum::http::{StatusCode, header};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use openrust::config::FrameworkConfig;
+use openrust::core::{RateLimitBucket, RateLimitFuture, RateLimitStore, RateLimiter};
+use openrust::http::RateLimitLayer;
 use openrust::http::axum;
 use openrust::http::{
     AppBuilderHttpExt, Created, HttpPlugin, Inject, NoContent, PageParams, Paginated, Validated,
@@ -14,6 +16,8 @@ use openrust::http::{
 use openrust::http::{Json, Path, Query};
 use openrust::{AppBuilder, lifecycle::finalize};
 use serde::Deserialize;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use tower::ServiceExt;
 use validator::Validate;
 
@@ -130,6 +134,10 @@ async fn page() -> Paginated<u64> {
     Paginated::new(vec![1, 2], PageParams::default(), 57)
 }
 
+async fn rate_limited_ok() -> &'static str {
+    "ok"
+}
+
 async fn limited() -> openrust::Error {
     openrust::Error::rate_limited(30)
 }
@@ -198,6 +206,106 @@ async fn app_builder_http_layer_wraps_routes() -> TestResult {
     assert_eq!(json["success"], false);
     assert_eq!(json["code"], "internal_error");
     assert_ne!(json["message"], "private detail");
+    Ok(())
+}
+
+#[derive(Clone, Default)]
+struct TestRateStore(Arc<Mutex<std::collections::HashMap<String, u64>>>);
+
+impl RateLimitStore for TestRateStore {
+    fn consume<'a>(
+        &'a self,
+        key: &'a str,
+        _window: Duration,
+    ) -> RateLimitFuture<'a, openrust::Result<RateLimitBucket>> {
+        Box::pin(async move {
+            let mut counts = self
+                .0
+                .lock()
+                .map_err(|_| std::io::Error::other("test store poisoned"))?;
+            let count = counts.entry(key.to_owned()).or_default();
+            *count += 1;
+            Ok(RateLimitBucket::new(*count, 23))
+        })
+    }
+}
+
+#[tokio::test]
+async fn route_rate_limit_uses_scoped_custom_keys_and_returns_retry_after() -> TestResult {
+    let layer = RateLimitLayer::with_key("posts:list", 1, Duration::from_secs(60), |request| {
+        request
+            .headers()
+            .get("x-test-key")
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_owned)
+            .ok_or(openrust::Error::BadRequest("missing test key".into()))
+    });
+    let mut config = FrameworkConfig::default();
+    config.api.http_status = openrust::config::HttpStatusMode::Semantic;
+    let mut builder = AppBuilder::new(config, figment::Figment::new());
+    builder
+        .plugin(HttpPlugin)
+        .insert(RateLimiter::new(TestRateStore::default()))
+        .routes(move |routes| routes.get("/limited", rate_limited_ok).layer(layer.layer()));
+    let app = finalize(builder).await?;
+    let router = build_router(&app)?;
+
+    let first = router
+        .clone()
+        .oneshot(
+            Request::get("/limited")
+                .header("x-test-key", "a")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(first.status(), StatusCode::OK);
+    let limited = router
+        .clone()
+        .oneshot(
+            Request::get("/limited")
+                .header("x-test-key", "a")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(limited.status(), StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(
+        limited
+            .headers()
+            .get("retry-after")
+            .and_then(|value| value.to_str().ok()),
+        Some("23")
+    );
+    let isolated = router
+        .oneshot(
+            Request::get("/limited")
+                .header("x-test-key", "b")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(isolated.status(), StatusCode::OK);
+    Ok(())
+}
+
+#[cfg(feature = "auth")]
+#[tokio::test]
+async fn authenticated_rate_limit_rejects_a_missing_identity() -> TestResult {
+    let layer = RateLimitLayer::by_user("profile:read", 10, Duration::from_secs(60));
+    let mut config = FrameworkConfig::default();
+    config.api.http_status = openrust::config::HttpStatusMode::Semantic;
+    let mut builder = AppBuilder::new(config, figment::Figment::new());
+    builder
+        .plugin(HttpPlugin)
+        .insert(RateLimiter::new(TestRateStore::default()))
+        .routes(move |routes| {
+            routes
+                .get("/limited-user", rate_limited_ok)
+                .layer(layer.layer())
+        });
+    let app = finalize(builder).await?;
+    let response = build_router(&app)?
+        .oneshot(Request::get("/limited-user").body(Body::empty())?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     Ok(())
 }
 

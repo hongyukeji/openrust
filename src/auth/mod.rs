@@ -472,6 +472,7 @@ async fn authenticate(
         token_abilities,
     };
     let mut request = request;
+    request.extensions_mut().insert(user.clone());
     request.extensions_mut().insert(AuthOutcome(Some(user)));
     next.run(request).await
 }

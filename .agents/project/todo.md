@@ -12,7 +12,7 @@
 
 | 功能簇 | 前置与交付 | 验收 |
 | --- | --- | --- |
-| 通用 HTTP 限流与数据输出/查询边界 | 复用 `DatabaseRateLimitStore`，补公开路由中间件与主体/IP/key 策略；按能力覆盖补 DTO 字段白名单、过滤/排序白名单、软删除、查询 scope 与关系/N+1 示例 | 双库限流与并发、代理/匿名边界、越权字段与非法排序拒绝；不重造 ORM；UUID/软删除生成选项按实际 contract 交付 |
+| M3 数据输出与查询边界 **in_progress** | 审计 SeaORM 现有实体、DTO、查询、软删除、scope 与关联能力，按缺口提供白名单与示例，不重造 ORM；HTTP `RateLimitLayer` 已交付，见 `core/http.md` | 越权字段与非法排序拒绝；双库边界；UUID/软删除生成选项按实际 contract 交付 |
 
 ## M4：异步与流程扩展
 

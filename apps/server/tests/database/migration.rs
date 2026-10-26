@@ -1,6 +1,9 @@
 //! Exercises the runtime migration command against the selected database backend.
 #![cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 
+use axum::body::Body;
+use axum::extract::connect_info::ConnectInfo;
+use axum::http::{Request, StatusCode};
 use figment::Figment;
 use figment::providers::{Format, Toml};
 use openrust::core::RateLimiter;
@@ -8,6 +11,7 @@ use openrust::database::{
     DatabaseConfig, DatabaseRateLimitMigration, DatabaseRateLimitStore, DatabaseTableNames, Db,
     MigrationPlugin, SeedPlugin, dialect, sea_orm, sea_orm_migration,
 };
+use openrust::http::{AppBuilderHttpExt, HttpPlugin, RateLimitLayer, axum, build_router};
 #[cfg(feature = "queue")]
 use openrust::queue::QueueMigration;
 use openrust::{
@@ -20,6 +24,8 @@ use sea_orm::{
 use sea_orm_migration::prelude::*;
 use sha2::{Digest, Sha256};
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Duration;
+use tower::ServiceExt;
 
 static SEED_RUNS: AtomicUsize = AtomicUsize::new(0);
 
@@ -170,11 +176,19 @@ async fn migration_command_applies_repeats_reports_and_rolls_back()
     let test_database = openrust_test::TestDatabase::create::<TestMigrator>(&url).await?;
     let source = format!("[database]\nurl = {:?}\n", test_database.url());
     let figment = Figment::new().merge(Toml::string(&source));
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment);
+    let mut framework_config = FrameworkConfig::default();
+    framework_config.api.http_status = openrust::config::HttpStatusMode::Semantic;
+    let mut builder = AppBuilder::new(framework_config, figment);
     builder
         .plugin(CustomConnectionPlugin)
+        .plugin(HttpPlugin)
         .plugin(MigrationPlugin::<TestMigrator>::new())
-        .plugin(SeedPlugin::new(seed_probe));
+        .plugin(SeedPlugin::new(seed_probe))
+        .routes(|routes| {
+            routes.get("/limited", migration_limit_probe).layer(
+                RateLimitLayer::by_client_ip("migration:probe", 1, Duration::from_secs(60)).layer(),
+            )
+        });
 
     let app = lifecycle::finalize(builder).await?;
     assert!(app.state().try_get::<RateLimiter>().is_ok());
@@ -207,6 +221,7 @@ async fn migration_command_applies_repeats_reports_and_rolls_back()
 
     let limiter = app.state().try_get::<RateLimiter>()?;
     verify_rate_limiter(&database, &db_service, &limiter).await?;
+    verify_http_rate_limit_layer(&app).await?;
 
     let postgres = database.get_database_backend() == DbBackend::Postgres;
     for (column, expected_type) in [
@@ -247,6 +262,29 @@ async fn migration_command_applies_repeats_reports_and_rolls_back()
     drop(db_service);
     drop(app);
     test_database.close().await?;
+    Ok(())
+}
+
+async fn migration_limit_probe() -> &'static str {
+    "ok"
+}
+
+async fn verify_http_rate_limit_layer(app: &App) -> Result<(), Box<dyn std::error::Error>> {
+    let peer: std::net::SocketAddr = "192.0.2.10:443".parse()?;
+    let router = build_router(app)?;
+    for expected in [StatusCode::OK, StatusCode::TOO_MANY_REQUESTS] {
+        let mut request = Request::get("/limited").body(Body::empty())?;
+        request.headers_mut().insert(
+            "x-forwarded-for",
+            "198.51.100.42".parse().map_err(std::io::Error::other)?,
+        );
+        request.extensions_mut().insert(ConnectInfo(peer));
+        let response = router.clone().oneshot(request).await?;
+        assert_eq!(response.status(), expected);
+        if expected == StatusCode::TOO_MANY_REQUESTS {
+            assert!(response.headers().contains_key("retry-after"));
+        }
+    }
     Ok(())
 }
 

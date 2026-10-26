@@ -3,7 +3,7 @@
 use std::net::{IpAddr, SocketAddr};
 
 use crate::core::{AppState, Error, Result};
-use axum::extract::{FromRequestParts, connect_info::ConnectInfo};
+use axum::extract::{FromRequestParts, Request, connect_info::ConnectInfo};
 use http::{HeaderMap, header::HeaderName, request::Parts};
 
 const X_FORWARDED_FOR: HeaderName = HeaderName::from_static("x-forwarded-for");
@@ -16,6 +16,17 @@ impl ClientIp {
     /// Returns the client IP selected for this request.
     pub const fn ip(self) -> IpAddr {
         self.0
+    }
+
+    pub(crate) fn from_request(request: &Request, state: &AppState) -> Result<Self> {
+        let peer = request
+            .extensions()
+            .get::<ConnectInfo<SocketAddr>>()
+            .ok_or_else(|| Error::internal(MissingConnectInfo))?
+            .0
+            .ip();
+        let ranges = parse_ranges(&state.config().server.trusted_proxy_ranges)?;
+        resolve_client_ip(peer, request.headers(), &ranges).map(Self)
     }
 }
 

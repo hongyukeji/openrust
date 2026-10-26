@@ -9,6 +9,7 @@ pub mod extract;
 pub mod health;
 pub mod middleware;
 pub mod plugin;
+pub mod rate_limit;
 pub mod resource;
 pub mod response;
 pub mod routes;
@@ -25,6 +26,7 @@ pub use client::{
 pub use client_ip::ClientIp;
 pub use extract::{Inject, Json, Path, Query, Validated};
 pub use plugin::{AppBuilderHttpExt, HttpPlugin, RouteRegistry, build_router};
+pub use rate_limit::{RateLimitKey, RateLimitLayer};
 pub use resource::{Action, Resource, ResourceActions};
 pub use response::{Created, Located, NoContent, PageParams, Paginated};
 pub use routes::Routes;

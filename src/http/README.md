@@ -13,11 +13,27 @@ HTTP layer of the [OpenRust](https://github.com/hongyukeji/openrust) framework, 
 - [`Validated`] — runs `validator` after the OpenRust `Json<T>` or `Query<T>` extractor succeeds.
 - [`Inject`] — extractor that fetches a service registered with `AppBuilder::provide`.
 - [`ClientIp`] — resolves the socket peer by default and accepts `X-Forwarded-For` only from configured trusted proxy IPs/CIDRs.
+- [`RateLimitLayer`] — explicitly rate-limits selected routes through the registered shared `RateLimiter`; IP keys honor `ClientIp` trusted proxy rules, authenticated keys require an outer `AuthLayer`, and custom keys receive the request plus a policy scope.
 - [`middleware::apply`] — request id, tracing span, CORS, timeout, gzip/br compression and panic capture, from outermost to innermost. `build_router` injects the final `AppState` into request extensions before route layers execute, so capability middleware can use the application registry. It returns a configuration error before listening if enabled CORS settings are invalid.
 
 `[server.compression] enabled = true` negotiates gzip and Brotli using `Accept-Encoding`; set it to `false` to disable compression. `[server.cors]` is disabled by default. To enable it, set `enabled = true` and `allowed_origins = ["https://example.com"]` (or `["*"]` without credentials). Methods, request headers, exposed headers, credentials and preflight `max_age_secs` are configurable. Concrete origins must be `http://` or `https://` plus a host and optional port, without a path, query or trailing slash. Wildcards cannot be mixed with concrete values in any CORS list; credentials also forbid wildcard methods, request headers and exposed headers. Invalid settings return a keyed configuration error with the escaped value during router construction. CORS wraps the timeout layer, so allowed origins remain visible on 408 responses. `build_router(&App)` returns `Result<Router>`; `serve` builds the router before binding its listener.
 
 `[server].trusted_proxy_ranges` is empty by default. Entries accept an IP address or CIDR. When the direct socket peer is in a configured range, `ClientIp` parses `X-Forwarded-For` and walks from right to left across trusted proxy hops; it returns the first untrusted address. Otherwise it ignores forwarding headers. Invalid trusted ranges fail router construction, and malformed forwarded values from a trusted peer return a bad-request envelope.
+
+Use a route layer to apply a shared fixed-window quota. The application must register a `RateLimiter`, normally via `DatabasePlugin`; storage failures fail closed. Each scope should identify one endpoint/policy and use one stable limit/window across every route instance. `by_user` requires the authentication layer to be added first so it executes before rate limiting; `by_user_or_client_ip` can also be used on routes where anonymous requests are allowed.
+
+```rust,ignore
+use std::time::Duration;
+use openrust::http::{AuthLayer, AuthMode, RateLimitLayer, Routes};
+
+fn routes(routes: Routes) -> Routes {
+    routes.get("/api/profile", profile)
+        .layer(RateLimitLayer::by_user("profile:read", 60, Duration::from_secs(60)).layer())
+        .layer(AuthLayer::required(AuthMode::Jwt))
+}
+```
+
+Each subsequent route layer wraps the earlier one. In this example, `AuthLayer` is outermost and runs first, then the rate-limit layer reads the verified account identity. Only routes covered by the layer are limited; health and fallback routes are unaffected unless explicitly wrapped. Custom key functions should return a bounded, stable, non-secret identity value.
 
 ```rust
 use openrust::http::{AppBuilderHttpExt, Inject, Json, Routes, Validated};

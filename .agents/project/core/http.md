@@ -6,7 +6,7 @@
 
 ## 边界
 
-基于 `axum` 0.8 + `tower-http`。提供路由约定、提取器、默认中间件、`/health` 与 `serve`；core 已提供 `RateLimiter`，DatabasePlugin 提供双库共享 store，AuthFlows 已在敏感流程中使用。通用 HTTP 限流 middleware、请求 key 提取/策略组合仍待交付；OpenAPI schema 与 `/docs` 尚未实现。
+基于 `axum` 0.8 + `tower-http`。提供路由约定、提取器、默认中间件、`/health` 与 `serve`；core 已提供 `RateLimiter`，DatabasePlugin 提供双库共享 store，AuthFlows 与显式 `RateLimitLayer` 已复用它。OpenAPI schema 与 `/docs` 尚未实现。
 
 ## 当前实现
 
@@ -18,6 +18,7 @@
 | `response` | `Created<T>` → semantic 201 / 默认 200，`with_location` 返回 `Result<Located<T>>`（非法值 → 500 包装）；`NoContent` → 200 包装，`data: null`；直接提取 `PageParams` 默认 1/20，并校验页数、每页 1..=100 与 offset 不超过 `i64::MAX`；`Paginated<T>` 输出 `data` 与 `meta` |
 | `extract` | `Inject<T>`（从 `AppState` 取服务，缺失 → 500 包装）；OpenRust `Json<T>` / `Path<T>` / `Query<T>`（解析失败 → 400/415/422/413 包装），`Validated<Json<T>>` / `Validated<Query<T>>`（先解析，规则失败 → 422，嵌套路径 `a.b[0].c`） |
 | `middleware` | `apply(router, &ServerConfig) -> Result<Router>`：请求 ID → 传播 → `TraceLayer` span → 可选 CORS → 超时 408 包装 → 可选 gzip/br 压缩 → `CatchPanic` → 500 包装；404 fallback、405 fallback（保留 `Allow`）、413 包装；启用 CORS 时在组层前逐项校验配置 |
+| `rate_limit` | `RateLimitLayer` 显式包裹路由并调用 AppState 中注册的 `RateLimiter`；key 支持可信客户端 IP、（启用 auth 时）已验证用户/匿名回退及自定义策略；store 错误关闭，429 沿用统一错误与 `Retry-After`。未包裹路由、health/fallback 不自动限流 |
 | `health` | `GET /health` → success `ApiResponse<Health>`，`data.status = "ok"` |
 | `serve` | `serve(&App)` 绑定 `[server] host:port`，优雅停机；`ServeCommand` |
 
@@ -29,7 +30,7 @@ CORS 预检（`OPTIONS` 且带 `Access-Control-Request-Method`）保持 tower-ht
 
 ## 后续边界
 
-- 补交通用 HTTP 限流 middleware 与请求身份/key 组合；不能用认证流程内限流代替普通业务路由的公开入口。
+- 路由限流仅覆盖显式包裹的路由；默认不覆盖 health、fallback 或其他能力层。认证限流需确保 `AuthLayer` 在请求方向先执行。数据输出/查询边界仍待独立审计。
 - OpenAPI schema 与 `/docs`（后续里程碑）；`utoipa` / `utoipa-axum` 尚未引入，统一响应需与生成文档一致。
 - `/ready` 聚合依赖检查、WebSocket/SSE、跨节点实时投递与 metrics/OTel 属于 M5 待实现能力；已有 `TraceLayer` 和 `/health` 不构成完整生产就绪验收。
 
