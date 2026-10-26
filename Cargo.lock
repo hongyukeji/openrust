@@ -3593,6 +3593,7 @@ dependencies = [
  "chrono",
  "figment",
  "openrust",
+ "redis",
  "sea-orm",
  "serde",
  "serde_json",

@@ -12,7 +12,7 @@
 - 错误：库 crate 用 `thiserror`，`anyhow` 只出现在二进制边界；所有面向 HTTP 的错误最终进入 `openrust::Error`。
 - 异步统一 tokio；静态分发 trait 优先原生 `async fn`，需要对象安全或异构注册时按既有 contract 使用 `BoxFuture`；跨任务 future 保证 `Send`，不为形式统一重写已定公开接口。
 - 宏只做派生与属性标注，不改变控制流；宏支持代码放 `__private` 模块并 `#[doc(hidden)]`。
-- feature 只做加法；已实现的名称以 `Cargo.toml` 为准，如 `db-postgres`、`db-mysql`、`auth`、`queue`、`http-client`、`mail-smtp`、`sms-twilio`、`encryption`、`signing`、`test-util`。计划中的 `cache-redis`、`storage-s3`、`otel`、`metrics` 等在能力落地时加入，不预建空 feature。
+- feature 只做加法；已实现的名称以 `Cargo.toml` 为准，如 `db-postgres`、`db-mysql`、`auth`、`queue`、`queue-redis`、`http-client`、`mail-smtp`、`sms-twilio`、`encryption`、`signing`、`test-util`。计划中的 `storage-s3`、`otel`、`metrics` 等在能力落地时加入，不预建空 feature。
 - Rustdoc、代码/配置注释和 CLI 解释文字遵循 [语言规范](style.md#语言规范)：简体中文优先，技术标识符保留原名；从生成器源头保证生成说明使用中文。
 - 不写 `TODO` 注释；活跃任务进 `todo.md`。注释只解释非显然的原因、触发边界、失败语义或安全约束。
 

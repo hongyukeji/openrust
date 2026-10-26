@@ -45,7 +45,7 @@ pub use database::{DatabaseConfig, DatabaseInstanceConfig};
 pub use logger::{LogConfig, LogFormat};
 pub use mailer::MailConfig;
 #[cfg(feature = "queue")]
-pub use queue::QueueConfig;
+pub use queue::{QueueConfig, QueueDriverKind};
 #[cfg(feature = "encryption")]
 pub use security::EncryptionConfig;
 pub use server::{CompressionConfig, CorsConfig, ServerConfig};

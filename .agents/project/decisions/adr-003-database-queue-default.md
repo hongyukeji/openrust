@@ -10,7 +10,7 @@
 ## 决策
 
 - 队列使用数据库 `jobs` / `failed_jobs` 表，会话使用数据库 store；标准应用缓存默认策略由 ADR-015 定为 Redis。
-- Redis 队列与 session store 是待补可选适配，不能从底层 Redis crate 推断已支持；当前队列实现范围以 ADR-037 为准。标准应用缓存默认 Redis，最小无缓存应用不强制安装缓存，库 feature 可组合；详见 ADR-013/014/015。
+- Redis Session store 由 [ADR-017](adr-017-generic-session-runtime.md) 定稿；Redis 队列 driver 按 [ADR-046](adr-046-redis-queue-driver.md) 作为可选 driver 实施。数据库队列仍为默认及唯一事务型队列；标准应用缓存默认 Redis，最小无缓存应用不强制安装缓存，库 feature 可组合；详见 ADR-013/014/015。
 - 队列引擎**自研**（拉取、重试退避、延迟、失败表、优雅停机），不封装 `apalis`；依据见「验证」。
 
 ## 影响

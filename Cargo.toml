@@ -167,6 +167,11 @@ path = "tests/queue/driver_contract.rs"
 required-features = ["queue"]
 
 [[test]]
+name = "queue_redis_driver"
+path = "tests/queue/redis_driver.rs"
+required-features = ["queue-redis"]
+
+[[test]]
 name = "http_resource"
 path = "tests/http/resource.rs"
 
@@ -198,6 +203,7 @@ auth = [
     "signing",
 ]
 queue = ["dep:chrono-tz", "dep:cron-parser"]
+queue-redis = ["queue", "dep:redis"]
 signing = ["dep:base64", "dep:jsonwebtoken"]
 mail-smtp = ["lettre/smtp-transport", "lettre/tokio1-rustls-tls"]
 mail-templates = ["dep:minijinja"]

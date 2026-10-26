@@ -24,6 +24,12 @@
 
 `cargo +1.97.0 check -p openrust --no-default-features --features session-redis` 与 server feature check 通过。默认/all-features workspace clippy、test、warnings-denied docs、fmt、no-default check 与 `cargo deny check` 通过；deny 仍有既有重复版本与未匹配 MPL allowance 警告，advisories/bans/licenses/sources 均通过。两个 App 在同一测试进程内，未代表多进程集群门禁；Redis 6.2 最低版本兼容和在线 Redis 故障期间的端到端恢复留待发布/集群验收。
 
+## M5 Redis Queue driver（ADR-046）
+
+本次使用已运行的真实 Redis 8.10.2 服务。`cargo test -p openrust --features queue-redis --test queue_redis_driver` 3 项通过：四个独立连接 worker 对 40 个任务竞争、活动唯一键、失败保留/重试/幂等 retry ID/进度、独立子进程强杀后租约到期恢复、非法 namespace 与不可达服务失败关闭。`cargo test -p server --features queue-redis --test queue_redis` 2 项通过：Redis QueuePlugin 无需 DatabasePlugin；存在数据库 scheduler 注册时 build 失败。另用 `examples/queue` Redis-only 启动 API，真实 TCP `POST /jobs` 返回任务 ID，再由独立 worker 使用同一 namespace 运行；两个任务进程均正常响应 Ctrl-C。
+
+`cargo fmt --all --check`、默认及 all-features workspace clippy、默认及 all-features `cargo test --workspace`、warnings-denied 默认及 all-features docs、`cargo check -p openrust --no-default-features` 和 `cargo deny check` 通过；all-features tests 运行 Redis targets，workspace 其他 PG/MySQL integration tests 在未提供 URL 时依项目约定 skip。deny 输出有既有重复版本与 unmatched MPL allowance 警告，其余 advisories/bans/licenses/sources 通过。Redis driver 不访问 SQL，故没有把数据库队列既有 PG18/MySQL8.4 验收冒充为 Redis 双库测试；Redis Cluster 分片、Redis 6.2 最低版本、持久化/故障切换及生产多节点负载仍待 v1 总门禁。
+
 ## M5 HTTP 有界运行与就绪切换
 
 2026-10-26 定向测试：`cargo test -p openrust serve::tests -- --nocapture` 覆盖未绑定/绑定就绪、drain 中停止接入、在途请求完成、非合作请求到期取消及 bind 失败；`cargo test -p server --test server serve_process_exits_successfully_after_sigterm -- --nocapture` 通过真实 TCP readiness 和真实子进程 SIGTERM，all-features 下同一测试额外注入仅供测试的加密 key 后通过。全量门禁：fmt、diff check、all-target/all-features clippy、默认/all-features workspace tests、warnings-denied 默认/all-features docs、`cargo deny check` 和 `cargo check -p openrust --no-default-features` 均通过。deny 输出既有重复 crate 版本与未匹配 MPL allowance 警告，其余 advisories/bans/licenses/sources 通过。此项未改数据库/队列协议，不需要双库测试；未覆盖集群依赖 readiness 或跨节点 drain。

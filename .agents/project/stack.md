@@ -45,7 +45,7 @@
 
 | 能力 | 当前实现 | 待实现边界 |
 | --- | --- | --- |
-| 队列 | `queue` feature 下的自研数据库 driver（[ADR-003](decisions/adr-003-database-queue-default.md)，不依赖 `apalis`） | 当前无 `queue-redis` feature 或 Redis queue driver；M4 剩余范围见 [队列事实](core/queue.md) |
+| 队列 | `queue` feature 下默认使用数据库 driver（[ADR-003](decisions/adr-003-database-queue-default.md)，不依赖 `apalis`）；可选 `queue-redis` 复用已有 `redis` 1.8.0 | Redis Queue 已通过 Redis 8.10.2 多连接、唯一派发、失败重试、租约恢复与 Redis-only server 集成验收；至少一次及事务/任务组限制见 ADR-046，Redis 持久性/复制与最低版本仍由部署和 v1 发布门禁负责 |
 | 调度 | `queue` feature；`Scheduler` + interval/UTC daily/五字段 cron，`cron-parser` 0.12 与 `chrono-tz` 0.10.4 | F1 已实现；cron 使用 IANA zoneinfo 表，DST gap 跳过、重复 wall minute 去重；有界补跑及双库验收见 ADR-037 |
 | 缓存 | 根 `openrust::cache` 提供 Cache、命名 stores、memory/file 与公开 custom driver contract；Redis 由 `redis` 1.8.0、`connection-manager` + `tokio-rustls-comp` feature 提供 | `cache-redis` 可选 feature；标准生成应用启用 Redis 默认 store；Redis 6.2 最低版兼容、F4 tag/SWR/singleflight 尚待验收 |
 | 存储 | 尚未实现；规划以 `opendal` 提供本地和 S3 兼容路径 | `opendal` 依赖与 `storage-s3` feature 均待引入 |

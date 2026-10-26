@@ -29,6 +29,12 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
+#[cfg(feature = "queue-redis")]
+#[path = "queue/redis.rs"]
+mod redis;
+#[cfg(feature = "queue-redis")]
+pub use redis::RedisQueueDriver;
+
 const MAX_QUEUE_NAME: usize = 64;
 const MAX_JOB_NAME: usize = 128;
 const MAX_PAYLOAD_BYTES: usize = 1_048_576;
@@ -312,7 +318,10 @@ fn current_execution_metadata() -> ExecutionMetadata {
         .unwrap_or_default()
 }
 
-fn persist_execution_metadata(payload: Value, metadata: &ExecutionMetadata) -> Result<Value> {
+pub(super) fn persist_execution_metadata(
+    payload: Value,
+    metadata: &ExecutionMetadata,
+) -> Result<Value> {
     if metadata.is_empty() {
         return Ok(payload);
     }
@@ -337,7 +346,7 @@ fn persist_execution_metadata(payload: Value, metadata: &ExecutionMetadata) -> R
     Ok(wrapped)
 }
 
-fn restore_execution_metadata(payload: Value) -> (Value, ExecutionMetadata) {
+pub(super) fn restore_execution_metadata(payload: Value) -> (Value, ExecutionMetadata) {
     let is_envelope = payload.get(EXECUTION_ENVELOPE_KEY).and_then(Value::as_str)
         == Some(EXECUTION_ENVELOPE_VERSION);
     let Some(object) = payload.as_object() else {
@@ -985,13 +994,9 @@ impl QueuePlugin {
 }
 
 impl Plugin for QueuePlugin {
+    // 一个 build 阶段必须原子装配所选 driver 及其匹配的 command/scheduler 能力。
+    #[allow(clippy::too_many_lines)]
     fn build(&self, app: &mut AppBuilder) -> Result<()> {
-        let db = app.get::<Db>().ok_or_else(|| {
-            Error::custom(
-                "queue_requires_database",
-                "register DatabasePlugin before QueuePlugin",
-            )
-        })?;
         let mut handlers = self.handlers.clone();
         handlers.insert(
             crate::notifications::EmailDeliveryJob::NAME,
@@ -1022,20 +1027,77 @@ impl Plugin for QueuePlugin {
                 ));
             }
         }
-        let driver = DatabaseQueue::configured((*db).clone(), registry, config.clone());
-        let queue = Queue::with_driver(driver, &config)?;
-        app.insert(crate::schedule::Scheduler::new(
-            (*db).clone(),
-            queue.clone(),
-            self.schedules.clone(),
-            config.clone(),
-        ));
+        let db = app.get::<Db>();
+        let driver: Box<dyn QueueDriver> = match config.driver {
+            crate::config::QueueDriverKind::Database => {
+                let db = db.as_ref().ok_or_else(|| {
+                    Error::custom(
+                        "queue_requires_database",
+                        "register DatabasePlugin before QueuePlugin",
+                    )
+                })?;
+                Box::new(DatabaseQueue::configured(
+                    (**db).clone(),
+                    registry,
+                    config.clone(),
+                ))
+            }
+            crate::config::QueueDriverKind::Redis => {
+                if !self.schedules.is_empty() {
+                    return Err(Error::custom(
+                        "redis_queue_schedule_unsupported",
+                        "Redis queue cannot atomically dispatch database-backed schedules",
+                    ));
+                }
+                #[cfg(feature = "queue-redis")]
+                {
+                    let url = config.redis_url.as_deref().ok_or_else(|| {
+                        Error::custom(
+                            "queue_redis_url_required",
+                            "set queue.redis_url to select the Redis queue driver",
+                        )
+                    })?;
+                    let namespace = config.redis_namespace.as_deref().ok_or_else(|| {
+                        Error::custom(
+                            "queue_redis_namespace_required",
+                            "set queue.redis_namespace for the Redis queue driver",
+                        )
+                    })?;
+                    Box::new(RedisQueueDriver::new(
+                        url,
+                        namespace,
+                        registry,
+                        config.clone(),
+                    )?)
+                }
+                #[cfg(not(feature = "queue-redis"))]
+                {
+                    return Err(Error::custom(
+                        "queue_redis_feature_disabled",
+                        "enable the queue-redis feature to use the Redis queue driver",
+                    ));
+                }
+            }
+        };
+        let queue = Queue {
+            driver: Arc::from(driver),
+        };
+        if matches!(config.driver, crate::config::QueueDriverKind::Database)
+            && let Some(db) = db
+        {
+            app.insert(crate::schedule::Scheduler::new(
+                (*db).clone(),
+                queue.clone(),
+                self.schedules.clone(),
+                config.clone(),
+            ));
+            app.command(crate::schedule::ScheduleRunCommand);
+            app.command(crate::schedule::ScheduleListCommand);
+        }
         app.insert(queue);
         app.insert(config);
         app.command(QueueWorkCommand);
         app.command(QueueRetryCommand);
-        app.command(crate::schedule::ScheduleRunCommand);
-        app.command(crate::schedule::ScheduleListCommand);
         Ok(())
     }
 }
@@ -2523,7 +2585,7 @@ async fn find_unique_job(
         .transpose()
 }
 
-fn validate_options(options: &DispatchOptions) -> Result<()> {
+pub(super) fn validate_options(options: &DispatchOptions) -> Result<()> {
     if options.max_attempts == 0
         || options.max_attempts > 100
         || options.delay > Duration::from_secs(MAX_DELAY_SECS)
@@ -2539,7 +2601,7 @@ fn validate_options(options: &DispatchOptions) -> Result<()> {
     Ok(())
 }
 
-fn validate_payload(payload: &Value) -> Result<()> {
+pub(super) fn validate_payload(payload: &Value) -> Result<()> {
     let encoded = serde_json::to_vec(payload).map_err(Error::internal)?;
     if encoded.len() > MAX_PAYLOAD_BYTES {
         return Err(Error::custom(
@@ -2550,7 +2612,7 @@ fn validate_payload(payload: &Value) -> Result<()> {
     Ok(())
 }
 
-fn validate_name(kind: &str, value: &str, limit: usize) -> Result<()> {
+pub(super) fn validate_name(kind: &str, value: &str, limit: usize) -> Result<()> {
     if value.is_empty()
         || value.len() > limit
         || !value

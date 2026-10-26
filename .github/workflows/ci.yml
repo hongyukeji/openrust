@@ -27,6 +27,9 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - run: cargo test --workspace --all-features
+      - run: cargo test -p server --features queue-redis --test queue_redis
+        env:
+          REDIS_URL: redis://127.0.0.1:6379/
       - run: cargo doc --workspace --no-deps --all-features
         env:
           RUSTDOCFLAGS: -D warnings

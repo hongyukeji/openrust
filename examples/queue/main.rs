@@ -2,6 +2,7 @@
 
 use std::time::Duration;
 
+use openrust::config::{QueueConfig, QueueDriverKind};
 use openrust::core::{AppBuilder, BoxFuture, Plugin, Result};
 use openrust::db::{DatabasePlugin, MigrationPlugin, sea_orm_migration::prelude::*};
 use openrust::http::{AppBuilderHttpExt, HttpPlugin, Inject, Json};
@@ -40,15 +41,20 @@ impl Plugin for DemoQueuePlugin {
     fn build(&self, app: &mut AppBuilder) -> Result<()> {
         let mut queue = QueuePlugin::default();
         queue.register_job::<DemoJob>()?;
-        queue.schedule_interval(
-            "demo-heartbeat",
-            "demo",
-            DemoJob::NAME,
-            &DemoJob {
-                message: "scheduler heartbeat".to_owned(),
-            },
-            Duration::from_secs(60),
-        )?;
+        if app
+            .section::<QueueConfig>("queue")
+            .map_or(true, |config| config.driver == QueueDriverKind::Database)
+        {
+            queue.schedule_interval(
+                "demo-heartbeat",
+                "demo",
+                DemoJob::NAME,
+                &DemoJob {
+                    message: "scheduler heartbeat".to_owned(),
+                },
+                Duration::from_secs(60),
+            )?;
+        }
         app.plugin(queue);
         Ok(())
     }
@@ -60,10 +66,15 @@ impl Application for QueueDemo {
     type Config = NoConfig;
 
     fn build(app: &mut AppBuilder) {
-        app.plugin(HttpPlugin)
-            .plugin(DatabasePlugin)
-            .plugin(MigrationPlugin::<Migrator>::new())
-            .plugin(DemoQueuePlugin)
+        app.plugin(HttpPlugin);
+        if app
+            .section::<QueueConfig>("queue")
+            .map_or(true, |config| config.driver == QueueDriverKind::Database)
+        {
+            app.plugin(DatabasePlugin)
+                .plugin(MigrationPlugin::<Migrator>::new());
+        }
+        app.plugin(DemoQueuePlugin)
             .routes(|routes| routes.post("/jobs", enqueue));
     }
 }

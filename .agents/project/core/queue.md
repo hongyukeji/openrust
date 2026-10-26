@@ -19,7 +19,9 @@
 - `queue` 启用时内置 `openrust.notification.email.v1` 与 `openrust.notification.sms.v1` 两种 handler。`NotificationsPlugin` 必须在 `QueuePlugin` 之后注册；应用还需按实际渠道注册 `MailerPlugin` / `SmsPlugin`。标准 `queue work` 通过 `JobContext::service<T>` 从该应用的 `AppState` 取发送服务；直接 `Queue::run_next` 不带应用服务上下文。
 - `openrust::notifications::Notifier` 把邮件和 SMS 拆成独立 job，固定保存入队时已准备的内容，不在重试时重新读取 locale/模板。`dispatch_in_transaction` 可将多个渠道与业务更新原子提交；普通多渠道 `dispatch` 独立插入各任务，后续渠道错误不会撤销先前已提交任务。活动唯一键为每个渠道派生隔离摘要，活动 job 完成或归档后释放。
 - 通知队列 payload 持久化收件地址、号码和消息内容；不记录到框架日志。调用方须保护队列数据库与备份，并避免放入密码、token、验证码等凭据。SMTP/Twilio 受理后、队列确认前故障可导致重复投递；仍是至少一次，不承诺外部 exactly-once。真实 Twilio 投递仍须授权凭据与目标。
-- 外部 `QueueDriver` 可用 `Queue::with_driver` 创建 facade，并由 driver 自行持有 `JobRegistry` 执行 typed Job。事务派发、任务组、失败保留/重试等不支持能力必须明确失败；本地内存示例不是持久化或跨节点实现。可选 Redis driver 仍须独立定义并验证其可靠性语义。
+- 外部 `QueueDriver` 可用 `Queue::with_driver` 创建 facade，并由驱动自行持有 `JobRegistry` 执行 typed Job。事务派发、任务组、失败保留/重试等不支持能力必须明确失败；本地内存示例不是持久化或跨节点实现。
+- 可选 `queue-redis` feature 提供 `RedisQueueDriver`，也可由 `QueuePlugin` 配置 `queue.driver=redis` 选择；`queue` 默认仍使用数据库驱动。Redis-only 应用无需 `DatabasePlugin`，但 Redis URL 和独立 namespace 必填；无法连接时失败，不回退到本地或数据库。Redis driver 使用 Lua 原子派发/领取/租约/确认/失败迁移，Redis 服务端时钟与 token fencing；多个连接共享领取，租约过期后自动重试，达到最大次数后进入共享 failed 状态，手动 retry 幂等返回同一替代 job ID。handler 仍是至少一次语义，须自行幂等；Redis 持久性依赖服务端配置，不承诺 Redis 与业务数据库事务原子性。
+- Redis Queue 不提供数据库事务派发、任务组或数据库调度。注册 schedule 时启动失败，避免误示事务和调度原子性；调度仍使用数据库 QueuePlugin 默认路径。Redis 普通单端点/代理地址须让本实例脚本涉及的 key 共置同一 Redis Cluster slot，但自动集群分片与跨槽迁移不在支持范围内。
 
 ## M4 尚未完成
 

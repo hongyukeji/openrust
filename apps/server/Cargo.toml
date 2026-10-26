@@ -32,6 +32,7 @@ tokio.workspace = true
 tower.workspace = true
 tower-sessions = { workspace = true, features = ["memory-store"] }
 validator.workspace = true
+redis.workspace = true
 
 [lints]
 workspace = true
@@ -51,6 +52,7 @@ mail-templates = ["openrust/mail-templates"]
 sms-twilio = ["openrust/sms-twilio"]
 encryption = ["openrust/encryption"]
 queue = ["openrust/queue"]
+queue-redis = ["openrust/queue-redis"]
 db-routing-bench = []
 http-client = ["openrust/http-client"]
 cache-redis = ["openrust/cache-redis"]
@@ -101,6 +103,11 @@ path = "tests/queue/worker.rs"
 name = "queue_notifications"
 path = "tests/queue/notifications.rs"
 required-features = ["queue"]
+
+[[test]]
+name = "queue_redis"
+path = "tests/queue/redis.rs"
+required-features = ["queue-redis"]
 
 [[test]]
 name = "queue_crash_recovery"
