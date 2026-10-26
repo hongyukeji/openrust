@@ -74,6 +74,7 @@ async fn process_crash_releases_job_after_lease_expiry() -> Result<(), Box<dyn s
             DispatchOptions {
                 max_attempts: 2,
                 delay: Duration::ZERO,
+                unique_key: None,
             },
         )
         .await?;

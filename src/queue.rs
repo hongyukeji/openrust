@@ -158,6 +158,7 @@ enum Jobs {
     OwnershipToken,
     ReservedUntil,
     Progress,
+    UniqueKey,
     CreatedAt,
 }
 
@@ -212,10 +213,17 @@ impl MigrationTrait for QueueMigration {
             .col(Jobs::Queue)
             .col(Jobs::AvailableAt)
             .col(Jobs::Id);
+        let mut unique_index = Index::create();
+        unique_index
+            .name("uq_openrust_jobs_queue_unique_key")
+            .table(table.clone())
+            .col(Jobs::Queue)
+            .col(Jobs::UniqueKey)
+            .unique();
         manager
             .create_table(
                 Table::create()
-                    .table(table)
+                    .table(table.clone())
                     .if_not_exists()
                     .col(
                         ColumnDef::new(Jobs::Id)
@@ -243,11 +251,13 @@ impl MigrationTrait for QueueMigration {
                     .col(ColumnDef::new(Jobs::OwnershipToken).string_len(32).null())
                     .col(reserved_until.null())
                     .col(crate::db::dialect::json("progress", backend)?.null())
+                    .col(ColumnDef::new(Jobs::UniqueKey).string_len(128).null())
                     .col(created.not_null())
                     .to_owned(),
             )
             .await?;
         manager.create_index(ready_index.clone()).await?;
+        manager.create_index(unique_index).await?;
         let failed_table = queue_table("failed_jobs", backend)?;
         manager
             .create_table(
@@ -339,6 +349,14 @@ impl MigrationTrait for QueueMigration {
             )
             .await?;
         manager
+            .drop_index(
+                Index::drop()
+                    .table(table.clone())
+                    .name("uq_openrust_jobs_queue_unique_key")
+                    .to_owned(),
+            )
+            .await?;
+        manager
             .drop_table(Table::drop().table(table).if_exists().to_owned())
             .await
     }
@@ -403,13 +421,15 @@ pub struct Queue {
     driver: Arc<dyn QueueDriver>,
 }
 
-/// Per-job retry and delay settings.
-#[derive(Debug, Clone, Copy)]
+/// Per-job retry, delay and active uniqueness settings.
+#[derive(Debug, Clone)]
 pub struct DispatchOptions {
     /// Maximum number of handler attempts, including the first attempt.
     pub max_attempts: u32,
     /// Delay before the first attempt.
     pub delay: Duration,
+    /// Optional queue-scoped key that prevents overlapping duplicate dispatches.
+    pub unique_key: Option<String>,
 }
 
 impl Default for DispatchOptions {
@@ -417,6 +437,7 @@ impl Default for DispatchOptions {
         Self {
             max_attempts: DEFAULT_MAX_ATTEMPTS,
             delay: Duration::ZERO,
+            unique_key: None,
         }
     }
 }
@@ -595,20 +616,11 @@ impl DatabaseQueue {
         payload: Value,
         options: DispatchOptions,
     ) -> Result<String> {
-        validate_options(options)?;
+        validate_options(&options)?;
         let connection = self.db.connection()?;
         let transaction = connection.begin().await.map_err(Error::internal)?;
-        let id = new_id()?;
-        insert_job(
-            &self.db,
-            &transaction,
-            &id,
-            queue,
-            job_name,
-            &payload,
-            options,
-        )
-        .await?;
+        let id =
+            insert_or_get_job(&self.db, &transaction, queue, job_name, &payload, &options).await?;
         transaction.commit().await.map_err(Error::internal)?;
         Ok(id)
     }
@@ -689,19 +701,8 @@ impl DatabaseQueue {
         payload: Value,
         options: DispatchOptions,
     ) -> Result<String> {
-        validate_options(options)?;
-        let id = new_id()?;
-        insert_job(
-            &self.db,
-            transaction,
-            &id,
-            queue,
-            job_name,
-            &payload,
-            options,
-        )
-        .await?;
-        Ok(id)
+        validate_options(&options)?;
+        insert_or_get_job(&self.db, transaction, queue, job_name, &payload, &options).await
     }
 
     /// Requeues a failed job under a new ID while retaining its original failed record.
@@ -756,7 +757,7 @@ impl DatabaseQueue {
             &queue,
             &job_name,
             &payload,
-            DispatchOptions::default(),
+            &DispatchOptions::default(),
         )
         .await?;
         let update = match backend {
@@ -825,7 +826,7 @@ impl Queue {
         payload: &T,
         options: DispatchOptions,
     ) -> Result<String> {
-        validate_options(options)?;
+        validate_options(&options)?;
         self.driver
             .dispatch(
                 queue,
@@ -833,6 +834,25 @@ impl Queue {
                 serde_json::to_value(payload).map_err(Error::internal)?,
                 options,
             )
+            .await
+    }
+
+    /// Dispatches one job for a queue-scoped key, returning the active job ID on repeats.
+    ///
+    /// The key prevents overlapping duplicates while a job remains pending or running. It is
+    /// released when that job succeeds or moves to `failed_jobs`.
+    pub async fn dispatch_unique<T: Serialize>(
+        &self,
+        queue: &str,
+        job_name: &str,
+        unique_key: &str,
+        payload: &T,
+    ) -> Result<String> {
+        let options = DispatchOptions {
+            unique_key: Some(unique_key.to_owned()),
+            ..DispatchOptions::default()
+        };
+        self.dispatch_with_options(queue, job_name, payload, options)
             .await
     }
 
@@ -851,6 +871,31 @@ impl Queue {
                 job_name,
                 serde_json::to_value(payload).map_err(Error::internal)?,
                 DispatchOptions::default(),
+            )
+            .await
+    }
+
+    /// Uniquely dispatches a job in the caller's transaction.
+    pub async fn dispatch_unique_in_transaction<T: Serialize>(
+        &self,
+        transaction: &DatabaseTransaction,
+        queue: &str,
+        job_name: &str,
+        unique_key: &str,
+        payload: &T,
+    ) -> Result<String> {
+        let options = DispatchOptions {
+            unique_key: Some(unique_key.to_owned()),
+            ..DispatchOptions::default()
+        };
+        validate_options(&options)?;
+        self.driver
+            .dispatch_in_transaction(
+                transaction,
+                queue,
+                job_name,
+                serde_json::to_value(payload).map_err(Error::internal)?,
+                options,
             )
             .await
     }
@@ -1356,8 +1401,8 @@ async fn insert_job<T: Serialize>(
     queue: &str,
     job_name: &str,
     payload: &T,
-    options: DispatchOptions,
-) -> Result<()> {
+    options: &DispatchOptions,
+) -> Result<bool> {
     validate_name("queue", queue, MAX_QUEUE_NAME)?;
     validate_name("job name", job_name, MAX_JOB_NAME)?;
     let payload = serde_json::to_string(payload).map_err(Error::internal)?;
@@ -1368,6 +1413,9 @@ async fn insert_job<T: Serialize>(
         ));
     }
     validate_options(options)?;
+    if let Some(unique_key) = options.unique_key.as_deref() {
+        validate_name("unique key", unique_key, 128)?;
+    }
     let delay_secs = options
         .delay
         .as_secs()
@@ -1377,7 +1425,7 @@ async fn insert_job<T: Serialize>(
     let (sql, values) = match backend {
         DbBackend::Postgres => (
             format!(
-                "INSERT INTO {table} (id, queue, job_name, payload, max_attempts, available_at, created_at) VALUES ($1, $2, $3, $4::jsonb, $5, CURRENT_TIMESTAMP + ($6 * INTERVAL '1 second'), CURRENT_TIMESTAMP)"
+                "INSERT INTO {table} (id, queue, job_name, payload, max_attempts, available_at, created_at, unique_key) VALUES ($1, $2, $3, $4::jsonb, $5, CURRENT_TIMESTAMP + ($6 * INTERVAL '1 second'), CURRENT_TIMESTAMP, $7) ON CONFLICT (queue, unique_key) DO NOTHING"
             ),
             vec![
                 id.into(),
@@ -1386,12 +1434,19 @@ async fn insert_job<T: Serialize>(
                 payload.into(),
                 i64::from(options.max_attempts).into(),
                 delay_secs.into(),
+                options.unique_key.clone().into(),
             ],
         ),
         DbBackend::MySql => (
-            format!(
-                "INSERT INTO {table} (id, queue, job_name, payload, max_attempts, available_at, created_at) VALUES (?, ?, ?, CAST(? AS JSON), ?, DATE_ADD(UTC_TIMESTAMP(6), INTERVAL ? SECOND), UTC_TIMESTAMP(6))"
-            ),
+            if options.unique_key.is_some() {
+                format!(
+                    "INSERT INTO {table} (id, queue, job_name, payload, max_attempts, available_at, created_at, unique_key) VALUES (?, ?, ?, CAST(? AS JSON), ?, DATE_ADD(UTC_TIMESTAMP(6), INTERVAL ? SECOND), UTC_TIMESTAMP(6), ?) ON DUPLICATE KEY UPDATE id = id"
+                )
+            } else {
+                format!(
+                    "INSERT INTO {table} (id, queue, job_name, payload, max_attempts, available_at, created_at, unique_key) VALUES (?, ?, ?, CAST(? AS JSON), ?, DATE_ADD(UTC_TIMESTAMP(6), INTERVAL ? SECOND), UTC_TIMESTAMP(6), ?)"
+                )
+            },
             vec![
                 id.into(),
                 queue.into(),
@@ -1399,6 +1454,7 @@ async fn insert_job<T: Serialize>(
                 payload.into(),
                 i64::from(options.max_attempts).into(),
                 delay_secs.into(),
+                options.unique_key.clone().into(),
             ],
         ),
         _ => {
@@ -1408,14 +1464,76 @@ async fn insert_job<T: Serialize>(
             ));
         }
     };
-    transaction
+    let result = transaction
         .execute_raw(Statement::from_sql_and_values(backend, sql, values))
         .await
         .map_err(Error::internal)?;
-    Ok(())
+    Ok(result.rows_affected() == 1)
 }
 
-fn validate_options(options: DispatchOptions) -> Result<()> {
+async fn insert_or_get_job(
+    db: &Db,
+    transaction: &DatabaseTransaction,
+    queue: &str,
+    job_name: &str,
+    payload: &Value,
+    options: &DispatchOptions,
+) -> Result<String> {
+    for _ in 0..3 {
+        let id = new_id()?;
+        let inserted = insert_job(db, transaction, &id, queue, job_name, payload, options).await?;
+        if options.unique_key.is_none() && inserted {
+            return Ok(id);
+        }
+        let unique_key = options.unique_key.as_deref().ok_or_else(|| {
+            Error::custom(
+                "queue_unique_key_missing",
+                "job insert conflicted without a unique key",
+            )
+        })?;
+        if let Some(existing_id) = find_unique_job(db, transaction, queue, unique_key).await? {
+            return Ok(existing_id);
+        }
+    }
+    Err(Error::custom(
+        "queue_unique_job_race",
+        "unique job repeatedly completed while another dispatch was resolving its key",
+    ))
+}
+
+async fn find_unique_job(
+    db: &Db,
+    transaction: &DatabaseTransaction,
+    queue: &str,
+    unique_key: &str,
+) -> Result<Option<String>> {
+    let table = db.quoted_table_name("jobs")?;
+    let backend = db.backend()?;
+    let (sql, values) = match backend {
+        DbBackend::Postgres => (
+            format!("SELECT id FROM {table} WHERE queue = $1 AND unique_key = $2 FOR UPDATE"),
+            vec![queue.into(), unique_key.into()],
+        ),
+        DbBackend::MySql => (
+            format!("SELECT id FROM {table} WHERE queue = ? AND unique_key = ? FOR UPDATE"),
+            vec![queue.into(), unique_key.into()],
+        ),
+        _ => {
+            return Err(Error::custom(
+                "unsupported_queue_backend",
+                "database queue requires PostgreSQL or MySQL",
+            ));
+        }
+    };
+    transaction
+        .query_one_raw(Statement::from_sql_and_values(backend, sql, values))
+        .await
+        .map_err(Error::internal)?
+        .map(|row| row.try_get("", "id").map_err(Error::internal))
+        .transpose()
+}
+
+fn validate_options(options: &DispatchOptions) -> Result<()> {
     if options.max_attempts == 0
         || options.max_attempts > 100
         || options.delay > Duration::from_secs(MAX_DELAY_SECS)
@@ -1424,6 +1542,9 @@ fn validate_options(options: DispatchOptions) -> Result<()> {
             "invalid_queue_dispatch_options",
             "max_attempts must be 1..=100 and delay must not exceed 30 days",
         ));
+    }
+    if let Some(unique_key) = options.unique_key.as_deref() {
+        validate_name("unique key", unique_key, 128)?;
     }
     Ok(())
 }

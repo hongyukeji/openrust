@@ -44,7 +44,8 @@
 - worker/scheduler lifecycle 沿用显式 CLI 命令持有 supervisor 的 ADR-037 方案；本簇实现 worker 的 Ctrl-C/SIGTERM、停止新领取、限时 drain、abort/join 和 lease 恢复，不增加通用 Plugin shutdown 或 Hooks。
 - PostgreSQL 18 / MySQL 8.4 已对真实数据库执行迁移、并发领取、进度、失败重试、事务回滚/提交和强杀 worker 后 lease 恢复测试。单任务超时后其他任务仍能处理的回归测试已覆盖。
 - scheduler API、同槽同步双进程去重、提交后进程异常退出去重、`--once` 与 SIGTERM 关闭已双库验收，详见 [core/schedule.md](core/schedule.md)。
-- **当前 M4 活跃簇**：实现任务唯一键、任务链、有限并发批次与有序进程内事件；随后补旧 worker token 接管专项、生产资源边界和全部 M4 gates。当前依据 [core/queue.md](core/queue.md) 与 [ADR-037](decisions/adr-037-queue-worker-lifecycle.md)。
+- queue-scoped 活动任务唯一键与事务派发已实现并双库测试；键在 job 成功/失败终结时释放，不承诺永久请求幂等，见 [core/queue.md](core/queue.md)。
+- **当前 M4 活跃簇**：实现有限并发批次、任务链与失败策略，并实现有序进程内事件；随后补旧 worker token 接管专项、生产资源边界和全部 M4 gates。当前依据 [core/queue.md](core/queue.md) 与 [ADR-037](decisions/adr-037-queue-worker-lifecycle.md)。
 
 ## M5 缓存驱动与 store（M5 领取）
 

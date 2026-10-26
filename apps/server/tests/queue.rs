@@ -124,6 +124,64 @@ async fn database_queue_dispatch_worker_concurrency_failure_and_retry()
     assert_eq!(SUCCEEDED.load(Ordering::SeqCst), 8);
     assert!(!queue.run_next(&queue_name).await?);
 
+    let unique_queue = format!("unique{}", std::process::id());
+    let unique_payload_one = serde_json::json!({"value": 1});
+    let unique_payload_two = serde_json::json!({"value": 2});
+    let first = queue.dispatch_unique(
+        &unique_queue,
+        CountJob::NAME,
+        "account-42:daily-report",
+        &unique_payload_one,
+    );
+    let second = queue.dispatch_unique(
+        &unique_queue,
+        CountJob::NAME,
+        "account-42:daily-report",
+        &unique_payload_two,
+    );
+    let (first, second) = tokio::try_join!(first, second)?;
+    assert_eq!(first, second);
+    assert!(queue.run_next(&unique_queue).await?);
+    let after_completion = queue
+        .dispatch_unique(
+            &unique_queue,
+            CountJob::NAME,
+            "account-42:daily-report",
+            &serde_json::json!({"value": 3}),
+        )
+        .await?;
+    assert_ne!(first, after_completion);
+
+    let transactional_queue = format!("unique-tx{}", std::process::id());
+    let tx_queue = transactional_queue.clone();
+    let tx_dispatcher = queue.clone();
+    let transaction_ids = db
+        .transaction(|transaction| {
+            Box::pin(async move {
+                let first = tx_dispatcher
+                    .dispatch_unique_in_transaction(
+                        transaction,
+                        &tx_queue,
+                        CountJob::NAME,
+                        "account-42:signup-mail",
+                        &serde_json::json!({"value": 1}),
+                    )
+                    .await?;
+                let second = tx_dispatcher
+                    .dispatch_unique_in_transaction(
+                        transaction,
+                        &tx_queue,
+                        CountJob::NAME,
+                        "account-42:signup-mail",
+                        &serde_json::json!({"value": 2}),
+                    )
+                    .await?;
+                Ok((first, second))
+            })
+        })
+        .await?;
+    assert_eq!(transaction_ids.0, transaction_ids.1);
+
     let timeout_queue = format!("timeout{}", std::process::id());
     queue
         .dispatch_with_options(
@@ -133,6 +191,7 @@ async fn database_queue_dispatch_worker_concurrency_failure_and_retry()
             DispatchOptions {
                 max_attempts: 1,
                 delay: Duration::ZERO,
+                unique_key: None,
             },
         )
         .await?;
@@ -156,6 +215,7 @@ async fn database_queue_dispatch_worker_concurrency_failure_and_retry()
             DispatchOptions {
                 max_attempts: 1,
                 delay: Duration::ZERO,
+                unique_key: None,
             },
         )
         .await?;
