@@ -2,14 +2,14 @@
 
 > 受众：AI Agent
 > 更新：2026-10-26
-> 摘要：OpenRust 是全新的开源 Rust 应用开发框架，当前处于 v1 M5；源码 workspace 交付、C1–C3 中文化、F1–F3 与队列化通知已完成；M4 job 生成与集成收口、M5 通用插件公开契约、Db/Queue 外部扩展契约、跨协议验证与调用作用域及 HTTP 有界运行/就绪切换已完成；M5 缓存基础 driver 与命名 store 已完成真实 Redis、生成项目和 workspace 门禁验收；当前转入 F4 高级缓存。
+> 摘要：OpenRust 是全新的开源 Rust 应用开发框架，当前处于 v1 M5；源码 workspace 交付、C1–C3 中文化、F1–F3 与队列化通知已完成；M4 job 生成与集成收口、M5 通用插件公开契约、Db/Queue 外部扩展契约、跨协议验证与调用作用域及 HTTP 有界运行/就绪切换已完成；M5 缓存基础 driver 与命名 store 已完成真实 Redis、生成项目和 workspace 门禁验收；F4a tag generation 已通过内存与 Redis 双连接验收；当前转入 F4b 单进程同键加载合并。
 
 ## 当前状态
 
 | 项 | 值 |
 | --- | --- |
 | 版本 | 0.0.0（源码开发版本；整套 workspace 交付，不独立发布 Cargo 包） |
-| 阶段 | 原 M0–M2 基础范围和 M3 本地认证/安全运行时验收已完成；M4 队列/worker、UTC 调度、活动任务唯一键、有限任务链/批次、ADR-042 共享锁/请求幂等、worker 停机修正及 F1 cron/IANA/DST/有限补跑均已交付。Worker 停机、日历调度和队列化通知已在 PostgreSQL 18/MySQL 8.4 真实服务专项验收；F2 国际化与 F3 安全邮件模板已完成。M4 job 生成与集成收口、M5 通用插件公开契约、Db/Queue 外部扩展契约、跨协议校验/调用作用域及 HTTP 有界运行/就绪切换均已完成；SQLite 自定义 SeaORM consumer 已实测连接、应用迁移及提交/回滚，独立自定义 QueueDriver consumer 已实测派发与 typed Job 执行。ADR-044 按 PostgreSQL 18 与 MySQL 8.4 完成队列 metadata round-trip、任务组继承、migration 与 crash-recovery targets；HTTP 通过真实 TCP readiness/drain/SIGTERM 及 all-features 进程启动验收，workspace 默认/all-features 门禁通过，M5 缓存基础 driver 与命名 store 已完成真实 Redis、生成项目和 workspace 门禁验收；当前转入 F4 高级缓存。生产负载与完整集群仍待最终门禁，Twilio 实发待授权。完成定义见 progress.md，不将阶段标签等同于全部交付 |
+| 阶段 | 原 M0–M2 基础范围和 M3 本地认证/安全运行时验收已完成；M4 队列/worker、UTC 调度、活动任务唯一键、有限任务链/批次、ADR-042 共享锁/请求幂等、worker 停机修正及 F1 cron/IANA/DST/有限补跑均已交付。Worker 停机、日历调度和队列化通知已在 PostgreSQL 18/MySQL 8.4 真实服务专项验收；F2 国际化与 F3 安全邮件模板已完成。M4 job 生成与集成收口、M5 通用插件公开契约、Db/Queue 外部扩展契约、跨协议校验/调用作用域及 HTTP 有界运行/就绪切换均已完成；SQLite 自定义 SeaORM consumer 已实测连接、应用迁移及提交/回滚，独立自定义 QueueDriver consumer 已实测派发与 typed Job 执行。ADR-044 按 PostgreSQL 18 与 MySQL 8.4 完成队列 metadata round-trip、任务组继承、migration 与 crash-recovery targets；HTTP 通过真实 TCP readiness/drain/SIGTERM 及 all-features 进程启动验收，workspace 默认/all-features 门禁通过，M5 缓存基础 driver 与命名 store 已完成真实 Redis、生成项目和 workspace 门禁验收；F4a tag generation 已通过内存与 Redis 双连接验收；当前转入 F4b 单进程同键加载合并。生产负载与完整集群仍待最终门禁，Twilio 实发待授权。完成定义见 progress.md，不将阶段标签等同于全部交付 |
 | 仓库 | `https://github.com/hongyukeji/openrust`（公开，默认分支 `main`，已推送）；本地 `/Users/Home/Codes/Rust/openrust` |
 | 协作模式 | 单开发者 + AI Agent；Claude 负责方案与设计，Codex 负责实现与验证 |
 | 本机工具链 | Rust stable 1.99.1（默认）与 Rust 1.97.0 MSRV（`rustup`），`cargo-deny` 0.20 已安装 |

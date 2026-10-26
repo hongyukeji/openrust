@@ -57,6 +57,24 @@ fn cache_plugin_uses_the_configured_shared_redis_store() -> TestResult {
             Some("connected")
         );
         cache.remove(&key).await?;
+
+        let tagged = store.tagged(&["server-integration"])?;
+        tagged
+            .set("profile", &"visible", Duration::from_secs(10))
+            .await?;
+        let stale_entry = tagged.entry("stale-profile").await?;
+        assert_eq!(
+            tagged.get::<String>("profile").await?.as_deref(),
+            Some("visible")
+        );
+        store.invalidate_tags(&["server-integration"]).await?;
+        assert_eq!(tagged.get::<String>("profile").await?, None);
+        assert!(
+            stale_entry
+                .set(&"stale", Duration::from_secs(10))
+                .await
+                .is_err()
+        );
         Ok(())
     })
 }

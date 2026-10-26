@@ -2,6 +2,9 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+mod tags;
+pub use tags::{CacheTagBackend, TaggedCacheEntry, TaggedCacheStore};
+
 use std::{
     collections::{BTreeMap, HashMap},
     fmt::Write as _,
@@ -40,6 +43,10 @@ pub trait CacheBackend: Send + Sync + 'static {
     async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()>;
     /// 删除值；键不存在时也成功。
     async fn remove(&self, key: &str) -> Result<()>;
+    /// 返回可选的原子 tag generation 能力。
+    fn tag_backend(&self) -> Option<&dyn CacheTagBackend> {
+        None
+    }
     /// 返回此实例的实际共享范围。
     fn scope(&self) -> CacheScope;
 }
@@ -201,11 +208,21 @@ impl Cache {
 /// 已解析的缓存 store 句柄。
 #[derive(Clone)]
 pub struct CacheStore {
+    store_name: String,
     namespace: String,
     backend: Arc<dyn CacheBackend>,
 }
 
 impl CacheStore {
+    /// 为该 store 创建按 tag generation 隔离的视图。
+    pub fn tagged(&self, tags: &[&str]) -> Result<TaggedCacheStore> {
+        TaggedCacheStore::new(self.clone(), tags)
+    }
+
+    /// 递增一个或多个 tag 的 generation，使旧代条目不可见。
+    pub async fn invalidate_tags(&self, tags: &[&str]) -> Result<()> {
+        tags::invalidate_tags(self, tags).await
+    }
     /// 返回后端实际共享范围。
     pub fn scope(&self) -> CacheScope {
         self.backend.scope()
@@ -258,11 +275,18 @@ impl CacheStore {
                 "cache key must contain 1 to 1024 bytes",
             ));
         }
-        Ok(if self.namespace.is_empty() {
+        let physical = if self.namespace.is_empty() {
             key.to_owned()
         } else {
             format!("{}:{key}", self.namespace)
-        })
+        };
+        if physical.starts_with("__openrust_cache_") {
+            return Err(Error::custom(
+                "cache_reserved_key",
+                "cache key uses a reserved framework prefix",
+            ));
+        }
+        Ok(physical)
     }
 }
 
@@ -333,8 +357,9 @@ impl Plugin for CachePlugin {
                 };
                 let backend = driver.build(&driver_config).await?;
                 stores.insert(
-                    name,
+                    name.clone(),
                     CacheStore {
+                        store_name: name.clone(),
                         namespace: driver_config.namespace,
                         backend,
                     },
@@ -399,19 +424,26 @@ type MemoryValues = HashMap<String, (Vec<u8>, Option<Instant>)>;
 
 #[derive(Default)]
 struct MemoryBackend {
-    values: tokio::sync::Mutex<MemoryValues>,
+    values: tokio::sync::Mutex<MemoryState>,
+}
+
+#[derive(Default)]
+struct MemoryState {
+    values: MemoryValues,
+    generations: HashMap<String, u64>,
 }
 #[async_trait]
 impl CacheBackend for MemoryBackend {
     async fn get(&self, key: &str) -> Result<Option<Vec<u8>>> {
-        let mut values = self.values.lock().await;
-        if values
+        let mut state = self.values.lock().await;
+        if state
+            .values
             .get(key)
             .is_some_and(|(_, expiry)| expiry.is_some_and(|time| time <= Instant::now()))
         {
-            values.remove(key);
+            state.values.remove(key);
         }
-        Ok(values.get(key).map(|(value, _)| value.clone()))
+        Ok(state.values.get(key).map(|(value, _)| value.clone()))
     }
     async fn set(&self, key: &str, value: Vec<u8>, ttl: Option<Duration>) -> Result<()> {
         let expires = ttl
@@ -424,15 +456,65 @@ impl CacheBackend for MemoryBackend {
         self.values
             .lock()
             .await
+            .values
             .insert(key.to_owned(), (value, expires));
         Ok(())
     }
     async fn remove(&self, key: &str) -> Result<()> {
-        self.values.lock().await.remove(key);
+        self.values.lock().await.values.remove(key);
         Ok(())
+    }
+    fn tag_backend(&self) -> Option<&dyn CacheTagBackend> {
+        Some(self)
     }
     fn scope(&self) -> CacheScope {
         CacheScope::Process
+    }
+}
+
+#[async_trait]
+impl CacheTagBackend for MemoryBackend {
+    async fn generation(&self, tag_key: &str) -> Result<u64> {
+        Ok(*self
+            .values
+            .lock()
+            .await
+            .generations
+            .get(tag_key)
+            .unwrap_or(&0))
+    }
+
+    async fn invalidate(&self, tag_key: &str) -> Result<()> {
+        let mut state = self.values.lock().await;
+        let generation = state.generations.entry(tag_key.to_owned()).or_default();
+        *generation = generation.checked_add(1).ok_or_else(|| {
+            Error::custom(
+                "cache_tag_generation_exhausted",
+                "cache tag generation is exhausted",
+            )
+        })?;
+        Ok(())
+    }
+
+    async fn set_if_generations_match(
+        &self,
+        key: &str,
+        value: Vec<u8>,
+        ttl: Duration,
+        generations: &[(String, u64)],
+    ) -> Result<bool> {
+        let expires = Instant::now().checked_add(ttl).ok_or_else(|| {
+            Error::custom("cache_invalid_ttl", "cache TTL exceeds supported range")
+        })?;
+        let mut state = self.values.lock().await;
+        if generations
+            .iter()
+            .any(|(tag, expected)| state.generations.get(tag).copied().unwrap_or(0) != *expected)
+        {
+            return Ok(false);
+        }
+        state.values.insert(key.to_owned(), (value, Some(expires)));
+        Ok(true)
     }
 }
 
@@ -633,8 +715,56 @@ impl CacheBackend for RedisBackend {
             .await
             .map_err(|_| backend_failure())
     }
+    fn tag_backend(&self) -> Option<&dyn CacheTagBackend> {
+        Some(self)
+    }
     fn scope(&self) -> CacheScope {
         CacheScope::Shared
+    }
+}
+
+#[cfg(feature = "cache-redis")]
+#[async_trait]
+impl CacheTagBackend for RedisBackend {
+    async fn generation(&self, tag_key: &str) -> Result<u64> {
+        let mut connection = self.connection.clone();
+        let value: Option<String> = redis::AsyncCommands::get(&mut connection, tag_key)
+            .await
+            .map_err(|_| backend_failure())?;
+        value.map_or(Ok(0), |value| value.parse().map_err(|_| backend_failure()))
+    }
+
+    async fn invalidate(&self, tag_key: &str) -> Result<()> {
+        let mut connection = self.connection.clone();
+        let _: i64 = redis::AsyncCommands::incr(&mut connection, tag_key, 1_i64)
+            .await
+            .map_err(|_| backend_failure())?;
+        Ok(())
+    }
+
+    async fn set_if_generations_match(
+        &self,
+        key: &str,
+        value: Vec<u8>,
+        ttl: Duration,
+        generations: &[(String, u64)],
+    ) -> Result<bool> {
+        const SCRIPT: &str = "local n = #KEYS - 1; for i = 2, #KEYS do local current = redis.call('GET', KEYS[i]); local expected = ARGV[i - 1]; if (not current and expected ~= '0') or (current and current ~= expected) then return 0 end end; redis.call('SET', KEYS[1], ARGV[n + 1], 'PX', ARGV[n + 2]); return 1";
+        let mut connection = self.connection.clone();
+        let mut command = redis::cmd("EVAL");
+        command.arg(SCRIPT).arg(generations.len() + 1).arg(key);
+        for (tag, _) in generations {
+            command.arg(tag);
+        }
+        for (_, generation) in generations {
+            command.arg(generation.to_string());
+        }
+        command.arg(value).arg(ttl.as_millis().to_string());
+        let written: i32 = command
+            .query_async(&mut connection)
+            .await
+            .map_err(|_| backend_failure())?;
+        Ok(written == 1)
     }
 }
 
@@ -664,6 +794,7 @@ mod tests {
 
     fn store(backend: Arc<dyn CacheBackend>, namespace: &str) -> CacheStore {
         CacheStore {
+            store_name: "test".to_owned(),
             backend,
             namespace: namespace.to_owned(),
         }
@@ -759,6 +890,60 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn memory_tags_isolate_namespaces_and_reject_stale_generation_writes() -> Result<()> {
+        let backend: Arc<dyn CacheBackend> = Arc::new(MemoryBackend::default());
+        let cache_store = store(backend, "tenant-a");
+        let tagged = cache_store.tagged(&["users"])?;
+        tagged
+            .set("profile:7", &"first", Duration::from_secs(30))
+            .await?;
+        assert_eq!(
+            tagged.get::<String>("profile:7").await?,
+            Some("first".into())
+        );
+
+        let old_entry = tagged.entry("profile:7").await?;
+        cache_store.invalidate_tags(&["users"]).await?;
+        assert_eq!(tagged.get::<String>("profile:7").await?, None);
+        assert!(
+            old_entry
+                .set(&"stale", Duration::from_secs(30))
+                .await
+                .is_err()
+        );
+
+        let other_namespace = store(Arc::new(MemoryBackend::default()), "tenant-b");
+        let other_tagged = other_namespace.tagged(&["users"])?;
+        other_tagged
+            .set("profile:7", &"other", Duration::from_secs(30))
+            .await?;
+        assert_eq!(
+            other_tagged.get::<String>("profile:7").await?,
+            Some("other".into())
+        );
+        assert!(cache_store.tagged(&[""]).is_err());
+        let unnamespaced = CacheStore {
+            store_name: "test".into(),
+            namespace: String::new(),
+            backend: Arc::clone(&cache_store.backend),
+        };
+        assert!(
+            unnamespaced
+                .set("__openrust_cache_tag_meta_v1:reserved", &1, None)
+                .await
+                .is_err()
+        );
+        let file_store = store(
+            Arc::new(FileBackend {
+                root: PathBuf::from("."),
+            }),
+            "local",
+        );
+        assert!(file_store.tagged(&["users"]).is_err());
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn plugin_requires_config_and_registers_named_memory_stores() -> Result<()> {
         use crate::core::{AppBuilder, lifecycle};
         use figment::providers::{Format, Toml};
@@ -850,7 +1035,7 @@ mod tests {
         let config = CacheDriverConfig {
             store_name: "integration".into(),
             namespace: format!("test:{}", std::process::id()),
-            options: [("dsn".to_owned(), serde_json::Value::String(dsn))].into(),
+            options: [("dsn".to_owned(), serde_json::Value::String(dsn.clone()))].into(),
         };
         let backend = RedisDriver.build(&config).await?;
         let cache = store(backend, "integration");
@@ -862,6 +1047,28 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(40)).await;
         assert_eq!(cache.get::<u8>("expiring").await?, None);
         cache.remove("value").await?;
+
+        let config = CacheDriverConfig {
+            store_name: "integration".into(),
+            namespace: format!("cross-client:{}", std::process::id()),
+            options: [("dsn".to_owned(), serde_json::Value::String(dsn))].into(),
+        };
+        let first_backend = RedisDriver.build(&config).await?;
+        let second_backend = RedisDriver.build(&config).await?;
+        let first = store(first_backend, &config.namespace).tagged(&["accounts"])?;
+        let second = store(second_backend, &config.namespace);
+        first
+            .set("account:1", &"present", Duration::from_secs(30))
+            .await?;
+        let stale_entry = first.entry("account:2").await?;
+        second.invalidate_tags(&["accounts"]).await?;
+        assert_eq!(first.get::<String>("account:1").await?, None);
+        assert!(
+            stale_entry
+                .set(&"late", Duration::from_secs(30))
+                .await
+                .is_err()
+        );
         Ok(())
     }
 }

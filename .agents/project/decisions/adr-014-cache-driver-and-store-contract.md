@@ -1,6 +1,6 @@
 # ADR-014 缓存驱动、命名实例与公共契约
 
-- 状态：Partially Superseded（标准应用默认值由 [ADR-015](adr-015-redis-default-calibration.md) 校准为 Redis；公共契约继续有效，V1 补强已纳入 tag/SWR/singleflight，驱动及增强实现待 M5）
+- 状态：Partially Superseded（标准应用默认值由 [ADR-015](adr-015-redis-default-calibration.md) 校准为 Redis；公共契约继续有效；基础驱动与 F4a tag generation 已实现，singleflight/SWR 继续按 todo 推进）
 - 日期：2026-10-25
 - 补充：ADR-009 能力驱动扩展原则；标准应用默认值以 ADR-015 的 Redis 决定为准。单机/集群部署边界仍以 ADR-013 为准。
 
@@ -40,6 +40,14 @@ v1 需要让业务代码在合理范围内不依赖具体缓存后端，同时�
 - `redis` 的 `xxhash-rust` 是非可选依赖，采用 OSI 批准的 Boost Software License 1.0；将 `BSL-1.0` 明确加入 `deny.toml` allowlist，不启用 Redis crate 的其他默认可选能力。
 - 标准 CLI 生成项目安装 CachePlugin、启用 `cache-redis` 并配置 Redis default store。`openrust dev` 仅在默认 store 使用 loopback Redis 且 PING 不可达时启动仓库 Compose Redis；可达服务复用不重建，启动的服务保留供后续开发复用。`serve` 不代替开发服务编排。
 
+## F4a tag 代际失效 contract
+
+- 可选 backend 能力 `CacheTagBackend` 与基础 `CacheBackend` 分离；`CacheStore::tagged(tags)` 返回受同一 store 与 namespace 隔离的视图。普通 get/set 不受影响；file/custom backend 未实现该能力时 tagged API 返回稳定 unsupported 错误，不做本地替代。
+- tag 名称为应用管理的稳定标识；输入 tag 集合排序、去重且有界。每个 tag 有持久 generation；命中键包含逻辑 key 与 tag generation，不遍历删除全部成员。Redis generation 不设置 TTL，避免元数据过期后 generation 回到旧值；file 明确不支持。
+- tagged 写入需 atomic `set_if_generations_match`：失效与回填竞争时，旧 generation loader 不可写入当前可读键空间。Redis 使用单条 Lua 脚本比较全部 generation 并写入值；memory 在同一锁下比较并写入。多 tag 失效逐项原子，整体不保证跨 tag 全有或全无；调用失败时返回错误并说明可能部分失效。
+- tag invalidation 不删除旧物理 key；调用者需为 tagged value 设置有限 TTL 以回收旧代 payload。tag generation 元数据随每个被使用的稳定 tag 持久存在，应用不得把高基数用户输入直接作为 tag。
+- 基础 `CacheBackend` 新增默认“不支持”可选能力方法，保持已实现 custom driver 可编译；外部 driver 明确实现 `CacheTagBackend` 后才可使用 tag API。
+
 ## 参考与取舍
 
 - Laravel 官方 Cache 文档：<https://laravel.com/docs/13.x/cache>，参考其默认 store、按名称选择 store 与注册 custom driver 的职责拆分。
@@ -49,5 +57,5 @@ v1 需要让业务代码在合理范围内不依赖具体缓存后端，同时�
 ## 影响与实施顺序
 
 - ADR-009、ADR-013、上下文、栈、v1 计划与集群计划按 ADR-015 同步到标准应用 Redis 默认、显式 memory/file 与受校验的共享语义。
-- 实现顺序以 `todo.md` 为准；本 ADR 规定 contract 和验收，不表示 Cache、memory/file/Redis driver 已实现。
-- M5 实施前重审 `CacheDriver` / `CacheBackend` 的实际 trait 形式、TTL 精度/零值、file 清理触发方式、各后端原子能力，以及 cluster capability 要求；不弱化本 ADR 的错误区分和作用域边界。
+- 实现顺序以 `todo.md` 为准；本 ADR 规定 contract 和验收；基础 Cache 与 memory/file/Redis driver、F4a tag generation 已实现，后续高级能力仍按 todo 验收。
+- M5 实施已复核 `CacheDriver` / `CacheBackend` 的异步边界、TTL 毫秒精度、file 路径与 rename 行为及可选原子 tag 能力；不弱化本 ADR 的错误区分和作用域边界。完整 Redis Cluster client 与多 key 跨 slot 能力不在本簇保证内。
