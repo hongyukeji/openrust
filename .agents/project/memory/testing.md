@@ -66,6 +66,8 @@ CLI 模板快照测试：`cargo test -p openrust-cli`。生成 PostgreSQL、MySQ
 
 2026-10-26 当前日常基线复验：`cargo test -p openrust-server --features auth,db-postgres --test auth_database` 在现有 PostgreSQL 18 容器通过 4 项；`--features auth,db-mysql` 在现有 MySQL 8.4 容器通过 4 项。按当前 CLI 模板新生成的 `--auth` 项目分别以本地 Cargo patch 指向未发布 workspace，并在真实 PostgreSQL 18 / MySQL 8.4 服务上通过 `cargo fmt --all --check`、`cargo check` 和 `cargo test --test auth_flows`（每库 1 项真实 TCP HTTP 流程，使用隔离数据库与 fake mail）。生成目录位于 `/tmp/openrust-auth-pg-resume` 与 `/tmp/openrust-auth-mysql-resume`，没有纳入仓库。
 
+2026-10-26 ADR-031 出站 HTTP：`cargo test -p openrust --features http-client http::client::tests` 通过 15 项，覆盖本机真实 TCP JSON/status/body limit/redirect/timeout/response stream，fake 不访问网络、JSON/query/form/multipart/stream body、transport 与 response body timeout、取消、retry transport/status 与 attempt cap、不可重放 request 拒绝、配置拒绝及 proxy 凭据 Debug 脱敏；`cargo test -p openrust-server --features http-client --test http_client` 通过 1 项聚合应用接入。CLI `--http-client` 生成项目 `/tmp/openrust-http-client-generated-20261026` 经 Cargo patch 指向本地未发布 workspace，通过 `cargo check`、`cargo test`。最终通过 `cargo fmt --all --check`、default/all-features workspace clippy/test、warnings-denied default/all-features docs、`cargo deny check`、`cargo check -p openrust --no-default-features`、默认 normal dependency tree 无 reqwest、`git diff --check`。cargo-deny 仅保留既有 MPL-2.0 unused allowance 与 duplicate dependency warnings，advisories/bans/licenses/sources 均通过。
+
 ## 迁移验收记录
 
 - `cargo metadata --no-deps --format-version 1` 确认根 package 为 `openrust`，workspace 共五个成员：`openrust`、`openrust-cli`、`openrust-macros`、`openrust-test`、`openrust-server`。

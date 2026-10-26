@@ -35,6 +35,9 @@ enum Builtin {
         /// Add database-backed authentication and an authenticated example route (requires `--db`).
         #[arg(long, requires = "db")]
         auth: bool,
+        /// Enable the optional outbound HTTP client.
+        #[arg(long)]
+        http_client: bool,
     },
     /// Run the application in development mode.
     Dev,
@@ -100,8 +103,13 @@ fn run(cli: Cli) -> anyhow::Result<ExitCode> {
             Cli::parse_from(["openrust", "--help"]);
             Ok(ExitCode::SUCCESS)
         }
-        Some(Builtin::New { name, db, auth }) => {
-            create_project(&name, db, auth, &std::env::current_dir()?)?;
+        Some(Builtin::New {
+            name,
+            db,
+            auth,
+            http_client,
+        }) => {
+            create_project(&name, db, auth, http_client, &std::env::current_dir()?)?;
             Ok(ExitCode::SUCCESS)
         }
         Some(Builtin::Dev) => run_project(&["serve"], true),
@@ -119,6 +127,7 @@ fn create_project(
     name: &str,
     database: Option<DatabaseBackend>,
     auth: bool,
+    http_client: bool,
     current_dir: &Path,
 ) -> anyhow::Result<()> {
     if auth && database.is_none() {
@@ -176,7 +185,14 @@ fn create_project(
         bail!("project name must contain at least one letter or digit");
     }
 
-    let result = populate_project(&project_dir, project_name, &type_name, database, auth);
+    let result = populate_project(
+        &project_dir,
+        project_name,
+        &type_name,
+        database,
+        auth,
+        http_client,
+    );
     if result.is_err() {
         let _ = fs::remove_dir_all(&project_dir);
     }
@@ -201,6 +217,7 @@ fn populate_project(
     crate_name: &str,
     database: Option<DatabaseBackend>,
     auth: bool,
+    http_client: bool,
 ) -> anyhow::Result<()> {
     fs::create_dir(project_dir)
         .with_context(|| format!("failed to create {}", project_dir.display()))?;
@@ -224,7 +241,10 @@ fn populate_project(
     }
 
     let mut files = vec![
-        ("Cargo.toml", cargo_manifest(name, database, auth)),
+        (
+            "Cargo.toml",
+            cargo_manifest(name, database, auth, http_client),
+        ),
         (
             ".gitignore",
             include_str!("../templates/.gitignore").to_owned(),
@@ -301,9 +321,14 @@ fn populate_project(
     Ok(())
 }
 
-fn cargo_manifest(name: &str, database: Option<DatabaseBackend>, auth: bool) -> String {
+fn cargo_manifest(
+    name: &str,
+    database: Option<DatabaseBackend>,
+    auth: bool,
+    http_client: bool,
+) -> String {
     let mut manifest = include_str!("../templates/Cargo.toml").replace("{{name}}", name);
-    if database.is_some() || auth {
+    if database.is_some() || auth || http_client {
         let mut features = Vec::new();
         if let Some(database) = database {
             features.push(database.feature());
@@ -311,10 +336,17 @@ fn cargo_manifest(name: &str, database: Option<DatabaseBackend>, auth: bool) -> 
         if auth {
             features.push("auth");
         }
-        manifest = manifest.replace(
-            "openrust = \"0.0.0\"",
-            &format!("openrust = {{ version = \"0.0.0\", features = {features:?} }}\nopenrust-migration = {{ package = \"{name}-migration\", path = \"migration\" }}"),
-        );
+        if http_client {
+            features.push("http-client");
+        }
+        let dependency = if database.is_some() {
+            format!(
+                "openrust = {{ version = \"0.0.0\", features = {features:?} }}\nopenrust-migration = {{ package = \"{name}-migration\", path = \"migration\" }}"
+            )
+        } else {
+            format!("openrust = {{ version = \"0.0.0\", features = {features:?} }}")
+        };
+        manifest = manifest.replace("openrust = \"0.0.0\"", &dependency);
     }
     if auth {
         manifest.push_str("serde = { version = \"1\", features = [\"derive\"] }\n\n[dev-dependencies]\nbase64 = \"0.22\"\nfigment = { version = \"0.10\", features = [\"toml\"] }\nserde_json = \"1\"\ntokio = { version = \"1\", features = [\"io-util\", \"macros\", \"net\", \"rt-multi-thread\"] }\n");
@@ -833,7 +865,14 @@ mod tests {
 
     #[test]
     fn generated_manifest_matches_starter_template() {
-        insta::assert_snapshot!(cargo_manifest("my-app", None, false));
+        insta::assert_snapshot!(cargo_manifest("my-app", None, false, false));
+    }
+
+    #[test]
+    fn generated_manifest_enables_requested_http_client_feature() {
+        let manifest = cargo_manifest("my-app", None, false, true);
+        assert!(manifest.contains("features = [\"http-client\"]"));
+        assert!(Cli::try_parse_from(["openrust", "new", "blog", "--http-client"]).is_ok());
     }
 
     #[test]
@@ -842,7 +881,7 @@ mod tests {
         let project = root.join("blog");
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).expect("create temporary test directory");
-        populate_project(&project, "blog", "Blog", None, false).expect("generate project");
+        populate_project(&project, "blog", "Blog", None, false, false).expect("generate project");
         for path in [
             "Cargo.toml",
             ".gitignore",
@@ -899,7 +938,7 @@ mod tests {
             (DatabaseBackend::Mysql, "db-mysql"),
         ] {
             let project = root.join(feature);
-            populate_project(&project, "blog", "Blog", Some(backend), false)
+            populate_project(&project, "blog", "Blog", Some(backend), false, false)
                 .expect("generate database project");
             let manifest =
                 fs::read_to_string(project.join("Cargo.toml")).expect("read generated manifest");
@@ -930,7 +969,7 @@ mod tests {
             (DatabaseBackend::Mysql, "db-mysql"),
         ] {
             let project = root.join(feature);
-            populate_project(&project, "blog", "Blog", Some(backend), true)
+            populate_project(&project, "blog", "Blog", Some(backend), true, false)
                 .expect("generate database-backed auth project");
             let manifest = fs::read_to_string(project.join("Cargo.toml"))
                 .expect("read generated app manifest");
@@ -1000,6 +1039,7 @@ mod tests {
             "Blog",
             Some(DatabaseBackend::Postgres),
             false,
+            false,
         )
         .expect("generate database project");
 
@@ -1059,10 +1099,10 @@ mod tests {
             std::env::temp_dir().join(format!("openrust-cli-invalid-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).expect("create temporary test directory");
-        assert!(create_project("../outside", None, false, &root).is_err());
-        assert!(create_project("--", None, false, &root).is_err());
+        assert!(create_project("../outside", None, false, false, &root).is_err());
+        assert!(create_project("--", None, false, false, &root).is_err());
         fs::create_dir(root.join("existing")).expect("create existing destination");
-        assert!(create_project("existing", None, false, &root).is_err());
+        assert!(create_project("existing", None, false, false, &root).is_err());
         let _ = fs::remove_dir_all(root);
     }
 }

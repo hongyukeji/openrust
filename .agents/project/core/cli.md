@@ -18,3 +18,6 @@
 
 - `generate scaffold` 等非数据生成器属于 M6。
 - M1 模板依赖已发布的 `openrust` 版本；仓库内验收未发布源码时通过 Cargo 临时 patch 到本地门面 crate。
+# 生成器 feature
+
+`openrust new` 增加 `--http-client`，在生成项目 manifest 中启用 `openrust/http-client`；不影响默认项目。该参数可与 `--db` / `--auth` 同用。生成项目检查记录见 `memory/testing.md`；供应商客户端完整验收仍未结束。

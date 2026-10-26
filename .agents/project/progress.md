@@ -7,6 +7,7 @@
 | 项 | 状态 |
 | --- | --- |
 | v1 版本计划与框架设计 | 已定稿，见 `plans/` |
+| M3 统一出站 HTTP | 已完成独立功能簇：ADR-031、可选 `http-client`/CLI `--http-client`、reqwest 0.13 Rustls client、transport fake、受限 request/response stream、超时/取消、显式有界幂等重试。15 项 client tests、`apps/server` 集成、生成项目 check/test 和 default/all-features workspace fmt/clippy/test/doc、`cargo deny check` 通过；随本功能簇独立本地提交，不推送。真实第三方供应商不属于本 client 本地验收，后续 M3 供应商发送仍需已授权目标与凭据。 |
 | 架构决策 | 以 `decisions/` 中有效状态为准；缓存标准应用默认 Redis（ADR-015），driver/store contract 见 ADR-014，均不代表缓存已实现 |
 | 仓库基线（许可证、README、工具链声明、Agent 契约、CHANGELOG、贡献与安全政策） | 已就位 |
 | workspace、lint 基线、CI 工作流 | 已就位；CI 双库 job 已启用，MSRV 为 Rust 1.97 |

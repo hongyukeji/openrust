@@ -13,6 +13,7 @@
 | 限流 | `openrust::core::RateLimiter` + `openrust::database::DatabaseRateLimitStore` | 不额外依赖 governor；固定窗口 service/store contract 与 PostgreSQL/MySQL 跨节点共享实现，具体 HTTP middleware 按后续 M3 策略集成 |
 | 会话 | `tower-sessions` 0.15 | 复用 Axum/Tower 通用 Session 与 store contract；OpenRust 以 SeaORM 实现双库共享 store，Redis adapter 暂留后续 |
 | OpenAPI | `utoipa` + `utoipa-axum` | 从类型生成文档，`/docs` 非生产默认开启 |
+| 出站 HTTP | `reqwest` 0.13（Rustls） | `http-client` 可选 feature；共享连接池、JSON/query/form/multipart/stream、显式超时；禁止默认重定向和应用层重试，响应体由框架限额 |
 | 序列化 | `serde` + `serde_json` | `apps/server` 集成测试用 `serde_json` 比对包装字段与请求 ID |
 | 验证 | `validator` | M0 评估 `garde` 后定稿 |
 | 配置 | `figment` | 已采用；错误信息含键名（测试覆盖） |
@@ -53,6 +54,7 @@
 | 模板渲染（生成器） | `minijinja` |
 | 文件监听（`openrust dev`） | `watchexec` 库 |
 | 快照测试 | `insta` |
+| 流式请求测试 | `tokio-stream` 0.1（dev dependency） | 为出站 HTTP 一次性流 body 的不可重放边界构造异步 stream；不进入默认运行时依赖 |
 | 数据库隔离测试 | `openrust-test::TestDatabase` | PostgreSQL 模板克隆、MySQL 独立库迁移 |
 | 过程宏 | `syn` + `quote` | 解析控制器 impl 项并生成 `Resource` 实现；避免手工拼装 token 与语法错误 |
 | 假数据 | `fake` |

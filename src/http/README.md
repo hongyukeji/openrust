@@ -69,4 +69,33 @@ Request parsing follows [ADR-008](../../.agents/project/decisions/adr-008-api-co
 
 `Created::with_location("/api/posts/42", Json(post))?` returns a `Located<T>` response. Invalid `Location` header values return an `Error` that renders as an `internal_error` envelope (semantic HTTP 500); construction never panics. `Created(Json(post))` remains available when no location is needed.
 
+### Outbound HTTP client
+
+Enable the optional `http-client` feature to use `openrust::http::HttpClient`. A client clone shares its connection pool. Defaults are a 5-second connection timeout, 30-second total timeout, 1 MiB maximum response body, and no automatic redirects. JSON, URL-encoded form, multipart and streaming request bodies are supported; response status is returned as data and is not treated as a transport error. `HttpResponse::next_chunk` streams response data while enforcing the configured total body limit. Dropping the request future cancels local waiting, but cannot undo work already received by a remote server.
+
+```rust,ignore
+use openrust::http::{HttpClient, HttpClientConfig};
+
+let client = HttpClient::new(HttpClientConfig::default())?;
+let response = client.get("https://api.example.test/status").send().await?;
+if response.status().is_success() {
+    let value: serde_json::Value = response.json().await?;
+}
+```
+
+The client does not retry automatically. To retry, the application must explicitly mark the operation with `idempotent()` and pass a `RetryPolicy`; policy allows at most five attempts and uses capped exponential backoff for transport failures and 502/503/504 responses. A request with a one-shot streaming body is rejected when replay is required. Redirects are disabled to avoid implicit target changes; this does not replace application-side SSRF destination validation. System proxy environment variables are ignored; configure `HttpClientConfig::proxy` explicitly when a proxy is required. `HttpTransport` and `TransportResponse::from_bytes` support deterministic fakes; injected transports receive built requests and do not use the network unless their implementation chooses to. Transport and decoding errors redact underlying details, and applications should not log authorization headers or sensitive bodies. Use the returned status to handle non-2xx responses explicitly.
+
+```rust,ignore
+use std::time::Duration;
+use openrust::http::{HttpClient, HttpClientConfig, RetryPolicy};
+
+let client = HttpClient::new(HttpClientConfig::default())?;
+let policy = RetryPolicy::new(3, Duration::from_millis(100), Duration::from_secs(1))?;
+let response = client
+    .get("https://api.example.test/idempotent-resource")
+    .idempotent()
+    .send_with_retry(policy)
+    .await?;
+```
+
 `[api] http_status = "always_ok"` is the default: all framework JSON envelopes return HTTP 200. `semantic` retains the status table from ADR-008. The middleware stores the selected mode and request ID in request-scoped task context so success, extraction errors, fallbacks, timeouts, and panic responses share one policy. The JSON `/health` response uses the same envelope; non-JSON responses such as files, streams, and HTML remain raw.
