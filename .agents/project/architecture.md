@@ -43,7 +43,7 @@ apps/server/             # 同仓库集成宿主；通过验收替代后才可�
 
 ## 依赖规则
 
-- 所有框架能力属于同一个 `openrust` package，内部引用沿 `core/config` 等 module boundary；公共稳定入口保持 `openrust::...`。
+- 所有通用框架能力属于同一个 `openrust` package，内部引用沿 `core/config` 等 module boundary；公共稳定入口保持 `openrust::...`。
 - 根 package 可选数据库 driver、SMTP 等依赖由 Cargo features 控制；默认构建无需数据库驱动或外部服务。
 - PostgreSQL 与 MySQL 的 schema/SQL 差异集中在 `db::dialect` 及明确的数据库适配入口，需为两库提供分支和真实测试。
 - 生成应用只依赖 `openrust`；`testing` 单向依赖 `openrust`，根框架不得反向依赖测试工具。
@@ -69,6 +69,10 @@ apps/server/             # 同仓库集成宿主；通过验收替代后才可�
 | `testing` | PostgreSQL/MySQL `TestDatabase`，见 [core/test.md](core/test.md) |
 | `apps/server` | 聚合入口及启动/数据库/认证集成验证，见 [core/server.md](core/server.md) |
 | cache/events/storage 等剩余能力 | 尚未完整实现；按 [当前计划](plan.md) 与 [能力覆盖](plans/v1-capability-coverage.md) 逐簇推进 |
+
+## 后续领域插件边界
+
+[AI 插件套件与完整平台应用](plans/ai-platform-product.md) 是已确认的未来交付方向，尚未实现。领域套件以可选源码依赖接入公开 Plugin，应用 → 套件 → 框架单向依赖，基础 AI 调用不依赖完整后台/计费模型；具体目录、包边界和兼容矩阵在独立立项时确定。默认框架构建不引入 AI 依赖或迁移，不建立第二套装配机制，详见 [ADR-009](decisions/adr-009-extensible-capability-drivers.md#可选领域插件)。
 
 ## 扩展模型
 

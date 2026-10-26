@@ -13,7 +13,7 @@
 - 框架封装必须有明确附加价值：配置/注册、生命周期、安全默认值、统一错误、测试支持或跨驱动契约。避免没有价值的逐方法包装，也不让用户自己完成整合。
 - 具体能力按 [通用能力计划](v1-common-capabilities.md)、[补强计划](v1-performance-and-readiness.md) 与本表协同实施；同一能力只登记一个 contract，不创建平行系统。
 
-V1 按 [框架参考与对标](framework-design.md#框架参考与对标) 综合评估 Loco、Laravel、Goravel、OpenSpring；若依、芋道仅 V2 开发时参考。框架能力新增范围以 [底层补齐计划](v1-foundation-completion.md) F1–F10 为准；OpenRouter 仅属于独立产品对标。
+V1 按 [框架参考与对标](framework-design.md#框架参考与对标) 综合评估 Loco、Laravel、Goravel、OpenSpring；若依、芋道仅 V2 开发时参考。框架能力新增范围以 [底层补齐计划](v1-foundation-completion.md) F1–F10 为准；OpenRouter 仅对标后续 AI 套件与完整应用的产品能力。
 
 每个功能簇须按 [扩展性自主判断](framework-design.md#开发-agent-的自主扩展性判断) 主动核对常见业务接入场景。示例不穷举，机制可灵活选择，合理扩展通过公开 API 完成且不增加重复能力。
 

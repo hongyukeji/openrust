@@ -12,6 +12,10 @@
 - [v2 现成后台开发计划](v2-admin-platform.md)：复用 v1 的后台套件、核心模块、扩展候选、版本分工与 B1-B5 验收。
 - [v1 集群部署与多副本一致性](v1-cluster-deployment.md)：共享状态、跨节点实时投递、任务竞争、滚动发布与必须通过的集群验收。
 
+后续领域套件（独立立项，不进入当前框架任务）：
+
+- [AI 插件套件与完整平台应用](ai-platform-product.md)：可组合边界、源码接入、开发隔离与 G0–G3 门禁；完整功能矩阵见 [OpenRouter 对标](ai-platform-openrouter-parity.md)，工程验收见 [实施计划](ai-platform-engineering.md)。
+
 执行约束：
 
 - 只把当前可在一次干净提交中闭合的功能簇提升到 `todo.md`，不复制计划正文。

@@ -63,7 +63,7 @@ V1 参考 Loco、Laravel、Goravel、OpenSpring；若依/芋道仅 V2。新增�
 
 ## v1 通过后的已授权下一阶段
 
-按 [v2 后台计划](plans/v2-admin-platform.md) 执行 B1–B5：Admin 使用 pure-admin 精简国际化版 + Element Plus，App 使用 uni-app，PC 仅规划设计；B1 锁定版本与 Rust API 适配。候选功能仍先评估，不因列出即全部开发。AI 平台未启动，不创建产品分支/worktree，不混入框架。
+按 [v2 后台计划](plans/v2-admin-platform.md) 执行 B1–B5：Admin 使用 pure-admin 精简国际化版 + Element Plus，App 使用 uni-app，PC 仅规划设计；B1 锁定版本与 Rust API 适配。候选功能仍先评估，不因列出即全部开发。[AI 插件套件与完整平台应用](plans/ai-platform-product.md) 已确认交付方向但未立项，不进入当前 V1/V2 实现任务，也不创建源码、分支或 worktree；后续按独立门禁启动。
 
 ## 外部条件与证据缺口
 
