@@ -12,7 +12,7 @@
 ## M4 尚未完成
 
 - 任务唯一键、批次 API/结果、任务链与链失败策略。
-- Scheduler 的 UTC interval/daily slot、数据库锁、触发去重、`schedule run --once` / 常驻模式及多实例验证。
+- 生产负载下 scheduler 的跨节点/资源边界验收，最终归入 M4 集群门禁；其本地多进程正确性证据见 [core/schedule.md](schedule.md)。
 - 有序进程内事件 listeners 与显式 queued listener。
 - 旧 worker token 接管竞态专项断言、worker/scheduler 命令停机测试和完整多实例集群验收。
 

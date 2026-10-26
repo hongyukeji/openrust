@@ -13,6 +13,8 @@ pub mod i18n;
 pub mod mail;
 #[cfg(feature = "queue")]
 pub mod queue;
+#[cfg(feature = "queue")]
+pub mod schedule;
 #[cfg(feature = "encryption")]
 pub mod security;
 #[cfg(feature = "signing")]
@@ -82,6 +84,8 @@ pub mod prelude {
         DatabaseQueue, DispatchOptions, Job, JobContext, Queue, QueueDriver, QueueMigration,
         QueuePlugin,
     };
+    #[cfg(feature = "queue")]
+    pub use crate::schedule::{ScheduleDefinition, ScheduleFrequency, ScheduleReport, Scheduler};
     #[cfg(feature = "encryption")]
     pub use crate::security::{EncryptionPlugin, Encryptor};
     #[cfg(feature = "signing")]

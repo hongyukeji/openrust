@@ -8,6 +8,7 @@
 - M3 本地邮件/SMS driver、认证流程、JWT/refresh、可选 Session、PAT、验证码/限流、Policy/RBAC、国际化、出站 HTTP、加密、审计和签名能力均已实现并完成当前本地验收；真实 Twilio 投递仍待授权账号与目标。详见 `core/auth.md`、`core/mail.md` 与 `testing.md`。
 - 2026-10-26 认证总验收在 PostgreSQL 18 / MySQL 8.4 完成：每库 `auth_database` 和 `auth_runtime` 各 6 项通过；新生成项目通过格式、check 和真实 TCP HTTP 全流程。Mailpit 邮件实收已完成；Twilio 实发未宣称。
 - 2026-10-26 M4 队列/worker 基础簇：PostgreSQL 18 与 MySQL 8.4 的隔离数据库均通过 queue migration、dispatch/worker、事务提交/回滚、失败重试、超时后继续处理和独立进程强杀后的 lease 恢复测试。Workspace clippy 通过。此项仅关闭队列 worker 基础簇，不代表 M4 scheduler、events、batch/chain 或多实例验收完成。
+- 2026-10-26 M4 scheduler 子簇：PostgreSQL 18 与 MySQL 8.4 分别通过 schedule migration 和 4 项真实 process tests，覆盖同步屏障后的独立 scheduler 竞争、单 slot/单 job、已提交后异常退出去重、`schedule run --once` 与常驻 SIGTERM 退出。当前代码 `cargo fmt --all --check`、workspace all-features clippy/test、warnings-denied all-features docs、`cargo deny check` 和 `git diff --check` 通过；deny 仅报告既有重复依赖与未使用 MPL allowance 警告。未执行 Redis 或生产集群资源测试。
 - M2 基础读写分离已按 ADR-029 实现，并在 PostgreSQL 18.6 / MySQL 8.4.13 真实复制拓扑验证复制暂停、主库新读、scope 隔离及追平。完整集群和代表性业务性能验收仍未完成。
 - 缓存、队列、事件、存储仍有待实现范围。标准应用 Redis 默认按 ADR-015 执行，但 Redis driver、完整集群和性能基线尚未验收。
 - ADR-033 邮件/SMS：Mailpit v1.32.0 本机 SMTP 实收、Twilio adapter 请求协议/超时/无重试测试及 `--sms-twilio` 生成项目 check/test 通过；缺真实 Twilio 账号与授权目标，未宣称 SMS 实发。

@@ -175,6 +175,17 @@ enum FailedJobs {
     RetriedJobId,
 }
 
+#[derive(DeriveIden)]
+#[allow(dead_code)]
+enum ScheduleRuns {
+    Table,
+    ScheduleKey,
+    SlotKey,
+    ScheduledAt,
+    TriggeredJobId,
+    CreatedAt,
+}
+
 /// Creates the durable jobs table. Register this migration explicitly in the application migrator.
 pub struct QueueMigration;
 
@@ -185,6 +196,7 @@ impl MigrationName for QueueMigration {
 }
 
 #[async_trait::async_trait]
+#[allow(clippy::too_many_lines)] // Queue tables and indexes are created as one explicit migration.
 impl MigrationTrait for QueueMigration {
     async fn up(&self, manager: &SchemaManager) -> std::result::Result<(), DbErr> {
         let backend = manager.get_database_backend();
@@ -273,12 +285,48 @@ impl MigrationTrait for QueueMigration {
                     )
                     .to_owned(),
             )
+            .await?;
+        let mut schedule_created = crate::db::dialect::timestamp_utc("created_at", backend)?;
+        let mut scheduled_at = crate::db::dialect::timestamp_utc("scheduled_at", backend)?;
+        manager
+            .create_table(
+                Table::create()
+                    .table(queue_table("schedule_runs", backend)?)
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(ScheduleRuns::ScheduleKey)
+                            .string_len(128)
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(ScheduleRuns::SlotKey)
+                            .string_len(64)
+                            .not_null(),
+                    )
+                    .col(scheduled_at.not_null())
+                    .col(
+                        ColumnDef::new(ScheduleRuns::TriggeredJobId)
+                            .string_len(32)
+                            .not_null(),
+                    )
+                    .col(schedule_created.not_null())
+                    .primary_key(
+                        Index::create()
+                            .col(ScheduleRuns::ScheduleKey)
+                            .col(ScheduleRuns::SlotKey),
+                    )
+                    .to_owned(),
+            )
             .await
     }
 
     async fn down(&self, manager: &SchemaManager) -> std::result::Result<(), DbErr> {
         let table = queue_table("jobs", manager.get_database_backend())?;
         let failed_table = queue_table("failed_jobs", manager.get_database_backend())?;
+        let schedule_table = queue_table("schedule_runs", manager.get_database_backend())?;
+        manager
+            .drop_table(Table::drop().table(schedule_table).if_exists().to_owned())
+            .await?;
         manager
             .drop_table(Table::drop().table(failed_table).if_exists().to_owned())
             .await?;
@@ -377,6 +425,7 @@ impl Default for DispatchOptions {
 #[derive(Debug, Default, Clone)]
 pub struct QueuePlugin {
     handlers: HashMap<&'static str, JobFn>,
+    schedules: Vec<crate::schedule::ScheduleDefinition>,
 }
 
 impl QueuePlugin {
@@ -390,6 +439,77 @@ impl QueuePlugin {
             ));
         }
         self.handlers.insert(J::NAME, run_job::<J>);
+        Ok(self)
+    }
+
+    /// Registers a job to be dispatched at each bounded UTC interval slot.
+    pub fn schedule_interval<T: Serialize>(
+        &mut self,
+        key: &str,
+        queue: &str,
+        job_name: &str,
+        payload: &T,
+        interval: Duration,
+    ) -> Result<&mut Self> {
+        self.register_schedule(
+            key,
+            queue,
+            job_name,
+            payload,
+            crate::schedule::ScheduleFrequency::Interval(interval),
+        )
+    }
+
+    /// Registers a job at a daily UTC hour and minute, skipping missed daily slots.
+    pub fn schedule_daily_at<T: Serialize>(
+        &mut self,
+        key: &str,
+        queue: &str,
+        job_name: &str,
+        payload: &T,
+        hour_utc: u8,
+        minute_utc: u8,
+    ) -> Result<&mut Self> {
+        self.register_schedule(
+            key,
+            queue,
+            job_name,
+            payload,
+            crate::schedule::ScheduleFrequency::DailyAtUtc {
+                hour: hour_utc,
+                minute: minute_utc,
+            },
+        )
+    }
+
+    fn register_schedule<T: Serialize>(
+        &mut self,
+        key: &str,
+        queue: &str,
+        job_name: &str,
+        payload: &T,
+        frequency: crate::schedule::ScheduleFrequency,
+    ) -> Result<&mut Self> {
+        validate_name("schedule key", key, 128)?;
+        validate_name("queue", queue, MAX_QUEUE_NAME)?;
+        validate_name("job name", job_name, MAX_JOB_NAME)?;
+        frequency.validate()?;
+        if self.schedules.iter().any(|schedule| schedule.key() == key) {
+            return Err(Error::custom(
+                "duplicate_schedule_key",
+                format!("schedule `{key}` is registered more than once"),
+            ));
+        }
+        let payload = serde_json::to_value(payload).map_err(Error::internal)?;
+        validate_payload(&payload)?;
+        self.schedules
+            .push(crate::schedule::ScheduleDefinition::new(
+                key.to_owned(),
+                queue.to_owned(),
+                job_name.to_owned(),
+                payload,
+                frequency,
+            ));
         Ok(self)
     }
 }
@@ -411,11 +531,32 @@ impl Plugin for QueuePlugin {
             Err(error) => return Err(Error::Config(error)),
         };
         validate_config(&config)?;
+        for schedule in &self.schedules {
+            if !self.handlers.contains_key(schedule.job_name()) {
+                return Err(Error::custom(
+                    "unregistered_schedule_job",
+                    format!(
+                        "schedule `{}` references unregistered job `{}`",
+                        schedule.key(),
+                        schedule.job_name()
+                    ),
+                ));
+            }
+        }
         let driver = DatabaseQueue::configured((*db).clone(), registry, config.clone());
-        app.insert(Queue::with_driver(driver, &config)?);
+        let queue = Queue::with_driver(driver, &config)?;
+        app.insert(crate::schedule::Scheduler::new(
+            (*db).clone(),
+            queue.clone(),
+            self.schedules.clone(),
+            config.clone(),
+        ));
+        app.insert(queue);
         app.insert(config);
         app.command(QueueWorkCommand);
         app.command(QueueRetryCommand);
+        app.command(crate::schedule::ScheduleRunCommand);
+        app.command(crate::schedule::ScheduleListCommand);
         Ok(())
     }
 }
@@ -1282,6 +1423,17 @@ fn validate_options(options: DispatchOptions) -> Result<()> {
         return Err(Error::custom(
             "invalid_queue_dispatch_options",
             "max_attempts must be 1..=100 and delay must not exceed 30 days",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_payload(payload: &Value) -> Result<()> {
+    let encoded = serde_json::to_vec(payload).map_err(Error::internal)?;
+    if encoded.len() > MAX_PAYLOAD_BYTES {
+        return Err(Error::custom(
+            "queue_payload_too_large",
+            "job payload exceeds 1 MiB",
         ));
     }
     Ok(())

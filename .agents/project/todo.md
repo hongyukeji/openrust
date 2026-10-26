@@ -38,12 +38,13 @@
 - Twilio adapter 已通过本地协议测试；真实短信投递需开发者提供授权账号、凭据与目标号码。供应商投递未作为已完成证据。
 - 后续按 M4/M5 完成数据库事务、队列/事件与文件等基础机制后，再实现跨 M3/M4/M5 的请求幂等、事务边界、业务流程扩展点及多渠道通知；遵守现有 Plugin、事务和事件契约，不另建 Hooks 系统。
 
-## M4 队列 / worker 基础执行簇（本轮实施）
+## M4 队列 / worker 基础执行簇（已提交 d9bb059）
 
 - 已实现数据库 job/failed-job schema、显式 handler allowlist、受界 dispatch、事务内派发、`SKIP LOCKED` 领取、attempt/退避、失败保留与手动重试、进度、有限并发 worker、心跳租约、任务超时与合作取消。
 - worker/scheduler lifecycle 沿用显式 CLI 命令持有 supervisor 的 ADR-037 方案；本簇实现 worker 的 Ctrl-C/SIGTERM、停止新领取、限时 drain、abort/join 和 lease 恢复，不增加通用 Plugin shutdown 或 Hooks。
 - PostgreSQL 18 / MySQL 8.4 已对真实数据库执行迁移、并发领取、进度、失败重试、事务回滚/提交和强杀 worker 后 lease 恢复测试。单任务超时后其他任务仍能处理的回归测试已覆盖。
-- **M4 仍活跃**：补旧 worker token 接管竞态测试；实现任务唯一键、任务链、有限并发批次；实现 scheduler 数据库锁/触发去重和多实例测试；实现有序进程内事件与 queued listener；再按计划完成全部 M4 gates 和多实例验收。当前依据 [core/queue.md](core/queue.md) 与 [ADR-037](decisions/adr-037-queue-worker-lifecycle.md)。
+- scheduler API、同槽同步双进程去重、提交后进程异常退出去重、`--once` 与 SIGTERM 关闭已双库验收，详见 [core/schedule.md](core/schedule.md)。
+- **当前 M4 活跃簇**：实现任务唯一键、任务链、有限并发批次与有序进程内事件；随后补旧 worker token 接管专项、生产资源边界和全部 M4 gates。当前依据 [core/queue.md](core/queue.md) 与 [ADR-037](decisions/adr-037-queue-worker-lifecycle.md)。
 
 ## M5 缓存驱动与 store（M5 领取）
 

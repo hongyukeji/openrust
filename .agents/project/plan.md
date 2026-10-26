@@ -33,7 +33,7 @@ M0、M1、M2 当前已验收范围完成；根模块迁移与读写分离均已�
 
 ## 里程碑顺序
 
-M4 当前在 `openrust::queue` 持久化 dispatch 与 worker 生命周期基础簇；实现、证据和缺口见 [core/queue.md](core/queue.md)。Scheduler、事件、任务链/批次及跨节点验证未完成，不得据此关闭 M4。
+M4 的数据库队列/worker 基础簇已提交；Scheduler 已实现 UTC interval/daily slot、事务内派发去重及 `schedule run` 命令，并在 PostgreSQL 18 / MySQL 8.4 双进程竞争、异常退出与 SIGTERM 测试。事件、任务链/批次、旧 worker token 接管专项与完整集群验收仍未完成；详见 [core/queue.md](core/queue.md) 与 [core/schedule.md](core/schedule.md)。不得据此关闭 M4。
 
 | 里程碑 | 主题 | 主要 crate |
 | --- | --- | --- |
