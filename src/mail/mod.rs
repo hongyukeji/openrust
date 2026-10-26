@@ -2,11 +2,12 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
-use std::sync::Arc;
+use std::{fmt, sync::Arc};
 
 use crate::config::ConfigError;
 pub use crate::config::mailer::MailConfig;
 use crate::core::{App, AppBuilder, BoxFuture, Error, Plugin, Result};
+use crate::i18n::{I18n, Locale, MessageArgs};
 #[cfg(feature = "mail-smtp")]
 use lettre::AsyncTransport;
 use lettre::Message;
@@ -18,6 +19,55 @@ pub use lettre;
 pub trait Email {
     /// Builds this email as a lettre message.
     fn message(&self) -> Result<Message>;
+}
+
+/// Composes a plain-text email from two explicit locale catalog keys.
+///
+/// Subject and body are translated once at construction time. Background jobs should pass an
+/// explicit [`Locale`] rather than rely on request task-local state.
+pub struct LocalizedEmail {
+    message: Message,
+}
+
+impl LocalizedEmail {
+    /// Renders subject/body from the shared catalog and builds a plain-text email.
+    pub fn new(
+        i18n: &I18n,
+        locale: &Locale,
+        args: &MessageArgs,
+        from: &str,
+        to: &str,
+        subject_key: &str,
+        body_key: &str,
+    ) -> Result<Self> {
+        let from = from
+            .parse::<lettre::message::Mailbox>()
+            .map_err(Error::internal)?;
+        let to = to
+            .parse::<lettre::message::Mailbox>()
+            .map_err(Error::internal)?;
+        let subject = i18n.translate(locale, subject_key, args);
+        let body = i18n.translate(locale, body_key, args);
+        let message = Message::builder()
+            .from(from)
+            .to(to)
+            .subject(subject)
+            .body(body)
+            .map_err(Error::internal)?;
+        Ok(Self { message })
+    }
+}
+
+impl fmt::Debug for LocalizedEmail {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("LocalizedEmail([REDACTED])")
+    }
+}
+
+impl Email for LocalizedEmail {
+    fn message(&self) -> Result<Message> {
+        Ok(self.message.clone())
+    }
 }
 
 /// A pluggable email delivery backend.
@@ -53,6 +103,13 @@ pub struct MailerPlugin;
 impl Plugin for MailerPlugin {
     fn build(&self, app: &mut AppBuilder) -> Result<()> {
         let config = app.section::<MailConfig>("mail")?;
+        if app.config().app.env == crate::config::Environment::Production && config.driver == "log"
+        {
+            return Err(Error::Config(ConfigError::Invalid(
+                "mail.driver=log is not allowed in production; configure a real mail provider"
+                    .into(),
+            )));
+        }
         let mailer = configured_mailer(&config)?;
         app.insert(config);
         app.insert(mailer);
@@ -95,15 +152,39 @@ fn configured_smtp(config: &MailConfig) -> Result<Mailer> {
             )));
         }
     };
-    let mut builder = lettre::AsyncSmtpTransport::<lettre::Tokio1Executor>::starttls_relay(host)
-        .map_err(Error::internal)?
-        .port(config.smtp_port);
+    if !config.smtp_starttls {
+        if !is_loopback_host(host) {
+            return Err(Error::Config(ConfigError::Invalid(
+                "mail.smtp_starttls=false is limited to localhost or a loopback IP".into(),
+            )));
+        }
+        if credentials.is_some() {
+            return Err(Error::Config(ConfigError::Invalid(
+                "mail.smtp_username/password require mail.smtp_starttls=true".into(),
+            )));
+        }
+    }
+    let mut builder = if config.smtp_starttls {
+        lettre::AsyncSmtpTransport::<lettre::Tokio1Executor>::starttls_relay(host)
+            .map_err(Error::internal)?
+    } else {
+        lettre::AsyncSmtpTransport::<lettre::Tokio1Executor>::builder_dangerous(host)
+    }
+    .port(config.smtp_port);
     if let Some(credentials) = credentials {
         builder = builder.credentials(credentials);
     }
     Ok(Mailer::new(SmtpMailer {
         transport: builder.build(),
     }))
+}
+
+#[cfg(feature = "mail-smtp")]
+fn is_loopback_host(host: &str) -> bool {
+    host.eq_ignore_ascii_case("localhost")
+        || host
+            .parse::<std::net::IpAddr>()
+            .is_ok_and(|address| address.is_loopback())
 }
 
 #[cfg(not(feature = "mail-smtp"))]
@@ -204,13 +285,13 @@ impl MailDriver for FakeMailer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg(feature = "test-util")]
+    #[cfg(any(feature = "test-util", feature = "mail-smtp"))]
     use lettre::message::Mailbox;
 
-    #[cfg(feature = "test-util")]
+    #[cfg(any(feature = "test-util", feature = "mail-smtp"))]
     struct WelcomeEmail;
 
-    #[cfg(feature = "test-util")]
+    #[cfg(any(feature = "test-util", feature = "mail-smtp"))]
     impl Email for WelcomeEmail {
         fn message(&self) -> Result<Message> {
             Message::builder()
@@ -226,6 +307,58 @@ mod tests {
                 .body(String::from("Welcome to OpenRust"))
                 .map_err(Error::internal)
         }
+    }
+
+    #[test]
+    fn localized_email_renders_subject_and_body_from_explicit_locale() -> Result<()> {
+        let mut catalog = crate::i18n::MessageCatalog::new();
+        catalog.insert("en", "mail.subject", "Welcome {name}")?;
+        catalog.insert("en", "mail.body", "Hello {name}")?;
+        catalog.insert("zh-CN", "mail.subject", "欢迎 {name}")?;
+        catalog.insert("zh-CN", "mail.body", "你好 {name}")?;
+        let i18n = I18n::new(crate::i18n::I18nConfig::default(), catalog).map_err(Error::Config)?;
+        let locale = Locale::new("zh-CN").map_err(Error::Config)?;
+        let args = MessageArgs::from([("name".to_owned(), "Mina".to_owned())]);
+        let email = LocalizedEmail::new(
+            &i18n,
+            &locale,
+            &args,
+            "OpenRust <noreply@example.test>",
+            "Mina <mina@example.test>",
+            "mail.subject",
+            "mail.body",
+        )?;
+        let formatted = String::from_utf8(email.message()?.formatted()).map_err(Error::internal)?;
+        assert!(formatted.contains("=?utf-8?b?5qyi6L+O?= Mina"));
+        assert!(formatted.contains("5L2g5aW9IE1pbmE="));
+        assert!(!format!("{email:?}").contains("Mina"));
+        Ok(())
+    }
+
+    #[test]
+    fn production_rejects_log_driver() {
+        let mut framework = crate::config::FrameworkConfig::default();
+        framework.app.env = crate::config::Environment::Production;
+        let figment = figment::Figment::new().merge(("mail.driver", "log"));
+        let mut builder = AppBuilder::new(framework, figment);
+        assert!(MailerPlugin.build(&mut builder).is_err());
+    }
+
+    #[cfg(feature = "mail-smtp")]
+    #[tokio::test]
+    #[ignore = "requires Mailpit; run explicitly with OPENRUST_TEST_MAILPIT_SMTP_PORT"]
+    async fn smtp_submits_to_local_mailpit() -> Result<()> {
+        let config = MailConfig {
+            driver: "smtp".into(),
+            smtp_host: Some("127.0.0.1".into()),
+            smtp_port: std::env::var("OPENRUST_TEST_MAILPIT_SMTP_PORT")
+                .ok()
+                .and_then(|value| value.parse().ok())
+                .unwrap_or(1025),
+            smtp_starttls: false,
+            ..MailConfig::default()
+        };
+        configured_mailer(&config)?.send(&WelcomeEmail).await
     }
 
     #[tokio::test]
@@ -274,5 +407,28 @@ mod tests {
             ..config
         };
         assert!(configured_mailer(&invalid).is_err());
+    }
+
+    #[cfg(feature = "mail-smtp")]
+    #[test]
+    fn plaintext_smtp_is_limited_to_unauthenticated_loopback() {
+        let local = MailConfig {
+            driver: "smtp".into(),
+            smtp_host: Some("localhost".into()),
+            smtp_starttls: false,
+            ..MailConfig::default()
+        };
+        assert!(configured_mailer(&local).is_ok());
+        let remote = MailConfig {
+            smtp_host: Some("mail.example.test".into()),
+            ..local.clone()
+        };
+        assert!(configured_mailer(&remote).is_err());
+        let authenticated = MailConfig {
+            smtp_username: Some("user".into()),
+            smtp_password: Some("pass".into()),
+            ..local
+        };
+        assert!(configured_mailer(&authenticated).is_err());
     }
 }

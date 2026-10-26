@@ -147,6 +147,7 @@ auth = [
 ]
 mail-smtp = ["lettre/smtp-transport", "lettre/tokio1-rustls-tls"]
 http-client = ["dep:reqwest"]
+sms-twilio = ["http-client", "dep:base64"]
 test-util = []
 
 [lints]

@@ -31,6 +31,9 @@ fallback_locale = "en"
 [mail]
 driver = "log"
 
+[sms]
+driver = "log"
+
 [session]
 secure = true
 http_only = true

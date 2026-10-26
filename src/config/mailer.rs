@@ -12,6 +12,8 @@ pub struct MailConfig {
     pub smtp_host: Option<String>,
     /// SMTP server port.
     pub smtp_port: u16,
+    /// Require STARTTLS; disabling is allowed only for unauthenticated loopback development sinks.
+    pub smtp_starttls: bool,
     /// Optional SMTP username; a username requires a password.
     pub smtp_username: Option<String>,
     /// Optional SMTP password; omitted from debug output.
@@ -24,6 +26,7 @@ impl Default for MailConfig {
             driver: "log".into(),
             smtp_host: None,
             smtp_port: 587,
+            smtp_starttls: true,
             smtp_username: None,
             smtp_password: None,
         }
@@ -37,6 +40,7 @@ impl std::fmt::Debug for MailConfig {
             .field("driver", &self.driver)
             .field("smtp_host", &self.smtp_host)
             .field("smtp_port", &self.smtp_port)
+            .field("smtp_starttls", &self.smtp_starttls)
             .field("smtp_username", &self.smtp_username)
             .field(
                 "smtp_password",

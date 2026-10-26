@@ -38,6 +38,9 @@ enum Builtin {
         /// Enable the optional outbound HTTP client.
         #[arg(long)]
         http_client: bool,
+        /// Enable the optional Twilio SMS provider and outbound HTTP client.
+        #[arg(long)]
+        sms_twilio: bool,
     },
     /// Run the application in development mode.
     Dev,
@@ -108,8 +111,16 @@ fn run(cli: Cli) -> anyhow::Result<ExitCode> {
             db,
             auth,
             http_client,
+            sms_twilio,
         }) => {
-            create_project(&name, db, auth, http_client, &std::env::current_dir()?)?;
+            create_project(
+                &name,
+                db,
+                auth,
+                http_client,
+                sms_twilio,
+                &std::env::current_dir()?,
+            )?;
             Ok(ExitCode::SUCCESS)
         }
         Some(Builtin::Dev) => run_project(&["serve"], true),
@@ -128,6 +139,7 @@ fn create_project(
     database: Option<DatabaseBackend>,
     auth: bool,
     http_client: bool,
+    sms_twilio: bool,
     current_dir: &Path,
 ) -> anyhow::Result<()> {
     if auth && database.is_none() {
@@ -192,6 +204,7 @@ fn create_project(
         database,
         auth,
         http_client,
+        sms_twilio,
     );
     if result.is_err() {
         let _ = fs::remove_dir_all(&project_dir);
@@ -218,6 +231,7 @@ fn populate_project(
     database: Option<DatabaseBackend>,
     auth: bool,
     http_client: bool,
+    sms_twilio: bool,
 ) -> anyhow::Result<()> {
     fs::create_dir(project_dir)
         .with_context(|| format!("failed to create {}", project_dir.display()))?;
@@ -243,7 +257,7 @@ fn populate_project(
     let mut files = vec![
         (
             "Cargo.toml",
-            cargo_manifest(name, database, auth, http_client),
+            cargo_manifest(name, database, auth, http_client, sms_twilio),
         ),
         (
             ".gitignore",
@@ -326,9 +340,10 @@ fn cargo_manifest(
     database: Option<DatabaseBackend>,
     auth: bool,
     http_client: bool,
+    sms_twilio: bool,
 ) -> String {
     let mut manifest = include_str!("../templates/Cargo.toml").replace("{{name}}", name);
-    if database.is_some() || auth || http_client {
+    if database.is_some() || auth || http_client || sms_twilio {
         let mut features = Vec::new();
         if let Some(database) = database {
             features.push(database.feature());
@@ -338,6 +353,9 @@ fn cargo_manifest(
         }
         if http_client {
             features.push("http-client");
+        }
+        if sms_twilio {
+            features.push("sms-twilio");
         }
         let dependency = if database.is_some() {
             format!(
@@ -419,7 +437,7 @@ fn env_example(name: &str, database: Option<DatabaseBackend>, auth: bool) -> Str
         );
     }
     contents.push_str(
-        "\n# Optional SMTP delivery overrides:\n# APP_MAIL__DRIVER=smtp\n# APP_MAIL__SMTP_HOST=mail.example.com\n# APP_MAIL__SMTP_PORT=587\n# APP_MAIL__SMTP_USERNAME=\n# APP_MAIL__SMTP_PASSWORD=\n",
+        "\n# Optional SMTP delivery overrides:\n# APP_MAIL__DRIVER=smtp\n# APP_MAIL__SMTP_HOST=mail.example.com\n# APP_MAIL__SMTP_PORT=587\n# APP_MAIL__SMTP_STARTTLS=true\n# For local Mailpit on 127.0.0.1:1025 only, set SMTP_STARTTLS=false\n# APP_MAIL__SMTP_USERNAME=\n# APP_MAIL__SMTP_PASSWORD=\n# Optional Twilio SMS provider (sms-twilio feature):\n# APP_SMS__DRIVER=twilio\n# APP_SMS__ACCOUNT_SID=\n# APP_SMS__API_KEY_SID=\n# APP_SMS__API_KEY_SECRET=\n# Set exactly one of APP_SMS__FROM or APP_SMS__MESSAGING_SERVICE_SID\n",
     );
     contents
 }
@@ -865,14 +883,21 @@ mod tests {
 
     #[test]
     fn generated_manifest_matches_starter_template() {
-        insta::assert_snapshot!(cargo_manifest("my-app", None, false, false));
+        insta::assert_snapshot!(cargo_manifest("my-app", None, false, false, false));
     }
 
     #[test]
     fn generated_manifest_enables_requested_http_client_feature() {
-        let manifest = cargo_manifest("my-app", None, false, true);
+        let manifest = cargo_manifest("my-app", None, false, true, false);
         assert!(manifest.contains("features = [\"http-client\"]"));
         assert!(Cli::try_parse_from(["openrust", "new", "blog", "--http-client"]).is_ok());
+    }
+
+    #[test]
+    fn generated_manifest_enables_twilio_sms_feature() {
+        let manifest = cargo_manifest("my-app", None, false, false, true);
+        assert!(manifest.contains("features = [\"sms-twilio\"]"));
+        assert!(Cli::try_parse_from(["openrust", "new", "blog", "--sms-twilio"]).is_ok());
     }
 
     #[test]
@@ -881,7 +906,8 @@ mod tests {
         let project = root.join("blog");
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).expect("create temporary test directory");
-        populate_project(&project, "blog", "Blog", None, false, false).expect("generate project");
+        populate_project(&project, "blog", "Blog", None, false, false, false)
+            .expect("generate project");
         for path in [
             "Cargo.toml",
             ".gitignore",
@@ -938,7 +964,7 @@ mod tests {
             (DatabaseBackend::Mysql, "db-mysql"),
         ] {
             let project = root.join(feature);
-            populate_project(&project, "blog", "Blog", Some(backend), false, false)
+            populate_project(&project, "blog", "Blog", Some(backend), false, false, false)
                 .expect("generate database project");
             let manifest =
                 fs::read_to_string(project.join("Cargo.toml")).expect("read generated manifest");
@@ -969,7 +995,7 @@ mod tests {
             (DatabaseBackend::Mysql, "db-mysql"),
         ] {
             let project = root.join(feature);
-            populate_project(&project, "blog", "Blog", Some(backend), true, false)
+            populate_project(&project, "blog", "Blog", Some(backend), true, false, false)
                 .expect("generate database-backed auth project");
             let manifest = fs::read_to_string(project.join("Cargo.toml"))
                 .expect("read generated app manifest");
@@ -1040,6 +1066,7 @@ mod tests {
             Some(DatabaseBackend::Postgres),
             false,
             false,
+            false,
         )
         .expect("generate database project");
 
@@ -1099,10 +1126,10 @@ mod tests {
             std::env::temp_dir().join(format!("openrust-cli-invalid-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).expect("create temporary test directory");
-        assert!(create_project("../outside", None, false, false, &root).is_err());
-        assert!(create_project("--", None, false, false, &root).is_err());
+        assert!(create_project("../outside", None, false, false, false, &root).is_err());
+        assert!(create_project("--", None, false, false, false, &root).is_err());
         fs::create_dir(root.join("existing")).expect("create existing destination");
-        assert!(create_project("existing", None, false, false, &root).is_err());
+        assert!(create_project("existing", None, false, false, false, &root).is_err());
         let _ = fs::remove_dir_all(root);
     }
 }

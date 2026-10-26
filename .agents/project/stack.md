@@ -44,7 +44,7 @@
 | 调度 | 自研 `Schedule` + `cron` 解析 | — |
 | 缓存 | 标准应用默认 Redis（ADR-015）；memory/file 显式选择，contract 见 [ADR-014](decisions/adr-014-cache-driver-and-store-contract.md) | 库层 `cache-redis` 可选，标准应用显式启用；各 driver 在 M5 实现 |
 | 存储 | `opendal`（fs） | `storage-s3` |
-| 邮件 | `lettre` 0.11（SMTP）+ log + fake | `mail-smtp` 用 Tokio + Rustls 强制 STARTTLS；log 为默认 driver；新增的 `quoted_printable` 传递依赖为 0BSD，已加入许可证允许清单 |
+| 邮件 / 短信 | `lettre` 0.11（SMTP）+ log/fake；Twilio REST 复用可选 `reqwest` HTTP client | `mail-smtp` 默认 Tokio + Rustls STARTTLS；loopback Mailpit 可显式关闭；`sms-twilio` feature 依赖 `http-client` 与已有 `base64`，无新增运行时依赖；log 仅供非生产使用；真实 Twilio 投递仍待授权 |
 | 模板 | `minijinja`（仅邮件） | `templates` |
 
 ## 工具链

@@ -8,9 +8,9 @@
 
 - **Convention over configuration, without magic.** Directory layout, naming, routing, migrations and configuration keys follow visible conventions. Dependencies are explicit Rust types; there is no runtime container, no reflection, no facade.
 - **One obvious way.** Each capability has one official entry point: `Validated<T>` for input, `Policy` for authorization, `Job` for background work.
-- **Batteries included, drivers swappable.** The v1 plan uses a database queue, Redis cache, local storage and SMTP mail, with memory/file cache alternatives and optional S3-compatible storage. Both single-instance and clustered application deployments are planned; drivers are selected through Cargo features and configuration.
+- **Batteries included, drivers swappable.** The v1 plan uses a database queue, Redis cache, local storage and SMTP mail and pluggable SMS (Twilio adapter), with memory/file cache alternatives and optional S3-compatible storage. Both single-instance and clustered application deployments are planned; drivers are selected through Cargo features and configuration.
 - **Generated code is ordinary code.** Everything `openrust generate` produces is readable, editable and testable Rust.
-- **Testable by default.** Every capability ships a fake driver and assertions, so business tests never need a live Redis, SMTP server or object store.
+- **Testable by default.** Capabilities provide fake drivers, while the Mailpit Compose service supports real local SMTP verification; business tests do not require paid SMTP/SMS accounts or object storage.
 
 OpenRust is built on `tokio`, `axum`, `tower` and `SeaORM`, with explicit Rust types and conventional project structure.
 

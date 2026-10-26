@@ -46,6 +46,9 @@ fallback_locale = "en"
 [mail]
 driver = "log"
 
+[sms]
+driver = "log"
+
 [session]
 secure = true
 http_only = true
@@ -66,6 +69,7 @@ fn main() -> std::process::ExitCode {
 use openrust::http::HttpPlugin;
 use openrust::i18n::I18nPlugin;
 use openrust::mail::MailerPlugin;
+use openrust::sms::SmsPlugin;
 use openrust::prelude::*;
 
 use crate::routes;
@@ -79,6 +83,7 @@ impl Application for Blog {
         app.plugin(HttpPlugin)
             .plugin(I18nPlugin::default())
             .plugin(MailerPlugin)
+            .plugin(SmsPlugin)
             .routes(routes::register);
     }
 }

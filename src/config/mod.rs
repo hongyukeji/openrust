@@ -29,6 +29,7 @@ pub mod database;
 pub mod logger;
 pub mod mailer;
 pub mod server;
+pub mod sms;
 
 pub use api::{ApiConfig, HttpStatusMode};
 pub use app::{AppConfig, Environment};
@@ -37,6 +38,7 @@ pub use database::DatabaseConfig;
 pub use logger::{LogConfig, LogFormat};
 pub use mailer::MailConfig;
 pub use server::{CompressionConfig, CorsConfig, ServerConfig};
+pub use sms::SmsConfig;
 
 /// Environment variable selecting the runtime environment.
 pub const ENV_VAR: &str = "APP_ENV";

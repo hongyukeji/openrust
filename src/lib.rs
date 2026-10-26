@@ -10,6 +10,7 @@ pub mod db;
 pub mod http;
 pub mod i18n;
 pub mod mail;
+pub mod sms;
 
 #[cfg(feature = "auth")]
 pub mod auth;
@@ -50,6 +51,7 @@ pub mod prelude {
         AuthCredential, AuthLayer, AuthMigration, AuthMode, AuthPlugin, AuthPrincipal, AuthSource,
         Authenticator, CurrentUser, JwtConfig, JwtPlugin, JwtTokens, OptionalUser,
     };
+    pub use crate::config::SmsConfig;
     pub use crate::http::axum::extract::State;
     pub use crate::http::axum::http::StatusCode;
     pub use crate::http::axum::response::IntoResponse;
@@ -60,7 +62,8 @@ pub mod prelude {
     pub use crate::i18n::{
         I18n, I18nConfig, I18nPlugin, Locale, MessageArgs, MessageCatalog, RequestLocale,
     };
-    pub use crate::mail::{Email, MailConfig, Mailer, MailerPlugin};
+    pub use crate::mail::{Email, LocalizedEmail, MailConfig, Mailer, MailerPlugin};
+    pub use crate::sms::{SmsContent, SmsDriver, SmsMessage, SmsPlugin, SmsReceipt, SmsSender};
     pub use crate::{
         App, AppBuilder, Application, BoxFuture, Command, Error, NoConfig, Plugin, Result,
     };

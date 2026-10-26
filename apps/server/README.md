@@ -28,3 +28,5 @@ The facade auth test also verifies that `AuthMode::Jwt` authenticates without re
 `/` and `/health` return the `ApiResponse<T>` JSON envelope; health status is in `data.status`. `[api] http_status` defaults to `always_ok`; set `APP_API__HTTP_STATUS=semantic` for semantic HTTP status codes. Every API envelope has a `request_id` matching `x-request-id`.
 
 The `[i18n]` section in `config/default.toml` configures `default_locale` and `fallback_locale`. Requests can send `Accept-Language: zh-CN`; supported framework messages then render in Simplified Chinese while response codes and validation field paths remain stable. Applications can register their own JSON catalog with `I18nPlugin` and inject `RequestLocale` in handlers.
+
+`Server` registers `SmsPlugin` alongside `MailerPlugin`. Local delivery defaults to content-redacted log drivers; production rejects them. Enable `sms-twilio` for the Twilio adapter and configure API credentials through process environment or local `.env` (never commit populated `.env`). Mailpit local SMTP steps and the loopback-only STARTTLS exception are documented in the Mail README.

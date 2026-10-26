@@ -146,3 +146,5 @@ TOML 分层、环境引导与生产 `.env` 保护保持有效，具体兼容、�
 - **SeaORM**：[axum_example](https://github.com/SeaQL/sea-orm/tree/HEAD/examples/axum_example)
 - **Poem**：[router](https://github.com/poem-web/poem/blob/HEAD/poem/src/route/router.rs)
 - 未逐条复核、依据 docs.rs 既有知识：axum `Router`、actix-web `web::scope`、Tauri `Builder::plugin`。
+
+| 短信 | `SmsMessage` / `SmsSender` / `SmsDriver`，与邮件 `Mailer` 分立 | 见 ADR-033；provider receipt 只表示受理 |

@@ -12,6 +12,7 @@ impl Application for Server {
         app.plugin(HttpPlugin)
             .plugin(openrust::i18n::I18nPlugin::default())
             .plugin(openrust::mail::MailerPlugin)
+            .plugin(openrust::sms::SmsPlugin)
             .routes(routes::register);
     }
 }
