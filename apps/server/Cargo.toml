@@ -34,6 +34,7 @@ time.workspace = true
 tokio.workspace = true
 tower.workspace = true
 tower-sessions = { workspace = true, features = ["memory-store"] }
+url.workspace = true
 validator.workspace = true
 redis.workspace = true
 reqwest.workspace = true
@@ -59,6 +60,7 @@ queue = ["openrust/queue"]
 queue-redis = ["openrust/queue-redis"]
 db-routing-bench = []
 http-client = ["openrust/http-client"]
+auth-oidc = ["openrust/auth-oidc"]
 cache-redis = ["openrust/cache-redis"]
 session-redis = ["auth", "openrust/session-redis"]
 storage-local = ["openrust/storage-local"]
@@ -80,6 +82,16 @@ path = "tests/auth/runtime.rs"
 name = "auth_query_authorization"
 path = "tests/auth/query_authorization.rs"
 required-features = ["auth"]
+
+[[test]]
+name = "auth_oidc"
+path = "tests/auth/oidc.rs"
+required-features = ["auth-oidc"]
+
+[[test]]
+name = "auth_oidc_keycloak"
+path = "tests/auth/oidc_keycloak.rs"
+required-features = ["auth-oidc"]
 
 [[test]]
 name = "db_connection"

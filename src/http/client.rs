@@ -461,6 +461,11 @@ impl DependencyClient {
         &self.name
     }
 
+    /// 返回底层客户端是否启用了 [`HttpClient::restricted`] 目标策略。
+    pub fn is_restricted(&self) -> bool {
+        self.client.target_policy.is_some()
+    }
+
     /// 创建依赖隔离范围内的 GET 请求。
     pub fn get(&self, url: &str) -> DependencyRequest {
         DependencyRequest {
@@ -581,6 +586,13 @@ pub struct DependencyRequest {
 }
 
 impl DependencyRequest {
+    /// 限制本次调用时限；不会延长客户端配置的总请求时限。
+    #[must_use]
+    pub fn timeout(mut self, timeout: Duration) -> Self {
+        self.request.timeout = self.request.timeout.min(timeout);
+        self
+    }
+
     /// 设置 JSON 请求正文。
     #[must_use]
     pub fn json<T: serde::Serialize + ?Sized>(mut self, value: &T) -> Self {

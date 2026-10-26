@@ -76,3 +76,17 @@ let (rows, total) = documents.select(&user, Condition::all())?
 长任务可将 `AuthorizedSelect::into_batches()` 转为主键游标分批读取；每页都会保留既有资源范围和业务筛选。批次上限、合作取消、续读位置及并发修改边界见 [`openrust::db` 分批读取说明](../db/README.md#稳定键有界分批读取)。
 
 通用 Session store、Cookie middleware、过期、删除和共享失效能力已实现，并在 PostgreSQL/MySQL 上测试。JWT access token 签名、严格校验、key ID、重叠密钥轮换和 JWT 路由认证均已实现。Refresh token 摘要持久化、单次轮换、重放时撤销 family、账户级撤销和并发刷新串行化均已实现，并在 PostgreSQL/MySQL 上测试。Argon2id 密码原语、通用验证码服务、`AuthFlows` 服务组合和基础数据库角色权限均已实现，并在 PostgreSQL/MySQL 上测试。Session 登录/登出 helper 覆盖 ID 轮换、CSRF 摘要存储、脱敏、保留应用数据及移除认证 key，并在 PostgreSQL/MySQL 上测试数据库流程。生成的认证路由通过隔离数据库和 fake mail HTTP 测试；注册、邮箱验证、JWT/PAT 认证、refresh 重放、密码重置、登出撤销和限流响应已在 PostgreSQL 18 与 MySQL 8.4 上通过真实 TCP 验收。应用 handler 仍负责业务 DTO 和路由授权。真实 Twilio 送达尚未验证，需提供获授权的账号和目标地址。
+
+## 外部 OIDC 登录
+
+启用 `openrust` 的 `auth-oidc` feature 后，可以使用 `OidcProvider` 和 `ExternalIdentityFlows` 接入静态配置的 OIDC relying party。该能力只负责外部身份登录，不是 OAuth 授权服务器。
+
+应用启动时应先创建只允许访问配置中 `IdP` 的 `HttpTargetPolicy`，通过 `HttpClient::restricted` 创建命名 `DependencyClient`，再调用 `OidcProvider::discover`。正常 issuer 与回调必须使用 HTTPS；仅 loopback 开发地址允许 HTTP。配置并注册 `AuthExternalIdentityMigration`，同时确保账户、验证码、限流、refresh token 和审计等所需 migrations 已加入应用 migrator。构造 `ExternalIdentityFlows` 时传入已注册的 Provider、现有 `AuthFlows` 和本机密钥轮换支持的 `Encryptor`。
+
+授权入口调用 `ExternalIdentityFlows::authorize`，将返回的 `url()` 用作重定向地址，并把 `set_cookie_header()` 写入响应。每个请求都会生成独立、十分钟有效的 `HttpOnly; Secure; SameSite=Lax` 浏览器绑定 Cookie。回调时从 query 读取 `state` 与 `code`，用 `ExternalIdentityAuthorization::cookie_name_for_callback(state)` 找到同一浏览器 Cookie，再传给 `complete(provider, state, code, cookie, request_source)`。成功或失败后都应调用 `clear_cookie_header(state)` 清理 Cookie。缺少或不匹配的 Cookie 会在访问 `IdP` token endpoint 前拒绝，防止登录 CSRF；不要从 URL、表单或请求头中接受客户端自选的 state/verifier。
+
+账户绑定通过 `bind(user_id, email, password, request_source, provider, state, code, cookie)` 完成；它会重新验证本地密码并自行执行 OIDC 回调校验。`linked_identities(user_id)` 可读取已绑定项，`unbind` 重新验证本地密码后解除对应的 provider/issuer/subject 绑定。不能按相同邮箱自动合并账户；新建本地用户要求 `IdP` 返回已验证邮箱。
+
+Discovery、JWKS 和 token 请求都经过受限 `DependencyClient`，共享单次 OIDC 请求总时限，响应体上限为 1 MiB。JWKS 缓存最长 5 分钟；过期刷新失败会拒绝登录，未知 `kid` 最多每 30 秒主动刷新一次。协议秘密和 ID Token 不写入日志，ID Token 的 Debug 内容脱敏；若使用自定义 `ExternalIdentityProvider`，实现方必须在返回 `VerifiedExternalIdentity` 前验证协议签名、issuer、audience、时效、state、nonce 和令牌绑定。
+
+可在隔离环境使用 `apps/server/tests/fixtures/keycloak/openrust-realm.json` 启动 Keycloak，再设置 `OPENRUST_OIDC_ISSUER=http://127.0.0.1:8080/realms/openrust` 运行 `cargo test -p server --features 'auth-oidc db-postgres' --test auth_oidc_keycloak`。该 fixture 只含本地验收用的合成客户端与用户凭据；生产环境必须使用 HTTPS 和受限的 `IdP` 目标策略。

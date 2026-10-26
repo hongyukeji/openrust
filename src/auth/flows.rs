@@ -7,7 +7,7 @@ use std::{
 
 use crate::core::{App, AppBuilder, BoxFuture, Error, Plugin, RateLimiter, Result};
 use crate::db::Db;
-use crate::db::sea_orm::{ConnectionTrait, DbBackend, SqlErr, Statement};
+use crate::db::sea_orm::{ConnectionTrait, DatabaseTransaction, DbBackend, SqlErr, Statement};
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use chrono::{Duration as ChronoDuration, Utc};
@@ -345,6 +345,213 @@ impl AuthFlows {
                 })
             })
             .await?;
+        Ok(AuthCredentials {
+            user_id,
+            access_token,
+            refresh_token,
+            refresh_expires_at: expires_at,
+        })
+    }
+
+    /// 使用当前密码重新验证账户，不签发新的 bearer 凭据。
+    pub async fn reauthenticate(
+        &self,
+        email: &str,
+        password: &str,
+        request_source: &str,
+    ) -> Result<i64> {
+        self.authenticate_password(email, password, request_source)
+            .await
+    }
+
+    #[cfg(feature = "auth-oidc")]
+    pub(crate) async fn prepare_external_password_hash(&self) -> Result<EncodedPasswordHash> {
+        let mut random = [0_u8; 32];
+        getrandom::fill(&mut random).map_err(Error::internal)?;
+        let secret = URL_SAFE_NO_PAD.encode(random);
+        self.passwords.hash(&secret).await
+    }
+
+    #[cfg(feature = "auth-oidc")]
+    pub(crate) async fn limit_external_identity(
+        &self,
+        request_source: &str,
+        identity: &str,
+    ) -> Result<()> {
+        self.limit("external_identity", request_source, identity)
+            .await
+    }
+
+    #[cfg(feature = "auth-oidc")]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "新账户、外部身份、凭据与审计必须在同一事务中完成"
+    )]
+    pub(crate) async fn complete_external_identity_in_transaction(
+        &self,
+        transaction: &DatabaseTransaction,
+        provider: &str,
+        identity: &crate::auth::VerifiedExternalIdentity,
+        new_password_hash: Option<&EncodedPasswordHash>,
+    ) -> Result<AuthCredentials> {
+        let identity_table = self.db.quoted_table_name("external_identities")?;
+        let backend = self.db.backend()?;
+        let lookup = match backend {
+            DbBackend::Postgres => {
+                format!("SELECT user_id FROM {identity_table} WHERE identity_hash = $1")
+            }
+            DbBackend::MySql => {
+                format!("SELECT user_id FROM {identity_table} WHERE identity_hash = ?")
+            }
+            _ => return Err(unsupported_backend()),
+        };
+        let identity_hash = identity.identity_hash(provider);
+        let values = [identity_hash.clone().into()];
+        let user_id = if let Some(row) = transaction
+            .query_one_raw(Statement::from_sql_and_values(
+                backend,
+                &lookup,
+                values.clone(),
+            ))
+            .await
+            .map_err(Error::internal)?
+        {
+            row.try_get::<i64>("", "user_id").map_err(Error::internal)?
+        } else {
+            let email = identity
+                .email()
+                .filter(|_| identity.email_verified())
+                .ok_or_else(external_identity_link_required)?;
+            let email = normalize_email(email)?;
+            let hash = new_password_hash.ok_or_else(external_identity_link_required)?;
+            let users_table = self.db.quoted_table_name("users")?;
+            let insert_user = match backend {
+                DbBackend::Postgres => format!(
+                    "INSERT INTO {users_table} (email, password_hash, email_verified_at, created_at, updated_at) VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT (email) DO NOTHING RETURNING id"
+                ),
+                DbBackend::MySql => format!(
+                    "INSERT INTO {users_table} (email, password_hash, email_verified_at, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6))"
+                ),
+                _ => return Err(unsupported_backend()),
+            };
+            let created_user_id = if backend == DbBackend::Postgres {
+                transaction
+                    .query_one_raw(Statement::from_sql_and_values(
+                        backend,
+                        &insert_user,
+                        [email.clone().into(), hash.as_str().to_owned().into()],
+                    ))
+                    .await
+                    .map_err(Error::internal)?
+                    .map(|row| row.try_get::<i64>("", "id").map_err(Error::internal))
+                    .transpose()?
+            } else {
+                match transaction
+                    .execute_raw(Statement::from_sql_and_values(
+                        backend,
+                        &insert_user,
+                        [email.clone().into(), hash.as_str().to_owned().into()],
+                    ))
+                    .await
+                {
+                    Ok(result) if result.rows_affected() == 1 => {
+                        Some(i64::try_from(result.last_insert_id()).map_err(Error::internal)?)
+                    }
+                    Ok(_) => None,
+                    Err(error)
+                        if matches!(
+                            error.sql_err(),
+                            Some(SqlErr::UniqueConstraintViolation(_))
+                        ) =>
+                    {
+                        None
+                    }
+                    Err(error) => return Err(Error::internal(error)),
+                }
+            };
+            let Some(user_id) = created_user_id else {
+                return Err(external_identity_link_required());
+            };
+            if let Some(events) = self.db.events() {
+                events
+                    .dispatch_in_transaction(transaction, &RegistrationSucceeded { user_id })
+                    .await?;
+            }
+            user_id
+        };
+
+        let users_table = self.db.quoted_table_name("users")?;
+        let active_user = match backend {
+            DbBackend::Postgres => {
+                format!("SELECT id FROM {users_table} WHERE id = $1 AND disabled_at IS NULL")
+            }
+            DbBackend::MySql => {
+                format!("SELECT id FROM {users_table} WHERE id = ? AND disabled_at IS NULL")
+            }
+            _ => return Err(unsupported_backend()),
+        };
+        if transaction
+            .query_one_raw(Statement::from_sql_and_values(
+                backend,
+                &active_user,
+                [user_id.into()],
+            ))
+            .await
+            .map_err(Error::internal)?
+            .is_none()
+        {
+            return Err(Error::Unauthorized);
+        }
+
+        let insert_identity = match backend {
+            DbBackend::Postgres => format!(
+                "INSERT INTO {identity_table} (user_id, identity_hash, provider, issuer, subject, created_at) VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP) ON CONFLICT (identity_hash) DO NOTHING"
+            ),
+            DbBackend::MySql => format!(
+                "INSERT INTO {identity_table} (user_id, identity_hash, provider, issuer, subject, created_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP(6))"
+            ),
+            _ => return Err(unsupported_backend()),
+        };
+        let inserted = transaction
+            .execute_raw(Statement::from_sql_and_values(
+                backend,
+                &insert_identity,
+                [
+                    user_id.into(),
+                    identity_hash.into(),
+                    provider.to_owned().into(),
+                    identity.issuer().to_owned().into(),
+                    identity.subject().to_owned().into(),
+                ],
+            ))
+            .await;
+        if let Err(error) = inserted
+            && !matches!(error.sql_err(), Some(SqlErr::UniqueConstraintViolation(_)))
+        {
+            return Err(Error::internal(error));
+        }
+        let mapped_user = transaction
+            .query_one_raw(Statement::from_sql_and_values(backend, &lookup, values))
+            .await
+            .map_err(Error::internal)?
+            .ok_or_else(external_identity_link_required)?
+            .try_get::<i64>("", "user_id")
+            .map_err(Error::internal)?;
+        if mapped_user != user_id {
+            return Err(external_identity_link_required());
+        }
+
+        let access_token = self.jwt.issue_access_token(user_id)?;
+        let expires_at = Utc::now() + self.refresh_lifetime;
+        let refresh_token = self
+            .refresh
+            .issue_in_transaction(transaction, user_id, expires_at)
+            .await?;
+        if let Some(events) = self.db.events() {
+            events
+                .dispatch_in_transaction(transaction, &LoginSucceeded { user_id })
+                .await?;
+        }
         Ok(AuthCredentials {
             user_id,
             access_token,
@@ -805,6 +1012,14 @@ fn normalize_email(email: &str) -> Result<String> {
         return Err(Error::BadRequest("invalid email address".into()));
     }
     Ok(normalized)
+}
+
+#[cfg(feature = "auth-oidc")]
+fn external_identity_link_required() -> Error {
+    Error::custom(
+        "auth_external_identity_link_required",
+        "external identity requires an explicit local account link",
+    )
 }
 
 async fn bind_session(session: &Session, user_id: i64) -> Result<SessionCredentials> {

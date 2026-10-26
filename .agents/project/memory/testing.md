@@ -4,6 +4,14 @@
 > 更新：2026-10-27
 > 摘要：源码交付、HTTP 生命周期、双库与生成项目当前可复验入口。
 
+## M5 可选外部身份：OIDC（F7 子簇）
+
+`cargo test -p openrust --features auth-oidc auth::oidc::tests --lib` 覆盖 ID Token 签名、issuer/audience/nonce/`at_hash`、未知 `kid`、不安全授权 URL 拒绝与 Debug 脱敏。`apps/server/tests/auth/oidc.rs` 的浏览器绑定、回调单次消费、显式绑定/解绑、邮箱冲突与审计事务测试在 PostgreSQL 18 和 MySQL 8.4 各真实通过 1 项：分别运行 `OPENRUST_TEST_DATABASE_URL=... cargo test -p server --features 'auth-oidc db-postgres' --test auth_oidc -- --nocapture` 与 `OPENRUST_TEST_DATABASE_URL=... cargo test -p server --features 'auth-oidc db-mysql' --test auth_oidc -- --nocapture`。测试 URL 需要具备创建/删除隔离库权限。
+
+真实 IdP 验收使用 Keycloak 26.8.1 镜像和 `apps/server/tests/fixtures/keycloak/openrust-realm.json`，通过浏览器登录表单完成授权码、S256 PKCE、token exchange、RS256/JWKS、issuer、nonce 与已验证邮箱验证。命令为 `OPENRUST_REQUIRE_OIDC_IDP=1 OPENRUST_OIDC_ISSUER=http://127.0.0.1:8080/realms/openrust cargo test -p server --features 'auth-oidc db-postgres' --test auth_oidc_keycloak -- --nocapture`，本机真实服务通过 1 项。一般 workspace 测试未配置 IdP 时该 target 明确 skip；设置 `OPENRUST_REQUIRE_OIDC_IDP=1` 后缺少 issuer 会失败，防止把 skip 当作真实验收。JWKS 最长缓存 5 分钟；过期刷新失败时 fail closed，短暂 IdP 故障会中断 OIDC 登录。真实 Keycloak test 不替代 PostgreSQL/MySQL 双库身份状态验收。
+
+OIDC 子簇及并发 storage 回归修复的门禁：`cargo fmt --all --check`、默认与 all-features `cargo clippy --workspace --all-targets --... -D warnings`、`cargo test --workspace`、`cargo test --workspace --all-features`、默认/all-features warnings-denied workspace Rustdoc、`cargo deny check` 均通过。`cargo deny check` 输出仅有重复依赖版本告警，advisories/bans/licenses/sources 均为 ok。all-features 聚合 server 测试 10 项通过；workspace 测试中无 IdP 环境的 Keycloak target 属于显式 skip，不计入上面的真实服务证据。
+
 ## M5 缓存驱动与命名实例
 
 `cargo test -p openrust cache::tests` 通过 memory namespace/TTL/remove、file key hash/过期/替换/并发、命名 stores 和外部 driver 注册；`cargo test -p openrust --features cache-redis cache::tests::redis_store_roundtrips_ttl_on_live_service -- --exact` 与 `cargo test -p server --all-features --test server cache_plugin_uses_the_configured_shared_redis_store -- --exact` 均在本机 Redis 8.10.2 真实服务通过。CLI 实测复用可达 loopback Redis，不触碰 Compose；干净 `/tmp` 源码副本生成默认应用后 `cargo check`、`cargo test` 通过，独立 custom-driver 示例 `cargo test/run --manifest-path examples/cache-custom-driver/Cargo.toml` 通过。默认与 all-features workspace tests、all-target/all-features clippy、fmt、warnings-denied 默认/all-features docs、cargo deny 与 no-default-features check 通过。workspace server 的数据库集成 target 因未设置 `OPENRUST_TEST_DATABASE_URL` 跳过；本缓存簇不修改数据库路径，不以该 skipped target 代替双库验收。Redis 启动 Compose 的冷启动分支尚未在现有可用 Redis 环境下触发；已验证的是复用路径。Redis 最低兼容版本仍待 v1 发布前专项确认。
@@ -202,3 +210,5 @@ CLI 模板快照测试：`cargo test -p openrust-cli`。生成 PostgreSQL、MySQ
 被 workspace 测试忽略的真实服务专项已显式运行：`NO_PROXY=127.0.0.1,localhost OPENRUST_TEST_S3_ENDPOINT=http://127.0.0.1:19000 OPENRUST_TEST_S3_ACCESS_KEY=<本机测试值> OPENRUST_TEST_S3_SECRET_KEY=<本机测试值> OPENRUST_TEST_S3_VERSIONED_BUCKET=openrust-storage-versioned OPENRUST_TEST_S3_PLAIN_BUCKET=openrust-storage-plain cargo test -p server --features storage-s3 --test storage_s3 -- --ignored --nocapture`。测试连接 MinIO `RELEASE.2025-10-15T17-29-55Z`，versioned/plain buckets 均为真实服务，验证 metadata、12 MiB 多段上传、检查器拒绝、延时上传取消与目标不可见、覆盖后旧 version body 与 presigned URL 仍读取旧内容、短期 URL 过期及未启用版本控制时 fail-closed。结束后通过 MinIO client 核实两个 bucket 均无未完成 multipart，也无本测试遗留对象。服务使用本任务创建的临时容器与 tmpfs 数据盘，非生产多节点集群。
 
 `StorageDisk::put_body` 限制交给 inspector/backend 的数据块并保留背压，但不能限制 Axum 上游构造单个 body frame 时已经发生的分配；直接 `put_stream` 的调用方也须控制输入 chunk。filesystem 仅本机可见；API 节点 A 上传、B 下载仍在 v1 集群门禁验证，不能由单服务 MinIO 测试代替。真实 provider 进程强杀后的 multipart 回收依赖 bucket 生命周期策略。
+
+并发应用启动回归：`cargo test -p openrust --all-features storage::opendal_driver::concurrent_filesystem_driver_builds_reserve_distinct_staging_directories --lib -- --exact` 使用 64 个并发 filesystem driver 初始化同一 root，验证 staging 路径不会因时钟刻度碰撞而失败；`cargo test -p server --all-features --test server` 聚合测试 10 项并发运行通过。根因是旧 staging 名仅使用 PID 与纳秒时钟，所有同时初始化的 server App 共用 filesystem root；现改为进程内原子序号并对 `AlreadyExists` 做最多 16 次重试。

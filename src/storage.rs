@@ -719,7 +719,15 @@ mod opendal_driver {
     #[cfg(feature = "storage-s3")]
     use serde::de::DeserializeOwned;
     use std::path::PathBuf;
-    use std::{sync::Arc, time::Duration};
+    use std::{
+        sync::{
+            Arc,
+            atomic::{AtomicU64, Ordering},
+        },
+        time::Duration,
+    };
+
+    static NEXT_STAGING_ID: AtomicU64 = AtomicU64::new(0);
 
     pub struct FsDriver;
 
@@ -748,16 +756,7 @@ mod opendal_driver {
                 let staging_base = PathBuf::from(&root).join(".openrust-staging");
                 std::fs::create_dir_all(&staging_base).map_err(Error::internal)?;
                 cleanup_stale_staging(&staging_base)?;
-                let instance = format!(
-                    "run-{}-{}",
-                    std::process::id(),
-                    std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .map_err(Error::internal)?
-                        .as_nanos()
-                );
-                let staging = staging_base.join(instance);
-                std::fs::create_dir(&staging).map_err(Error::internal)?;
+                let staging = create_staging_directory(&staging_base)?;
                 let staging = staging.to_string_lossy().into_owned();
                 let operator = Operator::new(
                     services::Fs::default()
@@ -900,6 +899,83 @@ mod opendal_driver {
                 std::fs::remove_dir_all(path).map_err(Error::internal)?;
             }
         }
+        Ok(())
+    }
+
+    fn create_staging_directory(base: &std::path::Path) -> Result<PathBuf> {
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(Error::internal)?
+            .as_nanos();
+        for _ in 0..16 {
+            let sequence = next_staging_id()?;
+            let path = base.join(format!("run-{}-{timestamp}-{sequence}", std::process::id()));
+            match std::fs::create_dir(&path) {
+                Ok(()) => return Ok(path),
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+                Err(error) => return Err(Error::internal(error)),
+            }
+        }
+        Err(Error::internal(std::io::Error::other(
+            "could not reserve a unique staging directory",
+        )))
+    }
+
+    fn next_staging_id() -> Result<u64> {
+        loop {
+            let current = NEXT_STAGING_ID.load(Ordering::Relaxed);
+            let next = current
+                .checked_add(1)
+                .ok_or_else(|| Error::internal(std::io::Error::other("staging ID exhausted")))?;
+            if NEXT_STAGING_ID
+                .compare_exchange_weak(current, next, Ordering::Relaxed, Ordering::Relaxed)
+                .is_ok()
+            {
+                return Ok(current);
+            }
+        }
+    }
+
+    #[cfg(test)]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    async fn concurrent_filesystem_driver_builds_reserve_distinct_staging_directories() -> Result<()>
+    {
+        use std::collections::BTreeMap;
+
+        let root = std::env::temp_dir().join(format!(
+            "openrust-fs-build-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_err(Error::internal)?
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&root).map_err(Error::internal)?;
+        let config = Arc::new(StorageDriverConfig {
+            disk_name: "local".to_owned(),
+            options: BTreeMap::from([(
+                "root".to_owned(),
+                serde_json::Value::String(root.to_string_lossy().into_owned()),
+            )]),
+        });
+        let driver = Arc::new(FsDriver);
+        let barrier = Arc::new(tokio::sync::Barrier::new(64));
+        let mut builds = Vec::with_capacity(64);
+        for _ in 0..64 {
+            let config = Arc::clone(&config);
+            let driver = Arc::clone(&driver);
+            let barrier = Arc::clone(&barrier);
+            builds.push(tokio::spawn(async move {
+                barrier.wait().await;
+                driver.build(&config).await
+            }));
+        }
+        let mut backends = Vec::with_capacity(builds.len());
+        for build in builds {
+            backends.push(build.await.map_err(Error::internal)??);
+        }
+        drop(backends);
+        std::fs::remove_dir_all(root).map_err(Error::internal)?;
         Ok(())
     }
 

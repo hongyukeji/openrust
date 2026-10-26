@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-27
-> 摘要：框架处于 v1 M5，尚未达到完整 v1。源码工作区、C1–C3 中文化、M3 认证流程扩展及 M4 共享锁、worker 生命周期、F1 日历调度、F2 国际化、F3 邮件模板、队列化通知、job 生成集成、通用插件公开契约、Db 与 Queue 外部扩展契约、跨协议验证/调用作用域和 HTTP 有界运行/就绪切换均有适用验收证据；M5 缓存驱动、命名实例、F4a tag generation、F4b 单进程加载合并和 F4c SWR 已通过适用验收，Redis Session 和 Redis Queue 均通过 Redis 8 真实服务验收；ADR-047 查询授权、ADR-048 稳定键分批和 ADR-049 迁移互斥已通过双库实际验收，ADR-050 存储与上传下载已通过 local/custom driver、真实 TCP、MinIO 与 workspace 门禁，ADR-051 受限出站目标策略已通过受控 DNS 与真实 TCP；ADR-052 命名依赖韧性已通过 loopback TCP 和 workspace 门禁；当前按待办推进可选外部身份与 MFA F7，完整剩余范围见待办。
+> 摘要：框架处于 v1 M5，尚未达到完整 v1。源码工作区、C1–C3 中文化、M3 认证流程扩展及 M4 共享锁、worker 生命周期、F1 日历调度、F2 国际化、F3 邮件模板、队列化通知、job 生成集成、通用插件公开契约、Db 与 Queue 外部扩展契约、跨协议验证/调用作用域和 HTTP 有界运行/就绪切换均有适用验收证据；M5 缓存驱动、命名实例、F4a tag generation、F4b 单进程加载合并和 F4c SWR 已通过适用验收，Redis Session 和 Redis Queue 均通过 Redis 8 真实服务验收；ADR-047 查询授权、ADR-048 稳定键分批和 ADR-049 迁移互斥已通过双库实际验收，ADR-050 存储与上传下载已通过 local/custom driver、真实 TCP、MinIO 与 workspace 门禁，ADR-051 受限出站目标策略已通过受控 DNS 与真实 TCP；ADR-052 命名依赖韧性已通过 loopback TCP 和 workspace 门禁；F7 OIDC 子簇已完成 PostgreSQL 18/MySQL 8.4 身份流程集成、Keycloak 26.8.1 真实授权码/PKCE 和 workspace 门禁验收；当前转入 TOTP/恢复码子簇，完整 v1 剩余范围见待办。
 
 ## 源码 workspace 交付
 
@@ -79,6 +79,10 @@
 
 `HttpClient::new` 与配置结构保持原行为；新增显式 `HttpClient::restricted`，约束协议、主机白名单、端口、URL userinfo 和公网/内网目标。18 项客户端单测覆盖默认拒绝、userinfo、混合/空 DNS 结果、内网规则重复登记与端口限制、显式 `Host` 拒绝，以及变化 resolver 只解析一次后连接同一已批准的本地 TCP 地址。`apps/server` 聚合 consumer 2 项通过，实测未授权私网、主机/端口不匹配、代理与 `Host` 覆写失败关闭、显式 host + CIDR + port 内网连接，以及带 Bearer 的 307 不跟随且第二 listener 未收到请求。workspace 默认与串行 all-features tests、default/all-features all-target clippy、warnings-denied Rustdoc、no-default-features check、`cargo deny check`、fmt 与 diff check 均通过；deny 仅保留既有未匹配 MPL-2.0 allowance 和重复版本警告。未访问公网或云 metadata；策略不约束任意第三方网络客户端、SeaORM、存储 driver 或网络 NAT。
 
+
+## M5 ADR-053 外部 OAuth2/OIDC 身份客户端
+
+`auth-oidc` 以 `oauth2` + 现有 `jsonwebtoken` 实现受限授权码/PKCE relying-party，支持 state/nonce/verifier 加密单次消费、浏览器绑定 Cookie、显式本地账户绑定/解绑和审计；不自动按邮箱合并。PostgreSQL 18 与 MySQL 8.4 的 `auth_oidc` 各 1 项通过；Keycloak 26.8.1 的真实授权码、S256 PKCE、RS256/JWKS 与 claims 验收通过。5 分钟 JWKS 过期后 fail closed；详细复跑入口见 `memory/testing.md`。本次提交范围仅包含 OIDC 子簇，F7 TOTP/恢复码继续作为当前待办。
 
 ## M5 ADR-052 命名依赖隔离与可选熔断
 

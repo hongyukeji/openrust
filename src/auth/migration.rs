@@ -82,6 +82,27 @@ enum TbVerificationCodes {
 }
 
 #[derive(DeriveIden)]
+enum TbExternalIdentities {
+    Id,
+    UserId,
+    IdentityHash,
+    Provider,
+    Issuer,
+    Subject,
+    CreatedAt,
+}
+
+#[derive(DeriveIden)]
+enum TbExternalIdentityRequests {
+    StateHash,
+    Provider,
+    BrowserBindingHash,
+    EncryptedPayload,
+    ExpiresAt,
+    CreatedAt,
+}
+
+#[derive(DeriveIden)]
 enum TbAuthRoles {
     Id,
     Name,
@@ -120,6 +141,160 @@ pub struct AuthVerificationCodeMigration;
 
 /// 创建 [`crate::auth::Policy`] 使用的追加式角色与权限 schema。
 pub struct AuthPolicyMigration;
+
+/// 创建外部身份绑定与一次性 OIDC 登录事务表。
+pub struct AuthExternalIdentityMigration;
+
+impl MigrationName for AuthExternalIdentityMigration {
+    fn name(&self) -> &'static str {
+        "m20261027_000006_openrust_external_identities"
+    }
+}
+
+#[async_trait::async_trait]
+impl MigrationTrait for AuthExternalIdentityMigration {
+    #[allow(
+        clippy::too_many_lines,
+        reason = "身份表和一次性事务表及其约束需在同一 migration 原子创建"
+    )]
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        let backend = manager.get_database_backend();
+        let identities = migration_table("external_identities", backend)?;
+        let requests = migration_table("external_identity_requests", backend)?;
+        let users = migration_table("users", backend)?;
+        manager
+            .create_table(
+                Table::create()
+                    .table(identities.clone())
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(TbExternalIdentities::Id)
+                            .big_integer()
+                            .not_null()
+                            .auto_increment()
+                            .primary_key(),
+                    )
+                    .col(
+                        ColumnDef::new(TbExternalIdentities::UserId)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(TbExternalIdentities::IdentityHash)
+                            .string_len(64)
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(TbExternalIdentities::Provider)
+                            .string_len(100)
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(TbExternalIdentities::Issuer)
+                            .string_len(512)
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(TbExternalIdentities::Subject)
+                            .string_len(512)
+                            .not_null(),
+                    )
+                    .col(dialect::timestamp_utc(
+                        TbExternalIdentities::CreatedAt,
+                        backend,
+                    )?)
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_tb_external_identity_user")
+                            .from(identities.clone(), TbExternalIdentities::UserId)
+                            .to(users, TbUsers::Id)
+                            .on_delete(ForeignKeyAction::Cascade),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .table(identities.clone())
+                    .name("uq_tb_external_identity_subject")
+                    .unique()
+                    .col(TbExternalIdentities::IdentityHash)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .table(identities)
+                    .name("ix_tb_external_identity_user")
+                    .col(TbExternalIdentities::UserId)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_table(
+                Table::create()
+                    .table(requests.clone())
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(TbExternalIdentityRequests::StateHash)
+                            .string_len(64)
+                            .not_null()
+                            .primary_key(),
+                    )
+                    .col(
+                        ColumnDef::new(TbExternalIdentityRequests::Provider)
+                            .string_len(100)
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(TbExternalIdentityRequests::BrowserBindingHash)
+                            .string_len(64)
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(TbExternalIdentityRequests::EncryptedPayload)
+                            .text()
+                            .not_null(),
+                    )
+                    .col(dialect::timestamp_utc(
+                        TbExternalIdentityRequests::ExpiresAt,
+                        backend,
+                    )?)
+                    .col(dialect::timestamp_utc(
+                        TbExternalIdentityRequests::CreatedAt,
+                        backend,
+                    )?)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .table(requests)
+                    .name("ix_tb_external_identity_request_expiry")
+                    .col(TbExternalIdentityRequests::ExpiresAt)
+                    .to_owned(),
+            )
+            .await
+    }
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        let backend = manager.get_database_backend();
+        for name in ["external_identity_requests", "external_identities"] {
+            manager
+                .drop_table(
+                    Table::drop()
+                        .table(migration_table(name, backend)?)
+                        .if_exists()
+                        .to_owned(),
+                )
+                .await?;
+        }
+        Ok(())
+    }
+}
 
 impl MigrationName for AuthRefreshTokenMigration {
     fn name(&self) -> &'static str {

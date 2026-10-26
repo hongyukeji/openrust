@@ -1,0 +1,52 @@
+{
+  "realm": "openrust",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "clients": [
+    {
+      "clientId": "openrust-rp",
+      "name": "OpenRust local OIDC acceptance client",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "clientAuthenticatorType": "client-secret",
+      "secret": "openrust-test-client-secret",
+      "publicClient": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://127.0.0.1:3000/callback"
+      ],
+      "webOrigins": [
+        "http://127.0.0.1:3000"
+      ],
+      "defaultClientScopes": [
+        "profile",
+        "email",
+        "roles",
+        "web-origins",
+        "acr"
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "openrust-test-user",
+      "enabled": true,
+      "email": "openrust-test-user@example.test",
+      "emailVerified": true,
+      "firstName": "OpenRust",
+      "lastName": "OIDC Test",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "openrust-test-password",
+          "temporary": false
+        }
+      ]
+    }
+  ]
+}

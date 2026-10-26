@@ -1,7 +1,7 @@
 # `openrust::auth`
 
 > 受众：AI Agent
-> 更新：2026-10-26
+> 更新：2026-10-27
 > 摘要：M3 认证运行时与 M5 资源查询范围实现事实；真实 Twilio 送达仍需授权账号与目标。
 
 ## 当前实现
@@ -29,6 +29,13 @@
 - `AuthRefreshTokenMigration` 作为追加迁移创建逻辑名 `auth_refresh_tokens`，不修改原认证迁移版本。`AuthPlugin` 在先注册 `DatabasePlugin` 时向应用状态注册 `RefreshTokens`；它签发 32 字节随机 opaque token、只持久化 SHA-256、单次事务轮换、重放撤销整组，并提供单 token 与账户级撤销。账户行锁将签发、轮换和撤销串行化，避免并发轮换在账户级撤销后留下后继 token。初次过期时间由 AuthFlows 默认 30 天或显式配置提供，轮换不延长。
 - `openrust new --db postgres|mysql --auth` 生成 JWT/Auth/AuthFlows 插件、Auth / refresh / verification / Policy migrations、`DatabaseRateLimitMigration`、JWT 默认保护的 `/api/me`、数据库 PAT 保护的 `/api/me/pat`、注册/验证/登录/refresh/logout/密码找回 HTTP routes 和 `[auth.jwt]` 配置区；密钥必须通过 `APP_AUTH__JWT__KEYS__LOCAL` 设置，不内嵌示例密钥。流程端点使用 `ClientIp` extractor；`[server].trusted_proxy_ranges` 默认为空，仅配置的代理 peer 可提供可信 XFF 链。认证代码调用 `Mailer`，由应用配置 SMTP；默认 `log` driver 只确认接收，不暴露验证码，也不代表邮件已送达。
 - 认证生成物附带 `tests/auth_flows.rs`：使用 `TestDatabase` 创建独立数据库、替换 `Mailer` 为 fake，并通过真实 TCP listener 验证生成路由。覆盖统一响应、`Inject` 与 `ClientIp` 共存、可信 XFF、验证码、JWT 当前用户、默认数据库 PAT 认证、登录限流错误、refresh 单次轮换/重放拒绝、密码重置及登出撤销。由于默认 `HttpStatusMode::AlwaysOk`，错误的稳定 `code` 在统一 JSON envelope 中表达，HTTP status 保持 200。运行数据库 e2e 需设置 `OPENRUST_TEST_DATABASE_URL` 并授予测试账号创建/删除数据库权限；未设置时测试会提示并跳过。
+
+## 外部身份（F7 OIDC 子簇）
+
+- 可选 `auth-oidc` 提供 OAuth2 authorization-code + S256 PKCE relying-party、OIDC Discovery/JWKS 与 ID Token 验证。使用静态 issuer/client/redirect/scope，并通过受限命名 `DependencyClient` 访问 IdP；正常地址只允许 HTTPS，loopback 开发地址可使用 HTTP。`openidconnect` 未采用，具体依赖边界见 [ADR-053](../decisions/adr-053-external-identity-client.md)。
+- `ExternalIdentityFlows` 将短时 state/nonce/verifier 加密保存在数据库，以单次事务消费；额外校验十分钟 HttpOnly/Secure/SameSite=Lax 浏览器绑定 Cookie。identity key 为 provider + issuer + subject，不按邮箱合并；新账户要求已验证邮箱，绑定/解绑要求本地密码重新认证并写入审计。需要 `AuthExternalIdentityMigration` 和应用侧身份创建策略。
+- Discovery、token、JWKS 请求共享一次总时限与 1 MiB 响应体上限。JWKS 最长缓存 5 分钟，过期刷新失败时拒绝认证；未知 `kid` 主动刷新受 30 秒冷却限制。短暂 IdP 故障在缓存过期后会使 OIDC 登录失败关闭。
+- PostgreSQL 18 和 MySQL 8.4 各完成一次数据库集成；Keycloak 26.8.1 fixture 完成真实浏览器表单授权码、PKCE、issuer、nonce、RS256/JWKS 验证。可复跑命令和跳过边界见 [测试基线](../memory/testing.md)。TOTP 与恢复码仍属于 F7 后续子簇，不能由 OIDC 验收代替。
 
 ## 边界与未纳入范围
 

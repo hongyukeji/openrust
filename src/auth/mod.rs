@@ -19,6 +19,8 @@ mod database;
 mod flows;
 mod jwt;
 mod migration;
+#[cfg(feature = "auth-oidc")]
+mod oidc;
 mod password;
 mod pat;
 mod policy;
@@ -36,7 +38,13 @@ pub use flows::{
 };
 pub use jwt::{JwtPlugin, JwtTokens};
 pub use migration::{
-    AuthMigration, AuthPolicyMigration, AuthRefreshTokenMigration, AuthVerificationCodeMigration,
+    AuthExternalIdentityMigration, AuthMigration, AuthPolicyMigration, AuthRefreshTokenMigration,
+    AuthVerificationCodeMigration,
+};
+#[cfg(feature = "auth-oidc")]
+pub use oidc::{
+    ExternalIdentityAuthorization, ExternalIdentityFlows, ExternalIdentityLink,
+    ExternalIdentityProvider, OidcAuthorization, OidcProvider, VerifiedExternalIdentity,
 };
 pub use policy::Policy;
 pub use query::{AuthorizedSelect, MAX_AUTHORIZED_PAGE_SIZE, QueryRule, QueryScope};
