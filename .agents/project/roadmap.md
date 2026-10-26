@@ -30,7 +30,7 @@
 
 ## 可选领域套件与完整应用
 
-- [AI模型平台](plans/ai-model-platform.md)：完整范围、可选插件交付、工程验收与上线门禁集中在该文档；只有用户明确要求开发且框架成熟门禁满足后才启动，使用 `plugins/*` 与独立 worktree。
+- [AI模型平台](plans/ai-model-platform.md)：完整范围、可选插件交付、工程验收与上线门禁集中在该文档；只有用户明确要求开发且框架成熟门禁满足后才启动，在 `projects/ai-model-platform` 的一个独立 worktree 内直接包含网关源码并组合开发。
 
 ## 不作为两个版本核心承诺
 

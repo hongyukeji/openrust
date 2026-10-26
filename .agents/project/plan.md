@@ -25,7 +25,7 @@
 9. 标准应用默认 Redis，memory/file 显式选用，库默认 features 保持最小；不得静默回退本地状态。数据库/Redis 已部署不等于集群已通过。读写分离、worker/scheduler 单项竞争测试也不替代 [完整集群门禁](plans/v1-cluster-deployment.md)。
 10. 每簇对照 [能力覆盖](plans/v1-capability-coverage.md)、[通用能力](plans/v1-common-capabilities.md)、[性能与开箱即用](plans/v1-performance-and-readiness.md)、[集群](plans/v1-cluster-deployment.md) 的相关条目，不只沿最初 M0–M6 简表开发；按 [扩展性自主判断](plans/framework-design.md#开发-agent-的自主扩展性判断) 记录最小合理设计。
 11. **v1 全部门禁通过后，已获授权继续 [v2 后台](plans/v2-admin-platform.md)**。Admin 采用 pure-admin 精简国际化版 + Element Plus，App 采用 uni-app，PC 仅规划设计；版本与接入要求见 v2 计划。当前不能提前展开后台，也不需要把旧提示词“本轮永不进入 v2”当作永久限制。发布、tag、push 等仍遵守 `AGENTS.md` 的独立授权边界。
-12. [AI模型平台](plans/ai-model-platform.md) 单独维护完整规划，只有用户明确要求开发且成熟门禁满足后才启动；后续插件开发使用 `plugins/*` 与独立 worktree。不将 AI 专用模块加入当前 V1/V2 执行队列。
+12. [AI模型平台](plans/ai-model-platform.md) 单独维护完整规划，只有用户明确要求开发且成熟门禁满足后才启动；平台开发使用 `projects/ai-model-platform` 与一个独立 worktree，分支直接包含 `ai-model-gateway` 源码；独立插件分支仅在后续实际需要时使用。不将 AI 专用模块加入当前 V1/V2 执行队列。
 13. 文档、Rustdoc、代码/配置注释与开发者帮助立即按 [语言规范](style.md#语言规范) 使用简体中文。ADR-039 后按 `todo.md` 的 C1–C3 顺序整改既有英文说明，再继续后续能力；C1–C3 已完成；不新建完整英文文档线，不改变运行时 i18n。
 14. 按 [ADR-001](decisions/adr-001-own-kernel-on-axum.md#成熟组件优先与-laravel-式开发体验) 优先复用成熟组件，提供 Laravel 式约定与完整体验；框架维护整合价值和真实可用的公开扩展。已有内核/队列不因偏好重写，参考范围按 V1 四框架、V2 再参考若依/芋道执行；既有公共命名保持有效。按 ADR-001 的 V1 优先原则减少重复底层工作，以常见路径、公开扩展、一致组合和生产证据验收。
 15. 审查建议已归入 `todo.md` 对应簇：M4 修 worker 合作停机与内层错误传播；M5 开头先按 [ADR-009](decisions/adr-009-extensible-capability-drivers.md#通用插件交付阶段) 补齐插件公开契约及独立接入，再分别闭合 Db/Queue 外部执行边界，之后交付可选驱动与资源控制；M6 完善插件模板/诊断/升级体验及整体性能验收。静态发现不算新增测试或修复通过。

@@ -17,7 +17,7 @@
 | `progress.md` | 当前交付与验证摘要，不保存逐日流水 |
 | `roadmap.md` | v1 之后的版本方向 |
 | `plans/` | 框架版本计划与设计方案，以及独立排期的可选领域套件与完整应用规划；仅框架活跃任务进入 `todo.md` |
-| [`plans/ai-model-platform.md`](plans/ai-model-platform.md) | AI模型平台唯一计划：完整范围、插件交付、工程验收及 `plugins/*` 隔离；用户明确要求开发后才启动 |
+| [`plans/ai-model-platform.md`](plans/ai-model-platform.md) | AI模型平台唯一计划：完整范围、内含网关源码、工程验收及 `projects/ai-model-platform` 隔离；用户明确要求开发后才启动 |
 | `architecture.md` / `stack.md` / `conventions.md` | 架构、技术栈和工程规范 |
 | `style.md` | 文档写作、文件命名和清理规范 |
 | [decisions/README.md](decisions/README.md) | ADR 唯一编号、有效决定与替代关系索引 |

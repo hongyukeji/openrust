@@ -28,7 +28,7 @@
 - 生成项目中的运行时配置文件在项目根 `config/`；Rust 配置代码放 `src/config/` 模块目录，建议以 `mod.rs` 为入口，按复杂度拆分，不将 TOML/YAML 文件置于 `src/`。
 - 配置类型按实际能力位于 `openrust::config` 的各子模块（清单见 core/core.md），由唯一 `ConfigLoader` 加载；旧 auth/database/mail 类型路径通过 re-export 保持。生成项目提供 `.env.example`；`.env` 仅供非生产本地覆盖，外部进程变量优先，production 不读取 `.env`。
 
-- [AI模型平台](plans/ai-model-platform.md) 是唯一 AI 项目计划，集中维护范围、插件交付与工程验收。只有用户明确要求开发且框架成熟门禁满足后才启动；使用 `plugins/*` 与独立 worktree，当前不创建实现、分支或环境。完成框架 V1/V2 或通用插件机制不构成开工许可。
+- [AI模型平台](plans/ai-model-platform.md) 是唯一 AI 项目计划，集中维护范围、插件交付与工程验收。只有用户明确要求开发且框架成熟门禁满足后才启动；使用 `projects/ai-model-platform` 与一个独立 worktree，直接包含网关源码并以本地依赖接入；当前不创建实现、分支或环境。完成框架 V1/V2 或通用插件机制不构成开工许可。
 
 - 领取/切换功能簇、压缩恢复或收到新需求时，按 [执行校准](plan.md#执行校准) 核对最新计划、Git/WIP 与待办；旧消息不能覆盖已确认范围，原阶段完成不能替代新增能力验收。
 - 用户给出的扩展示例不是穷举清单；Agent 在每个功能簇主动评估常见校验/转换/替换/通知需求，复用合适机制并记录取舍，灵活补齐合理扩展点，不机械增加每个方法的前后钩子，见 [自主判断规则](plans/framework-design.md#开发-agent-的自主扩展性判断)。
