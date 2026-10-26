@@ -32,8 +32,7 @@ V1 参考 Loco、Laravel、Goravel、OpenSpring；若依/芋道仅 V2。新增�
 | Redis Queue 驱动 | 已按 [ADR-046](decisions/adr-046-redis-queue-driver.md) 实现可选 `queue-redis`；数据库默认保持不变，Redis/数据库不承诺跨资源原子性 | Redis 8.10.2 真实服务、多连接竞争与强杀恢复已完成；Redis Cluster 分片、最低版本和完整集群留在发布/集群门禁 |
 | 数据访问与生产迁移：稳定键有界分批 | 已按 [ADR-048](decisions/adr-048-stable-batch-reading.md) 交付 `BatchReader` 与授权查询接入 | PostgreSQL 18/MySQL 8.4 已真实验证单列/复合主键、升降序、多页、取消续读、callback 失败、scope 过滤及连接可继续使用；转入迁移互斥 |
 | 数据访问与生产迁移：迁移互斥 | 已按 [ADR-049](decisions/adr-049-migration-execution-lock.md) 以 resolver-aware 独立锁表和事务行锁保护 MigrationPlugin 的 up/down/status | PostgreSQL 18/MySQL 8.4 各 4 项真实 `db_migration` 集成通过，包含多进程互斥、等待超时、owner 强杀恢复、具名 DB 隔离及 up/down/status；fmt/clippy/default 与 all-features tests/docs/no-default/cargo deny 均通过；显式双库 targets 通过 |
-| 出站目标安全策略 **in_progress** | [补齐计划](plans/v1-common-capabilities.md#6-出站目标安全与调用韧性)：显式受限 URL 策略、DNS/实际连接/重定向/代理边界及可信内部端点白名单，先落现有 HTTP client | 可控解析与本地网络测试拒绝绕过、凭据跨目标传播；策略失败关闭；默认内部服务不被误阻断 |
-| 命名依赖隔离与可选熔断 | 复用 Tower/现有 HTTP 重试与资源约定，补有界并发/排队、熔断/半开、总预算、抖动及 Retry-After；gRPC G2 复用适用策略 | 故障依赖不耗尽另一依赖容量；取消释放、半开恢复、超时预算与幂等/流不可重放约束；不叠加重试循环 |
+| 命名依赖隔离与可选熔断 **in_progress** | 复用 Tower/现有 HTTP 重试与资源约定，补有界并发/排队、熔断/半开、总预算、抖动及 Retry-After；gRPC G2 复用适用策略 | 故障依赖不耗尽另一依赖容量；取消释放、半开恢复、超时预算与幂等/流不可重放约束；不叠加重试循环 |
 | 可选外部身份与 MFA F7 | 出站策略/认证扩展后分簇交付 OAuth2/OIDC/SSO 客户端与 TOTP/恢复码；复用 AuthFlows/密钥/审计，不建设授权服务器 | 真实兼容 IdP、回调重放/issuer/PKCE/JWKS、绑定安全、挑战/恢复码竞争及双库状态；MFA 前不授完整权限 |
 | 可选租户隔离 F6 | 调用作用域、F5、缓存/队列/存储齐备后交付可信租户解析、公开隔离接入与审计；普通应用默认关闭 | 双库和两 API 节点下查询、关联/批量、缓存/锁、文件/任务不串租；缺上下文拒绝，RPC/实时随后复验 |
 | 通用 CSV/XLSX F8 | F5/F6 与存储/队列后，分别实现解析转换与任务化集成；不建业务页面 | 列映射/逐行错误、分批事务、压缩展开/公式注入、取消与内存边界；双库导入、授权导出与报告清理 |

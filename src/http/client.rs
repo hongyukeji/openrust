@@ -1,10 +1,15 @@
 //! 具有明确资源限制的共享出站 HTTP 客户端。
 
+use std::collections::HashSet;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
 use http::{HeaderMap, Method, StatusCode};
+use ipnet::IpNet;
+use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 use serde::de::DeserializeOwned;
 
 /// [`HttpRequest::body`] 接受的请求正文类型。
@@ -25,6 +30,114 @@ pub struct HttpClientConfig {
     pub max_response_bytes: usize,
     /// 可选的显式代理 URL。环境代理变量会被忽略。
     pub proxy: Option<String>,
+}
+
+/// 经 [`HttpClient::restricted`] 启用的出站目标约束。
+#[derive(Debug, Clone)]
+pub struct HttpTargetPolicy {
+    allowed_hosts: Option<HashSet<String>>,
+    allowed_ports: HashSet<u16>,
+    internal_networks: Vec<(String, IpNet, HashSet<u16>)>,
+}
+
+impl Default for HttpTargetPolicy {
+    fn default() -> Self {
+        Self {
+            allowed_hosts: Some(HashSet::new()),
+            allowed_ports: HashSet::from([80, 443]),
+            internal_networks: Vec::new(),
+        }
+    }
+}
+
+impl HttpTargetPolicy {
+    /// 默认拒绝全部主机；登记后只允许指定主机访问公网 HTTP/HTTPS 默认端口。
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// 将请求限制到给定的精确主机名或 IP 字面量。
+    pub fn allow_host(&mut self, host: impl Into<String>) -> Result<&mut Self, HttpClientError> {
+        let host = normalize_host(&host.into()).ok_or(HttpClientError::InvalidConfig)?;
+        self.allowed_hosts
+            .get_or_insert_with(HashSet::new)
+            .insert(host);
+        Ok(self)
+    }
+
+    /// 允许该主机连接一个内网网段及指定端口；同一主机不能重复登记。
+    pub fn allow_internal(
+        &mut self,
+        host: impl Into<String>,
+        network: IpNet,
+        ports: impl IntoIterator<Item = u16>,
+    ) -> Result<&mut Self, HttpClientError> {
+        let host = normalize_host(&host.into()).ok_or(HttpClientError::InvalidConfig)?;
+        let ports: HashSet<_> = ports.into_iter().collect();
+        if ports.is_empty()
+            || ports.contains(&0)
+            || self
+                .internal_networks
+                .iter()
+                .any(|(allowed_host, _, _)| allowed_host == &host)
+        {
+            return Err(HttpClientError::InvalidConfig);
+        }
+        self.allowed_hosts
+            .get_or_insert_with(HashSet::new)
+            .insert(host.clone());
+        self.internal_networks.push((host, network, ports));
+        Ok(self)
+    }
+
+    /// 允许额外的公网 HTTP/HTTPS 端口。
+    pub fn allow_port(&mut self, port: u16) -> Result<&mut Self, HttpClientError> {
+        if port == 0 {
+            return Err(HttpClientError::InvalidConfig);
+        }
+        self.allowed_ports.insert(port);
+        Ok(self)
+    }
+
+    fn permits_host(&self, host: &str) -> bool {
+        self.allowed_hosts
+            .as_ref()
+            .is_none_or(|allowed| allowed.contains(host))
+    }
+
+    fn permits_port(&self, host: &str, port: u16) -> bool {
+        let has_internal_rule = self
+            .internal_networks
+            .iter()
+            .any(|(allowed_host, _, _)| allowed_host == host);
+        if has_internal_rule {
+            self.internal_networks
+                .iter()
+                .any(|(allowed_host, _, ports)| allowed_host == host && ports.contains(&port))
+        } else {
+            self.allowed_ports.contains(&port)
+        }
+    }
+
+    fn permits_address(&self, host: &str, port: u16, address: IpAddr) -> bool {
+        is_public_address(address)
+            || self
+                .internal_networks
+                .iter()
+                .any(|(allowed_host, network, ports)| {
+                    allowed_host == host && ports.contains(&port) && network.contains(&address)
+                })
+    }
+
+    fn permits_resolved_address(&self, host: &str, address: IpAddr) -> bool {
+        is_public_address(address)
+            || self
+                .internal_networks
+                .iter()
+                .any(|(allowed_host, network, _)| {
+                    allowed_host == host && network.contains(&address)
+                })
+    }
 }
 
 impl std::fmt::Debug for HttpClientConfig {
@@ -72,6 +185,9 @@ pub enum HttpClientError {
     /// 请求正文是一次性 stream，因此无法重放请求。
     #[error("outbound HTTP request body cannot be replayed")]
     UnreplayableRequest,
+    /// 请求目标不符合受限出站策略。
+    #[error("outbound HTTP target rejected by policy")]
+    TargetRejected,
 }
 
 /// 执行出站请求的传输层。实现不得记录请求中的秘密信息。
@@ -199,6 +315,7 @@ pub struct HttpClient {
     transport: Arc<dyn HttpTransport>,
     max_response_bytes: usize,
     timeout: Duration,
+    target_policy: Option<Arc<HttpTargetPolicy>>,
 }
 
 impl HttpClient {
@@ -222,6 +339,49 @@ impl HttpClient {
             transport: Arc::new(ReqwestTransport(inner)),
             max_response_bytes: config.max_response_bytes,
             timeout: config.timeout,
+            target_policy: None,
+        })
+    }
+
+    /// 创建启用目标校验、DNS 固定和禁止代理的受限客户端。
+    #[allow(
+        clippy::needless_pass_by_value,
+        reason = "与 HttpClient::new 保持一致的公开构造器接收配置值"
+    )]
+    pub fn restricted(
+        config: HttpClientConfig,
+        policy: HttpTargetPolicy,
+    ) -> Result<Self, HttpClientError> {
+        Self::restricted_with_resolver(&config, policy, Arc::new(SystemResolver))
+    }
+
+    fn restricted_with_resolver(
+        config: &HttpClientConfig,
+        policy: HttpTargetPolicy,
+        resolver: Arc<dyn Resolve>,
+    ) -> Result<Self, HttpClientError> {
+        validate_config(config)?;
+        if config.proxy.is_some() {
+            return Err(HttpClientError::InvalidConfig);
+        }
+        let policy = Arc::new(policy);
+        let inner = reqwest::Client::builder()
+            .connect_timeout(config.connect_timeout)
+            .timeout(config.timeout)
+            .no_proxy()
+            .redirect(reqwest::redirect::Policy::none())
+            .dns_resolver(RestrictedResolver {
+                policy: Arc::clone(&policy),
+                resolver,
+            })
+            .build()
+            .map_err(|_| HttpClientError::InvalidConfig)?;
+        Ok(Self {
+            inner: inner.clone(),
+            transport: Arc::new(ReqwestTransport(inner)),
+            max_response_bytes: config.max_response_bytes,
+            timeout: config.timeout,
+            target_policy: Some(policy),
         })
     }
 
@@ -247,6 +407,7 @@ impl HttpClient {
             transport: Arc::new(transport),
             max_response_bytes: config.max_response_bytes,
             timeout: config.timeout,
+            target_policy: None,
         })
     }
 
@@ -257,6 +418,8 @@ impl HttpClient {
             transport: Arc::clone(&self.transport),
             max_response_bytes: self.max_response_bytes,
             timeout: self.timeout,
+            target_policy: self.target_policy.clone(),
+            target_precheck_failed: url_has_userinfo(url),
         }
     }
 
@@ -269,6 +432,161 @@ impl HttpClient {
     pub fn post(&self, url: &str) -> HttpRequest {
         self.request(Method::POST, url)
     }
+}
+
+struct SystemResolver;
+
+impl Resolve for SystemResolver {
+    fn resolve(&self, name: Name) -> Resolving {
+        let host = name.as_str().to_owned();
+        Box::pin(async move {
+            let addresses: Addrs = Box::new(
+                tokio::net::lookup_host((host.as_str(), 0))
+                    .await?
+                    .collect::<Vec<_>>()
+                    .into_iter(),
+            );
+            Ok(addresses)
+        })
+    }
+}
+
+struct RestrictedResolver {
+    policy: Arc<HttpTargetPolicy>,
+    resolver: Arc<dyn Resolve>,
+}
+
+impl Resolve for RestrictedResolver {
+    fn resolve(&self, name: Name) -> Resolving {
+        let host =
+            normalize_host(name.as_str()).unwrap_or_else(|| name.as_str().to_ascii_lowercase());
+        let resolving = self.resolver.resolve(name);
+        let policy = Arc::clone(&self.policy);
+        Box::pin(async move {
+            if !policy.permits_host(&host) {
+                return Err(Box::new(std::io::Error::other("target rejected")) as _);
+            }
+            let addresses: Vec<SocketAddr> = resolving.await?.collect();
+            if addresses.is_empty()
+                || addresses
+                    .iter()
+                    .any(|address| !policy.permits_resolved_address(&host, address.ip()))
+            {
+                return Err(Box::new(std::io::Error::other("target rejected")) as _);
+            }
+            let addresses: Addrs = Box::new(addresses.into_iter());
+            Ok(addresses)
+        })
+    }
+}
+
+fn normalize_host(host: &str) -> Option<String> {
+    let host = host.trim_end_matches('.');
+    if let Ok(address) = IpAddr::from_str(host) {
+        return Some(address.to_string());
+    }
+    if host.is_empty() || host.contains(['/', '@', ':']) {
+        return None;
+    }
+    Some(host.to_ascii_lowercase())
+}
+
+fn validate_target(
+    request: &reqwest::Request,
+    policy: &HttpTargetPolicy,
+) -> Result<(), HttpClientError> {
+    let url = request.url();
+    if !matches!(url.scheme(), "http" | "https")
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || request.headers().contains_key(http::header::HOST)
+    {
+        return Err(HttpClientError::TargetRejected);
+    }
+    let host = url
+        .host_str()
+        .and_then(normalize_host)
+        .ok_or(HttpClientError::TargetRejected)?;
+    let port = url
+        .port_or_known_default()
+        .ok_or(HttpClientError::TargetRejected)?;
+    if !policy.permits_host(&host) || !policy.permits_port(&host, port) {
+        return Err(HttpClientError::TargetRejected);
+    }
+    if let Ok(address) = IpAddr::from_str(&host)
+        && !policy.permits_address(&host, port, address)
+    {
+        return Err(HttpClientError::TargetRejected);
+    }
+    Ok(())
+}
+
+fn url_has_userinfo(value: &str) -> bool {
+    url::Url::parse(value).is_ok_and(|url| {
+        if !url.username().is_empty() || url.password().is_some() {
+            return true;
+        }
+        let Some(authority) = value.split_once("://").map(|(_, rest)| rest) else {
+            return false;
+        };
+        authority
+            .split(['/', '?', '#'])
+            .next()
+            .is_some_and(|authority| authority.contains('@'))
+    })
+}
+
+fn is_public_address(address: IpAddr) -> bool {
+    match address {
+        IpAddr::V4(address) => is_public_ipv4(address),
+        IpAddr::V6(address) => is_public_ipv6(address),
+    }
+}
+
+fn is_public_ipv4(address: Ipv4Addr) -> bool {
+    let octets = address.octets();
+    let in_range = |network: [u8; 4], prefix: u8| {
+        let value = u32::from(address);
+        let base = u32::from(Ipv4Addr::from(network));
+        let mask = u32::MAX.checked_shl(u32::from(32 - prefix)).unwrap_or(0);
+        value & mask == base & mask
+    };
+    !address.is_unspecified()
+        && !address.is_loopback()
+        && !address.is_private()
+        && !address.is_link_local()
+        && !address.is_multicast()
+        && !address.is_broadcast()
+        && !in_range([0, 0, 0, 0], 8)
+        && !in_range([100, 64, 0, 0], 10)
+        && !in_range([192, 0, 0, 0], 24)
+        && !in_range([192, 0, 2, 0], 24)
+        && !in_range([192, 88, 99, 0], 24)
+        && !in_range([198, 18, 0, 0], 15)
+        && !in_range([198, 51, 100, 0], 24)
+        && !in_range([203, 0, 113, 0], 24)
+        && octets[0] < 240
+}
+
+fn is_public_ipv6(address: Ipv6Addr) -> bool {
+    if let Some(ipv4) = address.to_ipv4_mapped() {
+        return is_public_ipv4(ipv4);
+    }
+    let segments = address.segments();
+    (segments[0] & 0xe000 == 0x2000)
+        && !in_ipv6_prefix(address, "2001:db8::", 32)
+        && !in_ipv6_prefix(address, "2001::", 23)
+        && !in_ipv6_prefix(address, "2002::", 16)
+        && !in_ipv6_prefix(address, "3fff::", 20)
+}
+
+fn in_ipv6_prefix(address: Ipv6Addr, network: &str, prefix: u8) -> bool {
+    Ipv6Addr::from_str(network).is_ok_and(|network| {
+        let value = u128::from(address);
+        let base = u128::from(network);
+        let mask = u128::MAX.checked_shl(u32::from(128 - prefix)).unwrap_or(0);
+        value & mask == base & mask
+    })
 }
 
 fn map_transport_error(error: &reqwest::Error) -> HttpClientError {
@@ -298,6 +616,8 @@ pub struct HttpRequest {
     transport: Arc<dyn HttpTransport>,
     max_response_bytes: usize,
     timeout: Duration,
+    target_policy: Option<Arc<HttpTargetPolicy>>,
+    target_precheck_failed: bool,
 }
 
 impl HttpRequest {
@@ -309,6 +629,8 @@ impl HttpRequest {
             transport: Arc::clone(&self.transport),
             max_response_bytes: self.max_response_bytes,
             timeout: self.timeout,
+            target_policy: self.target_policy.clone(),
+            target_precheck_failed: self.target_precheck_failed,
         }
     }
 
@@ -320,6 +642,8 @@ impl HttpRequest {
             transport: Arc::clone(&self.transport),
             max_response_bytes: self.max_response_bytes,
             timeout: self.timeout,
+            target_policy: self.target_policy.clone(),
+            target_precheck_failed: self.target_precheck_failed,
         }
     }
 
@@ -331,6 +655,8 @@ impl HttpRequest {
             transport: Arc::clone(&self.transport),
             max_response_bytes: self.max_response_bytes,
             timeout: self.timeout,
+            target_policy: self.target_policy.clone(),
+            target_precheck_failed: self.target_precheck_failed,
         }
     }
 
@@ -342,6 +668,8 @@ impl HttpRequest {
             transport: Arc::clone(&self.transport),
             max_response_bytes: self.max_response_bytes,
             timeout: self.timeout,
+            target_policy: self.target_policy.clone(),
+            target_precheck_failed: self.target_precheck_failed,
         }
     }
 
@@ -353,6 +681,8 @@ impl HttpRequest {
             transport: Arc::clone(&self.transport),
             max_response_bytes: self.max_response_bytes,
             timeout: self.timeout,
+            target_policy: self.target_policy.clone(),
+            target_precheck_failed: self.target_precheck_failed,
         }
     }
 
@@ -364,6 +694,8 @@ impl HttpRequest {
             transport: Arc::clone(&self.transport),
             max_response_bytes: self.max_response_bytes,
             timeout: self.timeout,
+            target_policy: self.target_policy.clone(),
+            target_precheck_failed: self.target_precheck_failed,
         }
     }
 
@@ -375,6 +707,8 @@ impl HttpRequest {
             transport: Arc::clone(&self.transport),
             max_response_bytes: self.max_response_bytes,
             timeout: self.timeout,
+            target_policy: self.target_policy.clone(),
+            target_precheck_failed: self.target_precheck_failed,
         }
     }
 
@@ -382,11 +716,19 @@ impl HttpRequest {
     pub async fn send(self) -> Result<HttpResponse, HttpClientError> {
         let transport = self.transport;
         let max_response_bytes = self.max_response_bytes;
+        let target_policy = self.target_policy;
+        let target_precheck_failed = self.target_precheck_failed;
         let deadline = tokio::time::Instant::now() + self.timeout;
         let request = self
             .inner
             .build()
             .map_err(|error| map_transport_error(&error))?;
+        if let Some(policy) = &target_policy {
+            if target_precheck_failed {
+                return Err(HttpClientError::TargetRejected);
+            }
+            validate_target(&request, policy)?;
+        }
         let response = tokio::time::timeout_at(deadline, transport.send(request))
             .await
             .map_err(|_| HttpClientError::Timeout)??;
@@ -416,8 +758,16 @@ impl IdempotentHttpRequest {
             transport,
             max_response_bytes,
             timeout,
+            target_policy,
+            target_precheck_failed,
         } = self.0;
         let request = inner.build().map_err(|error| map_transport_error(&error))?;
+        if let Some(policy) = &target_policy {
+            if target_precheck_failed {
+                return Err(HttpClientError::TargetRejected);
+            }
+            validate_target(&request, policy)?;
+        }
         let deadline = tokio::time::Instant::now() + timeout;
         if policy.max_attempts == 1 {
             let response = tokio::time::timeout_at(deadline, transport.send(request))
@@ -560,18 +910,22 @@ impl HttpResponse {
 #[cfg(test)]
 mod tests {
     use std::collections::VecDeque;
+    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
+    use std::str::FromStr;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
 
     use axum::Json;
     use axum::routing::get;
+    use reqwest::dns::Resolve;
     use serde::Deserialize;
     use tokio::net::TcpListener;
 
     use super::{
-        HttpClient, HttpClientConfig, HttpClientError, HttpResponseBody, HttpTransport,
-        RetryPolicy, TransportResponse,
+        HttpClient, HttpClientConfig, HttpClientError, HttpResponseBody, HttpTargetPolicy,
+        HttpTransport, IpNet, RestrictedResolver, RetryPolicy, TransportResponse,
+        is_public_address,
     };
 
     struct FakeTransport {
@@ -1057,5 +1411,191 @@ mod tests {
             RetryPolicy::new(3, Duration::from_secs(2), Duration::from_secs(1)),
             Err(HttpClientError::InvalidConfig)
         ));
+    }
+
+    #[test]
+    fn restricted_target_policy_rejects_unsafe_addresses_and_userinfo()
+    -> Result<(), HttpClientError> {
+        let public = IpAddr::V4(Ipv4Addr::new(93, 184, 216, 34));
+        for address in [
+            IpAddr::V4(Ipv4Addr::LOCALHOST),
+            IpAddr::V4(Ipv4Addr::new(10, 1, 2, 3)),
+            IpAddr::V4(Ipv4Addr::new(169, 254, 1, 2)),
+            IpAddr::V4(Ipv4Addr::new(198, 18, 0, 1)),
+            IpAddr::V4(Ipv4Addr::new(224, 0, 0, 1)),
+            IpAddr::V6(Ipv6Addr::LOCALHOST),
+            IpAddr::V6(
+                Ipv6Addr::from_str("2001:db8::1").map_err(|_| HttpClientError::InvalidConfig)?,
+            ),
+            IpAddr::V6(
+                Ipv6Addr::from_str("::ffff:127.0.0.1")
+                    .map_err(|_| HttpClientError::InvalidConfig)?,
+            ),
+        ] {
+            assert!(!is_public_address(address), "{address} must be rejected");
+        }
+        assert!(is_public_address(public));
+
+        assert!(super::url_has_userinfo("http://user:secret@example.com/"));
+        assert!(super::url_has_userinfo("http://@example.com/"));
+        assert!(!super::url_has_userinfo("http://example.com/"));
+
+        let mut internal_policy = HttpTargetPolicy::new();
+        internal_policy.allow_internal(
+            "internal.example",
+            IpNet::from_str("10.0.0.0/8").map_err(|_| HttpClientError::InvalidConfig)?,
+            [8443],
+        )?;
+        assert!(matches!(
+            internal_policy.allow_internal(
+                "internal.example",
+                IpNet::from_str("192.168.0.0/16").map_err(|_| HttpClientError::InvalidConfig)?,
+                [9443]
+            ),
+            Err(HttpClientError::InvalidConfig)
+        ));
+        for url in ["http://internal.example/", "http://internal.example:443/"] {
+            let request = reqwest::Client::new()
+                .get(url)
+                .build()
+                .map_err(|_| HttpClientError::InvalidConfig)?;
+            assert!(matches!(
+                super::validate_target(&request, &internal_policy),
+                Err(HttpClientError::TargetRejected)
+            ));
+        }
+        let request = reqwest::Client::new()
+            .get("http://internal.example:8443/")
+            .build()
+            .map_err(|_| HttpClientError::InvalidConfig)?;
+        assert!(super::validate_target(&request, &internal_policy).is_ok());
+
+        let request = reqwest::Client::new()
+            .get("http://example.com/")
+            .header(http::header::HOST, "internal.example")
+            .build()
+            .map_err(|_| HttpClientError::InvalidConfig)?;
+        assert!(matches!(
+            super::validate_target(&request, &HttpTargetPolicy::new()),
+            Err(HttpClientError::TargetRejected)
+        ));
+        Ok(())
+    }
+
+    struct FixedResolver {
+        addresses: Vec<SocketAddr>,
+        calls: Arc<AtomicUsize>,
+    }
+
+    impl reqwest::dns::Resolve for FixedResolver {
+        fn resolve(&self, _name: reqwest::dns::Name) -> reqwest::dns::Resolving {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            let addresses = self.addresses.clone();
+            Box::pin(async move {
+                let addresses: reqwest::dns::Addrs = Box::new(addresses.into_iter());
+                Ok(addresses)
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn restricted_resolver_rejects_mixed_results_and_allows_explicit_internal_network()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let mut mixed_policy = HttpTargetPolicy::new();
+        mixed_policy.allow_host("mixed.example")?;
+        let mixed = RestrictedResolver {
+            policy: Arc::new(mixed_policy),
+            resolver: Arc::new(FixedResolver {
+                addresses: vec!["93.184.216.34:0".parse()?, "127.0.0.1:0".parse()?],
+                calls: Arc::new(AtomicUsize::new(0)),
+            }),
+        };
+        let name = reqwest::dns::Name::from_str("mixed.example")?;
+        assert!(mixed.resolve(name).await.is_err());
+
+        let mut empty_policy = HttpTargetPolicy::new();
+        empty_policy.allow_host("empty.example")?;
+        let empty = RestrictedResolver {
+            policy: Arc::new(empty_policy),
+            resolver: Arc::new(FixedResolver {
+                addresses: Vec::new(),
+                calls: Arc::new(AtomicUsize::new(0)),
+            }),
+        };
+        let name = reqwest::dns::Name::from_str("empty.example")?;
+        assert!(empty.resolve(name).await.is_err());
+
+        let mut policy = HttpTargetPolicy::new();
+        policy.allow_internal("internal.example", IpNet::from_str("127.0.0.0/8")?, [8080])?;
+        let allowed = RestrictedResolver {
+            policy: Arc::new(policy),
+            resolver: Arc::new(FixedResolver {
+                addresses: vec!["127.0.0.1:0".parse()?],
+                calls: Arc::new(AtomicUsize::new(0)),
+            }),
+        };
+        let name = reqwest::dns::Name::from_str("internal.example")?;
+        let addresses = allowed
+            .resolve(name)
+            .await
+            .map_err(|error| std::io::Error::other(error.to_string()))?;
+        assert_eq!(addresses.count(), 1);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn restricted_client_connects_to_the_single_checked_dns_result()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let app = axum::Router::new().route("/", get(|| async { "pinned" }));
+        let listener = TcpListener::bind("127.0.0.1:0").await?;
+        let address = listener.local_addr()?;
+        let server = tokio::spawn(async move { axum::serve(listener, app).await });
+        let calls = Arc::new(AtomicUsize::new(0));
+        let mut target_policy = HttpTargetPolicy::new();
+        target_policy.allow_internal(
+            "internal.example",
+            IpNet::from_str("127.0.0.1/32")?,
+            [address.port()],
+        )?;
+        let client = HttpClient::restricted_with_resolver(
+            &HttpClientConfig::default(),
+            target_policy,
+            Arc::new(ChangingResolver {
+                first: SocketAddr::new(address.ip(), 0),
+                next: "10.0.0.1:0".parse()?,
+                calls: Arc::clone(&calls),
+            }),
+        )?;
+        assert!(matches!(
+            client.get("http://internal.example/").send().await,
+            Err(HttpClientError::TargetRejected)
+        ));
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+        let response = client
+            .get(&format!("http://internal.example:{}/", address.port()))
+            .send()
+            .await?;
+        assert_eq!(response.bytes().await?, b"pinned");
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        server.abort();
+        Ok(())
+    }
+
+    struct ChangingResolver {
+        first: SocketAddr,
+        next: SocketAddr,
+        calls: Arc<AtomicUsize>,
+    }
+
+    impl reqwest::dns::Resolve for ChangingResolver {
+        fn resolve(&self, _name: reqwest::dns::Name) -> reqwest::dns::Resolving {
+            let call = self.calls.fetch_add(1, Ordering::SeqCst);
+            let address = if call == 0 { self.first } else { self.next };
+            Box::pin(async move {
+                let addresses: reqwest::dns::Addrs = Box::new(std::iter::once(address));
+                Ok(addresses)
+            })
+        }
     }
 }

@@ -16,7 +16,7 @@
 - 提供 JSON 请求/响应入口、基本请求构造入口与有界响应读取。HTTP 非成功状态由响应对象返回，不自动变成传输错误。错误展示不暴露 URL、头或请求/响应正文。
 - 取消遵循 Tokio future 取消语义；丢弃请求 future 即停止等待，不承诺撤销已到达远端的操作。
 - 应用可通过公开 `HttpTransport` / `HttpResponseBody` contract 和 `HttpClient::with_transport` 注入测试 transport；默认 transport 才能访问网络。假实现必须在本地返回响应，不能回退真实网络。自定义 transport 也受总超时与响应体上限约束。
-- URL/重定向约束不是 SSRF 防护。调用不可信目标的应用必须自行实施目的地址校验；自动重定向关闭以限制隐式跨域凭据转发。
+- `HttpClient::new` 与注入 transport 的客户端不提供 SSRF 目标防护；应用可选 `HttpClient::restricted` 的 URL/DNS/连接校验，具体信任边界与内网例外见 [ADR-051](adr-051-http-target-security.md)。自动重定向保持关闭以限制隐式跨域凭据转发。
 
 ## 影响
 

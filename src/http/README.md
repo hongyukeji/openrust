@@ -147,6 +147,31 @@ if response.status().is_success() {
 
 client 不会自动重试。应用如需重试，必须显式通过 `idempotent()` 标记操作并传入 `RetryPolicy`；策略最多尝试五次，对传输故障和 502/503/504 使用有上限的指数退避。需要重放时会拒绝只有一次机会的流式请求体。重定向默认关闭以避免目标被隐式改变，但这不能替代应用侧的 SSRF 目标校验。系统代理环境变量会被忽略；确实需要代理时，请显式配置 `HttpClientConfig::proxy`。`HttpTransport` 和 `TransportResponse::from_bytes` 可用于确定性 fake；注入的 transport 接收构造好的请求，除非其自身选择联网，否则不会访问网络。传输和解码错误会隐藏底层详情；应用不应记录 authorization header 或敏感 body。请显式检查返回状态并处理非 2xx 响应。
 
+### 受限目标
+
+处理用户提供的 URL 或远程读取时，可选择 `HttpClient::restricted`。普通 `HttpClient::new` 保持原有行为。受限客户端默认拒绝所有主机，必须通过 `allow_host` 登记目标；仅允许 HTTP/HTTPS 和 80/443 端口、拒绝 URL 用户信息，并在 reqwest 实际连接使用的 DNS resolver 中检查全部解析地址。混合公网与私网结果会整体拒绝，避免连接器再做一次未校验解析。自动重定向仍关闭，受限模式不接受显式代理。
+
+```rust,ignore
+use openrust::http::{HttpClient, HttpClientConfig, HttpTargetPolicy};
+
+let mut policy = HttpTargetPolicy::new();
+policy.allow_host("api.example.com")?;
+let client = HttpClient::restricted(HttpClientConfig::default(), policy)?;
+let response = client.get("https://api.example.com/health").send().await?;
+```
+
+内网目标必须按主机、网段和端口显式登记：
+
+```rust,ignore
+use openrust::http::{HttpClient, HttpClientConfig, HttpTargetPolicy};
+
+let mut policy = HttpTargetPolicy::new();
+policy.allow_internal("files.internal", "10.20.0.0/16".parse()?, [8443])?;
+let client = HttpClient::restricted(HttpClientConfig::default(), policy)?;
+```
+
+调用 `allow_host` 后，白名单会限制所有请求的精确主机名；它不会绕过解析地址检查。每个内网主机仅可登记一次 CIDR 与端口集合，且该主机只接受登记端口。受限请求不能自定义 `Host` 头，也不能通过 `with_transport` 接入自定义 transport。此策略只约束经该客户端发出的请求，不约束 SeaORM、存储驱动、应用自行创建的客户端、网络 NAT 或透明代理，也不能替代部署侧出口规则。
+
 ```rust,ignore
 use std::time::Duration;
 use openrust::http::{HttpClient, HttpClientConfig, RetryPolicy};

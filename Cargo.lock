@@ -2785,6 +2785,7 @@ dependencies = [
  "icu_decimal",
  "icu_locale",
  "icu_plurals",
+ "ipnet",
  "jsonwebtoken",
  "lettre",
  "macros",

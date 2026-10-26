@@ -50,6 +50,7 @@ aes-gcm-siv = { version = "0.12.1", default-features = false, features = ["aes",
 base64 = "0.22"
 getrandom = "0.3"
 http = "1.5"
+ipnet = "2.11"
 bytes = "1.11"
 futures-util = "0.3"
 serde = { version = "1.0", features = ["derive"] }
@@ -131,6 +132,7 @@ futures-util.workspace = true
 getrandom.workspace = true
 uuid = { workspace = true, optional = true }
 http.workspace = true
+ipnet = { workspace = true, optional = true }
 jsonwebtoken = { workspace = true, optional = true }
 lettre.workspace = true
 minijinja = { workspace = true, optional = true }
@@ -214,7 +216,7 @@ queue-redis = ["queue", "dep:redis"]
 signing = ["dep:base64", "dep:jsonwebtoken"]
 mail-smtp = ["lettre/smtp-transport", "lettre/tokio1-rustls-tls"]
 mail-templates = ["dep:minijinja"]
-http-client = ["dep:reqwest"]
+http-client = ["dep:reqwest", "dep:ipnet"]
 sms-twilio = ["http-client", "dep:base64"]
 encryption = ["dep:aes-gcm-siv", "dep:base64", "dep:zeroize"]
 test-util = []
