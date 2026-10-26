@@ -71,6 +71,11 @@ name = "auth_runtime"
 path = "tests/auth/runtime.rs"
 
 [[test]]
+name = "auth_query_authorization"
+path = "tests/auth/query_authorization.rs"
+required-features = ["auth"]
+
+[[test]]
 name = "db_connection"
 path = "tests/database/connection.rs"
 

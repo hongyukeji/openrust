@@ -58,6 +58,7 @@
 | [041 事务与认证流程事件](adr-041-transaction-and-auth-flow-events.md) | Accepted | 标准 Db 提交边界与 AuthFlows typed events；direct after-commit 尽力通知、可靠副作用使用事务队列 |
 | [042 共享锁与请求幂等](adr-042-shared-locks-and-request-idempotency.md) | Accepted | PostgreSQL/MySQL 数据库租约/fencing 与显式请求结果快照；不等同外部副作用 exactly-once |
 | [044 协议无关验证与调用作用域](adr-044-cross-protocol-execution-context.md) | Accepted | 复用 validator/Error；单次调用 metadata/deadline/cancel/locale 与队列安全传递边界 |
+| [047 类型化资源查询授权](adr-047-typed-query-authorization.md) | Accepted | 资源行范围与 RBAC 分离；规则条件和业务筛选固定 AND，受保护读写隐藏 SeaORM builder |
 
 ## 队列、缓存与部署
 

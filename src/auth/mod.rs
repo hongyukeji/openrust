@@ -22,6 +22,7 @@ mod migration;
 mod password;
 mod pat;
 mod policy;
+mod query;
 mod refresh;
 mod session;
 mod verification;
@@ -38,6 +39,7 @@ pub use migration::{
     AuthMigration, AuthPolicyMigration, AuthRefreshTokenMigration, AuthVerificationCodeMigration,
 };
 pub use policy::Policy;
+pub use query::{AuthorizedSelect, MAX_AUTHORIZED_PAGE_SIZE, QueryRule, QueryScope};
 
 pub(crate) fn resolve_auth_sql(db: &crate::db::Db, sql: &str) -> Result<String> {
     let backend = db.backend()?;

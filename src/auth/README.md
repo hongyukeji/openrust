@@ -55,4 +55,22 @@ async fn me(user: CurrentUser) -> openrust::Result<openrust::http::Json<i64>> {
 
 `AuthCredential` 有意不实现 `Debug` 或序列化。自定义认证器不得记录其中的秘密。凭据无效时返回 `Error::Unauthorized`；CSRF 校验拒绝时返回 `Error::Forbidden`；后端故障时返回内部错误或显式 5xx 错误。
 
+## 资源查询授权
+
+`Policy::authorize` 检查操作权限；资源行范围由应用以 `QueryRule<E>` 单独定义。受保护入口不会自动授予 `read`、`update` 等操作权限。`QueryScope` 必须从一个条件表达式开始，其他范围通过 AND 或非空的 AND-OR 组扩展；用户筛选始终与资源范围相交。列表、详情、分页、批量更新/删除和关联读取使用 `AuthorizedSelect` 或 `QueryRule` 的受保护方法，底层 SeaORM builder 不会从这些入口暴露。
+
+```rust,ignore
+use openrust::auth::{CurrentUser, QueryRule, QueryScope};
+use openrust::db::sea_orm::{ColumnTrait, Condition};
+
+let documents = QueryRule::<document::Entity>::new(|user| {
+    Ok(QueryScope::new(document::Column::OwnerId.eq(user.id())))
+});
+let (rows, total) = documents.select(&user, Condition::all())?
+    .order_by_desc(document::Column::CreatedAt)
+    .page(&connection, 0, 50).await?;
+```
+
+分页页大小上限为 `MAX_AUTHORIZED_PAGE_SIZE`（500），页偏移溢出会拒绝。关联读取会先按父实体规则验证给定父记录，再用关联实体自己的规则查询子记录。软删除条件仍由应用显式 AND 组合。普通 SeaORM 查询/写入、直接关联加载、原生 SQL 与自定义 driver 都不会自动套用规则；应用必须在这些逃生路径自行维护授权范围。类型化用法见 [`examples/query-authorization`](../../examples/query-authorization/README.md)。
+
 通用 Session store、Cookie middleware、过期、删除和共享失效能力已实现，并在 PostgreSQL/MySQL 上测试。JWT access token 签名、严格校验、key ID、重叠密钥轮换和 JWT 路由认证均已实现。Refresh token 摘要持久化、单次轮换、重放时撤销 family、账户级撤销和并发刷新串行化均已实现，并在 PostgreSQL/MySQL 上测试。Argon2id 密码原语、通用验证码服务、`AuthFlows` 服务组合和基础数据库角色权限均已实现，并在 PostgreSQL/MySQL 上测试。Session 登录/登出 helper 覆盖 ID 轮换、CSRF 摘要存储、脱敏、保留应用数据及移除认证 key，并在 PostgreSQL/MySQL 上测试数据库流程。生成的认证路由通过隔离数据库和 fake mail HTTP 测试；注册、邮箱验证、JWT/PAT 认证、refresh 重放、密码重置、登出撤销和限流响应已在 PostgreSQL 18 与 MySQL 8.4 上通过真实 TCP 验收。应用 handler 仍负责业务 DTO 和路由授权。真实 Twilio 送达尚未验证，需提供获授权的账号和目标地址。

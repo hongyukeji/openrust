@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-26
-> 摘要：M3 认证运行时实现和双库验收事实；真实 Twilio 送达仍需授权账号与目标。
+> 摘要：M3 认证运行时与 M5 资源查询范围实现事实；真实 Twilio 送达仍需授权账号与目标。
 
 ## 当前实现
 
@@ -23,6 +23,7 @@
 - 认证主体留在当前 HTTP request extension；`ExecutionMetadata` 只跨任务传递 request ID/locale，不序列化 `CurrentUser`、权限快照、Bearer token、Session cookie 或任意 header。后台 Job 的授权须在执行边界按应用策略重新确认。
 - `PersonalAccessTokens` 由 `AuthPlugin` 在数据库已注册后放入 `AppState`，提供一次性签发、账户范围列举、单 token 撤销及账户级全量撤销。原始 token 以 256-bit CSPRNG 生成，仅 `IssuedPersonalAccessToken::expose` 可读，Debug 脱敏；数据库只存 SHA-256 和短前缀。列表不返回 digest，撤销 SQL 同时约束 user_id。
 - `Policy` 由 `AuthPlugin` 在 `Db` 已注册时放入 `AppState`，并通过追加的 `AuthPolicyMigration` 建立全局 roles/permissions/user_roles/role_permissions。支持确保角色、角色分配/撤销、精确权限授予/撤销与显式 `allows` / `authorize`。权限检查每次读取共享数据库，不缓存；JWT/Session 需要角色授予，PAT 还需同名 token ability。授权管理路由由应用负责保护。
+- `QueryRule<E>` / `QueryScope<E>` 按 SeaORM Entity 定义资源行范围；`QueryScope` 必须从非空表达式起步，可通过 AND 与非空 OR 组扩展。`AuthorizedSelect` 只提供 AND 筛选、排序、limit/offset、列表/详情和分页；页大小最多 500，溢出偏移拒绝。批量 update/delete 在真实写语句上组合 rule AND user filter。`related` 会先按父规则校验父记录，再按子实体规则查询关联记录。此能力不代替 `Policy::authorize`，也不拦截裸 SeaORM、原生 SQL 或自定义 driver。真实 PostgreSQL 18/MySQL 8.4 HTTP 集成覆盖 owner filter、越权详情、混合批量更新/删除和受限关联。
 - `Policy::grant_permission_in_transaction` 接受调用方事务，用于将权限变更与 `openrust::audit::DatabaseAuditSink::record_in_transaction` 原子提交；常规 `grant_permission` 保持内部事务兼容。
 - `AuthMigration` 创建中性逻辑名 `users`、`sessions` 与 `personal_access_tokens`，实际物理名由 ADR-016 的 `DatabaseTableNames` resolver 解析（默认 `tb_*`）。PostgreSQL/MySQL 集成验证默认、空前缀、自定义前缀和 `users` 完整名映射，并走通认证持久化查询。
 - `AuthRefreshTokenMigration` 作为追加迁移创建逻辑名 `auth_refresh_tokens`，不修改原认证迁移版本。`AuthPlugin` 在先注册 `DatabasePlugin` 时向应用状态注册 `RefreshTokens`；它签发 32 字节随机 opaque token、只持久化 SHA-256、单次事务轮换、重放撤销整组，并提供单 token 与账户级撤销。账户行锁将签发、轮换和撤销串行化，避免并发轮换在账户级撤销后留下后继 token。初次过期时间由 AuthFlows 默认 30 天或显式配置提供，轮换不延长。
@@ -46,6 +47,7 @@
 
 - `cargo test -p openrust --test http_router --test http_resource`：全局 Tower layer 与错误响应包装测试通过。
 - `cargo test -p server --features auth --test auth_runtime`：共享 Session middleware 与身份认证运行时测试通过；`session-redis` feature 及 Redis adapter 证据见 `memory/testing.md`。
+- PostgreSQL 18 / MySQL 8.4：`cargo test -p server --features 'auth db-<backend>' --test auth_query_authorization` 使用隔离库和真实认证 HTTP 请求，验证过滤 OR 不扩大 owner 范围、越权详情不可见、分页计数、批量 update/delete 与父子关联规则；独立 consumer `examples/query-authorization` 通过 `cargo check --manifest-path ...`。
 - `cargo test -p openrust-server --features auth,db-postgres --test auth_database` / `--features db-mysql --test database`：真实本地容器验证迁移、CSRF、PAT 签发/哈希存储/列举/过期输入/归属隔离/跨实例撤销与最近使用时间、通用 Session store 和两个应用实例间撤销；MySQL 使用具备建库权限的测试账号。
 - `cargo test -p openrust --features auth --lib`：JWT 配置、签发/验证、错误边界及密钥轮换测试通过。
 - `cargo test -p openrust --features auth --lib`：验证码用途/身份绑定、错误尝试耗尽、一次消费和策略边界单测通过；`session_login_rotates_id_preserves_app_data_and_redacts_csrf` 验证 ID 轮换、应用数据保留、CSRF digest 与 Debug 脱敏。
