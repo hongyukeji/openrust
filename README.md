@@ -34,7 +34,35 @@ Purpose-bound expiring links are available through the `signing` feature and `op
 
 Explicit audit records use `openrust::audit::Audit` with the database sink or a custom `AuditSink`. Add `DatabaseAuditMigration` to the application migrator. Details are denied by default, require an allowlist, and redact sensitive field names. Critical database changes can insert a validated audit record in the same transaction; see the [audit module guide](src/audit/README.md).
 
-The `queue` feature provides durable database job dispatch, bounded worker concurrency, and database-coordinated scheduling for PostgreSQL and MySQL. Register `QueueMigration` in the application migrator and install `QueuePlugin` after `DatabasePlugin`; handlers are explicitly registered with `register_job`. Use `schedule_interval` or `schedule_daily_at` on the same plugin to register a UTC schedule. `schedule run --once` scans once, `schedule run` runs continuously, and `schedule list` shows registered entries. `Queue::dispatch_unique` prevents overlapping duplicates for a queue-scoped key and returns the active job ID; the key is released when the job completes or is moved to `failed_jobs`. `dispatch_chain` executes registered tasks in order, while `dispatch_batch` bounds concurrency per group. Each group is one durable parent job; a retry can repeat successful child side effects, so child handlers must be idempotent. Groups allow at most 128 tasks and a batch concurrency of 1 to 64. Dispatch inside a `Db` transaction when job creation must commit or roll back with business data. Execution is at least once, so handlers must be idempotent. The current worker supports retries, failed-job retention, manual retry, progress, cooperative cancellation, per-attempt timeouts and lease recovery after process failure. Schedules support fixed whole-second intervals and daily UTC time; cron expressions, named time zones and DST are outside the first v1 scheduling contract. Queued event listeners and full cluster acceptance are still pending.
+The `queue` feature provides durable database job dispatch, bounded worker concurrency, and database-coordinated scheduling for PostgreSQL and MySQL. Register `QueueMigration` in the application migrator and install `QueuePlugin` after `DatabasePlugin`; handlers are explicitly registered with `register_job`. Use `schedule_interval` or `schedule_daily_at` on the same plugin to register a UTC schedule. `schedule run --once` scans once, `schedule run` runs continuously, and `schedule list` shows registered entries. `Queue::dispatch_unique` prevents overlapping duplicates for a queue-scoped key and returns the active job ID; the key is released when the job completes or is moved to `failed_jobs`. `dispatch_chain` executes registered tasks in order, while `dispatch_batch` bounds concurrency per group. Each group is one durable parent job; a retry can repeat successful child side effects, so child handlers must be idempotent. Groups allow at most 128 tasks and a batch concurrency of 1 to 64. Dispatch inside a `Db` transaction when job creation must commit or roll back with business data. Execution is at least once, so handlers must be idempotent. The current worker supports retries, failed-job retention, manual retry, progress, cooperative cancellation, per-attempt timeouts and lease recovery after process failure. Schedules support fixed whole-second intervals and daily UTC time; cron expressions, named time zones and DST are outside the first v1 scheduling contract. Events support ordered in-process listeners and explicit queue-backed listeners; full cluster acceptance remains pending.
+
+## Typed events
+
+`EventsPlugin` registers application-owned event listeners in declaration order. `Events::dispatch` awaits matching listeners sequentially and returns the first error without calling later listeners. This dispatch is process-local and is not saved or broadcast. With the `queue` feature, `listen_queued` maps an event to a registered `Job`; call `dispatch_in_transaction` inside the business transaction to atomically persist that job with the business change. Workers remain explicit, and their handlers must tolerate at-least-once retries.
+
+```rust,ignore
+let mut events = openrust::events::EventsPlugin::new();
+events.listen_queued::<UserRegistered, WelcomeEmailJob, _>("mail", |event| {
+    Ok(WelcomeEmailJob { user_id: event.user_id })
+});
+app_builder.plugin(queue_plugin).plugin(events); // QueuePlugin is registered first.
+let app = openrust::core::lifecycle::finalize(app_builder).await?;
+let events = app.state().try_get::<openrust::events::Events>()?;
+
+db.transaction(|transaction| {
+    let events = std::sync::Arc::clone(&events);
+    Box::pin(async move {
+        create_user(transaction).await?;
+        events
+            .dispatch_in_transaction(transaction, &UserRegistered { user_id: 42 })
+            .await?;
+        Ok(())
+    })
+})
+.await?;
+```
+
+Register `WelcomeEmailJob` with `QueuePlugin` as well. For best-effort in-process observation after a committed transaction, call `Events::dispatch` only after the transaction returns successfully; a listener error cannot undo that commit. Never put passwords, tokens, verification codes or raw requests in event/job payloads.
 
 ## The planned v1 golden path
 

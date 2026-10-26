@@ -206,7 +206,7 @@ OpenRouter 是独立 AI 平台产品的产品对标对象，不列入上述框�
 - 官方数据库 driver 已实现。唯一键只限制同一 queue/key 的活动任务重叠，完成后释放；不是永久请求幂等。执行至少一次，handler 自行保持业务幂等；外部副作用不能与数据库提交原子化。
 - worker 具有受界并发、重试/失败保留、超时、lease/ownership token、心跳和有限停机；任务链/有限批次已有实现，parent retry 可重跑成功子任务，失败策略和并发边界见 queue 事实；旧 token 接管与生产资源验收继续按 ADR-037。
 - 调度已支持数据库 UTC 时钟、interval/daily slots、slot 与 job 同事务去重、run/once/list。v1 首版不含 cron/IANA/DST；不承诺业务副作用 exactly-once。详见 [schedule 事实](../core/schedule.md)。
-- 类型化进程内有序事件与显式队列 listener 待实现；不接外部事件总线。进程内通知可能因崩溃丢失，可靠路径复用事务内任务/outbox，不把单进程 listener 写成集群广播。
+- 类型化进程内有序事件与显式队列 listener 已实现，语义与边界见 [ADR-037](../decisions/adr-037-queue-worker-lifecycle.md) 及 [events 事实](../core/events.md)；不接外部事件总线。进程内通知可能因崩溃丢失，可靠路径复用事务内任务/outbox，不把单进程 listener 写成集群广播。
 - 原规划可选 Redis queue 与 sync 测试执行在 v1 的 M5 Redis 能力接入后补交，ADR-037 只关闭数据库基础簇的范围。当前没有对应 feature；先明确持久化、事务派发及 worker 能力差异，不承诺 Redis 与业务数据库共享原子事务，也不混同默认 Redis 缓存。
 
 ## 缓存、存储、邮件与短信

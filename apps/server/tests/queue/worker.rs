@@ -7,17 +7,25 @@ use openrust::config::FrameworkConfig;
 use openrust::core::{AppBuilder, BoxFuture, Error, Result as FrameworkResult, lifecycle};
 use openrust::database::sea_orm_migration::MigrationTrait;
 use openrust::database::{DatabasePlugin, Db, sea_orm_migration::MigratorTrait};
+use openrust::events::{Events, EventsPlugin};
 use openrust::queue::{
     DispatchOptions, GroupFailurePolicy, Job, JobContext, Queue, QueueMigration, QueuePlugin,
     QueueTask,
 };
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{
+    Arc,
+    atomic::{AtomicI64, AtomicUsize, Ordering},
+};
 use std::time::Duration;
 
 static SUCCEEDED: AtomicUsize = AtomicUsize::new(0);
 static FAILED: AtomicUsize = AtomicUsize::new(0);
 static ACTIVE_BATCH: AtomicUsize = AtomicUsize::new(0);
 static PEAK_BATCH: AtomicUsize = AtomicUsize::new(0);
+static QUEUED_EVENT_HANDLED: AtomicUsize = AtomicUsize::new(0);
+static LAST_QUEUED_USER_ID: AtomicI64 = AtomicI64::new(0);
+static EVENT_TRANSACTION_CONTEXTS: AtomicUsize = AtomicUsize::new(0);
+static EVENT_NO_TRANSACTION_CONTEXTS: AtomicUsize = AtomicUsize::new(0);
 static ORDERED: std::sync::Mutex<Vec<usize>> = std::sync::Mutex::new(Vec::new());
 
 struct QueueMigrator;
@@ -110,6 +118,27 @@ impl Job for SlowJob {
     }
 }
 
+#[derive(serde::Deserialize, serde::Serialize)]
+struct SignupNotificationJob {
+    user_id: i64,
+}
+
+impl Job for SignupNotificationJob {
+    const NAME: &'static str = "tests.signup_notification.v1";
+
+    fn handle(&self, _context: JobContext) -> BoxFuture<'_, FrameworkResult<()>> {
+        Box::pin(async move {
+            LAST_QUEUED_USER_ID.store(self.user_id, Ordering::SeqCst);
+            QUEUED_EVENT_HANDLED.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        })
+    }
+}
+
+struct SignupEvent {
+    user_id: i64,
+}
+
 #[tokio::test]
 #[allow(clippy::too_many_lines)] // The assertions share one isolated real database queue.
 async fn database_queue_dispatch_worker_concurrency_failure_and_retry()
@@ -124,6 +153,27 @@ async fn database_queue_dispatch_worker_concurrency_failure_and_retry()
     queue_plugin.register_job::<AlwaysFailJob>()?;
     queue_plugin.register_job::<SlowJob>()?;
     queue_plugin.register_job::<OrderedJob>()?;
+    queue_plugin.register_job::<SignupNotificationJob>()?;
+    let event_queue = format!("event{}", std::process::id());
+    let mut events_plugin = EventsPlugin::new();
+    events_plugin.listen::<SignupEvent, _>(|_, context| {
+        Box::pin(async move {
+            if context.transaction().is_some() {
+                EVENT_TRANSACTION_CONTEXTS.fetch_add(1, Ordering::SeqCst);
+            } else {
+                EVENT_NO_TRANSACTION_CONTEXTS.fetch_add(1, Ordering::SeqCst);
+            }
+            Ok(())
+        })
+    });
+    events_plugin.listen_queued::<SignupEvent, SignupNotificationJob, _>(
+        event_queue.clone(),
+        |event| {
+            Ok(SignupNotificationJob {
+                user_id: event.user_id,
+            })
+        },
+    );
     let mut builder = AppBuilder::new(
         FrameworkConfig::default(),
         Figment::new().merge(Toml::string(&format!(
@@ -131,10 +181,54 @@ async fn database_queue_dispatch_worker_concurrency_failure_and_retry()
             test_database.url()
         ))),
     );
-    builder.plugin(DatabasePlugin).plugin(queue_plugin);
+    builder
+        .plugin(DatabasePlugin)
+        .plugin(queue_plugin)
+        .plugin(events_plugin);
     let app = lifecycle::finalize(builder).await?;
     let queue = app.state().try_get::<Queue>()?;
     let db = app.state().try_get::<Db>()?;
+    let events = app.state().try_get::<Events>()?;
+
+    QUEUED_EVENT_HANDLED.store(0, Ordering::SeqCst);
+    LAST_QUEUED_USER_ID.store(0, Ordering::SeqCst);
+    EVENT_TRANSACTION_CONTEXTS.store(0, Ordering::SeqCst);
+    EVENT_NO_TRANSACTION_CONTEXTS.store(0, Ordering::SeqCst);
+    let rolled_back = db
+        .transaction(|transaction| {
+            let events = Arc::clone(&events);
+            Box::pin(async move {
+                events
+                    .dispatch_in_transaction(transaction, &SignupEvent { user_id: 41 })
+                    .await?;
+                Err::<(), _>(Error::custom("rollback_probe", "rollback event dispatch"))
+            })
+        })
+        .await;
+    assert!(rolled_back.is_err());
+    assert_eq!(EVENT_TRANSACTION_CONTEXTS.load(Ordering::SeqCst), 1);
+    assert!(!queue.run_next(&event_queue).await?);
+    assert_eq!(QUEUED_EVENT_HANDLED.load(Ordering::SeqCst), 0);
+
+    db.transaction(|transaction| {
+        let events = Arc::clone(&events);
+        Box::pin(async move {
+            events
+                .dispatch_in_transaction(transaction, &SignupEvent { user_id: 42 })
+                .await
+        })
+    })
+    .await?;
+    assert_eq!(EVENT_TRANSACTION_CONTEXTS.load(Ordering::SeqCst), 2);
+    assert!(queue.run_next(&event_queue).await?);
+    assert_eq!(QUEUED_EVENT_HANDLED.load(Ordering::SeqCst), 1);
+    assert_eq!(LAST_QUEUED_USER_ID.load(Ordering::SeqCst), 42);
+
+    events.dispatch(&SignupEvent { user_id: 43 }).await?;
+    assert_eq!(EVENT_NO_TRANSACTION_CONTEXTS.load(Ordering::SeqCst), 1);
+    assert!(queue.run_next(&event_queue).await?);
+    assert_eq!(QUEUED_EVENT_HANDLED.load(Ordering::SeqCst), 2);
+    assert_eq!(LAST_QUEUED_USER_ID.load(Ordering::SeqCst), 43);
 
     SUCCEEDED.store(0, Ordering::SeqCst);
     let queue_name = format!("concurrent{}", std::process::id());
@@ -422,6 +516,7 @@ async fn database_queue_dispatch_worker_concurrency_failure_and_retry()
     .await?;
     assert!(queue.run_next(&committed_queue).await?);
 
+    drop(events);
     drop(queue);
     drop(db);
     drop(app);

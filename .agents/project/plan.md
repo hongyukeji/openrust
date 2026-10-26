@@ -12,7 +12,7 @@
 
 ## 执行校准
 
-1. 目录收尾、M3 Mailer/Policy 生成器、公开 HTTP 路由限流及数据输出/查询边界已完成；当前按 `todo.md` 推进 M4 事件与公开流程扩展。
+1. 目录收尾、M3 Mailer/Policy 生成器、公开 HTTP 路由限流及数据输出/查询边界和 M4 类型化事件/queued listener 已完成；后续工作按 `todo.md` 当前优先级推进。
 2. 目录中性化与 Cargo package 名是不同决定。框架在 `src/`；CLI、proc-macro、测试工具保留独立 package 的技术边界，迁出顶层 `crates/`。应用约定 `apps/` 保留；`apps/server` 逐项审计启动、feature、双库、命令与进程测试职责，替代覆盖通过前保留。见 [ADR-021](decisions/adr-021-loco-style-module-layout.md)。
 3. `examples/` 和 `tests/` 按示例/能力分目录；不得只移动文件导致 Cargo 不再发现测试。迁移必须比较 targets 与用例数量，验证包路径、宏展开、模板、CI、文档和全部测试入口。
 4. 只保留一个实现功能簇 in_progress。每簇先定公开 contract，再实现、匹配验证、本地提交、更新事实。已有实现不重做；未提交 WIP、编译通过、fake、本地双库、完整集群分别报告。

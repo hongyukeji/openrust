@@ -8,6 +8,7 @@ pub mod audit;
 pub mod config;
 pub mod core;
 pub mod db;
+pub mod events;
 pub mod http;
 pub mod i18n;
 pub mod mail;
@@ -68,6 +69,7 @@ pub mod prelude {
     #[cfg(feature = "signing")]
     pub use crate::config::SignedLinksConfig;
     pub use crate::config::SmsConfig;
+    pub use crate::events::{EventContext, Events, EventsPlugin};
     pub use crate::http::axum::extract::State;
     pub use crate::http::axum::http::StatusCode;
     pub use crate::http::axum::response::IntoResponse;

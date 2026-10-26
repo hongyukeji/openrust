@@ -15,7 +15,7 @@
 ## M4 尚未完成
 
 - 生产负载下 scheduler 的跨节点/资源边界验收，最终归入 M4 集群门禁；其本地多进程正确性证据见 [core/schedule.md](schedule.md)。
-- 有序进程内事件 listeners 与显式 queued listener。
+- 类型化事件与显式 queued listener 见 [events 事实](events.md)；持久化任务继续遵循至少一次执行契约。
 - 旧 worker token 接管竞态专项断言、worker/scheduler 命令停机测试和完整多实例集群验收。
 
 当前合同以 [ADR-037](../decisions/adr-037-queue-worker-lifecycle.md) 为准。该文件是 M4 总契约，不表示上列未完成项已经实现。

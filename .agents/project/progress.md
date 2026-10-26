@@ -16,6 +16,7 @@
 | 邮件与短信 | Mailer/SmsSender、SMTP/log/fake、Twilio adapter、本地化模板；Mailpit 本机 SMTP 实收、Twilio 协议测试通过 | Twilio 真实账号投递待授权；队列发送和薄多渠道通知待补 |
 | 加密、签名、审计 | 进程内加密/key ring、用途隔离签名链接/可选共享撤销、可替换审计 sink/同事务审计；已有单测、双库相关路径与生成验证 | 加密实现审计/平台性能复核；不承诺任意远程 sink 可靠送达或审计不可篡改 |
 | 队列与 worker | 数据库任务、显式 handler、事务派发、有限并发/重试/失败保留/超时/lease/心跳；双库强杀恢复；活动唯一键、任务链/有限批次已提交 | 事件、共享锁/请求幂等、旧 token 接管专项与完整负载集群 |
+| M4 事件扩展 | `openrust::events` typed ordered listener、fail-fast 与事务上下文；queue feature 显式映射至已注册 Job；顺序/短路、mapper/store error、下游 consumer API 及 workspace 门禁通过。真实 PostgreSQL 18.6 与 MySQL 8.4 隔离库各通过事件事务回滚无任务、提交后 worker 消费、普通 dispatch 消费；测试明确释放 Events/Queue/Db/App 后由 TestDatabase 成功清理 | 仅验证单库事务队列路径；不代表跨节点事件广播、集群或 exactly-once |
 | 目录与测试入口收尾 | CLI/macros/test packages 已迁至 `cli/`、`macros/`、`testing/`；hello 位于 `examples/hello/main.rs`；根 HTTP 和 server integration targets 按能力分组并显式保留 target 名。迁移前后均为 5 个 package、265 个可列测试条目。PG18/MySQL8.4 server all-features 集成各 40 项通过；生成 PostgreSQL/MySQL `--auth` 项目各通过 fmt/check/真实 auth_flows HTTP test；hello TCP HTTP 200；workspace fmt/clippy/test/docs、deny 与 no-default check 通过。`apps/server` 保留；旧 `crates/` 源码和目录已移除。 | 无本簇剩余项 |
 | Scheduler | UTC interval/daily slot、数据库时钟、slot 与 job 原子去重、run/once/list；双库独立进程竞争/异常退出/SIGTERM 已验证 | 不含 cron/IANA/DST；生产资源、滚动升级和完整拓扑验收未完成 |
 | CLI 与测试工具 | new、model/migration/mailer/policy 生成、dev/运行命令代理、TestDatabase；Mailer/Policy 按 [M3 Spec](plans/m3-cli-generators-spec.md) 完成；model/migration UUIDv7 与软删除选项在 PG18/MySQL8.4 生成项目真实验收通过 | job/controller/scaffold/command 生成器、依赖编排/watch、doctor、TestApp/HTTP assertions、黄金路径/正式文档 |
@@ -32,7 +33,7 @@
 
 ## 下一步
 
-按 [todo.md](todo.md) 继续 M4 事件与公开流程扩展，再继续 M5、M6。不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
+M4 类型化事件与 queued listener 已完成 PG18.6/MySQL8.4 双库验收；后续按 [todo.md](todo.md) 当前优先级继续。不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
 
 ## 本次文档核对范围
 

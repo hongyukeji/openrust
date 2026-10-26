@@ -20,7 +20,7 @@
 
 | 功能簇 | 前置与交付 | 验收 |
 | --- | --- | --- |
-| 事件与公开流程扩展 | 进程内类型化有序 listener；明确 fail-fast 与队列 listener；事务 before/after、注册/登录校验与成功/失败事件，复用现有 Plugin/事务/queue | 外部应用只用公开 API 注册；顺序/拒绝/回滚/提交失败/后置错误/敏感载荷/重试；双库提交后语义；可靠通知走事务内任务 |
+| M3/M4 认证与事务流程扩展 | 在稳定事件 API 上增加 AuthFlows 注册/登录校验及结果事件、明确事务 before/after 提交边界 | 双库拒绝/提交/回滚/后置错误、敏感载荷及可重试副作用 |
 | 共享锁与请求幂等 | 复用同一数据库/Redis 能力契约，先落数据库实现；明确 owner token、过期接管、冲突请求指纹、进行中响应、结果保留窗口与失败恢复 | 两节点竞争、旧 owner 不能解锁新 owner；同键不同请求拒绝；业务提交和幂等记录一致；不把 `dispatch_unique` 当完整请求幂等 |
 | Worker 租约与队列边界补强 | 补旧 worker token 接管专项和生产资源边界；Redis/sync driver 按 M5 可选适配补交，不把未实现 feature 写成可用。有限任务链/批次已交付，见 `core/queue.md` | 双库实际竞争/崩溃/租约接管、长任务超时、停机 drain/join；handlers 至少一次、业务幂等 |
 | 队列化通信与薄通知层 | 序列化邮件/SMS 作业与多渠道编排；复用 Mailer/SmsSender、locale、队列 retry；不新增独立重试系统 | 同事务派发、失败/重复投递边界、fake 与真实本机 SMTP；Twilio 实发仍需授权目标与凭据 |
