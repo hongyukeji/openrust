@@ -1,8 +1,8 @@
 //! Integration boundaries of the assembled server.
 
-#[path = "../src/app.rs"]
+#[path = "../../src/app.rs"]
 mod app;
-#[path = "../src/routes.rs"]
+#[path = "../../src/routes.rs"]
 mod routes;
 
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]

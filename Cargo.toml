@@ -11,11 +11,12 @@ homepage.workspace = true
 authors.workspace = true
 categories.workspace = true
 keywords.workspace = true
+autotests = false
 
 [workspace]
 resolver = "3"
-members = ["crates/openrust-cli", "crates/openrust-macros", "crates/openrust-test", "apps/server"]
-default-members = [".", "crates/openrust-cli", "crates/openrust-macros", "crates/openrust-test", "apps/server"]
+members = ["cli", "macros", "testing", "apps/server"]
+default-members = [".", "cli", "macros", "testing", "apps/server"]
 
 [workspace.package]
 version = "0.0.0"
@@ -30,9 +31,9 @@ keywords = ["framework", "web", "axum", "batteries-included", "backend"]
 
 [workspace.dependencies]
 openrust = { path = ".", version = "0.0.0" }
-openrust-cli = { path = "crates/openrust-cli", version = "0.0.0" }
-openrust-macros = { path = "crates/openrust-macros", version = "0.0.0" }
-openrust-test = { path = "crates/openrust-test", version = "0.0.0" }
+openrust-cli = { path = "cli", version = "0.0.0" }
+openrust-macros = { path = "macros", version = "0.0.0" }
+openrust-test = { path = "testing", version = "0.0.0" }
 
 tokio = { version = "1.54", features = ["rt-multi-thread", "macros", "signal", "net", "time"] }
 tokio-stream = "0.1"
@@ -134,6 +135,18 @@ figment = { workspace = true, features = ["test"] }
 serde_json.workspace = true
 tower-sessions = { workspace = true, features = ["memory-store"] }
 tokio-stream.workspace = true
+
+[[test]]
+name = "http_resource"
+path = "tests/http/resource.rs"
+
+[[test]]
+name = "http_router"
+path = "tests/http/router.rs"
+
+[[example]]
+name = "hello"
+path = "examples/hello/main.rs"
 
 [features]
 default = []

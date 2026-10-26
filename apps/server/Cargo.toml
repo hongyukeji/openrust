@@ -11,6 +11,7 @@ homepage.workspace = true
 authors.workspace = true
 categories.workspace = true
 keywords.workspace = true
+autotests = false
 
 [dependencies]
 openrust.workspace = true
@@ -51,3 +52,47 @@ encryption = ["openrust/encryption"]
 queue = ["openrust/queue"]
 db-routing-bench = []
 http-client = ["openrust/http-client"]
+
+[[test]]
+name = "auth"
+path = "tests/auth/routes.rs"
+
+[[test]]
+name = "auth_database"
+path = "tests/auth/database.rs"
+
+[[test]]
+name = "auth_runtime"
+path = "tests/auth/runtime.rs"
+
+[[test]]
+name = "db_connection"
+path = "tests/database/connection.rs"
+
+[[test]]
+name = "db_migration"
+path = "tests/database/migration.rs"
+
+[[test]]
+name = "http_client"
+path = "tests/http/client.rs"
+
+[[test]]
+name = "i18n"
+path = "tests/i18n/runtime.rs"
+
+[[test]]
+name = "queue"
+path = "tests/queue/worker.rs"
+
+[[test]]
+name = "queue_crash_recovery"
+path = "tests/queue/crash_recovery.rs"
+
+[[test]]
+name = "schedule"
+path = "tests/schedule/coordination.rs"
+
+[[test]]
+name = "server"
+path = "tests/server/aggregate.rs"

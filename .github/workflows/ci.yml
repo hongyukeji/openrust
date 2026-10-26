@@ -80,6 +80,9 @@ jobs:
       - run: cargo test -p openrust-server --features auth,db-postgres
         env:
           OPENRUST_TEST_DATABASE_URL: postgres://openrust:openrust@localhost:5432/openrust_test
+      - run: cargo test -p openrust-server --features queue,db-postgres --test db_migration --test queue --test queue_crash_recovery --test schedule
+        env:
+          OPENRUST_TEST_DATABASE_URL: postgres://openrust:openrust@localhost:5432/openrust_test
       - run: cargo test -p openrust --features db-mysql
         env:
           OPENRUST_TEST_DATABASE_URL: mysql://openrust:openrust@localhost:3306/openrust_test
@@ -89,3 +92,6 @@ jobs:
       - run: cargo test -p openrust-server --features auth,db-mysql
         env:
           OPENRUST_TEST_DATABASE_URL: mysql://openrust:openrust@localhost:3306/openrust_test
+      - run: cargo test -p openrust-server --features queue,db-mysql --test db_migration --test queue --test queue_crash_recovery --test schedule
+        env:
+          OPENRUST_TEST_DATABASE_URL: mysql://root:root@localhost:3306/openrust_test

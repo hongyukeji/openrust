@@ -1,5 +1,5 @@
 ---
-source: crates/openrust-cli/src/main.rs
+source: cli/src/main.rs
 expression: "cargo_manifest(\"my-app\")"
 ---
 [package]
