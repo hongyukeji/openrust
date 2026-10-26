@@ -10,7 +10,7 @@
 
 - `DatabaseConfig` 从 `[database]` 读取 URL、池大小和连接/获取超时；自定义 `Debug` 会遮蔽 URL。
 - `DatabaseBackend` 集中解析官方 PostgreSQL/MySQL URL scheme 与 feature 状态；它只描述 v1 官方支持集合，扩展插件可用 `Db::backend()` 读取 SeaORM 实际 backend。
-- `DatabasePlugin` 验证 pool 参数与 URL 对应的 backend feature，在 `finish` 阶段连接 SeaORM pool；运行时当前接受 PostgreSQL 16+ / MySQL 8.4 LTS+。本项目日常开发基线为 PostgreSQL 18 / MySQL 8.4 LTS / Redis 8；数据库常规 CI 使用 PostgreSQL 18 / MySQL 8.4。运行时门槛不是最终发布支持承诺，v1 发布前须按定稿最低版本调整。
+- `DatabasePlugin` 验证 pool 参数与 URL 对应的 backend feature，在 `finish` 阶段连接 SeaORM pool；运行时按暂定最低支持接受 PostgreSQL 14+ / MySQL 8.0+。日常开发基线为 PostgreSQL 18 / MySQL 8.4 LTS / Redis 8；数据库常规 CI 使用 PostgreSQL 18 / MySQL 8.4。v1 发布前须复核官方生命周期并完成最低版本能力矩阵验证。
 - `DatabasePlugin` 注册 `openrust::core::RateLimiter`，其官方 `DatabaseRateLimitStore` 通过当前 `Db` 实例在 PostgreSQL/MySQL 上原子更新固定窗口记录；`DatabaseRateLimitMigration` 由应用 migrator 显式注册，启动不会自动建表。
 - 限流 key 仅存 SHA-256 digest（不抵抗低熵输入猜测）；每个 store 实例每 256 次消费最多清理 512 行已过期记录，窗口长度一并持久化。缺少迁移、数据库故障与不支持 backend 均以错误传播，不作为未命中或放行。
 - 自定义 `Plugin` 可在 build 注册 `Db::default()`，finish 建立 SeaORM `DatabaseConnection` 后调用 `Db::initialize()`；`initialize_with_replicas()` 接受同 backend 的主库和副本连接；`Db::backend()` 读取主库 backend。一个应用仅注册一个数据库插件；自定义插件负责自身连接配置及所需能力校验。
@@ -29,8 +29,8 @@
 
 ## 后续边界
 
-官方 v1 数据库支持限定 PostgreSQL 与 MySQL。日常开发基线为 PostgreSQL 18 / MySQL 8.4 LTS / Redis 8，数据库 CI 使用 PostgreSQL 18 / MySQL 8.4。PostgreSQL 16 保留为历史验证证据。只在跨度较大、涉及版本专属行为或出现明确兼容风险时专项验证其他版本。发布前按届时官方生命周期确定并验证最低支持版本；PostgreSQL 14 / MySQL 8.0 仅为历史测试证据。其他 SeaORM backend 可通过自定义连接插件提供 `Db`，但须自行完成该应用使用到的迁移、方言、能力验证和测试隔离适配；不表示认证、队列等所有框架功能兼容。新增官方 backend 需独立完成 feature、能力检查、方言、生成器及双向测试闭环。
+官方 v1 数据库支持限定 PostgreSQL 与 MySQL，暂定最低版本为 PostgreSQL 14+ / MySQL 8.0+。日常开发基线为 PostgreSQL 18 / MySQL 8.4 LTS / Redis 8，数据库 CI 使用 PostgreSQL 18 / MySQL 8.4。只在跨度较大、涉及版本专属行为或出现明确兼容风险时专项验证其他版本。v1 发布前按届时官方生命周期复核并验证最低版本下框架承诺的能力；已有 PostgreSQL 14 / MySQL 8.0 历史集成结果不单独代表当前完整支持。其他 SeaORM backend 可通过自定义连接插件提供 `Db`，但须自行完成该应用使用到的迁移、方言、能力验证和测试隔离适配；不表示认证、队列等所有框架功能兼容。新增官方 backend 需独立完成 feature、能力检查、方言、生成器及双向测试闭环。
 
 ## 验证
 
-`cargo test -p openrust` 验证默认配置、URL 遮蔽、未初始化句柄、pool 参数、backend feature 与 table-name resolver。历史 PostgreSQL 14 / MySQL 8.0 隔离库测试覆盖 resolver-aware 迁移、独立 limiter 实例的并发共享配额、SHA-256 存储、固定窗口重置、过期记录清理、迁移 up/status/down、UTC/JSON 列与 seed 命令。MySQL 强制 Rustls TLS，并断言协商了 TLS 且连接会话时区为 `+00:00`。2026-10-26 根模块迁移后的认证数据库与生成项目测试已在 PostgreSQL 16 / MySQL 8.4 通过。2026-10-26 在 PostgreSQL 18.6 / MySQL 8.4.13 真实复制拓扑分别运行 `OPENRUST_TEST_VERIFY_REPLICA_LAG=1 cargo test -p openrust-server --features db-postgres --test db_connection` 与 `OPENRUST_TEST_VERIFY_REPLICA_LAG=1 cargo test -p openrust-server --features db-mysql --test db_connection` 并通过：确认独立副本身份、暂停复制时旧读、主库 scope 新读、两个 App 的 scope 隔离、spawn 不继承 scope、恢复后追平；`initialize_with_replicas` 的自定义接入也通过。双库 release `db_routing` 500 次 `SELECT 1` 微基准已记录于 `memory/testing.md`，不代表业务负载性能提升。数据库 URL 的应用配置键为 `DATABASE_URL` 或所选应用前缀（默认 `APP_DATABASE__URL`）；最终最低支持版本待发布前确定。
+`cargo test -p openrust` 验证默认配置、URL 遮蔽、未初始化句柄、pool 参数、backend feature 与 table-name resolver。历史 PostgreSQL 14 / MySQL 8.0 隔离库测试覆盖 resolver-aware 迁移、独立 limiter 实例的并发共享配额、SHA-256 存储、固定窗口重置、过期记录清理、迁移 up/status/down、UTC/JSON 列与 seed 命令。MySQL 强制 Rustls TLS，并断言协商了 TLS 且连接会话时区为 `+00:00`。2026-10-26 根模块迁移后的认证数据库与生成项目测试已在 PostgreSQL 16 / MySQL 8.4 通过。2026-10-26 在 PostgreSQL 18.6 / MySQL 8.4.13 真实复制拓扑分别运行 `OPENRUST_TEST_VERIFY_REPLICA_LAG=1 cargo test -p openrust-server --features db-postgres --test db_connection` 与 `OPENRUST_TEST_VERIFY_REPLICA_LAG=1 cargo test -p openrust-server --features db-mysql --test db_connection` 并通过：确认独立副本身份、暂停复制时旧读、主库 scope 新读、两个 App 的 scope 隔离、spawn 不继承 scope、恢复后追平；`initialize_with_replicas` 的自定义接入也通过。双库 release `db_routing` 500 次 `SELECT 1` 微基准已记录于 `memory/testing.md`，不代表业务负载性能提升。数据库 URL 的应用配置键为 `DATABASE_URL` 或所选应用前缀（默认 `APP_DATABASE__URL`）；暂定最低支持版本见 [ADR-002](decisions/adr-002-seaorm-dual-database.md)，完整兼容矩阵待 v1 发布前复核。

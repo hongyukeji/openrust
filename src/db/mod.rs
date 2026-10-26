@@ -35,9 +35,9 @@ pub use table_names::DatabaseTableNames;
 /// A database backend included in OpenRust's official PostgreSQL/MySQL feature set.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DatabaseBackend {
-    /// PostgreSQL 16 or newer; daily development and CI target PostgreSQL 18.
+    /// PostgreSQL 14 or newer; daily development and CI target PostgreSQL 18.
     PostgreSql,
-    /// MySQL 8.4 or newer, the current broad-adoption LTS development target.
+    /// MySQL 8.0 or newer; daily development and CI target MySQL 8.4 LTS.
     MySql,
 }
 
@@ -445,8 +445,8 @@ async fn validate_server_version(
         })?;
     if !is_server_version_supported(&version, backend) {
         let minimum = match backend {
-            DatabaseBackend::PostgreSql => "16",
-            DatabaseBackend::MySql => "8.4",
+            DatabaseBackend::PostgreSql => "14",
+            DatabaseBackend::MySql => "8.0",
         };
         return Err(Error::Config(ConfigError::Invalid(format!(
             "configured {} database version is unsupported; OpenRust requires {minimum} or newer",
@@ -460,7 +460,7 @@ fn is_server_version_supported(version: &str, backend: DatabaseBackend) -> bool 
     match backend {
         DatabaseBackend::PostgreSql => version
             .parse::<u32>()
-            .is_ok_and(|server_version| server_version >= 160_000),
+            .is_ok_and(|server_version| server_version >= 140_000),
         DatabaseBackend::MySql => {
             if version.to_ascii_lowercase().contains("mariadb") {
                 return false;
@@ -468,7 +468,7 @@ fn is_server_version_supported(version: &str, backend: DatabaseBackend) -> bool 
             let mut parts = version.split('.');
             let major = parts.next().and_then(|part| part.parse::<u32>().ok());
             let minor = parts.next().and_then(|part| part.parse::<u32>().ok());
-            matches!((major, minor), (Some(major), Some(minor)) if (major, minor) >= (8, 4))
+            matches!((major, minor), (Some(major), Some(minor)) if (major, minor) >= (8, 0))
         }
     }
 }
@@ -591,21 +591,29 @@ mod tests {
     }
 
     #[test]
-    fn broad_adoption_database_development_targets_are_checked_explicitly() {
+    fn provisional_minimum_database_versions_are_checked_explicitly() {
+        assert!(is_server_version_supported(
+            "140000",
+            DatabaseBackend::PostgreSql
+        ));
         assert!(is_server_version_supported(
             "160000",
             DatabaseBackend::PostgreSql
         ));
         assert!(!is_server_version_supported(
-            "150019",
+            "130022",
             DatabaseBackend::PostgreSql
+        ));
+        assert!(is_server_version_supported(
+            "8.0.44",
+            DatabaseBackend::MySql
         ));
         assert!(is_server_version_supported(
             "8.4.13",
             DatabaseBackend::MySql
         ));
         assert!(!is_server_version_supported(
-            "8.0.44",
+            "5.7.44",
             DatabaseBackend::MySql
         ));
         assert!(!is_server_version_supported(

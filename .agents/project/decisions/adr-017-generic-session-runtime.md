@@ -11,7 +11,7 @@ v1 要求通用 Session/Cookie 与认证共用一个存储入口，并支持匿�
 ## 决策
 
 - 复用 `tower-sessions` 0.15 的 `Session`、`SessionManagerLayer` 与 `SessionStore` 契约；通过 OpenRust 公共 API 暴露请求内 Session，认证只在该 Session 中读写保留命名空间的数据。PAT 继续独立。
-- 官方数据库 store 复用 `Db` / SeaORM，日常开发与 CI 基线为 PostgreSQL 18 / MySQL 8.4 LTS；当前运行时检查接受 PostgreSQL 16+ 与 MySQL 8.4+，最终最低支持版本待 v1 发布前确定，默认共享数据库。Session ID 不以明文持久化；按规范 ID 字节计算 SHA-256 查询键。Session 数据、过期时间和失效状态由同一存储记录承载。
+- 官方数据库 store 复用 `Db` / SeaORM，日常开发与 CI 基线为 PostgreSQL 18 / MySQL 8.4 LTS；暂定最低支持为 PostgreSQL 14+ 与 MySQL 8.0+，完整最低版本能力矩阵在 v1 发布前验证，默认共享数据库。Session ID 不以明文持久化；按规范 ID 字节计算 SHA-256 查询键。Session 数据、过期时间和失效状态由同一存储记录承载。
 - `create` 采用唯一约束的原子插入，冲突报 store 错误；`save` 只更新仍存在且未撤销的记录，禁止 upsert；`load` 对过期或撤销记录返回未命中；`delete` 在数据库提交后立即对其他节点的新请求生效。
 - 上游 store contract 不提供版本号或 CAS。同一 Session 的并发写入按最后成功写入覆盖；调用方不得把该行为当作原子计数或锁。`cycle_id` 旧记录删除与新记录持久化不是一个原子迁移，旧在途请求的 `save` 不得恢复旧 ID。
 - 错误 Cookie 仍按 ADR-012 作为无效凭据处理，不能被上游中间件静默创建的匿名 Session 掩盖。Cookie 名、Secure、HttpOnly、SameSite、Path、Domain 与 Max-Age 由 OpenRust 配置管理；生产环境安全默认值由实现 contract 确定。

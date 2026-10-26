@@ -10,12 +10,12 @@
 ## 决策
 
 - ORM 与迁移使用 `sea-orm` 2.x + `sea-orm-migration`。SQLx 直连不属于当前 `Db` 公共 API；如后续提供逃生口，必须单独定义生命周期与事务语义。
-- PostgreSQL 与 MySQL 为 v1 正式支持的数据库，SQLite 不在第一代。日常开发和常规 CI 使用 PostgreSQL 18 / MySQL 8.4 LTS。PostgreSQL 官方对每个主版本提供五年支持，不使用 LTS 这一版本标签。
+- PostgreSQL 与 MySQL 为 v1 正式支持的数据库，SQLite 不在第一代。暂定最低支持 PostgreSQL 14+ / MySQL 8.0+；日常开发和常规 CI 使用 PostgreSQL 18 / MySQL 8.4 LTS。PostgreSQL 官方对每个主版本提供五年支持，不使用 LTS 这一版本标签。
 - 迁移只使用可移植列类型；时间 PostgreSQL `timestamptz` / MySQL `DATETIME(6)`，JSON `jsonb` / `json`；框架表不用数组、枚举等单库特性。
 - 单库 SQL 集中在 `openrust::db::dialect`，必须同时提供两库分支并有双库测试；CI 以 service 容器运行双库矩阵。
 - 生成项目在创建时选择一个后端并只启用对应 feature，不要求运行时切换。
 - `Db` 保持 SeaORM 连接与事务入口；自定义 `Plugin` 可在 `build` 注册 `Db::default()`，并在 `finish` 连接后调用 `Db::initialize()`。同一应用只注册一个数据库插件。
-- 日常开发和常规 CI 使用仍受支持的稳定版本：当前为 PostgreSQL 18 / MySQL 8.4 LTS。当前运行时版本检查接受 PostgreSQL 16+；既有 PostgreSQL 16 测试是有效历史验证证据，但不代表日常基线或最终发布最低版本。只有主版本跨度较大、涉及版本专属行为或出现明确兼容风险时，才增加其他版本专项验证；v1 发布前根据届时供应商生命周期明确并验证最低支持版本。PostgreSQL 14 / MySQL 8.0 测试属于历史验证记录，不作为现行开发基线。其他 SeaORM 后端可由独立扩展接入 `Db`，但不因此获得框架功能支持；扩展必须验证其迁移、方言、锁及所用能力，并自行提供适配和测试隔离。
+- 日常开发和常规 CI 使用仍受支持的稳定版本：当前为 PostgreSQL 18 / MySQL 8.4 LTS。运行时版本检查按暂定下限接受 PostgreSQL 14+ / MySQL 8.0+；历史最低版本测试是兼容性证据，但尚不替代 v1 发布前对完整承诺能力的最低版本验收。只有主版本跨度较大、涉及版本专属行为或出现明确兼容风险时，才增加其他版本专项验证；v1 发布前重新核实官方生命周期并完成最低版本矩阵。其他 SeaORM 后端可由独立扩展接入 `Db`，但不因此获得框架功能支持；扩展必须验证其迁移、方言、锁及所用能力，并自行提供适配和测试隔离。
 - UTC/JSON schema helper 对 PostgreSQL、MySQL 显式生成对应类型；其他 SeaORM backend 返回迁移错误，不回退套用 PostgreSQL 方言。
 
 ## 影响

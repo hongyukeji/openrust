@@ -6,7 +6,7 @@
 
 ## 当前里程碑
 
-M0、M1、M2 当前已验收范围完成；根模块迁移与读写分离均已独立闭环。框架 package 已迁至仓库根 `openrust`，模块包含 `src/config/`、`src/core/`、`src/http/`、`src/db/`、`src/auth/`、`src/mail/`；工作区保留 CLI、proc-macro、测试工具和聚合 server 四个有明确边界的 package。读写分离已在 PostgreSQL 18.6 / MySQL 8.4.13 真实复制拓扑验证暂停、主库新读、副本追平及双 App scope 隔离；完整集群验收仍未完成。日常开发基线为 PostgreSQL 18 / MySQL 8.4 / Redis 8，数据库 CI 使用 PostgreSQL 18 / MySQL 8.4；运行时 PostgreSQL 接受 16+、MySQL 接受 8.4+，最低正式支持版本仍待 v1 发布前确定。
+M0、M1、M2 当前已验收范围完成；根模块迁移与读写分离均已独立闭环。框架 package 已迁至仓库根 `openrust`，模块包含 `src/config/`、`src/core/`、`src/http/`、`src/db/`、`src/auth/`、`src/mail/`；工作区保留 CLI、proc-macro、测试工具和聚合 server 四个有明确边界的 package。读写分离已在 PostgreSQL 18.6 / MySQL 8.4.13 真实复制拓扑验证暂停、主库新读、副本追平及双 App scope 隔离；完整集群验收仍未完成。日常开发基线为 PostgreSQL 18 / MySQL 8.4 / Redis 8；暂定最低支持 PostgreSQL 14+ / MySQL 8.0+ / Redis 6.2+。运行时数据库版本检查已按暂定下限对齐；完整最低版本兼容性与 Redis driver 验收仍待 v1 发布前完成。
 
 实现与生成器命名遵循 [ADR-006](decisions/adr-006-rust-native-naming.md)：项目采用 `controllers/`、`models/_entities/` 和独立 `migration/` crate；全局 CLI 为 `new`、`dev`、`generate` / `g`，运行期命令由项目二进制提供。
 
