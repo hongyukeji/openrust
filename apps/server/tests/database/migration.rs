@@ -8,8 +8,9 @@ use figment::Figment;
 use figment::providers::{Format, Toml};
 use openrust::core::RateLimiter;
 use openrust::database::{
-    DatabaseConfig, DatabaseRateLimitMigration, DatabaseRateLimitStore, DatabaseTableNames, Db,
-    MigrationPlugin, SeedPlugin, dialect, sea_orm, sea_orm_migration,
+    DatabaseConfig, DatabasePlugin, DatabaseRateLimitMigration, DatabaseRateLimitStore,
+    DatabaseTableNames, Databases, Db, MigrationPlugin, SeedPlugin, dialect, sea_orm,
+    sea_orm_migration,
 };
 use openrust::http::{AppBuilderHttpExt, HttpPlugin, RateLimitLayer, axum, build_router};
 #[cfg(feature = "queue")]
@@ -92,10 +93,14 @@ struct TestMigrator;
 
 impl MigratorTrait for TestMigrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
-        let mut migrations: Vec<Box<dyn MigrationTrait>> =
+        let migrations: Vec<Box<dyn MigrationTrait>> =
             vec![Box::new(CreateProbe), Box::new(DatabaseRateLimitMigration)];
         #[cfg(feature = "queue")]
-        migrations.push(Box::new(QueueMigration));
+        let migrations = {
+            let mut migrations = migrations;
+            migrations.push(Box::new(QueueMigration));
+            migrations
+        };
         migrations
     }
 }
@@ -263,6 +268,180 @@ async fn migration_command_applies_repeats_reports_and_rolls_back()
     drop(app);
     test_database.close().await?;
     Ok(())
+}
+
+struct EmptyMigrator;
+
+impl MigratorTrait for EmptyMigrator {
+    fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+        Vec::new()
+    }
+}
+
+#[tokio::test]
+async fn named_database_instances_keep_migrations_and_transactions_isolated()
+-> Result<(), Box<dyn std::error::Error>> {
+    let Ok(admin_url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+        eprintln!("skipping named database integration: OPENRUST_TEST_DATABASE_URL is unset");
+        return Ok(());
+    };
+    let default_database = testing::TestDatabase::create::<EmptyMigrator>(&admin_url).await?;
+    let named_database = testing::TestDatabase::create::<EmptyMigrator>(&admin_url).await?;
+    let reporting_database = testing::TestDatabase::create::<EmptyMigrator>(&admin_url).await?;
+    let source = format!(
+        "[database]\nurl = {:?}\nread_replicas = [{:?}]\n[database.instances.analytics]\nurl = {:?}\nread_replicas = [{:?}]\ntable_prefix = 'analytics_'\n[database.instances.reporting]\nurl = {:?}\nread_replicas = [{:?}]\ntable_prefix = 'reporting_'\n",
+        default_database.url(),
+        default_database.url(),
+        named_database.url(),
+        named_database.url(),
+        reporting_database.url(),
+        reporting_database.url()
+    );
+    let figment = Figment::new().merge(Toml::string(&source));
+    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment);
+    builder
+        .plugin(DatabasePlugin)
+        .plugin(MigrationPlugin::<TestMigrator>::new());
+    let app = lifecycle::finalize(builder).await?;
+    let databases = app.state().try_get::<Databases>()?;
+    let default_db = app.state().try_get::<Db>()?;
+    let analytics_db = databases.get("analytics")?;
+    let reporting_db = databases.get("reporting")?;
+    assert_eq!(
+        databases.names(),
+        vec![
+            "default".to_owned(),
+            "analytics".to_owned(),
+            "reporting".to_owned()
+        ]
+    );
+    assert!(databases.get("missing").is_err());
+    assert_eq!(
+        database_identity(&default_db.connection()?).await?,
+        database_identity(&databases.default_database().connection()?).await?
+    );
+    assert_ne!(
+        database_identity(&default_db.connection()?).await?,
+        database_identity(&analytics_db.connection()?).await?
+    );
+    assert_ne!(
+        database_identity(&analytics_db.connection()?).await?,
+        database_identity(&reporting_db.connection()?).await?
+    );
+    assert_eq!(
+        database_identity(&default_db.read_connection()?).await?,
+        database_identity(&default_db.connection()?).await?
+    );
+    assert_eq!(
+        database_identity(&analytics_db.read_connection()?).await?,
+        database_identity(&analytics_db.connection()?).await?
+    );
+
+    app.run_command(
+        "migrate",
+        vec!["--database".into(), "analytics".into(), "up".into()],
+    )
+    .await?;
+    assert_eq!(
+        analytics_db.table_name("openrust_migration_probe")?,
+        "analytics_openrust_migration_probe"
+    );
+    assert_eq!(
+        default_db.table_name("openrust_migration_probe")?,
+        "tb_openrust_migration_probe"
+    );
+    assert_eq!(
+        reporting_db.table_name("openrust_migration_probe")?,
+        "reporting_openrust_migration_probe"
+    );
+    assert_probe_row_count(&analytics_db, 0).await?;
+    assert!(assert_probe_row_count(&default_db, 0).await.is_err());
+    app.run_command("migrate", vec!["up".into()]).await?;
+    assert_probe_row_count(&default_db, 0).await?;
+    insert_probe_row(&default_db, 1).await?;
+    insert_probe_row(&analytics_db, 1).await?;
+    assert_probe_row_count(&default_db, 1).await?;
+    assert_probe_row_count(&analytics_db, 1).await?;
+    assert!(assert_probe_row_count(&reporting_db, 0).await.is_err());
+
+    default_db.connection()?.close().await?;
+    analytics_db.connection()?.close().await?;
+    reporting_db.connection()?.close().await?;
+    drop(app);
+    drop(analytics_db);
+    drop(reporting_db);
+    drop(default_db);
+    drop(databases);
+    named_database.close().await?;
+    reporting_database.close().await?;
+    default_database.close().await?;
+    Ok(())
+}
+
+async fn assert_probe_row_count(db: &Db, expected: i64) -> openrust::Result<()> {
+    let connection = db.connection()?;
+    let statement = Statement::from_string(
+        connection.get_database_backend(),
+        format!(
+            "SELECT COUNT(*) AS row_count FROM {}",
+            db.quoted_table_name("openrust_migration_probe")?
+        ),
+    );
+    let row = connection
+        .query_one_raw(statement)
+        .await
+        .map_err(Error::internal)?
+        .ok_or_else(|| Error::internal(std::io::Error::other("probe count returned no row")))?;
+    assert_eq!(
+        row.try_get::<i64>("", "row_count")
+            .map_err(Error::internal)?,
+        expected
+    );
+    Ok(())
+}
+
+async fn database_identity(connection: &DatabaseConnection) -> openrust::Result<String> {
+    let (backend, query) = match connection.get_database_backend() {
+        DbBackend::Postgres => (
+            DbBackend::Postgres,
+            "SELECT current_database() || ':' || COALESCE(inet_server_addr()::text, 'local') AS identity",
+        ),
+        DbBackend::MySql => (
+            DbBackend::MySql,
+            "SELECT CONCAT(DATABASE(), ':', @@server_uuid) AS identity",
+        ),
+        other => {
+            return Err(Error::internal(std::io::Error::other(format!(
+                "unexpected database backend: {other:?}"
+            ))));
+        }
+    };
+    let row = connection
+        .query_one_raw(Statement::from_string(backend, query.to_owned()))
+        .await
+        .map_err(Error::internal)?
+        .ok_or_else(|| {
+            Error::internal(std::io::Error::other("database identity returned no row"))
+        })?;
+    row.try_get::<String>("", "identity")
+        .map_err(Error::internal)
+}
+
+async fn insert_probe_row(db: &Db, id: i64) -> openrust::Result<()> {
+    let table = db.quoted_table_name("openrust_migration_probe")?;
+    let sql = format!(
+        "INSERT INTO {table} (id, created_at, payload) VALUES ({id}, CURRENT_TIMESTAMP, '{{\"ok\":true}}')"
+    );
+    db.transaction(|transaction| {
+        Box::pin(async move {
+            transaction
+                .execute_unprepared(&sql)
+                .await
+                .map(|_| ())
+                .map_err(Error::internal)
+        })
+    })
+    .await
 }
 
 async fn migration_limit_probe() -> &'static str {

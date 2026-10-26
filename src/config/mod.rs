@@ -41,7 +41,7 @@ pub use api::{ApiConfig, HttpStatusMode};
 pub use app::{AppConfig, Environment};
 pub use auth::{JwtConfig, PasswordConfig, SessionConfig};
 pub use cache::{CacheConfig, CacheSingleflightConfig, CacheStoreConfig, CacheSwrConfig};
-pub use database::DatabaseConfig;
+pub use database::{DatabaseConfig, DatabaseInstanceConfig};
 pub use logger::{LogConfig, LogFormat};
 pub use mailer::MailConfig;
 #[cfg(feature = "queue")]

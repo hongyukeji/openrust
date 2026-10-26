@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 use crate::core::{App, AppBuilder, BoxFuture, Command, Error, Plugin, Result};
 use sea_orm_migration::MigratorTrait;
 
-use crate::db::Db;
+use crate::db::{Databases, Db};
 
 /// 为应用的 migration 集注册 `migrate` 运行时命令。
 ///
@@ -47,7 +47,7 @@ where
     }
 
     fn about(&self) -> &'static str {
-        "Apply, roll back, or inspect database migrations"
+        "执行、回滚或查看数据库迁移"
     }
 
     fn accepts_args(&self) -> bool {
@@ -56,8 +56,12 @@ where
 
     fn run<'a>(&'a self, app: &'a App, args: Vec<String>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            let action = MigrationAction::parse(&args)?;
-            let db = app.state().try_get::<Db>()?;
+            let (database_name, action) = MigrationAction::parse(&args)?;
+            let db = if let Some(name) = database_name {
+                app.state().try_get::<Databases>()?.get(&name)?
+            } else {
+                app.state().try_get::<Db>()?.as_ref().clone()
+            };
             let database = db.connection()?;
             let table_names = db.table_names();
             match action {
@@ -105,26 +109,34 @@ enum MigrationAction {
 }
 
 impl MigrationAction {
-    fn parse(args: &[String]) -> Result<Self> {
+    fn parse(args: &[String]) -> Result<(Option<String>, Self)> {
         let invalid = || {
             Error::custom(
                 "invalid_migration_command",
-                "usage: migrate [up [steps] | down [steps] | status]",
+                "usage: migrate [--database <name>] [up [steps] | down [steps] | status]",
             )
         };
-        match args {
-            [] => Ok(Self::Up(None)),
-            [action] if action == "up" => Ok(Self::Up(None)),
-            [action, count] if action == "up" => parse_steps(count)
-                .map(|steps| Self::Up(Some(steps)))
-                .ok_or_else(invalid),
-            [action] if action == "down" => Ok(Self::Down(1)),
-            [action, count] if action == "down" => {
-                parse_steps(count).map(Self::Down).ok_or_else(invalid)
+        let (database_name, action_args) = match args {
+            [flag, name, rest @ ..] if flag == "--database" && !name.is_empty() => {
+                (Some(name.clone()), rest)
             }
-            [action] if action == "status" => Ok(Self::Status),
-            _ => Err(invalid()),
-        }
+            [flag, ..] if flag == "--database" => return Err(invalid()),
+            _ => (None, args),
+        };
+        let action = match action_args {
+            [] => Self::Up(None),
+            [action] if action == "up" => Self::Up(None),
+            [action, count] if action == "up" => {
+                Self::Up(Some(parse_steps(count).ok_or_else(invalid)?))
+            }
+            [action] if action == "down" => Self::Down(1),
+            [action, count] if action == "down" => {
+                Self::Down(parse_steps(count).ok_or_else(invalid)?)
+            }
+            [action] if action == "status" => Self::Status,
+            _ => return Err(invalid()),
+        };
+        Ok((database_name, action))
     }
 }
 
@@ -149,15 +161,15 @@ mod tests {
     fn migration_actions_default_to_all_up_or_one_down() {
         assert!(matches!(
             MigrationAction::parse(&[]),
-            Ok(MigrationAction::Up(None))
+            Ok((None, MigrationAction::Up(None)))
         ));
         assert!(matches!(
             MigrationAction::parse(&args(&["up"])),
-            Ok(MigrationAction::Up(None))
+            Ok((None, MigrationAction::Up(None)))
         ));
         assert!(matches!(
             MigrationAction::parse(&args(&["down"])),
-            Ok(MigrationAction::Down(1))
+            Ok((None, MigrationAction::Down(1)))
         ));
     }
 
@@ -165,16 +177,29 @@ mod tests {
     fn migration_actions_accept_positive_step_counts_and_status() {
         assert!(matches!(
             MigrationAction::parse(&args(&["up", "2"])),
-            Ok(MigrationAction::Up(Some(2)))
+            Ok((None, MigrationAction::Up(Some(2))))
         ));
         assert!(matches!(
             MigrationAction::parse(&args(&["down", "3"])),
-            Ok(MigrationAction::Down(3))
+            Ok((None, MigrationAction::Down(3)))
         ));
         assert!(matches!(
             MigrationAction::parse(&args(&["status"])),
-            Ok(MigrationAction::Status)
+            Ok((None, MigrationAction::Status))
         ));
+    }
+
+    #[test]
+    fn migration_action_selects_an_explicit_database() {
+        assert!(matches!(
+            MigrationAction::parse(&args(&["--database", "analytics", "up", "2"])),
+            Ok((Some(name), MigrationAction::Up(Some(2)))) if name == "analytics"
+        ));
+        assert!(MigrationAction::parse(&args(&["--database"])).is_err());
+        assert!(
+            MigrationAction::parse(&args(&["--database", "analytics", "--database", "other"]))
+                .is_err()
+        );
     }
 
     #[test]

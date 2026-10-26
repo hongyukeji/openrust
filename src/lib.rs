@@ -51,7 +51,10 @@ pub(crate) fn lock_test_env() -> std::sync::MutexGuard<'static, ()> {
 pub use db as database;
 
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
-pub use db::{DatabaseConfig, DatabasePlugin, Db, MigrationPlugin, SeedPlugin};
+pub use db::{
+    DatabaseConfig, DatabaseInstanceConfig, DatabasePlugin, Databases, Db, MigrationPlugin,
+    SeedPlugin,
+};
 
 /// 扩展方法，用于在不绑定监听器的情况下测试 HTTP router。
 pub use tower::ServiceExt;
@@ -116,7 +119,10 @@ pub mod prelude {
         ExecutionMetadata, NoConfig, Plugin, Result,
     };
     #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
-    pub use crate::{DatabaseConfig, DatabasePlugin, Db, MigrationPlugin, SeedPlugin};
+    pub use crate::{
+        DatabaseConfig, DatabaseInstanceConfig, DatabasePlugin, Databases, Db, MigrationPlugin,
+        SeedPlugin,
+    };
 }
 
 /// 启动 `A`，并运行第一个命令行参数指定的命令（默认为 `serve`）。

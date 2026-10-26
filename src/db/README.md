@@ -53,6 +53,24 @@ read_replicas = ["postgres://app:secret@replica-a/app", "postgres://app:secret@r
 
 `Db::connection()` 和 `Db::primary_connection()` 始终返回主库连接。`Db::read_connection()` 会轮询已配置副本；没有副本时返回主库。只应将它用于可接受复制延迟的只读操作；框架不会检查 SQL、重试查询，也不会在出错后回退。`Db::with_primary(future)` 会临时让当前 Tokio task 中此 handle 的 `read_connection()` 返回主库，适用于同一工作单元内先写后读。独立 spawn 的 task 不会继承该作用域。事务、迁移、seed 和框架关键路径始终使用主库。副本连接或 backend 校验失败会导致启动失败。每个副本都有使用相同连接池上限的独立连接池，因此最大总连接数为 `(replicas + 1) * max_connections`。该配置只管理连接；数据库复制、一致性和副本只读权限仍由部署环境负责。
 
+一个应用可以同时配置多个彼此独立的数据库。现有 `[database]` 是默认实例，原有 `Db` 服务继续指向它；具名实例在 `[database.instances.<name>]` 下完整配置，不继承默认 URL、池参数、表名解析或副本。名称须匹配小写 ASCII 字母开头、后续为小写字母/数字/下划线/短横线，且不能使用保留名称 `default`：
+
+```toml
+[database]
+url = "postgres://app:password@primary/app"
+table_prefix = "tb_"
+
+[database.instances.analytics]
+url = "postgres://app:password@analytics/app"
+max_connections = 4
+table_prefix = "analytics_"
+read_replicas = ["postgres://app:password@analytics-replica/app"]
+```
+
+在应用中通过 `Databases::get("analytics")` 选择具名 `Db`；`Databases::default_database()` 与 `AppState::try_get::<Db>()` 返回相同默认句柄。每个句柄各自固定事务主库、只读副本池和表名 resolver。未知名称、无效名称、缺 URL、连接/backend 错误均失败关闭；错误和 `Debug` 不显示凭据。`migrate --database analytics up`、`status` 或 `down` 会对选中实例运行当前应用注册的 migration；不传 `--database` 时沿用 default。应用须逐实例显式执行迁移。
+
+Auth、Session、队列、审计和共享限流仍使用默认 `Db`。选择其他连接不会隐式切换这些框架服务；框架也不提供跨数据库事务或自动查询路由。
+
 `DatabasePlugin` 还会使用 PostgreSQL 或 MySQL 存储注册共享的 `openrust::core::RateLimiter`。使用前请将 `DatabaseRateLimitMigration` 加入应用 migrator；schema 变更必须显式执行，启动时不会自动运行：
 
 ```rust,ignore
@@ -116,7 +134,7 @@ openrust generate migration posts --uuid-id --soft-delete title:string
 impl Plugin for CustomDatabasePlugin {
     fn build(&self, app: &mut AppBuilder) -> openrust::Result<()> {
         if app.get::<Db>().is_some() {
-            return Err(openrust::Error::custom("duplicate_database", "only one database plugin is allowed"));
+            return Err(openrust::Error::custom("database_service_already_registered", "default database handle is already registered"));
         }
         app.insert(Db::default());
         Ok(())
@@ -135,7 +153,7 @@ impl Plugin for CustomDatabasePlugin {
 
 为保证迁移列可移植，`openrust::database::dialect::timestamp_utc(name, backend)` 会创建 PostgreSQL `TIMESTAMP WITH TIME ZONE` 或 MySQL `DATETIME(6)`；`dialect::json(name, backend)` 会创建 PostgreSQL `JSONB` 或 MySQL `JSON`。两者均返回 `Result<ColumnDef, DbErr>`，遇到未处理的 backend 时会明确拒绝，而不会静默使用 PostgreSQL SQL。
 
-注册 `MigrationPlugin::<Migrator>::new()`，即可为实现 `sea_orm_migration::MigratorTrait` 的应用 migrator 添加运行时 `migrate` 命令。迁移 API 通过 `openrust::database::sea_orm_migration` 重新导出。运行 `migrate` 或 `migrate up [steps]` 应用待执行迁移；运行 `migrate down [steps]` 回滚迁移（默认回滚一步）；运行 `migrate status` 查看已应用和待执行的迁移。MySQL DDL 可能隐式提交；迁移失败后，请检查并清理部分 schema 再重试。
+注册 `MigrationPlugin::<Migrator>::new()`，即可为实现 `sea_orm_migration::MigratorTrait` 的应用 migrator 添加运行时 `migrate` 命令。迁移 API 通过 `openrust::database::sea_orm_migration` 重新导出。运行 `migrate` 或 `migrate up [steps]` 应用待执行迁移；运行 `migrate down [steps]` 回滚迁移（默认回滚一步）；运行 `migrate status` 查看已应用和待执行的迁移。具名数据库使用 `migrate --database <name> [up|down|status]` 选择目标；不指定时沿用默认数据库。MySQL DDL 可能隐式提交；迁移失败后，请检查并清理部分 schema 再重试。
 
 将 `SeedPlugin::new(seed_fn)` 与 `DatabasePlugin` 一并注册，即可提供 `db seed` 命令。异步函数接收可克隆的 `Db` handle，并返回 `openrust::Result<()>`；seed 数据及其幂等性由应用负责。
 

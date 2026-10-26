@@ -88,7 +88,8 @@ TOML 分层、环境引导与生产 `.env` 保护保持有效，具体兼容、�
 | 领域 | 名称 | 依据 |
 | --- | --- | --- |
 | 扩展单元 | `Plugin::build(&self, &mut AppBuilder) -> Result<()>`；`finish` 返回 `BoxFuture<Result<()>>`；`AppBuilder::plugin()` | 先全部 build（含期间新增）再冻结，按序异步 finish；worker/scheduler 生命周期按 ADR-037，不新增平行 Hooks |
-| 数据库迁移 | `MigrationPlugin<M>::new()` 注册 `migrate [up [steps]|down [steps]|status]`；`M` 实现 `sea_orm_migration::MigratorTrait` | SeaORM migration 的 `MigratorTrait` 与其 up/down/status 生命周期；迁移由应用 crate 定义，数据库能力 crate 负责运行 |
+| 数据库迁移 | `MigrationPlugin<M>::new()` 注册 `migrate [--database <name>] [up [steps]|down [steps]|status]`；`M` 实现 `sea_orm_migration::MigratorTrait` | SeaORM migration 的 `MigratorTrait` 与其 up/down/status 生命周期；迁移由应用 crate 定义，数据库能力 crate 负责运行 |
+| 数据库连接选择 | `Databases::default_database()` / `Databases::get(name)`；配置 `[database.instances.<name>]`；migration 用 `--database <name>` 显式选择 | `Db` 继续作为兼容的 default handle；具名实例契约见 ADR-045，不引入通用服务定位器 |
 | 服务注册表 | `AppBuilder::insert(service)` / `AppBuilder::get::<T>()`；`AppState::get -> Option<Arc<T>>`；`AppState::try_get -> Result<Arc<T>>`；缺失时返回 `MissingServiceError` | `http::Extensions::insert/get`；std 中 `try_*` 返回 `Result`；RAG C-WORD-ORDER |
 | 提取器 | `Inject<T>`、`Validated<T>`、`CurrentUser` | `shaku_axum::Inject`；axum-valid `Valid<T>`。备选名会与 tower、axum、actix、bevy 的已有类型重名 |
 | 路由 | `Routes::nest(prefix, f)`（空前缀或 `/` 时 merge）、`merge`、`layer`、`resource::<R>(path)`、`resource_with` | axum、Poem、loco 都用 `nest`；actix `web::resource` |

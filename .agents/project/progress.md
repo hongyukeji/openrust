@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-26
-> 摘要：框架处于 v1 M5，尚未达到完整 v1。源码工作区、C1–C3 中文化、M3 认证流程扩展及 M4 共享锁、worker 生命周期、F1 日历调度、F2 国际化、F3 邮件模板、队列化通知、job 生成集成、通用插件公开契约、Db 与 Queue 外部扩展契约、跨协议验证/调用作用域和 HTTP 有界运行/就绪切换均有适用验收证据；M5 缓存驱动、命名实例、F4a tag generation、F4b 单进程加载合并和 F4c SWR 已通过适用验收，当前进入多实例与可选驱动；完整剩余范围见待办。
+> 摘要：框架处于 v1 M5，尚未达到完整 v1。源码工作区、C1–C3 中文化、M3 认证流程扩展及 M4 共享锁、worker 生命周期、F1 日历调度、F2 国际化、F3 邮件模板、队列化通知、job 生成集成、通用插件公开契约、Db 与 Queue 外部扩展契约、跨协议验证/调用作用域和 HTTP 有界运行/就绪切换均有适用验收证据；M5 缓存驱动、命名实例、F4a tag generation、F4b 单进程加载合并和 F4c SWR 已通过适用验收，当前进入 Redis Session 驱动；完整剩余范围见待办。
 
 ## 源码 workspace 交付
 
@@ -14,7 +14,7 @@
 | --- | --- | --- |
 | 根模块与配置 | 框架合入根 `src/`；typed config、APP_ 可定制命名空间、`.env` 生产隔离与脱敏；默认/关键 features 和生成项目已有验证 | 无本簇剩余项 |
 | 内核与 HTTP | Application/Plugin、显式服务、静态插件顺序、`try_insert`/`try_command` 冲突错误、`try_get` 缺依赖错误、配置 section 安全字段路径、应用路由冲突启动错误；显式服务、路由/resource、验证、统一响应、分页、request ID、CORS、压缩、超时、panic 处理；`RateLimitLayer` 显式限流支持可信 IP、已验证用户、匿名回退和应用 key；`SortParams` 按 ADR-008 语法验证并执行字段 allowlist；HTTP 文档提供严格 DTO 与显式过滤示例 | OpenAPI、完整 readiness/metrics/OTLP |
-| 数据层 | PostgreSQL/MySQL、迁移/seed/事务、tb_ resolver、隔离测试、显式读写分离、数据库共享锁与请求幂等；PG18/MySQL8.4 真实复制暂停/追平已验证；model/migration 支持可选 UUIDv7 与显式 `not_deleted()` scope，生成项目 PG18/MySQL8.4 真实迁移/插入/删除/读取/恢复通过；ADR-041 提交前回滚与提交后 direct 通知已双库验证；自定义 Db plugin 可复用公开 `Db` 连接/事务与应用自有 SeaORM migration，独立 SQLite consumer 已实测 | named 独立连接、完整业务性能与集群；SQLite 不属于官方支持矩阵，框架 feature 专属能力仍需适配 |
+| 数据层 | PostgreSQL/MySQL、迁移/seed/事务、tb_ resolver、隔离测试、default 与具名数据库实例（ADR-045）、显式读写分离、数据库共享锁与请求幂等；PG18/MySQL8.4 真实复制暂停/追平已验证；model/migration 支持可选 UUIDv7 与显式 `not_deleted()` scope，生成项目 PG18/MySQL8.4 真实迁移/插入/删除/读取/恢复通过；ADR-041 提交前回滚与提交后 direct 通知已双库验证；自定义 Db plugin 可复用公开 `Db` 连接/事务与应用自有 SeaORM migration，独立 SQLite consumer 已实测 | 完整业务性能与集群；SQLite 不属于官方支持矩阵，框架 feature 专属能力仍需适配 |
 | 认证与授权 | JWT/refresh、可选 Session/CSRF、PAT、VerificationCodes、AuthFlows、Policy/RBAC、共享限流；双库 auth_database/auth_runtime 与生成项目 TCP HTTP 流程已有通过记录；注册/登录 typed events 与账户/refresh 事务原子性按 ADR-041 双库通过 | 完整跨节点业务场景；access token 不逐请求查撤销 |
 | HTTP client 与 i18n | 统一有界出站调用/fake；请求级 locale、中英资源、JSON/typed plural/select、精确小数及显式时区日期格式；workspace tests/docs/clippy/deny、PostgreSQL 生成源码 clean-copy check/test 通过 | 不覆盖 Fluent/货币格式/运行时 ICU 数据更新；日期时区由调用方决定；gRPC 在 G2 组合验收 |
 | 邮件与短信 | Mailer/SmsSender、SMTP/log/fake、Twilio adapter、本地化模板与队列化多渠道 Notifier；真实 Mailpit SMTP 队列投递和 API 收件确认 | Twilio 真实账号投递仍待授权目标与凭据 |
@@ -33,7 +33,7 @@
 - M5 HTTP 有界运行与就绪切换：新增应用级 `/ready`（listener 绑定后 200，停机/未启动时 503），保留 `/health` 存活语义；SIGINT/SIGTERM 先切换 not-ready 并停止接入，按 `shutdown_timeout_secs` drain，超时合作取消请求、join/终止 server task 并返回 `http_shutdown_timeout`。覆盖 listener bind 失败、请求 drain/超时和真实 server 子进程 SIGTERM。定向生命周期测试与真实 TCP SIGTERM 通过；`cargo fmt --all --check`、`git diff --check`、all-target/all-features clippy、默认与 all-features workspace tests、warnings-denied 默认/all-features docs、`cargo deny check`、no-default-features check 全部通过。`cargo deny` 有既有重复版本/MPL allowance 警告，advisories/bans/licenses/sources 均通过。测试仅验证单进程 HTTP 生命周期，不代表集群 readiness/依赖探测。
 
 - M5 Queue 外部扩展契约已提交 `d7d2132`：公开 `JobRegistry` 注册/执行 typed Job，`JobContext` 提供取消、进度 reporter 与应用状态；独立 consumer 经 `Queue::with_driver` 实际派发执行。PG18/MySQL8.4 队列及其相关 16 项双库真实服务回归通过；尚未验收完整集群与生产负载。
-- M5 跨协议调用作用域已提交 `19e56f4`：新增公共 `validation::validate`、`ExecutionContext` / `ExecutionMetadata` / `Cancellation`；HTTP request/timeout/cancel、命令 locale scope、数据库队列 metadata envelope、worker attempt deadline/cancel 与 request-id span 均已实现。PostgreSQL 18 与 MySQL 8.4 的真实 queue/migration/crash-recovery targets 各 7 项通过，包含持久化 worker 与任务链 metadata round-trip。后续 HTTP 有界运行/就绪切换另见本节；当前下一簇为缓存驱动与命名实例。
+- M5 跨协议调用作用域已提交 `19e56f4`：新增公共 `validation::validate`、`ExecutionContext` / `ExecutionMetadata` / `Cancellation`；HTTP request/timeout/cancel、命令 locale scope、数据库队列 metadata envelope、worker attempt deadline/cancel 与 request-id span 均已实现。PostgreSQL 18 与 MySQL 8.4 的真实 queue/migration/crash-recovery targets 各 7 项通过，包含持久化 worker 与任务链 metadata round-trip。后续 HTTP 有界运行/就绪切换另见本节；当前缓存、SWR 与命名数据库实例均已完成适用验收，下一簇为 Redis Session 驱动。
 
 - 原 M0–M2 基础范围和 M3 本地认证/安全运行时已验收；Mailer/Policy 生成器、公开 HTTP 路由限流与数据输出/查询边界均已提交并完成适用验证。
 - M4 仅部分完成；单项 scheduler/worker 多进程测试不等于完整集群验收。
@@ -49,7 +49,7 @@
 
 ## 下一步
 
-按 [todo.md](todo.md) 推进 M5 多实例与可选驱动及其后续 M5/M6 工作；F4c SWR 已通过专项验收，再执行完整 v1 性能、生产就绪与集群门禁。Worker 与 scheduler 专项双库证据不覆盖生产多实例负载与完整集群门禁。组件整合与 Laravel 式体验按 ADR-001；不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
+按 [todo.md](todo.md) 推进 M5 Redis Session 驱动及其后续 M5/M6 工作；F4c SWR 已通过专项验收，再执行完整 v1 性能、生产就绪与集群门禁。Worker 与 scheduler 专项双库证据不覆盖生产多实例负载与完整集群门禁。组件整合与 Laravel 式体验按 ADR-001；不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
 
 ## 本次文档核对范围
 

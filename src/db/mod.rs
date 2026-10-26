@@ -11,6 +11,7 @@ use crate::config::ConfigError;
 use crate::core::{App, AppBuilder, BoxFuture, Error, Plugin, RateLimiter, Result};
 use sea_orm::ConnectionTrait;
 use sea_orm::{ConnectOptions, Database, Statement, TransactionTrait};
+use std::collections::BTreeMap;
 use std::sync::OnceLock;
 
 tokio::task_local! {
@@ -24,7 +25,7 @@ mod rate_limit;
 mod seed;
 mod table_names;
 
-pub use crate::config::database::DatabaseConfig;
+pub use crate::config::database::{DatabaseConfig, DatabaseInstanceConfig};
 pub use coordination::{
     CoordinationMigration, IdempotencyClaim, IdempotencyLease, IdempotencyResponse, LockAcquire,
     LockLease, RequestIdempotency, SharedLocks,
@@ -96,6 +97,50 @@ pub struct Db {
     table_names: Arc<DatabaseTableNames>,
     next_replica: Arc<AtomicUsize>,
     events: Arc<OnceLock<crate::events::Events>>,
+}
+
+/// 应用中已配置数据库连接的只读选择器。
+///
+/// `Databases` 只选择 OpenRust 的 `Db` 句柄，不提供任意服务查找或全局访问。
+#[derive(Clone)]
+pub struct Databases {
+    default: Db,
+    handles: Arc<BTreeMap<String, Db>>,
+}
+
+impl Databases {
+    fn new(default: Db, handles: BTreeMap<String, Db>) -> Self {
+        Self {
+            default,
+            handles: Arc::new(handles),
+        }
+    }
+
+    /// 返回与 `AppState::try_get::<Db>()` 相同的默认数据库句柄。
+    pub fn default_database(&self) -> Db {
+        self.default.clone()
+    }
+
+    /// 按名称返回数据库句柄。
+    ///
+    /// # Errors
+    ///
+    /// 未配置此名称时返回配置错误。
+    pub fn get(&self, name: &str) -> Result<Db> {
+        self.handles.get(name).cloned().ok_or_else(|| {
+            Error::custom(
+                "database_instance_not_found",
+                "requested database instance is not configured",
+            )
+        })
+    }
+
+    /// 返回 default 与所有具名连接的名称。
+    pub fn names(&self) -> Vec<String> {
+        let mut names = self.handles.keys().cloned().collect::<Vec<_>>();
+        names.sort_by_key(|name| name != "default");
+        names
+    }
 }
 
 /// 派发给事务监听器、且仍可回滚的提交前边界。
@@ -326,7 +371,7 @@ pub struct DatabasePlugin;
 
 impl Plugin for DatabasePlugin {
     fn build(&self, app: &mut AppBuilder) -> Result<()> {
-        if app.get::<Db>().is_some() {
+        if app.get::<Db>().is_some() || app.get::<Databases>().is_some() {
             return Err(Error::custom(
                 "database_service_already_registered",
                 "register only one database plugin per application",
@@ -336,101 +381,157 @@ impl Plugin for DatabasePlugin {
         validate_config(&config)?;
         let table_names =
             DatabaseTableNames::new(config.table_prefix.clone(), config.table_names.clone())?;
-        app.insert(config);
         let db = Db::with_table_names(table_names);
+        let mut handles = BTreeMap::from([("default".to_owned(), db.clone())]);
+        for (name, instance) in &config.instances {
+            let table_names = DatabaseTableNames::new(
+                instance.table_prefix.clone(),
+                instance.table_names.clone(),
+            )?;
+            handles.insert(name.clone(), Db::with_table_names(table_names));
+        }
+        app.insert(config);
         app.insert(RateLimiter::new(DatabaseRateLimitStore::new(db.clone())));
+        let databases = Databases::new(db.clone(), handles);
         app.insert(db);
+        app.insert(databases);
         Ok(())
     }
 
     fn finish<'a>(&'a self, app: &'a App) -> crate::core::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            if let (Some(db), Some(events)) = (
-                app.state().get::<Db>(),
-                app.state().get::<crate::events::Events>(),
-            ) {
-                db.install_events((*events).clone());
-            }
             let config = app.state().try_get::<DatabaseConfig>()?;
-            let db = app.state().try_get::<Db>()?;
-            let url = config.url.as_deref().ok_or_else(|| {
-                Error::Config(ConfigError::Invalid(
-                    "missing database.url (set DATABASE_URL or APP_DATABASE__URL)".into(),
-                ))
-            })?;
-            let backend = DatabaseBackend::from_url(url)?;
-            let connection = connect_database(url, &config, backend, "primary").await?;
-            let mut replicas = Vec::with_capacity(config.read_replicas.len());
-            for (index, replica_url) in config.read_replicas.iter().enumerate() {
-                let replica_backend = DatabaseBackend::from_url(replica_url)?;
-                if replica_backend != backend {
-                    return Err(Error::Config(ConfigError::Invalid(format!(
-                        "database.read_replicas[{index}] must use the same backend as database.url"
-                    ))));
+            let dbs = app.state().try_get::<Databases>()?;
+            let events = app.state().get::<crate::events::Events>();
+            for name in dbs.names() {
+                let handle = dbs.get(&name)?;
+                if let Some(events) = &events {
+                    handle.install_events((**events).clone());
                 }
-                replicas.push(
-                    connect_database(replica_url, &config, replica_backend, "read replica").await?,
-                );
+                let instance = if name == "default" {
+                    DatabaseInstanceConfig::from(config.as_ref())
+                } else {
+                    config.instances.get(&name).cloned().ok_or_else(|| {
+                        Error::internal(std::io::Error::other(
+                            "registered database instance has no configuration",
+                        ))
+                    })?
+                };
+                connect_instance(&handle, &instance, &name).await?;
             }
-            db.initialize_with_replicas(connection, replicas)?;
             Ok(())
         })
     }
 }
 
 fn validate_config(config: &DatabaseConfig) -> Result<()> {
+    validate_instance("default", &DatabaseInstanceConfig::from(config), false)?;
+    for (name, instance) in &config.instances {
+        if !valid_instance_name(name) || name == "default" {
+            return Err(Error::Config(ConfigError::Invalid(format!(
+                "database.instances.{name} has an invalid or reserved name"
+            ))));
+        }
+        validate_instance(&format!("instances.{name}"), instance, true)?;
+    }
+    Ok(())
+}
+
+fn valid_instance_name(name: &str) -> bool {
+    let bytes = name.as_bytes();
+    !bytes.is_empty()
+        && bytes.len() <= 63
+        && bytes[0].is_ascii_lowercase()
+        && bytes.iter().all(|byte| {
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || *byte == b'_' || *byte == b'-'
+        })
+}
+
+fn validate_instance(key: &str, config: &DatabaseInstanceConfig, require_url: bool) -> Result<()> {
     DatabaseTableNames::new(config.table_prefix.clone(), config.table_names.clone())?;
     if config.max_connections == 0
         || config.min_connections > config.max_connections
         || config.connect_timeout_secs == 0
         || config.acquire_timeout_secs == 0
     {
-        return Err(Error::Config(ConfigError::Invalid(
-            "database pool sizes and timeouts must be positive, and min_connections must not exceed max_connections".into(),
-        )));
+        return Err(Error::Config(ConfigError::Invalid(format!(
+            "database.{key} pool sizes and timeouts must be positive, and min_connections must not exceed max_connections"
+        ))));
     }
-
+    if require_url && config.url.is_none() {
+        return Err(Error::Config(ConfigError::Invalid(format!(
+            "missing database.{key}.url"
+        ))));
+    }
     if let Some(url) = config.url.as_deref() {
-        let backend = DatabaseBackend::from_url(url)?;
-        if !backend.is_enabled() {
-            return Err(Error::Config(ConfigError::Invalid(format!(
-                "{} database URL requires the openrust feature `{}`",
-                backend.name(),
-                backend.feature()
-            ))));
-        }
-    }
-
-    for (index, url) in config.read_replicas.iter().enumerate() {
         let backend = DatabaseBackend::from_url(url).map_err(|_| {
             Error::Config(ConfigError::Invalid(format!(
-                "database.read_replicas[{index}] has an unsupported database URL"
+                "database.{key}.url has an unsupported database URL"
             )))
         })?;
         if !backend.is_enabled() {
             return Err(Error::Config(ConfigError::Invalid(format!(
-                "database.read_replicas[{index}] requires the openrust feature `{}`",
+                "database.{key}.url requires the openrust feature `{}`",
                 backend.feature()
             ))));
         }
-        if config
-            .url
-            .as_deref()
-            .and_then(|primary| DatabaseBackend::from_url(primary).ok())
-            .is_some_and(|primary| primary != backend)
-        {
-            return Err(Error::Config(ConfigError::Invalid(format!(
-                "database.read_replicas[{index}] must use the same backend as database.url"
-            ))));
+        for (index, replica_url) in config.read_replicas.iter().enumerate() {
+            let replica_backend = DatabaseBackend::from_url(replica_url).map_err(|_| {
+                Error::Config(ConfigError::Invalid(format!(
+                    "database.{key}.read_replicas[{index}] has an unsupported database URL"
+                )))
+            })?;
+            if !replica_backend.is_enabled() {
+                return Err(Error::Config(ConfigError::Invalid(format!(
+                    "database.{key}.read_replicas[{index}] requires the openrust feature `{}`",
+                    replica_backend.feature()
+                ))));
+            }
+            if replica_backend != backend {
+                return Err(Error::Config(ConfigError::Invalid(format!(
+                    "database.{key}.read_replicas[{index}] must use the same backend as database.{key}.url"
+                ))));
+            }
         }
     }
-
     Ok(())
+}
+
+async fn connect_instance(db: &Db, config: &DatabaseInstanceConfig, name: &str) -> Result<()> {
+    let url = config.url.as_deref().ok_or_else(|| {
+        let message = if name == "default" {
+            "missing database.url (set DATABASE_URL or APP_DATABASE__URL)".to_owned()
+        } else {
+            format!("missing database.instances.{name}.url")
+        };
+        Error::Config(ConfigError::Invalid(message))
+    })?;
+    let backend = DatabaseBackend::from_url(url)?;
+    let primary_role = if name == "default" {
+        "primary".to_owned()
+    } else {
+        format!("primary for database.instances.{name}")
+    };
+    let connection = connect_database(url, config, backend, &primary_role).await?;
+    let mut replicas = Vec::with_capacity(config.read_replicas.len());
+    for (index, replica_url) in config.read_replicas.iter().enumerate() {
+        let replica_backend = DatabaseBackend::from_url(replica_url)?;
+        replicas.push(
+            connect_database(
+                replica_url,
+                config,
+                replica_backend,
+                &format!("read replica {index} for database.{name}"),
+            )
+            .await?,
+        );
+    }
+    db.initialize_with_replicas(connection, replicas)
 }
 
 async fn connect_database(
     url: &str,
-    config: &DatabaseConfig,
+    config: &DatabaseInstanceConfig,
     backend: DatabaseBackend,
     role: &str,
 ) -> Result<DatabaseConnection> {
@@ -538,6 +639,7 @@ impl std::error::Error for DatabaseNotReady {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use figment::providers::Format;
 
     #[test]
     fn defaults_define_a_small_pool_without_a_connection_url() {
@@ -571,6 +673,93 @@ mod tests {
         assert!(!rendered.contains("secret"));
         assert!(!rendered.contains("replica@"));
         assert!(rendered.contains("1 configured"));
+    }
+
+    #[test]
+    fn named_instance_config_debug_redacts_primary_and_replica_urls() {
+        let mut instances = BTreeMap::new();
+        instances.insert(
+            "analytics".to_owned(),
+            DatabaseInstanceConfig {
+                url: Some("postgres://named:password@localhost/analytics".into()),
+                read_replicas: vec!["postgres://replica:secret@localhost/analytics".into()],
+                ..DatabaseInstanceConfig::default()
+            },
+        );
+        let config = DatabaseConfig {
+            instances,
+            ..DatabaseConfig::default()
+        };
+        let rendered = format!("{config:?}");
+        assert!(!rendered.contains("password"));
+        assert!(!rendered.contains("secret"));
+        assert!(!rendered.contains("named@"));
+        assert!(!rendered.contains("replica@"));
+    }
+
+    #[test]
+    fn named_instances_reject_invalid_names_and_missing_urls() {
+        for name in ["", "Default", "bad.name", "has space"] {
+            assert!(!valid_instance_name(name), "unexpectedly accepted {name:?}");
+        }
+        assert!(!valid_instance_name(&"a".repeat(64)));
+        let mut config = DatabaseConfig::default();
+        config
+            .instances
+            .insert("analytics".to_owned(), DatabaseInstanceConfig::default());
+        assert!(validate_config(&config).is_err());
+        config.instances.clear();
+        config.instances.insert(
+            "default".to_owned(),
+            DatabaseInstanceConfig {
+                url: Some("postgres://localhost/db".into()),
+                ..DatabaseInstanceConfig::default()
+            },
+        );
+        assert!(validate_config(&config).is_err());
+    }
+
+    #[test]
+    fn database_config_deserializes_complete_named_instances() {
+        let figment = figment::Figment::new().merge(figment::providers::Toml::string(
+            "[database]\nurl = 'postgres://default/db'\n[database.instances.analytics]\nurl = 'postgres://analytics/db'\nmax_connections = 4\ntable_prefix = 'analytics_'\n",
+        ));
+        let config = figment.extract_inner::<DatabaseConfig>("database");
+        assert!(config.is_ok());
+        let Some(config) = config.ok() else { return };
+        let named = config.instances.get("analytics");
+        assert!(named.is_some_and(|named| {
+            named.max_connections == 4
+                && named.table_prefix == "analytics_"
+                && named.url.as_deref() == Some("postgres://analytics/db")
+        }));
+    }
+
+    #[test]
+    fn database_selector_keeps_default_handle_and_rejects_unknown_names() {
+        let default = Db::default();
+        let databases = Databases::new(
+            default.clone(),
+            BTreeMap::from([("default".to_owned(), default.clone())]),
+        );
+        assert!(Arc::ptr_eq(
+            &default.connections,
+            &databases.default_database().connections
+        ));
+        assert!(
+            databases
+                .get("default")
+                .is_ok_and(|selected| Arc::ptr_eq(&default.connections, &selected.connections))
+        );
+        assert_eq!(
+            databases
+                .get("missing")
+                .err()
+                .map(|error| error.code().to_owned()),
+            Some("database_instance_not_found".to_owned())
+        );
+        let error = databases.get("postgres://user:secret@host/database").err();
+        assert!(error.is_some_and(|error| !error.to_string().contains("secret")));
     }
 
     #[test]

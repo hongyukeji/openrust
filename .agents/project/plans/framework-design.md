@@ -202,7 +202,7 @@ apps/<app>/
 
 - SeaORM 2.x 与 migration 是唯一 ORM/迁移基础；直接 SeaORM connection 是逃生口，不承诺拦截全部底层 SQL。`Db::sqlx()` 当前不存在。
 - 表名 resolver 已实现 `tb_` 默认、自定义/空前缀、完整映射，贯通迁移、查询与 TestDatabase；配置修改不自动重命名现有表。
-- `Db::transaction` 控制提交/回滚，事务固定 primary；`read_connection()` 显式使用只读副本，`with_primary` 提供 task-local 写后读保护，无静默故障回退。多个独立 named connections 仍待实现，不能与 replicas 混为一谈。
+- `Db::transaction` 控制提交/回滚，事务固定当前实例 primary；`read_connection()` 显式使用该实例的只读副本，`with_primary` 提供 task-local 写后读保护，无静默故障回退。独立 named connections 见 [ADR-045](../decisions/adr-045-named-database-instances.md)，不与 replicas 混为一谈。
 - 跨数据库 SQL 在 dialect 边界；框架表使用可移植类型。连接池、超时和慢查询按实际配置校验。声明支持新 backend 必须补驱动、迁移、方言及真实能力验证，不能仅因底层 ORM 支持就宣称框架支持。
 - TestDatabase 使用每用例隔离数据库；具体 PostgreSQL/MySQL 建库与清理实现见 [测试事实](../core/test.md)，PostgreSQL 已用模板克隆，MySQL 逐库运行迁移，不宣称已有 MySQL 迁移缓存。
 - UUIDv7 与显式软删除生成选项已经实现，范围及双库验收见 [数据层事实](../core/db.md)。查询 scopes 和关联加载体验在既有实现上补强；事务扩展点遵守本文件公开流程规则。

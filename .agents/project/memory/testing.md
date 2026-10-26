@@ -12,6 +12,12 @@
 
 `cargo test -p openrust cache::tests` 覆盖 memory generation 失效、命名空间隔离、旧 entry 写入拒绝、无能力 file driver 拒绝；Redis 真实服务测试使用两个独立 Redis 连接验证共享读取、代际失效和旧 entry 回填被拒绝，`apps/server` 聚合测试通过真实 Redis 验证应用集成。Redis tag generation 不设置 TTL，tagged value 必须有 TTL；未创建真实跨进程双节点测试，F4c 最终矩阵仍需补足。F4a 的 workspace default/all-features tests、clippy、warnings-denied docs、fmt、cargo deny 和 no-default check 均通过；数据库集成测试因未配置 `OPENRUST_TEST_DATABASE_URL` 跳过，与本簇无关。
 
+## M5 命名数据库连接实例（ADR-045）
+
+`cargo test -p openrust --features db-postgres named_instance -- --nocapture`、`database_selector` 与 `migration_action` 定向测试通过。`cargo test -p server --features db-postgres --test db_migration named_database_instances_keep_migrations_and_transactions_isolated -- --exact --nocapture` 和 MySQL 对应命令各通过 1 项，使用 PostgreSQL 18 与 MySQL 8.4 真实隔离库。测试同时配置 default、analytics、reporting 三个独立实例，验证连接身份、默认句柄兼容、具名副本读取、prefix、显式 migration 目标、未迁移表隔离及事务数据不串用。具名副本使用对应实例自己的隔离数据库 URL，验证的是实例绑定边界，不是物理复制延迟；复制语义由读写分离专项另行覆盖。
+
+干净源码副本生成 `apps/named_database_sample` 后直接 `cargo check -p named_database_sample` 与 `cargo test -p named_database_sample` 通过；扫描应用及根 manifest 未发现临时 registry patch 或机器绝对路径。默认/all-features workspace tests、all-target clippy、warnings-denied docs、fmt、cargo deny 与 no-default-features check 通过。`cargo deny` 保留既有重复依赖及未匹配 MPL allowance 警告，其余 advisories/bans/licenses/sources 通过。未覆盖跨数据库事务、自动查询路由或生产集群负载。
+
 ## M5 HTTP 有界运行与就绪切换
 
 2026-10-26 定向测试：`cargo test -p openrust serve::tests -- --nocapture` 覆盖未绑定/绑定就绪、drain 中停止接入、在途请求完成、非合作请求到期取消及 bind 失败；`cargo test -p server --test server serve_process_exits_successfully_after_sigterm -- --nocapture` 通过真实 TCP readiness 和真实子进程 SIGTERM，all-features 下同一测试额外注入仅供测试的加密 key 后通过。全量门禁：fmt、diff check、all-target/all-features clippy、默认/all-features workspace tests、warnings-denied 默认/all-features docs、`cargo deny check` 和 `cargo check -p openrust --no-default-features` 均通过。deny 输出既有重复 crate 版本与未匹配 MPL allowance 警告，其余 advisories/bans/licenses/sources 通过。此项未改数据库/队列协议，不需要双库测试；未覆盖集群依赖 readiness 或跨节点 drain。
