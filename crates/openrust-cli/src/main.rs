@@ -11,6 +11,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, bail};
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD;
 use clap::{Parser, Subcommand, ValueEnum};
 
 static MIGRATION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -41,6 +43,9 @@ enum Builtin {
         /// Enable the optional Twilio SMS provider and outbound HTTP client.
         #[arg(long)]
         sms_twilio: bool,
+        /// Enable application data encryption and key rotation.
+        #[arg(long)]
+        encryption: bool,
     },
     /// Run the application in development mode.
     Dev,
@@ -55,9 +60,20 @@ enum Builtin {
         #[arg(required = true)]
         values: Vec<String>,
     },
+    /// Manage local application encryption keys.
+    Key {
+        #[command(subcommand)]
+        command: KeyCommand,
+    },
     /// Any other command is forwarded to the application binary in the current project.
     #[command(external_subcommand)]
     Forward(Vec<String>),
+}
+
+#[derive(Debug, Subcommand)]
+enum KeyCommand {
+    /// Generate a 32-byte encryption key and print its Base64 value.
+    Generate,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
@@ -112,6 +128,7 @@ fn run(cli: Cli) -> anyhow::Result<ExitCode> {
             auth,
             http_client,
             sms_twilio,
+            encryption,
         }) => {
             create_project(
                 &name,
@@ -119,6 +136,7 @@ fn run(cli: Cli) -> anyhow::Result<ExitCode> {
                 auth,
                 http_client,
                 sms_twilio,
+                encryption,
                 &std::env::current_dir()?,
             )?;
             Ok(ExitCode::SUCCESS)
@@ -129,17 +147,34 @@ fn run(cli: Cli) -> anyhow::Result<ExitCode> {
             generate(kind, &values, &std::env::current_dir()?)?;
             Ok(ExitCode::SUCCESS)
         }
+        Some(Builtin::Key {
+            command: KeyCommand::Generate,
+        }) => {
+            writeln!(std::io::stdout().lock(), "{}", generate_key()?)?;
+            Ok(ExitCode::SUCCESS)
+        }
         Some(Builtin::Forward(args)) => forward(&args),
     }
 }
 
+fn generate_key() -> anyhow::Result<String> {
+    let mut key = [0_u8; 32];
+    getrandom::fill(&mut key).map_err(|_| anyhow::anyhow!("OS randomness provider failed"))?;
+    Ok(STANDARD.encode(key))
+}
+
 /// Creates a starter application under the current directory.
+#[allow(
+    clippy::fn_params_excessive_bools,
+    reason = "these flags mirror the public CLI options"
+)]
 fn create_project(
     name: &str,
     database: Option<DatabaseBackend>,
     auth: bool,
     http_client: bool,
     sms_twilio: bool,
+    encryption: bool,
     current_dir: &Path,
 ) -> anyhow::Result<()> {
     if auth && database.is_none() {
@@ -205,6 +240,7 @@ fn create_project(
         auth,
         http_client,
         sms_twilio,
+        encryption,
     );
     if result.is_err() {
         let _ = fs::remove_dir_all(&project_dir);
@@ -224,6 +260,11 @@ fn create_project(
     Ok(())
 }
 
+#[allow(
+    clippy::fn_params_excessive_bools,
+    clippy::too_many_arguments,
+    reason = "template options map directly to the public generator flags"
+)]
 fn populate_project(
     project_dir: &Path,
     name: &str,
@@ -232,6 +273,7 @@ fn populate_project(
     auth: bool,
     http_client: bool,
     sms_twilio: bool,
+    encryption: bool,
 ) -> anyhow::Result<()> {
     fs::create_dir(project_dir)
         .with_context(|| format!("failed to create {}", project_dir.display()))?;
@@ -257,14 +299,14 @@ fn populate_project(
     let mut files = vec![
         (
             "Cargo.toml",
-            cargo_manifest(name, database, auth, http_client, sms_twilio),
+            cargo_manifest(name, database, auth, http_client, sms_twilio, encryption),
         ),
         (
             ".gitignore",
             include_str!("../templates/.gitignore").to_owned(),
         ),
-        (".env.example", env_example(name, database, auth)),
-        ("config/default.toml", default_config(name, auth)),
+        (".env.example", env_example(name, database, auth, encryption)),
+        ("config/default.toml", default_config(name, auth, encryption)),
         (
             "config/development.toml",
             include_str!("../templates/config/development.toml").to_owned(),
@@ -278,7 +320,7 @@ fn populate_project(
             "[app]\nname = \"{{name}}\"\n".replace("{{name}}", name),
         ),
         ("src/main.rs", main_source(crate_name, database)),
-        ("src/app.rs", app_source(crate_name, database, auth)),
+        ("src/app.rs", app_source(crate_name, database, auth, encryption)),
         ("src/routes.rs", routes_source(auth)),
         ("src/schedule.rs", "//! Application schedule.\n".to_owned()),
         ("src/seed.rs", seed_source(database)),
@@ -335,15 +377,20 @@ fn populate_project(
     Ok(())
 }
 
+#[allow(
+    clippy::fn_params_excessive_bools,
+    reason = "feature flags map directly to the public generator options"
+)]
 fn cargo_manifest(
     name: &str,
     database: Option<DatabaseBackend>,
     auth: bool,
     http_client: bool,
     sms_twilio: bool,
+    encryption: bool,
 ) -> String {
     let mut manifest = include_str!("../templates/Cargo.toml").replace("{{name}}", name);
-    if database.is_some() || auth || http_client || sms_twilio {
+    if database.is_some() || auth || http_client || sms_twilio || encryption {
         let mut features = Vec::new();
         if let Some(database) = database {
             features.push(database.feature());
@@ -356,6 +403,9 @@ fn cargo_manifest(
         }
         if sms_twilio {
             features.push("sms-twilio");
+        }
+        if encryption {
+            features.push("encryption");
         }
         let dependency = if database.is_some() {
             format!(
@@ -381,7 +431,12 @@ fn cargo_manifest(
     manifest
 }
 
-fn app_source(crate_name: &str, database: Option<DatabaseBackend>, auth: bool) -> String {
+fn app_source(
+    crate_name: &str,
+    database: Option<DatabaseBackend>,
+    auth: bool,
+    encryption: bool,
+) -> String {
     let plugins = if database.is_some() {
         format!(
             "\n            .plugin(DatabasePlugin){}\n            .plugin(MigrationPlugin::<openrust_migration::Migrator>::new())\n            .plugin(SeedPlugin::new(crate::seed::run))",
@@ -394,10 +449,16 @@ fn app_source(crate_name: &str, database: Option<DatabaseBackend>, auth: bool) -
     } else {
         String::new()
     };
+    let encryption_plugin = if encryption {
+        "\n            .plugin(openrust::security::EncryptionPlugin)"
+    } else {
+        ""
+    };
     include_str!("../templates/src/app.rs")
         .replace("{{type_name}}", crate_name)
         .replace("{{database_plugins}}", &plugins)
         .replace("{{migration_plugin}}", "")
+        .replace("{{encryption_plugin}}", encryption_plugin)
 }
 
 fn routes_source(auth: bool) -> String {
@@ -424,7 +485,12 @@ fn main_source(crate_name: &str, database: Option<DatabaseBackend>) -> String {
     }
 }
 
-fn env_example(name: &str, database: Option<DatabaseBackend>, auth: bool) -> String {
+fn env_example(
+    name: &str,
+    database: Option<DatabaseBackend>,
+    auth: bool,
+    encryption: bool,
+) -> String {
     let mut contents = "# Copy to .env for local development. Never commit the populated .env file.\n# Production reads configuration from process environment, not this file.\nAPP_ENV=development\n\n# Optional overrides for values in config/*.toml:\n# APP_SERVER__PORT=3000\n# APP_SERVER__HOST=127.0.0.1\n# APP_API__HTTP_STATUS=always_ok\n".to_owned();
     if let Some(database) = database {
         use std::fmt::Write as _;
@@ -436,18 +502,26 @@ fn env_example(name: &str, database: Option<DatabaseBackend>, auth: bool) -> Str
             "\n# Generate a key with: openssl rand -base64 32\nAPP_AUTH__JWT__KEYS__LOCAL=\n",
         );
     }
+    if encryption {
+        contents.push_str(
+            "\n# Generate with `openrust key generate`; keep this value in a secret store.\nAPP_SECURITY__ENCRYPTION__ACTIVE_KEY_ID=local\nAPP_SECURITY__ENCRYPTION__KEYS__LOCAL=\n",
+        );
+    }
     contents.push_str(
         "\n# Optional SMTP delivery overrides:\n# APP_MAIL__DRIVER=smtp\n# APP_MAIL__SMTP_HOST=mail.example.com\n# APP_MAIL__SMTP_PORT=587\n# APP_MAIL__SMTP_STARTTLS=true\n# For local Mailpit on 127.0.0.1:1025 only, set SMTP_STARTTLS=false\n# APP_MAIL__SMTP_USERNAME=\n# APP_MAIL__SMTP_PASSWORD=\n# Optional Twilio SMS provider (sms-twilio feature):\n# APP_SMS__DRIVER=twilio\n# APP_SMS__ACCOUNT_SID=\n# APP_SMS__API_KEY_SID=\n# APP_SMS__API_KEY_SECRET=\n# Set exactly one of APP_SMS__FROM or APP_SMS__MESSAGING_SERVICE_SID\n",
     );
     contents
 }
 
-fn default_config(name: &str, auth: bool) -> String {
+fn default_config(name: &str, auth: bool, encryption: bool) -> String {
     let mut config = include_str!("../templates/config/default.toml").replace("{{name}}", name);
     if auth {
         config.push_str("\n[auth.jwt]\nissuer = \"http://localhost:3000\"\naudience = \"");
         config.push_str(name);
         config.push_str("\"\nactive_key_id = \"local\"\nkeys = {}\n");
+    }
+    if encryption {
+        config.push_str("\n[security.encryption]\nactive_key_id = \"local\"\nkeys = {}\n");
     }
     config
 }
@@ -883,21 +957,51 @@ mod tests {
 
     #[test]
     fn generated_manifest_matches_starter_template() {
-        insta::assert_snapshot!(cargo_manifest("my-app", None, false, false, false));
+        insta::assert_snapshot!(cargo_manifest("my-app", None, false, false, false, false));
     }
 
     #[test]
     fn generated_manifest_enables_requested_http_client_feature() {
-        let manifest = cargo_manifest("my-app", None, false, true, false);
+        let manifest = cargo_manifest("my-app", None, false, true, false, false);
         assert!(manifest.contains("features = [\"http-client\"]"));
         assert!(Cli::try_parse_from(["openrust", "new", "blog", "--http-client"]).is_ok());
     }
 
     #[test]
     fn generated_manifest_enables_twilio_sms_feature() {
-        let manifest = cargo_manifest("my-app", None, false, false, true);
+        let manifest = cargo_manifest("my-app", None, false, false, true, false);
         assert!(manifest.contains("features = [\"sms-twilio\"]"));
         assert!(Cli::try_parse_from(["openrust", "new", "blog", "--sms-twilio"]).is_ok());
+    }
+
+    #[test]
+    fn generated_manifest_and_project_enable_application_encryption() {
+        let manifest = cargo_manifest("my-app", None, false, false, false, true);
+        assert!(manifest.contains("features = [\"encryption\"]"));
+        assert!(Cli::try_parse_from(["openrust", "new", "blog", "--encryption"]).is_ok());
+
+        let root =
+            std::env::temp_dir().join(format!("openrust-cli-encryption-{}", std::process::id()));
+        let project = root.join("blog");
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("create temporary test directory");
+        populate_project(&project, "blog", "Blog", None, false, false, false, true)
+            .expect("generate encryption project");
+        let app = fs::read_to_string(project.join("src/app.rs")).expect("read generated app");
+        let config = fs::read_to_string(project.join("config/default.toml"))
+            .expect("read generated encryption configuration");
+        let env = fs::read_to_string(project.join(".env.example"))
+            .expect("read generated environment example");
+        assert!(app.contains("EncryptionPlugin"));
+        assert!(config.contains("[security.encryption]"));
+        assert!(env.contains("APP_SECURITY__ENCRYPTION__KEYS__LOCAL="));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn key_generation_print_value_is_a_32_byte_base64_secret() {
+        let encoded = generate_key().expect("generate key");
+        assert_eq!(STANDARD.decode(encoded).expect("decode key").len(), 32);
     }
 
     #[test]
@@ -906,7 +1010,7 @@ mod tests {
         let project = root.join("blog");
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).expect("create temporary test directory");
-        populate_project(&project, "blog", "Blog", None, false, false, false)
+        populate_project(&project, "blog", "Blog", None, false, false, false, false)
             .expect("generate project");
         for path in [
             "Cargo.toml",
@@ -964,8 +1068,17 @@ mod tests {
             (DatabaseBackend::Mysql, "db-mysql"),
         ] {
             let project = root.join(feature);
-            populate_project(&project, "blog", "Blog", Some(backend), false, false, false)
-                .expect("generate database project");
+            populate_project(
+                &project,
+                "blog",
+                "Blog",
+                Some(backend),
+                false,
+                false,
+                false,
+                false,
+            )
+            .expect("generate database project");
             let manifest =
                 fs::read_to_string(project.join("Cargo.toml")).expect("read generated manifest");
             assert!(manifest.contains(feature));
@@ -995,8 +1108,17 @@ mod tests {
             (DatabaseBackend::Mysql, "db-mysql"),
         ] {
             let project = root.join(feature);
-            populate_project(&project, "blog", "Blog", Some(backend), true, false, false)
-                .expect("generate database-backed auth project");
+            populate_project(
+                &project,
+                "blog",
+                "Blog",
+                Some(backend),
+                true,
+                false,
+                false,
+                false,
+            )
+            .expect("generate database-backed auth project");
             let manifest = fs::read_to_string(project.join("Cargo.toml"))
                 .expect("read generated app manifest");
             assert!(manifest.contains(feature));
@@ -1067,6 +1189,7 @@ mod tests {
             false,
             false,
             false,
+            false,
         )
         .expect("generate database project");
 
@@ -1126,10 +1249,10 @@ mod tests {
             std::env::temp_dir().join(format!("openrust-cli-invalid-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).expect("create temporary test directory");
-        assert!(create_project("../outside", None, false, false, false, &root).is_err());
-        assert!(create_project("--", None, false, false, false, &root).is_err());
+        assert!(create_project("../outside", None, false, false, false, false, &root).is_err());
+        assert!(create_project("--", None, false, false, false, false, &root).is_err());
         fs::create_dir(root.join("existing")).expect("create existing destination");
-        assert!(create_project("existing", None, false, false, false, &root).is_err());
+        assert!(create_project("existing", None, false, false, false, false, &root).is_err());
         let _ = fs::remove_dir_all(root);
     }
 }

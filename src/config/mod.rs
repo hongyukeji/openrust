@@ -15,6 +15,7 @@
 //! set it. Production skips loading the entire `.env` file. Existing process variables take
 //! precedence over `.env` values.
 
+use std::fmt;
 use std::path::{Path, PathBuf};
 
 use figment::Figment;
@@ -28,6 +29,8 @@ pub mod auth;
 pub mod database;
 pub mod logger;
 pub mod mailer;
+#[cfg(feature = "encryption")]
+pub mod security;
 pub mod server;
 pub mod sms;
 
@@ -37,6 +40,8 @@ pub use auth::{JwtConfig, PasswordConfig, SessionConfig};
 pub use database::DatabaseConfig;
 pub use logger::{LogConfig, LogFormat};
 pub use mailer::MailConfig;
+#[cfg(feature = "encryption")]
+pub use security::EncryptionConfig;
 pub use server::{CompressionConfig, CorsConfig, ServerConfig};
 pub use sms::SmsConfig;
 
@@ -54,9 +59,9 @@ pub const DEFAULT_CONFIG_DIR: &str = "config";
 #[non_exhaustive]
 pub enum ConfigError {
     /// A value is missing, has the wrong type or a file could not be parsed.
-    /// The message names the key and the source layer. Boxed to keep [`crate::Error`] small.
+    /// The message keeps safe key paths and error categories but omits source values.
     #[error("{0}")]
-    Source(Box<figment::Error>),
+    Source(ConfigSourceError),
     /// The selected namespace's environment key holds an unsupported value.
     #[error("unknown environment `{value}` in {key}; expected development, test or production")]
     UnknownEnvironment {
@@ -70,10 +75,79 @@ pub enum ConfigError {
     Invalid(String),
 }
 
+/// A configuration source error with secret-bearing values removed.
+#[derive(Clone)]
+pub struct ConfigSourceError {
+    message: String,
+    missing: bool,
+}
+
+impl ConfigSourceError {
+    /// Returns whether the source error is caused by a missing field.
+    pub fn missing(&self) -> bool {
+        self.missing
+    }
+}
+
+impl fmt::Debug for ConfigSourceError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ConfigSourceError")
+            .field("message", &self.message)
+            .field("missing", &self.missing)
+            .finish()
+    }
+}
+
+impl fmt::Display for ConfigSourceError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for ConfigSourceError {}
+
 impl From<figment::Error> for ConfigError {
     fn from(source: figment::Error) -> Self {
-        Self::Source(Box::new(source))
+        let missing = source.missing();
+        let message = source
+            .clone()
+            .into_iter()
+            .map(safe_figment_error)
+            .collect::<Vec<_>>()
+            .join("; ");
+        Self::Source(ConfigSourceError { message, missing })
     }
+}
+
+fn safe_figment_error(error: figment::Error) -> String {
+    use figment::error::Kind;
+
+    let path = if error.path.is_empty() {
+        "configuration".to_owned()
+    } else {
+        error.path.join(".")
+    };
+    let detail = match error.kind {
+        Kind::Message(_) => "invalid value".to_owned(),
+        Kind::InvalidType(_, expected) => format!("invalid type; expected {expected}"),
+        Kind::InvalidValue(_, expected) => format!("invalid value; expected {expected}"),
+        Kind::InvalidLength(length, expected) => {
+            format!("invalid length {length}; expected {expected}")
+        }
+        Kind::UnknownVariant(_, expected) => {
+            format!("unknown variant; expected one of {}", expected.join(", "))
+        }
+        Kind::UnknownField(_, expected) => {
+            format!("unknown field; expected one of {}", expected.join(", "))
+        }
+        Kind::MissingField(field) => format!("missing field `{field}`"),
+        Kind::DuplicateField(field) => format!("duplicate field `{field}`"),
+        Kind::ISizeOutOfRange(_) | Kind::USizeOutOfRange(_) => "integer out of range".into(),
+        Kind::Unsupported(_) => "unsupported configuration value".into(),
+        Kind::UnsupportedKey(_, expected) => format!("unsupported map key; expected {expected}"),
+    };
+    format!("{path}: {detail}")
 }
 
 /// Configuration owned by the framework. Applications add their own sections alongside.
@@ -265,8 +339,8 @@ pub fn redact_secrets(value: &mut serde_json::Value) {
         serde_json::Value::Object(map) => {
             for (key, child) in map.iter_mut() {
                 let lowered = key.to_ascii_lowercase();
-                if SECRET_MARKERS.iter().any(|m| lowered.contains(m)) && !child.is_object() {
-                    *child = serde_json::Value::String("********".to_owned());
+                if SECRET_MARKERS.iter().any(|m| lowered.contains(m)) {
+                    redact_secret_values(child);
                 } else {
                     redact_secrets(child);
                 }
@@ -274,6 +348,18 @@ pub fn redact_secrets(value: &mut serde_json::Value) {
         }
         serde_json::Value::Array(items) => items.iter_mut().for_each(redact_secrets),
         _ => {}
+    }
+}
+
+fn redact_secret_values(value: &mut serde_json::Value) {
+    match value {
+        serde_json::Value::Object(map) => {
+            for child in map.values_mut() {
+                redact_secret_values(child);
+            }
+        }
+        serde_json::Value::Array(items) => items.iter_mut().for_each(redact_secret_values),
+        _ => *value = serde_json::Value::String("********".to_owned()),
     }
 }
 
@@ -409,12 +495,31 @@ mod tests {
         let mut value = serde_json::json!({
             "database": { "url": "postgres://u:p@h/db", "password": "hunter2" },
             "mail": { "smtp": { "token": "abc" } },
+            "auth": { "jwt": { "active_key_id": "v1", "keys": { "v1": "secret-key", "old": "old-secret" } } },
             "app": { "name": "Blog" }
         });
         redact_secrets(&mut value);
         assert_eq!(value["database"]["password"], "********");
         assert_eq!(value["mail"]["smtp"]["token"], "********");
+        assert_eq!(value["auth"]["jwt"]["active_key_id"], "********");
+        assert_eq!(value["auth"]["jwt"]["keys"]["v1"], "********");
+        assert_eq!(value["auth"]["jwt"]["keys"]["old"], "********");
         assert_eq!(value["app"]["name"], "Blog");
+    }
+
+    #[test]
+    fn configuration_source_errors_do_not_echo_invalid_string_values()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let secret = "source-error-secret-must-not-leak";
+        let figment = Figment::new().merge(("security.encryption.keys", secret));
+        let Err(source) = figment.extract_inner::<u64>("security.encryption.keys") else {
+            return Err(std::io::Error::other("deserialization unexpectedly succeeded").into());
+        };
+        let error = ConfigError::from(source);
+        assert!(error.to_string().contains("security.encryption.keys"));
+        assert!(!error.to_string().contains(secret));
+        assert!(!format!("{error:?}").contains(secret));
+        Ok(())
     }
 
     #[test]

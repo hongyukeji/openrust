@@ -15,7 +15,7 @@ impl Application for {{type_name}} {
         app.plugin(HttpPlugin)
             .plugin(I18nPlugin::default())
             .plugin(MailerPlugin)
-            .plugin(SmsPlugin){{database_plugins}}
+            .plugin(SmsPlugin){{database_plugins}}{{encryption_plugin}}
             .routes(routes::register);
     }
 }

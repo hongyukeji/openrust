@@ -10,6 +10,7 @@ Create and run an application:
 
 ```bash
 openrust new blog --db postgres --auth
+openrust key generate
 cd blog
 openrust generate model post title:string published_at:date_time?
 openrust generate migration comments body:text post:references?
@@ -17,6 +18,7 @@ openrust g migration labels slug:string
 ```
 
 `new` accepts a directory name or destination path and creates the OpenRust starter layout and HTTP application. The generated app registers the HTTP and mail plugins; mail delivery defaults to a log driver that does not log message contents. Without `--db`, it creates a project without database support. `--db postgres` or `--db mysql` also creates a migration crate, registers database, migration and seed plugins, and selects the matching backend feature. Optional `--http-client` enables the facade's `http-client` feature for outbound supplier/API calls. `--sms-twilio` enables the real Twilio Messaging API adapter and its required `http-client` feature; configure `APP_SMS__DRIVER=twilio`, account SID, API key SID/secret, and exactly one sender number or messaging service SID. A receipt means provider acceptance, not final delivery. Copy `.env.example` to `.env` for local overrides; the example documents common server/API overrides, optional SMTP and Twilio SMS settings, and, when enabled, database/JWT values. External process variables take precedence, and production never loads `.env`. Set a valid `DATABASE_URL`, then run `openrust migrate` before starting a database-backed service. The generated `.gitignore` excludes `.env` and environment-specific variants while keeping example files trackable. `dev` runs `cargo run --quiet -- serve` with `APP_ENV=development`; `serve` runs the same project command without changing the environment.
+`--encryption` enables in-process application data encryption, registers `EncryptionPlugin`, and adds a `[security.encryption]` configuration section. `openrust key generate` prints a new 32-byte Base64 key to stdout; protect that output and place it in a secret store or ignored local `.env`. The generated `.env.example` shows the expected active key ID and key-map variables. The feature does not encrypt database backups or JWTs.
 
 `generate model` creates a SeaORM entity in `src/models/_entities/` and registers its module. `generate migration` creates a table migration and adds it to the app migration registry. Both accept `string`, `text`, `integer`, `big_integer`, `boolean`, `date_time`, `json`, and `references` fields; append `?` for nullable columns. Reference fields use `<name>_id` and target the pluralized referenced table's `id` column. Model generation uses a singular model name and a simple English plural form for the table; migration generation accepts the table name directly. The referenced table must exist before its foreign key migration runs.
 

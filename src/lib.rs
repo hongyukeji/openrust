@@ -10,6 +10,8 @@ pub mod db;
 pub mod http;
 pub mod i18n;
 pub mod mail;
+#[cfg(feature = "encryption")]
+pub mod security;
 pub mod sms;
 
 #[cfg(feature = "auth")]
@@ -63,6 +65,8 @@ pub mod prelude {
         I18n, I18nConfig, I18nPlugin, Locale, MessageArgs, MessageCatalog, RequestLocale,
     };
     pub use crate::mail::{Email, LocalizedEmail, MailConfig, Mailer, MailerPlugin};
+    #[cfg(feature = "encryption")]
+    pub use crate::security::{EncryptionPlugin, Encryptor};
     pub use crate::sms::{SmsContent, SmsDriver, SmsMessage, SmsPlugin, SmsReceipt, SmsSender};
     pub use crate::{
         App, AppBuilder, Application, BoxFuture, Command, Error, NoConfig, Plugin, Result,

@@ -25,7 +25,7 @@ type TestResult = Result<(), Box<dyn std::error::Error>>;
 #[test]
 fn mailer_plugin_is_registered_by_the_assembled_server() -> TestResult {
     openrust::tokio::runtime::Runtime::new()?.block_on(async {
-        let app = lifecycle::bootstrap::<app::Server>().await?;
+        let app = test_server().await?;
         app.state().try_get::<openrust::mail::Mailer>()?;
         app.state().try_get::<openrust::sms::SmsSender>()?;
         Ok(())
@@ -74,8 +74,32 @@ impl MacroPosts {
 }
 
 async fn router() -> Result<openrust::http::axum::Router, openrust::Error> {
-    let app = lifecycle::bootstrap::<app::Server>().await?;
+    let app = test_server().await?;
     build_router(&app)
+}
+
+async fn test_server() -> Result<openrust::App, openrust::Error> {
+    #[cfg(feature = "encryption")]
+    {
+        use openrust::config::{ConfigLoader, Environment};
+
+        let loader = ConfigLoader::new(
+            concat!(env!("CARGO_MANIFEST_DIR"), "/config"),
+            Environment::Development,
+        );
+        let figment = loader
+            .figment()
+            .merge(("security.encryption.active_key_id", "local"))
+            .merge((
+                "security.encryption.keys.local",
+                "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=",
+            ));
+        let mut builder = AppBuilder::new(loader.load_framework()?, figment);
+        app::Server::build(&mut builder);
+        lifecycle::finalize(builder).await
+    }
+    #[cfg(not(feature = "encryption"))]
+    lifecycle::bootstrap::<app::Server>().await
 }
 
 #[test]
@@ -174,11 +198,19 @@ fn database_plugin_is_available_through_the_facade() -> TestResult {
 
 #[test]
 fn config_show_runs_and_redacts_secrets() -> TestResult {
-    let output = std::process::Command::new(env!("CARGO_BIN_EXE_openrust-server"))
+    let mut command = std::process::Command::new(env!("CARGO_BIN_EXE_openrust-server"));
+    command
         .args(["config", "show"])
         .current_dir(env!("CARGO_MANIFEST_DIR"))
-        .env("APP_API__TOKEN", "server-secret-value")
-        .output()?;
+        .env("APP_API__TOKEN", "server-secret-value");
+    #[cfg(feature = "encryption")]
+    command
+        .env("APP_SECURITY__ENCRYPTION__ACTIVE_KEY_ID", "local")
+        .env(
+            "APP_SECURITY__ENCRYPTION__KEYS__LOCAL",
+            "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=",
+        );
+    let output = command.output()?;
     assert!(
         output.status.success(),
         "{}",

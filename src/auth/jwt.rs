@@ -182,7 +182,7 @@ impl Plugin for JwtPlugin {
         let config = match &self.config {
             Some(config) => config.clone(),
             None => app
-                .section::<JwtConfig>("auth.jwt")
+                .sensitive_section::<JwtConfig>("auth.jwt")
                 .map_err(Error::Config)?,
         };
         let tokens = JwtTokens::new(config)?;

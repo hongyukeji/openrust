@@ -102,7 +102,7 @@ pub struct MailerPlugin;
 
 impl Plugin for MailerPlugin {
     fn build(&self, app: &mut AppBuilder) -> Result<()> {
-        let config = app.section::<MailConfig>("mail")?;
+        let config = app.sensitive_section::<MailConfig>("mail")?;
         if app.config().app.env == crate::config::Environment::Production && config.driver == "log"
         {
             return Err(Error::Config(ConfigError::Invalid(

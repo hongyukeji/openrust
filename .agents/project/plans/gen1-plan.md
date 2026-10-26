@@ -74,7 +74,7 @@ Laravel 等成熟框架用于能力与体验对照，API 与命名遵循 Rust �
 
 性能、开发编排、异步一致性、生产边界及验收补强见 [v1 补强计划](v1-performance-and-readiness.md)。该计划纳入验收补强，并提供待决策方案；具体公共 API 与默认值须先定 contract。验证码升级为 v1 设计项，是否启用短信登录仍需独立评估。
 
-国际化与统一出站 HTTP 已分别按 [ADR-032](../decisions/adr-032-request-internationalization.md) 和 [ADR-031](../decisions/adr-031-outbound-http-client.md) 实现并独立验收；WebSocket、加密与密钥、审计、请求幂等仍按 [通用能力补齐计划](v1-common-capabilities.md) 推进。具体 API/依赖选型先定 contract；不将底层框架原生支持视为 OpenRust 已完成接入。
+国际化、统一出站 HTTP、应用数据加密与本地密钥轮换已分别按 ADR-032、ADR-031、ADR-034 实现并独立验证；WebSocket、审计、请求幂等仍按 [通用能力补齐计划](v1-common-capabilities.md) 推进。具体 API/依赖选型先定 contract；不将底层框架原生支持视为 OpenRust 已完成接入。
 
 通用底座完整性以 [能力覆盖与归属](v1-capability-coverage.md) 为准：补齐常见开发机制，既有能力在原入口完善，新增机制明确唯一归属；不将“已有底层库”或“待设计”作为省略交付的理由。
 

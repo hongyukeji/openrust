@@ -103,6 +103,17 @@ impl AppBuilder {
         Ok(self.figment.extract_inner(key)?)
     }
 
+    pub(crate) fn sensitive_section<T: DeserializeOwned>(
+        &self,
+        key: &str,
+    ) -> Result<T, ConfigError> {
+        self.figment.extract_inner(key).map_err(|_| {
+            ConfigError::Invalid(format!(
+                "invalid configuration in `{key}`; check field types and required values (secret values omitted)"
+            ))
+        })
+    }
+
     /// Queues a plugin. Plugins added while another plugin builds are processed too.
     pub fn plugin(&mut self, plugin: impl Plugin) -> &mut Self {
         self.plugins.push(Box::new(plugin));
@@ -444,5 +455,19 @@ mod tests {
             error.as_ref().map(ToString::to_string).as_deref(),
             Some("unexpected argument `--typo` for `config show`; run `help` to list commands")
         );
+    }
+
+    #[test]
+    fn sensitive_section_error_does_not_echo_invalid_secret_value() {
+        let secret = "config-secret-should-not-leak";
+        let figment = Figment::new().merge(("auth.jwt.keys", secret));
+        let builder = AppBuilder::new(FrameworkConfig::default(), figment);
+        let error = builder
+            .sensitive_section::<crate::config::JwtConfig>("auth.jwt")
+            .err()
+            .map(|error| error.to_string())
+            .unwrap_or_default();
+        assert!(error.contains("auth.jwt"));
+        assert!(!error.contains(secret));
     }
 }

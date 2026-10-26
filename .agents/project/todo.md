@@ -9,7 +9,7 @@
 以下是 v1 已承诺、尚未完整实现或验收的底层工作。它们分属不同功能簇和里程碑，不能当成一次性目录重构，也不能因为 M0-M2 基线完成就视为已交付。每次切换任务先核对本表及对应专题计划；专题计划是范围和验收标准的详细来源。
 
 1. **M2 数据库读写分离已实现并验证**：`Db` 提供显式只读副本路由与 task-local primary scope；PostgreSQL 18 / MySQL 8.4 真实复制暂停/追平及双 App 隔离测试通过。指标接入和完整业务负载性能测试归入通用可观测性与性能计划，不表示完整集群验收完成。
-2. **按 M3/M4/M5/M6 依赖顺序分批补齐其他底层机制**：M3 已完成请求级国际化、统一出站 HTTP 与邮件/SMS 驱动，继续完成通用加密/密钥轮换、审计、流程扩展点等；M4 前确定 worker/scheduler 安全停机、取消和租约恢复契约；M5 实现 Redis 默认缓存与 memory/file、命名 store、WebSocket/SSE、存储和可观测性；M6 补齐 CLI、doctor、TestApp 与完整用户文档。
+2. **按 M3/M4/M5/M6 依赖顺序分批补齐其他底层机制**：M3 已完成请求级国际化、统一出站 HTTP、邮件/SMS 驱动及应用数据加密/本地密钥轮换；继续审计认证完整 HTTP 流程、真实 SMS 条件、审计及事务/业务流程扩展点；M4 前确定 worker/scheduler 安全停机、取消和租约恢复契约；M5 实现 Redis 默认缓存与 memory/file、命名 store、WebSocket/SSE、存储和可观测性；M6 补齐 CLI、doctor、TestApp 与完整用户文档。
 3. **集群是跨里程碑的 v1 强制验收项**：共享会话/限流/缓存、队列与调度竞争、跨节点实时路由、共享文件、故障恢复和滚动升级须在对应能力实现时逐步覆盖，最后按 [集群计划](plans/v1-cluster-deployment.md) 做 PostgreSQL/MySQL 多副本验收；单机测试或多个互不通信的进程不算集群验收。
 
 当前任务顺序及阻塞以本文件各功能簇条目和 [`plan.md` 执行校准](plan.md#执行校准) 为准。遇到测试服务不可用时，明确记录缺少的验收证据；可继续推进不依赖该服务的独立工作，但不得越过明确的前置门槛或把未验收能力宣称为完成。
@@ -33,7 +33,8 @@
 
 ## M3 邮件、认证与授权（当前优先功能簇）
 
-- M3 通信框架能力已实现：Mailer/SmsSender 独立公开驱动、log/fake、SMTP/Twilio adapter、显式 locale 与 CLI `--sms-twilio`；本机 Mailpit STARTTLS 限制范围内的明文 SMTP 已实测。Twilio REST 由 transport 契约测试覆盖，尚缺已授权账号凭据与真实目标的实发证据；不得把协议测试写成短信送达验收。复用 ADR-031 出站 HTTP、ADR-032 国际化，后续 M3 独立安全能力继续推进。
+- M3 通信框架能力已实现：Mailer/SmsSender 独立公开驱动、log/fake、SMTP/Twilio adapter、显式 locale 与 CLI `--sms-twilio`；本机 Mailpit STARTTLS 限制范围内的明文 SMTP 已实测。Twilio REST 由 transport 契约测试覆盖，尚缺已授权账号凭据与真实目标的实发证据；不得把协议测试写成短信送达验收。复用 ADR-031 出站 HTTP、ADR-032 国际化，M3 外部短信验收仍需已授权目标与凭据。
+- M3 应用数据加密/本地密钥轮换按 [ADR-034](decisions/adr-034-application-encryption-and-key-rotation.md) 完成独立功能簇：可选 `encryption` feature、OS 随机 nonce、AAD/context、active-write/history-read key ring、脱敏配置、`openrust key generate` 与 CLI `--encryption` 模板；default/all-features workspace 门禁、生成项目真实 check/test 和 server 配置脱敏测试通过。crate 实现审计状态作为 v1 发布前复核项记录；下一个 M3 功能簇为审计与事务/业务流程扩展点。
 
 - ADR-021 根 package/source 迁移已完成实现、验证和独立本地提交；M3 代码仅做必要模块路径适配并保留功能 WIP。ADR-019 的逐 crate 目录改名与 `apps/server` 改名不执行。迁移后的历史 PostgreSQL 16 / MySQL 8.4 双库测试与生成项目 HTTP e2e 均复验通过；当前日常基线以 PostgreSQL 18 / MySQL 8.4 为准。
 - 当前功能簇：完成 [ADR-012](decisions/adr-012-auth-current-user-contract.md) 的业务用户 ID 映射、路由认证配置和身份注入闭环。运行时 WIP 已加入 `AuthLayer`、身份提取器、默认数据库认证器与 `AuthMigration`；CLI 已支持 `openrust new --db postgres|mysql --auth`，生成数据库认证插件、迁移和受保护的身份示例路由。

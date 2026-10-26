@@ -22,12 +22,15 @@ cargo check -p openrust --no-default-features --features db-postgres
 cargo check -p openrust --no-default-features --features db-mysql
 cargo check -p openrust --no-default-features --features auth
 cargo check -p openrust --no-default-features --features mail-smtp
+cargo check -p openrust --no-default-features --features encryption
 cargo check -p openrust --no-default-features --features test-util
 cargo check --workspace --all-features
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --all-features
 ```
+
+应用数据加密专项：`cargo test -p openrust --features encryption security::tests`；生成器/密钥命令：`cargo test -p openrust-cli`；`apps/server` 接线：`cargo check -p openrust-server --features encryption`。完成生成项目验收时还需实际执行 `openrust new --encryption` 产物的本地 patch `cargo check` 与 `cargo test`。
 
 根 package 示例：`cargo run -p openrust --example hello`；应用配置可用 `APP_SERVER__PORT` 指定隔离端口，HTTP smoke 访问 `/` 应返回统一 JSON 200。
 
@@ -68,6 +71,8 @@ CLI 模板快照测试：`cargo test -p openrust-cli`。生成 PostgreSQL、MySQ
 
 2026-10-26 ADR-031 出站 HTTP：`cargo test -p openrust --features http-client http::client::tests` 通过 15 项，覆盖本机真实 TCP JSON/status/body limit/redirect/timeout/response stream，fake 不访问网络、JSON/query/form/multipart/stream body、transport 与 response body timeout、取消、retry transport/status 与 attempt cap、不可重放 request 拒绝、配置拒绝及 proxy 凭据 Debug 脱敏；`cargo test -p openrust-server --features http-client --test http_client` 通过 1 项聚合应用接入。CLI `--http-client` 生成项目 `/tmp/openrust-http-client-generated-20261026` 经 Cargo patch 指向本地未发布 workspace，通过 `cargo check`、`cargo test`。最终通过 `cargo fmt --all --check`、default/all-features workspace clippy/test、warnings-denied default/all-features docs、`cargo deny check`、`cargo check -p openrust --no-default-features`、默认 normal dependency tree 无 reqwest、`git diff --check`。cargo-deny 仅保留既有 MPL-2.0 unused allowance 与 duplicate dependency warnings，advisories/bans/licenses/sources 均通过。
 
+
+2026-10-26 ADR-034 应用数据加密/本地轮换：`cargo test -p openrust --features encryption security::tests` 8 项通过，包含 RFC 8452 AES-256-GCM-SIV 向量、二进制/空明文、随机 nonce、context、active key 写入/历史 key 解密、篡改/格式/越界、配置脱敏与多 Encryptor 互解；`cargo test -p openrust-cli` 11 项通过，包含 32-byte Base64 key generation 与 `--encryption` 模板；`cargo check -p openrust-server --features encryption` 通过。实际 CLI 生成项目 `/tmp/openrust-encryption-generated-20261026` 使用本地 Cargo path patch 通过 `cargo check`、`cargo test`，并用环境 key 执行 `cargo run -- config show`；输出中的 active key ID 与 key map 值均为 `********`。最终 default/all-features workspace tests、all-features clippy、warnings-denied default/all-features docs、`cargo deny check` 和 `git diff --check` 通过；cargo-deny 保留既有重复依赖与未使用 MPL allowance 警告，advisories/bans/licenses/sources 通过。该簇无数据库读写，不要求新增双库集成验收。测试应用 all-features 时显式注入测试 key ring；生产默认配置不含 key。
 ## 迁移验收记录
 
 - `cargo metadata --no-deps --format-version 1` 确认根 package 为 `openrust`，workspace 共五个成员：`openrust`、`openrust-cli`、`openrust-macros`、`openrust-test`、`openrust-server`。

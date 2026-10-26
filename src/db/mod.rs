@@ -287,7 +287,7 @@ impl Plugin for DatabasePlugin {
                 "register only one database plugin per application",
             ));
         }
-        let config = app.section::<DatabaseConfig>("database")?;
+        let config = app.sensitive_section::<DatabaseConfig>("database")?;
         validate_config(&config)?;
         let table_names =
             DatabaseTableNames::new(config.table_prefix.clone(), config.table_names.clone())?;

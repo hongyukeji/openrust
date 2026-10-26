@@ -9,10 +9,13 @@ impl Application for Server {
     type Config = NoConfig;
 
     fn build(app: &mut AppBuilder) {
-        app.plugin(HttpPlugin)
+        let app = app
+            .plugin(HttpPlugin)
             .plugin(openrust::i18n::I18nPlugin::default())
             .plugin(openrust::mail::MailerPlugin)
-            .plugin(openrust::sms::SmsPlugin)
-            .routes(routes::register);
+            .plugin(openrust::sms::SmsPlugin);
+        #[cfg(feature = "encryption")]
+        let app = app.plugin(openrust::security::EncryptionPlugin);
+        app.routes(routes::register);
     }
 }

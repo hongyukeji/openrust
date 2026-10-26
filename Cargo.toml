@@ -43,6 +43,7 @@ tower-http = { version = "0.7", features = ["trace", "request-id", "timeout", "c
 tower-sessions = { version = "0.15", default-features = false, features = ["axum-core"] }
 jsonwebtoken = { version = "11.1", default-features = false, features = ["aws_lc_rs"] }
 argon2 = "0.6"
+aes-gcm-siv = { version = "0.12.1", default-features = false, features = ["aes", "alloc", "zeroize"] }
 base64 = "0.22"
 getrandom = "0.3"
 http = "1.5"
@@ -64,6 +65,7 @@ sha2 = "0.10"
 subtle = "2.6"
 chrono = { version = "0.4", features = ["serde"] }
 time = { version = "0.3", features = ["serde"] }
+zeroize = "1.9.1"
 async-trait = "0.1"
 url = "2.5"
 sqlx = { version = "0.9", default-features = false }
@@ -93,6 +95,7 @@ module_name_repetitions = "allow"
 must_use_candidate = "allow"
 
 [dependencies]
+aes-gcm-siv = { workspace = true, optional = true }
 axum.workspace = true
 axum-core.workspace = true
 argon2 = { workspace = true, optional = true }
@@ -124,6 +127,7 @@ toml.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 validator.workspace = true
+zeroize = { workspace = true, optional = true }
 
 [dev-dependencies]
 figment = { workspace = true, features = ["test"] }
@@ -148,6 +152,7 @@ auth = [
 mail-smtp = ["lettre/smtp-transport", "lettre/tokio1-rustls-tls"]
 http-client = ["dep:reqwest"]
 sms-twilio = ["http-client", "dep:base64"]
+encryption = ["dep:aes-gcm-siv", "dep:base64", "dep:getrandom", "dep:zeroize"]
 test-util = []
 
 [lints]

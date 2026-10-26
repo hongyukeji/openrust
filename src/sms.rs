@@ -164,7 +164,7 @@ pub struct SmsPlugin;
 
 impl Plugin for SmsPlugin {
     fn build(&self, app: &mut AppBuilder) -> Result<()> {
-        let config = app.section::<SmsConfig>("sms")?;
+        let config = app.sensitive_section::<SmsConfig>("sms")?;
         if app.config().app.env == Environment::Production && config.driver == "log" {
             return Err(Error::Config(ConfigError::Invalid(
                 "sms.driver=log is not allowed in production; configure a real SMS provider".into(),
