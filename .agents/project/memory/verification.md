@@ -11,7 +11,7 @@
 | 根模块/配置/目录 | workspace 默认/关键/all-features、clippy/test/doc/deny；配置层级、`.env` 生产隔离、脱敏与生成项目；工具目录/示例/测试分组迁移前后 5 packages、265 test-list entries 一致 | 不等于 v1 全部能力、最低版本或集群验收 |
 | HTTP/出站/i18n | 路由、响应、CORS、request ID；本机 TCP/fake client、受界 body/retry；locale 并发与生成项目中文错误 | 不等于第三方供应商发送、OpenAPI或实时通信验收 |
 | 双库与读写路由 | PG18/MySQL8.4 真实数据库迁移/事务/隔离；真实复制暂停、primary scope 隔离与追平 | 串行 SELECT 1 微基准不是业务性能证明；不等于完整集群 |
-| M3 认证/安全 | 两库 auth_database/auth_runtime 每库各 6 项；新生成 auth 项目格式/check/真实 TCP auth_flows | 当前运行时 contract；不包含遗漏生成器/公共流程 hooks |
+| M3 认证/安全 | 两库 auth_database/auth_runtime 每库各 6 项；新生成 auth 项目格式/check/真实 TCP auth_flows；Mailer/Policy 生成器双库项目 check/test | 不包含业务流程扩展点或跨节点完整场景 |
 | Mail/SMS | Mailpit v1.32.0 本机 SMTP 实收；Twilio transport 协议/错误/超时/no retry；模板 check/test | 没有实际 Twilio 账号投递或送达证据 |
 | 加密 | AES-256-GCM-SIV 已知向量、轮换/AAD/篡改/配置脱敏、生成项目 | 算法标准化不等于 crate 实现经过完整独立审计；发布前复核审计证据和平台性能 |
 | 审计/签名 | 双库同事务审计提交/回滚/失败回滚/清理，签名用途/TTL/轮换/共享撤销，生成 auth 流程 | 不承诺审计不可篡改、远端 sink 可靠投递或 JWT access token 即时撤销 |
@@ -22,7 +22,7 @@
 ## 尚未关闭的门禁
 
 - 目录收尾通过 5-package/265-test-list 对比、workspace 门禁、双库 server 集成、生成项目及实际 hello TCP HTTP smoke；`apps/server` 有明确保留证据。以上不等同于 v1 集群或性能门禁。
-- M3 生成器/通用 HTTP 边界、M4 事件/编排/公开流程扩展/幂等与共享锁、M5 缓存/存储/实时/可观测性、M6 开发编排/生成全集/测试工具/正式文档。
+- 通用 HTTP 限流/数据输出/查询边界；M4 事件/编排/公开流程扩展/幂等与共享锁；M5 缓存/存储/实时/可观测性；M6 开发编排/生成全集/测试工具/正式文档。
 - PostgreSQL/MySQL 负载均衡下至少两个 API 与多 worker/scheduler 的共享认证状态、配额/幂等、任务竞争、跨节点在线投递、共享文件、滚动升级及故障恢复。
 - Redis 与对象存储真实驱动语义；代表性业务负载 p50/p95/p99、吞吐、CPU、内存和资源上限；发布前设定基于实测的回归门槛。
 - 暂定最低 PostgreSQL 14+ / MySQL 8.0+ / Redis 6.2+ 的完整承诺路径；日常只用 PG18/MySQL8.4/Redis8，额外矩阵按大跨度/明确兼容风险与发布门禁触发。运行时版本检查通过不等于最低版本功能已全部验证。

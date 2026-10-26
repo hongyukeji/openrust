@@ -12,7 +12,6 @@
 
 | 功能簇 | 前置与交付 | 验收 |
 | --- | --- | --- |
-| M3 生成器 | 目录稳定后实现 `generate mailer` / `generate policy`；复用当前 Mailer/Policy contract，资源策略接口若需扩展先定稿 | 双库生成项目 check/test、错误输入与不覆盖现有文件；不能把 M3 运行时验收算作生成器交付 |
 | 通用 HTTP 限流与数据输出/查询边界 | 复用 `DatabaseRateLimitStore`，补公开路由中间件与主体/IP/key 策略；按能力覆盖补 DTO 字段白名单、过滤/排序白名单、软删除、查询 scope 与关系/N+1 示例 | 双库限流与并发、代理/匿名边界、越权字段与非法排序拒绝；不重造 ORM；UUID/软删除生成选项按实际 contract 交付 |
 
 ## M4：异步与流程扩展
