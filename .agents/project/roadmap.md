@@ -15,7 +15,7 @@
 
 ## v2：现成后台
 
-- 交付可运行、可生成业务模块的官方后台套件，复用 v1 公共能力：Rust 服务端、Vue Vben Admin 管理界面和 uni-app App。PC 端仅规划设计、暂不开发；具体端侧版本、组件方案与验收矩阵见 [v2 计划](plans/v2-admin-platform.md)。
+- 交付可运行、可生成业务模块的官方后台套件，复用 v1 公共能力：Rust 服务端、pure-admin 精简国际化版 + Element Plus 管理界面和 uni-app App。PC 端仅规划设计、暂不开发；具体端侧版本、组件方案与验收矩阵见 [v2 计划](plans/v2-admin-platform.md)。
 - 已授权在 v1 完整验收通过后继续 v2；当前 v2 尚未实施，不提前跨过真实双库、完整集群、性能和生产路径门槛。
 - 核心包含用户/角色/菜单/按钮权限、部门/岗位/DataScope、字典/参数、日志与在线会话、公告/收件箱、文件、任务/监控页面、前后端代码生成及基础导入导出。
 - OAuth/SSO/MFA、多租户、更多数据库、缓存 tag、持久离线消息/重放、移动推送、SSR Starter、扩展目录等归 v2 评估候选；JWT 已调整为 v1 的主要 API 认证方式（ADR-018）。v2 候选采用门槛与建议见 [v2 后台计划](plans/v2-admin-platform.md)。

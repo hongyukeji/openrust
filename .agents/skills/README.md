@@ -20,7 +20,7 @@
 
 ## 前端技能边界
 
-[V2 计划](../project/plans/v2-admin-platform.md) 是端侧范围和启动顺序的权威入口：Admin 使用 Vue，App 使用 uni-app，PC 端只规划设计。技能就绪不表示 V2 已启动，也不替代具体版本和组件库决策。
+[V2 计划](../project/plans/v2-admin-platform.md) 是端侧范围和启动顺序的权威入口：Admin 使用 Vue / pure-admin 精简国际化版 + Element Plus，App 使用 uni-app，PC 端只规划设计。技能就绪不表示 V2 已启动，具体兼容版本与接入验证仍在 B1 完成。
 
 - Vue 技能合并 `vuejs-ai/skills` 的基础、Router、Pinia、测试四个来源，保留必要规则与按需参考，避免重复触发。
 - Impeccable 保留应用设计方法，不导入其自动下载程序、浏览器扩展、代理配置和根目录产品文档流程；不同时安装另一套重叠设计技能。

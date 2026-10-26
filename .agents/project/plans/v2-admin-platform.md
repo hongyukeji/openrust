@@ -19,11 +19,13 @@
 
 | 端侧 | 已定路线 | B1 细化与交付边界 |
 | --- | --- | --- |
-| Admin Web | Vue，采用 Vue Vben Admin 作为后台视图骨架 | 锁定兼容的 Vue 3、TypeScript、Vite、Vben 版本和一个 UI 组件库，接入真实 Rust API；交付完整后台页面与桌面/窄屏浏览器体验 |
+| Admin Web | Vue，采用 pure-admin 精简国际化版 + Element Plus 作为后台视图骨架 | 锁定兼容的 Vue 3、TypeScript、Vite、pure-admin 与 Element Plus 版本及上游提交，接入真实 Rust API；交付完整后台页面与桌面/窄屏浏览器体验 |
 | App | uni-app 框架 | 明确角色/页面/权限矩阵、目标系统、运行时版本和组件方案；实际交付移动流程与平台验收，不仅交付 H5 演示 |
 | PC 端 | 仅做规划设计 | 明确用户场景、信息架构、交互稿、技术选型比较与 API 复用边界；不创建实现工程、桌面壳、安装包或发布流水线。后续开发另行明确启动 |
 
-Admin 选用 [Vue Vben Admin](https://github.com/vbenjs/vue-vben-admin)：其 [官方说明](https://doc.vben.pro/guide/introduction/vben.html) 提供动态菜单、权限、国际化、主题及多 UI 库接入，适合后台系统与业务生成器。只保留选定应用和必要共享包，不复制全部演示与 mock 后端；二次开发保留 [MIT 许可](https://github.com/vbenjs/vue-vben-admin/blob/main/LICENSE)。具体版本与组件库在 B1 用登录、权限菜单、表格表单的真实 API 原型锁定，不把模板可运行当作套件验收。
+Admin 选用 [pure-admin 精简国际化版](https://github.com/pure-admin/pure-admin-thin/tree/i18n) + Element Plus。此选型与现有 OpenSpring Admin 的 Vue / Element Plus 技术路线一致，便于复用页面规范、组件经验和测试方法；以精简版建立独立应用，按实际功能引入组件，不复制完整业务工程、演示页面或 mock 后端。二次开发保留 [MIT 许可](https://github.com/pure-admin/pure-admin-thin/blob/i18n/LICENSE) 与来源记录。B1 通过登录、权限菜单、表格表单的真实 Rust API 原型锁定兼容版本、上游提交和锁文件，不把模板可运行当作套件验收。
+
+复用 OpenSpring 通用组件前逐项核查许可、依赖与业务耦合，按需适配表格工具栏、实体选择器、表单和交互规范；不引入其组织业务模型、Java 专属协议或整套依赖。响应/错误/分页、token 刷新与撤销、菜单/按钮权限、上传下载和实时通信均以 OpenRust 已定公开契约接入，尤其不沿用 OpenSpring 的字符串 `Result.code == "200"` 约定。组件与业务生成模板统一使用选定的 Element Plus 体系，前端权限显示不能替代 Rust 服务端授权。
 
 uni-app 的经典版/uni-app x、渲染模式、编译器与插件兼容性在 B1 结合 [官方维护说明](https://doc.dcloud.net.cn/uni-app-x/) 明确；不把用户的框架方向自动等同于某个实现代际。App 与 Web 共用 Rust API 的错误、认证、权限与国际化契约，平台请求/存储/导航分别适配，不要求复用全部 UI 组件。Android/iOS 的支持范围与最低系统版本必须写入矩阵；其他目标不自动纳入。
 
@@ -82,7 +84,7 @@ uni-app 的经典版/uni-app x、渲染模式、编译器与插件兼容性在 B
 
 ## 设计建议与实施顺序
 
-1. B1 契约与骨架：核对 v1 公开接口，按已定 Vue Vben Admin 与 uni-app 路线锁定版本、组件库、端侧角色/页面/权限矩阵和 API/数据模型；规划 PC 交互与技术方案，不启动 PC 实现。
+1. B1 契约与骨架：核对 v1 公开接口，按已定 pure-admin 精简国际化版 + Element Plus 与 uni-app 路线锁定兼容版本、上游提交、端侧角色/页面/权限矩阵和 API/数据模型，完成通用组件复用审计与 Rust API 适配原型；规划 PC 交互与技术方案，不启动 PC 实现。
 2. B2 账号与组织：JWT/refresh 登录、用户/角色/菜单、部门/岗位、DataScope 和登录状态管理；Session 只有显式选择才启用，优先完成前后端授权与隔离测试。
 3. B3 通用系统模块与视图：字典/参数、审计、通知/文件、任务/监控等 Admin 页面及页面矩阵中的 App 流程逐项接入 v1 能力，不复制框架逻辑。
 4. B4 业务生成：选择代表性业务表走完生成、权限菜单、查询、导入导出与测试；明确增量生成/覆盖边界。
