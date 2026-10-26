@@ -6,7 +6,7 @@
 
 ## 边界
 
-`openrust-server` 是不发布的二进制 crate，正式依赖只有门面 `openrust`。不承载业务资源；后续能力按 [ADR-007](../decisions/adr-007-aggregate-server-entry.md) 接入。
+`server` 是不发布的二进制 package，正式依赖只有门面 `openrust`。不承载业务资源；后续能力按 [ADR-007](../decisions/adr-007-aggregate-server-entry.md) 接入。
 
 ## 当前实现
 
@@ -15,7 +15,7 @@
 | `src/main.rs` | 调用 `openrust::run::<Server>()` |
 | `src/app.rs` | `Server` 显式安装 `HttpPlugin`、`I18nPlugin`、`MailerPlugin`、`SmsPlugin`；`encryption` feature 下额外安装 `EncryptionPlugin`；注册框架验证路由 |
 | `src/routes.rs` | `/` 返回服务名和版本的 JSON；`HttpPlugin` 提供 `/health` |
-| `config/*.toml` | 与框架默认一致的应用、监听、压缩和 CORS 配置；仓库 `.cargo/config.toml` 为根目录 Cargo 命令指定配置目录 |
+| `config/*.toml` | 与框架默认一致的应用、监听、压缩和 CORS 配置；应用从各自工作目录的 `config/` 加载配置；仓库不固定集成宿主的配置路径 |
 | `tests/server/aggregate.rs` | 默认 Server、邮件/SMS 服务、health 与请求 ID、根路由、资源宏、命令遮蔽及配置加载等集成测试 |
 | `tests/auth/`、`tests/database/`、`tests/http/`、`tests/queue/`、`tests/schedule/` 等 | 按 feature 构建各自测试 Application，显式注册数据库、认证、迁移、队列与调度；数据库测试还需真实服务配置 |
 
@@ -27,4 +27,4 @@
 
 ## 验证
 
-`cargo test -p openrust-server`；`cargo run` 后请求 `http://127.0.0.1:3000/health`。
+`cargo test -p server`；`cargo run` 后请求 `http://127.0.0.1:3000/health`。

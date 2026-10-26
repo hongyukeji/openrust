@@ -4,9 +4,9 @@
 > 更新：2026-10-26
 > 摘要：框架处于 v1 M4，尚未达到完整 v1。目录迁移与 M3 mailer/policy 生成器已完成本地验证和提交；完整剩余范围见待办。
 
-## 交付模式待迁移
+## 源码 workspace 交付
 
-[ADR-039](decisions/adr-039-source-workspace-distribution.md) 已确认整套源码交付、内部包中性命名与禁用发布；本次是设计/文档校准，manifest、代码、生成器和 CI 尚未按此完成验收。旧目录迁移与功能证据保持原边界，不能用它们关闭新任务。
+[ADR-039](decisions/adr-039-source-workspace-distribution.md) 已实现并完成验收：内部包 `cli`、`macros`、`testing`、`server` 与所有本地生成 package 均禁用发布；workspace/path 依赖、宏门面、CI、应用生成与配置定位已迁移。干净源码副本生成默认、PostgreSQL、MySQL 及加密认证应用并 check/test；两个应用独立启动、配置隔离通过。PostgreSQL 18 与 MySQL 8.4 真实服务矩阵、workspace fmt/clippy/test/doc、cargo deny 均通过。细节见 `.agents/project/memory/testing.md` 与 ADR-039。
 
 ## 已有交付与边界
 
@@ -32,13 +32,13 @@
 
 - 原 M0–M2 基础范围和 M3 本地认证/安全运行时已验收；Mailer/Policy 生成器、公开 HTTP 路由限流与数据输出/查询边界均已提交并完成适用验证。
 - M4 仅部分完成；单项 scheduler/worker 多进程测试不等于完整集群验收。
-- M4 类型化事件与 queued listener 已在 PostgreSQL 18.6 与 MySQL 8.4 完成双库事务/worker 验收；后续先按 `todo.md` 当前优先级处理源码 workspace 交付与内部命名，再推进依赖它的功能簇。
-- M5/M6 尚有成组能力未交付；没有可宣称已完成的 v1 性能基线、全部最低版本兼容性或完整源码交付路径。
+- M4 类型化事件与 queued listener 已在 PostgreSQL 18.6 与 MySQL 8.4 完成双库事务/worker 验收；源码 workspace 交付现已验收，当前先完成 C1–C3，再推进 M4 后续簇。
+- M5/M6 尚有成组能力未交付；没有可宣称已完成的 v1 性能基线、全部最低版本兼容性或完整集群验收。
 - v1 完整验收通过后按已授权顺序进入 v2；Admin 已确定 pure-admin 精简国际化版 + Element Plus，App 使用 uni-app，PC 仅规划设计。当前只完成选型与文档校准，未创建端侧应用或安装前端依赖；AI 平台仅规划并隔离，尚未立项。
 
 ## 下一步
 
-先按 [ADR-039](decisions/adr-039-source-workspace-distribution.md) 完成源码 workspace、内部包名和生成/启动迁移，再完成 C1–C3 中文整改，按 [todo.md](todo.md) 推进 M4 修正/扩展、M5、M6。组件整合与 Laravel 式体验按 ADR-001；数据库/队列扩展限制和 worker 停机问题已明确为待修边界，静态发现不表示代码已修复。不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
+先完成 C1–C3 中文整改，再按 [todo.md](todo.md) 推进 M4 修正/扩展、M5、M6。组件整合与 Laravel 式体验按 ADR-001；数据库/队列扩展限制和 worker 停机问题已明确为待修边界，静态发现不表示代码已修复。不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
 
 ## 本次文档核对范围
 

@@ -1,4 +1,4 @@
-# openrust-macros
+# macros
 
 > 受众：AI Agent
 > 更新：2026-10-26
@@ -16,4 +16,4 @@
 
 ## 验证
 
-`cargo test -p openrust-server` 覆盖宏展开后的五种动作映射；workspace gate 覆盖宏 crate 的 Clippy 与文档构建。
+`cargo test -p server` 覆盖宏展开后的五种动作映射；workspace gate 覆盖宏 crate 的 Clippy 与文档构建。

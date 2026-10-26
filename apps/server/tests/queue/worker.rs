@@ -147,7 +147,7 @@ async fn database_queue_dispatch_worker_concurrency_failure_and_retry()
         eprintln!("skipping database queue: OPENRUST_TEST_DATABASE_URL is unset");
         return Ok(());
     };
-    let test_database = openrust_test::TestDatabase::create::<QueueMigrator>(&admin_url).await?;
+    let test_database = testing::TestDatabase::create::<QueueMigrator>(&admin_url).await?;
     let mut queue_plugin = QueuePlugin::default();
     queue_plugin.register_job::<CountJob>()?;
     queue_plugin.register_job::<AlwaysFailJob>()?;

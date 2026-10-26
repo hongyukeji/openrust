@@ -11,8 +11,8 @@
 - `mail-smtp` 可选启用 SMTP transport；`sms-twilio` 复用可选 `http-client` feature；`test-util` 提供邮件/SMS fake。log 仅供非生产默认路径，生产启动拒绝 log；运行配置保持在应用项目根 `config/`。
 - `encryption` 可选启用 AES-256-GCM-SIV 应用数据加密；`EncryptionPlugin` 注册持有轮换 key ring 的 `Encryptor`。仅 active key 写入、历史 key 解密；密钥需由受控配置注入，不含默认 key。
 - `signing` 可选启用用途绑定的限时签名链接；独立 link key ring 与 JWT/加密密钥隔离；逐条撤销需应用加入共享数据库迁移并配置 `SignedLinkRevocationStore`。
-- Workspace 保留 package：根 `openrust` 框架、`openrust-cli` 命令行与模板、`openrust-macros` proc-macro、`openrust-test` 测试工具、`openrust-server` 集成宿主。各理由见 [ADR-021](../decisions/adr-021-loco-style-module-layout.md)。
-- `openrust-test` 单向依赖 `openrust`；根 package 不依赖测试工具，避免依赖环。
+- Workspace 保留 package：根 `openrust` 框架、`cli` 命令行与模板、`macros` proc-macro、`testing` 测试工具、`server` 集成宿主。源码交付与命名见 [ADR-039](../decisions/adr-039-source-workspace-distribution.md)。
+- `testing` 单向依赖 `openrust`；根 package 不依赖测试工具，避免依赖环。
 - 工具包已在工作区迁至 `cli/`、`macros/`、`testing/`；当前结构簇仍待验证与提交，不能把路径移动当作验收完成。独立 package 的编译边界与目录承接位置须先评估，不能把 proc-macro 机械并入普通库。
 - Cache、文件存储、通用事件总线、实时通信及 M5 可观测性仍待实现，未从 facade 导出；现有 feature 不代表自动安装对应 plugin。
 

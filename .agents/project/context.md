@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-26
-> 摘要：OpenRust 是全新的开源 Rust 应用开发框架，当前处于 v1 M4；先完成目录与验收入口收尾，再按依赖补齐通用能力。
+> 摘要：OpenRust 是全新的开源 Rust 应用开发框架，当前处于 v1 M4；源码 workspace 交付已完成，正在执行 C1–C3 文档中文化，随后继续补齐通用能力。
 
 ## 当前状态
 
@@ -20,11 +20,11 @@
 
 - 项目语言采用 [简体中文为主、英文为辅](style.md#语言规范)：第一方文档、Rustdoc、源码/配置注释与生成模板说明立即按此编写；既有英文安排分批整改。完整英文文档待框架成熟后再评估，技术名称和原始许可证等例外保持有效，运行时 i18n 契约另行管理。
 
-- 源码交付与中性包名按 [ADR-039](decisions/adr-039-source-workspace-distribution.md)：开发者获取整套框架，在 `apps/<name>/` 开发业务；内部包目标为 `cli`、`macros`、`testing`、`server`，全部 package 禁用发布，根 `openrust` 和 CLI 命令名保留。当前 manifest/生成器仍待迁移，先闭合或明确登记现有 WIP，再优先处理此底层任务。
+- 源码交付与中性包名按 [ADR-039](decisions/adr-039-source-workspace-distribution.md) 已实现：开发者获取整套框架，在 `apps/<name>/` 开发业务；内部包为 `cli`、`macros`、`testing`、`server`，所有 package 禁用发布，根 `openrust`、`openrust::` API 与 CLI 命令名保留。生成器合并 workspace 成员并按应用定位启动和配置；干净源码副本、双应用隔离及 PostgreSQL 18/MySQL 8.4 验收通过。当前先执行 C1–C3 中文整改。
 
 - 应用中性命名按 [ADR-016](decisions/adr-016-neutral-application-namespaces.md)：默认环境变量 `APP_`（`Application::config_namespace()` 允许启动前定制，core/bootstrap 已实现），默认表前缀 `tb_`，支持自定义/空前缀和显式全名映射；数据库 resolver 已贯通连接、迁移、TestDatabase 与认证 SQL，并经 PostgreSQL/MySQL 验证。旧品牌前缀不能作为新设计 contract。
 - 本地数据库、缓存等基础服务验证必须先检查并复用现有且版本/配置/连通性合适的服务（包括 Docker 容器和本机服务）；当前开发目标为 PostgreSQL 18、MySQL 8.4 LTS、Redis 8。只有没有合适服务，或现有服务确实无法用于本项测试时，才创建隔离的临时服务。优先用 `TestDatabase`、独立测试库/数据做隔离；不得为方便而重复创建服务，也不得擅自停止、删除、重建或改动已有容器、卷、数据和配置。新建临时服务时使用独立 Compose project 与必要的隔离端口，结束后只清理本任务明确创建且确认无其他使用者的资源。
-- OpenRust 核心目标架构按 [ADR-021](decisions/adr-021-loco-style-module-layout.md)：根 `src/` 放框架能力 modules，`apps/` 保留为同一仓库/workspace 内应用目录约定，`examples/` 放可复用示例，根 `tests/` 验证框架公共 API。当前 `apps/server` 是内部集成宿主；等根测试与示例覆盖其职责后才决定移除该应用，不删除 `apps/` 约定。根模块、工具目录与 examples/tests 迁移已验收，见 [目录收尾 Spec](plans/module-layout-migration-spec.md)；新的内部包改名与源码交付仍待实现，优先按 ADR-039。
+- OpenRust 核心目标架构按 [ADR-021](decisions/adr-021-loco-style-module-layout.md)：根 `src/` 放框架能力 modules，`apps/` 保留为同一仓库/workspace 内应用目录约定，`examples/` 放可复用示例，根 `tests/` 验证框架公共 API。当前 `apps/server` 是内部集成宿主；等根测试与示例覆盖其职责后才决定移除该应用，不删除 `apps/` 约定。根模块、工具目录与 examples/tests 迁移及 ADR-039 源码交付迁移均已验收。
 - 生成项目中的运行时配置文件在项目根 `config/`；Rust 配置代码放 `src/config/` 模块目录，建议以 `mod.rs` 为入口，按复杂度拆分，不将 TOML/YAML 文件置于 `src/`。
 - 配置类型按实际能力位于 `openrust::config` 的各子模块（清单见 core/core.md），由唯一 `ConfigLoader` 加载；旧 auth/database/mail 类型路径通过 re-export 保持。生成项目提供 `.env.example`；`.env` 仅供非生产本地覆盖，外部进程变量优先，production 不读取 `.env`。
 

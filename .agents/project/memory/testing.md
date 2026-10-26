@@ -4,9 +4,15 @@
 > 更新：2026-10-26
 > 摘要：根 package 模块迁移、双库与生成项目当前可复验入口。
 
-## 命令与源码交付迁移
+## ADR-039 源码交付验收
 
-[ADR-039](../decisions/adr-039-source-workspace-distribution.md) 已确认内部包改名。下文旧 `-p openrust-*` 命令对应当前 manifest/既有验收，代码迁移后同步可执行入口。历史临时 patch 仅证明当时产物可用；新的黄金路径须在干净完整源码副本中生成 apps 并直接验证 workspace/path 依赖，不再人工补 registry patch。
+当前 package 为 `openrust`、`cli`、`macros`、`testing`、`server`；均显式禁用发布，内部依赖通过 workspace path 解析。CLI 保留 `openrust` 命令，并默认生成 `apps/<name>`，应用与 migration 加入现有 workspace。生成器保留根 manifest 其他内容，拒绝重复名、现存目录和不支持的外部目标；dev/serve 按目标应用定位二进制和配置。
+
+2026-10-26 干净源码副本（无 `.git`、临时 registry patch 或开发机绝对路径）生成默认、PostgreSQL、MySQL 与加密认证应用。默认应用 `cargo test` 通过；PostgreSQL 18 和 MySQL 8.4 的加密认证应用各通过 `cargo test`，真实数据库 HTTP auth flow 均执行 1 项通过。两个 workspace 应用以不同配置及端口分别启动，HTTP 根路由返回各自应用名，证明配置和启动目标隔离；CLI 单测覆盖重复/非法/外部目标失败无半成品。
+
+本仓库最终门禁：`cargo fmt --all --check`、`cargo clippy --workspace --all-targets -- -D warnings`、`cargo test --workspace`、`RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps`、`cargo deny check`、`git diff --check` 均通过。另在真实 PostgreSQL 18 与 MySQL 8.4 服务分别执行 openrust/testing/server 的数据库、认证、队列、崩溃恢复与调度 feature 集成测试并通过。`cargo deny` 仅有既有重复依赖版本和未使用 MPL allowance 警告；advisories/bans/licenses/sources 均通过。C1–C3 文档整改不属于本簇。
+
+以下 `-p openrust-*` 命令只代表历史验收；当前命令使用新包名。历史临时 patch 不作为 ADR-039 黄金路径证据。
 
 ## 本地 workspace 门禁
 
@@ -34,7 +40,7 @@ cargo test --workspace --all-features
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --all-features
 ```
 
-应用数据加密专项：`cargo test -p openrust --features encryption security::tests`；生成器/密钥命令：`cargo test -p openrust-cli`；`apps/server` 接线：`cargo check -p openrust-server --features encryption`。完成 ADR-039 生成器迁移后，还需对 `openrust new --encryption` 产物直接执行 `cargo check` 与 `cargo test`，不添加临时 registry patch。
+应用数据加密专项：`cargo test -p openrust --features encryption security::tests`；生成器/密钥命令：`cargo test -p cli`；`apps/server` 接线：`cargo check -p server --features encryption`。在干净源码副本中生成的 `openrust new --auth --encryption` PostgreSQL/MySQL 应用均通过直接 `cargo test`，未添加临时 registry patch。
 
 根 package 示例：`cargo run -p openrust --example hello`；应用配置可用 `APP_SERVER__PORT` 指定隔离端口，HTTP smoke 访问 `/` 应返回统一 JSON 200。
 

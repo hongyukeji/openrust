@@ -2,7 +2,7 @@
 
 > An opinionated, batteries-included Rust application framework. Create a project, run one command, and start writing business code.
 
-**Status: v1 in active development.** OpenRust is delivered as a complete source workspace for building applications in `apps/`; separate Cargo package publishing is not planned. Internal package names and the generator are being aligned with this model. The v1 scope includes configuration, HTTP conventions, PostgreSQL/MySQL, authentication and authorization, queue, scheduler, events, cache, storage, mail, CLI, testing tools and deployment support; planned capabilities are not complete until their implementation and acceptance evidence are recorded.
+**状态：v1 开发中。** OpenRust 以完整源码 workspace 交付，业务应用位于 `apps/`；框架不单独发布 Cargo package。根框架、内部工具与集成宿主使用中性包名，并显式设置 `publish = false`。v1 覆盖配置、HTTP 约定、PostgreSQL/MySQL、认证与授权、队列、调度、事件、缓存、存储、邮件、CLI、测试工具和部署支持；规划中的能力须有实现和验收证据后才算交付。
 
 ## Goals
 
@@ -14,20 +14,20 @@
 
 OpenRust is built on `tokio`, `axum`, `tower` and `SeaORM`, with explicit Rust types and conventional project structure.
 
-## Run in this repository
+## 在仓库中运行
 
-The non-published [integration server](apps/server/README.md) starts HTTP, request languages, and local log mail/SMS drivers without external services. Database, auth, queue and scheduler integrations use explicit test Applications; enabling a feature does not install them in the default server:
+集成宿主 [server](apps/server/README.md) 提供 HTTP、请求语言与本地日志邮件/短信驱动，不依赖外部服务。请在应用目录运行命令，让配置从 `apps/server/config` 加载。数据库、认证、队列和调度集成由显式组装的测试应用验证；启用 feature 不会自动安装这些服务：
 
 ```bash
-cargo run -p openrust-server
+cd apps/server
+cargo run -p server
 curl --noproxy '*' http://127.0.0.1:3000/health
-cargo run -p openrust-server -- config show
-cargo run -p openrust-server -- help
-cargo test -p openrust-server
+cargo run -p server -- config show
+cargo run -p server -- help
+cargo test -p server
 ```
 
-For repository development, `.cargo/config.toml` sets `APP_CONFIG_DIR=apps/server/config`, so root-level `cargo run` reads the server's configuration. Applications default to `config/` relative to their working directory. `APP_SERVER__PORT=4000 cargo run` overrides the server's port; `PORT=4000 cargo run` also works. Applications can override `Application::config_namespace()` to use a prefix such as `SHOP_`. The framework package is at the repository root; implemented capabilities live in `src/audit.rs`, `src/config/`, `src/core/`, `src/db/`, `src/http/`, `src/i18n.rs`, `src/mail/`, `src/sms.rs`, and feature-gated auth, encryption, signing, queue and schedule modules. Runtime TOML/YAML remains in each application's root `config/` directory. `apps/server` is this workspace's integration host. The current generator still creates a separate project; migration to applications under `apps/` with local workspace dependencies is pending.
-
+应用默认从当前工作目录的 `config/` 读取配置。`APP_SERVER__PORT=4000 cargo run -p server` 或 `PORT=4000 cargo run -p server` 可覆盖监听端口；若两者同时设置，`APP_SERVER__PORT` 优先。应用可通过 `Application::config_namespace()` 选择如 `SHOP_` 的变量前缀。框架代码位于仓库根 package，能力模块位于 `src/audit.rs`、`src/config/`、`src/core/`、`src/db/`、`src/http/`、`src/i18n.rs`、`src/mail/`、`src/sms.rs`，以及按 feature 启用的 auth、encryption、signing、queue 和 schedule。每个应用的 TOML/YAML 配置保存在其根目录的 `config/` 中；`apps/server` 是本 workspace 的集成宿主。
 Application data encryption is an opt-in `encryption` feature. Register `openrust::security::EncryptionPlugin`, configure a 32-byte key ring under `[security.encryption]`, and generate local key material with `openrust key generate`. The active key encrypts new values; prior keys decrypt old values during a controlled rotation. Keep keys outside version control.
 
 Purpose-bound expiring links are available through the `signing` feature and `openrust::signing::SignedLinks`. They use a separate key ring under `[security.signed_links]`; add `SignedLinkRevocationMigration` and a shared database store when individual links need cross-instance revocation. See [the signed-links guide](src/signing/README.md).
@@ -64,9 +64,9 @@ db.transaction(|transaction| {
 
 Register `WelcomeEmailJob` with `QueuePlugin` as well. For best-effort in-process observation after a committed transaction, call `Events::dispatch` only after the transaction returns successfully; a listener error cannot undo that commit. Never put passwords, tokens, verification codes or raw requests in event/job payloads.
 
-## The planned v1 golden path
+## v1 源码应用使用路径
 
-The following is the source-workspace acceptance target, including the planned internal package rename. Today, use the current package names in the repository commands above. Application generation into `apps/`, local dependency wiring, dependency orchestration, automatic migrations and OpenAPI are not all complete yet.
+可以在仓库根目录生成应用；生成器会把应用及可选 migration package 加入 workspace，并使用本地依赖：
 
 ```bash
 git clone https://github.com/hongyukeji/openrust.git
@@ -76,10 +76,7 @@ cd apps/blog
 cargo run -p cli -- dev
 ```
 
-The generated application must build and test against the included framework source without publishing internal packages or adding manual registry patches.
-
-For v1 acceptance, `openrust dev` must first reuse suitable existing services, create missing isolated development dependencies, apply migrations and run the application. Both database templates must expose working health, OpenAPI and auth paths and pass their generated tests. These end-to-end guarantees are not complete yet.
-
+生成的应用应直接依赖仓库内框架源码，通过 `cargo check` 和 `cargo test`，无需发布内部 package 或添加手工 registry patch。依赖编排、自动迁移与 OpenAPI 等保证仍按 v1 计划逐项实现和验收。
 ## Request languages
 
 Generated applications install `I18nPlugin` by default. `[i18n] default_locale` and `fallback_locale` select the default language and final resource fallback; `Accept-Language` selects a supported request locale. The framework ships English and Simplified Chinese HTTP messages. Applications can merge JSON resources into `MessageCatalog`, use `RequestLocale` in handlers, or call `I18n::with_locale` for an explicit task scope. Templates support named `{name}` substitution; unknown keys stay visible as their key. This layer does not provide plural rules or locale-aware date/number formatting. See the [`I18n` API](src/i18n.rs).

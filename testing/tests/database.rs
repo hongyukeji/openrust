@@ -2,9 +2,9 @@
 #![cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 
 use openrust::database::sea_orm_migration::{self, MigratorTrait};
-use openrust_test::TestDatabase;
 use sea_orm::{ConnectionTrait, Statement};
 use sea_orm_migration::prelude::*;
+use testing::TestDatabase;
 
 struct TestMigrator;
 

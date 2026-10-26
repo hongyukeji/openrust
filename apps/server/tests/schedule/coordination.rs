@@ -59,7 +59,7 @@ async fn independent_scheduler_processes_dispatch_one_job_per_slot()
         eprintln!("skipping scheduler integration: OPENRUST_TEST_DATABASE_URL is unset");
         return Ok(());
     };
-    let database = openrust_test::TestDatabase::create::<ScheduleMigrator>(&admin_url).await?;
+    let database = testing::TestDatabase::create::<ScheduleMigrator>(&admin_url).await?;
     let app = build_app(database.url()).await?;
     let scheduler = app.state().try_get::<Scheduler>()?;
     let db = app.state().try_get::<Db>()?;

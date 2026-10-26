@@ -8,7 +8,7 @@
 
 - Edition 2024；MSRV 写入 workspace `rust-version`，为当前 stable 减两个小版本，CI 单独验证。
 - 所有 crate `#![forbid(unsafe_code)]`；库 crate `#![deny(missing_docs)]`，公共入口类型附带可运行 doctest。
-- `[workspace.lints]` 启用 `clippy::all` + `clippy::pedantic`；显式 `#[allow]` 必须注明原因。库 crate 拒绝 `unwrap_used` / `expect_used` / `panic` / `todo` / `unimplemented`；测试与 `openrust-cli` 二进制可放宽 `unwrap_used` / `expect_used`。
+- `[workspace.lints]` 启用 `clippy::all` + `clippy::pedantic`；显式 `#[allow]` 必须注明原因。库 crate 拒绝 `unwrap_used` / `expect_used` / `panic` / `todo` / `unimplemented`；测试与 `cli` 二进制可放宽 `unwrap_used` / `expect_used`。
 - 错误：库 crate 用 `thiserror`，`anyhow` 只出现在二进制边界；所有面向 HTTP 的错误最终进入 `openrust::Error`。
 - 异步统一 tokio；静态分发 trait 优先原生 `async fn`，需要对象安全或异构注册时按既有 contract 使用 `BoxFuture`；跨任务 future 保证 `Send`，不为形式统一重写已定公开接口。
 - 宏只做派生与属性标注，不改变控制流；宏支持代码放 `__private` 模块并 `#[doc(hidden)]`。
@@ -22,7 +22,7 @@
 
 | 对象 | 规则 | 示例 |
 | --- | --- | --- |
-| 主框架与内部工具包 | 根 `openrust` 内按 module 划分；工具 package 与目录同名，所有 package 显式 `publish = false` | 目标 `cli/` → `cli`、`macros/` → `macros`、`testing/` → `testing`；当前旧包名尚待实现迁移 |
+| 主框架与内部工具包 | 根 `openrust` 内按 module 划分；工具 package 与目录同名，所有 package 显式 `publish = false` | `cli/` → `cli`、`macros/` → `macros`、`testing/` → `testing` |
 | 仓库内应用 | `apps/<name>`，包名使用应用职责名，`publish = false`；业务依赖本地 workspace | `apps/server` 的 package/二进制目标均为 `server`；保留现有宿主验收职责 |
 | driver 类型 | `<Backend><Capability>` | `RedisCache`、`DatabaseQueue` |
 | 配置结构 | `<Capability>Config` | `QueueConfig` |
@@ -46,7 +46,7 @@
 
 - 每个已实现的新能力在同一功能簇内接入 `apps/server`，并补聚合应用集成测试；这是能力完成定义的一部分。
 - 无需外部服务的默认能力可直接装配；加密等需要显式密钥的可选能力仍按 feature/config 启用。外部服务能力须验证 feature 转发、插件/迁移注册及实际运行入口，不以声明 feature 代替装配。
-- 当前 `openrust-server` 正式依赖只包含 `openrust`，不承载业务资源。后续若按 ADR-021 移除或迁移宿主，先为每项启动/测试职责提供等价入口和通过证据，再更新完成定义中的入口引用。
+- 当前 `server` 正式依赖只包含 `openrust`，不承载业务资源。后续若按 ADR-021 移除或迁移宿主，先为每项启动/测试职责提供等价入口和通过证据，再更新完成定义中的入口引用。
 
 ### 起名前三问
 
@@ -103,7 +103,7 @@ cargo deny check
 | 文档-only | `git diff --check` + 相对链接检查 + `rg` 旧路径扫描 |
 | 生成项目模板 | 双库模板快照测试；检查真实 `.env` / `.env.*` 忽略且 `.env.example` 可跟踪，生成项目后 `cargo check` + `cargo test` |
 
-测试原则：框架是底层通用机制，每个公共行为都应有单元或集成测试；新建测试文件前必须能一句话说清它能发现哪个缺陷。能力 fake 可随该模块的 `test-util` 暴露；通用测试组合工具放在 `openrust-test`，不得为目录统一引入根 package 对测试包的反向依赖。分目录迁移测试时核对 Cargo targets 和运行用例，避免子目录文件未被编译执行。
+测试原则：框架是底层通用机制，每个公共行为都应有单元或集成测试；新建测试文件前必须能一句话说清它能发现哪个缺陷。能力 fake 可随该模块的 `test-util` 暴露；通用测试组合工具放在 `testing`，不得为目录统一引入根 package 对测试包的反向依赖。分目录迁移测试时核对 Cargo targets 和运行用例，避免子目录文件未被编译执行。
 
 ## 文档
 

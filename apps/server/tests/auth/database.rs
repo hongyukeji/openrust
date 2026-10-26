@@ -31,8 +31,8 @@ use openrust::signing::{
     SignedLinks, SignedLinksConfig, SignedLinksPlugin,
 };
 use openrust::{App, AppBuilder, Result, config::FrameworkConfig, lifecycle::finalize};
-use openrust_test::TestDatabase;
 use sha2::{Digest, Sha256};
+use testing::TestDatabase;
 use time::Duration;
 use tower::ServiceExt;
 use tower_sessions::SessionStore;
@@ -107,8 +107,8 @@ async fn app_router(url: &str, table_prefix: &str) -> Result<(App, openrust::htt
         .plugin(openrust::audit::AuditPlugin::database())
         .plugin(SessionPlugin::new())
         .plugin(JwtPlugin::with_config(JwtConfig::new(
-            "openrust-test-issuer",
-            "openrust-test-audience",
+            "testing-issuer",
+            "testing-audience",
             "auth-test-key",
             std::collections::BTreeMap::from([(
                 "auth-test-key".to_owned(),
@@ -116,7 +116,7 @@ async fn app_router(url: &str, table_prefix: &str) -> Result<(App, openrust::htt
             )]),
         )))
         .plugin(SignedLinksPlugin::with_config(SignedLinksConfig::new(
-            "openrust-test-issuer",
+            "testing-issuer",
             "link-key",
             std::collections::BTreeMap::from([(
                 "link-key".to_owned(),
@@ -202,7 +202,7 @@ async fn signed_link_revocation_is_shared_by_database_instances() -> TestResult 
     let db = Db::with_table_names(table_names.clone());
     db.initialize(connection.clone())?;
     let config = SignedLinksConfig::new(
-        "openrust-test-issuer",
+        "testing-issuer",
         "link-key",
         std::collections::BTreeMap::from([("link-key".to_owned(), STANDARD.encode([0x71_u8; 32]))]),
     );
@@ -801,8 +801,8 @@ async fn auth_flows_run_registration_login_refresh_reset_and_logout_on_the_confi
         passwords.clone(),
     );
     let jwt = JwtTokens::new(JwtConfig::new(
-        "openrust-tests",
-        "openrust-test-client",
+        "testings",
+        "testing-client",
         "test-key",
         std::collections::BTreeMap::from([("test-key".to_owned(), STANDARD.encode([7_u8; 32]))]),
     ))?;

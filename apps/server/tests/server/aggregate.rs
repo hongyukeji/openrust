@@ -79,27 +79,25 @@ async fn router() -> Result<openrust::http::axum::Router, openrust::Error> {
 }
 
 async fn test_server() -> Result<openrust::App, openrust::Error> {
+    let loader = config::ConfigLoader::new(
+        concat!(env!("CARGO_MANIFEST_DIR"), "/config"),
+        config::Environment::Development,
+    );
+    let figment = loader.figment();
     #[cfg(feature = "encryption")]
-    {
-        use openrust::config::{ConfigLoader, Environment};
-
-        let loader = ConfigLoader::new(
-            concat!(env!("CARGO_MANIFEST_DIR"), "/config"),
-            Environment::Development,
-        );
-        let figment = loader
-            .figment()
-            .merge(("security.encryption.active_key_id", "local"))
-            .merge((
-                "security.encryption.keys.local",
-                "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=",
-            ));
-        let mut builder = AppBuilder::new(loader.load_framework()?, figment);
-        app::Server::build(&mut builder);
-        lifecycle::finalize(builder).await
-    }
-    #[cfg(not(feature = "encryption"))]
-    lifecycle::bootstrap::<app::Server>().await
+    let figment = figment
+        .merge(("security.encryption.active_key_id", "local"))
+        .merge((
+            "security.encryption.keys.local",
+            "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=",
+        ));
+    let application_config = figment
+        .extract::<<app::Server as Application>::Config>()
+        .map_err(openrust::config::ConfigError::from)?;
+    let mut builder = AppBuilder::new(loader.load_framework()?, figment);
+    builder.insert(application_config);
+    app::Server::build(&mut builder);
+    lifecycle::finalize(builder).await
 }
 
 #[test]
@@ -136,7 +134,7 @@ fn root_reports_server_name_and_version() -> TestResult {
         let json: serde_json::Value = serde_json::from_slice(&body)?;
         assert_eq!(json["success"], true);
         assert_eq!(json["code"], "ok");
-        assert_eq!(json["data"]["name"], "openrust-server");
+        assert_eq!(json["data"]["name"], "server");
         assert_eq!(json["data"]["version"], env!("CARGO_PKG_VERSION"));
         assert_eq!(json["request_id"], request_id);
         Ok(())
@@ -146,7 +144,7 @@ fn root_reports_server_name_and_version() -> TestResult {
 #[test]
 fn resource_macro_registers_controller_actions() -> TestResult {
     openrust::tokio::runtime::Runtime::new()?.block_on(async {
-        let app = lifecycle::bootstrap::<ResourceMacroApp>().await?;
+        let app = test_application::<ResourceMacroApp>().await?;
         let router = build_router(&app)?;
         for (method, uri, expected) in [
             ("GET", "/api/posts", "list"),
@@ -175,6 +173,18 @@ fn resource_macro_registers_controller_actions() -> TestResult {
     })
 }
 
+async fn test_application<A: Application>() -> Result<openrust::App, openrust::Error> {
+    let loader = config::ConfigLoader::new(
+        concat!(env!("CARGO_MANIFEST_DIR"), "/config"),
+        config::Environment::Development,
+    );
+    let application_config = loader.load::<A::Config>()?;
+    let mut builder = AppBuilder::new(loader.load_framework()?, loader.figment());
+    builder.insert(application_config);
+    A::build(&mut builder);
+    lifecycle::finalize(builder).await
+}
+
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 #[test]
 fn database_plugin_is_available_through_the_facade() -> TestResult {
@@ -198,7 +208,7 @@ fn database_plugin_is_available_through_the_facade() -> TestResult {
 
 #[test]
 fn config_show_runs_and_redacts_secrets() -> TestResult {
-    let mut command = std::process::Command::new(env!("CARGO_BIN_EXE_openrust-server"));
+    let mut command = std::process::Command::new(env!("CARGO_BIN_EXE_server"));
     command
         .args(["config", "show"])
         .current_dir(env!("CARGO_MANIFEST_DIR"))
@@ -217,7 +227,7 @@ fn config_show_runs_and_redacts_secrets() -> TestResult {
         String::from_utf8_lossy(&output.stderr)
     );
     let stdout = String::from_utf8(output.stdout)?;
-    assert!(stdout.contains("openrust-server"));
+    assert!(stdout.contains("server"));
     assert!(stdout.contains("********"), "{stdout}");
     assert!(!stdout.contains("server-secret-value"));
     Ok(())
@@ -230,7 +240,7 @@ fn default_config_loads_from_package_directory() -> TestResult {
         config::Environment::Development,
     );
     let framework = loader.load_framework()?;
-    assert_eq!(framework.app.name, "openrust-server");
+    assert_eq!(framework.app.name, "server");
     assert_eq!(framework.server.port, 3000);
     assert_eq!(framework.api.http_status, config::HttpStatusMode::AlwaysOk);
     assert!(framework.server.compression.enabled);

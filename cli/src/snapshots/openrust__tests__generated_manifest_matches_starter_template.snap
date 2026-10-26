@@ -1,11 +1,13 @@
 ---
 source: cli/src/main.rs
-expression: "cargo_manifest(\"my-app\")"
+expression: "cargo_manifest(\"my-app\", None, false, false, false, false)"
 ---
 [package]
 name = "my-app"
-version = "0.1.0"
-edition = "2024"
+publish = false
+version.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
-openrust = "0.0.0"
+openrust = { workspace = true }

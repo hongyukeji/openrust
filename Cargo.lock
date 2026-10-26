@@ -759,6 +759,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1c133bc6a41be0d194c306b5506d15e6feeea7b1d6604bd3f8310dfb2ca96486"
 
 [[package]]
+name = "cli"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "clap",
+ "getrandom 0.3.4",
+ "insta",
+ "serde_json",
+ "toml_edit 0.25.17+spec-1.1.0",
+]
+
+[[package]]
 name = "cmake"
 version = "0.1.58"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2058,6 +2071,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "macros"
+version = "0.0.0"
+dependencies = [
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
 name = "matchers"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2248,7 +2269,7 @@ dependencies = [
  "http",
  "jsonwebtoken",
  "lettre",
- "openrust-macros",
+ "macros",
  "reqwest",
  "sea-orm",
  "sea-orm-migration",
@@ -2270,59 +2291,6 @@ dependencies = [
  "uuid",
  "validator",
  "zeroize",
-]
-
-[[package]]
-name = "openrust-cli"
-version = "0.0.0"
-dependencies = [
- "anyhow",
- "base64 0.22.1",
- "clap",
- "getrandom 0.3.4",
- "insta",
-]
-
-[[package]]
-name = "openrust-macros"
-version = "0.0.0"
-dependencies = [
- "quote",
- "syn 2.0.119",
-]
-
-[[package]]
-name = "openrust-server"
-version = "0.0.0"
-dependencies = [
- "axum",
- "base64 0.22.1",
- "chrono",
- "figment",
- "openrust",
- "openrust-test",
- "sea-orm",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "sqlx",
- "time",
- "tokio",
- "tower",
- "tower-sessions",
- "validator",
-]
-
-[[package]]
-name = "openrust-test"
-version = "0.0.0"
-dependencies = [
- "openrust",
- "sea-orm",
- "sea-orm-migration",
- "sqlx",
- "tokio",
- "url",
 ]
 
 [[package]]
@@ -3269,6 +3237,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "server"
+version = "0.0.0"
+dependencies = [
+ "axum",
+ "base64 0.22.1",
+ "chrono",
+ "figment",
+ "openrust",
+ "sea-orm",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "sqlx",
+ "testing",
+ "time",
+ "tokio",
+ "tower",
+ "tower-sessions",
+ "validator",
+]
+
+[[package]]
 name = "sha1"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3681,6 +3671,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "testing"
+version = "0.0.0"
+dependencies = [
+ "openrust",
+ "sea-orm",
+ "sea-orm-migration",
+ "sqlx",
+ "tokio",
+ "url",
+]
+
+[[package]]
 name = "thiserror"
 version = "2.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3893,6 +3895,7 @@ dependencies = [
  "indexmap",
  "toml_datetime 1.1.2+spec-1.1.0",
  "toml_parser",
+ "toml_writer",
  "winnow 1.0.4",
 ]
 

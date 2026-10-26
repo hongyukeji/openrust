@@ -6,6 +6,7 @@ use std::error::Error as StdError;
 
 use openrust::ServiceExt;
 use openrust::auth::Passwords;
+use openrust::config::FrameworkConfig;
 use openrust::http::axum::body::{Body, to_bytes};
 use openrust::http::axum::http::{Request, StatusCode};
 use openrust::http::{AppBuilderHttpExt, HttpPlugin, build_router};
@@ -89,7 +90,7 @@ async fn profile(
 
 #[openrust::tokio::test]
 async fn facade_application_authentication_coexists_with_dependency_injection() -> TestResult {
-    let app = openrust::lifecycle::bootstrap::<App>().await?;
+    let app = test_application::<App>().await?;
     let response = build_router(&app)?
         .oneshot(
             Request::get("/api/profile")
@@ -106,7 +107,7 @@ async fn facade_application_authentication_coexists_with_dependency_injection() 
 
 #[openrust::tokio::test]
 async fn facade_application_authenticates_jwt_without_session_plugin() -> TestResult {
-    let app = openrust::lifecycle::bootstrap::<JwtApp>().await?;
+    let app = test_application::<JwtApp>().await?;
     let _passwords = app.state().try_get::<Passwords>()?;
     let tokens = app.state().try_get::<JwtTokens>()?;
     let token = tokens.issue_access_token(73)?;
@@ -122,4 +123,11 @@ async fn facade_application_authenticates_jwt_without_session_plugin() -> TestRe
     let json: serde_json::Value = serde_json::from_slice(&bytes)?;
     assert_eq!(json["data"], "73:false");
     Ok(())
+}
+
+async fn test_application<A: Application>() -> Result<openrust::App, openrust::Error> {
+    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment::Figment::new());
+    builder.insert(NoConfig {});
+    A::build(&mut builder);
+    openrust::lifecycle::finalize(builder).await
 }

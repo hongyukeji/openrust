@@ -1,39 +1,47 @@
-# CLI
+# OpenRust 命令行
 
-The `openrust` development command shipped with the [OpenRust](https://github.com/hongyukeji/openrust) source workspace. Run it from this checkout using the current package name:
+`cli` package 提供命令 `openrust`，用于创建源码 workspace 内的应用、生成代码并转发应用命令。无需全局安装或从 registry 获取框架包。
 
-```bash
-cargo run -p openrust-cli -- --help
-```
+## 创建和运行应用
 
-The accepted source-workspace migration will rename this package to `cli` and make `new` create applications in `apps/` using local dependencies. That migration is not implemented yet; current generated dependency manifests still need local source wiring. No registry installation is required or planned.
-
-The examples below use `openrust` as shorthand for the locally built `target/debug/openrust` executable; use its absolute path when changing application directories. Current command examples:
+从框架仓库根目录创建应用：
 
 ```bash
-openrust new blog --db postgres --auth
-openrust key generate
-cd blog
-openrust generate model post title:string published_at:date_time?
-openrust generate migration comments body:text post:references?
-openrust generate model post --uuid-id --soft-delete title:string
-openrust generate migration posts --uuid-id --soft-delete title:string
-openrust g migration labels slug:string
+cargo run -p cli -- --help
+cargo run -p cli -- new blog --db postgres --auth
+cd apps/blog
+cargo run -p cli -- dev
 ```
 
-`new` accepts a directory name or destination path and creates the OpenRust starter layout and HTTP application. The generated app registers the HTTP and mail plugins; mail delivery defaults to a log driver that does not log message contents. Without `--db`, it creates a project without database support. `--db postgres` or `--db mysql` also creates a migration crate, registers database, migration and seed plugins, and selects the matching backend feature. Optional `--http-client` enables the facade's `http-client` feature for outbound supplier/API calls. `--sms-twilio` enables the real Twilio Messaging API adapter and its required `http-client` feature; configure `APP_SMS__DRIVER=twilio`, account SID, API key SID/secret, and exactly one sender number or messaging service SID. A receipt means provider acceptance, not final delivery. Copy `.env.example` to `.env` for local overrides; the example documents common server/API overrides, optional SMTP and Twilio SMS settings, and, when enabled, database/JWT values. External process variables take precedence, and production never loads `.env`. Set a valid `DATABASE_URL`, then run `openrust migrate` before starting a database-backed service. The generated `.gitignore` excludes `.env` and environment-specific variants while keeping example files trackable. `dev` runs `cargo run --quiet -- serve` with `APP_ENV=development`; `serve` runs the same project command without changing the environment.
-`--encryption` enables in-process application data encryption, registers `EncryptionPlugin`, and adds a `[security.encryption]` configuration section. `openrust key generate` prints a new 32-byte Base64 key to stdout; protect that output and place it in a secret store or ignored local `.env`. The generated `.env.example` shows the expected active key ID and key-map variables. The feature does not encrypt database backups or JWTs.
+`openrust new <name>` 将应用生成到 `apps/<name>/`，把应用和可选 migration package 追加到现有 workspace，并使用本地 workspace 依赖。也可传 `apps/<name>`；绝对路径、外部目录和嵌套 workspace 不受支持。重复目录、应用 package 名或 migration package 名会在写入前报错。
 
-`generate model` creates a SeaORM entity in `src/models/_entities/` and registers its module. `generate migration` creates a table migration and adds it to the app migration registry. Both accept `string`, `text`, `integer`, `big_integer`, `boolean`, `date_time`, `json`, and `references` fields; append `?` for nullable columns. Reference fields use `<name>_id` and target the pluralized referenced table's `id` column. Model generation uses a singular model name and a simple English plural form for the table; migration generation accepts the table name directly. The referenced table must exist before its foreign key migration runs. Both commands support `--uuid-id` and `--soft-delete`; pass matching options to the model and its migration. UUID generation opts both packages into `db-uuid` and assigns UUIDv7 IDs before inserts. Soft deletion adds nullable `deleted_at` plus an explicit `Entity::not_deleted()` scope; ordinary `Entity::find()` calls are not filtered automatically.
+不带 `--db` 时只生成 HTTP 应用；`--db postgres` 或 `--db mysql` 会生成对应迁移 package，并注册数据库、迁移和 seed 插件。`--auth` 需要 `--db`，会启用 JWT、AuthFlows、Policy 与共享限流 migration，并生成注册、邮箱验证、登录、refresh、登出和密码重置路由。`--http-client`、`--sms-twilio`、`--encryption` 可按需启用出站 HTTP、Twilio 短信和进程内加密。
 
-`generate mailer <name>` creates a customizable plain-text type implementing `openrust::mail::Email` and registers it in `src/mailers/`. Set its sender, recipient, subject, and body in application code, then send it through the injected `Mailer` service. `generate policy <resource>` creates a resource policy wrapper in `src/policies/` with exact `read`, `create`, `update`, and `delete` permission names (for example, `posts:read`). Policy generation requires a project created with `--auth`; seed roles and grants through the existing `openrust::auth::Policy` service. Both commands require one snake_case name and refuse to overwrite an existing module.
+从应用目录运行后续命令。CLI 会根据 Cargo metadata 选中该目录对应的应用 package，并以应用目录作为子进程工作目录，因而读取该应用自己的 `config/`：
 
-Any other command is forwarded to the application binary in the current project (`openrust migrate` runs `cargo run --quiet -- migrate`), so a project has one entry point for framework commands and application commands.
+```bash
+cargo run -p cli -- key generate
+cargo run -p cli -- generate model post title:string published_at:date_time?
+cargo run -p cli -- generate migration comments body:text post:references?
+cargo run -p cli -- generate model post --uuid-id --soft-delete title:string
+cargo run -p cli -- generate migration posts --uuid-id --soft-delete title:string
+cargo run -p cli -- g migration labels slug:string
+```
 
-The default template has no database dependency. Database generators require a project created with `openrust new --db`. The optional `--auth` flag requires `--db postgres` or `--db mysql`; it enables the facade auth feature, registers `JwtPlugin`, `AuthPlugin`, and `AuthFlowsPlugin`, adds account, refresh, verification-code, Policy and shared rate-limit migrations, and protects `/api/me` with JWT Bearer authentication and `/api/me/pat` with database-backed PAT authentication. It also generates JSON endpoints for registration, email verification, login, refresh, logout and password reset. Set `APP_AUTH__JWT__KEYS__LOCAL` in `.env` to the output of `openssl rand -base64 32` before starting the app. The template never embeds a signing secret. Generated mail uses the safe `log` driver by default, which does not expose verification codes; configure SMTP to deliver them. `[server].trusted_proxy_ranges` defaults to an empty list; configure the reverse proxy IPs/CIDRs before relying on forwarded client addresses for per-client rate isolation.
+`dev` 将 `APP_ENV` 设为 `development` 后运行该应用的 `serve`；`serve` 保留当前环境。其他命令转发给所选应用并保留退出码。当前 dev/serve 只负责启动，不提供文件监听、依赖服务编排、就绪等待或自动迁移。
 
-Auth-enabled projects include a real HTTP integration test at `tests/auth_flows.rs`. It starts a loopback listener, uses an isolated database and fake mail driver, and exercises the generated auth endpoints. Set `OPENRUST_TEST_DATABASE_URL` to an existing PostgreSQL or MySQL database whose test account can create and drop databases before running `cargo test`; when it is unset, the test reports that the database integration test was skipped.
+## 生成代码
 
-Before opening a generated project, verify its source and build with `cargo fmt --all --check`, `cargo check`, and `cargo test`. The auth integration test performs real database operations while sending verification messages through its test mail driver.
+`generate model` 在 `src/models/_entities/` 生成 SeaORM entity；`generate migration` 在 `migration/` 生成迁移并写入 registry。字段支持 `string`、`text`、`integer`、`big_integer`、`boolean`、`date_time`、`json` 和 `references`，在字段类型后加 `?` 表示可空。model 使用单数名称，表名采用简单英语复数；migration 接受表名。被引用表须在外键迁移前创建。
 
-The starter app installs `I18nPlugin` alongside HTTP and mail. Configure `i18n.default_locale` and `i18n.fallback_locale` in TOML, or use `APP_I18N__DEFAULT_LOCALE` / `APP_I18N__FALLBACK_LOCALE`; `Accept-Language` selects a supported locale per request. Applications can merge JSON message resources through `MessageCatalog`.
+两个数据库生成命令均支持 `--uuid-id` 与 `--soft-delete`，model 与对应迁移须使用相同选项。UUID 使用 UUIDv7，并同时为应用与 migration package 启用 `db-uuid`；软删除增加可空 UTC `deleted_at`，只提供显式 `Entity::not_deleted()` scope，不改变普通 `Entity::find()`。
+
+`generate mailer <name>` 生成实现 `openrust::mail::Email` 的纯文本邮件类型；`generate policy <resource>` 生成基于 `openrust::auth::Policy` 的资源授权包装，权限名为 `<resource>:read|create|update|delete`。mailer 与 policy 会登记到各自模块，禁止覆盖已有文件；policy 需要通过 `--auth` 创建项目。
+
+## 配置与验收
+
+复制 `.env.example` 为 `.env` 以进行本地覆盖；不要提交含有密钥的 `.env`。进程环境变量优先，生产环境不加载 `.env`。`openrust key generate` 输出一个 32 字节 Base64 密钥，不写入配置文件；请将输出保存到受保护的 secret store 或被忽略的本地 `.env`。加密只处理应用数据，不会加密数据库备份或 JWT。
+
+启用认证的应用包含真实 HTTP 集成测试 `tests/auth_flows.rs`，使用隔离数据库和 fake 邮件驱动验证端点。运行数据库测试前，设置 `OPENRUST_TEST_DATABASE_URL` 为可创建和删除测试库的 PostgreSQL 或 MySQL 管理连接；变量缺失时测试会跳过数据库路径，不能视为真实数据库验收通过。新生成项目应执行 `cargo fmt --all --check`、`cargo check` 与 `cargo test`；涉及数据库的测试还须在相应真实服务上实际运行。
+
+应用默认安装 `I18nPlugin`。`config/default.toml` 中的 `i18n.default_locale` 与 `i18n.fallback_locale` 设定默认语言和回退；请求的 `Accept-Language` 选择受支持的语言。应用可通过 `MessageCatalog` 扩展 JSON 消息资源。

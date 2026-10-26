@@ -4,7 +4,7 @@
 > 状态：目录迁移与适用验收完成；apps/server 评估结论为保留。代码提交 `de6fc65`，验收文档提交 `c84a090`。
 > 决策：[ADR-021](../decisions/adr-021-loco-style-module-layout.md)。执行优先级见 [plan.md](../plan.md#执行校准)。
 
-> 包名与交付方式已由 [ADR-039](../decisions/adr-039-source-workspace-distribution.md) 更新。下列旧包名与“保持包名”只记录已完成目录迁移的范围；新实现须执行中性包名、禁用发布和 apps 生成流程，不能继续沿用旧发布前提。
+> 包名与交付方式已由 [ADR-039](../decisions/adr-039-source-workspace-distribution.md) 更新。下列旧包名只记录已完成目录迁移时的身份；当前包名、禁用发布和 apps 生成验收以 ADR-039 与 `memory/testing.md` 为准。
 
 ## Spec
 
@@ -20,10 +20,10 @@
 | Package/入口 | 当前路径 | 目标/处理 |
 | --- | --- | --- |
 | `openrust` | 根目录，能力在 `src/` | 保持；配置代码 `src/config/`，运行时配置在应用根 `config/` |
-| `openrust-cli` | `cli/` | 已迁移；保留 CLI 编译边界、模板和测试 |
-| `openrust-macros` | `macros/` | 已迁移；保留 Rust proc-macro 独立 package |
-| `openrust-test` | `testing/` | 已迁移；用户 dev-dependency，单向依赖框架 |
-| `openrust-server` | `apps/server` | 保留验收职责；当前包名按 ADR-039 待改为 `server` |
+| `cli` | `cli/` | 保留 CLI 编译边界、模板和测试 |
+| `macros` | `macros/` | 保留 Rust proc-macro 独立 package |
+| `testing` | `testing/` | 用户 dev-dependency，单向依赖框架 |
+| `server` | `apps/server` | 保留集成验收职责 |
 | hello 示例 | `examples/hello/main.rs` | 已迁移并显式保留 `hello` target 名 |
 | 公共 API 测试 | `tests/http/*.rs` | 已按 HTTP 能力分组并显式声明原 target 名 |
 | 宿主集成测试 | `apps/server/tests/{auth,database,http,i18n,queue,schedule,server}/` | 已按能力分组并显式声明原 target 名；宿主职责保留 |
@@ -40,7 +40,7 @@
 | worker/scheduler 独立进程与异常退出测试 | 测试二进制路径、信号、lease恢复和进程回收；不能退化为单进程 fake |
 | 生成项目与示例对接 | 下游公开API、模板路径/本地patch、两种数据库生成项目check/test与HTTP流程 |
 
-评估结论：保留 `apps/server`。`tests/server/aggregate.rs` 通过 `CARGO_BIN_EXE_openrust-server` 启动真实服务；服务器使用自己的配置目录。双库、进程信号/崩溃、feature forwarding 与隔离测试数据库验收仍依赖此 package。根 HTTP 测试和 hello 示例不等价覆盖这些职责；后续若迁移，须先提供可运行二进制与同等双库/进程测试宿主。
+评估结论：保留 `apps/server`。`tests/server/aggregate.rs` 通过 `CARGO_BIN_EXE_server` 启动真实服务；每个应用从自己的工作目录定位配置。双库、进程信号/崩溃、feature forwarding 与隔离测试数据库验收仍依赖此 package。根 HTTP 测试和 hello 示例不等价覆盖这些职责；后续若迁移，须先提供可运行二进制与同等双库/进程测试宿主。
 
 ## 执行顺序与验证
 
@@ -50,4 +50,4 @@
 4. 按 [testing.md](../memory/testing.md) 在 PostgreSQL 18/MySQL 8.4 实跑数据库、认证、队列、调度及崩溃恢复；例子实际启动；两种数据库生成项目 check/test 与已承诺的 HTTP 流程均通过。服务先检查复用，不为结构整理重复创建数据库。
 5. 同步 CI 的新路径与缺失 queue feature；证明服务作业中的测试未跳过，不通过移除用例、忽略失败或减小验证范围完成迁移。
 6. 扫描旧路径，区分历史 ADR 与有效代码/命令/文档；运行本地链接/锚点和 diff 检查。用 Git 跟踪迁移/删除；已删除旧 `crates/`，历史 ADR 中旧路径仅作背景引用。
-7. 更新 architecture、core、README、testing 的真实路径，删除 todo 本项；报告保留/移除 server 的理由、测试入口映射、实跑结果与提交。完整 v1 集群与性能不因本簇通过而自动完成。
+7. 目录收尾由提交 `de6fc65`、`c84a090` 完成；包名与源码交付按 ADR-039 独立验收。完整 v1 集群与性能不因这些簇通过而自动完成。

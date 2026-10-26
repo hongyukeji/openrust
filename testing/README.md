@@ -1,47 +1,34 @@
-# openrust-test
+# testing 测试工具
 
-Testing utilities for [OpenRust](https://github.com/hongyukeji/openrust) applications.
+`testing` 是应用测试工具 package，只能依赖根 `openrust`，根框架不反向依赖它。当前提供 PostgreSQL 与 MySQL 隔离数据库。
 
-## Isolated database
+`TestDatabase::create::<M>(admin_url)` 为一次测试创建唯一数据库并运行应用迁移。PostgreSQL 先建立临时迁移模板再克隆；MySQL 为每个用例新建数据库并运行迁移。MySQL 强制 TLS，并将 session 时区设为 `+00:00`。隔离 URL 保留原连接凭据和查询参数，只替换数据库路径；管理账号须有创建和删除数据库的权限。
 
-In an application within this source workspace, enable the backend used by the test database and pass an admin URL that can create and drop databases. This example uses the current package name; the planned migration will use `testing` for both the package and Rust import.
+测试完成后调用 `close().await` 关闭连接并等待数据库删除。guard 在 Tokio runtime 中 drop 时也会尝试清理。`Debug` 输出会遮蔽数据库 URL。当前隔离保证只覆盖 PostgreSQL 和 MySQL；不能据 `Db::initialize()` 可接入推断其他 SeaORM backend 兼容。
+
+在应用 `Cargo.toml` 中添加测试依赖：
 
 ```toml
 [dev-dependencies]
-openrust-test = { workspace = true, features = ["db-postgres"] }
+testing = { workspace = true, features = ["db-postgres"] }
 ```
 
 ```rust,ignore
-let database = openrust_test::TestDatabase::create::<migration::Migrator>(
+let database = testing::TestDatabase::create::<migration::Migrator>(
     &std::env::var("OPENRUST_TEST_DATABASE_URL")?,
 )
 .await?;
-let test_url = database.url();
-// Configure and run the application against test_url.
-database.close().await?;
 ```
 
-Each instance receives a unique database and runs the application's migrations. PostgreSQL
-creates a temporary migrated template and clones it; MySQL creates a database and applies the
-migrations. The URL's database path is replaced while its credentials and query parameters remain.
-The admin user needs database creation and deletion privileges. MySQL connections use required
-TLS and set session time zone to UTC. Explicit `close().await` waits for deletion; dropping the guard schedules best-effort cleanup
-while a Tokio runtime is active.
+数据库测试须使用真实服务；环境变量未设置或测试被跳过时，不构成数据库验收。`TestApp` 和 HTTP response assertions 仍是 M6 待实现项，将复用 finalize、公开 router、Tower oneshot 与本 package 的数据库隔离工具。
 
-When migrations use configured table prefixes or full-name mappings, pass the same immutable resolver used by the application:
+使用自定义表前缀或全名映射时，将应用使用的 resolver 一并传给隔离数据库：
 
 ```rust,ignore
-let names = openrust_db::DatabaseTableNames::new("shop_", Default::default())?;
-let database = openrust_test::TestDatabase::create_with_table_names::<migration::Migrator>(
+let names = openrust::db::DatabaseTableNames::new("shop_", Default::default())?;
+let database = testing::TestDatabase::create_with_table_names::<migration::Migrator>(
     &std::env::var("OPENRUST_TEST_DATABASE_URL")?,
     names,
 )
 .await?;
 ```
-
-The resolver is scoped to migration execution for both PostgreSQL and MySQL. `create()` continues to use the default `tb_` resolver.
-
-## Scope
-
-Per-test database isolation is implemented. `TestApp`, HTTP response assertions, factories, and
-fake-driver assertions remain planned for their later milestones.

@@ -12,10 +12,10 @@
 
 ## 执行校准
 
-**优先校准：[ADR-039](decisions/adr-039-source-workspace-distribution.md) 已取消独立包发布前提。保护并闭合当前最小 WIP（外部阻塞则明确登记）后，先完成中性包名、禁用发布与源码 workspace 生成/启动迁移，再领取后续功能。当前命令仍按实际 manifest，不把设计确认当作代码已完成。**
+**[ADR-039](decisions/adr-039-source-workspace-distribution.md) 的源码 workspace、包命名、生成器、应用启动/配置隔离和双库验收已完成并提交。当前功能簇按 [todo.md](todo.md) 进入 C1 默认文档入口中文化；C1–C3 完成后再继续 M4。**
 
-1. 目录收尾、M3 Mailer/Policy 生成器、公开 HTTP 路由限流及数据输出/查询边界和 M4 类型化事件/queued listener 已完成；后续工作按 `todo.md` 当前优先级推进。
-2. 目录和内部 package 统一使用中性职责名，新的改名与源码交付按 ADR-039；已完成目录迁移不重做。框架在 `src/`；CLI、proc-macro、测试工具保留独立 package 的技术边界，迁出顶层 `crates/`。应用约定 `apps/` 保留；`apps/server` 逐项审计启动、feature、双库、命令与进程测试职责，替代覆盖通过前保留。见 [ADR-021](decisions/adr-021-loco-style-module-layout.md)。
+1. 目录收尾、M3 Mailer/Policy 生成器、公开 HTTP 路由限流及数据输出/查询边界、M4 类型化事件/queued listener 和 ADR-039 源码交付已完成；后续工作按 `todo.md` 当前优先级推进。
+2. 目录和内部 package 统一使用中性职责名，ADR-039 已完成；已完成目录迁移不重做。框架在 `src/`；CLI、proc-macro、测试工具保留独立 package 的技术边界，应用约定 `apps/` 保留；`apps/server` 继续承担集成宿主职责。见 [ADR-021](decisions/adr-021-loco-style-module-layout.md)。
 3. `examples/` 和 `tests/` 按示例/能力分目录；不得只移动文件导致 Cargo 不再发现测试。迁移必须比较 targets 与用例数量，验证包路径、宏展开、模板、CI、文档和全部测试入口。
 4. 只保留一个实现功能簇 in_progress。每簇先定公开 contract，再实现、匹配验证、本地提交、更新事实。已有实现不重做；未提交 WIP、编译通过、fake、本地双库、完整集群分别报告。
 5. M3 Mailer/Policy 生成器、通用路由限流及数据输出/查询边界已补交；跨事务业务流程扩展点仍按 `todo.md` 补齐，不能用“阶段已关闭”取消范围。
@@ -28,14 +28,13 @@
 12. AI 平台仍仅规划：框架 v1/v2 成熟后另行明确启动，产品只在 `projects/*` 分支与独立 worktree 开发；P0–P8 和上线门禁通过并获上线批准后才开放。详见 [产品隔离规则](plans/ai-platform-product.md#分支与工作区硬性约束)。
 13. 文档、Rustdoc、代码/配置注释与开发者帮助立即按 [语言规范](style.md#语言规范) 使用简体中文。ADR-039 完成后先按 `todo.md` 的 C1–C3 整改既有英文说明，再继续后续能力；不新建完整英文文档线，不改变运行时 i18n。
 14. 按 [ADR-001](decisions/adr-001-own-kernel-on-axum.md#成熟组件优先与-laravel-式开发体验) 优先复用成熟组件，提供 Laravel 式约定与完整体验；框架维护整合价值和真实可用的公开扩展。已有内核/队列不因偏好重写，六框架排序、既有公共命名和版本范围保持有效。
-15. 审查建议已归入 `todo.md` 对应簇：M4 修 worker 合作停机与内层错误传播；M5 先闭合 Db/Queue 外部执行边界，再交付可选驱动与资源控制；示例随能力推进，M6 完成体验、性能及源码升级/维护验收。静态发现不算新增测试或修复通过；不打断 ADR-039 当前 WIP。
+15. 审查建议已归入 `todo.md` 对应簇：M4 修 worker 合作停机与内层错误传播；M5 先闭合 Db/Queue 外部执行边界，再交付可选驱动与资源控制；示例随能力推进，M6 完成体验、性能及源码升级/维护验收。静态发现不算新增测试或修复通过。
 
 ## 里程碑顺序
 
 | 顺序 | 工作 | 完成门槛 |
 | --- | --- | --- |
-| 优先 | 源码交付与内部包命名 | ADR-039；禁用发布、本地依赖、apps 生成/启动、双应用配置隔离及双库验收 |
-| 随后 | 默认文档、Rustdoc/注释、生成说明与 CLI 帮助中文化 | C1–C3；语义/链接/示例/帮助与生成产物有效，按范围验证；英文文档后置 |
+| 当前 | 默认文档、Rustdoc/注释、生成说明与 CLI 帮助中文化 | C1–C3；语义/链接/示例/帮助与生成产物有效，按范围验证；英文文档后置 |
 | M4 | 事务/认证扩展、共享锁/请求幂等、worker 停机/恢复修正、队列通知 | 数据库真实竞争与故障测试，job 生成器，启用 queue 的双库 CI；逐步接入代表性示例 |
 | M5 | Db/Queue 外部扩展、缓存、多实例、存储上传、WebSocket/SSE、可观测性 | 独立扩展、Redis/file/memory 契约、对象存储、跨节点与资源边界 |
 | M6 | CLI/dev/doctor、TestApp、OpenAPI、完整生成器、示例与正式文档 | 双库黄金路径、体验走查、源码升级/维护、构建成本及兼容/集群/性能门禁 |

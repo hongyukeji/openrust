@@ -54,7 +54,7 @@ impl TestDatabase {
         if !backend.is_enabled() {
             return Err(Error::custom(
                 "database_feature_disabled",
-                format!("enable the openrust-test {} feature", backend.feature()),
+                format!("enable the testing {} feature", backend.feature()),
             ));
         }
         let database_name = unique_database_name();
@@ -77,7 +77,7 @@ impl TestDatabase {
                 {
                     Err(Error::custom(
                         "database_feature_disabled",
-                        "enable the openrust-test db-postgres feature",
+                        "enable the testing db-postgres feature",
                     ))
                 }
             }
@@ -96,7 +96,7 @@ impl TestDatabase {
                 {
                     Err(Error::custom(
                         "database_feature_disabled",
-                        "enable the openrust-test db-mysql feature",
+                        "enable the testing db-mysql feature",
                     ))
                 }
             }

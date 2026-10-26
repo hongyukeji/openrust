@@ -1,5 +1,5 @@
 [app]
-name = "openrust-server"
+name = "server"
 url = "http://localhost:3000"
 
 [server]

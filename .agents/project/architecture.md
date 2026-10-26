@@ -23,15 +23,15 @@ openrust (根 package + workspace)
 ├── src/schedule.rs  # UTC 调度（queue feature）
 ├── tests/           # 框架公共 API 集成测试
 └── examples/        # 可运行示例
-cli/                     # 独立 `openrust` 命令行与模板（package: openrust-cli）
-macros/                  # proc-macro package（openrust-macros）
-testing/                 # 用户 dev-dependency 测试工具（openrust-test）
+cli/                     # 独立 `openrust` 命令行与模板（package: cli）
+macros/                  # proc-macro package（macros）
+testing/                 # 用户 dev-dependency 测试工具（testing）
 apps/server/             # 同仓库集成宿主；通过验收替代后才可移除
 ```
 
-框架源码 Rust 模块与运行时配置文件分开：源码位于根 `src/config/`，每个应用（含生成项目）在自身项目根 `config/` 放 TOML/YAML。仓库 `apps/` 是业务应用入口；当前生成器仍创建独立项目，须按 ADR-039 改为 workspace 内 `apps/<name>/`，保留应用自己的 `src/`、`config/` 和 `Cargo.toml`。
+框架源码 Rust 模块与运行时配置文件分开：源码位于根 `src/config/`，每个应用（含生成项目）在自身项目根 `config/` 放 TOML/YAML。仓库 `apps/` 是业务应用入口；CLI 通过 Cargo metadata 识别源码 workspace，默认生成到 `apps/<name>/`，并把应用及可选 migration 登记为 workspace member。应用使用本地 workspace/path 依赖；`dev`、`serve` 与代理命令按目标 app 的 manifest 显式选包，并从应用工作目录加载配置。外部独立目录不是生成目标，详细边界见 ADR-039。
 
-当前 manifest 的五个 workspace package 为：根 `openrust`（框架），`openrust-cli`（命令分发），`openrust-macros`（proc-macro 技术边界），`openrust-test`（用户测试 dev-dependency），`openrust-server`（聚合启动与验收宿主）。原能力空壳已移除；cache/events/storage 等剩余能力直接在根 package 实现，不预建空模块。
+当前 manifest 的五个 workspace package 为：根 `openrust`（框架），`cli`（命令分发），`macros`（proc-macro 技术边界），`testing`（用户测试 dev-dependency），`server`（聚合启动与验收宿主）。原能力空壳已移除；cache/events/storage 等剩余能力直接在根 package 实现，不预建空模块。
 
 ## 目录职责与验证入口
 
@@ -46,11 +46,11 @@ apps/server/             # 同仓库集成宿主；通过验收替代后才可�
 - 所有框架能力属于同一个 `openrust` package，内部引用沿 `core/config` 等 module boundary；公共稳定入口保持 `openrust::...`。
 - 根 package 可选数据库 driver、SMTP 等依赖由 Cargo features 控制；默认构建无需数据库驱动或外部服务。
 - PostgreSQL 与 MySQL 的 schema/SQL 差异集中在 `db::dialect` 及明确的数据库适配入口，需为两库提供分支和真实测试。
-- 生成应用只依赖 `openrust`；`openrust-test` 单向依赖 `openrust`，根框架不得反向依赖测试工具。
+- 生成应用只依赖 `openrust`；`testing` 单向依赖 `openrust`，根框架不得反向依赖测试工具。
 - `apps/server` 只依赖公开 facade；继续承载尚未由根 `tests/` / `examples/` 等价接替的启动、feature 组合、生成项目和双库验收。
 - 只有存在编译、工具或测试依赖边界时才保留 package；不得为规划中的能力机械增设空 crate 或空 module。
 
-`openrust-test` 当前提供 `TestDatabase` 隔离工具；公共 `TestApp` / HTTP response assertions 是计划中的 M6 测试体验补齐，不应按 crate 描述或历史计划文字误判为已实现。
+`testing` 当前提供 `TestDatabase` 隔离工具；公共 `TestApp` / HTTP response assertions 是计划中的 M6 测试体验补齐，不应按 crate 描述或历史计划文字误判为已实现。
 
 ## 当前状态
 
@@ -64,9 +64,9 @@ apps/server/             # 同仓库集成宿主；通过验收替代后才可�
 | `openrust::mail`、`openrust::sms` | log/fake、可选 SMTP/Twilio、显式 locale；Mailpit 本地实收有记录，Twilio 实发待授权；队列通知编排未完成；见 [core/mail.md](core/mail.md) |
 | `openrust::security`、`openrust::signing` | 可选本地应用加密/密钥轮换、用途隔离签名链接及共享撤销；见 [core/security.md](core/security.md)、[core/signing.md](core/signing.md) |
 | `openrust::queue`、`openrust::schedule` | 数据库队列/worker 与 UTC 调度已有实现；任务编排、事件、完整故障/集群验收的提交及 WIP 边界以 Git、[core/queue.md](core/queue.md)、[core/schedule.md](core/schedule.md) 为准，不能据此关闭 M4 |
-| `openrust-cli` | new/dev/generate 与模板，见 [core/cli.md](core/cli.md) |
-| `openrust-macros` | `#[openrust::resource]` proc-macro，见 [core/macros.md](core/macros.md) |
-| `openrust-test` | PostgreSQL/MySQL `TestDatabase`，见 [core/test.md](core/test.md) |
+| `cli` | new/dev/generate 与模板，见 [core/cli.md](core/cli.md) |
+| `macros` | `#[openrust::resource]` proc-macro，见 [core/macros.md](core/macros.md) |
+| `testing` | PostgreSQL/MySQL `TestDatabase`，见 [core/test.md](core/test.md) |
 | `apps/server` | 聚合入口及启动/数据库/认证集成验证，见 [core/server.md](core/server.md) |
 | cache/events/storage 等剩余能力 | 尚未完整实现；按 [当前计划](plan.md) 与 [能力覆盖](plans/v1-capability-coverage.md) 逐簇推进 |
 

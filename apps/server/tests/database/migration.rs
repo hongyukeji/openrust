@@ -173,7 +173,7 @@ async fn migration_command_applies_repeats_reports_and_rolls_back()
         eprintln!("skipping database migration: OPENRUST_TEST_DATABASE_URL is unset");
         return Ok(());
     };
-    let test_database = openrust_test::TestDatabase::create::<TestMigrator>(&url).await?;
+    let test_database = testing::TestDatabase::create::<TestMigrator>(&url).await?;
     let source = format!("[database]\nurl = {:?}\n", test_database.url());
     let figment = Figment::new().merge(Toml::string(&source));
     let mut framework_config = FrameworkConfig::default();

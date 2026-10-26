@@ -5,7 +5,7 @@
 use std::fmt::Write as FmtWrite;
 use std::fs;
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command as Process, ExitCode};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -14,6 +14,7 @@ use anyhow::{Context, bail};
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
 use clap::{Parser, Subcommand, ValueEnum};
+use serde_json::Value;
 
 static MIGRATION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
@@ -29,7 +30,7 @@ struct Cli {
 enum Builtin {
     /// Create a new OpenRust application from the built-in starter template.
     New {
-        /// Application directory name or destination path.
+        /// 应用名称；生成到 `apps/<name>/`。
         name: String,
         /// Add a PostgreSQL or MySQL connection and migration crate.
         #[arg(long, value_enum)]
@@ -96,6 +97,131 @@ enum DatabaseBackend {
     Postgres,
     #[value(name = "mysql")]
     Mysql,
+}
+
+#[derive(Debug)]
+struct WorkspacePackage {
+    name: String,
+    manifest_path: PathBuf,
+}
+
+#[derive(Debug)]
+struct FrameworkWorkspace {
+    root: PathBuf,
+    packages: Vec<WorkspacePackage>,
+}
+
+fn framework_workspace(start: &Path) -> anyhow::Result<FrameworkWorkspace> {
+    let output = Process::new("cargo")
+        .current_dir(start)
+        .args(["metadata", "--format-version=1", "--no-deps"])
+        .output()
+        .context("failed to run `cargo metadata`")?;
+    if !output.status.success() {
+        bail!("current directory is not a Cargo workspace");
+    }
+    let metadata: Value =
+        serde_json::from_slice(&output.stdout).context("`cargo metadata` returned invalid JSON")?;
+    let root = PathBuf::from(
+        metadata["workspace_root"]
+            .as_str()
+            .context("Cargo metadata omitted workspace_root")?,
+    )
+    .canonicalize()?;
+    let packages = metadata["packages"]
+        .as_array()
+        .context("Cargo metadata omitted packages")?
+        .iter()
+        .map(|package| {
+            Ok(WorkspacePackage {
+                name: package["name"]
+                    .as_str()
+                    .context("Cargo metadata package omitted name")?
+                    .to_owned(),
+                manifest_path: PathBuf::from(
+                    package["manifest_path"]
+                        .as_str()
+                        .context("Cargo metadata package omitted manifest_path")?,
+                )
+                .canonicalize()?,
+            })
+        })
+        .collect::<anyhow::Result<Vec<_>>>()?;
+    let has_member = |name: &str, relative_manifest: &str| {
+        packages.iter().any(|package| {
+            package.name == name && package.manifest_path == root.join(relative_manifest)
+        })
+    };
+    if !has_member("openrust", "Cargo.toml")
+        || !has_member("cli", "cli/Cargo.toml")
+        || !has_member("macros", "macros/Cargo.toml")
+        || !has_member("testing", "testing/Cargo.toml")
+        || !has_member("server", "apps/server/Cargo.toml")
+    {
+        bail!(
+            "OpenRust source workspace was not found; run this command from its checkout or an app inside it"
+        );
+    }
+    Ok(FrameworkWorkspace { root, packages })
+}
+
+fn application_directory(
+    workspace: &FrameworkWorkspace,
+    current_dir: &Path,
+) -> anyhow::Result<(PathBuf, String)> {
+    let current_dir = current_dir.canonicalize()?;
+    let app_root = workspace.root.join("apps").canonicalize()?;
+    if app_root.parent() != Some(workspace.root.as_path())
+        || app_root.file_name().and_then(|name| name.to_str()) != Some("apps")
+    {
+        bail!("`apps/` must resolve to a direct directory inside the framework workspace");
+    }
+    let app = workspace
+        .packages
+        .iter()
+        .filter_map(|package| {
+            let directory = package.manifest_path.parent()?;
+            if !directory.starts_with(&app_root)
+                || directory
+                    .components()
+                    .any(|component| component.as_os_str() == "migration")
+                || !current_dir.starts_with(directory)
+            {
+                return None;
+            }
+            Some((directory, package.name.as_str()))
+        })
+        .max_by_key(|(directory, _)| directory.components().count())
+        .context("no OpenRust application package found; run this command from `apps/<name>`")?;
+    if app.0.parent() != Some(app_root.as_path())
+        || app.0.file_name().and_then(|name| name.to_str()) != Some(app.1)
+    {
+        bail!("application package name must match its `apps/<name>` directory");
+    }
+    Ok((app.0.to_path_buf(), app.1.to_owned()))
+}
+
+fn manifest_with_members(root: &Path, new_members: &[String]) -> anyhow::Result<String> {
+    let manifest_path = root.join("Cargo.toml");
+    let source = fs::read_to_string(&manifest_path)?;
+    let mut document = source
+        .parse::<toml_edit::DocumentMut>()
+        .context("framework Cargo.toml is invalid TOML")?;
+    let members = document
+        .get_mut("workspace")
+        .and_then(toml_edit::Item::as_table_mut)
+        .and_then(|workspace| workspace.get_mut("members"))
+        .and_then(toml_edit::Item::as_array_mut)
+        .context("framework Cargo.toml must declare workspace.members as an array")?;
+    for member in new_members {
+        if !members
+            .iter()
+            .any(|existing| existing.as_str() == Some(member))
+        {
+            members.push(member.as_str());
+        }
+    }
+    Ok(document.to_string())
 }
 
 impl DatabaseBackend {
@@ -182,7 +308,7 @@ fn generate_key() -> anyhow::Result<String> {
     Ok(STANDARD.encode(key))
 }
 
-/// Creates a starter application under the current directory.
+/// 在已识别的框架 workspace 中创建应用，并注册其 workspace 成员。
 #[allow(
     clippy::fn_params_excessive_bools,
     reason = "these flags mirror the public CLI options"
@@ -199,26 +325,102 @@ fn create_project(
     if auth && database.is_none() {
         bail!("authentication requires a database; use `openrust new --db postgres|mysql --auth`");
     }
-    let name_path = Path::new(name);
-    if name_path
-        .components()
-        .any(|component| matches!(component, std::path::Component::ParentDir))
-    {
-        bail!("project path must not contain `..`");
-    }
-    let project_name = name_path
-        .file_name()
-        .and_then(|value| value.to_str())
-        .context("project path must end with a valid directory name")?;
-    let project_dir = if name_path.is_absolute() {
-        name_path.to_path_buf()
-    } else {
-        current_dir.join(name_path)
-    };
+    let workspace = framework_workspace(current_dir)?;
+    let apps_root = application_root(&workspace)?;
+    let project_name = application_name(name)?;
+    let project_dir = apps_root.join(project_name);
     if project_dir.exists() {
         bail!("destination already exists: {}", project_dir.display());
     }
 
+    let type_name = application_type_name(project_name)?;
+
+    let migration_name = format!("{project_name}-migration");
+    if workspace
+        .packages
+        .iter()
+        .any(|package| package.name == project_name || package.name == migration_name)
+    {
+        bail!("application or migration package name is already in use: `{project_name}`");
+    }
+    let mut new_members = vec![format!("apps/{project_name}")];
+    if database.is_some() {
+        new_members.push(format!("apps/{project_name}/migration"));
+    }
+    let updated_workspace_manifest = manifest_with_members(&workspace.root, &new_members)?;
+
+    let result = populate_project(
+        &project_dir,
+        project_name,
+        &type_name,
+        database,
+        auth,
+        http_client,
+        sms_twilio,
+        encryption,
+    );
+    if result.is_err() {
+        let _ = fs::remove_dir_all(&project_dir);
+    }
+    result?;
+    if let Err(error) = fs::write(
+        workspace.root.join("Cargo.toml"),
+        updated_workspace_manifest,
+    ) {
+        let _ = fs::remove_dir_all(&project_dir);
+        return Err(error).context("failed to add the generated app to the framework workspace");
+    }
+    let mut stdout = std::io::stdout().lock();
+    writeln!(
+        stdout,
+        "Created OpenRust application `{project_name}` at {}",
+        project_dir.display()
+    )?;
+    writeln!(
+        stdout,
+        "Next steps: cd {} && openrust dev",
+        project_dir.display()
+    )?;
+    Ok(())
+}
+
+fn application_root(workspace: &FrameworkWorkspace) -> anyhow::Result<PathBuf> {
+    let apps_root = workspace.root.join("apps").canonicalize()?;
+    if apps_root.parent() != Some(workspace.root.as_path())
+        || apps_root.file_name().and_then(|name| name.to_str()) != Some("apps")
+    {
+        bail!("`apps/` must resolve to a direct directory inside the framework workspace");
+    }
+    Ok(apps_root)
+}
+
+fn application_name(name: &str) -> anyhow::Result<&str> {
+    let requested = Path::new(name);
+    if requested.is_absolute() {
+        bail!(
+            "external destination paths are not supported; applications belong under `apps/<name>`"
+        );
+    }
+    if requested
+        .components()
+        .any(|component| !matches!(component, std::path::Component::Normal(_)))
+    {
+        bail!("application name must not contain `.` or `..` path components");
+    }
+    let components = requested
+        .components()
+        .filter_map(|component| match component {
+            std::path::Component::Normal(value) => value.to_str(),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    match components.as_slice() {
+        [name] | ["apps", name] => Ok(name),
+        _ => bail!("application name must be a single directory name or `apps/<name>`"),
+    }
+}
+
+fn application_type_name(project_name: &str) -> anyhow::Result<String> {
     let snake_name = project_name.replace('-', "_");
     if snake_name.is_empty()
         || !project_name
@@ -250,33 +452,7 @@ fn create_project(
     if type_name.is_empty() {
         bail!("project name must contain at least one letter or digit");
     }
-
-    let result = populate_project(
-        &project_dir,
-        project_name,
-        &type_name,
-        database,
-        auth,
-        http_client,
-        sms_twilio,
-        encryption,
-    );
-    if result.is_err() {
-        let _ = fs::remove_dir_all(&project_dir);
-    }
-    result?;
-    let mut stdout = std::io::stdout().lock();
-    writeln!(
-        stdout,
-        "Created OpenRust application `{project_name}` at {}",
-        project_dir.display()
-    )?;
-    writeln!(
-        stdout,
-        "Next steps: cd {} && openrust dev",
-        project_dir.display()
-    )?;
-    Ok(())
+    Ok(type_name)
 }
 
 #[allow(
@@ -376,8 +552,7 @@ fn populate_project(
     if auth {
         files.push((
             "tests/auth_flows.rs",
-            include_str!("../templates/tests/auth_flows.rs")
-                .replace("OpenRustGeneratedApplication", crate_name),
+            auth_test_template(crate_name, encryption),
         ));
     }
     if let Some(database) = database {
@@ -394,6 +569,17 @@ fn populate_project(
             .with_context(|| format!("failed to write {relative_path}"))?;
     }
     Ok(())
+}
+
+fn auth_test_template(crate_name: &str, encryption: bool) -> String {
+    let encryption_config = if encryption {
+        "\\n[security.encryption]\\nactive_key_id = \\\"test\\\"\\n\\n[security.encryption.keys]\\ntest = \\\"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=\\\""
+    } else {
+        ""
+    };
+    include_str!("../templates/tests/auth_flows.rs")
+        .replace("OpenRustGeneratedApplication", crate_name)
+        .replace("{{encryption_config}}", encryption_config)
 }
 
 #[allow(
@@ -428,12 +614,12 @@ fn cargo_manifest(
         }
         let dependency = if database.is_some() {
             format!(
-                "openrust = {{ version = \"0.0.0\", features = {features:?} }}\nopenrust-migration = {{ package = \"{name}-migration\", path = \"migration\" }}"
+                "openrust = {{ workspace = true, features = {features:?} }}\nopenrust-migration = {{ package = \"{name}-migration\", path = \"migration\" }}"
             )
         } else {
-            format!("openrust = {{ version = \"0.0.0\", features = {features:?} }}")
+            format!("openrust = {{ workspace = true, features = {features:?} }}")
         };
-        manifest = manifest.replace("openrust = \"0.0.0\"", &dependency);
+        manifest = manifest.replace("openrust = { workspace = true }", &dependency);
     }
     if auth {
         manifest.push_str("serde = { version = \"1\", features = [\"derive\"] }\n\n[dev-dependencies]\nbase64 = \"0.22\"\nfigment = { version = \"0.10\", features = [\"toml\"] }\nserde_json = \"1\"\ntokio = { version = \"1\", features = [\"io-util\", \"macros\", \"net\", \"rt-multi-thread\"] }\n");
@@ -441,7 +627,7 @@ fn cargo_manifest(
             let _ = FmtWrite::write_fmt(
                 &mut manifest,
                 format_args!(
-                    "openrust-test = {{ version = \"0.0.0\", features = [\"{}\"] }}\n",
+                    "testing = {{ workspace = true, features = [\"{}\"] }}\n",
                     database.feature()
                 ),
             );
@@ -563,7 +749,7 @@ fn migration_manifest(name: &str, database: DatabaseBackend, auth: bool) -> Stri
         features.push("auth");
     }
     format!(
-        "[package]\nname = \"{name}-migration\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nopenrust = {{ version = \"0.0.0\", features = {features:?} }}\n"
+        "[package]\nname = \"{name}-migration\"\npublish = false\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nopenrust = {{ workspace = true, features = {features:?} }}\n"
     )
 }
 
@@ -643,17 +829,16 @@ fn generate(
     soft_delete: bool,
     current_dir: &Path,
 ) -> anyhow::Result<()> {
-    if !current_dir.join("Cargo.toml").is_file() {
-        bail!("no Cargo.toml in the current directory; run this inside an OpenRust project");
-    }
+    let workspace = framework_workspace(current_dir)?;
+    let (project_dir, _) = application_directory(&workspace, current_dir)?;
     match kind {
-        GeneratorKind::Model => generate_model(values, uuid_id, soft_delete, current_dir),
-        GeneratorKind::Migration => generate_migration(values, uuid_id, soft_delete, current_dir),
+        GeneratorKind::Model => generate_model(values, uuid_id, soft_delete, &project_dir),
+        GeneratorKind::Migration => generate_migration(values, uuid_id, soft_delete, &project_dir),
         GeneratorKind::Mailer | GeneratorKind::Policy if uuid_id || soft_delete => {
             bail!("--uuid-id and --soft-delete apply only to model and migration generators")
         }
-        GeneratorKind::Mailer => generate_mailer(values, current_dir),
-        GeneratorKind::Policy => generate_policy(values, current_dir),
+        GeneratorKind::Mailer => generate_mailer(values, &project_dir),
+        GeneratorKind::Policy => generate_policy(values, &project_dir),
     }
 }
 
@@ -662,23 +847,30 @@ fn enable_uuid_feature(project_dir: &Path) -> anyhow::Result<()> {
         project_dir.join("Cargo.toml"),
         project_dir.join("migration/Cargo.toml"),
     ] {
-        let mut manifest = fs::read_to_string(&path)?;
-        let dependency = "openrust = { version = \"0.0.0\", features = [";
-        let start = manifest.find(dependency).with_context(|| {
-            format!(
-                "{} does not contain the generated OpenRust dependency",
-                path.display()
-            )
-        })? + dependency.len();
-        let end = manifest[start..]
-            .find(']')
-            .map(|offset| start + offset)
+        let source = fs::read_to_string(&path)?;
+        let mut document = source
+            .parse::<toml_edit::DocumentMut>()
+            .with_context(|| format!("{} is invalid TOML", path.display()))?;
+        let dependency = document
+            .get_mut("dependencies")
+            .and_then(toml_edit::Item::as_table_mut)
+            .and_then(|dependencies| dependencies.get_mut("openrust"))
+            .and_then(toml_edit::Item::as_value_mut)
+            .and_then(toml_edit::Value::as_inline_table_mut)
+            .with_context(|| format!("{} has no inline OpenRust dependency", path.display()))?;
+        if dependency.get("features").is_none() {
+            dependency.insert("features", toml_edit::Value::Array(toml_edit::Array::new()));
+        }
+        let features = dependency
+            .get_mut("features")
+            .and_then(toml_edit::Value::as_array_mut)
             .with_context(|| format!("{} has an invalid OpenRust feature list", path.display()))?;
-        let features = &manifest[start..end];
-        if !features.contains("\"db-uuid\"") {
-            let separator = if features.trim().is_empty() { "" } else { ", " };
-            manifest.insert_str(end, &format!("{separator}\"db-uuid\""));
-            fs::write(path, manifest)?;
+        if !features
+            .iter()
+            .any(|feature| feature.as_str() == Some("db-uuid"))
+        {
+            features.push("db-uuid");
+            fs::write(path, document.to_string())?;
         }
     }
     Ok(())
@@ -1180,11 +1372,26 @@ fn print_generated(message: &str) -> anyhow::Result<()> {
 
 /// Executes the project binary and returns its exit code.
 fn run_project(args: &[&str], development: bool) -> anyhow::Result<ExitCode> {
-    if !Path::new("Cargo.toml").exists() {
-        bail!("no Cargo.toml in the current directory; run this inside an OpenRust project");
-    }
+    run_application(args, development)
+}
+
+fn run_application(args: &[&str], development: bool) -> anyhow::Result<ExitCode> {
+    let current_dir = std::env::current_dir()?;
+    let workspace = framework_workspace(&current_dir)?;
+    let (app_dir, package_name) = application_directory(&workspace, &current_dir)?;
     let mut command = Process::new("cargo");
-    command.arg("run").arg("--quiet").arg("--").args(args);
+    command
+        .current_dir(&app_dir)
+        .args([
+            "run",
+            "--quiet",
+            "--package",
+            &package_name,
+            "--bin",
+            &package_name,
+            "--",
+        ])
+        .args(args);
     if development {
         command.env("APP_ENV", "development");
     }
@@ -1196,13 +1403,20 @@ fn run_project(args: &[&str], development: bool) -> anyhow::Result<ExitCode> {
 
 /// Runs `cargo run --quiet -- <args>` in the current project and mirrors its exit status.
 fn forward(args: &[String]) -> anyhow::Result<ExitCode> {
-    if !Path::new("Cargo.toml").exists() {
-        bail!("no Cargo.toml in the current directory; run this inside an OpenRust project");
-    }
+    let current_dir = std::env::current_dir()?;
+    let workspace = framework_workspace(&current_dir)?;
+    let (app_dir, package_name) = application_directory(&workspace, &current_dir)?;
     Process::new("cargo")
-        .arg("run")
-        .arg("--quiet")
-        .arg("--")
+        .current_dir(app_dir)
+        .args([
+            "run",
+            "--quiet",
+            "--package",
+            &package_name,
+            "--bin",
+            &package_name,
+            "--",
+        ])
         .args(args)
         .status()
         .context("failed to start `cargo run`")
@@ -1223,6 +1437,35 @@ fn exit_code(status: std::process::ExitStatus) -> ExitCode {
 )]
 mod tests {
     use super::*;
+
+    fn create_framework_fixture(root: &Path) {
+        fs::create_dir_all(root.join("src")).expect("create framework source directory");
+        fs::write(root.join("src/lib.rs"), "").expect("create framework library target");
+        fs::write(
+            root.join("Cargo.toml"),
+            "[package]\nname = \"openrust\"\nversion = \"0.0.0\"\nedition = \"2024\"\npublish = false\n\n[workspace]\nresolver = \"3\"\n# 保留工作区专有配置与成员说明。\ncustom-marker = \"keep-me\"\nmembers = [\"cli\", \"macros\", \"testing\", \"apps/server\"]\n\n[workspace.package]\nversion = \"0.0.0\"\nedition = \"2024\"\nlicense = \"MIT OR Apache-2.0\"\n\n[workspace.dependencies]\nopenrust = { path = \".\" }\ncli = { path = \"cli\" }\nmacros = { path = \"macros\" }\ntesting = { path = \"testing\" }\nserver = { path = \"apps/server\" }\n",
+        )
+        .expect("create framework workspace manifest");
+        for (name, path, target) in [
+            ("cli", "cli", "src/main.rs"),
+            ("macros", "macros", "src/lib.rs"),
+            ("testing", "testing", "src/lib.rs"),
+            ("server", "apps/server", "src/main.rs"),
+        ] {
+            let package = root.join(path);
+            fs::create_dir_all(package.join("src")).expect("create package source directory");
+            fs::write(package.join(target), "").expect("create package target");
+            let mut manifest = format!(
+                "[package]\nname = \"{name}\"\nversion = \"0.0.0\"\nedition = \"2024\"\npublish = false\n"
+            );
+            if name == "macros" {
+                manifest.push_str("\n[lib]\nproc-macro = true\n");
+            }
+            fs::write(package.join("Cargo.toml"), manifest)
+                .expect("create workspace member manifest");
+        }
+        fs::create_dir_all(root.join("apps/server")).expect("create apps directory");
+    }
 
     #[test]
     fn generated_manifest_matches_starter_template() {
@@ -1391,7 +1634,7 @@ mod tests {
             let manifest = fs::read_to_string(project.join("Cargo.toml"))
                 .expect("read generated app manifest");
             assert!(manifest.contains(feature));
-            assert!(manifest.contains("openrust-test"));
+            assert!(manifest.contains("testing"));
             assert!(manifest.contains("figment"));
             assert!(manifest.contains("serde_json"));
             let http_test = fs::read_to_string(project.join("tests/auth_flows.rs"))
@@ -1449,6 +1692,23 @@ mod tests {
                 .expect("read generated environment example");
             assert!(env.contains("APP_AUTH__JWT__KEYS__LOCAL="));
         }
+        let encrypted_project = root.join("encrypted");
+        populate_project(
+            &encrypted_project,
+            "secure_blog",
+            "SecureBlog",
+            Some(DatabaseBackend::Postgres),
+            true,
+            false,
+            false,
+            true,
+        )
+        .expect("generate encrypted database-backed auth project");
+        let auth_test = fs::read_to_string(encrypted_project.join("tests/auth_flows.rs"))
+            .expect("read encrypted auth HTTP integration test");
+        assert!(auth_test.contains("\\n[security.encryption]\\n"));
+        assert!(auth_test.contains("active_key_id = \\\"test\\\""));
+        assert!(auth_test.contains("KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="));
         assert!(Cli::try_parse_from(["openrust", "new", "blog", "--auth"]).is_err());
         let _ = fs::remove_dir_all(root);
     }
@@ -1680,15 +1940,156 @@ mod tests {
     }
 
     #[test]
-    fn rejects_parent_paths_and_existing_destinations() {
+    fn creates_multiple_workspace_apps_with_local_dependencies_and_isolated_configs() {
+        let root = std::env::temp_dir().join(format!(
+            "openrust-cli-workspace-apps-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("create temporary workspace");
+        create_framework_fixture(&root);
+
+        create_project(
+            "blog",
+            Some(DatabaseBackend::Postgres),
+            false,
+            false,
+            false,
+            false,
+            &root,
+        )
+        .expect("create first app");
+        create_project(
+            "apps/shop",
+            Some(DatabaseBackend::Mysql),
+            false,
+            false,
+            false,
+            false,
+            &root,
+        )
+        .expect("create second app");
+
+        let metadata = framework_workspace(&root).expect("discover generated workspace");
+        let names = metadata
+            .packages
+            .iter()
+            .map(|package| package.name.as_str())
+            .collect::<Vec<_>>();
+        for name in ["blog", "blog-migration", "shop", "shop-migration"] {
+            assert!(names.contains(&name), "missing workspace package {name}");
+        }
+        for (app, backend) in [("blog", "db-postgres"), ("shop", "db-mysql")] {
+            let app_manifest = fs::read_to_string(root.join(format!("apps/{app}/Cargo.toml")))
+                .expect("read app manifest");
+            let migration_manifest =
+                fs::read_to_string(root.join(format!("apps/{app}/migration/Cargo.toml")))
+                    .expect("read migration manifest");
+            assert!(app_manifest.contains("publish = false"));
+            assert!(app_manifest.contains("workspace = true"));
+            assert!(app_manifest.contains(backend));
+            assert!(migration_manifest.contains("publish = false"));
+            assert!(migration_manifest.contains("workspace = true"));
+            assert!(migration_manifest.contains(backend));
+            assert!(
+                fs::read_to_string(root.join(format!("apps/{app}/config/default.toml")))
+                    .expect("read app config")
+                    .contains(&format!("name = \"{app}\""))
+            );
+            let app_dir = root.join(format!("apps/{app}"));
+            let (resolved, package) =
+                application_directory(&metadata, &app_dir).expect("resolve app from its directory");
+            assert_eq!(
+                resolved,
+                app_dir.canonicalize().expect("canonicalize app directory")
+            );
+            assert_eq!(package, app);
+        }
+        let workspace_manifest =
+            fs::read_to_string(root.join("Cargo.toml")).expect("read updated workspace manifest");
+        assert!(workspace_manifest.contains("# 保留工作区专有配置与成员说明。"));
+        assert!(workspace_manifest.contains("custom-marker = \"keep-me\""));
+        for member in [
+            "apps/blog",
+            "apps/blog/migration",
+            "apps/shop",
+            "apps/shop/migration",
+        ] {
+            assert!(workspace_manifest.contains(member));
+        }
+        let before_repeat = workspace_manifest.clone();
+        let repeated = manifest_with_members(
+            &root,
+            &["apps/blog".to_owned(), "apps/blog/migration".to_owned()],
+        )
+        .expect("merge existing workspace members");
+        assert_eq!(repeated, before_repeat);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn rejects_external_invalid_duplicate_and_existing_destinations_without_mutation() {
         let root =
             std::env::temp_dir().join(format!("openrust-cli-invalid-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).expect("create temporary test directory");
+        create_framework_fixture(&root);
+        let original_manifest =
+            fs::read_to_string(root.join("Cargo.toml")).expect("read original workspace manifest");
+        let external_path = root.join("external-app");
+        assert!(
+            create_project(
+                external_path.to_string_lossy().as_ref(),
+                None,
+                false,
+                false,
+                false,
+                false,
+                &root,
+            )
+            .is_err()
+        );
         assert!(create_project("../outside", None, false, false, false, false, &root).is_err());
+        assert!(create_project("outside/path", None, false, false, false, false, &root).is_err());
         assert!(create_project("--", None, false, false, false, false, &root).is_err());
-        fs::create_dir(root.join("existing")).expect("create existing destination");
+        fs::create_dir(root.join("apps/existing")).expect("create existing destination");
         assert!(create_project("existing", None, false, false, false, false, &root).is_err());
+        assert!(create_project("server", None, false, false, false, false, &root).is_err());
+        assert_eq!(
+            fs::read_to_string(root.join("Cargo.toml")).expect("read workspace manifest"),
+            original_manifest
+        );
+        assert!(!root.join("outside").exists());
+        assert!(!root.join("apps/outside").exists());
+
+        fs::create_dir_all(root.join("apps/blog-migration/src"))
+            .expect("create conflicting migration package");
+        fs::write(
+            root.join("apps/blog-migration/Cargo.toml"),
+            "[package]\nname = \"blog-migration\"\nversion = \"0.0.0\"\nedition = \"2024\"\n",
+        )
+        .expect("write conflicting migration manifest");
+        let with_conflict = manifest_with_members(&root, &["apps/blog-migration".to_owned()])
+            .expect("register conflicting migration package");
+        fs::write(root.join("Cargo.toml"), &with_conflict)
+            .expect("update fixture workspace manifest");
+        assert!(
+            create_project(
+                "blog",
+                Some(DatabaseBackend::Postgres),
+                false,
+                false,
+                false,
+                false,
+                &root
+            )
+            .is_err()
+        );
+        assert!(!root.join("apps/blog").exists());
+        assert_eq!(
+            fs::read_to_string(root.join("Cargo.toml")).expect("read unchanged workspace"),
+            with_conflict
+        );
         let _ = fs::remove_dir_all(root);
     }
 }

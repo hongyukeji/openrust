@@ -29,7 +29,7 @@ pub use core::{
     ApiResponse, App, AppBuilder, AppState, Application, BoxFuture, Command, Error,
     MissingServiceError, NoConfig, PageMeta, Plugin, Result, ValidationErrors, lifecycle,
 };
-pub use openrust_macros::resource;
+pub use macros::resource;
 
 #[cfg(test)]
 static ENV_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());

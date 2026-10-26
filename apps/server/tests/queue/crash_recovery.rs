@@ -61,7 +61,7 @@ async fn process_crash_releases_job_after_lease_expiry() -> Result<(), Box<dyn s
         eprintln!("skipping queue crash recovery: OPENRUST_TEST_DATABASE_URL is unset");
         return Ok(());
     };
-    let test_database = openrust_test::TestDatabase::create::<QueueMigrator>(&admin_url).await?;
+    let test_database = testing::TestDatabase::create::<QueueMigrator>(&admin_url).await?;
     let app = build_app(test_database.url()).await?;
     let queue = app.state().try_get::<Queue>()?;
     let db = app.state().try_get::<Db>()?;
