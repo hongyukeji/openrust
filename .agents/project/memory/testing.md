@@ -18,6 +18,12 @@
 
 干净源码副本生成 `apps/named_database_sample` 后直接 `cargo check -p named_database_sample` 与 `cargo test -p named_database_sample` 通过；扫描应用及根 manifest 未发现临时 registry patch 或机器绝对路径。默认/all-features workspace tests、all-target clippy、warnings-denied docs、fmt、cargo deny 与 no-default-features check 通过。`cargo deny` 保留既有重复依赖及未匹配 MPL allowance 警告，其余 advisories/bans/licenses/sources 通过。未覆盖跨数据库事务、自动查询路由或生产集群负载。
 
+## M5 Redis Session driver
+
+启用 `session-redis` feature，通过 `RedisSessionStore::connect(dsn, namespace)` 与 `SessionPlugin::with_store` 显式使用 Redis；数据库 Session store 仍为默认。真实 Redis 8.10.2 测试命令：`cargo test -p server --features session-redis --test auth_runtime redis_sessions_are_shared_between_apps_and_revoke_across_instances -- --exact --nocapture`。PostgreSQL 18 和 MySQL 8.4 分别运行 `cargo test -p server --features db-<backend>,session-redis --test auth_database --test auth_runtime`，各 14 项通过（auth_database 7、auth_runtime 7）；两个独立 App 使用两个 Redis connection manager，共享同一 namespace。验证真实 Redis 创建/读取/TTL 过期/删除、重复创建拒绝、删除后 save 不复活、不同 namespace 隔离、ID 轮换清除旧记录、跨 App 登出撤销、CSRF 缺失拒绝与有效 token 放行；namespace 校验、URL/Debug 脱敏及不可达 endpoint 的启动失败也覆盖。用例走访现有 Redis 8 服务，没有修改或停止容器。
+
+`cargo +1.97.0 check -p openrust --no-default-features --features session-redis` 与 server feature check 通过。默认/all-features workspace clippy、test、warnings-denied docs、fmt、no-default check 与 `cargo deny check` 通过；deny 仍有既有重复版本与未匹配 MPL allowance 警告，advisories/bans/licenses/sources 均通过。两个 App 在同一测试进程内，未代表多进程集群门禁；Redis 6.2 最低版本兼容和在线 Redis 故障期间的端到端恢复留待发布/集群验收。
+
 ## M5 HTTP 有界运行与就绪切换
 
 2026-10-26 定向测试：`cargo test -p openrust serve::tests -- --nocapture` 覆盖未绑定/绑定就绪、drain 中停止接入、在途请求完成、非合作请求到期取消及 bind 失败；`cargo test -p server --test server serve_process_exits_successfully_after_sigterm -- --nocapture` 通过真实 TCP readiness 和真实子进程 SIGTERM，all-features 下同一测试额外注入仅供测试的加密 key 后通过。全量门禁：fmt、diff check、all-target/all-features clippy、默认/all-features workspace tests、warnings-denied 默认/all-features docs、`cargo deny check` 和 `cargo check -p openrust --no-default-features` 均通过。deny 输出既有重复 crate 版本与未匹配 MPL allowance 警告，其余 advisories/bans/licenses/sources 通过。此项未改数据库/队列协议，不需要双库测试；未覆盖集群依赖 readiness 或跨节点 drain。

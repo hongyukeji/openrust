@@ -71,6 +71,8 @@ pub use crate::config::SessionConfig;
 pub use password::{EncodedPasswordHash, Passwords};
 pub use pat::{IssuedPersonalAccessToken, PersonalAccessTokenInfo, PersonalAccessTokens};
 pub use refresh::{IssuedRefreshToken, RefreshRotation, RefreshTokens};
+#[cfg(feature = "session-redis")]
+pub use session::RedisSessionStore;
 pub use session::{DatabaseSessionStore, SessionPlugin};
 pub use tower_sessions::Session;
 pub use verification::{

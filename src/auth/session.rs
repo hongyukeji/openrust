@@ -14,6 +14,9 @@ use tower_sessions::session::{Id, Record};
 use tower_sessions::session_store::{self, SessionStore};
 use tower_sessions::{Expiry, SessionManagerLayer};
 
+#[cfg(feature = "session-redis")]
+use redis::AsyncCommands as _;
+
 use crate::http::AppBuilderHttpExt;
 
 impl SessionConfig {
@@ -99,6 +102,136 @@ impl DatabaseSessionStore {
             DbBackend::Postgres | DbBackend::MySql => Ok(connection),
             _ => Err(store_backend_error()),
         }
+    }
+}
+
+/// 使用 Redis 共享存储的 Session store。
+#[cfg(feature = "session-redis")]
+#[derive(Clone)]
+pub struct RedisSessionStore {
+    connection: redis::aio::ConnectionManager,
+    namespace: String,
+}
+
+#[cfg(feature = "session-redis")]
+impl std::fmt::Debug for RedisSessionStore {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("RedisSessionStore")
+            .field("namespace", &self.namespace)
+            .finish_non_exhaustive()
+    }
+}
+
+#[cfg(feature = "session-redis")]
+impl RedisSessionStore {
+    /// 连接 Redis 并建立一个隔离的 key namespace。
+    ///
+    /// URL 不会被保存在 store 或写入错误信息。`namespace` 仅允许 1–63 个 ASCII
+    /// 字母、数字、`_` 或 `-`，用于隔离共享 Redis 中不同应用的 Session。
+    pub async fn connect(dsn: impl Into<String>, namespace: impl Into<String>) -> Result<Self> {
+        let namespace = namespace.into();
+        if namespace.is_empty()
+            || namespace.len() > 63
+            || !namespace
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+        {
+            return Err(invalid_session_config(
+                "Redis namespace must contain 1 to 63 ASCII letters, digits, underscores, or hyphens",
+            ));
+        }
+        let client = redis::Client::open(dsn.into()).map_err(|_| {
+            Error::Config(ConfigError::Invalid(
+                "session Redis URL is invalid".to_owned(),
+            ))
+        })?;
+        let connection = client.get_connection_manager().await.map_err(|_| {
+            Error::custom(
+                "session_redis_unavailable",
+                "Redis Session store is unavailable",
+            )
+        })?;
+        Ok(Self {
+            connection,
+            namespace,
+        })
+    }
+
+    fn key(&self, id: &Id) -> String {
+        format!("openrust:session:{}:{}", self.namespace, id_hash(id))
+    }
+}
+
+#[cfg(feature = "session-redis")]
+#[async_trait::async_trait]
+impl SessionStore for RedisSessionStore {
+    async fn create(&self, record: &mut Record) -> session_store::Result<()> {
+        let ttl = redis_ttl_millis(record.expiry_date)?;
+        let value = serde_json::to_vec(record)
+            .map_err(|_| session_store::Error::Encode("session data encoding failed".into()))?;
+        let mut connection = self.connection.clone();
+        let created: Option<String> = redis::cmd("SET")
+            .arg(self.key(&record.id))
+            .arg(value)
+            .arg("PX")
+            .arg(ttl)
+            .arg("NX")
+            .query_async(&mut connection)
+            .await
+            .map_err(|_| redis_session_backend_error())?;
+        if created.is_none() {
+            return Err(redis_session_backend_error());
+        }
+        Ok(())
+    }
+
+    async fn save(&self, record: &Record) -> session_store::Result<()> {
+        let ttl = redis_ttl_millis(record.expiry_date)?;
+        let value = serde_json::to_vec(record)
+            .map_err(|_| session_store::Error::Encode("session data encoding failed".into()))?;
+        let mut connection = self.connection.clone();
+        let _: Option<String> = redis::cmd("SET")
+            .arg(self.key(&record.id))
+            .arg(value)
+            .arg("PX")
+            .arg(ttl)
+            .arg("XX")
+            .query_async(&mut connection)
+            .await
+            .map_err(|_| redis_session_backend_error())?;
+        Ok(())
+    }
+
+    async fn load(&self, session_id: &Id) -> session_store::Result<Option<Record>> {
+        let mut connection = self.connection.clone();
+        let value: Option<Vec<u8>> = connection
+            .get(self.key(session_id))
+            .await
+            .map_err(|_| redis_session_backend_error())?;
+        let Some(value) = value else {
+            return Ok(None);
+        };
+        let record: Record = serde_json::from_slice(&value)
+            .map_err(|_| session_store::Error::Decode("invalid stored session data".into()))?;
+        if record.id != *session_id {
+            return Err(session_store::Error::Decode(
+                "stored session identifier does not match its key".into(),
+            ));
+        }
+        if record.expiry_date <= time::OffsetDateTime::now_utc() {
+            return Ok(None);
+        }
+        Ok(Some(record))
+    }
+
+    async fn delete(&self, session_id: &Id) -> session_store::Result<()> {
+        let mut connection = self.connection.clone();
+        let _: i64 = connection
+            .del(self.key(session_id))
+            .await
+            .map_err(|_| redis_session_backend_error())?;
+        Ok(())
     }
 }
 
@@ -360,6 +493,25 @@ fn to_chrono(value: time::OffsetDateTime) -> Option<DateTime<Utc>> {
 
 fn store_backend_error() -> session_store::Error {
     session_store::Error::Backend("database Session store operation failed".into())
+}
+
+#[cfg(feature = "session-redis")]
+fn redis_session_backend_error() -> session_store::Error {
+    session_store::Error::Backend("Redis Session store operation failed".into())
+}
+
+#[cfg(feature = "session-redis")]
+fn redis_ttl_millis(expiry: time::OffsetDateTime) -> session_store::Result<u64> {
+    let remaining_nanos =
+        expiry.unix_timestamp_nanos() - time::OffsetDateTime::now_utc().unix_timestamp_nanos();
+    if remaining_nanos <= 0 {
+        return Err(session_store::Error::Encode(
+            "session expiry must be in the future".into(),
+        ));
+    }
+    let millis = (remaining_nanos + 999_999) / 1_000_000;
+    u64::try_from(millis)
+        .map_err(|_| session_store::Error::Encode("session expiry exceeds Redis limits".into()))
 }
 
 fn invalid_session_config(detail: &str) -> Error {

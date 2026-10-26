@@ -8,6 +8,7 @@ OpenRust 的认证与授权能力。
 
 - `AuthPlugin::new()` 会注册数据库认证器和共享 refresh token 服务。该插件依赖 `DatabasePlugin`、PostgreSQL 或 MySQL，以及 `AuthMigration` 创建的表；使用 refresh token 时还需要 `AuthRefreshTokenMigration`。
 - `SessionPlugin::new()` 会安装共享数据库 Session middleware。请在 `AuthPlugin` 之前注册 `DatabasePlugin` 和 `SessionPlugin`；自定义 store 可实现 `tower_sessions::SessionStore`，并传给 `SessionPlugin::with_store`。
+- 需要 Redis 共享 Session 时，为 `openrust` 启用 `session-redis` feature，并使用 `RedisSessionStore::connect(redis_url, namespace)` 后传入 `SessionPlugin::with_store`。数据库 store 仍是默认路径；Redis 连接失败或操作失败会返回错误。所有共享应用副本必须使用同一 namespace，不同应用应使用不同 namespace。
 - 如果 `DatabasePlugin` 已先注册 `Db`，`AuthPlugin` 会注册 `RefreshTokens`。它生成高熵不透明凭据，只持久化 SHA-256 摘要，以原子方式轮换，在检测到重放时撤销整个 token family，并支持按账户整体撤销。调用方提供 family 的初始过期时间；轮换不会延长该时间。
 - `openrust new --db postgres|mysql --auth` 会生成 JWT/Auth/AuthFlows plugins、认证迁移、JWT 保护的 `/api/me`、数据库支持的 PAT 保护 `/api/me/pat`，以及注册、邮箱验证、登录、刷新、登出、密码重置路由和 `[auth.jwt]` 配置。签名密钥必须通过 `APP_AUTH__JWT__KEYS__LOCAL` 提供，不能写入生成的配置。
 - `AuthPlugin::with_authenticator` 通过现有 `Plugin` 生命周期注册应用自定义或第三方 `Authenticator` 实现。
@@ -26,9 +27,14 @@ OpenRust 的认证与授权能力。
 - `Policy` 提供精确匹配、基于数据库的角色权限。`ensure_role`、`assign_role`、`grant_permission` 及相应撤销方法管理全局角色分配。`allows` / `authorize` 每次都会读取共享数据库；JWT 和 Session 需要已授予的角色权限，PAT 还必须拥有完全匹配的 token ability。未知权限默认拒绝；权限撤销提交后，各节点在下一次检查时都会看到。
 
 ```rust,ignore
-use openrust::auth::{AuthLayer, AuthMode, AuthPlugin, CurrentUser, SessionPlugin};
+use openrust::auth::{AuthLayer, AuthMode, AuthPlugin, CurrentUser, RedisSessionStore, SessionPlugin};
 
-app.plugin(SessionPlugin::new())
+let session_store = RedisSessionStore::connect(
+    std::env::var("APP_SESSION_REDIS_URL")?,
+    "my-application",
+).await?;
+
+app.plugin(SessionPlugin::with_store(session_store))
     .plugin(AuthPlugin::new())
     .routes(|routes| {
         routes.get("/api/me", me).layer(AuthLayer::required(AuthMode::SessionOrToken))

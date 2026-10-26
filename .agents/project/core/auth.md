@@ -9,7 +9,7 @@
 - 配置结构位于 `openrust::config::auth`，旧的 `openrust::auth` 配置导出保持可用；本地 JWT 密钥可在 `.env` 设置，生成项目不写入真实密钥，production 忽略 `.env`。
 
 - `AuthPlugin::new()` 注册数据库认证器；`finish` 检查认证服务未被后续插件覆盖、`Db` 已注册且 SeaORM backend 是 PostgreSQL 或 MySQL。`AuthPlugin::with_authenticator` 使用应用或第三方实现，不依赖 `Db`。
-- `SessionPlugin` 通过 `tower-sessions` 安装通用 Cookie middleware；默认 `DatabaseSessionStore` 以 resolver 解析的 Session 表共享存储（默认 `tb_sessions`），支持自定义 `SessionStore`。PostgreSQL/MySQL 集成覆盖创建冲突、读取、过期、删除、禁止 save 复活已删除 ID，以及独立应用实例间撤销。
+- `SessionPlugin` 通过 `tower-sessions` 安装通用 Cookie middleware；默认 `DatabaseSessionStore` 以 resolver 解析的 Session 表共享存储（默认 `tb_sessions`），支持自定义 `SessionStore`。可选 `session-redis` feature 提供 `RedisSessionStore`，通过 `SessionPlugin::with_store` 显式启用；以 namespace 隔离应用，键名仅使用 Session ID 的 SHA-256 摘要。`SET NX/XX PX` 分别保证创建不覆盖和保存不复活已删除 ID，TTL 采用当前记录到期时间；Redis 错误传播为 store 错误。PostgreSQL/MySQL 集成覆盖数据库 store 生命周期；真实 Redis 覆盖两个独立 App 共享读取、删除撤销、过期、碰撞、namespace 隔离和 CSRF。
 - `Authenticator` 接收路由选中的 `AuthCredential`，返回用户 ID 与 PAT abilities；凭据字段不实现 `Debug` / 序列化。默认数据库实现验证共享 Session 身份和 CSRF，或验证 PAT 到期、撤销、用户禁用并更新 `last_used_at`。
 - `JwtConfig`、`JwtPlugin` 与 `JwtTokens` 提供严格配置的 HS256 access-token 签发/验证、issuer/audience、kid key ring 与重叠密钥轮换。验证强制 `typ=openrust-at+jwt`、正数十进制账户 ID、jti、iat/nbf/exp 边界；`AuthMode::Jwt` 直接以 JWT 服务认证，不要求 SessionPlugin，不逐请求查数据库。
 - `AuthLayer::required` / `optional` 通过 Axum `FromFnLayer` 接入现有 `Routes::layer`。路由模式包含 JWT、Session、PAT、Session-or-PAT；组合模式中的 Bearer 明确解释为 PAT。
@@ -45,7 +45,7 @@
 ## 验证
 
 - `cargo test -p openrust --test http_router --test http_resource`：全局 Tower layer 与错误响应包装测试通过。
-- `cargo test -p openrust-server --features auth --test auth_runtime`：共享 Session middleware 与身份认证运行时测试通过。
+- `cargo test -p server --features auth --test auth_runtime`：共享 Session middleware 与身份认证运行时测试通过；`session-redis` feature 及 Redis adapter 证据见 `memory/testing.md`。
 - `cargo test -p openrust-server --features auth,db-postgres --test auth_database` / `--features db-mysql --test database`：真实本地容器验证迁移、CSRF、PAT 签发/哈希存储/列举/过期输入/归属隔离/跨实例撤销与最近使用时间、通用 Session store 和两个应用实例间撤销；MySQL 使用具备建库权限的测试账号。
 - `cargo test -p openrust --features auth --lib`：JWT 配置、签发/验证、错误边界及密钥轮换测试通过。
 - `cargo test -p openrust --features auth --lib`：验证码用途/身份绑定、错误尝试耗尽、一次消费和策略边界单测通过；`session_login_rotates_id_preserves_app_data_and_redacts_csrf` 验证 ID 轮换、应用数据保留、CSRF digest 与 Debug 脱敏。

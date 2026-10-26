@@ -1,6 +1,6 @@
 # ADR-017 通用 Session 与 Cookie 运行时
 
-- 状态：Accepted（M3 contract；PostgreSQL 18 / MySQL 8.4 数据库 Session store、认证登录/退出 helper 与生成项目 HTTP 流程已验证）
+- 状态：Accepted（数据库与 Redis Session store、认证登录/退出 helper 已按 PostgreSQL 18 / MySQL 8.4 / Redis 8 验证）
 - 日期：2026-10-25
 - 依据：[ADR-004](adr-004-session-and-token-auth.md)、[ADR-012](adr-012-auth-current-user-contract.md)、[v1 能力覆盖](../plans/v1-capability-coverage.md)
 
@@ -29,7 +29,7 @@ v1 要求通用 Session/Cookie 与认证共用一个存储入口，并支持匿�
 
 ## 适用边界
 
-- 同步数据库 store 是 v1 默认共享实现。Redis Session adapter 可按覆盖计划提供，但不得引入绕过认证失效语义的读缓存。
+- 同步数据库 store 继续作为默认实现。启用 `session-redis` 后，应用可显式使用 `RedisSessionStore` 并通过 `SessionPlugin::with_store` 接入；Redis 以 namespace 和 Session ID 摘要构造 key。创建使用 `SET NX PX`，保存使用 `SET XX PX`，删除使用 `DEL`；过期由记录期限与 Redis TTL 共同约束，store 故障必须返回错误，不得转为未命中。Redis adapter 不提供原子计数或锁语义。
 - 事务写入、计数器、锁、全局限流等需要明确原子性时使用相应数据库事务或独立能力，不通过普通 Session `get` / `insert` 拼出原子操作。
 - `tower-sessions` 只提供运行机制，不代表 OpenRust 已交付插件接入、默认配置、Cookie 安全默认值、错误包装或双库验收。
 

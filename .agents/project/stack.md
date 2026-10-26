@@ -11,7 +11,7 @@
 | 异步运行时 | `tokio` 1.x | 唯一运行时；启用 `io-util` 支持 HTTP 验收与异步 I/O、`fs` 支持本地缓存异步文件操作 |
 | HTTP | `axum` 0.8 + `tower` + `tower-http` | 路由、提取器、中间件；`tower-http` 启用 `cors`、`compression-gzip`、`compression-br` 以支持配置化跨域与 gzip/br 协商，另有 request-id、trace、timeout、catch-panic；门面直接依赖并导出 `tower::ServiceExt` 供单依赖应用测试路由 |
 | 限流 | `openrust::core::RateLimiter` + `openrust::database::DatabaseRateLimitStore` | 已实现固定窗口服务与双库共享 store，AuthFlows 与通用 HTTP RateLimitLayer/key 策略已接入；gRPC 适配待实现，不额外依赖 governor |
-| 会话 | `tower-sessions` 0.15 | 复用 Axum/Tower 通用 Session 与 store contract；OpenRust 以 SeaORM 实现双库共享 store，Redis adapter 暂留后续 |
+| 会话 | `tower-sessions` 0.15；可选 Redis adapter 复用 `redis` 1.8.0 | 默认使用 SeaORM 数据库 store；`session-redis` feature 提供显式 `RedisSessionStore`，通过 `SessionPlugin::with_store` 选择；Redis 键与 TTL 语义见 ADR-017 |
 | gRPC | 规划 `tonic` / `prost`、`tonic-prost-build` 及官方 health/reflection 组件，尚未引入 | [ADR-040](decisions/adr-040-grpc-integration.md) 已纳入 v1/M5；实施时核实版本、MSRV、TLS provider 与代码生成工具。可选 `grpc` feature，默认构建不要求 `protoc`；不自研 RPC 栈 |
 | OpenAPI | 规划 `utoipa` + `utoipa-axum`，尚未引入 | 类型 schema、统一响应文档与非生产 `/docs` 均待实现 |
 | 出站 HTTP | `reqwest` 0.13（Rustls） | `http-client` 可选 feature；共享连接池、JSON/query/form/multipart/stream、显式超时；禁止默认重定向和应用层重试，响应体由框架限额 |
@@ -33,7 +33,7 @@
 | SQLx 支持 | `sqlx` 0.9 | MySQL driver 强制 TLS（Rustls）；不启用存在安全公告的 RSA 非 TLS 认证路径；`db.sqlx()` 尚未实现，若提供需先定义公开 API、feature 与连接生命周期 |
 | 数据库 | 暂定最低支持：PostgreSQL 14+、MySQL 8.0+；日常开发/Compose：PostgreSQL 18、MySQL 8.4 LTS；常规 CI：PostgreSQL 18、MySQL 8.4 | 运行时版本检查按暂定最低版本执行；PostgreSQL/MySQL 最低版本的完整兼容性仍须在 v1 发布验收中复核，不把单项历史测试等同于整套框架支持。仅在主版本跨度大或兼容风险显著时专项测试，不为每次日常 CI 追测所有版本。PostgreSQL 官方按主版本提供五年支持，不称 LTS |
 | UUIDv7 主键 | `uuid` 1.x（`v7`, `serde`），通过 `db-uuid` feature 同步启用 SeaORM/SeaQuery UUID codec | 仅在模型生成显式使用 `--uuid-id` 时启用；默认仍为自增整数。UUIDv7 由生成实体的 SeaORM `before_save` 在应用进程生成 |
-| Redis | 暂定最低支持：Redis 6.2+；日常开发/Compose：Redis 8；当前真实服务验收使用 Redis 8.10.2 | 缓存基础路径已通过 Redis 8.10.2；最低版本与集群共享语义仍需兼容专项验收，v1 发布前复核版本生命周期 |
+| Redis | 暂定最低支持：Redis 6.2+；日常开发/Compose：Redis 8；当前真实服务验收使用 Redis 8.10.2 | 缓存与可选 Session adapter 已通过 Redis 8.10.2；Redis 6.2 最低版本及最终集群兼容仍需发布前专项验收 |
 | 密码哈希 | `argon2` 0.6（Argon2id / PHC） | RustCrypto 实现；随机 salt；参数有界可配置；哈希与验证移入 Tokio blocking pool |
 | 认证与限流 key 摘要 | `sha2` 0.10 + `subtle` 2.6 | Session、PAT、CSRF 与数据库限流 key 存 SHA-256 摘要；CSRF 摘要比较使用常量时间比较。限流摘要仅避免原文持久化，不抵抗低熵 key 猜测 |
 | JWT | `jsonwebtoken` 11.1（`aws_lc_rs`） | 复用成熟 JWT 编解码与验证；避免 `rust_crypto` 带入被安全公告覆盖的 `rsa 0.9`；OpenRust 固定 HS256 并自行验证配置、kid、claims、密钥轮换与刷新凭据语义；MSRV 声明为 1.88，须由 workspace 1.97 验证 |

@@ -206,6 +206,7 @@ sms-twilio = ["http-client", "dep:base64"]
 encryption = ["dep:aes-gcm-siv", "dep:base64", "dep:zeroize"]
 test-util = []
 cache-redis = ["dep:redis"]
+session-redis = ["auth", "dep:redis"]
 
 [lints]
 workspace = true
