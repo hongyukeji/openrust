@@ -14,6 +14,7 @@
 | M3 审计记录 | ADR-035 实现 `openrust::audit`：显式事件与 sink、details allowlist/redaction、`test-util` fake、数据库迁移/持久化/有界清理、事务内写入；`Policy::grant_permission_in_transaction` 与审计在 PostgreSQL 18/MySQL 8.4 上验证同事务提交、回滚和 sink 失败回滚。`--auth` 模板注册 audit plugin/migration；生成项目在两库通过真实 HTTP auth 流程。workspace default/all-features tests/clippy、warnings-denied docs、cargo deny 与双库完整 `auth_database` 均通过。 |
 | M3 签名与限时链接 | ADR-036 实现独立 `signing` feature、用途专属 key ring、purpose/subject/TTL/JTI 签名验证、key rotation 与可选 PostgreSQL/MySQL 共享撤销 store/迁移/有界清理；4 项 signer 单测和两库各 6 项 `auth_database` 通过。`--auth` 生成项目注册 service 与 migration；两种数据库生成项目通过 fmt/check/真实 HTTP auth flow。workspace default/all-features clippy/tests、warnings-denied docs、无默认 feature check、cargo deny 与 diff check 通过。 |
 | M3 认证与安全总验收 | PostgreSQL 18 / MySQL 8.4 的 `auth_database` 与 `auth_runtime` 各 6 项通过；新生成 `--auth` 项目在两库分别通过 fmt、`cargo check` 和真实 TCP `auth_flows`。覆盖注册/验证、JWT/refresh、Session/CSRF、PAT、限流、Policy/RBAC、可信代理、审计和签名撤销。Twilio 协议测试不等于实发；实发等待授权目标与凭据。 |
+| M4 数据库队列与 worker 基础簇 | 已实现显式迁移、handler allowlist、事务派发、SKIP LOCKED、失败重试、worker 并发/租约/心跳、超时/合作取消和强杀恢复。PG18/MySQL8.4 真实服务测试通过。M4 尚未完成：旧 token 接管竞态、任务链/批次/唯一键、调度器、事件、多实例调度验收。详见 `core/queue.md`。 |
 | 架构决策 | 以 `decisions/` 中有效状态为准；缓存标准应用默认 Redis（ADR-015），driver/store contract 见 ADR-014，均不代表缓存已实现 |
 | 仓库基线（许可证、README、工具链声明、Agent 契约、CHANGELOG、贡献与安全政策） | 已就位 |
 | workspace、lint 基线、CI 工作流 | 已就位；CI 双库 job 已启用，MSRV 为 Rust 1.97 |

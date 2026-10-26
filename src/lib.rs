@@ -11,6 +11,8 @@ pub mod db;
 pub mod http;
 pub mod i18n;
 pub mod mail;
+#[cfg(feature = "queue")]
+pub mod queue;
 #[cfg(feature = "encryption")]
 pub mod security;
 #[cfg(feature = "signing")]
@@ -59,6 +61,8 @@ pub mod prelude {
         AuthCredential, AuthLayer, AuthMigration, AuthMode, AuthPlugin, AuthPrincipal, AuthSource,
         Authenticator, CurrentUser, JwtConfig, JwtPlugin, JwtTokens, OptionalUser,
     };
+    #[cfg(feature = "queue")]
+    pub use crate::config::QueueConfig;
     #[cfg(feature = "signing")]
     pub use crate::config::SignedLinksConfig;
     pub use crate::config::SmsConfig;
@@ -73,6 +77,11 @@ pub mod prelude {
         I18n, I18nConfig, I18nPlugin, Locale, MessageArgs, MessageCatalog, RequestLocale,
     };
     pub use crate::mail::{Email, LocalizedEmail, MailConfig, Mailer, MailerPlugin};
+    #[cfg(feature = "queue")]
+    pub use crate::queue::{
+        DatabaseQueue, DispatchOptions, Job, JobContext, Queue, QueueDriver, QueueMigration,
+        QueuePlugin,
+    };
     #[cfg(feature = "encryption")]
     pub use crate::security::{EncryptionPlugin, Encryptor};
     #[cfg(feature = "signing")]

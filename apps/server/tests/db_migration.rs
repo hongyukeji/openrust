@@ -8,6 +8,8 @@ use openrust::database::{
     DatabaseConfig, DatabaseRateLimitMigration, DatabaseRateLimitStore, DatabaseTableNames, Db,
     MigrationPlugin, SeedPlugin, dialect, sea_orm, sea_orm_migration,
 };
+#[cfg(feature = "queue")]
+use openrust::queue::QueueMigration;
 use openrust::{
     App, AppBuilder, BoxFuture, Error, Plugin, Result as FrameworkResult, config::FrameworkConfig,
     lifecycle,
@@ -84,7 +86,11 @@ struct TestMigrator;
 
 impl MigratorTrait for TestMigrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
-        vec![Box::new(CreateProbe), Box::new(DatabaseRateLimitMigration)]
+        let mut migrations: Vec<Box<dyn MigrationTrait>> =
+            vec![Box::new(CreateProbe), Box::new(DatabaseRateLimitMigration)];
+        #[cfg(feature = "queue")]
+        migrations.push(Box::new(QueueMigration));
+        migrations
     }
 }
 
@@ -161,7 +167,8 @@ async fn migration_command_applies_repeats_reports_and_rolls_back()
         eprintln!("skipping database migration: OPENRUST_TEST_DATABASE_URL is unset");
         return Ok(());
     };
-    let source = format!("[database]\nurl = {url:?}\n");
+    let test_database = openrust_test::TestDatabase::create::<TestMigrator>(&url).await?;
+    let source = format!("[database]\nurl = {:?}\n", test_database.url());
     let figment = Figment::new().merge(Toml::string(&source));
     let mut builder = AppBuilder::new(FrameworkConfig::default(), figment);
     builder
@@ -235,6 +242,11 @@ async fn migration_command_applies_repeats_reports_and_rolls_back()
     app.run_command("migrate", vec!["down".into()]).await?;
     app.run_command("migrate", vec!["up".into()]).await?;
     app.run_command("migrate", vec!["down".into()]).await?;
+    drop(limiter);
+    drop(database);
+    drop(db_service);
+    drop(app);
+    test_database.close().await?;
     Ok(())
 }
 

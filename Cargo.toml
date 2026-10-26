@@ -150,6 +150,7 @@ auth = [
     "dep:tower-sessions",
     "signing",
 ]
+queue = ["dep:getrandom"]
 signing = ["dep:base64", "dep:getrandom", "dep:jsonwebtoken"]
 mail-smtp = ["lettre/smtp-transport", "lettre/tokio1-rustls-tls"]
 http-client = ["dep:reqwest"]

@@ -29,6 +29,8 @@ pub mod auth;
 pub mod database;
 pub mod logger;
 pub mod mailer;
+#[cfg(feature = "queue")]
+pub mod queue;
 #[cfg(feature = "encryption")]
 pub mod security;
 pub mod server;
@@ -41,6 +43,8 @@ pub use auth::{JwtConfig, PasswordConfig, SessionConfig};
 pub use database::DatabaseConfig;
 pub use logger::{LogConfig, LogFormat};
 pub use mailer::MailConfig;
+#[cfg(feature = "queue")]
+pub use queue::QueueConfig;
 #[cfg(feature = "encryption")]
 pub use security::EncryptionConfig;
 pub use server::{CompressionConfig, CorsConfig, ServerConfig};
