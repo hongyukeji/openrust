@@ -2,67 +2,52 @@
 
 > 受众：AI Agent
 > 更新：2026-10-26
-> 摘要：v1 版本共 M0-M6 七个里程碑；根 package 模块迁移、M2 读写分离、模块化配置与 `.env` 机制、M3 本地能力及认证/安全总验收已完成。当前按依赖顺序推进 M4。详细交付与验收见 [v1 版本计划](plans/gen1-plan.md)「里程碑」。
+> 摘要：先完成底层目录收尾，再按依赖补齐 v1；v1 完整验收通过后继续 v2 后台。当前交付见 [progress.md](progress.md)，唯一执行队列见 [todo.md](todo.md)。
 
 ## 当前里程碑
 
-M0、M1、M2 当前已验收范围完成；根模块迁移与读写分离均已独立闭环。框架 package 已迁至仓库根 `openrust`，模块包含 `src/config/`、`src/core/`、`src/http/`、`src/db/`、`src/auth/`、`src/mail/`；工作区保留 CLI、proc-macro、测试工具和聚合 server 四个有明确边界的 package。读写分离已在 PostgreSQL 18.6 / MySQL 8.4.13 真实复制拓扑验证暂停、主库新读、副本追平及双 App scope 隔离；完整集群验收仍未完成。日常开发基线为 PostgreSQL 18 / MySQL 8.4 LTS / Redis 8；暂定最低支持 PostgreSQL 14+ / MySQL 8.0+ / Redis 6.2+。运行时数据库版本检查已按暂定下限对齐；完整最低版本兼容性与 Redis driver 验收仍待 v1 发布前完成。
+根 `openrust` package 已承载框架模块；原 M0–M2 基础范围及 M3 本地认证/安全运行时验收已有证据。M4 已交付数据库队列/worker、UTC 调度、活动任务唯一键与有限任务链/批次。**这不代表全部底层调整、M3 生成器、完整 M4 或 v1 完成**。状态只按源码、提交和相应验收判断。
 
-实现与生成器命名遵循 [ADR-006](decisions/adr-006-rust-native-naming.md)：项目采用 `controllers/`、`models/_entities/` 和独立 `migration/` crate；全局 CLI 为 `new`、`dev`、`generate` / `g`，运行期命令由项目二进制提供。
+当前工作区已将工具包移至 `cli/`、`macros/`、`testing/`，examples/tests 已分目录；保留 `apps/server` 作为尚无等价替代的进程/双库宿主。此结构簇仍在验证中，不能因文件已移动就关闭任务。目标与验收见 [目录收尾 Spec](plans/module-layout-migration-spec.md)。
 
 ## 执行校准
 
-- **底层调整总览必读**：根模块迁移、M2 基础读写分离及 ADR-030 模块化配置与 `.env` 整理已实现并验证；M3 本地框架能力与认证/安全总验收也已关闭。按 v1 依赖顺序继续 M4/M5/M6 和最终集群共享验收；真实 Twilio 发送仍待授权凭据与目标。专题计划中的其他能力在代码、测试和验收证据齐备前都仍属未完成。
-- 根 `openrust` package 模块迁移按 [ADR-021](decisions/adr-021-loco-style-module-layout.md) 已独立实施并完成 workspace、feature、双库、生成项目、示例、文档和旧路径验证。ADR-019 的逐能力目录改名与 `apps/server` 包改名取消；根 tests/examples 尚未覆盖聚合宿主所有验收，故保留 server。
-- Loco 应用 Hooks、CLI 与测试体验的边界按 [ADR-023](decisions/adr-023-loco-application-experience-evaluation.md)：不增加平行 Hooks；M4 worker/scheduler 实施前定义取消及停机生命周期，M6 落地只读 doctor 与薄 TestApp/HTTP assertions；现有生成器按 gen1-plan 的里程碑执行。
-- 命名校准按 [ADR-016](decisions/adr-016-neutral-application-namespaces.md)：应用配置默认 `APP_`，表默认 `tb_`，均可定制。`APP_` 已在 core/bootstrap、CLI、模板和说明中实现；表名 resolver 已贯通 DatabaseConfig/Db、迁移、测试隔离及认证持久化查询，并通过 PostgreSQL/MySQL 真实映射矩阵验证；禁止直接改生产表。
-
-- AI 平台仅为独立产品规划，不进入当前框架功能簇；须先完成框架 v1/v2 完整体成熟验收再由开发者决定是否立项，平台完全体 P0–P8 及 [上线门禁](plans/ai-platform-product.md#启动开发与上线硬性门禁) 全通过才可上线，不允许阶段性对外开放。收到明确启动指令后，产品代码只在 `projects/*` 分支及独立 worktree 开发，执行 [产品隔离规则](plans/ai-platform-product.md#分支与工作区硬性约束)，不为产品妥协框架契约。
-
-- 标准应用默认 Redis，由开发者要求并在 [ADR-015](decisions/adr-015-redis-default-calibration.md) 确认；memory/file 显式选择，库默认 feature 保持可组合。不得沿用 ADR-014 原 memory 默认或隐式 memory fallback；此为待 M5 实现的 contract。
-
-- `todo.md` 当前功能簇必须与实际代码 WIP 一致；新需求先合入既有范围，当前簇闭环后再切换。已提交的成果不因旧提示词再次成为开发任务。
-- 基础读写分离已按 [ADR-029](decisions/adr-029-database-read-routing.md) 实现：默认单库、显式只读副本入口、task-local 主库 scope、无静默故障回退；真实双库复制拓扑测试见专题计划。完整性能/集群验收仍按其各自计划推进。
-- M0-M2 等阶段完成仅代表对应已验收范围；后来补入的事务钩子、集群等要求仍需按依赖补做，不能被旧阶段标签遮蔽。
-- 每次领取/切换功能簇，对照 [v1 能力覆盖](plans/v1-capability-coverage.md)、[通用能力](plans/v1-common-capabilities.md)、[性能补强](plans/v1-performance-and-readiness.md) 和 [集群要求](plans/v1-cluster-deployment.md) 定位相关未完成项；不能只沿最初 M0-M6 简表推进。
-- M3 不限于身份提取器：Mailer/SmsSender、SMTP/Twilio adapter 与本机 Mailpit 按 ADR-033 接入；Twilio 实际号码投递仍待开发者提供授权凭据与目标。ADR-031 统一出站 HTTP client、ADR-032 请求级国际化与 ADR-034 应用数据加密/本地密钥轮换已实现；审计按 ADR-035 完成并验证。认证 contract 现在就覆盖共享会话、跨节点撤销、全局配额/验证码与公开业务扩展点，不能留到 M6 才补单机假设。
-- M3 认证与通用安全总验收已完成：PostgreSQL 18 与 MySQL 8.4 的 `auth_database` / `auth_runtime` 各通过 6 项；新生成 `--auth` 项目分别通过格式、`cargo check` 和真实 TCP HTTP 流程。ADR-035 审计与 ADR-036 签名链接均双库验收。唯一外部条件是 Twilio 实发需授权账号与目标；通用流程扩展点按 M3/M4/M5 依赖在后续簇统一实施。
-- 在既有 `progress.md` / `core/` / `memory/testing.md` 分别记录契约、实现、实际验证与提交边界，不另建平行任务队列或历史状态表。fake/编译检查不替代真实 SMTP/短信、双库或集群验收；外部条件缺失如实标注。
-- 旧排队消息仅作设计输入，已被更新的称谓、范围和措辞以当前仓库为准。收到消息后先去重合并，不将“已排队”当成“已接收”，不重复应用已有提交。
-- 每个功能簇按 [扩展性自主判断](plans/framework-design.md#开发-agent-的自主扩展性判断) 主动评估接入场景并记录取舍；继续只实施 v1，v2 后台不得提前展开。
+1. **领取下一簇前优先处理目录收尾**：已有队列提交保留；若另一个 Agent 已产生 WIP，先核对并闭合当前最小簇，不覆盖、不回滚，也不继续扩大新功能范围。随后执行目录收尾，完成后再恢复 M4。
+2. 目录中性化与 Cargo package 名是不同决定。框架在 `src/`；CLI、proc-macro、测试工具保留独立 package 的技术边界，迁出顶层 `crates/`。应用约定 `apps/` 保留；`apps/server` 逐项审计启动、feature、双库、命令与进程测试职责，替代覆盖通过前保留。见 [ADR-021](decisions/adr-021-loco-style-module-layout.md)。
+3. `examples/` 和 `tests/` 按示例/能力分目录；不得只移动文件导致 Cargo 不再发现测试。迁移必须比较 targets 与用例数量，验证包路径、宏展开、模板、CI、文档和全部测试入口。
+4. 只保留一个实现功能簇 in_progress。每簇先定公开 contract，再实现、匹配验证、本地提交、更新事实。已有实现不重做；未提交 WIP、编译通过、fake、本地双库、完整集群分别报告。
+5. 当前 M3 运行时验收不覆盖 mailer/policy 生成器、通用 HTTP 限流与业务流程扩展点。按 `todo.md` 补齐；不能用“阶段已关闭”取消后来确认的范围。
+6. 生命周期复用 `Plugin::build/finish`、Tower 与显式命令 supervisor；worker/scheduler 的取消、drain、join 按 [ADR-037](decisions/adr-037-queue-worker-lifecycle.md)。不建立平行 Hooks/DI/ORM；业务前置校验、提交后事件仍需公开类型化入口。
+7. 数据库事务内派发是可靠提交边界；after-commit 内存回调不等于可靠投递，活动任务唯一键也不等于永久请求幂等。任务、通知和业务扩展须分别定义重试、短路、失败及敏感载荷边界。
+8. 数据服务日常基线为 PostgreSQL 18 / MySQL 8.4 LTS / Redis 8；暂定最低为 PostgreSQL 14+ / MySQL 8.0+ / Redis 6.2+。最低完整能力、Redis driver 和发布时生命周期仍需验收，不在每簇重复全版本矩阵。先检查复用合适现有服务，规则见 [context.md](context.md#固定约束)。
+9. 标准应用默认 Redis，memory/file 显式选用，库默认 features 保持最小；不得静默回退本地状态。数据库/Redis 已部署不等于集群已通过。读写分离、worker/scheduler 单项竞争测试也不替代 [完整集群门禁](plans/v1-cluster-deployment.md)。
+10. 每簇对照 [能力覆盖](plans/v1-capability-coverage.md)、[通用能力](plans/v1-common-capabilities.md)、[性能与开箱即用](plans/v1-performance-and-readiness.md)、[集群](plans/v1-cluster-deployment.md) 的相关条目，不只沿最初 M0–M6 简表开发；按 [扩展性自主判断](plans/framework-design.md#开发-agent-的自主扩展性判断) 记录最小合理设计。
+11. **v1 全部门禁通过后，已获授权继续 [v2 后台](plans/v2-admin-platform.md)**。当前不能提前展开后台，也不需要把旧提示词“本轮永不进入 v2”当作永久限制。发布、tag、push 等仍遵守 `AGENTS.md` 的独立授权边界。
+12. AI 平台仍仅规划：框架 v1/v2 成熟后另行明确启动，产品只在 `projects/*` 分支与独立 worktree 开发；P0–P8 和上线门禁通过并获上线批准后才开放。详见 [产品隔离规则](plans/ai-platform-product.md#分支与工作区硬性约束)。
 
 ## 里程碑顺序
 
-M4 的数据库队列/worker 基础簇已提交；Scheduler 已实现 UTC interval/daily slot、事务内派发去重及 `schedule run` 命令，并在 PostgreSQL 18 / MySQL 8.4 双进程竞争、异常退出与 SIGTERM 测试。事件、任务链/批次、旧 worker token 接管专项与完整集群验收仍未完成；详见 [core/queue.md](core/queue.md) 与 [core/schedule.md](core/schedule.md)。不得据此关闭 M4。
-
-| 里程碑 | 主题 | 主要 crate |
+| 顺序 | 工作 | 完成门槛 |
 | --- | --- | --- |
-| M0 | 决策与基线 | workspace、CI、spikes |
-| M1 | 内核与 HTTP | `openrust::core`、`openrust::http`、`apps/server`、`openrust-cli`（`new` / `dev` / `serve`） |
-| M2 | 数据层 | `openrust::db`、`openrust-test`、模板 `--db` |
-| M3 | 邮件、短信、认证及通用安全能力 | `openrust::mail`、`openrust::auth`；国际化/HTTP/安全/审计等见专题计划 |
-| M4 | 队列、调度与事件 | `openrust::queue`、`openrust::events` |
-| M5 | 缓存、存储与可观测性 | `openrust::cache`、`openrust::storage`、`openrust::http` 可观测性 |
-| M6 | 开发者体验与 v1 发布 | `docs/`、`examples/blog`、模板、生成器全集 |
+| 优先 | 目录与验收入口收尾 | ADR-021 / 迁移 Spec；没有遗失 tests/targets，生成项目和双库入口仍可运行 |
+| 补齐 M3 | 遗漏生成器、通用限流/查询/输出边界 | 公开 API 和生成物验证；跨事务/事件部分随 M4 补齐 |
+| M4 | 事件、事务/认证扩展、共享锁/请求幂等、任务恢复补强、队列通知 | 数据库真实竞争与故障测试，job 生成器，启用 queue 的双库 CI |
+| M5 | 缓存、多实例、存储上传、WebSocket/SSE、可观测性 | Redis/file/memory 契约、对象存储、跨节点与资源边界 |
+| M6 | CLI/dev/doctor、TestApp、OpenAPI、完整生成器、示例与正式文档 | 双库黄金路径、默认/最小 features/MSRV、兼容/集群/性能/发布准备全部通过 |
+| v2 | B1–B5 现成后台 | 复用成熟 v1，组织/菜单/后台 UI 留在应用层，双库与集群验收 |
+
+专题计划定义范围，`todo.md` 定义当前顺序和领取状态；不得建立第二套活跃任务队列。
 
 ## 路由
 
 | 任务类型 | 入口 |
 | --- | --- |
-| 架构 / crate 边界 | [architecture.md](architecture.md)、[框架设计](plans/framework-design.md)、`decisions/` |
-| 编码 / Git / 验证 | [conventions.md](conventions.md) |
-| 依赖 / 版本 | [stack.md](stack.md) |
-| 里程碑范围与验收 | [v1 版本计划](plans/gen1-plan.md) |
-| v1 版本之后 | [roadmap.md](roadmap.md) |
+| 架构与公开 API | [architecture.md](architecture.md)、[框架设计](plans/framework-design.md)、[ADR 索引](decisions/README.md) |
+| 编码、Git 与验证 | [conventions.md](conventions.md)、[testing.md](memory/testing.md) |
+| 依赖与版本 | [stack.md](stack.md) |
+| 范围与验收 | [v1 计划](plans/gen1-plan.md)、[verification.md](memory/verification.md) |
+| 后续版本 | [roadmap.md](roadmap.md) |
 
 ## 验证入口
 
-```bash
-cargo fmt --all --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
-cargo doc --workspace --no-deps
-cargo deny check
-```
-
-数据库相关 crate 另按 [memory/testing.md](memory/testing.md) 在 PostgreSQL 与 MySQL 上各跑一次。
+代码功能簇按 `AGENTS.md` 执行 fmt、workspace clippy/test/doc、cargo deny；数据能力另有 PostgreSQL/MySQL 真实测试，模板变更生成项目 check/test。完整命令只在 [testing.md](memory/testing.md) 维护。文档功能簇只执行 diff、链接和旧引用检查，不把历史代码验收算成本轮运行。

@@ -1,12 +1,12 @@
 # `openrust::http`
 
 > 受众：AI Agent
-> 更新：2026-10-25
+> 更新：2026-10-26
 > 摘要：HTTP 层当前事实。
 
 ## 边界
 
-基于 `axum` 0.8 + `tower-http`。提供路由约定、提取器、默认中间件、`/health` 与 `serve`；core 已提供可供 HTTP 与业务复用的 `RateLimiter` 服务契约，DatabasePlugin 提供双库共享 store。HTTP 限流 middleware、请求 key 提取/策略组合仍需在 M3 接入时另行明确和实现；OpenAPI 在后续里程碑。
+基于 `axum` 0.8 + `tower-http`。提供路由约定、提取器、默认中间件、`/health` 与 `serve`；core 已提供 `RateLimiter`，DatabasePlugin 提供双库共享 store，AuthFlows 已在敏感流程中使用。通用 HTTP 限流 middleware、请求 key 提取/策略组合仍待交付；OpenAPI schema 与 `/docs` 尚未实现。
 
 ## 当前实现
 
@@ -29,12 +29,14 @@ CORS 预检（`OPTIONS` 且带 `Access-Control-Request-Method`）保持 tower-ht
 
 ## 后续边界
 
-- HTTP 限流 middleware 与请求身份/key 组合（M3）；OpenAPI `/docs`（后续里程碑）。
-- `/ready` 聚合各能力 crate 的检查（M5）。
+- 补交通用 HTTP 限流 middleware 与请求身份/key 组合；不能用认证流程内限流代替普通业务路由的公开入口。
+- OpenAPI schema 与 `/docs`（后续里程碑）；`utoipa` / `utoipa-axum` 尚未引入，统一响应需与生成文档一致。
+- `/ready` 聚合依赖检查、WebSocket/SSE、跨节点实时投递与 metrics/OTel 属于 M5 待实现能力；已有 `TraceLayer` 和 `/health` 不构成完整生产就绪验收。
 
 ## 验证
 
-`cargo test -p openrust --test http_router --test http_resource`：`tests/router.rs` 用 `oneshot` 覆盖 health 统一包装及请求 ID、`Inject` 命中与缺失、`Validated` 的 422 / 400 / 200、panic → 500、压缩协商、CORS 响应与配置错误；`tests/resource.rs` 覆盖路由动作、裁剪、嵌套、响应状态与分页错误/结构。
-# 出站 HTTP 客户端
+`cargo test -p openrust --test http_router --test http_resource`：`tests/http/router.rs` 用 `oneshot` 覆盖 health 统一包装及请求 ID、`Inject` 命中与缺失、`Validated` 的 422 / 400 / 200、panic → 500、压缩协商、CORS 响应与配置错误；`tests/http/resource.rs` 覆盖路由动作、裁剪、嵌套、响应状态与分页错误/结构。
+
+## 出站 HTTP 客户端
 
 `http-client` 是可选 feature，公开 `openrust::http::HttpClient`、`HttpClientConfig`、`HttpRequest`、`HttpResponse`、`HttpTransport`、`HttpTransportRequest`、`HttpResponseBody`、`TransportResponse`、`RetryPolicy` 与 body 类型别名。reqwest 0.13 Rustls client 的 clone 共享连接池。默认 connect timeout 5s、total timeout 30s、response read 上限 1 MiB、自动 redirect 关闭、系统 proxy 环境变量不继承（proxy 必须显式配置，Debug 脱敏）。响应状态不自动转为错误；错误文本不暴露 URL/头/正文。明确超限的 `Content-Length` 在返回响应前拒绝，未知长度的 body 通过逐块限额 reader 消费；取消只停止本地 future 等待，不承诺撤销已送达的远端操作。客户端不自动重试；显式 `idempotent().send_with_retry(policy)` 最多五次，只对 transport error、502/503/504 退避重试，调用方负责声明操作幂等；一次性流 body 不可重放时在发送前拒绝。`HttpClient::with_transport` 支持测试/应用 transport 注入，自定义 transport 同样受总超时和 body 限额保护。2026-10-26 feature tests 15 项覆盖 fake/local TCP、JSON/query/form/multipart/stream、status、响应限额、timeout、取消和 bounded retry；default/all-features workspace 验收与生成项目验收通过，证据见 `memory/testing.md` / `memory/verification.md`。

@@ -6,7 +6,7 @@
 
 ## 背景
 
-`openrust-cache` 已预留能力 crate，但目前只有 crate 骨架。v1 需要保持业务代码在合理范围内不依赖具体缓存后端，同时提供默认 Redis 的标准项目与显式 memory/file 选择，并在需要时显式使用 named stores。Laravel Cache 的 default store、named stores 和 custom driver 用作能力参照；OpenRust 保持 Rust 类型、显式依赖、Plugin 和 ADR-006 命名规则，不采用 Facade。
+v1 需要让业务代码在合理范围内不依赖具体缓存后端，同时提供默认 Redis 的标准项目与显式 memory/file 选择，以及 named stores。能力落在根 `openrust::cache`，原独立空壳 package 已按 ADR-021 移除。Laravel Cache 的 default store、named stores 和 custom driver 是本决策的参考；具体实现按六个参考框架统一评估，保持 Rust 类型、显式依赖、Plugin 和 ADR-006 命名规则。
 
 ## 最小 Spec
 
@@ -40,5 +40,5 @@
 ## 影响与实施顺序
 
 - ADR-009、ADR-013、上下文、栈、v1 计划与集群计划按 ADR-015 同步到标准应用 Redis 默认、显式 memory/file 与受校验的共享语义。
-- 当前活跃 M3 功能簇完成前不启动 M5 实现；此 ADR 与 M5 计划只确定未来 contract 和验收，不表示 Cache、memory/file/Redis driver 已实现。
+- 实现顺序以 `todo.md` 为准；本 ADR 规定 contract 和验收，不表示 Cache、memory/file/Redis driver 已实现。
 - M5 实施前重审 `CacheDriver` / `CacheBackend` 的实际 trait 形式、TTL 精度/零值、file 清理触发方式、各后端原子能力，以及 cluster capability 要求；不弱化本 ADR 的错误区分和作用域边界。

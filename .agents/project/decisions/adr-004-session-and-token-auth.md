@@ -1,6 +1,6 @@
 # ADR-004 认证默认为 Cookie 会话与个人访问令牌
 
-- 状态：Superseded（默认认证方式由 [ADR-018](adr-018-jwt-primary-authentication.md) 替代；账户、密码与通用流程决定在不冲突时继续有效）
+- 状态：Partially Superseded（默认认证方式及排除 JWT 的决定由 [ADR-018](adr-018-jwt-primary-authentication.md) 替代；账户、密码与通用流程原则仍有效，具体运行时见 ADR-022/024/026/027）
 - 日期：2026-10-25
 
 ## 背景

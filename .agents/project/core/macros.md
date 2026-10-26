@@ -1,7 +1,7 @@
 # openrust-macros
 
 > 受众：AI Agent
-> 更新：2026-10-25
+> 更新：2026-10-26
 > 摘要：OpenRust 过程宏 crate；通过门面 crate 对应用暴露属性宏。
 
 ## 当前实现
@@ -12,7 +12,7 @@
 
 ## 后续边界
 
-- `Job` / `Event` derive 宏归 M4；此 crate 不负责生成器或运行期行为。
+- `Job` / `Event` derive 宏归 M4 规划，当前尚未实现；已有运行期 trait 不能当成 derive 已交付。此 crate 不负责生成器或运行期行为。
 
 ## 验证
 

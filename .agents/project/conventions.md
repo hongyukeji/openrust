@@ -10,9 +10,9 @@
 - 所有 crate `#![forbid(unsafe_code)]`；库 crate `#![deny(missing_docs)]`，公共入口类型附带可运行 doctest。
 - `[workspace.lints]` 启用 `clippy::all` + `clippy::pedantic`；显式 `#[allow]` 必须注明原因。库 crate 拒绝 `unwrap_used` / `expect_used` / `panic` / `todo` / `unimplemented`；测试与 `openrust-cli` 二进制可放宽 `unwrap_used` / `expect_used`。
 - 错误：库 crate 用 `thiserror`，`anyhow` 只出现在二进制边界；所有面向 HTTP 的错误最终进入 `openrust::Error`。
-- 异步统一 tokio；trait 中使用原生 `async fn`，需要跨任务时加 `Send` 约束。
+- 异步统一 tokio；静态分发 trait 优先原生 `async fn`，需要对象安全或异构注册时按既有 contract 使用 `BoxFuture`；跨任务 future 保证 `Send`，不为形式统一重写已定公开接口。
 - 宏只做派生与属性标注，不改变控制流；宏支持代码放 `__private` 模块并 `#[doc(hidden)]`。
-- feature 只做加法；命名 `db-postgres` / `db-mysql` / `queue-redis` / `cache-redis` / `storage-s3` / `mail-smtp` / `templates` / `otel` / `metrics` / `test-util`。
+- feature 只做加法；已实现的名称以 `Cargo.toml` 为准，如 `db-postgres`、`db-mysql`、`auth`、`queue`、`http-client`、`mail-smtp`、`sms-twilio`、`encryption`、`signing`、`test-util`。计划中的 `cache-redis`、`storage-s3`、`otel`、`metrics` 等在能力落地时加入，不预建空 feature。
 - 不写 `TODO` 注释；活跃任务进 `todo.md`。注释只解释非显然的 WHY、触发边界、失败语义或安全约束。
 
 ## 命名
@@ -21,8 +21,8 @@
 
 | 对象 | 规则 | 示例 |
 | --- | --- | --- |
-| 可发布 crate 的 Cargo 包名 | `openrust-<capability>`；源码目录使用中性能力名 | 包 `openrust-queue`，目录 `crates/queue` |
-| 聚合应用 Cargo 包名 | 按 `apps/<role>` 使用中性名称，`publish = false` | 目录 `apps/server`，包/二进制 `server` |
+| 主框架与独立工具包 | 能力在根 `openrust` 内按 module 划分；必要工具包保留发布名，目标目录采用中性名 | `openrust-cli` → `cli/`、`openrust-macros` → `macros/`、`openrust-test` → `testing/`（目录迁移待实施，见 ADR-021） |
+| 仓库内应用 | `apps/<role>`、`publish = false`；宿主去留按职责覆盖审计决定 | 当前 `apps/server` 包/二进制仍为 `openrust-server`，不执行旧 ADR-019 的 `server` 包名迁移 |
 | driver 类型 | `<Backend><Capability>` | `RedisCache`、`DatabaseQueue` |
 | 配置结构 | `<Capability>Config` | `QueueConfig` |
 | 错误类型 | `<Capability>Error` | `QueueError` |
@@ -44,8 +44,8 @@
 ### 能力接入 apps/server
 
 - 每个已实现的新能力在同一功能簇内接入 `apps/server`，并补聚合应用集成测试；这是能力完成定义的一部分。
-- 不需要外部服务的能力始终启用；需要外部服务的能力按 ADR-007 添加 feature 并转发给门面。当前 M1 不设空 feature。
-- `server` 的正式依赖只包含门面 `openrust`，不承载业务资源。
+- 无需外部服务的默认能力可直接装配；加密等需要显式密钥的可选能力仍按 feature/config 启用。外部服务能力须验证 feature 转发、插件/迁移注册及实际运行入口，不以声明 feature 代替装配。
+- 当前 `openrust-server` 正式依赖只包含 `openrust`，不承载业务资源。后续若按 ADR-021 移除或迁移宿主，先为每项启动/测试职责提供等价入口和通过证据，再更新完成定义中的入口引用。
 
 ### 起名前三问
 
@@ -78,9 +78,10 @@ ADR-006 未覆盖的公共名称，先在 ADR-006 补一行并写明先例，再
 | 配置文件 | `config/default.toml`、`config/{env}.toml`，格式为 TOML | — |
 | 本地敏感配置 | `.env` 仅作本地/非生产环境覆盖；提交 `.env.example` 占位模板，所有 `.env` 与 `.env.*` 默认忽略，例外仅为 `*.example`；不要把真实凭据写入被跟踪配置文件 | `cp .env.example .env` |
 | 项目元数据 | 写入 `[package.metadata.openrust]` | 不另建元数据文件 |
-| 生成项目目录 | `controllers/`、`models/`（含 `_entities/`）、`services/`、`policies/`、`jobs/`、`events/`、`mailers/`、`middleware/`，外加 `src/seed.rs`、`migration/` crate、`templates/mail/` | 见 ADR-006 §1 |
-| 邮件、缓存、队列与测试 | `Email`；`Cache::get/insert/remove/get_or_insert_with`；`Job::run`；`TestApp::spawn().await` | 见 ADR-006 §4 |
-| 其他框架的名词 | 只允许出现在 `docs/` 的「从其他框架迁移」对照页 | — |
+| 生成项目目录 | `controllers/`、`models/`（含 `_entities/`）、`services/`、`policies/`、`jobs/`、`events/`、`mailers/`、`middleware/`，按实际能力生成，外加 `src/seed.rs`、`migration/` crate；本地化邮件复用 i18n catalog | 见 ADR-006 §1 |
+| 邮件与队列 | `Email`；`Job::NAME` / `Job::handle(&self, JobContext) -> BoxFuture<'_, Result<()>>` | 现有公开入口；见 ADR-006 §4 与 ADR-037 |
+| 缓存与测试目标 | `Cache` 方法按 ADR-014；`TestApp` 的 builder/HTTP API 待 M6 contract | 不把未实现的示意调用当作现有 API |
+| 其他框架的概念对照 | 用户迁移说明放 `docs/` 对照页；设计参考与取舍放 ADR/框架计划，公共 API 采用已定通用名称 | 不把参考框架术语直接当 OpenRust API |
 
 ## 验证
 
@@ -96,12 +97,12 @@ cargo semver-checks            # 发布前
 | 改动范围 | 验证 |
 | --- | --- |
 | 任意 crate 源码 | 上述命令 + 该 crate 单元测试 |
-| `openrust-db` / `openrust-queue` / `openrust-auth` | 另在 PostgreSQL 与 MySQL 各跑集成测试，见 `memory/testing.md` |
+| `openrust::db` / `openrust::queue` / `openrust::auth` 等数据模块 | 另在 PostgreSQL 与 MySQL 各跑集成测试，见 `memory/testing.md` |
 | 模板与生成器 | 双库模板快照测试：生成项目后 `cargo check` + `cargo test` |
 | 文档-only | `git diff --check` + 相对链接检查 + `rg` 旧路径扫描 |
 | 生成项目模板 | 双库模板快照测试；检查真实 `.env` / `.env.*` 忽略且 `.env.example` 可跟踪，生成项目后 `cargo check` + `cargo test` |
 
-测试原则：框架是底层通用机制，每个公共行为都应有单元或集成测试；新建测试文件前必须能一句话说清它能发现哪个缺陷。fake driver 的断言放在 `openrust-test`。
+测试原则：框架是底层通用机制，每个公共行为都应有单元或集成测试；新建测试文件前必须能一句话说清它能发现哪个缺陷。能力 fake 可随该模块的 `test-util` 暴露；通用测试组合工具放在 `openrust-test`，不得为目录统一引入根 package 对测试包的反向依赖。分目录迁移测试时核对 Cargo targets 和运行用例，避免子目录文件未被编译执行。
 
 ## 文档
 

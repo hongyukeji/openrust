@@ -15,7 +15,7 @@
 | HTTP client 与 i18n | 统一有界出站调用/fake、请求级 locale、中英资源与应用 catalog；生成项目/本地 HTTP 验证 | 不等于外部供应商实发或完整语言格式化引擎 |
 | 邮件与短信 | Mailer/SmsSender、SMTP/log/fake、Twilio adapter、本地化模板；Mailpit 本机 SMTP 实收、Twilio 协议测试通过 | Twilio 真实账号投递待授权；队列发送和薄多渠道通知待补 |
 | 加密、签名、审计 | 进程内加密/key ring、用途隔离签名链接/可选共享撤销、可替换审计 sink/同事务审计；已有单测、双库相关路径与生成验证 | 加密实现审计/平台性能复核；不承诺任意远程 sink 可靠送达或审计不可篡改 |
-| 队列与 worker | 数据库任务、显式 handler、事务派发、有限并发/重试/失败保留/超时/lease/心跳；双库强杀恢复；活动唯一键已提交 | 批次/链、事件、共享锁/请求幂等、旧 token 接管专项与完整负载集群 |
+| 队列与 worker | 数据库任务、显式 handler、事务派发、有限并发/重试/失败保留/超时/lease/心跳；双库强杀恢复；活动唯一键、任务链/有限批次已提交 | 事件、共享锁/请求幂等、旧 token 接管专项与完整负载集群 |
 | Scheduler | UTC interval/daily slot、数据库时钟、slot 与 job 原子去重、run/once/list；双库独立进程竞争/异常退出/SIGTERM 已验证 | 不含 cron/IANA/DST；生产资源、滚动升级和完整拓扑验收未完成 |
 | CLI 与测试工具 | new、model/migration 生成、dev/运行命令代理、TestDatabase；无数据库和双库/auth 模板已有验证 | 其他生成器、依赖编排/watch、doctor、TestApp/HTTP assertions、黄金路径/正式文档 |
 | 缓存、存储、实时 | 已有设计 contract | Redis/file/memory cache、local/S3 存储、上传扩展、WebSocket/SSE 仍待实现 |

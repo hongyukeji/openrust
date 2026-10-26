@@ -5,13 +5,13 @@
 
 ## 最小 Spec
 
-- 在 `openrust-auth` 复用 `CurrentUser`、`Db`、Plugin 与现有认证表名 resolver，不新增独立授权 crate 或通用规则引擎。
+- 在 `openrust::auth` 复用 `CurrentUser`、`Db`、Plugin 与现有认证表名 resolver，不新增独立授权 crate 或通用规则引擎。
 - 提供数据库共享的 `Policy` 服务，用精确权限字符串判断用户授权；未知权限默认拒绝。
 - 提供全局角色、权限、用户角色和角色权限关联；租户、资源所有权和业务数据范围仍由应用判断。
 - JWT/Session 要求数据库角色授予权限；PAT 必须同时具有同名 token ability 与数据库角色权限。
 - 权限检查读取权威数据库，不使用进程缓存；已提交的角色/权限变更从下一次检查起对所有节点生效。
 - 通过追加 `AuthPolicyMigration` 建表，不修改既有认证迁移；生成项目 `--auth` 纳入迁移。
-- 对 PostgreSQL 16+ 与 MySQL 8.4+ 覆盖 CRUD、默认拒绝、PAT 交集、撤销即时生效和表名映射。
+- 日常在 PostgreSQL 18 / MySQL 8.4 覆盖 CRUD、默认拒绝、PAT 交集、撤销即时生效和表名映射；暂定最低 PostgreSQL 14+ / MySQL 8.0+ 的完整兼容性按 ADR-002 在发布前验证。
 - 不自动保护路由；handler/service 显式调用 `Policy::allows` 或 `Policy::authorize`，拒绝映射为统一 403。
 
 ## 背景与证据

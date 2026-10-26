@@ -20,7 +20,7 @@
 | [`plans/ai-platform-product.md`](plans/ai-platform-product.md) | AI 平台独立产品计划、`projects/*` 分支约束与框架隔离；尚未启动 |
 | `architecture.md` / `stack.md` / `conventions.md` | 架构、技术栈和工程规范 |
 | `style.md` | 文档写作、文件命名和清理规范 |
-| `decisions/` | 仍有效或明确标记为 Superseded 的架构决策 |
+| [decisions/README.md](decisions/README.md) | ADR 唯一编号、有效决定与替代关系索引 |
 | `memory/testing.md` / `memory/verification.md` | 当前可复验测试命令和验收边界 |
 | `scripts/` | 提交脚本 |
 | [`../skills/`](../skills/README.md) | 专项工作流；按任务读取 |

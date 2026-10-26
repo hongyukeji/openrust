@@ -16,7 +16,7 @@ OpenRust is built on `tokio`, `axum`, `tower` and `SeaORM`, with explicit Rust t
 
 ## Run in this repository
 
-The non-published [integration server](apps/server/README.md) runs the currently implemented framework capabilities without external services:
+The non-published [integration server](apps/server/README.md) starts HTTP, request languages, and local log mail/SMS drivers without external services. Database, auth, queue and scheduler integrations use explicit test Applications; enabling a feature does not install them in the default server:
 
 ```bash
 cargo run -p openrust-server
@@ -26,7 +26,7 @@ cargo run -p openrust-server -- help
 cargo test -p openrust-server
 ```
 
-For repository development, `.cargo/config.toml` sets `APP_CONFIG_DIR=apps/server/config`, so root-level `cargo run` reads the server's configuration. Applications default to `config/` relative to their working directory. `APP_SERVER__PORT=4000 cargo run` overrides the server's port; `PORT=4000 cargo run` also works. Applications can override `Application::config_namespace()` to use a prefix such as `SHOP_`. The framework package is at the repository root; implemented capabilities live in `src/audit.rs`, `src/config/`, `src/core/`, `src/db/`, `src/http/`, `src/i18n.rs`, `src/mail/`, `src/sms.rs`, and feature-gated `src/auth/` and `src/security.rs`. Runtime TOML/YAML remains in each application's root `config/` directory. `apps/server` is this workspace's integration host, while `openrust new` creates a separate project with its own `src/` and `config/`.
+For repository development, `.cargo/config.toml` sets `APP_CONFIG_DIR=apps/server/config`, so root-level `cargo run` reads the server's configuration. Applications default to `config/` relative to their working directory. `APP_SERVER__PORT=4000 cargo run` overrides the server's port; `PORT=4000 cargo run` also works. Applications can override `Application::config_namespace()` to use a prefix such as `SHOP_`. The framework package is at the repository root; implemented capabilities live in `src/audit.rs`, `src/config/`, `src/core/`, `src/db/`, `src/http/`, `src/i18n.rs`, `src/mail/`, `src/sms.rs`, and feature-gated auth, encryption, signing, queue and schedule modules. Runtime TOML/YAML remains in each application's root `config/` directory. `apps/server` is this workspace's integration host, while `openrust new` creates a separate project with its own `src/` and `config/`.
 
 Application data encryption is an opt-in `encryption` feature. Register `openrust::security::EncryptionPlugin`, configure a 32-byte key ring under `[security.encryption]`, and generate local key material with `openrust key generate`. The active key encrypts new values; prior keys decrypt old values during a controlled rotation. Keep keys outside version control.
 
@@ -34,9 +34,11 @@ Purpose-bound expiring links are available through the `signing` feature and `op
 
 Explicit audit records use `openrust::audit::Audit` with the database sink or a custom `AuditSink`. Add `DatabaseAuditMigration` to the application migrator. Details are denied by default, require an allowlist, and redact sensitive field names. Critical database changes can insert a validated audit record in the same transaction; see the [audit module guide](src/audit/README.md).
 
-The `queue` feature provides durable database job dispatch, bounded worker concurrency, and database-coordinated scheduling for PostgreSQL and MySQL. Register `QueueMigration` in the application migrator and install `QueuePlugin` after `DatabasePlugin`; handlers are explicitly registered with `register_job`. Use `schedule_interval` or `schedule_daily_at` on the same plugin to register a UTC schedule. `schedule run --once` scans once, `schedule run` runs continuously, and `schedule list` shows registered entries. `Queue::dispatch_unique` prevents overlapping duplicates for a queue-scoped key and returns the active job ID; the key is released when the job completes or is moved to `failed_jobs`. `dispatch_chain` executes registered tasks in order, while `dispatch_batch` bounds concurrency per group. Each group is one durable parent job; a retry can repeat successful child side effects, so child handlers must be idempotent. Groups allow at most 128 tasks and a batch concurrency of 1 to 64. Dispatch inside a `Db` transaction when job creation must commit or roll back with business data. Execution is at least once, so handlers must be idempotent. The current worker supports retries, failed-job retention, manual retry, progress, cooperative cancellation, per-attempt timeouts and lease recovery after process failure. Schedules support fixed whole-second intervals and daily UTC time; named time zones, DST, cron expressions, queued event listeners and cross-node full cluster acceptance remain in M4 work.
+The `queue` feature provides durable database job dispatch, bounded worker concurrency, and database-coordinated scheduling for PostgreSQL and MySQL. Register `QueueMigration` in the application migrator and install `QueuePlugin` after `DatabasePlugin`; handlers are explicitly registered with `register_job`. Use `schedule_interval` or `schedule_daily_at` on the same plugin to register a UTC schedule. `schedule run --once` scans once, `schedule run` runs continuously, and `schedule list` shows registered entries. `Queue::dispatch_unique` prevents overlapping duplicates for a queue-scoped key and returns the active job ID; the key is released when the job completes or is moved to `failed_jobs`. `dispatch_chain` executes registered tasks in order, while `dispatch_batch` bounds concurrency per group. Each group is one durable parent job; a retry can repeat successful child side effects, so child handlers must be idempotent. Groups allow at most 128 tasks and a batch concurrency of 1 to 64. Dispatch inside a `Db` transaction when job creation must commit or roll back with business data. Execution is at least once, so handlers must be idempotent. The current worker supports retries, failed-job retention, manual retry, progress, cooperative cancellation, per-attempt timeouts and lease recovery after process failure. Schedules support fixed whole-second intervals and daily UTC time; cron expressions, named time zones and DST are outside the first v1 scheduling contract. Queued event listeners and full cluster acceptance are still pending.
 
-## The golden path
+## The planned v1 golden path
+
+The following is the release acceptance target. Packages are not published yet. Today, use the repository commands above; the current CLI supports project generation and a development server proxy, while dependency orchestration, automatic migrations and OpenAPI remain planned.
 
 ```bash
 cargo install openrust-cli
@@ -45,7 +47,7 @@ cd blog
 openrust dev
 ```
 
-After `openrust dev` the database and mail catcher are running, migrations are applied, the server listens on `http://localhost:3000`, `/health` returns 200, `/docs` serves the OpenAPI UI, auth endpoints work and `cargo test` is green.
+For v1 acceptance, `openrust dev` must first reuse suitable existing services, create missing isolated development dependencies, apply migrations and run the application. Both database templates must expose working health, OpenAPI and auth paths and pass their generated tests. These end-to-end guarantees are not complete yet.
 
 ## Request languages
 
@@ -65,7 +67,7 @@ Load an application JSON object into `MessageCatalog` at startup, for example `{
 
 ## Documentation
 
-Design and plan documents live in [`.agents/project/plans/`](.agents/project/plans/README.md) during the design phase and will move to a public documentation site before the 0.1 release.
+Current user guides live in module and package READMEs. [Agent plans](.agents/project/plans/README.md) describe remaining work; a separate public documentation site is planned for M6. Planning records will remain separate from user documentation.
 
 ## License
 

@@ -34,7 +34,9 @@
 - 生成项目 HTTP handlers 的真实 HTTP/fake-mail/`ClientIp` 集成覆盖已加入。2026-10-26 按当前模板新生成的 PostgreSQL 18 与 MySQL 8.4 项目均通过格式检查、`cargo check` 和完整 JWT/PAT HTTP 流程；Session 登录/退出及 CSRF 流程也在双库隔离集成测试覆盖。
 - 注册、登录、找回、邮箱验证、refresh/logout 与共享限流已有 service 编排和生成 HTTP 路由模板；可信代理来源策略按 ADR-028 实现。
 - Policy/basic RBAC 已实现；复杂业务策略、租户范围与可缓存授权模型未纳入本 contract。
-- `apps/server` 不承担生成项目业务 DTO 的认证 HTTP 流程；默认聚合入口提供 auth facade/runtime 集成，完整流程由 CLI 生成项目通过真实 TCP 测试覆盖。
+- `apps/server` 的认证集成测试构建各自测试 Application；默认 `Server::build` 没有安装 Auth/JWT/Database 插件，启用 `auth` feature 不会自动安装它们。完整认证业务 HTTP 流程由 CLI 生成项目通过真实 TCP 测试覆盖。
+- 注册、登录、密码重置等公开流程扩展点尚未实现；当前 `AuthFlows` 固定编排不能等同于可注册的 before/after hooks。后续复用既有事务/策略与计划中的事件契约，明确校验短路、失败与提交后通知边界，见 [框架扩展设计](../plans/framework-design.md#关键流程的公开扩展点)。
+- AuthFlows 的敏感接口限流已实现；可由任意业务路由配置的通用 HTTP 限流 middleware、请求 key/策略组合仍待交付。`generate mailer` / `generate policy` 也仍是原 M3 的生成器补交项，不随本地认证验收自动完成。
 
 - Twilio 适配器有请求协议、认证、错误脱敏、timeout 与无重试测试，尚无已授权账号和目标号码的真实送达证据。认证和通用安全本地实现及双库验收不依赖该外部条件。
 

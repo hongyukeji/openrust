@@ -24,7 +24,7 @@ OpenRust 的主要场景是前后端分离 API 服务，因此用户登录后应
 
 - JWT、refresh token 轮换与撤销进入 v1 认证交付范围；Cookie Session 为可选能力，不再是默认路径。运行时、配置与 claims 的实现 contract 由 [ADR-022](adr-022-jwt-runtime-contract.md) 细化。
 - 可复用的账号流程 service 与应用自有 HTTP 路由边界见 [ADR-024](adr-024-authentication-flow-service.md)；这项 contract 不代表流程已实现。
-- 当前认证实现 WIP 的 Session 与 PAT 可以保留为能力实现输入，但生成流程、认证选择和验收必须以本 ADR 为准。不得把现有代码状态当作产品默认决策。
+- Session 与 PAT 作为现有可选能力保留；生成流程、认证选择和后续验收仍以本 ADR 的 JWT-first 决定为准，不能因某个示例使用 Session/PAT 而改变默认方向。
 - 旧 ADR-004 的账户字段、密码哈希、内置注册与找回密码等决定在不冲突时继续有效；其 Cookie Session/PAT 默认顺序和 JWT 排除条款已由本 ADR 替代。
 
 ## 验收

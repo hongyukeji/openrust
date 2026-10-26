@@ -1,8 +1,8 @@
 # OpenRust 框架设计
 
 > 受众：AI Agent
-> 更新：2026-10-25
-> 摘要：OpenRust v1 版本框架底座的架构设计：设计原则、crate 与应用目录布局、内核、配置、路由、错误、数据、认证、异步能力、CLI、测试工具与框架代码规范。目标、里程碑与验收见 [gen1-plan.md](gen1-plan.md)。
+> 更新：2026-10-26
+> 摘要：OpenRust v1 版本框架底座的架构设计：设计原则、模块与应用目录布局、内核、配置、路由、错误、数据、认证、异步能力、CLI、测试工具与框架代码规范。目标、里程碑与验收见 [gen1-plan.md](gen1-plan.md)。
 
 ## 设计原则
 
@@ -16,9 +16,9 @@ OpenRust 追求的优雅是 Rust 语境下的优雅：靠类型、trait 和约�
 4. **错误是一等公民**：框架错误统一为 `openrust::Error`，自动映射为 `ApiResponse<T>` 统一包装响应；库代码禁止 `unwrap` / `expect` / `panic!`。
 5. **宏只做派生，不做控制流**：`#[derive(...)]` 和少量属性宏用于消除样板；不用宏改变程序结构或隐藏调用关系。
 6. **可替换但不过度抽象**：缓存、队列、存储、邮件各一个 trait、多个 driver；trait 只覆盖已有 driver 的共同能力，不预留假想扩展点。
-7. **生成即普通代码**：CLI 生成的文件是开发者会亲手写出的代码，可读、可改、可删，无框架专属注解。
-8. **可测试是默认值**：每个能力自带 fake driver 和测试工具，业务测试不需要真实 Redis、SMTP 或对象存储。
-9. **最小默认，按需开启**：核心路径只依赖 tokio / axum / tower / serde / tracing；数据库驱动、Redis、S3、OpenTelemetry 等通过 Cargo feature 开启。
+7. **生成即普通代码**：CLI 生成可读、可改的普通 Rust 代码；少量宏只减少样板，不隐藏控制流。
+8. **可测试是默认值**：适合替换的外部能力提供显式 fake；业务单元测试可隔离外部服务，驱动和集群验收仍必须使用真实服务。
+9. **最小默认，按需开启**：库默认 features 最小，具体依赖以 Cargo.toml 为准；数据库驱动、Redis、S3、OpenTelemetry 等通过 Cargo feature 开启。
 
 ## 关键流程的公开扩展点
 
@@ -107,244 +107,141 @@ OpenRouter 是独立 AI 平台产品的产品对标对象，不列入上述框�
 | --- | --- | --- |
 | gRPC 服务端/客户端 | Gen1 明确将 gRPC 与 GraphQL 排除在 V1 范围外，后续路线没有具体评估项 | 加入 V2 候选评估；仅在内部服务/跨语言 RPC 用户需求明确时设计，评估与现有 HTTP/auth/config/health/telemetry 的集成，不列为 V1 阻塞 |
 | GraphQL | Gen1 明确不纳入 V1，后续路线没有具体评估项 | 加入 V2 候选评估；仅在客户端需要按需组合图数据且 REST/OpenAPI 无法合理满足时评估，优先复用认证、授权、限流和可观测性契约 |
-| 数据库测试工厂/fixtures | 当前使用 `fake::Dummy` 和普通 builder；不提供通用 Factory trait（ADR-006、ADR-010） | 保持 V1 无隐式工厂系统；V2 评估轻量、显式、可组合的测试数据构造工具是否能减少真实数据库集成测试样板。不得复制 ORM 或要求所有模型实现框架 trait |
+| 数据库测试工厂/fixtures | 当前用普通 builder，`fake::Dummy` 是可选待评估方案；不提供通用 Factory trait（ADR-006、ADR-010） | 保持 V1 无隐式工厂系统；V2 评估轻量、显式、可组合的测试数据构造工具是否能减少真实数据库集成测试样板。不得复制 ORM 或要求所有模型实现框架 trait |
 | 服务端页面渲染 | V1 API 优先；页面渲染仅列为 V2 评估候选 | 保留 V2 候选；若采纳，作为可选 starter/feature，不使纯 API 项目依赖模板引擎或承担 CSRF/页面栈配置 |
 
 不作为未规划缺口的项目：RuoYi 的组织/菜单/数据权限 UI 已归 V2；OAuth/SSO/MFA、多租户、更多数据库、持久离线消息已列为候选；GraphQL 明确不属于 V1；任意流程引擎、支付、电商、CRM/ERP 属于产品模块，不因出现在参考项目中而塞入通用 core。候选只记录评估入口，不代表已承诺实现。
 
 ## v1 通用能力补齐
 
-国际化、WebSocket、统一出站 HTTP、加密与密钥管理、审计和请求幂等纳入 v1。其最小范围、推荐方案、里程碑与验收见 [通用能力计划](v1-common-capabilities.md)。优先复用既有能力 crate 与成熟实现；公共 API、配置和依赖选型先定 contract，不自动为每项能力新增 crate。
+国际化、WebSocket、统一出站 HTTP、加密与密钥管理、审计和请求幂等纳入 v1。其最小范围、推荐方案、里程碑与验收见 [通用能力计划](v1-common-capabilities.md)。优先复用既有能力模块与成熟实现；公共 API、配置和依赖选型先定 contract，不自动为每项能力新增 crate。
 
 ## 框架仓库布局
 
-```text
-openrust/
-├── Cargo.toml                 # 根 openrust package 与 workspace
-├── src/                       # 已实现的 config、core、http、db、auth、mail 模块
-├── tests/                     # 框架公共 API 集成测试
-├── examples/                  # 可运行示例
-├── crates/
-│   ├── openrust-cli/          # `openrust` 命令、模板与运行命令代理
-│   ├── openrust-macros/       # proc-macro package
-│   └── openrust-test/         # 用户 dev-dependency：数据库隔离与测试辅助
-├── apps/server/               # 聚合启动与集成验收宿主
-└── docs/                      # M6 建立 mdBook 文档站
-```
+框架实现集中在根 `openrust` package 的 `src/`，配置代码在 `src/config/`。当前实际结构见 [architecture.md](../architecture.md)，剩余目录迁移见 [Spec](module-layout-migration-spec.md) 与 [ADR-021](../decisions/adr-021-loco-style-module-layout.md)。
 
-框架能力直接作为根 package 的 Rust 模块；尚未实现的 queue、events、cache、storage 在各自里程碑以非空实现落入 `src/`，不预建空模块。独立 package 仅保留 CLI、proc-macro、用户测试工具和聚合 server 等明确的发布或验收边界。详细依据见 [ADR-021](../decisions/adr-021-loco-style-module-layout.md)。
+目标是将独立工具包放在 `cli/`、`macros/`、`testing/`，完成职责迁移后移除旧 `crates/`。Cargo package 名保留，proc-macro 不合入普通 library。`examples/<name>/`、`tests/<capability>/` 采用明确的 Cargo target/harness，不能靠嵌套目录自动发现测试。`apps/` 保留应用约定；`apps/server` 暂为集成宿主，删除或迁移须先替代其全部验收职责。
+
+未实现的 events/cache/storage 等能力在对应里程碑以实际实现进入 `src/`；不预建空模块或为每种能力创建独立 package。
 
 ## 生成的应用布局
 
-`openrust new` 生成以下结构，项目元数据写在 `[package.metadata.openrust]`，不另建配置元文件：
+生成应用自己的 `src/` 是业务代码，与框架仓库的 `src/` 职责不同。当前生成器以 [CLI 事实](../core/cli.md) 和模板源码为准；以下是 v1 完成时的组织目标，不表示现有 `new` 已生成所有目录。
 
 ```text
 <app>/
-├── Cargo.toml              # [package.metadata.openrust]
-├── .env.example
-├── config/
-│   ├── default.toml
-│   ├── development.toml
-│   ├── test.toml
-│   └── production.toml
+├── Cargo.toml                 # package.metadata.openrust
+├── .env.example               # .env 不入库
+├── config/                    # default/development/test/production.toml
 ├── src/
-│   ├── main.rs             # 只调用 openrust::run::<App>()
-│   ├── app.rs              # impl Application：plugins、routes、jobs、schedule
-│   ├── routes.rs
-│   ├── schedule.rs
-│   ├── seed.rs             # db seed 入口，普通 async fn
-│   ├── controllers/        # 一资源一文件的 handler 函数
-│   ├── models/             # 业务 impl
-│   │   └── _entities/      # SeaORM 生成实体
+│   ├── main.rs                # openrust::run::<App>()
+│   ├── app.rs                 # 显式 Plugin/路由/命令组装
+│   ├── config/                # 需要自定义类型化配置时建立
+│   ├── controllers/
+│   ├── models/_entities/
 │   ├── services/
 │   ├── policies/
 │   ├── jobs/
 │   ├── events/
 │   ├── mailers/
 │   └── middleware/
-├── migration/              # 独立 workspace 成员 crate
-├── templates/mail/         # 邮件模板
-├── tests/
+├── migration/                 # 使用数据库时的 workspace member
+├── tests/                     # 按场景分目录并显式注册 targets
 ├── compose.yaml
 ├── Dockerfile
 └── AGENTS.md
 ```
 
-生成项目的 TOML 运行配置位于项目根 `config/`；CLI 当前不生成 Rust 配置模块。应用需要自定义 Rust 配置代码时，放在 `src/config/mod.rs` 与按域拆分的 `src/config/*.rs`，不要新建单文件 `src/config.rs`。
-
-测试数据通过 `fake::Dummy` 与普通 builder 构造，不设专用种子或工厂 trait。
-
-默认模板包含可运行的注册与登录、一个 scaffold 资源、一封邮件、一个 job 及请求测试。`compose.yaml` 提供开发依赖，`openrust dev` 一条命令启动完整样例。
+只生成所选能力实际需要的文件。默认认证/资源/job 示例、Redis、完整 dev 编排是 v1 黄金路径验收目标；当前 `--auth` 是显式选项，dev 代理运行服务，没有自动编排依赖与迁移。不得用目标树推断功能已交付。
 
 ## 应用内核与依赖注入
 
-```rust
-// src/main.rs
-fn main() -> std::process::ExitCode {
-    openrust::run::<app::Blog>()
-}
-
-// src/app.rs
-pub struct Blog;
-
-impl Application for Blog {
-    type Config = AppConfig;
-
-    fn build(app: &mut AppBuilder) {
-        app.plugin(HttpPlugin)
-            .plugin(DatabasePlugin)
-            .plugin(AuthPlugin::new())
-            .plugin(QueuePlugin)
-            .routes(routes::register)
-            .jobs(jobs::register)
-            .schedule(schedule::register);
-    }
-}
-```
-
-`routes` / `jobs` / `schedule` 是各能力 crate 通过扩展 trait 挂在 `AppBuilder` 上的方法（如 `AppBuilderHttpExt::routes`），注册内容存入 `AppBuilder::extension_mut::<T>()`，构建后由 `App::extension::<T>()` 读取。核心 crate 因此不依赖任何能力 crate。
-
-- `openrust::run` 解析子命令：无参数或 `serve` 启动服务；`migrate` / `db seed` / `queue work` / `schedule run` / `routes` / `config show` 由框架与各 plugin 构建。应用二进制本身就是运行期 CLI，无需额外安装。
-- 生命周期（`openrust_core::lifecycle::bootstrap`）：确定环境，非生产时加载 `.env` → 加载配置 → 初始化 `tracing` → 提取 `Application::Config` 并注册为服务 → `Application::build` → 依次调用 plugin `build`（含构建期间新增的 plugin）→ 冻结为 `App` → 调用 plugin `finish` → 分发命令（默认 `serve`）→ 监听并处理 `SIGTERM` / `SIGINT` 优雅停机。
-- `AppState` 是按 `TypeId` 索引的只读服务注册表，业务服务通过 `app.insert(MyService::new(...))` 注册，handler 用 `Inject<MyService>` 取用；缺少注册在请求时返回 500 包装，内部错误包含类型名，不 panic。框架 crate 之间的硬依赖在 plugin `build` 中用 `app.get::<T>()` 检查并在启动时报错。
-- `Plugin` 是业务模块与第三方包的唯一扩展入口：一个 crate 暴露一个 plugin 即可带入路由、迁移、配置段和命令。不做动态加载。
+- `Application::build` 使用 `AppBuilder::plugin/insert/command` 显式组装；HTTP 通过 `AppBuilderHttpExt::routes` 注册。队列通过 `QueuePlugin::register_job` 与 schedule 方法配置；不存在通用 `.jobs()` / `.schedule()` builder API。
+- `AppState` 是按类型索引的服务注册表；`Inject<T>` 读取服务。缺失服务返回受控错误，硬依赖在 plugin 构建阶段检查。
+- 生命周期是配置引导、tracing、应用 build、所有 plugin build（含动态追加）、冻结、顺序 finish、命令执行；不提供反射容器或平行 Hooks。
+- HTTP 服务与 worker/scheduler 命令各自持有并停止自己的任务；当前 Plugin 没有通用 shutdown 回调。取消、限时 drain、abort/join 与 lease 恢复遵守 [ADR-037](../decisions/adr-037-queue-worker-lifecycle.md)。
+- 运行时命令以应用 `help` 输出为准。`serve`、迁移/seed、queue/schedule 由注册 plugin 提供；routes/doctor 等目标命令未全部实现。
 
 ## 配置
 
-- 分层合并，后者覆盖前者：crate 默认值 → `config/default.toml` → `config/{env}.toml` → `.env`（仅非生产环境自动加载）→ 环境变量。
-- 默认应用命名空间 `APP_`，允许在配置加载前显式定制，具体契约与待实施边界见 [ADR-016](../decisions/adr-016-neutral-application-namespaces.md)。
-- `APP_CONFIG_DIR` 指定配置目录，默认是工作目录下的 `config/`；进程 `APP_ENV` 优先，否则仅从 `.env` 读取环境名，若最终为 production 则不注入 `.env` 的任何变量。
-- 环境变量前缀后接单下划线、层级间用双下划线：`APP_DATABASE__URL` 对应 `[database] url`。敏感值优先来自环境变量，模板文件中不出现真实值。
-- 通用变量 `DATABASE_URL` / `PORT` 分别映射 `database.url` / `server.port`；同一键的所选应用命名空间（默认 `APP_`）变量优先。Redis 配置段实现时接入 `REDIS_URL`。
-- 当前 `FrameworkConfig` 的类型化结构包含 `app` / `server` / `log`；后续能力 crate 各自定义 `database` / `auth` / `queue` / `cache` / `storage` / `mail` 配置段，业务配置通过 `Application::Config` 关联类型接入，使用 `#[derive(Deserialize)]`。
-- 启动时整体校验；缺失或类型错误立即退出，错误信息包含完整配置键与来源层。`config show` 输出合并结果并遮蔽密钥。
+- 唯一 ConfigLoader 合并默认值、根 `config/default.toml`、环境 TOML、非生产 `.env`、进程环境；进程变量优先，production 不注入 `.env`。
+- 默认命名空间 `APP_`，启动前可定制；`APP_ENV`、`APP_CONFIG_DIR`、`APP_DATABASE__URL` 等规则见 [ADR-016](../decisions/adr-016-neutral-application-namespaces.md)。`DATABASE_URL` / `PORT` 是通用别名，同键应用命名空间优先；`REDIS_URL` 随缓存能力落地。
+- 框架 Rust 配置类型集中在 `src/config/`，能力 plugin 通过 `section` 提取类型；业务通过 `Application::Config` 定义应用配置。旧类型路径用 re-export 保持必要兼容，不复制配置 loader。
+- 启动验证完整配置键和错误来源；敏感值始终脱敏。`config show` 只读展示，`.env.example` 不含可用凭据。详见 [ADR-030](../decisions/adr-030-modular-configuration.md)。
 
 ## 路由与控制器
 
-```rust
-// src/routes.rs
-pub fn register(routes: Routes) -> Routes {
-    routes
-        .nest("/api", |api| {
-            api.resource::<controllers::posts>("/posts")
-               .layer(AuthLayer::required(AuthMode::SessionOrToken))
-        })
-        .get("/health", health::live)
-}
-
-// src/controllers/posts.rs
-pub async fn create(
-    Inject(posts): Inject<PostService>,
-    user: CurrentUser,
-    Validated(Json(input)): Validated<Json<CreatePost>>,
-) -> Result<Created<Json<PostResponse>>> {
-    PostPolicy::authorize(&user, PostAction::Create, None)?;
-    let post = posts.create(user.id(), input).await?;
-    Ok(Created(Json(post.into())))
-}
-```
-
-- `resource` 按约定映射 `list` / `get` / `create` / `update` / `delete`，缺失动作不注册；`only` / `except` 裁剪。
-- 预置中间件栈从外到内：请求 ID 设置 → 请求 ID 回传 → 追踪 span → CORS → 超时 → 压缩 → panic 捕获；业务中间件在路由组上追加。
-- 输入验证只通过 `Validated<T>`；授权只通过 `Policy`；事务边界在 `services/`，控制器不直接开事务。
-- 响应辅助类型：`Created` / `NoContent` / `Paginated<T>`；分页参数与响应结构全框架统一。
-- OpenAPI 由 `utoipa` 生成，`/docs` 在非生产环境默认开启。
+- 使用 `Routes`、`#[openrust::resource]` 和 `resource_with` 组合 handler；公共 API 以 [HTTP 事实](../core/http.md) 为准，不把模块名当 Rust 类型参数。
+- 输入统一经 `Validated<T>`；响应使用统一错误包装及 `Created` / `NoContent` / `Paginated<T>`。认证用 `CurrentUser` / `OptionalUser`，主要路径为 JWT；业务事务在 service 层。
+- 请求 ID、追踪、CORS、超时、压缩、panic 包装按当前 middleware 顺序执行。通用路由限流、OpenAPI/非生产文档 UI 属于待补范围；认证流程限流不等于已有任意路由限流 layer。
+- 查询过滤/排序、DTO 输出白名单、软删除等按 [能力覆盖](v1-capability-coverage.md) 补齐，复用 SeaORM，不另造 query language。
 
 ## 错误模型
 
-- 单一 `openrust::Error` 枚举：`BadRequest` / `NotFound` / `Unauthorized` / `Forbidden` / `Validation` / `Conflict` / `RateLimited` / `Config` / `Custom` / `Internal`。业务自定义错误通过 `Error::custom(code, message)` 或 `Error::custom_with_status(status, code, message)` 或 `impl From<DomainError> for Error` 接入。
-- `Error` 实现 `IntoResponse`，输出 `application/json` 的 `ApiResponse<T>`：`success` / `code` / `message` / `data` / `request_id`，验证错误追加 `errors: { field: [message] }`；正文 `request_id` 与响应头 `x-request-id` 一致。
-- 5xx 错误（`Internal` / `Config`）只返回通用 `message`，细节只进入日志；`Error::Internal` 包装任意 `std::error::Error`，数据库等能力 crate 的错误通过 `From` 进入该变体或映射为 `NotFound` / `Conflict`。
-- 库 crate 使用 `thiserror`；`anyhow` 只出现在二进制边界。
+- 统一使用 `openrust::Error`，主要错误类别包括：`BadRequest` / `NotFound` / `Unauthorized` / `Forbidden` / `Validation` / `Conflict` / `RateLimited` / `Config` / `Custom` / `Internal`；业务错误可映射 Custom 或实现 From。
+- JSON envelope 包括 `success/code/message/data/request_id`，校验错误有字段信息，分页元数据为明确类型；实际 HTTP 状态模式以 `[api] http_status` 为准。5xx 只输出通用消息，内部原因进入日志并脱敏。
+- CORS preflight、流式/非 JSON 等协议例外遵守已验收契约，不能为了包装破坏协议。当前 `NoContent` 返回 data=null 的成功包装，并非 HTTP 204 空响应。
 
 ## 数据层
 
-- 表命名按 ADR-016：默认 `tb_`，允许空/自定义前缀与完整表映射；共用迁移/查询/关联解析，尚待实现，不自动改名已存在表。
-
-- SeaORM 2.x 作为 ORM，`sea-orm-migration` 管理迁移；`db.sqlx()` 当前尚未实现，不属于公共 contract；若后续提供 SQLx 直连入口，须先明确 feature、连接生命周期和使用边界。
-- 命名约定：表名 snake_case 复数；主键 `id BIGINT` 自增；`created_at` / `updated_at` 必备；软删除通过 `--soft-delete` 生成 `deleted_at` 并接入查询默认过滤；`--uuid` 生成 UUIDv7 主键。
-- 时间统一 UTC：PostgreSQL 用 `timestamptz`，MySQL 用 `DATETIME(6)`；JSON 列 PostgreSQL 用 `jsonb`，MySQL 用 `json`；框架表不使用数组、枚举等单库特性。
-- 双库边界：迁移只用 `sea-orm-migration` 可移植列类型；必须分方言的 SQL 集中在 `openrust::db::dialect`，每个分支必须同时提供两库实现并有双库测试。
-- 事务：`db.transaction(|tx| async move { ... }).await`，闭包返回 `Err` 自动回滚；服务层接收 `&DatabaseTransaction` 或 `&Db` 的统一 `ConnectionTrait`。
-- 连接池参数、慢查询日志阈值、语句超时在 `[database]` 配置段统一。
-- 测试隔离：每个测试用例使用独立数据库，由迁移后的模板库复制（PostgreSQL `CREATE DATABASE ... TEMPLATE`，MySQL 迁移结果缓存后重放），测试结束丢弃。
+- SeaORM 2.x 与 migration 是唯一 ORM/迁移基础；直接 SeaORM connection 是逃生口，不承诺拦截全部底层 SQL。`Db::sqlx()` 当前不存在。
+- 表名 resolver 已实现 `tb_` 默认、自定义/空前缀、完整映射，贯通迁移、查询与 TestDatabase；配置修改不自动重命名现有表。
+- `Db::transaction` 控制提交/回滚，事务固定 primary；`read_connection()` 显式使用只读副本，`with_primary` 提供 task-local 写后读保护，无静默故障回退。多个独立 named connections 仍待实现，不能与 replicas 混为一谈。
+- 跨数据库 SQL 在 dialect 边界；框架表使用可移植类型。连接池、超时和慢查询按实际配置校验。声明支持新 backend 必须补驱动、迁移、方言及真实能力验证，不能仅因底层 ORM 支持就宣称框架支持。
+- TestDatabase 使用每用例隔离数据库；具体 PostgreSQL/MySQL 建库与清理实现见 [测试事实](../core/test.md)，PostgreSQL 已用模板克隆，MySQL 逐库运行迁移，不宣称已有 MySQL 迁移缓存。
+- 软删除、UUID 选项、查询 scopes 和关联加载体验属于后续补强，按对应生成器/双库验收闭环。事务扩展点遵守本文件公开流程规则。
 
 ## 认证与授权
 
-- 用户表约定：`id` / `name` / `email`（唯一）/ `password_hash` / `email_verified_at` / `disabled_at`（nullable）/ `created_at` / `updated_at`；业务通过迁移追加字段，不要求继承框架结构体。
-- 密码 Argon2id，参数可配置并带安全默认值；登录、注册、密码重置端点默认接入限流。
-- 前后端分离 API 默认使用短时效 JWT access token 与可轮换 refresh token；Session/Cookie 是显式可选项，通过 Session 认证的 unsafe method 校验 CSRF。PAT 是独立的自动化/服务集成凭据，存储 SHA-256 哈希并支持能力与撤销。签发、轮换、撤销及 JWT 默认边界按 [ADR-018](../decisions/adr-018-jwt-primary-authentication.md)。
-- `AuthPlugin::new()` 注册框架数据库认证器；`AuthPlugin::with_authenticator` 接受公开 `Authenticator` 实现供第三方替换。启动检查默认数据库依赖与认证服务未被后续插件覆盖；凭据缺失仅在 Optional 路由返回匿名，格式错误、重复凭据或已提供但无效的凭据不能降级。JWT/Session/PAT 选择、CSRF、principal 校验与 4xx/5xx 语义按 ADR-012、ADR-018 执行。
-- `CurrentUser` / `OptionalUser` 与路由认证模式按 ADR-012/018；身份只暴露 ID、认证来源和 PAT 能力元数据，业务 handler 通过注入自己的 service 加载领域用户。JWT 的默认 access token 可在过期前继续有效；需要立即撤销时必须使用集群共享状态。
-- 内置流程：注册、登录、登出、密码重置（令牌表 + 邮件）、邮箱验证（签名 URL）。
-- 授权：`Policy` trait 按资源定义动作枚举；`roles` / `permissions` / 关联表提供最小角色权限模型。授权查询与缓存/撤销时限由 M3 授权 contract 定义；DataScope、多租户不在 v1 版本。
+- JWT access/refresh 是 API 默认路径；Session/CSRF 显式可选，PAT 为自动化/集成凭据。共同身份模型、撤销、认证失败和安全边界以 [ADR-018](../decisions/adr-018-jwt-primary-authentication.md) 与 [auth 事实](../core/auth.md) 为准。
+- `AuthPlugin::new()` 使用数据库认证器，`with_authenticator` 支持替换。已提供但无效的凭据不降级匿名；密码使用 Argon2id。
+- `AuthFlows` 已含注册、登录、退出、密码重置、邮箱验证；后两者复用 VerificationCodes。独立 SignedLinks 提供用途隔离链接，不能把验证码流程写成已改用签名 URL。
+- 当前 `Policy` 是基于数据库的授权服务结构体，提供角色/权限及 PAT ability 交集；不是已实现的资源 Policy trait。资源策略/生成器如需新公开 API，先基于现有入口设计，不建立第二授权系统。
+- 共享 Session、refresh、验证码、限流等已有双库证据；公共注册/登录扩展点、任意路由限流及完整跨节点业务场景仍待补齐。JWT 即时撤销策略与 access token 存活窗口须明确，不默认声称纯 token 可即时全局撤销。
 
 ## 队列、调度与事件
 
-```rust
-#[derive(Serialize, Deserialize)]
-#[job(queue = "mail", retries = 3, backoff = "exponential")]
-pub struct SendWelcomeEmail { pub user_id: i64 }
-
-impl Job for SendWelcomeEmail {
-    async fn run(self, ctx: &JobContext) -> Result<()> { /* ... */ }
-}
-
-queue.dispatch(SendWelcomeEmail { user_id }).delay(Duration::from_secs(60)).await?;
-```
-
-- Queue driver：`database`（`jobs` 表 + `SKIP LOCKED`，两库皆支持）默认；`redis` 可选 feature；`sync` 用于测试与开发期同步执行。
-- 失败处理：超过重试次数进入 `failed_jobs` 表；提供失败任务检查与手动重试能力；worker 收到停机信号后完成当前任务再退出，不丢任务。
-- 调度：`schedule.job(PruneTokens).daily_at("03:00")`，`schedule.command("cache clear").every_hour()`；通过数据库锁保证多副本只执行一次；`schedule run` 支持常驻循环与单次 tick 两种运行方式。
-- 事件：`#[derive(Event)]` 定义，`app.listen::<UserRegistered, SendWelcomeListener>()` 注册；监听器可标记 `queued` 走队列。v1 版本只做进程内分发，不接外部消息总线。
+- 当前 Job 契约为 `fn handle(&self, context: JobContext) -> BoxFuture<'_, Result<()>>`；显式稳定 NAME 与 handler allowlist，参数用 serde。没有 `#[job]` 属性宏或 `Job::run`。
+- `Queue::dispatch` / `dispatch_with_options` / `dispatch_in_transaction` 使用显式任务名和序列化参数；具体签名见源码与 [queue 事实](../core/queue.md)，不宣传未实现的 awaitable fluent dispatch builder。
+- 官方数据库 driver 已实现。唯一键只限制同一 queue/key 的活动任务重叠，完成后释放；不是永久请求幂等。执行至少一次，handler 自行保持业务幂等；外部副作用不能与数据库提交原子化。
+- worker 具有受界并发、重试/失败保留、超时、lease/ownership token、心跳和有限停机；任务链/有限批次已有实现，parent retry 可重跑成功子任务，失败策略和并发边界见 queue 事实；旧 token 接管与生产资源验收继续按 ADR-037。
+- 调度已支持数据库 UTC 时钟、interval/daily slots、slot 与 job 同事务去重、run/once/list。v1 首版不含 cron/IANA/DST；不承诺业务副作用 exactly-once。详见 [schedule 事实](../core/schedule.md)。
+- 类型化进程内有序事件与显式队列 listener 待实现；不接外部事件总线。进程内通知可能因崩溃丢失，可靠路径复用事务内任务/outbox，不把单进程 listener 写成集群广播。
+- 原规划可选 Redis queue 与 sync 测试执行在 v1 的 M5 Redis 能力接入后补交，ADR-037 只关闭数据库基础簇的范围。当前没有对应 feature；先明确持久化、事务派发及 worker 能力差异，不承诺 Redis 与业务数据库共享原子事务，也不混同默认 Redis 缓存。
 
 ## 缓存、存储、邮件与短信
 
-- `Cache`：`get` / `insert` / `remove` / `get_or_insert_with` / `increment`；default/named store 与 driver 注册按 ADR-014；标准应用默认 Redis（ADR-015），memory/file 显式选择，库层 Redis feature 可选；值使用 serde JSON 序列化，原子能力不得由普通 get/set 伪装；不做 tag 失效。该接口尚未实现。
-- `Storage`：封装 OpenDAL `Operator`，`storage.store("public")` 提供 `read` / `write` / `delete` / `url` / `presign_read`；本地磁盘默认，S3 兼容通过 `storage-s3` feature。
-- `openrust::mail`：`Email` 产出 `lettre::Message`，`Mailer::send` 经公开 `MailDriver`；`LocalizedEmail` 用显式 `Locale` 和 i18n catalog 渲染邮件主题/正文；driver 为 SMTP / log / test fake，开发环境 Compose 提供 Mailpit。
-- `openrust::sms`：`SmsSender` 经公开 `SmsDriver` 发送 E.164 文本或供应商模板；提供 log / test fake 与可选 Twilio Messages REST adapter（`sms-twilio`）。production 禁止 log，真实账户发送需已授权目标与凭据。M4 再由持久队列接管排队/重试；验证码机制与短信传输分离，短信登录不因发送能力加入而默认启用。详细 contract 与实发边界见 [ADR-033](../decisions/adr-033-sms-driver-and-template-contract.md)。
+- Cache 待实现：default/named stores 与自定义 driver 按 ADR-014，标准应用默认 Redis 按 ADR-015；memory/file 显式选用，库 feature 可选，无静默回退。原子锁/计数能力不能用普通 get/set 伪装。
+- Storage 待实现：复用 OpenDAL，local/S3-compatible、命名实例、流式传输、上传检测发布边界与扩展点；具体 API 名先定 contract，不把示意接口当现有实现。
+- Mailer/公开 MailDriver 已有 SMTP/log/fake；LocalizedEmail 复用显式 Locale 和 i18n catalog。SmsSender/SmsDriver 支持文本/供应商模板与 Twilio adapter，production 禁止 log；本机 Mailpit 实收已有证据，Twilio 实发仍需授权账号与目标。
+- M4 增加队列化发送和薄多渠道通知；验证码与短信传输职责分离，默认不因此开启短信登录。不引入第二套邮件模板引擎或重试循环。
 
 ## 可观测性
 
-- `tracing` 为唯一日志与追踪入口；`[log] format = "text" | "json"`，`RUST_LOG` 优先于 `[log] level`；请求 span 含 `request_id` / method / uri，状态与耗时由 `TraceLayer` 记录。
-- `x-request-id` 入站沿用、缺失时生成 UUID、出站写回；中间件固定顺序为请求 ID → 请求作用域上下文 → 传播 → 追踪 span → CORS → 超时（408）→ 压缩 → panic 捕获（500 包装）。
-- `/health` 只报告进程存活；`/ready` 带超时检查数据库、队列、缓存依赖并逐项报告。
-- 可选 feature：`otel` 导出 OTLP；`metrics` 暴露 Prometheus 端点。
-- handler panic 由 `catch_panic` 捕获并转换为 500 包装响应，进程不退出。
+- 已有 tracing、text/JSON 日志、request ID、健康检查及 panic 包装。
+- readiness、Prometheus/OTLP、资源上限与代表性性能基线仍按 [性能计划](v1-performance-and-readiness.md) 实施。探针须有时限并反映实际依赖，不用 liveness 代替 readiness。
+- WebSocket/SSE 的在线跨节点投递复用共享传输；限额、鉴权、取消、背压、滚动停机与资源释放是交付条件，不只提供 Axum upgrade 包装。
 
 ## CLI
 
-全局 CLI 提供 `openrust new <name> [--db postgres|mysql]`、`openrust dev`、`openrust generate <kind>`（别名 `g`），其余命令转发项目二进制。生成 kind 为 `scaffold`、`controller`、`model`、`migration`、`job`、`mailer`、`policy`、`command`。字段 DSL 用小写类型名，例如 `title:string published_at:date_time? author:references`，`?` 表示可空。
+当前 new、dev/serve 代理、model/migration 生成及运行时命令转发以 [CLI 事实](../core/cli.md) 为准。v1 补齐 mailer/policy/job/controller/scaffold/command、routes、只读 doctor、完整 dev 编排，按原能力里程碑交付，M6 做全集复验。
 
-运行期命令：`serve`（默认）、`migrate`、`db seed`、`db reset`、`db status`、`queue work`、`schedule run`、`schedule list`、`routes`、`config show`、`doctor`。子命令用空格，单词内部用 kebab-case。`doctor` 检查配置、数据库连接和迁移状态；`routes` 列出方法、路径和 handler。
-
-生成器用 minijinja 渲染模板；不覆盖已有文件，除非传入 `--force`；输出路径并对 Rust 文件运行 rustfmt。生成物在 PostgreSQL 与 MySQL 模板下执行 `cargo check`、`cargo test` 和快照测试。
+生成器输出普通代码，默认不覆盖；字段 DSL、冲突、错误和 fmt 必须验证。模板当前使用内嵌文本/字符串渲染；是否使用 minijinja 取决于真实复杂度，未选用前不作为既定依赖。
 
 ## 测试工具
 
-- 本节是目标设计示例，不是当前 API。M6 按 [ADR-023](../decisions/adr-023-loco-application-experience-evaluation.md) 实现薄 `TestApp` / HTTP assertions：复用 finalize、公开 router 与 Tower oneshot；driver/fake 通过显式 plugin 或配置替换，不默认静默替换。
-- 响应入口可提供状态、headers、JSON path 与 OpenRust envelope 断言；具体 builder/response API 在 M6 contract 中确定，不把示意调用当作已实现公共 API。
-- 数据库隔离按「数据层」约定复用现有 `TestDatabase`，每个用例独立数据库；当前 `openrust-test` 只交付该数据库隔离工具。
-- fake driver 断言：`Queue::fake().assert_dispatched::<SendWelcomeEmail>()`、`Mailer::fake().assert_sent_to("a@b.c")`、`Storage::fake().assert_exists(path)`。
-- 测试数据由 `fake::Dummy` 与普通 builder 构造；数据库初始化通过 `src/seed.rs` 的 async 函数完成。
-- 时间通过 `Clock` 服务注入，测试可冻结或推进。
+- 当前 `openrust-test` 提供 TestDatabase；薄 TestApp/HTTP assertions 待 M6，复用 finalize/build_router/Tower oneshot，不复制运行时和数据库 fixture 系统。
+- fake 必须显式注入，不能静默替换生产驱动；fake 验证业务逻辑，真实数据库/Redis/SMTP/对象存储验证适配与跨节点行为。
+- 可控时钟只在存在时间边界测试需求时设计；队列/scheduler 的共享 UTC 数据库时钟不能由单进程冻结时间替代。
 
 ## 框架代码规范
 
-- Rust Edition 2024；MSRV 为当前 stable 减两个小版本，写入 `rust-version` 并在 CI 验证。
-- 所有 crate `#![forbid(unsafe_code)]`；库 crate `#![deny(missing_docs)]`，每个公共入口类型附带可运行 doctest。
-- `[workspace.lints]` 启用 `clippy::all` + `clippy::pedantic`（显式 allow 需注释原因）；库 crate 拒绝 `unwrap_used` / `expect_used` / `panic` / `todo` / `unimplemented`。
-- `cargo fmt --check`、`cargo clippy -D warnings`、`cargo test --workspace`、`cargo deny check`、`cargo semver-checks` 为 CI 必过项。
-- 异步统一 tokio；trait 中的 async 方法使用原生 `async fn` 并通过 `Send` 约束保证可跨任务。
-- feature 命名：`db-postgres` / `db-mysql` / `queue-redis` / `cache-redis` / `storage-s3` / `mail-smtp` / `templates` / `otel` / `metrics`；feature 只做加法，门面 crate 默认不含任何数据库驱动，由生成的项目显式选择。
-- 命名：crate `openrust-<capability>`；driver 类型 `<Backend><Capability>`（`RedisCache` / `DatabaseQueue`）；配置 `<Capability>Config`；错误 `<Capability>Error`；plugin `<Capability>Plugin`。
-- crate 内部布局：`lib.rs`（文档 + re-export）/ `config/`（复杂配置以 `mod.rs` 为入口）/ `error.rs` / `plugin.rs` / `drivers/` / `testing.rs`（`test-util` feature）。
-- 公共 API 以 0.x 语义化版本发布，破坏性变更只在次版本号；内部项用 `#[doc(hidden)]` 与 `__private` 模块隔离；变更日志由 git-cliff 从提交生成。
-- M6 用 mdBook 建立 `docs/`，按 Diátaxis 分为 Tutorials、How-to、Reference、Explanation；另设「从其他框架迁移」概念对照页与 `coming-from-axum`。每个 crate 的 README 即 `lib.rs` 文档。
-- 模板快照测试是最重要的 CI 任务：每次 CI 对两种数据库各生成一个项目并执行 `cargo check` 与 `cargo test`。
+以 [conventions.md](../conventions.md)、[stack.md](../stack.md) 和 `AGENTS.md` 为唯一工程规则入口。框架能力是 `openrust::<capability>` 模块；只有独立发布、proc-macro 或 dev-dependency 边界保留 package。公共异步 trait 根据对象安全/动态 driver 需要采用原生 async、BoxFuture 或现有适配方式，不机械统一一种签名。
+
+已执行门禁与待建立发布门禁分别记录。`cargo semver-checks`、完整模板快照和 mdBook 不因列入目标就算 CI 已实现；发布前须实际补齐。文档、模板、示例和下游调用方必须随公共 API 同步。
 
 ## 相关
 
-- [OpenRust v1 版本开发计划](gen1-plan.md)
+- [v1 版本计划](gen1-plan.md)
 - [开发计划索引](README.md)
+- [ADR 索引](../decisions/README.md)

@@ -1,7 +1,7 @@
 # `openrust::db`
 
 > 受众：AI Agent
-> 更新：2026-10-25
+> 更新：2026-10-26
 > 摘要：M2 数据层当前实现边界。
 
 ## 当前实现
@@ -29,8 +29,10 @@
 
 ## 后续边界
 
+公开事务提交前/提交后扩展尚未实现；`Db::transaction` 当前只执行调用方闭包并提交或回滚。后续须明确嵌套事务、重试、回调次数、失败语义和提交后可靠投递边界，不承诺覆盖直接 SeaORM/原生 SQL 逃生口。
+
 官方 v1 数据库支持限定 PostgreSQL 与 MySQL，暂定最低版本为 PostgreSQL 14+ / MySQL 8.0+。日常开发基线为 PostgreSQL 18 / MySQL 8.4 LTS / Redis 8，数据库 CI 使用 PostgreSQL 18 / MySQL 8.4。只在跨度较大、涉及版本专属行为或出现明确兼容风险时专项验证其他版本。v1 发布前按届时官方生命周期复核并验证最低版本下框架承诺的能力；已有 PostgreSQL 14 / MySQL 8.0 历史集成结果不单独代表当前完整支持。其他 SeaORM backend 可通过自定义连接插件提供 `Db`，但须自行完成该应用使用到的迁移、方言、能力验证和测试隔离适配；不表示认证、队列等所有框架功能兼容。新增官方 backend 需独立完成 feature、能力检查、方言、生成器及双向测试闭环。
 
 ## 验证
 
-`cargo test -p openrust` 验证默认配置、URL 遮蔽、未初始化句柄、pool 参数、backend feature 与 table-name resolver。历史 PostgreSQL 14 / MySQL 8.0 隔离库测试覆盖 resolver-aware 迁移、独立 limiter 实例的并发共享配额、SHA-256 存储、固定窗口重置、过期记录清理、迁移 up/status/down、UTC/JSON 列与 seed 命令。MySQL 强制 Rustls TLS，并断言协商了 TLS 且连接会话时区为 `+00:00`。2026-10-26 根模块迁移后的认证数据库与生成项目测试已在 PostgreSQL 16 / MySQL 8.4 通过。2026-10-26 在 PostgreSQL 18.6 / MySQL 8.4.13 真实复制拓扑分别运行 `OPENRUST_TEST_VERIFY_REPLICA_LAG=1 cargo test -p openrust-server --features db-postgres --test db_connection` 与 `OPENRUST_TEST_VERIFY_REPLICA_LAG=1 cargo test -p openrust-server --features db-mysql --test db_connection` 并通过：确认独立副本身份、暂停复制时旧读、主库 scope 新读、两个 App 的 scope 隔离、spawn 不继承 scope、恢复后追平；`initialize_with_replicas` 的自定义接入也通过。双库 release `db_routing` 500 次 `SELECT 1` 微基准已记录于 `memory/testing.md`，不代表业务负载性能提升。数据库 URL 的应用配置键为 `DATABASE_URL` 或所选应用前缀（默认 `APP_DATABASE__URL`）；暂定最低支持版本见 [ADR-002](decisions/adr-002-seaorm-dual-database.md)，完整兼容矩阵待 v1 发布前复核。
+`cargo test -p openrust` 验证默认配置、URL 遮蔽、未初始化句柄、pool 参数、backend feature 与 table-name resolver。历史 PostgreSQL 14 / MySQL 8.0 隔离库测试覆盖 resolver-aware 迁移、独立 limiter 实例的并发共享配额、SHA-256 存储、固定窗口重置、过期记录清理、迁移 up/status/down、UTC/JSON 列与 seed 命令。MySQL 强制 Rustls TLS，并断言协商了 TLS 且连接会话时区为 `+00:00`。2026-10-26 根模块迁移后的认证数据库与生成项目测试已在 PostgreSQL 16 / MySQL 8.4 通过。2026-10-26 在 PostgreSQL 18.6 / MySQL 8.4.13 真实复制拓扑分别运行 `OPENRUST_TEST_VERIFY_REPLICA_LAG=1 cargo test -p openrust-server --features db-postgres --test db_connection` 与 `OPENRUST_TEST_VERIFY_REPLICA_LAG=1 cargo test -p openrust-server --features db-mysql --test db_connection` 并通过：确认独立副本身份、暂停复制时旧读、主库 scope 新读、两个 App 的 scope 隔离、spawn 不继承 scope、恢复后追平；`initialize_with_replicas` 的自定义接入也通过。双库 release `db_routing` 500 次 `SELECT 1` 微基准已记录于 `memory/testing.md`，不代表业务负载性能提升。数据库 URL 的应用配置键为 `DATABASE_URL` 或所选应用前缀（默认 `APP_DATABASE__URL`）；暂定最低支持版本见 [ADR-002](../decisions/adr-002-seaorm-dual-database.md)，完整兼容矩阵待 v1 发布前复核。

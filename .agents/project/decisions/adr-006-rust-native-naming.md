@@ -7,7 +7,7 @@
 
 初版设计按 Laravel 的概念起草，代码与文档里留下了 `ServiceProvider::register/boot`、`index/show/store/update/destroy`、`make:*`、`config:show`、`Mailable`、`Seeder` 等带有其他生态习惯的词。OpenRust 的用户有很多是从 PHP、Ruby、Python、Java、JS、Go 转来的。目标是新手和老手都能很快上手，开箱即用。所以命名既要让 Rust 开发者觉得地道，也要让跨语言开发者一眼认得，而且不能特立独行。
 
-本 ADR 是 OpenRust 命名、目录与命令的唯一权威来源。日常操作清单见 [conventions.md「框架规范」](../conventions.md#框架规范)。
+本 ADR 维护通用命名规则；能力语义与后续替代关系见 [ADR 索引](README.md)，当前 API 事实以源码为准。日常操作清单见 [conventions.md「框架规范」](../conventions.md#框架规范)。
 
 ## 判定规则
 
@@ -26,6 +26,8 @@
 
 ### 1. 生成项目布局（`openrust new`）
 
+以下为完整模板的目标职责，不要求最小无数据库模板生成空目录。已实现选项见 [CLI 事实](../core/cli.md)；对应能力/生成器落地时才生成其实际文件。
+
 ```text
 <app>/
 ├── Cargo.toml              # [package.metadata.openrust] 存放项目元数据，不另建 openrust.toml
@@ -36,7 +38,7 @@
 │   ├── test.toml
 │   └── production.toml
 ├── src/
-│   ├── main.rs             # 只调用 openrust::run::<App>()
+│   ├── main.rs             # 调用 openrust::run::<用户应用类型>()
 │   ├── app.rs              # impl Application：plugins、routes、jobs、schedule
 │   ├── config/             # Rust 配置加载、业务配置类型与校验模块
 │   │   └── mod.rs
@@ -52,7 +54,6 @@
 │   ├── mailers/
 │   └── middleware/
 ├── migration/              # 独立 workspace 成员 crate（sea-orm-cli 默认）
-├── templates/mail/         # 邮件模板（askama / tera / minijinja 默认目录）
 ├── tests/
 ├── compose.yaml
 ├── Dockerfile
@@ -68,14 +69,14 @@
 ### 2. CLI
 
 - 子命令用空格嵌套，名称用 kebab-case，不用冒号。依据：cargo、sqlx-cli（`sqlx migrate run`）、sea-orm-cli、`cargo loco db migrate`。
-- **全局命令**：`openrust new <name> [--db postgres|mysql]`、`openrust dev`。其余命令转发给项目二进制。
-- **生成器**：`openrust generate <kind>`，别名 `g`。kind 包括 `scaffold`、`controller`、`model`、`migration`、`job`、`mailer`、`policy`、`command`。
+- **当前全局命令**：`openrust new <name> [--db postgres|mysql]`、`openrust dev`、`openrust serve`、`openrust generate`、`openrust key generate`；其余命令转发给项目二进制。
+- **生成器**：`openrust generate <kind>`，别名 `g`。当前 kind 为 `model`、`migration`；v1 待补 `scaffold`、`controller`、`job`、`mailer`、`policy`、`command`，按当前任务队列实现和验证。
   - 字段 DSL 使用 loco / Rails 的小写类型名，例如 `title:string published_at:date_time?`。`references` 表示外键，`?` 表示可空。
-- **运行期命令**：`serve`（默认）、`migrate`、`db seed`、`db reset`、`db status`、`queue work`、`schedule run`、`schedule list`、`routes`、`config show`、`doctor`。`migrate` 接受 `up [steps]`（默认，全部待迁移）、`down [steps]`（默认回滚一步）和 `status`。
+- **运行期命令**由应用注册的 Plugin 提供，不因全局 CLI 可转发就自动可用。现有入口包括 `serve`、`help`、`config show`、`migrate`、`db seed`、`queue work`、`schedule run`、`schedule list`；队列其他命令以 `QueuePlugin` 为准。`migrate` 接受 `up [steps]`、`down [steps]` 和 `status`。`db reset`、`db status`、`routes`、`doctor` 是待实现的 v1 入口；`doctor` 只读语义按 ADR-023。
 
 ### 3. 配置与环境变量
 
-本节由 [ADR-016](adr-016-neutral-application-namespaces.md) 校准：应用默认 `APP_ENV`、`APP_CONFIG_DIR` 与 `APP_<SECTION>__<KEY>`，启动前可显式选择其他命名空间；同键优先于 `DATABASE_URL` / `REDIS_URL` / `PORT`。原 OPENRUST_ 品牌前缀不再是目标 contract，当前实现迁移见 `todo.md`。
+本节由 [ADR-016](adr-016-neutral-application-namespaces.md) 校准：应用默认 `APP_ENV`、`APP_CONFIG_DIR` 与 `APP_<SECTION>__<KEY>`，启动前可显式选择其他命名空间；同键优先于已接入能力的 `DATABASE_URL` / `REDIS_URL` / `PORT`。命名空间与表名解析已落地；Redis 配置接入待 M5。不恢复旧 OPENRUST_ 应用配置前缀。
 
 TOML 分层、环境引导与生产 `.env` 保护保持有效，具体兼容、表前缀与实现验收按 ADR-016；不混读其他应用命名空间。
 
@@ -83,7 +84,7 @@ TOML 分层、环境引导与生产 `.env` 保护保持有效，具体兼容、�
 
 | 领域 | 名称 | 依据 |
 | --- | --- | --- |
-| 扩展单元 | `trait Plugin { fn build(&self, app); fn finish(&self, app) }`；`AppBuilder::plugin()`；能力 crate 导出 `<Capability>Plugin`，如 `HttpPlugin`、`DatabasePlugin` | Bevy `Plugin::build/finish`、summer-rs `Plugin`、Tauri `Builder::plugin`。语义：先对所有插件调用 `build`（含期间新增），冻结后再调用 `finish` |
+| 扩展单元 | `Plugin::build(&self, &mut AppBuilder) -> Result<()>`；`finish` 返回 `BoxFuture<Result<()>>`；`AppBuilder::plugin()` | 先全部 build（含期间新增）再冻结，按序异步 finish；worker/scheduler 生命周期按 ADR-037，不新增平行 Hooks |
 | 数据库迁移 | `MigrationPlugin<M>::new()` 注册 `migrate [up [steps]|down [steps]|status]`；`M` 实现 `sea_orm_migration::MigratorTrait` | SeaORM migration 的 `MigratorTrait` 与其 up/down/status 生命周期；迁移由应用 crate 定义，数据库能力 crate 负责运行 |
 | 服务注册表 | `AppBuilder::insert(service)` / `AppBuilder::get::<T>()`；`AppState::get -> Option<Arc<T>>`；`AppState::try_get -> Result<Arc<T>>`；缺失时返回 `MissingServiceError` | `http::Extensions::insert/get`；std 中 `try_*` 返回 `Result`；RAG C-WORD-ORDER |
 | 提取器 | `Inject<T>`、`Validated<T>`、`CurrentUser` | `shaku_axum::Inject`；axum-valid `Valid<T>`。备选名会与 tower、axum、actix、bevy 的已有类型重名 |
@@ -93,14 +94,15 @@ TOML 分层、环境引导与生产 `.env` 保护保持有效，具体兼容、�
 | 响应 | `Created<T>`、`NoContent`、`PageParams { page, per_page }`、`PageMeta { page, per_page, total, total_pages }`、`Paginated<T>`、`ApiResponse<T>` | axum 的类型化响应风格；`per_page` 与 GitHub REST API 一致；`PageMeta` 沿用 `PageParams` 的 `Page` 前缀并明确表示分页元数据 |
 | 命令 | `trait Command`，名称为空格分隔的多个词，如 `config show`；`accepts_args()` 声明是否接收名称后的参数，默认不接收 | 同第 2 节；参数需由命令显式声明，参照 clap 的参数定义 |
 | 邮件 | `trait Email`，产出 `lettre::Message`，由 `Mailer` 发送 | lettre 与 loco 的 `Mailer` |
+| 短信 | `SmsMessage` / `SmsSender` / `SmsDriver` | ADR-033；独立于 Mailer，provider receipt 只表示受理 |
 | 国际化 | `I18n` 服务、`I18nPlugin`、`Locale`、`RequestLocale`、`MessageCatalog`；请求上下文使用 `RequestLocale`，显式覆盖用 `I18n::with_locale` | Rust `locale` / `catalog` 通用词；避免自造 `TranslatorContext` 或全局 locale API |
-| 缓存 | `get` / `insert` / `remove` / `get_or_insert_with` / `increment` | moka、std `HashMap`、loco cache |
-| 存储 | `storage.store("public")`，方法为 `read` / `write` / `delete` / `url` / `presign_read` | loco `StoreDriver`、object_store `ObjectStore`、`std::fs` 的 `read` / `write` |
-| 队列 | `trait Job { async fn run(self, ctx: &JobContext) }` | apalis、fang |
+| 缓存（待实现） | `Cache`、default/named stores；方法名 `get` / `insert` / `remove` / `get_or_insert_with` / `increment` | 按 ADR-014 定义能力与错误，具体签名在 M5 contract 收口 |
+| 存储（待实现） | `Storage`、命名实例与 `read` / `write` / `delete` / `url` / `presign_read` 等操作 | 目标命名，stream/授权/发布门槛及具体签名先定 contract，不表示 API 已存在 |
+| 队列 | `Job::NAME` 与 `handle(&self, JobContext) -> BoxFuture<'_, Result<()>>`；显式 `QueuePlugin::register_job` | 与已提交 `src/queue.rs` 对齐；旧 `Job::run`/属性宏示意不再作为 contract |
 | 认证 | 由认证 ADR 决定，不使用 `Guard`，因为 Rocket 的 request guard 和 actix 的路由谓词已占用这个词 | — |
-| 测试 | `TestApp::spawn().await` | zero2prod `spawn_app`、axum-test `TestServer::new` |
-| 错误 | `openrust::Error` 变体以代码为准：`NotFound` / `Unauthorized` / `Forbidden` / `Validation` / `Conflict` / `RateLimited` / `Config` / `Database` / `Queue` / `Internal` | RAG C-GOOD-ERR |
-| 门面 | `openrust::prelude` 与 `pub use openrust_http as http;` 这类 crate 级 re-export；示例和模板中的用户类型不叫 `App`，避免与 `openrust::App` 重名 | Bevy 和 tokio 的门面写法 |
+| 测试 | `TestDatabase` 已有；`TestApp`/HTTP assertions 待 M6 最小 contract | ADR-023；不固化未实现的 `spawn()` 调用，不要求真实 socket |
+| 错误 | 统一 `openrust::Error`；具体变体以 `src/core/error.rs` 为准，不假设存在 `Database`/`Queue` 变体 | RAG C-GOOD-ERR；公共 HTTP 错误语义见 ADR-008 |
+| 门面 | 根模块 `openrust::http` 等与 `openrust::prelude` re-export；用户应用类型避免叫 `App` | 根 package 自身实现框架，不恢复旧 `openrust_http` 等已移除依赖 |
 
 ### 5. 仓库与元数据
 
@@ -112,16 +114,16 @@ TOML 分层、环境引导与生产 `.env` 保护保持有效，具体兼容、�
 
 ### 6. 开箱即用
 
-- `openrust new` 默认生成可以直接跑通的完整样例：注册和登录、一个 scaffold 资源、一封邮件、一个 job，以及请求测试。配合 `compose.yaml`，`openrust dev` 一条命令即可启动。
-- `doctor` 检查配置、数据库连接和迁移状态。`routes` 输出每条路由的方法、路径和 handler。
+- v1 完整标准模板的验收目标包含注册/登录、scaffold、邮件、job、请求测试及依赖编排。当前最小模板与显式 `--db`/`--auth` 路径继续保留；完整模板的选项/默认组合按 M6 contract 定稿，不能把目标写成当前 CLI 行为。
+- `doctor` 的只读检查和 `routes` 的路由清单仍待交付；`dev` 当前仅选择开发环境并启动 serve，依赖复用/创建、迁移与文件监听重启仍需实现并验收。
 
 ## 明确不改
 
-`App` / `AppBuilder` / `AppState` / `Application`、`Resource` trait、`Validated`、`Inject`、`Policy`、`Job`、`Event`、`.env` 与 dotenvy、`compose.yaml`、feature 名（`db-postgres`、`test-util`）、`openrust-cli` 的二进制名 `openrust`、`thiserror` / `anyhow` 的分工。这些名称已经符合 Rust 惯例或跨语言通用。
+`App` / `AppBuilder` / `AppState` / `Application`、`Resource` trait、`Validated`、`Inject`、`Policy`、`Job`、`.env`、`compose.yaml`、feature 名（`db-postgres`、`test-util`）、`openrust-cli` 的二进制名 `openrust`、`thiserror` / `anyhow` 的分工。事件能力名称随对应 contract 登记，不因命名约定推断 derive 或注册 API 已实现。
 
 ## 影响
 
-- **已实现代码**（0.0.0，可以做破坏性变更）：`openrust-core`（plugin、app、command、config）、`openrust-http`（resource、routes、plugin、extract）、门面 prelude、示例、各 crate README、测试。
+- **影响边界**：根 `openrust` 的 module/public API、prelude、工具包、生成模板、示例、README 与测试；目录变化按 ADR-021，不恢复已合并的能力 package。
 - **设计与计划文档**：`plans/framework-design.md`、`plans/gen1-plan.md`、`architecture.md`、`context.md`、`todo.md`、`roadmap.md`，以及 ADR-001、ADR-002、ADR-004 中的术语。决策内容不变。
 
 ## 执行
@@ -146,5 +148,3 @@ TOML 分层、环境引导与生产 `.env` 保护保持有效，具体兼容、�
 - **SeaORM**：[axum_example](https://github.com/SeaQL/sea-orm/tree/HEAD/examples/axum_example)
 - **Poem**：[router](https://github.com/poem-web/poem/blob/HEAD/poem/src/route/router.rs)
 - 未逐条复核、依据 docs.rs 既有知识：axum `Router`、actix-web `web::scope`、Tauri `Builder::plugin`。
-
-| 短信 | `SmsMessage` / `SmsSender` / `SmsDriver`，与邮件 `Mailer` 分立 | 见 ADR-033；provider receipt 只表示受理 |

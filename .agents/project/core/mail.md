@@ -1,12 +1,17 @@
 # `openrust::mail` 与 `openrust::sms` 当前事实
 
+> 受众：AI Agent
+> 更新：2026-10-26
+> 摘要：SMTP/log/fake 与 Twilio adapter 已实现；本机 Mailpit 邮件实收有记录，真实短信投递仍待授权。
+
 ## 邮件
 
 - `MailConfig` 定义在 `openrust::config::mailer`，通过 `openrust::mail` 兼容 re-export；SMTP 本地凭据可放 `.env`，production 忽略 `.env`。
 - `Email::message` 产出 `lettre::Message`；`Mailer::send` 通过公开 `MailDriver` 提交。
 - `LocalizedEmail` 使用 `I18n` catalog、显式 `Locale` 与命名参数渲染纯文本主题/正文；后台任务不依赖请求 task-local locale。
+- 当前没有 MiniJinja 或其他邮件模板引擎；纯文本消息插值不等于完整 HTML/模板渲染能力。
 - `MailerPlugin` 默认注册不记录内容的 `LogMailer`；production 选择 `log` 会启动失败。
-- `mail-smtp` 启用 Tokio / Rustls 强制 STARTTLS；SMTP 密码 Debug 脱敏。`test-util` 暴露 `FakeMailer`。
+- `mail-smtp` 使用 Tokio / Rustls，默认要求 STARTTLS；只有无认证 loopback 开发服务可显式关闭 TLS。SMTP 密码 Debug 脱敏，`test-util` 暴露 `FakeMailer`。
 
 ## 短信
 
@@ -17,5 +22,6 @@
 
 ## 边界
 
-- 本地 SMTP Mailpit 和真实供应商投递仍需真实服务及授权目标分别验收；当前 Twilio 协议测试使用注入 transport，不是账户实发。队列/失败任务在 M4 接入。
+- 本机 Mailpit v1.32.0 SMTP 投递及收件 API 确认已记录于 [测试基线](../memory/testing.md)；这不代表外部邮箱供应商的真实送达。Twilio 协议测试使用注入 transport，真实账户实发仍需授权凭据与目标。
+- 队列化 Mail/SMS、失败任务联动、薄多渠道通知和发送前后公共扩展仍待按 M4 及跨能力功能簇接入；已有 queue 模块不代表通信自动入队。
 - 认证验证码由 `VerificationCodes` 生成消费，发送仍由调用方选择渠道；本簇不启用短信登录或更改账号流程。

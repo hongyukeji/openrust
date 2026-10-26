@@ -2,64 +2,64 @@
 
 > 受众：AI Agent
 > 更新：2026-10-26
-> 摘要：只放未完成且可领取的功能簇。完成即删除，证据进 commit、`core/<crate>.md` 与 `memory/`。
+> 摘要：只列未完成工作；完成移出本表，事实与证据进入 `core/`、`progress.md`、`memory/` 和 Git。一次只领取一个实现功能簇。
 
-## 框架底层调整总览（领取任务前必读）
+## 领取规则
 
-以下是 v1 已承诺、尚未完整实现或验收的底层工作。它们分属不同功能簇和里程碑，不能当成一次性目录重构，也不能因为 M0-M2 基线完成就视为已交付。每次切换任务先核对本表及对应专题计划；专题计划是范围和验收标准的详细来源。
+先核对 Git/WIP 和 [执行校准](plan.md#执行校准)。数据库队列、调度、活动唯一键及有限任务链/批次已提交，不重复实现。若存在并行 Agent 的 WIP，先保留并闭合其当前最小簇，再按以下顺序继续。当前文档校准不修改源码；实现 Agent 领取时把实际唯一 in_progress 写在对应条目中。
 
-1. **M2 数据库读写分离已实现并验证**：`Db` 提供显式只读副本路由与 task-local primary scope；PostgreSQL 18 / MySQL 8.4 真实复制暂停/追平及双 App 隔离测试通过。指标接入和完整业务负载性能测试归入通用可观测性与性能计划，不表示完整集群验收完成。
-2. **按 M4/M5/M6 依赖顺序分批补齐其他底层机制**：M3 本地框架能力与认证/安全总验收已完成；真实 Twilio 发送需授权账号和目标。跨 M3/M4/M5 的流程扩展点按现有事务、plugin、队列和事件契约后续落地；M4 完成队列/调度/事件，M5 完成缓存、实时通信、存储与可观测性，M6 完成 CLI、doctor、TestApp 和用户文档。
-3. **集群是跨里程碑的 v1 强制验收项**：共享会话/限流/缓存、队列与调度竞争、跨节点实时路由、共享文件、故障恢复和滚动升级须在对应能力实现时逐步覆盖，最后按 [集群计划](plans/v1-cluster-deployment.md) 做 PostgreSQL/MySQL 多副本验收；单机测试或多个互不通信的进程不算集群验收。
+## 优先：目录与测试入口收尾
 
-当前任务顺序及阻塞以本文件各功能簇条目和 [`plan.md` 执行校准](plan.md#执行校准) 为准。遇到测试服务不可用时，明确记录缺少的验收证据；可继续推进不依赖该服务的独立工作，但不得越过明确的前置门槛或把未验收能力宣称为完成。
+状态：in_progress（实现 Agent 已迁移路径，正在执行 workspace、真实双库与生成项目验收；尚未按完整门槛关闭）。
 
-## 后续里程碑
+- 范围：剩余 CLI/macros/test package 迁出 `crates/`；examples/tests 按能力分目录；审计 `apps/server` 职责；更新 workspace/path deps、宏展开、模板、脚本、CI 与文档。
+- 推荐目标：`cli/`、`macros/`、`testing/`；保留 package 名和发布边界。完成全部迁移后通过 Git 删除空的旧目录。server 在职责完全替代前保留，不能为清空目录删测试。
+- 验收与依赖：[目录收尾 Spec](plans/module-layout-migration-spec.md)；根迁移已完成不等于本项完成。本项关闭前不启动新的大范围能力开发。
 
-- OpenAPI：后续里程碑用 `utoipa` 生成 schema，并在非生产环境挂载 `/docs`（ADR-008 §6）。
+## 补齐既有阶段的遗漏
 
-## 已完成：模块化配置与 `.env`
+| 功能簇 | 前置与交付 | 验收 |
+| --- | --- | --- |
+| M3 生成器 | 目录稳定后实现 `generate mailer` / `generate policy`；复用当前 Mailer/Policy contract，资源策略接口若需扩展先定稿 | 双库生成项目 check/test、错误输入与不覆盖现有文件；不能把 M3 运行时验收算作生成器交付 |
+| 通用 HTTP 限流与数据输出/查询边界 | 复用 `DatabaseRateLimitStore`，补公开路由中间件与主体/IP/key 策略；按能力覆盖补 DTO 字段白名单、过滤/排序白名单、软删除、查询 scope 与关系/N+1 示例 | 双库限流与并发、代理/匿名边界、越权字段与非法排序拒绝；不重造 ORM；UUID/软删除生成选项按实际 contract 交付 |
 
-- 参考 Loco `src/config/{auth,database,logger,mailer,server}.rs` 的按能力拆分思路，以及 Laravel 的 `.env` 示例与进程环境覆盖习惯；OpenRust 采用 Rust typed config，不照搬 PHP facade、运行时任意字符串读取或 config cache。
-- 已将当前 `src/config/mod.rs` 的框架配置定义拆到有真实配置的子模块；认证、数据库、邮件配置类型集中到 `src/config/`，通过旧模块 re-export 保持现有公共路径。未为尚未实现的 cache/queue/storage 创建空配置模块。
-- 保留应用根 `config/default.toml`、环境 TOML 的 Figment 分层；`.env` / `.env.example` 承载本地敏感值与常见覆盖项，进程环境变量优先，production 不加载 `.env`。不改变 ADR-016 的 `APP_` 与命名空间 contract。
-- Spec 与取舍记入 [ADR-030](decisions/adr-030-modular-configuration.md)。验证覆盖配置来源优先级、环境选择、敏感值脱敏、`.env` 生产隔离、生成项目变量和旧 API re-export；通过证据见本次提交及 `memory/verification.md`。
+## M4：异步与流程扩展
 
-## 已完成的底层调整
+按下表顺序拆成可独立提交的功能簇；已经存在的基础 API 先核查，不重复开发。
 
-- 根 `openrust` 模块迁移已独立提交；M2 读写分离已按 [ADR-029](decisions/adr-029-database-read-routing.md) 实现并通过 PostgreSQL 18 / MySQL 8.4 真实复制拓扑验证。
-- 根模块迁移依据 [迁移 Spec](plans/module-layout-migration-spec.md)；既有 M3 WIP 的双库数据库测试与 PostgreSQL/MySQL 生成项目 HTTP e2e 已在迁移后复验通过。M3 认证作为独立功能簇验收，当前本地总验收已关闭。
-- PostgreSQL 18 / MySQL 8.4 测试服务使用现有 `compose.ci.yaml`。当前根 tests/examples 与 server 验收职责映射见迁移 Spec；由于聚合启动、生成项目与双库验收仍由 `apps/server` 承担，继续保留该 package。
+| 功能簇 | 前置与交付 | 验收 |
+| --- | --- | --- |
+| 事件与公开流程扩展 | 进程内类型化有序 listener；明确 fail-fast 与队列 listener；事务 before/after、注册/登录校验与成功/失败事件，复用现有 Plugin/事务/queue | 外部应用只用公开 API 注册；顺序/拒绝/回滚/提交失败/后置错误/敏感载荷/重试；双库提交后语义；可靠通知走事务内任务 |
+| 共享锁与请求幂等 | 复用同一数据库/Redis 能力契约，先落数据库实现；明确 owner token、过期接管、冲突请求指纹、进行中响应、结果保留窗口与失败恢复 | 两节点竞争、旧 owner 不能解锁新 owner；同键不同请求拒绝；业务提交和幂等记录一致；不把 `dispatch_unique` 当完整请求幂等 |
+| Worker 租约与队列边界补强 | 补旧 worker token 接管专项和生产资源边界；Redis/sync driver 按 M5 可选适配补交，不把未实现 feature 写成可用。有限任务链/批次已交付，见 `core/queue.md` | 双库实际竞争/崩溃/租约接管、长任务超时、停机 drain/join；handlers 至少一次、业务幂等 |
+| 队列化通信与薄通知层 | 序列化邮件/SMS 作业与多渠道编排；复用 Mailer/SmsSender、locale、队列 retry；不新增独立重试系统 | 同事务派发、失败/重复投递边界、fake 与真实本机 SMTP；Twilio 实发仍需授权目标与凭据 |
+| M4 生成与集成收口 | `generate job`、可运行 API/worker/scheduler 组合示例；双库 CI 显式启用 queue 并运行进程测试 | `.github/workflows/ci.yml` 原数据库作业只启用 auth/db；当前结构簇已补 queue，验证时证明 queue/schedule/崩溃测试确实执行，缺 URL 不得作为通过；完成 M4 全部门禁 |
 
-## M3 邮件、认证与授权（本地验收完成）
+## M5：共享基础设施与实时能力
 
-- M3 认证和通用安全本地验收已完成。PostgreSQL 18 / MySQL 8.4 的 `auth_database` 与 `auth_runtime` 各 6 项通过；按当前模板新生成的 `--auth` 项目均通过 `cargo fmt --all --check`、`cargo check` 与真实 TCP `auth_flows` 流程。
-- 验收覆盖 JWT/refresh 轮换与重放撤销、可选 Session 登录/退出与 CSRF、PAT 生命周期与 ability/RBAC 交集、验证码、共享限流、可信代理、审计和签名链接共享撤销。详细 contract 与测试入口见 [core/auth.md](core/auth.md) 和 `memory/testing.md`。
-- Twilio adapter 已通过本地协议测试；真实短信投递需开发者提供授权账号、凭据与目标号码。供应商投递未作为已完成证据。
-- 后续按 M4/M5 完成数据库事务、队列/事件与文件等基础机制后，再实现跨 M3/M4/M5 的请求幂等、事务边界、业务流程扩展点及多渠道通知；遵守现有 Plugin、事务和事件契约，不另建 Hooks 系统。
+| 功能簇 | 前置与交付 | 验收 |
+| --- | --- | --- |
+| 缓存驱动与命名实例 | ADR-014/015：标准应用 Redis 默认，memory/file 显式选择；default/named stores、custom driver、TTL/序列化/原子边界；库 Redis feature 可选 | 三驱动契约、真实 Redis、file 安全路径/过期/原子替换/并发/错误、独立扩展示例；Redis 故障不隐式回退 |
+| 多实例与可选驱动 | 明确默认/named database、cache、storage 等实例与生命周期；数据库已完成的主从路由不等于多个独立连接；可选 Redis Session/queue 及 sync 测试执行复用既有契约，先定与数据库 driver 不同的能力边界 | 实例命名/重复注册/未知名称/配置错误；会话过期/撤销、Redis 队列恢复与真实服务测试；sync 显式使用，不伪装持久化或跨后端事务派发；不引入全局 service locator |
+| 存储与上传下载 | local/S3-compatible、流式 I/O、限额/MIME/路径与签名下载；上传前、内容可读发布前、完成/失败扩展 | MinIO 实集成、受控临时对象、检测拒绝/超时/取消清理、版本绑定与直传绕过防护；集群文件可达 |
+| WebSocket/SSE | 复用 auth/config/HTTP；握手与频道授权、Origin、凭据过期/撤销、心跳/背压/连接与消息大小边界；共享在线跨节点投递 | 两 API 节点真实通信、断线/慢消费/停机、权限变更、资源回收；不承诺离线可靠消息 |
+| 可观测性与生产资源 | readiness、指标与可选 OTLP、HTTP/worker/DB/cache/实时有界并发与超时；安全脱敏和统一 request/trace 关联 | 依赖失效 readiness、低基数指标、阻塞任务不拖垮 runtime；代表性负载与峰值资源证据，不能只写指标接口 |
 
-## M4 队列 / worker 基础执行簇（已提交 d9bb059）
+## M6：开发体验与 v1 最终验收
 
-- 已实现数据库 job/failed-job schema、显式 handler allowlist、受界 dispatch、事务内派发、`SKIP LOCKED` 领取、attempt/退避、失败保留与手动重试、进度、有限并发 worker、心跳租约、任务超时与合作取消。
-- worker/scheduler lifecycle 沿用显式 CLI 命令持有 supervisor 的 ADR-037 方案；本簇实现 worker 的 Ctrl-C/SIGTERM、停止新领取、限时 drain、abort/join 和 lease 恢复，不增加通用 Plugin shutdown 或 Hooks。
-- PostgreSQL 18 / MySQL 8.4 已对真实数据库执行迁移、并发领取、进度、失败重试、事务回滚/提交和强杀 worker 后 lease 恢复测试。单任务超时后其他任务仍能处理的回归测试已覆盖。
-- scheduler API、同槽同步双进程去重、提交后进程异常退出去重、`--once` 与 SIGTERM 关闭已双库验收，详见 [core/schedule.md](core/schedule.md)。
-- queue-scoped 活动任务唯一键与事务派发已实现并双库测试；键在 job 成功/失败终结时释放，不承诺永久请求幂等，见 [core/queue.md](core/queue.md)。
-- **当前 M4 活跃簇**：实现有限并发批次、任务链与失败策略，并实现有序进程内事件；随后补旧 worker token 接管专项、生产资源边界和全部 M4 gates。当前依据 [core/queue.md](core/queue.md) 与 [ADR-037](decisions/adr-037-queue-worker-lifecycle.md)。
+- CLI：补 controller/scaffold/command 等剩余生成器、routes、只读 doctor、`db status` 和显式 `db reset`；复用已有 config show/migrate/seed。status/doctor 不写数据；reset 另定目标环境、确认和数据清理边界，在隔离库测试，不由 doctor/dev 隐式触发。
+- 开发编排：dev 先探测并复用合适服务，缺失时才建本任务资源；按显式配置处理迁移、watch、信号、端口冲突和进程回收。当前 dev 只是代理 serve，不能宣传自动编排已完成。
+- 测试体验：TestApp/HTTP assertions 复用 finalize/build_router/Tower oneshot 与 TestDatabase；fake 显式替换。OpenAPI、错误/分页 schema、文档端点与授权范围一致。
+- 交付：`examples/blog`、双库生成黄金路径、Docker/Compose、备份恢复/滚动升级/迁移说明、mdBook 与迁移对照；验证源码分发和包内容完整，未发布依赖用受控本地 patch 验证。
+- 最终门禁：默认/最小/关键/all-features、MSRV、依赖审计、双库真实所有数据路径、最低兼容版本；至少两个 API 加多 worker/scheduler 经负载均衡验证共享状态、实时与文件、故障/滚动恢复；代表性性能基线与回归阈值。
+- 加密：按 ADR-034 复核选用实现的审计证据、依赖与目标平台性能；算法标准不能替代实现审计。外部供应商真实短信需要授权账号/目标，未验证如实标注，不能把 v1 最终门禁报告为全部通过。
+- 生成器各原定里程碑交付，M6 只做全集复验，不借“最终统一做”遗漏 M3/M4 交付。发布/tag/推送由独立授权处理。
 
-## M5 缓存驱动与 store（M5 领取）
+## v1 通过后的已授权下一阶段
 
-- 按 [ADR-014](decisions/adr-014-cache-driver-and-store-contract.md) 实现 `openrust::cache` 与 `CachePlugin`：标准应用默认 Redis、显式 memory/file、库层 Redis feature 可选（默认值按 ADR-015）；default/named stores、custom driver 注册、统一序列化/TTL/错误与原子能力边界。
-- 标准生成项目显式启用 `cache-redis` 并配置 Redis default store；开发编排按配置提供 Redis，缺失配置/feature 或服务故障不得隐式回退 memory；Redis 配置读取 `REDIS_URL`，同键所选应用命名空间（默认 `APP_`）变量优先，按 ADR-016 迁移。共享缓存用途在集群配置中必须选择可用共享 driver，禁止静默退化。
-- 验收：统一基础契约测试；file 临时目录安全路径、过期、原子替换、并发及 I/O 错误；Redis 真实集成；默认/file/redis feature 组合；`apps/server` 接入；独立公开扩展示例与 README/core 事实。
+按 [v2 后台计划](plans/v2-admin-platform.md) 执行 B1–B5；候选功能仍先评估，不因列出即全部开发。AI 平台未启动，不创建产品分支/worktree，不混入框架。
 
-## M6 CLI 与测试体验（后续里程碑）
+## 外部条件与证据缺口
 
-- 按 [ADR-023](decisions/adr-023-loco-application-experience-evaluation.md) 完成只读 `doctor`，复用配置、数据库版本/连接与迁移检查；不得隐式迁移或改写数据。`config show` 继续是脱敏配置查看入口。
-- 在 M3/M4 对应能力 contract 和模块化迁移完成后，补齐稳定的 `openrust-test` `TestApp` / HTTP response assertions：复用 `finalize`、`build_router`、Tower oneshot、现有 `TestDatabase` 与能力 fake；不启动真实端口、不复制 ORM fixture/自动 truncate 系统。
-- task/worker 等生成器先按对应 Job/Command/Scheduler contract 评估；既有 `gen1-plan.md` 中 mailer/policy/job/controller/scaffold 生成器保持原里程碑，不在此另建平行任务。
-- M6 本项验收：`doctor` 只读检查配置、已配置数据库后端/版本/连通性与迁移状态，不执行迁移/seed、不改写配置或数据、不泄漏密钥；`TestApp` 以独立 `Application` 公共 API 复用 `finalize`、`build_router` 和 oneshot，验证统一响应、状态、headers、JSON path、错误与显式 fake/plugin 替换，数据库路径复用 `TestDatabase` 并在 PostgreSQL/MySQL 真实执行。生成器的 check/test 验收只按 [gen1-plan.md](plans/gen1-plan.md) 对应里程碑完成，不在本项重复排期。
-
-## 阻塞
-
-- 完整集群负载均衡、跨节点认证/幂等/队列等最终验收尚未完成；M2 读写路由的真实复制拓扑证据不替代这些集群门禁。
+- Twilio 实发缺授权账号、凭据与目标；可继续不依赖实发的工作，不能代称已投递。
+- 完整 Redis/对象存储/跨节点实时、最低版本整体兼容、集群与性能门禁尚未完成。可运行基础服务或单项进程测试不能替代这些证据。

@@ -1,6 +1,6 @@
 # openrust-server
 
-Framework integration host for the currently implemented OpenRust capabilities. `Server::build` installs `HttpPlugin`, `I18nPlugin`, and the mailer. HTTP error messages follow the supported `Accept-Language` request preference, with English as the configured default. `/` reports the server name and version. No external service is required for these paths.
+Framework integration host for the currently implemented OpenRust capabilities. `Server::build` installs `HttpPlugin`, `I18nPlugin`, `MailerPlugin`, `SmsPlugin`, and opt-in encryption. HTTP error messages follow the supported `Accept-Language` request preference, with English as the configured default. `/` reports the server name and version. No external service is required for these paths.
 
 Run from the repository root:
 
@@ -13,7 +13,7 @@ cargo test -p openrust-server
 
 The server reads `apps/server/config/default.toml` and `apps/server/config/development.toml`. For repository development, `.cargo/config.toml` sets `APP_CONFIG_DIR` to that directory when running Cargo. In an application, the default is `config/` relative to the working directory; `APP_CONFIG_DIR` can select another directory. `APP_ENV` selects the environment. Environment variables override file values; `APP_SERVER__PORT=4000 cargo run` changes the port, and `PORT=4000 cargo run` is the common shorthand. If both are set, `APP_SERVER__PORT` wins. `config show` masks keys that look like secrets.
 
-New framework capabilities are connected here in the same feature change, with an integration test. Capabilities without external services are always enabled; external services use a forwarded feature when implemented. See [ADR-007](../../.agents/project/decisions/adr-007-aggregate-server-entry.md).
+Framework capabilities are verified here through explicit test Applications and forwarded features. The default `Server::build` does not install database, auth, queue or scheduler plugins; enabling a Cargo feature alone does not assemble those services in the default executable. See [ADR-007](../../.agents/project/decisions/adr-007-aggregate-server-entry.md).
 
 Enable the `auth` feature to compile the authentication facade path and run its application-level integration test with a custom authenticator:
 
