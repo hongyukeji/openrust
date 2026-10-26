@@ -1,4 +1,4 @@
-//! Verifies that the facade-only application path can register and consume authentication.
+//! 验证仅使用 facade 的应用路径可以注册并使用认证能力。
 #![cfg(feature = "auth")]
 
 use std::collections::BTreeMap;

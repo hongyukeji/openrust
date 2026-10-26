@@ -1,4 +1,4 @@
-//! OpenRust framework integration host.
+//! OpenRust 框架集成宿主。
 #![forbid(unsafe_code)]
 
 mod app;

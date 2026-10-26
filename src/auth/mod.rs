@@ -75,31 +75,31 @@ pub use verification::{
     VerificationCodeFuture, VerificationCodePolicy, VerificationCodeStore, VerificationCodes,
 };
 
-/// The authentication source selected by a route.
+/// 路由选择的认证来源。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AuthSource {
-    /// Signed JWT access-token authentication.
+    /// 使用签名 JWT access token 进行认证。
     Jwt,
-    /// Cookie session authentication.
+    /// 使用 Cookie Session 进行认证。
     Session,
-    /// Personal access token authentication.
+    /// 使用个人访问令牌进行认证。
     PersonalAccessToken,
 }
 
-/// Credential selection policy for one route.
+/// 单个路由的凭据选择策略。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AuthMode {
-    /// Authenticate only with an OpenRust JWT access token.
+    /// 仅接受 OpenRust JWT access token。
     Jwt,
-    /// Authenticate only with the `openrust_session` cookie.
+    /// 仅接受 `openrust_session` Cookie。
     Session,
-    /// Authenticate only with an `Authorization: Bearer` personal access token.
+    /// 仅接受 `Authorization: Bearer` 个人访问令牌。
     PersonalAccessToken,
-    /// Accept one session cookie or a Bearer personal access token.
+    /// 接受 Session Cookie 或 Bearer 个人访问令牌。
     SessionOrToken,
 }
 
-/// A validated identity provided to request handlers.
+/// 提供给请求处理器的已验证身份。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CurrentUser {
     id: i64,
@@ -108,29 +108,29 @@ pub struct CurrentUser {
 }
 
 impl CurrentUser {
-    /// Returns the authenticated account ID.
+    /// 返回已认证账户 ID。
     pub const fn id(&self) -> i64 {
         self.id
     }
 
-    /// Returns the credential source used for this request.
+    /// 返回此请求使用的凭据来源。
     pub const fn source(&self) -> AuthSource {
         self.source
     }
 
-    /// Returns personal token abilities, or `None` for session authentication.
+    /// 返回个人访问令牌的 abilities；Session 认证时返回 `None`。
     pub fn token_abilities(&self) -> Option<&[String]> {
         self.token_abilities.as_deref()
     }
 
-    /// Returns whether this personal token contains the exact requested ability.
+    /// 返回此个人访问令牌是否包含完全匹配的指定 ability。
     pub fn has_ability(&self, ability: &str) -> bool {
         self.token_abilities()
             .is_some_and(|abilities| abilities.iter().any(|item| item == ability))
     }
 }
 
-/// An optional authenticated identity. `None` means the selected credential was absent.
+/// 可选的已认证身份。`None` 表示所选凭据不存在。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OptionalUser(pub Option<CurrentUser>);
 
@@ -140,8 +140,7 @@ where
 {
     type Rejection = Error;
 
-    // Axum defines this extractor trait method as async even though this extractor reads only
-    // request-local extensions.
+    // Axum 将此 extractor trait 方法定义为 async，即使当前 extractor 只读取请求本地扩展。
     #[allow(clippy::unused_async_trait_impl)]
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self> {
         match parts.extensions.get::<AuthOutcome>() {
@@ -158,8 +157,7 @@ where
 {
     type Rejection = Error;
 
-    // Axum defines this extractor trait method as async even though this extractor reads only
-    // request-local extensions.
+    // Axum 将此 extractor trait 方法定义为 async，即使当前 extractor 只读取请求本地扩展。
     #[allow(clippy::unused_async_trait_impl)]
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self> {
         match parts.extensions.get::<AuthOutcome>() {
@@ -172,10 +170,9 @@ where
 #[derive(Clone)]
 struct AuthOutcome(Option<CurrentUser>);
 
-/// A selected request credential passed to an [`Authenticator`].
+/// 传递给 [`Authenticator`] 的已选请求凭据。
 ///
-/// The value intentionally has no `Debug` or serialization implementation because it contains
-/// the raw session or bearer secret.
+/// 该值包含原始 Session 或 bearer 密钥，因此有意不实现 `Debug` 或序列化。
 pub struct AuthCredential<'a> {
     source: AuthSource,
     value: Option<&'a str>,
@@ -185,43 +182,42 @@ pub struct AuthCredential<'a> {
 }
 
 impl AuthCredential<'_> {
-    /// Returns which credential type was selected.
+    /// 返回选中的凭据类型。
     pub const fn source(&self) -> AuthSource {
         self.source
     }
 
-    /// Returns the selected personal access token. Cookie Session IDs are never exposed here.
+    /// 返回选中的个人访问令牌。Cookie Session ID 不会通过此方法暴露。
     pub const fn value(&self) -> Option<&str> {
         self.value
     }
 
-    /// Returns the shared Session for Cookie authentication, if this request selected it.
+    /// 如果此请求选择了 Cookie 认证，则返回共享 Session。
     pub const fn session(&self) -> Option<&Session> {
         self.session.as_ref()
     }
 
-    /// Returns the request's CSRF header for session credentials, if present.
+    /// 如果存在 session 凭据，则返回请求中的 CSRF header。
     pub const fn csrf_token(&self) -> Option<&str> {
         self.csrf_token
     }
 
-    /// Returns the HTTP method associated with this credential.
+    /// 返回与此凭据关联的 HTTP method。
     pub const fn method(&self) -> &Method {
         self.method
     }
 }
 
-/// A credential-verified account identity returned by an [`Authenticator`].
+/// [`Authenticator`] 返回的、凭据验证通过的账户身份。
 pub struct AuthPrincipal {
     user_id: i64,
     token_abilities: Option<Vec<String>>,
 }
 
 impl AuthPrincipal {
-    /// Creates a principal after the authenticator has verified the credential and account.
+    /// 在 authenticator 验证凭据与账户后创建 principal。
     ///
-    /// Session authentication uses `None`; personal access tokens use `Some`, including an
-    /// empty vector when the token has no restricted abilities.
+    /// Session 认证使用 `None`；个人访问令牌使用 `Some`。即使令牌没有受限 abilities，也会返回空向量。
     pub fn new(user_id: i64, token_abilities: Option<Vec<String>>) -> Self {
         Self {
             user_id,
@@ -230,9 +226,9 @@ impl AuthPrincipal {
     }
 }
 
-/// Verifies one already-selected session or personal access token.
+/// 验证一个已选定的 Session 或个人访问令牌。
 pub trait Authenticator: Send + Sync + 'static {
-    /// Validates the credential and returns its account ID and token abilities.
+    /// 校验凭据并返回账户 ID 和 token abilities。
     fn authenticate<'a>(
         &'a self,
         credential: AuthCredential<'a>,
@@ -243,7 +239,7 @@ struct AuthService {
     authenticator: Arc<dyn Authenticator>,
 }
 
-/// Registers the default database authenticator or an application supplied implementation.
+/// 注册默认数据库 authenticator 或应用提供的实现。
 pub struct AuthPlugin {
     authenticator: Arc<dyn Authenticator>,
     database_authenticator: Option<Arc<DatabaseAuthenticator>>,
@@ -251,7 +247,7 @@ pub struct AuthPlugin {
 }
 
 impl AuthPlugin {
-    /// Creates the default database-backed authenticator.
+    /// 创建默认的数据库 authenticator。
     pub fn new() -> Self {
         let authenticator = Arc::new(DatabaseAuthenticator::default());
         Self {
@@ -261,7 +257,7 @@ impl AuthPlugin {
         }
     }
 
-    /// Creates an authenticator plugin using an application or third-party implementation.
+    /// 使用应用或第三方实现创建 authenticator 插件。
     pub fn with_authenticator(authenticator: impl Authenticator) -> Self {
         Self {
             authenticator: Arc::new(authenticator),
@@ -270,7 +266,7 @@ impl AuthPlugin {
         }
     }
 
-    /// Overrides the validated Argon2id parameters used by the password service.
+    /// 覆盖密码服务使用的、已校验的 Argon2id 参数。
     #[must_use]
     pub fn with_password_config(mut self, config: PasswordConfig) -> Self {
         self.password_config = config;
@@ -339,11 +335,11 @@ impl Plugin for AuthPlugin {
     }
 }
 
-/// Applies required or optional authentication to routes using the existing Tower layer API.
+/// 使用现有 Tower layer API 为路由应用必需或可选认证。
 pub struct AuthLayer;
 
 impl AuthLayer {
-    /// Requires the route's selected credential mode.
+    /// 要求使用路由选定的凭据模式。
     pub fn required(
         mode: AuthMode,
     ) -> impl Layer<
@@ -370,7 +366,7 @@ impl AuthLayer {
         )
     }
 
-    /// Allows an absent selected credential while rejecting malformed or invalid credentials.
+    /// 允许所选凭据缺失，但会拒绝格式错误或无效的凭据。
     pub fn optional(
         mode: AuthMode,
     ) -> impl Layer<

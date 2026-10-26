@@ -1,4 +1,4 @@
-//! Authentication, password hashing, and shared session configuration.
+//! 身份认证、密码哈希和共享 Session 配置。
 
 use std::collections::BTreeMap;
 
@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 pub(crate) const MIN_MEMORY_KIB: u32 = 19_456;
 
-/// JWT signing and verification settings. Key values are Base64-encoded CSPRNG output.
+/// JWT 签发与验证设置。密钥值是经 Base64 编码的 CSPRNG 随机输出。
 #[derive(Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct JwtConfig {
@@ -21,7 +21,7 @@ pub struct JwtConfig {
 }
 
 impl JwtConfig {
-    /// Creates JWT settings from issuer, audience, active key ID and Base64 key ring.
+    /// 使用签发者、受众、当前密钥 ID 和 Base64 密钥环创建 JWT 设置。
     pub fn new(
         issuer: impl Into<String>,
         audience: impl Into<String>,
@@ -38,7 +38,7 @@ impl JwtConfig {
         }
     }
 
-    /// Sets access-token issuance and maximum accepted lifetime in seconds.
+    /// 设置 access token 的签发有效期和允许接受的最长有效期（秒）。
     #[must_use]
     pub fn with_ttl(mut self, access_ttl_secs: u64, max_valid_ttl_secs: u64) -> Self {
         self.access_ttl_secs = access_ttl_secs;
@@ -62,15 +62,15 @@ impl std::fmt::Debug for JwtConfig {
     }
 }
 
-/// Argon2id parameters used for newly hashed passwords.
+/// 新密码哈希使用的 Argon2id 参数。
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct PasswordConfig {
-    /// Memory cost in kibibytes.
+    /// 内存开销（KiB）。
     pub memory_kib: u32,
-    /// Number of Argon2 iterations.
+    /// Argon2 迭代次数。
     pub iterations: u32,
-    /// Argon2 parallelism degree.
+    /// Argon2 并行度。
     pub parallelism: u32,
 }
 
@@ -84,19 +84,19 @@ impl Default for PasswordConfig {
     }
 }
 
-/// Settings for the shared Cookie Session middleware.
+/// 共享 Cookie Session middleware 的设置。
 #[derive(Clone, Deserialize)]
 #[serde(default)]
 pub struct SessionConfig {
-    /// Cookie name. Defaults to `openrust_session`.
+    /// Cookie 名称。默认值为 `openrust_session`。
     pub cookie_name: String,
-    /// Whether browsers send the cookie only over HTTPS. Defaults to `true`.
+    /// 浏览器是否仅通过 HTTPS 发送 cookie。默认值为 `true`。
     pub secure: bool,
-    /// Whether the cookie is inaccessible to JavaScript (`HttpOnly`). Defaults to `true`.
+    /// JavaScript 是否无法读取该 cookie（`HttpOnly`）。默认值为 `true`。
     pub http_only: bool,
-    /// `SameSite` policy: `strict`, `lax`, or `none`. Defaults to `lax`.
+    /// `SameSite` 策略：`strict`、`lax` 或 `none`。默认值为 `lax`。
     pub same_site: String,
-    /// Inactivity lifetime, in seconds. Defaults to two weeks.
+    /// 无活动有效期（秒）。默认值为两周。
     pub ttl_secs: u64,
 }
 

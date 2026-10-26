@@ -1,4 +1,4 @@
-//! Verifies that test database instances run migrations in isolated databases.
+//! 验证测试数据库实例会在隔离数据库中运行迁移。
 #![cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 
 use openrust::database::sea_orm_migration::{self, MigratorTrait};

@@ -1,4 +1,4 @@
-//! End-to-end behaviour of the HTTP layer through `tower::ServiceExt::oneshot`.
+//! 通过 `tower::ServiceExt::oneshot` 验证 HTTP 层的端到端行为。
 
 use axum::body::{Body, to_bytes};
 use axum::extract::{Extension, Request};
@@ -60,7 +60,7 @@ async fn add_shared_extension(mut request: Request, next: Next) -> Response {
     }
 }
 
-// The panic is the behaviour under test: it must become a 500 envelope, not kill the server.
+// 此处的 panic 是被测行为：它必须转换为 500 envelope，不能导致服务器退出。
 #[allow(clippy::panic)]
 async fn boom() -> &'static str {
     panic!("handler exploded")

@@ -1,4 +1,4 @@
-//! Application data encryption configuration.
+//! 应用数据加密配置。
 
 use std::collections::BTreeMap;
 
@@ -22,7 +22,7 @@ impl std::fmt::Debug for SecretString {
     }
 }
 
-/// Base64-encoded AES-256-GCM-SIV keys used by the optional encryption service.
+/// 可选加密服务使用的 Base64 编码 AES-256-GCM-SIV 密钥。
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct EncryptionConfig {
@@ -31,7 +31,7 @@ pub struct EncryptionConfig {
 }
 
 impl EncryptionConfig {
-    /// Creates an encryption key ring from an active key ID and Base64-encoded key values.
+    /// 使用当前密钥 ID 和 Base64 编码的密钥值创建加密密钥环。
     pub fn new(active_key_id: impl Into<String>, keys: BTreeMap<String, String>) -> Self {
         Self {
             active_key_id: active_key_id.into(),

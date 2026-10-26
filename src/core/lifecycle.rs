@@ -1,8 +1,8 @@
-//! Bootstrap sequence and shutdown signal.
+//! 引导启动顺序与关闭信号。
 //!
-//! [`bootstrap`] performs, in order: load `.env` outside production, load configuration, initialise `tracing`,
-//! extract the application's own configuration, let the [`Application`] build plugins,
-//! run every plugin's `build`, freeze the builder, then run every plugin's `finish`.
+//! [`bootstrap`] 按以下顺序执行：非生产环境加载 `.env`、加载配置、初始化 `tracing`、
+//! 提取应用自身的配置、调用 [`Application`] 构建插件、运行每个插件的 `build`、
+//! 冻结构建器，最后运行每个插件的 `finish`。
 
 use tracing_subscriber::EnvFilter;
 
@@ -11,12 +11,12 @@ use crate::core::app::{App, AppBuilder, Application};
 use crate::core::command::{ConfigShowCommand, HelpCommand};
 use crate::core::error::Result;
 
-/// Boots `A` from the working directory's configuration.
+/// 从当前工作目录的配置引导启动 `A`。
 pub async fn bootstrap<A: Application>() -> Result<App> {
     bootstrap_with::<A>(|_| {}).await
 }
 
-/// Like [`bootstrap`], but lets the caller add default plugins before [`Application::build`].
+/// 与 [`bootstrap`] 类似，但允许调用方在 [`Application::build`] 前添加默认插件。
 pub async fn bootstrap_with<A: Application>(defaults: impl FnOnce(&mut AppBuilder)) -> Result<App> {
     let loader = bootstrap_config_loader(A::config_namespace())?;
     let framework = loader.load_framework()?;
@@ -33,7 +33,7 @@ pub async fn bootstrap_with<A: Application>(defaults: impl FnOnce(&mut AppBuilde
 }
 
 fn bootstrap_config_loader(namespace: &str) -> Result<ConfigLoader> {
-    // Select the environment before loading any other .env key.
+    // 先确定运行环境，再加载 `.env` 中的其他键。
     let env_key = format!("{namespace}ENV");
     let env = if std::env::var(&env_key).is_ok_and(|value| !value.trim().is_empty()) {
         Environment::from_env_with_namespace(namespace)?
@@ -48,9 +48,9 @@ fn bootstrap_config_loader(namespace: &str) -> Result<ConfigLoader> {
     )?)
 }
 
-/// Runs plugin building and finishing on an assembled builder.
+/// 在组装完成的构建器上运行插件的构建与完成阶段。
 ///
-/// Exposed so tests can build applications without touching the environment.
+/// 暴露此入口，使测试无需修改进程环境即可构建应用。
 pub async fn finalize(mut builder: AppBuilder) -> Result<App> {
     let mut built = Vec::new();
     while builder.has_pending_plugins() {
@@ -68,7 +68,7 @@ pub async fn finalize(mut builder: AppBuilder) -> Result<App> {
     Ok(app)
 }
 
-/// Installs the global `tracing` subscriber. A second call (tests, embedded use) is a no-op.
+/// 安装全局 `tracing` subscriber。第二次调用（例如测试或嵌入式使用）不会执行任何操作。
 pub fn init_tracing(log: &LogConfig) {
     let filter = EnvFilter::try_from_default_env()
         .or_else(|_| EnvFilter::try_new(&log.level))
@@ -78,11 +78,11 @@ pub fn init_tracing(log: &LogConfig) {
         LogFormat::Json => builder.json().try_init(),
         LogFormat::Text => builder.try_init(),
     };
-    // Err only means a subscriber is already installed, which is fine.
+    // 此错误仅表示 subscriber 已安装，可安全忽略。
     let _ = installed;
 }
 
-/// Resolves on `SIGINT` (Ctrl-C) or, on Unix, `SIGTERM`.
+/// 收到 `SIGINT`（Ctrl-C）或 Unix 上的 `SIGTERM` 时完成。
 pub async fn shutdown_signal() {
     let ctrl_c = async {
         let _ = tokio::signal::ctrl_c().await;
@@ -107,7 +107,7 @@ pub async fn shutdown_signal() {
 }
 
 #[cfg(test)]
-// `figment::Jail` closures return `figment::Result`, whose error type is large by design.
+// `figment::Jail` 闭包必须返回 `figment::Result`；其错误类型按设计较大。
 #[allow(clippy::result_large_err)]
 mod tests {
     use super::*;
@@ -116,7 +116,7 @@ mod tests {
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicBool, Ordering};
 
-    // Jail restores the working directory and process environment after each closure.
+    // 每个闭包执行后，Jail 会恢复工作目录和进程环境。
     #[test]
     fn production_bootstrap_ignores_dotenv() {
         let _environment_guard = crate::lock_test_env();
@@ -170,7 +170,7 @@ mod tests {
     fn development_bootstrap_loads_dotenv_then_resolves_environment() {
         let _environment_guard = crate::lock_test_env();
         figment::Jail::expect_with(|jail| {
-            // Track both keys before dotenvy sets them, so Jail restores their original values.
+            // 在 dotenvy 设置键值前记录两个键，确保 Jail 能恢复其原始值。
             jail.set_env("APP_ENV", "");
             jail.set_env("APP_SERVER__PORT", "");
             jail.clear_env();

@@ -1,4 +1,4 @@
-//! Per-test database creation for PostgreSQL and MySQL.
+//! 为 PostgreSQL 和 MySQL 的每个测试创建独立数据库。
 
 use std::{
     fmt,
@@ -15,11 +15,11 @@ use url::Url;
 
 static DATABASE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
-/// A database isolated to one integration test.
+/// 为单个集成测试隔离的数据库。
 ///
-/// Create one with [`TestDatabase::create`] and use [`url`](Self::url) in the application's
-/// `[database].url`. Call [`close`](Self::close) to wait for cleanup; dropping the guard schedules
-/// best-effort cleanup on the active Tokio runtime.
+/// 使用 [`TestDatabase::create`] 创建，并将 [`url`](Self::url) 用作应用的 `[database].url`。
+/// 调用 [`close`](Self::close) 等待清理完成；释放 guard 时，会在当前 Tokio runtime 上
+/// 尽力安排清理任务。
 pub struct TestDatabase {
     admin_url: String,
     database_name: String,
@@ -29,11 +29,10 @@ pub struct TestDatabase {
 }
 
 impl TestDatabase {
-    /// Creates a uniquely named database and applies the application's migrations.
+    /// 创建唯一命名的数据库，并应用应用程序的迁移。
     ///
-    /// The URL must connect to an existing database and the user must be allowed to create and
-    /// drop databases. PostgreSQL uses a temporary migrated template; MySQL replays migrations
-    /// into the isolated database.
+    /// URL 必须连接到已存在的数据库，且当前用户必须有权创建和删除数据库。
+    /// PostgreSQL 使用临时迁移模板；MySQL 则在隔离数据库中重放迁移。
     pub async fn create<M>(admin_url: &str) -> Result<Self>
     where
         M: MigratorTrait + Send + Sync + 'static,
@@ -41,7 +40,7 @@ impl TestDatabase {
         Self::create_with_table_names::<M>(admin_url, DatabaseTableNames::default()).await
     }
 
-    /// Creates an isolated database and runs migrations in the supplied table-name scope.
+    /// 创建隔离数据库，并在指定的表名作用域中运行迁移。
     pub async fn create_with_table_names<M>(
         admin_url: &str,
         table_names: DatabaseTableNames,
@@ -136,19 +135,19 @@ impl TestDatabase {
         })
     }
 
-    /// Returns the connection URL for configuring the application under test.
+    /// 返回用于配置被测应用的连接 URL。
     pub fn url(&self) -> &str {
         &self.database_url
     }
 
-    /// Returns a clone of the isolated SeaORM connection pool.
+    /// 返回隔离 SeaORM 连接池的克隆。
     pub fn connection(&self) -> Result<DatabaseConnection> {
         self.connection
             .clone()
             .ok_or_else(|| Error::custom("test_database_closed", "test database is already closed"))
     }
 
-    /// Closes the connection pool and removes the isolated database.
+    /// 关闭连接池并删除隔离数据库。
     pub async fn close(mut self) -> Result<()> {
         let connection = self.connection.take().ok_or_else(|| {
             Error::custom("test_database_closed", "test database is already closed")

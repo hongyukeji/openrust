@@ -1,4 +1,4 @@
-//! Shared database-backed HTTP sessions.
+//! 基于共享数据库的 HTTP Session。
 
 use std::sync::Arc;
 
@@ -43,7 +43,7 @@ impl SessionConfig {
     }
 }
 
-/// A PostgreSQL/MySQL Session store backed by the application's shared [`Db`].
+/// 使用应用共享 [`Db`] 的 PostgreSQL/MySQL Session store。
 #[derive(Clone)]
 pub struct DatabaseSessionStore {
     db: Db,
@@ -56,7 +56,7 @@ impl std::fmt::Debug for DatabaseSessionStore {
 }
 
 impl DatabaseSessionStore {
-    /// Creates a store over an existing framework database handle.
+    /// 基于现有框架数据库句柄创建 store。
     pub fn new(db: Db) -> Self {
         Self { db }
     }
@@ -203,14 +203,14 @@ impl SessionStore for DatabaseSessionStore {
     }
 }
 
-/// Registers the shared database Session store and global Cookie middleware.
+/// 注册共享数据库 Session store 和全局 Cookie 中间件。
 pub struct SessionPlugin {
     config: Option<SessionConfig>,
     storage: SessionStorage,
 }
 
 impl SessionPlugin {
-    /// Creates a Session plugin with secure default cookie settings.
+    /// 使用安全的默认 Cookie 设置创建 Session 插件。
     pub fn new() -> Self {
         Self {
             config: None,
@@ -218,7 +218,7 @@ impl SessionPlugin {
         }
     }
 
-    /// Sets the Session cookie and expiry configuration.
+    /// 设置 Session Cookie 与有效期配置。
     pub fn with_config(config: SessionConfig) -> Self {
         Self {
             config: Some(config),
@@ -226,7 +226,7 @@ impl SessionPlugin {
         }
     }
 
-    /// Creates a Session plugin using an application supplied [`SessionStore`].
+    /// 使用应用提供的 [`SessionStore`] 创建 Session 插件。
     pub fn with_store(store: impl SessionStore) -> Self {
         Self {
             config: None,
@@ -234,7 +234,7 @@ impl SessionPlugin {
         }
     }
 
-    /// Overrides the cookie and expiry configuration for this plugin instance.
+    /// 覆盖此插件实例的 Cookie 与有效期配置。
     #[must_use]
     pub fn with_cookie_config(mut self, config: SessionConfig) -> Self {
         self.config = Some(config);

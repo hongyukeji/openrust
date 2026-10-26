@@ -1,20 +1,20 @@
-//! Database queue worker configuration.
+//! 数据库队列 worker 配置。
 
 use serde::Deserialize;
 
-/// Bounds polling, job leases and graceful worker shutdown.
+/// 设置轮询、任务租约和 worker 优雅停机的边界。
 #[derive(Clone, Deserialize)]
 #[serde(default)]
 pub struct QueueConfig {
-    /// Delay between empty queue polls, in milliseconds.
+    /// 队列为空时，两次轮询之间的延迟（毫秒）。
     pub poll_interval_millis: u64,
-    /// Lease duration for a claimed job, in seconds.
+    /// 已领取任务的租约时长（秒）。
     pub lease_secs: u64,
-    /// Maximum execution time for one handler attempt, in seconds.
+    /// 单次 handler 尝试的最长执行时间（秒）。
     pub job_timeout_secs: u64,
-    /// Maximum number of concurrent handlers in one worker process.
+    /// 单个 worker 进程中同时运行的 handler 最大数量。
     pub worker_concurrency: usize,
-    /// Maximum time to wait for the current handler during shutdown, in seconds.
+    /// 停机时等待当前 handler 完成的最长时间（秒）。
     pub shutdown_timeout_secs: u64,
 }
 

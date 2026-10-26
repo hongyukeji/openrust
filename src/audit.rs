@@ -1,5 +1,5 @@
 #![doc = include_str!("audit/README.md")]
-//! Explicit audit records with bounded, redacted details and replaceable sinks.
+//! 显式记录审计事件，限制详情大小并脱敏，且支持替换写入 sink。
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -26,18 +26,18 @@ const MAX_DETAILS_BYTES: usize = 8192;
 #[cfg(feature = "test-util")]
 pub mod testing;
 
-/// Result of an explicitly audited operation.
+/// 显式审计操作的结果。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AuditOutcome {
-    /// The operation completed successfully.
+    /// 操作已成功完成。
     Succeeded,
-    /// Authorization or validation denied the operation.
+    /// 授权或校验拒绝了该操作。
     Denied,
-    /// The operation failed before its result was committed.
+    /// 操作在结果提交前失败。
     Failed,
-    /// The enclosing transaction was rolled back.
+    /// 外层事务已回滚。
     RolledBack,
-    /// The caller could not determine whether the operation committed.
+    /// 调用方无法确定操作是否已提交。
     Indeterminate,
 }
 
@@ -53,7 +53,7 @@ impl AuditOutcome {
     }
 }
 
-/// Neutral actor or object reference, for example `("user", "42")`.
+/// 中性的 actor 或 object 引用，例如 `("user", "42")`。
 #[derive(Clone, PartialEq, Eq)]
 pub struct AuditSubject {
     kind: String,
@@ -61,7 +61,7 @@ pub struct AuditSubject {
 }
 
 impl AuditSubject {
-    /// Creates a reference with bounded kind and identifier fields.
+    /// 创建 kind 和标识符字段均有长度限制的引用。
     pub fn new(kind: impl Into<String>, id: impl Into<String>) -> Result<Self> {
         let kind = kind.into();
         let id = id.into();
@@ -70,11 +70,11 @@ impl AuditSubject {
             id: label(&id, "subject ID")?,
         })
     }
-    /// Returns the subject kind.
+    /// 返回主体类型。
     pub fn kind(&self) -> &str {
         &self.kind
     }
-    /// Returns the subject identifier.
+    /// 返回主体标识符。
     pub fn id(&self) -> &str {
         &self.id
     }
@@ -89,7 +89,7 @@ impl fmt::Debug for AuditSubject {
     }
 }
 
-/// Application-supplied audit data. It is validated before reaching a sink.
+/// 由应用提供的审计数据；写入 sink 前会先进行校验。
 pub struct AuditEvent {
     actor: Option<AuditSubject>,
     action: String,
@@ -102,7 +102,7 @@ pub struct AuditEvent {
 }
 
 impl AuditEvent {
-    /// Creates an event with an action, object and outcome; captures the current time.
+    /// 使用操作、对象和结果创建事件，并记录当前时间。
     pub fn new(
         action: impl Into<String>,
         object: AuditSubject,
@@ -120,25 +120,25 @@ impl AuditEvent {
             details: BTreeMap::new(),
         })
     }
-    /// Sets the actor. Omit it for anonymous or system initiated operations.
+    /// 设置 actor。匿名操作或系统发起的操作可省略。
     #[must_use]
     pub fn actor(mut self, actor: AuditSubject) -> Self {
         self.actor = Some(actor);
         self
     }
-    /// Sets an opaque request correlation ID; it is not used for authorization.
+    /// 设置不透明的请求关联 ID；该 ID 不用于授权。
     pub fn request_id(mut self, id: impl Into<String>) -> Result<Self> {
         let id = id.into();
         self.request_id = Some(label(&id, "request ID")?);
         Ok(self)
     }
-    /// Sets a source address already resolved through the trusted proxy policy.
+    /// 设置已按可信代理策略解析的来源地址。
     #[must_use]
     pub fn source_ip(mut self, ip: IpAddr) -> Self {
         self.source_ip = Some(ip);
         self
     }
-    /// Adds a named JSON detail. `AuditPolicy` checks the allowlist during preparation.
+    /// 添加具名 JSON 详情。准备记录时，`AuditPolicy` 会检查允许列表。
     #[must_use]
     pub fn detail(mut self, key: impl Into<String>, value: Value) -> Self {
         self.details.insert(key.into(), value);
@@ -164,18 +164,18 @@ impl fmt::Debug for AuditEvent {
     }
 }
 
-/// Allowlist applied before audit data reaches a sink.
+/// 在审计数据写入 sink 前应用的允许列表。
 #[derive(Debug, Clone, Default)]
 pub struct AuditPolicy {
     allowed_detail_keys: BTreeSet<String>,
 }
 
 impl AuditPolicy {
-    /// Creates a policy with no permitted details.
+    /// 创建不允许任何详情的策略。
     pub fn new() -> Self {
         Self::default()
     }
-    /// Allows a bounded scalar detail key; sensitive names remain redacted.
+    /// 允许一个受长度限制的标量详情 key；敏感名称仍会被脱敏。
     pub fn allow_detail(mut self, key: impl Into<String>) -> Result<Self> {
         let key = key.into();
         self.allowed_detail_keys.insert(label(&key, "detail key")?);
@@ -183,7 +183,7 @@ impl AuditPolicy {
     }
 }
 
-/// A validated record. Private fields prevent callers bypassing policy checks.
+/// 经过校验的记录。字段保持私有，以防调用方绕过策略检查。
 pub struct AuditRecord {
     actor_kind: Option<String>,
     actor_id: Option<String>,
@@ -198,19 +198,19 @@ pub struct AuditRecord {
 }
 
 impl AuditRecord {
-    /// Returns the recorded action.
+    /// 返回记录的操作。
     pub fn action(&self) -> &str {
         &self.action
     }
-    /// Returns the operation outcome.
+    /// 返回操作结果。
     pub fn outcome(&self) -> AuditOutcome {
         self.outcome
     }
-    /// Returns sanitized detail JSON.
+    /// 返回经过脱敏的详情 JSON。
     pub fn details_json(&self) -> &str {
         &self.details_json
     }
-    /// Returns the request correlation ID, if present.
+    /// 若存在则返回请求关联 ID。
     pub fn request_id(&self) -> Option<&str> {
         self.request_id.as_deref()
     }
@@ -236,13 +236,13 @@ impl fmt::Debug for AuditRecord {
     }
 }
 
-/// Replaceable asynchronous destination for validated audit records.
+/// 可替换的异步目标，用于接收经过校验的审计记录。
 pub trait AuditSink: Send + Sync + 'static {
-    /// Appends a record. Errors propagate; the framework does not silently retry or fall back.
+    /// 追加一条记录。错误会向上传播；框架不会静默重试或回退。
     fn append<'a>(&'a self, record: &'a AuditRecord) -> BoxFuture<'a, Result<()>>;
 }
 
-/// Explicit audit service registered in application state.
+/// 注册在应用状态中的显式审计服务。
 #[derive(Clone)]
 pub struct Audit {
     sink: Arc<dyn AuditSink>,
@@ -256,38 +256,38 @@ impl fmt::Debug for Audit {
 }
 
 impl Audit {
-    /// Creates the service with a custom sink and data policy.
+    /// 使用自定义 sink 和数据策略创建服务。
     pub fn new(sink: impl AuditSink, policy: AuditPolicy) -> Self {
         Self {
             sink: Arc::new(sink),
             policy,
         }
     }
-    /// Validates, filters and sanitizes an event without persisting it.
+    /// 校验、筛选并脱敏事件，但不持久化。
     pub fn prepare(&self, event: AuditEvent) -> Result<AuditRecord> {
         prepare_record(event, &self.policy)
     }
-    /// Validates and appends an event through the configured sink.
+    /// 校验事件，并通过已配置的 sink 追加记录。
     pub async fn record(&self, event: AuditEvent) -> Result<()> {
         self.sink.append(&self.prepare(event)?).await
     }
 }
 
-/// Registers the built-in database sink or a caller-provided implementation.
+/// 注册内置数据库 sink 或调用方提供的实现。
 pub struct AuditPlugin {
     sink: Option<Arc<dyn AuditSink>>,
     policy: AuditPolicy,
 }
 
 impl AuditPlugin {
-    /// Registers the database sink; register `DatabasePlugin` before this plugin.
+    /// 注册数据库 sink；使用此插件前须先注册 `DatabasePlugin`。
     pub fn database() -> Self {
         Self {
             sink: None,
             policy: AuditPolicy::default(),
         }
     }
-    /// Registers a custom public sink.
+    /// 注册自定义公开 sink。
     pub fn with_sink(sink: impl AuditSink, policy: AuditPolicy) -> Self {
         Self {
             sink: Some(Arc::new(sink)),
@@ -329,7 +329,7 @@ impl Plugin for AuditPlugin {
     }
 }
 
-/// Database-backed sink using the primary connection and configured table resolver.
+/// 使用主库连接和已配置表名解析器的数据库 sink。
 #[derive(Clone)]
 pub struct DatabaseAuditSink {
     db: Db,
@@ -342,11 +342,11 @@ impl fmt::Debug for DatabaseAuditSink {
 }
 
 impl DatabaseAuditSink {
-    /// Creates a sink bound to the application's database.
+    /// 创建绑定到应用数据库的 sink。
     pub fn new(db: Db) -> Self {
         Self { db }
     }
-    /// Inserts within the caller's transaction; does not commit or create a nested transaction.
+    /// 在调用方事务中插入记录；不会提交事务，也不会创建嵌套事务。
     pub async fn record_in_transaction(
         &self,
         transaction: &DatabaseTransaction,
@@ -354,7 +354,7 @@ impl DatabaseAuditSink {
     ) -> Result<()> {
         insert_record(transaction, &self.db, record).await
     }
-    /// Deletes up to `batch_size` records strictly older than `cutoff` from the primary.
+    /// 从主库删除最多 `batch_size` 条严格早于 `cutoff` 的记录。
     pub async fn purge_before(&self, cutoff: SystemTime, batch_size: u16) -> Result<u64> {
         if batch_size == 0 {
             return Err(Error::BadRequest(
@@ -420,7 +420,7 @@ impl AuditSink for DatabaseAuditSink {
     }
 }
 
-/// Creates the audit table using the application's table-name resolver.
+/// 使用应用的表名解析器创建审计表。
 pub struct DatabaseAuditMigration;
 
 impl MigrationName for DatabaseAuditMigration {

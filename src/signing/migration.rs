@@ -1,4 +1,4 @@
-//! Database schema for shared signed-link revocation.
+//! 用于共享签名链接撤销的数据库结构。
 
 use crate::db::{
     DatabaseTableNames,
@@ -27,7 +27,7 @@ fn table(backend: DbBackend) -> Result<Alias, DbErr> {
         .map_err(|e| DbErr::Migration(e.to_string()))
 }
 
-/// Creates the shared signed-link revocation table.
+/// 创建共享的签名链接撤销表。
 pub struct SignedLinkRevocationMigration;
 
 impl MigrationName for SignedLinkRevocationMigration {

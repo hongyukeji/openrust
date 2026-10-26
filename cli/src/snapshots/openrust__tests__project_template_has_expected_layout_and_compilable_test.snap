@@ -58,7 +58,7 @@ same_site = "lax"
 ttl_secs = 1209600
 
 --- src/main.rs ---
-//! Application entry point.
+//! 应用程序入口。
 
 mod app;
 mod routes;

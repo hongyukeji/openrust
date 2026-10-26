@@ -1,4 +1,4 @@
-//! `openrust`: global command line of the OpenRust framework.
+//! `openrust`：OpenRust 框架的全局命令行工具。
 
 #![forbid(unsafe_code)]
 
@@ -1370,7 +1370,7 @@ fn print_generated(message: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Executes the project binary and returns its exit code.
+/// 执行项目二进制并返回其退出码。
 fn run_project(args: &[&str], development: bool) -> anyhow::Result<ExitCode> {
     run_application(args, development)
 }
@@ -1401,7 +1401,7 @@ fn run_application(args: &[&str], development: bool) -> anyhow::Result<ExitCode>
         .map(exit_code)
 }
 
-/// Runs `cargo run --quiet -- <args>` in the current project and mirrors its exit status.
+/// 在当前项目中运行 `cargo run --quiet -- <args>`，并返回相同的退出状态。
 fn forward(args: &[String]) -> anyhow::Result<ExitCode> {
     let current_dir = std::env::current_dir()?;
     let workspace = framework_workspace(&current_dir)?;

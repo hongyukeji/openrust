@@ -1,4 +1,4 @@
-//! Validated logical-to-physical database table names.
+//! 经过校验的数据库逻辑表名到物理表名映射。
 
 use std::{collections::BTreeMap, future::Future};
 
@@ -10,7 +10,7 @@ tokio::task_local! {
     static CURRENT_TABLE_NAMES: DatabaseTableNames;
 }
 
-/// Immutable table prefix and full-name overrides shared by queries and migrations.
+/// 由查询和迁移共用的不可变表前缀及全名映射。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DatabaseTableNames {
     prefix: String,
@@ -27,7 +27,7 @@ impl Default for DatabaseTableNames {
 }
 
 impl DatabaseTableNames {
-    /// Creates and validates a table-name resolver.
+    /// 创建并校验表名解析器。
     pub fn new(prefix: impl Into<String>, mappings: BTreeMap<String, String>) -> Result<Self> {
         let names = Self {
             prefix: prefix.into(),
@@ -37,12 +37,12 @@ impl DatabaseTableNames {
         Ok(names)
     }
 
-    /// Returns the configured table prefix.
+    /// 返回已配置的表前缀。
     pub fn prefix(&self) -> &str {
         &self.prefix
     }
 
-    /// Resolves a logical table name to its complete physical name.
+    /// 将逻辑表名解析为完整的物理表名。
     pub fn resolve(&self, logical_name: &str) -> Result<String> {
         validate_identifier(logical_name, "logical table name")?;
         let physical = self
@@ -57,7 +57,7 @@ impl DatabaseTableNames {
         Ok(physical)
     }
 
-    /// Resolves and quotes a physical table name for the selected supported backend.
+    /// 为所选的受支持后端解析并引用物理表名。
     pub fn quote(&self, logical_name: &str, backend: DbBackend) -> Result<String> {
         let physical = self.resolve(logical_name)?;
         match backend {
@@ -74,7 +74,7 @@ impl DatabaseTableNames {
         }
     }
 
-    /// Returns the resolver scoped to the current migration operation, if one is active.
+    /// 若当前存在迁移操作，返回该操作作用域内的解析器。
     pub fn current() -> Option<Self> {
         CURRENT_TABLE_NAMES.try_with(Clone::clone).ok()
     }
@@ -112,7 +112,7 @@ impl DatabaseTableNames {
         Ok(())
     }
 
-    /// Runs a future with this resolver available to SeaORM migrations.
+    /// 运行 future，并使 SeaORM migration 可以访问此解析器。
     pub async fn scope<F: Future>(&self, future: F) -> F::Output {
         CURRENT_TABLE_NAMES.scope(self.clone(), future).await
     }

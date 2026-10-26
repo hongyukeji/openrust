@@ -1,4 +1,4 @@
-//! Routing convention over [`axum::Router`].
+//! 基于 [`axum::Router`] 的路由约定。
 
 use std::convert::Infallible;
 
@@ -12,9 +12,9 @@ use tower::{Layer, Service};
 
 use crate::http::resource::{Resource, ResourceActions};
 
-/// Collects routes for an application. Converted into an [`axum::Router`] when the server starts.
+/// 收集应用路由；服务器启动时会将其转换为 [`axum::Router`]。
 ///
-/// Every method consumes and returns `Self` so route tables read top-down:
+/// 每个方法都会消费并返回 `Self`，使路由表可按从上到下的顺序阅读：
 ///
 /// ```
 /// use openrust::http::Routes;
@@ -32,19 +32,19 @@ pub struct Routes {
 }
 
 impl Routes {
-    /// Empty route table.
+    /// 创建空路由表。
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Adds a route with an explicit [`MethodRouter`].
+    /// 使用显式 [`MethodRouter`] 添加路由。
     #[must_use]
     pub fn route(mut self, path: &str, method_router: MethodRouter<AppState>) -> Self {
         self.router = self.router.route(path, method_router);
         self
     }
 
-    /// `GET` route.
+    /// 注册 `GET` 路由。
     #[must_use]
     pub fn get<H, T>(self, path: &str, handler: H) -> Self
     where
@@ -54,7 +54,7 @@ impl Routes {
         self.route(path, routing::get(handler))
     }
 
-    /// `POST` route.
+    /// 注册 `POST` 路由。
     #[must_use]
     pub fn post<H, T>(self, path: &str, handler: H) -> Self
     where
@@ -64,7 +64,7 @@ impl Routes {
         self.route(path, routing::post(handler))
     }
 
-    /// `PUT` route.
+    /// 注册 `PUT` 路由。
     #[must_use]
     pub fn put<H, T>(self, path: &str, handler: H) -> Self
     where
@@ -74,7 +74,7 @@ impl Routes {
         self.route(path, routing::put(handler))
     }
 
-    /// `PATCH` route.
+    /// 注册 `PATCH` 路由。
     #[must_use]
     pub fn patch<H, T>(self, path: &str, handler: H) -> Self
     where
@@ -84,7 +84,7 @@ impl Routes {
         self.route(path, routing::patch(handler))
     }
 
-    /// `DELETE` route.
+    /// 注册 `DELETE` 路由。
     #[must_use]
     pub fn delete<H, T>(self, path: &str, handler: H) -> Self
     where
@@ -94,25 +94,23 @@ impl Routes {
         self.route(path, routing::delete(handler))
     }
 
-    /// Registers the actions explicitly supplied by a resource controller.
+    /// 注册资源控制器显式提供的操作。
     ///
     /// # Panics
     ///
-    /// Axum panics during registration if a route conflicts with an existing route
-    /// (the same path and method, or different parameter names at the same position).
-    /// Member routes always use the parameter name `id`.
+    /// 若路由与现有路由冲突（路径和方法相同，或同一位置的参数名称不同），Axum 会在注册时 panic。
+    /// 成员路由始终使用参数名 `id`。
     #[must_use]
     pub fn resource<R: Resource>(self, path: &str) -> Self {
         self.resource_with::<R>(path, |actions| actions)
     }
 
-    /// Registers a resource after applying `f` to its actions.
+    /// 将 `f` 应用于资源操作后注册资源。
     ///
     /// # Panics
     ///
-    /// Axum panics during registration if a route conflicts with an existing route
-    /// (the same path and method, or different parameter names at the same position).
-    /// Member routes always use the parameter name `id`.
+    /// 若路由与现有路由冲突（路径和方法相同，或同一位置的参数名称不同），Axum 会在注册时 panic。
+    /// 成员路由始终使用参数名 `id`。
     #[must_use]
     pub fn resource_with<R: Resource>(
         self,
@@ -122,7 +120,7 @@ impl Routes {
         f(R::actions(ResourceActions::new())).mount(self, path)
     }
 
-    /// Nests the routes built by `f` under `prefix`. An empty or `/` prefix merges instead.
+    /// 将 `f` 构建的路由嵌套在 `prefix` 下。空前缀或 `/` 会改为合并路由。
     #[must_use]
     pub fn nest(mut self, prefix: &str, f: impl FnOnce(Routes) -> Routes) -> Self {
         let inner = f(Routes::new()).router;
@@ -134,14 +132,14 @@ impl Routes {
         self
     }
 
-    /// Merges another route table at the same level.
+    /// 在同一层级合并另一张路由表。
     #[must_use]
     pub fn merge(mut self, other: Routes) -> Self {
         self.router = self.router.merge(other.router);
         self
     }
 
-    /// Applies a `tower` layer to every route registered so far.
+    /// 为截至当前已注册的所有路由应用 `tower` layer。
     #[must_use]
     pub fn layer<L>(mut self, layer: L) -> Self
     where
@@ -155,7 +153,7 @@ impl Routes {
         self
     }
 
-    /// Hands the collected routes to axum.
+    /// 将收集到的路由交给 axum。
     pub fn into_router(self) -> Router<AppState> {
         self.router
     }

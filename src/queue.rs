@@ -1,8 +1,7 @@
-//! Durable, database-backed job dispatch.
+//! 基于数据库的持久化任务派发。
 //!
-//! Applications must register [`QueueMigration`] in their migration crate. Dispatch is durable
-//! once the surrounding database transaction commits; handlers and workers are introduced by
-//! the queue worker API.
+//! 应用必须在 migration crate 中注册 [`QueueMigration`]。外围数据库事务提交后，派发的任务即被持久化；
+//! handler 和 worker 通过队列 worker API 提供。
 //!
 //! ```no_run
 //! use openrust::{db::Db, queue::Queue};
@@ -34,16 +33,16 @@ const HEX: &[u8; 16] = b"0123456789abcdef";
 const CHAIN_JOB_NAME: &str = "openrust.internal.chain.v1";
 const BATCH_JOB_NAME: &str = "openrust.internal.batch.v1";
 
-/// A typed job handler registered explicitly with [`QueuePlugin`].
+/// 通过 [`QueuePlugin`] 显式注册的类型化任务处理器。
 pub trait Job: DeserializeOwned + Send + Sync + 'static {
-    /// Stable persisted job name. Keep this name when the Rust type is renamed.
+    /// 持久化使用的稳定任务名称。重命名 Rust 类型时应保留此名称。
     const NAME: &'static str;
 
-    /// Runs the task. Handlers must be idempotent because database queues provide at-least-once execution.
+    /// 运行任务。数据库队列提供至少一次执行语义，因此 handler 必须具有幂等性。
     fn handle(&self, context: JobContext) -> BoxFuture<'_, Result<()>>;
 }
 
-/// Runtime metadata and cooperative cancellation signal for a job attempt.
+/// 任务尝试的运行时元数据与协作取消信号。
 #[derive(Clone)]
 pub struct JobContext {
     id: String,
@@ -56,31 +55,31 @@ pub struct JobContext {
 }
 
 impl JobContext {
-    /// Durable job identifier.
+    /// 持久化任务 ID。
     pub fn id(&self) -> &str {
         &self.id
     }
-    /// Current one-based attempt number.
+    /// 当前尝试次数，从 1 开始。
     pub const fn attempt(&self) -> u64 {
         self.attempt
     }
-    /// Maximum attempts configured for this job.
+    /// 此任务配置的最大尝试次数。
     pub const fn max_attempts(&self) -> u64 {
         self.max_attempts
     }
-    /// Returns whether worker shutdown requested cooperative cancellation.
+    /// 返回 worker 停机流程是否请求了协作取消。
     pub fn is_cancelled(&self) -> bool {
         *self.cancelled.borrow()
     }
 
-    /// Waits until worker shutdown requests cooperative cancellation.
+    /// 等待 worker 停机流程请求协作取消。
     pub async fn cancelled(&mut self) {
         if !self.is_cancelled() {
             let _ = self.cancelled.changed().await;
         }
     }
 
-    /// Stores bounded JSON progress while this attempt still owns the job lease.
+    /// 仅当本次尝试仍持有任务租约时，保存有界 JSON 进度。
     pub async fn set_progress(&self, value: &Value) -> Result<()> {
         if self.is_cancelled() {
             return Err(Error::custom(
@@ -191,7 +190,7 @@ enum ScheduleRuns {
     CreatedAt,
 }
 
-/// Creates the durable jobs table. Register this migration explicitly in the application migrator.
+/// 创建持久化任务表。必须在应用 migrator 中显式注册此 migration。
 pub struct QueueMigration;
 
 impl MigrationName for QueueMigration {
@@ -379,9 +378,9 @@ fn queue_table(logical: &str, backend: DbBackend) -> std::result::Result<Alias, 
         .map_err(|error| DbErr::Migration(error.to_string()))
 }
 
-/// Backend contract for queue storage providers.
+/// 队列存储提供方的后端契约。
 pub trait QueueDriver: Send + Sync + 'static {
-    /// Persists serialized job parameters with the supplied retry policy.
+    /// 使用给定的重试策略持久化序列化后的任务参数。
     fn dispatch<'a>(
         &'a self,
         queue: &'a str,
@@ -389,7 +388,7 @@ pub trait QueueDriver: Send + Sync + 'static {
         payload: Value,
         options: DispatchOptions,
     ) -> BoxFuture<'a, Result<String>>;
-    /// Persists a job in the caller's SeaORM transaction.
+    /// 在调用方的 SeaORM transaction 中持久化任务。
     fn dispatch_in_transaction<'a>(
         &'a self,
         transaction: &'a DatabaseTransaction,
@@ -398,7 +397,7 @@ pub trait QueueDriver: Send + Sync + 'static {
         payload: Value,
         options: DispatchOptions,
     ) -> BoxFuture<'a, Result<String>>;
-    /// Persists a task group when the backend supports grouped execution.
+    /// 后端支持任务组执行时持久化任务组。
     fn dispatch_group<'a>(
         &'a self,
         _queue: &'a str,
@@ -412,7 +411,7 @@ pub trait QueueDriver: Send + Sync + 'static {
             ))
         })
     }
-    /// Persists a task group in the caller's transaction when supported by the backend.
+    /// 后端支持时，在调用方事务中持久化任务组。
     fn dispatch_group_in_transaction<'a>(
         &'a self,
         _transaction: &'a DatabaseTransaction,
@@ -427,19 +426,19 @@ pub trait QueueDriver: Send + Sync + 'static {
             ))
         })
     }
-    /// Runs at most one ready job from the named queue.
+    /// 至多运行指定队列中的一个就绪任务。
     fn run_next<'a>(&'a self, queue: &'a str) -> BoxFuture<'a, Result<bool>>;
-    /// Requeues a failed job and returns the stable ID of the created job.
+    /// 将失败任务重新入队，并返回新建任务的稳定 ID。
     fn retry_failed<'a>(&'a self, failed_id: &'a str) -> BoxFuture<'a, Result<String>>;
-    /// Clears the shutdown state before a worker process starts.
+    /// 在 worker 进程启动前清除停机状态。
     fn reset_shutdown(&self);
-    /// Requests cooperative cancellation for active handlers.
+    /// 请求活动 handler 协作取消。
     fn request_shutdown(&self);
-    /// Reports whether shutdown has been requested.
+    /// 返回是否已请求停机。
     fn is_shutdown_requested(&self) -> bool;
 }
 
-/// Database queue driver backed by the application's shared primary connection.
+/// 使用应用共享主库连接的数据库队列 driver。
 #[derive(Clone)]
 pub struct DatabaseQueue {
     db: Db,
@@ -448,24 +447,24 @@ pub struct DatabaseQueue {
     config: crate::config::QueueConfig,
 }
 
-/// Queue facade which delegates job persistence and execution to a registered driver.
+/// 将任务持久化与执行委托给已注册 driver 的 Queue facade。
 #[derive(Clone)]
 pub struct Queue {
     driver: Arc<dyn QueueDriver>,
 }
 
-/// Per-job retry, delay and active uniqueness settings.
+/// 单个任务的重试、延迟与活动任务唯一性设置。
 #[derive(Debug, Clone)]
 pub struct DispatchOptions {
-    /// Maximum number of handler attempts, including the first attempt.
+    /// handler 的最大尝试次数，包含首次尝试。
     pub max_attempts: u32,
-    /// Delay before the first attempt.
+    /// 首次尝试前的延迟。
     pub delay: Duration,
-    /// Optional queue-scoped key that prevents overlapping duplicate dispatches.
+    /// 可选的队列范围内唯一键，用于阻止重叠的重复派发。
     pub unique_key: Option<String>,
 }
 
-/// A typed-name task included in a persisted batch or chain.
+/// 持久化批次或链中包含的类型化名称任务。
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct QueueTask {
     job_name: String,
@@ -473,7 +472,7 @@ pub struct QueueTask {
 }
 
 impl QueueTask {
-    /// Creates a task payload for an explicitly registered [`Job`].
+    /// 为显式注册的 [`Job`] 创建任务载荷。
     pub fn new<T: Serialize>(job_name: &str, payload: &T) -> Result<Self> {
         validate_name("job name", job_name, MAX_JOB_NAME)?;
         if job_name == CHAIN_JOB_NAME || job_name == BATCH_JOB_NAME {
@@ -491,32 +490,32 @@ impl QueueTask {
     }
 }
 
-/// Controls how a task group handles a child task error.
+/// 控制任务组如何处理子任务错误。
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub enum GroupFailurePolicy {
-    /// Stop a chain at its first error, or stop launching batch work and cancel active futures.
+    /// 链遇到首个错误时停止；批次遇错时停止启动后续工作并取消活动 future。
     Stop,
-    /// Run remaining chain/batch items, then fail the parent group if any child failed.
+    /// 继续运行剩余链/批次项目；若任一子任务失败，则最终将父任务组标记为失败。
     Continue,
 }
 
-/// Persisted queue task group submitted through a [`QueueDriver`].
+/// 通过 [`QueueDriver`] 提交的持久化队列任务组。
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum TaskGroup {
-    /// Runs child tasks serially in the listed order.
+    /// 按列出顺序串行运行子任务。
     Chain {
-        /// Child tasks, in execution order.
+        /// 子任务及其执行顺序。
         tasks: Vec<QueueTask>,
-        /// Error handling behavior.
+        /// 错误处理方式。
         failure_policy: GroupFailurePolicy,
     },
-    /// Runs child tasks with a bounded per-group concurrency.
+    /// 以每组有界并发运行子任务。
     Batch {
-        /// Child tasks.
+        /// 子任务。
         tasks: Vec<QueueTask>,
-        /// Maximum simultaneous child handler futures.
+        /// 同时运行的子任务 handler future 数上限。
         concurrency: usize,
-        /// Error handling behavior.
+        /// 错误处理方式。
         failure_policy: GroupFailurePolicy,
     },
 }
@@ -573,7 +572,7 @@ impl Default for DispatchOptions {
     }
 }
 
-/// Registers queue services and explicitly allowed job handlers.
+/// 注册队列服务与显式允许的任务 handler。
 #[derive(Debug, Default, Clone)]
 pub struct QueuePlugin {
     handlers: HashMap<&'static str, JobFn>,
@@ -581,7 +580,7 @@ pub struct QueuePlugin {
 }
 
 impl QueuePlugin {
-    /// Registers a typed handler under its stable [`Job::NAME`].
+    /// 使用稳定的 [`Job::NAME`] 注册类型化 handler。
     pub fn register_job<J: Job>(&mut self) -> Result<&mut Self> {
         validate_name("job name", J::NAME, MAX_JOB_NAME)?;
         if J::NAME == CHAIN_JOB_NAME || J::NAME == BATCH_JOB_NAME {
@@ -600,7 +599,7 @@ impl QueuePlugin {
         Ok(self)
     }
 
-    /// Registers a job to be dispatched at each bounded UTC interval slot.
+    /// 注册一个任务，使其在每个有界 UTC interval 时段派发。
     pub fn schedule_interval<T: Serialize>(
         &mut self,
         key: &str,
@@ -618,7 +617,7 @@ impl QueuePlugin {
         )
     }
 
-    /// Registers a job at a daily UTC hour and minute, skipping missed daily slots.
+    /// 注册一个任务，使其在每日指定 UTC 小时和分钟派发，并跳过错过的日期时段。
     pub fn schedule_daily_at<T: Serialize>(
         &mut self,
         key: &str,
@@ -727,7 +726,7 @@ fn run_job<J: Job>(payload: Value, context: JobContext) -> BoxFuture<'static, Re
 }
 
 impl DatabaseQueue {
-    /// Creates a dispatcher using the provided database service.
+    /// 使用提供的数据库服务创建派发器。
     pub fn new(db: Db) -> Self {
         Self {
             db,
@@ -846,7 +845,7 @@ impl DatabaseQueue {
         Ok(true)
     }
 
-    /// Inserts a job in the caller's business transaction, so rollback removes both changes.
+    /// 在调用方的业务事务中插入任务，使回滚同时撤销两项变更。
     async fn dispatch_value_in_transaction(
         &self,
         transaction: &DatabaseTransaction,
@@ -859,7 +858,7 @@ impl DatabaseQueue {
         insert_or_get_job(&self.db, transaction, queue, job_name, &payload, &options).await
     }
 
-    /// Requeues a failed job under a new ID while retaining its original failed record.
+    /// 使用新 ID 将失败任务重新入队，同时保留原失败记录。
     async fn retry_failed_inner(&self, failed_id: &str) -> Result<String> {
         if failed_id.len() != 32 || !failed_id.bytes().all(|byte| byte.is_ascii_hexdigit()) {
             return Err(Error::custom(
@@ -938,7 +937,7 @@ impl DatabaseQueue {
 }
 
 impl Queue {
-    /// Creates a database-backed dispatcher using the application's shared database service.
+    /// 使用应用共享数据库服务创建数据库派发器。
     pub fn new(db: Db) -> Self {
         let config = crate::config::QueueConfig::default();
         Self {
@@ -950,7 +949,7 @@ impl Queue {
         }
     }
 
-    /// Creates a dispatcher with an application-provided queue driver.
+    /// 使用应用提供的队列 driver 创建派发器。
     pub fn with_driver(
         driver: impl QueueDriver,
         config: &crate::config::QueueConfig,
@@ -961,7 +960,7 @@ impl Queue {
         })
     }
 
-    /// Inserts a job which becomes available immediately after its transaction commits.
+    /// 插入一个在事务提交后立即可用的任务。
     pub async fn dispatch<T: Serialize>(
         &self,
         queue: &str,
@@ -972,7 +971,7 @@ impl Queue {
             .await
     }
 
-    /// Inserts a job with an explicit bounded initial delay and retry limit.
+    /// 插入一个具有显式有界初始延迟和重试上限的任务。
     pub async fn dispatch_with_options<T: Serialize>(
         &self,
         queue: &str,
@@ -991,10 +990,9 @@ impl Queue {
             .await
     }
 
-    /// Dispatches one job for a queue-scoped key, returning the active job ID on repeats.
+    /// 为队列范围内的唯一键派发一个任务；重复调用时返回活动任务 ID。
     ///
-    /// The key prevents overlapping duplicates while a job remains pending or running. It is
-    /// released when that job succeeds or moves to `failed_jobs`.
+    /// 任务处于等待或运行状态时，此键会阻止重叠的重复任务。任务成功或移入 `failed_jobs` 后会释放此键。
     pub async fn dispatch_unique<T: Serialize>(
         &self,
         queue: &str,
@@ -1010,7 +1008,7 @@ impl Queue {
             .await
     }
 
-    /// Inserts a job in the caller's business transaction, so rollback removes both changes.
+    /// 在调用方的业务事务中插入任务，使回滚同时撤销两项变更。
     pub async fn dispatch_in_transaction<T: Serialize>(
         &self,
         transaction: &DatabaseTransaction,
@@ -1029,7 +1027,7 @@ impl Queue {
             .await
     }
 
-    /// Uniquely dispatches a job in the caller's transaction.
+    /// 在调用方事务中唯一派发任务。
     pub async fn dispatch_unique_in_transaction<T: Serialize>(
         &self,
         transaction: &DatabaseTransaction,
@@ -1054,7 +1052,7 @@ impl Queue {
             .await
     }
 
-    /// Dispatches a bounded ordered chain as one durable parent job.
+    /// 将有界有序任务链作为一个持久化父任务派发。
     pub async fn dispatch_chain(
         &self,
         queue: &str,
@@ -1071,7 +1069,7 @@ impl Queue {
         .await
     }
 
-    /// Dispatches a bounded concurrent batch as one durable parent job.
+    /// 将有界并发任务批次作为一个持久化父任务派发。
     pub async fn dispatch_batch(
         &self,
         queue: &str,
@@ -1090,7 +1088,7 @@ impl Queue {
         .await
     }
 
-    /// Dispatches an ordered chain in the caller's database transaction.
+    /// 在调用方数据库事务中派发有序任务链。
     pub async fn dispatch_chain_in_transaction(
         &self,
         transaction: &DatabaseTransaction,
@@ -1109,7 +1107,7 @@ impl Queue {
         .await
     }
 
-    /// Dispatches a bounded concurrent batch in the caller's database transaction.
+    /// 在调用方数据库事务中派发有界并发任务批次。
     pub async fn dispatch_batch_in_transaction(
         &self,
         transaction: &DatabaseTransaction,
@@ -1149,12 +1147,12 @@ impl Queue {
             .await
     }
 
-    /// Claims and runs one ready job from the named queue, returning whether one was claimed.
+    /// 领取并运行指定队列中的一个就绪任务，并返回是否成功领取。
     pub async fn run_next(&self, queue: &str) -> Result<bool> {
         self.driver.run_next(queue).await
     }
 
-    /// Requeues a failed job and returns its stable replacement ID.
+    /// 将失败任务重新入队，并返回新任务的稳定 ID。
     pub async fn retry_failed(&self, failed_id: &str) -> Result<String> {
         self.driver.retry_failed(failed_id).await
     }

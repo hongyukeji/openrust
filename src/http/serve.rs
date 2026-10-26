@@ -1,4 +1,4 @@
-//! The `serve` command.
+//! `serve` 命令。
 
 use crate::core::{App, BoxFuture, Command, Error, Result, shutdown_signal};
 use std::net::SocketAddr;
@@ -6,7 +6,7 @@ use tokio::net::TcpListener;
 
 use crate::http::plugin::build_router;
 
-/// Binds `[server] host:port` and serves until a shutdown signal arrives.
+/// 绑定 `[server] host:port` 并持续提供服务，直到收到关闭信号。
 pub async fn serve(app: &App) -> Result<()> {
     let router = build_router(app)?;
     let addr = app.config().server.bind_addr();
@@ -22,7 +22,7 @@ pub async fn serve(app: &App) -> Result<()> {
     .map_err(Error::internal)
 }
 
-/// `serve`: start the HTTP server. Default command of every application binary.
+/// `serve`：启动 HTTP 服务器。它是每个应用二进制的默认命令。
 pub struct ServeCommand;
 
 impl Command for ServeCommand {

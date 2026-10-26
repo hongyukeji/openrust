@@ -1,4 +1,4 @@
-//! Shared outbound HTTP client with explicit resource limits.
+//! 具有明确资源限制的共享出站 HTTP 客户端。
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -7,23 +7,23 @@ use async_trait::async_trait;
 use http::{HeaderMap, Method, StatusCode};
 use serde::de::DeserializeOwned;
 
-/// Request body type accepted by [`HttpRequest::body`].
+/// [`HttpRequest::body`] 接受的请求正文类型。
 pub use reqwest::Body as HttpBody;
-/// Request type supplied to [`HttpTransport`] implementations.
+/// 提供给 [`HttpTransport`] 实现的请求类型。
 pub use reqwest::Request as HttpTransportRequest;
-/// Multipart form body accepted by [`HttpRequest::multipart`].
+/// [`HttpRequest::multipart`] 接受的 multipart 表单正文类型。
 pub use reqwest::multipart::Form as MultipartForm;
 
-/// Resource and timeout settings for [`HttpClient`].
+/// [`HttpClient`] 的资源和超时设置。
 #[derive(Clone, PartialEq, Eq)]
 pub struct HttpClientConfig {
-    /// Maximum time to establish a connection.
+    /// 建立连接的最长等待时间。
     pub connect_timeout: Duration,
-    /// Maximum time for the complete request and response body.
+    /// 完整请求与响应正文的最长处理时间。
     pub timeout: Duration,
-    /// Maximum number of bytes buffered by [`HttpResponse::bytes`].
+    /// [`HttpResponse::bytes`] 最多缓冲的字节数。
     pub max_response_bytes: usize,
-    /// Optional explicit proxy URL. Environment proxy variables are ignored.
+    /// 可选的显式代理 URL。环境代理变量会被忽略。
     pub proxy: Option<String>,
 }
 
@@ -50,48 +50,48 @@ impl Default for HttpClientConfig {
     }
 }
 
-/// Outbound HTTP client construction, transport, or bounded body error.
+/// 出站 HTTP 客户端构建、传输或正文大小限制错误。
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum HttpClientError {
-    /// A timeout or network/protocol failure occurred. Details are intentionally redacted.
+    /// 发生超时、网络故障或协议故障；详情会被主动隐藏。
     #[error("outbound HTTP transport failed")]
     Transport,
-    /// The configured connection or total request timeout elapsed.
+    /// 已达到配置的连接超时或请求总超时。
     #[error("outbound HTTP request timed out")]
     Timeout,
-    /// The response body exceeded the configured limit.
+    /// 响应正文超过配置的大小上限。
     #[error("outbound HTTP response exceeded the configured body limit")]
     BodyTooLarge,
-    /// A response body could not be decoded as JSON.
+    /// 响应正文无法解码为 JSON。
     #[error("outbound HTTP response contained invalid JSON")]
     InvalidJson,
-    /// Client configuration is invalid.
+    /// 客户端配置无效。
     #[error("invalid outbound HTTP client configuration")]
     InvalidConfig,
-    /// A request cannot be replayed because its body is a one-shot stream.
+    /// 请求正文是一次性 stream，因此无法重放请求。
     #[error("outbound HTTP request body cannot be replayed")]
     UnreplayableRequest,
 }
 
-/// A transport that executes outbound requests. Implementations must not log request secrets.
+/// 执行出站请求的传输层。实现不得记录请求中的秘密信息。
 #[async_trait]
 pub trait HttpTransport: Send + Sync {
-    /// Sends one request and returns a streaming response.
+    /// 发送一次请求并返回流式响应。
     async fn send(
         &self,
         request: HttpTransportRequest,
     ) -> Result<TransportResponse, HttpClientError>;
 }
 
-/// A response body source used by [`HttpTransport`].
+/// [`HttpTransport`] 使用的响应正文来源。
 #[async_trait]
 pub trait HttpResponseBody: Send {
-    /// Returns one body chunk or `None` after end of stream.
+    /// 返回一个正文块；到达 stream 末尾后返回 `None`。
     async fn next_chunk(&mut self) -> Result<Option<Vec<u8>>, HttpClientError>;
 }
 
-/// A transport response before the framework applies its configured body limit.
+/// 框架应用已配置的正文大小上限前的传输响应。
 pub struct TransportResponse {
     status: StatusCode,
     headers: HeaderMap,
@@ -99,7 +99,7 @@ pub struct TransportResponse {
 }
 
 impl TransportResponse {
-    /// Creates a response from metadata and a body source.
+    /// 根据元数据和正文来源创建响应。
     pub fn new(
         status: StatusCode,
         headers: HeaderMap,
@@ -112,7 +112,7 @@ impl TransportResponse {
         }
     }
 
-    /// Creates an in-memory response body, useful for deterministic fake transports.
+    /// 创建内存响应正文，便于使用确定性的 fake transport。
     pub fn from_bytes(status: StatusCode, headers: HeaderMap, body: Vec<u8>) -> Self {
         Self::new(status, headers, BytesResponseBody(Some(body)))
     }
@@ -160,7 +160,7 @@ impl HttpResponseBody for ReqwestResponseBody {
     }
 }
 
-/// Explicit bounded retry policy for a request the caller declares idempotent.
+/// 调用方声明请求具备幂等性后使用的有界重试策略。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RetryPolicy {
     max_attempts: u8,
@@ -169,7 +169,7 @@ pub struct RetryPolicy {
 }
 
 impl RetryPolicy {
-    /// Creates a policy with one to five attempts and capped exponential backoff.
+    /// 创建尝试次数为 1 到 5 次、指数退避时间有上限的策略。
     pub fn new(
         max_attempts: u8,
         base_delay: Duration,
@@ -192,7 +192,7 @@ impl RetryPolicy {
     }
 }
 
-/// Reusable outbound client. Clones share the underlying connection pool.
+/// 可复用的出站客户端。克隆实例共享底层连接池。
 #[derive(Clone)]
 pub struct HttpClient {
     inner: reqwest::Client,
@@ -202,7 +202,7 @@ pub struct HttpClient {
 }
 
 impl HttpClient {
-    /// Creates a client with validated limits and automatic redirects disabled.
+    /// 创建已校验资源限制且禁用自动重定向的客户端。
     pub fn new(config: HttpClientConfig) -> Result<Self, HttpClientError> {
         validate_config(&config)?;
         let mut builder = reqwest::Client::builder()
@@ -225,7 +225,7 @@ impl HttpClient {
         })
     }
 
-    /// Creates a client using an injected transport, for test fakes or application transports.
+    /// 创建使用注入传输层的客户端，可用于测试 fake 或应用自定义传输层。
     #[allow(
         clippy::needless_pass_by_value,
         reason = "configuration is consumed at the client construction boundary"
@@ -250,8 +250,7 @@ impl HttpClient {
         })
     }
 
-    /// Starts a request. Dropping the returned future cancels local waiting; it cannot undo a
-    /// request already processed by the remote server.
+    /// 发起请求。丢弃返回的 future 会取消本地等待，但无法撤销远程服务器已经处理的请求。
     pub fn request(&self, method: Method, url: &str) -> HttpRequest {
         HttpRequest {
             inner: self.inner.request(method, url),
@@ -261,12 +260,12 @@ impl HttpClient {
         }
     }
 
-    /// Starts a GET request.
+    /// 发起 GET 请求。
     pub fn get(&self, url: &str) -> HttpRequest {
         self.request(Method::GET, url)
     }
 
-    /// Starts a POST request.
+    /// 发起 POST 请求。
     pub fn post(&self, url: &str) -> HttpRequest {
         self.request(Method::POST, url)
     }
@@ -293,7 +292,7 @@ fn validate_config(config: &HttpClientConfig) -> Result<(), HttpClientError> {
     Ok(())
 }
 
-/// An in-progress request with common body encodings.
+/// 处于构建阶段、支持常用正文编码的请求。
 pub struct HttpRequest {
     inner: reqwest::RequestBuilder,
     transport: Arc<dyn HttpTransport>,
@@ -302,7 +301,7 @@ pub struct HttpRequest {
 }
 
 impl HttpRequest {
-    /// Sets a JSON request body.
+    /// 设置 JSON 请求正文。
     #[must_use]
     pub fn json<T: serde::Serialize + ?Sized>(self, value: &T) -> Self {
         Self {
@@ -313,7 +312,7 @@ impl HttpRequest {
         }
     }
 
-    /// Sets a URL-encoded form body.
+    /// 设置 URL 编码的表单正文。
     #[must_use]
     pub fn form<T: serde::Serialize + ?Sized>(self, value: &T) -> Self {
         Self {
@@ -324,7 +323,7 @@ impl HttpRequest {
         }
     }
 
-    /// Sets a multipart request body.
+    /// 设置 multipart 请求正文。
     #[must_use]
     pub fn multipart(self, form: MultipartForm) -> Self {
         Self {
@@ -335,7 +334,7 @@ impl HttpRequest {
         }
     }
 
-    /// Sets a raw request body, including an asynchronous streaming body.
+    /// 设置原始请求正文，也可以使用异步 stream 正文。
     #[must_use]
     pub fn body(self, body: HttpBody) -> Self {
         Self {
@@ -346,7 +345,7 @@ impl HttpRequest {
         }
     }
 
-    /// Sets request headers.
+    /// 设置请求头。
     #[must_use]
     pub fn headers(self, headers: HeaderMap) -> Self {
         Self {
@@ -357,7 +356,7 @@ impl HttpRequest {
         }
     }
 
-    /// Adds serialized query parameters to the request URL.
+    /// 将序列化后的查询参数添加到请求 URL。
     #[must_use]
     pub fn query<T: serde::Serialize + ?Sized>(self, value: &T) -> Self {
         Self {
@@ -368,7 +367,7 @@ impl HttpRequest {
         }
     }
 
-    /// Sets a bearer authorization value.
+    /// 设置 bearer authorization 值。
     #[must_use]
     pub fn bearer_auth(self, token: &str) -> Self {
         Self {
@@ -379,7 +378,7 @@ impl HttpRequest {
         }
     }
 
-    /// Sends the request and returns status and headers regardless of status class.
+    /// 发送请求并返回状态码和响应头，不受状态码类别影响。
     pub async fn send(self) -> Result<HttpResponse, HttpClientError> {
         let transport = self.transport;
         let max_response_bytes = self.max_response_bytes;
@@ -394,21 +393,20 @@ impl HttpRequest {
         HttpResponse::from_transport(response, max_response_bytes, deadline)
     }
 
-    /// Declares that this operation is safe for the caller to replay.
+    /// 声明调用方可以安全地重放此操作。
     ///
-    /// This is an assertion by the application; method names alone cannot establish that a
-    /// particular remote operation is idempotent.
+    /// 这是应用作出的保证；仅根据 HTTP 方法名称无法判断某个远程操作是否具备幂等性。
     #[must_use]
     pub fn idempotent(self) -> IdempotentHttpRequest {
         IdempotentHttpRequest(self)
     }
 }
 
-/// A request explicitly declared safe to retry by its caller.
+/// 调用方明确声明可安全重试的请求。
 pub struct IdempotentHttpRequest(HttpRequest);
 
 impl IdempotentHttpRequest {
-    /// Sends the request with bounded exponential backoff for transport failures and 5xx status.
+    /// 发生传输故障或收到 5xx 状态码时，使用有界指数退避发送请求。
     pub async fn send_with_retry(
         self,
         policy: RetryPolicy,
@@ -506,7 +504,7 @@ impl HttpResponse {
     }
 }
 
-/// Response metadata and bounded body readers.
+/// 响应元数据和带大小限制的正文读取器。
 pub struct HttpResponse {
     status: StatusCode,
     headers: HeaderMap,
@@ -517,17 +515,17 @@ pub struct HttpResponse {
 }
 
 impl HttpResponse {
-    /// HTTP status returned by the server.
+    /// 服务器返回的 HTTP 状态码。
     pub fn status(&self) -> StatusCode {
         self.status
     }
 
-    /// Response headers.
+    /// 响应头。
     pub fn headers(&self) -> &HeaderMap {
         &self.headers
     }
 
-    /// Reads one response chunk, returning `None` at end of stream.
+    /// 读取一个响应块；到达 stream 末尾后返回 `None`。
     pub async fn next_chunk(&mut self) -> Result<Option<Vec<u8>>, HttpClientError> {
         let Some(chunk) = tokio::time::timeout_at(self.deadline, self.body.next_chunk())
             .await
@@ -543,7 +541,7 @@ impl HttpResponse {
         Ok(Some(chunk[..].to_vec()))
     }
 
-    /// Reads a response body while enforcing the configured size limit.
+    /// 读取响应正文，并强制执行配置的大小上限。
     pub async fn bytes(mut self) -> Result<Vec<u8>, HttpClientError> {
         let mut body = Vec::new();
         while let Some(chunk) = self.next_chunk().await? {
@@ -552,7 +550,7 @@ impl HttpResponse {
         Ok(body)
     }
 
-    /// Reads and deserializes a JSON response within the configured size limit.
+    /// 在配置的大小限制内读取并反序列化 JSON 响应。
     pub async fn json<T: DeserializeOwned>(self) -> Result<T, HttpClientError> {
         let body = self.bytes().await?;
         serde_json::from_slice(&body).map_err(|_| HttpClientError::InvalidJson)

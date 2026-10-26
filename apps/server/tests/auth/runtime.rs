@@ -1,4 +1,4 @@
-//! Runtime contract tests for route authentication and identity extraction.
+//! 验证路由认证与身份提取的运行时契约。
 #![cfg(feature = "auth")]
 
 use std::error::Error as StdError;

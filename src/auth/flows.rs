@@ -1,4 +1,4 @@
-//! Database-backed account and credential lifecycle orchestration.
+//! 基于数据库的账户与凭据生命周期编排。
 
 use std::{
     sync::{Arc, OnceLock},
@@ -23,7 +23,7 @@ const REQUEST_WINDOW: Duration = Duration::from_mins(15);
 const EMAIL_VERIFICATION_PURPOSE: &str = "auth.email_verification";
 const PASSWORD_RESET_PURPOSE: &str = "auth.password_reset";
 
-/// Shared account credential workflows. HTTP routes and message delivery remain application-owned.
+/// 共享账户凭据流程。HTTP 路由与消息投递仍由应用负责。
 #[derive(Clone)]
 pub struct AuthFlows {
     db: Db,
@@ -43,7 +43,7 @@ impl std::fmt::Debug for AuthFlows {
 }
 
 impl AuthFlows {
-    /// Creates workflows from the application's required shared services.
+    /// 使用应用所需的共享服务创建流程服务。
     pub fn new(
         db: Db,
         passwords: Passwords,
@@ -64,24 +64,23 @@ impl AuthFlows {
         }
     }
 
-    /// Sets the maximum lifetime of a refresh-token family.
+    /// 设置 refresh token 家族的最长有效期。
     #[must_use]
     pub fn with_refresh_lifetime(mut self, lifetime: ChronoDuration) -> Self {
         self.refresh_lifetime = lifetime;
         self
     }
 
-    /// Sets the policy for email verification and password reset codes.
+    /// 设置邮箱验证码和密码重置码的策略。
     #[must_use]
     pub fn with_code_policy(mut self, policy: VerificationCodePolicy) -> Self {
         self.code_policy = policy;
         self
     }
 
-    /// Creates an unverified account and returns a code for caller-managed delivery.
+    /// 创建未验证账户，并返回由调用方负责投递的验证码。
     ///
-    /// `None` means the address already exists; callers should return the same public response
-    /// they use for a newly registered address to avoid account enumeration.
+    /// `None` 表示该邮箱地址已存在；为避免账户枚举，调用方应对新注册地址和已存在地址返回相同的公开响应。
     pub async fn register(
         &self,
         email: &str,
@@ -126,7 +125,7 @@ impl AuthFlows {
             .await
     }
 
-    /// Verifies an email address with one purpose-bound code.
+    /// 使用一个用途绑定的验证码验证邮箱地址。
     pub async fn verify_email(
         &self,
         email: &str,
@@ -164,10 +163,9 @@ impl AuthFlows {
         Ok(result.rows_affected() == 1)
     }
 
-    /// Requests an email verification code for an existing, unverified, enabled account.
+    /// 为已存在、尚未验证且未禁用的账户申请邮箱验证码。
     ///
-    /// `None` means the account is absent, disabled, or already verified. Public handlers should
-    /// return the same response for both outcomes.
+    /// `None` 表示账户不存在、已禁用或已验证。公开 handler 对这两种结果都应返回相同响应。
     pub async fn request_email_verification(
         &self,
         email: &str,
@@ -203,7 +201,7 @@ impl AuthFlows {
             .await
     }
 
-    /// Authenticates a verified account and issues an access/refresh credential pair.
+    /// 验证已确认账户的身份，并签发 access/refresh 凭据对。
     pub async fn login(
         &self,
         email: &str,
@@ -224,10 +222,9 @@ impl AuthFlows {
         })
     }
 
-    /// Authenticates a verified account, rotates its Cookie Session ID, and returns a CSRF token.
+    /// 验证已确认账户的身份，轮换其 Cookie Session ID，并返回 CSRF token。
     ///
-    /// This optional Session login path does not issue JWT or refresh credentials. The caller
-    /// must return the CSRF token to the client through its application response.
+    /// 此可选 Session 登录路径不会签发 JWT 或 refresh 凭据。调用方必须通过应用响应将 CSRF token 返回给客户端。
     pub async fn login_session(
         &self,
         email: &str,
@@ -241,10 +238,9 @@ impl AuthFlows {
         bind_session(session, user_id).await
     }
 
-    /// Removes the authenticated identity from a Cookie Session and rotates its ID.
+    /// 从 Cookie Session 中移除已认证身份并轮换 Session ID。
     ///
-    /// Other application-owned Session values are retained. Routes should require
-    /// `AuthMode::Session` before calling this method.
+    /// 其他由应用持有的 Session 值会保留。路由应先要求 `AuthMode::Session`，再调用此方法。
     pub async fn logout_session(&self, request_source: &str, session: &Session) -> Result<()> {
         let user_id = session
             .get::<i64>(AUTH_USER_ID_KEY)
@@ -301,12 +297,12 @@ impl AuthFlows {
         Ok(user_id)
     }
 
-    /// Atomically rotates a refresh credential and returns its successor pair.
+    /// 原子轮换 refresh 凭据并返回后继凭据对。
     pub async fn refresh(&self, token: &str, request_source: &str) -> Result<AuthCredentials> {
         self.limit("refresh", request_source, &digest(token))
             .await?;
         let user_id = self.refresh.user_id_for_token(token).await?;
-        // Sign before consuming the old refresh credential so signing failure cannot burn it.
+        // 先签发新 token，再消费旧 refresh 凭据，避免签名失败时旧凭据已被消耗。
         let access_token = self.jwt.issue_access_token(user_id)?;
         let rotated = self.refresh.rotate(token).await?;
         let (user_id, refresh_token, refresh_expires_at) = rotated.into_parts();
@@ -318,16 +314,15 @@ impl AuthFlows {
         })
     }
 
-    /// Revokes the presented refresh-token family.
+    /// 撤销所提交 refresh token 所属的整个 token 家族。
     pub async fn logout(&self, token: &str, request_source: &str) -> Result<()> {
         self.limit("logout", request_source, &digest(token)).await?;
         self.refresh.revoke(token).await
     }
 
-    /// Requests a password reset code, returning it only for an eligible account.
+    /// 申请密码重置码；仅当账户符合条件时返回该验证码。
     ///
-    /// HTTP handlers should always return the same public response whether this returns `Some`
-    /// or `None` and send the code only when present.
+    /// 无论返回 `Some` 还是 `None`，HTTP handler 都应返回相同的公开响应；只有存在验证码时才发送。
     pub async fn request_password_reset(
         &self,
         email: &str,
@@ -342,7 +337,7 @@ impl AuthFlows {
             .await
     }
 
-    /// Consumes a password reset code, replaces the password, and revokes refresh families.
+    /// 消费密码重置码、替换密码并撤销 refresh token 家族。
     pub async fn reset_password(
         &self,
         email: &str,
@@ -452,7 +447,7 @@ impl AuthFlows {
     }
 }
 
-/// Registers [`AuthFlows`] after `DatabasePlugin`, `AuthPlugin`, and `JwtPlugin`.
+/// 在 `DatabasePlugin`、`AuthPlugin` 和 `JwtPlugin` 之后注册 [`AuthFlows`]。
 pub struct AuthFlowsPlugin {
     refresh_lifetime: ChronoDuration,
     code_policy: VerificationCodePolicy,
@@ -460,7 +455,7 @@ pub struct AuthFlowsPlugin {
 }
 
 impl AuthFlowsPlugin {
-    /// Creates the application flow service with the documented 30-day refresh lifetime.
+    /// 创建应用流程服务，refresh token 有效期默认为 30 天。
     pub fn new() -> Self {
         Self {
             refresh_lifetime: ChronoDuration::days(30),
@@ -469,14 +464,14 @@ impl AuthFlowsPlugin {
         }
     }
 
-    /// Sets the maximum refresh-token family lifetime, bounded to one second through one year.
+    /// 设置 refresh token 家族的最长有效期，范围为 1 秒至 1 年。
     #[must_use]
     pub fn with_refresh_lifetime(mut self, lifetime: ChronoDuration) -> Self {
         self.refresh_lifetime = lifetime;
         self
     }
 
-    /// Sets the policy for email verification and password reset codes.
+    /// 设置邮箱验证码和密码重置码的策略。
     #[must_use]
     pub fn with_code_policy(mut self, policy: VerificationCodePolicy) -> Self {
         self.code_policy = policy;
@@ -585,7 +580,7 @@ impl std::fmt::Display for MissingRegisteredFlows {
 
 impl std::error::Error for MissingRegisteredFlows {}
 
-/// One-time credential pair returned by successful login or refresh.
+/// 登录或 refresh 成功后一次性返回的凭据对。
 pub struct AuthCredentials {
     user_id: i64,
     access_token: String,
@@ -593,19 +588,19 @@ pub struct AuthCredentials {
     refresh_expires_at: chrono::DateTime<Utc>,
 }
 
-/// One-time CSRF credential returned by successful Cookie Session login.
+/// Cookie Session 登录成功后一次性返回的 CSRF 凭据。
 pub struct SessionCredentials {
     user_id: i64,
     csrf_token: String,
 }
 
 impl SessionCredentials {
-    /// Returns the account ID associated with the Cookie Session.
+    /// 返回与 Cookie Session 关联的账户 ID。
     pub const fn user_id(&self) -> i64 {
         self.user_id
     }
 
-    /// Returns the CSRF token once for the application response.
+    /// 返回供应用响应一次性发送的 CSRF token。
     pub fn csrf_token(&self) -> &str {
         &self.csrf_token
     }
@@ -622,19 +617,19 @@ impl std::fmt::Debug for SessionCredentials {
 }
 
 impl AuthCredentials {
-    /// Returns the account ID associated with the credential pair.
+    /// 返回与此凭据对关联的账户 ID。
     pub const fn user_id(&self) -> i64 {
         self.user_id
     }
-    /// Returns the signed short-lived bearer access token.
+    /// 返回签名后的短期 bearer access token。
     pub fn access_token(&self) -> &str {
         &self.access_token
     }
-    /// Returns the opaque refresh token for this response.
+    /// 返回供当前响应发送的不透明 refresh token。
     pub fn refresh_token(&self) -> &IssuedRefreshToken {
         &self.refresh_token
     }
-    /// Returns the refresh-family expiry, which refresh does not extend.
+    /// 返回 refresh 不会延长的 token 家族有效期。
     pub const fn refresh_expires_at(&self) -> chrono::DateTime<Utc> {
         self.refresh_expires_at
     }

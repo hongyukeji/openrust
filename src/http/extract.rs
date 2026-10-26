@@ -1,4 +1,4 @@
-//! Extractors: [`Validated`] for validated input and [`Inject`] for services.
+//! 提取器：使用 [`Validated`] 读取经过校验的输入，使用 [`Inject`] 获取服务。
 
 use std::future::{Future, ready};
 use std::ops::Deref;
@@ -15,7 +15,7 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use validator::{Validate, ValidationErrorsKind};
 
-/// JSON body extractor with OpenRust envelope errors and responses.
+/// JSON 正文提取器，错误和响应遵循 OpenRust 统一封装。
 pub struct Json<T>(pub T);
 
 impl<S, T> FromRequest<S> for Json<T>
@@ -49,7 +49,7 @@ fn json_error(rejection: JsonRejection) -> Error {
         ),
         JsonRejection::JsonDataError(_) => {
             let mut errors = ValidationErrors::new();
-            // Axum includes the serde path before the parser's message.
+            // Axum 会在解析器消息前附加 serde 字段路径。
             let reason = detail
                 .split_once(": ")
                 .map_or(detail.as_str(), |(_, reason)| reason);
@@ -69,7 +69,7 @@ fn json_error(rejection: JsonRejection) -> Error {
     }
 }
 
-/// Path parameter extractor with OpenRust envelope errors on failure.
+/// 路径参数提取器；失败时返回 OpenRust 统一封装的错误。
 pub struct Path<T>(pub T);
 
 impl<S, T> FromRequestParts<S> for Path<T>
@@ -87,7 +87,7 @@ where
     }
 }
 
-/// Query parameter extractor with OpenRust envelope errors on failure.
+/// 查询参数提取器；失败时返回 OpenRust 统一封装的错误。
 pub struct Query<T>(pub T);
 
 impl<S, T> FromRequestParts<S> for Query<T>
@@ -105,9 +105,9 @@ where
     }
 }
 
-/// Fetches a service registered with `AppBuilder::insert`.
+/// 获取通过 `AppBuilder::insert` 注册的服务。
 ///
-/// Missing registrations surface as an internal error naming the type, never as a panic.
+/// 若服务未注册，将返回包含类型名称的内部错误，不会 panic。
 pub struct Inject<T>(pub Arc<T>);
 
 impl<T> Deref for Inject<T> {
@@ -130,15 +130,15 @@ where
         _parts: &mut Parts,
         state: &S,
     ) -> impl Future<Output = Result<Self>> + Send {
-        // Lookup is synchronous; no `.await` is needed.
+        // 查找是同步操作，无需 `.await`。
         ready(AppState::from_ref(state).try_get::<T>().map(Self))
     }
 }
 
-/// Deserialises the inner extractor and runs its `validator` rules.
+/// 反序列化内部提取器的结果，并执行其 `validator` 规则。
 ///
-/// Deserialisation failures follow the inner extractor (`400`, `413`, `415`, or `422`).
-/// Rule failures answer `422 validation_failed` with one message list per field. Supported inner extractors: [`Json`] and [`Query`].
+/// 反序列化失败遵循内部提取器的状态码（`400`、`413`、`415` 或 `422`）。
+/// 规则校验失败时返回 `422 validation_failed`，并为每个字段提供一组消息。支持的内部提取器为 [`Json`] 和 [`Query`]。
 pub struct Validated<T>(pub T);
 
 impl<T> Deref for Validated<T> {
@@ -177,7 +177,7 @@ where
     }
 }
 
-/// Flattens nested `validator` errors into `field.path` keys.
+/// 将嵌套的 `validator` 错误展平为 `field.path` 键。
 fn convert(errors: &validator::ValidationErrors) -> Error {
     let mut out = ValidationErrors::new();
     collect(&mut out, "", errors);

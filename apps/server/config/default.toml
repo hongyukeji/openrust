@@ -13,7 +13,7 @@ enabled = true
 
 [server.cors]
 enabled = false
-# To enable CORS, set enabled = true and list exact origins:
+# 如需启用 CORS，请设置 enabled = true 并列出精确来源：
 # allowed_origins = ["https://example.com"]
 # allowed_methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 # allowed_headers = ["content-type", "authorization", "x-request-id"]

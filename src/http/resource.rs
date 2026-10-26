@@ -1,4 +1,4 @@
-//! Conventional resource routes backed by explicitly registered controller actions.
+//! 根据显式注册的控制器操作生成约定式资源路由。
 
 use crate::core::AppState;
 use axum::handler::Handler;
@@ -6,24 +6,24 @@ use axum::routing::{self, MethodRouter};
 
 use crate::http::routes::Routes;
 
-/// A conventional resource action.
+/// 约定式资源操作。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Action {
-    /// List resources at the collection path.
+    /// 列出集合路径下的资源。
     List,
-    /// Get one resource by ID.
+    /// 按 ID 获取单个资源。
     Get,
-    /// Create a resource.
+    /// 创建资源。
     Create,
-    /// Replace or partially update a resource.
+    /// 替换或部分更新资源。
     Update,
-    /// Delete a resource.
+    /// 删除资源。
     Delete,
 }
 
-/// Collects handlers that a resource controller actually implements.
+/// 收集资源控制器实际实现的处理器。
 ///
-/// `only` and `except` filter registered handlers, independent of registration order.
+/// `only` 和 `except` 用于筛选已注册处理器，结果不受注册顺序影响。
 #[derive(Default)]
 pub struct ResourceActions {
     list: Option<MethodRouter<AppState>>,
@@ -36,12 +36,12 @@ pub struct ResourceActions {
 }
 
 impl ResourceActions {
-    /// Starts with no actions.
+    /// 以不包含任何操作的状态开始。
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Registers `GET {path}`.
+    /// 注册 `GET {path}`。
     #[must_use]
     pub fn list<H, T>(mut self, handler: H) -> Self
     where
@@ -52,7 +52,7 @@ impl ResourceActions {
         self
     }
 
-    /// Registers `GET {path}/{id}`.
+    /// 注册 `GET {path}/{id}`。
     #[must_use]
     pub fn get<H, T>(mut self, handler: H) -> Self
     where
@@ -63,7 +63,7 @@ impl ResourceActions {
         self
     }
 
-    /// Registers `POST {path}`.
+    /// 注册 `POST {path}`。
     #[must_use]
     pub fn create<H, T>(mut self, handler: H) -> Self
     where
@@ -74,7 +74,7 @@ impl ResourceActions {
         self
     }
 
-    /// Registers both `PUT` and `PATCH {path}/{id}` with the same handler.
+    /// 使用同一处理器注册 `PUT` 和 `PATCH {path}/{id}`。
     #[must_use]
     pub fn update<H, T>(mut self, handler: H) -> Self
     where
@@ -85,7 +85,7 @@ impl ResourceActions {
         self
     }
 
-    /// Registers `DELETE {path}/{id}`.
+    /// 注册 `DELETE {path}/{id}`。
     #[must_use]
     pub fn delete<H, T>(mut self, handler: H) -> Self
     where
@@ -96,7 +96,7 @@ impl ResourceActions {
         self
     }
 
-    /// Retains only the listed registered actions. Repeated calls intersect their lists.
+    /// 只保留列出的已注册操作；重复调用时取列表交集。
     #[must_use]
     pub fn only(mut self, actions: &[Action]) -> Self {
         self.only = Some(match self.only {
@@ -109,7 +109,7 @@ impl ResourceActions {
         self
     }
 
-    /// Removes the listed registered actions.
+    /// 移除列出的已注册操作。
     #[must_use]
     pub fn except(mut self, actions: &[Action]) -> Self {
         self.excluded.extend_from_slice(actions);
@@ -161,7 +161,7 @@ impl ResourceActions {
     }
 }
 
-/// A controller that explicitly registers its available resource actions.
+/// 显式注册其可用资源操作的控制器。
 ///
 /// ```
 /// use openrust::http::{Resource, ResourceActions, Routes};
@@ -178,6 +178,6 @@ impl ResourceActions {
 /// let routes = Routes::new().resource::<Posts>("/posts");
 /// ```
 pub trait Resource {
-    /// Adds implemented actions to the supplied builder.
+    /// 将已实现的操作添加到提供的构建器中。
     fn actions(actions: ResourceActions) -> ResourceActions;
 }

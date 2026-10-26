@@ -1,8 +1,8 @@
-//! Default middleware stack.
+//! 默认 middleware stack。
 //!
-//! Outermost to innermost: set `x-request-id` → response context → propagate it to the response → tracing span →
-//! CORS → status mapping → request timeout → compression → panic capture. Application layers added via [`Routes::layer`](crate::http::Routes::layer)
-//! run inside this stack.
+//! 从最外层到最内层依次为：设置 `x-request-id` → 响应上下文 → 将 ID 写入响应 → tracing span →
+//! CORS → 状态映射 → 请求超时 → 压缩 → panic 捕获。通过 [`Routes::layer`](crate::http::Routes::layer) 添加的应用 layer
+//! 在此 stack 内运行。
 
 use std::any::Any;
 use std::time::Duration;
@@ -21,7 +21,7 @@ use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetReques
 use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::TraceLayer;
 
-/// Wraps `router` in the default stack.
+/// 使用默认 middleware stack 包装 `router`。
 pub fn apply(router: Router, server: &ServerConfig, api: &ApiConfig) -> Result<Router> {
     let cors = if server.cors.enabled {
         Some(cors_layer(&server.cors)?)
@@ -287,7 +287,7 @@ fn request_span(request: &Request) -> tracing::Span {
 #[error("handler panicked: {0}")]
 struct HandlerPanicked(String);
 
-// `CatchPanicLayer::custom` requires the payload by value.
+// `CatchPanicLayer::custom` 要求按值传入 payload。
 #[allow(clippy::needless_pass_by_value)]
 fn panic_response(payload: Box<dyn Any + Send + 'static>) -> Response {
     let message = payload

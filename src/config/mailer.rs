@@ -1,22 +1,22 @@
-//! Mail delivery configuration.
+//! 邮件发送配置。
 
 use serde::Deserialize;
 
-/// Configuration for the `[mail]` section.
+/// `[mail]` 区段的配置。
 #[derive(Clone, Deserialize)]
 #[serde(default)]
 pub struct MailConfig {
-    /// Delivery backend: `log` by default, or `smtp` when `mail-smtp` is enabled.
+    /// 发送后端：默认使用 `log`；启用 `mail-smtp` 后可使用 `smtp`。
     pub driver: String,
-    /// SMTP server host name.
+    /// SMTP 服务器主机名。
     pub smtp_host: Option<String>,
-    /// SMTP server port.
+    /// SMTP 服务器端口。
     pub smtp_port: u16,
-    /// Require STARTTLS; disabling is allowed only for unauthenticated loopback development sinks.
+    /// 是否要求 STARTTLS；仅未认证的本地回环开发 sink 可以关闭。
     pub smtp_starttls: bool,
-    /// Optional SMTP username; a username requires a password.
+    /// 可选的 SMTP 用户名；设置用户名时必须提供密码。
     pub smtp_username: Option<String>,
-    /// Optional SMTP password; omitted from debug output.
+    /// 可选的 SMTP 密码；不会出现在 debug 输出中。
     pub smtp_password: Option<String>,
 }
 

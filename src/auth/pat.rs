@@ -1,4 +1,4 @@
-//! Personal access token issuance and revocation over the shared database.
+//! 通过共享数据库签发和撤销个人访问令牌。
 
 use std::fmt;
 
@@ -10,7 +10,7 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use chrono::{DateTime, Utc};
 use sha2::{Digest, Sha256};
 
-/// Database-backed personal access token lifecycle operations.
+/// 基于数据库的个人访问令牌生命周期操作。
 #[derive(Clone)]
 pub struct PersonalAccessTokens {
     db: Db,
@@ -23,14 +23,14 @@ impl fmt::Debug for PersonalAccessTokens {
 }
 
 impl PersonalAccessTokens {
-    /// Creates a token service over the application's shared database.
+    /// 基于应用共享数据库创建令牌服务。
     pub fn new(db: Db) -> Self {
         Self { db }
     }
 
-    /// Creates an opaque token and returns the bearer value once.
+    /// 创建不透明令牌，并一次性返回 bearer 值。
     ///
-    /// Only the SHA-256 digest and a short lookup prefix are persisted.
+    /// 仅持久化 SHA-256 摘要和较短的查询前缀。
     pub async fn issue(
         &self,
         user_id: i64,
@@ -91,7 +91,7 @@ impl PersonalAccessTokens {
         Ok(IssuedPersonalAccessToken { value })
     }
 
-    /// Lists token metadata owned by the account without exposing token hashes or bearer values.
+    /// 列出账户拥有的令牌元数据，不暴露令牌哈希或 bearer 值。
     pub async fn list_for_user(&self, user_id: i64) -> Result<Vec<PersonalAccessTokenInfo>> {
         if user_id <= 0 {
             return Err(Error::BadRequest("user ID must be positive".into()));
@@ -144,9 +144,9 @@ impl PersonalAccessTokens {
             .collect()
     }
 
-    /// Revokes a token only when it belongs to `user_id`.
+    /// 仅当令牌属于 `user_id` 时撤销该令牌。
     ///
-    /// Returns `true` when this call changed an active token to revoked.
+    /// 此调用将活动令牌改为已撤销时返回 `true`。
     pub async fn revoke(&self, user_id: i64, token_id: i64) -> Result<bool> {
         if user_id <= 0 || token_id <= 0 {
             return Err(Error::BadRequest(
@@ -175,7 +175,7 @@ impl PersonalAccessTokens {
         Ok(result.rows_affected() == 1)
     }
 
-    /// Revokes all active personal access tokens for an account.
+    /// 撤销账户的所有活动个人访问令牌。
     pub async fn revoke_all_for_user(&self, user_id: i64) -> Result<u64> {
         if user_id <= 0 {
             return Err(Error::BadRequest("user ID must be positive".into()));
@@ -211,13 +211,13 @@ impl PersonalAccessTokens {
     }
 }
 
-/// A newly issued personal access token that must be delivered to the client once.
+/// 新签发的个人访问令牌，必须且只能向客户端发送一次。
 pub struct IssuedPersonalAccessToken {
     value: String,
 }
 
 impl IssuedPersonalAccessToken {
-    /// Exposes the bearer secret for the response that delivers it to the client.
+    /// 暴露 bearer 密钥，供响应发送给客户端。
     pub fn expose(&self) -> &str {
         &self.value
     }
@@ -232,24 +232,24 @@ impl fmt::Debug for IssuedPersonalAccessToken {
     }
 }
 
-/// Non-secret personal access token metadata returned by account-scoped listing.
+/// 按账户列出个人访问令牌时返回的非敏感元数据。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PersonalAccessTokenInfo {
-    /// Database record identifier.
+    /// 数据库记录 ID。
     pub id: i64,
-    /// User-provided descriptive name.
+    /// 用户提供的描述名称。
     pub name: String,
-    /// Short non-secret prefix used to identify the credential.
+    /// 用于识别凭据的非敏感短前缀。
     pub token_prefix: String,
-    /// Exact abilities assigned to this token.
+    /// 分配给此 token 的精确 abilities。
     pub abilities: Vec<String>,
-    /// Optional expiry instant.
+    /// 可选的过期时间点。
     pub expires_at: Option<DateTime<Utc>>,
-    /// Revocation instant, if revoked.
+    /// 撤销时间；尚未撤销时为空。
     pub revoked_at: Option<DateTime<Utc>>,
-    /// Most recent successful authentication instant.
+    /// 最近一次成功认证的时间点。
     pub last_used_at: Option<DateTime<Utc>>,
-    /// Creation instant.
+    /// 创建时间点。
     pub created_at: DateTime<Utc>,
 }
 

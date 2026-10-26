@@ -1,4 +1,4 @@
-//! Framework errors and the shared JSON response envelope.
+//! 框架错误与统一 JSON 响应封装。
 
 use std::collections::BTreeMap;
 
@@ -10,95 +10,95 @@ use std::future::Future;
 
 use crate::config::ConfigError;
 
-/// Result alias used throughout the framework and generated applications.
+/// 框架和生成应用通用的 Result 别名。
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Field-level validation failures keyed by field path (`user.email`, `items[2].qty`).
+/// 按字段路径索引的校验错误（例如 `user.email`、`items[2].qty`）。
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 pub struct ValidationErrors(BTreeMap<String, Vec<String>>);
 
 impl ValidationErrors {
-    /// Creates an empty collection.
+    /// 创建空集合。
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Records a failure message for `field`.
+    /// 记录 `field` 的失败消息。
     pub fn add(&mut self, field: impl Into<String>, message: impl Into<String>) {
         self.0.entry(field.into()).or_default().push(message.into());
     }
 
-    /// Returns `true` when no failure has been recorded.
+    /// 尚未记录任何错误时返回 `true`。
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 
-    /// Iterates over `(field, messages)` pairs in field order.
+    /// 按字段顺序遍历 `(field, messages)`。
     pub fn iter(&self) -> impl Iterator<Item = (&str, &[String])> {
         self.0.iter().map(|(k, v)| (k.as_str(), v.as_slice()))
     }
 }
 
-/// The single error type of the framework.
+/// 框架统一使用的错误类型。
 ///
-/// Every failure that can reach a handler, a command or a plugin is expressed with this type,
-/// so `?` works uniformly and HTTP rendering happens in exactly one place. Client errors carry a
-/// message that is safe to show to callers; [`Error::Internal`] hides its source and is only logged.
+/// 处理器、命令或插件可能遇到的所有错误都通过此类型表示，因此可以统一使用 `?` 传播错误，
+/// 并由唯一位置负责生成 HTTP 响应。客户端错误包含可安全展示给调用方的消息；
+/// [`Error::Internal`] 会隐藏错误来源，只写入日志。
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
-    /// Malformed request: unreadable body or bad parameters.
+    /// 请求格式错误：正文不可读或参数无效。
     #[error("{0}")]
     BadRequest(String),
-    /// The caller is not authenticated.
+    /// 调用方未通过身份认证。
     #[error("authentication required")]
     Unauthorized,
-    /// The caller is authenticated but not allowed to perform the action.
+    /// 调用方已通过身份认证，但无权执行此操作。
     #[error("{0}")]
     Forbidden(String),
-    /// The requested resource does not exist.
+    /// 请求的资源不存在。
     #[error("{0}")]
     NotFound(String),
-    /// The request conflicts with current state (duplicate key, stale version).
+    /// 请求与当前状态冲突（例如键重复或版本过期）。
     #[error("{0}")]
     Conflict(String),
-    /// Input was well-formed but failed validation rules.
+    /// 输入格式正确，但未通过校验规则。
     #[error("validation failed")]
     Validation(ValidationErrors),
-    /// Parsed input failed structural validation with a readable reason.
+    /// 已解析的输入未通过结构校验，并附带可读原因。
     #[error("{detail}")]
     ValidationDetail {
-        /// Explanation of the parse failure.
+        /// 解析失败的说明。
         detail: String,
-        /// Field paths available from the parser.
+        /// 解析器提供的字段路径。
         errors: ValidationErrors,
     },
-    /// The caller exceeded a rate limit.
+    /// 调用方超出限流配额。
     #[error("too many requests")]
     RateLimited,
-    /// The caller exceeded a rate limit; retry after the given seconds.
+    /// 调用方超出限流配额；应在指定秒数后重试。
     #[error("too many requests")]
     RateLimitedWithRetryAfter(u64),
-    /// Configuration could not be loaded or is invalid. Only occurs during bootstrap.
+    /// 配置无法加载或无效；仅在引导启动期间发生。
     #[error("configuration error: {0}")]
     Config(#[from] ConfigError),
-    /// Application-defined error with an optional semantic status and stable code.
+    /// 应用自定义错误，可包含语义 HTTP 状态码和稳定错误码。
     #[error("{message}")]
     Custom {
-        /// HTTP status to respond with.
+        /// 响应使用的 HTTP 状态码。
         status: Option<StatusCode>,
-        /// Stable `snake_case` code for clients to branch on.
+        /// 供客户端分支处理的稳定 `snake_case` 错误码。
         code: String,
-        /// Human-readable detail safe to expose.
+        /// 可安全展示的可读详情。
         message: String,
     },
-    /// Unexpected failure. The source is logged; callers only see a generic message.
+    /// 未预期的失败。错误来源会写入日志；调用方只会看到通用消息。
     #[error("internal error: {0}")]
     Internal(#[source] Box<dyn std::error::Error + Send + Sync>),
 }
 
 impl Error {
-    /// Wraps any error as [`Error::Internal`].
+    /// 将任意错误包装为 [`Error::Internal`]。
     pub fn internal<E>(source: E) -> Self
     where
         E: std::error::Error + Send + Sync + 'static,
@@ -106,7 +106,7 @@ impl Error {
         Self::Internal(Box::new(source))
     }
 
-    /// Builds an application-defined error with a stable `code`.
+    /// 创建包含稳定 `code` 的应用自定义错误。
     pub fn custom(code: impl Into<String>, message: impl Into<String>) -> Self {
         Self::Custom {
             status: None,
@@ -115,7 +115,7 @@ impl Error {
         }
     }
 
-    /// Builds an application-defined error with an explicit semantic HTTP status.
+    /// 创建带有明确语义 HTTP 状态码的应用自定义错误。
     pub fn custom_with_status(
         status: StatusCode,
         code: impl Into<String>,
@@ -128,12 +128,12 @@ impl Error {
         }
     }
 
-    /// Builds a rate-limit error carrying a `Retry-After` delay in seconds.
+    /// 创建限流错误，并携带以秒为单位的 `Retry-After` 延迟。
     pub fn rate_limited(retry_after_secs: u64) -> Self {
         Self::RateLimitedWithRetryAfter(retry_after_secs)
     }
 
-    /// Builds a structural validation error with a readable detail.
+    /// 创建带有可读详情的结构校验错误。
     pub fn validation_with_detail(detail: impl Into<String>, errors: ValidationErrors) -> Self {
         Self::ValidationDetail {
             detail: detail.into(),
@@ -141,7 +141,7 @@ impl Error {
         }
     }
 
-    /// HTTP status this error renders as.
+    /// 此错误生成的 HTTP 状态码。
     pub fn status(&self) -> StatusCode {
         match self {
             Self::BadRequest(_) => StatusCode::BAD_REQUEST,
@@ -156,7 +156,7 @@ impl Error {
         }
     }
 
-    /// Stable machine-readable code (`not_found`, `validation_failed`, …).
+    /// 稳定且可供机器读取的错误码（`not_found`、`validation_failed` 等）。
     pub fn code(&self) -> &str {
         match self {
             Self::BadRequest(_) => "bad_request",
@@ -172,12 +172,12 @@ impl Error {
         }
     }
 
-    /// `true` for 5xx errors whose details must not leak to callers.
+    /// 对于详情不得泄露给调用方的 5xx 错误，返回 `true`。
     pub fn is_server_error(&self) -> bool {
         self.status().is_server_error()
     }
 
-    /// Renders the error in the common JSON envelope, hiding server details.
+    /// 使用统一 JSON 封装生成错误响应，并隐藏服务器内部详情。
     pub fn to_api_response(&self) -> ApiResponse<()> {
         let fallback = if self.is_server_error() {
             "internal server error".to_owned()
@@ -230,12 +230,12 @@ impl IntoResponse for Error {
     }
 }
 
-/// Per-request response context set by the HTTP middleware.
+/// HTTP middleware 为每个请求设置的响应上下文。
 #[derive(Debug, Clone)]
 pub struct ResponseContext {
-    /// Correlation ID shared by the response header and body.
+    /// 在响应头和正文中保持一致的关联 ID。
     pub request_id: String,
-    /// Configured HTTP status policy.
+    /// 已配置的 HTTP 状态码策略。
     pub http_status: HttpStatusMode,
 }
 
@@ -243,7 +243,7 @@ tokio::task_local! {
     static RESPONSE_CONTEXT: ResponseContext;
 }
 
-/// Runs a request future with its immutable rendering context.
+/// 使用不可变的响应生成上下文执行请求 future。
 pub async fn with_response_context<F: Future>(context: ResponseContext, future: F) -> F::Output {
     RESPONSE_CONTEXT.scope(context, future).await
 }
@@ -257,42 +257,42 @@ fn response_context() -> ResponseContext {
         })
 }
 
-/// Returns the status policy active for the current request.
+/// 返回当前请求使用的状态码策略。
 pub fn current_http_status_mode() -> HttpStatusMode {
     response_context().http_status
 }
 
-/// Typed pagination metadata attached to a successful page response.
+/// 附加在成功分页响应中的类型化分页元数据。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct PageMeta {
-    /// One-based page number.
+    /// 从 1 开始的页码。
     pub page: u64,
-    /// Number of items per page.
+    /// 每页条目数。
     pub per_page: u64,
-    /// Total number of items.
+    /// 条目总数。
     pub total: u64,
-    /// Total number of pages.
+    /// 总页数。
     pub total_pages: u64,
 }
 
-/// JSON envelope shared by successful and failed API responses.
+/// 成功与失败 API 响应共用的 JSON 封装。
 #[derive(Debug, Clone, Serialize)]
 pub struct ApiResponse<T: Serialize> {
-    /// Whether the operation succeeded.
+    /// 操作是否成功。
     pub success: bool,
-    /// Stable machine-readable code.
+    /// 稳定且可供机器读取的错误码。
     pub code: String,
-    /// Message safe to display to the caller.
+    /// 可安全展示给调用方的消息。
     pub message: String,
-    /// Response payload; `null` for errors and empty results.
+    /// 响应载荷；错误和空结果使用 `null`。
     pub data: Option<T>,
-    /// Pagination metadata when present.
+    /// 可选的分页元数据。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub meta: Option<PageMeta>,
-    /// Field-level validation errors when present.
+    /// 可选的字段级校验错误。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub errors: Option<ValidationErrors>,
-    /// Correlation ID, equal to the `x-request-id` header.
+    /// 请求关联 ID，与 `x-request-id` 响应头相同。
     pub request_id: String,
     #[serde(skip)]
     status: StatusCode,
@@ -301,7 +301,7 @@ pub struct ApiResponse<T: Serialize> {
 }
 
 impl<T: Serialize> ApiResponse<T> {
-    /// Wraps a successful payload.
+    /// 包装成功响应载荷。
     pub fn success(data: T) -> Self {
         let context = response_context();
         Self {
@@ -321,14 +321,14 @@ impl<T: Serialize> ApiResponse<T> {
         }
     }
 
-    /// Adds pagination metadata to a successful response.
+    /// 为成功响应添加分页元数据。
     #[must_use]
     pub fn with_meta(mut self, meta: PageMeta) -> Self {
         self.meta = Some(meta);
         self
     }
 
-    /// Sets the semantic HTTP status, used for created results.
+    /// 设置语义 HTTP 状态码，用于表示资源已创建。
     #[must_use]
     pub fn with_status(mut self, status: StatusCode) -> Self {
         self.status = status;
@@ -357,7 +357,7 @@ impl<T: Serialize> ApiResponse<T> {
 }
 
 impl ApiResponse<()> {
-    /// Builds a successful response with `data: null`.
+    /// 创建 `data: null` 的成功响应。
     pub fn empty() -> Self {
         let mut response = Self::success(());
         response.data = None;

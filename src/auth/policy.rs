@@ -1,4 +1,4 @@
-//! Database-backed roles and exact permission checks.
+//! 基于数据库的角色与精确权限检查。
 
 use std::fmt;
 
@@ -8,7 +8,7 @@ use crate::db::{DatabaseConnection, Db};
 
 use crate::auth::CurrentUser;
 
-/// Shared database-backed role and permission operations.
+/// 通过共享数据库执行的角色与权限操作。
 #[derive(Clone)]
 pub struct Policy {
     db: Db,
@@ -21,12 +21,12 @@ impl fmt::Debug for Policy {
 }
 
 impl Policy {
-    /// Creates a policy service using the application's shared database.
+    /// 使用应用共享数据库创建 policy 服务。
     pub fn new(db: Db) -> Self {
         Self { db }
     }
 
-    /// Ensures a globally named role exists and returns its database ID.
+    /// 确保指定全局名称的角色存在，并返回其数据库 ID。
     pub async fn ensure_role(&self, name: &str) -> Result<i64> {
         validate_name(name, "role")?;
         let connection = self.connection()?;
@@ -65,7 +65,7 @@ impl Policy {
         row.try_get::<i64>("", "id").map_err(Error::internal)
     }
 
-    /// Assigns an existing role to an existing user; repeated assignment is idempotent.
+    /// 为现有用户分配现有角色；重复分配具有幂等性。
     pub async fn assign_role(&self, user_id: i64, role_id: i64) -> Result<()> {
         validate_ids(user_id, role_id)?;
         let connection = self.connection()?;
@@ -90,7 +90,7 @@ impl Policy {
         Ok(())
     }
 
-    /// Removes a role assignment from a user.
+    /// 移除用户的角色分配。
     pub async fn revoke_role(&self, user_id: i64, role_id: i64) -> Result<()> {
         validate_ids(user_id, role_id)?;
         let connection = self.connection()?;
@@ -111,7 +111,7 @@ impl Policy {
         Ok(())
     }
 
-    /// Ensures a permission exists, then grants it to an existing role.
+    /// 确保权限存在，然后授予现有角色。
     pub async fn grant_permission(&self, role_id: i64, permission: &str) -> Result<()> {
         if role_id <= 0 {
             return Err(Error::BadRequest("role ID must be positive".into()));
@@ -130,8 +130,7 @@ impl Policy {
             .await
     }
 
-    /// Grants a permission inside a caller-owned transaction so related audit records can commit
-    /// atomically with the authorization change.
+    /// 在调用方拥有的事务中授予权限，使相关审计记录可以与授权变更一同原子提交。
     pub async fn grant_permission_in_transaction(
         &self,
         transaction: &DatabaseTransaction,
@@ -145,7 +144,7 @@ impl Policy {
         grant_permission_in_transaction(transaction, &self.db, role_id, permission.trim()).await
     }
 
-    /// Removes one permission grant from a role without deleting the permission itself.
+    /// 从角色移除一项权限授予，但不删除权限本身。
     pub async fn revoke_permission(&self, role_id: i64, permission: &str) -> Result<()> {
         if role_id <= 0 {
             return Err(Error::BadRequest("role ID must be positive".into()));
@@ -173,10 +172,9 @@ impl Policy {
         Ok(())
     }
 
-    /// Returns whether the user has this exact permission through any assigned role.
+    /// 返回用户是否通过任意已分配角色拥有此精确权限。
     ///
-    /// PAT access additionally requires the same exact value in its token abilities. Every call
-    /// reads the shared database, so committed grants and revocations are immediately visible.
+    /// PAT 访问还要求 token abilities 中包含完全相同的值。每次调用都会读取共享数据库，因此已提交的授予与撤销会立即生效。
     pub async fn allows(&self, user: &CurrentUser, permission: &str) -> Result<bool> {
         validate_name(permission, "permission")?;
         if user.id() <= 0
@@ -207,7 +205,7 @@ impl Policy {
             .is_some())
     }
 
-    /// Returns `Forbidden` unless the identity is permitted by its role grants and token scope.
+    /// 仅当角色授予和 token scope 均允许此身份时返回成功，否则返回 `Forbidden`。
     pub async fn authorize(&self, user: &CurrentUser, permission: &str) -> Result<()> {
         if self.allows(user, permission).await? {
             Ok(())

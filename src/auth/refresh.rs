@@ -1,4 +1,4 @@
-//! Shared, single-use refresh-token families.
+//! 共享且一次性使用的 refresh token 家族。
 
 use std::fmt;
 
@@ -10,7 +10,7 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use chrono::{DateTime, Utc};
 use sha2::{Digest, Sha256};
 
-/// Database-backed refresh-token lifecycle operations.
+/// 基于数据库的 refresh token 生命周期操作。
 #[derive(Clone)]
 pub struct RefreshTokens {
     db: Db,
@@ -23,14 +23,14 @@ impl fmt::Debug for RefreshTokens {
 }
 
 impl RefreshTokens {
-    /// Creates a refresh-token service over the application's shared database.
+    /// 基于应用共享数据库创建 refresh token 服务。
     pub fn new(db: Db) -> Self {
         Self { db }
     }
 
-    /// Creates a refresh token with a caller-selected family expiry and returns it once.
+    /// 使用调用方指定的家族有效期创建 refresh token，并一次性返回该 token。
     ///
-    /// Only its SHA-256 digest is persisted. The caller owns the policy that selects the expiry.
+    /// 仅持久化其 SHA-256 摘要。有效期策略由调用方决定。
     pub async fn issue(
         &self,
         user_id: i64,
@@ -66,9 +66,9 @@ impl RefreshTokens {
         Ok(IssuedRefreshToken { value: token })
     }
 
-    /// Atomically consumes a refresh token and returns its single successor.
+    /// 原子消费 refresh token 并返回其唯一后继 token。
     ///
-    /// Reusing a consumed token commits family-wide revocation and returns `Unauthorized`.
+    /// 重用已消费的 token 会提交家族级撤销，并返回 `Unauthorized`。
     pub async fn rotate(&self, token: &str) -> Result<RefreshRotation> {
         let next_token = random_token()?;
         let next_hash = sha256_hex(&next_token);
@@ -96,7 +96,7 @@ impl RefreshTokens {
         }
     }
 
-    /// Revokes every token in the family containing `token`.
+    /// 撤销包含 `token` 的家族中的所有 token。
     pub async fn revoke(&self, token: &str) -> Result<()> {
         self.connection()?;
         let token_hash = sha256_hex(token);
@@ -132,7 +132,7 @@ impl RefreshTokens {
             .await
     }
 
-    /// Revokes all refresh-token families for an account and returns the affected row count.
+    /// 撤销账户的所有 refresh token 家族，并返回受影响的行数。
     pub async fn revoke_all_for_user(&self, user_id: i64) -> Result<u64> {
         self.connection()?;
         if user_id <= 0 {
@@ -212,13 +212,13 @@ pub(crate) async fn revoke_all_for_user_in_transaction(
     Ok(result.rows_affected())
 }
 
-/// A refresh credential returned only when a token is issued or rotated.
+/// 仅在签发或轮换 token 时返回的 refresh 凭据。
 pub struct IssuedRefreshToken {
     value: String,
 }
 
 impl IssuedRefreshToken {
-    /// Exposes the bearer secret for the response that delivers it to the client.
+    /// 暴露 bearer 密钥，供响应发送给客户端。
     pub fn expose(&self) -> &str {
         &self.value
     }
@@ -233,7 +233,7 @@ impl fmt::Debug for IssuedRefreshToken {
     }
 }
 
-/// The account, successor refresh credential and unchanged family expiry after rotation.
+/// 轮换后返回的账户、后继 refresh 凭据及未改变的家族有效期。
 pub struct RefreshRotation {
     user_id: i64,
     token: IssuedRefreshToken,
@@ -241,17 +241,17 @@ pub struct RefreshRotation {
 }
 
 impl RefreshRotation {
-    /// Returns the account that owns the token family.
+    /// 返回拥有此 token 家族的账户。
     pub const fn user_id(&self) -> i64 {
         self.user_id
     }
 
-    /// Returns the one-time successor credential.
+    /// 返回一次性后继凭据。
     pub const fn token(&self) -> &IssuedRefreshToken {
         &self.token
     }
 
-    /// Returns the family expiry, which rotation does not extend.
+    /// 返回轮换不会延长的家族有效期。
     pub const fn expires_at(&self) -> DateTime<Utc> {
         self.expires_at
     }
@@ -280,7 +280,7 @@ enum RotationDecision {
     Rejected,
 }
 
-// Keep the lock, validation, consume and successor insert together to preserve transaction order.
+// 将锁定、校验、消费和插入后继 token 放在同一事务中，以保持事务顺序。
 #[allow(clippy::too_many_lines)]
 async fn rotate_in_transaction(
     transaction: &DatabaseTransaction,

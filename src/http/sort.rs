@@ -1,17 +1,17 @@
-//! Allowlist-bound parsing for the API's comma-separated `sort` query convention.
+//! 按允许列表解析 API 逗号分隔的 `sort` 查询约定。
 
 use crate::{Error, Result};
 
-/// Direction of one validated sort field.
+/// 一个已校验排序字段的方向。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SortDirection {
-    /// Sort from the lowest value to the highest value.
+    /// 按值从低到高排序。
     Ascending,
-    /// Sort from the highest value to the lowest value.
+    /// 按值从高到低排序。
     Descending,
 }
 
-/// One field accepted by a [`SortParams`] allowlist.
+/// [`SortParams`] 允许列表接受的一个字段。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SortField {
     name: Box<str>,
@@ -19,26 +19,26 @@ pub struct SortField {
 }
 
 impl SortField {
-    /// Returns the validated public field name. Map it to a fixed ORM column; never interpolate it into SQL.
+    /// 返回已校验的公开字段名。请将其映射为固定 ORM 列；不得将其插入 SQL。
     pub fn name(&self) -> &str {
         &self.name
     }
 
-    /// Returns this field's requested direction.
+    /// 返回此字段请求的排序方向。
     pub const fn direction(&self) -> SortDirection {
         self.direction
     }
 }
 
-/// A validated, ordered list of fields from an application-provided allowlist.
+/// 根据应用提供的允许列表校验并排序后的字段列表。
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SortParams(Vec<SortField>);
 
 impl SortParams {
-    /// Parses ADR-008 `sort=-created_at,title` syntax against fixed public field names.
+    /// 根据固定的公开字段名解析 ADR-008 的 `sort=-created_at,title` 语法。
     ///
-    /// Missing/empty input means no explicit sort. At most 16 unique fields and 256 bytes are
-    /// accepted. Unknown or malformed names return a bad-request error without echoing input.
+    /// 输入缺失或为空表示不指定排序。最多允许 16 个不重复字段，输入长度上限为 256 字节。
+    /// 未知或格式错误的字段名会返回 bad request，且不会回显输入内容。
     pub fn parse(value: Option<&str>, allowed: &[&str]) -> Result<Self> {
         let Some(value) = value.filter(|value| !value.is_empty()) else {
             return Ok(Self::default());
@@ -73,7 +73,7 @@ impl SortParams {
         Ok(Self(fields))
     }
 
-    /// Returns the validated fields in request order.
+    /// 按请求中的顺序返回已校验字段。
     pub fn fields(&self) -> &[SortField] {
         &self.0
     }

@@ -1,4 +1,4 @@
-//! Database-coordinated UTC job scheduling.
+//! 由数据库协调的 UTC 任务调度。
 
 use crate::core::{BoxFuture, Error, Result};
 use crate::db::{DatabaseTransaction, Db, DbBackend};
@@ -10,16 +10,16 @@ use std::time::Duration;
 const MAX_INTERVAL_SECS: u64 = 2_592_000;
 const DAY_SECS: u64 = 86_400;
 
-/// A fixed UTC schedule cadence.
+/// 固定的 UTC 调度周期。
 #[derive(Debug, Clone, Copy)]
 pub enum ScheduleFrequency {
-    /// Trigger once per interval slot, including the current slot when first registered.
+    /// 每个 interval 时段触发一次；首次注册时包含当前时段。
     Interval(Duration),
-    /// Trigger once at the specified UTC hour and minute, skipping missed daily slots.
+    /// 每日指定 UTC 小时和分钟触发一次，并跳过错过的日期时段。
     DailyAtUtc {
-        /// Hour in the UTC day, from 0 through 23.
+        /// UTC 日内小时，范围为 0 到 23。
         hour: u8,
-        /// Minute in the UTC hour, from 0 through 59.
+        /// UTC 小时内分钟，范围为 0 到 59。
         minute: u8,
     },
 }
@@ -61,7 +61,7 @@ impl ScheduleFrequency {
     }
 }
 
-/// One explicitly registered scheduler entry.
+/// 一个显式注册的调度项。
 #[derive(Debug, Clone)]
 pub struct ScheduleDefinition {
     key: String,
@@ -88,7 +88,7 @@ impl ScheduleDefinition {
         }
     }
 
-    /// Stable key used for cross-process slot deduplication.
+    /// 用于跨进程时段去重的稳定键。
     pub fn key(&self) -> &str {
         &self.key
     }
@@ -109,18 +109,18 @@ impl ScheduleDefinition {
     }
 }
 
-/// Result of one scheduler scan.
+/// 一次调度扫描的结果。
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct ScheduleReport {
-    /// Number of registered entries with a due slot.
+    /// 已到触发时段的已注册项数量。
     pub due: usize,
-    /// Number of new jobs committed.
+    /// 已提交的新任务数量。
     pub dispatched: usize,
-    /// Number of due slots already handled by another scheduler instance.
+    /// 已由其他 scheduler 实例处理的到期时段数量。
     pub already_dispatched: usize,
 }
 
-/// Runs registered schedules and atomically deduplicates slots through the shared database.
+/// 运行已注册的调度项，并通过共享数据库原子去重时段。
 #[derive(Clone)]
 pub struct Scheduler {
     db: Db,
@@ -144,12 +144,12 @@ impl Scheduler {
         }
     }
 
-    /// Returns the schedule entries registered by application plugins.
+    /// 返回应用插件注册的调度项。
     pub fn entries(&self) -> &[ScheduleDefinition] {
         &self.entries
     }
 
-    /// Dispatches each due schedule slot once across all processes sharing the database.
+    /// 在所有共享该数据库的进程中，对每个到期调度时段仅派发一次。
     pub async fn tick(&self) -> Result<ScheduleReport> {
         let now = database_unix_time(&self.db).await?;
         let mut report = ScheduleReport::default();
@@ -182,7 +182,7 @@ impl Scheduler {
         Ok(report)
     }
 
-    /// Repeatedly scans schedules until Ctrl-C or SIGTERM, then exits after the current scan.
+    /// 持续扫描调度，直到收到 Ctrl-C 或 SIGTERM；当前扫描完成后退出。
     pub async fn run(&self) -> Result<()> {
         loop {
             self.tick().await?;

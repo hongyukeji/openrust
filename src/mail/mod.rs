@@ -12,25 +12,24 @@ use crate::i18n::{I18n, Locale, MessageArgs};
 use lettre::AsyncTransport;
 use lettre::Message;
 
-/// Re-exported message builder and SMTP types used by [`Email`] implementations.
+/// 重新导出 [`Email`] 实现使用的消息构建器与 SMTP 类型。
 pub use lettre;
 
-/// Creates a transport message for delivery.
+/// 创建用于投递的传输消息。
 pub trait Email {
-    /// Builds this email as a lettre message.
+    /// 将此邮件构建为 lettre 消息。
     fn message(&self) -> Result<Message>;
 }
 
-/// Composes a plain-text email from two explicit locale catalog keys.
+/// 使用两个明确指定的语言目录 key 组合纯文本邮件。
 ///
-/// Subject and body are translated once at construction time. Background jobs should pass an
-/// explicit [`Locale`] rather than rely on request task-local state.
+/// 主题和正文在构造时只翻译一次。后台任务应显式传入 [`Locale`]，不要依赖请求任务的局部状态。
 pub struct LocalizedEmail {
     message: Message,
 }
 
 impl LocalizedEmail {
-    /// Renders subject/body from the shared catalog and builds a plain-text email.
+    /// 从共享目录渲染主题和正文，并构建纯文本邮件。
     pub fn new(
         i18n: &I18n,
         locale: &Locale,
@@ -70,33 +69,33 @@ impl Email for LocalizedEmail {
     }
 }
 
-/// A pluggable email delivery backend.
+/// 可插拔的邮件投递后端。
 pub trait MailDriver: Send + Sync + 'static {
-    /// Sends one composed message.
+    /// 发送一封已构建的邮件。
     fn send(&self, message: Message) -> BoxFuture<'_, Result<()>>;
 }
 
-/// Application service for sending [`Email`] values.
+/// 用于发送 [`Email`] 的应用服务。
 #[derive(Clone)]
 pub struct Mailer {
     driver: Arc<dyn MailDriver>,
 }
 
 impl Mailer {
-    /// Creates a mailer backed by the supplied driver.
+    /// 创建由指定 driver 支持的邮件服务。
     pub fn new(driver: impl MailDriver) -> Self {
         Self {
             driver: Arc::new(driver),
         }
     }
 
-    /// Composes and sends one email.
+    /// 构建并发送一封邮件。
     pub async fn send<E: Email>(&self, email: &E) -> Result<()> {
         self.driver.send(email.message()?).await
     }
 }
 
-/// Installs the configured [`Mailer`] service; the default driver logs delivery without content.
+/// 安装配置好的 [`Mailer`] 服务；默认 driver 仅记录投递状态，不记录邮件内容。
 #[derive(Debug, Default, Clone, Copy)]
 pub struct MailerPlugin;
 
@@ -194,7 +193,7 @@ fn configured_smtp(_config: &MailConfig) -> Result<Mailer> {
     )))
 }
 
-/// Sends email without contacting an SMTP server or logging message contents.
+/// 记录邮件已被接受，但不连接 SMTP 服务器，也不记录邮件内容。
 #[derive(Debug, Default, Clone, Copy)]
 pub struct LogMailer;
 
@@ -207,7 +206,7 @@ impl MailDriver for LogMailer {
     }
 }
 
-/// Sends email through an SMTP server using mandatory TLS.
+/// 通过 SMTP 服务器发送邮件；远程主机必须启用 STARTTLS，本机 loopback 可按配置使用明文连接。
 #[cfg(feature = "mail-smtp")]
 struct SmtpMailer {
     transport: lettre::AsyncSmtpTransport<lettre::Tokio1Executor>,
@@ -226,7 +225,7 @@ impl MailDriver for SmtpMailer {
     }
 }
 
-/// Captures composed messages for tests without sending them.
+/// 在测试中捕获已构建的邮件，不会实际发送。
 #[cfg(feature = "test-util")]
 #[derive(Clone, Default)]
 pub struct FakeMailer {
@@ -235,18 +234,18 @@ pub struct FakeMailer {
 
 #[cfg(feature = "test-util")]
 impl FakeMailer {
-    /// Returns a mailer service and a handle for inspecting captured messages.
+    /// 返回邮件服务和用于检查已捕获邮件的句柄。
     pub fn new() -> (Mailer, Self) {
         let fake = Self::default();
         (Mailer::new(fake.clone()), fake)
     }
 
-    /// Returns the number of messages accepted by this fake driver.
+    /// 返回此 fake driver 接受的邮件数量。
     pub fn sent_count(&self) -> usize {
         self.messages.lock().map_or(0, |messages| messages.len())
     }
 
-    /// Returns an error unless a captured message was addressed to `recipient`.
+    /// 如果没有捕获到发给 `recipient` 的邮件，则返回错误。
     pub fn assert_sent_to(&self, recipient: &str) -> Result<()> {
         let messages = self
             .messages

@@ -1,4 +1,4 @@
-//! Verifies the configured connection pool against the selected database service.
+//! 针对所选数据库服务验证已配置的连接池。
 #![cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 
 use figment::Figment;

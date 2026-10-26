@@ -1,4 +1,4 @@
-//! Purpose-bound signed links with explicit expiry and optional shared revocation storage.
+//! 提供用途绑定且有效期明确的签名链接，并可选使用共享撤销存储。
 #![doc = include_str!("signing/README.md")]
 
 use std::{
@@ -27,11 +27,11 @@ pub use migration::SignedLinkRevocationMigration;
 
 const LINK_TYPE: &str = "openrust-link+jwt";
 
-/// Opaque signed link token. Debug output never reveals the bearer value.
+/// 不透明的签名链接 token。`Debug` 输出不会暴露 bearer 值。
 #[derive(Clone)]
 pub struct SignedLink(String);
 impl SignedLink {
-    /// Returns the bearer token for inclusion in a URL or message.
+    /// 返回可放入 URL 或消息中的 bearer token。
     pub fn expose(&self) -> &str {
         &self.0
     }
@@ -42,7 +42,7 @@ impl fmt::Debug for SignedLink {
     }
 }
 
-/// Validated data recovered from a signed link.
+/// 从签名链接中恢复并校验的数据。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SignedLinkClaims {
     purpose: String,
@@ -51,29 +51,29 @@ pub struct SignedLinkClaims {
     jti: String,
 }
 impl SignedLinkClaims {
-    /// Returns the exact purpose bound into the signature.
+    /// 返回签名中绑定的确切用途。
     pub fn purpose(&self) -> &str {
         &self.purpose
     }
-    /// Returns the application-defined subject bound into the signature.
+    /// 返回签名中绑定的应用定义主体。
     pub fn subject(&self) -> &str {
         &self.subject
     }
-    /// Returns the Unix expiration timestamp in seconds.
+    /// 返回以秒为单位的 Unix 过期时间戳。
     pub const fn expires_at(&self) -> u64 {
         self.expires_at
     }
 }
 
-/// Shared store for optional per-token revocation.
+/// 用于可选单 token 撤销的共享存储。
 pub trait SignedLinkRevocationStore: Send + Sync + 'static {
-    /// Stores a token digest until its signed expiry.
+    /// 保存 token 摘要，直至其签名声明的过期时间。
     fn revoke<'a>(&'a self, token_hash: &'a str, expires_at: u64) -> BoxFuture<'a, Result<()>>;
-    /// Returns whether a token digest has been revoked.
+    /// 返回 token 摘要是否已撤销。
     fn is_revoked<'a>(&'a self, token_hash: &'a str) -> BoxFuture<'a, Result<bool>>;
 }
 
-/// Signs, verifies, and optionally revokes short-lived application links.
+/// 对短期应用链接进行签名、验证，并可选地撤销链接。
 #[derive(Clone)]
 pub struct SignedLinks {
     inner: Arc<SigningConfig>,
@@ -90,7 +90,7 @@ impl fmt::Debug for SignedLinks {
     }
 }
 impl SignedLinks {
-    /// Validates an independent link-signing key ring.
+    /// 校验独立的链接签名密钥环。
     pub fn new(config: SignedLinksConfig) -> Result<Self> {
         if config.issuer.trim().is_empty()
             || config.issuer.len() > 256
@@ -134,19 +134,19 @@ impl SignedLinks {
             revocations: None,
         })
     }
-    /// Adds a shared revocation store; without one links remain valid until expiry or key retirement.
+    /// 添加共享撤销存储；未配置时，链接会一直有效至过期或密钥退役。
     #[must_use]
     pub fn with_revocation_store(mut self, store: impl SignedLinkRevocationStore) -> Self {
         self.revocations = Some(Arc::new(store));
         self
     }
 
-    /// Adds a PostgreSQL/MySQL shared database revocation store.
+    /// 添加 PostgreSQL/MySQL 共享数据库撤销存储。
     #[must_use]
     pub fn with_database_revocations(self, db: crate::db::Db) -> Self {
         self.with_revocation_store(DatabaseSignedLinkRevocationStore::new(db))
     }
-    /// Signs a purpose- and subject-bound link with a caller-selected lifetime.
+    /// 为用途和主体均绑定的链接签名，并使用调用方指定的有效期。
     pub fn issue(&self, purpose: &str, subject: &str, ttl_secs: u64) -> Result<SignedLink> {
         if !valid_label(purpose, 128)
             || !valid_label(subject, 1024)
@@ -183,7 +183,7 @@ impl SignedLinks {
             .map(SignedLink)
             .map_err(|_| Error::internal(SigningFailure))
     }
-    /// Verifies signature, purpose, issuer, lifetime and optional shared revocation state.
+    /// 验证签名、用途、签发者、有效期以及可选的共享撤销状态。
     pub async fn verify(&self, token: &str, purpose: &str) -> Result<SignedLinkClaims> {
         let claims = self.decode(token)?;
         if claims.purpose != purpose {
@@ -201,7 +201,7 @@ impl SignedLinks {
             jti: claims.jti,
         })
     }
-    /// Revokes a valid link until expiry; requires a configured shared revocation store.
+    /// 撤销有效链接直至其过期；必须已配置共享撤销存储。
     pub async fn revoke(&self, token: &str) -> Result<()> {
         let Some(store) = &self.revocations else {
             return Err(Error::custom(
@@ -248,7 +248,7 @@ impl SignedLinks {
     }
 }
 
-/// Registers [`SignedLinks`] from `[security.signed_links]` configuration.
+/// 根据 `[security.signed_links]` 配置注册 [`SignedLinks`]。
 pub struct SignedLinksPlugin {
     config: Option<SignedLinksConfig>,
     database: Option<crate::db::Db>,
@@ -256,7 +256,7 @@ pub struct SignedLinksPlugin {
     service: OnceLock<SignedLinks>,
 }
 impl SignedLinksPlugin {
-    /// Loads the signing configuration during app construction.
+    /// 在构建应用时加载签名配置。
     pub fn new() -> Self {
         Self {
             config: None,
@@ -265,7 +265,7 @@ impl SignedLinksPlugin {
             service: OnceLock::new(),
         }
     }
-    /// Registers an explicit signing configuration.
+    /// 注册显式指定的签名配置。
     pub fn with_config(config: SignedLinksConfig) -> Self {
         Self {
             config: Some(config),
@@ -275,14 +275,14 @@ impl SignedLinksPlugin {
         }
     }
 
-    /// Enables per-link revocation using the application's shared database.
+    /// 使用应用的共享数据库启用单链接撤销。
     #[must_use]
     pub fn with_database_revocations(mut self, db: crate::db::Db) -> Self {
         self.database = Some(db);
         self
     }
 
-    /// Enables database revocation using the `Db` registered by an earlier plugin.
+    /// 使用之前插件注册的 `Db` 启用数据库撤销。
     #[must_use]
     pub const fn with_database_revocations_from_app(mut self) -> Self {
         self.database_from_app = true;
@@ -433,19 +433,19 @@ impl fmt::Display for MissingPluginBuild {
 }
 impl std::error::Error for MissingPluginBuild {}
 
-/// PostgreSQL/MySQL-backed shared revocation store for signed links.
+/// 基于 PostgreSQL/MySQL 的签名链接共享撤销存储。
 #[derive(Clone)]
 pub struct DatabaseSignedLinkRevocationStore {
     db: crate::db::Db,
 }
 
 impl DatabaseSignedLinkRevocationStore {
-    /// Creates a store using the application's shared database and table-name resolver.
+    /// 使用应用的共享数据库和表名解析器创建存储。
     pub fn new(db: crate::db::Db) -> Self {
         Self { db }
     }
 
-    /// Deletes up to `limit` expired revocation records and returns the number removed.
+    /// 删除最多 `limit` 条已过期的撤销记录，并返回实际删除数量。
     pub async fn purge_expired(&self, limit: u64) -> Result<u64> {
         use crate::db::sea_orm::{ConnectionTrait, DbBackend, Statement};
         if !(1..=1000).contains(&limit) {

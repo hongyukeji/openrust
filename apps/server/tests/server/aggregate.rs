@@ -1,4 +1,4 @@
-//! Integration boundaries of the assembled server.
+//! 验证组装后 server 的集成边界。
 
 #[path = "../../src/app.rs"]
 mod app;

@@ -1,4 +1,4 @@
-//! Verifies schedule slot deduplication between independent processes on a real database.
+//! 验证独立进程通过真实数据库对调度时间槽去重。
 #![cfg(all(feature = "queue", any(feature = "db-postgres", feature = "db-mysql")))]
 
 use figment::Figment;

@@ -1,4 +1,4 @@
-//! Fake audit sink for application and integration tests.
+//! 用于应用和集成测试的审计 fake sink。
 
 use std::sync::{
     Arc, Mutex,
@@ -8,7 +8,7 @@ use std::sync::{
 use super::{AuditOutcome, AuditRecord, AuditSink};
 use crate::{BoxFuture, Error, Result};
 
-/// In-memory sink that captures sanitized records and can simulate a write failure.
+/// 在内存中捕获已脱敏记录，并可模拟写入失败的 sink。
 #[derive(Clone, Default)]
 pub struct FakeAuditSink {
     records: Arc<Mutex<Vec<FakeAuditRecord>>>,
@@ -22,12 +22,12 @@ impl std::fmt::Debug for FakeAuditSink {
 }
 
 impl FakeAuditSink {
-    /// Creates an empty sink that accepts appended records.
+    /// 创建一个可接收记录的空 sink。
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Returns a snapshot of captured sanitized records.
+    /// 返回已捕获脱敏记录的快照。
     pub fn records(&self) -> Result<Vec<FakeAuditRecord>> {
         self.records
             .lock()
@@ -35,7 +35,7 @@ impl FakeAuditSink {
             .map_err(|_| Error::internal(std::io::Error::other("fake audit sink lock poisoned")))
     }
 
-    /// Makes future appends fail, for testing sink error handling.
+    /// 使后续追加操作失败，以测试 sink 的错误处理。
     pub fn fail_appends(&self, fail: bool) {
         self.fail.store(fail, Ordering::SeqCst);
     }
@@ -71,7 +71,7 @@ impl AuditSink for FakeAuditSink {
     }
 }
 
-/// Sanitized snapshot captured by [`FakeAuditSink`].
+/// [`FakeAuditSink`] 捕获的脱敏记录快照。
 #[derive(Clone, PartialEq, Eq)]
 pub struct FakeAuditRecord {
     actor_kind: Option<String>,
@@ -106,39 +106,39 @@ impl std::fmt::Debug for FakeAuditRecord {
 }
 
 impl FakeAuditRecord {
-    /// Returns the actor kind when an actor was supplied.
+    /// 如果提供了 actor，则返回其类型。
     pub fn actor_kind(&self) -> Option<&str> {
         self.actor_kind.as_deref()
     }
-    /// Returns the actor ID when an actor was supplied.
+    /// 如果提供了 actor，则返回其 ID。
     pub fn actor_id(&self) -> Option<&str> {
         self.actor_id.as_deref()
     }
-    /// Returns the recorded action.
+    /// 返回记录的操作。
     pub fn action(&self) -> &str {
         &self.action
     }
-    /// Returns the object kind.
+    /// 返回对象类型。
     pub fn object_kind(&self) -> &str {
         &self.object_kind
     }
-    /// Returns the object ID.
+    /// 返回对象 ID。
     pub fn object_id(&self) -> &str {
         &self.object_id
     }
-    /// Returns the recorded outcome.
+    /// 返回记录的结果。
     pub fn outcome(&self) -> AuditOutcome {
         self.outcome
     }
-    /// Returns the request correlation ID.
+    /// 返回请求关联 ID。
     pub fn request_id(&self) -> Option<&str> {
         self.request_id.as_deref()
     }
-    /// Returns the trusted source IP string.
+    /// 返回可信来源 IP 字符串。
     pub fn source_ip(&self) -> Option<&str> {
         self.source_ip.as_deref()
     }
-    /// Returns details after policy filtering and redaction.
+    /// 返回经过策略筛选和脱敏的详情。
     pub fn details_json(&self) -> &str {
         &self.details_json
     }

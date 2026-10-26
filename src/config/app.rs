@@ -1,4 +1,4 @@
-//! Application identity and runtime environment settings.
+//! 应用身份和运行环境设置。
 
 use std::fmt;
 use std::str::FromStr;
@@ -7,28 +7,28 @@ use serde::{Deserialize, Serialize};
 
 use super::{ConfigError, ENV_PREFIX, ENV_VAR, validate_namespace};
 
-/// Runtime environment, selected by `APP_ENV` by default.
+/// 运行环境，默认由 `APP_ENV` 选择。
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Environment {
-    /// Local development: verbose logs, API docs enabled, `.env` honoured.
+    /// 本地开发：详细日志、启用 API 文档并读取 `.env`。
     #[default]
     Development,
-    /// Automated tests: fake drivers by default.
+    /// 自动化测试：默认使用 fake driver。
     Test,
-    /// Production: JSON logs, no debug surfaces.
+    /// 生产环境：JSON 日志，不启用调试入口。
     Production,
 }
 
 impl Environment {
-    /// Reads the environment from `APP_ENV`, defaulting to [`Environment::Development`].
+    /// 从 `APP_ENV` 读取运行环境；未设置时默认为 [`Environment::Development`]。
     pub fn from_env() -> Result<Self, ConfigError> {
         Self::from_env_with_namespace(ENV_PREFIX)
     }
 
-    /// Reads the environment selected by the configured application namespace.
+    /// 读取由配置的应用命名空间选择的运行环境。
     ///
-    /// `namespace` must be an uppercase identifier ending in `_`, such as `SHOP_`.
+    /// `namespace` 必须是以 `_` 结尾的大写标识符，例如 `SHOP_`。
     pub fn from_env_with_namespace(namespace: &str) -> Result<Self, ConfigError> {
         validate_namespace(namespace)?;
         let key = format!("{namespace}ENV");
@@ -45,7 +45,7 @@ impl Environment {
         }
     }
 
-    /// Lowercase name used in file names and logs.
+    /// 用于文件名和日志的小写名称。
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Development => "development",
@@ -54,7 +54,7 @@ impl Environment {
         }
     }
 
-    /// `true` only for [`Environment::Production`].
+    /// 仅当环境为 [`Environment::Production`] 时返回 `true`。
     pub fn is_production(self) -> bool {
         matches!(self, Self::Production)
     }
@@ -82,15 +82,15 @@ impl fmt::Display for Environment {
     }
 }
 
-/// `[app]` section: identity of the application.
+/// `[app]` 区段：应用身份信息。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AppConfig {
-    /// Human-readable name used in logs and mail.
+    /// 用于日志和邮件的可读名称。
     pub name: String,
-    /// Runtime environment. Always overwritten by the selected namespace after loading.
+    /// 运行环境。加载配置后始终会被所选命名空间的值覆盖。
     pub env: Environment,
-    /// Public base URL used to build absolute links.
+    /// 用于构造绝对链接的公开基础 URL。
     pub url: String,
 }
 

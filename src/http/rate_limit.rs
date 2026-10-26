@@ -1,4 +1,4 @@
-//! Route-level rate limiting backed by the application's shared [`RateLimiter`].
+//! 基于应用共享 [`RateLimiter`] 的路由级限流。
 
 use std::{fmt, sync::Arc, time::Duration};
 
@@ -17,20 +17,18 @@ use crate::{
 
 type KeyFn = dyn Fn(&Request) -> crate::Result<String> + Send + Sync;
 
-/// Selects the request identity used by a route rate-limit policy.
+/// 选择路由限流策略使用的请求身份。
 #[derive(Clone)]
 pub enum RateLimitKey {
-    /// Use the client address resolved by [`ClientIp`] and trusted proxy configuration.
+    /// 使用 [`ClientIp`] 根据可信代理配置解析出的客户端地址。
     ClientIp,
-    /// Use an authenticated user's stable account ID. Requires an [`crate::auth::AuthLayer`]
-    /// to run before this layer.
+    /// 使用已认证用户的稳定账户 ID。要求此层之前已安装 [`crate::auth::AuthLayer`]。
     #[cfg(feature = "auth")]
     AuthenticatedUser,
-    /// Use the authenticated account ID, or the trusted client address for anonymous requests.
+    /// 优先使用已认证账户 ID；匿名请求使用可信客户端地址。
     #[cfg(feature = "auth")]
     UserOrClientIp,
-    /// Build an application-defined key from the request. The closure must return a stable,
-    /// bounded, non-secret identity value; the policy scope is prepended by the layer.
+    /// 从请求构造应用自定义 key。闭包必须返回稳定、有界且不含秘密的身份值；该层会在 key 前添加策略作用域。
     Custom(Arc<KeyFn>),
 }
 
@@ -47,7 +45,7 @@ impl fmt::Debug for RateLimitKey {
     }
 }
 
-/// A route layer applying a fixed-window policy through the registered shared limiter.
+/// 通过已注册的共享限流器实施固定窗口策略的路由层。
 #[derive(Clone, Debug)]
 pub struct RateLimitLayer {
     scope: Arc<str>,
@@ -57,24 +55,24 @@ pub struct RateLimitLayer {
 }
 
 impl RateLimitLayer {
-    /// Creates a policy using the trusted client IP as its identity.
+    /// 创建使用可信客户端 IP 作为身份的策略。
     pub fn by_client_ip(scope: impl Into<Arc<str>>, limit: u64, window: Duration) -> Self {
         Self::new(scope, limit, window, RateLimitKey::ClientIp)
     }
 
-    /// Creates a policy using an authenticated account ID.
+    /// 创建使用已认证账户 ID 作为身份的策略。
     #[cfg(feature = "auth")]
     pub fn by_user(scope: impl Into<Arc<str>>, limit: u64, window: Duration) -> Self {
         Self::new(scope, limit, window, RateLimitKey::AuthenticatedUser)
     }
 
-    /// Creates a policy using account ID when present, otherwise trusted client IP.
+    /// 创建优先使用账户 ID、否则使用可信客户端 IP 的策略。
     #[cfg(feature = "auth")]
     pub fn by_user_or_client_ip(scope: impl Into<Arc<str>>, limit: u64, window: Duration) -> Self {
         Self::new(scope, limit, window, RateLimitKey::UserOrClientIp)
     }
 
-    /// Creates a policy using an application-supplied identity function.
+    /// 创建使用应用提供的身份函数的策略。
     pub fn with_key(
         scope: impl Into<Arc<str>>,
         limit: u64,
@@ -84,7 +82,7 @@ impl RateLimitLayer {
         Self::new(scope, limit, window, RateLimitKey::Custom(Arc::new(key)))
     }
 
-    /// Creates a policy from an explicit key strategy.
+    /// 根据明确指定的 key 策略创建策略。
     pub fn new(
         scope: impl Into<Arc<str>>,
         limit: u64,
@@ -99,7 +97,7 @@ impl RateLimitLayer {
         }
     }
 
-    /// Returns a Tower layer for use with [`crate::http::Routes::layer`].
+    /// 返回可与 [`crate::http::Routes::layer`] 配合使用的 Tower layer。
     pub fn layer(
         &self,
     ) -> impl Layer<

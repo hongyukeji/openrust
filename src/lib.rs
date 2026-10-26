@@ -41,20 +41,20 @@ pub(crate) fn lock_test_env() -> std::sync::MutexGuard<'static, ()> {
         .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
-/// Database layer, enabled by the `db-postgres` or `db-mysql` facade feature.
+/// 数据库模块，由 facade 的 `db-postgres` 或 `db-mysql` feature 启用。
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 pub use db as database;
 
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 pub use db::{DatabaseConfig, DatabasePlugin, Db, MigrationPlugin, SeedPlugin};
 
-/// Service extension methods for testing an HTTP router without binding a listener.
+/// 扩展方法，用于在不绑定监听器的情况下测试 HTTP router。
 pub use tower::ServiceExt;
 
-/// Tokio runtime for applications depending only on the facade.
+/// Tokio runtime，供仅依赖 facade 的应用使用。
 pub use tokio;
 
-/// Everything a typical `app.rs`, controller or plugin needs.
+/// 常见 `app.rs`、controller 或 plugin 所需的类型。
 pub mod prelude {
     pub use crate::audit::{
         Audit, AuditEvent, AuditOutcome, AuditPlugin, AuditPolicy, AuditSubject,
@@ -103,9 +103,9 @@ pub mod prelude {
     pub use crate::{DatabaseConfig, DatabasePlugin, Db, MigrationPlugin, SeedPlugin};
 }
 
-/// Boots `A` and runs the command named by the first argument (`serve` by default).
+/// 启动 `A`，并运行第一个命令行参数指定的命令（默认为 `serve`）。
 ///
-/// Returns a process exit code instead of panicking so `main` stays a one-liner.
+/// 返回进程退出码而不触发 panic，使 `main` 保持为单行调用。
 pub fn run<A: Application>() -> ExitCode {
     let runtime = match tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -129,7 +129,7 @@ pub fn run<A: Application>() -> ExitCode {
 }
 
 fn fail(message: &str) -> ExitCode {
-    // tracing may not be installed yet (configuration failed), so always write to stderr.
+    // 配置加载失败时 tracing 可能尚未安装，因此始终写入 stderr。
     eprintln!("error: {message}");
     ExitCode::FAILURE
 }

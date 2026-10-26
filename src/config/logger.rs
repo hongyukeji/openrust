@@ -1,14 +1,14 @@
-//! Logging configuration.
+//! 日志配置。
 
 use serde::{Deserialize, Serialize};
 
-/// `[log]` section.
+/// `[log]` 区段。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct LogConfig {
-    /// `tracing` filter directive, e.g. `info` or `info,openrust=debug`. `RUST_LOG` takes precedence.
+    /// `tracing` filter 指令，例如 `info` 或 `info,openrust=debug`。`RUST_LOG` 优先级更高。
     pub level: String,
-    /// Output format.
+    /// 输出格式。
     pub format: LogFormat,
 }
 
@@ -21,13 +21,13 @@ impl Default for LogConfig {
     }
 }
 
-/// Log output format.
+/// 日志输出格式。
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum LogFormat {
-    /// Human-readable lines for terminals.
+    /// 供终端阅读的文本行。
     #[default]
     Text,
-    /// One JSON object per line for log collectors.
+    /// 每行一个 JSON 对象，供日志采集器使用。
     Json,
 }

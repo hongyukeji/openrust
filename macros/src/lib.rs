@@ -7,11 +7,10 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{ImplItem, ItemImpl, parse_macro_input};
 
-/// Generates an HTTP [`Resource`](https://docs.rs/openrust/latest/openrust/http/resource/trait.Resource.html)
-/// implementation from action methods in an inherent controller implementation.
+/// 根据 controller 固有实现中的 action 方法生成 HTTP [`Resource`](https://docs.rs/openrust/latest/openrust/http/resource/trait.Resource.html) 实现。
 ///
-/// Recognized methods are `list`, `get`, `create`, `update`, and `delete`. They must be
-/// associated functions without a receiver or method generics. Other methods are preserved.
+/// 支持的方法为 `list`、`get`、`create`、`update` 和 `delete`。这些方法必须是无 receiver、
+/// 无方法级泛型的关联函数。其他方法会保留。
 #[proc_macro_attribute]
 pub fn resource(args: TokenStream, input: TokenStream) -> TokenStream {
     let implementation = parse_macro_input!(input as ItemImpl);

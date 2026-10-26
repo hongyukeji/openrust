@@ -1,19 +1,18 @@
-//! Layered configuration.
+//! 分层配置。
 //!
-//! Configuration definitions live in the domain modules under `config` and are merged by one
-//! [`ConfigLoader`]. Runtime TOML files stay in the application root's `config/` directory.
+//! 配置定义位于 `config` 下各领域模块，并由唯一的 [`ConfigLoader`] 合并。
+//! 运行时 TOML 文件保存在应用根目录的 `config/` 中。
 //!
-//! Sources are merged in this order, later layers overriding earlier ones:
+//! 配置源按以下顺序合并，后面的层会覆盖前面的层：
 //!
-//! 1. crate defaults ([`FrameworkConfig::default`])
+//! 1. crate 默认值（[`FrameworkConfig::default`]）
 //! 2. `<config-dir>/default.toml`
-//! 3. `<config-dir>/<env>.toml` where `<env>` comes from `APP_ENV` (`development` by default)
-//! 4. variables loaded from local `.env` in non-production, then process variables, prefixed with
-//!    `APP_` and nested with `__` (`APP_SERVER__PORT=4000` → `server.port`)
+//! 3. `<config-dir>/<env>.toml`，其中 `<env>` 来自 `APP_ENV`（默认值为 `development`）
+//! 4. 非生产环境从本地 `.env` 加载的变量，然后是进程变量；变量以 `APP_` 为前缀，并使用 `__` 表示嵌套
+//!    （`APP_SERVER__PORT=4000` → `server.port`）
 //!
-//! Bootstrap reads only `APP_ENV` from `.env` to select the environment when the process does not
-//! set it. Production skips loading the entire `.env` file. Existing process variables take
-//! precedence over `.env` values.
+//! 若进程未设置环境，bootstrap 只会从 `.env` 读取 `APP_ENV` 以选择运行环境。
+//! 生产环境不会加载 `.env` 文件。已有进程变量的优先级高于 `.env` 中的值。
 
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -51,37 +50,37 @@ pub use server::{CompressionConfig, CorsConfig, ServerConfig};
 pub use signing::SignedLinksConfig;
 pub use sms::SmsConfig;
 
-/// Environment variable selecting the runtime environment.
+/// 用于选择运行环境的环境变量。
 pub const ENV_VAR: &str = "APP_ENV";
-/// Environment variable selecting the configuration directory.
+/// 用于选择配置目录的环境变量。
 pub const CONFIG_DIR_VAR: &str = "APP_CONFIG_DIR";
-/// Prefix of environment variables that override configuration keys.
+/// 覆盖配置键的环境变量前缀。
 pub const ENV_PREFIX: &str = "APP_";
-/// Directory holding `default.toml` and per-environment files, relative to the working directory.
+/// 相对于工作目录、用于保存 `default.toml` 和环境专属文件的目录。
 pub const DEFAULT_CONFIG_DIR: &str = "config";
 
-/// Configuration failures. Only possible during bootstrap.
+/// 配置错误。仅可能在 bootstrap 期间发生。
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum ConfigError {
-    /// A value is missing, has the wrong type or a file could not be parsed.
-    /// The message keeps safe key paths and error categories but omits source values.
+    /// 值缺失、类型错误或文件无法解析。
+    /// 错误消息保留安全的键路径和错误类别，但省略源值。
     #[error("{0}")]
     Source(ConfigSourceError),
-    /// The selected namespace's environment key holds an unsupported value.
+    /// 所选命名空间的环境变量包含不受支持的值。
     #[error("unknown environment `{value}` in {key}; expected development, test or production")]
     UnknownEnvironment {
-        /// Environment variable key that supplied the invalid value.
+        /// 提供无效值的环境变量键。
         key: String,
-        /// Unrecognized environment value.
+        /// 无法识别的环境变量值。
         value: String,
     },
-    /// Values were loaded but violate a framework invariant.
+    /// 配置值已加载，但违反框架约束。
     #[error("invalid configuration: {0}")]
     Invalid(String),
 }
 
-/// A configuration source error with secret-bearing values removed.
+/// 已移除秘密值的配置源错误。
 #[derive(Clone)]
 pub struct ConfigSourceError {
     message: String,
@@ -89,7 +88,7 @@ pub struct ConfigSourceError {
 }
 
 impl ConfigSourceError {
-    /// Returns whether the source error is caused by a missing field.
+    /// 返回源错误是否由字段缺失导致。
     pub fn missing(&self) -> bool {
         self.missing
     }
@@ -156,36 +155,36 @@ fn safe_figment_error(error: figment::Error) -> String {
     format!("{path}: {detail}")
 }
 
-/// Configuration owned by the framework. Applications add their own sections alongside.
+/// 由框架管理的配置。应用可在旁边添加自己的配置区段。
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct FrameworkConfig {
-    /// `[app]` section.
+    /// `[app]` 区段。
     pub app: AppConfig,
-    /// `[server]` section.
+    /// `[server]` 区段。
     pub server: ServerConfig,
-    /// `[api]` section.
+    /// `[api]` 区段。
     pub api: ApiConfig,
-    /// `[log]` section.
+    /// `[log]` 区段。
     pub log: LogConfig,
-    /// `[i18n]` locale defaults used by `I18nPlugin`.
+    /// `I18nPlugin` 使用的 `[i18n]` locale 默认值。
     pub i18n: crate::i18n::I18nConfig,
 }
 
-/// Marker for applications without configuration of their own: `type Config = NoConfig;`.
+/// 无自有配置的应用使用的标记类型：`type Config = NoConfig;`。
 ///
-/// The unit type `()` cannot be used because serde refuses to read a map into a unit.
+/// 不能使用单元类型 `()`，因为 serde 不会将 map 反序列化为单元值。
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NoConfig {}
 
-/// Loads a `.env` file from the working directory if present and returns its path.
+/// 若工作目录中存在 `.env` 文件则加载，并返回其路径。
 ///
-/// Existing environment variables are never overwritten.
+/// 不会覆盖现有环境变量。
 pub fn load_dotenv() -> Option<PathBuf> {
     dotenvy::dotenv().ok()
 }
 
-/// Reads only the selected namespace's environment key from `.env` without changing process variables.
+/// 只从 `.env` 读取所选命名空间的环境键，不修改进程变量。
 pub(crate) fn dotenv_environment(namespace: &str) -> Result<Environment, ConfigError> {
     validate_namespace(namespace)?;
     let key = format!("{namespace}ENV");
@@ -205,7 +204,7 @@ pub(crate) fn dotenv_environment(namespace: &str) -> Result<Environment, ConfigE
     Ok(Environment::Development)
 }
 
-/// Builds the merged configuration source for one environment.
+/// 为一个运行环境构建合并后的配置源。
 #[derive(Debug, Clone)]
 pub struct ConfigLoader {
     config_dir: PathBuf,
@@ -214,18 +213,18 @@ pub struct ConfigLoader {
 }
 
 impl ConfigLoader {
-    /// Uses `APP_CONFIG_DIR` (or [`DEFAULT_CONFIG_DIR`]) and `APP_ENV`.
+    /// 使用 `APP_CONFIG_DIR`（或 [`DEFAULT_CONFIG_DIR`]）和 `APP_ENV`。
     pub fn from_env() -> Result<Self, ConfigError> {
         Self::from_env_with_namespace(ENV_PREFIX)
     }
 
-    /// Uses the selected namespace's `<PREFIX>ENV` and `<PREFIX>CONFIG_DIR` values.
+    /// 使用所选命名空间的 `<PREFIX>ENV` 和 `<PREFIX>CONFIG_DIR` 值。
     pub fn from_env_with_namespace(namespace: &str) -> Result<Self, ConfigError> {
         let env = Environment::from_env_with_namespace(namespace)?;
         Self::from_environment_with_namespace(env, namespace)
     }
 
-    /// Uses the selected namespace's `<PREFIX>CONFIG_DIR` (or [`DEFAULT_CONFIG_DIR`]).
+    /// 使用所选命名空间的 `<PREFIX>CONFIG_DIR`（或 [`DEFAULT_CONFIG_DIR`]）。
     pub(crate) fn from_environment_with_namespace(
         env: Environment,
         namespace: &str,
@@ -238,7 +237,7 @@ impl ConfigLoader {
         Self::new(DEFAULT_CONFIG_DIR, env).with_config_dir_and_namespace(config_dir, namespace)
     }
 
-    /// Uses an explicit directory and environment.
+    /// 使用显式指定的目录和运行环境。
     pub fn new(config_dir: impl Into<PathBuf>, env: Environment) -> Self {
         Self {
             config_dir: config_dir.into(),
@@ -258,9 +257,9 @@ impl ConfigLoader {
         Ok(self)
     }
 
-    /// Returns a loader that reads only the selected application namespace.
+    /// 返回只读取所选应用命名空间的加载器。
     ///
-    /// The namespace must be an uppercase identifier ending in `_`, such as `SHOP_`.
+    /// 命名空间必须是以 `_` 结尾的大写标识符，例如 `SHOP_`。
     pub fn with_namespace(mut self, namespace: impl Into<String>) -> Result<Self, ConfigError> {
         let namespace = namespace.into();
         validate_namespace(&namespace)?;
@@ -268,17 +267,17 @@ impl ConfigLoader {
         Ok(self)
     }
 
-    /// Selected environment.
+    /// 所选运行环境。
     pub fn environment(&self) -> Environment {
         self.env
     }
 
-    /// Directory the TOML files are read from.
+    /// 读取 TOML 文件的目录。
     pub fn config_dir(&self) -> &Path {
         &self.config_dir
     }
 
-    /// The layered [`Figment`] every section is extracted from.
+    /// 提取所有配置区段所用的分层 [`Figment`]。
     pub fn figment(&self) -> Figment {
         Figment::from(Serialized::defaults(FrameworkConfig::default()))
             .merge(Toml::file(self.config_dir.join("default.toml")))
@@ -304,12 +303,12 @@ impl ConfigLoader {
             )
     }
 
-    /// Extracts the whole merged configuration into `T`.
+    /// 将完整的合并配置提取为 `T`。
     pub fn load<T: DeserializeOwned>(&self) -> Result<T, ConfigError> {
         Ok(self.figment().extract()?)
     }
 
-    /// Extracts the framework sections and pins `app.env` to the selected environment.
+    /// 提取框架配置区段，并将 `app.env` 固定为所选运行环境。
     pub fn load_framework(&self) -> Result<FrameworkConfig, ConfigError> {
         let mut config: FrameworkConfig = self.load()?;
         config.app.env = self.env;
@@ -338,7 +337,7 @@ fn validate_namespace(namespace: &str) -> Result<(), ConfigError> {
     }
 }
 
-/// Replaces values whose key looks secret (`password`, `secret`, `token`, `key`, `dsn`) with `********`.
+/// 将键名看似秘密的值（`password`、`secret`、`token`、`key`、`dsn`）替换为 `********`。
 pub fn redact_secrets(value: &mut serde_json::Value) {
     const SECRET_MARKERS: [&str; 5] = ["password", "secret", "token", "key", "dsn"];
     match value {
@@ -370,7 +369,7 @@ fn redact_secret_values(value: &mut serde_json::Value) {
 }
 
 #[cfg(test)]
-// `figment::Jail` closures must return `figment::Result`, whose error type is large by design.
+// `figment::Jail` 闭包必须返回 `figment::Result`；其错误类型按设计较大。
 #[allow(clippy::result_large_err)]
 mod tests {
     use super::*;

@@ -1,4 +1,4 @@
-//! In-process authenticated encryption for application data.
+//! 在应用进程内对应用数据进行认证加密。
 #![doc = include_str!("security/README.md")]
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
@@ -33,14 +33,14 @@ struct KeyRing {
     keys: BTreeMap<String, Aes256GcmSiv>,
 }
 
-/// Authenticated encryption service using a fixed AES-256-GCM-SIV algorithm and a rotatable key ring.
+/// 使用固定 AES-256-GCM-SIV 算法和可轮换密钥环的认证加密服务。
 #[derive(Clone)]
 pub struct Encryptor {
     inner: Arc<KeyRing>,
 }
 
 impl Encryptor {
-    /// Validates and loads the active encryption key and decryption-only historical keys.
+    /// 校验并加载当前加密密钥，以及仅用于解密的历史密钥。
     pub fn new(config: EncryptionConfig) -> Result<Self> {
         validate_key_id(&config.active_key_id)?;
         if config.keys.is_empty() || config.keys.len() > MAX_KEYS {
@@ -80,15 +80,14 @@ impl Encryptor {
         })
     }
 
-    /// Encrypts up to 1 MiB of plaintext with no application-specific context.
+    /// 加密最多 1 MiB 的明文，不附加应用专属上下文。
     pub fn encrypt(&self, plaintext: &[u8]) -> Result<String> {
         self.encrypt_with_context(plaintext, &[])
     }
 
-    /// Encrypts plaintext while authenticating a caller-supplied context of at most 1 KiB.
+    /// 加密明文，并认证调用方提供的上下文；上下文最多为 1 KiB。
     ///
-    /// The context is not stored in the envelope. The caller must supply the same trusted context
-    /// when decrypting; do not copy it from untrusted ciphertext metadata.
+    /// 上下文不会存入密文封装。解密时调用方必须提供相同的可信上下文；不要从不可信的密文元数据中复制上下文。
     pub fn encrypt_with_context(&self, plaintext: &[u8], context: &[u8]) -> Result<String> {
         validate_input_sizes(plaintext.len(), context.len())?;
         let key_id = &self.inner.active_key_id;
@@ -117,12 +116,12 @@ impl Encryptor {
         ))
     }
 
-    /// Decrypts an envelope produced by [`Self::encrypt`] or [`Self::encrypt_with_context`].
+    /// 解密由 [`Self::encrypt`] 或 [`Self::encrypt_with_context`] 生成的密文封装。
     pub fn decrypt(&self, envelope: &str) -> Result<Vec<u8>> {
         self.decrypt_with_context(envelope, &[])
     }
 
-    /// Decrypts an envelope using the caller-supplied context used during encryption.
+    /// 使用加密时由调用方提供的上下文解密密文封装。
     pub fn decrypt_with_context(&self, envelope: &str, context: &[u8]) -> Result<Vec<u8>> {
         if context.len() > MAX_CONTEXT_BYTES {
             return Err(input_too_large());
@@ -194,7 +193,7 @@ impl std::fmt::Debug for Encryptor {
     }
 }
 
-/// Installs the configured [`Encryptor`] service.
+/// 安装已配置的 [`Encryptor`] 服务。
 #[derive(Debug, Default, Clone, Copy)]
 pub struct EncryptionPlugin;
 

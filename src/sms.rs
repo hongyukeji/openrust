@@ -1,4 +1,4 @@
-//! SMS delivery through an explicit, replaceable provider driver.
+//! 通过显式且可替换的供应商 driver 投递 SMS。
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
@@ -18,16 +18,16 @@ use http::{HeaderMap, HeaderValue, StatusCode};
 #[cfg(feature = "sms-twilio")]
 use crate::http::{HttpClient, HttpClientConfig};
 
-/// SMS content, either literal text or a provider template with string parameters.
+/// SMS 内容：可以是纯文本，也可以是带字符串参数的供应商模板。
 #[derive(Clone, PartialEq, Eq)]
 pub enum SmsContent {
-    /// Plain text content.
+    /// 纯文本内容。
     Text(String),
-    /// Provider-managed template SID and its named string values.
+    /// 由供应商管理的模板 SID 及其命名字符串值。
     Template {
-        /// Provider-specific template identifier.
+        /// 供应商专属的模板标识符。
         sid: String,
-        /// Named template values serialized as JSON for providers that support them.
+        /// 命名模板值；对于支持此功能的供应商，会将其序列化为 JSON。
         variables: BTreeMap<String, String>,
     },
 }
@@ -38,7 +38,7 @@ impl fmt::Debug for SmsContent {
     }
 }
 
-/// One SMS submission. Recipient and content are redacted from debug output.
+/// 一条 SMS 提交。`Debug` 输出会隐藏收件人和内容。
 #[derive(Clone, PartialEq, Eq)]
 pub struct SmsMessage {
     to: String,
@@ -46,12 +46,12 @@ pub struct SmsMessage {
 }
 
 impl SmsMessage {
-    /// Creates a text message for an E.164 recipient.
+    /// 为 E.164 格式的收件人创建文本消息。
     pub fn text(to: impl Into<String>, body: impl Into<String>) -> Result<Self> {
         Self::new(to.into(), SmsContent::Text(body.into()))
     }
 
-    /// Creates a provider-template message for an E.164 recipient.
+    /// 为 E.164 格式的收件人创建供应商模板消息。
     pub fn template(
         to: impl Into<String>,
         sid: impl Into<String>,
@@ -91,17 +91,17 @@ impl SmsMessage {
         Ok(Self { to, content })
     }
 
-    /// Returns the selected content variant.
+    /// 返回所选内容类型。
     pub fn content(&self) -> &SmsContent {
         &self.content
     }
 
-    /// Returns the recipient address.
+    /// 返回收件人地址。
     pub fn recipient(&self) -> &str {
         &self.to
     }
 
-    /// Translates text content with the supplied locale; provider templates stay provider-owned.
+    /// 使用指定 locale 翻译文本内容；供应商模板仍由供应商管理。
     pub fn localized_text(
         to: impl Into<String>,
         i18n: &I18n,
@@ -123,42 +123,42 @@ impl fmt::Debug for SmsMessage {
     }
 }
 
-/// Provider submission acknowledgement. It does not claim final delivery.
+/// 供应商提交确认；这不代表消息最终送达。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SmsReceipt {
-    /// Driver name that accepted the submission.
+    /// 接受此次提交的 driver 名称。
     pub provider: String,
-    /// Provider message identifier, when available.
+    /// 如果供应商提供，则返回其消息标识符。
     pub message_id: Option<String>,
 }
 
-/// Pluggable SMS submission backend. Implementations must not log message contents or credentials.
+/// 可插拔的 SMS 提交后端。实现不得记录消息内容或凭据。
 pub trait SmsDriver: Send + Sync + 'static {
-    /// Submits one message without automatic retries.
+    /// 提交一条消息，不会自动重试。
     fn send(&self, message: SmsMessage) -> BoxFuture<'_, Result<SmsReceipt>>;
 }
 
-/// Application service for submitting SMS messages.
+/// 用于提交 SMS 消息的应用服务。
 #[derive(Clone)]
 pub struct SmsSender {
     driver: Arc<dyn SmsDriver>,
 }
 
 impl SmsSender {
-    /// Creates a sender backed by the supplied driver.
+    /// 创建由指定 driver 支持的发送服务。
     pub fn new(driver: impl SmsDriver) -> Self {
         Self {
             driver: Arc::new(driver),
         }
     }
 
-    /// Submits one message and returns the provider's acceptance receipt.
+    /// 提交一条消息，并返回供应商的受理回执。
     pub async fn send(&self, message: SmsMessage) -> Result<SmsReceipt> {
         self.driver.send(message).await
     }
 }
 
-/// Installs the configured [`SmsSender`] service.
+/// 安装已配置的 [`SmsSender`] 服务。
 #[derive(Debug, Default, Clone, Copy)]
 pub struct SmsPlugin;
 
@@ -191,7 +191,7 @@ fn configured_sender(config: &SmsConfig) -> Result<SmsSender> {
     }
 }
 
-/// Logs SMS submission metadata without disclosing recipient or content.
+/// 记录 SMS 提交元数据，但不披露收件人或消息内容。
 #[derive(Debug, Default, Clone, Copy)]
 pub struct LogSmsDriver;
 
@@ -208,7 +208,7 @@ impl SmsDriver for LogSmsDriver {
 }
 
 #[cfg(feature = "test-util")]
-/// Captures SMS submissions for tests without contacting a provider.
+/// 在测试中捕获 SMS 提交，不会联系供应商。
 #[derive(Clone, Default)]
 pub struct FakeSmsDriver {
     messages: Arc<std::sync::Mutex<Vec<SmsMessage>>>,
@@ -216,18 +216,18 @@ pub struct FakeSmsDriver {
 
 #[cfg(feature = "test-util")]
 impl FakeSmsDriver {
-    /// Returns a sender and a handle for inspecting captured messages.
+    /// 返回发送服务和用于检查已捕获消息的句柄。
     pub fn new() -> (SmsSender, Self) {
         let fake = Self::default();
         (SmsSender::new(fake.clone()), fake)
     }
 
-    /// Returns the number of captured SMS submissions.
+    /// 返回已捕获的 SMS 提交数量。
     pub fn sent_count(&self) -> usize {
         self.messages.lock().map_or(0, |messages| messages.len())
     }
 
-    /// Returns captured messages for assertions.
+    /// 返回已捕获的消息，以供断言使用。
     pub fn messages(&self) -> Result<Vec<SmsMessage>> {
         self.messages
             .lock()
@@ -253,7 +253,7 @@ impl SmsDriver for FakeSmsDriver {
 }
 
 #[cfg(feature = "sms-twilio")]
-/// Twilio Messaging REST driver using the shared bounded outbound HTTP client.
+/// 使用共享且有界的出站 HTTP 客户端调用 Twilio Messaging REST API 的 driver。
 pub struct TwilioSmsDriver {
     client: HttpClient,
     account_sid: String,
@@ -282,7 +282,7 @@ impl fmt::Debug for TwilioSmsDriver {
 
 #[cfg(feature = "sms-twilio")]
 impl TwilioSmsDriver {
-    /// Creates a driver using a custom HTTP client, useful for proxies and transport contract tests.
+    /// 使用自定义 HTTP 客户端创建 driver，适用于配置代理和测试传输契约。
     pub fn new(config: SmsConfig, client: HttpClient) -> Result<Self> {
         let account_sid = required(config.account_sid.as_deref(), "sms.account_sid")?;
         let api_key_sid = required(config.api_key_sid.as_deref(), "sms.api_key_sid")?;

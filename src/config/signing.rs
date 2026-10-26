@@ -1,10 +1,10 @@
-//! Signed-link configuration.
+//! 签名链接配置。
 
 use std::collections::BTreeMap;
 
 use serde::Deserialize;
 
-/// Key ring and issuer used exclusively for application signed links.
+/// 仅供应用签名链接使用的密钥环和签发者。
 #[derive(Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SignedLinksConfig {
@@ -16,7 +16,7 @@ pub struct SignedLinksConfig {
 }
 
 impl SignedLinksConfig {
-    /// Creates signed-link settings from an issuer, active key ID and Base64 key ring.
+    /// 使用签发者、当前密钥 ID 和 Base64 密钥环创建签名链接设置。
     pub fn new(
         issuer: impl Into<String>,
         active_key_id: impl Into<String>,
@@ -30,7 +30,7 @@ impl SignedLinksConfig {
         }
     }
 
-    /// Sets the maximum accepted link lifetime in seconds.
+    /// 设置链接允许的最长有效期（秒）。
     #[must_use]
     pub const fn with_max_ttl_secs(mut self, max_ttl_secs: u64) -> Self {
         self.max_ttl_secs = max_ttl_secs;

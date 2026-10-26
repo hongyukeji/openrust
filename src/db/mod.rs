@@ -32,21 +32,21 @@ pub use sea_orm_migration;
 pub use seed::SeedPlugin;
 pub use table_names::DatabaseTableNames;
 
-/// A database backend included in OpenRust's official PostgreSQL/MySQL feature set.
+/// OpenRust 官方 PostgreSQL/MySQL feature 集支持的数据库后端。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DatabaseBackend {
-    /// PostgreSQL 14 or newer; daily development and CI target PostgreSQL 18.
+    /// PostgreSQL 14 或更高版本；日常开发与 CI 使用 PostgreSQL 18。
     PostgreSql,
-    /// MySQL 8.0 or newer; daily development and CI target MySQL 8.4 LTS.
+    /// MySQL 8.0 或更高版本；日常开发与 CI 使用 MySQL 8.4 LTS。
     MySql,
 }
 
 impl DatabaseBackend {
-    /// Identifies one of the official backends from its connection URL scheme.
+    /// 根据连接 URL scheme 识别一种官方支持的后端。
     ///
     /// # Errors
     ///
-    /// Returns a configuration error for URL schemes outside the official backend set.
+    /// URL scheme 不属于官方支持的后端时，返回配置错误。
     pub fn from_url(url: &str) -> Result<Self> {
         if url.starts_with("postgres://") || url.starts_with("postgresql://") {
             Ok(Self::PostgreSql)
@@ -60,7 +60,7 @@ impl DatabaseBackend {
         }
     }
 
-    /// Returns whether this backend's Cargo feature is enabled in the `openrust` package.
+    /// 返回 `openrust` package 是否启用了此后端对应的 Cargo feature。
     pub const fn is_enabled(self) -> bool {
         match self {
             Self::PostgreSql => cfg!(feature = "db-postgres"),
@@ -68,7 +68,7 @@ impl DatabaseBackend {
         }
     }
 
-    /// Cargo feature required to compile this backend.
+    /// 编译此后端所需的 Cargo feature。
     pub const fn feature(self) -> &'static str {
         match self {
             Self::PostgreSql => "db-postgres",
@@ -84,7 +84,7 @@ impl DatabaseBackend {
     }
 }
 
-/// Cloneable handle to the database connection pool registered by [`DatabasePlugin`].
+/// 对 [`DatabasePlugin`] 注册的数据库连接池的可克隆句柄。
 #[derive(Clone, Default)]
 pub struct Db {
     connections: Arc<OnceLock<DatabaseConnections>>,
@@ -99,28 +99,26 @@ struct DatabaseConnections {
 }
 
 impl Db {
-    /// Installs a SeaORM connection supplied by a custom database plugin.
+    /// 安装自定义数据库插件提供的 SeaORM 连接。
     ///
-    /// Custom plugins can register `Db::default()` during `build`, then connect and call this
-    /// method during `finish`. The connection must use a backend supported by SeaORM. This keeps
-    /// transactions, migrations, and seeds on the same framework service; custom plugins remain
-    /// responsible for validating capabilities their application requires.
+    /// 自定义插件可在 `build` 阶段注册 `Db::default()`，随后建立连接并在 `finish` 阶段调用此方法。
+    /// 连接必须使用 SeaORM 支持的后端。这样事务、迁移和种子操作都会使用同一个框架服务；自定义插件仍须
+    /// 验证应用所需的能力。
     ///
     /// # Errors
     ///
-    /// Returns an error when this handle has already been initialized.
+    /// 此句柄已初始化时返回错误。
     pub fn initialize(&self, connection: DatabaseConnection) -> Result<()> {
         self.initialize_with_replicas(connection, Vec::new())
     }
 
-    /// Installs the primary and optional read-only replica pools for a custom database plugin.
+    /// 为自定义数据库插件安装主库连接池和可选的只读副本连接池。
     ///
-    /// Every pool must use the same backend. The framework does not configure or verify database
-    /// replication; callers must ensure replicas are read-only and accept replication lag.
+    /// 所有连接池必须使用相同后端。框架不会配置或验证数据库复制；调用方必须确保副本为只读，并接受复制延迟。
     ///
     /// # Errors
     ///
-    /// Returns an error if a pool has a different backend or this handle was already initialized.
+    /// 任一连接池使用了不同后端，或此句柄已初始化时返回错误。
     pub fn initialize_with_replicas(
         &self,
         primary: DatabaseConnection,
@@ -150,7 +148,7 @@ impl Db {
             })
     }
 
-    /// Creates a database handle using the supplied immutable table-name resolver.
+    /// 使用传入的不可变表名解析器创建数据库句柄。
     pub fn with_table_names(table_names: DatabaseTableNames) -> Self {
         Self {
             connections: Arc::new(OnceLock::new()),
@@ -159,7 +157,7 @@ impl Db {
         }
     }
 
-    /// Returns the configured physical table name for a logical name.
+    /// 返回逻辑表名对应的已配置物理表名。
     pub fn table_name(&self, logical_name: &str) -> Result<String> {
         let backend = self.backend()?;
         self.table_names.resolve(logical_name).and_then(|name| {
@@ -168,35 +166,35 @@ impl Db {
         })
     }
 
-    /// Returns the configured and backend-quoted physical table name.
+    /// 返回经过后端引用符处理的已配置物理表名。
     pub fn quoted_table_name(&self, logical_name: &str) -> Result<String> {
         self.table_names.quote(logical_name, self.backend()?)
     }
 
-    /// Clones the immutable resolver used by this database handle.
+    /// 克隆此数据库句柄使用的不可变解析器。
     pub fn table_names(&self) -> DatabaseTableNames {
         self.table_names.as_ref().clone()
     }
 
-    /// Returns the initialized SeaORM backend for this connection.
+    /// 返回此连接已初始化的 SeaORM 后端。
     ///
     /// # Errors
     ///
-    /// Returns an internal error if the pool is not initialized.
+    /// 连接池尚未初始化时返回内部错误。
     pub fn backend(&self) -> Result<DbBackend> {
         Ok(self.primary_connection()?.get_database_backend())
     }
 
-    /// Returns a clone of the initialized SeaORM connection pool.
+    /// 返回已初始化 SeaORM 连接池的克隆。
     ///
     /// # Errors
     ///
-    /// Returns an internal error if the database plugin has not finished initializing.
+    /// 数据库插件尚未完成初始化时返回内部错误。
     pub fn connection(&self) -> Result<DatabaseConnection> {
         self.primary_connection()
     }
 
-    /// Returns a clone of the primary SeaORM connection pool.
+    /// 返回主库 SeaORM 连接池的克隆。
     pub fn primary_connection(&self) -> Result<DatabaseConnection> {
         self.connections
             .get()
@@ -204,11 +202,10 @@ impl Db {
             .ok_or_else(|| Error::internal(DatabaseNotReady))
     }
 
-    /// Returns a read connection selected by round robin, or the primary when no replicas exist.
+    /// 以轮询方式返回一个读连接；没有副本时返回主库连接。
     ///
-    /// The caller must perform only read-only work that can tolerate replication lag. This method
-    /// does not inspect SQL and does not retry or fall back after a query error. Within
-    /// [`with_primary`](Self::with_primary), it always returns the primary.
+    /// 调用方只能在此连接上执行可接受复制延迟的只读操作。此方法不会检查 SQL，也不会在查询出错后重试或回退。
+    /// 在 [`with_primary`](Self::with_primary) 作用域中，此方法始终返回主库连接。
     pub fn read_connection(&self) -> Result<DatabaseConnection> {
         let connections = self
             .connections
@@ -227,11 +224,9 @@ impl Db {
         Ok(connections.read_replicas[index].clone())
     }
 
-    /// Runs a future in a task-local scope where [`read_connection`](Self::read_connection)
-    /// returns this handle's primary connection.
+    /// 在任务本地作用域内运行 future；作用域中的 [`read_connection`](Self::read_connection) 会返回此句柄的主库连接。
     ///
-    /// The scope does not propagate to independently spawned Tokio tasks. Nesting scopes for the
-    /// same handle restores the outer scope when the inner future completes.
+    /// 此作用域不会传播到独立创建的 Tokio task。为同一句柄嵌套作用域时，内层 future 完成后会恢复外层作用域。
     pub async fn with_primary<F: std::future::Future>(&self, future: F) -> Result<F::Output> {
         let primary = self.primary_connection()?;
         Ok(PRIMARY_CONNECTION_SCOPE
@@ -239,14 +234,13 @@ impl Db {
             .await)
     }
 
-    /// Runs an operation in a database transaction.
+    /// 在数据库事务中运行操作。
     ///
-    /// The callback's error rolls back the transaction. A successful callback commits it.
+    /// 回调返回错误时回滚事务；回调成功时提交事务。
     ///
     /// # Errors
     ///
-    /// Returns an internal error if the pool is not initialized, transaction setup or completion
-    /// fails, or the callback returns an error.
+    /// 连接池尚未初始化、事务开始或完成失败，或回调返回错误时，返回内部错误。
     pub async fn transaction<T, F>(&self, callback: F) -> Result<T>
     where
         T: Send,
@@ -272,10 +266,10 @@ impl fmt::Debug for Db {
     }
 }
 
-/// Installs the configured PostgreSQL or MySQL connection pool as the [`Db`] application service.
+/// 将已配置的 PostgreSQL 或 MySQL 连接池安装为 [`Db`] 应用服务。
 ///
-/// Enable `db-postgres` or `db-mysql` on `openrust` to include a driver. The application must
-/// provide a URL under `[database].url`, `DATABASE_URL`, or `APP_DATABASE__URL`.
+/// 在 `openrust` 上启用 `db-postgres` 或 `db-mysql` 以包含相应驱动。应用必须通过 `[database].url`、
+/// `DATABASE_URL` 或 `APP_DATABASE__URL` 提供 URL。
 #[derive(Debug, Default, Clone, Copy)]
 pub struct DatabasePlugin;
 

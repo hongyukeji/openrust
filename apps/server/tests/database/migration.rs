@@ -1,4 +1,4 @@
-//! Exercises the runtime migration command against the selected database backend.
+//! 针对所选数据库 backend 验证运行时迁移命令。
 #![cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 
 use axum::body::Body;
@@ -293,7 +293,7 @@ async fn verify_rate_limiter(
     db_service: &Db,
     limiter: &RateLimiter,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // Independent service/store instances contend through the database row, as separate nodes do.
+    // 独立 service/store 实例通过数据库行竞争，模拟不同节点之间的行为。
     let second_node = RateLimiter::new(DatabaseRateLimitStore::new(db_service.clone()));
     let mut requests = tokio::task::JoinSet::new();
     for index in 0..12 {

@@ -1,4 +1,4 @@
-//! PostgreSQL and MySQL integration checks for shared account and credential state.
+//! 验证 PostgreSQL 和 MySQL 上共享账户与凭据状态的集成行为。
 #![cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
 
 use std::{collections::HashMap, error::Error as StdError, sync::Arc};
@@ -1082,7 +1082,7 @@ async fn auth_flows_run_registration_login_refresh_reset_and_logout_on_the_confi
 }
 
 #[tokio::test]
-// This single fixture verifies both route-level role checks and PAT scope intersection.
+// 此 fixture 同时验证路由级角色检查与 PAT scope 交集。
 #[allow(clippy::too_many_lines)]
 async fn policy_grants_and_revocations_are_visible_to_authenticated_routes() -> TestResult {
     let Ok(url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {

@@ -1,4 +1,4 @@
-//! Application entry point.
+//! 应用程序入口。
 
 mod app;
 mod routes;

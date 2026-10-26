@@ -1,28 +1,28 @@
-//! PostgreSQL/MySQL connection and pool configuration.
+//! PostgreSQL/MySQL 连接与连接池配置。
 
 use std::fmt;
 
 use serde::Deserialize;
 
-/// Database connection and pool settings from the `[database]` configuration section.
+/// `[database]` 配置区段中的数据库连接和连接池设置。
 #[derive(Clone, Deserialize)]
 #[serde(default)]
 pub struct DatabaseConfig {
-    /// Database connection URL. `DATABASE_URL` and `APP_DATABASE__URL` map here.
+    /// 数据库连接 URL。`DATABASE_URL` 和 `APP_DATABASE__URL` 均映射到此字段。
     pub url: Option<String>,
-    /// Optional read-only replica URLs. Each replica uses the same pool limits as the primary.
+    /// 可选的只读副本 URL。每个副本使用与主库相同的连接池限制。
     pub read_replicas: Vec<String>,
-    /// Maximum number of open pooled connections.
+    /// 连接池允许打开的最大连接数。
     pub max_connections: u32,
-    /// Minimum number of open pooled connections.
+    /// 连接池维持的最少打开连接数。
     pub min_connections: u32,
-    /// Maximum time to establish a connection, in seconds.
+    /// 建立连接的最长等待时间（秒）。
     pub connect_timeout_secs: u64,
-    /// Maximum time to wait for an available pooled connection, in seconds.
+    /// 等待可用池连接的最长时间（秒）。
     pub acquire_timeout_secs: u64,
-    /// Prefix applied to logical framework table names unless a full-name mapping overrides it.
+    /// 应用于框架逻辑表名的前缀；若设置完整名称映射，则以映射为准。
     pub table_prefix: String,
-    /// Maps logical table names to complete physical names, without applying `table_prefix`.
+    /// 将逻辑表名映射为完整物理表名，不再应用 `table_prefix`。
     pub table_names: std::collections::BTreeMap<String, String>,
 }
 

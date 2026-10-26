@@ -1,4 +1,4 @@
-//! Small, repeatable query-path comparison for the primary and explicit read route.
+//! 对主库和显式只读路由进行小规模、可重复的查询路径比较。
 
 use std::time::{Duration, Instant};
 

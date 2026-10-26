@@ -1,4 +1,4 @@
-//! Strictly configured JWT access-token signing and validation.
+//! 严格配置的 JWT access token 签名与校验。
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, OnceLock};
@@ -17,7 +17,7 @@ const ACCESS_TOKEN_TYPE: &str = "openrust-at+jwt";
 const MIN_KEY_BYTES: usize = 32;
 const MAX_IAT_FUTURE_SKEW_SECS: u64 = 30;
 
-/// Shared signer and verifier for OpenRust access tokens.
+/// OpenRust access token 的共享签名与验证器。
 #[derive(Clone)]
 pub struct JwtTokens {
     inner: Arc<JwtTokenConfig>,
@@ -36,7 +36,7 @@ impl std::fmt::Debug for JwtTokens {
 }
 
 impl JwtTokens {
-    /// Validates configuration and builds a reusable signer/verifier key ring.
+    /// 校验配置并构建可复用的签名/验证密钥环。
     pub fn new(config: JwtConfig) -> Result<Self> {
         validate_config(&config)?;
         let mut keys = BTreeMap::new();
@@ -69,7 +69,7 @@ impl JwtTokens {
         })
     }
 
-    /// Signs a short-lived access token for a positive framework account ID.
+    /// 为正数框架账户 ID 签发短期 access token。
     pub fn issue_access_token(&self, user_id: i64) -> Result<String> {
         if user_id <= 0 {
             return Err(invalid_config("JWT subject must be a positive account ID"));
@@ -100,7 +100,7 @@ impl JwtTokens {
         encode(&header, &claims, &key.encoding).map_err(|_| Error::internal(TokenSigningError))
     }
 
-    /// Verifies an access token and returns its authenticated framework account ID.
+    /// 验证 access token 并返回通过身份验证的框架账户 ID。
     pub fn verify_access_token(&self, token: &str) -> Result<i64> {
         let header = decode_header(token).map_err(|_| Error::Unauthorized)?;
         if header.alg != Algorithm::HS256 || header.typ.as_deref() != Some(ACCESS_TOKEN_TYPE) {
@@ -137,14 +137,14 @@ impl JwtTokens {
     }
 }
 
-/// Registers [`JwtTokens`] from explicit configuration or the `auth.jwt` config section.
+/// 根据显式配置或 `auth.jwt` 配置区段注册 [`JwtTokens`]。
 pub struct JwtPlugin {
     config: Option<JwtConfig>,
     tokens: OnceLock<JwtTokens>,
 }
 
 impl JwtPlugin {
-    /// Loads JWT configuration from `[auth.jwt]` during application build.
+    /// 在构建应用时从 `[auth.jwt]` 加载 JWT 配置。
     pub fn new() -> Self {
         Self {
             config: None,
@@ -152,7 +152,7 @@ impl JwtPlugin {
         }
     }
 
-    /// Registers JWT tokens using explicit validated-at-startup configuration.
+    /// 使用已在启动时校验的显式配置注册 JWT token 服务。
     pub fn with_config(config: JwtConfig) -> Self {
         Self {
             config: Some(config),

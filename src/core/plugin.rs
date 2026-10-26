@@ -1,4 +1,4 @@
-//! Service plugins: the single extension point of an OpenRust application.
+//! 服务插件：OpenRust 应用的统一扩展入口。
 
 use std::any::type_name;
 use std::future::Future;
@@ -7,15 +7,14 @@ use std::pin::Pin;
 use crate::core::app::{App, AppBuilder};
 use crate::core::error::Result;
 
-/// Boxed, `Send` future used by object-safe async hooks.
+/// 用于对象安全异步扩展的装箱 `Send` future。
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
-/// Builds and finishes one capability.
+/// 构建并完成一项能力的初始化。
 ///
-/// Framework crates (`DatabasePlugin`, `QueuePlugin`, …), application modules and third-party
-/// packages all implement this trait. [`build`](Self::build) runs synchronously while the
-/// [`AppBuilder`] is still mutable: add services, commands and hooks there. [`finish`](Self::finish)
-/// runs after every plugin has built and may perform async work such as opening pools.
+/// 框架 crate（`DatabasePlugin`、`QueuePlugin` 等）、应用模块和第三方 package 均可实现此 trait。
+/// [`build`](Self::build) 在 [`AppBuilder`] 仍可修改时同步运行，可在其中添加服务、命令和扩展。
+/// 所有插件构建完成后，[`finish`](Self::finish) 会执行，并可进行打开连接池等异步工作。
 ///
 /// ```
 /// use openrust::core::{App, AppBuilder, BoxFuture, Result, Plugin};
@@ -41,18 +40,18 @@ pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 /// }
 /// ```
 pub trait Plugin: Send + Sync + 'static {
-    /// Name used in logs and error messages. Defaults to the type name.
+    /// 日志和错误消息中使用的名称；默认采用类型名称。
     fn name(&self) -> &'static str {
         type_name::<Self>()
     }
 
-    /// Builds services, commands and hooks. Runs once, in build order.
+    /// 构建服务、命令和扩展；按构建顺序各运行一次。
     fn build(&self, app: &mut AppBuilder) -> Result<()> {
         let _ = app;
         Ok(())
     }
 
-    /// Performs async initialisation after all plugins built.
+    /// 所有插件构建后执行异步初始化。
     fn finish<'a>(&'a self, app: &'a App) -> BoxFuture<'a, Result<()>> {
         let _ = app;
         Box::pin(async { Ok(()) })

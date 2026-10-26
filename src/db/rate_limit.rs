@@ -1,4 +1,4 @@
-//! PostgreSQL/MySQL atomic fixed-window rate-limit storage.
+//! PostgreSQL/MySQL 原子固定窗口限流存储。
 
 use crate::core::{RateLimitBucket, RateLimitFuture, RateLimitStore, Result};
 use sea_orm::{ConnectionTrait, DbBackend, Statement, TransactionTrait};
@@ -24,7 +24,7 @@ enum RateLimitTable {
     HitCount,
 }
 
-/// Creates the shared fixed-window rate-limit table.
+/// 创建共享固定窗口限流表。
 pub struct DatabaseRateLimitMigration;
 
 impl MigrationName for DatabaseRateLimitMigration {
@@ -95,7 +95,7 @@ fn migration_table_alias(
         .map_err(|error| DbErr::Migration(error.to_string()))
 }
 
-/// Shared-database store for [`crate::core::RateLimiter`].
+/// 为 [`crate::core::RateLimiter`] 提供的共享数据库存储。
 #[derive(Clone)]
 pub struct DatabaseRateLimitStore {
     db: Db,
@@ -109,7 +109,7 @@ impl std::fmt::Debug for DatabaseRateLimitStore {
 }
 
 impl DatabaseRateLimitStore {
-    /// Creates a store using the application's configured shared database and table resolver.
+    /// 使用应用配置的共享数据库和表名解析器创建存储。
     pub fn new(db: Db) -> Self {
         Self {
             db,

@@ -1,4 +1,4 @@
-//! Smallest possible OpenRust application. Run with `cargo run -p openrust --example hello -- help`.
+//! 最小 OpenRust 应用。运行 `cargo run -p openrust --example hello -- help` 查看帮助。
 
 use openrust::http::HttpPlugin;
 use openrust::prelude::*;

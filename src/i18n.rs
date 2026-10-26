@@ -1,4 +1,4 @@
-//! Request-scoped message catalogs and locale selection.
+//! 请求作用域的消息目录与 locale 选择。
 
 use std::collections::BTreeMap;
 use std::future::Future;
@@ -11,18 +11,18 @@ use serde::{Deserialize, Serialize};
 use crate::config::ConfigError;
 use crate::core::{AppBuilder, Error, Plugin, Result};
 
-/// Canonical language tag used by an application message catalog.
+/// 应用消息目录使用的规范语言标签。
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
 pub struct Locale(String);
 
 impl Locale {
-    /// Parses and canonicalizes a language tag such as `en` or `zh-CN`.
+    /// 解析并规范化语言标签，例如 `en` 或 `zh-CN`。
     pub fn new(value: impl AsRef<str>) -> Result<Self, ConfigError> {
         normalize_locale(value.as_ref()).map(Self)
     }
 
-    /// Returns the canonical language tag.
+    /// 返回规范化后的语言标签。
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -52,10 +52,10 @@ impl From<Locale> for String {
     }
 }
 
-/// Named string arguments for message templates.
+/// 消息模板使用的具名字符串参数。
 pub type MessageArgs = BTreeMap<String, String>;
 
-/// Immutable locale-to-message map. Application resources overlay built-in messages by key.
+/// 不可变的 locale 到消息映射。应用资源按 key 覆盖内置消息。
 #[derive(Debug, Clone)]
 pub struct MessageCatalog {
     messages: BTreeMap<Locale, BTreeMap<String, String>>,
@@ -73,12 +73,12 @@ impl Default for MessageCatalog {
 }
 
 impl MessageCatalog {
-    /// Creates a catalog containing framework English and Simplified Chinese messages.
+    /// 创建包含框架英文和简体中文消息的目录。
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Loads a JSON object of `message_key: template` entries and merges it into `locale`.
+    /// 加载由 `message_key: template` 条目组成的 JSON 对象，并将其合并到 `locale`。
     pub fn merge_json(
         &mut self,
         locale: impl AsRef<str>,
@@ -94,7 +94,7 @@ impl MessageCatalog {
         Ok(())
     }
 
-    /// Adds or replaces one message template.
+    /// 添加或替换一条消息模板。
     pub fn insert(
         &mut self,
         locale: impl AsRef<str>,
@@ -109,7 +109,7 @@ impl MessageCatalog {
         Ok(())
     }
 
-    /// Returns all locale tags that contain resources.
+    /// 返回包含资源的全部 locale 标签。
     pub fn locales(&self) -> impl Iterator<Item = &Locale> {
         self.messages.keys()
     }
@@ -143,13 +143,13 @@ fn messages(entries: &[(&str, &str)]) -> BTreeMap<String, String> {
         .collect()
 }
 
-/// Language defaults used when an incoming request has no supported language preference.
+/// 传入请求没有受支持的语言偏好时使用的默认语言设置。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct I18nConfig {
-    /// Locale used when no supported request language is present.
+    /// 请求中没有受支持的语言时使用的 locale。
     pub default_locale: Locale,
-    /// Final locale used when neither the selected locale nor its language has a message.
+    /// 所选 locale 及其语言都没有对应消息时使用的最终回退 locale。
     pub fallback_locale: Locale,
 }
 
@@ -162,7 +162,7 @@ impl Default for I18nConfig {
     }
 }
 
-/// Application internationalization service, safe to share across requests.
+/// 可在多个请求间安全共享的应用国际化服务。
 #[derive(Debug, Clone)]
 pub struct I18n {
     config: I18nConfig,
@@ -170,7 +170,7 @@ pub struct I18n {
 }
 
 impl I18n {
-    /// Creates the service and validates that both configured defaults have resources.
+    /// 创建服务，并校验两个已配置的默认 locale 均存在资源。
     pub fn new(config: I18nConfig, catalog: MessageCatalog) -> Result<Self, ConfigError> {
         for (key, locale) in [
             ("i18n.default_locale", &config.default_locale),
@@ -188,7 +188,7 @@ impl I18n {
         })
     }
 
-    /// Selects the best supported locale from an `Accept-Language` header.
+    /// 根据 `Accept-Language` 请求头选择最匹配的受支持 locale。
     pub fn select(&self, accept_language: Option<&str>) -> Locale {
         let Some(header) = accept_language else {
             return self.config.default_locale.clone();
@@ -233,7 +233,7 @@ impl I18n {
             .unwrap_or_else(|| self.config.default_locale.clone())
     }
 
-    /// Resolves a key using the selected locale and configured fallback, then replaces `{name}` arguments.
+    /// 使用所选 locale 和已配置的回退规则解析 key，然后替换 `{name}` 参数。
     pub fn translate(&self, locale: &Locale, key: &str, args: &MessageArgs) -> String {
         let template = self.catalog.template(locale, key).or_else(|| {
             self.catalog
@@ -245,7 +245,7 @@ impl I18n {
         template.map_or_else(|| key.to_owned(), |value| interpolate(value, args))
     }
 
-    /// Runs a future with an explicit locale, overriding the locale selected from the request header.
+    /// 使用显式 locale 执行 future，并覆盖从请求头中选择的 locale。
     pub async fn with_locale<F: Future>(&self, locale: Locale, future: F) -> F::Output {
         I18N_CONTEXT
             .scope(
@@ -263,7 +263,7 @@ impl I18n {
     }
 }
 
-/// Installs a configured internationalization service into application state.
+/// 将已配置的国际化服务安装到应用状态中。
 #[derive(Default)]
 pub struct I18nPlugin {
     config: Option<I18nConfig>,
@@ -271,7 +271,7 @@ pub struct I18nPlugin {
 }
 
 impl I18nPlugin {
-    /// Creates a plugin from an application-specific catalog and language defaults.
+    /// 使用应用专属消息目录和默认语言创建插件。
     pub fn new(config: I18nConfig, catalog: MessageCatalog) -> Result<Self, ConfigError> {
         I18n::new(config.clone(), catalog.clone())?;
         Ok(Self {
@@ -296,22 +296,22 @@ impl Plugin for I18nPlugin {
     }
 }
 
-/// The locale selected for the current HTTP request.
+/// 为当前 HTTP 请求选择的 locale。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RequestLocale(Locale);
 
 impl RequestLocale {
-    /// Returns the selected canonical locale tag.
+    /// 返回所选的规范 locale 标签。
     pub fn as_str(&self) -> &str {
         self.0.as_str()
     }
 
-    /// Returns the selected locale.
+    /// 返回所选 locale。
     pub fn locale(&self) -> &Locale {
         &self.0
     }
 
-    /// Translates a message using the current application's catalog.
+    /// 使用当前应用的消息目录翻译消息。
     pub fn translate(&self, i18n: &I18n, key: &str, args: &MessageArgs) -> String {
         i18n.translate(&self.0, key, args)
     }

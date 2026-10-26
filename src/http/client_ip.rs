@@ -1,4 +1,4 @@
-//! Trusted-proxy-aware client address extraction.
+//! 支持可信代理的客户端地址提取。
 
 use std::net::{IpAddr, SocketAddr};
 
@@ -8,12 +8,12 @@ use http::{HeaderMap, header::HeaderName, request::Parts};
 
 const X_FORWARDED_FOR: HeaderName = HeaderName::from_static("x-forwarded-for");
 
-/// The request's client IP, resolved from the socket peer and configured trusted proxies.
+/// 根据 socket 对端地址和已配置的可信代理解析出的请求客户端 IP。
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ClientIp(IpAddr);
 
 impl ClientIp {
-    /// Returns the client IP selected for this request.
+    /// 返回为此请求确定的客户端 IP。
     pub const fn ip(self) -> IpAddr {
         self.0
     }
@@ -46,7 +46,7 @@ impl FromRequestParts<AppState> for ClientIp {
     }
 }
 
-/// Validates the trusted-proxy configuration before the server begins accepting requests.
+/// 在服务器开始接受请求前校验可信代理配置。
 pub(crate) fn validate_trusted_proxy_ranges(ranges: &[String]) -> Result<()> {
     parse_ranges(ranges).map(|_| ())
 }

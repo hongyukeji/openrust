@@ -1,8 +1,7 @@
-//! Typed, ordered in-process events with explicit durable queue listeners.
+//! 类型化、有序的进程内事件，以及显式持久化的队列监听器。
 //!
-//! In-process listeners run in registration order and stop at the first error. They are not
-//! persisted or broadcast across processes. Use a queued listener inside the business transaction
-//! when delivery must survive a process exit.
+//! 进程内监听器按注册顺序运行，并在遇到首个错误时停止。事件不会持久化，也不会跨进程广播。
+//! 若派发必须在进程退出后继续，应在业务事务中使用队列监听器。
 
 use std::{
     any::{Any, TypeId},
@@ -15,14 +14,14 @@ use crate::{
     db::DatabaseTransaction,
 };
 
-/// Context available to an event listener.
+/// 事件监听器可访问的上下文。
 #[derive(Clone, Copy)]
 pub struct EventContext<'a> {
     transaction: Option<&'a DatabaseTransaction>,
 }
 
 impl<'a> EventContext<'a> {
-    /// Returns the caller's transaction when dispatch used [`Events::dispatch_in_transaction`].
+    /// 通过 [`Events::dispatch_in_transaction`] 派发时，返回调用方的事务。
     pub const fn transaction(&self) -> Option<&'a DatabaseTransaction> {
         self.transaction
     }
@@ -77,19 +76,19 @@ enum ListenerRegistration {
     },
 }
 
-/// Registers application event listeners in deterministic order.
+/// 按确定的顺序注册应用事件监听器。
 #[derive(Default)]
 pub struct EventsPlugin {
     listeners: Vec<ListenerRegistration>,
 }
 
 impl EventsPlugin {
-    /// Creates an empty listener registry.
+    /// 创建空的监听器注册表。
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Registers an async listener for one concrete event type.
+    /// 为一种具体事件类型注册异步监听器。
     pub fn listen<E, F>(&mut self, handler: F) -> &mut Self
     where
         E: Any + Send + Sync + 'static,
@@ -106,11 +105,10 @@ impl EventsPlugin {
         self
     }
 
-    /// Registers a durable listener that maps an event to a registered queue job.
+    /// 注册持久化监听器，将事件映射为已注册的队列任务。
     ///
-    /// `QueuePlugin` must be registered before this plugin, and the returned job is executed
-    /// at least once by an explicitly started worker. Inside a transaction dispatch, the job
-    /// insert uses the same transaction and is removed if that transaction rolls back.
+    /// 必须先于此插件注册 `QueuePlugin`，且显式启动的 worker 会至少执行一次所生成的任务。
+    /// 在事务中派发时，任务会使用同一个事务插入；若事务回滚，任务也会被撤销。
     #[cfg(feature = "queue")]
     pub fn listen_queued<E, J, F>(&mut self, queue_name: impl Into<String>, map: F) -> &mut Self
     where
@@ -224,17 +222,17 @@ impl Plugin for EventsPlugin {
     }
 }
 
-/// Application-scoped typed event dispatcher.
+/// 应用作用域内的类型化事件派发器。
 #[derive(Clone)]
 pub struct Events {
     listeners: Vec<Arc<dyn ErasedListener>>,
 }
 
 impl Events {
-    /// Delivers an event to matching listeners in registration order.
+    /// 按注册顺序将事件发送给匹配的监听器。
     ///
-    /// The first listener error stops dispatch and propagates to the caller. This process-local
-    /// operation is neither persisted nor broadcast across application processes.
+    /// 首个监听器错误会停止派发并向调用方传播。此操作仅在当前进程中执行，不会持久化，
+    /// 也不会在应用进程间广播。
     pub async fn dispatch<E>(&self, event: &E) -> Result<()>
     where
         E: Any + Send + Sync + 'static,
@@ -242,11 +240,10 @@ impl Events {
         self.dispatch_with_transaction(event, None).await
     }
 
-    /// Delivers an event with the caller's active transaction in its listener context.
+    /// 派发事件，并在监听器上下文中提供调用方当前事务。
     ///
-    /// Propagate errors from this method out of the transaction callback to roll back business
-    /// writes and any queued listener jobs. This method does not commit the transaction. A direct
-    /// listener must not perform irreversible external side effects here; use `listen_queued`.
+    /// 应将此方法的错误传播到事务回调之外，以回滚业务写入和队列监听任务。此方法不会提交事务。
+    /// 直接监听器不得在此执行不可逆的外部副作用；请改用 `listen_queued`。
     pub async fn dispatch_in_transaction<E>(
         &self,
         transaction: &DatabaseTransaction,

@@ -1,4 +1,4 @@
-//! End-to-end checks for the generated authentication routes.
+//! 验证生成的认证路由端到端行为。
 
 #[path = "../src/app.rs"]
 mod app;
@@ -311,8 +311,8 @@ async fn run_auth_flow(
         }),
     )
     .await?;
-    // Generated API projects use the default AlwaysOk envelope mode; errors keep their stable
-    // machine code in JSON while the transport status remains 200.
+    // 生成的 API 项目默认使用 AlwaysOk envelope mode；错误会在 JSON 中保留稳定机器码，
+    // 同时 HTTP 传输状态仍为 200。
     assert_eq!(rate_limited.status, StatusCode::OK);
     assert_eq!(rate_limited.body["success"], false);
     assert_eq!(rate_limited.body["code"], "rate_limited");

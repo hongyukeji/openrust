@@ -1,4 +1,4 @@
-//! Application assembly: [`Application`], [`AppBuilder`], [`App`] and [`AppState`].
+//! 应用组装入口：[`Application`]、[`AppBuilder`]、[`App`] 和 [`AppState`]。
 
 use std::any::{Any, TypeId, type_name};
 use std::collections::HashMap;
@@ -12,7 +12,7 @@ use crate::core::command::Command;
 use crate::core::error::{Error, Result};
 use crate::core::plugin::Plugin;
 
-/// Implemented once per project to describe how the application is assembled.
+/// 每个项目实现一次，用于描述应用的组装方式。
 ///
 /// ```
 /// use openrust::core::{AppBuilder, Application};
@@ -30,23 +30,22 @@ use crate::core::plugin::Plugin;
 /// }
 /// ```
 pub trait Application: Send + Sync + 'static {
-    /// Application-specific configuration, extracted from the same layered sources as the
-    /// framework configuration and registered as a service. Use
-    /// [`NoConfig`](crate::config::NoConfig) when there is none.
+    /// 应用专属配置，与框架配置来自相同的分层配置源，并作为服务注册。
+    /// 没有应用专属配置时，请使用 [`NoConfig`](crate::config::NoConfig)。
     type Config: DeserializeOwned + Send + Sync + 'static;
 
-    /// Environment variable namespace used to bootstrap this application's configuration.
+    /// 用于引导加载此应用配置的环境变量命名空间。
     ///
-    /// The default is `APP_`; applications may return a value such as `SHOP_`.
+    /// 默认值为 `APP_`；应用也可以返回 `SHOP_` 等值。
     fn config_namespace() -> &'static str {
         "APP_"
     }
 
-    /// Registers plugins, routes, commands and services.
+    /// 注册插件、路由、命令和服务。
     fn build(app: &mut AppBuilder);
 }
 
-/// Error returned when a handler or command asks for a service nobody registered.
+/// 处理器或命令请求未注册服务时返回的错误。
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[error("service `{0}` is not registered; call `AppBuilder::insert` from a Plugin")]
 pub struct MissingServiceError(pub &'static str);
@@ -70,7 +69,7 @@ impl Registry {
 
 type Extensions = HashMap<TypeId, Box<dyn Any + Send + Sync>>;
 
-/// Mutable assembly stage. Plugins add services, commands and crate-specific hooks here.
+/// 可变的应用组装阶段。插件在此添加服务、命令和 crate 专属扩展。
 pub struct AppBuilder {
     framework: FrameworkConfig,
     figment: Figment,
@@ -81,7 +80,7 @@ pub struct AppBuilder {
 }
 
 impl AppBuilder {
-    /// Starts assembly from loaded framework configuration and its source [`Figment`].
+    /// 使用已加载的框架配置及其来源 [`Figment`] 开始组装。
     pub fn new(framework: FrameworkConfig, figment: Figment) -> Self {
         Self {
             framework,
@@ -93,12 +92,12 @@ impl AppBuilder {
         }
     }
 
-    /// Framework configuration.
+    /// 框架配置。
     pub fn config(&self) -> &FrameworkConfig {
         &self.framework
     }
 
-    /// Extracts one configuration section, e.g. `section::<DatabaseConfig>("database")`.
+    /// 提取一个配置区段，例如 `section::<DatabaseConfig>("database")`。
     pub fn section<T: DeserializeOwned>(&self, key: &str) -> Result<T, ConfigError> {
         Ok(self.figment.extract_inner(key)?)
     }
@@ -114,39 +113,39 @@ impl AppBuilder {
         })
     }
 
-    /// Queues a plugin. Plugins added while another plugin builds are processed too.
+    /// 排入插件。某个插件构建期间新增的插件也会继续处理。
     pub fn plugin(&mut self, plugin: impl Plugin) -> &mut Self {
         self.plugins.push(Box::new(plugin));
         self
     }
 
-    /// Registers a service, retrievable later via [`AppState::get`]. One instance per type.
+    /// 注册服务，之后可通过 [`AppState::get`] 获取；每种类型只允许一个实例。
     pub fn insert<T: Send + Sync + 'static>(&mut self, service: T) -> &mut Self {
         self.services.insert(service);
         self
     }
 
-    /// Looks up a service already registered by an earlier plugin.
+    /// 查找先前插件已注册的服务。
     pub fn get<T: Send + Sync + 'static>(&self) -> Option<Arc<T>> {
         self.services.get()
     }
 
-    /// Registers a runtime command.
+    /// 注册运行时命令。
     pub fn command(&mut self, command: impl Command) -> &mut Self {
         self.commands.push(Box::new(command));
         self
     }
 
-    /// Mutable access to a crate-specific hook container, created on first use.
+    /// 可变访问 crate 专属的扩展容器；首次访问时创建。
     ///
-    /// Capability crates use this to collect registrations (route builders, migrations, jobs)
-    /// during `build` and read them back from [`App::extension`] after the build.
+    /// 能力 crate 在 `build` 阶段用它收集注册项（路由构建器、迁移、任务），
+    /// 并在构建完成后通过 [`App::extension`] 读取。
     pub fn extension_mut<T: Default + Send + Sync + 'static>(&mut self) -> &mut T {
         let entry = self
             .extensions
             .entry(TypeId::of::<T>())
             .or_insert_with(|| Box::new(T::default()));
-        // The entry was inserted under `TypeId::of::<T>()`, so the downcast cannot fail.
+        // 此项以 `TypeId::of::<T>()` 为键插入，因此向下转型必定成功。
         entry
             .downcast_mut::<T>()
             .unwrap_or_else(|| unreachable!("extension stored under a mismatched TypeId"))
@@ -160,7 +159,7 @@ impl AppBuilder {
         !self.plugins.is_empty()
     }
 
-    /// Freezes the builder. Prefer [`finalize`](crate::lifecycle::finalize), which also runs plugins.
+    /// 冻结构建器。优先使用 [`finalize`](crate::lifecycle::finalize)，它还会运行插件。
     pub fn build(self) -> App {
         App {
             state: AppState {
@@ -181,24 +180,24 @@ struct StateInner {
     services: Registry,
 }
 
-/// Cheaply cloneable handle shared with every request and job: configuration plus services.
+/// 可低成本克隆、供每个请求和任务共享的句柄，包含配置和服务。
 #[derive(Clone)]
 pub struct AppState {
     inner: Arc<StateInner>,
 }
 
 impl AppState {
-    /// Framework configuration.
+    /// 框架配置。
     pub fn config(&self) -> &FrameworkConfig {
         &self.inner.framework
     }
 
-    /// Returns the registered service of type `T`, if any.
+    /// 返回已注册的 `T` 类型服务；若未注册则返回 `None`。
     pub fn get<T: Send + Sync + 'static>(&self) -> Option<Arc<T>> {
         self.inner.services.get()
     }
 
-    /// Returns the registered service of type `T`, or an error naming the missing type.
+    /// 返回已注册的 `T` 类型服务；若未注册则返回包含缺失类型名称的错误。
     pub fn try_get<T: Send + Sync + 'static>(&self) -> Result<Arc<T>> {
         self.get()
             .ok_or_else(|| Error::internal(MissingServiceError(type_name::<T>())))
@@ -214,7 +213,7 @@ impl std::fmt::Debug for AppState {
     }
 }
 
-/// Fully assembled application: immutable state, commands and crate hooks.
+/// 完整组装后的应用：不可变状态、命令和 crate 扩展。
 pub struct App {
     state: AppState,
     figment: Figment,
@@ -223,39 +222,39 @@ pub struct App {
 }
 
 impl App {
-    /// Shared state handed to HTTP handlers, jobs and commands.
+    /// 提供给 HTTP 处理器、任务和命令的共享状态。
     pub fn state(&self) -> &AppState {
         &self.state
     }
 
-    /// Framework configuration.
+    /// 框架配置。
     pub fn config(&self) -> &FrameworkConfig {
         self.state.config()
     }
 
-    /// Merged configuration source, for commands such as `config show`.
+    /// 合并后的配置来源，供 `config show` 等命令使用。
     pub fn figment(&self) -> &Figment {
         &self.figment
     }
 
-    /// Extracts one configuration section.
+    /// 提取一个配置区段。
     pub fn section<T: DeserializeOwned>(&self, key: &str) -> Result<T, ConfigError> {
         Ok(self.figment.extract_inner(key)?)
     }
 
-    /// Registered commands in registration order.
+    /// 按注册顺序排列的命令。
     pub fn commands(&self) -> impl Iterator<Item = &dyn Command> {
         self.commands.iter().map(AsRef::as_ref)
     }
 
-    /// Crate-specific hook container populated during registration.
+    /// 注册阶段填充的 crate 专属扩展容器。
     pub fn extension<T: Send + Sync + 'static>(&self) -> Option<&T> {
         self.extensions
             .get(&TypeId::of::<T>())
             .and_then(|item| item.downcast_ref::<T>())
     }
 
-    /// Runs the command called `name` with `args`.
+    /// 使用 `args` 运行名为 `name` 的命令。
     pub async fn run_command(&self, name: &str, args: Vec<String>) -> Result<()> {
         let available: Vec<&str> = self
             .commands()

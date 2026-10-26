@@ -1,4 +1,4 @@
-//! Verifies that a real process crash is recovered by the database job lease.
+//! 验证数据库任务租约能够恢复真实进程崩溃后的任务。
 #![cfg(all(feature = "queue", any(feature = "db-postgres", feature = "db-mysql")))]
 
 use figment::Figment;

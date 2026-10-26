@@ -1,4 +1,4 @@
-//! Database schema used by the default authenticator.
+//! 默认认证器使用的数据库 schema。
 
 use crate::db::{
     DatabaseTableNames, dialect,
@@ -107,19 +107,18 @@ enum TbAuthRolePermissions {
     PermissionId,
 }
 
-/// Creates the framework-owned account, generic Session, and personal token tables.
+/// 创建由框架管理的账户、通用 Session 和个人令牌表。
 ///
-/// Applications include this migration in their existing SeaORM migrator. Business user columns
-/// remain application-owned and relate by the stable `tb_users.id` value.
+/// 应用应将此 migration 加入现有 SeaORM migrator。业务用户列仍由应用管理，并通过稳定的 `tb_users.id` 关联。
 pub struct AuthMigration;
 
-/// Creates the append-only schema migration for refresh-token families.
+/// 创建 refresh token 家族的追加式 schema migration。
 pub struct AuthRefreshTokenMigration;
 
-/// Creates the shared one-time verification-code table.
+/// 创建共享的一次性验证码表。
 pub struct AuthVerificationCodeMigration;
 
-/// Creates the append-only role and permission schema used by [`crate::auth::Policy`].
+/// 创建 [`crate::auth::Policy`] 使用的追加式角色与权限 schema。
 pub struct AuthPolicyMigration;
 
 impl MigrationName for AuthRefreshTokenMigration {
@@ -232,7 +231,7 @@ impl MigrationName for AuthMigration {
 }
 
 #[async_trait::async_trait]
-// The three related tables and their cross-dialect indexes form one atomic migration schema.
+// 三张关联表及其跨数据库索引共同构成一个原子迁移 schema。
 #[allow(clippy::too_many_lines)]
 impl MigrationTrait for AuthMigration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
@@ -392,7 +391,7 @@ impl MigrationName for AuthPolicyMigration {
 }
 
 #[async_trait::async_trait]
-// The related RBAC tables and indexes are one append-only migration unit.
+// 相关 RBAC 表与索引构成一个追加式迁移单元。
 #[allow(clippy::too_many_lines)]
 impl MigrationTrait for AuthPolicyMigration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {

@@ -1,31 +1,31 @@
-//! HTTP server and middleware configuration.
+//! HTTP 服务器和 middleware 配置。
 
 use serde::{Deserialize, Serialize};
 
-/// `[server]` section: HTTP listener settings.
+/// `[server]` 区段：HTTP listener 设置。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ServerConfig {
-    /// Interface to bind.
+    /// 绑定的网络接口。
     pub host: String,
-    /// TCP port to bind.
+    /// 绑定的 TCP 端口。
     pub port: u16,
-    /// Per-request timeout in seconds; exceeding it yields `408 Request Timeout`.
+    /// 单个请求的超时时间（秒）；超过后返回 `408 Request Timeout`。
     pub request_timeout_secs: u64,
-    /// Grace period for in-flight requests after a shutdown signal.
+    /// 收到关闭信号后，为处理中请求保留的宽限时间。
     pub shutdown_timeout_secs: u64,
-    /// Proxy IP addresses or CIDRs allowed to supply `X-Forwarded-For`.
+    /// 允许提供 `X-Forwarded-For` 的代理 IP 地址或 CIDR。
     ///
-    /// An empty list ignores all forwarding headers and uses the socket peer address.
+    /// 列表为空时忽略所有转发头，并使用 socket 对端地址。
     pub trusted_proxy_ranges: Vec<String>,
-    /// Response compression settings.
+    /// 响应压缩设置。
     pub compression: CompressionConfig,
-    /// Cross-origin request settings.
+    /// 跨域请求设置。
     pub cors: CorsConfig,
 }
 
 impl ServerConfig {
-    /// `host:port` suitable for binding a listener.
+    /// 适用于绑定 listener 的 `host:port`。
     pub fn bind_addr(&self) -> String {
         format!("{}:{}", self.host, self.port)
     }
@@ -45,11 +45,11 @@ impl Default for ServerConfig {
     }
 }
 
-/// `[server.compression]` section: negotiated gzip and Brotli responses.
+/// `[server.compression]` 区段：协商使用 gzip 和 Brotli 响应压缩。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct CompressionConfig {
-    /// Enables response compression.
+    /// 启用响应压缩。
     pub enabled: bool,
 }
 
@@ -59,23 +59,23 @@ impl Default for CompressionConfig {
     }
 }
 
-/// `[server.cors]` section: cross-origin response policy.
+/// `[server.cors]` 区段：跨域响应策略。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct CorsConfig {
-    /// Enables CORS responses.
+    /// 启用 CORS 响应。
     pub enabled: bool,
-    /// Exact origins, or `["*"]` for every origin.
+    /// 精确来源列表；`["*"]` 表示允许所有来源。
     pub allowed_origins: Vec<String>,
-    /// Methods permitted in preflight requests.
+    /// 预检请求允许的方法。
     pub allowed_methods: Vec<String>,
-    /// Request headers permitted in preflight requests.
+    /// 预检请求允许的请求头。
     pub allowed_headers: Vec<String>,
-    /// Response headers visible to browser clients.
+    /// 浏览器客户端可见的响应头。
     pub expose_headers: Vec<String>,
-    /// Allows browser clients to send credentials.
+    /// 是否允许浏览器客户端发送凭据。
     pub allow_credentials: bool,
-    /// Preflight cache lifetime in seconds.
+    /// 预检结果的缓存时间（秒）。
     pub max_age_secs: u64,
 }
 

@@ -1,13 +1,13 @@
-//! Shared rate-limit service contract.
+//! 共享限流服务契约。
 
 use std::{fmt, future::Future, pin::Pin, sync::Arc, time::Duration};
 
 use crate::{Error, Result};
 
-/// A future returned by a [`RateLimitStore`].
+/// [`RateLimitStore`] 返回的 future。
 pub type RateLimitFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
-/// Atomic counter result for one key and fixed window.
+/// 单个 key 在固定时间窗口内的原子计数结果。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RateLimitBucket {
     count: u64,
@@ -15,7 +15,7 @@ pub struct RateLimitBucket {
 }
 
 impl RateLimitBucket {
-    /// Creates a bucket result for a custom store implementation.
+    /// 为自定义存储实现创建计数结果。
     pub fn new(count: u64, reset_after_secs: u64) -> Self {
         Self {
             count,
@@ -23,26 +23,24 @@ impl RateLimitBucket {
         }
     }
 
-    /// Returns the number of requests consumed in the active window.
+    /// 返回当前时间窗口内已消耗的请求数。
     pub const fn count(self) -> u64 {
         self.count
     }
 
-    /// Returns the number of seconds until the current window resets.
+    /// 返回当前时间窗口重置前的秒数。
     pub const fn reset_after_secs(self) -> u64 {
         self.reset_after_secs
     }
 }
 
-/// Storage contract for atomically counting a key within a fixed time window.
+/// 在固定时间窗口内原子计数 key 的存储契约。
 ///
-/// Implementations must not log or persist `key` in plaintext. Shared deployments must choose a
-/// store whose atomicity scope includes every application node that consumes the same quota.
-/// Callers must include a stable policy/scope identity in each key and use the same `window`
-/// wherever that key is consumed. Hashing a key is pseudonymization, not protection against
-/// guessing low-entropy values such as email addresses.
+/// 实现不得以明文记录或持久化 `key`。集群部署必须选择原子操作范围覆盖所有消耗同一配额的应用节点的存储。
+/// 调用方必须在每个 key 中包含稳定的策略/作用域标识，并在使用该 key 的各处采用相同的 `window`。
+/// 对 key 哈希只是假名化，不能防止攻击者猜测电子邮件地址等低熵值。
 pub trait RateLimitStore: Send + Sync + 'static {
-    /// Atomically consumes one hit and returns the updated count and reset delay.
+    /// 原子地消耗一次请求额度，并返回更新后的计数和重置延迟。
     fn consume<'a>(
         &'a self,
         key: &'a str,
@@ -50,7 +48,7 @@ pub trait RateLimitStore: Send + Sync + 'static {
     ) -> RateLimitFuture<'a, Result<RateLimitBucket>>;
 }
 
-/// Cloneable service that enforces a fixed-window request quota through a registered store.
+/// 可克隆的服务，通过已注册的存储实施固定窗口请求配额。
 #[derive(Clone)]
 pub struct RateLimiter {
     store: Arc<dyn RateLimitStore>,
@@ -63,18 +61,17 @@ impl fmt::Debug for RateLimiter {
 }
 
 impl RateLimiter {
-    /// Creates the service from a custom or framework-provided atomic store.
+    /// 使用自定义或框架提供的原子存储创建服务。
     pub fn new(store: impl RateLimitStore) -> Self {
         Self {
             store: Arc::new(store),
         }
     }
 
-    /// Consumes one request and returns its quota status, or a stable rate-limit error.
+    /// 消耗一次请求额度，并返回配额状态或稳定的限流错误。
     ///
-    /// The first `limit` calls in each window succeed. Later calls fail with HTTP 429 semantics
-    /// and a `Retry-After` delay from the store. Store failures are propagated and never treated
-    /// as permission to proceed.
+    /// 每个时间窗口内前 `limit` 次调用成功；之后的调用按 HTTP 429 语义失败，并返回存储给出的 `Retry-After` 延迟。
+    /// 存储故障会向上传播，绝不会被视为可以放行请求。
     pub async fn check(&self, key: &str, limit: u64, window: Duration) -> Result<RateLimitStatus> {
         if key.is_empty() || key.len() > 512 || key.bytes().any(|byte| byte.is_ascii_control()) {
             return Err(Error::custom(
@@ -104,7 +101,7 @@ impl RateLimiter {
     }
 }
 
-/// Successful status for a consumed request within its configured quota.
+/// 请求消耗配额后、仍处于配置额度内时返回的成功状态。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RateLimitStatus {
     limit: u64,
@@ -113,17 +110,17 @@ pub struct RateLimitStatus {
 }
 
 impl RateLimitStatus {
-    /// Returns the maximum number of requests accepted during the window.
+    /// 返回此时间窗口最多接受的请求数。
     pub const fn limit(self) -> u64 {
         self.limit
     }
 
-    /// Returns the number of accepted requests remaining in this window.
+    /// 返回此时间窗口内剩余的可接受请求数。
     pub const fn remaining(self) -> u64 {
         self.remaining
     }
 
-    /// Returns the seconds until this window resets.
+    /// 返回此时间窗口重置前的秒数。
     pub const fn reset_after_secs(self) -> u64 {
         self.reset_after_secs
     }

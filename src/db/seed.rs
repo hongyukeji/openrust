@@ -1,4 +1,4 @@
-//! Application-defined database seed functions and the `db seed` command.
+//! 应用自定义数据库种子函数与 `db seed` 命令。
 
 use std::{future::Future, sync::Arc};
 
@@ -6,16 +6,16 @@ use crate::core::{App, AppBuilder, BoxFuture, Command, Plugin, Result};
 
 use crate::db::Db;
 
-/// Registers an application seed function as the `db seed` runtime command.
+/// 将应用种子函数注册为 `db seed` 运行时命令。
 ///
-/// The application owns seed data and idempotency. Register this plugin alongside
+/// 种子数据及其幂等性由应用负责。将此插件与
 /// [`DatabasePlugin`](crate::db::DatabasePlugin).
 pub struct SeedPlugin<F> {
     seed: Arc<F>,
 }
 
 impl<F> SeedPlugin<F> {
-    /// Creates a seed command plugin from an async function that receives the database handle.
+    /// 根据接收数据库句柄的异步函数创建种子命令插件。
     pub fn new(seed: F) -> Self {
         Self {
             seed: Arc::new(seed),

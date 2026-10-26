@@ -1,4 +1,4 @@
-//! Common HTTP response wrappers and validated pagination parameters.
+//! 通用 HTTP 响应包装和已校验的分页参数。
 
 use std::collections::HashMap;
 use std::num::NonZeroU64;
@@ -11,7 +11,7 @@ use axum::http::{HeaderValue, StatusCode, header, request::Parts};
 use axum::response::{IntoResponse, Response};
 use serde::{Deserialize, Serialize};
 
-/// Marks a successful response as created in semantic HTTP mode.
+/// 在语义 HTTP 模式下，将成功响应标记为资源已创建。
 ///
 /// ```
 /// use openrust::http::{Created, Json};
@@ -32,14 +32,14 @@ impl<T: IntoResponse> IntoResponse for Created<T> {
     }
 }
 
-/// A created response with a validated `Location` header.
+/// 带有已校验 `Location` 响应头的资源创建响应。
 pub struct Located<T> {
     location: HeaderValue,
     body: T,
 }
 
 impl<T> Created<T> {
-    /// Creates a response with `Location`; invalid header values return an internal error.
+    /// 创建包含 `Location` 响应头的结果；响应头值无效时返回内部错误。
     pub fn with_location(location: &str, body: T) -> Result<Located<T>> {
         let location = HeaderValue::from_str(location).map_err(Error::internal)?;
         Ok(Located { location, body })
@@ -56,7 +56,7 @@ impl<T: IntoResponse> IntoResponse for Located<T> {
     }
 }
 
-/// Responds with a successful envelope containing `data: null`.
+/// 返回 `data: null` 的成功响应封装。
 pub struct NoContent;
 
 impl IntoResponse for NoContent {
@@ -65,17 +65,16 @@ impl IntoResponse for NoContent {
     }
 }
 
-/// One-based pagination parameters extracted from a query string.
+/// 从查询字符串中提取的分页参数，页码从 1 开始。
 ///
-/// Direct extraction defaults to page 1 and 20 items per page, and validates both fields
-/// and the zero-based offset against the `i64` database range. `Query<PageParams>`
-/// only deserializes the fields and does not perform this validation.
+/// 直接提取时默认第 1 页、每页 20 项，并校验两个字段以及从 0 开始的偏移量是否处于数据库 `i64` 范围内。
+/// `Query<PageParams>` 只负责反序列化字段，不执行这些校验。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 pub struct PageParams {
-    /// One-based page number, at least 1.
+    /// 从 1 开始的页码，最小值为 1。
     #[serde(default = "default_page")]
     pub page: u64,
-    /// Page size, between 1 and 100.
+    /// 每页条目数，范围为 1 到 100。
     #[serde(default = "default_per_page")]
     pub per_page: u64,
 }
@@ -98,12 +97,12 @@ impl Default for PageParams {
 }
 
 impl PageParams {
-    /// Zero-based offset; saturates if the product exceeds `u64`.
+    /// 从 0 开始的偏移量；乘积超过 `u64` 上限时会饱和。
     pub fn offset(self) -> u64 {
         self.page.saturating_sub(1).saturating_mul(self.per_page)
     }
 
-    /// Maximum number of items to fetch.
+    /// 最多获取的条目数。
     pub fn limit(self) -> u64 {
         self.per_page
     }
@@ -158,7 +157,7 @@ fn parse_param(
     })
 }
 
-/// A JSON page with its pagination metadata.
+/// 包含分页元数据的 JSON 分页结果。
 ///
 /// ```
 /// use openrust::http::{PageParams, Paginated};
@@ -172,7 +171,7 @@ pub struct Paginated<T> {
 }
 
 impl<T> Paginated<T> {
-    /// Builds a page from its items, validated parameters and total item count.
+    /// 根据条目、已校验的分页参数和条目总数构建分页结果。
     pub fn new(items: Vec<T>, params: PageParams, total: u64) -> Self {
         Self {
             items,

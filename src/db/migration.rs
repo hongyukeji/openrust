@@ -1,4 +1,4 @@
-//! Runtime migration command backed by SeaORM migration definitions.
+//! 基于 SeaORM migration 定义的运行时迁移命令。
 
 use std::marker::PhantomData;
 
@@ -7,14 +7,14 @@ use sea_orm_migration::MigratorTrait;
 
 use crate::db::Db;
 
-/// Registers the `migrate` runtime command for an application's migration set.
+/// 为应用的 migration 集注册 `migrate` 运行时命令。
 ///
-/// Register this plugin alongside [`DatabasePlugin`](crate::db::DatabasePlugin). The migration type is usually
-/// defined in the application's `migration` crate and implements [`MigratorTrait`].
+/// 将此插件与 [`DatabasePlugin`](crate::db::DatabasePlugin) 一同注册。migration 类型通常定义在应用的
+/// `migration` crate 中，并实现 [`MigratorTrait`]。
 pub struct MigrationPlugin<M>(PhantomData<fn() -> M>);
 
 impl<M> MigrationPlugin<M> {
-    /// Creates a migration command plugin for `M`.
+    /// 为 `M` 创建迁移命令插件。
     pub fn new() -> Self {
         Self(PhantomData)
     }

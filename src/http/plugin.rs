@@ -1,4 +1,4 @@
-//! [`HttpPlugin`] and the route registration hook.
+//! [`HttpPlugin`] 与路由注册扩展。
 
 use std::convert::Infallible;
 use std::future::Future;
@@ -26,36 +26,36 @@ struct RouterLayerRegistry {
     builders: Vec<RouterLayerBuilder>,
 }
 
-/// Route builders collected during registration, applied in order when the router is built.
+/// 注册阶段收集的路由构建器；构建 router 时按顺序应用。
 #[derive(Default)]
 pub struct RouteRegistry {
     builders: Vec<RouteBuilder>,
 }
 
 impl RouteRegistry {
-    /// Number of registered route builders.
+    /// 已注册的路由构建器数量。
     pub fn len(&self) -> usize {
         self.builders.len()
     }
 
-    /// `true` when nothing registered routes.
+    /// 没有注册任何路由时返回 `true`。
     pub fn is_empty(&self) -> bool {
         self.builders.is_empty()
     }
 }
 
-/// Adds routes and Tower layers to [`AppBuilder`].
+/// 向 [`AppBuilder`] 添加路由和 Tower layer。
 pub trait AppBuilderHttpExt {
-    /// Contributes routes. Call it from [`Application::build`](crate::core::Application::build)
-    /// or from a plugin's `build`; builders run in registration order.
+    /// 提供路由。请在 [`Application::build`](crate::core::Application::build) 中调用，
+    /// 或在插件的 `build` 阶段调用；构建器按注册顺序运行。
     fn routes<F>(&mut self, builder: F) -> &mut Self
     where
         F: Fn(Routes) -> Routes + Send + Sync + 'static;
 
-    /// Adds a Tower layer around all routes after route registration.
+    /// 路由注册完成后，为所有路由添加 Tower layer。
     ///
-    /// Capability plugins use this to install request context middleware that must run outside
-    /// route-level layers. The default HTTP response/error middleware remains outside this layer.
+    /// 能力插件可用此方法安装请求上下文 middleware，使其运行在路由级 layer 之外。
+    /// 默认 HTTP 响应/错误 middleware 仍运行在此 layer 之外。
     fn http_layer<L>(&mut self, layer: L) -> &mut Self
     where
         L: Layer<Route> + Clone + Send + Sync + 'static,
@@ -97,9 +97,9 @@ impl AppBuilderHttpExt for AppBuilder {
     }
 }
 
-/// Installs the HTTP capability: `serve` command, default middleware and `GET /health`.
+/// 安装 HTTP 能力：`serve` 命令、默认 middleware 和 `GET /health`。
 ///
-/// Applications install this explicitly with `app.plugin(HttpPlugin)`.
+/// 应用通过 `app.plugin(HttpPlugin)` 显式安装。
 pub struct HttpPlugin;
 
 impl Plugin for HttpPlugin {
@@ -113,7 +113,7 @@ impl Plugin for HttpPlugin {
     }
 }
 
-/// Builds the final [`Router`] from every registered route builder, wrapped in the default stack.
+/// 根据所有已注册的路由构建最终 [`Router`]，并套用默认 middleware stack。
 pub fn build_router(app: &App) -> Result<Router> {
     validate_trusted_proxy_ranges(&app.config().server.trusted_proxy_ranges)?;
     let mut routes = Routes::new();

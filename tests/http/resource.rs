@@ -1,4 +1,4 @@
-//! Resource routing and response contracts through axum's one-shot service.
+//! 通过 axum one-shot service 验证 Resource 路由与响应契约。
 
 use axum::body::{Body, to_bytes};
 use axum::extract::Path;

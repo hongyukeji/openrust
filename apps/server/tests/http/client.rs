@@ -1,4 +1,4 @@
-//! Verifies outbound HTTP support through the aggregate server package.
+//! 通过聚合 server package 验证出站 HTTP 支持。
 #![cfg(feature = "http-client")]
 
 use axum::Json;

@@ -1,13 +1,12 @@
-//! PostgreSQL and MySQL schema types with OpenRust's UTC and JSON conventions.
+//! 遵循 OpenRust UTC 与 JSON 约定的 PostgreSQL 和 MySQL schema 类型。
 
 use sea_orm_migration::sea_orm::sea_query::IntoIden;
 use sea_orm_migration::sea_orm::{DbBackend, DbErr, sea_query::ColumnDef};
 
-/// Creates a non-null UTC timestamp column for a supported database backend.
+/// 为受支持的数据库后端创建非空 UTC 时间戳列。
 ///
-/// PostgreSQL uses `TIMESTAMP WITH TIME ZONE`; MySQL uses `DATETIME(6)` to retain microseconds
-/// without the `TIMESTAMP` year-2038 limit. MySQL values are UTC because `DatabasePlugin` sets each
-/// connection's session time zone to `+00:00`.
+/// PostgreSQL 使用 `TIMESTAMP WITH TIME ZONE`；MySQL 使用 `DATETIME(6)` 保留微秒精度，避免 `TIMESTAMP`
+/// 的 2038 年上限。`DatabasePlugin` 会将每个 MySQL 连接的 session 时区设为 `+00:00`，因此 MySQL 值均为 UTC。
 pub fn timestamp_utc(name: impl IntoIden, backend: DbBackend) -> Result<ColumnDef, DbErr> {
     let mut column = ColumnDef::new(name);
     match backend {
@@ -18,10 +17,9 @@ pub fn timestamp_utc(name: impl IntoIden, backend: DbBackend) -> Result<ColumnDe
     Ok(column.not_null().take())
 }
 
-/// Creates a non-null JSON column using the native portable type for each supported backend.
+/// 使用各受支持后端的原生可移植类型创建非空 JSON 列。
 ///
-/// PostgreSQL uses `JSONB`; MySQL uses `JSON`. Query expressions that inspect JSON values remain
-/// backend-specific and belong in the dialect boundary too.
+/// PostgreSQL 使用 `JSONB`；MySQL 使用 `JSON`。检查 JSON 值的查询表达式仍与后端有关，也应放在 dialect 边界内。
 pub fn json(name: impl IntoIden, backend: DbBackend) -> Result<ColumnDef, DbErr> {
     match backend {
         DbBackend::MySql => Ok(ColumnDef::new(name).json().not_null().take()),

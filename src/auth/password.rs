@@ -1,4 +1,4 @@
-//! Argon2id password hashing primitives.
+//! Argon2id 密码哈希基础能力。
 
 use std::str::FromStr;
 
@@ -15,12 +15,12 @@ const MAX_MEMORY_KIB: u32 = 262_144;
 const MAX_ITERATIONS: u32 = 10;
 const MAX_PARALLELISM: u32 = 4;
 
-/// Encoded PHC password hash. It deliberately does not implement `Debug`.
+/// 编码后的 PHC 密码哈希。此类型有意不实现 `Debug`。
 #[derive(Clone, PartialEq, Eq)]
 pub struct EncodedPasswordHash(String);
 
 impl EncodedPasswordHash {
-    /// Parses a stored PHC string, returning an internal error for malformed data.
+    /// 解析已存储的 PHC 字符串；数据格式错误时返回内部错误。
     pub fn parse(value: impl Into<String>) -> Result<Self> {
         let value = value.into();
         let parsed = PasswordHash::new(&value).map_err(Error::internal)?;
@@ -28,26 +28,26 @@ impl EncodedPasswordHash {
         Ok(Self(value))
     }
 
-    /// Returns the encoded value for persistence.
+    /// 返回用于持久化的编码值。
     pub fn as_str(&self) -> &str {
         &self.0
     }
 }
 
-/// Password hashing and verification service.
+/// 密码哈希与校验服务。
 #[derive(Clone)]
 pub struct Passwords {
     config: PasswordConfig,
 }
 
 impl Passwords {
-    /// Creates a service after validating its resource-bounded Argon2id parameters.
+    /// 校验 Argon2id 参数的资源边界后创建服务。
     pub fn new(config: PasswordConfig) -> Result<Self> {
         validate_config(&config)?;
         Ok(Self { config })
     }
 
-    /// Hashes a non-empty password on Tokio's blocking pool using a random salt.
+    /// 使用随机盐在 Tokio 阻塞线程池中对非空密码生成哈希。
     pub async fn hash(&self, password: &str) -> Result<EncodedPasswordHash> {
         validate_password(password)?;
         let password = password.to_owned();
@@ -65,7 +65,7 @@ impl Passwords {
         .map_err(Error::internal)?
     }
 
-    /// Verifies a password on Tokio's blocking pool; a mismatch returns `Ok(false)`.
+    /// 在 Tokio 阻塞线程池中校验密码；不匹配时返回 `Ok(false)`。
     pub async fn verify(&self, password: &str, encoded: &EncodedPasswordHash) -> Result<bool> {
         validate_password(password)?;
         let password = password.to_owned();

@@ -1,4 +1,4 @@
-//! Real database queue dispatch, worker claim, failure and retry coverage.
+//! 验证真实数据库队列派发、worker 领取、失败和重试。
 #![cfg(all(feature = "queue", any(feature = "db-postgres", feature = "db-mysql")))]
 
 use figment::Figment;

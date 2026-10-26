@@ -1,4 +1,4 @@
-//! Purpose-bound one-time verification codes and store contract.
+//! 用途绑定的一次性验证码及其存储契约。
 
 use std::{
     fmt,
@@ -24,10 +24,10 @@ const MAX_DIGITS: u8 = 10;
 const MAX_LIFETIME_SECS: u64 = 86_400;
 const MAX_ATTEMPTS: u32 = 10;
 
-/// Future returned by a [`VerificationCodeStore`].
+/// [`VerificationCodeStore`] 返回的 future。
 pub type VerificationCodeFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
-/// Per-code expiry, resend interval, and attempt policy.
+/// 单个验证码的有效期、重发间隔和尝试次数策略。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VerificationCodePolicy {
     digits: u8,
@@ -37,7 +37,7 @@ pub struct VerificationCodePolicy {
 }
 
 impl VerificationCodePolicy {
-    /// Creates a bounded numeric-code policy.
+    /// 创建具有明确资源边界的数字验证码策略。
     pub fn new(
         digits: u8,
         lifetime: Duration,
@@ -71,22 +71,22 @@ impl VerificationCodePolicy {
         Ok(())
     }
 
-    /// Returns the number of decimal digits in newly issued codes.
+    /// 返回新签发验证码的十进制位数。
     pub const fn digits(self) -> u8 {
         self.digits
     }
 
-    /// Returns the code lifetime.
+    /// 返回验证码有效期。
     pub const fn lifetime(self) -> Duration {
         self.lifetime
     }
 
-    /// Returns the minimum interval between issues for one purpose and identity.
+    /// 返回同一用途和身份两次签发之间的最短间隔。
     pub const fn resend_after(self) -> Duration {
         self.resend_after
     }
 
-    /// Returns the maximum number of incorrect verification attempts.
+    /// 返回验证码允许的最多错误尝试次数。
     pub const fn max_attempts(self) -> u32 {
         self.max_attempts
     }
@@ -103,13 +103,13 @@ impl Default for VerificationCodePolicy {
     }
 }
 
-/// A newly issued code, exposed once for the caller to send through Mail or SMS.
+/// 新签发的验证码，仅向调用方暴露一次，以便通过 Mail 或 SMS 发送。
 pub struct IssuedVerificationCode {
     code: String,
 }
 
 impl IssuedVerificationCode {
-    /// Returns the numeric code. Callers should send it promptly and never log it.
+    /// 返回数字验证码。调用方应及时发送，且绝不能将其写入日志。
     pub fn code(&self) -> &str {
         &self.code
     }
@@ -124,9 +124,9 @@ impl fmt::Debug for IssuedVerificationCode {
     }
 }
 
-/// One active challenge returned by a custom store for password verification.
+/// 自定义 store 为密码校验返回的一个活动挑战。
 ///
-/// This type intentionally does not implement `Debug` because it contains a code hash.
+/// 此类型包含验证码哈希，因此有意不实现 `Debug`。
 pub struct VerificationChallenge {
     challenge_id: String,
     code_hash: EncodedPasswordHash,
@@ -134,7 +134,7 @@ pub struct VerificationChallenge {
 }
 
 impl VerificationChallenge {
-    /// Creates a loaded challenge for a custom store implementation.
+    /// 为自定义 store 实现创建已加载的挑战。
     pub fn new(
         challenge_id: impl Into<String>,
         code_hash: EncodedPasswordHash,
@@ -154,29 +154,28 @@ impl VerificationChallenge {
         })
     }
 
-    /// Returns the store's opaque challenge generation identifier.
+    /// 返回 store 的不透明挑战版本 ID。
     pub fn challenge_id(&self) -> &str {
         &self.challenge_id
     }
 
-    /// Returns the PHC hash that the store loaded for the active challenge.
+    /// 返回 store 为当前活动挑战加载的 PHC 哈希。
     pub fn code_hash(&self) -> &EncodedPasswordHash {
         &self.code_hash
     }
 
-    /// Returns the expected code length.
+    /// 返回预期验证码长度。
     pub const fn digits(&self) -> u8 {
         self.digits
     }
 }
 
-/// Atomic storage contract for shared one-time verification challenges.
+/// 共享一次性验证挑战的原子存储契约。
 ///
-/// `key_hash` is a SHA-256 digest of purpose and caller-normalized identity. Stores must not
-/// expose or log the original identity or code. Implementations must coordinate issue cooldowns,
-/// failed attempts, and single consumption across their documented sharing scope.
+/// `key_hash` 是用途与调用方规范化身份的 SHA-256 摘要。Store 不得暴露或记录原始身份或验证码。
+/// 实现必须在其声明的共享范围内协调签发冷却期、失败次数和单次消费。
 pub trait VerificationCodeStore: Send + Sync + 'static {
-    /// Creates or replaces a challenge unless the existing challenge is in its resend cooldown.
+    /// 创建或替换挑战；现有挑战处于重发冷却期时除外。
     fn issue<'a>(
         &'a self,
         key_hash: &'a str,
@@ -185,13 +184,13 @@ pub trait VerificationCodeStore: Send + Sync + 'static {
         policy: VerificationCodePolicy,
     ) -> VerificationCodeFuture<'a, Result<()>>;
 
-    /// Loads a current, unconsumed challenge with attempts remaining.
+    /// 加载当前尚未消费且仍有尝试次数的挑战。
     fn load_active<'a>(
         &'a self,
         key_hash: &'a str,
     ) -> VerificationCodeFuture<'a, Result<Option<VerificationChallenge>>>;
 
-    /// Records one attempt and consumes the challenge only if it is still current and valid.
+    /// 记录一次尝试；仅当挑战仍为当前挑战且有效时才消费它。
     fn finish_attempt<'a>(
         &'a self,
         key_hash: &'a str,
@@ -200,7 +199,7 @@ pub trait VerificationCodeStore: Send + Sync + 'static {
     ) -> VerificationCodeFuture<'a, Result<bool>>;
 }
 
-/// Cloneable service for issuing and atomically consuming purpose-bound codes.
+/// 用于签发并原子消费用途绑定验证码的可克隆服务。
 #[derive(Clone)]
 pub struct VerificationCodes {
     store: Arc<dyn VerificationCodeStore>,
@@ -214,7 +213,7 @@ impl fmt::Debug for VerificationCodes {
 }
 
 impl VerificationCodes {
-    /// Creates the service with a custom or framework-provided store and password hasher.
+    /// 使用自定义或框架提供的 store 与密码哈希器创建服务。
     pub fn new(store: impl VerificationCodeStore, passwords: Passwords) -> Self {
         Self {
             store: Arc::new(store),
@@ -222,11 +221,10 @@ impl VerificationCodes {
         }
     }
 
-    /// Issues a numeric code for a purpose and caller-normalized identity.
+    /// 为指定用途和调用方规范化后的身份签发数字验证码。
     ///
-    /// The returned code is not sent automatically. The caller should first apply its shared
-    /// [`crate::core::RateLimiter`] policy, then send the code through Mail/SMS and never log it.
-    /// Reissuing before the policy cooldown expires returns 429 with `Retry-After`.
+    /// 返回的验证码不会自动发送。调用方应先应用共享的 [`crate::core::RateLimiter`] 策略，再通过 Mail/SMS
+    /// 发送验证码，并且绝不能将其写入日志。在策略冷却期结束前重新签发会返回带 `Retry-After` 的 429。
     pub async fn issue(
         &self,
         purpose: &str,
@@ -245,10 +243,9 @@ impl VerificationCodes {
         Ok(IssuedVerificationCode { code })
     }
 
-    /// Verifies one code and atomically consumes it on success.
+    /// 验证一个验证码，并在成功时原子消费。
     ///
-    /// Missing, expired, consumed, exhausted, stale, and mismatching challenges all return
-    /// `Ok(false)`. Store or hashing failures propagate as service errors.
+    /// 缺失、过期、已消费、尝试次数耗尽、过期版本或不匹配的挑战均返回 `Ok(false)`。Store 或哈希失败会作为服务错误传播。
     pub async fn verify(&self, purpose: &str, identity: &str, code: &str) -> Result<bool> {
         validate_binding(purpose, identity)?;
         let key_hash = binding_hash(purpose, identity);
@@ -342,7 +339,7 @@ impl fmt::Display for InvalidVerificationChallenge {
 
 impl std::error::Error for InvalidVerificationChallenge {}
 
-/// Shared-database store for [`VerificationCodes`].
+/// [`VerificationCodes`] 使用的共享数据库 store。
 #[derive(Clone)]
 pub struct DatabaseVerificationCodeStore {
     db: crate::db::Db,
@@ -356,7 +353,7 @@ impl fmt::Debug for DatabaseVerificationCodeStore {
 }
 
 impl DatabaseVerificationCodeStore {
-    /// Creates a store using the application's shared database and table-name resolver.
+    /// 使用应用共享数据库和表名解析器创建 store。
     pub fn new(db: crate::db::Db) -> Self {
         Self {
             db,

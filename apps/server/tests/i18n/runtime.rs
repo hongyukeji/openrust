@@ -1,4 +1,4 @@
-//! Internationalization behavior through the aggregate HTTP application.
+//! 通过聚合 HTTP 应用验证国际化行为。
 
 use std::collections::BTreeMap;
 
