@@ -2,37 +2,39 @@
 
 > 受众：AI Agent
 > 更新：2026-10-26
-> 摘要：根 `openrust` 模块迁移已独立提交；M2 读写分离已实现，并在 PostgreSQL 18.6 / MySQL 8.4.13 真实复制拓扑验证。模块化配置、`.env`、统一出站 HTTP、请求级国际化、邮件/SMS 驱动、应用加密、审计、签名链接及 M3 认证双库/生成 HTTP 总验收已完成；Twilio 真实投递仍待授权账号与目标，完整集群验收未关闭。日常开发基线为 PostgreSQL 18 / MySQL 8.4 LTS / Redis 8；PostgreSQL 16 测试仅作历史专项证据。
+> 摘要：框架处于 v1 M4，尚未达到完整 v1。以下按已提交实现及仓库既有验收记录归纳；本次文档审计未重新运行代码测试。
 
-| 项 | 状态 |
-| --- | --- |
-| v1 版本计划与框架设计 | 已定稿，见 `plans/` |
-| M3 统一出站 HTTP | 已完成独立功能簇：ADR-031、可选 `http-client`/CLI `--http-client`、reqwest 0.13 Rustls client、transport fake、受限 request/response stream、超时/取消、显式有界幂等重试。15 项 client tests、`apps/server` 集成、生成项目 check/test 和 default/all-features workspace fmt/clippy/test/doc、`cargo deny check` 通过；随本功能簇独立本地提交，不推送。真实第三方供应商不属于本 client 本地验收，后续 M3 供应商发送仍需已授权目标与凭据。 |
-| M3 请求级国际化 | 实现 `openrust::i18n`、中英框架消息、JSON 应用资源、TOML locale 默认/回退、Accept-Language q 值选择、请求 task-local 隔离、错误与 validator rule 本地化、显式 locale scope，并接入 `apps/server` 与新项目模板。6 项模块测试、5 项聚合 HTTP 测试、生成项目 check/test 与真实进程中文 404 smoke 通过；default/all-features workspace fmt/clippy/test、warnings-denied docs、`cargo deny check` 通过。已提交 `dc41812`。 |
-| M3 邮件与短信驱动 | ADR-033 实现 `Mailer`/`SmsSender` 可扩展入口、SMTP/log/fake、Twilio REST adapter、短信文本/模板内容、显式 locale、production 禁止 log/明文远端 SMTP、CLI `--sms-twilio` 与默认模板注册。Twilio 请求/认证/错误/timeout/无重试通过 fake transport 测试；Mailpit v1.32.0 本机 TCP 实收测试通过；生成 Twilio 项目 check/test、workspace default/all-features tests、clippy、warnings-denied docs、cargo deny 通过。真实 Twilio 号码投递未授权/未配置，仍待外部凭据与目标。 |
-| M3 应用数据加密与密钥轮换 | ADR-034 实现可选 `encryption` feature、`openrust::security::{Encryptor,EncryptionPlugin}`、AES-256-GCM-SIV/AAD envelope、历史 key 解密、配置脱敏、`openrust key generate` 与 `openrust new --encryption`。8 项加密测试、11 项 CLI 测试、workspace default/all-features tests/clippy/docs、cargo deny 与生成项目本地 patch check/test 通过；已提交 `e5e86f2`。所用 crate 文档声明当前无完整独立审计，已记为发布前复核项。 |
-| M3 审计记录 | ADR-035 实现 `openrust::audit`：显式事件与 sink、details allowlist/redaction、`test-util` fake、数据库迁移/持久化/有界清理、事务内写入；`Policy::grant_permission_in_transaction` 与审计在 PostgreSQL 18/MySQL 8.4 上验证同事务提交、回滚和 sink 失败回滚。`--auth` 模板注册 audit plugin/migration；生成项目在两库通过真实 HTTP auth 流程。workspace default/all-features tests/clippy、warnings-denied docs、cargo deny 与双库完整 `auth_database` 均通过。 |
-| M3 签名与限时链接 | ADR-036 实现独立 `signing` feature、用途专属 key ring、purpose/subject/TTL/JTI 签名验证、key rotation 与可选 PostgreSQL/MySQL 共享撤销 store/迁移/有界清理；4 项 signer 单测和两库各 6 项 `auth_database` 通过。`--auth` 生成项目注册 service 与 migration；两种数据库生成项目通过 fmt/check/真实 HTTP auth flow。workspace default/all-features clippy/tests、warnings-denied docs、无默认 feature check、cargo deny 与 diff check 通过。 |
-| M3 认证与安全总验收 | PostgreSQL 18 / MySQL 8.4 的 `auth_database` 与 `auth_runtime` 各 6 项通过；新生成 `--auth` 项目在两库分别通过 fmt、`cargo check` 和真实 TCP `auth_flows`。覆盖注册/验证、JWT/refresh、Session/CSRF、PAT、限流、Policy/RBAC、可信代理、审计和签名撤销。Twilio 协议测试不等于实发；实发等待授权目标与凭据。 |
-| M4 数据库队列与 worker 基础簇 | 已实现显式迁移、handler allowlist、事务派发、SKIP LOCKED、失败重试、worker 并发/租约/心跳、超时/合作取消和强杀恢复。PG18/MySQL8.4 真实服务测试通过。M4 尚未完成：旧 token 接管竞态、任务链/批次、事件和完整集群验收。详见 `core/queue.md`。 |
-| M4 活动任务唯一键 | 已实现 `(queue, unique_key)` 数据库唯一索引与 `dispatch_unique` / 事务内入口；并发重复请求返回同一活动 ID，job 完成后释放键。PG18/MySQL8.4 集成通过；该机制约束活动任务重叠，不保留永久幂等历史。 |
-| M4 Scheduler 子簇 | 已实现数据库 UTC 时钟、interval/daily slots、原子触发去重、与 job 同事务提交、`schedule run --once` / 常驻 / `schedule list`。PostgreSQL 18 与 MySQL 8.4 各通过真实独立进程同步竞争、异常退出后不重复派发及 SIGTERM 停机 4 项测试；workspace all-features gates 通过。M4 其他能力继续待办，详见 `core/schedule.md`。 |
-| 架构决策 | 以 `decisions/` 中有效状态为准；缓存标准应用默认 Redis（ADR-015），driver/store contract 见 ADR-014，均不代表缓存已实现 |
-| 仓库基线（许可证、README、工具链声明、Agent 契约、CHANGELOG、贡献与安全政策） | 已就位 |
-| workspace、lint 基线、CI 工作流 | 已就位；CI 双库 job 已启用，MSRV 为 Rust 1.97 |
-| `openrust::core` / `openrust::config` | 已迁入根 package 并测试：`APP_` 默认及自定义配置命名空间、配置分层与 `.env` 引导、错误和响应包装、服务注册表、Plugin 级联、嵌套命令与固定窗口限流契约 |
-| 配置模块整理 | `src/config/{app,api,auth,database,logger,mailer,server}.rs`；Auth/Database/Mail 旧路径 re-export；生成 `.env.example` 含本地覆盖示例，不含可用密钥。production 跳过 `.env`，进程环境变量优先；workspace default/all-features 门禁通过 |
-| `openrust::http` | 已迁入根 package 并测试：`Routes`、`Resource` / `ResourceActions`、统一响应与分页、OpenRust 提取器、`Inject`、`Validated`、404/405/408/413 包装、中间件、`/health` 与 `serve` |
-| `openrust-macros` | `#[openrust::resource]` 从控制器动作关联函数生成 `Resource` 实现，并由 `apps/server` 集成测试覆盖 |
-| `openrust` / `openrust-cli` | facade `run` 与数据库/auth/audit/signing plugin facade；`new` 支持无数据库、PostgreSQL、MySQL 和 `--auth` 模板；认证模板生成 Auth flows routes、audit 与 signed-link migrations/plugins；`generate model` / `generate migration`、`dev` / `serve` 与运行命令代理可用 |
-| 生成认证项目验收 | CLI 包名测试模板已改为从生成 manifest 与 `CARGO_PKG_NAME` 比对；PG18 与 MySQL 8.4 新生成 `--auth` 项目均通过 fmt、check 和真实 HTTP/database 流程 |
-| `openrust::db` | `DatabaseConfig` / `DatabasePlugin` / `Db`、主库与显式只读副本池、轮询选择、task-local primary scope、自定义 SeaORM 初始化、事务、迁移/seed 命令、UTC/JSON 方言 helper、table resolver、双库、MySQL Rustls TLS、共享固定窗口限流存储 |
-| `openrust-test` | `TestDatabase` 为每个用例创建并迁移独立库；支持 `create_with_table_names` 以相同 resolver scope 执行迁移；PostgreSQL 迁移模板克隆，MySQL 独立建库；`close().await` 清理；基线两库集成测试通过 |
-| `openrust::mail` | `Email` / `Mailer`，log、fake、可选 SMTP Rustls driver；已接入 facade、server 与项目模板 |
-| `apps/server` | M1 聚合入口；`auth` feature 集成测试验证 facade PAT 与 JWT 路由、JWT 不依赖 SessionPlugin，并与 `Inject<T>` 共存。生成 AuthFlows HTTP 真机测试现由 CLI 模板提供；默认数据库认证器的 PAT 入口在生成模板增加，MySQL e2e 通过 |
-| `openrust::auth` | AuthPlugin/custom Authenticator、Session/PAT/JWT 路由认证、CurrentUser/OptionalUser、共享 Session/CSRF、refresh/verification/Policy migrations、Argon2id、AuthFlows 与基础 Policy/RBAC 已实现；PostgreSQL 18 / MySQL 8.4 数据库、runtime 与生成项目 TCP HTTP 矩阵通过。真实 Twilio 投递待授权账号与目标 |
-| 配置与数据命名 | `APP_` 默认、自定义单一命名空间、环境/`.env` 引导、配置目录和前缀覆盖已实现并通过 core/CLI/workspace 与双库生成项目 check/test；数据库表前缀/映射实现已接入 Db、MigrationPlugin、TestDatabase 与 Auth SQL；PostgreSQL/MySQL 真实隔离库矩阵与迁移 runner 验证通过，工作区全量 fmt/clippy/test/doc 通过 |
-| 后续能力模块 | `cache` / `queue` / `events` / `storage` 尚未实现；按 M4/M5 计划直接在根 package 创建非空模块，不保留空壳 package |
-| v1 新增范围 | 读写分离已按 ADR-029 实现并通过复制延迟验收；流程钩子、缓存、可观测性及最终集群按专题计划补做 |
-| 验证证据 | 根迁移与 M2 相关默认/all-features 检查通过；PG18.6 / MySQL8.4.13 真实复制测试覆盖暂停/追平、主库新读和两个独立 App scope；500 次串行 `SELECT 1` 路由微基准已记录。真实 SMTP 送达和完整多节点集群仍无验收证据 |
-| M2 验收 | 双库数据库测试、model/migration 生成项目编译与测试、生成迁移 up/status/down、默认与 all-features workspace 验证通过；详见 `memory/testing.md` |
+## 已有交付与边界
+
+| 能力 | 当前实现与证据 | 尚未覆盖 |
+| --- | --- | --- |
+| 根模块与配置 | 框架合入根 `src/`；typed config、APP_ 可定制命名空间、`.env` 生产隔离与脱敏；默认/关键 features 和生成项目已有验证 | 工具包迁出 `crates/`、examples/tests 分目录、server 职责评估 |
+| 内核与 HTTP | Application/Plugin、显式服务、路由/resource、验证、统一响应、分页、request ID、CORS、压缩、超时、panic 处理 | 通用路由限流、OpenAPI、完整 readiness/metrics/OTLP |
+| 数据层 | PostgreSQL/MySQL、迁移/seed/事务、tb_ resolver、隔离测试、显式读写分离；PG18/MySQL8.4 真实复制暂停/追平已验证 | named 独立连接、事务公开扩展、查询/输出补强、完整业务性能与集群 |
+| 认证与授权 | JWT/refresh、可选 Session/CSRF、PAT、VerificationCodes、AuthFlows、Policy/RBAC、共享限流；双库 auth_database/auth_runtime 与生成项目 TCP HTTP 流程已有通过记录 | 公开注册/登录流程扩展、mailer/policy 生成器、完整跨节点业务场景；access token 不逐请求查撤销 |
+| HTTP client 与 i18n | 统一有界出站调用/fake、请求级 locale、中英资源与应用 catalog；生成项目/本地 HTTP 验证 | 不等于外部供应商实发或完整语言格式化引擎 |
+| 邮件与短信 | Mailer/SmsSender、SMTP/log/fake、Twilio adapter、本地化模板；Mailpit 本机 SMTP 实收、Twilio 协议测试通过 | Twilio 真实账号投递待授权；队列发送和薄多渠道通知待补 |
+| 加密、签名、审计 | 进程内加密/key ring、用途隔离签名链接/可选共享撤销、可替换审计 sink/同事务审计；已有单测、双库相关路径与生成验证 | 加密实现审计/平台性能复核；不承诺任意远程 sink 可靠送达或审计不可篡改 |
+| 队列与 worker | 数据库任务、显式 handler、事务派发、有限并发/重试/失败保留/超时/lease/心跳；双库强杀恢复；活动唯一键已提交 | 批次/链、事件、共享锁/请求幂等、旧 token 接管专项与完整负载集群 |
+| Scheduler | UTC interval/daily slot、数据库时钟、slot 与 job 原子去重、run/once/list；双库独立进程竞争/异常退出/SIGTERM 已验证 | 不含 cron/IANA/DST；生产资源、滚动升级和完整拓扑验收未完成 |
+| CLI 与测试工具 | new、model/migration 生成、dev/运行命令代理、TestDatabase；无数据库和双库/auth 模板已有验证 | 其他生成器、依赖编排/watch、doctor、TestApp/HTTP assertions、黄金路径/正式文档 |
+| 缓存、存储、实时 | 已有设计 contract | Redis/file/memory cache、local/S3 存储、上传扩展、WebSocket/SSE 仍待实现 |
+
+具体 API 只在 [core/](core/) 维护，验收入口见 [testing.md](memory/testing.md)，声明边界见 [verification.md](memory/verification.md)。Git 中的未提交改动只算 WIP，不因文档先写“实现”而升为交付。
+
+## 阶段判定
+
+- 原 M0–M2 基础范围和 M3 本地认证/安全运行时已验收；M3 生成器和后来确认的通用机制仍有补交项。
+- M4 仅部分完成；单项 scheduler/worker 多进程测试不等于完整集群验收。
+- M5/M6 尚有成组能力未交付；没有可宣称已完成的 v1 性能基线、全部最低版本兼容性或发布安装路径。
+- v1 完整验收通过后按已授权顺序进入 v2；AI 平台仅规划并隔离，尚未立项。
+
+## 下一步
+
+按 [todo.md](todo.md) 优先完成目录收尾和测试/CI 入口校准，再补齐 M3 遗漏、M4、M5、M6。不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
+
+## 本次文档核对范围
+
+核对当前源码、Cargo/Git、Agent 文档、ADR 与本机可定位项目记录：Codex/Claude 原生 JSONL 快照 74 份（45 份关联 OpenRust，207 条去重人类候选文本）；Paseo 26 份相关日志（24 份项目/已确认 worktree，2 份明确关联的起源会话），与原生会话按来源交叉去重，不相加计算独立对话。OpenCode 找到 7 个项目会话元数据但无消息正文；其他客户端未发现额外可限定到本项目的本地正文。
+
+覆盖可读取的本地项目资料，不声称覆盖全部云端聊天。原始聊天和凭据不入库；只将有效要求写入相应决策与计划，历史交付说法仍以当前代码及验收证据核实。

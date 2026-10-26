@@ -81,8 +81,8 @@ pub mod prelude {
     pub use crate::mail::{Email, LocalizedEmail, MailConfig, Mailer, MailerPlugin};
     #[cfg(feature = "queue")]
     pub use crate::queue::{
-        DatabaseQueue, DispatchOptions, Job, JobContext, Queue, QueueDriver, QueueMigration,
-        QueuePlugin,
+        DatabaseQueue, DispatchOptions, GroupFailurePolicy, Job, JobContext, Queue, QueueDriver,
+        QueueMigration, QueuePlugin, QueueTask, TaskGroup,
     };
     #[cfg(feature = "queue")]
     pub use crate::schedule::{ScheduleDefinition, ScheduleFrequency, ScheduleReport, Scheduler};

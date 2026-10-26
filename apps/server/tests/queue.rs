@@ -7,12 +7,18 @@ use openrust::config::FrameworkConfig;
 use openrust::core::{AppBuilder, BoxFuture, Error, Result as FrameworkResult, lifecycle};
 use openrust::database::sea_orm_migration::MigrationTrait;
 use openrust::database::{DatabasePlugin, Db, sea_orm_migration::MigratorTrait};
-use openrust::queue::{DispatchOptions, Job, JobContext, Queue, QueueMigration, QueuePlugin};
+use openrust::queue::{
+    DispatchOptions, GroupFailurePolicy, Job, JobContext, Queue, QueueMigration, QueuePlugin,
+    QueueTask,
+};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 static SUCCEEDED: AtomicUsize = AtomicUsize::new(0);
 static FAILED: AtomicUsize = AtomicUsize::new(0);
+static ACTIVE_BATCH: AtomicUsize = AtomicUsize::new(0);
+static PEAK_BATCH: AtomicUsize = AtomicUsize::new(0);
+static ORDERED: std::sync::Mutex<Vec<usize>> = std::sync::Mutex::new(Vec::new());
 
 struct QueueMigrator;
 
@@ -41,9 +47,37 @@ impl Job for CountJob {
             context
                 .set_progress(&serde_json::json!({"done": self.value}))
                 .await?;
+            let active = ACTIVE_BATCH.fetch_add(1, Ordering::SeqCst) + 1;
+            PEAK_BATCH.fetch_max(active, Ordering::SeqCst);
             tokio::time::sleep(Duration::from_millis(40)).await;
+            ACTIVE_BATCH.fetch_sub(1, Ordering::SeqCst);
             SUCCEEDED.fetch_add(1, Ordering::SeqCst);
             Ok(())
+        })
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct OrderedJob {
+    value: usize,
+}
+
+impl Job for OrderedJob {
+    const NAME: &'static str = "tests.ordered.v1";
+
+    fn handle(&self, _context: JobContext) -> BoxFuture<'_, FrameworkResult<()>> {
+        let value = self.value;
+        Box::pin(async move {
+            match ORDERED.lock() {
+                Ok(mut order) => {
+                    order.push(value);
+                    Ok(())
+                }
+                Err(_) => Err(Error::custom(
+                    "test_order_lock",
+                    "test order lock is poisoned",
+                )),
+            }
         })
     }
 }
@@ -89,6 +123,7 @@ async fn database_queue_dispatch_worker_concurrency_failure_and_retry()
     queue_plugin.register_job::<CountJob>()?;
     queue_plugin.register_job::<AlwaysFailJob>()?;
     queue_plugin.register_job::<SlowJob>()?;
+    queue_plugin.register_job::<OrderedJob>()?;
     let mut builder = AppBuilder::new(
         FrameworkConfig::default(),
         Figment::new().merge(Toml::string(&format!(
@@ -181,6 +216,128 @@ async fn database_queue_dispatch_worker_concurrency_failure_and_retry()
         })
         .await?;
     assert_eq!(transaction_ids.0, transaction_ids.1);
+
+    let chain_queue = format!("chain{}", std::process::id());
+    ORDERED.lock()?.clear();
+    let chain = [1, 2, 3]
+        .into_iter()
+        .map(|value| QueueTask::new(OrderedJob::NAME, &serde_json::json!({"value": value})))
+        .collect::<FrameworkResult<Vec<_>>>()?;
+    queue
+        .dispatch_chain(&chain_queue, chain, GroupFailurePolicy::Stop)
+        .await?;
+    assert!(queue.run_next(&chain_queue).await?);
+    assert_eq!(*ORDERED.lock()?, vec![1, 2, 3]);
+
+    ORDERED.lock()?.clear();
+    let transactional_chain_queue = format!("chain-tx{}", std::process::id());
+    let tx_chain_queue = transactional_chain_queue.clone();
+    let tx_chain_dispatcher = queue.clone();
+    db.transaction(|transaction| {
+        Box::pin(async move {
+            let task = QueueTask::new(OrderedJob::NAME, &serde_json::json!({"value": 4}))?;
+            tx_chain_dispatcher
+                .dispatch_chain_in_transaction(
+                    transaction,
+                    &tx_chain_queue,
+                    vec![task],
+                    GroupFailurePolicy::Stop,
+                )
+                .await?;
+            Ok(())
+        })
+    })
+    .await?;
+    assert!(queue.run_next(&transactional_chain_queue).await?);
+    assert_eq!(*ORDERED.lock()?, vec![4]);
+
+    ORDERED.lock()?.clear();
+    let continue_chain = vec![
+        QueueTask::new(AlwaysFailJob::NAME, &())?,
+        QueueTask::new(OrderedJob::NAME, &serde_json::json!({"value": 7}))?,
+    ];
+    let continue_queue = format!("continue-chain{}", std::process::id());
+    queue
+        .dispatch_chain(
+            &continue_queue,
+            continue_chain,
+            GroupFailurePolicy::Continue,
+        )
+        .await?;
+    assert!(queue.run_next(&continue_queue).await?);
+    assert_eq!(*ORDERED.lock()?, vec![7]);
+
+    ORDERED.lock()?.clear();
+    let stop_chain = vec![
+        QueueTask::new(AlwaysFailJob::NAME, &())?,
+        QueueTask::new(OrderedJob::NAME, &serde_json::json!({"value": 8}))?,
+    ];
+    let stop_queue = format!("stop-chain{}", std::process::id());
+    queue
+        .dispatch_chain(&stop_queue, stop_chain, GroupFailurePolicy::Stop)
+        .await?;
+    assert!(queue.run_next(&stop_queue).await?);
+    assert!(ORDERED.lock()?.is_empty());
+
+    assert!(
+        queue
+            .dispatch_chain(&chain_queue, Vec::new(), GroupFailurePolicy::Stop)
+            .await
+            .is_err()
+    );
+    let validation_task = QueueTask::new(OrderedJob::NAME, &serde_json::json!({"value": 9}))?;
+    assert!(
+        queue
+            .dispatch_batch(
+                &chain_queue,
+                vec![validation_task],
+                0,
+                GroupFailurePolicy::Stop,
+            )
+            .await
+            .is_err()
+    );
+
+    let continue_batch_queue = format!("continue-batch{}", std::process::id());
+    let succeeded_before = SUCCEEDED.load(Ordering::SeqCst);
+    let continue_batch = vec![
+        QueueTask::new(AlwaysFailJob::NAME, &())?,
+        QueueTask::new(CountJob::NAME, &serde_json::json!({"value": 1}))?,
+        QueueTask::new(CountJob::NAME, &serde_json::json!({"value": 2}))?,
+    ];
+    queue
+        .dispatch_batch(
+            &continue_batch_queue,
+            continue_batch,
+            1,
+            GroupFailurePolicy::Continue,
+        )
+        .await?;
+    assert!(queue.run_next(&continue_batch_queue).await?);
+    assert_eq!(SUCCEEDED.load(Ordering::SeqCst), succeeded_before + 2);
+
+    let stop_batch_queue = format!("stop-batch{}", std::process::id());
+    let succeeded_before = SUCCEEDED.load(Ordering::SeqCst);
+    let stop_batch = vec![
+        QueueTask::new(AlwaysFailJob::NAME, &())?,
+        QueueTask::new(CountJob::NAME, &serde_json::json!({"value": 3}))?,
+    ];
+    queue
+        .dispatch_batch(&stop_batch_queue, stop_batch, 1, GroupFailurePolicy::Stop)
+        .await?;
+    assert!(queue.run_next(&stop_batch_queue).await?);
+    assert_eq!(SUCCEEDED.load(Ordering::SeqCst), succeeded_before);
+
+    let batch_queue = format!("batch{}", std::process::id());
+    let batch = (0..6)
+        .map(|value| QueueTask::new(CountJob::NAME, &serde_json::json!({"value": value})))
+        .collect::<FrameworkResult<Vec<_>>>()?;
+    PEAK_BATCH.store(0, Ordering::SeqCst);
+    queue
+        .dispatch_batch(&batch_queue, batch, 2, GroupFailurePolicy::Continue)
+        .await?;
+    assert!(queue.run_next(&batch_queue).await?);
+    assert_eq!(PEAK_BATCH.load(Ordering::SeqCst), 2);
 
     let timeout_queue = format!("timeout{}", std::process::id());
     queue

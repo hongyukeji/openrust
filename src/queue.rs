@@ -26,9 +26,13 @@ use std::time::Duration;
 const MAX_QUEUE_NAME: usize = 64;
 const MAX_JOB_NAME: usize = 128;
 const MAX_PAYLOAD_BYTES: usize = 1_048_576;
+const MAX_GROUP_TASKS: usize = 128;
+const MAX_GROUP_CONCURRENCY: usize = 64;
 const DEFAULT_MAX_ATTEMPTS: u32 = 5;
 const MAX_DELAY_SECS: u64 = 2_592_000;
 const HEX: &[u8; 16] = b"0123456789abcdef";
+const CHAIN_JOB_NAME: &str = "openrust.internal.chain.v1";
+const BATCH_JOB_NAME: &str = "openrust.internal.batch.v1";
 
 /// A typed job handler registered explicitly with [`QueuePlugin`].
 pub trait Job: DeserializeOwned + Send + Sync + 'static {
@@ -394,6 +398,35 @@ pub trait QueueDriver: Send + Sync + 'static {
         payload: Value,
         options: DispatchOptions,
     ) -> BoxFuture<'a, Result<String>>;
+    /// Persists a task group when the backend supports grouped execution.
+    fn dispatch_group<'a>(
+        &'a self,
+        _queue: &'a str,
+        _group: TaskGroup,
+        _options: DispatchOptions,
+    ) -> BoxFuture<'a, Result<String>> {
+        Box::pin(async {
+            Err(Error::custom(
+                "queue_driver_group_unsupported",
+                "this queue driver does not support task groups",
+            ))
+        })
+    }
+    /// Persists a task group in the caller's transaction when supported by the backend.
+    fn dispatch_group_in_transaction<'a>(
+        &'a self,
+        _transaction: &'a DatabaseTransaction,
+        _queue: &'a str,
+        _group: TaskGroup,
+        _options: DispatchOptions,
+    ) -> BoxFuture<'a, Result<String>> {
+        Box::pin(async {
+            Err(Error::custom(
+                "queue_driver_group_unsupported",
+                "this queue driver does not support transactional task groups",
+            ))
+        })
+    }
     /// Runs at most one ready job from the named queue.
     fn run_next<'a>(&'a self, queue: &'a str) -> BoxFuture<'a, Result<bool>>;
     /// Requeues a failed job and returns the stable ID of the created job.
@@ -432,6 +465,104 @@ pub struct DispatchOptions {
     pub unique_key: Option<String>,
 }
 
+/// A typed-name task included in a persisted batch or chain.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct QueueTask {
+    job_name: String,
+    payload: Value,
+}
+
+impl QueueTask {
+    /// Creates a task payload for an explicitly registered [`Job`].
+    pub fn new<T: Serialize>(job_name: &str, payload: &T) -> Result<Self> {
+        validate_name("job name", job_name, MAX_JOB_NAME)?;
+        if job_name == CHAIN_JOB_NAME || job_name == BATCH_JOB_NAME {
+            return Err(Error::custom(
+                "reserved_queue_job_name",
+                "job name is reserved for framework task groups",
+            ));
+        }
+        let payload = serde_json::to_value(payload).map_err(Error::internal)?;
+        validate_payload(&payload)?;
+        Ok(Self {
+            job_name: job_name.to_owned(),
+            payload,
+        })
+    }
+}
+
+/// Controls how a task group handles a child task error.
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+pub enum GroupFailurePolicy {
+    /// Stop a chain at its first error, or stop launching batch work and cancel active futures.
+    Stop,
+    /// Run remaining chain/batch items, then fail the parent group if any child failed.
+    Continue,
+}
+
+/// Persisted queue task group submitted through a [`QueueDriver`].
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub enum TaskGroup {
+    /// Runs child tasks serially in the listed order.
+    Chain {
+        /// Child tasks, in execution order.
+        tasks: Vec<QueueTask>,
+        /// Error handling behavior.
+        failure_policy: GroupFailurePolicy,
+    },
+    /// Runs child tasks with a bounded per-group concurrency.
+    Batch {
+        /// Child tasks.
+        tasks: Vec<QueueTask>,
+        /// Maximum simultaneous child handler futures.
+        concurrency: usize,
+        /// Error handling behavior.
+        failure_policy: GroupFailurePolicy,
+    },
+}
+
+impl TaskGroup {
+    fn validate(&self) -> Result<()> {
+        let (tasks, concurrency) = match self {
+            Self::Chain { tasks, .. } => (tasks, 1),
+            Self::Batch {
+                tasks, concurrency, ..
+            } => (tasks, *concurrency),
+        };
+        if tasks.is_empty() || tasks.len() > MAX_GROUP_TASKS {
+            return Err(Error::custom(
+                "invalid_queue_task_group_size",
+                format!("task group size must be 1..={MAX_GROUP_TASKS}"),
+            ));
+        }
+        if !(1..=MAX_GROUP_CONCURRENCY).contains(&concurrency) {
+            return Err(Error::custom(
+                "invalid_queue_batch_concurrency",
+                format!("batch concurrency must be 1..={MAX_GROUP_CONCURRENCY}"),
+            ));
+        }
+        for task in tasks {
+            validate_name("job name", &task.job_name, MAX_JOB_NAME)?;
+            validate_payload(&task.payload)?;
+        }
+        let encoded = serde_json::to_vec(self).map_err(Error::internal)?;
+        if encoded.len() > MAX_PAYLOAD_BYTES {
+            return Err(Error::custom(
+                "queue_payload_too_large",
+                "task group payload exceeds 1 MiB",
+            ));
+        }
+        Ok(())
+    }
+
+    fn persisted_job_name(&self) -> &'static str {
+        match self {
+            Self::Chain { .. } => CHAIN_JOB_NAME,
+            Self::Batch { .. } => BATCH_JOB_NAME,
+        }
+    }
+}
+
 impl Default for DispatchOptions {
     fn default() -> Self {
         Self {
@@ -453,6 +584,12 @@ impl QueuePlugin {
     /// Registers a typed handler under its stable [`Job::NAME`].
     pub fn register_job<J: Job>(&mut self) -> Result<&mut Self> {
         validate_name("job name", J::NAME, MAX_JOB_NAME)?;
+        if J::NAME == CHAIN_JOB_NAME || J::NAME == BATCH_JOB_NAME {
+            return Err(Error::custom(
+                "reserved_queue_job_name",
+                "job name is reserved for framework task groups",
+            ));
+        }
         if self.handlers.contains_key(J::NAME) {
             return Err(Error::custom(
                 "duplicate_queue_job",
@@ -630,13 +767,15 @@ impl DatabaseQueue {
         let Some(claim) = claim_job(&self.db, queue, self.config.lease_secs).await? else {
             return Ok(false);
         };
-        let Some(handler) = self.registry.0.get(claim.job_name.as_str()).copied() else {
+        let is_group = claim.job_name == CHAIN_JOB_NAME || claim.job_name == BATCH_JOB_NAME;
+        let handler = self.registry.0.get(claim.job_name.as_str()).copied();
+        if !is_group && handler.is_none() {
             fail_job(&self.db, &claim, "unregistered_job_type", 1).await?;
             return Err(Error::custom(
                 "unregistered_queue_job",
                 format!("no handler is registered for job `{}`", claim.job_name),
             ));
-        };
+        }
         let (job_cancelled, job_cancellation) = tokio::sync::watch::channel(false);
         let context = JobContext {
             id: claim.id.clone(),
@@ -648,7 +787,22 @@ impl DatabaseQueue {
             token: claim.token.clone(),
         };
         let mut cancellation = self.cancelled.subscribe();
-        let handler_future = handler(claim.payload.clone(), context);
+        let handler_future: BoxFuture<'static, Result<()>> = if is_group {
+            let payload = claim.payload.clone();
+            let registry = Arc::clone(&self.registry);
+            Box::pin(async move {
+                let group =
+                    serde_json::from_value::<TaskGroup>(payload).map_err(Error::internal)?;
+                run_task_group(registry, group, context).await
+            })
+        } else if let Some(handler) = handler {
+            handler(claim.payload.clone(), context)
+        } else {
+            return Err(Error::custom(
+                "unregistered_queue_job",
+                "claimed task has no registered handler",
+            ));
+        };
         tokio::pin!(handler_future);
         let heartbeat_period =
             Duration::from_secs(std::cmp::Ord::max(self.config.lease_secs / 3, 1));
@@ -900,6 +1054,101 @@ impl Queue {
             .await
     }
 
+    /// Dispatches a bounded ordered chain as one durable parent job.
+    pub async fn dispatch_chain(
+        &self,
+        queue: &str,
+        tasks: Vec<QueueTask>,
+        failure_policy: GroupFailurePolicy,
+    ) -> Result<String> {
+        self.dispatch_task_group(
+            queue,
+            TaskGroup::Chain {
+                tasks,
+                failure_policy,
+            },
+        )
+        .await
+    }
+
+    /// Dispatches a bounded concurrent batch as one durable parent job.
+    pub async fn dispatch_batch(
+        &self,
+        queue: &str,
+        tasks: Vec<QueueTask>,
+        concurrency: usize,
+        failure_policy: GroupFailurePolicy,
+    ) -> Result<String> {
+        self.dispatch_task_group(
+            queue,
+            TaskGroup::Batch {
+                tasks,
+                concurrency,
+                failure_policy,
+            },
+        )
+        .await
+    }
+
+    /// Dispatches an ordered chain in the caller's database transaction.
+    pub async fn dispatch_chain_in_transaction(
+        &self,
+        transaction: &DatabaseTransaction,
+        queue: &str,
+        tasks: Vec<QueueTask>,
+        failure_policy: GroupFailurePolicy,
+    ) -> Result<String> {
+        self.dispatch_task_group_in_transaction(
+            transaction,
+            queue,
+            TaskGroup::Chain {
+                tasks,
+                failure_policy,
+            },
+        )
+        .await
+    }
+
+    /// Dispatches a bounded concurrent batch in the caller's database transaction.
+    pub async fn dispatch_batch_in_transaction(
+        &self,
+        transaction: &DatabaseTransaction,
+        queue: &str,
+        tasks: Vec<QueueTask>,
+        concurrency: usize,
+        failure_policy: GroupFailurePolicy,
+    ) -> Result<String> {
+        self.dispatch_task_group_in_transaction(
+            transaction,
+            queue,
+            TaskGroup::Batch {
+                tasks,
+                concurrency,
+                failure_policy,
+            },
+        )
+        .await
+    }
+
+    async fn dispatch_task_group(&self, queue: &str, group: TaskGroup) -> Result<String> {
+        group.validate()?;
+        self.driver
+            .dispatch_group(queue, group, DispatchOptions::default())
+            .await
+    }
+
+    async fn dispatch_task_group_in_transaction(
+        &self,
+        transaction: &DatabaseTransaction,
+        queue: &str,
+        group: TaskGroup,
+    ) -> Result<String> {
+        group.validate()?;
+        self.driver
+            .dispatch_group_in_transaction(transaction, queue, group, DispatchOptions::default())
+            .await
+    }
+
     /// Claims and runs one ready job from the named queue, returning whether one was claimed.
     pub async fn run_next(&self, queue: &str) -> Result<bool> {
         self.driver.run_next(queue).await
@@ -946,6 +1195,46 @@ impl QueueDriver for DatabaseQueue {
         })
     }
 
+    fn dispatch_group<'a>(
+        &'a self,
+        queue: &'a str,
+        group: TaskGroup,
+        options: DispatchOptions,
+    ) -> BoxFuture<'a, Result<String>> {
+        Box::pin(async move {
+            group.validate()?;
+            let job_name = group.persisted_job_name();
+            self.dispatch_value(
+                queue,
+                job_name,
+                serde_json::to_value(group).map_err(Error::internal)?,
+                options,
+            )
+            .await
+        })
+    }
+
+    fn dispatch_group_in_transaction<'a>(
+        &'a self,
+        transaction: &'a DatabaseTransaction,
+        queue: &'a str,
+        group: TaskGroup,
+        options: DispatchOptions,
+    ) -> BoxFuture<'a, Result<String>> {
+        Box::pin(async move {
+            group.validate()?;
+            let job_name = group.persisted_job_name();
+            self.dispatch_value_in_transaction(
+                transaction,
+                queue,
+                job_name,
+                serde_json::to_value(group).map_err(Error::internal)?,
+                options,
+            )
+            .await
+        })
+    }
+
     fn run_next<'a>(&'a self, queue: &'a str) -> BoxFuture<'a, Result<bool>> {
         Box::pin(async move { self.work_once(queue).await })
     }
@@ -963,6 +1252,125 @@ impl QueueDriver for DatabaseQueue {
     fn is_shutdown_requested(&self) -> bool {
         *self.cancelled.borrow()
     }
+}
+
+async fn run_task_group(
+    registry: Arc<JobRegistry>,
+    group: TaskGroup,
+    context: JobContext,
+) -> Result<()> {
+    group.validate()?;
+    match group {
+        TaskGroup::Chain {
+            tasks,
+            failure_policy,
+        } => {
+            let total = tasks.len();
+            let mut completed = 0;
+            let mut failed = 0;
+            let mut first_error = None;
+            for task in tasks {
+                let result = run_group_task(Arc::clone(&registry), task, context.clone()).await;
+                completed += 1;
+                if result.is_err() {
+                    failed += 1;
+                }
+                context
+                    .set_progress(&serde_json::json!({"completed": completed, "failed": failed, "total": total}))
+                    .await?;
+                if let Err(error) = result {
+                    if matches!(failure_policy, GroupFailurePolicy::Stop) {
+                        return Err(error);
+                    }
+                    first_error.get_or_insert(error);
+                }
+            }
+            first_error.map_or(Ok(()), Err)
+        }
+        TaskGroup::Batch {
+            tasks,
+            concurrency,
+            failure_policy,
+        } => {
+            let total = tasks.len();
+            let completed = Arc::new(tokio::sync::Mutex::new((0_usize, 0_usize)));
+            let mut pending = tasks.into_iter();
+            let mut workers = tokio::task::JoinSet::new();
+            for _ in 0..concurrency {
+                spawn_group_task(
+                    &mut workers,
+                    pending.next(),
+                    Arc::clone(&registry),
+                    context.clone(),
+                    Arc::clone(&completed),
+                    total,
+                );
+            }
+            let mut first_error = None;
+            while let Some(result) = workers.join_next().await {
+                let result = result.map_err(Error::internal)?;
+                if let Err(error) = result {
+                    if matches!(failure_policy, GroupFailurePolicy::Stop) {
+                        workers.abort_all();
+                        while workers.join_next().await.is_some() {}
+                        return Err(error);
+                    }
+                    first_error.get_or_insert(error);
+                }
+                if first_error.is_none() || matches!(failure_policy, GroupFailurePolicy::Continue) {
+                    spawn_group_task(
+                        &mut workers,
+                        pending.next(),
+                        Arc::clone(&registry),
+                        context.clone(),
+                        Arc::clone(&completed),
+                        total,
+                    );
+                }
+            }
+            first_error.map_or(Ok(()), Err)
+        }
+    }
+}
+
+fn spawn_group_task(
+    workers: &mut tokio::task::JoinSet<Result<()>>,
+    task: Option<QueueTask>,
+    registry: Arc<JobRegistry>,
+    context: JobContext,
+    completed: Arc<tokio::sync::Mutex<(usize, usize)>>,
+    total: usize,
+) {
+    if let Some(task) = task {
+        workers.spawn(async move {
+            let result = run_group_task(registry, task, context.clone()).await;
+            let mut counts = completed.lock().await;
+            counts.0 += 1;
+            if result.is_err() {
+                counts.1 += 1;
+            }
+            context
+                .set_progress(
+                    &serde_json::json!({"completed": counts.0, "failed": counts.1, "total": total}),
+                )
+                .await?;
+            result
+        });
+    }
+}
+
+async fn run_group_task(
+    registry: Arc<JobRegistry>,
+    task: QueueTask,
+    context: JobContext,
+) -> Result<()> {
+    let Some(handler) = registry.0.get(task.job_name.as_str()).copied() else {
+        return Err(Error::custom(
+            "unregistered_queue_job",
+            format!("no handler is registered for job `{}`", task.job_name),
+        ));
+    };
+    handler(task.payload, context).await
 }
 
 struct QueueWorkCommand;
