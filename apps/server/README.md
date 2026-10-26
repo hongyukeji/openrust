@@ -28,4 +28,6 @@ API 响应使用 `ApiResponse<T>` JSON envelope；健康状态位于 `data.statu
 
 默认邮件与短信驱动只记录经过脱敏的日志内容；生产环境拒绝使用日志驱动。`sms-twilio` feature 启用 Twilio adapter；SMTP 本机 Mailpit 验收步骤见 `src/mail/README.md`。启用 `encryption` 可注册 `EncryptionPlugin`；密钥应通过受保护的环境变量或 secret store 提供，不要提交真实密钥。
 
+启用 `storage-local` 会由 `Server::build` 安装 `StoragePlugin` 并使用本机 filesystem disk；启用 `storage-s3` 会同时启用 `storage-local` 与 S3-compatible driver。对象存储配置、流式 API 和授权边界见 [文件存储指南](../../src/storage/README.md)。
+
 数据库、认证、队列与调度能力由各集成测试显式组装。开启 Cargo feature 不会让默认 `Server::build` 自动注册这些服务。详见 [ADR-007](../../.agents/project/decisions/adr-007-aggregate-server-entry.md)。

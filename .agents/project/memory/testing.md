@@ -192,3 +192,11 @@ CLI 模板快照测试：`cargo test -p openrust-cli`。生成 PostgreSQL、MySQ
 ## M5 ADR-049 数据库迁移互斥
 
 在既有 PostgreSQL 18 与 MySQL 8.4 loopback 服务上，分别执行 `OPENRUST_TEST_DATABASE_URL=<service-url> cargo test -p server --features db-<backend> --test db_migration -- --nocapture`，4 项均通过。真实隔离数据库和独立子进程验证首次迁移竞争只运行一个 migration callback、第二个 up 等待并读到最新状态、短等待预算返回 `migration_lock_timeout`、持锁进程强杀后恢复，以及既有 up/down/status 与具名数据库隔离。凭据从容器配置在进程中构造，不输出、不更改或停止服务。fmt、default/all-features all-target warnings-denied Clippy、default/all-features workspace tests、warnings-denied default/all-features docs、no-default-features check 与 `cargo deny check` 通过；workspace 运行时不配置的 DB 集成 targets 不代替上述显式双库执行。未宣称生产多节点迁移演练。
+
+## M5 ADR-050 文件存储
+
+`cargo fmt --all --check`、default/all-features all-target Clippy、`cargo test --workspace`、`cargo test --workspace --all-features`、warnings-denied default/all-features Rustdoc、`cargo check -p openrust --no-default-features` 与 `storage-local`/`storage-s3` feature checks 均通过；`cargo deny check` 通过，仍报告既有 duplicate versions 与未匹配 MPL-2.0 allowance。all-features 中 `openrust::storage` 本地文件测试、`server/tests/storage/driver_contract.rs` 独立公开 API consumer、`server/tests/storage/http.rs` 真实 TCP 授权上传/下载均执行并通过。CLI 生成的 `apps/storage_demo` 在无 `.git` 的源码副本中直接 `cargo check -p storage_demo` 与 `cargo test -p storage_demo` 通过；生成 manifest 使用 workspace 相对 path，无临时 registry patch 或开发机绝对路径。
+
+被 workspace 测试忽略的真实服务专项已显式运行：`NO_PROXY=127.0.0.1,localhost OPENRUST_TEST_S3_ENDPOINT=http://127.0.0.1:19000 OPENRUST_TEST_S3_ACCESS_KEY=<本机测试值> OPENRUST_TEST_S3_SECRET_KEY=<本机测试值> OPENRUST_TEST_S3_VERSIONED_BUCKET=openrust-storage-versioned OPENRUST_TEST_S3_PLAIN_BUCKET=openrust-storage-plain cargo test -p server --features storage-s3 --test storage_s3 -- --ignored --nocapture`。测试连接 MinIO `RELEASE.2025-10-15T17-29-55Z`，versioned/plain buckets 均为真实服务，验证 metadata、12 MiB 多段上传、检查器拒绝、延时上传取消与目标不可见、覆盖后旧 version body 与 presigned URL 仍读取旧内容、短期 URL 过期及未启用版本控制时 fail-closed。结束后通过 MinIO client 核实两个 bucket 均无未完成 multipart，也无本测试遗留对象。服务使用本任务创建的临时容器与 tmpfs 数据盘，非生产多节点集群。
+
+`StorageDisk::put_body` 限制交给 inspector/backend 的数据块并保留背压，但不能限制 Axum 上游构造单个 body frame 时已经发生的分配；直接 `put_stream` 的调用方也须控制输入 chunk。filesystem 仅本机可见；API 节点 A 上传、B 下载仍在 v1 集群门禁验证，不能由单服务 MinIO 测试代替。真实 provider 进程强杀后的 multipart 回收依赖 bucket 生命周期策略。

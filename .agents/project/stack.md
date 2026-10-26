@@ -48,7 +48,7 @@
 | 队列 | `queue` feature 下默认使用数据库 driver（[ADR-003](decisions/adr-003-database-queue-default.md)，不依赖 `apalis`）；可选 `queue-redis` 复用已有 `redis` 1.8.0 | Redis Queue 已通过 Redis 8.10.2 多连接、唯一派发、失败重试、租约恢复与 Redis-only server 集成验收；至少一次及事务/任务组限制见 ADR-046，Redis 持久性/复制与最低版本仍由部署和 v1 发布门禁负责 |
 | 调度 | `queue` feature；`Scheduler` + interval/UTC daily/五字段 cron，`cron-parser` 0.12 与 `chrono-tz` 0.10.4 | F1 已实现；cron 使用 IANA zoneinfo 表，DST gap 跳过、重复 wall minute 去重；有界补跑及双库验收见 ADR-037 |
 | 缓存 | 根 `openrust::cache` 提供 Cache、命名 stores、memory/file 与公开 custom driver contract；Redis 由 `redis` 1.8.0、`connection-manager` + `tokio-rustls-comp` feature 提供 | `cache-redis` 可选 feature；标准生成应用启用 Redis 默认 store；Redis 6.2 最低版兼容、F4 tag/SWR/singleflight 尚待验收 |
-| 存储 | 尚未实现；规划以 `opendal` 提供本地和 S3 兼容路径 | `opendal` 依赖与 `storage-s3` feature 均待引入 |
+| 存储 | OpenDAL 0.59.x（当前锁定 0.59.5）提供 filesystem/S3-compatible I/O；`bytes` 1.12 与 `futures-util` 0.3 承载有界流 | 根模块 `openrust::storage` 提供配置、流检查和 driver contract；默认不启用，`storage-local` 启用文件系统，`storage-s3` 增加 S3 服务和 Rustls HTTP transport；OpenDAL facade 关闭默认 feature，仅开启相应服务。S3 签名依赖链使用 `tiny-keccak`（CC0-1.0），许可在 `deny.toml` 中显式允许 |
 | 邮件 / 短信 | `lettre` 0.11 + log/fake；`mail-smtp` 启用 Tokio/Rustls STARTTLS，仅本机 loopback 可显式关闭；`sms-twilio` 复用 `http-client` 与 `base64` | 本机 Mailpit SMTP 实收已有验收记录；真实 Twilio 投递待授权账号和目标，log/fake 不能代替送达证据 |
 | 模板 | 可选 `mail-templates` 使用 MiniJinja `~2.24.0`（关闭默认 feature，仅 `builtins`、`fuel`、`multi_template`、`serde`、`unicode`）；`LocalizedEmail` 与 `I18n` 仍负责普通消息和主题翻译 | 仅受信任编译期应用资源、严格变量与自动 HTML 转义；不提供文件/网络 loader；邮件模板不扩展为通用页面模板系统 |
 

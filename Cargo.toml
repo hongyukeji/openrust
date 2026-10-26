@@ -50,6 +50,8 @@ aes-gcm-siv = { version = "0.12.1", default-features = false, features = ["aes",
 base64 = "0.22"
 getrandom = "0.3"
 http = "1.5"
+bytes = "1.11"
+futures-util = "0.3"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "2.0"
@@ -86,6 +88,7 @@ insta = "1.49"
 lettre = { version = "0.11", default-features = false, features = ["builder"] }
 minijinja = { version = "~2.24.0", default-features = false, features = ["builtins", "fuel", "multi_template", "serde", "unicode"] }
 reqwest = { version = "0.13", default-features = false, features = ["rustls", "json", "query", "form", "multipart", "stream"] }
+opendal = { version = "0.59.2", default-features = false, features = ["services-fs"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
@@ -111,6 +114,7 @@ must_use_candidate = "allow"
 aes-gcm-siv = { workspace = true, optional = true }
 axum.workspace = true
 axum-core.workspace = true
+bytes.workspace = true
 argon2 = { workspace = true, optional = true }
 async-trait.workspace = true
 base64 = { workspace = true, optional = true }
@@ -123,6 +127,7 @@ icu_locale.workspace = true
 icu_plurals.workspace = true
 dotenvy.workspace = true
 figment.workspace = true
+futures-util.workspace = true
 getrandom.workspace = true
 uuid = { workspace = true, optional = true }
 http.workspace = true
@@ -130,6 +135,7 @@ jsonwebtoken = { workspace = true, optional = true }
 lettre.workspace = true
 minijinja = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true }
+opendal = { workspace = true, optional = true }
 macros.workspace = true
 sea-orm.workspace = true
 sea-orm-migration.workspace = true
@@ -148,6 +154,7 @@ tower-sessions = { workspace = true, optional = true }
 toml.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+url.workspace = true
 validator.workspace = true
 zeroize = { workspace = true, optional = true }
 
@@ -213,6 +220,13 @@ encryption = ["dep:aes-gcm-siv", "dep:base64", "dep:zeroize"]
 test-util = []
 cache-redis = ["dep:redis"]
 session-redis = ["auth", "dep:redis"]
+storage-local = ["dep:opendal"]
+storage-s3 = [
+    "storage-local",
+    "opendal/services-s3",
+    "opendal/http-transport-reqwest",
+    "opendal/executors-tokio",
+]
 
 [lints]
 workspace = true

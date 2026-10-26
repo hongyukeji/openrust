@@ -18,9 +18,12 @@ openrust.workspace = true
 
 [dev-dependencies]
 axum.workspace = true
+async-trait.workspace = true
 base64.workspace = true
+bytes.workspace = true
 chrono.workspace = true
 figment.workspace = true
+futures-util.workspace = true
 testing.workspace = true
 serde_json.workspace = true
 sea-orm.workspace = true
@@ -33,6 +36,7 @@ tower.workspace = true
 tower-sessions = { workspace = true, features = ["memory-store"] }
 validator.workspace = true
 redis.workspace = true
+reqwest.workspace = true
 
 [lints]
 workspace = true
@@ -57,6 +61,8 @@ db-routing-bench = []
 http-client = ["openrust/http-client"]
 cache-redis = ["openrust/cache-redis"]
 session-redis = ["auth", "openrust/session-redis"]
+storage-local = ["openrust/storage-local"]
+storage-s3 = ["storage-local", "openrust/storage-s3"]
 
 [[test]]
 name = "auth"
@@ -129,3 +135,17 @@ path = "tests/schedule/calendar.rs"
 [[test]]
 name = "server"
 path = "tests/server/aggregate.rs"
+
+[[test]]
+name = "storage_http"
+path = "tests/storage/http.rs"
+required-features = ["storage-local"]
+
+[[test]]
+name = "storage_s3"
+path = "tests/storage/s3.rs"
+required-features = ["storage-s3"]
+
+[[test]]
+name = "storage_driver_contract"
+path = "tests/storage/driver_contract.rs"

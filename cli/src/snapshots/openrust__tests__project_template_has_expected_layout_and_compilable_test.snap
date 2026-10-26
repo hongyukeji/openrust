@@ -15,6 +15,7 @@ openrust = { workspace = true, features = ["cache-redis"] }
 
 --- .gitignore ---
 /target/
+/storage/
 .env
 .env.*
 !.env.example

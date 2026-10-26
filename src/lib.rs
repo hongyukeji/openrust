@@ -24,6 +24,7 @@ pub mod security;
 #[cfg(feature = "signing")]
 pub mod signing;
 pub mod sms;
+pub mod storage;
 pub mod validation;
 
 #[cfg(feature = "auth")]
@@ -113,6 +114,7 @@ pub mod prelude {
         SignedLinkRevocationMigration, SignedLinkRevocationStore, SignedLinks, SignedLinksPlugin,
     };
     pub use crate::sms::{SmsContent, SmsDriver, SmsMessage, SmsPlugin, SmsReceipt, SmsSender};
+    pub use crate::storage::{Storage, StorageDisk, StoragePath, StoragePlugin};
     pub use crate::validation::{Validate, validate};
     pub use crate::{
         App, AppBuilder, Application, BoxFuture, Cancellation, Command, Error, ExecutionContext,

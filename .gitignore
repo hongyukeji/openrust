@@ -2,6 +2,7 @@
 /target/
 **/target/
 Cargo.lock.bak
+/storage/
 
 # Generated projects and spikes
 /tmp/

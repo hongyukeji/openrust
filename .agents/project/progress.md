@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-27
-> 摘要：框架处于 v1 M5，尚未达到完整 v1。源码工作区、C1–C3 中文化、M3 认证流程扩展及 M4 共享锁、worker 生命周期、F1 日历调度、F2 国际化、F3 邮件模板、队列化通知、job 生成集成、通用插件公开契约、Db 与 Queue 外部扩展契约、跨协议验证/调用作用域和 HTTP 有界运行/就绪切换均有适用验收证据；M5 缓存驱动、命名实例、F4a tag generation、F4b 单进程加载合并和 F4c SWR 已通过适用验收，Redis Session 和 Redis Queue 均通过 Redis 8 真实服务验收；ADR-047 查询授权、ADR-048 稳定键分批和 ADR-049 迁移互斥已通过双库实际验收，当前进行存储与上传下载，完整剩余范围见待办。
+> 摘要：框架处于 v1 M5，尚未达到完整 v1。源码工作区、C1–C3 中文化、M3 认证流程扩展及 M4 共享锁、worker 生命周期、F1 日历调度、F2 国际化、F3 邮件模板、队列化通知、job 生成集成、通用插件公开契约、Db 与 Queue 外部扩展契约、跨协议验证/调用作用域和 HTTP 有界运行/就绪切换均有适用验收证据；M5 缓存驱动、命名实例、F4a tag generation、F4b 单进程加载合并和 F4c SWR 已通过适用验收，Redis Session 和 Redis Queue 均通过 Redis 8 真实服务验收；ADR-047 查询授权、ADR-048 稳定键分批和 ADR-049 迁移互斥已通过双库实际验收，ADR-050 存储与上传下载已通过 local/custom driver、真实 TCP、MinIO 与 workspace 门禁；当前按待办推进出站目标安全策略，完整剩余范围见待办。
 
 ## 源码 workspace 交付
 
@@ -53,7 +53,7 @@
 
 ## 下一步
 
-按 [todo.md](todo.md) 推进存储与上传下载及其后续 M5/M6 工作；ADR-049 已完成双库迁移互斥验收。再执行完整 v1 性能、生产就绪与集群门禁。Worker 与 scheduler 专项双库证据不覆盖生产多实例负载与完整集群门禁。组件整合与 Laravel 式体验按 ADR-001；不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
+按 [todo.md](todo.md) 推进出站目标安全策略及后续 M5/M6 工作；ADR-049 数据库迁移互斥已通过双库验收，ADR-050 存储与上传下载已通过真实 MinIO 和 workspace 门禁。再执行完整 v1 性能、生产就绪与集群门禁。Worker 与 scheduler 专项双库证据不覆盖生产多实例负载与完整集群门禁。组件整合与 Laravel 式体验按 ADR-001；不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
 
 ## 本次文档核对范围
 
@@ -70,3 +70,7 @@
 ## M5 ADR-049 数据库迁移互斥
 
 `MigrationPlugin` 的 `up`、`down`、`status` 都会先在目标主库获取 resolver-aware 固定行事务锁，默认等待 30 秒，可通过 `with_lock_wait_timeout` 配置；超时 fail-closed。PostgreSQL 18 与 MySQL 8.4 使用现有服务和 `TestDatabase` 各运行 `cargo test -p server --features db-<backend> --test db_migration -- --nocapture`，4 项全通过，包括两个独立迁移进程竞争首次迁移、只有一个执行 migration callback、另一个随后读到已迁移状态、竞争者超时、owner 强杀后恢复、`up/down/status` 与具名 DB 隔离。MySQL 初始化重复 `INSERT IGNORE` 曾在等待预算外阻塞，改为固定锁行已存在时跳过插入后双库通过。fmt、默认/all-features all-target Clippy、默认/all-features workspace tests、默认/all-features warnings-denied Rustdoc、no-default-features check、cargo deny 均通过；PG18/MySQL8.4 `db_migration` 各 4 项显式实测通过。workspace 无外部 DB URL 的其他集成 targets 不作为双库证据。提交时不纳入既有 `.agents/project/memory/verification.md` WIP。
+
+## M5 ADR-050 文件存储
+
+根 `openrust::storage` 提供 local/S3-compatible、具名 disk、流式 I/O、总量与块限额、MIME/Inspector、公开 driver 和精确对象版本 presign。默认/all-features workspace tests 与 all-target clippy 通过；HTTP 与 custom driver 集成测试在真实 TCP/公开 consumer 执行。真实 MinIO `RELEASE.2025-10-15T17-29-55Z` 专项显式通过，验证 12 MiB multipart、取消/inspection 拒绝后 key 不可见、覆盖后历史版本 body 与 presigned URL 仍读取旧内容、短时 URL 过期、未开启 versioning 时 fail-closed；MinIO client 确认无残余 multipart 或测试对象。干净源码副本中的 CLI 生成项目 check/test 通过。上游 Axum frame 的单块内存分配不在 `max_chunk_bytes` 保证内；跨 API 节点 A 上传/B 下载留给完整集群验收，进程强杀的 S3 multipart 清理由 bucket 生命周期策略负责。其余门禁命令见 `memory/testing.md`。

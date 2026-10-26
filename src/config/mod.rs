@@ -36,6 +36,7 @@ pub mod security;
 pub mod server;
 pub mod signing;
 pub mod sms;
+pub mod storage;
 
 pub use api::{ApiConfig, HttpStatusMode};
 pub use app::{AppConfig, Environment};
@@ -51,6 +52,7 @@ pub use security::EncryptionConfig;
 pub use server::{CompressionConfig, CorsConfig, ServerConfig};
 pub use signing::SignedLinksConfig;
 pub use sms::SmsConfig;
+pub use storage::{StorageConfig, StorageDiskConfig};
 
 /// 用于选择运行环境的环境变量。
 pub const ENV_VAR: &str = "APP_ENV";

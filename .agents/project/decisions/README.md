@@ -61,6 +61,7 @@
 | [047 类型化资源查询授权](adr-047-typed-query-authorization.md) | Accepted | 资源行范围与 RBAC 分离；规则条件和业务筛选固定 AND，受保护读写隐藏 SeaORM builder |
 | [048 稳定键有界分批读取](adr-048-stable-batch-reading.md) | Accepted | 复用 SeaORM keyset cursor，限定稳定主键、批次上限、取消与并发/事务边界 |
 | [049 数据库迁移执行互斥](adr-049-migration-execution-lock.md) | Accepted（实现中） | 迁移命令以数据库行锁序列化，超时和进程退出可恢复 |
+| [050 统一文件存储与驱动扩展](adr-050-storage-drivers.md) | Accepted | 根 `openrust::storage` 复用 OpenDAL，提供 local/S3-compatible、具名实例、流式对象契约及公开 driver/inspection 扩展；MinIO 实测和 workspace 门禁见 memory/testing.md |
 
 ## 队列、缓存与部署
 

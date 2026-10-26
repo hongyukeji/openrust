@@ -18,6 +18,8 @@ impl Application for Server {
         let app = app.plugin(openrust::cache::CachePlugin);
         #[cfg(feature = "encryption")]
         let app = app.plugin(openrust::security::EncryptionPlugin);
+        #[cfg(feature = "storage-local")]
+        let app = app.plugin(openrust::storage::StoragePlugin);
         app.routes(routes::register);
     }
 }
