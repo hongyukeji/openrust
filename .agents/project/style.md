@@ -32,7 +32,7 @@ ADR 只记录一个决策：状态、日期、背景、决策和影响。被替�
 
 - 文件名使用小写 kebab-case；目录索引保留 `README.md`。
 - ADR 使用 `adr-NNN-<topic>.md`，编号唯一；废弃决策标记 `Superseded` 并指向替代决策。
-- crate 事实文件名与 crate 名一致（去掉 `openrust-` 前缀），如 `core/http.md`。
+- 框架模块/工具的事实文件采用职责名，如 `core/http.md`、`core/cli.md`；既有 `core/test.md` 继续记录 `testing/`，不为包身份变更机械改事实文件路径。
 - 详细方案使用 `plans/<topic>.md`；进入执行时只把当前可闭口功能簇移入 `todo.md`。
 
 ## 写作格式

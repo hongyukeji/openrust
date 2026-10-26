@@ -63,7 +63,7 @@
 | 过程宏 | 已用 `syn` + `quote` 解析控制器 impl 项并生成 `Resource` 实现 |
 | 假数据 | `fake` 尚未引入；已有 Mail/SMS/Audit fake 是各能力自身测试实现，不依赖该 crate |
 | 依赖审计 | 当前验证使用 `cargo-deny`；`cargo-audit` 为规划工具，不等于已执行 |
-| 语义化版本检查 | `cargo-semver-checks` 属于 M6 发布门禁规划 |
+| 语义化版本检查 | M6 对已有源码版本做 API 兼容性检查；使用 `cargo-semver-checks` 时明确源码 baseline，不以 crates.io 已发布包为前提 |
 | 变更日志 | `git-cliff` 为规划工具 |
 | 文档站 | M6 规划 `mdbook`；当前尚无 mdBook 用户文档站 |
 | CI | GitHub Actions；PostgreSQL 与 MySQL 以 service 容器提供 |

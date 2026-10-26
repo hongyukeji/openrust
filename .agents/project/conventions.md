@@ -17,12 +17,12 @@
 
 ## 命名
 
-- 应用层可见的默认配置名、环境变量前缀、持久表名、生成模板和部署示例采用跨语言中性名称；框架自身 crate、CLI、Rust 模块可保留 `openrust` 产品名。按 [ADR-006](decisions/adr-006-rust-native-naming.md) 与 [ADR-016](decisions/adr-016-neutral-application-namespaces.md) 执行。
+- 应用层可见配置、表名、模板、部署示例及内部 package 采用中性名称；仅根 `openrust`、公共路径和 CLI 命令保留产品身份。源码交付和内部包命名以 [ADR-039](decisions/adr-039-source-workspace-distribution.md) 为准。按 [ADR-006](decisions/adr-006-rust-native-naming.md) 与 [ADR-016](decisions/adr-016-neutral-application-namespaces.md) 执行。
 
 | 对象 | 规则 | 示例 |
 | --- | --- | --- |
-| 主框架与独立工具包 | 能力在根 `openrust` 内按 module 划分；必要工具包保留发布名，目标目录采用中性名 | `openrust-cli` → `cli/`、`openrust-macros` → `macros/`、`openrust-test` → `testing/`（目录迁移待实施，见 ADR-021） |
-| 仓库内应用 | `apps/<role>`、`publish = false`；宿主去留按职责覆盖审计决定 | 当前 `apps/server` 包/二进制仍为 `openrust-server`，不执行旧 ADR-019 的 `server` 包名迁移 |
+| 主框架与内部工具包 | 根 `openrust` 内按 module 划分；工具 package 与目录同名，所有 package 显式 `publish = false` | 目标 `cli/` → `cli`、`macros/` → `macros`、`testing/` → `testing`；当前旧包名尚待实现迁移 |
+| 仓库内应用 | `apps/<name>`，包名使用应用职责名，`publish = false`；业务依赖本地 workspace | `apps/server` 的 package/二进制目标均为 `server`；保留现有宿主验收职责 |
 | driver 类型 | `<Backend><Capability>` | `RedisCache`、`DatabaseQueue` |
 | 配置结构 | `<Capability>Config` | `QueueConfig` |
 | 错误类型 | `<Capability>Error` | `QueueError` |
@@ -91,7 +91,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 cargo doc --workspace --no-deps
 cargo deny check
-cargo semver-checks            # 发布前
+# M6：对已有源码版本做 API 兼容性比较；先明确源码 baseline，再执行 semver 检查。
 ```
 
 | 改动范围 | 验证 |

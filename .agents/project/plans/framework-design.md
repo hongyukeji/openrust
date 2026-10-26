@@ -120,16 +120,16 @@ OpenRouter 是独立 AI 平台产品的产品对标对象，不列入上述框�
 
 框架实现集中在根 `openrust` package 的 `src/`，配置代码在 `src/config/`。当前实际结构见 [architecture.md](../architecture.md)，剩余目录迁移见 [Spec](module-layout-migration-spec.md) 与 [ADR-021](../decisions/adr-021-loco-style-module-layout.md)。
 
-目标是将独立工具包放在 `cli/`、`macros/`、`testing/`，完成职责迁移后移除旧 `crates/`。Cargo package 名保留，proc-macro 不合入普通 library。`examples/<name>/`、`tests/<capability>/` 采用明确的 Cargo target/harness，不能靠嵌套目录自动发现测试。`apps/` 保留应用约定；`apps/server` 暂为集成宿主，删除或迁移须先替代其全部验收职责。
+工具包已在 `cli/`、`macros/`、`testing/`，旧 `crates/` 已移除。按 [ADR-039](../decisions/adr-039-source-workspace-distribution.md)，整套源码交付，内部包改为目录同名、全部禁用发布；proc-macro 不合入普通 library。`examples/<name>/`、`tests/<capability>/` 采用明确的 Cargo target/harness，不能靠嵌套目录自动发现测试。`apps/` 保留应用约定；`apps/server` 暂为集成宿主，删除或迁移须先替代其全部验收职责。
 
 未实现的 events/cache/storage 等能力在对应里程碑以实际实现进入 `src/`；不预建空模块或为每种能力创建独立 package。
 
 ## 生成的应用布局
 
-生成应用自己的 `src/` 是业务代码，与框架仓库的 `src/` 职责不同。当前生成器以 [CLI 事实](../core/cli.md) 和模板源码为准；以下是 v1 完成时的组织目标，不表示现有 `new` 已生成所有目录。
+默认在整套源码的 `apps/<name>/` 生成业务应用，其 `src/` 是业务代码，与框架根 `src/` 职责不同；应用与 migration 使用本地 workspace 依赖。当前生成器以 [CLI 事实](../core/cli.md) 和模板源码为准；以下是 v1 完成时的组织目标，不表示现有 `new` 已生成所有目录。
 
 ```text
-<app>/
+apps/<app>/
 ├── Cargo.toml                 # package.metadata.openrust
 ├── .env.example               # .env 不入库
 ├── config/                    # default/development/test/production.toml
@@ -236,9 +236,9 @@ OpenRouter 是独立 AI 平台产品的产品对标对象，不列入上述框�
 
 ## 框架代码规范
 
-以 [conventions.md](../conventions.md)、[stack.md](../stack.md) 和 `AGENTS.md` 为唯一工程规则入口。框架能力是 `openrust::<capability>` 模块；只有独立发布、proc-macro 或 dev-dependency 边界保留 package。公共异步 trait 根据对象安全/动态 driver 需要采用原生 async、BoxFuture 或现有适配方式，不机械统一一种签名。
+以 [conventions.md](../conventions.md)、[stack.md](../stack.md) 和 `AGENTS.md` 为唯一工程规则入口。框架能力是 `openrust::<capability>` 模块；只有命令行工具、proc-macro 或测试依赖边界保留内部 package。公共异步 trait 根据对象安全/动态 driver 需要采用原生 async、BoxFuture 或现有适配方式，不机械统一一种签名。
 
-已执行门禁与待建立发布门禁分别记录。`cargo semver-checks`、完整模板快照和 mdBook 不因列入目标就算 CI 已实现；发布前须实际补齐。文档、模板、示例和下游调用方必须随公共 API 同步。
+已执行门禁与待建立发布门禁分别记录。基于已有源码版本的 API 兼容性检查、完整模板快照和 mdBook 不因列入目标就算 CI 已实现；发布前须实际补齐。文档、模板、示例和下游调用方必须随公共 API 同步。
 
 ## 相关
 

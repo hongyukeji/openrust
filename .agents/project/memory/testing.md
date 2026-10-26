@@ -4,6 +4,10 @@
 > 更新：2026-10-26
 > 摘要：根 package 模块迁移、双库与生成项目当前可复验入口。
 
+## 命令与源码交付迁移
+
+[ADR-039](../decisions/adr-039-source-workspace-distribution.md) 已确认内部包改名。下文旧 `-p openrust-*` 命令对应当前 manifest/既有验收，代码迁移后同步可执行入口。历史临时 patch 仅证明当时产物可用；新的黄金路径须在干净完整源码副本中生成 apps 并直接验证 workspace/path 依赖，不再人工补 registry patch。
+
 ## 本地 workspace 门禁
 
 ```bash
@@ -30,7 +34,7 @@ cargo test --workspace --all-features
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --all-features
 ```
 
-应用数据加密专项：`cargo test -p openrust --features encryption security::tests`；生成器/密钥命令：`cargo test -p openrust-cli`；`apps/server` 接线：`cargo check -p openrust-server --features encryption`。完成生成项目验收时还需实际执行 `openrust new --encryption` 产物的本地 patch `cargo check` 与 `cargo test`。
+应用数据加密专项：`cargo test -p openrust --features encryption security::tests`；生成器/密钥命令：`cargo test -p openrust-cli`；`apps/server` 接线：`cargo check -p openrust-server --features encryption`。完成 ADR-039 生成器迁移后，还需对 `openrust new --encryption` 产物直接执行 `cargo check` 与 `cargo test`，不添加临时 registry patch。
 
 根 package 示例：`cargo run -p openrust --example hello`；应用配置可用 `APP_SERVER__PORT` 指定隔离端口，HTTP smoke 访问 `/` 应返回统一 JSON 200。
 
@@ -79,7 +83,7 @@ M2 读写路由真实复制测试使用 `OPENRUST_TEST_DATABASE_URL`、`OPENRUST
 
 ## 生成项目
 
-CLI 模板快照测试：`cargo test -p openrust-cli`。生成 PostgreSQL、MySQL `--auth` 项目后运行 `cargo fmt --all --check`、`cargo check`、`cargo test`。仓库当前未发布，集成验证可用 Cargo patch 指向本地根 `openrust` 与 `testing`；这不作为无 patch 的发布安装验收。
+CLI 模板快照测试：`cargo test -p openrust-cli`。生成 PostgreSQL、MySQL `--auth` 项目后运行 `cargo fmt --all --check`、`cargo check`、`cargo test`。旧模板的历史集成验证使用 Cargo patch 指向本地根 `openrust` 与 `testing`。新的源码交付验收按 ADR-039，在干净源码副本中生成 apps 后直接运行，不继续以 patch 作为默认操作入口。
 
 2026-10-26 根模块迁移后，两种生成项目都以真实 PostgreSQL 16 / MySQL 8.4 服务运行 `generated_auth_routes_run_over_http_with_isolated_database_and_fake_mail` 并通过。测试覆盖实际 HTTP、JWT/PAT 认证、数据库流程、可信代理 client IP 与 fake mail。
 

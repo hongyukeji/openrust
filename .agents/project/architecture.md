@@ -4,6 +4,10 @@
 > 更新：2026-10-26
 > 摘要：根 `openrust` package 以 Rust modules 承载框架能力；CLI、proc-macro、测试工具与聚合应用保留独立 workspace package。详细设计见 [框架设计](plans/framework-design.md)。
 
+## 已确认的交付方式
+
+整套源码 workspace 交付，业务放在 `apps/<name>/`。内部包目标为 `cli`、`macros`、`testing`、`server`，根 `openrust` 与公共 API 保留；所有 package 禁用发布。代码目前仍是下文列出的旧包名，迁移清单与验收见 [ADR-039](decisions/adr-039-source-workspace-distribution.md)。
+
 ## Workspace 与源码布局
 
 ```text
@@ -25,13 +29,13 @@ testing/                 # 用户 dev-dependency 测试工具（openrust-test）
 apps/server/             # 同仓库集成宿主；通过验收替代后才可移除
 ```
 
-框架源码 Rust 模块与运行时配置文件分开：源码位于根 `src/config/`，每个应用（含生成项目）在自身项目根 `config/` 放 TOML/YAML。仓库 `apps/` 是 workspace 内应用目录约定；`openrust new` 创建的是独立项目，具有自己的 `src/`、`config/` 和 `Cargo.toml`。
+框架源码 Rust 模块与运行时配置文件分开：源码位于根 `src/config/`，每个应用（含生成项目）在自身项目根 `config/` 放 TOML/YAML。仓库 `apps/` 是业务应用入口；当前生成器仍创建独立项目，须按 ADR-039 改为 workspace 内 `apps/<name>/`，保留应用自己的 `src/`、`config/` 和 `Cargo.toml`。
 
 当前 manifest 的五个 workspace package 为：根 `openrust`（框架），`openrust-cli`（命令分发），`openrust-macros`（proc-macro 技术边界），`openrust-test`（用户测试 dev-dependency），`openrust-server`（聚合启动与验收宿主）。原能力空壳已移除；cache/events/storage 等剩余能力直接在根 package 实现，不预建空模块。
 
 ## 目录职责与验证入口
 
-按 [ADR-021](decisions/adr-021-loco-style-module-layout.md)，CLI、proc-macro 和测试工具的独立 package 边界保留在 `cli/`、`macros/`、`testing/`，发布包名为 `openrust-cli`、`openrust-macros`、`openrust-test`。根框架保留唯一 `openrust` package。
+按 [ADR-021](decisions/adr-021-loco-style-module-layout.md)，CLI、proc-macro 和测试工具的独立编译/依赖边界保留在 `cli/`、`macros/`、`testing/`；包名按 ADR-039 迁移为目录同名。根框架保留唯一 `openrust` package。
 
 示例按应用分组，例如 `examples/hello/main.rs` 和后续 `examples/demo/`；根与 `apps/server` 测试按能力组织，通过明确 `[[test]]` targets 保持测试名称、feature 门控和 Cargo 发现。queue/schedule 的 PostgreSQL 与 MySQL 集成命令已进入 CI；迁移已完成五包/265 条测试清单、workspace、双库和生成项目验证。旧 `crates/` 已移除。
 
@@ -44,7 +48,7 @@ apps/server/             # 同仓库集成宿主；通过验收替代后才可�
 - PostgreSQL 与 MySQL 的 schema/SQL 差异集中在 `db::dialect` 及明确的数据库适配入口，需为两库提供分支和真实测试。
 - 生成应用只依赖 `openrust`；`openrust-test` 单向依赖 `openrust`，根框架不得反向依赖测试工具。
 - `apps/server` 只依赖公开 facade；继续承载尚未由根 `tests/` / `examples/` 等价接替的启动、feature 组合、生成项目和双库验收。
-- 只有存在技术或分发理由时才保留 package；不得为规划中的能力机械增设空 crate 或空 module。
+- 只有存在编译、工具或测试依赖边界时才保留 package；不得为规划中的能力机械增设空 crate 或空 module。
 
 `openrust-test` 当前提供 `TestDatabase` 隔离工具；公共 `TestApp` / HTTP response assertions 是计划中的 M6 测试体验补齐，不应按 crate 描述或历史计划文字误判为已实现。
 

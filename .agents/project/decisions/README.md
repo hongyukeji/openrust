@@ -17,20 +17,21 @@
 | --- | --- | --- |
 | [001 自有内核](adr-001-own-kernel-on-axum.md) | Accepted | Tokio/Axum/Tower；参考框架不作为框架内核依赖 |
 | [002 SeaORM 与双库](adr-002-seaorm-dual-database.md) | Accepted | PostgreSQL/MySQL 正式矩阵；暂定最低与日常基线分开验证 |
-| [005 许可证与 MSRV](adr-005-license-naming-msrv.md) | Accepted | MIT OR Apache-2.0、Edition、发布包身份；源码目录按 021 |
+| [005 许可证与 MSRV](adr-005-license-naming-msrv.md) | Partially Superseded | MIT OR Apache-2.0、Edition、MSRV 有效；包命名与分发由 039 替代 |
 | [006 命名与命令](adr-006-rust-native-naming.md) | Partially Superseded | 通用命名有效；命名空间见 016，目录见 021，具体能力 contract 见各 ADR |
 | [007 聚合宿主](adr-007-aggregate-server-entry.md) | Partially Superseded | 集成职责仍有效；永久保留及旧 crate 拓扑由 021 替代 |
 | [008 HTTP API](adr-008-api-conventions.md) | Accepted | 响应、状态模式、错误与协议例外 |
 | [009 可扩展驱动](adr-009-extensible-capability-drivers.md) | Accepted | 统一入口、公开扩展、后端能力与真实验收 |
 | [010 Seed](adr-010-database-seeding.md) | Accepted | 应用提供 seed 函数，不做平行 ORM 工厂 |
 | [016 中性命名空间](adr-016-neutral-application-namespaces.md) | Accepted | 默认 APP_、tb_ 与可定制解析，替代 006 的旧品牌前缀 |
-| [019 中性 crate 目录](adr-019-neutral-crate-directories-and-app-package.md) | Superseded | 原逐能力 crates 与 server 改名不再执行；统一见 021 |
+| [019 中性 crate 目录](adr-019-neutral-crate-directories-and-app-package.md) | Superseded | 原逐能力 crates 取消；目录见 021，当前 server 中性包名见 039 |
 | [020 旧 workspace 方案](adr-020-workspace-layout-and-loco-practices.md) | Superseded | 旧多能力 package 方案取消；有效配置/示例原则已纳入 021/030 |
-| [021 模块与目录职责](adr-021-loco-style-module-layout.md) | Accepted | 根框架模块；工具目录、分组示例/测试与宿主覆盖审计仍待收口 |
+| [021 模块与目录职责](adr-021-loco-style-module-layout.md) | Partially Superseded | 根模块、工具边界和宿主职责有效；发布身份与独立生成项目由 039 替代 |
 | [023 应用扩展与体验](adr-023-loco-application-experience-evaluation.md) | Partially Superseded | doctor/TestApp 有效；停机未决项由 037 命令 supervisor 定稿 |
 | [029 读写路由](adr-029-database-read-routing.md) | Accepted | 显式副本、主库 scope；不实现复制/选主 |
 | [030 模块化配置](adr-030-modular-configuration.md) | Accepted | Rust 配置代码与运行时 config 分离；单一 ConfigLoader/.env 规则 |
 | [038 测试数据库隔离](adr-038-isolated-test-databases.md) | Accepted | 独立测试库与显式清理；原重复编号 011 校准 |
+| [039 源码交付与内部命名](adr-039-source-workspace-distribution.md) | Accepted | 整套 workspace、apps 业务、内部中性包名与禁用发布；实现待迁移 |
 
 ## 认证、安全与通信
 

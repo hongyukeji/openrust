@@ -4,6 +4,8 @@
 > 状态：目录迁移与适用验收完成；apps/server 评估结论为保留。代码提交 `de6fc65`，验收文档提交 `c84a090`。
 > 决策：[ADR-021](../decisions/adr-021-loco-style-module-layout.md)。执行优先级见 [plan.md](../plan.md#执行校准)。
 
+> 包名与交付方式已由 [ADR-039](../decisions/adr-039-source-workspace-distribution.md) 更新。下列旧包名与“保持包名”只记录已完成目录迁移的范围；新实现须执行中性包名、禁用发布和 apps 生成流程，不能继续沿用旧发布前提。
+
 ## Spec
 
 1. 保持根 `openrust` 框架模块与公共 API；不重新拆成逐能力 crate，也不改变业务功能。
@@ -18,15 +20,15 @@
 | Package/入口 | 当前路径 | 目标/处理 |
 | --- | --- | --- |
 | `openrust` | 根目录，能力在 `src/` | 保持；配置代码 `src/config/`，运行时配置在应用根 `config/` |
-| `openrust-cli` | `cli/` | 已迁移；保留独立 CLI 分发、模板和测试 |
+| `openrust-cli` | `cli/` | 已迁移；保留 CLI 编译边界、模板和测试 |
 | `openrust-macros` | `macros/` | 已迁移；保留 Rust proc-macro 独立 package |
 | `openrust-test` | `testing/` | 已迁移；用户 dev-dependency，单向依赖框架 |
-| `openrust-server` | `apps/server` | 保留；职责替代覆盖不完整，包名不为目录美观单独改名 |
+| `openrust-server` | `apps/server` | 保留验收职责；当前包名按 ADR-039 待改为 `server` |
 | hello 示例 | `examples/hello/main.rs` | 已迁移并显式保留 `hello` target 名 |
 | 公共 API 测试 | `tests/http/*.rs` | 已按 HTTP 能力分组并显式声明原 target 名 |
 | 宿主集成测试 | `apps/server/tests/{auth,database,http,i18n,queue,schedule,server}/` | 已按能力分组并显式声明原 target 名；宿主职责保留 |
 
-目标不是减少 Cargo package 数，而是消除冗余层级并让开发者看清框架/工具/应用边界。程序宏与 CLI 不因“统一 src”失去独立构建/分发要求。迁移前后 target/test 清单一致，工作区门禁及双库集成通过；本簇尚待独立提交。
+目标不是减少 Cargo package 数，而是消除冗余层级并让开发者看清框架/工具/应用边界。程序宏与 CLI 保留各自构建边界。目录迁移前后 target/test 清单一致，工作区门禁及双库集成已通过并提交；新的包名和源码交付迁移另按 ADR-039 验收。
 
 ## apps/server 职责评估
 

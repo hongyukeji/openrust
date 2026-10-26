@@ -11,6 +11,5 @@
 
 ## 当前入口
 
-- 必要工具包的目标目录为 `cli/`、`macros/`、`testing/`，发布包名保持；顶层 `crates/` 的最终移除按 ADR-021 执行。
-- `apps/server` 当前包名仍为 `openrust-server`。只有职责被等价接替并验证后，才决定移除或迁移宿主；`apps/` 约定保留。
-- 默认应用配置命名空间和表前缀由 [ADR-016](adr-016-neutral-application-namespaces.md) 决定，不与 Cargo 包身份混用。
+- 模块与目录职责按 [ADR-021](adr-021-loco-style-module-layout.md)；其后的整套源码交付、中性 package 名及 server 改名按 [ADR-039](adr-039-source-workspace-distribution.md)，不恢复原逐能力 crates 拓扑。
+- 默认应用配置命名空间和表前缀仍由 [ADR-016](adr-016-neutral-application-namespaces.md) 决定。

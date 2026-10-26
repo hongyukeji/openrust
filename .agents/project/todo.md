@@ -8,6 +8,12 @@
 
 先核对 Git/WIP 和 [执行校准](plan.md#执行校准)。数据库队列、调度、活动唯一键及有限任务链/批次已提交，不重复实现。若存在并行 Agent 的 WIP，先保留并闭合其当前最小簇，再按以下顺序继续。当前文档校准不修改源码；实现 Agent 领取时把实际唯一 in_progress 写在对应条目中。
 
+## 优先：源码交付与内部包命名
+
+| 功能簇 | 前置与交付 | 验收 |
+| --- | --- | --- |
+| 源码 workspace 与中性包名 **in_progress** | [ADR-039](decisions/adr-039-source-workspace-distribution.md)：迁移 `cli/macros/testing/server` package 与 binary/lib 名、全部 `publish = false`、本地 workspace 依赖、apps 生成及应用启动/配置定位；无 crates.io 发布或占位任务。Spec：保持 `openrust::` API 与宏展开，识别 framework root/目标 app；默认在 `apps/<name>` 合并 workspace；保留现存成员；重复名/目录/外部目标在写入前报错；两个 app 生成、启动和配置互不串用。 | metadata/targets 不丢失，workspace 门禁，干净源码副本双库生成/真实测试，无临时 registry patch；至少两个 apps 不冲突，CI/模板/文档同步 |
+
 ## 补齐既有阶段的遗漏
 
 | 功能簇 | 前置与交付 | 验收 |
@@ -41,7 +47,7 @@
 - CLI：补 controller/scaffold/command 等剩余生成器、routes、只读 doctor、`db status` 和显式 `db reset`；复用已有 config show/migrate/seed。status/doctor 不写数据；reset 另定目标环境、确认和数据清理边界，在隔离库测试，不由 doctor/dev 隐式触发。
 - 开发编排：dev 先探测并复用合适服务，缺失时才建本任务资源；按显式配置处理迁移、watch、信号、端口冲突和进程回收。当前 dev 只是代理 serve，不能宣传自动编排已完成。
 - 测试体验：TestApp/HTTP assertions 复用 finalize/build_router/Tower oneshot 与 TestDatabase；fake 显式替换。OpenAPI、错误/分页 schema、文档端点与授权范围一致。
-- 交付：`examples/blog`、双库生成黄金路径、Docker/Compose、备份恢复/滚动升级/迁移说明、mdBook 与迁移对照；验证源码分发和包内容完整，未发布依赖用受控本地 patch 验证。
+- 交付：`examples/blog`、双库生成黄金路径、Docker/Compose、备份恢复/滚动升级/迁移说明、mdBook 与迁移对照；验证完整源码分发、workspace/path 依赖与 apps 生成/启动，不依赖已发布内部包或临时 registry patch。
 - 最终门禁：默认/最小/关键/all-features、MSRV、依赖审计、双库真实所有数据路径、最低兼容版本；至少两个 API 加多 worker/scheduler 经负载均衡验证共享状态、实时与文件、故障/滚动恢复；代表性性能基线与回归阈值。
 - 加密：按 ADR-034 复核选用实现的审计证据、依赖与目标平台性能；算法标准不能替代实现审计。外部供应商真实短信需要授权账号/目标，未验证如实标注，不能把 v1 最终门禁报告为全部通过。
 - 生成器各原定里程碑交付，M6 只做全集复验，不借“最终统一做”遗漏 M3/M4 交付。发布/tag/推送由独立授权处理。

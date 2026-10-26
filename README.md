@@ -2,7 +2,7 @@
 
 > An opinionated, batteries-included Rust application framework. Create a project, run one command, and start writing business code.
 
-**Status: v1 in active development.** Nothing is published to crates.io yet. The v1 scope includes configuration, HTTP conventions, PostgreSQL/MySQL, authentication and authorization, queue, scheduler, events, cache, storage, mail, CLI, testing tools and deployment support; planned capabilities are not complete until their implementation and acceptance evidence are recorded.
+**Status: v1 in active development.** OpenRust is delivered as a complete source workspace for building applications in `apps/`; separate Cargo package publishing is not planned. Internal package names and the generator are being aligned with this model. The v1 scope includes configuration, HTTP conventions, PostgreSQL/MySQL, authentication and authorization, queue, scheduler, events, cache, storage, mail, CLI, testing tools and deployment support; planned capabilities are not complete until their implementation and acceptance evidence are recorded.
 
 ## Goals
 
@@ -26,7 +26,7 @@ cargo run -p openrust-server -- help
 cargo test -p openrust-server
 ```
 
-For repository development, `.cargo/config.toml` sets `APP_CONFIG_DIR=apps/server/config`, so root-level `cargo run` reads the server's configuration. Applications default to `config/` relative to their working directory. `APP_SERVER__PORT=4000 cargo run` overrides the server's port; `PORT=4000 cargo run` also works. Applications can override `Application::config_namespace()` to use a prefix such as `SHOP_`. The framework package is at the repository root; implemented capabilities live in `src/audit.rs`, `src/config/`, `src/core/`, `src/db/`, `src/http/`, `src/i18n.rs`, `src/mail/`, `src/sms.rs`, and feature-gated auth, encryption, signing, queue and schedule modules. Runtime TOML/YAML remains in each application's root `config/` directory. `apps/server` is this workspace's integration host, while `openrust new` creates a separate project with its own `src/` and `config/`.
+For repository development, `.cargo/config.toml` sets `APP_CONFIG_DIR=apps/server/config`, so root-level `cargo run` reads the server's configuration. Applications default to `config/` relative to their working directory. `APP_SERVER__PORT=4000 cargo run` overrides the server's port; `PORT=4000 cargo run` also works. Applications can override `Application::config_namespace()` to use a prefix such as `SHOP_`. The framework package is at the repository root; implemented capabilities live in `src/audit.rs`, `src/config/`, `src/core/`, `src/db/`, `src/http/`, `src/i18n.rs`, `src/mail/`, `src/sms.rs`, and feature-gated auth, encryption, signing, queue and schedule modules. Runtime TOML/YAML remains in each application's root `config/` directory. `apps/server` is this workspace's integration host. The current generator still creates a separate project; migration to applications under `apps/` with local workspace dependencies is pending.
 
 Application data encryption is an opt-in `encryption` feature. Register `openrust::security::EncryptionPlugin`, configure a 32-byte key ring under `[security.encryption]`, and generate local key material with `openrust key generate`. The active key encrypts new values; prior keys decrypt old values during a controlled rotation. Keep keys outside version control.
 
@@ -66,14 +66,17 @@ Register `WelcomeEmailJob` with `QueuePlugin` as well. For best-effort in-proces
 
 ## The planned v1 golden path
 
-The following is the release acceptance target. Packages are not published yet. Today, use the repository commands above; the current CLI supports project generation and a development server proxy, while dependency orchestration, automatic migrations and OpenAPI remain planned.
+The following is the source-workspace acceptance target, including the planned internal package rename. Today, use the current package names in the repository commands above. Application generation into `apps/`, local dependency wiring, dependency orchestration, automatic migrations and OpenAPI are not all complete yet.
 
 ```bash
-cargo install openrust-cli
-openrust new blog --db postgres
-cd blog
-openrust dev
+git clone https://github.com/hongyukeji/openrust.git
+cd openrust
+cargo run -p cli -- new blog --db postgres
+cd apps/blog
+cargo run -p cli -- dev
 ```
+
+The generated application must build and test against the included framework source without publishing internal packages or adding manual registry patches.
 
 For v1 acceptance, `openrust dev` must first reuse suitable existing services, create missing isolated development dependencies, apply migrations and run the application. Both database templates must expose working health, OpenAPI and auth paths and pass their generated tests. These end-to-end guarantees are not complete yet.
 

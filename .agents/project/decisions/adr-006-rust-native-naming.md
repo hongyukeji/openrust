@@ -7,7 +7,7 @@
 
 初版设计按 Laravel 的概念起草，代码与文档里留下了 `ServiceProvider::register/boot`、`index/show/store/update/destroy`、`make:*`、`config:show`、`Mailable`、`Seeder` 等带有其他生态习惯的词。OpenRust 的用户有很多是从 PHP、Ruby、Python、Java、JS、Go 转来的。目标是新手和老手都能很快上手，开箱即用。所以命名既要让 Rust 开发者觉得地道，也要让跨语言开发者一眼认得，而且不能特立独行。
 
-本 ADR 维护通用命名规则；能力语义与后续替代关系见 [ADR 索引](README.md)，当前 API 事实以源码为准。日常操作清单见 [conventions.md「框架规范」](../conventions.md#框架规范)。
+本 ADR 维护通用命名规则；能力语义与后续替代关系见 [ADR 索引](README.md)，当前 API 事实以源码为准。整套源码交付、内部包命名与 apps 生成方式按 [ADR-039](adr-039-source-workspace-distribution.md)。日常操作清单见 [conventions.md「框架规范」](../conventions.md#框架规范)。
 
 ## 判定规则
 
@@ -119,7 +119,7 @@ TOML 分层、环境引导与生产 `.env` 保护保持有效，具体兼容、�
 
 ## 明确不改
 
-`App` / `AppBuilder` / `AppState` / `Application`、`Resource` trait、`Validated`、`Inject`、`Policy`、`Job`、`.env`、`compose.yaml`、feature 名（`db-postgres`、`test-util`）、`openrust-cli` 的二进制名 `openrust`、`thiserror` / `anyhow` 的分工。事件能力名称随对应 contract 登记，不因命名约定推断 derive 或注册 API 已实现。
+`App` / `AppBuilder` / `AppState` / `Application`、`Resource` trait、`Validated`、`Inject`、`Policy`、`Job`、`.env`、`compose.yaml`、feature 名（`db-postgres`、`test-util`）、CLI 的二进制名 `openrust`、`thiserror` / `anyhow` 的分工。事件能力名称随对应 contract 登记，不因命名约定推断 derive 或注册 API 已实现。
 
 ## 影响
 

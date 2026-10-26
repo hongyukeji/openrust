@@ -10,7 +10,7 @@ OpenRust 定位为 Rust 应用开发的“瑞士军刀”：以高性能为基�
 
 规划统一称为“v1 版本”；本文件沿用 `gen1-plan.md` 路径，当前包版本以 `Cargo.toml` 为准。本计划不代表已发布，不执行版本、tag 或发布操作。
 
-- OpenRust 是独立的开源 Rust 应用开发框架，仓库 `https://github.com/hongyukeji/openrust`。
+- OpenRust 是独立的开源 Rust 应用开发框架，仓库 `https://github.com/hongyukeji/openrust`。按 [ADR-039](../decisions/adr-039-source-workspace-distribution.md) 获取整套源码，在 `apps/<name>/` 开发业务；不独立发布 Cargo 包。
 - v1 版本交付「框架底座」：项目生成、配置、HTTP、数据库、认证授权、任务、缓存、存储、邮件、短信、国际化、WebSocket、出站 HTTP、加密、审计、请求幂等、CLI、测试工具和部署路径全部可用；业务开发者拿到项目后只写 `controllers` / `models` / `services` / `policies` / `jobs`。
 - 设计风格采用 Rust 生态熟悉的类型、trait 与显式依赖，以可见的项目约定提供统一开发入口。
 - 核心开发者画像：构建 API 服务与后台系统的中小团队和独立开发者，熟悉 Rust 基础，不想自己拼装 axum / SeaORM / tower 生态。
@@ -36,9 +36,9 @@ OpenRust 定位为 Rust 应用开发的“瑞士军刀”：以高性能为基�
 | 短信 | 统一 `SmsSender`/`SmsDriver`、Twilio Messages REST、log / fake driver；真实账户发送需授权验收 | contract 与发送边界见 [ADR-033](../decisions/adr-033-sms-driver-and-template-contract.md) |
 | 模板 | 邮件通过 `LocalizedEmail` 与 i18n catalog 渲染；SMS 支持纯文本或供应商 template SID | 不新增第二套模板语言；页面渲染脚手架与表单 CSRF 示例列入 v2 评估候选 |
 | 管理后台 / 插件市场 | 不在 v1 版本 | 由 `Plugin` 扩展模型承载第三方包，不做动态加载 |
-| 许可证与名称 | MIT OR Apache-2.0；crate 名 `openrust`、`openrust-cli`、`openrust-*`（[ADR-005](../decisions/adr-005-license-naming-msrv.md)） | 尚未发布/预留；发布前重新核实名称可用性，由开发者授权执行 |
+| 许可证与名称 | MIT OR Apache-2.0；根 `openrust`、内部 `cli/macros/testing/server`，所有 package 禁用发布（ADR-005/039） | 整套源码 workspace 交付，内部名称按职责，不安排 crates.io 预留或发布 |
 | Rust 版本 | Edition 2024；MSRV 为当前 stable 减两个小版本 | 既用新语法，又给下游留升级窗口 |
-| 仓库 | `https://github.com/hongyukeji/openrust`，本地 `/Users/Home/Codes/Rust/openrust`，默认分支 `main` | 独立发布、独立 CI、独立贡献者入口；Agent 记忆在本仓库 `.agents/project/` |
+| 仓库 | `https://github.com/hongyukeji/openrust`，本地 `/Users/Home/Codes/Rust/openrust`，默认分支 `main` | 源码版本管理、独立 CI、独立贡献者入口；Agent 记忆在本仓库 `.agents/project/` |
 
 ## v1 版本能力范围
 
@@ -84,16 +84,17 @@ Laravel 等成熟框架用于能力与体验对照，API 与命名遵循 Rust �
 
 ## 开箱即用的定义
 
-以下是 v1 完成/发布时的验收目标，当前尚不可按此认定开箱即用已完成；包尚未发布，现阶段运行入口见根 README。每个里程碑都以黄金路径通过程度衡量：
+以下是 v1 源码交付的验收目标，当前尚不可按此认定开箱即用已完成；内部包改名及 apps 生成模式待实现，现阶段运行入口见根 README。每个里程碑都以黄金路径通过程度衡量：
 
 ```bash
-cargo install openrust-cli
-openrust new blog --db postgres
-cd blog
-openrust dev
+git clone https://github.com/hongyukeji/openrust.git
+cd openrust
+cargo run -p cli -- new blog --db postgres
+cd apps/blog
+cargo run -p cli -- dev
 ```
 
-`openrust new` 默认生成注册与登录、一个 scaffold 资源、一封邮件、一个 job 和请求测试。`openrust dev` 一条命令按项目配置先探测复用合适现有服务，仅缺失或确有问题时创建所需隔离依赖容器（标准应用为数据库、Redis、Mailpit），执行迁移并运行服务；显式选择 memory/file 时可不启动 Redis。`/health` 返回 200，`/docs` 展示 OpenAPI，注册 / 登录可用，`cargo test` 全绿。
+以下 `openrust` 子命令均通过源码内 `cargo run -p cli -- …` 调用，不要求全局安装。`openrust new` 默认生成注册与登录、一个 scaffold 资源、一封邮件、一个 job 和请求测试。`openrust dev` 一条命令按项目配置先探测复用合适现有服务，仅缺失或确有问题时创建所需隔离依赖容器（标准应用为数据库、Redis、Mailpit），执行迁移并运行服务；显式选择 memory/file 时可不启动 Redis。`/health` 返回 200，`/docs` 展示 OpenAPI，注册 / 登录可用，`cargo test` 全绿。
 
 ```bash
 openrust generate scaffold post title:string body:text published_at:date_time? author:references
@@ -108,13 +109,13 @@ openrust queue work
 
 | 里程碑 | 交付 | 验收 |
 | --- | --- | --- |
-| M0 决策与基线 | ADR：自有内核、ORM 与双库、队列引擎、认证形态；预留 crates.io 名；workspace 骨架、`[workspace.lints]`、CI（fmt / clippy / test / deny / MSRV / 双库服务）；技术 spike：SeaORM 2 双库迁移、`SKIP LOCKED` 队列、axum 提取器组合 | CI 全绿；spike 结论写入 ADR；未通过的技术假设在进入 M1 前替换 |
+| M0 决策与基线 | ADR：自有内核、ORM 与双库、队列引擎、认证形态；workspace 骨架、`[workspace.lints]`、CI（fmt / clippy / test / deny / MSRV / 双库服务）；技术 spike：SeaORM 2 双库迁移、`SKIP LOCKED` 队列、axum 提取器组合 | CI 全绿；spike 结论写入 ADR；未通过的技术假设在进入 M1 前替换 |
 | M1 内核与 HTTP | `openrust::core`（Application / AppBuilder / Plugin / Config / Error / 生命周期）、`openrust::http`（路由约定、中间件栈、`Validated`、统一响应包装、健康检查）、CLI `new` / `dev` / `serve`、无数据库模板 | `openrust new` 生成项目 `cargo test` 通过；`/health` 200；验证失败 code=validation_failed；always_ok 模式 HTTP 200，semantic 模式 HTTP 422；缺失配置启动失败并指出键名 |
 | M2 数据层 | `openrust::db`（连接池、迁移运行器、seed、事务、`dialect` 边界）、`generate model` / `generate migration`、`migrate` / `db seed`、`openrust-test` 数据库隔离、模板 `--db`、CI 双库矩阵 | 空 PostgreSQL / MySQL 均初始化成功；重复 `migrate` 幂等；`rollback` 可用；生成实体直接编译；每个数据功能有双库测试证据 |
 | M3 邮件、短信、认证与授权 | `openrust::sms`（log / fake / Twilio REST，contract 见 ADR-033；真实供应商实发需授权）、`openrust::mail`（SMTP / log / fake / 本地 Mailpit）、`openrust::auth`（用户约定、Argon2id、JWT access/refresh、可选 Session 与 PAT、`CurrentUser`、注册 / 登录 / 登出 / 密码重置 / 邮箱验证、Policy、角色权限、登录限流）、`openrust::audit`（ADR-035）、`openrust::signing`（ADR-036）、`generate mailer` / `generate policy`，国际化、出站 HTTP、加密与密钥 | Twilio 协议、log/fake 与 Mailpit SMTP 验证；认证/签名/审计、生成器双库项目 check/test 与 HTTP 流程通过。真实供应商短信实发需授权账号与目标；HTTP 限流与数据输出/查询边界均已实现并验证；跨 M3/M4/M5 业务流程扩展点按 todo.md 继续补齐 |
 | M4 队列、调度与事件 | `openrust::queue`（database driver、重试退避、`failed_jobs`、`queue work`、调度器与锁、`schedule run` / `schedule list`）、`openrust::events`、队列化邮件与短信、`generate job`，请求幂等、事务一致性、锁、常用任务编排与薄通知层（按专题计划） | 任务失败 → 重试 → 失败表 → 手动重试成功；多副本调度不重复；worker 停机不丢任务；两库皆验证 |
 | M5 缓存、存储与可观测性 | `openrust::cache`（标准应用默认 Redis、显式 memory/file、库层 Redis feature 可选；driver/store contract 见 ADR-014）、`openrust::storage`（local / s3）、JSON 日志、请求 ID、`/ready`、`otel` / `metrics` feature、panic 捕获、WebSocket/SSE 与上传下载（按专题计划） | 三驱动基础契约测试；file 临时目录验证；Redis 真实集成验证；扩展示例只用公开契约；S3 兼容路径用 MinIO 集成验证；`/ready` 依赖超时正确报告 |
-| M6 开发者体验与 v1 发布 | mdBook 文档站（Diátaxis、迁移对照页、`coming-from-axum`）、`examples/blog` 黄金路径示例、Dockerfile / compose 模板、`routes` / `config show` / 只读 `doctor` / `db status` / 显式 `db reset`、`generate` / `g`（`scaffold`、`controller`、`model`、`migration`、`job`、`mailer`、`policy`、`command`）与快照测试、`openrust-test` `TestApp` / HTTP response assertions、`cargo semver-checks`、新手走查、v1 正式发布 | 新开发者按文档从空目录到部署在 30 分钟内完成且不读框架源码；本文件验收原则全部达标；发布动作由开发者执行 |
+| M6 开发者体验与 v1 发布 | mdBook 文档站（Diátaxis、迁移对照页、`coming-from-axum`）、`examples/blog` 黄金路径示例、Dockerfile / compose 模板、`routes` / `config show` / 只读 `doctor` / `db status` / 显式 `db reset`、`generate` / `g`（`scaffold`、`controller`、`model`、`migration`、`job`、`mailer`、`policy`、`command`）与快照测试、`testing` `TestApp` / HTTP response assertions、源码基线 API 兼容性检查、新手走查、v1 正式发布 | 新开发者获取完整源码后按文档从生成 apps 到部署在 30 分钟内完成且不读框架源码；本文件验收原则全部达标；发布动作由开发者执行 |
 
 当前暂定最低支持 PostgreSQL 14+、MySQL 8.0+、Redis 6.2+；日常开发基线采用 PostgreSQL 18、MySQL 8.4 LTS、Redis 8。v1 发布验收重新核实届时官方生命周期，并在最低版本真实服务上验证框架实际承诺的能力路径；Redis 6.2+ 的真实缓存/共享语义验证须待 M5 driver 实现后完成。只有主版本跨度较大或存在明确兼容风险时，才增加其他版本专项测试。版本升级时重新核实并同步运行时门槛、CI/Compose 镜像、模板、文档与兼容性说明。PostgreSQL 官方版本政策不使用“LTS”称谓，Redis 官方使用“Extended Support”类别。
 
@@ -133,25 +134,25 @@ openrust queue work
 
 ## 框架质量门禁
 
-v1 发布前必须建立并通过的 CI 门禁（当前覆盖与缺口见 todo.md/testing.md）：`cargo fmt --check`、`cargo clippy -D warnings`（含 pedantic）、`cargo test --workspace`、doctest、`cargo deny check`、MSRV 构建、`cargo semver-checks`、双库模板快照测试。库 crate `#![forbid(unsafe_code)]` 与 `#![deny(missing_docs)]`，禁止 `unwrap` / `expect` / `panic`。细则见 [设计文档「框架代码规范」](framework-design.md#框架代码规范)。
+v1 发布前必须建立并通过的 CI 门禁（当前覆盖与缺口见 todo.md/testing.md）：`cargo fmt --check`、`cargo clippy -D warnings`（含 pedantic）、`cargo test --workspace`、doctest、`cargo deny check`、MSRV 构建、源码基线 API 兼容性检查、双库模板快照测试。库 crate `#![forbid(unsafe_code)]` 与 `#![deny(missing_docs)]`，禁止 `unwrap` / `expect` / `panic`。细则见 [设计文档「框架代码规范」](framework-design.md#框架代码规范)。
 
 ## 风险与对策
 
 | 风险 | 对策 |
 | --- | --- |
-| Rust 编译时间拖累开发体验 | 清晰模块边界、按实际发布职责保留 package、feature 最小化、`openrust dev` 增量重编译、模板 `profile.dev` 调优、文档推荐 sccache |
+| Rust 编译时间拖累开发体验 | 清晰模块边界、按实际编译/依赖边界保留 package、feature 最小化、`openrust dev` 增量重编译、模板 `profile.dev` 调优、文档推荐 sccache |
 | SeaORM 2.x API 变动 | workspace 锁定版本；常用操作封装在 `openrust::db`，业务代码不直接依赖易变 API |
 | 双库语义漂移 | 可移植列类型白名单、`dialect` 模块强制双分支、CI 矩阵、框架表禁用单库特性 |
 | 自研范围膨胀 | 以「v1 版本能力范围」为准；已确认新增要求校准当前计划与依赖，未确认的远期候选进入 `roadmap.md` |
-| 小团队维护多 crate | 框架能力集中根 `src/` 模块；独立 package 只跟随技术、发布或测试依赖边界 |
-| 名称与生态冲突 | 开发者在 M0 预留 crates.io 名；GitHub 仓库已确定 |
+| 小团队维护多 crate | 框架能力集中根 `src/` 模块；独立 package 只跟随技术、工具或测试依赖边界 |
+| 内部名称冲突 | workspace 内 package 名唯一；应用 migration 用应用名区分，不依赖注册表名称可用性 |
 | 决策反复 | 关键决策以 ADR 固化；同一决定澄清在原文收敛，实质替代标明唯一有效入口 |
 
 ## 已定稿事项与对外动作
 
 基础方向以既有 ADR 为准；新增需求与补强计划中的待决策事项由负责设计的 Agent 基于现有契约和验证证据形成决策，不把建议直接视为已定公共 API。
 
-仓库与本机工具链已存在，不重复安排创建/安装。crates.io 名称预留、版本/tag、正式发布与远端推送按 `AGENTS.md` 独立授权执行；本地功能提交不等于发布。
+仓库与本机工具链已存在，不重复安排创建/安装。不安排 crates.io 名称预留或 Cargo 包发布；源码版本/tag、release 与远端推送按 `AGENTS.md` 独立授权执行，本地功能提交不等于发布。
 
 ## AI 协作与模型分工
 

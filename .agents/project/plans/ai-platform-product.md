@@ -33,8 +33,8 @@
 - 后续产品实现、配置、迁移、前端、测试和部署文件修改必须在 `projects/*` 分支上进行。推荐产品主分支 `projects/ai-platform`，功能分支 `projects/ai-platform-<topic>`；`projects/*` 表示 Git 分支命名空间，不代表必须建立同名源码目录。
 - 使用独立 Git worktree 隔离产品开发。开始前核对分支、基线 commit、Git/WIP、其他 Agent 与数据库；不得在框架共享工作区切换产品分支，不移动或清理他人改动。worktree 放置仍遵守项目目录外写入授权边界。
 - 框架主线仅保存本产品规划及索引，不纳入产品运行代码、业务表、供应商配置、密钥、前端或产品依赖。不能将整个产品分支合并回框架主线。
-- 产品使用独立 Cargo workspace、依赖锁定、配置、迁移命名空间、测试数据与构建部署流程；不把产品加入框架 workspace members/default-members，不改变框架默认 feature、默认启动和 CI 通过条件。
-- 推荐通过发布版本依赖框架；发布前本地联调可在产品 workspace 使用显式 path/patch 锁定框架 commit，不能修改框架核心以适配私有调用。具体源码位置在启动 Spec 中确定，本计划不创建目录。
+- 产品在独立 worktree 内保留完整框架源码，业务位于该产品分支的 `apps/<product>/`，在该分支管理 workspace 成员、依赖锁定、配置、迁移、测试和部署；不把产品成员或依赖写回框架主线，不改变主线默认 feature、启动和 CI 条件。
+- 按 [ADR-039](../decisions/adr-039-source-workspace-distribution.md) 从明确框架 commit 获取整套源码，通过本地 workspace/path 使用公开 API，不依赖独立发布包，也不能修改核心以适配私有调用。具体应用位置在启动 Spec 中确定，本计划不创建目录。
 - 产品跟进框架升级时在产品分支验证兼容性；不得为维持产品旧行为冻结、倒退框架公共 API 或降低测试、安全、性能要求。
 - 本地 commit 不代表授权合并、推送、发布或部署；这些动作遵守开发者明确授权与仓库边界。
 

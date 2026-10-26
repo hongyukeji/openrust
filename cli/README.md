@@ -1,12 +1,14 @@
-# openrust-cli
+# CLI
 
-The global `openrust` command of the [OpenRust](https://github.com/hongyukeji/openrust) framework.
+The `openrust` development command shipped with the [OpenRust](https://github.com/hongyukeji/openrust) source workspace. Run it from this checkout using the current package name:
 
 ```bash
-cargo install openrust-cli
+cargo run -p openrust-cli -- --help
 ```
 
-Create and run an application:
+The accepted source-workspace migration will rename this package to `cli` and make `new` create applications in `apps/` using local dependencies. That migration is not implemented yet; current generated dependency manifests still need local source wiring. No registry installation is required or planned.
+
+The examples below use `openrust` as shorthand for the locally built `target/debug/openrust` executable; use its absolute path when changing application directories. Current command examples:
 
 ```bash
 openrust new blog --db postgres --auth

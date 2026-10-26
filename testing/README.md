@@ -4,11 +4,11 @@ Testing utilities for [OpenRust](https://github.com/hongyukeji/openrust) applica
 
 ## Isolated database
 
-Enable the backend used by the test database and pass an admin URL that can create and drop databases:
+In an application within this source workspace, enable the backend used by the test database and pass an admin URL that can create and drop databases. This example uses the current package name; the planned migration will use `testing` for both the package and Rust import.
 
 ```toml
 [dev-dependencies]
-openrust-test = { version = "0.0.0", features = ["db-postgres"] }
+openrust-test = { workspace = true, features = ["db-postgres"] }
 ```
 
 ```rust,ignore

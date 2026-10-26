@@ -8,7 +8,7 @@
 
 | 项 | 值 |
 | --- | --- |
-| 版本 | 0.0.0（未发布，crates.io 名称未预留） |
+| 版本 | 0.0.0（源码开发版本；整套 workspace 交付，不独立发布 Cargo 包） |
 | 阶段 | 原 M0–M2 基础范围和 M3 本地认证/安全运行时验收已完成；M4 队列/worker、UTC 调度、活动任务唯一键及有限任务链/批次已交付。目录收尾、M3 生成器/通用边界、M4 剩余机制及 M5/M6 尚未完成；Twilio 实发待授权。完成定义见 progress.md，不将阶段标签等同于全部交付 |
 | 仓库 | `https://github.com/hongyukeji/openrust`（公开，默认分支 `main`，已推送）；本地 `/Users/Home/Codes/Rust/openrust` |
 | 协作模式 | 单开发者 + AI Agent；Claude 负责方案与设计，Codex 负责实现与验证 |
@@ -16,9 +16,11 @@
 
 ## 固定约束
 
+- 源码交付与中性包名按 [ADR-039](decisions/adr-039-source-workspace-distribution.md)：开发者获取整套框架，在 `apps/<name>/` 开发业务；内部包目标为 `cli`、`macros`、`testing`、`server`，全部 package 禁用发布，根 `openrust` 和 CLI 命令名保留。当前 manifest/生成器仍待迁移，先闭合或明确登记现有 WIP，再优先处理此底层任务。
+
 - 应用中性命名按 [ADR-016](decisions/adr-016-neutral-application-namespaces.md)：默认环境变量 `APP_`（`Application::config_namespace()` 允许启动前定制，core/bootstrap 已实现），默认表前缀 `tb_`，支持自定义/空前缀和显式全名映射；数据库 resolver 已贯通连接、迁移、TestDatabase 与认证 SQL，并经 PostgreSQL/MySQL 验证。旧品牌前缀不能作为新设计 contract。
 - 本地数据库、缓存等基础服务验证必须先检查并复用现有且版本/配置/连通性合适的服务（包括 Docker 容器和本机服务）；当前开发目标为 PostgreSQL 18、MySQL 8.4 LTS、Redis 8。只有没有合适服务，或现有服务确实无法用于本项测试时，才创建隔离的临时服务。优先用 `TestDatabase`、独立测试库/数据做隔离；不得为方便而重复创建服务，也不得擅自停止、删除、重建或改动已有容器、卷、数据和配置。新建临时服务时使用独立 Compose project 与必要的隔离端口，结束后只清理本任务明确创建且确认无其他使用者的资源。
-- OpenRust 核心目标架构按 [ADR-021](decisions/adr-021-loco-style-module-layout.md)：根 `src/` 放框架能力 modules，`apps/` 保留为同一仓库/workspace 内应用目录约定，`examples/` 放可复用示例，根 `tests/` 验证框架公共 API。当前 `apps/server` 是内部集成宿主；等根测试与示例覆盖其职责后才决定移除该应用，不删除 `apps/` 约定。根模块迁移已验收；工具包与 examples/tests 正在进行目录收尾，工作区路径已移动，验收尚未完成；领取下一簇优先按 [目录收尾 Spec](plans/module-layout-migration-spec.md)。
+- OpenRust 核心目标架构按 [ADR-021](decisions/adr-021-loco-style-module-layout.md)：根 `src/` 放框架能力 modules，`apps/` 保留为同一仓库/workspace 内应用目录约定，`examples/` 放可复用示例，根 `tests/` 验证框架公共 API。当前 `apps/server` 是内部集成宿主；等根测试与示例覆盖其职责后才决定移除该应用，不删除 `apps/` 约定。根模块、工具目录与 examples/tests 迁移已验收，见 [目录收尾 Spec](plans/module-layout-migration-spec.md)；新的内部包改名与源码交付仍待实现，优先按 ADR-039。
 - 生成项目中的运行时配置文件在项目根 `config/`；Rust 配置代码放 `src/config/` 模块目录，建议以 `mod.rs` 为入口，按复杂度拆分，不将 TOML/YAML 文件置于 `src/`。
 - 配置类型按实际能力位于 `openrust::config` 的各子模块（清单见 core/core.md），由唯一 `ConfigLoader` 加载；旧 auth/database/mail 类型路径通过 re-export 保持。生成项目提供 `.env.example`；`.env` 仅供非生产本地覆盖，外部进程变量优先，production 不读取 `.env`。
 
@@ -51,5 +53,5 @@
 
 ## 对外动作（仅开发者执行）
 
-- 在 crates.io 预留 `openrust`、`openrust-cli` 及 `openrust-*` 名称（发布 0.0.0 占位版本）。
-- 发布任何版本到 crates.io。
+- 当前不安排 crates.io 名称预留、占位包或独立 Cargo 包发布。
+- 源码 tag/release、远端推送等对外动作仍需独立授权，不从完成本地开发推断已获授权。

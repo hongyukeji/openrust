@@ -2,11 +2,11 @@
 
 > 受众：AI Agent
 > 更新：2026-10-26
-> 摘要：全局 `openrust` 命令提供项目生成、开发启动与运行期命令代理。
+> 摘要：源码内 `openrust` 命令提供项目生成、开发启动与运行期命令代理；源码 workspace 生成模式待迁移。
 
 ## 当前实现
 
-- 独立 package `openrust-cli` 位于仓库 `cli/`，模板位于 `cli/templates/`，保留 package 名、`openrust` 二进制名和 CLI 分发边界。
+- 当前 package `openrust-cli` 位于仓库 `cli/`，模板位于 `cli/templates/`；按 [ADR-039](../decisions/adr-039-source-workspace-distribution.md) 待改为内部包 `cli`，二进制 `openrust` 保留，通过源码运行。
 
 - `openrust new <name-or-path>` 生成无数据库应用骨架；`--db postgres|mysql` 增加 backend feature、数据库插件、migration crate、seed 入口与 `.env.example`。`--auth` 增加 JWT/Auth/AuthFlows plugins、账户/refresh/verification/Policy/限流 migrations、身份示例及注册、验证、登录、refresh、logout、密码重置 routes。
 - `openrust dev` 以 `APP_ENV=development` 启动当前项目的 `serve` 命令；`openrust serve` 不改环境变量。两者当前只代理一次 `cargo run`，没有文件监听重启、基础服务编排、就绪等待或自动迁移。
@@ -22,5 +22,5 @@
 
 - `generate job` 属于 M4，尚未实现；controller/scaffold/command 等生成器、只读 `doctor`、诊断和开发编排属于 M6 待补项。具体顺序以 [v1 计划](../plans/gen1-plan.md) 与活跃待办为准。
 - M6 补齐 controller/scaffold/command 等剩余生成器、只读 `doctor`、诊断和开发编排；已有 runtime 命令转发不等于 CLI 已提供这些入口。具体顺序以 [v1 计划](../plans/gen1-plan.md) 与活跃待办为准。
-- 模板声明 workspace 对应版本；当前包版本为 `0.0.0`，不能从版本字符串推断已经发布。仓库内验收未发布源码时使用临时 Cargo patch；v1 正式安装验收须走不依赖本地 patch 的路径。
+- 当前模板仍生成 `0.0.0` 注册表依赖，既有验收使用过临时 Cargo patch。ADR-039 要求优先迁移为 `apps/<name>`、本地 workspace/path 依赖和明确应用启动/配置定位；干净源码副本验收不再手工补 registry patch。现有外部目录产物不作为新的交付 contract。
 - 出站 HTTP 客户端与生成 feature 的已有验收见 [测试基线](../memory/testing.md)；外部邮件/SMS 投递属于各通信 driver 的单独验收边界。
