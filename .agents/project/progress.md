@@ -17,7 +17,7 @@
 | 数据层 | PostgreSQL/MySQL、迁移/seed/事务、tb_ resolver、隔离测试、显式读写分离、数据库共享锁与请求幂等；PG18/MySQL8.4 真实复制暂停/追平已验证；model/migration 支持可选 UUIDv7 与显式 `not_deleted()` scope，生成项目 PG18/MySQL8.4 真实迁移/插入/删除/读取/恢复通过；ADR-041 提交前回滚与提交后 direct 通知已双库验证 | named 独立连接、完整业务性能与集群 |
 | 认证与授权 | JWT/refresh、可选 Session/CSRF、PAT、VerificationCodes、AuthFlows、Policy/RBAC、共享限流；双库 auth_database/auth_runtime 与生成项目 TCP HTTP 流程已有通过记录；注册/登录 typed events 与账户/refresh 事务原子性按 ADR-041 双库通过 | 完整跨节点业务场景；access token 不逐请求查撤销 |
 | HTTP client 与 i18n | 统一有界出站调用/fake；请求级 locale、中英资源、JSON/typed plural/select、精确小数及显式时区日期格式；workspace tests/docs/clippy/deny、PostgreSQL 生成源码 clean-copy check/test 通过 | 不覆盖 Fluent/货币格式/运行时 ICU 数据更新；日期时区由调用方决定；gRPC 在 G2 组合验收 |
-| 邮件与短信 | Mailer/SmsSender、SMTP/log/fake、Twilio adapter、本地化模板；Mailpit 本机 SMTP 实收、Twilio 协议测试通过 | Twilio 真实账号投递待授权；队列发送和薄多渠道通知待补 |
+| 邮件与短信 | Mailer/SmsSender、SMTP/log/fake、Twilio adapter、本地化模板与队列化多渠道 Notifier；真实 Mailpit SMTP 队列投递和 API 收件确认 | Twilio 真实账号投递仍待授权目标与凭据 |
 | 加密、签名、审计 | 进程内加密/key ring、用途隔离签名链接/可选共享撤销、可替换审计 sink/同事务审计；已有单测、双库相关路径与生成验证 | 加密实现审计/平台性能复核；不承诺任意远程 sink 可靠送达或审计不可篡改 |
 | 队列与 worker | 数据库任务、显式 handler、事务派发、有限并发/重试/失败保留/超时/lease/心跳；双库强杀恢复；活动唯一键、任务链/有限批次已提交；ADR-042 的跨实例锁与业务请求幂等已单独交付。Worker 在 PG18/MySQL8.4 真实 SIGTERM 下合作取消并确认、不合作超时并释放 lease、同队列 pending job 不再领取；连接池断开时 supervisor 返回错误且 lease 保留；新 worker 接管后旧 token 不能确认新结果；所有 worker join 后传播错误。F1 增加五字段 cron/IANA 时区、DST wall-slot 去重、计划版本隔离和每 tick 1–100 项补跑；PostgreSQL 18/MySQL 8.4 的独立进程竞争、计划变更和积压推进测试通过 | 生产多实例负载、公开执行扩展及完整负载集群仍待完成 |
 | M4 事件扩展 | `openrust::events` typed ordered listener、fail-fast 与事务上下文；queue feature 显式映射至已注册 Job；事务 before/after 边界及 AuthFlows 注册/登录事件按 ADR-041 验收。真实 PostgreSQL 18.6 与 MySQL 8.4 隔离库各通过事务拒绝/回滚/提交后 listener 错误、注册拒绝无账户、登录失败通知及登录成功事件失败无 refresh 泄漏；既有 queued listener 双库提交/回滚 worker 验收仍有效 | 不代表跨节点事件广播、exactly-once 或完整集群 |
@@ -32,7 +32,8 @@
 
 - 原 M0–M2 基础范围和 M3 本地认证/安全运行时已验收；Mailer/Policy 生成器、公开 HTTP 路由限流与数据输出/查询边界均已提交并完成适用验证。
 - M4 仅部分完成；单项 scheduler/worker 多进程测试不等于完整集群验收。
-- M4 类型化事件、queued listener、事务提交边界与 AuthFlows 注册/登录扩展已在 PostgreSQL 18/MySQL 8.4 完成双库验收；源码 workspace 交付和 C1–C3 中文化现已验收，共享锁与请求幂等已于 ADR-042 完成。Worker 生命周期修正与 F1 cron/IANA/DST、版本隔离、每 tick 有界补跑经双库专项验收。F2 通过中/英/波兰语、select/plural fallback、精确小数、跨时区日期、HTTP 并发 locale 测试及 clean-copy 生成项目 check/test。F3 已提交可选 MiniJinja 邮件模板、严格变量/HTML 转义/布局与 MIME、CLI 中英模板生成器；Mailpit 实际 SMTP 收件及 API 的主题、文本、HTML 已确认。当前推进队列化通信与薄通知层。
+- M4 类型化事件、queued listener、事务提交边界与 AuthFlows 注册/登录扩展已在 PostgreSQL 18/MySQL 8.4 完成双库验收；源码 workspace 交付和 C1–C3 中文化现已验收，共享锁与请求幂等已于 ADR-042 完成。Worker 生命周期修正与 F1 cron/IANA/DST、版本隔离、每 tick 有界补跑经双库专项验收。F2 通过中/英/波兰语、select/plural fallback、精确小数、跨时区日期、HTTP 并发 locale 测试及 clean-copy 生成项目 check/test。F3 已提交可选 MiniJinja 邮件模板、严格变量/HTML 转义/布局与 MIME、CLI 中英模板生成器；Mailpit 实际 SMTP 收件及 API 的主题、文本、HTML 已确认。队列化通知与薄多渠道编排已完成双库与 SMTP 验收，当前推进 M4 生成与集成收口。
+- M4 队列化通知：`openrust::notifications::Notifier` 分别派发固定邮件/SMS job，通过 `JobContext::service<T>` 取 worker 应用服务；事务提交/回滚、分渠道活动唯一键、独立执行、失败重试及“供应商接受但确认丢失会重复发送”均有真实数据库测试。PostgreSQL 18 与 MySQL 8.4 的 `queue_notifications` 各 1 项通过；Mailpit v1.32.0 通过 SMTP 接受队列 worker 邮件，API 确认收件人、主题、文本与 HTML。Twilio 协议已有测试，真实账户发送仍无授权目标/凭据。
 - C2 Rustdoc 与源码/配置注释中文化：覆盖根公开模块、`cli` 内部实现、`macros`、`testing`、`apps/server`、`examples` 与 `tests`；未改 API、运行时文案或行为。fmt、workspace clippy/test/doc、cargo deny、diff check 通过；PostgreSQL 18 和 MySQL 8.4 各通过 18 项 auth/db/queue/recovery/schedule 集成测试。生成模板入口注释快照按实际生成结果更新。
 - C3 生成说明与 CLI 帮助中文化：CLI 分组标题、帮助/版本选项、子命令说明、生成的应用指南、`.env.example` 注释及生成 Rustdoc 已中文化；Cargo 描述原已中文。CLI 15 项测试、workspace fmt/clippy/test/warnings-denied doc/cargo deny 通过；干净源码副本生成无数据库、PostgreSQL、MySQL 应用各自直接 check/test 通过。
 - C1 默认文档入口中文化：根 README、贡献/安全/行为准则/变更日志及框架模块 README 已按简体中文优先更新，保留代码、技术标识符、链接和许可证原文。13 个变更 Markdown 的本地链接/锚点、`git diff --check`、warnings-denied Rustdoc 与框架 doctest 通过；详见 `.agents/project/memory/verification.md`。
@@ -43,7 +44,7 @@
 
 ## 下一步
 
-按 [todo.md](todo.md) 推进队列化通信与薄通知层、M4 后续、M5、M6。Worker 与 scheduler 专项双库证据不覆盖生产多实例负载与完整集群门禁。组件整合与 Laravel 式体验按 ADR-001；不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
+按 [todo.md](todo.md) 推进 M4 生成与集成收口、M5、M6。Worker 与 scheduler 专项双库证据不覆盖生产多实例负载与完整集群门禁。组件整合与 Laravel 式体验按 ADR-001；不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
 
 ## 本次文档核对范围
 

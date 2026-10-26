@@ -96,6 +96,11 @@ name = "queue"
 path = "tests/queue/worker.rs"
 
 [[test]]
+name = "queue_notifications"
+path = "tests/queue/notifications.rs"
+required-features = ["queue"]
+
+[[test]]
 name = "queue_crash_recovery"
 path = "tests/queue/crash_recovery.rs"
 

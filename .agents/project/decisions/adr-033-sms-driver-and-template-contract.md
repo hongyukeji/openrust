@@ -1,6 +1,6 @@
 # ADR-033：短信供应商与通信模板 contract
 
-- 状态：Accepted（邮件/SMS 基础与 F3 安全邮件模板已实现；通知队列组合待交付）
+- 状态：Accepted（邮件/SMS 基础、F3 安全邮件模板与 M4 通知队列组合已实现）
 - 日期：2026-10-26
 - 供应商参考：[Twilio Messages resource](https://www.twilio.com/docs/messaging/api/message-resource) 与 [Twilio REST authentication](https://www.twilio.com/docs/usage/requests-to-twilio)。
 - 依据：[ADR-009](adr-009-extensible-capability-drivers.md)、[ADR-011](adr-011-sms-and-communication-baseline.md)、[ADR-031](adr-031-outbound-http-client.md)、[ADR-032](adr-032-request-internationalization.md)
@@ -18,8 +18,8 @@
 5. Twilio 使用 HTTPS Messages REST form POST，通过 HTTP Basic auth 的 API key SID/secret，路径携带 Account SID；内容只发送 Body 或 MessagingServiceSid + ContentSid/ContentVariables。请求使用统一 `HttpClient` 默认超时/响应大小上限；不自动重试，因为超时无法确认远端是否已受理。仅 2xx 表示已受理，供应商拒绝映射为稳定的脱敏发送错误。凭据 Debug 脱敏。
 6. `Email` 和 `SmsMessage` 的内容由调用者明确准备；`LocalizedEmail` 使用 ADR-032 `I18n` catalog 与显式 `Locale` 渲染 subject/body keys 和命名参数，短信文本同样显式翻译，provider templates 参数独立传入。后台任务必须显式给 locale，不读取 task-local 或全局隐式状态。不为通信再造一套 i18n 消息语言或 catalog；邮件布局渲染按下述补强与同一国际化服务整合。
 7. 真实供应商 HTTP 协议用本机 TCP/注入 transport 验证请求格式、Basic auth、成功及错误/超时映射，不等同于真实账户发送或最终运营商送达。实发仅在开发者提供已授权目标和凭据后执行；否则记录缺失证据。
-8. M4 队列接入后由队列层定义异步、持久失败与重试；非幂等供应商调用的超时可能造成重复发送，不承诺 exactly-once。
-9. F3 采用可选 `mail-templates` feature 与 MiniJinja 2.24；只接受 `include_str!` 嵌入的应用模板，不开任意文件/网络 loader。locale 精确项、同语言项、配置回退项按优先级组合，允许继承布局；HTML 自动转义、缺变量严格失败，执行燃料与输出有界。主题仍由共享 `I18n` 翻译，纯文本与可选 HTML 组成 MIME alternative；附件、`Email` 和 driver 复用 lettre/Mailer。生成器创建中英模板与注册包装，现有目录不覆盖。队列重试与通知固定内容/模板版本在后续通信队列簇实现。
+8. M4 通过 `openrust::notifications::Notifier` 将邮件与 SMS 分别作为固定内容的数据库任务派发。事务 API 使所有渠道与业务变更同提交/回滚；普通多渠道派发逐项提交，后续插入失败可能留下前序任务。失败保留和重试只由队列实现，不另建发送重试系统。队列至少执行一次；provider 接受后、worker 确认前的故障可能造成重复发送，不承诺 exactly-once。活动唯一键只在 job 活跃期间有效，按渠道隔离，不是永久请求幂等。
+9. F3 采用可选 `mail-templates` feature 与 MiniJinja 2.24；只接受 `include_str!` 嵌入的应用模板，不开任意文件/网络 loader。locale 精确项、同语言项、配置回退项按优先级组合，允许继承布局；HTML 自动转义、缺变量严格失败，执行燃料与输出有界。主题仍由共享 `I18n` 翻译，纯文本与可选 HTML 组成 MIME alternative；附件、`Email` 和 driver 复用 lettre/Mailer。生成器创建中英模板与注册包装，现有目录不覆盖。M4 通知 job 在入队时固定渲染后的纯文本/HTML，重试不重新读取 locale 或模板。
 
 ## 验收边界
 

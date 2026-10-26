@@ -13,6 +13,8 @@ pub mod http;
 pub mod i18n;
 pub mod mail;
 #[cfg(feature = "queue")]
+pub mod notifications;
+#[cfg(feature = "queue")]
 pub mod queue;
 #[cfg(feature = "queue")]
 pub mod schedule;

@@ -56,6 +56,7 @@ pub struct JobContext {
     db: Db,
     owner: String,
     token: String,
+    app_state: Option<crate::core::AppState>,
 }
 
 impl JobContext {
@@ -74,6 +75,19 @@ impl JobContext {
     /// 返回 worker 停机流程是否请求了协作取消。
     pub fn is_cancelled(&self) -> bool {
         *self.cancelled.borrow()
+    }
+
+    /// 从 `queue work` worker 正常运行时取得应用中注册的服务。
+    ///
+    /// 直接调用 `Queue::run_next` 的 worker driver 没有应用状态，此时返回错误。
+    pub fn service<T: Send + Sync + 'static>(&self) -> Result<Arc<T>> {
+        let state = self.app_state.as_ref().ok_or_else(|| {
+            Error::custom(
+                "queue_application_state_unavailable",
+                "this queue execution has no application service context",
+            )
+        })?;
+        state.try_get::<T>()
     }
 
     /// 等待 worker 停机流程请求协作取消。
@@ -432,6 +446,14 @@ pub trait QueueDriver: Send + Sync + 'static {
     }
     /// 至多运行指定队列中的一个就绪任务。
     fn run_next<'a>(&'a self, queue: &'a str) -> BoxFuture<'a, Result<bool>>;
+    /// 在应用 worker 中运行一个任务；旧 driver 默认忽略应用状态以保持实现兼容。
+    fn run_next_with_state<'a>(
+        &'a self,
+        queue: &'a str,
+        _state: &'a crate::core::AppState,
+    ) -> BoxFuture<'a, Result<bool>> {
+        self.run_next(queue)
+    }
     /// 将失败任务重新入队，并返回新建任务的稳定 ID。
     fn retry_failed<'a>(&'a self, failed_id: &'a str) -> BoxFuture<'a, Result<String>>;
     /// 在 worker 进程启动前清除停机状态。
@@ -587,7 +609,11 @@ impl QueuePlugin {
     /// 使用稳定的 [`Job::NAME`] 注册类型化 handler。
     pub fn register_job<J: Job>(&mut self) -> Result<&mut Self> {
         validate_name("job name", J::NAME, MAX_JOB_NAME)?;
-        if J::NAME == CHAIN_JOB_NAME || J::NAME == BATCH_JOB_NAME {
+        if J::NAME == CHAIN_JOB_NAME
+            || J::NAME == BATCH_JOB_NAME
+            || J::NAME == crate::notifications::EmailDeliveryJob::NAME
+            || J::NAME == crate::notifications::SmsDeliveryJob::NAME
+        {
             return Err(Error::custom(
                 "reserved_queue_job_name",
                 "job name is reserved for framework task groups",
@@ -702,7 +728,16 @@ impl Plugin for QueuePlugin {
                 "register DatabasePlugin before QueuePlugin",
             )
         })?;
-        let registry = JobRegistry(self.handlers.clone());
+        let mut handlers = self.handlers.clone();
+        handlers.insert(
+            crate::notifications::EmailDeliveryJob::NAME,
+            run_job::<crate::notifications::EmailDeliveryJob>,
+        );
+        handlers.insert(
+            crate::notifications::SmsDeliveryJob::NAME,
+            run_job::<crate::notifications::SmsDeliveryJob>,
+        );
+        let registry = JobRegistry(handlers);
         let config = match app.section::<crate::config::QueueConfig>("queue") {
             Ok(config) => config,
             Err(crate::config::ConfigError::Source(source)) if source.missing() => {
@@ -785,7 +820,11 @@ impl DatabaseQueue {
     }
 
     #[allow(clippy::too_many_lines)] // Claim, cancellation, lease renewal and completion form one token-bound attempt.
-    async fn work_once(&self, queue: &str) -> Result<bool> {
+    async fn work_once(
+        &self,
+        queue: &str,
+        app_state: Option<crate::core::AppState>,
+    ) -> Result<bool> {
         validate_name("queue", queue, MAX_QUEUE_NAME)?;
         if self.is_shutdown_requested() {
             return Ok(false);
@@ -815,6 +854,7 @@ impl DatabaseQueue {
             db: self.db.clone(),
             owner: claim.owner.clone(),
             token: claim.token.clone(),
+            app_state,
         };
         let mut cancellation = self.cancelled.subscribe();
         let handler_future: BoxFuture<'static, Result<()>> = if is_group {
@@ -1204,6 +1244,15 @@ impl Queue {
         self.driver.run_next(queue).await
     }
 
+    /// 通过应用 worker context 领取并运行一个任务。
+    pub async fn run_next_with_state(
+        &self,
+        queue: &str,
+        state: &crate::core::AppState,
+    ) -> Result<bool> {
+        self.driver.run_next_with_state(queue, state).await
+    }
+
     /// 将失败任务重新入队，并返回新任务的稳定 ID。
     pub async fn retry_failed(&self, failed_id: &str) -> Result<String> {
         self.driver.retry_failed(failed_id).await
@@ -1286,7 +1335,15 @@ impl QueueDriver for DatabaseQueue {
     }
 
     fn run_next<'a>(&'a self, queue: &'a str) -> BoxFuture<'a, Result<bool>> {
-        Box::pin(async move { self.work_once(queue).await })
+        Box::pin(async move { self.work_once(queue, None).await })
+    }
+
+    fn run_next_with_state<'a>(
+        &'a self,
+        queue: &'a str,
+        state: &'a crate::core::AppState,
+    ) -> BoxFuture<'a, Result<bool>> {
+        Box::pin(async move { self.work_once(queue, Some(state.clone())).await })
     }
 
     fn retry_failed<'a>(&'a self, failed_id: &'a str) -> BoxFuture<'a, Result<String>> {
@@ -1453,14 +1510,18 @@ impl crate::core::Command for QueueWorkCommand {
             let queue_name = args.first().map_or("default", String::as_str);
             validate_name("queue", queue_name, MAX_QUEUE_NAME)?;
             let queue = app.state().try_get::<Queue>()?;
+            let app_state = app.state().clone();
             let config = app.state().try_get::<crate::config::QueueConfig>()?;
             queue.reset_shutdown();
             let mut workers = tokio::task::JoinSet::new();
             for _ in 0..config.worker_concurrency {
                 let queue = (*queue).clone();
+                let app_state = app_state.clone();
                 let queue_name = queue_name.to_owned();
                 let poll_interval = config.poll_interval_millis;
-                workers.spawn(async move { worker_loop(queue, queue_name, poll_interval).await });
+                workers.spawn(async move {
+                    worker_loop(queue, app_state, queue_name, poll_interval).await
+                });
             }
             let cause = tokio::select! {
                     signal = shutdown_signal() => signal.err(),
@@ -1494,12 +1555,17 @@ impl crate::core::Command for QueueWorkCommand {
     }
 }
 
-async fn worker_loop(queue: Queue, queue_name: String, poll_interval_millis: u64) -> Result<()> {
+async fn worker_loop(
+    queue: Queue,
+    app_state: crate::core::AppState,
+    queue_name: String,
+    poll_interval_millis: u64,
+) -> Result<()> {
     loop {
         if queue.is_shutdown_requested() {
             return Ok(());
         }
-        if !queue.run_next(&queue_name).await? {
+        if !queue.run_next_with_state(&queue_name, &app_state).await? {
             tokio::time::sleep(Duration::from_millis(poll_interval_millis)).await;
         }
     }

@@ -24,7 +24,9 @@
 ## 边界
 
 - 本机 Mailpit v1.32.0 SMTP 投递及收件 API 确认已记录于 [测试基线](../memory/testing.md)；这不代表外部邮箱供应商的真实送达。Twilio 协议测试使用注入 transport，真实账户实发仍需授权凭据与目标。
-- 队列化 Mail/SMS、失败任务联动、薄多渠道通知和发送前后公共扩展仍待按 M4 及跨能力功能簇接入；已有 queue 模块不代表通信自动入队。
+- 启用 `queue` 后 `openrust::notifications::Notifier` 会将固定邮件/SMS payload 分渠道持久化，复用 `Mailer` / `SmsSender` 和 queue worker retry；locale/template 仅在派发前准备，不因重试重渲染。事务内派发可保证业务变更与多渠道任务原子提交。普通多渠道派发逐项提交，后续插入失败可能留下前序任务。
+- 通知 payload 包含收件人和正文但不输出日志，调用方需保护数据库与备份，不放入认证凭据、token 或验证码。队列是至少一次执行，provider 受理与任务确认之间崩溃会重复发送；不提供 exactly-once。Twilio 实际账号投递仍待授权。
+- Mail/SMS 发送前后通用业务扩展仍待跨能力功能簇接入；本通知编排不引入 Hooks 系统。
 - 认证验证码由 `VerificationCodes` 生成消费，发送仍由调用方选择渠道；本簇不启用短信登录或更改账号流程。
 
-F3 已交付安全模板与生成体验。SMTP 本机实际投递和 Mailpit API 内容确认记录于 [测试基线](../memory/testing.md)；队列固定内容、通知编排仍由后续功能簇完成。
+F3 已交付安全模板与生成体验，M4 已接入固定内容的队列通知。SMTP 本机实际投递、Mailpit API 内容及通知队列双库证据见 [测试基线](../memory/testing.md)。

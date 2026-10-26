@@ -4,7 +4,49 @@
 
 OpenRust 框架的邮件能力。实现 `Email::message` 来构造 `lettre::Message`，然后通过 `Mailer` 服务发送。`MailerPlugin` 默认注册 log driver。启用 `mail-smtp`，并设置 `[mail] driver = "smtp"`、`smtp_host`，还可按需设置成对的 `smtp_username` / `smtp_password` 字段，以使用强制 STARTTLS 的 SMTP 发送邮件。SMTP 凭据在 `Debug` 输出中会被隐藏。默认要求 STARTTLS；只有 Mailpit 等未认证的 localhost/loopback 开发接收端可以显式设置 `smtp_starttls = false`，生产环境会拒绝该设置。使用 `docker compose -f compose.ci.yaml up -d mailpit` 启动本地 Mailpit 服务，然后设置 `APP_MAIL__DRIVER=smtp`、`APP_MAIL__SMTP_HOST=127.0.0.1`、`APP_MAIL__SMTP_PORT=1025` 和 `APP_MAIL__SMTP_STARTTLS=false`。生产环境拒绝默认的 `log` driver，因此必须显式配置实际邮件供应商。启用 `test-util` 后，可在测试中使用 `FakeMailer` 的 `sent_count` 和 `assert_sent_to` 断言。SMS 是 `openrust::sms` 中的同级服务；两者都使用公开 driver trait、显式 locale 选择，并且单次提交不会自动重试。启用 `sms-twilio`（同时启用 `http-client`）即可使用 Twilio；配置时必须设置 `sms.account_sid`、`sms.api_key_sid`、`sms.api_key_secret`，并在 `sms.from` 与 `sms.messaging_service_sid` 中二选一。凭据和消息数据在 debug 输出中会被隐藏；生产环境拒绝 log driver。
 
-`Mailer::send` 会立即发送。队列能力在 M4 中集成。供应商接受提交不代表邮件已送达。
+`Mailer::send` 会立即发送。启用 `queue` 后，`openrust::notifications::Notifier` 可把固定邮件/SMS 内容排入数据库队列；worker 重试复用已渲染内容，不会重新读取 locale 或模板。先注册 `DatabasePlugin`、`QueuePlugin` 与 `NotificationsPlugin`，并把 `QueueMigration` 加入应用迁移器；标准 worker 用 `queue work notifications` 处理默认通知队列。邮件与短信分别作为独立任务，渠道之间没有顺序保证。
+
+通知消息会将收件人和正文写入队列数据库，调用方应按业务数据保护数据库、备份和保留期；不要将密码、access/refresh token、验证码或不必要的个人信息放入任务。直接 `dispatch` 对各渠道分别提交，若后续渠道入队失败，已提交的前序任务不会自动撤销；需要与业务变更或多个渠道一起原子提交时，使用 `dispatch_in_transaction`。活动唯一键按渠道分别生效，任务完成或失败归档后释放，不是永久请求幂等记录。
+
+在业务事务中派发多渠道通知：
+
+```rust,no_run
+#[cfg(feature = "queue")]
+use std::sync::Arc;
+#[cfg(feature = "queue")]
+use openrust::{
+    core::{App, Result},
+    db::Db,
+    notifications::{EmailDelivery, Notification, Notifier, SmsDelivery},
+};
+
+#[cfg(feature = "queue")]
+async fn queue_account_notice(app: &App, db: &Db) -> Result<()> {
+    let notifier = app.state().try_get::<Notifier>()?;
+    let message = Notification::new()
+        .email(EmailDelivery::new(
+            "noreply@example.com",
+            "person@example.com",
+            "账户已创建",
+            "欢迎使用。",
+            None,
+        )?)
+        .sms(SmsDelivery::text("+15555550123", "账户已创建")?);
+    db.transaction(|transaction| {
+        let notifier = Arc::clone(&notifier);
+        let message = message.clone();
+        Box::pin(async move {
+            notifier
+                .dispatch_in_transaction(transaction, &message)
+                .await?;
+            Ok(())
+        })
+    })
+    .await
+}
+```
+
+队列执行至少一次。SMTP/Twilio 已受理但 worker 在确认任务前故障时，重试可能再次发送；框架不承诺外部发送 exactly-once。供应商接受提交也不代表最终送达。
 
 要本地化邮件，请从请求的 `RequestLocale` 中选择 `Locale`，或为后台任务显式指定 locale。`LocalizedEmail::new` 会从共享 `I18n` catalog 中读取独立的主题和正文 key，使用命名参数渲染，并构造纯文本 `lettre::Message`；应用仍可自行实现 `Email`，以使用自定义 multipart 或 HTML 格式。邮件传输层不会从全局状态推断 locale；调用方须在构造消息时选择。
 
