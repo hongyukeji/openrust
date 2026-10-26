@@ -518,6 +518,7 @@ async fn database_queue_dispatch_worker_concurrency_failure_and_retry()
 
     drop(events);
     drop(queue);
+    db.connection()?.close().await?;
     drop(db);
     drop(app);
     test_database.close().await?;

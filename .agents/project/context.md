@@ -2,14 +2,14 @@
 
 > 受众：AI Agent
 > 更新：2026-10-26
-> 摘要：OpenRust 是全新的开源 Rust 应用开发框架，当前处于 v1 M4；源码 workspace 交付和 C1–C3 中文化已完成，M4 共享锁与请求幂等已完成并验证，当前按待办修正 Worker 停机语义。
+> 摘要：OpenRust 是全新的开源 Rust 应用开发框架，当前处于 v1 M4；源码 workspace 交付和 C1–C3 中文化已完成，M4 共享锁/请求幂等及 Worker 租约停机修正已有双库证据，当前按待办推进日历调度 F1。
 
 ## 当前状态
 
 | 项 | 值 |
 | --- | --- |
 | 版本 | 0.0.0（源码开发版本；整套 workspace 交付，不独立发布 Cargo 包） |
-| 阶段 | 原 M0–M2 基础范围和 M3 本地认证/安全运行时验收已完成；M4 队列/worker、UTC 调度、活动任务唯一键、有限任务链/批次及 ADR-042 共享锁/请求幂等已交付。当前修正 worker 停机；M4 后续、M5/M6 尚未完成；Twilio 实发待授权。完成定义见 progress.md，不将阶段标签等同于全部交付 |
+| 阶段 | 原 M0–M2 基础范围和 M3 本地认证/安全运行时验收已完成；M4 队列/worker、UTC 调度、活动任务唯一键、有限任务链/批次及 ADR-042 共享锁/请求幂等已交付。Worker 合作停机、停止领取、数据库不可用 lease 保留及旧 token 接管修正已在 PostgreSQL 18/MySQL 8.4 真实 SIGTERM/共享数据库测试通过；当前推进日历调度 F1。M4 后续、M5/M6 尚未完成；Twilio 实发待授权。完成定义见 progress.md，不将阶段标签等同于全部交付 |
 | 仓库 | `https://github.com/hongyukeji/openrust`（公开，默认分支 `main`，已推送）；本地 `/Users/Home/Codes/Rust/openrust` |
 | 协作模式 | 单开发者 + AI Agent；Claude 负责方案与设计，Codex 负责实现与验证 |
 | 本机工具链 | Rust stable 1.99.1（默认）与 Rust 1.97.0 MSRV（`rustup`），`cargo-deny` 0.20 已安装 |

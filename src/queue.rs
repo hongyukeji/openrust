@@ -3,6 +3,10 @@
 //! 应用必须在 migration crate 中注册 [`QueueMigration`]。外围数据库事务提交后，派发的任务即被持久化；
 //! handler 和 worker 通过队列 worker API 提供。
 //!
+//! Worker 收到 Ctrl-C 或 SIGTERM 后停止领取新任务，并通知运行中的 handler 合作取消。
+//! handler 在配置期限内完成时正常确认；超时会取消 handler 并按当前租约 token 尝试重试。
+//! 若数据库不可用，worker 返回错误并保留租约，任务会在租约过期后恢复。
+//!
 //! ```no_run
 //! use openrust::{db::Db, queue::Queue};
 //! # async fn example(db: Db) -> openrust::Result<()> {
@@ -761,11 +765,19 @@ impl DatabaseQueue {
         Ok(id)
     }
 
+    #[allow(clippy::too_many_lines)] // Claim, cancellation, lease renewal and completion form one token-bound attempt.
     async fn work_once(&self, queue: &str) -> Result<bool> {
         validate_name("queue", queue, MAX_QUEUE_NAME)?;
+        if self.is_shutdown_requested() {
+            return Ok(false);
+        }
         let Some(claim) = claim_job(&self.db, queue, self.config.lease_secs).await? else {
             return Ok(false);
         };
+        if self.is_shutdown_requested() {
+            fail_job(&self.db, &claim, "queue_job_cancelled", 1).await?;
+            return Ok(true);
+        }
         let is_group = claim.job_name == CHAIN_JOB_NAME || claim.job_name == BATCH_JOB_NAME;
         let handler = self.registry.0.get(claim.job_name.as_str()).copied();
         if !is_group && handler.is_none() {
@@ -803,6 +815,15 @@ impl DatabaseQueue {
             ));
         };
         tokio::pin!(handler_future);
+        let mut shutdown_deadline = if *cancellation.borrow() {
+            job_cancelled.send_replace(true);
+            Some(
+                tokio::time::Instant::now()
+                    + Duration::from_secs(self.config.shutdown_timeout_secs),
+            )
+        } else {
+            None
+        };
         let heartbeat_period =
             Duration::from_secs(std::cmp::Ord::max(self.config.lease_secs / 3, 1));
         let mut heartbeat = tokio::time::interval_at(
@@ -821,10 +842,19 @@ impl DatabaseQueue {
                     }
                 }
                 changed = cancellation.changed() => {
-                    if changed.is_ok() {
+                    if changed.is_ok() && *cancellation.borrow() && shutdown_deadline.is_none() {
                         job_cancelled.send_replace(true);
-                        break Some(Err(Error::custom("queue_job_cancelled", "worker shutdown cancelled this attempt")));
+                        shutdown_deadline = Some(tokio::time::Instant::now() + Duration::from_secs(self.config.shutdown_timeout_secs));
                     }
+                }
+                () = async {
+                    if let Some(deadline) = shutdown_deadline {
+                        tokio::time::sleep_until(deadline).await;
+                    } else {
+                        std::future::pending::<()>().await;
+                    }
+                } => {
+                    break Some(Err(Error::custom("queue_shutdown_timeout", "job did not stop before the worker shutdown deadline")));
                 }
                 () = &mut timeout => {
                     job_cancelled.send_replace(true);
@@ -839,6 +869,9 @@ impl DatabaseQueue {
                     .unwrap_or(u32::MAX);
                 let delay = std::cmp::Ord::min(1_u64.checked_shl(shift).unwrap_or(300), 300);
                 fail_job(&self.db, &claim, safe_error_code(error.code()), delay).await?;
+                if error.code() == "queue_shutdown_timeout" {
+                    return Err(error);
+                }
             }
             None => fail_job(&self.db, &claim, "job_timeout", 1).await?,
         }
@@ -1379,7 +1412,7 @@ impl crate::core::Command for QueueWorkCommand {
     }
 
     fn about(&self) -> &'static str {
-        "Run the database queue worker"
+        "运行数据库队列 worker"
     }
 
     fn accepts_args(&self) -> bool {
@@ -1410,31 +1443,34 @@ impl crate::core::Command for QueueWorkCommand {
                 let poll_interval = config.poll_interval_millis;
                 workers.spawn(async move { worker_loop(queue, queue_name, poll_interval).await });
             }
-            loop {
-                tokio::select! {
-                    signal = shutdown_signal() => {
-                        signal?;
-                        queue.request_shutdown();
-                        let drain = join_workers(&mut workers);
-                        if tokio::time::timeout(Duration::from_secs(config.shutdown_timeout_secs), drain).await.is_err() {
-                            workers.abort_all();
-                            while workers.join_next().await.is_some() {}
-                        }
-                        return Ok(());
-                    }
+            let cause = tokio::select! {
+                    signal = shutdown_signal() => signal.err(),
                     result = workers.join_next() => {
-                        if let Some(result) = result {
-                            queue.request_shutdown();
-                            workers.abort_all();
-                            while workers.join_next().await.is_some() {}
-                            return match result.map_err(Error::internal)? {
-                                Ok(()) => Err(Error::custom("queue_worker_stopped", "queue worker exited unexpectedly")),
-                                Err(error) => Err(error),
-                            };
-                        }
+                        Some(match result {
+                            Some(Ok(Ok(()))) => Error::custom("queue_worker_stopped", "queue worker exited unexpectedly"),
+                            Some(Ok(Err(error))) => error,
+                            Some(Err(error)) => Error::internal(error),
+                            None => Error::custom("queue_worker_stopped", "all queue workers exited unexpectedly"),
+                        })
                     }
-                }
+            };
+            queue.request_shutdown();
+            let drain = join_workers(&mut workers);
+            let grace = Duration::from_secs(config.shutdown_timeout_secs.saturating_add(2));
+            let drain_result = if let Ok(result) = tokio::time::timeout(grace, drain).await {
+                result
+            } else {
+                workers.abort_all();
+                while workers.join_next().await.is_some() {}
+                Err(Error::custom(
+                    "queue_shutdown_timeout",
+                    "queue workers did not join before the supervisor deadline",
+                ))
+            };
+            if let Some(error) = cause {
+                return Err(error);
             }
+            drain_result
         })
     }
 }
@@ -1451,10 +1487,18 @@ async fn worker_loop(queue: Queue, queue_name: String, poll_interval_millis: u64
 }
 
 async fn join_workers(workers: &mut tokio::task::JoinSet<Result<()>>) -> Result<()> {
+    let mut first_error = None;
     while let Some(result) = workers.join_next().await {
-        result.map_err(Error::internal)??;
+        let error = match result {
+            Ok(Ok(())) => None,
+            Ok(Err(error)) => Some(error),
+            Err(error) => Some(Error::internal(error)),
+        };
+        if first_error.is_none() {
+            first_error = error;
+        }
     }
-    Ok(())
+    first_error.map_or(Ok(()), Err)
 }
 
 struct QueueRetryCommand;

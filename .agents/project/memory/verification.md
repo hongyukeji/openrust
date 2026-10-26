@@ -25,14 +25,14 @@
 | Mail/SMS | Mailpit v1.32.0 本机 SMTP 实收；Twilio transport 协议/错误/超时/no retry；模板 check/test | 没有实际 Twilio 账号投递或送达证据 |
 | 加密 | AES-256-GCM-SIV 已知向量、轮换/AAD/篡改/配置脱敏、生成项目 | 算法标准化不等于 crate 实现经过完整独立审计；发布前复核审计证据和平台性能 |
 | 审计/签名 | 双库同事务审计提交/回滚/失败回滚/清理，签名用途/TTL/轮换/共享撤销，生成 auth 流程 | 不承诺审计不可篡改、远端 sink 可靠投递或 JWT access token 即时撤销 |
-| 队列基础/唯一键 | 双库并发领取、事务派发、失败/手动重试、超时后继续处理、强杀进程后 lease 恢复、活动唯一键并发/同事务去重与终结释放 | 至少一次；未覆盖全部旧 token 接管竞态、完整请求幂等；当前合作停机和内层错误传播的静态问题见 queue 事实，既有通过记录不能关闭修正任务 |
+| 队列基础/唯一键与 worker 停机 | 双库并发领取、事务派发、失败/手动重试、超时后继续处理、强杀进程后 lease 恢复、活动唯一键并发/同事务去重与终结释放；另以 PG18/MySQL8.4 共享隔离库真实子进程 SIGTERM 验证合作 handler 完成确认、不合作 handler 有界超时并释放 lease、同队列 pending job 不再领取、worker pool 不可用时传播错误并保留 lease；接管过期 lease 后旧 token 不能确认新 worker 结果 | 数据库不可达通过关闭 worker pool 模拟连接故障，未中断数据库服务本身；生产多实例完整集群仍未覆盖 |
 | 有限任务链/批次 | 双库任务顺序、停止/继续、并发上限、事务回滚与进度测试已有记录 | 单个持久 parent job；重试可重跑全部子任务，不提供逐子任务独立 checkpoint |
 | Scheduler | 两库独立进程同 slot 竞争、提交后异常退出去重、once 和 SIGTERM；UTC interval/daily 边界 | 触发去重不是副作用 exactly-once；不是生产负载/完整集群验收 |
 
 ## 尚未关闭的门禁
 
 - 目录收尾通过 5-package/265-test-list 对比、workspace 门禁、双库 server 集成、生成项目及实际 hello TCP HTTP smoke；`apps/server` 有明确保留证据。ADR-039 源码交付已另行通过干净副本和双库验收。以上不等同于 v1 集群或性能门禁。
-- M4 共享锁与请求幂等已按 ADR-042 在 PostgreSQL 18/MySQL 8.4 双 pool 隔离库完成竞争、接管、冲突、事务原子性、回放及有界清理验收；剩余 worker 停机修正/恢复、通知和后续流程扩展继续按 todo 推进；M5 Db/Queue 外部执行边界、缓存/存储/实时/资源与可观测性；M6 开发编排/生成全集/测试工具/正式文档及源码升级。已交付的 HTTP 查询边界、类型化事件和有限任务编排不重复登记为未实现。
+- M4 共享锁与请求幂等已按 ADR-042 在 PostgreSQL 18/MySQL 8.4 双 pool 隔离库完成竞争、接管、冲突、事务原子性、回放及有界清理验收；Worker 停机/lease 修正通过双库真实 SIGTERM、worker pool 故障、pending job 停领和旧 token 接管专项。通知、日历调度等继续按 todo 推进；M5 Db/Queue 外部执行边界、缓存/存储/实时/资源与可观测性；M6 开发编排/生成全集/测试工具/正式文档及源码升级。已交付的 HTTP 查询边界、类型化事件和有限任务编排不重复登记为未实现。
 - PostgreSQL/MySQL 负载均衡下至少两个 API 与多 worker/scheduler 的共享认证状态、配额/幂等、任务竞争、跨节点在线投递、共享文件、滚动升级及故障恢复。
 - [底层补齐 F1–F10](../plans/v1-foundation-completion.md) 需要各自公开入口、真实失败/并发、有效组合和生成验收：日历/模板/i18n/cache、查询/租户/身份/MFA、CSV/XLSX 与 fixtures 均不能用范围文档替代实现证据。
 - gRPC 四类真实调用、TLS/mTLS、认证/Status、deadline/流取消/背压、health/reflection、生成项目、双节点滚动与 proto 新旧互通，按 [ADR-040](../decisions/adr-040-grpc-integration.md) 验收；当前未实现。跨协议验证/上下文、出站策略、迁移互斥与有界退出尚须实现和验证，不把本轮规划当通过证据。

@@ -52,6 +52,8 @@ CI 数据库服务作业现分别启用 PostgreSQL/MySQL 的 `queue` feature，�
 
 M4 队列集成测试使用 `OPENRUST_TEST_DATABASE_URL`，由 `openrust_test::TestDatabase` 建立隔离数据库并在测试后清理。命令：`cargo test -p openrust-server --features 'queue,db-postgres' --test db_migration --test queue --test queue_crash_recovery`；MySQL 将 `db-postgres` 换为 `db-mysql`。2026-10-26 在现有 PostgreSQL 18 与 MySQL 8.4 容器实测迁移、并发 worker/dispatch、事务派发提交与回滚、进度、失败与幂等重试、单任务超时后继续处理，以及独立子进程强杀后的 lease 到期恢复。`queue_crash_recovery` 当前只验证崩溃恢复；旧 worker 与新 token 并发接管 fencing 的专项竞态断言及完整跨节点验收仍未完成；调度的独立进程证据见下段。凭据由容器环境变量读取，没有输出到日志；既有服务未重建或停止。
 
+2026-10-26 Worker 合作停机修正：先运行真实 PostgreSQL red test，观察到 SIGTERM 后合作 handler 未完成确认；实现后在 PostgreSQL 18 与 MySQL 8.4 分别执行 `OPENRUST_TEST_DATABASE_URL=<service-url> cargo test -p server --features 'db-<backend>,queue' --test queue_crash_recovery`，各 5 项通过；并执行 `--test queue`，各 1 项通过。真实 worker 子进程 SIGTERM 覆盖合作任务完成并确认、不合作任务有界超时并释放 lease、同队列 pending job 不再领取；测试子进程关闭其 SeaORM pool 模拟连接不可用，worker 返回 `internal_error` 且保留 owner lease；共享数据库并发测试让新 worker 接管过期任务，旧 token 不能确认新 worker 已完成的任务。旧 queue target 的 PG 首次复跑发现连接池关闭与隔离库删除竞争；测试现在显式关闭 SeaORM pool，随后双库 targets 均通过。临时服务 `openrust-m4-auth-tx` 为本任务创建并保留供后续数据库簇复用。
+
 M4 scheduler 集成入口：`cargo test -p openrust-server --features 'queue,db-postgres' --test schedule`，MySQL 使用 `db-mysql`。2026-10-26 两库各通过 4 项测试：两个独立进程经同步屏障竞争同一 UTC interval slot、强制异常退出后保持已提交 slot、`schedule run --once` 命令、常驻命令 SIGTERM 退出；均验证隔离数据库只产生一条 schedule run 和一条 job。另有 interval/daily slot 边界单测。scheduler 使用共享数据库时钟和唯一键；该验收不替代生产负载资源测量或最终集群部署验收。
 
 2026-10-26 队列唯一键改动后，PostgreSQL 18 与 MySQL 8.4 分别重跑 queue migration 和 queue 集成测试通过。额外验证同 key 并发 dispatch 返回同一活动 job ID、完成后可再次创建、以及同一业务事务中重复 dispatch 只创建一个 job。唯一键只抑制活动任务重叠，不提供完成后持久化的请求幂等历史。

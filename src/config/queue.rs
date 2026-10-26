@@ -14,7 +14,8 @@ pub struct QueueConfig {
     pub job_timeout_secs: u64,
     /// 单个 worker 进程中同时运行的 handler 最大数量。
     pub worker_concurrency: usize,
-    /// 停机时等待当前 handler 完成的最长时间（秒）。
+    /// 停机时先发出合作取消信号，并等待当前 handler 完成的最长时间（秒）。
+    /// 超时后尝试释放租约以供重试；数据库不可用时保留租约，等待其自然过期。
     pub shutdown_timeout_secs: u64,
 }
 

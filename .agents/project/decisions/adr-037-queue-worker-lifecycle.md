@@ -1,6 +1,6 @@
 # ADR-037 数据库队列、调度与 worker 生命周期
 
-- 状态：Accepted（M4 contract；基础队列/UTC 调度已交付，worker 正确性修正及 V1 日历补强待完成）
+- 状态：Accepted（M4 contract；worker 合作停机与 join 修正已实现，F1 日历补强及专项/集群验收待完成）
 - 日期：2026-10-26
 - 依据：[ADR-003](adr-003-database-queue-default.md)、[ADR-023](adr-023-loco-application-experience-evaluation.md)、[v1 能力覆盖](../plans/v1-capability-coverage.md)、[集群计划](../plans/v1-cluster-deployment.md)
 
@@ -47,5 +47,6 @@
 - 单元与 HTTP/命令测试：注册 handler allowlist、参数边界、调度 slot 计算、退避上限、任务链顺序/短路、批次并发上限、进度与合作式取消、关停停止领取、有限 drain/abort/join。
 - PostgreSQL 18 与 MySQL 8.4：双 worker 并发无重复当前领取、事务内派发随提交可见/回滚消失、延迟与退避、失败迁移/人工重试、lease 续约/过期接管、旧 ownership token 不能确认新 lease、调度多实例同槽只插入一次、节点中断后自动恢复。
 - 真实异常退出测试须启动多独立 worker/scheduler 共享同一数据库，强制终止持有任务的进程并观测 lease 过期恢复；fake 或互不通信的数据库不能替代。
+- Worker 生命周期修正已在 PostgreSQL 18/MySQL 8.4 隔离数据库验证：真实 SIGTERM 下合作 handler 正常确认、不合作 handler 有界超时并以 `queue_shutdown_timeout` 失败、pending job 不再领取；关闭 worker 连接池模拟数据库不可达，命令传播 `internal_error` 且 lease 保留；接管过期 lease 后旧 token 无法确认新 worker 的结果。既有 SIGKILL 崩溃恢复仍单独验证；生产负载和完整多实例集群继续开放。
 - 日历补强另验跨日/闰年、DST 缺失与重复、停机补跑上限、计划变更、双节点竞争与崩溃恢复；双库验证 UTC slot 去重和派发事务，不能用已通过的 interval/daily 验收替代 cron/IANA 验收。
 - M4 首版不承诺外部副作用 exactly-once、不自动从失败任务重放任意事件、不提供任意 DAG 工作流，也不自动启动 worker。
