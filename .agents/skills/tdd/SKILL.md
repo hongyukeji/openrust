@@ -1,42 +1,32 @@
 ---
 name: tdd
-description: Test-driven development. Use when the user wants to build features or fix bugs test-first, mentions "red-green-refactor", or wants integration tests.
+description: 为 OpenRust 已定行为做测试先行开发或缺陷回归，适用于明确要求 red-green-refactor、补行为测试或集成测试的任务。测试层次与真实服务证据遵循仓库契约；不用于重新设计已确认 API。
+license: MIT; see LICENSE
+metadata:
+  upstream: https://github.com/mattpocock/skills
+  revision: 5beb35b040e3de97e54fa9e386d7e42d15c295c2
+  path: skills/engineering/tdd
 ---
 
-# Test-Driven Development
+# 测试先行
 
-## OpenRust project precedence
+先按根目录 `AGENTS.md` 与当前 contract 确认行为及验收要求。每个新增测试应能一句话说明会发现哪个缺陷；复用当前测试目录和夹具，避免重复覆盖而增加维护成本。
 
-Follow `AGENTS.md`, current plans, and accepted ADRs for required tests and verification. Derive test seams from the accepted contract and repository conventions; do not pause to ask for routine seam approval unless the user or repository instructions require it.
+## 选择可观察证据
 
-TDD is the red → green loop. This skill is the reference that makes that loop produce tests worth keeping: what a good test is, where tests go, the anti-patterns, and the rules of the loop. Every section applies on every cycle: consult them before and during the loop, not after.
+- 优先通过公开接口验证成功、失败、边界和恢复行为。内部算法或状态转换有独立缺陷风险时可以写局部单元测试，不要求所有行为都经 HTTP。
+- 数据库直接断言可用于安全与持久化契约，例如 token 未以明文落库、事务回滚没有残留记录、outbox 与业务写入原子提交。说明该断言验证的契约，并配合必要的入口行为测试。
+- 顺序、重试次数、去重和取消可以是公开保证，应按 contract 验证；避免把无承诺的私有调用顺序写成测试要求。
+- 期望值来自规格、已知向量或独立计算，不复制被测实现形成永远一致的断言。快照只用于有审查价值的稳定输出。
+- fake 适合局部错误注入和确定性测试；真实数据库方言、复制一致性、网络生命周期和跨节点路由需要相应真实服务。缺少连接配置导致的 skip 不是验收通过。
 
-When exploring the codebase, read `GLOSSARY.md` (if it exists) so test names and interface vocabulary match the project's domain language, and respect ADRs in the area you're touching.
+## Red → Green → Refactor
 
-## What a good test is
+1. **Red**：选择一个明确行为，写能捕获缺陷的测试并实际运行，确认失败原因是目标行为，而非环境、语法或错误夹具。已有失败测试可直接复用；已有能力先审计覆盖，不人为制造失败来重做实现。
+2. **Green**：实现满足该行为的最小完整改动，运行测试确认通过。每轮只扩展当前功能簇，随后覆盖该契约相关的错误与边界场景。
+3. **Refactor**：保持行为不变，整理重复或复杂实现，重新运行受影响测试；不需要额外的审查技能才能重构。
+4. **Verify**：小循环完成后执行仓库规定的完整门禁、适用双库及生成项目/真实服务验收；不能用定向测试代替功能簇收口。
 
-Tests verify behavior through public interfaces, not implementation details. Code can change entirely; tests shouldn't. A good test reads like a specification: "user can checkout with valid cart" tells you exactly what capability exists, and it survives refactors because it doesn't care about internal structure.
+替换旧测试前确认其独有的缺陷、错误路径和竞态覆盖已被保留。记录实际命令、退出状态、执行/跳过范围与服务拓扑；不得把纯编译或以前的记录写成本次验证。
 
-See [tests.md](tests.md) for examples and [mocking.md](mocking.md) for mocking guidelines.
-
-## Seams: where tests go
-
-A **seam** is the public boundary you test at: the interface where you observe behavior without reaching inside. Tests live at seams, never against internals.
-
-**Test at contract seams.** Before writing tests, identify the public behavior and seams under test from the accepted spec or repository contract. You can't test everything, so focus on critical paths and complex logic instead of every edge case.
-
-Record each selected seam with a one-line note on what it catches and what it misses.
-
-When the shape of that interface is itself in question (how deep the module is, where the seam belongs, what the interface should expose), call the Skill tool with "codebase-design" for the vocabulary. It is the shared source of the module, interface, depth, seam, adapter, leverage and locality terms, and it is a reference to consult, not a session to run.
-
-## Anti-patterns
-
-- **Implementation-coupled**: mocks internal collaborators, tests private methods, or verifies through a side channel (querying the database instead of using the interface). The tell: the test breaks when you refactor but behavior hasn't changed.
-- **Tautological**: the assertion recomputes the expected value the way the code does (`expect(add(a, b)).toBe(a + b)`, a snapshot derived by hand the same way, a constant asserted equal to itself), so it passes by construction and can never disagree with the code. Expected values must come from an independent source of truth: a known-good literal, a worked example, the spec.
-- **Horizontal slicing**: writing all tests first, then all implementation. Bulk tests verify _imagined_ behavior: you test the _shape_ of things rather than user-facing behavior, the tests go insensitive to real changes, and you commit to test structure before understanding the implementation. Work in **vertical slices** instead: one test → one implementation → repeat, each test a **tracer bullet** that responds to what the last cycle taught you.
-
-## Rules of the loop
-
-- **Red before green.** Write the failing test first, then only enough code to pass it. Don't anticipate future tests or add speculative features.
-- **One slice at a time.** One seam, one test, one minimal implementation per cycle.
-- **Refactoring is not part of the loop.** It belongs to the review stage (see the `code-review` skill), not the red → green implementation cycle.
+本技能改编自元数据中固定快照的上游测试工作流，按 OpenRust 契约重写；许可见 [LICENSE](LICENSE)。

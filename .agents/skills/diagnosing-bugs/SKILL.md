@@ -1,142 +1,37 @@
 ---
 name: diagnosing-bugs
-description: Diagnosis loop for hard bugs and performance regressions. Use when the user says "diagnose"/"debug this", or reports something broken/throwing/failing/slow.
+description: 定位 OpenRust 难复现故障、数据库差异、异步并发问题及性能回归，用证据收敛原因并建立回归验证。不为明确的拼写错误或编译器已定位的简单错误强制执行完整诊断流程。
+license: MIT; see LICENSE
+metadata:
+  upstream: https://github.com/mattpocock/skills
+  revision: 5beb35b040e3de97e54fa9e386d7e42d15c295c2
+  path: skills/engineering/diagnosing-bugs
 ---
 
-# Diagnosing Bugs
+# 按证据诊断
 
-## OpenRust project precedence
+遵循根目录 `AGENTS.md`，先保护 Git/WIP 和正在运行的服务。把事实、假设、修复与未验证项分开记录；性能结论保留工作负载、资源配置和前后测量。
 
-Follow repository instructions, current task scope, and credential handling rules first. Continue useful diagnosis when ideal repro artifacts are unavailable; ask the user only when required evidence or access is genuinely blocking further progress.
+## 建立观测
 
-A discipline for hard bugs. Skip phases only when explicitly justified.
+- 写清预期、实际、触发条件、版本/feature、后端与最近相关改动。先读取关联代码、日志和测试是有效诊断，不必等完美复现后才能分析。
+- 优先运行已有失败测试或最小请求；无稳定复现时，从日志、trace、配置和时序建立可检验假设，并标注证据缺口。不要用未经证实的猜测提交修复。
+- 缩小复现成本但保留故障条件：复制延迟、租约过期、重启恢复等可能需要分钟级真实实验。使用有界等待、状态屏障或可控时钟；不以任意 sleep 隐藏竞态。
+- 对低概率故障记录运行次数、失败次数及触发分布，单次成功不能证明已修复。真实环境不可用时完成能做的静态分析与局部验证，指出还需要什么证据。
 
-When exploring the codebase, read `GLOSSARY.md` (if it exists) to get a clear mental model of the relevant modules, and check ADRs in the area you're touching.
+## 逐步排除
 
-## Redact
+按现有证据排序假设，不凑固定数量。每次选能区分候选原因的一项实验，预先写出不同结果意味着什么，再记录观察结果。必要时加入局部 trace、计数器或资源指标，避免泄露 token、密码和密钥。
 
-This skill has you show commands, outputs and captured artifacts. **Redact every secret first**: write `<REDACTED>` in its place. Build loops against env vars, so the credential stays in the environment rather than in what you show. Captured artifacts carry auth headers: quote only the lines that carry the signal.
+检查数据库方言、事务/连接边界、配置生效路径、任务取消与资源释放，优先验证与症状有直接联系的部分。基于历史定位时使用只读 diff；需要 checkout 或 bisect 时遵守工作区规则并隔离已有 WIP。
 
-If the redacted output is not enough to confirm a diagnosis, report what remains uncertain and continue any independent investigation. Request user input only when the missing information blocks the next useful step.
+同类失败连续三次按项目规则停下说明；缺少外部条件不等于根因已经确定。
 
-## Phase 1: Build a feedback loop
+## 修复与验收
 
-**This is the skill.** Everything else is mechanical. If you have a **tight** pass/fail signal for the bug (one that goes red on _this_ bug), you will find the cause; bisection, hypothesis-testing, and instrumentation all just consume it. If you don't have one, no amount of staring at code will save you.
+1. 在能观测缺陷的层次建立回归测试或可重跑实验，证明修改前确实能捕获问题。
+2. 修改导致缺陷的最小完整路径，验证原始症状及相邻错误、恢复与资源释放路径；测试策略可参考 [tdd](../tdd/SKILL.md)。
+3. 执行项目要求的范围门禁。真实复制、双库、网络或多节点问题，不能以 fake 或孤立进程的成功替代验收。
+4. 移除本次临时探针与临时资源，保留有长期价值的诊断能力；不得清理其他会话的工作。报告根因证据、实际执行结果和剩余限制。
 
-Spend disproportionate effort here. **Be aggressive. Be creative. Refuse to give up.**
-
-### Ways to construct one, in roughly this order
-
-1. **Failing test** at whatever seam reaches the bug: unit, integration, e2e.
-2. **Curl / HTTP script** against a running dev server.
-3. **CLI invocation** with a fixture input, diffing stdout against a known-good snapshot.
-4. **Headless browser script** (Playwright / Puppeteer) that drives the UI and asserts on DOM/console/network.
-5. **Replay a captured trace.** Save a real network request / payload / event log to disk; replay it through the code path in isolation.
-6. **Throwaway harness.** Spin up a minimal subset of the system (one service, mocked deps) that exercises the bug code path with a single function call.
-7. **Property / fuzz loop.** If the bug is "sometimes wrong output", run 1000 random inputs and look for the failure mode.
-8. **Bisection harness.** If the bug appeared between two known states (commit, dataset, version), automate "boot at state X, check, repeat" so you can `git bisect run` it.
-9. **Differential loop.** Run the same input through old-version vs new-version (or two configs) and diff outputs.
-10. **HITL bash script.** Last resort. If a human must click, drive _them_ with `scripts/hitl-loop.template.sh` so the loop is still structured. Captured output feeds back to you.
-
-Build the right feedback loop, and the bug is 90% fixed.
-
-### Tighten the loop
-
-Treat the loop as a product. Once you have _a_ loop, **tighten** it:
-
-- Can I make it faster? (Cache setup, skip unrelated init, narrow the test scope.)
-- Can I make the signal sharper? (Assert on the specific symptom, not "didn't crash".)
-- Can I make it more deterministic? (Pin time, seed RNG, isolate filesystem, freeze network.)
-
-A 30-second flaky loop is barely better than no loop; a 2-second deterministic one is tight, a debugging superpower.
-
-### Non-deterministic bugs
-
-The goal is not a clean repro but a **higher reproduction rate**. Loop the trigger 100×, parallelise, add stress, narrow timing windows, inject sleeps. A 50%-flake bug is debuggable; 1% is not, so keep raising the rate until it's debuggable.
-
-### When you genuinely cannot build a loop
-
-Stop and say so explicitly. List what you tried. Ask the user for: (a) access to whatever environment reproduces it, (b) a redacted captured artifact (HAR file, log dump, core dump, screen recording with timestamps), or (c) permission to add temporary production instrumentation. Do **not** proceed to hypothesise without a loop.
-
-### Completion criterion: a tight loop that goes red
-
-Phase 1 is done when the loop is **tight** and **red-capable**: you can name **one command** (a script path, a test invocation, a curl) that you have **already run at least once** (show the invocation and its output, redacted), and that is:
-
-- [ ] **Red-capable**: it drives the actual bug code path and asserts the **user's exact symptom**, so it can go red on this bug and green once fixed. Not "runs without erroring"; it must be able to _catch this specific bug_.
-- [ ] **Deterministic**: same verdict every run (flaky bugs: a pinned, high reproduction rate, per above).
-- [ ] **Fast**: seconds, not minutes.
-- [ ] **Agent-runnable**: you can run it unattended; a human in the loop only via `scripts/hitl-loop.template.sh`.
-
-If you catch yourself reading code to build a theory before this command exists, **stop: jumping straight to a hypothesis is the exact failure this skill prevents.** No red-capable command, no Phase 2.
-
-## Phase 2: Reproduce + minimise
-
-Run the loop. Watch it go red as the bug appears.
-
-Confirm:
-
-- [ ] The loop produces the failure mode the **user** described, not a different failure that happens to be nearby. Wrong bug = wrong fix.
-- [ ] The failure is reproducible across multiple runs (or, for non-deterministic bugs, reproducible at a high enough rate to debug against).
-- [ ] You have captured the exact symptom (error message, wrong output, slow timing) so later phases can verify the fix actually addresses it.
-
-### Minimise
-
-Once it's red, shrink the repro to the **smallest scenario that still goes red**. Cut inputs, callers, config, data, and steps **one at a time**, re-running the loop after each cut, and keep only what's load-bearing for the failure.
-
-Why bother: a minimal repro shrinks the hypothesis space in Phase 3 (fewer moving parts left to suspect) and becomes the clean regression test in Phase 5.
-
-Done when **every remaining element is load-bearing**: removing any one of them makes the loop go green.
-
-Do not proceed until you have reproduced **and** minimised.
-
-## Phase 3: Hypothesise
-
-Generate **3–5 ranked hypotheses** before testing any of them. Single-hypothesis generation anchors on the first plausible idea.
-
-Each hypothesis must be **falsifiable**: state the prediction it makes.
-
-> Format: "If <X> is the cause, then <changing Y> will make the bug disappear / <changing Z> will make it worse."
-
-If you cannot state the prediction, the hypothesis is a vibe: discard or sharpen it.
-
-**Show the ranked list to the user before testing.** They often have domain knowledge that re-ranks instantly ("we just deployed a change to #3"), or know hypotheses they've already ruled out. Cheap checkpoint, big time saver. Don't block on it; proceed with your ranking if the user is AFK.
-
-## Phase 4: Instrument
-
-Each probe must map to a specific prediction from Phase 3. **Change one variable at a time.**
-
-Tool preference:
-
-1. **Debugger / REPL inspection** if the env supports it. One breakpoint beats ten logs.
-2. **Targeted logs** at the boundaries that distinguish hypotheses.
-3. Never "log everything and grep".
-
-**Tag every debug log** with a unique prefix, e.g. `[DEBUG-a4f2]`. Cleanup at the end becomes a single grep. Untagged logs survive; tagged logs die.
-
-**Perf branch.** For performance regressions, logs are usually wrong. Instead: establish a baseline measurement (timing harness, `performance.now()`, profiler, query plan), then bisect. Measure first, fix second.
-
-## Phase 5: Fix + regression test
-
-Write the regression test **before the fix**, but only if there is a **correct seam** for it.
-
-A correct seam is one where the test exercises the **real bug pattern** as it occurs at the call site. If the only available seam is too shallow (single-caller test when the bug needs multiple callers, unit test that can't replicate the chain that triggered the bug), a regression test there gives false confidence.
-
-**If no correct seam exists, that itself is the finding.** Note it. The codebase architecture is preventing the bug from being locked down. Flag this for the next phase.
-
-If a correct seam exists:
-
-1. Turn the minimised repro into a failing test at that seam.
-2. Watch it fail. If you forced the red by mutating code or a fixture, `diff` against a pristine copy to prove the mutation landed before you trust it.
-3. Apply the fix.
-4. Watch it pass.
-5. Re-run the Phase 1 feedback loop against the original (un-minimised) scenario.
-
-## Phase 6: Cleanup
-
-Required before declaring done:
-
-- [ ] Original repro no longer reproduces (re-run the Phase 1 loop)
-- [ ] Regression test passes (or absence of seam is documented)
-- [ ] All `[DEBUG-...]` instrumentation removed (`grep` the prefix)
-- [ ] Throwaway prototypes deleted (or moved to a clearly-marked debug location)
-- [ ] The hypothesis that turned out correct is stated in the commit / PR message, so the next debugger learns
+本技能改编自元数据中固定快照的上游诊断工作流，按 OpenRust 契约重写；许可见 [LICENSE](LICENSE)。

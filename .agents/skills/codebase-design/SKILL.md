@@ -1,118 +1,35 @@
 ---
 name: codebase-design
-description: Shared vocabulary for designing deep modules. Use when the user wants to design or improve a module's interface, find deepening opportunities, decide where a seam goes, make code more testable or AI-navigable, or when another skill needs the deep-module vocabulary.
+description: 为 OpenRust 设计或审查公共 API、模块边界、driver 扩展契约及依赖方向。适用于接口尚未确定或现有抽象造成耦合的问题；已定 contract 的实现使用 implement-feature，不因普通局部修改启动架构设计。
+license: MIT; see LICENSE
+metadata:
+  upstream: https://github.com/mattpocock/skills
+  revision: 5beb35b040e3de97e54fa9e386d7e42d15c295c2
+  path: skills/engineering/codebase-design
 ---
 
-# Codebase Design
+# 模块与接口设计
 
-## OpenRust project precedence
+目标是以清晰、稳定的接口承载完整职责，让调用方无需理解实现细节。模块大小、文件数量或入口数量本身不是质量指标。术语沿用 Rust、项目代码与 ADR，不强迫改名。
 
-Use this skill as a design vocabulary, not as a naming mandate. Follow repository terminology, Rust conventions, `AGENTS.md`, current plans, and accepted ADRs first. A `DESIGN-IT-TWICE.md` workflow involving parallel agents is unavailable unless the user explicitly requests delegation; work through one feature cluster at a time.
+## 从现有契约出发
 
-Design **deep modules**: a lot of behaviour behind a small interface, placed at a clean seam, testable through that interface. Use this language and these principles wherever code is being designed or restructured. The aim is leverage for callers, locality for maintainers, and testability for everyone.
+1. 按根目录 `AGENTS.md` 读取当前架构、相关 ADR 与能力 contract，只定位本次问题涉及的模块和调用方。
+2. 用一个实际调用场景描述复杂性：调用方必须知道什么、重复了什么、错误和资源所有权在哪里分散。没有具体问题时不创建抽象。
+3. 查找已有 Plugin、driver trait、事件、队列和事务机制，先判断能否直接使用或小幅扩展。
 
-## Glossary
+## 选择边界
 
-These terms help discuss design consistently. They do not prohibit established project terms such as `service`, public API, or domain boundary when those are the clearest terms in the repository.
+- 将共同变化、共同维护不变量的行为放在一起；数据库方言、网络协议和供应商差异留在实现侧。
+- 明确输入输出、错误、配置、生存期和所有权。涉及异步资源时说明超时、取消、关闭与 join；涉及事务时说明提交边界及外部副作用保证。
+- 公共扩展能力可以由已批准的第三方接入需求证明必要性，不要求先有两个内置适配器；也不因未来可能变化就增加泛型、trait 或中间层。
+- trait 必须让外部包通过公开类型实现，不能依赖私有构造器或内置后端枚举才能接入。检查配置与初始化路径同样可扩展。
+- 保留有证据价值的单元与集成测试。合并模块时先证明行为和边界覆盖仍在，不因测试层级变化批量删除旧测试。
 
-**Module**: anything with an interface and an implementation. Deliberately scale-agnostic: a function, class, package, or tier-spanning slice. _Avoid_: unit, component, service.
+## 形成可实现的结果
 
-**Interface**: everything a caller must know to use the module correctly: the type signature, but also invariants, ordering constraints, error modes, required configuration, and performance characteristics. _Avoid_: API, signature (too narrow, they refer only to the type-level surface).
+存在实质取舍时，在当前会话比较少量方案：调用示例、复用点、失败语义、迁移成本和验证方式；简单问题直接给出方案。无需固定入口数量或自动派发多个代理。
 
-**Implementation**: what's inside a module, its body of code. Distinct from **Adapter**: a thing can be a small adapter with a large implementation (a Postgres repo) or a large adapter with a small implementation (an in-memory fake). Reach for "adapter" when the seam is the topic; "implementation" otherwise.
+输出短 Spec：选定接口、责任归属、影响的模块与调用方、兼容处理、关键验收场景。区分已批准契约与新建议；涉及架构决定时按项目规则更新 ADR。设计审查不能代替编译、真实服务或双库验收。
 
-**Depth**: leverage at the interface. The amount of behaviour a caller (or test) can exercise per unit of interface they have to learn. A module is **deep** when a large amount of behaviour sits behind a small interface, **shallow** when the interface is nearly as complex as the implementation.
-
-**Seam** _(Michael Feathers)_: a place where you can alter behaviour without editing in that place; the *location* at which a module's interface lives. Where to put the seam is its own design decision, distinct from what goes behind it. _Avoid_: boundary (overloaded with DDD's bounded context).
-
-**Adapter**: a concrete thing that satisfies an interface at a seam. Describes *role* (what slot it fills), not substance (what's inside).
-
-**Leverage**: what callers get from depth. More capability per unit of interface they learn. One implementation pays back across N call sites and M tests.
-
-**Locality**: what maintainers get from depth. Change, bugs, knowledge, and verification concentrate in one place rather than spreading across callers. Fix once, fixed everywhere.
-
-## Deep vs shallow
-
-**Deep module** = small interface + lots of implementation:
-
-```
-┌─────────────────────┐
-│   Small Interface   │  ← Few methods, simple params
-├─────────────────────┤
-│                     │
-│  Deep Implementation│  ← Complex logic hidden
-│                     │
-└─────────────────────┘
-```
-
-**Shallow module** = large interface + little implementation (avoid):
-
-```
-┌─────────────────────────────────┐
-│       Large Interface           │  ← Many methods, complex params
-├─────────────────────────────────┤
-│  Thin Implementation            │  ← Just passes through
-└─────────────────────────────────┘
-```
-
-When designing an interface, ask:
-
-- Can I reduce the number of methods?
-- Can I simplify the parameters?
-- Can I hide more complexity inside?
-
-## Principles
-
-- **Depth is a property of the interface, not the implementation.** A deep module can be internally composed of small, mockable, swappable parts; they just aren't part of the interface. A module can have **internal seams** (private to its implementation, used by its own tests) as well as the **external seam** at its interface.
-- **The deletion test.** Imagine deleting the module. If complexity vanishes, it was a pass-through. If complexity reappears across N callers, it was earning its keep.
-- **The interface is the test surface.** Callers and tests cross the same seam. If you want to test *past* the interface, the module is probably the wrong shape.
-- **One adapter means a hypothetical seam. Two adapters means a real one.** Don't introduce a seam unless something actually varies across it.
-
-## Designing for testability
-
-Good interfaces make testing natural:
-
-1. **Accept dependencies, don't create them.**
-
-   ```typescript
-   // Testable
-   function processOrder(order, paymentGateway) {}
-
-   // Hard to test
-   function processOrder(order) {
-     const gateway = new StripeGateway();
-   }
-   ```
-
-2. **Return results, don't produce side effects.**
-
-   ```typescript
-   // Testable
-   function calculateDiscount(cart): Discount {}
-
-   // Hard to test
-   function applyDiscount(cart): void {
-     cart.total -= discount;
-   }
-   ```
-
-3. **Small surface area.** Fewer methods = fewer tests needed. Fewer params = simpler test setup.
-
-## Relationships
-
-- A **Module** has exactly one **Interface** (the surface it presents to callers and tests).
-- **Depth** is a property of a **Module**, measured against its **Interface**.
-- A **Seam** is where a **Module**'s **Interface** lives.
-- An **Adapter** sits at a **Seam** and satisfies the **Interface**.
-- **Depth** produces **Leverage** for callers and **Locality** for maintainers.
-
-## Rejected framings
-
-- **Depth as ratio of implementation-lines to interface-lines** (Ousterhout): rewards padding the implementation. We use depth-as-leverage instead.
-- **"Interface" as the TypeScript `interface` keyword or a class's public methods**: too narrow: interface here includes every fact a caller must know.
-- **"Boundary"**: overloaded with DDD's bounded context. Say **seam** or **interface**.
-
-## Going deeper
-
-- **Deepening a cluster given its dependencies**, see [DEEPENING.md](DEEPENING.md): dependency categories, seam discipline, and replace-don't-layer testing.
-- **Exploring alternative interfaces**, see [DESIGN-IT-TWICE.md](DESIGN-IT-TWICE.md): spin up parallel sub-agents to design the interface several radically different ways, then compare on depth, locality, and seam placement.
+本技能改编自元数据中固定快照的上游设计工作流，按 OpenRust 契约重写；许可见 [LICENSE](LICENSE)。
