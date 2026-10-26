@@ -1,16 +1,16 @@
 # ADR-014 缓存驱动、命名实例与公共契约
 
-- 状态：Partially Superseded（标准应用默认值由 [ADR-015](adr-015-redis-default-calibration.md) 校准为 Redis；其余公共 contract 有效，驱动实现待 M5）
+- 状态：Partially Superseded（标准应用默认值由 [ADR-015](adr-015-redis-default-calibration.md) 校准为 Redis；公共契约继续有效，V1 补强已纳入 tag/SWR/singleflight，驱动及增强实现待 M5）
 - 日期：2026-10-25
 - 补充：ADR-009 能力驱动扩展原则；标准应用默认值以 ADR-015 的 Redis 决定为准。单机/集群部署边界仍以 ADR-013 为准。
 
 ## 背景
 
-v1 需要让业务代码在合理范围内不依赖具体缓存后端，同时提供默认 Redis 的标准项目与显式 memory/file 选择，以及 named stores。能力落在根 `openrust::cache`，原独立空壳 package 已按 ADR-021 移除。Laravel Cache 的 default store、named stores 和 custom driver 是本决策的参考；具体实现按六个参考框架统一评估，保持 Rust 类型、显式依赖、Plugin 和 ADR-006 命名规则。
+v1 需要让业务代码在合理范围内不依赖具体缓存后端，同时提供默认 Redis 的标准项目与显式 memory/file 选择，以及 named stores。能力落在根 `openrust::cache`，原独立空壳 package 已按 ADR-021 移除。Laravel Cache 的 default store、named stores 和 custom driver 是本决策的参考；V1 综合评估 Loco、Laravel、Goravel、OpenSpring，若依与芋道仅作为 V2 参考，保持 Rust 类型、显式依赖、Plugin 和 ADR-006 命名规则。
 
 ## 最小 Spec
 
-- 只扩展现有 `openrust-cache`、`Cache` 与 `CachePlugin`；不建平行缓存入口、通用基础设施 crate 或万能 driver trait。
+- 在根 `openrust::cache` 实现规划中的 `Cache` 与 `CachePlugin`；不恢复独立空壳 package，不建平行缓存入口、通用基础设施 crate 或万能 driver trait。
 - 一个 driver 是后端实现；一个 store 是有名称、driver 和配置的实例。应用有配置指定的 default store，也能按名称取得其它 store。
 - v1 官方驱动为 Redis（标准应用默认）、进程内 memory 与 file（显式选择，本地开发/单机适用）；Redis 在库层通过 feature 按需组合；其它驱动可按公开注册契约扩展，不列入 v1 支持矩阵。
 - 公共基础行为包括带类型的读写、删除、TTL、key namespace 和统一 serde 序列化；缓存未命中使用 `None`，序列化或 driver 故障返回 `Err`。
@@ -18,8 +18,8 @@ v1 需要让业务代码在合理范围内不依赖具体缓存后端，同时�
 - 安装 `CachePlugin` 后若缺少 `[cache]` 或 default store 配置，启动时明确报配置错误，不隐式创建 memory store；标准模板显式配置 Redis default store 并启用 `cache-redis`。显式选择不存在的 store 是配置错误，不回退到 default store。
 - 应用通过 `Inject<Cache>` 获取已配置的 default 句柄；`cache.store(name) -> Result<CacheStore>` 取得具名实例，所有实例共用相同的类型化操作 API。这里的“default”指配置选定的实例，不提供全局工厂或静态入口。
 - 每个实例公开可检查的作用域与能力（进程内、节点本地或跨节点共享，以及真实支持的原子操作）；需要共享/原子的框架 Plugin 声明目标 store 名及所需能力，由 `CachePlugin` 校验那个已解析的实例，不满足时启动失败。driver 的静态能力在启动校验；外部服务连通性由 driver 初始化与 readiness 检查报告，不能用 capability 声明代替 Redis 可用性验证。
-- `get_or_insert_with` 只提供读取未命中后的加载与写入便利，不承诺并发只执行一次；若将来支持单航班，必须注明进程范围。`increment`、条件写入和锁只有驱动实现真实原子原语时才可用，能力不支持时显式返回不支持错误。memory/file 不提供跨进程或分布式锁。
-- cache tags 不纳入本 contract。缓存故障不得静默伪装成未命中或自动换到另一个 store。
+- 基础 `get_or_insert_with` 不承诺并发只执行一次；V1 另提供显式 singleflight，注明 store/key/类型隔离与进程范围，跨节点协调复用共享锁并声明租约边界。`increment`、条件写入和锁只有驱动实现真实原子原语时才可用，能力不支持时显式报错。memory/file 不提供跨进程或分布式锁。
+- cache tag、SWR 与 singleflight 已批准为 V1 必交，详细契约和验收统一见 [补齐计划](../plans/v1-foundation-completion.md)。tag 明确失效与并发回填边界；SWR 明确新鲜/陈旧窗口、失败和有界刷新生命周期；不把陈旧缓存、tag 或请求合并用作权限、会话撤销及其他权威状态。缓存故障不得伪装成未命中或自动换 store。
 
 ## 决策
 

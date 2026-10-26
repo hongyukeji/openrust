@@ -1,7 +1,7 @@
 # 工程规范
 
 > 受众：AI Agent
-> 更新：2026-10-25
+> 更新：2026-10-26
 > 摘要：OpenRust 框架代码、测试、文档与 Git 提交规范。
 
 ## 代码
@@ -60,8 +60,10 @@ ADR-006 未覆盖的公共名称，先在 ADR-006 补一行并写明先例，再
 
 | 层 | 目标 | 参照 |
 | --- | --- | --- |
-| 生成项目布局、CLI、配置文件 | Rust 惯例清晰，跨语言开发者易理解 | 按[框架参考与对标](plans/framework-design.md#框架参考与对标)的统一维度综合评估六个参考项目；采用通用词，不照搬单一生态术语 |
+| 生成项目布局、CLI、配置文件 | Rust 惯例清晰，跨语言开发者易理解 | v1 仅按 Loco、Laravel、Goravel、OpenSpring 的顺序综合评估；v2 再按原顺序增加若依、芋道，见 [阶段参考规则](plans/framework-design.md#框架参考与对标)；采用通用词，不照搬单一生态术语 |
 | 库 API（类型、trait、方法） | Rust 惯用 | std、axum、tower、[Rust API Guidelines](https://rust-lang.github.io/api-guidelines/) |
+
+v1 新增通用机制的范围与验收以 [底层补齐计划](plans/v1-foundation-completion.md) 为准。可选启用的能力仍须完整实现与验证；优先扩展已有模块、配置、生命周期和错误契约，不为每项机制新增 package。生成器模板通过应用级覆盖定制，测试数据通过显式 factory/fixtures 构造，不隐藏持久化或覆盖用户文件；实际 API 和选型须先形成 contract。
 
 ### 速查
 

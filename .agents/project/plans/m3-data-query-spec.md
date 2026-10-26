@@ -10,3 +10,5 @@
 - 覆盖边界：`Db::read_connection()` 仍由调用方明确选择；scope/helper 不改写 raw SQL、不自动注入租户权限或授权条件。
 - 验收：解析单测、生成代码 check、生成的 PG18/MySQL8.4 UUID/软删除迁移与插入/删除/恢复真实双库测试，以及 DTO/filter/sort 行为测试。
 - 排除：不新增 ORM、通用动态过滤语言、全局软删除魔法、自动 DTO 推导宏或租户产品模型。
+
+后续范围已扩展：[底层补齐](v1-foundation-completion.md) F5/F6 将提供显式受保护的查询规则和租户入口；本 Spec 记录现有普通查询边界，不否定新契约，也不表示原始 SQL 已被自动保护。

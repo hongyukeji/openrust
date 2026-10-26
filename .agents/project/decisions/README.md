@@ -67,4 +67,4 @@
 | [015 Redis 默认](adr-015-redis-default-calibration.md) | Accepted | 标准应用 Redis，memory/file 显式；库 feature 可组合 |
 | [037 队列/调度生命周期](adr-037-queue-worker-lifecycle.md) | Accepted | 命令持有 supervisor、lease/token、任务编排/事件契约；逐项验收，非 M4 完成声明 |
 
-版本分工、六框架对标和独立 AI 产品边界见 [当前计划](../plan.md)、[版本路线](../roadmap.md) 与 [框架设计](../plans/framework-design.md)，不在 ADR 索引复制另一份任务队列。
+版本分工、分版本框架参考和独立 AI 产品边界见 [当前计划](../plan.md)、[版本路线](../roadmap.md) 与 [框架设计](../plans/framework-design.md)，不在 ADR 索引复制另一份任务队列。

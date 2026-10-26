@@ -1,6 +1,6 @@
 # ADR-037 数据库队列、调度与 worker 生命周期
 
-- 状态：Accepted（M4 contract；实现与双库验收进行中）
+- 状态：Accepted（M4 contract；基础队列/UTC 调度已交付，worker 正确性修正及 V1 日历补强待完成）
 - 日期：2026-10-26
 - 依据：[ADR-003](adr-003-database-queue-default.md)、[ADR-023](adr-023-loco-application-experience-evaluation.md)、[v1 能力覆盖](../plans/v1-capability-coverage.md)、[集群计划](../plans/v1-cluster-deployment.md)
 
@@ -8,6 +8,7 @@
 
 - 在根 package 提供 `openrust::queue` 和 `openrust::events`；不创建独立 crate、不恢复空模块、不接入 apalis 或外部消息总线。
 - 数据库队列是 v1 官方 driver，复用 `openrust::db::Db`、SeaORM 事务和应用 migrator。Redis queue driver 不属于本 ADR 实现范围。
+- V1 必须在现有 Scheduler 上交付 cron、IANA 时区、DST 与有界错过触发处理，详细范围见 [补齐计划](../plans/v1-foundation-completion.md)；不替换既有队列或新建调度系统。
 - Job 使用稳定、显式注册的类型名与 serde JSON 参数；数据库不反序列化任意 Rust 类型或执行未注册 handler。队列名、类型名和 payload 大小均有边界。
 - Job trait 提供类型化任务与 `JobContext`。Context 暴露 attempt、最大尝试次数、任务 ID、合作式取消检查和有界进度更新；进度只作为观测信息，不作业务事务或外部副作用凭证。
 - `Queue` 支持普通派发、延迟派发、显式队列/重试策略、任务唯一键、事务内派发、有限并发批次与受支持的任务链。批大小、链长度和并发有配置上限；失败停止/继续语义由 API 显式选择。
@@ -26,8 +27,8 @@
 
 ## 调度、锁和事件
 
-- Scheduler 注册稳定 schedule key 与 UTC interval/daily slot；任务触发槽的唯一约束与 job 插入在同一事务完成。多个 scheduler 竞争同一槽时仅一个事务可派发，事务失败时槽标记回滚。
-- `schedule run --once` 执行一次 due scan；常驻模式按配置 poll。时钟、时区、跳过补跑策略、重叠策略和最大每 tick 派发数公开且有边界。v1 daily schedule 使用 UTC；任意 IANA 时区/DST cron 语法不纳入首版。
+- 当前 Scheduler 注册稳定 schedule key 与 UTC interval/daily slot；任务触发槽的唯一约束与 job 插入在同一事务完成。多个 scheduler 竞争同一槽时仅一个事务可派发，事务失败时槽标记回滚。V1 日历计划仍派生共享数据库 UTC 时间槽，身份须覆盖时区、DST 重复时间和计划变更。
+- `schedule run --once` 执行一次 due scan；常驻模式按配置 poll。当前 daily 仅 UTC；V1 必须新增成熟 cron 解析与 IANA 时区支持。实施 Spec 明确语法、DST 缺失/重复时间、计划变更、错过触发的跳过/有界补跑及重叠语义，限制每 tick 扫描和派发量；具体建议见补齐计划，不提供自然语言或任意 shell 调度。
 - 数据库锁通过独立 lock key、owner token 和数据库过期时间保护；只有当前 token 可释放。锁 TTL 到期允许其他节点接管，无法证明旧持有者已停止，因此保护共享写入时必须用数据库事务/条件更新 fencing，不可只依赖租约宣称无重叠。
 - `openrust::events` 默认提供进程内、顺序 listener dispatch；注册顺序确定，listener 错误按 fail-fast 返回且停止后续 listener。调用方可显式把 listener 投递至 Queue。进程内事件不是可靠消息、跨节点广播或事务 outbox。
 - 事务提交前处理属于同步业务逻辑；提交后事件可能在进程故障时丢失。要求可靠跨进程投递时调用方必须在业务事务中 `dispatch_in_transaction`，不依赖进程内 after-commit 回调。
@@ -46,4 +47,5 @@
 - 单元与 HTTP/命令测试：注册 handler allowlist、参数边界、调度 slot 计算、退避上限、任务链顺序/短路、批次并发上限、进度与合作式取消、关停停止领取、有限 drain/abort/join。
 - PostgreSQL 18 与 MySQL 8.4：双 worker 并发无重复当前领取、事务内派发随提交可见/回滚消失、延迟与退避、失败迁移/人工重试、lease 续约/过期接管、旧 ownership token 不能确认新 lease、调度多实例同槽只插入一次、节点中断后自动恢复。
 - 真实异常退出测试须启动多独立 worker/scheduler 共享同一数据库，强制终止持有任务的进程并观测 lease 过期恢复；fake 或互不通信的数据库不能替代。
+- 日历补强另验跨日/闰年、DST 缺失与重复、停机补跑上限、计划变更、双节点竞争与崩溃恢复；双库验证 UTC slot 去重和派发事务，不能用已通过的 interval/daily 验收替代 cron/IANA 验收。
 - M4 首版不承诺外部副作用 exactly-once、不自动从失败任务重放任意事件、不提供任意 DAG 工作流，也不自动启动 worker。

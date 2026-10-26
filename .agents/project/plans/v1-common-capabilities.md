@@ -11,6 +11,8 @@
 - 优先扩展根 `src/` 的既有能力模块与成熟库；不为每一项能力机械新增 Cargo package，不以自研密码算法、HTTP 协议栈或消息平台替代成熟实现。
 - 实施按单功能簇闭环，先完成当前 WIP；新增依赖先记录 `stack.md`，公开名称按 ADR-006 登记。设计与实现职责遵循仓库契约。
 
+国际化表达、邮件模板、查询授权/租户隔离、外部身份/TOTP 和 CSV/XLSX 等新增必交范围集中在 [底层补齐计划](v1-foundation-completion.md)，复用本文件定义的验证、调用作用域、出站和生命周期边界。
+
 ## 1. WebSocket
 
 - 当前尚未实现。SSE 与其复用认证、资源限制、停机和跨节点 transport，范围见 [能力覆盖](v1-capability-coverage.md)；不能由 axum 支持升级推定框架已经交付。
@@ -81,4 +83,4 @@ v1 正式交付可选 gRPC server/client，完整契约、组件方案、G1–G3
 
 ## 通用能力补齐与后续边界
 
-SSE、薄通知编排、常用任务链/批处理，以及 Session、API 输出、缓存与锁等通用能力已纳入 [覆盖计划](v1-capability-coverage.md)，不再仅列为后续候选。业务通知中心/UI 归 [v2 现成后台](v2-admin-platform.md) 核心；跨节点在线投递归 v1 集群必须项；持久离线重放、更多数据库及 OAuth/SSO 归 v2 评估候选，任意 DAG 工作流不作为两个版本核心承诺。通用底座不因这些边界而缺少已有明确交付范围的能力。
+SSE、薄通知、任务编排及 Session/API/缓存/锁均为 V1 范围；F1–F10 也按 [底层补齐](v1-foundation-completion.md) 必交。业务通知中心、组织/租户管理与 UI 归 V2；持久离线重放、更多数据库、独立 OAuth 授权服务器等仍为后续评估。外部 OAuth2/OIDC/SSO 接入与 TOTP 已归 V1，不再笼统后置认证协议。

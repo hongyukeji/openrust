@@ -2,7 +2,7 @@
 
 - 状态：Partially Superseded（模块/目录与宿主职责有效；工具发布身份和独立生成项目由 [ADR-039](adr-039-source-workspace-distribution.md) 替代）
 - 日期：2026-10-25
-- 参考：按 [六框架对标规则](../plans/framework-design.md#框架参考与对标) 综合评估；本决策最初取材于 [Loco 仓库结构](https://github.com/loco-rs/loco)。
+- 参考：按 [分版本对标规则](../plans/framework-design.md#框架参考与对标)，V1 综合评估 Loco、Laravel、Goravel、OpenSpring，若依、芋道仅作为 V2 参考；本决策最初取材于 [Loco 仓库结构](https://github.com/loco-rs/loco)。
 - 替代：[ADR-019](adr-019-neutral-crate-directories-and-app-package.md)、[ADR-020](adr-020-workspace-layout-and-loco-practices.md) 的执行方案；吸收中性目录、配置/源码分离和示例独立组织原则。ADR-007 的宿主验证职责在被等价接替前继续有效。
 
 ## 背景
@@ -32,11 +32,11 @@ Loco 的框架主体是一个 Cargo package，在 `src/` 下按功能组织 Rust
 
 ## 当前迁移实施
 
-- 根目录现在同时是 `openrust` package 与 workspace root；成员为 `openrust`、`openrust-cli`、`openrust-macros`、`openrust-test`、`openrust-server`。各保留理由见 [迁移 Spec](../plans/module-layout-migration-spec.md)。
+- 根目录现在同时是 `openrust` package 与 workspace root；成员为 `openrust`、`cli`、`macros`、`testing`、`server`，中性命名已按 ADR-039 完成。各保留理由见 [迁移 Spec](../plans/module-layout-migration-spec.md)。
 - 已迁入 core/config、HTTP、DB、auth、mail 源码；HTTP 测试在根 `tests/`，完整 hello 示例在根 `examples/`，真实 DB/auth 测试在仍保留的 `apps/server/tests/`。
-- 所有 capability packages 均未发布；模块迁移后旧 package manifests 和空壳已移除。`openrust-test` 保持单向依赖，未造成根 package 反向依赖。
+- 所有 capability packages 均未发布；模块迁移后旧 package manifests 和空壳已移除。`testing` 保持单向依赖，未造成根 package 反向依赖。
 - `apps/server` 暂不移除，因它仍承担聚合启动、feature 组合、生成项目与双库验收。
 
 ## 后续执行
 
-目录与分组测试迁移已完成，证据见 [目录 Spec](../plans/module-layout-migration-spec.md)。新的包改名、禁用发布及 apps 生成流程按 [ADR-039](adr-039-source-workspace-distribution.md) 执行；不重新移动已完成的目录，也不把旧测试通过当作新迁移通过。
+目录与分组测试迁移已完成，证据见 [目录 Spec](../plans/module-layout-migration-spec.md)；包改名、禁用发布及 apps 生成流程亦已按 [ADR-039](adr-039-source-workspace-distribution.md) 完成。新增底层能力按 [V1 补齐计划](../plans/v1-foundation-completion.md) 放入既有模块/工具边界，不重新移动目录或预建空 package；旧迁移验收不能替代新能力验证。

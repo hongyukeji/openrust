@@ -2,8 +2,9 @@
 
 - 状态：Partially Superseded（停机决策由 [ADR-037](adr-037-queue-worker-lifecycle.md) 的命令 supervisor 方案定稿；doctor/TestApp 与复用既有扩展入口的决定仍有效）
 - 日期：2026-10-25
-- 依据：[ADR-001](adr-001-own-kernel-on-axum.md)、[ADR-006](adr-006-rust-native-naming.md)、[ADR-021](adr-021-loco-style-module-layout.md)、当前 `openrust::core` / `openrust::http` 与 `openrust-test` 实现
+- 依据：[ADR-001](adr-001-own-kernel-on-axum.md)、[ADR-006](adr-006-rust-native-naming.md)、[ADR-021](adr-021-loco-style-module-layout.md)、当前 `openrust::core` / `openrust::http` 与 `testing` 实现
 - 参考：[Loco Hooks](https://loco.rs/docs/reference/hooks/)、[Loco CLI](https://loco.rs/docs/reference/cli/)、[Loco doctor](https://loco.rs/docs/how-to/run-doctor/)、[Loco generators](https://loco.rs/docs/reference/generators/)、[Loco request tests](https://loco.rs/docs/how-to/request-tests/)、[Loco seed data](https://loco.rs/docs/how-to/seed-data/)
+- 当前参考范围按 ADR-001：V1 综合评估 Loco、Laravel、Goravel、OpenSpring，若依/芋道仅 V2；保留本 ADR 的历史 Loco 调研，不将其变成单一框架优先规则。
 
 ## 评估结论
 
@@ -19,25 +20,25 @@
 
 ### 2. CLI 诊断与生成器
 
-- 当前全局 `openrust` CLI 提供 `new`、`dev`、`serve`、`generate model/migration`、`key generate`，未知命令转交当前应用二进制；应用运行时命令通过 `Command`/Plugin 注册，`help` 与脱敏 `config show` 来自 core，迁移和 seed 由数据库能力提供。`dev` 当前仅选择开发环境并启动 serve，尚未完成依赖编排/监听重启；doctor、controller/scaffold/task/job/mailer/policy 生成器仍待实施。
+- 当前全局 `openrust` CLI 提供 `new`、`dev`、`serve`、`generate model/migration/mailer/policy`、`key generate`，未知命令转交当前应用二进制；应用运行时命令通过 `Command`/Plugin 注册，`help` 与脱敏 `config show` 来自 core，迁移和 seed 由数据库能力提供。`dev` 当前仅选择开发环境并启动 serve，尚未完成依赖编排/监听重启；doctor 与剩余生成器仍待实施，具体种类和事实见 [CLI](../core/cli.md)。
 - Loco 把运行期命令与生成器作为 app 开发主入口，并提供配置/数据库诊断、controller/model/scaffold、task/worker/mailer 等代码生成。适用前提是每个生成物都接入实际运行机制并有模板快照与生成项目验证。
-- **决策：不复制 Loco 命令体系；保留 OpenRust `Command` 和现有 CLI 的单一入口。** `doctor` 已纳入 M6；常见 API 资源生成沿 v1 计划推进，`mailer` / `policy` 按 M3、`job` 按 M4、controller/scaffold 与诊断按 M6 交付。每个生成器只在对应能力 contract 与生成项目验收可用时实现。
+- **决策：不复制 Loco 命令体系；保留 OpenRust `Command` 和现有 CLI 的单一入口。** `mailer` / `policy` 已补交；`job` 按 M4、controller/scaffold 与诊断按 M6 交付。V1 还须提供应用模板覆盖、导出/预览与版本检查，见 [补齐计划](../plans/v1-foundation-completion.md)。每个生成器只在对应能力 contract 与生成项目验收可用时实现。
 - `doctor` 列入 M6，限定为只读诊断：读取并校验当前项目配置；在数据库已配置时报告后端 feature/当前开发目标版本检查、连通性和迁移状态；对可选依赖报告未配置/未启用/不可达及可操作建议。不得自动安装服务、运行迁移/seed、改写配置或业务数据，也不得输出密钥。`config show` 已承担脱敏配置查看，doctor 只报告配置校验结果与键路径，不重复打印配置值。
-- task/worker 生成器暂不单独加入当前待办：M4 先定义 Job、Command、Scheduler 的实际注册与运行契约，再判断各自是否有高频模板价值。避免生成无法构建或未注册到运行时的空文件。
+- task/worker 不因参考框架有同名命令就新增平行生成器；复用现有 Job、Command、Scheduler 契约，`job` 与 `command` 的生成范围按活跃待办交付。避免生成无法构建或未注册到运行时的空文件。
 - 来源：Loco 官方 CLI 与 generator reference；解决从空项目接入常见能力的发现成本。适用前提是模板可以随稳定公共 API 测试，不要求照搬其 Rails 风格资源结构。
 
 ### 3. 测试开发体验
 
-- `openrust-test` 公开 `TestDatabase::create::<M>`、`create_with_table_names`、`url`、`connection`、`close`，覆盖 PostgreSQL 迁移模板克隆和 MySQL 隔离库迁移、清理及 URL 脱敏；隔离契约见 [ADR-038](adr-038-isolated-test-databases.md)。尚无 TestApp、HTTP 断言或 Factory；能力 fake 目前由对应模块提供。
-- 框架现有底层可复用 `lifecycle::finalize`、`build_router`、Tower `ServiceExt::oneshot`、`TestDatabase`、各能力 fake driver。`apps/server` 和 HTTP crate 当前直接组合这些入口，证明单请求测试可行，但应用作者仍需自行接线；无网络 socket 的 HTTP 测试尚未形成稳定公开 helper。
-- **决策：采纳一个薄的 `openrust-test` 应用/HTTP 测试入口，列入 M6 测试工具闭环；不新增第二套 server、ORM fixture 系统或依赖真实端口的测试框架。** `TestApp` 应复用 `finalize`、公开 `build_router` 与 Tower `ServiceExt::oneshot`，能以显式配置和 plugin/fake 组装应用；响应断言覆盖 OpenRust JSON envelope、状态、headers 和 JSON path。数据库隔离仍复用 `TestDatabase`，按用户选择的测试数据库运行真实驱动。
-- Factory 与 fake 断言仅在对应能力驱动 contract 定稿后逐项添加，不作为 TestApp 的隐式自动行为。M6 公共验收须有独立 Application 测试，证明无需真实 socket 即可经 `TestApp` 启动并调用路由，验证统一响应、状态、headers、JSON path、错误响应和显式 fake/plugin 替换；配置隔离数据库的路径继续使用 `TestDatabase` 并在 PostgreSQL/MySQL 执行。
+- `testing` 公开 `TestDatabase::create::<M>`、`create_with_table_names`、`url`、`connection`、`close`，覆盖 PostgreSQL 迁移模板克隆和 MySQL 隔离库迁移、清理及 URL 脱敏；隔离契约见 [ADR-038](adr-038-isolated-test-databases.md)。尚无 TestApp、HTTP 断言或轻量 fixture 工具；能力 fake 目前由对应模块提供。
+- 框架现有底层可复用 `lifecycle::finalize`、`build_router`、Tower `ServiceExt::oneshot`、`TestDatabase`、各能力 fake driver。`apps/server` 和 HTTP 模块测试当前直接组合这些入口，证明单请求测试可行，但应用作者仍需自行接线；无网络 socket 的 HTTP 测试尚未形成稳定公开 helper。
+- **决策：采纳一个薄的 `testing` 应用/HTTP 测试入口，列入 M6 测试工具闭环；不新增第二套 server、ORM fixture 系统或依赖真实端口的测试框架。** `TestApp` 应复用 `finalize`、公开 `build_router` 与 Tower `ServiceExt::oneshot`，能以显式配置和 plugin/fake 组装应用；响应断言覆盖 OpenRust JSON envelope、状态、headers 和 JSON path。数据库隔离仍复用 `TestDatabase`，按用户选择的测试数据库运行真实驱动。
+- V1 必须交付显式轻量 factory/fixture 工具，复用实体、普通 Rust builder 和 `TestDatabase`，构造与持久化分开，不增加隐式 Factory trait、自动清库或第二套 ORM；具体范围见补齐计划。能力 fake 断言仍随对应 contract 添加，不作为 TestApp 隐式行为。M6 验收须有独立 Application 测试，证明无需真实 socket 即可调用路由，验证响应、错误与显式 fake/plugin 替换；fixture 的可复现数据、关系约束、失败和隔离须在 PostgreSQL/MySQL 执行。
 - 来源：Loco 官方 `boot_test` / request test / seeded database 体验；OpenRust 采用显式 Rust builder 和现有工具组合，避免复制 Loco `AppContext` 或自动 truncate 语义。
 
 ## 项目文档与计划同步
 
 - 当前配置目录原则沿 [ADR-021](adr-021-loco-style-module-layout.md)：Rust 配置逻辑进入框架/生成应用 `src/config/mod.rs` 模块目录；运行时 TOML/YAML 始终位于项目根 `config/`。本 ADR 不新增配置布局决策。
-- `todo.md` 是唯一活跃任务队列。原 M3 的 mailer/policy 与 M4 的 job 生成器仍需按剩余任务补交；M6 完成其余生成器和完整生成项目验收，不能因“原阶段完成”漏项。停机 contract 已由 ADR-037 定稿，剩余工作是实施与验收，不能再次要求设计通用 shutdown hook。
+- `todo.md` 是唯一活跃任务队列。原 M3 的 mailer/policy 已补交，M4 的 job 生成器仍待交付；M6 完成其余生成器、模板覆盖、fixtures 和完整生成项目验收，不能因“原阶段完成”漏项。停机 contract 已由 ADR-037 定稿，剩余工作是实施与验收，不能再次要求设计通用 shutdown hook。
 - 本评估不代表 doctor、TestApp 或待补生成器已经交付；实现及实际验证记录见对应 `core/`、Git 与 `memory/`。
 
 ## 实际代码核验

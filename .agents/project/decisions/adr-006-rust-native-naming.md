@@ -13,11 +13,11 @@
 
 按优先级：
 
-1. **优先遵循 Rust 生态惯例，并综合对照目标框架。** axum、Tower、Rocket、actix-web、Poem、Salvo、Pavex、Bevy、SeaORM、sqlx-cli 用于核对 Rust API、HTTP、插件和数据层惯例；参考框架按 Loco、Laravel、Goravel、OpenSpring、RuoYi 若依、芋道的顺序进行统一维度评估，见 [框架设计「框架参考与对标」](../plans/framework-design.md#框架参考与对标)。不存在单一框架对所有设计拥有优先权。
+1. **优先遵循 Rust 生态惯例，并综合对照目标框架。** axum、Tower、Rocket、actix-web、Poem、Salvo、Pavex、Bevy、SeaORM、sqlx-cli 用于核对 Rust API、HTTP、插件和数据层惯例；V1 按 Loco、Laravel、Goravel、OpenSpring 的顺序综合评估，RuoYi 若依、芋道仅作为 V2 参考，见 [框架设计「框架参考与对标」](../plans/framework-design.md#框架参考与对标)。不存在单一框架对所有设计拥有优先权。
 2. **没有共识的，用跨语言通用的 Web 框架词汇**，如 controllers、models、migrations、seeds、jobs、mailers、middleware，前提是不违反 Rust API 惯例。
 3. **不自造词，也不用单一生态的行话**，例如 Laravel 的 `Mailable` / `ServiceProvider` / `boot` / `Guard` / `disk`、Rocket 的 `Fairing`、OpenDAL 的 `Operator`。
 4. **分两层**：
-   - **生成项目的布局与 CLI**：保持 Rust 项目惯例清晰，并按[框架参考与对标](../plans/framework-design.md#框架参考与对标)的统一维度综合检查六个参考项目；采用通用、可读的概念，不因单一项目的术语或目录形式形成特例。
+   - **生成项目的布局与 CLI**：保持 Rust 项目惯例清晰，并按[框架参考与对标](../plans/framework-design.md#框架参考与对标)的版本分工综合检查；采用通用、可读的概念，不因单一项目的术语或目录形式形成特例。
    - **库 API**：保持 Rust 惯用写法，以 std、axum 和 [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/)（下称 RAG）为准，包括 C-CASE、C-CONV、C-GETTER、C-WORD-ORDER、C-CTOR。
 
 新增或修改公共名称前，先查本 ADR。本 ADR 没有覆盖的名称，先在这里补一行并写明先例，再写代码。
@@ -65,8 +65,8 @@ Laravel 式开发体验与成熟组件整合遵循 [ADR-001](adr-001-own-kernel-
 依据：
 - loco 生成项目使用 `src/{controllers,models,models/_entities,workers,mailers,tasks}` 与 `migration/`。
 - salvo-cli 使用 `models/`。
-- 没有流行的 Rust 生成器使用 `handlers/` 目录。文档中把函数称为 handler，与 axum 和 loco 一致。
-- 测试数据用 `fake::Dummy` 加 builder，不提供 `Seeder` / `Factory` trait。
+- 文档中把函数称为 handler，与 axum 和 loco 一致；应用目录采用通用的 `controllers/`。
+- V1 须交付普通 Rust builder/fixture 形式的显式轻量测试数据工具，复用 `testing::TestDatabase`，不提供隐式 `Seeder` / `Factory` trait 或第二套 ORM；具体签名与随机数据组件在实施 Spec 确定，`fake` 仅为候选。范围见 [补齐计划](../plans/v1-foundation-completion.md)。
 
 ### 2. CLI
 
@@ -74,6 +74,7 @@ Laravel 式开发体验与成熟组件整合遵循 [ADR-001](adr-001-own-kernel-
 - **当前全局命令**：`openrust new <name> [--db postgres|mysql]`、`openrust dev`、`openrust serve`、`openrust generate`、`openrust key generate`；其余命令转发给项目二进制。
 - **生成器**：`openrust generate <kind>`，别名 `g`。当前 kind 为 `model`、`migration`、`mailer`、`policy`，以 [CLI 事实](../core/cli.md) 为准；v1 待补 `scaffold`、`controller`、`job`、`command`，按当前任务队列实现和验证。
   - 字段 DSL 使用 loco / Rails 的小写类型名，例如 `title:string published_at:date_time?`。`references` 表示外键，`?` 表示可空。
+- V1 须在既有生成器入口支持应用模板覆盖、清单/导出/预览与版本检查，详见补齐计划；具体 CLI 签名待 Spec，不把目标写成已实现命令。
 - **运行期命令**由应用注册的 Plugin 提供，不因全局 CLI 可转发就自动可用。现有入口包括 `serve`、`help`、`config show`、`migrate`、`db seed`、`queue work`、`schedule run`、`schedule list`；队列其他命令以 `QueuePlugin` 为准。`migrate` 接受 `up [steps]`、`down [steps]` 和 `status`。`db reset`、`db status`、`routes`、`doctor` 是待实现的 v1 入口；`doctor` 只读语义按 ADR-023。
 
 ### 3. 配置与环境变量
@@ -102,7 +103,7 @@ TOML 分层、环境引导与生产 `.env` 保护保持有效，具体兼容、�
 | 存储（待实现） | `Storage`、命名实例与 `read` / `write` / `delete` / `url` / `presign_read` 等操作 | 目标命名，stream/授权/发布门槛及具体签名先定 contract，不表示 API 已存在 |
 | 队列 | `Job::NAME` 与 `handle(&self, JobContext) -> BoxFuture<'_, Result<()>>`；显式 `QueuePlugin::register_job` | 与已提交 `src/queue.rs` 对齐；旧 `Job::run`/属性宏示意不再作为 contract |
 | 认证 | 由认证 ADR 决定，不使用 `Guard`，因为 Rocket 的 request guard 和 actix 的路由谓词已占用这个词 | — |
-| 测试 | `TestDatabase` 已有；`TestApp`/HTTP assertions 待 M6 最小 contract | ADR-023；不固化未实现的 `spawn()` 调用，不要求真实 socket |
+| 测试 | `testing::TestDatabase` 已有；`TestApp`/HTTP assertions 与显式轻量 fixture 工具待 M6 contract | ADR-023 与补齐计划；不固化未实现的 `spawn()` 调用，不要求真实 socket 或隐式 Factory trait |
 | 错误 | 统一 `openrust::Error`；具体变体以 `src/core/error.rs` 为准，不假设存在 `Database`/`Queue` 变体 | RAG C-GOOD-ERR；公共 HTTP 错误语义见 ADR-008 |
 | 门面 | 根模块 `openrust::http` 等与 `openrust::prelude` re-export；用户应用类型避免叫 `App` | 根 package 自身实现框架，不恢复旧 `openrust_http` 等已移除依赖 |
 

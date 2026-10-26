@@ -25,3 +25,5 @@
 - 本机 Mailpit v1.32.0 SMTP 投递及收件 API 确认已记录于 [测试基线](../memory/testing.md)；这不代表外部邮箱供应商的真实送达。Twilio 协议测试使用注入 transport，真实账户实发仍需授权凭据与目标。
 - 队列化 Mail/SMS、失败任务联动、薄多渠道通知和发送前后公共扩展仍待按 M4 及跨能力功能簇接入；已有 queue 模块不代表通信自动入队。
 - 认证验证码由 `VerificationCodes` 生成消费，发送仍由调用方选择渠道；本簇不启用短信登录或更改账号流程。
+
+V1 的安全模板/布局与生成体验按 [F3 邮件模板](../plans/v1-foundation-completion.md#f3-邮件模板) 补齐，复用现有 lettre/Email/Mailer；本轮仅更新目标，当前纯文本本地化边界不变。

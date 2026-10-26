@@ -86,7 +86,7 @@ OpenSpring 可作为设计参考，编程思想与问题解决方法可以跨语
 
 ## 框架参考与对标
 
-按用户指定顺序参考 Loco、Laravel、Goravel、OpenSpring、RuoYi 若依、芋道。六者按同一套维度综合横向评估：整体架构与模块边界、项目结构与启动体验、通用能力覆盖、扩展机制、测试与工具链、性能与资源边界、部署运维和安全性。Laravel 的设计思想与开发体验是明确偏好，不改变参考顺序，不把任何一个参考项目限定为某一类设计的专属来源；按项目定位解释证据适用范围，最终以 OpenRust 的 Rust 语义、V1/V2 范围和自身验证结果决策。
+参考范围按版本划分：**v1 仅按 Loco、Laravel、Goravel、OpenSpring 的顺序参考；若依与芋道仅用于 v2。** v1 的四个框架按同一套维度综合评估：整体架构与模块边界、项目结构与启动体验、通用能力覆盖、扩展机制、测试与工具链、性能与资源边界、部署运维和安全性。Laravel 的设计思想与开发体验是明确偏好，不改变参考顺序，也不将任何一个框架限定为某一类设计的专属来源。最终以 OpenRust 的 Rust 语义、版本范围和自身验证结果决策。
 
 | 参考对象（按指定顺序） | 项目类型与范围说明 |
 | --- | --- |
@@ -94,39 +94,44 @@ OpenSpring 可作为设计参考，编程思想与问题解决方法可以跨语
 | [Laravel](https://laravel.com/docs) | PHP 应用框架；与其余参照对象按相同维度综合对照 |
 | [Goravel](https://www.goravel.dev/) | Go 应用框架；与其余参照对象按相同维度综合对照 |
 | OpenSpring | Java 应用框架；需要借鉴具体实现时先只读核对当前源码，再按相同维度综合对照 |
-| [若依（RuoYi）](https://github.com/yangzongzhuan/RuoYi-Vue) | Java 后台管理框架；后台业务模型和 UI 的落位按 V1/V2 边界判断 |
-| [芋道（RuoYi-Vue-Pro）](https://github.com/YunaiV/ruoyi-vue-pro) | Java 后台开发平台；后台业务模块是否适用按 V1/V2 边界判断 |
 
-综合评估时只提炼能解决 OpenRust 实际问题的设计，不直接照搬 PHP/Go/Java 运行时机制、术语或业务模块；RuoYi 与芋道的后台范围不会因此进入 V1 框架 core。
+综合评估时只提炼能解决 OpenRust 实际问题的设计，不直接照搬 PHP/Go/Java 运行时机制、术语或业务模块。
 
 OpenRouter 是独立 AI 平台产品的产品对标对象，不列入上述框架参考清单。
 
-### 对标审计：已规划能力与候选缺口
+### v1 对标与补齐落点
 
-依据六框架的一手文档、OpenSpring 本机源码及 OpenRust 当前代码/计划，底层能力的大类大多已经规划；主要缺口是 gRPC，以及跨能力组合时的公共契约和生产验收。以下按指定顺序综合比较，所列是本轮最有价值的证据，不限制各框架可借鉴的领域，也不构成性能排名。
+依据上述四框架的一手文档、OpenSpring 本机源码及 OpenRust 当前代码/计划，补齐通用能力和跨能力组合契约。以下证据用于设计参考，不表示相关 OpenRust 能力已经实现或通过验收，也不构成性能排名。
 
 | 参考框架与一手依据 | 对 OpenRust 的比较结论与落点 |
 | --- | --- |
-| Loco：[应用上下文](https://loco.rs/docs/explanation/appcontext-and-di/)、[调度](https://loco.rs/docs/how-to/schedule-jobs/)、[中间件](https://loco.rs/docs/how-to/add-middleware/) | OpenRust 已有显式 Plugin/AppState 与 HTTP 中间件；补调用作用域/退出组合验收、doctor 展示有效中间件与配置，评估常规日历调度；不新增平行 Hooks |
-| Laravel：[容器](https://laravel.com/framework/docs/container)、[上下文](https://laravel.com/framework/docs/context)、[调度](https://laravel.com/framework/docs/scheduling)、[查询](https://laravel.com/framework/docs/queries)、[测试](https://laravel.com/framework/docs/mocking) | 从业务开发流程检验约定是否连贯：调用与任务作用域、时间边界测试、分批查询、fake 断言和调度细节。现有 Cache/Queue/通知计划继续交付；不机械复制动态 Facade/ORM |
-| Goravel：[gRPC](https://www.goravel.dev/the-basics/grpc.html)、[验证](https://www.goravel.dev/the-basics/validation.html) | gRPC 是此次正式新增的 v1 交付项；借鉴服务/客户端配置和集成体验，复用验证与授权入口。TLS 配置失败关闭，不能为兼容而静默降级明文 |
-| OpenSpring：本地源码 `507ff4a774`，具体路径见下文 | 现有驱动/通知/队列组合可作参考；AI Provider 层已有隔离/熔断，Webhook 层已有地址检查，但不能推广成其全框架完整保证。OpenRust 补通用出站策略与按依赖隔离的契约，保留自身 Rust 实现边界 |
-| RuoYi-Vue：[官方手册](https://doc.ruoyi.vip/ruoyi-vue/document/htsc.html)、[仓库](https://github.com/yangzongzhuan/RuoYi-Vue) | 权限/数据范围、调度、监控和生成体验用于核对完整使用路径；查询授权扩展示例与运行底座归 v1，组织/部门模型与管理 UI 已归 v2。不能把 RuoYi-Cloud 治理能力算成 RuoYi-Vue 默认能力 |
-| 芋道：[仓库](https://github.com/YunaiV/ruoyi-vue-pro)、[数据权限](https://doc.iocoder.cn/data-permission/)、[多租户](https://doc.iocoder.cn/saas-tenant/) | 核对查询/异步/共享状态隔离的组合边界；组织权限模型、租户产品和业务套件按现有 v2 核心/候选区分。复用公开扩展先证明足够，不把商城、支付、CRM/ERP 或流程平台整体移入 core |
+| Loco：[应用上下文](https://loco.rs/docs/explanation/appcontext-and-di/)、[调度](https://loco.rs/docs/how-to/schedule-jobs/)、[生成器模板](https://loco.rs/docs/how-to/override-templates/)、[租户作用域](https://loco.rs/docs/how-to/multi-tenancy/) | 复用现有 Plugin/AppState，补调用作用域、日历调度、应用模板覆盖和显式租户隔离；查询覆盖与逃生口须明确，不新增平行 Hooks |
+| Laravel：[上下文](https://laravel.com/framework/docs/context)、[调度](https://laravel.com/framework/docs/scheduling)、[查询](https://laravel.com/framework/docs/queries)、[测试](https://laravel.com/framework/docs/mocking)、[认证脚手架](https://laravel.com/framework/docs/starter-kits) | 核对完整开发流程与可组合性，补调度、轻量测试数据、安全模板、国际化、缓存策略及可选身份能力；保留 Rust 的显式调用，不复制动态 Facade/ORM |
+| Goravel：[gRPC](https://www.goravel.dev/the-basics/grpc.html)、[验证](https://www.goravel.dev/the-basics/validation.html) | gRPC 已纳入 v1；借鉴服务/客户端配置与生成体验，复用验证和授权。TLS 配置失败关闭，不静默降级明文 |
+| OpenSpring：本地源码，使用前记录实际提交与相关路径 | 驱动、租户作用域、身份接入及通用导出契约可按真实边界参考；AI Provider 的隔离/熔断和 Webhook 地址检查仍是局部实现，不推广成全框架保证 |
 
 OpenSpring 只读证据路径：`openspring-core/openspring-core-ai/src/main/java/com/openspring/core/ai/model/support/AiModelResilienceExecutor.java`、`openspring-core/openspring-core-notification/src/main/java/com/openspring/core/notification/channel/NotificationWebhookEndpointGuard.java`。这两项是局部实现参考，本轮没有执行其测试，也不把简单 DNS 预检查视为已完整防御重绑定。
 
-新增范围、已有计划深化及调度决策关口集中维护于 [能力覆盖](v1-capability-coverage.md#对标后的缺口分类与决策关口)，执行只在 `todo.md` 领取。gRPC 按 [ADR-040](../decisions/adr-040-grpc-integration.md) 在 M5 完整交付并纳入 v1 门禁，不再是 v2 候选。
+新增必交范围、最小边界与验收集中维护于 [v1 底层补齐计划](v1-foundation-completion.md)，与 [能力覆盖](v1-capability-coverage.md) 共用同一实现归属，执行只在 `todo.md` 领取。gRPC 按 [ADR-040](../decisions/adr-040-grpc-integration.md) 完整交付。cron/IANA/DST、模板覆盖、显式轻量 factory/fixtures、安全邮件模板、复数/地区格式化、cache tags/SWR/singleflight、可信租户隔离、公共查询权限、外部 OAuth2/OIDC/SSO 客户端与 TOTP/恢复码、CSV/XLSX 均为 v1 必交机制；“可选启用”不表示可省略实现与验收。
 
-GraphQL、显式测试工厂和服务端页面仍按 [后续评估](../roadmap.md#框架对标后的候选评估) 处理；OAuth/SSO/MFA、多租户和持久离线消息已有候选归属。保留已确认版本边界，不能把所有生态包或业务系统都改成 v1 必需能力，也不能将原本已纳入的底层机制遗漏到 v2。
+Passkeys、独立 OAuth 授权服务器、更多数据库/MQ、搜索、运行时 feature flags 与 SSR/静态 Starter 按 [后续评估](../roadmap.md#框架对标后的候选评估) 处理。GraphQL、任意 DAG、分库分表与跨库事务的既有范围边界不变；通用租户隔离不包含组织管理或租户运营后台。
+
+### v2 附加参考
+
+v2 保持 Loco、Laravel、Goravel、OpenSpring、若依、芋道的原顺序，在通用层之上评估后台套件；若依与芋道的证据只用于本阶段，不作为 v1 设计依据。具体交付与候选见 [v2 计划](v2-admin-platform.md)。
+
+| 附加参考与一手依据 | v2 参考边界 |
+| --- | --- |
+| RuoYi-Vue：[官方手册](https://doc.ruoyi.vip/ruoyi-vue/document/htsc.html)、[仓库](https://github.com/yangzongzhuan/RuoYi-Vue) | 组织/部门 DataScope、任务监控、业务表格与生成体验；只比较传统分离版，不混入 RuoYi-Cloud 或社区分支 |
+| 芋道：[仓库](https://github.com/YunaiV/ruoyi-vue-pro)、[数据权限](https://doc.iocoder.cn/data-permission/)、[多租户](https://doc.iocoder.cn/saas-tenant/) | 后台数据权限、租户管理与套件操作流程；区分 Boot/Cloud、完整/精简版，复用 v1 通用机制，不整体移入商城、支付、CRM/ERP 或流程平台 |
 
 ## v1 通用能力补齐
 
-国际化、WebSocket/SSE、gRPC、统一出站 HTTP、加密与密钥管理、审计和请求幂等纳入 v1。其最小范围、推荐方案、里程碑与验收见 [通用能力计划](v1-common-capabilities.md)。优先复用既有能力模块与成熟实现；公共 API、配置和依赖选型先定 contract，不自动为每项能力新增 crate。
+国际化、WebSocket/SSE、gRPC、统一出站 HTTP、加密与密钥管理、审计和请求幂等按 [通用能力计划](v1-common-capabilities.md) 交付；后续确认的通用底层范围以 [底层补齐计划](v1-foundation-completion.md) 为入口。优先复用既有模块与成熟实现；公共 API、配置和依赖选型先定 contract，不自动为每项能力新增 crate。
 
 ## 框架仓库布局
 
-框架实现集中在根 `openrust` package 的 `src/`，配置代码在 `src/config/`。当前实际结构见 [architecture.md](../architecture.md)，剩余目录迁移见 [Spec](module-layout-migration-spec.md) 与 [ADR-021](../decisions/adr-021-loco-style-module-layout.md)。
+框架实现集中在根 `openrust` package 的 `src/`，配置代码在 `src/config/`。目录迁移与源码 workspace 交付已完成，当前实际结构见 [architecture.md](../architecture.md)，验收入口见 [Spec](module-layout-migration-spec.md) 与 [ADR-021](../decisions/adr-021-loco-style-module-layout.md)。
 
 工具包已在 `cli/`、`macros/`、`testing/`，旧 `crates/` 已移除。按 [ADR-039](../decisions/adr-039-source-workspace-distribution.md)，整套源码交付，内部包改为目录同名、全部禁用发布；proc-macro 不合入普通 library。`examples/<name>/`、`tests/<capability>/` 采用明确的 Cargo target/harness，不能靠嵌套目录自动发现测试。`apps/` 保留应用约定；`apps/server` 暂为集成宿主，删除或迁移须先替代其全部验收职责。
 
@@ -199,6 +204,7 @@ apps/<app>/
 - 跨数据库 SQL 在 dialect 边界；框架表使用可移植类型。连接池、超时和慢查询按实际配置校验。声明支持新 backend 必须补驱动、迁移、方言及真实能力验证，不能仅因底层 ORM 支持就宣称框架支持。
 - TestDatabase 使用每用例隔离数据库；具体 PostgreSQL/MySQL 建库与清理实现见 [测试事实](../core/test.md)，PostgreSQL 已用模板克隆，MySQL 逐库运行迁移，不宣称已有 MySQL 迁移缓存。
 - UUIDv7 与显式软删除生成选项已经实现，范围及双库验收见 [数据层事实](../core/db.md)。查询 scopes 和关联加载体验在既有实现上补强；事务扩展点遵守本文件公开流程规则。
+- v1 补可信租户作用域、公共查询权限规则及通用 CSV/XLSX 数据交换；只提供可选机制，复用 ORM、验证、任务和存储，不固化组织模型。边界与双库/隔离验收见 [底层补齐计划](v1-foundation-completion.md)。
 
 ## 认证与授权
 
@@ -206,7 +212,8 @@ apps/<app>/
 - `AuthPlugin::new()` 使用数据库认证器，`with_authenticator` 支持替换。已提供但无效的凭据不降级匿名；密码使用 Argon2id。
 - `AuthFlows` 已含注册、登录、退出、密码重置、邮箱验证；后两者复用 VerificationCodes。独立 SignedLinks 提供用途隔离链接，不能把验证码流程写成已改用签名 URL。
 - 当前 `Policy` 是基于数据库的授权服务结构体，提供角色/权限及 PAT ability 交集；不是已实现的资源 Policy trait。资源策略/生成器如需新公开 API，先基于现有入口设计，不建立第二授权系统。
-- 共享 Session、refresh、验证码、限流等已有双库证据，通用 HTTP 限流复用同一服务；公共注册/登录扩展点及完整跨节点业务场景仍待补齐。JWT 即时撤销策略与 access token 存活窗口须明确，不默认声称纯 token 可即时全局撤销。
+- v1 必交外部 OAuth2/OIDC/SSO 客户端接入及可选 TOTP/恢复码，复用本地主体、JWT/Session、加密、限流与审计；不建设独立 OAuth 授权服务器。协议、账号绑定与恢复边界见 [底层补齐计划](v1-foundation-completion.md)，不将计划接口写成当前实现。
+- 共享 Session、refresh、验证码、限流等已有双库证据，通用 HTTP 限流复用同一服务；注册/登录扩展已按 [ADR-041](../decisions/adr-041-transaction-and-auth-flow-events.md) 交付，完整跨节点组合仍待验收。JWT 即时撤销策略与 access token 存活窗口须明确，不默认声称纯 token 可即时全局撤销。
 
 ## 队列、调度与事件
 
@@ -214,13 +221,14 @@ apps/<app>/
 - `Queue::dispatch` / `dispatch_with_options` / `dispatch_in_transaction` 使用显式任务名和序列化参数；具体签名见源码与 [queue 事实](../core/queue.md)，不宣传未实现的 awaitable fluent dispatch builder。
 - 官方数据库 driver 已实现。唯一键只限制同一 queue/key 的活动任务重叠，完成后释放；不是永久请求幂等。执行至少一次，handler 自行保持业务幂等；外部副作用不能与数据库提交原子化。
 - worker 具有受界并发、重试/失败保留、超时、lease/ownership token、心跳和有限停机；任务链/有限批次已有实现，parent retry 可重跑成功子任务，失败策略和并发边界见 queue 事实；旧 token 接管与生产资源验收继续按 ADR-037。
-- 调度已支持数据库 UTC 时钟、interval/daily slots、slot 与 job 同事务去重、run/once/list。现有首版不含 cron/IANA/DST，v1 日历调度补强按覆盖计划先完成决策；不承诺业务副作用 exactly-once。详见 [schedule 事实](../core/schedule.md)。
+- 调度已支持数据库 UTC 时钟、interval/daily slots、slot 与 job 同事务去重、run/once/list。现有首版不含 cron/IANA/DST；这些已纳入 v1 必交，按 [底层补齐计划](v1-foundation-completion.md) 先定 DST、错过触发和补跑上限，再实现并验收；不承诺业务副作用 exactly-once。当前事实见 [schedule](../core/schedule.md)。
 - 类型化进程内有序事件与显式队列 listener 已实现，语义与边界见 [ADR-037](../decisions/adr-037-queue-worker-lifecycle.md) 及 [events 事实](../core/events.md)；不接外部事件总线。进程内通知可能因崩溃丢失，可靠路径复用事务内任务/outbox，不把单进程 listener 写成集群广播。
 - 原规划可选 Redis queue 与 sync 测试执行在 v1 的 M5 Redis 能力接入后补交，ADR-037 只关闭数据库基础簇的范围。当前没有对应 feature；先明确持久化、事务派发及 worker 能力差异，不承诺 Redis 与业务数据库共享原子事务，也不混同默认 Redis 缓存。
 
 ## 缓存、存储、邮件与短信
 
 - Cache 待实现：default/named stores 与自定义 driver 按 ADR-014，标准应用默认 Redis 按 ADR-015；memory/file 显式选用，库 feature 可选，无静默回退。原子锁/计数能力不能用普通 get/set 伪装。
+- cache tags、SWR 与 singleflight 纳入 v1，须明确驱动支持、失效与共享边界；安全邮件模板、i18n 复数及地区格式化复用现有通信和语言入口。详细契约与验收见 [底层补齐计划](v1-foundation-completion.md)，不增加重复缓存、翻译或模板系统。
 - Storage 待实现：复用 OpenDAL，local/S3-compatible、命名实例、流式传输、上传检测发布边界与扩展点；具体 API 名先定 contract，不把示意接口当现有实现。
 - Mailer/公开 MailDriver 已有 SMTP/log/fake；LocalizedEmail 复用显式 Locale 和 i18n catalog。SmsSender/SmsDriver 支持文本/供应商模板与 Twilio adapter，production 禁止 log；本机 Mailpit 实收已有证据，Twilio 实发仍需授权账号与目标。
 - M4 增加队列化发送和薄多渠道通知；验证码与短信传输职责分离，默认不因此开启短信登录。不引入第二套邮件模板引擎或重试循环。
@@ -241,9 +249,12 @@ apps/<app>/
 
 生成器输出普通代码，默认不覆盖；字段 DSL、冲突、错误和 fmt 必须验证。模板当前使用内嵌文本/字符串渲染；是否使用 minijinja 取决于真实复杂度，未选用前不作为既定依赖。
 
+v1 交付应用级生成器模板覆盖，开发者不修改框架源码即可定制；覆盖优先级、路径安全、冲突预览及生成物验收见 [底层补齐计划](v1-foundation-completion.md)。
+
 ## 测试工具
 
 - 当前 `testing` 提供 TestDatabase；薄 TestApp/HTTP assertions 待 M6，复用 finalize/build_router/Tower oneshot，不复制运行时和数据库 fixture 系统。
+- 显式轻量 factory/fixtures 已纳入 v1，复用测试数据库与普通 builder，支持确定性构造及关系数据组合，不引入隐式持久化或要求所有模型实现统一 Factory trait。契约与验收见 [底层补齐计划](v1-foundation-completion.md)。
 - fake 必须显式注入，不能静默替换生产驱动；fake 验证业务逻辑，真实数据库/Redis/SMTP/对象存储验证适配与跨节点行为。
 - 可控时钟只在存在时间边界测试需求时设计；队列/scheduler 的共享 UTC 数据库时钟不能由单进程冻结时间替代。
 

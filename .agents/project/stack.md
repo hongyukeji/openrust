@@ -17,7 +17,7 @@
 | 出站 HTTP | `reqwest` 0.13（Rustls） | `http-client` 可选 feature；共享连接池、JSON/query/form/multipart/stream、显式超时；禁止默认重定向和应用层重试，响应体由框架限额 |
 | 序列化 | `serde` + `serde_json` | `apps/server` 集成测试用 `serde_json` 比对包装字段与请求 ID |
 | 验证 | `validator` | M0 评估 `garde` 后定稿 |
-| 国际化 | `openrust::i18n` + `serde_json` | 内置中英文框架消息；应用以 JSON resource 扩展；不引入表达式/复数 DSL 依赖 |
+| 国际化 | `openrust::i18n` + `serde_json` | 当前是 JSON resource 与简单插值；F2 复数/选择/地区格式化已纳入 V1，成熟组件待选型，不表示已有相关依赖 |
 | 配置 | `figment` | 已采用；错误信息含键名（测试覆盖） |
 | 日志 / 追踪 | 已用 `tracing` + `tracing-subscriber` | `opentelemetry` / `metrics` 接入为 M5 规划，当前无对应依赖或 feature |
 | 时间 | `chrono`（UTC） | SeaORM 兼容，生态最广 |
@@ -45,7 +45,7 @@
 | 能力 | 当前实现 | 待实现边界 |
 | --- | --- | --- |
 | 队列 | `queue` feature 下的自研数据库 driver（[ADR-003](decisions/adr-003-database-queue-default.md)，不依赖 `apalis`） | 当前无 `queue-redis` feature 或 Redis queue driver；M4 剩余范围见 [队列事实](core/queue.md) |
-| 调度 | 同属 `queue` feature；`Scheduler` + `ScheduleFrequency::{Interval, DailyAtUtc}`，仅 UTC | 无 `cron` 依赖、cron 表达式或 IANA 时区/DST 支持；cron/IANA/DST 不纳入首版调度 contract；生产资源/集群验收仍待补齐 |
+| 调度 | `queue` feature；`Scheduler` + `Interval/DailyAtUtc`，当前仅 UTC | F1 cron/IANA/DST/有界补跑为 V1 必交，组件待引入，当前不存在相关实现保证 |
 | 缓存 | 尚未实现；contract 要求标准应用默认 Redis、memory/file 显式选择（ADR-015、[ADR-014](decisions/adr-014-cache-driver-and-store-contract.md)） | M5 引入统一 Cache、命名 stores 与 drivers；`cache-redis` 是规划 feature，当前 manifest 不含它 |
 | 存储 | 尚未实现；规划以 `opendal` 提供本地和 S3 兼容路径 | `opendal` 依赖与 `storage-s3` feature 均待引入 |
 | 邮件 / 短信 | `lettre` 0.11 + log/fake；`mail-smtp` 启用 Tokio/Rustls STARTTLS，仅本机 loopback 可显式关闭；`sms-twilio` 复用 `http-client` 与 `base64` | 本机 Mailpit SMTP 实收已有验收记录；真实 Twilio 投递待授权账号和目标，log/fake 不能代替送达证据 |
@@ -75,3 +75,11 @@
 v2 端侧规划：Admin Web 使用 pure-admin 精简国际化版 + Element Plus（Vue 3 / TypeScript / Vite 路线），App 使用 uni-app；PC 端仅设计，暂不引入运行时。B1 锁定具体兼容版本、App 实现代际/渲染模式与目标平台，记录实际依赖和锁文件；目前这些前端依赖尚未安装，不属于 v1 Rust 核心依赖。范围、选型依据及验收见 [v2 计划](plans/v2-admin-platform.md)。
 
 Edition 2024；MSRV 为 stable 减两个小版本；0.x 期间破坏性变更只在次版本号；依赖升级随 Dependabot，升级主版本写 ADR。
+
+## 已确认但尚未引入的底层补强
+
+[底层补齐计划](plans/v1-foundation-completion.md) F1–F10 是目标范围；具体版本、MSRV、许可证、安全维护和构建成本在实施 Spec 核实后登记。当前未因本轮文档新增任何依赖或 feature。
+
+- cron/时区、i18n 复数/地区格式化、邮件与生成模板优先成熟组件；候选名称仅供评估，不能当作已锁定选择。
+- OAuth2/OIDC、TOTP、CSV/XLSX 使用成熟协议/格式组件；复用本地认证/密钥、Queue/Storage，不自研协议和文件格式。
+- cache tag/SWR/加载合并、查询规则、租户作用域与 fixtures 优先在既有能力上整合；只在有明确附加价值时引入依赖，不建立新 ORM/容器。

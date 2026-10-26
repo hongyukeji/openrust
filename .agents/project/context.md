@@ -16,7 +16,7 @@
 
 ## 固定约束
 
-- 设计取向按 [ADR-001](decisions/adr-001-own-kernel-on-axum.md#成熟组件优先与-laravel-式开发体验)：优先复用优秀第三方组件，统一配置、生命周期、错误、扩展契约与开发入口，以 Laravel 的约定优于配置和一致体验为重要参照；采用 Rust 惯用接口，按真实缺口补充实现。已验证能力不因本取向重写，六框架参考顺序及 V1/V2 范围保持不变。
+- 设计取向按 [ADR-001](decisions/adr-001-own-kernel-on-axum.md#成熟组件优先与-laravel-式开发体验)：优先复用优秀第三方组件，统一配置、生命周期、错误、扩展契约与开发入口，以 Laravel 的约定优于配置和一致体验为重要参照；采用 Rust 惯用接口，按真实缺口补充实现。已验证能力不因本取向重写；参考范围按下文 V1/V2 分工执行。
 
 - 项目语言采用 [简体中文为主、英文为辅](style.md#语言规范)：第一方文档、Rustdoc、源码/配置注释与生成模板说明立即按此编写；既有英文安排分批整改。完整英文文档待框架成熟后再评估，技术名称和原始许可证等例外保持有效，运行时 i18n 契约另行管理。
 
@@ -36,6 +36,7 @@
 - 允许按相关功能簇借鉴 OpenSpring 的优秀设计思想；先只读核对来源代码，评估已有能力并按 Rust 语义适配，记录取舍和验收，不机械移植或引入平行系统，见 [跨语言设计参考](plans/framework-design.md#跨语言设计参考)。
 - 集群部署是 v1 必须项：多 API/worker/scheduler、共享状态、跨节点实时投递、滚动发布及故障恢复必须有双库多副本证据，见 [集群计划](plans/v1-cluster-deployment.md)；进程内或节点本地能力不能冒充共享状态。
 - gRPC 已按 [ADR-040](decisions/adr-040-grpc-integration.md) 正式纳入 v1 底层范围，M5 交付服务端/客户端、四类调用、安全/流资源、生成与真实集群验收；旧“仅 v2 候选”已失效。当前尚未实现，按 `todo.md` 接在既有任务后推进。跨协议验证/上下文、出站策略和生产保障见 [能力覆盖](plans/v1-capability-coverage.md)。
+- V1 缺口已确认补齐，见 [底层补齐计划](plans/v1-foundation-completion.md)：日历调度、邮件模板、国际化表达、缓存 tag/SWR/同键加载、查询授权、可选租户隔离、外部 OAuth2/OIDC/SSO 与 TOTP、CSV/XLSX、模板覆盖和轻量 fixtures 均须交付。“可选”指应用启用方式，不是可省略开发。更多适配按该计划后续清单另行评估，保留 `todo.md` 当前进行中功能簇，按依赖顺序推进。
 - 版本分工：v1 主攻并交付完整通用框架底层能力，v2 完善前端视图与现成后台套件：Rust 服务端、Vue Admin 管理界面、uni-app App；PC 端仅规划设计、暂不开发。Admin 视图骨架采用 pure-admin 精简国际化版 + Element Plus，具体版本按 [v2 计划](plans/v2-admin-platform.md) 的 B1 锁定。后台复用 v1 公共能力，不把组织模型和前端依赖放进 core，见 [版本路线](roadmap.md)。当前先完成 v1 全部门禁再实施 v2；AI 平台仍须另行立项。
 - 通用加密与密钥轮换在框架进程内完成，默认不依赖第三方服务；普通路径只需密钥配置及加解密调用，采用当前密钥写入、历史密钥解密，不强制远程密钥中心或复杂算法配置，详见 [通用能力计划](plans/v1-common-capabilities.md)。
 - v1 完整通用底座按 [能力覆盖与归属](plans/v1-capability-coverage.md) 交付；常见底层机制由框架整合，每类职责一个入口，不让业务开发者重复搭建，不因复用 Rust 库而省略框架接入与验收。
@@ -46,7 +47,7 @@
 - v1 版本包含邮件与短信通信能力；Mailer/SmsSender、SMTP/Twilio contract、LocalizedEmail 与模板 SMS 已按 [ADR-033](decisions/adr-033-sms-driver-and-template-contract.md) 实现。真实 Twilio 投递待授权凭据和目标；验证码机制纳入 v1，薄多渠道通知编排纳入 v1，业务通知中心/UI 归 v2 后台套件，见 [ADR-011](decisions/adr-011-sms-and-communication-baseline.md)。
 - 默认实现满足常见需求，公开扩展契约承接差异需求；数据库、缓存等能力复用既有插件与配置机制，具体边界见 [ADR-009](decisions/adr-009-extensible-capability-drivers.md)。缓存 driver/store contract 见 [ADR-014](decisions/adr-014-cache-driver-and-store-contract.md)，代码仍待 M5。
 - OpenRust 不是任何既有项目的移植，没有兼容包袱；设计以 [v1 版本计划](plans/gen1-plan.md) 与 [框架设计](plans/framework-design.md) 为准。
-- 应用内核自研，基于 `tokio` + `axum` + `tower`；按统一维度综合评估以下参考框架：Loco、Laravel、Goravel、OpenSpring、RuoYi 若依、芋道；不将任何一个框架作为底层依赖或完整复制目标，见 [框架参考与对标](plans/framework-design.md#框架参考与对标)。OpenRouter 是独立产品的对标对象，不属于框架参考清单。
+- 应用内核自研，基于 `tokio` + `axum` + `tower`。V1 综合参考顺序为 Loco、Laravel、Goravel、OpenSpring；若依、芋道仅在 V2 开发时参考。均不作为底层依赖或完整复制目标，见 [框架参考与对标](plans/framework-design.md#框架参考与对标)；OpenRouter 仅是独立产品对标。
 - 基础读写分离已按 [ADR-029](decisions/adr-029-database-read-routing.md) 纳入并实现：默认单库，可选同 backend 只读副本，显式 `read_connection()` 轮询，`connection()`/事务固定主库，`with_primary` task-local 写后读保护；PostgreSQL 18.6 / MySQL 8.4.13 真实复制暂停/追平测试通过。完整集群与代表性业务性能基线仍未完成。
 - 数据服务暂定最低支持 PostgreSQL 14+、MySQL 8.0+、Redis 6.2+；日常本地开发与 Compose 使用 PostgreSQL 18、MySQL 8.4 LTS、Redis 8，常规数据库 CI 使用 PostgreSQL 18 与 MySQL 8.4，Redis 集成在 M5 实现后纳入验证。运行时 PostgreSQL/MySQL 版本检查已与暂定下限对齐；最低版本的完整框架兼容性仍须在 v1 发布验收中复核，Redis 6.2+ 须待 M5 Redis driver 落地后做真实验证。仅在主版本跨度大、涉及版本专属行为或存在明确兼容风险时增加额外专项测试。每个数据功能仍须有 PostgreSQL/MySQL 双库证据（[ADR-002](decisions/adr-002-seaorm-dual-database.md)）。
 - 同时支持单机与集群；标准应用默认 Redis cache，memory/file 显式选择，库 feature 保持可组合，见 [ADR-015](decisions/adr-015-redis-default-calibration.md)。需要跨节点共享语义时必须明确配置共享后端，不能静默退化；队列/会话仍默认共享数据库，部署边界见 [ADR-013](decisions/adr-013-deployment-and-redis-cache-default.md)。缓存实现待 M5。

@@ -22,6 +22,8 @@
 
 以下为历史 spike 证据，不等同于现有框架全量验收或当前 schema/API。正式实现与复验入口见 [队列事实](../core/queue.md) 和 ADR-037；不得照旧 schema 建立第二套队列。
 
+本节中的“第一代范围之外”记录当时选型，不限制后续已批准范围。cron/IANA 时区、DST 与有界错过触发处理已列为 V1 补强，当前调度契约以 [ADR-037](adr-037-queue-worker-lifecycle.md) 和 [补齐计划](../plans/v1-foundation-completion.md) 为准；此变化不推翻数据库队列选型。
+
 M0 Spike B（2026-10-25，代码已删除，结论以本节为准）。环境：Docker 临时容器，PostgreSQL 18.4 与 15.19、MySQL 8.4.11（本机无 8.0.x 镜像，8.0 起语法一致）；`sqlx` 0.9.0 运行时查询，8 个 worker、32 连接池。
 
 | 场景 | PostgreSQL 18 / 15 | MySQL 8.4 |
