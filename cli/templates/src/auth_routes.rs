@@ -139,17 +139,7 @@ async fn auth_verify_email(
     )])))
 }
 
-async fn auth_login(
-    Inject(flows): Inject<AuthFlows>,
-    client_ip: ClientIp,
-    Json(input): Json<EmailPasswordInput>,
-) -> openrust::Result<Json<CredentialsResponse>> {
-    Ok(credentials_response(
-        flows
-            .login(&input.email, &input.password, &client_ip.ip().to_string())
-            .await?,
-    ))
-}
+{{login_handler}}
 
 async fn auth_refresh(
     Inject(flows): Inject<AuthFlows>,
@@ -221,3 +211,5 @@ async fn current_user(
 ) -> Json<std::collections::BTreeMap<&'static str, i64>> {
     Json(std::collections::BTreeMap::from([("user_id", user.id())]))
 }
+
+{{mfa_handler}}

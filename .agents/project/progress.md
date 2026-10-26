@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-27
-> 摘要：框架处于 v1 M5，尚未达到完整 v1。源码工作区、C1–C3 中文化、M3 认证流程扩展及 M4 共享锁、worker 生命周期、F1 日历调度、F2 国际化、F3 邮件模板、队列化通知、job 生成集成、通用插件公开契约、Db 与 Queue 外部扩展契约、跨协议验证/调用作用域和 HTTP 有界运行/就绪切换均有适用验收证据；M5 缓存驱动、命名实例、F4a tag generation、F4b 单进程加载合并和 F4c SWR 已通过适用验收，Redis Session 和 Redis Queue 均通过 Redis 8 真实服务验收；ADR-047 查询授权、ADR-048 稳定键分批和 ADR-049 迁移互斥已通过双库实际验收，ADR-050 存储与上传下载已通过 local/custom driver、真实 TCP、MinIO 与 workspace 门禁，ADR-051 受限出站目标策略已通过受控 DNS 与真实 TCP；ADR-052 命名依赖韧性已通过 loopback TCP 和 workspace 门禁；F7 OIDC 子簇已完成 PostgreSQL 18/MySQL 8.4 身份流程集成、Keycloak 26.8.1 真实授权码/PKCE 和 workspace 门禁验收；当前转入 TOTP/恢复码子簇，完整 v1 剩余范围见待办。
+> 摘要：框架处于 v1 M5，尚未达到完整 v1。源码工作区、C1–C3 中文化、M3 认证流程扩展及 M4 共享锁、worker 生命周期、F1 日历调度、F2 国际化、F3 邮件模板、队列化通知、job 生成集成、通用插件公开契约、Db 与 Queue 外部扩展契约、跨协议验证/调用作用域和 HTTP 有界运行/就绪切换均有适用验收证据；M5 缓存驱动、命名实例、F4a tag generation、F4b 单进程加载合并和 F4c SWR 已通过适用验收，Redis Session 和 Redis Queue 均通过 Redis 8 真实服务验收；ADR-047 查询授权、ADR-048 稳定键分批和 ADR-049 迁移互斥已通过双库实际验收，ADR-050 存储与上传下载已通过 local/custom driver、真实 TCP、MinIO 与 workspace 门禁，ADR-051 受限出站目标策略已通过受控 DNS 与真实 TCP；ADR-052 命名依赖韧性已通过 loopback TCP 和 workspace 门禁；F7 OIDC 子簇已完成 PostgreSQL 18/MySQL 8.4 身份流程集成、Keycloak 26.8.1 真实授权码/PKCE 和 workspace 门禁；ADR-054 TOTP/恢复码也已完成双库真实 TCP、干净生成项目及 workspace 门禁；当前转入双应用 SSO/统一退出，完整 v1 剩余范围见待办。
 
 ## 源码 workspace 交付
 
@@ -37,7 +37,7 @@
 - M5 HTTP 有界运行与就绪切换：新增应用级 `/ready`（listener 绑定后 200，停机/未启动时 503），保留 `/health` 存活语义；SIGINT/SIGTERM 先切换 not-ready 并停止接入，按 `shutdown_timeout_secs` drain，超时合作取消请求、join/终止 server task 并返回 `http_shutdown_timeout`。覆盖 listener bind 失败、请求 drain/超时和真实 server 子进程 SIGTERM。定向生命周期测试与真实 TCP SIGTERM 通过；`cargo fmt --all --check`、`git diff --check`、all-target/all-features clippy、默认与 all-features workspace tests、warnings-denied 默认/all-features docs、`cargo deny check`、no-default-features check 全部通过。`cargo deny` 有既有重复版本/MPL allowance 警告，advisories/bans/licenses/sources 均通过。测试仅验证单进程 HTTP 生命周期，不代表集群 readiness/依赖探测。
 
 - M5 Queue 外部扩展契约已提交 `d7d2132`：公开 `JobRegistry` 注册/执行 typed Job，`JobContext` 提供取消、进度 reporter 与应用状态；独立 consumer 经 `Queue::with_driver` 实际派发执行。PG18/MySQL8.4 队列及其相关 16 项双库真实服务回归通过；尚未验收完整集群与生产负载。
-- M5 跨协议调用作用域已提交 `19e56f4`：新增公共 `validation::validate`、`ExecutionContext` / `ExecutionMetadata` / `Cancellation`；HTTP request/timeout/cancel、命令 locale scope、数据库队列 metadata envelope、worker attempt deadline/cancel 与 request-id span 均已实现。PostgreSQL 18 与 MySQL 8.4 的真实 queue/migration/crash-recovery targets 各 7 项通过，包含持久化 worker 与任务链 metadata round-trip。后续 HTTP 有界运行/就绪切换另见本节；缓存、SWR、命名数据库连接、Redis Session、显式同步任务和 Redis Queue 均已完成适用验收；ADR-047 查询授权、ADR-048 稳定键有界分批、ADR-049 迁移互斥、ADR-050 存储及 ADR-051/052 出站安全与韧性均已完成，当前推进可选外部身份与 MFA F7。
+- M5 跨协议调用作用域已提交 `19e56f4`：新增公共 `validation::validate`、`ExecutionContext` / `ExecutionMetadata` / `Cancellation`；HTTP request/timeout/cancel、命令 locale scope、数据库队列 metadata envelope、worker attempt deadline/cancel 与 request-id span 均已实现。PostgreSQL 18 与 MySQL 8.4 的真实 queue/migration/crash-recovery targets 各 7 项通过，包含持久化 worker 与任务链 metadata round-trip。后续 HTTP 有界运行/就绪切换另见本节；缓存、SWR、命名数据库连接、Redis Session、显式同步任务和 Redis Queue 均已完成适用验收；ADR-047 查询授权、ADR-048 稳定键有界分批、ADR-049 迁移互斥、ADR-050 存储及 ADR-051/052 出站安全与韧性均已完成，ADR-053 OIDC 与 ADR-054 TOTP/恢复码已完成适用验收，当前推进双应用 SSO/统一退出。
 
 - 原 M0–M2 基础范围和 M3 本地认证/安全运行时已验收；Mailer/Policy 生成器、公开 HTTP 路由限流与数据输出/查询边界均已提交并完成适用验证。
 - M4 仅部分完成；单项 scheduler/worker 多进程测试不等于完整集群验收。
@@ -53,7 +53,7 @@
 
 ## 下一步
 
-按 [todo.md](todo.md) 推进可选外部身份与 MFA F7 及后续 M5/M6 工作；ADR-049 数据库迁移互斥已通过双库验收，ADR-050 存储与上传下载已通过真实 MinIO 和 workspace 门禁，ADR-051 出站目标安全与 ADR-052 命名依赖韧性均已完成适用验收。再执行完整 v1 性能、生产就绪与集群门禁。Worker 与 scheduler 专项双库证据不覆盖生产多实例负载与完整集群门禁。组件整合与 Laravel 式体验按 ADR-001；不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
+按 [todo.md](todo.md) 推进 F7 双应用 SSO/统一退出及后续 M5/M6 工作；ADR-049 数据库迁移互斥已通过双库验收，ADR-050 存储与上传下载已通过真实 MinIO 和 workspace 门禁，ADR-051 出站目标安全与 ADR-052 命名依赖韧性均已完成适用验收。再执行完整 v1 性能、生产就绪与集群门禁。Worker 与 scheduler 专项双库证据不覆盖生产多实例负载与完整集群门禁。组件整合与 Laravel 式体验按 ADR-001；不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
 
 ## 本次文档核对范围
 
@@ -82,9 +82,17 @@
 
 ## M5 ADR-053 外部 OAuth2/OIDC 身份客户端
 
-`auth-oidc` 以 `oauth2` + 现有 `jsonwebtoken` 实现受限授权码/PKCE relying-party，支持 state/nonce/verifier 加密单次消费、浏览器绑定 Cookie、显式本地账户绑定/解绑和审计；不自动按邮箱合并。PostgreSQL 18 与 MySQL 8.4 的 `auth_oidc` 各 1 项通过；Keycloak 26.8.1 的真实授权码、S256 PKCE、RS256/JWKS 与 claims 验收通过。5 分钟 JWKS 过期后 fail closed；详细复跑入口见 `memory/testing.md`。本次提交范围仅包含 OIDC 子簇，F7 TOTP/恢复码继续作为当前待办。
+`auth-oidc` 以 `oauth2` + 现有 `jsonwebtoken` 实现受限授权码/PKCE relying-party，支持 state/nonce/verifier 加密单次消费、浏览器绑定 Cookie、显式本地账户绑定/解绑和审计；不自动按邮箱合并。PostgreSQL 18 与 MySQL 8.4 的 `auth_oidc` 各 1 项通过；Keycloak 26.8.1 的真实授权码、S256 PKCE、RS256/JWKS 与 claims 验收通过。5 分钟 JWKS 过期后 fail closed；详细复跑入口见 `memory/testing.md`。本次提交范围仅包含 OIDC 子簇；ADR-054 TOTP/恢复码已另行完成，F7 SSO 与统一退出仍待验收。
 
 现有 Keycloak 证据仅覆盖单 client 登录；双应用单点登录尚未专项验收，RP 发起退出、后通道退出通知及其集群关联撤销尚未实现。上述范围已纳入 [F7 SSO 补齐](plans/v1-foundation-completion.md#sso-登录与统一退出)，不能将 OIDC 子簇完成写成完整 SSO 已交付。
+
+## M5 ADR-054 TOTP MFA 与恢复码（验收通过）
+
+新增可选 `auth-mfa` feature、`MfaPlugin` / `AuthMfaMigration` 与 AuthFlows MFA challenge。启用 MFA 时密码和 OIDC 登录均先返回一次性来源绑定 challenge；旧密码登录 helper 与现有 Session 路径不能绕过 MFA。TOTP seed 由现有进程内 Encryptor 按当前 key 加密，验证采用 RFC 6238 SHA-1、30 秒、6 位与 ±1 步窗口并持久化防重放步数；十个恢复码只显示一次、摘要存储且事务内单次消费。启用、禁用和恢复码重置均做并发用户行锁、审计和 refresh 撤销；无状态 access JWT 继续保持既有 TTL。迁移/插件启动缺项 fail closed。详见 ADR-054 与 `core/auth.md`。
+
+真实 PostgreSQL 18 与 MySQL 8.4 分别运行 `cargo test -p server --features 'auth-mfa auth-oidc db-<backend>' --test auth_mfa --test auth_oidc -- --nocapture`：MFA lifecycle 和 OIDC flow 各 1 项通过，包含实际 TCP、密码/OIDC challenge、Session 阻断、来源不匹配、过期/尝试耗尽、TOTP replay、恢复码消费、key rotation/audit/revocation。RFC 向量由 auth-mfa lib 单测覆盖。干净源码副本无 registry patch/机器绝对路径，分别生成 PostgreSQL 和 MySQL MFA app，两者 `cargo check` 与 `cargo test` 均通过（各含完整认证 HTTP/fake mail 测试 1 项）。
+
+门禁：`cargo fmt --all --check`、默认及 all-features workspace all-target Clippy、默认及 all-features workspace tests、默认 Rustdoc、all-features warnings-denied Rustdoc、`cargo check -p openrust --no-default-features`、`cargo deny check` 通过。deny 仅报告既有 duplicate dependency 与未匹配 MPL-2.0 allowance 警告，其他四类通过。all-features workspace 测试首次运行中 Redis 聚合 target 一次报 `NotFound`；独立复跑该 Redis target 和完整 all-features workspace tests 均通过。`memory/verification.md` 的预先存在 WIP 未纳入本簇。当前转入 F7 双应用 SSO/统一退出，以上 OIDC 单 client 验收不覆盖该范围。
 
 ## M5 ADR-052 命名依赖隔离与可选熔断
 

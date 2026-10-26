@@ -7,16 +7,53 @@ use std::{
 
 use crate::core::{App, AppBuilder, BoxFuture, Error, Plugin, RateLimiter, Result};
 use crate::db::Db;
-use crate::db::sea_orm::{ConnectionTrait, DatabaseTransaction, DbBackend, SqlErr, Statement};
+#[cfg(any(feature = "auth-oidc", feature = "auth-mfa"))]
+use crate::db::sea_orm::DatabaseTransaction;
+use crate::db::sea_orm::{ConnectionTrait, DbBackend, SqlErr, Statement};
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use chrono::{Duration as ChronoDuration, Utc};
 
+#[cfg(feature = "auth-mfa")]
+use crate::auth::mfa::{MfaLoginChallenge, MfaService, RecoveryCodes, TotpEnrollment};
 use crate::auth::{
     EncodedPasswordHash, IssuedRefreshToken, IssuedVerificationCode, JwtTokens, Passwords,
     RefreshTokens, Session, VerificationCodePolicy, VerificationCodes,
     database::{AUTH_CSRF_HASH_KEY, AUTH_USER_ID_KEY},
 };
+
+/// 登录流程返回已签发凭据，或要求客户端完成 MFA challenge。
+pub enum LoginAttempt {
+    /// 登录已通过全部启用的因子并签发完整凭据。
+    Authenticated(AuthCredentials),
+    /// 密码或外部身份验证通过，但完整凭据须等待第二因子。
+    #[cfg(feature = "auth-mfa")]
+    MfaRequired(MfaLoginChallenge),
+}
+
+impl LoginAttempt {
+    /// 返回本次成功密码或外部身份验证对应的账户 ID。
+    pub const fn user_id(&self) -> i64 {
+        match self {
+            Self::Authenticated(credentials) => credentials.user_id(),
+            #[cfg(feature = "auth-mfa")]
+            Self::MfaRequired(challenge) => challenge.user_id(),
+        }
+    }
+}
+
+impl std::fmt::Debug for LoginAttempt {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Authenticated(_) => formatter.write_str("Authenticated([REDACTED])"),
+            #[cfg(feature = "auth-mfa")]
+            Self::MfaRequired(challenge) => formatter
+                .debug_tuple("MfaRequired")
+                .field(challenge)
+                .finish(),
+        }
+    }
+}
 
 const REQUEST_LIMIT: u64 = 5;
 const REQUEST_WINDOW: Duration = Duration::from_mins(15);
@@ -90,6 +127,8 @@ pub struct AuthFlows {
     limiter: RateLimiter,
     refresh_lifetime: ChronoDuration,
     code_policy: VerificationCodePolicy,
+    #[cfg(feature = "auth-mfa")]
+    mfa: Option<MfaService>,
 }
 
 impl std::fmt::Debug for AuthFlows {
@@ -117,7 +156,15 @@ impl AuthFlows {
             limiter,
             refresh_lifetime: ChronoDuration::days(30),
             code_policy: VerificationCodePolicy::default(),
+            #[cfg(feature = "auth-mfa")]
+            mfa: None,
         }
+    }
+
+    #[cfg(feature = "auth-mfa")]
+    pub(crate) fn with_mfa(mut self, mfa: Option<MfaService>) -> Self {
+        self.mfa = mfa;
+        self
     }
 
     /// 设置 refresh token 家族的最长有效期。
@@ -320,37 +367,249 @@ impl AuthFlows {
         password: &str,
         request_source: &str,
     ) -> Result<AuthCredentials> {
+        match self.begin_login(email, password, request_source).await? {
+            LoginAttempt::Authenticated(credentials) => Ok(credentials),
+            #[cfg(feature = "auth-mfa")]
+            LoginAttempt::MfaRequired(_) => Err(Error::custom(
+                "auth_mfa_required",
+                "complete the multi-factor login challenge before receiving credentials",
+            )),
+        }
+    }
+
+    /// 验证密码并返回登录成功凭据或短时 MFA challenge。
+    pub async fn begin_login(
+        &self,
+        email: &str,
+        password: &str,
+        request_source: &str,
+    ) -> Result<LoginAttempt> {
         let user_id = self
             .authenticate_password(email, password, request_source)
             .await?;
-        let access_token = self.jwt.issue_access_token(user_id)?;
-        let expires_at = Utc::now() + self.refresh_lifetime;
-        let refresh = self.refresh.clone();
-        let events = self.db.events();
-        let refresh_token = self
-            .db
+        #[cfg(feature = "auth-mfa")]
+        if let Some(mfa) = &self.mfa {
+            let auth = self.clone();
+            let mfa = mfa.clone();
+            let source = request_source.to_owned();
+            return self
+                .db
+                .transaction(|transaction| {
+                    let auth = auth.clone();
+                    let mfa = mfa.clone();
+                    let source = source.clone();
+                    Box::pin(async move {
+                        mfa.lock_user_in_transaction(transaction, user_id).await?;
+                        if mfa.enabled_in_transaction(transaction, user_id).await? {
+                            Ok(LoginAttempt::MfaRequired(
+                                mfa.create_challenge_in_transaction(transaction, user_id, &source)
+                                    .await?,
+                            ))
+                        } else {
+                            Ok(LoginAttempt::Authenticated(
+                                auth.issue_credentials_in_transaction(transaction, user_id)
+                                    .await?,
+                            ))
+                        }
+                    })
+                })
+                .await;
+        }
+        Ok(LoginAttempt::Authenticated(
+            self.issue_credentials(user_id).await?,
+        ))
+    }
+
+    /// 原子消费 MFA challenge 并在同一事务内签发完整凭据。
+    #[cfg(feature = "auth-mfa")]
+    pub async fn complete_mfa_login(
+        &self,
+        challenge: &str,
+        code: &str,
+        request_source: &str,
+    ) -> Result<AuthCredentials> {
+        let mfa = self
+            .mfa
+            .as_ref()
+            .ok_or_else(|| {
+                Error::custom(
+                    "auth_mfa_unavailable",
+                    "multi-factor authentication is not enabled for this application",
+                )
+            })?
+            .clone();
+        let auth = self.clone();
+        let token = challenge.to_owned();
+        let code = code.to_owned();
+        let source = request_source.to_owned();
+        self.db
             .transaction(|transaction| {
-                let refresh = refresh.clone();
-                let events = events.clone();
+                let mfa = mfa.clone();
+                let auth = auth.clone();
+                let token = token.clone();
+                let code = code.clone();
+                let source = source.clone();
                 Box::pin(async move {
-                    let token = refresh
-                        .issue_in_transaction(transaction, user_id, expires_at)
+                    let Some(user_id) = mfa
+                        .complete_challenge_in_transaction(transaction, &token, &source, &code)
+                        .await?
+                    else {
+                        return Ok(None);
+                    };
+                    let credentials = auth
+                        .issue_credentials_in_transaction(transaction, user_id)
                         .await?;
-                    if let Some(events) = events {
-                        events
-                            .dispatch_in_transaction(transaction, &LoginSucceeded { user_id })
-                            .await?;
-                    }
-                    Ok(token)
+                    mfa.record_login_success_in_transaction(transaction, user_id)
+                        .await?;
+                    Ok(Some(credentials))
                 })
             })
+            .await?
+            .ok_or(Error::Unauthorized)
+    }
+
+    /// 重新验证本地密码并为账户创建待确认 TOTP enrollment。
+    #[cfg(feature = "auth-mfa")]
+    pub async fn begin_totp_enrollment(
+        &self,
+        user_id: i64,
+        email: &str,
+        password: &str,
+        issuer: &str,
+        request_source: &str,
+    ) -> Result<TotpEnrollment> {
+        let authenticated = self.reauthenticate(email, password, request_source).await?;
+        if authenticated != user_id {
+            return Err(Error::Unauthorized);
+        }
+        self.mfa
+            .as_ref()
+            .ok_or_else(|| {
+                Error::custom(
+                    "auth_mfa_unavailable",
+                    "multi-factor authentication is not enabled for this application",
+                )
+            })?
+            .begin_enrollment(user_id, email, issuer, request_source)
+            .await
+    }
+
+    /// 验证待确认 seed；成功后一次性返回恢复码并启用 MFA。
+    #[cfg(feature = "auth-mfa")]
+    pub async fn confirm_totp_enrollment(
+        &self,
+        user_id: i64,
+        code: &str,
+        request_source: &str,
+    ) -> Result<RecoveryCodes> {
+        self.mfa
+            .as_ref()
+            .ok_or_else(|| {
+                Error::custom(
+                    "auth_mfa_unavailable",
+                    "multi-factor authentication is not enabled for this application",
+                )
+            })?
+            .confirm_enrollment(user_id, request_source, code)
+            .await?
+            .ok_or(Error::Unauthorized)
+    }
+
+    /// 重新验证密码与当前第二因子后禁用 MFA，并撤销所有 refresh token。
+    #[cfg(feature = "auth-mfa")]
+    pub async fn disable_mfa(
+        &self,
+        user_id: i64,
+        email: &str,
+        password: &str,
+        code: &str,
+        request_source: &str,
+    ) -> Result<()> {
+        if self.reauthenticate(email, password, request_source).await? != user_id {
+            return Err(Error::Unauthorized);
+        }
+        let mfa = self.mfa.as_ref().ok_or_else(|| {
+            Error::custom(
+                "auth_mfa_unavailable",
+                "multi-factor authentication is not enabled for this application",
+            )
+        })?;
+        if mfa.disable(user_id, request_source, code).await? {
+            Ok(())
+        } else {
+            Err(Error::Unauthorized)
+        }
+    }
+
+    /// 重新验证密码与当前第二因子后轮换并一次性返回恢复码。
+    #[cfg(feature = "auth-mfa")]
+    pub async fn regenerate_mfa_recovery_codes(
+        &self,
+        user_id: i64,
+        email: &str,
+        password: &str,
+        code: &str,
+        request_source: &str,
+    ) -> Result<RecoveryCodes> {
+        if self.reauthenticate(email, password, request_source).await? != user_id {
+            return Err(Error::Unauthorized);
+        }
+        self.mfa
+            .as_ref()
+            .ok_or_else(|| {
+                Error::custom(
+                    "auth_mfa_unavailable",
+                    "multi-factor authentication is not enabled for this application",
+                )
+            })?
+            .regenerate_recovery_codes(user_id, request_source, code)
+            .await?
+            .ok_or(Error::Unauthorized)
+    }
+
+    async fn issue_credentials(&self, user_id: i64) -> Result<AuthCredentials> {
+        let auth = self.clone();
+        self.db
+            .transaction(|transaction| {
+                let auth = auth.clone();
+                Box::pin(async move {
+                    auth.issue_credentials_in_transaction(transaction, user_id)
+                        .await
+                })
+            })
+            .await
+    }
+
+    pub(crate) async fn issue_credentials_in_transaction(
+        &self,
+        transaction: &DatabaseTransaction,
+        user_id: i64,
+    ) -> Result<AuthCredentials> {
+        let access_token = self.jwt.issue_access_token(user_id)?;
+        let expires_at = Utc::now() + self.refresh_lifetime;
+        let refresh_token = self
+            .refresh
+            .issue_in_transaction(transaction, user_id, expires_at)
             .await?;
+        if let Some(events) = self.db.events() {
+            events
+                .dispatch_in_transaction(transaction, &LoginSucceeded { user_id })
+                .await?;
+        }
         Ok(AuthCredentials {
             user_id,
             access_token,
             refresh_token,
             refresh_expires_at: expires_at,
         })
+    }
+
+    #[cfg(feature = "auth-mfa")]
+    async fn mfa_enabled(&self, user_id: i64) -> Result<bool> {
+        match &self.mfa {
+            Some(mfa) => mfa.enabled(user_id).await,
+            None => Ok(false),
+        }
     }
 
     /// 使用当前密码重新验证账户，不签发新的 bearer 凭据。
@@ -393,7 +652,8 @@ impl AuthFlows {
         provider: &str,
         identity: &crate::auth::VerifiedExternalIdentity,
         new_password_hash: Option<&EncodedPasswordHash>,
-    ) -> Result<AuthCredentials> {
+        request_source: &str,
+    ) -> Result<LoginAttempt> {
         let identity_table = self.db.quoted_table_name("external_identities")?;
         let backend = self.db.backend()?;
         let lookup = match backend {
@@ -541,23 +801,20 @@ impl AuthFlows {
             return Err(external_identity_link_required());
         }
 
-        let access_token = self.jwt.issue_access_token(user_id)?;
-        let expires_at = Utc::now() + self.refresh_lifetime;
-        let refresh_token = self
-            .refresh
-            .issue_in_transaction(transaction, user_id, expires_at)
-            .await?;
-        if let Some(events) = self.db.events() {
-            events
-                .dispatch_in_transaction(transaction, &LoginSucceeded { user_id })
-                .await?;
+        #[cfg(feature = "auth-mfa")]
+        if let Some(mfa) = &self.mfa {
+            mfa.lock_user_in_transaction(transaction, user_id).await?;
+            if mfa.enabled_in_transaction(transaction, user_id).await? {
+                return Ok(LoginAttempt::MfaRequired(
+                    mfa.create_challenge_in_transaction(transaction, user_id, request_source)
+                        .await?,
+                ));
+            }
         }
-        Ok(AuthCredentials {
-            user_id,
-            access_token,
-            refresh_token,
-            refresh_expires_at: expires_at,
-        })
+        Ok(LoginAttempt::Authenticated(
+            self.issue_credentials_in_transaction(transaction, user_id)
+                .await?,
+        ))
     }
 
     /// 验证已确认账户的身份，轮换其 Cookie Session ID，并返回 CSRF token。
@@ -573,6 +830,10 @@ impl AuthFlows {
         let user_id = self
             .authenticate_password(email, password, request_source)
             .await?;
+        #[cfg(feature = "auth-mfa")]
+        if self.mfa_enabled(user_id).await? {
+            return Err(Error::Unauthorized);
+        }
         bind_session(session, user_id).await
     }
 
@@ -887,11 +1148,12 @@ impl Plugin for AuthFlowsPlugin {
             .get::<RateLimiter>()
             .map(|value| (*value).clone())
             .ok_or_else(|| required("DatabasePlugin shared rate limiter"))?;
-        app.insert(
-            AuthFlows::new(db, passwords, jwt, refresh, codes, limiter)
-                .with_refresh_lifetime(self.refresh_lifetime)
-                .with_code_policy(self.code_policy),
-        );
+        let flows = AuthFlows::new(db, passwords, jwt, refresh, codes, limiter)
+            .with_refresh_lifetime(self.refresh_lifetime)
+            .with_code_policy(self.code_policy);
+        #[cfg(feature = "auth-mfa")]
+        let flows = flows.with_mfa(app.get::<MfaService>().map(|value| (*value).clone()));
+        app.insert(flows);
         self.expected
             .set(
                 app.get::<AuthFlows>()

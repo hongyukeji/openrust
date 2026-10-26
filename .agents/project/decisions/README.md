@@ -64,6 +64,8 @@
 | [050 统一文件存储与驱动扩展](adr-050-storage-drivers.md) | Accepted | 根 `openrust::storage` 复用 OpenDAL，提供 local/S3-compatible、具名实例、流式对象契约及公开 driver/inspection 扩展；MinIO 实测和 workspace 门禁见 memory/testing.md |
 | [051 出站 HTTP 受限目标策略](adr-051-http-target-security.md) | Accepted | opt-in 受限 HttpClient、DNS 全结果校验并固定连接地址、显式内网主机/CIDR/端口例外；不覆盖任意 transport 或第三方网络调用 |
 | [052 命名出站依赖韧性](adr-052-named-dependency-resilience.md) | Accepted | 显式按名称共享有界并发/队列及可选进程内熔断；幂等重试加入 jitter 与受界 Retry-After |
+| [053 外部 OAuth2/OIDC 身份客户端](adr-053-external-identity-client.md) | Accepted | 受限授权码/PKCE relying-party、发现/JWKS/ID Token 验证与显式身份绑定；真实 Keycloak 及双库验收见 `memory/testing.md` |
+| [054 TOTP 多因素认证](adr-054-totp-mfa.md) | Accepted | 可选 TOTP/恢复码、一次性登录挑战、密钥轮换及不可绕过的认证门禁；PostgreSQL/MySQL 双库与生成项目验收通过，见 `memory/testing.md` |
 
 ## 队列、缓存与部署
 

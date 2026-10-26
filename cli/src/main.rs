@@ -41,6 +41,9 @@ enum Builtin {
         /// 添加数据库认证能力和受保护的示例路由（需要 `--db`）。
         #[arg(long, requires = "db")]
         auth: bool,
+        /// 为认证启用 TOTP 多因素登录（需要 `--auth`、`--db` 与 `--encryption`）。
+        #[arg(long, requires_all = ["auth", "db", "encryption"])]
+        auth_mfa: bool,
         /// 启用可选的出站 HTTP 客户端。
         #[arg(long)]
         http_client: bool,
@@ -307,14 +310,16 @@ fn run(cli: Cli) -> anyhow::Result<ExitCode> {
             name,
             db,
             auth,
+            auth_mfa,
             http_client,
             sms_twilio,
             encryption,
         }) => {
-            create_project(
+            create_project_with_mfa(
                 &name,
                 db,
                 auth,
+                auth_mfa,
                 http_client,
                 sms_twilio,
                 encryption,
@@ -358,8 +363,10 @@ fn generate_key() -> anyhow::Result<String> {
 /// 在已识别的框架 workspace 中创建应用，并注册其 workspace 成员。
 #[allow(
     clippy::fn_params_excessive_bools,
+    clippy::too_many_arguments,
     reason = "these flags mirror the public CLI options"
 )]
+#[cfg(test)]
 fn create_project(
     name: &str,
     database: Option<DatabaseBackend>,
@@ -369,8 +376,38 @@ fn create_project(
     encryption: bool,
     current_dir: &Path,
 ) -> anyhow::Result<()> {
+    create_project_with_mfa(
+        name,
+        database,
+        auth,
+        false,
+        http_client,
+        sms_twilio,
+        encryption,
+        current_dir,
+    )
+}
+
+#[allow(
+    clippy::fn_params_excessive_bools,
+    clippy::too_many_arguments,
+    reason = "these flags mirror the public CLI options"
+)]
+fn create_project_with_mfa(
+    name: &str,
+    database: Option<DatabaseBackend>,
+    auth: bool,
+    auth_mfa: bool,
+    http_client: bool,
+    sms_twilio: bool,
+    encryption: bool,
+    current_dir: &Path,
+) -> anyhow::Result<()> {
     if auth && database.is_none() {
         bail!("authentication requires a database; use `openrust new --db postgres|mysql --auth`");
+    }
+    if auth_mfa && (!auth || !encryption || database.is_none()) {
+        bail!("MFA requires `--auth`, `--db postgres|mysql` and `--encryption`");
     }
     let workspace = framework_workspace(current_dir)?;
     let apps_root = application_root(&workspace)?;
@@ -396,12 +433,13 @@ fn create_project(
     }
     let updated_workspace_manifest = manifest_with_members(&workspace.root, &new_members)?;
 
-    let result = populate_project(
+    let result = populate_project_with_mfa(
         &project_dir,
         project_name,
         &type_name,
         database,
         auth,
+        auth_mfa,
         http_client,
         sms_twilio,
         encryption,
@@ -505,8 +543,10 @@ fn application_type_name(project_name: &str) -> anyhow::Result<String> {
 #[allow(
     clippy::fn_params_excessive_bools,
     clippy::too_many_arguments,
+    clippy::too_many_lines,
     reason = "template options map directly to the public generator flags"
 )]
+#[cfg(test)]
 fn populate_project(
     project_dir: &Path,
     name: &str,
@@ -517,6 +557,39 @@ fn populate_project(
     sms_twilio: bool,
     encryption: bool,
 ) -> anyhow::Result<()> {
+    populate_project_with_mfa(
+        project_dir,
+        name,
+        crate_name,
+        database,
+        auth,
+        false,
+        http_client,
+        sms_twilio,
+        encryption,
+    )
+}
+
+#[allow(
+    clippy::fn_params_excessive_bools,
+    clippy::too_many_arguments,
+    clippy::too_many_lines,
+    reason = "template options map directly to the public generator flags"
+)]
+fn populate_project_with_mfa(
+    project_dir: &Path,
+    name: &str,
+    crate_name: &str,
+    database: Option<DatabaseBackend>,
+    auth: bool,
+    auth_mfa: bool,
+    http_client: bool,
+    sms_twilio: bool,
+    encryption: bool,
+) -> anyhow::Result<()> {
+    if auth_mfa && (!auth || database.is_none() || !encryption) {
+        bail!("MFA requires authentication, a database and encryption");
+    }
     fs::create_dir(project_dir)
         .with_context(|| format!("failed to create {}", project_dir.display()))?;
     for directory in [
@@ -541,7 +614,7 @@ fn populate_project(
     let mut files = vec![
         (
             "Cargo.toml",
-            cargo_manifest(name, database, auth, http_client, sms_twilio, encryption),
+            cargo_manifest(name, database, auth, http_client, sms_twilio, encryption, auth_mfa),
         ),
         (
             ".gitignore",
@@ -562,8 +635,8 @@ fn populate_project(
             "[app]\nname = \"{{name}}\"\n".replace("{{name}}", name),
         ),
         ("src/main.rs", main_source(crate_name, database)),
-        ("src/app.rs", app_source(crate_name, database, auth, encryption)),
-        ("src/routes.rs", routes_source(auth)),
+        ("src/app.rs", app_source(crate_name, database, auth, encryption, auth_mfa)),
+        ("src/routes.rs", routes_source(auth, auth_mfa)),
         ("src/schedule.rs", "//! 应用调度。\n".to_owned()),
         ("src/seed.rs", seed_source(database)),
         (
@@ -599,16 +672,16 @@ fn populate_project(
     if auth {
         files.push((
             "tests/auth_flows.rs",
-            auth_test_template(crate_name, encryption),
+            auth_test_template(crate_name, encryption, auth_mfa),
         ));
     }
     if let Some(database) = database {
         files.extend([
             (
                 "migration/Cargo.toml",
-                migration_manifest(name, database, auth),
+                migration_manifest(name, database, auth, auth_mfa),
             ),
-            ("migration/src/lib.rs", migration_lib(auth)),
+            ("migration/src/lib.rs", migration_lib(auth, auth_mfa)),
         ]);
     }
     for (relative_path, contents) in files {
@@ -618,15 +691,21 @@ fn populate_project(
     Ok(())
 }
 
-fn auth_test_template(crate_name: &str, encryption: bool) -> String {
+fn auth_test_template(crate_name: &str, encryption: bool, auth_mfa: bool) -> String {
     let encryption_config = if encryption {
         "\\n[security.encryption]\\nactive_key_id = \\\"test\\\"\\n\\n[security.encryption.keys]\\ntest = \\\"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=\\\""
     } else {
         ""
     };
-    include_str!("../templates/tests/auth_flows.rs")
+    let mut template = include_str!("../templates/tests/auth_flows.rs")
         .replace("OpenRustGeneratedApplication", crate_name)
-        .replace("{{encryption_config}}", encryption_config)
+        .replace("{{encryption_config}}", encryption_config);
+    if auth_mfa {
+        template = template.replace("{{login_credentials_suffix}}", "[\"credentials\"]");
+    } else {
+        template = template.replace("{{login_credentials_suffix}}", "");
+    }
+    template
 }
 
 #[allow(
@@ -640,6 +719,7 @@ fn cargo_manifest(
     http_client: bool,
     sms_twilio: bool,
     encryption: bool,
+    auth_mfa: bool,
 ) -> String {
     let mut manifest = include_str!("../templates/Cargo.toml").replace("{{name}}", name);
     {
@@ -658,6 +738,9 @@ fn cargo_manifest(
         }
         if encryption {
             features.push("encryption");
+        }
+        if auth_mfa {
+            features.push("auth-mfa");
         }
         let dependency = if database.is_some() {
             format!(
@@ -688,23 +771,32 @@ fn app_source(
     database: Option<DatabaseBackend>,
     auth: bool,
     encryption: bool,
+    auth_mfa: bool,
 ) -> String {
     let plugins = if database.is_some() {
-        format!(
-            "\n            .plugin(DatabasePlugin){}\n            .plugin(MigrationPlugin::<openrust_migration::Migrator>::new())\n            .plugin(SeedPlugin::new(crate::seed::run))",
-            if auth {
-                "\n            .plugin(openrust::auth::JwtPlugin::new())\n            .plugin(openrust::auth::AuthPlugin::new())\n            .plugin(openrust::auth::AuthFlowsPlugin::new())"
-                    .to_owned()
-                    + "\n            .plugin(openrust::audit::AuditPlugin::database())"
-                    + "\n            .plugin(\n                openrust::signing::SignedLinksPlugin::new().with_database_revocations_from_app(),\n            )"
-            } else {
-                String::new()
-            }
-        )
+        let mut plugins = String::from("\n            .plugin(DatabasePlugin)");
+        if auth {
+            plugins.push_str(
+                "\n            .plugin(openrust::auth::JwtPlugin::new())\n            .plugin(openrust::auth::AuthPlugin::new())\n            .plugin(openrust::audit::AuditPlugin::database())\n            .plugin(\n                openrust::signing::SignedLinksPlugin::new().with_database_revocations_from_app(),\n            )",
+            );
+        }
+        if encryption {
+            plugins.push_str("\n            .plugin(openrust::security::EncryptionPlugin)");
+        }
+        if auth_mfa {
+            plugins.push_str("\n            .plugin(openrust::auth::MfaPlugin)");
+        }
+        if auth {
+            plugins.push_str("\n            .plugin(openrust::auth::AuthFlowsPlugin::new())");
+        }
+        plugins.push_str(
+            "\n            .plugin(MigrationPlugin::<openrust_migration::Migrator>::new())\n            .plugin(SeedPlugin::new(crate::seed::run))",
+        );
+        plugins
     } else {
         String::new()
     };
-    let encryption_plugin = if encryption {
+    let encryption_plugin = if encryption && database.is_none() {
         "\n            .plugin(openrust::security::EncryptionPlugin)"
     } else {
         ""
@@ -716,18 +808,171 @@ fn app_source(
         .replace("{{encryption_plugin}}", encryption_plugin)
 }
 
-fn routes_source(auth: bool) -> String {
+fn routes_source(auth: bool, auth_mfa: bool) -> String {
     let mut source = include_str!("../templates/src/routes.rs").to_owned();
     let (registration, handler) = if auth {
+        let login_handler = if auth_mfa {
+            mfa_login_handler()
+        } else {
+            standard_login_handler()
+        };
+        let mfa_handler = if auth_mfa {
+            mfa_management_handlers()
+        } else {
+            String::new()
+        };
         (
             "    routes\n        .get(\"/api/me\", current_user)\n        .layer(openrust::auth::AuthLayer::required(\n            openrust::auth::AuthMode::Jwt,\n        ))\n        .post(\"/auth/register\", auth_register)\n        .post(\n            \"/auth/request-email-verification\",\n            auth_request_email_verification,\n        )\n        .post(\"/auth/verify-email\", auth_verify_email)\n        .post(\"/auth/login\", auth_login)\n        .post(\"/auth/refresh\", auth_refresh)\n        .post(\"/auth/logout\", auth_logout)\n        .post(\"/auth/password-reset\", auth_request_password_reset)\n        .post(\"/auth/password-reset/confirm\", auth_reset_password)\n        .get(\"/\", root)\n        .merge(Routes::new().get(\"/api/me/pat\", current_user).layer(\n            openrust::auth::AuthLayer::required(openrust::auth::AuthMode::PersonalAccessToken),\n        ))".to_owned(),
-            include_str!("../templates/src/auth_routes.rs").to_owned(),
+            include_str!("../templates/src/auth_routes.rs")
+                .replace("{{login_handler}}", &login_handler)
+                .replace("{{mfa_handler}}", &mfa_handler),
         )
     } else {
         ("    routes.get(\"/\", root)".to_owned(), String::new())
     };
+    let registration = if auth_mfa {
+        registration.replace(
+            ".post(\"/auth/login\", auth_login)",
+            ".post(\"/auth/login\", auth_login)\n        .post(\"/auth/mfa/login\", auth_mfa_login)",
+        )
+        .replace(
+            ".get(\"/\", root)",
+            ".get(\"/\", root)\n        .merge(Routes::new()\n            .post(\"/auth/mfa/enrollment\", auth_mfa_enrollment)\n            .post(\"/auth/mfa/enrollment/confirm\", auth_mfa_enrollment_confirm)\n            .post(\"/auth/mfa/disable\", auth_mfa_disable)\n            .post(\"/auth/mfa/recovery-codes\", auth_mfa_recovery_codes)\n            .layer(openrust::auth::AuthLayer::required(openrust::auth::AuthMode::Jwt)))",
+        )
+    } else {
+        registration
+    };
     source = source.replace("{{routes}}", &registration);
     source.replace("{{auth_handler}}", &handler)
+}
+
+fn standard_login_handler() -> String {
+    "async fn auth_login(\n    Inject(flows): Inject<AuthFlows>,\n    client_ip: ClientIp,\n    Json(input): Json<EmailPasswordInput>,\n) -> openrust::Result<Json<CredentialsResponse>> {\n    Ok(credentials_response(\n        flows.login(&input.email, &input.password, &client_ip.ip().to_string()).await?,\n    ))\n}\n"
+        .to_owned()
+}
+
+fn mfa_login_handler() -> String {
+    r#"#[derive(serde::Serialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+enum AuthLoginResponse {
+    Authenticated { credentials: CredentialsResponse },
+    MfaRequired { challenge: String, expires_at: String },
+}
+
+fn auth_no_store(
+    response: impl openrust::http::axum::response::IntoResponse,
+) -> openrust::http::axum::response::Response {
+    let mut response = response.into_response();
+    response.headers_mut().insert(
+        openrust::http::axum::http::header::CACHE_CONTROL,
+        openrust::http::axum::http::HeaderValue::from_static("no-store"),
+    );
+    response
+}
+
+async fn auth_login(
+    Inject(flows): Inject<AuthFlows>,
+    client_ip: ClientIp,
+    Json(input): Json<EmailPasswordInput>,
+) -> openrust::Result<openrust::http::axum::response::Response> {
+    match flows.begin_login(&input.email, &input.password, &client_ip.ip().to_string()).await? {
+        openrust::auth::LoginAttempt::Authenticated(credentials) => Ok(auth_no_store(Json(
+            AuthLoginResponse::Authenticated { credentials: credentials_response(credentials).0 },
+        ))),
+        openrust::auth::LoginAttempt::MfaRequired(challenge) => Ok(auth_no_store(Json(
+            AuthLoginResponse::MfaRequired {
+                challenge: challenge.expose().to_owned(),
+                expires_at: challenge.expires_at().to_rfc3339(),
+            },
+        ))),
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct MfaChallengeInput { challenge: String, code: String }
+
+async fn auth_mfa_login(
+    Inject(flows): Inject<AuthFlows>,
+    client_ip: ClientIp,
+    Json(input): Json<MfaChallengeInput>,
+) -> openrust::Result<openrust::http::axum::response::Response> {
+    Ok(auth_no_store(credentials_response(
+        flows.complete_mfa_login(&input.challenge, &input.code, &client_ip.ip().to_string()).await?,
+    )))
+}
+"#
+    .to_owned()
+}
+
+fn mfa_management_handlers() -> String {
+    r#"#[derive(serde::Deserialize)]
+struct MfaEnrollmentInput { email: String, password: String }
+
+#[derive(serde::Deserialize)]
+struct MfaCodeInput { code: String }
+
+#[derive(serde::Deserialize)]
+struct MfaFactorInput { email: String, password: String, code: String }
+
+#[derive(serde::Serialize)]
+struct MfaEnrollmentResponse { provisioning_uri: String, expires_at: String }
+
+#[derive(serde::Serialize)]
+struct MfaRecoveryCodesResponse { recovery_codes: Vec<String> }
+
+async fn auth_mfa_enrollment(
+    user: openrust::auth::CurrentUser,
+    Inject(flows): Inject<AuthFlows>,
+    client_ip: ClientIp,
+    Json(input): Json<MfaEnrollmentInput>,
+) -> openrust::Result<openrust::http::axum::response::Response> {
+    let enrollment = flows.begin_totp_enrollment(
+        user.id(), &input.email, &input.password, env!("CARGO_PKG_NAME"),
+        &client_ip.ip().to_string(),
+    ).await?;
+    Ok(auth_no_store(Json(MfaEnrollmentResponse {
+        provisioning_uri: enrollment.provisioning_uri().to_owned(),
+        expires_at: enrollment.expires_at().to_rfc3339(),
+    })))
+}
+
+async fn auth_mfa_enrollment_confirm(
+    user: openrust::auth::CurrentUser,
+    Inject(flows): Inject<AuthFlows>,
+    client_ip: ClientIp,
+    Json(input): Json<MfaCodeInput>,
+) -> openrust::Result<openrust::http::axum::response::Response> {
+    let codes = flows.confirm_totp_enrollment(
+        user.id(), &input.code, &client_ip.ip().to_string(),
+    ).await?;
+    Ok(auth_no_store(Json(MfaRecoveryCodesResponse { recovery_codes: codes.expose().to_vec() })))
+}
+
+async fn auth_mfa_disable(
+    user: openrust::auth::CurrentUser,
+    Inject(flows): Inject<AuthFlows>,
+    client_ip: ClientIp,
+    Json(input): Json<MfaFactorInput>,
+) -> openrust::Result<Json<std::collections::BTreeMap<&'static str, &'static str>>> {
+    flows.disable_mfa(
+        user.id(), &input.email, &input.password, &input.code, &client_ip.ip().to_string(),
+    ).await?;
+    Ok(Json(std::collections::BTreeMap::from([("status", "disabled")])) )
+}
+
+async fn auth_mfa_recovery_codes(
+    user: openrust::auth::CurrentUser,
+    Inject(flows): Inject<AuthFlows>,
+    client_ip: ClientIp,
+    Json(input): Json<MfaFactorInput>,
+) -> openrust::Result<openrust::http::axum::response::Response> {
+    let codes = flows.regenerate_mfa_recovery_codes(
+        user.id(), &input.email, &input.password, &input.code, &client_ip.ip().to_string(),
+    ).await?;
+    Ok(auth_no_store(Json(MfaRecoveryCodesResponse { recovery_codes: codes.expose().to_vec() })))
+}
+"#
+    .to_owned()
 }
 
 fn main_source(crate_name: &str, database: Option<DatabaseBackend>) -> String {
@@ -790,19 +1035,26 @@ fn seed_source(database: Option<DatabaseBackend>) -> String {
     }
 }
 
-fn migration_manifest(name: &str, database: DatabaseBackend, auth: bool) -> String {
+fn migration_manifest(name: &str, database: DatabaseBackend, auth: bool, auth_mfa: bool) -> String {
     let mut features = vec![database.feature()];
     if auth {
         features.push("auth");
+    }
+    if auth_mfa {
+        features.push("auth-mfa");
     }
     format!(
         "[package]\nname = \"{name}-migration\"\npublish = false\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\nopenrust = {{ workspace = true, features = {features:?} }}\n"
     )
 }
 
-fn migration_lib(auth: bool) -> String {
+fn migration_lib(auth: bool, auth_mfa: bool) -> String {
     let migrations = if auth {
-        "vec![\n            Box::new(openrust::auth::AuthMigration),\n            Box::new(openrust::auth::AuthRefreshTokenMigration),\n            Box::new(openrust::auth::AuthVerificationCodeMigration),\n            Box::new(openrust::auth::AuthPolicyMigration),\n            Box::new(openrust::database::DatabaseRateLimitMigration),\n            Box::new(openrust::audit::DatabaseAuditMigration),\n            Box::new(openrust::signing::SignedLinkRevocationMigration),\n        ]"
+        if auth_mfa {
+            "vec![\n            Box::new(openrust::auth::AuthMigration),\n            Box::new(openrust::auth::AuthRefreshTokenMigration),\n            Box::new(openrust::auth::AuthVerificationCodeMigration),\n            Box::new(openrust::auth::AuthPolicyMigration),\n            Box::new(openrust::database::DatabaseRateLimitMigration),\n            Box::new(openrust::audit::DatabaseAuditMigration),\n            Box::new(openrust::signing::SignedLinkRevocationMigration),\n            Box::new(openrust::auth::AuthMfaMigration),\n        ]"
+        } else {
+            "vec![\n            Box::new(openrust::auth::AuthMigration),\n            Box::new(openrust::auth::AuthRefreshTokenMigration),\n            Box::new(openrust::auth::AuthVerificationCodeMigration),\n            Box::new(openrust::auth::AuthPolicyMigration),\n            Box::new(openrust::database::DatabaseRateLimitMigration),\n            Box::new(openrust::audit::DatabaseAuditMigration),\n            Box::new(openrust::signing::SignedLinkRevocationMigration),\n        ]"
+        }
     } else {
         "vec![]"
     };
@@ -1936,7 +2188,9 @@ mod tests {
 
     #[test]
     fn generated_manifest_matches_starter_template() {
-        insta::assert_snapshot!(cargo_manifest("my-app", None, false, false, false, false));
+        insta::assert_snapshot!(cargo_manifest(
+            "my-app", None, false, false, false, false, false
+        ));
     }
 
     #[test]
@@ -1973,7 +2227,7 @@ mod tests {
 
     #[test]
     fn generated_manifest_enables_requested_http_client_feature() {
-        let manifest = cargo_manifest("my-app", None, false, true, false, false);
+        let manifest = cargo_manifest("my-app", None, false, true, false, false, false);
         assert!(manifest.contains("\"cache-redis\""));
         assert!(manifest.contains("\"http-client\""));
         assert!(Cli::try_parse_from(["openrust", "new", "blog", "--http-client"]).is_ok());
@@ -1981,7 +2235,7 @@ mod tests {
 
     #[test]
     fn generated_manifest_enables_twilio_sms_feature() {
-        let manifest = cargo_manifest("my-app", None, false, false, true, false);
+        let manifest = cargo_manifest("my-app", None, false, false, true, false, false);
         assert!(manifest.contains("\"cache-redis\""));
         assert!(manifest.contains("\"sms-twilio\""));
         assert!(Cli::try_parse_from(["openrust", "new", "blog", "--sms-twilio"]).is_ok());
@@ -1989,7 +2243,7 @@ mod tests {
 
     #[test]
     fn generated_manifest_and_project_enable_application_encryption() {
-        let manifest = cargo_manifest("my-app", None, false, false, false, true);
+        let manifest = cargo_manifest("my-app", None, false, false, false, true, false);
         assert!(manifest.contains("\"cache-redis\""));
         assert!(manifest.contains("\"encryption\""));
         assert!(Cli::try_parse_from(["openrust", "new", "blog", "--encryption"]).is_ok());
@@ -2236,6 +2490,97 @@ mod tests {
         assert!(auth_test.contains("active_key_id = \\\"test\\\""));
         assert!(auth_test.contains("KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="));
         assert!(Cli::try_parse_from(["openrust", "new", "blog", "--auth"]).is_err());
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn mfa_generator_registers_secure_routes_and_dual_backend_migrations() {
+        assert!(Cli::try_parse_from(["openrust", "new", "blog", "--auth-mfa"]).is_err());
+        assert!(
+            Cli::try_parse_from([
+                "openrust",
+                "new",
+                "blog",
+                "--db",
+                "postgres",
+                "--auth",
+                "--auth-mfa"
+            ])
+            .is_err()
+        );
+        assert!(
+            Cli::try_parse_from([
+                "openrust",
+                "new",
+                "blog",
+                "--db",
+                "postgres",
+                "--auth",
+                "--auth-mfa",
+                "--encryption"
+            ])
+            .is_ok()
+        );
+
+        let root = std::env::temp_dir().join(format!("openrust-cli-mfa-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("create temporary test directory");
+        for (backend, feature) in [
+            (DatabaseBackend::Postgres, "db-postgres"),
+            (DatabaseBackend::Mysql, "db-mysql"),
+        ] {
+            let project = root.join(feature);
+            populate_project_with_mfa(
+                &project,
+                "blog",
+                "Blog",
+                Some(backend),
+                true,
+                true,
+                false,
+                false,
+                true,
+            )
+            .expect("generate MFA project");
+            let manifest = fs::read_to_string(project.join("Cargo.toml"))
+                .expect("read generated app manifest");
+            assert!(manifest.contains("\"auth-mfa\""));
+            let migration_manifest = fs::read_to_string(project.join("migration/Cargo.toml"))
+                .expect("read generated migration manifest");
+            assert!(migration_manifest.contains("\"auth-mfa\""));
+            let migration = fs::read_to_string(project.join("migration/src/lib.rs"))
+                .expect("read generated migration registry");
+            assert!(migration.contains("openrust::auth::AuthMfaMigration"));
+
+            let app = fs::read_to_string(project.join("src/app.rs")).expect("read generated app");
+            let auth_plugin = app.find("AuthPlugin::new()").expect("auth plugin");
+            let encryption_plugin = app.find("EncryptionPlugin").expect("encryption plugin");
+            let mfa_plugin = app.find("MfaPlugin").expect("MFA plugin");
+            let flows_plugin = app
+                .find("AuthFlowsPlugin::new()")
+                .expect("auth flows plugin");
+            assert!(auth_plugin < encryption_plugin && encryption_plugin < mfa_plugin);
+            assert!(mfa_plugin < flows_plugin);
+
+            let routes =
+                fs::read_to_string(project.join("src/routes.rs")).expect("read generated routes");
+            for route in [
+                "/auth/mfa/login",
+                "/auth/mfa/enrollment",
+                "/auth/mfa/enrollment/confirm",
+                "/auth/mfa/disable",
+                "/auth/mfa/recovery-codes",
+            ] {
+                assert!(routes.contains(route), "missing generated route {route}");
+            }
+            assert!(routes.contains("LoginAttempt::MfaRequired"));
+            assert!(routes.contains("AuthLayer::required(openrust::auth::AuthMode::Jwt)"));
+            let auth_test = fs::read_to_string(project.join("tests/auth_flows.rs"))
+                .expect("read generated auth test");
+            assert!(auth_test.contains("let login_data = &login.body[\"data\"][\"credentials\"]"));
+            assert!(auth_test.contains("login_data[\"user_id\"]"));
+            assert!(auth_test.contains("login_data[\"access_token\"]"));
+        }
         let _ = fs::remove_dir_all(root);
     }
 

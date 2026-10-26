@@ -55,6 +55,16 @@ async fn me(user: CurrentUser) -> openrust::Result<openrust::http::Json<i64>> {
 
 `AuthCredential` 有意不实现 `Debug` 或序列化。自定义认证器不得记录其中的秘密。凭据无效时返回 `Error::Unauthorized`；CSRF 校验拒绝时返回 `Error::Forbidden`；后端故障时返回内部错误或显式 5xx 错误。
 
+## TOTP 多因素认证
+
+启用 `auth-mfa` feature 后，按 `DatabasePlugin`、`AuthPlugin`、`JwtPlugin`、`EncryptionPlugin`、`MfaPlugin`、`AuthFlowsPlugin` 的依赖顺序装配；应用 migrator 还须包含 `AuthMfaMigration`。没有注册 `MfaPlugin` 的应用继续使用现有 JWT 登录流程。插件启动时检查 MFA 和审计表；缺少迁移或必需服务会导致启动失败，不会退化为明文 seed 或本地限流。
+
+登录 handler 应调用 `AuthFlows::begin_login` 并处理 `LoginAttempt`：普通账户得到 `Authenticated` 凭据，启用 MFA 的账户只得到 5 分钟有效、绑定可信请求来源且最多尝试五次的 challenge；随后调用 `complete_mfa_login` 校验第二因子并取得凭据。旧 `login` 在账户启用 MFA 时拒绝签发，OIDC completion 也返回相同的 `LoginAttempt`。challenge、TOTP 时间步、refresh 凭据与成功审计在一次数据库事务中消费/提交。
+
+通过已认证的应用路由调用 `begin_totp_enrollment`，使用本地密码重新认证并创建待确认 provisioning URI；客户端首次验证器代码交给 `confirm_totp_enrollment` 后才启用 MFA，并只返回一次十个恢复码。TOTP seed 以当前进程加密密钥加密，历史密钥仅用于解密。恢复码只保存 SHA-256 摘要并原子单次消费。禁用或重置恢复码须再次验证密码和当前 TOTP/恢复码，且会在同一事务审计并撤销全部 refresh token。
+
+TOTP 遵循 RFC 6238：HMAC-SHA1、30 秒时间步、6 位数字并接受前后各一个时间步；已接受的时间步不会再次使用。MFA 启用后，JWT 与 Session 方式的密码登录均不能绕过 challenge；受保护 Session 路由也会拒绝该账户此前建立的 Session。配置 TTL 内已签发的无状态 JWT 仍有效，因此高风险业务操作仍应结合较短 access-token TTL 与应用授权策略。
+
 ## 资源查询授权
 
 `Policy::authorize` 检查操作权限；资源行范围由应用以 `QueryRule<E>` 单独定义。受保护入口不会自动授予 `read`、`update` 等操作权限。`QueryScope` 必须从一个条件表达式开始，其他范围通过 AND 或非空的 AND-OR 组扩展；用户筛选始终与资源范围相交。列表、详情、分页、批量更新/删除和关联读取使用 `AuthorizedSelect` 或 `QueryRule` 的受保护方法，底层 SeaORM builder 不会从这些入口暴露。

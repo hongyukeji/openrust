@@ -28,7 +28,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256, Sha384, Sha512};
 
 use crate::audit::{Audit, AuditEvent, AuditOutcome, AuditPolicy, AuditSubject, DatabaseAuditSink};
-use crate::auth::{AuthCredentials, AuthFlows};
+use crate::auth::{AuthFlows, LoginAttempt};
 use crate::core::{BoxFuture, Error, Result};
 use crate::db::{DatabaseTransaction, Db};
 use crate::http::{DependencyClient, HttpBody};
@@ -1000,7 +1000,7 @@ impl ExternalIdentityFlows {
             .collect()
     }
 
-    /// 验证 provider 回调，原子消费 state，并签发现有 JWT/refresh 凭据。
+    /// 验证 provider 回调并原子消费 state；启用 MFA 时只返回一次性 challenge。
     #[allow(
         clippy::too_many_lines,
         reason = "state 消费、OIDC principal 验证与凭据签发必须保持同一事务流程"
@@ -1012,7 +1012,7 @@ impl ExternalIdentityFlows {
         code: &str,
         browser_binding: &str,
         request_source: &str,
-    ) -> Result<AuthCredentials> {
+    ) -> Result<LoginAttempt> {
         if callback_state.is_empty()
             || callback_state.len() > 256
             || code.is_empty()
@@ -1097,6 +1097,7 @@ impl ExternalIdentityFlows {
         let audit = self.audit.clone();
         let db = self.db.clone();
         let provider_name = provider_name.to_owned();
+        let request_source = request_source.to_owned();
         self.db
             .transaction(|transaction| {
                 let auth = auth.clone();
@@ -1106,6 +1107,7 @@ impl ExternalIdentityFlows {
                 let identity = identity.clone();
                 let password_hash = password_hash.clone();
                 let state_hash = state_hash.clone();
+                let request_source = request_source.clone();
                 Box::pin(async move {
                     consume_request(transaction, &db, &provider_name, &state_hash).await?;
                     let credentials = auth
@@ -1114,10 +1116,15 @@ impl ExternalIdentityFlows {
                             &provider_name,
                             &identity,
                             password_hash.as_ref(),
+                            &request_source,
                         )
                         .await?;
                     let event = AuditEvent::new(
-                        "auth.external.login",
+                        if matches!(&credentials, LoginAttempt::Authenticated(_)) {
+                            "auth.external.login"
+                        } else {
+                            "auth.external.challenge_issued"
+                        },
                         AuditSubject::new("external_provider", &provider_name)?,
                         AuditOutcome::Succeeded,
                     )?

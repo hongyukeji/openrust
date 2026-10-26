@@ -12,6 +12,14 @@
 
 OIDC 子簇及并发 storage 回归修复的门禁：`cargo fmt --all --check`、默认与 all-features `cargo clippy --workspace --all-targets --... -D warnings`、`cargo test --workspace`、`cargo test --workspace --all-features`、默认/all-features warnings-denied workspace Rustdoc、`cargo deny check` 均通过。`cargo deny check` 输出仅有重复依赖版本告警，advisories/bans/licenses/sources 均为 ok。all-features 聚合 server 测试 10 项通过；workspace 测试中无 IdP 环境的 Keycloak target 属于显式 skip，不计入上面的真实服务证据。
 
+## M5 ADR-054 TOTP MFA 与恢复码（F7 子簇）
+
+`cargo test -p openrust --features auth-mfa auth::mfa::tests --lib` 覆盖 RFC 6238 SHA-1 向量、6 位格式及允许时间步边界。`apps/server/tests/auth/mfa.rs` 的真实 TCP/数据库生命周期测试在 PostgreSQL 18 与 MySQL 8.4 各通过 1 项：`OPENRUST_TEST_DATABASE_URL=... cargo test -p server --features 'auth-mfa auth-oidc db-<backend>' --test auth_mfa --test auth_oidc -- --nocapture`。覆盖 password 与 OIDC challenge、Session 登录/既有 Session 阻断、挑战来源绑定/过期/五次失败、TOTP replay、恢复码单次消费、enrollment/禁用/重置、密钥轮换、审计与 refresh 撤销；服务端测试还验证此前密码登录 helper 无法绕过 MFA。
+
+CLI 新增 `openrust new --db <backend> --auth --auth-mfa --encryption`。把当前 tracked/untracked 源码复制到干净临时 workspace（无 registry patch、无开发者绝对路径），分别生成 PostgreSQL 与 MySQL 应用；两个生成包均实际通过 `cargo check` 和 `cargo test`，其中生成的完整 auth HTTP/fake-mail 测试各执行 1 项并使用 PostgreSQL 18 / MySQL 8.4 隔离数据库。`cargo test -p cli` 18 项通过。
+
+MFA 子簇门禁：fmt、默认/all-features workspace all-target Clippy、默认/all-features workspace tests、默认/all-features docs（all-features warnings denied）、no-default-features check、`cargo deny check` 均通过。deny 仅有既有重复 crate 版本与未匹配 MPL-2.0 allowance 警告；advisories、bans、licenses、sources 均通过。Twilio 真实发送仍受外部授权凭据/目标约束，与 MFA 验收无关；Keycloak 单 client OIDC 真实验收见上一节，完整 SSO 为后续独立 F7 子簇。
+
 ## M5 缓存驱动与命名实例
 
 `cargo test -p openrust cache::tests` 通过 memory namespace/TTL/remove、file key hash/过期/替换/并发、命名 stores 和外部 driver 注册；`cargo test -p openrust --features cache-redis cache::tests::redis_store_roundtrips_ttl_on_live_service -- --exact` 与 `cargo test -p server --all-features --test server cache_plugin_uses_the_configured_shared_redis_store -- --exact` 均在本机 Redis 8.10.2 真实服务通过。CLI 实测复用可达 loopback Redis，不触碰 Compose；干净 `/tmp` 源码副本生成默认应用后 `cargo check`、`cargo test` 通过，独立 custom-driver 示例 `cargo test/run --manifest-path examples/cache-custom-driver/Cargo.toml` 通过。默认与 all-features workspace tests、all-target/all-features clippy、fmt、warnings-denied 默认/all-features docs、cargo deny 与 no-default-features check 通过。workspace server 的数据库集成 target 因未设置 `OPENRUST_TEST_DATABASE_URL` 跳过；本缓存簇不修改数据库路径，不以该 skipped target 代替双库验收。Redis 启动 Compose 的冷启动分支尚未在现有可用 Redis 环境下触发；已验证的是复用路径。Redis 最低兼容版本仍待 v1 发布前专项确认。

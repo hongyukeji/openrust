@@ -29,6 +29,8 @@ serde_json.workspace = true
 sea-orm.workspace = true
 serde.workspace = true
 sha2.workspace = true
+hmac.workspace = true
+sha1.workspace = true
 sqlx.workspace = true
 time.workspace = true
 tokio.workspace = true
@@ -61,6 +63,7 @@ queue-redis = ["openrust/queue-redis"]
 db-routing-bench = []
 http-client = ["openrust/http-client"]
 auth-oidc = ["openrust/auth-oidc"]
+auth-mfa = ["openrust/auth-mfa"]
 cache-redis = ["openrust/cache-redis"]
 session-redis = ["auth", "openrust/session-redis"]
 storage-local = ["openrust/storage-local"]
@@ -92,6 +95,11 @@ required-features = ["auth-oidc"]
 name = "auth_oidc_keycloak"
 path = "tests/auth/oidc_keycloak.rs"
 required-features = ["auth-oidc"]
+
+[[test]]
+name = "auth_mfa"
+path = "tests/auth/mfa.rs"
+required-features = ["auth-mfa"]
 
 [[test]]
 name = "db_connection"

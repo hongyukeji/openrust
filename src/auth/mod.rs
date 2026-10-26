@@ -18,6 +18,8 @@ use tower::{Layer, Service};
 mod database;
 mod flows;
 mod jwt;
+#[cfg(feature = "auth-mfa")]
+mod mfa;
 mod migration;
 #[cfg(feature = "auth-oidc")]
 mod oidc;
@@ -33,10 +35,12 @@ use database::DatabaseAuthenticator;
 
 pub use crate::config::JwtConfig;
 pub use flows::{
-    AuthCredentials, AuthFlows, AuthFlowsPlugin, LoginFailed, LoginSucceeded, LoginValidating,
-    RegistrationSucceeded, RegistrationValidating, SessionCredentials,
+    AuthCredentials, AuthFlows, AuthFlowsPlugin, LoginAttempt, LoginFailed, LoginSucceeded,
+    LoginValidating, RegistrationSucceeded, RegistrationValidating, SessionCredentials,
 };
 pub use jwt::{JwtPlugin, JwtTokens};
+#[cfg(feature = "auth-mfa")]
+pub use mfa::{AuthMfaMigration, MfaLoginChallenge, MfaPlugin, RecoveryCodes, TotpEnrollment};
 pub use migration::{
     AuthExternalIdentityMigration, AuthMigration, AuthPolicyMigration, AuthRefreshTokenMigration,
     AuthVerificationCodeMigration,
@@ -476,6 +480,19 @@ async fn authenticate(
     };
     if principal.user_id <= 0 {
         return Error::internal(InvalidPrincipal).into_response();
+    }
+    #[cfg(feature = "auth-mfa")]
+    if source == AuthSource::Session
+        && let Some(mfa) = state.get::<mfa::MfaService>()
+    {
+        match mfa.enabled(principal.user_id).await {
+            Ok(true) => {
+                // 已启用 MFA 的账户不能继续使用先前建立的 Cookie Session 绕过第二因子。
+                return Error::Unauthorized.into_response();
+            }
+            Ok(false) => {}
+            Err(error) => return error.into_response(),
+        }
     }
     let user = CurrentUser {
         id: principal.user_id,

@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-27
-> 摘要：M3 认证运行时与 M5 资源查询范围实现事实；真实 Twilio 送达仍需授权账号与目标。
+> 摘要：M3 认证运行时、M5 查询授权/OIDC/TOTP MFA 实现事实；真实 Twilio 送达仍需授权账号与目标。
 
 ## 当前实现
 
@@ -19,6 +19,9 @@
 - `AuthFlowsPlugin` 在 `DatabasePlugin`、`AuthPlugin`、`JwtPlugin` 之后注册统一流程服务；缺少任一依赖或 refresh lifetime 越界时构建失败。服务提供注册/邮箱验证/登录/refresh/登出/密码重置编排，按 endpoint + identity 摘要 + 调用方可信 request-source 消费共享 `RateLimiter`。注册和找回返回 redacted code wrapper，不发送邮件/SMS；默认 30 天 refresh family、5 次/15 分钟固定窗口。密码重置与 refresh family 撤销在同一数据库事务提交。
 - 注册仅将邮箱唯一约束冲突映射为 `None`；CHECK、截断及其他 SQL 错误继续传播，避免 MySQL `INSERT IGNORE` 将非重复错误伪装成重复账户。
 - Cookie Session 登录为可选路径：`AuthFlows::login_session` 复用登录认证和限流、轮换 ID，写入用户 ID 与 CSRF token digest，并返回 Debug 脱敏的 256-bit CSRF token；`logout_session` 清理认证键、轮换 ID并保留应用数据。无效凭据不修改 Session。
+- 可选 `auth-mfa` feature 由 `MfaPlugin` 显式启用，依赖数据库、`AuthPlugin` 的密码/共享限流服务与 `EncryptionPlugin`；启动时检查 MFA 表和数据库审计表。应用 migrator 必须注册 `AuthMfaMigration`。TOTP seed 使用本地 `Encryptor` 加密，RFC 6238 采用 SHA-1、30 秒时间步、6 位码和 ±1 窗口；因子行锁及 `last_used_step` 防止重放。
+- `AuthFlows::begin_login` 返回 `LoginAttempt`，启用 MFA 的账户仅获得来源绑定、5 分钟有效、最多五次的挑战；`complete_mfa_login` 在同一事务消费挑战/因子、签发 JWT/refresh 并写审计。兼容的 `login` 与 Session 登录对已启用 MFA 的账户拒绝；MFA 启用时，`AuthLayer` 也会在每个 Session 认证请求检查因子状态并拒绝旧 Session。OIDC 使用同一挑战路径。
+- MFA enrollment 需先通过已授权应用路由重新验证本地密码；待确认 seed 仅在 OTP 确认后启用。十个随机恢复码只显示一次，库中仅存 SHA-256 摘要；恢复码按事务原子消费。启用、禁用和恢复码重置写数据库审计并撤销账户 refresh token。已签发无状态 JWT 仍在原 TTL 内有效。
 - `CurrentUser` / `OptionalUser` 从请求扩展读取身份，可与 `Inject<T>` 同一 handler 使用。PAT abilities 精确匹配。
 - 认证主体留在当前 HTTP request extension；`ExecutionMetadata` 只跨任务传递 request ID/locale，不序列化 `CurrentUser`、权限快照、Bearer token、Session cookie 或任意 header。后台 Job 的授权须在执行边界按应用策略重新确认。
 - `PersonalAccessTokens` 由 `AuthPlugin` 在数据库已注册后放入 `AppState`，提供一次性签发、账户范围列举、单 token 撤销及账户级全量撤销。原始 token 以 256-bit CSPRNG 生成，仅 `IssuedPersonalAccessToken::expose` 可读，Debug 脱敏；数据库只存 SHA-256 和短前缀。列表不返回 digest，撤销 SQL 同时约束 user_id。
@@ -35,7 +38,7 @@
 - 可选 `auth-oidc` 提供 OAuth2 authorization-code + S256 PKCE relying-party、OIDC Discovery/JWKS 与 ID Token 验证。使用静态 issuer/client/redirect/scope，并通过受限命名 `DependencyClient` 访问 IdP；正常地址只允许 HTTPS，loopback 开发地址可使用 HTTP。`openidconnect` 未采用，具体依赖边界见 [ADR-053](../decisions/adr-053-external-identity-client.md)。
 - `ExternalIdentityFlows` 将短时 state/nonce/verifier 加密保存在数据库，以单次事务消费；额外校验十分钟 HttpOnly/Secure/SameSite=Lax 浏览器绑定 Cookie。identity key 为 provider + issuer + subject，不按邮箱合并；新账户要求已验证邮箱，绑定/解绑要求本地密码重新认证并写入审计。需要 `AuthExternalIdentityMigration` 和应用侧身份创建策略。
 - Discovery、token、JWKS 请求共享一次总时限与 1 MiB 响应体上限。JWKS 最长缓存 5 分钟，过期刷新失败时拒绝认证；未知 `kid` 主动刷新受 30 秒冷却限制。短暂 IdP 故障在缓存过期后会使 OIDC 登录失败关闭。
-- PostgreSQL 18 和 MySQL 8.4 各完成一次数据库集成；Keycloak 26.8.1 fixture 完成真实浏览器表单授权码、PKCE、issuer、nonce、RS256/JWKS 验证。可复跑命令和跳过边界见 [测试基线](../memory/testing.md)。TOTP 与恢复码仍属于 F7 后续子簇，不能由 OIDC 验收代替。
+- PostgreSQL 18 和 MySQL 8.4 各完成一次数据库集成；Keycloak 26.8.1 fixture 完成真实浏览器表单授权码、PKCE、issuer、nonce、RS256/JWKS 验证。可复跑命令和跳过边界见 [测试基线](../memory/testing.md)。TOTP 与恢复码已按 ADR-054 完成并单独通过 PostgreSQL 18/MySQL 8.4 验收；双应用 SSO/统一退出仍是 F7 后续子簇。
 
 ## 边界与未纳入范围
 
