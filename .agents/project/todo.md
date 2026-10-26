@@ -47,6 +47,7 @@
 - 模块迁移后已重跑 AuthFlows 双库隔离库测试，并基于根 package 的 `--auth` 生成项目执行 PostgreSQL/MySQL `cargo test` 真实 HTTP 流程；完整 M3 汇总验收仍需与后续正常开发任务一起闭环。自定义认证器只验证扩展路径，不替代默认实现验收。
 - PAT 生命周期 API 已实现 `PersonalAccessTokens` 服务并注册到 `AuthPlugin` state：一次性 256-bit 随机 bearer 值、仅 SHA-256 落库、列举不暴露 digest、单个/账户级撤销按账户隔离。历史 PostgreSQL 14 / MySQL 8.0 真实测试覆盖签发/哈希/能力/到期输入/归属隔离与跨应用实例撤销；当前 AuthFlows 和 Policy 已接入 JWT、refresh、PAT 及基本角色权限路径。
 - `--auth` 生成物注册 JWT/Auth/AuthFlows plugins，提供 JWT 保护的身份示例和认证流程 HTTP 路由；不能把模板生成、服务层测试或项目编译通过视为 HTTP 端到端流程完成。
+- M3 生成认证项目验收修复已完成：CLI 生成的包名断言不再把项目名内嵌进易变排版的代码行。PG18 与 MySQL 8.4 新生成项目均通过 `cargo fmt --all --check`、`cargo check` 和真实数据库 HTTP 流程；本项 workspace fmt/clippy/test/doc/deny 通过。整体 M3 仍有邮件/短信、通用安全能力和真实供应商验收待完成。
 - 本簇验收前按 [执行校准](plan.md#执行校准) 核对契约：共享会话与跨节点撤销、认证所需全局限流/验证码边界、注册/登录公开扩展点及 `Inject` 共存；后续 M3 任务按完整 v1 覆盖清单逐簇领取，不以身份注入完成代替整个 M3。
 - ADR-012 定义身份/路由 contract；授权 API 与角色/权限跨节点变更传播已由 ADR-027 定义为共享数据库实时读取。该实现不替代本簇端到端验收。
 

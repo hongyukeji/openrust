@@ -225,28 +225,58 @@ fn populate_project(
 
     let mut files = vec![
         ("Cargo.toml", cargo_manifest(name, database, auth)),
-        (".gitignore", include_str!("../templates/.gitignore").to_owned()),
+        (
+            ".gitignore",
+            include_str!("../templates/.gitignore").to_owned(),
+        ),
         (".env.example", env_example(name, database, auth)),
         ("config/default.toml", default_config(name, auth)),
-        ("config/development.toml", include_str!("../templates/config/development.toml").to_owned()),
-        ("config/test.toml", "[app]\nname = \"{{name}}\"\n".replace("{{name}}", name)),
-        ("config/production.toml", "[app]\nname = \"{{name}}\"\n".replace("{{name}}", name)),
+        (
+            "config/development.toml",
+            include_str!("../templates/config/development.toml").to_owned(),
+        ),
+        (
+            "config/test.toml",
+            "[app]\nname = \"{{name}}\"\n".replace("{{name}}", name),
+        ),
+        (
+            "config/production.toml",
+            "[app]\nname = \"{{name}}\"\n".replace("{{name}}", name),
+        ),
         ("src/main.rs", main_source(crate_name, database)),
         ("src/app.rs", app_source(crate_name, database, auth)),
         ("src/routes.rs", routes_source(auth)),
         ("src/schedule.rs", "//! Application schedule.\n".to_owned()),
         ("src/seed.rs", seed_source(database)),
-        ("src/controllers/mod.rs", "//! HTTP controllers.\n".to_owned()),
+        (
+            "src/controllers/mod.rs",
+            "//! HTTP controllers.\n".to_owned(),
+        ),
         ("src/models/mod.rs", "//! Application models.\n".to_owned()),
         ("src/models/_entities/.gitkeep", String::new()),
-        ("src/services/mod.rs", "//! Application services.\n".to_owned()),
-        ("src/policies/mod.rs", "//! Authorization policies.\n".to_owned()),
+        (
+            "src/services/mod.rs",
+            "//! Application services.\n".to_owned(),
+        ),
+        (
+            "src/policies/mod.rs",
+            "//! Authorization policies.\n".to_owned(),
+        ),
         ("src/jobs/mod.rs", "//! Background jobs.\n".to_owned()),
         ("src/events/mod.rs", "//! Application events.\n".to_owned()),
         ("src/mailers/mod.rs", "//! Email messages.\n".to_owned()),
-        ("src/middleware/mod.rs", "//! Application middleware.\n".to_owned()),
-        ("tests/application.rs", "#[test]\nfn application_package_is_generated() {\n    assert_eq!(\n        env!(\"CARGO_PKG_NAME\"),\n        \"{{name}}\"\n    );\n}\n".replace("{{name}}", name)),
-        ("AGENTS.md", include_str!("../templates/AGENTS.md").to_owned()),
+        (
+            "src/middleware/mod.rs",
+            "//! Application middleware.\n".to_owned(),
+        ),
+        (
+            "tests/application.rs",
+            "fn manifest_declares_package_name(manifest: &str, package_name: &str) -> bool {\n    for line in manifest.lines() {\n        if line == format!(\"name = \\\"{package_name}\\\"\") {\n            return true;\n        }\n    }\n    false\n}\n\n#[test]\nfn application_package_is_generated() {\n    let manifest = include_str!(\"../Cargo.toml\");\n    let package_name = env!(\"CARGO_PKG_NAME\");\n    assert!(manifest_declares_package_name(manifest, package_name));\n}\n".to_string(),
+        ),
+        (
+            "AGENTS.md",
+            include_str!("../templates/AGENTS.md").to_owned(),
+        ),
     ];
     if auth {
         files.push((

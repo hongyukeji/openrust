@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-26
-> 摘要：根 `openrust` 模块迁移已独立提交；M2 读写分离已实现，并在 PostgreSQL 18.6 / MySQL 8.4.13 真实复制拓扑验证。模块化配置与 `.env` 功能簇已实现并通过 workspace 验证；M3 总验收与完整集群验收未关闭。日常开发基线为 PostgreSQL 18 / MySQL 8.4 LTS / Redis 8；PostgreSQL 16 测试仅作历史专项证据。
+> 摘要：根 `openrust` 模块迁移已独立提交；M2 读写分离已实现，并在 PostgreSQL 18.6 / MySQL 8.4.13 真实复制拓扑验证。模块化配置与 `.env` 功能簇已实现并通过 workspace 验证；M3 认证流程在当前 PostgreSQL 18 / MySQL 8.4 与新生成项目上复验，M3 总验收和完整集群验收仍未关闭。日常开发基线为 PostgreSQL 18 / MySQL 8.4 LTS / Redis 8；PostgreSQL 16 测试仅作历史专项证据。
 
 | 项 | 状态 |
 | --- | --- |
@@ -15,6 +15,7 @@
 | `openrust::http` | 已迁入根 package 并测试：`Routes`、`Resource` / `ResourceActions`、统一响应与分页、OpenRust 提取器、`Inject`、`Validated`、404/405/408/413 包装、中间件、`/health` 与 `serve` |
 | `openrust-macros` | `#[openrust::resource]` 从控制器动作关联函数生成 `Resource` 实现，并由 `apps/server` 集成测试覆盖 |
 | `openrust` / `openrust-cli` | facade `run` 与数据库/auth plugin facade；`new` 支持无数据库、PostgreSQL、MySQL 和 `--auth` 模板；认证模板生成 Auth flows routes；`generate model` / `generate migration`、`dev` / `serve` 与运行命令代理可用 |
+| 生成认证项目验收 | CLI 包名测试模板已改为从生成 manifest 与 `CARGO_PKG_NAME` 比对；PG18 与 MySQL 8.4 新生成 `--auth` 项目均通过 fmt、check 和真实 HTTP/database 流程 |
 | `openrust::db` | `DatabaseConfig` / `DatabasePlugin` / `Db`、主库与显式只读副本池、轮询选择、task-local primary scope、自定义 SeaORM 初始化、事务、迁移/seed 命令、UTC/JSON 方言 helper、table resolver、双库、MySQL Rustls TLS、共享固定窗口限流存储 |
 | `openrust-test` | `TestDatabase` 为每个用例创建并迁移独立库；支持 `create_with_table_names` 以相同 resolver scope 执行迁移；PostgreSQL 迁移模板克隆，MySQL 独立建库；`close().await` 清理；基线两库集成测试通过 |
 | `openrust::mail` | `Email` / `Mailer`，log、fake、可选 SMTP Rustls driver；已接入 facade、server 与项目模板 |

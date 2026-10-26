@@ -64,6 +64,8 @@ CLI 模板快照测试：`cargo test -p openrust-cli`。生成 PostgreSQL、MySQ
 
 2026-10-26 根模块迁移后，两种生成项目都以真实 PostgreSQL 16 / MySQL 8.4 服务运行 `generated_auth_routes_run_over_http_with_isolated_database_and_fake_mail` 并通过。测试覆盖实际 HTTP、JWT/PAT 认证、数据库流程、可信代理 client IP 与 fake mail。
 
+2026-10-26 当前日常基线复验：`cargo test -p openrust-server --features auth,db-postgres --test auth_database` 在现有 PostgreSQL 18 容器通过 4 项；`--features auth,db-mysql` 在现有 MySQL 8.4 容器通过 4 项。按当前 CLI 模板新生成的 `--auth` 项目分别以本地 Cargo patch 指向未发布 workspace，并在真实 PostgreSQL 18 / MySQL 8.4 服务上通过 `cargo fmt --all --check`、`cargo check` 和 `cargo test --test auth_flows`（每库 1 项真实 TCP HTTP 流程，使用隔离数据库与 fake mail）。生成目录位于 `/tmp/openrust-auth-pg-resume` 与 `/tmp/openrust-auth-mysql-resume`，没有纳入仓库。
+
 ## 迁移验收记录
 
 - `cargo metadata --no-deps --format-version 1` 确认根 package 为 `openrust`，workspace 共五个成员：`openrust`、`openrust-cli`、`openrust-macros`、`openrust-test`、`openrust-server`。

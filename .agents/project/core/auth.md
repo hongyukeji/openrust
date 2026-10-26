@@ -30,7 +30,7 @@
 ## 尚未实现
 
 - AuthFlows service contract 已记录在 [ADR-024](../decisions/adr-024-authentication-flow-service.md) 并已实现；验证码与 RateLimiter 数据库实现分别见 ADR-026/025，Policy contract 和基础实现见 ADR-027。验证码消费和账户变更不是同一事务；密码更新与 refresh family revoke 是单一事务。
-- 生成项目 HTTP handlers 的真实 HTTP/fake-mail/`ClientIp` 集成覆盖已加入，MySQL 8.4.11 生成项目通过完整 JWT/PAT 流程；迁移前 PostgreSQL 与 MySQL 生成项目均通过真实 HTTP 流程；模块迁移后的新生成项目仍须重跑。PostgreSQL 最新生成项目的迁移后整体验收仍待完成。
+- 生成项目 HTTP handlers 的真实 HTTP/fake-mail/`ClientIp` 集成覆盖已加入。2026-10-26 按当前模板新生成的 PostgreSQL 18 与 MySQL 8.4 项目均通过格式检查、`cargo check` 和完整 JWT/PAT HTTP 流程；当前 `auth_database` 流程亦在两个日常数据库版本各通过 4 项。真实 SMTP 送达仍未验收。
 - Session login/logout helper 的 迁移后完整 HTTP 闭环复验。
 - 注册、登录、找回、邮箱验证、refresh/logout 与共享限流已有 service 编排和生成 HTTP 路由模板；可信代理来源策略按 ADR-028 实现。
 - Policy/basic RBAC 已实现；复杂业务策略、租户范围与可缓存授权模型未纳入本 contract。
