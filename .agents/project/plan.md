@@ -1,7 +1,7 @@
 # 当前计划
 
 > 受众：AI Agent
-> 更新：2026-10-26
+> 更新：2026-10-27
 > 摘要：先完成底层目录收尾，再按依赖补齐 v1；v1 完整验收通过后继续 v2 后台。当前交付见 [progress.md](progress.md)，唯一执行队列见 [todo.md](todo.md)。
 
 ## 当前里程碑
@@ -33,6 +33,8 @@
 16. **gRPC 纳入 v1 必交付**，范围以 [ADR-040](decisions/adr-040-grpc-integration.md) 为准；在 M5 按 G1–G3 完成，M6 组合复验。V1 主攻通用底层，V2 现成后台；先闭合 `todo.md` 当前进行中功能簇，再按依赖推进。
 
 17. **底层缺口按 [底层补齐计划](plans/v1-foundation-completion.md) F1–F10 全部交付**。cron、缓存 tag、高级 i18n、轻量 fixtures、租户通用隔离和外部身份接入等旧后置/排除口径已校准；具体 API/默认语义先定 Spec，不再重复评估是否需要交付。仅后续适配清单保持评估状态。
+
+18. **F7 包含 [SSO 登录与统一退出](plans/v1-foundation-completion.md#sso-登录与统一退出)**：当前 TOTP/恢复码子簇验证提交后，先补双应用登录、RP 发起退出、后通道通知和集群撤销，再推进 F6。ADR-053 的单 client OIDC 验收不能关闭该范围；M5 完成专项，M6 完整集群复验，JWT 撤销窗口须明确。
 
 ## 里程碑顺序
 

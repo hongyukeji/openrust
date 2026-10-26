@@ -33,6 +33,7 @@ V1 参考 Loco、Laravel、Goravel、OpenSpring；若依/芋道仅 V2。新增�
 | 数据访问与生产迁移：稳定键有界分批 | 已按 [ADR-048](decisions/adr-048-stable-batch-reading.md) 交付 `BatchReader` 与授权查询接入 | PostgreSQL 18/MySQL 8.4 已真实验证单列/复合主键、升降序、多页、取消续读、callback 失败、scope 过滤及连接可继续使用；转入迁移互斥 |
 | 数据访问与生产迁移：迁移互斥 | 已按 [ADR-049](decisions/adr-049-migration-execution-lock.md) 以 resolver-aware 独立锁表和事务行锁保护 MigrationPlugin 的 up/down/status | PostgreSQL 18/MySQL 8.4 各 4 项真实 `db_migration` 集成通过，包含多进程互斥、等待超时、owner 强杀恢复、具名 DB 隔离及 up/down/status；fmt/clippy/default 与 all-features tests/docs/no-default/cargo deny 均通过；显式双库 targets 通过 |
 | 可选外部身份与 MFA F7 **in_progress** | OIDC 子簇已按 ADR-053 实现 OAuth2/OIDC relying-party、数据库身份流程与 Keycloak 验收；接续实现 TOTP/恢复码并复用 AuthFlows/本地密钥/审计，不建设授权服务器 | OIDC 的 PostgreSQL 18/MySQL 8.4 与 Keycloak 26.8.1 证据见测试基线；剩余验收为 TOTP 挑战、恢复码一次消费/并发竞争、授予完整权限前的强制验证及双库状态 |
+| SSO 登录与统一退出 F7 | 当前 TOTP/恢复码子簇验证提交后、F6 前领取；按 [SSO 补齐范围](plans/v1-foundation-completion.md#sso-登录与统一退出) 补双应用登录、RP 发起退出、后通道通知与共享撤销，复用 ADR-053 和现有认证机制 | Keycloak 双 client、每应用多副本、PostgreSQL/MySQL 验收；关联 refresh/Session/challenge 撤销、JWT 生效窗口、MFA/回调竞态、重放及故障恢复；现有单 client 登录测试不等于本簇完成 |
 | 可选租户隔离 F6 | 调用作用域、F5、缓存/队列/存储齐备后交付可信租户解析、公开隔离接入与审计；普通应用默认关闭 | 双库和两 API 节点下查询、关联/批量、缓存/锁、文件/任务不串租；缺上下文拒绝，RPC/实时随后复验 |
 | 通用 CSV/XLSX F8 | F5/F6 与存储/队列后，分别实现解析转换与任务化集成；不建业务页面 | 列映射/逐行错误、分批事务、压缩展开/公式注入、取消与内存边界；双库导入、授权导出与报告清理 |
 | gRPC G1 基础与生成 | [ADR-040](decisions/adr-040-grpc-integration.md)：可选 tonic/prost、配置/注册、默认/命名客户端、四种 RPC 与应用 proto 生成 | 无库真实 TCP 四种调用、独立 consumer；生成项目 check/test，默认构建无需 gRPC/protoc |

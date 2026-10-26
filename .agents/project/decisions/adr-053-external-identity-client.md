@@ -19,3 +19,7 @@
 复用现有 AuthFlows、JWT、加密、Database、Audit、RateLimiter、jsonwebtoken 的 aws-lc-rs 验签 backend 和 ADR-052 的出站隔离。Discovery、token 和 JWKS 读取同享单次登录 deadline，响应体上限 1 MiB；JWKS 成功缓存最多 5 分钟，过期必须刷新且刷新失败时拒绝登录，未知 `kid` 的主动刷新最多每 30 秒一次。新增依赖与 feature 关系记录在 `stack.md`。
 
 实现先交付 OAuth2/OIDC 外部身份；TOTP 与恢复码作为后续独立 F7 子簇，不能由此 ADR 宣称已完成。
+
+## SSO 补齐边界
+
+V1 在 TOTP/恢复码之后交付 [SSO 登录与统一退出](../plans/v1-foundation-completion.md#sso-登录与统一退出)：双应用共享 IdP 登录、RP-Initiated Logout、Back-Channel Logout 与集群共享撤销。继续作为身份客户端复用现有认证机制；公共 API、关联状态和 JWT 撤销时限在实施时补齐决策，不以本 ADR 的单 client 登录验收宣称这些能力已实现。不支持统一退出的 IdP 只能按已验证的本地退出范围报告。
