@@ -78,7 +78,7 @@ fn routes(routes: Routes) -> Routes {
 }
 ```
 
-注册集合路由和 `{id}` 成员路由前，Resource path 会去掉尾部斜杠；`nest("/posts", …)` 中的空路径会响应 `/posts` 和 `/posts/{id}`。多次调用 `only` 会保留 action 列表的交集。若出现路由冲突（包括相同路径位置上的成员参数名不是 `id`），Axum 会在注册时 panic。
+注册集合路由和 `{id}` 成员路由前，Resource path 会去掉尾部斜杠；`nest("/posts", …)` 中的空路径会响应 `/posts` 和 `/posts/{id}`。多次调用 `only` 会保留 action 列表的交集。经 `AppBuilderHttpExt::routes` 组装时，重复路由（包括相同路径位置上的成员参数名不是 `id`）会由 `build_router` 转为 `http_route_registration_failed` 启动错误；直接使用 Axum 构建 API 时仍由调用方处理路由冲突。
 
 `PageParams` 默认为 `page=1&per_page=20`；直接提取时接受 `page >= 1`、`1 <= per_page <= 100`，且 offset 不得超过 `i64::MAX`。无效值会返回包含字段级 `errors` 的 `validation_failed` API 封装。`Query<PageParams>` 只负责反序列化，不会校验这些边界。`offset()` 从 0 开始，`limit()` 返回页大小。`Paginated::new(items, params, total)` 使用类型化 `PageMeta` 输出 `{"success": true, "code": "ok", "message": "ok", "data": [...], "meta": {"page": 1, "per_page": 20, "total": 57, "total_pages": 3}, "request_id": "..."}`。
 

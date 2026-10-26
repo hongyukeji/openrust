@@ -15,6 +15,8 @@ pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 /// 框架 crate（`DatabasePlugin`、`QueuePlugin` 等）、应用模块和第三方 package 均可实现此 trait。
 /// [`build`](Self::build) 在 [`AppBuilder`] 仍可修改时同步运行，可在其中添加服务、命令和扩展。
 /// 所有插件构建完成后，[`finish`](Self::finish) 会执行，并可进行打开连接池等异步工作。
+/// 构建顺序由宿主静态组合决定；插件应在依赖服务尚未注册时返回错误。后台任务由启动该资源的
+/// 命令持有并负责停止，不存在插件自动发现、动态卸载或全局关闭阶段。
 ///
 /// ```
 /// use openrust::core::{App, AppBuilder, BoxFuture, Result, Plugin};

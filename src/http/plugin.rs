@@ -114,25 +114,38 @@ impl Plugin for HttpPlugin {
 }
 
 /// 根据所有已注册的路由构建最终 [`Router`]，并套用默认 middleware stack。
+///
+/// 通过 [`AppBuilderHttpExt::routes`] 注册的路由若在组装时 panic（例如 Axum 检测到重复路由），
+/// 此函数会将其转换为启动错误 `http_route_registration_failed`。直接调用底层 Axum 构建 API
+/// 不在此错误转换范围内。
 pub fn build_router(app: &App) -> Result<Router> {
     validate_trusted_proxy_ranges(&app.config().server.trusted_proxy_ranges)?;
-    let mut routes = Routes::new();
-    if let Some(registry) = app.extension::<RouteRegistry>() {
-        for builder in &registry.builders {
-            routes = builder(routes);
+    let mut stateful = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let mut routes = Routes::new();
+        if let Some(registry) = app.extension::<RouteRegistry>() {
+            for builder in &registry.builders {
+                routes = builder(routes);
+            }
         }
-    }
-    let mut stateful = routes
-        .into_router()
-        .fallback(|| async { Error::NotFound("route not found".into()) })
-        .method_not_allowed_fallback(|| async {
-            Error::custom_with_status(
-                StatusCode::METHOD_NOT_ALLOWED,
-                "method_not_allowed",
-                "method not allowed",
-            )
-        })
-        .with_state(app.state().clone());
+        routes
+            .into_router()
+            .fallback(|| async { Error::NotFound("route not found".into()) })
+            .method_not_allowed_fallback(|| async {
+                Error::custom_with_status(
+                    StatusCode::METHOD_NOT_ALLOWED,
+                    "method_not_allowed",
+                    "method not allowed",
+                )
+            })
+            .with_state(app.state().clone())
+    }))
+    .map_err(|_| {
+        Error::custom_with_status(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "http_route_registration_failed",
+            "HTTP route registration failed; check route paths and duplicate registrations",
+        )
+    })?;
     if let Some(layers) = app.extension::<RouterLayerRegistry>() {
         for build_layer in &layers.builders {
             stateful = build_layer(stateful);

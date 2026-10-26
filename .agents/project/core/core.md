@@ -12,8 +12,8 @@
 
 | 模块 | 内容 |
 | --- | --- |
-| `app` | `Application { type Config; fn config_namespace() -> &'static str; fn build(&mut AppBuilder) }`，默认命名空间 `APP_`；`AppBuilder`（`plugin` / `insert` / `get` / `command` / `section` / `extension_mut`，注册方法为 `&mut self` 链式，`get` 为只读）；`App`（`state` / `config` / `figment` / `commands` / `extension` / `run_command`）；`AppState`（`get` / `try_get`，按 `TypeId` 的只读注册表）；`MissingServiceError` |
-| `plugin` | `Plugin { name, build(&mut AppBuilder), finish(&App) -> BoxFuture }`；`BoxFuture` |
+| `app` | `Application { type Config; fn config_namespace() -> &'static str; fn build(&mut AppBuilder) }`，默认命名空间 `APP_`；`AppBuilder`（`plugin` / `insert` / `try_insert` / `get` / `try_get` / `command` / `try_command` / `section` / `extension_mut`；`insert` 与 `command` 允许后注册替换，`try_*` 变体拒绝重复项）；`App`（`state` / `config` / `figment` / `commands` / `extension` / `run_command`）；`AppState`（`get` / `try_get`，按 `TypeId` 的只读注册表）；section 配置解码错误保留 section/字段路径且不回显值 |
+| `plugin` | `Plugin { name, build(&mut AppBuilder), finish(&App) -> BoxFuture }`；宿主静态决定 build 顺序，依赖由后续插件在 `build` 阶段显式读取；`BoxFuture`。后台资源由启动命令负责停止，不提供自动发现、卸载或全局关闭阶段 |
 | `command` | `Command { name, about, accepts_args, run }`；额外参数默认拒绝；内置 `help`、`config show`（密钥遮蔽） |
 | `config` | `src/config/` 已有 app/api/auth/database/logger/mailer/server/signing/sms，queue 与 security 随对应 feature 开启；单一分层 `ConfigLoader` 合并默认值 → 根 `config/default.toml` / `<env>.toml` → 非生产 `.env` → 进程环境变量。默认 `APP_`、工作目录下 `config/`；`FrameworkConfig { app, server, api, log, i18n }`，其他能力通过独立 section 读取；数据库、认证、邮件旧模块路径由 re-export 保持；`NoConfig`、`load_dotenv`、`redact_secrets` |
 | `error` | `Error` 枚举（`BadRequest` / `Unauthorized` / `Forbidden` / `NotFound` / `Conflict` / `Validation` / `ValidationDetail` / `RateLimited` / `RateLimitedWithRetryAfter` / `Config` / `Custom` / `Internal`），`status()` / `code()` / `to_api_response()`；`validation_with_detail` 用于 JSON 结构错误，`custom_with_status` 承载 405/408/413/415 等稳定码，`IntoResponse` 输出 `application/json`；`ApiResponse<T>`、请求作用域 `ResponseContext`、`ValidationErrors` |
@@ -31,7 +31,7 @@
 ## 后续边界
 
 - `/ready` 依赖检查仍待实现，按 M5 可观测性契约接入。
-- 若 plugin 需要声明硬依赖，在 `build` / `finish` 的合适阶段检查并返回配置错误；现有接口没有 `register` 生命周期方法。
+- plugin 可在 `build` 阶段使用 `try_get` 检查前序依赖，并返回 `plugin_dependency_missing`；不另增 `register` 生命周期方法。
 - 公共业务流程钩子与事务前后扩展仍待落地；现有 `Plugin::build/finish` 只覆盖应用装配。worker/scheduler 当前由命令持有 supervisor 管理生命周期，不据此宣称已有通用 plugin shutdown。
 
 ## 验证

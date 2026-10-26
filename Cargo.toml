@@ -156,6 +156,10 @@ tower-sessions = { workspace = true, features = ["memory-store"] }
 tokio-stream.workspace = true
 
 [[test]]
+name = "plugin_contract"
+path = "tests/core/plugin_contract.rs"
+
+[[test]]
 name = "http_resource"
 path = "tests/http/resource.rs"
 

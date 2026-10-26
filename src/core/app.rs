@@ -65,9 +65,34 @@ impl Registry {
             .get(&TypeId::of::<T>())
             .and_then(|item| Arc::clone(item).downcast::<T>().ok())
     }
+
+    fn contains<T: Send + Sync + 'static>(&self) -> bool {
+        self.items.contains_key(&TypeId::of::<T>())
+    }
 }
 
 type Extensions = HashMap<TypeId, Box<dyn Any + Send + Sync>>;
+
+fn extract_section<T: DeserializeOwned>(figment: &Figment, key: &str) -> Result<T, ConfigError> {
+    figment.extract_inner(key).map_err(|source| {
+        let error = ConfigError::from(source);
+        match error {
+            ConfigError::Source(source) if source.missing() => ConfigError::Source(source),
+            ConfigError::Source(source) => {
+                let detail = source.to_string();
+                let detail = if detail == "configuration" {
+                    format!("invalid configuration in `{key}`")
+                } else if detail.starts_with(&format!("{key}.")) || detail == key {
+                    format!("invalid configuration: {detail}")
+                } else {
+                    format!("invalid configuration in `{key}.{detail}`")
+                };
+                ConfigError::Invalid(format!("{detail} (secret values omitted)"))
+            }
+            other => other,
+        }
+    })
+}
 
 /// 可变的应用组装阶段。插件在此添加服务、命令和 crate 专属扩展。
 pub struct AppBuilder {
@@ -99,7 +124,7 @@ impl AppBuilder {
 
     /// 提取一个配置区段，例如 `section::<DatabaseConfig>("database")`。
     pub fn section<T: DeserializeOwned>(&self, key: &str) -> Result<T, ConfigError> {
-        Ok(self.figment.extract_inner(key)?)
+        extract_section(&self.figment, key)
     }
 
     pub(crate) fn sensitive_section<T: DeserializeOwned>(
@@ -119,10 +144,26 @@ impl AppBuilder {
         self
     }
 
-    /// 注册服务，之后可通过 [`AppState::get`] 获取；每种类型只允许一个实例。
+    /// 注册或替换服务，之后可通过 [`AppState::get`] 获取。
+    ///
+    /// 同一具体类型再次调用时，后注册的值会替换先前值。插件需要拒绝冲突时使用
+    /// [`try_insert`](Self::try_insert)。
     pub fn insert<T: Send + Sync + 'static>(&mut self, service: T) -> &mut Self {
         self.services.insert(service);
         self
+    }
+
+    /// 注册服务；若相同具体类型已经注册则返回冲突错误。
+    pub fn try_insert<T: Send + Sync + 'static>(&mut self, service: T) -> Result<&mut Self> {
+        if self.services.contains::<T>() {
+            return Err(Error::custom_with_status(
+                http::StatusCode::CONFLICT,
+                "duplicate_service_registration",
+                format!("service `{}` is already registered", type_name::<T>()),
+            ));
+        }
+        self.services.insert(service);
+        Ok(self)
     }
 
     /// 查找先前插件已注册的服务。
@@ -130,10 +171,53 @@ impl AppBuilder {
         self.services.get()
     }
 
-    /// 注册运行时命令。
+    /// 获取前序插件注册的服务；服务缺失时返回依赖错误。
+    pub fn try_get<T: Send + Sync + 'static>(&self) -> Result<Arc<T>> {
+        self.get().ok_or_else(|| {
+            Error::custom_with_status(
+                http::StatusCode::INTERNAL_SERVER_ERROR,
+                "plugin_dependency_missing",
+                format!(
+                    "required plugin service `{}` is not registered",
+                    type_name::<T>()
+                ),
+            )
+        })
+    }
+
+    /// 注册或替换运行时命令；同名命令由后注册项替换。
+    ///
+    /// 插件要拒绝命令名冲突时使用 [`try_command`](Self::try_command)。
     pub fn command(&mut self, command: impl Command) -> &mut Self {
-        self.commands.push(Box::new(command));
+        let name = command.name();
+        if let Some(index) = self
+            .commands
+            .iter()
+            .position(|existing| existing.name() == name)
+        {
+            self.commands[index] = Box::new(command);
+        } else {
+            self.commands.push(Box::new(command));
+        }
         self
+    }
+
+    /// 注册运行时命令；无效命令名或同名命令会返回错误。
+    pub fn try_command(&mut self, command: impl Command) -> Result<&mut Self> {
+        validate_command_name(command.name())?;
+        if self
+            .commands
+            .iter()
+            .any(|existing| existing.name() == command.name())
+        {
+            return Err(Error::custom_with_status(
+                http::StatusCode::CONFLICT,
+                "duplicate_command_registration",
+                format!("command `{}` is already registered", command.name()),
+            ));
+        }
+        self.commands.push(Box::new(command));
+        Ok(self)
     }
 
     /// 可变访问 crate 专属的扩展容器；首次访问时创建。
@@ -173,6 +257,20 @@ impl AppBuilder {
             extensions: self.extensions,
         }
     }
+}
+
+fn validate_command_name(name: &str) -> Result<()> {
+    if name.is_empty()
+        || name.trim() != name
+        || name.split_whitespace().collect::<Vec<_>>().join(" ") != name
+    {
+        return Err(Error::custom_with_status(
+            http::StatusCode::INTERNAL_SERVER_ERROR,
+            "invalid_command_name",
+            "command names must contain non-empty words separated by single spaces",
+        ));
+    }
+    Ok(())
 }
 
 struct StateInner {
@@ -239,7 +337,7 @@ impl App {
 
     /// 提取一个配置区段。
     pub fn section<T: DeserializeOwned>(&self, key: &str) -> Result<T, ConfigError> {
-        Ok(self.figment.extract_inner(key)?)
+        extract_section(&self.figment, key)
     }
 
     /// 按注册顺序排列的命令。

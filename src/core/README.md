@@ -5,8 +5,8 @@ OpenRust 框架的应用内核。
 其他 OpenRust package 所依赖的核心契约包括：
 
 - [`Application`]：项目实现一次该 trait，用于描述应用的组装方式。
-- [`AppBuilder`] / [`App`] / [`AppState`]：编译期组装的应用与类型化服务注册表。Handler 和命令显式获取所需服务，不使用运行时容器或反射。
-- [`Plugin`]：框架能力、应用模块和第三方 package 的统一扩展点，可在应用装配完成时注册服务、命令和钩子。
+- [`AppBuilder`] / [`App`] / [`AppState`]：编译期组装的应用与类型化服务注册表。Handler 和命令显式获取所需服务，不使用运行时容器或反射。`insert` / `command` 的同类重复注册由后注册项替换；需要拒绝冲突时使用 `try_insert` / `try_command`。
+- [`Plugin`]：框架能力、应用模块和第三方 package 的统一扩展点。宿主按静态顺序运行 `build` 并异步调用 `finish`；依赖插件可用 `try_get` 检查前序服务。后台任务由启动它的命令管理，不提供自动发现、卸载或全局关闭阶段。
 - [`Command`]：应用二进制对外提供的运行时命令（`serve`、`migrate`、`queue work` 等）。命令默认拒绝额外参数；接受参数的命令须实现 `accepts_args`。
 - [`Error`] / [`Result`] / [`ApiResponse<T>`] / [`PageMeta`]：统一错误类型、JSON 响应封装和类型化分页元数据。
 - [`RateLimiter`] / [`RateLimitStore`]：固定窗口配额服务契约。存储故障向上传播；超限请求返回 429 和 `Retry-After`；每种实现都需说明共享范围与原子性边界。
