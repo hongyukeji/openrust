@@ -2,10 +2,20 @@
 
 use std::collections::BTreeMap;
 use std::future::Future;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
+use chrono::{DateTime, Datelike, NaiveDate, TimeZone, Timelike};
+use icu_datetime::DateTimeFormatter;
+use icu_datetime::fieldsets::YMD;
+use icu_datetime::input::{Date as IcuDate, DateTime as IcuDateTime, Time as IcuTime};
+use icu_decimal::DecimalFormatter;
+use icu_decimal::input::Decimal;
+use icu_decimal::options::DecimalFormatterOptions;
+use icu_locale::Locale as IcuLocale;
+use icu_plurals::{PluralOperands, PluralRules};
 use serde::{Deserialize, Serialize};
 
 use crate::config::ConfigError;
@@ -55,10 +65,109 @@ impl From<Locale> for String {
 /// 消息模板使用的具名字符串参数。
 pub type MessageArgs = BTreeMap<String, String>;
 
+/// ICU/CLDR 计数复数类别。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PluralCategory {
+    /// 某些语言用于零。
+    Zero,
+    /// 语言规则定义的单数类别。
+    One,
+    /// 语言规则定义的双数类别。
+    Two,
+    /// 波兰语、俄语等语言的少数类别。
+    Few,
+    /// 某些语言用于大量或特定数值的类别。
+    Many,
+    /// 必须提供的通用回退类别。
+    Other,
+}
+
+/// 日期或日期时间的地区显示长度。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DateFormatStyle {
+    /// 紧凑数值格式。
+    Short,
+    /// 常用格式。
+    Medium,
+    /// 带完整月份名称的格式。
+    Long,
+}
+
+/// 日期与时间合并显示的地区格式长度。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DateTimeFormatStyle {
+    /// 紧凑数值格式。
+    Short,
+    /// 常用格式。
+    Medium,
+    /// 带完整月份名称的格式。
+    Long,
+}
+
+/// 数字或日期地区格式化失败。
+#[derive(Debug, thiserror::Error)]
+pub enum I18nFormatError {
+    /// 输入不是有效的精确十进制数。
+    #[error("invalid decimal value `{value}`")]
+    InvalidNumber {
+        /// 无法解析的十进制输入。
+        value: String,
+    },
+    /// locale 数据或日期字段无法由格式化器处理。
+    #[error("cannot format locale `{locale}`: {reason}")]
+    Format {
+        /// 请求的 locale。
+        locale: String,
+        /// 数据或日期构造错误。
+        reason: String,
+    },
+}
+
+#[derive(Debug, Clone)]
+enum CatalogMessage {
+    Text(String),
+    Plural {
+        argument: String,
+        forms: BTreeMap<PluralCategory, String>,
+    },
+    Select {
+        argument: String,
+        cases: BTreeMap<String, String>,
+    },
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum RawMessage {
+    Text(String),
+    Structured(StructuredMessage),
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct StructuredMessage {
+    plural: Option<RawPluralMessage>,
+    select: Option<RawSelectMessage>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawPluralMessage {
+    argument: String,
+    forms: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawSelectMessage {
+    argument: String,
+    cases: BTreeMap<String, String>,
+}
+
 /// 不可变的 locale 到消息映射。应用资源按 key 覆盖内置消息。
 #[derive(Debug, Clone)]
 pub struct MessageCatalog {
-    messages: BTreeMap<Locale, BTreeMap<String, String>>,
+    messages: BTreeMap<Locale, BTreeMap<String, CatalogMessage>>,
 }
 
 impl Default for MessageCatalog {
@@ -78,18 +187,25 @@ impl MessageCatalog {
         Self::default()
     }
 
-    /// 加载由 `message_key: template` 条目组成的 JSON 对象，并将其合并到 `locale`。
+    /// 合并 `locale` 的 JSON 消息资源；普通字符串兼容原模板，`plural` 和 `select` 使用有限分支对象。
     pub fn merge_json(
         &mut self,
         locale: impl AsRef<str>,
         json: &str,
     ) -> std::result::Result<(), ConfigError> {
         let locale = Locale::new(locale)?;
-        let messages: BTreeMap<String, String> = serde_json::from_str(json).map_err(|error| {
-            ConfigError::Invalid(format!(
-                "i18n.{locale}: invalid JSON message resource: {error}"
-            ))
-        })?;
+        let raw_messages: BTreeMap<String, RawMessage> =
+            serde_json::from_str(json).map_err(|error| {
+                ConfigError::Invalid(format!(
+                    "i18n.{locale}: invalid JSON message resource: {error}"
+                ))
+            })?;
+        let mut messages = BTreeMap::new();
+        for (key, raw_message) in raw_messages {
+            let message = CatalogMessage::try_from(raw_message)
+                .map_err(|error| ConfigError::Invalid(format!("i18n.{locale}.{key}: {error}")))?;
+            messages.insert(key, message);
+        }
         self.messages.entry(locale).or_default().extend(messages);
         Ok(())
     }
@@ -105,7 +221,50 @@ impl MessageCatalog {
         self.messages
             .entry(locale)
             .or_default()
-            .insert(key.into(), template.into());
+            .insert(key.into(), CatalogMessage::Text(template.into()));
+        Ok(())
+    }
+
+    /// 添加按 ICU/CLDR 计数规则选择的消息；`Other` 是必需回退分支。
+    pub fn insert_plural(
+        &mut self,
+        locale: impl AsRef<str>,
+        key: impl Into<String>,
+        argument: impl Into<String>,
+        forms: BTreeMap<PluralCategory, String>,
+    ) -> std::result::Result<(), ConfigError> {
+        let locale = Locale::new(locale)?;
+        let argument = argument.into();
+        validate_argument(&argument)?;
+        validate_templates(forms.values(), forms.contains_key(&PluralCategory::Other))?;
+        self.messages
+            .entry(locale)
+            .or_default()
+            .insert(key.into(), CatalogMessage::Plural { argument, forms });
+        Ok(())
+    }
+
+    /// 添加有限值选择消息；`other` 是必需回退分支。
+    pub fn insert_select(
+        &mut self,
+        locale: impl AsRef<str>,
+        key: impl Into<String>,
+        argument: impl Into<String>,
+        cases: BTreeMap<String, String>,
+    ) -> std::result::Result<(), ConfigError> {
+        let locale = Locale::new(locale)?;
+        let argument = argument.into();
+        validate_argument(&argument)?;
+        validate_templates(cases.values(), cases.contains_key("other"))?;
+        if cases.keys().any(|case| case.is_empty() || case.len() > 64) {
+            return Err(ConfigError::Invalid(
+                "i18n select cases must use non-empty keys up to 64 bytes".to_owned(),
+            ));
+        }
+        self.messages
+            .entry(locale)
+            .or_default()
+            .insert(key.into(), CatalogMessage::Select { argument, cases });
         Ok(())
     }
 
@@ -114,19 +273,16 @@ impl MessageCatalog {
         self.messages.keys()
     }
 
-    fn template(&self, locale: &Locale, key: &str) -> Option<&str> {
-        let localized = self
-            .messages
-            .get(locale)
-            .and_then(|messages| messages.get(key));
-        if localized.is_some() {
-            return localized.map(String::as_str);
-        }
+    fn message(&self, locale: &Locale, key: &str) -> Option<(&Locale, &CatalogMessage)> {
         self.messages
-            .iter()
-            .find(|(tag, _)| tag.language() == locale.language())
-            .and_then(|(_, messages)| messages.get(key))
-            .map(String::as_str)
+            .get_key_value(locale)
+            .and_then(|(tag, messages)| messages.get(key).map(|message| (tag, message)))
+            .or_else(|| {
+                self.messages
+                    .iter()
+                    .find(|(tag, _)| tag.language() == locale.language())
+                    .and_then(|(tag, messages)| messages.get(key).map(|message| (tag, message)))
+            })
     }
 
     fn supports(&self, locale: &Locale) -> bool {
@@ -136,10 +292,122 @@ impl MessageCatalog {
     }
 }
 
-fn messages(entries: &[(&str, &str)]) -> BTreeMap<String, String> {
+impl TryFrom<RawMessage> for CatalogMessage {
+    type Error = String;
+
+    fn try_from(raw: RawMessage) -> std::result::Result<Self, Self::Error> {
+        match raw {
+            RawMessage::Text(text) => Ok(Self::Text(text)),
+            RawMessage::Structured(StructuredMessage {
+                plural: Some(plural),
+                select: None,
+            }) => {
+                validate_argument(&plural.argument).map_err(|error| error.to_string())?;
+                let mut forms = BTreeMap::new();
+                for (name, template) in plural.forms {
+                    let category = parse_plural_category(&name)
+                        .ok_or_else(|| format!("unsupported plural category `{name}`"))?;
+                    if forms.insert(category, template).is_some() {
+                        return Err(format!("duplicate plural category `{name}`"));
+                    }
+                }
+                validate_templates(forms.values(), forms.contains_key(&PluralCategory::Other))
+                    .map_err(|error| error.to_string())?;
+                Ok(Self::Plural {
+                    argument: plural.argument,
+                    forms,
+                })
+            }
+            RawMessage::Structured(StructuredMessage {
+                plural: None,
+                select: Some(select),
+            }) => {
+                validate_argument(&select.argument).map_err(|error| error.to_string())?;
+                validate_templates(select.cases.values(), select.cases.contains_key("other"))
+                    .map_err(|error| error.to_string())?;
+                if select
+                    .cases
+                    .keys()
+                    .any(|case| case.is_empty() || case.len() > 64)
+                {
+                    return Err("select cases must use non-empty keys up to 64 bytes".to_owned());
+                }
+                Ok(Self::Select {
+                    argument: select.argument,
+                    cases: select.cases,
+                })
+            }
+            RawMessage::Structured(_) => Err(
+                "a structured message must contain exactly one of `plural` or `select`".to_owned(),
+            ),
+        }
+    }
+}
+
+fn validate_argument(argument: &str) -> std::result::Result<(), ConfigError> {
+    if argument.is_empty()
+        || !argument
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+    {
+        return Err(ConfigError::Invalid(
+            "i18n argument names must contain only ASCII letters, digits, and underscores"
+                .to_owned(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_templates<'a>(
+    templates: impl Iterator<Item = &'a String>,
+    has_other: bool,
+) -> std::result::Result<(), ConfigError> {
+    let templates = templates.collect::<Vec<_>>();
+    if !has_other || templates.is_empty() || templates.len() > 32 {
+        return Err(ConfigError::Invalid(
+            "i18n message branches require `other` and must contain 1 to 32 entries".to_owned(),
+        ));
+    }
+    if templates.iter().any(|template| template.len() > 16 * 1024) {
+        return Err(ConfigError::Invalid(
+            "i18n message branches must not exceed 16384 bytes".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
+fn parse_plural_category(value: &str) -> Option<PluralCategory> {
+    match value {
+        "zero" => Some(PluralCategory::Zero),
+        "one" => Some(PluralCategory::One),
+        "two" => Some(PluralCategory::Two),
+        "few" => Some(PluralCategory::Few),
+        "many" => Some(PluralCategory::Many),
+        "other" => Some(PluralCategory::Other),
+        _ => None,
+    }
+}
+
+fn plural_category(value: icu_plurals::PluralCategory) -> PluralCategory {
+    match value {
+        icu_plurals::PluralCategory::Zero => PluralCategory::Zero,
+        icu_plurals::PluralCategory::One => PluralCategory::One,
+        icu_plurals::PluralCategory::Two => PluralCategory::Two,
+        icu_plurals::PluralCategory::Few => PluralCategory::Few,
+        icu_plurals::PluralCategory::Many => PluralCategory::Many,
+        icu_plurals::PluralCategory::Other => PluralCategory::Other,
+    }
+}
+
+fn messages(entries: &[(&str, &str)]) -> BTreeMap<String, CatalogMessage> {
     entries
         .iter()
-        .map(|(key, message)| ((*key).to_owned(), (*message).to_owned()))
+        .map(|(key, message)| {
+            (
+                (*key).to_owned(),
+                CatalogMessage::Text((*message).to_owned()),
+            )
+        })
         .collect()
 }
 
@@ -235,14 +503,114 @@ impl I18n {
 
     /// 使用所选 locale 和已配置的回退规则解析 key，然后替换 `{name}` 参数。
     pub fn translate(&self, locale: &Locale, key: &str, args: &MessageArgs) -> String {
-        let template = self.catalog.template(locale, key).or_else(|| {
+        let message = self.catalog.message(locale, key).or_else(|| {
             self.catalog
                 .messages
-                .get(&self.config.fallback_locale)?
+                .get_key_value(&self.config.fallback_locale)?
+                .1
                 .get(key)
-                .map(String::as_str)
+                .map(|message| (&self.config.fallback_locale, message))
         });
-        template.map_or_else(|| key.to_owned(), |value| interpolate(value, args))
+        message.map_or_else(
+            || key.to_owned(),
+            |(message_locale, message)| match message {
+                CatalogMessage::Text(template) => interpolate(template, args),
+                CatalogMessage::Select { argument, cases } => {
+                    let selected = args
+                        .get(argument)
+                        .and_then(|value| cases.get(value))
+                        .or_else(|| cases.get("other"));
+                    selected.map_or_else(|| key.to_owned(), |template| interpolate(template, args))
+                }
+                CatalogMessage::Plural { argument, forms } => {
+                    let category = args
+                        .get(argument)
+                        .and_then(|value| Decimal::from_str(value).ok())
+                        .map(|value| PluralOperands::from(&value))
+                        .and_then(|value| {
+                            let locale = IcuLocale::from_str(message_locale.as_str()).ok()?;
+                            let rules = PluralRules::try_new_cardinal(locale.into()).ok()?;
+                            Some(plural_category(rules.category_for(value)))
+                        })
+                        .unwrap_or(PluralCategory::Other);
+                    let template = forms
+                        .get(&category)
+                        .or_else(|| forms.get(&PluralCategory::Other));
+                    template.map_or_else(|| key.to_owned(), |template| interpolate(template, args))
+                }
+            },
+        )
+    }
+
+    /// 按 locale 格式化精确十进制字符串，不经过浮点数或舍入。
+    pub fn format_number(
+        &self,
+        locale: &Locale,
+        decimal: &str,
+    ) -> std::result::Result<String, I18nFormatError> {
+        let value = Decimal::from_str(decimal).map_err(|_| I18nFormatError::InvalidNumber {
+            value: decimal.to_owned(),
+        })?;
+        let preferences = icu_locale(locale)?;
+        let formatter =
+            DecimalFormatter::try_new(preferences.into(), DecimalFormatterOptions::default())
+                .map_err(|error| format_error(locale, error))?;
+        Ok(formatter.format(&value).to_string())
+    }
+
+    /// 按 locale 格式化公历日期；日期必须已按应用选择的时区确定。
+    pub fn format_date(
+        &self,
+        locale: &Locale,
+        date: NaiveDate,
+        style: DateFormatStyle,
+    ) -> std::result::Result<String, I18nFormatError> {
+        let month = u8::try_from(date.month()).map_err(|error| format_error(locale, error))?;
+        let day = u8::try_from(date.day()).map_err(|error| format_error(locale, error))?;
+        let date = IcuDate::try_new_iso(date.year(), month, day)
+            .map_err(|error| format_error(locale, error))?;
+        let preferences = icu_locale(locale)?;
+        let field_set = match style {
+            DateFormatStyle::Short => YMD::short(),
+            DateFormatStyle::Medium => YMD::medium(),
+            DateFormatStyle::Long => YMD::long(),
+        };
+        let formatter = DateTimeFormatter::try_new(preferences.into(), field_set)
+            .map_err(|error| format_error(locale, error))?;
+        Ok(formatter.format(&date).to_string())
+    }
+
+    /// 按 locale 格式化日期时间的本地墙上时间。
+    ///
+    /// `datetime` 必须已经转换到调用方选择的时区；方法不会推断进程默认时区，
+    /// 也不会把该时间重新转换为其他时区。
+    pub fn format_datetime<Tz: TimeZone>(
+        &self,
+        locale: &Locale,
+        datetime: &DateTime<Tz>,
+        style: DateTimeFormatStyle,
+    ) -> std::result::Result<String, I18nFormatError> {
+        let month = u8::try_from(datetime.month()).map_err(|error| format_error(locale, error))?;
+        let day = u8::try_from(datetime.day()).map_err(|error| format_error(locale, error))?;
+        let date = IcuDate::try_new_iso(datetime.year(), month, day)
+            .map_err(|error| format_error(locale, error))?;
+        let hour = u8::try_from(datetime.hour()).map_err(|error| format_error(locale, error))?;
+        let minute =
+            u8::try_from(datetime.minute()).map_err(|error| format_error(locale, error))?;
+        let second =
+            u8::try_from(datetime.second()).map_err(|error| format_error(locale, error))?;
+        let time = IcuTime::try_new(hour, minute, second, datetime.nanosecond())
+            .map_err(|error| format_error(locale, error))?;
+        let datetime = IcuDateTime { date, time };
+        let preferences = icu_locale(locale)?;
+        let field_set = match style {
+            DateTimeFormatStyle::Short => YMD::short().with_time_hm(),
+            DateTimeFormatStyle::Medium => YMD::medium().with_time_hm(),
+            DateTimeFormatStyle::Long => YMD::long().with_time_hm(),
+        };
+        let formatter = DateTimeFormatter::try_new(preferences.into(), field_set)
+            .map_err(|error| format_error(locale, error))?;
+        Ok(formatter.format(&datetime).to_string())
     }
 
     /// 使用显式 locale 执行 future，并覆盖从请求头中选择的 locale。
@@ -260,6 +628,17 @@ impl I18n {
 
     fn locale_for_request(&self, accept_language: Option<&str>) -> Locale {
         self.select(accept_language)
+    }
+}
+
+fn icu_locale(locale: &Locale) -> std::result::Result<IcuLocale, I18nFormatError> {
+    IcuLocale::from_str(locale.as_str()).map_err(|error| format_error(locale, error))
+}
+
+fn format_error(locale: &Locale, error: impl std::fmt::Display) -> I18nFormatError {
+    I18nFormatError::Format {
+        locale: locale.to_string(),
+        reason: error.to_string(),
     }
 }
 
@@ -560,6 +939,180 @@ mod tests {
         let mut catalog = MessageCatalog::new();
         assert!(catalog.merge_json("en", "[]").is_err());
         assert!(catalog.merge_json("not_a_tag", "{}").is_err());
+    }
+
+    #[test]
+    fn formats_plural_and_select_messages_from_validated_json() -> Result<()> {
+        let mut catalog = MessageCatalog::new();
+        catalog.merge_json(
+            "en",
+            r#"{
+                "items": {"plural": {"argument": "count", "forms": {
+                    "one": "{count} item", "other": "{count} items"
+                } }},
+                "choice": {"select": {"argument": "role", "cases": {
+                    "admin": "Administrator", "other": "Member"
+                } }}
+            }"#,
+        )?;
+        catalog.merge_json(
+            "pl",
+            r#"{"files": {"plural": {"argument": "count", "forms": {
+                "one": "{count} plik", "few": "{count} pliki", "many": "{count} plików", "other": "{count} pliku"
+            }}}}"#,
+        )?;
+        let service = I18n::new(I18nConfig::default(), catalog)?;
+        let args = |count: &str| BTreeMap::from([("count".to_owned(), count.to_owned())]);
+        assert_eq!(
+            service.translate(&Locale::new("en")?, "items", &args("1")),
+            "1 item"
+        );
+        assert_eq!(
+            service.translate(&Locale::new("zh-CN")?, "items", &args("1")),
+            "1 item"
+        );
+        assert_eq!(
+            service.translate(&Locale::new("en")?, "items", &args("0")),
+            "0 items"
+        );
+        assert_eq!(
+            service.translate(&Locale::new("en")?, "items", &args("1.5")),
+            "1.5 items"
+        );
+        assert_eq!(
+            service.translate(&Locale::new("en")?, "items", &args("not-a-number")),
+            "not-a-number items"
+        );
+        assert_eq!(
+            service.translate(&Locale::new("en")?, "items", &BTreeMap::new()),
+            "{count} items"
+        );
+        assert_eq!(
+            service.translate(&Locale::new("pl")?, "files", &args("2")),
+            "2 pliki"
+        );
+        assert_eq!(
+            service.translate(&Locale::new("pl")?, "files", &args("5")),
+            "5 plików"
+        );
+        assert_eq!(
+            service.translate(
+                &Locale::new("en")?,
+                "choice",
+                &BTreeMap::from([("role".to_owned(), "admin".to_owned())])
+            ),
+            "Administrator"
+        );
+        assert_eq!(
+            service.translate(&Locale::new("en")?, "choice", &BTreeMap::new()),
+            "Member"
+        );
+        assert_eq!(
+            service.translate(
+                &Locale::new("en")?,
+                "choice",
+                &BTreeMap::from([("role".to_owned(), "viewer".to_owned())])
+            ),
+            "Member"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_invalid_structured_message_resources_atomically() -> Result<()> {
+        let mut catalog = MessageCatalog::new();
+        assert!(
+            catalog
+                .merge_json(
+                    "en",
+                    r#"{"good":"ok","bad":{"plural":{"argument":"n","forms":{"one":"one"}}}}"#
+                )
+                .is_err()
+        );
+        assert!(!catalog.messages[&Locale::new("en")?].contains_key("good"));
+        assert!(
+            catalog
+                .merge_json(
+                    "en",
+                    r#"{"bad":{"select":{"argument":"","cases":{"other":"x"}}}}"#
+                )
+                .is_err()
+        );
+        assert!(
+            catalog
+                .merge_json(
+                    "en",
+                    r#"{"bad":{"plural":{"argument":"n","forms":{"unknown":"x","other":"y"}}}}"#
+                )
+                .is_err()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn formats_decimal_and_dates_with_explicit_locale_and_timezone() -> Result<()> {
+        use chrono::{FixedOffset, NaiveDate, TimeZone};
+
+        let service = I18n::new(I18nConfig::default(), MessageCatalog::new())?;
+        let en = Locale::new("en")?;
+        let zh = Locale::new("zh-CN")?;
+        let pl = Locale::new("pl")?;
+        assert_eq!(
+            service
+                .format_number(&en, "1234567.50")
+                .map_err(Error::internal)?,
+            "1,234,567.50"
+        );
+        assert_eq!(
+            service
+                .format_number(&zh, "1234567.50")
+                .map_err(Error::internal)?,
+            "1,234,567.50"
+        );
+        assert_eq!(
+            service
+                .format_number(&pl, "1234567.50")
+                .map_err(Error::internal)?,
+            "1 234 567,50"
+        );
+        assert!(service.format_number(&en, "1.2.3").is_err());
+        let date = NaiveDate::from_ymd_opt(2024, 2, 29)
+            .ok_or_else(|| Error::internal(std::io::Error::other("invalid test date")))?;
+        let utc = FixedOffset::east_opt(0)
+            .ok_or_else(|| Error::internal(std::io::Error::other("invalid test offset")))?;
+        let plus_eight = FixedOffset::east_opt(8 * 60 * 60)
+            .ok_or_else(|| Error::internal(std::io::Error::other("invalid test offset")))?;
+        let instant = utc
+            .with_ymd_and_hms(2024, 2, 28, 20, 30, 0)
+            .single()
+            .ok_or_else(|| Error::internal(std::io::Error::other("invalid test instant")))?;
+        let local = instant.with_timezone(&plus_eight);
+        assert_ne!(
+            service
+                .format_date(&en, instant.date_naive(), DateFormatStyle::Long)
+                .map_err(Error::internal)?,
+            service
+                .format_date(&en, local.date_naive(), DateFormatStyle::Long)
+                .map_err(Error::internal)?
+        );
+        assert_ne!(
+            service
+                .format_datetime(&en, &instant, DateTimeFormatStyle::Medium)
+                .map_err(Error::internal)?,
+            service
+                .format_datetime(&en, &local, DateTimeFormatStyle::Medium)
+                .map_err(Error::internal)?
+        );
+        assert_ne!(
+            service
+                .format_date(&en, date, DateFormatStyle::Long)
+                .map_err(Error::internal)?,
+            service
+                .format_date(&zh, date, DateFormatStyle::Long)
+                .map_err(Error::internal)?
+        );
+        assert!(service.format_number(&en, "not-a-number").is_err());
+        Ok(())
     }
 
     #[test]

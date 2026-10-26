@@ -67,6 +67,10 @@ sea-orm-migration = { version = "2.0.4", default-features = false, features = ["
 sha2 = "0.10"
 subtle = "2.6"
 chrono = { version = "0.4", features = ["serde"] }
+icu_datetime = { version = "~2.3.0", default-features = false, features = ["compiled_data"] }
+icu_decimal = { version = "~2.3.0", default-features = false, features = ["compiled_data"] }
+icu_locale = { version = "~2.3.0", default-features = false, features = ["compiled_data"] }
+icu_plurals = { version = "~2.3.0", default-features = false, features = ["compiled_data"] }
 chrono-tz = "0.10.4"
 cron-parser = "0.12"
 uuid = { version = "1", features = ["v7", "serde"] }
@@ -108,9 +112,13 @@ axum-core.workspace = true
 argon2 = { workspace = true, optional = true }
 async-trait.workspace = true
 base64 = { workspace = true, optional = true }
-chrono = { workspace = true, optional = true }
+chrono.workspace = true
 chrono-tz = { workspace = true, optional = true }
 cron-parser = { workspace = true, optional = true }
+icu_datetime.workspace = true
+icu_decimal.workspace = true
+icu_locale.workspace = true
+icu_plurals.workspace = true
 dotenvy.workspace = true
 figment.workspace = true
 getrandom.workspace = true
@@ -165,14 +173,13 @@ db-uuid = ["dep:uuid", "sea-orm/with-uuid", "sea-orm-migration/with-uuid"]
 auth = [
     "dep:argon2",
     "dep:base64",
-    "dep:chrono",
     "dep:jsonwebtoken",
     "dep:subtle",
     "dep:time",
     "dep:tower-sessions",
     "signing",
 ]
-queue = ["dep:chrono", "dep:chrono-tz", "dep:cron-parser"]
+queue = ["dep:chrono-tz", "dep:cron-parser"]
 signing = ["dep:base64", "dep:jsonwebtoken"]
 mail-smtp = ["lettre/smtp-transport", "lettre/tokio1-rustls-tls"]
 http-client = ["dep:reqwest"]

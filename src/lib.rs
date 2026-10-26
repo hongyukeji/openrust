@@ -78,7 +78,8 @@ pub mod prelude {
         Query, Resource, ResourceActions, Routes, Validated,
     };
     pub use crate::i18n::{
-        I18n, I18nConfig, I18nPlugin, Locale, MessageArgs, MessageCatalog, RequestLocale,
+        DateFormatStyle, DateTimeFormatStyle, I18n, I18nConfig, I18nFormatError, I18nPlugin,
+        Locale, MessageArgs, MessageCatalog, PluralCategory, RequestLocale,
     };
     pub use crate::mail::{Email, LocalizedEmail, MailConfig, Mailer, MailerPlugin};
     #[cfg(feature = "queue")]

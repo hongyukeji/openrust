@@ -24,7 +24,7 @@ cargo test -p server --features auth --test auth
 
 API 响应使用 `ApiResponse<T>` JSON envelope；健康状态位于 `data.status`。`[api] http_status` 默认 `always_ok`，可用 `APP_API__HTTP_STATUS=semantic` 启用语义状态码。响应正文的 `request_id` 与 `x-request-id` 一致。
 
-`[i18n]` 中的 `default_locale` 与 `fallback_locale` 设置默认语言和回退。请求可传 `Accept-Language: zh-CN`；应用可通过 `I18nPlugin` 注册 JSON catalog，并在处理器中注入 `RequestLocale`。
+`[i18n]` 中的 `default_locale` 与 `fallback_locale` 设置默认语言和回退。请求可传 `Accept-Language: zh-CN`；应用可通过 `I18nPlugin` 注册 JSON catalog，并在处理器中注入 `RequestLocale`。普通 `{name}` 文本保持兼容；计数消息使用带 `plural` 的对象，有限选项使用 `select` 对象，两者都要求 `other` 回退分支。应用可用 `I18n::format_number(&locale, "1234.50")` 格式化精确小数；格式化日期时间前，调用方应先把 Chrono 值转换到明确的业务时区。
 
 默认邮件与短信驱动只记录经过脱敏的日志内容；生产环境拒绝使用日志驱动。`sms-twilio` feature 启用 Twilio adapter；SMTP 本机 Mailpit 验收步骤见 `src/mail/README.md`。启用 `encryption` 可注册 `EncryptionPlugin`；密钥应通过受保护的环境变量或 secret store 提供，不要提交真实密钥。
 

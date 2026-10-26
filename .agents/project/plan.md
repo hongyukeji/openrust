@@ -12,7 +12,7 @@
 
 ## 执行校准
 
-**[ADR-039](decisions/adr-039-source-workspace-distribution.md) 的源码 workspace、包命名、生成器、应用启动/配置隔离和双库验收已完成并提交；C1–C3 中文化亦已完成。M3/M4 认证与事务流程扩展已按 ADR-041 完成双库验证并提交；ADR-042 共享锁与请求幂等已完成 PostgreSQL/MySQL 实际验收。Worker 租约/停机修正与 F1 日历调度已通过双库专项；当前按 [todo.md](todo.md) 推进 F2 国际化表达与地区格式化。**
+**[ADR-039](decisions/adr-039-source-workspace-distribution.md) 的源码 workspace、包命名、生成器、应用启动/配置隔离和双库验收已完成并提交；C1–C3 中文化亦已完成。M3/M4 认证与事务流程扩展已按 ADR-041 完成双库验证并提交；ADR-042 共享锁与请求幂等已完成 PostgreSQL/MySQL 实际验收。Worker 租约/停机修正与 F1 日历调度已通过双库专项；F2 国际化表达与地区格式化现已完成代码、workspace 门禁和干净源码生成验收；当前按 [todo.md](todo.md) 推进 F3 安全邮件模板。**
 
 1. 目录收尾、M3 Mailer/Policy 生成器、公开 HTTP 路由限流及数据输出/查询边界、M4 类型化事件/queued listener 和 ADR-039 源码交付已完成；后续工作按 `todo.md` 当前优先级推进。
 2. 目录和内部 package 统一使用中性职责名，ADR-039 已完成；已完成目录迁移不重做。框架在 `src/`；CLI、proc-macro、测试工具保留独立 package 的技术边界，应用约定 `apps/` 保留；`apps/server` 继续承担集成宿主职责。见 [ADR-021](decisions/adr-021-loco-style-module-layout.md)。

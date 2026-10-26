@@ -1,6 +1,6 @@
 # ADR-032：请求级国际化
 
-- 状态：Accepted（请求隔离与简单插值已实现；V1 复数、选择与地区格式化补强待交付）
+- 状态：Accepted（请求隔离、简单插值、ICU/CLDR 复数与选择、数字/日期格式化均已实现）
 - 日期：2026-10-26
 
 ## 背景
@@ -9,10 +9,10 @@ v1 要求框架错误、验证信息与邮件/短信模板能够按请求语言�
 
 ## 决策
 
-1. 国际化能力属于根 package 的 `openrust::i18n`，由显式 `I18nPlugin` 注册；不新增空 crate。当前基础实现未增加第三方运行时依赖；V1 补强优先复用成熟规则与语言数据组件，具体选择及依赖成本在实施 Spec 确定。
-2. 当前消息资源使用受校验的 JSON 对象：一级键为 locale tag，二级键为稳定消息 key，值为 UTF-8 模板字符串。框架内置 `en` 与 `zh-CN`；应用可从文件、嵌入资源或代码提供额外 JSON，并通过同一个 `MessageCatalog` API 合并或覆盖资源。V1 分支资源扩展沿用同一 catalog/locale 体系，格式与兼容方案在实施 Spec 定稿。
-3. 当前基础模板支持 `{name}` 参数替换，不执行表达式、函数或 HTML 转义。缺参保留原占位符；未知 key 原样返回 key，避免静默丢失诊断信息。新增复数/选择的参数、分支与错误须明确校验，不自创可执行表达式语言；既有简单插值保持兼容或提供明确迁移。
-4. 选择优先级为显式 `RequestLocale` 覆盖、`Accept-Language` 中首个受支持语言、应用默认语言、配置回退语言。语言标签按 BCP 47 常见语言/地区形式规范化；不支持的标签跳过。V1 必须补齐计数复数、有限选择与地区数字/日期格式化，详细契约见 [补齐计划](../plans/v1-foundation-completion.md)，不将当前基础实现作为完整 V1 验收。
+1. 国际化能力属于根 package 的 `openrust::i18n`，由显式 `I18nPlugin` 注册；不新增空 crate。计数规则使用 ICU4X `icu_plurals`，数字/日期使用 `icu_decimal` 与 `icu_datetime`，locale 解析使用 `icu_locale`；依赖 2.3.x 稳定组件及编译数据，避免运行时网络或外部数据服务。只启用所需组件，数据/二进制大小作为依赖成本记录。
+2. 消息资源使用 JSON 对象：一级键为 locale tag，二级键为稳定消息 key；纯字符串值维持原模板行为，对象值只能声明 `plural` 或 `select` 之一。`plural` 用 CLDR 类别键，`select` 用有限字符串键；二者必须有 `other`，无效参数、未知分支、缺回退或过多分支在资源加载时拒绝。框架内置 `en` 与 `zh-CN`；应用仍可从文件、嵌入资源或代码提供额外 JSON，并通过同一个 `MessageCatalog` 合并或覆盖。
+3. 普通模板继续支持 `{name}` 参数替换，不执行表达式、函数或 HTML 转义。缺失 key 原样返回；structured message 缺少选择参数或无效 plural 数值时选 `other`，未提供的 `{name}` 占位符保留原文。plural 类别按实际命中的消息资源 locale 计算，包括 configured fallback，避免请求 locale 与 fallback 资源语言不一致。新增 typed `insert_plural` / `insert_select` 与 JSON 资源共用相同验证，不创建第二套模板语言。
+4. 选择优先级为显式 `RequestLocale` 覆盖、`Accept-Language` 中首个受支持语言、应用默认语言、配置回退语言。语言标签按 BCP 47 常见语言/地区形式规范化；不支持的标签跳过。`format_number` 接收精确十进制文本，不接受浮点近似、不做舍入；`format_date` 使用调用方确定的公历日期，`format_datetime` 使用 Chrono 值的本地字段，调用方须先显式转换到业务时区。格式化不改变 API 机器字段、数据库 UTC 时间或错误码。
 5. `I18n` 是不可变、可并发共享的应用服务；每个请求的 `RequestLocale` 进入请求扩展与现有 response task-local context。提供 `RequestLocale` 提取器和 `t(key, args)` 入口；业务可在认证后用中间件注入用户偏好覆盖，框架不读取 Cookie、Session 或用户表。
 6. 框架错误用稳定 `openrust.error.<code>` key 渲染普通展示消息；机器 `code`、HTTP 状态、字段路径保持不变。应用 `Custom` 错误已有安全展示文本时原样保留；5xx 仍统一显示通用消息。验证错误按稳定 validator rule code 尝试翻译，应用自定义错误文本在没有对应规则映射时保留原文。
 7. 邮件与短信模板可显式接收 `RequestLocale` / 指定 locale，并使用同一 catalog 查消息；发送任务没有请求上下文时由调用方明确选择 locale，不能读取全局当前语言。
@@ -26,7 +26,9 @@ v1 要求框架错误、验证信息与邮件/短信模板能够按请求语言�
 - 该能力无数据库行为，不要求双库集成测试；模板供应商发送验收留给邮件/短信功能簇。
 - V1 补强验收覆盖中文、英文及多复数规则语言、零/小数/区间、缺参/回退、选择分支与并发隔离；locale、时区和数值精度显式，展示格式不能修改 API 机器字段、稳定错误码或数据库 UTC 时间。HTTP、RPC、任务和邮件复用同一展示规则。
 
+- 当前实现使用 ICU4X 编译数据；未接入 Fluent、货币/计量单位格式、精确数值分支、任意模板代码或 ICU 数据运行时更新。新增内容通过现有 `I18n` 服务在 HTTP、邮件、短信及任务调用方显式选择 locale；gRPC 在其接入簇复用并验收。
+
 ## 后果
 
 - 中性 locale 与消息 key 可以由邮件、短信和错误响应共享；调用方显式传入语言，后台任务不依赖 HTTP 生命周期。
-- 当前 JSON + 简单插值仅完成基础能力；已批准的复数、选择与地区格式化是 V1 必交，不再作为范围是否需要的未决项。实现复用成熟组件，公共签名、资源格式和依赖版本先定 Spec，不新增平行 i18n 服务或复杂自研 DSL。
+- JSON + 简单插值保持向后兼容；structured plural/select 与 ICU4X 地区格式化扩展同一个 catalog/service。编译数据无需云服务或运行时拉取；应用负责日期时间的业务时区选择和输出上下文转义。

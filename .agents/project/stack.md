@@ -17,7 +17,7 @@
 | 出站 HTTP | `reqwest` 0.13（Rustls） | `http-client` 可选 feature；共享连接池、JSON/query/form/multipart/stream、显式超时；禁止默认重定向和应用层重试，响应体由框架限额 |
 | 序列化 | `serde` + `serde_json` | `apps/server` 集成测试用 `serde_json` 比对包装字段与请求 ID |
 | 验证 | `validator` | M0 评估 `garde` 后定稿 |
-| 国际化 | `openrust::i18n` + `serde_json` | 当前是 JSON resource 与简单插值；F2 复数/选择/地区格式化已纳入 V1，成熟组件待选型，不表示已有相关依赖 |
+| 国际化 | `openrust::i18n`、`serde_json` 与 ICU4X `icu_datetime`/`icu_decimal`/`icu_locale`/`icu_plurals` 2.3.x | 同一 catalog 支持字符串插值、CLDR plural/select；编译数据用于 locale 数字与公历日期格式化。仅启用所需组件；数据随二进制构建，不使用运行时网络。日期时区转换由调用方显式完成；最终二进制尺寸增量纳入 M6 构建基线测量 |
 | 配置 | `figment` | 已采用；错误信息含键名（测试覆盖） |
 | 日志 / 追踪 | 已用 `tracing` + `tracing-subscriber` | `opentelemetry` / `metrics` 接入为 M5 规划，当前无对应依赖或 feature |
 | 时间 | `chrono` + `chrono-tz` 0.10.4（IANA tzdb），队列 cron 使用 | SeaORM 兼容；`queue` feature 启用静态 IANA 时区表，构建/产物增加相应数据；集群节点须运行相同构建产物 |
@@ -79,7 +79,7 @@ Edition 2024；MSRV 为 stable 减两个小版本；0.x 期间破坏性变更只
 
 ## 已确认但尚未引入的底层补强
 
-[底层补齐计划](plans/v1-foundation-completion.md) F1–F10 是目标范围；具体版本、MSRV、许可证、安全维护和构建成本在实施 Spec 核实后登记。当前未因本轮文档新增任何依赖或 feature。
+[底层补齐计划](plans/v1-foundation-completion.md) F1–F10 是目标范围；具体版本、MSRV、许可证、安全维护和构建成本在实施 Spec 核实后登记。F1 使用 `cron-parser` 0.12 与 `chrono-tz` 0.10.4；F2 使用 ICU4X 2.3.x 编译数据组件，cargo feature 只启用日期、数字、locale 与复数能力，不引入运行时数据服务。
 
 - cron/时区、i18n 复数/地区格式化、邮件与生成模板优先成熟组件；候选名称仅供评估，不能当作已锁定选择。
 - OAuth2/OIDC、TOTP、CSV/XLSX 使用成熟协议/格式组件；复用本地认证/密钥、Queue/Storage，不自研协议和文件格式。

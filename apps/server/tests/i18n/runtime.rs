@@ -27,6 +27,11 @@ async fn app_greeting(locale: RequestLocale, Inject(i18n): Inject<I18n>) -> Json
     Json(locale.translate(&i18n, "greeting", &args))
 }
 
+async fn plural_message(locale: RequestLocale, Inject(i18n): Inject<I18n>) -> Json<String> {
+    let args = BTreeMap::from([("count".to_owned(), "2".to_owned())]);
+    Json(locale.translate(&i18n, "items", &args))
+}
+
 async fn unauthorized() -> Result<Json<&'static str>> {
     Err(Error::Unauthorized)
 }
@@ -55,6 +60,7 @@ async fn explicit_locale(Inject(i18n): Inject<I18n>) -> Result<Response> {
 fn i18n_routes(routes: Routes) -> Routes {
     routes
         .route("/greeting", get(app_greeting))
+        .route("/plural", get(plural_message))
         .route("/locale", get(request_locale))
         .route("/unauthorized", get(unauthorized))
         .route("/custom-error", get(custom_error))
@@ -64,12 +70,74 @@ fn i18n_routes(routes: Routes) -> Routes {
 
 async fn router() -> Result<openrust::http::axum::Router> {
     let mut builder = AppBuilder::new(FrameworkConfig::default(), figment::Figment::new());
+    let mut catalog = MessageCatalog::new();
+    catalog.insert_plural(
+        "en",
+        "items",
+        "count",
+        BTreeMap::from([
+            (
+                openrust::i18n::PluralCategory::One,
+                "{count} item".to_owned(),
+            ),
+            (
+                openrust::i18n::PluralCategory::Other,
+                "{count} items".to_owned(),
+            ),
+        ]),
+    )?;
+    catalog.insert_plural(
+        "pl",
+        "items",
+        "count",
+        BTreeMap::from([
+            (
+                openrust::i18n::PluralCategory::One,
+                "{count} plik".to_owned(),
+            ),
+            (
+                openrust::i18n::PluralCategory::Few,
+                "{count} pliki".to_owned(),
+            ),
+            (
+                openrust::i18n::PluralCategory::Many,
+                "{count} plików".to_owned(),
+            ),
+            (
+                openrust::i18n::PluralCategory::Other,
+                "{count} pliku".to_owned(),
+            ),
+        ]),
+    )?;
     builder
         .plugin(HttpPlugin)
-        .plugin(I18nPlugin::default())
+        .plugin(I18nPlugin::new(I18nConfig::default(), catalog)?)
         .routes(i18n_routes);
     let app = lifecycle::finalize(builder).await?;
     build_router(&app)
+}
+
+#[tokio::test]
+async fn aggregate_server_selects_plural_forms_per_request_locale() -> TestResult {
+    let router = router().await?;
+    let english = router.clone().oneshot(
+        Request::get("/plural")
+            .header("accept-language", "en")
+            .body(Body::empty())?,
+    );
+    let polish = router.clone().oneshot(
+        Request::get("/plural")
+            .header("accept-language", "pl")
+            .body(Body::empty())?,
+    );
+    let (english_response, polish_response) = tokio::join!(english, polish);
+    let english_body = to_bytes(english_response?.into_body(), usize::MAX).await?;
+    let polish_body = to_bytes(polish_response?.into_body(), usize::MAX).await?;
+    let english_json: serde_json::Value = serde_json::from_slice(&english_body)?;
+    let polish_json: serde_json::Value = serde_json::from_slice(&polish_body)?;
+    assert_eq!(english_json["data"], "2 items");
+    assert_eq!(polish_json["data"], "2 pliki");
+    Ok(())
 }
 
 #[tokio::test]
