@@ -65,6 +65,40 @@ fn migrations() -> Vec<Box<dyn MigrationTrait>> {
 
 调用 `RateLimiter::check` 时，key 应稳定并包含策略标识，同时提供正数上限和整秒窗口。共享同一数据库的应用节点之间，固定窗口计数器具有原子性。超限请求仍会计数并返回带 `Retry-After` 的 HTTP 429；存储故障或缺失表会失败关闭。数据库行保存 SHA-256 摘要而非原始 key，这属于假名化，不足以保护电子邮件地址等可猜测值。每个 store 实例每累计 256 次消费，会尝试清理最多 512 条过期记录；自定义 store 必须说明自己的保留策略。框架不提供可用于集群共享的内存或本地文件实现。
 
+## 跨实例租约与请求幂等
+
+需要数据库共享锁或显式请求幂等时，将 `CoordinationMigration` 加入应用 migrator；迁移不会由服务隐式执行。`SharedLocks` 以数据库时钟保存 owner token、过期时间和 fencing generation。竞争者在租约到期前得到 `Busy`；到期后可接管，旧 lease 不能续约或释放新 owner。保护同一数据库的业务写入时，须在业务事务内调用 `assert_current_in_transaction`；TTL 不能阻止暂停的旧进程继续执行任意外部副作用。
+
+`RequestIdempotency` 必须由变更接口显式调用。应用提供稳定的调用者 scope、幂等 key 和规范化请求指纹；同一有效 key 会返回处理中、指纹冲突或已完成 JSON 响应。首次领取后，将业务写入和 `complete_in_transaction` 放在同一个 `Db::transaction`；事务失败时结果快照与业务写入一起回滚，lease 到期后可再次领取。响应仅支持有上限的 JSON body，不保存 header、二进制或流式内容；授权重验、敏感字段过滤与指纹规范化由应用负责。外部副作用不具备数据库原子性，应结合供应商幂等键或事务队列。
+
+租约与结果保留时长须在 1 毫秒至 24 小时之间。过期记录不会在请求路径中做无界清理；应用维护任务可反复调用 `RequestIdempotency::prune_expired(limit)`，其中 `limit` 为 `1..=1000`，每次最多删除指定数量。
+
+```rust,ignore
+use std::time::Duration;
+use openrust::database::{CoordinationMigration, IdempotencyClaim, IdempotencyResponse, RequestIdempotency};
+
+// 在应用 migrator 中显式注册：Box::new(CoordinationMigration)
+let idempotency = RequestIdempotency::new(db.clone());
+match idempotency.claim("account:42:create-order", key, fingerprint, Duration::from_secs(30)).await? {
+    IdempotencyClaim::Acquired(lease) => {
+        let response = IdempotencyResponse::new(201, serde_json::json!({"order_id": "..."}))?;
+        let completing_idempotency = idempotency.clone();
+        db.transaction(|transaction| {
+            let idempotency = completing_idempotency.clone();
+            let lease = lease.clone();
+            let response = response.clone();
+            Box::pin(async move {
+                // 在同一事务执行订单写入，再保存 response 快照。
+                idempotency.complete_in_transaction(transaction, &lease, &response, Duration::from_secs(86_400)).await
+            })
+        }).await?;
+    }
+    IdempotencyClaim::InProgress { .. } => { /* 返回应用定义的处理中响应 */ }
+    IdempotencyClaim::Conflict => { /* 相同 key 携带了不同请求 */ }
+    IdempotencyClaim::Replay(response) => { /* 重放前重新检查调用者授权 */ }
+}
+```
+
 模型生成器默认保留整数自增 ID。可在实体和迁移命令中同时选择 `UUIDv7` 主键或软删除：
 
 ```bash
@@ -109,4 +143,4 @@ MySQL 连接必须使用 Rustls TLS。通过 MySQL URL 或服务器部署配置�
 
 ## 能力范围
 
-连接池、事务 helper、自定义 SeaORM 连接注册、迁移命令、UTC/JSON dialect helper、应用自定义 seed 命令、按测试隔离数据库，以及 PostgreSQL/MySQL 项目模板均已实现。
+连接池、事务 helper、自定义 SeaORM 连接注册、迁移命令、UTC/JSON dialect helper、应用自定义 seed 命令、按测试隔离数据库、共享租约、请求幂等，以及 PostgreSQL/MySQL 项目模板均已实现。

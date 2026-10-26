@@ -38,7 +38,7 @@
 | JWT | `jsonwebtoken` 11.1（`aws_lc_rs`） | 复用成熟 JWT 编解码与验证；避免 `rust_crypto` 带入被安全公告覆盖的 `rsa 0.9`；OpenRust 固定 HS256 并自行验证配置、kid、claims、密钥轮换与刷新凭据语义；MSRV 声明为 1.88，须由 workspace 1.97 验证 |
 | 应用数据加密 | `aes-gcm-siv` 0.12.1（AES-256-GCM-SIV / RFC 8452）、`getrandom` 0.3、`base64` 0.22、`zeroize` 1.9.1 | `encryption` feature 固定 32-byte key、随机 nonce、认证 envelope 与 key ID 轮换；显式启用 AEAD crate 的 `zeroize` feature；不复用 JWT 签名密钥 |
 | 签名链接 | 既有 `jsonwebtoken` 11.1、`base64` 0.22、`getrandom` 0.3、`sha2` 0.10 | 可选 `signing` feature 固定 HS256 和用途专属 key ring；逐条撤销用 PostgreSQL/MySQL 共享存储；未新增依赖 |
-| JWT key/token randomness | `base64` 0.22 + `getrandom` 0.3 | Base64 解码配置密钥；操作系统 CSPRNG 生成 jti 与 refresh credential |
+| JWT、锁与幂等 owner randomness | `base64` 0.22 + 必需依赖 `getrandom` 0.3 | 操作系统 CSPRNG 生成 JWT jti、refresh credential、共享锁与请求幂等 owner token；共享锁令该依赖不再按认证/队列/加密 feature 可选 |
 
 ## 异步能力与 driver
 

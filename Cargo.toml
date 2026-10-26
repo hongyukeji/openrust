@@ -109,7 +109,7 @@ base64 = { workspace = true, optional = true }
 chrono = { workspace = true, optional = true }
 dotenvy.workspace = true
 figment.workspace = true
-getrandom = { workspace = true, optional = true }
+getrandom.workspace = true
 uuid = { workspace = true, optional = true }
 http.workspace = true
 jsonwebtoken = { workspace = true, optional = true }
@@ -162,19 +162,18 @@ auth = [
     "dep:argon2",
     "dep:base64",
     "dep:chrono",
-    "dep:getrandom",
     "dep:jsonwebtoken",
     "dep:subtle",
     "dep:time",
     "dep:tower-sessions",
     "signing",
 ]
-queue = ["dep:getrandom"]
-signing = ["dep:base64", "dep:getrandom", "dep:jsonwebtoken"]
+queue = []
+signing = ["dep:base64", "dep:jsonwebtoken"]
 mail-smtp = ["lettre/smtp-transport", "lettre/tokio1-rustls-tls"]
 http-client = ["dep:reqwest"]
 sms-twilio = ["http-client", "dep:base64"]
-encryption = ["dep:aes-gcm-siv", "dep:base64", "dep:getrandom", "dep:zeroize"]
+encryption = ["dep:aes-gcm-siv", "dep:base64", "dep:zeroize"]
 test-util = []
 
 [lints]

@@ -32,7 +32,7 @@
 ## 尚未关闭的门禁
 
 - 目录收尾通过 5-package/265-test-list 对比、workspace 门禁、双库 server 集成、生成项目及实际 hello TCP HTTP smoke；`apps/server` 有明确保留证据。ADR-039 源码交付已另行通过干净副本和双库验收。以上不等同于 v1 集群或性能门禁。
-- M4 公开流程扩展、幂等与共享锁、worker 停机修正/恢复和通知；M5 Db/Queue 外部执行边界、缓存/存储/实时/资源与可观测性；M6 开发编排/生成全集/测试工具/正式文档及源码升级。已交付的 HTTP 查询边界、类型化事件和有限任务编排不重复登记为未实现。
+- M4 共享锁与请求幂等已按 ADR-042 在 PostgreSQL 18/MySQL 8.4 双 pool 隔离库完成竞争、接管、冲突、事务原子性、回放及有界清理验收；剩余 worker 停机修正/恢复、通知和后续流程扩展继续按 todo 推进；M5 Db/Queue 外部执行边界、缓存/存储/实时/资源与可观测性；M6 开发编排/生成全集/测试工具/正式文档及源码升级。已交付的 HTTP 查询边界、类型化事件和有限任务编排不重复登记为未实现。
 - PostgreSQL/MySQL 负载均衡下至少两个 API 与多 worker/scheduler 的共享认证状态、配额/幂等、任务竞争、跨节点在线投递、共享文件、滚动升级及故障恢复。
 - [底层补齐 F1–F10](../plans/v1-foundation-completion.md) 需要各自公开入口、真实失败/并发、有效组合和生成验收：日历/模板/i18n/cache、查询/租户/身份/MFA、CSV/XLSX 与 fixtures 均不能用范围文档替代实现证据。
 - gRPC 四类真实调用、TLS/mTLS、认证/Status、deadline/流取消/背压、health/reflection、生成项目、双节点滚动与 proto 新旧互通，按 [ADR-040](../decisions/adr-040-grpc-integration.md) 验收；当前未实现。跨协议验证/上下文、出站策略、迁移互斥与有界退出尚须实现和验证，不把本轮规划当通过证据。

@@ -17,6 +17,7 @@ tokio::task_local! {
     static PRIMARY_CONNECTION_SCOPE: (usize, DatabaseConnection);
 }
 
+mod coordination;
 pub mod dialect;
 mod migration;
 mod rate_limit;
@@ -24,6 +25,10 @@ mod seed;
 mod table_names;
 
 pub use crate::config::database::DatabaseConfig;
+pub use coordination::{
+    CoordinationMigration, IdempotencyClaim, IdempotencyLease, IdempotencyResponse, LockAcquire,
+    LockLease, RequestIdempotency, SharedLocks,
+};
 pub use migration::MigrationPlugin;
 pub use rate_limit::{DatabaseRateLimitMigration, DatabaseRateLimitStore};
 pub use sea_orm;

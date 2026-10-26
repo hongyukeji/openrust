@@ -70,6 +70,10 @@ name = "db_connection"
 path = "tests/database/connection.rs"
 
 [[test]]
+name = "db_coordination"
+path = "tests/database/coordination.rs"
+
+[[test]]
 name = "db_migration"
 path = "tests/database/migration.rs"
 
