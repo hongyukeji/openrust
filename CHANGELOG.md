@@ -10,6 +10,8 @@ All notable changes to OpenRust are documented here. The format follows [Keep a 
 
 ### Added
 
+- Added shared fixed-window rate limiting and purpose-bound one-time verification codes with PostgreSQL/MySQL storage.
+
 - Added OpenRust `Json` / `Path` / `Query` extractors, `Created::with_location`, and JSON envelope fallbacks for common HTTP rejections.
 
 - Added the non-published `apps/server` integration host as the workspace default for `cargo run`.
@@ -21,6 +23,7 @@ All notable changes to OpenRust are documented here. The format follows [Keep a 
 
 ### Changed
 
+- Switched the default runtime configuration namespace to `APP_`; applications can select one custom prefix through `Application::config_namespace()`.
 - Switched all OpenRust JSON success and error responses to `ApiResponse<T>` and added `[api] http_status` (`always_ok` or `semantic`), request ID body/header parity, and rate-limit retry headers.
 
 - Switched the facade prelude to OpenRust extractors and aligned validation, timeout and unmatched-route responses with ADR-008.

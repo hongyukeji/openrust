@@ -68,5 +68,5 @@ CLI 模板快照测试：`cargo test -p openrust-cli`。生成 PostgreSQL、MySQ
 
 - `cargo metadata --no-deps --format-version 1` 确认根 package 为 `openrust`，workspace 共五个成员：`openrust`、`openrust-cli`、`openrust-macros`、`openrust-test`、`openrust-server`。
 - 无默认、默认、关键单独 feature、all-features 编译已检查；workspace default/all-features clippy 与 test、warnings-denied rustdoc、`cargo deny check` 均通过。`cargo deny` 仍会输出重复版本依赖提示，但无 advisory、license、ban 或 source 失败；JWT 使用 `aws_lc_rs`，不再解析到受 RUSTSEC-2023-0071 覆盖的 `rsa 0.9`。
-- 已实现并验证的范围不包含数据库读写分离复制拓扑、Redis 集群、队列多 worker、跨节点实时通信、S3 或完整集群验收；它们仍按 `todo.md` 与各专题计划推进。
+- M2 数据库读写分离的 PostgreSQL/MySQL 真实复制拓扑已单独通过（见上文）；其余尚未验收的范围包括 Redis 集群、队列多 worker、跨节点实时通信、S3 与完整集群，继续按 `todo.md` 和各专题计划推进。
 - PostgreSQL 14 / MySQL 8.0 结果只保留为历史兼容性证据，不代表当前日常 CI 基线或最终发布最低版本。v1 发布前确定并验证最低支持版本。

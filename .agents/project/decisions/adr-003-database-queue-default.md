@@ -5,7 +5,7 @@
 
 ## 背景
 
-开箱即用要求 `openrust dev` 不引入非必要的基础设施。PostgreSQL 14+ 与 MySQL 8.0+ 都支持 `SELECT ... FOR UPDATE SKIP LOCKED`，足以实现可靠的单表队列。
+开箱即用要求 `openrust dev` 不引入非必要的基础设施。PostgreSQL 与 MySQL 的当前目标稳定版本线支持 `SELECT ... FOR UPDATE SKIP LOCKED`，足以实现可靠的单表队列。
 
 ## 决策
 
