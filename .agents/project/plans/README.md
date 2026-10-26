@@ -14,7 +14,7 @@
 
 后续领域套件（独立立项，不进入当前框架任务）：
 
-- [AI 插件套件与完整平台应用](ai-platform-product.md)：可组合边界、源码接入、开发隔离与 G0–G3 门禁；完整功能矩阵见 [OpenRouter 对标](ai-platform-openrouter-parity.md)，工程验收见 [实施计划](ai-platform-engineering.md)。
+- [AI模型平台](ai-model-platform.md)：唯一 AI 项目计划，集中维护完整能力矩阵、插件交付、`plugins/*` 隔离、工程实施与 G0–G3 门禁；只有用户明确要求开发才启动。
 
 执行约束：
 

@@ -12,7 +12,7 @@ OpenRust 定位为 Rust 应用开发的“瑞士军刀”：以高性能为基�
 
 - OpenRust 是独立的开源 Rust 应用开发框架，仓库 `https://github.com/hongyukeji/openrust`。按 [ADR-039](../decisions/adr-039-source-workspace-distribution.md) 获取整套源码，在 `apps/<name>/` 开发业务；不独立发布 Cargo 包。
 - v1 版本交付「框架底座」：项目生成、配置、HTTP/gRPC、数据库、认证授权、任务、缓存、存储、邮件、短信、国际化、WebSocket、出站 HTTP、加密、审计、请求幂等、CLI、测试工具和部署路径全部可用；业务开发者拿到项目后只写 `controllers` / `models` / `services` / `policies` / `jobs`。
-- v1 主攻框架底层通用机制：优先整合成熟组件，把配置、注册、生命周期、扩展、测试与部署约定做完整；v2 承接现成后台和业务 UI。Laravel 式开发体验按 ADR-001，能力不因属于某业务平台的底座就延后到 v2。业务多样性通过应用和可选领域插件承接，按常见路径、无核心修改扩展、一致组合与生产证据评估开发成本。后续 AI 插件套件独立立项，不改变当前 V1 范围。
+- v1 主攻框架底层通用机制：优先整合成熟组件，把配置、注册、生命周期、扩展、测试与部署约定做完整；v2 承接现成后台和业务 UI。Laravel 式开发体验按 ADR-001，能力不因属于某业务平台的底座就延后到 v2。业务多样性通过应用和可选领域插件承接，按常见路径、无核心修改扩展、一致组合与生产证据评估开发成本。后续 AI模型平台须用户明确要求开发，不改变当前 V1 范围。
 - 设计风格采用 Rust 生态熟悉的类型、trait 与显式依赖，以可见的项目约定提供统一开发入口。
 - 核心开发者画像：构建 API 服务与后台系统的中小团队和独立开发者，熟悉 Rust 基础，不想自己拼装 axum / SeaORM / tower 生态。
 - OpenRust 不是任何既有项目的移植，没有兼容包袱；所有约定按 v1 版本目标从零设计。
@@ -118,8 +118,8 @@ openrust queue work
 | M2 数据层 | `openrust::db`（连接池、迁移运行器、seed、事务、`dialect` 边界）、`generate model` / `generate migration`、`migrate` / `db seed`、`testing` 数据库隔离、模板 `--db`、CI 双库矩阵 | 空 PostgreSQL / MySQL 均初始化成功；重复 `migrate` 幂等；`rollback` 可用；生成实体直接编译；每个数据功能有双库测试证据 |
 | M3 邮件、短信、认证与授权 | `openrust::sms`（log / fake / Twilio REST，contract 见 ADR-033；真实供应商实发需授权）、`openrust::mail`（SMTP / log / fake / 本地 Mailpit）、`openrust::auth`（用户约定、Argon2id、JWT access/refresh、可选 Session 与 PAT、`CurrentUser`、注册 / 登录 / 登出 / 密码重置 / 邮箱验证、Policy、角色权限、登录限流）、`openrust::audit`（ADR-035）、`openrust::signing`（ADR-036）、`generate mailer` / `generate policy`，国际化、出站 HTTP、加密与密钥 | Twilio 协议、log/fake 与 Mailpit SMTP 验证；认证/签名/审计、生成器双库项目 check/test 与 HTTP 流程通过。真实供应商短信实发需授权账号与目标；HTTP 限流与数据输出/查询边界均已实现并验证；跨 M3/M4/M5 业务流程扩展点按 todo.md 继续补齐 |
 | M4 队列、调度与事件 | `openrust::queue`（database driver、重试退避、`failed_jobs`、`queue work`、调度器与锁、`schedule run` / `schedule list`）、`openrust::events`、队列化邮件与短信、`generate job`，请求幂等、事务一致性、锁、常用任务编排与薄通知层（按专题计划） | 任务失败 → 重试 → 失败表 → 手动重试成功；多副本调度不重复；worker 停机不丢任务；两库皆验证 |
-| M5 共享基础设施、通信与可观测性 | `openrust::cache`（标准应用默认 Redis、显式 memory/file、库层 Redis feature 可选；driver/store contract 见 ADR-014）、`openrust::storage`（local / s3）、JSON 日志、请求 ID、`/ready`、`otel` / `metrics` feature、panic 捕获、WebSocket/SSE、gRPC G1–G3、上传下载、跨协议验证/调用作用域、出站策略与生产运行/迁移协调（按专题计划） | gRPC 四类真实调用、TLS/认证/流资源、生成项目及双节点；三驱动基础契约测试；file 临时目录验证；Redis 真实集成验证；扩展示例只用公开契约；S3 兼容路径用 MinIO 集成验证；`/ready` 依赖超时正确报告 |
-| M6 开发者体验与 v1 发布 | mdBook 文档站（Diátaxis、迁移对照页、`coming-from-axum`）、`examples/blog` 黄金路径示例、Dockerfile / compose 模板、`routes` / `config show` / 只读 `doctor` / `db status` / 显式 `db reset`、`generate` / `g`（`scaffold`、`controller`、`model`、`migration`、`job`、`mailer`、`policy`、`command`）与快照测试、`testing` `TestApp` / HTTP response assertions、源码基线 API 兼容性检查、新手走查、v1 正式发布 | 新开发者获取完整源码后按文档从生成 apps 到部署在 30 分钟内完成且不读框架源码；本文件验收原则全部达标；发布动作由开发者执行 |
+| M5 共享基础设施、通信与可观测性 | 首先按 ADR-009 补齐插件公开契约与独立 consumer，再分别闭合 Db/Queue 外部扩展；`openrust::cache`（标准应用默认 Redis、显式 memory/file、库层 Redis feature 可选；driver/store contract 见 ADR-014）、`openrust::storage`（local / s3）、JSON 日志、请求 ID、`/ready`、`otel` / `metrics` feature、panic 捕获、WebSocket/SSE、gRPC G1–G3、上传下载、跨协议验证/调用作用域、出站策略与生产运行/迁移协调（按专题计划） | gRPC 四类真实调用、TLS/认证/流资源、生成项目及双节点；三驱动基础契约测试；file 临时目录验证；Redis 真实集成验证；扩展示例只用公开契约；S3 兼容路径用 MinIO 集成验证；`/ready` 依赖超时正确报告 |
+| M6 开发者体验与 v1 发布 | 插件模板/只读诊断/兼容与升级验收；mdBook 文档站（Diátaxis、迁移对照页、`coming-from-axum`）、`examples/blog` 黄金路径示例、Dockerfile / compose 模板、`routes` / `config show` / 只读 `doctor` / `db status` / 显式 `db reset`、`generate` / `g`（`scaffold`、`controller`、`model`、`migration`、`job`、`mailer`、`policy`、`command`）与快照测试、`testing` `TestApp` / HTTP response assertions、源码基线 API 兼容性检查、新手走查、v1 正式发布 | 新开发者获取完整源码后按文档从生成 apps 到部署在 30 分钟内完成且不读框架源码；本文件验收原则全部达标；发布动作由开发者执行 |
 
 F1–F3 接入 M4，F4–F8 接入 M5，F9/F10 接入 M6；详尽依赖和验收由底层补齐计划维护，实际领取顺序只在 `todo.md`。
 

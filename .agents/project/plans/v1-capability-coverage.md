@@ -13,7 +13,7 @@
 - 框架封装必须有明确附加价值：配置/注册、生命周期、安全默认值、统一错误、测试支持或跨驱动契约。避免没有价值的逐方法包装，也不让用户自己完成整合。
 - 具体能力按 [通用能力计划](v1-common-capabilities.md)、[补强计划](v1-performance-and-readiness.md) 与本表协同实施；同一能力只登记一个 contract，不创建平行系统。
 
-V1 按 [框架参考与对标](framework-design.md#框架参考与对标) 综合评估 Loco、Laravel、Goravel、OpenSpring；若依、芋道仅 V2 开发时参考。框架能力新增范围以 [底层补齐计划](v1-foundation-completion.md) F1–F10 为准；OpenRouter 仅对标后续 AI 套件与完整应用的产品能力。
+V1 按 [框架参考与对标](framework-design.md#框架参考与对标) 综合评估 Loco、Laravel、Goravel、OpenSpring；若依、芋道仅 V2 开发时参考。框架能力新增范围以 [底层补齐计划](v1-foundation-completion.md) F1–F10 为准；OpenRouter 仅对标后续 AI模型平台的产品能力。
 
 每个功能簇须按 [扩展性自主判断](framework-design.md#开发-agent-的自主扩展性判断) 主动核对常见业务接入场景。示例不穷举，机制可灵活选择，合理扩展通过公开 API 完成且不增加重复能力。
 
@@ -56,7 +56,7 @@ V1 按 [框架参考与对标](framework-design.md#框架参考与对标) 综合
 | 集群部署 | 复用各能力共享后端与运行生命周期 | 按 [集群计划](v1-cluster-deployment.md) 交付双库多副本正确性、跨节点在线投递、共享文件、故障恢复与滚动发布；不依赖黏性会话维持正确性 |
 | 多实例配置 | 由各能力统一管理配置及注册 | 普通应用使用默认实例；缓存 default/named stores 按 ADR-014，入口仍叫 `Cache`；数据库连接与存储实例按各自契约选择，不混同读写副本，补配置校验与隔离测试 |
 | CLI、生成器与调试 | `cli`、应用命令和 `testing` | 完整生成/运行/诊断入口；F9 应用模板清单/导出/预览/覆盖与变量版本，F10 显式工厂/fixtures；无库和双库生成项目及隔离/约束验收，不要求修改核心模板 |
-| 扩展、测试与部署 | Plugin、契约测试、现有宿主及模板 | 独立扩展示例、默认及单驱动组合、真实双库与 fake、容器/代理/停机、性能基线与干净环境黄金路径 |
+| 扩展、测试与部署 | Plugin、契约测试、现有宿主及模板 | [ADR-009](../decisions/adr-009-extensible-capability-drivers.md#通用插件交付阶段)：M5 开头补齐公开插件契约与中性独立 consumer，配置/依赖/冲突、显式迁移及未启用隔离实际验证；M6 完善模板/只读诊断/兼容升级及干净源码接入。默认及单驱动组合、真实双库与 fake、容器/代理/停机及性能门禁继续执行 |
 
 ## 需要决策的实现建议
 

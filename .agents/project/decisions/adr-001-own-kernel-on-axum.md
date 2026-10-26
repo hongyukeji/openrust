@@ -9,7 +9,7 @@
 
 ## 决策
 
-OpenRust 自研应用内核（`Application` / `AppBuilder` / `Plugin` / `AppState` / `Config` / `Error` / 生命周期），直接建立在 `tokio` + `axum` + `tower` 之上，复用成熟 crate 承担 HTTP、ORM、会话、邮件、存储等底层能力。V1 按 Loco、Laravel、Goravel、OpenSpring 的顺序综合评估通用底层；RuoYi 若依、芋道仅作为 V2 现成后台参考，不参与 V1 底层选型。参考框架不作为底层依赖或完整复制目标；OpenRouter 用于后续 AI 插件套件与完整平台应用的产品能力对标，不属于 V1 框架设计参考。
+OpenRust 自研应用内核（`Application` / `AppBuilder` / `Plugin` / `AppState` / `Config` / `Error` / 生命周期），直接建立在 `tokio` + `axum` + `tower` 之上，复用成熟 crate 承担 HTTP、ORM、会话、邮件、存储等底层能力。V1 按 Loco、Laravel、Goravel、OpenSpring 的顺序综合评估通用底层；RuoYi 若依、芋道仅作为 V2 现成后台参考，不参与 V1 底层选型。参考框架不作为底层依赖或完整复制目标；OpenRouter 用于后续 AI模型平台的产品能力对标，不属于 V1 框架设计参考。
 
 ### 成熟组件优先与 Laravel 式开发体验
 

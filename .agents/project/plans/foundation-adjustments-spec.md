@@ -9,7 +9,7 @@
 5. 第三簇按 M4/M5/M6 依赖实现集群共享能力：队列租约/调度去重、缓存/锁/存储、跨节点实时路由、就绪摘流与观测；memory/local file 不充当共享权威状态。
 6. 依赖顺序：模块边界与 feature 收敛 → 数据库路由 contract/实现 → 共享状态和后台生命周期 → 多副本验收；独立模块可并行验证但不并行开功能簇。
 7. 涉及 `openrust::{core,config,http,db,auth,mail}` 模块、`openrust-test`、`openrust-cli`、`openrust-macros`、`apps/server` 及生成模板；workspace 保留 package 已按迁移盘点确定。
-8. AI 领域模型与平台业务不进入框架核心/default 构建，也不作为改变通用 API 的理由；可选插件源码交付与隔离按 [套件主计划](ai-platform-product.md) 执行，当前不启动实现。
+8. AI 领域模型与平台业务不进入框架核心/default 构建，也不作为改变通用 API 的理由；可选插件源码交付与隔离按 [AI模型平台计划](ai-model-platform.md) 执行，当前不启动实现。
 9. 兼容性以当前 facade 公共路径为准；工作区现有未提交内容逐项保留，只有纯迁移且经过目标验收的内容才进入架构提交。
 10. 验收包括 metadata/package 理由、有效 feature 矩阵、workspace fmt/clippy/test/doc、生成项目、根集成测试；日常数据库行为以 PostgreSQL 18 与 MySQL 8.4 实测；Redis 8 为 M5 缓存/集群集成基线。
 11. 读写分离另需真实主/只读副本拓扑、复制延迟/强制主库/故障恢复与资源测量；集群最终验收按 `v1-cluster-deployment.md` 完成，不以单机测试代替。

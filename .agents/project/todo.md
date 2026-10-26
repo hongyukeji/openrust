@@ -27,7 +27,7 @@ V1 参考 Loco、Laravel、Goravel、OpenSpring；若依/芋道仅 V2。新增�
 
 | 功能簇 | 前置与交付 | 验收 |
 | --- | --- | --- |
-| 数据库与队列外部扩展契约 | 在可选 driver 实现前补齐 ADR-009 的公开接入。Db 初始化被 `DatabaseTableNames::validate_backend` 限制为双库，复用 SeaORM/SeaQuery 形成最小扩展边界；Queue 的 JobContext/registry/进度绑定数据库，补可复用 typed Job 的装配与执行契约。分别成簇，保留现有双库实现，不创建第二套 ORM/队列系统，不直接暴露内部租约令牌绕过安全规则 | 独立 consumer 不改核心、仅用公开 API 完成注册/配置/执行/错误测试；其他 SeaORM backend 的基础连接/事务与不支持能力明确区分，官方矩阵不自动扩大；非数据库队列 fixture 可执行同一 Job 并验证取消/进度，不支持事务派发时显式拒绝；原双库行为无回归 |
+| 插件公开契约与数据库/队列外部扩展 | M5 首项，按 [ADR-009](decisions/adr-009-extensible-capability-drivers.md#通用插件交付阶段) 依次闭合通用插件、Db、Queue 三个子簇，分别验证提交。先补配置/服务/命令/路由组合、缺依赖和冲突失败语义、显式迁移组合及资源归属；复用静态 `Plugin::build/finish`，不用 AI 项目作为验收宿主。Db 初始化被 `DatabaseTableNames::validate_backend` 限制为双库，复用 SeaORM/SeaQuery 形成最小扩展边界；Queue 的 JobContext/registry/进度绑定数据库，补可复用 typed Job 的装配与执行契约。分别成簇，保留现有双库实现，不创建第二套 ORM/队列系统，不直接暴露内部租约令牌绕过安全规则 | 中性独立插件/consumer 不改核心、仅用公开 API 完成注册/配置/执行/错误与未启用隔离测试；迁移组合双库验证，实际接入不推迟到 M6；其他 SeaORM backend 的基础连接/事务与不支持能力明确区分，官方矩阵不自动扩大；非数据库队列 fixture 可执行同一 Job 并验证取消/进度，不支持事务派发时显式拒绝；原双库行为无回归 |
 | 跨协议验证与调用作用域 | [补齐计划](plans/v1-common-capabilities.md#5-协议无关验证与调用作用域)：复用 validator/Error、AppState 与现有上下文，补公开转换、剩余预算/取消/trace/locale 规则；不持久化请求凭据 | HTTP/命令/Job 同规则、并发身份/语言隔离与任务独立生命周期；gRPC 在 G2 接入并复验 |
 | 有界运行与就绪切换 | 先在现有 HTTP 命令补清楚的 listener/task 所有权、就绪状态、启动失败清理和限时退出；gRPC/实时后续复用，按 [生产约定](plans/v1-performance-and-readiness.md#6-生产默认值与开发编排) | HTTP 长请求/后台任务、SIGTERM、drain 超时、取消/join 和失败退出码；不用通用 Plugin shutdown 重开已有决策 |
 | 缓存驱动与命名实例 | ADR-014/015：标准应用 Redis 默认，memory/file 显式选择；default/named stores、custom driver、TTL/序列化/原子边界；库 Redis feature 可选 | 三驱动契约、真实 Redis、file 安全路径/过期/原子替换/并发/错误、独立扩展示例；Redis 故障不隐式回退 |
@@ -51,6 +51,7 @@ V1 参考 Loco、Laravel、Goravel、OpenSpring；若依/芋道仅 V2。新增�
 ## M6：开发体验与 v1 最终验收
 
 - CLI：补 controller/scaffold/command 等剩余生成器；按 [底层补齐计划](plans/v1-foundation-completion.md) F9 提供模板清单/导出/预览/应用覆盖、变量版本与冲突诊断；补 routes、只读 doctor、`db status` 和显式 `db reset`；复用已有 config show/migrate/seed。status/doctor 不写数据；reset 另定目标环境、确认和数据清理边界，在隔离库测试，不由 doctor/dev 隐式触发。
+- 插件开发体验：沿用 M5 公开契约完善插件模板/示例、只读依赖/配置诊断、兼容与升级说明；生成独立宿主后 check/test，验证默认隔离及配置/迁移升级、停用保留数据；并入现有 CLI、测试与源码升级验收，不创建第二套装配或插件管理器。
 - 开发编排：dev 先探测并复用合适服务，缺失时才建本任务资源；按显式配置处理迁移、watch、信号、端口冲突和进程回收。当前 dev 只是代理 serve，不能宣传自动编排已完成。
 - 测试数据 F10：生成显式 builder/fixtures，支持属性覆盖、批量上限、关系组合与固定种子；复用 TestDatabase，双库验证保存/约束/清理，不引入隐式 Factory trait。
 - 测试体验：TestApp/HTTP assertions 复用 finalize/build_router/Tower oneshot 与 TestDatabase；fake 显式替换，补邮件/SMS/queue/HTTP 调用断言及 gRPC fixture。TTL/验证码/退避边界优先纯时间参数或 Tokio 可控时间，必要时局部时钟；真实数据库共享时钟另测，不能靠 sleep 或本机冻结替代集群验证。OpenAPI、错误/分页 schema、文档端点与授权范围一致。
@@ -63,7 +64,7 @@ V1 参考 Loco、Laravel、Goravel、OpenSpring；若依/芋道仅 V2。新增�
 
 ## v1 通过后的已授权下一阶段
 
-按 [v2 后台计划](plans/v2-admin-platform.md) 执行 B1–B5：Admin 使用 pure-admin 精简国际化版 + Element Plus，App 使用 uni-app，PC 仅规划设计；B1 锁定版本与 Rust API 适配。候选功能仍先评估，不因列出即全部开发。[AI 插件套件与完整平台应用](plans/ai-platform-product.md) 已确认交付方向但未立项，不进入当前 V1/V2 实现任务，也不创建源码、分支或 worktree；后续按独立门禁启动。
+按 [v2 后台计划](plans/v2-admin-platform.md) 执行 B1–B5：Admin 使用 pure-admin 精简国际化版 + Element Plus，App 使用 uni-app，PC 仅规划设计；B1 锁定版本与 Rust API 适配。候选功能仍先评估，不因列出即全部开发。[AI模型平台](plans/ai-model-platform.md) 单独规划，只有用户明确要求开发且成熟门禁满足后才启动；不进入当前 V1/V2 实现任务，不创建源码、分支或 worktree。
 
 ## 外部条件与证据缺口
 
