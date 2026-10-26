@@ -33,7 +33,7 @@ apps/server/             # 同仓库集成宿主；通过验收替代后才可�
 
 按 [ADR-021](decisions/adr-021-loco-style-module-layout.md)，CLI、proc-macro 和测试工具的独立 package 边界保留在 `cli/`、`macros/`、`testing/`，发布包名为 `openrust-cli`、`openrust-macros`、`openrust-test`。根框架保留唯一 `openrust` package。
 
-示例按应用分组，例如 `examples/hello/main.rs` 和后续 `examples/demo/`；根与 `apps/server` 测试按能力组织，通过明确 `[[test]]` targets 保持测试名称、feature 门控和 Cargo 发现。queue/schedule 的 PostgreSQL 与 MySQL 集成命令已进入 CI。迁移同步 manifest、path dependencies、模板、快照、脚本、CI 和文档；旧 `crates/` 已无受版本控制源码，完成剩余验证后移除目录。
+示例按应用分组，例如 `examples/hello/main.rs` 和后续 `examples/demo/`；根与 `apps/server` 测试按能力组织，通过明确 `[[test]]` targets 保持测试名称、feature 门控和 Cargo 发现。queue/schedule 的 PostgreSQL 与 MySQL 集成命令已进入 CI；迁移已完成五包/265 条测试清单、workspace、双库和生成项目验证。旧 `crates/` 已移除。
 
 `apps/server` 保留为集成宿主：`tests/server/aggregate.rs` 依赖其二进制与配置目录，双库、认证、队列、调度测试由其 feature forwarding 和隔离测试数据库驱动。根公共 API 测试与 hello 示例没有替代这些职责；移除它仍须另行提供等价启动进程和数据库验收。`apps/` 目录约定保留。
 

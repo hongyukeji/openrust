@@ -2,13 +2,13 @@
 
 > 受众：AI Agent
 > 更新：2026-10-26
-> 摘要：下表归纳仓库已有实现和测试记录。本次文档校准未运行 Rust/服务集成测试；命令和复验入口以 [testing.md](testing.md) 为准。
+> 摘要：下表归纳仓库已有实现和测试记录；最新目录收尾已执行 workspace 与双库服务验证。其他命令和历史证据边界见 [testing.md](testing.md)。
 
 ## 当前已有证据
 
 | 范围 | 已有通过记录 | 证据边界 |
 | --- | --- | --- |
-| 根模块/配置 | workspace 默认/关键/all-features、clippy/test/doc/deny；配置层级、`.env` 生产隔离、脱敏与生成项目 | 原根模块迁移；不含最新剩余目录/测试重组 |
+| 根模块/配置/目录 | workspace 默认/关键/all-features、clippy/test/doc/deny；配置层级、`.env` 生产隔离、脱敏与生成项目；工具目录/示例/测试分组迁移前后 5 packages、265 test-list entries 一致 | 不等于 v1 全部能力、最低版本或集群验收 |
 | HTTP/出站/i18n | 路由、响应、CORS、request ID；本机 TCP/fake client、受界 body/retry；locale 并发与生成项目中文错误 | 不等于第三方供应商发送、OpenAPI或实时通信验收 |
 | 双库与读写路由 | PG18/MySQL8.4 真实数据库迁移/事务/隔离；真实复制暂停、primary scope 隔离与追平 | 串行 SELECT 1 微基准不是业务性能证明；不等于完整集群 |
 | M3 认证/安全 | 两库 auth_database/auth_runtime 每库各 6 项；新生成 auth 项目格式/check/真实 TCP auth_flows | 当前运行时 contract；不包含遗漏生成器/公共流程 hooks |
@@ -21,7 +21,7 @@
 
 ## 尚未关闭的门禁
 
-- 最新目录收尾、examples/tests target 保留、apps/server 替代职责审计与双库 CI 启用 queue。
+- 目录收尾通过 5-package/265-test-list 对比、workspace 门禁、双库 server 集成、生成项目及实际 hello TCP HTTP smoke；`apps/server` 有明确保留证据。以上不等同于 v1 集群或性能门禁。
 - M3 生成器/通用 HTTP 边界、M4 事件/编排/公开流程扩展/幂等与共享锁、M5 缓存/存储/实时/可观测性、M6 开发编排/生成全集/测试工具/正式文档。
 - PostgreSQL/MySQL 负载均衡下至少两个 API 与多 worker/scheduler 的共享认证状态、配额/幂等、任务竞争、跨节点在线投递、共享文件、滚动升级及故障恢复。
 - Redis 与对象存储真实驱动语义；代表性业务负载 p50/p95/p99、吞吐、CPU、内存和资源上限；发布前设定基于实测的回归门槛。

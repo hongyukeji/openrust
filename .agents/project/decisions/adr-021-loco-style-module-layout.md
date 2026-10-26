@@ -1,6 +1,6 @@
 # ADR-021 主框架模块、工具包与目录职责
 
-- 状态：Accepted（根框架模块迁移已完成；中性工具目录与分组示例/测试在工作区完成迁移、验收中；宿主暂保留）
+- 状态：Accepted（根框架模块迁移与工具目录/分组示例测试迁移及适用验收完成；apps/server 按职责评估保留）
 - 日期：2026-10-25
 - 参考：按 [六框架对标规则](../plans/framework-design.md#框架参考与对标) 综合评估；本决策最初取材于 [Loco 仓库结构](https://github.com/loco-rs/loco)。
 - 替代：[ADR-019](adr-019-neutral-crate-directories-and-app-package.md)、[ADR-020](adr-020-workspace-layout-and-loco-practices.md) 的执行方案；吸收中性目录、配置/源码分离和示例独立组织原则。ADR-007 的宿主验证职责在被等价接替前继续有效。

@@ -8,14 +8,6 @@
 
 先核对 Git/WIP 和 [执行校准](plan.md#执行校准)。数据库队列、调度、活动唯一键及有限任务链/批次已提交，不重复实现。若存在并行 Agent 的 WIP，先保留并闭合其当前最小簇，再按以下顺序继续。当前文档校准不修改源码；实现 Agent 领取时把实际唯一 in_progress 写在对应条目中。
 
-## 优先：目录与测试入口收尾
-
-状态：in_progress（实现 Agent 已迁移路径，正在执行 workspace、真实双库与生成项目验收；尚未按完整门槛关闭）。
-
-- 范围：剩余 CLI/macros/test package 迁出 `crates/`；examples/tests 按能力分目录；审计 `apps/server` 职责；更新 workspace/path deps、宏展开、模板、脚本、CI 与文档。
-- 推荐目标：`cli/`、`macros/`、`testing/`；保留 package 名和发布边界。完成全部迁移后通过 Git 删除空的旧目录。server 在职责完全替代前保留，不能为清空目录删测试。
-- 验收与依赖：[目录收尾 Spec](plans/module-layout-migration-spec.md)；根迁移已完成不等于本项完成。本项关闭前不启动新的大范围能力开发。
-
 ## 补齐既有阶段的遗漏
 
 | 功能簇 | 前置与交付 | 验收 |
