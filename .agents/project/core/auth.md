@@ -35,7 +35,7 @@
 - 注册、登录、找回、邮箱验证、refresh/logout 与共享限流已有 service 编排和生成 HTTP 路由模板；可信代理来源策略按 ADR-028 实现。
 - Policy/basic RBAC 已实现；复杂业务策略、租户范围与可缓存授权模型未纳入本 contract。
 - `apps/server` 的认证集成测试构建各自测试 Application；默认 `Server::build` 没有安装 Auth/JWT/Database 插件，启用 `auth` feature 不会自动安装它们。完整认证业务 HTTP 流程由 CLI 生成项目通过真实 TCP 测试覆盖。
-- 注册、登录、密码重置等公开流程扩展点尚未实现；当前 `AuthFlows` 固定编排不能等同于可注册的 before/after hooks。后续复用既有事务/策略与已实现的事件契约，明确校验短路、失败与提交后通知边界，见 [框架扩展设计](../plans/framework-design.md#关键流程的公开扩展点)。
+- 按 [ADR-041](../decisions/adr-041-transaction-and-auth-flow-events.md)，`AuthFlows` 提供 direct `RegistrationValidating`、`LoginValidating`、泛化 `LoginFailed`，以及事务内 `RegistrationSucceeded`、`LoginSucceeded`。拒绝校验或成功监听器错误会回滚对应账户/refresh 写入；注册验证码在账户提交后单独签发，Session 登录不声明 SessionStore 原子提交。规范化邮箱只供验证策略使用，监听器不得记录；事件不包含任何认证秘密。
 - AuthFlows 敏感接口限流及可配置的通用 HTTP `RateLimitLayer` 已实现，路由/key/策略边界见 [HTTP 事实](http.md)；`generate mailer` / `generate policy` 的双库生成验收见 [测试基线](../memory/testing.md)。这些交付不代表公开业务钩子或总体资源限制已完成。
 - 密码服务使用受参数限制的 Argon2id 与 `spawn_blocking`，当前服务本身没有独立的总体并发许可或排队容量；生产资源控制按 [补强计划](../plans/v1-performance-and-readiness.md#2-过载阻塞操作与超时) 补齐，不能由单次参数上限推定全进程内存有界。
 

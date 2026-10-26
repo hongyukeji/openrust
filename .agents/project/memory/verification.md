@@ -19,6 +19,7 @@
 | HTTP 路由限流 | 公开 `RateLimitLayer` 支持 trusted IP、auth user、匿名 fallback 与自定义 scope/key；HTTP 行为测试加 PG18/MySQL8.4 真实隔离库 store/路由层各通过 | 未包裹路由不自动限流；完整跨节点压测仍属集群门禁 |
 | M3 数据输出/查询边界 | 排序 parser 单测、严格 DTO/显式过滤与关联示例；PG18/MySQL8.4 CLI 生成 UUIDv7/软删除项目的格式、check 和真实隔离库 CRUD 通过 | allowlist/授权由应用定义；软删除 scope 是显式调用，不自动覆盖 raw SeaORM/SQL |
 | M4 类型化事件 | 顺序/短路/类型隔离、fake queue payload/error 单测；临时下游 consumer API check；PostgreSQL 18.6 与 MySQL 8.4 的真实隔离库事件 rollback/commit/worker 消费各通过；workspace default/all-features tests、all-target/all-features clippy、warnings-denied docs、deny、fmt 通过 | 不覆盖事件跨节点广播、exactly-once 或完整集群 |
+| ADR-041 事务与认证流程事件 | PG18/MySQL8.4 临时隔离服务各通过 `db_connection transaction_events_rollback_before_commit_and_ignore_after_commit_errors` 与 `auth_database auth_flow_events_share_account_and_refresh_transactions`：提交前拒绝回滚且不发 after event；提交后 listener 错误不改变已提交返回；注册校验拒绝不建账户；泛化登录失败事件触发；登录成功事件失败不留 refresh token | direct after-commit 通知是尽力语义；不验证 Twilio 等外部副作用；当前新增四项双库服务验收已执行，完整 workspace 门禁在本功能簇最终提交前执行 |
 | 双库与读写路由 | PG18/MySQL8.4 真实数据库迁移/事务/隔离；真实复制暂停、primary scope 隔离与追平 | 串行 SELECT 1 微基准不是业务性能证明；不等于完整集群 |
 | M3 认证/安全 | 两库 auth_database/auth_runtime 每库各 6 项；新生成 auth 项目格式/check/真实 TCP auth_flows；Mailer/Policy 生成器双库项目 check/test | 不包含业务流程扩展点或跨节点完整场景 |
 | Mail/SMS | Mailpit v1.32.0 本机 SMTP 实收；Twilio transport 协议/错误/超时/no retry；模板 check/test | 没有实际 Twilio 账号投递或送达证据 |

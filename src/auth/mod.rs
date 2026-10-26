@@ -29,7 +29,10 @@ mod verification;
 use database::DatabaseAuthenticator;
 
 pub use crate::config::JwtConfig;
-pub use flows::{AuthCredentials, AuthFlows, AuthFlowsPlugin, SessionCredentials};
+pub use flows::{
+    AuthCredentials, AuthFlows, AuthFlowsPlugin, LoginFailed, LoginSucceeded, LoginValidating,
+    RegistrationSucceeded, RegistrationValidating, SessionCredentials,
+};
 pub use jwt::{JwtPlugin, JwtTokens};
 pub use migration::{
     AuthMigration, AuthPolicyMigration, AuthRefreshTokenMigration, AuthVerificationCodeMigration,

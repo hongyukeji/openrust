@@ -17,7 +17,8 @@
 - MySQL pool 的每条新连接将会话时区设为 `+00:00`，与 ADR-002 一致。
 - `Db` 是可克隆服务句柄；`connection()` / `primary_connection()` 始终返回主库，`read_connection()` 显式轮询只读副本（未配置副本时返回主库）。`with_primary(future)` 让当前 Tokio task scope 内的读入口固定主库；独立 `tokio::spawn` 不继承 scope。插件完成初始化前调用会返回内部错误。
 - 读写分离使用显式 API，不解析 SQL；调用方须保证副本入口只执行可接受复制延迟的只读操作。官方插件连接并校验所有配置副本，任一失败即启动失败；不自动重试或回退。每个 pool 使用相同 pool 上限，因此副本数为 N 时总连接上限为 `(N + 1) * max_connections`。
-- `Db::transaction()` 将闭包放在 SeaORM 事务中执行；回调成功则提交，回调返回错误则回滚，数据库与回调错误统一映射为框架内部错误。
+- `Db::transaction()` 将闭包放在 SeaORM 事务中执行；回调成功则派发可选 `TransactionBeforeCommit` 并提交，回调或提交前监听器返回错误则回滚，数据库与回调错误统一映射为框架内部错误。标准 `DatabasePlugin` 同时发现 `EventsPlugin` 时才绑定生命周期事件；自定义数据库 plugin 不自动接入。
+- 成功提交后只通知 `TransactionCommitted` 的 direct listeners。其错误仅记录稳定错误码，返回值仍表示数据库已提交；queued listeners 不在此边界执行。需可靠持久派发的副作用须在提交前事件中通过事务队列落库。直接 SeaORM/raw SQL 不经过此 API，不触发事务事件。
 - `DatabaseConfig` 支持 `table_prefix`（默认 `tb_`，空值禁用）和 `table_names` 完整物理名映射；`Db` 持有不可变 `DatabaseTableNames`，提供物理名与 backend quoting。标识符只允许 ASCII 字母/数字/下划线；连接初始化时按 PostgreSQL 63-byte、MySQL 64-byte 限制校验映射和框架核心表名。
 - `MigrationPlugin` 在每次 up/down/status 调用中用 Tokio task-local scope 提供 `DatabaseTableNames`；OpenRust AuthMigration 无 scope 时失败。手写 SeaORM migration 可用 `DatabaseTableNames::current()` 获取当前 resolver。`TestDatabase::create_with_table_names()` 用相同 scope 执行隔离迁移。
 - 认证迁移、Session/PAT/refresh-token SQL 使用同一 resolver；应用自行书写的 raw SQL 不自动改写，必须使用 `Db::table_name()` / `quoted_table_name()`。表名前缀或映射不会迁移既有 schema 或数据。
@@ -30,7 +31,7 @@
 
 ## 后续边界
 
-公开事务提交前/提交后扩展尚未实现；`Db::transaction` 当前只执行调用方闭包并提交或回滚。后续须明确嵌套事务、重试、回调次数、失败语义和提交后可靠投递边界，不承诺覆盖直接 SeaORM/原生 SQL 逃生口。
+嵌套事务与 savepoint、重试、直接 SeaORM/原生 SQL 逃生口均不受事务事件覆盖；提交前与提交后失败边界见 [ADR-041](../decisions/adr-041-transaction-and-auth-flow-events.md)。
 
 官方 v1 数据库支持限定 PostgreSQL 与 MySQL，暂定最低版本为 PostgreSQL 14+ / MySQL 8.0+。日常开发基线为 PostgreSQL 18 / MySQL 8.4 LTS / Redis 8，数据库 CI 使用 PostgreSQL 18 / MySQL 8.4。只在跨度较大、涉及版本专属行为或出现明确兼容风险时专项验证其他版本。v1 发布前按届时官方生命周期复核并验证最低版本下框架承诺的能力；已有 PostgreSQL 14 / MySQL 8.0 历史集成结果不单独代表当前完整支持。
 

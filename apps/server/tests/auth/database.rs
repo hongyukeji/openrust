@@ -23,6 +23,7 @@ use openrust::database::sea_orm_migration::{MigratorTrait, prelude::*};
 use openrust::database::{
     DatabaseBackend, DatabasePlugin, DatabaseRateLimitMigration, DatabaseRateLimitStore, Db,
 };
+use openrust::events::EventsPlugin;
 use openrust::http::axum::body::{Body, to_bytes};
 use openrust::http::axum::http::{Request, StatusCode};
 use openrust::http::{AppBuilderHttpExt, HttpPlugin, Inject, Json, Routes, build_router};
@@ -1077,6 +1078,163 @@ async fn auth_flows_run_registration_login_refresh_reset_and_logout_on_the_confi
     drop(flows);
     drop(db);
     drop(connection);
+    database.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
+#[allow(clippy::too_many_lines)] // Keep the transactional listener and rollback assertions beside their real DB fixture.
+async fn auth_flow_events_share_account_and_refresh_transactions() -> TestResult {
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+    let Ok(admin_url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+        eprintln!("skipping auth flow event integration: OPENRUST_TEST_DATABASE_URL is unset");
+        return Ok(());
+    };
+    let backend = DatabaseBackend::from_url(&admin_url)?;
+    if !backend.is_enabled() {
+        eprintln!("skipping auth flow event integration: configured backend feature is disabled");
+        return Ok(());
+    }
+    let names =
+        openrust::database::DatabaseTableNames::new("flowev_", std::collections::BTreeMap::new())?;
+    let database =
+        TestDatabase::create_with_table_names::<AuthMigrator>(&admin_url, names.clone()).await?;
+    let reject_registration = Arc::new(AtomicBool::new(false));
+    let reject_login_success = Arc::new(AtomicBool::new(false));
+    let failed_login_events = Arc::new(AtomicUsize::new(0));
+    let mut events = EventsPlugin::new();
+    let reject_registration_listener = Arc::clone(&reject_registration);
+    events.listen::<openrust::auth::RegistrationValidating, _>(move |event, _| {
+        let reject = Arc::clone(&reject_registration_listener);
+        let email = event.email().to_owned();
+        Box::pin(async move {
+            if reject.load(Ordering::SeqCst) && email == "denied@example.test" {
+                Err(openrust::Error::Forbidden(
+                    "registration policy denied".into(),
+                ))
+            } else {
+                Ok(())
+            }
+        })
+    });
+    let reject_success_listener = Arc::clone(&reject_login_success);
+    events.listen::<openrust::auth::LoginSucceeded, _>(move |_, _| {
+        let reject = Arc::clone(&reject_success_listener);
+        Box::pin(async move {
+            if reject.load(Ordering::SeqCst) {
+                Err(openrust::Error::custom(
+                    "login_result_rejected",
+                    "test listener rejected login result",
+                ))
+            } else {
+                Ok(())
+            }
+        })
+    });
+    let failed_listener = Arc::clone(&failed_login_events);
+    events.listen::<openrust::auth::LoginFailed, _>(move |_, _| {
+        let failed = Arc::clone(&failed_listener);
+        Box::pin(async move {
+            failed.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        })
+    });
+
+    let source = format!(
+        "[database]\nurl = {:?}\ntable_prefix = \"flowev_\"\n",
+        database.url()
+    );
+    let mut builder = AppBuilder::new(
+        FrameworkConfig::default(),
+        Figment::new().merge(figment::providers::Toml::string(&source)),
+    );
+    builder
+        .plugin(DatabasePlugin)
+        .plugin(events)
+        .plugin(AuthPlugin::new())
+        .plugin(JwtPlugin::with_config(JwtConfig::new(
+            "event-test-issuer",
+            "event-test-audience",
+            "event-test-key",
+            std::collections::BTreeMap::from([(
+                "event-test-key".to_owned(),
+                STANDARD.encode([0x45_u8; 32]),
+            )]),
+        )))
+        .plugin(openrust::auth::AuthFlowsPlugin::new());
+    let app = finalize(builder).await?;
+    let flows = app.state().try_get::<AuthFlows>()?;
+    let db = app.state().try_get::<Db>()?;
+    let connection = db.connection()?;
+
+    reject_registration.store(true, Ordering::SeqCst);
+    assert!(
+        flows
+            .register("denied@example.test", "password", "127.0.0.1")
+            .await
+            .is_err()
+    );
+    reject_registration.store(false, Ordering::SeqCst);
+    let denied_count = connection
+        .query_one_raw(Statement::from_string(
+            connection.get_database_backend(),
+            "SELECT COUNT(*) AS row_count FROM flowev_users WHERE email = 'denied@example.test'"
+                .to_owned(),
+        ))
+        .await?
+        .ok_or("registration event count query returned no row")?
+        .try_get::<i64>("", "row_count")?;
+    assert_eq!(
+        denied_count, 0,
+        "a rejected registration event must leave no account"
+    );
+
+    let code = flows
+        .register("events@example.test", "event-password", "127.0.0.1")
+        .await?
+        .ok_or("account was not registered")?;
+    assert!(
+        flows
+            .verify_email("events@example.test", code.code(), "127.0.0.1")
+            .await?
+    );
+    assert!(
+        flows
+            .login("events@example.test", "wrong-password", "127.0.0.1")
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        failed_login_events.load(Ordering::SeqCst),
+        1,
+        "login failure events must be generic and observable"
+    );
+
+    reject_login_success.store(true, Ordering::SeqCst);
+    assert!(
+        flows
+            .login("events@example.test", "event-password", "127.0.0.1")
+            .await
+            .is_err()
+    );
+    let token_count = connection
+        .query_one_raw(Statement::from_string(
+            connection.get_database_backend(),
+            "SELECT COUNT(*) AS row_count FROM flowev_auth_refresh_tokens".to_owned(),
+        ))
+        .await?
+        .ok_or("refresh token count query returned no row")?
+        .try_get::<i64>("", "row_count")?;
+    assert_eq!(
+        token_count, 0,
+        "a failed login result event must roll back refresh token storage"
+    );
+
+    drop(flows);
+    drop(db);
+    drop(connection);
+    drop(app);
     database.close().await?;
     Ok(())
 }

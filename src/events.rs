@@ -1,7 +1,9 @@
 //! 类型化、有序的进程内事件，以及显式持久化的队列监听器。
 //!
 //! 进程内监听器按注册顺序运行，并在遇到首个错误时停止。事件不会持久化，也不会跨进程广播。
-//! 若派发必须在进程退出后继续，应在业务事务中使用队列监听器。
+//! 若派发必须在进程退出后继续，应在业务事务中使用队列监听器。标准 `DatabasePlugin`
+//! 会在 `Db::transaction` 成功提交前派发事务校验事件，并在提交后尽力通知 direct listeners；
+//! 可靠副作用仍须在事务内排队。
 
 use std::{
     any::{Any, TypeId},
@@ -29,6 +31,10 @@ impl<'a> EventContext<'a> {
 
 trait ErasedListener: Send + Sync {
     fn event_type(&self) -> TypeId;
+
+    fn is_queued(&self) -> bool {
+        false
+    }
 
     fn call<'a>(
         &'a self,
@@ -147,6 +153,10 @@ where
     J: crate::queue::Job + serde::Serialize,
     F: Fn(&E) -> Result<J> + Send + Sync,
 {
+    fn is_queued(&self) -> bool {
+        true
+    }
+
     fn event_type(&self) -> TypeId {
         TypeId::of::<E>()
     }
@@ -254,6 +264,43 @@ impl Events {
     {
         self.dispatch_with_transaction(event, Some(transaction))
             .await
+    }
+
+    /// 仅运行直接监听器；用于已提交事务后的尽力通知，不会再次派发队列任务。
+    pub(crate) async fn dispatch_direct<E>(&self, event: &E) -> Result<()>
+    where
+        E: Any + Send + Sync + 'static,
+    {
+        self.dispatch_direct_with_transaction(event, None).await
+    }
+
+    #[cfg(feature = "auth")]
+    pub(crate) async fn dispatch_direct_in_transaction<E>(
+        &self,
+        transaction: &DatabaseTransaction,
+        event: &E,
+    ) -> Result<()>
+    where
+        E: Any + Send + Sync + 'static,
+    {
+        self.dispatch_direct_with_transaction(event, Some(transaction))
+            .await
+    }
+
+    async fn dispatch_direct_with_transaction<E>(
+        &self,
+        event: &E,
+        transaction: Option<&DatabaseTransaction>,
+    ) -> Result<()>
+    where
+        E: Any + Send + Sync + 'static,
+    {
+        for listener in &self.listeners {
+            if listener.event_type() == TypeId::of::<E>() && !listener.is_queued() {
+                listener.call(event, transaction).await?;
+            }
+        }
+        Ok(())
     }
 
     async fn dispatch_with_transaction<E>(

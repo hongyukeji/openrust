@@ -23,6 +23,62 @@ const REQUEST_WINDOW: Duration = Duration::from_mins(15);
 const EMAIL_VERIFICATION_PURPOSE: &str = "auth.email_verification";
 const PASSWORD_RESET_PURPOSE: &str = "auth.password_reset";
 
+/// 注册前置校验事件；邮箱是个人信息，监听器不得记录原值。
+#[derive(Debug, Clone)]
+pub struct RegistrationValidating {
+    email: String,
+}
+
+impl RegistrationValidating {
+    /// 返回规范化邮箱，供业务资格策略校验。
+    pub fn email(&self) -> &str {
+        &self.email
+    }
+}
+
+/// 用户记录写入事务后、提交前派发的注册成功事实。
+#[derive(Debug, Clone, Copy)]
+pub struct RegistrationSucceeded {
+    user_id: i64,
+}
+
+impl RegistrationSucceeded {
+    /// 返回新账户 ID。
+    pub const fn user_id(&self) -> i64 {
+        self.user_id
+    }
+}
+
+/// 登录凭据验证前的业务校验事件；不含密码、token 或验证码。
+#[derive(Debug, Clone)]
+pub struct LoginValidating {
+    email: String,
+}
+
+impl LoginValidating {
+    /// 返回规范化邮箱，供业务风控策略校验。
+    pub fn email(&self) -> &str {
+        &self.email
+    }
+}
+
+/// 登录成功事实；refresh token 写入与此事件共用事务。
+#[derive(Debug, Clone, Copy)]
+pub struct LoginSucceeded {
+    user_id: i64,
+}
+
+impl LoginSucceeded {
+    /// 返回已认证账户 ID。
+    pub const fn user_id(&self) -> i64 {
+        self.user_id
+    }
+}
+
+/// 登录失败通知不包含身份或失败原因，避免暴露账户状态差异。
+#[derive(Debug, Clone, Copy, Default)]
+pub struct LoginFailed;
+
 /// 共享账户凭据流程。HTTP 路由与消息投递仍由应用负责。
 #[derive(Clone)]
 pub struct AuthFlows {
@@ -94,31 +150,87 @@ impl AuthFlows {
         let backend = connection.get_database_backend();
         let sql = match backend {
             DbBackend::Postgres => {
-                "INSERT INTO tb_users (email, password_hash, created_at, updated_at) VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                "INSERT INTO tb_users (email, password_hash, created_at, updated_at) VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT (email) DO NOTHING RETURNING id"
             }
             DbBackend::MySql => {
                 "INSERT INTO tb_users (email, password_hash, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6))"
             }
             _ => return Err(unsupported_backend()),
         };
-        let result = connection
-            .execute_raw(Statement::from_sql_and_values(
-                backend,
-                &crate::auth::resolve_auth_sql(&self.db, sql)?,
-                [
-                    email.clone().into(),
-                    password_hash.as_str().to_owned().into(),
-                ],
-            ))
-            .await;
-        let result = match result {
-            Ok(result) => result,
-            Err(error) if matches!(error.sql_err(), Some(SqlErr::UniqueConstraintViolation(_))) => {
-                return Ok(None);
-            }
-            Err(error) => return Err(Error::internal(error)),
-        };
-        if result.rows_affected() == 0 {
+        let db = self.db.clone();
+        let events = self.db.events();
+        let insert_email = email.clone();
+        let password_hash = password_hash.as_str().to_owned();
+        let created = self
+            .db
+            .transaction(|transaction| {
+                let db = db.clone();
+                let events = events.clone();
+                let email = insert_email.clone();
+                let password_hash = password_hash.clone();
+                Box::pin(async move {
+                    if let Some(events) = &events {
+                        events
+                            .dispatch_direct_in_transaction(
+                                transaction,
+                                &RegistrationValidating {
+                                    email: email.clone(),
+                                },
+                            )
+                            .await?;
+                    }
+                    let sql = crate::auth::resolve_auth_sql(&db, sql)?;
+                    let inserted = if backend == DbBackend::Postgres {
+                        transaction
+                            .query_one_raw(Statement::from_sql_and_values(
+                                backend,
+                                &sql,
+                                [email.clone().into(), password_hash.into()],
+                            ))
+                            .await
+                            .map_err(Error::internal)?
+                            .map(|row| row.try_get::<i64>("", "id").map_err(Error::internal))
+                            .transpose()?
+                    } else {
+                        match transaction
+                            .execute_raw(Statement::from_sql_and_values(
+                                backend,
+                                &sql,
+                                [email.into(), password_hash.into()],
+                            ))
+                            .await
+                        {
+                            Ok(result) if result.rows_affected() == 1 => Some(
+                                i64::try_from(result.last_insert_id()).map_err(Error::internal)?,
+                            ),
+                            Ok(_) => None,
+                            Err(error)
+                                if matches!(
+                                    error.sql_err(),
+                                    Some(SqlErr::UniqueConstraintViolation(_))
+                                ) =>
+                            {
+                                None
+                            }
+                            Err(error) => return Err(Error::internal(error)),
+                        }
+                    };
+                    let Some(user_id) = inserted else {
+                        return Ok(false);
+                    };
+                    if let Some(events) = events {
+                        events
+                            .dispatch_in_transaction(
+                                transaction,
+                                &RegistrationSucceeded { user_id },
+                            )
+                            .await?;
+                    }
+                    Ok(true)
+                })
+            })
+            .await?;
+        if !created {
             return Ok(None);
         }
         self.issue_code_uniform(EMAIL_VERIFICATION_PURPOSE, &email)
@@ -213,7 +325,26 @@ impl AuthFlows {
             .await?;
         let access_token = self.jwt.issue_access_token(user_id)?;
         let expires_at = Utc::now() + self.refresh_lifetime;
-        let refresh_token = self.refresh.issue(user_id, expires_at).await?;
+        let refresh = self.refresh.clone();
+        let events = self.db.events();
+        let refresh_token = self
+            .db
+            .transaction(|transaction| {
+                let refresh = refresh.clone();
+                let events = events.clone();
+                Box::pin(async move {
+                    let token = refresh
+                        .issue_in_transaction(transaction, user_id, expires_at)
+                        .await?;
+                    if let Some(events) = events {
+                        events
+                            .dispatch_in_transaction(transaction, &LoginSucceeded { user_id })
+                            .await?;
+                    }
+                    Ok(token)
+                })
+            })
+            .await?;
         Ok(AuthCredentials {
             user_id,
             access_token,
@@ -260,6 +391,23 @@ impl AuthFlows {
     ) -> Result<i64> {
         let email = normalize_email(email)?;
         self.limit("login", request_source, &email).await?;
+        if let Some(events) = self.db.events() {
+            events
+                .dispatch_direct(&LoginValidating {
+                    email: email.clone(),
+                })
+                .await?;
+        }
+        let result = self.verify_password(&email, password).await;
+        if result.is_err()
+            && let Some(events) = self.db.events()
+        {
+            events.dispatch_direct(&LoginFailed).await?;
+        }
+        result
+    }
+
+    async fn verify_password(&self, email: &str, password: &str) -> Result<i64> {
         let connection = self.db.connection()?;
         let backend = connection.get_database_backend();
         let sql = match backend {
@@ -275,7 +423,7 @@ impl AuthFlows {
             .query_one_raw(Statement::from_sql_and_values(
                 backend,
                 &crate::auth::resolve_auth_sql(&self.db, sql)?,
-                [email.into()],
+                [email.to_owned().into()],
             ))
             .await
             .map_err(Error::internal)?

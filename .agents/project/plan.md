@@ -12,13 +12,13 @@
 
 ## 执行校准
 
-**[ADR-039](decisions/adr-039-source-workspace-distribution.md) 的源码 workspace、包命名、生成器、应用启动/配置隔离和双库验收已完成并提交；C1–C3 中文化亦已完成。当前功能簇按 [todo.md](todo.md) 进入 M3/M4 认证与事务流程扩展。**
+**[ADR-039](decisions/adr-039-source-workspace-distribution.md) 的源码 workspace、包命名、生成器、应用启动/配置隔离和双库验收已完成并提交；C1–C3 中文化亦已完成。M3/M4 认证与事务流程扩展已按 ADR-041 完成双库验证并提交；当前按 [todo.md](todo.md) 进入共享锁与请求幂等。**
 
 1. 目录收尾、M3 Mailer/Policy 生成器、公开 HTTP 路由限流及数据输出/查询边界、M4 类型化事件/queued listener 和 ADR-039 源码交付已完成；后续工作按 `todo.md` 当前优先级推进。
 2. 目录和内部 package 统一使用中性职责名，ADR-039 已完成；已完成目录迁移不重做。框架在 `src/`；CLI、proc-macro、测试工具保留独立 package 的技术边界，应用约定 `apps/` 保留；`apps/server` 继续承担集成宿主职责。见 [ADR-021](decisions/adr-021-loco-style-module-layout.md)。
 3. `examples/` 和 `tests/` 按示例/能力分目录；不得只移动文件导致 Cargo 不再发现测试。迁移必须比较 targets 与用例数量，验证包路径、宏展开、模板、CI、文档和全部测试入口。
 4. 只保留一个实现功能簇 in_progress。每簇先定公开 contract，再实现、匹配验证、本地提交、更新事实。已有实现不重做；未提交 WIP、编译通过、fake、本地双库、完整集群分别报告。
-5. M3 Mailer/Policy 生成器、通用路由限流及数据输出/查询边界已补交；跨事务业务流程扩展点仍按 `todo.md` 补齐，不能用“阶段已关闭”取消范围。
+5. M3 Mailer/Policy 生成器、通用路由限流及数据输出/查询边界已补交；事务与 AuthFlows 扩展已按 ADR-041 落地，幂等、worker 停机和队列通知继续按 `todo.md` 补齐，不能用“阶段已关闭”取消范围。
 6. 生命周期复用 `Plugin::build/finish`、Tower 与显式命令 supervisor；worker/scheduler 的取消、drain、join 按 [ADR-037](decisions/adr-037-queue-worker-lifecycle.md)。不建立平行 Hooks/DI/ORM；业务前置校验、提交后事件仍需公开类型化入口。
 7. 数据库事务内派发是可靠提交边界；after-commit 内存回调不等于可靠投递，活动任务唯一键也不等于永久请求幂等。任务、通知和业务扩展须分别定义重试、短路、失败及敏感载荷边界。
 8. 数据服务日常基线为 PostgreSQL 18 / MySQL 8.4 LTS / Redis 8；暂定最低为 PostgreSQL 14+ / MySQL 8.0+ / Redis 6.2+。最低完整能力、Redis driver 和发布时生命周期仍需验收，不在每簇重复全版本矩阵。先检查复用合适现有服务，规则见 [context.md](context.md#固定约束)。
@@ -36,7 +36,7 @@
 
 | 顺序 | 工作 | 完成门槛 |
 | --- | --- | --- |
-| 当前 | 认证与事务流程扩展 | 双库拒绝/提交/回滚/后置错误、敏感载荷及可重试副作用 |
+| 当前 | 共享锁与请求幂等 | 双节点竞争、owner 接管、同键冲突与业务提交一致性 |
 | M4 | 事务/认证扩展、共享锁/请求幂等、worker 停机/恢复修正、队列通知 | 数据库真实竞争与故障测试，job 生成器，启用 queue 的双库 CI；逐步接入代表性示例 |
 | M5 | 外部扩展、验证/调用作用域、运行/迁移保障、缓存/存储、出站策略、gRPC、WebSocket/SSE、观测 | 独立扩展、真实驱动、gRPC 四类调用/TLS/生成/双节点、跨协议与资源边界 |
 | M6 | CLI/dev/doctor、TestApp、OpenAPI、完整生成器、示例与正式文档 | 双库黄金路径、体验走查、源码升级/维护、构建成本及兼容/集群/性能门禁 |

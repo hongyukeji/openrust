@@ -5,6 +5,7 @@ use figment::Figment;
 use figment::providers::{Format, Toml};
 use openrust::core::RateLimiter;
 use openrust::database::{DatabasePlugin, Db};
+use openrust::events::EventsPlugin;
 use openrust::{AppBuilder, Error, config::FrameworkConfig, lifecycle};
 use sea_orm::{ConnectionTrait, DbBackend, Statement, TransactionTrait};
 
@@ -353,6 +354,107 @@ async fn transaction_commits_success_and_rolls_back_callback_errors()
         .execute_unprepared(&format!("DROP TABLE {table}"))
         .await?;
     assert_eq!(count, 1, "callback errors must roll back their writes");
+    Ok(())
+}
+
+#[tokio::test]
+async fn transaction_events_rollback_before_commit_and_ignore_after_commit_errors()
+-> Result<(), Box<dyn std::error::Error>> {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+    };
+
+    let _guard = DATABASE_TEST_LOCK.lock().await;
+    let Ok(url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+        eprintln!("skipping transaction events: OPENRUST_TEST_DATABASE_URL is unset");
+        return Ok(());
+    };
+    let source = format!("[database]\nurl = {url:?}\n");
+    let figment = Figment::new().merge(Toml::string(&source));
+    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment);
+    let reject = Arc::new(AtomicBool::new(false));
+    let after_calls = Arc::new(AtomicUsize::new(0));
+    let mut events = EventsPlugin::new();
+    let reject_listener = Arc::clone(&reject);
+    events.listen::<openrust::database::TransactionBeforeCommit, _>(move |_, _| {
+        let reject = Arc::clone(&reject_listener);
+        Box::pin(async move {
+            if reject.load(Ordering::SeqCst) {
+                Err(Error::custom(
+                    "commit_rejected",
+                    "commit rejected by listener",
+                ))
+            } else {
+                Ok(())
+            }
+        })
+    });
+    let after_listener = Arc::clone(&after_calls);
+    events.listen::<openrust::database::TransactionCommitted, _>(move |_, _| {
+        let after_calls = Arc::clone(&after_listener);
+        Box::pin(async move {
+            after_calls.fetch_add(1, Ordering::SeqCst);
+            Err(Error::custom("after_commit_failed", "notification failed"))
+        })
+    });
+    builder.plugin(DatabasePlugin).plugin(events);
+    let app = lifecycle::finalize(builder).await?;
+    let db = app.state().try_get::<Db>()?;
+    let connection = db.connection()?;
+    let table = format!("openrust_tx_events_{}", std::process::id());
+    connection
+        .execute_unprepared(&format!("CREATE TABLE {table} (id BIGINT PRIMARY KEY)"))
+        .await?;
+
+    reject.store(true, Ordering::SeqCst);
+    let rejected = db
+        .transaction(|transaction| {
+            let table = table.clone();
+            Box::pin(async move {
+                transaction
+                    .execute_unprepared(&format!("INSERT INTO {table} (id) VALUES (1)"))
+                    .await
+                    .map_err(Error::internal)?;
+                Ok(())
+            })
+        })
+        .await;
+    assert!(rejected.is_err());
+    assert_eq!(
+        after_calls.load(Ordering::SeqCst),
+        0,
+        "a rejected transaction must not emit after-commit"
+    );
+
+    reject.store(false, Ordering::SeqCst);
+    db.transaction(|transaction| {
+        let table = table.clone();
+        Box::pin(async move {
+            transaction
+                .execute_unprepared(&format!("INSERT INTO {table} (id) VALUES (2)"))
+                .await
+                .map_err(Error::internal)?;
+            Ok(())
+        })
+    })
+    .await?;
+    let count = connection
+        .query_one_raw(Statement::from_string(
+            connection.get_database_backend(),
+            format!("SELECT COUNT(*) AS row_count FROM {table}"),
+        ))
+        .await?
+        .ok_or("transaction event count query returned no row")?
+        .try_get::<i64>("", "row_count")?;
+    connection
+        .execute_unprepared(&format!("DROP TABLE {table}"))
+        .await?;
+    assert_eq!(
+        count, 1,
+        "the after-commit listener error must not disguise a committed write"
+    );
+    assert_eq!(after_calls.load(Ordering::SeqCst), 1);
     Ok(())
 }
 

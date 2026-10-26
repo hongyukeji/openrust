@@ -44,25 +44,43 @@ impl RefreshTokens {
         let token = random_token()?;
         let family_id = random_hex(16)?;
         self.connection()?;
-        let token_hash = sha256_hex(&token);
         let db = self.db.clone();
         self.db
             .transaction(|transaction| {
                 let db = db.clone();
+                let token = token.clone();
+                let family_id = family_id.clone();
                 Box::pin(async move {
-                    lock_user(transaction, &db, user_id).await?;
-                    insert_token(
-                        transaction,
-                        &db,
-                        user_id,
-                        &family_id,
-                        &token_hash,
-                        expires_at,
-                    )
-                    .await
+                    issue_in_transaction(transaction, &db, user_id, expires_at, &token, &family_id)
+                        .await
                 })
             })
             .await?;
+        Ok(IssuedRefreshToken { value: token })
+    }
+
+    pub(crate) async fn issue_in_transaction(
+        &self,
+        transaction: &DatabaseTransaction,
+        user_id: i64,
+        expires_at: DateTime<Utc>,
+    ) -> Result<IssuedRefreshToken> {
+        if user_id <= 0 || expires_at <= Utc::now() {
+            return Err(Error::BadRequest(
+                "refresh token user ID must be positive and expiry must be in the future".into(),
+            ));
+        }
+        let token = random_token()?;
+        let family_id = random_hex(16)?;
+        issue_in_transaction(
+            transaction,
+            &self.db,
+            user_id,
+            expires_at,
+            &token,
+            &family_id,
+        )
+        .await?;
         Ok(IssuedRefreshToken { value: token })
     }
 
@@ -179,6 +197,31 @@ impl RefreshTokens {
             _ => Err(unsupported_backend()),
         }
     }
+}
+
+async fn issue_in_transaction(
+    transaction: &DatabaseTransaction,
+    db: &Db,
+    user_id: i64,
+    expires_at: DateTime<Utc>,
+    token: &str,
+    family_id: &str,
+) -> Result<()> {
+    if user_id <= 0 || expires_at <= Utc::now() {
+        return Err(Error::BadRequest(
+            "refresh token user ID must be positive and expiry must be in the future".into(),
+        ));
+    }
+    lock_user(transaction, db, user_id).await?;
+    insert_token(
+        transaction,
+        db,
+        user_id,
+        family_id,
+        &sha256_hex(token),
+        expires_at,
+    )
+    .await
 }
 
 pub(crate) async fn revoke_all_for_user_in_transaction(

@@ -90,7 +90,16 @@ pub struct Db {
     connections: Arc<OnceLock<DatabaseConnections>>,
     table_names: Arc<DatabaseTableNames>,
     next_replica: Arc<AtomicUsize>,
+    events: Arc<OnceLock<crate::events::Events>>,
 }
+
+/// 派发给事务监听器、且仍可回滚的提交前边界。
+#[derive(Debug, Clone, Copy, Default)]
+pub struct TransactionBeforeCommit;
+
+/// 仅在事务成功提交后派发的进程内通知。
+#[derive(Debug, Clone, Copy, Default)]
+pub struct TransactionCommitted;
 
 #[derive(Clone)]
 struct DatabaseConnections {
@@ -154,7 +163,17 @@ impl Db {
             connections: Arc::new(OnceLock::new()),
             table_names: Arc::new(table_names),
             next_replica: Arc::new(AtomicUsize::new(0)),
+            events: Arc::new(OnceLock::new()),
         }
+    }
+
+    fn install_events(&self, events: crate::events::Events) {
+        let _ = self.events.set(events);
+    }
+
+    #[cfg(feature = "auth")]
+    pub(crate) fn events(&self) -> Option<crate::events::Events> {
+        self.events.get().cloned()
     }
 
     /// 返回逻辑表名对应的已配置物理表名。
@@ -236,20 +255,46 @@ impl Db {
 
     /// 在数据库事务中运行操作。
     ///
-    /// 回调返回错误时回滚事务；回调成功时提交事务。
+    /// 回调成功后，在标准 [`DatabasePlugin`] 与 `EventsPlugin` 同时安装时会先派发
+    /// [`TransactionBeforeCommit`]；该事件任一监听器失败都会回滚事务。提交成功后尽力派发
+    /// [`TransactionCommitted`] 的 direct listeners；其错误只记录稳定错误码，不改变已提交结果。
+    /// 可靠的提交后副作用应在提交前事件中排入同一事务的队列。
     ///
     /// # Errors
     ///
-    /// 连接池尚未初始化、事务开始或完成失败，或回调返回错误时，返回内部错误。
+    /// 连接池尚未初始化、事务开始或提交失败，或回调/提交前监听器返回错误时，返回内部错误。
     pub async fn transaction<T, F>(&self, callback: F) -> Result<T>
     where
         T: Send,
         F: for<'a> FnOnce(&'a DatabaseTransaction) -> BoxFuture<'a, Result<T>> + Send,
     {
-        self.connection()?
-            .transaction(callback)
-            .await
-            .map_err(Error::internal)
+        let events = self.events.get().cloned();
+        let transaction = self.connection()?.begin().await.map_err(Error::internal)?;
+        let value = match callback(&transaction).await {
+            Ok(value) => value,
+            Err(error) => {
+                transaction.rollback().await.map_err(Error::internal)?;
+                return Err(Error::internal(error));
+            }
+        };
+        if let Some(events) = &events
+            && let Err(error) = events
+                .dispatch_in_transaction(&transaction, &TransactionBeforeCommit)
+                .await
+        {
+            transaction.rollback().await.map_err(Error::internal)?;
+            return Err(Error::internal(error));
+        }
+        transaction.commit().await.map_err(Error::internal)?;
+        if let Some(events) = self.events.get()
+            && let Err(error) = events.dispatch_direct(&TransactionCommitted).await
+        {
+            tracing::error!(
+                error_code = error.code(),
+                "事务已提交，但提交后监听器执行失败"
+            );
+        }
+        Ok(value)
     }
 }
 
@@ -294,6 +339,12 @@ impl Plugin for DatabasePlugin {
 
     fn finish<'a>(&'a self, app: &'a App) -> crate::core::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
+            if let (Some(db), Some(events)) = (
+                app.state().get::<Db>(),
+                app.state().get::<crate::events::Events>(),
+            ) {
+                db.install_events((*events).clone());
+            }
             let config = app.state().try_get::<DatabaseConfig>()?;
             let db = app.state().try_get::<Db>()?;
             let url = config.url.as_deref().ok_or_else(|| {

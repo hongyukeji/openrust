@@ -55,6 +55,7 @@
 | [035 审计](adr-035-audit-recording.md) | Accepted | 脱敏、可替换 sink 与事务边界 |
 | [036 签名链接](adr-036-signed-links.md) | Accepted | 用途隔离、到期与可选共享撤销，独立于验证码 |
 | [040 gRPC 集成](adr-040-grpc-integration.md) | Accepted | v1 可选 server/client 与四类调用、协议/安全/运行/集群契约；尚未实现，替代旧 v2 候选范围 |
+| [041 事务与认证流程事件](adr-041-transaction-and-auth-flow-events.md) | Accepted | 标准 Db 提交边界与 AuthFlows typed events；direct after-commit 尽力通知、可靠副作用使用事务队列 |
 
 ## 队列、缓存与部署
 
