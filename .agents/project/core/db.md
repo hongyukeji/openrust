@@ -23,6 +23,7 @@
 - 认证迁移、Session/PAT/refresh-token SQL 使用同一 resolver；应用自行书写的 raw SQL 不自动改写，必须使用 `Db::table_name()` / `quoted_table_name()`。表名前缀或映射不会迁移既有 schema 或数据。
 - `MigrationPlugin<M>` 注册 `migrate` 命令，调用应用 migrator 的 `up`、`down` 和 `status`；`sea_orm_migration` 从 `openrust::database` re-export。
 - `SeedPlugin::new(seed_fn)` 注册 `db seed`；异步回调接收 `Db`，种子数据与幂等性由应用负责。
+- `openrust generate model` 与 `generate migration` 可一致传入 `--uuid-id`（`db-uuid` feature，UUIDv7）及 `--soft-delete`（nullable UTC `deleted_at`）；实体生成显式 `Entity::not_deleted()` scope。删除范围不会自动作用于 `find()`、raw SQL 或其他入口，恢复由应用将 `deleted_at` 清空；模型和迁移选项须匹配。
 - `dialect::timestamp_utc(name, backend)` 生成 PostgreSQL `TIMESTAMP WITH TIME ZONE` / MySQL `DATETIME(6)`；`dialect::json(name, backend)` 生成 PostgreSQL `JSONB` / MySQL `JSON`；两者返回 `DbErr`，对其他 backend 显式拒绝。
 - `db-postgres` 与 `db-mysql` 是可选 feature；未启用 backend feature 时默认不启用具体数据库 driver。
 - 数据库连接失败只给出 backend 名，不把连接 URL 或驱动错误写入启动错误。

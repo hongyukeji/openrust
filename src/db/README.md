@@ -68,6 +68,15 @@ fn migrations() -> Vec<Box<dyn MigrationTrait>> {
 
 Use `RateLimiter::check` with a stable key containing the policy identity, a positive limit, and a whole-second window. The fixed-window counter is atomic across application nodes sharing the same database. It consumes over-limit attempts and returns HTTP 429 with `Retry-After`; storage or missing-table errors fail closed. Database rows store a SHA-256 digest rather than the raw key, which is pseudonymization and does not protect guessable values such as email addresses. Each store instance opportunistically cleans up to 512 expired rows every 256 consumes; custom stores must document their own retention behavior. Memory or local-file implementations are not supplied as shared cluster stores.
 
+The model generator keeps integer auto-increment IDs by default. Opt into `UUIDv7` primary keys or soft deletion on both the entity and migration commands:
+
+```bash
+openrust generate model post --uuid-id --soft-delete title:string
+openrust generate migration posts --uuid-id --soft-delete title:string
+```
+
+`--uuid-id` adds the `db-uuid` feature to both generated packages, stores UUID IDs in the selected database, and fills missing insert IDs with `UUIDv7` in the application process. `--soft-delete` adds nullable UTC `deleted_at` and an explicit `Entity::not_deleted()` query helper; queries and raw SQL that do not call that helper continue to include deleted rows. The model and migration options must match. UUID and soft deletion are opt-in and do not change existing projects or tables.
+
 `apps/server/benches/db_routing.rs` provides a small release-mode `SELECT 1` comparison of primary and replica routes. Run it with `cargo bench -p openrust-server --features db-routing-bench,db-postgres --bench db_routing` or `db-routing-bench,db-mysql`, and set `OPENRUST_TEST_DATABASE_URL` plus `OPENRUST_TEST_READ_REPLICA_URL`. It reports serial throughput and p50/p95/p99 for that narrow query; it is not a representative workload benchmark and does not establish that replicas improve throughput. The explicit `db-routing-bench` feature prevents default workspace checks from compiling a database-only benchmark without a backend.
 
 Applications may replace `DatabasePlugin` with a custom plugin when they need a different SeaORM connection strategy. Register one `Db::default()` during `build`, then initialize it after connecting during `finish`. A custom plugin with replicas can call `initialize_with_replicas(primary, replicas)`; all connections must report the same SeaORM backend:

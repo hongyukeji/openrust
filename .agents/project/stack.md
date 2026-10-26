@@ -30,6 +30,7 @@
 | 数据库 URL | `url` 2.5 | `openrust-test` 替换隔离数据库名时保留连接凭据和查询参数 |
 | SQLx 支持 | `sqlx` 0.9 | MySQL driver 强制 TLS（Rustls）；不启用存在安全公告的 RSA 非 TLS 认证路径；`db.sqlx()` 尚未实现，若提供需先定义公开 API、feature 与连接生命周期 |
 | 数据库 | 暂定最低支持：PostgreSQL 14+、MySQL 8.0+；日常开发/Compose：PostgreSQL 18、MySQL 8.4 LTS；常规 CI：PostgreSQL 18、MySQL 8.4 | 运行时版本检查按暂定最低版本执行；PostgreSQL/MySQL 最低版本的完整兼容性仍须在 v1 发布验收中复核，不把单项历史测试等同于整套框架支持。仅在主版本跨度大或兼容风险显著时专项测试，不为每次日常 CI 追测所有版本。PostgreSQL 官方按主版本提供五年支持，不称 LTS |
+| UUIDv7 主键 | `uuid` 1.x（`v7`, `serde`），通过 `db-uuid` feature 同步启用 SeaORM/SeaQuery UUID codec | 仅在模型生成显式使用 `--uuid-id` 时启用；默认仍为自增整数。UUIDv7 由生成实体的 SeaORM `before_save` 在应用进程生成 |
 | Redis | 暂定最低支持：Redis 6.2+；日常开发/Compose：Redis 8；能力落地后按兼容风险增加专项测试 | Redis driver 和客户端依赖仍待 M5 引入；最低版本须经标准缓存路径与集群共享语义的真实兼容验收，发布前复核版本生命周期 |
 | 密码哈希 | `argon2` 0.6（Argon2id / PHC） | RustCrypto 实现；随机 salt；参数有界可配置；哈希与验证移入 Tokio blocking pool |
 | 认证与限流 key 摘要 | `sha2` 0.10 + `subtle` 2.6 | Session、PAT、CSRF 与数据库限流 key 存 SHA-256 摘要；CSRF 摘要比较使用常量时间比较。限流摘要仅避免原文持久化，不抵抗低熵 key 猜测 |

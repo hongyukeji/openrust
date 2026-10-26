@@ -9,6 +9,7 @@ HTTP layer of the [OpenRust](https://github.com/hongyukeji/openrust) framework, 
 - [`Resource`] and [`ResourceActions`] — register only the controller actions that exist; `Routes::resource` maps `list`/`create` to the collection and `get`/`update`/`delete` to `{id}`. `resource_with` filters them with `only` or `except`.
 - [`Created<T>`] and [`NoContent`] — a success envelope (201 in semantic mode) with optional `Location`, and a success envelope with `data: null` (HTTP 200).
 - [`PageParams`] and [`Paginated<T>`] — validated `page`/`per_page` query parameters and an API envelope with array `data` and pagination `meta`.
+- [`SortParams`] — parses ADR-008 comma-separated sort syntax only against an explicit field allowlist; applications map names to fixed ORM columns.
 - [`Json<T>`], [`Path<T>`] and [`Query<T>`] — axum-compatible extractors with API envelope rejections. `Json<T>` also implements `IntoResponse`.
 - [`Validated`] — runs `validator` after the OpenRust `Json<T>` or `Query<T>` extractor succeeds.
 - [`Inject`] — extractor that fetches a service registered with `AppBuilder::provide`.
@@ -80,6 +81,49 @@ fn routes(routes: Routes) -> Routes {
 Resource paths discard trailing slashes before registering the collection and `{id}` member routes; an empty path inside `nest("/posts", …)` responds at `/posts` and `/posts/{id}`. Repeated `only` calls keep the intersection of their action lists. Axum panics at registration on route conflicts, including a member parameter name other than `id` at the same path position.
 
 `PageParams` defaults to `page=1&per_page=20`; direct extraction accepts `page >= 1`, `1 <= per_page <= 100`, and an offset no larger than `i64::MAX`. Invalid values return a `validation_failed` API envelope with field-level `errors`. `Query<PageParams>` only deserializes and does not validate these bounds. `offset()` is zero-based and `limit()` returns the page size. `Paginated::new(items, params, total)` emits `{"success": true, "code": "ok", "message": "ok", "data": [...], "meta": {"page": 1, "per_page": 20, "total": 57, "total_pages": 3}, "request_id": "..."}` using typed `PageMeta`.
+
+### Data output and query boundaries
+
+Return an application DTO instead of serializing a SeaORM model. The DTO is the response field allowlist; never derive `Serialize` for a model that contains password hashes, internal notes, or other private columns. Use a typed query struct with `#[serde(deny_unknown_fields)]` so misspelled and unsupported filters fail. Map each filter to a fixed SeaORM column and validate `sort` before mapping it to columns:
+
+```rust,ignore
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PostQuery {
+    status: Option<String>,
+    sort: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+struct PostResponse {
+    id: i64,
+    title: String,
+}
+
+let sort = SortParams::parse(query.sort.as_deref(), &["created_at", "title"])?;
+let mut select = post::Entity::not_deleted();
+if let Some(status) = query.status {
+    select = select.filter(post::Column::Status.eq(status));
+}
+for field in sort.fields() {
+    let order = match field.direction() {
+        SortDirection::Ascending => sea_orm::Order::Asc,
+        SortDirection::Descending => sea_orm::Order::Desc,
+    };
+    let column = match field.name() {
+        "created_at" => post::Column::CreatedAt,
+        "title" => post::Column::Title,
+        _ => return Err(openrust::Error::BadRequest("unsupported sort field".into())),
+    };
+    select = select.order_by(column, order);
+}
+```
+
+`SortParams` rejects unsupported, duplicate, malformed and overlong values without echoing request data. It does not build SQL or decide authorization. Query DTO fields form the filter allowlist; build SeaORM `Condition`s explicitly, never interpolate request field names into SQL.
+
+`openrust generate model post --soft-delete title:string` and the matching `generate migration posts --soft-delete title:string` add nullable `deleted_at` and an explicit `Entity::not_deleted()` scope. The scope is opt-in; direct `Entity::find()` and raw SQL include deleted rows. Restore by setting `deleted_at` to `None` in an `ActiveModel`. `--uuid-id` on both commands opts into `UUIDv7` primary keys; existing projects keep integer IDs by default.
+
+For relations, define SeaORM `Relation`/`Related` edges for generated foreign keys, then eager-load a collection with `Entity::find_with_related(related::Entity)` or page parents first and call SeaORM 2 `load_many(related::Entity, db)`. Avoid querying each parent inside a loop. Apply authorization, soft-delete and tenant conditions to each relevant entity explicitly; relation loading does not infer those application policies. Page parents before batch loading to bound both parent and child work.
 
 Request parsing follows [ADR-008](../../.agents/project/decisions/adr-008-api-conventions.md): malformed JSON, path and query values use `bad_request` (semantic HTTP 400); missing or non-JSON `Content-Type` uses `unsupported_media_type` (415); structurally valid JSON with missing or mistyped fields uses `validation_failed` (422) with a readable `message` and field `errors` when available; bodies over axum's default 2 MiB limit use `payload_too_large` (413). Validation rules also use 422. Unmatched routes use `not_found` (404), unsupported methods use `method_not_allowed` (405) with `Allow`, and timeouts use `request_timeout` (408). Parenthesized HTTP statuses apply in `semantic` mode. All are `application/json` envelopes with `x-request-id`; enabled CORS applies to these responses. CORS preflight requests (`OPTIONS` with `Access-Control-Request-Method`) keep tower-http's empty body on both allowed and rejected responses; browsers use only the protocol response headers. Ordinary cross-origin errors remain wrapped and include CORS headers for allowed origins. Handler-generated client errors retain their own message. Axum's original extractors remain available through [`axum`].
 

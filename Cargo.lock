@@ -2267,6 +2267,7 @@ dependencies = [
  "tower-sessions",
  "tracing",
  "tracing-subscriber",
+ "uuid",
  "validator",
  "zeroize",
 ]

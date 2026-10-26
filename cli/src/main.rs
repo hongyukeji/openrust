@@ -59,6 +59,12 @@ enum Builtin {
         /// Model or table name followed by `field:type` declarations.
         #[arg(required = true)]
         values: Vec<String>,
+        /// Generate a `UUIDv7` primary key (use the same option for model and migration).
+        #[arg(long)]
+        uuid_id: bool,
+        /// Add a nullable UTC `deleted_at` column and explicit query scope.
+        #[arg(long)]
+        soft_delete: bool,
     },
     /// Manage local application encryption keys.
     Key {
@@ -145,8 +151,19 @@ fn run(cli: Cli) -> anyhow::Result<ExitCode> {
         }
         Some(Builtin::Dev) => run_project(&["serve"], true),
         Some(Builtin::Serve) => run_project(&["serve"], false),
-        Some(Builtin::Generate { kind, values }) => {
-            generate(kind, &values, &std::env::current_dir()?)?;
+        Some(Builtin::Generate {
+            kind,
+            values,
+            uuid_id,
+            soft_delete,
+        }) => {
+            generate(
+                kind,
+                &values,
+                uuid_id,
+                soft_delete,
+                &std::env::current_dir()?,
+            )?;
             Ok(ExitCode::SUCCESS)
         }
         Some(Builtin::Key {
@@ -619,16 +636,52 @@ struct Field {
     nullable: bool,
 }
 
-fn generate(kind: GeneratorKind, values: &[String], current_dir: &Path) -> anyhow::Result<()> {
+fn generate(
+    kind: GeneratorKind,
+    values: &[String],
+    uuid_id: bool,
+    soft_delete: bool,
+    current_dir: &Path,
+) -> anyhow::Result<()> {
     if !current_dir.join("Cargo.toml").is_file() {
         bail!("no Cargo.toml in the current directory; run this inside an OpenRust project");
     }
     match kind {
-        GeneratorKind::Model => generate_model(values, current_dir),
-        GeneratorKind::Migration => generate_migration(values, current_dir),
+        GeneratorKind::Model => generate_model(values, uuid_id, soft_delete, current_dir),
+        GeneratorKind::Migration => generate_migration(values, uuid_id, soft_delete, current_dir),
+        GeneratorKind::Mailer | GeneratorKind::Policy if uuid_id || soft_delete => {
+            bail!("--uuid-id and --soft-delete apply only to model and migration generators")
+        }
         GeneratorKind::Mailer => generate_mailer(values, current_dir),
         GeneratorKind::Policy => generate_policy(values, current_dir),
     }
+}
+
+fn enable_uuid_feature(project_dir: &Path) -> anyhow::Result<()> {
+    for path in [
+        project_dir.join("Cargo.toml"),
+        project_dir.join("migration/Cargo.toml"),
+    ] {
+        let mut manifest = fs::read_to_string(&path)?;
+        let dependency = "openrust = { version = \"0.0.0\", features = [";
+        let start = manifest.find(dependency).with_context(|| {
+            format!(
+                "{} does not contain the generated OpenRust dependency",
+                path.display()
+            )
+        })? + dependency.len();
+        let end = manifest[start..]
+            .find(']')
+            .map(|offset| start + offset)
+            .with_context(|| format!("{} has an invalid OpenRust feature list", path.display()))?;
+        let features = &manifest[start..end];
+        if !features.contains("\"db-uuid\"") {
+            let separator = if features.trim().is_empty() { "" } else { ", " };
+            manifest.insert_str(end, &format!("{separator}\"db-uuid\""));
+            fs::write(path, manifest)?;
+        }
+    }
+    Ok(())
 }
 
 fn generate_mailer(values: &[String], project_dir: &Path) -> anyhow::Result<()> {
@@ -729,8 +782,13 @@ fn render_policy(type_name: &str, resource: &str) -> String {
     source
 }
 
-fn generate_model(values: &[String], project_dir: &Path) -> anyhow::Result<()> {
-    let (name, fields) = parse_model_arguments(values)?;
+fn generate_model(
+    values: &[String],
+    uuid_id: bool,
+    soft_delete: bool,
+    project_dir: &Path,
+) -> anyhow::Result<()> {
+    let (name, fields) = parse_model_arguments(values, soft_delete)?;
     let manifest = fs::read_to_string(project_dir.join("Cargo.toml"))?;
     if !manifest.contains("db-postgres") && !manifest.contains("db-mysql") {
         bail!("model generation requires an application created with `openrust new --db`");
@@ -744,7 +802,7 @@ fn generate_model(values: &[String], project_dir: &Path) -> anyhow::Result<()> {
     let entity_module = project_dir.join("src/models/_entities/mod.rs");
     let models_module = project_dir.join("src/models/mod.rs");
     let main_file = project_dir.join("src/main.rs");
-    let generated = render_model(&table, &fields);
+    let generated = render_model(&table, &fields, uuid_id, soft_delete);
     fs::write(&model_file, generated)?;
     append_module(
         &entity_module,
@@ -761,12 +819,20 @@ fn generate_model(values: &[String], project_dir: &Path) -> anyhow::Result<()> {
         "pub mod models;",
         "//! Application entry point.\n",
     )?;
+    if uuid_id {
+        enable_uuid_feature(project_dir)?;
+    }
     print_generated(&format!("Generated model `{module}` for table `{table}`."))?;
     Ok(())
 }
 
-fn generate_migration(values: &[String], project_dir: &Path) -> anyhow::Result<()> {
-    let (name, fields) = parse_model_arguments(values)?;
+fn generate_migration(
+    values: &[String],
+    uuid_id: bool,
+    soft_delete: bool,
+    project_dir: &Path,
+) -> anyhow::Result<()> {
+    let (name, fields) = parse_model_arguments(values, soft_delete)?;
     let table = normalize_identifier(name)?;
     let migration_dir = project_dir.join("migration/src");
     if !migration_dir.join("lib.rs").is_file() {
@@ -789,15 +855,24 @@ fn generate_migration(values: &[String], project_dir: &Path) -> anyhow::Result<(
         bail!("migration already exists: {module}");
     }
     let updated_registry = register_migration(&registry, &module)?;
-    fs::write(&migration_file, render_migration(&module, &table, &fields))?;
+    fs::write(
+        &migration_file,
+        render_migration(&module, &table, &fields, uuid_id, soft_delete),
+    )?;
     fs::write(lib_file, updated_registry)?;
+    if uuid_id {
+        enable_uuid_feature(project_dir)?;
+    }
     print_generated(&format!(
         "Generated migration `{module}` for table `{table}`."
     ))?;
     Ok(())
 }
 
-fn parse_model_arguments(values: &[String]) -> anyhow::Result<(&str, Vec<Field>)> {
+fn parse_model_arguments(
+    values: &[String],
+    soft_delete: bool,
+) -> anyhow::Result<(&str, Vec<Field>)> {
     let Some((name, fields)) = values.split_first() else {
         bail!("usage: openrust generate model <name> <field:type>...");
     };
@@ -826,6 +901,9 @@ fn parse_model_arguments(values: &[String]) -> anyhow::Result<(&str, Vec<Field>)
             kind,
             nullable,
         });
+    }
+    if soft_delete && !columns.insert("deleted_at".to_owned()) {
+        bail!("`deleted_at` is reserved by `--soft-delete`");
     }
     if parsed.is_empty() {
         bail!("at least one field is required");
@@ -889,10 +967,16 @@ fn pluralize(value: &str) -> String {
     }
 }
 
-fn render_model(table: &str, fields: &[Field]) -> String {
+fn render_model(table: &str, fields: &[Field], uuid_id: bool, soft_delete: bool) -> String {
     use std::fmt::Write as _;
+    let id_type = if uuid_id { "Uuid" } else { "i64" };
+    let id_attribute = if uuid_id {
+        "#[sea_orm(primary_key, auto_increment = false)]"
+    } else {
+        "#[sea_orm(primary_key)]"
+    };
     let mut source = format!(
-        "//! SeaORM entity generated for table `{table}`.\n\nuse openrust::database::sea_orm_migration::sea_orm;\nuse sea_orm::entity::prelude::*;\n\n#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]\n#[sea_orm(table_name = \"{table}\")]\npub struct Model {{\n    #[sea_orm(primary_key)]\n    pub id: i64,\n"
+        "//! SeaORM entity generated for table `{table}`.\n\nuse openrust::database::sea_orm_migration::sea_orm;\nuse sea_orm::entity::prelude::*;\n\n#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]\n#[sea_orm(table_name = \"{table}\")]\npub struct Model {{\n    {id_attribute}\n    pub id: {id_type},\n"
     );
     for field in fields {
         let type_name = field.kind.rust_type();
@@ -903,11 +987,30 @@ fn render_model(table: &str, fields: &[Field]) -> String {
         };
         let _ = writeln!(source, "    pub {}: {field_type},", field.column);
     }
-    source.push_str("}\n\n#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]\npub enum Relation {}\n\nimpl ActiveModelBehavior for ActiveModel {}\n");
+    if soft_delete {
+        source.push_str("    pub deleted_at: Option<DateTimeUtc>,\n");
+    }
+    source.push_str(
+        "}\n\n#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]\npub enum Relation {}\n",
+    );
+    if soft_delete {
+        source.push_str("\nimpl Entity {\n    /// Returns rows that have not been soft-deleted. Compose this scope with explicit authorization and filtering conditions.\n    pub fn not_deleted() -> Select<Self> {\n        Self::find().filter(Column::DeletedAt.is_null())\n    }\n}\n");
+    }
+    if uuid_id {
+        source.push_str("\n#[openrust::database::sea_orm_migration::async_trait::async_trait]\nimpl ActiveModelBehavior for ActiveModel {\n    async fn before_save<C>(mut self, _db: &C, insert: bool) -> Result<Self, DbErr>\n    where\n        C: ConnectionTrait,\n    {\n        if insert && self.id.is_not_set() {\n            self.id = sea_orm::ActiveValue::Set(Uuid::now_v7());\n        }\n        Ok(self)\n    }\n}\n");
+    } else {
+        source.push_str("\nimpl ActiveModelBehavior for ActiveModel {}\n");
+    }
     source
 }
 
-fn render_migration(module: &str, table: &str, fields: &[Field]) -> String {
+fn render_migration(
+    module: &str,
+    table: &str,
+    fields: &[Field],
+    uuid_id: bool,
+    soft_delete: bool,
+) -> String {
     use std::fmt::Write as _;
     let table_type = pascal_case(table);
     let mut source = format!(
@@ -916,9 +1019,19 @@ fn render_migration(module: &str, table: &str, fields: &[Field]) -> String {
     for field in fields {
         let _ = writeln!(source, "    {},", field.variant);
     }
+    if soft_delete {
+        source.push_str("    DeletedAt,\n");
+    }
+    let id_column = if uuid_id {
+        format!(".col(ColumnDef::new({table_type}::Id).uuid().not_null().primary_key())")
+    } else {
+        format!(
+            ".col(ColumnDef::new({table_type}::Id).big_integer().not_null().auto_increment().primary_key())"
+        )
+    };
     let _ = write!(
         source,
-        "}}\n\npub struct Migration;\n\nimpl MigrationName for Migration {{\n    fn name(&self) -> &'static str {{\n        \"{module}\"\n    }}\n}}\n\n#[openrust::database::sea_orm_migration::async_trait::async_trait]\nimpl MigrationTrait for Migration {{\n    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {{\n        manager\n            .create_table(\n                Table::create()\n                    .table({table_type}::Table)\n                    .if_not_exists()\n                    .col(ColumnDef::new({table_type}::Id).big_integer().not_null().auto_increment().primary_key())\n"
+        "}}\n\npub struct Migration;\n\nimpl MigrationName for Migration {{\n    fn name(&self) -> &'static str {{\n        \"{module}\"\n    }}\n}}\n\n#[openrust::database::sea_orm_migration::async_trait::async_trait]\nimpl MigrationTrait for Migration {{\n    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {{\n        manager\n            .create_table(\n                Table::create()\n                    .table({table_type}::Table)\n                    .if_not_exists()\n                    {id_column}\n"
     );
     for field in fields {
         let nullable = if field.nullable { "null" } else { "not_null" };
@@ -949,6 +1062,12 @@ fn render_migration(module: &str, table: &str, fields: &[Field]) -> String {
                 );
             }
         }
+    }
+    if soft_delete {
+        let _ = writeln!(
+            source,
+            "                    .col(openrust::database::dialect::timestamp_utc({table_type}::DeletedAt, manager.get_database_backend())?.null())"
+        );
     }
     for field in fields
         .iter()
@@ -1361,12 +1480,31 @@ mod tests {
             "author:references",
         ]
         .map(str::to_owned);
-        generate_model(&model, &project).expect("generate model");
+        generate_model(&model, false, false, &project).expect("generate model");
         let entity = fs::read_to_string(project.join("src/models/_entities/post.rs"))
             .expect("read generated model");
         assert!(entity.contains("pub title: String"));
         assert!(entity.contains("pub published_at: Option<DateTimeUtc>"));
         assert!(entity.contains("pub author_id: i64"));
+
+        generate_model(
+            &["entry", "title:string"].map(str::to_owned),
+            true,
+            true,
+            &project,
+        )
+        .expect("generate UUID soft-delete model");
+        let entry = fs::read_to_string(project.join("src/models/_entities/entry.rs"))
+            .expect("read generated UUID model");
+        assert!(entry.contains("pub id: Uuid"));
+        assert!(entry.contains("Uuid::now_v7()"));
+        assert!(entry.contains("pub deleted_at: Option<DateTimeUtc>"));
+        assert!(entry.contains("pub fn not_deleted()"));
+        let app_manifest = fs::read_to_string(project.join("Cargo.toml")).expect("app manifest");
+        let migration_manifest =
+            fs::read_to_string(project.join("migration/Cargo.toml")).expect("migration manifest");
+        assert!(app_manifest.contains("\"db-uuid\""));
+        assert!(migration_manifest.contains("\"db-uuid\""));
 
         generate_migration(
             &[
@@ -1376,12 +1514,34 @@ mod tests {
                 "metadata:json".to_owned(),
                 "author:references".to_owned(),
             ],
+            false,
+            false,
             &project,
         )
         .expect("generate model migration");
+        generate_migration(
+            &["entries".to_owned(), "title:string".to_owned()],
+            true,
+            true,
+            &project,
+        )
+        .expect("generate UUID soft-delete migration");
+        let migration = fs::read_dir(project.join("migration/src"))
+            .expect("read generated migrations")
+            .filter_map(std::result::Result::ok)
+            .map(|entry| fs::read_to_string(entry.path()).unwrap_or_default())
+            .find(|source| source.contains("uuid().not_null().primary_key()"))
+            .unwrap_or_default();
+        assert!(migration.contains(".uuid().not_null().primary_key()"));
+        assert!(migration.contains("DeletedAt"));
         for (table, field) in [("comments", "body:text"), ("labels", "slug:string")] {
-            generate_migration(&[table.to_owned(), field.to_owned()], &project)
-                .expect("generate migration");
+            generate_migration(
+                &[table.to_owned(), field.to_owned()],
+                false,
+                false,
+                &project,
+            )
+            .expect("generate migration");
         }
         let registry = fs::read_to_string(project.join("migration/src/lib.rs"))
             .expect("read migration registry");
@@ -1398,8 +1558,18 @@ mod tests {
             assert!(normalize_identifier(name).is_err());
         }
         let values = ["post".to_owned(), "title:unknown".to_owned()];
-        assert!(parse_model_arguments(&values).is_err());
-        let parsed = Cli::try_parse_from(["openrust", "g", "model", "post", "title:string"]);
+        assert!(parse_model_arguments(&values, false).is_err());
+        let duplicate_soft_delete = ["post".to_owned(), "deleted_at:date_time?".to_owned()];
+        assert!(parse_model_arguments(&duplicate_soft_delete, true).is_err());
+        let parsed = Cli::try_parse_from([
+            "openrust",
+            "g",
+            "model",
+            "post",
+            "--uuid-id",
+            "--soft-delete",
+            "title:string",
+        ]);
         assert!(parsed.is_ok());
     }
 

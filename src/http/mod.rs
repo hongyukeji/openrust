@@ -14,6 +14,7 @@ pub mod resource;
 pub mod response;
 pub mod routes;
 pub mod serve;
+pub mod sort;
 
 pub use crate::i18n::RequestLocale;
 pub use axum;
@@ -31,3 +32,4 @@ pub use resource::{Action, Resource, ResourceActions};
 pub use response::{Created, Located, NoContent, PageParams, Paginated};
 pub use routes::Routes;
 pub use serve::{ServeCommand, serve};
+pub use sort::{SortDirection, SortField, SortParams};

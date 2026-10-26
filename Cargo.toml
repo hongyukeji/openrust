@@ -65,6 +65,7 @@ sea-orm-migration = { version = "2.0.4", default-features = false, features = ["
 sha2 = "0.10"
 subtle = "2.6"
 chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v7", "serde"] }
 time = { version = "0.3", features = ["serde"] }
 zeroize = "1.9.1"
 async-trait = "0.1"
@@ -106,6 +107,7 @@ chrono = { workspace = true, optional = true }
 dotenvy.workspace = true
 figment.workspace = true
 getrandom = { workspace = true, optional = true }
+uuid = { workspace = true, optional = true }
 http.workspace = true
 jsonwebtoken = { workspace = true, optional = true }
 lettre.workspace = true
@@ -152,6 +154,7 @@ path = "examples/hello/main.rs"
 default = []
 db-postgres = ["sea-orm/sqlx-postgres", "sea-orm-migration/sqlx-postgres"]
 db-mysql = ["sea-orm/sqlx-mysql", "sea-orm-migration/sqlx-mysql", "dep:sqlx", "sqlx/mysql"]
+db-uuid = ["dep:uuid", "sea-orm/with-uuid", "sea-orm-migration/with-uuid"]
 auth = [
     "dep:argon2",
     "dep:base64",

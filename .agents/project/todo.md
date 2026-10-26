@@ -12,7 +12,7 @@
 
 | 功能簇 | 前置与交付 | 验收 |
 | --- | --- | --- |
-| M3 数据输出与查询边界 **in_progress** | 审计 SeaORM 现有实体、DTO、查询、软删除、scope 与关联能力，按缺口提供白名单与示例，不重造 ORM；HTTP `RateLimitLayer` 已交付，见 `core/http.md` | 越权字段与非法排序拒绝；双库边界；UUID/软删除生成选项按实际 contract 交付 |
+| M3 数据输出与查询边界 | 审计 SeaORM 现有实体、DTO、查询、软删除、scope 与关联能力，按缺口提供白名单与示例，不重造 ORM；HTTP `RateLimitLayer` 已交付，见 `core/http.md` | 已交付：严格 DTO/显式 Condition 示例、排序 allowlist、UUIDv7/显式软删除生成器；PG18/MySQL8.4 生成项目真实验收。证据见 `memory/testing.md` |
 
 ## M4：异步与流程扩展
 
