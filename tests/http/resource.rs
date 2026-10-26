@@ -299,7 +299,7 @@ async fn created_and_no_content_have_their_status_and_body_contract() -> TestRes
 
     let response = send(router, Method::DELETE, "/no-content").await?;
     assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(json_body(response).await?["data"], Value::Null);
+    assert!(json_body(response).await?.get("data").is_none());
     Ok(())
 }
 

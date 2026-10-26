@@ -601,7 +601,7 @@ async fn cors_origin_error_is_wrapped_outside_preflight() -> TestResult {
     let body = json_body(response).await;
     assert_eq!(body["success"], false);
     assert_eq!(body["code"], "not_found");
-    assert!(body["data"].is_null());
+    assert!(body.get("data").is_none());
     assert_eq!(body["request_id"], request_id);
     Ok(())
 }
@@ -1025,7 +1025,7 @@ async fn always_ok_wraps_success_errors_and_fallbacks_with_matching_request_id()
         assert_eq!(body["code"], expected_code, "{uri}");
         assert_eq!(body["success"], expected_code == "ok", "{uri}");
         if uri == "/api/no-content" || expected_code != "ok" {
-            assert!(body["data"].is_null(), "{uri}");
+            assert!(body.get("data").is_none(), "{uri}");
         }
         if uri == "/api/page" {
             assert_eq!(body["data"], serde_json::json!([1, 2]));

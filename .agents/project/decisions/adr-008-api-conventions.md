@@ -1,7 +1,7 @@
 # ADR-008 HTTP API 交互规范与数据格式
 
 - 状态：Accepted
-- 日期：2026-10-25（同日修订：响应改为统一包装结构）
+- 日期：2026-10-25（同日修订：响应改为统一包装结构；2026-10-27 修订：无载荷时省略 `data`）
 
 ## 背景
 
@@ -26,7 +26,7 @@ API 格式是框架对外的契约，生成器、文档和所有用户项目都�
 | get | `GET /api/posts/{id}` | `data` 为资源对象 |
 | create | `POST /api/posts` | `data` 为新建的资源，响应头带 `Location: /api/posts/{id}` |
 | update | `PUT` 或 `PATCH /api/posts/{id}` | `data` 为更新后的资源 |
-| delete | `DELETE /api/posts/{id}` | `data: null` |
+| delete | `DELETE /api/posts/{id}` | 无业务载荷时省略 `data` |
 
 - `PATCH` 为部分更新：字段缺省表示不修改，显式传 `null` 表示清空。`PUT` 为整体替换。
 - 非 CRUD 的动作用子资源加 `POST` 表示，如 `POST /api/posts/{id}/publish`，不在路径里用冒号或动词前缀。
@@ -45,7 +45,7 @@ API 格式是框架对外的契约，生成器、文档和所有用户项目都�
 | ID | 自增主键为 JSON 整数；UUIDv7 主键为小写带连字符的字符串 |
 | 金额 | 最小货币单位的整数（`amount: 1999`）加 `currency: "usd"`，与 Stripe 一致；不使用浮点 |
 | 枚举 | `snake_case` 字符串 |
-| 空值 | `Option` 为 `None` 时输出 `null`，字段保留，不省略；空集合输出 `[]`，不输出 `null` |
+| 空值 | 统一响应没有业务载荷时省略顶层 `data`；载荷对象中的可空字段按自身类型序列化；空集合输出 `[]`，不输出 `null` |
 | 布尔 | 字段名用 `is_` 或 `has_` 前缀，或用形容词（`published`） |
 
 ### 3. 查询参数
@@ -61,14 +61,14 @@ API 格式是框架对外的契约，生成器、文档和所有用户项目都�
 
 ### 4. 错误
 
-- **所有错误都使用 §7 的统一包装结构**，`success = false`。请求解析失败、未匹配路由、方法不允许、超时、请求体过大、panic 都在此列。框架不返回纯文本错误，也不返回空正文。
+- **所有错误都使用 §7 的统一包装结构**，`success = false`。请求解析失败、未匹配路由、方法不允许、超时、请求体过大、panic 都在此列。框架不返回纯文本错误，也不返回空正文；没有业务载荷时省略 `data`。
 - `code` 是稳定的 `snake_case` 机器码，客户端按它分支处理。`message` 是可以直接展示给用户的提示。字段校验失败时附带 `errors`，格式为 `{字段: [消息]}`。5xx 不暴露内部细节。
 - 业务可以用 `Error::custom(code, message)` 定义自己的码，例如 `order_already_paid`；其 semantic 状态默认 400。需要其他状态时用 `Error::custom_with_status(status, code, message)`。限流可用 `Error::rate_limited(seconds)` 附带 `Retry-After`。
 - 框架内置的 `code`，以及 `[api] http_status = "semantic"` 时对应的 HTTP 状态码：
 
 | 情形 | `code` | semantic 下的状态码 |
 | --- | --- | --- |
-| 成功 | `ok` | 200；创建为 201；删除为 200，`data: null` |
+| 成功 | `ok` | 200；创建为 201；删除为 200，无业务载荷时省略 `data` |
 | JSON 语法错误，路径或查询参数无法解析 | `bad_request` | 400 |
 | 未认证 | `unauthorized` | 401 |
 | 无权限 | `forbidden` | 403 |
@@ -116,7 +116,7 @@ API 格式是框架对外的契约，生成器、文档和所有用户项目都�
 失败示例：
 
 ```json
-{ "success": false, "code": "validation_failed", "message": "Validation failed", "data": null, "errors": { "title": ["is required"] }, "request_id": "..." }
+{ "success": false, "code": "validation_failed", "message": "Validation failed", "errors": { "title": ["is required"] }, "request_id": "..." }
 ```
 
 | 字段 | 出现时机 | 含义 |
@@ -124,7 +124,7 @@ API 格式是框架对外的契约，生成器、文档和所有用户项目都�
 | `success` | 总是 | 布尔值。客户端只需要看它判断成败 |
 | `code` | 总是 | 稳定的 `snake_case` 业务码。成功时为 `ok` |
 | `message` | 总是 | 面向用户的提示文字 |
-| `data` | 总是 | 业务数据。没有数据时为 `null` |
+| `data` | 有业务载荷时 | 业务数据；没有载荷时省略。空数组仍为 `[]`，对象中的 `null` 字段仍按其类型保留 |
 | `meta` | 仅分页集合 | `PageMeta { page, per_page, total, total_pages }` |
 | `errors` | 仅校验失败 | 格式为 `{字段: [消息]}` |
 | `request_id` | 总是 | 与响应头 `x-request-id` 相同 |

@@ -7,7 +7,7 @@ OpenRust 框架基于 `axum` 和 `tower` 构建的 HTTP 层。
 - [`AppBuilderHttpExt::http_layer`]：在所有路由外层注册共享 Tower 请求上下文，并置于路由级 layer 之外。
 - [`Routes`]：基于 `axum::Router` 的轻量路由约定，提供 `get` / `post` / …、`nest(prefix, …)`、`merge`、`layer`。
 - [`Resource`] 与 [`ResourceActions`]：只注册实际存在的 controller action；`Routes::resource` 将 `list` / `create` 映射到集合路由，将 `get` / `update` / `delete` 映射到 `{id}`。`resource_with` 可通过 `only` 或 `except` 过滤 action。
-- [`Created<T>`] 与 [`NoContent`]：成功响应封装；前者可选携带 `Location`（semantic 模式为 201），后者返回 `data: null`（HTTP 200）。
+- [`Created<T>`] 与 [`NoContent`]：成功响应封装；前者可选携带 `Location`（semantic 模式为 201），后者返回省略 `data` 的成功包装（HTTP 200）。
 - [`PageParams`] 与 [`Paginated<T>`]：校验 `page` / `per_page` 查询参数，并返回含数组 `data` 和分页 `meta` 的 API 封装。
 - [`SortParams`]：只按显式字段白名单解析 ADR-008 定义的逗号分隔排序语法；应用将字段名映射为固定 ORM 列。
 - [`Json<T>`]、[`Path<T>`] 与 [`Query<T>`]：兼容 axum 的 extractors，并将拒绝结果包装为 API 响应。`Json<T>` 还实现了 `IntoResponse`。

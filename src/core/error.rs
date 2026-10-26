@@ -284,7 +284,8 @@ pub struct ApiResponse<T: Serialize> {
     pub code: String,
     /// 可安全展示给调用方的消息。
     pub message: String,
-    /// 响应载荷；错误和空结果使用 `null`。
+    /// 响应载荷；没有载荷时省略此字段。
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<T>,
     /// 可选的分页元数据。
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -357,7 +358,7 @@ impl<T: Serialize> ApiResponse<T> {
 }
 
 impl ApiResponse<()> {
-    /// 创建 `data: null` 的成功响应。
+    /// 创建不带业务载荷的成功响应。
     pub fn empty() -> Self {
         let mut response = Self::success(());
         response.data = None;
@@ -381,7 +382,7 @@ impl<T: Serialize> IntoResponse for ApiResponse<T> {
                 );
                 fallback.request_id.clone_from(&self.request_id);
                 let body = serde_json::to_vec(&fallback).unwrap_or_else(|_| {
-                    b"{\"success\":false,\"code\":\"internal_error\",\"message\":\"internal server error\",\"data\":null,\"request_id\":\"-\"}".to_vec()
+                    b"{\"success\":false,\"code\":\"internal_error\",\"message\":\"internal server error\",\"request_id\":\"-\"}".to_vec()
                 });
                 (StatusCode::INTERNAL_SERVER_ERROR, body)
             }

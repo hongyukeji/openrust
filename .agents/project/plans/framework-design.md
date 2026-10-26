@@ -195,8 +195,8 @@ apps/<app>/
 ## 错误模型
 
 - 统一使用 `openrust::Error`，主要错误类别包括：`BadRequest` / `NotFound` / `Unauthorized` / `Forbidden` / `Validation` / `Conflict` / `RateLimited` / `Config` / `Custom` / `Internal`；业务错误可映射 Custom 或实现 From。
-- JSON envelope 包括 `success/code/message/data/request_id`，校验错误有字段信息，分页元数据为明确类型；实际 HTTP 状态模式以 `[api] http_status` 为准。5xx 只输出通用消息，内部原因进入日志并脱敏。
-- CORS preflight、流式/非 JSON 等协议例外遵守已验收契约，不能为了包装破坏协议。当前 `NoContent` 返回 data=null 的成功包装，并非 HTTP 204 空响应。
+- JSON envelope 包括 `success/code/message/request_id` 和有业务载荷时的 `data`，校验错误有字段信息，分页元数据为明确类型；实际 HTTP 状态模式以 `[api] http_status` 为准。5xx 只输出通用消息，内部原因进入日志并脱敏。
+- CORS preflight、流式/非 JSON 等协议例外遵守已验收契约，不能为了包装破坏协议。`NoContent` 返回省略 `data` 的成功 JSON 包装，并非 HTTP 204 空响应。
 
 ## 数据层
 

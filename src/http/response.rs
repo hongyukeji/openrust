@@ -56,7 +56,7 @@ impl<T: IntoResponse> IntoResponse for Located<T> {
     }
 }
 
-/// 返回 `data: null` 的成功响应封装。
+/// 返回不带业务载荷的成功响应封装。
 pub struct NoContent;
 
 impl IntoResponse for NoContent {
