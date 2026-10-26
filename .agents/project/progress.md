@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-26
-> 摘要：根 `openrust` 模块迁移已独立提交；M2 读写分离已实现，并在 PostgreSQL 18.6 / MySQL 8.4.13 真实复制拓扑验证。模块化配置、`.env`、统一出站 HTTP、请求级国际化、邮件/SMS 驱动、应用加密、审计与签名链接已实现；M3 认证剩余总验收和完整集群验收仍未关闭。日常开发基线为 PostgreSQL 18 / MySQL 8.4 LTS / Redis 8；PostgreSQL 16 测试仅作历史专项证据。
+> 摘要：根 `openrust` 模块迁移已独立提交；M2 读写分离已实现，并在 PostgreSQL 18.6 / MySQL 8.4.13 真实复制拓扑验证。模块化配置、`.env`、统一出站 HTTP、请求级国际化、邮件/SMS 驱动、应用加密、审计、签名链接及 M3 认证双库/生成 HTTP 总验收已完成；Twilio 真实投递仍待授权账号与目标，完整集群验收未关闭。日常开发基线为 PostgreSQL 18 / MySQL 8.4 LTS / Redis 8；PostgreSQL 16 测试仅作历史专项证据。
 
 | 项 | 状态 |
 | --- | --- |
@@ -13,6 +13,7 @@
 | M3 应用数据加密与密钥轮换 | ADR-034 实现可选 `encryption` feature、`openrust::security::{Encryptor,EncryptionPlugin}`、AES-256-GCM-SIV/AAD envelope、历史 key 解密、配置脱敏、`openrust key generate` 与 `openrust new --encryption`。8 项加密测试、11 项 CLI 测试、workspace default/all-features tests/clippy/docs、cargo deny 与生成项目本地 patch check/test 通过；已提交 `e5e86f2`。所用 crate 文档声明当前无完整独立审计，已记为发布前复核项。 |
 | M3 审计记录 | ADR-035 实现 `openrust::audit`：显式事件与 sink、details allowlist/redaction、`test-util` fake、数据库迁移/持久化/有界清理、事务内写入；`Policy::grant_permission_in_transaction` 与审计在 PostgreSQL 18/MySQL 8.4 上验证同事务提交、回滚和 sink 失败回滚。`--auth` 模板注册 audit plugin/migration；生成项目在两库通过真实 HTTP auth 流程。workspace default/all-features tests/clippy、warnings-denied docs、cargo deny 与双库完整 `auth_database` 均通过。 |
 | M3 签名与限时链接 | ADR-036 实现独立 `signing` feature、用途专属 key ring、purpose/subject/TTL/JTI 签名验证、key rotation 与可选 PostgreSQL/MySQL 共享撤销 store/迁移/有界清理；4 项 signer 单测和两库各 6 项 `auth_database` 通过。`--auth` 生成项目注册 service 与 migration；两种数据库生成项目通过 fmt/check/真实 HTTP auth flow。workspace default/all-features clippy/tests、warnings-denied docs、无默认 feature check、cargo deny 与 diff check 通过。 |
+| M3 认证与安全总验收 | PostgreSQL 18 / MySQL 8.4 的 `auth_database` 与 `auth_runtime` 各 6 项通过；新生成 `--auth` 项目在两库分别通过 fmt、`cargo check` 和真实 TCP `auth_flows`。覆盖注册/验证、JWT/refresh、Session/CSRF、PAT、限流、Policy/RBAC、可信代理、审计和签名撤销。Twilio 协议测试不等于实发；实发等待授权目标与凭据。 |
 | 架构决策 | 以 `decisions/` 中有效状态为准；缓存标准应用默认 Redis（ADR-015），driver/store contract 见 ADR-014，均不代表缓存已实现 |
 | 仓库基线（许可证、README、工具链声明、Agent 契约、CHANGELOG、贡献与安全政策） | 已就位 |
 | workspace、lint 基线、CI 工作流 | 已就位；CI 双库 job 已启用，MSRV 为 Rust 1.97 |
@@ -26,7 +27,7 @@
 | `openrust-test` | `TestDatabase` 为每个用例创建并迁移独立库；支持 `create_with_table_names` 以相同 resolver scope 执行迁移；PostgreSQL 迁移模板克隆，MySQL 独立建库；`close().await` 清理；基线两库集成测试通过 |
 | `openrust::mail` | `Email` / `Mailer`，log、fake、可选 SMTP Rustls driver；已接入 facade、server 与项目模板 |
 | `apps/server` | M1 聚合入口；`auth` feature 集成测试验证 facade PAT 与 JWT 路由、JWT 不依赖 SessionPlugin，并与 `Inject<T>` 共存。生成 AuthFlows HTTP 真机测试现由 CLI 模板提供；默认数据库认证器的 PAT 入口在生成模板增加，MySQL e2e 通过 |
-| `openrust::auth` | AuthPlugin/custom Authenticator、Session/PAT/JWT 路由认证、CurrentUser/OptionalUser、共享 Session/CSRF、refresh/verification/Policy migrations、Argon2id、AuthFlows 与基础 Policy/RBAC 已实现。M3 仍有双库/生成项目/文档验收，不因移动模块而关闭 |
+| `openrust::auth` | AuthPlugin/custom Authenticator、Session/PAT/JWT 路由认证、CurrentUser/OptionalUser、共享 Session/CSRF、refresh/verification/Policy migrations、Argon2id、AuthFlows 与基础 Policy/RBAC 已实现；PostgreSQL 18 / MySQL 8.4 数据库、runtime 与生成项目 TCP HTTP 矩阵通过。真实 Twilio 投递待授权账号与目标 |
 | 配置与数据命名 | `APP_` 默认、自定义单一命名空间、环境/`.env` 引导、配置目录和前缀覆盖已实现并通过 core/CLI/workspace 与双库生成项目 check/test；数据库表前缀/映射实现已接入 Db、MigrationPlugin、TestDatabase 与 Auth SQL；PostgreSQL/MySQL 真实隔离库矩阵与迁移 runner 验证通过，工作区全量 fmt/clippy/test/doc 通过 |
 | 后续能力模块 | `cache` / `queue` / `events` / `storage` 尚未实现；按 M4/M5 计划直接在根 package 创建非空模块，不保留空壳 package |
 | v1 新增范围 | 读写分离已按 ADR-029 实现并通过复制延迟验收；流程钩子、缓存、可观测性及最终集群按专题计划补做 |

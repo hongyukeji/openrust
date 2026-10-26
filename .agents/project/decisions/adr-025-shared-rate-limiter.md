@@ -1,6 +1,6 @@
 # ADR-025 跨节点共享限流契约
 
-- 状态：Accepted（通用 API 与 PostgreSQL/MySQL store 已实现并验证，M3 验收继续进行）
+- 状态：Accepted（通用 API 与 PostgreSQL 18 / MySQL 8.4 store 已实现并通过 AuthFlows 与生成项目 HTTP 总验收）
 - 日期：2026-10-26
 - 依据：[v1 能力覆盖](../plans/v1-capability-coverage.md)、[ADR-013](adr-013-deployment-and-redis-cache-default.md)、[ADR-024](adr-024-authentication-flow-service.md)
 

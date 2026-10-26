@@ -1,6 +1,6 @@
 # ADR-027：Policy 与基本角色权限
 
-- 状态：Accepted（最小 contract 与 PostgreSQL/MySQL 默认实现已验证；M3 集成验收继续进行）
+- 状态：Accepted（最小 contract 与 PostgreSQL 18 / MySQL 8.4 默认实现已验证；授权路由及 PAT ability 交集通过集成验收）
 - 日期：2026-10-26
 
 ## 最小 Spec

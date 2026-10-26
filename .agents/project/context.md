@@ -2,14 +2,14 @@
 
 > 受众：AI Agent
 > 更新：2026-10-26
-> 摘要：OpenRust 是全新的开源 Rust 应用开发框架，当前处于 v1 版本 M3 阶段。
+> 摘要：OpenRust 是全新的开源 Rust 应用开发框架，当前进入 v1 版本 M4 队列、调度与事件能力。
 
 ## 当前状态
 
 | 项 | 值 |
 | --- | --- |
 | 版本 | 0.0.0（未发布，crates.io 名称未预留） |
-| 阶段 | v1 版本 M0、M1、M2 当前验收范围已完成；根 package 模块迁移已提交，M2 读写分离已实现并通过双库真实复制拓扑验证；本轮按新增要求完成模块化配置与 `.env` 机制，M3 认证及其他既有 WIP 保留 |
+| 阶段 | v1 版本 M0-M3 本地框架能力及认证/安全总验收已完成；M2 读写分离通过 PostgreSQL 18 / MySQL 8.4 真实复制拓扑验证；当前按依赖顺序开始 M4 队列、调度与事件。真实 Twilio 发送仍待授权账号与目标，属于外部验收条件 |
 | 仓库 | `https://github.com/hongyukeji/openrust`（公开，默认分支 `main`，已推送）；本地 `/Users/Home/Codes/Rust/openrust` |
 | 协作模式 | 单开发者 + AI Agent；Claude 负责方案与设计，Codex 负责实现与验证 |
 | 本机工具链 | Rust stable 1.99.1（默认）与 Rust 1.97.0 MSRV（`rustup`），`cargo-deny` 0.20 已安装 |
@@ -43,7 +43,7 @@
 - 基础读写分离已按 [ADR-029](decisions/adr-029-database-read-routing.md) 纳入并实现：默认单库，可选同 backend 只读副本，显式 `read_connection()` 轮询，`connection()`/事务固定主库，`with_primary` task-local 写后读保护；PostgreSQL 18.6 / MySQL 8.4.13 真实复制暂停/追平测试通过。完整集群与代表性业务性能基线仍未完成。
 - 日常本地开发与 Compose 使用 PostgreSQL 18、MySQL 8.4 LTS、Redis 8；常规 CI 使用 PostgreSQL 18 与 MySQL 8.4，Redis 集成在 M5 实现后纳入验证。只有主版本跨度较大、涉及版本专属行为或出现明确兼容风险时，才增加额外版本专项验证；v1 发布前必须定稿并验证最低支持版本。当前运行时 PostgreSQL 版本检查接受 `16+`；日常测试目标为 18；历史 PostgreSQL 14 / MySQL 8.0 测试仅作历史证据。每个数据功能仍须有 PostgreSQL/MySQL 双库证据（[ADR-002](decisions/adr-002-seaorm-dual-database.md)）。
 - 同时支持单机与集群；标准应用默认 Redis cache，memory/file 显式选择，库 feature 保持可组合，见 [ADR-015](decisions/adr-015-redis-default-calibration.md)。需要跨节点共享语义时必须明确配置共享后端，不能静默退化；队列/会话仍默认共享数据库，部署边界见 [ADR-013](decisions/adr-013-deployment-and-redis-cache-default.md)。缓存实现待 M5。
-- 认证以 Bearer JWT access token 为前后端分离 API 的主要路径；高熵 refresh token 轮换并存储哈希。通用 Cookie Session 保留为显式可选项，PAT 面向自动化/服务集成，三者复用同一主体与授权入口；按 [ADR-018](decisions/adr-018-jwt-primary-authentication.md) 实施。AuthFlows、验证码/限流、Policy/RBAC 与可选 Session helper 已实现；根模块迁移后的认证数据库集成和两种 `--auth` 生成项目 HTTP e2e 在 PostgreSQL 16 / MySQL 8.4 上通过。M3 剩余覆盖与总验收继续保留在待办，按 v1 计划依赖顺序推进。
+- 认证以 Bearer JWT access token 为前后端分离 API 的主要路径；高熵 refresh token 轮换并存储哈希。通用 Cookie Session 保留为显式可选项，PAT 面向自动化/服务集成，三者复用同一主体与授权入口；按 [ADR-018](decisions/adr-018-jwt-primary-authentication.md) 实施。AuthFlows、验证码/限流、Policy/RBAC 与可选 Session helper 已实现；PostgreSQL 18 / MySQL 8.4 数据库与 runtime 测试、新生成项目完整 TCP HTTP 流程均已通过。M3 本地认证与安全总验收已关闭；真实 Twilio 送达需授权账号与目标。
 - 许可证 MIT OR Apache-2.0；Edition 2024；MSRV 为 stable 减两个小版本（[ADR-005](decisions/adr-005-license-naming-msrv.md)）。
 - 生成项目布局、CLI、配置键与公共 API 命名以 [ADR-006](decisions/adr-006-rust-native-naming.md) 为唯一 contract；M6 才建立 mdBook `docs/`，此前用户文档维护在 crate README。
 - 库 crate 禁止 `unsafe`、`unwrap` / `expect` / `panic`；公共项必须有文档。细则见 [conventions.md](conventions.md)。

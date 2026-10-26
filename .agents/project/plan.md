@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-26
-> 摘要：v1 版本共 M0-M6 七个里程碑；根 package 模块迁移、M2 读写分离及模块化配置与 `.env` 机制已完成。当前按依赖顺序继续 M3 及后续 v1 未完成工作。详细交付与验收见 [v1 版本计划](plans/gen1-plan.md)「里程碑」。
+> 摘要：v1 版本共 M0-M6 七个里程碑；根 package 模块迁移、M2 读写分离、模块化配置与 `.env` 机制、M3 本地能力及认证/安全总验收已完成。当前按依赖顺序推进 M4。详细交付与验收见 [v1 版本计划](plans/gen1-plan.md)「里程碑」。
 
 ## 当前里程碑
 
@@ -12,10 +12,10 @@ M0、M1、M2 当前已验收范围完成；根模块迁移与读写分离均已�
 
 ## 执行校准
 
-- **底层调整总览必读**：根模块迁移、M2 基础读写分离及 ADR-030 模块化配置与 `.env` 整理已实现并验证；按 v1 依赖顺序继续未完成能力。M3/M4/M5/M6 能力与最终集群共享验收仍未完成。专题计划中的能力在代码、测试和验收证据齐备前都仍属未完成。
+- **底层调整总览必读**：根模块迁移、M2 基础读写分离及 ADR-030 模块化配置与 `.env` 整理已实现并验证；M3 本地框架能力与认证/安全总验收也已关闭。按 v1 依赖顺序继续 M4/M5/M6 和最终集群共享验收；真实 Twilio 发送仍待授权凭据与目标。专题计划中的其他能力在代码、测试和验收证据齐备前都仍属未完成。
 - 根 `openrust` package 模块迁移按 [ADR-021](decisions/adr-021-loco-style-module-layout.md) 已独立实施并完成 workspace、feature、双库、生成项目、示例、文档和旧路径验证。ADR-019 的逐能力目录改名与 `apps/server` 包改名取消；根 tests/examples 尚未覆盖聚合宿主所有验收，故保留 server。
 - Loco 应用 Hooks、CLI 与测试体验的边界按 [ADR-023](decisions/adr-023-loco-application-experience-evaluation.md)：不增加平行 Hooks；M4 worker/scheduler 实施前定义取消及停机生命周期，M6 落地只读 doctor 与薄 TestApp/HTTP assertions；现有生成器按 gen1-plan 的里程碑执行。
-- 命名校准按 [ADR-016](decisions/adr-016-neutral-application-namespaces.md)：应用配置默认 `APP_`，表默认 `tb_`，均可定制。`APP_` 已在 core/bootstrap、CLI、模板和说明中实现；表名 resolver 已贯通 DatabaseConfig/Db、迁移、测试隔离及认证持久化查询，并通过 PostgreSQL/MySQL 真实映射矩阵验证。M3 仍有功能簇验收待补；禁止直接改生产表。
+- 命名校准按 [ADR-016](decisions/adr-016-neutral-application-namespaces.md)：应用配置默认 `APP_`，表默认 `tb_`，均可定制。`APP_` 已在 core/bootstrap、CLI、模板和说明中实现；表名 resolver 已贯通 DatabaseConfig/Db、迁移、测试隔离及认证持久化查询，并通过 PostgreSQL/MySQL 真实映射矩阵验证；禁止直接改生产表。
 
 - AI 平台仅为独立产品规划，不进入当前框架功能簇；须先完成框架 v1/v2 完整体成熟验收再由开发者决定是否立项，平台完全体 P0–P8 及 [上线门禁](plans/ai-platform-product.md#启动开发与上线硬性门禁) 全通过才可上线，不允许阶段性对外开放。收到明确启动指令后，产品代码只在 `projects/*` 分支及独立 worktree 开发，执行 [产品隔离规则](plans/ai-platform-product.md#分支与工作区硬性约束)，不为产品妥协框架契约。
 
@@ -26,7 +26,7 @@ M0、M1、M2 当前已验收范围完成；根模块迁移与读写分离均已�
 - M0-M2 等阶段完成仅代表对应已验收范围；后来补入的事务钩子、集群等要求仍需按依赖补做，不能被旧阶段标签遮蔽。
 - 每次领取/切换功能簇，对照 [v1 能力覆盖](plans/v1-capability-coverage.md)、[通用能力](plans/v1-common-capabilities.md)、[性能补强](plans/v1-performance-and-readiness.md) 和 [集群要求](plans/v1-cluster-deployment.md) 定位相关未完成项；不能只沿最初 M0-M6 简表推进。
 - M3 不限于身份提取器：Mailer/SmsSender、SMTP/Twilio adapter 与本机 Mailpit 按 ADR-033 接入；Twilio 实际号码投递仍待开发者提供授权凭据与目标。ADR-031 统一出站 HTTP client、ADR-032 请求级国际化与 ADR-034 应用数据加密/本地密钥轮换已实现；审计按 ADR-035 完成并验证。认证 contract 现在就覆盖共享会话、跨节点撤销、全局配额/验证码与公开业务扩展点，不能留到 M6 才补单机假设。
-- M3 认证已有能力已在当前基线补验：PostgreSQL 18 与 MySQL 8.4 的认证数据库流程各 6 项通过；两种新生成 `--auth` 项目分别通过格式、`cargo check` 和真实 TCP HTTP 数据库流程。ADR-035 审计与 ADR-036 签名链接均完成双库验收；后续按 todo 做 M3 剩余认证/安全总验收。Twilio 实发仍待授权目标与凭据。
+- M3 认证与通用安全总验收已完成：PostgreSQL 18 与 MySQL 8.4 的 `auth_database` / `auth_runtime` 各通过 6 项；新生成 `--auth` 项目分别通过格式、`cargo check` 和真实 TCP HTTP 流程。ADR-035 审计与 ADR-036 签名链接均双库验收。唯一外部条件是 Twilio 实发需授权账号与目标；通用流程扩展点按 M3/M4/M5 依赖在后续簇统一实施。
 - 在既有 `progress.md` / `core/` / `memory/testing.md` 分别记录契约、实现、实际验证与提交边界，不另建平行任务队列或历史状态表。fake/编译检查不替代真实 SMTP/短信、双库或集群验收；外部条件缺失如实标注。
 - 旧排队消息仅作设计输入，已被更新的称谓、范围和措辞以当前仓库为准。收到消息后先去重合并，不将“已排队”当成“已接收”，不重复应用已有提交。
 - 每个功能簇按 [扩展性自主判断](plans/framework-design.md#开发-agent-的自主扩展性判断) 主动评估接入场景并记录取舍；继续只实施 v1，v2 后台不得提前展开。

@@ -1,6 +1,6 @@
 # ADR-018 API 默认 JWT 与可选 Session
 
-- 状态：Accepted（JWT runtime、AuthFlows 与路由已实现；v1 M3 总验收继续进行）
+- 状态：Accepted（JWT runtime、AuthFlows 与路由已实现；PostgreSQL 18 / MySQL 8.4 AuthFlows、Session/PAT 授权及生成项目 HTTP 矩阵通过）
 - 日期：2026-10-25
 - 替代：[ADR-004](adr-004-session-and-token-auth.md) 的默认认证方式；补充 [ADR-012](adr-012-auth-current-user-contract.md) 的 credential 路由 contract 与 [ADR-017](adr-017-generic-session-runtime.md) 的可选 Session contract。
 

@@ -1,6 +1,6 @@
 # ADR-022 JWT 运行时与 claims contract
 
-- 状态：Accepted（独立 contract review 完成；HS256 runtime 与 key ring 已实现并测试；M3 总验收继续进行）
+- 状态：Accepted（独立 contract review 完成；HS256 runtime 与 key ring 已实现；PostgreSQL 18 / MySQL 8.4 AuthFlows 和生成项目 HTTP 流程通过）
 - 日期：2026-10-25
 - 依据：[ADR-018](adr-018-jwt-primary-authentication.md)、[ADR-012](adr-012-auth-current-user-contract.md)
 

@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-26
-> 摘要：M3 认证运行时当前实现与未完成边界。
+> 摘要：M3 认证运行时实现和双库验收事实；真实 Twilio 送达仍需授权账号与目标。
 
 ## 当前实现
 
@@ -28,14 +28,15 @@
 - `openrust new --db postgres|mysql --auth` 生成 JWT/Auth/AuthFlows 插件、Auth / refresh / verification / Policy migrations、`DatabaseRateLimitMigration`、JWT 默认保护的 `/api/me`、数据库 PAT 保护的 `/api/me/pat`、注册/验证/登录/refresh/logout/密码找回 HTTP routes 和 `[auth.jwt]` 配置区；密钥必须通过 `APP_AUTH__JWT__KEYS__LOCAL` 设置，不内嵌示例密钥。流程端点使用 `ClientIp` extractor；`[server].trusted_proxy_ranges` 默认为空，仅配置的代理 peer 可提供可信 XFF 链。认证代码调用 `Mailer`，由应用配置 SMTP；默认 `log` driver 只确认接收，不暴露验证码，也不代表邮件已送达。
 - 认证生成物附带 `tests/auth_flows.rs`：使用 `TestDatabase` 创建独立数据库、替换 `Mailer` 为 fake，并通过真实 TCP listener 验证生成路由。覆盖统一响应、`Inject` 与 `ClientIp` 共存、可信 XFF、验证码、JWT 当前用户、默认数据库 PAT 认证、登录限流错误、refresh 单次轮换/重放拒绝、密码重置及登出撤销。由于默认 `HttpStatusMode::AlwaysOk`，错误的稳定 `code` 在统一 JSON envelope 中表达，HTTP status 保持 200。运行数据库 e2e 需设置 `OPENRUST_TEST_DATABASE_URL` 并授予测试账号创建/删除数据库权限；未设置时测试会提示并跳过。
 
-## 尚未实现
+## 边界与未纳入范围
 
 - AuthFlows service contract 已记录在 [ADR-024](../decisions/adr-024-authentication-flow-service.md) 并已实现；验证码与 RateLimiter 数据库实现分别见 ADR-026/025，Policy contract 和基础实现见 ADR-027。验证码消费和账户变更不是同一事务；密码更新与 refresh family revoke 是单一事务。
-- 生成项目 HTTP handlers 的真实 HTTP/fake-mail/`ClientIp` 集成覆盖已加入。2026-10-26 按当前模板新生成的 PostgreSQL 18 与 MySQL 8.4 项目均通过格式检查、`cargo check` 和完整 JWT/PAT HTTP 流程；当前 `auth_database` 流程亦在两个日常数据库版本各通过 4 项。真实 SMTP 送达仍未验收。
-- Session login/logout helper 的 迁移后完整 HTTP 闭环复验。
+- 生成项目 HTTP handlers 的真实 HTTP/fake-mail/`ClientIp` 集成覆盖已加入。2026-10-26 按当前模板新生成的 PostgreSQL 18 与 MySQL 8.4 项目均通过格式检查、`cargo check` 和完整 JWT/PAT HTTP 流程；Session 登录/退出及 CSRF 流程也在双库隔离集成测试覆盖。
 - 注册、登录、找回、邮箱验证、refresh/logout 与共享限流已有 service 编排和生成 HTTP 路由模板；可信代理来源策略按 ADR-028 实现。
 - Policy/basic RBAC 已实现；复杂业务策略、租户范围与可缓存授权模型未纳入本 contract。
-- `apps/server` 默认应用尚无完整认证 HTTP 流程集成。
+- `apps/server` 不承担生成项目业务 DTO 的认证 HTTP 流程；默认聚合入口提供 auth facade/runtime 集成，完整流程由 CLI 生成项目通过真实 TCP 测试覆盖。
+
+- Twilio 适配器有请求协议、认证、错误脱敏、timeout 与无重试测试，尚无已授权账号和目标号码的真实送达证据。认证和通用安全本地实现及双库验收不依赖该外部条件。
 
 ## 验证
 
@@ -50,5 +51,6 @@
 - `cargo test -p openrust-cli`：生成模板断言 JWT/AuthFlows plugins、认证路由、`ClientIp`、根 `config/` 与外置密钥变量。
 - `OPENRUST_TEST_DATABASE_URL=... cargo test -p openrust-server --features auth,db-postgres|auth,db-mysql --test auth_database`：真实隔离库认证流程新增 Session 登录/登出、CSRF、旧 ID 与并发旧请求失效及保留应用数据断言；2026-10-26 在 PostgreSQL 16 与 MySQL 8.4 上真实运行通过。
 - `OPENRUST_TEST_DATABASE_URL=mysql://... cargo test --test auth_flows`：此前生成项目端到端流程在 MySQL 8.4.11 通过，覆盖验证码、限流 envelope、JWT、refresh 重放、密码重置和登出；PostgreSQL 最新生成项目复验待本机数据库恢复。
+- 2026-10-26 当前基线复核：PostgreSQL 18 与 MySQL 8.4 的 `auth_database` 各 6 项、`auth_runtime` 各 6 项通过；当前生成模板项目在两库分别通过 `auth_flows` 真实 TCP HTTP 测试。覆盖注册/重复注册、邮箱验证、登录、Session 轮换/CSRF/退出、JWT 与 PAT、refresh 轮换/重放、密码重置、共享限流、Policy/RBAC 与 PAT ability 交集、可信代理和统一错误 envelope。
 - 2026-10-26：默认及 all-features workspace fmt/clippy/test/doc 全通过；认证真实隔离库流程测试在 PostgreSQL 16 与 MySQL 8.4 通过；新生成 PostgreSQL、MySQL 项目分别运行 `cargo fmt --all --check && cargo check && cargo test` 通过。MySQL 模板构建提示有数个未启用可选 crate patch，不影响已启用图谱或测试结果。
 - 2026-10-26：`policy_grants_and_revocations_are_visible_to_authenticated_routes` 在 PostgreSQL 16 与 MySQL 8.4 真实隔离库通过，验证 JWT 路由默认拒绝、授予/撤销即时生效、PAT ability 与数据库授权取交集，并覆盖自定义用户表映射。

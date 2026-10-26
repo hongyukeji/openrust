@@ -1,6 +1,6 @@
 # ADR-026 通用验证码服务
 
-- 状态：Accepted（通用验证码实现及 PostgreSQL/MySQL 持久化并发测试已验证；M3 总验收继续进行）
+- 状态：Accepted（通用验证码实现及 PostgreSQL 18 / MySQL 8.4 持久化并发、AuthFlows 与生成项目 HTTP 测试已验证）
 - 日期：2026-10-26
 - 依据：[ADR-011](adr-011-sms-and-communication-baseline.md)、[ADR-024](adr-024-authentication-flow-service.md)、[ADR-025](adr-025-shared-rate-limiter.md)、[v1 能力覆盖](../plans/v1-capability-coverage.md)
 

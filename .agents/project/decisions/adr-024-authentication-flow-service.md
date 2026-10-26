@@ -1,6 +1,6 @@
 # ADR-024 认证流程服务与应用路由边界
 
-- 状态：Accepted（AuthFlows service/plugin 与生成 HTTP endpoints 已实现；PostgreSQL 16 / MySQL 8.4 真实 HTTP e2e 通过，M3 总验收仍进行中）
+- 状态：Accepted（AuthFlows service/plugin 与生成 HTTP endpoints 已实现；PostgreSQL 18 / MySQL 8.4 双库集成和生成项目真实 TCP HTTP e2e 通过）
 - 日期：2026-10-26
 - 依据：[ADR-004](adr-004-session-and-token-auth.md)、[ADR-012](adr-012-auth-current-user-contract.md)、[ADR-016](adr-016-neutral-application-namespaces.md)、[ADR-018](adr-018-jwt-primary-authentication.md)、[ADR-022](adr-022-jwt-runtime-contract.md)、[ADR-025](adr-025-shared-rate-limiter.md)、[ADR-026](adr-026-generic-verification-codes.md)
 

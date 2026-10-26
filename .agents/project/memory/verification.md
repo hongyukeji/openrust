@@ -5,8 +5,8 @@
 > 摘要：v1 各里程碑按 [v1 版本计划](../plans/gen1-plan.md) 验收；以下为当前实现与既有测试记录的边界，不将规划计为完成。
 
 - 原 M0、M1、M2 范围已完成：内核与 HTTP、聚合入口、双库连接/事务/迁移/seed、测试数据库隔离与生成项目验证。具体命令与已有通过记录见 [testing.md](testing.md)。
-- M3 邮件 driver、认证流程、JWT/refresh、可选 Session、PAT、验证码/限流与基础 Policy/RBAC 已实现部分能力；完整 M3 覆盖和真实邮件/短信供应商交付仍未验收。具体边界以 `core/auth.md`、`core/mail.md` 和当前功能簇记录为准。
-- 2026-10-26 认证生成项目当前基线已在 PostgreSQL 18 / MySQL 8.4 各通过真实数据库 HTTP e2e、`cargo fmt --all --check` 与 `cargo check`；每库 `auth_database` 4 项通过。真实邮件送达和短信供应商仍未验收。
+- M3 本地邮件/SMS driver、认证流程、JWT/refresh、可选 Session、PAT、验证码/限流、Policy/RBAC、国际化、出站 HTTP、加密、审计和签名能力均已实现并完成当前本地验收；真实 Twilio 投递仍待授权账号与目标。详见 `core/auth.md`、`core/mail.md` 与 `testing.md`。
+- 2026-10-26 认证总验收在 PostgreSQL 18 / MySQL 8.4 完成：每库 `auth_database` 和 `auth_runtime` 各 6 项通过；新生成项目通过格式、check 和真实 TCP HTTP 全流程。Mailpit 邮件实收已完成；Twilio 实发未宣称。
 - M2 基础读写分离已按 ADR-029 实现，并在 PostgreSQL 18.6 / MySQL 8.4.13 真实复制拓扑验证复制暂停、主库新读、scope 隔离及追平。完整集群和代表性业务性能验收仍未完成。
 - 缓存、队列、事件、存储仍有待实现范围。标准应用 Redis 默认按 ADR-015 执行，但 Redis driver、完整集群和性能基线尚未验收。
 - 版本基线：日常本地开发与 Compose 为 PostgreSQL 18、MySQL 8.4 LTS、Redis 8；常规 CI 为 PostgreSQL 18、MySQL 8.4。PostgreSQL 16 与更旧数据库测试仅作历史专项证据；v1 发布前确定并验证最低支持版本。
@@ -19,3 +19,5 @@
 2026-10-26 ADR-035 审计实现验收：PostgreSQL 18 / MySQL 8.4 `auth_database` 各 5 项全通过，包含真实表名 resolver、事务提交/回滚、审计写故障回滚和有界清理；两种数据库的生成 `--auth` 项目均通过格式、check 与真实 HTTP auth flow。workspace default/all-features tests/clippy、warnings-denied docs、no-default-features check、`cargo deny check` 均通过，cargo-deny 仅输出已有重复依赖及未使用 MPL allowance 警告。未提供审计查询 API，也未承诺不可篡改或可靠远程 sink 投递。
 
 2026-10-26 ADR-036 签名链接：PostgreSQL 18 / MySQL 8.4 `auth_database` 各 6 项通过；新生成两种 backend `--auth` 项目均通过格式、check 与真实 TCP HTTP auth 流程，覆盖签名插件启动和撤销迁移。workspace default/all-features clippy/test、warnings-denied docs、no-default-features check、`cargo deny check` 通过；双库全量命令与生成项目命令在本轮实际执行，未依赖旧测试记录。
+
+2026-10-26 M3 认证与安全汇总：PG18 与 MySQL 8.4 的 `auth_database`、`auth_runtime` 每库均 6 项通过；新生成 `--auth` 项目各自通过格式、check、真实数据库迁移和 TCP HTTP `auth_flows`。本地默认服务凭据与仓库测试凭据不匹配，因此用隔离的无持久卷 CI Compose 服务实际执行验收并随后清理；未改动本机既有数据库。真实 Twilio 投递仍因未提供授权凭据和目标而未执行。

@@ -1,6 +1,6 @@
 # ADR-017 通用 Session 与 Cookie 运行时
 
-- 状态：Accepted（M3 contract；数据库 Session store 与认证登录 helper 已在 PostgreSQL 16 / MySQL 8.4 集成验证；M3 总验收继续进行）
+- 状态：Accepted（M3 contract；PostgreSQL 18 / MySQL 8.4 数据库 Session store、认证登录/退出 helper 与生成项目 HTTP 流程已验证）
 - 日期：2026-10-25
 - 依据：[ADR-004](adr-004-session-and-token-auth.md)、[ADR-012](adr-012-auth-current-user-contract.md)、[v1 能力覆盖](../plans/v1-capability-coverage.md)
 
