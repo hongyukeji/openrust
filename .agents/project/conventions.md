@@ -107,6 +107,15 @@ cargo deny check
 
 测试原则：框架是底层通用机制，每个公共行为都应有单元或集成测试；新建测试文件前必须能一句话说清它能发现哪个缺陷。能力 fake 可随该模块的 `test-util` 暴露；通用测试组合工具放在 `testing`，不得为目录统一引入根 package 对测试包的反向依赖。分目录迁移测试时核对 Cargo targets 和运行用例，避免子目录文件未被编译执行。
 
+### 构建产物与临时资源
+
+- 同一功能簇内复用构建缓存，整组验证结束后由执行 Agent 主动收尾。记录 `target/` 的清理前后体积；清理失败或被占用须说明待清理路径与原因，不把清理失败当作验证失败或重跑整组测试的理由。
+- 临时生成应用、干净源码副本及其 target 放在任务专属临时目录，记录创建归属，成功、失败或取消时均回收。诊断需要暂留时说明路径和保留原因；不得删除其他任务的目录。临时源码验证默认不把 `CARGO_TARGET_DIR` 指向仓库共享 target，避免一次性包名与 feature 组合长期堆积。
+- 仓库常规 `target/debug` 保留可执行文件、库、`deps`、`build`、`.fingerprint` 及关联调试文件；整组验证结束且无构建使用时，清理 `incremental/` 中可再生的增量缓存。下一次源码修改后的编译会重建缓存、耗时可能增加；macOS 的源级调试也可能需要重新构建。
+- 删除前检查真实路径、符号链接、Git 跟踪状态和任务归属，确认目标只含生成数据；检查 Cargo、rustc、rustdoc 及关联构建进程。清理共享目录时还须使用已验证与当前 Cargo 兼容的构建锁，持锁期间保留锁文件；无法取得锁或发现其他使用者时延后，不能只凭一次进程快照判断安全。
+- 不默认运行全量 `cargo clean`，不按文件名哈希或修改时间猜测删除 `deps`，不为清理擅自修改全局 Cargo 配置、profile 或关闭开发者的增量编译。包重命名、工具链切换等确需进一步清理时，先检查 `cargo clean --dry-run` 的范围，并说明会重建哪些产物。
+- Cargo 的下载缓存回收不负责回收 target 构建产物；本规则是 Agent 的任务收尾责任，不代表 Cargo 已安装自动清理钩子。依据：[构建缓存](https://doc.rust-lang.org/cargo/reference/build-cache.html)、[cargo clean](https://doc.rust-lang.org/cargo/commands/cargo-clean.html)、[全局缓存回收](https://doc.rust-lang.org/cargo/reference/config.html#global-caches)。
+
 ## 文档
 
 - 默认文档入口使用简体中文，英文仅作必要术语对照；完整英文文档成熟后再评估。范围与例外统一见 [语言规范](style.md#语言规范)，翻译需保持内容语义、链接和可运行示例。
