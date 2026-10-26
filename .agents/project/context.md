@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-26
-> 摘要：OpenRust 是全新的开源 Rust 应用开发框架，当前处于 v1 M5；源码 workspace 交付、C1–C3 中文化、F1–F3 与队列化通知已完成；M4 job 生成与集成收口、M5 通用插件公开契约、Db/Queue 外部扩展契约、跨协议验证与调用作用域及 HTTP 有界运行/就绪切换已完成；M5 缓存基础 driver 与命名 store 已完成真实 Redis、生成项目和 workspace 门禁验收；F4a tag generation 已通过内存与 Redis 双连接验收；当前转入 F4b 单进程同键加载合并。
+> 摘要：OpenRust 是全新的开源 Rust 应用开发框架，当前处于 v1 M5；源码 workspace 交付、C1–C3 中文化、F1–F3 与队列化通知已完成；M4 job 生成与集成收口、M5 通用插件公开契约、Db/Queue 外部扩展契约、跨协议验证与调用作用域及 HTTP 有界运行/就绪切换已完成；M5 缓存基础 driver 与命名 store 已完成真实 Redis、生成项目和 workspace 门禁验收；F4a tag generation 与 F4b 单进程加载合并已完成适用验收；当前转入 F4c stale-while-revalidate。
 
 ## 当前状态
 

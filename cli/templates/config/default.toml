@@ -36,6 +36,11 @@ driver = "redis"
 namespace = "{{name}}"
 dsn = "redis://127.0.0.1:6379/"
 
+[cache.singleflight]
+max_in_flight_keys = 128
+max_waiters_per_key = 64
+loader_timeout_secs = 30
+
 [session]
 secure = true
 http_only = true

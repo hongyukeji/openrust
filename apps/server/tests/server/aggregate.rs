@@ -75,6 +75,35 @@ fn cache_plugin_uses_the_configured_shared_redis_store() -> TestResult {
                 .await
                 .is_err()
         );
+
+        let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let mut loads = Vec::new();
+        for _ in 0..4 {
+            let cache = cache.clone();
+            let calls = std::sync::Arc::clone(&calls);
+            let load_key = format!("singleflight-{}", std::process::id());
+            loads.push(openrust::tokio::spawn(async move {
+                cache
+                    .get_or_load_with(
+                        &load_key,
+                        "server-integration-v1",
+                        Some(Duration::from_secs(10)),
+                        || {
+                            let calls = std::sync::Arc::clone(&calls);
+                            async move {
+                                calls.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+                                openrust::tokio::time::sleep(Duration::from_millis(20)).await;
+                                Ok("loaded".to_owned())
+                            }
+                        },
+                    )
+                    .await
+            }));
+        }
+        for load in loads {
+            assert_eq!(load.await??, "loaded");
+        }
+        assert_eq!(calls.load(std::sync::atomic::Ordering::Acquire), 1);
         Ok(())
     })
 }

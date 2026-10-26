@@ -40,7 +40,7 @@ pub mod sms;
 pub use api::{ApiConfig, HttpStatusMode};
 pub use app::{AppConfig, Environment};
 pub use auth::{JwtConfig, PasswordConfig, SessionConfig};
-pub use cache::{CacheConfig, CacheStoreConfig};
+pub use cache::{CacheConfig, CacheSingleflightConfig, CacheStoreConfig};
 pub use database::DatabaseConfig;
 pub use logger::{LogConfig, LogFormat};
 pub use mailer::MailConfig;

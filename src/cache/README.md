@@ -14,6 +14,11 @@ dsn = "redis://127.0.0.1:6379/"
 [cache.stores.local]
 driver = "memory"
 namespace = "local"
+
+[cache.singleflight]
+max_in_flight_keys = 128
+max_waiters_per_key = 64
+loader_timeout_secs = 30
 ```
 
 启用 Redis 时，在 OpenRust 依赖中选择 `cache-redis` feature。`REDIS_URL` 与应用命名空间变量（默认 `APP_REDIS_URL`）均覆盖默认 Redis store 的 `dsn`；命名空间变量优先。
@@ -39,5 +44,17 @@ store.invalidate_tags(&["users"]).await?;
 ```
 
 memory 提供进程内原子 generation；Redis 通过 Lua 比较代际后写入，并在多个 Redis 连接之间共享失效。file 与未实现可选能力的 custom driver 明确返回不支持。tagged 值必须带有限 TTL；失效不扫描或删除旧 key，generation 元数据不设过期以防旧代复活，因此 tag 应使用有界、稳定名称，不能直接使用用户输入。多 tag 失效逐个原子执行，整体不保证全有或全无。
+
+`CacheStore::get_or_load_with(key, load_id, ttl, loader)` 在一个进程中的同一 store 上合并相同 key、返回类型和稳定 `load_id` 的并发 miss。默认限制为 128 个在途 key、每个 key 64 个等待者、loader 最长 30 秒；可在 `[cache.singleflight]` 调整，边界分别为 1–4096 个 key、1–4096 个等待者和 1–300 秒。容量耗尽会报错；leader 失败时等待者收到 `cache_loader_failed`，leader 被取消时单个等待者会重新竞争。该机制不提供跨进程恰好一次，外部副作用仍需业务幂等。
+
+`load_id` 是调用方提供的稳定加载语义版本，用于区分并发 loader；同一 store/key 应长期使用相同类型与 load ID。示例：
+
+```rust,ignore
+let user = store
+    .get_or_load_with("user:42", "user-profile-v1", Some(Duration::from_secs(300)), || async {
+        load_user_profile(42).await
+    })
+    .await?;
+```
 
 扩展包可以实现 `CacheDriver` 与 `CacheBackend`，并在插件 `build` 阶段通过 `AppBuilder::extension_mut::<CacheDrivers>()` 注册；`CachePlugin::finish` 会在所有插件完成注册后解析实例。自定义选项使用 `[cache.stores.<name>]` 下除 `driver`、`namespace` 以外的字段，配置调试输出只显示选项名称。

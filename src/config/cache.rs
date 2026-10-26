@@ -12,6 +12,8 @@ pub struct CacheConfig {
     pub default_store: String,
     /// 按名称登记的缓存实例。
     pub stores: BTreeMap<String, CacheStoreConfig>,
+    /// 同进程同键 loader 的资源限制。
+    pub singleflight: CacheSingleflightConfig,
 }
 
 impl Default for CacheConfig {
@@ -19,6 +21,29 @@ impl Default for CacheConfig {
         Self {
             default_store: "default".into(),
             stores: BTreeMap::new(),
+            singleflight: CacheSingleflightConfig::default(),
+        }
+    }
+}
+
+/// 同进程同键加载合并的容量与超时设置。
+#[derive(Clone, Deserialize)]
+#[serde(default)]
+pub struct CacheSingleflightConfig {
+    /// 同时执行 loader 的不同 key 上限（1–4096）。
+    pub max_in_flight_keys: usize,
+    /// 每个 key 可等待的调用数上限（1–4096）。
+    pub max_waiters_per_key: usize,
+    /// leader loader 的超时秒数（1–300）。
+    pub loader_timeout_secs: u64,
+}
+
+impl Default for CacheSingleflightConfig {
+    fn default() -> Self {
+        Self {
+            max_in_flight_keys: 128,
+            max_waiters_per_key: 64,
+            loader_timeout_secs: 30,
         }
     }
 }

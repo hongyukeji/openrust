@@ -7,6 +7,7 @@
 - `memory` 作用域为进程；`file` 使用 SHA-256 文件名、毫秒 TTL envelope 与同目录临时文件 rename 替换，仅适用于节点本地；`redis` 通过可选 `cache-redis` feature 提供 shared store。无本地静默回退。文件替换原子性遵循操作系统 rename 语义。
 - 外部 driver 实现 `CacheDriver`/`CacheBackend`，于插件 `build` 中通过 `AppBuilder::extension_mut::<CacheDrivers>()` 注册。后端基础契约承诺 get/set/remove/TTL；只有额外实现可选原子 tag 能力的 driver 才支持 tag，其他高级能力按后续簇交付。
 - F4a 已增加可选 `CacheTagBackend`、`CacheStore::tagged`、generation snapshot entry 和 `invalidate_tags`。memory 在同一 mutex 中比较/递增/写入；Redis 使用 Lua 在 generation 匹配时写入并跨连接共享；file/custom 未声明能力时显式返回 unsupported。tagged 写必须设置有限 TTL；失效只递增版本，不扫描 key；generation 元数据不设 TTL，tag 名称须有界稳定。server 集成验证真实 Redis 读、失效与旧回填拒绝。
+- F4b 增加 `CacheStore::get_or_load_with` / `Cache::get_or_load_with`，in-flight key 隔离 store、namespace、逻辑 key、Rust type 与稳定 `load_id`。`[cache.singleflight]` 默认限制 128 keys/64 waiters/30 秒，可配置并校验范围。仅本进程有效；leader 失败返回原错误、waiter 得到安全通用错误，leader 取消后 waiter 可重试；缓存写入成功后才通知 waiter。
 - CLI 生成应用默认启用 `cache-redis` 并安装 `CachePlugin`。`openrust dev` 复用可达 loopback Redis；否则用 workspace `compose.ci.yaml` 启动 Redis。生产与 `serve` 不自动编排依赖。
 
 验收入口和未覆盖边界见 [`memory/testing.md`](../memory/testing.md) 与 [ADR-014](../decisions/adr-014-cache-driver-and-store-contract.md)。

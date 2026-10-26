@@ -8,10 +8,11 @@ pub use tags::{CacheTagBackend, TaggedCacheEntry, TaggedCacheStore};
 use std::{
     collections::{BTreeMap, HashMap},
     fmt::Write as _,
+    future::Future,
     path::PathBuf,
     sync::{
-        Arc, OnceLock,
-        atomic::{AtomicU64, Ordering},
+        Arc, OnceLock, Weak,
+        atomic::{AtomicU64, AtomicUsize, Ordering},
     },
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
@@ -21,7 +22,7 @@ use serde::{Serialize, de::DeserializeOwned};
 
 use crate::core::{App, AppBuilder, BoxFuture, Error, Plugin, Result};
 
-pub use crate::config::cache::{CacheConfig, CacheStoreConfig};
+pub use crate::config::cache::{CacheConfig, CacheSingleflightConfig, CacheStoreConfig};
 
 /// 缓存实例可见的共享范围。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -148,6 +149,170 @@ struct CacheStores {
     stores: BTreeMap<String, CacheStore>,
 }
 
+struct SingleFlight {
+    flights: std::sync::Mutex<HashMap<String, Weak<Flight>>>,
+    max_in_flight_keys: usize,
+    max_waiters_per_key: usize,
+    loader_timeout: Duration,
+}
+
+struct Flight {
+    state: tokio::sync::watch::Sender<FlightState>,
+    waiters: AtomicUsize,
+}
+
+#[derive(Clone)]
+enum FlightState {
+    Running,
+    Ready(Arc<[u8]>),
+    Failed,
+    Cancelled,
+}
+
+enum FlightRole {
+    Leader(FlightGuard),
+    Waiter(FlightWaiter),
+}
+
+struct FlightGuard {
+    registry: Arc<SingleFlight>,
+    key: String,
+    flight: Arc<Flight>,
+    active: bool,
+}
+
+struct FlightWaiter {
+    receiver: tokio::sync::watch::Receiver<FlightState>,
+    flight: Arc<Flight>,
+}
+
+impl SingleFlight {
+    fn new(config: &CacheSingleflightConfig) -> Result<Arc<Self>> {
+        if !(1..=4096).contains(&config.max_in_flight_keys)
+            || !(1..=4096).contains(&config.max_waiters_per_key)
+            || !(1..=300).contains(&config.loader_timeout_secs)
+        {
+            return Err(Error::Config(crate::config::ConfigError::Invalid(
+                "cache.singleflight limits must be within their documented bounds".into(),
+            )));
+        }
+        Ok(Arc::new(Self {
+            flights: std::sync::Mutex::new(HashMap::new()),
+            max_in_flight_keys: config.max_in_flight_keys,
+            max_waiters_per_key: config.max_waiters_per_key,
+            loader_timeout: Duration::from_secs(config.loader_timeout_secs),
+        }))
+    }
+
+    fn begin(self: &Arc<Self>, key: String) -> Result<FlightRole> {
+        let mut flights = self.flights.lock().map_err(|_| {
+            Error::custom(
+                "cache_singleflight_unavailable",
+                "cache loader coordination is unavailable",
+            )
+        })?;
+        flights.retain(|_, flight| flight.strong_count() > 0);
+        if let Some(flight) = flights.get(&key).and_then(Weak::upgrade) {
+            let receiver = flight.state.subscribe();
+            let state = receiver.borrow().clone();
+            if matches!(state, FlightState::Running) {
+                let waiters = flight.waiters.fetch_add(1, Ordering::AcqRel);
+                if waiters >= self.max_waiters_per_key {
+                    flight.waiters.fetch_sub(1, Ordering::AcqRel);
+                    return Err(Error::custom(
+                        "cache_singleflight_waiter_limit",
+                        "too many callers are waiting for this cache key",
+                    ));
+                }
+                return Ok(FlightRole::Waiter(FlightWaiter { receiver, flight }));
+            }
+            flights.remove(&key);
+        }
+        if flights.len() >= self.max_in_flight_keys {
+            return Err(Error::custom(
+                "cache_singleflight_capacity",
+                "too many cache loaders are already in flight",
+            ));
+        }
+        let (state, _) = tokio::sync::watch::channel(FlightState::Running);
+        let flight = Arc::new(Flight {
+            state,
+            waiters: AtomicUsize::new(0),
+        });
+        flights.insert(key.clone(), Arc::downgrade(&flight));
+        Ok(FlightRole::Leader(FlightGuard {
+            registry: Arc::clone(self),
+            key,
+            flight,
+            active: true,
+        }))
+    }
+}
+
+impl FlightGuard {
+    fn finish(mut self, state: FlightState) {
+        self.flight.state.send_replace(state);
+        self.remove();
+        self.active = false;
+    }
+
+    fn remove(&self) {
+        if let Ok(mut flights) = self.registry.flights.lock()
+            && flights
+                .get(&self.key)
+                .and_then(Weak::upgrade)
+                .is_some_and(|current| Arc::ptr_eq(&current, &self.flight))
+        {
+            flights.remove(&self.key);
+        }
+    }
+}
+
+impl Drop for FlightGuard {
+    fn drop(&mut self) {
+        if self.active {
+            self.flight.state.send_replace(FlightState::Cancelled);
+            self.remove();
+        }
+    }
+}
+
+impl FlightWaiter {
+    async fn wait(mut self, timeout: Duration) -> Result<Option<Arc<[u8]>>> {
+        let result = tokio::time::timeout(timeout, async {
+            loop {
+                let state = self.receiver.borrow().clone();
+                match state {
+                    FlightState::Running => {
+                        if self.receiver.changed().await.is_err() {
+                            return None;
+                        }
+                    }
+                    FlightState::Ready(bytes) => return Some(Some(bytes)),
+                    FlightState::Failed => {
+                        return Some(None);
+                    }
+                    FlightState::Cancelled => return None,
+                }
+            }
+        })
+        .await;
+        self.flight.waiters.fetch_sub(1, Ordering::AcqRel);
+        match result {
+            Err(_) => Err(Error::custom(
+                "cache_loader_wait_timeout",
+                "waiting for a cache loader exceeded its configured timeout",
+            )),
+            Ok(Some(Some(bytes))) => Ok(Some(bytes)),
+            Ok(Some(None)) => Err(Error::custom(
+                "cache_loader_failed",
+                "the shared cache loader failed",
+            )),
+            Ok(None) => Ok(None),
+        }
+    }
+}
+
 /// 可注入的默认缓存服务，可按名称取得其他 store。
 #[derive(Clone, Default)]
 pub struct Cache {
@@ -203,6 +368,24 @@ impl Cache {
     pub async fn remove(&self, key: &str) -> Result<()> {
         self.default_store()?.remove(key).await
     }
+
+    /// 缓存未命中时，在本进程合并同 key、同类型与同 load ID 的加载。
+    pub async fn get_or_load_with<T, F, Fut>(
+        &self,
+        key: &str,
+        load_id: &str,
+        ttl: Option<Duration>,
+        loader: F,
+    ) -> Result<T>
+    where
+        T: Serialize + DeserializeOwned + Send + 'static,
+        F: Fn() -> Fut + Send + Sync,
+        Fut: Future<Output = Result<T>> + Send,
+    {
+        self.default_store()?
+            .get_or_load_with(key, load_id, ttl, loader)
+            .await
+    }
 }
 
 /// 已解析的缓存 store 句柄。
@@ -211,6 +394,7 @@ pub struct CacheStore {
     store_name: String,
     namespace: String,
     backend: Arc<dyn CacheBackend>,
+    singleflight: Arc<SingleFlight>,
 }
 
 impl CacheStore {
@@ -230,9 +414,12 @@ impl CacheStore {
 
     /// 读取 JSON 值；未命中返回 `None`，错误不会转换为未命中。
     pub async fn get<T: DeserializeOwned>(&self, key: &str) -> Result<Option<T>> {
-        let key = self.key(key)?;
+        self.get_at(&self.key(key)?).await
+    }
+
+    async fn get_at<T: DeserializeOwned>(&self, key: &str) -> Result<Option<T>> {
         self.backend
-            .get(&key)
+            .get(key)
             .await?
             .map(|bytes| {
                 serde_json::from_slice(&bytes).map_err(|_| {
@@ -252,7 +439,15 @@ impl CacheStore {
         value: &T,
         ttl: Option<Duration>,
     ) -> Result<()> {
-        let key = self.key(key)?;
+        self.set_at(&self.key(key)?, value, ttl).await
+    }
+
+    async fn set_at<T: Serialize>(
+        &self,
+        key: &str,
+        value: &T,
+        ttl: Option<Duration>,
+    ) -> Result<()> {
         let ttl = ttl.map(normalize_ttl).transpose()?;
         let bytes = serde_json::to_vec(value).map_err(|_| {
             Error::custom(
@@ -260,12 +455,109 @@ impl CacheStore {
                 "cache value could not be encoded",
             )
         })?;
-        self.backend.set(&key, bytes, ttl).await
+        self.backend.set(key, bytes, ttl).await
     }
 
     /// 删除 JSON 值。
     pub async fn remove(&self, key: &str) -> Result<()> {
         self.backend.remove(&self.key(key)?).await
+    }
+
+    /// 缓存未命中时，在本进程合并同 key、同类型与同 load ID 的加载。
+    ///
+    /// loader 可重复调用；leader 被取消后，等待者中的一个会重新竞争加载。
+    /// 该保证仅限本进程，loader 的外部副作用仍需自行幂等。
+    pub async fn get_or_load_with<T, F, Fut>(
+        &self,
+        key: &str,
+        load_id: &str,
+        ttl: Option<Duration>,
+        loader: F,
+    ) -> Result<T>
+    where
+        T: Serialize + DeserializeOwned + Send + 'static,
+        F: Fn() -> Fut + Send + Sync,
+        Fut: Future<Output = Result<T>> + Send,
+    {
+        if key.is_empty() || key.len() > 1024 {
+            return Err(Error::custom(
+                "cache_invalid_key",
+                "cache key must contain 1 to 1024 bytes",
+            ));
+        }
+        validate_load_id(load_id)?;
+        let ttl = ttl.map(normalize_ttl).transpose()?;
+        let storage_key = self.key(key)?;
+        if let Some(value) = self.get_at(&storage_key).await? {
+            return Ok(value);
+        }
+        let flight_key = self.flight_key::<T>(key, load_id);
+        loop {
+            match self.singleflight.begin(flight_key.clone())? {
+                FlightRole::Leader(guard) => {
+                    if let Some(value) = self.get_at(&storage_key).await? {
+                        let bytes = serde_json::to_vec(&value).map_err(|_| {
+                            Error::custom(
+                                "cache_serialization_failed",
+                                "cache value could not be encoded",
+                            )
+                        });
+                        return match bytes {
+                            Ok(bytes) => {
+                                guard.finish(FlightState::Ready(Arc::from(bytes)));
+                                Ok(value)
+                            }
+                            Err(error) => {
+                                guard.finish(FlightState::Failed);
+                                Err(error)
+                            }
+                        };
+                    }
+                    let result = match tokio::time::timeout(
+                        self.singleflight.loader_timeout,
+                        loader(),
+                    )
+                    .await
+                    {
+                        Ok(Ok(value)) => value,
+                        Ok(Err(error)) => {
+                            guard.finish(FlightState::Failed);
+                            return Err(error);
+                        }
+                        Err(_) => {
+                            guard.finish(FlightState::Failed);
+                            return Err(Error::custom(
+                                "cache_loader_timeout",
+                                "cache loader exceeded its configured timeout",
+                            ));
+                        }
+                    };
+                    let Ok(bytes) = serde_json::to_vec(&result) else {
+                        guard.finish(FlightState::Failed);
+                        return Err(Error::custom(
+                            "cache_serialization_failed",
+                            "cache value could not be encoded",
+                        ));
+                    };
+                    if let Err(error) = self.set_at(&storage_key, &result, ttl).await {
+                        guard.finish(FlightState::Failed);
+                        return Err(error);
+                    }
+                    guard.finish(FlightState::Ready(Arc::from(bytes)));
+                    return Ok(result);
+                }
+                FlightRole::Waiter(waiter) => {
+                    if let Some(bytes) = waiter.wait(self.singleflight.loader_timeout).await? {
+                        return serde_json::from_slice(&bytes).map_err(|_| {
+                            Error::custom(
+                                "cache_deserialization_failed",
+                                "cached value could not be decoded",
+                            )
+                        });
+                    }
+                }
+            }
+        }
     }
 
     fn key(&self, key: &str) -> Result<String> {
@@ -288,6 +580,23 @@ impl CacheStore {
         }
         Ok(physical)
     }
+
+    fn flight_key<T>(&self, key: &str, load_id: &str) -> String {
+        let type_name = std::any::type_name::<T>();
+        format!(
+            "{}:{}{}:{}{}:{}{}:{}{}:{}",
+            self.store_name.len(),
+            self.store_name,
+            self.namespace.len(),
+            self.namespace,
+            key.len(),
+            key,
+            type_name.len(),
+            type_name,
+            load_id.len(),
+            load_id
+        )
+    }
 }
 
 fn normalize_ttl(duration: Duration) -> Result<Duration> {
@@ -306,6 +615,16 @@ fn normalize_ttl(duration: Duration) -> Result<Duration> {
         )
     })?;
     Ok(Duration::from_millis(millis))
+}
+
+fn validate_load_id(load_id: &str) -> Result<()> {
+    if load_id.is_empty() || load_id.len() > 128 || load_id.chars().any(char::is_control) {
+        return Err(Error::custom(
+            "cache_invalid_load_id",
+            "cache loader ID must contain 1 to 128 non-control bytes",
+        ));
+    }
+    Ok(())
 }
 
 /// 初始化配置的默认与命名缓存实例。
@@ -335,6 +654,7 @@ impl Plugin for CachePlugin {
                     config.default_store
                 ))));
             }
+            let singleflight = SingleFlight::new(&config.singleflight)?;
             let drivers = app.extension::<CacheDrivers>().ok_or_else(|| {
                 Error::custom(
                     "cache_driver_registry_missing",
@@ -362,6 +682,7 @@ impl Plugin for CachePlugin {
                         store_name: name.clone(),
                         namespace: driver_config.namespace,
                         backend,
+                        singleflight: Arc::clone(&singleflight),
                     },
                 );
             }
@@ -788,15 +1109,25 @@ impl CacheDriver for RedisUnavailableDriver {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used, reason = "测试断言失败时立即给出故障上下文")]
 mod tests {
     use super::*;
     use std::time::Duration;
 
     fn store(backend: Arc<dyn CacheBackend>, namespace: &str) -> CacheStore {
+        store_with_config(backend, namespace, &CacheSingleflightConfig::default())
+    }
+
+    fn store_with_config(
+        backend: Arc<dyn CacheBackend>,
+        namespace: &str,
+        config: &CacheSingleflightConfig,
+    ) -> CacheStore {
         CacheStore {
             store_name: "test".to_owned(),
             backend,
             namespace: namespace.to_owned(),
+            singleflight: SingleFlight::new(config).expect("valid singleflight test config"),
         }
     }
 
@@ -926,6 +1257,7 @@ mod tests {
             store_name: "test".into(),
             namespace: String::new(),
             backend: Arc::clone(&cache_store.backend),
+            singleflight: Arc::clone(&cache_store.singleflight),
         };
         assert!(
             unnamespaced
@@ -944,6 +1276,244 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn singleflight_merges_loads_and_scopes_contract_keys() -> Result<()> {
+        let cache = store(Arc::new(MemoryBackend::default()), "singleflight");
+        let calls = Arc::new(AtomicUsize::new(0));
+        let barrier = Arc::new(tokio::sync::Barrier::new(8));
+        let mut tasks = Vec::new();
+        for _ in 0..8 {
+            let cache = cache.clone();
+            let calls = Arc::clone(&calls);
+            let barrier = Arc::clone(&barrier);
+            tasks.push(tokio::spawn(async move {
+                barrier.wait().await;
+                cache
+                    .get_or_load_with("same", "profile-v1", Some(Duration::from_secs(5)), || {
+                        let calls = Arc::clone(&calls);
+                        async move {
+                            calls.fetch_add(1, Ordering::AcqRel);
+                            tokio::time::sleep(Duration::from_millis(30)).await;
+                            Ok(42_u32)
+                        }
+                    })
+                    .await
+            }));
+        }
+        for task in tasks {
+            assert_eq!(task.await.map_err(Error::internal)??, 42);
+        }
+        assert_eq!(calls.load(Ordering::Acquire), 1);
+
+        assert_ne!(
+            cache.flight_key::<u32>("typed", "typed-v1"),
+            cache.flight_key::<String>("typed", "typed-v1")
+        );
+        assert_ne!(
+            cache.flight_key::<u32>("typed", "loader-a"),
+            cache.flight_key::<u32>("typed", "loader-b")
+        );
+
+        let distinct_ids = Arc::new(AtomicUsize::new(0));
+        let first_ids = Arc::clone(&distinct_ids);
+        let second_ids = Arc::clone(&distinct_ids);
+        let (first, second) = tokio::join!(
+            cache.get_or_load_with("ids", "loader-a", None, move || {
+                let ids = Arc::clone(&first_ids);
+                async move {
+                    ids.fetch_add(1, Ordering::AcqRel);
+                    tokio::time::sleep(Duration::from_millis(20)).await;
+                    Ok(9_u8)
+                }
+            }),
+            cache.get_or_load_with("ids", "loader-b", None, move || {
+                let ids = Arc::clone(&second_ids);
+                async move {
+                    ids.fetch_add(1, Ordering::AcqRel);
+                    tokio::time::sleep(Duration::from_millis(20)).await;
+                    Ok(9_u8)
+                }
+            })
+        );
+        assert_eq!(first?, 9);
+        assert_eq!(second?, 9);
+        assert_eq!(distinct_ids.load(Ordering::Acquire), 2);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn cancelled_singleflight_leader_releases_waiter_to_retry() -> Result<()> {
+        let cache = store(Arc::new(MemoryBackend::default()), "cancelled");
+        let entered = Arc::new(tokio::sync::Notify::new());
+        let blocked = Arc::new(tokio::sync::Notify::new());
+        let leader_cache = cache.clone();
+        let leader_entered = Arc::clone(&entered);
+        let leader_blocked = Arc::clone(&blocked);
+        let leader = tokio::spawn(async move {
+            leader_cache
+                .get_or_load_with("key", "cancel-v1", None, move || {
+                    let entered = Arc::clone(&leader_entered);
+                    let blocked = Arc::clone(&leader_blocked);
+                    async move {
+                        entered.notify_one();
+                        blocked.notified().await;
+                        Ok(1_u8)
+                    }
+                })
+                .await
+        });
+        entered.notified().await;
+
+        let waiter_cache = cache.clone();
+        let waiter = tokio::spawn(async move {
+            waiter_cache
+                .get_or_load_with("key", "cancel-v1", None, || async { Ok(2_u8) })
+                .await
+        });
+        tokio::time::sleep(Duration::from_millis(10)).await;
+        leader.abort();
+        assert!(leader.await.is_err());
+        assert_eq!(waiter.await.map_err(Error::internal)??, 2);
+        assert_eq!(cache.get::<u8>("key").await?, Some(2));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn singleflight_enforces_key_capacity_and_loader_timeout() -> Result<()> {
+        let config = CacheSingleflightConfig {
+            max_in_flight_keys: 1,
+            max_waiters_per_key: 1,
+            loader_timeout_secs: 1,
+        };
+        let cache = store_with_config(Arc::new(MemoryBackend::default()), "limits", &config);
+        let entered = Arc::new(tokio::sync::Notify::new());
+        let blocked = Arc::new(tokio::sync::Notify::new());
+        let leader_cache = cache.clone();
+        let leader_entered = Arc::clone(&entered);
+        let leader_blocked = Arc::clone(&blocked);
+        let leader = tokio::spawn(async move {
+            leader_cache
+                .get_or_load_with("first", "loader-v1", None, move || {
+                    let entered = Arc::clone(&leader_entered);
+                    let blocked = Arc::clone(&leader_blocked);
+                    async move {
+                        entered.notify_one();
+                        blocked.notified().await;
+                        Ok(1_u8)
+                    }
+                })
+                .await
+        });
+        entered.notified().await;
+        let capacity_error = cache
+            .get_or_load_with("second", "loader-v1", None, || async { Ok(2_u8) })
+            .await
+            .expect_err("second key exceeds the in-flight key limit");
+        assert_eq!(capacity_error.code(), "cache_singleflight_capacity");
+        blocked.notify_one();
+        assert_eq!(leader.await.map_err(Error::internal)??, 1);
+
+        let timeout_error = cache
+            .get_or_load_with("timeout", "loader-v1", None, || async {
+                tokio::time::sleep(Duration::from_secs(2)).await;
+                Ok(3_u8)
+            })
+            .await
+            .expect_err("loader exceeds configured timeout");
+        assert_eq!(timeout_error.code(), "cache_loader_timeout");
+        assert_eq!(
+            cache
+                .get_or_load_with("timeout", "loader-v1", None, || async { Ok(4_u8) })
+                .await?,
+            4
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn singleflight_rejects_excess_waiters() -> Result<()> {
+        let cache = store_with_config(
+            Arc::new(MemoryBackend::default()),
+            "waiter-limit",
+            &CacheSingleflightConfig {
+                max_in_flight_keys: 2,
+                max_waiters_per_key: 1,
+                loader_timeout_secs: 5,
+            },
+        );
+        let entered = Arc::new(tokio::sync::Notify::new());
+        let blocked = Arc::new(tokio::sync::Notify::new());
+        let leader_cache = cache.clone();
+        let leader_entered = Arc::clone(&entered);
+        let leader_blocked = Arc::clone(&blocked);
+        let leader = tokio::spawn(async move {
+            leader_cache
+                .get_or_load_with("key", "wait-v1", None, move || {
+                    let entered = Arc::clone(&leader_entered);
+                    let blocked = Arc::clone(&leader_blocked);
+                    async move {
+                        entered.notify_one();
+                        blocked.notified().await;
+                        Ok(1_u8)
+                    }
+                })
+                .await
+        });
+        entered.notified().await;
+
+        let waiter_cache = cache.clone();
+        let waiter = tokio::spawn(async move {
+            waiter_cache
+                .get_or_load_with("key", "wait-v1", None, || async { Ok(2_u8) })
+                .await
+        });
+        let flight_key = "test:waiter-limit:key:u8:wait-v1";
+        for _ in 0..100 {
+            let waiters = cache
+                .singleflight
+                .flights
+                .lock()
+                .expect("singleflight map lock")
+                .get(flight_key)
+                .and_then(Weak::upgrade)
+                .map_or(0, |flight| flight.waiters.load(Ordering::Acquire));
+            if waiters == 1 {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+        let capacity_error = cache
+            .get_or_load_with("key", "wait-v1", None, || async { Ok(3_u8) })
+            .await
+            .expect_err("second waiter exceeds limit");
+        assert_eq!(capacity_error.code(), "cache_singleflight_waiter_limit");
+        blocked.notify_one();
+        assert_eq!(leader.await.map_err(Error::internal)??, 1);
+        assert_eq!(waiter.await.map_err(Error::internal)??, 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn singleflight_broadcasts_loader_failure_without_retrying_waiters() -> Result<()> {
+        let cache = store(Arc::new(MemoryBackend::default()), "failure");
+        let (leader, waiter) = tokio::join!(
+            cache.get_or_load_with("key", "failure-v1", None, || async {
+                tokio::time::sleep(Duration::from_millis(30)).await;
+                Err::<u8, Error>(Error::custom("source_failed", "loader failed"))
+            }),
+            cache.get_or_load_with("key", "failure-v1", None, || async { Ok(1_u8) })
+        );
+        assert_eq!(
+            leader.expect_err("leader returns its loader error").code(),
+            "source_failed"
+        );
+        assert_eq!(
+            waiter.expect_err("waiter receives shared failure").code(),
+            "cache_loader_failed"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn plugin_requires_config_and_registers_named_memory_stores() -> Result<()> {
         use crate::core::{AppBuilder, lifecycle};
         use figment::providers::{Format, Toml};
@@ -955,6 +1525,14 @@ mod tests {
         missing_builder.plugin(CachePlugin);
         let missing = lifecycle::finalize(missing_builder).await;
         assert!(missing.is_err());
+
+        let invalid_config = figment::Figment::new().merge(Toml::string(
+            "[cache]\ndefault_store = 'primary'\n[cache.stores.primary]\ndriver = 'memory'\n[cache.singleflight]\nmax_in_flight_keys = 0\n",
+        ));
+        let mut invalid_builder =
+            AppBuilder::new(crate::config::FrameworkConfig::default(), invalid_config);
+        invalid_builder.plugin(CachePlugin);
+        assert!(lifecycle::finalize(invalid_builder).await.is_err());
 
         let figment = figment::Figment::new().merge(Toml::string(
             "[cache]\ndefault_store = 'primary'\n[cache.stores.primary]\ndriver = 'memory'\nnamespace = 'main'\n[cache.stores.secondary]\ndriver = 'memory'\nnamespace = 'other'\n",

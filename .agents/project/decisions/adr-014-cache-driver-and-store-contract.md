@@ -48,6 +48,13 @@ v1 需要让业务代码在合理范围内不依赖具体缓存后端，同时�
 - tag invalidation 不删除旧物理 key；调用者需为 tagged value 设置有限 TTL 以回收旧代 payload。tag generation 元数据随每个被使用的稳定 tag 持久存在，应用不得把高基数用户输入直接作为 tag。
 - 基础 `CacheBackend` 新增默认“不支持”可选能力方法，保持已实现 custom driver 可编译；外部 driver 明确实现 `CacheTagBackend` 后才可使用 tag API。
 
+## F4b 单进程同键加载合并 contract
+
+- 公开入口为 `CacheStore::get_or_load_with(key, load_id, ttl, loader)`；基础读缓存优先，miss 后同一个 store 内同 key 合并 loader。合并键包含 store 名称、namespace、逻辑 key、Rust `type_name::<T>()` 与调用方稳定 `load_id`，防止不同类型或加载语义误共享。
+- `[cache.singleflight]` 配置 `max_in_flight_keys`、`max_waiters_per_key`、`loader_timeout_secs`，均校验正值及上限。容量满时显式返回错误，不退化成并发加载。
+- leader 在 timeout 内加载、serde 编码并写入 cache 后再唤醒 waiter。loader 失败时 leader 保留原错误，waiter 收到通用 `cache_loader_failed`；leader 被取消时 RAII 通知 waiter，由一个 waiter 重新竞争并运行其可重复调用的 loader closure。timeout、I/O 与编解码错误不留存 flight 状态。
+- 仅对同一进程内 store clones 提供合并，不承诺多进程/节点只执行一次；跨节点工作由后续明确的 SWR 协调处理，loader 外部副作用仍须业务幂等。
+
 ## 参考与取舍
 
 - Laravel 官方 Cache 文档：<https://laravel.com/docs/13.x/cache>，参考其默认 store、按名称选择 store 与注册 custom driver 的职责拆分。
