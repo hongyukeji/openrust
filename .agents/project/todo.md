@@ -6,7 +6,7 @@
 
 ## 领取规则
 
-先核对 Git/WIP 和 [执行校准](plan.md#执行校准)。数据库队列、interval/UTC daily 调度、活动唯一键及有限任务链/批次已提交，不重复实现。共享锁与请求幂等已按 ADR-042 完成双库验收；Worker 停机修正和 F1 日历调度均已按 PostgreSQL/MySQL 专项验收；F2 国际化、F3 安全邮件模板、M4 队列化通信与薄通知层均已完成适用验收。M4 生成、M5 通用插件公开契约、Db/Queue 外部扩展契约、跨协议验证/调用作用域及 HTTP 有界运行/就绪切换均已完成对应专项和 workspace 验收。F4b 单进程同键加载合并与 F4c SWR 已完成并提交；命名数据库连接实例已按 ADR-045 完成 PostgreSQL 18/MySQL 8.4 实际验收；Redis Session 驱动已通过真实 Redis 验收；当前唯一 in_progress 为显式同步任务执行。生产多实例负载与完整集群仍属于后续门禁。
+先核对 Git/WIP 和 [执行校准](plan.md#执行校准)。数据库队列、interval/UTC daily 调度、活动唯一键及有限任务链/批次已提交，不重复实现。共享锁与请求幂等已按 ADR-042 完成双库验收；Worker 停机修正和 F1 日历调度均已按 PostgreSQL/MySQL 专项验收；F2 国际化、F3 安全邮件模板、M4 队列化通信与薄通知层均已完成适用验收。M4 生成、M5 通用插件公开契约、Db/Queue 外部扩展契约、跨协议验证/调用作用域及 HTTP 有界运行/就绪切换均已完成对应专项和 workspace 验收。F4b 单进程同键加载合并与 F4c SWR 已完成并提交；命名数据库连接实例已按 ADR-045 完成 PostgreSQL 18/MySQL 8.4 实际验收；Redis Session 驱动已通过真实 Redis 验收；显式同步任务执行已按 ADR-043 收口，当前唯一 in_progress 为 Redis Queue 驱动。生产多实例负载与完整集群仍属于后续门禁。
 
 当前工作区另有 `.agents/project/memory/verification.md` 的未提交 WIP；本功能簇保留且不纳入提交。
 
@@ -29,8 +29,7 @@ V1 参考 Loco、Laravel、Goravel、OpenSpring；若依/芋道仅 V2。新增�
 | 通用插件公开契约 | 按 [ADR-009](decisions/adr-009-extensible-capability-drivers.md#通用插件交付阶段) 补齐应用配置、服务、命令与路由组合、缺依赖/冲突错误语义及资源归属；复用静态 `Plugin::build/finish`，不另建插件生命周期系统 | 独立 consumer 仅用公开 API 完成注册、配置、执行和错误验证；未启用功能隔离；不依赖 AI 项目；workspace 门禁通过 |
 | Db 外部扩展契约 | 在通用插件 contract 后复用 SeaORM/SeaQuery 建立公开最小 driver 边界；区分可用 backend 的连接/事务与不支持能力，官方数据库矩阵不自动扩大 | 独立 consumer 不改核心即可配置和连接；事务/错误双库验证；既有 PostgreSQL/MySQL 行为无回归 |
 | 有界运行与就绪切换 | 已完成 HTTP listener/task 所有权、就绪状态、启动失败清理和限时退出；gRPC/实时后续复用，按 [生产约定](plans/v1-performance-and-readiness.md#6-生产默认值与开发编排) | 定向 HTTP TCP 生命周期测试、真实 `server` 子进程 SIGTERM、默认/all-features workspace 与其余门禁通过；不重开通用 Plugin shutdown |
-| 显式同步任务执行 **in_progress** | 为本地测试与同步调用提供显式执行入口，复用 `JobRegistry`；支持边界与数据库队列分开，不静默伪装持久化 | 明确支持/拒绝事务派发、重试、任务组、进度和取消；无数据库/Redis假设的可复跑测试 |
-| Redis Queue 驱动 | 依 ADR-037/043 定义有限的至少一次语义、任务状态/租约/失败记录与事务派发限制后再实现；跨 Redis/数据库事务不承诺原子性 | 真实 Redis 多连接竞争、重试/失败恢复、崩溃与 lease 语义；不以单测或外部内存 driver 替代 |
+| Redis Queue 驱动 **in_progress** | 依 ADR-037/043 定义有限的至少一次语义、任务状态/租约/失败记录与事务派发限制后再实现；跨 Redis/数据库事务不承诺原子性 | 真实 Redis 多连接竞争、重试/失败恢复、崩溃与 lease 语义；不以单测或外部内存 driver 替代 |
 | 数据访问、查询授权 F5 与生产迁移 | 在既有组合任务补公开类型化授权规则，覆盖列表/详情/修改/删除/批量/关联；稳定键分批及迁移互斥分别成簇 | 双库权限与用户过滤 AND 合并、失败拒绝、原生 SQL 边界；有界数据处理和双进程迁移故障恢复 |
 | 存储与上传下载 | local/S3-compatible、流式 I/O、限额/MIME/路径与签名下载；上传前、内容可读发布前、完成/失败扩展 | MinIO 实集成、受控临时对象、检测拒绝/超时/取消清理、版本绑定与直传绕过防护；集群文件可达 |
 | 出站目标安全策略 | [补齐计划](plans/v1-common-capabilities.md#6-出站目标安全与调用韧性)：显式受限 URL 策略、DNS/实际连接/重定向/代理边界及可信内部端点白名单，先落现有 HTTP client | 可控解析与本地网络测试拒绝绕过、凭据跨目标传播；策略失败关闭；默认内部服务不被误阻断 |

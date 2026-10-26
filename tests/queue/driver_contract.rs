@@ -6,7 +6,10 @@ use openrust::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicU64, Ordering},
+};
 
 #[derive(Deserialize, Serialize)]
 struct ProgressJob {
@@ -102,6 +105,40 @@ async fn public_registry_executes_typed_jobs_with_custom_context_behavior() -> R
             )
         })?;
     assert_eq!(error.code(), "unregistered_queue_job");
+    Ok(())
+}
+
+static DIRECT_JOB_RESULT: AtomicU64 = AtomicU64::new(0);
+
+#[derive(Deserialize, Serialize)]
+struct DirectJob;
+
+impl Job for DirectJob {
+    const NAME: &'static str = "contract.direct.v1";
+
+    fn handle(&self, _context: JobContext) -> BoxFuture<'_, Result<()>> {
+        Box::pin(async {
+            DIRECT_JOB_RESULT.store(42, Ordering::SeqCst);
+            Ok(())
+        })
+    }
+}
+
+#[tokio::test]
+async fn registry_execute_is_an_explicit_awaited_in_process_path() -> Result<()> {
+    DIRECT_JOB_RESULT.store(0, Ordering::SeqCst);
+    let mut registry = JobRegistry::default();
+    registry.register_job::<DirectJob>()?;
+
+    registry
+        .execute(
+            DirectJob::NAME,
+            Value::Null,
+            JobContext::new("direct-1", 1, 1, Cancellation::new())?,
+        )
+        .await?;
+
+    assert_eq!(DIRECT_JOB_RESULT.load(Ordering::SeqCst), 42);
     Ok(())
 }
 

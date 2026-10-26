@@ -281,7 +281,11 @@ impl JobRegistry {
         Ok(self)
     }
 
-    /// 按持久化任务名反序列化并执行已注册的 Job。
+    /// 在当前异步调用中反序列化并执行已注册的 Job。
+    ///
+    /// 此入口不派发或保存任务，也不提供事务派发、自动重试或任务组语义；调用方负责提供
+    /// 一次尝试的 [`JobContext`]。取消仅在 handler 合作检查或等待取消时生效，进度仅在
+    /// context 配置 reporter 后可用。需要持久化和恢复时应使用 [`Queue`] 与队列 driver。
     pub async fn execute(&self, job_name: &str, payload: Value, context: JobContext) -> Result<()> {
         validate_name("job name", job_name, MAX_JOB_NAME)?;
         validate_payload(&payload)?;

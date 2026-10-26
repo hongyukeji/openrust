@@ -2,6 +2,8 @@
 
 此独立 Cargo 项目演示如何在不修改 OpenRust 源码的情况下实现 `QueueDriver`，并使用公开的 `JobRegistry` 注册与执行 typed Job。
 
+`JobRegistry::execute` 也可由应用直接调用：它会在当前异步调用中执行 handler，等待结果后返回，适合本地测试或明确接受进程内执行语义的调用。该入口不入队、不持久化，不包含事务派发、自动重试或任务组；调用方传入的 `JobContext` 提供一次尝试的取消信号，进度只有配置 reporter 后才可用。它不能替代数据库队列的失败保留和崩溃恢复。
+
 ```sh
 cargo run --locked --manifest-path examples/queue-custom-driver/Cargo.toml
 ```
