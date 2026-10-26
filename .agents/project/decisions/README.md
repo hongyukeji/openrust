@@ -59,6 +59,7 @@
 | [042 共享锁与请求幂等](adr-042-shared-locks-and-request-idempotency.md) | Accepted | PostgreSQL/MySQL 数据库租约/fencing 与显式请求结果快照；不等同外部副作用 exactly-once |
 | [044 协议无关验证与调用作用域](adr-044-cross-protocol-execution-context.md) | Accepted | 复用 validator/Error；单次调用 metadata/deadline/cancel/locale 与队列安全传递边界 |
 | [047 类型化资源查询授权](adr-047-typed-query-authorization.md) | Accepted | 资源行范围与 RBAC 分离；规则条件和业务筛选固定 AND，受保护读写隐藏 SeaORM builder |
+| [048 稳定键有界分批读取](adr-048-stable-batch-reading.md) | Accepted | 复用 SeaORM keyset cursor，限定稳定主键、批次上限、取消与并发/事务边界 |
 
 ## 队列、缓存与部署
 

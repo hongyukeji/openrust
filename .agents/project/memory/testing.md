@@ -1,7 +1,7 @@
 # 测试基线
 
 > 受众：AI Agent
-> 更新：2026-10-26
+> 更新：2026-10-27
 > 摘要：源码交付、HTTP 生命周期、双库与生成项目当前可复验入口。
 
 ## M5 缓存驱动与命名实例
@@ -182,3 +182,8 @@ CLI 模板快照测试：`cargo test -p openrust-cli`。生成 PostgreSQL、MySQ
 2026-10-26 显式同步任务执行：复用 ADR-043 的 `JobRegistry::execute`，没有增加重复 API。定向 `cargo test -p openrust --features queue --test queue_driver_contract` 5 项通过，新增纯进程内 await 行为断言，不配置数据库/Redis；明确进度需 reporter、取消为合作语义，且直接执行不提供事务派发、持久化、自动重试或任务组。workspace fmt、clippy、tests、warnings-denied docs 与 `cargo deny check` 均通过；deny 的重复 crate 版本与未匹配 MPL allowance 为现有告警。
 
 2026-10-26 M5 F5 资源查询授权（ADR-047）：`cargo test -p openrust --features 'auth db-postgres' auth::query::tests` 验证非空范围构造、空 OR 组与规则错误 fail-closed，以及嵌套 OR 筛选仍位于 owner scope 的 AND 内。真实隔离库 HTTP 测试 `cargo test -p server --features 'auth db-postgres' --test auth_query_authorization` 与 MySQL `db-mysql` 对应命令均通过 PostgreSQL 18 / MySQL 8.4：owner 只能读取匹配行；越权 ID 返回空；分页只计授权行；混合授权 ID 批量修改/删除只影响本人行；关联查询校验父记录并用子实体规则过滤子集合。独立 consumer `cargo check --manifest-path examples/query-authorization/Cargo.toml` 通过。裸 SeaORM、直接关联加载、原生 SQL、自定义 driver 不被自动拦截；完整业务 CRUD、导出组合和集群压力仍待相应验收。
+
+
+## M5 ADR-048 稳定键有界分批读取
+
+`cargo test -p openrust --features 'auth db-postgres' batch_options_enforce_the_documented_row_bound` 验证默认 100、最小 1、最大 1000 及越界拒绝。PostgreSQL 18 与 MySQL 8.4 分别使用已有 loopback 服务运行 `cargo test -p server --features 'auth db-<backend>' --test auth_query_authorization -- --nocapture`，各实际执行 1 项通过：owner scope 分页读取、取消后用最后完整主键游标续读、无越权/重复行、复合主键升降序和跨页顺序、callback 错误停止及连接继续可用。测试凭据从既有容器配置在进程内构造，不输出凭据、不创建或更改服务。独立 consumer `cargo check --manifest-path examples/query-authorization/Cargo.toml --locked` 通过。

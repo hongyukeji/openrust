@@ -2,8 +2,8 @@
 
 use openrust::{
     auth::{CurrentUser, QueryRule, QueryScope},
-    core::Result,
-    db::sea_orm::{ColumnTrait, Condition, ConnectionTrait},
+    core::{Cancellation, Result},
+    db::{BatchDirection, BatchOptions, Db, sea_orm::{ColumnTrait, Condition, ConnectionTrait}},
 };
 
 pub mod document {
@@ -37,4 +37,30 @@ pub async fn visible_documents(
         Condition::all().add(document::Column::Id.eq(id))
     });
     rule.select(user, filter)?.all(connection).await
+}
+
+/// 逐批处理当前用户可见的文档，并在批次边界合作取消。
+pub async fn visible_documents_in_batches(
+    user: &CurrentUser,
+    db: &Db,
+    cancellation: &Cancellation,
+) -> Result<Vec<document::Model>> {
+    let rule = QueryRule::<document::Entity>::new(|user| {
+        Ok(QueryScope::new(document::Column::OwnerId.eq(user.id())))
+    });
+    let mut documents = Vec::new();
+    rule.select(user, Condition::all())?
+        .into_batches()
+        .run(
+            db,
+            BatchOptions::default(),
+            BatchDirection::Ascending,
+            cancellation,
+            |batch| {
+                documents.extend(batch);
+                async { Ok(()) }
+            },
+        )
+        .await?;
+    Ok(documents)
 }

@@ -162,3 +162,30 @@ MySQL 连接必须使用 Rustls TLS。通过 MySQL URL 或服务器部署配置�
 ## 能力范围
 
 连接池、事务 helper、自定义 SeaORM 连接注册、迁移命令、UTC/JSON dialect helper、应用自定义 seed 命令、按测试隔离数据库、共享租约、请求幂等，以及 PostgreSQL/MySQL 项目模板均已实现。
+
+## 稳定键有界分批读取
+
+`BatchReader<E>` 复用 SeaORM keyset cursor，按实体主键列声明顺序进行升序或降序读取，不使用 offset。传入的 `Select<E>` 应是完整实体查询，不要预先添加 offset 或 limit。默认每批 100 行，可通过 `BatchOptions::new(1..=1000)` 调整。每次最多物化一批实体模型；此限制按行数计算，不限制单行大字段的内存大小。
+
+受保护读取从 `AuthorizedSelect::into_batches()` 创建，授权范围与业务筛选在每页都保持 AND 关系。普通 SeaORM 实体查询也可显式使用 `BatchReader::new(Entity::find())`，但它不会自动应用资源授权。reader 通过传入 `Db` 的主库连接执行，不走只读副本，也不会切换具名数据库实例。
+
+```rust,ignore
+let report = rule
+    .select(&user, Condition::all())?
+    .into_batches()
+    .run(
+        &db,
+        BatchOptions::default(),
+        BatchDirection::Ascending,
+        &cancellation,
+        |batch| async move {
+            process_batch(batch).await?;
+            Ok(())
+        },
+    )
+    .await?;
+```
+
+取消只在批次边界检查；报告包含已完整处理的记录数、批次数、是否因取消停止及最后完整批次游标。可将该游标交给 `.after(cursor)` 继续读取。callback 错误会停止遍历并返回错误，不推进失败批次的游标；callback 已产生的部分副作用不会自动撤销，调用方须按自身事务需求包裹每批工作并处理重试幂等性。
+
+各批次不共享隐式事务或快照。遍历期间游标之后插入的行可能被读到，游标之前插入的行不会回头读取；删除或筛选字段变更会影响后续页。需要一致快照时，由应用自行管理隔离事务及其长事务成本。HTTP 的 `page/per_page` 和游标分页决策不受此 API 影响。

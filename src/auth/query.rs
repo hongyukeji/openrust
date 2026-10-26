@@ -5,6 +5,7 @@ use std::{marker::PhantomData, sync::Arc};
 use crate::{
     auth::CurrentUser,
     core::{Error, Result},
+    db::BatchReader,
     db::sea_orm::{
         self, ColumnTrait, Condition, ConnectionTrait, EntityTrait, Iterable, ModelTrait,
         PaginatorTrait, PrimaryKeyToColumn, QueryFilter, QueryOrder, QuerySelect, Related, Select,
@@ -193,6 +194,12 @@ pub struct AuthorizedSelect<E: EntityTrait> {
 }
 
 impl<E: EntityTrait> AuthorizedSelect<E> {
+    /// 将受保护查询转换为逐页始终保留授权范围的主键分批读取。
+    #[must_use]
+    pub fn into_batches(self) -> BatchReader<E> {
+        BatchReader::new(self.query)
+    }
+
     /// 添加额外业务条件；该条件与授权范围通过 AND 组合。
     #[must_use]
     pub fn and_filter(mut self, condition: Condition) -> Self {

@@ -18,6 +18,7 @@ tokio::task_local! {
     static PRIMARY_CONNECTION_SCOPE: (usize, DatabaseConnection);
 }
 
+mod batch;
 mod coordination;
 pub mod dialect;
 mod migration;
@@ -26,6 +27,9 @@ mod seed;
 mod table_names;
 
 pub use crate::config::database::{DatabaseConfig, DatabaseInstanceConfig};
+pub use batch::{
+    BatchCursor, BatchDirection, BatchOptions, BatchReader, BatchReport, MAX_BATCH_SIZE,
+};
 pub use coordination::{
     CoordinationMigration, IdempotencyClaim, IdempotencyLease, IdempotencyResponse, LockAcquire,
     LockLease, RequestIdempotency, SharedLocks,

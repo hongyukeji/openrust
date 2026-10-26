@@ -13,7 +13,7 @@ use openrust::{
     core::{BoxFuture, Result},
     database::sea_orm_migration::{MigrationTrait, MigratorTrait},
     db::{
-        Db,
+        BatchDirection, BatchOptions, BatchReader, Db,
         sea_orm::{self, ActiveValue, Condition, ConnectionTrait, Statement},
     },
     http::{
@@ -85,6 +85,25 @@ mod comment {
     impl ActiveModelBehavior for ActiveModel {}
 }
 
+mod composite {
+    use sea_orm::entity::prelude::*;
+
+    #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+    #[sea_orm(table_name = "batch_composite")]
+    pub struct Model {
+        #[sea_orm(primary_key, auto_increment = false)]
+        pub group_id: i32,
+        #[sea_orm(primary_key, auto_increment = false)]
+        pub position: i32,
+        pub label: String,
+    }
+
+    #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+    pub enum Relation {}
+
+    impl ActiveModelBehavior for ActiveModel {}
+}
+
 struct EmptyMigrator;
 impl MigratorTrait for EmptyMigrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
@@ -108,6 +127,118 @@ impl Authenticator for TestAuthenticator {
     }
 }
 
+async fn read_authorized_batches(
+    user: &CurrentUser,
+    db: &Db,
+) -> Result<(Vec<i64>, bool, usize, usize)> {
+    let resources = QueryRule::<resource::Entity>::new(|user| {
+        Ok(QueryScope::new(resource::Column::OwnerId.eq(user.id())))
+    });
+    let cancellation = openrust::core::Cancellation::new();
+    let cancel_after_first = cancellation.clone();
+    let mut ids = Vec::new();
+    let report = resources
+        .select(user, Condition::all())?
+        .into_batches()
+        .run(
+            db,
+            BatchOptions::new(1)?,
+            BatchDirection::Ascending,
+            &cancellation,
+            |rows| {
+                ids.extend(rows.into_iter().map(|row| row.id));
+                cancel_after_first.cancel();
+                async { Ok(()) }
+            },
+        )
+        .await?;
+    let cursor = report
+        .cursor()
+        .ok_or_else(|| openrust::Error::custom("batch_cursor_missing", "分批读取未返回游标"))?;
+    let resumed = resources
+        .select(user, Condition::all())?
+        .into_batches()
+        .after(cursor)
+        .run(
+            db,
+            BatchOptions::new(1)?,
+            BatchDirection::Ascending,
+            &openrust::core::Cancellation::new(),
+            |rows| {
+                ids.extend(rows.into_iter().map(|row| row.id));
+                async { Ok(()) }
+            },
+        )
+        .await?;
+    Ok((
+        ids,
+        report.is_cancelled(),
+        report.batches() + resumed.batches(),
+        resumed.rows(),
+    ))
+}
+
+async fn verify_composite_batches(db: &Db, backend: sea_orm::DbBackend) -> TestResult {
+    let connection = db.primary_connection()?;
+    for sql in [
+        "CREATE TABLE batch_composite (group_id INT NOT NULL, position INT NOT NULL, label VARCHAR(64) NOT NULL, PRIMARY KEY (group_id, position))",
+        "INSERT INTO batch_composite (group_id, position, label) VALUES (1, 1, 'a'), (1, 3, 'c'), (2, 1, 'd'), (2, 2, 'e')",
+    ] {
+        connection
+            .execute_raw(Statement::from_string(backend, sql.to_owned()))
+            .await?;
+    }
+    let mut ascending = Vec::new();
+    BatchReader::new(composite::Entity::find())
+        .run(
+            db,
+            BatchOptions::new(1)?,
+            BatchDirection::Ascending,
+            &openrust::core::Cancellation::new(),
+            |rows| {
+                ascending.extend(rows.into_iter().map(|row| (row.group_id, row.position)));
+                async { Ok(()) }
+            },
+        )
+        .await?;
+    assert_eq!(ascending, [(1, 1), (1, 3), (2, 1), (2, 2)]);
+    let mut descending = Vec::new();
+    BatchReader::new(composite::Entity::find())
+        .run(
+            db,
+            BatchOptions::new(2)?,
+            BatchDirection::Descending,
+            &openrust::core::Cancellation::new(),
+            |rows| {
+                descending.extend(rows.into_iter().map(|row| (row.group_id, row.position)));
+                async { Ok(()) }
+            },
+        )
+        .await?;
+    assert_eq!(descending, [(2, 2), (2, 1), (1, 3), (1, 1)]);
+    let mut failed_calls = 0;
+    let failed = BatchReader::new(composite::Entity::find())
+        .run(
+            db,
+            BatchOptions::new(1)?,
+            BatchDirection::Ascending,
+            &openrust::core::Cancellation::new(),
+            |_| {
+                failed_calls += 1;
+                async {
+                    Err(openrust::Error::custom(
+                        "batch_callback_failed",
+                        "批次回调失败",
+                    ))
+                }
+            },
+        )
+        .await;
+    assert!(failed.is_err());
+    assert_eq!(failed_calls, 1);
+    Ok(())
+}
+
 async fn exercise(user: CurrentUser, Inject(db): Inject<Db>) -> Result<Json<String>> {
     let connection = db.connection()?;
     let resources = QueryRule::<resource::Entity>::new(|user| {
@@ -120,7 +251,7 @@ async fn exercise(user: CurrentUser, Inject(db): Inject<Db>) -> Result<Json<Stri
         .add(resource::Column::Id.eq(1))
         .add(resource::Column::Id.eq(2));
     let listed = resources
-        .select(&user, requested)?
+        .select(&user, requested.clone())?
         .order_by_asc(resource::Column::Id)
         .all(&connection)
         .await?;
@@ -129,6 +260,7 @@ async fn exercise(user: CurrentUser, Inject(db): Inject<Db>) -> Result<Json<Stri
         .map(|row| row.id.to_string())
         .collect::<Vec<_>>()
         .join(",");
+    let (batch_ids, cancelled, batches, resumed) = read_authorized_batches(&user, &db).await?;
     let foreign = resources
         .select(&user, Condition::all().add(resource::Column::Id.eq(2)))?
         .one(&connection)
@@ -172,7 +304,7 @@ async fn exercise(user: CurrentUser, Inject(db): Inject<Db>) -> Result<Json<Stri
         )
         .await?;
     Ok(Json(format!(
-        "ids={ids};foreign={};page={};total={total};updated={};related={};deleted={}",
+        "ids={ids};batch={batch_ids:?};cancelled={cancelled};batches={batches};resumed={resumed};foreign={};page={};total={total};updated={};related={};deleted={}",
         foreign.is_some(),
         page.len(),
         update.rows_affected,
@@ -202,6 +334,7 @@ async fn query_scope_filters_mutations_and_relations_on_real_database() -> TestR
     }
     let db = Db::default();
     db.initialize(connection.clone())?;
+    verify_composite_batches(&db, backend).await?;
     let mut builder = AppBuilder::new(FrameworkConfig::default(), figment::Figment::new());
     builder
         .plugin(HttpPlugin)
@@ -216,7 +349,7 @@ async fn query_scope_filters_mutations_and_relations_on_real_database() -> TestR
     let router = build_router(&app)?;
     for (token, expected) in [(
         "owner-one",
-        "ids=1;foreign=false;page=1;total=2;updated=1;related=1;deleted=1",
+        "ids=1;batch=[1, 3];cancelled=true;batches=2;resumed=1;foreign=false;page=1;total=2;updated=1;related=1;deleted=1",
     )] {
         let response = router
             .clone()
