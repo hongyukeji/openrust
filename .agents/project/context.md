@@ -16,6 +16,8 @@
 
 ## 固定约束
 
+- 项目语言采用 [简体中文为主、英文为辅](style.md#语言规范)：第一方文档、Rustdoc、源码/配置注释与生成模板说明立即按此编写；既有英文安排分批整改。完整英文文档待框架成熟后再评估，技术名称和原始许可证等例外保持有效，运行时 i18n 契约另行管理。
+
 - 源码交付与中性包名按 [ADR-039](decisions/adr-039-source-workspace-distribution.md)：开发者获取整套框架，在 `apps/<name>/` 开发业务；内部包目标为 `cli`、`macros`、`testing`、`server`，全部 package 禁用发布，根 `openrust` 和 CLI 命令名保留。当前 manifest/生成器仍待迁移，先闭合或明确登记现有 WIP，再优先处理此底层任务。
 
 - 应用中性命名按 [ADR-016](decisions/adr-016-neutral-application-namespaces.md)：默认环境变量 `APP_`（`Application::config_namespace()` 允许启动前定制，core/bootstrap 已实现），默认表前缀 `tb_`，支持自定义/空前缀和显式全名映射；数据库 resolver 已贯通连接、迁移、TestDatabase 与认证 SQL，并经 PostgreSQL/MySQL 验证。旧品牌前缀不能作为新设计 contract。

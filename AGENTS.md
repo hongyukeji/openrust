@@ -102,7 +102,8 @@ Agent 不替代开发者做方向决策、发布判断和对外动作；开发�
 - 遵守 `conventions.md`：`#![forbid(unsafe_code)]`、`#![deny(missing_docs)]`、库 crate 禁止 `unwrap` / `expect` / `panic` / `todo` / `unimplemented`、不写 `TODO` 注释。
 - 顺手修边界清楚、可当场验证的小问题并纳入说明；需要跨 crate 设计或改变方向的问题写入 `todo.md`。
 - 优先编辑既有文件；不做未需要的抽象，不为假设的未来需求预留扩展点。
-- 注释只解释非显然的 WHY、触发边界、失败语义或安全约束。
+- 第一方文档、Rustdoc、代码/配置注释及生成模板说明以简体中文为主、英文为辅；新增改动立即执行，既有英文按待办整改。术语、技术标识符和来源例外见 [语言规范](.agents/project/style.md#语言规范)。
+- 注释只解释非显然的原因、触发边界、失败语义或安全约束。
 
 ### 6.3 Verify
 

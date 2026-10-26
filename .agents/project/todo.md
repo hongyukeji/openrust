@@ -14,6 +14,16 @@
 | --- | --- | --- |
 | 源码 workspace 与中性包名 **in_progress** | [ADR-039](decisions/adr-039-source-workspace-distribution.md)：迁移 `cli/macros/testing/server` package 与 binary/lib 名、全部 `publish = false`、本地 workspace 依赖、apps 生成及应用启动/配置定位；无 crates.io 发布或占位任务。Spec：保持 `openrust::` API 与宏展开，识别 framework root/目标 app；默认在 `apps/<name>` 合并 workspace；保留现存成员；重复名/目录/外部目标在写入前报错；两个 app 生成、启动和配置互不串用。 | metadata/targets 不丢失，workspace 门禁，干净源码副本双库生成/真实测试，无临时 registry patch；至少两个 apps 不冲突，CI/模板/文档同步 |
 
+## 优先：既有英文说明整改
+
+执行顺序为 ADR-039 源码迁移完成后，按下表依次收口，再继续后续能力。迁移及所有新增功能中触及的文档/注释立即按 [语言规范](style.md#语言规范) 编写，不新增英文正文债务；其余存量按模块分批处理，仅领取一个实现功能簇。本轮已确认规范与计划，以下翻译尚未完成。
+
+| 功能簇 | 范围与交付 | 验收 |
+| --- | --- | --- |
+| C1 默认文档入口中文化 **pending** | 根 README、CONTRIBUTING、SECURITY、CODE_OF_CONDUCT 的第一方说明、CHANGELOG 说明，以及 `src/**/README.md`、`cli/`、`macros/`、`testing/`、`apps/` 文档；保留许可与引用原文。先使用/启动说明，再能力/贡献说明 | 中文入口可按当前源码操作；标题翻译后的链接/锚点、代码围栏与术语一致；被 include_str! 引用的 README 仍能生成文档、示例有效 |
+| C2 Rustdoc 与源码注释中文化 **pending** | 根 `src/` 的公开 API 说明优先，再处理 `cli/`、`macros/`、`testing/`、`apps/`、`examples/`、`tests/` 普通注释；配置/脚本中的第一方解释同步，Clap 派生帮助注释归 C3 | 不改标识符、行为和运行时消息；逐条保留前提、错误/并发/安全边界；按 AGENTS.md 执行适用源码门禁、Rustdoc 和 doctest，检查文档链接 |
+| C3 生成说明与 CLI 帮助收口 **pending** | `cli/templates/`、生成器内嵌文字、生成的 AGENTS/配置/.env 示例注释、Cargo 元数据描述与 CLI help；从源头整改并同步快照，复查 C1/C2 英文残留 | 实际查看命令帮助；生成无库与 PostgreSQL/MySQL 应用，检查中文说明且 check/test 通过；快照来自真实产物；残留英文仅为技术词/来源例外，不删除 i18n 英文资源 |
+
 ## 补齐既有阶段的遗漏
 
 | 功能簇 | 前置与交付 | 验收 |

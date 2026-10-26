@@ -26,12 +26,14 @@
 10. 每簇对照 [能力覆盖](plans/v1-capability-coverage.md)、[通用能力](plans/v1-common-capabilities.md)、[性能与开箱即用](plans/v1-performance-and-readiness.md)、[集群](plans/v1-cluster-deployment.md) 的相关条目，不只沿最初 M0–M6 简表开发；按 [扩展性自主判断](plans/framework-design.md#开发-agent-的自主扩展性判断) 记录最小合理设计。
 11. **v1 全部门禁通过后，已获授权继续 [v2 后台](plans/v2-admin-platform.md)**。Admin 采用 pure-admin 精简国际化版 + Element Plus，App 采用 uni-app，PC 仅规划设计；版本与接入要求见 v2 计划。当前不能提前展开后台，也不需要把旧提示词“本轮永不进入 v2”当作永久限制。发布、tag、push 等仍遵守 `AGENTS.md` 的独立授权边界。
 12. AI 平台仍仅规划：框架 v1/v2 成熟后另行明确启动，产品只在 `projects/*` 分支与独立 worktree 开发；P0–P8 和上线门禁通过并获上线批准后才开放。详见 [产品隔离规则](plans/ai-platform-product.md#分支与工作区硬性约束)。
+13. 文档、Rustdoc、代码/配置注释与开发者帮助立即按 [语言规范](style.md#语言规范) 使用简体中文。ADR-039 完成后先按 `todo.md` 的 C1–C3 整改既有英文说明，再继续后续能力；不新建完整英文文档线，不改变运行时 i18n。
 
 ## 里程碑顺序
 
 | 顺序 | 工作 | 完成门槛 |
 | --- | --- | --- |
 | 优先 | 源码交付与内部包命名 | ADR-039；禁用发布、本地依赖、apps 生成/启动、双应用配置隔离及双库验收 |
+| 随后 | 默认文档、Rustdoc/注释、生成说明与 CLI 帮助中文化 | C1–C3；语义/链接/示例/帮助与生成产物有效，按范围验证；英文文档后置 |
 | 补齐 M3 | 通用限流/查询/输出边界（Mailer/Policy 生成器已完成） | 已通过公开 API、生成项目及双库验证；跨事务/事件部分随 M4 补齐 |
 | M4 | 事件、事务/认证扩展、共享锁/请求幂等、任务恢复补强、队列通知 | 数据库真实竞争与故障测试，job 生成器，启用 queue 的双库 CI |
 | M5 | 缓存、多实例、存储上传、WebSocket/SSE、可观测性 | Redis/file/memory 契约、对象存储、跨节点与资源边界 |

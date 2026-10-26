@@ -13,7 +13,8 @@
 - 异步统一 tokio；静态分发 trait 优先原生 `async fn`，需要对象安全或异构注册时按既有 contract 使用 `BoxFuture`；跨任务 future 保证 `Send`，不为形式统一重写已定公开接口。
 - 宏只做派生与属性标注，不改变控制流；宏支持代码放 `__private` 模块并 `#[doc(hidden)]`。
 - feature 只做加法；已实现的名称以 `Cargo.toml` 为准，如 `db-postgres`、`db-mysql`、`auth`、`queue`、`http-client`、`mail-smtp`、`sms-twilio`、`encryption`、`signing`、`test-util`。计划中的 `cache-redis`、`storage-s3`、`otel`、`metrics` 等在能力落地时加入，不预建空 feature。
-- 不写 `TODO` 注释；活跃任务进 `todo.md`。注释只解释非显然的 WHY、触发边界、失败语义或安全约束。
+- Rustdoc、代码/配置注释和 CLI 解释文字遵循 [语言规范](style.md#语言规范)：简体中文优先，技术标识符保留原名；从生成器源头保证生成说明使用中文。
+- 不写 `TODO` 注释；活跃任务进 `todo.md`。注释只解释非显然的原因、触发边界、失败语义或安全约束。
 
 ## 命名
 
@@ -105,6 +106,8 @@ cargo deny check
 测试原则：框架是底层通用机制，每个公共行为都应有单元或集成测试；新建测试文件前必须能一句话说清它能发现哪个缺陷。能力 fake 可随该模块的 `test-util` 暴露；通用测试组合工具放在 `openrust-test`，不得为目录统一引入根 package 对测试包的反向依赖。分目录迁移测试时核对 Cargo targets 和运行用例，避免子目录文件未被编译执行。
 
 ## 文档
+
+- 默认文档入口使用简体中文，英文仅作必要术语对照；完整英文文档成熟后再评估。范围与例外统一见 [语言规范](style.md#语言规范)，翻译需保持内容语义、链接和可运行示例。
 
 - 每个 crate 的 README 即 `lib.rs` 文档（`#![doc = include_str!("../README.md")]`）。
 - 正式文档在 `docs/`（mdBook，M6 建立），信息架构按 Diátaxis：Tutorials → How-to → Reference → Explanation，另设「从其他框架迁移」对照页与 coming-from-axum 页；M6 前用户文档写在 crate `README.md`。
