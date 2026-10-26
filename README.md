@@ -121,6 +121,8 @@ async fn greeting(locale: RequestLocale, Inject(i18n): Inject<I18n>) -> Json<Str
 
 当前用户指南位于各模块和 package 的 README 中。[Agent 计划](.agents/project/plans/README.md)记录剩余工作；M6 计划建立独立的公开文档站。规划记录与用户文档分开维护。
 
+开发与验证请阅读[贡献指南](CONTRIBUTING.md)，并遵守其中的[构建空间管理规范](CONTRIBUTING.md#构建空间管理)，在任务收尾时检查并清理临时构建产物。
+
 ## 许可证
 
 您可自行选择采用 [Apache License, Version 2.0](LICENSE-APACHE) 或 [MIT license](LICENSE-MIT) 授权。
