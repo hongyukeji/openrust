@@ -4,7 +4,10 @@
 use figment::Figment;
 use figment::providers::{Format, Toml};
 use openrust::config::FrameworkConfig;
-use openrust::core::{App, AppBuilder, BoxFuture, Error, Result as FrameworkResult, lifecycle};
+use openrust::core::{
+    App, AppBuilder, BoxFuture, Cancellation, Error, ExecutionContext, ExecutionMetadata,
+    Result as FrameworkResult, lifecycle,
+};
 use openrust::database::{
     DatabasePlugin, Db, DbBackend,
     sea_orm::Statement,
@@ -15,6 +18,8 @@ use sea_orm::ConnectionTrait;
 use std::process::{Command, Stdio};
 use std::sync::OnceLock;
 use std::time::Duration;
+
+const QUEUE_TRACEPARENT: &str = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
 
 static LEASE_PROBE_STARTED: OnceLock<tokio::sync::Notify> = OnceLock::new();
 static SHUTDOWN_TEST_DB: OnceLock<Db> = OnceLock::new();
@@ -153,24 +158,33 @@ async fn tenant_metadata_survives_a_separate_worker_process_and_retry()
     let app = build_app(database.url()).await?;
     let queue = app.state().try_get::<Queue>()?;
     let queue_name = format!("tenant-process-{}", std::process::id());
-    let job_id = openrust::tenant::TenantContext::scope(
-        openrust::tenant::TenantId::new("tenant-process-a")?,
-        async {
-            queue
-                .dispatch_with_options(
-                    &queue_name,
-                    TenantRetryProbe::NAME,
-                    &(),
-                    DispatchOptions {
-                        max_attempts: 3,
-                        delay: Duration::ZERO,
-                        unique_key: None,
-                    },
-                )
-                .await
-        },
-    )
-    .await??;
+    let execution = ExecutionContext::new(
+        ExecutionMetadata::default().with_traceparent(QUEUE_TRACEPARENT)?,
+        None,
+        Cancellation::new(),
+    );
+    let job_id = execution
+        .run(async {
+            openrust::tenant::TenantContext::scope(
+                openrust::tenant::TenantId::new("tenant-process-a")?,
+                async {
+                    queue
+                        .dispatch_with_options(
+                            &queue_name,
+                            TenantRetryProbe::NAME,
+                            &(),
+                            DispatchOptions {
+                                max_attempts: 3,
+                                delay: Duration::ZERO,
+                                unique_key: None,
+                            },
+                        )
+                        .await
+                },
+            )
+            .await
+        })
+        .await???;
     drop(queue);
     drop(app);
 
@@ -182,6 +196,7 @@ async fn tenant_metadata_survives_a_separate_worker_process_and_retry()
         ])
         .env("OPENRUST_TENANT_QUEUE_CHILD_URL", database.url())
         .env("OPENRUST_TENANT_QUEUE_CHILD_NAME", &queue_name)
+        .env("RUST_LOG", "info")
         .stdout(Stdio::null())
         .stderr(Stdio::inherit())
         .status()?;
@@ -624,10 +639,15 @@ async fn child_worker_processes_tenant_retry_probe() -> Result<(), Box<dyn std::
     ) else {
         return Ok(());
     };
+    let config = FrameworkConfig::default();
+    lifecycle::init_tracing(&config.log);
     let app = build_app(&url).await?;
     let queue = app.state().try_get::<Queue>()?;
     if !queue.run_next(&queue_name).await? {
         return Err("child worker could not claim tenant retry probe".into());
     }
+    drop(queue);
+    drop(app);
+    lifecycle::flush_telemetry().await;
     Ok(())
 }

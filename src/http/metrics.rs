@@ -153,6 +153,7 @@ mod tests {
             .await
             .map_err(crate::core::Error::internal)?;
         assert_eq!(response.status(), StatusCode::OK);
+        drop(response);
 
         let request = Request::get("/metrics")
             .body(Body::empty())

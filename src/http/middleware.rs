@@ -177,7 +177,7 @@ async fn response_context(
     if request_permit.is_err() {
         metrics::counter!("openrust_http_overloaded_total").increment(1);
     }
-    let response = with_execution_context(execution, async move {
+    with_execution_context(execution, async move {
         let response = with_response_context(
             ResponseContext {
                 request_id,
@@ -185,29 +185,33 @@ async fn response_context(
             },
             async move {
                 let _cancel_on_drop = cancel_on_drop;
-                let Ok(request_permit) = request_permit else {
-                    return Error::custom_with_status(
+                let request_permit = request_permit.ok();
+                let response = if request_permit.is_some() {
+                    tokio::select! {
+                        biased;
+                        response = next.run(request) => response,
+                        () = cancellation.cancelled() => Error::custom_with_status(
+                            StatusCode::SERVICE_UNAVAILABLE,
+                            "server_draining",
+                            "server is shutting down",
+                        ).into_response(),
+                    }
+                } else {
+                    Error::custom_with_status(
                         StatusCode::SERVICE_UNAVAILABLE,
                         "http_overloaded",
                         "server request capacity is exhausted",
                     )
-                    .into_response();
+                    .into_response()
                 };
-                let response = tokio::select! {
-                    biased;
-                    response = next.run(request) => response,
-                    () = cancellation.cancelled() => Error::custom_with_status(
-                        StatusCode::SERVICE_UNAVAILABLE,
-                        "server_draining",
-                        "server is shutting down",
-                    ).into_response(),
-                };
+                #[cfg(feature = "metrics")]
+                let status_class = super::metrics::status_class(response.status());
                 response.map(|body| {
                     Body::new(RequestPermitBody {
                         inner: body,
-                        _permit: request_permit,
+                        permit: request_permit,
                         #[cfg(feature = "metrics")]
-                        _in_flight: InFlightRequest::new(),
+                        in_flight: Some(InFlightRequest::new(metric_method, status_class, started)),
                     })
                 })
             },
@@ -219,21 +223,22 @@ async fn response_context(
             _ => response.await,
         }
     })
-    .await;
-    #[cfg(feature = "metrics")]
-    {
-        let status_class = super::metrics::status_class(response.status());
-        metrics::counter!("openrust_http_requests_total", "method" => metric_method, "status_class" => status_class).increment(1);
-        metrics::histogram!("openrust_http_request_duration_seconds", "method" => metric_method, "status_class" => status_class).record(started.elapsed().as_secs_f64());
-    }
-    response
+    .await
 }
 
 struct RequestPermitBody {
     inner: Body,
-    _permit: tokio::sync::OwnedSemaphorePermit,
+    permit: Option<tokio::sync::OwnedSemaphorePermit>,
     #[cfg(feature = "metrics")]
-    _in_flight: InFlightRequest,
+    in_flight: Option<InFlightRequest>,
+}
+
+impl RequestPermitBody {
+    fn release(&mut self) {
+        self.permit.take();
+        #[cfg(feature = "metrics")]
+        self.in_flight.take();
+    }
 }
 
 impl HttpBody for RequestPermitBody {
@@ -244,7 +249,12 @@ impl HttpBody for RequestPermitBody {
         self: Pin<&mut Self>,
         context: &mut Context<'_>,
     ) -> Poll<Option<std::result::Result<Frame<Self::Data>, Self::Error>>> {
-        Pin::new(&mut self.get_mut().inner).poll_frame(context)
+        let this = self.get_mut();
+        let result = Pin::new(&mut this.inner).poll_frame(context);
+        if matches!(&result, Poll::Ready(None | Some(Err(_)))) {
+            this.release();
+        }
+        result
     }
 
     fn is_end_stream(&self) -> bool {
@@ -444,13 +454,21 @@ fn request_span(request: &Request) -> tracing::Span {
 }
 
 #[cfg(feature = "metrics")]
-struct InFlightRequest;
+struct InFlightRequest {
+    method: &'static str,
+    status_class: &'static str,
+    started: std::time::Instant,
+}
 
 #[cfg(feature = "metrics")]
 impl InFlightRequest {
-    fn new() -> Self {
+    fn new(method: &'static str, status_class: &'static str, started: std::time::Instant) -> Self {
         metrics::gauge!("openrust_http_requests_in_flight").increment(1.0);
-        Self
+        Self {
+            method,
+            status_class,
+            started,
+        }
     }
 }
 
@@ -458,6 +476,8 @@ impl InFlightRequest {
 impl Drop for InFlightRequest {
     fn drop(&mut self) {
         metrics::gauge!("openrust_http_requests_in_flight").decrement(1.0);
+        metrics::counter!("openrust_http_requests_total", "method" => self.method, "status_class" => self.status_class).increment(1);
+        metrics::histogram!("openrust_http_request_duration_seconds", "method" => self.method, "status_class" => self.status_class).record(self.started.elapsed().as_secs_f64());
     }
 }
 

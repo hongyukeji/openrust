@@ -215,9 +215,9 @@ impl From<ValidationErrors> for Error {
 
 impl IntoResponse for Error {
     fn into_response(self) -> Response {
-        if self.is_server_error() {
+        if self.is_server_error() && should_log_server_error(&self) {
             tracing::error!(code = self.code(), status = %self.status(), "request failed");
-        } else {
+        } else if !self.is_server_error() {
             tracing::debug!(code = self.code(), status = %self.status(), "request rejected");
         }
         let mut response = self.to_api_response().into_response();
@@ -228,6 +228,10 @@ impl IntoResponse for Error {
         }
         response
     }
+}
+
+fn should_log_server_error(error: &Error) -> bool {
+    error.code() != "http_overloaded"
 }
 
 /// HTTP middleware 为每个请求设置的响应上下文。
@@ -428,6 +432,19 @@ impl<T: Serialize> IntoResponse for ApiResponse<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn expected_http_overload_rejections_do_not_emit_error_logs() {
+        let overloaded = Error::custom_with_status(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "http_overloaded",
+            "server request capacity is exhausted",
+        );
+        let internal = Error::internal(std::io::Error::other("database failure"));
+
+        assert!(!should_log_server_error(&overloaded));
+        assert!(should_log_server_error(&internal));
+    }
 
     #[test]
     fn client_error_has_code_and_message() {
