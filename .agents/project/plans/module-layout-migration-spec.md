@@ -1,53 +1,43 @@
 # 根模块与目录收尾 Spec
 
 > 受众：AI Agent
-> 状态：目录迁移与适用验收完成；apps/server 评估结论为保留。代码提交 `de6fc65`，验收文档提交 `c84a090`。
-> 决策：[ADR-021](../decisions/adr-021-loco-style-module-layout.md)。执行优先级见 [plan.md](../plan.md#执行校准)。
+> 状态：迁移已实施，最终验收待完成。真实 server bin、配置和集成测试入口已迁入根 package；工具 package 已收纳到 `tools/`。当前进度记录仍有 workspace 全量测试中的两项配置名断言失败，不能将本 Spec 标记为验收完成；修复或证实失败归属后，按下方门禁重新验证并更新状态。
+> 决策：[ADR-062](../decisions/adr-062-root-server-entry.md)。工具包与源码交付迁移已完成，见 [ADR-021](../decisions/adr-021-loco-style-module-layout.md) 与 [ADR-039](../decisions/adr-039-source-workspace-distribution.md)。
 
-> 包名与交付方式已由 [ADR-039](../decisions/adr-039-source-workspace-distribution.md) 更新。下列旧包名只记录已完成目录迁移时的身份；当前包名、禁用发布和 apps 生成验收以 ADR-039 与 `memory/testing.md` 为准。
+## 目标
 
-## Spec
-
-1. 保持根 `openrust` 框架模块与公共 API；不重新拆成逐能力 crate，也不改变业务功能。
-2. 完成剩余顶层 `crates/` 职责迁移，目标 `cli/`、`macros/`、`testing/`；Cargo package 名保持，目录名与包名分开处理。
-3. examples 按 `examples/<name>/`、tests 按能力目录组织，显式保证 Cargo target 发现、feature 门控与用例覆盖。
-4. 对 `apps/server` 做职责映射与替代评估；替代覆盖不足时保留，不能以删除宿主为验收前提。`apps/` 仍是应用目录约定。
-5. 同步 path dependencies、workspace、宏展开路径、模板嵌入、CI、脚本和文档，不创建空兼容包，不混入新业务能力。
-6. 用 metadata/测试清单对比、workspace/feature 门禁、双库集成和生成项目证明迁移无覆盖损失；通过后独立提交。
+1. 根 `openrust` package 承载框架 library 与框架开发/集成用 `server` bin，二进制源码统一位于根 `src/`。
+2. 从仓库根目录直接执行 `cargo run` 启动宿主，`cargo test` 运行根 package 的集成测试；保留 `CARGO_BIN_EXE_server` 真实进程覆盖。
+3. `apps/` 只作为开发者业务应用目录约定，不保留框架自带的 `apps/server` package。
+4. 集成测试迁至根 `tests/server/`，配置放项目根 `config/`；Rust 配置代码仍放 `src/config/`。性能基准集中在 `tools/performance/` workspace package，避免把性能工具入口并入框架 package。
+5. 保留 `testing` 独立工具 package 的下游入口 `testing::TestDatabase`，内部实现统一在根 `src/testing/`，避免根集成测试依赖 `testing` 造成 package 依赖环。
+6. 同步 workspace、feature、CLI 工作区识别、CI、README、Agent 规则与当前事实；不丢失现有测试、feature 门控、子进程语义或未提交 WIP。
 
 ## 当前与目标
 
-| Package/入口 | 当前路径 | 目标/处理 |
-| --- | --- | --- |
-| `openrust` | 根目录，能力在 `src/` | 保持；配置代码 `src/config/`，运行时配置在应用根 `config/` |
-| `cli` | `cli/` | 保留 CLI 编译边界、模板和测试 |
-| `macros` | `macros/` | 保留 Rust proc-macro 独立 package |
-| `testing` | `testing/` | 用户 dev-dependency，单向依赖框架 |
-| `server` | `apps/server` | 保留集成验收职责 |
-| hello 示例 | `examples/hello/main.rs` | 已迁移并显式保留 `hello` target 名 |
-| 公共 API 测试 | `tests/http/*.rs` | 已按 HTTP 能力分组并显式声明原 target 名 |
-| 宿主集成测试 | `apps/server/tests/{auth,database,http,i18n,queue,schedule,server}/` | 已按能力分组并显式声明原 target 名；宿主职责保留 |
-
-目标不是减少 Cargo package 数，而是消除冗余层级并让开发者看清框架/工具/应用边界。程序宏与 CLI 保留各自构建边界。目录迁移前后 target/test 清单一致，工作区门禁及双库集成已通过并提交；新的包名和源码交付迁移另按 ADR-039 验收。
-
-## apps/server 职责评估
-
-| 当前职责 | 替代必须提供的证据 |
+| 目标 | 路径/入口 |
 | --- | --- |
-| 根 cargo run / config / help 和基础 HTTP | 明确的新启动命令、工作目录/配置定位、健康响应、默认端口和环境覆盖 |
-| facade、Plugin 组合与 feature forwarding | 默认/关键/all-features 组合编译运行、显式服务依赖失败行为 |
-| auth/database/queue/schedule 等真实双库测试 | 同一用例或等价更完整断言、隔离数据库生命周期、feature 和环境变量入口 |
-| worker/scheduler 独立进程与异常退出测试 | 测试二进制路径、信号、lease恢复和进程回收；不能退化为单进程 fake |
-| 生成项目与示例对接 | 下游公开API、模板路径/本地patch、两种数据库生成项目check/test与HTTP流程 |
+| 框架 library | `src/lib.rs` 与根 `src/` modules |
+| 集成宿主 | `src/main.rs`，Cargo bin 名称 `server`；仓库根 `cargo run` |
+| 用户应用 | `apps/<name>/`，由生成器维护 workspace 与应用启动/配置边界 |
+| 运行配置 | 根 `config/`；Rust 配置实现 `src/config/` |
+| 宿主集成测试 | 根 `tests/server/`，显式 `[[test]]` 声明、原 target 名和 feature 要求保持 |
+| TestDatabase 实现/兼容入口 | `src/testing/`；独立 `testing` package re-export `openrust::testing::TestDatabase` |
+| 基准测试 | `tools/performance/benches/db_routing.rs`，`performance` package 的 `db-routing-bench` feature；数据库 feature 转发到根 `openrust` package |
+| 工具边界 | `tools/cli/`、`tools/macros/`、`tools/testing/`、`tools/performance/` 为独立 package，分别承担命令、proc-macro、下游测试工具与性能验证 |
 
-评估结论：保留 `apps/server`。`tests/server/aggregate.rs` 通过 `CARGO_BIN_EXE_server` 启动真实服务；每个应用从自己的工作目录定位配置。双库、进程信号/崩溃、feature forwarding 与隔离测试数据库验收仍依赖此 package。根 HTTP 测试和 hello 示例不等价覆盖这些职责；后续若迁移，须先提供可运行二进制与同等双库/进程测试宿主。
+## 已实施变更
 
-## 执行顺序与验证
+- 原 `apps/server/src/{main,app,routes}.rs`、配置、测试、基准迁至根目录目标。
+- 根 package 添加显式 `server` bin 和宿主测试 target，workspace 移除 server package 成员及 workspace dependency。
+- TestDatabase 实现迁入框架源码，工具 package 只保留兼容 re-export。
+- CLI workspace 识别不再要求 `apps/server` package；`apps/` 的业务应用发现规则保持。
+- 移除旧 `apps/server/Cargo.toml` 与 README；文档/CI/feature 配置切换至根 package。
 
-1. 领取前记录 Git/WIP、`cargo metadata --no-deps --format-version 1` 的 package/target/feature 清单，以及 `cargo test --workspace --all-features -- --list`。迁移前后均为 5 个 workspace package、265 个可列测试条目，目标名和测试名保持一致。
-2. 工具 package、examples/tests 已迁移；相对路径、模板测试、target 和用例清单已验证，保留 server。
-3. 验证 `cargo fmt --all --check`、workspace default/all-features clippy/test、warnings-denied rustdoc、`cargo deny check`；关键独立 features 和 no-default-features 编译不因整理回归。必要时分批验证后统一收口。
-4. 按 [testing.md](../memory/testing.md) 在 PostgreSQL 18/MySQL 8.4 实跑数据库、认证、队列、调度及崩溃恢复；例子实际启动；两种数据库生成项目 check/test 与已承诺的 HTTP 流程均通过。服务先检查复用，不为结构整理重复创建数据库。
-5. 同步 CI 的新路径与缺失 queue feature；证明服务作业中的测试未跳过，不通过移除用例、忽略失败或减小验证范围完成迁移。
-6. 扫描旧路径，区分历史 ADR 与有效代码/命令/文档；运行本地链接/锚点和 diff 检查。用 Git 跟踪迁移/删除；已删除旧 `crates/`，历史 ADR 中旧路径仅作背景引用。
-7. 目录收尾由提交 `de6fc65`、`c84a090` 完成；包名与源码交付按 ADR-039 独立验收。完整 v1 集群与性能不因这些簇通过而自动完成。
+## 验收
+
+1. `cargo metadata --no-deps --format-version 1` 显示 workspace 含 `openrust`、`cli`、`macros`、`testing`、`performance`；root package 有 `server` bin 和集成测试 target，`performance` package 有数据库路由 bench target。
+2. `cargo run -- config show` 从仓库根启动；默认 serve 经真实 TCP `/health` 返回成功；`APP_SERVER__PORT` 仍有效。
+3. `cargo test --workspace`、all-features Clippy/tests/docs、fmt 与 cargo deny 通过；CLI fixture 与 CLI workspace 检测测试通过。
+4. PostgreSQL/MySQL/Redis 专项入口使用现有适用服务并复验；不创建重复服务。保留 worker/scheduler 子进程、Keycloak fixture、真实隔离库和 `CARGO_BIN_EXE_server` 覆盖。
+5. 扫描有效代码和文档中旧 `apps/server` 入口，历史 ADR/CHANGELOG 仅保留可识别的历史记录；不更改其他功能簇已有 WIP。

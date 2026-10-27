@@ -1,8 +1,8 @@
 # 验收口径
 
 > 受众：AI Agent
-> 更新：2026-10-26
-> 摘要：下表归纳仓库已有实现和测试记录；最新目录收尾已执行 workspace 与双库服务验证。其他命令和历史证据边界见 [testing.md](testing.md)。
+> 更新：2026-10-27
+> 摘要：下表归纳已记录的专项验收及其边界。根入口和工具目录迁移已实施，但 workspace 全量测试仍有两项配置名断言失败，最终迁移门禁未关闭；其他命令和历史证据边界见 [testing.md](testing.md)。
 
 ## 当前已有证据
 
@@ -31,11 +31,11 @@
 
 ## 尚未关闭的门禁
 
-- 目录收尾通过 5-package/265-test-list 对比、workspace 门禁、双库 server 集成、生成项目及实际 hello TCP HTTP smoke；`apps/server` 有明确保留证据。ADR-039 源码交付已另行通过干净副本和双库验收。以上不等同于 v1 集群或性能门禁。
-- M4 共享锁与请求幂等已按 ADR-042 在 PostgreSQL 18/MySQL 8.4 双 pool 隔离库完成竞争、接管、冲突、事务原子性、回放及有界清理验收；Worker 停机/lease 修正通过双库真实 SIGTERM、worker pool 故障、pending job 停领和旧 token 接管专项。通知、日历调度等继续按 todo 推进；M5 Db/Queue 外部执行边界、缓存/存储/实时/资源与可观测性；M6 开发编排/生成全集/测试工具/正式文档及源码升级。已交付的 HTTP 查询边界、类型化事件和有限任务编排不重复登记为未实现。
+- 目录收尾通过 5-package/265-test-list 对比、workspace 门禁、双库 server 集成、生成项目及实际 hello TCP HTTP smoke；当时保留 `apps/server` 有明确评估证据，现按 ADR-062 迁入根 package。ADR-039 源码交付已另行通过干净副本和双库验收。以上不等同于 v1 集群或性能门禁。
+- M4 共享锁与请求幂等已按 ADR-042 完成 PostgreSQL 18/MySQL 8.4 双 pool 隔离库验收；Worker 停机/lease 修正、F1 日历调度、F2 国际化、F3 邮件模板与 M4 通知/生成组合均以 `todo.md` 中的专项记录为准，已完成项不重复列为未实现。当前活跃范围是 M5 可观测性与生产资源；M6 仍包括开发编排、生成器/测试工具、正式文档、源码升级和完整产品集群验收。
 - PostgreSQL/MySQL 负载均衡下至少两个 API 与多 worker/scheduler 的共享认证状态、配额/幂等、任务竞争、跨节点在线投递、共享文件、滚动升级及故障恢复。
-- [底层补齐 F1–F10](../plans/v1-foundation-completion.md) 需要各自公开入口、真实失败/并发、有效组合和生成验收：日历/模板/i18n/cache、查询/租户/身份/MFA、CSV/XLSX 与 fixtures 均不能用范围文档替代实现证据。
-- gRPC 四类真实调用、TLS/mTLS、认证/Status、deadline/流取消/背压、health/reflection、生成项目、双节点滚动与 proto 新旧互通，按 [ADR-040](../decisions/adr-040-grpc-integration.md) 验收；当前未实现。跨协议验证/上下文、出站策略、迁移互斥与有界退出尚须实现和验证，不把本轮规划当通过证据。
+- [底层补齐 F1–F10](../plans/v1-foundation-completion.md) 仍须按顺序交付：F1 日历调度已实现并有双库专项证据；邮件模板/i18n/cache、查询/租户/身份/MFA、CSV/XLSX 与 fixtures 各自仍须完成公开入口、真实失败/并发、有效组合和生成验收。
+- gRPC 四类真实调用、TLS/mTLS、认证/Status、deadline/流取消/背压、health/reflection、生成项目、双节点滚动与 proto 新旧互通，已按 [ADR-040](../decisions/adr-040-grpc-integration.md) 完成 G1–G3c 验收；依据为当前 `progress.md` 与 `todo.md` 中的真实 TCP、独立 consumer、Envoy 双节点和 workspace 门禁记录。M6 仍须复验其与完整产品集群、滚动升级的组合行为。跨协议验证/上下文、出站策略、迁移互斥与有界退出已有对应完成记录，不再列为待实现；若这些验收证据变化，应同步更新本节与功能事实。
 - Redis 与对象存储真实驱动语义；代表性业务负载 p50/p95/p99、吞吐、CPU、内存和资源上限；发布前设定基于实测的回归门槛。
 - 独立 consumer 的配置/注册/执行契约，构建与依赖成本，C2/C3 完成后的中文文档独立走查、保留业务的源码升级回归及平台/维护约定；详细验收只在 [补强计划](../plans/v1-performance-and-readiness.md) 维护。本次文档工作不新增代码行为测试记录。
 - 暂定最低 PostgreSQL 14+ / MySQL 8.0+ / Redis 6.2+ 的完整承诺路径；日常只用 PG18/MySQL8.4/Redis8，额外矩阵按大跨度/明确兼容风险与发布门禁触发。运行时版本检查通过不等于最低版本功能已全部验证。
