@@ -1,6 +1,7 @@
 //! Argon2id 密码哈希基础能力。
 
 use std::str::FromStr;
+use std::sync::Arc;
 
 use crate::config::PasswordConfig;
 use crate::config::auth::MIN_MEMORY_KIB;
@@ -9,11 +10,13 @@ use argon2::{
     Algorithm, Argon2, Params, Version,
     password_hash::{PasswordHasher, PasswordVerifier, phc::PasswordHash},
 };
+use tokio::sync::Semaphore;
 
 const MAX_PASSWORD_BYTES: usize = 1024;
 const MAX_MEMORY_KIB: u32 = 262_144;
 const MAX_ITERATIONS: u32 = 10;
 const MAX_PARALLELISM: u32 = 4;
+const MAX_CONCURRENT_OPERATIONS: usize = 4;
 
 /// 编码后的 PHC 密码哈希。此类型有意不实现 `Debug`。
 #[derive(Clone, PartialEq, Eq)]
@@ -38,21 +41,40 @@ impl EncodedPasswordHash {
 #[derive(Clone)]
 pub struct Passwords {
     config: PasswordConfig,
+    operation_slots: Arc<Semaphore>,
 }
 
 impl Passwords {
-    /// 校验 Argon2id 参数的资源边界后创建服务。
+    /// 校验 Argon2id 参数后创建密码服务，默认最多并行执行两个操作。
     pub fn new(config: PasswordConfig) -> Result<Self> {
+        Self::with_max_concurrent_operations(config, 2)
+    }
+
+    /// 创建密码服务并设置单实例的最大并发数；超出容量的任务会立即拒绝且不排队。
+    pub fn with_max_concurrent_operations(
+        config: PasswordConfig,
+        max_concurrent_operations: usize,
+    ) -> Result<Self> {
+        if !(1..=MAX_CONCURRENT_OPERATIONS).contains(&max_concurrent_operations) {
+            return Err(Error::Config(crate::config::ConfigError::Invalid(
+                "auth.password max_concurrent_operations must be 1..=4".into(),
+            )));
+        }
         validate_config(&config)?;
-        Ok(Self { config })
+        Ok(Self {
+            operation_slots: Arc::new(Semaphore::new(max_concurrent_operations)),
+            config,
+        })
     }
 
     /// 使用随机盐在 Tokio 阻塞线程池中对非空密码生成哈希。
     pub async fn hash(&self, password: &str) -> Result<EncodedPasswordHash> {
         validate_password(password)?;
+        let permit = self.operation_permit()?;
         let password = password.to_owned();
         let config = self.config.clone();
         tokio::task::spawn_blocking(move || {
+            let _permit = permit;
             let params = argon_params(&config)?;
             let argon = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
             let encoded = argon
@@ -68,9 +90,11 @@ impl Passwords {
     /// 在 Tokio 阻塞线程池中校验密码；不匹配时返回 `Ok(false)`。
     pub async fn verify(&self, password: &str, encoded: &EncodedPasswordHash) -> Result<bool> {
         validate_password(password)?;
+        let permit = self.operation_permit()?;
         let password = password.to_owned();
         let encoded = encoded.0.clone();
         tokio::task::spawn_blocking(move || {
+            let _permit = permit;
             let parsed = PasswordHash::new(&encoded).map_err(Error::internal)?;
             validate_encoded_hash(&parsed)?;
             let argon = Argon2::default();
@@ -82,6 +106,19 @@ impl Passwords {
         })
         .await
         .map_err(Error::internal)?
+    }
+
+    fn operation_permit(&self) -> Result<tokio::sync::OwnedSemaphorePermit> {
+        self.operation_slots
+            .clone()
+            .try_acquire_owned()
+            .map_err(|_| {
+                Error::custom_with_status(
+                    http::StatusCode::SERVICE_UNAVAILABLE,
+                    "password_capacity_exhausted",
+                    "密码处理容量已满，请稍后重试",
+                )
+            })
     }
 }
 
@@ -203,5 +240,55 @@ mod tests {
         assert!(passwords.hash("").await.is_err());
         assert!(passwords.hash(&"x".repeat(1025)).await.is_err());
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn rejects_hash_operations_when_the_service_capacity_is_full()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let passwords = Passwords::with_max_concurrent_operations(fast_config(), 1)?;
+        let encoded = passwords.hash("correct horse").await?;
+        let permit = passwords.operation_slots.clone().acquire_owned().await?;
+        let cloned = passwords.clone();
+        let error = passwords
+            .hash("correct horse")
+            .await
+            .err()
+            .ok_or_else(|| std::io::Error::other("hash should be rejected at capacity"))?;
+        assert_eq!(error.code(), "password_capacity_exhausted");
+        assert_eq!(error.status(), http::StatusCode::SERVICE_UNAVAILABLE);
+        let verify_error = cloned
+            .verify("correct horse", &encoded)
+            .await
+            .err()
+            .ok_or_else(|| std::io::Error::other("verify should be rejected at capacity"))?;
+        assert_eq!(verify_error.code(), "password_capacity_exhausted");
+        drop(permit);
+        assert!(passwords.hash("correct horse").await.is_ok());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn default_capacity_allows_two_operations_and_rejects_the_third()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let passwords = Passwords::new(fast_config())?;
+        let first = passwords.operation_permit()?;
+        let second = passwords.operation_permit()?;
+        assert_eq!(
+            passwords
+                .operation_permit()
+                .err()
+                .ok_or_else(|| std::io::Error::other("third operation should be rejected"))?
+                .code(),
+            "password_capacity_exhausted"
+        );
+        drop((first, second));
+        assert!(passwords.operation_permit().is_ok());
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_invalid_operation_capacity() {
+        assert!(Passwords::with_max_concurrent_operations(fast_config(), 0).is_err());
+        assert!(Passwords::with_max_concurrent_operations(fast_config(), 5).is_err());
     }
 }

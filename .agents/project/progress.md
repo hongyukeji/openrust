@@ -26,6 +26,12 @@
 
 `apps/server/tests/realtime.rs` 以聚合 App/真实 HTTP Router 覆盖 AuthLayer、Origin 与 SSE 协议头。单元测试覆盖连接过期、Origin/载荷上限、用户频道投递和撤销、慢消费者断开。真实验收 `examples/realtime/tests/cluster.rs::two_real_api_processes_route_websocket_and_sse_through_redis` 启动两个独立 API 进程，并用本机 Redis 8.10.2 和真实 WebSocket/SSE TCP 客户端验证跨节点消息、错误 Origin、撤销广播、SIGTERM 关闭两类会话及进程退出；另启动单独节点连接不可达 Redis 并确认请求错误码 `realtime_transport_unavailable`。用法和信任边界见 `examples/realtime/README.md`；CI 已增加 Redis 8 集群 job。以上不是 M6 全栈集群或 Redis 断连期间无损保证。
 
+## M5 ADR-060 密码哈希容量
+
+`Passwords` 默认每实例最多同时执行两个 Argon2 操作，支持显式设为 1..=4；超过容量立即拒绝且不排队。许可由 `spawn_blocking` 闭包持有至实际计算完成；克隆共享 Semaphore。`AuthPlugin` 的 AuthFlows 与验证码共享同一服务实例。按框架接受的最大 PHC memory 参数，单实例 Argon2 工作内存最多约 1 GiB；跨多个独立服务实例不共享预算。满载错误码为 `password_capacity_exhausted`，内部语义状态 503，外部 HTTP 状态仍服从 ADR-008。
+
+容量单测 7 项、根库 `auth` tests 160 项、all-features 根库 tests 258 项（2 项忽略）与 `apps/server` AuthPlugin 非法容量启动测试 1 项通过；完整 AuthFlows 注册/登录/刷新/重置/退出用例在 PostgreSQL 18 与 MySQL 8.4 各通过 1 项，使用现有容器和 `TestDatabase` 隔离数据库。workspace default all-target Clippy、workspace 默认测试、workspace warnings-denied Rustdoc、feature `auth` 源码 Clippy/Rustdoc、no-default check、cargo deny、fmt 和 diff 检查均通过。全量默认 workspace 数据集成中的无 URL targets 按既有条件跳过；双库 AuthFlows 用例已显式执行。cargo deny 的 advisories/bans/licenses/sources 通过，保留既有重复 crate 与未匹配 MPL allowance 警告。完整 M5 观测、总体服务资源、登录突发和性能门禁仍未完成。
+
 | 能力 | 当前实现与证据 | 尚未覆盖 |
 | --- | --- | --- |
 | 根模块与配置 | 框架合入根 `src/`；typed config、APP_ 可定制命名空间、`.env` 生产隔离与脱敏；默认/关键 features 和生成项目已有验证 | 无本簇剩余项 |

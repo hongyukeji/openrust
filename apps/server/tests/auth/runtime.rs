@@ -541,6 +541,19 @@ async fn default_database_authenticator_requires_database_at_startup() -> TestRe
     Ok(())
 }
 
+#[tokio::test]
+async fn auth_plugin_rejects_invalid_password_capacity_during_startup() -> TestResult {
+    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment::Figment::new());
+    builder.plugin(
+        AuthPlugin::with_authenticator(FakeAuthenticator).with_password_operation_capacity(0),
+    );
+    let Err(error) = finalize(builder).await else {
+        return Err("auth plugin accepted a zero password operation capacity".into());
+    };
+    assert!(error.to_string().contains("max_concurrent_operations"));
+    Ok(())
+}
+
 struct DuplicateAuthService;
 
 impl Plugin for DuplicateAuthService {

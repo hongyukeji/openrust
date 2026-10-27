@@ -320,6 +320,7 @@ pub struct AuthPlugin {
     authenticator: Arc<dyn Authenticator>,
     database_authenticator: Option<Arc<DatabaseAuthenticator>>,
     password_config: PasswordConfig,
+    password_operation_capacity: usize,
 }
 
 impl AuthPlugin {
@@ -330,6 +331,7 @@ impl AuthPlugin {
             authenticator: authenticator.clone(),
             database_authenticator: Some(authenticator),
             password_config: PasswordConfig::default(),
+            password_operation_capacity: 2,
         }
     }
 
@@ -339,6 +341,7 @@ impl AuthPlugin {
             authenticator: Arc::new(authenticator),
             database_authenticator: None,
             password_config: PasswordConfig::default(),
+            password_operation_capacity: 2,
         }
     }
 
@@ -346,6 +349,13 @@ impl AuthPlugin {
     #[must_use]
     pub fn with_password_config(mut self, config: PasswordConfig) -> Self {
         self.password_config = config;
+        self
+    }
+
+    /// 设置单个应用密码服务的并发哈希/验证上限（1..=4），超过容量时立即拒绝且不排队。
+    #[must_use]
+    pub fn with_password_operation_capacity(mut self, capacity: usize) -> Self {
+        self.password_operation_capacity = capacity;
         self
     }
 }
@@ -371,7 +381,10 @@ impl Plugin for AuthPlugin {
         app.insert(AuthService {
             authenticator: self.authenticator.clone(),
         });
-        let passwords = Passwords::new(self.password_config.clone())?;
+        let passwords = Passwords::with_max_concurrent_operations(
+            self.password_config.clone(),
+            self.password_operation_capacity,
+        )?;
         app.insert(passwords.clone());
         if let Some(db) = app.get::<Db>() {
             let db = (*db).clone();
