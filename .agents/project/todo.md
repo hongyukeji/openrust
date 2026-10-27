@@ -20,6 +20,7 @@ R1 骨架/默认启动 → R2 内核/测试底座 → R3 HTTP → R4 数据 → 
 
 ## 必须带入新矩阵的现有缺口
 
+- 统一返回格式等已有优秀机制 → R0 登记对应 Laravel 职责与保留价值，R3/R5 在 Response / Resource / 异常渲染融合并回归，见[融合计划](plans/laravel-rebuild.md#已有优秀机制的融合)；重写不等于删除能力。
 - 原 M5 可观测性/资源独立审查与完整生产门禁 → R12/R14。
 - 原 DX1–DX8、F9/F10：默认 run/debug、TestApp/assertions、factory、命令/生成/stubs、只读 doctor、dev 编排、文档和更新体验 → R1/R2/R6/R13。
 - 双库负载均衡、多 API/worker/scheduler、共享状态/文件/实时、滚动升级/依赖故障、最低版本与性能 → R14。

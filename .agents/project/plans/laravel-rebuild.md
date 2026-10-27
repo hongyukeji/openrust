@@ -6,7 +6,7 @@
 
 ## 1. 目标与授权
 
-产品定位为用 Rust 忠实实现 Laravel，并长期跟进 Laravel 框架功能更新。目录、术语、命名、配置、默认行为、生命周期、开发流程与扩展方式以 Laravel 为准，使 Laravel 开发者能直接沿用已有框架知识。Goravel 是跨语言实现参考。允许架构和代码推倒重来，无旧 API、数据或目录兼容要求；必须保留 Rust 类型安全、所有权、原生 async、trait、Cargo 与 IDE 能力。只有具体语言、运行时或工具约束才构成适配理由，不以个人偏好或笼统“Rust 惯用”改变 Laravel 体验。
+产品定位为用 Rust 忠实实现 Laravel，并长期跟进 Laravel 框架功能更新。目录、术语、命名、配置、默认行为、生命周期、开发流程与扩展方式以 Laravel 为准，使 Laravel 开发者能直接沿用已有框架知识。Goravel 是跨语言实现参考。允许架构和代码推倒重来，无旧 API、数据或目录兼容要求；必须保留 Rust 类型安全、所有权、原生 async、trait、Cargo 与 IDE 能力。语言适配须有具体语言、运行时或工具约束；已有优秀通用机制按下述融合规则保留，不以个人偏好或笼统“Rust 惯用”改变 Laravel 体验。
 
 “低学习成本”以常见任务的对照走查验收；Rust 语法、所有权和异步仍需学习，不承诺 PHP 源码直接运行或跨语言零知识成本。范围覆盖机制、默认体验、生成、文档、运维和故障语义，不能以目录改名完成本任务。
 
@@ -54,6 +54,12 @@ R0 固定 Laravel 文档版本、`laravel/laravel`、`laravel/framework`、Gorav
 
 ## 3. 目标架构
 
+### 已有优秀机制的融合
+
+R0 为已有增强记录对应 Laravel 职责、开发价值、接入/定制方式、上游行为差异和回归证据，区分上游等价、必要 Rust 适配与 OpenRust 通用增强。优先复用或适配成熟实现；重写和删除重复代码不得顺带丢弃有效能力。增强复用同一 Provider、配置、事件和测试机制，不增加第二套内核或要求开发者修改框架源码。
+
+统一返回格式作为明确保留项，归 C05/C06、R3/R5 的 Response / API Resource 与异常渲染：成功、分页、校验和错误复用共同契约，保持无载荷省略 `data` 等已确认行为，并覆盖元信息和嵌套资源只包装一次。提供便捷接入与公开定制，应用仍可选择原生响应；具体默认值在 R3 定稿。HTML、下载、SSE/gRPC、无正文等响应保持各自协议语义，统一格式不等于统一 HTTP 200。生成器、OpenAPI、测试 assertions 与文档同步；其他增强也按实际价值和对应职责融合，避免功能堆积。
+
 ### 3.1 面向应用的默认目录
 
 推荐采用 Laravel 职责目录作为默认源码交付入口；R1 通过 Cargo/IDE 原型后形成最终目录 ADR，并迁移全部受影响调用方。
@@ -98,7 +104,7 @@ Rust 根 `src/main.rs` 用明确的编译期模块声明连接职责目录；允
 | 自动装配、发现 | 显式 provider 列表、derive 或构建期可检查注册；保留 IDE 跳转和编译错误，不引入 PHP 反射解释器 |
 | Eloquent | 熟悉模型/关系/查询/事件/工厂语义，typed builder + derive/trait + 成熟数据库组件；数据库 I/O 显式 async，禁止属性读取隐式网络调用 |
 | fluent API | 返回类型表达链式状态和错误，使用 snake_case；不用字符串万能字典抹掉类型信息。集合优先 Iterator/Vec，公共包装需有业务价值 |
-| HTTP/异常 | `Result` 和类型化响应；语义 HTTP 状态默认；JSON Resource、分页、redirect、view、stream 各自正确，不强制所有响应套统一 200 包装 |
+| HTTP/异常 | `Result` 和类型化响应；语义 HTTP 状态默认；在 Response / Resource / 异常渲染中融合统一返回格式增强；分页、redirect、view、stream 各自正确，不强制所有响应套统一 200 包装 |
 | Web/API 认证 | web/第一方 SPA 的 Cookie Session + CSRF，API/PAT 和可选 JWT guard；密码、轮换、撤销和授权共享核心，不能让一种 guard 绕过另一种限制 |
 | 生命周期 | 长驻异步运行时按请求/任务重置 scope；所有后台任务有 owner、cancel、drain、join 和超时，不模拟 PHP 每请求进程重置 |
 | 配置与缓存 | 领域配置、`.env` 和类型化校验；运行时配置读取一致，环境优先级与敏感值脱敏明确。优化命令适应编译型语言，不能照搬无效 PHP 缓存操作 |
@@ -115,7 +121,7 @@ Rust 根 `src/main.rs` 用明确的编译期模块声明连接职责目录；允
 | C02 | 容器绑定/别名/生命周期/依赖诊断、Provider、Facade/显式 DI、包扩展与配置资源发布 | R2 |
 | C03 | web/api 路由组、middleware alias/group、命名/URL、资源路由、模型绑定、domain/prefix、fallback、签名 URL | R3 |
 | C04 | Request/Response、Cookie/Session、redirect/flash、CSRF/CORS、可信代理、FormRequest 验证授权、文件验证 | R3/R7 |
-| C05 | Controller `index/create/store/show/edit/update/destroy`、API resource 子集、资源序列化、条件字段/关系、分页 | R3/R5 |
+| C05 | Controller `index/create/store/show/edit/update/destroy`、API resource 子集、资源序列化、条件字段/关系、分页；融合可定制统一返回格式，无载荷省略 data、避免重复包装 | R3/R5 |
 | C06 | 错误报告与渲染、内容协商、日志 channels、结构化上下文、脱敏、可观测请求 ID | R3/R12 |
 | C07 | 默认/named 数据库、查询 builder、参数绑定、事务/savepoint/重试、锁、提交前后、读写分离/粘主与逃生口 | R4 |
 | C08 | Model CRUD、属性/类型转换、hidden/visible、fillable/guarded、timestamps、主键、软删、scope、模型事件/observer | R5 |

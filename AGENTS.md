@@ -8,6 +8,8 @@
 
 长期产品定位为 **用 Rust 实现 Laravel，并持续跟进 Laravel 框架功能演进**。目录、概念、命名、默认行为、工作流和扩展方式以 Laravel 为准；仅在 Rust 语言、运行时或工具约束确有必要时适配，并记录原因与等价行为证据。上游跟进与版本范围规则见 [总计划](.agents/project/plans/laravel-rebuild.md#长期上游跟进)。
 
+保留并融合本框架已有优秀设计，例如统一返回格式，放入 Laravel 对应职责与公开扩展位置；这是已授权的通用增强，不限于语言适配。不得因上游没有相同内置能力就删除；具体边界见 [ADR-070](.agents/project/decisions/adr-070-laravel-first-rebuild.md#用户意图与验收原则)。
+
 [ADR-070](.agents/project/decisions/adr-070-laravel-first-rebuild.md) 与 [全面重构计划](.agents/project/plans/laravel-rebuild.md) 是当前目标：Laravel 优先、参考 Goravel，允许全面重写目录/API/默认值/实现，无历史兼容义务，保留 Rust 语言与工具优势。旧规定不能阻止已批准的重构；已实现事实和真实验收记录仍须保留。工程质量、WIP 保护和 §5 对外授权边界继续适用。当前任务与后续顺序只在 `todo.md` 领取。
 
 ## 1. 角色与契约

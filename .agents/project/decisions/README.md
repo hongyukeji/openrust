@@ -17,7 +17,7 @@
 
 | ADR | 状态 | 当前归属与边界 |
 | --- | --- | --- |
-| [070 Rust 版 Laravel 与持续跟进](adr-070-laravel-first-rebuild.md) | Accepted（计划已记录，未实现） | 用户原意、原汁原味的验收原则、长期上游同步、旧约束替代与必要 Rust 适配；实施见 R0–R16 |
+| [070 Rust 版 Laravel 与持续跟进](adr-070-laravel-first-rebuild.md) | Accepted（计划已记录，未实现） | 用户原意、原汁原味、已有优秀机制融合、长期上游同步与必要 Rust 适配；实施见 R0–R16 |
 | [001 自有内核与组件整合](adr-001-own-kernel-on-axum.md) | Partially Superseded | 目标约束按 ADR-070 重开；成熟组件优先；自有组装与公开扩展，Laravel 式开发体验，Rust 惯用 API |
 | [002 SeaORM 与数据库基线](adr-002-seaorm-dual-database.md) | Partially Superseded | PostgreSQL/MySQL 生产与集群基线；SQLite 轻量后端范围见 066 |
 | [005 许可证与 MSRV](adr-005-license-naming-msrv.md) | Partially Superseded | MIT OR Apache-2.0、Edition、MSRV 有效；包命名与分发由 039 替代 |
