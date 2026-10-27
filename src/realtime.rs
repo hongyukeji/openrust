@@ -174,6 +174,8 @@ impl Realtime {
         let permit = Arc::clone(&self.0.connection_slots)
             .try_acquire_owned()
             .map_err(|_| {
+                #[cfg(feature = "metrics")]
+                metrics::counter!("openrust_realtime_connections_rejected_total").increment(1);
                 Error::custom_with_status(
                     StatusCode::SERVICE_UNAVAILABLE,
                     "realtime_connection_limit",
@@ -192,6 +194,8 @@ impl Realtime {
         };
         self.0.connections.lock().await.insert(id.clone(), entry);
         self.0.connection_count.fetch_add(1, Ordering::Relaxed);
+        #[cfg(feature = "metrics")]
+        metrics::gauge!("openrust_realtime_connections_in_flight").increment(1.0);
         let valid_for = SystemTime::UNIX_EPOCH
             .checked_add(Duration::from_secs(expires_at_unix_secs))
             .and_then(|end| end.duration_since(SystemTime::now()).ok())
@@ -258,6 +262,8 @@ impl Realtime {
         if let Some(transport) = &self.0.transport {
             transport.publish(&self.topic(), encoded).await?;
         }
+        #[cfg(feature = "metrics")]
+        metrics::counter!("openrust_realtime_messages_sent_total").increment(1);
         Ok(delivered)
     }
 
@@ -359,6 +365,8 @@ impl Realtime {
     async fn remove_connection(&self, id: &str) {
         if self.0.connections.lock().await.remove(id).is_some() {
             self.0.connection_count.fetch_sub(1, Ordering::Relaxed);
+            #[cfg(feature = "metrics")]
+            metrics::gauge!("openrust_realtime_connections_in_flight").decrement(1.0);
         }
     }
 
@@ -393,10 +401,18 @@ impl Realtime {
     async fn shutdown(&self) {
         self.0.accepting.store(false, Ordering::Release);
         let mut connections = self.0.connections.lock().await;
+        #[cfg(feature = "metrics")]
+        let removed = connections.len();
         for (_, connection) in connections.drain() {
             connection.close.send_replace(true);
         }
         self.0.connection_count.store(0, Ordering::Relaxed);
+        #[cfg(feature = "metrics")]
+        if removed > 0 {
+            let removed = u32::try_from(removed).unwrap_or(u32::MAX);
+            metrics::gauge!("openrust_realtime_connections_in_flight")
+                .decrement(f64::from(removed));
+        }
     }
 
     pub(crate) async fn begin_shutdown(&self) {

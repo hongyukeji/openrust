@@ -369,6 +369,7 @@ impl App {
                 self.config().server.shutdown_timeout_secs,
             ))
             .await;
+        crate::core::lifecycle::flush_telemetry().await;
         match (result, shutdown) {
             (Err(error), Err(shutdown_error)) => {
                 tracing::error!(

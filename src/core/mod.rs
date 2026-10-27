@@ -7,6 +7,8 @@ pub mod command;
 pub mod error;
 pub mod execution;
 pub mod lifecycle;
+#[cfg(feature = "otel")]
+pub(crate) mod otel;
 pub mod plugin;
 pub mod rate_limit;
 pub mod readiness;

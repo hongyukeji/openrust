@@ -4,7 +4,13 @@
 //! 提取应用自身的配置、调用 [`Application`] 构建插件、运行每个插件的 `build`、
 //! 冻结构建器，最后运行每个插件的 `finish`。
 
+#[cfg(feature = "otel")]
+use opentelemetry::trace::TracerProvider as _;
 use tracing_subscriber::EnvFilter;
+#[cfg(feature = "otel")]
+use tracing_subscriber::layer::SubscriberExt as _;
+#[cfg(feature = "otel")]
+use tracing_subscriber::util::SubscriberInitExt as _;
 
 use crate::config::{self, ConfigLoader, Environment, LogConfig, LogFormat};
 use crate::core::Cancellation;
@@ -67,7 +73,8 @@ impl BackgroundTasks {
             let mut failed = false;
             while let Some(result) = tasks.join_next().await {
                 if let Err(error) = result {
-                    tracing::error!(%error, "application background task failed");
+                    let _ = error;
+                    tracing::error!("application background task failed");
                     failed = true;
                 }
             }
@@ -121,7 +128,8 @@ impl BackgroundTaskHandle {
         let tasks = state.tasks.get_or_insert_with(JoinSet::new);
         while let Some(result) = tasks.try_join_next() {
             if let Err(error) = result {
-                tracing::error!(%error, "application background task failed");
+                let _ = error;
+                tracing::error!("application background task failed");
             }
         }
         if tasks.len() >= MAX_BACKGROUND_TASKS {
@@ -198,13 +206,83 @@ pub fn init_tracing(log: &LogConfig) {
     let filter = EnvFilter::try_from_default_env()
         .or_else(|_| EnvFilter::try_new(&log.level))
         .unwrap_or_else(|_| EnvFilter::new("info"));
+    #[cfg(feature = "otel")]
+    let installed = if let Ok(Some(provider)) = otel_provider() {
+        let tracer = provider.tracer("openrust");
+        let registry = tracing_subscriber::registry()
+            .with(filter)
+            .with(tracing_opentelemetry::layer().with_tracer(tracer));
+        match log.format {
+            LogFormat::Json => registry
+                .with(tracing_subscriber::fmt::layer().json())
+                .try_init()
+                .map_err(|error| error.to_string()),
+            LogFormat::Text => registry
+                .with(tracing_subscriber::fmt::layer())
+                .try_init()
+                .map_err(|error| error.to_string()),
+        }
+    } else {
+        let builder = tracing_subscriber::fmt().with_env_filter(filter);
+        match log.format {
+            LogFormat::Json => builder.json().try_init().map_err(|error| error.to_string()),
+            LogFormat::Text => builder.try_init().map_err(|error| error.to_string()),
+        }
+    };
+    #[cfg(not(feature = "otel"))]
     let builder = tracing_subscriber::fmt().with_env_filter(filter);
+    #[cfg(not(feature = "otel"))]
     let installed = match log.format {
         LogFormat::Json => builder.json().try_init(),
         LogFormat::Text => builder.try_init(),
     };
     // 此错误仅表示 subscriber 已安装，可安全忽略。
     let _ = installed;
+    #[cfg(feature = "otel")]
+    if OTEL_PROVIDER.get().is_some_and(Result::is_err) {
+        tracing::warn!("OpenTelemetry exporter could not be initialized; span export is disabled");
+    }
+}
+
+#[cfg(feature = "otel")]
+static OTEL_PROVIDER: std::sync::OnceLock<
+    std::result::Result<Option<opentelemetry_sdk::trace::SdkTracerProvider>, String>,
+> = std::sync::OnceLock::new();
+
+#[cfg(feature = "otel")]
+fn otel_provider()
+-> &'static std::result::Result<Option<opentelemetry_sdk::trace::SdkTracerProvider>, String> {
+    OTEL_PROVIDER.get_or_init(|| {
+        if std::env::var_os("OTEL_EXPORTER_OTLP_ENDPOINT").is_none()
+            && std::env::var_os("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT").is_none()
+        {
+            return Ok(None);
+        }
+        let exporter = opentelemetry_otlp::SpanExporter::builder()
+            .with_http()
+            .build()
+            .map_err(|_| "OTLP span exporter configuration is invalid".to_owned())?;
+        Ok(Some(
+            opentelemetry_sdk::trace::SdkTracerProvider::builder()
+                .with_batch_exporter(exporter)
+                .build(),
+        ))
+    })
+}
+
+/// 将已排队的 `OTel` spans 刷新到 collector；无 exporter 时不执行操作。
+#[cfg_attr(not(feature = "otel"), allow(clippy::unused_async))]
+pub async fn flush_telemetry() {
+    #[cfg(feature = "otel")]
+    if let Some(Ok(Some(provider))) = OTEL_PROVIDER.get() {
+        let provider = provider.clone();
+        if !matches!(
+            tokio::task::spawn_blocking(move || provider.force_flush()).await,
+            Ok(Ok(()))
+        ) {
+            tracing::warn!("OpenTelemetry span flush failed");
+        }
+    }
 }
 
 /// 收到 `SIGINT`（Ctrl-C）或 Unix 上的 `SIGTERM` 时完成。

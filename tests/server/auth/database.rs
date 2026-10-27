@@ -18,10 +18,11 @@ use openrust::auth::{
     VerificationCodes,
 };
 use openrust::core::RateLimiter;
-use openrust::database::sea_orm::{ConnectionTrait, Statement};
+use openrust::database::sea_orm::{ConnectOptions, ConnectionTrait, Database, Statement};
 use openrust::database::sea_orm_migration::{MigratorTrait, prelude::*};
 use openrust::database::{
-    DatabaseBackend, DatabasePlugin, DatabaseRateLimitMigration, DatabaseRateLimitStore, Db,
+    DatabaseBackend, DatabasePlugin, DatabaseRateLimitMigration, DatabaseRateLimitStore,
+    DatabaseTableNames, Db,
 };
 use openrust::events::EventsPlugin;
 use openrust::http::axum::body::{Body, to_bytes};
@@ -1079,6 +1080,134 @@ async fn auth_flows_run_registration_login_refresh_reset_and_logout_on_the_confi
     drop(flows);
     drop(db);
     drop(connection);
+    database.close().await?;
+    Ok(())
+}
+
+#[tokio::test]
+#[allow(clippy::too_many_lines)] // 将真实数据库、并发突发和资源恢复保留在同一验收场景中。
+#[allow(clippy::print_stdout)] // 性能样本由 --nocapture 输出并写入验收记录。
+async fn auth_login_burst_recovers_under_a_two_connection_database_pool() -> TestResult {
+    let Ok(url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+        eprintln!("skipping login burst integration: OPENRUST_TEST_DATABASE_URL is unset");
+        return Ok(());
+    };
+    let backend = DatabaseBackend::from_url(&url)?;
+    if !backend.is_enabled() {
+        eprintln!("skipping login burst integration: configured backend feature is disabled");
+        return Ok(());
+    }
+
+    let table_names = DatabaseTableNames::new("load_", std::collections::BTreeMap::new())?;
+    let database =
+        TestDatabase::create_with_table_names::<AuthMigrator>(&url, table_names.clone()).await?;
+    let mut options = ConnectOptions::new(database.url().to_owned());
+    options
+        .max_connections(2)
+        .min_connections(1)
+        .acquire_timeout(std::time::Duration::from_secs(5));
+    let connection = Database::connect(options).await?;
+    let db = Db::with_table_names(table_names);
+    db.initialize(connection.clone())?;
+    let passwords = Passwords::with_max_concurrent_operations(
+        PasswordConfig {
+            memory_kib: 19_456,
+            iterations: 1,
+            parallelism: 1,
+        },
+        4,
+    )?;
+    let codes = VerificationCodes::new(
+        openrust::auth::DatabaseVerificationCodeStore::new(db.clone()),
+        passwords.clone(),
+    );
+    let flows = AuthFlows::new(
+        db.clone(),
+        passwords,
+        JwtTokens::new(JwtConfig::new(
+            "load-test-issuer",
+            "load-test-audience",
+            "load-test-key",
+            std::collections::BTreeMap::from([(
+                "load-test-key".to_owned(),
+                STANDARD.encode([0x39_u8; 32]),
+            )]),
+        ))?,
+        RefreshTokens::new(db.clone()),
+        codes,
+        RateLimiter::new(DatabaseRateLimitStore::new(db)),
+    )
+    .with_code_policy(VerificationCodePolicy::new(
+        6,
+        std::time::Duration::from_secs(600),
+        std::time::Duration::from_secs(1),
+        5,
+    )?);
+    let code = flows
+        .register("load.user@example.test", "load-test-password", "127.0.0.1")
+        .await?
+        .ok_or("load test account was not registered")?;
+    assert!(
+        flows
+            .verify_email("load.user@example.test", code.code(), "127.0.0.1")
+            .await?
+    );
+
+    let flows = Arc::new(flows);
+    let burst_started = std::time::Instant::now();
+    let mut requests = tokio::task::JoinSet::new();
+    for attempt in 1..=16 {
+        let flows = Arc::clone(&flows);
+        requests.spawn(async move {
+            let started = std::time::Instant::now();
+            let source = format!("127.0.0.{attempt}");
+            let result = flows
+                .login("load.user@example.test", "load-test-password", &source)
+                .await;
+            (started.elapsed(), result)
+        });
+    }
+    let mut durations = Vec::with_capacity(16);
+    let mut succeeded = 0;
+    let mut capacity_rejected = 0;
+    while let Some(result) = requests.join_next().await {
+        let (duration, result) = result?;
+        durations.push(duration);
+        match result {
+            Ok(_) => succeeded += 1,
+            Err(error) if error.code() == "password_capacity_exhausted" => {
+                capacity_rejected += 1;
+            }
+            Err(error) => return Err(error.into()),
+        }
+    }
+    durations.sort_unstable();
+    let percentile_ms = |percentile: usize| {
+        let index = (durations.len() * percentile)
+            .div_ceil(100)
+            .saturating_sub(1);
+        durations[index.min(durations.len() - 1)].as_secs_f64() * 1_000.0
+    };
+    assert!(succeeded > 0, "at least one login must complete");
+    assert!(
+        capacity_rejected > 0,
+        "the bounded hash capacity must reject excess work"
+    );
+    let recovery_started = std::time::Instant::now();
+    flows
+        .login("load.user@example.test", "load-test-password", "127.0.1.1")
+        .await?;
+    let recovery_ms = recovery_started.elapsed().as_secs_f64() * 1_000.0;
+    let elapsed = burst_started.elapsed();
+    println!(
+        "login burst backend={backend:?} pool_connections=2 requests=16 succeeded={succeeded} capacity_rejected={capacity_rejected} throughput_rps={:.1} p50_ms={:.1} p95_ms={:.1} p99_ms={:.1} recovery_ms={recovery_ms:.1}",
+        16.0 / elapsed.as_secs_f64(),
+        percentile_ms(50),
+        percentile_ms(95),
+        percentile_ms(99),
+    );
+
+    connection.close().await?;
     database.close().await?;
     Ok(())
 }

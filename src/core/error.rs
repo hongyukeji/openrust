@@ -216,9 +216,9 @@ impl From<ValidationErrors> for Error {
 impl IntoResponse for Error {
     fn into_response(self) -> Response {
         if self.is_server_error() {
-            tracing::error!(error = %self, code = self.code(), "request failed");
+            tracing::error!(code = self.code(), status = %self.status(), "request failed");
         } else {
-            tracing::debug!(error = %self, code = self.code(), "request rejected");
+            tracing::debug!(code = self.code(), status = %self.status(), "request rejected");
         }
         let mut response = self.to_api_response().into_response();
         if let Self::RateLimitedWithRetryAfter(seconds) = self
@@ -385,7 +385,8 @@ impl<T: Serialize> IntoResponse for ApiResponse<T> {
         let (semantic_status, body) = match serde_json::to_vec(&self) {
             Ok(body) => (self.status, body),
             Err(error) => {
-                tracing::error!(%error, "response serialization failed");
+                let _ = error;
+                tracing::error!("response serialization failed");
                 let mut fallback = Self::failure(
                     "internal_error",
                     "internal server error".to_owned(),

@@ -9,7 +9,7 @@ use std::{convert::Infallible, future::Ready, task::Poll};
 
 use openrust::{
     config::FrameworkConfig,
-    core::{AppBuilder, Readiness, finalize},
+    core::{AppBuilder, Readiness, finalize, lifecycle},
     grpc::{GrpcPlugin, GrpcServer, health_pb, tonic},
     http::{AppBuilderHttpExt, HttpPlugin},
     runtime::{HttpGrpcPlugin, serve_http_and_grpc_until},
@@ -157,6 +157,7 @@ async fn server_host_composes_http_and_grpc_under_one_lifecycle()
     config.server.port = http_address.port();
     config.grpc.listen_addr = grpc_address;
     config.grpc.allow_insecure_server = true;
+    lifecycle::init_tracing(&config.log);
     let mut builder = AppBuilder::new(config, figment::Figment::new());
     GrpcPlugin::register_service::<ProbeService, _>(&mut builder, |_| ProbeService)?;
     builder.routes(|routes| {

@@ -5,7 +5,12 @@
 //! 在此 stack 内运行。
 
 use std::any::Any;
-use std::time::Duration;
+use std::{
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll},
+    time::Duration,
+};
 
 use crate::config::{ApiConfig, ConfigError, CorsConfig, ServerConfig};
 use crate::core::{
@@ -14,9 +19,12 @@ use crate::core::{
 };
 use crate::i18n::{I18n, with_request_locale};
 use axum::Router;
+use axum::body::Body;
 use axum::extract::{Request, State};
 use axum::http::{HeaderName, HeaderValue, Method, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
+use bytes::Bytes;
+use http_body::{Body as HttpBody, Frame, SizeHint};
 use tower_http::catch_panic::CatchPanicLayer;
 use tower_http::compression::CompressionLayer;
 use tower_http::cors::{Any as AnyOrigin, CorsLayer};
@@ -54,6 +62,9 @@ pub fn apply(router: Router, server: &ServerConfig, api: &ApiConfig) -> Result<R
             ResponseSettings {
                 api: api.clone(),
                 request_timeout: Duration::from_secs(server.request_timeout_secs),
+                request_slots: Arc::new(tokio::sync::Semaphore::new(
+                    server.max_concurrent_requests,
+                )),
             },
             response_context,
         ))
@@ -65,6 +76,7 @@ pub fn apply(router: Router, server: &ServerConfig, api: &ApiConfig) -> Result<R
 struct ResponseSettings {
     api: ApiConfig,
     request_timeout: Duration,
+    request_slots: Arc<tokio::sync::Semaphore>,
 }
 
 async fn normalize_request_id(mut request: Request, next: axum::middleware::Next) -> Response {
@@ -99,11 +111,19 @@ async fn normalize_request_id(mut request: Request, next: axum::middleware::Next
     next.run(request).await
 }
 
+#[allow(
+    clippy::too_many_lines,
+    reason = "the middleware owns request identity, limits, cancellation, tracing, and response wrapping"
+)]
 async fn response_context(
     State(settings): State<ResponseSettings>,
     request: Request,
     next: axum::middleware::Next,
 ) -> Response {
+    #[cfg(feature = "metrics")]
+    let metric_method = super::metrics::method_label(request.method());
+    #[cfg(feature = "metrics")]
+    let started = std::time::Instant::now();
     let request_id = request
         .headers()
         .get("x-request-id")
@@ -152,7 +172,12 @@ async fn response_context(
         Some(tokio::time::Instant::now() + settings.request_timeout),
         cancellation.clone(),
     );
-    with_execution_context(execution, async move {
+    let request_permit = settings.request_slots.clone().try_acquire_owned();
+    #[cfg(feature = "metrics")]
+    if request_permit.is_err() {
+        metrics::counter!("openrust_http_overloaded_total").increment(1);
+    }
+    let response = with_execution_context(execution, async move {
         let response = with_response_context(
             ResponseContext {
                 request_id,
@@ -160,7 +185,15 @@ async fn response_context(
             },
             async move {
                 let _cancel_on_drop = cancel_on_drop;
-                tokio::select! {
+                let Ok(request_permit) = request_permit else {
+                    return Error::custom_with_status(
+                        StatusCode::SERVICE_UNAVAILABLE,
+                        "http_overloaded",
+                        "server request capacity is exhausted",
+                    )
+                    .into_response();
+                };
+                let response = tokio::select! {
                     biased;
                     response = next.run(request) => response,
                     () = cancellation.cancelled() => Error::custom_with_status(
@@ -168,7 +201,15 @@ async fn response_context(
                         "server_draining",
                         "server is shutting down",
                     ).into_response(),
-                }
+                };
+                response.map(|body| {
+                    Body::new(RequestPermitBody {
+                        inner: body,
+                        _permit: request_permit,
+                        #[cfg(feature = "metrics")]
+                        _in_flight: InFlightRequest::new(),
+                    })
+                })
             },
         );
         match (locale_service, locale) {
@@ -178,7 +219,41 @@ async fn response_context(
             _ => response.await,
         }
     })
-    .await
+    .await;
+    #[cfg(feature = "metrics")]
+    {
+        let status_class = super::metrics::status_class(response.status());
+        metrics::counter!("openrust_http_requests_total", "method" => metric_method, "status_class" => status_class).increment(1);
+        metrics::histogram!("openrust_http_request_duration_seconds", "method" => metric_method, "status_class" => status_class).record(started.elapsed().as_secs_f64());
+    }
+    response
+}
+
+struct RequestPermitBody {
+    inner: Body,
+    _permit: tokio::sync::OwnedSemaphorePermit,
+    #[cfg(feature = "metrics")]
+    _in_flight: InFlightRequest,
+}
+
+impl HttpBody for RequestPermitBody {
+    type Data = Bytes;
+    type Error = axum::Error;
+
+    fn poll_frame(
+        self: Pin<&mut Self>,
+        context: &mut Context<'_>,
+    ) -> Poll<Option<std::result::Result<Frame<Self::Data>, Self::Error>>> {
+        Pin::new(&mut self.get_mut().inner).poll_frame(context)
+    }
+
+    fn is_end_stream(&self) -> bool {
+        self.inner.is_end_stream()
+    }
+
+    fn size_hint(&self) -> SizeHint {
+        self.inner.size_hint()
+    }
 }
 
 async fn envelope_status(response: Response) -> Response {
@@ -350,23 +425,40 @@ fn cors_layer(config: &CorsConfig) -> Result<CorsLayer> {
 }
 
 fn request_span(request: &Request) -> tracing::Span {
-    let request_id = request
-        .headers()
-        .get("x-request-id")
-        .and_then(|value| value.to_str().ok())
-        .unwrap_or("-");
-    let traceparent = request
-        .headers()
-        .get("traceparent")
-        .and_then(|value| value.to_str().ok())
-        .unwrap_or("-");
-    tracing::info_span!(
-        "request",
-        method = %request.method(),
-        uri = %request.uri(),
-        request_id = %request_id,
-        traceparent = %traceparent,
-    )
+    let method = match request.method().as_str() {
+        "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS" | "HEAD" => {
+            request.method().as_str()
+        }
+        _ => "OTHER",
+    };
+    let span = tracing::info_span!("request", method,);
+    #[cfg(feature = "otel")]
+    crate::core::otel::set_remote_parent(
+        &span,
+        request
+            .headers()
+            .get("traceparent")
+            .and_then(|value| value.to_str().ok()),
+    );
+    span
+}
+
+#[cfg(feature = "metrics")]
+struct InFlightRequest;
+
+#[cfg(feature = "metrics")]
+impl InFlightRequest {
+    fn new() -> Self {
+        metrics::gauge!("openrust_http_requests_in_flight").increment(1.0);
+        Self
+    }
+}
+
+#[cfg(feature = "metrics")]
+impl Drop for InFlightRequest {
+    fn drop(&mut self) {
+        metrics::gauge!("openrust_http_requests_in_flight").decrement(1.0);
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -386,13 +478,177 @@ fn panic_response(payload: Box<dyn Any + Send + 'static>) -> Response {
 
 #[cfg(test)]
 mod tests {
-    use super::apply;
+    use super::{apply, request_span};
     use crate::{
-        config::{ApiConfig, ServerConfig},
+        config::{ApiConfig, HttpStatusMode, ServerConfig},
         core::ExecutionContext,
     };
-    use axum::{Router, routing::get};
+    use axum::{
+        Router, body::Body, extract::Request, http::StatusCode, response::Response, routing::get,
+    };
+    use bytes::Bytes;
+    use std::{sync::Arc, time::Duration};
+    use tokio::sync::Notify;
     use tower::ServiceExt;
+
+    #[test]
+    fn request_span_does_not_capture_identifiers_or_full_uri() -> crate::core::Result<()> {
+        let request = Request::builder()
+            .uri("/users/private-id?token=secret")
+            .header("x-request-id", "request-secret")
+            .header(
+                "traceparent",
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+            )
+            .body(Body::empty())
+            .map_err(crate::core::Error::internal)?;
+        let span = request_span(&request);
+        let names = span.metadata().map(|metadata| {
+            metadata
+                .fields()
+                .iter()
+                .map(|field| field.name())
+                .collect::<Vec<_>>()
+        });
+        assert_eq!(names, Some(vec!["method"]));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn concurrent_request_limit_rejects_without_waiting_and_recovers()
+    -> crate::core::Result<()> {
+        let started = Arc::new(Notify::new());
+        let release = Arc::new(Notify::new());
+        let handler_started = Arc::clone(&started);
+        let handler_release = Arc::clone(&release);
+        let router = Router::new().route(
+            "/wait",
+            get(move || {
+                let started = Arc::clone(&handler_started);
+                let release = Arc::clone(&handler_release);
+                async move {
+                    started.notify_one();
+                    release.notified().await;
+                    "done"
+                }
+            }),
+        );
+        let server = ServerConfig {
+            max_concurrent_requests: 1,
+            ..ServerConfig::default()
+        };
+        let api = ApiConfig {
+            http_status: HttpStatusMode::Semantic,
+        };
+        let app = apply(router, &server, &api)?;
+        let first_app = app.clone();
+        let first = tokio::spawn(async move {
+            first_app
+                .oneshot(
+                    Request::get("/wait")
+                        .body(Body::empty())
+                        .map_err(crate::core::Error::internal)?,
+                )
+                .await
+                .map_err(crate::core::Error::internal)
+        });
+        tokio::time::timeout(Duration::from_secs(1), started.notified())
+            .await
+            .map_err(crate::core::Error::internal)?;
+
+        let rejected = app
+            .clone()
+            .oneshot(
+                Request::get("/wait")
+                    .body(Body::empty())
+                    .map_err(crate::core::Error::internal)?,
+            )
+            .await
+            .map_err(crate::core::Error::internal)?;
+        assert_eq!(rejected.status(), StatusCode::SERVICE_UNAVAILABLE);
+        release.notify_one();
+        let completed = tokio::time::timeout(Duration::from_secs(1), first)
+            .await
+            .map_err(crate::core::Error::internal)?
+            .map_err(crate::core::Error::internal)??;
+        assert_eq!(completed.status(), StatusCode::OK);
+
+        let recovered_app = app.clone();
+        let recovered = tokio::spawn(async move {
+            recovered_app
+                .oneshot(
+                    Request::get("/wait")
+                        .body(Body::empty())
+                        .map_err(crate::core::Error::internal)?,
+                )
+                .await
+                .map_err(crate::core::Error::internal)
+        });
+        tokio::time::timeout(Duration::from_secs(1), started.notified())
+            .await
+            .map_err(crate::core::Error::internal)?;
+        release.notify_one();
+        let recovered = tokio::time::timeout(Duration::from_secs(1), recovered)
+            .await
+            .map_err(crate::core::Error::internal)?
+            .map_err(crate::core::Error::internal)??;
+        assert_eq!(recovered.status(), StatusCode::OK);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn concurrent_request_limit_covers_unconsumed_response_bodies() -> crate::core::Result<()>
+    {
+        let router = Router::new().route(
+            "/stream",
+            get(|| async {
+                Response::new(Body::from_stream(futures_util::stream::pending::<
+                    std::result::Result<Bytes, std::convert::Infallible>,
+                >()))
+            }),
+        );
+        let server = ServerConfig {
+            max_concurrent_requests: 1,
+            ..ServerConfig::default()
+        };
+        let api = ApiConfig {
+            http_status: HttpStatusMode::Semantic,
+        };
+        let app = apply(router, &server, &api)?;
+        let active = app
+            .clone()
+            .oneshot(
+                Request::get("/stream")
+                    .body(Body::empty())
+                    .map_err(crate::core::Error::internal)?,
+            )
+            .await
+            .map_err(crate::core::Error::internal)?;
+        assert_eq!(active.status(), StatusCode::OK);
+
+        let rejected = app
+            .clone()
+            .oneshot(
+                Request::get("/stream")
+                    .body(Body::empty())
+                    .map_err(crate::core::Error::internal)?,
+            )
+            .await
+            .map_err(crate::core::Error::internal)?;
+        assert_eq!(rejected.status(), StatusCode::SERVICE_UNAVAILABLE);
+        drop(active);
+
+        let recovered = app
+            .oneshot(
+                Request::get("/stream")
+                    .body(Body::empty())
+                    .map_err(crate::core::Error::internal)?,
+            )
+            .await
+            .map_err(crate::core::Error::internal)?;
+        assert_eq!(recovered.status(), StatusCode::OK);
+        Ok(())
+    }
 
     #[tokio::test]
     async fn request_context_accepts_only_valid_traceparent()

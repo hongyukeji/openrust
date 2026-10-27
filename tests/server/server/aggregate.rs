@@ -305,6 +305,18 @@ fn serve_process_exits_successfully_after_sigterm() -> TestResult {
 
 #[cfg(unix)]
 async fn request_status(address: &str, path: &str) -> std::io::Result<u16> {
+    let response = request_bytes(address, path).await?;
+    let response = String::from_utf8_lossy(&response);
+    response
+        .lines()
+        .next()
+        .and_then(|line| line.split_whitespace().nth(1))
+        .and_then(|status| status.parse().ok())
+        .ok_or_else(|| std::io::Error::other("server returned an invalid HTTP status line"))
+}
+
+#[cfg(unix)]
+async fn request_bytes(address: &str, path: &str) -> std::io::Result<Vec<u8>> {
     let mut stream = TcpStream::connect(address).await?;
     stream
         .write_all(
@@ -314,13 +326,70 @@ async fn request_status(address: &str, path: &str) -> std::io::Result<u16> {
         .await?;
     let mut response = Vec::new();
     stream.read_to_end(&mut response).await?;
-    let response = String::from_utf8_lossy(&response);
-    response
-        .lines()
-        .next()
-        .and_then(|line| line.split_whitespace().nth(1))
-        .and_then(|status| status.parse().ok())
-        .ok_or_else(|| std::io::Error::other("server returned an invalid HTTP status line"))
+    Ok(response)
+}
+
+#[cfg(all(unix, feature = "metrics"))]
+#[test]
+fn metrics_scrape_is_served_over_tcp_only_when_explicitly_enabled() -> TestResult {
+    openrust::tokio::runtime::Runtime::new()?.block_on(async {
+        let reservation = std::net::TcpListener::bind("127.0.0.1:0")?;
+        let port = reservation.local_addr()?.port();
+        drop(reservation);
+        let mut child = ChildGuard(
+            Command::new(env!("CARGO_BIN_EXE_server"))
+                .env("APP_SERVER__HOST", "127.0.0.1")
+                .env("APP_SERVER__PORT", port.to_string())
+                .env("APP_SERVER__METRICS_ENDPOINT_ENABLED", "true")
+                .env("APP_SECURITY__ENCRYPTION__ACTIVE_KEY_ID", "test")
+                .env(
+                    "APP_SECURITY__ENCRYPTION__KEYS__TEST",
+                    "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+                )
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn()?,
+        );
+        let address = format!("127.0.0.1:{port}");
+        openrust::tokio::time::timeout(Duration::from_secs(8), async {
+            loop {
+                if request_status(&address, "/ready")
+                    .await
+                    .is_ok_and(|status| status == 200)
+                {
+                    break;
+                }
+                openrust::tokio::time::sleep(Duration::from_millis(25)).await;
+            }
+        })
+        .await?;
+        let _ = request_bytes(&address, "/").await?;
+        let scrape = request_bytes(&address, "/metrics").await?;
+        let scrape = String::from_utf8(scrape)?;
+        let (headers, body) = scrape
+            .split_once("\r\n\r\n")
+            .ok_or("metrics response did not contain an HTTP header boundary")?;
+        assert!(headers.starts_with("HTTP/1.1 200"));
+        assert!(headers.to_ascii_lowercase().contains("text/plain"));
+        assert!(body.contains("openrust_http_requests_total"));
+        assert!(!body.contains("/metrics"));
+        assert!(!body.contains("x-request-id"));
+        let signal = Command::new("kill")
+            .args(["-TERM", &child.0.id().to_string()])
+            .status()?;
+        assert!(signal.success(), "could not stop metrics test server");
+        let status = openrust::tokio::time::timeout(Duration::from_secs(6), async {
+            loop {
+                if let Some(status) = child.0.try_wait()? {
+                    return Ok::<_, std::io::Error>(status);
+                }
+                openrust::tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await??;
+        assert!(status.success(), "metrics test server exited with {status}");
+        Ok(())
+    })
 }
 
 #[cfg(unix)]

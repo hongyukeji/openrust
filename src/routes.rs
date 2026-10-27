@@ -150,10 +150,28 @@ impl Plugin for HttpPlugin {
             )
             .into());
         }
+        if !(1..=65_536).contains(&app.config().server.max_concurrent_requests) {
+            return Err(crate::config::ConfigError::Invalid(
+                "server.max_concurrent_requests must be 1..=65536".into(),
+            )
+            .into());
+        }
         app.insert(health::ServerReadiness::default())
             .insert(HttpPluginInstalled)
             .command(ServeCommand)
             .routes(health::routes);
+        if app.config().server.metrics_endpoint_enabled {
+            #[cfg(feature = "metrics")]
+            {
+                let _ = crate::http::metrics::initialize()?;
+                app.routes(crate::http::metrics::routes);
+            }
+            #[cfg(not(feature = "metrics"))]
+            return Err(crate::config::ConfigError::Invalid(
+                "server.metrics_endpoint_enabled requires the `metrics` feature".into(),
+            )
+            .into());
+        }
         Ok(())
     }
 }

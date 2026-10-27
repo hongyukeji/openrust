@@ -103,7 +103,7 @@ GrpcClientRegistry::propagate_trace_context(&mut request);
 client.call(request).await?;
 ```
 
-gRPC 入站也会将有效 `traceparent` 放入当前 `ExecutionContext`，可继续向下游传播。没有有效 trace parent 时调用照常处理；框架只转发单个 trace parent，不转发 `tracestate`、`baggage`、Authorization、Cookie 或任意 HTTP headers。该关联不依赖 OpenTelemetry，不创建或导出 span/trace 后端。
+gRPC 入站也会将有效 `traceparent` 放入当前 `ExecutionContext`，可继续向下游传播。启用 `otel` feature 并配置 OTLP endpoint 后，HTTP、gRPC 和 worker span 会通过 OpenTelemetry SDK 导出。没有有效 trace parent 时调用照常处理；框架只传播单个 trace parent，不传播 `tracestate`、`baggage`、Authorization、Cookie 或任意 HTTP headers。未配置 exporter 时，现有 trace context 仍可用于框架内的显式传播，但不会导出 spans。
 
 ## Health 与 reflection
 

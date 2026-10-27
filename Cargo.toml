@@ -110,6 +110,12 @@ calamine = { version = "0.37", default-features = false, features = ["chrono"] }
 rust_xlsxwriter = { version = "0.101", default-features = false, features = ["constant_memory"] }
 zip = { version = "9", default-features = false }
 quick-xml = { version = "0.42", default-features = false, features = ["encoding"] }
+metrics = "0.24.5"
+metrics-exporter-prometheus = { version = "0.18.3", default-features = false }
+opentelemetry = { version = "0.33.1", default-features = false, features = ["trace"] }
+opentelemetry_sdk = { version = "0.33.1", default-features = false, features = ["trace"] }
+opentelemetry-otlp = { version = "0.33.1", default-features = false, features = ["http-proto", "reqwest-blocking-client", "reqwest-rustls", "trace"] }
+tracing-opentelemetry = { version = "0.34.0", default-features = false }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
@@ -195,8 +201,14 @@ tonic-prost = { workspace = true, optional = true }
 tonic-health = { workspace = true, optional = true }
 tonic-reflection = { workspace = true, optional = true }
 http-body-util = { workspace = true, optional = true }
-http-body = { workspace = true, optional = true }
+http-body.workspace = true
 prost = { workspace = true, optional = true }
+metrics = { workspace = true, optional = true }
+metrics-exporter-prometheus = { workspace = true, optional = true }
+opentelemetry = { workspace = true, optional = true }
+opentelemetry_sdk = { workspace = true, optional = true }
+opentelemetry-otlp = { workspace = true, optional = true }
+tracing-opentelemetry = { workspace = true, optional = true }
 
 [dev-dependencies]
 figment = { workspace = true, features = ["test"] }
@@ -399,7 +411,9 @@ encryption = ["dep:aes-gcm-siv", "dep:base64", "dep:zeroize"]
 test-util = []
 data-exchange = ["dep:csv", "dep:calamine", "dep:rust_xlsxwriter", "dep:zip", "dep:quick-xml"]
 data-exchange-tasks = ["data-exchange", "queue", "dep:tempfile"]
-grpc = ["dep:tonic", "dep:tonic-prost", "dep:prost", "dep:tokio-stream", "dep:tonic-health", "dep:tonic-reflection", "dep:http-body", "dep:http-body-util"]
+grpc = ["dep:tonic", "dep:tonic-prost", "dep:prost", "dep:tokio-stream", "dep:tonic-health", "dep:tonic-reflection", "dep:http-body-util"]
+metrics = ["dep:metrics", "dep:metrics-exporter-prometheus"]
+otel = ["dep:opentelemetry", "dep:opentelemetry_sdk", "dep:opentelemetry-otlp", "dep:tracing-opentelemetry"]
 realtime = ["auth", "axum/ws", "dep:uuid"]
 realtime-redis = ["realtime", "dep:redis"]
 cache-redis = ["dep:redis"]

@@ -52,6 +52,41 @@ pub use tonic_reflection::pb as reflection_pb;
 
 type ServiceRegistration = Box<dyn Fn(&AppState, &GrpcConfig, &mut RoutesBuilder) + Send + Sync>;
 
+#[cfg(feature = "metrics")]
+struct GrpcCallMetricGuard {
+    started: std::time::Instant,
+}
+
+#[cfg(feature = "metrics")]
+impl GrpcCallMetricGuard {
+    fn new() -> Self {
+        metrics::counter!("openrust_grpc_calls_total").increment(1);
+        metrics::gauge!("openrust_grpc_calls_in_flight").increment(1.0);
+        Self {
+            started: std::time::Instant::now(),
+        }
+    }
+}
+
+#[cfg(feature = "metrics")]
+impl Drop for GrpcCallMetricGuard {
+    fn drop(&mut self) {
+        metrics::gauge!("openrust_grpc_calls_in_flight").decrement(1.0);
+        metrics::histogram!("openrust_grpc_call_duration_seconds")
+            .record(self.started.elapsed().as_secs_f64());
+    }
+}
+
+#[cfg(not(feature = "metrics"))]
+struct GrpcCallMetricGuard;
+
+#[cfg(not(feature = "metrics"))]
+impl GrpcCallMetricGuard {
+    fn new() -> Self {
+        Self
+    }
+}
+
 #[derive(Clone)]
 struct GrpcHealthReporter {
     statuses: Arc<
@@ -467,6 +502,10 @@ where
         Poll::Ready(Ok(()))
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one call owns readiness, the request budget, and its bounded response stream"
+    )]
     fn call(&mut self, mut request: Request<Body>) -> Self::Future {
         let mut inner = self.inner.clone();
         let semaphore = Arc::clone(&self.semaphore);
@@ -474,18 +513,30 @@ where
         let default_timeout = self.default_timeout;
         let max_timeout = self.max_timeout;
         Box::pin(async move {
+            let metric_guard = GrpcCallMetricGuard::new();
             let is_health_rpc = matches!(
                 request.uri().path(),
                 "/grpc.health.v1.Health/Check" | "/grpc.health.v1.Health/Watch"
             );
             if !readiness.is_ready() && !is_health_rpc {
+                #[cfg(feature = "metrics")]
+                metrics::counter!("openrust_grpc_calls_rejected_total", "reason" => "not_ready")
+                    .increment(1);
                 return Ok(Status::unavailable("unavailable").into_http::<Body>());
             }
             let timeout = match grpc_timeout(request.headers(), default_timeout, max_timeout) {
                 Ok(timeout) => timeout,
-                Err(status) => return Ok(status.into_http::<Body>()),
+                Err(status) => {
+                    #[cfg(feature = "metrics")]
+                    metrics::counter!("openrust_grpc_calls_rejected_total", "reason" => "timeout")
+                        .increment(1);
+                    return Ok(status.into_http::<Body>());
+                }
             };
             let Ok(permit) = semaphore.try_acquire_owned() else {
+                #[cfg(feature = "metrics")]
+                metrics::counter!("openrust_grpc_calls_rejected_total", "reason" => "capacity")
+                    .increment(1);
                 return Ok(Status::resource_exhausted("resource_exhausted").into_http::<Body>());
             };
             let deadline = tokio::time::Instant::now() + timeout;
@@ -494,7 +545,16 @@ where
             let execution =
                 ExecutionContext::new(metadata, Some(deadline), Cancellation::child(&cancellation));
             let cancel_on_drop = CancelOnDrop::new(cancellation);
-            let response = match execution.run(inner.call(request)).await {
+            let span = tracing::info_span!("grpc.server");
+            #[cfg(feature = "otel")]
+            crate::core::otel::set_remote_parent(&span, execution.metadata().traceparent());
+            let response = match execution
+                .run(tracing::Instrument::instrument(
+                    inner.call(request),
+                    span.clone(),
+                ))
+                .await
+            {
                 Ok(Ok(response)) => response,
                 Ok(Err(never)) => match never {},
                 Err(_) => {
@@ -511,15 +571,35 @@ where
             };
             let (parts, body) = response.into_parts();
             let stream = futures_util::stream::unfold(
-                Some((Box::pin(body), permit, execution, cancel_on_drop, deadline)),
+                Some((
+                    Box::pin(body),
+                    permit,
+                    execution,
+                    cancel_on_drop,
+                    deadline,
+                    span,
+                    metric_guard,
+                )),
                 |state| async move {
-                    let (mut body, permit, execution, cancel_on_drop, deadline) = state?;
-                    match tokio::time::timeout_at(deadline, execution.run(body.as_mut().frame()))
-                        .await
-                    {
+                    let (mut body, permit, execution, cancel_on_drop, deadline, span, metric_guard) =
+                        state?;
+                    let mut body_ref = body.as_mut();
+                    let frame = tracing::Instrument::instrument(
+                        execution.run(body_ref.frame()),
+                        span.clone(),
+                    );
+                    match tokio::time::timeout_at(deadline, frame).await {
                         Ok(Ok(Some(Ok(frame)))) => Some((
                             Ok(frame),
-                            Some((body, permit, execution, cancel_on_drop, deadline)),
+                            Some((
+                                body,
+                                permit,
+                                execution,
+                                cancel_on_drop,
+                                deadline,
+                                span,
+                                metric_guard,
+                            )),
                         )),
                         Ok(Ok(Some(Err(error)))) => Some((Err(error), None)),
                         Ok(Ok(None)) => None,
@@ -695,6 +775,10 @@ impl GrpcServer {
     }
 
     /// 在调用方绑定的 TCP listener 上服务，直到 shutdown future 完成。
+    #[allow(
+        clippy::too_many_lines,
+        reason = "the server owns readiness, graceful drain, TLS, and shutdown as one lifecycle"
+    )]
     pub async fn serve<F>(self, listener: TcpListener, shutdown: F) -> Result<()>
     where
         F: Future<Output = ()> + Send + 'static,
@@ -764,7 +848,7 @@ impl GrpcServer {
             tonic_health::ServingStatus::Serving,
         )
         .await;
-        tokio::select! {
+        let result = tokio::select! {
             result = &mut server => {
                 set_health_status(&health_reporter, &health_services, tonic_health::ServingStatus::NotServing).await;
                 health_reporter.begin_shutdown();
@@ -796,7 +880,9 @@ impl GrpcServer {
                     }
                 }
             }
-        }
+        };
+        crate::core::lifecycle::flush_telemetry().await;
+        result
     }
 }
 

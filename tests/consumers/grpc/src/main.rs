@@ -945,6 +945,7 @@ mod runtime_tests {
         config.server.shutdown_timeout_secs = shutdown_timeout_secs;
         config.grpc.listen_addr = grpc_address;
         config.grpc.allow_insecure_server = true;
+        openrust::core::lifecycle::init_tracing(&config.log);
         let mut builder = AppBuilder::new(config, figment::Figment::new());
         GrpcPlugin::register_service_with_config::<EchoServer<EchoService>, _>(
             &mut builder,

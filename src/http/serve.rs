@@ -77,7 +77,7 @@ where
     })
     .into_future();
     tokio::pin!(server);
-    tokio::select! {
+    let result = tokio::select! {
         result = &mut server => {
             let task_result = if stop_background_tasks {
                 let tasks = state.background_tasks().stop();
@@ -117,7 +117,9 @@ where
                 Err(Error::custom("http_shutdown_timeout", "HTTP server did not drain before the configured shutdown deadline"))
             }
         }
-    }
+    };
+    crate::core::lifecycle::flush_telemetry().await;
+    result
 }
 
 /// `serve`：启动 HTTP 服务器。它是每个应用二进制的默认命令。

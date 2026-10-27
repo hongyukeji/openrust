@@ -49,6 +49,24 @@ const EXECUTION_ENVELOPE_KEY: &str = "__openrust_execution";
 const EXECUTION_ENVELOPE_VERSION: &str = "v1";
 type ProgressReporter = Arc<dyn Fn(Value) -> BoxFuture<'static, Result<()>> + Send + Sync>;
 
+#[cfg(feature = "metrics")]
+struct WorkerJobMetricGuard;
+
+#[cfg(feature = "metrics")]
+impl WorkerJobMetricGuard {
+    fn new() -> Self {
+        metrics::gauge!("openrust_worker_jobs_in_flight").increment(1.0);
+        Self
+    }
+}
+
+#[cfg(feature = "metrics")]
+impl Drop for WorkerJobMetricGuard {
+    fn drop(&mut self) {
+        metrics::gauge!("openrust_worker_jobs_in_flight").decrement(1.0);
+    }
+}
+
 /// 通过 [`QueuePlugin`] 显式注册的类型化任务处理器。
 pub trait Job: DeserializeOwned + Send + Sync + 'static {
     /// 持久化使用的稳定任务名称。重命名 Rust 类型时应保留此名称。
@@ -1322,16 +1340,16 @@ impl DatabaseQueue {
             } else {
                 task_future
             };
-        let span = tracing::info_span!(
-            "queue.job.attempt",
-            job_id = %claim.id,
-            job_name = %claim.job_name,
-            attempt = claim.attempts,
-            request_id = metadata.request_id().unwrap_or("-"),
-        );
+        let span = tracing::info_span!("queue.job.attempt", attempt = claim.attempts,);
+        #[cfg(feature = "otel")]
+        crate::core::otel::set_remote_parent(&span, metadata.traceparent());
         let tenant_future = tracing::Instrument::instrument(tenant_future, span);
         let handler_future: BoxFuture<'static, Result<()>> =
             Box::pin(with_execution_context(execution, tenant_future));
+        #[cfg(feature = "metrics")]
+        let _job_metric_guard = WorkerJobMetricGuard::new();
+        #[cfg(feature = "metrics")]
+        let job_started = std::time::Instant::now();
         tokio::pin!(handler_future);
         let mut shutdown_deadline = if *cancellation.borrow() {
             job_cancellation.cancel();
@@ -1380,6 +1398,18 @@ impl DatabaseQueue {
                 }
             }
         };
+        #[cfg(feature = "metrics")]
+        {
+            let outcome = match &result {
+                Some(Ok(())) => "succeeded",
+                Some(Err(_)) => "failed",
+                None => "timed_out",
+            };
+            metrics::counter!("openrust_worker_jobs_completed_total", "outcome" => outcome)
+                .increment(1);
+            metrics::histogram!("openrust_worker_job_duration_seconds", "outcome" => outcome)
+                .record(job_started.elapsed().as_secs_f64());
+        }
         match result {
             Some(Ok(())) => acknowledge_job(&self.db, &claim).await?,
             Some(Err(error)) => {

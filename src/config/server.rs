@@ -12,8 +12,12 @@ pub struct ServerConfig {
     pub port: u16,
     /// 单个请求的超时时间（秒）；超过后返回 `408 Request Timeout`。
     pub request_timeout_secs: u64,
+    /// 同时处理的 HTTP 请求上限；超出时立即以 503 拒绝，不排入无界队列。
+    pub max_concurrent_requests: usize,
     /// 收到关闭信号后，为处理中请求保留的宽限时间（1..=3600 秒）。
     pub shutdown_timeout_secs: u64,
+    /// 显式开放 Prometheus 指标采集端点；仅在启用 `metrics` feature 时生效。
+    pub metrics_endpoint_enabled: bool,
     /// 允许提供 `X-Forwarded-For` 的代理 IP 地址或 CIDR。
     ///
     /// 列表为空时忽略所有转发头，并使用 socket 对端地址。
@@ -37,7 +41,9 @@ impl Default for ServerConfig {
             host: "127.0.0.1".to_owned(),
             port: 3000,
             request_timeout_secs: 30,
+            max_concurrent_requests: 1024,
             shutdown_timeout_secs: 10,
+            metrics_endpoint_enabled: false,
             trusted_proxy_ranges: Vec::new(),
             compression: CompressionConfig::default(),
             cors: CorsConfig::default(),

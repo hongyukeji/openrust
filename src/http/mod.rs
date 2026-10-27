@@ -7,6 +7,8 @@ pub mod client;
 pub mod client_ip;
 pub mod extract;
 pub mod health;
+#[cfg(feature = "metrics")]
+pub mod metrics;
 pub mod middleware;
 pub mod plugin;
 pub mod rate_limit;

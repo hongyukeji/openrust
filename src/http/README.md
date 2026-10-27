@@ -20,6 +20,8 @@ OpenRust 框架基于 `axum` 和 `tower` 构建的 HTTP 层。
 
 `/health` 是进程存活探针；`/ready` 要求 listener 正在接收流量且所有依赖探针成功，否则返回 503。DatabasePlugin 检查每个已配置连接池，CachePlugin 对每个 store 执行只读读取探针；应用插件也可通过 `Readiness::register_probe` 注册最多 64 个稳定命名的异步探针。每轮最多并发 16 个探针、总时限 2 秒且全局仅允许一轮并发检查；错误详情不返回给请求方，服务端只记录稳定错误码和探针名。探针须只读且有界。该 HTTP 端点不代表 gRPC health、实时连接或任意外部依赖的状态。收到 SIGINT/SIGTERM 后，服务器先将自身标为 not-ready 并停止接受连接，再按 `[server].shutdown_timeout_secs` 等待在途请求；到期会合作取消请求、强制终止剩余 server task 并以 `http_shutdown_timeout` 失败退出。请求取消会丢弃本地 handler future，不能撤销已提交的数据库或外部副作用。
 
+启用 `metrics` Cargo feature 后，HTTP 请求会记录请求数、耗时和在途数；指标标签只包含固定的 HTTP 方法类别和状态类别，不包含路径、请求标识、用户信息或错误内容。`/metrics` 默认不注册。仅当 `[server].metrics_endpoint_enabled = true` 时才开放 Prometheus scrape 端点；生产部署应通过监听网络、反向代理或防火墙限制采集访问，不要将端点公开给普通客户端。日志中的 HTTP 请求 span 只记录方法，不记录完整 URI、查询参数、request ID 或 `traceparent`。
+
 `[server.compression] enabled = true` 会根据 `Accept-Encoding` 协商 gzip 和 Brotli；设置为 `false` 可关闭压缩。`[server.cors]` 默认禁用。启用时，将 `enabled` 设为 `true`，并配置 `allowed_origins = ["https://example.com"]`（未启用 credentials 时也可用 `["*"]`）。Methods、request headers、exposed headers、credentials 和预检 `max_age_secs` 均可配置。具体 origin 必须是 `http://` 或 `https://`，后接主机和可选端口，不可包含路径、查询参数或尾部斜杠。CORS 列表中不能混用通配符和具体值；启用 credentials 时，methods、request headers 和 exposed headers 也不能使用通配符。路由构建时若发现配置无效，会返回包含配置 key 和转义值的错误。CORS layer 包裹 timeout layer，因此 408 响应仍保留允许来源信息。`build_router(&App)` 返回 `Result<Router>`；`serve` 会先构建 router，再绑定 listener。
 
 `[server].trusted_proxy_ranges` 默认为空。条目接受 IP 地址或 CIDR。若直接 socket peer 位于配置范围内，`ClientIp` 会解析 `X-Forwarded-For`，从右向左遍历可信代理链，并返回第一个不可信地址；否则忽略转发头。可信范围配置无效时 router 构建失败；来自可信 peer 的转发值格式错误时返回 bad-request 响应封装。

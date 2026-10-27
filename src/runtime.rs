@@ -119,6 +119,7 @@ where
         while tasks.join_next().await.is_some() {}
         let _ =
             BackgroundTasks::join_until(background_state.background_tasks().stop(), deadline).await;
+        crate::core::lifecycle::flush_telemetry().await;
         return Err(Error::custom(
             "http_grpc_shutdown_timeout",
             "HTTP 与 gRPC 服务未能在共同停机期限内结束",
@@ -129,6 +130,7 @@ where
     {
         failure = Some(error);
     }
+    crate::core::lifecycle::flush_telemetry().await;
     failure.map_or(Ok(()), Err)
 }
 
