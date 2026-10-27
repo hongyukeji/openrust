@@ -572,6 +572,7 @@ mod tests {
             .map_err(crate::core::Error::internal)?
             .map_err(crate::core::Error::internal)??;
         assert_eq!(completed.status(), StatusCode::OK);
+        drop(completed);
 
         let recovered_app = app.clone();
         let recovered = tokio::spawn(async move {
