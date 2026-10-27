@@ -5,6 +5,7 @@
 | Consumer | 验收范围 |
 | --- | --- |
 | `cache-custom-driver` | 公开缓存 driver 接入 |
+| `communication-drivers` | 邮件与短信自定义 driver 的应用 Plugin 接入 |
 | `data-exchange` | 独立下游数据交换 API |
 | `db-custom-sqlite` | SeaORM SQLite 的受限自定义连接边界 |
 | `grpc` | gRPC 组合、TLS、真实 TCP 与 Envoy 多节点路由 |

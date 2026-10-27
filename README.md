@@ -49,6 +49,8 @@ cargo test --workspace
 可选 `queue-redis` feature 提供 Redis job driver，默认仍为数据库队列。显式设置 `[queue] driver = "redis"`、`redis_namespace`，并通过 `APP_QUEUE__REDIS_URL` 注入连接地址；缺少 feature、配置错误或 Redis 不可达都会失败，不会切换为数据库或内存 driver。Redis-only `QueuePlugin` 无需注册 `DatabasePlugin`，但当前数据库事务型 scheduler 与 Redis 派发无法原子提交，因此启用 Redis 时不能注册 schedule。Redis 支持普通/延迟/唯一派发、lease、进度、退避重试和失败任务人工重试；事务派发与任务组明确不支持。语义为至少一次，handler 必须幂等；Redis 磁盘持久性和故障切换取决于运维配置，不承诺 exactly-once 或故障切换零丢失。详见 [`apps/example/`](apps/example/README.md)。
 外部 driver 可通过 `JobRegistry` 复用 typed Job 执行，并用 `JobContext::with_progress_reporter` 声明自己的进度存储；独立的 [`QueueDriver` 示例](tests/consumers/queue-custom-driver/README.md)展示派发、执行和不支持事务时的显式错误。
 
+邮件、短信也支持应用实现自定义 driver，并由应用自己的 `Plugin` 注册标准 `Mailer` / `SmsSender` 服务；请看[独立通信 driver consumer](tests/consumers/communication-drivers/README.md)。
+
 ```rust
 #[cfg(feature = "queue")]
 fn main() -> openrust::Result<()> {
