@@ -1,9 +1,9 @@
 # 架构决策索引
 
-当前目标设计由 [070 Laravel 优先的全面重构](adr-070-laravel-first-rebuild.md)（Accepted，尚未实现）接管；表中旧 contract 的实现事实保留，新目标按 070 的替代范围读取。
+当前目标设计由 [070 Rust 版 Laravel 的产品定位、全面重构与持续跟进](adr-070-laravel-first-rebuild.md)（Accepted，尚未实现）接管；表中旧 contract 的实现事实保留，新目标按 070 的替代范围读取。
 
 > 受众：AI Agent
-> 更新：2026-10-27
+> 更新：2026-10-28
 > 摘要：快速定位有效 contract 与替代关系。ADR 接受表示设计成立，不等于能力已实现或验证。
 
 ## 使用规则
@@ -17,7 +17,7 @@
 
 | ADR | 状态 | 当前归属与边界 |
 | --- | --- | --- |
-| [070 Laravel 优先全面重构](adr-070-laravel-first-rebuild.md) | Accepted（计划已记录，未实现） | 新目标、旧约束替代范围、Rust 适配和子智能体协作；实施见 R0–R16 |
+| [070 Rust 版 Laravel 与持续跟进](adr-070-laravel-first-rebuild.md) | Accepted（计划已记录，未实现） | 用户原意、原汁原味的验收原则、长期上游同步、旧约束替代与必要 Rust 适配；实施见 R0–R16 |
 | [001 自有内核与组件整合](adr-001-own-kernel-on-axum.md) | Partially Superseded | 目标约束按 ADR-070 重开；成熟组件优先；自有组装与公开扩展，Laravel 式开发体验，Rust 惯用 API |
 | [002 SeaORM 与数据库基线](adr-002-seaorm-dual-database.md) | Partially Superseded | PostgreSQL/MySQL 生产与集群基线；SQLite 轻量后端范围见 066 |
 | [005 许可证与 MSRV](adr-005-license-naming-msrv.md) | Partially Superseded | MIT OR Apache-2.0、Edition、MSRV 有效；包命名与分发由 039 替代 |
