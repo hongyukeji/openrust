@@ -2,6 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-27
+> 开发体验规划：M6 已细化为 [DX1–DX8](plans/v1-developer-experience.md)；当前仅完成任务拆解与文档校准，未新增实现或运行验收，M5 执行优先级保持不变。
 > 摘要：框架处于 v1 M5，尚未达到完整 v1。源码 workspace、C1–C3 中文化、M3/M4 已列能力及 M5 各基础设施子簇均有适用验收证据；F8-A/F8-B 已完成 workspace、consumer 与 PostgreSQL 18/MySQL 8.4 真实数据库验收。gRPC G1–G3c 与 WebSocket/SSE 双 API 跨节点在线路由均通过相应真实服务/网络验收。v1 完整集群、生产和性能最终门禁仍未完成。
 
 ## 根目录启动入口调整（2026-10-27）

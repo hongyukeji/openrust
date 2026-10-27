@@ -10,6 +10,7 @@
 
 | 范围 | 已有通过记录 | 证据边界 |
 | --- | --- | --- |
+| M6 开发体验规划 | DX1–DX8 已记录依赖、交付范围和验收条件；diff 与旧引用检查通过；81 个本地链接目标、10 个锚点通过；8 个官方链接经浏览工具解析（直连返回 403） | 仅计划文档；不代表 IDE 调试、TestApp、生成器、进程编排或源码升级已实现/验收 |
 | C1 默认文档入口中文化 | 根 README、贡献/安全/行为准则/变更日志及 `src/**/README.md`、工具/宿主 README；13 个改动 Markdown 的相对链接与锚点检查、`git diff --check`、warnings-denied `cargo doc -p openrust --no-deps`、`cargo test -p openrust --doc` 通过 | 本簇仅整改默认入口说明，不覆盖 Rustdoc/源码注释（C2）或 CLI/生成模板说明（C3）；英文许可、引用和协议原文保留 |
 | C2 Rustdoc 与源码/配置注释中文化 | 注释-only 改动；workspace fmt、clippy、test、warnings-denied doc、`cargo deny check`、`git diff --check` 通过；PostgreSQL 18/MySQL 8.4 各以 `auth,queue,db-<backend>` 执行 `auth_database`（6）、`db_connection`（4）、`db_migration`（1）、`queue`（1）、`queue_crash_recovery`（2）、`schedule`（4），均全部通过 | 不改 API/运行时文案/行为；生成入口 Rustdoc 改动同步快照；CLI 帮助、生成说明和模板注释仍属 C3 |
 | C3 生成说明与 CLI 帮助中文化 | CLI 15 项测试覆盖中文帮助/生成模板；workspace fmt、clippy、test、warnings-denied doc、`cargo deny check`、`git diff --check` 通过；在干净源码副本中用本地 workspace/path 依赖生成无数据库、PostgreSQL、MySQL 应用，各自 `cargo check` 与 `cargo test` 通过 | 真实渲染根命令、`new`、`generate` 帮助；快照取自生成器真实产物；未改变邮件/SMS 等运行时语言策略，也不表示数据库集成测试已在该副本执行 |

@@ -56,6 +56,7 @@
 | 编码、Git 与验证 | [conventions.md](conventions.md)、[testing.md](memory/testing.md) |
 | 依赖与版本 | [stack.md](stack.md) |
 | 范围与验收 | [v1 计划](plans/gen1-plan.md)、[verification.md](memory/verification.md) |
+| M6 开发体验 | [DX1–DX8 实施计划](plans/v1-developer-experience.md)：默认启动/调试、测试工具、生成、诊断、组合流程与升级；不改变当前 M5 优先级 |
 | 后续版本 | [roadmap.md](roadmap.md) |
 
 ## 验证入口

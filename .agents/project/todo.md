@@ -47,6 +47,8 @@ V1 参考 Loco、Laravel、Goravel、OpenSpring；若依/芋道仅 V2。新增�
 
 ## M6：开发体验与 v1 最终验收
 
+按 [开发体验实施计划](plans/v1-developer-experience.md) DX1–DX8 的依赖顺序细化下列既有任务：默认 Run/Debug → TestApp → fixtures → 业务生成 → 插件/只读诊断 → 事务通知与上下文组合 → dev 编排 → 示例与升级。先闭合当前 M5 簇，每次只领取一个子簇；已实现部分核对后复用。IDE 同一配置 Command 仅为 `run` 的普通启动和断点调试必须实际验证。
+
 - CLI：补 controller/scaffold/command 等剩余生成器；按 [底层补齐计划](plans/v1-foundation-completion.md) F9 提供模板清单/导出/预览/应用覆盖、变量版本与冲突诊断；补 routes、只读 doctor、`db status` 和显式 `db reset`；复用已有 config show/migrate/seed。status/doctor 不写数据；reset 另定目标环境、确认和数据清理边界，在隔离库测试，不由 doctor/dev 隐式触发。
 - 插件开发体验：沿用 M5 公开契约完善插件模板/示例、只读依赖/配置诊断、兼容与升级说明；生成独立宿主后 check/test，验证默认隔离及配置/迁移升级、停用保留数据；并入现有 CLI、测试与源码升级验收，不创建第二套装配或插件管理器。
 - 开发编排：dev 先探测并复用合适服务，缺失时才建本任务资源；按显式配置处理迁移、watch、信号、端口冲突和进程回收。当前 dev 只是代理 serve，不能宣传自动编排已完成。
