@@ -11,8 +11,9 @@
 - `GrpcClientRegistry::channel(None)` 选择默认 endpoint，`channel(Some(name))` 选择具名 endpoint。`with_channel` 供测试和嵌入式应用显式注入 Channel；业务端使用 tonic 生成 typed client。
 - CLI `openrust new --grpc` 生成应用持有的 proto、build.rs 和 typed module。构建使用 `tonic-prost-build` 与 `protoc-bin-vendored`，未安装全局工具。
 - 客户端配置将 `endpoint` 与 TLS 信任材料逐名称绑定；HTTPS 必须提供显式 CA，可选客户端证书/私钥必须成对。证书材料只在启动时载入，错误消息与 Debug 不显示文件内容或路径，证书轮换通过进程滚动完成。G2a 的真实证书/信任失败用例见 `examples/grpc/`。
+- `auth` feature 启用时 server Tower layer 验证 Bearer JWT/PAT、拒绝重复 Authorization，并把 `CurrentUser` 放入 tonic request extensions；没有 Bearer 时允许公开 RPC 继续执行。应用方法以 `GrpcAuth::authorize` 复用 `Policy` 与 PAT abilities，并通过 `GrpcAuth::status` 将框架错误映射为不含业务/内部消息的标准 Status。Cookie Session 不适用于 RPC。PostgreSQL/MySQL 真实 TCP、Policy 授权、PAT 撤销验收命令见 `memory/testing.md`。
 - 服务注册、配置与 loopback TCP 生命周期由 `apps/server/tests/grpc.rs` 覆盖；四种 RPC、半关闭和异常断连见 `examples/grpc/`。
 
 ## 未覆盖范围
 
-Auth/JWT/PAT/Policy、deadline/cancellation budgets、消息/连接并发限额、health/reflection、有界 drain、HTTP+gRPC 联合 supervisor、多节点代理路由、滚动升级和跨节点流处理留在 G2b/G2c/G3 与 v1 集群验收。不得把 loopback 示例写成集群证据。
+deadline/cancellation budgets、消息/连接并发限额、health/reflection、有界 drain、HTTP+gRPC 联合 supervisor、多节点代理路由、滚动升级和跨节点流处理留在 G2b/G2c/G3 与 v1 集群验收。不得把 loopback 示例写成集群证据。

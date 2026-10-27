@@ -10,7 +10,14 @@ use std::{
     path::Path,
     sync::Arc,
 };
+#[cfg(feature = "auth")]
+use std::{
+    pin::Pin,
+    task::{Context, Poll},
+};
 
+#[cfg(feature = "auth")]
+use crate::auth::{CurrentUser, Policy, authenticate_grpc_bearer};
 use crate::{
     App, AppBuilder, AppState, BoxFuture, Command, Error, Result,
     config::{GrpcClientTlsConfig, GrpcConfig, GrpcServerTlsConfig},
@@ -19,6 +26,8 @@ use crate::{
 use http::Request;
 use tokio::net::TcpListener;
 use tokio_stream::wrappers::TcpListenerStream;
+#[cfg(feature = "auth")]
+use tonic::{Code, Status};
 use tonic::{
     body::Body,
     server::NamedService,
@@ -156,6 +165,8 @@ pub struct GrpcServer {
     listen_addr: SocketAddr,
     routes: Routes,
     tls: Option<ServerTlsConfig>,
+    #[cfg(feature = "auth")]
+    state: AppState,
 }
 
 impl GrpcServer {
@@ -180,6 +191,8 @@ impl GrpcServer {
             listen_addr: config.listen_addr,
             routes,
             tls: config.tls.as_ref().map(server_tls_config).transpose()?,
+            #[cfg(feature = "auth")]
+            state: app.state().clone(),
         })
     }
 
@@ -193,18 +206,177 @@ impl GrpcServer {
     where
         F: Future<Output = ()> + Send + 'static,
     {
-        let mut server = tonic::transport::Server::builder();
+        let server = tonic::transport::Server::builder();
+        #[cfg(feature = "auth")]
+        let server = server.layer(GrpcAuthLayer {
+            state: self.state.clone(),
+        });
+        let mut server = server;
         if let Some(tls) = self.tls {
             server = server.tls_config(tls).map_err(|_| {
                 Error::custom("grpc_tls_config_invalid", "gRPC 服务端 TLS 配置无效")
             })?;
         }
-        let router: Router = server.add_routes(self.routes);
+        let router: Router<_> = server.add_routes(self.routes);
         router
             .serve_with_incoming_shutdown(TcpListenerStream::new(listener), shutdown)
             .await
             .map_err(Error::internal)
     }
+}
+
+/// gRPC handler 中读取已验证 Bearer 身份并复用框架 Policy 的辅助入口。
+#[cfg(feature = "auth")]
+pub struct GrpcAuth;
+
+#[cfg(feature = "auth")]
+impl GrpcAuth {
+    /// 从 RPC request extension 读取由 server 验证的 JWT 或 PAT 身份。
+    pub fn current_user<T>(request: &tonic::Request<T>) -> Result<&CurrentUser> {
+        request
+            .extensions()
+            .get::<CurrentUser>()
+            .ok_or(Error::Unauthorized)
+    }
+
+    /// 使用现有 Policy 和 PAT abilities 检查指定权限。
+    pub async fn authorize<T>(
+        request: &tonic::Request<T>,
+        policy: &Policy,
+        permission: &str,
+    ) -> Result<()> {
+        policy
+            .authorize(Self::current_user(request)?, permission)
+            .await
+    }
+
+    /// 将框架错误映射为不包含业务消息或内部错误来源的 gRPC Status。
+    pub fn status(error: &Error) -> Status {
+        status_from_error(error)
+    }
+}
+
+#[cfg(feature = "auth")]
+#[derive(Clone)]
+struct GrpcAuthLayer {
+    state: AppState,
+}
+
+#[cfg(feature = "auth")]
+impl<S> tower::Layer<S> for GrpcAuthLayer {
+    type Service = GrpcAuthService<S>;
+
+    fn layer(&self, inner: S) -> Self::Service {
+        GrpcAuthService {
+            inner,
+            state: self.state.clone(),
+        }
+    }
+}
+
+#[cfg(feature = "auth")]
+#[derive(Clone)]
+struct GrpcAuthService<S> {
+    inner: S,
+    state: AppState,
+}
+
+#[cfg(feature = "auth")]
+impl<S> Service<Request<Body>> for GrpcAuthService<S>
+where
+    S: Service<Request<Body>, Response = http::Response<Body>, Error = Infallible>
+        + Clone
+        + Send
+        + 'static,
+    S::Future: Send + 'static,
+{
+    type Response = http::Response<Body>;
+    type Error = Infallible;
+    type Future =
+        Pin<Box<dyn Future<Output = std::result::Result<Self::Response, Self::Error>> + Send>>;
+
+    fn poll_ready(
+        &mut self,
+        _context: &mut Context<'_>,
+    ) -> Poll<std::result::Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn call(&mut self, mut request: Request<Body>) -> Self::Future {
+        let mut inner = self.inner.clone();
+        let state = self.state.clone();
+        Box::pin(async move {
+            std::future::poll_fn(|context| inner.poll_ready(context)).await?;
+            let mut values = request
+                .headers()
+                .get_all(http::header::AUTHORIZATION)
+                .iter();
+            let Some(header) = values.next() else {
+                return inner.call(request).await;
+            };
+            if values.next().is_some() {
+                return Ok(Status::unauthenticated("unauthenticated").into_http::<Body>());
+            }
+            let Ok(header) = header.to_str() else {
+                return Ok(Status::unauthenticated("unauthenticated").into_http::<Body>());
+            };
+            let mut segments = header.split_ascii_whitespace();
+            let scheme = segments.next().unwrap_or_default();
+            let value = segments.next().unwrap_or_default();
+            if !scheme.eq_ignore_ascii_case("bearer")
+                || value.is_empty()
+                || segments.next().is_some()
+            {
+                return Ok(Status::unauthenticated("unauthenticated").into_http::<Body>());
+            }
+            match authenticate_grpc_bearer(&state, value).await {
+                Ok(user) => {
+                    request.extensions_mut().insert(user);
+                    inner.call(request).await
+                }
+                Err(error) => Ok(status_from_error(&error).into_http::<Body>()),
+            }
+        })
+    }
+}
+
+#[cfg(feature = "auth")]
+fn status_from_error(error: &Error) -> Status {
+    let http_status = error.status();
+    let code = if error.is_server_error() {
+        Code::Internal
+    } else {
+        match http_status.as_u16() {
+            400 | 422 => Code::InvalidArgument,
+            401 => Code::Unauthenticated,
+            403 => Code::PermissionDenied,
+            404 => Code::NotFound,
+            408 => Code::DeadlineExceeded,
+            409 => Code::AlreadyExists,
+            429 => Code::ResourceExhausted,
+            501 => Code::Unimplemented,
+            503 => Code::Unavailable,
+            _ => Code::Unknown,
+        }
+    };
+    let (message, detail) = match code {
+        Code::InvalidArgument => ("invalid_argument", "invalid_argument"),
+        Code::Unauthenticated => ("unauthenticated", "unauthenticated"),
+        Code::PermissionDenied => ("permission_denied", "permission_denied"),
+        Code::NotFound => ("not_found", "not_found"),
+        Code::DeadlineExceeded => ("deadline_exceeded", "deadline_exceeded"),
+        Code::AlreadyExists => ("already_exists", "already_exists"),
+        Code::ResourceExhausted => ("resource_exhausted", "resource_exhausted"),
+        Code::Unimplemented => ("unimplemented", "unimplemented"),
+        Code::Unavailable => ("unavailable", "unavailable"),
+        Code::Internal => ("internal", "internal_error"),
+        _ => ("unknown", "unknown"),
+    };
+    Status::with_details(
+        code,
+        message,
+        tonic::codegen::Bytes::from_static(detail.as_bytes()),
+    )
 }
 
 fn server_tls_config(config: &GrpcServerTlsConfig) -> Result<ServerTlsConfig> {
@@ -401,5 +573,33 @@ mod tests {
         };
         assert!(GrpcClientRegistry::from_config(&tls).is_err());
         Ok(())
+    }
+
+    #[cfg(feature = "auth")]
+    #[test]
+    fn grpc_status_mapping_uses_stable_codes_and_redacts_messages() {
+        use crate::{Error, core::ValidationErrors};
+        use http::StatusCode;
+        use tonic::Code;
+
+        let denied = super::GrpcAuth::status(&Error::Forbidden("private detail".to_owned()));
+        assert_eq!(denied.code(), Code::PermissionDenied);
+        assert_eq!(denied.message(), "permission_denied");
+        assert!(!denied.details().windows(7).any(|part| part == b"private"));
+
+        let internal = super::GrpcAuth::status(&Error::custom_with_status(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "database_password_leak",
+            "secret connection string",
+        ));
+        assert_eq!(internal.code(), Code::Internal);
+        assert_eq!(internal.message(), "internal");
+        assert_eq!(internal.details(), b"internal_error");
+
+        let mut fields = ValidationErrors::new();
+        fields.add("password", "must not be echoed");
+        let invalid = super::GrpcAuth::status(&Error::Validation(fields));
+        assert_eq!(invalid.code(), Code::InvalidArgument);
+        assert_eq!(invalid.details(), b"invalid_argument");
     }
 }

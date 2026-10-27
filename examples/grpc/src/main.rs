@@ -31,6 +31,7 @@ use proto::{
 #[derive(Clone)]
 struct EchoService {
     dropped_streams: Arc<AtomicUsize>,
+    policy: Option<openrust::auth::Policy>,
 }
 
 struct StreamDrop(Arc<AtomicUsize>);
@@ -47,9 +48,23 @@ impl Echo for EchoService {
     type BidirectionalStream = Pin<Box<dyn Stream<Item = Result<EchoResponse, Status>> + Send>>;
 
     async fn unary(&self, request: Request<EchoRequest>) -> Result<Response<EchoResponse>, Status> {
-        Ok(Response::new(EchoResponse {
-            value: request.into_inner().value,
-        }))
+        let value = if request.get_ref().value == "__whoami" {
+            let user = openrust::grpc::GrpcAuth::current_user(&request)
+                .map_err(|error| openrust::grpc::GrpcAuth::status(&error))?;
+            format!("{}:{}", user.id(), user.has_ability("posts:read"))
+        } else if request.get_ref().value == "__authorize" {
+            let policy = self
+                .policy
+                .as_ref()
+                .ok_or_else(|| Status::internal("policy unavailable"))?;
+            openrust::grpc::GrpcAuth::authorize(&request, policy, "posts:read")
+                .await
+                .map_err(|error| openrust::grpc::GrpcAuth::status(&error))?;
+            "allowed".to_owned()
+        } else {
+            request.get_ref().value.clone()
+        };
+        Ok(Response::new(EchoResponse { value }))
     }
 
     async fn server_stream(
@@ -138,6 +153,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     GrpcPlugin::register_service::<EchoServer<EchoService>, _>(&mut builder, move |_| {
         EchoServer::new(EchoService {
             dropped_streams: Arc::clone(&service_dropped_streams),
+            policy: None,
         })
     })?;
     builder.plugin(GrpcPlugin::new());
@@ -320,6 +336,7 @@ mod tls_tests {
         GrpcPlugin::register_service::<EchoServer<EchoService>, _>(&mut builder, move |_| {
             EchoServer::new(EchoService {
                 dropped_streams: Arc::clone(&dropped),
+                policy: None,
             })
         })?;
         builder.plugin(GrpcPlugin::new());
@@ -493,6 +510,338 @@ mod tls_tests {
         stop.send(())
             .map_err(|()| "expired-certificate server stopped unexpectedly")?;
         task.await??;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod auth_tests {
+    use super::*;
+    use openrust::{
+        auth::{
+            AuthCredential, AuthPlugin, AuthPrincipal, AuthSource, Authenticator, JwtPlugin,
+            JwtTokens,
+        },
+        config::JwtConfig,
+        core::{BoxFuture, Error},
+    };
+    use tonic::{Code, metadata::MetadataValue, transport::Channel};
+
+    struct FakePatAuthenticator;
+
+    impl Authenticator for FakePatAuthenticator {
+        fn authenticate<'a>(
+            &'a self,
+            credential: AuthCredential<'a>,
+        ) -> BoxFuture<'a, openrust::Result<AuthPrincipal>> {
+            Box::pin(async move {
+                if credential.source() == AuthSource::PersonalAccessToken
+                    && credential.value() == Some("openrust_pat_test")
+                {
+                    Ok(AuthPrincipal::new(91, Some(vec!["posts:read".to_owned()])))
+                } else {
+                    Err(Error::Unauthorized)
+                }
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn jwt_bearer_authentication_runs_over_real_grpc_tcp()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let listener = TcpListener::bind("127.0.0.1:0").await?;
+        let address = listener.local_addr()?;
+        let jwt = JwtConfig::new(
+            "https://grpc-tests.example",
+            "grpc-tests",
+            "active",
+            [(
+                "active".to_owned(),
+                "U1NTU1NTU1NTU1NTU1NTU1NTU1NTU1NTU1NTU1NTU1M=".to_owned(),
+            )]
+            .into(),
+        );
+        let mut config = FrameworkConfig::default();
+        config.grpc.listen_addr = address;
+        config.grpc.allow_insecure_server = true;
+        let mut builder = AppBuilder::new(config, figment::Figment::new());
+        GrpcPlugin::register_service::<EchoServer<EchoService>, _>(&mut builder, |_| {
+            EchoServer::new(EchoService {
+                dropped_streams: Arc::new(AtomicUsize::new(0)),
+                policy: None,
+            })
+        })?;
+        builder
+            .plugin(JwtPlugin::with_config(jwt))
+            .plugin(AuthPlugin::with_authenticator(FakePatAuthenticator))
+            .plugin(GrpcPlugin::new());
+        let app = finalize(builder).await?;
+        let token = app.state().try_get::<JwtTokens>()?.issue_access_token(73)?;
+        let server = GrpcServer::from_app(&app)?;
+        let (shutdown, signal) = oneshot::channel::<()>();
+        let task = tokio::spawn(server.serve(listener, async move {
+            let _ = signal.await;
+        }));
+        let channel = Channel::from_shared(format!("http://{address}"))?
+            .connect()
+            .await?;
+        let mut client = EchoClient::new(channel);
+
+        let missing = client
+            .unary(Request::new(EchoRequest {
+                value: "__whoami".into(),
+            }))
+            .await
+            .expect_err("missing bearer must fail at the protected method");
+        assert_eq!(missing.code(), Code::Unauthenticated);
+
+        let mut invalid = Request::new(EchoRequest {
+            value: "__whoami".into(),
+        });
+        invalid.metadata_mut().insert(
+            "authorization",
+            MetadataValue::try_from("Bearer invalid-token")?,
+        );
+        assert_eq!(
+            client
+                .unary(invalid)
+                .await
+                .expect_err("invalid bearer must fail in the server layer")
+                .code(),
+            Code::Unauthenticated
+        );
+
+        let mut authenticated = Request::new(EchoRequest {
+            value: "__whoami".into(),
+        });
+        authenticated.metadata_mut().insert(
+            "authorization",
+            MetadataValue::try_from(format!("Bearer {token}"))?,
+        );
+        assert_eq!(
+            client.unary(authenticated).await?.into_inner().value,
+            "73:false"
+        );
+
+        let mut pat = Request::new(EchoRequest {
+            value: "__whoami".into(),
+        });
+        pat.metadata_mut().insert(
+            "authorization",
+            MetadataValue::try_from("Bearer openrust_pat_test")?,
+        );
+        assert_eq!(client.unary(pat).await?.into_inner().value, "91:true");
+
+        let mut duplicate = Request::new(EchoRequest {
+            value: "__whoami".into(),
+        });
+        duplicate.metadata_mut().append(
+            "authorization",
+            MetadataValue::try_from(format!("Bearer {token}"))?,
+        );
+        duplicate.metadata_mut().append(
+            "authorization",
+            MetadataValue::try_from(format!("Bearer {token}"))?,
+        );
+        assert_eq!(
+            client
+                .unary(duplicate)
+                .await
+                .expect_err("duplicate auth headers must fail")
+                .code(),
+            Code::Unauthenticated
+        );
+
+        let mut cookie_only = Request::new(EchoRequest {
+            value: "__whoami".into(),
+        });
+        cookie_only.metadata_mut().insert(
+            "cookie",
+            MetadataValue::try_from("openrust_session=ignored")?,
+        );
+        assert_eq!(
+            client
+                .unary(cookie_only)
+                .await
+                .expect_err("Cookie Session is not RPC auth")
+                .code(),
+            Code::Unauthenticated
+        );
+
+        shutdown
+            .send(())
+            .map_err(|()| "gRPC auth server stopped unexpectedly")?;
+        task.await??;
+        Ok(())
+    }
+}
+
+#[cfg(all(test, any(feature = "db-postgres", feature = "db-mysql")))]
+mod database_auth_tests {
+    use super::*;
+    use figment::providers::Format;
+    use openrust::{
+        auth::{
+            AuthMigration, AuthPlugin, AuthPolicyMigration, JwtConfig, JwtPlugin, JwtTokens,
+            PersonalAccessTokens, Policy,
+        },
+        database::{
+            DatabaseBackend, DatabasePlugin,
+            sea_orm::ConnectionTrait,
+            sea_orm_migration::{MigrationTrait, MigratorTrait},
+        },
+    };
+    use std::error::Error as StdError;
+    use testing::TestDatabase;
+    use tonic::{Code, metadata::MetadataValue, transport::Channel};
+
+    struct AuthMigrator;
+
+    impl MigratorTrait for AuthMigrator {
+        fn migrations() -> Vec<Box<dyn MigrationTrait>> {
+            vec![Box::new(AuthMigration), Box::new(AuthPolicyMigration)]
+        }
+    }
+
+    #[tokio::test]
+    async fn database_bearer_and_method_policy_work_over_real_tcp() -> Result<(), Box<dyn StdError>>
+    {
+        let Ok(admin_url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+            eprintln!("跳过 gRPC 双库认证验收：未设置 OPENRUST_TEST_DATABASE_URL");
+            return Ok(());
+        };
+        let backend = DatabaseBackend::from_url(&admin_url)?;
+        if !backend.is_enabled() {
+            eprintln!("跳过 gRPC 双库认证验收：当前 feature 未启用 URL 对应数据库");
+            return Ok(());
+        }
+        let database = TestDatabase::create::<AuthMigrator>(&admin_url).await?;
+        database.connection()?.execute_unprepared(
+            "INSERT INTO tb_users (email, password_hash, created_at, updated_at) VALUES ('grpc-auth@example.test', 'unused', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
+        ).await?;
+
+        let listener = TcpListener::bind("127.0.0.1:0").await?;
+        let address = listener.local_addr()?;
+        let key = "U1NTU1NTU1NTU1NTU1NTU1NTU1NTU1NTU1NTU1NTU1M=".to_owned();
+        let jwt = JwtConfig::new(
+            "https://grpc-db-tests.example",
+            "grpc-db-tests",
+            "active",
+            [("active".to_owned(), key.clone())].into(),
+        );
+        let source = format!("[database]\nurl = {:?}\n", database.url());
+        let figment = figment::Figment::new().merge(figment::providers::Toml::string(&source));
+        let mut config = FrameworkConfig::default();
+        config.grpc.listen_addr = address;
+        config.grpc.allow_insecure_server = true;
+        let mut builder = AppBuilder::new(config, figment);
+        GrpcPlugin::register_service::<EchoServer<EchoService>, _>(&mut builder, |state| {
+            EchoServer::new(EchoService {
+                dropped_streams: Arc::new(AtomicUsize::new(0)),
+                policy: state
+                    .try_get::<Policy>()
+                    .ok()
+                    .map(|policy| (*policy).clone()),
+            })
+        })?;
+        builder
+            .plugin(DatabasePlugin)
+            .plugin(JwtPlugin::with_config(jwt))
+            .plugin(AuthPlugin::new())
+            .plugin(GrpcPlugin::new());
+        let app = finalize(builder).await?;
+        let jwt_token = app.state().try_get::<JwtTokens>()?.issue_access_token(1)?;
+        let policy = app.state().try_get::<Policy>()?;
+        let role = policy.ensure_role("grpc-reader").await?;
+        policy.assign_role(1, role).await?;
+        policy.grant_permission(role, "posts:read").await?;
+        let pats = app.state().try_get::<PersonalAccessTokens>()?;
+        let pat = pats
+            .issue(1, "grpc-reader", &["posts:read".to_owned()], None)
+            .await?;
+        let denied_pat = pats.issue(1, "grpc-denied", &[], None).await?;
+
+        let server = GrpcServer::from_app(&app)?;
+        let (shutdown, signal) = oneshot::channel::<()>();
+        let server_task = tokio::spawn(server.serve(listener, async move {
+            let _ = signal.await;
+        }));
+        let channel = Channel::from_shared(format!("http://{address}"))?
+            .connect()
+            .await?;
+        let mut client = EchoClient::new(channel);
+
+        let mut jwt_request = Request::new(EchoRequest {
+            value: "__authorize".into(),
+        });
+        jwt_request.metadata_mut().insert(
+            "authorization",
+            MetadataValue::try_from(format!("Bearer {jwt_token}"))?,
+        );
+        assert_eq!(
+            client.unary(jwt_request).await?.into_inner().value,
+            "allowed"
+        );
+
+        let mut pat_request = Request::new(EchoRequest {
+            value: "__authorize".into(),
+        });
+        pat_request.metadata_mut().insert(
+            "authorization",
+            MetadataValue::try_from(format!("Bearer {}", pat.expose()))?,
+        );
+        assert_eq!(
+            client.unary(pat_request).await?.into_inner().value,
+            "allowed"
+        );
+
+        let mut denied_request = Request::new(EchoRequest {
+            value: "__authorize".into(),
+        });
+        denied_request.metadata_mut().insert(
+            "authorization",
+            MetadataValue::try_from(format!("Bearer {}", denied_pat.expose()))?,
+        );
+        assert_eq!(
+            client
+                .unary(denied_request)
+                .await
+                .expect_err("PAT without ability must be denied")
+                .code(),
+            Code::PermissionDenied
+        );
+
+        let issued = pats.list_for_user(1).await?;
+        let token_id = issued
+            .iter()
+            .find(|item| item.name == "grpc-reader")
+            .ok_or("issued PAT metadata missing")?
+            .id;
+        assert!(pats.revoke(1, token_id).await?);
+        let mut revoked_request = Request::new(EchoRequest {
+            value: "__authorize".into(),
+        });
+        revoked_request.metadata_mut().insert(
+            "authorization",
+            MetadataValue::try_from(format!("Bearer {}", pat.expose()))?,
+        );
+        assert_eq!(
+            client
+                .unary(revoked_request)
+                .await
+                .expect_err("revoked PAT must be rejected")
+                .code(),
+            Code::Unauthenticated
+        );
+
+        shutdown
+            .send(())
+            .map_err(|()| "gRPC database auth server stopped unexpectedly")?;
+        server_task.await??;
+        drop(pats);
+        drop(policy);
+        drop(app);
+        database.close().await?;
         Ok(())
     }
 }

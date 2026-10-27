@@ -30,6 +30,6 @@ API 响应使用 `ApiResponse<T>` JSON envelope；健康状态位于 `data.statu
 
 启用 `storage-local` 会由 `Server::build` 安装 `StoragePlugin` 并使用本机 filesystem disk；启用 `storage-s3` 会同时启用 `storage-local` 与 S3-compatible driver。对象存储配置、流式 API 和授权边界见 [文件存储指南](../../src/storage/README.md)。
 
-`grpc` feature 将 gRPC 运行时转发到 server 集成宿主；应用仍需显式注册服务和 `GrpcPlugin`，不会在启用 feature 时自动开放端口。服务端默认要求 TLS；本机开发或可信 TLS 终止代理必须显式设置 `allow_insecure_server = true`。插件组装、明文拒绝和 TCP 生命周期通过 `cargo test -p server --features grpc --test grpc` 验证；四类 Protobuf 网络调用与 TLS/mTLS 见 [`examples/grpc/`](../../examples/grpc/README.md)。
+`grpc` feature 将 gRPC 运行时转发到 server 集成宿主；应用仍需显式注册服务和 `GrpcPlugin`，不会在启用 feature 时自动开放端口。服务端默认要求 TLS；本机开发或可信 TLS 终止代理必须显式设置 `allow_insecure_server = true`。插件组装、明文拒绝和 TCP 生命周期通过 `cargo test -p server --features grpc --test grpc` 验证；启用 `auth` feature 时还可验证 JWT/PAT Bearer；受保护方法显式调用 `GrpcAuth::authorize`，不使用 Cookie Session。真实 RPC 身份与双库 Policy/PAT 验收见 [`examples/grpc/`](../../examples/grpc/README.md)。
 
 数据库、认证、队列与调度能力由各集成测试显式组装。开启 Cargo feature 不会让默认 `Server::build` 自动注册这些服务。详见 [ADR-007](../../.agents/project/decisions/adr-007-aggregate-server-entry.md)。

@@ -9,8 +9,12 @@ build = "build.rs"
 
 [workspace]
 
+[features]
+db-postgres = ["openrust/db-postgres", "testing/db-postgres"]
+db-mysql = ["openrust/db-mysql", "testing/db-mysql"]
+
 [dependencies]
-openrust = { path = "../..", version = "0.0.0", features = ["grpc"] }
+openrust = { path = "../..", version = "0.0.0", features = ["grpc", "auth"] }
 prost = "0.14"
 tonic = { version = "~0.14.6", default-features = false, features = ["codegen", "router", "transport"] }
 tonic-prost = "~0.14.6"
@@ -27,3 +31,4 @@ protoc-bin-vendored = "~3.3.0"
 rcgen = "0.14.10"
 tempfile = "3.27"
 time = "0.3"
+testing = { path = "../../testing", version = "0.0.0" }

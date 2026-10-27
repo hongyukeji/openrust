@@ -109,6 +109,49 @@ pub enum AuthSource {
     PersonalAccessToken,
 }
 
+/// 复用既有 JWT 与 Authenticator 校验 RPC Bearer；gRPC 不接受 Cookie Session。
+pub(crate) async fn authenticate_grpc_bearer(state: &AppState, value: &str) -> Result<CurrentUser> {
+    if value.trim().is_empty() {
+        return Err(Error::Unauthorized);
+    }
+    let (source, principal) = if value.starts_with("openrust_pat_") {
+        let service = state
+            .try_get::<AuthService>()
+            .map_err(|_| Error::Unauthorized)?;
+        let method = Method::POST;
+        let credential = AuthCredential {
+            source: AuthSource::PersonalAccessToken,
+            value: Some(value),
+            session: None,
+            csrf_token: None,
+            method: &method,
+        };
+        (
+            AuthSource::PersonalAccessToken,
+            service.authenticator.authenticate(credential).await?,
+        )
+    } else {
+        let tokens = state
+            .try_get::<JwtTokens>()
+            .map_err(|_| Error::Unauthorized)?;
+        let user_id = tokens.verify_access_token(value)?;
+        (AuthSource::Jwt, AuthPrincipal::new(user_id, None))
+    };
+    if principal.user_id <= 0 {
+        return Err(Error::internal(InvalidPrincipal));
+    }
+    let token_abilities = match (source, principal.token_abilities) {
+        (AuthSource::Jwt, None) => None,
+        (AuthSource::PersonalAccessToken, Some(abilities)) => Some(Arc::from(abilities)),
+        _ => return Err(Error::internal(InvalidPrincipal)),
+    };
+    Ok(CurrentUser {
+        id: principal.user_id,
+        source,
+        token_abilities,
+    })
+}
+
 /// 单个路由的凭据选择策略。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AuthMode {

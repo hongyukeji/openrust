@@ -16,6 +16,12 @@ G2a 已在真实 loopback TCP 上验证服务端 TLS、具名客户端 CA/域名
 
 本簇已通过 `cargo test --workspace`、`RUST_TEST_THREADS=1 cargo test --workspace --all-features`、`cargo clippy --workspace --all-targets --all-features -- -D warnings`、独立示例 Clippy、默认/all-features warnings-denied Rustdoc、workspace 与独立示例 `cargo deny`、Rust 1.97 默认与 gRPC feature check、独立示例 `--locked` check/test/run、干净源码副本生成应用 check/test、`cargo fmt --all --check` 和 `git diff --check`。`cargo deny` 的重复版本与未命中 MPL allowance 为已有提示，advisories/bans/licenses/sources 均通过。未覆盖身份/授权、deadline/health/shutdown 或多节点验收。
 
+## M5 gRPC G2b 身份与错误映射
+
+`examples/grpc/` 的真实 TCP RPC 测试覆盖已签名 JWT、数据库 PAT 和测试替代 Authenticator 路径，包含缺失/无效/重复 Authorization、Cookie Session 不参与 RPC、JWT/PAT `CurrentUser` 与 PAT abilities、Policy 授权、缺 ability 拒绝及 PAT 撤销后拒绝。PostgreSQL 18 与 MySQL 8.4 的隔离数据库各自真实执行 `database_auth_tests::database_bearer_and_method_policy_work_over_real_tcp`，通过 `OPENRUST_TEST_DATABASE_URL=... cargo test --manifest-path examples/grpc/Cargo.toml --locked --features db-<backend> database_auth_tests::database_bearer_and_method_policy_work_over_real_tcp -- --nocapture`；测试贯通真实 `AuthPlugin`、JWT 验签、PAT 读写/撤销、Policy 表、gRPC TCP handler 和 Status。错误映射单测覆盖 validation、permission 与内部错误脱敏；网络用例确认状态码为 `UNAUTHENTICATED`/`PERMISSION_DENIED`，不回传消息或凭据。
+
+通过 `cargo fmt --all --check`、`cargo clippy -p openrust --features 'grpc auth' --all-targets -- -D warnings`、独立示例 all-target/all-features Clippy、默认与 all-features workspace tests、独立示例 all-features tests、warnings-denied 默认/all-features Rustdoc、workspace 与独立示例 `cargo deny`、Rust 1.97 gRPC+auth check、独立 consumer locked check/test、PostgreSQL/MySQL 真实 TCP 测试及 `git diff --check`。全功能 workspace 与 cargo-deny 保留既有明确记录的重复 crate 版本和未命中 MPL allowance 提示；advisories/bans/licenses/sources 通过。未覆盖 deadline、全局限额、health/reflection、有界停机或集群。
+
 ## F8-A CSV/XLSX 解析与转换
 
 - 定向入口：`cargo test -p openrust --features data-exchange --lib data_exchange::tests`、`cargo test -p server --features data-exchange --test data_exchange`。

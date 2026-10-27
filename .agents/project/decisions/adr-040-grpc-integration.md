@@ -1,6 +1,6 @@
 # ADR-040 gRPC 纳入 v1 通用框架
 
-- 状态：Accepted；G1 基础与生成、G2a TLS/mTLS 已实现并通过本地验收；G2b 身份/错误映射、G2c 预算/资源/健康停机与 G3 联合运行/集群仍待实施
+- 状态：Accepted；G1 基础与生成、G2a TLS/mTLS、G2b JWT/PAT/Policy 身份与错误映射已实现并通过本地验收；当前推进 G2c 预算/资源/健康停机与 G3 联合运行/集群仍待实施
 - 日期：2026-10-26
 - 依据：[ADR-001](adr-001-own-kernel-on-axum.md)、[v1 总计划](../plans/gen1-plan.md)、[能力覆盖](../plans/v1-capability-coverage.md)
 
