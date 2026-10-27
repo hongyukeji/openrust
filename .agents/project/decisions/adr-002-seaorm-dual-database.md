@@ -10,7 +10,7 @@
 ## 决策
 
 - ORM 与迁移使用 `sea-orm` 2.x + `sea-orm-migration`。SQLx 直连不属于当前 `Db` 公共 API；如后续提供逃生口，必须单独定义生命周期与事务语义。
-- PostgreSQL 与 MySQL 为 v1 的标准生产及集群数据库基线，暂定最低支持 PostgreSQL 14+ / MySQL 8.0+；日常开发和常规 CI 使用 PostgreSQL 18 / MySQL 8.4 LTS。SQLite 作为可选轻量单机后端纳入 v1 计划，范围见 [ADR-066](adr-066-optional-sqlite-backend.md)。PostgreSQL 官方对每个主版本提供五年支持，不使用 LTS 这一版本标签。
+- PostgreSQL 与 MySQL 为 v1 的标准生产及集群数据库基线，暂定最低支持 PostgreSQL 14+ / MySQL 8.0+；日常开发和常规 CI 使用 PostgreSQL 18 / MySQL 8.4 LTS。SQLite 作为可由应用选择的完整单机后端纳入 v1，完整支持范围见 [ADR-066](adr-066-optional-sqlite-backend.md)。PostgreSQL 官方对每个主版本提供五年支持，不使用 LTS 这一版本标签。
 - 迁移只使用可移植列类型；时间 PostgreSQL `timestamptz` / MySQL `DATETIME(6)`，JSON `jsonb` / `json`；框架表不用数组、枚举等单库特性。
 - 单库 SQL 集中在 `openrust::db::dialect`，必须同时提供两库分支并有双库测试；CI 以 service 容器运行双库矩阵。
 - 生成项目在创建时选择一个后端并只启用对应 feature，不要求运行时切换。SQLite 不自动成为新项目的默认数据库，也不与 PostgreSQL/MySQL 的集群能力等同。
