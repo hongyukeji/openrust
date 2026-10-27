@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-27
-> 摘要：OpenRust 是全新的开源 Rust 应用开发框架，当前处于 v1 M5；源码 workspace 交付、C1–C3 中文化、F1–F4 与队列化通知已完成；M4 job 生成与集成收口、M5 通用插件公开契约、Db/Queue 外部扩展契约、跨协议验证与调用作用域及 HTTP 有界运行/就绪切换已完成；M5 缓存基础 driver 与命名 store 已完成真实 Redis、生成项目和 workspace 门禁验收；命名数据库连接实例、Redis Session、显式同步任务执行和 ADR-046 Redis Queue 已完成适用验收。ADR-047 查询授权、ADR-048 稳定键有界分批及 ADR-049 迁移互斥已通过 PostgreSQL 18/MySQL 8.4 实际验收，ADR-050 存储与上传下载已完成 local/custom driver、真实 TCP 与 MinIO S3 专项和 workspace 门禁，ADR-051 受限出站目标策略和 ADR-052 命名依赖韧性已完成适用门禁；F7 OIDC 子簇已通过 PostgreSQL 18、MySQL 8.4、Keycloak 26.8.1 与 workspace 门禁验收；ADR-054 TOTP/恢复码亦已完成双库真实 HTTP、生成项目与 workspace 门禁验收；F7 双应用 SSO/统一退出与 F6-A/F6-B 租户隔离已完成相应验收；当前唯一进行中簇为通用 CSV/XLSX F8。
+> 摘要：OpenRust 是全新的开源 Rust 应用开发框架，当前处于 v1 M5；源码 workspace 交付、C1–C3 中文化、F1–F4 与队列化通知已完成；M4 job 生成与集成收口、M5 通用插件公开契约、Db/Queue 外部扩展契约、跨协议验证与调用作用域及 HTTP 有界运行/就绪切换已完成；M5 缓存基础 driver 与命名 store 已完成真实 Redis、生成项目和 workspace 门禁验收；命名数据库连接实例、Redis Session、显式同步任务执行和 ADR-046 Redis Queue 已完成适用验收。ADR-047 查询授权、ADR-048 稳定键有界分批及 ADR-049 迁移互斥已通过 PostgreSQL 18/MySQL 8.4 实际验收，ADR-050 存储与上传下载已完成 local/custom driver、真实 TCP 与 MinIO S3 专项和 workspace 门禁，ADR-051 受限出站目标策略和 ADR-052 命名依赖韧性已完成适用门禁；F7 OIDC 子簇已通过 PostgreSQL 18、MySQL 8.4、Keycloak 26.8.1 与 workspace 门禁验收；ADR-054 TOTP/恢复码亦已完成双库真实 HTTP、生成项目与 workspace 门禁验收；F7 双应用 SSO/统一退出与 F6-A/F6-B 租户隔离已完成相应验收；F8-A 有界 CSV/XLSX 解析转换已通过 workspace 与独立 consumer 门禁，当前推进 F8-B 任务化集成。
 
 ## 当前状态
 

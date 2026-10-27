@@ -68,6 +68,7 @@ cache-redis = ["openrust/cache-redis"]
 session-redis = ["auth", "openrust/session-redis"]
 storage-local = ["openrust/storage-local"]
 storage-s3 = ["storage-local", "openrust/storage-s3"]
+data-exchange = ["openrust/data-exchange"]
 
 [[test]]
 name = "auth"
@@ -100,6 +101,11 @@ required-features = ["auth-oidc"]
 name = "auth_mfa"
 path = "tests/auth/mfa.rs"
 required-features = ["auth-mfa"]
+
+[[test]]
+name = "data_exchange"
+path = "tests/data_exchange.rs"
+required-features = ["data-exchange"]
 
 [[test]]
 name = "db_connection"

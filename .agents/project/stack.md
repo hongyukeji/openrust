@@ -53,6 +53,7 @@
 | 存储 | OpenDAL 0.59.x（当前锁定 0.59.5）提供 filesystem/S3-compatible I/O；`bytes` 1.12 与 `futures-util` 0.3 承载有界流 | 根模块 `openrust::storage` 提供配置、流检查和 driver contract；默认不启用，`storage-local` 启用文件系统，`storage-s3` 增加 S3 服务和 Rustls HTTP transport；OpenDAL facade 关闭默认 feature，仅开启相应服务。S3 签名依赖链使用 `tiny-keccak`（CC0-1.0），许可在 `deny.toml` 中显式允许 |
 | 邮件 / 短信 | `lettre` 0.11 + log/fake；`mail-smtp` 启用 Tokio/Rustls STARTTLS，仅本机 loopback 可显式关闭；`sms-twilio` 复用 `http-client` 与 `base64` | 本机 Mailpit SMTP 实收已有验收记录；真实 Twilio 投递待授权账号和目标，log/fake 不能代替送达证据 |
 | 模板 | 可选 `mail-templates` 使用 MiniJinja `~2.24.0`（关闭默认 feature，仅 `builtins`、`fuel`、`multi_template`、`serde`、`unicode`）；`LocalizedEmail` 与 `I18n` 仍负责普通消息和主题翻译 | 仅受信任编译期应用资源、严格变量与自动 HTML 转义；不提供文件/网络 loader；邮件模板不扩展为通用页面模板系统 |
+| 通用数据交换 | 可选 `data-exchange` 使用 `csv` 1.4、`calamine` 0.37、`rust_xlsxwriter` 0.101、`zip` 9.x 与 `quick-xml` 0.42 | CSV 逐记录处理；XLSX 读取使用 cell streaming，写入启用 constant-memory；限制 ZIP 展开、shared strings 数量和表格行列/单元格。CSV 为 MIT OR Unlicense；其余依赖 MIT 或 MIT OR Apache-2.0；组件 MSRV 1.73/1.88，均低于 workspace 1.97；压缩、加密等非必要 zip feature 关闭 |
 
 ## 工具链
 

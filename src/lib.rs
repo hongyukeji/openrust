@@ -8,6 +8,8 @@ pub mod audit;
 pub mod cache;
 pub mod config;
 pub mod core;
+#[cfg(feature = "data-exchange")]
+pub mod data_exchange;
 pub mod db;
 pub mod events;
 pub mod http;

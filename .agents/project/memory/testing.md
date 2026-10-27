@@ -4,6 +4,14 @@
 > 更新：2026-10-27
 > 摘要：源码交付、HTTP 生命周期、双库与生成项目当前可复验入口。
 
+## F8-A CSV/XLSX 解析与转换
+
+- 定向入口：`cargo test -p openrust --features data-exchange --lib data_exchange::tests`、`cargo test -p server --features data-exchange --test data_exchange`。
+- 独立 consumer：`cargo check --manifest-path examples/data-exchange/Cargo.toml --locked` 与 `cargo test --manifest-path examples/data-exchange/Cargo.toml --locked`；示例通过相对 path 依赖使用公开 API，不含 registry patch 或开发者机器绝对路径。
+- 核心测试 8 项通过，覆盖 CSV BOM/类型/逐行错误/重复表头/输入上限/行与全局错误上限/callback 失败/公式注入，XLSX 类型保真/公式拒绝/shared string 声明上限/宏拒绝/ZIP 展开上限，以及 apps/server feature 接入 1 项通过。
+- `cargo fmt --all --check`、默认和 all-features workspace clippy/tests、warnings-denied 默认与 all-features Rustdoc、`cargo check -p openrust --no-default-features`、`cargo deny check` 均通过。cargo-deny 保留既有 duplicate dependency 与未匹配 MPL allowance 警告，advisories/bans/licenses/sources 通过。
+- F8-B 另需双库分批事务/失败恢复、租户和查询授权、队列取消进度及报告生命周期真实验收；F8-A 测试不能代替。
+
 ## M5 可选外部身份：OIDC（F7 子簇）
 
 `cargo test -p openrust --features auth-oidc auth::oidc::tests --lib` 覆盖 ID Token 签名、issuer/audience/nonce/`at_hash`、未知 `kid`、不安全授权 URL 拒绝与 Debug 脱敏。`apps/server/tests/auth/oidc.rs` 的浏览器绑定、回调单次消费、显式绑定/解绑、邮箱冲突与审计事务测试在 PostgreSQL 18 和 MySQL 8.4 各真实通过 1 项。启用 `auth-mfa` 后，同一真实数据库用例还贯通本地账户注册/验证、TOTP enrollment、外部身份绑定、关联 MFA challenge、完成第二因子后自动绑定 refresh family、关联 Session 及 RP logout 撤销；完成 MFA 前确认没有 refresh family。provider fake 的隔离库测试还验证未登记 post-logout redirect 在本地撤销前被拒绝、拒绝后 refresh 仍可轮换；IdP 未提供 logout endpoint 时只完成本地 refresh/Session 撤销并返回无远程 URL。分别运行 `OPENRUST_TEST_DATABASE_URL=... cargo test -p server --features 'auth-oidc auth-mfa db-postgres' --test auth_oidc -- --nocapture` 与 `OPENRUST_TEST_DATABASE_URL=... cargo test -p server --features 'auth-oidc auth-mfa db-mysql' --test auth_oidc -- --nocapture`。测试 URL 需要具备创建/删除隔离库权限。
