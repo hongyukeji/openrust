@@ -73,6 +73,8 @@ storage-s3 = ["storage-local", "openrust/storage-s3"]
 data-exchange = ["openrust/data-exchange"]
 data-exchange-tasks = ["openrust/data-exchange-tasks"]
 grpc = ["openrust/grpc"]
+realtime = ["openrust/realtime"]
+realtime-redis = ["realtime", "openrust/realtime-redis"]
 
 [[test]]
 name = "auth"
@@ -120,6 +122,11 @@ required-features = ["data-exchange-tasks"]
 name = "grpc"
 path = "tests/grpc.rs"
 required-features = ["grpc"]
+
+[[test]]
+name = "realtime"
+path = "tests/realtime.rs"
+required-features = ["realtime"]
 
 [[test]]
 name = "db_connection"

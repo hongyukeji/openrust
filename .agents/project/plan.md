@@ -2,17 +2,17 @@
 
 > 受众：AI Agent
 > 更新：2026-10-27
-> 摘要：底层目录收尾、F8 数据交换及 gRPC G2a–G2c、G3a 联合生命周期、G3b proto/trace 兼容与 G3c 双节点 HTTP/2 路由均已完成相应验收；当前按 `todo.md` 继续后续 M5 实时/可观测性簇。完整 v1 验收通过后进入 v2 后台。
+> 摘要：底层目录收尾、F8 数据交换、gRPC G1–G3c 及 M5 实时跨节点在线路由均已有对应验收；当前按 `todo.md` 继续可观测性与生产资源簇。完整 v1 验收通过后进入 v2 后台。
 
 ## 当前里程碑
 
-根 `openrust` package 已承载框架模块；原 M0–M2 基础范围及 M3 本地认证/安全运行时验收已有证据。M4/M5 已完成多项队列、调度、缓存、数据库访问、存储与安全子簇，**完整 M4 和 v1 尚未完成**，生产 worker 负载、实时、观测及全栈集群门禁仍在待办。gRPC G3c 已以 Envoy 1.40.1 和两个独立 Linux 节点完成同 Channel HTTP/2 分流、健康摘流、长流中断/重连及节点恢复验收。F7 SSO 已在 PostgreSQL 18/MySQL 8.4、Keycloak 26.8.1、Redis 8 上完成双 client/双应用/每应用双 API 子进程真实验收，涵盖 callback/logout、MFA/logout、refresh/logout 竞态、跨节点凭据拒绝、节点重启重放与 JWT 窗口；隔离 Redis 停机期间返回 503，恢复服务并重启四个 API 副本后，同一真实 Logout Token 重放成功，本簇完整门禁通过。
+根 `openrust` package 已承载框架模块；原 M0–M2 基础范围及 M3 本地认证/安全运行时验收已有证据。M4/M5 已完成多项队列、调度、缓存、数据库访问、存储、安全、gRPC 与实时通信子簇，**完整 M4 和 v1 尚未完成**，生产 worker 负载、可观测性与全栈集群门禁仍在待办。实时能力已用两个真实 API 子进程和 Redis 8 验证 WebSocket/SSE 跨节点路由、Origin 拒绝、撤销、SIGTERM drain 及 Redis 不可达时 fail-closed。gRPC G3c 已以 Envoy 1.40.1 和两个独立 Linux 节点完成同 Channel HTTP/2 分流、健康摘流、长流中断/重连及节点恢复验收。F7 SSO 已在 PostgreSQL 18/MySQL 8.4、Keycloak 26.8.1、Redis 8 上完成双 client/双应用/每应用双 API 子进程真实验收，涵盖 callback/logout、MFA/logout、refresh/logout 竞态、跨节点凭据拒绝、节点重启重放与 JWT 窗口；隔离 Redis 停机期间返回 503，恢复服务并重启四个 API 副本后，同一真实 Logout Token 重放成功，本簇完整门禁通过。
 
 目录收尾已完成：工具包位于 `cli/`、`macros/`、`testing/`，examples/tests 按应用/能力分组；迁移前后 workspace package 数与 265 个可列测试条目一致，server 保留为真实进程/双库宿主。完整验证与提交见 [progress.md](progress.md) 和 [目录收尾 Spec](plans/module-layout-migration-spec.md)。
 
 ## 执行校准
 
-**[ADR-039](decisions/adr-039-source-workspace-distribution.md) 的源码 workspace、包命名、生成器、应用启动/配置隔离和双库验收已完成并提交；C1–C3 中文化亦已完成。M3/M4 认证事务扩展、共享锁/幂等、worker 修正、日历/国际化/邮件通知及 M4 生成集成已按双库和 workspace 门禁验收；M5 插件/Db/Queue 扩展、HTTP 生命周期、缓存/Redis Queue、查询授权、迁移互斥、存储/上传下载、受限出站与依赖韧性及 OIDC/TOTP 子簇均按各自证据完成。F7 SSO 已在 Keycloak 26.8.1、PostgreSQL 18/MySQL 8.4 与 Redis 8 上完成双应用×双 API 子进程、TCP 负载均衡、callback/logout 与 MFA/refresh 竞态、真实 Redis 停机 503/恢复后副本重启及 Logout Token 重放；本簇完整门禁通过。F6-A/F6-B 租户上下文、查询隔离与共享资源传播均已完成双库及 workspace 验收；F8-A/F8-B 已完成，F8-B 通过真实 PostgreSQL 18/MySQL 8.4 任务验收及独立 consumer 验证，gRPC G1 基础与生成已完成并通过真实 TCP/consumer 验收，G2a TLS/mTLS、G2b 身份/错误映射和 G2c 调用预算/资源/健康停机均已通过对应真实 TCP 与 workspace 门禁；G3a 联合 HTTP/RPC 生命周期、G3b Proto/trace 兼容与 G3c 双节点 HTTP/2 路由均已完成并验证；当前按 `todo.md` 继续后续 M5 实时/可观测性簇。
+**[ADR-039](decisions/adr-039-source-workspace-distribution.md) 的源码 workspace、包命名、生成器、应用启动/配置隔离和双库验收已完成并提交；C1–C3 中文化亦已完成。M3/M4 认证事务扩展、共享锁/幂等、worker 修正、日历/国际化/邮件通知及 M4 生成集成已按双库和 workspace 门禁验收；M5 插件/Db/Queue 扩展、HTTP 生命周期、缓存/Redis Queue、查询授权、迁移互斥、存储/上传下载、受限出站与依赖韧性及 OIDC/TOTP 子簇均按各自证据完成。F7 SSO 已在 Keycloak 26.8.1、PostgreSQL 18/MySQL 8.4 与 Redis 8 上完成双应用×双 API 子进程、TCP 负载均衡、callback/logout 与 MFA/refresh 竞态、真实 Redis 停机 503/恢复后副本重启及 Logout Token 重放；本簇完整门禁通过。F6-A/F6-B 租户上下文、查询隔离与共享资源传播均已完成双库及 workspace 验收；F8-A/F8-B 已完成，F8-B 通过真实 PostgreSQL 18/MySQL 8.4 任务验收及独立 consumer 验证，gRPC G1 基础与生成已完成并通过真实 TCP/consumer 验收，G2a TLS/mTLS、G2b 身份/错误映射和 G2c 调用预算/资源/健康停机均已通过对应真实 TCP 与 workspace 门禁；G3a 联合 HTTP/RPC 生命周期、G3b Proto/trace 兼容与 G3c 双节点 HTTP/2 路由均已完成。M5 WebSocket/SSE 已按 ADR-059 实现，并完成真实 Redis 双 API 路由及故障关闭验收；当前按 `todo.md` 继续可观测性与生产资源簇。
 
 1. 目录收尾、M3 Mailer/Policy 生成器、公开 HTTP 路由限流及数据输出/查询边界、M4 类型化事件/queued listener、ADR-039 源码交付、ADR-047 查询授权和 ADR-048 稳定键分批已完成；后续工作按 `todo.md` 当前优先级推进。
 2. 目录和内部 package 统一使用中性职责名，ADR-039 已完成；已完成目录迁移不重做。框架在 `src/`；CLI、proc-macro、测试工具保留独立 package 的技术边界，应用约定 `apps/` 保留；`apps/server` 继续承担集成宿主职责。见 [ADR-021](decisions/adr-021-loco-style-module-layout.md)。
@@ -34,13 +34,13 @@
 
 17. **底层缺口按 [底层补齐计划](plans/v1-foundation-completion.md) F1–F10 全部交付**。cron、缓存 tag、高级 i18n、轻量 fixtures、租户通用隔离和外部身份接入等旧后置/排除口径已校准；具体 API/默认语义先定 Spec，不再重复评估是否需要交付。仅后续适配清单保持评估状态。
 
-18. **F7 包含 [SSO 登录与统一退出](plans/v1-foundation-completion.md#sso-登录与统一退出)**：OIDC、TOTP/恢复码及双应用 SSO/退出的真实双库多进程专项、Redis 故障恢复和本簇门禁均已通过；F8-A/F8-B 已完成，gRPC G1 已完成，当前按 todo 推进 G2，M6 按完整集群计划复验。JWT 撤销窗口与共享状态边界按 ADR-055 报告。
+18. **F7 包含 [SSO 登录与统一退出](plans/v1-foundation-completion.md#sso-登录与统一退出)**：OIDC、TOTP/恢复码及双应用 SSO/退出的真实双库多进程专项、Redis 故障恢复和本簇门禁均已通过；F8-A/F8-B、gRPC G1–G3c 和 ADR-059 实时路由均已完成对应验收，M6 按完整集群计划复验。JWT 撤销窗口与共享状态边界按 ADR-055 报告。
 
 ## 里程碑顺序
 
 | 顺序 | 工作 | 完成门槛 |
 | --- | --- | --- |
-| 当前 | M5 gRPC G3 集群与组合 | 联合运行 HTTP/RPC、双节点 HTTP/2 负载分配、摘流/滚动/重连、proto 新旧互通与追踪关联 |
+| 当前 | M5 可观测性与生产资源 | readiness、低基数 metrics/otel、依赖健康和并发资源边界、性能基线 |
 | M4 | 流程扩展、共享锁/幂等、worker 修正、日历调度、国际化/邮件模板与队列通知 | 双库并发/故障、DST/补跑、模板/通知、job 生成与组合运行 |
 | M5 | 插件公开契约与外部扩展、运行/迁移保障、缓存/存储、查询/租户、外部身份/MFA、数据交换、gRPC/实时/观测 | 独立扩展、真实驱动、跨协议/租户隔离、身份协议、双库与多节点资源边界 |
 | M6 | 插件模板/诊断/升级、CLI/dev/doctor、应用模板覆盖、fixtures/TestApp、OpenAPI、示例与正式文档 | 双库黄金路径、源码升级、构建成本及兼容/集群/性能门禁 |

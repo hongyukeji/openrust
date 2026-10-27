@@ -4,6 +4,21 @@
 > 更新：2026-10-27
 > 摘要：源码交付、HTTP 生命周期、双库与生成项目当前可复验入口。
 
+## M5 WebSocket 与 SSE 跨节点路由
+
+按 [ADR-059](../decisions/adr-059-realtime-transport.md) 启用 `realtime` / `realtime-redis`。在本机已有 Redis 8.10.2 上通过独立示例执行：
+
+```bash
+OPENRUST_REALTIME_TEST_REDIS_URL=redis://127.0.0.1:6379/ \
+  cargo test --locked --manifest-path examples/realtime/Cargo.toml --test cluster -- --nocapture
+```
+
+2026-10-27 实际通过：两个独立 API 子进程经 Redis Pub/Sub 路由 WebSocket 和 SSE；真实 TCP 客户端验证 Origin allowlist、跨节点用户撤销、SIGTERM 时两类会话关闭与进程退出。测试随后启动一个 Redis 地址为 `127.0.0.1:1` 的 API 进程，确认在线发布返回 `realtime_transport_unavailable`，不存在本地静默成功。另 `cargo test -p server --features realtime --test realtime -- --nocapture` 通过 AuthLayer、Origin 与 SSE 响应头聚合 HTTP 测试；实时 service 单元测试 4 项覆盖过期、载荷/Origin 限制、连接投递/撤销、慢消费者上限。
+
+本簇门禁实际通过：workspace fmt、默认/all-features all-target Clippy、默认/all-features workspace tests、warnings-denied all-features workspace Rustdoc、根与独立示例 cargo-deny、独立示例 all-target/all-features Clippy 及 `git diff --check`；真实跨节点命令如上。cargo-deny 的 advisories/bans/licenses/sources 均通过，保留既有重复依赖与未匹配 MPL allowance 警告。整组验证结束时根 `target/` 与 `examples/realtime/target/` 合计约 13 GiB，所在卷可用 86 GiB（低于 10%）；无构建进程、Cargo dry-run 分别预览根 target 12.5 GiB 与示例 target 2.7 GiB 后，对两处 target 执行 Cargo clean，回收约 15.2 GiB；清理后仓库 target 均为空，卷可用空间为 99 GiB（约 10.7%）。软告警剩余量由仓库外磁盘占用造成，未删除其他文件。
+
+该证据不代表 Redis 断开期间 Pub/Sub 可恢复消息，也不代表 PostgreSQL/MySQL 全栈集群、负载均衡、worker/scheduler、滚动升级或性能门禁通过；M6 仍需复验。用法与边界见 [examples/realtime/README.md](../../../examples/realtime/README.md)。
+
 ## M5 gRPC G1 基础与生成
 
 按 [ADR-040](../decisions/adr-040-grpc-integration.md) 增加可选 `grpc` feature、配置校验、服务注册/冲突检测、默认及具名共享 Channel、`grpc serve` 命令、应用自有 proto/build.rs 生成和 loopback TCP 示例。默认 feature 不启用 tonic/prost/protoc；G1 只接受明文 `http://` client endpoint，TLS/认证/health/配额由 G2 交付。
@@ -199,7 +214,7 @@ CLI 模板快照测试：`cargo test -p openrust-cli`。生成 PostgreSQL、MySQ
 
 - `cargo metadata --no-deps --format-version 1` 确认根 package 为 `openrust`，workspace 共五个成员：`openrust`、`openrust-cli`、`openrust-macros`、`openrust-test`、`openrust-server`。
 - 无默认、默认、关键单独 feature、all-features 编译已检查；workspace default/all-features clippy 与 test、warnings-denied rustdoc、`cargo deny check` 均通过。`cargo deny` 仍会输出重复版本依赖提示，但无 advisory、license、ban 或 source 失败；JWT 使用 `aws_lc_rs`，不再解析到受 RUSTSEC-2023-0071 覆盖的 `rsa 0.9`。
-- M2 数据库读写分离的 PostgreSQL/MySQL 真实复制拓扑已单独通过（见上文）；其余尚未验收的范围包括 Redis、生产负载下多 worker/旧 token 竞态、跨节点实时通信、S3 与完整集群，继续按 `todo.md` 和各专题计划推进。
+- M2 数据库读写分离的 PostgreSQL/MySQL 真实复制拓扑已单独通过（见上文）；其余尚未验收的范围包括 Redis 最低版本、生产负载下多 worker/旧 token 竞态、M6 全栈集群、S3 bucket-version 专项与完整性能门禁，继续按 `todo.md` 和各专题计划推进。实时在线跨节点单项验收见本文件 M5 ADR-059。
 - PostgreSQL 14 / MySQL 8.0 结果是历史兼容性证据；当前暂定下限已采用 PostgreSQL 14+ / MySQL 8.0+，但这些结果不替代发布前对完整承诺能力的最低版本复核。Redis 6.2+ 的真实兼容性在 M5 driver 落地后验证。
 
 2026-10-26 ADR-034 应用数据加密/本地轮换：`cargo test -p openrust --features encryption security::tests` 8 项通过，包含 RFC 8452 AES-256-GCM-SIV 向量、二进制/空明文、随机 nonce、context、active key 写入/历史 key 解密、篡改/格式/越界、配置脱敏与多 Encryptor 互解；`cargo test -p openrust-cli` 11 项通过，包含 32-byte Base64 key generation 与 `--encryption` 模板；`cargo check -p openrust-server --features encryption` 通过。实际 CLI 生成项目 `/tmp/openrust-encryption-generated-20261026` 使用本地 Cargo path patch 通过 `cargo check`、`cargo test`，并用环境 key 执行 `cargo run -- config show`；输出中的 active key ID 与 key map 值均为 `********`。最终 default/all-features workspace tests、all-features clippy、warnings-denied default/all-features docs、`cargo deny check` 和 `git diff --check` 通过；cargo-deny 保留既有重复依赖与未使用 MPL allowance 警告，advisories/bans/licenses/sources 通过。该簇无数据库读写，不要求新增双库集成验收。测试应用 all-features 时显式注入测试 key ring；生产默认配置不含 key。

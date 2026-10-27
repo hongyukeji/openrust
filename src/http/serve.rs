@@ -96,6 +96,10 @@ where
         }
         () = shutdown => {
             readiness.stop_accepting();
+            #[cfg(feature = "realtime")]
+            if let Some(realtime) = state.get::<crate::realtime::Realtime>() {
+                realtime.begin_shutdown().await;
+            }
             let deadline = tokio::time::Instant::now() + timeout;
             let _ = shutdown_tx.send(());
             let server_result = tokio::time::timeout_at(deadline, &mut server).await;

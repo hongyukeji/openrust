@@ -37,7 +37,7 @@ macros = { path = "macros", version = "0.0.0" }
 testing = { path = "testing", version = "0.0.0" }
 server = { path = "apps/server", version = "0.0.0" }
 
-tokio = { version = "1.54", features = ["rt-multi-thread", "macros", "signal", "net", "time", "io-util", "fs"] }
+tokio = { version = "1.54", features = ["rt-multi-thread", "macros", "signal", "net", "time", "io-util", "fs", "sync"] }
 tokio-stream = { version = "0.1", features = ["net"] }
 tonic = { version = "~0.14.6", default-features = false, features = ["codegen", "router", "transport", "tls-ring"] }
 tonic-prost = "~0.14.6"
@@ -263,6 +263,8 @@ test-util = []
 data-exchange = ["dep:csv", "dep:calamine", "dep:rust_xlsxwriter", "dep:zip", "dep:quick-xml"]
 data-exchange-tasks = ["data-exchange", "queue", "dep:tempfile"]
 grpc = ["dep:tonic", "dep:tonic-prost", "dep:prost", "dep:tokio-stream", "dep:tonic-health", "dep:tonic-reflection", "dep:http-body", "dep:http-body-util"]
+realtime = ["auth", "axum/ws", "dep:uuid"]
+realtime-redis = ["realtime", "dep:redis"]
 cache-redis = ["dep:redis"]
 session-redis = ["auth", "dep:redis"]
 storage-local = ["dep:opendal"]

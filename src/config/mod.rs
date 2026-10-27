@@ -33,6 +33,8 @@ pub mod logger;
 pub mod mailer;
 #[cfg(feature = "queue")]
 pub mod queue;
+#[cfg(feature = "realtime")]
+pub mod realtime;
 #[cfg(feature = "encryption")]
 pub mod security;
 pub mod server;
@@ -51,6 +53,8 @@ pub use logger::{LogConfig, LogFormat};
 pub use mailer::MailConfig;
 #[cfg(feature = "queue")]
 pub use queue::{QueueConfig, QueueDriverKind};
+#[cfg(feature = "realtime")]
+pub use realtime::RealtimeConfig;
 #[cfg(feature = "encryption")]
 pub use security::EncryptionConfig;
 pub use server::{CompressionConfig, CorsConfig, ServerConfig};
@@ -177,6 +181,9 @@ pub struct FrameworkConfig {
     pub log: LogConfig,
     /// `I18nPlugin` 使用的 `[i18n]` locale 默认值。
     pub i18n: crate::i18n::I18nConfig,
+    /// `[realtime]` 区段；仅在启用 `realtime` feature 时存在。
+    #[cfg(feature = "realtime")]
+    pub realtime: RealtimeConfig,
     /// `[grpc]` 区段；仅在启用 `grpc` feature 时存在。
     #[cfg(feature = "grpc")]
     pub grpc: GrpcConfig,

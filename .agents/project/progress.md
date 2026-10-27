@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-27
-> 摘要：框架处于 v1 M5，尚未达到完整 v1。源码 workspace、C1–C3 中文化、M3/M4 已列能力及 M5 各基础设施子簇均有适用验收证据；F8-A/F8-B 已完成 workspace、consumer 与 PostgreSQL 18/MySQL 8.4 真实数据库验收。gRPC G1、G2a–G2c、G3a 联合生命周期、G3b proto/trace 兼容与 G3c 双节点 HTTP/2 路由已通过相应真实 TCP、双节点代理、workspace 和 consumer 门禁。v1 完整集群、生产和性能最终门禁仍未完成。
+> 摘要：框架处于 v1 M5，尚未达到完整 v1。源码 workspace、C1–C3 中文化、M3/M4 已列能力及 M5 各基础设施子簇均有适用验收证据；F8-A/F8-B 已完成 workspace、consumer 与 PostgreSQL 18/MySQL 8.4 真实数据库验收。gRPC G1–G3c 与 WebSocket/SSE 双 API 跨节点在线路由均通过相应真实服务/网络验收。v1 完整集群、生产和性能最终门禁仍未完成。
 
 ## F7 SSO 验收完成
 
@@ -20,6 +20,12 @@
 
 ## 已有交付与边界
 
+## M5 ADR-059 WebSocket 与 SSE 在线实时路由
+
+`openrust::realtime` 提供应用自有路由的在线 WebSocket/SSE session、连接/消息/队列字节上限、Origin 校验辅助、过期自动关闭、用户频道在线投递和显式用户撤销；公开 `RealtimeTransport` 可替换共享 transport，`realtime-redis` 复用项目现有 Redis 依赖。SSE 有心跳且无离线回放；Redis Pub/Sub 不确认客户端收到，订阅断开可能丢消息，跨节点发布失败返回错误且不回退本地。应用仍负责认证、授权、可信频道、凭据撤销时调用 revoke，以及敏感载荷边界。
+
+`apps/server/tests/realtime.rs` 以聚合 App/真实 HTTP Router 覆盖 AuthLayer、Origin 与 SSE 协议头。单元测试覆盖连接过期、Origin/载荷上限、用户频道投递和撤销、慢消费者断开。真实验收 `examples/realtime/tests/cluster.rs::two_real_api_processes_route_websocket_and_sse_through_redis` 启动两个独立 API 进程，并用本机 Redis 8.10.2 和真实 WebSocket/SSE TCP 客户端验证跨节点消息、错误 Origin、撤销广播、SIGTERM 关闭两类会话及进程退出；另启动单独节点连接不可达 Redis 并确认请求错误码 `realtime_transport_unavailable`。用法和信任边界见 `examples/realtime/README.md`；CI 已增加 Redis 8 集群 job。以上不是 M6 全栈集群或 Redis 断连期间无损保证。
+
 | 能力 | 当前实现与证据 | 尚未覆盖 |
 | --- | --- | --- |
 | 根模块与配置 | 框架合入根 `src/`；typed config、APP_ 可定制命名空间、`.env` 生产隔离与脱敏；默认/关键 features 和生成项目已有验证 | 无本簇剩余项 |
@@ -34,7 +40,7 @@
 | 目录与测试入口收尾 | CLI/macros/test packages 已迁至 `cli/`、`macros/`、`testing/`；hello 位于 `examples/hello/main.rs`；根 HTTP 和 server integration targets 按能力分组并显式保留 target 名。迁移前后均为 5 个 package、265 个可列测试条目。PG18/MySQL8.4 server all-features 集成各 40 项通过；生成 PostgreSQL/MySQL `--auth` 项目各通过 fmt/check/真实 auth_flows HTTP test；hello TCP HTTP 200；workspace fmt/clippy/test/docs、deny 与 no-default check 通过。`apps/server` 保留；旧 `crates/` 源码和目录已移除。 | 无本簇剩余项 |
 | Scheduler | UTC interval/daily slot、数据库时钟、slot 与 job 原子去重、run/once/list；双库独立进程竞争/异常退出/SIGTERM 已验证 | 不含 cron/IANA/DST；生产资源、滚动升级和完整拓扑验收未完成 |
 | CLI 与测试工具 | new、model/migration/mailer/policy/job 生成、dev/运行命令代理、TestDatabase；job 生成同时启用 app/migration queue feature、登记 QueueMigration 与 JobsPlugin；生成项目 PG18/MySQL8.4 check/test、双库队列 targets、真实 PostgreSQL API/worker/scheduler 组合通过 | controller/scaffold/command 生成器、依赖编排/watch、doctor、TestApp/HTTP assertions、黄金路径/正式文档 |
-| 缓存、存储、实时 | 统一 Cache 与 memory/file/Redis/custom drivers、named stores、tag generation 和有界单进程同键 loader 合并已实现；真实 Redis tag 与应用聚合 singleflight、workspace 门禁通过 | 完整分布式缓存生产负载仍待验证；local/S3 存储、上传扩展、WebSocket/SSE 及可观测性仍待完成 |
+| 缓存、存储、实时 | 统一 Cache 与 memory/file/Redis/custom drivers、named stores、tag generation 和有界单进程同键 loader 合并已实现；真实 Redis tag 与应用聚合 singleflight、workspace 门禁通过；ADR-059 WebSocket/SSE 已完成双 API 进程真实 Redis 在线路由、撤销、停机及依赖失败验收 | 完整分布式缓存生产负载、完整集群、可观测性仍待验证；存储与上传扩展事实见其专题 |
 
 具体 API 只在 [core/](core/) 维护，验收入口见 [testing.md](memory/testing.md)，声明边界见 [verification.md](memory/verification.md)。Git 中的未提交改动只算 WIP，不因文档先写“实现”而升为交付。
 
@@ -59,7 +65,7 @@
 
 ## 下一步
 
-F8-A/B 均已完成。gRPC G1 基础与生成已通过真实 TCP、生成项目、独立 consumer 及 workspace 门禁；G2a TLS/mTLS、G2b 身份/错误映射、G2c 调用预算/资源/健康停机、G3a 联合 HTTP/RPC 生命周期、G3b proto/trace 兼容和 G3c 双节点路由均已完成；下一步按 [todo.md](todo.md) 推进后续 M5 实时与可观测性簇。G1、G3a/G3b 及 F8-B 验收证据见 `memory/testing.md`。F6-A/F6-B 租户查询隔离和共享资源传播已通过双库与 workspace 验收。随后执行完整 v1 性能、生产就绪与集群门禁。Worker 与 scheduler 专项双库证据不覆盖生产多实例负载与完整集群门禁。组件整合与 Laravel 式体验按 ADR-001；不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
+F8-A/B 均已完成。gRPC G1 基础与生成已通过真实 TCP、生成项目、独立 consumer 及 workspace 门禁；G2a TLS/mTLS、G2b 身份/错误映射、G2c 调用预算/资源/健康停机、G3a 联合 HTTP/RPC 生命周期、G3b proto/trace 兼容和 G3c 双节点路由均已完成；M5 ADR-059 WebSocket/SSE 已完成真实 Redis 跨节点在线路由和故障关闭验收。下一步按 [todo.md](todo.md) 推进 M5 可观测性与生产资源簇，然后执行完整 v1 性能、生产就绪与集群门禁。相关验收证据见 `memory/testing.md`。F6-A/F6-B 租户查询隔离和共享资源传播已通过双库与 workspace 验收。Worker 与 scheduler 专项双库证据不覆盖生产多实例负载与完整集群门禁。组件整合与 Laravel 式体验按 ADR-001；不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
 
 ## 本次文档核对范围
 

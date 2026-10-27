@@ -110,6 +110,7 @@ pub enum AuthSource {
 }
 
 /// 复用既有 JWT 与 Authenticator 校验 RPC Bearer；gRPC 不接受 Cookie Session。
+#[cfg(feature = "grpc")]
 pub(crate) async fn authenticate_grpc_bearer(state: &AppState, value: &str) -> Result<CurrentUser> {
     if value.trim().is_empty() {
         return Err(Error::Unauthorized);
@@ -193,6 +194,15 @@ impl CurrentUser {
     pub fn has_ability(&self, ability: &str) -> bool {
         self.token_abilities()
             .is_some_and(|abilities| abilities.iter().any(|item| item == ability))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn test_user(id: i64) -> Self {
+        Self {
+            id,
+            source: AuthSource::PersonalAccessToken,
+            token_abilities: Some(Arc::from(Vec::<String>::new())),
+        }
     }
 }
 

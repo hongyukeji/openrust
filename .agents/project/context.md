@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-27
-> 摘要：OpenRust 当前处于 v1 M5；源码 workspace、C1–C3 中文化及已列 M3/M4/F6/F7/F8 能力均按各自契约验收。gRPC G1、G2a–G2c、G3a HTTP/RPC 联合生命周期、G3b proto/trace 兼容及 G3c 双节点 HTTP/2 路由均已完成对应验证；当前按 todo.md 继续 M5 实时与可观测性。全栈多服务集群、v1 性能与生产门禁仍未完成。
+> 摘要：OpenRust 当前处于 v1 M5；源码 workspace、C1–C3 中文化及已列 M3/M4/F6/F7/F8 能力均按各自契约验收。gRPC G1–G3c 与 ADR-059 WebSocket/SSE 真实跨节点在线路由均已完成对应验证；当前按 todo.md 继续 M5 可观测性与生产资源。全栈多服务集群、v1 性能与生产门禁仍未完成。
 
 ## 当前状态
 
@@ -36,11 +36,11 @@
 - 允许按相关功能簇借鉴 OpenSpring 的优秀设计思想；先只读核对来源代码，评估已有能力并按 Rust 语义适配，记录取舍和验收，不机械移植或引入平行系统，见 [跨语言设计参考](plans/framework-design.md#跨语言设计参考)。
 - 集群部署是 v1 必须项：多 API/worker/scheduler、共享状态、跨节点实时投递、滚动发布及故障恢复必须有双库多副本证据，见 [集群计划](plans/v1-cluster-deployment.md)；进程内或节点本地能力不能冒充共享状态。
 - gRPC 已按 [ADR-040](decisions/adr-040-grpc-integration.md) 正式纳入 v1 底层范围，M5 交付服务端/客户端、四类调用、安全/流资源、生成与真实集群验收；旧“仅 v2 候选”已失效。G1 基础/生成已完成并提交；G2a TLS/mTLS、G2b JWT/PAT/Policy 身份与错误映射、G2c deadline/资源限制/health/reflection/有界停机、G3a HTTP/RPC 联合运行及 G3b 新旧 proto/traceparent 兼容均已通过对应 TCP 与 workspace 门禁；G3c 双节点路由已按 `todo.md` 验收；全栈集群仍留在 M6 最终门禁。跨协议验证/上下文、出站策略和生产保障见 [能力覆盖](plans/v1-capability-coverage.md)。
-- V1 缺口已确认补齐，见 [底层补齐计划](plans/v1-foundation-completion.md)：日历调度、邮件模板、国际化表达、缓存 tag/SWR/同键加载、查询授权、可选租户隔离、外部 OAuth2/OIDC/SSO 与 TOTP、CSV/XLSX、模板覆盖和轻量 fixtures 均须交付。“可选”指应用启用方式，不是可省略开发。更多适配按该计划后续清单另行评估；ADR-047 查询授权、ADR-048 稳定键分批、ADR-049 迁移互斥、ADR-050 存储与上传下载及 ADR-051 出站目标安全和 ADR-052 命名依赖韧性均已完成，OIDC 与 TOTP/恢复码子簇均已完成；F7 双应用 SSO/统一退出已完成；F6-A/F6-B 可信租户上下文、查询隔离及 Cache、Queue、Storage、Audit 传播已完成；F8-A/B CSV/XLSX 数据交换已通过双库验收；gRPC G1 基础/生成、G2a TLS/mTLS、G2b 身份/错误映射、G2c 调用预算/资源/health/reflection/有界停机及 G3a HTTP/RPC 联合生命周期与 G3b proto/trace 兼容已通过对应验收，G3c 双节点 HTTP/2 路由已验收通过；后续按 `todo.md` 继续 M5 实时与可观测性簇。
+- V1 缺口已确认补齐，见 [底层补齐计划](plans/v1-foundation-completion.md)：日历调度、邮件模板、国际化表达、缓存 tag/SWR/同键加载、查询授权、可选租户隔离、外部 OAuth2/OIDC/SSO 与 TOTP、CSV/XLSX、模板覆盖和轻量 fixtures 均须交付。“可选”指应用启用方式，不是可省略开发。更多适配按该计划后续清单另行评估；ADR-047 查询授权、ADR-048 稳定键分批、ADR-049 迁移互斥、ADR-050 存储与上传下载及 ADR-051 出站目标安全和 ADR-052 命名依赖韧性均已完成，OIDC 与 TOTP/恢复码子簇均已完成；F7 双应用 SSO/统一退出已完成；F6-A/F6-B 可信租户上下文、查询隔离及 Cache、Queue、Storage、Audit 传播已完成；F8-A/B CSV/XLSX 数据交换已通过双库验收；gRPC G1 基础/生成、G2a TLS/mTLS、G2b 身份/错误映射、G2c 调用预算/资源/health/reflection/有界停机及 G3a HTTP/RPC 联合生命周期与 G3b proto/trace 兼容已通过对应验收，G3c 双节点 HTTP/2 路由和 ADR-059 WebSocket/SSE 实时在线路由均已验收；后续按 `todo.md` 继续 M5 可观测性与生产资源簇。
 - 版本分工：v1 主攻并交付完整通用框架底层能力，v2 完善前端视图与现成后台套件：Rust 服务端、Vue Admin 管理界面、uni-app App；PC 端仅规划设计、暂不开发。Admin 视图骨架采用 pure-admin 精简国际化版 + Element Plus，具体版本按 [v2 计划](plans/v2-admin-platform.md) 的 B1 锁定。后台复用 v1 公共能力，不把组织模型和前端依赖放进 core，见 [版本路线](roadmap.md)。当前先完成 v1 全部门禁再实施 v2；AI模型平台仍须用户另行明确要求开发。
 - 通用加密与密钥轮换在框架进程内完成，默认不依赖第三方服务；普通路径只需密钥配置及加解密调用，采用当前密钥写入、历史密钥解密，不强制远程密钥中心或复杂算法配置，详见 [通用能力计划](plans/v1-common-capabilities.md)。
 - v1 完整通用底座按 [能力覆盖与归属](plans/v1-capability-coverage.md) 交付；常见底层机制由框架整合，每类职责一个入口，不让业务开发者重复搭建，不因复用 Rust 库而省略框架接入与验收。
-- 国际化、WebSocket、统一出站 HTTP、通用加密与密钥、签名链接、审计、请求幂等均纳入 v1。请求级国际化已按 [ADR-032](decisions/adr-032-request-internationalization.md) 实现；审计记录按 [ADR-035](decisions/adr-035-audit-recording.md) 接入数据库与可替换 sink，并支持同事务写入；签名链接按 [ADR-036](decisions/adr-036-signed-links.md) 实现用途隔离、过期校验和可选共享撤销；邮件/SMS driver 与 Twilio adapter 已按 [ADR-033](decisions/adr-033-sms-driver-and-template-contract.md) 实现，真实 Twilio 实发仍待授权账号与目标；其余范围及待决策建议见 [通用能力计划](plans/v1-common-capabilities.md)。SSE 等其他通用机制按能力覆盖计划补齐，完整实时消息平台另行扩展。
+- 国际化、WebSocket、统一出站 HTTP、通用加密与密钥、签名链接、审计、请求幂等均纳入 v1。请求级国际化已按 [ADR-032](decisions/adr-032-request-internationalization.md) 实现；审计记录按 [ADR-035](decisions/adr-035-audit-recording.md) 接入数据库与可替换 sink，并支持同事务写入；签名链接按 [ADR-036](decisions/adr-036-signed-links.md) 实现用途隔离、过期校验和可选共享撤销；邮件/SMS driver 与 Twilio adapter 已按 [ADR-033](decisions/adr-033-sms-driver-and-template-contract.md) 实现，真实 Twilio 实发仍待授权账号与目标；ADR-059 已提供在线 WebSocket/SSE 与 Redis 跨节点路由，完整多服务集群仍待 M6 门禁。
 - 性能与开箱即用补强按 [专题计划](plans/v1-performance-and-readiness.md) 执行；其中验收要求与待决策建议分开记录，实施前先确定 contract，不以规划代替完成证据。
 - 框架定位：Rust 应用开发的“瑞士军刀”，以高性能为基础，提供开箱即用的常用能力和稳定扩展机制，让开发者直接进入业务开发，减少重复搭建底层设施。性能须以代表性场景实测，不因使用 Rust 就宣称更快。
 - 规划名称统一为“v1 版本”，原 `plans/gen1-plan.md` 路径暂保留以兼容引用；当前开发包版本仍以 `Cargo.toml` 为准，发布与 tag 由开发者执行。

@@ -21,6 +21,8 @@ pub mod mail;
 pub mod notifications;
 #[cfg(feature = "queue")]
 pub mod queue;
+#[cfg(feature = "realtime")]
+pub mod realtime;
 #[cfg(feature = "grpc")]
 pub mod runtime;
 #[cfg(feature = "queue")]
@@ -86,6 +88,8 @@ pub mod prelude {
     };
     #[cfg(feature = "queue")]
     pub use crate::config::QueueConfig;
+    #[cfg(feature = "realtime")]
+    pub use crate::config::RealtimeConfig;
     #[cfg(feature = "signing")]
     pub use crate::config::SignedLinksConfig;
     pub use crate::config::SmsConfig;
@@ -107,6 +111,10 @@ pub mod prelude {
     pub use crate::queue::{
         DatabaseQueue, DispatchOptions, GroupFailurePolicy, Job, JobContext, JobRegistry, Queue,
         QueueDriver, QueueMigration, QueuePlugin, QueueTask, TaskGroup,
+    };
+    #[cfg(feature = "realtime")]
+    pub use crate::realtime::{
+        Realtime, RealtimeMessage, RealtimePlugin, RealtimeSession, RealtimeTransport,
     };
     #[cfg(feature = "queue")]
     pub use crate::schedule::{
