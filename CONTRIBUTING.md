@@ -21,21 +21,22 @@ cargo deny check
 
 **开发者与 AI Agent 都须在整组验证结束后检查空间并清理临时产物。** `target/` 同时保存程序、依赖、测试和增量缓存；不同 feature、工具链及历史包名的构建会累积，不能依赖 Cargo 自动回收。
 
+仓库内全部 `target/` 合计软上限 20 GiB、硬上限 40 GiB。所在磁盘可用空间低于总容量的 20% 是软告警，低于 10% 是硬告警。任一软告警触发后，清理任务临时目录和 `incremental/`，并在开始下一功能簇前把仓库 target 总量降至 20 GiB 内；任一硬告警触发后，暂停新增大型构建矩阵，检查并清理本仓库中体积最大的完整 target，直到低于 40 GiB 且磁盘可用空间恢复至 20% 以上。不要等磁盘耗尽；满足条件时可清理完整 `target/`，不要求只删增量缓存。
+
 在仓库根目录检查默认构建目录（macOS/Linux；尚未构建时目录可能不存在）：
 
 ```bash
-du -sh target
-du -sh target/debug/incremental target/debug/deps target/debug/build
+find . -type d -name target -prune -exec du -sh {} +
 df -h .
 ```
 
 使用 `CARGO_TARGET_DIR`、`--target-dir` 或独立 build-dir 时，检查对应实际路径及其所在磁盘。一次任务中的多轮编译复用缓存，整组验证完成后再收尾：
 
 - 清理本任务为验证创建的临时源码副本、临时生成应用及其专属 target；正式业务应用不属于清理对象。失败或取消也须回收临时产物，诊断需暂留时说明原因。
-- 无构建占用且取得兼容构建锁后清理可再生的 `incremental/`，保留正常二进制、依赖及关联调试产物；下次修改源码后的编译可能变慢，macOS 源级调试也可能需要重建。
-- 保留的依赖产物若持续增长，应检查工具链、feature 与历史包变更，明确清理范围后再处理。需要扩大清理范围时先用 `cargo clean --dry-run` 预览；不把全量 `cargo clean` 设为每次编译后的默认动作，也不按哈希或日期猜测删除 `deps`。
+- 同一功能簇复用缓存，验证结束后无构建占用并取得兼容构建锁时清理 `incremental/`；达到上文软/硬阈值时，按实际 target 归属使用 `cargo clean --dry-run` 预览后执行完整清理。下一次构建会重建删除的文件，增量缓存清理也可能降低后续编译速度。
+- 清理前检查 Cargo、rustc、rustdoc 进程、构建锁和目标实际路径。只对本仓库或本任务明确创建的 target 清理；不要按哈希或日期猜测删除 `deps`，不要更改全局 Cargo 配置或 profile。
 
-删除前须遵守[构建产物与临时资源规范](.agents/project/conventions.md#构建产物与临时资源)中的路径、归属及并发检查。空间收尾属于人工开发与 Agent 的共同责任；当前没有后台自动清理任务。
+删除前须遵守[构建产物与临时资源规范](.agents/project/conventions.md#构建产物与临时资源)中的路径、归属及并发检查。空间收尾属于人工开发与 Agent 的共同责任；当前没有后台自动清理任务，因此每个功能簇必须记录 target 总体积和磁盘剩余空间，不能把“Cargo 会自动回收”作为保留无限增长产物的理由。
 
 ## 提交
 
