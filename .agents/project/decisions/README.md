@@ -16,7 +16,7 @@
 | ADR | 状态 | 当前归属与边界 |
 | --- | --- | --- |
 | [001 自有内核与组件整合](adr-001-own-kernel-on-axum.md) | Accepted | 成熟组件优先；自有组装与公开扩展，Laravel 式开发体验，Rust 惯用 API |
-| [002 SeaORM 与双库](adr-002-seaorm-dual-database.md) | Accepted | PostgreSQL/MySQL 正式矩阵；暂定最低与日常基线分开验证 |
+| [002 SeaORM 与数据库基线](adr-002-seaorm-dual-database.md) | Partially Superseded | PostgreSQL/MySQL 生产与集群基线；SQLite 轻量后端范围见 066 |
 | [005 许可证与 MSRV](adr-005-license-naming-msrv.md) | Partially Superseded | MIT OR Apache-2.0、Edition、MSRV 有效；包命名与分发由 039 替代 |
 | [006 命名与命令](adr-006-rust-native-naming.md) | Partially Superseded | 通用命名有效；命名空间见 016，目录见 021，具体能力 contract 见各 ADR |
 | [007 聚合宿主](adr-007-aggregate-server-entry.md) | Partially Superseded | 集成验收职责有效；宿主迁入根 package 由 062 更新 |
@@ -31,6 +31,7 @@
 | [063 显式业务模块注册](adr-063-explicit-app-module-registry.md) | Accepted | 根 `src/main.rs` 单一启动；根宿主在 `apps/mod.rs` 静态声明并注册业务模块，不扫描或动态加载 |
 | [064 统一示例应用与验收 consumer 收纳](adr-064-canonical-example-application.md) | Accepted | 用户示例统一到 `apps/example/`；独立 consumer/拓扑验收收纳到 `tests/consumers/`；保留编译期显式注册 |
 | [065 框架路由入口与数据模块分层](adr-065-root-routing-and-data-module-layout.md) | Accepted | 路由装配实现位于 `src/routes.rs` 并沿用 RouteRegistry/Tower 扩展；数据交换源码位于 `src/data/exchange/`，旧 API 路径兼容 |
+| [066 可选 SQLite 轻量数据库后端](adr-066-optional-sqlite-backend.md) | Accepted（计划中，未实现） | SQLite 面向单机轻应用；PostgreSQL/MySQL 保持生产与集群基线；实现及功能矩阵验收见专项计划 |
 | [023 应用扩展与体验](adr-023-loco-application-experience-evaluation.md) | Partially Superseded | doctor/TestApp 有效；停机未决项由 037 命令 supervisor 定稿 |
 | [029 读写路由](adr-029-database-read-routing.md) | Accepted | 显式副本、主库 scope；不实现复制/选主 |
 | [030 模块化配置](adr-030-modular-configuration.md) | Accepted | Rust 配置代码与运行时 config 分离；单一 ConfigLoader/.env 规则 |
