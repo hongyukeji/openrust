@@ -1,7 +1,10 @@
 //! 验证组装后 server 的集成边界。
 
-#[path = "../../../apps/mod.rs"]
+#[path = "../../../bootstrap/app.rs"]
 mod apps;
+
+#[path = "../../../routes/web.rs"]
+mod routes;
 
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 use figment::Figment;

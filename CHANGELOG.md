@@ -23,6 +23,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Changed
 
+- 框架源码迁入独立 `framework/` library；根默认应用使用 app/bootstrap/routes/database/resources/storage 职责目录。生成器创建独立 workspace 与本地依赖，不再限定 apps/<name> 或修改源 workspace。
+
 - 错误响应中的 `timestamp_ms` Unix 毫秒数改为 `timestamp` RFC 3339 UTC 字符串（毫秒精度）。
 
 - 将默认运行时配置命名空间切换为 `APP_`；应用可通过 `Application::config_namespace()` 选择一个自定义前缀。

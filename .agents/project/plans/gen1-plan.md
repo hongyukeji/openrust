@@ -121,7 +121,7 @@ openrust queue work
 | M3 邮件、短信、认证与授权 | `openrust::sms`（log / fake / Twilio REST，contract 见 ADR-033；真实供应商实发需授权）、`openrust::mail`（SMTP / log / fake / 本地 Mailpit）、`openrust::auth`（用户约定、Argon2id、JWT access/refresh、可选 Session 与 PAT、`CurrentUser`、注册 / 登录 / 登出 / 密码重置 / 邮箱验证、Policy、角色权限、登录限流）、`openrust::audit`（ADR-035）、`openrust::signing`（ADR-036）、`generate mailer` / `generate policy`，国际化、出站 HTTP、加密与密钥 | Twilio 协议、log/fake 与 Mailpit SMTP 验证；认证/签名/审计、生成器双库项目 check/test 与 HTTP 流程通过。真实供应商短信实发需授权账号与目标；HTTP 限流与数据输出/查询边界均已实现并验证；跨 M3/M4/M5 业务流程扩展点按 todo.md 继续补齐 |
 | M4 队列、调度与事件 | `openrust::queue`（database driver、重试退避、`failed_jobs`、`queue work`、调度器与锁、`schedule run` / `schedule list`）、`openrust::events`、队列化邮件与短信、`generate job`，请求幂等、事务一致性、锁、常用任务编排与薄通知层（按专题计划） | 任务失败 → 重试 → 失败表 → 手动重试成功；多副本调度不重复；worker 停机不丢任务；两库皆验证 |
 | M5 共享基础设施、通信与可观测性 | 首先按 ADR-009 补齐插件公开契约与独立 consumer，再分别闭合 Db/Queue 外部扩展；`openrust::cache`（标准应用默认 Redis、显式 memory/file、库层 Redis feature 可选；driver/store contract 见 ADR-014）、`openrust::storage`（local / s3）、JSON 日志、请求 ID、`/ready`、`otel` / `metrics` feature、panic 捕获、WebSocket/SSE、gRPC G1–G3、上传下载、跨协议验证/调用作用域、出站策略与生产运行/迁移协调（按专题计划） | gRPC 四类真实调用、TLS/认证/流资源、生成项目及双节点；三驱动基础契约测试；file 临时目录验证；Redis 真实集成验证；扩展示例只用公开契约；S3 兼容路径用 MinIO 集成验证；`/ready` 依赖超时正确报告 |
-| M6 开发者体验与 v1 发布 | 插件模板/只读诊断/兼容与升级验收；mdBook 文档站（Diátaxis、迁移对照页、`coming-from-axum`）、`apps/example` 综合黄金路径示例、Dockerfile / compose 模板、`routes` / `config show` / 只读 `doctor` / `db status` / 显式 `db reset`、`generate` / `g`（`scaffold`、`controller`、`model`、`migration`、`job`、`mailer`、`policy`、`command`）与快照测试、`testing` `TestApp` / HTTP response assertions、基础服务端视图模板（按 ADR-069）、SQLite 可选单机后端（按 ADR-066）、源码基线 API 兼容性检查、新手走查、v1 正式发布 | 新开发者获取完整源码后按文档从生成 apps 到部署在 30 分钟内完成且不读框架源码；服务端视图 feature、生成项目与 `apps/example` 首页通过独立验收；SQLite 生成项目与框架能力矩阵通过专项验收；本文件验收原则全部达标；发布动作由开发者执行 |
+| M6 开发者体验与 v1 发布 | 插件模板/只读诊断/兼容与升级验收；mdBook 文档站（Diátaxis、迁移对照页、`coming-from-axum`）、`examples/example` 综合黄金路径示例、Dockerfile / compose 模板、`routes` / `config show` / 只读 `doctor` / `db status` / 显式 `db reset`、`generate` / `g`（`scaffold`、`controller`、`model`、`migration`、`job`、`mailer`、`policy`、`command`）与快照测试、`testing` `TestApp` / HTTP response assertions、基础服务端视图模板（按 ADR-069）、SQLite 可选单机后端（按 ADR-066）、源码基线 API 兼容性检查、新手走查、v1 正式发布 | 新开发者获取完整源码后按文档从生成 apps 到部署在 30 分钟内完成且不读框架源码；服务端视图 feature、生成项目与 `examples/example` 首页通过独立验收；SQLite 生成项目与框架能力矩阵通过专项验收；本文件验收原则全部达标；发布动作由开发者执行 |
 
 F1–F3 接入 M4，F4–F8 接入 M5，F9/F10 接入 M6；详尽依赖和验收由底层补齐计划维护，实际领取顺序只在 `todo.md`。
 
@@ -137,7 +137,7 @@ F1–F3 接入 M4，F4–F8 接入 M5，F9/F10 接入 M6；详尽依赖和验收
 - 关键边界有集成测试：认证与授权、事务回滚、任务重试与幂等、调度去重、配置缺失时的启动错误、有界停机和生产迁移竞争；gRPC 的四类调用、TLS/mTLS、Status、流式 deadline/背压、健康摘流、proto 演进与生成项目按 ADR-040 完整验收。
 - 每个公共类型与入口函数有简体中文优先的文档与可运行示例；第一方 README、Rustdoc、源码/配置注释、CLI 帮助与生成说明按 [语言规范](../style.md#语言规范) 完成整改，生成器产物在两库模板上有快照测试。完整英文文档待框架成熟后再评估，不作为 v1 完成前提。
 - 错误信息可操作：配置错误给出键名与来源，迁移错误给出文件名，启动失败给出缺失的 plugin 或服务。
-- 性能基线使用 `apps/example` 的代表性路径与明确数据规模建立，记录吞吐、p50/p95/p99 延迟、CPU 与内存，以及环境、构建模式和测量方法；覆盖基础 HTTP、数据库访问、认证及队列场景，发布前据基线确定性能回归阈值，不预先承诺未经测量的数值。
+- 性能基线使用 `examples/example` 的代表性路径与明确数据规模建立，记录吞吐、p50/p95/p99 延迟、CPU 与内存，以及环境、构建模式和测量方法；覆盖基础 HTTP、数据库访问、认证及队列场景，发布前据基线确定性能回归阈值，不预先承诺未经测量的数值。
 - 依赖升级、迁移回滚、备份恢复和基础设施异常各有一页可操作说明。
 
 ## 框架质量门禁
@@ -152,7 +152,7 @@ v1 发布前必须建立并通过的 CI 门禁（当前覆盖与缺口见 todo.m
 | SeaORM 2.x API 变动 | workspace 锁定版本；常用操作封装在 `openrust::db`，业务代码不直接依赖易变 API |
 | 双库语义漂移 | 可移植列类型白名单、`dialect` 模块强制双分支、CI 矩阵、框架表禁用单库特性 |
 | 自研范围膨胀 | 以「v1 版本能力范围」为准；已确认新增要求校准当前计划与依赖，未确认的远期候选进入 `roadmap.md` |
-| 小团队维护多 crate | 框架能力集中根 `src/` 模块；独立 package 只跟随技术、工具或测试依赖边界 |
+| 小团队维护多 crate | 框架能力集中根 `framework/src/` 模块；独立 package 只跟随技术、工具或测试依赖边界 |
 | 内部名称冲突 | workspace 内 package 名唯一；应用 migration 用应用名区分，不依赖注册表名称可用性 |
 | 决策反复 | 关键决策以 ADR 固化；同一决定澄清在原文收敛，实质替代标明唯一有效入口 |
 
@@ -172,5 +172,5 @@ v1 发布前必须建立并通过的 CI 门禁（当前覆盖与缺口见 todo.m
 ## 相关
 
 - [OpenRust 框架设计](framework-design.md)
-- [架构决策](../decisions/)
+- [架构决策](../decisions)
 - [开发计划索引](README.md)

@@ -91,3 +91,7 @@ Edition 2024；MSRV 为 stable 减两个小版本；0.x 期间破坏性变更只
 - cron/时区、i18n 复数/地区格式化、邮件与生成模板优先成熟组件；候选名称仅供评估，不能当作已锁定选择。
 - OAuth2/OIDC、TOTP、CSV/XLSX 使用成熟协议/格式组件；复用本地认证/密钥、Queue/Storage，不自研协议和文件格式。
 - cache tag/SWR/加载合并、查询规则、租户作用域与 fixtures 优先在既有能力上整合；只在有明确附加价值时引入依赖，不建立新 ORM/容器。
+
+## R1 Cargo 布局
+
+框架库迁入 framework，根 application 只依赖公开 openrust；工具保留独立 package。没有新增依赖。workspace 的 openrust 显式 default-features=false，与现有空默认 feature 一致，使 Cargo 1.97 能继承 tools/performance 的同一设定；不提高 MSRV。独立 consumer lock 补齐既有框架依赖图，未借迁移升级依赖版本。

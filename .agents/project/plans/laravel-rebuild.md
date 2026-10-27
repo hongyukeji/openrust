@@ -2,7 +2,7 @@
 
 > 受众：设计、实现、验收 Agent
 > 更新：2026-10-28
-> 状态：整体方向已授权；本文件是目标设计与实施计划，代码重构尚未开始。
+> 状态：整体方向已授权；本文件是目标设计与实施计划，R0 基线与 R1 目录/启动已实际交付；后继语义按阶段推进。
 
 ## 1. 目标与授权
 
@@ -72,7 +72,7 @@ openrust/
 └── Cargo.toml
 ```
 
-这是目标布局，当前框架仍在根 `src/`。不先复制整套实现后长期保留两份；按可构建的功能簇迁移，旧入口和别名在替代验收后删除。现有 `apps/example`、`tests/consumers` 的行为证据需迁入对应应用/框架测试职责，不能随目录一起丢弃。
+目录骨架已按 [ADR-071](../decisions/adr-071-application-framework-layout.md) 实施到 framework 与应用职责目录；R1 的同一 Command=run 普通运行与断点调试已由 Agent 实际 UI 验收。不先复制整套实现后长期保留两份；按可构建的功能簇迁移，旧入口和别名在替代验收后删除。现有 `examples/example`、`tests/consumers` 的行为证据需迁入对应应用/框架测试职责，不能随目录一起丢弃。
 
 Rust 根 `src/main.rs` 用明确的编译期模块声明连接职责目录；允许薄层 `#[path]` 或 Cargo target path，禁止运行时扫描 Rust 源码。R1 必须比较顶层职责目录与 `src/` 内职责模块的 IDE/测试成本；若顶层形式妨碍 Cargo/IDE，则自主采用 `src/app`、`src/bootstrap`、`src/routes` 等等价布局，并更新 ADR、生成器和本文，不能牺牲语言工具便利性。
 

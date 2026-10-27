@@ -2,14 +2,14 @@
 
 > 受众：AI Agent
 > 更新：2026-10-28
-> 摘要：当前方向为 Laravel 式全面重构。计划与授权已记录，R0 已固定上游与资产，R1 骨架迁移待实施；原 v1 专项证据作为复用/重写基线。
+> 摘要：当前方向为 Laravel 式全面重构。计划与授权已记录，R0 已固定上游与资产，R1 骨架与默认启动已实际验收；原 v1 专项证据作为复用/重写基线。
 
 ## 当前状态
 
 | 项 | 当前事实与目标 |
 | --- | --- |
-| 当前代码基线 | 规划开始 HEAD 为 `7f964b8`；根 `openrust` library + server、tools、apps/example 已有实现；版本和依赖以 Cargo.toml 为准 |
-| 当前阶段 | [全面重构计划](plans/laravel-rebuild.md) 已记录；下一功能簇 R1 骨架与启动，唯一队列见 [todo.md](todo.md) |
+| 当前代码基线 | 规划开始 HEAD 为 `7f964b8`；`framework/openrust` library + 根 application/server、tools、examples/example 已迁移；版本和依赖以 Cargo.toml 为准 |
+| 当前阶段 | [全面重构计划](plans/laravel-rebuild.md) 已记录；下一功能簇 R2 内核与测试底座，唯一队列见 [todo.md](todo.md) |
 | 目标授权 | [ADR-070](decisions/adr-070-laravel-first-rebuild.md)：Laravel 为首要概念/行为/体验参照，Goravel 为跨语言参照；允许全面重写，无历史兼容义务 |
 | 当前完成边界 | 原认证/数据/队列/缓存/存储/实时/gRPC/视图等有专项证据；完整生产/集群/最低版本仍有缺口，新目标不能继承为已验收 |
 | 协作 | 已定 contract 优先 gpt-6.1-sol 子智能体；主控负责设计/集成；高风险改码不同模型或 Provider 审查；不自动合并/推送 |

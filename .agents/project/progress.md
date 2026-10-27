@@ -1,22 +1,23 @@
 # 当前进度
 
-> 全面重构状态：已记录 [ADR-070](decisions/adr-070-laravel-first-rebuild.md)、[总计划](plans/laravel-rebuild.md) 和 [执行任务](plans/laravel-rebuild-execution.md)；R0 尚未开始，下文均为重构前代码专项证据，不是新目标已验收。
-
 > 受众：AI Agent
 > 更新：2026-10-28
-> 开发体验规划：M6 已细化为 [DX1–DX8](plans/v1-developer-experience.md)；服务端视图首个功能簇已实现并完成 workspace 与独立生成项目验收，其余开发体验工作仍待处理。
-> 摘要：当前进入 Laravel 式全面重构规划交付；下一簇为 R0。原实现仍未通过完整生产/集群门禁。
+> 摘要：R0 上游/资产盘点与 R1 骨架/默认启动已交付并实际验收；下一功能簇 R2。原完整生产/集群缺口继续保留。
 
-## 本次规划交付
+## 当前交付
 
-总计划、ADR-070 和执行任务已记录；AGENTS、执行路由、工程规范、相关旧 ADR 与两个项目技能已校准。gpt-6.1-sol 只读审查指出 R14 与 R15/R16 的矩阵门禁循环，已将 R14 限定为底座 C01–C31，C32/C33 留给后续阶段与整体关闭。仅完成文档检查，未运行代码测试、IDE 或服务验收。
+- R0：固定官方版本与 commit，102 章/750 二级节及三级行为矩阵、源码/测试/consumer 资产和真实回归函数索引；没有将原行为证据转记为新 contract 通过。
+- R1：独立 framework library、根 application 单 server bin、Laravel 职责目录、独立生成应用、综合示例、consumer/CI/文档与共享 IDE run 配置已迁移。框架 Rust 源文件除位置外逐字一致；R2 以后再改领域语义。
+- 默认/all-features workspace 门禁、双库各 6 targets/31 项、双库认证生成应用真实 HTTP、公开 cache driver consumer、MSRV 1.97 与 cargo deny 已实际通过；详细命令与边界见 [测试基线](memory/testing.md#r1-目录迁移验收基线)。
+- RustRover 2026.2.4 同一 Command=run 的普通运行、src/main.rs:12 断点与继续后的真实 HTTP 已由 Agent 实际 UI 验收；共享配置不携带验收专用端口或开发机绝对路径。项目已关闭，IDE 重建产物再 clean 回收 2.2 GiB；最终磁盘余量约 125 GiB。
+- R2 Container/Provider/TestApp、R4 真实复制、R7 新认证 contract、完整集群、SQLite、供应商/最低后端版本等按依赖继续，不能把 R1 迁移算作后继语义验收。
 
 ## 重构前代码资产
 
 - 根目录源码 workspace、启动入口、工具目录与生成项目流程已按 ADR-039、ADR-062、ADR-063 收敛；C1–C3 文档中文化已完成。
-- 认证与安全、数据库/缓存/队列/存储、任务调度、国际化、数据交换、gRPC 与 WebSocket/SSE 等已完成相应功能簇验收。具体实现边界见 [`core/`](core/)，验收命令和证据见 [`memory/testing.md`](memory/testing.md)。
+- 认证与安全、数据库/缓存/队列/存储、任务调度、国际化、数据交换、gRPC 与 WebSocket/SSE 等已完成相应功能簇验收。具体实现边界见 [`core/`](core)，验收命令和证据见 [`memory/testing.md`](memory/testing.md)。
 - 公共扩展沿用 Plugin、driver 和应用显式组合机制；没有另建平行的生命周期或通用钩子系统。
-- 服务端视图按 ADR-069 提供可选 MiniJinja feature、应用模板目录、`ViewPlugin` / `Views` 和 `view:` 根目标；5 项 HTTP 行为测试、CLI 生成快照、`apps/example` 以及独立生成项目的 `cargo check` / `cargo test` 均通过。API、WebSocket 和静态资源路由保持独立。
+- 服务端视图按 ADR-069 提供可选 MiniJinja feature、应用模板目录、`ViewPlugin` / `Views` 和 `view:` 根目标；5 项 HTTP 行为测试、CLI 生成快照、`examples/example` 以及独立生成项目的 `cargo check` / `cargo test` 均通过。API、WebSocket 和静态资源路由保持独立。
 
 ## 重构前专项验收基线
 

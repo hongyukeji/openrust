@@ -33,7 +33,7 @@ struct Cli {
 enum Builtin {
     /// 使用内置模板创建 OpenRust 应用。
     New {
-        /// 应用名称；生成到 `apps/<name>/`。
+        /// 应用目标目录；支持相对或绝对路径。
         name: String,
         /// 添加 PostgreSQL 或 MySQL 连接和迁移包。
         #[arg(long, value_enum)]
@@ -157,21 +157,6 @@ fn framework_workspace(start: &Path) -> anyhow::Result<FrameworkWorkspace> {
             })
         })
         .collect::<anyhow::Result<Vec<_>>>()?;
-    let has_member = |name: &str, relative_manifest: &str| {
-        packages.iter().any(|package| {
-            package.name == name && package.manifest_path == root.join(relative_manifest)
-        })
-    };
-    if !has_member("openrust", "Cargo.toml")
-        || !has_member("cli", "tools/cli/Cargo.toml")
-        || !has_member("macros", "tools/macros/Cargo.toml")
-        || !has_member("testing", "tools/testing/Cargo.toml")
-        || !has_member("performance", "tools/performance/Cargo.toml")
-    {
-        bail!(
-            "OpenRust source workspace was not found; run this command from its checkout or an app inside it"
-        );
-    }
     Ok(FrameworkWorkspace { root, packages })
 }
 
@@ -180,58 +165,62 @@ fn application_directory(
     current_dir: &Path,
 ) -> anyhow::Result<(PathBuf, String)> {
     let current_dir = current_dir.canonicalize()?;
-    let app_root = workspace.root.join("apps").canonicalize()?;
-    if app_root.parent() != Some(workspace.root.as_path())
-        || app_root.file_name().and_then(|name| name.to_str()) != Some("apps")
-    {
-        bail!("`apps/` must resolve to a direct directory inside the framework workspace");
-    }
     let app = workspace
         .packages
         .iter()
         .filter_map(|package| {
             let directory = package.manifest_path.parent()?;
-            if !directory.starts_with(&app_root)
-                || directory
-                    .components()
-                    .any(|component| component.as_os_str() == "migration")
-                || !current_dir.starts_with(directory)
-            {
-                return None;
-            }
-            Some((directory, package.name.as_str()))
+            (directory.join("src/main.rs").is_file()
+                && directory.join("bootstrap/app.rs").is_file()
+                && current_dir.starts_with(directory))
+            .then_some((directory, package.name.as_str()))
         })
         .max_by_key(|(directory, _)| directory.components().count())
-        .context("no OpenRust application package found; run this command from `apps/<name>`")?;
-    if app.0.parent() != Some(app_root.as_path())
-        || app.0.file_name().and_then(|name| name.to_str()) != Some(app.1)
-    {
-        bail!("application package name must match its `apps/<name>` directory");
-    }
+        .context("未找到应用，请从含 bootstrap/app.rs 的应用目录执行")?;
     Ok((app.0.to_path_buf(), app.1.to_owned()))
 }
 
-fn manifest_with_members(root: &Path, new_members: &[String]) -> anyhow::Result<String> {
-    let manifest_path = root.join("Cargo.toml");
-    let source = fs::read_to_string(&manifest_path)?;
-    let mut document = source
-        .parse::<toml_edit::DocumentMut>()
-        .context("framework Cargo.toml is invalid TOML")?;
-    let members = document
-        .get_mut("workspace")
-        .and_then(toml_edit::Item::as_table_mut)
-        .and_then(|workspace| workspace.get_mut("members"))
-        .and_then(toml_edit::Item::as_array_mut)
-        .context("framework Cargo.toml must declare workspace.members as an array")?;
-    for member in new_members {
-        if !members
-            .iter()
-            .any(|existing| existing.as_str() == Some(member))
-        {
-            members.push(member.as_str());
+fn standalone_manifest(source: &Path, project: &Path, database: bool) -> anyhow::Result<()> {
+    let source_manifest =
+        fs::read_to_string(source.join("Cargo.toml"))?.parse::<toml_edit::DocumentMut>()?;
+    let mut app =
+        fs::read_to_string(project.join("Cargo.toml"))?.parse::<toml_edit::DocumentMut>()?;
+    app["workspace"] = source_manifest["workspace"].clone();
+    app["workspace"]["members"] = toml_edit::value(if database {
+        ["database/migrations"]
+            .into_iter()
+            .collect::<toml_edit::Array>()
+    } else {
+        toml_edit::Array::new()
+    });
+    app["workspace"]["default-members"] =
+        toml_edit::value(["."].into_iter().collect::<toml_edit::Array>());
+    let mut required = std::collections::BTreeSet::new();
+    for manifest in [
+        Some(project.join("Cargo.toml")),
+        database.then(|| project.join("database/migrations/Cargo.toml")),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        let manifest = fs::read_to_string(manifest)?.parse::<toml_edit::DocumentMut>()?;
+        for section in ["dependencies", "dev-dependencies", "build-dependencies"] {
+            if let Some(dependencies) = manifest.get(section).and_then(toml_edit::Item::as_table) {
+                required.extend(dependencies.iter().map(|(name, _)| name.to_owned()));
+            }
         }
     }
-    Ok(document.to_string())
+    if let Some(dependencies) = app["workspace"]["dependencies"].as_table_mut() {
+        dependencies.retain(|name, _| required.contains(name));
+        for (_, dependency) in dependencies.iter_mut() {
+            if let Some(path) = dependency.get("path").and_then(toml_edit::Item::as_str) {
+                let path = source.join(path).canonicalize()?;
+                dependency["path"] = toml_edit::value(path.to_string_lossy().as_ref());
+            }
+        }
+    }
+    fs::write(project.join("Cargo.toml"), app.to_string())?;
+    Ok(())
 }
 
 impl DatabaseBackend {
@@ -372,7 +361,7 @@ fn generate_key() -> anyhow::Result<String> {
     Ok(STANDARD.encode(key))
 }
 
-/// 在已识别的框架 workspace 中创建应用，并注册其 workspace 成员。
+/// 从源码 workspace 创建使用本地依赖的独立应用。
 #[allow(
     clippy::fn_params_excessive_bools,
     clippy::too_many_arguments,
@@ -424,9 +413,24 @@ fn create_project_with_mfa(
         bail!("MFA requires `--auth`, `--db postgres|mysql` and `--encryption`");
     }
     let workspace = framework_workspace(current_dir)?;
-    let apps_root = application_root(&workspace)?;
-    let project_name = application_name(name)?;
-    let project_dir = apps_root.join(project_name);
+    if !workspace.packages.iter().any(|package| {
+        package.name == "openrust"
+            && package.manifest_path == workspace.root.join("framework/Cargo.toml")
+    }) {
+        bail!("请从包含 framework/Cargo.toml 的 OpenRust 源码 workspace 创建应用");
+    }
+    let destination = Path::new(name);
+    if destination
+        .components()
+        .any(|part| matches!(part, std::path::Component::ParentDir))
+    {
+        bail!("应用目标不能包含 .. 路径");
+    }
+    let project_dir = current_dir.join(destination);
+    let project_name = project_dir
+        .file_name()
+        .and_then(|name| name.to_str())
+        .context("应用目标须有有效目录名")?;
     if project_dir.exists() {
         bail!("destination already exists: {}", project_dir.display());
     }
@@ -441,11 +445,6 @@ fn create_project_with_mfa(
     {
         bail!("application or migration package name is already in use: `{project_name}`");
     }
-    let mut new_members = vec![format!("apps/{project_name}")];
-    if database.is_some() {
-        new_members.push(format!("apps/{project_name}/migration"));
-    }
-    let updated_workspace_manifest = manifest_with_members(&workspace.root, &new_members)?;
 
     let result = populate_project_with_mfa(
         &project_dir,
@@ -463,12 +462,9 @@ fn create_project_with_mfa(
         let _ = fs::remove_dir_all(&project_dir);
     }
     result?;
-    if let Err(error) = fs::write(
-        workspace.root.join("Cargo.toml"),
-        updated_workspace_manifest,
-    ) {
+    if let Err(error) = standalone_manifest(&workspace.root, &project_dir, database.is_some()) {
         let _ = fs::remove_dir_all(&project_dir);
-        return Err(error).context("failed to add the generated app to the framework workspace");
+        return Err(error).context("无法配置独立应用的本地依赖");
     }
     let mut stdout = std::io::stdout().lock();
     writeln!(
@@ -482,42 +478,6 @@ fn create_project_with_mfa(
         project_dir.display()
     )?;
     Ok(())
-}
-
-fn application_root(workspace: &FrameworkWorkspace) -> anyhow::Result<PathBuf> {
-    let apps_root = workspace.root.join("apps").canonicalize()?;
-    if apps_root.parent() != Some(workspace.root.as_path())
-        || apps_root.file_name().and_then(|name| name.to_str()) != Some("apps")
-    {
-        bail!("`apps/` must resolve to a direct directory inside the framework workspace");
-    }
-    Ok(apps_root)
-}
-
-fn application_name(name: &str) -> anyhow::Result<&str> {
-    let requested = Path::new(name);
-    if requested.is_absolute() {
-        bail!(
-            "external destination paths are not supported; applications belong under `apps/<name>`"
-        );
-    }
-    if requested
-        .components()
-        .any(|component| !matches!(component, std::path::Component::Normal(_)))
-    {
-        bail!("application name must not contain `.` or `..` path components");
-    }
-    let components = requested
-        .components()
-        .filter_map(|component| match component {
-            std::path::Component::Normal(value) => value.to_str(),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    match components.as_slice() {
-        [name] | ["apps", name] => Ok(name),
-        _ => bail!("application name must be a single directory name or `apps/<name>`"),
-    }
 }
 
 fn application_type_name(project_name: &str) -> anyhow::Result<String> {
@@ -611,23 +571,30 @@ fn populate_project_with_mfa(
         .with_context(|| format!("failed to create {}", project_dir.display()))?;
     for directory in [
         "config",
+        "src",
         "public",
-        "src/controllers",
-        "src/models/_entities",
-        "src/services",
-        "src/policies",
-        "src/jobs",
-        "src/events",
-        "src/mailers",
-        "src/middleware",
-        "templates/mail",
-        "views",
+        "app/http/controllers",
+        "app/models/_entities",
+        "app/services",
+        "app/policies",
+        "app/jobs",
+        "app/events",
+        "app/mail",
+        "app/http/middleware",
+        "resources/mail",
+        "resources/views",
+        "bootstrap",
+        "routes",
+        "database",
+        "storage/app",
+        "storage/logs",
+        "storage/framework",
         "tests",
     ] {
         fs::create_dir_all(project_dir.join(directory))?;
     }
     if database.is_some() {
-        fs::create_dir_all(project_dir.join("migration/src"))?;
+        fs::create_dir_all(project_dir.join("database/migrations/src"))?;
     }
     if grpc {
         fs::create_dir_all(project_dir.join("proto"))?;
@@ -660,26 +627,32 @@ fn populate_project_with_mfa(
             include_str!("../templates/public/index.html").replace("{{name}}", name),
         ),
         (
-            "views/index.html",
+            "resources/views/index.html",
             include_str!("../templates/views/index.html").replace("{{name}}", name),
         ),
         ("src/main.rs", main_source(crate_name, database, grpc)),
         (
-            "src/app.rs",
+            "bootstrap/app.rs",
             app_source(crate_name, database, auth, encryption, auth_mfa),
         ),
-        ("src/routes.rs", routes_source(auth, auth_mfa)),
-        ("src/schedule.rs", "//! 应用调度。\n".to_owned()),
-        ("src/seed.rs", seed_source(database)),
-        ("src/controllers/mod.rs", "//! HTTP 控制器。\n".to_owned()),
-        ("src/models/mod.rs", "//! 应用模型。\n".to_owned()),
-        ("src/models/_entities/.gitkeep", String::new()),
-        ("src/services/mod.rs", "//! 应用服务。\n".to_owned()),
-        ("src/policies/mod.rs", "//! 授权策略。\n".to_owned()),
-        ("src/jobs/mod.rs", "//! 后台任务。\n".to_owned()),
-        ("src/events/mod.rs", "//! 应用事件。\n".to_owned()),
-        ("src/mailers/mod.rs", "//! 邮件类型。\n".to_owned()),
-        ("src/middleware/mod.rs", "//! 应用中间件。\n".to_owned()),
+        ("routes/web.rs", routes_source(auth, auth_mfa)),
+        ("routes/console.rs", "//! 应用调度。\n".to_owned()),
+        ("database/seeders.rs", seed_source(database)),
+        (
+            "app/http/controllers/mod.rs",
+            "//! HTTP 控制器。\n".to_owned(),
+        ),
+        ("app/models/mod.rs", "//! 应用模型。\n".to_owned()),
+        ("app/models/_entities/.gitkeep", String::new()),
+        ("app/services/mod.rs", "//! 应用服务。\n".to_owned()),
+        ("app/policies/mod.rs", "//! 授权策略。\n".to_owned()),
+        ("app/jobs/mod.rs", "//! 后台任务。\n".to_owned()),
+        ("app/events/mod.rs", "//! 应用事件。\n".to_owned()),
+        ("app/mail/mod.rs", "//! 邮件类型。\n".to_owned()),
+        (
+            "app/http/middleware/mod.rs",
+            "//! 应用中间件。\n".to_owned(),
+        ),
         (
             "AGENTS.md",
             include_str!("../templates/AGENTS.md").to_owned(),
@@ -700,10 +673,13 @@ fn populate_project_with_mfa(
     if let Some(database) = database {
         files.extend([
             (
-                "migration/Cargo.toml",
+                "database/migrations/Cargo.toml",
                 migration_manifest(name, database, auth, auth_mfa),
             ),
-            ("migration/src/lib.rs", migration_lib(auth, auth_mfa)),
+            (
+                "database/migrations/src/lib.rs",
+                migration_lib(auth, auth_mfa),
+            ),
         ]);
     }
     if grpc {
@@ -720,7 +696,7 @@ fn populate_project_with_mfa(
                     .replace("{{package}}", &proto_package),
             ),
             (
-                "src/grpc.rs",
+                "app/grpc.rs",
                 "//! 应用的 gRPC Protobuf 类型。\n\npub mod echo {\n    tonic::include_proto!(\"{{package}}.v1\");\n}\n"
                     .replace("{{package}}", &proto_package),
             ),
@@ -795,7 +771,7 @@ fn cargo_manifest(
         }
         let mut dependency = if database.is_some() {
             format!(
-                "openrust = {{ workspace = true, features = {features:?} }}\nopenrust-migration = {{ package = \"{name}-migration\", path = \"migration\" }}"
+                "openrust = {{ workspace = true, features = {features:?} }}\nopenrust-migration = {{ package = \"{name}-migration\", path = \"database/migrations\" }}"
             )
         } else {
             format!("openrust = {{ workspace = true, features = {features:?} }}")
@@ -1037,8 +1013,16 @@ async fn auth_mfa_recovery_codes(
 }
 
 fn main_source(crate_name: &str, database: Option<DatabaseBackend>, grpc: bool) -> String {
-    let database_module = if database.is_some() { "mod seed;" } else { "" };
-    let grpc_module = if grpc { "mod grpc;" } else { "" };
+    let database_module = if database.is_some() {
+        "#[path = \"../database/seeders.rs\"]\nmod seed;"
+    } else {
+        ""
+    };
+    let grpc_module = if grpc {
+        "#[path = \"../app/grpc.rs\"]\nmod grpc;"
+    } else {
+        ""
+    };
     let mut source = include_str!("../templates/src/main.rs")
         .replace("{{type_name}}", crate_name)
         .replace("{{grpc_module}}", grpc_module);
@@ -1254,7 +1238,7 @@ fn generate(
 fn enable_uuid_feature(project_dir: &Path) -> anyhow::Result<()> {
     for path in [
         project_dir.join("Cargo.toml"),
-        project_dir.join("migration/Cargo.toml"),
+        project_dir.join("database/migrations/Cargo.toml"),
     ] {
         let source = fs::read_to_string(&path)?;
         let mut document = source
@@ -1291,15 +1275,15 @@ fn generate_mailer(values: &[String], project_dir: &Path) -> anyhow::Result<()> 
     };
     let module = normalize_identifier(name)?;
     let type_name = pascal_case(&module);
-    let mailer_file = project_dir.join(format!("src/mailers/{module}.rs"));
-    let template_dir = project_dir.join(format!("templates/mail/{module}"));
+    let mailer_file = project_dir.join(format!("app/mail/{module}.rs"));
+    let template_dir = project_dir.join(format!("resources/mail/{module}"));
     if mailer_file.exists() {
         bail!("mailer already exists: {}", mailer_file.display());
     }
     if template_dir.exists() {
         bail!("mailer templates already exist: {}", template_dir.display());
     }
-    let module_file = project_dir.join("src/mailers/mod.rs");
+    let module_file = project_dir.join("app/mail/mod.rs");
     if module_file.exists()
         && fs::read_to_string(&module_file)?
             .lines()
@@ -1324,7 +1308,11 @@ fn generate_mailer(values: &[String], project_dir: &Path) -> anyhow::Result<()> 
         &format!("pub mod {module};"),
         "//! 应用邮件类型。\n",
     )?;
-    append_module(&main_file, "pub mod mailers;", "//! 应用入口。\n")?;
+    append_module(
+        &main_file,
+        "#[path = \"../app/mail/mod.rs\"]\npub mod mailers;",
+        "//! 应用入口。\n",
+    )?;
     print_generated(&format!("Generated mailer `{module}`."))?;
     Ok(())
 }
@@ -1340,11 +1328,11 @@ fn generate_policy(values: &[String], project_dir: &Path) -> anyhow::Result<()> 
     let module = normalize_identifier(name)?;
     let type_name = format!("{}Policy", pascal_case(&module));
     let resource = pluralize(&module);
-    let policy_file = project_dir.join(format!("src/policies/{module}.rs"));
+    let policy_file = project_dir.join(format!("app/policies/{module}.rs"));
     if policy_file.exists() {
         bail!("policy already exists: {}", policy_file.display());
     }
-    let module_file = project_dir.join("src/policies/mod.rs");
+    let module_file = project_dir.join("app/policies/mod.rs");
     if module_file.exists()
         && fs::read_to_string(&module_file)?
             .lines()
@@ -1359,7 +1347,11 @@ fn generate_policy(values: &[String], project_dir: &Path) -> anyhow::Result<()> 
         &format!("pub mod {module};"),
         "//! 应用授权策略。\n",
     )?;
-    append_module(&main_file, "pub mod policies;", "//! 应用入口。\n")?;
+    append_module(
+        &main_file,
+        "#[path = \"../app/policies/mod.rs\"]\npub mod policies;",
+        "//! 应用入口。\n",
+    )?;
     print_generated(&format!("Generated policy `{module}` for `{resource}`."))?;
     Ok(())
 }
@@ -1375,16 +1367,16 @@ fn generate_job(values: &[String], project_dir: &Path) -> anyhow::Result<()> {
     if !app_manifest.contains("db-postgres") && !app_manifest.contains("db-mysql") {
         bail!("job generation requires an application created with `openrust new --db`");
     }
-    let migration_manifest_path = project_dir.join("migration/Cargo.toml");
+    let migration_manifest_path = project_dir.join("database/migrations/Cargo.toml");
     let migration_source = fs::read_to_string(&migration_manifest_path)
         .context("job generation requires a database migration package")?;
-    let migration_lib_path = project_dir.join("migration/src/lib.rs");
+    let migration_lib_path = project_dir.join("database/migrations/src/lib.rs");
     let migration_registry = fs::read_to_string(&migration_lib_path)?;
-    let job_file = project_dir.join(format!("src/jobs/{module}.rs"));
+    let job_file = project_dir.join(format!("app/jobs/{module}.rs"));
     if job_file.exists() {
         bail!("job already exists: {}", job_file.display());
     }
-    let module_file = project_dir.join("src/jobs/mod.rs");
+    let module_file = project_dir.join("app/jobs/mod.rs");
     let modules = fs::read_to_string(&module_file)?;
     if modules
         .lines()
@@ -1394,7 +1386,7 @@ fn generate_job(values: &[String], project_dir: &Path) -> anyhow::Result<()> {
     }
     let main_file = project_dir.join("src/main.rs");
     let main_source = fs::read_to_string(&main_file)?;
-    let app_file = project_dir.join("src/app.rs");
+    let app_file = project_dir.join("bootstrap/app.rs");
     let app_source = fs::read_to_string(&app_file)?;
     let auth_test_file = project_dir.join("tests/auth_flows.rs");
     let updated_auth_test = if auth_test_file.exists() {
@@ -1403,8 +1395,8 @@ fn generate_job(values: &[String], project_dir: &Path) -> anyhow::Result<()> {
             test_source
         } else {
             test_source.replace(
-                "#[path = \"../src/routes.rs\"]\nmod routes;",
-                "#[path = \"../src/routes.rs\"]\nmod routes;\n#[path = \"../src/jobs/mod.rs\"]\nmod jobs;",
+                "#[path = \"../routes/web.rs\"]\nmod routes;",
+                "#[path = \"../routes/web.rs\"]\nmod routes;\n#[path = \"../app/jobs/mod.rs\"]\nmod jobs;",
             )
         }
     } else {
@@ -1572,7 +1564,7 @@ fn enable_openrust_feature(project_dir: &Path, feature: &str) -> anyhow::Result<
 
 fn render_mailer(type_name: &str, module: &str) -> String {
     r#"//! OpenRust 生成的应用邮件类型。
-//! 请在 `i18n` catalog 中提供 `mailers.__MODULE__.subject`，并按需编辑 `templates/mail/__MODULE__/`。
+//! 请在 `i18n` catalog 中提供 `mailers.__MODULE__.subject`，并按需编辑 `resources/mail/__MODULE__/`。
 
 use std::collections::BTreeMap;
 
@@ -1590,22 +1582,22 @@ impl __TYPE__ {
         catalog.insert(
             "en",
             "__MODULE__/text.txt",
-            include_str!("../../templates/mail/__MODULE__/en/text.txt"),
+            include_str!("../../resources/mail/__MODULE__/en/text.txt"),
         )?;
         catalog.insert(
             "en",
             "__MODULE__/html.html",
-            include_str!("../../templates/mail/__MODULE__/en/html.html"),
+            include_str!("../../resources/mail/__MODULE__/en/html.html"),
         )?;
         catalog.insert(
             "zh-CN",
             "__MODULE__/text.txt",
-            include_str!("../../templates/mail/__MODULE__/zh-CN/text.txt"),
+            include_str!("../../resources/mail/__MODULE__/zh-CN/text.txt"),
         )?;
         catalog.insert(
             "zh-CN",
             "__MODULE__/html.html",
-            include_str!("../../templates/mail/__MODULE__/zh-CN/html.html"),
+            include_str!("../../resources/mail/__MODULE__/zh-CN/html.html"),
         )?;
         Ok(())
     }
@@ -1677,12 +1669,12 @@ fn generate_model(
     }
     let module = normalize_identifier(name)?;
     let table = pluralize(&module);
-    let model_file = project_dir.join(format!("src/models/_entities/{module}.rs"));
+    let model_file = project_dir.join(format!("app/models/_entities/{module}.rs"));
     if model_file.exists() {
         bail!("model already exists: {}", model_file.display());
     }
-    let entity_module = project_dir.join("src/models/_entities/mod.rs");
-    let models_module = project_dir.join("src/models/mod.rs");
+    let entity_module = project_dir.join("app/models/_entities/mod.rs");
+    let models_module = project_dir.join("app/models/mod.rs");
     let main_file = project_dir.join("src/main.rs");
     let generated = render_model(&table, &fields, uuid_id, soft_delete);
     fs::write(&model_file, generated)?;
@@ -1692,7 +1684,11 @@ fn generate_model(
         "//! 生成的模型实体。\n",
     )?;
     append_module(&models_module, "pub mod _entities;", "//! 应用模型。\n")?;
-    append_module(&main_file, "pub mod models;", "//! 应用入口。\n")?;
+    append_module(
+        &main_file,
+        "#[path = \"../app/models/mod.rs\"]\npub mod models;",
+        "//! 应用入口。\n",
+    )?;
     if uuid_id {
         enable_uuid_feature(project_dir)?;
     }
@@ -1708,7 +1704,7 @@ fn generate_migration(
 ) -> anyhow::Result<()> {
     let (name, fields) = parse_model_arguments(values, soft_delete)?;
     let table = normalize_identifier(name)?;
-    let migration_dir = project_dir.join("migration/src");
+    let migration_dir = project_dir.join("database/migrations/src");
     if !migration_dir.join("lib.rs").is_file() {
         bail!("migration generation requires a project created with `openrust new --db`");
     }
@@ -1968,7 +1964,7 @@ fn append_module(path: &Path, module: &str, header: &str) -> anyhow::Result<()> 
     } else {
         header.to_owned()
     };
-    if contents.lines().any(|line| line.trim() == module) {
+    if contents.contains(module) {
         return Ok(());
     }
     let _ = writeln!(contents, "{module}");
@@ -2076,19 +2072,11 @@ fn run_project(args: &[String], development: bool) -> anyhow::Result<ExitCode> {
 fn run_application(args: &[String], development: bool) -> anyhow::Result<ExitCode> {
     let current_dir = std::env::current_dir()?;
     let workspace = framework_workspace(&current_dir)?;
-    let (app_dir, package_name) = application_directory(&workspace, &current_dir)?;
+    let (app_dir, _package_name) = application_directory(&workspace, &current_dir)?;
     let mut command = Process::new("cargo");
     command
         .current_dir(&app_dir)
-        .args([
-            "run",
-            "--quiet",
-            "--package",
-            &package_name,
-            "--bin",
-            &package_name,
-            "--",
-        ])
+        .args(["run", "--quiet", "--"])
         .args(args);
     if development {
         command.env("APP_ENV", "development");
@@ -2343,11 +2331,18 @@ mod tests {
     }
 
     fn create_framework_fixture(root: &Path) {
-        fs::create_dir_all(root.join("src")).expect("create framework source directory");
-        fs::write(root.join("src/lib.rs"), "").expect("create framework library target");
+        fs::create_dir_all(root.join("src")).expect("创建应用目录");
+        fs::write(root.join("src/main.rs"), "fn main() {} ").expect("创建应用入口");
+        fs::create_dir_all(root.join("framework/src")).expect("创建框架目录");
+        fs::write(root.join("framework/src/lib.rs"), "").expect("创建框架库");
+        fs::write(
+            root.join("framework/Cargo.toml"),
+            "[package]\nname = \"openrust\"\nversion = \"0.0.0\"\nedition = \"2024\"\n",
+        )
+        .expect("框架配置");
         fs::write(
             root.join("Cargo.toml"),
-            "[package]\nname = \"openrust\"\nversion = \"0.0.0\"\nedition = \"2024\"\npublish = false\n\n[workspace]\nresolver = \"3\"\n# 保留工作区专有配置与成员说明。\ncustom-marker = \"keep-me\"\nmembers = [\"tools/cli\", \"tools/macros\", \"tools/testing\", \"tools/performance\"]\n\n[workspace.package]\nversion = \"0.0.0\"\nedition = \"2024\"\nlicense = \"MIT OR Apache-2.0\"\n\n[workspace.dependencies]\nopenrust = { path = \".\" }\ncli = { path = \"tools/cli\" }\nmacros = { path = \"tools/macros\" }\ntesting = { path = \"tools/testing\" }\n",
+            "[package]\nname = \"application\"\nversion = \"0.0.0\"\nedition = \"2024\"\npublish = false\n\n[workspace]\nresolver = \"3\"\n# 保留工作区专有配置与成员说明。\ncustom-marker = \"keep-me\"\nmembers = [\"framework\", \"tools/cli\", \"tools/macros\", \"tools/testing\", \"tools/performance\"]\n\n[workspace.package]\nversion = \"0.0.0\"\nedition = \"2024\"\nlicense = \"MIT OR Apache-2.0\"\n\n[workspace.dependencies]\nopenrust = { path = \"framework\" }\ncli = { path = \"tools/cli\" }\nmacros = { path = \"tools/macros\" }\ntesting = { path = \"tools/testing\" }\n",
         )
         .expect("create framework workspace manifest");
         for (name, path, target) in [
@@ -2440,7 +2435,7 @@ mod tests {
         assert!(manifest.contains("protoc-bin-vendored = { workspace = true }"));
         assert!(project.join("build.rs").is_file());
         assert!(project.join("proto/echo.proto").is_file());
-        assert!(project.join("src/grpc.rs").is_file());
+        assert!(project.join("app/grpc.rs").is_file());
         let proto =
             fs::read_to_string(project.join("proto/echo.proto")).expect("read generated Protobuf");
         assert!(proto.contains("package grpc_demo.v1;"));
@@ -2476,7 +2471,7 @@ mod tests {
         fs::create_dir_all(&root).expect("create temporary test directory");
         populate_project(&project, "blog", "Blog", None, false, false, false, true)
             .expect("generate encryption project");
-        let app = fs::read_to_string(project.join("src/app.rs")).expect("read generated app");
+        let app = fs::read_to_string(project.join("bootstrap/app.rs")).expect("read generated app");
         let config = fs::read_to_string(project.join("config/security.toml"))
             .expect("read generated encryption configuration");
         let env = fs::read_to_string(project.join(".env.example"))
@@ -2497,7 +2492,7 @@ mod tests {
     fn development_reuses_a_live_local_redis_without_compose() {
         let root =
             std::env::temp_dir().join(format!("openrust-cli-redis-reuse-{}", std::process::id()));
-        let app = root.join("apps/blog");
+        let app = root.join("blog");
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(app.join("config")).expect("create app config directory");
         fs::write(
@@ -2521,10 +2516,10 @@ mod tests {
             "Cargo.toml",
             ".gitignore",
             "public/index.html",
-            "views/index.html",
+            "resources/views/index.html",
             "src/main.rs",
-            "src/app.rs",
-            "src/routes.rs",
+            "bootstrap/app.rs",
+            "routes/web.rs",
             "config/app.toml",
             "config/cache.toml",
             "config/server.toml",
@@ -2539,14 +2534,14 @@ mod tests {
             "Cargo.toml",
             ".gitignore",
             "public/index.html",
-            "views/index.html",
+            "resources/views/index.html",
             "config/app.toml",
             "config/cache.toml",
             "config/server.toml",
             "config/i18n.toml",
             "src/main.rs",
-            "src/app.rs",
-            "src/routes.rs",
+            "bootstrap/app.rs",
+            "routes/web.rs",
             "AGENTS.md",
         ]
         .into_iter()
@@ -2610,19 +2605,20 @@ mod tests {
             let manifest =
                 fs::read_to_string(project.join("Cargo.toml")).expect("read generated manifest");
             assert!(manifest.contains(feature));
-            assert!(project.join("migration/Cargo.toml").is_file());
-            assert!(project.join("migration/src/lib.rs").is_file());
+            assert!(project.join("database/migrations/Cargo.toml").is_file());
+            assert!(project.join("database/migrations/src/lib.rs").is_file());
             assert!(
                 fs::read_to_string(project.join("config/database.toml"))
                     .expect("read database domain config")
                     .contains("table_prefix = \"tb_\"")
             );
             assert!(
-                fs::read_to_string(project.join("migration/src/lib.rs"))
+                fs::read_to_string(project.join("database/migrations/src/lib.rs"))
                     .expect("read empty migration registry")
                     .contains("vec![]")
             );
-            let app = fs::read_to_string(project.join("src/app.rs")).expect("read generated app");
+            let app =
+                fs::read_to_string(project.join("bootstrap/app.rs")).expect("read generated app");
             assert!(app.contains("DatabasePlugin"));
             assert!(app.contains("openrust_migration::Migrator"));
             assert!(app.contains("SeedPlugin"));
@@ -2639,6 +2635,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "完整认证模板需同时核对路由、迁移、配置与公开依赖"
+    )]
     fn auth_templates_register_auth_plugin_migration_and_protected_route() {
         let root = std::env::temp_dir().join(format!("openrust-cli-auth-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
@@ -2672,10 +2672,11 @@ mod tests {
             assert!(http_test.contains("/api/auth/password-reset/confirm"));
             assert!(!http_test.contains("{{type_name}}"));
             assert!(manifest.contains("\"auth\""));
-            let migration_manifest = fs::read_to_string(project.join("migration/Cargo.toml"))
-                .expect("read generated migration manifest");
+            let migration_manifest =
+                fs::read_to_string(project.join("database/migrations/Cargo.toml"))
+                    .expect("read generated migration manifest");
             assert!(migration_manifest.contains("\"auth\""));
-            let migration = fs::read_to_string(project.join("migration/src/lib.rs"))
+            let migration = fs::read_to_string(project.join("database/migrations/src/lib.rs"))
                 .expect("read generated migration registry");
             assert!(migration.contains("openrust::auth::AuthMigration"));
             assert!(migration.contains("openrust::auth::AuthRefreshTokenMigration"));
@@ -2685,7 +2686,8 @@ mod tests {
             assert!(migration.contains("openrust::audit::DatabaseAuditMigration"));
             assert!(migration.contains("openrust::audit::DatabaseAuditTenantMigration"));
             assert!(migration.contains("openrust::signing::SignedLinkRevocationMigration"));
-            let app = fs::read_to_string(project.join("src/app.rs")).expect("read generated app");
+            let app =
+                fs::read_to_string(project.join("bootstrap/app.rs")).expect("read generated app");
             assert!(app.contains("AuthPlugin::new()"));
             assert!(app.contains("JwtPlugin::new()"));
             assert!(app.contains("AuthFlowsPlugin::new()"));
@@ -2699,7 +2701,7 @@ mod tests {
             assert!(env.contains("APP_SECURITY_SIGNED_LINKS_KEYS_LOCAL="));
             assert!(!app.contains("SessionPlugin::new()"));
             let routes =
-                fs::read_to_string(project.join("src/routes.rs")).expect("read generated routes");
+                fs::read_to_string(project.join("routes/web.rs")).expect("read generated routes");
             assert!(routes.contains("AuthLayer::required("));
             assert!(routes.contains("AuthMode::Jwt"));
             assert!(routes.contains("/api/me/pat"));
@@ -2795,14 +2797,16 @@ mod tests {
             let manifest = fs::read_to_string(project.join("Cargo.toml"))
                 .expect("read generated app manifest");
             assert!(manifest.contains("\"auth-mfa\""));
-            let migration_manifest = fs::read_to_string(project.join("migration/Cargo.toml"))
-                .expect("read generated migration manifest");
+            let migration_manifest =
+                fs::read_to_string(project.join("database/migrations/Cargo.toml"))
+                    .expect("read generated migration manifest");
             assert!(migration_manifest.contains("\"auth-mfa\""));
-            let migration = fs::read_to_string(project.join("migration/src/lib.rs"))
+            let migration = fs::read_to_string(project.join("database/migrations/src/lib.rs"))
                 .expect("read generated migration registry");
             assert!(migration.contains("openrust::auth::AuthMfaMigration"));
 
-            let app = fs::read_to_string(project.join("src/app.rs")).expect("read generated app");
+            let app =
+                fs::read_to_string(project.join("bootstrap/app.rs")).expect("read generated app");
             let auth_plugin = app.find("AuthPlugin::new()").expect("auth plugin");
             let encryption_plugin = app.find("EncryptionPlugin").expect("encryption plugin");
             let mfa_plugin = app.find("MfaPlugin").expect("MFA plugin");
@@ -2813,7 +2817,7 @@ mod tests {
             assert!(mfa_plugin < flows_plugin);
 
             let routes =
-                fs::read_to_string(project.join("src/routes.rs")).expect("read generated routes");
+                fs::read_to_string(project.join("routes/web.rs")).expect("read generated routes");
             for route in [
                 "/api/auth/mfa/login",
                 "/api/auth/mfa/enrollment",
@@ -2862,7 +2866,7 @@ mod tests {
         ]
         .map(str::to_owned);
         generate_model(&model, false, false, &project).expect("generate model");
-        let entity = fs::read_to_string(project.join("src/models/_entities/post.rs"))
+        let entity = fs::read_to_string(project.join("app/models/_entities/post.rs"))
             .expect("read generated model");
         assert!(entity.contains("pub title: String"));
         assert!(entity.contains("为 `posts` 表生成的 SeaORM 实体"));
@@ -2876,15 +2880,15 @@ mod tests {
             &project,
         )
         .expect("generate UUID soft-delete model");
-        let entry = fs::read_to_string(project.join("src/models/_entities/entry.rs"))
+        let entry = fs::read_to_string(project.join("app/models/_entities/entry.rs"))
             .expect("read generated UUID model");
         assert!(entry.contains("pub id: Uuid"));
         assert!(entry.contains("Uuid::now_v7()"));
         assert!(entry.contains("pub deleted_at: Option<DateTimeUtc>"));
         assert!(entry.contains("pub fn not_deleted()"));
         let app_manifest = fs::read_to_string(project.join("Cargo.toml")).expect("app manifest");
-        let migration_manifest =
-            fs::read_to_string(project.join("migration/Cargo.toml")).expect("migration manifest");
+        let migration_manifest = fs::read_to_string(project.join("database/migrations/Cargo.toml"))
+            .expect("migration manifest");
         assert!(app_manifest.contains("\"db-uuid\""));
         assert!(migration_manifest.contains("\"db-uuid\""));
 
@@ -2908,7 +2912,7 @@ mod tests {
             &project,
         )
         .expect("generate UUID soft-delete migration");
-        let migration = fs::read_dir(project.join("migration/src"))
+        let migration = fs::read_dir(project.join("database/migrations/src"))
             .expect("read generated migrations")
             .filter_map(std::result::Result::ok)
             .map(|entry| fs::read_to_string(entry.path()).unwrap_or_default())
@@ -2926,7 +2930,7 @@ mod tests {
             )
             .expect("generate migration");
         }
-        let registry = fs::read_to_string(project.join("migration/src/lib.rs"))
+        let registry = fs::read_to_string(project.join("database/migrations/src/lib.rs"))
             .expect("read migration registry");
         assert!(registry.contains("create_posts::Migration"));
         assert!(registry.contains("create_comments::Migration"));
@@ -2981,7 +2985,7 @@ mod tests {
         assert!(Cli::try_parse_from(["openrust", "g", "policy", "post"]).is_ok());
         generate_mailer(&["welcome_email".to_owned()], &project).expect("generate mailer");
         fs::write(
-            project.join("src/mailers/mod.rs"),
+            project.join("app/mail/mod.rs"),
             "//! 应用邮件类型。\n/// 欢迎邮件说明。\npub mod welcome_email;\n",
         )
         .expect("add existing module documentation");
@@ -2989,7 +2993,7 @@ mod tests {
         generate_policy(&["post".to_owned()], &project).expect("generate policy");
         generate_policy(&["comment".to_owned()], &project).expect("generate second policy");
 
-        let mailer = fs::read_to_string(project.join("src/mailers/welcome_email.rs"))
+        let mailer = fs::read_to_string(project.join("app/mail/welcome_email.rs"))
             .expect("read generated mailer");
         assert!(mailer.contains("impl Email for WelcomeEmail"));
         assert!(mailer.contains("OpenRust 生成的应用邮件类型"));
@@ -2997,13 +3001,13 @@ mod tests {
         assert!(mailer.contains("EmailTemplateCatalog"));
         assert!(mailer.contains("mailers.welcome_email.subject"));
         assert!(
-            mailer.contains("include_str!(\"../../templates/mail/welcome_email/zh-CN/html.html\")")
+            mailer.contains("include_str!(\"../../resources/mail/welcome_email/zh-CN/html.html\")")
         );
         let template =
-            fs::read_to_string(project.join("templates/mail/welcome_email/zh-CN/html.html"))
+            fs::read_to_string(project.join("resources/mail/welcome_email/zh-CN/html.html"))
                 .expect("read generated HTML template");
         assert!(template.contains("您好，{{ user }}"));
-        let policy = fs::read_to_string(project.join("src/policies/post.rs"))
+        let policy = fs::read_to_string(project.join("app/policies/post.rs"))
             .expect("read generated policy");
         assert!(policy.contains("pub struct PostPolicy"));
         assert!(policy.contains("OpenRust 生成的应用授权策略"));
@@ -3011,7 +3015,7 @@ mod tests {
         assert!(policy.contains("authorize_create"));
         assert!(policy.contains("authorize_update"));
         assert!(policy.contains("authorize_delete"));
-        let mailer_modules = fs::read_to_string(project.join("src/mailers/mod.rs"))
+        let mailer_modules = fs::read_to_string(project.join("app/mail/mod.rs"))
             .expect("read mailer module registry");
         assert!(mailer_modules.contains("pub mod welcome_email;"));
         assert!(mailer_modules.contains("/// 欢迎邮件说明。\npub mod welcome_email;"));
@@ -3019,13 +3023,21 @@ mod tests {
             mailer_modules.find("pub mod password_reset;")
                 < mailer_modules.find("pub mod welcome_email;")
         );
-        let policy_modules = fs::read_to_string(project.join("src/policies/mod.rs"))
+        let policy_modules = fs::read_to_string(project.join("app/policies/mod.rs"))
             .expect("read policy module registry");
         assert!(policy_modules.contains("pub mod post;"));
         assert!(policy_modules.find("pub mod comment;") < policy_modules.find("pub mod post;"));
         let main = fs::read_to_string(project.join("src/main.rs")).expect("read app entry");
-        assert_eq!(main.matches("pub mod mailers;").count(), 1);
-        assert_eq!(main.matches("pub mod policies;").count(), 1);
+        assert_eq!(
+            main.matches("#[path = \"../app/mail/mod.rs\"]\npub mod mailers;")
+                .count(),
+            1
+        );
+        assert_eq!(
+            main.matches("#[path = \"../app/policies/mod.rs\"]\npub mod policies;")
+                .count(),
+            1
+        );
         let manifest =
             fs::read_to_string(project.join("Cargo.toml")).expect("read generated app manifest");
         assert!(manifest.contains("mail-templates"));
@@ -3052,17 +3064,17 @@ mod tests {
         .expect("generate database project");
         assert!(Cli::try_parse_from(["openrust", "generate", "job", "welcome_email"]).is_ok());
         generate_job(&["welcome_email".to_owned()], &project).expect("generate job");
-        let source = fs::read_to_string(project.join("src/jobs/welcome_email.rs"))
+        let source = fs::read_to_string(project.join("app/jobs/welcome_email.rs"))
             .expect("read generated job");
         assert!(source.contains("WelcomeEmailJob"));
         assert!(source.contains("job_not_implemented"));
         assert!(source.contains("请先实现此任务的业务逻辑"));
-        let app = fs::read_to_string(project.join("src/app.rs")).expect("read app");
+        let app = fs::read_to_string(project.join("bootstrap/app.rs")).expect("read app");
         assert!(app.contains("crate::jobs::JobsPlugin"));
         let auth_test = fs::read_to_string(project.join("tests/auth_flows.rs"))
             .expect("read generated auth test");
-        assert!(auth_test.contains("#[path = \"../src/jobs/mod.rs\"]\nmod jobs;"));
-        let migration = fs::read_to_string(project.join("migration/src/lib.rs"))
+        assert!(auth_test.contains("#[path = \"../app/jobs/mod.rs\"]\nmod jobs;"));
+        let migration = fs::read_to_string(project.join("database/migrations/src/lib.rs"))
             .expect("read migration registry");
         assert!(migration.contains("openrust::queue::QueueMigration"));
         assert!(!migration.contains(",,"));
@@ -3076,12 +3088,12 @@ mod tests {
             app_manifest.contains("serde = { workspace = true }")
                 || app_manifest.contains("serde = { version = \"1\"")
         );
-        let migration_manifest = fs::read_to_string(project.join("migration/Cargo.toml"))
+        let migration_manifest = fs::read_to_string(project.join("database/migrations/Cargo.toml"))
             .expect("read migration manifest");
         assert!(migration_manifest.contains("\"queue\""));
         generate_job(&["audit".to_owned()], &project).expect("generate second job");
         let modules =
-            fs::read_to_string(project.join("src/jobs/mod.rs")).expect("read jobs module");
+            fs::read_to_string(project.join("app/jobs/mod.rs")).expect("read jobs module");
         assert_eq!(modules.matches("pub struct JobsPlugin;").count(), 1);
         assert_eq!(
             modules
@@ -3090,12 +3102,12 @@ mod tests {
             2
         );
         assert!(modules.find("pub mod audit;") < modules.find("pub mod welcome_email;"));
-        let before = fs::read_dir(project.join("src/jobs"))
+        let before = fs::read_dir(project.join("app/jobs"))
             .expect("read jobs directory")
             .count();
         assert!(generate_job(&["welcome_email".to_owned()], &project).is_err());
         assert_eq!(
-            fs::read_dir(project.join("src/jobs"))
+            fs::read_dir(project.join("app/jobs"))
                 .expect("read jobs directory after duplicate")
                 .count(),
             before
@@ -3134,7 +3146,7 @@ mod tests {
         );
 
         generate_mailer(&["notice".to_owned()], &project).expect("generate first mailer");
-        let mailer_path = project.join("src/mailers/notice.rs");
+        let mailer_path = project.join("app/mail/notice.rs");
         fs::write(&mailer_path, "preserve this file").expect("replace generated file for guard");
         assert!(generate_mailer(&["notice".to_owned()], &project).is_err());
         assert_eq!(
@@ -3145,156 +3157,51 @@ mod tests {
     }
 
     #[test]
-    fn creates_multiple_workspace_apps_with_local_dependencies_and_isolated_configs() {
-        let root = std::env::temp_dir().join(format!(
-            "openrust-cli-workspace-apps-{}",
-            std::process::id()
-        ));
+    fn creates_independent_apps_without_changing_source_workspace() {
+        let root =
+            std::env::temp_dir().join(format!("openrust-cli-independent-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
-        fs::create_dir_all(&root).expect("create temporary workspace");
+        fs::create_dir_all(&root).expect("创建临时目录");
         create_framework_fixture(&root);
-
-        create_project(
-            "blog",
-            Some(DatabaseBackend::Postgres),
-            false,
-            false,
-            false,
-            false,
-            &root,
-        )
-        .expect("create first app");
-        create_project(
-            "apps/shop",
-            Some(DatabaseBackend::Mysql),
-            false,
-            false,
-            false,
-            false,
-            &root,
-        )
-        .expect("create second app");
-
-        let metadata = framework_workspace(&root).expect("discover generated workspace");
-        let names = metadata
-            .packages
-            .iter()
-            .map(|package| package.name.as_str())
-            .collect::<Vec<_>>();
-        for name in ["blog", "blog-migration", "shop", "shop-migration"] {
-            assert!(names.contains(&name), "missing workspace package {name}");
-        }
-        for (app, backend) in [("blog", "db-postgres"), ("shop", "db-mysql")] {
-            let app_manifest = fs::read_to_string(root.join(format!("apps/{app}/Cargo.toml")))
-                .expect("read app manifest");
-            let migration_manifest =
-                fs::read_to_string(root.join(format!("apps/{app}/migration/Cargo.toml")))
-                    .expect("read migration manifest");
-            assert!(app_manifest.contains("publish = false"));
-            assert!(app_manifest.contains("workspace = true"));
-            assert!(app_manifest.contains(backend));
-            assert!(migration_manifest.contains("publish = false"));
-            assert!(migration_manifest.contains("workspace = true"));
-            assert!(migration_manifest.contains(backend));
-            assert!(
-                fs::read_to_string(root.join(format!("apps/{app}/config/app.toml")))
-                    .expect("read app config")
-                    .contains(&format!("name = \"{app}\""))
-            );
-            let app_dir = root.join(format!("apps/{app}"));
-            let (resolved, package) =
-                application_directory(&metadata, &app_dir).expect("resolve app from its directory");
-            assert_eq!(
-                resolved,
-                app_dir.canonicalize().expect("canonicalize app directory")
-            );
-            assert_eq!(package, app);
-        }
-        let workspace_manifest =
-            fs::read_to_string(root.join("Cargo.toml")).expect("read updated workspace manifest");
-        assert!(workspace_manifest.contains("# 保留工作区专有配置与成员说明。"));
-        assert!(workspace_manifest.contains("custom-marker = \"keep-me\""));
-        for member in [
-            "apps/blog",
-            "apps/blog/migration",
-            "apps/shop",
-            "apps/shop/migration",
+        let original = fs::read_to_string(root.join("Cargo.toml")).expect("读取源配置");
+        for (name, backend) in [
+            ("blog", DatabaseBackend::Postgres),
+            ("shop", DatabaseBackend::Mysql),
         ] {
-            assert!(workspace_manifest.contains(member));
+            create_project(name, Some(backend), false, false, false, false, &root)
+                .expect("生成独立应用");
+            let app = root.join(name);
+            let manifest = fs::read_to_string(app.join("Cargo.toml")).expect("读取应用配置");
+            assert!(manifest.contains("[workspace]"));
+            assert!(manifest.contains("database/migrations"));
+            let metadata = framework_workspace(&app).expect("独立应用 metadata");
+            let (resolved, package) = application_directory(&metadata, &app).expect("解析当前应用");
+            assert_eq!(resolved, app.canonicalize().expect("应用路径"));
+            assert_eq!(package, name);
         }
-        let before_repeat = workspace_manifest.clone();
-        let repeated = manifest_with_members(
-            &root,
-            &["apps/blog".to_owned(), "apps/blog/migration".to_owned()],
-        )
-        .expect("merge existing workspace members");
-        assert_eq!(repeated, before_repeat);
-        let _ = fs::remove_dir_all(root);
+        assert_eq!(
+            fs::read_to_string(root.join("Cargo.toml")).expect("源配置"),
+            original
+        );
+        fs::remove_dir_all(root).expect("清理本测试目录");
     }
 
     #[test]
-    fn rejects_external_invalid_duplicate_and_existing_destinations_without_mutation() {
+    fn rejects_invalid_existing_and_conflicting_destinations_without_mutation() {
         let root =
             std::env::temp_dir().join(format!("openrust-cli-invalid-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
-        fs::create_dir_all(&root).expect("create temporary test directory");
+        fs::create_dir_all(&root).expect("创建临时目录");
         create_framework_fixture(&root);
-        let original_manifest =
-            fs::read_to_string(root.join("Cargo.toml")).expect("read original workspace manifest");
-        let external_path = root.join("external-app");
-        assert!(
-            create_project(
-                external_path.to_string_lossy().as_ref(),
-                None,
-                false,
-                false,
-                false,
-                false,
-                &root,
-            )
-            .is_err()
-        );
-        assert!(create_project("../outside", None, false, false, false, false, &root).is_err());
-        assert!(create_project("outside/path", None, false, false, false, false, &root).is_err());
-        assert!(create_project("--", None, false, false, false, false, &root).is_err());
-        fs::create_dir(root.join("apps/existing")).expect("create existing destination");
-        assert!(create_project("existing", None, false, false, false, false, &root).is_err());
-        assert!(create_project("cli", None, false, false, false, false, &root).is_err());
+        let original = fs::read_to_string(root.join("Cargo.toml")).expect("读取源配置");
+        fs::create_dir(root.join("existing")).expect("已有目录");
+        for name in ["../outside", "--", "existing", "cli"] {
+            assert!(create_project(name, None, false, false, false, false, &root).is_err());
+        }
         assert_eq!(
-            fs::read_to_string(root.join("Cargo.toml")).expect("read workspace manifest"),
-            original_manifest
+            fs::read_to_string(root.join("Cargo.toml")).expect("源配置"),
+            original
         );
-        assert!(!root.join("outside").exists());
-        assert!(!root.join("apps/outside").exists());
-
-        fs::create_dir_all(root.join("apps/blog-migration/src"))
-            .expect("create conflicting migration package");
-        fs::write(
-            root.join("apps/blog-migration/Cargo.toml"),
-            "[package]\nname = \"blog-migration\"\nversion = \"0.0.0\"\nedition = \"2024\"\n",
-        )
-        .expect("write conflicting migration manifest");
-        let with_conflict = manifest_with_members(&root, &["apps/blog-migration".to_owned()])
-            .expect("register conflicting migration package");
-        fs::write(root.join("Cargo.toml"), &with_conflict)
-            .expect("update fixture workspace manifest");
-        assert!(
-            create_project(
-                "blog",
-                Some(DatabaseBackend::Postgres),
-                false,
-                false,
-                false,
-                false,
-                &root
-            )
-            .is_err()
-        );
-        assert!(!root.join("apps/blog").exists());
-        assert_eq!(
-            fs::read_to_string(root.join("Cargo.toml")).expect("read unchanged workspace"),
-            with_conflict
-        );
-        let _ = fs::remove_dir_all(root);
+        fs::remove_dir_all(root).expect("清理本测试目录");
     }
 }

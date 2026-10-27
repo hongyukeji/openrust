@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-28
-> 摘要：Laravel 式全面重构的唯一活跃队列；R0 已盘点，R1 待实施。
+> 摘要：Laravel 式全面重构的唯一活跃队列；R0/R1 已交付，下一功能簇 R2。
 
 ## 领取规则
 
@@ -12,7 +12,7 @@
 
 | 功能簇 | 状态 | 交付与验收 |
 | --- | --- | --- |
-| R1 骨架与默认启动 | 待开始 | 依据固定基线形成目录/分发 ADR；实际迁移 framework、职责目录、生成器与全部调用方；默认 cargo run、RustRover run/debug、workspace/双库/生成项目门禁 |
+| R2 内核与测试底座 | 待开始 | 依总计划先收敛 Container/ServiceProvider、scope、Facade/显式 DI、配置/日志/停机统一 contract；先交 TestApp 最小路径、测试替换与独立扩展 consumer；按 Spec→Implement→Verify→Commit 闭环 |
 
 ## 后继路由
 

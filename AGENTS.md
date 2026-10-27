@@ -102,7 +102,7 @@ Agent 不替代开发者做方向决策、发布判断和对外动作；开发�
 
 - 一个功能簇 = 一个工程闭环，不夹带无关需求。
 - 设计与重写遵循 ADR-070：以 Laravel 能力和体验为首要依据，参考 Goravel 的跨语言实现；Spec 说明 Rust 适配、复用/重写选择和验收。允许重写已验证实现，但保留并重新验证其有效行为证据。
-- 公共 API 变更先评估下游（其他 crate、模板、`apps/example/`、`tests/consumers/`、`docs/`）兼容性；0.x 允许破坏性变更，但必须同步更新全部调用方、文档与 changelog 条目。
+- 公共 API 变更先评估下游（其他 crate、模板、`examples/example/`、`tests/consumers/`、`docs/`）兼容性；0.x 允许破坏性变更，但必须同步更新全部调用方、文档与 changelog 条目。
 - 新增依赖必须有理由并写入 `stack.md`；主版本升级写 ADR 或 changelog。
 - 遵守 `conventions.md`：`#![forbid(unsafe_code)]`、`#![deny(missing_docs)]`、库 crate 禁止 `unwrap` / `expect` / `panic` / `todo` / `unimplemented`、不写 `TODO` 注释。
 - 顺手修边界清楚、可当场验证的小问题并纳入说明；需要跨 crate 设计或改变方向的问题写入 `todo.md`。

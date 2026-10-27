@@ -27,7 +27,7 @@
 | `scripts/` | 提交脚本 |
 | [`../skills/`](../skills/README.md) | 专项工作流；按任务读取 |
 
-代码落地后按框架模块或保留的独立 package 在 `core/` 维护当前事实；认证模块事实见 `core/auth.md`，缓存事实见 `core/cache.md`，实时通信见 `core/realtime.md`，服务端视图见 `core/view.md`。v1 框架能力放在根 `openrust` package，不为业务能力预建空 crate。
+代码落地后按框架模块或保留的独立 package 在 `core/` 维护当前事实；认证模块事实见 `core/auth.md`，缓存事实见 `core/cache.md`，实时通信见 `core/realtime.md`，服务端视图见 `core/view.md`。框架能力放在 `framework/` 的 `openrust` package，不为业务能力预建空 crate。
 
 ## 维护规则
 

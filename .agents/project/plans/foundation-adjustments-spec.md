@@ -2,7 +2,7 @@
 
 > 状态：根模块迁移与 M2 数据库读写路由已完成；其余集群能力留待后续代理按唯一待办队列推进。当前 M3 WIP 保留，不以底层调整为由覆盖或混入无关提交。
 
-1. 第一簇完成根 `openrust` package 的模块布局迁移；已按契约调整的配置模块路径为 `src/config/mod.rs`，运行配置仍在项目根 `config/`。
+1. 第一簇完成根 `openrust` package 的模块布局迁移；已按契约调整的配置模块路径为 `framework/src/config/mod.rs`，运行配置仍在项目根 `config/`。
 2. 保持 `openrust::...` 导入、feature 可选性、错误语义、模板 manifest 和 根 `tests/server/` 验收；只删除已由等价测试/示例接替的 package。
 3. 第二簇为 `openrust::db` 读写分离：默认单库，显式主/副本连接、事务主库固定、强制主库与请求/工作单元内写后读一致性。
 4. 读写分离 contract 明确 `Db`/连接逃生口覆盖边界、连接池预算、路由 API 与错误语义；不解析任意 SQL，不对副本故障自动重试或回退。

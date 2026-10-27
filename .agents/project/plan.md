@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-28
-> 摘要：执行 Laravel 式全面重构；R0 上游和逐章资产基线已记录，R1 待实施。
+> 摘要：执行 Laravel 式全面重构；R0 上游和逐章资产基线已记录，R1 骨架与默认启动已实际验收，下一功能簇 R2。
 
 ## 当前里程碑
 
@@ -10,7 +10,7 @@
 
 ## 执行校准
 
-1. 当前代码事实仍是根 `src/` 框架、根 server、tools 和 apps/example；规划起点 `7f964b8`，实施前重新检查 Git/其他代理。目标结构尚未实现。
+1. 当前实现为独立 framework library、根 application/server、app/bootstrap/routes 职责目录、tools 和 examples/example；目录依据 ADR-071，语义按后继 contract 逐阶段重写。
 2. Laravel 的概念/机制/开发体验为首要依据，Goravel 为跨语言参考；保留 Rust 类型、所有权、trait、async、Cargo 和 IDE。既有命名、目录、默认值和 API 可以重写，无历史兼容义务。
 3. 旧 ADR 中的已实现行为和验收记录作为迁移输入；新方向不自动使旧记录变成新代码已通过。冲突约束依 ADR-070 替代，功能簇落地时同步领域 ADR/事实。
 4. 原 M5/M6、DX/F/G 顺序让位于 R0–R16；未完成生产、集群、SQLite、供应商条件等映射到新矩阵，不丢弃。只一个主功能簇 in_progress，内部允许隔离子任务。

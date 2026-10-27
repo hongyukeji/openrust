@@ -1,5 +1,11 @@
 # 验收口径
 
+## R1 当前边界
+
+独立 framework library、单默认 application/server、职责目录、独立生成应用与全部路径迁移已实现。默认及 all-features workspace/双库回归、MSRV、生成应用 check/test/真实 HTTP 和公开 consumer 的实际命令/数量见 [testing](testing.md#r1-目录迁移验收基线)。
+
+RustRover 2026.2.4 同一 Command=run 的普通运行和断点调试已由 Agent 实际 UI 验收：根 src/main.rs:12 暂停，恢复后真实 HTTP 成功；共享运行配置已保存。R1 目录/启动/生成器退出条件已通过。复制、集群、SQLite、最低后端版本与真实供应商条件依原阶段和 R4–R14 门禁保留。下文原专项记录保持历史证据身份。
+
 > 新目标边界：[全面重构计划](../plans/laravel-rebuild.md) 已记录；下文为迁移前专项证据。新实现必须重新验收，不继承为新版本已通过。当前执行顺序以 todo.md 为准。
 
 > 受众：AI Agent

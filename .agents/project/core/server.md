@@ -1,33 +1,20 @@
-# 根目录集成宿主
+# 默认应用当前事实
 
 > 受众：AI Agent
-> 更新：2026-10-27
-> 摘要：根 `openrust` package 同时提供框架库与名为 `server` 的本地集成宿主；从仓库根目录可直接 `cargo run`。
+> 更新：2026-10-28
+> 摘要：根 application package 只有 server bin；框架库位于 framework。
 
-## 边界
-
-仓库不再保留 `apps/server` package。根 `src/main.rs` 是唯一启动入口；根 `apps/mod.rs` 组合集成宿主与显式业务模块。源码 workspace 开发者可在 `apps/` 添加 Rust 模块并通过现有 `Application` / `AppBuilder` 注册。`openrust new` 生成的 `apps/<name>/` 仍是独立 Cargo 项目，不自动编入根宿主。workspace package 包含 `openrust`、`cli`、`macros`、`testing` 与独立性能验证包 `performance`。
-
-## 当前实现
+## 职责与装配
 
 | 路径 | 内容 |
 | --- | --- |
-| `src/main.rs` | 唯一 `server` bin 启动入口，调用 `openrust::run::<Server>()` |
-| `apps/mod.rs` | 根宿主的应用注册表；显式组合 HTTP、I18n、Mailer、SMS，以及按 feature 启用的 Encryption、Cache、Storage；业务模块在此声明并注册 |
-| `apps/home.rs` | 默认根路由模块：`/` 返回应用配置名称与版本；HTTP 插件提供 `/health` |
-| `config/*.toml` | 根目录宿主运行配置；Rust 配置代码仍在 `src/config/` |
-| `tests/server/` | 按能力组织聚合集成、真实数据库、worker/scheduler 进程及其他应用级验收 |
+| `src/main.rs` | 薄入口，调用 `openrust::run::<bootstrap::Server>()` |
+| `bootstrap/app.rs` | 使用公开 API 组合 HTTP、I18n、Mailer、SMS；按 feature 显式组合 Encryption、Cache、Storage |
+| `routes/web.rs` | 应用路由注册，当前复用 framework_routes；HTTP 插件提供 health/readiness |
+| `app/` | 应用业务模块；不扫描或动态加载源码 |
+| `config/*.toml` | 应用运行配置；配置类型/加载机制位于 framework/src/config |
+| `tests/server/` | 公开 API、真实数据库、worker/scheduler 与子进程回归 |
 
-根 package 的 feature 直接控制宿主和集成测试，不再经由 `server` package 转发。启用数据库、认证、队列等 feature 不会自动安装对应插件；各测试 Application 显式组装。
+根 feature 转发到 openrust 并控制集成测试，启用 feature 不自动安装数据库/认证/队列插件。默认根 `cargo run` 不依赖外部服务；`APP_SERVER_PORT=4000 cargo run` 可覆盖端口。集成测试命令为 `cargo test -p application --test server`；库单元测试为 `cargo test -p openrust --lib`。
 
-Rust 模块通过 `apps/mod.rs` 在编译期显式声明和注册；运行时配置不会扫描或加载代码。新增模块不增加 bin target，也不改变启动命令。用户指南见 [`apps/README.md`](../../../apps/README.md)，决策见 [ADR-063](../decisions/adr-063-explicit-app-module-registry.md)。
-
-## 命令
-
-```bash
-cargo run
-cargo run -- config show
-cargo test -p openrust --test server
-```
-
-默认监听 `127.0.0.1:3000`。可用 `APP_SERVER__PORT=4000 cargo run` 或 `PORT=4000 cargo run` 覆盖端口；配置仍从仓库根目录的 `config/` 加载。
+目录/生成分发见 [ADR-071](../decisions/adr-071-application-framework-layout.md) 与 [architecture](../architecture.md)。新的生命周期、HTTP、认证语义留对应后继阶段；真实验证见 [testing](../memory/testing.md)，IDE 验收单列。
