@@ -1,6 +1,6 @@
 # ADR-040 gRPC 纳入 v1 通用框架
 
-- 状态：Accepted；G1 基础与生成已实现并通过本地验收，G2 安全/运行与 G3 联合运行/集群仍待实施
+- 状态：Accepted；G1 基础与生成、G2a TLS/mTLS 已实现并通过本地验收；G2b 身份/错误映射、G2c 预算/资源/健康停机与 G3 联合运行/集群仍待实施
 - 日期：2026-10-26
 - 依据：[ADR-001](adr-001-own-kernel-on-axum.md)、[v1 总计划](../plans/gen1-plan.md)、[能力覆盖](../plans/v1-capability-coverage.md)
 
@@ -44,9 +44,11 @@ v1 主攻通用框架底层能力，正式交付可选 gRPC 服务端与客户�
 
 1. 保留当前中文整改及 M4 正确性任务；进入 M5 后先补跨协议验证、调用作用域与有界运行边界，不重写已验证内核。当前领取顺序只在 [todo.md](../todo.md) 维护。
 2. G1：配置/注册、server/client、四种调用、Protobuf 生成与真实 TCP 示例；同簇完成生成项目 check/test，不把可运行入口拖到 M6。
-3. G2：JWT/PAT/Policy、TLS/mTLS、错误/验证、deadline/取消、限额/背压、health/reflection 与退出；测试无效凭据、错误 CA/域名/过期证书、超限、慢消费、异常断连和 SIGTERM。
-4. G3：宿主和独立 consumer、HTTP 与 RPC 显式联合运行、双节点代理/负载分配、滚动退出、新旧 proto 互通、观测链路；M6 做整体回归和性能收口。
-5. 无数据库 gRPC 示例必须可独立运行；涉及数据库认证/事务的路径在 PostgreSQL/MySQL 分别验证。执行默认、仅 gRPC、HTTP+gRPC、认证及有效 TLS/生成组合、MSRV 与仓库源码门禁，不只测试 all-features。
+3. G2a：TLS/mTLS 与明确的明文选择，server/client 信任材料；拒绝错误 CA、域名、过期证书及缺失客户端证书。
+4. G2b：JWT/PAT/Policy、错误/验证与安全 Status 映射；拒绝无效/重复凭据，认证数据库路径双库验证。
+5. G2c：deadline/取消、限额/背压、health/reflection 与有界退出；验收超限、慢消费、断连和 SIGTERM。
+6. G3：宿主和独立 consumer、HTTP 与 RPC 显式联合运行、双节点代理/负载分配、滚动退出、新旧 proto 互通、观测链路；M6 做整体回归和性能收口。
+7. 无数据库 gRPC 示例必须可独立运行；涉及数据库认证/事务的路径在 PostgreSQL/MySQL 分别验证。执行默认、仅 gRPC、HTTP+gRPC、认证及有效 TLS/生成组合、MSRV 与仓库源码门禁，不只测试 all-features。
 
 四类调用的真实网络证据、故障和资源回收、生成项目、集群与文档全部齐备才算交付；本 ADR 不新增任何测试通过记录。
 
@@ -65,3 +67,13 @@ v1 主攻通用框架底层能力，正式交付可选 gRPC 服务端与客户�
 - [gRPC 核心概念](https://grpc.io/docs/what-is-grpc/core-concepts/)、[deadline](https://grpc.io/docs/guides/deadlines/)、[health](https://grpc.io/docs/guides/health-checking/)、[reflection](https://grpc.io/docs/guides/reflection/)：协议行为参照。
 - [tonic](https://docs.rs/tonic/latest/tonic/)、[Endpoint](https://docs.rs/tonic/latest/tonic/transport/struct.Endpoint.html)、[Interceptor](https://docs.rs/tonic/latest/tonic/service/trait.Interceptor.html)、[生成工具](https://docs.rs/tonic-prost-build/latest/tonic_prost_build/)：Rust 集成与能力边界参照。
 - [Protobuf 演进规则](https://protobuf.dev/programming-guides/proto3/)、[Goravel gRPC](https://www.goravel.dev/the-basics/grpc.html)：兼容约定和框架使用体验参照；具体实现以 OpenRust 的安全约定与验收为准。
+
+
+## G2 分簇 Spec
+
+- G2a 先交付传输安全：复用 tonic 的 Rustls `ServerTlsConfig`/`ClientTlsConfig`，显式启用 ring provider，不自建 TLS 栈。
+- 服务端配置证书与私钥文件，mTLS 通过显式 client CA 启用并要求客户端证书；文件只在启动时读入内存，Debug 不含路径内容或密钥，配置/读取失败关闭。
+- 服务端无 TLS 时必须显式设置 `allow_insecure_server = true`，仅适用于本机开发或已有可信 TLS 终止代理；无自动降级。具名客户端使用独立 HTTPS endpoint/CA/可选 client identity，HTTP URI 本身是显式明文选择。
+- TLS 凭据轮换通过有界重叠的进程滚动完成；G2a 不承诺进程内热加载。客户端 hostname 默认取 endpoint host，可显式覆写用于受控 DNS/SNI。
+- 验收用真实 TCP 自签 CA/证书：可信链、hostname、mTLS 双向身份通过；错误 CA、hostname、过期证书和缺失 client certificate 失败；证书文件权限和密钥内容不出现在错误或 Debug。
+- G2b 后续复用 `JwtTokens`、`Authenticator`、`CurrentUser` 与 `Policy`；G2c 复用 `ExecutionContext`、`Cancellation`、`RateLimiter` 和 readiness 语义。

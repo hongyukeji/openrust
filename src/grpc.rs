@@ -7,12 +7,13 @@ use std::{
     convert::Infallible,
     future::Future,
     net::SocketAddr,
+    path::Path,
     sync::Arc,
 };
 
 use crate::{
     App, AppBuilder, AppState, BoxFuture, Command, Error, Result,
-    config::GrpcConfig,
+    config::{GrpcClientTlsConfig, GrpcConfig, GrpcServerTlsConfig},
     core::{Plugin, shutdown_signal},
 };
 use http::Request;
@@ -22,7 +23,7 @@ use tonic::{
     body::Body,
     server::NamedService,
     service::{Routes, RoutesBuilder},
-    transport::{Channel, Endpoint, server::Router},
+    transport::{Certificate, Channel, Endpoint, Identity, ServerTlsConfig, server::Router},
 };
 use tower::Service;
 
@@ -91,19 +92,24 @@ pub struct GrpcClientRegistry {
 
 impl GrpcClientRegistry {
     fn from_config(config: &GrpcConfig) -> Result<Self> {
+        config.validate()?;
         let mut channels = BTreeMap::new();
-        for (name, uri) in &config.clients {
-            let endpoint = Endpoint::from_shared(uri.clone()).map_err(|_| {
+        for (name, client) in &config.clients {
+            let mut endpoint = Endpoint::from_shared(client.endpoint.clone()).map_err(|_| {
                 Error::custom(
                     "grpc_endpoint_invalid",
-                    format!("grpc.clients.{name} 不是有效的 endpoint URI"),
+                    format!("grpc.clients.{name}.endpoint 不是有效的 endpoint URI"),
                 )
             })?;
-            if endpoint.uri().scheme_str() != Some("http") {
-                return Err(Error::custom(
-                    "grpc_endpoint_scheme_unsupported",
-                    format!("grpc.clients.{name} 在 G1 仅支持 http:// endpoint；TLS 支持见 G2"),
-                ));
+            if let Some(tls) = &client.tls {
+                endpoint = endpoint
+                    .tls_config(client_tls_config(name, tls)?)
+                    .map_err(|_| {
+                        Error::custom(
+                            "grpc_tls_config_invalid",
+                            format!("grpc.clients.{name}.tls 配置无法构造 TLS 客户端"),
+                        )
+                    })?;
             }
             channels.insert(name.clone(), endpoint.connect_lazy());
         }
@@ -149,6 +155,7 @@ impl GrpcClientRegistry {
 pub struct GrpcServer {
     listen_addr: SocketAddr,
     routes: Routes,
+    tls: Option<ServerTlsConfig>,
 }
 
 impl GrpcServer {
@@ -160,9 +167,19 @@ impl GrpcServer {
                 "GrpcPlugin 未注册到当前应用",
             )
         })?;
+        let routes = registry.routes(app.state())?;
+        let config = &app.config().grpc;
+        config.validate()?;
+        if config.tls.is_none() && !config.allow_insecure_server {
+            return Err(Error::custom(
+                "grpc_tls_required",
+                "gRPC 服务端默认要求 TLS；仅在本机开发或可信 TLS 终止拓扑显式设置 grpc.allow_insecure_server=true",
+            ));
+        }
         Ok(Self {
-            listen_addr: app.config().grpc.listen_addr,
-            routes: registry.routes(app.state())?,
+            listen_addr: config.listen_addr,
+            routes,
+            tls: config.tls.as_ref().map(server_tls_config).transpose()?,
         })
     }
 
@@ -177,12 +194,73 @@ impl GrpcServer {
         F: Future<Output = ()> + Send + 'static,
     {
         let mut server = tonic::transport::Server::builder();
+        if let Some(tls) = self.tls {
+            server = server.tls_config(tls).map_err(|_| {
+                Error::custom("grpc_tls_config_invalid", "gRPC 服务端 TLS 配置无效")
+            })?;
+        }
         let router: Router = server.add_routes(self.routes);
         router
             .serve_with_incoming_shutdown(TcpListenerStream::new(listener), shutdown)
             .await
             .map_err(Error::internal)
     }
+}
+
+fn server_tls_config(config: &GrpcServerTlsConfig) -> Result<ServerTlsConfig> {
+    let certificate = read_pem(&config.certificate_file, "grpc.tls.certificate_file")?;
+    let private_key = read_pem(&config.private_key_file, "grpc.tls.private_key_file")?;
+    let identity = Identity::from_pem(certificate, private_key);
+    let tls = ServerTlsConfig::new().identity(identity);
+    config
+        .client_ca_certificate_file
+        .as_ref()
+        .map(|path| {
+            read_pem(path, "grpc.tls.client_ca_certificate_file")
+                .map(|ca| tls.clone().client_ca_root(Certificate::from_pem(ca)))
+        })
+        .transpose()
+        .map(|configured| configured.unwrap_or(tls))
+}
+
+fn client_tls_config(
+    name: &str,
+    config: &GrpcClientTlsConfig,
+) -> Result<tonic::transport::ClientTlsConfig> {
+    let ca = read_pem(
+        &config.ca_certificate_file,
+        &format!("grpc.clients.{name}.tls.ca_certificate_file"),
+    )?;
+    let mut tls =
+        tonic::transport::ClientTlsConfig::new().ca_certificate(Certificate::from_pem(ca));
+    if let (Some(certificate), Some(private_key)) = (
+        config.client_certificate_file.as_ref(),
+        config.client_private_key_file.as_ref(),
+    ) {
+        tls = tls.identity(Identity::from_pem(
+            read_pem(
+                certificate,
+                &format!("grpc.clients.{name}.tls.client_certificate_file"),
+            )?,
+            read_pem(
+                private_key,
+                &format!("grpc.clients.{name}.tls.client_private_key_file"),
+            )?,
+        ));
+    }
+    if let Some(domain) = &config.domain_name {
+        tls = tls.domain_name(domain.clone());
+    }
+    Ok(tls)
+}
+
+fn read_pem(path: &Path, key: &str) -> Result<Vec<u8>> {
+    std::fs::read(path).map_err(|_| {
+        Error::custom(
+            "grpc_tls_material_unavailable",
+            format!("{key} 指定的 PEM 文件不可读"),
+        )
+    })
 }
 
 /// 显式注册 gRPC 命令、客户端 channel 和应用服务。
@@ -269,7 +347,8 @@ pub mod codegen {
 
 #[cfg(test)]
 mod tests {
-    use super::{GrpcClientRegistry, GrpcConfig};
+    use super::GrpcClientRegistry;
+    use crate::config::{GrpcClientConfig, GrpcClientTlsConfig, GrpcConfig};
     use std::collections::BTreeMap;
 
     #[tokio::test]
@@ -277,8 +356,20 @@ mod tests {
     -> crate::Result<()> {
         let config = GrpcConfig {
             clients: BTreeMap::from([
-                ("default".to_owned(), "http://127.0.0.1:50051".to_owned()),
-                ("billing".to_owned(), "http://127.0.0.1:50052".to_owned()),
+                (
+                    "default".to_owned(),
+                    GrpcClientConfig {
+                        endpoint: "http://127.0.0.1:50051".to_owned(),
+                        tls: None,
+                    },
+                ),
+                (
+                    "billing".to_owned(),
+                    GrpcClientConfig {
+                        endpoint: "http://127.0.0.1:50052".to_owned(),
+                        tls: None,
+                    },
+                ),
             ]),
             default_client: Some("default".to_owned()),
             ..GrpcConfig::default()
@@ -294,15 +385,21 @@ mod tests {
             Some("grpc_client_not_found".to_owned())
         );
         let tls = GrpcConfig {
-            clients: BTreeMap::from([("secure".to_owned(), "https://example.test".to_owned())]),
+            clients: BTreeMap::from([(
+                "secure".to_owned(),
+                GrpcClientConfig {
+                    endpoint: "https://example.test".to_owned(),
+                    tls: Some(GrpcClientTlsConfig {
+                        ca_certificate_file: "ca.pem".into(),
+                        client_certificate_file: None,
+                        client_private_key_file: None,
+                        domain_name: None,
+                    }),
+                },
+            )]),
             ..GrpcConfig::default()
         };
-        assert_eq!(
-            GrpcClientRegistry::from_config(&tls)
-                .err()
-                .map(|error| error.code().to_owned()),
-            Some("grpc_endpoint_scheme_unsupported".to_owned())
-        );
+        assert!(GrpcClientRegistry::from_config(&tls).is_err());
         Ok(())
     }
 }

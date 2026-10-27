@@ -38,7 +38,7 @@ cargo test -p server
 
 `signing` feature 和 `openrust::signing::SignedLinks` 提供绑定用途并会过期的链接。它们使用 `[security.signed_links]` 下独立的密钥环；若需跨实例撤销单条链接，请添加 `SignedLinkRevocationMigration` 并配置共享数据库存储。详见[签名链接指南](src/signing/README.md)。
 
-可选 `grpc` feature 使用 tonic 提供 gRPC server/client、具名共享 channel 和 Protobuf 运行时。`GrpcPlugin` 注册 `grpc serve` 命令但不会自动监听；应用通过 `GrpcPlugin::register_service` 添加生成服务，并用 `GrpcServer::from_app` / `serve` 托管自定义 listener。CLI 可通过 `openrust new <name> --grpc` 为应用生成独立 proto、build.rs 和 typed 模块；生成编译使用 vendored protoc，不依赖开发机全局安装。G1 支持明文 `http://` endpoint，TLS、认证、限额、health 和 HTTP 联合运行仍在后续里程碑。真实 loopback 四类调用见 [`examples/grpc/`](examples/grpc/README.md)。
+可选 `grpc` feature 使用 tonic 提供 gRPC server/client、具名共享 channel 和 Protobuf 运行时。`GrpcPlugin` 注册 `grpc serve` 命令但不会自动监听；服务端默认要求 TLS，明文必须显式设置 `allow_insecure_server = true`，只适用于本机开发或可信 TLS 终止代理。具名 HTTPS 客户端绑定显式 CA 与可选客户端身份。CLI 可通过 `openrust new <name> --grpc` 为应用生成独立 proto、build.rs 和 typed 模块；生成编译使用 vendored protoc，不依赖开发机全局安装。JWT/PAT 认证、限额、health 和 HTTP 联合运行仍在后续里程碑。真实 loopback 四类调用见 [`examples/grpc/`](examples/grpc/README.md)。
 
 显式审计记录通过 `openrust::audit::Audit` 与数据库 sink 或自定义 `AuditSink` 写入。请将 `DatabaseAuditMigration` 加入应用迁移器；既有数据库另加入 `DatabaseAuditTenantMigration`。默认不接收详情；如需记录，必须配置允许列表，敏感字段名会被脱敏。关键数据库变更可在同一事务中写入经过校验的审计记录，详见[审计模块指南](src/audit/README.md)。
 

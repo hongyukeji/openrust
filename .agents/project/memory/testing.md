@@ -10,6 +10,12 @@
 
 服务端集成测试 3 项通过（注册与真实 TCP 生命周期、重复名称拒绝、未注册服务失败）；独立示例实际执行 unary、server stream、client stream、bidirectional stream、半关闭与断连清理。CLI `--grpc` 模板测试通过；在无 `.git`、无 target 的干净源码副本生成应用后 `cargo check` 和 `cargo test --locked` 通过，无绝对路径或 registry patch。默认 workspace 测试与 `RUST_TEST_THREADS=1 cargo test --workspace --all-features` 通过；all-features 包含真实 Redis targets。all-target/all-features workspace 与独立示例 Clippy、warnings-denied 默认/all-features Rustdoc、workspace 与独立示例 `cargo deny`、fmt/diff check 通过。deny 仅保留既有重复依赖版本及未匹配 MPL allowance 告警。`cargo +1.97.0 check` 的框架 gRPC feature 与独立示例均已通过；默认依赖树不含 tonic/prost/protoc。未覆盖 G2 安全语义和 G3 多节点/联合运行。
 
+## M5 gRPC G2a TLS/mTLS
+
+G2a 已在真实 loopback TCP 上验证服务端 TLS、具名客户端 CA/域名校验、双向 TLS 客户端身份以及错误 CA、错误域名、过期服务端证书、缺失/不受信客户端证书的拒绝。示例测试由 `rcgen` 临时生成证书，不依赖外部凭据。配置单测覆盖明文/HTTPS 与 TLS 材料不匹配、客户端身份证书配对、默认具名端点校验和 Debug 脱敏；`apps/server/tests/grpc.rs` 覆盖未显式 opt-in 时明文 server 拒绝。应用生成模板只在开发配置显式允许 loopback 明文。
+
+本簇已通过 `cargo test --workspace`、`RUST_TEST_THREADS=1 cargo test --workspace --all-features`、`cargo clippy --workspace --all-targets --all-features -- -D warnings`、独立示例 Clippy、默认/all-features warnings-denied Rustdoc、workspace 与独立示例 `cargo deny`、Rust 1.97 默认与 gRPC feature check、独立示例 `--locked` check/test/run、干净源码副本生成应用 check/test、`cargo fmt --all --check` 和 `git diff --check`。`cargo deny` 的重复版本与未命中 MPL allowance 为已有提示，advisories/bans/licenses/sources 均通过。未覆盖身份/授权、deadline/health/shutdown 或多节点验收。
+
 ## F8-A CSV/XLSX 解析与转换
 
 - 定向入口：`cargo test -p openrust --features data-exchange --lib data_exchange::tests`、`cargo test -p server --features data-exchange --test data_exchange`。

@@ -46,7 +46,7 @@ pub use auth::{JwtConfig, PasswordConfig, SessionConfig};
 pub use cache::{CacheConfig, CacheSingleflightConfig, CacheStoreConfig, CacheSwrConfig};
 pub use database::{DatabaseConfig, DatabaseInstanceConfig};
 #[cfg(feature = "grpc")]
-pub use grpc::GrpcConfig;
+pub use grpc::{GrpcClientConfig, GrpcClientTlsConfig, GrpcConfig, GrpcServerTlsConfig};
 pub use logger::{LogConfig, LogFormat};
 pub use mailer::MailConfig;
 #[cfg(feature = "queue")]
@@ -624,12 +624,16 @@ mod tests {
     #[test]
     fn grpc_toml_loads_server_and_named_client_configuration() -> Result<(), toml::de::Error> {
         let parsed: FrameworkConfig = toml::from_str(
-            "[grpc]\nlisten_addr = \"127.0.0.1:6060\"\ndefault_client = \"billing\"\n\n[grpc.clients]\nbilling = \"http://127.0.0.1:6061\"",
+            "[grpc]\nlisten_addr = \"127.0.0.1:6060\"\ndefault_client = \"billing\"\n\n[grpc.clients.billing]\nendpoint = \"http://127.0.0.1:6061\"",
         )?;
         assert_eq!(parsed.grpc.listen_addr.to_string(), "127.0.0.1:6060");
         assert_eq!(parsed.grpc.default_client.as_deref(), Some("billing"));
         assert_eq!(
-            parsed.grpc.clients.get("billing").map(String::as_str),
+            parsed
+                .grpc
+                .clients
+                .get("billing")
+                .map(|client| client.endpoint.as_str()),
             Some("http://127.0.0.1:6061")
         );
         Ok(())

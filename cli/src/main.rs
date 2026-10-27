@@ -648,7 +648,13 @@ fn populate_project_with_mfa(
         ),
         (
             "config/development.toml",
-            include_str!("../templates/config/development.toml").to_owned(),
+            {
+                let mut config = include_str!("../templates/config/development.toml").to_owned();
+                if grpc {
+                    config.push_str("\n[grpc]\nallow_insecure_server = true\n");
+                }
+                config
+            },
         ),
         (
             "config/test.toml",
@@ -2334,6 +2340,12 @@ mod tests {
         let config = fs::read_to_string(project.join("config/default.toml"))
             .expect("read generated gRPC configuration");
         assert!(config.contains("[grpc]"));
+        let development = fs::read_to_string(project.join("config/development.toml"))
+            .expect("read generated development configuration");
+        assert!(development.contains("allow_insecure_server = true"));
+        let production = fs::read_to_string(project.join("config/production.toml"))
+            .expect("read generated production configuration");
+        assert!(!production.contains("allow_insecure_server = true"));
 
         let _ = fs::remove_dir_all(root);
     }

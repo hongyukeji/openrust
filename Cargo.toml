@@ -39,11 +39,12 @@ server = { path = "apps/server", version = "0.0.0" }
 
 tokio = { version = "1.54", features = ["rt-multi-thread", "macros", "signal", "net", "time", "io-util", "fs"] }
 tokio-stream = { version = "0.1", features = ["net"] }
-tonic = { version = "~0.14.6", default-features = false, features = ["codegen", "router", "transport"] }
+tonic = { version = "~0.14.6", default-features = false, features = ["codegen", "router", "transport", "tls-ring"] }
 tonic-prost = "~0.14.6"
 tonic-prost-build = "~0.14.6"
 prost = "0.14"
 protoc-bin-vendored = "~3.3.0"
+rcgen = "0.14.10"
 axum = { version = "0.8", features = ["macros"] }
 axum-core = "0.5"
 tower = "0.5"

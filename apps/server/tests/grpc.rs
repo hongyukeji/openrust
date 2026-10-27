@@ -39,7 +39,9 @@ impl Service<tonic::codegen::http::Request<tonic::body::Body>> for ProbeService 
 #[tokio::test]
 async fn plugin_registers_service_and_serves_a_bound_tcp_listener()
 -> Result<(), Box<dyn std::error::Error>> {
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment::Figment::new());
+    let mut config = FrameworkConfig::default();
+    config.grpc.allow_insecure_server = true;
+    let mut builder = AppBuilder::new(config, figment::Figment::new());
     GrpcPlugin::register_service::<ProbeService, _>(&mut builder, |_| ProbeService)?;
     builder.plugin(GrpcPlugin::new());
     let app = finalize(builder).await?;
@@ -65,7 +67,9 @@ async fn plugin_registers_service_and_serves_a_bound_tcp_listener()
 
 #[tokio::test]
 async fn plugin_rejects_duplicate_services_by_name() -> Result<(), Box<dyn std::error::Error>> {
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment::Figment::new());
+    let mut config = FrameworkConfig::default();
+    config.grpc.allow_insecure_server = true;
+    let mut builder = AppBuilder::new(config, figment::Figment::new());
     GrpcPlugin::register_service::<ProbeService, _>(&mut builder, |_| ProbeService)?;
     let error = GrpcPlugin::register_service::<ProbeService, _>(&mut builder, |_| ProbeService)
         .err()
@@ -84,5 +88,19 @@ async fn server_requires_an_explicit_service_registration() -> Result<(), Box<dy
         .err()
         .ok_or("server construction unexpectedly succeeded without a service")?;
     assert_eq!(error.code(), "grpc_service_missing");
+    Ok(())
+}
+
+#[tokio::test]
+async fn plaintext_server_requires_an_explicit_development_or_proxy_opt_in()
+-> Result<(), Box<dyn std::error::Error>> {
+    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment::Figment::new());
+    GrpcPlugin::register_service::<ProbeService, _>(&mut builder, |_| ProbeService)?;
+    builder.plugin(GrpcPlugin::new());
+    let app = finalize(builder).await?;
+    let error = GrpcServer::from_app(&app)
+        .err()
+        .ok_or("plaintext gRPC server unexpectedly passed secure defaults")?;
+    assert_eq!(error.code(), "grpc_tls_required");
     Ok(())
 }

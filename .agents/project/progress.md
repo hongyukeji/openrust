@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-27
-> 摘要：框架处于 v1 M5，尚未达到完整 v1。源码 workspace、C1–C3 中文化、M3/M4 已列能力及 M5 插件扩展、HTTP 生命周期、缓存、查询授权、迁移互斥、存储、出站安全与 F6/F7 子簇均有适用验收证据；F8-A/F8-B CSV/XLSX 解析转换、任务化导入与授权导出已完成 workspace、consumer 和 PostgreSQL 18/MySQL 8.4 真实数据库验收；gRPC G1 基础与生成已完成并通过真实 TCP、生成项目和 workspace 验收；当前按 `todo.md` 推进 G2，v1 集群、生产和性能最终门禁仍未完成。
+> 摘要：框架处于 v1 M5，尚未达到完整 v1。源码 workspace、C1–C3 中文化、M3/M4 已列能力及 M5 插件扩展、HTTP 生命周期、缓存、查询授权、迁移互斥、存储、出站安全与 F6/F7 子簇均有适用验收证据；F8-A/F8-B CSV/XLSX 解析转换、任务化导入与授权导出已完成 workspace、consumer 和 PostgreSQL 18/MySQL 8.4 真实数据库验收；gRPC G1 基础与生成已完成并通过真实 TCP、生成项目和 workspace 验收；G2a TLS/mTLS 已通过真实 TCP 与适用 workspace 门禁，当前按 `todo.md` 推进 G2b 身份与错误映射，v1 集群、生产和性能最终门禁仍未完成。
 
 ## F7 SSO 验收完成
 
@@ -59,7 +59,7 @@
 
 ## 下一步
 
-F8-A/B 均已完成。gRPC G1 基础与生成已通过真实 TCP、生成项目、独立 consumer 及 workspace 门禁；下一步按 [todo.md](todo.md) 推进 G2 安全与运行。G1 及 F8-B 双库验收证据见 `memory/testing.md`。F6-A/F6-B 租户查询隔离和共享资源传播已通过双库与 workspace 验收。随后执行完整 v1 性能、生产就绪与集群门禁。Worker 与 scheduler 专项双库证据不覆盖生产多实例负载与完整集群门禁。组件整合与 Laravel 式体验按 ADR-001；不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
+F8-A/B 均已完成。gRPC G1 基础与生成已通过真实 TCP、生成项目、独立 consumer 及 workspace 门禁；G2a TLS/mTLS 已完成；下一步按 [todo.md](todo.md) 推进 G2b 身份与错误映射。G1 及 F8-B 双库验收证据见 `memory/testing.md`。F6-A/F6-B 租户查询隔离和共享资源传播已通过双库与 workspace 验收。随后执行完整 v1 性能、生产就绪与集群门禁。Worker 与 scheduler 专项双库证据不覆盖生产多实例负载与完整集群门禁。组件整合与 Laravel 式体验按 ADR-001；不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
 
 ## 本次文档核对范围
 

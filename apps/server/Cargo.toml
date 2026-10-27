@@ -41,6 +41,7 @@ validator.workspace = true
 redis.workspace = true
 reqwest.workspace = true
 tempfile.workspace = true
+rcgen.workspace = true
 
 [lints]
 workspace = true
