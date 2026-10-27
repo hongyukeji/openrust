@@ -41,7 +41,7 @@ tests/consumers/          # 独立 consumer 与真实拓扑验收夹具
 
 框架源码 Rust 模块与运行时配置文件分开：源码位于根 `src/`，包括 `src/config/` 与集中路由装配的 `src/routes.rs`；每个应用（含生成项目）在自身项目根 `config/` 放 TOML/YAML。HTTP 注册扩展复用 `RouteRegistry`、`AppBuilderHttpExt::routes` 和 Tower layers；应用在 `Application::build` 或插件 `build` 阶段按顺序声明路由，不另建 Hooks。仓库 `apps/mod.rs` 是根宿主的静态模块注册表，业务模块需显式声明并通过 `Application` / `AppBuilder` 接入；不扫描文件系统或运行时加载 Rust 源码。CLI 通过 Cargo metadata 识别源码 workspace，生成的 `apps/<name>/` 是独立 package，并把应用及可选 migration 登记为 workspace member。应用使用本地 workspace/path 依赖；`dev`、`serve` 与代理命令按目标 app 的 manifest 显式选包，并从应用工作目录加载配置。外部独立目录不是生成目标，详细边界见 ADR-039 与 [ADR-063](decisions/adr-063-explicit-app-module-registry.md)。数据交换模块按 `src/data/exchange/` 分层；`openrust::data_exchange` 保留兼容导出。
 
-当前 manifest 的五个 workspace package 为：根 `openrust`（框架与聚合启动宿主），`tools/cli`（package `cli`，命令分发），`tools/macros`（package `macros`，proc-macro 技术边界），`tools/testing`（package `testing`，用户测试 dev-dependency），`tools/performance`（package `performance`，框架性能基准）。原能力空壳已移除；cache/events/storage 等剩余能力直接在根 package 实现，不预建空模块。
+当前 workspace 有七个 package：根 `openrust`（框架与聚合启动宿主），`tools/cli`（package `cli`，命令分发），`tools/macros`（package `macros`，proc-macro 技术边界），`tools/testing`（package `testing`，用户测试 dev-dependency），`tools/performance`（package `performance`，框架性能基准），以及 `apps/example` 与其 `migration` package（贯穿式示例应用及迁移）。原能力空壳已移除；cache/events/storage 等剩余能力直接在根 package 实现，不预建空模块。
 
 ## 目录职责与验证入口
 
