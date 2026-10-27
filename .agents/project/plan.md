@@ -12,7 +12,7 @@
 
 ## 执行校准
 
-**[ADR-039](decisions/adr-039-source-workspace-distribution.md) 的源码 workspace、包命名、生成器、应用启动/配置隔离和双库验收已完成并提交；C1–C3 中文化亦已完成。M3/M4 认证事务扩展、共享锁/幂等、worker 修正、日历/国际化/邮件通知及 M4 生成集成已按双库和 workspace 门禁验收；M5 插件/Db/Queue 扩展、HTTP 生命周期、缓存/Redis Queue、查询授权、迁移互斥、存储/上传下载、受限出站与依赖韧性及 OIDC/TOTP 子簇均按各自证据完成。F7 SSO 已在 Keycloak 26.8.1、PostgreSQL 18/MySQL 8.4 与 Redis 8 上完成双应用×双 API 子进程、TCP 负载均衡、callback/logout 与 MFA/refresh 竞态、真实 Redis 停机 503/恢复后副本重启及 Logout Token 重放；本簇完整门禁通过。当前按 todo 进入 F6 租户隔离。
+**[ADR-039](decisions/adr-039-source-workspace-distribution.md) 的源码 workspace、包命名、生成器、应用启动/配置隔离和双库验收已完成并提交；C1–C3 中文化亦已完成。M3/M4 认证事务扩展、共享锁/幂等、worker 修正、日历/国际化/邮件通知及 M4 生成集成已按双库和 workspace 门禁验收；M5 插件/Db/Queue 扩展、HTTP 生命周期、缓存/Redis Queue、查询授权、迁移互斥、存储/上传下载、受限出站与依赖韧性及 OIDC/TOTP 子簇均按各自证据完成。F7 SSO 已在 Keycloak 26.8.1、PostgreSQL 18/MySQL 8.4 与 Redis 8 上完成双应用×双 API 子进程、TCP 负载均衡、callback/logout 与 MFA/refresh 竞态、真实 Redis 停机 503/恢复后副本重启及 Logout Token 重放；本簇完整门禁通过。F6-A 可信租户上下文与查询隔离已双库、双 API 节点及 workspace 验收；当前按 todo 进入 F6-B 共享资源传播。
 
 1. 目录收尾、M3 Mailer/Policy 生成器、公开 HTTP 路由限流及数据输出/查询边界、M4 类型化事件/queued listener、ADR-039 源码交付、ADR-047 查询授权和 ADR-048 稳定键分批已完成；后续工作按 `todo.md` 当前优先级推进。
 2. 目录和内部 package 统一使用中性职责名，ADR-039 已完成；已完成目录迁移不重做。框架在 `src/`；CLI、proc-macro、测试工具保留独立 package 的技术边界，应用约定 `apps/` 保留；`apps/server` 继续承担集成宿主职责。见 [ADR-021](decisions/adr-021-loco-style-module-layout.md)。
@@ -34,13 +34,13 @@
 
 17. **底层缺口按 [底层补齐计划](plans/v1-foundation-completion.md) F1–F10 全部交付**。cron、缓存 tag、高级 i18n、轻量 fixtures、租户通用隔离和外部身份接入等旧后置/排除口径已校准；具体 API/默认语义先定 Spec，不再重复评估是否需要交付。仅后续适配清单保持评估状态。
 
-18. **F7 包含 [SSO 登录与统一退出](plans/v1-foundation-completion.md#sso-登录与统一退出)**：OIDC、TOTP/恢复码及双应用 SSO/退出的真实双库多进程专项已通过；真实 Redis 故障恢复已双库通过，本簇门禁通过后再推进 F6，M6 按完整集群计划复验。JWT 撤销窗口与共享状态边界按 ADR-055 报告。
+18. **F7 包含 [SSO 登录与统一退出](plans/v1-foundation-completion.md#sso-登录与统一退出)**：OIDC、TOTP/恢复码及双应用 SSO/退出的真实双库多进程专项、Redis 故障恢复和本簇门禁均已通过；当前按 todo 推进 F6，M6 按完整集群计划复验。JWT 撤销窗口与共享状态边界按 ADR-055 报告。
 
 ## 里程碑顺序
 
 | 顺序 | 工作 | 完成门槛 |
 | --- | --- | --- |
-| 当前 | M5 可选租户隔离 F6 | 调用作用域、查询授权、缓存/队列/存储已就绪；按 todo 开始可信租户解析、公开隔离接入和审计 |
+| 当前 | M5 可选租户隔离 F6-B | F6-A 可信租户上下文与查询隔离已双库和双 API 节点验收；当前推进 Cache/Queue/Storage/Audit 的租户传播 |
 | M4 | 流程扩展、共享锁/幂等、worker 修正、日历调度、国际化/邮件模板与队列通知 | 双库并发/故障、DST/补跑、模板/通知、job 生成与组合运行 |
 | M5 | 插件公开契约与外部扩展、运行/迁移保障、缓存/存储、查询/租户、外部身份/MFA、数据交换、gRPC/实时/观测 | 独立扩展、真实驱动、跨协议/租户隔离、身份协议、双库与多节点资源边界 |
 | M6 | 插件模板/诊断/升级、CLI/dev/doctor、应用模板覆盖、fixtures/TestApp、OpenAPI、示例与正式文档 | 双库黄金路径、源码升级、构建成本及兼容/集群/性能门禁 |

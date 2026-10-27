@@ -83,6 +83,8 @@ let (rows, total) = documents.select(&user, Condition::all())?
 
 分页页大小上限为 `MAX_AUTHORIZED_PAGE_SIZE`（500），页偏移溢出会拒绝。关联读取会先按父实体规则验证给定父记录，再用关联实体自己的规则查询子记录。软删除条件仍由应用显式 AND 组合。普通 SeaORM 查询/写入、直接关联加载、原生 SQL 与自定义 driver 都不会自动套用规则；应用必须在这些逃生路径自行维护授权范围。类型化用法见 [`examples/query-authorization`](../../examples/query-authorization/README.md)。
 
+可选租户隔离由 `openrust::tenant::TenantLayer` 从应用提供的可信 resolver 建立，未验证的请求 header/query 不可直接作为租户身份。将资源规则用 `QueryRule::for_tenant(entity::Column::TenantId)` 绑定后，列表、关联和批量写入都会同时应用用户授权与 tenant 条件；未绑定租户的普通应用不受影响。完整 resolver 与逃生口说明见 [`openrust::tenant`](../tenant/README.md)。
+
 长任务可将 `AuthorizedSelect::into_batches()` 转为主键游标分批读取；每页都会保留既有资源范围和业务筛选。批次上限、合作取消、续读位置及并发修改边界见 [`openrust::db` 分批读取说明](../db/README.md#稳定键有界分批读取)。
 
 通用 Session store、Cookie middleware、过期、删除和共享失效能力已实现，并在 PostgreSQL/MySQL 上测试。JWT access token 签名、严格校验、key ID、重叠密钥轮换和 JWT 路由认证均已实现。Refresh token 摘要持久化、单次轮换、重放时撤销 family、账户级撤销和并发刷新串行化均已实现，并在 PostgreSQL/MySQL 上测试。Argon2id 密码原语、通用验证码服务、`AuthFlows` 服务组合和基础数据库角色权限均已实现，并在 PostgreSQL/MySQL 上测试。Session 登录/登出 helper 覆盖 ID 轮换、CSRF 摘要存储、脱敏、保留应用数据及移除认证 key，并在 PostgreSQL/MySQL 上测试数据库流程。生成的认证路由通过隔离数据库和 fake mail HTTP 测试；注册、邮箱验证、JWT/PAT 认证、refresh 重放、密码重置、登出撤销和限流响应已在 PostgreSQL 18 与 MySQL 8.4 上通过真实 TCP 验收。应用 handler 仍负责业务 DTO 和路由授权。真实 Twilio 送达尚未验证，需提供获授权的账号和目标地址。

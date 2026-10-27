@@ -53,7 +53,9 @@ pub use oidc::{
     VerifiedLogoutToken,
 };
 pub use policy::Policy;
-pub use query::{AuthorizedSelect, MAX_AUTHORIZED_PAGE_SIZE, QueryRule, QueryScope};
+pub use query::{
+    AuthorizedSelect, MAX_AUTHORIZED_PAGE_SIZE, QueryRule, QueryScope, TenantQueryRule,
+};
 
 pub(crate) fn resolve_auth_sql(db: &crate::db::Db, sql: &str) -> Result<String> {
     let backend = db.backend()?;

@@ -11,6 +11,7 @@ use crate::{
         PaginatorTrait, PrimaryKeyToColumn, QueryFilter, QueryOrder, QuerySelect, Related, Select,
         sea_query::SimpleExpr,
     },
+    tenant::{TenantContext, TenantId},
 };
 
 /// 分页查询允许的最大页大小。
@@ -43,6 +44,14 @@ impl<E: EntityTrait> QueryRule<E> {
         Self {
             build: Arc::new(build),
             entity: PhantomData,
+        }
+    }
+
+    /// 将此资源规则与必需的当前租户列绑定。
+    pub fn for_tenant(self, tenant_column: E::Column) -> TenantQueryRule<E> {
+        TenantQueryRule {
+            rule: self,
+            tenant_column,
         }
     }
 
@@ -142,6 +151,133 @@ impl<E: EntityTrait> QueryRule<E> {
         (self.build)(user)
             .map(QueryScope::into_condition)
             .map_err(|_| forbidden_scope())
+    }
+}
+
+/// 将当前租户条件与资源授权规则合并的查询入口。
+pub struct TenantQueryRule<E: EntityTrait> {
+    rule: QueryRule<E>,
+    tenant_column: E::Column,
+}
+
+impl<E: EntityTrait> TenantQueryRule<E> {
+    fn scope(&self, user: &CurrentUser, tenant: &TenantId) -> Result<QueryScope<E>> {
+        let scope = self.rule.scope(user)?;
+        Ok(QueryScope {
+            condition: Condition::all()
+                .add(scope)
+                .add(self.tenant_column.eq(tenant.as_str())),
+            entity: PhantomData,
+        })
+    }
+
+    /// 创建保留当前租户与用户授权范围的查询；缺少租户上下文时拒绝。
+    pub fn select(
+        &self,
+        user: &CurrentUser,
+        user_filter: Condition,
+    ) -> Result<AuthorizedSelect<E>> {
+        let tenant = TenantContext::require_current()?;
+        let scope = self.scope(user, &tenant)?;
+        Ok(AuthorizedSelect {
+            query: E::find().filter(
+                Condition::all()
+                    .add(scope.into_condition())
+                    .add(user_filter),
+            ),
+        })
+    }
+
+    /// 读取同时满足父子资源授权范围和同一租户条件的关联记录。
+    pub async fn related<M, R>(
+        &self,
+        user: &CurrentUser,
+        model: &M,
+        related_rule: &TenantQueryRule<R>,
+        user_filter: Condition,
+        connection: &impl ConnectionTrait,
+    ) -> Result<AuthorizedSelect<R>>
+    where
+        M: ModelTrait<Entity = E>,
+        E: Related<R>,
+        R: EntityTrait,
+    {
+        let tenant = TenantContext::require_current()?;
+        let parent_scope = self.scope(user, &tenant)?;
+        let mut parent_condition = Condition::all().add(parent_scope.into_condition());
+        let mut has_primary_key = false;
+        for key in E::PrimaryKey::iter() {
+            has_primary_key = true;
+            parent_condition =
+                parent_condition.add(key.into_column().eq(model.get(key.into_column())));
+        }
+        if !has_primary_key {
+            return Err(forbidden_scope());
+        }
+        let parent = E::find()
+            .filter(parent_condition)
+            .one(connection)
+            .await
+            .map_err(Error::internal)?;
+        let Some(parent) = parent else {
+            return Err(forbidden_scope());
+        };
+        let child_scope = related_rule.scope(user, &tenant)?;
+        let query = parent.find_related(R::default()).filter(
+            Condition::all()
+                .add(child_scope.into_condition())
+                .add(user_filter),
+        );
+        Ok(AuthorizedSelect { query })
+    }
+
+    /// 在实际批量 UPDATE 中保留当前租户与授权范围。
+    pub async fn update_many<C>(
+        &self,
+        user: &CurrentUser,
+        values: E::ActiveModel,
+        user_filter: Condition,
+        connection: &C,
+    ) -> Result<sea_orm::UpdateResult>
+    where
+        C: ConnectionTrait,
+        E::ActiveModel: Send,
+    {
+        let tenant = TenantContext::require_current()?;
+        let scope = self.scope(user, &tenant)?;
+        E::update_many()
+            .set(values)
+            .filter(
+                Condition::all()
+                    .add(scope.into_condition())
+                    .add(user_filter),
+            )
+            .exec(connection)
+            .await
+            .map_err(Error::internal)
+    }
+
+    /// 在实际批量 DELETE 中保留当前租户与授权范围。
+    pub async fn delete_many<C>(
+        &self,
+        user: &CurrentUser,
+        user_filter: Condition,
+        connection: &C,
+    ) -> Result<sea_orm::DeleteResult>
+    where
+        C: ConnectionTrait,
+    {
+        let tenant = TenantContext::require_current()?;
+        let scope = self.scope(user, &tenant)?;
+        E::delete_many()
+            .filter(
+                Condition::all()
+                    .add(scope.into_condition())
+                    .add(user_filter),
+            )
+            .exec(connection)
+            .await
+            .map_err(Error::internal)
     }
 }
 

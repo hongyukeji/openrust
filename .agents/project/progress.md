@@ -103,3 +103,8 @@ F7 SSO 已完成双 client 同浏览器授权；真实 callback/RP logout/Logout
 ## M5 ADR-052 命名依赖隔离与可选熔断
 
 `HttpClient::dependency(name, policy)` 在同一客户端及克隆间按名称共享有界并发、等待队列和可选熔断；同名策略不一致会拒绝配置。HTTP 总时限涵盖排队、发送和重试，响应正文消费期间持有许可；取消释放等待槽和许可。熔断默认关闭、进程内共享，按连续 transport/timeout 错误和 5xx 计失败，冷却后限制半开探测，4xx 计为成功。显式幂等重试最多五次，采用全抖动指数退避，并对 429/502/503/504 处理受上限约束的秒数或 HTTP 日期 `Retry-After`。`cargo test -p openrust --features http-client http::client::tests -- --nocapture` 21 项通过；`cargo test -p server --all-features --test http_client -- --nocapture` 6 项通过，含真实 loopback TCP 上的跨依赖隔离、满队列拒绝/取消释放、流式响应持许可及队列等待超时、熔断打开/半开恢复。默认与串行 all-features workspace tests、default/all-features all-target Clippy、warnings-denied Rustdoc、no-default-features check、`cargo deny check`、fmt 和 diff check 全部通过。deny 仅保留既有重复版本及未匹配 MPL-2.0 allowance 警告。无外部服务依赖；不覆盖跨进程总限额，gRPC 尚未实现且未验收。
+
+
+## F6-A 可信租户上下文与查询隔离
+
+已交付受校验 `TenantId`、task-local `TenantContext`（要求上下文、拒绝嵌套切租）、应用可信解析器驱动的 `TenantLayer`，以及绑定 tenant column 的 `TenantQueryRule`。Tenant resolver 只能依赖已验证身份/其他可信请求状态；框架不提供信任任意 request header 的捷径。`TenantQueryRule` 将原有用户授权范围、tenant predicate 和业务筛选以 AND 组合，覆盖列表、关联、批量更新/删除。普通应用不启用该层或规则时不受影响；schema、裸 ORM、原生 SQL、自定义 driver 暂不自动接管。PostgreSQL 18 与 MySQL 8.4 的隔离测试各通过 2 项（既有 F5 查询授权回归 1 项及租户隔离 TCP 测试 1 项）；租户专项在每个数据库用两个真实 API listener 共享隔离库，验证用户身份映射、伪造 `x-tenant-id` 不生效、关联过滤、批量写只影响租户行与无上下文拒绝。`cargo fmt`、default/all-features all-target clippy、default/all-features workspace tests、warnings-denied default/all-features Rustdoc、no-default-features check 与 cargo deny 均通过；deny 保留既有重复依赖及未匹配 MPL allowance 告警。下一簇 F6-B 继续实现 Cache/Queue/Storage/Audit 的 tenant 传播。

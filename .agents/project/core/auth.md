@@ -26,7 +26,7 @@
 - 认证主体留在当前 HTTP request extension；`ExecutionMetadata` 只跨任务传递 request ID/locale，不序列化 `CurrentUser`、权限快照、Bearer token、Session cookie 或任意 header。后台 Job 的授权须在执行边界按应用策略重新确认。
 - `PersonalAccessTokens` 由 `AuthPlugin` 在数据库已注册后放入 `AppState`，提供一次性签发、账户范围列举、单 token 撤销及账户级全量撤销。原始 token 以 256-bit CSPRNG 生成，仅 `IssuedPersonalAccessToken::expose` 可读，Debug 脱敏；数据库只存 SHA-256 和短前缀。列表不返回 digest，撤销 SQL 同时约束 user_id。
 - `Policy` 由 `AuthPlugin` 在 `Db` 已注册时放入 `AppState`，并通过追加的 `AuthPolicyMigration` 建立全局 roles/permissions/user_roles/role_permissions。支持确保角色、角色分配/撤销、精确权限授予/撤销与显式 `allows` / `authorize`。权限检查每次读取共享数据库，不缓存；JWT/Session 需要角色授予，PAT 还需同名 token ability。授权管理路由由应用负责保护。
-- `QueryRule<E>` / `QueryScope<E>` 按 SeaORM Entity 定义资源行范围；`QueryScope` 必须从非空表达式起步，可通过 AND 与非空 OR 组扩展。`AuthorizedSelect` 只提供 AND 筛选、排序、limit/offset、列表/详情和分页；页大小最多 500，溢出偏移拒绝。批量 update/delete 在真实写语句上组合 rule AND user filter。`related` 会先按父规则校验父记录，再按子实体规则查询关联记录。此能力不代替 `Policy::authorize`，也不拦截裸 SeaORM、原生 SQL 或自定义 driver。真实 PostgreSQL 18/MySQL 8.4 HTTP 集成覆盖 owner filter、越权详情、混合批量更新/删除和受限关联。
+- `QueryRule<E>` / `QueryScope<E>` 按 SeaORM Entity 定义资源行范围；`QueryScope` 必须从非空表达式起步，可通过 AND 与非空 OR 组扩展。`AuthorizedSelect` 只提供 AND 筛选、排序、limit/offset、列表/详情和分页；页大小最多 500，溢出偏移拒绝。批量 update/delete 在真实写语句上组合 rule AND user filter。`related` 会先按父规则校验父记录，再按子实体规则查询关联记录。F6-A 新增 `TenantQueryRule<E>`，由 `QueryRule::for_tenant` 绑定应用租户列；它在 select/related/update/delete 上将当前可信租户与原用户 scope 继续 AND，缺少 TenantContext 时拒绝。此能力不代替 `Policy::authorize`，也不拦截裸 SeaORM、原生 SQL 或自定义 driver。真实 PostgreSQL 18/MySQL 8.4 HTTP 集成覆盖 owner filter、越权详情、混合批量更新/删除和受限关联。
 - `Policy::grant_permission_in_transaction` 接受调用方事务，用于将权限变更与 `openrust::audit::DatabaseAuditSink::record_in_transaction` 原子提交；常规 `grant_permission` 保持内部事务兼容。
 - `AuthMigration` 创建中性逻辑名 `users`、`sessions` 与 `personal_access_tokens`，实际物理名由 ADR-016 的 `DatabaseTableNames` resolver 解析（默认 `tb_*`）。PostgreSQL/MySQL 集成验证默认、空前缀、自定义前缀和 `users` 完整名映射，并走通认证持久化查询。
 - `AuthRefreshTokenMigration` 作为追加迁移创建逻辑名 `auth_refresh_tokens`，不修改原认证迁移版本。`AuthPlugin` 在先注册 `DatabasePlugin` 时向应用状态注册 `RefreshTokens`；它签发 32 字节随机 opaque token、只持久化 SHA-256、单次事务轮换、重放撤销整组，并提供单 token 与账户级撤销。账户行锁将签发、轮换和撤销串行化，避免并发轮换在账户级撤销后留下后继 token。初次过期时间由 AuthFlows 默认 30 天或显式配置提供，轮换不延长。
@@ -40,7 +40,7 @@
 - Discovery、token、JWKS 请求共享一次总时限与 1 MiB 响应体上限。JWKS 最长缓存 5 分钟，过期刷新失败时拒绝认证；未知 `kid` 主动刷新受 30 秒冷却限制。短暂 IdP 故障在缓存过期后会使 OIDC 登录失败关闭。
 - PostgreSQL 18 和 MySQL 8.4 各完成一次数据库集成；Keycloak 26.8.1 fixture 完成真实浏览器表单授权码、PKCE、issuer、nonce、RS256/JWKS 验证。可复跑命令和跳过边界见 [测试基线](../memory/testing.md)。TOTP 与恢复码已按 ADR-054 完成并单独通过 PostgreSQL 18/MySQL 8.4 验收；双应用 SSO/统一退出已按 ADR-055 完成双库真实验收。
 
-## 双应用 SSO 与统一退出（F7 当前进行中）
+## 双应用 SSO 与统一退出（F7 验收完成）
 
 - `complete` 保持兼容；`complete_with_handle` 返回 `ExternalLoginResult` 与不透明 `ExternalLoginHandle`。应用应仅在服务端安全保存句柄。调用 `attach_session` 会校验 Session 内账户 ID，并使用本地 `Encryptor` 加密保存 Session ID；启用 MFA 时，`AuthFlows::complete_mfa_login` 在完成 challenge 的事务中将新 refresh family 绑定回关联。
 - `AuthExternalSessionMigration` 创建关联、Logout Token replay、一次性 RP logout state 与并发墓碑表。关联按 provider/issuer、subject hash、可选 `sid`、refresh family、MFA challenge hash 和加密 Session ID 保存，不保留原始 OIDC token。callback 在签发前检查 sid 与主体级退出墓碑；Back-Channel Logout 验证/重放检查后共享撤销 refresh、MFA challenge 和关联 Session。重复通知会继续尝试删除此前未能删除的 Session。

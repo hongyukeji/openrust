@@ -25,6 +25,7 @@ pub mod security;
 pub mod signing;
 pub mod sms;
 pub mod storage;
+pub mod tenant;
 pub mod validation;
 
 #[cfg(feature = "auth")]
@@ -115,6 +116,7 @@ pub mod prelude {
     };
     pub use crate::sms::{SmsContent, SmsDriver, SmsMessage, SmsPlugin, SmsReceipt, SmsSender};
     pub use crate::storage::{Storage, StorageDisk, StoragePath, StoragePlugin};
+    pub use crate::tenant::{TenantContext, TenantId, TenantLayer};
     pub use crate::validation::{Validate, validate};
     pub use crate::{
         App, AppBuilder, Application, BoxFuture, Cancellation, Command, Error, ExecutionContext,
