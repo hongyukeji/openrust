@@ -21,11 +21,15 @@ OpenRust 基于 `tokio`、`axum`、`tower` 和 `SeaORM` 构建，采用明确的
 仓库根目录的 `src/main.rs` 是唯一启动入口，`apps/mod.rs` 负责显式组合根 `server` 的业务模块和框架插件；默认宿主安装 HTTP、请求语言、本地日志邮件与短信驱动，不依赖外部服务。开发者可在 `apps/` 编写 Rust 模块，在注册表中声明并通过 `Application` / `AppBuilder` 接入。模块在编译期显式选择，不做目录扫描或运行时加载；配置文件和 `.env` 只提供运行参数。由 `openrust new` 生成的 `apps/<name>/` 是独立 Cargo package，但默认登记为当前源码 workspace 成员、共享根 `Cargo.lock`，且不会编译进根 `server`；当前生成器不支持仓库外输出。若要独立锁定应用依赖和升级周期，应在框架仓库之外维护应用 workspace。数据库、认证、队列和调度由显式组装的测试应用验证；启用 feature 不会自动安装这些服务：
 
 ```bash
+# 可选：复制本地环境配置模板；根目录宿主默认不依赖外部服务。
+cp .env.example .env
 cargo run
 cargo run -- config show
 cargo run -- help
 cargo test --workspace
 ```
+
+`.env` 仅用于本地非生产环境覆盖配置，进程环境变量优先；生产环境不读取 `.env`。根目录宿主可通过 `APP_SERVER__PORT` 覆盖监听端口，生成应用则使用各自目录中的 `.env.example`。
 
 唯一贯穿式用户示例位于 [`apps/example/`](apps/example/README.md)，用于逐步展示生成项目结构与框架能力组合；独立 API consumer 和真实多进程验收位于 `tests/consumers/`。
 
