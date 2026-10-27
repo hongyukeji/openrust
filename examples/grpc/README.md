@@ -10,13 +10,22 @@ OPENRUST_TEST_DATABASE_URL="<隔离测试库管理 URL>" cargo test --locked --f
 OPENRUST_TEST_DATABASE_URL="<隔离测试库管理 URL>" cargo test --locked --features db-mysql database_auth_tests::database_bearer_and_method_policy_work_over_real_tcp
 ```
 
-应用可从 `GrpcClientRegistry` 选择默认或具名共享 `Channel`，服务由 `GrpcPlugin::register_service` 注册。启用 `grpc` feature 不会自动监听端口；示例仅在本机 loopback 显式允许明文，并通过 shutdown future 优雅停止。正式服务配置证书与私钥；mTLS 额外配置客户端 CA。证书轮换使用滚动重启。
+应用可从 `GrpcClientRegistry` 选择默认或具名共享 `Channel`，服务由 `GrpcPlugin::register_service` 注册。需要把配置的消息大小限额应用到 tonic 生成 server 时，使用 `GrpcPlugin::register_service_with_config`。启用 `grpc` feature 不会自动监听端口；示例仅在本机 loopback 显式允许明文，并通过 shutdown future 优雅停止。正式服务配置证书与私钥；mTLS 额外配置客户端 CA。证书轮换使用滚动重启。
 
 生产 server 示例配置：
 
 ```toml
 [grpc]
 listen_addr = "0.0.0.0:50051"
+max_concurrent_streams_per_connection = 128
+max_concurrent_rpcs_per_connection = 64
+max_concurrent_rpcs = 1024
+max_metadata_size_bytes = 8192
+max_decoding_message_size_bytes = 4194304
+max_encoding_message_size_bytes = 4194304
+default_timeout_secs = 30
+max_timeout_secs = 300
+reflection_enabled = false
 
 [grpc.tls]
 certificate_file = "config/certs/server.pem"
@@ -47,3 +56,45 @@ openrust::grpc::GrpcAuth::authorize(&request, &policy, "invoices:read")
 ```
 
 认证失败使用 `UNAUTHENTICATED`；方法无权限使用 `PERMISSION_DENIED`。Status 只携带稳定错误类别，不返回字段值、业务消息或内部错误来源。示例中的认证 helper 演示框架接入；生产方法仍需按业务权限逐一授权。
+
+## 调用期限与资源边界
+
+框架默认调用预算为 30 秒，最大可配置为 300 秒（硬上限 24 小时）。客户端可按 gRPC 协议发送 `grpc-timeout`；服务端取其与配置上限的较小值，缺少期限时使用默认值。handler 和 server/client/bidirectional stream 的响应 body 共用同一绝对期限；到期返回 `DEADLINE_EXCEEDED`，不会在响应头返回后重置计时。处理函数如需将当前期限传播到下游 typed client，可在创建请求后调用：
+
+```rust
+let mut request = tonic::Request::new(message);
+GrpcClientRegistry::propagate_deadline(&mut request);
+client.call(request).await?;
+```
+
+配置的每连接并发与全局并发会快速拒绝过载请求，不建立无限等待队列；全局并发名额在流结束、deadline 或客户端断连时释放。连接与 metadata 使用 HTTP/2 限制，压缩后的 Protobuf 消息限制由 tonic 生成 server 在解码后应用。使用配置消息大小的服务工厂示例：
+
+```rust
+GrpcPlugin::register_service_with_config::<EchoServer<MyService>, _>(
+    &mut builder,
+    |state, config| {
+        EchoServer::new(MyService::new(state))
+            .max_decoding_message_size(config.max_decoding_message_size_bytes)
+            .max_encoding_message_size(config.max_encoding_message_size_bytes)
+    },
+)?;
+```
+
+应用方法的业务配额仍由已有 `RateLimiter` 显式执行，应以已认证主体和方法组成稳定 key；框架不猜测公开 RPC 的客户端 IP 或业务配额策略。
+
+## Health 与 reflection
+
+框架自动注册标准 health `Check`/`Watch`。总状态及已注册服务在 listener 可用后报告 `SERVING`；停机先报告 `NOT_SERVING`，随后关闭 Watch stream，再限时 drain。期限继承 `[server].shutdown_timeout_secs`，超时会取消请求、终止并 join server task。
+
+reflection 默认关闭。启用后，应用必须注册编译时生成的 FileDescriptorSet 和允许公开的完整服务名；未列入白名单的服务不会通过 reflection 暴露：
+
+```rust
+config.grpc.reflection_enabled = true;
+GrpcPlugin::register_reflection_descriptor_set(
+    &mut builder,
+    include_bytes!(concat!(env!("OUT_DIR"), "/file_descriptor_set.bin")).to_vec(),
+    ["example.v1.Echo"],
+)?;
+```
+
+服务 descriptor 可能包含内部 schema，生产环境应只对受信网络或身份开放 reflection。

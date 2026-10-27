@@ -9,6 +9,7 @@ pub mod execution;
 pub mod lifecycle;
 pub mod plugin;
 pub mod rate_limit;
+pub mod readiness;
 
 pub use crate::config::NoConfig;
 pub use app::{App, AppBuilder, AppState, Application, MissingServiceError};
@@ -23,3 +24,4 @@ pub use plugin::{BoxFuture, Plugin};
 pub use rate_limit::{
     RateLimitBucket, RateLimitFuture, RateLimitStatus, RateLimitStore, RateLimiter,
 };
+pub use readiness::Readiness;

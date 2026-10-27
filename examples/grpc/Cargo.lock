@@ -2300,6 +2300,8 @@ dependencies = [
  "futures-util",
  "getrandom 0.3.4",
  "http",
+ "http-body",
+ "http-body-util",
  "icu_datetime",
  "icu_decimal",
  "icu_locale",
@@ -2321,7 +2323,9 @@ dependencies = [
  "tokio-stream",
  "toml 1.1.8+spec-1.1.0",
  "tonic",
+ "tonic-health",
  "tonic-prost",
+ "tonic-reflection",
  "tower",
  "tower-http",
  "tower-sessions",
@@ -3835,6 +3839,7 @@ dependencies = [
  "futures-core",
  "pin-project-lite",
  "tokio",
+ "tokio-util",
 ]
 
 [[package]]
@@ -3987,6 +3992,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "tonic-health"
+version = "0.14.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aa3153e1b4e67e5e94cf2c76f29f38dc47bcdc1410909a970b0655b61695da4e"
+dependencies = [
+ "prost",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tonic-prost",
+]
+
+[[package]]
 name = "tonic-prost"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4011,6 +4029,20 @@ dependencies = [
  "syn 2.0.119",
  "tempfile",
  "tonic-build",
+]
+
+[[package]]
+name = "tonic-reflection"
+version = "0.14.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4fa5136cc28a9c88e06476a2b3c7510473914082a48835a172c05ba8077d328b"
+dependencies = [
+ "prost",
+ "prost-types",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tonic-prost",
 ]
 
 [[package]]

@@ -73,6 +73,18 @@ impl Echo for EchoService {
     ) -> Result<Response<Self::ServerStreamStream>, Status> {
         let prefix = request.into_inner().value;
         let guard = StreamDrop(Arc::clone(&self.dropped_streams));
+        if prefix == "__slow" {
+            let responses = stream::unfold((prefix, 0, guard), |(prefix, index, guard)| async move {
+                tokio::time::sleep(Duration::from_millis(100)).await;
+                Some((
+                    Ok(EchoResponse {
+                        value: format!("{prefix}-{index}"),
+                    }),
+                    (prefix, index + 1, guard),
+                ))
+            });
+            return Ok(Response::new(Box::pin(responses)));
+        }
         let responses = stream::unfold((prefix, 0, guard), |(prefix, index, guard)| async move {
             if index == 3 {
                 return None;
@@ -143,6 +155,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ),
             ]),
             default_client: Some("default".to_owned()),
+            ..GrpcConfig::default()
         },
         ..FrameworkConfig::default()
     };
@@ -150,12 +163,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut builder = AppBuilder::new(config, figment::Figment::new());
     let dropped_streams = Arc::new(AtomicUsize::new(0));
     let service_dropped_streams = Arc::clone(&dropped_streams);
-    GrpcPlugin::register_service::<EchoServer<EchoService>, _>(&mut builder, move |_| {
-        EchoServer::new(EchoService {
-            dropped_streams: Arc::clone(&service_dropped_streams),
-            policy: None,
-        })
-    })?;
+    GrpcPlugin::register_service_with_config::<EchoServer<EchoService>, _>(
+        &mut builder,
+        move |_, config| {
+            EchoServer::new(EchoService {
+                dropped_streams: Arc::clone(&service_dropped_streams),
+                policy: None,
+            })
+            .max_decoding_message_size(config.max_decoding_message_size_bytes)
+            .max_encoding_message_size(config.max_encoding_message_size_bytes)
+        },
+    )?;
     builder.plugin(GrpcPlugin::new());
     let app = finalize(builder).await?;
     let server = GrpcServer::from_app(&app)?;
@@ -565,12 +583,17 @@ mod auth_tests {
         config.grpc.listen_addr = address;
         config.grpc.allow_insecure_server = true;
         let mut builder = AppBuilder::new(config, figment::Figment::new());
-        GrpcPlugin::register_service::<EchoServer<EchoService>, _>(&mut builder, |_| {
-            EchoServer::new(EchoService {
-                dropped_streams: Arc::new(AtomicUsize::new(0)),
-                policy: None,
-            })
-        })?;
+        GrpcPlugin::register_service_with_config::<EchoServer<EchoService>, _>(
+            &mut builder,
+            |_, config| {
+                EchoServer::new(EchoService {
+                    dropped_streams: Arc::new(AtomicUsize::new(0)),
+                    policy: None,
+                })
+                .max_decoding_message_size(config.max_decoding_message_size_bytes)
+                .max_encoding_message_size(config.max_encoding_message_size_bytes)
+            },
+        )?;
         builder
             .plugin(JwtPlugin::with_config(jwt))
             .plugin(AuthPlugin::with_authenticator(FakePatAuthenticator))
@@ -672,6 +695,247 @@ mod auth_tests {
             .send(())
             .map_err(|()| "gRPC auth server stopped unexpectedly")?;
         task.await??;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod runtime_tests {
+    use super::*;
+    use openrust::grpc::{health_pb, reflection_pb};
+    use std::{error::Error as StdError, net::SocketAddr};
+    use tokio::task::JoinHandle;
+    use tonic::Code;
+
+    async fn start_runtime_server(
+        config: FrameworkConfig,
+        reflection: bool,
+    ) -> Result<
+        (
+            SocketAddr,
+            oneshot::Sender<()>,
+            JoinHandle<openrust::core::Result<()>>,
+        ),
+        Box<dyn StdError>,
+    > {
+        let listener = TcpListener::bind("127.0.0.1:0").await?;
+        let address = listener.local_addr()?;
+        let mut config = config;
+        config.grpc.listen_addr = address;
+        config.grpc.allow_insecure_server = true;
+        config.grpc.reflection_enabled = reflection;
+        let mut builder = AppBuilder::new(config, figment::Figment::new());
+        GrpcPlugin::register_service_with_config::<EchoServer<EchoService>, _>(
+            &mut builder,
+            |_, config| {
+                EchoServer::new(EchoService {
+                    dropped_streams: Arc::new(AtomicUsize::new(0)),
+                    policy: None,
+                })
+                .max_decoding_message_size(config.max_decoding_message_size_bytes)
+                .max_encoding_message_size(config.max_encoding_message_size_bytes)
+            },
+        )?;
+        if reflection {
+            GrpcPlugin::register_reflection_descriptor_set(
+                &mut builder,
+                include_bytes!(concat!(env!("OUT_DIR"), "/echo_descriptor.bin")).to_vec(),
+                ["openrust.example.v1.Echo"],
+            )?;
+        }
+        builder.plugin(GrpcPlugin::new());
+        let app = finalize(builder).await?;
+        let server = GrpcServer::from_app(&app)?;
+        let (stop, signal) = oneshot::channel();
+        let task = tokio::spawn(server.serve(listener, async move {
+            let _ = signal.await;
+        }));
+        Ok((address, stop, task))
+    }
+
+    #[tokio::test]
+    async fn grpc_deadline_covers_stream_lifetime_and_global_limit_holds_until_end()
+    -> Result<(), Box<dyn StdError>> {
+        let mut config = FrameworkConfig::default();
+        config.grpc.max_concurrent_rpcs = 1;
+        config.grpc.default_timeout_secs = 2;
+        config.grpc.max_timeout_secs = 3;
+        let (address, stop, task) = start_runtime_server(config, false).await?;
+        let channel = tonic::transport::Channel::from_shared(format!("http://{address}"))?
+            .connect()
+            .await?;
+        let mut client = EchoClient::new(channel);
+        let mut stream_request = Request::new(EchoRequest {
+            value: "deadline".to_owned(),
+        });
+        stream_request
+            .metadata_mut()
+            .insert("grpc-timeout", "55m".parse()?);
+        let mut stream = client.server_stream(stream_request).await?.into_inner();
+        assert_eq!(stream.message().await?.ok_or("first response missing")?.value, "deadline-0");
+        assert_eq!(stream.message().await?.ok_or("second response missing")?.value, "deadline-1");
+
+        let overloaded = client
+            .unary(Request::new(EchoRequest {
+                value: "overloaded".to_owned(),
+            }))
+            .await
+            .expect_err("global RPC capacity must include an active response stream");
+        assert_eq!(overloaded.code(), Code::ResourceExhausted);
+
+        let expired = stream
+            .message()
+            .await
+            .expect_err("a stream exceeding its original grpc-timeout must terminate");
+        assert_eq!(expired.code(), Code::DeadlineExceeded);
+        assert_eq!(
+            client
+                .unary(Request::new(EchoRequest {
+                    value: "released".to_owned(),
+                }))
+                .await?
+                .into_inner()
+                .value,
+            "released"
+        );
+        stop.send(()).map_err(|()| "gRPC server stopped unexpectedly")?;
+        task.await??;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn reflection_is_opt_in_and_lists_only_registered_descriptor_services()
+    -> Result<(), Box<dyn StdError>> {
+        let (address, stop, task) =
+            start_runtime_server(FrameworkConfig::default(), true).await?;
+        let channel = tonic::transport::Channel::from_shared(format!("http://{address}"))?
+            .connect()
+            .await?;
+        let mut client = reflection_pb::v1::server_reflection_client::ServerReflectionClient::new(
+            channel,
+        );
+        let request = reflection_pb::v1::ServerReflectionRequest {
+            host: String::new(),
+            message_request: Some(
+                reflection_pb::v1::server_reflection_request::MessageRequest::ListServices(
+                    String::new(),
+                ),
+            ),
+        };
+        let mut responses = client
+            .server_reflection_info(tonic::Request::new(iter([request])))
+            .await?
+            .into_inner();
+        let response = responses.message().await?.ok_or("reflection response missing")?;
+        let Some(reflection_pb::v1::server_reflection_response::MessageResponse::ListServicesResponse(services)) = response.message_response else {
+            return Err("reflection did not return its service list".into());
+        };
+        assert!(services.service.iter().any(|service| service.name == "openrust.example.v1.Echo"));
+        stop.send(()).map_err(|()| "gRPC server stopped unexpectedly")?;
+        task.await??;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn health_watch_reports_not_serving_before_graceful_drain()
+    -> Result<(), Box<dyn StdError>> {
+        let (address, stop, task) =
+            start_runtime_server(FrameworkConfig::default(), false).await?;
+        let channel = tonic::transport::Channel::from_shared(format!("http://{address}"))?
+            .connect()
+            .await?;
+        let mut health = health_pb::health_client::HealthClient::new(channel);
+        let mut watch = health
+            .watch(tonic::Request::new(health_pb::HealthCheckRequest {
+                service: "openrust.example.v1.Echo".to_owned(),
+            }))
+            .await?
+            .into_inner();
+        let serving = watch.message().await?.ok_or("initial health status missing")?;
+        assert_eq!(
+            serving.status,
+            health_pb::health_check_response::ServingStatus::Serving as i32
+        );
+        stop.send(()).map_err(|()| "gRPC server stopped unexpectedly")?;
+        let stopping = watch
+            .message()
+            .await?
+            .ok_or("shutdown health status missing")?;
+        assert_eq!(
+            stopping.status,
+            health_pb::health_check_response::ServingStatus::NotServing as i32
+        );
+        task.await??;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn reflection_requires_a_descriptor_set_when_enabled() -> Result<(), Box<dyn StdError>> {
+        let mut config = FrameworkConfig::default();
+        config.grpc.reflection_enabled = true;
+        let listener = TcpListener::bind("127.0.0.1:0").await?;
+        config.grpc.listen_addr = listener.local_addr()?;
+        config.grpc.allow_insecure_server = true;
+        let mut builder = AppBuilder::new(config, figment::Figment::new());
+        GrpcPlugin::register_service::<EchoServer<EchoService>, _>(&mut builder, |_| {
+            EchoServer::new(EchoService {
+                dropped_streams: Arc::new(AtomicUsize::new(0)),
+                policy: None,
+            })
+        })?;
+        builder.plugin(GrpcPlugin::new());
+        let error = match finalize(builder).await {
+            Ok(_) => return Err("reflection unexpectedly enabled without a descriptor".into()),
+            Err(error) => error,
+        };
+        assert_eq!(error.code(), "grpc_reflection_descriptor_missing");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn configured_message_size_limit_rejects_oversized_requests_over_tcp()
+    -> Result<(), Box<dyn StdError>> {
+        let mut config = FrameworkConfig::default();
+        config.grpc.max_decoding_message_size_bytes = 8;
+        let (address, stop, task) = start_runtime_server(config, false).await?;
+        let channel = tonic::transport::Channel::from_shared(format!("http://{address}"))?
+            .connect()
+            .await?;
+        let mut client = EchoClient::new(channel);
+        let error = client
+            .unary(Request::new(EchoRequest {
+                value: "larger than the configured protobuf frame".to_owned(),
+            }))
+            .await
+            .expect_err("the configured generated-server decoding limit must apply");
+        assert_eq!(error.code(), Code::OutOfRange);
+        stop.send(()).map_err(|()| "gRPC server stopped unexpectedly")?;
+        task.await??;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn shutdown_timeout_cancels_and_joins_a_non_terminating_stream()
+    -> Result<(), Box<dyn StdError>> {
+        let mut config = FrameworkConfig::default();
+        config.server.shutdown_timeout_secs = 1;
+        let (address, stop, task) = start_runtime_server(config, false).await?;
+        let channel = tonic::transport::Channel::from_shared(format!("http://{address}"))?
+            .connect()
+            .await?;
+        let mut client = EchoClient::new(channel);
+        let mut stream = client
+            .server_stream(Request::new(EchoRequest {
+                value: "__slow".to_owned(),
+            }))
+            .await?
+            .into_inner();
+        assert!(stream.message().await?.is_some());
+        stop.send(()).map_err(|()| "gRPC server stopped unexpectedly")?;
+        let result = task.await?;
+        let error = result.expect_err("unbounded stream must hit the configured drain limit");
+        assert_eq!(error.code(), "grpc_shutdown_timeout");
+        drop(stream);
         Ok(())
     }
 }

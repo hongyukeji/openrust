@@ -1,6 +1,6 @@
 # ADR-040 gRPC 纳入 v1 通用框架
 
-- 状态：Accepted；G1 基础与生成、G2a TLS/mTLS、G2b JWT/PAT/Policy 身份与错误映射已实现并通过本地验收；当前推进 G2c 预算/资源/健康停机与 G3 联合运行/集群仍待实施
+- 状态：Accepted；G1 基础与生成、G2a TLS/mTLS、G2b JWT/PAT/Policy 身份与错误映射、G2c 预算/资源/健康停机已实现并通过本地验收；G3 联合运行/集群仍待实施
 - 日期：2026-10-26
 - 依据：[ADR-001](adr-001-own-kernel-on-axum.md)、[v1 总计划](../plans/gen1-plan.md)、[能力覆盖](../plans/v1-capability-coverage.md)
 
@@ -77,3 +77,12 @@ v1 主攻通用框架底层能力，正式交付可选 gRPC 服务端与客户�
 - TLS 凭据轮换通过有界重叠的进程滚动完成；G2a 不承诺进程内热加载。客户端 hostname 默认取 endpoint host，可显式覆写用于受控 DNS/SNI。
 - 验收用真实 TCP 自签 CA/证书：可信链、hostname、mTLS 双向身份通过；错误 CA、hostname、过期证书和缺失 client certificate 失败；证书文件权限和密钥内容不出现在错误或 Debug。
 - G2b 后续复用 `JwtTokens`、`Authenticator`、`CurrentUser` 与 `Policy`；G2c 复用 `ExecutionContext`、`Cancellation`、`RateLimiter` 和 readiness 语义。
+
+## G2c 实施 Spec 与验收
+
+- 配置为 server-stream 等长响应统一设置 deadline，并以同一剩余预算约束 handler future 与 HTTP body；deadline 结束流时发送 `DEADLINE_EXCEEDED` trailer，取消和断连释放并发名额。
+- 为每连接 stream/RPC、全局 RPC、metadata 与收发消息设置显式上限。全局并发采用 fail-fast semaphore；每连接由 HTTP/2/Tower 限制。protobuf 消息上限通过 `register_service_with_config` 交给 tonic 生成服务应用；旧注册入口仍采用 tonic 默认消息限额。
+- 复用统一 `core::Readiness`；health Check/Watch 初始为 `NOT_SERVING`，listener 就绪后转为 `SERVING`，停机时先报告 `NOT_SERVING` 并结束 Watch，再在配置期限内 drain。超时取消剩余调用、abort 并 join server task。
+- reflection 默认关闭；启用必须提供 descriptor set 和显式服务全名白名单。已有 RateLimiter 不自动套用到匿名 RPC，业务方法按身份与方法显式执行配额。
+- 示例真实 TCP 测试覆盖整条流 deadline、全局并发拒绝与释放、protobuf 消息限额、reflection 白名单/配置错误、health Watch 停机状态及非终止流超时退出；server 集成测试覆盖 readiness 与子进程 SIGTERM。
+- 本簇不声称 HTTP 与 gRPC 联合 supervisor、多节点负载均衡、生产观测或 proto 新旧互通已完成；这些仍由 G3/M6 验收。

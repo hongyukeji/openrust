@@ -42,6 +42,8 @@ tokio-stream = { version = "0.1", features = ["net"] }
 tonic = { version = "~0.14.6", default-features = false, features = ["codegen", "router", "transport", "tls-ring"] }
 tonic-prost = "~0.14.6"
 tonic-prost-build = "~0.14.6"
+tonic-health = "~0.14.6"
+tonic-reflection = { version = "~0.14.6", default-features = false, features = ["server"] }
 prost = "0.14"
 protoc-bin-vendored = "~3.3.0"
 rcgen = "0.14.10"
@@ -56,6 +58,8 @@ aes-gcm-siv = { version = "0.12.1", default-features = false, features = ["aes",
 base64 = "0.22"
 getrandom = "0.3"
 http = "1.5"
+http-body = "1"
+http-body-util = "0.1"
 httpdate = "1"
 ipnet = "2.11"
 bytes = "1.11"
@@ -188,6 +192,10 @@ tempfile = { workspace = true, optional = true }
 tokio-stream = { workspace = true, optional = true }
 tonic = { workspace = true, optional = true }
 tonic-prost = { workspace = true, optional = true }
+tonic-health = { workspace = true, optional = true }
+tonic-reflection = { workspace = true, optional = true }
+http-body-util = { workspace = true, optional = true }
+http-body = { workspace = true, optional = true }
 prost = { workspace = true, optional = true }
 
 [dev-dependencies]
@@ -254,7 +262,7 @@ encryption = ["dep:aes-gcm-siv", "dep:base64", "dep:zeroize"]
 test-util = []
 data-exchange = ["dep:csv", "dep:calamine", "dep:rust_xlsxwriter", "dep:zip", "dep:quick-xml"]
 data-exchange-tasks = ["data-exchange", "queue", "dep:tempfile"]
-grpc = ["dep:tonic", "dep:tonic-prost", "dep:prost", "dep:tokio-stream"]
+grpc = ["dep:tonic", "dep:tonic-prost", "dep:prost", "dep:tokio-stream", "dep:tonic-health", "dep:tonic-reflection", "dep:http-body", "dep:http-body-util"]
 cache-redis = ["dep:redis"]
 session-redis = ["auth", "dep:redis"]
 storage-local = ["dep:opendal"]

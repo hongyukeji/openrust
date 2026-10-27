@@ -101,7 +101,7 @@ async fn response_context(
     let server_readiness = request
         .extensions()
         .get::<crate::core::AppState>()
-        .and_then(crate::core::AppState::get::<super::health::ServerReadiness>);
+        .and_then(crate::core::AppState::get::<crate::core::Readiness>);
     let accept_language = request
         .headers()
         .get(axum::http::header::ACCEPT_LANGUAGE)

@@ -14,6 +14,24 @@ pub struct GrpcConfig {
     pub tls: Option<GrpcServerTlsConfig>,
     /// 显式允许无 TLS 的服务端监听，仅用于本机开发或可信 TLS 终止代理。
     pub allow_insecure_server: bool,
+    /// 每条 HTTP/2 连接可同时打开的 RPC stream 上限。
+    pub max_concurrent_streams_per_connection: u32,
+    /// 单条连接可同时执行的 RPC 上限；过载时立即拒绝，不排队等待。
+    pub max_concurrent_rpcs_per_connection: usize,
+    /// 所有连接共享的在途 RPC 上限；stream 响应结束或客户端断开后释放名额。
+    pub max_concurrent_rpcs: usize,
+    /// 每条 RPC 允许的最大解码消息字节数；需在生成服务构造时应用。
+    pub max_decoding_message_size_bytes: usize,
+    /// 每条 RPC 允许的最大编码消息字节数；需在生成服务构造时应用。
+    pub max_encoding_message_size_bytes: usize,
+    /// 没有 `grpc-timeout` 时应用的总调用预算（秒）。
+    pub default_timeout_secs: u64,
+    /// 单次调用允许的最大总预算（秒）；客户端期限会被此值截断。
+    pub max_timeout_secs: u64,
+    /// 收到的 HTTP/2 metadata/header list 最大字节数。
+    pub max_metadata_size_bytes: u32,
+    /// 服务端 reflection 默认关闭。
+    pub reflection_enabled: bool,
     /// 客户端名称到 endpoint 和独立 TLS 信任材料的映射。
     pub clients: BTreeMap<String, GrpcClientConfig>,
     /// 默认客户端名称；为空时调用方必须指定具名 endpoint。
@@ -101,6 +119,15 @@ impl Default for GrpcConfig {
             listen_addr: SocketAddr::from(([127, 0, 0, 1], 50051)),
             tls: None,
             allow_insecure_server: false,
+            max_concurrent_streams_per_connection: 128,
+            max_concurrent_rpcs_per_connection: 64,
+            max_concurrent_rpcs: 1024,
+            max_decoding_message_size_bytes: 4 * 1024 * 1024,
+            max_encoding_message_size_bytes: 4 * 1024 * 1024,
+            default_timeout_secs: 30,
+            max_timeout_secs: 300,
+            max_metadata_size_bytes: 8 * 1024,
+            reflection_enabled: false,
             clients: BTreeMap::new(),
             default_client: None,
         }
@@ -110,6 +137,7 @@ impl Default for GrpcConfig {
 impl GrpcConfig {
     /// 校验具名客户端、endpoint scheme 与默认 endpoint 引用。
     pub fn validate(&self) -> crate::Result<()> {
+        self.validate_runtime_limits()?;
         for (name, client) in &self.clients {
             if !valid_client_name(name) {
                 return Err(crate::Error::custom(
@@ -201,6 +229,30 @@ impl GrpcConfig {
             return Err(crate::Error::custom(
                 "grpc_config_invalid",
                 "grpc.default_client 必须引用已配置的 grpc.clients 名称",
+            ));
+        }
+        Ok(())
+    }
+
+    fn validate_runtime_limits(&self) -> crate::Result<()> {
+        if self.max_concurrent_streams_per_connection == 0
+            || self.max_concurrent_streams_per_connection > 65_535
+            || self.max_concurrent_rpcs_per_connection == 0
+            || self.max_concurrent_rpcs_per_connection > 65_535
+            || self.max_concurrent_rpcs == 0
+            || self.max_concurrent_rpcs > 1_000_000
+            || !(1..=64 * 1024 * 1024).contains(&self.max_decoding_message_size_bytes)
+            || !(1..=64 * 1024 * 1024).contains(&self.max_encoding_message_size_bytes)
+            || self.default_timeout_secs == 0
+            || self.max_timeout_secs < self.default_timeout_secs
+            || self.default_timeout_secs > 86_400
+            || self.max_timeout_secs > 86_400
+            || self.max_metadata_size_bytes == 0
+            || self.max_metadata_size_bytes > 1024 * 1024
+        {
+            return Err(crate::Error::custom(
+                "grpc_config_invalid",
+                "grpc 的消息、stream、并发、期限和 metadata 限额超出允许范围",
             ));
         }
         Ok(())
@@ -306,5 +358,31 @@ mod tests {
         let debug = format!("{:?}", config.clients["billing"]);
         assert!(!debug.contains("secret"));
         assert!(!debug.contains("private/path"));
+    }
+
+    #[test]
+    fn rejects_unbounded_or_inconsistent_runtime_limits() {
+        let zero = GrpcConfig {
+            max_concurrent_rpcs: 0,
+            ..GrpcConfig::default()
+        };
+        assert_eq!(
+            zero.validate().err().map(|error| error.code().to_owned()),
+            Some("grpc_config_invalid".to_owned())
+        );
+
+        let inverted_budget = GrpcConfig {
+            default_timeout_secs: 30,
+            max_timeout_secs: 10,
+            ..GrpcConfig::default()
+        };
+        assert_eq!(
+            inverted_budget
+                .validate()
+                .err()
+                .map(|error| error.code().to_owned()),
+            Some("grpc_config_invalid".to_owned())
+        );
+        assert!(GrpcConfig::default().validate().is_ok());
     }
 }

@@ -1,68 +1,16 @@
 //! 存活探针端点。
 
-use crate::core::{ApiResponse, Cancellation};
+use crate::core::{ApiResponse, Readiness};
+use crate::http::routes::Routes;
 use axum::{
     extract::State,
     http::StatusCode,
     response::{IntoResponse, Response},
 };
 use serde::Serialize;
-use std::sync::{
-    Arc, Mutex,
-    atomic::{AtomicBool, Ordering},
-};
 
-use crate::http::routes::Routes;
-
-/// 当前 HTTP listener 的就绪状态。
-#[derive(Clone)]
-pub(crate) struct ServerReadiness {
-    ready: Arc<AtomicBool>,
-    cancellation: Arc<Mutex<Cancellation>>,
-}
-
-impl Default for ServerReadiness {
-    fn default() -> Self {
-        Self {
-            ready: Arc::new(AtomicBool::new(false)),
-            cancellation: Arc::new(Mutex::new(Cancellation::new())),
-        }
-    }
-}
-
-impl ServerReadiness {
-    pub(crate) fn set_ready(&self, ready: bool) {
-        self.ready.store(ready, Ordering::Release);
-    }
-
-    pub(crate) fn begin_listening(&self) {
-        *self
-            .cancellation
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner) = Cancellation::new();
-        self.set_ready(true);
-    }
-
-    pub(crate) fn is_ready(&self) -> bool {
-        self.ready.load(Ordering::Acquire)
-    }
-
-    pub(crate) fn cancel_requests(&self) {
-        self.cancellation
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .cancel();
-    }
-
-    pub(crate) fn request_cancellation(&self) -> Cancellation {
-        Cancellation::child(
-            &self
-                .cancellation
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner),
-        )
-    }
-}
+/// HTTP readiness 服务类型别名，HTTP 与 gRPC 共用同一进程状态。
+pub(crate) type ServerReadiness = Readiness;
 
 /// `GET /health` 的响应正文。
 #[derive(Debug, Serialize)]
@@ -79,7 +27,7 @@ pub async fn live() -> ApiResponse<Health> {
 /// 就绪探针：listener 已开始接收流量且未进入停机阶段时返回 200，否则返回 503。
 pub async fn ready(State(state): State<crate::core::AppState>) -> Response {
     let is_ready = state
-        .try_get::<ServerReadiness>()
+        .try_get::<Readiness>()
         .is_ok_and(|readiness| readiness.is_ready());
     let mut response = ApiResponse::success(Health {
         status: if is_ready { "ready" } else { "not_ready" },

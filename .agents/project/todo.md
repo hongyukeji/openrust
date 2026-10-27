@@ -37,8 +37,8 @@ V1 参考 Loco、Laravel、Goravel、OpenSpring；若依/芋道仅 V2。新增�
 | 可选租户隔离 F6-A | 已完成 `TenantId`/`TenantContext`、可信 HTTP `TenantLayer` 和 `TenantQueryRule`；应用显式解析可信身份，默认关闭，不改 schema、不拦截原生 SQL/裸 ORM | PostgreSQL 18/MySQL 8.4 各两个真实 TCP API 节点；验证伪造 header 不改变解析、用户 scope 与 tenant 相交、关联及批量 update/delete 不串租、缺上下文拒绝；workspace 门禁通过并本地提交 |
 | gRPC G2a TLS/mTLS **completed** | 按 ADR-040 为 server 配置证书、私钥、可选 client CA；具名 client 配置 CA 与可选 client identity；rustls provider 显式固定；远程明文 server 仅允许明确的受信终止/开发配置 | 真实 TLS/mTLS TCP；错误 CA、域名、过期证书及缺失/无效 client cert 均拒绝；配置路径/密钥 Debug 脱敏；feature/MSRV/workspace/独立 consumer 门禁 |
 | gRPC G2b 身份与错误映射 **completed** | 复用 JwtTokens、Authenticator、CurrentUser、Policy；只支持 JWT/PAT Bearer，不复用 Cookie Session；映射 Error/Validation 到标准 Status 且限制 details 脱敏 | 无效/重复/缺失凭据、PAT/JWT 与方法授权、错误类别和内部错误脱敏的真实 RPC 测试；有 DB 路径双库验证 |
-| gRPC G2c 调用预算、资源与健康停机 **in_progress** | 复用 ExecutionContext/Cancellation、RateLimiter 与 core readiness；传递 grpc-timeout/取消，配置消息/metadata/连接/全局与流限额、背压、health/reflection 和有界 drain/join | deadline 实际传播、取消/慢消费者/超限/断连资源释放、health 状态与 SIGTERM 有界停机；真实 TCP 验收 |
-| gRPC G3 集群与组合 | HTTP/RPC 显式联合运行与生成项目、双节点 HTTP/2 负载分配、摘流/滚动/重连、proto 新旧互通与追踪关联 | 联合启动失败清理；真实多节点四类调用和流终止语义，反射生产保护；M6 只做整体复验，不能用 unary hello 关闭范围 |
+| gRPC G2c 调用预算、资源与健康停机 **completed** | 已复用 ExecutionContext/Cancellation 与 core readiness；完成 grpc-timeout/全流期限、消息/metadata/连接/全局并发限制、health/reflection 和有界 drain/join | 示例真实 TCP 11 项通过；server 集成 6 项通过；默认/all-features workspace 测试、all-target Clippy、warnings-denied Rustdoc、cargo deny、MSRV 与独立 consumer 门禁通过 |
+| gRPC G3 集群与组合 **in_progress** | HTTP/RPC 显式联合运行与生成项目、双节点 HTTP/2 负载分配、摘流/滚动/重连、proto 新旧互通与追踪关联 | 联合启动失败清理；真实多节点四类调用和流终止语义，反射生产保护；M6 只做整体复验，不能用 unary hello 关闭范围 |
 | WebSocket/SSE | 复用 auth/config/HTTP；握手与频道授权、Origin、凭据过期/撤销、心跳/背压/连接与消息大小边界；共享在线跨节点投递 | 两 API 节点真实通信、断线/慢消费/停机、权限变更、资源回收；不承诺离线可靠消息 |
 | 可观测性与生产资源 | readiness、指标与可选 OTLP、HTTP/gRPC/worker/DB/cache/实时有界并发与超时；密码哈希阻塞任务增加明确容量与排队/拒绝策略，单次参数限制不等于总资源有界；安全脱敏和 HTTP→RPC/HTTP→queue/worker 的 trace 关联 | 依赖失效 readiness、低基数指标、登录突发与共享数据库竞争下的过载/恢复；p95/p99、错误率、CPU/内存及资源释放证据，不能只写指标接口 |
 
