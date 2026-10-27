@@ -8,7 +8,7 @@
 
 ## v1：完整通用底座
 
-- 设计参考仅按 Loco、Laravel、Goravel、OpenSpring 的顺序综合评估；若依与芋道仅用于 v2，见 [阶段参考规则](plans/framework-design.md#框架参考与对标)。
+- 长期定位为用 Rust 忠实实现 Laravel，并持续跟进其框架功能和行为更新；版本对应、必要语言差异与更新流程以[长期上游跟进](plans/laravel-rebuild.md#长期上游跟进)为准。旧参考排序不覆盖该目标，Goravel 用于跨语言实现参考。
 - 交付可独立开发 API 与服务的 Rust 框架，单机起步、按需扩展集群；标准应用默认 Redis（见 [ADR-015](decisions/adr-015-redis-default-calibration.md)），库层 Redis feature 可选，保留显式 memory/file 选择且不静默回退，见 [ADR-013](decisions/adr-013-deployment-and-redis-cache-default.md) 与 [ADR-014](decisions/adr-014-cache-driver-and-store-contract.md)。缓存仍待 M5 实现，这里的默认是交付契约。
 - 数据层包含默认单库、按需启用的显式只读副本路由与主库 scope；已在 PostgreSQL/MySQL 真实复制拓扑验证。完整集群验收仍按 [专题计划](plans/v1-database-read-write-splitting.md) 与集群计划执行。
 - 包含数据、认证/授权/会话、验证码、国际化、本地加密与轮换、签名、审计、幂等、限流、缓存/锁/多实例、存储/上传下载、邮件/SMS/薄通知层、队列/常用编排/调度、WebSocket/SSE、gRPC server/client、CLI/生成器/测试与部署。gRPC 已正式纳入 v1，范围与完整验收见 [ADR-040](decisions/adr-040-grpc-integration.md)。
