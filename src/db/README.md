@@ -41,7 +41,8 @@ impl Application for App {
 }
 ```
 
-该 plugin 会注册可克隆的 `Db` 服务，并在应用完成组装时创建连接池。日常开发使用 PostgreSQL 18、MySQL 8.4 和 Redis 8；数据库集成 CI 使用 PostgreSQL 18 与 MySQL 8.4。Redis 集成会在 M5 缓存能力落地后加入 CI。当前运行时版本检查接受暂定最低版本 PostgreSQL 14+ 和 MySQL 8.0+；v1 发布前仍须验证框架在这些最低版本上的完整兼容性。Redis 暂定最低版本为 6.2+，日常开发基线为 8；其 driver 和兼容性验证待 M5 完成。只有主版本跨度较大或存在具体兼容风险时才增加额外版本专项检查。`Db::connection()` 返回 SeaORM `DatabaseConnection`；`Db::transaction()` 会提交成功的回调，并回滚返回错误的回调。标准 `DatabasePlugin` 与 `EventsPlugin` 同时注册时，提交前会派发可拒绝并回滚的 `TransactionBeforeCommit`；成功提交后只尽力通知 direct `TransactionCommitted` listeners，监听器失败不会伪装成事务回滚。可靠副作用应在提交前通过事务内 queued listener 持久化。直接使用 SeaORM 连接或原生 SQL 不触发生命周期事件；自定义数据库 plugin 也不会自动绑定事件。其 `Debug` 输出不包含已配置的 URL。若 URL 缺失、backend 未启用、连接池配置无效或连接失败，启动会以配置错误终止。
+该 plugin 会注册可克隆的 `Db` 服务，并在应用完成组装时创建连接池。
+该 plugin 会注册可克隆的 `Db` 服务，并在应用完成组装时创建连接池；启用 `HttpPlugin` 时还为每个数据库实例注册只读就绪探针，检查主库及所有只读副本。探针失败会使 `/ready` 返回 503，但不会暴露 URL 或驱动错误。日常开发使用 PostgreSQL 18、MySQL 8.4 和 Redis 8；数据库集成 CI 使用 PostgreSQL 18 与 MySQL 8.4。Redis 集成会在 M5 缓存能力落地后加入 CI。当前运行时版本检查接受暂定最低版本 PostgreSQL 14+ 和 MySQL 8.0+；v1 发布前仍须验证框架在这些最低版本上的完整兼容性。Redis 暂定最低版本为 6.2+，日常开发基线为 8；其 driver 和兼容性验证待 M5 完成。只有主版本跨度较大或存在具体兼容风险时才增加额外版本专项检查。`Db::connection()` 返回 SeaORM `DatabaseConnection`；`Db::transaction()` 会提交成功的回调，并回滚返回错误的回调。标准 `DatabasePlugin` 与 `EventsPlugin` 同时注册时，提交前会派发可拒绝并回滚的 `TransactionBeforeCommit`；成功提交后只尽力通知 direct `TransactionCommitted` listeners，监听器失败不会伪装成事务回滚。可靠副作用应在提交前通过事务内 queued listener 持久化。直接使用 SeaORM 连接或原生 SQL 不触发生命周期事件；自定义数据库 plugin 也不会自动绑定事件。其 `Debug` 输出不包含已配置的 URL。若 URL 缺失、backend 未启用、连接池配置无效或连接失败，启动会以配置错误终止。
 
 只读副本可选配置，但必须与主库使用相同 backend：
 

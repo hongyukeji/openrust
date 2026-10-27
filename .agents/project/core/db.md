@@ -11,6 +11,7 @@
 - `DatabaseConfig` 从 `[database]` 读取 URL、池大小和连接/获取超时；自定义 `Debug` 会遮蔽 URL。
 - `DatabaseBackend` 集中解析官方 PostgreSQL/MySQL URL scheme 与 feature 状态；它只描述 v1 官方支持集合，扩展插件可用 `Db::backend()` 读取 SeaORM 实际 backend。SQLite 不属于官方矩阵，可由自定义插件使用通用 `Db` 连接/事务接口。
 - `DatabasePlugin` 验证 pool 参数与 URL 对应的 backend feature，在 `finish` 阶段连接 SeaORM pool；运行时按暂定最低支持接受 PostgreSQL 14+ / MySQL 8.0+。日常开发基线为 PostgreSQL 18 / MySQL 8.4 LTS / Redis 8；数据库常规 CI 使用 PostgreSQL 18 / MySQL 8.4。v1 发布前须复核官方生命周期并完成最低版本能力矩阵验证。
+- 启用 `HttpPlugin` 时，`DatabasePlugin` 为每个数据库实例注册 runtime readiness 探针，使用只读 `ping` 检查主库与所有配置只读副本。依赖故障会使 `/ready` 返回 503；连接池恢复后下一轮探测可重新转为 ready，不暴露连接错误或 URL。
 - 命名数据库按 [ADR-045](../decisions/adr-045-named-database-instances.md) 实现：既有 `[database]` 和 `Db` 是兼容默认实例；`[database.instances.<name>]` 为独立完整连接配置，由应用级 `Databases` 选择。实例各自持有连接池、只读副本与表名 resolver，未知名称启动/选择时显式失败。认证、Session、Queue、Audit 和 RateLimiter 仍绑定 default。
 - `DatabasePlugin` 注册 `openrust::core::RateLimiter`，其官方 `DatabaseRateLimitStore` 通过当前 `Db` 实例在 PostgreSQL/MySQL 上原子更新固定窗口记录；`DatabaseRateLimitMigration` 由应用 migrator 显式注册，启动不会自动建表。
 - 限流 key 仅存 SHA-256 digest（不抵抗低熵输入猜测）；每个 store 实例每 256 次消费最多清理 512 行已过期记录，窗口长度一并持久化。缺少迁移、数据库故障与不支持 backend 均以错误传播，不作为未命中或放行。

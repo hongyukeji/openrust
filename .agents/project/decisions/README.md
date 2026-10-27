@@ -68,6 +68,7 @@
 | [054 TOTP 多因素认证](adr-054-totp-mfa.md) | Accepted | 可选 TOTP/恢复码、一次性登录挑战、密钥轮换及不可绕过的认证门禁；PostgreSQL/MySQL 双库与生成项目验收通过，见 `memory/testing.md` |
 | [059 WebSocket 与 SSE 在线实时传输](adr-059-realtime-transport.md) | Accepted | 有界在线连接、本地/公开 transport、Redis Pub/Sub 跨节点路由、认证授权、到期撤销与有界停机；无离线回放或 exactly-once |
 | [060 密码哈希的有界并发](adr-060-password-hash-capacity.md) | Accepted | 每个服务实例限制 Argon2 并发，过载立即拒绝；clone 共享许可，阻塞操作完成前不释放 |
+| [061 运行时依赖就绪探针](adr-061-runtime-dependency-readiness.md) | Accepted | HTTP `/ready` 聚合有界只读数据库/缓存探针；不改变 liveness 与 gRPC listener 语义 |
 
 ## 队列、缓存与部署
 

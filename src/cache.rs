@@ -469,6 +469,11 @@ impl CacheStore {
         self.backend.scope()
     }
 
+    async fn check_readiness(&self) -> Result<()> {
+        let key = self.key_for_tenant("__openrust_readiness_probe__", None)?;
+        self.backend.get(&key).await.map(|_| ())
+    }
+
     /// 读取 JSON 值；未命中返回 `None`，错误不会转换为未命中。
     pub async fn get<T: DeserializeOwned>(&self, key: &str) -> Result<Option<T>> {
         self.get_at(&self.key(key)?).await
@@ -785,6 +790,10 @@ impl Plugin for CachePlugin {
                 );
             }
             let cache = app.state().try_get::<Cache>()?;
+            let probes: Vec<_> = stores
+                .iter()
+                .map(|(name, store)| (name.clone(), store.clone()))
+                .collect();
             cache
                 .stores
                 .set(CacheStores {
@@ -796,7 +805,16 @@ impl Plugin for CachePlugin {
                         "cache_already_initialized",
                         "cache plugin was initialized more than once",
                     )
-                })
+                })?;
+            if let Some(readiness) = app.state().get::<crate::core::Readiness>() {
+                for (name, store) in probes {
+                    readiness.register_probe(format!("cache.{name}"), move || {
+                        let store = store.clone();
+                        async move { store.check_readiness().await }
+                    })?;
+                }
+            }
+            Ok(())
         })
     }
 }

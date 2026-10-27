@@ -299,6 +299,18 @@ impl Db {
         Ok(connections.read_replicas[index].clone())
     }
 
+    async fn check_readiness(&self) -> Result<()> {
+        let connections = self
+            .connections
+            .get()
+            .ok_or_else(|| Error::internal(DatabaseNotReady))?;
+        connections.primary.ping().await.map_err(Error::internal)?;
+        for replica in &connections.read_replicas {
+            replica.ping().await.map_err(Error::internal)?;
+        }
+        Ok(())
+    }
+
     /// 在任务本地作用域内运行 future；作用域中的 [`read_connection`](Self::read_connection) 会返回此句柄的主库连接。
     ///
     /// 此作用域不会传播到独立创建的 Tokio task。为同一句柄嵌套作用域时，内层 future 完成后会恢复外层作用域。
@@ -423,6 +435,14 @@ impl Plugin for DatabasePlugin {
                     })?
                 };
                 connect_instance(&handle, &instance, &name).await?;
+                if let Some(readiness) = app.state().get::<crate::core::Readiness>() {
+                    let probe_name = format!("database.{name}");
+                    let database = handle.clone();
+                    readiness.register_probe(probe_name, move || {
+                        let database = database.clone();
+                        async move { database.check_readiness().await }
+                    })?;
+                }
             }
             Ok(())
         })

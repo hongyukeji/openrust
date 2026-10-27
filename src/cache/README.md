@@ -1,6 +1,6 @@
 # 缓存
 
-`CachePlugin` 按 `[cache]` 配置初始化默认与命名 store。缓存能力为可选项：不安装插件时不会连接 Redis；安装后必须显式配置 store，未配置、driver 不支持、初始化失败或缓存 I/O 失败均返回错误，不会回退到本地内存。
+`CachePlugin` 按 `[cache]` 配置初始化默认与命名 store。缓存能力为可选项：不安装插件时不会连接 Redis；安装后必须显式配置 store，未配置、driver 不支持、初始化失败或缓存 I/O 失败均返回错误，不会回退到本地内存。启用 `HttpPlugin` 时，每个已配置 store 会注册只读依赖探针；其 I/O 失败会令 `/ready` 返回 503，错误细节不会出现在健康响应中。
 
 ```toml
 [cache]

@@ -19,16 +19,17 @@ pub struct Health {
     pub status: &'static str,
 }
 
-/// 存活探针：只要进程能够处理请求就返回成功。依赖项检查应由能力 crate 提供的就绪探针端点负责。
+/// 存活探针：只要进程能够处理请求就返回成功，不检查外部依赖。
 pub async fn live() -> ApiResponse<Health> {
     ApiResponse::success(Health { status: "ok" })
 }
 
-/// 就绪探针：listener 已开始接收流量且未进入停机阶段时返回 200，否则返回 503。
+/// 就绪探针：listener 正在接收流量且全部依赖探针成功时返回 200，否则返回 503。
 pub async fn ready(State(state): State<crate::core::AppState>) -> Response {
-    let is_ready = state
-        .try_get::<Readiness>()
-        .is_ok_and(|readiness| readiness.is_ready());
+    let is_ready = match state.try_get::<Readiness>() {
+        Ok(readiness) => readiness.is_ready() && readiness.dependencies_ready().await,
+        Err(_) => false,
+    };
     let mut response = ApiResponse::success(Health {
         status: if is_ready { "ready" } else { "not_ready" },
     })
@@ -42,4 +43,40 @@ pub async fn ready(State(state): State<crate::core::AppState>) -> Response {
 /// 注册 `GET /health` 和 `GET /ready`。
 pub fn routes(routes: Routes) -> Routes {
     routes.get("/health", live).get("/ready", ready)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ready;
+    use crate::{
+        config::FrameworkConfig,
+        core::{AppBuilder, Error, Readiness},
+    };
+    use axum::{extract::State, http::StatusCode};
+    use figment::Figment;
+
+    #[tokio::test]
+    async fn ready_returns_503_without_leaking_dependency_errors() -> crate::core::Result<()> {
+        let readiness = Readiness::default();
+        readiness.register_probe("database.primary", || async {
+            Err(Error::custom(
+                "database_secret",
+                "private connection detail",
+            ))
+        })?;
+        let mut builder = AppBuilder::new(FrameworkConfig::default(), Figment::new());
+        builder.insert(readiness.clone());
+        let app = crate::core::lifecycle::finalize(builder).await?;
+        let _listener = readiness.begin_listening();
+
+        let response = ready(State(app.state().clone())).await;
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body = axum::body::to_bytes(response.into_body(), 1024)
+            .await
+            .map_err(Error::internal)?;
+        let body = String::from_utf8(body.to_vec()).map_err(Error::internal)?;
+        assert!(!body.contains("database_secret"));
+        assert!(!body.contains("private connection detail"));
+        Ok(())
+    }
 }

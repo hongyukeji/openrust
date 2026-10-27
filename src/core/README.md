@@ -11,6 +11,7 @@ OpenRust 框架的应用内核。
 - [`Error`] / [`Result`] / [`ApiResponse<T>`] / [`PageMeta`]：统一错误类型、JSON 响应封装和类型化分页元数据。
 - [`ExecutionContext`] / [`ExecutionMetadata`] / [`Cancellation`]：单次 HTTP、命令或 Job 尝试的 task-local 关联信息、时间预算和合作取消；task-local 不自动传播至 `tokio::spawn`。
 - [`RateLimiter`] / [`RateLimitStore`]：固定窗口配额服务契约。存储故障向上传播；超限请求返回 429 和 `Retry-After`；每种实现都需说明共享范围与原子性边界。
+- [`Readiness`]：进程 listener 生命周期状态，并允许插件注册有界异步依赖探针；HTTP `/ready` 聚合探针结果，`is_ready()` 本身仍只表示 listener 状态。
 - `config`：类型化配置按领域组织在 `openrust::config::{app,api,auth,database,logger,mailer,server}`，并由统一的分层加载器合并：crate 默认值 → `config/default.toml` → `config/<env>.toml` → 非生产环境 `.env` → 进程环境变量。`APP_CONFIG_DIR` 用于指定运行时 TOML 目录（默认是相对于工作目录的 `config`）；`src/config/` 仅存放 Rust 代码。若进程尚未设置 `APP_ENV`，启动引导阶段才从 `.env` 读取；生产环境跳过整个 `.env` 文件。`Application::config_namespace()` 可选用其他有效前缀，如 `SHOP_`；只读取选定的命名空间。进程环境变量优先级最高，当前各能力模块中的配置路径继续通过重新导出保持兼容。
 - [`lifecycle`]：启动顺序、优雅停机信号与应用后台刷新任务回收。
 

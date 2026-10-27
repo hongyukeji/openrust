@@ -3,6 +3,7 @@
 当前实现位于根 `openrust` package 的 `openrust::cache`。在可信 `TenantContext` 作用域内，物理 cache key、singleflight key 与 tag generation 都按 tenant ID 隔离；无 tenant context 时沿用旧 key。SWR entry 在创建时捕获租户并让后台刷新继续写入对应隔离键；后台 task 不继承 task-local，loader 若读取租户业务数据仍需显式恢复租户作用域。
 
 - `CachePlugin` 在 `build` 阶段安装服务和 built-in driver，在 `finish` 阶段读取 `[cache]`、解析所有 store 并初始化 backend；默认 store 缺失、未知 driver、未知 driver option 或连接失败均启动失败。
+- 启用 `HttpPlugin` 时，每个配置 store 注册 runtime readiness 探针，通过 namespaced、非租户键的只读 `get` 检查 backend；错误只记录稳定探针名/错误码并使 `/ready` 返回通用 503。
 - `Cache` 提供 default 与按名选择的 `CacheStore`；值通过 JSON 编解码，miss 为 `None`，序列化和 I/O 错误保留为错误。key 限 1–1024 UTF-8 bytes，零 TTL 拒绝。
 - `memory` 作用域为进程；`file` 使用 SHA-256 文件名、毫秒 TTL envelope 与同目录临时文件 rename 替换，仅适用于节点本地；`redis` 通过可选 `cache-redis` feature 提供 shared store。无本地静默回退。文件替换原子性遵循操作系统 rename 语义。
 - 外部 driver 实现 `CacheDriver`/`CacheBackend`，于插件 `build` 中通过 `AppBuilder::extension_mut::<CacheDrivers>()` 注册。后端基础契约承诺 get/set/remove/TTL；只有额外实现可选原子 tag 能力的 driver 才支持 tag 与 SWR。
