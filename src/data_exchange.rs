@@ -15,6 +15,9 @@ use zip::ZipArchive;
 
 use crate::core::{Error, Result};
 
+#[cfg(feature = "data-exchange-tasks")]
+pub mod tasks;
+
 /// 格式解析和导出资源上限。
 #[derive(Debug, Clone)]
 pub struct ImportLimits {

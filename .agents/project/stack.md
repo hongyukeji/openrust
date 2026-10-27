@@ -54,6 +54,7 @@
 | 邮件 / 短信 | `lettre` 0.11 + log/fake；`mail-smtp` 启用 Tokio/Rustls STARTTLS，仅本机 loopback 可显式关闭；`sms-twilio` 复用 `http-client` 与 `base64` | 本机 Mailpit SMTP 实收已有验收记录；真实 Twilio 投递待授权账号和目标，log/fake 不能代替送达证据 |
 | 模板 | 可选 `mail-templates` 使用 MiniJinja `~2.24.0`（关闭默认 feature，仅 `builtins`、`fuel`、`multi_template`、`serde`、`unicode`）；`LocalizedEmail` 与 `I18n` 仍负责普通消息和主题翻译 | 仅受信任编译期应用资源、严格变量与自动 HTML 转义；不提供文件/网络 loader；邮件模板不扩展为通用页面模板系统 |
 | 通用数据交换 | 可选 `data-exchange` 使用 `csv` 1.4、`calamine` 0.37、`rust_xlsxwriter` 0.101、`zip` 9.x 与 `quick-xml` 0.42 | CSV 逐记录处理；XLSX 读取使用 cell streaming，写入启用 constant-memory；限制 ZIP 展开、shared strings 数量和表格行列/单元格。CSV 为 MIT OR Unlicense；其余依赖 MIT 或 MIT OR Apache-2.0；组件 MSRV 1.73/1.88，均低于 workspace 1.97；压缩、加密等非必要 zip feature 关闭 |
+| 数据交换任务临时文件 | 可选 `data-exchange-tasks` 使用 `tempfile` 3.27，并复用 Queue、Storage、Db 事务与 RequestIdempotency | 输入/输出暂存使用操作系统临时目录的自动回收文件；仅显式启用，不把临时路径暴露为应用存储契约 |
 
 ## 工具链
 

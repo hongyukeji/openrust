@@ -1036,6 +1036,11 @@ impl Plugin for QueuePlugin {
             crate::notifications::SmsDeliveryJob::NAME,
             run_job::<crate::notifications::SmsDeliveryJob>,
         );
+        #[cfg(feature = "data-exchange-tasks")]
+        handlers.insert(
+            crate::data_exchange::tasks::ImportReportCleanupJob::NAME,
+            run_job::<crate::data_exchange::tasks::ImportReportCleanupJob>,
+        );
         let registry = JobRegistry(handlers);
         let config = match app.section::<crate::config::QueueConfig>("queue") {
             Ok(config) => config,

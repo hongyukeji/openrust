@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-27
-> 摘要：只列未完成工作；完成移出本表，事实与证据进入 `core/`、`progress.md`、`memory/` 和 Git。一次只领取一个实现功能簇。F6-B 租户资源传播已完成并通过双库、Redis、存储与 workspace 门禁。
+> 摘要：只列未完成工作；完成移出本表，事实与证据进入 `core/`、`progress.md`、`memory/` 和 Git。一次只领取一个实现功能簇。F6-B 租户资源传播及 F8-A/B 数据交换已完成并记录验收证据。
 
 ## 领取规则
 
@@ -35,9 +35,7 @@ V1 参考 Loco、Laravel、Goravel、OpenSpring；若依/芋道仅 V2。新增�
 | 可选外部身份与 MFA F7 | OIDC 子簇按 ADR-053 已提交 `d0b0c74`；TOTP/恢复码按 ADR-054 完成并提交，复用 AuthFlows、本地密钥、限流与审计，不建设授权服务器 | PostgreSQL 18/MySQL 8.4 实际 TCP/隔离库各 1 项通过，覆盖 RFC 向量、密码/OIDC challenge、Session 阻断、来源/过期/尝试边界、TOTP replay、恢复码单次消费、密钥轮换、审计与撤销；干净源码副本双库生成 check/test 通过；SSO 独立子簇仍待完成 |
 | SSO 登录与统一退出 F7 **completed** | 已实现 ADR-055 的关联撤销、MFA/refresh/Session 绑定、RP logout state 与 Back-Channel Logout 验证/重放；provider fake 双库、Keycloak 26.8.1 双 client 真实 SSO 与退出均有验收。PostgreSQL 18/MySQL 8.4 各以两个隔离应用、每应用两个独立 API 子进程、真实 TCP round-robin、Redis 8 共享 Session 完成 callback、跨节点 MFA/TOTP、RP logout、真实 logout handler 与 callback/logout、MFA/logout、refresh/logout 竞态；退出后两个子节点都实际拒绝读取 Session/轮换 refresh。节点重启后重放幂等；15 秒 access JWT 在退出后仍可验签并于 exp 后拒绝。双库 OIDC retry 用例在真实 Redis store 注入一次删除错误后重放成功。 | 隔离 Redis 容器真实停机时通知返回 503；恢复服务、重启 PostgreSQL/MySQL 各自的四个 API 子进程后，同一 Keycloak Logout Token 重放成功，两个数据库上的真实拓扑验收通过。fmt、default/all-features clippy/test、warnings-denied Rustdoc、no-default check 与 cargo deny 均通过；双库真实 Keycloak/Redis 故障验收通过。M6 仍复验完整产品集群与滚动升级 |
 | 可选租户隔离 F6-A | 已完成 `TenantId`/`TenantContext`、可信 HTTP `TenantLayer` 和 `TenantQueryRule`；应用显式解析可信身份，默认关闭，不改 schema、不拦截原生 SQL/裸 ORM | PostgreSQL 18/MySQL 8.4 各两个真实 TCP API 节点；验证伪造 header 不改变解析、用户 scope 与 tenant 相交、关联及批量 update/delete 不串租、缺上下文拒绝；workspace 门禁通过并本地提交 |
-| 通用 CSV/XLSX F8-A 解析与转换 | 已实现并通过 workspace 与独立 consumer 门禁；提交后转入 F8-B | CSV/XLSX 有界解析、映射/转换、注入防护；详见 ADR-057 |
-| 通用 CSV/XLSX F8-B 任务化导入与授权导出 **in_progress** | 依赖 F8-A；复用 Queue、事务、QueryRule、TenantContext 与 Storage | 双库分批事务/重试、取消和进度、授权/租户边界、失败报告及清理；真实 PostgreSQL/MySQL 验收 |
-| gRPC G1 基础与生成 | [ADR-040](decisions/adr-040-grpc-integration.md)：可选 tonic/prost、配置/注册、默认/命名客户端、四种 RPC 与应用 proto 生成 | 无库真实 TCP 四种调用、独立 consumer；生成项目 check/test，默认构建无需 gRPC/protoc |
+| gRPC G1 基础与生成 **in_progress** | [ADR-040](decisions/adr-040-grpc-integration.md)：可选 tonic/prost、配置/注册、默认/命名客户端、四种 RPC 与应用 proto 生成 | 无库真实 TCP 四种调用、独立 consumer；生成项目 check/test，默认构建无需 gRPC/protoc |
 | gRPC G2 安全与运行 | 复用验证/身份/授权、TLS/mTLS、Status、deadline/取消、全局与流限额、背压、health/reflection、退出 | 错证书/凭据拒绝、调用预算实际传播、慢消费与异常断连、SIGTERM/资源释放；有数据库认证的路径双库验证 |
 | gRPC G3 集群与组合 | HTTP/RPC 显式联合运行与生成项目、双节点 HTTP/2 负载分配、摘流/滚动/重连、proto 新旧互通与追踪关联 | 联合启动失败清理；真实多节点四类调用和流终止语义，反射生产保护；M6 只做整体复验，不能用 unary hello 关闭范围 |
 | WebSocket/SSE | 复用 auth/config/HTTP；握手与频道授权、Origin、凭据过期/撤销、心跳/背压/连接与消息大小边界；共享在线跨节点投递 | 两 API 节点真实通信、断线/慢消费/停机、权限变更、资源回收；不承诺离线可靠消息 |

@@ -40,6 +40,7 @@ url.workspace = true
 validator.workspace = true
 redis.workspace = true
 reqwest.workspace = true
+tempfile.workspace = true
 
 [lints]
 workspace = true
@@ -69,6 +70,7 @@ session-redis = ["auth", "openrust/session-redis"]
 storage-local = ["openrust/storage-local"]
 storage-s3 = ["storage-local", "openrust/storage-s3"]
 data-exchange = ["openrust/data-exchange"]
+data-exchange-tasks = ["openrust/data-exchange-tasks"]
 
 [[test]]
 name = "auth"
@@ -106,6 +108,11 @@ required-features = ["auth-mfa"]
 name = "data_exchange"
 path = "tests/data_exchange.rs"
 required-features = ["data-exchange"]
+
+[[test]]
+name = "data_exchange_tasks"
+path = "tests/data_exchange_tasks.rs"
+required-features = ["data-exchange-tasks"]
 
 [[test]]
 name = "db_connection"

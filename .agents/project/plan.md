@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-27
-> 摘要：先完成底层目录收尾，再按依赖补齐 v1；v1 完整验收通过后继续 v2 后台。当前交付见 [progress.md](progress.md)，唯一执行队列见 [todo.md](todo.md)。
+> 摘要：底层目录收尾和 F8 数据交换已完成；按 `todo.md` 继续 gRPC G1 与其后 v1 功能，完整验收通过后进入 v2 后台。当前交付见 [progress.md](progress.md)，唯一执行队列见 [todo.md](todo.md)。
 
 ## 当前里程碑
 
@@ -12,7 +12,7 @@
 
 ## 执行校准
 
-**[ADR-039](decisions/adr-039-source-workspace-distribution.md) 的源码 workspace、包命名、生成器、应用启动/配置隔离和双库验收已完成并提交；C1–C3 中文化亦已完成。M3/M4 认证事务扩展、共享锁/幂等、worker 修正、日历/国际化/邮件通知及 M4 生成集成已按双库和 workspace 门禁验收；M5 插件/Db/Queue 扩展、HTTP 生命周期、缓存/Redis Queue、查询授权、迁移互斥、存储/上传下载、受限出站与依赖韧性及 OIDC/TOTP 子簇均按各自证据完成。F7 SSO 已在 Keycloak 26.8.1、PostgreSQL 18/MySQL 8.4 与 Redis 8 上完成双应用×双 API 子进程、TCP 负载均衡、callback/logout 与 MFA/refresh 竞态、真实 Redis 停机 503/恢复后副本重启及 Logout Token 重放；本簇完整门禁通过。F6-A/F6-B 租户上下文、查询隔离与共享资源传播均已完成双库及 workspace 验收；F8-A 通用 CSV/XLSX 解析转换已实现，当前完成门禁并提交后推进 F8-B 队列化导入与授权导出。
+**[ADR-039](decisions/adr-039-source-workspace-distribution.md) 的源码 workspace、包命名、生成器、应用启动/配置隔离和双库验收已完成并提交；C1–C3 中文化亦已完成。M3/M4 认证事务扩展、共享锁/幂等、worker 修正、日历/国际化/邮件通知及 M4 生成集成已按双库和 workspace 门禁验收；M5 插件/Db/Queue 扩展、HTTP 生命周期、缓存/Redis Queue、查询授权、迁移互斥、存储/上传下载、受限出站与依赖韧性及 OIDC/TOTP 子簇均按各自证据完成。F7 SSO 已在 Keycloak 26.8.1、PostgreSQL 18/MySQL 8.4 与 Redis 8 上完成双应用×双 API 子进程、TCP 负载均衡、callback/logout 与 MFA/refresh 竞态、真实 Redis 停机 503/恢复后副本重启及 Logout Token 重放；本簇完整门禁通过。F6-A/F6-B 租户上下文、查询隔离与共享资源传播均已完成双库及 workspace 验收；F8-A/F8-B 已完成，F8-B 通过真实 PostgreSQL 18/MySQL 8.4 任务验收及独立 consumer 验证，当前下一簇为 gRPC G1 基础与生成。
 
 1. 目录收尾、M3 Mailer/Policy 生成器、公开 HTTP 路由限流及数据输出/查询边界、M4 类型化事件/queued listener、ADR-039 源码交付、ADR-047 查询授权和 ADR-048 稳定键分批已完成；后续工作按 `todo.md` 当前优先级推进。
 2. 目录和内部 package 统一使用中性职责名，ADR-039 已完成；已完成目录迁移不重做。框架在 `src/`；CLI、proc-macro、测试工具保留独立 package 的技术边界，应用约定 `apps/` 保留；`apps/server` 继续承担集成宿主职责。见 [ADR-021](decisions/adr-021-loco-style-module-layout.md)。
@@ -34,13 +34,13 @@
 
 17. **底层缺口按 [底层补齐计划](plans/v1-foundation-completion.md) F1–F10 全部交付**。cron、缓存 tag、高级 i18n、轻量 fixtures、租户通用隔离和外部身份接入等旧后置/排除口径已校准；具体 API/默认语义先定 Spec，不再重复评估是否需要交付。仅后续适配清单保持评估状态。
 
-18. **F7 包含 [SSO 登录与统一退出](plans/v1-foundation-completion.md#sso-登录与统一退出)**：OIDC、TOTP/恢复码及双应用 SSO/退出的真实双库多进程专项、Redis 故障恢复和本簇门禁均已通过；当前按 todo 推进 F8，M6 按完整集群计划复验。JWT 撤销窗口与共享状态边界按 ADR-055 报告。
+18. **F7 包含 [SSO 登录与统一退出](plans/v1-foundation-completion.md#sso-登录与统一退出)**：OIDC、TOTP/恢复码及双应用 SSO/退出的真实双库多进程专项、Redis 故障恢复和本簇门禁均已通过；F8-A/F8-B 已完成，当前按 todo 推进 gRPC G1，M6 按完整集群计划复验。JWT 撤销窗口与共享状态边界按 ADR-055 报告。
 
 ## 里程碑顺序
 
 | 顺序 | 工作 | 完成门槛 |
 | --- | --- | --- |
-| 当前 | M5 通用 CSV/XLSX F8-A → F8-B | F8-A 有界解析/转换和公开 consumer；F8-B 复用事务、授权、租户、Queue、Storage 并完成双库验收 |
+| 当前 | M5 gRPC G1 基础与生成 | 按 ADR-040 交付可选 tonic/prost、配置/注册、默认/命名客户端、四类 RPC、proto 生成和真实 TCP/生成项目验收 |
 | M4 | 流程扩展、共享锁/幂等、worker 修正、日历调度、国际化/邮件模板与队列通知 | 双库并发/故障、DST/补跑、模板/通知、job 生成与组合运行 |
 | M5 | 插件公开契约与外部扩展、运行/迁移保障、缓存/存储、查询/租户、外部身份/MFA、数据交换、gRPC/实时/观测 | 独立扩展、真实驱动、跨协议/租户隔离、身份协议、双库与多节点资源边界 |
 | M6 | 插件模板/诊断/升级、CLI/dev/doctor、应用模板覆盖、fixtures/TestApp、OpenAPI、示例与正式文档 | 双库黄金路径、源码升级、构建成本及兼容/集群/性能门禁 |

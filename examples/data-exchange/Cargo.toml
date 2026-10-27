@@ -9,5 +9,5 @@ publish = false
 [workspace]
 
 [dependencies]
-openrust = { path = "../..", version = "0.0.0", features = ["data-exchange"] }
+openrust = { path = "../..", version = "0.0.0", features = ["data-exchange-tasks"] }
 serde_json = "1.0"

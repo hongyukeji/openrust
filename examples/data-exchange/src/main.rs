@@ -5,6 +5,11 @@ use openrust::{
     data_exchange::{
         CellType, ExportOptions, ImportColumn, ImportLimits, ImportSchema, for_each_csv, write_csv,
     },
+    data_exchange::tasks::{
+        ExchangeFormat, ExportTaskOptions, ExportTaskReport, export_storage_task,
+    },
+    queue::JobContext,
+    storage::StoragePath,
 };
 use serde_json::{Map, Value};
 
@@ -39,6 +44,31 @@ fn run() -> Result<()> {
         ));
     }
     Ok(())
+}
+
+/// 以小型 fixture 演示独立应用如何提供已授权的导出行。
+///
+/// 实际应用应以 `AuthorizedSelect` 等受保护查询逐批产生行，而不是先载入整份数据。
+pub async fn export_authorized_rows(
+    context: &JobContext,
+    output_path: StoragePath,
+    rows: Vec<Map<String, Value>>,
+) -> Result<ExportTaskReport> {
+    export_storage_task(
+        context,
+        "private",
+        output_path,
+        ExchangeFormat::Csv,
+        vec!["email".to_owned()],
+        &ExportTaskOptions::default(),
+        |sink| async move {
+            for row in rows {
+                sink.send(row).await?;
+            }
+            Ok(())
+        },
+    )
+    .await
 }
 
 #[cfg(test)]

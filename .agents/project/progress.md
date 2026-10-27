@@ -2,13 +2,13 @@
 
 > 受众：AI Agent
 > 更新：2026-10-27
-> 摘要：框架处于 v1 M5，尚未达到完整 v1。源码工作区、C1–C3 中文化、M3 认证流程扩展及 M4 共享锁、worker 生命周期、F1 日历调度、F2 国际化、F3 邮件模板、队列化通知、job 生成集成、通用插件公开契约、Db 与 Queue 外部扩展契约、跨协议验证/调用作用域和 HTTP 有界运行/就绪切换均有适用验收证据；M5 缓存驱动、命名实例、F4a tag generation、F4b 单进程加载合并和 F4c SWR 已通过适用验收，Redis Session 和 Redis Queue 均通过 Redis 8 真实服务验收；ADR-047 查询授权、ADR-048 稳定键分批和 ADR-049 迁移互斥已通过双库实际验收，ADR-050 存储与上传下载已通过 local/custom driver、真实 TCP、MinIO 与 workspace 门禁，ADR-051 受限出站目标策略已通过受控 DNS 与真实 TCP；ADR-052 命名依赖韧性已通过 loopback TCP 和 workspace 门禁；F7 OIDC 子簇已完成 PostgreSQL 18/MySQL 8.4 身份流程集成、Keycloak 26.8.1 真实授权码/PKCE 和 workspace 门禁；ADR-054 TOTP/恢复码也已完成双库真实 TCP、干净生成项目及 workspace 门禁；F7 SSO 与 F6 租户隔离已完成相关验收；F8-A 有界 CSV/XLSX 解析转换已通过 workspace 与独立 consumer 门禁，F8-B 任务化导入与授权导出正在推进。
+> 摘要：框架处于 v1 M5，尚未达到完整 v1。源码 workspace、C1–C3 中文化、M3/M4 已列能力及 M5 插件扩展、HTTP 生命周期、缓存、查询授权、迁移互斥、存储、出站安全与 F6/F7 子簇均有适用验收证据；F8-A/F8-B CSV/XLSX 解析转换、任务化导入与授权导出已完成 workspace、consumer 和 PostgreSQL 18/MySQL 8.4 真实数据库验收；当前按 `todo.md` 推进 gRPC G1，v1 集群、生产和性能最终门禁仍未完成。
 
 ## F7 SSO 验收完成
 
 `ExternalIdentityFlows::complete_with_handle` 创建与 refresh family、MFA challenge、可选加密 Session ID 关联的不透明句柄；新增 RP-Initiated Logout state 消费、Logout Token 独立验证、共享重放键与退出墓碑。回调会检查 sid/subject 两类退出墓碑；logout 与 MFA challenge completion 按关联行到 challenge 行的锁序列化。后通道通知会撤销关联 refresh/challenge，并删除共享 Session；Session store 清理失败时，相同通知可重试未完成删除。PostgreSQL 18 和 MySQL 8.4 fake provider 隔离库功能测试各通过 1 项，覆盖 logout state、refresh/Session/challenge 撤销、审计、重放、RP Session 删除失败重试与旧 callback 拒绝。Keycloak 26.8.1 真实浏览器测试确认同一浏览器会话用主 client 完成交互登录后，第二个 client 可直接返回授权码；两个隔离应用各自的 loopback HTTP callback 路由接收真实授权码，验证 state Cookie、拒绝无效 state，再以 `complete_with_handle` 创建关联、refresh family 和 Session。主应用通过 Keycloak RP-Initiated Logout 先撤销本地 Session/refresh，再由 callback 单次消费 state；Keycloak 随后通知两个独立 HTTP handler收到 Logout Token 并调用 `process_backchannel_logout`；PostgreSQL 18/MySQL 8.4 各自撤销关联、拒绝 refresh 轮换、删除 Session 并确认 HTTP 重放幂等；伪造 Logout Token 与错误 client endpoint 均经 HTTP 返回 401。provider fake 双库流程另验证 TOTP challenge 与关联句柄绑定、完成后自动关联 refresh family/Session、RP logout 撤销；未登记 logout redirect 被拒绝且本地 refresh 仍有效；缺少 IdP logout endpoint 时本地 refresh/Session 仍撤销。
 
-本簇已完成：隔离 Redis 容器停机期间 Back-Channel Logout 返回 503；Redis 恢复后重启两个应用共四个 API 子进程，同一真实 Keycloak Logout Token 重放成功。PostgreSQL 18/MySQL 8.4 的真实拓扑均为两个隔离应用、每应用两个独立 API 子进程、TCP round-robin 与 Redis 8 共享 Session；已覆盖挂起 callback/logout 与 MFA completion/logout 竞态、refresh/logout 竞争、退出通知撤销 challenge 后 completion 返回 401、callback 返回 401、两个子节点退出后拒绝读取 Session 与轮换 refresh、节点重启重放及 15 秒 JWT 窗口。双库 OIDC retry 用例另在 Redis store 注入一次删除错误并确认重试成功；与物理断连验收分别记录。fmt、default/all-features clippy/tests、warnings-denied default/all-features Rustdoc、no-default-features check 与 cargo deny 均通过。F6-A/F6-B 可选租户隔离已完成并提交；F8-A 解析/转换当前进入完整门禁，随后推进 F8-B 任务化集成。
+本簇已完成：隔离 Redis 容器停机期间 Back-Channel Logout 返回 503；Redis 恢复后重启两个应用共四个 API 子进程，同一真实 Keycloak Logout Token 重放成功。PostgreSQL 18/MySQL 8.4 的真实拓扑均为两个隔离应用、每应用两个独立 API 子进程、TCP round-robin 与 Redis 8 共享 Session；已覆盖挂起 callback/logout 与 MFA completion/logout 竞态、refresh/logout 竞争、退出通知撤销 challenge 后 completion 返回 401、callback 返回 401、两个子节点退出后拒绝读取 Session 与轮换 refresh、节点重启重放及 15 秒 JWT 窗口。双库 OIDC retry 用例另在 Redis store 注入一次删除错误并确认重试成功；与物理断连验收分别记录。fmt、default/all-features clippy/tests、warnings-denied default/all-features Rustdoc、no-default-features check 与 cargo deny 均通过。F6-A/F6-B 可选租户隔离已完成并提交；F8-A/B 已完成工作区和双库门禁，F8-B 后续段落记录本次任务化验收。
 
 ## 源码 workspace 交付
 
@@ -52,14 +52,14 @@
 - C2 Rustdoc 与源码/配置注释中文化：覆盖根公开模块、`cli` 内部实现、`macros`、`testing`、`apps/server`、`examples` 与 `tests`；未改 API、运行时文案或行为。fmt、workspace clippy/test/doc、cargo deny、diff check 通过；PostgreSQL 18 和 MySQL 8.4 各通过 18 项 auth/db/queue/recovery/schedule 集成测试。生成模板入口注释快照按实际生成结果更新。
 - C3 生成说明与 CLI 帮助中文化：CLI 分组标题、帮助/版本选项、子命令说明、生成的应用指南、`.env.example` 注释及生成 Rustdoc 已中文化；Cargo 描述原已中文。CLI 15 项测试、workspace fmt/clippy/test/warnings-denied doc/cargo deny 通过；干净源码副本生成无数据库、PostgreSQL、MySQL 应用各自直接 check/test 通过。
 - C1 默认文档入口中文化：根 README、贡献/安全/行为准则/变更日志及框架模块 README 已按简体中文优先更新，保留代码、技术标识符、链接和许可证原文。13 个变更 Markdown 的本地链接/锚点、`git diff --check`、warnings-denied Rustdoc 与框架 doctest 通过；详见 `.agents/project/memory/verification.md`。
-- V1 底层补齐 F1–F10 的范围与依赖见 [专题计划](plans/v1-foundation-completion.md)；F1–F3 已落地，F4–F10 仍按待办顺序交付；若依/芋道仅 V2 参考。
+- V1 底层补齐 F1–F10 的范围与依赖见 [专题计划](plans/v1-foundation-completion.md)；F1–F8 已交付，F9–F10 与其他 M5/M6 能力仍按待办顺序推进；若依/芋道仅 V2 参考。
 - gRPC 已按 [ADR-040](decisions/adr-040-grpc-integration.md) 纳入 v1/M5，当前仅完成范围和规划；跨协议验证/上下文、出站安全/韧性及生产运行/迁移补强见 `todo.md`，没有新增代码或运行验收证据。
 - M5/M6 尚有成组能力未交付；没有可宣称已完成的 v1 性能基线、全部最低版本兼容性或完整集群验收。
 - v1 完整验收通过后按已授权顺序进入 v2；Admin 已确定 pure-admin 精简国际化版 + Element Plus，App 使用 uni-app，PC 仅规划设计。当前只完成选型与文档校准，未创建端侧应用或安装前端依赖；[AI模型平台](plans/ai-model-platform.md) 仅有规划，尚未开发，须等待用户明确要求开发并满足成熟门禁。
 
 ## 下一步
 
-按 [todo.md](todo.md) 推进 F8-B 队列化导入与授权导出，再继续 M5/M6 工作；F8-A CSV/XLSX 有界解析转换已通过完整 workspace 门禁和独立 consumer check/test。F6-A/F6-B 租户查询隔离和共享资源传播已通过双库与 workspace 验收。再执行完整 v1 性能、生产就绪与集群门禁。Worker 与 scheduler 专项双库证据不覆盖生产多实例负载与完整集群门禁。组件整合与 Laravel 式体验按 ADR-001；不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
+F8-A/B 均已完成。下一步按 [todo.md](todo.md) 推进 gRPC G1 基础与生成，再继续 M5/M6 工作；F8-B 双库任务和独立 consumer 证据见 `memory/testing.md`。F6-A/F6-B 租户查询隔离和共享资源传播已通过双库与 workspace 验收。随后执行完整 v1 性能、生产就绪与集群门禁。Worker 与 scheduler 专项双库证据不覆盖生产多实例负载与完整集群门禁。组件整合与 Laravel 式体验按 ADR-001；不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
 
 ## 本次文档核对范围
 
@@ -117,3 +117,11 @@ F6-B 租户资源传播已完成：Cache key/singleflight/tag generation、跨�
 `openrust::data_exchange` 由可选 `data-exchange` feature 提供。CSV 使用逐记录 reader 并识别 UTF-8 BOM；XLSX 先限制 ZIP entry、展开总量、重叠/重复 entry、宏与 shared strings，再由 calamine cell reader 逐单元格解析并拒绝公式。显式 `ImportSchema` 提供表头映射、类型转换和复用 `Validate` 的字段报告；同步 callback 是唯一持久化边界，不管理事务。导出对 CSV 默认防公式注入，XLSX 使用 constant-memory worksheet 并保留字符串/数值/布尔类型。核心 8 项、`apps/server` feature 集成 1 项通过；独立 consumer `examples/data-exchange` 的 `cargo check/test --locked` 通过，无绝对路径或临时 registry patch。
 
 门禁：`cargo fmt --all --check`、默认与 all-features workspace all-target clippy/test、warnings-denied default/all-features Rustdoc、no-default-features check、`cargo deny check` 均通过；deny 仅报告既有 duplicate dependency 与 unused MPL allowance 警告，advisories/bans/licenses/sources 均通过。解析/转换不读写数据库，因此本簇无双库保存验收；双库事务/授权/租户/队列验收属于 F8-B。
+
+## F8-B 数据交换任务化导入与授权导出
+
+新增可选 `data-exchange-tasks` feature，复用 Queue、Storage、事务、RequestIdempotency 和临时文件。导入按有界解析 channel 与事务批次写入；已提交批次与幂等记录原子提交，失败/取消保留先前批次并写有界报告。导出由应用 producer 逐行提交到有界 sink，只有完整对象才发布。报告/导出清理按 disk/path 到期代际标记；重试更新对象后旧清理任务只会重新排期，不会提前删除新版本。每次导入最终报告和导出对象均写入最新到期标记，QueuePlugin 自动注册清理 handler。
+
+真实 PostgreSQL 18 与 MySQL 8.4 隔离库分别运行 `cargo test -p server --features 'data-exchange-tasks storage-local db-<backend>' --test data_exchange_tasks -- --nocapture`，各 1 项通过。覆盖双批写入与重放去重、不同源冲突、local driver 不支持对象版本时失败关闭、进度上报、第二批失败/恢复、取消报告/恢复、字段错误脱敏、tenant 隔离、流式导出、attempt 路径隔离、过期前不执行清理、旧到期任务不能删除重试更新的导出对象、持有锁时清理被拒绝、QueuePlugin 自动清理。对象完整上传后才写保留标记和排期；SharedLocks 每 5 分钟续租、单次续期超时 30 秒。续租失败时不丢弃可能已提交的 Storage future，任务返回错误由 Queue 重试，不承诺 Storage exactly-once。独立 `examples/data-exchange` 的 `cargo check/test --locked` 通过。幂等记录与安全自动重试窗口为 24 小时；超过窗口后的恢复要求见 ADR-058 和用户 README。
+
+本簇门禁实际通过：`cargo fmt --all --check`、默认与 all-features workspace all-target Clippy、`cargo test --workspace --quiet`、`cargo test --workspace --all-features --quiet`、warnings-denied 默认/all-features Rustdoc、默认与 `data-exchange-tasks` 单 feature no-default check、独立 consumer check/test 与 PostgreSQL/MySQL 真实集成。`cargo deny check` 的 advisories/bans/licenses/sources 均通过；仅有既有重复依赖与未匹配 MPL allowance 警告。测试套件中的 S3 版本控制专测仍按其说明忽略，和本簇 local Storage 证据分开；完整 v1 集群验收仍待后续功能簇完成后执行。

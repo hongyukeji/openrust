@@ -10,7 +10,18 @@
 - 独立 consumer：`cargo check --manifest-path examples/data-exchange/Cargo.toml --locked` 与 `cargo test --manifest-path examples/data-exchange/Cargo.toml --locked`；示例通过相对 path 依赖使用公开 API，不含 registry patch 或开发者机器绝对路径。
 - 核心测试 8 项通过，覆盖 CSV BOM/类型/逐行错误/重复表头/输入上限/行与全局错误上限/callback 失败/公式注入，XLSX 类型保真/公式拒绝/shared string 声明上限/宏拒绝/ZIP 展开上限，以及 apps/server feature 接入 1 项通过。
 - `cargo fmt --all --check`、默认和 all-features workspace clippy/tests、warnings-denied 默认与 all-features Rustdoc、`cargo check -p openrust --no-default-features`、`cargo deny check` 均通过。cargo-deny 保留既有 duplicate dependency 与未匹配 MPL allowance 警告，advisories/bans/licenses/sources 通过。
-- F8-B 另需双库分批事务/失败恢复、租户和查询授权、队列取消进度及报告生命周期真实验收；F8-A 测试不能代替。
+- F8-B 的双库任务化验收见下文“F8-B 数据交换任务”。
+
+## F8-B 数据交换任务
+
+`apps/server/tests/data_exchange_tasks.rs` 使用 PostgreSQL 18 和 MySQL 8.4 的隔离测试库、真实 `DatabasePlugin`/`QueuePlugin` 与本地 Storage driver。两个后端均实际执行 `import_batches_are_atomic_idempotent_and_export_is_streamed` 并通过。测试覆盖 CSV 分批事务、重复请求回放、第二批失败后的部分报告与重试恢复、取消后的报告和续跑、字段错误脱敏、tenant 作用域隔离、导出流式落盘、已取消导出不发布文件、attempt 路径隔离、过期代际保护、清理时对象锁忙拒绝删除，以及 QueuePlugin 自动注册并执行报告清理 job。对象上传完整返回后才写保留标记并排期清理；SharedLocks 租约每 5 分钟续期、单次续期有 30 秒超时。续租失败会令任务返回错误，但不会丢弃可能已提交的 Storage future，故不保证数据库长时间不可用时外部 Storage exactly-once。已通过命令：
+
+```bash
+cargo test -p server --features 'data-exchange-tasks storage-local db-postgres' --test data_exchange_tasks -- --nocapture
+cargo test -p server --features 'data-exchange-tasks storage-local db-mysql' --test data_exchange_tasks -- --nocapture
+```
+
+独立 consumer `examples/data-exchange/` 启用可选 feature，通过 `cargo check --manifest-path examples/data-exchange/Cargo.toml --locked` 与 `cargo test --manifest-path examples/data-exchange/Cargo.toml --locked`。consumer 演示应用从受保护查询生产行并交给有界导出 sink；框架不代替应用授权，也不提供下载路由。事务只保证单个导入批次内业务写入与幂等完成标记原子；已提交批次在取消或后续失败时保留，导入副作用至少一次，外部副作用仍须由应用自行幂等。`RequestIdempotency` 现有上限为 24 小时；报告保留默认 7 天、最多 30 天。
 
 ## M5 可选外部身份：OIDC（F7 子簇）
 
