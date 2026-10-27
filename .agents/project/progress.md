@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-27
-> 摘要：框架处于 v1 M5，尚未达到完整 v1。源码 workspace、C1–C3 中文化、M3/M4 已列能力及 M5 各基础设施子簇均有适用验收证据；F8-A/F8-B 已完成 workspace、consumer 与 PostgreSQL 18/MySQL 8.4 真实数据库验收。gRPC G1、G2a–G2c、G3a 联合生命周期与 G3b proto/trace 兼容通过相应真实 TCP、workspace 和 consumer 门禁；当前按 `todo.md` 执行 G3c 双节点路由。v1 完整集群、生产和性能最终门禁仍未完成。
+> 摘要：框架处于 v1 M5，尚未达到完整 v1。源码 workspace、C1–C3 中文化、M3/M4 已列能力及 M5 各基础设施子簇均有适用验收证据；F8-A/F8-B 已完成 workspace、consumer 与 PostgreSQL 18/MySQL 8.4 真实数据库验收。gRPC G1、G2a–G2c、G3a 联合生命周期、G3b proto/trace 兼容与 G3c 双节点 HTTP/2 路由已通过相应真实 TCP、双节点代理、workspace 和 consumer 门禁。v1 完整集群、生产和性能最终门禁仍未完成。
 
 ## F7 SSO 验收完成
 
@@ -53,13 +53,13 @@
 - C3 生成说明与 CLI 帮助中文化：CLI 分组标题、帮助/版本选项、子命令说明、生成的应用指南、`.env.example` 注释及生成 Rustdoc 已中文化；Cargo 描述原已中文。CLI 15 项测试、workspace fmt/clippy/test/warnings-denied doc/cargo deny 通过；干净源码副本生成无数据库、PostgreSQL、MySQL 应用各自直接 check/test 通过。
 - C1 默认文档入口中文化：根 README、贡献/安全/行为准则/变更日志及框架模块 README 已按简体中文优先更新，保留代码、技术标识符、链接和许可证原文。13 个变更 Markdown 的本地链接/锚点、`git diff --check`、warnings-denied Rustdoc 与框架 doctest 通过；详见 `.agents/project/memory/verification.md`。
 - V1 底层补齐 F1–F10 的范围与依赖见 [专题计划](plans/v1-foundation-completion.md)；F1–F8 已交付，F9–F10 与其他 M5/M6 能力仍按待办顺序推进；若依/芋道仅 V2 参考。
-- gRPC G3a 已交付 `HttpGrpcPlugin`、`serve all` 与联合 supervisor；先构建并绑定两个 listener，共享 readiness、shutdown signal/deadline 和后台任务 join。G3b 为 `EchoRequest`/`EchoResponse` 仅追加 tag 2，保留 tag 1 与既有 RPC 路径；旧/新 client 与 server 真 TCP 交叉调用（含未知 request tag 2 与新 response tag 2）通过，HTTP→typed RPC 真实 traceparent 传播通过，非法值被过滤且不依赖 OTel。联合运行、ready/drain、启动失败清理和退出回收仍由既有示例/server 测试覆盖；G3c 双节点路由与完整集群仍待验收。
+- gRPC G3a 已交付 `HttpGrpcPlugin`、`serve all` 与联合 supervisor；先构建并绑定两个 listener，共享 readiness、shutdown signal/deadline 和后台任务 join。G3b 为 `EchoRequest`/`EchoResponse` 仅追加 tag 2，保留 tag 1 与既有 RPC 路径；旧/新 client 与 server 真 TCP 交叉调用（含未知 request tag 2 与新 response tag 2）通过，HTTP→typed RPC 真实 traceparent 传播通过，非法值被过滤且不依赖 OTel。联合运行、ready/drain、启动失败清理和退出回收仍由既有示例/server 测试覆盖；G3c 使用两个真实 Linux 节点和 Envoy 1.40.1，在单一 HTTP/2 连接内验证 RPC 双节点分配、`NOT_SERVING` 主动摘流、长流中断、同 Channel 重连和节点重新加入；完整多服务集群仍待 M6。
 - M5/M6 尚有成组能力未交付；没有可宣称已完成的 v1 性能基线、全部最低版本兼容性或完整集群验收。
 - v1 完整验收通过后按已授权顺序进入 v2；Admin 已确定 pure-admin 精简国际化版 + Element Plus，App 使用 uni-app，PC 仅规划设计。当前只完成选型与文档校准，未创建端侧应用或安装前端依赖；[AI模型平台](plans/ai-model-platform.md) 仅有规划，尚未开发，须等待用户明确要求开发并满足成熟门禁。
 
 ## 下一步
 
-F8-A/B 均已完成。gRPC G1 基础与生成已通过真实 TCP、生成项目、独立 consumer 及 workspace 门禁；G2a TLS/mTLS、G2b 身份/错误映射、G2c 调用预算/资源/健康停机、G3a 联合 HTTP/RPC 生命周期与 G3b proto/trace 兼容均已完成；下一步按 [todo.md](todo.md) 推进 G3c 双节点路由。G1、G3a/G3b 及 F8-B 验收证据见 `memory/testing.md`。F6-A/F6-B 租户查询隔离和共享资源传播已通过双库与 workspace 验收。随后执行完整 v1 性能、生产就绪与集群门禁。Worker 与 scheduler 专项双库证据不覆盖生产多实例负载与完整集群门禁。组件整合与 Laravel 式体验按 ADR-001；不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
+F8-A/B 均已完成。gRPC G1 基础与生成已通过真实 TCP、生成项目、独立 consumer 及 workspace 门禁；G2a TLS/mTLS、G2b 身份/错误映射、G2c 调用预算/资源/健康停机、G3a 联合 HTTP/RPC 生命周期、G3b proto/trace 兼容和 G3c 双节点路由均已完成；下一步按 [todo.md](todo.md) 推进后续 M5 实时与可观测性簇。G1、G3a/G3b 及 F8-B 验收证据见 `memory/testing.md`。F6-A/F6-B 租户查询隔离和共享资源传播已通过双库与 workspace 验收。随后执行完整 v1 性能、生产就绪与集群门禁。Worker 与 scheduler 专项双库证据不覆盖生产多实例负载与完整集群门禁。组件整合与 Laravel 式体验按 ADR-001；不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
 
 ## 本次文档核对范围
 

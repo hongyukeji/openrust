@@ -18,7 +18,7 @@ openrust = { path = "../..", version = "0.0.0", features = ["grpc", "auth"] }
 prost = "0.14"
 tonic = { version = "~0.14.6", default-features = false, features = ["codegen", "router", "transport"] }
 tonic-prost = "~0.14.6"
-tokio = { version = "1.54", features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "1.54", features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-stream = { version = "0.1", features = ["net"] }
 futures-util = "0.3"
 figment = "0.10"

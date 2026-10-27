@@ -32,6 +32,8 @@ pub struct GrpcConfig {
     pub max_metadata_size_bytes: u32,
     /// 服务端 reflection 默认关闭。
     pub reflection_enabled: bool,
+    /// 停机后保留 Health `Check`/`Watch` 的时间；计入服务总停机 deadline。
+    pub health_drain_grace_ms: u64,
     /// 客户端名称到 endpoint 和独立 TLS 信任材料的映射。
     pub clients: BTreeMap<String, GrpcClientConfig>,
     /// 默认客户端名称；为空时调用方必须指定具名 endpoint。
@@ -128,6 +130,7 @@ impl Default for GrpcConfig {
             max_timeout_secs: 300,
             max_metadata_size_bytes: 8 * 1024,
             reflection_enabled: false,
+            health_drain_grace_ms: 250,
             clients: BTreeMap::new(),
             default_client: None,
         }
@@ -249,6 +252,7 @@ impl GrpcConfig {
             || self.max_timeout_secs > 86_400
             || self.max_metadata_size_bytes == 0
             || self.max_metadata_size_bytes > 1024 * 1024
+            || self.health_drain_grace_ms > 30_000
         {
             return Err(crate::Error::custom(
                 "grpc_config_invalid",

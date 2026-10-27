@@ -411,6 +411,7 @@ pub struct GrpcServer {
     default_timeout: Duration,
     max_timeout: Duration,
     shutdown_timeout: Duration,
+    health_drain_grace: Duration,
     #[cfg(feature = "auth")]
     state: AppState,
 }
@@ -473,7 +474,11 @@ where
         let default_timeout = self.default_timeout;
         let max_timeout = self.max_timeout;
         Box::pin(async move {
-            if !readiness.is_ready() {
+            let is_health_rpc = matches!(
+                request.uri().path(),
+                "/grpc.health.v1.Health/Check" | "/grpc.health.v1.Health/Watch"
+            );
+            if !readiness.is_ready() && !is_health_rpc {
                 return Ok(Status::unavailable("unavailable").into_http::<Body>());
             }
             let timeout = match grpc_timeout(request.headers(), default_timeout, max_timeout) {
@@ -624,6 +629,16 @@ async fn set_health_status(
     }
 }
 
+fn validate_health_drain_grace(grace_ms: u64, shutdown_timeout_secs: u64) -> Result<()> {
+    if grace_ms >= shutdown_timeout_secs.saturating_mul(1_000) {
+        return Err(Error::custom(
+            "grpc_config_invalid",
+            "grpc.health_drain_grace_ms 必须短于 server.shutdown_timeout_secs",
+        ));
+    }
+    Ok(())
+}
+
 impl GrpcServer {
     /// 从服务注册表和配置构建 server；不绑定端口或启动后台任务。
     pub fn from_app(app: &App) -> Result<Self> {
@@ -642,6 +657,10 @@ impl GrpcServer {
                 "server.shutdown_timeout_secs 必须在 1..=3600 秒之间",
             ));
         }
+        validate_health_drain_grace(
+            config.health_drain_grace_ms,
+            app.config().server.shutdown_timeout_secs,
+        )?;
         let (routes, health, health_services) =
             registry.routes(app.state(), config, config.reflection_enabled)?;
         if config.tls.is_none() && !config.allow_insecure_server {
@@ -664,6 +683,7 @@ impl GrpcServer {
             default_timeout: Duration::from_secs(config.default_timeout_secs),
             max_timeout: Duration::from_secs(config.max_timeout_secs),
             shutdown_timeout: Duration::from_secs(app.config().server.shutdown_timeout_secs),
+            health_drain_grace: Duration::from_millis(config.health_drain_grace_ms),
             #[cfg(feature = "auth")]
             state: app.state().clone(),
         })
@@ -692,6 +712,7 @@ impl GrpcServer {
             default_timeout,
             max_timeout,
             shutdown_timeout,
+            health_drain_grace,
             #[cfg(feature = "auth")]
             state,
             ..
@@ -755,10 +776,15 @@ impl GrpcServer {
             }
             () = shutdown => {
                 readiness_for_shutdown.stop_accepting();
+                let shutdown_deadline = tokio::time::Instant::now() + shutdown_timeout;
                 set_health_status(&health_reporter, &health_services, tonic_health::ServingStatus::NotServing).await;
+                tokio::time::sleep_until(
+                    (tokio::time::Instant::now() + health_drain_grace).min(shutdown_deadline),
+                )
+                .await;
                 health_reporter.begin_shutdown();
                 let _ = shutdown_tx.send(());
-                match tokio::time::timeout(shutdown_timeout, &mut server).await {
+                match tokio::time::timeout_at(shutdown_deadline, &mut server).await {
                     Ok(Ok(Ok(()))) => Ok(()),
                     Ok(Ok(Err(error))) => Err(Error::internal(error)),
                     Ok(Err(error)) => Err(Error::internal(error)),
@@ -1105,6 +1131,10 @@ impl Plugin for GrpcPlugin {
                 "server.shutdown_timeout_secs 必须在 1..=3600 秒之间",
             ));
         }
+        validate_health_drain_grace(
+            config.health_drain_grace_ms,
+            builder.config().server.shutdown_timeout_secs,
+        )?;
         if config.reflection_enabled
             && builder
                 .extension_mut::<GrpcServiceRegistry>()
@@ -1173,12 +1203,18 @@ pub mod codegen {
 
 #[cfg(test)]
 mod tests {
-    use super::{GrpcClientRegistry, grpc_timeout};
+    use super::{GrpcClientRegistry, grpc_timeout, validate_health_drain_grace};
     use crate::config::{GrpcClientConfig, GrpcClientTlsConfig, GrpcConfig};
     use crate::core::{Cancellation, ExecutionContext, ExecutionMetadata, with_execution_context};
     use http::{HeaderMap, HeaderValue};
     use std::collections::BTreeMap;
     use std::time::Duration;
+
+    #[test]
+    fn health_drain_grace_must_fit_inside_shutdown_deadline() {
+        assert!(validate_health_drain_grace(250, 1).is_ok());
+        assert!(validate_health_drain_grace(1_000, 1).is_err());
+    }
 
     #[test]
     fn parses_and_caps_grpc_timeout_and_rejects_ambiguous_values() {

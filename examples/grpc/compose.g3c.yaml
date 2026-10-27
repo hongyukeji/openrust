@@ -1,0 +1,30 @@
+services:
+  g3c-node-a:
+    build:
+      context: ../..
+      dockerfile: examples/grpc/Dockerfile.g3c
+    image: openrust-grpc-g3c-node:local
+    environment:
+      G3C_NODE_ID: A
+      G3C_LISTEN_ADDR: 0.0.0.0:50061
+      G3C_ENDPOINT: http://127.0.0.1:50061
+    expose: ["50061"]
+    stop_grace_period: 16s
+  g3c-node-b:
+    image: openrust-grpc-g3c-node:local
+    environment:
+      G3C_NODE_ID: B
+      G3C_LISTEN_ADDR: 0.0.0.0:50062
+      G3C_ENDPOINT: http://127.0.0.1:50062
+    expose: ["50062"]
+    depends_on: [g3c-node-a]
+    stop_grace_period: 16s
+  envoy:
+    image: envoyproxy/envoy:v1.40.1
+    command: ["-c", "/etc/envoy/envoy.yaml", "--log-level", "warning"]
+    ports:
+      - "127.0.0.1:50070:50070"
+      - "127.0.0.1:9901:9901"
+    depends_on: [g3c-node-a, g3c-node-b]
+    volumes:
+      - ./envoy.g3c.yaml:/etc/envoy/envoy.yaml:ro

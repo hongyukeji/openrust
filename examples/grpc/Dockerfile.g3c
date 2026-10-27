@@ -1,0 +1,16 @@
+# syntax=docker/dockerfile:1.7
+FROM rust:1.99-bookworm AS build
+ENV RUSTUP_TOOLCHAIN=1.99.1
+WORKDIR /workspace
+COPY . .
+RUN --mount=type=cache,target=/workspace/target \
+    --mount=type=cache,target=/usr/local/cargo/registry \
+    cargo build --locked --manifest-path examples/grpc/Cargo.toml --target-dir /workspace/target --bin g3c-node --bin g3c-probe \
+    && mkdir -p /workspace/artifacts \
+    && cp /workspace/target/debug/g3c-node /workspace/target/debug/g3c-probe /workspace/artifacts/
+
+FROM debian:bookworm-slim
+COPY --from=build /workspace/artifacts/g3c-node /usr/local/bin/g3c-node
+COPY --from=build /workspace/artifacts/g3c-probe /usr/local/bin/g3c-probe
+STOPSIGNAL SIGTERM
+ENTRYPOINT ["/usr/local/bin/g3c-node"]

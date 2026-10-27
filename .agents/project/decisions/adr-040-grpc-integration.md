@@ -40,6 +40,8 @@ v1 主攻通用框架底层能力，正式交付可选 gRPC 服务端与客户�
 - 至少两个 gRPC 节点验证健康摘流、滚动升级、节点退出与客户端重连。已有流不自动迁移到其他节点；中断和业务恢复策略明确，不能宣称跨节点恢复任意流进度。
 - 本项不要求注册中心、配置中心、服务网格、RPC 网关或 gRPC-Web。后续按具体需求复用外部组件；gRPC 不改变单机部署的简单默认路径。
 
+G3c 实施将 `GrpcConfig.health_drain_grace_ms` 加入公共配置，默认 250 ms。停机报告 `NOT_SERVING` 后，Health `Check`/`Watch` 在该宽限期内继续工作，业务 RPC 从 readiness 撤销时起拒绝；该宽限期必须短于并计入总停机 deadline。
+
 ## 实施顺序与验收
 
 1. 保留当前中文整改及 M4 正确性任务；进入 M5 后先补跨协议验证、调用作用域与有界运行边界，不重写已验证内核。当前领取顺序只在 [todo.md](../todo.md) 维护。
@@ -51,6 +53,24 @@ v1 主攻通用框架底层能力，正式交付可选 gRPC 服务端与客户�
 7. 无数据库 gRPC 示例必须可独立运行；涉及数据库认证/事务的路径在 PostgreSQL/MySQL 分别验证。执行默认、仅 gRPC、HTTP+gRPC、认证及有效 TLS/生成组合、MSRV 与仓库源码门禁，不只测试 all-features。
 
 四类调用的真实网络证据、故障和资源回收、生成项目、集群与文档全部齐备才算交付；本 ADR 不新增任何测试通过记录。
+
+## G1 实施 Spec
+
+## G3c 双节点 HTTP/2 路由与摘流 Spec
+
+- 复用 tonic/Tower、标准 gRPC health 与现有 `GrpcServer::serve` 有界停机语义；不在框架中重复实现服务发现或负载均衡器。
+- 使用固定版本 Envoy HTTP/2 L7 代理和两个独立 OpenRust 节点进程，health check 按已注册 Echo 服务状态剔除节点。
+- 新增节点二进制以环境变量选择节点身份和监听地址；两个节点使用同一 schema，以响应字段识别实际上游。
+- 新增单一 Channel 探针，连续发起 RPC 并确认同一 HTTP/2 连接上的实际后端分配；通过 Envoy access log 记录 downstream connection ID 和 upstream host。
+- 验收脚本先验证双节点分布，再在流式 RPC 活跃时向其所属节点发送 SIGTERM，验证流中断、NOT_SERVING 后不再向该节点分配新 RPC。
+- 同一持久 Channel 在摘除期间必须继续到达存活节点；重启被摘除节点后，验证健康状态恢复及双节点重新分配。
+- 真实 Envoy + TCP 节点拓扑作为本地/CI 可复跑验收；不以 loopback、fake、独立互不复制的进程或 TCP 连接轮询代替。
+- 不承诺流进度迁移；业务客户端在流中断后负责重新发起调用及业务级恢复。
+- 修改范围为 `src/grpc.rs`、`src/config/grpc.rs`、`apps/server` 集成测试、`examples/grpc`、对应 CI、示例文档及当前项目事实/验收记录；新增公开 `health_drain_grace_ms` 配置。
+
+## G3c 验收结果
+
+`examples/grpc/scripts/test-g3c.sh` 已在真实 Docker Linux 容器中运行通过：固定 Envoy 1.40.1 路由到两个独立 OpenRust 节点；同一客户端 Channel 的 40 次 unary RPC 共用一个 Envoy downstream HTTP/2 connection ID，并在两节点间分配。对长流所属节点发送 SIGTERM 后，标准 Health `Check` 返回 `NOT_SERVING`，Envoy gRPC active health checker 将目标标记为不健康，10 次后续 unary RPC 全部到存活节点；长流中断，同一 Channel 重连成功。重启节点后健康恢复，40 次 RPC 再次覆盖两节点。末次实测 Envoy 为 0.54% CPU、19.78 MiB；该数值仅是本次验收观测，不构成容量基线。
 
 ## G1 实施 Spec
 

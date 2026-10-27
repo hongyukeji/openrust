@@ -107,7 +107,13 @@ gRPC 入站也会将有效 `traceparent` 放入当前 `ExecutionContext`，可�
 
 ## Health 与 reflection
 
-框架自动注册标准 health `Check`/`Watch`。总状态及已注册服务在 listener 可用后报告 `SERVING`；停机先报告 `NOT_SERVING`，随后关闭 Watch stream，再限时 drain。期限继承 `[server].shutdown_timeout_secs`，超时会取消请求、终止并 join server task。
+框架自动注册标准 health `Check`/`Watch`。总状态及已注册服务在 listener 可用后报告 `SERVING`；停机先报告 `NOT_SERVING`，随后在 `grpc.health_drain_grace_ms`（默认 250 ms）内继续响应健康查询并拒绝业务新 RPC，再关闭 Watch stream 并限时 drain。该宽限期必须短于 `[server].shutdown_timeout_secs`，且计入总停机 deadline。
+
+### 双节点 HTTP/2 摘流验收
+
+执行 `examples/grpc/scripts/test-g3c.sh` 可启动两个独立 Linux gRPC 节点和固定版本 Envoy 1.40.1。脚本用一个持久 `tonic::Channel` 发起 40 次 unary RPC，并检查 Envoy access log 中 downstream HTTP/2 connection ID 相同、upstream 分别为两个节点；接着对长流所在节点发送 SIGTERM，检查 Health `Check` 返回 `NOT_SERVING`、Envoy gRPC active health check 摘除节点、后续 RPC 只到存活节点、长流中断且同一 Channel 可重新调用。最后重启节点并验证其恢复分流。
+
+脚本每次运行使用独立 Compose project，结束时移除该项目创建的容器、网络和本地节点镜像。长流进度不会迁移；客户端需在流中断后按业务幂等语义重新发起调用。该验收证明两个 API 节点通过真实 L7 HTTP/2 代理路由，不等同于 M6 的多 worker、共享依赖、滚动升级及全栈集群验收。
 
 reflection 默认关闭。启用后，应用必须注册编译时生成的 FileDescriptorSet 和允许公开的完整服务名；未列入白名单的服务不会通过 reflection 暴露：
 

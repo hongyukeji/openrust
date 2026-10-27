@@ -82,10 +82,31 @@ async fn plugin_registers_service_and_serves_a_bound_tcp_listener()
         report.status,
         health_pb::health_check_response::ServingStatus::Serving as i32
     );
+    let mut watch = health
+        .watch(tonic::Request::new(health_pb::HealthCheckRequest {
+            service: "openrust.test.v1.Probe".to_owned(),
+        }))
+        .await?
+        .into_inner();
+    let initial = watch
+        .message()
+        .await?
+        .ok_or("health Watch 未发送初始状态")?;
+    assert_eq!(
+        initial.status,
+        health_pb::health_check_response::ServingStatus::Serving as i32
+    );
     assert!(readiness.is_ready());
     shutdown
         .send(())
         .map_err(|()| "gRPC server exited before shutdown")?;
+    let drained = tokio::time::timeout(Duration::from_secs(5), watch.message())
+        .await??
+        .ok_or("health Watch 未收到停机状态")?;
+    assert_eq!(
+        drained.status,
+        health_pb::health_check_response::ServingStatus::NotServing as i32
+    );
     task.await??;
     assert!(!readiness.is_ready());
     Ok(())
@@ -101,6 +122,23 @@ async fn plugin_rejects_duplicate_services_by_name() -> Result<(), Box<dyn std::
         .err()
         .ok_or("duplicate service registration unexpectedly succeeded")?;
     assert_eq!(error.code(), "grpc_service_duplicate");
+    Ok(())
+}
+
+#[tokio::test]
+async fn plugin_rejects_health_drain_grace_that_exhausts_shutdown_deadline()
+-> Result<(), Box<dyn std::error::Error>> {
+    let mut config = FrameworkConfig::default();
+    config.server.shutdown_timeout_secs = 1;
+    config.grpc.allow_insecure_server = true;
+    config.grpc.health_drain_grace_ms = 1_000;
+    let mut builder = AppBuilder::new(config, figment::Figment::new());
+    builder.plugin(GrpcPlugin::new());
+    let error = finalize(builder)
+        .await
+        .err()
+        .ok_or("health drain grace unexpectedly consumed the shutdown deadline")?;
+    assert_eq!(error.code(), "grpc_config_invalid");
     Ok(())
 }
 
