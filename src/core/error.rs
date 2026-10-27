@@ -284,6 +284,9 @@ pub struct ApiResponse<T: Serialize> {
     pub code: String,
     /// 可安全展示给调用方的消息。
     pub message: String,
+    /// 失败响应生成时的 Unix 毫秒时间戳。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timestamp_ms: Option<i64>,
     /// 响应载荷；没有载荷时省略此字段。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<T>,
@@ -293,8 +296,11 @@ pub struct ApiResponse<T: Serialize> {
     /// 可选的字段级校验错误。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub errors: Option<ValidationErrors>,
-    /// 请求关联 ID，与 `x-request-id` 响应头相同。
-    pub request_id: String,
+    /// 失败响应中的请求关联 ID，与 `x-request-id` 响应头相同。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_id: Option<String>,
+    #[serde(skip)]
+    request_id_header: String,
     #[serde(skip)]
     status: StatusCode,
     #[serde(skip)]
@@ -313,10 +319,12 @@ impl<T: Serialize> ApiResponse<T> {
                 &crate::i18n::MessageArgs::new(),
             )
             .unwrap_or_else(|| "ok".to_owned()),
+            timestamp_ms: None,
             data: Some(data),
             meta: None,
             errors: None,
-            request_id: context.request_id,
+            request_id: None,
+            request_id_header: context.request_id,
             status: StatusCode::OK,
             mode: context.http_status,
         }
@@ -347,10 +355,12 @@ impl<T: Serialize> ApiResponse<T> {
             success: false,
             code: code.to_owned(),
             message,
+            timestamp_ms: Some(chrono::Utc::now().timestamp_millis()),
             data: None,
             meta: None,
             errors,
-            request_id: context.request_id,
+            request_id: Some(context.request_id.clone()),
+            request_id_header: context.request_id,
             status,
             mode: context.http_status,
         }
@@ -368,7 +378,7 @@ impl ApiResponse<()> {
 
 impl<T: Serialize> IntoResponse for ApiResponse<T> {
     fn into_response(self) -> Response {
-        let request_id = HeaderValue::from_str(&self.request_id).ok();
+        let request_id = HeaderValue::from_str(&self.request_id_header).ok();
         let mode = self.mode;
         let (semantic_status, body) = match serde_json::to_vec(&self) {
             Ok(body) => (self.status, body),
@@ -380,9 +390,17 @@ impl<T: Serialize> IntoResponse for ApiResponse<T> {
                     StatusCode::INTERNAL_SERVER_ERROR,
                     None,
                 );
-                fallback.request_id.clone_from(&self.request_id);
+                fallback.request_id = Some(self.request_id_header.clone());
+                fallback
+                    .request_id_header
+                    .clone_from(&self.request_id_header);
                 let body = serde_json::to_vec(&fallback).unwrap_or_else(|_| {
-                    b"{\"success\":false,\"code\":\"internal_error\",\"message\":\"internal server error\",\"request_id\":\"-\"}".to_vec()
+                    format!(
+                        "{{\"success\":false,\"code\":\"internal_error\",\"message\":\"internal server error\",\"timestamp_ms\":{},\"request_id\":{}}}",
+                        chrono::Utc::now().timestamp_millis(),
+                        serde_json::to_string(&self.request_id_header).unwrap_or_else(|_| "\"-\"".to_owned())
+                    )
+                    .into_bytes()
                 });
                 (StatusCode::INTERNAL_SERVER_ERROR, body)
             }

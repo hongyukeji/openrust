@@ -192,13 +192,13 @@ async fn health_and_request_id_are_installed_by_the_plugin() -> TestResult {
         response.headers().contains_key("x-request-id"),
         "request id is propagated"
     );
-    let request_id = response.headers()["x-request-id"].to_str()?.to_owned();
     let body = json_body(response).await;
     assert_eq!(body["success"], true);
     assert_eq!(body["code"], "ok");
     assert_eq!(body["message"], "ok");
     assert_eq!(body["data"]["status"], "ok");
-    assert_eq!(body["request_id"], request_id);
+    assert!(body.get("timestamp_ms").is_none());
+    assert!(body.get("request_id").is_none());
     Ok(())
 }
 
@@ -910,7 +910,9 @@ async fn unknown_route_is_404_envelope_with_request_id() -> TestResult {
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
     assert!(response.headers().contains_key("x-request-id"));
     assert_eq!(response.headers()[header::CONTENT_TYPE], "application/json");
-    assert_eq!(json_body(response).await["code"], "not_found");
+    let body = json_body(response).await;
+    assert_eq!(body["code"], "not_found");
+    assert!(body["timestamp_ms"].as_i64().is_some_and(|value| value > 0));
     Ok(())
 }
 
@@ -1021,9 +1023,15 @@ async fn always_ok_wraps_success_errors_and_fallbacks_with_matching_request_id()
             assert!(response.headers().contains_key(header::ALLOW));
         }
         let body = json_body(response).await;
-        assert_eq!(body["request_id"], "client-123", "{uri}");
         assert_eq!(body["code"], expected_code, "{uri}");
         assert_eq!(body["success"], expected_code == "ok", "{uri}");
+        if expected_code == "ok" {
+            assert!(body.get("request_id").is_none(), "{uri}");
+            assert!(body.get("timestamp_ms").is_none(), "{uri}");
+        } else {
+            assert_eq!(body["request_id"], "client-123", "{uri}");
+            assert!(body["timestamp_ms"].as_i64().is_some_and(|value| value > 0));
+        }
         if uri == "/api/no-content" || expected_code != "ok" {
             assert!(body.get("data").is_none(), "{uri}");
         }
@@ -1091,7 +1099,14 @@ async fn semantic_keeps_created_error_and_rate_limit_statuses() -> TestResult {
             .await?;
         assert_eq!(response.status(), expected, "{uri}");
         let request_id = response.headers()["x-request-id"].to_str()?.to_owned();
-        assert_eq!(json_body(response).await["request_id"], request_id);
+        let body = json_body(response).await;
+        if expected.is_success() {
+            assert!(body.get("request_id").is_none());
+            assert!(body.get("timestamp_ms").is_none());
+        } else {
+            assert_eq!(body["request_id"], request_id);
+            assert!(body["timestamp_ms"].as_i64().is_some_and(|value| value > 0));
+        }
     }
     Ok(())
 }

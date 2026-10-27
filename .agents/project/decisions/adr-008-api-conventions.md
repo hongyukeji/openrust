@@ -1,7 +1,7 @@
 # ADR-008 HTTP API 交互规范与数据格式
 
 - 状态：Accepted
-- 日期：2026-10-25（同日修订：响应改为统一包装结构；2026-10-27 修订：无载荷时省略 `data`）
+- 日期：2026-10-25（后续修订：响应改为统一包装结构、无载荷时省略 `data`，并补充响应时间戳）
 
 ## 背景
 
@@ -84,7 +84,7 @@ API 格式是框架对外的契约，生成器、文档和所有用户项目都�
 
 ### 5. 请求头与响应头
 
-- `x-request-id`：客户端可以传入；不传时由服务端生成。响应头和正文的 `request_id` 都会回传。
+- `x-request-id`：客户端可传入；不传时由服务端生成。所有 HTTP 响应都回传该响应头；错误 JSON 正文同时包含 `request_id`，成功 JSON 正文不重复携带。
 - 认证：API 用 `Authorization: Bearer <token>`，Web 用会话 cookie（ADR-004）。
 - 限流时附带 `Retry-After`。创建成功附带 `Location`。
 - CORS 与压缩见 `[server.cors]`、`[server.compression]`。
@@ -104,19 +104,19 @@ API 格式是框架对外的契约，生成器、文档和所有用户项目都�
 成功示例：
 
 ```json
-{ "success": true, "code": "ok", "message": "ok", "data": { "id": 1, "title": "Hello" }, "request_id": "b267209f-..." }
+{ "success": true, "code": "ok", "message": "ok", "data": { "id": 1, "title": "Hello" } }
 ```
 
 列表示例：
 
 ```json
-{ "success": true, "code": "ok", "message": "ok", "data": [ { "id": 1 } ], "meta": { "page": 1, "per_page": 20, "total": 57, "total_pages": 3 }, "request_id": "..." }
+{ "success": true, "code": "ok", "message": "ok", "data": [ { "id": 1 } ], "meta": { "page": 1, "per_page": 20, "total": 57, "total_pages": 3 } }
 ```
 
 失败示例：
 
 ```json
-{ "success": false, "code": "validation_failed", "message": "Validation failed", "errors": { "title": ["is required"] }, "request_id": "..." }
+{ "success": false, "code": "validation_failed", "message": "Validation failed", "timestamp_ms": 1793088273927, "errors": { "title": ["is required"] }, "request_id": "..." }
 ```
 
 | 字段 | 出现时机 | 含义 |
@@ -124,10 +124,11 @@ API 格式是框架对外的契约，生成器、文档和所有用户项目都�
 | `success` | 总是 | 布尔值。客户端只需要看它判断成败 |
 | `code` | 总是 | 稳定的 `snake_case` 业务码。成功时为 `ok` |
 | `message` | 总是 | 面向用户的提示文字 |
+| `timestamp_ms` | 仅错误响应 | 服务端生成错误响应时的 Unix 毫秒时间戳；仅作排查参考，不用于鉴权、排序一致性或签名 |
 | `data` | 有业务载荷时 | 业务数据；没有载荷时省略。空数组仍为 `[]`，对象中的 `null` 字段仍按其类型保留 |
 | `meta` | 仅分页集合 | `PageMeta { page, per_page, total, total_pages }` |
 | `errors` | 仅校验失败 | 格式为 `{字段: [消息]}` |
-| `request_id` | 总是 | 与响应头 `x-request-id` 相同 |
+| `request_id` | 仅错误响应 | 与响应头 `x-request-id` 相同；成功响应可从响应头读取 |
 
 - 包装由框架统一完成。handler 照常返回 `Json(T)`、`Paginated<T>`、`Created<T>`、`NoContent` 或 `Err(Error)`，不需要手写包装结构。JSON 响应（包括 `/health`）都使用此结构；非 JSON 内容（文件、流、HTML）不包装。CORS 预检响应（`OPTIONS` 且带 `Access-Control-Request-Method`）是协议例外，只返回响应头，成功和拒绝时都保留 tower-http 的空正文。
 - 配置项 `[api] http_status`：
