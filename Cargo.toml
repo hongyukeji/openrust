@@ -50,7 +50,7 @@ rcgen = "0.14.10"
 axum = { version = "0.8", features = ["macros"] }
 axum-core = "0.5"
 tower = "0.5"
-tower-http = { version = "0.7", features = ["trace", "request-id", "timeout", "catch-panic", "util", "cors", "compression-gzip", "compression-br"] }
+tower-http = { version = "0.7", features = ["trace", "request-id", "timeout", "catch-panic", "util", "cors", "compression-gzip", "compression-br", "fs"] }
 tower-sessions = { version = "0.15", default-features = false, features = ["axum-core"] }
 jsonwebtoken = { version = "11.1", default-features = false, features = ["aws_lc_rs", "use_pem"] }
 argon2 = "0.6"

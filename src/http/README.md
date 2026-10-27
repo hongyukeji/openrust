@@ -10,6 +10,8 @@ OpenRust 框架基于 `axum` 和 `tower` 构建的 HTTP 层。
 - [`Created<T>`] 与 [`NoContent`]：成功响应封装；前者可选携带 `Location`（semantic 模式为 201），后者返回省略 `data` 的成功包装（HTTP 200）。
 - [`PageParams`] 与 [`Paginated<T>`]：校验 `page` / `per_page` 查询参数，并返回含数组 `data` 和分页 `meta` 的 API 封装。
 - 统一响应使用 `ApiResponse<T>`；错误响应额外包含 `request_id` 和 RFC 3339 UTC 字符串 `timestamp`（毫秒精度），成功响应不重复包含诊断字段。
+- JSON 业务 API 统一挂在 `/api` 下，包括根 API `GET /api` 与其子路径 `/api/*`；使用框架 `Json`、`ApiResponse` 等响应类型时，成功和错误都遵循统一 JSON 包装。`/health`、`/ready` 与可选 `/metrics` 是独立运维端点，不属于业务 API。
+- 公开站点由 `[server].public_dir` 指定，默认是应用工作目录下的 `public/`；`public/index.html` 是默认首页，其他文件从站点根按 URL 路径提供。`[server].root_target` 默认 `file:/index.html`，支持 `forward:/path` 在应用内转发，或 `redirect:/path` / `redirect:https://host/path` 重定向。`APP_SERVER__PUBLIC_DIR` 和 `APP_SERVER__ROOT_TARGET` 可在 `.env`（非 production）或进程环境覆盖 TOML；生产环境只使用进程环境。API 与 `/ws/*` 的未匹配路径保留框架 404 响应，不回落到静态文件。
 - [`SortParams`]：只按显式字段白名单解析 ADR-008 定义的逗号分隔排序语法；应用将字段名映射为固定 ORM 列。
 - [`Json<T>`]、[`Path<T>`] 与 [`Query<T>`]：兼容 axum 的 extractors，并将拒绝结果包装为 API 响应。`Json<T>` 还实现了 `IntoResponse`。
 - [`Validated`]：在 OpenRust 的 `Json<T>` 或 `Query<T>` extractor 成功后运行 `validator`。
@@ -21,6 +23,8 @@ OpenRust 框架基于 `axum` 和 `tower` 构建的 HTTP 层。
 `/health` 是进程存活探针；`/ready` 要求 listener 正在接收流量且所有依赖探针成功，否则返回 503。DatabasePlugin 检查每个已配置连接池，CachePlugin 对每个 store 执行只读读取探针；应用插件也可通过 `Readiness::register_probe` 注册最多 64 个稳定命名的异步探针。每轮最多并发 16 个探针、总时限 2 秒且全局仅允许一轮并发检查；错误详情不返回给请求方，服务端只记录稳定错误码和探针名。探针须只读且有界。该 HTTP 端点不代表 gRPC health、实时连接或任意外部依赖的状态。收到 SIGINT/SIGTERM 后，服务器先将自身标为 not-ready 并停止接受连接，再按 `[server].shutdown_timeout_secs` 等待在途请求；到期会合作取消请求、强制终止剩余 server task 并以 `http_shutdown_timeout` 失败退出。请求取消会丢弃本地 handler future，不能撤销已提交的数据库或外部副作用。
 
 启用 `metrics` Cargo feature 后，HTTP 请求会记录请求数、耗时和在途数；指标标签只包含固定的 HTTP 方法类别和状态类别，不包含路径、请求标识、用户信息或错误内容。`/metrics` 默认不注册。仅当 `[server].metrics_endpoint_enabled = true` 时才开放 Prometheus scrape 端点；生产部署应通过监听网络、反向代理或防火墙限制采集访问，不要将端点公开给普通客户端。日志中的 HTTP 请求 span 只记录方法，不记录完整 URI、查询参数、request ID 或 `traceparent`。
+
+`[server].max_concurrent_requests` 默认是 1024，允许配置范围为 1..=65536。达到上限时新请求立即收到 503，不排入等待队列。许可覆盖响应体读取生命周期：body 读完、读取失败或客户端丢弃响应时释放；未消费且仍持有的流式响应会继续占用许可。
 
 `[server.compression] enabled = true` 会根据 `Accept-Encoding` 协商 gzip 和 Brotli；设置为 `false` 可关闭压缩。`[server.cors]` 默认禁用。启用时，将 `enabled` 设为 `true`，并配置 `allowed_origins = ["https://example.com"]`（未启用 credentials 时也可用 `["*"]`）。Methods、request headers、exposed headers、credentials 和预检 `max_age_secs` 均可配置。具体 origin 必须是 `http://` 或 `https://`，后接主机和可选端口，不可包含路径、查询参数或尾部斜杠。CORS 列表中不能混用通配符和具体值；启用 credentials 时，methods、request headers 和 exposed headers 也不能使用通配符。路由构建时若发现配置无效，会返回包含配置 key 和转义值的错误。CORS layer 包裹 timeout layer，因此 408 响应仍保留允许来源信息。`build_router(&App)` 返回 `Result<Router>`；`serve` 会先构建 router，再绑定 listener。
 

@@ -423,10 +423,12 @@ mod tests {
             jail.create_dir("config")?;
             jail.create_file(
                 "config/default.toml",
-                "[server]\nport = 4000\nhost = \"0.0.0.0\"",
+                "[server]\nport = 4000\nhost = \"0.0.0.0\"\npublic_dir = \"config-public\"\nroot_target = \"file:/home.html\"",
             )?;
             jail.create_file("config/test.toml", "[server]\nport = 5000")?;
             jail.set_env("APP_SERVER__HOST", "10.0.0.1");
+            jail.set_env("APP_SERVER__PUBLIC_DIR", "env-public");
+            jail.set_env("APP_SERVER__ROOT_TARGET", "redirect:/welcome");
 
             let loader = ConfigLoader::new("config", Environment::Test);
             let config = loader
@@ -437,6 +439,8 @@ mod tests {
                 "environment file overrides default.toml"
             );
             assert_eq!(config.server.host, "10.0.0.1", "env var overrides files");
+            assert_eq!(config.server.public_dir, PathBuf::from("env-public"));
+            assert_eq!(config.server.root_target, "redirect:/welcome");
             assert_eq!(
                 config.app.env,
                 Environment::Test,

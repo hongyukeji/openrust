@@ -16,6 +16,7 @@ pub mod resource;
 pub mod response;
 pub mod routes;
 pub mod serve;
+pub(crate) mod site;
 pub mod sort;
 
 pub use crate::i18n::RequestLocale;

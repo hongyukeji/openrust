@@ -604,6 +604,7 @@ fn populate_project_with_mfa(
         .with_context(|| format!("failed to create {}", project_dir.display()))?;
     for directory in [
         "config",
+        "public",
         "src/controllers",
         "src/models/_entities",
         "src/services",
@@ -645,6 +646,10 @@ fn populate_project_with_mfa(
                 }
                 config
             },
+        ),
+        (
+            "public/index.html",
+            include_str!("../templates/public/index.html").replace("{{name}}", name),
         ),
         (
             "config/development.toml",
@@ -887,22 +892,22 @@ fn routes_source(auth: bool, auth_mfa: bool) -> String {
             String::new()
         };
         (
-            "    routes\n        .get(\"/api/me\", current_user)\n        .layer(openrust::auth::AuthLayer::required(\n            openrust::auth::AuthMode::Jwt,\n        ))\n        .post(\"/auth/register\", auth_register)\n        .post(\n            \"/auth/request-email-verification\",\n            auth_request_email_verification,\n        )\n        .post(\"/auth/verify-email\", auth_verify_email)\n        .post(\"/auth/login\", auth_login)\n        .post(\"/auth/refresh\", auth_refresh)\n        .post(\"/auth/logout\", auth_logout)\n        .post(\"/auth/password-reset\", auth_request_password_reset)\n        .post(\"/auth/password-reset/confirm\", auth_reset_password)\n        .get(\"/\", root)\n        .merge(Routes::new().get(\"/api/me/pat\", current_user).layer(\n            openrust::auth::AuthLayer::required(openrust::auth::AuthMode::PersonalAccessToken),\n        ))".to_owned(),
+            "    routes\n        .get(\"/api/me\", current_user)\n        .layer(openrust::auth::AuthLayer::required(\n            openrust::auth::AuthMode::Jwt,\n        ))\n        .post(\"/api/auth/register\", auth_register)\n        .post(\n            \"/api/auth/request-email-verification\",\n            auth_request_email_verification,\n        )\n        .post(\"/api/auth/verify-email\", auth_verify_email)\n        .post(\"/api/auth/login\", auth_login)\n        .post(\"/api/auth/refresh\", auth_refresh)\n        .post(\"/api/auth/logout\", auth_logout)\n        .post(\"/api/auth/password-reset\", auth_request_password_reset)\n        .post(\"/api/auth/password-reset/confirm\", auth_reset_password)\n        .get(\"/api\", root)\n        .merge(Routes::new().get(\"/api/me/pat\", current_user).layer(\n            openrust::auth::AuthLayer::required(openrust::auth::AuthMode::PersonalAccessToken),\n        ))".to_owned(),
             include_str!("../templates/src/auth_routes.rs")
                 .replace("{{login_handler}}", &login_handler)
                 .replace("{{mfa_handler}}", &mfa_handler),
         )
     } else {
-        ("    routes.get(\"/\", root)".to_owned(), String::new())
+        ("    routes.get(\"/api\", root)".to_owned(), String::new())
     };
     let registration = if auth_mfa {
         registration.replace(
-            ".post(\"/auth/login\", auth_login)",
-            ".post(\"/auth/login\", auth_login)\n        .post(\"/auth/mfa/login\", auth_mfa_login)",
+            ".post(\"/api/auth/login\", auth_login)",
+            ".post(\"/api/auth/login\", auth_login)\n        .post(\"/api/auth/mfa/login\", auth_mfa_login)",
         )
         .replace(
-            ".get(\"/\", root)",
-            ".get(\"/\", root)\n        .merge(Routes::new()\n            .post(\"/auth/mfa/enrollment\", auth_mfa_enrollment)\n            .post(\"/auth/mfa/enrollment/confirm\", auth_mfa_enrollment_confirm)\n            .post(\"/auth/mfa/disable\", auth_mfa_disable)\n            .post(\"/auth/mfa/recovery-codes\", auth_mfa_recovery_codes)\n            .layer(openrust::auth::AuthLayer::required(openrust::auth::AuthMode::Jwt)))",
+            ".get(\"/api\", root)",
+            ".get(\"/api\", root)\n        .merge(Routes::new()\n            .post(\"/api/auth/mfa/enrollment\", auth_mfa_enrollment)\n            .post(\"/api/auth/mfa/enrollment/confirm\", auth_mfa_enrollment_confirm)\n            .post(\"/api/auth/mfa/disable\", auth_mfa_disable)\n            .post(\"/api/auth/mfa/recovery-codes\", auth_mfa_recovery_codes)\n            .layer(openrust::auth::AuthLayer::required(openrust::auth::AuthMode::Jwt)))",
         )
     } else {
         registration
@@ -1062,7 +1067,7 @@ fn env_example(
     auth: bool,
     encryption: bool,
 ) -> String {
-    let mut contents = "# 复制为 .env 供本地开发使用。不要提交填入实际值的 .env 文件。\n# 生产环境从进程环境变量读取配置，不读取此文件。\nAPP_ENV=development\n\n# 可选：覆盖 config/*.toml 中的配置项。\n# APP_SERVER__PORT=3000\n# APP_SERVER__HOST=127.0.0.1\n# APP_API__HTTP_STATUS=always_ok\n# REDIS_URL=redis://127.0.0.1:6379/\n".to_owned();
+    let mut contents = "# 复制为 .env 供本地开发使用。不要提交填入实际值的 .env 文件。\n# 生产环境从进程环境变量读取配置，不读取此文件。\nAPP_ENV=development\n\n# 可选：覆盖 config/*.toml 中的配置项。\n# APP_SERVER__PORT=3000\n# APP_SERVER__HOST=127.0.0.1\n# APP_SERVER__PUBLIC_DIR=public\n# APP_SERVER__ROOT_TARGET=file:/index.html\n# APP_SERVER__ROOT_TARGET=forward:/api\n# APP_SERVER__ROOT_TARGET=redirect:https://example.com/\n# APP_API__HTTP_STATUS=always_ok\n# REDIS_URL=redis://127.0.0.1:6379/\n".to_owned();
     if let Some(database) = database {
         use std::fmt::Write as _;
         contents.push('\n');
@@ -2441,6 +2446,7 @@ mod tests {
             "src/main.rs",
             "src/app.rs",
             "src/routes.rs",
+            "public/index.html",
             "config/default.toml",
             "tests/application.rs",
             "AGENTS.md",
@@ -2450,6 +2456,7 @@ mod tests {
         let snapshot = [
             "Cargo.toml",
             ".gitignore",
+            "public/index.html",
             "config/default.toml",
             "src/main.rs",
             "src/app.rs",
@@ -2477,6 +2484,8 @@ mod tests {
         let env_example = fs::read_to_string(project.join(".env.example"))
             .expect("read generated environment example");
         assert!(env_example.contains("APP_SERVER__PORT=3000"));
+        assert!(env_example.contains("APP_SERVER__PUBLIC_DIR=public"));
+        assert!(env_example.contains("APP_SERVER__ROOT_TARGET=file:/index.html"));
         assert!(env_example.contains("APP_MAIL__SMTP_PASSWORD="));
         assert!(env_example.contains("生产环境从进程环境变量读取配置"));
         assert!(!env_example.contains("Production reads configuration"));
@@ -2557,7 +2566,7 @@ mod tests {
                 .expect("read generated auth HTTP integration test");
             assert!(http_test.contains("app::Blog::build(&mut builder)"));
             assert!(http_test.contains("into_make_service_with_connect_info"));
-            assert!(http_test.contains("/auth/password-reset/confirm"));
+            assert!(http_test.contains("/api/auth/password-reset/confirm"));
             assert!(!http_test.contains("{{type_name}}"));
             assert!(manifest.contains("\"auth\""));
             let migration_manifest = fs::read_to_string(project.join("migration/Cargo.toml"))
@@ -2593,10 +2602,10 @@ mod tests {
             assert!(routes.contains("/api/me/pat"));
             assert!(routes.contains("AuthMode::PersonalAccessToken"));
             assert!(routes.contains("CurrentUser"));
-            assert!(routes.contains("/auth/register"));
-            assert!(routes.contains("/auth/verify-email"));
-            assert!(routes.contains("/auth/refresh"));
-            assert!(routes.contains("/auth/password-reset/confirm"));
+            assert!(routes.contains("/api/auth/register"));
+            assert!(routes.contains("/api/auth/verify-email"));
+            assert!(routes.contains("/api/auth/refresh"));
+            assert!(routes.contains("/api/auth/password-reset/confirm"));
             assert!(routes.contains("ClientIp"));
             let auth_test = fs::read_to_string(project.join("tests/auth_flows.rs"))
                 .expect("read generated auth HTTP integration test");
@@ -2703,11 +2712,11 @@ mod tests {
             let routes =
                 fs::read_to_string(project.join("src/routes.rs")).expect("read generated routes");
             for route in [
-                "/auth/mfa/login",
-                "/auth/mfa/enrollment",
-                "/auth/mfa/enrollment/confirm",
-                "/auth/mfa/disable",
-                "/auth/mfa/recovery-codes",
+                "/api/auth/mfa/login",
+                "/api/auth/mfa/enrollment",
+                "/api/auth/mfa/enrollment/confirm",
+                "/api/auth/mfa/disable",
+                "/api/auth/mfa/recovery-codes",
             ] {
                 assert!(routes.contains(route), "missing generated route {route}");
             }

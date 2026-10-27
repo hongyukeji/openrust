@@ -88,4 +88,6 @@ tests/consumers/          # 独立 consumer 与真实拓扑验收夹具
 
 应用模块与第三方包都通过 `Plugin` 接入：`build` 阶段同步注册服务、命令、路由、迁移、配置段等；所有插件构建完成并冻结后按注册序依次调用异步 `finish`。HTTP 路由复用 `RouteRegistry` 与 Tower middleware。worker/scheduler 由命令 supervisor 持有任务、取消与停机，不新增全局 Hooks 或 Plugin shutdown（[ADR-037](decisions/adr-037-queue-worker-lifecycle.md)）；这不取消事务、认证、上传等类型化业务扩展要求。不提供动态插件加载。
 
+HTTP 业务 API 使用 `/api/*`，实时 WebSocket 使用 `/ws/*`，健康/就绪/metrics 保持独立运维路径。公开站点使用 `[server].public_dir`（默认 `public/`）并映射到 URL 根；`[server].root_target` 配置首页文件、内部转发或 HTTP(S) 重定向，遵循 Figment 环境覆盖优先级，详见 [ADR-068](decisions/adr-068-api-namespace-and-static-site-root.md)。
+
 能力驱动遵循 [ADR-009](decisions/adr-009-extensible-capability-drivers.md)：提供可靠默认实现与可由第三方接入的公开契约，集中后端差异并明确能力边界。数据库扩展沿用 SeaORM `DatabaseConnection`、`Db` 和 Plugin 生命周期；v1 官方支持 PostgreSQL/MySQL，不把其他 backend 的连接成功视为完整框架支持。集群部署跨里程碑推进，memory、本地 file、单节点磁盘不能充当共享权威状态，详见 [集群计划](plans/v1-cluster-deployment.md)。

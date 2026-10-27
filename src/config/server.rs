@@ -1,6 +1,7 @@
 //! HTTP 服务器和 middleware 配置。
 
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 /// `[server]` 区段：HTTP listener 设置。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -10,6 +11,10 @@ pub struct ServerConfig {
     pub host: String,
     /// 绑定的 TCP 端口。
     pub port: u16,
+    /// 网站公开目录；相对路径以应用工作目录为基准。
+    pub public_dir: PathBuf,
+    /// 根路径目标，支持 `file:/index.html`、`forward:/path` 和 `redirect:/path`。
+    pub root_target: String,
     /// 单个请求的超时时间（秒）；超过后返回 `408 Request Timeout`。
     pub request_timeout_secs: u64,
     /// 同时处理的 HTTP 请求上限；超出时立即以 503 拒绝，不排入无界队列。
@@ -40,6 +45,8 @@ impl Default for ServerConfig {
         Self {
             host: "127.0.0.1".to_owned(),
             port: 3000,
+            public_dir: PathBuf::from("public"),
+            root_target: "file:/index.html".to_owned(),
             request_timeout_secs: 30,
             max_concurrent_requests: 1024,
             shutdown_timeout_secs: 10,

@@ -9,7 +9,7 @@
 | 能力 | 选型 | 说明 |
 | --- | --- | --- |
 | 异步运行时 | `tokio` 1.x | 唯一运行时；启用 `io-util` 支持 HTTP 验收与异步 I/O、`fs` 支持本地缓存异步文件操作 |
-| HTTP | `axum` 0.8 + `tower` + `tower-http` | 路由、提取器、中间件；`tower-http` 启用 `cors`、`compression-gzip`、`compression-br` 以支持配置化跨域与 gzip/br 协商，另有 request-id、trace、timeout、catch-panic；门面直接依赖并导出 `tower::ServiceExt` 供单依赖应用测试路由 |
+| HTTP | `axum` 0.8 + `tower` + `tower-http` | 路由、提取器、中间件；`tower-http` 启用 `fs` 提供静态目录/文件服务，`cors`、`compression-gzip`、`compression-br` 支持跨域与压缩，另有 request-id、trace、timeout、catch-panic；门面直接依赖并导出 `tower::ServiceExt` 供单依赖应用测试路由 |
 | 限流 | `openrust::core::RateLimiter` + `openrust::database::DatabaseRateLimitStore` | 已实现固定窗口服务与双库共享 store，AuthFlows 与通用 HTTP RateLimitLayer/key 策略已接入；gRPC 适配待实现，不额外依赖 governor |
 | 会话 | `tower-sessions` 0.15；可选 Redis adapter 复用 `redis` 1.8.0 | 默认使用 SeaORM 数据库 store；`session-redis` feature 提供显式 `RedisSessionStore`，通过 `SessionPlugin::with_store` 选择；Redis 键与 TTL 语义见 ADR-017 |
 | gRPC | 可选 `grpc` feature 使用 `tonic` / `tonic-prost` / `tonic-health` / `tonic-reflection` `~0.14.6`（当前 lock 解析为 0.14.7）、`prost` 0.14、`http-body-util` 0.1；应用代码生成用 `tonic-prost-build` `~0.14.6` | 显式启用 tonic `tls-ring` Rustls provider；运行时依赖 MSRV 1.88，低于 workspace 1.97。默认构建不链接运行时或要求 `protoc`；生成应用使用 `protoc-bin-vendored` 3.3，不执行全局安装。rcgen 仅供独立 gRPC 示例生成临时测试证书。G2a TLS/mTLS、G2b JWT/PAT/Policy/Status、G2c 健康/reflection/调用预算/资源/有界停机、G3a HTTP/RPC 联合生命周期、G3b proto/trace 兼容及 G3c 双节点 HTTP/2 路由已完成对应验收；真实 L7 验收固定 Envoy 1.40.1。完整集群留在 M6，不自研 RPC 栈，见 ADR-040 |

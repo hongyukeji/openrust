@@ -5,6 +5,8 @@ url = "http://localhost:3000"
 [server]
 host = "127.0.0.1"
 port = 3000
+public_dir = "public"
+root_target = "file:/index.html"
 request_timeout_secs = 30
 max_concurrent_requests = 1024
 shutdown_timeout_secs = 10

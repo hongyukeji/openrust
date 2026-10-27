@@ -31,7 +31,11 @@ cargo test --workspace
 
 根 package 是 Cargo 默认成员，因此裸 `cargo run` 会启动示例 `server`；`cargo test --workspace` 会运行框架、工具与 workspace 应用 package 的测试。
 
+业务 JSON API 根路径为 `/api`，所有子路由统一以 `/api/` 开头并使用 JSON API 响应封装；`/health`、`/ready` 和可选 `/metrics` 保留为运维端点。详细约定见 [HTTP 指南](src/http/README.md)。
+
 应用默认从当前工作目录的 `config/` 读取配置。`APP_SERVER__PORT=4000 cargo run` 或 `PORT=4000 cargo run` 可覆盖监听端口；若两者同时设置，`APP_SERVER__PORT` 优先。应用可通过 `Application::config_namespace()` 选择如 `SHOP_` 的变量前缀。框架代码位于仓库根 package，能力模块位于 `src/audit.rs`、`src/config/`、`src/core/`、`src/db/`、`src/http/`、`src/i18n.rs`、`src/mail/`、`src/sms.rs`，以及按 feature 启用的 auth、encryption、signing、queue 和 schedule。每个应用的 TOML/YAML 配置保存在其根目录的 `config/` 中；仓库根目录宿主用于框架开发与集成验收。
+
+网站静态文件位于应用的公开目录，默认是工作目录下的 `public/`；`public/index.html` 对应 `/`，目录中的其他文件按相对 URL 路径提供。`[server].public_dir` 可更换目录；`[server].root_target` 默认 `file:/index.html`，也可设为 `forward:/api` 或 `redirect:https://example.com/`。环境变量 `APP_SERVER__PUBLIC_DIR` 和 `APP_SERVER__ROOT_TARGET` 覆盖 TOML；`/api/*` 保留 JSON API，`/ws/*` 用于 WebSocket。
 应用数据加密通过可选的 `encryption` feature 启用。注册 `openrust::security::EncryptionPlugin`，在 `[security.encryption]` 下配置 32 字节密钥环，并使用 `openrust key generate` 生成本地密钥材料。当前密钥用于加密新值；受控轮换期间，历史密钥用于解密旧值。密钥应保存在版本控制之外。
 
 文件存储由可选 `storage-local` 与 `storage-s3` feature 提供，使用 `StoragePlugin` 装配 `Storage` 的 default/named disks。上传与下载都使用有界流，应用须先执行身份和资源授权；本地 disk 仅在当前节点可见。配置、安全边界与 `StorageBackend` 扩展方法见[文件存储指南](src/storage/README.md)。

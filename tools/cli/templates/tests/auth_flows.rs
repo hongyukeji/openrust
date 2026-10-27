@@ -139,7 +139,7 @@ async fn run_auth_flow(
     let email = format!("user-{}@example.test", std::process::id());
     let registered = post_with_forwarded_for(
         address,
-        "/auth/register",
+        "/api/auth/register",
         serde_json::json!({
             "email": email,
             "password": "initial-password"
@@ -154,7 +154,7 @@ async fn run_auth_flow(
     let verification_code = mail.latest_code()?;
     let unverified_login = post(
         address,
-        "/auth/login",
+        "/api/auth/login",
         serde_json::json!({
             "email": email,
             "password": "initial-password"
@@ -166,7 +166,7 @@ async fn run_auth_flow(
 
     let verified = post(
         address,
-        "/auth/verify-email",
+        "/api/auth/verify-email",
         serde_json::json!({
             "email": email,
             "code": verification_code
@@ -178,7 +178,7 @@ async fn run_auth_flow(
 
     let login = post(
         address,
-        "/auth/login",
+        "/api/auth/login",
         serde_json::json!({
             "email": email,
             "password": "initial-password"
@@ -214,7 +214,7 @@ async fn run_auth_flow(
 
     let refreshed = post(
         address,
-        "/auth/refresh",
+        "/api/auth/refresh",
         serde_json::json!({
             "refresh_token": refresh_token
         }),
@@ -224,7 +224,7 @@ async fn run_auth_flow(
     assert_ne!(refreshed.body["data"]["refresh_token"], refresh_token);
     let replay = post(
         address,
-        "/auth/refresh",
+        "/api/auth/refresh",
         serde_json::json!({
             "refresh_token": refresh_token
         }),
@@ -235,7 +235,7 @@ async fn run_auth_flow(
 
     let reset_requested = post(
         address,
-        "/auth/password-reset",
+        "/api/auth/password-reset",
         serde_json::json!({
             "email": email
         }),
@@ -245,7 +245,7 @@ async fn run_auth_flow(
     let reset_code = mail.latest_code()?;
     let reset = post(
         address,
-        "/auth/password-reset/confirm",
+        "/api/auth/password-reset/confirm",
         serde_json::json!({
             "email": email,
             "code": reset_code,
@@ -258,7 +258,7 @@ async fn run_auth_flow(
 
     let login = post(
         address,
-        "/auth/login",
+        "/api/auth/login",
         serde_json::json!({
             "email": email,
             "password": "replacement-password"
@@ -271,7 +271,7 @@ async fn run_auth_flow(
         .ok_or("login omitted refresh token")?;
     let logout = post(
         address,
-        "/auth/logout",
+        "/api/auth/logout",
         serde_json::json!({
             "refresh_token": refresh_token
         }),
@@ -281,7 +281,7 @@ async fn run_auth_flow(
     assert_eq!(logout.body["data"]["status"], "logged_out");
     let revoked = post(
         address,
-        "/auth/refresh",
+        "/api/auth/refresh",
         serde_json::json!({
             "refresh_token": refresh_token
         }),
@@ -293,7 +293,7 @@ async fn run_auth_flow(
     for _ in 0..2 {
         let additional_login = post(
             address,
-            "/auth/login",
+            "/api/auth/login",
             serde_json::json!({
                 "email": email,
                 "password": "replacement-password"
@@ -305,7 +305,7 @@ async fn run_auth_flow(
     }
     let rate_limited = post(
         address,
-        "/auth/login",
+        "/api/auth/login",
         serde_json::json!({
             "email": email,
             "password": "replacement-password"

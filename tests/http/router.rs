@@ -49,8 +49,8 @@ struct CreatePost {
     pages: u32,
 }
 
-async fn greet(Inject(greeting): Inject<Greeting>) -> &'static str {
-    greeting.0
+async fn greet(Inject(greeting): Inject<Greeting>) -> Json<&'static str> {
+    Json(greeting.0)
 }
 
 async fn create(Validated(Json(input)): Validated<Json<CreatePost>>) -> Json<String> {
@@ -160,13 +160,13 @@ async fn limited() -> openrust::Error {
     openrust::Error::rate_limited(30)
 }
 
-async fn large() -> String {
-    "compressible response ".repeat(100)
+async fn large() -> Json<String> {
+    Json("compressible response ".repeat(100))
 }
 
-async fn slow() -> &'static str {
+async fn slow() -> Json<&'static str> {
     tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-    "late"
+    Json("late")
 }
 
 async fn execution_context_info() -> Json<serde_json::Value> {
@@ -352,8 +352,7 @@ async fn inject_resolves_registered_services() -> TestResult {
         .oneshot(Request::get("/api/greet").body(Body::empty())?)
         .await?;
     assert_eq!(response.status(), StatusCode::OK);
-    let bytes = to_bytes(response.into_body(), usize::MAX).await?;
-    assert_eq!(&bytes[..], b"hello");
+    assert_eq!(json_body(response).await["data"], "hello");
     Ok(())
 }
 
@@ -449,8 +448,90 @@ async fn compression_negotiates_gzip_and_br_and_respects_absence() -> TestResult
         if expected.is_some() {
             assert!(bytes.len() < 2200);
         } else {
-            assert_eq!(bytes.len(), 2200);
+            let expected_body = serde_json::json!({
+                "success": true,
+                "code": "ok",
+                "message": "ok",
+                "data": "compressible response ".repeat(100),
+            });
+            assert_eq!(bytes.len(), serde_json::to_vec(&expected_body)?.len());
         }
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn public_site_serves_index_and_maps_files_from_configured_directory() -> TestResult {
+    let directory = tempfile::tempdir()?;
+    std::fs::write(directory.path().join("index.html"), "site home")?;
+    std::fs::write(directory.path().join("app.js"), "site asset")?;
+    let mut config = FrameworkConfig::default();
+    config.server.public_dir = directory.path().to_owned();
+    let app = router_with_exact_config(config).await?;
+
+    let home = app
+        .clone()
+        .oneshot(Request::get("/").body(Body::empty())?)
+        .await?;
+    assert_eq!(home.status(), StatusCode::OK);
+    assert_eq!(home.headers()[header::CONTENT_TYPE], "text/html");
+    assert_eq!(to_bytes(home.into_body(), usize::MAX).await?, "site home");
+
+    let asset = app
+        .oneshot(Request::get("/app.js").body(Body::empty())?)
+        .await?;
+    assert_eq!(asset.status(), StatusCode::OK);
+    assert_eq!(to_bytes(asset.into_body(), usize::MAX).await?, "site asset");
+    Ok(())
+}
+
+#[tokio::test]
+async fn root_target_supports_internal_forward_and_redirect() -> TestResult {
+    let mut forward = FrameworkConfig::default();
+    forward.server.root_target = "forward:/api/greet".to_owned();
+    let response = router_with_exact_config(forward)
+        .await?
+        .oneshot(Request::get("/").body(Body::empty())?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(json_body(response).await["data"], "hello");
+
+    let mut redirect = FrameworkConfig::default();
+    redirect.server.root_target = "redirect:https://example.com/home".to_owned();
+    let response = router_with_exact_config(redirect)
+        .await?
+        .oneshot(Request::get("/").body(Body::empty())?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::TEMPORARY_REDIRECT);
+    assert_eq!(
+        response.headers()[header::LOCATION],
+        "https://example.com/home"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn invalid_root_target_is_rejected_during_router_build() -> TestResult {
+    let mut config = FrameworkConfig::default();
+    config.server.root_target = "redirect:javascript:alert(1)".to_owned();
+    let error = router_with_exact_config(config)
+        .await
+        .err()
+        .ok_or_else(|| std::io::Error::other("unsafe redirect scheme must be rejected"))?;
+    assert!(error.to_string().contains("server.root_target"));
+    Ok(())
+}
+
+#[tokio::test]
+async fn static_fallback_does_not_capture_api_or_websocket_namespaces() -> TestResult {
+    let app = router().await?;
+    for path in ["/api/unknown", "/ws/unknown"] {
+        let response = app
+            .clone()
+            .oneshot(Request::get(path).body(Body::empty())?)
+            .await?;
+        assert_eq!(response.status(), StatusCode::NOT_FOUND, "{path}");
+        assert_eq!(json_body(response).await["code"], "not_found");
     }
     Ok(())
 }

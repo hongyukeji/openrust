@@ -21,6 +21,24 @@ openrust = { workspace = true, features = ["cache-redis"] }
 !.env.example
 !.env.*.example
 
+--- public/index.html ---
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>blog</title>
+  </head>
+  <body>
+    <main>
+      <h1>blog</h1>
+      <p>在 <code>public/</code> 中维护站点文件，在 <code>src/</code> 中维护 Rust 应用代码。</p>
+      <p>JSON API 示例：<a href="/api">/api</a></p>
+    </main>
+  </body>
+</html>
+
+
 --- config/default.toml ---
 [app]
 name = "blog"
@@ -29,6 +47,8 @@ url = "http://localhost:3000"
 [server]
 host = "127.0.0.1"
 port = 3000
+public_dir = "public"
+root_target = "file:/index.html"
 request_timeout_secs = 30
 shutdown_timeout_secs = 10
 trusted_proxy_ranges = []
@@ -118,7 +138,7 @@ impl Application for Blog {
 use openrust::prelude::*;
 
 pub fn register(routes: Routes) -> Routes {
-    routes.get("/", root)
+    routes.get("/api", root)
 }
 
 async fn root() -> Json<std::collections::BTreeMap<&'static str, &'static str>> {

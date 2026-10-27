@@ -407,11 +407,11 @@ impl Drop for ChildGuard {
 }
 
 #[test]
-fn root_reports_server_name_and_version() -> TestResult {
+fn api_root_reports_server_name_and_version() -> TestResult {
     openrust::tokio::runtime::Runtime::new()?.block_on(async {
         let response = router()
             .await?
-            .oneshot(Request::get("/").body(Body::empty())?)
+            .oneshot(Request::get("/api").body(Body::empty())?)
             .await?;
         assert_eq!(response.status(), StatusCode::OK);
         let body = to_bytes(response.into_body(), usize::MAX).await?;
@@ -422,6 +422,24 @@ fn root_reports_server_name_and_version() -> TestResult {
         assert_eq!(json["data"]["version"], env!("CARGO_PKG_VERSION"));
         assert!(json.get("request_id").is_none());
         assert!(json.get("timestamp").is_none());
+        Ok(())
+    })
+}
+
+#[test]
+fn root_serves_the_default_public_index() -> TestResult {
+    openrust::tokio::runtime::Runtime::new()?.block_on(async {
+        let response = router()
+            .await?
+            .oneshot(Request::get("/").body(Body::empty())?)
+            .await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.headers()[axum::http::header::CONTENT_TYPE],
+            "text/html"
+        );
+        let body = to_bytes(response.into_body(), usize::MAX).await?;
+        assert!(std::str::from_utf8(&body)?.contains("OpenRust"));
         Ok(())
     })
 }

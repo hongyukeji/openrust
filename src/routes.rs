@@ -22,11 +22,11 @@ use crate::http::middleware;
 pub use crate::http::routes::Routes;
 use crate::http::serve::ServeCommand;
 
-/// 注册根宿主的框架信息页 `GET /`。
+/// 注册根宿主的框架信息 API `GET /api`。
 ///
-/// 该路由面向仓库集成宿主；生成的业务应用可自行决定根路径内容。
+/// 该路由面向仓库集成宿主；网站根路径由 HTTP 静态站点配置独立管理。
 pub fn framework_routes(routes: Routes) -> Routes {
-    routes.get("/", framework_info)
+    routes.get("/api", framework_info)
 }
 
 async fn framework_info(
@@ -190,9 +190,9 @@ pub fn build_router(app: &App) -> Result<Router> {
                 routes = builder(routes);
             }
         }
-        routes
+        let app_router = routes
             .into_router()
-            .fallback(|| async { Error::NotFound("route not found".into()) })
+            .fallback(crate::http::site::fallback)
             .method_not_allowed_fallback(|| async {
                 Error::custom_with_status(
                     StatusCode::METHOD_NOT_ALLOWED,
@@ -200,7 +200,8 @@ pub fn build_router(app: &App) -> Result<Router> {
                     "method not allowed",
                 )
             })
-            .with_state(app.state().clone())
+            .with_state(app.state().clone());
+        crate::http::site::mount(app_router, &app.config().server)
     }))
     .map_err(|_| {
         Error::custom_with_status(
@@ -208,7 +209,7 @@ pub fn build_router(app: &App) -> Result<Router> {
             "http_route_registration_failed",
             "HTTP route registration failed; check route paths and duplicate registrations",
         )
-    })?;
+    })??;
     if let Some(layers) = app.extension::<RouterLayerRegistry>() {
         for build_layer in &layers.builders {
             stateful = build_layer(stateful);

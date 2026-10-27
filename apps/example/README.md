@@ -16,6 +16,8 @@
 
 ## 启动
 
+站点文件位于 `public/`，默认以 `public/index.html` 作为 `/`。可在 `[server]` 配置 `public_dir` 更改公开目录，并用 `root_target` 选择首页目标；例如 `file:/index.html`、`forward:/api` 或 `redirect:https://example.com/`。`.env` 中的 `APP_SERVER__PUBLIC_DIR` 和 `APP_SERVER__ROOT_TARGET` 会覆盖 TOML。公开目录的其他文件按 URL 路径提供，例如 `public/assets/site.css` 对应 `/assets/site.css`。`/api/*` 是 JSON API，`/ws/*` 用于 WebSocket。
+
 准备 PostgreSQL、Redis 8，并在 `.env` 或进程环境设置数据库地址、JWT key 和加密 key。`.env.example` 给出配置键名，不含可用密钥。运行：
 
 ```sh
@@ -25,7 +27,7 @@ cargo run -- migrate up
 cargo run -- serve
 ```
 
-`key generate` 的输出分别配置到 `APP_AUTH__JWT__KEYS__LOCAL` 和 `APP_SECURITY__ENCRYPTION__KEYS__LOCAL`。迁移前需先创建示例数据库。启动后访问 `GET /`；运行生成的认证流程需要配置可查看的 log mail driver。
+`key generate` 的输出分别配置到 `APP_AUTH__JWT__KEYS__LOCAL` 和 `APP_SECURITY__ENCRYPTION__KEYS__LOCAL`。迁移前需先创建示例数据库。业务 JSON API 统一使用 `/api` 前缀：访问 `GET /api` 查看示例信息，认证接口位于 `/api/auth/*`，个人资料位于 `/api/me`。`/health` 与 `/ready` 是独立的运维探针。运行生成的认证流程需要配置可查看的 log mail driver。
 
 提交一个后台任务：
 
