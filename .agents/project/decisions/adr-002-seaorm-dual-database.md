@@ -12,6 +12,7 @@
 - ORM 与迁移使用 `sea-orm` 2.x + `sea-orm-migration`。SQLx 直连不属于当前 `Db` 公共 API；如后续提供逃生口，必须单独定义生命周期与事务语义。
 - PostgreSQL 与 MySQL 为 v1 的标准生产及集群数据库基线，暂定最低支持 PostgreSQL 14+ / MySQL 8.0+；日常开发和常规 CI 使用 PostgreSQL 18 / MySQL 8.4 LTS。SQLite 作为可由应用选择的完整单机后端纳入 v1，完整支持范围见 [ADR-066](adr-066-optional-sqlite-backend.md)。PostgreSQL 官方对每个主版本提供五年支持，不使用 LTS 这一版本标签。
 - 迁移只使用可移植列类型；时间 PostgreSQL `timestamptz` / MySQL `DATETIME(6)`，JSON `jsonb` / `json`；框架表不用数组、枚举等单库特性。
+- 应用迁移以一份 Rust migration source 为唯一权威，使用 SeaQuery/`SchemaManager` 描述可移植 schema；框架 helper 负责隐藏列类型等方言差异。确实无法统一的语义可在同一迁移文件中按 backend 分支，不维护按数据库复制的迁移文件。跨库承诺只覆盖真实执行验证过的 backend 与语义，不代表任意原生 SQL 或单库特性可移植。
 - 单库 SQL 集中在 `openrust::db::dialect`，必须同时提供两库分支并有双库测试；CI 以 service 容器运行双库矩阵。
 - 生成项目在创建时选择一个后端并只启用对应 feature，不要求运行时切换。SQLite 不自动成为新项目的默认数据库，也不与 PostgreSQL/MySQL 的集群能力等同。
 - `Db` 保持 SeaORM 连接与事务入口；自定义 `Plugin` 可在 `build` 注册 `Db::default()`，并在 `finish` 连接后调用 `Db::initialize()`。同一应用只注册一次默认数据库插件；独立具名连接的契约见 [ADR-045](adr-045-named-database-instances.md)。
@@ -26,6 +27,8 @@
 ## 验证
 
 M0 Spike A（2026-10-25）：独立项目用 `sea-orm` / `sea-orm-migration` 2.0.4（`sqlx` 0.9.0、`sea-query` 1.0.2，features `sqlx-postgres` + `sqlx-mysql` + `runtime-tokio-rustls`）对本机 PostgreSQL 18 与 MySQL 8.4 容器执行同一组迁移（`users`：bigint 自增主键、`varchar(191)` 唯一索引、JSON、时间；`posts`：JSON、时间、外键 `ON DELETE CASCADE`），用 `Migrator::up` / `down` / `down(Some(1))` / `status` 实际连库验证，结论：**可行**，stack.md 版本无需调整。
+
+跨库迁移验收必须让同一份应用 migration source 在每个正式支持的数据库上执行 `up`、`status`、`down` 并检查最终 schema 与关键约束；仅编译成功或只验证框架内置迁移不算应用迁移兼容证据。SQLite 加入该矩阵的时间以 [ADR-066](adr-066-optional-sqlite-backend.md) 完整实现和真实文件数据库验收通过为准。
 
 | 项 | PostgreSQL 18 | MySQL 8.4 |
 | --- | --- | --- |
