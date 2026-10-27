@@ -33,3 +33,5 @@
 - 验证完整多节点集群、最低支持版本及代表性生产性能；外部短信实发需另具备授权凭据和目标。
 
 详细计划和验收入口见 [`plan.md`](plan.md)、[`plans/gen1-plan.md`](plans/gen1-plan.md) 与 [`memory/testing.md`](memory/testing.md)。Git 记录实现历史；本文件只保留当前状态。
+
+当前重构来源与 102 章/750 子节盘点见 [固定基线](plans/laravel-rebuild-baseline.md)；未将旧证据继承为新 contract 通过。

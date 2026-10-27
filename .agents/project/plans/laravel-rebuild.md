@@ -23,7 +23,7 @@
 - [Container](https://laravel.com/docs/13.x/container)、[Eloquent](https://laravel.com/docs/13.x/eloquent)、[Queues](https://laravel.com/docs/13.x/queues)：生命周期、数据与异步 contract 的首批依据。
 - [Goravel](https://www.goravel.dev/)、[目录](https://www.goravel.dev/getting-started/directory-structure.html)、[框架源码](https://github.com/goravel/framework)：跨语言概念、配置、目录和统一入口的参照。
 
-R0 固定 Laravel 文档版本、`laravel/laravel`、`laravel/framework`、Goravel 源码 tag/commit 与读取日期；不能按浮动 master 的变化无限扩张开发。每个功能簇再读对应官方文档、实现和测试，保留来源与差异说明。仅参考设计可自行实现；复制代码或文档须遵守原许可并保留必要声明。
+固定基线与逐章矩阵见 [R0 基线](laravel-rebuild-baseline.md)。R0 固定 Laravel 文档版本、`laravel/laravel`、`laravel/framework`、Goravel 源码 tag/commit 与读取日期；不能按浮动 master 的变化无限扩张开发。每个功能簇再读对应官方文档、实现和测试，保留来源与差异说明。仅参考设计可自行实现；复制代码或文档须遵守原许可并保留必要声明。
 
 建立逐项矩阵：`ID / 上游章节与源码锚点 / 子行为 / OpenRust 目标 / 现有实现与证据 / 复用或重写 / 依赖 / 测试 / 状态 / 差异理由`。矩阵必须覆盖固定版本完整导航和官方包列表，以下清单是启动范围，不是用来跳过新发现章节的封闭简表。
 

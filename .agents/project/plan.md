@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-28
-> 摘要：执行 Laravel 式全面重构；计划已记录，实现尚未开始。
+> 摘要：执行 Laravel 式全面重构；R0 上游和逐章资产基线已记录，R1 待实施。
 
 ## 当前里程碑
 
@@ -34,3 +34,5 @@
 ## 验证入口
 
 每代码簇按 AGENTS.md 跑 fmt、workspace clippy/test/doc、cargo deny，及适用 feature/MSRV、双库、生成项目、真实服务门禁；记录命令与实际结果。文档-only 只做 diff、链接/锚点和旧口径检查。不能把本轮规划检查写成代码、IDE 或重构已验收。
+
+当前重构来源与 102 章/750 子节盘点见 [固定基线](plans/laravel-rebuild-baseline.md)；未将旧证据继承为新 contract 通过。

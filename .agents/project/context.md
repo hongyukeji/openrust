@@ -2,14 +2,14 @@
 
 > 受众：AI Agent
 > 更新：2026-10-28
-> 摘要：当前方向为 Laravel 式全面重构。计划与授权已记录，代码重构尚未开始；原 v1 专项证据作为复用/重写基线。
+> 摘要：当前方向为 Laravel 式全面重构。计划与授权已记录，R0 已固定上游与资产，R1 骨架迁移待实施；原 v1 专项证据作为复用/重写基线。
 
 ## 当前状态
 
 | 项 | 当前事实与目标 |
 | --- | --- |
 | 当前代码基线 | 规划开始 HEAD 为 `7f964b8`；根 `openrust` library + server、tools、apps/example 已有实现；版本和依赖以 Cargo.toml 为准 |
-| 当前阶段 | [全面重构计划](plans/laravel-rebuild.md) 已记录；下一功能簇 R0 资产与上游对照，唯一队列见 [todo.md](todo.md) |
+| 当前阶段 | [全面重构计划](plans/laravel-rebuild.md) 已记录；下一功能簇 R1 骨架与启动，唯一队列见 [todo.md](todo.md) |
 | 目标授权 | [ADR-070](decisions/adr-070-laravel-first-rebuild.md)：Laravel 为首要概念/行为/体验参照，Goravel 为跨语言参照；允许全面重写，无历史兼容义务 |
 | 当前完成边界 | 原认证/数据/队列/缓存/存储/实时/gRPC/视图等有专项证据；完整生产/集群/最低版本仍有缺口，新目标不能继承为已验收 |
 | 协作 | 已定 contract 优先 gpt-6.1-sol 子智能体；主控负责设计/集成；高风险改码不同模型或 Provider 审查；不自动合并/推送 |
@@ -36,3 +36,5 @@
 - 新底座 R14 完整通过后进入 [V2 后台](plans/v2-admin-platform.md)：Rust 服务端、Vue Admin（pure-admin 精简国际化版 + Element Plus）、uni-app App；PC 仅规划。
 - [AI模型平台](plans/ai-model-platform.md) 仍为独立产品，本次不启动；Laravel 生态中的 AI 开发辅助不自动授权该产品。
 - 发布、推送、tag、修改凭据/系统配置、项目外持久写操作不从重构授权推断。所有阶段仅创建限定范围的本地 commit。
+
+当前重构来源与 102 章/750 子节盘点见 [固定基线](plans/laravel-rebuild-baseline.md)；未将旧证据继承为新 contract 通过。
