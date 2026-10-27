@@ -11,11 +11,12 @@ use tokio::{sync::watch, time::Instant};
 
 /// 可在队列任务间传递的非敏感关联元数据。
 ///
-/// 仅包含有界 request ID、规范化 locale 与可信租户 ID，不包含身份、权限快照、deadline、取消状态或请求头。
+/// 仅包含有界 request ID、W3C trace parent、规范化 locale 与可信租户 ID，不包含身份、权限快照、deadline、取消状态或任意请求头。
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "ExecutionMetadataWire")]
 pub struct ExecutionMetadata {
     request_id: Option<String>,
+    traceparent: Option<String>,
     locale: Option<Locale>,
     tenant_id: Option<crate::tenant::TenantId>,
 }
@@ -23,6 +24,7 @@ pub struct ExecutionMetadata {
 #[derive(Deserialize)]
 struct ExecutionMetadataWire {
     request_id: Option<String>,
+    traceparent: Option<String>,
     locale: Option<Locale>,
     tenant_id: Option<String>,
 }
@@ -38,6 +40,13 @@ impl TryFrom<ExecutionMetadataWire> for ExecutionMetadata {
         {
             return Err("request ID must contain 1..=128 safe ASCII characters".to_owned());
         }
+        if value
+            .traceparent
+            .as_deref()
+            .is_some_and(|traceparent| !valid_traceparent(traceparent))
+        {
+            return Err("traceparent must be a valid W3C version 00 value".to_owned());
+        }
         let tenant_id = value
             .tenant_id
             .map(crate::tenant::TenantId::new)
@@ -45,6 +54,7 @@ impl TryFrom<ExecutionMetadataWire> for ExecutionMetadata {
             .map_err(|_| "tenant ID is invalid".to_owned())?;
         Ok(Self {
             request_id: value.request_id,
+            traceparent: value.traceparent,
             locale: value.locale,
             tenant_id,
         })
@@ -62,6 +72,19 @@ impl ExecutionMetadata {
             ));
         }
         self.request_id = Some(request_id);
+        Ok(self)
+    }
+
+    /// 设置经过校验的 W3C version 00 trace parent。
+    pub fn with_traceparent(mut self, traceparent: impl Into<String>) -> Result<Self> {
+        let traceparent = traceparent.into();
+        if !valid_traceparent(&traceparent) {
+            return Err(Error::custom(
+                "invalid_execution_traceparent",
+                "traceparent 必须符合 W3C version 00 格式",
+            ));
+        }
+        self.traceparent = Some(traceparent);
         Ok(self)
     }
 
@@ -84,6 +107,11 @@ impl ExecutionMetadata {
         self.request_id.as_deref()
     }
 
+    /// 返回经过校验的 W3C trace parent；不包含 tracestate 或 baggage。
+    pub fn traceparent(&self) -> Option<&str> {
+        self.traceparent.as_deref()
+    }
+
     /// 返回显式 locale。
     pub fn locale(&self) -> Option<&Locale> {
         self.locale.as_ref()
@@ -96,7 +124,10 @@ impl ExecutionMetadata {
 
     /// 返回是否没有可传递的关联元数据。
     pub fn is_empty(&self) -> bool {
-        self.request_id.is_none() && self.locale.is_none() && self.tenant_id.is_none()
+        self.request_id.is_none()
+            && self.traceparent.is_none()
+            && self.locale.is_none()
+            && self.tenant_id.is_none()
     }
 }
 
@@ -106,6 +137,26 @@ fn valid_request_id(value: &str) -> bool {
         && value
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || b"-_.:".contains(&byte))
+}
+
+fn valid_traceparent(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    bytes.len() == 55
+        && bytes[2] == b'-'
+        && bytes[35] == b'-'
+        && bytes[52] == b'-'
+        && bytes[..2] == *b"00"
+        && bytes[3..35]
+            .iter()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+        && bytes[36..52]
+            .iter()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+        && bytes[53..55]
+            .iter()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+        && bytes[3..35].iter().any(|byte| *byte != b'0')
+        && bytes[36..52].iter().any(|byte| *byte != b'0')
 }
 
 /// 可由父调用和其子任务共享的合作取消信号。
@@ -412,5 +463,40 @@ mod tests {
                 .with_request_id("x".repeat(129))
                 .is_err()
         );
+    }
+
+    #[test]
+    fn metadata_accepts_only_w3c_version_00_traceparents() -> crate::core::Result<()> {
+        let traceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
+        let metadata = ExecutionMetadata::default().with_traceparent(traceparent)?;
+        assert_eq!(metadata.traceparent(), Some(traceparent));
+        let serialized = serde_json::to_value(&metadata)
+            .map_err(|error| Error::custom("test_metadata_serialize", error.to_string()))?;
+        let decoded: ExecutionMetadata = serde_json::from_value(serialized)
+            .map_err(|error| Error::custom("test_metadata_deserialize", error.to_string()))?;
+        assert_eq!(decoded.traceparent(), Some(traceparent));
+        let legacy: ExecutionMetadata = serde_json::from_value(serde_json::json!({
+            "request_id": "legacy-request",
+            "locale": null,
+            "tenant_id": null
+        }))
+        .map_err(|error| Error::custom("test_legacy_metadata_deserialize", error.to_string()))?;
+        assert_eq!(legacy.request_id(), Some("legacy-request"));
+        assert_eq!(legacy.traceparent(), None);
+
+        for invalid in [
+            "00-00000000000000000000000000000000-00f067aa0ba902b7-01",
+            "00-4bf92f3577b34da6a3ce929d0e0e4736-0000000000000000-01",
+            "ff-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+            "00-4BF92F3577B34DA6A3CE929D0E0E4736-00F067AA0BA902B7-01",
+            "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01\nAuthorization: secret",
+        ] {
+            assert!(
+                ExecutionMetadata::default()
+                    .with_traceparent(invalid)
+                    .is_err()
+            );
+        }
+        Ok(())
     }
 }

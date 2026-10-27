@@ -95,3 +95,12 @@ v1 主攻通用框架底层能力，正式交付可选 gRPC 服务端与客户�
 - supervisor 只持有一份 SIGINT/SIGTERM signal；正常信号令两个 listener 同时停止接入并按共同 deadline drain。任一 listener 意外结束时，停止并等待另一 listener；到期取消合作请求、abort 并 join 两个 task。
 - HTTP 的 app-owned background tasks 在两个 listener 都结束后由联合 supervisor 停止并按同一 deadline join，不能因 HTTP 子任务先进入 drain 而提前取消 gRPC handler 依赖。
 - 真 TCP 验收覆盖两个协议并行服务、联合 readiness、退出时两个端口均关闭、listener 绑定失败不残留另一端口、服务异常退出清理 sibling，以及共享 shutdown timeout。G3a 不覆盖双节点 L7 路由、proto 新旧互通和跨协议 trace，它们分别由 G3b/G3c 交付。
+
+## G3b Proto 兼容与 trace 传播 Spec
+
+- 兼容验证在同一 `openrust.example.v1` package 与既有 `Echo` service/method 上运行两套生成 schema：旧版本保留现有 tag 1；当前版本只新增 tag 2，不重用/改变既有编号、类型或 RPC 路径。
+- 用真实 loopback TCP 分别验证旧 client → 新 server 和新 client → 旧 server；未知字段按 Protobuf 规则忽略，旧端读取新端响应时忽略扩展字段。示例的当前 server 对新字段有可观察处理，测试不得仅比较序列化字节或编译成功。
+- HTTP middleware 接受且仅接受格式正确的 W3C version 00 `traceparent`，写入既有 `ExecutionMetadata`；缺失/非法值不拒绝业务请求、不进入 span 或传播。trace context 保持 bounded、可序列化，并随已有 ExecutionContext 子任务/队列传播。
+- `GrpcClientRegistry` 暴露显式 trace context 传播方法，只向 tonic metadata 写入 `traceparent`；不传播 `tracestate`、`baggage`、身份凭据或任意 HTTP headers。gRPC 入站层仅提取校验后的 `traceparent` 到 ExecutionContext，使 handler 再发起 typed RPC 时可继续传播。
+- 不新增 OpenTelemetry feature 或依赖；框架不伪造 trace ID/span 生命周期，也不声称导出了分布式 trace。已有 tracing span 可将 request ID 与 traceparent 作为受限关联字段，测试证明日志/span 不包含 Authorization、Cookie 或任意业务 metadata。
+- 验收覆盖合法/非法/边界 traceparent、HTTP→RPC→RPC 传播、无 trace 时兼容、敏感 header 不传播，以及两方向新旧 schema 真 TCP 互通。提交前运行根 workspace 源码门禁、示例真实网络测试和 docs/deny 检查；无数据库路径不需要 PostgreSQL/MySQL 专项。

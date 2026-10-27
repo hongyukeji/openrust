@@ -80,6 +80,22 @@ async fn normalize_request_id(mut request: Request, next: axum::middleware::Next
     if invalid_request_id {
         request.headers_mut().remove("x-request-id");
     }
+    if request
+        .headers()
+        .get("traceparent")
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| {
+            crate::core::ExecutionMetadata::default()
+                .with_traceparent(value.to_owned())
+                .is_err()
+        })
+        || request
+            .headers()
+            .get("traceparent")
+            .is_some_and(|value| value.to_str().is_err())
+    {
+        request.headers_mut().remove("traceparent");
+    }
     next.run(request).await
 }
 
@@ -112,6 +128,14 @@ async fn response_context(
         .map(|i18n| i18n.locale_for_request(accept_language.as_deref()));
     let mut metadata = ExecutionMetadata::default();
     if let Ok(updated) = metadata.clone().with_request_id(request_id.clone()) {
+        metadata = updated;
+    }
+    if let Some(traceparent) = request
+        .headers()
+        .get("traceparent")
+        .and_then(|value| value.to_str().ok())
+        && let Ok(updated) = metadata.clone().with_traceparent(traceparent.to_owned())
+    {
         metadata = updated;
     }
     if let Some(locale) = &locale {
@@ -331,11 +355,17 @@ fn request_span(request: &Request) -> tracing::Span {
         .get("x-request-id")
         .and_then(|value| value.to_str().ok())
         .unwrap_or("-");
+    let traceparent = request
+        .headers()
+        .get("traceparent")
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("-");
     tracing::info_span!(
         "request",
         method = %request.method(),
         uri = %request.uri(),
         request_id = %request_id,
+        traceparent = %traceparent,
     )
 }
 
@@ -352,4 +382,53 @@ fn panic_response(payload: Box<dyn Any + Send + 'static>) -> Response {
         .or_else(|| payload.downcast_ref::<&str>().map(|s| (*s).to_owned()))
         .unwrap_or_else(|| "non-string panic payload".to_owned());
     Error::internal(HandlerPanicked(message)).into_response()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::apply;
+    use crate::{
+        config::{ApiConfig, ServerConfig},
+        core::ExecutionContext,
+    };
+    use axum::{Router, routing::get};
+    use tower::ServiceExt;
+
+    #[tokio::test]
+    async fn request_context_accepts_only_valid_traceparent()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let router = Router::new().route(
+            "/",
+            get(|| async {
+                ExecutionContext::current()
+                    .and_then(|context| context.metadata().traceparent().map(str::to_owned))
+                    .unwrap_or_default()
+            }),
+        );
+        let app = apply(router, &ServerConfig::default(), &ApiConfig::default())?;
+        let valid = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/")
+                    .header("traceparent", valid)
+                    .body(axum::body::Body::empty())?,
+            )
+            .await?;
+        let body = axum::body::to_bytes(response.into_body(), 128).await?;
+        assert_eq!(body.as_ref(), valid.as_bytes());
+
+        let response = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/")
+                    .header("traceparent", "not-a-traceparent")
+                    .body(axum::body::Body::empty())?,
+            )
+            .await?;
+        let body = axum::body::to_bytes(response.into_body(), 128).await?;
+        assert!(body.is_empty());
+        Ok(())
+    }
 }

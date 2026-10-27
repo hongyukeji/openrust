@@ -11,7 +11,7 @@ use openrust::{
     config::FrameworkConfig,
     core::{AppBuilder, Readiness, finalize},
     grpc::{GrpcPlugin, GrpcServer, health_pb, tonic},
-    http::HttpPlugin,
+    http::{AppBuilderHttpExt, HttpPlugin},
     runtime::{HttpGrpcPlugin, serve_http_and_grpc_until},
 };
 use tokio::{
@@ -121,6 +121,13 @@ async fn server_host_composes_http_and_grpc_under_one_lifecycle()
     config.grpc.allow_insecure_server = true;
     let mut builder = AppBuilder::new(config, figment::Figment::new());
     GrpcPlugin::register_service::<ProbeService, _>(&mut builder, |_| ProbeService)?;
+    builder.routes(|routes| {
+        routes.get("/trace", || async {
+            openrust::core::ExecutionContext::current()
+                .and_then(|context| context.metadata().traceparent().map(str::to_owned))
+                .unwrap_or_default()
+        })
+    });
     builder
         .plugin(HttpPlugin)
         .plugin(GrpcPlugin::new())
@@ -152,6 +159,20 @@ async fn server_host_composes_http_and_grpc_under_one_lifecycle()
     let mut response = Vec::new();
     http.read_to_end(&mut response).await?;
     assert!(String::from_utf8(response)?.starts_with("HTTP/1.1 200"));
+
+    let traceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
+    let mut trace_request = TcpStream::connect(http_address).await?;
+    trace_request
+        .write_all(
+            format!(
+                "GET /trace HTTP/1.1\r\nHost: {http_address}\r\ntraceparent: {traceparent}\r\nConnection: close\r\n\r\n"
+            )
+            .as_bytes(),
+        )
+        .await?;
+    let mut trace_response = Vec::new();
+    trace_request.read_to_end(&mut trace_response).await?;
+    assert!(String::from_utf8(trace_response)?.contains(traceparent));
 
     let channel = tonic::transport::Channel::from_shared(format!("http://{grpc_address}"))?
         .connect()

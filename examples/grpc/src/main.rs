@@ -22,6 +22,10 @@ pub mod proto {
     tonic::include_proto!("openrust.example.v1");
 }
 
+pub mod legacy_proto {
+    include!(concat!(env!("OUT_DIR"), "/legacy/openrust.example.v1.rs"));
+}
+
 use proto::{
     EchoRequest, EchoResponse,
     echo_client::EchoClient,
@@ -61,10 +65,17 @@ impl Echo for EchoService {
                 .await
                 .map_err(|error| openrust::grpc::GrpcAuth::status(&error))?;
             "allowed".to_owned()
+        } else if request.get_ref().value == "__traceparent" {
+            openrust::core::ExecutionContext::current()
+                .and_then(|context| context.metadata().traceparent().map(str::to_owned))
+                .unwrap_or_default()
         } else {
             request.get_ref().value.clone()
         };
-        Ok(Response::new(EchoResponse { value }))
+        Ok(Response::new(EchoResponse {
+            value,
+            api_revision: "v2".to_owned(),
+        }))
     }
 
     async fn server_stream(
@@ -80,6 +91,7 @@ impl Echo for EchoService {
                     Some((
                         Ok(EchoResponse {
                             value: format!("{prefix}-{index}"),
+                            api_revision: "v2".to_owned(),
                         }),
                         (prefix, index + 1, guard),
                     ))
@@ -94,6 +106,7 @@ impl Echo for EchoService {
             Some((
                 Ok(EchoResponse {
                     value: format!("{prefix}-{index}"),
+                    api_revision: "v2".to_owned(),
                 }),
                 (prefix, index + 1, guard),
             ))
@@ -114,6 +127,7 @@ impl Echo for EchoService {
             .await?;
         Ok(Response::new(EchoResponse {
             value: values.join(","),
+            api_revision: "v2".to_owned(),
         }))
     }
 
@@ -124,6 +138,7 @@ impl Echo for EchoService {
         let responses = request.into_inner().map(|request| {
             request.map(|request| EchoResponse {
                 value: request.value.to_uppercase(),
+                api_revision: "v2".to_owned(),
             })
         });
         Ok(Response::new(Box::pin(responses)))
@@ -188,6 +203,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let unary = client
         .unary(Request::new(EchoRequest {
             value: "hello".to_owned(),
+            client_hint: String::new(),
         }))
         .await?
         .into_inner();
@@ -195,6 +211,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let named = EchoClient::new(clients.channel(Some("echo"))?)
         .unary(Request::new(EchoRequest {
             value: "named".to_owned(),
+            client_hint: String::new(),
         }))
         .await?
         .into_inner();
@@ -203,6 +220,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut server_stream = client
         .server_stream(Request::new(EchoRequest {
             value: "item".to_owned(),
+            client_hint: String::new(),
         }))
         .await?
         .into_inner();
@@ -216,9 +234,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .client_stream(iter([
             EchoRequest {
                 value: "one".to_owned(),
+                client_hint: String::new(),
             },
             EchoRequest {
                 value: "two".to_owned(),
+                client_hint: String::new(),
             },
         ]))
         .await?
@@ -229,9 +249,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .bidirectional(iter([
             EchoRequest {
                 value: "first".to_owned(),
+                client_hint: String::new(),
             },
             EchoRequest {
                 value: "second".to_owned(),
+                client_hint: String::new(),
             },
         ]))
         .await?
@@ -246,6 +268,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut interrupted = client
         .server_stream(Request::new(EchoRequest {
             value: "disconnect".to_owned(),
+            client_hint: String::new(),
         }))
         .await?
         .into_inner();
@@ -401,6 +424,7 @@ mod tls_tests {
             Duration::from_secs(3),
             client.unary(Request::new(EchoRequest {
                 value: "tls".to_owned(),
+                client_hint: String::new(),
             })),
         )
         .await??;
@@ -614,6 +638,7 @@ mod auth_tests {
         let missing = client
             .unary(Request::new(EchoRequest {
                 value: "__whoami".into(),
+                client_hint: String::new(),
             }))
             .await
             .expect_err("missing bearer must fail at the protected method");
@@ -621,6 +646,7 @@ mod auth_tests {
 
         let mut invalid = Request::new(EchoRequest {
             value: "__whoami".into(),
+            client_hint: String::new(),
         });
         invalid.metadata_mut().insert(
             "authorization",
@@ -637,6 +663,7 @@ mod auth_tests {
 
         let mut authenticated = Request::new(EchoRequest {
             value: "__whoami".into(),
+            client_hint: String::new(),
         });
         authenticated.metadata_mut().insert(
             "authorization",
@@ -649,6 +676,7 @@ mod auth_tests {
 
         let mut pat = Request::new(EchoRequest {
             value: "__whoami".into(),
+            client_hint: String::new(),
         });
         pat.metadata_mut().insert(
             "authorization",
@@ -658,6 +686,7 @@ mod auth_tests {
 
         let mut duplicate = Request::new(EchoRequest {
             value: "__whoami".into(),
+            client_hint: String::new(),
         });
         duplicate.metadata_mut().append(
             "authorization",
@@ -678,6 +707,7 @@ mod auth_tests {
 
         let mut cookie_only = Request::new(EchoRequest {
             value: "__whoami".into(),
+            client_hint: String::new(),
         });
         cookie_only.metadata_mut().insert(
             "cookie",
@@ -713,6 +743,61 @@ mod runtime_tests {
     use tokio::task::JoinHandle;
     use tokio::{net::TcpStream, sync::Notify};
     use tonic::Code;
+
+    struct LegacyEchoService;
+
+    #[tonic::async_trait]
+    impl legacy_proto::echo_server::Echo for LegacyEchoService {
+        type ServerStreamStream =
+            Pin<Box<dyn Stream<Item = Result<legacy_proto::EchoResponse, Status>> + Send>>;
+        type BidirectionalStream =
+            Pin<Box<dyn Stream<Item = Result<legacy_proto::EchoResponse, Status>> + Send>>;
+
+        async fn unary(
+            &self,
+            request: Request<legacy_proto::EchoRequest>,
+        ) -> Result<Response<legacy_proto::EchoResponse>, Status> {
+            Ok(Response::new(legacy_proto::EchoResponse {
+                value: request.into_inner().value,
+            }))
+        }
+
+        async fn server_stream(
+            &self,
+            request: Request<legacy_proto::EchoRequest>,
+        ) -> Result<Response<Self::ServerStreamStream>, Status> {
+            let response = legacy_proto::EchoResponse {
+                value: request.into_inner().value,
+            };
+            Ok(Response::new(Box::pin(tokio_stream::iter([Ok(response)]))))
+        }
+
+        async fn client_stream(
+            &self,
+            request: Request<tonic::Streaming<legacy_proto::EchoRequest>>,
+        ) -> Result<Response<legacy_proto::EchoResponse>, Status> {
+            let mut stream = request.into_inner();
+            let mut values = Vec::new();
+            while let Some(request) = stream.message().await? {
+                values.push(request.value);
+            }
+            Ok(Response::new(legacy_proto::EchoResponse {
+                value: values.join(","),
+            }))
+        }
+
+        async fn bidirectional(
+            &self,
+            request: Request<tonic::Streaming<legacy_proto::EchoRequest>>,
+        ) -> Result<Response<Self::BidirectionalStream>, Status> {
+            let stream = request.into_inner().map(|item| {
+                item.map(|request| legacy_proto::EchoResponse {
+                    value: request.value,
+                })
+            });
+            Ok(Response::new(Box::pin(stream)))
+        }
+    }
 
     async fn start_runtime_server(
         config: FrameworkConfig,
@@ -765,6 +850,89 @@ mod runtime_tests {
         Ok(listener.local_addr()?)
     }
 
+    #[tokio::test]
+    async fn old_and_new_proto_clients_interoperate_over_real_tcp() -> Result<(), Box<dyn StdError>>
+    {
+        let config = FrameworkConfig {
+            grpc: openrust::config::GrpcConfig {
+                allow_insecure_server: true,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let (address, stop, current_task) = start_runtime_server(config, false).await?;
+
+        let mut old_client =
+            legacy_proto::echo_client::EchoClient::connect(format!("http://{address}")).await?;
+        let old_response = old_client
+            .unary(legacy_proto::EchoRequest {
+                value: "old-client".to_owned(),
+            })
+            .await?
+            .into_inner();
+        assert_eq!(old_response.value, "old-client");
+        drop(old_client);
+
+        let traceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
+        let mut current_client = EchoClient::connect(format!("http://{address}")).await?;
+        let trace_context = openrust::core::ExecutionContext::new(
+            openrust::core::ExecutionMetadata::default().with_traceparent(traceparent)?,
+            None,
+            openrust::core::Cancellation::new(),
+        );
+        let trace_response = openrust::core::with_execution_context(trace_context, async {
+            let mut request = Request::new(EchoRequest {
+                value: "__traceparent".to_owned(),
+                client_hint: String::new(),
+            });
+            assert!(GrpcClientRegistry::propagate_trace_context(&mut request));
+            current_client.unary(request).await
+        })
+        .await?;
+        assert_eq!(trace_response.into_inner().value, traceparent);
+        let mut invalid_trace_request = Request::new(EchoRequest {
+            value: "__traceparent".to_owned(),
+            client_hint: String::new(),
+        });
+        invalid_trace_request
+            .metadata_mut()
+            .insert("traceparent", "invalid".parse()?);
+        let invalid_trace_response = current_client.unary(invalid_trace_request).await?;
+        assert!(invalid_trace_response.into_inner().value.is_empty());
+        drop(current_client);
+        let _ = stop.send(());
+        current_task.await??;
+
+        let legacy_listener = TcpListener::bind("127.0.0.1:0").await?;
+        let legacy_address = legacy_listener.local_addr()?;
+        let (stop_legacy, signal_legacy) = oneshot::channel();
+        let legacy_task = tokio::spawn(
+            tonic::transport::Server::builder()
+                .add_service(legacy_proto::echo_server::EchoServer::new(
+                    LegacyEchoService,
+                ))
+                .serve_with_incoming_shutdown(
+                    tokio_stream::wrappers::TcpListenerStream::new(legacy_listener),
+                    async move {
+                        let _ = signal_legacy.await;
+                    },
+                ),
+        );
+        let mut current_client = EchoClient::connect(format!("http://{legacy_address}")).await?;
+        let current_response = current_client
+            .unary(EchoRequest {
+                value: "new-client".to_owned(),
+                client_hint: "ignored-by-legacy-server".to_owned(),
+            })
+            .await?
+            .into_inner();
+        assert_eq!(current_response.value, "new-client");
+        assert_eq!(current_response.api_revision, "");
+        let _ = stop_legacy.send(());
+        legacy_task.await??;
+        Ok(())
+    }
+
     async fn combined_app(
         http_address: SocketAddr,
         grpc_address: SocketAddr,
@@ -801,6 +969,29 @@ mod runtime_tests {
                 })
             });
         }
+        let grpc_channel =
+            tonic::transport::Endpoint::from_shared(format!("http://{grpc_address}"))?
+                .connect_lazy();
+        builder.routes(move |routes| {
+            let grpc_channel = grpc_channel.clone();
+            routes.get("/trace", move || {
+                let mut client = EchoClient::new(grpc_channel.clone());
+                async move {
+                    let mut request = Request::new(EchoRequest {
+                        value: "__traceparent".to_owned(),
+                        client_hint: String::new(),
+                    });
+                    if !GrpcClientRegistry::propagate_trace_context(&mut request) {
+                        return "trace-missing".to_owned();
+                    }
+                    client
+                        .unary(request)
+                        .await
+                        .map(|response| response.into_inner().value)
+                        .unwrap_or_else(|_| "rpc-failed".to_owned())
+                }
+            })
+        });
         builder
             .plugin(HttpPlugin)
             .plugin(GrpcPlugin::new())
@@ -847,6 +1038,7 @@ mod runtime_tests {
         let mut client = EchoClient::new(channel);
         let mut stream_request = Request::new(EchoRequest {
             value: "deadline".to_owned(),
+            client_hint: String::new(),
         });
         stream_request
             .metadata_mut()
@@ -872,6 +1064,7 @@ mod runtime_tests {
         let overloaded = client
             .unary(Request::new(EchoRequest {
                 value: "overloaded".to_owned(),
+                client_hint: String::new(),
             }))
             .await
             .expect_err("global RPC capacity must include an active response stream");
@@ -886,6 +1079,7 @@ mod runtime_tests {
             client
                 .unary(Request::new(EchoRequest {
                     value: "released".to_owned(),
+                    client_hint: String::new(),
                 }))
                 .await?
                 .into_inner()
@@ -1015,6 +1209,7 @@ mod runtime_tests {
         let error = client
             .unary(Request::new(EchoRequest {
                 value: "larger than the configured protobuf frame".to_owned(),
+                client_hint: String::new(),
             }))
             .await
             .expect_err("the configured generated-server decoding limit must apply");
@@ -1038,6 +1233,7 @@ mod runtime_tests {
         let mut stream = client
             .server_stream(Request::new(EchoRequest {
                 value: "__slow".to_owned(),
+                client_hint: String::new(),
             }))
             .await?
             .into_inner();
@@ -1071,6 +1267,19 @@ mod runtime_tests {
         wait_until_ready((*readiness).clone()).await?;
         let response = http_request(http_address, "/ready").await?;
         assert!(response.starts_with("HTTP/1.1 200"));
+        let traceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
+        let mut trace_stream = TcpStream::connect(http_address).await?;
+        trace_stream
+            .write_all(
+                format!(
+                    "GET /trace HTTP/1.1\r\nhost: {http_address}\r\ntraceparent: {traceparent}\r\nconnection: close\r\n\r\n"
+                )
+                .as_bytes(),
+            )
+            .await?;
+        let mut trace_response = Vec::new();
+        trace_stream.read_to_end(&mut trace_response).await?;
+        assert!(String::from_utf8(trace_response)?.contains(traceparent));
         let channel = tonic::transport::Channel::from_shared(format!("http://{grpc_address}"))?
             .connect()
             .await?;
@@ -1079,6 +1288,7 @@ mod runtime_tests {
             client
                 .unary(Request::new(EchoRequest {
                     value: "combined".to_owned(),
+                    client_hint: String::new(),
                 }))
                 .await?
                 .into_inner()
@@ -1285,6 +1495,7 @@ mod database_auth_tests {
 
         let mut jwt_request = Request::new(EchoRequest {
             value: "__authorize".into(),
+            client_hint: String::new(),
         });
         jwt_request.metadata_mut().insert(
             "authorization",
@@ -1297,6 +1508,7 @@ mod database_auth_tests {
 
         let mut pat_request = Request::new(EchoRequest {
             value: "__authorize".into(),
+            client_hint: String::new(),
         });
         pat_request.metadata_mut().insert(
             "authorization",
@@ -1309,6 +1521,7 @@ mod database_auth_tests {
 
         let mut denied_request = Request::new(EchoRequest {
             value: "__authorize".into(),
+            client_hint: String::new(),
         });
         denied_request.metadata_mut().insert(
             "authorization",
@@ -1332,6 +1545,7 @@ mod database_auth_tests {
         assert!(pats.revoke(1, token_id).await?);
         let mut revoked_request = Request::new(EchoRequest {
             value: "__authorize".into(),
+            client_hint: String::new(),
         });
         revoked_request.metadata_mut().insert(
             "authorization",

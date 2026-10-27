@@ -363,6 +363,23 @@ impl GrpcClientRegistry {
         true
     }
 
+    /// 将当前执行上下文中经过校验的 W3C `traceparent` 写入 tonic metadata。
+    ///
+    /// 只传播单个 trace parent；不会转发 `tracestate`、`baggage`、身份凭据或任意请求头。
+    /// 返回 `false` 表示当前上下文没有 trace parent。
+    pub fn propagate_trace_context<T>(request: &mut tonic::Request<T>) -> bool {
+        let Some(traceparent) = ExecutionContext::current()
+            .and_then(|context| context.metadata().traceparent().map(str::to_owned))
+        else {
+            return false;
+        };
+        let Ok(value) = tonic::metadata::MetadataValue::try_from(traceparent.as_str()) else {
+            return false;
+        };
+        request.metadata_mut().insert("traceparent", value);
+        true
+    }
+
     /// 将测试或嵌入式应用提供的 Channel 替换/注册到指定名称。
     pub fn with_channel(mut self, name: impl Into<String>, channel: Channel) -> Result<Self> {
         let name = name.into();
@@ -449,7 +466,7 @@ where
         Poll::Ready(Ok(()))
     }
 
-    fn call(&mut self, request: Request<Body>) -> Self::Future {
+    fn call(&mut self, mut request: Request<Body>) -> Self::Future {
         let mut inner = self.inner.clone();
         let semaphore = Arc::clone(&self.semaphore);
         let readiness = Arc::clone(&self.readiness);
@@ -468,11 +485,9 @@ where
             };
             let deadline = tokio::time::Instant::now() + timeout;
             let cancellation = readiness.request_cancellation();
-            let execution = ExecutionContext::new(
-                ExecutionMetadata::default(),
-                Some(deadline),
-                Cancellation::child(&cancellation),
-            );
+            let metadata = execution_metadata_from_headers(request.headers_mut());
+            let execution =
+                ExecutionContext::new(metadata, Some(deadline), Cancellation::child(&cancellation));
             let cancel_on_drop = CancelOnDrop::new(cancellation);
             let response = match execution.run(inner.call(request)).await {
                 Ok(Ok(response)) => response,
@@ -534,6 +549,22 @@ where
                 Body::new(StreamBody::new(stream)),
             ))
         })
+    }
+}
+
+fn execution_metadata_from_headers(headers: &mut http::HeaderMap) -> ExecutionMetadata {
+    let Some(traceparent) = headers.get("traceparent") else {
+        return ExecutionMetadata::default();
+    };
+    let Ok(traceparent) = traceparent.to_str() else {
+        headers.remove("traceparent");
+        return ExecutionMetadata::default();
+    };
+    if let Ok(metadata) = ExecutionMetadata::default().with_traceparent(traceparent.to_owned()) {
+        metadata
+    } else {
+        headers.remove("traceparent");
+        ExecutionMetadata::default()
     }
 }
 
@@ -1189,6 +1220,30 @@ mod tests {
             assert!(request.metadata().get("grpc-timeout").is_some());
         })
         .await;
+    }
+
+    #[tokio::test]
+    async fn client_trace_propagation_is_explicit_and_redacted() -> crate::Result<()> {
+        let traceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
+        let metadata = ExecutionMetadata::default().with_traceparent(traceparent)?;
+        let context = ExecutionContext::new(metadata, None, Cancellation::new());
+        with_execution_context(context, async {
+            let mut request = tonic::Request::new(());
+            assert!(GrpcClientRegistry::propagate_trace_context(&mut request));
+            assert_eq!(
+                request
+                    .metadata()
+                    .get("traceparent")
+                    .map(tonic::metadata::MetadataValue::as_bytes),
+                Some(traceparent.as_bytes())
+            );
+            assert!(request.metadata().get("tracestate").is_none());
+            assert!(request.metadata().get("baggage").is_none());
+            assert!(request.metadata().get("authorization").is_none());
+            assert!(request.metadata().get("cookie").is_none());
+        })
+        .await;
+        Ok(())
     }
 
     #[tokio::test]

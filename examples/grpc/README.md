@@ -91,6 +91,20 @@ GrpcPlugin::register_service_with_config::<EchoServer<MyService>, _>(
 
 应用方法的业务配额仍由已有 `RateLimiter` 显式执行，应以已认证主体和方法组成稳定 key；框架不猜测公开 RPC 的客户端 IP 或业务配额策略。
 
+## Protobuf 演进与 trace 传播
+
+兼容演进保留现有 package、service、方法路径和字段编号；本示例的当前 schema 为 `EchoRequest` 增加 tag 2 `client_hint`、为 `EchoResponse` 增加 tag 2 `api_revision`，旧 schema 仍只认识 tag 1。示例测试在真实 TCP 上用旧 client 调新 server、再用新 client 携带未知请求字段调旧 server：旧 decoder 忽略新响应字段，旧 server 忽略新请求字段，新 client 读取旧响应时得到新字段的默认值。移除字段时必须在 `.proto` 中 `reserved` 对应编号和名称；破坏式契约使用新 package/service 版本，不原地改变旧 tag 的类型或含义。
+
+HTTP 请求的 `traceparent` 只有符合 W3C version 00 格式时才进入 `ExecutionMetadata`。handler 调用 typed gRPC client 时，可显式向下游传播当前 trace parent：
+
+```rust
+let mut request = tonic::Request::new(message);
+GrpcClientRegistry::propagate_trace_context(&mut request);
+client.call(request).await?;
+```
+
+gRPC 入站也会将有效 `traceparent` 放入当前 `ExecutionContext`，可继续向下游传播。没有有效 trace parent 时调用照常处理；框架只转发单个 trace parent，不转发 `tracestate`、`baggage`、Authorization、Cookie 或任意 HTTP headers。该关联不依赖 OpenTelemetry，不创建或导出 span/trace 后端。
+
 ## Health 与 reflection
 
 框架自动注册标准 health `Check`/`Watch`。总状态及已注册服务在 listener 可用后报告 `SERVING`；停机先报告 `NOT_SERVING`，随后关闭 Watch stream，再限时 drain。期限继承 `[server].shutdown_timeout_secs`，超时会取消请求、终止并 join server task。
