@@ -1,0 +1,5 @@
+[auth.jwt]
+issuer = "http://localhost:3000"
+audience = "example"
+active_key_id = "local"
+keys = {}

@@ -242,10 +242,17 @@ impl DatabaseBackend {
         }
     }
 
-    fn url(self, database: &str) -> String {
+    fn connection_name(self) -> &'static str {
         match self {
-            Self::Postgres => format!("postgres://openrust:openrust@localhost:5432/{database}"),
-            Self::Mysql => format!("mysql://openrust:openrust@localhost:3306/{database}"),
+            Self::Postgres => "postgres",
+            Self::Mysql => "mysql",
+        }
+    }
+
+    fn port(self) -> u16 {
+        match self {
+            Self::Postgres => 5432,
+            Self::Mysql => 3306,
         }
     }
 }
@@ -332,8 +339,8 @@ fn run(cli: Cli) -> anyhow::Result<ExitCode> {
             )?;
             Ok(ExitCode::SUCCESS)
         }
-        Some(Builtin::Dev) => run_project(&["serve"], true),
-        Some(Builtin::Serve) => run_project(&["serve"], false),
+        Some(Builtin::Dev) => run_project(&["serve".to_owned()], true),
+        Some(Builtin::Serve) => run_project(&["serve".to_owned()], false),
         Some(Builtin::Generate {
             kind,
             values,
@@ -355,7 +362,7 @@ fn run(cli: Cli) -> anyhow::Result<ExitCode> {
             writeln!(std::io::stdout().lock(), "{}", generate_key()?)?;
             Ok(ExitCode::SUCCESS)
         }
-        Some(Builtin::Forward(args)) => forward(&args),
+        Some(Builtin::Forward(args)) => run_project(&args, false),
     }
 }
 
@@ -614,6 +621,7 @@ fn populate_project_with_mfa(
         "src/mailers",
         "src/middleware",
         "templates/mail",
+        "views",
         "tests",
     ] {
         fs::create_dir_all(project_dir.join(directory))?;
@@ -629,81 +637,60 @@ fn populate_project_with_mfa(
         (
             "Cargo.toml",
             cargo_manifest(
-                name, database, auth, http_client, sms_twilio, encryption, auth_mfa, grpc,
+                name,
+                database,
+                auth,
+                http_client,
+                sms_twilio,
+                encryption,
+                auth_mfa,
+                grpc,
             ),
         ),
         (
             ".gitignore",
             include_str!("../templates/.gitignore").to_owned(),
         ),
-        (".env.example", env_example(name, database, auth, encryption)),
         (
-            "config/default.toml",
-            {
-                let mut config = default_config(name, auth, encryption);
-                if grpc {
-                    config.push_str("\n[grpc]\nlisten_addr = \"127.0.0.1:50051\"\n");
-                }
-                config
-            },
+            ".env.example",
+            env_example(name, database, auth, encryption, grpc),
         ),
         (
             "public/index.html",
             include_str!("../templates/public/index.html").replace("{{name}}", name),
         ),
         (
-            "config/development.toml",
-            {
-                let mut config = include_str!("../templates/config/development.toml").to_owned();
-                if grpc {
-                    config.push_str("\n[grpc]\nallow_insecure_server = true\n");
-                }
-                config
-            },
-        ),
-        (
-            "config/test.toml",
-            "[app]\nname = \"{{name}}\"\n".replace("{{name}}", name),
-        ),
-        (
-            "config/production.toml",
-            "[app]\nname = \"{{name}}\"\n".replace("{{name}}", name),
+            "views/index.html",
+            include_str!("../templates/views/index.html").replace("{{name}}", name),
         ),
         ("src/main.rs", main_source(crate_name, database, grpc)),
-        ("src/app.rs", app_source(crate_name, database, auth, encryption, auth_mfa)),
+        (
+            "src/app.rs",
+            app_source(crate_name, database, auth, encryption, auth_mfa),
+        ),
         ("src/routes.rs", routes_source(auth, auth_mfa)),
         ("src/schedule.rs", "//! 应用调度。\n".to_owned()),
         ("src/seed.rs", seed_source(database)),
-        (
-            "src/controllers/mod.rs",
-            "//! HTTP 控制器。\n".to_owned(),
-        ),
+        ("src/controllers/mod.rs", "//! HTTP 控制器。\n".to_owned()),
         ("src/models/mod.rs", "//! 应用模型。\n".to_owned()),
         ("src/models/_entities/.gitkeep", String::new()),
-        (
-            "src/services/mod.rs",
-            "//! 应用服务。\n".to_owned(),
-        ),
-        (
-            "src/policies/mod.rs",
-            "//! 授权策略。\n".to_owned(),
-        ),
+        ("src/services/mod.rs", "//! 应用服务。\n".to_owned()),
+        ("src/policies/mod.rs", "//! 授权策略。\n".to_owned()),
         ("src/jobs/mod.rs", "//! 后台任务。\n".to_owned()),
         ("src/events/mod.rs", "//! 应用事件。\n".to_owned()),
         ("src/mailers/mod.rs", "//! 邮件类型。\n".to_owned()),
-        (
-            "src/middleware/mod.rs",
-            "//! 应用中间件。\n".to_owned(),
-        ),
-        (
-            "tests/application.rs",
-            "fn manifest_declares_package_name(manifest: &str, package_name: &str) -> bool {\n    for line in manifest.lines() {\n        if line == format!(\"name = \\\"{package_name}\\\"\") {\n            return true;\n        }\n    }\n    false\n}\n\n#[test]\nfn application_package_is_generated() {\n    let manifest = include_str!(\"../Cargo.toml\");\n    let package_name = env!(\"CARGO_PKG_NAME\");\n    assert!(manifest_declares_package_name(manifest, package_name));\n}\n".to_string(),
-        ),
+        ("src/middleware/mod.rs", "//! 应用中间件。\n".to_owned()),
         (
             "AGENTS.md",
             include_str!("../templates/AGENTS.md").to_owned(),
         ),
     ];
+
+    let mut runtime_config = default_config(name, auth, encryption);
+    if grpc {
+        runtime_config.push_str("\n[grpc]\nlisten_addr = \"127.0.0.1:50051\"\n");
+    }
+    let domain_files = domain_config_files(&runtime_config)?;
     if auth {
         files.push((
             "tests/auth_flows.rs",
@@ -743,6 +730,10 @@ fn populate_project_with_mfa(
         fs::write(project_dir.join(relative_path), contents)
             .with_context(|| format!("failed to write {relative_path}"))?;
     }
+    for (relative_path, contents) in domain_files {
+        fs::write(project_dir.join(&relative_path), contents)
+            .with_context(|| format!("failed to write {relative_path}"))?;
+    }
     Ok(())
 }
 
@@ -780,7 +771,7 @@ fn cargo_manifest(
 ) -> String {
     let mut manifest = include_str!("../templates/Cargo.toml").replace("{{name}}", name);
     {
-        let mut features = vec!["cache-redis"];
+        let mut features = vec!["cache-redis", "view"];
         if let Some(database) = database {
             features.push(database.feature());
         }
@@ -1066,31 +1057,51 @@ fn env_example(
     database: Option<DatabaseBackend>,
     auth: bool,
     encryption: bool,
+    grpc: bool,
 ) -> String {
-    let mut contents = "# 复制为 .env 供本地开发使用。不要提交填入实际值的 .env 文件。\n# 生产环境从进程环境变量读取配置，不读取此文件。\nAPP_ENV=development\n\n# 可选：覆盖 config/*.toml 中的配置项。\n# APP_SERVER__PORT=3000\n# APP_SERVER__HOST=127.0.0.1\n# APP_SERVER__PUBLIC_DIR=public\n# APP_SERVER__ROOT_TARGET=file:/index.html\n# APP_SERVER__ROOT_TARGET=forward:/api\n# APP_SERVER__ROOT_TARGET=redirect:https://example.com/\n# APP_API__HTTP_STATUS=always_ok\n# REDIS_URL=redis://127.0.0.1:6379/\n".to_owned();
+    let mut contents = "# 复制为 .env 供本地或部署环境使用。不要提交填入实际值的 .env 文件。\n# 生产环境可使用权限受控的 .env 或部署平台注入的变量；进程环境变量优先。\n# 常用环境值和密钥放在这里；结构化默认值见 config/*.toml。\nAPP_ENV=development\nAPP_NAME=".to_owned();
+    contents.push_str(name);
+    contents.push_str("\nAPP_URL=http://localhost:3000\n\n# 服务\n# APP_SERVER_PORT=3000\n# APP_SERVER_HOST=127.0.0.1\n# APP_SERVER_PUBLIC_DIR=public\n# APP_SERVER_ROOT_TARGET=file:/index.html\n# APP_API_HTTP_STATUS=always_ok\n\n# 仅本地开发需要时取消注释；生产环境保持默认值。\n# APP_SESSION_SECURE=false\n# APP_VIEW_AUTO_RELOAD=true\n\n# 数据库\n");
+    if grpc {
+        contents.push_str(
+            "\n# 仅本地开发可按需取消注释；生产环境请保持关闭。\n# APP_GRPC_ALLOW_INSECURE_SERVER=true\n",
+        );
+    }
+    contents.push('\n');
     if let Some(database) = database {
         use std::fmt::Write as _;
-        contents.push('\n');
-        let _ = writeln!(contents, "DATABASE_URL={}", database.url(name));
+        let _ = writeln!(contents, "DB_CONNECTION={}", database.connection_name());
+        contents.push_str("DB_HOST=127.0.0.1\n");
+        let _ = writeln!(contents, "DB_PORT={}", database.port());
+        let _ = writeln!(contents, "DB_DATABASE={name}");
+        contents.push_str("DB_USERNAME=openrust\nDB_PASSWORD=openrust\n");
+        contents.push_str("DB_TABLE_PREFIX=tb_\n");
+    } else {
+        contents.push_str(
+            "# 启用 --db postgres 或 --db mysql 后配置。\n# DB_CONNECTION=postgres\n# DB_HOST=127.0.0.1\n# DB_PORT=5432\n# DB_DATABASE=应用数据库名\n# DB_USERNAME=数据库用户名\n# DB_PASSWORD=数据库密码\n",
+        );
     }
+    contents.push_str(
+        "\n# 缓存：默认 store 使用 Redis。\nREDIS_HOST=127.0.0.1\nREDIS_PASSWORD=null\nREDIS_PORT=6379\nREDIS_DB=0\nREDIS_DEFAULT_STORE=default\n\n# 日志、邮件、短信与国际化\nAPP_LOG_LEVEL=info\nMAIL_DRIVER=log\nSMS_DRIVER=log\nI18N_DEFAULT_LOCALE=en\n\n# Redis 队列需启用 queue-redis feature 后再配置；与缓存共用 REDIS_* 连接信息。\n# QUEUE_DRIVER=redis\n",
+    );
     if auth {
         contents.push_str(
-            "\n# 使用 openrust key generate 生成独立密钥。\nAPP_AUTH__JWT__KEYS__LOCAL=\nAPP_SECURITY__SIGNED_LINKS__KEYS__LOCAL=\n",
+            "\n# 使用 openrust key generate 生成独立密钥。\nAPP_AUTH_JWT_KEYS_LOCAL=\nAPP_SECURITY_SIGNED_LINKS_KEYS_LOCAL=\n",
         );
     }
     if encryption {
         contents.push_str(
-            "\n# 使用 `openrust key generate` 生成密钥，并将其保存在密钥存储中。\nAPP_SECURITY__ENCRYPTION__ACTIVE_KEY_ID=local\nAPP_SECURITY__ENCRYPTION__KEYS__LOCAL=\n",
+            "\n# 使用 `openrust key generate` 生成密钥，并将其保存在密钥存储中。\nAPP_SECURITY_ENCRYPTION_ACTIVE_KEY_ID=local\nAPP_SECURITY_ENCRYPTION_KEYS_LOCAL=\n",
         );
     }
     contents.push_str(
-        "\n# 可选：SMTP 邮件投递配置。\n# APP_MAIL__DRIVER=smtp\n# APP_MAIL__SMTP_HOST=mail.example.com\n# APP_MAIL__SMTP_PORT=587\n# APP_MAIL__SMTP_STARTTLS=true\n# 本地 Mailpit 地址为 127.0.0.1:1025 时，将 SMTP_STARTTLS 设为 false。\n# APP_MAIL__SMTP_USERNAME=\n# APP_MAIL__SMTP_PASSWORD=\n# 可选：Twilio 短信驱动（sms-twilio feature）。\n# APP_SMS__DRIVER=twilio\n# APP_SMS__ACCOUNT_SID=\n# APP_SMS__API_KEY_SID=\n# APP_SMS__API_KEY_SECRET=\n# APP_SMS__FROM 和 APP_SMS__MESSAGING_SERVICE_SID 必须且只能设置一项。\n",
+        "\n# 可选：SMTP 邮件投递配置。\n# MAIL_DRIVER=smtp\n# MAIL_SMTP_HOST=mail.example.com\n# MAIL_SMTP_PORT=587\n# MAIL_SMTP_STARTTLS=true\n# 本地 Mailpit 地址为 127.0.0.1:1025 时，将 MAIL_SMTP_STARTTLS 设为 false。\n# MAIL_SMTP_USERNAME=\n# MAIL_SMTP_PASSWORD=\n# 可选：Twilio 短信驱动（sms-twilio feature）。\n# SMS_DRIVER=twilio\n# SMS_ACCOUNT_SID=\n# SMS_API_KEY_SID=\n# SMS_API_KEY_SECRET=\n# SMS_FROM 和 SMS_MESSAGING_SERVICE_SID 必须且只能设置一项。\n",
     );
     contents
 }
 
 fn default_config(name: &str, auth: bool, encryption: bool) -> String {
-    let mut config = include_str!("../templates/config/default.toml").replace("{{name}}", name);
+    let mut config = include_str!("../templates/config/framework.toml").replace("{{name}}", name);
     if auth {
         config.push_str("\n[auth.jwt]\nissuer = \"http://localhost:3000\"\naudience = \"");
         config.push_str(name);
@@ -1101,6 +1112,26 @@ fn default_config(name: &str, auth: bool, encryption: bool) -> String {
         config.push_str("\n[security.encryption]\nactive_key_id = \"local\"\nkeys = {}\n");
     }
     config
+}
+
+fn domain_config_files(contents: &str) -> anyhow::Result<Vec<(String, String)>> {
+    let mut document = contents
+        .parse::<toml_edit::DocumentMut>()
+        .context("embedded configuration template is invalid TOML")?;
+    let domains = document
+        .iter()
+        .map(|(name, _)| name.to_owned())
+        .collect::<Vec<_>>();
+    domains
+        .into_iter()
+        .map(|domain| {
+            let mut file = toml_edit::DocumentMut::new();
+            if let Some(value) = document.remove(&domain) {
+                file.insert(&domain, value);
+            }
+            Ok((format!("config/{domain}.toml"), file.to_string()))
+        })
+        .collect()
 }
 
 fn seed_source(database: Option<DatabaseBackend>) -> String {
@@ -2038,11 +2069,11 @@ fn print_generated(message: &str) -> anyhow::Result<()> {
 }
 
 /// 执行项目二进制并返回其退出码。
-fn run_project(args: &[&str], development: bool) -> anyhow::Result<ExitCode> {
+fn run_project(args: &[String], development: bool) -> anyhow::Result<ExitCode> {
     run_application(args, development)
 }
 
-fn run_application(args: &[&str], development: bool) -> anyhow::Result<ExitCode> {
+fn run_application(args: &[String], development: bool) -> anyhow::Result<ExitCode> {
     let current_dir = std::env::current_dir()?;
     let workspace = framework_workspace(&current_dir)?;
     let (app_dir, package_name) = application_directory(&workspace, &current_dir)?;
@@ -2061,9 +2092,7 @@ fn run_application(args: &[&str], development: bool) -> anyhow::Result<ExitCode>
         .args(args);
     if development {
         command.env("APP_ENV", "development");
-        if let Some(redis_url) = prepare_development_redis(&workspace.root, &app_dir)? {
-            command.env("REDIS_URL", redis_url);
-        }
+        prepare_development_redis(&workspace.root, &app_dir)?;
     }
     command
         .status()
@@ -2075,24 +2104,30 @@ fn run_application(args: &[&str], development: bool) -> anyhow::Result<ExitCode>
     clippy::too_many_lines,
     reason = "development Redis discovery, startup, and readiness form one bounded lifecycle"
 )]
-fn prepare_development_redis(
-    workspace_root: &Path,
-    app_dir: &Path,
-) -> anyhow::Result<Option<String>> {
-    let config_path = app_dir.join("config/default.toml");
+fn prepare_development_redis(workspace_root: &Path, app_dir: &Path) -> anyhow::Result<()> {
+    let mut dotenv = std::collections::HashMap::new();
+    if let Ok(entries) = dotenvy::from_path_iter(app_dir.join(".env")) {
+        for (key, value) in entries.flatten() {
+            dotenv.insert(key, value);
+        }
+    }
+    let config_path = app_dir.join("config/cache.toml");
     if !config_path.is_file() {
-        return Ok(None);
+        return Ok(());
     }
     let source = fs::read_to_string(&config_path)?;
     let document = source
         .parse::<toml_edit::DocumentMut>()
         .with_context(|| format!("{} is invalid TOML", config_path.display()))?;
     let Some(cache) = document.get("cache").and_then(toml_edit::Item::as_table) else {
-        return Ok(None);
+        return Ok(());
     };
-    let store_name = cache
-        .get("default_store")
-        .and_then(toml_edit::Item::as_str)
+    let configured_store = std::env::var("REDIS_DEFAULT_STORE")
+        .ok()
+        .or_else(|| dotenv.get("REDIS_DEFAULT_STORE").cloned());
+    let store_name = configured_store
+        .as_deref()
+        .or_else(|| cache.get("default_store").and_then(toml_edit::Item::as_str))
         .unwrap_or("default");
     let Some(store) = cache
         .get("stores")
@@ -2100,32 +2135,38 @@ fn prepare_development_redis(
         .and_then(|stores| stores.get(store_name))
         .and_then(toml_edit::Item::as_table)
     else {
-        return Ok(None);
+        return Ok(());
     };
     if store.get("driver").and_then(toml_edit::Item::as_str) != Some("redis") {
-        return Ok(None);
+        return Ok(());
     }
 
-    let nested_env = format!(
-        "APP_CACHE__STORES__{}__DSN",
-        store_name.to_ascii_uppercase()
-    );
-    let environment_keys = [nested_env.as_str(), "APP_REDIS_URL", "REDIS_URL"];
-    let mut dotenv = std::collections::HashMap::new();
-    if let Ok(entries) = dotenvy::from_path_iter(app_dir.join(".env")) {
-        for (key, value) in entries.flatten() {
-            dotenv.insert(key, value);
+    let nested_env = format!("APP_CACHE_STORES_{}_DSN", store_name.to_ascii_uppercase());
+    let environment_keys = [nested_env.as_str()];
+    let process_dsn = environment_keys
+        .iter()
+        .find_map(|key| std::env::var(key).ok());
+    let mut process_redis = std::collections::HashMap::new();
+    let redis_keys = [
+        "REDIS_HOST",
+        "REDIS_USERNAME",
+        "REDIS_PASSWORD",
+        "REDIS_PORT",
+        "REDIS_DB",
+        "REDIS_SCHEME",
+    ];
+    for key in redis_keys {
+        if let Ok(value) = std::env::var(key) {
+            process_redis.insert(key.to_owned(), value);
         }
     }
-    let dsn = environment_keys
+    let dotenv_dsn = environment_keys
         .iter()
-        .find_map(|key| std::env::var(key).ok().map(|value| (0, value)))
-        .or_else(|| {
-            environment_keys
-                .iter()
-                .find_map(|key| dotenv.get(*key).cloned().map(|value| (1, value)))
-        })
-        .map(|(_, value)| value)
+        .find_map(|key| dotenv.get(*key).cloned());
+    let dsn = process_dsn
+        .or_else(|| redis_dsn_from_environment(&process_redis))
+        .or(dotenv_dsn)
+        .or_else(|| redis_dsn_from_environment(&dotenv))
         .or_else(|| {
             store
                 .get("dsn")
@@ -2134,23 +2175,24 @@ fn prepare_development_redis(
         })
         .unwrap_or_else(|| "redis://127.0.0.1:6379/".to_owned());
 
-    let parsed = url::Url::parse(&dsn).context("configured Redis URL is invalid")?;
+    let parsed =
+        url::Url::parse(&dsn).context("configured Redis connection settings are invalid")?;
     if parsed.scheme() != "redis" {
-        return Ok(None);
+        return Ok(());
     }
     let Some(host) = parsed.host_str() else {
-        return Ok(None);
+        return Ok(());
     };
     let is_loopback = host.eq_ignore_ascii_case("localhost")
         || host
             .parse::<std::net::IpAddr>()
             .is_ok_and(|ip| ip.is_loopback());
     if !is_loopback {
-        return Ok(None);
+        return Ok(());
     }
     let port = parsed.port().unwrap_or(6379);
     if redis_ping(host, port) {
-        return Ok(Some(dsn));
+        return Ok(());
     }
 
     let compose_file = workspace_root.join("compose.ci.yaml");
@@ -2184,11 +2226,64 @@ fn prepare_development_redis(
     }
     for _ in 0..100 {
         if redis_ping(host, port) {
-            return Ok(Some(dsn));
+            return Ok(());
         }
         std::thread::sleep(Duration::from_millis(100));
     }
     bail!("Redis development service did not become ready within 10 seconds")
+}
+
+fn redis_dsn_from_environment(
+    environment: &std::collections::HashMap<String, String>,
+) -> Option<String> {
+    const KEYS: [&str; 6] = [
+        "REDIS_HOST",
+        "REDIS_USERNAME",
+        "REDIS_PASSWORD",
+        "REDIS_PORT",
+        "REDIS_DB",
+        "REDIS_SCHEME",
+    ];
+    if !KEYS.iter().any(|key| environment.contains_key(*key)) {
+        return None;
+    }
+    let scheme = environment
+        .get("REDIS_SCHEME")
+        .map_or("redis", String::as_str);
+    if !matches!(scheme, "redis" | "rediss") {
+        return None;
+    }
+    let mut url = url::Url::parse(&format!("{scheme}://localhost")).ok()?;
+    url.set_host(Some(
+        environment
+            .get("REDIS_HOST")
+            .map(String::as_str)
+            .filter(|value| !value.is_empty())
+            .unwrap_or("127.0.0.1"),
+    ))
+    .ok()?;
+    let port = environment
+        .get("REDIS_PORT")
+        .map_or("6379", String::as_str)
+        .parse::<u16>()
+        .ok()?;
+    url.set_port(Some(port)).ok()?;
+    if let Some(username) = environment
+        .get("REDIS_USERNAME")
+        .filter(|value| !value.is_empty())
+    {
+        url.set_username(username).ok()?;
+    }
+    if let Some(password) = environment
+        .get("REDIS_PASSWORD")
+        .filter(|value| !value.is_empty() && !value.eq_ignore_ascii_case("null"))
+    {
+        url.set_password(Some(password)).ok()?;
+    }
+    let database = environment.get("REDIS_DB").map_or("0", String::as_str);
+    database.parse::<u32>().ok()?;
+    url.path_segments_mut().ok()?.pop_if_empty().push(database);
+    Some(url.into())
 }
 
 fn redis_ping(host: &str, port: u16) -> bool {
@@ -2215,28 +2310,6 @@ fn redis_ping(host: &str, port: u16) -> bool {
     false
 }
 
-/// 在当前项目中运行 `cargo run --quiet -- <args>`，并返回相同的退出状态。
-fn forward(args: &[String]) -> anyhow::Result<ExitCode> {
-    let current_dir = std::env::current_dir()?;
-    let workspace = framework_workspace(&current_dir)?;
-    let (app_dir, package_name) = application_directory(&workspace, &current_dir)?;
-    Process::new("cargo")
-        .current_dir(app_dir)
-        .args([
-            "run",
-            "--quiet",
-            "--package",
-            &package_name,
-            "--bin",
-            &package_name,
-            "--",
-        ])
-        .args(args)
-        .status()
-        .context("failed to start `cargo run`")
-        .map(exit_code)
-}
-
 fn exit_code(status: std::process::ExitStatus) -> ExitCode {
     status
         .code()
@@ -2251,6 +2324,23 @@ fn exit_code(status: std::process::ExitStatus) -> ExitCode {
 )]
 mod tests {
     use super::*;
+
+    #[test]
+    fn laravel_style_redis_variables_form_a_connection_url() {
+        let environment = std::collections::HashMap::from([
+            ("REDIS_HOST".to_owned(), "cache.example.test".to_owned()),
+            ("REDIS_PASSWORD".to_owned(), "secret:word".to_owned()),
+            ("REDIS_PORT".to_owned(), "6380".to_owned()),
+            ("REDIS_DB".to_owned(), "2".to_owned()),
+        ]);
+        let dsn = redis_dsn_from_environment(&environment)
+            .expect("Redis connection variables should produce a URL");
+        let url = url::Url::parse(&dsn).expect("generated Redis URL should be valid");
+        assert_eq!(url.host_str(), Some("cache.example.test"));
+        assert_eq!(url.port(), Some(6380));
+        assert_eq!(url.path(), "/2");
+        assert_eq!(url.password(), Some("secret%3Aword"));
+    }
 
     fn create_framework_fixture(root: &Path) {
         fs::create_dir_all(root.join("src")).expect("create framework source directory");
@@ -2279,13 +2369,6 @@ mod tests {
                 .expect("create workspace member manifest");
         }
         fs::create_dir_all(root.join("apps")).expect("create apps directory");
-    }
-
-    #[test]
-    fn generated_manifest_matches_starter_template() {
-        insta::assert_snapshot!(cargo_manifest(
-            "my-app", None, false, false, false, false, false, false
-        ));
     }
 
     #[test]
@@ -2361,15 +2444,12 @@ mod tests {
         let proto =
             fs::read_to_string(project.join("proto/echo.proto")).expect("read generated Protobuf");
         assert!(proto.contains("package grpc_demo.v1;"));
-        let config = fs::read_to_string(project.join("config/default.toml"))
+        let config = fs::read_to_string(project.join("config/grpc.toml"))
             .expect("read generated gRPC configuration");
         assert!(config.contains("[grpc]"));
-        let development = fs::read_to_string(project.join("config/development.toml"))
-            .expect("read generated development configuration");
-        assert!(development.contains("allow_insecure_server = true"));
-        let production = fs::read_to_string(project.join("config/production.toml"))
-            .expect("read generated production configuration");
-        assert!(!production.contains("allow_insecure_server = true"));
+        let env = fs::read_to_string(project.join(".env.example"))
+            .expect("read generated environment configuration");
+        assert!(env.contains("# APP_GRPC_ALLOW_INSECURE_SERVER=true"));
 
         let _ = fs::remove_dir_all(root);
     }
@@ -2397,13 +2477,13 @@ mod tests {
         populate_project(&project, "blog", "Blog", None, false, false, false, true)
             .expect("generate encryption project");
         let app = fs::read_to_string(project.join("src/app.rs")).expect("read generated app");
-        let config = fs::read_to_string(project.join("config/default.toml"))
+        let config = fs::read_to_string(project.join("config/security.toml"))
             .expect("read generated encryption configuration");
         let env = fs::read_to_string(project.join(".env.example"))
             .expect("read generated environment example");
         assert!(app.contains("EncryptionPlugin"));
         assert!(config.contains("[security.encryption]"));
-        assert!(env.contains("APP_SECURITY__ENCRYPTION__KEYS__LOCAL="));
+        assert!(env.contains("APP_SECURITY_ENCRYPTION_KEYS_LOCAL="));
         let _ = fs::remove_dir_all(root);
     }
 
@@ -2421,19 +2501,16 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(app.join("config")).expect("create app config directory");
         fs::write(
-            app.join("config/default.toml"),
+            app.join("config/cache.toml"),
             "[cache]\ndefault_store = 'default'\n[cache.stores.default]\ndriver = 'redis'\ndsn = 'redis://127.0.0.1:6379/'\n",
         )
         .expect("write app config");
-        let redis_url = prepare_development_redis(&root, &app)
-            .expect("reuse existing Redis")
-            .expect("Redis URL is passed to the app");
-        assert_eq!(redis_url, "redis://127.0.0.1:6379/");
+        prepare_development_redis(&root, &app).expect("reuse existing Redis");
         let _ = fs::remove_dir_all(root);
     }
 
     #[test]
-    fn project_template_has_expected_layout_and_compilable_test() {
+    fn project_template_has_expected_layout() {
         let root = std::env::temp_dir().join(format!("openrust-cli-{}", std::process::id()));
         let project = root.join("blog");
         let _ = fs::remove_dir_all(&root);
@@ -2443,25 +2520,33 @@ mod tests {
         for path in [
             "Cargo.toml",
             ".gitignore",
+            "public/index.html",
+            "views/index.html",
             "src/main.rs",
             "src/app.rs",
             "src/routes.rs",
-            "public/index.html",
-            "config/default.toml",
-            "tests/application.rs",
+            "config/app.toml",
+            "config/cache.toml",
+            "config/server.toml",
+            "config/i18n.toml",
             "AGENTS.md",
         ] {
             assert!(project.join(path).is_file(), "missing generated {path}");
         }
+        assert!(!project.join("config/default.toml").exists());
+        assert!(!project.join("config/development.toml").exists());
         let snapshot = [
             "Cargo.toml",
             ".gitignore",
             "public/index.html",
-            "config/default.toml",
+            "views/index.html",
+            "config/app.toml",
+            "config/cache.toml",
+            "config/server.toml",
+            "config/i18n.toml",
             "src/main.rs",
             "src/app.rs",
             "src/routes.rs",
-            "tests/application.rs",
             "AGENTS.md",
         ]
         .into_iter()
@@ -2483,11 +2568,17 @@ mod tests {
         assert!(gitignore.lines().any(|line| line == "!.env.*.example"));
         let env_example = fs::read_to_string(project.join(".env.example"))
             .expect("read generated environment example");
-        assert!(env_example.contains("APP_SERVER__PORT=3000"));
-        assert!(env_example.contains("APP_SERVER__PUBLIC_DIR=public"));
-        assert!(env_example.contains("APP_SERVER__ROOT_TARGET=file:/index.html"));
-        assert!(env_example.contains("APP_MAIL__SMTP_PASSWORD="));
-        assert!(env_example.contains("生产环境从进程环境变量读取配置"));
+        assert!(env_example.contains("APP_NAME=blog"));
+        assert!(env_example.contains("APP_URL=http://localhost:3000"));
+        assert!(env_example.contains("REDIS_HOST=127.0.0.1"));
+        assert!(env_example.contains("# DB_CONNECTION=postgres"));
+        assert!(env_example.contains("APP_SERVER_PORT=3000"));
+        assert!(env_example.contains("APP_SERVER_PUBLIC_DIR=public"));
+        assert!(env_example.contains("APP_SERVER_ROOT_TARGET=file:/index.html"));
+        assert!(env_example.contains("MAIL_SMTP_PASSWORD="));
+        assert!(env_example.contains("SMS_API_KEY_SECRET="));
+        assert!(env_example.contains("# QUEUE_DRIVER=redis"));
+        assert!(env_example.contains("生产环境可使用权限受控的 .env"));
         assert!(!env_example.contains("Production reads configuration"));
         let guide = fs::read_to_string(project.join("AGENTS.md")).expect("read generated guide");
         assert!(guide.contains("应用开发指南"));
@@ -2522,6 +2613,11 @@ mod tests {
             assert!(project.join("migration/Cargo.toml").is_file());
             assert!(project.join("migration/src/lib.rs").is_file());
             assert!(
+                fs::read_to_string(project.join("config/database.toml"))
+                    .expect("read database domain config")
+                    .contains("table_prefix = \"tb_\"")
+            );
+            assert!(
                 fs::read_to_string(project.join("migration/src/lib.rs"))
                     .expect("read empty migration registry")
                     .contains("vec![]")
@@ -2531,6 +2627,13 @@ mod tests {
             assert!(app.contains("openrust_migration::Migrator"));
             assert!(app.contains("SeedPlugin"));
             assert!(project.join(".env.example").is_file());
+            let env = fs::read_to_string(project.join(".env.example"))
+                .expect("read generated database environment example");
+            assert!(env.contains(&format!("DB_CONNECTION={}", backend.connection_name())));
+            assert!(env.contains(&format!("DB_PORT={}", backend.port())));
+            assert!(env.contains("DB_DATABASE=blog"));
+            assert!(env.contains("DB_TABLE_PREFIX=tb_"));
+            assert!(env.contains("REDIS_HOST=127.0.0.1"));
         }
         let _ = fs::remove_dir_all(root);
     }
@@ -2588,12 +2691,12 @@ mod tests {
             assert!(app.contains("AuthFlowsPlugin::new()"));
             assert!(app.contains("AuditPlugin::database()"));
             assert!(app.contains("SignedLinksPlugin::new().with_database_revocations_from_app()"));
-            let config = fs::read_to_string(project.join("config/default.toml"))
+            let config = fs::read_to_string(project.join("config/security.toml"))
                 .expect("read generated signing config");
             assert!(config.contains("[security.signed_links]"));
             let env = fs::read_to_string(project.join(".env.example"))
                 .expect("read generated signing environment template");
-            assert!(env.contains("APP_SECURITY__SIGNED_LINKS__KEYS__LOCAL="));
+            assert!(env.contains("APP_SECURITY_SIGNED_LINKS_KEYS_LOCAL="));
             assert!(!app.contains("SessionPlugin::new()"));
             let routes =
                 fs::read_to_string(project.join("src/routes.rs")).expect("read generated routes");
@@ -2610,13 +2713,13 @@ mod tests {
             let auth_test = fs::read_to_string(project.join("tests/auth_flows.rs"))
                 .expect("read generated auth HTTP integration test");
             assert!(auth_test.contains("trusted_proxy_ranges"));
-            let config = fs::read_to_string(project.join("config/default.toml"))
+            let config = fs::read_to_string(project.join("config/auth.toml"))
                 .expect("read generated auth config");
             assert!(config.contains("[auth.jwt]"));
             assert!(config.contains("keys = {}"));
             let env = fs::read_to_string(project.join(".env.example"))
                 .expect("read generated environment example");
-            assert!(env.contains("APP_AUTH__JWT__KEYS__LOCAL="));
+            assert!(env.contains("APP_AUTH_JWT_KEYS_LOCAL="));
         }
         let encrypted_project = root.join("encrypted");
         populate_project(
@@ -3094,7 +3197,7 @@ mod tests {
             assert!(migration_manifest.contains("workspace = true"));
             assert!(migration_manifest.contains(backend));
             assert!(
-                fs::read_to_string(root.join(format!("apps/{app}/config/default.toml")))
+                fs::read_to_string(root.join(format!("apps/{app}/config/app.toml")))
                     .expect("read app config")
                     .contains(&format!("name = \"{app}\""))
             );

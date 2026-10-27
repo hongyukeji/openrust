@@ -1,7 +1,0 @@
-[app]
-
-[session]
-secure = false
-
-[grpc]
-allow_insecure_server = true

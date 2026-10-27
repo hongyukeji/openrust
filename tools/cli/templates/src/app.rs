@@ -13,6 +13,7 @@ impl Application for {{type_name}} {
 
     fn build(app: &mut AppBuilder) {
         app.plugin(HttpPlugin)
+            .plugin(openrust::view::ViewPlugin)
             .plugin(I18nPlugin::default())
             .plugin(openrust::cache::CachePlugin)
             .plugin(MailerPlugin)

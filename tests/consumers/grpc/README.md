@@ -43,7 +43,7 @@ client_certificate_file = "config/certs/client.pem"
 client_private_key_file = "config/certs/client-key.pem"
 ```
 
-生成项目仅在 `config/development.toml` 显式开启明文 server；`config/production.toml` 不允许明文回退。证书与私钥由部署环境提供，不要提交私钥或把它们放进公共示例。
+生成项目的 `.env.example` 将 `APP_GRPC_ALLOW_INSECURE_SERVER=true` 作为注释的本地开发选项；生产环境必须关闭明文 server。证书与私钥由部署环境提供，不要提交私钥或把它们放进公共示例。
 
 HTTP 与 gRPC 同进程运行时，在 builder 中先安装 `HttpPlugin`、`GrpcPlugin`，注册至少一个 gRPC 服务，再安装 `HttpGrpcPlugin`。它增加 `serve all` 命令；两个 listener 会先全部绑定，两个都开始服务后 readiness 才为 true。统一退出信号会同时摘除两个 listener，并在 `[server].shutdown_timeout_secs` 内 drain、join。原有 `serve` 与 `grpc serve` 命令仍可单独运行。该入口的真实 TCP 测试只证明单进程联合生命周期，不证明代理路由或跨节点集群。
 

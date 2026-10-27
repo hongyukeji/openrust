@@ -2,27 +2,50 @@ use openrust::prelude::*;
 use openrust::queue::{Job, Queue};
 
 pub fn register(routes: Routes) -> Routes {
-    routes.get("/api", root).nest("/api", |api| {
-        api.get("/me", current_user)
-            .layer(openrust::auth::AuthLayer::required(
-                openrust::auth::AuthMode::Jwt,
-            ))
-            .post("/auth/register", auth_register)
-            .post(
-                "/auth/request-email-verification",
-                auth_request_email_verification,
-            )
-            .post("/auth/verify-email", auth_verify_email)
-            .post("/auth/login", auth_login)
-            .post("/auth/refresh", auth_refresh)
-            .post("/auth/logout", auth_logout)
-            .post("/auth/password-reset", auth_request_password_reset)
-            .post("/auth/password-reset/confirm", auth_reset_password)
-            .post("/jobs/example-heartbeat", enqueue_example_heartbeat)
-            .merge(Routes::new().get("/me/pat", current_user).layer(
-                openrust::auth::AuthLayer::required(openrust::auth::AuthMode::PersonalAccessToken),
-            ))
-    })
+    routes
+        .get("/api", root)
+        .nest("/api", |api| {
+            api.get("/me", current_user)
+                .layer(openrust::auth::AuthLayer::required(
+                    openrust::auth::AuthMode::Jwt,
+                ))
+                .post("/auth/register", auth_register)
+                .post(
+                    "/auth/request-email-verification",
+                    auth_request_email_verification,
+                )
+                .post("/auth/verify-email", auth_verify_email)
+                .post("/auth/login", auth_login)
+                .post("/auth/refresh", auth_refresh)
+                .post("/auth/logout", auth_logout)
+                .post("/auth/password-reset", auth_request_password_reset)
+                .post("/auth/password-reset/confirm", auth_reset_password)
+                .post("/jobs/example-heartbeat", enqueue_example_heartbeat)
+                .merge(Routes::new().get("/me/pat", current_user).layer(
+                    openrust::auth::AuthLayer::required(
+                        openrust::auth::AuthMode::PersonalAccessToken,
+                    ),
+                ))
+        })
+        .get("/pages/about", about_page)
+}
+
+#[derive(serde::Serialize)]
+struct AboutPageContext {
+    app_name: &'static str,
+    title: &'static str,
+}
+
+async fn about_page(
+    Inject(views): Inject<openrust::view::Views>,
+) -> openrust::Result<openrust::http::axum::response::Html<String>> {
+    views.render(
+        "pages/about.html",
+        &AboutPageContext {
+            app_name: env!("CARGO_PKG_NAME"),
+            title: "关于示例应用",
+        },
+    )
 }
 
 async fn enqueue_example_heartbeat(

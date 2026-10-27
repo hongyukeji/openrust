@@ -13,7 +13,7 @@ pub struct ServerConfig {
     pub port: u16,
     /// 网站公开目录；相对路径以应用工作目录为基准。
     pub public_dir: PathBuf,
-    /// 根路径目标，支持 `file:/index.html`、`forward:/path` 和 `redirect:/path`。
+    /// 根路径目标，支持 `file:/index.html`、`forward:/path`、`redirect:/path` 和可选 `view:index.html`。
     pub root_target: String,
     /// 单个请求的超时时间（秒）；超过后返回 `408 Request Timeout`。
     pub request_timeout_secs: u64,

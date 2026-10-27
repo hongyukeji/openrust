@@ -66,11 +66,11 @@ G3c 实施将 `GrpcConfig.health_drain_grace_ms` 加入公共配置，默认 250
 - 同一持久 Channel 在摘除期间必须继续到达存活节点；重启被摘除节点后，验证健康状态恢复及双节点重新分配。
 - 真实 Envoy + TCP 节点拓扑作为本地/CI 可复跑验收；不以 loopback、fake、独立互不复制的进程或 TCP 连接轮询代替。
 - 不承诺流进度迁移；业务客户端在流中断后负责重新发起调用及业务级恢复。
-- 修改范围为 `src/grpc.rs`、`src/config/grpc.rs`、`根目录集成宿主` 集成测试、`examples/grpc`、对应 CI、示例文档及当前项目事实/验收记录；新增公开 `health_drain_grace_ms` 配置。
+- 修改范围为 `src/grpc.rs`、`src/config/grpc.rs`、`根目录集成宿主` 集成测试、`tests/consumers/grpc`、对应 CI、示例文档及当前项目事实/验收记录；新增公开 `health_drain_grace_ms` 配置。
 
 ## G3c 验收结果
 
-`examples/grpc/scripts/test-g3c.sh` 已在真实 Docker Linux 容器中运行通过：固定 Envoy 1.40.1 路由到两个独立 OpenRust 节点；同一客户端 Channel 的 40 次 unary RPC 共用一个 Envoy downstream HTTP/2 connection ID，并在两节点间分配。对长流所属节点发送 SIGTERM 后，标准 Health `Check` 返回 `NOT_SERVING`，Envoy gRPC active health checker 将目标标记为不健康，10 次后续 unary RPC 全部到存活节点；长流中断，同一 Channel 重连成功。重启节点后健康恢复，40 次 RPC 再次覆盖两节点。末次实测 Envoy 为 0.54% CPU、19.78 MiB；该数值仅是本次验收观测，不构成容量基线。
+`tests/consumers/grpc/scripts/test-g3c.sh` 已在真实 Docker Linux 容器中运行通过：固定 Envoy 1.40.1 路由到两个独立 OpenRust 节点；同一客户端 Channel 的 40 次 unary RPC 共用一个 Envoy downstream HTTP/2 connection ID，并在两节点间分配。对长流所属节点发送 SIGTERM 后，标准 Health `Check` 返回 `NOT_SERVING`，Envoy gRPC active health checker 将目标标记为不健康，10 次后续 unary RPC 全部到存活节点；长流中断，同一 Channel 重连成功。重启节点后健康恢复，40 次 RPC 再次覆盖两节点。末次实测 Envoy 为 0.54% CPU、19.78 MiB；该数值仅是本次验收观测，不构成容量基线。
 
 ## G1 实施 Spec
 

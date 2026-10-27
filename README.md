@@ -29,7 +29,7 @@ cargo run -- help
 cargo test --workspace
 ```
 
-`.env` 仅用于本地非生产环境覆盖配置，进程环境变量优先；生产环境不读取 `.env`。根目录宿主可通过 `APP_SERVER__PORT` 覆盖监听端口，生成应用则使用各自目录中的 `.env.example`。
+`.env` 可用于本地及生产环境配置，进程环境变量优先。生产环境使用 `.env` 时应限制文件读取权限，并确保应用根目录不作为静态公开目录；也可改用部署平台注入变量。根目录宿主可通过 `APP_SERVER_PORT` 覆盖监听端口，生成应用则使用各自目录中的 `.env.example`。
 
 唯一贯穿式用户示例位于 [`apps/example/`](apps/example/README.md)，用于逐步展示生成项目结构与框架能力组合；独立 API consumer 和真实多进程验收位于 `tests/consumers/`。
 
@@ -37,9 +37,9 @@ cargo test --workspace
 
 业务 JSON API 根路径为 `/api`，所有子路由统一以 `/api/` 开头并使用 JSON API 响应封装；`/health`、`/ready` 和可选 `/metrics` 保留为运维端点。详细约定见 [HTTP 指南](src/http/README.md)。
 
-应用默认从当前工作目录的 `config/` 读取配置。`APP_SERVER__PORT=4000 cargo run` 或 `PORT=4000 cargo run` 可覆盖监听端口；若两者同时设置，`APP_SERVER__PORT` 优先。应用可通过 `Application::config_namespace()` 选择如 `SHOP_` 的变量前缀。框架代码位于仓库根 package，能力模块位于 `src/audit.rs`、`src/config/`、`src/core/`、`src/db/`、`src/http/`、`src/i18n.rs`、`src/mail/`、`src/sms.rs`，以及按 feature 启用的 auth、encryption、signing、queue 和 schedule。每个应用的 TOML/YAML 配置保存在其根目录的 `config/` 中；仓库根目录宿主用于框架开发与集成验收。
+应用默认从当前工作目录的 `config/` 读取配置。`APP_SERVER_PORT=4000 cargo run` 或 `PORT=4000 cargo run` 可覆盖监听端口；若两者同时设置，`APP_SERVER_PORT` 优先。应用可通过 `Application::config_namespace()` 选择如 `SHOP_` 的变量前缀。框架代码位于仓库根 package，能力模块位于 `src/audit.rs`、`src/config/`、`src/core/`、`src/db/`、`src/http/`、`src/i18n.rs`、`src/mail/`、`src/sms.rs`，以及按 feature 启用的 auth、encryption、signing、queue 和 schedule。每个应用的 TOML/YAML 配置保存在其根目录的 `config/` 中；仓库根目录宿主用于框架开发与集成验收。
 
-网站静态文件位于应用的公开目录，默认是工作目录下的 `public/`；`public/index.html` 对应 `/`，目录中的其他文件按相对 URL 路径提供。`[server].public_dir` 可更换目录；`[server].root_target` 默认 `file:/index.html`，也可设为 `forward:/api` 或 `redirect:https://example.com/`。环境变量 `APP_SERVER__PUBLIC_DIR` 和 `APP_SERVER__ROOT_TARGET` 覆盖 TOML；`/api/*` 保留 JSON API，`/ws/*` 用于 WebSocket。
+网站静态文件位于应用的公开目录，默认是工作目录下的 `public/`，目录中的文件按相对 URL 路径提供。生成项目默认启用 `view` feature 并用 `views/index.html` 渲染 `/`；`public/` 仍用于 CSS、图片等静态资源。`[server].public_dir` 可更换静态目录；`[server].root_target` 可设为 `view:index.html`、`file:/index.html`、`forward:/api` 或 `redirect:https://example.com/`。环境变量 `APP_SERVER_PUBLIC_DIR` 和 `APP_SERVER_ROOT_TARGET` 覆盖 TOML；`/api/*` 保留 JSON API，`/ws/*` 用于 WebSocket。视图配置与 API 示例见[视图指南](src/view/README.md)。
 应用数据加密通过可选的 `encryption` feature 启用。注册 `openrust::security::EncryptionPlugin`，在 `[security.encryption]` 下配置 32 字节密钥环，并使用 `openrust key generate` 生成本地密钥材料。当前密钥用于加密新值；受控轮换期间，历史密钥用于解密旧值。密钥应保存在版本控制之外。
 
 文件存储由可选 `storage-local` 与 `storage-s3` feature 提供，使用 `StoragePlugin` 装配 `Storage` 的 default/named disks。上传与下载都使用有界流，应用须先执行身份和资源授权；本地 disk 仅在当前节点可见。配置、安全边界与 `StorageBackend` 扩展方法见[文件存储指南](src/storage/README.md)。
@@ -54,7 +54,7 @@ cargo test --workspace
 
 `queue` feature 为 PostgreSQL 和 MySQL 提供持久化数据库任务派发、有界 worker 并发和由数据库协调的调度。将 `QueueMigration` 注册到应用迁移器，并在 `DatabasePlugin` 后安装 `QueuePlugin`；使用 `register_job` 显式注册处理器。可通过 `schedule_interval`、`schedule_daily_at` 或 `schedule_cron` 注册任务。cron 使用五字段语法，默认时区为 `UTC`，也可指定 IANA 时区；春季不存在的本地时间跳过，秋季重复的本地分钟只派发一次。默认只派发当前分钟匹配项；`MissedRunPolicy::CatchUp { max_slots }` 可设置每次扫描最多补跑 1 到 100 项，后续 tick 继续处理剩余积压。表达式或时区变化会开启新的计划版本，不追溯补发该版本启用前的历史触发。使用集群部署时，各 scheduler 节点必须运行相同构建产物，以保持内置 IANA 时区数据一致。job 派发和时段记录在同一数据库事务提交，两个 scheduler 节点对同一时段只创建一个 job；任务本身仍至少执行一次，外部副作用须保持幂等。`schedule run --once` 扫描一次，`schedule run` 持续运行，`schedule list` 显示已注册项。`Queue::dispatch_unique` 根据队列范围内的键防止任务重叠重复，并返回活动任务 ID；任务完成或移入 `failed_jobs` 后释放该键。`dispatch_chain` 按顺序执行已注册任务，`dispatch_batch` 限制每组任务的并发数。每组是一个持久化父任务；重试可能再次执行已成功子任务的副作用，因此子任务处理器必须保持幂等。每组最多 128 项，批次并发数为 1 到 64。若任务创建需与业务数据共同提交或回滚，请在 `Db` 事务中派发。当前 worker 支持重试、失败任务保留与手动重试、进度、协作取消、单次尝试超时，以及进程故障后的租约恢复。事件支持有序进程内监听器和显式队列监听器；完整集群验收仍待完成。
 
-可选 `queue-redis` feature 提供 Redis job driver，默认仍为数据库队列。显式设置 `[queue] driver = "redis"`、`redis_namespace`，并通过 `APP_QUEUE__REDIS_URL` 注入连接地址；缺少 feature、配置错误或 Redis 不可达都会失败，不会切换为数据库或内存 driver。Redis-only `QueuePlugin` 无需注册 `DatabasePlugin`，但当前数据库事务型 scheduler 与 Redis 派发无法原子提交，因此启用 Redis 时不能注册 schedule。Redis 支持普通/延迟/唯一派发、lease、进度、退避重试和失败任务人工重试；事务派发与任务组明确不支持。语义为至少一次，handler 必须幂等；Redis 磁盘持久性和故障切换取决于运维配置，不承诺 exactly-once 或故障切换零丢失。详见 [`apps/example/`](apps/example/README.md)。
+可选 `queue-redis` feature 提供 Redis job driver，默认仍为数据库队列。设置 `QUEUE_DRIVER=redis` 与 `redis_namespace` 即可启用；Redis 队列与缓存共用 `REDIS_HOST`、`REDIS_USERNAME`、`REDIS_PASSWORD`、`REDIS_PORT`、`REDIS_DB` 连接项，无需单独配置队列 URL。缺少 feature、配置错误或 Redis 不可达都会失败，不会切换为数据库或内存 driver。Redis-only `QueuePlugin` 无需注册 `DatabasePlugin`，但当前数据库事务型 scheduler 与 Redis 派发无法原子提交，因此启用 Redis 时不能注册 schedule。Redis 支持普通/延迟/唯一派发、lease、进度、退避重试和失败任务人工重试；事务派发与任务组明确不支持。语义为至少一次，handler 必须幂等；Redis 磁盘持久性和故障切换取决于运维配置，不承诺 exactly-once 或故障切换零丢失。详见 [`apps/example/`](apps/example/README.md)。
 外部 driver 可通过 `JobRegistry` 复用 typed Job 执行，并用 `JobContext::with_progress_reporter` 声明自己的进度存储；独立的 [`QueueDriver` 示例](tests/consumers/queue-custom-driver/README.md)展示派发、执行和不支持事务时的显式错误。
 
 邮件、短信也支持应用实现自定义 driver，并由应用自己的 `Plugin` 注册标准 `Mailer` / `SmsSender` 服务；请看[独立通信 driver consumer](tests/consumers/communication-drivers/README.md)。

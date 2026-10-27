@@ -381,8 +381,8 @@ impl fmt::Debug for Db {
 
 /// 将已配置的 PostgreSQL 或 MySQL 连接池安装为 [`Db`] 应用服务。
 ///
-/// 在 `openrust` 上启用 `db-postgres` 或 `db-mysql` 以包含相应驱动。应用必须通过 `[database].url`、
-/// `DATABASE_URL` 或 `APP_DATABASE__URL` 提供 URL。
+/// 在 `openrust` 上启用 `db-postgres` 或 `db-mysql` 以包含相应驱动。应用可通过 Laravel 风格的
+/// `DB_*` 分项变量连接；需要完整 URL 时可在 `[database].url` 或 `APP_DATABASE_URL` 中配置。
 #[derive(Debug, Default, Clone, Copy)]
 pub struct DatabasePlugin;
 
@@ -525,7 +525,7 @@ fn validate_instance(key: &str, config: &DatabaseInstanceConfig, require_url: bo
 async fn connect_instance(db: &Db, config: &DatabaseInstanceConfig, name: &str) -> Result<()> {
     let url = config.url.as_deref().ok_or_else(|| {
         let message = if name == "default" {
-            "missing database.url (set DATABASE_URL or APP_DATABASE__URL)".to_owned()
+            "missing database.url (set DB_CONNECTION and DB_* fields, or configure [database].url / APP_DATABASE_URL)".to_owned()
         } else {
             format!("missing database.instances.{name}.url")
         };

@@ -1,6 +1,6 @@
 # 认证与授权
 
-认证配置定义于 `openrust::config::auth`，并从 `openrust::auth` 重新导出以保持兼容。运行时 TOML 放在应用根目录的 `config/`；本地签名密钥通过 `.env` 或进程环境变量提供，切勿将密钥材料写入受版本控制的配置文件。生产环境启动时忽略 `.env`，仅使用进程环境变量。
+认证配置定义于 `openrust::config::auth`，并从 `openrust::auth` 重新导出以保持兼容。运行时 TOML 放在应用根目录的 `config/`；签名密钥可通过受保护的 `.env` 或进程环境变量提供，进程环境变量优先。不要将密钥材料写入受版本控制的配置文件；生产使用 `.env` 时应限制文件权限，并确保应用根目录不作为静态公开目录。
 
 OpenRust 的认证与授权能力。
 
@@ -10,7 +10,7 @@ OpenRust 的认证与授权能力。
 - `SessionPlugin::new()` 会安装共享数据库 Session middleware。请在 `AuthPlugin` 之前注册 `DatabasePlugin` 和 `SessionPlugin`；自定义 store 可实现 `tower_sessions::SessionStore`，并传给 `SessionPlugin::with_store`。
 - 需要 Redis 共享 Session 时，为 `openrust` 启用 `session-redis` feature，并使用 `RedisSessionStore::connect(redis_url, namespace)` 后传入 `SessionPlugin::with_store`。数据库 store 仍是默认路径；Redis 连接失败或操作失败会返回错误。所有共享应用副本必须使用同一 namespace，不同应用应使用不同 namespace。
 - 如果 `DatabasePlugin` 已先注册 `Db`，`AuthPlugin` 会注册 `RefreshTokens`。它生成高熵不透明凭据，只持久化 SHA-256 摘要，以原子方式轮换，在检测到重放时撤销整个 token family，并支持按账户整体撤销。调用方提供 family 的初始过期时间；轮换不会延长该时间。
-- `openrust new --db postgres|mysql --auth` 会生成 JWT/Auth/AuthFlows plugins、认证迁移、JWT 保护的 `/api/me`、数据库支持的 PAT 保护 `/api/me/pat`，以及注册、邮箱验证、登录、刷新、登出、密码重置路由和 `[auth.jwt]` 配置。签名密钥必须通过 `APP_AUTH__JWT__KEYS__LOCAL` 提供，不能写入生成的配置。
+- `openrust new --db postgres|mysql --auth` 会生成 JWT/Auth/AuthFlows plugins、认证迁移、JWT 保护的 `/api/me`、数据库支持的 PAT 保护 `/api/me/pat`，以及注册、邮箱验证、登录、刷新、登出、密码重置路由和 `[auth.jwt]` 配置。签名密钥必须通过 `APP_AUTH_JWT_KEYS_LOCAL` 提供，不能写入生成的配置。
 - `AuthPlugin::with_authenticator` 通过现有 `Plugin` 生命周期注册应用自定义或第三方 `Authenticator` 实现。
 - `AuthPlugin` 还会在 `AppState` 注册 Argon2id `Passwords` 服务。它使用随机 salt 生成 PHC 格式哈希，并在 Tokio blocking pool 中执行。`AuthPlugin::new().with_password_config(PasswordConfig { memory_kib: 19456, iterations: 2, parallelism: 1 })` 配置成本参数；`with_password_operation_capacity(2)` 设置并发上限，默认每个服务实例 2 个操作，范围为 1..=4。超过容量立即返回稳定错误码 `password_capacity_exhausted`，不建立等待队列；在 `semantic` HTTP 状态模式下响应为 503，默认 `always_ok` 模式仍遵循统一 JSON 状态策略。插件注册的 `AuthFlows` 与验证码服务共享同一个 `Passwords` 实例；独立构造的实例有各自的容量。考虑已接受的最大 PHC 参数，并发上限确保单服务 Argon2 工作内存不超过约 1 GiB。验证前会检查编码中的算法、版本和成本参数，以拒绝不安全的存储值。`EncodedPasswordHash::as_str()` 是持久化边界；该封装有意不实现 `Debug`。空密码和超过 1024 字节的密码会被拒绝；密码不匹配时返回 `Ok(false)`；格式错误的 PHC 数据会返回内部错误。
 - 配置 `DatabasePlugin` 后，`AuthPlugin` 会使用共享数据库 store 和同一个 Argon2id 密码哈希器注册 `VerificationCodes`。签发验证码前，将 `AuthVerificationCodeMigration` 加入应用 migrator。默认策略生成六位数字，有效期十分钟，最多允许五次错误尝试，并设置 60 秒重发冷却时间。返回的 `IssuedVerificationCode` 会在 `Debug` 中隐藏验证码；请自行通过 Mail/SMS 发送，且不要记录日志。签发/验证路由前应应用共享 `RateLimiter`，key 至少包括 endpoint 和请求来源，并可加入身份专属策略。

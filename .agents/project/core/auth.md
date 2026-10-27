@@ -6,7 +6,7 @@
 
 ## 当前实现
 
-- 配置结构位于 `openrust::config::auth`，旧的 `openrust::auth` 配置导出保持可用；本地 JWT 密钥可在 `.env` 设置，生成项目不写入真实密钥，production 忽略 `.env`。
+- 配置结构位于 `openrust::config::auth`，旧的 `openrust::auth` 配置导出保持可用；JWT 密钥可放在受保护的 `.env` 或由部署环境注入，进程环境优先；生成项目不写入真实密钥。
 
 - `AuthPlugin::new()` 注册数据库认证器；`finish` 检查认证服务未被后续插件覆盖、`Db` 已注册且 SeaORM backend 是 PostgreSQL 或 MySQL。`AuthPlugin::with_authenticator` 使用应用或第三方实现，不依赖 `Db`。
 - `SessionPlugin` 通过 `tower-sessions` 安装通用 Cookie middleware；默认 `DatabaseSessionStore` 以 resolver 解析的 Session 表共享存储（默认 `tb_sessions`），支持自定义 `SessionStore`。可选 `session-redis` feature 提供 `RedisSessionStore`，通过 `SessionPlugin::with_store` 显式启用；以 namespace 隔离应用，键名仅使用 Session ID 的 SHA-256 摘要。`SET NX/XX PX` 分别保证创建不覆盖和保存不复活已删除 ID，TTL 采用当前记录到期时间；Redis 错误传播为 store 错误。PostgreSQL/MySQL 集成覆盖数据库 store 生命周期；真实 Redis 覆盖两个独立 App 共享读取、删除撤销、过期、碰撞、namespace 隔离和 CSRF。
@@ -66,7 +66,7 @@
 
 - `cargo test -p openrust --test http_router --test http_resource`：全局 Tower layer 与错误响应包装测试通过。
 - `cargo test -p openrust --features auth --test auth_runtime`：共享 Session middleware 与身份认证运行时测试通过；`session-redis` feature 及 Redis adapter 证据见 `memory/testing.md`。
-- PostgreSQL 18 / MySQL 8.4：`cargo test -p openrust --features 'auth db-<backend>' --test auth_query_authorization` 使用隔离库和真实认证 HTTP 请求，验证过滤 OR 不扩大 owner 范围、越权详情不可见、分页计数、批量 update/delete 与父子关联规则；独立 consumer `examples/query-authorization` 通过 `cargo check --manifest-path ...`。
+- PostgreSQL 18 / MySQL 8.4：`cargo test -p openrust --features 'auth db-<backend>' --test auth_query_authorization` 使用隔离库和真实认证 HTTP 请求，验证过滤 OR 不扩大 owner 范围、越权详情不可见、分页计数、批量 update/delete 与父子关联规则；独立 consumer `tests/consumers/query-authorization` 通过 `cargo check --manifest-path ...`。
 - `cargo test -p openrust --features auth,db-postgres --test auth_database` / `--features db-mysql --test database`：真实本地容器验证迁移、CSRF、PAT 签发/哈希存储/列举/过期输入/归属隔离/跨实例撤销与最近使用时间、通用 Session store 和两个应用实例间撤销；MySQL 使用具备建库权限的测试账号。
 - `cargo test -p openrust --features auth --lib`：JWT 配置、签发/验证、错误边界及密钥轮换测试通过。
 - `cargo test -p openrust --features auth --lib`：验证码用途/身份绑定、错误尝试耗尽、一次消费和策略边界单测通过；`session_login_rotates_id_preserves_app_data_and_redacts_csrf` 验证 ID 轮换、应用数据保留、CSRF digest 与 Debug 脱敏。

@@ -18,4 +18,4 @@
 
 ## 影响
 
-外部 driver 可复用框架 Job 与 `Queue` facade，同时保留后端对进度、事务和恢复边界的责任。示例见 [`examples/queue-custom-driver`](../../../examples/queue-custom-driver/README.md)。
+外部 driver 可复用框架 Job 与 `Queue` facade，同时保留后端对进度、事务和恢复边界的责任。示例见 [`tests/consumers/queue-custom-driver`](../../../tests/consumers/queue-custom-driver/README.md)。

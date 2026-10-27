@@ -24,7 +24,7 @@ loader_timeout_secs = 30
 max_in_flight_refreshes = 64
 ```
 
-启用 Redis 时，在 OpenRust 依赖中选择 `cache-redis` feature。`REDIS_URL` 与应用命名空间变量（默认 `APP_REDIS_URL`）均覆盖默认 Redis store 的 `dsn`；命名空间变量优先。
+启用 Redis 时，在 OpenRust 依赖中选择 `cache-redis` feature。常规配置使用 `REDIS_HOST`、`REDIS_USERNAME`、`REDIS_PASSWORD`、`REDIS_PORT` 和 `REDIS_DB` 分项变量；缓存与队列共用同一 Redis 数据库编号。需要单独 store 或连接时，在 `config/cache.toml` 或对应的 `APP_CACHE_STORES_<NAME>_DSN` 中配置。
 
 通过 `Inject<Cache>` 或应用状态取得默认服务，`Cache::store("local")` 显式选择命名实例。`get` 返回 JSON 类型化值或 `None`，`set` 支持可选 TTL，`remove` 删除键。零 TTL、空 key 和长度超过 1024 字节的 key 会被拒绝；值编解码、驱动初始化和 I/O 失败都不会伪装成未命中。
 

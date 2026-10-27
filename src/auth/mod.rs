@@ -196,7 +196,7 @@ impl CurrentUser {
             .is_some_and(|abilities| abilities.iter().any(|item| item == ability))
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, feature = "realtime"))]
     pub(crate) fn test_user(id: i64) -> Self {
         Self {
             id,

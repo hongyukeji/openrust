@@ -62,6 +62,8 @@ Laravel 式开发体验与成熟组件整合遵循 [ADR-001](adr-001-own-kernel-
 └── AGENTS.md               # 供 AI 辅助的新用户使用（loco 先例）
 ```
 
+上述根 `config/` 的环境命名示意已由 [ADR-030](adr-030-modular-configuration.md) 更新为按领域命名的 TOML 文件；本 ADR 的目录图仅记录当时的方案。
+
 依据：
 - loco 生成项目使用 `src/{controllers,models,models/_entities,workers,mailers,tasks}` 与 `migration/`。
 - salvo-cli 使用 `models/`。
@@ -79,7 +81,7 @@ Laravel 式开发体验与成熟组件整合遵循 [ADR-001](adr-001-own-kernel-
 
 ### 3. 配置与环境变量
 
-本节由 [ADR-016](adr-016-neutral-application-namespaces.md) 校准：应用默认 `APP_ENV`、`APP_CONFIG_DIR` 与 `APP_<SECTION>__<KEY>`，启动前可显式选择其他命名空间；同键优先于已接入能力的 `DATABASE_URL` / `REDIS_URL` / `PORT`。命名空间与表名解析已落地；Redis 配置接入待 M5。不恢复旧 OPENRUST_ 应用配置前缀。
+本节由 [ADR-016](adr-016-neutral-application-namespaces.md) 校准：应用默认 `APP_ENV`、`APP_CONFIG_DIR` 与 `APP_<SECTION>__<KEY>`，数据库、Redis、队列、邮件和短信使用领域前缀变量。未采用 `DATABASE_URL` / `REDIS_URL` 通用环境别名；不恢复旧 OPENRUST_ 应用配置前缀。
 
 TOML 分层、环境引导与生产 `.env` 保护保持有效，具体兼容、表前缀与实现验收按 ADR-016；不混读其他应用命名空间。
 

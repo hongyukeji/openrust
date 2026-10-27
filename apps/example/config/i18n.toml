@@ -1,0 +1,3 @@
+[i18n]
+default_locale = "en"
+fallback_locale = "en"

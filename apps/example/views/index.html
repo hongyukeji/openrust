@@ -1,0 +1,10 @@
+{% extends "layouts/app.html" %}
+
+{% block title %}{{ app_name }}{% endblock %}
+
+{% block content %}
+  <h1>{{ app_name }}</h1>
+  <p>这是 OpenRust 的服务端渲染首页。</p>
+  <p>页面模板位于 <code>views/</code>，静态资源位于 <code>public/</code>。</p>
+  <p><a href="/api">查看框架 API</a></p>
+{% endblock %}

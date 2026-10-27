@@ -6,13 +6,13 @@
 //! 配置源按以下顺序合并，后面的层会覆盖前面的层：
 //!
 //! 1. crate 默认值（[`FrameworkConfig::default`]）
-//! 2. `<config-dir>/default.toml`
-//! 3. `<config-dir>/<env>.toml`，其中 `<env>` 来自 `APP_ENV`（默认值为 `development`）
-//! 4. 非生产环境从本地 `.env` 加载的变量，然后是进程变量；变量以 `APP_` 为前缀，并使用 `__` 表示嵌套
-//!    （`APP_SERVER__PORT=4000` → `server.port`）
+//! 2. `<config-dir>/*.toml` 中按文件名排序的领域配置（跳过旧环境文件名）
+//! 3. Laravel 风格的 `DB_*` / `REDIS_*` 分项连接设置
+//! 4. 本地 `.env` 与进程变量中的应用配置；默认以 `APP_` 为前缀，使用单下划线扁平键
+//!    （`APP_SERVER_PORT=4000` → `server.port`；`APP_NAME` → `app.name`）
 //!
 //! 若进程未设置环境，bootstrap 只会从 `.env` 读取 `APP_ENV` 以选择运行环境。
-//! 生产环境不会加载 `.env` 文件。已有进程变量的优先级高于 `.env` 中的值。
+//! 所有环境都可从应用工作目录的 `.env` 加载变量；已有进程变量的优先级高于 `.env` 中的值。
 
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -41,6 +41,8 @@ pub mod server;
 pub mod signing;
 pub mod sms;
 pub mod storage;
+#[cfg(feature = "view")]
+pub mod view;
 
 pub use api::{ApiConfig, HttpStatusMode};
 pub use app::{AppConfig, Environment};
@@ -61,6 +63,8 @@ pub use server::{CompressionConfig, CorsConfig, ServerConfig};
 pub use signing::SignedLinksConfig;
 pub use sms::SmsConfig;
 pub use storage::{StorageConfig, StorageDiskConfig};
+#[cfg(feature = "view")]
+pub use view::ViewConfig;
 
 /// 用于选择运行环境的环境变量。
 pub const ENV_VAR: &str = "APP_ENV";
@@ -68,7 +72,7 @@ pub const ENV_VAR: &str = "APP_ENV";
 pub const CONFIG_DIR_VAR: &str = "APP_CONFIG_DIR";
 /// 覆盖配置键的环境变量前缀。
 pub const ENV_PREFIX: &str = "APP_";
-/// 相对于工作目录、用于保存 `default.toml` 和环境专属文件的目录。
+/// 相对于工作目录、用于保存按领域划分的 TOML 配置文件的目录。
 pub const DEFAULT_CONFIG_DIR: &str = "config";
 
 /// 配置错误。仅可能在 bootstrap 期间发生。
@@ -202,21 +206,43 @@ pub fn load_dotenv() -> Option<PathBuf> {
     dotenvy::dotenv().ok()
 }
 
+/// 启动时加载应用工作目录中的 `.env`；文件缺失时继续启动，文件无效时安全失败。
+pub(crate) fn load_dotenv_for_bootstrap() -> Result<(), ConfigError> {
+    match dotenvy::from_path(".env") {
+        Ok(()) => Ok(()),
+        Err(error) if error.not_found() => Ok(()),
+        Err(_) => Err(ConfigError::Invalid(
+            "无法加载 .env 文件，请检查文件格式和读取权限".to_owned(),
+        )),
+    }
+}
+
 /// 只从 `.env` 读取所选命名空间的环境键，不修改进程变量。
 pub(crate) fn dotenv_environment(namespace: &str) -> Result<Environment, ConfigError> {
     validate_namespace(namespace)?;
     let key = format!("{namespace}ENV");
-    let Ok(entries) = dotenvy::from_path_iter(".env") else {
-        return Ok(Environment::Development);
+    let entries = match dotenvy::from_path_iter(".env") {
+        Ok(entries) => entries,
+        Err(error) if error.not_found() => return Ok(Environment::Development),
+        Err(_) => {
+            return Err(ConfigError::Invalid(
+                "无法读取 .env 文件，请检查文件格式和读取权限".to_owned(),
+            ));
+        }
     };
-    for entry in entries.flatten() {
-        if entry.0 == key && !entry.1.trim().is_empty() {
-            return entry.1.parse().map_err(|error: ConfigError| match error {
-                ConfigError::UnknownEnvironment { value, .. } => {
-                    ConfigError::UnknownEnvironment { key, value }
-                }
-                other => other,
-            });
+    for entry in entries {
+        let (entry_key, entry_value) = entry.map_err(|_| {
+            ConfigError::Invalid(".env 文件格式无效，请检查变量定义语法".to_owned())
+        })?;
+        if entry_key == key && !entry_value.trim().is_empty() {
+            return entry_value
+                .parse()
+                .map_err(|error: ConfigError| match error {
+                    ConfigError::UnknownEnvironment { value, .. } => {
+                        ConfigError::UnknownEnvironment { key, value }
+                    }
+                    other => other,
+                });
         }
     }
     Ok(Environment::Development)
@@ -297,37 +323,91 @@ impl ConfigLoader {
 
     /// 提取所有配置区段所用的分层 [`Figment`]。
     pub fn figment(&self) -> Figment {
-        Figment::from(Serialized::defaults(FrameworkConfig::default()))
-            .merge(Toml::file(self.config_dir.join("default.toml")))
-            .merge(Toml::file(
-                self.config_dir.join(format!("{}.toml", self.env)),
-            ))
-            .merge(
-                Env::raw()
-                    .only(&["DATABASE_URL", "REDIS_URL", "PORT"])
-                    .map(|key| {
-                        if key == "PORT" {
-                            "server.port".into()
-                        } else if key == "REDIS_URL" {
-                            "cache.stores.default.dsn".into()
-                        } else {
-                            "database.url".into()
-                        }
-                    })
-                    .split("."),
-            )
-            .merge(
-                Env::prefixed(&self.namespace)
-                    .filter(|key| key != "ENV" && key != "CONFIG_DIR")
-                    .map(|key| {
-                        if key == "REDIS_URL" {
-                            "cache.stores.default.dsn".into()
-                        } else {
-                            key.into()
-                        }
-                    })
-                    .split("__"),
-            )
+        // 领域配置文件相互独立，按文件名稳定合并；环境差异由 .env 与进程变量表达。
+        let mut figment = Figment::from(Serialized::defaults(FrameworkConfig::default()));
+        if let Ok(entries) = std::fs::read_dir(&self.config_dir) {
+            let mut files = entries
+                .filter_map(Result::ok)
+                .map(|entry| entry.path())
+                .filter(|path| {
+                    path.extension()
+                        .is_some_and(|extension| extension == "toml")
+                        && !matches!(
+                            path.file_stem().and_then(|stem| stem.to_str()),
+                            Some("default" | "development" | "test" | "production")
+                        )
+                })
+                .collect::<Vec<_>>();
+            files.sort();
+            for file in files {
+                figment = figment.merge(Toml::file(file));
+            }
+        }
+        if let Some(url) = conventional_database_url() {
+            figment = figment.merge(Serialized::defaults(serde_json::json!({
+                "database": { "url": url }
+            })));
+        }
+        if let Some(dsn) = conventional_redis_dsn() {
+            figment = figment.merge(Serialized::defaults(serde_json::json!({
+                "cache": { "stores": { "default": { "dsn": dsn } } }
+            })));
+        }
+        #[cfg(feature = "queue")]
+        if let Some(redis_url) = conventional_redis_dsn() {
+            figment = figment.merge(Serialized::defaults(serde_json::json!({
+                "queue": { "redis_url": redis_url }
+            })));
+        }
+        let figment = figment.merge(
+            Env::prefixed("")
+                .only(&[
+                    "PORT",
+                    "DB_TABLE_PREFIX",
+                    "REDIS_DEFAULT_STORE",
+                    "QUEUE_DRIVER",
+                    "MAIL_DRIVER",
+                    "MAIL_SMTP_HOST",
+                    "MAIL_SMTP_PORT",
+                    "MAIL_SMTP_STARTTLS",
+                    "MAIL_SMTP_USERNAME",
+                    "MAIL_SMTP_PASSWORD",
+                    "SMS_ACCOUNT_SID",
+                    "SMS_API_KEY_SID",
+                    "SMS_API_KEY_SECRET",
+                    "SMS_FROM",
+                    "SMS_MESSAGING_SERVICE_SID",
+                    "SMS_DRIVER",
+                    "I18N_DEFAULT_LOCALE",
+                ])
+                .map(|key| match key.as_str() {
+                    "PORT" => "server.port".into(),
+                    "DB_TABLE_PREFIX" => "database.table_prefix".into(),
+                    "REDIS_DEFAULT_STORE" => "cache.default_store".into(),
+                    "QUEUE_DRIVER" => "queue.driver".into(),
+                    "MAIL_DRIVER" => "mail.driver".into(),
+                    "MAIL_SMTP_HOST" => "mail.smtp_host".into(),
+                    "MAIL_SMTP_PORT" => "mail.smtp_port".into(),
+                    "MAIL_SMTP_STARTTLS" => "mail.smtp_starttls".into(),
+                    "MAIL_SMTP_USERNAME" => "mail.smtp_username".into(),
+                    "MAIL_SMTP_PASSWORD" => "mail.smtp_password".into(),
+                    "SMS_DRIVER" => "sms.driver".into(),
+                    "SMS_ACCOUNT_SID" => "sms.account_sid".into(),
+                    "SMS_API_KEY_SID" => "sms.api_key_sid".into(),
+                    "SMS_API_KEY_SECRET" => "sms.api_key_secret".into(),
+                    "SMS_FROM" => "sms.from".into(),
+                    "SMS_MESSAGING_SERVICE_SID" => "sms.messaging_service_sid".into(),
+                    "I18N_DEFAULT_LOCALE" => "i18n.default_locale".into(),
+                    _ => key.into(),
+                })
+                .split("."),
+        );
+        figment.merge(
+            Env::prefixed(&self.namespace)
+                .filter(|key| key != "ENV" && key != "CONFIG_DIR" && !key.as_str().contains("__"))
+                .map(|key| flat_environment_path(key.as_str()).into())
+                .split("."),
+        )
     }
 
     /// 将完整的合并配置提取为 `T`。
@@ -341,6 +421,153 @@ impl ConfigLoader {
         config.app.env = self.env;
         Ok(config)
     }
+}
+
+fn flat_environment_path(key: &str) -> String {
+    match key {
+        "NAME" => "app.name".to_owned(),
+        "URL" => "app.url".to_owned(),
+        "SERVER_CORS_ENABLED" => "server.cors.enabled".to_owned(),
+        "SERVER_CORS_ALLOWED_ORIGINS" => "server.cors.allowed_origins".to_owned(),
+        "AUTH_JWT_KEYS_LOCAL" => "auth.jwt.keys.local".to_owned(),
+        "SECURITY_SIGNED_LINKS_KEYS_LOCAL" => "security.signed_links.keys.local".to_owned(),
+        "SECURITY_ENCRYPTION_ACTIVE_KEY_ID" => "security.encryption.active_key_id".to_owned(),
+        "SECURITY_ENCRYPTION_KEYS_LOCAL" => "security.encryption.keys.local".to_owned(),
+        "SECURITY_ENCRYPTION_KEYS_TEST" => "security.encryption.keys.test".to_owned(),
+        "GRPC_ALLOW_INSECURE_SERVER" => "grpc.allow_insecure_server".to_owned(),
+        key if key.starts_with("CACHE_STORES_") => {
+            let Some((store, field)) = key["CACHE_STORES_".len()..].split_once('_') else {
+                return key.to_ascii_lowercase().replace('_', ".");
+            };
+            format!(
+                "cache.stores.{}.{}",
+                store.to_ascii_lowercase(),
+                field.to_ascii_lowercase()
+            )
+        }
+        _ => {
+            let Some((section, field)) = key.split_once('_') else {
+                return format!("app.{}", key.to_ascii_lowercase());
+            };
+            format!(
+                "{}.{}",
+                section.to_ascii_lowercase(),
+                field.to_ascii_lowercase()
+            )
+        }
+    }
+}
+
+fn environment_value(key: &str) -> Option<String> {
+    std::env::var(key).ok().filter(|value| !value.is_empty())
+}
+
+fn conventional_database_url() -> Option<String> {
+    const KEYS: [&str; 6] = [
+        "DB_CONNECTION",
+        "DB_HOST",
+        "DB_PORT",
+        "DB_DATABASE",
+        "DB_USERNAME",
+        "DB_PASSWORD",
+    ];
+    if !KEYS.iter().any(|key| std::env::var_os(key).is_some()) {
+        return None;
+    }
+
+    let connection = environment_value("DB_CONNECTION").unwrap_or_else(|| "postgres".to_owned());
+    let (scheme, default_port) = match connection.as_str() {
+        "postgres" => ("postgres", 5432),
+        "mysql" => ("mysql", 3306),
+        _ => return Some("invalid://".to_owned()),
+    };
+    let Ok(mut url) = url::Url::parse(&format!("{scheme}://localhost")) else {
+        return Some("invalid://".to_owned());
+    };
+    let host = environment_value("DB_HOST").unwrap_or_else(|| "127.0.0.1".to_owned());
+    if url.set_host(Some(&host)).is_err() {
+        return Some("invalid://".to_owned());
+    }
+    let port = environment_value("DB_PORT").unwrap_or_else(|| default_port.to_string());
+    if port.parse::<u16>().is_err() || url.set_port(port.parse::<u16>().ok()).is_err() {
+        return Some("invalid://".to_owned());
+    }
+    if let Some(username) = environment_value("DB_USERNAME")
+        && url.set_username(&username).is_err()
+    {
+        return Some("invalid://".to_owned());
+    }
+    if let Some(password) = environment_value("DB_PASSWORD")
+        && url.set_password(Some(&password)).is_err()
+    {
+        return Some("invalid://".to_owned());
+    }
+    let database = environment_value("DB_DATABASE").unwrap_or_else(|| "openrust".to_owned());
+    if url
+        .path_segments_mut()
+        .map(|mut segments| {
+            segments.pop_if_empty();
+            segments.push(&database);
+        })
+        .is_err()
+    {
+        return Some("invalid://".to_owned());
+    }
+    Some(url.into())
+}
+
+fn conventional_redis_dsn() -> Option<String> {
+    const KEYS: [&str; 6] = [
+        "REDIS_HOST",
+        "REDIS_PASSWORD",
+        "REDIS_USERNAME",
+        "REDIS_PORT",
+        "REDIS_DB",
+        "REDIS_SCHEME",
+    ];
+    if !KEYS.iter().any(|key| std::env::var_os(key).is_some()) {
+        return None;
+    }
+
+    let scheme = environment_value("REDIS_SCHEME").unwrap_or_else(|| "redis".to_owned());
+    if !matches!(scheme.as_str(), "redis" | "rediss") {
+        return Some("invalid://".to_owned());
+    }
+    let Ok(mut url) = url::Url::parse(&format!("{scheme}://localhost")) else {
+        return Some("invalid://".to_owned());
+    };
+    let host = environment_value("REDIS_HOST").unwrap_or_else(|| "127.0.0.1".to_owned());
+    if url.set_host(Some(&host)).is_err() {
+        return Some("invalid://".to_owned());
+    }
+    let port = environment_value("REDIS_PORT").unwrap_or_else(|| "6379".to_owned());
+    if port.parse::<u16>().is_err() || url.set_port(port.parse::<u16>().ok()).is_err() {
+        return Some("invalid://".to_owned());
+    }
+    if let Some(username) = environment_value("REDIS_USERNAME")
+        && url.set_username(&username).is_err()
+    {
+        return Some("invalid://".to_owned());
+    }
+    if let Some(password) = environment_value("REDIS_PASSWORD")
+        .filter(|password| !password.eq_ignore_ascii_case("null"))
+        && url.set_password(Some(&password)).is_err()
+    {
+        return Some("invalid://".to_owned());
+    }
+    let database = environment_value("REDIS_DB").unwrap_or_else(|| "0".to_owned());
+    if database.parse::<u32>().is_err()
+        || url
+            .path_segments_mut()
+            .map(|mut segments| {
+                segments.pop_if_empty();
+                segments.push(&database);
+            })
+            .is_err()
+    {
+        return Some("invalid://".to_owned());
+    }
+    Some(url.into())
 }
 
 fn validate_namespace(namespace: &str) -> Result<(), ConfigError> {
@@ -417,36 +644,39 @@ mod tests {
     }
 
     #[test]
-    fn layers_override_in_order() {
+    fn domain_files_override_defaults_and_environment_files_are_ignored() {
         let _environment_guard = crate::lock_test_env();
         figment::Jail::expect_with(|jail| {
             jail.create_dir("config")?;
             jail.create_file(
-                "config/default.toml",
+                "config/server.toml",
                 "[server]\nport = 4000\nhost = \"0.0.0.0\"\npublic_dir = \"config-public\"\nroot_target = \"file:/home.html\"",
             )?;
             jail.create_file("config/test.toml", "[server]\nport = 5000")?;
-            jail.set_env("APP_SERVER__HOST", "10.0.0.1");
-            jail.set_env("APP_SERVER__PUBLIC_DIR", "env-public");
-            jail.set_env("APP_SERVER__ROOT_TARGET", "redirect:/welcome");
+            jail.set_env("APP_SERVER_HOST", "10.0.0.1");
+            jail.set_env("APP_SERVER_PUBLIC_DIR", "env-public");
+            jail.set_env("APP_SERVER_ROOT_TARGET", "redirect:/welcome");
+            jail.set_env("APP_NAME", "shop");
+            jail.set_env("APP_URL", "https://example.test");
 
             let loader = ConfigLoader::new("config", Environment::Test);
             let config = loader
                 .load_framework()
                 .map_err(|e| figment::Error::from(e.to_string()))?;
             assert_eq!(
-                config.server.port, 5000,
-                "environment file overrides default.toml"
+                config.server.port, 4000,
+                "domain TOML is loaded and environment-named TOML is ignored"
             );
             assert_eq!(config.server.host, "10.0.0.1", "env var overrides files");
             assert_eq!(config.server.public_dir, PathBuf::from("env-public"));
             assert_eq!(config.server.root_target, "redirect:/welcome");
+            assert_eq!(config.app.name, "shop");
+            assert_eq!(config.app.url, "https://example.test");
             assert_eq!(
                 config.app.env,
                 Environment::Test,
                 "env is pinned by the loader"
             );
-            assert_eq!(config.app.name, "OpenRust", "defaults fill missing keys");
             Ok(())
         });
     }
@@ -458,7 +688,7 @@ mod tests {
             jail.set_env(CONFIG_DIR_VAR, "");
             jail.clear_env();
             jail.create_dir("custom")?;
-            jail.create_file("custom/default.toml", "[server]\nport = 4321")?;
+            jail.create_file("custom/server.toml", "[server]\nport = 4321")?;
             jail.set_env(CONFIG_DIR_VAR, "custom");
             let loader = ConfigLoader::from_env()
                 .map_err(|error| figment::Error::from(error.to_string()))?;
@@ -482,7 +712,7 @@ mod tests {
             jail.set_env(CONFIG_DIR_VAR, "");
             jail.clear_env();
             jail.create_dir("config")?;
-            jail.create_file("config/default.toml", "[server]\nport = 4567")?;
+            jail.create_file("config/server.toml", "[server]\nport = 4567")?;
             let loader = ConfigLoader::from_env()
                 .map_err(|error| figment::Error::from(error.to_string()))?;
             assert_eq!(loader.config_dir(), Path::new("config"));
@@ -503,7 +733,7 @@ mod tests {
         let _environment_guard = crate::lock_test_env();
         figment::Jail::expect_with(|jail| {
             jail.create_dir("config")?;
-            jail.create_file("config/default.toml", "[server]\nport = \"not-a-port\"")?;
+            jail.create_file("config/server.toml", "[server]\nport = \"not-a-port\"")?;
             let error = ConfigLoader::new("config", Environment::Development)
                 .load_framework()
                 .err()
@@ -579,7 +809,7 @@ mod tests {
         let _environment_guard = crate::lock_test_env();
         figment::Jail::expect_with(|jail| {
             jail.create_dir("config")?;
-            jail.create_file("config/default.toml", "[api]\nhttp_status = \"semantic\"")?;
+            jail.create_file("config/api.toml", "[api]\nhttp_status = \"semantic\"")?;
             let loader = ConfigLoader::new("config", Environment::Test);
             assert_eq!(
                 FrameworkConfig::default().api.http_status,
@@ -593,7 +823,7 @@ mod tests {
                     .http_status,
                 HttpStatusMode::Semantic
             );
-            jail.set_env("APP_API__HTTP_STATUS", "always_ok");
+            jail.set_env("APP_API_HTTP_STATUS", "always_ok");
             assert_eq!(
                 loader
                     .load_framework()
@@ -602,7 +832,7 @@ mod tests {
                     .http_status,
                 HttpStatusMode::AlwaysOk
             );
-            jail.set_env("APP_API__HTTP_STATUS", "invalid");
+            jail.set_env("APP_API_HTTP_STATUS", "invalid");
             let error = loader
                 .load_framework()
                 .err()
@@ -655,7 +885,7 @@ mod tests {
         let _environment_guard = crate::lock_test_env();
         figment::Jail::expect_with(|jail| {
             jail.set_env(
-                "APP_SERVER__CORS__ALLOWED_ORIGINS",
+                "APP_SERVER_CORS_ALLOWED_ORIGINS",
                 "[\"https://example.com\", \"https://other.example\"]",
             );
             let config = ConfigLoader::new("missing-config", Environment::Test)
@@ -670,14 +900,11 @@ mod tests {
     }
 
     #[test]
-    fn conventional_variables_map_to_sections_and_prefixed_values_win() {
+    fn application_namespace_values_map_to_sections_and_override_defaults() {
         let _environment_guard = crate::lock_test_env();
         figment::Jail::expect_with(|jail| {
-            jail.set_env("DATABASE_URL", "postgres://common/database");
             jail.set_env("PORT", "4100");
             let loader = ConfigLoader::new("missing-config", Environment::Test);
-            let database: serde_json::Value = loader.figment().extract_inner("database")?;
-            assert_eq!(database["url"], "postgres://common/database");
             assert_eq!(
                 loader
                     .load_framework()
@@ -687,10 +914,13 @@ mod tests {
                 4100
             );
 
-            jail.set_env("APP_DATABASE__URL", "postgres://prefixed/database");
-            jail.set_env("APP_SERVER__PORT", "4200");
+            jail.set_env("APP_DATABASE_URL", "postgres://custom/database");
+            jail.set_env("APP_SERVER_PORT", "4200");
+            jail.set_env("APP_LOG_LEVEL", "debug");
             let database: serde_json::Value = loader.figment().extract_inner("database")?;
-            assert_eq!(database["url"], "postgres://prefixed/database");
+            assert_eq!(database["url"], "postgres://custom/database");
+            let log: serde_json::Value = loader.figment().extract_inner("log")?;
+            assert_eq!(log["level"], "debug");
             assert_eq!(
                 loader
                     .load_framework()
@@ -699,6 +929,73 @@ mod tests {
                     .port,
                 4200
             );
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn laravel_style_database_and_redis_variables_build_connection_urls() {
+        let _environment_guard = crate::lock_test_env();
+        figment::Jail::expect_with(|jail| {
+            jail.clear_env();
+            jail.set_env("DB_CONNECTION", "mysql");
+            jail.set_env("DB_HOST", "db.example.test");
+            jail.set_env("DB_DATABASE", "shop");
+            jail.set_env("DB_USERNAME", "app user");
+            jail.set_env("DB_PASSWORD", "p@ss:word");
+            jail.set_env("REDIS_HOST", "cache.example.test");
+            jail.set_env("REDIS_PASSWORD", "redis:secret");
+            jail.set_env("REDIS_PORT", "6380");
+            jail.set_env("REDIS_DB", "4");
+            jail.set_env("DB_TABLE_PREFIX", "shop_");
+            jail.set_env("REDIS_DEFAULT_STORE", "shared");
+            jail.set_env("MAIL_DRIVER", "smtp");
+            jail.set_env("MAIL_SMTP_HOST", "mail.example.test");
+            jail.set_env("SMS_DRIVER", "log");
+            jail.set_env("I18N_DEFAULT_LOCALE", "zh-CN");
+            #[cfg(feature = "queue")]
+            jail.set_env("QUEUE_DRIVER", "redis");
+
+            let loader = ConfigLoader::new("missing-config", Environment::Test);
+            let database: serde_json::Value = loader.figment().extract_inner("database")?;
+            let database_url = url::Url::parse(database["url"].as_str().unwrap_or_default())
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            assert_eq!(database_url.scheme(), "mysql");
+            assert_eq!(database_url.host_str(), Some("db.example.test"));
+            assert_eq!(database_url.path(), "/shop");
+            assert_eq!(database_url.username(), "app%20user");
+            assert_eq!(database_url.password(), Some("p%40ss%3Aword"));
+            assert_eq!(database["table_prefix"], "shop_");
+
+            let cache: serde_json::Value = loader.figment().extract_inner("cache")?;
+            let redis_url = url::Url::parse(
+                cache["stores"]["default"]["dsn"]
+                    .as_str()
+                    .unwrap_or_default(),
+            )
+            .map_err(|error| figment::Error::from(error.to_string()))?;
+            assert_eq!(redis_url.host_str(), Some("cache.example.test"));
+            assert_eq!(redis_url.port(), Some(6380));
+            assert_eq!(redis_url.path(), "/4");
+            assert_eq!(redis_url.password(), Some("redis%3Asecret"));
+            assert_eq!(cache["default_store"], "shared");
+            let mail: serde_json::Value = loader.figment().extract_inner("mail")?;
+            assert_eq!(mail["driver"], "smtp");
+            assert_eq!(mail["smtp_host"], "mail.example.test");
+            let sms: serde_json::Value = loader.figment().extract_inner("sms")?;
+            assert_eq!(sms["driver"], "log");
+            let i18n: serde_json::Value = loader.figment().extract_inner("i18n")?;
+            assert_eq!(i18n["default_locale"], "zh-CN");
+            #[cfg(feature = "queue")]
+            {
+                let queue: serde_json::Value = loader.figment().extract_inner("queue")?;
+                assert_eq!(queue["driver"], "redis");
+                let queue_url = url::Url::parse(queue["redis_url"].as_str().unwrap_or_default())
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                assert_eq!(queue_url.host_str(), Some("cache.example.test"));
+                assert_eq!(queue_url.path(), "/4");
+                assert_eq!(queue_url.password(), Some("redis%3Asecret"));
+            }
             Ok(())
         });
     }
@@ -726,12 +1023,12 @@ mod tests {
     fn custom_namespace_selects_config_dir_and_values_without_mixing_defaults() {
         let _environment_guard = crate::lock_test_env();
         figment::Jail::expect_with(|jail| {
-            jail.set_env("APP_SERVER__PORT", "4001");
-            jail.set_env("SHOP_SERVER__PORT", "4002");
+            jail.set_env("APP_SERVER_PORT", "4001");
+            jail.set_env("SHOP_SERVER_PORT", "4002");
             jail.set_env("SHOP_ENV", "test");
             jail.set_env("SHOP_CONFIG_DIR", "shop-config");
             jail.create_dir("shop-config")?;
-            jail.create_file("shop-config/default.toml", "[server]\nhost = \"0.0.0.0\"")?;
+            jail.create_file("shop-config/server.toml", "[server]\nhost = \"0.0.0.0\"")?;
 
             let loader = ConfigLoader::from_env_with_namespace("SHOP_")
                 .map_err(|error| figment::Error::from(error.to_string()))?;
@@ -750,12 +1047,12 @@ mod tests {
         let _environment_guard = crate::lock_test_env();
         figment::Jail::expect_with(|jail| {
             jail.set_env("SHOP_ENV", "");
-            jail.set_env("SHOP_SERVER__PORT", "");
-            jail.set_env("APP_SERVER__PORT", "");
+            jail.set_env("SHOP_SERVER_PORT", "");
+            jail.set_env("APP_SERVER_PORT", "");
             jail.clear_env();
             jail.create_file(
                 ".env",
-                "SHOP_ENV=test\nSHOP_SERVER__PORT=4999\nAPP_SERVER__PORT=4111\n",
+                "SHOP_ENV=test\nSHOP_SERVER_PORT=4999\nAPP_SERVER_PORT=4111\n",
             )?;
             let env = dotenv_environment("SHOP_")
                 .map_err(|error| figment::Error::from(error.to_string()))?;

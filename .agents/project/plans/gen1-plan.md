@@ -25,7 +25,7 @@ OpenRust 定位为 Rust 应用开发的“瑞士军刀”：以高性能为基�
 | --- | --- | --- |
 | 应用内核 | **自有内核，基于 axum + tower + tokio**（[ADR-001](../decisions/adr-001-own-kernel-on-axum.md)） | V1 按 Loco、Laravel、Goravel、OpenSpring 顺序综合评估；若依/芋道仅 V2。参考不等于依赖或完整复制，契约仍须自身验证 |
 | ORM | SeaORM 2.x + `sea-orm-migration`；公开 SeaORM connection 作为逃生口，SQLx 直连尚未实现（[ADR-002](../decisions/adr-002-seaorm-dual-database.md)） | 复用双库 ORM、迁移与实体生成；框架自己的方言及事务语义仍须双库验收 |
-| 数据库 | PostgreSQL 与 MySQL 同等正式支持；SQLite 不在 v1 版本 | 暂定最低支持 PostgreSQL 14+ / MySQL 8.0+ / Redis 6.2+；日常开发和 Compose 使用 PostgreSQL 18 / MySQL 8.4 LTS / Redis 8；常规 CI 使用 PostgreSQL 18 / MySQL 8.4，Redis 能力在 M5 落地后加入集成服务。运行时数据库版本检查已与暂定下限对齐。最低版本整体兼容性及 Redis 6.2+ 须在 v1 发布前按真实能力路径验证；只在跨度较大、涉及版本专属行为或存在明确兼容风险时增加其他专项验证 |
+| 数据库 | PostgreSQL 与 MySQL 为生产和集群正式基线；SQLite 是可选单机轻量后端，具体边界见 [ADR-066](../decisions/adr-066-optional-sqlite-backend.md) 与 [专项计划](v1-sqlite-backend.md) | 暂定最低支持 PostgreSQL 14+ / MySQL 8.0+ / Redis 6.2+；日常开发和 Compose 使用 PostgreSQL 18 / MySQL 8.4 LTS / Redis 8；常规 CI 使用 PostgreSQL 18 / MySQL 8.4，Redis 能力在 M5 落地后加入集成服务。SQLite 不替代服务型数据库，不默认启用；官方支持须完成配置、迁移、CLI、生成器、测试隔离和框架能力矩阵验收。最低版本整体兼容性及 Redis 6.2+ 须在 v1 发布前按真实能力路径验证；只在跨度较大、涉及版本专属行为或存在明确兼容风险时增加其他专项验证 |
 | 缓存 | 标准应用默认 Redis，memory/file 显式选择，库层 Redis feature 可选 | 单机与集群共用默认缓存方案；共享/原子语义仍按契约校验，默认值见 ADR-015；队列/会话仍默认数据库，见 ADR-013/ADR-014 |
 | 认证 | 前后端分离 API 默认使用 Bearer JWT access token + 可轮换 refresh token；通用 Cookie Session 显式可选；PAT 面向自动化集成；密码 Argon2id（[ADR-018](../decisions/adr-018-jwt-primary-authentication.md)） | 短期 access token 限制撤销窗口；需立即撤销时使用共享状态，集群不能依赖进程内 denylist |
 | 授权 | `Policy`、最小 roles/permissions、公开查询授权规则与可选租户隔离 | 通用机制按 [底层补齐](v1-foundation-completion.md) F5/F6；部门/岗位 DataScope、租户管理和套餐模型归 V2 |
@@ -36,7 +36,7 @@ OpenRust 定位为 Rust 应用开发的“瑞士军刀”：以高性能为基�
 | 存储 | OpenDAL；本地默认，S3 兼容为 `storage-s3` feature | 统一存储契约；只对实际接入并验证的后端承诺支持 |
 | 邮件 | lettre SMTP + log + fake driver | 密码重置与邮箱验证依赖邮件，必须进入 v1 版本 |
 | 短信 | 统一 `SmsSender`/`SmsDriver`、Twilio Messages REST、log / fake driver；真实账户发送需授权验收 | contract 与发送边界见 [ADR-033](../decisions/adr-033-sms-driver-and-template-contract.md) |
-| 模板 | 邮件安全 renderer/布局复用 Mailer、lettre 与同一 i18n；生成器支持应用模板覆盖 | F2/F3/F9 必交；SSR/静态 Starter 后续评估，不自建模板 DSL 或第二套发送系统 |
+| 模板 | 邮件安全 renderer/布局复用 Mailer、lettre 与同一 i18n；可选 `view` feature 复用 MiniJinja 服务端渲染；生成器支持应用模板覆盖 | F2/F3/F9 与基础视图入口交付；业务布局/组件体系不仿制完整 Laravel UI 栈，不自建模板 DSL 或第二套发送系统 |
 | 管理后台 / 插件市场 | 不在 v1 版本 | 由 `Plugin` 扩展模型承载第三方包，不做动态加载 |
 | 许可证与名称 | MIT OR Apache-2.0；workspace packages 为根 `openrust`、`cli`、`macros`、`testing`、`performance`，根 package 的 `server` bin 不构成独立 package，全部 package 禁用发布（ADR-005/039/062） | 整套源码 workspace 交付，内部名称按职责，不安排 crates.io 预留或发布 |
 | Rust 版本 | Edition 2024；MSRV 为当前 stable 减两个小版本 | 既用新语法，又给下游留升级窗口 |
@@ -49,7 +49,7 @@ OpenRust 定位为 Rust 应用开发的“瑞士军刀”：以高性能为基�
 | 项目生成器与模板（双库） | 管理后台 UI 与前端脚手架 |
 | 应用内核、Plugin、配置、生命周期、优雅停机 | 动态插件加载、插件市场 |
 | HTTP 路由约定、中间件栈、验证、统一响应包装、OpenAPI、WebSocket、SSE；gRPC 服务端/客户端及生成工具 | GraphQL、gRPC-Web 与自建服务治理控制面 |
-| 数据库连接池、迁移、seed、显式工厂/fixtures、事务、双库、读写分离、查询授权与可选租户隔离 | 更多数据库、分库分表与跨库事务 |
+| 数据库连接池、迁移、seed、显式工厂/fixtures、事务、PostgreSQL/MySQL 双库、可选 SQLite 单机后端、读写分离、查询授权与可选租户隔离 | 更多数据库、分库分表与跨库事务；SQLite 不提供集群共享语义 |
 | JWT/refresh、可选 Session/PAT、账号流程、Policy、外部 OAuth2/OIDC/SSO 客户端、TOTP/恢复码 | 独立 OAuth 授权服务器、Passkeys/SAML；部门/岗位业务 DataScope |
 | 队列、常用任务链/批处理、cron/IANA/DST 与有界补跑、进程内事件 | 外部消息总线、任意 DAG 工作流引擎 |
 | 缓存/锁/tag/SWR/同键加载、存储上传下载、邮件/SMS/薄通知、CSV/XLSX 通用数据交换 | 移动推送供应商、业务通知中心及数据交换 UI |
@@ -66,7 +66,7 @@ OpenRust 定位为 Rust 应用开发的“瑞士军刀”：以高性能为基�
 | 聚合启动入口 | 根 package 的 `server` bin 是开发/集成验证宿主，默认启动不装配所有外部依赖；从根目录直接 `cargo run`。 |
 | 统一入口与第三方扩展 | 按 [ADR-009](../decisions/adr-009-extensible-capability-drivers.md) 提供驱动契约、注册、配置、错误语义、示例与契约测试；用独立适配示例检查第三方是否需要修改框架 |
 | 基础读写分离 | v1 数据层增补已实现：默认单库、显式只读副本轮询、事务固定主库及 task-local 主库 scope；故障不自动回退。PostgreSQL 18.6 / MySQL 8.4.13 真实复制验收见 [专题计划](v1-database-read-write-splitting.md)；完整集群另行验收 |
-| 数据库可扩展 | M2 集中后端及方言差异；v1 正式交付仍为 PostgreSQL/MySQL。明确 SeaORM 边界，不承诺任意数据库或数据模型直接替换 |
+| 数据库可扩展 | M2 集中后端及方言差异；PostgreSQL/MySQL 是生产和集群基线，SQLite 按 ADR-066 作为可选单机轻量后端交付。明确 SeaORM 边界，不承诺任意数据库或数据模型直接替换 |
 | 缓存可替换 | M5 交付统一 `Cache` 与 default/named store、可注册 driver；标准应用默认 Redis（ADR-015），memory/file 显式选择，库层 Redis feature 可选；契约测试验证 TTL、序列化、错误及原子能力边界。标准应用开发编排按默认配置启用 Redis |
 | 邮件与短信 | M3 提供发送、模板、供应商扩展与本地/测试路径；M4 接入队列化发送；真实适配和验收按 [短信决策](../decisions/adr-011-sms-and-communication-baseline.md) |
 | 高性能且按需启用 | 能力通过 feature 按需组合；在明确硬件、并发、数据规模及依赖环境下记录吞吐、延迟分位数与资源占用，评估中间件和驱动开销，不以微基准推断整体性能 |
@@ -119,7 +119,7 @@ openrust queue work
 | M3 邮件、短信、认证与授权 | `openrust::sms`（log / fake / Twilio REST，contract 见 ADR-033；真实供应商实发需授权）、`openrust::mail`（SMTP / log / fake / 本地 Mailpit）、`openrust::auth`（用户约定、Argon2id、JWT access/refresh、可选 Session 与 PAT、`CurrentUser`、注册 / 登录 / 登出 / 密码重置 / 邮箱验证、Policy、角色权限、登录限流）、`openrust::audit`（ADR-035）、`openrust::signing`（ADR-036）、`generate mailer` / `generate policy`，国际化、出站 HTTP、加密与密钥 | Twilio 协议、log/fake 与 Mailpit SMTP 验证；认证/签名/审计、生成器双库项目 check/test 与 HTTP 流程通过。真实供应商短信实发需授权账号与目标；HTTP 限流与数据输出/查询边界均已实现并验证；跨 M3/M4/M5 业务流程扩展点按 todo.md 继续补齐 |
 | M4 队列、调度与事件 | `openrust::queue`（database driver、重试退避、`failed_jobs`、`queue work`、调度器与锁、`schedule run` / `schedule list`）、`openrust::events`、队列化邮件与短信、`generate job`，请求幂等、事务一致性、锁、常用任务编排与薄通知层（按专题计划） | 任务失败 → 重试 → 失败表 → 手动重试成功；多副本调度不重复；worker 停机不丢任务；两库皆验证 |
 | M5 共享基础设施、通信与可观测性 | 首先按 ADR-009 补齐插件公开契约与独立 consumer，再分别闭合 Db/Queue 外部扩展；`openrust::cache`（标准应用默认 Redis、显式 memory/file、库层 Redis feature 可选；driver/store contract 见 ADR-014）、`openrust::storage`（local / s3）、JSON 日志、请求 ID、`/ready`、`otel` / `metrics` feature、panic 捕获、WebSocket/SSE、gRPC G1–G3、上传下载、跨协议验证/调用作用域、出站策略与生产运行/迁移协调（按专题计划） | gRPC 四类真实调用、TLS/认证/流资源、生成项目及双节点；三驱动基础契约测试；file 临时目录验证；Redis 真实集成验证；扩展示例只用公开契约；S3 兼容路径用 MinIO 集成验证；`/ready` 依赖超时正确报告 |
-| M6 开发者体验与 v1 发布 | 插件模板/只读诊断/兼容与升级验收；mdBook 文档站（Diátaxis、迁移对照页、`coming-from-axum`）、`apps/example` 综合黄金路径示例、Dockerfile / compose 模板、`routes` / `config show` / 只读 `doctor` / `db status` / 显式 `db reset`、`generate` / `g`（`scaffold`、`controller`、`model`、`migration`、`job`、`mailer`、`policy`、`command`）与快照测试、`testing` `TestApp` / HTTP response assertions、源码基线 API 兼容性检查、新手走查、v1 正式发布 | 新开发者获取完整源码后按文档从生成 apps 到部署在 30 分钟内完成且不读框架源码；本文件验收原则全部达标；发布动作由开发者执行 |
+| M6 开发者体验与 v1 发布 | 插件模板/只读诊断/兼容与升级验收；mdBook 文档站（Diátaxis、迁移对照页、`coming-from-axum`）、`apps/example` 综合黄金路径示例、Dockerfile / compose 模板、`routes` / `config show` / 只读 `doctor` / `db status` / 显式 `db reset`、`generate` / `g`（`scaffold`、`controller`、`model`、`migration`、`job`、`mailer`、`policy`、`command`）与快照测试、`testing` `TestApp` / HTTP response assertions、基础服务端视图模板（按 ADR-069）、SQLite 可选单机后端（按 ADR-066）、源码基线 API 兼容性检查、新手走查、v1 正式发布 | 新开发者获取完整源码后按文档从生成 apps 到部署在 30 分钟内完成且不读框架源码；服务端视图 feature、生成项目与 `apps/example` 首页通过独立验收；SQLite 生成项目与框架能力矩阵通过专项验收；本文件验收原则全部达标；发布动作由开发者执行 |
 
 F1–F3 接入 M4，F4–F8 接入 M5，F9/F10 接入 M6；详尽依赖和验收由底层补齐计划维护，实际领取顺序只在 `todo.md`。
 

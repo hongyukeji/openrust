@@ -25,7 +25,8 @@ impl MigratorTrait for CoordinationMigrator {
 #[cfg(feature = "cache-redis")]
 async fn cache_app_with_shared_locks(db: Db) -> Result<openrust::App, Box<dyn std::error::Error>> {
     use figment::{Figment, providers::Format};
-    let dsn = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379/".to_owned());
+    let dsn = std::env::var("OPENRUST_TEST_REDIS_URL")
+        .unwrap_or_else(|_| "redis://127.0.0.1:6379/".to_owned());
     let figment = Figment::new().merge(figment::providers::Toml::string(&format!(
         "[cache]\ndefault_store='default'\n[cache.stores.default]\ndriver='redis'\nnamespace='coordination-swr'\ndsn='{dsn}'\n"
     )));

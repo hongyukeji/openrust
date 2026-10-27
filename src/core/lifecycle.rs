@@ -1,6 +1,6 @@
 //! 引导启动顺序与关闭信号。
 //!
-//! [`bootstrap`] 按以下顺序执行：非生产环境加载 `.env`、加载配置、初始化 `tracing`、
+//! [`bootstrap`] 按以下顺序执行：加载 `.env`、加载配置、初始化 `tracing`、
 //! 提取应用自身的配置、调用 [`Application`] 构建插件、运行每个插件的 `build`、
 //! 冻结构建器，最后运行每个插件的 `finish`。
 
@@ -173,9 +173,7 @@ fn bootstrap_config_loader(namespace: &str) -> Result<ConfigLoader> {
     } else {
         config::dotenv_environment(namespace)?
     };
-    if !env.is_production() {
-        config::load_dotenv();
-    }
+    config::load_dotenv_for_bootstrap()?;
     Ok(ConfigLoader::from_environment_with_namespace(
         env, namespace,
     )?)
@@ -321,14 +319,15 @@ mod tests {
 
     // 每个闭包执行后，Jail 会恢复工作目录和进程环境。
     #[test]
-    fn production_bootstrap_ignores_dotenv() {
+    fn production_bootstrap_loads_dotenv_without_overriding_process_environment() {
         let _environment_guard = crate::lock_test_env();
         figment::Jail::expect_with(|jail| {
             jail.set_env("APP_ENV", "");
-            jail.set_env("APP_SERVER__PORT", "");
+            jail.set_env("APP_SERVER_PORT", "");
             jail.clear_env();
-            jail.create_file(".env", "APP_ENV=test\nAPP_SERVER__PORT=4999\n")?;
+            jail.create_file(".env", "APP_ENV=test\nAPP_SERVER_PORT=4999\n")?;
             jail.set_env("APP_ENV", "production");
+            jail.set_env("APP_SERVER_PORT", "4001");
             let loader = bootstrap_config_loader("APP_")
                 .map_err(|error| figment::Error::from(error.to_string()))?;
             assert_eq!(loader.environment(), Environment::Production);
@@ -338,33 +337,53 @@ mod tests {
                     .map_err(|error| figment::Error::from(error.to_string()))?
                     .server
                     .port,
-                3000
+                4001
             );
             Ok(())
         });
     }
 
     #[test]
-    fn dotenv_selected_production_does_not_load_other_keys() {
+    fn dotenv_selected_production_loads_other_keys() {
         let _environment_guard = crate::lock_test_env();
         figment::Jail::expect_with(|jail| {
             jail.set_env("APP_ENV", "");
-            jail.set_env("APP_SERVER__PORT", "");
+            jail.set_env("APP_SERVER_PORT", "");
             jail.clear_env();
-            jail.create_file(".env", "APP_ENV=production\nAPP_SERVER__PORT=4999\n")?;
+            jail.create_file(".env", "APP_ENV=production\nAPP_SERVER_PORT=4999\n")?;
             let loader = bootstrap_config_loader("APP_")
                 .map_err(|error| figment::Error::from(error.to_string()))?;
             assert_eq!(loader.environment(), Environment::Production);
-            assert!(std::env::var("APP_ENV").is_err());
-            assert!(std::env::var("APP_SERVER__PORT").is_err());
+            assert_eq!(std::env::var("APP_ENV").as_deref(), Ok("production"));
+            assert_eq!(std::env::var("APP_SERVER_PORT").as_deref(), Ok("4999"));
             assert_eq!(
                 loader
                     .load_framework()
                     .map_err(|error| figment::Error::from(error.to_string()))?
                     .server
                     .port,
-                3000
+                4999
             );
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn malformed_dotenv_fails_without_exposing_its_contents() {
+        let _environment_guard = crate::lock_test_env();
+        figment::Jail::expect_with(|jail| {
+            jail.clear_env();
+            jail.create_file(
+                ".env",
+                "APP_ENV=production\nSECRET_VALUE=do-not-leak\nINVALID LINE",
+            )?;
+            let Err(error) = bootstrap_config_loader("APP_") else {
+                return Err(figment::Error::from("格式错误的 .env 不应启动成功"));
+            };
+            let message = error.to_string();
+            assert!(message.contains(".env"));
+            assert!(!message.contains("do-not-leak"));
+            assert!(!message.contains("INVALID LINE"));
             Ok(())
         });
     }
@@ -375,9 +394,9 @@ mod tests {
         figment::Jail::expect_with(|jail| {
             // 在 dotenvy 设置键值前记录两个键，确保 Jail 能恢复其原始值。
             jail.set_env("APP_ENV", "");
-            jail.set_env("APP_SERVER__PORT", "");
+            jail.set_env("APP_SERVER_PORT", "");
             jail.clear_env();
-            jail.create_file(".env", "APP_ENV=test\nAPP_SERVER__PORT=4999\n")?;
+            jail.create_file(".env", "APP_ENV=test\nAPP_SERVER_PORT=4999\n")?;
             let loader = bootstrap_config_loader("APP_")
                 .map_err(|error| figment::Error::from(error.to_string()))?;
             assert_eq!(loader.environment(), Environment::Test);

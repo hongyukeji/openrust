@@ -201,7 +201,7 @@ pub fn build_router(app: &App) -> Result<Router> {
                 )
             })
             .with_state(app.state().clone());
-        crate::http::site::mount(app_router, &app.config().server)
+        crate::http::site::mount(app_router, &app.config().server, app.state().clone())
     }))
     .map_err(|_| {
         Error::custom_with_status(

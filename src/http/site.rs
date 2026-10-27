@@ -8,6 +8,8 @@ use axum::body::Body;
 use axum::extract::{Request, State};
 use axum::http::{Method, StatusCode, Uri};
 use axum::response::{IntoResponse, Redirect, Response};
+#[cfg(feature = "view")]
+use serde::Serialize;
 use tower::ServiceExt;
 use tower_http::services::{ServeDir, ServeFile};
 
@@ -19,6 +21,14 @@ enum RootTarget {
     File(PathBuf),
     Forward(String),
     Redirect(String),
+    #[cfg(feature = "view")]
+    View(String),
+}
+
+#[cfg(feature = "view")]
+#[derive(Serialize)]
+struct RootContext<'a> {
+    app_name: &'a str,
 }
 
 pub(crate) fn validate_config(public_dir: &Path, target: &str) -> Result<()> {
@@ -49,9 +59,32 @@ fn parse_target(value: &str) -> Result<RootTarget> {
             validate_redirect_target(target)?;
             Ok(RootTarget::Redirect(target.to_owned()))
         }
+        "view" => {
+            #[cfg(feature = "view")]
+            {
+                if target.is_empty()
+                    || target.starts_with('/')
+                    || Path::new(target)
+                        .components()
+                        .any(|component| !matches!(component, Component::Normal(_)))
+                {
+                    Err(invalid_config(
+                        "server.root_target",
+                        "view target must be a relative template name",
+                    ))
+                } else {
+                    Ok(RootTarget::View(target.to_owned()))
+                }
+            }
+            #[cfg(not(feature = "view"))]
+            Err(invalid_config(
+                "server.root_target",
+                "view target requires the `view` feature and ViewPlugin",
+            ))
+        }
         _ => Err(invalid_config(
             "server.root_target",
-            "supported modes are file, forward and redirect",
+            "supported modes are file, forward, redirect and view",
         )),
     }
 }
@@ -112,14 +145,33 @@ fn invalid_config(key: &str, reason: &str) -> Error {
     crate::config::ConfigError::Invalid(format!("{key} {reason}")).into()
 }
 
-pub(crate) fn mount(router: Router, config: &ServerConfig) -> Result<Router> {
+pub(crate) fn mount(router: Router, config: &ServerConfig, state: AppState) -> Result<Router> {
+    #[cfg(not(feature = "view"))]
+    drop(state);
     validate_config(&config.public_dir, &config.root_target)?;
     let target = parse_target(&config.root_target)?;
+    #[cfg(feature = "view")]
+    let views = if let RootTarget::View(name) = &target {
+        let views = state.get::<crate::view::Views>().ok_or_else(|| {
+            invalid_config(
+                "server.root_target",
+                "view target requires the `view` feature and ViewPlugin",
+            )
+        })?;
+        views.validate_template(name)?;
+        Some(views)
+    } else {
+        None
+    };
     let public_dir = config.public_dir.clone();
     let service = tower::service_fn(move |request: Request| {
         let router = router.clone();
         let target = target.clone();
         let public_dir = public_dir.clone();
+        #[cfg(feature = "view")]
+        let views = views.clone();
+        #[cfg(feature = "view")]
+        let state = state.clone();
         async move {
             if request.uri().path() == "/"
                 && matches!(*request.method(), Method::GET | Method::HEAD)
@@ -145,6 +197,27 @@ pub(crate) fn mount(router: Router, config: &ServerConfig) -> Result<Router> {
                     }
                     RootTarget::Redirect(target) => {
                         return Ok(Redirect::temporary(&target).into_response());
+                    }
+                    #[cfg(feature = "view")]
+                    RootTarget::View(name) => {
+                        let Some(views) = views else {
+                            return Ok(invalid_config(
+                                "server.root_target",
+                                "view renderer is unavailable",
+                            )
+                            .into_response());
+                        };
+                        return Ok(
+                            match views.render(
+                                &name,
+                                &RootContext {
+                                    app_name: &state.config().app.name,
+                                },
+                            ) {
+                                Ok(response) => response.into_response(),
+                                Err(error) => error.into_response(),
+                            },
+                        );
                     }
                 }
             }

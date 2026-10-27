@@ -23,7 +23,7 @@
 | 对象 | 规则 | 示例 |
 | --- | --- | --- |
 | 主框架与内部工具包 | 根 `openrust` 内按 module 划分；独立工具 package 统一位于 `tools/` 并与末级目录同名，所有 package 显式 `publish = false` | `tools/cli/` → `cli`、`tools/macros/` → `macros`、`tools/testing/` → `testing`、`tools/performance/` → `performance` |
-| 仓库内应用 | `apps/<name>`，包名使用应用职责名，`publish = false`；业务依赖本地 workspace | `apps/` 只放开发者业务应用；框架示例宿主位于根 `src/main.rs`，二进制目标名为 `server` |
+| 仓库内应用 | `apps/<name>`，包名使用应用职责名，`publish = false`；业务依赖本地 workspace | 根 `apps/mod.rs` 可显式组合根宿主业务模块；生成的 `apps/<name>/` 是独立 package。唯一 `server` binary 入口位于根 `src/main.rs` |
 | driver 类型 | `<Backend><Capability>` | `RedisCache`、`DatabaseQueue` |
 | 配置结构 | `<Capability>Config` | `QueueConfig` |
 | 错误类型 | `<Capability>Error` | `QueueError` |
@@ -44,9 +44,9 @@
 
 ### 能力接入根集成宿主
 
-- 每个已实现的新能力在同一功能簇内按需接入根 package 宿主 `src/app.rs`，并在根 `tests/server/` 补聚合集成测试；这是能力完成定义的一部分。
+- 每个已实现的新能力在同一功能簇内按需接入根 package 的 `apps/mod.rs` 宿主组合，并在根 `tests/server/` 补聚合集成测试；`src/main.rs` 只负责启动。
 - 无需外部服务的默认能力可直接装配；加密等需要显式密钥的可选能力仍按 feature/config 启用。外部服务能力须验证 feature 转发、插件/迁移注册及实际运行入口，不以声明 feature 代替装配。
-- 当前 `server` 正式依赖只包含 `openrust`，不承载业务资源；启动、feature 组合与集成验收均由根 package 承载。
+- 当前默认 `server` 只承载框架验证路由；源码 workspace 使用者可在 `apps/` 显式增加业务模块。启动、feature 组合与集成验收均由根 package 承载。
 
 ### 起名前三问
 
@@ -77,9 +77,9 @@ v1 新增通用机制的范围与验收以 [底层补齐计划](plans/v1-foundat
 | 资源动作 | `list` / `get` / `create` / `update` / `delete` | `Action::List` |
 | CLI 子命令 | 空格嵌套，kebab-case，不用冒号 | `db seed`、`config show` |
 | 生成器 | `generate <kind>`，别名 `g` | `openrust g scaffold post title:string` |
-| 环境变量 | 应用默认 `APP_ENV` / `APP_<SECTION>__<KEY>`，启动前可定制命名空间（ADR-016）；同时识别 `DATABASE_URL` / `REDIS_URL` / `PORT` | `APP_SERVER__PORT=8080` |
-| 配置文件 | `config/default.toml`、`config/{env}.toml`，格式为 TOML | — |
-| 本地敏感配置 | `.env` 仅作本地/非生产环境覆盖；提交 `.env.example` 占位模板，所有 `.env` 与 `.env.*` 默认忽略，例外仅为 `*.example`；不要把真实凭据写入被跟踪配置文件 | `cp .env.example .env` |
+| 环境变量 | 应用配置使用 Laravel 风格扁平名称，应用环境值以 `APP_` 开头；数据库、Redis、队列、邮件、短信和国际化使用各自领域前缀；`PORT` 为监听端口简写 | `DB_CONNECTION=postgres`、`REDIS_HOST=127.0.0.1`、`APP_SERVER_PORT=8080`、`APP_LOG_LEVEL=info` |
+| 配置文件 | 按领域命名的 TOML，如 `config/app.toml`、`config/database.toml`、`config/cache.toml`；环境差异写入 `.env` | — |
+| 敏感配置文件 | 所有环境可使用 `.env`，生产使用时限制文件权限且不得放在公开目录中；提交 `.env.example` 占位模板，所有 `.env` 与 `.env.*` 默认忽略，例外仅为 `*.example`；不要把真实凭据写入被跟踪配置文件 | `cp .env.example .env` |
 | 项目元数据 | 写入 `[package.metadata.openrust]` | 不另建元数据文件 |
 | 生成项目目录 | `controllers/`、`models/`（含 `_entities/`）、`services/`、`policies/`、`jobs/`、`events/`、`mailers/`、`middleware/`，按实际能力生成，外加 `src/seed.rs`、`migration/` crate；本地化邮件复用 i18n catalog | 见 ADR-006 §1 |
 | 邮件与队列 | `Email`；`Job::NAME` / `Job::handle(&self, JobContext) -> BoxFuture<'_, Result<()>>` | 现有公开入口；见 ADR-006 §4 与 ADR-037 |
@@ -105,11 +105,11 @@ cargo deny check
 | 文档-only | `git diff --check` + 相对链接检查 + `rg` 旧路径扫描 |
 | 生成项目模板 | 双库模板快照测试；检查真实 `.env` / `.env.*` 忽略且 `.env.example` 可跟踪，生成项目后 `cargo check` + `cargo test` |
 
-测试原则：框架是底层通用机制，每个公共行为都应有单元或集成测试；新建测试文件前必须能一句话说清它能发现哪个缺陷。能力 fake 可随该模块的 `test-util` 暴露；通用测试组合工具放在 `testing`，不得为目录统一引入根 package 对测试包的反向依赖。分目录迁移测试时核对 Cargo targets 和运行用例，避免子目录文件未被编译执行。
+测试原则：只保留能发现真实回归、保护公共契约/安全边界/数据一致性/故障恢复，或验证跨模块与外部服务集成的高价值测试。按风险和独立行为选测试，不要求每个函数、字段或简单分支各写一例；相同输入、断言和失败原因的重复测试应合并。新增测试前须能用一句话说明它能发现的具体缺陷及为何现有测试发现不了；测试数量与覆盖率不是目标。能力 fake 可随该模块的 `test-util` 暴露；通用测试组合工具放在 `testing`，不得为目录统一引入根 package 对测试包的反向依赖。分目录迁移测试时核对 Cargo targets 和运行用例，避免子目录文件未被编译执行。
 
 ### 构建产物与临时资源
 
-- 本节适用于开发者与 AI Agent。同一功能簇内可复用构建缓存，但不能等到功能簇收尾才首次检查空间：开始任一构建前、每个构建/测试命令结束后及长验证矩阵的每个阶段边界，都要检查仓库内所有 `target/` 总量和所在磁盘剩余空间，并在验收记录注明结果。仓库全部 `target/` 软上限为 10 GiB、硬上限为 20 GiB；所在磁盘可用空间低于总量 30% 为软告警，低于 5% 为硬告警。发现软告警时先停止继续扩展验证矩阵，检查并清理确认归属本任务的临时产物；若本仓库 target 非空，结束当前命令后立即完整清理，再评估能否运行下一条必要的定向门禁。达到硬告警时不启动任何新构建，包括定向测试；先停止本任务构建、确认无并发使用者并清理本仓库完整 target，只有磁盘余量恢复到 5% 以上才可继续。磁盘容量不会因清空仓库 target 恢复到软阈值时，暂停构建并报告，不能删除仓库外或归属不明的数据。每个功能簇验证结束后仍须执行 `cargo clean --dry-run` 复核再 `cargo clean`，清空可再生产物；临时源码副本和独立示例的 target 单独核算、单独清理。每次清理后记录实际回收量、仓库 target 总量及磁盘剩余空间。不得等磁盘耗尽或 target 达硬上限才处理；清理失败/被占用时说明路径和原因，不因此重跑整组测试。开发者操作入口见 [贡献指南](../../CONTRIBUTING.md#构建空间管理)。
+- 本节适用于开发者与 AI Agent。同一功能簇内可复用构建缓存，但不能等到功能簇收尾才首次检查空间：开始任一构建前、每个构建/测试命令结束后及长验证矩阵的每个阶段边界，都要检查仓库内所有 `target/` 总量和所在磁盘剩余空间，并在验收记录注明结果。仓库全部 `target/` 软上限为 20 GiB、硬上限为 30 GiB；所在磁盘可用空间低于总量 10% 为软告警，低于 5% 为硬告警。发现软告警时先停止继续扩展验证矩阵，检查并清理确认归属本任务的临时产物；若本仓库 target 非空，结束当前命令后立即完整清理，再评估能否运行下一条必要的定向门禁。达到硬告警时不启动任何新构建，包括定向测试；先停止本任务构建、确认无并发使用者并清理本仓库完整 target，只有磁盘余量恢复到 5% 以上才可继续。磁盘容量不会因清空仓库 target 恢复到软阈值时，暂停构建并报告，不能删除仓库外或归属不明的数据。每个功能簇验证结束后仍须执行 `cargo clean --dry-run` 复核再 `cargo clean`，清空可再生产物；临时源码副本和独立示例的 target 单独核算、单独清理。每次清理后记录实际回收量、仓库 target 总量及磁盘剩余空间。不得等磁盘耗尽或 target 达硬上限才处理；清理失败/被占用时说明路径和原因，不因此重跑整组测试。开发者操作入口见 [贡献指南](../../CONTRIBUTING.md#构建空间管理)。
 - 临时生成应用、干净源码副本及其 target 放在任务专属临时目录，记录创建归属，成功、失败或取消时均回收。诊断需要暂留时说明路径和保留原因；不得删除其他任务的目录。临时源码验证默认不把 `CARGO_TARGET_DIR` 指向仓库共享 target，避免一次性包名与 feature 组合长期堆积。
 - `cargo clean` 只清理当前仓库配置的 Cargo target，不清理 Cargo 下载缓存；清理后下一次构建会重新编译。仓库 target 仅在当前功能簇的多轮门禁之间复用；达到软告警时不得继续堆叠验证任务，功能簇结束后必须清理，不能长期保留。清理前复核范围并记录回收量。
 - 删除前检查真实路径、符号链接、Git 跟踪状态和任务归属，确认目标只含生成数据；检查 Cargo、rustc、rustdoc 及关联构建进程。清理共享目录时还须使用已验证与当前 Cargo 兼容的构建锁，持锁期间保留锁文件；无法取得锁或发现其他使用者时延后，不能只凭一次进程快照判断安全。锁文件是否存在不代表锁是否被占用。

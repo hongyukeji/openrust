@@ -260,12 +260,12 @@ fn serve_process_exits_successfully_after_sigterm() -> TestResult {
         drop(reservation);
         let mut child = ChildGuard(
             Command::new(env!("CARGO_BIN_EXE_server"))
-                .env("APP_SERVER__HOST", "127.0.0.1")
-                .env("APP_SERVER__PORT", port.to_string())
-                .env("APP_SERVER__SHUTDOWN_TIMEOUT_SECS", "2")
-                .env("APP_SECURITY__ENCRYPTION__ACTIVE_KEY_ID", "test")
+                .env("APP_SERVER_HOST", "127.0.0.1")
+                .env("APP_SERVER_PORT", port.to_string())
+                .env("APP_SERVER_SHUTDOWN_TIMEOUT_SECS", "2")
+                .env("APP_SECURITY_ENCRYPTION_ACTIVE_KEY_ID", "test")
                 .env(
-                    "APP_SECURITY__ENCRYPTION__KEYS__TEST",
+                    "APP_SECURITY_ENCRYPTION_KEYS_TEST",
                     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
                 )
                 .stdout(Stdio::null())
@@ -338,12 +338,12 @@ fn metrics_scrape_is_served_over_tcp_only_when_explicitly_enabled() -> TestResul
         drop(reservation);
         let mut child = ChildGuard(
             Command::new(env!("CARGO_BIN_EXE_server"))
-                .env("APP_SERVER__HOST", "127.0.0.1")
-                .env("APP_SERVER__PORT", port.to_string())
-                .env("APP_SERVER__METRICS_ENDPOINT_ENABLED", "true")
-                .env("APP_SECURITY__ENCRYPTION__ACTIVE_KEY_ID", "test")
+                .env("APP_SERVER_HOST", "127.0.0.1")
+                .env("APP_SERVER_PORT", port.to_string())
+                .env("APP_SERVER_METRICS_ENDPOINT_ENABLED", "true")
+                .env("APP_SECURITY_ENCRYPTION_ACTIVE_KEY_ID", "test")
                 .env(
-                    "APP_SECURITY__ENCRYPTION__KEYS__TEST",
+                    "APP_SECURITY_ENCRYPTION_KEYS_TEST",
                     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
                 )
                 .stdout(Stdio::null())
@@ -515,12 +515,12 @@ fn config_show_runs_and_redacts_secrets() -> TestResult {
     command
         .args(["config", "show"])
         .current_dir(env!("CARGO_MANIFEST_DIR"))
-        .env("APP_API__TOKEN", "server-secret-value");
+        .env("APP_API_TOKEN", "server-secret-value");
     #[cfg(feature = "encryption")]
     command
-        .env("APP_SECURITY__ENCRYPTION__ACTIVE_KEY_ID", "local")
+        .env("APP_SECURITY_ENCRYPTION_ACTIVE_KEY_ID", "local")
         .env(
-            "APP_SECURITY__ENCRYPTION__KEYS__LOCAL",
+            "APP_SECURITY_ENCRYPTION_KEYS_LOCAL",
             "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=",
         );
     let output = command.output()?;

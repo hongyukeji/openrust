@@ -17,6 +17,7 @@ impl Application for Example {
             .plugin(openrust::cache::CachePlugin)
             .plugin(MailerPlugin)
             .plugin(SmsPlugin)
+            .plugin(openrust::view::ViewPlugin)
             .plugin(DatabasePlugin)
             .plugin(openrust::auth::JwtPlugin::new())
             .plugin(openrust::auth::AuthPlugin::new())

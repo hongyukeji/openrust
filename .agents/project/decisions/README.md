@@ -33,6 +33,7 @@
 | [065 框架路由入口与数据模块分层](adr-065-root-routing-and-data-module-layout.md) | Accepted | 路由装配实现位于 `src/routes.rs` 并沿用 RouteRegistry/Tower 扩展；数据交换源码位于 `src/data/exchange/`，旧 API 路径兼容 |
 | [066 SQLite 轻量数据库后端完整支持](adr-066-optional-sqlite-backend.md) | Accepted（计划中，未实现） | v1 完整支持适用于单机语义的通用能力；“可选”指应用可选择该后端；SQLite 不承担集群共享语义；验收见专项计划 |
 | [068 API 命名空间与静态站点根路由](adr-068-api-namespace-and-static-site-root.md) | Accepted | 业务 API `/api/*`、WebSocket `/ws/*`；配置化公开目录与根路由，默认 `public/index.html` |
+| [069 服务端视图模板](adr-069-server-rendered-views.md) | Accepted | 可选 MiniJinja `view` feature、`views/` 模板与 `view:` 首页；`public/` 仍提供静态资源 |
 | [023 应用扩展与体验](adr-023-loco-application-experience-evaluation.md) | Partially Superseded | doctor/TestApp 有效；停机未决项由 037 命令 supervisor 定稿 |
 | [029 读写路由](adr-029-database-read-routing.md) | Accepted | 显式副本、主库 scope；不实现复制/选主 |
 | [030 模块化配置](adr-030-modular-configuration.md) | Accepted | Rust 配置代码与运行时 config 分离；单一 ConfigLoader/.env 规则 |

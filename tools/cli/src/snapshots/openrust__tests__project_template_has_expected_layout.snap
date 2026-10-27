@@ -11,7 +11,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-openrust = { workspace = true, features = ["cache-redis"] }
+openrust = { workspace = true, features = ["cache-redis", "view"] }
 
 --- .gitignore ---
 /target/
@@ -38,39 +38,30 @@ openrust = { workspace = true, features = ["cache-redis"] }
   </body>
 </html>
 
+--- views/index.html ---
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>blog</title>
+    <link rel="stylesheet" href="/assets/site.css">
+  </head>
+  <body>
+    <main>
+      <h1>blog</h1>
+      <p>应用首页模板位于 <code>views/index.html</code>。静态资源放在 <code>public/</code>。</p>
+      <p><a href="/api">查看 API</a></p>
+    </main>
+  </body>
+</html>
 
---- config/default.toml ---
+--- config/app.toml ---
 [app]
 name = "blog"
 url = "http://localhost:3000"
 
-[server]
-host = "127.0.0.1"
-port = 3000
-public_dir = "public"
-root_target = "file:/index.html"
-request_timeout_secs = 30
-shutdown_timeout_secs = 10
-trusted_proxy_ranges = []
-
-[server.compression]
-enabled = true
-
-[server.cors]
-enabled = false
-
-[api]
-http_status = "always_ok"
-
-[i18n]
-default_locale = "en"
-fallback_locale = "en"
-
-[mail]
-driver = "log"
-
-[sms]
-driver = "log"
+--- config/cache.toml ---
 
 [cache]
 default_store = "default"
@@ -88,17 +79,30 @@ loader_timeout_secs = 30
 [cache.swr]
 max_in_flight_refreshes = 64
 
-[session]
-secure = true
-http_only = true
-same_site = "lax"
-ttl_secs = 1209600
+--- config/server.toml ---
 
-# 可选的独立数据库实例不会继承 [database] 配置：
-# [database.instances.analytics]
-# url = "postgres://user:password@host/database"
-# max_connections = 4
-# table_prefix = "analytics_"
+[server]
+host = "127.0.0.1"
+port = 3000
+public_dir = "public"
+root_target = "view:index.html"
+request_timeout_secs = 30
+max_concurrent_requests = 1024
+shutdown_timeout_secs = 10
+metrics_endpoint_enabled = false
+trusted_proxy_ranges = []
+
+[server.compression]
+enabled = true
+
+[server.cors]
+enabled = false
+
+--- config/i18n.toml ---
+
+[i18n]
+default_locale = "en"
+fallback_locale = "en"
 
 --- src/main.rs ---
 //! 应用程序入口。
@@ -126,6 +130,7 @@ impl Application for Blog {
 
     fn build(app: &mut AppBuilder) {
         app.plugin(HttpPlugin)
+            .plugin(openrust::view::ViewPlugin)
             .plugin(I18nPlugin::default())
             .plugin(openrust::cache::CachePlugin)
             .plugin(MailerPlugin)
@@ -146,23 +151,6 @@ async fn root() -> Json<std::collections::BTreeMap<&'static str, &'static str>> 
         "name",
         env!("CARGO_PKG_NAME"),
     )]))
-}
-
---- tests/application.rs ---
-fn manifest_declares_package_name(manifest: &str, package_name: &str) -> bool {
-    for line in manifest.lines() {
-        if line == format!("name = \"{package_name}\"") {
-            return true;
-        }
-    }
-    false
-}
-
-#[test]
-fn application_package_is_generated() {
-    let manifest = include_str!("../Cargo.toml");
-    let package_name = env!("CARGO_PKG_NAME");
-    assert!(manifest_declares_package_name(manifest, package_name));
 }
 
 --- AGENTS.md ---

@@ -1,0 +1,3 @@
+[view]
+directory = "views"
+auto_reload = false

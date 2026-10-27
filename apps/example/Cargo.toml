@@ -6,7 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-openrust = { workspace = true, features = ["cache-redis", "db-postgres", "auth", "http-client", "encryption", "grpc", "queue"] }
+openrust = { workspace = true, features = ["cache-redis", "db-postgres", "auth", "http-client", "encryption", "grpc", "queue", "view"] }
 openrust-migration = { package = "example-migration", path = "migration" }
 tonic = { workspace = true }
 tonic-prost = { workspace = true }

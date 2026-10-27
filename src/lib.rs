@@ -41,6 +41,8 @@ pub mod tenant;
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 pub mod testing;
 pub mod validation;
+#[cfg(feature = "view")]
+pub mod view;
 
 #[cfg(feature = "auth")]
 pub mod auth;

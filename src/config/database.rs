@@ -8,7 +8,7 @@ use serde::Deserialize;
 #[derive(Clone, Deserialize)]
 #[serde(default)]
 pub struct DatabaseConfig {
-    /// 数据库连接 URL。`DATABASE_URL` 和 `APP_DATABASE__URL` 均映射到此字段。
+    /// 数据库连接 URL；可由 `DB_*` 分项设置生成，也可通过配置文件或 `APP_DATABASE_URL` 指定。
     pub url: Option<String>,
     /// 可选的只读副本 URL。每个副本使用与主库相同的连接池限制。
     pub read_replicas: Vec<String>,

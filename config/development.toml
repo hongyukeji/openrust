@@ -1,7 +1,0 @@
-# 开发环境使用 default.toml 中的默认值。
-[app]
-
-[session]
-secure = false
-
-[server]

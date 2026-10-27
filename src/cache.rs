@@ -2147,8 +2147,8 @@ mod tests {
     #[cfg(feature = "cache-redis")]
     #[tokio::test]
     async fn redis_store_roundtrips_ttl_on_live_service() -> Result<()> {
-        let dsn =
-            std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379/".to_owned());
+        let dsn = std::env::var("OPENRUST_TEST_REDIS_URL")
+            .unwrap_or_else(|_| "redis://127.0.0.1:6379/".to_owned());
         let config = CacheDriverConfig {
             store_name: "integration".into(),
             namespace: format!("test:{}", std::process::id()),

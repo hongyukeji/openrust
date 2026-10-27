@@ -1,6 +1,6 @@
 # 数据库
 
-`DatabaseConfig` 定义于 `openrust::config::database`，并从 `openrust::database` 重新导出。运行时配置保存在生成应用根目录的 `config/`；本地凭据可放入 `.env`，部署环境的秘密应通过进程环境变量提供。生产启动时会忽略 `.env`。
+`DatabaseConfig` 定义于 `openrust::config::database`，并从 `openrust::database` 重新导出。运行时配置保存在生成应用根目录的 `config/`；数据库凭据可放入受保护的 `.env` 或由部署环境注入，进程环境变量优先。生产使用 `.env` 时须限制文件权限，并确保应用根目录不作为静态公开目录。
 
 OpenRust 框架的数据库模块。
 
@@ -13,7 +13,7 @@ OpenRust 框架的数据库模块。
 openrust = { version = "0.0.0", features = ["db-postgres"] }
 ```
 
-将 `DATABASE_URL` 或 `APP_DATABASE__URL` 设置为 PostgreSQL 或 MySQL 连接 URL。连接池默认最多 10 个连接、最少 1 个连接，连接超时为 5 秒，获取连接超时为 30 秒。可在 `[database]` 中覆盖这些值，也可使用 `APP_DATABASE__MAX_CONNECTIONS`、`MIN_CONNECTIONS`、`CONNECT_TIMEOUT_SECS` 和 `ACQUIRE_TIMEOUT_SECS`。应用使用自定义命名空间时，将 `APP_` 替换为 `Application::config_namespace()` 返回的前缀。
+数据库连接默认使用 `DB_CONNECTION`、`DB_HOST`、`DB_PORT`、`DB_DATABASE`、`DB_USERNAME` 和 `DB_PASSWORD`，表前缀使用 `DB_TABLE_PREFIX`。驱动名采用 `postgres` 或 `mysql`，连接信息会在加载时组装为驱动 URL。需要完整 URL 时可在 `[database].url` 或 `APP_DATABASE_URL` 中设置。连接池默认最多 10 个连接、最少 1 个连接，连接超时为 5 秒，获取连接超时为 30 秒。可在 `[database]` 中覆盖这些值，也可使用 `APP_DATABASE_MAX_CONNECTIONS`、`APP_DATABASE_MIN_CONNECTIONS`、`APP_DATABASE_CONNECT_TIMEOUT_SECS` 和 `APP_DATABASE_ACQUIRE_TIMEOUT_SECS`。
 
 框架管理的表默认使用 `tb_` 前缀。设置 `table_prefix` 可更改前缀（空字符串表示不使用前缀）；也可以将指定的逻辑表名映射为完整物理表名：
 

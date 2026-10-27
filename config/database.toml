@@ -1,0 +1,2 @@
+[database]
+table_prefix = "tb_"

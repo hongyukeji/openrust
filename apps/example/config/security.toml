@@ -1,0 +1,8 @@
+[security.signed_links]
+issuer = "http://localhost:3000"
+active_key_id = "local"
+keys = {}
+
+[security.encryption]
+active_key_id = "local"
+keys = {}

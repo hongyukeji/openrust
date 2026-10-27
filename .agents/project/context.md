@@ -9,7 +9,7 @@
 | 项 | 值 |
 | --- | --- |
 | 版本 | 0.0.0（源码开发版本；整套 workspace 交付，不独立发布 Cargo 包） |
-| 阶段 | 原 M0–M2 基础范围和 M3 本地认证/安全运行时验收已完成；M4 队列/worker、UTC 调度、活动任务唯一键、有限任务链/批次、ADR-042 共享锁/请求幂等、worker 停机修正及 F1 cron/IANA/DST/有限补跑均已交付。Worker 停机、日历调度和队列化通知已在 PostgreSQL 18/MySQL 8.4 真实服务专项验收；F2 国际化与 F3 安全邮件模板已完成。M4 job 生成与集成收口、M5 通用插件公开契约、Db/Queue 外部扩展契约、跨协议校验/调用作用域及 HTTP 有界运行/就绪切换均已完成；SQLite 自定义 SeaORM consumer 已实测连接、应用迁移及提交/回滚，独立自定义 QueueDriver consumer 已实测派发与 typed Job 执行。ADR-044 按 PostgreSQL 18 与 MySQL 8.4 完成队列 metadata round-trip、任务组继承、migration 与 crash-recovery targets；HTTP 通过真实 TCP readiness/drain/SIGTERM 及 all-features 进程启动验收，workspace 默认/all-features 门禁通过，M5 缓存基础 driver 与命名 store 已完成真实 Redis、生成项目和 workspace 门禁验收；F4a tag generation、F4b 单进程加载合并和 F4c stale-while-revalidate 已完成适用验收；命名数据库连接实例已完成双库验收，Redis Session 驱动已通过真实 Redis 验收，显式同步任务执行已按 ADR-043 明确边界并通过无数据库验收；ADR-046 Redis Queue 已通过真实 Redis 8.10.2、多连接强杀恢复与 Redis-only server 接入验收。ADR-047 查询授权、ADR-048 有界分批和 ADR-049 迁移互斥均完成 PostgreSQL 18/MySQL 8.4 真实验收及对应独立/多进程测试，ADR-050 存储与上传下载已完成 local/custom driver、真实 TCP 与 MinIO S3 专项和 workspace 门禁；ADR-051 出站目标策略已通过受控 DNS 和真实 TCP 验收；ADR-052 命名依赖韧性已通过 loopback TCP、取消/队列/熔断恢复和 workspace 门禁；ADR-053 OIDC 与 ADR-054 TOTP/恢复码子簇均已通过适用验收；F7 双应用 SSO/统一退出与 F6-A/F6-B 租户隔离均已完成相应验收；F8-A/F8-B 已完成并有 workspace、consumer 与双库任务验收；gRPC G1 基础/生成已通过 workspace、真实 TCP、生成项目与独立 consumer 验收，G2a TLS/mTLS、G2b JWT/PAT/Policy 身份/错误映射与 G2c 调用预算/资源/health/reflection/有界停机均已验收；G3a HTTP/RPC 联合运行、G3b proto/trace 兼容及 G3c 双节点 HTTP/2 路由均已完成真实 TCP、Envoy 双节点与 workspace 验收。生产负载与完整集群仍待最终门禁，Twilio 实发待授权。完成定义见 progress.md，不将阶段标签等同于全部交付 |
+| 阶段 | v1 处于 M5 收尾：M3/M4 与多数 M5 功能簇已有对应验收记录；当前工作是可观测性、生产资源验证和 M6 最终门禁。具体交付及未完成项以 [progress.md](progress.md)、[todo.md](todo.md) 和 [plan.md](plan.md) 为准；完整集群、性能及生产门禁尚未完成 |
 | 仓库 | `https://github.com/hongyukeji/openrust`（公开，默认分支 `main`，已推送）；本地 `/Users/Home/Codes/Rust/openrust` |
 | 协作模式 | 单开发者 + AI Agent；Claude 负责方案与设计，Codex 负责实现与验证 |
 | 本机工具链 | Rust stable 1.99.1（默认）与 Rust 1.97.0 MSRV（`rustup`），`cargo-deny` 0.20 已安装 |
@@ -25,8 +25,8 @@
 - 应用中性命名按 [ADR-016](decisions/adr-016-neutral-application-namespaces.md)：默认环境变量 `APP_`（`Application::config_namespace()` 允许启动前定制，core/bootstrap 已实现），默认表前缀 `tb_`，支持自定义/空前缀和显式全名映射；数据库 resolver 已贯通连接、迁移、TestDatabase 与认证 SQL，并经 PostgreSQL/MySQL 验证。旧品牌前缀不能作为新设计 contract。
 - 本地数据库、缓存等基础服务验证必须先检查并复用现有且版本/配置/连通性合适的服务（包括 Docker 容器和本机服务）；当前开发目标为 PostgreSQL 18、MySQL 8.4 LTS、Redis 8。只有没有合适服务，或现有服务确实无法用于本项测试时，才创建隔离的临时服务。优先用 `TestDatabase`、独立测试库/数据做隔离；不得为方便而重复创建服务，也不得擅自停止、删除、重建或改动已有容器、卷、数据和配置。新建临时服务时使用独立 Compose project 与必要的隔离端口，结束后只清理本任务明确创建且确认无其他使用者的资源。
 - OpenRust 核心目录按 [ADR-021](decisions/adr-021-loco-style-module-layout.md)、[ADR-062](decisions/adr-062-root-server-entry.md) 与 [ADR-063](decisions/adr-063-explicit-app-module-registry.md) 已完成收敛：根 `src/` 放框架 modules 与唯一 `server` 启动入口，根 `apps/mod.rs` 显式注册源码 workspace 宿主的 Rust 业务模块；`apps/<name>/` 生成项目仍是独立 Cargo package。根 `tests/` 验证公共 API 和集成宿主，`apps/example/` 放综合示例，`tests/consumers/` 放独立验收项目。裸 `cargo run` 与真实 `/health` smoke 已通过；工具包、测试、配置与基准迁移验收见 [迁移 Spec](plans/module-layout-migration-spec.md)。
-- 生成项目中的运行时配置文件在项目根 `config/`；Rust 配置代码放 `src/config/` 模块目录，建议以 `mod.rs` 为入口，按复杂度拆分，不将 TOML/YAML 文件置于 `src/`。
-- 配置类型按实际能力位于 `openrust::config` 的各子模块（清单见 core/core.md），由唯一 `ConfigLoader` 加载；旧 auth/database/mail 类型路径通过 re-export 保持。生成项目提供 `.env.example`；`.env` 仅供非生产本地覆盖，外部进程变量优先，production 不读取 `.env`。
+- 生成项目中的运行时配置文件按领域命名并放项目根 `config/`（如 `app.toml`、`cache.toml`）；环境值和密钥使用 `.env` 或进程环境变量。Rust 配置代码放 `src/config/`，不将 TOML/YAML 放入 `src/`。
+- 配置类型按实际能力位于 `openrust::config` 的各子模块（清单见 core/core.md），由唯一 `ConfigLoader` 加载；旧 auth/database/mail 类型路径通过 re-export 保持。根宿主与生成项目提供 `.env.example`；所有环境均可加载应用工作目录的 `.env`，进程环境变量优先，文件错误安全失败；生产部署限制文件权限，且不得将含 `.env` 的应用根目录公开为静态站点。
 
 - [AI模型平台](plans/ai-model-platform.md) 是唯一 AI 项目计划，集中维护范围、插件交付与工程验收。只有用户明确要求开发且框架成熟门禁满足后才启动；使用 `projects/ai-model-platform` 与一个独立 worktree，直接包含网关源码并以本地依赖接入；当前不创建实现、分支或环境。完成框架 V1/V2 或通用插件机制不构成开工许可。
 

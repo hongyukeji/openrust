@@ -19,7 +19,7 @@ pub enum QueueDriverKind {
 pub struct QueueConfig {
     /// 持久化任务后端；默认使用应用数据库。
     pub driver: QueueDriverKind,
-    /// Redis 队列连接 URL；仅 Redis 后端使用，建议由 `APP_QUEUE__REDIS_URL` 注入。
+    /// Redis 队列连接 URL；仅 Redis 后端使用，默认由共享的 `REDIS_*` 连接设置生成。
     pub redis_url: Option<String>,
     /// Redis 队列键隔离命名空间；仅 Redis 后端使用。
     pub redis_namespace: Option<String>,

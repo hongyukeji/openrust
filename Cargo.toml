@@ -260,6 +260,11 @@ name = "http_router"
 path = "tests/http/router.rs"
 
 [[test]]
+name = "http_view"
+path = "tests/http/view.rs"
+required-features = ["view"]
+
+[[test]]
 name = "auth"
 path = "tests/server/auth/routes.rs"
 
@@ -403,6 +408,7 @@ queue-redis = ["queue", "dep:redis"]
 signing = ["dep:base64", "dep:jsonwebtoken"]
 mail-smtp = ["lettre/smtp-transport", "lettre/tokio1-rustls-tls"]
 mail-templates = ["dep:minijinja"]
+view = ["dep:minijinja", "minijinja/loader"]
 http-client = ["dep:reqwest", "dep:ipnet", "dep:httpdate"]
 auth-oidc = ["auth", "http-client", "encryption", "dep:oauth2"]
 auth-mfa = ["auth", "encryption", "dep:hmac", "dep:sha1", "dep:subtle"]

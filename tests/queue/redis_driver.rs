@@ -76,7 +76,8 @@ impl Job for CrashJob {
 }
 
 fn redis_url() -> String {
-    std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379/".to_owned())
+    std::env::var("OPENRUST_TEST_REDIS_URL")
+        .unwrap_or_else(|_| "redis://127.0.0.1:6379/".to_owned())
 }
 
 fn namespace(label: &str) -> String {
@@ -240,7 +241,7 @@ async fn redis_queue_recovers_a_task_after_its_worker_process_is_killed() -> Res
         .arg("--nocapture")
         .env("OPENRUST_REDIS_CRASH_CHILD", "1")
         .env("OPENRUST_REDIS_CRASH_NAMESPACE", &namespace)
-        .env("REDIS_URL", redis_url())
+        .env("OPENRUST_TEST_REDIS_URL", redis_url())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
