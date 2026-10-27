@@ -9,8 +9,6 @@ use openrust::prelude::*;
 /// 仓库根目录的默认集成宿主。
 pub(crate) struct Server;
 
-pub(crate) mod home;
-
 impl Application for Server {
     type Config = NoConfig;
 
@@ -26,6 +24,6 @@ impl Application for Server {
         let app = app.plugin(openrust::security::EncryptionPlugin);
         #[cfg(feature = "storage-local")]
         let app = app.plugin(openrust::storage::StoragePlugin);
-        app.routes(home::register);
+        app.routes(openrust::routes::framework_routes);
     }
 }

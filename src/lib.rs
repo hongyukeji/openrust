@@ -9,7 +9,10 @@ pub mod cache;
 pub mod config;
 pub mod core;
 #[cfg(feature = "data-exchange")]
-pub mod data_exchange;
+pub mod data;
+/// 数据交换能力的兼容入口；新代码可使用 [`data::exchange`]。
+#[cfg(feature = "data-exchange")]
+pub use data::exchange as data_exchange;
 pub mod db;
 pub mod events;
 #[cfg(feature = "grpc")]
@@ -23,6 +26,7 @@ pub mod notifications;
 pub mod queue;
 #[cfg(feature = "realtime")]
 pub mod realtime;
+pub mod routes;
 #[cfg(feature = "grpc")]
 pub mod runtime;
 #[cfg(feature = "queue")]

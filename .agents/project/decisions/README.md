@@ -1,7 +1,7 @@
 # 架构决策索引
 
 > 受众：AI Agent
-> 更新：2026-10-26
+> 更新：2026-10-27
 > 摘要：快速定位有效 contract 与替代关系。ADR 接受表示设计成立，不等于能力已实现或验证。
 
 ## 使用规则
@@ -30,6 +30,7 @@
 | [062 根目录统一启动入口](adr-062-root-server-entry.md) | Partially Superseded | 根唯一 `server` bin 与 Cargo 入口有效；应用模块注册由 063 补充 |
 | [063 显式业务模块注册](adr-063-explicit-app-module-registry.md) | Accepted | 根 `src/main.rs` 单一启动；根宿主在 `apps/mod.rs` 静态声明并注册业务模块，不扫描或动态加载 |
 | [064 统一示例应用与验收 consumer 收纳](adr-064-canonical-example-application.md) | Accepted | 用户示例统一到 `apps/example/`；独立 consumer/拓扑验收收纳到 `tests/consumers/`；保留编译期显式注册 |
+| [065 框架路由入口与数据模块分层](adr-065-root-routing-and-data-module-layout.md) | Accepted | 路由装配实现位于 `src/routes.rs` 并沿用 RouteRegistry/Tower 扩展；数据交换源码位于 `src/data/exchange/`，旧 API 路径兼容 |
 | [023 应用扩展与体验](adr-023-loco-application-experience-evaluation.md) | Partially Superseded | doctor/TestApp 有效；停机未决项由 037 命令 supervisor 定稿 |
 | [029 读写路由](adr-029-database-read-routing.md) | Accepted | 显式副本、主库 scope；不实现复制/选主 |
 | [030 模块化配置](adr-030-modular-configuration.md) | Accepted | Rust 配置代码与运行时 config 分离；单一 ConfigLoader/.env 规则 |
