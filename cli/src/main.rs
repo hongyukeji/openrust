@@ -53,6 +53,9 @@ enum Builtin {
         /// 启用应用数据加密和密钥轮换。
         #[arg(long)]
         encryption: bool,
+        /// 启用 gRPC feature 并生成 Protobuf 编译入口。
+        #[arg(long)]
+        grpc: bool,
     },
     /// 以开发模式运行应用。
     Dev,
@@ -314,6 +317,7 @@ fn run(cli: Cli) -> anyhow::Result<ExitCode> {
             http_client,
             sms_twilio,
             encryption,
+            grpc,
         }) => {
             create_project_with_mfa(
                 &name,
@@ -323,6 +327,7 @@ fn run(cli: Cli) -> anyhow::Result<ExitCode> {
                 http_client,
                 sms_twilio,
                 encryption,
+                grpc,
                 &std::env::current_dir()?,
             )?;
             Ok(ExitCode::SUCCESS)
@@ -384,6 +389,7 @@ fn create_project(
         http_client,
         sms_twilio,
         encryption,
+        false,
         current_dir,
     )
 }
@@ -401,6 +407,7 @@ fn create_project_with_mfa(
     http_client: bool,
     sms_twilio: bool,
     encryption: bool,
+    grpc: bool,
     current_dir: &Path,
 ) -> anyhow::Result<()> {
     if auth && database.is_none() {
@@ -443,6 +450,7 @@ fn create_project_with_mfa(
         http_client,
         sms_twilio,
         encryption,
+        grpc,
     );
     if result.is_err() {
         let _ = fs::remove_dir_all(&project_dir);
@@ -567,6 +575,7 @@ fn populate_project(
         http_client,
         sms_twilio,
         encryption,
+        false,
     )
 }
 
@@ -586,6 +595,7 @@ fn populate_project_with_mfa(
     http_client: bool,
     sms_twilio: bool,
     encryption: bool,
+    grpc: bool,
 ) -> anyhow::Result<()> {
     if auth_mfa && (!auth || database.is_none() || !encryption) {
         bail!("MFA requires authentication, a database and encryption");
@@ -610,18 +620,32 @@ fn populate_project_with_mfa(
     if database.is_some() {
         fs::create_dir_all(project_dir.join("migration/src"))?;
     }
+    if grpc {
+        fs::create_dir_all(project_dir.join("proto"))?;
+    }
 
     let mut files = vec![
         (
             "Cargo.toml",
-            cargo_manifest(name, database, auth, http_client, sms_twilio, encryption, auth_mfa),
+            cargo_manifest(
+                name, database, auth, http_client, sms_twilio, encryption, auth_mfa, grpc,
+            ),
         ),
         (
             ".gitignore",
             include_str!("../templates/.gitignore").to_owned(),
         ),
         (".env.example", env_example(name, database, auth, encryption)),
-        ("config/default.toml", default_config(name, auth, encryption)),
+        (
+            "config/default.toml",
+            {
+                let mut config = default_config(name, auth, encryption);
+                if grpc {
+                    config.push_str("\n[grpc]\nlisten_addr = \"127.0.0.1:50051\"\n");
+                }
+                config
+            },
+        ),
         (
             "config/development.toml",
             include_str!("../templates/config/development.toml").to_owned(),
@@ -634,7 +658,7 @@ fn populate_project_with_mfa(
             "config/production.toml",
             "[app]\nname = \"{{name}}\"\n".replace("{{name}}", name),
         ),
-        ("src/main.rs", main_source(crate_name, database)),
+        ("src/main.rs", main_source(crate_name, database, grpc)),
         ("src/app.rs", app_source(crate_name, database, auth, encryption, auth_mfa)),
         ("src/routes.rs", routes_source(auth, auth_mfa)),
         ("src/schedule.rs", "//! 应用调度。\n".to_owned()),
@@ -684,6 +708,26 @@ fn populate_project_with_mfa(
             ("migration/src/lib.rs", migration_lib(auth, auth_mfa)),
         ]);
     }
+    if grpc {
+        let proto_package = name.replace('-', "_");
+        files.extend([
+            (
+                "build.rs",
+                "fn main() -> Result<(), Box<dyn std::error::Error>> {\n    println!(\"cargo:rerun-if-changed=proto/echo.proto\");\n    let mut config = tonic_prost_build::Config::new();\n    config.protoc_executable(protoc_bin_vendored::protoc_bin_path()?);\n    tonic_prost_build::configure().compile_with_config(\n        config,\n        &[\"proto/echo.proto\"],\n        &[\"proto\"],\n    )?;\n    Ok(())\n}\n"
+                    .to_owned(),
+            ),
+            (
+                "proto/echo.proto",
+                "syntax = \"proto3\";\n\npackage {{package}}.v1;\n\nmessage EchoRequest {\n  string value = 1;\n}\n\nmessage EchoResponse {\n  string value = 1;\n}\n\nservice Echo {\n  rpc Unary(EchoRequest) returns (EchoResponse);\n}\n"
+                    .replace("{{package}}", &proto_package),
+            ),
+            (
+                "src/grpc.rs",
+                "//! 应用的 gRPC Protobuf 类型。\n\npub mod echo {\n    tonic::include_proto!(\"{{package}}.v1\");\n}\n"
+                    .replace("{{package}}", &proto_package),
+            ),
+        ]);
+    }
     for (relative_path, contents) in files {
         fs::write(project_dir.join(relative_path), contents)
             .with_context(|| format!("failed to write {relative_path}"))?;
@@ -710,6 +754,7 @@ fn auth_test_template(crate_name: &str, encryption: bool, auth_mfa: bool) -> Str
 
 #[allow(
     clippy::fn_params_excessive_bools,
+    clippy::too_many_arguments,
     reason = "feature flags map directly to the public generator options"
 )]
 fn cargo_manifest(
@@ -720,6 +765,7 @@ fn cargo_manifest(
     sms_twilio: bool,
     encryption: bool,
     auth_mfa: bool,
+    grpc: bool,
 ) -> String {
     let mut manifest = include_str!("../templates/Cargo.toml").replace("{{name}}", name);
     {
@@ -742,13 +788,21 @@ fn cargo_manifest(
         if auth_mfa {
             features.push("auth-mfa");
         }
-        let dependency = if database.is_some() {
+        if grpc {
+            features.push("grpc");
+        }
+        let mut dependency = if database.is_some() {
             format!(
                 "openrust = {{ workspace = true, features = {features:?} }}\nopenrust-migration = {{ package = \"{name}-migration\", path = \"migration\" }}"
             )
         } else {
             format!("openrust = {{ workspace = true, features = {features:?} }}")
         };
+        if grpc {
+            dependency.push_str(
+                "\ntonic = { workspace = true }\ntonic-prost = { workspace = true }\nprost = { workspace = true }",
+            );
+        }
         manifest = manifest.replace("openrust = { workspace = true }", &dependency);
     }
     if auth {
@@ -762,6 +816,11 @@ fn cargo_manifest(
                 ),
             );
         }
+    }
+    if grpc {
+        manifest.push_str(
+            "\n[build-dependencies]\ntonic-prost-build = { workspace = true }\nprotoc-bin-vendored = { workspace = true }\n",
+        );
     }
     manifest
 }
@@ -975,9 +1034,15 @@ async fn auth_mfa_recovery_codes(
     .to_owned()
 }
 
-fn main_source(crate_name: &str, database: Option<DatabaseBackend>) -> String {
+fn main_source(crate_name: &str, database: Option<DatabaseBackend>, grpc: bool) -> String {
     let database_module = if database.is_some() { "mod seed;" } else { "" };
-    let source = include_str!("../templates/src/main.rs").replace("{{type_name}}", crate_name);
+    let grpc_module = if grpc { "mod grpc;" } else { "" };
+    let mut source = include_str!("../templates/src/main.rs")
+        .replace("{{type_name}}", crate_name)
+        .replace("{{grpc_module}}", grpc_module);
+    if !grpc {
+        source = source.replace("\n\nfn main", "\nfn main");
+    }
     if database_module.is_empty() {
         source.replace("{{database_module}}\n", "")
     } else {
@@ -2189,7 +2254,7 @@ mod tests {
     #[test]
     fn generated_manifest_matches_starter_template() {
         insta::assert_snapshot!(cargo_manifest(
-            "my-app", None, false, false, false, false, false
+            "my-app", None, false, false, false, false, false, false
         ));
     }
 
@@ -2214,6 +2279,7 @@ mod tests {
             .to_string();
         assert!(new_help.contains("添加数据库认证能力"));
         assert!(new_help.contains("Twilio 短信驱动"));
+        assert!(new_help.contains("Protobuf"));
 
         let generate_help = command
             .find_subcommand_mut("generate")
@@ -2227,15 +2293,54 @@ mod tests {
 
     #[test]
     fn generated_manifest_enables_requested_http_client_feature() {
-        let manifest = cargo_manifest("my-app", None, false, true, false, false, false);
+        let manifest = cargo_manifest("my-app", None, false, true, false, false, false, false);
         assert!(manifest.contains("\"cache-redis\""));
         assert!(manifest.contains("\"http-client\""));
         assert!(Cli::try_parse_from(["openrust", "new", "blog", "--http-client"]).is_ok());
     }
 
     #[test]
+    fn grpc_project_template_generates_proto_build_without_global_protoc() {
+        assert!(Cli::try_parse_from(["openrust", "new", "blog", "--grpc"]).is_ok());
+        let root = std::env::temp_dir().join(format!("openrust-cli-grpc-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("create temporary test directory");
+        let project = root.join("blog");
+        populate_project_with_mfa(
+            &project,
+            "grpc-demo",
+            "GrpcDemo",
+            None,
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+        )
+        .expect("generate gRPC project");
+
+        let manifest =
+            fs::read_to_string(project.join("Cargo.toml")).expect("read generated manifest");
+        assert!(manifest.contains("\"grpc\""));
+        assert!(manifest.contains("tonic-prost-build = { workspace = true }"));
+        assert!(manifest.contains("protoc-bin-vendored = { workspace = true }"));
+        assert!(project.join("build.rs").is_file());
+        assert!(project.join("proto/echo.proto").is_file());
+        assert!(project.join("src/grpc.rs").is_file());
+        let proto =
+            fs::read_to_string(project.join("proto/echo.proto")).expect("read generated Protobuf");
+        assert!(proto.contains("package grpc_demo.v1;"));
+        let config = fs::read_to_string(project.join("config/default.toml"))
+            .expect("read generated gRPC configuration");
+        assert!(config.contains("[grpc]"));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn generated_manifest_enables_twilio_sms_feature() {
-        let manifest = cargo_manifest("my-app", None, false, false, true, false, false);
+        let manifest = cargo_manifest("my-app", None, false, false, true, false, false, false);
         assert!(manifest.contains("\"cache-redis\""));
         assert!(manifest.contains("\"sms-twilio\""));
         assert!(Cli::try_parse_from(["openrust", "new", "blog", "--sms-twilio"]).is_ok());
@@ -2243,7 +2348,7 @@ mod tests {
 
     #[test]
     fn generated_manifest_and_project_enable_application_encryption() {
-        let manifest = cargo_manifest("my-app", None, false, false, false, true, false);
+        let manifest = cargo_manifest("my-app", None, false, false, false, true, false, false);
         assert!(manifest.contains("\"cache-redis\""));
         assert!(manifest.contains("\"encryption\""));
         assert!(Cli::try_parse_from(["openrust", "new", "blog", "--encryption"]).is_ok());
@@ -2541,6 +2646,7 @@ mod tests {
                 false,
                 false,
                 true,
+                false,
             )
             .expect("generate MFA project");
             let manifest = fs::read_to_string(project.join("Cargo.toml"))

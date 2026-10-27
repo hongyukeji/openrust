@@ -1,0 +1,24 @@
+[package]
+name = "grpc-example"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+license = "MIT OR Apache-2.0"
+publish = false
+build = "build.rs"
+
+[workspace]
+
+[dependencies]
+openrust = { path = "../..", version = "0.0.0", features = ["grpc"] }
+prost = "0.14"
+tonic = { version = "~0.14.6", default-features = false, features = ["codegen", "router", "transport"] }
+tonic-prost = "~0.14.6"
+tokio = { version = "1.54", features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
+tokio-stream = { version = "0.1", features = ["net"] }
+futures-util = "0.3"
+figment = "0.10"
+
+[build-dependencies]
+tonic-prost-build = "~0.14.6"
+protoc-bin-vendored = "~3.3.0"

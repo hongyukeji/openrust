@@ -27,6 +27,7 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - run: cargo test --workspace --all-features
+      - run: cargo run --locked --manifest-path examples/grpc/Cargo.toml
       - run: cargo test -p server --features queue-redis --test queue_redis
         env:
           REDIS_URL: redis://127.0.0.1:6379/
@@ -46,6 +47,7 @@ jobs:
       - run: cargo check --workspace --all-targets --all-features
       - run: cargo run --locked --manifest-path examples/db-custom-sqlite/Cargo.toml
       - run: cargo run --locked --manifest-path examples/queue-custom-driver/Cargo.toml
+      - run: cargo check --locked --manifest-path examples/grpc/Cargo.toml
 
   deny:
     name: licenses and advisories

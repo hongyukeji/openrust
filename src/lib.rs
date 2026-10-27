@@ -12,6 +12,8 @@ pub mod core;
 pub mod data_exchange;
 pub mod db;
 pub mod events;
+#[cfg(feature = "grpc")]
+pub mod grpc;
 pub mod http;
 pub mod i18n;
 pub mod mail;

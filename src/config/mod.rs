@@ -27,6 +27,8 @@ pub mod app;
 pub mod auth;
 pub mod cache;
 pub mod database;
+#[cfg(feature = "grpc")]
+pub mod grpc;
 pub mod logger;
 pub mod mailer;
 #[cfg(feature = "queue")]
@@ -43,6 +45,8 @@ pub use app::{AppConfig, Environment};
 pub use auth::{JwtConfig, PasswordConfig, SessionConfig};
 pub use cache::{CacheConfig, CacheSingleflightConfig, CacheStoreConfig, CacheSwrConfig};
 pub use database::{DatabaseConfig, DatabaseInstanceConfig};
+#[cfg(feature = "grpc")]
+pub use grpc::GrpcConfig;
 pub use logger::{LogConfig, LogFormat};
 pub use mailer::MailConfig;
 #[cfg(feature = "queue")]
@@ -173,6 +177,9 @@ pub struct FrameworkConfig {
     pub log: LogConfig,
     /// `I18nPlugin` 使用的 `[i18n]` locale 默认值。
     pub i18n: crate::i18n::I18nConfig,
+    /// `[grpc]` 区段；仅在启用 `grpc` feature 时存在。
+    #[cfg(feature = "grpc")]
+    pub grpc: GrpcConfig,
 }
 
 /// 无自有配置的应用使用的标记类型：`type Config = NoConfig;`。
@@ -610,6 +617,21 @@ mod tests {
             CorsConfig::default().allowed_methods
         );
         assert_eq!(parsed.server.cors.max_age_secs, 600);
+        Ok(())
+    }
+
+    #[cfg(feature = "grpc")]
+    #[test]
+    fn grpc_toml_loads_server_and_named_client_configuration() -> Result<(), toml::de::Error> {
+        let parsed: FrameworkConfig = toml::from_str(
+            "[grpc]\nlisten_addr = \"127.0.0.1:6060\"\ndefault_client = \"billing\"\n\n[grpc.clients]\nbilling = \"http://127.0.0.1:6061\"",
+        )?;
+        assert_eq!(parsed.grpc.listen_addr.to_string(), "127.0.0.1:6060");
+        assert_eq!(parsed.grpc.default_client.as_deref(), Some("billing"));
+        assert_eq!(
+            parsed.grpc.clients.get("billing").map(String::as_str),
+            Some("http://127.0.0.1:6061")
+        );
         Ok(())
     }
 

@@ -1,6 +1,6 @@
 # ADR-040 gRPC 纳入 v1 通用框架
 
-- 状态：Accepted（范围与集成边界已确认；尚未实现，公共签名和配置细节在实施 Spec 定稿）
+- 状态：Accepted；G1 基础与生成已实现并通过本地验收，G2 安全/运行与 G3 联合运行/集群仍待实施
 - 日期：2026-10-26
 - 依据：[ADR-001](adr-001-own-kernel-on-axum.md)、[v1 总计划](../plans/gen1-plan.md)、[能力覆盖](../plans/v1-capability-coverage.md)
 
@@ -49,6 +49,16 @@ v1 主攻通用框架底层能力，正式交付可选 gRPC 服务端与客户�
 5. 无数据库 gRPC 示例必须可独立运行；涉及数据库认证/事务的路径在 PostgreSQL/MySQL 分别验证。执行默认、仅 gRPC、HTTP+gRPC、认证及有效 TLS/生成组合、MSRV 与仓库源码门禁，不只测试 all-features。
 
 四类调用的真实网络证据、故障和资源回收、生成项目、集群与文档全部齐备才算交付；本 ADR 不新增任何测试通过记录。
+
+## G1 实施 Spec
+
+- 采用 `tonic`、`tonic-prost`、`prost` 与 `tonic-prost-build` 0.14.6 兼容系列；Cargo 当前解析 tonic/tonic-prost 0.14.7，锁定 MSRV 1.88，低于 workspace MSRV 1.97。运行时依赖只由根 `grpc` feature 启用；根默认构建不链接 tonic。
+- 新增 `[grpc]` 配置：`listen_addr` 默认为 `127.0.0.1:50051`，`clients` 为名称到 endpoint URI 的映射，`default_client` 可选；G1 只接受明文 `http://` endpoint，TLS 在 G2 交付。配置无服务/客户端时仍不自动监听或连接。
+- `GrpcPlugin` 显式注册 `grpc serve` 命令并构建默认/具名共享 `Channel` 注册表。应用用 `GrpcPlugin::register_service(builder, factory)` 注册 `AppState -> GeneratedServer` 工厂；工厂只在构造运行时 server 时调用，直接复用 tonic 生成类型，不包装每个 RPC。
+- `GrpcServer::from_app` 构造 tonic 路由，`serve(listener, shutdown)` 接收调用方 listener 与 shutdown future；CLI 命令绑定配置地址并监听进程信号。此入口支持真实 TCP 验收与自定义进程管理；健康/就绪接线、TLS、限额和联合 supervisor 留在 G2/G3。
+- `GrpcClientRegistry::channel(None)` 返回默认共享 `Channel`，传入名称返回具名 channel；`with_channel` 提供明确的测试或嵌入式连接注入入口。业务代码继续直接使用生成的 typed client。
+- 应用持有 `proto/` 和 build.rs，使用官方 `tonic-prost-build`。示例使用可选 `protoc-bin-vendored` build dependency 设置 `PROTOC`，不安装开发者全局工具；只有启用 gRPC 的包才包含代码生成依赖。生成项目和无数据库 loopback TCP 示例覆盖 unary、server-stream、client-stream 与 bidirectional-stream、半关闭及异常断连。
+- CLI `openrust new --grpc` 启用框架 feature，生成应用自有的 `proto/echo.proto`、build.rs 和 typed Protobuf 模块；默认模板不引入 gRPC 或 protoc 依赖。
 
 ## 一手参考
 
