@@ -12,6 +12,7 @@ OpenRust 的使用方式是获取整套框架源码，在同一工程基础上�
 ## 决策
 
 - 默认交付整套源码 workspace，开发者在 `apps/<name>/` 编写业务，框架能力继续位于根 `src/`，配置代码位于 `src/config/`。业务通过公开接口扩展，不因源码随项目交付就要求改核心实现。
+- 源码 workspace 的根 `server` 也允许开发者把同仓业务 Rust modules 放在 `apps/` 并由根宿主显式编译、注册；这与生成器创建的 `apps/<name>/` 独立 package 是两种不同模式，具体见 [ADR-063](adr-063-explicit-app-module-registry.md)。
 - 根 package、公共路径 `openrust::...` 与 CLI 命令 `openrust` 保留产品身份；内部 package 使用职责名称，与所在目录末级名称一致。后续新增内部工具和应用遵守同一规则，不强制品牌前缀。
 
 | 路径 | 迁移前 package | 当前 package | 目标二进制/库名称 |
@@ -26,7 +27,7 @@ OpenRust 的使用方式是获取整套框架源码，在同一工程基础上�
 - 所有 workspace package 和生成的应用、migration package 显式设置 `publish = false`。不再预留 crates.io 名称、发布占位包或以 `cargo install openrust-cli` 作为使用入口；不引入发布时改名、双 manifest 或注册表兼容包装。
 - 内部依赖使用 workspace/path，随整套源码解析，不使用内部包的注册表版本依赖，不硬编码开发机绝对路径。第三方 Rust 依赖仍正常使用 Cargo 注册表与锁文件；本决定不要求离线 vendor 全部依赖。
 - 保留必要编译边界：`macros` 是独立 proc-macro；`testing` 单向依赖框架，仅作应用测试依赖；`cli` 承载命令与模板。根框架不反向依赖测试工具。
-- 原 `apps/server` 的集成宿主职责保留；宿主 package 与代码路径按 ADR-062 迁入根 package，已有启动、feature、双库和进程验收不能丢失。示例和测试仍分别组织在 `examples/`、`tests/`。
+- 原 `apps/server` 的集成宿主职责保留；宿主 package 与代码路径按 ADR-062 迁入根 package，已有启动、feature、双库和进程验收不能丢失。综合用户示例位于 `apps/example/`，独立下游与真实拓扑验收位于 `tests/consumers/`，框架集成测试位于根 `tests/`；目录约定见 ADR-064。
 - 取消独立包分发不取消框架版本、源码升级与兼容性说明；tag、源码 release、推送仍按 `AGENTS.md` 的独立授权边界处理。API 升级可对比已有源码基线，不要求存在 crates.io 发布版本。
 
 ## 实现 Spec 与顺序

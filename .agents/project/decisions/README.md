@@ -27,7 +27,9 @@
 | [019 中性 crate 目录](adr-019-neutral-crate-directories-and-app-package.md) | Superseded | 原逐能力 crates 取消；目录见 021，当前 server 中性包名见 039 |
 | [020 旧 workspace 方案](adr-020-workspace-layout-and-loco-practices.md) | Superseded | 旧多能力 package 方案取消；有效配置/示例原则已纳入 021/030 |
 | [021 模块与目录职责](adr-021-loco-style-module-layout.md) | Partially Superseded | 根模块、工具边界和宿主职责有效；发布身份与独立生成项目由 039 替代 |
-| [062 根目录统一启动入口](adr-062-root-server-entry.md) | Accepted | 根 `src/` 同时承载 framework 与 server bin；`apps/` 留给业务应用，测试与配置迁入根目录 |
+| [062 根目录统一启动入口](adr-062-root-server-entry.md) | Partially Superseded | 根唯一 `server` bin 与 Cargo 入口有效；应用模块注册由 063 补充 |
+| [063 显式业务模块注册](adr-063-explicit-app-module-registry.md) | Accepted | 根 `src/main.rs` 单一启动；根宿主在 `apps/mod.rs` 静态声明并注册业务模块，不扫描或动态加载 |
+| [064 统一示例应用与验收 consumer 收纳](adr-064-canonical-example-application.md) | Accepted | 用户示例统一到 `apps/example/`；独立 consumer/拓扑验收收纳到 `tests/consumers/`；保留编译期显式注册 |
 | [023 应用扩展与体验](adr-023-loco-application-experience-evaluation.md) | Partially Superseded | doctor/TestApp 有效；停机未决项由 037 命令 supervisor 定稿 |
 | [029 读写路由](adr-029-database-read-routing.md) | Accepted | 显式副本、主库 scope；不实现复制/选主 |
 | [030 模块化配置](adr-030-modular-configuration.md) | Accepted | Rust 配置代码与运行时 config 分离；单一 ConfigLoader/.env 规则 |

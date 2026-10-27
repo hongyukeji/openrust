@@ -18,7 +18,7 @@ OpenRust 基于 `tokio`、`axum`、`tower` 和 `SeaORM` 构建，采用明确的
 
 ## 在仓库中运行
 
-仓库根目录的 `src/main.rs` 提供可直接运行的示例宿主，默认安装 HTTP、请求语言、本地日志邮件与短信驱动，不依赖外部服务。框架代码、启动入口与集成测试统一由根 package 管理；`apps/` 保留给开发者自己的应用。数据库、认证、队列和调度由显式组装的测试应用验证；启用 feature 不会自动安装这些服务：
+仓库根目录的 `src/main.rs` 是唯一启动入口，`apps/mod.rs` 负责显式组合根 `server` 的业务模块和框架插件；默认宿主安装 HTTP、请求语言、本地日志邮件与短信驱动，不依赖外部服务。开发者可在 `apps/` 编写 Rust 模块，在注册表中声明并通过 `Application` / `AppBuilder` 接入。模块在编译期显式选择，不做目录扫描或运行时加载；配置文件和 `.env` 只提供运行参数。由 `openrust new` 生成的 `apps/<name>/` 是独立 Cargo package，但默认登记为当前源码 workspace 成员、共享根 `Cargo.lock`，且不会编译进根 `server`；当前生成器不支持仓库外输出。若要独立锁定应用依赖和升级周期，应在框架仓库之外维护应用 workspace。数据库、认证、队列和调度由显式组装的测试应用验证；启用 feature 不会自动安装这些服务：
 
 ```bash
 cargo run
@@ -27,7 +27,9 @@ cargo run -- help
 cargo test --workspace
 ```
 
-根 package 是 Cargo 默认成员，因此裸 `cargo run` 会启动示例 `server`；`cargo test --workspace` 会运行框架和所有工具 package 的测试。
+唯一贯穿式用户示例位于 [`apps/example/`](apps/example/README.md)，用于逐步展示生成项目结构与框架能力组合；独立 API consumer 和真实多进程验收位于 `tests/consumers/`。
+
+根 package 是 Cargo 默认成员，因此裸 `cargo run` 会启动示例 `server`；`cargo test --workspace` 会运行框架、工具与 workspace 应用 package 的测试。
 
 应用默认从当前工作目录的 `config/` 读取配置。`APP_SERVER__PORT=4000 cargo run` 或 `PORT=4000 cargo run` 可覆盖监听端口；若两者同时设置，`APP_SERVER__PORT` 优先。应用可通过 `Application::config_namespace()` 选择如 `SHOP_` 的变量前缀。框架代码位于仓库根 package，能力模块位于 `src/audit.rs`、`src/config/`、`src/core/`、`src/db/`、`src/http/`、`src/i18n.rs`、`src/mail/`、`src/sms.rs`，以及按 feature 启用的 auth、encryption、signing、queue 和 schedule。每个应用的 TOML/YAML 配置保存在其根目录的 `config/` 中；仓库根目录宿主用于框架开发与集成验收。
 应用数据加密通过可选的 `encryption` feature 启用。注册 `openrust::security::EncryptionPlugin`，在 `[security.encryption]` 下配置 32 字节密钥环，并使用 `openrust key generate` 生成本地密钥材料。当前密钥用于加密新值；受控轮换期间，历史密钥用于解密旧值。密钥应保存在版本控制之外。
@@ -38,14 +40,14 @@ cargo test --workspace
 
 `signing` feature 和 `openrust::signing::SignedLinks` 提供绑定用途并会过期的链接。它们使用 `[security.signed_links]` 下独立的密钥环；若需跨实例撤销单条链接，请添加 `SignedLinkRevocationMigration` 并配置共享数据库存储。详见[签名链接指南](src/signing/README.md)。
 
-可选 `grpc` feature 使用 tonic 提供 gRPC server/client、具名共享 channel、标准 health、显式 reflection 与 Protobuf 运行时。`GrpcPlugin` 注册 `grpc serve` 命令但不会自动监听；服务端默认要求 TLS，明文必须显式设置 `allow_insecure_server = true`，只适用于本机开发或可信 TLS 终止代理。调用预算覆盖流式响应，连接、metadata、消息和全局并发均有上限，停机先报告 `NOT_SERVING` 并限时 drain。reflection 默认关闭，开启时必须显式注册 descriptor set 和服务白名单。具名 HTTPS 客户端绑定显式 CA 与可选客户端身份。CLI 可通过 `openrust new <name> --grpc` 为应用生成独立 proto、build.rs 和 typed 模块；生成编译使用 vendored protoc，不依赖开发机全局安装。启用 `auth` feature 后，gRPC server 可验证 JWT/PAT Bearer；方法使用 `GrpcAuth::authorize` 复用 Policy 与 PAT abilities，Cookie Session 不用于 RPC。应用同时安装 `HttpPlugin`、`GrpcPlugin`、`HttpGrpcPlugin` 后可运行 `serve all`；两个 listener 先绑定，仅全部就绪时报告 ready，并共享信号、停机期限和后台任务收尾。该入口不代表多节点路由或集群验收已通过。真实 loopback 四类调用与运行治理见 [`examples/grpc/`](examples/grpc/README.md)。
+可选 `grpc` feature 使用 tonic 提供 gRPC server/client、具名共享 channel、标准 health、显式 reflection 与 Protobuf 运行时。`GrpcPlugin` 注册 `grpc serve` 命令但不会自动监听；服务端默认要求 TLS，明文必须显式设置 `allow_insecure_server = true`，只适用于本机开发或可信 TLS 终止代理。调用预算覆盖流式响应，连接、metadata、消息和全局并发均有上限，停机先报告 `NOT_SERVING` 并限时 drain。reflection 默认关闭，开启时必须显式注册 descriptor set 和服务白名单。具名 HTTPS 客户端绑定显式 CA 与可选客户端身份。CLI 可通过 `openrust new <name> --grpc` 为应用生成独立 proto、build.rs 和 typed 模块；生成编译使用 vendored protoc，不依赖开发机全局安装。启用 `auth` feature 后，gRPC server 可验证 JWT/PAT Bearer；方法使用 `GrpcAuth::authorize` 复用 Policy 与 PAT abilities，Cookie Session 不用于 RPC。应用同时安装 `HttpPlugin`、`GrpcPlugin`、`HttpGrpcPlugin` 后可运行 `serve all`；两个 listener 先绑定，仅全部就绪时报告 ready，并共享信号、停机期限和后台任务收尾。该入口不代表多节点路由或集群验收已通过。真实 loopback 四类调用与运行治理见 [`tests/consumers/grpc/`](tests/consumers/grpc/README.md)。
 
 显式审计记录通过 `openrust::audit::Audit` 与数据库 sink 或自定义 `AuditSink` 写入。请将 `DatabaseAuditMigration` 加入应用迁移器；既有数据库另加入 `DatabaseAuditTenantMigration`。默认不接收详情；如需记录，必须配置允许列表，敏感字段名会被脱敏。关键数据库变更可在同一事务中写入经过校验的审计记录，详见[审计模块指南](src/audit/README.md)。
 
 `queue` feature 为 PostgreSQL 和 MySQL 提供持久化数据库任务派发、有界 worker 并发和由数据库协调的调度。将 `QueueMigration` 注册到应用迁移器，并在 `DatabasePlugin` 后安装 `QueuePlugin`；使用 `register_job` 显式注册处理器。可通过 `schedule_interval`、`schedule_daily_at` 或 `schedule_cron` 注册任务。cron 使用五字段语法，默认时区为 `UTC`，也可指定 IANA 时区；春季不存在的本地时间跳过，秋季重复的本地分钟只派发一次。默认只派发当前分钟匹配项；`MissedRunPolicy::CatchUp { max_slots }` 可设置每次扫描最多补跑 1 到 100 项，后续 tick 继续处理剩余积压。表达式或时区变化会开启新的计划版本，不追溯补发该版本启用前的历史触发。使用集群部署时，各 scheduler 节点必须运行相同构建产物，以保持内置 IANA 时区数据一致。job 派发和时段记录在同一数据库事务提交，两个 scheduler 节点对同一时段只创建一个 job；任务本身仍至少执行一次，外部副作用须保持幂等。`schedule run --once` 扫描一次，`schedule run` 持续运行，`schedule list` 显示已注册项。`Queue::dispatch_unique` 根据队列范围内的键防止任务重叠重复，并返回活动任务 ID；任务完成或移入 `failed_jobs` 后释放该键。`dispatch_chain` 按顺序执行已注册任务，`dispatch_batch` 限制每组任务的并发数。每组是一个持久化父任务；重试可能再次执行已成功子任务的副作用，因此子任务处理器必须保持幂等。每组最多 128 项，批次并发数为 1 到 64。若任务创建需与业务数据共同提交或回滚，请在 `Db` 事务中派发。当前 worker 支持重试、失败任务保留与手动重试、进度、协作取消、单次尝试超时，以及进程故障后的租约恢复。事件支持有序进程内监听器和显式队列监听器；完整集群验收仍待完成。
 
-可选 `queue-redis` feature 提供 Redis job driver，默认仍为数据库队列。显式设置 `[queue] driver = "redis"`、`redis_namespace`，并通过 `APP_QUEUE__REDIS_URL` 注入连接地址；缺少 feature、配置错误或 Redis 不可达都会失败，不会切换为数据库或内存 driver。Redis-only `QueuePlugin` 无需注册 `DatabasePlugin`，但当前数据库事务型 scheduler 与 Redis 派发无法原子提交，因此启用 Redis 时不能注册 schedule。Redis 支持普通/延迟/唯一派发、lease、进度、退避重试和失败任务人工重试；事务派发与任务组明确不支持。语义为至少一次，handler 必须幂等；Redis 磁盘持久性和故障切换取决于运维配置，不承诺 exactly-once 或故障切换零丢失。详见 [`examples/queue/`](examples/queue/README.md)。
-外部 driver 可通过 `JobRegistry` 复用 typed Job 执行，并用 `JobContext::with_progress_reporter` 声明自己的进度存储；独立的 [`QueueDriver` 示例](examples/queue-custom-driver/README.md)展示派发、执行和不支持事务时的显式错误。
+可选 `queue-redis` feature 提供 Redis job driver，默认仍为数据库队列。显式设置 `[queue] driver = "redis"`、`redis_namespace`，并通过 `APP_QUEUE__REDIS_URL` 注入连接地址；缺少 feature、配置错误或 Redis 不可达都会失败，不会切换为数据库或内存 driver。Redis-only `QueuePlugin` 无需注册 `DatabasePlugin`，但当前数据库事务型 scheduler 与 Redis 派发无法原子提交，因此启用 Redis 时不能注册 schedule。Redis 支持普通/延迟/唯一派发、lease、进度、退避重试和失败任务人工重试；事务派发与任务组明确不支持。语义为至少一次，handler 必须幂等；Redis 磁盘持久性和故障切换取决于运维配置，不承诺 exactly-once 或故障切换零丢失。详见 [`apps/example/`](apps/example/README.md)。
+外部 driver 可通过 `JobRegistry` 复用 typed Job 执行，并用 `JobContext::with_progress_reporter` 声明自己的进度存储；独立的 [`QueueDriver` 示例](tests/consumers/queue-custom-driver/README.md)展示派发、执行和不支持事务时的显式错误。
 
 ```rust
 #[cfg(feature = "queue")]
@@ -71,7 +73,7 @@ Ok(())
 fn main() {}
 ```
 
-可选 `realtime` feature 提供在线 WebSocket 与 SSE 会话；跨节点路由须显式启用 `realtime-redis` 并配置 Redis URL，未配置共享 transport 时只支持本进程连接，Redis 故障会返回错误且不会本地静默回退。应用路由负责认证、Origin 校验和频道授权，并为连接提供授权有效期；Session/PAT 撤销需显式调用 `Realtime::revoke_user`。SSE 不提供离线回放，Redis Pub/Sub 不保证远端确认或 exactly-once。连接、消息和缓冲区有配置上限，停机时关闭在线连接。真实双进程示例与验收见 [`examples/realtime/`](examples/realtime/README.md)。
+可选 `realtime` feature 提供在线 WebSocket 与 SSE 会话；跨节点路由须显式启用 `realtime-redis` 并配置 Redis URL，未配置共享 transport 时只支持本进程连接，Redis 故障会返回错误且不会本地静默回退。应用路由负责认证、Origin 校验和频道授权，并为连接提供授权有效期；Session/PAT 撤销需显式调用 `Realtime::revoke_user`。SSE 不提供离线回放，Redis Pub/Sub 不保证远端确认或 exactly-once。连接、消息和缓冲区有配置上限，停机时关闭在线连接。真实双进程示例与验收见 [`tests/consumers/realtime/`](tests/consumers/realtime/README.md)。
 
 ## 类型化事件
 

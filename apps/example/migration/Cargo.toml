@@ -1,0 +1,8 @@
+[package]
+name = "example-migration"
+publish = false
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+openrust = { workspace = true, features = ["db-postgres", "auth", "queue"] }

@@ -1360,6 +1360,20 @@ fn generate_job(values: &[String], project_dir: &Path) -> anyhow::Result<()> {
     let main_source = fs::read_to_string(&main_file)?;
     let app_file = project_dir.join("src/app.rs");
     let app_source = fs::read_to_string(&app_file)?;
+    let auth_test_file = project_dir.join("tests/auth_flows.rs");
+    let updated_auth_test = if auth_test_file.exists() {
+        let test_source = fs::read_to_string(&auth_test_file)?;
+        if test_source.contains("mod jobs;") {
+            test_source
+        } else {
+            test_source.replace(
+                "#[path = \"../src/routes.rs\"]\nmod routes;",
+                "#[path = \"../src/routes.rs\"]\nmod routes;\n#[path = \"../src/jobs/mod.rs\"]\nmod jobs;",
+            )
+        }
+    } else {
+        String::new()
+    };
     let updated_migration = register_queue_migration(&migration_registry)?;
     let updated_app_manifest = enable_feature_source(&app_manifest, "queue", &app_manifest_path)?;
     let updated_migration_manifest =
@@ -1405,6 +1419,9 @@ fn generate_job(values: &[String], project_dir: &Path) -> anyhow::Result<()> {
     fs::write(&module_file, updated_modules)?;
     fs::write(&main_file, updated_main)?;
     fs::write(&app_file, updated_app)?;
+    if auth_test_file.exists() {
+        fs::write(&auth_test_file, updated_auth_test)?;
+    }
     fs::write(&app_manifest_path, updated_app_manifest)?;
     fs::write(&migration_manifest_path, updated_migration_manifest)?;
     fs::write(&migration_lib_path, updated_migration)?;
@@ -1472,16 +1489,18 @@ fn register_queue_migration(registry: &str) -> anyhow::Result<String> {
         .find(']')
         .context("migration list is unterminated")?;
     let end = start + relative_end;
-    let list = &registry[start + "vec![".len()..end];
-    let separator = if list.trim().is_empty() {
+    let list_start = start + "vec![".len();
+    let list = &registry[list_start..end];
+    let trimmed_list = list.trim_end();
+    let insertion_at = list_start + trimmed_list.len();
+    let suffix = if trimmed_list.is_empty() || trimmed_list.ends_with(',') {
         ""
     } else {
-        "\n            "
+        ","
     };
-    let suffix = if list.trim().is_empty() { "" } else { "," };
-    let insertion = format!("{suffix}{separator}Box::new(openrust::queue::QueueMigration)");
+    let insertion = format!("{suffix}\n            Box::new(openrust::queue::QueueMigration),");
     let mut updated = registry.to_owned();
-    updated.insert_str(end, &insertion);
+    updated.insert_str(insertion_at, &insertion);
     Ok(updated)
 }
 
@@ -2913,7 +2932,7 @@ mod tests {
             "blog",
             "Blog",
             Some(DatabaseBackend::Postgres),
-            false,
+            true,
             false,
             false,
             false,
@@ -2928,13 +2947,23 @@ mod tests {
         assert!(source.contains("请先实现此任务的业务逻辑"));
         let app = fs::read_to_string(project.join("src/app.rs")).expect("read app");
         assert!(app.contains("crate::jobs::JobsPlugin"));
+        let auth_test = fs::read_to_string(project.join("tests/auth_flows.rs"))
+            .expect("read generated auth test");
+        assert!(auth_test.contains("#[path = \"../src/jobs/mod.rs\"]\nmod jobs;"));
         let migration = fs::read_to_string(project.join("migration/src/lib.rs"))
             .expect("read migration registry");
         assert!(migration.contains("openrust::queue::QueueMigration"));
+        assert!(!migration.contains(",,"));
+        assert!(migration.contains(
+            "SignedLinkRevocationMigration),\n            Box::new(openrust::queue::QueueMigration),"
+        ));
         let app_manifest =
             fs::read_to_string(project.join("Cargo.toml")).expect("read app manifest");
         assert!(app_manifest.contains("\"queue\""));
-        assert!(app_manifest.contains("serde = { workspace = true }"));
+        assert!(
+            app_manifest.contains("serde = { workspace = true }")
+                || app_manifest.contains("serde = { version = \"1\"")
+        );
         let migration_manifest = fs::read_to_string(project.join("migration/Cargo.toml"))
             .expect("read migration manifest");
         assert!(migration_manifest.contains("\"queue\""));

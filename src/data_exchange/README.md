@@ -27,7 +27,7 @@ let report = for_each_csv(input, &schema, &ImportLimits::default(), |row| {
 
 `write_csv` 与 `write_xlsx` 接收显式表头和逐行结果。CSV 默认转义电子表格公式注入前缀；XLSX 将字符串作为字面文本写出，数字与布尔值保持对应单元格类型。两者均执行行、列、单元格与输出大小限制。对象/数组不能作为 XLSX 单元格导出。
 
-`examples/data-exchange` 展示不依赖内部 crate 的独立 consumer 用法。
+`tests/consumers/data-exchange` 展示不依赖内部 crate 的独立 consumer 用法。
 
 ## 队列化导入与导出
 

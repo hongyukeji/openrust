@@ -51,4 +51,4 @@ cargo run -p cli -- g migration labels slug:string
 
 ## API、worker 与 scheduler
 
-参见 [`examples/queue/`](../../examples/queue/README.md)：同一应用可分别作为 API、worker、scheduler 进程启动，共用数据库和队列迁移。`serve` 不会隐式启动后台进程。两个数据库后端使用相同示例，只需选择 `db-postgres` 或 `db-mysql` feature。
+参见 [`apps/example/`](../../apps/example/README.md)：同一应用可分别作为 API、worker、scheduler 进程启动，共用数据库和队列迁移。`serve` 不会隐式启动后台进程。两个数据库后端使用相同示例，只需选择 `db-postgres` 或 `db-mysql` feature。

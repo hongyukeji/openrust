@@ -1,15 +1,15 @@
 # 根模块与目录收尾 Spec
 
 > 受众：AI Agent
-> 状态：已实施并通过本次迁移验收。真实 server bin、配置和集成测试入口已迁入根 package；工具 package 已收纳到 `tools/`。根 workspace 的默认成员仅包含根 package，保证仓库根目录裸 `cargo run` 唯一选择 `server`；全 workspace 检查使用 `--workspace`。
-> 决策：[ADR-062](../decisions/adr-062-root-server-entry.md)。工具包与源码交付迁移已完成，见 [ADR-021](../decisions/adr-021-loco-style-module-layout.md) 与 [ADR-039](../decisions/adr-039-source-workspace-distribution.md)。
+> 状态：根宿主与工具目录迁移已实施。本轮按 [ADR-064](../decisions/adr-064-canonical-example-application.md) 收敛示例：唯一综合应用位于 `apps/example/`，独立 consumer 验收位于 `tests/consumers/`，不再使用根 `examples/` 存放用户示例。
+> 决策：[ADR-062](../decisions/adr-062-root-server-entry.md)、[ADR-064](../decisions/adr-064-canonical-example-application.md)。工具包与源码交付迁移已完成，见 [ADR-021](../decisions/adr-021-loco-style-module-layout.md) 与 [ADR-039](../decisions/adr-039-source-workspace-distribution.md)。
 
 ## 目标
 
 1. 根 `openrust` package 承载框架 library 与框架开发/集成用 `server` bin，二进制源码统一位于根 `src/`。
 2. 从仓库根目录直接执行 `cargo run` 启动宿主；根 package 是默认成员，`cargo test` 运行根 package 的集成测试；全 workspace 验证使用 `--workspace`。保留 `CARGO_BIN_EXE_server` 真实进程覆盖。
-3. `apps/` 只作为开发者业务应用目录约定，不保留框架自带的 `apps/server` package。
-4. 集成测试迁至根 `tests/server/`，配置放项目根 `config/`；Rust 配置代码仍放 `src/config/`。性能基准集中在 `tools/performance/` workspace package，避免把性能工具入口并入框架 package。
+3. `apps/` 不保留框架自带的 `apps/server` package；根宿主显式业务模块注册后续由 [ADR-063](../decisions/adr-063-explicit-app-module-registry.md) 补充，生成应用仍由 `apps/<name>/` 承载。
+4. 集成测试迁至根 `tests/server/`，配置放项目根 `config/`；Rust 配置代码仍放 `src/config/`。性能基准集中在 `tools/performance/` workspace package；唯一综合用户示例位于 `apps/example/`。
 5. 保留 `testing` 独立工具 package 的下游入口 `testing::TestDatabase`，内部实现统一在根 `src/testing/`，避免根集成测试依赖 `testing` 造成 package 依赖环。
 6. 同步 workspace、feature、CLI 工作区识别、CI、README、Agent 规则与当前事实；不丢失现有测试、feature 门控、子进程语义或未提交 WIP。
 

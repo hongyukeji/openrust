@@ -1,9 +1,7 @@
 //! 验证组装后 server 的集成边界。
 
-#[path = "../../../src/app.rs"]
-mod app;
-#[path = "../../../src/routes.rs"]
-mod routes;
+#[path = "../../../apps/mod.rs"]
+mod apps;
 
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 use figment::Figment;
@@ -224,11 +222,11 @@ async fn test_server() -> Result<openrust::App, openrust::Error> {
             "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=",
         ));
     let application_config = figment
-        .extract::<<app::Server as Application>::Config>()
+        .extract::<<apps::Server as Application>::Config>()
         .map_err(openrust::config::ConfigError::from)?;
     let mut builder = AppBuilder::new(loader.load_framework()?, figment);
     builder.insert(application_config);
-    app::Server::build(&mut builder);
+    apps::Server::build(&mut builder);
     lifecycle::finalize(builder).await
 }
 

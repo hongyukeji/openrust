@@ -12,7 +12,7 @@
 - 新能力须有经公共 `openrust` API 组装的应用级集成测试；不能只通过模块单测或声明 feature 就宣称开箱即用。
 - 根 package 的 `server` bin 是 `publish = false` 的集成宿主。主程序安装 HTTP、I18n、Mail/SMS 和可选 Encryption；数据库/auth/queue/schedule 等由各测试 Application 显式组装，默认 serve 不自动启动 worker 或外部依赖。
 - 需要外部服务的能力通过 feature 转发、插件/迁移注册和真实服务验收接入；不为未实现能力创建空 feature。
-- 宿主只承载框架验证，不承载后台组织模型或独立产品业务。按 [ADR-039](adr-039-source-workspace-distribution.md)，用户业务默认在整套源码的 `apps/<name>/` 开发，保留应用自己的 `src/` 和根 `config/`；根 `server` bin 只改变框架集成宿主的位置，不改变这些验收职责。
+- 根宿主默认内容承载框架验证，不内置后台组织模型或独立产品业务。源码 workspace 开发者也可按 [ADR-063](adr-063-explicit-app-module-registry.md) 在根 `apps/mod.rs` 显式组合自有业务模块；`openrust new` 生成的独立应用仍位于 `apps/<name>/`，保留自己的 `src/` 和根 `config/`。
 - 项目根 `cargo run`、按目标应用定位配置、HTTP smoke、双库测试、独立子进程信号与崩溃测试均属于要维持的职责。
 
 ## 与目录简化的关系

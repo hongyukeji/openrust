@@ -6,19 +6,21 @@
 
 ## 边界
 
-仓库不再保留 `apps/server` package。根 `src/main.rs` 是框架开发和集成验收用的示例入口，不是用户业务应用；`apps/` 仍留给开发者自己的应用。workspace package 包含 `openrust`、`cli`、`macros`、`testing` 与独立性能验证包 `performance`。
+仓库不再保留 `apps/server` package。根 `src/main.rs` 是唯一启动入口；根 `apps/mod.rs` 组合集成宿主与显式业务模块。源码 workspace 开发者可在 `apps/` 添加 Rust 模块并通过现有 `Application` / `AppBuilder` 注册。`openrust new` 生成的 `apps/<name>/` 仍是独立 Cargo 项目，不自动编入根宿主。workspace package 包含 `openrust`、`cli`、`macros`、`testing` 与独立性能验证包 `performance`。
 
 ## 当前实现
 
 | 路径 | 内容 |
 | --- | --- |
-| `src/main.rs` | 名为 `server` 的 bin target，调用 `openrust::run::<Server>()` |
-| `src/app.rs` | 显式安装 HTTP、I18n、Mailer、SMS；按 feature 添加 Encryption、Cache、Storage |
-| `src/routes.rs` | `/` 从 `AppState.config().app.name` 返回配置名称，版本取 `CARGO_PKG_VERSION`；HTTP 插件提供 `/health` |
+| `src/main.rs` | 唯一 `server` bin 启动入口，调用 `openrust::run::<Server>()` |
+| `apps/mod.rs` | 根宿主的应用注册表；显式组合 HTTP、I18n、Mailer、SMS，以及按 feature 启用的 Encryption、Cache、Storage；业务模块在此声明并注册 |
+| `apps/home.rs` | 默认根路由模块：`/` 返回应用配置名称与版本；HTTP 插件提供 `/health` |
 | `config/*.toml` | 根目录宿主运行配置；Rust 配置代码仍在 `src/config/` |
 | `tests/server/` | 按能力组织聚合集成、真实数据库、worker/scheduler 进程及其他应用级验收 |
 
 根 package 的 feature 直接控制宿主和集成测试，不再经由 `server` package 转发。启用数据库、认证、队列等 feature 不会自动安装对应插件；各测试 Application 显式组装。
+
+Rust 模块通过 `apps/mod.rs` 在编译期显式声明和注册；运行时配置不会扫描或加载代码。新增模块不增加 bin target，也不改变启动命令。用户指南见 [`apps/README.md`](../../../apps/README.md)，决策见 [ADR-063](../decisions/adr-063-explicit-app-module-registry.md)。
 
 ## 命令
 

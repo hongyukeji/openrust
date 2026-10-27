@@ -98,7 +98,7 @@ Agent 不替代开发者做方向决策、发布判断和对外动作；开发�
 
 - 一个功能簇 = 一个工程闭环，不夹带无关需求。
 - 组件复用与开发体验遵循 [ADR-001](.agents/project/decisions/adr-001-own-kernel-on-axum.md#成熟组件优先与-laravel-式开发体验)：优先整合成熟组件，框架统一约定与公开扩展；Spec 说明复用选择、附加价值和验收，不因追求 Laravel 式体验机械改名或重写已验证实现。
-- 公共 API 变更先评估下游（其他 crate、模板、`examples/`、`docs/`）兼容性；0.x 允许破坏性变更，但必须同步更新全部调用方、文档与 changelog 条目。
+- 公共 API 变更先评估下游（其他 crate、模板、`apps/example/`、`tests/consumers/`、`docs/`）兼容性；0.x 允许破坏性变更，但必须同步更新全部调用方、文档与 changelog 条目。
 - 新增依赖必须有理由并写入 `stack.md`；主版本升级写 ADR 或 changelog。
 - 遵守 `conventions.md`：`#![forbid(unsafe_code)]`、`#![deny(missing_docs)]`、库 crate 禁止 `unwrap` / `expect` / `panic` / `todo` / `unimplemented`、不写 `TODO` 注释。
 - 顺手修边界清楚、可当场验证的小问题并纳入说明；需要跨 crate 设计或改变方向的问题写入 `todo.md`。
@@ -133,7 +133,7 @@ Agent 不替代开发者做方向决策、发布判断和对外动作；开发�
 
 - [ ] §6.3 匹配范围的验证实际执行并通过
 - [ ] 公共行为变化有测试
-- [ ] 新能力已接入 根 package 的 `src/main.rs` 宿主并有根 `tests/` 集成测试（ADR-007）
+- [ ] 新能力已接入根 package 的 `server` 聚合应用（`apps/mod.rs` 组合、`src/main.rs` 启动）并有根 `tests/` 集成测试（ADR-007）
 - [ ] 受影响 `docs/`、crate `README.md` 已更新
 - [ ] 受影响 `.agents/project/`（`context.md` / `todo.md` / `plan.md` / `core/<crate>.md` / 必要时 ADR）已更新
 - [ ] commit 已创建且无无关 diff

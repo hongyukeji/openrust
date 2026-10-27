@@ -81,7 +81,7 @@ let (rows, total) = documents.select(&user, Condition::all())?
     .page(&connection, 0, 50).await?;
 ```
 
-分页页大小上限为 `MAX_AUTHORIZED_PAGE_SIZE`（500），页偏移溢出会拒绝。关联读取会先按父实体规则验证给定父记录，再用关联实体自己的规则查询子记录。软删除条件仍由应用显式 AND 组合。普通 SeaORM 查询/写入、直接关联加载、原生 SQL 与自定义 driver 都不会自动套用规则；应用必须在这些逃生路径自行维护授权范围。类型化用法见 [`examples/query-authorization`](../../examples/query-authorization/README.md)。
+分页页大小上限为 `MAX_AUTHORIZED_PAGE_SIZE`（500），页偏移溢出会拒绝。关联读取会先按父实体规则验证给定父记录，再用关联实体自己的规则查询子记录。软删除条件仍由应用显式 AND 组合。普通 SeaORM 查询/写入、直接关联加载、原生 SQL 与自定义 driver 都不会自动套用规则；应用必须在这些逃生路径自行维护授权范围。类型化用法见 [`tests/consumers/query-authorization`](../../tests/consumers/query-authorization/README.md)。
 
 可选租户隔离由 `openrust::tenant::TenantLayer` 从应用提供的可信 resolver 建立，未验证的请求 header/query 不可直接作为租户身份。将资源规则用 `QueryRule::for_tenant(entity::Column::TenantId)` 绑定后，列表、关联和批量写入都会同时应用用户授权与 tenant 条件；未绑定租户的普通应用不受影响。完整 resolver 与逃生口说明见 [`openrust::tenant`](../tenant/README.md)。
 

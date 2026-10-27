@@ -149,7 +149,7 @@ impl Plugin for CustomDatabasePlugin {
 }
 ```
 
-`DatabaseBackend` 集中管理官方支持的 PostgreSQL/MySQL URL scheme 和 feature 检查。`Db::initialize` 接收 SeaORM `DatabaseConnection`；通用 `Db` 连接、事务、表名解析，以及自定义的 SeaORM `MigrationPlugin` 迁移均可用于 SQLite。SQLite 示例见 [`examples/db-custom-sqlite`](../../examples/db-custom-sqlite/README.md)。`Db::backend()` 报告已连接的 SeaORM backend。自定义 plugin 负责自己的连接配置，并须校验应用所需能力。v1 官方数据库引擎为 PostgreSQL 和 MySQL，暂定最低版本分别为 PostgreSQL 14+ 和 MySQL 8.0+；日常开发及数据库 CI 使用 PostgreSQL 18 和 MySQL 8.4 LTS。只有主版本跨度较大或存在具体兼容风险时才增加专项版本检查；暂定最低版本的完整兼容性仍是 v1 发布门槛。SQLite 连接不自动启用 OpenRust 方言 helper、认证/队列/协调等框架迁移、UTC/JSON 列能力、数据库共享锁或 `TestDatabase`；应用必须为自定义迁移及需要的能力自行适配和验证。其他 SeaORM backend 亦须满足相同要求，MongoDB 等不同数据模型不在此契约范围内。切换连接不会迁移既有数据。
+`DatabaseBackend` 集中管理官方支持的 PostgreSQL/MySQL URL scheme 和 feature 检查。`Db::initialize` 接收 SeaORM `DatabaseConnection`；通用 `Db` 连接、事务、表名解析，以及自定义的 SeaORM `MigrationPlugin` 迁移均可用于 SQLite。SQLite 示例见 [`tests/consumers/db-custom-sqlite`](../../tests/consumers/db-custom-sqlite/README.md)。`Db::backend()` 报告已连接的 SeaORM backend。自定义 plugin 负责自己的连接配置，并须校验应用所需能力。v1 官方数据库引擎为 PostgreSQL 和 MySQL，暂定最低版本分别为 PostgreSQL 14+ 和 MySQL 8.0+；日常开发及数据库 CI 使用 PostgreSQL 18 和 MySQL 8.4 LTS。只有主版本跨度较大或存在具体兼容风险时才增加专项版本检查；暂定最低版本的完整兼容性仍是 v1 发布门槛。SQLite 连接不自动启用 OpenRust 方言 helper、认证/队列/协调等框架迁移、UTC/JSON 列能力、数据库共享锁或 `TestDatabase`；应用必须为自定义迁移及需要的能力自行适配和验证。其他 SeaORM backend 亦须满足相同要求，MongoDB 等不同数据模型不在此契约范围内。切换连接不会迁移既有数据。
 
 为保证迁移列可移植，`openrust::database::dialect::timestamp_utc(name, backend)` 会创建 PostgreSQL `TIMESTAMP WITH TIME ZONE` 或 MySQL `DATETIME(6)`；`dialect::json(name, backend)` 会创建 PostgreSQL `JSONB` 或 MySQL `JSON`。两者均返回 `Result<ColumnDef, DbErr>`，遇到未处理的 backend 时会明确拒绝，而不会静默使用 PostgreSQL SQL。
 
