@@ -86,3 +86,12 @@ v1 主攻通用框架底层能力，正式交付可选 gRPC 服务端与客户�
 - reflection 默认关闭；启用必须提供 descriptor set 和显式服务全名白名单。已有 RateLimiter 不自动套用到匿名 RPC，业务方法按身份与方法显式执行配额。
 - 示例真实 TCP 测试覆盖整条流 deadline、全局并发拒绝与释放、protobuf 消息限额、reflection 白名单/配置错误、health Watch 停机状态及非终止流超时退出；server 集成测试覆盖 readiness 与子进程 SIGTERM。
 - 本簇不声称 HTTP 与 gRPC 联合 supervisor、多节点负载均衡、生产观测或 proto 新旧互通已完成；这些仍由 G3/M6 验收。
+
+## G3a HTTP/RPC 联合生命周期 Spec
+
+- 对常见应用启动路径提供公开 `HttpGrpcPlugin` 与 `openrust::runtime::serve_http_and_grpc(&App)`；插件登记嵌套命令 `serve all`，不替换或删除既有 HTTP `serve` 与独立 `grpc serve`。
+- 联合入口必须确认应用已安装 `HttpPlugin`、`GrpcPlugin` 并注册至少一个 gRPC service。预先构建 HTTP router 与 gRPC routes/TLS，再依次绑定两个 listener；任一绑定失败时已绑定 socket 自动 drop，禁止留下后台 listener/task。
+- 联合 supervisor 配置共享 readiness 需要两个 listener 都开始服务；只有两个都 active 才报告 ready，任一个结束/失败即 not-ready。HTTP/gRPC 独立启动仍以一个 listener 为 ready。
+- supervisor 只持有一份 SIGINT/SIGTERM signal；正常信号令两个 listener 同时停止接入并按共同 deadline drain。任一 listener 意外结束时，停止并等待另一 listener；到期取消合作请求、abort 并 join 两个 task。
+- HTTP 的 app-owned background tasks 在两个 listener 都结束后由联合 supervisor 停止并按同一 deadline join，不能因 HTTP 子任务先进入 drain 而提前取消 gRPC handler 依赖。
+- 真 TCP 验收覆盖两个协议并行服务、联合 readiness、退出时两个端口均关闭、listener 绑定失败不残留另一端口、服务异常退出清理 sibling，以及共享 shutdown timeout。G3a 不覆盖双节点 L7 路由、proto 新旧互通和跨协议 trace，它们分别由 G3b/G3c 交付。

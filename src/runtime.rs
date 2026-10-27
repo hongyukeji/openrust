@@ -1,0 +1,241 @@
+//! 显式组合多个网络 listener 的应用运行入口。
+
+use std::{future::Future, time::Duration};
+
+use crate::{
+    App, AppBuilder, BoxFuture, Command, Error, Plugin, Result,
+    core::{Readiness, lifecycle::BackgroundTasks, shutdown_signal},
+    grpc::GrpcServer,
+    http::{HttpPlugin, build_router, serve::serve_listener_for_supervisor},
+};
+use tokio::{
+    net::TcpListener,
+    task::{JoinError, JoinSet},
+    time::{Instant, timeout_at},
+};
+
+/// 为显式装配了 [`HttpPlugin`] 和 [`crate::grpc::GrpcPlugin`] 的应用增加 `serve all` 命令。
+///
+/// 既有 `serve` 与 `grpc serve` 命令仍可单独运行。联合命令会先构建并绑定两个 listener，
+/// 再统一管理就绪状态、退出信号和限时停机。
+pub struct HttpGrpcPlugin;
+
+impl Plugin for HttpGrpcPlugin {
+    fn name(&self) -> &'static str {
+        "http-grpc-runtime"
+    }
+
+    fn build(&self, builder: &mut AppBuilder) -> Result<()> {
+        HttpPlugin::require_installed(builder)?;
+        crate::grpc::require_joint_plugin(builder)?;
+        builder.try_command(ServeAllCommand)?;
+        Ok(())
+    }
+}
+
+/// 同时运行应用已注册的 HTTP 与 gRPC 服务。
+///
+/// 两个 listener 都成功绑定后才会启动服务任务。收到进程信号时同时发起优雅停机；
+/// 任一服务意外退出时会停止另一个服务。停机超时会取消请求、终止并 join 剩余任务。
+pub async fn serve_http_and_grpc(app: &App) -> Result<()> {
+    serve_http_and_grpc_until(app, shutdown_signal()).await
+}
+
+/// 以调用方提供的退出 future 同时运行 HTTP 与 gRPC，供嵌入式宿主控制生命周期。
+pub async fn serve_http_and_grpc_until<F>(app: &App, shutdown: F) -> Result<()>
+where
+    F: Future<Output = ()> + Send + 'static,
+{
+    HttpPlugin::ensure_installed(app)?;
+    let router = build_router(app)?;
+    let grpc_server = GrpcServer::from_app(app)?;
+    let http_listener = TcpListener::bind(app.config().server.bind_addr()).await?;
+    let grpc_listener = TcpListener::bind(grpc_server.listen_addr()).await?;
+    let http_address = http_listener.local_addr()?;
+    let grpc_address = grpc_listener.local_addr()?;
+    let readiness = app.state().try_get::<Readiness>()?;
+    readiness.expect_listeners(2)?;
+    let shutdown_timeout = Duration::from_secs(app.config().server.shutdown_timeout_secs);
+    let app_state = app.state().clone();
+    let background_state = app.state().clone();
+
+    tracing::info!(%http_address, %grpc_address, "HTTP and gRPC listeners bound");
+
+    let (http_shutdown_tx, http_shutdown_rx) = tokio::sync::oneshot::channel();
+    let (grpc_shutdown_tx, grpc_shutdown_rx) = tokio::sync::oneshot::channel();
+    let mut tasks = JoinSet::new();
+    tasks.spawn(async move {
+        (
+            "http",
+            serve_listener_for_supervisor(
+                app_state,
+                shutdown_timeout,
+                http_listener,
+                router,
+                async move {
+                    let _ = http_shutdown_rx.await;
+                },
+            )
+            .await,
+        )
+    });
+    tasks.spawn(async move {
+        (
+            "grpc",
+            grpc_server
+                .serve(grpc_listener, async move {
+                    let _ = grpc_shutdown_rx.await;
+                })
+                .await,
+        )
+    });
+
+    let first_exit =
+        stop_on_signal_or_listener_exit(&mut tasks, shutdown, http_shutdown_tx, grpc_shutdown_tx)
+            .await;
+    readiness.stop_accepting();
+
+    let mut failure = first_exit
+        .map_or(Ok(()), |joined| completion_error(joined, true))
+        .err();
+    let deadline = Instant::now() + shutdown_timeout;
+    let drain = timeout_at(deadline, async {
+        while let Some(joined) = tasks.join_next().await {
+            if let Err(error) = completion_error(Some(joined), false)
+                && failure.is_none()
+            {
+                failure = Some(error);
+            }
+        }
+        BackgroundTasks::join_until(background_state.background_tasks().stop(), deadline)
+            .await
+            .map_err(Some)
+    })
+    .await;
+
+    if drain.is_err() {
+        readiness.cancel_requests();
+        tasks.abort_all();
+        while tasks.join_next().await.is_some() {}
+        let _ =
+            BackgroundTasks::join_until(background_state.background_tasks().stop(), deadline).await;
+        return Err(Error::custom(
+            "http_grpc_shutdown_timeout",
+            "HTTP 与 gRPC 服务未能在共同停机期限内结束",
+        ));
+    }
+    if let Ok(Err(Some(error))) = drain
+        && failure.is_none()
+    {
+        failure = Some(error);
+    }
+    failure.map_or(Ok(()), Err)
+}
+
+async fn stop_on_signal_or_listener_exit<F>(
+    tasks: &mut JoinSet<(&'static str, Result<()>)>,
+    shutdown: F,
+    http_shutdown: tokio::sync::oneshot::Sender<()>,
+    grpc_shutdown: tokio::sync::oneshot::Sender<()>,
+) -> Option<Option<std::result::Result<(&'static str, Result<()>), JoinError>>>
+where
+    F: Future<Output = ()>,
+{
+    tokio::pin!(shutdown);
+    let first_exit = tokio::select! {
+        () = shutdown => None,
+        joined = tasks.join_next() => Some(joined),
+    };
+    let _ = http_shutdown.send(());
+    let _ = grpc_shutdown.send(());
+    first_exit
+}
+
+fn completion_error(
+    joined: Option<std::result::Result<(&'static str, Result<()>), JoinError>>,
+    unexpected: bool,
+) -> Result<()> {
+    let Some(joined) = joined else {
+        return Err(Error::custom(
+            "http_grpc_server_set_empty",
+            "HTTP 与 gRPC 服务任务意外结束",
+        ));
+    };
+    let (name, result) = joined.map_err(Error::internal)?;
+    match result {
+        Err(error) => Err(error),
+        Ok(()) if unexpected => Err(Error::custom(
+            "http_grpc_server_stopped",
+            format!("{name} 服务在退出信号前停止"),
+        )),
+        Ok(()) => Ok(()),
+    }
+}
+
+struct ServeAllCommand;
+
+impl Command for ServeAllCommand {
+    fn name(&self) -> &'static str {
+        "serve all"
+    }
+
+    fn about(&self) -> &'static str {
+        "同时启动 HTTP 与 gRPC 服务"
+    }
+
+    fn run<'a>(&'a self, app: &'a App, _args: Vec<String>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(serve_http_and_grpc(app))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{completion_error, stop_on_signal_or_listener_exit};
+    use crate::Error;
+    use tokio::task::JoinSet;
+
+    #[tokio::test]
+    async fn early_clean_listener_exit_is_reported_as_failure() {
+        let mut tasks = JoinSet::new();
+        tasks.spawn(async { ("http", Ok::<(), Error>(())) });
+        let joined = tasks.join_next().await;
+        let result = completion_error(joined, true);
+        assert_eq!(
+            result.err().map(|error| error.code().to_owned()),
+            Some("http_grpc_server_stopped".to_owned())
+        );
+    }
+
+    #[tokio::test]
+    async fn failed_listener_stops_and_joins_its_sibling() {
+        let (http_shutdown, _http_signal) = tokio::sync::oneshot::channel();
+        let (grpc_shutdown, grpc_signal) = tokio::sync::oneshot::channel();
+        let mut tasks = JoinSet::new();
+        tasks.spawn(async {
+            (
+                "http",
+                Err(Error::custom("listener_failed", "HTTP listener failed")),
+            )
+        });
+        tasks.spawn(async move {
+            let _ = grpc_signal.await;
+            ("grpc", Ok(()))
+        });
+
+        let first_exit = stop_on_signal_or_listener_exit(
+            &mut tasks,
+            std::future::pending(),
+            http_shutdown,
+            grpc_shutdown,
+        )
+        .await;
+        let first_error = first_exit.and_then(|joined| completion_error(joined, true).err());
+        assert_eq!(
+            first_error.map(|error| error.code().to_owned()),
+            Some("listener_failed".to_owned())
+        );
+        let sibling = tasks.join_next().await;
+        assert!(completion_error(sibling, false).is_ok());
+        assert!(tasks.join_next().await.is_none());
+    }
+}

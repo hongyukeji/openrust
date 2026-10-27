@@ -21,6 +21,8 @@ pub mod mail;
 pub mod notifications;
 #[cfg(feature = "queue")]
 pub mod queue;
+#[cfg(feature = "grpc")]
+pub mod runtime;
 #[cfg(feature = "queue")]
 pub mod schedule;
 #[cfg(feature = "encryption")]

@@ -1,7 +1,7 @@
 //! HTTP 服务器生命周期与 `serve` 命令。
 
 use crate::core::lifecycle::BackgroundTasks;
-use crate::core::{App, BoxFuture, Command, Error, Result, shutdown_signal};
+use crate::core::{App, AppState, BoxFuture, Command, Error, Result, shutdown_signal};
 use axum::Router;
 use std::net::SocketAddr;
 use std::{future::Future, time::Duration};
@@ -28,67 +28,91 @@ async fn serve_listener<F>(
 where
     F: Future<Output = ()>,
 {
-    let readiness = app.state().try_get::<super::health::ServerReadiness>()?;
-    let timeout = Duration::from_secs(app.config().server.shutdown_timeout_secs);
-    let _readiness_guard = ReadinessGuard(readiness.clone());
-    readiness.begin_listening();
+    serve_listener_inner(
+        app.state().clone(),
+        Duration::from_secs(app.config().server.shutdown_timeout_secs),
+        listener,
+        router,
+        shutdown,
+        true,
+    )
+    .await
+}
+
+/// 在联合 supervisor 下运行 HTTP listener，由外层统一收尾应用后台任务。
+#[cfg(feature = "grpc")]
+pub(crate) async fn serve_listener_for_supervisor<F>(
+    state: AppState,
+    timeout: Duration,
+    listener: TcpListener,
+    router: Router,
+    shutdown: F,
+) -> Result<()>
+where
+    F: Future<Output = ()>,
+{
+    serve_listener_inner(state, timeout, listener, router, shutdown, false).await
+}
+
+async fn serve_listener_inner<F>(
+    state: AppState,
+    timeout: Duration,
+    listener: TcpListener,
+    router: Router,
+    shutdown: F,
+    stop_background_tasks: bool,
+) -> Result<()>
+where
+    F: Future<Output = ()>,
+{
+    let readiness = state.try_get::<super::health::ServerReadiness>()?;
+    let _readiness_guard = readiness.begin_listening();
     let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
-    let mut server = tokio::spawn(async move {
-        axum::serve(
-            listener,
-            router.into_make_service_with_connect_info::<SocketAddr>(),
-        )
-        .with_graceful_shutdown(async {
-            let _ = shutdown_rx.await;
-        })
-        .await
-    });
+    let server = axum::serve(
+        listener,
+        router.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(async {
+        let _ = shutdown_rx.await;
+    })
+    .into_future();
+    tokio::pin!(server);
     tokio::select! {
         result = &mut server => {
-            readiness.set_ready(false);
-            let tasks = app.state().background_tasks().stop();
-            let deadline = tokio::time::Instant::now() + timeout;
-            let _ = BackgroundTasks::join_until(tasks, deadline).await;
+            let task_result = if stop_background_tasks {
+                let tasks = state.background_tasks().stop();
+                let deadline = tokio::time::Instant::now() + timeout;
+                BackgroundTasks::join_until(tasks, deadline).await
+            } else {
+                Ok(())
+            };
             match result {
-                Ok(Ok(())) => Err(Error::custom("http_server_stopped", "HTTP server stopped before a shutdown signal")),
-                Ok(Err(error)) => Err(Error::internal(error)),
+                Ok(()) => {
+                    task_result?;
+                    Err(Error::custom("http_server_stopped", "HTTP server stopped before a shutdown signal"))
+                },
                 Err(error) => Err(Error::internal(error)),
             }
         }
         () = shutdown => {
-            readiness.set_ready(false);
+            readiness.stop_accepting();
             let deadline = tokio::time::Instant::now() + timeout;
-            let tasks = app.state().background_tasks().stop();
             let _ = shutdown_tx.send(());
             let server_result = tokio::time::timeout_at(deadline, &mut server).await;
-            let task_result = BackgroundTasks::join_until(tasks, deadline).await;
-            match server_result {
-                Ok(Ok(result)) => {
-                    result.map_err(Error::internal)?;
-                    task_result
-                }
-                Ok(Err(error)) => Err(Error::internal(error)),
-                Err(_) => {
-                    readiness.cancel_requests();
-                    if tokio::time::timeout(Duration::from_millis(100), &mut server)
-                        .await
-                        .is_err()
-                    {
-                        server.abort();
-                        let _ = server.await;
-                    }
-                    Err(Error::custom("http_shutdown_timeout", "HTTP server did not drain before the configured shutdown deadline"))
-                }
+            let task_result = if stop_background_tasks {
+                let tasks = state.background_tasks().stop();
+                BackgroundTasks::join_until(tasks, deadline).await
+            } else {
+                Ok(())
+            };
+            if let Ok(result) = server_result {
+                result.map_err(Error::internal)?;
+                task_result
+            } else {
+                readiness.cancel_requests();
+                Err(Error::custom("http_shutdown_timeout", "HTTP server did not drain before the configured shutdown deadline"))
             }
         }
-    }
-}
-
-struct ReadinessGuard(std::sync::Arc<super::health::ServerReadiness>);
-
-impl Drop for ReadinessGuard {
-    fn drop(&mut self) {
-        self.0.set_ready(false);
     }
 }
 

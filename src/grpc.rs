@@ -596,6 +596,7 @@ async fn set_health_status(
 impl GrpcServer {
     /// 从服务注册表和配置构建 server；不绑定端口或启动后台任务。
     pub fn from_app(app: &App) -> Result<Self> {
+        app.state().try_get::<GrpcPluginInstalled>()?;
         let registry = app.extension::<GrpcServiceRegistry>().ok_or_else(|| {
             Error::custom(
                 "grpc_service_registry_missing",
@@ -670,7 +671,6 @@ impl GrpcServer {
             tonic_health::ServingStatus::NotServing,
         )
         .await;
-        readiness.begin_listening();
         let server = tonic::transport::Server::builder()
             .max_concurrent_streams(max_concurrent_streams_per_connection)
             .concurrency_limit_per_connection(max_concurrent_rpcs_per_connection)
@@ -691,6 +691,7 @@ impl GrpcServer {
             })?;
         }
         let router: Router<_> = server.add_routes(routes);
+        let _readiness_guard = readiness.begin_listening();
         let health_reporter = health.clone();
         let readiness_for_shutdown = readiness.clone();
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
@@ -713,7 +714,6 @@ impl GrpcServer {
         .await;
         tokio::select! {
             result = &mut server => {
-                readiness_for_shutdown.set_ready(false);
                 set_health_status(&health_reporter, &health_services, tonic_health::ServingStatus::NotServing).await;
                 health_reporter.begin_shutdown();
                 match result {
@@ -723,7 +723,7 @@ impl GrpcServer {
                 }
             }
             () = shutdown => {
-                readiness_for_shutdown.set_ready(false);
+                readiness_for_shutdown.stop_accepting();
                 set_health_status(&health_reporter, &health_services, tonic_health::ServingStatus::NotServing).await;
                 health_reporter.begin_shutdown();
                 let _ = shutdown_tx.send(());
@@ -967,6 +967,9 @@ pub struct GrpcPlugin {
     clients: Option<GrpcClientRegistry>,
 }
 
+#[derive(Clone, Copy)]
+struct GrpcPluginInstalled;
+
 impl GrpcPlugin {
     /// 创建配置驱动的 gRPC 插件。
     pub fn new() -> Self {
@@ -1088,10 +1091,26 @@ impl Plugin for GrpcPlugin {
         };
         builder.extension_mut::<GrpcServiceRegistry>();
         builder.insert(Readiness::default());
+        builder.insert(GrpcPluginInstalled);
         builder.try_insert(clients)?;
         builder.try_command(GrpcServeCommand)?;
         Ok(())
     }
+}
+
+pub(crate) fn require_joint_plugin(builder: &mut AppBuilder) -> Result<()> {
+    builder.try_get::<GrpcPluginInstalled>()?;
+    if builder
+        .extension_mut::<GrpcServiceRegistry>()
+        .factories
+        .is_empty()
+    {
+        return Err(Error::custom(
+            "grpc_service_missing",
+            "联合运行需要至少注册一个 gRPC 服务",
+        ));
+    }
+    Ok(())
 }
 
 struct GrpcServeCommand;

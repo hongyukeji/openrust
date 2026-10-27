@@ -1,7 +1,7 @@
 # gRPC
 
 > 受众：AI Agent
-> 摘要：可选 tonic/prost runtime、服务注册、配置、typed clients、Protobuf 生成、G2a TLS/mTLS、G2b 身份/错误映射及 G2c deadline、资源限额、health/reflection 和有界停机已交付；G3 联合运行/集群仍待验收。
+> 摘要：可选 tonic/prost runtime、服务注册、配置、typed clients、Protobuf 生成、G2a TLS/mTLS、G2b 身份/错误映射、G2c deadline/资源/health 与停机，以及 G3a HTTP/RPC 联合生命周期已交付；G3b proto/trace 兼容和 G3c 双节点路由仍待验收。
 
 ## 当前契约
 
@@ -16,8 +16,9 @@
 - 生成服务的 tonic 消息上限由应用使用 `GrpcPlugin::register_service_with_config` 将配置值应用到生成 server 的 `max_decoding_message_size` / `max_encoding_message_size`；旧 `register_service` 保留 tonic 默认 4 MiB 行为。超限请求按 tonic 协议返回 `OUT_OF_RANGE`。`RateLimiter` 不擅自按 IP/身份建立猜测性策略；业务 handler 使用已有 limiter 并选择受信用户/方法 key。
 - 框架自动注册标准 gRPC health `Check`/`Watch`，总状态及每个已注册服务在 listener 可用后为 `SERVING`；停机先更新为 `NOT_SERVING`，Watch 收到更新后关闭，同时保留 Check 的 `NOT_SERVING` 回答。reflection 默认关闭；开启时必须注册应用 descriptor set 和明确服务白名单，不公布白名单外的服务。
 - gRPC 停机切换共享 `core::Readiness`、拒绝新 RPC、限时 drain；超过 `[server].shutdown_timeout_secs` 后合作取消在途调用、abort 并 join server task，再返回 `grpc_shutdown_timeout`。响应流和 health Watch 均覆盖在停机生命周期内。
+- `HttpGrpcPlugin` 要求应用先安装 `HttpPlugin`、`GrpcPlugin` 并注册至少一个 gRPC service，提供 `serve all` 与 `runtime::serve_http_and_grpc`；它先构建 router/TLS 并绑定两个 listener，再启动服务。共享 readiness 仅在两个 listener 都运行时为 true；统一 shutdown timeout 覆盖 HTTP、gRPC 和 app-owned background task join，超时会取消请求、abort 并 join listener task。既有 `serve`、`grpc serve` 保留。真实 TCP 联合路径覆盖于示例与 `apps/server` 集成测试。
 - 服务注册、配置与 loopback TCP 生命周期由 `apps/server/tests/grpc.rs` 覆盖；四种 RPC、半关闭和异常断连见 `examples/grpc/`。
 
 ## 未覆盖范围
 
-HTTP+gRPC 联合 supervisor、多节点代理路由、滚动升级、proto 新旧互通、跨节点流处理、生产观测与性能基线留在 G3 与 v1 集群验收。不得把 loopback 示例写成集群证据。
+双节点代理路由、滚动升级、proto 新旧互通、跨协议 trace、跨节点流处理、生产观测与性能基线留在 G3b/G3c 与 v1 集群验收。不得把 loopback 示例写成集群证据。

@@ -74,15 +74,16 @@ impl Echo for EchoService {
         let prefix = request.into_inner().value;
         let guard = StreamDrop(Arc::clone(&self.dropped_streams));
         if prefix == "__slow" {
-            let responses = stream::unfold((prefix, 0, guard), |(prefix, index, guard)| async move {
-                tokio::time::sleep(Duration::from_millis(100)).await;
-                Some((
-                    Ok(EchoResponse {
-                        value: format!("{prefix}-{index}"),
-                    }),
-                    (prefix, index + 1, guard),
-                ))
-            });
+            let responses =
+                stream::unfold((prefix, 0, guard), |(prefix, index, guard)| async move {
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                    Some((
+                        Ok(EchoResponse {
+                            value: format!("{prefix}-{index}"),
+                        }),
+                        (prefix, index + 1, guard),
+                    ))
+                });
             return Ok(Response::new(Box::pin(responses)));
         }
         let responses = stream::unfold((prefix, 0, guard), |(prefix, index, guard)| async move {
@@ -703,8 +704,14 @@ mod auth_tests {
 mod runtime_tests {
     use super::*;
     use openrust::grpc::{health_pb, reflection_pb};
-    use std::{error::Error as StdError, net::SocketAddr};
+    use openrust::{
+        http::{AppBuilderHttpExt, HttpPlugin},
+        runtime::{HttpGrpcPlugin, serve_http_and_grpc_until},
+    };
+    use std::{error::Error as StdError, net::SocketAddr, sync::Arc};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::task::JoinHandle;
+    use tokio::{net::TcpStream, sync::Notify};
     use tonic::Code;
 
     async fn start_runtime_server(
@@ -753,6 +760,79 @@ mod runtime_tests {
         Ok((address, stop, task))
     }
 
+    async fn unused_address() -> Result<SocketAddr, Box<dyn StdError>> {
+        let listener = TcpListener::bind("127.0.0.1:0").await?;
+        Ok(listener.local_addr()?)
+    }
+
+    async fn combined_app(
+        http_address: SocketAddr,
+        grpc_address: SocketAddr,
+        shutdown_timeout_secs: u64,
+        blocked_request: Option<Arc<Notify>>,
+    ) -> Result<Arc<openrust::App>, Box<dyn StdError>> {
+        let mut config = FrameworkConfig::default();
+        config.server.host = http_address.ip().to_string();
+        config.server.port = http_address.port();
+        config.server.shutdown_timeout_secs = shutdown_timeout_secs;
+        config.grpc.listen_addr = grpc_address;
+        config.grpc.allow_insecure_server = true;
+        let mut builder = AppBuilder::new(config, figment::Figment::new());
+        GrpcPlugin::register_service_with_config::<EchoServer<EchoService>, _>(
+            &mut builder,
+            |_, grpc| {
+                EchoServer::new(EchoService {
+                    dropped_streams: Arc::new(AtomicUsize::new(0)),
+                    policy: None,
+                })
+                .max_decoding_message_size(grpc.max_decoding_message_size_bytes)
+                .max_encoding_message_size(grpc.max_encoding_message_size_bytes)
+            },
+        )?;
+        if let Some(blocked_request) = blocked_request {
+            builder.routes(move |routes| {
+                let blocked_request = Arc::clone(&blocked_request);
+                routes.get("/blocked", move || {
+                    let blocked_request = Arc::clone(&blocked_request);
+                    async move {
+                        blocked_request.notify_one();
+                        std::future::pending::<&'static str>().await
+                    }
+                })
+            });
+        }
+        builder
+            .plugin(HttpPlugin)
+            .plugin(GrpcPlugin::new())
+            .plugin(HttpGrpcPlugin);
+        Ok(Arc::new(finalize(builder).await?))
+    }
+
+    async fn wait_until_ready(
+        readiness: openrust::core::Readiness,
+    ) -> Result<(), Box<dyn StdError>> {
+        tokio::time::timeout(Duration::from_secs(5), async move {
+            while !readiness.is_ready() {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await?;
+        Ok(())
+    }
+
+    async fn http_request(address: SocketAddr, path: &str) -> Result<String, Box<dyn StdError>> {
+        let mut stream = TcpStream::connect(address).await?;
+        stream
+            .write_all(
+                format!("GET {path} HTTP/1.1\r\nhost: {address}\r\nconnection: close\r\n\r\n")
+                    .as_bytes(),
+            )
+            .await?;
+        let mut response = Vec::new();
+        stream.read_to_end(&mut response).await?;
+        Ok(String::from_utf8(response)?)
+    }
+
     #[tokio::test]
     async fn grpc_deadline_covers_stream_lifetime_and_global_limit_holds_until_end()
     -> Result<(), Box<dyn StdError>> {
@@ -772,8 +852,22 @@ mod runtime_tests {
             .metadata_mut()
             .insert("grpc-timeout", "55m".parse()?);
         let mut stream = client.server_stream(stream_request).await?.into_inner();
-        assert_eq!(stream.message().await?.ok_or("first response missing")?.value, "deadline-0");
-        assert_eq!(stream.message().await?.ok_or("second response missing")?.value, "deadline-1");
+        assert_eq!(
+            stream
+                .message()
+                .await?
+                .ok_or("first response missing")?
+                .value,
+            "deadline-0"
+        );
+        assert_eq!(
+            stream
+                .message()
+                .await?
+                .ok_or("second response missing")?
+                .value,
+            "deadline-1"
+        );
 
         let overloaded = client
             .unary(Request::new(EchoRequest {
@@ -798,7 +892,8 @@ mod runtime_tests {
                 .value,
             "released"
         );
-        stop.send(()).map_err(|()| "gRPC server stopped unexpectedly")?;
+        stop.send(())
+            .map_err(|()| "gRPC server stopped unexpectedly")?;
         task.await??;
         Ok(())
     }
@@ -806,14 +901,12 @@ mod runtime_tests {
     #[tokio::test]
     async fn reflection_is_opt_in_and_lists_only_registered_descriptor_services()
     -> Result<(), Box<dyn StdError>> {
-        let (address, stop, task) =
-            start_runtime_server(FrameworkConfig::default(), true).await?;
+        let (address, stop, task) = start_runtime_server(FrameworkConfig::default(), true).await?;
         let channel = tonic::transport::Channel::from_shared(format!("http://{address}"))?
             .connect()
             .await?;
-        let mut client = reflection_pb::v1::server_reflection_client::ServerReflectionClient::new(
-            channel,
-        );
+        let mut client =
+            reflection_pb::v1::server_reflection_client::ServerReflectionClient::new(channel);
         let request = reflection_pb::v1::ServerReflectionRequest {
             host: String::new(),
             message_request: Some(
@@ -826,12 +919,26 @@ mod runtime_tests {
             .server_reflection_info(tonic::Request::new(iter([request])))
             .await?
             .into_inner();
-        let response = responses.message().await?.ok_or("reflection response missing")?;
-        let Some(reflection_pb::v1::server_reflection_response::MessageResponse::ListServicesResponse(services)) = response.message_response else {
+        let response = responses
+            .message()
+            .await?
+            .ok_or("reflection response missing")?;
+        let Some(
+            reflection_pb::v1::server_reflection_response::MessageResponse::ListServicesResponse(
+                services,
+            ),
+        ) = response.message_response
+        else {
             return Err("reflection did not return its service list".into());
         };
-        assert!(services.service.iter().any(|service| service.name == "openrust.example.v1.Echo"));
-        stop.send(()).map_err(|()| "gRPC server stopped unexpectedly")?;
+        assert!(
+            services
+                .service
+                .iter()
+                .any(|service| service.name == "openrust.example.v1.Echo")
+        );
+        stop.send(())
+            .map_err(|()| "gRPC server stopped unexpectedly")?;
         task.await??;
         Ok(())
     }
@@ -839,8 +946,7 @@ mod runtime_tests {
     #[tokio::test]
     async fn health_watch_reports_not_serving_before_graceful_drain()
     -> Result<(), Box<dyn StdError>> {
-        let (address, stop, task) =
-            start_runtime_server(FrameworkConfig::default(), false).await?;
+        let (address, stop, task) = start_runtime_server(FrameworkConfig::default(), false).await?;
         let channel = tonic::transport::Channel::from_shared(format!("http://{address}"))?
             .connect()
             .await?;
@@ -851,12 +957,16 @@ mod runtime_tests {
             }))
             .await?
             .into_inner();
-        let serving = watch.message().await?.ok_or("initial health status missing")?;
+        let serving = watch
+            .message()
+            .await?
+            .ok_or("initial health status missing")?;
         assert_eq!(
             serving.status,
             health_pb::health_check_response::ServingStatus::Serving as i32
         );
-        stop.send(()).map_err(|()| "gRPC server stopped unexpectedly")?;
+        stop.send(())
+            .map_err(|()| "gRPC server stopped unexpectedly")?;
         let stopping = watch
             .message()
             .await?
@@ -909,7 +1019,8 @@ mod runtime_tests {
             .await
             .expect_err("the configured generated-server decoding limit must apply");
         assert_eq!(error.code(), Code::OutOfRange);
-        stop.send(()).map_err(|()| "gRPC server stopped unexpectedly")?;
+        stop.send(())
+            .map_err(|()| "gRPC server stopped unexpectedly")?;
         task.await??;
         Ok(())
     }
@@ -931,11 +1042,148 @@ mod runtime_tests {
             .await?
             .into_inner();
         assert!(stream.message().await?.is_some());
-        stop.send(()).map_err(|()| "gRPC server stopped unexpectedly")?;
+        stop.send(())
+            .map_err(|()| "gRPC server stopped unexpectedly")?;
         let result = task.await?;
         let error = result.expect_err("unbounded stream must hit the configured drain limit");
         assert_eq!(error.code(), "grpc_shutdown_timeout");
         drop(stream);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn combined_runtime_serves_both_protocols_and_drains_together()
+    -> Result<(), Box<dyn StdError>> {
+        let http_address = unused_address().await?;
+        let grpc_address = unused_address().await?;
+        let app = combined_app(http_address, grpc_address, 2, None).await?;
+        assert!(app.commands().any(|command| command.name() == "serve all"));
+        let readiness = app.state().try_get::<openrust::core::Readiness>()?;
+        let (stop, signal) = oneshot::channel();
+        let serving_app = Arc::clone(&app);
+        let task = tokio::spawn(async move {
+            serve_http_and_grpc_until(&serving_app, async move {
+                let _ = signal.await;
+            })
+            .await
+        });
+
+        wait_until_ready((*readiness).clone()).await?;
+        let response = http_request(http_address, "/ready").await?;
+        assert!(response.starts_with("HTTP/1.1 200"));
+        let channel = tonic::transport::Channel::from_shared(format!("http://{grpc_address}"))?
+            .connect()
+            .await?;
+        let mut client = EchoClient::new(channel);
+        assert_eq!(
+            client
+                .unary(Request::new(EchoRequest {
+                    value: "combined".to_owned(),
+                }))
+                .await?
+                .into_inner()
+                .value,
+            "combined"
+        );
+
+        stop.send(())
+            .map_err(|()| "combined server stopped unexpectedly")?;
+        task.await??;
+        assert!(!readiness.is_ready());
+        assert!(TcpStream::connect(http_address).await.is_err());
+        assert!(TcpStream::connect(grpc_address).await.is_err());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn combined_startup_binding_failure_releases_the_first_listener()
+    -> Result<(), Box<dyn StdError>> {
+        let occupied_grpc_listener = TcpListener::bind("127.0.0.1:0").await?;
+        let grpc_address = occupied_grpc_listener.local_addr()?;
+        let http_address = unused_address().await?;
+        let app = combined_app(http_address, grpc_address, 2, None).await?;
+        let (_stop, signal) = oneshot::channel::<()>();
+        let error = serve_http_and_grpc_until(&app, async move {
+            let _ = signal.await;
+        })
+        .await
+        .expect_err("gRPC bind conflict must fail before serving HTTP");
+        assert_eq!(error.code(), "internal_error");
+        assert!(TcpStream::connect(http_address).await.is_err());
+        drop(occupied_grpc_listener);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn combined_shutdown_timeout_aborts_and_joins_both_listeners()
+    -> Result<(), Box<dyn StdError>> {
+        let http_address = unused_address().await?;
+        let grpc_address = unused_address().await?;
+        let blocked_request = Arc::new(Notify::new());
+        let app = combined_app(
+            http_address,
+            grpc_address,
+            1,
+            Some(Arc::clone(&blocked_request)),
+        )
+        .await?;
+        let readiness = app.state().try_get::<openrust::core::Readiness>()?;
+        let (stop, signal) = oneshot::channel();
+        let serving_app = Arc::clone(&app);
+        let task = tokio::spawn(async move {
+            serve_http_and_grpc_until(&serving_app, async move {
+                let _ = signal.await;
+            })
+            .await
+        });
+        wait_until_ready((*readiness).clone()).await?;
+        let mut request = TcpStream::connect(http_address).await?;
+        request
+            .write_all(format!("GET /blocked HTTP/1.1\r\nHost: {http_address}\r\n\r\n").as_bytes())
+            .await?;
+        tokio::time::timeout(Duration::from_secs(5), blocked_request.notified()).await?;
+        stop.send(())
+            .map_err(|()| "combined server stopped unexpectedly")?;
+        let result = task.await?;
+        let error = result.expect_err("blocked HTTP request must hit the joint deadline");
+        assert_eq!(error.code(), "http_grpc_shutdown_timeout");
+        assert!(!readiness.is_ready());
+        assert!(TcpStream::connect(http_address).await.is_err());
+        assert!(TcpStream::connect(grpc_address).await.is_err());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn combined_plugin_rejects_missing_http_or_grpc_registration()
+    -> Result<(), Box<dyn StdError>> {
+        let mut builder = AppBuilder::new(FrameworkConfig::default(), figment::Figment::new());
+        builder
+            .plugin(HttpPlugin)
+            .plugin(GrpcPlugin::new())
+            .plugin(HttpGrpcPlugin);
+        let error = match finalize(builder).await {
+            Ok(_) => {
+                return Err("joint runtime unexpectedly accepted an empty service registry".into());
+            }
+            Err(error) => error,
+        };
+        assert_eq!(error.code(), "grpc_service_missing");
+
+        let mut builder = AppBuilder::new(FrameworkConfig::default(), figment::Figment::new());
+        GrpcPlugin::register_service::<EchoServer<EchoService>, _>(&mut builder, |_| {
+            EchoServer::new(EchoService {
+                dropped_streams: Arc::new(AtomicUsize::new(0)),
+                policy: None,
+            })
+        })?;
+        builder.plugin(GrpcPlugin::new()).plugin(HttpGrpcPlugin);
+        let error = match finalize(builder).await {
+            Ok(_) => {
+                return Err("joint runtime unexpectedly accepted a missing HTTP plugin".into());
+            }
+            Err(error) => error,
+        };
+        assert_eq!(error.code(), "plugin_dependency_missing");
         Ok(())
     }
 }

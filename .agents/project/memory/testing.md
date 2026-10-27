@@ -6,7 +6,7 @@
 
 ## M5 gRPC G1 基础与生成
 
-按 [ADR-040](decisions/adr-040-grpc-integration.md) 增加可选 `grpc` feature、配置校验、服务注册/冲突检测、默认及具名共享 Channel、`grpc serve` 命令、应用自有 proto/build.rs 生成和 loopback TCP 示例。默认 feature 不启用 tonic/prost/protoc；G1 只接受明文 `http://` client endpoint，TLS/认证/health/配额由 G2 交付。
+按 [ADR-040](../decisions/adr-040-grpc-integration.md) 增加可选 `grpc` feature、配置校验、服务注册/冲突检测、默认及具名共享 Channel、`grpc serve` 命令、应用自有 proto/build.rs 生成和 loopback TCP 示例。默认 feature 不启用 tonic/prost/protoc；G1 只接受明文 `http://` client endpoint，TLS/认证/health/配额由 G2 交付。
 
 服务端集成测试 3 项通过（注册与真实 TCP 生命周期、重复名称拒绝、未注册服务失败）；独立示例实际执行 unary、server stream、client stream、bidirectional stream、半关闭与断连清理。CLI `--grpc` 模板测试通过；在无 `.git`、无 target 的干净源码副本生成应用后 `cargo check` 和 `cargo test --locked` 通过，无绝对路径或 registry patch。默认 workspace 测试与 `RUST_TEST_THREADS=1 cargo test --workspace --all-features` 通过；all-features 包含真实 Redis targets。all-target/all-features workspace 与独立示例 Clippy、warnings-denied 默认/all-features Rustdoc、workspace 与独立示例 `cargo deny`、fmt/diff check 通过。deny 仅保留既有重复依赖版本及未匹配 MPL allowance 告警。`cargo +1.97.0 check` 的框架 gRPC feature 与独立示例均已通过；默认依赖树不含 tonic/prost/protoc。未覆盖 G2 安全语义和 G3 多节点/联合运行。
 
@@ -275,3 +275,9 @@ F6-B 租户资源传播已完成：Cache key/singleflight/tag generation、跨�
 真实 TCP 示例 `cargo test --manifest-path examples/grpc/Cargo.toml --locked --all-features` 11 项通过：完整 server-stream deadline、全局并发超限/许可释放、消息大小限制、reflection descriptor 白名单及缺 descriptor 拒绝、health Watch 停机状态、非终止流的 shutdown deadline，以及既有 JWT/TLS/mTLS 用例。`cargo test -p server --features grpc --test grpc -- --nocapture` 6 项通过，覆盖共享 readiness、明文安全默认和真实子进程 SIGTERM。SIGTERM 子进程测试清除继承的 `RUST_TEST_THREADS`，避免串行 workspace runner 影响子进程测试调度。
 
 通过 `cargo fmt --all --check`、默认与 all-features workspace all-target Clippy（`-D warnings`）、默认 `cargo test --workspace --quiet`、串行 `RUST_TEST_THREADS=1 cargo test --workspace --all-features --quiet`、warnings-denied 默认/all-features workspace Rustdoc、workspace 与独立示例 `cargo deny check`、独立示例 all-target/all-features Clippy、Rust 1.97 根 gRPC feature check、独立示例 Rust 1.97 locked all-target/all-features check、no-default-features gRPC check 与 7 项 gRPC unit tests。独立示例锁定依赖并通过完整 all-features 测试；根与示例 cargo deny 均通过 advisories/bans/licenses/sources，保留既有 duplicate crate versions 与未匹配 MPL allowance 警告。G2c 只变更 gRPC runtime，不新增数据库行为；G2b JWT/PAT/Policy 的 PostgreSQL 18/MySQL 8.4 证据仍见前文，G2c 不重复声称双库认证验收。HTTP+gRPC 联合 supervisor、真实多节点路由、滚动升级和 proto 新旧互通仍未验收，列入 G3。
+
+## M5 gRPC G3a HTTP/RPC 联合生命周期
+
+示例 `cargo test --manifest-path examples/grpc/Cargo.toml --locked --all-features` 15 项通过，包含联合 HTTP `/ready` 与 gRPC unary 的真实 TCP 调用、双 listener readiness/停机、gRPC 绑定冲突后 HTTP listener 自动释放、`combined_shutdown_timeout_aborts_and_joins_both_listeners` 超时回收，以及插件服务注册前置条件和既有 G2 TLS/auth/deadline/health 运行治理；`cargo test -p server --features grpc --test grpc -- --nocapture` 7 项通过，其中 `server_host_composes_http_and_grpc_under_one_lifecycle` 通过真实 TCP 调用 HTTP health 与 gRPC health，并验证统一停机关闭两个端口；`cargo test -p openrust --features grpc runtime::tests --lib` 2 项验证早期 listener 退出会报错、故障 listener 会通知并 join sibling。该组合入口先构建 router/TLS、再绑定两个 listener；`Readiness` 只有两个 listener 都 active 才为 ready，supervisor 统一 stop、deadline、abort/join 与 app-owned background task 回收。没有模拟真实节点故障或 HTTP/2 代理，不能作为 G3c/集群证据。
+
+本簇通过 `cargo fmt --all --check`、默认/all-features workspace all-target Clippy（`-D warnings`）、默认 `cargo test --workspace --quiet`、串行 `RUST_TEST_THREADS=1 cargo test --workspace --all-features --quiet`、warnings-denied 默认/all-features workspace Rustdoc、`cargo deny check`、Rust 1.97 根 gRPC feature check 与独立示例 locked all-target/all-features check。示例单独运行 all-features Clippy 与 `cargo deny check`；deny 的 advisories/bans/licenses/sources 通过，仅保留既有重复 crate 版本和未匹配 MPL allowance 警告。无数据库行为变化，不重复 PostgreSQL/MySQL 数据验收；完整双节点路由、proto/trace 传播留待 G3b/G3c。

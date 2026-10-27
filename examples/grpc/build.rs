@@ -1,7 +1,7 @@
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-changed=proto/echo.proto");
-    let descriptor_path = std::path::PathBuf::from(std::env::var("OUT_DIR")?)
-        .join("echo_descriptor.bin");
+    let descriptor_path =
+        std::path::PathBuf::from(std::env::var("OUT_DIR")?).join("echo_descriptor.bin");
     let mut config = tonic_prost_build::Config::new();
     config.protoc_executable(protoc_bin_vendored::protoc_bin_path()?);
     tonic_prost_build::configure()

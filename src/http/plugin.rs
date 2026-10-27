@@ -102,6 +102,21 @@ impl AppBuilderHttpExt for AppBuilder {
 /// 应用通过 `app.plugin(HttpPlugin)` 显式安装。
 pub struct HttpPlugin;
 
+#[derive(Clone, Copy)]
+struct HttpPluginInstalled;
+
+impl HttpPlugin {
+    #[cfg(feature = "grpc")]
+    pub(crate) fn require_installed(builder: &AppBuilder) -> Result<()> {
+        builder.try_get::<HttpPluginInstalled>().map(|_| ())
+    }
+
+    #[cfg(feature = "grpc")]
+    pub(crate) fn ensure_installed(app: &App) -> Result<()> {
+        app.state().try_get::<HttpPluginInstalled>().map(|_| ())
+    }
+}
+
 impl Plugin for HttpPlugin {
     fn name(&self) -> &'static str {
         "http"
@@ -116,6 +131,7 @@ impl Plugin for HttpPlugin {
             .into());
         }
         app.insert(health::ServerReadiness::default())
+            .insert(HttpPluginInstalled)
             .command(ServeCommand)
             .routes(health::routes);
         Ok(())

@@ -30,6 +30,6 @@ API 响应使用 `ApiResponse<T>` JSON envelope；健康状态位于 `data.statu
 
 启用 `storage-local` 会由 `Server::build` 安装 `StoragePlugin` 并使用本机 filesystem disk；启用 `storage-s3` 会同时启用 `storage-local` 与 S3-compatible driver。对象存储配置、流式 API 和授权边界见 [文件存储指南](../../src/storage/README.md)。
 
-`grpc` feature 将 gRPC 运行时转发到 server 集成宿主；应用仍需显式注册服务和 `GrpcPlugin`，不会在启用 feature 时自动开放端口。服务端默认要求 TLS；本机开发或可信 TLS 终止代理必须显式设置 `allow_insecure_server = true`。每流 deadline、连接及全局并发、metadata 和消息限制、health/reflection 与有界停机见 [`examples/grpc/`](../../examples/grpc/README.md)。启用 `auth` feature 时可验证 JWT/PAT Bearer；受保护方法显式调用 `GrpcAuth::authorize`，不使用 Cookie Session。HTTP+gRPC 联合运行与多节点验收仍由后续 G3 负责。
+`grpc` feature 将 gRPC 运行时转发到 server 集成宿主；应用仍需显式注册服务和 `GrpcPlugin`，不会在启用 feature 时自动开放端口。若应用也安装 `HttpPlugin`，再安装 `HttpGrpcPlugin`，CLI 会提供 `serve all`，统一启动 HTTP 与 gRPC 并管理 readiness 和停机；原 `serve`、`grpc serve` 仍可单独使用。服务端默认要求 TLS；本机开发或可信 TLS 终止代理必须显式设置 `allow_insecure_server = true`。每流 deadline、连接及全局并发、metadata 和消息限制、health/reflection 与有界停机见 [`examples/grpc/`](../../examples/grpc/README.md)。启用 `auth` feature 时可验证 JWT/PAT Bearer；受保护方法显式调用 `GrpcAuth::authorize`，不使用 Cookie Session。HTTP+gRPC 多节点路由、滚动升级与集群验收仍由后续 G3 负责。
 
 数据库、认证、队列与调度能力由各集成测试显式组装。开启 Cargo feature 不会让默认 `Server::build` 自动注册这些服务。详见 [ADR-007](../../.agents/project/decisions/adr-007-aggregate-server-entry.md)。

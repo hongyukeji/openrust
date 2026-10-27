@@ -2,6 +2,7 @@
 
 use std::io::{BufRead, BufReader, Write as _};
 use std::process::{Command, Stdio};
+use std::sync::Arc;
 use std::sync::mpsc;
 use std::time::Duration;
 use std::{convert::Infallible, future::Ready, task::Poll};
@@ -10,8 +11,14 @@ use openrust::{
     config::FrameworkConfig,
     core::{AppBuilder, Readiness, finalize},
     grpc::{GrpcPlugin, GrpcServer, health_pb, tonic},
+    http::HttpPlugin,
+    runtime::{HttpGrpcPlugin, serve_http_and_grpc_until},
 };
-use tokio::{net::TcpListener, sync::oneshot};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::{TcpListener, TcpStream},
+    sync::oneshot,
+};
 use tower::Service;
 
 #[derive(Clone)]
@@ -94,6 +101,79 @@ async fn plugin_rejects_duplicate_services_by_name() -> Result<(), Box<dyn std::
         .err()
         .ok_or("duplicate service registration unexpectedly succeeded")?;
     assert_eq!(error.code(), "grpc_service_duplicate");
+    Ok(())
+}
+
+#[tokio::test]
+async fn server_host_composes_http_and_grpc_under_one_lifecycle()
+-> Result<(), Box<dyn std::error::Error>> {
+    let http_probe = TcpListener::bind("127.0.0.1:0").await?;
+    let http_address = http_probe.local_addr()?;
+    drop(http_probe);
+    let grpc_probe = TcpListener::bind("127.0.0.1:0").await?;
+    let grpc_address = grpc_probe.local_addr()?;
+    drop(grpc_probe);
+
+    let mut config = FrameworkConfig::default();
+    config.server.host = http_address.ip().to_string();
+    config.server.port = http_address.port();
+    config.grpc.listen_addr = grpc_address;
+    config.grpc.allow_insecure_server = true;
+    let mut builder = AppBuilder::new(config, figment::Figment::new());
+    GrpcPlugin::register_service::<ProbeService, _>(&mut builder, |_| ProbeService)?;
+    builder
+        .plugin(HttpPlugin)
+        .plugin(GrpcPlugin::new())
+        .plugin(HttpGrpcPlugin);
+    let app = Arc::new(finalize(builder).await?);
+    assert!(app.commands().any(|command| command.name() == "serve all"));
+    let readiness = app.state().try_get::<Readiness>()?;
+    let (stop, signal) = oneshot::channel();
+    let running_app = Arc::clone(&app);
+    let task = tokio::spawn(async move {
+        serve_http_and_grpc_until(&running_app, async move {
+            let _ = signal.await;
+        })
+        .await
+    });
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while !readiness.is_ready() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await?;
+
+    let mut http = TcpStream::connect(http_address).await?;
+    http.write_all(
+        format!("GET /ready HTTP/1.1\r\nHost: {http_address}\r\nConnection: close\r\n\r\n")
+            .as_bytes(),
+    )
+    .await?;
+    let mut response = Vec::new();
+    http.read_to_end(&mut response).await?;
+    assert!(String::from_utf8(response)?.starts_with("HTTP/1.1 200"));
+
+    let channel = tonic::transport::Channel::from_shared(format!("http://{grpc_address}"))?
+        .connect()
+        .await?;
+    let mut health = health_pb::health_client::HealthClient::new(channel);
+    let health = health
+        .check(tonic::Request::new(health_pb::HealthCheckRequest {
+            service: "openrust.test.v1.Probe".to_owned(),
+        }))
+        .await?
+        .into_inner();
+    assert_eq!(
+        health.status,
+        health_pb::health_check_response::ServingStatus::Serving as i32
+    );
+
+    stop.send(())
+        .map_err(|()| "combined service exited before shutdown")?;
+    task.await??;
+    assert!(!readiness.is_ready());
+    assert!(TcpStream::connect(http_address).await.is_err());
+    assert!(TcpStream::connect(grpc_address).await.is_err());
     Ok(())
 }
 
