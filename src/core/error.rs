@@ -284,9 +284,9 @@ pub struct ApiResponse<T: Serialize> {
     pub code: String,
     /// 可安全展示给调用方的消息。
     pub message: String,
-    /// 失败响应生成时的 Unix 毫秒时间戳。
+    /// 失败响应生成时的 RFC 3339 UTC 时间。
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub timestamp_ms: Option<i64>,
+    pub timestamp: Option<String>,
     /// 响应载荷；没有载荷时省略此字段。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<T>,
@@ -319,7 +319,7 @@ impl<T: Serialize> ApiResponse<T> {
                 &crate::i18n::MessageArgs::new(),
             )
             .unwrap_or_else(|| "ok".to_owned()),
-            timestamp_ms: None,
+            timestamp: None,
             data: Some(data),
             meta: None,
             errors: None,
@@ -355,7 +355,9 @@ impl<T: Serialize> ApiResponse<T> {
             success: false,
             code: code.to_owned(),
             message,
-            timestamp_ms: Some(chrono::Utc::now().timestamp_millis()),
+            timestamp: Some(
+                chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+            ),
             data: None,
             meta: None,
             errors,
@@ -396,8 +398,8 @@ impl<T: Serialize> IntoResponse for ApiResponse<T> {
                     .clone_from(&self.request_id_header);
                 let body = serde_json::to_vec(&fallback).unwrap_or_else(|_| {
                     format!(
-                        "{{\"success\":false,\"code\":\"internal_error\",\"message\":\"internal server error\",\"timestamp_ms\":{},\"request_id\":{}}}",
-                        chrono::Utc::now().timestamp_millis(),
+                        "{{\"success\":false,\"code\":\"internal_error\",\"message\":\"internal server error\",\"timestamp\":\"{}\",\"request_id\":{}}}",
+                        chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
                         serde_json::to_string(&self.request_id_header).unwrap_or_else(|_| "\"-\"".to_owned())
                     )
                     .into_bytes()

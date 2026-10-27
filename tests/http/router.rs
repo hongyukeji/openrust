@@ -26,6 +26,19 @@ use validator::Validate;
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 static REQUEST_CANCELLED: AtomicBool = AtomicBool::new(false);
 
+fn is_utc_rfc3339(value: &serde_json::Value) -> bool {
+    let Some(value) = value.as_str() else {
+        return false;
+    };
+    let bytes = value.as_bytes();
+    value.ends_with('Z')
+        && bytes.get(19) == Some(&b'.')
+        && bytes
+            .get(20..23)
+            .is_some_and(|millis| millis.iter().all(u8::is_ascii_digit))
+        && chrono::DateTime::parse_from_rfc3339(value).is_ok()
+}
+
 struct Greeting(&'static str);
 
 #[derive(Deserialize, Validate)]
@@ -197,7 +210,7 @@ async fn health_and_request_id_are_installed_by_the_plugin() -> TestResult {
     assert_eq!(body["code"], "ok");
     assert_eq!(body["message"], "ok");
     assert_eq!(body["data"]["status"], "ok");
-    assert!(body.get("timestamp_ms").is_none());
+    assert!(body.get("timestamp").is_none());
     assert!(body.get("request_id").is_none());
     Ok(())
 }
@@ -912,7 +925,7 @@ async fn unknown_route_is_404_envelope_with_request_id() -> TestResult {
     assert_eq!(response.headers()[header::CONTENT_TYPE], "application/json");
     let body = json_body(response).await;
     assert_eq!(body["code"], "not_found");
-    assert!(body["timestamp_ms"].as_i64().is_some_and(|value| value > 0));
+    assert!(is_utc_rfc3339(&body["timestamp"]));
     Ok(())
 }
 
@@ -1027,10 +1040,10 @@ async fn always_ok_wraps_success_errors_and_fallbacks_with_matching_request_id()
         assert_eq!(body["success"], expected_code == "ok", "{uri}");
         if expected_code == "ok" {
             assert!(body.get("request_id").is_none(), "{uri}");
-            assert!(body.get("timestamp_ms").is_none(), "{uri}");
+            assert!(body.get("timestamp").is_none(), "{uri}");
         } else {
             assert_eq!(body["request_id"], "client-123", "{uri}");
-            assert!(body["timestamp_ms"].as_i64().is_some_and(|value| value > 0));
+            assert!(is_utc_rfc3339(&body["timestamp"]), "{uri}");
         }
         if uri == "/api/no-content" || expected_code != "ok" {
             assert!(body.get("data").is_none(), "{uri}");
@@ -1102,10 +1115,10 @@ async fn semantic_keeps_created_error_and_rate_limit_statuses() -> TestResult {
         let body = json_body(response).await;
         if expected.is_success() {
             assert!(body.get("request_id").is_none());
-            assert!(body.get("timestamp_ms").is_none());
+            assert!(body.get("timestamp").is_none());
         } else {
             assert_eq!(body["request_id"], request_id);
-            assert!(body["timestamp_ms"].as_i64().is_some_and(|value| value > 0));
+            assert!(is_utc_rfc3339(&body["timestamp"]));
         }
     }
     Ok(())

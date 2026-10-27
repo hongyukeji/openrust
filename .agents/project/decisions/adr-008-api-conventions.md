@@ -41,7 +41,7 @@ API 格式是框架对外的契约，生成器、文档和所有用户项目都�
 
 | 类型 | 规则 |
 | --- | --- |
-| 时间 | RFC 3339 UTC，带 `Z`，例如 `2026-10-25T10:00:00Z`；字段名以 `_at` 结尾（`created_at`）。纯日期用 `YYYY-MM-DD`，字段名以 `_on` 或 `_date` 结尾 |
+| 时间 | 使用 RFC 3339 UTC 字符串，带 `Z`，例如 `2026-10-25T10:00:00.123Z`；普通资源时间字段名以 `_at` 结尾（`created_at`）。纯日期用 `YYYY-MM-DD`，字段名以 `_on` 或 `_date` 结尾。Unix 整数时间需在字段名中标明单位；本 API 不用整数表示时间 |
 | ID | 自增主键为 JSON 整数；UUIDv7 主键为小写带连字符的字符串 |
 | 金额 | 最小货币单位的整数（`amount: 1999`）加 `currency: "usd"`，与 Stripe 一致；不使用浮点 |
 | 枚举 | `snake_case` 字符串 |
@@ -116,7 +116,7 @@ API 格式是框架对外的契约，生成器、文档和所有用户项目都�
 失败示例：
 
 ```json
-{ "success": false, "code": "validation_failed", "message": "Validation failed", "timestamp_ms": 1793088273927, "errors": { "title": ["is required"] }, "request_id": "..." }
+{ "success": false, "code": "validation_failed", "message": "Validation failed", "timestamp": "2026-10-27T04:12:30.123Z", "errors": { "title": ["is required"] }, "request_id": "..." }
 ```
 
 | 字段 | 出现时机 | 含义 |
@@ -124,7 +124,7 @@ API 格式是框架对外的契约，生成器、文档和所有用户项目都�
 | `success` | 总是 | 布尔值。客户端只需要看它判断成败 |
 | `code` | 总是 | 稳定的 `snake_case` 业务码。成功时为 `ok` |
 | `message` | 总是 | 面向用户的提示文字 |
-| `timestamp_ms` | 仅错误响应 | 服务端生成错误响应时的 Unix 毫秒时间戳；仅作排查参考，不用于鉴权、排序一致性或签名 |
+| `timestamp` | 仅错误响应 | 服务端生成错误响应时的 UTC RFC 3339 字符串，毫秒精度；仅作排查参考，不用于鉴权、排序一致性或签名 |
 | `data` | 有业务载荷时 | 业务数据；没有载荷时省略。空数组仍为 `[]`，对象中的 `null` 字段仍按其类型保留 |
 | `meta` | 仅分页集合 | `PageMeta { page, per_page, total, total_pages }` |
 | `errors` | 仅校验失败 | 格式为 `{字段: [消息]}` |
