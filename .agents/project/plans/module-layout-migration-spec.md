@@ -1,7 +1,7 @@
 # 根模块与目录收尾 Spec
 
 > 受众：AI Agent
-> 状态：迁移已实施，最终验收待完成。真实 server bin、配置和集成测试入口已迁入根 package；工具 package 已收纳到 `tools/`。当前进度记录仍有 workspace 全量测试中的两项配置名断言失败，不能将本 Spec 标记为验收完成；修复或证实失败归属后，按下方门禁重新验证并更新状态。
+> 状态：迁移已实施，最终验收待完成。真实 server bin、配置和集成测试入口已迁入根 package；工具 package 已收纳到 `tools/`。现有 CLI 测试记录显示 `creates_multiple_workspace_apps_with_local_dependencies_and_isolated_configs` 与 `rejects_external_invalid_duplicate_and_existing_destinations_without_mutation` 在生成项目时返回 `No such file or directory`；根因尚未确认，不能将本 Spec 标记为验收完成。
 > 决策：[ADR-062](../decisions/adr-062-root-server-entry.md)。工具包与源码交付迁移已完成，见 [ADR-021](../decisions/adr-021-loco-style-module-layout.md) 与 [ADR-039](../decisions/adr-039-source-workspace-distribution.md)。
 
 ## 目标
