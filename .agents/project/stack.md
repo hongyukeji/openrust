@@ -13,7 +13,7 @@
 | 限流 | `openrust::core::RateLimiter` + `openrust::database::DatabaseRateLimitStore` | 已实现固定窗口服务与双库共享 store，AuthFlows 与通用 HTTP RateLimitLayer/key 策略已接入；gRPC 适配待实现，不额外依赖 governor |
 | 会话 | `tower-sessions` 0.15；可选 Redis adapter 复用 `redis` 1.8.0 | 默认使用 SeaORM 数据库 store；`session-redis` feature 提供显式 `RedisSessionStore`，通过 `SessionPlugin::with_store` 选择；Redis 键与 TTL 语义见 ADR-017 |
 | gRPC | 可选 `grpc` feature 使用 `tonic` / `tonic-prost` / `tonic-health` / `tonic-reflection` `~0.14.6`（当前 lock 解析为 0.14.7）、`prost` 0.14、`http-body-util` 0.1；应用代码生成用 `tonic-prost-build` `~0.14.6` | 显式启用 tonic `tls-ring` Rustls provider；运行时依赖 MSRV 1.88，低于 workspace 1.97。默认构建不链接运行时或要求 `protoc`；生成应用使用 `protoc-bin-vendored` 3.3，不执行全局安装。rcgen 仅供独立 gRPC 示例生成临时测试证书。G2a TLS/mTLS、G2b JWT/PAT/Policy/Status、G2c 健康/reflection/调用预算/资源/有界停机、G3a HTTP/RPC 联合生命周期、G3b proto/trace 兼容及 G3c 双节点 HTTP/2 路由已完成对应验收；真实 L7 验收固定 Envoy 1.40.1。完整集群留在 M6，不自研 RPC 栈，见 ADR-040 |
-| 实时通信 | 可选 `realtime` 启用 Axum WebSocket 与在线 SSE；`realtime-redis` 复用 `redis` 1.8.0 Pub/Sub 跨节点路由 | 本地无 Redis 的 transport 是显式选择；跨节点没有静默本地回退。独立验收宿主 `tests/consumers/realtime/` 使用 `tokio-tungstenite` 0.29、`reqwest` 0.13、`futures-util` 与 `bytes` 做真实双进程 TCP/WebSocket/SSE 及停机验收；Redis 8 服务为验收依赖 |
+| 实时通信 | 可选 `realtime` 启用 Axum WebSocket 与在线 SSE；`realtime-redis` 复用 `redis` 1.8.0 Pub/Sub 跨节点路由 | 本地无 Redis 的 transport 是显式选择；跨节点没有静默本地回退。独立验收宿主 `examples/realtime/` 使用 `tokio-tungstenite` 0.29、`reqwest` 0.13、`futures-util` 与 `bytes` 做真实双进程 TCP/WebSocket/SSE 及停机验收；Redis 8 服务为验收依赖 |
 | OpenAPI | 规划 `utoipa` + `utoipa-axum`，尚未引入 | 类型 schema、统一响应文档与非生产 `/docs` 均待实现 |
 | 出站 HTTP | `reqwest` 0.13（Rustls）、`ipnet` 2.11、`httpdate` 1.x | `http-client` 可选 feature；共享连接池、JSON/query/form/multipart/stream、显式超时；默认禁重定向和代理继承；`HttpClient::restricted` 可选执行目标主机/端口、DNS 全结果及公网地址策略，内网例外由主机 + CIDR + 端口显式登记；命名依赖隔离及可选进程内熔断复用此客户端 |
 | 外部 OIDC 客户端 | `oauth2` 5.0（禁用 crate 默认 feature）+ 现有 `jsonwebtoken` 11.1（aws-lc-rs） | 可选 `auth-oidc` feature 依赖 `auth`、`http-client`、`encryption`；授权码/PKCE/令牌交换由 oauth2 提供，OIDC Discovery/JWKS 与 ID Token 必需声明校验由框架 glue 完成并通过受限命名 `DependencyClient` 出站；避免引入 `openidconnect` 的受影响 `rsa` 依赖，见 ADR-053 |
@@ -21,7 +21,7 @@
 | 验证 | `validator` | M0 评估 `garde` 后定稿 |
 | 国际化 | `openrust::i18n`、`serde_json` 与 ICU4X `icu_datetime`/`icu_decimal`/`icu_locale`/`icu_plurals` 2.3.x | 同一 catalog 支持字符串插值、CLDR plural/select；编译数据用于 locale 数字与公历日期格式化。仅启用所需组件；数据随二进制构建，不使用运行时网络。日期时区转换由调用方显式完成；最终二进制尺寸增量纳入 M6 构建基线测量 |
 | 配置 | `figment` | 已采用；错误信息含键名（测试覆盖） |
-| 日志 / 追踪 / metrics | `tracing` + `tracing-subscriber`；可选 `metrics` feature 使用 `metrics` 0.24.6 + `metrics-exporter-prometheus` 0.18.3；可选 `otel` feature 使用 OpenTelemetry SDK 0.33.1 与 OTLP HTTP exporter | `/metrics` 仅在配置开启后注册；HTTP 指标标签为固定方法与状态类别。HTTP、gRPC 和 worker 复用已校验的 `traceparent`；配置 OTLP endpoint 后由 SDK 后台线程导出 spans，使用同步 HTTP client 适配其执行模型。真实 Collector 已验证 HTTP 与 HTTP→gRPC trace 导出；性能和完整 workspace 最终门禁仍在 M5 验收中 |
+| 日志 / 追踪 | 已用 `tracing` + `tracing-subscriber` | `opentelemetry` / `metrics` 接入为 M5 规划，当前无对应依赖或 feature |
 | 时间 | `chrono` + `chrono-tz` 0.10.4（IANA tzdb），队列 cron 使用 | SeaORM 兼容；`queue` feature 启用静态 IANA 时区表，构建/产物增加相应数据；集群节点须运行相同构建产物 |
 | cron 解析 | `cron-parser` 0.12（`queue` feature） | 只接受五字段表达式；可复用解析结果计算日历触发，DST gap 跳过且 fold 的两个绝对时刻有序返回，框架以本地 wall-slot 唯一键折叠重复分钟 |
 | ID | 已提供可选 UUIDv7，详见下表 `db-uuid` | 默认整数 ID；生成选项为 `--uuid-id`，不使用不存在的 `--uuid` |
@@ -30,7 +30,7 @@
 
 | 能力 | 选型 | 说明 |
 | --- | --- | --- |
-| ORM / 迁移 | `sea-orm` 2.0.4 + `sea-orm-migration` 2.0.4 | 采用 M0 双库迁移 spike 验证的版本；tokio Rustls 默认运行时，OpenRust 官方连接驱动按 `db-postgres` / `db-mysql` feature 开启。外部自定义插件可通过同版本 SeaORM 依赖的 feature 统一选择其他 backend；SQLite 通用 `Db` 与应用自有迁移示例见 `tests/consumers/db-custom-sqlite/`，不代表 OpenRust 框架迁移、认证/队列或方言的完整支持 |
+| ORM / 迁移 | `sea-orm` 2.0.4 + `sea-orm-migration` 2.0.4 | 采用 M0 双库迁移 spike 验证的版本；tokio Rustls 默认运行时，OpenRust 官方连接驱动按 `db-postgres` / `db-mysql` feature 开启。外部自定义插件可通过同版本 SeaORM 依赖的 feature 统一选择其他 backend；SQLite 通用 `Db` 与应用自有迁移示例见 `examples/db-custom-sqlite/`，不代表 OpenRust 框架迁移、认证/队列或方言的完整支持 |
 | 数据库 URL | `url` 2.5 | `testing` 替换隔离数据库名时保留连接凭据和查询参数 |
 | SQLx 支持 | `sqlx` 0.9 | MySQL driver 强制 TLS（Rustls）；不启用存在安全公告的 RSA 非 TLS 认证路径；`db.sqlx()` 尚未实现，若提供需先定义公开 API、feature 与连接生命周期 |
 | 数据库 | 暂定最低支持：PostgreSQL 14+、MySQL 8.0+；日常开发/Compose：PostgreSQL 18、MySQL 8.4 LTS；常规 CI：PostgreSQL 18、MySQL 8.4 | 运行时版本检查按暂定最低版本执行；PostgreSQL/MySQL 最低版本的完整兼容性仍须在 v1 发布验收中复核，不把单项历史测试等同于整套框架支持。仅在主版本跨度大或兼容风险显著时专项测试，不为每次日常 CI 追测所有版本。PostgreSQL 官方按主版本提供五年支持，不称 LTS |
