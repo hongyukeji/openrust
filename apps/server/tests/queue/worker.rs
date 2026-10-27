@@ -26,8 +26,9 @@ static QUEUED_EVENT_HANDLED: AtomicUsize = AtomicUsize::new(0);
 static LAST_QUEUED_USER_ID: AtomicI64 = AtomicI64::new(0);
 static EVENT_TRANSACTION_CONTEXTS: AtomicUsize = AtomicUsize::new(0);
 static EVENT_NO_TRANSACTION_CONTEXTS: AtomicUsize = AtomicUsize::new(0);
+type ExecutionMetadataObservation = (Option<String>, Option<String>, Option<String>);
 static ORDERED: std::sync::Mutex<Vec<usize>> = std::sync::Mutex::new(Vec::new());
-static EXECUTION_METADATA: std::sync::Mutex<Option<(Option<String>, Option<String>)>> =
+static EXECUTION_METADATA: std::sync::Mutex<Option<ExecutionMetadataObservation>> =
     std::sync::Mutex::new(None);
 
 struct QueueMigrator;
@@ -102,8 +103,19 @@ impl Job for MetadataJob {
         let value = (
             context.metadata().request_id().map(str::to_owned),
             context.metadata().locale().map(ToString::to_string),
+            context
+                .metadata()
+                .tenant_id()
+                .map(|tenant| tenant.as_str().to_owned()),
         );
         Box::pin(async move {
+            if openrust::tenant::TenantContext::current().as_ref() != context.metadata().tenant_id()
+            {
+                return Err(Error::custom(
+                    "test_tenant_scope_missing",
+                    "queue worker did not restore the tenant scope",
+                ));
+            }
             *EXECUTION_METADATA
                 .lock()
                 .map_err(|_| Error::custom("test_metadata_lock", "metadata lock is poisoned"))? =
@@ -225,12 +237,15 @@ async fn database_queue_dispatch_worker_concurrency_failure_and_retry()
         openrust::Cancellation::new(),
     );
     let metadata_queue = format!("metadata{}", std::process::id());
-    openrust::with_execution_context(execution, async {
-        queue
-            .dispatch(&metadata_queue, MetadataJob::NAME, &())
-            .await
-    })
-    .await?;
+    openrust::tenant::TenantContext::scope(
+        openrust::tenant::TenantId::new("tenant-queue-a")?,
+        openrust::with_execution_context(execution, async {
+            queue
+                .dispatch(&metadata_queue, MetadataJob::NAME, &())
+                .await
+        }),
+    )
+    .await??;
     assert!(queue.run_next(&metadata_queue).await?);
     assert_eq!(
         *EXECUTION_METADATA
@@ -238,7 +253,8 @@ async fn database_queue_dispatch_worker_concurrency_failure_and_retry()
             .map_err(|_| Error::custom("test_metadata_lock", "metadata lock is poisoned"))?,
         Some((
             Some("database-queue-request".to_owned()),
-            Some("zh-CN".to_owned())
+            Some("zh-CN".to_owned()),
+            Some("tenant-queue-a".to_owned())
         ))
     );
 
@@ -268,7 +284,11 @@ async fn database_queue_dispatch_worker_concurrency_failure_and_retry()
         *EXECUTION_METADATA
             .lock()
             .map_err(|_| Error::custom("test_metadata_lock", "metadata lock is poisoned"))?,
-        Some((Some("group-request".to_owned()), Some("zh-CN".to_owned())))
+        Some((
+            Some("group-request".to_owned()),
+            Some("zh-CN".to_owned()),
+            None
+        ))
     );
 
     QUEUED_EVENT_HANDLED.store(0, Ordering::SeqCst);

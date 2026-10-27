@@ -91,6 +91,7 @@ impl fmt::Debug for AuditSubject {
 
 /// 由应用提供的审计数据；写入 sink 前会先进行校验。
 pub struct AuditEvent {
+    tenant_id: Option<crate::tenant::TenantId>,
     actor: Option<AuditSubject>,
     action: String,
     object: AuditSubject,
@@ -110,6 +111,7 @@ impl AuditEvent {
     ) -> Result<Self> {
         let action = action.into();
         Ok(Self {
+            tenant_id: crate::tenant::TenantContext::current(),
             actor: None,
             action: label(&action, "action")?,
             object,
@@ -185,6 +187,7 @@ impl AuditPolicy {
 
 /// 经过校验的记录。字段保持私有，以防调用方绕过策略检查。
 pub struct AuditRecord {
+    tenant_id: Option<crate::tenant::TenantId>,
     actor_kind: Option<String>,
     actor_id: Option<String>,
     action: String,
@@ -214,12 +217,17 @@ impl AuditRecord {
     pub fn request_id(&self) -> Option<&str> {
         self.request_id.as_deref()
     }
+    /// 返回记录所属的可信租户。
+    pub fn tenant_id(&self) -> Option<&crate::tenant::TenantId> {
+        self.tenant_id.as_ref()
+    }
 }
 
 impl fmt::Debug for AuditRecord {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("AuditRecord")
             .field("actor_kind", &self.actor_kind)
+            .field("tenant_id", &self.tenant_id.as_ref().map(|_| "[REDACTED]"))
             .field("actor_id", &self.actor_id.as_ref().map(|_| "[REDACTED]"))
             .field("action", &self.action)
             .field("object_kind", &self.object_kind)
@@ -444,6 +452,7 @@ enum AuditTable {
     RequestId,
     SourceIp,
     Details,
+    TenantId,
 }
 
 #[async_trait::async_trait]
@@ -490,6 +499,7 @@ impl MigrationTrait for DatabaseAuditMigration {
                             .not_null(),
                     )
                     .col(ColumnDef::new(AuditTable::RequestId).string_len(128).null())
+                    .col(ColumnDef::new(AuditTable::TenantId).string_len(128).null())
                     .col(ColumnDef::new(AuditTable::SourceIp).string_len(45).null())
                     .col(ColumnDef::new(AuditTable::Details).text().not_null())
                     .to_owned(),
@@ -505,6 +515,47 @@ impl MigrationTrait for DatabaseAuditMigration {
                         manager.get_database_backend(),
                     )?)
                     .if_exists()
+                    .to_owned(),
+            )
+            .await
+    }
+}
+
+/// 为既有审计表增加可空租户标识。
+pub struct DatabaseAuditTenantMigration;
+
+impl MigrationName for DatabaseAuditTenantMigration {
+    fn name(&self) -> &'static str {
+        "m20261027_000001_openrust_audit_tenant_id"
+    }
+}
+
+#[async_trait::async_trait]
+impl MigrationTrait for DatabaseAuditTenantMigration {
+    async fn up(&self, manager: &SchemaManager) -> std::result::Result<(), DbErr> {
+        let table = migration_table("audit_records", manager.get_database_backend())?;
+        if manager.has_column(&table.0, "tenant_id").await? {
+            return Ok(());
+        }
+        manager
+            .alter_table(
+                Table::alter()
+                    .table(table)
+                    .add_column(ColumnDef::new(AuditTable::TenantId).string_len(128).null())
+                    .to_owned(),
+            )
+            .await
+    }
+
+    async fn down(&self, manager: &SchemaManager) -> std::result::Result<(), DbErr> {
+        manager
+            .alter_table(
+                Table::alter()
+                    .table(migration_table(
+                        "audit_records",
+                        manager.get_database_backend(),
+                    )?)
+                    .drop_column(AuditTable::TenantId)
                     .to_owned(),
             )
             .await
@@ -533,10 +584,10 @@ async fn insert_record<C: ConnectionTrait>(
     let table = db.quoted_table_name("audit_records")?;
     let sql = match backend {
         DbBackend::Postgres => format!(
-            "INSERT INTO {table} (actor_kind, actor_id, action, object_kind, object_id, outcome, occurred_at_ms, request_id, source_ip, details) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)"
+            "INSERT INTO {table} (actor_kind, actor_id, action, object_kind, object_id, outcome, occurred_at_ms, request_id, tenant_id, source_ip, details) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)"
         ),
         DbBackend::MySql => format!(
-            "INSERT INTO {table} (actor_kind, actor_id, action, object_kind, object_id, outcome, occurred_at_ms, request_id, source_ip, details) VALUES (?,?,?,?,?,?,?,?,?,?)"
+            "INSERT INTO {table} (actor_kind, actor_id, action, object_kind, object_id, outcome, occurred_at_ms, request_id, tenant_id, source_ip, details) VALUES (?,?,?,?,?,?,?,?,?,?,?)"
         ),
         _ => return Err(unsupported_backend()),
     };
@@ -553,6 +604,11 @@ async fn insert_record<C: ConnectionTrait>(
                 record.outcome.as_str().into(),
                 record.occurred_at_ms.into(),
                 record.request_id.clone().into(),
+                record
+                    .tenant_id
+                    .as_ref()
+                    .map(|tenant| tenant.as_str().to_owned())
+                    .into(),
                 record.source_ip.clone().into(),
                 record.details_json.clone().into(),
             ],
@@ -589,6 +645,7 @@ fn prepare_record(event: AuditEvent, policy: &AuditPolicy) -> Result<AuditRecord
         ));
     }
     Ok(AuditRecord {
+        tenant_id: event.tenant_id,
         actor_kind: event.actor.as_ref().map(|v| v.kind.clone()),
         actor_id: event.actor.map(|v| v.id),
         action: event.action,
@@ -705,6 +762,27 @@ mod tests {
         assert!(!debug.contains("private-id"));
         assert!(!debug.contains("req-private"));
         assert!(!debug.contains("private-secret"));
+        Ok(())
+    }
+    #[tokio::test]
+    async fn audit_records_capture_and_redact_trusted_tenant_context() -> Result<()> {
+        let tenant = crate::tenant::TenantId::new("tenant-private")?;
+        crate::tenant::TenantContext::scope(tenant, async {
+            let record = Audit::new(MemorySink::default(), AuditPolicy::default()).prepare(
+                AuditEvent::new(
+                    "account.login",
+                    AuditSubject::new("account", "42")?,
+                    AuditOutcome::Succeeded,
+                )?,
+            )?;
+            assert_eq!(
+                record.tenant_id().map(crate::tenant::TenantId::as_str),
+                Some("tenant-private")
+            );
+            assert!(!format!("{record:?}").contains("tenant-private"));
+            Ok::<_, Error>(())
+        })
+        .await??;
         Ok(())
     }
     #[tokio::test]

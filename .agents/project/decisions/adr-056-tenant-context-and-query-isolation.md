@@ -14,7 +14,7 @@ V1 必须提供默认关闭的可选租户隔离。应用需从已验证身份�
 - 新增 `TenantLayer`，由应用提供可信 resolver 从完整 HTTP request 提取并验证 `TenantId`。框架不提供从未验证 header/query 直接读取租户的 shortcut；resolver 缺失、拒绝或出错时请求失败关闭。Auth layer 必须在 TenantLayer 外侧先认证，供 resolver 读取可信身份。
 - 新增 `TenantQueryRule<E>`，组合现有 `QueryRule<E>` 与应用声明的 tenant column；select、关联读取、批量更新及批量删除都会将 tenant predicate 与用户筛选和授权规则做 AND。缺失租户上下文、无效规则或范围错误均拒绝，不放宽成全量查询。
 - 普通应用不启用 `TenantLayer` 或 `TenantQueryRule` 时无额外配置和 schema 约束。框架不自动加 tenant column，不接管原生 SQL、直接 SeaORM、未注册关系、公共资源、管理面绕过、自定义 driver 或不使用受保护 query facade 的代码；这些路径由应用显式标记并授权。
-- F6 后续子簇再把租户作用域传播到缓存键、任务 envelope/重试、存储路径与审计。持久任务不得序列化原始请求或认证凭据；执行时仍由 handler 重新验证适用业务权限。跨 RPC/实时范围在相应 transport 启用时另行验收。
+- F6-B 将可信 tenant 传播到缓存物理 key、singleflight/tag key、任务 envelope/重试、存储物理路径与审计记录。持久任务不得序列化原始请求或认证凭据；每次执行由框架恢复 tenant scope，handler 仍重新验证业务权限。受管理 facade 负责隔离；raw SQL/ORM、自定义 backend 直接调用、SWR 后台派生 task 和未接入 tenant layer 的 transport 由应用负责。跨 RPC/实时范围在相应 transport 启用时另行验收。
 
 ## 验收
 

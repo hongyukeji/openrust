@@ -28,7 +28,9 @@ max_in_flight_refreshes = 64
 
 通过 `Inject<Cache>` 或应用状态取得默认服务，`Cache::store("local")` 显式选择命名实例。`get` 返回 JSON 类型化值或 `None`，`set` 支持可选 TTL，`remove` 删除键。零 TTL、空 key 和长度超过 1024 字节的 key 会被拒绝；值编解码、驱动初始化和 I/O 失败都不会伪装成未命中。
 
-内置 `memory` 仅在进程内共享；`file` 使用 SHA-256 文件名、毫秒 TTL 元数据及同目录 rename 替换，仅在节点本地适用（原子替换语义由目标操作系统的 rename 保证）；Redis 标记为共享后端。tag generation 仅由实现可选原子能力的 backend 支持；缓存目前不提供通用原子增量、锁、SWR 或同键加载合并，这些边界由后续功能簇处理。缓存不是权限、会话撤销等权威状态的替代品。
+若调用发生在 `TenantContext` 可信作用域内，缓存 key、singleflight 合并键及 tag generation 均自动加入租户隔离；无租户作用域时沿用原有 key 行为。task-local 不会自动跨 `tokio::spawn`；SWR entry 会固定其创建时的租户物理键，后台 loader 若要读取租户业务数据仍须显式恢复可信作用域。
+
+内置 `memory` 仅在进程内共享；`file` 使用 SHA-256 文件名、毫秒 TTL 元数据及同目录 rename 替换，仅在节点本地适用（原子替换语义由目标操作系统的 rename 保证）；Redis 标记为共享后端。tag generation 仅由实现可选原子能力的 backend 支持；支持 tag 的 driver 可使用 stale-while-revalidate 与有界的进程内同键加载合并。跨应用 SWR 刷新锁需要配置共享 `SharedLocks`；缓存不是权限、会话撤销等权威状态的替代品。
 
 支持可选 `CacheTagBackend` 的驱动可使用 tag generation。先捕获 entry 再进行慢加载，写入会校验 generation 未变化：
 

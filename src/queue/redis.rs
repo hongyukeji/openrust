@@ -237,7 +237,7 @@ impl RedisQueueDriver {
             .map_err(|_| redis_unavailable())?;
         let Some(raw) = raw else { return Ok(false) };
         let job: RedisJob = serde_json::from_str(&raw).map_err(Error::internal)?;
-        let (payload, metadata) = restore_execution_metadata(job.payload.clone());
+        let (payload, metadata) = restore_execution_metadata(job.payload.clone())?;
         let cancellation = Cancellation::new();
         let mut shutdown = self.shutdown.subscribe();
         let deadline =

@@ -35,7 +35,7 @@ access_key_id = "本地环境变量提供"
 secret_access_key = "本地环境变量提供"
 ```
 
-未知 disk、driver、无效选项或 backend 初始化失败均会使应用启动失败，不会静默回退到其他 disk。使用具名 disk 时显式调用 `storage.disk("media")`。
+未知 disk、driver、无效选项或 backend 初始化失败均会使应用启动失败，不会静默回退到其他 disk。使用具名 disk 时显式调用 `storage.disk("media")`。 在可信 `TenantContext` 作用域内，框架会将 tenant ID 的 SHA-256 摘要加到后端物理 key 前缀；应用获得的 `StoredObject.path` 与上传检查器仍只看到逻辑路径。没有租户作用域时沿用原有物理路径。自定义 driver 通过同一 facade 调用时也会收到隔离后的路径；直接使用 driver 不受此保护。
 
 ## 上传与下载
 

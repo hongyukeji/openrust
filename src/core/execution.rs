@@ -11,18 +11,20 @@ use tokio::{sync::watch, time::Instant};
 
 /// 可在队列任务间传递的非敏感关联元数据。
 ///
-/// 仅包含有界 request ID 与规范化 locale，不包含身份、deadline、取消状态或请求头。
+/// 仅包含有界 request ID、规范化 locale 与可信租户 ID，不包含身份、权限快照、deadline、取消状态或请求头。
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "ExecutionMetadataWire")]
 pub struct ExecutionMetadata {
     request_id: Option<String>,
     locale: Option<Locale>,
+    tenant_id: Option<crate::tenant::TenantId>,
 }
 
 #[derive(Deserialize)]
 struct ExecutionMetadataWire {
     request_id: Option<String>,
     locale: Option<Locale>,
+    tenant_id: Option<String>,
 }
 
 impl TryFrom<ExecutionMetadataWire> for ExecutionMetadata {
@@ -36,9 +38,15 @@ impl TryFrom<ExecutionMetadataWire> for ExecutionMetadata {
         {
             return Err("request ID must contain 1..=128 safe ASCII characters".to_owned());
         }
+        let tenant_id = value
+            .tenant_id
+            .map(crate::tenant::TenantId::new)
+            .transpose()
+            .map_err(|_| "tenant ID is invalid".to_owned())?;
         Ok(Self {
             request_id: value.request_id,
             locale: value.locale,
+            tenant_id,
         })
     }
 }
@@ -64,6 +72,13 @@ impl ExecutionMetadata {
         self
     }
 
+    /// 设置可跨队列任务传播的可信租户 ID。
+    #[must_use]
+    pub fn with_tenant_id(mut self, tenant_id: crate::tenant::TenantId) -> Self {
+        self.tenant_id = Some(tenant_id);
+        self
+    }
+
     /// 返回 request ID；它只用于日志关联，不是 W3C trace parent。
     pub fn request_id(&self) -> Option<&str> {
         self.request_id.as_deref()
@@ -74,9 +89,14 @@ impl ExecutionMetadata {
         self.locale.as_ref()
     }
 
+    /// 返回显式传播的可信租户 ID。
+    pub fn tenant_id(&self) -> Option<&crate::tenant::TenantId> {
+        self.tenant_id.as_ref()
+    }
+
     /// 返回是否没有可传递的关联元数据。
     pub fn is_empty(&self) -> bool {
-        self.request_id.is_none() && self.locale.is_none()
+        self.request_id.is_none() && self.locale.is_none() && self.tenant_id.is_none()
     }
 }
 

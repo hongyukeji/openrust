@@ -1,6 +1,6 @@
 # 缓存
 
-当前实现位于根 `openrust` package 的 `openrust::cache`。
+当前实现位于根 `openrust` package 的 `openrust::cache`。在可信 `TenantContext` 作用域内，物理 cache key、singleflight key 与 tag generation 都按 tenant ID 隔离；无 tenant context 时沿用旧 key。SWR entry 在创建时捕获租户并让后台刷新继续写入对应隔离键；后台 task 不继承 task-local，loader 若读取租户业务数据仍需显式恢复租户作用域。
 
 - `CachePlugin` 在 `build` 阶段安装服务和 built-in driver，在 `finish` 阶段读取 `[cache]`、解析所有 store 并初始化 backend；默认 store 缺失、未知 driver、未知 driver option 或连接失败均启动失败。
 - `Cache` 提供 default 与按名选择的 `CacheStore`；值通过 JSON 编解码，miss 为 `None`，序列化和 I/O 错误保留为错误。key 限 1–1024 UTF-8 bytes，零 TTL 拒绝。

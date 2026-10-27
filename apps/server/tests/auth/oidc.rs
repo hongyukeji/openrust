@@ -21,7 +21,7 @@ use openrust::auth::MfaPlugin;
 use openrust::{AppBuilder, config::FrameworkConfig, lifecycle::finalize};
 use openrust::{
     Error, Result,
-    audit::DatabaseAuditMigration,
+    audit::{DatabaseAuditMigration, DatabaseAuditTenantMigration},
     auth::{
         AuthExternalIdentityMigration, AuthExternalSessionMigration, AuthFlows, AuthFlowsPlugin,
         AuthMigration, AuthRefreshTokenMigration, AuthVerificationCodeMigration,
@@ -106,6 +106,7 @@ impl MigratorTrait for OidcMigrator {
             Box::new(AuthVerificationCodeMigration),
             Box::new(DatabaseRateLimitMigration),
             Box::new(DatabaseAuditMigration),
+            Box::new(DatabaseAuditTenantMigration),
             Box::new(AuthExternalIdentityMigration),
             Box::new(AuthExternalSessionMigration),
             #[cfg(feature = "auth-mfa")]

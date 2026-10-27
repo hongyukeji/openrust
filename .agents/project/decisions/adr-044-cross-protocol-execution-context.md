@@ -11,7 +11,7 @@ HTTP 的 `Validated<T>` 已有嵌套字段路径、统一 `Error::Validation` �
 
 - `openrust::validation::{Validate, validate}` 复用现有 `validator` 与 `Error`；HTTP JSON/Query extractor 直接调用它。命令与 Job 可在业务入口显式调用，不新增校验 DSL 或自动数据库唯一性预检。
 - `ExecutionContext` 只表示一次 HTTP 请求、命令或队列尝试；task-local 不自动继承至 `tokio::spawn`，子任务需显式持有上下文或所需的取消句柄。
-- `ExecutionMetadata` 是唯一可随数据库队列持久化的上下文白名单，只含最多 128 字节安全 ASCII request ID 与规范化 `Locale`。身份、权限快照、Cookie、token、任意 header、deadline、取消信号和进程句柄不得序列化。
+- `ExecutionMetadata` 是唯一可随数据库队列持久化的上下文白名单，只含最多 128 字节安全 ASCII request ID、规范化 `Locale` 与经 `TenantId::new` 校验的可信 tenant ID。身份、权限快照、Cookie、token、任意 header、deadline、取消信号和进程句柄不得序列化。Queue handler 在每次 attempt 恢复 tenant scope，但仍须重新验证业务权限。
 - 子调用 deadline 取父 deadline 与请求预算的较早者；取消从父调用向子调用传播，子调用自身 deadline 只取消该子调用，不取消父级或兄弟任务。
 - HTTP middleware 建立 request ID、Accept-Language、请求 deadline 和协作取消作用域；非法 request ID 在响应封装前移除并由 request-id middleware 重建。请求超时或处理 future 被丢弃时通知合作子任务。
 - `App::run_command` 建立独立的匿名调用作用域，并在应用注册 `I18n` 时使用默认 locale。

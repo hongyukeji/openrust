@@ -59,7 +59,7 @@
 
 ## 下一步
 
-按 [todo.md](todo.md) 推进 F7 双应用 SSO/统一退出及后续 M5/M6 工作；ADR-049 数据库迁移互斥已通过双库验收，ADR-050 存储与上传下载已通过真实 MinIO 和 workspace 门禁，ADR-051 出站目标安全与 ADR-052 命名依赖韧性均已完成适用验收。再执行完整 v1 性能、生产就绪与集群门禁。Worker 与 scheduler 专项双库证据不覆盖生产多实例负载与完整集群门禁。组件整合与 Laravel 式体验按 ADR-001；不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
+按 [todo.md](todo.md) 推进通用 CSV/XLSX F8 与后续 M5/M6 工作；F6-A/F6-B 租户查询隔离和共享资源传播已通过双库与 workspace 验收。ADR-049 数据库迁移互斥已通过双库验收，ADR-050 存储与上传下载已通过真实 MinIO 和 workspace 门禁，ADR-051 出站目标安全与 ADR-052 命名依赖韧性均已完成适用验收。再执行完整 v1 性能、生产就绪与集群门禁。Worker 与 scheduler 专项双库证据不覆盖生产多实例负载与完整集群门禁。组件整合与 Laravel 式体验按 ADR-001；不得重做已提交能力，也不得因旧阶段标签跳过补交和最终验收。
 
 ## 本次文档核对范围
 
@@ -107,4 +107,7 @@ F7 SSO 已完成双 client 同浏览器授权；真实 callback/RP logout/Logout
 
 ## F6-A 可信租户上下文与查询隔离
 
-已交付受校验 `TenantId`、task-local `TenantContext`（要求上下文、拒绝嵌套切租）、应用可信解析器驱动的 `TenantLayer`，以及绑定 tenant column 的 `TenantQueryRule`。Tenant resolver 只能依赖已验证身份/其他可信请求状态；框架不提供信任任意 request header 的捷径。`TenantQueryRule` 将原有用户授权范围、tenant predicate 和业务筛选以 AND 组合，覆盖列表、关联、批量更新/删除。普通应用不启用该层或规则时不受影响；schema、裸 ORM、原生 SQL、自定义 driver 暂不自动接管。PostgreSQL 18 与 MySQL 8.4 的隔离测试各通过 2 项（既有 F5 查询授权回归 1 项及租户隔离 TCP 测试 1 项）；租户专项在每个数据库用两个真实 API listener 共享隔离库，验证用户身份映射、伪造 `x-tenant-id` 不生效、关联过滤、批量写只影响租户行与无上下文拒绝。`cargo fmt`、default/all-features all-target clippy、default/all-features workspace tests、warnings-denied default/all-features Rustdoc、no-default-features check 与 cargo deny 均通过；deny 保留既有重复依赖及未匹配 MPL allowance 告警。下一簇 F6-B 继续实现 Cache/Queue/Storage/Audit 的 tenant 传播。
+已交付受校验 `TenantId`、task-local `TenantContext`（要求上下文、拒绝嵌套切租）、应用可信解析器驱动的 `TenantLayer`，以及绑定 tenant column 的 `TenantQueryRule`。Tenant resolver 只能依赖已验证身份/其他可信请求状态；框架不提供信任任意 request header 的捷径。`TenantQueryRule` 将原有用户授权范围、tenant predicate 和业务筛选以 AND 组合，覆盖列表、关联、批量更新/删除。普通应用不启用该层或规则时不受影响；schema、裸 ORM、原生 SQL、自定义 driver 暂不自动接管。PostgreSQL 18 与 MySQL 8.4 的隔离测试各通过 2 项（既有 F5 查询授权回归 1 项及租户隔离 TCP 测试 1 项）；租户专项在每个数据库用两个真实 API listener 共享隔离库，验证用户身份映射、伪造 `x-tenant-id` 不生效、关联过滤、批量写只影响租户行与无上下文拒绝。`cargo fmt`、default/all-features all-target clippy、default/all-features workspace tests、warnings-denied default/all-features Rustdoc、no-default-features check 与 cargo deny 均通过；deny 保留既有重复依赖及未匹配 MPL allowance 告警。下一簇 F8 按 todo 实现通用 CSV/XLSX 解析与任务化集成。
+
+
+F6-B 租户资源传播已完成：Cache key/singleflight/tag generation、跨后台 SWR 任务固定 tenant 物理键、持久 Queue metadata/worker task scope、Storage tenant 物理路径、Audit tenant_id 与损坏 envelope fail-closed。单元测试 133 项通过；PostgreSQL 18/MySQL 8.4 各自 auth_database 7 项、queue metadata 1 项、queue_crash_recovery 7 项通过。crash-recovery 由首个独立 worker 子进程处理并失败，另一个 worker 实例重试成功并恢复 tenant scope。Redis 8 + 两个独立 Cache App/连接验证跨 tenant SWR 刷新锁可独立竞争、key/tag 隔离，PostgreSQL/MySQL 各 2 项 coordination 测试通过；本地 filesystem 双 App 和 custom Storage driver 同逻辑路径隔离测试通过。fmt、默认/all-features all-target warnings-denied Clippy、default/all-features workspace tests、warnings-denied default/all-features Rustdoc、no-default-features check 与 cargo deny check 均通过；deny 仍报告既有重复依赖和未匹配 MPL-2.0 allowance 告警。受影响用户文档、core/ADR、测试记录与计划已更新；现有 F7 WIP 不纳入本簇。

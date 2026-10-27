@@ -1051,9 +1051,9 @@ fn migration_manifest(name: &str, database: DatabaseBackend, auth: bool, auth_mf
 fn migration_lib(auth: bool, auth_mfa: bool) -> String {
     let migrations = if auth {
         if auth_mfa {
-            "vec![\n            Box::new(openrust::auth::AuthMigration),\n            Box::new(openrust::auth::AuthRefreshTokenMigration),\n            Box::new(openrust::auth::AuthVerificationCodeMigration),\n            Box::new(openrust::auth::AuthPolicyMigration),\n            Box::new(openrust::database::DatabaseRateLimitMigration),\n            Box::new(openrust::audit::DatabaseAuditMigration),\n            Box::new(openrust::signing::SignedLinkRevocationMigration),\n            Box::new(openrust::auth::AuthMfaMigration),\n        ]"
+            "vec![\n            Box::new(openrust::auth::AuthMigration),\n            Box::new(openrust::auth::AuthRefreshTokenMigration),\n            Box::new(openrust::auth::AuthVerificationCodeMigration),\n            Box::new(openrust::auth::AuthPolicyMigration),\n            Box::new(openrust::database::DatabaseRateLimitMigration),\n            Box::new(openrust::audit::DatabaseAuditMigration),\n            Box::new(openrust::audit::DatabaseAuditTenantMigration),\n            Box::new(openrust::signing::SignedLinkRevocationMigration),\n            Box::new(openrust::auth::AuthMfaMigration),\n        ]"
         } else {
-            "vec![\n            Box::new(openrust::auth::AuthMigration),\n            Box::new(openrust::auth::AuthRefreshTokenMigration),\n            Box::new(openrust::auth::AuthVerificationCodeMigration),\n            Box::new(openrust::auth::AuthPolicyMigration),\n            Box::new(openrust::database::DatabaseRateLimitMigration),\n            Box::new(openrust::audit::DatabaseAuditMigration),\n            Box::new(openrust::signing::SignedLinkRevocationMigration),\n        ]"
+            "vec![\n            Box::new(openrust::auth::AuthMigration),\n            Box::new(openrust::auth::AuthRefreshTokenMigration),\n            Box::new(openrust::auth::AuthVerificationCodeMigration),\n            Box::new(openrust::auth::AuthPolicyMigration),\n            Box::new(openrust::database::DatabaseRateLimitMigration),\n            Box::new(openrust::audit::DatabaseAuditMigration),\n            Box::new(openrust::audit::DatabaseAuditTenantMigration),\n            Box::new(openrust::signing::SignedLinkRevocationMigration),\n        ]"
         }
     } else {
         "vec![]"
@@ -2435,6 +2435,7 @@ mod tests {
             assert!(migration.contains("openrust::auth::AuthPolicyMigration"));
             assert!(migration.contains("openrust::database::DatabaseRateLimitMigration"));
             assert!(migration.contains("openrust::audit::DatabaseAuditMigration"));
+            assert!(migration.contains("openrust::audit::DatabaseAuditTenantMigration"));
             assert!(migration.contains("openrust::signing::SignedLinkRevocationMigration"));
             let app = fs::read_to_string(project.join("src/app.rs")).expect("read generated app");
             assert!(app.contains("AuthPlugin::new()"));

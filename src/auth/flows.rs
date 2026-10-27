@@ -7,7 +7,7 @@ use std::{
 
 use crate::core::{App, AppBuilder, BoxFuture, Error, Plugin, RateLimiter, Result};
 use crate::db::Db;
-#[cfg(any(feature = "auth-oidc", feature = "auth-mfa"))]
+#[cfg(feature = "auth")]
 use crate::db::sea_orm::DatabaseTransaction;
 use crate::db::sea_orm::{ConnectionTrait, DbBackend, SqlErr, Statement};
 use base64::Engine as _;

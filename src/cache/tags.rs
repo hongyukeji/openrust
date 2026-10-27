@@ -56,6 +56,8 @@ impl TaggedCacheStore {
             store: self.store.clone(),
             key: key.to_owned(),
             generations,
+            tenant_id: crate::tenant::TenantContext::current()
+                .map(|tenant| tenant.as_str().to_owned()),
         })
     }
 
@@ -403,6 +405,7 @@ pub struct TaggedCacheEntry {
     store: CacheStore,
     key: String,
     generations: Vec<(String, u64)>,
+    tenant_id: Option<String>,
 }
 
 impl TaggedCacheEntry {
@@ -468,7 +471,9 @@ impl TaggedCacheEntry {
     }
 
     fn physical_key(&self) -> Result<String> {
-        let logical = self.store.key(&self.key)?;
+        let logical = self
+            .store
+            .key_for_tenant(&self.key, self.tenant_id.as_deref())?;
         let mut material = format!("{}:{logical}", self.store.store_name);
         for (tag, generation) in &self.generations {
             material.push(':');
@@ -526,9 +531,15 @@ fn validate_tags(tags: &[&str]) -> Result<Vec<String>> {
 }
 
 fn tag_key(store: &CacheStore, tag: &str) -> String {
+    let tenant = crate::tenant::TenantContext::current()
+        .map(|tenant| tenant.as_str().to_owned())
+        .unwrap_or_default();
     format!(
         "__openrust_cache_tag_meta_v1:{}",
-        digest(&format!("{}:{}:{tag}", store.store_name, store.namespace))
+        digest(&format!(
+            "{}:{}:{}:{tag}",
+            store.store_name, store.namespace, tenant
+        ))
     )
 }
 

@@ -8,7 +8,7 @@ use base64::engine::general_purpose::STANDARD;
 use figment::{Figment, providers::Format};
 use openrust::audit::{
     Audit, AuditEvent, AuditOutcome, AuditPolicy, AuditSubject, DatabaseAuditMigration,
-    DatabaseAuditSink,
+    DatabaseAuditSink, DatabaseAuditTenantMigration,
 };
 use openrust::auth::{
     AuthFlows, AuthLayer, AuthMigration, AuthMode, AuthPlugin, AuthPolicyMigration,
@@ -52,6 +52,7 @@ impl MigratorTrait for AuthMigrator {
             Box::new(AuthPolicyMigration),
             Box::new(DatabaseRateLimitMigration),
             Box::new(DatabaseAuditMigration),
+            Box::new(DatabaseAuditTenantMigration),
             Box::new(SignedLinkRevocationMigration),
         ]
     }
@@ -1481,14 +1482,20 @@ async fn audit_and_permission_change_share_a_transaction_on_the_configured_datab
     let role_id = policy.ensure_role("audit-reviewer").await?;
     let sink = DatabaseAuditSink::new(db.clone());
     let audit = Audit::new(sink.clone(), AuditPolicy::default());
-    let record = audit.prepare(
-        AuditEvent::new(
-            "permission.grant",
-            AuditSubject::new("role", role_id.to_string())?,
-            AuditOutcome::Succeeded,
-        )?
-        .actor(AuditSubject::new("user", "9001")?),
-    )?;
+    let record = openrust::tenant::TenantContext::scope(
+        openrust::tenant::TenantId::new("audit-tenant-a")?,
+        async {
+            audit.prepare(
+                AuditEvent::new(
+                    "permission.grant",
+                    AuditSubject::new("role", role_id.to_string())?,
+                    AuditOutcome::Succeeded,
+                )?
+                .actor(AuditSubject::new("user", "9001")?),
+            )
+        },
+    )
+    .await??;
     db.transaction(|transaction| {
         let policy = policy.clone();
         let sink = sink.clone();
@@ -1515,7 +1522,7 @@ async fn audit_and_permission_change_share_a_transaction_on_the_configured_datab
         .query_one_raw(Statement::from_string(
             backend,
             format!(
-                "SELECT action, actor_id, outcome FROM {table} WHERE action = 'permission.grant'"
+                "SELECT action, actor_id, outcome, tenant_id FROM {table} WHERE action = 'permission.grant'"
             ),
         ))
         .await?
@@ -1523,6 +1530,7 @@ async fn audit_and_permission_change_share_a_transaction_on_the_configured_datab
     assert_eq!(stored.try_get::<String>("", "action")?, "permission.grant");
     assert_eq!(stored.try_get::<String>("", "actor_id")?, "9001");
     assert_eq!(stored.try_get::<String>("", "outcome")?, "succeeded");
+    assert_eq!(stored.try_get::<String>("", "tenant_id")?, "audit-tenant-a");
 
     let failed_record = audit.prepare(AuditEvent::new(
         "permission.grant",

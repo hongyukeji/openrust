@@ -18,7 +18,7 @@ use crate::{Error, Result};
 const MAX_TENANT_ID_BYTES: usize = 128;
 
 /// 已校验且不透明的租户标识符。
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize)]
 pub struct TenantId(String);
 
 impl TenantId {

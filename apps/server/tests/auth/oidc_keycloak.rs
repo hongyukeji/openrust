@@ -1776,7 +1776,11 @@ struct KeycloakMigrator;
 impl openrust::database::sea_orm_migration::MigratorTrait for KeycloakMigrator {
     fn migrations() -> Vec<Box<dyn openrust::database::sea_orm_migration::MigrationTrait>> {
         use openrust::database::sea_orm_migration::MigrationTrait;
-        use openrust::{audit::DatabaseAuditMigration, auth, database::DatabaseRateLimitMigration};
+        use openrust::{
+            audit::{DatabaseAuditMigration, DatabaseAuditTenantMigration},
+            auth,
+            database::DatabaseRateLimitMigration,
+        };
 
         #[allow(unused_mut)]
         let mut migrations: Vec<Box<dyn MigrationTrait>> = vec![
@@ -1785,6 +1789,7 @@ impl openrust::database::sea_orm_migration::MigratorTrait for KeycloakMigrator {
             Box::new(auth::AuthVerificationCodeMigration),
             Box::new(DatabaseRateLimitMigration),
             Box::new(DatabaseAuditMigration),
+            Box::new(DatabaseAuditTenantMigration),
             Box::new(auth::AuthExternalIdentityMigration),
             Box::new(auth::AuthExternalSessionMigration),
         ];

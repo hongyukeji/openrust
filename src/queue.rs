@@ -312,10 +312,24 @@ fn is_reserved_job_name(name: &str) -> bool {
         || name == crate::notifications::SmsDeliveryJob::NAME
 }
 
-fn current_execution_metadata() -> ExecutionMetadata {
-    ExecutionContext::current()
+fn current_execution_metadata() -> Result<ExecutionMetadata> {
+    let metadata = ExecutionContext::current()
         .map(|context| context.metadata().clone())
-        .unwrap_or_default()
+        .unwrap_or_default();
+    let Some(tenant) = crate::tenant::TenantContext::current() else {
+        return Ok(metadata);
+    };
+    if metadata
+        .tenant_id()
+        .is_some_and(|existing| existing != &tenant)
+    {
+        return Err(Error::custom_with_status(
+            axum::http::StatusCode::FORBIDDEN,
+            "tenant_scope_switch_denied",
+            "queue dispatch tenant does not match execution metadata",
+        ));
+    }
+    Ok(metadata.with_tenant_id(tenant))
 }
 
 pub(super) fn persist_execution_metadata(
@@ -346,28 +360,44 @@ pub(super) fn persist_execution_metadata(
     Ok(wrapped)
 }
 
-pub(super) fn restore_execution_metadata(payload: Value) -> (Value, ExecutionMetadata) {
+pub(super) fn restore_execution_metadata(payload: Value) -> Result<(Value, ExecutionMetadata)> {
     let is_envelope = payload.get(EXECUTION_ENVELOPE_KEY).and_then(Value::as_str)
         == Some(EXECUTION_ENVELOPE_VERSION);
     let Some(object) = payload.as_object() else {
-        return (payload, ExecutionMetadata::default());
+        return Ok((payload, ExecutionMetadata::default()));
     };
     let has_envelope_shape =
         object.len() == 3 && object.contains_key("metadata") && object.contains_key("payload");
+    let carries_tenant = payload
+        .get("metadata")
+        .and_then(Value::as_object)
+        .is_some_and(|metadata| metadata.contains_key("tenant_id"));
+    if carries_tenant && (!is_envelope || !has_envelope_shape) {
+        return Err(Error::custom(
+            "queue_execution_metadata_invalid",
+            "persisted tenant metadata envelope has an invalid shape",
+        ));
+    }
     if !is_envelope || !has_envelope_shape {
-        return (payload, ExecutionMetadata::default());
+        return Ok((payload, ExecutionMetadata::default()));
     }
     let Some(metadata) = payload
         .get("metadata")
         .cloned()
         .and_then(|value| serde_json::from_value::<ExecutionMetadata>(value).ok())
     else {
-        return (payload, ExecutionMetadata::default());
+        return Err(Error::custom(
+            "queue_execution_metadata_invalid",
+            "persisted execution metadata envelope is invalid",
+        ));
     };
     let Some(body) = payload.get("payload").cloned() else {
-        return (payload, ExecutionMetadata::default());
+        return Err(Error::custom(
+            "queue_execution_metadata_invalid",
+            "persisted execution metadata envelope is missing its payload",
+        ));
     };
-    (body, metadata)
+    Ok((body, metadata))
 }
 
 #[derive(DeriveIden)]
@@ -1137,7 +1167,13 @@ async fn run_scoped<'a>(
     } else {
         handler_future
     };
-    execution.run(task_future).await?
+    let tenant = context.metadata.tenant_id().cloned();
+    let future = execution.run(task_future);
+    if let Some(tenant) = tenant {
+        crate::tenant::TenantContext::scope(tenant, future).await??
+    } else {
+        future.await?
+    }
 }
 
 impl DatabaseQueue {
@@ -1205,7 +1241,7 @@ impl DatabaseQueue {
             fail_job(&self.db, &claim, "queue_job_cancelled", 1).await?;
             return Ok(true);
         }
-        let (job_payload, metadata) = restore_execution_metadata(claim.payload.clone());
+        let (job_payload, metadata) = restore_execution_metadata(claim.payload.clone())?;
         let is_group = claim.job_name == CHAIN_JOB_NAME || claim.job_name == BATCH_JOB_NAME;
         let handler = self.registry.0.get(claim.job_name.as_str()).copied();
         if !is_group && handler.is_none() {
@@ -1272,6 +1308,15 @@ impl DatabaseQueue {
             } else {
                 handler_future
             };
+        let tenant_future: BoxFuture<'static, Result<()>> =
+            if let Some(tenant) = metadata.tenant_id().cloned() {
+                Box::pin(async move {
+                    crate::tenant::TenantContext::scope(tenant, task_future).await??;
+                    Ok(())
+                })
+            } else {
+                task_future
+            };
         let span = tracing::info_span!(
             "queue.job.attempt",
             job_id = %claim.id,
@@ -1279,9 +1324,9 @@ impl DatabaseQueue {
             attempt = claim.attempts,
             request_id = metadata.request_id().unwrap_or("-"),
         );
-        let task_future = tracing::Instrument::instrument(task_future, span);
+        let tenant_future = tracing::Instrument::instrument(tenant_future, span);
         let handler_future: BoxFuture<'static, Result<()>> =
-            Box::pin(with_execution_context(execution, task_future));
+            Box::pin(with_execution_context(execution, tenant_future));
         tokio::pin!(handler_future);
         let mut shutdown_deadline = if *cancellation.borrow() {
             job_cancellation.cancel();
@@ -1501,7 +1546,7 @@ impl Queue {
                 job_name,
                 serde_json::to_value(payload).map_err(Error::internal)?,
                 options,
-                current_execution_metadata(),
+                current_execution_metadata()?,
             )
             .await
     }
@@ -1539,7 +1584,7 @@ impl Queue {
                 job_name,
                 serde_json::to_value(payload).map_err(Error::internal)?,
                 DispatchOptions::default(),
-                current_execution_metadata(),
+                current_execution_metadata()?,
             )
             .await
     }
@@ -1565,7 +1610,7 @@ impl Queue {
                 job_name,
                 serde_json::to_value(payload).map_err(Error::internal)?,
                 options,
-                current_execution_metadata(),
+                current_execution_metadata()?,
             )
             .await
     }
@@ -1653,7 +1698,7 @@ impl Queue {
                 queue,
                 group,
                 DispatchOptions::default(),
-                current_execution_metadata(),
+                current_execution_metadata()?,
             )
             .await
     }
@@ -1671,7 +1716,7 @@ impl Queue {
                 queue,
                 group,
                 DispatchOptions::default(),
-                current_execution_metadata(),
+                current_execution_metadata()?,
             )
             .await
     }
@@ -2708,17 +2753,73 @@ mod tests {
     fn execution_metadata_round_trips_and_legacy_payloads_stay_raw() -> crate::core::Result<()> {
         let metadata = crate::core::ExecutionMetadata::default()
             .with_request_id("request-42")?
-            .with_locale(crate::i18n::Locale::new("zh-CN")?);
+            .with_locale(crate::i18n::Locale::new("zh-CN")?)
+            .with_tenant_id(crate::tenant::TenantId::new("tenant-a")?);
         let payload = serde_json::json!({"value": 7});
         let stored = persist_execution_metadata(payload.clone(), &metadata)?;
-        let (restored_payload, restored_metadata) = restore_execution_metadata(stored);
+        let (restored_payload, restored_metadata) = restore_execution_metadata(stored)?;
         assert_eq!(restored_payload, payload);
         assert_eq!(restored_metadata, metadata);
 
         let legacy = serde_json::json!({"value": 8});
-        let (restored_payload, restored_metadata) = restore_execution_metadata(legacy.clone());
+        let (restored_payload, restored_metadata) = restore_execution_metadata(legacy.clone())?;
         assert_eq!(restored_payload, legacy);
         assert!(restored_metadata.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn malformed_tenant_metadata_is_rejected_without_running_as_legacy_payload() {
+        let envelope = serde_json::json!({
+            "__openrust_execution": "v1",
+            "metadata": { "tenant_id": "../other" },
+            "payload": {}
+        });
+        assert_eq!(
+            restore_execution_metadata(envelope)
+                .err()
+                .map(|error| error.code().to_owned()),
+            Some("queue_execution_metadata_invalid".to_owned())
+        );
+    }
+
+    #[test]
+    fn malformed_tenant_envelope_shape_is_rejected() {
+        let envelope = serde_json::json!({
+            "__openrust_execution": "v1",
+            "metadata": { "tenant_id": "tenant-a" },
+            "payload": {},
+            "unexpected": true
+        });
+        assert_eq!(
+            restore_execution_metadata(envelope)
+                .err()
+                .map(|error| error.code().to_owned()),
+            Some("queue_execution_metadata_invalid".to_owned())
+        );
+    }
+
+    #[tokio::test]
+    async fn queue_dispatch_rejects_conflicting_execution_and_task_tenants()
+    -> crate::core::Result<()> {
+        let execution = ExecutionContext::new(
+            ExecutionMetadata::default().with_tenant_id(crate::tenant::TenantId::new("tenant-a")?),
+            None,
+            Cancellation::new(),
+        );
+        crate::tenant::TenantContext::scope(
+            crate::tenant::TenantId::new("tenant-b")?,
+            crate::core::with_execution_context(execution, async {
+                assert_eq!(
+                    super::current_execution_metadata()
+                        .err()
+                        .map(|error| error.code().to_owned()),
+                    Some("tenant_scope_switch_denied".to_owned())
+                );
+                Ok::<_, crate::core::Error>(())
+            }),
+        )
+        .await??;
         Ok(())
     }
 
@@ -2742,9 +2843,12 @@ mod tests {
             "metadata": {"request_id": "contains spaces"},
             "payload": {"application": true}
         });
-        let (restored_payload, metadata) = restore_execution_metadata(legacy.clone());
-        assert_eq!(restored_payload, legacy);
-        assert!(metadata.is_empty());
+        assert_eq!(
+            restore_execution_metadata(legacy)
+                .err()
+                .map(|error| error.code().to_owned()),
+            Some("queue_execution_metadata_invalid".to_owned())
+        );
     }
 
     #[test]

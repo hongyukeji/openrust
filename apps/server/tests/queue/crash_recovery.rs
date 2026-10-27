@@ -101,6 +101,32 @@ impl Job for StaleLeaseProbe {
     }
 }
 
+#[derive(serde::Deserialize)]
+struct TenantRetryProbe;
+
+impl Job for TenantRetryProbe {
+    const NAME: &'static str = "tests.tenant-retry-probe.v1";
+
+    fn handle(&self, context: JobContext) -> BoxFuture<'_, FrameworkResult<()>> {
+        Box::pin(async move {
+            if openrust::tenant::TenantContext::current().as_ref() != context.metadata().tenant_id()
+            {
+                return Err(Error::custom(
+                    "tenant_scope_missing",
+                    "worker did not restore the trusted tenant context",
+                ));
+            }
+            if context.attempt() == 1 {
+                return Err(Error::custom(
+                    "tenant_retry_probe",
+                    "retry the tenant probe",
+                ));
+            }
+            Ok(())
+        })
+    }
+}
+
 async fn build_app(url: &str) -> FrameworkResult<App> {
     let source = format!(
         "[database]\nurl = {url:?}\n[queue]\npoll_interval_millis = 20\nlease_secs = 1\njob_timeout_secs = 60\nworker_concurrency = 1\nshutdown_timeout_secs = 2\n"
@@ -110,9 +136,86 @@ async fn build_app(url: &str) -> FrameworkResult<App> {
     queue_plugin.register_job::<CrashProbe>()?;
     queue_plugin.register_job::<ShutdownProbe>()?;
     queue_plugin.register_job::<StaleLeaseProbe>()?;
+    queue_plugin.register_job::<TenantRetryProbe>()?;
     let mut builder = AppBuilder::new(FrameworkConfig::default(), figment);
     builder.plugin(DatabasePlugin).plugin(queue_plugin);
     lifecycle::finalize(builder).await
+}
+
+#[tokio::test]
+async fn tenant_metadata_survives_a_separate_worker_process_and_retry()
+-> Result<(), Box<dyn std::error::Error>> {
+    let Ok(admin_url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+        eprintln!("skipping tenant queue process integration: OPENRUST_TEST_DATABASE_URL is unset");
+        return Ok(());
+    };
+    let database = testing::TestDatabase::create::<QueueMigrator>(&admin_url).await?;
+    let app = build_app(database.url()).await?;
+    let queue = app.state().try_get::<Queue>()?;
+    let queue_name = format!("tenant-process-{}", std::process::id());
+    let job_id = openrust::tenant::TenantContext::scope(
+        openrust::tenant::TenantId::new("tenant-process-a")?,
+        async {
+            queue
+                .dispatch_with_options(
+                    &queue_name,
+                    TenantRetryProbe::NAME,
+                    &(),
+                    DispatchOptions {
+                        max_attempts: 3,
+                        delay: Duration::ZERO,
+                        unique_key: None,
+                    },
+                )
+                .await
+        },
+    )
+    .await??;
+    drop(queue);
+    drop(app);
+
+    let child = Command::new(std::env::current_exe()?)
+        .args([
+            "--exact",
+            "child_worker_processes_tenant_retry_probe",
+            "--nocapture",
+        ])
+        .env("OPENRUST_TENANT_QUEUE_CHILD_URL", database.url())
+        .env("OPENRUST_TENANT_QUEUE_CHILD_NAME", &queue_name)
+        .stdout(Stdio::null())
+        .stderr(Stdio::inherit())
+        .status()?;
+    if !child.success() {
+        return Err("separate worker process failed to handle tenant probe".into());
+    }
+
+    tokio::time::sleep(Duration::from_millis(1_100)).await;
+    let retry_app = build_app(database.url()).await?;
+    let retry_queue = retry_app.state().try_get::<Queue>()?;
+    assert!(retry_queue.run_next(&queue_name).await?);
+    let db = retry_app.state().try_get::<Db>()?;
+    let jobs = db.quoted_table_name("jobs")?;
+    let backend = db.backend()?;
+    let query = match backend {
+        DbBackend::Postgres => format!("SELECT COUNT(*) AS count FROM {jobs} WHERE id = $1"),
+        DbBackend::MySql => format!("SELECT COUNT(*) AS count FROM {jobs} WHERE id = ?"),
+        _ => return Err("unsupported test database".into()),
+    };
+    let row = db
+        .connection()?
+        .query_one_raw(Statement::from_sql_and_values(
+            backend,
+            query,
+            vec![job_id.into()],
+        ))
+        .await?
+        .ok_or("queue retry count query returned no row")?;
+    assert_eq!(row.try_get::<i64>("", "count")?, 0);
+    drop(retry_queue);
+    drop(db);
+    drop(retry_app);
+    database.close().await?;
+    Ok(())
 }
 
 #[cfg(unix)]
@@ -508,6 +611,22 @@ async fn child_worker_holds_crash_probe() -> Result<(), Box<dyn std::error::Erro
     let queue = app.state().try_get::<Queue>()?;
     if !queue.run_next(&queue_name).await? {
         return Err("child worker could not claim probe job".into());
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn child_worker_processes_tenant_retry_probe() -> Result<(), Box<dyn std::error::Error>> {
+    let (Ok(url), Ok(queue_name)) = (
+        std::env::var("OPENRUST_TENANT_QUEUE_CHILD_URL"),
+        std::env::var("OPENRUST_TENANT_QUEUE_CHILD_NAME"),
+    ) else {
+        return Ok(());
+    };
+    let app = build_app(&url).await?;
+    let queue = app.state().try_get::<Queue>()?;
+    if !queue.run_next(&queue_name).await? {
+        return Err("child worker could not claim tenant retry probe".into());
     }
     Ok(())
 }

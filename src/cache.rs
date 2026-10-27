@@ -618,17 +618,26 @@ impl CacheStore {
     }
 
     fn key(&self, key: &str) -> Result<String> {
+        let tenant =
+            crate::tenant::TenantContext::current().map(|tenant| tenant.as_str().to_owned());
+        self.key_for_tenant(key, tenant.as_deref())
+    }
+
+    fn key_for_tenant(&self, key: &str, tenant: Option<&str>) -> Result<String> {
         if key.is_empty() || key.len() > 1024 {
             return Err(Error::custom(
                 "cache_invalid_key",
                 "cache key must contain 1 to 1024 bytes",
             ));
         }
-        let physical = if self.namespace.is_empty() {
+        let base = if self.namespace.is_empty() {
             key.to_owned()
         } else {
             format!("{}:{key}", self.namespace)
         };
+        let physical = tenant.map_or(base.clone(), |tenant| {
+            format!("__openrust_tenant_{}:{base}", cache_tenant_digest(tenant))
+        });
         if physical.starts_with("__openrust_cache_") {
             return Err(Error::custom(
                 "cache_reserved_key",
@@ -640,12 +649,17 @@ impl CacheStore {
 
     fn flight_key<T>(&self, key: &str, load_id: &str) -> String {
         let type_name = std::any::type_name::<T>();
+        let tenant = crate::tenant::TenantContext::current()
+            .map(|tenant| cache_tenant_digest(tenant.as_str()))
+            .unwrap_or_default();
         format!(
-            "{}:{}{}:{}{}:{}{}:{}{}:{}",
+            "{}:{}{}:{}{}:{}{}:{}{}:{}{}:{}",
             self.store_name.len(),
             self.store_name,
             self.namespace.len(),
             self.namespace,
+            tenant.len(),
+            tenant,
             key.len(),
             key,
             type_name.len(),
@@ -654,6 +668,16 @@ impl CacheStore {
             load_id
         )
     }
+}
+
+fn cache_tenant_digest(value: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let bytes = Sha256::digest(value.as_bytes());
+    let mut output = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        let _ = write!(&mut output, "{byte:02x}");
+    }
+    output
 }
 
 fn normalize_ttl(duration: Duration) -> Result<Duration> {
@@ -1383,6 +1407,44 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn shared_store_keys_and_tag_generations_are_tenant_scoped() -> Result<()> {
+        let backend: Arc<dyn CacheBackend> = Arc::new(MemoryBackend::default());
+        let cache = store(backend, "shared");
+        let tenant_a = crate::tenant::TenantId::new("tenant-a")?;
+        let tenant_b = crate::tenant::TenantId::new("tenant-b")?;
+        crate::tenant::TenantContext::scope(tenant_a, async {
+            cache.set("profile", &"A", None).await?;
+            let tagged = cache.tagged(&["profiles"])?;
+            tagged.set("profile", &"A", Duration::from_secs(30)).await?;
+            Ok::<_, Error>(())
+        })
+        .await??;
+        crate::tenant::TenantContext::scope(tenant_b, async {
+            assert_eq!(cache.get::<String>("profile").await?, None);
+            cache.set("profile", &"B", None).await?;
+            let tagged = cache.tagged(&["profiles"])?;
+            tagged.set("profile", &"B", Duration::from_secs(30)).await?;
+            cache.invalidate_tags(&["profiles"]).await?;
+            assert_eq!(tagged.get::<String>("profile").await?, None);
+            Ok::<_, Error>(())
+        })
+        .await??;
+        crate::tenant::TenantContext::scope(crate::tenant::TenantId::new("tenant-a")?, async {
+            assert_eq!(cache.get::<String>("profile").await?, Some("A".into()));
+            assert_eq!(
+                cache
+                    .tagged(&["profiles"])?
+                    .get::<String>("profile")
+                    .await?,
+                Some("A".into())
+            );
+            Ok::<_, Error>(())
+        })
+        .await??;
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn singleflight_merges_loads_and_scopes_contract_keys() -> Result<()> {
         let cache = store(Arc::new(MemoryBackend::default()), "singleflight");
         let calls = Arc::new(AtomicUsize::new(0));
@@ -2092,8 +2154,9 @@ mod tests {
         };
         let first_backend = RedisDriver.build(&config).await?;
         let second_backend = RedisDriver.build(&config).await?;
-        let first = store(first_backend, &config.namespace).tagged(&["accounts"])?;
+        let first_store = store(first_backend, &config.namespace);
         let second = store(second_backend, &config.namespace);
+        let first = first_store.tagged(&["accounts"])?;
         first
             .set("account:1", &"present", Duration::from_secs(30))
             .await?;
@@ -2106,6 +2169,34 @@ mod tests {
                 .await
                 .is_err()
         );
+        let tenant_key = format!("tenant-profile:{}", std::process::id());
+        crate::tenant::TenantContext::scope(
+            crate::tenant::TenantId::new("redis-tenant-a")?,
+            async {
+                first_store.set(&tenant_key, &"A", None).await?;
+                Ok::<_, Error>(())
+            },
+        )
+        .await??;
+        crate::tenant::TenantContext::scope(
+            crate::tenant::TenantId::new("redis-tenant-b")?,
+            async {
+                assert_eq!(second.get::<String>(&tenant_key).await?, None);
+                second.set(&tenant_key, &"B", None).await?;
+                second.invalidate_tags(&["accounts"]).await?;
+                Ok::<_, Error>(())
+            },
+        )
+        .await??;
+        crate::tenant::TenantContext::scope(
+            crate::tenant::TenantId::new("redis-tenant-a")?,
+            async {
+                assert_eq!(second.get::<String>(&tenant_key).await?, Some("A".into()));
+                second.remove(&tenant_key).await?;
+                Ok::<_, Error>(())
+            },
+        )
+        .await??;
         Ok(())
     }
 }

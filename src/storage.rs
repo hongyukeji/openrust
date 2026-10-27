@@ -409,12 +409,13 @@ impl StorageDisk {
             content_type: content_type.clone(),
         };
         let checked_body = checked_upload_stream(body, context.clone(), options, inspector);
+        let physical_path = tenant_storage_path(&path)?;
         let (sender, receiver) = tokio::sync::oneshot::channel();
         let mut cancellation_guard = UploadCancellationGuard(Some(sender));
         let mut metadata = self
             .backend
             .put(
-                &path,
+                &physical_path,
                 content_type.as_deref(),
                 checked_body,
                 UploadCancellation { receiver },
@@ -429,19 +430,22 @@ impl StorageDisk {
 
     /// 流式打开对象；可选的 version 必须由后端精确支持。
     pub async fn open(&self, path: &StoragePath, version: Option<&str>) -> Result<StorageReader> {
-        let mut reader = self.backend.open(path, version).await?;
+        let physical_path = tenant_storage_path(path)?;
+        let mut reader = self.backend.open(&physical_path, version).await?;
         reader.body = bounded_storage_stream(reader.body, self.max_chunk_bytes);
         Ok(reader)
     }
 
     /// 读取对象 metadata。
     pub async fn stat(&self, path: &StoragePath) -> Result<StorageMetadata> {
-        self.backend.stat(path).await
+        let physical_path = tenant_storage_path(path)?;
+        self.backend.stat(&physical_path).await
     }
 
     /// 删除对象。
     pub async fn delete(&self, path: &StoragePath) -> Result<()> {
-        self.backend.delete(path).await
+        let physical_path = tenant_storage_path(path)?;
+        self.backend.delete(&physical_path).await
     }
 
     /// 生成绑定确切版本的 presigned read URL。
@@ -459,8 +463,26 @@ impl StorageDisk {
                 "version-bound presigned reads require a concrete object version",
             )
         })?;
-        self.backend.presign_read(path, version, expires_in).await
+        let physical_path = tenant_storage_path(path)?;
+        self.backend
+            .presign_read(&physical_path, version, expires_in)
+            .await
     }
+}
+
+fn tenant_storage_path(path: &StoragePath) -> Result<StoragePath> {
+    use sha2::{Digest, Sha256};
+    use std::fmt::Write as _;
+
+    let Some(tenant) = crate::tenant::TenantContext::current() else {
+        return Ok(path.clone());
+    };
+    let digest = Sha256::digest(tenant.as_str().as_bytes());
+    let mut prefix = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        write!(&mut prefix, "{byte:02x}").map_err(Error::internal)?;
+    }
+    Ok(StoragePath(format!("tenants/{prefix}/{}", path.as_str())))
 }
 
 /// 限制交给 inspector 和 driver 的块大小；不限制上游已分配的 Axum body frame。
@@ -1275,10 +1297,16 @@ mod tests {
         let figment = figment::Figment::new().merge(Toml::string(&format!(
             "[storage]\nmax_upload_bytes = 8\nmax_chunk_bytes = 4\n[storage.disks.local]\ndriver = 'fs'\nroot = '{root_value}/objects'\n"
         )));
-        let mut builder = AppBuilder::new(crate::config::FrameworkConfig::default(), figment);
+        let mut builder =
+            AppBuilder::new(crate::config::FrameworkConfig::default(), figment.clone());
         builder.plugin(StoragePlugin);
         let app = lifecycle::finalize(builder).await?;
         let disk = app.state().try_get::<Storage>()?.default_disk()?;
+        let mut second_builder =
+            AppBuilder::new(crate::config::FrameworkConfig::default(), figment);
+        second_builder.plugin(StoragePlugin);
+        let second_app = lifecycle::finalize(second_builder).await?;
+        let second_disk = second_app.state().try_get::<Storage>()?.default_disk()?;
         let path = StoragePath::new("files/object.bin")?;
         let data = stream::iter([
             Ok(bytes::Bytes::from_static(b"abcd")),
@@ -1300,6 +1328,40 @@ mod tests {
             output.extend_from_slice(&chunk?);
         }
         assert_eq!(output, b"abcdef");
+
+        for (tenant_id, bytes) in [("storage-a", b"A001"), ("storage-b", b"B001")] {
+            crate::tenant::TenantContext::scope(crate::tenant::TenantId::new(tenant_id)?, async {
+                let (writer, reader_disk) = if tenant_id == "storage-a" {
+                    (disk.clone(), second_disk.clone())
+                } else {
+                    (second_disk.clone(), disk.clone())
+                };
+                writer
+                    .put_stream(
+                        path.clone(),
+                        None,
+                        Box::pin(stream::iter([Ok(bytes::Bytes::copy_from_slice(bytes))]))
+                            as StorageStream,
+                        UploadOptions::default(),
+                        None,
+                    )
+                    .await?;
+                let mut reader = reader_disk.open(&path, None).await?;
+                let mut actual = Vec::new();
+                while let Some(chunk) = reader.body.next().await {
+                    actual.extend_from_slice(&chunk?);
+                }
+                assert_eq!(actual, bytes);
+                Ok::<_, crate::Error>(())
+            })
+            .await??;
+        }
+        let mut unscoped = disk.open(&path, None).await?;
+        let mut original = Vec::new();
+        while let Some(chunk) = unscoped.body.next().await {
+            original.extend_from_slice(&chunk?);
+        }
+        assert_eq!(original, b"abcdef");
 
         let rejected = disk
             .put_stream(
@@ -1418,6 +1480,7 @@ mod tests {
             );
         }
 
+        drop(second_app);
         std::fs::remove_dir_all(&root).map_err(crate::Error::internal)?;
         Ok(())
     }

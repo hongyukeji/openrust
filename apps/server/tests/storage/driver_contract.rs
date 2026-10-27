@@ -42,6 +42,29 @@ async fn consumer_registers_custom_named_disks_without_private_framework_access(
         output.extend_from_slice(&chunk?);
     }
     assert_eq!(output, b"custom driver");
+    let tenant_path = StoragePath::new("objects/shared.bin")?;
+    for (tenant, payload) in [("tenant-a", "A"), ("tenant-b", "B")] {
+        openrust::tenant::TenantContext::scope(openrust::tenant::TenantId::new(tenant)?, async {
+            primary
+                .put_stream(
+                    tenant_path.clone(),
+                    None,
+                    Box::pin(stream::iter([Ok(Bytes::from(payload.as_bytes()))])) as StorageStream,
+                    UploadOptions::default(),
+                    None,
+                )
+                .await?;
+            let mut reader = primary.open(&tenant_path, None).await?;
+            let mut bytes = Vec::new();
+            while let Some(chunk) = reader.body.next().await {
+                bytes.extend_from_slice(&chunk?);
+            }
+            assert_eq!(bytes, payload.as_bytes());
+            Ok::<_, Error>(())
+        })
+        .await??;
+    }
+    assert!(primary.stat(&tenant_path).await.is_err());
     primary.delete(&key).await?;
     assert!(primary.stat(&key).await.is_err());
     Ok(())

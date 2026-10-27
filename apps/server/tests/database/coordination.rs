@@ -153,6 +153,169 @@ async fn f4c_swr_uses_shared_locks_across_apps_and_redis_connections()
     }
     assert_eq!(refreshed, "refreshed");
     assert_eq!(calls.load(std::sync::atomic::Ordering::Acquire), 1);
+
+    // Each tenant uses the SWR envelope format expected by later refresh reads.
+    let tenant_key = format!("tenant-profile-{}", std::process::id());
+    for (tenant, tags, initial) in [
+        ("cache-tenant-a", &tags_a, "A1"),
+        ("cache-tenant-b", &tags_b, "B1"),
+    ] {
+        openrust::tenant::TenantContext::scope(openrust::tenant::TenantId::new(tenant)?, async {
+            tags.get_stale_while_revalidate(
+                &tenant_key,
+                "profile-v1",
+                Duration::from_millis(30),
+                Duration::from_secs(3),
+                || async { Ok(initial.to_owned()) },
+            )
+            .await
+        })
+        .await??;
+    }
+    tokio::time::sleep(Duration::from_millis(40)).await;
+    let tenant_refreshes = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let refresh_a = std::sync::Arc::clone(&tenant_refreshes);
+    let refresh_b = std::sync::Arc::clone(&tenant_refreshes);
+    let (tenant_stale_a, tenant_stale_b) = tokio::join!(
+        openrust::tenant::TenantContext::scope(
+            openrust::tenant::TenantId::new("cache-tenant-a")?,
+            async {
+                tags_a
+                    .get_stale_while_revalidate(
+                        &tenant_key,
+                        "profile-v1",
+                        Duration::from_millis(30),
+                        Duration::from_secs(3),
+                        move || {
+                            let tenant_refresh_counter = std::sync::Arc::clone(&refresh_a);
+                            async move {
+                                tenant_refresh_counter
+                                    .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+                                tokio::time::sleep(Duration::from_millis(60)).await;
+                                Ok("A2".to_owned())
+                            }
+                        },
+                    )
+                    .await
+            },
+        ),
+        openrust::tenant::TenantContext::scope(
+            openrust::tenant::TenantId::new("cache-tenant-b")?,
+            async {
+                tags_b
+                    .get_stale_while_revalidate(
+                        &tenant_key,
+                        "profile-v1",
+                        Duration::from_millis(30),
+                        Duration::from_secs(3),
+                        move || {
+                            let tenant_refresh_counter = std::sync::Arc::clone(&refresh_b);
+                            async move {
+                                tenant_refresh_counter
+                                    .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+                                tokio::time::sleep(Duration::from_millis(60)).await;
+                                Ok("B2".to_owned())
+                            }
+                        },
+                    )
+                    .await
+            },
+        ),
+    );
+    assert_eq!(tenant_stale_a??, "A1");
+    assert_eq!(tenant_stale_b??, "B1");
+    let mut refreshed_a = String::new();
+    let mut refreshed_b = String::new();
+    for _ in 0..100 {
+        refreshed_a = openrust::tenant::TenantContext::scope(
+            openrust::tenant::TenantId::new("cache-tenant-a")?,
+            async {
+                tags_a
+                    .get_stale_while_revalidate(
+                        &tenant_key,
+                        "profile-v1",
+                        Duration::from_millis(30),
+                        Duration::from_secs(3),
+                        || async { Ok("A2".to_owned()) },
+                    )
+                    .await
+            },
+        )
+        .await??;
+        refreshed_b = openrust::tenant::TenantContext::scope(
+            openrust::tenant::TenantId::new("cache-tenant-b")?,
+            async {
+                tags_b
+                    .get_stale_while_revalidate(
+                        &tenant_key,
+                        "profile-v1",
+                        Duration::from_millis(30),
+                        Duration::from_secs(3),
+                        || async { Ok("B2".to_owned()) },
+                    )
+                    .await
+            },
+        )
+        .await??;
+        if refreshed_a == "A2" && refreshed_b == "B2" {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    assert_eq!(refreshed_a, "A2");
+    assert_eq!(refreshed_b, "B2");
+    assert_eq!(
+        tenant_refreshes.load(std::sync::atomic::Ordering::Acquire),
+        2
+    );
+    let tenant_plain_key = format!("tenant-plain-{}", std::process::id());
+    openrust::tenant::TenantContext::scope(
+        openrust::tenant::TenantId::new("cache-tenant-a")?,
+        async {
+            tags_a
+                .set(
+                    &tenant_plain_key,
+                    &"A-value".to_owned(),
+                    Duration::from_secs(3),
+                )
+                .await
+        },
+    )
+    .await??;
+    openrust::tenant::TenantContext::scope(
+        openrust::tenant::TenantId::new("cache-tenant-b")?,
+        async {
+            tags_b
+                .set(
+                    &tenant_plain_key,
+                    &"B-value".to_owned(),
+                    Duration::from_secs(3),
+                )
+                .await
+        },
+    )
+    .await??;
+    openrust::tenant::TenantContext::scope(
+        openrust::tenant::TenantId::new("cache-tenant-b")?,
+        async { store_b.invalidate_tags(&["coordination-swr"]).await },
+    )
+    .await??;
+    assert_eq!(
+        openrust::tenant::TenantContext::scope(
+            openrust::tenant::TenantId::new("cache-tenant-a")?,
+            async { tags_a.get::<String>(&tenant_plain_key).await },
+        )
+        .await??,
+        Some("A-value".to_owned())
+    );
+    assert_eq!(
+        openrust::tenant::TenantContext::scope(
+            openrust::tenant::TenantId::new("cache-tenant-b")?,
+            async { tags_b.get::<String>(&tenant_plain_key).await },
+        )
+        .await??,
+        None
+    );
     drop(tags_a);
     drop(tags_b);
     drop(store_a);

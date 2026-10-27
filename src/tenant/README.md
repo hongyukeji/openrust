@@ -41,4 +41,4 @@ let rows = resources
 
 `TenantQueryRule` 将用户授权、tenant column 和业务筛选以 AND 组合，并为关联读取、批量更新和删除重复应用相同范围。它不替代 `Policy` 操作权限，也不会改写直接 SeaORM、原生 SQL、未注册关联或自定义 driver。应用必须保护这些逃生入口，并为跨租户管理操作单独实现权限与审计。
 
-F6 后续子簇会将同一可信上下文传播到缓存、持久任务、对象路径和审计。当前 tenant context 不自动隔离这些资源。
+在可信作用域内，Cache 会将租户隔离写入后端 key、singleflight key 与 tag generation；Storage 使用租户摘要作为物理路径前缀，但返回的 `StoragePath` 保持逻辑路径。Audit 自动记录可空 tenant ID。持久 Queue 将 tenant ID 纳入版本化 metadata envelope，并在每次 worker attempt 重新建立作用域；这只传播租户选择，不传播身份或权限快照，handler 仍须重新验证业务权限。自定义 Cache/Storage driver 收到的 key/path 已完成租户隔离；Queue 自定义 driver 必须实现 metadata-aware 派发，否则非空 metadata 会失败关闭。原生 SQL、裸 SeaORM、自定义资源访问和不经过这些 facade 的代码仍由应用负责隔离。`tokio::spawn` 不继承 task-local；需要跨边界时应显式携带已验证的 `TenantId`。
