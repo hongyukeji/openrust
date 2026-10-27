@@ -502,12 +502,39 @@ async fn insert_token(
     Ok(())
 }
 
-async fn revoke_family_in_transaction(
+pub(crate) async fn revoke_family_in_transaction(
     transaction: &DatabaseTransaction,
     db: &Db,
     backend: DbBackend,
     family_id: &str,
 ) -> Result<()> {
+    let owner_sql = match backend {
+        DbBackend::Postgres => {
+            "SELECT user_id FROM tb_auth_refresh_tokens WHERE family_id = $1 LIMIT 1"
+        }
+        DbBackend::MySql => {
+            "SELECT user_id FROM tb_auth_refresh_tokens WHERE family_id = ? LIMIT 1"
+        }
+        _ => return Err(unsupported_backend()),
+    };
+    let owner_sql = crate::auth::resolve_auth_sql(db, owner_sql)?;
+    let Some(owner) = transaction
+        .query_one_raw(Statement::from_sql_and_values(
+            backend,
+            &owner_sql,
+            [family_id.to_owned().into()],
+        ))
+        .await
+        .map_err(Error::internal)?
+    else {
+        return Ok(());
+    };
+    let owner_id = owner
+        .try_get::<i64>("", "user_id")
+        .map_err(Error::internal)?;
+    // Rotation locks the account row before inserting its successor. Share that
+    // serialization point so this family update cannot miss a concurrent insert.
+    lock_user(transaction, db, owner_id).await?;
     let sql = match backend {
         DbBackend::Postgres => {
             "UPDATE tb_auth_refresh_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE family_id = $1 AND revoked_at IS NULL"

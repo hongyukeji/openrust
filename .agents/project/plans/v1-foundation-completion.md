@@ -80,7 +80,7 @@
 
 ### SSO 登录与统一退出
 
-本节是 F7 SSO 补齐范围与验收的唯一维护入口；在当前 TOTP/恢复码子簇验证提交后接续实现，完成后再推进 F6。复用 ADR-053 的身份客户端与现有 AuthFlows/共享存储，不重做已交付的 OIDC 登录；具体公共 API、状态模型和时限须在实施 Spec 与相关 ADR 中定稿。
+本节是 F7 SSO 补齐范围与验收的唯一维护入口；F7 双应用 SSO/退出专项已完成，依赖的 OIDC 与 TOTP/恢复码子簇均已交付。复用 ADR-053 的身份客户端与现有 AuthFlows/共享存储，不重做已交付的 OIDC 登录；实现与状态模型以 [ADR-055](../decisions/adr-055-openid-connect-sso.md) 为准。
 
 - **双应用单点登录**：两个独立应用以不同 client ID、回调地址和本地凭据接入同一 IdP。浏览器在 A 登录后，B 在 IdP 会话有效且策略允许时复用该会话；本地身份映射与授权各自独立，不共享应用 JWT、Cookie 或签名密钥冒充 SSO。明确重新认证、授权同意、IdP 会话过期及本地 MFA 的边界；外部认证成功不能绕过本地 MFA，未经显式信任约定的 `amr/acr` 不能直接替代本地验证。
 - **统一退出**：应用保留本地退出，并提供显式的身份中心退出入口。V1 实现 [RP-Initiated Logout](https://openid.net/specs/openid-connect-rpinitiated-1_0.html) 与 [Back-Channel Logout](https://openid.net/specs/openid-connect-backchannel-1_0.html)，以身份中心通知各应用撤销关联登录状态；前通道退出按实际兼容需求另行评估，不作为本簇默认必交项。先完成本地退出，再请求 IdP 退出，外部失败不得恢复本地登录。提供 IdP 能力检查与接入说明；不支持通知或配置不完整时，明确只能保证本地退出，不能报告所有应用已退出。

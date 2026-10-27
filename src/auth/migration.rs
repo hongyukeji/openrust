@@ -103,6 +103,51 @@ enum TbExternalIdentityRequests {
 }
 
 #[derive(DeriveIden)]
+enum TbAuthExternalSessions {
+    IdHash,
+    UserId,
+    Provider,
+    Issuer,
+    SubjectHash,
+    SessionHash,
+    RefreshFamilyId,
+    EncryptedSessionId,
+    SessionDeletedAt,
+    ChallengeHash,
+    ExpiresAt,
+    RevokedAt,
+    CreatedAt,
+}
+
+#[derive(DeriveIden)]
+enum TbAuthExternalLogoutTokens {
+    Provider,
+    Issuer,
+    TokenIdHash,
+    ExpiresAt,
+    CreatedAt,
+}
+
+#[derive(DeriveIden)]
+enum TbAuthExternalLogoutRequests {
+    StateHash,
+    Provider,
+    AssociationIdHash,
+    PostLogoutRedirectUri,
+    ExpiresAt,
+    CreatedAt,
+}
+
+#[derive(DeriveIden)]
+enum TbAuthExternalLogoutScopes {
+    Provider,
+    Issuer,
+    ScopeHash,
+    ExpiresAt,
+    CreatedAt,
+}
+
+#[derive(DeriveIden)]
 enum TbAuthRoles {
     Id,
     Name,
@@ -144,6 +189,278 @@ pub struct AuthPolicyMigration;
 
 /// 创建外部身份绑定与一次性 OIDC 登录事务表。
 pub struct AuthExternalIdentityMigration;
+
+/// 创建可跨应用副本查询的外部登录关联与后通道退出重放表。
+pub struct AuthExternalSessionMigration;
+
+impl MigrationName for AuthExternalSessionMigration {
+    fn name(&self) -> &'static str {
+        "m20261027_000007_openrust_external_sessions"
+    }
+}
+
+#[async_trait::async_trait]
+#[allow(
+    clippy::too_many_lines,
+    reason = "SSO 关联、重放与回调 state schema 同属一个追加迁移"
+)]
+impl MigrationTrait for AuthExternalSessionMigration {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        let backend = manager.get_database_backend();
+        let sessions = migration_table("auth_external_sessions", backend)?;
+        let logout_tokens = migration_table("auth_external_logout_tokens", backend)?;
+        let logout_requests = migration_table("auth_external_logout_requests", backend)?;
+        let logout_scopes = migration_table("auth_external_logout_scopes", backend)?;
+        let users = migration_table("users", backend)?;
+        manager
+            .create_table(
+                Table::create()
+                    .table(sessions.clone())
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(TbAuthExternalSessions::IdHash)
+                            .string_len(64)
+                            .not_null()
+                            .primary_key(),
+                    )
+                    .col(
+                        ColumnDef::new(TbAuthExternalSessions::UserId)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(TbAuthExternalSessions::Provider)
+                            .string_len(100)
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(TbAuthExternalSessions::Issuer)
+                            .string_len(512)
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(TbAuthExternalSessions::SubjectHash)
+                            .string_len(64)
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(TbAuthExternalSessions::SessionHash)
+                            .string_len(64)
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(TbAuthExternalSessions::RefreshFamilyId)
+                            .string_len(32)
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(TbAuthExternalSessions::EncryptedSessionId)
+                            .text()
+                            .null(),
+                    )
+                    .col(
+                        dialect::timestamp_utc(TbAuthExternalSessions::SessionDeletedAt, backend)?
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(TbAuthExternalSessions::ChallengeHash)
+                            .string_len(64)
+                            .null(),
+                    )
+                    .col(dialect::timestamp_utc(
+                        TbAuthExternalSessions::ExpiresAt,
+                        backend,
+                    )?)
+                    .col(dialect::timestamp_utc(TbAuthExternalSessions::RevokedAt, backend)?.null())
+                    .col(dialect::timestamp_utc(
+                        TbAuthExternalSessions::CreatedAt,
+                        backend,
+                    )?)
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_tb_auth_external_session_user")
+                            .from(sessions.clone(), TbAuthExternalSessions::UserId)
+                            .to(users, TbUsers::Id)
+                            .on_delete(ForeignKeyAction::Cascade),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_table(
+                Table::create()
+                    .table(logout_requests.clone())
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(TbAuthExternalLogoutRequests::StateHash)
+                            .string_len(64)
+                            .not_null()
+                            .primary_key(),
+                    )
+                    .col(
+                        ColumnDef::new(TbAuthExternalLogoutRequests::Provider)
+                            .string_len(100)
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(TbAuthExternalLogoutRequests::AssociationIdHash)
+                            .string_len(64)
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(TbAuthExternalLogoutRequests::PostLogoutRedirectUri)
+                            .string_len(2048)
+                            .not_null(),
+                    )
+                    .col(dialect::timestamp_utc(
+                        TbAuthExternalLogoutRequests::ExpiresAt,
+                        backend,
+                    )?)
+                    .col(dialect::timestamp_utc(
+                        TbAuthExternalLogoutRequests::CreatedAt,
+                        backend,
+                    )?)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_table(
+                Table::create()
+                    .table(logout_scopes.clone())
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(TbAuthExternalLogoutScopes::Provider)
+                            .string_len(100)
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(TbAuthExternalLogoutScopes::Issuer)
+                            .string_len(512)
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(TbAuthExternalLogoutScopes::ScopeHash)
+                            .string_len(64)
+                            .not_null(),
+                    )
+                    .col(
+                        dialect::timestamp_utc(TbAuthExternalLogoutScopes::ExpiresAt, backend)?
+                            .null(),
+                    )
+                    .col(dialect::timestamp_utc(
+                        TbAuthExternalLogoutScopes::CreatedAt,
+                        backend,
+                    )?)
+                    .primary_key(
+                        Index::create()
+                            .col(TbAuthExternalLogoutScopes::Provider)
+                            .col(TbAuthExternalLogoutScopes::Issuer)
+                            .col(TbAuthExternalLogoutScopes::ScopeHash),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .table(logout_scopes.clone())
+                    .name("ix_tb_auth_logout_scope_expiry")
+                    .col(TbAuthExternalLogoutScopes::ExpiresAt)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .table(sessions.clone())
+                    .name("ix_tb_auth_external_session_sid")
+                    .col(TbAuthExternalSessions::Provider)
+                    .col(TbAuthExternalSessions::Issuer)
+                    .col(TbAuthExternalSessions::SessionHash)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .table(sessions.clone())
+                    .name("ix_tb_auth_external_session_sub")
+                    .col(TbAuthExternalSessions::Provider)
+                    .col(TbAuthExternalSessions::Issuer)
+                    .col(TbAuthExternalSessions::SubjectHash)
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .table(sessions.clone())
+                    .name("uq_tb_auth_external_challenge")
+                    .col(TbAuthExternalSessions::ChallengeHash)
+                    .unique()
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_table(
+                Table::create()
+                    .table(logout_tokens.clone())
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(TbAuthExternalLogoutTokens::Provider)
+                            .string_len(100)
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(TbAuthExternalLogoutTokens::Issuer)
+                            .string_len(512)
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(TbAuthExternalLogoutTokens::TokenIdHash)
+                            .string_len(64)
+                            .not_null(),
+                    )
+                    .col(dialect::timestamp_utc(
+                        TbAuthExternalLogoutTokens::ExpiresAt,
+                        backend,
+                    )?)
+                    .col(dialect::timestamp_utc(
+                        TbAuthExternalLogoutTokens::CreatedAt,
+                        backend,
+                    )?)
+                    .primary_key(
+                        Index::create()
+                            .col(TbAuthExternalLogoutTokens::Provider)
+                            .col(TbAuthExternalLogoutTokens::Issuer)
+                            .col(TbAuthExternalLogoutTokens::TokenIdHash),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+        Ok(())
+    }
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        let backend = manager.get_database_backend();
+        for table in [
+            "auth_external_logout_requests",
+            "auth_external_logout_scopes",
+            "auth_external_logout_tokens",
+            "auth_external_sessions",
+        ] {
+            manager
+                .drop_table(
+                    Table::drop()
+                        .table(migration_table(table, backend)?)
+                        .if_exists()
+                        .to_owned(),
+                )
+                .await?;
+        }
+        Ok(())
+    }
+}
 
 impl MigrationName for AuthExternalIdentityMigration {
     fn name(&self) -> &'static str {

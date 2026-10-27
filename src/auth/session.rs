@@ -342,6 +342,35 @@ pub struct SessionPlugin {
     storage: SessionStorage,
 }
 
+/// 允许框架认证流程精确撤销一个共享 Session 的窄句柄。
+#[derive(Clone)]
+pub struct SessionStoreHandle(Arc<dyn SessionStore>);
+
+impl std::fmt::Debug for SessionStoreHandle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("SessionStoreHandle([REDACTED])")
+    }
+}
+
+impl SessionStoreHandle {
+    /// 从应用选定的 store 创建受限撤销句柄。
+    pub fn new(store: impl SessionStore + 'static) -> Self {
+        Self(Arc::new(store))
+    }
+
+    /// 删除指定的不透明 Session ID；错误时调用方必须按失败处理。
+    pub async fn delete(&self, session_id: &str) -> Result<()> {
+        let id = session_id.parse::<Id>().map_err(|_| Error::Unauthorized)?;
+        self.0.delete(&id).await.map_err(|_| {
+            Error::custom_with_status(
+                axum::http::StatusCode::SERVICE_UNAVAILABLE,
+                "session_store_unavailable",
+                "shared Session storage is unavailable",
+            )
+        })
+    }
+}
+
 impl SessionPlugin {
     /// 使用安全的默认 Cookie 设置创建 Session 插件。
     pub fn new() -> Self {
@@ -414,6 +443,7 @@ impl Plugin for SessionPlugin {
             SessionStorage::Custom(store) => store.clone(),
         };
         app.insert(SessionService);
+        app.insert(SessionStoreHandle(store.clone()));
         app.http_layer(
             SessionManagerLayer::new(SharedSessionStore(store))
                 .with_name(config.cookie_name)

@@ -30,6 +30,32 @@
         "web-origins",
         "acr"
       ]
+    },
+    {
+      "clientId": "openrust-rp-secondary",
+      "name": "OpenRust second application SSO acceptance client",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "clientAuthenticatorType": "client-secret",
+      "secret": "openrust-secondary-test-client-secret",
+      "publicClient": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://127.0.0.1:3001/callback"
+      ],
+      "webOrigins": [
+        "http://127.0.0.1:3001"
+      ],
+      "defaultClientScopes": [
+        "profile",
+        "email",
+        "roles",
+        "web-origins",
+        "acr"
+      ]
     }
   ],
   "users": [

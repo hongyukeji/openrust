@@ -38,7 +38,16 @@
 - 可选 `auth-oidc` 提供 OAuth2 authorization-code + S256 PKCE relying-party、OIDC Discovery/JWKS 与 ID Token 验证。使用静态 issuer/client/redirect/scope，并通过受限命名 `DependencyClient` 访问 IdP；正常地址只允许 HTTPS，loopback 开发地址可使用 HTTP。`openidconnect` 未采用，具体依赖边界见 [ADR-053](../decisions/adr-053-external-identity-client.md)。
 - `ExternalIdentityFlows` 将短时 state/nonce/verifier 加密保存在数据库，以单次事务消费；额外校验十分钟 HttpOnly/Secure/SameSite=Lax 浏览器绑定 Cookie。identity key 为 provider + issuer + subject，不按邮箱合并；新账户要求已验证邮箱，绑定/解绑要求本地密码重新认证并写入审计。需要 `AuthExternalIdentityMigration` 和应用侧身份创建策略。
 - Discovery、token、JWKS 请求共享一次总时限与 1 MiB 响应体上限。JWKS 最长缓存 5 分钟，过期刷新失败时拒绝认证；未知 `kid` 主动刷新受 30 秒冷却限制。短暂 IdP 故障在缓存过期后会使 OIDC 登录失败关闭。
-- PostgreSQL 18 和 MySQL 8.4 各完成一次数据库集成；Keycloak 26.8.1 fixture 完成真实浏览器表单授权码、PKCE、issuer、nonce、RS256/JWKS 验证。可复跑命令和跳过边界见 [测试基线](../memory/testing.md)。TOTP 与恢复码已按 ADR-054 完成并单独通过 PostgreSQL 18/MySQL 8.4 验收；双应用 SSO/统一退出仍是 F7 后续子簇。
+- PostgreSQL 18 和 MySQL 8.4 各完成一次数据库集成；Keycloak 26.8.1 fixture 完成真实浏览器表单授权码、PKCE、issuer、nonce、RS256/JWKS 验证。可复跑命令和跳过边界见 [测试基线](../memory/testing.md)。TOTP 与恢复码已按 ADR-054 完成并单独通过 PostgreSQL 18/MySQL 8.4 验收；双应用 SSO/统一退出已按 ADR-055 完成双库真实验收。
+
+## 双应用 SSO 与统一退出（F7 当前进行中）
+
+- `complete` 保持兼容；`complete_with_handle` 返回 `ExternalLoginResult` 与不透明 `ExternalLoginHandle`。应用应仅在服务端安全保存句柄。调用 `attach_session` 会校验 Session 内账户 ID，并使用本地 `Encryptor` 加密保存 Session ID；启用 MFA 时，`AuthFlows::complete_mfa_login` 在完成 challenge 的事务中将新 refresh family 绑定回关联。
+- `AuthExternalSessionMigration` 创建关联、Logout Token replay、一次性 RP logout state 与并发墓碑表。关联按 provider/issuer、subject hash、可选 `sid`、refresh family、MFA challenge hash 和加密 Session ID 保存，不保留原始 OIDC token。callback 在签发前检查 sid 与主体级退出墓碑；Back-Channel Logout 验证/重放检查后共享撤销 refresh、MFA challenge 和关联 Session。重复通知会继续尝试删除此前未能删除的 Session。
+- `begin_logout` 先提交本地关联撤销，再按静态 provider endpoint/client/allowlist 回调 URI生成 RP-Initiated Logout URL；`complete_logout` 一次性消费 state。Session store 删除发生在数据库事务外，失败不会恢复已撤销凭据；重复提交同一关联句柄可补做 RP Session 删除，重放 Back-Channel Logout 可补做通知侧清理。
+- callback 成功后释放未用于撤销的临时 scope 行；过期退出墓碑按索引每次最多清理 100 行，避免长期累积和单次清理造成无界事务。
+- stateless JWT 仍有效至其签名 TTL 到期；本地退出/IdP 通知不提供即时 access-token 撤销。默认 access TTL 为 900 秒且配置上限 3600 秒；应用若覆盖默认值，应以其配置为实际残留上界。
+- PostgreSQL 18 与 MySQL 8.4 的 Keycloak/Redis 真实验收均使用两个隔离应用、每应用两个独立 API 子进程及 TCP round-robin，覆盖双 client SSO、应用 callback/RP logout、跨节点 MFA completion、logout 期间 pending challenge 撤销后拒绝 completion、挂起 callback 在 logout 后拒绝、refresh/logout 并发、退出后两个节点拒绝共享 Session/refresh、节点重启重放与 15 秒 JWT 到期窗口。provider fake 双库测试另覆盖 RP state、审计、关联撤销与旧 callback；Redis store 上的一次删除错误注入后相同通知可重试清理。真实 Redis 断连期间返回 503，恢复后重启双应用四个 API 子进程并以相同 Logout Token 重放成功，PostgreSQL 18/MySQL 8.4 均通过；F7 仍等待本簇完整门禁，详见 [ADR-055](../decisions/adr-055-openid-connect-sso.md) 与 [测试基线](../memory/testing.md)。
 
 ## 边界与未纳入范围
 

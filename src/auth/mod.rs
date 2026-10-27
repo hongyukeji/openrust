@@ -42,13 +42,15 @@ pub use jwt::{JwtPlugin, JwtTokens};
 #[cfg(feature = "auth-mfa")]
 pub use mfa::{AuthMfaMigration, MfaLoginChallenge, MfaPlugin, RecoveryCodes, TotpEnrollment};
 pub use migration::{
-    AuthExternalIdentityMigration, AuthMigration, AuthPolicyMigration, AuthRefreshTokenMigration,
-    AuthVerificationCodeMigration,
+    AuthExternalIdentityMigration, AuthExternalSessionMigration, AuthMigration,
+    AuthPolicyMigration, AuthRefreshTokenMigration, AuthVerificationCodeMigration,
 };
 #[cfg(feature = "auth-oidc")]
 pub use oidc::{
-    ExternalIdentityAuthorization, ExternalIdentityFlows, ExternalIdentityLink,
-    ExternalIdentityProvider, OidcAuthorization, OidcProvider, VerifiedExternalIdentity,
+    BackchannelLogoutOutcome, ExternalIdentityAuthorization, ExternalIdentityFlows,
+    ExternalIdentityLink, ExternalIdentityProvider, ExternalLoginHandle, ExternalLoginResult,
+    ExternalLogoutRedirect, OidcAuthorization, OidcProvider, VerifiedExternalIdentity,
+    VerifiedLogoutToken,
 };
 pub use policy::Policy;
 pub use query::{AuthorizedSelect, MAX_AUTHORIZED_PAGE_SIZE, QueryRule, QueryScope};
@@ -87,7 +89,7 @@ pub use pat::{IssuedPersonalAccessToken, PersonalAccessTokenInfo, PersonalAccess
 pub use refresh::{IssuedRefreshToken, RefreshRotation, RefreshTokens};
 #[cfg(feature = "session-redis")]
 pub use session::RedisSessionStore;
-pub use session::{DatabaseSessionStore, SessionPlugin};
+pub use session::{DatabaseSessionStore, SessionPlugin, SessionStoreHandle};
 pub use tower_sessions::Session;
 pub use verification::{
     DatabaseVerificationCodeStore, IssuedVerificationCode, VerificationChallenge,

@@ -11,6 +11,7 @@ use std::{net::IpAddr, time::Instant};
 
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use chrono::{Duration as ChronoDuration, Utc};
 use http::{Request, Response};
 use jsonwebtoken::jwk::{Jwk, JwkSet, KeyAlgorithm, KeyOperations, PublicKeyUse};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header};
@@ -28,7 +29,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256, Sha384, Sha512};
 
 use crate::audit::{Audit, AuditEvent, AuditOutcome, AuditPolicy, AuditSubject, DatabaseAuditSink};
-use crate::auth::{AuthFlows, LoginAttempt};
+use crate::auth::{AuthFlows, LoginAttempt, Session, SessionStoreHandle};
 use crate::core::{BoxFuture, Error, Result};
 use crate::db::{DatabaseTransaction, Db};
 use crate::http::{DependencyClient, HttpBody};
@@ -41,6 +42,7 @@ pub struct VerifiedExternalIdentity {
     subject: String,
     email: Option<String>,
     email_verified: bool,
+    session_id: Option<String>,
 }
 
 impl VerifiedExternalIdentity {
@@ -72,7 +74,21 @@ impl VerifiedExternalIdentity {
             subject,
             email,
             email_verified,
+            session_id: None,
         })
+    }
+
+    /// 设置已由 Provider 验证的 `IdP` 会话标识，用于精确处理后通道退出。
+    pub fn with_session_id(mut self, session_id: impl Into<String>) -> Result<Self> {
+        let session_id = session_id.into();
+        if session_id.trim().is_empty()
+            || session_id.len() > 512
+            || session_id.bytes().any(|byte| byte.is_ascii_control())
+        {
+            return Err(oidc_error());
+        }
+        self.session_id = Some(session_id);
+        Ok(self)
     }
 
     pub(crate) fn identity_hash(&self, provider: &str) -> String {
@@ -98,6 +114,11 @@ impl VerifiedExternalIdentity {
     pub const fn email_verified(&self) -> bool {
         self.email_verified
     }
+
+    /// 返回经签名验证的 `IdP` 会话标识（若 Provider 提供）。
+    pub fn session_id(&self) -> Option<&str> {
+        self.session_id.as_deref()
+    }
 }
 
 impl std::fmt::Debug for VerifiedExternalIdentity {
@@ -108,6 +129,10 @@ impl std::fmt::Debug for VerifiedExternalIdentity {
             .field("subject", &"[REDACTED]")
             .field("email", &self.email.as_ref().map(|_| "[REDACTED]"))
             .field("email_verified", &self.email_verified)
+            .field(
+                "session_id",
+                &self.session_id.as_ref().map(|_| "[REDACTED]"),
+            )
             .finish()
     }
 }
@@ -239,6 +264,7 @@ struct OidcDiscovery {
     authorization_endpoint: String,
     token_endpoint: String,
     jwks_uri: String,
+    end_session_endpoint: Option<String>,
     id_token_signing_alg_values_supported: Vec<String>,
 }
 
@@ -255,6 +281,20 @@ struct OidcClaims {
     at_hash: Option<String>,
     email: Option<String>,
     email_verified: Option<bool>,
+    sid: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct OidcLogoutClaims {
+    iss: String,
+    aud: Audiences,
+    exp: u64,
+    iat: u64,
+    jti: String,
+    events: BTreeMap<String, serde_json::Value>,
+    nonce: Option<String>,
+    sid: Option<String>,
+    sub: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -295,6 +335,7 @@ pub struct OidcProvider {
     jwks_last_success: tokio::sync::Mutex<tokio::time::Instant>,
     name: String,
     issuer: String,
+    end_session_endpoint: Option<url::Url>,
     scopes: Vec<String>,
 }
 
@@ -346,7 +387,7 @@ impl OidcProvider {
         let client_id = ClientId::new(client_id.into());
         let client_secret = client_secret.map(ClientSecret::new);
         let deadline = Instant::now() + total_timeout;
-        let (client, _discovery, jwks, allowed_algorithms) = discover_client(
+        let (client, discovery, jwks, allowed_algorithms) = discover_client(
             issuer.to_owned(),
             redirect_uri.to_owned(),
             client_id.clone(),
@@ -370,6 +411,12 @@ impl OidcProvider {
             jwks_last_success: tokio::sync::Mutex::new(tokio::time::Instant::now()),
             name,
             issuer: issuer.to_owned(),
+            end_session_endpoint: discovery
+                .end_session_endpoint
+                .as_deref()
+                .map(url::Url::parse)
+                .transpose()
+                .map_err(|_| oidc_error())?,
             scopes: scopes.into_iter().collect(),
         })
     }
@@ -479,12 +526,107 @@ impl OidcProvider {
             }
             Err(_) => return Err(oidc_error()),
         };
-        VerifiedExternalIdentity::new(
+        let mut identity = VerifiedExternalIdentity::new(
             claims.iss,
             claims.sub,
             claims.email,
             claims.email_verified.unwrap_or(false),
+        )?;
+        if let Some(session_id) = claims.sid {
+            identity = identity.with_session_id(session_id)?;
+        }
+        Ok(identity)
+    }
+
+    fn verify_backchannel_logout_token(&self, compact: &str) -> Result<VerifiedLogoutToken> {
+        let jwks = self.jwks.read().map_err(|_| oidc_error())?.clone();
+        let algorithms = self
+            .allowed_algorithms
+            .read()
+            .map_err(|_| oidc_error())?
+            .clone();
+        Self::verify_logout_token(
+            compact,
+            &self.issuer,
+            self.client_id.as_str(),
+            &jwks,
+            &algorithms,
         )
+    }
+
+    fn verify_logout_token(
+        compact: &str,
+        issuer: &str,
+        client_id: &str,
+        jwks: &JwkSet,
+        allowed_algorithms: &HashSet<Algorithm>,
+    ) -> Result<VerifiedLogoutToken> {
+        let header = decode_header(compact).map_err(|_| oidc_error())?;
+        if header.typ.as_deref() != Some("logout+jwt")
+            || header.crit.is_some()
+            || header.jwk.is_some()
+            || header.jku.is_some()
+            || header.x5u.is_some()
+            || header.x5c.is_some()
+            || !allowed_algorithms.contains(&header.alg)
+        {
+            return Err(oidc_error());
+        }
+        let kid = header.kid.as_deref().ok_or_else(oidc_error)?;
+        if jwks
+            .keys
+            .iter()
+            .filter(|key| key.common.key_id.as_deref() == Some(kid))
+            .count()
+            != 1
+        {
+            return Err(oidc_error());
+        }
+        let jwk = jwks.find(kid).ok_or_else(oidc_error)?;
+        validate_jwk(jwk, header.alg).map_err(|_| oidc_error())?;
+        let key = DecodingKey::from_jwk(jwk).map_err(|_| oidc_error())?;
+        let mut validation = Validation::new(header.alg);
+        validation.leeway = 30;
+        validation.validate_nbf = true;
+        validation.set_issuer(&[issuer]);
+        validation.set_audience(&[client_id]);
+        validation.set_required_spec_claims(&["exp", "iss", "aud"]);
+        let claims = decode::<OidcLogoutClaims>(compact, &key, &validation)
+            .map_err(|_| oidc_error())?
+            .claims;
+        let now = jsonwebtoken::get_current_timestamp();
+        let event_name = "http://schemas.openid.net/event/backchannel-logout";
+        if claims.iss != issuer
+            || !claims.aud.contains(client_id)
+            || claims.jti.trim().is_empty()
+            || claims.jti.len() > 256
+            || claims.jti.bytes().any(|byte| byte.is_ascii_control())
+            || claims.iat > now.saturating_add(60)
+            || now.saturating_sub(claims.iat) > 300
+            || claims.exp <= now
+            || claims.nonce.is_some()
+            || claims.sid.as_ref().is_some_and(|sid| {
+                sid.is_empty() || sid.len() > 512 || sid.bytes().any(|byte| byte.is_ascii_control())
+            })
+            || claims.sub.as_ref().is_some_and(|sub| {
+                sub.is_empty() || sub.len() > 512 || sub.bytes().any(|byte| byte.is_ascii_control())
+            })
+            || (claims.sid.is_none() && claims.sub.is_none())
+            || !claims
+                .events
+                .get(event_name)
+                .is_some_and(|event| event.as_object().is_some_and(serde_json::Map::is_empty))
+        {
+            return Err(oidc_error());
+        }
+        Ok(VerifiedLogoutToken {
+            issuer: claims.iss,
+            client_id: client_id.to_owned(),
+            token_id: claims.jti,
+            issued_at: claims.iat,
+            session_id: claims.sid,
+            subject: claims.sub,
+        })
     }
 
     async fn refresh_jwks(&self, deadline: Instant) -> Result<()> {
@@ -681,6 +823,13 @@ async fn discover_client(
     validate_url_scheme(&authorization_url, allow_loopback_http)?;
     validate_url_scheme(&token_url, allow_loopback_http)?;
     validate_url_scheme(&jwks_url, allow_loopback_http)?;
+    if let Some(endpoint) = &metadata.end_session_endpoint {
+        let endpoint = url::Url::parse(endpoint).map_err(|_| oidc_error())?;
+        validate_url_scheme(&endpoint, allow_loopback_http)?;
+        if !endpoint.username().is_empty() || endpoint.password().is_some() {
+            return Err(oidc_error());
+        }
+    }
     let jwks: JwkSet = fetch_oidc_json(&adapter, &metadata.jwks_uri).await?;
     if jwks.keys.is_empty() || jwks.keys.len() > 64 {
         return Err(oidc_error());
@@ -759,6 +908,121 @@ pub trait ExternalIdentityProvider: Send + Sync {
         nonce: &'a str,
         pkce_verifier: &'a str,
     ) -> BoxFuture<'a, Result<VerifiedExternalIdentity>>;
+
+    /// 返回经 discovery 固定并验证的 RP-Initiated Logout endpoint。
+    fn end_session_endpoint(&self) -> Option<url::Url> {
+        None
+    }
+
+    /// 返回与该客户端预登记的退出后回调 URI；自定义 Provider 默认不允许重定向。
+    fn post_logout_redirect_uri(&self) -> Option<String> {
+        None
+    }
+
+    /// 返回固定 client ID，用于 RP-Initiated Logout 请求。
+    fn client_id(&self) -> Option<&str> {
+        None
+    }
+
+    /// 独立验证 Back-Channel Logout Token；自定义 Provider 默认拒绝该能力。
+    fn verify_logout_token<'a>(
+        &'a self,
+        _token: &'a str,
+    ) -> BoxFuture<'a, Result<VerifiedLogoutToken>> {
+        Box::pin(async { Err(oidc_error()) })
+    }
+}
+
+/// 已按 OIDC Back-Channel Logout 规则验证的通知声明。
+#[derive(Clone, PartialEq, Eq)]
+pub struct VerifiedLogoutToken {
+    issuer: String,
+    client_id: String,
+    token_id: String,
+    issued_at: u64,
+    session_id: Option<String>,
+    subject: Option<String>,
+}
+
+impl VerifiedLogoutToken {
+    /// 由自定义 Provider 在完成签名、issuer、audience、时效、事件及抗重放声明校验后构造。
+    pub fn after_provider_validation(
+        issuer: impl Into<String>,
+        client_id: impl Into<String>,
+        token_id: impl Into<String>,
+        issued_at: u64,
+        session_id: Option<String>,
+        subject: Option<String>,
+    ) -> Result<Self> {
+        let issuer = issuer.into();
+        let client_id = client_id.into();
+        let token_id = token_id.into();
+        if issuer.trim().is_empty()
+            || issuer.len() > 512
+            || client_id.trim().is_empty()
+            || client_id.len() > 512
+            || token_id.trim().is_empty()
+            || token_id.len() > 256
+            || (session_id.is_none() && subject.is_none())
+            || session_id
+                .as_ref()
+                .is_some_and(|value| value.is_empty() || value.len() > 512)
+            || subject
+                .as_ref()
+                .is_some_and(|value| value.is_empty() || value.len() > 512)
+        {
+            return Err(oidc_error());
+        }
+        Ok(Self {
+            issuer,
+            client_id,
+            token_id,
+            issued_at,
+            session_id,
+            subject,
+        })
+    }
+
+    /// 返回已验证的 issuer。
+    pub fn issuer(&self) -> &str {
+        &self.issuer
+    }
+    /// 返回该通知的目标 client。
+    pub fn client_id(&self) -> &str {
+        &self.client_id
+    }
+    /// 返回用于跨节点重放去重的 token ID。
+    pub fn token_id(&self) -> &str {
+        &self.token_id
+    }
+    /// 返回签发时间。
+    pub const fn issued_at(&self) -> u64 {
+        self.issued_at
+    }
+    /// 返回精确 `IdP` 会话 ID。
+    pub fn session_id(&self) -> Option<&str> {
+        self.session_id.as_deref()
+    }
+    /// 返回 subject 范围通知的主体。
+    pub fn subject(&self) -> Option<&str> {
+        self.subject.as_deref()
+    }
+}
+
+impl std::fmt::Debug for VerifiedLogoutToken {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VerifiedLogoutToken")
+            .field("issuer", &self.issuer)
+            .field("client_id", &self.client_id)
+            .field("token_id", &"[REDACTED]")
+            .field("issued_at", &self.issued_at)
+            .field(
+                "session_id",
+                &self.session_id.as_ref().map(|_| "[REDACTED]"),
+            )
+            .field("subject", &self.subject.as_ref().map(|_| "[REDACTED]"))
+            .finish()
+    }
 }
 
 /// 已登记的外部身份登录跳转。
@@ -767,6 +1031,90 @@ pub struct ExternalIdentityAuthorization {
     url: url::Url,
     browser_binding: String,
     cookie_name: String,
+}
+
+/// 一次外部登录与本地应用凭据关联的短期不透明句柄。
+pub struct ExternalLoginHandle(String);
+
+impl ExternalLoginHandle {
+    /// 暴露一次性应用关联凭据，供当前登录流程的后续步骤提交。
+    pub fn expose(&self) -> &str {
+        &self.0
+    }
+
+    /// 从应用安全存储中的一次性凭据恢复关联句柄，供多实例登录流程继续使用。
+    ///
+    /// 只接受框架签发的 256-bit Base64 URL-safe 无填充格式；调用方须将该值作为秘密保存。
+    pub fn from_exposed(value: impl Into<String>) -> Result<Self> {
+        let value = value.into();
+        if value.len() != 43
+            || !value
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+        {
+            return Err(oidc_error());
+        }
+        Ok(Self(value))
+    }
+}
+
+impl std::fmt::Debug for ExternalLoginHandle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("ExternalLoginHandle([REDACTED])")
+    }
+}
+
+/// 外部身份登录结果及其供 Session/refresh 关联使用的句柄。
+pub struct ExternalLoginResult {
+    attempt: LoginAttempt,
+    handle: ExternalLoginHandle,
+}
+
+/// 已完成本地撤销并可跳转到 `IdP` 的退出地址。
+pub struct ExternalLogoutRedirect {
+    url: url::Url,
+    state: String,
+}
+
+impl ExternalLogoutRedirect {
+    /// 返回经 Provider discovery 固定的退出跳转地址。
+    pub fn url(&self) -> &url::Url {
+        &self.url
+    }
+    /// 返回需由退出后回调一次性提交的 state。
+    pub fn state(&self) -> &str {
+        &self.state
+    }
+}
+
+impl std::fmt::Debug for ExternalLogoutRedirect {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ExternalLogoutRedirect")
+            .field("url", &"[REDACTED]")
+            .field("state", &"[REDACTED]")
+            .finish()
+    }
+}
+
+/// 后通道退出的幂等处理结果。
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BackchannelLogoutOutcome {
+    /// 新通知已处理，返回撤销的应用关联数。
+    Processed(u64),
+    /// 此 `jti` 已由共享数据库处理。
+    AlreadyProcessed,
+}
+
+impl ExternalLoginResult {
+    /// 返回本地凭据或 MFA challenge。
+    pub fn attempt(&self) -> &LoginAttempt {
+        &self.attempt
+    }
+
+    /// 取出认证结果与关联句柄。
+    pub fn into_parts(self) -> (LoginAttempt, ExternalLoginHandle) {
+        (self.attempt, self.handle)
+    }
 }
 
 impl ExternalIdentityAuthorization {
@@ -1013,6 +1361,52 @@ impl ExternalIdentityFlows {
         browser_binding: &str,
         request_source: &str,
     ) -> Result<LoginAttempt> {
+        Ok(self
+            .complete_internal(
+                provider_name,
+                callback_state,
+                code,
+                browser_binding,
+                request_source,
+                false,
+            )
+            .await?
+            .attempt)
+    }
+
+    /// 完成外部登录并创建待关联的短时句柄，供调用方绑定 refresh 与 Session。
+    pub async fn complete_with_handle(
+        &self,
+        provider_name: &str,
+        callback_state: &str,
+        code: &str,
+        browser_binding: &str,
+        request_source: &str,
+    ) -> Result<ExternalLoginResult> {
+        self.complete_internal(
+            provider_name,
+            callback_state,
+            code,
+            browser_binding,
+            request_source,
+            true,
+        )
+        .await
+    }
+
+    #[allow(
+        clippy::too_many_lines,
+        reason = "回调消费、身份签发和关联记录须共用事务边界"
+    )]
+    async fn complete_internal(
+        &self,
+        provider_name: &str,
+        callback_state: &str,
+        code: &str,
+        browser_binding: &str,
+        request_source: &str,
+        track_association: bool,
+    ) -> Result<ExternalLoginResult> {
         if callback_state.is_empty()
             || callback_state.len() > 256
             || code.is_empty()
@@ -1084,6 +1478,9 @@ impl ExternalIdentityFlows {
         if identity.issuer() != provider.issuer() {
             return Err(oidc_error());
         }
+        let handle = ExternalLoginHandle(random_secret()?);
+        let handle_hash = digest(handle.expose());
+        let session_hash = identity.session_id().map(digest);
         let password_hash = if self
             .find_external_user(provider_name, &identity)
             .await?
@@ -1108,8 +1505,35 @@ impl ExternalIdentityFlows {
                 let password_hash = password_hash.clone();
                 let state_hash = state_hash.clone();
                 let request_source = request_source.clone();
+                let handle_hash = handle_hash.clone();
+                let session_hash = session_hash.clone();
                 Box::pin(async move {
                     consume_request(transaction, &db, &provider_name, &state_hash).await?;
+                    let sid_revoked = if let Some(session_id) = identity.session_id() {
+                        lock_external_logout_scope(
+                            transaction,
+                            &db,
+                            &provider_name,
+                            identity.issuer(),
+                            &digest(session_id),
+                            None,
+                        )
+                        .await?
+                    } else {
+                        false
+                    };
+                    let subject_revoked = lock_external_logout_scope(
+                        transaction,
+                        &db,
+                        &provider_name,
+                        identity.issuer(),
+                        &digest(identity.subject()),
+                        None,
+                    )
+                    .await?;
+                    if sid_revoked || subject_revoked {
+                        return Ok(None);
+                    }
                     let credentials = auth
                         .complete_external_identity_in_transaction(
                             transaction,
@@ -1119,6 +1543,53 @@ impl ExternalIdentityFlows {
                             &request_source,
                         )
                         .await?;
+                    let user_id = credentials.user_id();
+                    let refresh_family = match &credentials {
+                        LoginAttempt::Authenticated(credentials) => Some(
+                            refresh_family_in_transaction(
+                                transaction,
+                                &db,
+                                credentials.user_id(),
+                                credentials.refresh_token().expose(),
+                            )
+                            .await?,
+                        ),
+                        #[cfg(feature = "auth-mfa")]
+                        LoginAttempt::MfaRequired(_) => None,
+                    };
+                    if track_association {
+                        #[cfg(feature = "auth-mfa")]
+                        let challenge_hash = match &credentials {
+                            LoginAttempt::MfaRequired(challenge) => {
+                                Some(digest(challenge.expose()))
+                            }
+                            LoginAttempt::Authenticated(_) => None,
+                        };
+                        #[cfg(not(feature = "auth-mfa"))]
+                        let challenge_hash: Option<String> = None;
+                        insert_external_session_in_transaction(
+                            transaction,
+                            &db,
+                            &provider_name,
+                            identity.issuer(),
+                            &digest(identity.subject()),
+                            session_hash.as_deref(),
+                            user_id,
+                            &handle_hash,
+                            refresh_family.as_deref(),
+                            challenge_hash.as_deref(),
+                            match &credentials {
+                                LoginAttempt::Authenticated(credentials) => {
+                                    credentials.refresh_expires_at()
+                                }
+                                #[cfg(feature = "auth-mfa")]
+                                LoginAttempt::MfaRequired(_) => {
+                                    Utc::now() + ChronoDuration::minutes(10)
+                                }
+                            },
+                        )
+                        .await?;
+                    }
                     let event = AuditEvent::new(
                         if matches!(&credentials, LoginAttempt::Authenticated(_)) {
                             "auth.external.login"
@@ -1135,10 +1606,432 @@ impl ExternalIdentityFlows {
                     let record =
                         Audit::new(audit.clone(), AuditPolicy::default()).prepare(event)?;
                     audit.record_in_transaction(transaction, &record).await?;
-                    Ok(credentials)
+                    if let Some(session_id) = identity.session_id() {
+                        release_external_logout_scope(
+                            transaction,
+                            &db,
+                            &provider_name,
+                            identity.issuer(),
+                            &digest(session_id),
+                        )
+                        .await?;
+                    }
+                    release_external_logout_scope(
+                        transaction,
+                        &db,
+                        &provider_name,
+                        identity.issuer(),
+                        &digest(identity.subject()),
+                    )
+                    .await?;
+                    Ok(Some(credentials))
                 })
             })
             .await
+            .and_then(|attempt| attempt.ok_or(Error::Unauthorized))
+            .map(|attempt| ExternalLoginResult { attempt, handle })
+    }
+
+    /// 将已登录账户的共享 Session ID 加密关联到外部登录句柄。
+    pub async fn attach_session(
+        &self,
+        user_id: i64,
+        handle: &ExternalLoginHandle,
+        session: &Session,
+    ) -> Result<()> {
+        use crate::auth::database::AUTH_USER_ID_KEY;
+
+        if user_id <= 0
+            || session
+                .get::<i64>(AUTH_USER_ID_KEY)
+                .await
+                .map_err(Error::internal)?
+                != Some(user_id)
+        {
+            return Err(Error::Unauthorized);
+        }
+        let id = session.id().ok_or(Error::Unauthorized)?.to_string();
+        let handle_hash = digest(handle.expose());
+        let encrypted = self
+            .encryptor
+            .encrypt_with_context(id.as_bytes(), handle_hash.as_bytes())?;
+        let table = self.db.quoted_table_name("auth_external_sessions")?;
+        let backend = self.db.backend()?;
+        let sql = match backend {
+            DbBackend::Postgres => format!(
+                "UPDATE {table} SET encrypted_session_id = $1 WHERE id_hash = $2 AND user_id = $3 AND revoked_at IS NULL AND expires_at > CURRENT_TIMESTAMP"
+            ),
+            DbBackend::MySql => format!(
+                "UPDATE {table} SET encrypted_session_id = ? WHERE id_hash = ? AND user_id = ? AND revoked_at IS NULL AND expires_at > CURRENT_TIMESTAMP(6)"
+            ),
+            _ => return Err(oidc_error()),
+        };
+        let result = self
+            .db
+            .connection()?
+            .execute_raw(Statement::from_sql_and_values(
+                backend,
+                &sql,
+                [encrypted.into(), handle_hash.into(), user_id.into()],
+            ))
+            .await
+            .map_err(Error::internal)?;
+        if result.rows_affected() != 1 {
+            return Err(Error::Unauthorized);
+        }
+        Ok(())
+    }
+
+    /// 在外部登录的 MFA challenge 完成后，将新签发的 refresh 家族绑定到句柄。
+    pub async fn attach_refresh_credentials(
+        &self,
+        user_id: i64,
+        handle: &ExternalLoginHandle,
+        refresh_token: &str,
+    ) -> Result<()> {
+        if user_id <= 0 || refresh_token.is_empty() || refresh_token.len() > 512 {
+            return Err(Error::Unauthorized);
+        }
+        let handle_hash = digest(handle.expose());
+        let db = self.db.clone();
+        let token = refresh_token.to_owned();
+        self.db.transaction(|transaction| {
+            let db = db.clone();
+            let token = token.clone();
+            let handle_hash = handle_hash.clone();
+            Box::pin(async move {
+                let family_id = refresh_family_in_transaction(transaction, &db, user_id, &token).await?;
+                let association = db.quoted_table_name("auth_external_sessions")?;
+                let refresh = db.quoted_table_name("auth_refresh_tokens")?;
+                let backend = transaction.get_database_backend();
+                let sql = match backend {
+                    DbBackend::Postgres => format!("UPDATE {association} SET refresh_family_id = $1, expires_at = (SELECT MAX(expires_at) FROM {refresh} WHERE family_id = $1) WHERE id_hash = $2 AND user_id = $3 AND refresh_family_id IS NULL AND revoked_at IS NULL AND expires_at > CURRENT_TIMESTAMP"),
+                    DbBackend::MySql => format!("UPDATE {association} SET refresh_family_id = ?, expires_at = (SELECT MAX(expires_at) FROM {refresh} WHERE family_id = ?) WHERE id_hash = ? AND user_id = ? AND refresh_family_id IS NULL AND revoked_at IS NULL AND expires_at > CURRENT_TIMESTAMP(6)"),
+                    _ => return Err(oidc_error()),
+                };
+                let values = if backend == DbBackend::Postgres {
+                    vec![family_id.clone().into(), handle_hash.into(), user_id.into()]
+                } else {
+                    vec![family_id.clone().into(), family_id.into(), handle_hash.into(), user_id.into()]
+                };
+                let changed = transaction.execute_raw(Statement::from_sql_and_values(backend, &sql, values)).await.map_err(Error::internal)?;
+                if changed.rows_affected() != 1 { return Err(Error::Unauthorized); }
+                Ok(())
+            })
+        }).await
+    }
+
+    /// 验证并处理 `IdP` 后通道退出通知；重放检查和凭据撤销由共享数据库串行化。
+    #[allow(
+        clippy::too_many_lines,
+        reason = "重放保护、共享关联撤销及 Session 清理必须使用同一退出语义"
+    )]
+    pub async fn process_backchannel_logout(
+        &self,
+        provider_name: &str,
+        compact_token: &str,
+        sessions: &SessionStoreHandle,
+    ) -> Result<BackchannelLogoutOutcome> {
+        if compact_token.is_empty() || compact_token.len() > 16 * 1024 {
+            return Err(oidc_error());
+        }
+        let provider = self.provider(provider_name)?;
+        let token = provider.verify_logout_token(compact_token).await?;
+        if token.issuer() != provider.issuer() {
+            return Err(oidc_error());
+        }
+        let db = self.db.clone();
+        let audit = self.audit.clone();
+        let provider_name = provider_name.to_owned();
+        let issuer = token.issuer().to_owned();
+        let jti_hash = digest(token.token_id());
+        let session_hash = token.session_id().map(digest);
+        let subject_hash = token.subject().map(digest);
+        let expired_at = Utc::now() + ChronoDuration::days(1);
+        let pending_sessions = self.db.transaction(|transaction| {
+            let db = db.clone();
+            let audit = audit.clone();
+            let provider_name = provider_name.clone();
+            let issuer = issuer.clone();
+            let jti_hash = jti_hash.clone();
+            let session_hash = session_hash.clone();
+            let subject_hash = subject_hash.clone();
+            Box::pin(async move {
+                let replay = db.quoted_table_name("auth_external_logout_tokens")?;
+                let backend = transaction.get_database_backend();
+                let insert = match backend {
+                    DbBackend::Postgres => format!("INSERT INTO {replay} (provider, issuer, token_id_hash, expires_at, created_at) VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP) ON CONFLICT (provider, issuer, token_id_hash) DO NOTHING"),
+                    DbBackend::MySql => format!("INSERT IGNORE INTO {replay} (provider, issuer, token_id_hash, expires_at, created_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP(6))"),
+                    _ => return Err(oidc_error()),
+                };
+                let inserted = transaction.execute_raw(Statement::from_sql_and_values(
+                    backend,
+                    &insert,
+                    [provider_name.clone().into(), issuer.clone().into(), jti_hash.into(), expired_at.into()],
+                )).await.map_err(Error::internal)?;
+                let is_new = inserted.rows_affected() != 0;
+                let scope_hash = session_hash
+                    .as_deref()
+                    .or(subject_hash.as_deref())
+                    .ok_or_else(oidc_error)?;
+                lock_external_logout_scope(
+                    transaction,
+                    &db,
+                    &provider_name,
+                    &issuer,
+                    scope_hash,
+                    Some(Utc::now() + ChronoDuration::minutes(10)),
+                )
+                .await?;
+                let active_clause = if is_new {
+                    "revoked_at IS NULL"
+                } else {
+                    "revoked_at IS NOT NULL AND encrypted_session_id IS NOT NULL AND session_deleted_at IS NULL"
+                };
+                let table = db.quoted_table_name("auth_external_sessions")?;
+                let (lookup, values) = match (backend, session_hash, subject_hash) {
+                    (DbBackend::Postgres, Some(sid), _) => (
+                        format!("SELECT id_hash, refresh_family_id, encrypted_session_id, challenge_hash FROM {table} WHERE provider = $1 AND issuer = $2 AND session_hash = $3 AND {active_clause} ORDER BY id_hash FOR UPDATE"),
+                        vec![provider_name.clone().into(), issuer.clone().into(), sid.into()],
+                    ),
+                    (DbBackend::MySql, Some(sid), _) => (
+                        format!("SELECT id_hash, refresh_family_id, encrypted_session_id, challenge_hash FROM {table} WHERE provider = ? AND issuer = ? AND session_hash = ? AND {active_clause} ORDER BY id_hash FOR UPDATE"),
+                        vec![provider_name.clone().into(), issuer.clone().into(), sid.into()],
+                    ),
+                    (DbBackend::Postgres, None, Some(subject)) => (
+                        format!("SELECT id_hash, refresh_family_id, encrypted_session_id, challenge_hash FROM {table} WHERE provider = $1 AND issuer = $2 AND subject_hash = $3 AND {active_clause} ORDER BY id_hash FOR UPDATE"),
+                        vec![provider_name.clone().into(), issuer.clone().into(), subject.into()],
+                    ),
+                    (DbBackend::MySql, None, Some(subject)) => (
+                        format!("SELECT id_hash, refresh_family_id, encrypted_session_id, challenge_hash FROM {table} WHERE provider = ? AND issuer = ? AND subject_hash = ? AND {active_clause} ORDER BY id_hash FOR UPDATE"),
+                        vec![provider_name.clone().into(), issuer.clone().into(), subject.into()],
+                    ),
+                    _ => return Err(oidc_error()),
+                };
+                let rows = transaction.query_all_raw(Statement::from_sql_and_values(backend, &lookup, values)).await.map_err(Error::internal)?;
+                let mut revoked = Vec::with_capacity(rows.len());
+                for row in rows {
+                    let id_hash: String = row.try_get("", "id_hash").map_err(Error::internal)?;
+                    let family: Option<String> = row.try_get("", "refresh_family_id").map_err(Error::internal)?;
+                    let encrypted: Option<String> = row.try_get("", "encrypted_session_id").map_err(Error::internal)?;
+                    #[cfg(feature = "auth-mfa")]
+                    if is_new
+                        && let Some(challenge_hash) = row
+                            .try_get::<Option<String>>("", "challenge_hash")
+                            .map_err(Error::internal)?
+                    {
+                        revoke_external_mfa_challenge(transaction, &db, &challenge_hash).await?;
+                    }
+                    if is_new && let Some(family) = family {
+                        crate::auth::refresh::revoke_family_in_transaction(transaction, &db, backend, &family).await?;
+                    }
+                    if is_new {
+                        let update = match backend {
+                        DbBackend::Postgres => format!("UPDATE {table} SET revoked_at = CURRENT_TIMESTAMP WHERE id_hash = $1 AND revoked_at IS NULL"),
+                        DbBackend::MySql => format!("UPDATE {table} SET revoked_at = CURRENT_TIMESTAMP(6) WHERE id_hash = ? AND revoked_at IS NULL"),
+                        _ => return Err(oidc_error()),
+                        };
+                        transaction.execute_raw(Statement::from_sql_and_values(backend, &update, [id_hash.clone().into()])).await.map_err(Error::internal)?;
+                    }
+                    revoked.push((id_hash, encrypted));
+                }
+                if is_new {
+                    record_external_logout(&audit, transaction, &provider_name, None, "auth.external.backchannel_logout").await?;
+                }
+                Ok((is_new, revoked))
+            })
+        }).await?;
+        for (id_hash, encrypted) in &pending_sessions.1 {
+            let Some(encrypted) = encrypted else {
+                continue;
+            };
+            delete_external_session(&self.encryptor, &self.db, sessions, id_hash, encrypted)
+                .await?;
+        }
+        if !pending_sessions.0 {
+            return Ok(BackchannelLogoutOutcome::AlreadyProcessed);
+        }
+        Ok(BackchannelLogoutOutcome::Processed(
+            pending_sessions.1.len() as u64,
+        ))
+    }
+
+    /// 先撤销指定外部登录关联，再返回固定 `IdP` logout endpoint。
+    #[allow(
+        clippy::too_many_lines,
+        reason = "本地撤销、Session 清理与一次性 RP logout state 必须按固定事务顺序执行"
+    )]
+    pub async fn begin_logout(
+        &self,
+        user_id: i64,
+        handle: &ExternalLoginHandle,
+        post_logout_redirect_uri: &str,
+        sessions: &SessionStoreHandle,
+    ) -> Result<Option<ExternalLogoutRedirect>> {
+        if user_id <= 0 || post_logout_redirect_uri.len() > 2048 {
+            return Err(Error::Unauthorized);
+        }
+        let handle_hash = digest(handle.expose());
+        let db = self.db.clone();
+        let audit = self.audit.clone();
+        let redirect = post_logout_redirect_uri.to_owned();
+        let providers = self.providers.clone();
+        let data = self.db.transaction(|transaction| {
+            let db = db.clone();
+            let audit = audit.clone();
+            let handle_hash = handle_hash.clone();
+            let redirect = redirect.clone();
+            let providers = providers.clone();
+            Box::pin(async move {
+                let table = db.quoted_table_name("auth_external_sessions")?;
+                let backend = transaction.get_database_backend();
+                let identity_sql = match backend {
+                    DbBackend::Postgres => format!("SELECT provider, issuer, session_hash, encrypted_session_id, CASE WHEN revoked_at IS NULL THEN 0 ELSE 1 END AS revoked_flag, CASE WHEN session_deleted_at IS NULL THEN 0 ELSE 1 END AS session_deleted_flag FROM {table} WHERE id_hash = $1 AND user_id = $2"),
+                    DbBackend::MySql => format!("SELECT provider, issuer, session_hash, encrypted_session_id, CASE WHEN revoked_at IS NULL THEN 0 ELSE 1 END AS revoked_flag, CASE WHEN session_deleted_at IS NULL THEN 0 ELSE 1 END AS session_deleted_flag FROM {table} WHERE id_hash = ? AND user_id = ?"),
+                    _ => return Err(oidc_error()),
+                };
+                let identity_row = transaction.query_one_raw(Statement::from_sql_and_values(backend, &identity_sql, [handle_hash.clone().into(), user_id.into()])).await.map_err(Error::internal)?.ok_or(Error::Unauthorized)?;
+                let provider_name: String = identity_row.try_get("", "provider").map_err(Error::internal)?;
+                let revoked: i32 = identity_row.try_get("", "revoked_flag").map_err(Error::internal)?;
+                if revoked != 0 {
+                    let session_deleted: i32 = identity_row.try_get("", "session_deleted_flag").map_err(Error::internal)?;
+                    let pending = if session_deleted == 0 {
+                        identity_row.try_get::<Option<String>>("", "encrypted_session_id").map_err(Error::internal)?
+                    } else {
+                        None
+                    };
+                    return Ok((None, pending));
+                }
+                let provider = providers.get(&provider_name).ok_or_else(oidc_error)?;
+                if !redirect.is_empty()
+                    && provider.post_logout_redirect_uri().as_deref() != Some(redirect.as_str())
+                {
+                    return Err(Error::Unauthorized);
+                }
+                let issuer: String = identity_row.try_get("", "issuer").map_err(Error::internal)?;
+                let session_hash: Option<String> = identity_row.try_get("", "session_hash").map_err(Error::internal)?;
+                if let Some(session_hash) = session_hash {
+                    lock_external_logout_scope(
+                        transaction,
+                        &db,
+                        &provider_name,
+                        &issuer,
+                        &session_hash,
+                        Some(Utc::now() + ChronoDuration::minutes(10)),
+                    )
+                    .await?;
+                }
+                let sql = match backend {
+                    DbBackend::Postgres => format!("SELECT refresh_family_id, encrypted_session_id, challenge_hash FROM {table} WHERE id_hash = $1 AND user_id = $2 AND revoked_at IS NULL AND expires_at > CURRENT_TIMESTAMP FOR UPDATE"),
+                    DbBackend::MySql => format!("SELECT refresh_family_id, encrypted_session_id, challenge_hash FROM {table} WHERE id_hash = ? AND user_id = ? AND revoked_at IS NULL AND expires_at > CURRENT_TIMESTAMP(6) FOR UPDATE"),
+                    _ => return Err(oidc_error()),
+                };
+                let row = transaction.query_one_raw(Statement::from_sql_and_values(backend, &sql, [handle_hash.clone().into(), user_id.into()])).await.map_err(Error::internal)?.ok_or(Error::Unauthorized)?;
+                let family: Option<String> = row.try_get("", "refresh_family_id").map_err(Error::internal)?;
+                let encrypted_session: Option<String> = row.try_get("", "encrypted_session_id").map_err(Error::internal)?;
+                #[cfg(feature = "auth-mfa")]
+                if let Some(challenge_hash) = row.try_get::<Option<String>>("", "challenge_hash").map_err(Error::internal)? {
+                    revoke_external_mfa_challenge(transaction, &db, &challenge_hash).await?;
+                }
+                if let Some(family) = family {
+                    crate::auth::refresh::revoke_family_in_transaction(transaction, &db, backend, &family).await?;
+                }
+                let update = match backend {
+                    DbBackend::Postgres => format!("UPDATE {table} SET revoked_at = CURRENT_TIMESTAMP WHERE id_hash = $1 AND revoked_at IS NULL"),
+                    DbBackend::MySql => format!("UPDATE {table} SET revoked_at = CURRENT_TIMESTAMP(6) WHERE id_hash = ? AND revoked_at IS NULL"),
+                    _ => return Err(oidc_error()),
+                };
+                transaction.execute_raw(Statement::from_sql_and_values(backend, &update, [handle_hash.clone().into()])).await.map_err(Error::internal)?;
+                record_external_logout(&audit, transaction, &provider_name, Some(user_id), "auth.external.logout").await?;
+                let request_state = random_secret()?;
+                let request_state_hash = digest(&request_state);
+                let state = if provider.end_session_endpoint().is_some() && !redirect.is_empty() {
+                    Some((request_state, request_state_hash))
+                } else {
+                    None
+                };
+                if let Some((_, state_hash)) = &state {
+                    let requests = db.quoted_table_name("auth_external_logout_requests")?;
+                    let insert = match backend {
+                        DbBackend::Postgres => format!("INSERT INTO {requests} (state_hash, provider, association_id_hash, post_logout_redirect_uri, expires_at, created_at) VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP + INTERVAL '10 minutes', CURRENT_TIMESTAMP)"),
+                        DbBackend::MySql => format!("INSERT INTO {requests} (state_hash, provider, association_id_hash, post_logout_redirect_uri, expires_at, created_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP(6) + INTERVAL 10 MINUTE, CURRENT_TIMESTAMP(6))"),
+                        _ => return Err(oidc_error()),
+                    };
+                    transaction.execute_raw(Statement::from_sql_and_values(backend, &insert, [state_hash.clone().into(), provider_name.clone().into(), handle_hash.into(), redirect.clone().into()])).await.map_err(Error::internal)?;
+                }
+                Ok((Some((provider_name, encrypted_session, state)), None))
+            })
+        }).await?;
+        if let Some(encrypted) = data.1 {
+            delete_external_session(
+                &self.encryptor,
+                &self.db,
+                sessions,
+                &handle_hash,
+                &encrypted,
+            )
+            .await?;
+            return Ok(None);
+        }
+        let Some((provider_name, encrypted_session, state)) = data.0 else {
+            return Ok(None);
+        };
+        if let Some(encrypted) = encrypted_session {
+            delete_external_session(
+                &self.encryptor,
+                &self.db,
+                sessions,
+                &handle_hash,
+                &encrypted,
+            )
+            .await?;
+        }
+        let Some((state, _state_hash)) = state else {
+            return Ok(None);
+        };
+        let provider = self.provider(&provider_name)?;
+        let Some(mut url) = provider.end_session_endpoint() else {
+            return Ok(None);
+        };
+        if provider.post_logout_redirect_uri().as_deref() != Some(post_logout_redirect_uri) {
+            return Err(Error::Unauthorized);
+        }
+        let client_id = provider.client_id().ok_or_else(oidc_error)?;
+        url.query_pairs_mut()
+            .append_pair("client_id", client_id)
+            .append_pair("post_logout_redirect_uri", post_logout_redirect_uri)
+            .append_pair("state", &state);
+        Ok(Some(ExternalLogoutRedirect { url, state }))
+    }
+
+    /// 一次性消费已登记退出 state，并返回服务端保存的固定回调 URI。
+    pub async fn complete_logout(&self, provider_name: &str, state: &str) -> Result<url::Url> {
+        if state.is_empty() || state.len() > 256 {
+            return Err(oidc_error());
+        }
+        let table = self.db.quoted_table_name("auth_external_logout_requests")?;
+        let backend = self.db.backend()?;
+        self.db.transaction(|transaction| {
+            let table = table.clone();
+            let state_hash = digest(state);
+            let provider_name = provider_name.to_owned();
+            Box::pin(async move {
+                let (select, values) = match backend {
+                    DbBackend::Postgres => (format!("SELECT post_logout_redirect_uri FROM {table} WHERE state_hash = $1 AND provider = $2 AND expires_at > CURRENT_TIMESTAMP FOR UPDATE"), vec![state_hash.clone().into(), provider_name.clone().into()]),
+                    DbBackend::MySql => (format!("SELECT post_logout_redirect_uri FROM {table} WHERE state_hash = ? AND provider = ? AND expires_at > CURRENT_TIMESTAMP(6) FOR UPDATE"), vec![state_hash.clone().into(), provider_name.clone().into()]),
+                    _ => return Err(oidc_error()),
+                };
+                let row = transaction.query_one_raw(Statement::from_sql_and_values(backend, &select, values)).await.map_err(Error::internal)?.ok_or_else(oidc_error)?;
+                let redirect: String = row.try_get("", "post_logout_redirect_uri").map_err(Error::internal)?;
+                let delete = match backend {
+                    DbBackend::Postgres => format!("DELETE FROM {table} WHERE state_hash = $1 AND provider = $2"),
+                    DbBackend::MySql => format!("DELETE FROM {table} WHERE state_hash = ? AND provider = ?"),
+                    _ => return Err(oidc_error()),
+                };
+                transaction.execute_raw(Statement::from_sql_and_values(backend, &delete, [state_hash.into(), provider_name.into()])).await.map_err(Error::internal)?;
+                url::Url::parse(&redirect).map_err(|_| oidc_error())
+            })
+        }).await
     }
 
     /// 经当前密码重新认证和一次性 OIDC 回调后，将身份绑定到本地账户。
@@ -1494,6 +2387,382 @@ async fn consume_request(
     Ok(())
 }
 
+async fn refresh_family_in_transaction(
+    transaction: &DatabaseTransaction,
+    db: &Db,
+    user_id: i64,
+    refresh_token: &str,
+) -> Result<String> {
+    let table = db.quoted_table_name("auth_refresh_tokens")?;
+    let backend = transaction.get_database_backend();
+    let sql = match backend {
+        DbBackend::Postgres => {
+            format!("SELECT family_id FROM {table} WHERE token_hash = $1 AND user_id = $2")
+        }
+        DbBackend::MySql => {
+            format!("SELECT family_id FROM {table} WHERE token_hash = ? AND user_id = ?")
+        }
+        _ => return Err(oidc_error()),
+    };
+    let row = transaction
+        .query_one_raw(Statement::from_sql_and_values(
+            backend,
+            &sql,
+            [digest(refresh_token).into(), user_id.into()],
+        ))
+        .await
+        .map_err(Error::internal)?
+        .ok_or_else(oidc_error)?;
+    row.try_get::<String>("", "family_id")
+        .map_err(Error::internal)
+}
+
+#[allow(
+    clippy::too_many_arguments,
+    reason = "登录关联记录必须与身份和 refresh 家族在同一事务提交"
+)]
+async fn insert_external_session_in_transaction(
+    transaction: &DatabaseTransaction,
+    db: &Db,
+    provider: &str,
+    issuer: &str,
+    subject_hash: &str,
+    session_hash: Option<&str>,
+    user_id: i64,
+    id_hash: &str,
+    family_id: Option<&str>,
+    challenge_hash: Option<&str>,
+    expires_at: chrono::DateTime<Utc>,
+) -> Result<()> {
+    let table = db.quoted_table_name("auth_external_sessions")?;
+    let backend = transaction.get_database_backend();
+    let sql = match backend {
+        DbBackend::Postgres => format!(
+            "INSERT INTO {table} (id_hash, user_id, provider, issuer, subject_hash, session_hash, refresh_family_id, challenge_hash, encrypted_session_id, expires_at, revoked_at, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NULL, $9, NULL, CURRENT_TIMESTAMP)"
+        ),
+        DbBackend::MySql => format!(
+            "INSERT INTO {table} (id_hash, user_id, provider, issuer, subject_hash, session_hash, refresh_family_id, challenge_hash, encrypted_session_id, expires_at, revoked_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL, CURRENT_TIMESTAMP(6))"
+        ),
+        _ => return Err(oidc_error()),
+    };
+    transaction
+        .execute_raw(Statement::from_sql_and_values(
+            backend,
+            &sql,
+            [
+                id_hash.to_owned().into(),
+                user_id.into(),
+                provider.to_owned().into(),
+                issuer.to_owned().into(),
+                subject_hash.to_owned().into(),
+                session_hash.map(str::to_owned).into(),
+                family_id.map(str::to_owned).into(),
+                challenge_hash.map(str::to_owned).into(),
+                expires_at.into(),
+            ],
+        ))
+        .await
+        .map_err(Error::internal)?;
+    Ok(())
+}
+
+async fn record_external_logout(
+    audit: &DatabaseAuditSink,
+    transaction: &DatabaseTransaction,
+    provider: &str,
+    user_id: Option<i64>,
+    action: &str,
+) -> Result<()> {
+    let event = AuditEvent::new(
+        action,
+        AuditSubject::new("external_provider", provider)?,
+        AuditOutcome::Succeeded,
+    )?;
+    let event = if let Some(user_id) = user_id {
+        event.actor(AuditSubject::new("user", user_id.to_string())?)
+    } else {
+        event
+    };
+    let record = Audit::new(audit.clone(), AuditPolicy::default()).prepare(event)?;
+    audit.record_in_transaction(transaction, &record).await
+}
+
+async fn delete_external_session(
+    encryptor: &Encryptor,
+    db: &Db,
+    sessions: &SessionStoreHandle,
+    association_hash: &str,
+    encrypted_session_id: &str,
+) -> Result<()> {
+    let session_id =
+        encryptor.decrypt_with_context(encrypted_session_id, association_hash.as_bytes())?;
+    let session_id = String::from_utf8(session_id).map_err(Error::internal)?;
+    sessions.delete(&session_id).await?;
+    let table = db.quoted_table_name("auth_external_sessions")?;
+    let backend = db.backend()?;
+    let sql = match backend {
+        DbBackend::Postgres => format!(
+            "UPDATE {table} SET session_deleted_at = CURRENT_TIMESTAMP WHERE id_hash = $1 AND session_deleted_at IS NULL"
+        ),
+        DbBackend::MySql => format!(
+            "UPDATE {table} SET session_deleted_at = CURRENT_TIMESTAMP(6) WHERE id_hash = ? AND session_deleted_at IS NULL"
+        ),
+        _ => return Err(oidc_error()),
+    };
+    db.connection()?
+        .execute_raw(Statement::from_sql_and_values(
+            backend,
+            &sql,
+            [association_hash.to_owned().into()],
+        ))
+        .await
+        .map_err(Error::internal)?;
+    Ok(())
+}
+
+#[cfg(feature = "auth-mfa")]
+async fn revoke_external_mfa_challenge(
+    transaction: &DatabaseTransaction,
+    db: &Db,
+    challenge_hash: &str,
+) -> Result<()> {
+    let table = db.quoted_table_name("auth_mfa_challenges")?;
+    let backend = transaction.get_database_backend();
+    let sql = match backend {
+        DbBackend::Postgres => format!("DELETE FROM {table} WHERE token_hash = $1"),
+        DbBackend::MySql => format!("DELETE FROM {table} WHERE token_hash = ?"),
+        _ => return Err(oidc_error()),
+    };
+    transaction
+        .execute_raw(Statement::from_sql_and_values(
+            backend,
+            &sql,
+            [challenge_hash.to_owned().into()],
+        ))
+        .await
+        .map_err(Error::internal)?;
+    Ok(())
+}
+
+#[cfg(all(feature = "auth-oidc", feature = "auth-mfa"))]
+pub(crate) async fn lock_external_mfa_challenge(
+    transaction: &DatabaseTransaction,
+    db: &Db,
+    challenge: &str,
+) -> Result<Option<(String, i64)>> {
+    let table = db.quoted_table_name("auth_external_sessions")?;
+    let backend = transaction.get_database_backend();
+    let sql = match backend {
+        DbBackend::Postgres => format!(
+            "SELECT id_hash, user_id, revoked_at FROM {table} WHERE challenge_hash = $1 FOR UPDATE"
+        ),
+        DbBackend::MySql => format!(
+            "SELECT id_hash, user_id, revoked_at FROM {table} WHERE challenge_hash = ? FOR UPDATE"
+        ),
+        _ => return Err(oidc_error()),
+    };
+    let Some(row) = transaction
+        .query_one_raw(Statement::from_sql_and_values(
+            backend,
+            &sql,
+            [digest(challenge).into()],
+        ))
+        .await
+        .map_err(Error::internal)?
+    else {
+        return Ok(None);
+    };
+    let revoked_at: Option<chrono::DateTime<Utc>> =
+        row.try_get("", "revoked_at").map_err(Error::internal)?;
+    if revoked_at.is_some() {
+        return Err(Error::Unauthorized);
+    }
+    Ok(Some((
+        row.try_get("", "id_hash").map_err(Error::internal)?,
+        row.try_get("", "user_id").map_err(Error::internal)?,
+    )))
+}
+
+#[cfg(all(feature = "auth-oidc", feature = "auth-mfa"))]
+pub(crate) async fn bind_external_mfa_credentials(
+    transaction: &DatabaseTransaction,
+    db: &Db,
+    challenge: &str,
+    user_id: i64,
+    refresh_token: &str,
+) -> Result<()> {
+    let family_id = refresh_family_in_transaction(transaction, db, user_id, refresh_token).await?;
+    let table = db.quoted_table_name("auth_external_sessions")?;
+    let refresh = db.quoted_table_name("auth_refresh_tokens")?;
+    let backend = transaction.get_database_backend();
+    let sql = match backend {
+        DbBackend::Postgres => format!(
+            "UPDATE {table} SET refresh_family_id = $1, challenge_hash = NULL, expires_at = (SELECT MAX(expires_at) FROM {refresh} WHERE family_id = $1) WHERE challenge_hash = $2 AND user_id = $3 AND revoked_at IS NULL"
+        ),
+        DbBackend::MySql => format!(
+            "UPDATE {table} SET refresh_family_id = ?, challenge_hash = NULL, expires_at = (SELECT MAX(expires_at) FROM {refresh} WHERE family_id = ?) WHERE challenge_hash = ? AND user_id = ? AND revoked_at IS NULL"
+        ),
+        _ => return Err(oidc_error()),
+    };
+    let values = if backend == DbBackend::Postgres {
+        vec![
+            family_id.clone().into(),
+            digest(challenge).into(),
+            user_id.into(),
+        ]
+    } else {
+        vec![
+            family_id.clone().into(),
+            family_id.into(),
+            digest(challenge).into(),
+            user_id.into(),
+        ]
+    };
+    let changed = transaction
+        .execute_raw(Statement::from_sql_and_values(backend, &sql, values))
+        .await
+        .map_err(Error::internal)?;
+    if changed.rows_affected() != 1 {
+        return Err(Error::Unauthorized);
+    }
+    Ok(())
+}
+
+async fn lock_external_logout_scope(
+    transaction: &DatabaseTransaction,
+    db: &Db,
+    provider: &str,
+    issuer: &str,
+    scope_hash: &str,
+    revoke_until: Option<chrono::DateTime<Utc>>,
+) -> Result<bool> {
+    let table = db.quoted_table_name("auth_external_logout_scopes")?;
+    let backend = transaction.get_database_backend();
+    let prune = match backend {
+        DbBackend::Postgres => format!(
+            "DELETE FROM {table} WHERE (provider, issuer, scope_hash) IN (SELECT provider, issuer, scope_hash FROM {table} WHERE expires_at <= CURRENT_TIMESTAMP ORDER BY expires_at, provider, issuer, scope_hash LIMIT 100)"
+        ),
+        DbBackend::MySql => format!(
+            "DELETE FROM {table} WHERE (provider, issuer, scope_hash) IN (SELECT provider, issuer, scope_hash FROM (SELECT provider, issuer, scope_hash FROM {table} WHERE expires_at <= CURRENT_TIMESTAMP(6) ORDER BY expires_at, provider, issuer, scope_hash LIMIT 100) AS expired_scopes)"
+        ),
+        _ => return Err(oidc_error()),
+    };
+    transaction
+        .execute_raw(Statement::from_string(backend, prune))
+        .await
+        .map_err(Error::internal)?;
+    let insert = match backend {
+        DbBackend::Postgres => format!(
+            "INSERT INTO {table} (provider, issuer, scope_hash, expires_at, created_at) VALUES ($1, $2, $3, NULL, CURRENT_TIMESTAMP) ON CONFLICT (provider, issuer, scope_hash) DO NOTHING"
+        ),
+        DbBackend::MySql => format!(
+            "INSERT IGNORE INTO {table} (provider, issuer, scope_hash, expires_at, created_at) VALUES (?, ?, ?, NULL, CURRENT_TIMESTAMP(6))"
+        ),
+        _ => return Err(oidc_error()),
+    };
+    transaction
+        .execute_raw(Statement::from_sql_and_values(
+            backend,
+            &insert,
+            [
+                provider.to_owned().into(),
+                issuer.to_owned().into(),
+                scope_hash.to_owned().into(),
+            ],
+        ))
+        .await
+        .map_err(Error::internal)?;
+    let select = match backend {
+        DbBackend::Postgres => format!(
+            "SELECT expires_at FROM {table} WHERE provider = $1 AND issuer = $2 AND scope_hash = $3 FOR UPDATE"
+        ),
+        DbBackend::MySql => format!(
+            "SELECT expires_at FROM {table} WHERE provider = ? AND issuer = ? AND scope_hash = ? FOR UPDATE"
+        ),
+        _ => return Err(oidc_error()),
+    };
+    let row = transaction
+        .query_one_raw(Statement::from_sql_and_values(
+            backend,
+            &select,
+            [
+                provider.to_owned().into(),
+                issuer.to_owned().into(),
+                scope_hash.to_owned().into(),
+            ],
+        ))
+        .await
+        .map_err(Error::internal)?
+        .ok_or_else(oidc_error)?;
+    let expires_at: Option<chrono::DateTime<Utc>> =
+        row.try_get("", "expires_at").map_err(Error::internal)?;
+    if let Some(revoke_until) = revoke_until {
+        let update = match backend {
+            DbBackend::Postgres => format!(
+                "UPDATE {table} SET expires_at = CASE WHEN expires_at IS NULL OR expires_at < $4 THEN $4 ELSE expires_at END WHERE provider = $1 AND issuer = $2 AND scope_hash = $3"
+            ),
+            DbBackend::MySql => format!(
+                "UPDATE {table} SET expires_at = CASE WHEN expires_at IS NULL OR expires_at < ? THEN ? ELSE expires_at END WHERE provider = ? AND issuer = ? AND scope_hash = ?"
+            ),
+            _ => return Err(oidc_error()),
+        };
+        let values = if backend == DbBackend::Postgres {
+            vec![
+                provider.to_owned().into(),
+                issuer.to_owned().into(),
+                scope_hash.to_owned().into(),
+                revoke_until.into(),
+            ]
+        } else {
+            vec![
+                revoke_until.into(),
+                revoke_until.into(),
+                provider.to_owned().into(),
+                issuer.to_owned().into(),
+                scope_hash.to_owned().into(),
+            ]
+        };
+        transaction
+            .execute_raw(Statement::from_sql_and_values(backend, &update, values))
+            .await
+            .map_err(Error::internal)?;
+    }
+    Ok(expires_at.is_some_and(|expiry| expiry > Utc::now()))
+}
+
+async fn release_external_logout_scope(
+    transaction: &DatabaseTransaction,
+    db: &Db,
+    provider: &str,
+    issuer: &str,
+    scope_hash: &str,
+) -> Result<()> {
+    let table = db.quoted_table_name("auth_external_logout_scopes")?;
+    let backend = transaction.get_database_backend();
+    let sql = match backend {
+        DbBackend::Postgres => format!(
+            "DELETE FROM {table} WHERE provider = $1 AND issuer = $2 AND scope_hash = $3 AND (expires_at IS NULL OR expires_at <= CURRENT_TIMESTAMP)"
+        ),
+        DbBackend::MySql => format!(
+            "DELETE FROM {table} WHERE provider = ? AND issuer = ? AND scope_hash = ? AND (expires_at IS NULL OR expires_at <= CURRENT_TIMESTAMP(6))"
+        ),
+        _ => return Err(oidc_error()),
+    };
+    transaction
+        .execute_raw(Statement::from_sql_and_values(
+            backend,
+            &sql,
+            [
+                provider.to_owned().into(),
+                issuer.to_owned().into(),
+                scope_hash.to_owned().into(),
+            ],
+        ))
+        .await
+        .map_err(Error::internal)?;
+    Ok(())
+}
+
 fn digest(value: &str) -> String {
     format!("{:x}", Sha256::digest(value.as_bytes()))
 }
@@ -1551,6 +2820,27 @@ impl ExternalIdentityProvider for OidcProvider {
             )
             .await
         })
+    }
+
+    fn end_session_endpoint(&self) -> Option<url::Url> {
+        self.end_session_endpoint.clone()
+    }
+
+    fn post_logout_redirect_uri(&self) -> Option<String> {
+        Some(self.redirect_url.as_str().to_owned())
+    }
+
+    fn client_id(&self) -> Option<&str> {
+        Some(self.client_id.as_str())
+    }
+
+    fn verify_logout_token<'a>(
+        &'a self,
+        token: &'a str,
+    ) -> BoxFuture<'a, Result<VerifiedLogoutToken>> {
+        Box::pin(std::future::ready(
+            self.verify_backchannel_logout_token(token),
+        ))
     }
 }
 
@@ -1739,6 +3029,17 @@ mod tests {
         )
     }
 
+    fn logout_token(
+        key: &EncodingKey,
+        key_id: &str,
+        claims: &serde_json::Value,
+    ) -> std::result::Result<String, jsonwebtoken::errors::Error> {
+        let mut header = Header::new(Algorithm::ES256);
+        header.kid = Some(key_id.to_owned());
+        header.typ = Some("logout+jwt".to_owned());
+        encode(&header, &claims, key)
+    }
+
     fn test_keyset(key: &EncodingKey, key_id: &str) -> Result<JwkSet> {
         let mut jwk = Jwk::from_encoding_key(key, Algorithm::ES256).map_err(Error::internal)?;
         jwk.common.key_id = Some(key_id.to_owned());
@@ -1849,5 +3150,91 @@ mod tests {
         let formatted = format!("{token:?}");
         assert!(formatted.contains("[REDACTED]"));
         assert!(!formatted.contains("header.payload.signature"));
+    }
+
+    #[test]
+    fn external_identity_session_id_is_validated_and_redacted() -> Result<()> {
+        let identity = VerifiedExternalIdentity::new(
+            "https://issuer.example.test",
+            "subject-1",
+            Some("person@example.test".to_owned()),
+            true,
+        )?
+        .with_session_id("private-idp-session")?;
+        assert_eq!(identity.session_id(), Some("private-idp-session"));
+        let formatted = format!("{identity:?}");
+        assert!(formatted.contains("[REDACTED]"));
+        assert!(!formatted.contains("private-idp-session"));
+        assert!(identity.clone().with_session_id("bad\nvalue").is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn external_login_handle_can_be_restored_from_secure_storage() -> Result<()> {
+        let issued = ExternalLoginHandle(random_secret()?);
+        let restored = ExternalLoginHandle::from_exposed(issued.expose())?;
+        assert_eq!(restored.expose(), issued.expose());
+        assert!(ExternalLoginHandle::from_exposed("not-a-login-handle").is_err());
+        let formatted = format!("{restored:?}");
+        assert!(formatted.contains("[REDACTED]"));
+        assert!(!formatted.contains(restored.expose()));
+        Ok(())
+    }
+
+    #[test]
+    fn backchannel_logout_token_requires_signature_audience_event_and_no_nonce() -> Result<()> {
+        let key = EncodingKey::from_ec_pem(PRIVATE_KEY).map_err(Error::internal)?;
+        let jwks = test_keyset(&key, "logout-key")?;
+        let allowed = HashSet::from([Algorithm::ES256]);
+        let now = jsonwebtoken::get_current_timestamp();
+        let event = "http://schemas.openid.net/event/backchannel-logout";
+        let claims = json!({
+            "iss": "https://issuer.example.test",
+            "aud": "openrust-client",
+            "exp": now + 600,
+            "iat": now,
+            "jti": "logout-jti-1",
+            "events": { "http://schemas.openid.net/event/backchannel-logout": {} },
+            "sid": "provider-session-1"
+        });
+        let signed = logout_token(&key, "logout-key", &claims).map_err(Error::internal)?;
+        let verified = OidcProvider::verify_logout_token(
+            &signed,
+            "https://issuer.example.test",
+            "openrust-client",
+            &jwks,
+            &allowed,
+        )?;
+        assert_eq!(verified.session_id(), Some("provider-session-1"));
+        assert_eq!(verified.subject(), None);
+
+        let mut with_nonce = claims.clone();
+        with_nonce["nonce"] = json!("forbidden");
+        for invalid in [
+            with_nonce,
+            {
+                let mut value = claims.clone();
+                value["aud"] = json!("another-client");
+                value
+            },
+            {
+                let mut value = claims.clone();
+                value["events"][event] = json!({"unexpected": true});
+                value
+            },
+        ] {
+            let signed = logout_token(&key, "logout-key", &invalid).map_err(Error::internal)?;
+            assert!(
+                OidcProvider::verify_logout_token(
+                    &signed,
+                    "https://issuer.example.test",
+                    "openrust-client",
+                    &jwks,
+                    &allowed,
+                )
+                .is_err()
+            );
+        }
+        Ok(())
     }
 }

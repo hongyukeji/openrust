@@ -450,6 +450,13 @@ impl AuthFlows {
                 let code = code.clone();
                 let source = source.clone();
                 Box::pin(async move {
+                    #[cfg(feature = "auth-oidc")]
+                    let external_association = crate::auth::oidc::lock_external_mfa_challenge(
+                        transaction,
+                        &auth.db,
+                        &token,
+                    )
+                    .await?;
                     let Some(user_id) = mfa
                         .complete_challenge_in_transaction(transaction, &token, &source, &code)
                         .await?
@@ -459,6 +466,20 @@ impl AuthFlows {
                     let credentials = auth
                         .issue_credentials_in_transaction(transaction, user_id)
                         .await?;
+                    #[cfg(feature = "auth-oidc")]
+                    if let Some((_, associated_user_id)) = external_association {
+                        if associated_user_id != user_id {
+                            return Err(Error::Unauthorized);
+                        }
+                        crate::auth::oidc::bind_external_mfa_credentials(
+                            transaction,
+                            &auth.db,
+                            &token,
+                            user_id,
+                            credentials.refresh_token().expose(),
+                        )
+                        .await?;
+                    }
                     mfa.record_login_success_in_transaction(transaction, user_id)
                         .await?;
                     Ok(Some(credentials))
@@ -654,6 +675,8 @@ impl AuthFlows {
         new_password_hash: Option<&EncodedPasswordHash>,
         request_source: &str,
     ) -> Result<LoginAttempt> {
+        #[cfg(not(feature = "auth-mfa"))]
+        let _ = request_source;
         let identity_table = self.db.quoted_table_name("external_identities")?;
         let backend = self.db.backend()?;
         let lookup = match backend {

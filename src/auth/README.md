@@ -99,4 +99,14 @@ let (rows, total) = documents.select(&user, Condition::all())?
 
 Discovery、JWKS 和 token 请求都经过受限 `DependencyClient`，共享单次 OIDC 请求总时限，响应体上限为 1 MiB。JWKS 缓存最长 5 分钟；过期刷新失败会拒绝登录，未知 `kid` 最多每 30 秒主动刷新一次。协议秘密和 ID Token 不写入日志，ID Token 的 Debug 内容脱敏；若使用自定义 `ExternalIdentityProvider`，实现方必须在返回 `VerifiedExternalIdentity` 前验证协议签名、issuer、audience、时效、state、nonce 和令牌绑定。
 
-可在隔离环境使用 `apps/server/tests/fixtures/keycloak/openrust-realm.json` 启动 Keycloak，再设置 `OPENRUST_OIDC_ISSUER=http://127.0.0.1:8080/realms/openrust` 运行 `cargo test -p server --features 'auth-oidc db-postgres' --test auth_oidc_keycloak`。该 fixture 只含本地验收用的合成客户端与用户凭据；生产环境必须使用 HTTPS 和受限的 `IdP` 目标策略。
+可在隔离环境使用 `apps/server/tests/fixtures/keycloak/openrust-realm.json` 启动 Keycloak，再设置 `OPENRUST_OIDC_ISSUER=http://127.0.0.1:8080/realms/openrust` 运行 `cargo test -p server --features 'auth-oidc auth-mfa db-postgres' --test auth_oidc_keycloak`。该 fixture 只含本地验收用的合成客户端与用户凭据；生产环境必须使用 HTTPS 和受限的 `IdP` 目标策略。
+
+配置本地 Keycloak 管理员环境变量 `OPENRUST_KEYCLOAK_ADMIN_USERNAME` 与 `OPENRUST_KEYCLOAK_ADMIN_PASSWORD`，提供可创建/删除隔离数据库的 `OPENRUST_TEST_DATABASE_URL`，并设置 `OPENRUST_TEST_SESSION_REDIS_URL` 后，可运行双应用真实验收。PostgreSQL 18 与 MySQL 8.4 均以每应用两个独立 API 子进程、真实 TCP round-robin 与 Redis 8 共享 Session 完成 Keycloak 26.8.1 双 client SSO、应用 callback/RP logout/Back-Channel Logout、跨节点 TOTP completion、callback/logout 与 MFA/refresh 竞态、重启重放、跨节点 Session/refresh 拒绝及 JWT 到期窗口。Redis Session delete error 注入后同一通知重试成功也已在双库验证；另以隔离 Redis 8 容器执行真实停机，验证 Back-Channel Logout 返回 503；服务恢复并重启两个应用的四个 API 子进程后，相同 Logout Token 重放成功，PostgreSQL 18 与 MySQL 8.4 均通过。provider fake 双库路径覆盖未登记退出 URI、关联撤销及 `IdP` 无 logout endpoint 时的本地退出。产品级多服务集群仍按 ADR-055 和 v1 集群计划验收。
+
+## 外部登录关联与统一退出
+
+需要跨应用或跨副本撤销外部登录时，应用 migrator 还须加入 `AuthExternalSessionMigration`。保留既有 `complete` 接口可继续登录；需要退出关联的应用改用 `complete_with_handle`。回调成功后，服务端应将 `ExternalLoginHandle` 作为秘密保存在受保护的服务端会话中，不放入 URL、日志或客户端可读字段。多副本部署还须使用共享的服务端会话存储，使 MFA 待处理状态和关联句柄可由后续节点恢复；不要依赖进程内状态或粘性会话。安全存储已暴露句柄后，可通过 `ExternalLoginHandle::from_exposed` 恢复不透明句柄。直接认证结果应在创建应用 Session 后调用 `attach_session`；若返回 MFA challenge，`complete_mfa_login` 会在同一事务消费 challenge、签发凭据并将 refresh family 绑定到关联句柄，随后再创建并关联应用 Session。关联句柄只用于定位并撤销本次 provider 登录，不能代替应用授权。
+
+应用的退出路由须先通过本地认证保护，再调用 `begin_logout(user_id, handle, fixed_redirect_uri, session_store)`。该调用先撤销关联的 refresh family、MFA challenge 和已关联 Session；配置了 `IdP` logout endpoint 且传入固定 allowlist URI 时才返回 RP-Initiated Logout URL。IdP 不可用或未配置退出能力不恢复本地登录；没有返回 URL 表示本地退出已完成。回调再用 `complete_logout(provider, state)` 一次性消费 state 并取得服务端登记的固定 URI。自定义 provider 的退出 endpoint、client ID、回调 URI 必须来自静态配置。
+
+`IdP` Back-Channel Logout handler 将原始 `logout_token` 交给 `process_backchannel_logout(provider, token, session_store)`。内置 OIDC provider 会独立验证 Logout Token；自定义 provider 默认拒绝，只有完成等价标准验证后才可返回 `VerifiedLogoutToken`。退出通知按共享数据库中的 `jti` 摘要去重，并按 provider/issuer 与 `sid` 或 `sub` 精确撤销 refresh、挑战和 Session；重复通知幂等。数据库撤销与 Session store 删除不是一个分布式事务，删除失败会返回错误，重复投递同一通知或使用相同关联句柄重试 RP logout，可继续清理未完成的 Session。未被撤销保留的临时 scope 行会在成功回调后释放；过期墓碑通过带索引的分批清理回收。stateless JWT 仍按原签名和 TTL 验证，退出后的最长访问残留时间由应用 JWT TTL 决定，不承诺即时撤销。
