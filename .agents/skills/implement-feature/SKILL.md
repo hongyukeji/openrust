@@ -1,24 +1,24 @@
 ---
 name: implement-feature
-description: 按已定 contract 实现 OpenRust 功能簇，适用于根 src 模块、driver、CLI、生成器及配套测试的新增或扩展。公共 API 仍需设计时先使用 codebase-design；不用于纯文档任务或只读审计。
+description: 按已定 contract 实现 OpenRust 功能簇，适用于框架模块、driver、CLI、生成器及配套测试的新增或扩展。公共 API 仍需设计时先使用 codebase-design；不用于纯文档任务或只读审计。
 ---
 
 # 实现一个 OpenRust 功能簇
 
 ## 确认范围
 
-遵循根目录 `AGENTS.md` 的启动读取与 Spec → Implement → Verify → Commit。先核对 Git/WIP、当前执行校准和相关 ADR，确认能力没有已完成的实现。一个功能簇写明输入、可观察行为、失败语义、验收证据与排除项。
+遵循根目录 `AGENTS.md` 的启动读取与 Spec → Implement → Verify → Commit。先核对 Git/WIP、当前执行校准和相关 ADR，区分既有实现与新目标，确认复用、适配或重写范围。一个功能簇写明输入、可观察行为、失败语义、验收证据与排除项。
 
-- 从 `Cargo.toml` 确认模块、workspace 成员和 feature；框架能力位于根 `src/`，不要为每项能力新建 crate，也不要重做已完成的迁移。
+- 从 `Cargo.toml` 确认模块、workspace 成员和 feature；源码位置与目标布局以当前获准 ADR 为准；全面重构允许重做迁移，避免无必要的逐能力拆包。
 - 按能力名称读取 `.agents/project/core/` 对应文件、模块或包的 `README.md` 和源码。目录位置以当前工作区为准。
 - 找到现有调用方、测试、模板和集成入口；已定 contract 出现矛盾时记录具体证据，先收敛受影响契约再继续依赖它的实现。
 
 ## 实现
 
-- 插件以 `src/core/plugin.rs` 为准：同步 `Plugin::build` 注册，异步 `Plugin::finish` 初始化；服务注册参考 `AppBuilder::insert`。只在需要接入应用生命周期时实现插件。
+- 生命周期按本簇已定 contract 实现；迁移前核对 Plugin/AppBuilder，迁移到 Provider/Container 时收敛到一套内核，不长期维护平行装配。
 - 配置、错误和扩展机制沿用当前模块与 `conventions.md`；先检查已有类型和公开导出，不另建同义 API 或平行 Hooks 系统。
 - driver 实现现有公开 trait，允许外部包接入；不要把某个内置后端的实现细节写入公共契约。feature 名称从当前 manifest 读取，避免照搬假想名称。
-- 修改公共行为时同步模块调用方、`apps/server` 集成、模板、示例、测试、用户文档及 changelog；只更新实际受影响的文件。
+- 修改公共行为时同步模块调用方、当前可运行应用集成、模板、示例、测试、用户文档及 changelog；只更新实际受影响的文件。
 - 按已定行为逐项实现并验证；测试先行的细节见 [tdd](../tdd/SKILL.md)。单元 fake 只用于其能覆盖的层次。
 
 ## 验证与收口

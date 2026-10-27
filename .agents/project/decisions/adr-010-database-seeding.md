@@ -1,6 +1,8 @@
 # ADR-010：应用提供数据库 Seed 函数
 
-- 状态：Accepted
+> 替代范围见 [ADR-070](adr-070-laravel-first-rebuild.md#替代范围)；本文旧目录/命名/默认值不阻止全面重写。代码是否已迁移以当前实现和 todo.md 为准。
+
+- 状态：Partially Superseded（目标设计由 ADR-070 重新开放；未替代的行为/验收事实保留）
 - 日期：2026-10-25
 
 ## 决策

@@ -1,6 +1,8 @@
 # ADR-039 整套源码交付与内部包中性命名
 
-- 状态：Partially Superseded（源码交付、工具包与生成应用约定有效；server 宿主位置由 [ADR-062](adr-062-root-server-entry.md) 替代；原源码 workspace、生成器、启动隔离与双库验收已完成）
+> 替代范围见 [ADR-070](adr-070-laravel-first-rebuild.md#替代范围)；本文旧目录/命名/默认值不阻止全面重写。代码是否已迁移以当前实现和 todo.md 为准。
+
+- 状态：Partially Superseded（目标设计由 ADR-070 重新开放；未替代的行为/验收事实保留）
 - 日期：2026-10-26
 - 更新：2026-10-27（四个工具 package 统一收纳至 `tools/`，Cargo package 名保持不变）
 - 替代：ADR-005 的发布包命名与 crates.io 分发前提、ADR-021 的工具包保留品牌前缀及默认独立生成项目方案；其余许可证、MSRV、模块边界和目录职责继续有效。

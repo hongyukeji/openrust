@@ -1,6 +1,8 @@
 # ADR-021 主框架模块、工具包与目录职责
 
-- 状态：Partially Superseded（根模块和工具边界有效；宿主位置由 [ADR-062](adr-062-root-server-entry.md) 更新，工具发布身份和独立生成项目由 [ADR-039](adr-039-source-workspace-distribution.md) 替代；根宿主业务模块组合由 [ADR-063](adr-063-explicit-app-module-registry.md) 补充）
+> 替代范围见 [ADR-070](adr-070-laravel-first-rebuild.md#替代范围)；本文旧目录/命名/默认值不阻止全面重写。代码是否已迁移以当前实现和 todo.md 为准。
+
+- 状态：Partially Superseded（目标设计由 ADR-070 重新开放；未替代的行为/验收事实保留）
 - 日期：2026-10-25
 - 更新：2026-10-27（将独立工具 package 收纳至 `tools/`，保留 package 名与 Cargo 入口）
 - 参考：按 [分版本对标规则](../plans/framework-design.md#框架参考与对标)，V1 综合评估 Loco、Laravel、Goravel、OpenSpring，若依、芋道仅作为 V2 参考；本决策最初取材于 [Loco 仓库结构](https://github.com/loco-rs/loco)。

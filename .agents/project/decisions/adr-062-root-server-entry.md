@@ -1,6 +1,8 @@
 # ADR-062 根目录统一启动入口
 
-- 状态：Partially Superseded（根宿主的应用模块注册与 `apps/` 源码边界由 [ADR-063](adr-063-explicit-app-module-registry.md) 补充；根唯一 binary 入口与 Cargo 目标约定仍有效）
+> 替代范围见 [ADR-070](adr-070-laravel-first-rebuild.md#替代范围)；本文旧目录/命名/默认值不阻止全面重写。代码是否已迁移以当前实现和 todo.md 为准。
+
+- 状态：Partially Superseded（目标设计由 ADR-070 重新开放；未替代的行为/验收事实保留）
 - 日期：2026-10-27
 - 替代：ADR-007 与 ADR-021 中保留 `apps/server` package、须另行评估移除宿主的旧约定；框架模块与用户应用分层仍遵循 ADR-021/039。
 

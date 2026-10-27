@@ -1,6 +1,8 @@
 # ADR-023 Loco 应用扩展、CLI 与测试体验评估
 
-- 状态：Partially Superseded（停机决策由 [ADR-037](adr-037-queue-worker-lifecycle.md) 的命令 supervisor 方案定稿；doctor/TestApp 与复用既有扩展入口的决定仍有效）
+> 替代范围见 [ADR-070](adr-070-laravel-first-rebuild.md#替代范围)；本文旧目录/命名/默认值不阻止全面重写。代码是否已迁移以当前实现和 todo.md 为准。
+
+- 状态：Partially Superseded（目标设计由 ADR-070 重新开放；未替代的行为/验收事实保留）
 - 日期：2026-10-25
 - 依据：[ADR-001](adr-001-own-kernel-on-axum.md)、[ADR-006](adr-006-rust-native-naming.md)、[ADR-021](adr-021-loco-style-module-layout.md)、当前 `openrust::core` / `openrust::http` 与 `testing` 实现
 - 参考：[Loco Hooks](https://loco.rs/docs/reference/hooks/)、[Loco CLI](https://loco.rs/docs/reference/cli/)、[Loco doctor](https://loco.rs/docs/how-to/run-doctor/)、[Loco generators](https://loco.rs/docs/reference/generators/)、[Loco request tests](https://loco.rs/docs/how-to/request-tests/)、[Loco seed data](https://loco.rs/docs/how-to/seed-data/)

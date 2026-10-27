@@ -1,6 +1,8 @@
 # ADR-069：服务端视图模板
 
-> 状态：Accepted
+> 替代范围见 [ADR-070](adr-070-laravel-first-rebuild.md#替代范围)；本文旧目录/命名/默认值不阻止全面重写。代码是否已迁移以当前实现和 todo.md 为准。
+
+> 状态：Partially Superseded（目录与默认体验由 ADR-070 重开，现有实现/验收事实保留）
 > 日期：2026-10-27
 
 ## 决策

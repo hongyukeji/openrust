@@ -1,6 +1,8 @@
 # ADR-007 聚合启动与集成验收宿主
 
-- 状态：Partially Superseded（聚合集成验收职责保留；宿主 package/路径由 [ADR-062](adr-062-root-server-entry.md) 迁入根 package）
+> 替代范围见 [ADR-070](adr-070-laravel-first-rebuild.md#替代范围)；本文旧目录/命名/默认值不阻止全面重写。代码是否已迁移以当前实现和 todo.md 为准。
+
+- 状态：Partially Superseded（目标设计由 ADR-070 重新开放；未替代的行为/验收事实保留）
 - 日期：2026-10-25
 
 ## 背景

@@ -1,7 +1,9 @@
 # 工程规范
 
+> 设计替代：目录、命名、CLI、响应/认证默认值按 [ADR-070](decisions/adr-070-laravel-first-rebuild.md) 重新设计；下文区分当前实现与新目标，不能以目标描述代替实现验收。代码安全、验证、WIP 与 Git 规则继续有效。
+
 > 受众：开发者与 AI Agent
-> 更新：2026-10-26
+> 更新：2026-10-28
 > 摘要：OpenRust 框架代码、测试、文档与 Git 提交规范。
 
 ## 代码
@@ -18,73 +20,55 @@
 
 ## 命名
 
-- 应用层可见配置、表名、模板、部署示例及内部 package 采用中性名称；仅根 `openrust`、公共路径和 CLI 命令保留产品身份。源码交付和内部包命名以 [ADR-039](decisions/adr-039-source-workspace-distribution.md) 为准。按 [ADR-006](decisions/adr-006-rust-native-naming.md) 与 [ADR-016](decisions/adr-016-neutral-application-namespaces.md) 执行。
-
-| 对象 | 规则 | 示例 |
-| --- | --- | --- |
-| 主框架与内部工具包 | 根 `openrust` 内按 module 划分；独立工具 package 统一位于 `tools/` 并与末级目录同名，所有 package 显式 `publish = false` | `tools/cli/` → `cli`、`tools/macros/` → `macros`、`tools/testing/` → `testing`、`tools/performance/` → `performance` |
-| 仓库内应用 | `apps/<name>`，包名使用应用职责名，`publish = false`；业务依赖本地 workspace | 根 `apps/mod.rs` 可显式组合根宿主业务模块；生成的 `apps/<name>/` 是独立 package。唯一 `server` binary 入口位于根 `src/main.rs` |
-| driver 类型 | `<Backend><Capability>` | `RedisCache`、`DatabaseQueue` |
-| 配置结构 | `<Capability>Config` | `QueueConfig` |
-| 错误类型 | `<Capability>Error` | `QueueError` |
-| 插件 | `<Capability>Plugin` | `DatabasePlugin` |
-| 提取器 | 名词或形容词 | `CurrentUser`、`Validated<T>` |
-| crate 内部布局 | `lib.rs` / 复杂配置模块 `config/mod.rs` / `error.rs` / `plugin.rs` / `drivers/` / `testing.rs` | — |
+- 产品身份保留 OpenRust；应用名称、数据表、配置和目录按 Laravel 心智模型与实际职责定稿，不为保留历史前缀增加兼容层。
+- 当前包/模块以 Cargo.toml 和源码为准；未来目录与默认命令按 [全面重构计划](plans/laravel-rebuild.md) R1 验证后落地。此规范不宣称新 API 已实现。
+- 类型/trait 使用 PascalCase，方法/变量/模块使用 snake_case；优先保留 Laravel 用户熟悉的概念，Rust 语言语法遵循生态惯例。
 
 ## 框架规范
 
-权威来源：[ADR-006](decisions/adr-006-rust-native-naming.md) 、[ADR-007](decisions/adr-007-aggregate-server-entry.md) 与 [ADR-008](decisions/adr-008-api-conventions.md)。本节是动手前的检查清单，与 ADR 冲突时以 ADR 为准。
+新目标按 [ADR-070](decisions/adr-070-laravel-first-rebuild.md)；各功能簇先定公共 contract，再迁移所有调用方/模板/测试。旧 ADR 的行为事实作为回归输入，不能用旧命名禁令否决新设计。
 
 ### API 速查
 
-- 资源路径用复数、kebab-case 名词，JSON API 挂在 `/api`；字段与枚举用 `snake_case`。
-- 单资源返回统一包装的 `data` 对象；分页集合用 `Paginated<T>` 的 `data` 数组与强类型 `PageMeta`。
-- 时间使用 RFC 3339 UTC（`Z`）；错误 JSON 以 `timestamp` 字段携带毫秒精度时间字符串，成功 JSON 不包含此诊断字段。JSON 成功与错误均为 `application/json` 的 `ApiResponse<T>` 包装，正文 `request_id` 与响应头 `x-request-id` 一致。CORS 预检（`OPTIONS` 且带 `Access-Control-Request-Method`）只返回协议响应头，成功与拒绝时正文均为空，不包装。
-- `[api] http_status` 默认 `always_ok`（包装响应一律 200），可选 `semantic`；状态码与稳定 `code` 对照见 [ADR-008 §4](decisions/adr-008-api-conventions.md#4-错误)。
+- 目标以语义 HTTP 状态为默认；HTML、JSON Resource、redirect、stream、文件下载均有清楚语义。旧 ApiResponse/always_ok 仍是迁移前实现，不作为新接口强制规则。
+- Resource 输出须支持授权、敏感字段排除、关系/分页；响应格式和错误 schema 按 R3/R5 定稿并测试。
+- HTTP 协议边界保持正确：CORS、HEAD、204/304、流式响应不能套错误的统一包装；request ID/日志和错误渲染脱敏。
 
 ### 能力接入根集成宿主
 
-- 每个已实现的新能力在同一功能簇内按需接入根 package 的 `apps/mod.rs` 宿主组合，并在根 `tests/server/` 补聚合集成测试；`src/main.rs` 只负责启动。
-- 无需外部服务的默认能力可直接装配；加密等需要显式密钥的可选能力仍按 feature/config 启用。外部服务能力须验证 feature 转发、插件/迁移注册及实际运行入口，不以声明 feature 代替装配。
-- 当前默认 `server` 只承载框架验证路由；源码 workspace 使用者可在 `apps/` 显式增加业务模块。启动、feature 组合与集成验收均由根 package 承载。
+- 新能力在同簇接入当前可运行应用、公共 API 测试和生成项目；迁移目录时保留原根 server 的集成验收职责。
+- 外部服务和密钥能力须显式配置，实际验证 feature、provider/迁移注册与运行入口，不以声明替代装配。
+- 测试、模板、示例、部署脚本和 CI 跟随目标目录迁移，不能只改框架源码。
 
 ### 起名前三问
 
-1. Rust 生态（axum、Tower、Rocket、actix-web、Poem、Salvo、Pavex、Bevy、SeaORM）有惯例吗？优先采用成熟惯例；跨框架能力对标按 [框架参考与对标](plans/framework-design.md#框架参考与对标) 的职责分工进行。
-2. 没有共识时，跨语言开发者最熟悉的 Web 框架词是什么？例如 controllers、models、migrations、jobs、mailers、middleware。
-3. 这个词是否自造，或者只属于单一生态？例如 `Mailable`、`ServiceProvider`、`boot`、`Guard`、`disk`、`Fairing`、`Operator`。是的话，不用。
+1. Laravel 中对应的概念和典型调用是什么，开发者能否直接找到它？
+2. Goravel 如何跨语言表达，Rust 的类型/所有权/异步如何自然落地？
+3. 名称和签名能否清楚表达职责、错误、资源与生命周期，而不要求用户猜隐式状态？
 
-ADR-006 未覆盖的公共名称，先在 ADR-006 补一行并写明先例，再写代码。
+允许 ServiceProvider、Mailable、Factory、Seeder、Guard、disk 和冒号命令；普通 Rust 方法使用 snake_case。新增公共 contract 写入对应领域 ADR，不强制所有名称继续追加到旧 ADR-006。
 
 ### 两层分工
 
 | 层 | 目标 | 参照 |
 | --- | --- | --- |
-| 生成项目布局、CLI、配置文件 | Rust 惯例清晰，跨语言开发者易理解 | v1 仅按 Loco、Laravel、Goravel、OpenSpring 的顺序综合评估；v2 再按原顺序增加若依、芋道，见 [阶段参考规则](plans/framework-design.md#框架参考与对标)；采用通用词，不照搬单一生态术语 |
-| 库 API（类型、trait、方法） | Rust 惯用 | std、axum、tower、[Rust API Guidelines](https://rust-lang.github.io/api-guidelines/) |
+| 应用布局、术语、配置与命令 | Laravel 使用者可快速找到入口、完成工作流 | Laravel 为首要依据，Goravel 为跨语言参考 |
+| 类型、trait、资源与执行 | Rust 类型安全、显式 async、可靠并发与工具支持 | Rust/Cargo、成熟运行时与库；语言差异写明理由 |
 
-v1 新增通用机制的范围与验收以 [底层补齐计划](plans/v1-foundation-completion.md) 为准。可选启用的能力仍须完整实现与验证；优先扩展已有模块、配置、生命周期和错误契约，不为每项机制新增 package。生成器模板通过应用级覆盖定制，测试数据通过显式 factory/fixtures 构造，不隐藏持久化或覆盖用户文件；实际 API 和选型须先形成 contract。
+已有能力允许复用、适配或重写，但一个职责最终保留一套公共机制。依赖和 feature 变更同步 stack.md；旧接口删除后扫描全部调用方，不为了消除编译错误丢弃行为测试。
 
 ### 速查
 
-| 场景 | 规则 | 示例 |
-| --- | --- | --- |
-| 扩展单元 | `Plugin { build, finish }`，注册用 `app.plugin(..)` | `HttpPlugin` |
-| 取值方法 | `get` 返回 `Option`，`try_get` 返回 `Result`；不加 `get_` 前缀（C-GETTER） | `state.get::<T>()` |
-| 转换方法 | `as_` 为廉价借用，`to_` 为有开销的转换，`into_` 消耗自身（C-CONV） | `into_router()` |
-| 错误类型 | 以 `Error` 结尾 | `MissingServiceError` |
-| 路由分组 | `nest`，不用 `group` / `scope` | `routes.nest("/api", ..)` |
-| 资源动作 | `list` / `get` / `create` / `update` / `delete` | `Action::List` |
-| CLI 子命令 | 空格嵌套，kebab-case，不用冒号 | `db seed`、`config show` |
-| 生成器 | `generate <kind>`，别名 `g` | `openrust g scaffold post title:string` |
-| 环境变量 | 应用配置使用 Laravel 风格扁平名称，应用环境值以 `APP_` 开头；数据库、Redis、队列、邮件、短信和国际化使用各自领域前缀；`PORT` 为监听端口简写 | `DB_CONNECTION=postgres`、`REDIS_HOST=127.0.0.1`、`APP_SERVER_PORT=8080`、`APP_LOG_LEVEL=info` |
-| 配置文件 | 按领域命名的 TOML，如 `config/app.toml`、`config/database.toml`、`config/cache.toml`；环境差异写入 `.env` | — |
-| 敏感配置文件 | 所有环境可使用 `.env`，生产使用时限制文件权限且不得放在公开目录中；提交 `.env.example` 占位模板，所有 `.env` 与 `.env.*` 默认忽略，例外仅为 `*.example`；不要把真实凭据写入被跟踪配置文件 | `cp .env.example .env` |
-| 项目元数据 | 写入 `[package.metadata.openrust]` | 不另建元数据文件 |
-| 生成项目目录 | `controllers/`、`models/`（含 `_entities/`）、`services/`、`policies/`、`jobs/`、`events/`、`mailers/`、`middleware/`，按实际能力生成，外加 `src/seed.rs`、`migration/` crate；本地化邮件复用 i18n catalog | 见 ADR-006 §1 |
-| 邮件与队列 | `Email`；`Job::NAME` / `Job::handle(&self, JobContext) -> BoxFuture<'_, Result<()>>` | 现有公开入口；见 ADR-006 §4 与 ADR-037 |
-| 缓存与测试目标 | `Cache` 方法按 ADR-014；`TestApp` 的 builder/HTTP API 待 M6 contract | 不把未实现的示意调用当作现有 API |
-| 其他框架的概念对照 | 用户迁移说明放 `docs/` 对照页；设计参考与取舍放 ADR/框架计划，公共 API 采用已定通用名称 | 不把参考框架术语直接当 OpenRust API |
+| 场景 | 新目标/继续有效的工程规则 |
+| --- | --- |
+| 生命周期 | Provider/Container 与已有 Plugin 收敛为一套内核，scope 隔离、关闭/取消/join 显式 |
+| 转换方法 | as_ 借用、to_ 转换、into_ 消耗自身；Result/Option 表达失败与缺失 |
+| 路由/资源 | 熟悉的 group/resource、index/create/store/show/edit/update/destroy；签名由 R3 定稿 |
+| CLI/生成器 | Artisan 式 make:*、route:list、migrate:* 等，根默认 run 不加选包参数；具体实现依阶段验收 |
+| 配置 | 领域配置与 .env，类型化校验、可诊断但不泄漏密钥；新默认值由领域 contract 决定 |
+| 敏感文件 | .env/.env.* 默认忽略，只提交占位 .example，不放公开目录 |
+| 测试 | 从 R2 起建设 TestApp，Factory/Seeder 从 R6 接入；不能把目标签名写成现有 API |
+| 文档 | Laravel 概念对照、Rust 差异和可编译例子同步交付；中文优先 |
 
 ## 验证
 

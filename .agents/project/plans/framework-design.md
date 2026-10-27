@@ -1,5 +1,7 @@
 # OpenRust 框架设计
 
+> 状态：目标设计已由 [ADR-070](../decisions/adr-070-laravel-first-rebuild.md) 和 [全面重构计划](laravel-rebuild.md) 接管。下文作为现有实现资产参考；旧静态 Facade/术语/布局限制不再约束新设计。
+
 > 受众：AI Agent
 > 更新：2026-10-26
 > 摘要：OpenRust v1 版本框架底座的架构设计：设计原则、模块与应用目录布局、内核、配置、路由、错误、数据、认证、异步能力、CLI、测试工具与框架代码规范。目标、里程碑与验收见 [gen1-plan.md](gen1-plan.md)。

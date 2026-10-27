@@ -1,8 +1,10 @@
 # 验收口径
 
+> 新目标边界：[全面重构计划](../plans/laravel-rebuild.md) 已记录；下文为迁移前专项证据。新实现必须重新验收，不继承为新版本已通过。当前执行顺序以 todo.md 为准。
+
 > 受众：AI Agent
 > 更新：2026-10-27
-> 摘要：下表归纳已记录的专项验收及其边界。根入口和工具目录迁移已实施，但两个 CLI 项目生成测试因 `No such file or directory` 失败，根因未确认，最终迁移门禁未关闭；其他命令和历史证据边界见 [testing.md](testing.md)。
+> 摘要：下表归纳重构前专项证据及其边界；旧阶段/目录描述不构成新目标验收。重构从 R0 开始，命令与历史基线见 [testing.md](testing.md)。
 
 ## 当前已有证据
 
@@ -10,6 +12,7 @@
 
 | 范围 | 已有通过记录 | 证据边界 |
 | --- | --- | --- |
+| Laravel 式全面重构规划 | ADR-070、R0–R16、33 类能力与执行任务已记录；38 个 Markdown 文档的本地链接/锚点检查与 diff 检查通过；gpt-6.1-sol 只读计划审查发现的阶段门禁循环已修正 | 仅计划/规则/技能文档；未实施 R0/R1，未运行代码、IDE、双库或真实服务验收；旧专项证据不转记为重写通过 |
 | M6 开发体验规划 | DX1–DX8 已记录依赖、交付范围和验收条件；diff 与旧引用检查通过；81 个本地链接目标、10 个锚点通过；8 个官方链接经浏览工具解析（直连返回 403） | 仅计划文档；不代表 IDE 调试、TestApp、生成器、进程编排或源码升级已实现/验收 |
 | C1 默认文档入口中文化 | 根 README、贡献/安全/行为准则/变更日志及 `src/**/README.md`、工具/宿主 README；13 个改动 Markdown 的相对链接与锚点检查、`git diff --check`、warnings-denied `cargo doc -p openrust --no-deps`、`cargo test -p openrust --doc` 通过 | 本簇仅整改默认入口说明，不覆盖 Rustdoc/源码注释（C2）或 CLI/生成模板说明（C3）；英文许可、引用和协议原文保留 |
 | C2 Rustdoc 与源码/配置注释中文化 | 注释-only 改动；workspace fmt、clippy、test、warnings-denied doc、`cargo deny check`、`git diff --check` 通过；PostgreSQL 18/MySQL 8.4 各以 `auth,queue,db-<backend>` 执行 `auth_database`（6）、`db_connection`（4）、`db_migration`（1）、`queue`（1）、`queue_crash_recovery`（2）、`schedule`（4），均全部通过 | 不改 API/运行时文案/行为；生成入口 Rustdoc 改动同步快照；CLI 帮助、生成说明和模板注释仍属 C3 |
@@ -33,7 +36,7 @@
 ## 尚未关闭的门禁
 
 - 目录收尾通过 5-package/265-test-list 对比、workspace 门禁、双库 server 集成、生成项目及实际 hello TCP HTTP smoke；当时保留 `apps/server` 有明确评估证据，现按 ADR-062 迁入根 package。ADR-039 源码交付已另行通过干净副本和双库验收。以上不等同于 v1 集群或性能门禁。
-- M4 共享锁与请求幂等已按 ADR-042 完成 PostgreSQL 18/MySQL 8.4 双 pool 隔离库验收；Worker 停机/lease 修正、F1 日历调度、F2 国际化、F3 邮件模板与 M4 通知/生成组合均以 `todo.md` 中的专项记录为准，已完成项不重复列为未实现。当前活跃范围是 M5 可观测性与生产资源；M6 仍包括开发编排、生成器/测试工具、正式文档、源码升级和完整产品集群验收。
+- M4 共享锁与请求幂等已按 ADR-042 完成 PostgreSQL 18/MySQL 8.4 双 pool 隔离库验收；Worker 停机/lease 修正、F1 日历调度、F2 国际化、F3 邮件模板与 M4 通知/生成组合均以 `todo.md` 中的专项记录为准，已完成项不重复列为未实现。旧活跃范围为 M5 可观测性与生产资源；原 M6 包括开发编排、生成器/测试工具、正式文档、源码升级和完整产品集群验收。
 - PostgreSQL/MySQL 负载均衡下至少两个 API 与多 worker/scheduler 的共享认证状态、配额/幂等、任务竞争、跨节点在线投递、共享文件、滚动升级及故障恢复。
 - [底层补齐 F1–F10](../plans/v1-foundation-completion.md) 仍须按顺序交付：F1 日历调度已实现并有双库专项证据；邮件模板/i18n/cache、查询/租户/身份/MFA、CSV/XLSX 与 fixtures 各自仍须完成公开入口、真实失败/并发、有效组合和生成验收。
 - gRPC 四类真实调用、TLS/mTLS、认证/Status、deadline/流取消/背压、health/reflection、生成项目、双节点滚动与 proto 新旧互通，已按 [ADR-040](../decisions/adr-040-grpc-integration.md) 完成 G1–G3c 验收；依据为当前 `progress.md` 与 `todo.md` 中的真实 TCP、独立 consumer、Envoy 双节点和 workspace 门禁记录。M6 仍须复验其与完整产品集群、滚动升级的组合行为。跨协议验证/上下文、出站策略、迁移互斥与有界退出已有对应完成记录，不再列为待实现；若这些验收证据变化，应同步更新本节与功能事实。

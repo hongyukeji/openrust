@@ -1,5 +1,7 @@
 # 版本路线
 
+> 当前优先级：由 [ADR-070](decisions/adr-070-laravel-first-rebuild.md) 与 [R0–R16](plans/laravel-rebuild.md) 接管。下文旧 v1 设计/顺序是待映射输入；V2 端侧与独立 AI 产品边界保留。
+
 > 受众：AI Agent
 > 更新：2026-10-26
 > 摘要：先完整验收 v1 通用框架，再按现有授权继续 v2 官方后台；AI模型平台仍待用户明确要求开发。当前执行任务只写 `todo.md`，具体 API 和选型按对应计划决策。

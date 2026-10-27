@@ -1,6 +1,8 @@
 # ADR-063 仓库宿主的显式业务模块注册
 
-- 状态：Accepted
+> 替代范围见 [ADR-070](adr-070-laravel-first-rebuild.md#替代范围)；本文旧目录/命名/默认值不阻止全面重写。代码是否已迁移以当前实现和 todo.md 为准。
+
+- 状态：Partially Superseded（目标设计由 ADR-070 重新开放；未替代的行为/验收事实保留）
 - 日期：2026-10-27
 - 补充：[ADR-062](adr-062-root-server-entry.md) 的根宿主布局；保持 [ADR-021](adr-021-loco-style-module-layout.md) 的框架与应用边界。
 

@@ -1,6 +1,8 @@
 # ADR-030：按能力模块组织配置
 
-- 状态：Accepted（已实现，配置与生成项目验收有记录）
+> 替代范围见 [ADR-070](adr-070-laravel-first-rebuild.md#替代范围)；本文旧目录/命名/默认值不阻止全面重写。代码是否已迁移以当前实现和 todo.md 为准。
+
+- 状态：Partially Superseded（目标设计由 ADR-070 重新开放；未替代的行为/验收事实保留）
 - 日期：2026-10-27
 - 背景：`src/config/mod.rs` 集中放置环境解析、Figment source、框架配置结构与测试，已不利于按配置域定位；数据库、认证和邮件设置又分散在各能力模块。
 - 决策：框架配置定义按真实配置域拆到 `src/config/*.rs`，`mod.rs` 保留环境引导、source 合并、通用错误和公开 facade。当前具备的 app、api、auth、database、logger、mailer、server 各有配置模块；未实现能力不创建空配置文件。

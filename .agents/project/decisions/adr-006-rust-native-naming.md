@@ -1,6 +1,8 @@
 # ADR-006 框架命名、目录与命令约定
 
-- 状态：Partially Superseded（仓库 package/module 布局由 [ADR-021](adr-021-loco-style-module-layout.md) 替代；配置/环境变量部分由 [ADR-016](adr-016-neutral-application-namespaces.md) 替代；生成项目 API、目录和命令命名仍有效）
+> 替代范围见 [ADR-070](adr-070-laravel-first-rebuild.md#替代范围)；本文旧目录/命名/默认值不阻止全面重写。代码是否已迁移以当前实现和 todo.md 为准。
+
+- 状态：Partially Superseded（目标设计由 ADR-070 重新开放；未替代的行为/验收事实保留）
 - 日期：2026-10-25（同日依主流 Rust 框架调研修订）
 
 ## 背景

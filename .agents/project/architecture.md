@@ -1,5 +1,7 @@
 # 架构
 
+> 重构状态：下文描述迁移前实现事实；新目标以 [ADR-070](decisions/adr-070-laravel-first-rebuild.md) 和 [全面重构计划](plans/laravel-rebuild.md) 为准，旧目录/命名约束不限制新设计。
+
 > 受众：AI Agent
 > 更新：2026-10-27
 > 摘要：根 `openrust` package 同时承载框架 modules 与 `server` 集成 bin；四个独立工具 package 集中位于 `tools/`。详细设计见 [框架设计](plans/framework-design.md)。

@@ -1,5 +1,7 @@
 # 架构决策索引
 
+当前目标设计由 [070 Laravel 优先的全面重构](adr-070-laravel-first-rebuild.md)（Accepted，尚未实现）接管；表中旧 contract 的实现事实保留，新目标按 070 的替代范围读取。
+
 > 受众：AI Agent
 > 更新：2026-10-27
 > 摘要：快速定位有效 contract 与替代关系。ADR 接受表示设计成立，不等于能力已实现或验证。
@@ -15,30 +17,31 @@
 
 | ADR | 状态 | 当前归属与边界 |
 | --- | --- | --- |
-| [001 自有内核与组件整合](adr-001-own-kernel-on-axum.md) | Accepted | 成熟组件优先；自有组装与公开扩展，Laravel 式开发体验，Rust 惯用 API |
+| [070 Laravel 优先全面重构](adr-070-laravel-first-rebuild.md) | Accepted（计划已记录，未实现） | 新目标、旧约束替代范围、Rust 适配和子智能体协作；实施见 R0–R16 |
+| [001 自有内核与组件整合](adr-001-own-kernel-on-axum.md) | Partially Superseded | 目标约束按 ADR-070 重开；成熟组件优先；自有组装与公开扩展，Laravel 式开发体验，Rust 惯用 API |
 | [002 SeaORM 与数据库基线](adr-002-seaorm-dual-database.md) | Partially Superseded | PostgreSQL/MySQL 生产与集群基线；SQLite 轻量后端范围见 066 |
 | [005 许可证与 MSRV](adr-005-license-naming-msrv.md) | Partially Superseded | MIT OR Apache-2.0、Edition、MSRV 有效；包命名与分发由 039 替代 |
-| [006 命名与命令](adr-006-rust-native-naming.md) | Partially Superseded | 通用命名有效；命名空间见 016，目录见 021，具体能力 contract 见各 ADR |
-| [007 聚合宿主](adr-007-aggregate-server-entry.md) | Partially Superseded | 集成验收职责有效；宿主迁入根 package 由 062 更新 |
-| [008 HTTP API](adr-008-api-conventions.md) | Accepted | 响应、状态模式、错误与协议例外 |
+| [006 命名与命令](adr-006-rust-native-naming.md) | Partially Superseded | 目标约束按 ADR-070 重开；通用命名有效；命名空间见 016，目录见 021，具体能力 contract 见各 ADR |
+| [007 聚合宿主](adr-007-aggregate-server-entry.md) | Partially Superseded | 目标约束按 ADR-070 重开；集成验收职责有效；宿主迁入根 package 由 062 更新 |
+| [008 HTTP API](adr-008-api-conventions.md) | Partially Superseded | 目标约束按 ADR-070 重开；响应、状态模式、错误与协议例外 |
 | [009 可扩展驱动](adr-009-extensible-capability-drivers.md) | Accepted | 统一入口、公开扩展、后端能力与真实验收 |
-| [010 Seed](adr-010-database-seeding.md) | Accepted | 应用提供 seed 函数，不做平行 ORM 工厂 |
-| [016 中性命名空间](adr-016-neutral-application-namespaces.md) | Accepted | 默认 APP_、tb_ 与可定制解析，替代 006 的旧品牌前缀 |
+| [010 Seed](adr-010-database-seeding.md) | Partially Superseded | 目标约束按 ADR-070 重开；应用提供 seed 函数，不做平行 ORM 工厂 |
+| [016 中性命名空间](adr-016-neutral-application-namespaces.md) | Partially Superseded | 目标约束按 ADR-070 重开；默认 APP_、tb_ 与可定制解析，替代 006 的旧品牌前缀 |
 | [019 中性 crate 目录](adr-019-neutral-crate-directories-and-app-package.md) | Superseded | 原逐能力 crates 取消；目录见 021，当前 server 中性包名见 039 |
 | [020 旧 workspace 方案](adr-020-workspace-layout-and-loco-practices.md) | Superseded | 旧多能力 package 方案取消；有效配置/示例原则已纳入 021/030 |
-| [021 模块与目录职责](adr-021-loco-style-module-layout.md) | Partially Superseded | 根模块、工具边界和宿主职责有效；发布身份与独立生成项目由 039 替代 |
-| [062 根目录统一启动入口](adr-062-root-server-entry.md) | Partially Superseded | 根唯一 `server` bin 与 Cargo 入口有效；应用模块注册由 063 补充 |
-| [063 显式业务模块注册](adr-063-explicit-app-module-registry.md) | Accepted | 根 `src/main.rs` 单一启动；根宿主在 `apps/mod.rs` 静态声明并注册业务模块，不扫描或动态加载 |
-| [064 统一示例应用与验收 consumer 收纳](adr-064-canonical-example-application.md) | Accepted | 用户示例统一到 `apps/example/`；独立 consumer/拓扑验收收纳到 `tests/consumers/`；保留编译期显式注册 |
-| [065 框架路由入口与数据模块分层](adr-065-root-routing-and-data-module-layout.md) | Accepted | 路由装配实现位于 `src/routes.rs` 并沿用 RouteRegistry/Tower 扩展；数据交换源码位于 `src/data/exchange/`，旧 API 路径兼容 |
+| [021 模块与目录职责](adr-021-loco-style-module-layout.md) | Partially Superseded | 目标约束按 ADR-070 重开；根模块、工具边界和宿主职责有效；发布身份与独立生成项目由 039 替代 |
+| [062 根目录统一启动入口](adr-062-root-server-entry.md) | Partially Superseded | 目标约束按 ADR-070 重开；根唯一 `server` bin 与 Cargo 入口有效；应用模块注册由 063 补充 |
+| [063 显式业务模块注册](adr-063-explicit-app-module-registry.md) | Partially Superseded | 目标约束按 ADR-070 重开；根 `src/main.rs` 单一启动；根宿主在 `apps/mod.rs` 静态声明并注册业务模块，不扫描或动态加载 |
+| [064 统一示例应用与验收 consumer 收纳](adr-064-canonical-example-application.md) | Partially Superseded | 目标约束按 ADR-070 重开；用户示例统一到 `apps/example/`；独立 consumer/拓扑验收收纳到 `tests/consumers/`；保留编译期显式注册 |
+| [065 框架路由入口与数据模块分层](adr-065-root-routing-and-data-module-layout.md) | Partially Superseded | 目标约束按 ADR-070 重开；路由装配实现位于 `src/routes.rs` 并沿用 RouteRegistry/Tower 扩展；数据交换源码位于 `src/data/exchange/`，旧 API 路径兼容 |
 | [066 SQLite 轻量数据库后端完整支持](adr-066-optional-sqlite-backend.md) | Accepted（计划中，未实现） | v1 完整支持适用于单机语义的通用能力；“可选”指应用可选择该后端；SQLite 不承担集群共享语义；验收见专项计划 |
-| [068 API 命名空间与静态站点根路由](adr-068-api-namespace-and-static-site-root.md) | Accepted | 业务 API `/api/*`、WebSocket `/ws/*`；配置化公开目录与根路由，默认 `public/index.html` |
-| [069 服务端视图模板](adr-069-server-rendered-views.md) | Accepted | 可选 MiniJinja `view` feature、`views/` 模板与 `view:` 首页；`public/` 仍提供静态资源 |
-| [023 应用扩展与体验](adr-023-loco-application-experience-evaluation.md) | Partially Superseded | doctor/TestApp 有效；停机未决项由 037 命令 supervisor 定稿 |
+| [068 API 命名空间与静态站点根路由](adr-068-api-namespace-and-static-site-root.md) | Partially Superseded | 目标约束按 ADR-070 重开；业务 API `/api/*`、WebSocket `/ws/*`；配置化公开目录与根路由，默认 `public/index.html` |
+| [069 服务端视图模板](adr-069-server-rendered-views.md) | Partially Superseded | 目标约束按 ADR-070 重开；可选 MiniJinja `view` feature、`views/` 模板与 `view:` 首页；`public/` 仍提供静态资源 |
+| [023 应用扩展与体验](adr-023-loco-application-experience-evaluation.md) | Partially Superseded | 目标约束按 ADR-070 重开；doctor/TestApp 有效；停机未决项由 037 命令 supervisor 定稿 |
 | [029 读写路由](adr-029-database-read-routing.md) | Accepted | 显式副本、主库 scope；不实现复制/选主 |
-| [030 模块化配置](adr-030-modular-configuration.md) | Accepted | Rust 配置代码与运行时 config 分离；单一 ConfigLoader/.env 规则 |
+| [030 模块化配置](adr-030-modular-configuration.md) | Partially Superseded | 目标约束按 ADR-070 重开；Rust 配置代码与运行时 config 分离；单一 ConfigLoader/.env 规则 |
 | [038 测试数据库隔离](adr-038-isolated-test-databases.md) | Accepted | 独立测试库与显式清理；原重复编号 011 校准 |
-| [039 源码交付与内部命名](adr-039-source-workspace-distribution.md) | Accepted | 整套 workspace、apps 业务、内部中性包名与禁用发布；宿主位置由 ADR-062 替代 |
+| [039 源码交付与内部命名](adr-039-source-workspace-distribution.md) | Partially Superseded | 目标约束按 ADR-070 重开；整套 workspace、apps 业务、内部中性包名与禁用发布；宿主位置由 ADR-062 替代 |
 
 ## 认证、安全与通信
 
@@ -48,7 +51,7 @@
 | [011 邮件与短信范围](adr-011-sms-and-communication-baseline.md) | Accepted | v1 通信需求；具体接口见 033，供应商实发另需授权 |
 | [012 身份与路由](adr-012-auth-current-user-contract.md) | Accepted | 认证身份/路由边界，与 018/022 配合 |
 | [017 通用 Session](adr-017-generic-session-runtime.md) | Accepted | 显式可选 Cookie Session，数据库默认共享 |
-| [018 JWT-first](adr-018-jwt-primary-authentication.md) | Accepted | API 主要认证路径、refresh、可选 Session/PAT |
+| [018 JWT-first](adr-018-jwt-primary-authentication.md) | Partially Superseded | 目标约束按 ADR-070 重开；API 主要认证路径、refresh、可选 Session/PAT |
 | [022 JWT runtime](adr-022-jwt-runtime-contract.md) | Accepted | claims、key ring 与失效语义 |
 | [024 AuthFlows](adr-024-authentication-flow-service.md) | Accepted | 流程 service 与应用 HTTP 路由分工 |
 | [025 共享限流](adr-025-shared-rate-limiter.md) | Accepted | 固定窗口与双库共享 store；HTTP 接入事实见 core/http.md |

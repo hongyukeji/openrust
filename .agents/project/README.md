@@ -1,5 +1,7 @@
 # AI Agent 记忆索引
 
+当前设计和开发顺序由 [ADR-070](decisions/adr-070-laravel-first-rebuild.md) 与 [全面重构计划](plans/laravel-rebuild.md) 接管；[执行任务](plans/laravel-rebuild-execution.md) 提供可直接使用的任务说明。旧计划只作能力/证据输入。
+
 > 受众：AI Agent
 > 摘要：`.agents/project/` 只维护 OpenRust 当前基线。执行历史、已解决问题和完成任务由 Git 追溯。
 
