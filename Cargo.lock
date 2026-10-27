@@ -3047,6 +3047,7 @@ dependencies = [
  "opendal",
  "prost",
  "quick-xml",
+ "rcgen",
  "redis",
  "reqwest",
  "rust_xlsxwriter",
@@ -3216,6 +3217,15 @@ name = "percent-encoding"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
+
+[[package]]
+name = "performance"
+version = "0.0.0"
+dependencies = [
+ "figment",
+ "openrust",
+ "tokio",
+]
 
 [[package]]
 name = "pgvector"
@@ -4292,38 +4302,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "server"
-version = "0.0.0"
-dependencies = [
- "async-trait",
- "axum",
- "base64 0.22.1",
- "bytes",
- "chrono",
- "figment",
- "futures-util",
- "hmac",
- "openrust",
- "rcgen",
- "redis",
- "reqwest",
- "sea-orm",
- "serde",
- "serde_json",
- "sha1 0.11.0",
- "sha2 0.10.9",
- "sqlx",
- "tempfile",
- "testing",
- "time",
- "tokio",
- "tower",
- "tower-sessions",
- "url",
- "validator",
-]
-
-[[package]]
 name = "sha1"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4788,9 +4766,7 @@ dependencies = [
  "openrust",
  "sea-orm",
  "sea-orm-migration",
- "sqlx",
  "tokio",
- "url",
 ]
 
 [[package]]

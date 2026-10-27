@@ -16,7 +16,7 @@
 
 - 验证有效签名、错误用途/签发者/算法/类型、篡改、未知 key、过期、未来签发时间、最大 TTL、非法输入和 key rotation；bearer 与配置 Debug 脱敏。
 - fake/custom revocation store 覆盖撤销及存储故障；数据库 store 在 PostgreSQL 与 MySQL 验证跨实例撤销和表名映射。
-- `apps/server` 接入，生成项目/文档说明配置、密钥隔离、撤销迁移和应用责任；执行 workspace fmt/clippy/tests/docs、`cargo deny check`。
+- `根目录集成宿主` 接入，生成项目/文档说明配置、密钥隔离、撤销迁移和应用责任；执行 workspace fmt/clippy/tests/docs、`cargo deny check`。
 
 ## 验收记录
 

@@ -101,7 +101,7 @@ let (rows, total) = documents.select(&user, Condition::all())?
 
 Discovery、JWKS 和 token 请求都经过受限 `DependencyClient`，共享单次 OIDC 请求总时限，响应体上限为 1 MiB。JWKS 缓存最长 5 分钟；过期刷新失败会拒绝登录，未知 `kid` 最多每 30 秒主动刷新一次。协议秘密和 ID Token 不写入日志，ID Token 的 Debug 内容脱敏；若使用自定义 `ExternalIdentityProvider`，实现方必须在返回 `VerifiedExternalIdentity` 前验证协议签名、issuer、audience、时效、state、nonce 和令牌绑定。
 
-可在隔离环境使用 `apps/server/tests/fixtures/keycloak/openrust-realm.json` 启动 Keycloak，再设置 `OPENRUST_OIDC_ISSUER=http://127.0.0.1:8080/realms/openrust` 运行 `cargo test -p server --features 'auth-oidc auth-mfa db-postgres' --test auth_oidc_keycloak`。该 fixture 只含本地验收用的合成客户端与用户凭据；生产环境必须使用 HTTPS 和受限的 `IdP` 目标策略。
+可在隔离环境使用 `tests/server/fixtures/keycloak/openrust-realm.json` 启动 Keycloak，再设置 `OPENRUST_OIDC_ISSUER=http://127.0.0.1:8080/realms/openrust` 运行 `cargo test -p openrust --features 'auth-oidc auth-mfa db-postgres' --test auth_oidc_keycloak`。该 fixture 只含本地验收用的合成客户端与用户凭据；生产环境必须使用 HTTPS 和受限的 `IdP` 目标策略。
 
 配置本地 Keycloak 管理员环境变量 `OPENRUST_KEYCLOAK_ADMIN_USERNAME` 与 `OPENRUST_KEYCLOAK_ADMIN_PASSWORD`，提供可创建/删除隔离数据库的 `OPENRUST_TEST_DATABASE_URL`，并设置 `OPENRUST_TEST_SESSION_REDIS_URL` 后，可运行双应用真实验收。PostgreSQL 18 与 MySQL 8.4 均以每应用两个独立 API 子进程、真实 TCP round-robin 与 Redis 8 共享 Session 完成 Keycloak 26.8.1 双 client SSO、应用 callback/RP logout/Back-Channel Logout、跨节点 TOTP completion、callback/logout 与 MFA/refresh 竞态、重启重放、跨节点 Session/refresh 拒绝及 JWT 到期窗口。Redis Session delete error 注入后同一通知重试成功也已在双库验证；另以隔离 Redis 8 容器执行真实停机，验证 Back-Channel Logout 返回 503；服务恢复并重启两个应用的四个 API 子进程后，相同 Logout Token 重放成功，PostgreSQL 18 与 MySQL 8.4 均通过。provider fake 双库路径覆盖未登记退出 URI、关联撤销及 `IdP` 无 logout endpoint 时的本地退出。产品级多服务集群仍按 ADR-055 和 v1 集群计划验收。
 

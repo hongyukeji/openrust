@@ -3,6 +3,7 @@ name = "openrust"
 publish = false
 description = "OpenRust：面向 Rust 应用开发的约定优于配置框架，提供常用基础能力与扩展机制。"
 readme = "README.md"
+autobins = false
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -16,8 +17,8 @@ autotests = false
 
 [workspace]
 resolver = "3"
-members = ["cli", "macros", "testing", "apps/server"]
-default-members = [".", "cli", "macros", "testing", "apps/server"]
+members = ["tools/cli", "tools/macros", "tools/testing", "tools/performance"]
+default-members = ["."]
 
 [workspace.package]
 version = "0.0.0"
@@ -32,10 +33,9 @@ keywords = ["framework", "web", "axum", "batteries-included", "backend"]
 
 [workspace.dependencies]
 openrust = { path = ".", version = "0.0.0" }
-cli = { path = "cli", version = "0.0.0" }
-macros = { path = "macros", version = "0.0.0" }
-testing = { path = "testing", version = "0.0.0" }
-server = { path = "apps/server", version = "0.0.0" }
+cli = { path = "tools/cli", version = "0.0.0" }
+macros = { path = "tools/macros", version = "0.0.0" }
+testing = { path = "tools/testing", version = "0.0.0" }
 
 tokio = { version = "1.54", features = ["rt-multi-thread", "macros", "signal", "net", "time", "io-util", "fs", "sync"] }
 tokio-stream = { version = "0.1", features = ["net"] }
@@ -204,6 +204,27 @@ serde_json.workspace = true
 tower-sessions = { workspace = true, features = ["memory-store"] }
 tokio-stream.workspace = true
 
+axum.workspace = true
+async-trait.workspace = true
+base64.workspace = true
+bytes.workspace = true
+chrono.workspace = true
+futures-util.workspace = true
+sea-orm.workspace = true
+serde.workspace = true
+sha2.workspace = true
+hmac.workspace = true
+sha1.workspace = true
+sqlx.workspace = true
+time.workspace = true
+tokio.workspace = true
+tower.workspace = true
+url.workspace = true
+validator.workspace = true
+redis.workspace = true
+reqwest.workspace = true
+tempfile.workspace = true
+rcgen.workspace = true
 [[test]]
 name = "plugin_contract"
 path = "tests/core/plugin_contract.rs"
@@ -226,6 +247,127 @@ path = "tests/http/resource.rs"
 name = "http_router"
 path = "tests/http/router.rs"
 
+[[test]]
+name = "auth"
+path = "tests/server/auth/routes.rs"
+
+[[test]]
+name = "auth_database"
+path = "tests/server/auth/database.rs"
+
+[[test]]
+name = "auth_runtime"
+path = "tests/server/auth/runtime.rs"
+
+[[test]]
+name = "auth_query_authorization"
+path = "tests/server/auth/query_authorization.rs"
+required-features = ["auth"]
+
+[[test]]
+name = "auth_oidc"
+path = "tests/server/auth/oidc.rs"
+required-features = ["auth-oidc"]
+
+[[test]]
+name = "auth_oidc_keycloak"
+path = "tests/server/auth/oidc_keycloak.rs"
+required-features = ["auth-oidc"]
+
+[[test]]
+name = "auth_mfa"
+path = "tests/server/auth/mfa.rs"
+required-features = ["auth-mfa"]
+
+[[test]]
+name = "data_exchange"
+path = "tests/server/data_exchange.rs"
+required-features = ["data-exchange"]
+
+[[test]]
+name = "data_exchange_tasks"
+path = "tests/server/data_exchange_tasks.rs"
+required-features = ["data-exchange-tasks"]
+
+[[test]]
+name = "grpc"
+path = "tests/server/grpc.rs"
+required-features = ["grpc"]
+
+[[test]]
+name = "realtime"
+path = "tests/server/realtime.rs"
+required-features = ["realtime"]
+
+[[test]]
+name = "db_connection"
+path = "tests/server/database/connection.rs"
+
+[[test]]
+name = "db_coordination"
+path = "tests/server/database/coordination.rs"
+
+[[test]]
+name = "db_migration"
+path = "tests/server/database/migration.rs"
+
+[[test]]
+name = "http_client"
+path = "tests/server/http/client.rs"
+
+[[test]]
+name = "i18n"
+path = "tests/server/i18n/runtime.rs"
+
+[[test]]
+name = "mail_templates"
+path = "tests/server/mail/templates.rs"
+required-features = ["mail-templates"]
+
+[[test]]
+name = "queue"
+path = "tests/server/queue/worker.rs"
+
+[[test]]
+name = "queue_notifications"
+path = "tests/server/queue/notifications.rs"
+required-features = ["queue"]
+
+[[test]]
+name = "queue_redis"
+path = "tests/server/queue/redis.rs"
+required-features = ["queue-redis"]
+
+[[test]]
+name = "queue_crash_recovery"
+path = "tests/server/queue/crash_recovery.rs"
+
+[[test]]
+name = "schedule"
+path = "tests/server/schedule/coordination.rs"
+
+[[test]]
+name = "schedule_calendar"
+path = "tests/server/schedule/calendar.rs"
+
+[[test]]
+name = "server"
+path = "tests/server/server/aggregate.rs"
+
+[[test]]
+name = "storage_http"
+path = "tests/server/storage/http.rs"
+required-features = ["storage-local"]
+
+[[test]]
+name = "storage_s3"
+path = "tests/server/storage/s3.rs"
+required-features = ["storage-s3"]
+
+[[test]]
+name = "storage_driver_contract"
+path = "tests/server/storage/driver_contract.rs"
+
 [[example]]
 name = "hello"
 path = "examples/hello/main.rs"
@@ -234,6 +376,10 @@ path = "examples/hello/main.rs"
 name = "queue-demo"
 path = "examples/queue/main.rs"
 required-features = ["queue"]
+
+[[bin]]
+name = "server"
+path = "src/main.rs"
 
 [features]
 default = []

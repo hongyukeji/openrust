@@ -3,7 +3,7 @@
 > 更新：2026-10-26
 > 摘要：根 package 是框架唯一公共 facade 与实现 package；能力模块位于根 `src/`，包括 `openrust::audit`、`openrust::mail`、`openrust::sms`、可选 `openrust::security` 与 `openrust::signing`。
 
-- 根 `src/lib.rs` 声明 audit/config/core/db/http/i18n/mail/sms，以及 feature-gated auth、queue/schedule、security 与 signing；对外主路径继续是 `openrust::...`。
+- 根 `src/lib.rs` 声明框架 modules 与 feature-gated 能力；根 `src/main.rs` 提供 `server` bin。对外主路径继续是 `openrust::...`。
 - 根直接 re-export `ApiResponse<T>`、`PageMeta`、`#[openrust::resource]`、`ServiceExt` 与 Tokio。`openrust::prelude` 提供常用 HTTP、core、mail、db、auth 类型；Axum 类型由 `openrust::http::axum` 公开。
 - `openrust::validation::{Validate, validate}` 复用 validator 与统一字段错误；`ExecutionContext` / `ExecutionMetadata` / `Cancellation` 提供单次请求、命令及 Job attempt 的显式作用域，细节见 [core](core.md) 与 [ADR-044](../decisions/adr-044-cross-protocol-execution-context.md)。
 - `db-postgres` / `db-mysql` 启用 SeaORM 对应 backend，并提供 `openrust::database` 别名与常用 DB 类型；默认 feature 不含具体数据库 driver。
@@ -12,9 +12,9 @@
 - `mail-smtp` 可选启用 SMTP transport；`sms-twilio` 复用可选 `http-client` feature；`test-util` 提供邮件/SMS fake。log 仅供非生产默认路径，生产启动拒绝 log；运行配置保持在应用项目根 `config/`。
 - `encryption` 可选启用 AES-256-GCM-SIV 应用数据加密；`EncryptionPlugin` 注册持有轮换 key ring 的 `Encryptor`。仅 active key 写入、历史 key 解密；密钥需由受控配置注入，不含默认 key。
 - `signing` 可选启用用途绑定的限时签名链接；独立 link key ring 与 JWT/加密密钥隔离；逐条撤销需应用加入共享数据库迁移并配置 `SignedLinkRevocationStore`。
-- Workspace 保留 package：根 `openrust` 框架、`cli` 命令行与模板、`macros` proc-macro、`testing` 测试工具、`server` 集成宿主。源码交付与命名见 [ADR-039](../decisions/adr-039-source-workspace-distribution.md)。
+- Workspace package：根 `openrust` 同时承载框架与 `server` bin，另有 `cli` 命令行与模板、`macros` proc-macro、`testing` 测试工具和 `performance` 基准工具。源码交付与命名见 [ADR-039](../decisions/adr-039-source-workspace-distribution.md)。
 - `testing` 单向依赖 `openrust`；根 package 不依赖测试工具，避免依赖环。
-- 工具包已在工作区迁至 `cli/`、`macros/`、`testing/`；当前结构簇仍待验证与提交，不能把路径移动当作验收完成。独立 package 的编译边界与目录承接位置须先评估，不能把 proc-macro 机械并入普通库。
-- `openrust::cache` 已提供统一 `Cache`、default/named store、memory/file drivers 与公开扩展契约；Redis client 由可选 `cache-redis` feature 启用。安装 `CachePlugin` 需显式配置 store，标准生成器默认 Redis；未安装插件不会连接 Redis。Storage、实时通信及 M5 其余可观测性仍待实现。
+- CLI、proc-macro 与 testing 工具包保留独立编译/依赖边界；根集成宿主迁移按 [ADR-062](../decisions/adr-062-root-server-entry.md) 与目录 Spec 执行。不能把路径移动当作能力验收完成，也不能把 proc-macro 机械并入普通库。
+- `openrust::cache`、`openrust::storage`、`openrust::realtime`、数据库、认证、队列、gRPC 等能力按各自可选 feature/扩展契约交付；Redis client 由对应 feature 启用，插件须显式安装和配置。各模块当前状态与未完成范围以 `core/<crate>.md` 和 `todo.md` 为准。
 
 `cargo metadata --no-deps --format-version 1` 验收根 package `openrust` 及 workspace 五个成员；default、auth/database features 与 all-features 的验证按 [testing memory](../memory/testing.md) 记录。

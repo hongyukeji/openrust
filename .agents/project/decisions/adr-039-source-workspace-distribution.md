@@ -1,7 +1,8 @@
 # ADR-039 整套源码交付与内部包中性命名
 
-- 状态：Accepted and implemented（源码 workspace、生成器、启动隔离与双库验收已完成）
+- 状态：Partially Superseded（源码交付、工具包与生成应用约定有效；server 宿主位置由 [ADR-062](adr-062-root-server-entry.md) 替代；原源码 workspace、生成器、启动隔离与双库验收已完成）
 - 日期：2026-10-26
+- 更新：2026-10-27（四个工具 package 统一收纳至 `tools/`，Cargo package 名保持不变）
 - 替代：ADR-005 的发布包命名与 crates.io 分发前提、ADR-021 的工具包保留品牌前缀及默认独立生成项目方案；其余许可证、MSRV、模块边界和目录职责继续有效。
 
 ## 背景
@@ -13,18 +14,19 @@ OpenRust 的使用方式是获取整套框架源码，在同一工程基础上�
 - 默认交付整套源码 workspace，开发者在 `apps/<name>/` 编写业务，框架能力继续位于根 `src/`，配置代码位于 `src/config/`。业务通过公开接口扩展，不因源码随项目交付就要求改核心实现。
 - 根 package、公共路径 `openrust::...` 与 CLI 命令 `openrust` 保留产品身份；内部 package 使用职责名称，与所在目录末级名称一致。后续新增内部工具和应用遵守同一规则，不强制品牌前缀。
 
-| 路径 | 当前 package | 目标 package | 目标二进制/库名称 |
+| 路径 | 迁移前 package | 当前 package | 目标二进制/库名称 |
 | --- | --- | --- | --- |
 | 根目录 | `openrust` | `openrust` | `openrust` |
-| `cli/` | `openrust-cli` | `cli` | 二进制 `openrust` |
-| `macros/` | `openrust-macros` | `macros` | proc-macro `macros` |
-| `testing/` | `openrust-test` | `testing` | 库 `testing`，避免使用 `test` |
-| `apps/server/` | `openrust-server` | `server` | 二进制 `server` |
+| `tools/cli/` | `openrust-cli` | `cli` | 二进制 `openrust` |
+| `tools/macros/` | `openrust-macros` | `macros` | proc-macro `macros` |
+| `tools/testing/` | `testing` | `testing` | 库 `testing`，避免使用 `test` |
+| `tools/performance/` | `performance` | `performance` | 性能基准 package |
+| `apps/server/`（历史路径） | `openrust-server` | `server` | 二进制 `server`；现由 ADR-062 迁入根 package |
 
 - 所有 workspace package 和生成的应用、migration package 显式设置 `publish = false`。不再预留 crates.io 名称、发布占位包或以 `cargo install openrust-cli` 作为使用入口；不引入发布时改名、双 manifest 或注册表兼容包装。
 - 内部依赖使用 workspace/path，随整套源码解析，不使用内部包的注册表版本依赖，不硬编码开发机绝对路径。第三方 Rust 依赖仍正常使用 Cargo 注册表与锁文件；本决定不要求离线 vendor 全部依赖。
 - 保留必要编译边界：`macros` 是独立 proc-macro；`testing` 单向依赖框架，仅作应用测试依赖；`cli` 承载命令与模板。根框架不反向依赖测试工具。
-- `apps/server` 的集成宿主职责保留，改名不等于删除宿主；已有启动、feature、双库和进程验收不能丢失。示例和测试仍分别组织在 `examples/`、`tests/`。
+- 原 `apps/server` 的集成宿主职责保留；宿主 package 与代码路径按 ADR-062 迁入根 package，已有启动、feature、双库和进程验收不能丢失。示例和测试仍分别组织在 `examples/`、`tests/`。
 - 取消独立包分发不取消框架版本、源码升级与兼容性说明；tag、源码 release、推送仍按 `AGENTS.md` 的独立授权边界处理。API 升级可对比已有源码基线，不要求存在 crates.io 发布版本。
 
 ## 实现 Spec 与顺序

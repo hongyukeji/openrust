@@ -55,7 +55,7 @@
 - 生成项目 HTTP handlers 的真实 HTTP/fake-mail/`ClientIp` 集成覆盖已加入。2026-10-26 按当前模板新生成的 PostgreSQL 18 与 MySQL 8.4 项目均通过格式检查、`cargo check` 和完整 JWT/PAT HTTP 流程；Session 登录/退出及 CSRF 流程也在双库隔离集成测试覆盖。
 - 注册、登录、找回、邮箱验证、refresh/logout 与共享限流已有 service 编排和生成 HTTP 路由模板；可信代理来源策略按 ADR-028 实现。
 - Policy/basic RBAC 已实现；复杂业务策略、租户范围与可缓存授权模型未纳入本 contract。
-- `apps/server` 的认证集成测试构建各自测试 Application；默认 `Server::build` 没有安装 Auth/JWT/Database 插件，启用 `auth` feature 不会自动安装它们。完整认证业务 HTTP 流程由 CLI 生成项目通过真实 TCP 测试覆盖。
+- 根 `tests/server/` 的认证集成测试构建各自测试 Application；默认 `Server::build` 没有安装 Auth/JWT/Database 插件，启用 `auth` feature 不会自动安装它们。完整认证业务 HTTP 流程由 CLI 生成项目通过真实 TCP 测试覆盖。
 - 按 [ADR-041](../decisions/adr-041-transaction-and-auth-flow-events.md)，`AuthFlows` 提供 direct `RegistrationValidating`、`LoginValidating`、泛化 `LoginFailed`，以及事务内 `RegistrationSucceeded`、`LoginSucceeded`。拒绝校验或成功监听器错误会回滚对应账户/refresh 写入；注册验证码在账户提交后单独签发，Session 登录不声明 SessionStore 原子提交。规范化邮箱只供验证策略使用，监听器不得记录；事件不包含任何认证秘密。
 - AuthFlows 敏感接口限流及可配置的通用 HTTP `RateLimitLayer` 已实现，路由/key/策略边界见 [HTTP 事实](http.md)；`generate mailer` / `generate policy` 的双库生成验收见 [测试基线](../memory/testing.md)。这些交付不代表公开业务钩子或总体资源限制已完成。
 - 密码服务使用受参数限制的 Argon2id 与 `spawn_blocking`，当前服务本身没有独立的总体并发许可或排队容量；生产资源控制按 [补强计划](../plans/v1-performance-and-readiness.md#2-过载阻塞操作与超时) 补齐，不能由单次参数上限推定全进程内存有界。
@@ -65,16 +65,16 @@
 ## 验证
 
 - `cargo test -p openrust --test http_router --test http_resource`：全局 Tower layer 与错误响应包装测试通过。
-- `cargo test -p server --features auth --test auth_runtime`：共享 Session middleware 与身份认证运行时测试通过；`session-redis` feature 及 Redis adapter 证据见 `memory/testing.md`。
-- PostgreSQL 18 / MySQL 8.4：`cargo test -p server --features 'auth db-<backend>' --test auth_query_authorization` 使用隔离库和真实认证 HTTP 请求，验证过滤 OR 不扩大 owner 范围、越权详情不可见、分页计数、批量 update/delete 与父子关联规则；独立 consumer `examples/query-authorization` 通过 `cargo check --manifest-path ...`。
-- `cargo test -p openrust-server --features auth,db-postgres --test auth_database` / `--features db-mysql --test database`：真实本地容器验证迁移、CSRF、PAT 签发/哈希存储/列举/过期输入/归属隔离/跨实例撤销与最近使用时间、通用 Session store 和两个应用实例间撤销；MySQL 使用具备建库权限的测试账号。
+- `cargo test -p openrust --features auth --test auth_runtime`：共享 Session middleware 与身份认证运行时测试通过；`session-redis` feature 及 Redis adapter 证据见 `memory/testing.md`。
+- PostgreSQL 18 / MySQL 8.4：`cargo test -p openrust --features 'auth db-<backend>' --test auth_query_authorization` 使用隔离库和真实认证 HTTP 请求，验证过滤 OR 不扩大 owner 范围、越权详情不可见、分页计数、批量 update/delete 与父子关联规则；独立 consumer `examples/query-authorization` 通过 `cargo check --manifest-path ...`。
+- `cargo test -p openrust --features auth,db-postgres --test auth_database` / `--features db-mysql --test database`：真实本地容器验证迁移、CSRF、PAT 签发/哈希存储/列举/过期输入/归属隔离/跨实例撤销与最近使用时间、通用 Session store 和两个应用实例间撤销；MySQL 使用具备建库权限的测试账号。
 - `cargo test -p openrust --features auth --lib`：JWT 配置、签发/验证、错误边界及密钥轮换测试通过。
 - `cargo test -p openrust --features auth --lib`：验证码用途/身份绑定、错误尝试耗尽、一次消费和策略边界单测通过；`session_login_rotates_id_preserves_app_data_and_redacts_csrf` 验证 ID 轮换、应用数据保留、CSRF digest 与 Debug 脱敏。
-- `OPENRUST_TEST_DATABASE_URL=... cargo test -p openrust-server --features auth,db-postgres --test auth_database` 和 MySQL 对应命令：验证 refresh 哈希存储、旋转与不延长有效期、重放撤销、账户撤销、两请求并发刷新与并发账户撤销；验证 `AuthPlugin` 注册的应用级 `RefreshTokens`。
+- `OPENRUST_TEST_DATABASE_URL=... cargo test -p openrust --features auth,db-postgres --test auth_database` 和 MySQL 对应命令：验证 refresh 哈希存储、旋转与不延长有效期、重放撤销、账户撤销、两请求并发刷新与并发账户撤销；验证 `AuthPlugin` 注册的应用级 `RefreshTokens`。
 - 历史 PostgreSQL 14 / MySQL 8.0 真实隔离库 `database` 集成测试覆盖 verification migration 与 table-name resolver、Argon2id 摘要存储、resend cooldown、purpose/identity 绑定、尝试耗尽、过期失效，以及两个独立 App/AuthPlugin 实例间恰好一次并发消费。
-- `cargo test -p openrust-server --features auth --test auth`：facade JWT Bearer 路由在不注册 SessionPlugin 时认证成功，并与 `Inject<T>` 共存。
+- `cargo test -p openrust --features auth --test auth`：facade JWT Bearer 路由在不注册 SessionPlugin 时认证成功，并与 `Inject<T>` 共存。
 - `cargo test -p openrust-cli`：生成模板断言 JWT/AuthFlows plugins、认证路由、`ClientIp`、根 `config/` 与外置密钥变量。
-- `OPENRUST_TEST_DATABASE_URL=... cargo test -p openrust-server --features auth,db-postgres|auth,db-mysql --test auth_database`：真实隔离库认证流程新增 Session 登录/登出、CSRF、旧 ID 与并发旧请求失效及保留应用数据断言；2026-10-26 在 PostgreSQL 16 与 MySQL 8.4 上真实运行通过。
+- `OPENRUST_TEST_DATABASE_URL=... cargo test -p openrust --features auth,db-postgres|auth,db-mysql --test auth_database`：真实隔离库认证流程新增 Session 登录/登出、CSRF、旧 ID 与并发旧请求失效及保留应用数据断言；2026-10-26 在 PostgreSQL 16 与 MySQL 8.4 上真实运行通过。
 - `OPENRUST_TEST_DATABASE_URL=mysql://... cargo test --test auth_flows`：此前生成项目端到端流程在 MySQL 8.4.11 通过，覆盖验证码、限流 envelope、JWT、refresh 重放、密码重置和登出；PostgreSQL 最新生成项目复验待本机数据库恢复。
 - 2026-10-26 当前基线复核：PostgreSQL 18 与 MySQL 8.4 的 `auth_database` 各 6 项、`auth_runtime` 各 6 项通过；当前生成模板项目在两库分别通过 `auth_flows` 真实 TCP HTTP 测试。覆盖注册/重复注册、邮箱验证、登录、Session 轮换/CSRF/退出、JWT 与 PAT、refresh 轮换/重放、密码重置、共享限流、Policy/RBAC 与 PAT ability 交集、可信代理和统一错误 envelope。
 - 2026-10-26：默认及 all-features workspace fmt/clippy/test/doc 全通过；认证真实隔离库流程测试在 PostgreSQL 16 与 MySQL 8.4 通过；新生成 PostgreSQL、MySQL 项目分别运行 `cargo fmt --all --check && cargo check && cargo test` 通过。MySQL 模板构建提示有数个未启用可选 crate patch，不影响已启用图谱或测试结果。

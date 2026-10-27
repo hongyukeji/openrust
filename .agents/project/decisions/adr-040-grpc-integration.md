@@ -66,7 +66,7 @@ G3c 实施将 `GrpcConfig.health_drain_grace_ms` 加入公共配置，默认 250
 - 同一持久 Channel 在摘除期间必须继续到达存活节点；重启被摘除节点后，验证健康状态恢复及双节点重新分配。
 - 真实 Envoy + TCP 节点拓扑作为本地/CI 可复跑验收；不以 loopback、fake、独立互不复制的进程或 TCP 连接轮询代替。
 - 不承诺流进度迁移；业务客户端在流中断后负责重新发起调用及业务级恢复。
-- 修改范围为 `src/grpc.rs`、`src/config/grpc.rs`、`apps/server` 集成测试、`examples/grpc`、对应 CI、示例文档及当前项目事实/验收记录；新增公开 `health_drain_grace_ms` 配置。
+- 修改范围为 `src/grpc.rs`、`src/config/grpc.rs`、`根目录集成宿主` 集成测试、`examples/grpc`、对应 CI、示例文档及当前项目事实/验收记录；新增公开 `health_drain_grace_ms` 配置。
 
 ## G3c 验收结果
 

@@ -135,7 +135,7 @@ v2 保持 Loco、Laravel、Goravel、OpenSpring、若依、芋道的原顺序，
 
 框架实现集中在根 `openrust` package 的 `src/`，配置代码在 `src/config/`。目录迁移与源码 workspace 交付已完成，当前实际结构见 [architecture.md](../architecture.md)，验收入口见 [Spec](module-layout-migration-spec.md) 与 [ADR-021](../decisions/adr-021-loco-style-module-layout.md)。
 
-工具包已在 `cli/`、`macros/`、`testing/`，旧 `crates/` 已移除。按 [ADR-039](../decisions/adr-039-source-workspace-distribution.md)，整套源码交付，内部包改为目录同名、全部禁用发布；proc-macro 不合入普通 library。`examples/<name>/`、`tests/<capability>/` 采用明确的 Cargo target/harness，不能靠嵌套目录自动发现测试。`apps/` 保留应用约定；`apps/server` 暂为集成宿主，删除或迁移须先替代其全部验收职责。
+工具 package 统一位于 `tools/{cli,macros,testing,performance}/`，旧 `crates/` 已移除。按 [ADR-039](../decisions/adr-039-source-workspace-distribution.md)，整套源码交付，内部包名仍与各工具目录末级同名，全部禁用发布；proc-macro 不合入普通 library。`performance` 单独承载性能基准且不进入默认成员。`examples/<name>/`、`tests/<capability>/` 采用明确的 Cargo target/harness，不能靠嵌套目录自动发现测试。`apps/` 保留应用约定；根目录集成宿主按 ADR-062 迁入根 package。
 
 未实现的 cache/storage 等能力在对应里程碑以实际实现进入 `src/`；不预建空模块或为每种能力创建独立 package。事件当前事实见 [core/events.md](../core/events.md)。
 

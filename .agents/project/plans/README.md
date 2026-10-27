@@ -3,7 +3,7 @@
 > 本目录保存 v1/v2 尚未完成的详细方案。代码、Git 与当前 crate 事实高于计划描述；实施前必须重新核对仓库。
 
 - [OpenRust v1 版本开发计划](gen1-plan.md)：目标、关键决策、能力范围、黄金路径、M0-M6 里程碑、验收原则、质量门禁、风险与 AI 协作分工。
-- [目录收尾 Spec](module-layout-migration-spec.md)：优先完成剩余工具 package 路径、examples/tests 分目录、apps/server 职责评估与测试/CI 入口。
+- [目录收尾 Spec](module-layout-migration-spec.md)：根 package 统一 server 入口、apps 业务职责及 tests/config/tools/CI 迁移与验收。
 - [OpenRust 框架设计](framework-design.md)：设计原则、模块与应用布局、内核、配置、路由、错误、数据、认证、异步、CLI、测试工具与框架代码规范。
 - [v1 性能与开箱即用补强计划](v1-performance-and-readiness.md)：完整使用路径与性能验收、待决策问题、推荐方案及推进顺序。
 - [v1 通用能力补齐计划](v1-common-capabilities.md)：WebSocket、gRPC、跨协议验证/调用作用域、出站安全/韧性、加密与密钥、请求幂等的范围与验收；gRPC 细则见 [ADR-040](../decisions/adr-040-grpc-integration.md)。

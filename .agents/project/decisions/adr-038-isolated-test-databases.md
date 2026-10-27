@@ -6,7 +6,7 @@
 
 ## 决策
 
-`openrust-test::TestDatabase::create::<M>(admin_url)` 接受一个可创建和删除数据库的管理连接 URL，并使用应用的 `MigratorTrait` 初始化独立数据库。PostgreSQL 在每次创建时建立迁移后的短暂模板库，再通过 `CREATE DATABASE ... TEMPLATE ...` 克隆；MySQL 为用例创建独立库并重放迁移。返回的 guard 提供连接 URL 和连接句柄；`close().await` 显式关闭连接并删除数据库，Drop 在 Tokio runtime 可用时尽力异步清理。
+`testing::TestDatabase::create::<M>(admin_url)` 接受一个可创建和删除数据库的管理连接 URL，并使用应用的 `MigratorTrait` 初始化独立数据库。PostgreSQL 在每次创建时建立迁移后的短暂模板库，再通过 `CREATE DATABASE ... TEMPLATE ...` 克隆；MySQL 为用例创建独立库并重放迁移。返回的 guard 提供连接 URL 和连接句柄；`close().await` 显式关闭连接并删除数据库，Drop 在 Tokio runtime 可用时尽力异步清理。
 
 库名由框架生成，不从用户输入拼接 SQL。连接 URL 的数据库名路径会替换为隔离库名，凭据与查询参数保留。数据库创建或迁移失败时清理已创建的库。
 

@@ -30,7 +30,7 @@
 
 1. 用户已调整优先级：根 package 模块迁移闭环后先实施此 M2 数据层增补，M3 认证功能 WIP 暂停并保留。认证及其他关键路径强制主库读取，不能隐含进入副本路由。
 2. 在依赖路由语义的后续数据功能簇前领取 `todo.md` 对应项；原 M2 完成标签不能覆盖此新增范围。先评估现有 API、下游、事务钩子和 Plugin 扩展，形成 5–15 行 Spec 与公共 contract，再实现。
-3. 已同步 `Db` public API、`DatabasePlugin`、`apps/server` 双库集成、数据库 README 与测试基线；默认配置保持单库，并提供只读副本配置示例。
+3. 已同步 `Db` public API、`DatabasePlugin`、根 `tests/server/` 双库集成、数据库 README 与测试基线；默认配置保持单库，并提供只读副本配置示例。
 4. 已更新 `core/db.md`、`progress.md` 和测试基线；不能把本计划以外的多 API 集群或完整业务性能报告视为已完成。
 
 ## 本轮最小 contract（ADR-029）
@@ -49,5 +49,5 @@
 - 契约测试验证单库兼容、副本选择、强制主库、写后保持主库、事务/锁定读取固定主库、自定义连接扩展和错误分类；一个事务中不能泄漏出副本查询。
 - PostgreSQL 18 与 MySQL 8.4 各使用真实主库及只读副本完成集成验证。受控暂停/恢复复制测试覆盖可观察的旧读、主库新读、两个独立 App 的 scope 隔离及副本追平；两个独立数据库不能冒充复制拓扑。
 - 两个独立 `App` 实例验证主库新读与 task-local scope 隔离；完整负载均衡、多节点认证撤销、幂等、队列/调度回归仍属于最终集群验收，不由本 M2 能力单独宣称通过。全量 Rust 门禁与 PostgreSQL/MySQL 集成检查按仓库规范执行。
-- `apps/server/benches/db_routing.rs` 提供 release 模式、单并发 `SELECT 1` 的主库/副本路由微基准；记录吞吐与 p50/p95/p99。它不是代表性业务性能报告，不据此宣称副本带来吞吐提升；完整 CPU/内存/负载基线按性能计划完成。
+- `tools/performance/benches/db_routing.rs` 提供 release 模式、单并发 `SELECT 1` 的主库/副本路由微基准；以 `cargo bench -p performance --bench db_routing --features db-routing-bench,db-postgres` 或 `--features db-routing-bench,db-mysql` 运行，记录吞吐与 p50/p95/p99。它不是代表性业务性能报告，不据此宣称副本带来吞吐提升；完整 CPU/内存/负载基线按性能计划完成。
 - 2026-10-26 已在隔离临时服务完成 PostgreSQL 18.6 和 MySQL 8.4.13 真实复制拓扑测试；当前仍未建立完整负载均衡集群。临时服务不是用户数据库；不得自动更改已有服务、凭据或服务器配置。

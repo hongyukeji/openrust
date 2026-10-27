@@ -1,7 +1,7 @@
 # testing
 
 > 受众：AI Agent
-> 更新：2026-10-25
+> 更新：2026-10-27
 > 摘要：测试工具 crate 当前实现边界。
 
 ## 当前实现
@@ -11,6 +11,7 @@
 - 隔离 URL 保留原 URL 凭据与查询参数，只替换 database path。管理用户必须有 CREATE/DROP DATABASE 权限。
 - `close().await` 关闭连接并等待数据库删除；guard 在 Tokio runtime 内 drop 时安排 best-effort 清理。
 - `Debug` 遮蔽 database URL。
+- 独立 `testing` package 位于 `tools/testing/`，保持 `testing::TestDatabase` 应用入口；实现由根 `openrust::testing` 提供。
 - 隔离保证仅覆盖已实现的 PostgreSQL 与 MySQL；其他 SeaORM backend 需要独立隔离策略，不因 `Db::initialize()` 可接入而推断兼容。
 
 ## 后续边界

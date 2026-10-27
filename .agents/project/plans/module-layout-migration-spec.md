@@ -1,13 +1,13 @@
 # 根模块与目录收尾 Spec
 
 > 受众：AI Agent
-> 状态：迁移已实施，最终验收待完成。真实 server bin、配置和集成测试入口已迁入根 package；工具 package 已收纳到 `tools/`。现有 CLI 测试记录显示 `creates_multiple_workspace_apps_with_local_dependencies_and_isolated_configs` 与 `rejects_external_invalid_duplicate_and_existing_destinations_without_mutation` 在生成项目时返回 `No such file or directory`；根因尚未确认，不能将本 Spec 标记为验收完成。
+> 状态：已实施并通过本次迁移验收。真实 server bin、配置和集成测试入口已迁入根 package；工具 package 已收纳到 `tools/`。根 workspace 的默认成员仅包含根 package，保证仓库根目录裸 `cargo run` 唯一选择 `server`；全 workspace 检查使用 `--workspace`。
 > 决策：[ADR-062](../decisions/adr-062-root-server-entry.md)。工具包与源码交付迁移已完成，见 [ADR-021](../decisions/adr-021-loco-style-module-layout.md) 与 [ADR-039](../decisions/adr-039-source-workspace-distribution.md)。
 
 ## 目标
 
 1. 根 `openrust` package 承载框架 library 与框架开发/集成用 `server` bin，二进制源码统一位于根 `src/`。
-2. 从仓库根目录直接执行 `cargo run` 启动宿主，`cargo test` 运行根 package 的集成测试；保留 `CARGO_BIN_EXE_server` 真实进程覆盖。
+2. 从仓库根目录直接执行 `cargo run` 启动宿主；根 package 是默认成员，`cargo test` 运行根 package 的集成测试；全 workspace 验证使用 `--workspace`。保留 `CARGO_BIN_EXE_server` 真实进程覆盖。
 3. `apps/` 只作为开发者业务应用目录约定，不保留框架自带的 `apps/server` package。
 4. 集成测试迁至根 `tests/server/`，配置放项目根 `config/`；Rust 配置代码仍放 `src/config/`。性能基准集中在 `tools/performance/` workspace package，避免把性能工具入口并入框架 package。
 5. 保留 `testing` 独立工具 package 的下游入口 `testing::TestDatabase`，内部实现统一在根 `src/testing/`，避免根集成测试依赖 `testing` 造成 package 依赖环。
@@ -37,7 +37,14 @@
 ## 验收
 
 1. `cargo metadata --no-deps --format-version 1` 显示 workspace 含 `openrust`、`cli`、`macros`、`testing`、`performance`；root package 有 `server` bin 和集成测试 target，`performance` package 有数据库路由 bench target。
-2. `cargo run -- config show` 从仓库根启动；默认 serve 经真实 TCP `/health` 返回成功；`APP_SERVER__PORT` 仍有效。
-3. `cargo test --workspace`、all-features Clippy/tests/docs、fmt 与 cargo deny 通过；CLI fixture 与 CLI workspace 检测测试通过。
+2. 根目录 `cargo run -- config show` 和裸 `APP_SERVER__PORT=43187 cargo run` 均成功；后者日志显示监听 `127.0.0.1:43187`，绕过本机代理请求真实 TCP `/health` 返回 200。
+3. `cargo test --workspace`、默认与 all-features Clippy/tests/docs、fmt、no-default-features check 与 cargo deny 通过；CLI 全部 19 项测试通过，包括 `creates_multiple_workspace_apps_with_local_dependencies_and_isolated_configs` 与 `rejects_external_invalid_duplicate_and_existing_destinations_without_mutation`。
 4. PostgreSQL/MySQL/Redis 专项入口使用现有适用服务并复验；不创建重复服务。保留 worker/scheduler 子进程、Keycloak fixture、真实隔离库和 `CARGO_BIN_EXE_server` 覆盖。
 5. 扫描有效代码和文档中旧 `apps/server` 入口，历史 ADR/CHANGELOG 仅保留可识别的历史记录；不更改其他功能簇已有 WIP。
+
+## 本次验收结果（2026-10-27）
+
+- `cargo metadata --no-deps --format-version 1` 确认 workspace 有五个 package、根 package 提供 `server` bin，唯一默认成员为 `openrust`；`cargo run -- config show` 成功。
+- 裸 `APP_SERVER__PORT=43187 cargo run` 实际启动根 `server`；`curl --noproxy '*' http://127.0.0.1:43187/health` 返回 HTTP 200，随后 SIGINT 正常退出。
+- 迁移后的两项 CLI 生成器回归及 `cargo test -p cli`（19 项）通过；默认和 all-features workspace tests、Clippy、warnings-denied Rustdoc、`cargo check --workspace --no-default-features`、`cargo deny check` 均已通过。`cargo fmt --all --check` 与 `git diff --check` 本次复核。
+- 本次只验证裸 `cargo run` 的端口覆盖和存活端点；PostgreSQL/MySQL/Redis 迁移前后专项不重复运行，采用已有适用服务的迁移验收记录。

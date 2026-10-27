@@ -6,11 +6,11 @@
 
 ## 根目录启动入口调整（2026-10-27）
 
-按 ADR-062，框架集成宿主已迁入根 package：根 `src/main.rs` 是唯一显式 `server` bin，根目录可直接 `cargo run`；根 `config/` 与 `tests/server/` 承接原宿主配置和验收，数据库路由基准由独立 `performance` package 承载。CLI fixture、CI 和 Agent 文档已同步，TestDatabase 实现在根 package 提供并由 `testing` 兼容 re-export。`cargo fmt --all --check`、workspace all-target check、server 聚合集成测试（8 项）、CLI 测试（19 项）、all-features clippy、warnings-denied Rustdoc、Cargo metadata 与 diff-check 通过；此前根 `cargo run` 的真实 HTTP smoke 返回 200，PostgreSQL/MySQL 隔离库测试通过。现存 readiness/MFA 等 WIP 保留在工作区，未纳入提交。
+按 ADR-062，框架集成宿主已迁入根 package：根 `src/main.rs` 是唯一显式 `server` bin，workspace 默认成员仅含根 package，因此仓库根裸 `cargo run` 不会与 `tools/cli` 的 CLI 二进制冲突；完整 workspace 测试显式使用 `--workspace`。根 `config/` 与 `tests/server/` 承接原宿主配置和验收，数据库路由基准由独立 `performance` package 承载。CLI fixture、CI 和 Agent 文档已同步，TestDatabase 实现在根 package 提供并由 `testing` 兼容 re-export。`cargo run -- config show` 成功；本次裸 `APP_SERVER__PORT=43187 cargo run` 在真实 TCP `/health` 返回 200，SIGINT 正常退出。迁移后的两个 CLI 生成器回归与 CLI 全部 19 项测试通过；此前默认/all-features workspace tests、Clippy、warnings-denied Rustdoc、no-default-features check 与 cargo deny 均通过。PostgreSQL/MySQL 隔离库迁移测试已有记录。现存 readiness/MFA 等 WIP 保留在工作区，未纳入迁移提交。
 
 ## 工具 package 收纳（2026-10-27）
 
-`cli`、`macros`、`testing`、`performance` 的 manifest 与源码集中到 `tools/`，Cargo package 名称、public API 和 `cargo -p` 命令保持不变；根 workspace、CLI 工作区识别、gRPC 示例及文档路径同步更新。CI 使用 package 名调用，路径无需修改。`cargo metadata` 显示五个 workspace package 正确解析，`performance` 不属于 default-members；CLI 常规测试、workspace Clippy、warnings-denied Rustdoc、fmt 曾通过。workspace 全量测试记录中，`creates_multiple_workspace_apps_with_local_dependencies_and_isolated_configs` 与 `rejects_external_invalid_duplicate_and_existing_destinations_without_mutation` 在生成项目时因 `No such file or directory` 失败；根因尚未确认，故迁移未通过最终 workspace 门禁。PostgreSQL/MySQL 两个性能基准 feature 的编译通过，未重跑真实数据库 benchmark。
+`cli`、`macros`、`testing`、`performance` 的 manifest 与源码集中到 `tools/`，Cargo package 名称、public API 和 `cargo -p` 命令保持不变；根 workspace、CLI 工作区识别、gRPC 示例及文档路径同步更新。CI 使用 package 名调用，路径无需修改。`cargo metadata` 显示五个 workspace package 正确解析，`performance` 不属于 default-members。迁移后 CLI 19 项测试（含两个曾出现瞬时 `No such file or directory` 的生成项目回归）、默认与 all-features workspace tests、Clippy、warnings-denied Rustdoc、fmt、no-default-features check 与 cargo deny 均通过；PostgreSQL/MySQL 两个性能基准 feature 的编译已有记录，未重跑真实数据库 benchmark。
 
 ## F7 SSO 验收完成
 

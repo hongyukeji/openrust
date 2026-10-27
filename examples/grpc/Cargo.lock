@@ -3702,10 +3702,6 @@ name = "testing"
 version = "0.0.0"
 dependencies = [
  "openrust",
- "sea-orm",
- "sqlx",
- "tokio",
- "url",
 ]
 
 [[package]]

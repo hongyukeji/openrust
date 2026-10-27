@@ -24,4 +24,4 @@
 
 ## 验收
 
-默认 feature 不拉入出站网络依赖；feature 下覆盖配置校验、JSON、form、multipart、请求/响应流、状态、体积限制、超时、显式有界重试、取消及 fake 不访问网络。真实本地 TCP 服务验证连接与错误行为，生成项目与 `apps/server` 分别验证 feature 接入。
+默认 feature 不拉入出站网络依赖；feature 下覆盖配置校验、JSON、form、multipart、请求/响应流、状态、体积限制、超时、显式有界重试、取消及 fake 不访问网络。真实本地 TCP 服务验证连接与错误行为，生成项目与 `根目录集成宿主` 分别验证 feature 接入。

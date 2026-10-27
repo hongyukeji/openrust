@@ -21,7 +21,7 @@
 
 - 离线单元/集成测试：RFC 8452 已知向量、二进制/空明文往返、nonce 随机性、多实例互解、显式上下文、当前 key 写入、旧 key 解密、active key 切换、未知/退休 key、篡改 envelope/nonce/tag、错误上下文、非法/超限输入、配置与错误 Debug 脱敏。
 - `config show` 和配置提取测试证明 key map 与错误不泄密；`openrust key generate` 测试检查输出可解码为 32 bytes 且不写文件。
-- `apps/server` 仅在 `encryption` feature 下注册插件；CLI 生成项目 `--encryption` 的 check/test 与最简运行配置示例通过。
+- `根目录集成宿主` 仅在 `encryption` feature 下注册插件；CLI 生成项目 `--encryption` 的 check/test 与最简运行配置示例通过。
 - 默认和 all-features workspace fmt/clippy/test/docs、cargo deny、生成项目验证全部通过。无外部密钥服务和网络依赖。
 
 ## 轮换操作

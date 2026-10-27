@@ -1,0 +1,155 @@
+---
+source: tools/cli/src/main.rs
+expression: snapshot
+---
+--- Cargo.toml ---
+[package]
+name = "blog"
+publish = false
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+openrust = { workspace = true, features = ["cache-redis"] }
+
+--- .gitignore ---
+/target/
+/storage/
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+--- config/default.toml ---
+[app]
+name = "blog"
+url = "http://localhost:3000"
+
+[server]
+host = "127.0.0.1"
+port = 3000
+request_timeout_secs = 30
+shutdown_timeout_secs = 10
+trusted_proxy_ranges = []
+
+[server.compression]
+enabled = true
+
+[server.cors]
+enabled = false
+
+[api]
+http_status = "always_ok"
+
+[i18n]
+default_locale = "en"
+fallback_locale = "en"
+
+[mail]
+driver = "log"
+
+[sms]
+driver = "log"
+
+[cache]
+default_store = "default"
+
+[cache.stores.default]
+driver = "redis"
+namespace = "blog"
+dsn = "redis://127.0.0.1:6379/"
+
+[cache.singleflight]
+max_in_flight_keys = 128
+max_waiters_per_key = 64
+loader_timeout_secs = 30
+
+[cache.swr]
+max_in_flight_refreshes = 64
+
+[session]
+secure = true
+http_only = true
+same_site = "lax"
+ttl_secs = 1209600
+
+# 可选的独立数据库实例不会继承 [database] 配置：
+# [database.instances.analytics]
+# url = "postgres://user:password@host/database"
+# max_connections = 4
+# table_prefix = "analytics_"
+
+--- src/main.rs ---
+//! 应用程序入口。
+
+mod app;
+mod routes;
+
+fn main() -> std::process::ExitCode {
+    openrust::run::<app::Blog>()
+}
+
+--- src/app.rs ---
+use openrust::http::HttpPlugin;
+use openrust::i18n::I18nPlugin;
+use openrust::mail::MailerPlugin;
+use openrust::prelude::*;
+use openrust::sms::SmsPlugin;
+
+use crate::routes;
+
+pub struct Blog;
+
+impl Application for Blog {
+    type Config = NoConfig;
+
+    fn build(app: &mut AppBuilder) {
+        app.plugin(HttpPlugin)
+            .plugin(I18nPlugin::default())
+            .plugin(openrust::cache::CachePlugin)
+            .plugin(MailerPlugin)
+            .plugin(SmsPlugin)
+            .routes(routes::register);
+    }
+}
+
+--- src/routes.rs ---
+use openrust::prelude::*;
+
+pub fn register(routes: Routes) -> Routes {
+    routes.get("/", root)
+}
+
+async fn root() -> Json<std::collections::BTreeMap<&'static str, &'static str>> {
+    Json(std::collections::BTreeMap::from([(
+        "name",
+        env!("CARGO_PKG_NAME"),
+    )]))
+}
+
+--- tests/application.rs ---
+fn manifest_declares_package_name(manifest: &str, package_name: &str) -> bool {
+    for line in manifest.lines() {
+        if line == format!("name = \"{package_name}\"") {
+            return true;
+        }
+    }
+    false
+}
+
+#[test]
+fn application_package_is_generated() {
+    let manifest = include_str!("../Cargo.toml");
+    let package_name = env!("CARGO_PKG_NAME");
+    assert!(manifest_declares_package_name(manifest, package_name));
+}
+
+--- AGENTS.md ---
+# 应用开发指南
+
+本项目基于 OpenRust。运行 `openrust dev` 启动开发服务器，运行 `cargo test` 执行测试。
+
+应用代码位于 `src/`；HTTP 处理器放在 `src/controllers/`，路由在 `src/routes.rs` 中注册。
+
+若通过 `openrust new --grpc` 生成了 `proto/` 与 `src/grpc.rs`，可在 `proto/` 维护 Protobuf，并由 `build.rs` 生成 typed Rust 代码。启用 gRPC feature 不会自动监听端口；需在应用中注册服务并安装 `GrpcPlugin`。

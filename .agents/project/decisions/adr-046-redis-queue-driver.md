@@ -25,6 +25,6 @@
 
 ## 验收记录
 
-真实 Redis 8.10.2 服务验收：`cargo test -p openrust --features queue-redis --test queue_redis_driver` 的 3 项通过，覆盖四个独立连接 worker 竞争 40 项任务、唯一派发、重试/失败保留/幂等人工重试/进度、真实子进程强杀后的租约接管，以及错误 namespace 和不可达服务失败关闭。`cargo test -p server --features queue-redis --test queue_redis` 的 2 项通过，覆盖 Redis-only QueuePlugin 无 DatabasePlugin 接入及数据库 schedule 配置拒绝。另以 `examples/queue` 启动 Redis-only API，真实 TCP `POST /jobs` 返回任务 ID，再启动独立 worker 连接相同 namespace；API 和 worker 均正常启动并经 Ctrl-C 退出。
+真实 Redis 8.10.2 服务验收：`cargo test -p openrust --features queue-redis --test queue_redis_driver` 的 3 项通过，覆盖四个独立连接 worker 竞争 40 项任务、唯一派发、重试/失败保留/幂等人工重试/进度、真实子进程强杀后的租约接管，以及错误 namespace 和不可达服务失败关闭。`cargo test -p openrust --features queue-redis --test queue_redis` 的 2 项通过，覆盖 Redis-only QueuePlugin 无 DatabasePlugin 接入及数据库 schedule 配置拒绝。另以 `examples/queue` 启动 Redis-only API，真实 TCP `POST /jobs` 返回任务 ID，再启动独立 worker 连接相同 namespace；API 和 worker 均正常启动并经 Ctrl-C 退出。
 
 fmt、默认/all-features workspace clippy、默认/all-features workspace tests、warnings-denied 默认/all-features docs、`cargo deny check` 与 no-default-features check 通过。deny 保留既有 duplicate dependency 与 unmatched MPL allowance 警告，其余 advisories/bans/licenses/sources 通过。Redis Queue 不访问 SQL，因此本簇不新增 PostgreSQL/MySQL 证据；数据库 QueueDriver 原有双库测试未被替代。Redis Cluster 分片、Redis 6.2 最低版本和生产多节点负载留待 v1 发布/集群门禁。

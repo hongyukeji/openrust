@@ -38,7 +38,7 @@ OpenRust 定位为 Rust 应用开发的“瑞士军刀”：以高性能为基�
 | 短信 | 统一 `SmsSender`/`SmsDriver`、Twilio Messages REST、log / fake driver；真实账户发送需授权验收 | contract 与发送边界见 [ADR-033](../decisions/adr-033-sms-driver-and-template-contract.md) |
 | 模板 | 邮件安全 renderer/布局复用 Mailer、lettre 与同一 i18n；生成器支持应用模板覆盖 | F2/F3/F9 必交；SSR/静态 Starter 后续评估，不自建模板 DSL 或第二套发送系统 |
 | 管理后台 / 插件市场 | 不在 v1 版本 | 由 `Plugin` 扩展模型承载第三方包，不做动态加载 |
-| 许可证与名称 | MIT OR Apache-2.0；根 `openrust`、内部 `cli/macros/testing/server`，所有 package 禁用发布（ADR-005/039） | 整套源码 workspace 交付，内部名称按职责，不安排 crates.io 预留或发布 |
+| 许可证与名称 | MIT OR Apache-2.0；workspace packages 为根 `openrust`、`cli`、`macros`、`testing`、`performance`，根 package 的 `server` bin 不构成独立 package，全部 package 禁用发布（ADR-005/039/062） | 整套源码 workspace 交付，内部名称按职责，不安排 crates.io 预留或发布 |
 | Rust 版本 | Edition 2024；MSRV 为当前 stable 减两个小版本 | 既用新语法，又给下游留升级窗口 |
 | 仓库 | `https://github.com/hongyukeji/openrust`，本地 `/Users/Home/Codes/Rust/openrust`，默认分支 `main` | 源码版本管理、独立 CI、独立贡献者入口；Agent 记忆在本仓库 `.agents/project/` |
 
@@ -63,7 +63,7 @@ OpenRust 定位为 Rust 应用开发的“瑞士军刀”：以高性能为基�
 
 | 要求 | 执行位置与验收边界 |
 | --- | --- |
-| 聚合启动入口 | `apps/server` 当前保留为开发/集成验证宿主；默认启动不装配所有外部依赖。最新目录与职责收尾按 [迁移 Spec](module-layout-migration-spec.md)，替代覆盖充分后再决定是否移除 |
+| 聚合启动入口 | 根 package 的 `server` bin 是开发/集成验证宿主，默认启动不装配所有外部依赖；从根目录直接 `cargo run`。 |
 | 统一入口与第三方扩展 | 按 [ADR-009](../decisions/adr-009-extensible-capability-drivers.md) 提供驱动契约、注册、配置、错误语义、示例与契约测试；用独立适配示例检查第三方是否需要修改框架 |
 | 基础读写分离 | v1 数据层增补已实现：默认单库、显式只读副本轮询、事务固定主库及 task-local 主库 scope；故障不自动回退。PostgreSQL 18.6 / MySQL 8.4.13 真实复制验收见 [专题计划](v1-database-read-write-splitting.md)；完整集群另行验收 |
 | 数据库可扩展 | M2 集中后端及方言差异；v1 正式交付仍为 PostgreSQL/MySQL。明确 SeaORM 边界，不承诺任意数据库或数据模型直接替换 |

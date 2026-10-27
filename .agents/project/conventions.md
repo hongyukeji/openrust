@@ -22,8 +22,8 @@
 
 | 对象 | 规则 | 示例 |
 | --- | --- | --- |
-| 主框架与内部工具包 | 根 `openrust` 内按 module 划分；工具 package 与目录同名，所有 package 显式 `publish = false` | `cli/` → `cli`、`macros/` → `macros`、`testing/` → `testing` |
-| 仓库内应用 | `apps/<name>`，包名使用应用职责名，`publish = false`；业务依赖本地 workspace | `apps/server` 的 package/二进制目标均为 `server`；保留现有宿主验收职责 |
+| 主框架与内部工具包 | 根 `openrust` 内按 module 划分；独立工具 package 统一位于 `tools/` 并与末级目录同名，所有 package 显式 `publish = false` | `tools/cli/` → `cli`、`tools/macros/` → `macros`、`tools/testing/` → `testing`、`tools/performance/` → `performance` |
+| 仓库内应用 | `apps/<name>`，包名使用应用职责名，`publish = false`；业务依赖本地 workspace | `apps/` 只放开发者业务应用；框架示例宿主位于根 `src/main.rs`，二进制目标名为 `server` |
 | driver 类型 | `<Backend><Capability>` | `RedisCache`、`DatabaseQueue` |
 | 配置结构 | `<Capability>Config` | `QueueConfig` |
 | 错误类型 | `<Capability>Error` | `QueueError` |
@@ -42,11 +42,11 @@
 - 时间使用 RFC 3339 UTC（`Z`）；错误 JSON 以 `timestamp` 字段携带毫秒精度时间字符串，成功 JSON 不包含此诊断字段。JSON 成功与错误均为 `application/json` 的 `ApiResponse<T>` 包装，正文 `request_id` 与响应头 `x-request-id` 一致。CORS 预检（`OPTIONS` 且带 `Access-Control-Request-Method`）只返回协议响应头，成功与拒绝时正文均为空，不包装。
 - `[api] http_status` 默认 `always_ok`（包装响应一律 200），可选 `semantic`；状态码与稳定 `code` 对照见 [ADR-008 §4](decisions/adr-008-api-conventions.md#4-错误)。
 
-### 能力接入 apps/server
+### 能力接入根集成宿主
 
-- 每个已实现的新能力在同一功能簇内接入 `apps/server`，并补聚合应用集成测试；这是能力完成定义的一部分。
+- 每个已实现的新能力在同一功能簇内按需接入根 package 宿主 `src/app.rs`，并在根 `tests/server/` 补聚合集成测试；这是能力完成定义的一部分。
 - 无需外部服务的默认能力可直接装配；加密等需要显式密钥的可选能力仍按 feature/config 启用。外部服务能力须验证 feature 转发、插件/迁移注册及实际运行入口，不以声明 feature 代替装配。
-- 当前 `server` 正式依赖只包含 `openrust`，不承载业务资源。后续若按 ADR-021 移除或迁移宿主，先为每项启动/测试职责提供等价入口和通过证据，再更新完成定义中的入口引用。
+- 当前 `server` 正式依赖只包含 `openrust`，不承载业务资源；启动、feature 组合与集成验收均由根 package 承载。
 
 ### 起名前三问
 
@@ -109,7 +109,7 @@ cargo deny check
 
 ### 构建产物与临时资源
 
-- 本节适用于开发者与 AI Agent。同一功能簇内可复用构建缓存，但不能等到功能簇收尾才首次检查空间：开始任一构建前、每个构建/测试命令结束后及长验证矩阵的每个阶段边界，都要检查仓库内所有 `target/` 总量和所在磁盘剩余空间，并在验收记录注明结果。仓库全部 `target/` 软上限为 10 GiB、硬上限为 20 GiB；所在磁盘可用空间低于总量 30% 为软告警，低于 20% 为硬告警。发现软告警时先停止继续扩展验证矩阵，检查并清理确认归属本任务的临时产物；若本仓库 target 非空，结束当前命令后立即完整清理，再评估能否运行下一条必要的定向门禁。达到硬告警时不启动任何新构建，包括定向测试；先停止本任务构建、确认无并发使用者并清理本仓库完整 target，只有磁盘余量恢复到 20% 以上才可继续。磁盘容量不会因清空仓库 target 恢复到软阈值时，暂停构建并报告，不能删除仓库外或归属不明的数据。每个功能簇验证结束后仍须执行 `cargo clean --dry-run` 复核再 `cargo clean`，清空可再生产物；临时源码副本和独立示例的 target 单独核算、单独清理。每次清理后记录实际回收量、仓库 target 总量及磁盘剩余空间。不得等磁盘耗尽或 target 达硬上限才处理；清理失败/被占用时说明路径和原因，不因此重跑整组测试。开发者操作入口见 [贡献指南](../../CONTRIBUTING.md#构建空间管理)。
+- 本节适用于开发者与 AI Agent。同一功能簇内可复用构建缓存，但不能等到功能簇收尾才首次检查空间：开始任一构建前、每个构建/测试命令结束后及长验证矩阵的每个阶段边界，都要检查仓库内所有 `target/` 总量和所在磁盘剩余空间，并在验收记录注明结果。仓库全部 `target/` 软上限为 10 GiB、硬上限为 20 GiB；所在磁盘可用空间低于总量 30% 为软告警，低于 5% 为硬告警。发现软告警时先停止继续扩展验证矩阵，检查并清理确认归属本任务的临时产物；若本仓库 target 非空，结束当前命令后立即完整清理，再评估能否运行下一条必要的定向门禁。达到硬告警时不启动任何新构建，包括定向测试；先停止本任务构建、确认无并发使用者并清理本仓库完整 target，只有磁盘余量恢复到 5% 以上才可继续。磁盘容量不会因清空仓库 target 恢复到软阈值时，暂停构建并报告，不能删除仓库外或归属不明的数据。每个功能簇验证结束后仍须执行 `cargo clean --dry-run` 复核再 `cargo clean`，清空可再生产物；临时源码副本和独立示例的 target 单独核算、单独清理。每次清理后记录实际回收量、仓库 target 总量及磁盘剩余空间。不得等磁盘耗尽或 target 达硬上限才处理；清理失败/被占用时说明路径和原因，不因此重跑整组测试。开发者操作入口见 [贡献指南](../../CONTRIBUTING.md#构建空间管理)。
 - 临时生成应用、干净源码副本及其 target 放在任务专属临时目录，记录创建归属，成功、失败或取消时均回收。诊断需要暂留时说明路径和保留原因；不得删除其他任务的目录。临时源码验证默认不把 `CARGO_TARGET_DIR` 指向仓库共享 target，避免一次性包名与 feature 组合长期堆积。
 - `cargo clean` 只清理当前仓库配置的 Cargo target，不清理 Cargo 下载缓存；清理后下一次构建会重新编译。仓库 target 仅在当前功能簇的多轮门禁之间复用；达到软告警时不得继续堆叠验证任务，功能簇结束后必须清理，不能长期保留。清理前复核范围并记录回收量。
 - 删除前检查真实路径、符号链接、Git 跟踪状态和任务归属，确认目标只含生成数据；检查 Cargo、rustc、rustdoc 及关联构建进程。清理共享目录时还须使用已验证与当前 Cargo 兼容的构建锁，持锁期间保留锁文件；无法取得锁或发现其他使用者时延后，不能只凭一次进程快照判断安全。锁文件是否存在不代表锁是否被占用。

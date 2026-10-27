@@ -36,5 +36,5 @@ v1 要求通用 Session/Cookie 与认证共用一个存储入口，并支持匿�
 ## 验收
 
 - PostgreSQL/MySQL 与两个独立应用实例验证匿名 Session、读取、过期、删除/撤销、ID 冲突和轮换期间旧请求保存。
-- 错误 Cookie、CSRF、PAT 独立性及存储故障统一响应均有契约测试；生成项目/`apps/server` 使用同一公开 Session 入口。
+- 错误 Cookie、CSRF、PAT 独立性及存储故障统一响应均有契约测试；生成项目/`根目录集成宿主` 使用同一公开 Session 入口。
 - 验证并发写入的最后成功写入语义和非原子能力边界；用 Rust 1.97 实际检查依赖 MSRV。

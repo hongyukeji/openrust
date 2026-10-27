@@ -34,6 +34,8 @@ pub mod signing;
 pub mod sms;
 pub mod storage;
 pub mod tenant;
+#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+pub mod testing;
 pub mod validation;
 
 #[cfg(feature = "auth")]

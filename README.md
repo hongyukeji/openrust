@@ -18,18 +18,18 @@ OpenRust 基于 `tokio`、`axum`、`tower` 和 `SeaORM` 构建，采用明确的
 
 ## 在仓库中运行
 
-集成宿主 [server](apps/server/README.md) 提供 HTTP、请求语言与本地日志邮件/短信驱动，不依赖外部服务。请在应用目录运行命令，让配置从 `apps/server/config` 加载。数据库、认证、队列和调度集成由显式组装的测试应用验证；启用 feature 不会自动安装这些服务：
+仓库根目录的 `src/main.rs` 提供可直接运行的示例宿主，默认安装 HTTP、请求语言、本地日志邮件与短信驱动，不依赖外部服务。框架代码、启动入口与集成测试统一由根 package 管理；`apps/` 保留给开发者自己的应用。数据库、认证、队列和调度由显式组装的测试应用验证；启用 feature 不会自动安装这些服务：
 
 ```bash
-cd apps/server
-cargo run -p server
-curl --noproxy '*' http://127.0.0.1:3000/health
-cargo run -p server -- config show
-cargo run -p server -- help
-cargo test -p server
+cargo run
+cargo run -- config show
+cargo run -- help
+cargo test --workspace
 ```
 
-应用默认从当前工作目录的 `config/` 读取配置。`APP_SERVER__PORT=4000 cargo run -p server` 或 `PORT=4000 cargo run -p server` 可覆盖监听端口；若两者同时设置，`APP_SERVER__PORT` 优先。应用可通过 `Application::config_namespace()` 选择如 `SHOP_` 的变量前缀。框架代码位于仓库根 package，能力模块位于 `src/audit.rs`、`src/config/`、`src/core/`、`src/db/`、`src/http/`、`src/i18n.rs`、`src/mail/`、`src/sms.rs`，以及按 feature 启用的 auth、encryption、signing、queue 和 schedule。每个应用的 TOML/YAML 配置保存在其根目录的 `config/` 中；`apps/server` 是本 workspace 的集成宿主。
+根 package 是 Cargo 默认成员，因此裸 `cargo run` 会启动示例 `server`；`cargo test --workspace` 会运行框架和所有工具 package 的测试。
+
+应用默认从当前工作目录的 `config/` 读取配置。`APP_SERVER__PORT=4000 cargo run` 或 `PORT=4000 cargo run` 可覆盖监听端口；若两者同时设置，`APP_SERVER__PORT` 优先。应用可通过 `Application::config_namespace()` 选择如 `SHOP_` 的变量前缀。框架代码位于仓库根 package，能力模块位于 `src/audit.rs`、`src/config/`、`src/core/`、`src/db/`、`src/http/`、`src/i18n.rs`、`src/mail/`、`src/sms.rs`，以及按 feature 启用的 auth、encryption、signing、queue 和 schedule。每个应用的 TOML/YAML 配置保存在其根目录的 `config/` 中；仓库根目录宿主用于框架开发与集成验收。
 应用数据加密通过可选的 `encryption` feature 启用。注册 `openrust::security::EncryptionPlugin`，在 `[security.encryption]` 下配置 32 字节密钥环，并使用 `openrust key generate` 生成本地密钥材料。当前密钥用于加密新值；受控轮换期间，历史密钥用于解密旧值。密钥应保存在版本控制之外。
 
 文件存储由可选 `storage-local` 与 `storage-s3` feature 提供，使用 `StoragePlugin` 装配 `Storage` 的 default/named disks。上传与下载都使用有界流，应用须先执行身份和资源授权；本地 disk 仅在当前节点可见。配置、安全边界与 `StorageBackend` 扩展方法见[文件存储指南](src/storage/README.md)。

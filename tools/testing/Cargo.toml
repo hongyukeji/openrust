@@ -1,0 +1,30 @@
+[package]
+name = "testing"
+publish = false
+description = "OpenRust 应用测试工具，提供 PostgreSQL 与 MySQL 隔离数据库"
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+categories.workspace = true
+keywords.workspace = true
+
+[dependencies]
+openrust = { workspace = true, optional = true }
+
+[features]
+default = []
+db-postgres = ["dep:openrust", "openrust/db-postgres"]
+db-mysql = ["dep:openrust", "openrust/db-mysql"]
+
+[dev-dependencies]
+sea-orm.workspace = true
+sea-orm-migration.workspace = true
+tokio.workspace = true
+
+[lints]
+workspace = true

@@ -6,7 +6,7 @@
 
 ## 当前实现
 
-- package `cli` 位于仓库 `cli/`，二进制命令 `openrust` 保留；源码交付与应用隔离按 [ADR-039](../decisions/adr-039-source-workspace-distribution.md) 已完成。
+- package `cli` 位于仓库 `tools/cli/`，二进制命令 `openrust` 保留；源码交付与应用隔离按 [ADR-039](../decisions/adr-039-source-workspace-distribution.md) 已完成。
 - `openrust --help` 及子命令帮助使用简体中文标题、选项说明和帮助/版本说明；命令、参数、配置键和协议值保留技术原名。
 - 新应用的 `AGENTS.md`、`.env.example` 注释、模块入口 Rustdoc，以及 Model/Migration/Mailer/Policy 生成 Rustdoc 使用简体中文；模板说明不改变应用邮件等运行时语言策略。
 

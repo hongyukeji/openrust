@@ -41,7 +41,6 @@ impl Application for App {
 }
 ```
 
-该 plugin 会注册可克隆的 `Db` 服务，并在应用完成组装时创建连接池。
 该 plugin 会注册可克隆的 `Db` 服务，并在应用完成组装时创建连接池；启用 `HttpPlugin` 时还为每个数据库实例注册只读就绪探针，检查主库及所有只读副本。探针失败会使 `/ready` 返回 503，但不会暴露 URL 或驱动错误。日常开发使用 PostgreSQL 18、MySQL 8.4 和 Redis 8；数据库集成 CI 使用 PostgreSQL 18 与 MySQL 8.4。Redis 集成会在 M5 缓存能力落地后加入 CI。当前运行时版本检查接受暂定最低版本 PostgreSQL 14+ 和 MySQL 8.0+；v1 发布前仍须验证框架在这些最低版本上的完整兼容性。Redis 暂定最低版本为 6.2+，日常开发基线为 8；其 driver 和兼容性验证待 M5 完成。只有主版本跨度较大或存在具体兼容风险时才增加额外版本专项检查。`Db::connection()` 返回 SeaORM `DatabaseConnection`；`Db::transaction()` 会提交成功的回调，并回滚返回错误的回调。标准 `DatabasePlugin` 与 `EventsPlugin` 同时注册时，提交前会派发可拒绝并回滚的 `TransactionBeforeCommit`；成功提交后只尽力通知 direct `TransactionCommitted` listeners，监听器失败不会伪装成事务回滚。可靠副作用应在提交前通过事务内 queued listener 持久化。直接使用 SeaORM 连接或原生 SQL 不触发生命周期事件；自定义数据库 plugin 也不会自动绑定事件。其 `Debug` 输出不包含已配置的 URL。若 URL 缺失、backend 未启用、连接池配置无效或连接失败，启动会以配置错误终止。
 
 只读副本可选配置，但必须与主库使用相同 backend：
@@ -127,7 +126,7 @@ openrust generate migration posts --uuid-id --soft-delete title:string
 
 `--uuid-id` 会为两个生成 package 启用 `db-uuid` feature，在选定数据库中存储 UUID ID，并由应用进程使用 `UUIDv7` 补齐缺失的插入 ID。`--soft-delete` 会添加可空 UTC `deleted_at`，以及显式的 `Entity::not_deleted()` 查询 helper；未调用该 helper 的查询和原始 SQL 仍会包含已删除记录。模型和迁移选项必须一致。UUID 和软删除都需显式启用，不会修改现有项目或表。
 
-`apps/server/benches/db_routing.rs` 提供发布模式下主库与只读副本路由的 `SELECT 1` 微基准。运行 `cargo bench -p server --features db-routing-bench,db-postgres --bench db_routing`，或改用 `db-routing-bench,db-mysql`；设置 `OPENRUST_TEST_DATABASE_URL` 与 `OPENRUST_TEST_READ_REPLICA_URL`。结果只反映该窄查询的串行吞吐量及 p50/p95/p99，不代表业务负载，也不能证明副本提升了吞吐量。显式 `db-routing-bench` feature 避免默认 workspace 检查在没有后端时编译数据库基准。
+`tools/performance/benches/db_routing.rs` 提供发布模式下主库与只读副本路由的 `SELECT 1` 微基准。运行 `cargo bench -p performance --bench db_routing --features db-routing-bench,db-postgres`，或改用 `db-routing-bench,db-mysql`；设置 `OPENRUST_TEST_DATABASE_URL` 与 `OPENRUST_TEST_READ_REPLICA_URL`。结果只反映该窄查询的串行吞吐量及 p50/p95/p99，不代表业务负载，也不能证明副本提升了吞吐量。该 package 位于 `tools/performance/`，不进入框架默认 targets。
 
 应用如需不同的 SeaORM 连接策略，可用自定义 plugin 替换 `DatabasePlugin`。在 `build` 阶段注册一个 `Db::default()`，再于 `finish` 阶段连接后初始化。带副本的自定义 plugin 可调用 `initialize_with_replicas(primary, replicas)`；所有连接必须报告相同的 SeaORM backend：
 

@@ -30,7 +30,7 @@
 ### 3. 测试开发体验
 
 - `testing` 公开 `TestDatabase::create::<M>`、`create_with_table_names`、`url`、`connection`、`close`，覆盖 PostgreSQL 迁移模板克隆和 MySQL 隔离库迁移、清理及 URL 脱敏；隔离契约见 [ADR-038](adr-038-isolated-test-databases.md)。尚无 TestApp、HTTP 断言或轻量 fixture 工具；能力 fake 目前由对应模块提供。
-- 框架现有底层可复用 `lifecycle::finalize`、`build_router`、Tower `ServiceExt::oneshot`、`TestDatabase`、各能力 fake driver。`apps/server` 和 HTTP 模块测试当前直接组合这些入口，证明单请求测试可行，但应用作者仍需自行接线；无网络 socket 的 HTTP 测试尚未形成稳定公开 helper。
+- 框架现有底层可复用 `lifecycle::finalize`、`build_router`、Tower `ServiceExt::oneshot`、`TestDatabase`、各能力 fake driver。`根目录集成宿主` 和 HTTP 模块测试当前直接组合这些入口，证明单请求测试可行，但应用作者仍需自行接线；无网络 socket 的 HTTP 测试尚未形成稳定公开 helper。
 - **决策：采纳一个薄的 `testing` 应用/HTTP 测试入口，列入 M6 测试工具闭环；不新增第二套 server、ORM fixture 系统或依赖真实端口的测试框架。** `TestApp` 应复用 `finalize`、公开 `build_router` 与 Tower `ServiceExt::oneshot`，能以显式配置和 plugin/fake 组装应用；响应断言覆盖 OpenRust JSON envelope、状态、headers 和 JSON path。数据库隔离仍复用 `TestDatabase`，按用户选择的测试数据库运行真实驱动。
 - V1 必须交付显式轻量 factory/fixture 工具，复用实体、普通 Rust builder 和 `TestDatabase`，构造与持久化分开，不增加隐式 Factory trait、自动清库或第二套 ORM；具体范围见补齐计划。能力 fake 断言仍随对应 contract 添加，不作为 TestApp 隐式行为。M6 验收须有独立 Application 测试，证明无需真实 socket 即可调用路由，验证响应、错误与显式 fake/plugin 替换；fixture 的可复现数据、关系约束、失败和隔离须在 PostgreSQL/MySQL 执行。
 - 来源：Loco 官方 `boot_test` / request test / seeded database 体验；OpenRust 采用显式 Rust builder 和现有工具组合，避免复制 Loco `AppContext` 或自动 truncate 语义。
@@ -45,5 +45,5 @@
 
 - `src/core/app.rs`：`Application::build` 与 `AppBuilder` 注册插件、命令、服务；`src/core/lifecycle.rs`：`finalize` 的 build/finish 顺序及首个错误即返回；`src/core/plugin.rs`：`Plugin` 仅有 build/finish。
 - `src/http/plugin.rs`：`RouteRegistry`、router layer registry、`build_router`；`src/http/serve.rs`：Axum graceful shutdown。
-- `cli/src/main.rs`：全局命令与 generator enum；`src/core/command.rs` 及 `src/db/{migration,seed}.rs`：运行时命令入口。
-- `testing/src/lib.rs`、`testing/src/database.rs` 与 `testing/README.md`：当前公开测试 API 仅为数据库隔离工具。
+- `tools/cli/src/main.rs`：全局命令与 generator enum；`src/core/command.rs` 及 `src/db/{migration,seed}.rs`：运行时命令入口。
+- `tools/testing/src/lib.rs` 与 `tools/testing/README.md`：测试 package 保留 `testing::TestDatabase` 入口，当前公开测试 API 仅提供数据库隔离工具；实现由根 `openrust::testing` 提供。

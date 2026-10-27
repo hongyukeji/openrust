@@ -22,7 +22,7 @@
 
 - local 临时目录真实读写、范围/路径/MIME/大小边界、错误/取消时目标 key 不可见与 staging 清理、流式下载及 custom driver 独立 consumer；另明确进程强杀可能留下不可见 provider staging，由有界 lifecycle 规则清理。
 - 启动隔离 MinIO 服务，以真实 S3 API 验收上传/读取/删除、metadata、multipart 大对象、超限/inspection 拒绝/取消清理、版本化 bucket 的 presigned URL 过期和 exact-version 绑定；同时验证关闭 versioning 时 fail-closed、对象被覆盖后旧 URL 仍读旧版本、presigned write 不存在；集成测试仅清理本任务创建的资源。
-- `apps/server` 接入及真实 TCP/HTTP 有界 multipart 上传和 streamed download；授权由应用 handler 显式检查，绕过前置授权的路径不得暴露对象。
+- `根目录集成宿主` 接入及真实 TCP/HTTP 有界 multipart 上传和 streamed download；授权由应用 handler 显式检查，绕过前置授权的路径不得暴露对象。
 - 按 `AGENTS.md` 执行 workspace fmt、Clippy、tests、warnings-denied Rustdoc、no-default-features、`cargo deny check`、生成/独立 consumer；真实 S3 用例必须明确执行，跳过不能作为通过。
 
 ## 非目标
