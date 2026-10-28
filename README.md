@@ -16,7 +16,7 @@ OpenRust 面向熟悉 Laravel 的开发者：目标是让开发者沿用 Laravel
 
 最终业务目录为 `modules/<模块名>/`，唯一综合示例为 `modules/example/`；根 `app/` 保留通用应用级职责。根目录继续保留 Laravel 的 `bootstrap/`、`config/`、`database/`、`public/`、`resources/`、`routes/`、`storage/` 和 `tests/`，并保留 Rust 的 `src/`、`tools/` 和 Cargo。框架与应用同仓、同 workspace、只在 main 开发。
 
-**当前代码仍在 `app/example/`，尚未完成向 modules/ 的迁移。** 下文运行命令和源码链接指向当前实现；统一 Provider 内核已接入，模块管理、完整 CRUD 与全部能力示例仍在实施，不能将 Provider 接入视为已完成 laravel-modules 等价。目标与边界见 [ADR-074](.agents/project/decisions/adr-074-laravel-modules-directory.md)。
+业务示例代码现位于 `modules/example/`，通过模块清单和文件激活状态接入统一 Provider 内核。模块管理命令、完整 CRUD 与全部能力示例仍在实施，当前闭环不代表 laravel-modules 全矩阵已完成。目标与边界见 [ADR-074](.agents/project/decisions/adr-074-laravel-modules-directory.md)。
 
 ## 设计目标
 
@@ -38,11 +38,11 @@ cargo run
 APP_SERVER_PORT=4000 cargo run
 ```
 
-根 `default-members = ["."]`、`default-run = "server"`，默认启动唯一 server。`app/` 放业务模块，`bootstrap/app.rs` 装配应用，`routes/` 注册路由；`config/`、`database/`、`public/`、`resources/`、`storage/` 和 `tests/` 都在根目录。
+根 `default-members = ["."]`、`default-run = "server"`，默认启动唯一 server。`app/` 保留应用级装配，`modules/` 放业务模块，`bootstrap/app.rs` 装配应用，`routes/` 注册路由；`config/`、`database/`、`public/`、`resources/`、`storage/` 和 `tests/` 都在根目录。
 
-当前过渡示例 [`app/example`](app/example/README.md) 是普通业务模块，展示如何通过公开 `openrust::...` API 接入业务；最终新业务统一位于 `modules/<业务>/`，由根 `app/mod.rs`、bootstrap 和 routes 显式接入。它没有独立应用 manifest、启动入口或完整子应用骨架，也不需要额外 example feature。数据库、授权、队列等通过已有 Cargo feature 和根应用配置启用真实服务，缺必需依赖明确失败。
+当前综合示例 [`modules/example`](modules/example/README.md) 是普通业务模块，展示如何通过公开 `openrust::...` API 接入业务；新业务统一位于 `modules/<业务>/`，由根 `modules/mod.rs`、bootstrap 和 routes 显式接入。它没有独立应用 manifest、启动入口或完整子应用骨架，也不需要额外 example feature。数据库、授权、队列等通过已有 Cargo feature 和根应用配置启用真实服务，缺必需依赖明确失败。
 
-标准应用默认启用 Redis 缓存，需可用的 Redis 配置与服务；`/health` 与 `/ready` 提供探针。源码与验收布局迁移中，新门禁尚未完成；已实现范围与后续能力以当前代码及计划为准。
+标准应用默认启用 Redis 缓存，需可用的 Redis 配置与服务；`/health` 与 `/ready` 提供探针。R2-M 模块清单、资源与迁移已有真实服务验收；管理写命令、完整发布和 CRUD 仍按当前计划推进。
 
 ```bash
 cargo test -p openrust
@@ -53,11 +53,11 @@ cargo test --workspace
 
 ## 编写业务与扩展
 
-真实参考链是 `src/main.rs` → `bootstrap::Server::providers` → `ExampleServiceProvider` → 模块 `routes::register` → `/api/example` handler；根 routes 只处理通用框架路由。当前过渡实现使用 `app/` 声明模块，目标新业务放在 `modules/<业务>/`。目前可修改 `app/mod.rs` 的业务声明与应用 Provider 清单，保持 `src/` 核心不因业务改变；先在 `app/mod.rs` 声明，再用公开 `Routes` 定义模块路由，通过 Provider 在应用清单挂载，最后运行根 `cargo run` 请求验证。完整代码与操作见 [模块开发示例](app/example/README.md#新建自己的业务模块)。
+真实参考链是 `src/main.rs` → `bootstrap::Server::modules` → 文件激活清单 → `ExampleServiceProvider` → 模块 `routes::register` → `/api/example` handler；根 routes 只处理通用框架路由。当前实现由 `modules/mod.rs` 声明已编译模块，`bootstrap::Server::modules` 读取 `modules_statuses.json` 决定本次启动启用。先声明业务描述和 Provider，再用公开 `Routes` 定义模块路由；设置状态文件后运行根 `cargo run` 请求验证，无需修改框架 `src/` 核心。完整代码与操作见 [模块开发示例](modules/example/README.md#新建自己的业务模块)。
 
-综合示例的硬交付包括完整实体 CRUD，以及当前所有已实现公开能力的实际使用和 Provider/driver 扩展参考；目标业务边界为 modules/，模块之外保留框架通用结构和代码；示例专有迁移/种子/资源/协议/生成脚本及测试 fixture 留模块内，根只提供通用结构和公开挂载，不因示例保留 build.rs 或 build 依赖。当前正在补齐，基础常量路由不是 CRUD，文档或其他 consumer 的代码不代表模块已覆盖；实际代码、接入条件与测试缺口见 [能力覆盖表](app/example/README.md#当前能力覆盖与缺口)。
+综合示例的硬交付包括完整实体 CRUD，以及当前所有已实现公开能力的实际使用和 Provider/driver 扩展参考；目标业务边界为 modules/，模块之外保留框架通用结构和代码；示例专有迁移/种子/资源/协议/生成脚本及测试 fixture 留模块内，根只提供通用结构和公开挂载，不因示例保留 build.rs 或 build 依赖。当前正在补齐，基础常量路由不是 CRUD，文档或其他 consumer 的代码不代表模块已覆盖；实际代码、接入条件与测试缺口见 [能力覆盖表](modules/example/README.md#当前能力覆盖与缺口)。
 
-业务可以使用或新增第三方包，声明位置是根应用清单；普通 Rust 业务模块没有独立 Cargo 依赖边界，当前 lib/server 共享解析影响。已有 `serde`/`serde_json` 的实际导入、workspace 继承、新包位置和锁图检查见 [业务依赖教程](app/example/README.md#使用业务自己的第三方依赖)。
+业务可以使用或新增第三方包，声明位置是根应用清单；普通 Rust 业务模块没有独立 Cargo 依赖边界，当前 lib/server 共享解析影响。已有 `serde`/`serde_json` 的实际导入、workspace 继承、新包位置和锁图检查见 [业务依赖教程](modules/example/README.md#使用业务自己的第三方依赖)。
 
 ## 生成用户应用
 
@@ -73,7 +73,7 @@ cargo run
 
 生成应用可使用自己的名称、workspace 和 Cargo.lock，本地框架/tool 依赖须保持可达；不修改本仓 workspace，也不要求维护额外源码仓库。标准生成应用默认使用 Redis，运行前准备服务或显式选择其他 cache store。
 
-未启用数据库、加密或 gRPC 的普通生成项目包含使用 [`TestApp`](src/core/README.md#测试应用) 的进程内 HTTP 测试；启用数据库认证后另生成隔离数据库的真实 TCP 认证测试与可替换 Mailer 的 `TestApp` 请求。其他生成选项当前不自动生成通用 `TestApp` 测试，应用仍可自行使用该公开 API 并显式提供所需配置。测试以同一 `Application` Provider 清单启动，不修改全局环境；进程内请求不替代真实服务验收。综合示例还演示业务依赖替换、两应用隔离和移除业务 Provider 后保留健康路由，见 [示例测试](app/example/tests/registration.rs)。默认 API 错误状态为 `always_ok` envelope，需要断言实际 HTTP 404 时应在测试配置中选 `semantic`。
+未启用数据库、加密或 gRPC 的普通生成项目包含使用 [`TestApp`](src/core/README.md#测试应用) 的进程内 HTTP 测试；启用数据库认证后另生成隔离数据库的真实 TCP 认证测试与可替换 Mailer 的 `TestApp` 请求。其他生成选项当前不自动生成通用 `TestApp` 测试，应用仍可自行使用该公开 API 并显式提供所需配置。测试以同一 `Application` Provider 清单启动，不修改全局环境；进程内请求不替代真实服务验收。综合示例还演示业务依赖替换、两应用隔离和移除业务 Provider 后保留健康路由，见 [示例测试](modules/example/tests/registration.rs)。默认 API 错误状态为 `always_ok` envelope，需要断言实际 HTTP 404 时应在测试配置中选 `semantic`。
 
 业务 JSON API 根路径为 `/api`，所有子路由统一以 `/api/` 开头并使用 JSON API 响应封装；`/health`、`/ready` 和可选 `/metrics` 保留为运维端点。详细约定见 [HTTP 指南](src/http/README.md)。
 
@@ -94,7 +94,7 @@ cargo run
 
 `queue` feature 为 PostgreSQL 和 MySQL 提供持久化数据库任务派发、有界 worker 并发和由数据库协调的调度。将 `QueueMigration` 注册到应用迁移器，并在 `DatabaseServiceProvider` 后安装 `QueueServiceProvider`；使用 `register_job` 显式注册处理器。可通过 `schedule_interval`、`schedule_daily_at` 或 `schedule_cron` 注册任务。cron 使用五字段语法，默认时区为 `UTC`，也可指定 IANA 时区；春季不存在的本地时间跳过，秋季重复的本地分钟只派发一次。默认只派发当前分钟匹配项；`MissedRunPolicy::CatchUp { max_slots }` 可设置每次扫描最多补跑 1 到 100 项，后续 tick 继续处理剩余积压。表达式或时区变化会开启新的计划版本，不追溯补发该版本启用前的历史触发。使用集群部署时，各 scheduler 节点必须运行相同构建产物，以保持内置 IANA 时区数据一致。job 派发和时段记录在同一数据库事务提交，两个 scheduler 节点对同一时段只创建一个 job；任务本身仍至少执行一次，外部副作用须保持幂等。`schedule run --once` 扫描一次，`schedule run` 持续运行，`schedule list` 显示已注册项。`Queue::dispatch_unique` 根据队列范围内的键防止任务重叠重复，并返回活动任务 ID；任务完成或移入 `failed_jobs` 后释放该键。`dispatch_chain` 按顺序执行已注册任务，`dispatch_batch` 限制每组任务的并发数。每组是一个持久化父任务；重试可能再次执行已成功子任务的副作用，因此子任务处理器必须保持幂等。每组最多 128 项，批次并发数为 1 到 64。若任务创建需与业务数据共同提交或回滚，请在 `Db` 事务中派发。当前 worker 支持重试、失败任务保留与手动重试、进度、协作取消、单次尝试超时，以及进程故障后的租约恢复。事件支持有序进程内监听器和显式队列监听器；完整集群验收仍待完成。
 
-可选 `queue-redis` feature 提供 Redis job driver，默认仍为数据库队列。设置 `QUEUE_DRIVER=redis` 与 `redis_namespace` 即可启用；Redis 队列与缓存共用 `REDIS_HOST`、`REDIS_USERNAME`、`REDIS_PASSWORD`、`REDIS_PORT`、`REDIS_DB` 连接项，无需单独配置队列 URL。缺少 feature、配置错误或 Redis 不可达都会失败，不会切换为数据库或内存 driver。Redis-only `QueueServiceProvider` 无需注册 `DatabaseServiceProvider`，但当前数据库事务型 scheduler 与 Redis 派发无法原子提交，因此启用 Redis 时不能注册 schedule。Redis 支持普通/延迟/唯一派发、lease、进度、退避重试和失败任务人工重试；事务派发与任务组明确不支持。语义为至少一次，handler 必须幂等；Redis 磁盘持久性和故障切换取决于运维配置，不承诺 exactly-once 或故障切换零丢失。详见 [`app/example/`](app/example/README.md)。
+可选 `queue-redis` feature 提供 Redis job driver，默认仍为数据库队列。设置 `QUEUE_DRIVER=redis` 与 `redis_namespace` 即可启用；Redis 队列与缓存共用 `REDIS_HOST`、`REDIS_USERNAME`、`REDIS_PASSWORD`、`REDIS_PORT`、`REDIS_DB` 连接项，无需单独配置队列 URL。缺少 feature、配置错误或 Redis 不可达都会失败，不会切换为数据库或内存 driver。Redis-only `QueueServiceProvider` 无需注册 `DatabaseServiceProvider`，但当前数据库事务型 scheduler 与 Redis 派发无法原子提交，因此启用 Redis 时不能注册 schedule。Redis 支持普通/延迟/唯一派发、lease、进度、退避重试和失败任务人工重试；事务派发与任务组明确不支持。语义为至少一次，handler 必须幂等；Redis 磁盘持久性和故障切换取决于运维配置，不承诺 exactly-once 或故障切换零丢失。详见 [`modules/example/`](modules/example/README.md)。
 外部 driver 可通过 `JobRegistry` 复用 typed Job 执行，并用 `JobContext::with_progress_reporter` 声明自己的进度存储；独立的 [`QueueDriver` 示例](tests/consumers/queue-custom-driver/README.md)展示派发、执行和不支持事务时的显式错误。
 
 统一 Provider 装配使用 `QueueServiceProvider` 与容器中的 `QueueContributions`：所有 register 完成后读取最终绑定，任务目录在克隆间共享，后续 boot 注册的任务对已经构造的 driver 可见。`QueueContributions::extend_validated` 将 creator 与最终配置校验器作为同一条目替换；仅 `extend` 时，自定义选项的合法性由实现者负责，框架不会推断第三方配置。最终校验同时覆盖顶层回退与所有具名连接；内置 Redis URL/命名空间校验不建立网络连接。worker 停机先封闭整个 manager，所有已构造连接收到停止请求，尚未构造的名称不能在停止后首次初始化；显式重启使用新代缓存，旧代在途结果不能重新发布。

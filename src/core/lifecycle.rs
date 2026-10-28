@@ -211,6 +211,7 @@ impl ProviderBuilder {
         for provider in A::providers(config) {
             builder.boxed_provider(provider);
         }
+        builder.module_manifest(A::modules(config));
         builder
     }
 }

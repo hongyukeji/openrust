@@ -1144,6 +1144,15 @@ impl Default for QueueContributions {
 }
 
 impl QueueContributions {
+    pub(crate) fn schedules(&self) -> Vec<crate::schedule::ScheduleDefinition> {
+        self.inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .plugin
+            .schedules
+            .clone()
+    }
+
     #[cfg(test)]
     pub(crate) fn job_registry(&self) -> JobRegistry {
         self.jobs.clone()
@@ -1349,20 +1358,16 @@ impl crate::core::ServiceProvider for QueueServiceProvider {
                 let db = resolver.resolve::<Db>().await?;
                 let queue = resolver.resolve::<Queue>().await?;
                 let config = resolver.section::<crate::config::QueueConfig>("queue")?;
-                let schedules = contributions
-                    .inner
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .plugin
-                    .schedules
-                    .clone();
-                Ok(Arc::new(crate::schedule::Scheduler::new(
-                    (*db).clone(),
-                    (*queue).clone(),
-                    schedules,
-                    config,
-                    resolver.scope_factory(),
-                )))
+                Ok(Arc::new(
+                    crate::schedule::Scheduler::new(
+                        (*db).clone(),
+                        (*queue).clone(),
+                        contributions.schedules(),
+                        config,
+                        resolver.scope_factory(),
+                    )
+                    .with_live_contributions(contributions),
+                ))
             })
         });
         app.require::<Queue>();
@@ -1372,18 +1377,14 @@ impl crate::core::ServiceProvider for QueueServiceProvider {
         Box::pin(async move {
             let queue = app.resolve::<Queue>().await?;
             let _ = queue.resolve_driver().await?;
-            let config = app.section::<crate::config::QueueConfig>("queue")?;
             let final_queue = Arc::clone(&queue);
             app.validate_at_finalize(move || {
                 Box::pin(async move { final_queue.validate_configured() })
             });
             app.command(QueueWorkCommand);
             app.command(QueueRetryCommand);
-            if Queue::default_driver_name(&config)? == "database" {
-                let _ = app.resolve::<crate::schedule::Scheduler>().await?;
-                app.command(crate::schedule::ScheduleRunCommand);
-                app.command(crate::schedule::ScheduleListCommand);
-            }
+            app.command(crate::schedule::ScheduleRunCommand);
+            app.command(crate::schedule::ScheduleListCommand);
             Ok(())
         })
     }
@@ -1656,6 +1657,111 @@ mod provider_tests {
                 Ok(())
             })
         }
+    }
+    struct EarlyScheduler;
+    impl ServiceProvider for EarlyScheduler {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                let scheduler = app.resolve::<crate::schedule::Scheduler>().await?;
+                assert!(scheduler.entries().is_empty());
+                Ok(())
+            })
+        }
+    }
+    struct LateSchedule;
+    impl ServiceProvider for LateSchedule {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.resolve::<QueueContributions>()
+                    .await?
+                    .schedule_interval(
+                        "module-late",
+                        "default",
+                        ExampleJob::NAME,
+                        &serde_json::json!({}),
+                        Duration::from_secs(60),
+                    )?;
+                Ok(())
+            })
+        }
+    }
+    #[tokio::test]
+    async fn early_scheduler_observes_late_module_schedule() -> Result<()> {
+        let provider = QueueServiceProvider::new();
+        provider.contributions().register_job::<ExampleJob>()?;
+        provider
+            .contributions()
+            .extend("custom", creator(Arc::new(AtomicUsize::new(0))))?;
+        let mut builder = ProviderBuilder::new();
+        builder
+            .provider(crate::db::DatabaseServiceProvider)
+            .provider(EarlyScheduler)
+            .provider(provider)
+            .provider(LateSchedule);
+        let runtime = builder.start(sources()).await?;
+        let scheduler = runtime
+            .container()
+            .resolve::<crate::schedule::Scheduler>()
+            .await?;
+        assert_eq!(scheduler.entries().len(), 1);
+        assert_eq!(scheduler.entries()[0].key(), "module-late");
+        runtime
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await
+    }
+    struct LateDefaultConnection;
+    impl ServiceProvider for LateDefaultConnection {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.overlay("queue", serde_json::json!({"default_connection":"second"}))
+            })
+        }
+    }
+    #[tokio::test]
+    async fn late_module_default_overlay_keeps_existing_connection_and_updates_default()
+    -> Result<()> {
+        let provider = QueueServiceProvider::new();
+        let count = Arc::new(AtomicUsize::new(0));
+        provider
+            .contributions()
+            .extend("custom", creator(Arc::clone(&count)))?;
+        let mut builder = ProviderBuilder::new();
+        builder
+            .provider(crate::db::DatabaseServiceProvider)
+            .provider(provider)
+            .provider(LateDefaultConnection);
+        let runtime = builder.start(sources()).await?;
+        let queue = runtime.container().resolve::<Queue>().await?;
+        let first = queue.connection("first").await?;
+        let second = queue.connection("second").await?;
+        let default = queue.resolve_driver().await?;
+        let retained_first = queue.connection("first").await?;
+        assert!(Arc::ptr_eq(
+            first
+                .driver
+                .as_ref()
+                .ok_or_else(|| Error::custom("test", "first driver missing"))?,
+            retained_first
+                .driver
+                .as_ref()
+                .ok_or_else(|| Error::custom("test", "first driver missing"))?
+        ));
+        assert!(Arc::ptr_eq(
+            second
+                .driver
+                .as_ref()
+                .ok_or_else(|| Error::custom("test", "second driver missing"))?,
+            &default
+        ));
+        assert_eq!(count.load(Ordering::SeqCst), 2);
+        assert!(
+            runtime
+                .commands()
+                .any(|command| command.name() == "schedule list")
+        );
+        runtime
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await
     }
     #[tokio::test]
     async fn early_resolve_late_extend_and_named_singleflight() -> Result<()> {

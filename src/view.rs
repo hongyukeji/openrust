@@ -1,6 +1,7 @@
 #![doc = include_str!("view/README.md")]
 
-use std::path::{Component, Path};
+use std::collections::HashMap;
+use std::path::{Component, Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
 use axum::response::Html;
@@ -13,7 +14,14 @@ use crate::core::{Error, Result};
 /// 加载应用文件系统模板的共享 renderer。
 pub struct Views {
     environment: RwLock<Environment<'static>>,
+    namespaces: Arc<RwLock<HashMap<String, ViewNamespace>>>,
     auto_reload: bool,
+}
+
+#[derive(Clone)]
+struct ViewNamespace {
+    source: PathBuf,
+    published: PathBuf,
 }
 
 /// 按当前配置向统一容器注册文件模板服务。
@@ -108,7 +116,27 @@ fn configured_views(config: ViewConfig) -> Result<Views> {
     })?;
     let mut environment = Environment::new();
     let template_root = directory.clone();
-    environment.set_loader(move |name| load_template(&template_root, name));
+    let namespaces = Arc::new(RwLock::new(HashMap::<String, ViewNamespace>::new()));
+    let loader_namespaces = Arc::clone(&namespaces);
+    environment.set_loader(move |name| {
+        if let Some((namespace, template)) = name.split_once("::") {
+            let source = loader_namespaces
+                .read()
+                .map_err(|_| {
+                    minijinja::Error::new(ErrorKind::InvalidOperation, "view namespace unavailable")
+                })?
+                .get(namespace)
+                .cloned();
+            if let Some(source) = source {
+                return load_template(&source.published, template)?.map_or_else(
+                    || load_template(&source.source, template),
+                    |content| Ok(Some(content)),
+                );
+            }
+            return Ok(None);
+        }
+        load_template(&template_root, name)
+    });
     environment.set_auto_escape_callback(|name| {
         if Path::new(name)
             .extension()
@@ -123,11 +151,56 @@ fn configured_views(config: ViewConfig) -> Result<Views> {
     environment.set_undefined_behavior(UndefinedBehavior::Strict);
     Ok(Views {
         environment: RwLock::new(environment),
+        namespaces,
         auto_reload: config.auto_reload,
     })
 }
 
 impl Views {
+    /// 登记模块视图命名空间；已发布路径优先，缺失时回退模块源模板。
+    ///
+    /// 应在模块 Provider 的 `boot` 调用，禁用模块不会登记；重复名称在 Ready 前失败。
+    pub fn add_namespace(
+        &self,
+        name: &str,
+        source_dir: impl AsRef<Path>,
+        published_dir: impl AsRef<Path>,
+    ) -> Result<()> {
+        if !valid_namespace(name) {
+            return Err(Error::custom("view_namespace_invalid", "视图命名空间无效"));
+        }
+        let source = source_dir.as_ref().canonicalize().map_err(|_| {
+            Error::custom("view_namespace_source_invalid", "模块视图源目录无法读取")
+        })?;
+        if !source.is_dir() {
+            return Err(Error::custom(
+                "view_namespace_source_invalid",
+                "模块视图源路径不是目录",
+            ));
+        }
+        let published = published_dir.as_ref().to_path_buf();
+        if published.exists() && !published.is_dir() {
+            return Err(Error::custom(
+                "view_namespace_published_invalid",
+                "已发布视图路径不是目录",
+            ));
+        }
+        let mut environment = self
+            .environment
+            .write()
+            .map_err(|_| Error::custom("view_renderer_unavailable", "视图渲染器不可用"))?;
+        let mut namespaces = self
+            .namespaces
+            .write()
+            .map_err(|_| Error::custom("view_namespace_unavailable", "视图命名空间不可用"))?;
+        if namespaces.contains_key(name) {
+            return Err(Error::custom("view_namespace_conflict", "视图命名空间重复"));
+        }
+        namespaces.insert(name.to_owned(), ViewNamespace { source, published });
+        environment.clear_templates();
+        Ok(())
+    }
+
     /// 渲染指定模板并返回 `text/html` 响应。
     ///
     /// 模板名相对于 `[view].directory`，例如 `pages/home.html`；路径不得包含绝对路径、
@@ -162,8 +235,19 @@ impl Views {
 }
 
 fn validate_template_name(name: &str) -> Result<()> {
-    let path = Path::new(name);
-    if name.is_empty()
+    let path_name = if let Some((namespace, template)) = name.split_once("::") {
+        if !valid_namespace(namespace) {
+            return Err(Error::custom(
+                "invalid_view_name",
+                "view namespace is invalid",
+            ));
+        }
+        template
+    } else {
+        name
+    };
+    let path = Path::new(path_name);
+    if path_name.is_empty()
         || path.is_absolute()
         || !path
             .extension()
@@ -181,13 +265,31 @@ fn validate_template_name(name: &str) -> Result<()> {
     Ok(())
 }
 
+fn valid_namespace(name: &str) -> bool {
+    !name.is_empty()
+        && name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-')
+}
+
 fn load_template(
     directory: &Path,
     name: &str,
 ) -> std::result::Result<Option<String>, minijinja::Error> {
-    if validate_template_name(name).is_err() {
+    if validate_template_name(name).is_err() || name.contains("::") {
         return Ok(None);
     }
+    let directory = match directory.canonicalize() {
+        Ok(path) => path,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => {
+            return Err(minijinja::Error::new(
+                ErrorKind::InvalidOperation,
+                "could not read template",
+            )
+            .with_source(error));
+        }
+    };
     let path = directory.join(name);
     let canonical = match path.canonicalize() {
         Ok(path) => path,
@@ -200,7 +302,7 @@ fn load_template(
             .with_source(error));
         }
     };
-    if !canonical.starts_with(directory) {
+    if !canonical.starts_with(&directory) {
         return Ok(None);
     }
     match std::fs::read_to_string(canonical) {
@@ -275,6 +377,45 @@ mod provider_tests {
             "view": {"directory": "/nonexistent-openrust-view-test"}
         })));
         assert!(providers.start(source).await.is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn module_namespace_prefers_published_template_and_falls_back_to_source() -> Result<()> {
+        let temporary = tempfile::tempdir().map_err(Error::internal)?;
+        let root = temporary.path();
+        let application = root.join("application");
+        let source = root.join("module");
+        let published = root.join("published");
+        std::fs::create_dir(&application).map_err(Error::internal)?;
+        std::fs::create_dir(&source).map_err(Error::internal)?;
+        std::fs::create_dir(&published).map_err(Error::internal)?;
+        std::fs::write(source.join("card.html"), "source {{ name }}").map_err(Error::internal)?;
+        let views = configured_views(ViewConfig {
+            directory: application,
+            auto_reload: true,
+        })?;
+        views.add_namespace("blog", &source, &published)?;
+        assert_eq!(
+            views.render("blog::card.html", &json!({"name":"<x>"}))?.0,
+            "source &lt;x&gt;"
+        );
+        std::fs::write(published.join("card.html"), "published {{ name }}")
+            .map_err(Error::internal)?;
+        assert_eq!(
+            views.render("blog::card.html", &json!({"name":"<x>"}))?.0,
+            "published &lt;x&gt;"
+        );
+        assert_eq!(
+            views
+                .add_namespace("blog", &source, &published)
+                .err()
+                .map(|error| error.code().to_owned())
+                .as_deref(),
+            Some("view_namespace_conflict")
+        );
+        assert!(views.render("other::card.html", &json!({})).is_err());
+        assert!(views.render("blog::../card.html", &json!({})).is_err());
         Ok(())
     }
 }

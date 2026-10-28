@@ -230,6 +230,7 @@ pub struct Scheduler {
     db: Db,
     queue: Queue,
     entries: Vec<ScheduleDefinition>,
+    live_contributions: Option<Arc<crate::queue::QueueContributions>>,
     config: crate::config::QueueConfig,
     scopes: crate::core::container::ScopeFactory,
 }
@@ -253,14 +254,25 @@ impl Scheduler {
             db,
             queue,
             entries,
+            live_contributions: None,
             config,
             scopes,
         }
     }
 
+    pub(crate) fn with_live_contributions(
+        mut self,
+        contributions: Arc<crate::queue::QueueContributions>,
+    ) -> Self {
+        self.live_contributions = Some(contributions);
+        self
+    }
+
     /// 返回应用插件注册的调度项。
-    pub fn entries(&self) -> &[ScheduleDefinition] {
-        &self.entries
+    pub fn entries(&self) -> Vec<ScheduleDefinition> {
+        self.live_contributions
+            .as_ref()
+            .map_or_else(|| self.entries.clone(), |items| items.schedules())
     }
 
     /// 在所有共享该数据库的进程中，对每个到期调度时段仅派发一次。
@@ -271,8 +283,8 @@ impl Scheduler {
     pub async fn tick(&self) -> Result<ScheduleReport> {
         let now = database_unix_time(&self.db).await?;
         let mut report = ScheduleReport::default();
-        for entry in &self.entries {
-            let (slots, deferred) = due_slots(&self.db, entry, now).await?;
+        for entry in self.entries() {
+            let (slots, deferred) = due_slots(&self.db, &entry, now).await?;
             if !slots.is_empty() {
                 report.due += 1;
             }
@@ -304,7 +316,7 @@ impl Scheduler {
                                 if insert_schedule_slot(
                                     &self.db,
                                     &transaction,
-                                    entry,
+                                    &entry,
                                     &slot,
                                     scheduled_at,
                                     &job_id,

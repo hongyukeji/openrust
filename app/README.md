@@ -1,7 +1,7 @@
-# 应用业务模块
+# 应用装配
 
-`app/` 保存业务模块。唯一综合示例位于 [example](example/README.md)，展示如何在 `app/<业务>/` 通过公开 `openrust::...` API 实现业务；框架核心 `src/` 不依赖这些业务模块。
+`app/` 保留应用级装配；唯一综合业务示例位于 [`modules/example/`](../modules/example/README.md)。根 `src/main.rs` 只声明已编译模块与薄 server 入口，`bootstrap/app.rs` 通过 `Application::providers` 和 `Application::modules` 选择框架 Provider 与本次启动启用的模块。
 
-根 `src/main.rs` 提供唯一 server 薄入口，编译期连接 `app/mod.rs`，由根 `bootstrap/app.rs` 与 `routes/` 显式装配。业务模块只保留实际业务文件，不复制 Cargo、入口、bootstrap、config、routes、database、resources 或 storage 的完整应用骨架，不通过目录扫描自动加载源码。
+根 `config/`、`routes/`、`database/`、`resources/`、`public/` 与 `storage/` 提供通用应用职责；示例业务迁移、种子、视图、语言资源、协议、生成脚本和测试 fixture 均在 `modules/example/`。增加业务模块需在 `modules/mod.rs` 声明编译入口并在应用清单显式启用；运行状态只选择已编译模块，不热加载 Rust 源码。
 
-根 `config/`、`routes/`、`database/`、`resources/`、`public/` 与 `storage/` 只保留通用结构及公开加载/挂载。示例业务专有迁移、种子、模板、协议、生成脚本与测试 fixture 留在 `app/example`；根 `tests/` 的通用验收可通过公开入口挂载示例。从仓库根运行 `cargo run` 和 `cargo test`，完整 workspace 门禁使用 `--workspace`。数据库、授权、队列等按已有 feature 与应用配置启用真实服务，不为业务模块新增独立示例运行模式。
+从仓库根运行 `cargo run` 与 `cargo test`。数据库、认证、队列等能力还需对应 Cargo feature、配置与外部服务；不会因启用模块而回退到内存模拟实现。

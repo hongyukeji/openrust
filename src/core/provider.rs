@@ -16,6 +16,7 @@ use crate::config::{ConfigError, FrameworkConfig};
 
 use super::command::Command;
 use super::container::{Container, ContainerBuilder, Resolver};
+use super::module::ModuleManifest;
 use super::resources::{ResourceOwner, ResourceRegistrar};
 use super::{BoxFuture, Error, Result};
 
@@ -163,12 +164,20 @@ pub struct BootContext<'a> {
     container: &'a Container,
     config: &'a mut ConfigRepository,
     resources: ResourceRegistrar,
+    required: &'a mut Vec<Required>,
     extensions: &'a mut Extensions,
     commands: &'a mut Vec<Box<dyn Command>>,
     finalizers: &'a mut Vec<Finalizer>,
 }
 
 impl BootContext<'_> {
+    /// 在全部 boot 和配置覆盖结束后，要求根服务成功解析。
+    pub fn require<T: ?Sized + Send + Sync + 'static>(&mut self) {
+        self.required.push(Box::new(|container| {
+            Box::pin(async move { container.resolve::<T>().await.map(|_| ()) })
+        }));
+    }
+
     /// 在全部 Provider boot/overlay 后执行最终领域配置校验。
     pub fn validate_at_finalize<F>(&mut self, validate: F)
     where
@@ -275,6 +284,8 @@ impl ProviderRuntime {
 #[derive(Default)]
 pub struct ProviderBuilder {
     providers: Vec<Box<dyn ServiceProvider>>,
+    modules: ModuleManifest,
+    removed: HashSet<ProviderId>,
     app_config: Option<AppConfigRegistration>,
     binding_overrides: Vec<BindingOverride>,
 }
@@ -382,6 +393,19 @@ impl ProviderBuilder {
     /// 在启动前从清单移除具体 Provider 类型；依赖关系随后重新校验。
     pub fn remove_provider(&mut self, id: ProviderId) -> &mut Self {
         self.providers.retain(|provider| provider.id() != id);
+        self.removed.insert(id);
+        self
+    }
+
+    /// 声明已编译模块和本次启动的启用来源；与应用 Provider 共用一个生命周期。
+    pub fn module_manifest(&mut self, manifest: ModuleManifest) -> &mut Self {
+        self.modules = manifest;
+        self
+    }
+
+    /// 仅从本次应用构建移除模块，不改写持久启用状态。
+    pub fn remove_module(&mut self, name: impl Into<String>) -> &mut Self {
+        self.modules.disable(name);
         self
     }
 
@@ -415,7 +439,9 @@ impl ProviderBuilder {
 
     /// 完成全体 register、基础配置、顺序 boot 与最终根解析。
     pub async fn start(self, sources: Figment) -> Result<ProviderRuntime> {
-        let providers = ordered_providers(self.providers)?;
+        let mut providers = self.providers;
+        Self::append_modules(self.modules, &self.removed, &mut providers)?;
+        let providers = ordered_providers(providers)?;
         let mut bindings = ContainerBuilder::new();
         let mut config = ConfigRepository::new(sources);
         if let Some(register_config) = self.app_config {
@@ -447,6 +473,7 @@ impl ProviderBuilder {
                         container: &container,
                         config: &mut config,
                         resources: resources.owner()?.registrar(),
+                        required: &mut required,
                         extensions: &mut extensions,
                         commands: &mut commands,
                         finalizers: &mut finalizers,
@@ -493,6 +520,40 @@ impl ProviderBuilder {
             commands,
         })
     }
+
+    fn append_modules(
+        modules: ModuleManifest,
+        removed: &HashSet<ProviderId>,
+        providers: &mut Vec<Box<dyn ServiceProvider>>,
+    ) -> Result<()> {
+        let mut owners: HashMap<TypeId, &'static str> = HashMap::new();
+        let mut existing: HashSet<TypeId> = providers
+            .iter()
+            .map(|provider| provider.id().type_id)
+            .collect();
+        for module in modules.prepare()? {
+            let module_name = module.name;
+            for provider in module.providers {
+                let id = provider.id();
+                if removed.contains(&id) {
+                    continue;
+                }
+                if !existing.insert(id.type_id) {
+                    let previous = owners.get(&id.type_id).copied().unwrap_or("应用清单");
+                    return Err(Error::custom(
+                        "module_provider_conflict",
+                        format!(
+                            "Provider {} 同时属于 {previous} 与 {module_name}",
+                            id.name()
+                        ),
+                    ));
+                }
+                owners.insert(id.type_id, module_name);
+                providers.push(provider);
+            }
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -502,6 +563,8 @@ mod tests {
     use super::*;
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use crate::core::{ModuleConfigFiles, ModuleDescriptor, ModuleManifest};
 
     struct Base(Arc<Mutex<Vec<&'static str>>>);
     struct Overlay(Arc<Mutex<Vec<&'static str>>>);
@@ -702,6 +765,108 @@ mod tests {
             .await?;
         assert_eq!(calls.load(Ordering::SeqCst), 1);
         Ok(())
+    }
+
+    struct ModuleBefore(Arc<Mutex<Vec<String>>>);
+    struct ModuleSupport {
+        root: std::path::PathBuf,
+        reads: Arc<Mutex<Vec<String>>>,
+    }
+    struct ModuleAfter(Arc<Mutex<Vec<String>>>);
+
+    impl ServiceProvider for ModuleBefore {
+        fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
+            app.config_section(
+                "sample",
+                serde_json::json!({"name":"Default","items":["a","b","c"],"settings":{"value":"default"}}),
+                SectionSchema::any(),
+                |_| Ok(()),
+            )
+        }
+
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                let value: Value = app.section("sample")?;
+                self.0
+                    .lock()
+                    .unwrap()
+                    .push(format!("before:{}", value["name"]));
+                Ok(())
+            })
+        }
+    }
+
+    impl ServiceProvider for ModuleSupport {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                let before: Value = app.section("sample")?;
+                self.reads
+                    .lock()
+                    .unwrap()
+                    .push(format!("support-before:{}", before["name"]));
+                ModuleConfigFiles::new("sample", &self.root)?.overlay(app)?;
+                let after: Value = app.section("sample")?;
+                self.reads
+                    .lock()
+                    .unwrap()
+                    .push(format!("support-after:{}", after["name"]));
+                Ok(())
+            })
+        }
+    }
+
+    impl ServiceProvider for ModuleAfter {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                let value: Value = app.section("sample")?;
+                assert_eq!(value["name"], "Module");
+                assert_eq!(value["items"], serde_json::json!(["x", "b", "c"]));
+                assert_eq!(value["settings"]["value"], "settings");
+                self.0.lock().unwrap().push("after".to_owned());
+                Ok(())
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn module_support_overlays_at_its_own_boot_point() -> Result<()> {
+        let temporary = tempfile::tempdir().map_err(Error::internal)?;
+        let config = temporary.path().join("config");
+        std::fs::create_dir(&config).map_err(Error::internal)?;
+        std::fs::write(
+            config.join("config.toml"),
+            "name = 'Module'\nitems = ['x']\n",
+        )
+        .map_err(Error::internal)?;
+        std::fs::write(config.join("settings.toml"), "value = 'settings'\n")
+            .map_err(Error::internal)?;
+        let reads = Arc::new(Mutex::new(Vec::new()));
+        let module = ModuleDescriptor::new("sample", temporary.path(), 0)
+            .provider(ModuleBefore(Arc::clone(&reads)))
+            .provider(ModuleSupport {
+                root: temporary.path().to_path_buf(),
+                reads: Arc::clone(&reads),
+            })
+            .provider(ModuleAfter(Arc::clone(&reads)));
+        let mut builder = ProviderBuilder::new();
+        builder.module_manifest(ModuleManifest::new().module(module).enable("sample"));
+        let source = Figment::from(figment::providers::Serialized::defaults(
+            serde_json::json!({"sample":{"name":"App","items":["a","b","c"],"settings":{"value":"app"}}}),
+        ));
+        let runtime = builder.start(source).await?;
+        assert_eq!(
+            *reads.lock().unwrap(),
+            [
+                "before:\"App\"",
+                "support-before:\"App\"",
+                "support-after:\"Module\"",
+                "after"
+            ]
+        );
+        assert!(runtime.config().version() >= 2);
+        runtime
+            .shutdown(Instant::now() + Duration::from_secs(1))
+            .await
     }
 
     #[tokio::test]

@@ -14,6 +14,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Added
 
+- R2-M 新增编译期 `ModuleDescriptor`、运行时 `ModuleManifest`/文件激活快照、模块配置与资源路径加载、命名空间视图和翻译，以及按全局名称/批次执行的统一迁移历史。根应用与生成项目从运行根读取模块状态；示例业务完整移至 `modules/example/`。管理写命令、完整发布流程与真实 CRUD 仍属后继。
+
 - R2-D 新增与生产共用 Provider/Router 启动路径的 `TestApp<A>`、可重放的 Provider 移除与注册后绑定覆盖、有界请求和安全响应断言；完整 `reset` 先关闭旧应用再重建。普通及认证项目生成模板包含对应测试，综合示例验证业务服务替换和路由移除。
 
 - R2-C 为HTTP流式响应、命令、队列每次尝试和调度每次触发接入独立容器scope与受管清理；公开 `Scope::run`、`Scope::spawn`、`ScopeFactory` 和自定义队列driver可显式等待的 `JobAttempt`。
@@ -41,7 +43,7 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 - 根 Cargo package openrust 同时提供框架 src/lib.rs 与默认 server 薄 src/main.rs；Laravel 应用职责目录回根，default-members=["."]、default-run="server"，根无参数 cargo run 启动唯一应用。
 
-- 当前过渡 `app/example` 通过公开 Plugin 注册根唯一应用，专属迁移、资源、协议和测试保留模块内；不保留重复应用或根 examples 目录。`modules/example` 与统一 Provider/模块生命周期为后继目标，完整 CRUD 与能力示例尚未交付；CLI 保留用户应用生成功能。
+- 业务示例通过公开模块清单和统一 Provider 接入根唯一应用，专属迁移、资源、协议和测试位于 `modules/example/`；根不保留重复应用或 `examples/` 目录。CLI 生成项目也提供模块清单和文件状态入口。
 
 - 根 CLI 运行命令按 Cargo metadata 默认应用转发，根 server 从根职责目录读取配置与静态资源。
 

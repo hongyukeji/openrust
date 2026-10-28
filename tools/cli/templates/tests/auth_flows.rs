@@ -2,6 +2,8 @@
 
 #[path = "../bootstrap/app.rs"]
 mod bootstrap;
+#[path = "../modules/mod.rs"]
+mod modules;
 #[path = "../app/mod.rs"]
 mod app;
 #[path = "../routes/web.rs"]
@@ -99,11 +101,9 @@ async fn generated_auth_routes_run_over_http_with_isolated_database_and_fake_mai
     );
     let figment = Figment::from(Serialized::defaults(openrust::config::FrameworkConfig::default()))
         .merge(Toml::string(&config));
-    let mut builder = openrust::core::ProviderBuilder::new();
-    builder.app_config::<NoConfig>();
-    for provider in bootstrap::OpenRustGeneratedApplication::providers(&NoConfig {}) {
-        builder.boxed_provider(provider);
-    }
+    let mut builder = openrust::core::ProviderBuilder::for_application::<
+        bootstrap::OpenRustGeneratedApplication,
+    >(&bootstrap::Configuration::default());
     let captured_mail = CaptureMailer::default();
     builder.provider(CaptureMailerProvider(captured_mail.clone()));
     let runtime = builder.start(figment).await?;

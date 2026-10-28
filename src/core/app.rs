@@ -11,6 +11,7 @@ use crate::config::{ConfigError, FrameworkConfig};
 use crate::core::command::Command;
 use crate::core::container::{Container, Scope};
 use crate::core::error::{Error, Result};
+use crate::core::module::ModuleManifest;
 use crate::core::provider::{ProviderRuntime, ServiceProvider};
 use crate::core::resources::ResourceOwner;
 
@@ -41,6 +42,11 @@ pub trait Application: Send + Sync + 'static {
     /// 按框架、应用、模块顺序返回 Provider 清单；选择依据为启动来源的应用配置。
     fn providers(_config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
         Vec::new()
+    }
+
+    /// 声明已编译模块及本次启动的启用来源；缺省不挂载业务模块。
+    fn modules(_config: &Self::Config) -> ModuleManifest {
+        ModuleManifest::new()
     }
 }
 

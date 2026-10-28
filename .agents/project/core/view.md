@@ -11,7 +11,7 @@
 - `Views::render(name, context)` 返回 Axum `Html<String>`，仅接受 `.html` 模板。模板名拒绝绝对路径和遍历；文件 canonical path 必须位于模板根内，阻止符号链接越界。
 - `.html` 自动 HTML 转义；strict undefined、每次渲染 100,000 fuel；模板读写/语法/执行错误以内部错误处理，错误来源不作为响应正文返回。
 - `server.root_target = "view:index.html"` 会在 router 组装时检查插件与模板，任何缺失均启动配置失败；默认宿主仍使用 `file:/index.html`。
-- `openrust new` 默认启用该 feature；根应用与 app/example 的视图能力按根 feature 与配置启用，模板和静态资源统一位于根职责目录。
+- `openrust new` 默认启用该 feature；根应用与 modules/example 的视图能力按根 feature 与配置启用；业务模块可提供命名空间模板及发布覆盖，根通用模板与静态资源仍按应用目录加载。
 
 ## 边界
 

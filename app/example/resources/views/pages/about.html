@@ -1,9 +1,0 @@
-{% extends "layouts/app.html" %}
-
-{% block title %}{{ title }} · {{ app_name }}{% endblock %}
-
-{% block content %}
-  <h1>{{ title }}</h1>
-  <p>此页面由业务路由注入 <code>Views</code>，并通过 <code>pages/about.html</code> 渲染。</p>
-  <p>首页和本页共享布局与页脚局部模板，模板中的动态内容默认进行 HTML 转义。</p>
-{% endblock %}

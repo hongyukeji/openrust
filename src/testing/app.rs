@@ -27,6 +27,7 @@ type Configure = Arc<dyn Fn(&mut ContainerBuilder) -> Result<()> + Send + Sync>;
 pub struct TestAppBuilder<A: Application> {
     sources: Figment,
     removed: Vec<ProviderId>,
+    removed_modules: Vec<String>,
     configure: Vec<Configure>,
     application: PhantomData<fn() -> A>,
 }
@@ -35,6 +36,12 @@ impl<A: Application> TestAppBuilder<A> {
     /// 从应用 Provider 清单移除具体类型；不修改框架实现。
     pub fn remove_provider(&mut self, id: ProviderId) -> &mut Self {
         self.removed.push(id);
+        self
+    }
+
+    /// 仅从本次测试应用启动清单移除已编译模块。
+    pub fn remove_module(&mut self, name: impl Into<String>) -> &mut Self {
+        self.removed_modules.push(name.into());
         self
     }
 
@@ -69,6 +76,9 @@ impl<A: Application> TestAppBuilder<A> {
         for id in &self.removed {
             builder.remove_provider(*id);
         }
+        for name in &self.removed_modules {
+            builder.remove_module(name.clone());
+        }
         for configure in &self.configure {
             let configure = Arc::clone(configure);
             builder.configure_after_register(move |bindings| configure(bindings));
@@ -94,6 +104,7 @@ impl<A: Application> TestApp<A> {
         TestAppBuilder {
             sources,
             removed: Vec::new(),
+            removed_modules: Vec::new(),
             configure: Vec::new(),
             application: PhantomData,
         }

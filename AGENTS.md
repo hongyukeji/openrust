@@ -14,7 +14,7 @@
 
 [ADR-070](.agents/project/decisions/adr-070-laravel-first-rebuild.md) 与 [全面重构计划](.agents/project/plans/laravel-rebuild.md) 是当前目标：Laravel 优先、参考 Goravel，允许全面重写目录/API/默认值/实现，无历史兼容义务，保留 Rust 语言与工具优势。旧规定不能阻止已批准的重构；已实现事实和真实验收记录仍须保留。工程质量、WIP 保护和 §5 对外授权边界继续适用。当前任务与后续顺序只在 `todo.md` 领取。
 
-当前目标布局以 [ADR-074](.agents/project/decisions/adr-074-laravel-modules-directory.md) 为准；源码仍有 `app/example/` 迁移 WIP，不能将目标当已验收：Laravel 应用职责直接位于根；openrust 同 package 提供框架 src/lib.rs 与默认 server 薄 src/main.rs，default-members=["."]、default-run="server"。业务模块统一在 `modules/<模块名>/`，模块目录外均为框架通用结构和代码，示例专有迁移、种子、模板、协议、生成脚本与测试 fixture 全留模块内；根只提供通用结构与公开挂载，不放示例 build.rs/build 依赖或业务特判。唯一 modules/example 是供开发者参考的普通业务模块；根 app/ 保留应用级装配，模块经统一 Provider/模块清单与公开接口接入，只用公开框架 API；不包含完整子应用骨架，不新增 example feature，不保留 demo/example 双应用或根 examples 目录。新布局迁移与验收以当前 todo、源码和 Git 为准。
+当前目标布局以 [ADR-074](.agents/project/decisions/adr-074-laravel-modules-directory.md) 为准；业务代码已迁至 `modules/example/`，R2-M 的具体验收以当前 todo、源码和 Git 为准，不能将目录相似当作完整能力验收：Laravel 应用职责直接位于根；openrust 同 package 提供框架 src/lib.rs 与默认 server 薄 src/main.rs，default-members=["."]、default-run="server"。业务模块统一在 `modules/<模块名>/`，模块目录外均为框架通用结构和代码，示例专有迁移、种子、模板、协议、生成脚本与测试 fixture 全留模块内；根只提供通用结构与公开挂载，不放示例 build.rs/build 依赖或业务特判。唯一 modules/example 是供开发者参考的普通业务模块；根 app/ 保留应用级装配，模块经统一 Provider/模块清单与公开接口接入，只用公开框架 API；不包含完整子应用骨架，不新增 example feature，不保留 demo/example 双应用或根 examples 目录。新布局迁移与验收以当前 todo、源码和 Git 为准。
 
 ## 1. 角色与契约
 

@@ -9,9 +9,16 @@ use std::sync::Arc;
 #[serde(default)]
 pub(crate) struct Configuration {
     database: openrust::config::DatabaseConfig,
+    modules_root: Option<std::path::PathBuf>,
 }
 
 impl Configuration {
+    fn application_root(&self) -> std::path::PathBuf {
+        self.modules_root
+            .clone()
+            .unwrap_or_else(|| std::path::PathBuf::from("."))
+    }
+
     fn uses_database(&self) -> bool {
         self.database.url.is_some()
             || !self.database.instances.is_empty()
@@ -59,6 +66,10 @@ impl Application for Server {
         providers.push(Box::new(openrust::view::OptionalViewServiceProvider));
         providers.push(Box::new(openrust::db::DatabaseServiceProvider));
         if config.uses_database() {
+            #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+            providers.push(Box::new(openrust::db::MigrationServiceProvider::<
+                openrust::db::FrameworkMigrator,
+            >::new()));
             #[cfg(feature = "auth")]
             {
                 providers.push(Box::new(openrust::auth::JwtServiceProvider));
@@ -74,26 +85,18 @@ impl Application for Server {
             #[cfg(feature = "queue")]
             {
                 let queue = openrust::queue::QueueServiceProvider::new();
-                providers.push(Box::new(crate::app::example::jobs::JobsServiceProvider(
-                    queue.contributions(),
-                )));
                 providers.push(Box::new(queue));
-            }
-            #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
-            {
-                providers.push(Box::new(openrust::db::MigrationServiceProvider::<
-                    crate::app::example::database::migrations::Migrator,
-                >::new()));
-                providers.push(Box::new(openrust::db::SeedServiceProvider::new(
-                    crate::app::example::database::seeders::run,
-                )));
             }
         }
         providers.push(Box::new(FrameworkRoutesProvider));
-        providers.push(Box::new(
-            crate::app::example::providers::ExampleServiceProvider,
-        ));
         providers
+    }
+
+    fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
+        let root = config.application_root();
+        openrust::core::ModuleManifest::from_file(root.join("modules_statuses.json")).module(
+            crate::modules::example::descriptor(config.uses_database(), root),
+        )
     }
 }
 
@@ -105,11 +108,8 @@ mod tests {
 
     #[tokio::test]
     async fn default_provider_manifest_serves_framework_route() -> Result<()> {
-        let mut builder = openrust::core::ProviderBuilder::new();
-        builder.app_config::<Configuration>();
-        for provider in Server::providers(&Configuration::default()) {
-            builder.boxed_provider(provider);
-        }
+        let builder =
+            openrust::core::ProviderBuilder::for_application::<Server>(&Configuration::default());
         let source = Figment::from(Serialized::defaults(openrust::config::FrameworkConfig::default()))
             .merge(Serialized::defaults(serde_json::json!({
             "app": {"env": "test"},
@@ -133,6 +133,50 @@ mod tests {
             openrust::http::axum::http::StatusCode::OK
         );
         app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
+            .await
+    }
+
+    #[tokio::test]
+    async fn module_resources_follow_configured_runtime_root() -> Result<()> {
+        use openrust::http::axum::{body::Body, http::Request};
+
+        let deployed = tempfile::tempdir().map_err(openrust::Error::internal)?;
+        let module = deployed.path().join("modules/example");
+        std::fs::create_dir_all(module.join("config")).map_err(openrust::Error::internal)?;
+        std::fs::create_dir_all(module.join("resources/views"))
+            .map_err(openrust::Error::internal)?;
+        std::fs::create_dir_all(deployed.path().join("resources/lang/vendor/example"))
+            .map_err(openrust::Error::internal)?;
+        std::fs::write(
+            module.join("config/config.toml"),
+            "greeting = 'Relocated module'\n",
+        )
+        .map_err(openrust::Error::internal)?;
+        std::fs::write(
+            deployed.path().join("modules_statuses.json"),
+            "{\"example\":true}\n",
+        )
+        .map_err(openrust::Error::internal)?;
+        let source = Figment::from(Serialized::defaults(openrust::config::FrameworkConfig::default()))
+            .merge(Serialized::defaults(serde_json::json!({
+                "modules_root": deployed.path(),
+                "app": {"env": "test"},
+                "cache": {"default_store": "default", "stores": {"default": {"driver": "memory"}}},
+                "security": {"encryption": {"active_key_id": "test", "keys": {"test": "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}}
+            })));
+        let mut app = openrust::testing::TestApp::<Server>::builder(source)
+            .build()
+            .await?;
+        let response = app
+            .request(
+                Request::get("/api/example")
+                    .body(Body::empty())
+                    .map_err(openrust::Error::internal)?,
+            )
+            .await?;
+        let json: serde_json::Value = response.json()?;
+        assert_eq!(json["data"]["message"], "Relocated module");
+        app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
             .await
     }
 }

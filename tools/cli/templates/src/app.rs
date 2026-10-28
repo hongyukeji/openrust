@@ -19,10 +19,17 @@ impl ServiceProvider for RoutesProvider {
     }
 }
 
+/// 应用自己的运行时模块根；默认从当前工作目录解析。
+#[derive(Default, serde::Deserialize)]
+#[serde(default)]
+pub struct Configuration {
+    pub modules_root: Option<std::path::PathBuf>,
+}
+
 pub struct {{type_name}};
 
 impl Application for {{type_name}} {
-    type Config = NoConfig;
+    type Config = Configuration;
 
     fn providers(_config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
         let mut providers: Vec<Box<dyn ServiceProvider>> = vec![
@@ -36,5 +43,9 @@ impl Application for {{type_name}} {
         ];{{database_providers}}{{encryption_provider}}
         providers.push(Box::new(RoutesProvider));
         providers
+    }
+
+    fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
+        crate::modules::manifest(config.modules_root.as_deref().unwrap_or(std::path::Path::new(".")))
     }
 }

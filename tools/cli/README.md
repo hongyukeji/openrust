@@ -1,6 +1,6 @@
 # OpenRust 命令行
 
-`cli` package 提供命令 `openrust`，用于创建源码 workspace 内的应用、生成代码并转发应用命令。无需全局安装或从 registry 获取框架包。
+`cli` package 提供命令 `openrust`，用于创建用户应用、生成代码并转发应用命令。无需全局安装或从 registry 获取框架包。
 命令帮助中的说明、分组标题及帮助/版本选项均使用简体中文；命令、参数和配置字段保留原名。
 
 ## 创建和运行应用
@@ -14,9 +14,9 @@ cd blog
 cargo run -p cli -- dev
 ```
 
-`openrust new <目标目录>` 创建独立应用 workspace，支持相对和绝对路径；本地 framework/tool 依赖在生成 manifest 中明确解析，源框架 workspace 不被修改。已有目标、非法目录名、冲突 package 名在写入前拒绝。应用 `src/main.rs` 是薄入口，装配在 `bootstrap/app.rs`，路由在 `routes/web.rs`，业务在 `app/`，资源在 `resources/`，迁移与种子在 `database/`。
+`openrust new <目标目录>` 创建独立应用 workspace，支持相对和绝对路径；本地 framework/tool 依赖在生成 manifest 中明确解析，源框架 workspace 不被修改。已有目标、非法目录名、冲突 package 名在写入前拒绝。应用 `src/main.rs` 是薄入口，装配在 `bootstrap/app.rs`，通用路由在 `routes/web.rs`，应用装配在 `app/`，业务模块在 `modules/<业务>/`，资源在 `resources/`，迁移与种子在 `database/`。
 
-生成项目默认启用可选 `view` feature、注册 `ViewServiceProvider`，并以 `views/index.html` 渲染 `/`。HTML 页面模板放在 `views/`，CSS、图片等静态资源放在 `public/`；`root_target` 可切换为静态文件、应用内转发或重定向。需要纯 API 应用时，可在生成后的 `Cargo.toml` 移除 `view` feature 和插件注册，再将 `root_target` 设为其他模式。
+生成项目默认启用可选 `view` feature、注册 `ViewServiceProvider`，并以 `resources/views/index.html` 渲染 `/`。应用级 HTML 页面模板放在 `resources/views/`，CSS、图片等静态资源放在 `public/`；`root_target` 可切换为静态文件、应用内转发或重定向。需要纯 API 应用时，可在生成后的 `Cargo.toml` 移除 `view` feature 和 Provider 注册，再将 `root_target` 设为其他模式。
 
 不带 `--db` 时只生成 HTTP 应用；`--db postgres` 或 `--db mysql` 会生成对应迁移 package，并注册数据库、迁移和 seed Provider。`--auth` 需要 `--db`，会启用 JWT、AuthFlows、Policy 与共享限流 migration，并生成注册、邮箱验证、登录、refresh、登出和密码重置路由。`--auth-mfa` 还要求 `--encryption`，会启用 TOTP 多因素认证，并生成两步登录、TOTP enrollment、确认、禁用和恢复码轮换路由；MFA 路由使用 JWT 认证，配置邮件、JWT 与加密密钥后须先运行 `openrust migrate`。`--http-client`、`--sms-twilio`、`--encryption` 可按需启用出站 HTTP、Twilio 短信和进程内加密。
 
@@ -34,6 +34,68 @@ cargo run -p cli -- g migration labels slug:string
 ```
 
 `dev` 将 `APP_ENV` 设为 `development` 后运行该应用的 `serve`；`serve` 保留当前环境。若默认缓存 store 配置为 loopback Redis，`dev` 会先探测服务：已有服务可用时直接复用，不可用时通过仓库 `compose.ci.yaml` 启动 Redis 并保留容器供后续本地开发复用。远端 Redis 由应用直接连接。其他命令转发给所选应用并保留退出码；当前不提供文件监听、就绪等待或自动迁移。
+
+## 接入自己的业务模块
+
+新项目包含空的编译清单 `modules/mod.rs` 与内容为 `{}` 的 `modules_statuses.json`。`src/main.rs` 与生成的集成测试声明同一编译入口，`bootstrap/app.rs` 的 `Application::modules` 将运行根传入 `manifest(root)`。默认不复制框架仓库的综合示例，也没有第二个容器或应用入口。认证 TCP 测试同样通过 `ProviderBuilder::for_application` 使用生产 Provider/模块清单。
+
+例如在生成应用创建 `modules/orders/mod.rs`，仅使用公开 API：
+
+```rust
+use openrust::core::{BootContext, BoxFuture, ModuleDescriptor, Result, ServiceProvider};
+use openrust::http::{Json, Routes};
+
+struct OrdersServiceProvider;
+impl ServiceProvider for OrdersServiceProvider {
+    fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.routes(|routes: Routes| routes.get("/api/orders", index))?;
+            Ok(())
+        })
+    }
+}
+pub fn descriptor(root: &std::path::Path) -> ModuleDescriptor {
+    ModuleDescriptor::new(
+        "orders",
+        root.join("modules/orders"),
+        0,
+    ).provider(OrdersServiceProvider)
+}
+async fn index() -> Json<std::collections::BTreeMap<&'static str, &'static str>> {
+    Json(std::collections::BTreeMap::from([("module", "orders")]))
+}
+```
+
+在应用的 `modules/mod.rs` 声明已编译模块，并保留默认文件激活源：
+
+```rust
+pub mod orders;
+use openrust::core::ModuleManifest;
+pub fn manifest(root: &std::path::Path) -> ModuleManifest {
+    ModuleManifest::from_file(root.join("modules_statuses.json"))
+        .module(orders::descriptor(root))
+}
+```
+
+在应用根 `modules_statuses.json` 中启用它：
+
+```json
+{"orders": true}
+```
+
+源码声明、注册清单与状态文件属于应用配置，无需修改框架 `src/` 或依赖清单。默认状态文件和模块资源路径相对于运行工作目录，与默认 `config/` 加载规则一致。请从部署应用根启动；`cargo --manifest-path` 本身不会替应用切换运行工作目录，从其他目录执行时不能假定它读取项目根。TestApp 的显式 Figment 不会改变这一资源根约定，也不修改全局 cwd/env。生成应用已有 `Configuration.modules_root` 可设置绝对运行根；`Application::modules(config)` 将其同时传入状态文件与所有模块 descriptor；`APP_CONFIG_DIR` 只覆盖配置目录，不会自动替模块选择资源根。缺少文件或键表示关闭；`false`、字符串 `"true"`、数字等非 JSON `true` 值也关闭。损坏 JSON 会使启动失败，框架不会覆盖原文件；可读状态变更在下次应用构建才生效，当前实例不热卸载。此处没有新增状态管理写命令。
+
+启动后请求 `/api/orders`；默认 AlwaysOk 成功 envelope 的 `data.module` 为 `"orders"`。在生成的普通应用 `tests/test_app.rs` 中，可沿用已有 `TestApp<bootstrap::应用类型>` 和显式测试来源，对该路径调用 `request` 后 `assert_json`，再显式 `shutdown`。`TestAppBuilder::remove_module("orders")` 只移除本次测试应用的模块；默认 AlwaysOk 的缺失路由仍是 HTTP 200、正文 `code="not_found"`，显式 Semantic 模式才断言 HTTP 404。
+
+```bash
+cargo check
+cargo test
+cargo run
+# 另一终端请求；这一步才提供 TCP 证据。
+curl --noproxy '*' http://127.0.0.1:3000/api/orders
+```
+
+模块根必须在部署目录真实存在；默认相对路径在启动时解析，也可显式传入配置的绝对运行根，不能绑定编译机源码位置；编译声明与运行时启用分别维护。禁用影响新应用启动，不热卸载当前应用。模块私有资源、配置、迁移与测试留在该模块内部，通过公开 Provider 接口接入。普通模块共享当前应用 Cargo 依赖解析；第三方业务包仍在应用清单声明，Provider 不隔离依赖版本或 feature。这是手工业务模块接入，未提供 R13 的完整模块生成、发布和管理命令。
 
 ## 生成代码
 
@@ -53,4 +115,4 @@ cargo run -p cli -- g migration labels slug:string
 
 ## API、worker 与 scheduler
 
-参见 [`app/example/`](../../app/example/README.md)：同一应用可分别作为 API、worker、scheduler 进程启动，共用数据库和队列迁移。`serve` 不会隐式启动后台进程。两个数据库后端使用相同示例，只需选择 `db-postgres` 或 `db-mysql` feature。
+参见 [`modules/example/`](../../modules/example/README.md)：同一应用可分别作为 API、worker、scheduler 进程启动，共用数据库和队列迁移。`serve` 不会隐式启动后台进程。两个数据库后端使用相同示例，只需选择 `db-postgres` 或 `db-mysql` feature。

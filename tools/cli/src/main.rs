@@ -598,6 +598,7 @@ fn populate_project_with_mfa(
         "resources/mail",
         "resources/views",
         "bootstrap",
+        "modules",
         "routes",
         "database",
         "storage/app",
@@ -649,7 +650,18 @@ fn populate_project_with_mfa(
             "bootstrap/app.rs",
             app_source(crate_name, database, auth, encryption, auth_mfa),
         ),
-        ("app/mod.rs", "//! 应用模块。\n".to_owned()),
+        (
+            "app/mod.rs",
+            "//! 通用应用装配；业务模块位于 modules/。\n".to_owned(),
+        ),
+        (
+            "modules/mod.rs",
+            include_str!("../templates/modules/mod.rs").to_owned(),
+        ),
+        (
+            "modules_statuses.json",
+            include_str!("../templates/modules_statuses.json").to_owned(),
+        ),
         ("routes/web.rs", routes_source(auth, auth_mfa)),
         ("routes/console.rs", "//! 应用调度。\n".to_owned()),
         ("database/seeders.rs", seed_source(database)),
@@ -805,9 +817,7 @@ fn cargo_manifest(
         }
         manifest = manifest.replace("openrust = { workspace = true }", &dependency);
     }
-    if auth {
-        manifest.push_str("serde = { version = \"1\", features = [\"derive\"] }\n");
-    }
+    manifest.push_str("serde = { version = \"1\", features = [\"derive\"] }\n");
     manifest.push_str("\n[dev-dependencies]\nfigment = { version = \"0.10\", features = [\"toml\"] }\nserde_json = \"1\"\n");
     if auth {
         manifest.push_str("base64 = \"0.22\"\n");
@@ -2526,6 +2536,42 @@ mod tests {
         let _ = fs::remove_dir_all(root);
     }
 
+    fn assert_module_layout(project: &Path) {
+        let app_test = fs::read_to_string(project.join("tests/test_app.rs"))
+            .expect("read generated TestApp test");
+        assert!(app_test.contains("TestApp::<bootstrap::Blog>"));
+        assert!(app_test.contains(r#".uri("/health")"#));
+        assert!(app_test.contains("app.shutdown("));
+        assert!(!app_test.contains("OpenRustGeneratedApplication"));
+        assert!(app_test.contains("../modules/mod.rs"));
+        let module_manifest = fs::read_to_string(project.join("modules/mod.rs"))
+            .expect("read generated module manifest");
+        assert!(
+            module_manifest.contains("pub fn manifest(root: &std::path::Path) -> ModuleManifest")
+        );
+        assert!(module_manifest.contains("ModuleManifest::from_file("));
+        assert!(!module_manifest.contains("CARGO_MANIFEST_DIR"));
+        assert!(module_manifest.contains("root.join(\"modules_statuses.json\")"));
+        assert!(module_manifest.contains("modules_statuses.json"));
+        assert!(!module_manifest.contains(".enable("));
+        let statuses: serde_json::Value = serde_json::from_str(
+            &fs::read_to_string(project.join("modules_statuses.json"))
+                .expect("read generated module statuses"),
+        )
+        .expect("valid module statuses JSON");
+        assert_eq!(statuses, serde_json::json!({}));
+        assert!(!project.join("modules/example").exists());
+        let application = fs::read_to_string(project.join("bootstrap/app.rs"))
+            .expect("read generated application");
+        assert!(application.contains("fn modules("));
+        assert!(application.contains("crate::modules::manifest(config.modules_root.as_deref()"));
+        let main = fs::read_to_string(project.join("src/main.rs"))
+            .expect("read generated application entry");
+        assert!(main.contains("../modules/mod.rs"));
+        assert!(!project.join("config/default.toml").exists());
+        assert!(!project.join("config/development.toml").exists());
+    }
+
     #[test]
     fn project_template_has_expected_layout() {
         let root = std::env::temp_dir().join(format!("openrust-cli-{}", std::process::id()));
@@ -2541,6 +2587,8 @@ mod tests {
             "resources/views/index.html",
             "src/main.rs",
             "bootstrap/app.rs",
+            "modules/mod.rs",
+            "modules_statuses.json",
             "routes/web.rs",
             "config/app.toml",
             "config/cache.toml",
@@ -2550,14 +2598,7 @@ mod tests {
         ] {
             assert!(project.join(path).is_file(), "missing generated {path}");
         }
-        let app_test = fs::read_to_string(project.join("tests/test_app.rs"))
-            .expect("read generated TestApp test");
-        assert!(app_test.contains("TestApp::<bootstrap::Blog>"));
-        assert!(app_test.contains(r#".uri("/health")"#));
-        assert!(app_test.contains("app.shutdown("));
-        assert!(!app_test.contains("OpenRustGeneratedApplication"));
-        assert!(!project.join("config/default.toml").exists());
-        assert!(!project.join("config/development.toml").exists());
+        assert_module_layout(&project);
         let snapshot = [
             "Cargo.toml",
             ".gitignore",
@@ -2569,6 +2610,8 @@ mod tests {
             "config/i18n.toml",
             "src/main.rs",
             "bootstrap/app.rs",
+            "modules/mod.rs",
+            "modules_statuses.json",
             "routes/web.rs",
             "AGENTS.md",
         ]
@@ -2695,7 +2738,14 @@ mod tests {
             assert!(manifest.contains("serde_json"));
             let http_test = fs::read_to_string(project.join("tests/auth_flows.rs"))
                 .expect("read generated auth HTTP integration test");
-            assert!(http_test.contains("bootstrap::Blog::providers(&NoConfig {})"));
+            assert!(http_test.contains("ProviderBuilder::for_application::<"));
+            assert!(http_test.contains("bootstrap::Blog,"));
+            assert!(http_test.contains("../modules/mod.rs"));
+            assert_eq!(
+                fs::read_to_string(project.join("modules_statuses.json"))
+                    .expect("read generated auth module statuses"),
+                "{}\n"
+            );
             assert!(http_test.contains("into_make_service_with_connect_info"));
             assert!(http_test.contains("/api/auth/password-reset/confirm"));
             assert!(!http_test.contains("{{type_name}}"));
@@ -3198,7 +3248,7 @@ mod tests {
             let manifest = fs::read_to_string(app.join("Cargo.toml")).expect("读取应用配置");
             assert!(manifest.contains("[workspace]"));
             assert!(manifest.contains("database/migrations"));
-            assert!(!manifest.contains("app/example"));
+            assert!(!manifest.contains("modules/example"));
             assert!(!manifest.contains("source-only"));
             let metadata = framework_workspace(&app).expect("独立应用 metadata");
             assert_eq!(

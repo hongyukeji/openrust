@@ -4,6 +4,9 @@
 mod apps;
 use apps as bootstrap;
 
+#[path = "../../../modules/mod.rs"]
+mod modules;
+
 #[path = "../../../app/mod.rs"]
 mod app;
 
@@ -251,11 +254,7 @@ async fn test_server() -> Result<openrust::App, openrust::Error> {
     let application_config = figment
         .extract::<<apps::Server as Application>::Config>()
         .map_err(openrust::config::ConfigError::from)?;
-    let mut builder = ProviderBuilder::new();
-    builder.app_config::<<apps::Server as Application>::Config>();
-    for provider in apps::Server::providers(&application_config) {
-        builder.boxed_provider(provider);
-    }
+    let builder = ProviderBuilder::for_application::<apps::Server>(&application_config);
     let runtime = builder.start(figment).await.inspect_err(|error| {
         eprintln!("server fixture provider stage failed: {}", error.code());
     })?;
@@ -473,7 +472,7 @@ fn example_business_route_is_mounted_through_the_root_application() -> TestResul
         assert_eq!(response.status(), StatusCode::OK);
         let body = to_bytes(response.into_body(), usize::MAX).await?;
         let json: serde_json::Value = serde_json::from_slice(&body)?;
-        assert_eq!(json["data"]["message"], "Hello from app/example");
+        assert_eq!(json["data"]["message"], "Hello from modules/example");
         Ok(())
     })
 }

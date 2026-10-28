@@ -1,6 +1,6 @@
 # 当前计划
 
-> 当前代码与目标：源码已提交 `app/example/` 过渡结构；最终业务位置为 `modules/<模块名>/`，唯一示例为 `modules/example/`。目录和模块能力尚未完成验收，按 [ADR-074](decisions/adr-074-laravel-modules-directory.md) 推进，不能将目标路径当作已实现。
+> 当前代码与目标：旧 `app/example/` 过渡结构已迁至 `modules/example/`；R2-M 模块清单、资源和统一迁移已有真实验收。完整模块管理与 CRUD 仍是后继，按 [ADR-074](decisions/adr-074-laravel-modules-directory.md) 推进。
 
 > 受众：AI Agent
 > 更新：2026-10-28
@@ -12,7 +12,7 @@
 
 ## 执行校准
 
-1. 当前代码为已提交的根 lib/server 与 app/example 过渡结构，R1-S 已以34dfb5e收口；最终根结构和 modules/ 边界依 ADR-074。结构子簇实际门禁与限定提交已完成，现在实现 R2 基础、R2-M 模块闭环/目录迁移、R1-E CRUD。不能将新目标路径或旧布局验证写成已实现。
+1. 当前代码的根 lib/server 和旧 app/example 过渡结构由 R1-S 以34dfb5e收口；R2-M 已将业务代码迁入 modules/example，根模块边界依 ADR-074。模块清单、运行激活、资源与统一迁移的真实验收见本轮 testing；完整模块管理和 R1-E CRUD 不因目录迁移自动完成。
 2. 正式定位 Laravel + laravel-modules = OpenRust，以固定上游源码/测试和文档逐项1:1实现功能/可观察语义、默认/错误安全边界、Container/Provider与开发流程，并持续跟进；模块化不是只有示例目录规范。目录、概念、命名、默认行为和扩展流程以 Laravel 为准；Goravel 为实现参考。Rust必要适配、用户约定和授权增强须按[差异分类](plans/laravel-rebuild.md#逐项对应与差异分类)记录原行为/限制/选定行为/证据，未等价保持缺口；版本基线和后继更新见[长期上游跟进](plans/laravel-rebuild.md#长期上游跟进)。既有目录和 API 可以重写，无历史兼容义务。
 3. 旧 ADR 中的已实现行为和验收记录作为迁移输入；统一返回格式等优秀机制须融合进 Laravel 对应职责，不能为追求上游外形而删除。新方向不自动使旧记录变成新代码已通过。冲突约束依 ADR-070 替代，功能簇落地时同步领域 ADR/事实。
 4. 原 M5/M6、DX/F/G 顺序让位于 R0–R16；未完成生产、集群、SQLite、供应商条件等映射到新矩阵，不丢弃。只一个主功能簇 in_progress，内部允许隔离子任务。

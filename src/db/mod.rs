@@ -35,7 +35,7 @@ pub use coordination::{
     CoordinationMigration, IdempotencyClaim, IdempotencyLease, IdempotencyResponse, LockAcquire,
     LockLease, RequestIdempotency, SharedLocks,
 };
-pub use migration::MigrationServiceProvider;
+pub use migration::{FrameworkMigrator, MigrationServiceProvider};
 pub use rate_limit::{DatabaseRateLimitMigration, DatabaseRateLimitStore};
 pub use sea_orm;
 pub use sea_orm::{DatabaseConnection, DatabaseTransaction, DbBackend};
@@ -99,6 +99,7 @@ impl DatabaseBackend {
 #[derive(Clone, Default)]
 pub struct Db {
     connections: Arc<OnceLock<DatabaseConnections>>,
+    migration_lock_url: Arc<OnceLock<String>>,
     table_names: Arc<DatabaseTableNames>,
     next_replica: Arc<AtomicUsize>,
     events: Arc<OnceLock<crate::events::Events>>,
@@ -217,10 +218,48 @@ impl Db {
     pub fn with_table_names(table_names: DatabaseTableNames) -> Self {
         Self {
             connections: Arc::new(OnceLock::new()),
+            migration_lock_url: Arc::new(OnceLock::new()),
             table_names: Arc::new(table_names),
             next_replica: Arc::new(AtomicUsize::new(0)),
             events: Arc::new(OnceLock::new()),
         }
+    }
+
+    /// 为迁移命令指定同一物理主库的独立互斥连接地址；自定义 Provider 在初始化后调用。
+    ///
+    /// 凭据只保留在句柄中，不进入 `Debug` 或公开错误。地址必须指向已安装的主库。
+    ///
+    /// # Errors
+    ///
+    /// 地址格式、后端不匹配或重复配置时失败；实际物理数据库身份在迁移取锁时再次核验。
+    pub fn configure_migration_lock_url(&self, url: impl Into<String>) -> Result<()> {
+        let url = url.into();
+        validate_database_url(&url, "migration lock URL")?;
+        let backend = match DatabaseBackend::from_url(&url)? {
+            DatabaseBackend::PostgreSql => DbBackend::Postgres,
+            DatabaseBackend::MySql => DbBackend::MySql,
+        };
+        if backend != self.backend()? {
+            return Err(Error::custom(
+                "migration_lock_backend_mismatch",
+                "迁移锁连接与主库后端不同",
+            ));
+        }
+        self.migration_lock_url
+            .set(url)
+            .map_err(|_| Error::custom("migration_lock_already_configured", "迁移锁连接已配置"))
+    }
+
+    pub(crate) fn migration_lock_url(&self) -> Result<&str> {
+        self.migration_lock_url
+            .get()
+            .map(String::as_str)
+            .ok_or_else(|| {
+                Error::custom(
+                    "migration_lock_connection_unavailable",
+                    "迁移连接缺少独立锁连接地址",
+                )
+            })
     }
 
     fn install_events(&self, events: crate::events::Events) {
@@ -640,7 +679,8 @@ async fn connect_instance_managed(
             .await?,
         );
     }
-    db.initialize_with_replicas(connection, replicas)
+    db.initialize_with_replicas(connection, replicas)?;
+    db.configure_migration_lock_url(url)
 }
 
 async fn connect_database(

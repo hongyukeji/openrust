@@ -73,12 +73,13 @@ match (result, cleanup) {
 
 `openrust::testing::TestApp<A>` 使用与生产相同的 `Application::providers`、`ProviderBuilder` 和 Router。测试显式传入 `Figment`，不修改全局环境或工作目录。`remove_provider(ProviderId)` 在注册前调整清单；`configure_after_register` 在所有 Provider 注册后、容器封口前覆盖绑定，因此后续 `boot` 能读取替代服务。测试可通过 `request` 发起进程内请求，默认总期限五秒、响应体上限 1 MiB；`request_with_limits` 可调整这两个预算，`raw_response` 保留流式正文并由调用方消费或丢弃。
 
-`TestResponse` 提供状态、响应头、字节和 JSON 读取以及链式断言；断言失败不会回显正文或头值。状态断言使用应用配置的 `[api] http_status`：默认 `always_ok` 仍将业务错误封装为 HTTP 200，需要验证实际 404/422 等状态时，测试配置须显式选择 `semantic`。`shutdown(deadline).await` 等待本应用拥有的资源回收；`reset(deadline).await` 先关闭整个旧应用，再用相同蓝图重建，不把根 scoped 缓存清空冒充完整重置。这里的 deadline 只约束旧应用关闭，新应用的启动与路由构建不受同一期限约束。丢弃 `TestApp` 会立即封闭新解析；存活的 `Tokio` runtime 才能继续异步兜底回收。独立 `TestApp` 持有各自容器，捕获的外部共享 `Arc` fixture 由调用方负责重置。实际业务替换与 Provider 移除示例见 [`app/example`](../../app/example/README.md)，CLI 生成项目也包含普通 HTTP 与认证测试。进程内请求不替代真实 TCP 验收。
+`TestResponse` 提供状态、响应头、字节和 JSON 读取以及链式断言；断言失败不会回显正文或头值。状态断言使用应用配置的 `[api] http_status`：默认 `always_ok` 仍将业务错误封装为 HTTP 200，需要验证实际 404/422 等状态时，测试配置须显式选择 `semantic`。`shutdown(deadline).await` 等待本应用拥有的资源回收；`reset(deadline).await` 先关闭整个旧应用，再用相同蓝图重建，不把根 scoped 缓存清空冒充完整重置。这里的 deadline 只约束旧应用关闭，新应用的启动与路由构建不受同一期限约束。丢弃 `TestApp` 会立即封闭新解析；存活的 `Tokio` runtime 才能继续异步兜底回收。独立 `TestApp` 持有各自容器，捕获的外部共享 `Arc` fixture 由调用方负责重置。实际业务替换与 Provider 移除示例见 [`modules/example`](../../modules/example/README.md)，CLI 生成项目也包含普通 HTTP 与认证测试。进程内请求不替代真实 TCP 验收。
 
 其他 OpenRust package 所依赖的核心契约包括：
 
 - [`Application`]：项目实现一次该 trait，用于描述应用的组装方式。
 - [`ProviderBuilder`] / [`ServiceProvider`] / [`App`] / [`AppState`]：框架、应用模块和第三方 package 使用同一扩展点与容器。`register` 声明绑定和配置区段，`boot` 贡献路由、命令及 middleware。依赖可在所有注册完成后解析；配置覆盖在最终校验前仍可提交。`App::run_command` 允许同一应用依次执行命令；顶层 CLI 在命令结束后调用 `App::shutdown`，HTTP `serve` 在退出时合作取消、限时回收受管资源。
+- [`ModuleManifest`](module.rs) 在编译期声明模块描述，启动时从只读状态源取得启用快照；启用的模块 Provider 展平进入同一注册与顺序 boot 生命周期。`ModuleConfigFiles::overlay` 由模块 Provider 在实际配置时点调用，逐文件写入共享配置仓储。文件状态仅 JSON `true` 启用，缺文件/键不启用，坏 JSON 拒绝；禁用不热卸载、不删除迁移历史。默认模块运行根是进程工作目录，应用可显式传入部署根；编译时 `CARGO_MANIFEST_DIR` 不决定运行时资源位置。模块资源、语言、视图和迁移示例见 [`modules/example`](../../modules/example/README.md)。
 - [`Command`]：应用二进制对外提供的运行时命令（`serve`、`migrate`、`queue work` 等）。命令默认拒绝额外参数；接受参数的命令须实现 `accepts_args`。
 - [`Error`] / [`Result`] / [`ApiResponse<T>`] / [`PageMeta`]：统一错误类型、JSON 响应封装和类型化分页元数据。
 - [`ExecutionContext`] / [`ExecutionMetadata`] / [`Cancellation`]：单次 HTTP、命令或 Job 尝试的 task-local 关联信息、时间预算和合作取消；task-local 不自动传播至 `tokio::spawn`。

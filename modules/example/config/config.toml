@@ -1,0 +1,2 @@
+# 在 ExampleServiceProvider.boot 的配置阶段覆盖共享 example 区段。
+greeting = "Hello from modules/example"

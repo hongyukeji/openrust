@@ -8,6 +8,7 @@ pub mod container;
 pub mod error;
 pub mod execution;
 pub mod lifecycle;
+pub mod module;
 #[cfg(feature = "otel")]
 pub(crate) mod otel;
 pub mod plugin;
@@ -25,6 +26,9 @@ pub use error::{
 pub(crate) use execution::CancelOnDrop;
 pub use execution::{Cancellation, ExecutionContext, ExecutionMetadata, with_execution_context};
 pub use lifecycle::{bootstrap, shutdown_signal};
+pub use module::{
+    FileModuleActivator, ModuleActivator, ModuleConfigFiles, ModuleDescriptor, ModuleManifest,
+};
 pub use plugin::BoxFuture;
 pub use provider::{
     BootContext, ProviderBuilder, ProviderId, ProviderRuntime, RegisterContext, ServiceProvider,

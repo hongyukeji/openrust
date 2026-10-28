@@ -1,6 +1,8 @@
 //! 使用与生产相同的 Provider 清单测试应用 HTTP 路由。
 #[path = "../bootstrap/app.rs"]
 mod bootstrap;
+#[path = "../modules/mod.rs"]
+mod modules;
 #[path = "../routes/web.rs"]
 mod routes;
 

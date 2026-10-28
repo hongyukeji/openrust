@@ -438,7 +438,7 @@ path = "tests/server/storage/driver_contract.rs"
 
 [[test]]
 name = "example_auth_flows"
-path = "app/example/tests/auth_flows.rs"
+path = "modules/example/tests/auth_flows.rs"
 required-features = ["auth", "queue", "view", "encryption"]
 
 [profile.dev]

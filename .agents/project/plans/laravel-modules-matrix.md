@@ -63,7 +63,7 @@ R2交共享Provider/Container、配置注册和模块依赖/贡献基础；R13�
 | M034 | [Spatie Laravel Permission](https://laravelmodules.com/docs/13/resources/spatie-laravel-permission) | 先核对固定源码/已纳入生态依赖；R9/R13/R15对应职责 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
 | M035 | [Module Generator](https://laravelmodules.com/docs/13/resources/laravel-module-generator) | 先核对固定源码/已纳入生态依赖；R9/R13/R15对应职责 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
 
-现有 app/example 的薄 Plugin、手动注册和基础 GET 仅是迁移资产，尚未完成目标 modules/example 的迁移，不足以关闭任何完整模块管理条目。实际更新状态必须附具体代码/测试/真实请求证据，不批量改成完成。
+原 app/example 已迁至 modules/example，编译描述、文件状态、Provider、模块配置/资源及统一迁移的 R2-M 实现与真实证据见 [当前测试记录](../memory/testing.md#r2-m-模块清单资源与统一迁移验收证据)。基础 GET 仍不等于真实 CRUD；管理写命令、发布流程与其余模块矩阵继续按逐项证据验收，不批量改成完成。
 
 ## 首批行为合同：运行发现、Provider 与管理
 

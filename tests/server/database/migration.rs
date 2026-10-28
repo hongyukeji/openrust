@@ -29,15 +29,19 @@ use tower::ServiceExt;
 
 static SEED_RUNS: AtomicUsize = AtomicUsize::new(0);
 
-struct CustomConnectionProvider;
+struct CustomConnectionProvider {
+    lock_url: Option<String>,
+}
 
 impl openrust::core::ServiceProvider for CustomConnectionProvider {
     fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> FrameworkResult<()> {
+        let lock_url = self.lock_url.clone();
         app.merge_defaults(
             "database",
             serde_json::to_value(DatabaseConfig::default()).map_err(Error::internal)?,
         )?;
-        app.singleton::<Db, _>(|resolver| {
+        app.singleton::<Db, _>(move |resolver| {
+            let lock_url = lock_url.clone();
             Box::pin(async move {
                 let config = resolver.section::<DatabaseConfig>("database")?;
                 let names = DatabaseTableNames::new(
@@ -75,6 +79,7 @@ impl openrust::core::ServiceProvider for CustomConnectionProvider {
                     Box::pin(async move { closing.close_by_ref().await.map_err(Error::internal) })
                 })?;
                 db.initialize(connection)?;
+                db.configure_migration_lock_url(lock_url.unwrap_or_else(|| url.clone()))?;
                 Ok(std::sync::Arc::new(db))
             })
         });
@@ -186,7 +191,7 @@ async fn migration_command_applies_repeats_reports_and_rolls_back()
         eprintln!("skipping database migration: OPENRUST_TEST_DATABASE_URL is unset");
         return Ok(());
     };
-    let test_database = openrust::testing::TestDatabase::create::<TestMigrator>(&url).await?;
+    let test_database = openrust::testing::TestDatabase::create::<EmptyMigrator>(&url).await?;
     let source = format!("[database]\nurl = {:?}\n", test_database.url());
     let figment = Figment::new().merge(Toml::string(&source));
     let mut framework_config = FrameworkConfig::default();
@@ -196,7 +201,7 @@ async fn migration_command_applies_repeats_reports_and_rolls_back()
             .merge(figment);
     let mut builder = openrust::core::ProviderBuilder::new();
     builder
-        .provider(CustomConnectionProvider)
+        .provider(CustomConnectionProvider { lock_url: None })
         .provider(HttpServiceProvider)
         .provider(MigrationServiceProvider::<TestMigrator>::new())
         .provider(SeedServiceProvider::new(seed_probe))
@@ -374,6 +379,56 @@ async fn build_lock_probe_app(url: &str, timeout: Duration) -> FrameworkResult<A
         .start(sources)
         .await
         .and_then(openrust::App::from_provider_runtime)
+}
+
+#[tokio::test]
+async fn custom_database_rejects_lock_connection_to_another_database()
+-> Result<(), Box<dyn std::error::Error>> {
+    let Ok(admin_url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+        eprintln!(
+            "skipping migration lock identity integration: OPENRUST_TEST_DATABASE_URL is unset"
+        );
+        return Ok(());
+    };
+    let primary = TestDatabase::create::<EmptyMigrator>(&admin_url).await?;
+    let other = TestDatabase::create::<EmptyMigrator>(&admin_url).await?;
+    let source = format!("[database]\nurl = {:?}\n", primary.url());
+    let sources = Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ))
+    .merge(Toml::string(&source));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(CustomConnectionProvider {
+            lock_url: Some(other.url().to_owned()),
+        })
+        .provider(MigrationServiceProvider::<LockProbeMigrator>::new());
+    let app = openrust::App::from_provider_runtime(builder.start(sources).await?)?;
+    let error = app
+        .run_command("migrate", vec!["up".into()])
+        .await
+        .err()
+        .ok_or("different database lock connection unexpectedly succeeded")?;
+    assert_eq!(error.code(), "migration_lock_database_mismatch");
+    let primary_connection = app.state().resolve::<Db>().await?.connection()?;
+    let schema_filter = if primary_connection.get_database_backend() == DbBackend::Postgres {
+        "table_schema = current_schema()"
+    } else {
+        "table_schema = DATABASE()"
+    };
+    let probe = primary_connection
+        .query_one_raw(Statement::from_string(
+            primary_connection.get_database_backend(),
+            format!("SELECT COUNT(*) AS count FROM information_schema.tables WHERE {schema_filter} AND table_name = 'openrust_migrations'"),
+        ))
+        .await?
+        .ok_or("migration history probe did not return a row")?;
+    assert_eq!(probe.try_get::<i64>("", "count")?, 0);
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    primary.close().await?;
+    other.close().await?;
+    Ok(())
 }
 
 fn spawn_lock_probe_migration(

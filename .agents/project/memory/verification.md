@@ -40,6 +40,8 @@ R1-S 实际重新通过默认/full workspace fmt/Clippy/tests/docs、deny、no-d
 
 ## 当前已有证据
 
+R2-M 的编译/启用分离、模块 Provider 配置时点、命名空间资源及统一迁移由同一生产启动路径实现。PostgreSQL 18/MySQL 8.4 的隔离库分别通过迁移内测 10 项、集成 5 项、示例迁移 1 项；真实 Redis 8 队列 3 项、双库 queue/schedule 各 3+7 项通过。根默认 server 与迁址后的生成应用均经真实 HTTP 和 SIGINT 验证；普通及双库认证生成项目 check/test 均通过。默认/全特性 workspace、Rustdoc、Clippy、deny、no-default 和 Rust 1.97 检查的精确命令、日志与忽略项见 [R2-M 测试证据](testing.md#r2-m-模块清单资源与统一迁移验收证据)。MySQL DDL 可能部分提交；模块管理写命令、完整发布与 CRUD 不由本簇验收。
+
 [ADR-039](../decisions/adr-039-source-workspace-distribution.md) 的源码交付与包改名已完成实现验收，干净源码生成/双应用隔离/双库证据见 [testing.md](testing.md)。旧包名和旧模板 patch 仅为历史记录。
 
 | 范围 | 已有通过记录 | 证据边界 |

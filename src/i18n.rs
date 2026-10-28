@@ -1,9 +1,10 @@
 //! 请求作用域的消息目录与 locale 选择。
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::future::Future;
+use std::path::Path;
 use std::str::FromStr;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
@@ -434,7 +435,8 @@ impl Default for I18nConfig {
 #[derive(Debug, Clone)]
 pub struct I18n {
     config: I18nConfig,
-    catalog: Arc<MessageCatalog>,
+    catalog: Arc<RwLock<MessageCatalog>>,
+    namespaces: Arc<RwLock<HashSet<String>>>,
 }
 
 impl I18n {
@@ -452,12 +454,79 @@ impl I18n {
         }
         Ok(Self {
             config,
-            catalog: Arc::new(catalog),
+            catalog: Arc::new(RwLock::new(catalog)),
+            namespaces: Arc::new(RwLock::new(HashSet::new())),
         })
+    }
+
+    /// 在模块 boot 时登记语言资源；发布目录存在时完全取代模块源目录。
+    ///
+    /// 资源格式为目录下的 `<locale>.json`，键既可用 `namespace::`，也可作为 JSON 全局键查询。
+    pub fn add_namespace(
+        &self,
+        namespace: &str,
+        source_dir: impl AsRef<Path>,
+        published_dir: impl AsRef<Path>,
+    ) -> Result<()> {
+        if namespace.is_empty()
+            || !namespace
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-')
+        {
+            return Err(Error::custom(
+                "i18n_namespace_invalid",
+                "语言资源命名空间无效",
+            ));
+        }
+        let selected_dir = match published_dir.as_ref().symlink_metadata() {
+            Ok(_) => published_dir.as_ref(),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => source_dir.as_ref(),
+            Err(_) => {
+                return Err(Error::custom(
+                    "i18n_namespace_source_invalid",
+                    "语言资源目录不可读取",
+                ));
+            }
+        };
+        let selected = read_namespace_messages(selected_dir)?;
+        let mut namespaces = self
+            .namespaces
+            .write()
+            .map_err(|_| Error::custom("i18n_namespace_unavailable", "语言资源命名空间不可用"))?;
+        if namespaces.contains(namespace) {
+            return Err(Error::custom(
+                "i18n_namespace_conflict",
+                "语言资源命名空间重复",
+            ));
+        }
+        let mut catalog = self
+            .catalog
+            .write()
+            .map_err(|_| Error::custom("i18n_catalog_unavailable", "语言资源目录不可用"))?;
+        let mut next = catalog.clone();
+        for (locale, content) in selected {
+            let entries = content.as_object().ok_or_else(|| {
+                Error::custom("i18n_namespace_json_invalid", "语言资源 JSON 必须是对象")
+            })?;
+            let mut merged = entries.clone();
+            for (key, value) in entries {
+                merged.insert(format!("{namespace}::{key}"), value.clone());
+            }
+            let content = serde_json::to_string(&merged)
+                .map_err(|_| Error::custom("i18n_namespace_json_invalid", "语言资源 JSON 无效"))?;
+            next.merge_json(locale, &content)?;
+        }
+        *catalog = next;
+        namespaces.insert(namespace.to_owned());
+        Ok(())
     }
 
     /// 根据 `Accept-Language` 请求头选择最匹配的受支持 locale。
     pub fn select(&self, accept_language: Option<&str>) -> Locale {
+        let catalog = self
+            .catalog
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let Some(header) = accept_language else {
             return self.config.default_locale.clone();
         };
@@ -490,7 +559,7 @@ impl I18n {
         candidates
             .into_iter()
             .find_map(|(_, _, candidate)| {
-                self.catalog
+                catalog
                     .messages
                     .keys()
                     .find(|supported| {
@@ -503,8 +572,12 @@ impl I18n {
 
     /// 使用所选 locale 和已配置的回退规则解析 key，然后替换 `{name}` 参数。
     pub fn translate(&self, locale: &Locale, key: &str, args: &MessageArgs) -> String {
-        let message = self.catalog.message(locale, key).or_else(|| {
-            self.catalog
+        let catalog = self
+            .catalog
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let message = catalog.message(locale, key).or_else(|| {
+            catalog
                 .messages
                 .get_key_value(&self.config.fallback_locale)?
                 .1
@@ -631,6 +704,56 @@ impl I18n {
     }
 }
 
+fn read_namespace_messages(directory: &Path) -> Result<Vec<(String, serde_json::Value)>> {
+    let Ok(metadata) = directory.symlink_metadata() else {
+        return Err(Error::custom(
+            "i18n_namespace_source_invalid",
+            "语言资源目录不可读取",
+        ));
+    };
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(Error::custom(
+            "i18n_namespace_source_invalid",
+            "语言资源路径不是目录",
+        ));
+    }
+    let mut files = std::fs::read_dir(directory)
+        .map_err(|_| Error::custom("i18n_namespace_source_invalid", "语言资源目录不可读取"))?
+        .collect::<std::io::Result<Vec<_>>>()
+        .map_err(|_| Error::custom("i18n_namespace_source_invalid", "语言资源目录项不可读取"))?;
+    files.sort_by_key(std::fs::DirEntry::file_name);
+    let mut result = Vec::new();
+    for file in files {
+        let path = file.path();
+        if path.extension().is_none_or(|extension| extension != "json") {
+            continue;
+        }
+        let metadata = path
+            .symlink_metadata()
+            .map_err(|_| Error::custom("i18n_namespace_source_invalid", "语言资源文件不可读取"))?;
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            return Err(Error::custom(
+                "i18n_namespace_source_invalid",
+                "语言资源文件无效",
+            ));
+        }
+        let locale = path
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .ok_or_else(|| Error::custom("i18n_namespace_locale_invalid", "语言资源文件名无效"))?;
+        let locale = Locale::new(locale)?.to_string();
+        let content = std::fs::read_to_string(&path)
+            .map_err(|_| Error::custom("i18n_namespace_source_invalid", "语言资源文件不可读取"))?;
+        let raw: serde_json::Value = serde_json::from_str(&content)
+            .map_err(|_| Error::custom("i18n_namespace_json_invalid", "语言资源 JSON 无效"))?;
+        raw.as_object().ok_or_else(|| {
+            Error::custom("i18n_namespace_json_invalid", "语言资源 JSON 必须是对象")
+        })?;
+        result.push((locale, raw));
+    }
+    Ok(result)
+}
+
 fn icu_locale(locale: &Locale) -> std::result::Result<IcuLocale, I18nFormatError> {
     IcuLocale::from_str(locale.as_str()).map_err(|error| format_error(locale, error))
 }
@@ -697,6 +820,64 @@ mod provider_tests {
     use crate::core::{BootContext, BoxFuture, ProviderBuilder, ServiceProvider};
     use figment::{Figment, providers::Serialized};
     use serde_json::json;
+
+    #[test]
+    fn module_namespace_published_messages_override_source() -> Result<()> {
+        let temporary = tempfile::tempdir().map_err(Error::internal)?;
+        let source = temporary.path().join("source");
+        let published = temporary.path().join("published");
+        std::fs::create_dir(&source).map_err(Error::internal)?;
+        std::fs::create_dir(&published).map_err(Error::internal)?;
+        std::fs::write(
+            source.join("en.json"),
+            r#"{"label":"source","fallback":"source-only"}"#,
+        )
+        .map_err(Error::internal)?;
+        std::fs::write(source.join("zh-CN.json"), r#"{"only_zh":"仅源目录"}"#)
+            .map_err(Error::internal)?;
+        std::fs::write(published.join("en.json"), r#"{"label":"published"}"#)
+            .map_err(Error::internal)?;
+        let i18n = I18n::new(I18nConfig::default(), MessageCatalog::new())?;
+        i18n.add_namespace("blog", &source, &published)?;
+        let en = Locale::new("en")?;
+        let args = MessageArgs::new();
+        assert_eq!(i18n.translate(&en, "blog::label", &args), "published");
+        assert_eq!(
+            i18n.translate(&en, "blog::fallback", &args),
+            "blog::fallback"
+        );
+        assert_eq!(i18n.translate(&en, "label", &args), "published");
+        assert_eq!(
+            i18n.translate(&Locale::new("zh-CN")?, "blog::only_zh", &args),
+            "blog::only_zh"
+        );
+        assert_eq!(i18n.translate(&en, "other::label", &args), "other::label");
+        assert_eq!(
+            i18n.add_namespace("blog", &source, &published)
+                .err()
+                .map(|error| error.code().to_owned())
+                .as_deref(),
+            Some("i18n_namespace_conflict")
+        );
+        let published_only = temporary.path().join("published-only");
+        std::fs::create_dir(&published_only).map_err(Error::internal)?;
+        std::fs::write(
+            published_only.join("en.json"),
+            r#"{"global":"published-only"}"#,
+        )
+        .map_err(Error::internal)?;
+        i18n.add_namespace(
+            "published",
+            temporary.path().join("missing"),
+            &published_only,
+        )?;
+        assert_eq!(i18n.translate(&en, "global", &args), "published-only");
+        let empty_published = temporary.path().join("empty-published");
+        std::fs::create_dir(&empty_published).map_err(Error::internal)?;
+        i18n.add_namespace("empty", &source, &empty_published)?;
+        assert_eq!(i18n.translate(&en, "empty::label", &args), "empty::label");
+        Ok(())
+    }
 
     struct ChangeLocale;
     impl ServiceProvider for ChangeLocale {
