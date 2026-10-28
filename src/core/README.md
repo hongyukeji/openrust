@@ -8,6 +8,8 @@ OpenRust 框架的应用内核。
 
 根容器也有 scoped 生命周期，`forget_scoped_instances()` 清除旧代，下次解析重建；子 scope 独立。关闭/取消在途解析后可重新构造，不保留失败占位；同链与并发等待环返回类型链。singleton 捕获 scoped 被拒绝，这是长驻进程安全增强。错误 `Debug` 只输出 code/status，工厂原始错误保留在内部 source，不直接输出 HTTP。
 
+缓存工厂在成功、失败或取消时先结束构造帧并清除已结束的等待边，再发布结果；已完成服务不再创建等待关系。scope关闭和根reset的唤醒、用户值释放都在容器内部锁之外执行，允许Waker同步重入。
+
 本阶段仅提供基元，**尚未接入生产 AppBuilder/Plugin、HTTP/队列自动 scope 或异步资源关闭**。`Scope::close()` 与 root reset 当前仅关闭解析并释放缓存；不能用于宣称连接池/后台任务已经异步清理。统一 `ServiceProvider` 切换时替换旧注册表与循环，不提供双运行模式。
 
 ## 当前应用启动资产

@@ -4,6 +4,18 @@
 > 更新：2026-10-28
 > 摘要：当前目录迁移与原专项测试入口，分开记录真实服务和未验收边界。
 
+## R2-A3 缓存发布与锁外唤醒
+
+安全自定义Wake在Notify同步回调中重新解析已发布singleton保存的Resolver，旧代码确定性返回service_cycle（红测）；修复后缓存工厂先结束active frame并移除已结束出边，再发布结果与通知，完成slot不再创建等待边。取消也经相同顺序清理。scope/root reset锁内仅提交关闭状态和缓存结果，所有通知与用户值释放在锁外执行，避免Waker同步重入State/outcome死锁。
+
+19项容器定向回归通过，新增4项覆盖成功通知立即解析、取消通知观察、已结束父构造的后台等待边回收，以及手动scope/root reset两条status/attempt通知的同步重入。首次Clippy发现测试显式panic及随后single_match_else，已直接修复测试写法，无生产lint豁免；重跑默认/full Clippy通过。默认workspace290 passed/22 ignored，全特性513/32；双warnings-denied docs及deny通过。MSRV1.97全target/all-features与no-default也通过；独立公开consumer locked check/test1项通过，根裸cargo run的health/HTML/API/example均200、SIGINT0。日志前缀/tmp/openrust-r2-publication-。
+
+不同模型gpt-6-sol最终静态复审无blocker/should-fix，审查未替代实际运行。
+
+本簇无DB/auth/queue/配置/生成模板或依赖改动，不将A2真实双库/生成证明转记新容器生产集成。生产仍是旧Plugin唯一路径；Provider切换、异步资源清理、自动HTTP/job scope及模块/CRUD都未完成。
+
+确认无独占target构建/server进程后cargo clean先dry-run再实际清理/tmp/openrust-r2-publication-target，回收47221files/15.3GiB，磁盘余118GiB；未知root/consumer共享缓存未动，/tmp红绿/门禁日志与公开consumer源码保留用于诊断。当前8个变更Markdown的40本地链接/10锚点均可解析，git diff --check与fmt通过。
+
 ## R2-A2 配置目录与来源失败语义
 
 ConfigLoader::figment现在返回Result，全部第一方loader调用同步传播；显式new/APP_CONFIG_DIR/自定义namespace目录为空、缺失、非目录、读目录/条目失败即报错，未显式默认config缺失仍可使用内置默认。坏symlink不当作默认目录缺失，已发现领域TOML使用file_exact精确读取并在figment阶段验证来源，不向父目录搜索或静默跳文件。ConfigLoader Debug与bootstrap日志只打印安全来源key。
@@ -18,7 +30,7 @@ ConfigLoader::figment现在返回Result，全部第一方loader调用同步传�
 
 构建达到聚合21.06GiB软限后停止扩展，确认无构建进程并仅对独占/tmp/openrust-r2-config-target dry-run/clean，报告移除57698files/18.8GiB；保留状态续跑未验收阶段。最终root启动后再次dry-run/clean，移除40556files/17.4GiB，磁盘余119GiB。未知root/consumer缓存未触碰；/tmp生成源码与日志保留作诊断证据。
 
-独立于A2，后续审查已确认R2-A容器缓存发布早于active factory frame结束的竞态；当前15项容器测试未覆盖，生产尚未挂载该容器。下一子簇须补确定性发布/取消观察回归、发布前结束帧/等待边，不以本次配置门禁覆盖该缺口。
+独立于A2，随后确认的容器缓存发布竞态归R2-A3；该修复与新增回归见本文件A3节，不以A2配置门禁覆盖该行为。
 
 ## R2-A 类型化容器基元
 

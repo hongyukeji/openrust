@@ -47,3 +47,5 @@
 R2-A：新增服务工厂错误保留内部source，公开Error Debug仅code/status，HTTP仍按5xx统一脱敏；容器基元尚未接入生产启动，不代表完整ServiceProvider或异步资源生命周期完成。
 
 R2-A2：ConfigLoader::figment现为fallible；显式目录或已发现文件无效即失败，默认未声明且缺目录仍可用内置默认。ConfigLoader Debug/引导日志只暴露来源key；未知字段schema、Provider模块配置合并与单次配置快照仍待对应R2子簇。
+
+R2-A3：缓存工厂结束帧/出向等待边先于结果发布；完成slot不建等待边。scope/root reset先锁内提交状态，锁外通知/释放用户值；同步Wake重入不持State/outcome锁。生产Provider迁移和异步清理边界仍不变。

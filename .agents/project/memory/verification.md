@@ -4,9 +4,13 @@
 
 2026-10-28 按用户明确授权整合 `9b6268e` / `eeba3e1` 与 main 原有三笔设计提交；冲突仅在 plan/progress/todo，保留最新设计要求及 R0/R1 实际进度。与 eeba3e1 对比，源码、manifest、lock、模板、脚本、CI 和测试内容一致，额外变化仅为项目文档/协作规则。R1 代码门禁使用该提交的实际执行记录，本次整合不宣称重新执行构建或双库验收。
 
+## R2-A3 缓存完成顺序验收边界
+
+19项容器回归及默认290/22、full513/32、双Clippy/docs、deny、MSRV1.97/no-default通过；同步Wake实际证明成功发布、取消及scope/root reset通知不持内部锁且允许重入。公开consumer check/test1项通过；根裸run/health+HTML+API+example200/SIGINT0通过；独占target已清理15.3GiB，完整边界见[testing](testing.md#r2-a3-缓存发布与锁外唤醒)。不宣称生产Provider已切换或异步清理完成。
+
 ## R2-A2 配置来源验收边界
 
-目录fail-closed与fallible figment调用传播、来源Debug/log哨兵回归通过；默认286/22与full509/32、双Clippy/docs、deny、MSRV/no-default、双库各48+testing1、三类生成/八consumer/根HTTP实际通过。默认值、优先级和锁未改；完整Provider/schema与配置合并仍待后继，容器发布竞态单列下一簇。详见[testing](testing.md#r2-a2-配置目录与来源失败语义)。
+目录fail-closed与fallible figment调用传播、来源Debug/log哨兵回归通过；默认286/22与full509/32、双Clippy/docs、deny、MSRV/no-default、双库各48+testing1、三类生成/八consumer/根HTTP实际通过。默认值、优先级和锁未改；完整Provider/schema与配置合并仍待后继，容器发布竞态已在独立A3子簇验证修复。详见[testing](testing.md#r2-a2-配置目录与来源失败语义)。
 
 ## R2-A 基元验收边界
 

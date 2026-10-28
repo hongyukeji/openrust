@@ -140,9 +140,8 @@ struct ScopeStatus {
 }
 
 impl ScopeStatus {
-    fn close(&self) {
+    fn mark_closed(&self) {
         self.closed.store(true, Ordering::Release);
-        self.changed.notify_waiters();
     }
 
     async fn wait_closed(&self) {
@@ -284,11 +283,17 @@ struct Construction {
     inner: Arc<Inner>,
     key: CacheKey,
     attempt: Arc<Attempt>,
+    activity: Arc<AtomicBool>,
     finished: bool,
 }
 
 impl Construction {
     fn finish(&mut self, result: std::result::Result<Value, Failure>) {
+        // 发布结果前结束构造帧；通知可以同步唤醒并重新进入保存的 Resolver。
+        self.activity.store(false, Ordering::Release);
+        lock(&self.inner.state)
+            .edges
+            .retain(|(from, _), _| *from != self.attempt.id);
         let failed = result.is_err();
         let mut outcome = lock(&self.attempt.outcome);
         if outcome.is_none() {
@@ -363,11 +368,16 @@ impl Container {
         let next = state.id()?;
         let old = state.root_scope;
         state.root_scope = next;
-        state.root_closed.close();
+        let closed = Arc::clone(&state.root_closed);
+        closed.mark_closed();
         state.root_closed = Arc::new(ScopeStatus::default());
         let removed = close_scope(&mut state, old);
         drop(state);
-        // 用户服务的 Drop 可能再次访问容器，不能在持有内部锁时销毁它。
+        // Waker 和用户服务的 Drop 都可能同步重入容器，必须先释放内部锁。
+        closed.changed.notify_waiters();
+        for attempt in &removed {
+            attempt.changed.notify_waiters();
+        }
         drop(removed);
         Ok(())
     }
@@ -413,9 +423,13 @@ impl Scope {
     /// 关闭本生命周期，后续解析失败；本基元尚不登记异步资源回收。
     pub fn close(&self) {
         let mut state = lock(&self.container.inner.state);
-        self.closed.close();
+        self.closed.mark_closed();
         let removed = close_scope(&mut state, self.id);
         drop(state);
+        self.closed.changed.notify_waiters();
+        for attempt in &removed {
+            attempt.changed.notify_waiters();
+        }
         drop(removed);
     }
 }
@@ -445,7 +459,6 @@ fn close_scope(state: &mut State, scope: u64) -> Vec<Arc<Attempt>> {
                 message: "生命周期已关闭".into(),
                 source: None,
             }));
-            attempt.changed.notify_waiters();
         }
     }
     removed
@@ -528,7 +541,7 @@ impl Resolver {
                 .retain(|(_, _, active)| active.load(Ordering::Acquire));
             let activity = Arc::new(AtomicBool::new(true));
             let _activity = ActiveFactory(Arc::clone(&activity));
-            child.chain.push((key, name, activity));
+            child.chain.push((key, name, Arc::clone(&activity)));
             if binding.lifetime == Lifetime::Singleton {
                 child.captive = true;
                 child.scope = u64::MAX;
@@ -537,7 +550,7 @@ impl Resolver {
             let value = if binding.lifetime == Lifetime::Bind {
                 tokio::select! { result = (binding.factory)(child) => result?, () = self.closed.wait_closed() => return Err(container_error("scope_closed", "生命周期已关闭")) }
             } else {
-                self.cached(binding, child, key, name).await?
+                self.cached(binding, child, key, name, activity).await?
             };
             if self.closed.closed.load(Ordering::Acquire) {
                 return Err(container_error("scope_closed", "生命周期已关闭"));
@@ -557,6 +570,7 @@ impl Resolver {
         mut child: Self,
         service: TypeId,
         name: &'static str,
+        activity: Arc<AtomicBool>,
     ) -> Result<Value> {
         let container = self.container()?;
         // singleton 不能和 root scoped 共用一个缓存键。
@@ -585,11 +599,10 @@ impl Resolver {
                 state.slots.insert(key, Arc::clone(&attempt));
                 (attempt, true)
             };
-            let edge = if let Some((parent, _)) = self
-                .constructing
-                .as_ref()
-                .filter(|(_, active)| active.load(Ordering::Acquire))
-            {
+            let edge = if let Some((parent, _)) =
+                self.constructing.as_ref().filter(|(_, active)| {
+                    active.load(Ordering::Acquire) && lock(&attempt.outcome).is_none()
+                }) {
                 let parent = *parent;
                 if let Some(mut path) = state.path(attempt.id, parent) {
                     path.insert(0, parent);
@@ -625,6 +638,7 @@ impl Resolver {
             inner: Arc::clone(&container.inner),
             key,
             attempt: Arc::clone(&attempt),
+            activity,
             finished: false,
         };
         child.constructing = child
@@ -1069,5 +1083,224 @@ mod tests {
             saved.resolve::<Lazy>().await.err().unwrap().code(),
             "container_closed"
         );
+    }
+
+    #[tokio::test]
+    async fn published_singleton_can_use_saved_resolver_inside_waiter_notification() {
+        struct Lazy(Resolver);
+        struct Observer {
+            inner: Weak<Inner>,
+            outcome: AtomicUsize,
+        }
+        impl std::task::Wake for Observer {
+            fn wake(self: Arc<Self>) {
+                let resolver = {
+                    let inner = self.inner.upgrade().unwrap();
+                    let state = lock(&inner.state);
+                    let attempt = state
+                        .slots
+                        .get(&CacheKey {
+                            service: TypeId::of::<Lazy>(),
+                            scope: u64::MAX,
+                        })
+                        .unwrap();
+                    let outcome = lock(&attempt.outcome);
+                    if let Some(Ok(value)) = outcome.as_ref() {
+                        value.downcast_ref::<Arc<Lazy>>().unwrap().0.clone()
+                    } else {
+                        self.outcome.store(3, Ordering::Release);
+                        return;
+                    }
+                };
+                let mut future = resolver.resolve::<Lazy>();
+                let mut context = std::task::Context::from_waker(std::task::Waker::noop());
+                let result = match std::future::Future::poll(future.as_mut(), &mut context) {
+                    std::task::Poll::Ready(Ok(_)) => 1,
+                    std::task::Poll::Ready(Err(error)) if error.code() == "service_cycle" => 2,
+                    _ => 3,
+                };
+                self.outcome.store(result, Ordering::Release);
+            }
+        }
+        let started = Arc::new(Notify::new());
+        let release = Arc::new(Notify::new());
+        let mut builder = ContainerBuilder::new();
+        let notice = Arc::clone(&started);
+        let finish = Arc::clone(&release);
+        builder.singleton::<Lazy, _>(move |r| {
+            let notice = Arc::clone(&notice);
+            let finish = Arc::clone(&finish);
+            Box::pin(async move {
+                notice.notify_one();
+                finish.notified().await;
+                Ok(Arc::new(Lazy(r)))
+            })
+        });
+        let container = builder.build();
+        let root = container.clone();
+        let owner = tokio::spawn(async move { root.resolve::<Lazy>().await });
+        started.notified().await;
+        let attempt = Arc::clone(
+            lock(&container.inner.state)
+                .slots
+                .get(&CacheKey {
+                    service: TypeId::of::<Lazy>(),
+                    scope: u64::MAX,
+                })
+                .unwrap(),
+        );
+        let observer = Arc::new(Observer {
+            inner: Arc::downgrade(&container.inner),
+            outcome: AtomicUsize::new(0),
+        });
+        let waker = std::task::Waker::from(Arc::clone(&observer));
+        let mut context = std::task::Context::from_waker(&waker);
+        let mut notified = Box::pin(attempt.changed.notified());
+        assert!(std::future::Future::poll(notified.as_mut(), &mut context).is_pending());
+        release.notify_one();
+        owner.await.unwrap().unwrap();
+        assert_eq!(
+            observer.outcome.load(Ordering::Acquire),
+            1,
+            "已发布服务不能被仍活跃的历史帧误判循环"
+        );
+    }
+    #[tokio::test]
+    async fn cancellation_ends_factory_before_notifying_waiters() {
+        struct Observer {
+            activity: Arc<AtomicBool>,
+            outcome: AtomicUsize,
+        }
+        impl std::task::Wake for Observer {
+            fn wake(self: Arc<Self>) {
+                self.outcome.store(
+                    if self.activity.load(Ordering::Acquire) {
+                        2
+                    } else {
+                        1
+                    },
+                    Ordering::Release,
+                );
+            }
+        }
+        let started = Arc::new(Notify::new());
+        let saved = Arc::new(Mutex::new(None::<Resolver>));
+        let mut builder = ContainerBuilder::new();
+        let notice = Arc::clone(&started);
+        let slot = Arc::clone(&saved);
+        builder.singleton::<usize, _>(move |resolver| {
+            *lock(&slot) = Some(resolver);
+            notice.notify_one();
+            Box::pin(std::future::pending())
+        });
+        let container = builder.build();
+        let root = container.clone();
+        let owner = tokio::spawn(async move { root.resolve::<usize>().await });
+        started.notified().await;
+        let attempt = Arc::clone(lock(&container.inner.state).slots.values().next().unwrap());
+        let activity = Arc::clone(&lock(&saved).as_ref().unwrap().chain.last().unwrap().2);
+        let observer = Arc::new(Observer {
+            activity,
+            outcome: AtomicUsize::new(0),
+        });
+        let waker = std::task::Waker::from(Arc::clone(&observer));
+        let mut context = std::task::Context::from_waker(&waker);
+        let mut notified = Box::pin(attempt.changed.notified());
+        assert!(std::future::Future::poll(notified.as_mut(), &mut context).is_pending());
+        owner.abort();
+        assert!(owner.await.unwrap_err().is_cancelled());
+        assert_eq!(observer.outcome.load(Ordering::Acquire), 1);
+        assert_eq!(
+            attempt.wait().await.unwrap_err().code(),
+            "service_initialization_cancelled"
+        );
+    }
+
+    #[tokio::test]
+    async fn completed_factory_removes_detached_child_wait_edges() {
+        let started = Arc::new(Notify::new());
+        let release = Arc::new(Notify::new());
+        let task = Arc::new(Mutex::new(None));
+        let mut builder = ContainerBuilder::new();
+        let notice = Arc::clone(&started);
+        let finish = Arc::clone(&release);
+        builder.singleton::<u8, _>(move |_| {
+            let notice = Arc::clone(&notice);
+            let finish = Arc::clone(&finish);
+            Box::pin(async move {
+                notice.notify_one();
+                finish.notified().await;
+                Ok(Arc::new(7))
+            })
+        });
+        let child_task = Arc::clone(&task);
+        builder.singleton::<usize, _>(move |resolver| {
+            let started = Arc::clone(&started);
+            let task = Arc::clone(&child_task);
+            Box::pin(async move {
+                *lock(&task) = Some(tokio::spawn(async move { resolver.resolve::<u8>().await }));
+                started.notified().await;
+                Ok(Arc::new(1))
+            })
+        });
+        let container = builder.build();
+        assert_eq!(*container.resolve::<usize>().await.unwrap(), 1);
+        assert!(lock(&container.inner.state).edges.is_empty());
+        release.notify_one();
+        let task = lock(&task).take().unwrap();
+        assert_eq!(*task.await.unwrap().unwrap(), 7);
+        assert!(lock(&container.inner.state).edges.is_empty());
+    }
+    #[tokio::test]
+    async fn scope_close_and_root_reset_notify_after_releasing_internal_locks() {
+        struct Observer {
+            inner: Weak<Inner>,
+            attempt: Weak<Attempt>,
+            calls: AtomicUsize,
+        }
+        impl std::task::Wake for Observer {
+            fn wake(self: Arc<Self>) {
+                let inner = self.inner.upgrade().unwrap();
+                let attempt = self.attempt.upgrade().unwrap();
+                assert!(inner.state.try_lock().is_ok(), "通知不能持有 State 锁");
+                assert!(attempt.outcome.try_lock().is_ok(), "通知不能持有结果锁");
+                let _scope = Container { inner }.scope().unwrap();
+                self.calls.fetch_add(1, Ordering::AcqRel);
+            }
+        }
+        for root_reset in [false, true] {
+            let mut builder = ContainerBuilder::new();
+            builder.scoped::<usize, _>(|_| Box::pin(std::future::pending()));
+            let container = builder.build();
+            let scope = container.scope().unwrap();
+            let resolver = if root_reset {
+                let state = lock(&container.inner.state);
+                container.resolver(state.root_scope, Arc::clone(&state.root_closed))
+            } else {
+                container.resolver(scope.id, Arc::clone(&scope.closed))
+            };
+            let mut future = resolver.resolve::<usize>();
+            let mut context = std::task::Context::from_waker(std::task::Waker::noop());
+            assert!(std::future::Future::poll(future.as_mut(), &mut context).is_pending());
+            let attempt = Arc::clone(lock(&container.inner.state).slots.values().next().unwrap());
+            let observer = Arc::new(Observer {
+                inner: Arc::downgrade(&container.inner),
+                attempt: Arc::downgrade(&attempt),
+                calls: AtomicUsize::new(0),
+            });
+            let waker = std::task::Waker::from(Arc::clone(&observer));
+            let mut context = std::task::Context::from_waker(&waker);
+            let mut closed = Box::pin(resolver.closed.changed.notified());
+            let mut published = Box::pin(attempt.changed.notified());
+            assert!(std::future::Future::poll(closed.as_mut(), &mut context).is_pending());
+            assert!(std::future::Future::poll(published.as_mut(), &mut context).is_pending());
+            if root_reset {
+                container.forget_scoped_instances().unwrap();
+            } else {
+                scope.close();
+            }
+            assert_eq!(observer.calls.load(Ordering::Acquire), 2);
+            assert_eq!(future.await.unwrap_err().code(), "scope_closed");
+        }
     }
 }

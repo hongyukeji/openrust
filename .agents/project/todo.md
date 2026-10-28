@@ -21,7 +21,7 @@
 | 功能簇 | 状态 | 交付与验收 |
 | --- | --- | --- |
 | R1-S 根结构与普通模块挂载 | 已完成结构子交付34dfb5e | 根Laravel职责、同package lib/server、资源内聚、模块公开挂载；按范围实际门禁与独立审查通过后可限定提交，仅结构子交付 |
-| R2 基础：Container/Provider/模块配置/TestApp | in_progress：R2-A/A2已实现验收，续A3发布竞态与统一Provider | 全体register后boot、统一Container与typed配置、最小TestApp；当前Plugin仅迁移资产，不冒充Laravel等价；先形成真实CRUD/扩展接入的稳定API，不依赖完整R1-E |
+| R2 基础：Container/Provider/模块配置/TestApp | in_progress：R2-A/A2/A3已实现验收，续统一Provider | 全体register后boot、统一Container与typed配置、最小TestApp；当前Plugin仅迁移资产，不冒充Laravel等价；先形成真实CRUD/扩展接入的稳定API，不依赖完整R1-E |
 | R2-M 模块最小闭环与目录迁移 | 待R2基础 | modules/ 声明注册、模块配置/资源/迁移、依赖与冲突错误；迁移现有示例到 modules/example，验证注册/未注册与真实HTTP；完整管理命令归R13 |
 | R1-E 真实CRUD与当前能力示例 | 待R2基础与R2-M；未交付 | 真实实体列表/详情/新增/更新/删除，校验/分页/404/授权/事务；PG18/MySQL8.4真实HTTP闭环；当前公开能力实际业务/扩展/测试逐项覆盖，GET基础信息响应不算CRUD |
 | R2 后继内核与测试底座 | 待R2基础，按依赖分簇 | scope/Facade/DI/停机与模块依赖/顺序等完整对应；每簇同步modules/example，不建双内核；不把全部R2能力塞入首批 |
@@ -103,5 +103,3 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 4. 已发现TOML文件必须实际可读/可解析，不因缺失静默跳过；错误只含安全来源key和类别，不泄漏路径/文件内容/密钥。
 5. 同步全部loader调用与真实既有fixture，新增显式坏目录、默认缺目录、有效空目录、损坏文件和启动传播回归。
 6. 源码门禁、独立consumer/生成与根HTTP及适用双库重新执行，不用R2-A或R1旧结果冒充；不同模型复审后限定提交。
-
-- 下一R2-A3：已确认Container::cached先发布成功/取消结果并唤醒waiter，外层ActiveFactory帧稍后才结束；保存Resolver的并发waiter可能误报cycle。用安全Wake确定性观察，发布前结束构造帧并清除已结束依赖等待边，独立验证/审查/提交；不混入A2配置源修复。
