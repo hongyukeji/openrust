@@ -267,6 +267,7 @@ MQTT并非常规Web/API项目的必需能力，默认关闭；需要它的项目
 
 此为Laravel包/扩展机制下的通用增强，不称Laravel原生MQTT对应项；不与集群自动发现、调度或缓存强行串联，不改变当前任务顺序。
 
+- Laravel风格是开发体验验收项：从配置连接、容器解析、发布/订阅、消息处理、替换驱动到fake/断言的完整示例，须能沿用Laravel既有概念与操作习惯，仅在Rust类型/所有权/async必要处适配并说明。提供符合职责的简洁链式API，不机械复制PHP语法；普通业务不应自行驱动第三方eventloop或手写连接重试。实现前以实际使用示例审查接口，不能仅加同名Provider/Facade就算达标。
 - 统一ServiceProvider/Container、配置仓储与.env、默认及命名连接、Manager与公开Contract；外部驱动可公开注册替换，不改src核心。Facade与DI（如提供）共用同一Manager，不建立第二容器或业务事件系统；服务端认证/主题授权通过既有公开机制扩展。
 - 复用成熟组件，客户端首选评估rumqttc；Broker评估rumqttd/RMQTT等实际嵌入与部署边界。协议版本、QoS、会话/遗嘱/保留消息、TLS及资源/持久性边界须逐项核实；未支持不虚报。实施时才在stack.md登记选定版本、许可证、MSRV、维护情况及构建成本，不在本轮增加Cargo依赖。
 - 候选feature名为`mqtt-client`与`mqtt-server`，均不在default，独立依赖以`optional = true`和`dep:`显式关联，按需控制第三方default-features。HTTP默认入口不传递启用；仅客户端不编译Broker专属依赖，反之亦然（公共依赖复用除外）。不得以.env运行开关代替编译隔离；工作区feature合并及all-features构建仍会显式引入对应依赖。
