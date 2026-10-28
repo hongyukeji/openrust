@@ -37,6 +37,7 @@
 
 ## 必须实际验证
 
+- 每簇开工、审查和提交前执行总计划[纠偏规则](laravel-rebuild.md#执行偏离的纠正)：追踪实际生产入口、默认值、示例与生成器，以可区分旧、新行为的证据验收。发现偏离先纠正再继续依赖该设计的开发；未就绪项进入唯一 todo，不能只改名包装旧实现后报告目标完成。
 - 每个代码簇执行适用 fmt、workspace clippy/test/doc、cargo deny、feature/MSRV 门禁；失败先修复。生成项目执行 check/test 和真实启动/HTTP 流程。
 - PostgreSQL 18/MySQL 8.4 LTS 双库；SQLite 单机支持按阶段纳入。真实复制验收延迟/追平/强制主库/故障恢复，不能用两个独立数据库替代。
 - 真实 Redis、S3、SMTP、HTTP/WebSocket/SSE/gRPC、Collector；各数据库分别验收负载均衡、两个 API、多 worker/scheduler 和共享状态/文件/广播/恢复。外部 SMS/支付等仅用授权目标和凭据。
