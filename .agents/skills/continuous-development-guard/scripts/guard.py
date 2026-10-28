@@ -14,10 +14,12 @@ import subprocess
 import sys
 import time
 import tempfile
+from types import SimpleNamespace
 import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import guard_platform as platform
+import guard_questions as questions
 
 ROOT = Path.cwd().resolve()
 CHECK_INTERVAL = 120
@@ -28,7 +30,7 @@ PROMPT = (
     "按原目标与项目约束，从当前证据继续；先收件避免重复执行。"
     "已授权且信息充分的普通开发决策直接按推荐方案继续，不弹阻断问答；"
     "缺必要信息不猜填，继续独立工作。沉默不批准权限、认证、凭据、付费、"
-    "发布、对外消息或删除，不代答PendingPermissions。"
+    "发布、对外消息或删除；普通问卷由守护按已验证的边界处理。"
     "用户停止优先，整体验收后完成Goal并清理守护。"
 )
 _TIMELINE_CACHE = (None, None)
@@ -105,14 +107,14 @@ def publish_registry(runtime):
                                        'guards': rows})
 
 
-def run_json(command):
+def run_json_command_text(command, **kwargs):
     process = platform.launch_tool(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                   stderr=subprocess.PIPE)
+                                   stderr=subprocess.PIPE, **kwargs)
     try:
         output, error = process.communicate(timeout=30)
         if process.returncode:
             raise subprocess.CalledProcessError(process.returncode, command, output, error)
-        return json.loads(output.decode('utf-8'))
+        return output.decode('utf-8')
     finally:
         try:
             terminate_child(process)
@@ -122,8 +124,19 @@ def run_json(command):
                     stream.close()
 
 
+def run_json(command):
+    return json.loads(run_json_command_text(command))
+
+
 def inspect(agent):
-    return run_json(['paseo', 'inspect', agent, '--json'])
+    result = run_json(['paseo', 'inspect', agent, '--json'])
+    if result.get('PendingPermissions'):
+        questions.enrich_snapshot(result, globals())
+    return result
+
+
+def answer_question(config, request, answer, binding, pending):
+    questions.submit(config, request, answer, binding, pending, SimpleNamespace(**globals()))
 
 
 def rpc(method, params):
@@ -436,6 +449,11 @@ def worker(runtime, parent_pid):
             if action in ('complete', 'paused', 'stopped'):
                 record(action)
                 return
+            question_status = questions.step(runtime, state, config, agent, current, turn, SimpleNamespace(**globals()))
+            if question_status:
+                record('needs_attention', reason=question_status)
+                sleep_until(runtime, CHECK_INTERVAL)
+                continue
             key = (turn or {}).get('key')
             if turn and turn['kind'] == 'task_complete' and not turn['payload'].get('error') and turn['tools'] and key != state.get('last_progress'):
                 attempts = 0

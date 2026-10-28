@@ -22,15 +22,19 @@ Windows 的 `.cmd` / `.bat` 只通过同目录已有 npm package 的唯一 `bin`
 
 ## 普通问答与审批
 
-无人值守优先由AI在提问前处理信息充分的普通开发决策；恢复消息包含这一规则。已弹窗等待120秒后选推荐项是期望行为，当前没有启用计时代答，120秒业务监测也不代表已授权或已回答。
+无人值守优先由AI在提问前处理信息充分的普通开发决策；弹窗适配仅处理原已授权目标内的普通选择题。首次观察原始待答问卷后至少等待120秒，常规监测仍为120秒，故不是从界面显示时精确倒数。新问卷最多调用一次轻量分类；用户先答、停止/暂停或请求/Goal/线程版本变化会撤销。没有推荐标签也可由该次AI给出推荐；无把握不猜。
 
-2026-10-29按本机已安装代码与正式schema只读核实：
+2026-10-29按本机正式接口、安装代码及隔离线程实际核实：
 
-- Paseo CLI只有`permit ls/allow/deny`相关入口；`permit allow --input`可携带修改输入，但属于权限响应通道。`@getpaseo/server`的`codex-app-server-agent.js`中`handleToolApprovalRequest`把`request_user_input`映射为`kind: question`并存入`pendingPermissions`；`providers/codex/async-questions.js`同样把异步问答映射为permission请求。问答名称、`kind: question`和题面都不能证明内容只是普通开发选择。
-- 通过`codex app-server generate-json-schema --experimental --out <临时目录>`得到的`ToolRequestUserInputParams`包含`threadId/turnId/itemId/questions/isBlocking`；问题含`isSecret`，选项仅`label/description`，没有可信推荐项、普通决策/硬审批分类或可供守护使用的请求更新时间。`ToolRequestUserInputResponse`定义答案结构，不能单凭存在该结构证明新启动的stdio客户端能接管另一客户端的待答请求。
-- 现阶段不能安全区分、核对和代答现有`PendingPermissions`，因此不新增回答器或UI自动点击，不将`(Recommended)`标签、首项位置、日志文本或超时时间视为授权。未增加超时代答就不声称已覆盖用户先答、请求替换、幂等发送等完整回答器竞态；隔离回归验证问答/审批即使等待很久也不发送恢复或允许操作，停止与身份变化继续优先。
-
-后续仅在正式接口具备上述元数据后接入普通选择题：记录首次观察时间与请求版本，120秒后再次检查原Goal/线程、请求ID/版本、仍待答状态及用户停止；用户已答或请求变化即撤销旧意图；发送前持久化意图，结果不明不重发。硬审批、秘密输入、必需信息缺失、无明确推荐或歧义始终不自动回答。接口核实不向真实开发线程制造问答或测试消息。
+- CLI `inspect --json`与`permit ls --json`只输出待答摘要，缺原始问题。`guard_paseo.cjs`通过已安装Paseo的正式`connectToDaemon`/`fetchAgent`只读取得原始`pendingPermissions`，核对agent UUID、provider、cwd、session/thread及activeTurn/最后用户消息；复用现有登录，不读取或改写认证配置。提交也复用同一正式客户端的`respondToPermissionAndWait`，桥接内最后再次fetch并深比较完整pending列表、原请求与绑定；桥接当前只验证macOS应用安装路径，其他环境保留摘要并等待。
+- 同步`request_user_input`在原始快照中为`kind: question`、带`metadata.threadId/turnId/itemId/questions`；`requestId=permission-<itemId>`。`respondToPermission`只按`updatedInput.answers[header]`字符串映射回Codex的`answers[id].answers`，缺答案会退回首项。因此适配器强制每题完整且唯一header映射、仅选择现存单项，不使用裸allow或`--all`。CLI的allow会在精确ID消失后继续前缀匹配，因此生产适配直接调用相同官方SDK的精确ID函数，避免另一个审批请求误命中。同/异步问卷最多3题，每题2–5项；拒绝secret/multiSelect、歧义及超长输入。
+- 异步`request_user_input_async`没有独立thread元数据，须用正式`thread/items/list`最近20项中的原始`agentMessage`（delivery=async、相同item ID与完整questions）交叉确认。Paseo按`Question N`读取答案，随后steer当前turn或发送follow-up；active turn变化会报错。找不到原始item保守拒绝，不全量扫描历史。
+- 已安装Paseo同步/异步处理代码的隔离原生测试实际核实答案映射、pending移除及重复响应拒绝。另用独立临时测试线程实际验证CLI答案结构及SDK精确ID提交：异步问答→一次受限推荐→正式答案提交→收到所选标签、pending清空；SDK重复提交明确被拒绝，结束后归档。未向真实开发总控发送测试消息或问题；同步真实弹窗仍以已安装处理器测试和正式schema为证据。
+- `guard_questions.py`先做协议/结构/敏感类别筛选，再由一次无工具AI判断是否为目标内、可逆且信息充分的普通开发选择。命令审批、秘密/认证/凭据、付款/额度、发布/外部通信、删除/破坏操作、账号/系统设置、必要用户信息、暂停停止或不确定性都拒绝；选项内容仅作不可信数据，分类结果严格限制为boolean、confidence和现有选项索引，不接收任意指令/自由答案。语言分类不是形式化证明，无法穷举所有表达；无法确认普通类别时等待。
+- 分类使用已安装Codex CLI `0.159.3`、现有`gpt-6-sol`、low推理。每次在自动清理的临时目录生成该已有模型的受限catalog：direct工具模式、无patch、无实验工具；关闭shell、apps、浏览器、多代理等，忽略用户/仓库配置与技能注入。`model_instructions_file`只放分类规则，输入仅原Goal与问卷，最多16KiB、输出最多4KiB、截止45秒。隔离本机HTTP服务捕获实际请求，验证`input.additional_tools.tools=[]`且无其他工具、无仓库路径/聊天/技能；该测试不访问商业模型。CLI版本升级后默认拒绝，须重新验收后更新版本。
+- 分类和提交前核对`ordinaryUsageAllowed`与自然额度窗口；未知/不足等待，不购买、切换账户或模型。分类意图先落盘，即使异常、进程被杀或plain stop/start也不重跑该ID的分类；提交意图同样先落盘，结果未知不重发。每个原Goal最多保留64个请求ID的防重记录，超限等待人工，不自动清除未知意图。
+- 原始请求摘要、Goal版本、rollout控制版本和线程/turn绑定都参与指纹；用户先答、混合新审批、取消、暂停、目标/请求变化撤销旧答案。请求ID来自不可变item ID，同一ID换版本视为异常并永久撤销，新的请求ID才重新观察，避免重启或替换题面绕过一次分类/防重。无需把后台计时当作新的模型轮次。
+- 发送与stop共用控制锁；发送前再次读取Goal、线程绑定、当前原始pending和停止标记，只提交一个完整精确ID。协议没有对Goal版本/请求内容的条件写或CAS，外部客户端仍可能在最终复核与提交间改变目标；请求已答通常由Paseo拒绝，未知结果保留意图不重试。不能声称消除了所有跨客户端竞态。
 
 ## 验证矩阵与限制
 
@@ -41,7 +45,7 @@ Windows 的 `.cmd` / `.bat` 只通过同目录已有 npm package 的唯一 `bin`
 | Windows 原生 | 已提供专属 job 后代清理、绑定失败屏障、PID 身份测试；当前 macOS 会跳过，尚未在原生 Windows 执行，不能称双平台验收通过 |
 | Windows完整Paseo/Codex接入 | 仍需已有 Windows 环境执行原生测试并核实已安装客户端、路径/锁与 start/stop 全链路；不为验收创建环境或修改 CI 跳过验证 |
 
-运行 `python -B <skill>/scripts/test_guard.py -v`（按现有 Python 命令调整）。测试使用临时目录和假客户端；Windows 的 start/stop/finish/停止竞态测试通过临时 Python 假CLI入口运行，不需 Node 或修改系统。Windows 专属 Job 测试只在原生 Windows 执行，POSIX进程组/SIGKILL场景在Windows跳过。POSIX清理范围为这些工具的专属进程组；主动setsid脱离该组的daemon和bootstrap自身被SIGKILL不在自动回收保证内，不扫描/终止外部daemon。宿主重启、监督进程被杀、无登录会话或客户端协议变更不能承诺无人工恢复；不改变用户自动启动设置。
+运行 `python -B -W error::ResourceWarning <skill>/scripts/test_guard.py -v` 和 `python -B -W error::ResourceWarning <skill>/scripts/test_guard_questions.py -v`（按现有 Python 命令调整）。测试使用临时目录和假客户端；Windows 的 start/stop/finish/停止竞态测试通过临时 Python 假CLI入口运行，不需 Node 或修改系统。Windows 专属 Job 测试只在原生 Windows 执行，POSIX进程组/SIGKILL场景在Windows跳过。POSIX清理范围为这些工具的专属进程组；主动setsid脱离该组的daemon和bootstrap自身被SIGKILL不在自动回收保证内，不扫描/终止外部daemon。宿主重启、监督进程被杀、无登录会话或客户端协议变更不能承诺无人工恢复；不改变用户自动启动设置。
 
 依据：[Python subprocess](https://docs.python.org/3/library/subprocess.html)、[Microsoft Job Objects](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects)、[SetInformationJobObject](https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-setinformationjobobject)。
 

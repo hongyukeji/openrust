@@ -500,6 +500,7 @@ class Lifecycle(unittest.TestCase):
         self.script.parent.mkdir(parents=True)
         shutil.copyfile(SCRIPT, self.script)
         shutil.copyfile(SCRIPT.with_name('guard_platform.py'), self.script.with_name('guard_platform.py'))
+        shutil.copyfile(SCRIPT.with_name('guard_questions.py'), self.script.with_name('guard_questions.py'))
         self.agent = '11111111-1111-4111-8111-111111111111'
         self.thread = '22222222-2222-4222-8222-222222222222'
         self.home = self.root / 'codex'; self.home.mkdir()
