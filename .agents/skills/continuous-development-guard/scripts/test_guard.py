@@ -483,6 +483,83 @@ class PlatformBoundaries(unittest.TestCase):
                     process.kill(); process.communicate()
 
 
+
+@unittest.skipIf(os.name == 'nt', 'POSIX生命管道与进程组回归')
+class PosixOwnedTools(unittest.TestCase):
+    def wait_for(self, condition, seconds=8):
+        end = time.monotonic() + seconds
+        while time.monotonic() < end:
+            if condition(): return
+            time.sleep(.05)
+        self.fail('工具树未在期限内回收')
+
+    def dead(self, pid):
+        result = subprocess.run(['ps', '-p', str(pid), '-o', 'stat='], capture_output=True, text=True, check=False)
+        return not result.stdout.strip() or result.stdout.lstrip().startswith('Z')
+
+    def tool(self, marker):
+        descendant = 'import signal,time;signal.signal(signal.SIGTERM,signal.SIG_IGN);time.sleep(60)'
+        return ('import os,signal,subprocess,sys,time,json;from pathlib import Path;'
+                'signal.signal(signal.SIGTERM,signal.SIG_IGN);'
+                f'p=subprocess.Popen([sys.executable,"-c",{descendant!r}]);'
+                f'Path({str(marker)!r}).write_text(json.dumps([os.getpid(),p.pid]));time.sleep(60)')
+
+    def test_actual_launch_tool_tree_dies_after_worker_sigkill(self):
+        with tempfile.TemporaryDirectory() as folder:
+            marker = Path(folder) / 'tool.json'
+            bootstrap = Path(folder) / 'bootstrap.pid'
+            code = ('import sys,time;from pathlib import Path;'
+                    f'sys.path.insert(0,{str(SCRIPT.parent)!r});import guard_platform as p;'
+                    f'q=p.launch_tool([sys.executable,"-c",{self.tool(marker)!r}],stdin=p.subprocess.PIPE,stdout=p.subprocess.DEVNULL,stderr=p.subprocess.DEVNULL);'
+                    f'Path({str(bootstrap)!r}).write_text(str(q.pid));time.sleep(60)')
+            unrelated = subprocess.Popen([sys.executable, '-c', 'import time;time.sleep(60)'])
+            worker = subprocess.Popen([sys.executable, '-B', '-c', code], start_new_session=True)
+            try:
+                self.wait_for(lambda: marker.exists() and bootstrap.exists())
+                pids = json.loads(marker.read_text()) + [int(bootstrap.read_text())]
+                os.killpg(worker.pid, signal.SIGKILL)
+                worker.wait(timeout=5)
+                self.wait_for(lambda: all(self.dead(pid) for pid in pids))
+                self.assertIsNone(unrelated.poll())
+            finally:
+                if worker.poll() is None:
+                    os.killpg(worker.pid, signal.SIGKILL); worker.wait()
+                unrelated.kill(); unrelated.wait()
+
+    def test_timeout_reclaims_stubborn_tool_tree_without_killing_owner(self):
+        with tempfile.TemporaryDirectory() as folder:
+            marker = Path(folder) / 'tool.json'
+            process = recovery.platform.launch_tool([sys.executable, '-c', self.tool(marker)],
+                                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            try:
+                self.wait_for(marker.exists)
+                with self.assertRaises(subprocess.TimeoutExpired):
+                    process.communicate(timeout=.05)
+                recovery.terminate_child(process)
+                self.wait_for(lambda: all(self.dead(pid) for pid in json.loads(marker.read_text())))
+                with patch.object(recovery.os, 'killpg', side_effect=AssertionError('已回收PID不得再用于发信号')):
+                    recovery.terminate_child(process)
+            finally:
+                recovery.terminate_child(process)
+                for stream in (process.stdin, process.stdout, process.stderr): stream.close()
+
+    def test_normal_tool_exit_cleans_its_stubborn_descendant(self):
+        with tempfile.TemporaryDirectory() as folder:
+            marker = Path(folder) / 'child.pid'
+            child = 'import signal,time;signal.signal(signal.SIGTERM,signal.SIG_IGN);time.sleep(60)'
+            code = ('import subprocess,sys;from pathlib import Path;'
+                    f'p=subprocess.Popen([sys.executable,"-c",{child!r}]);'
+                    f'Path({str(marker)!r}).write_text(str(p.pid))')
+            process = recovery.platform.launch_tool([sys.executable, '-c', code],
+                                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            try:
+                process.communicate(timeout=5)
+                self.assertEqual(process.returncode, 0)
+                self.wait_for(lambda: self.dead(int(marker.read_text())))
+            finally:
+                recovery.terminate_child(process)
+                for stream in (process.stdin, process.stdout, process.stderr): stream.close()
+
 @unittest.skipUnless(os.name == 'nt', '需要原生Windows Job Objects，POSIX不冒充验收')
 class WindowsProcesses(unittest.TestCase):
     def test_job_cleanup_after_wrapper_exit_preserves_unrelated_process(self):

@@ -27,6 +27,13 @@ if WINDOWS:
         function.argtypes, function.restype = args, result
 else:
     import fcntl
+    import ctypes
+    import select
+    import signal
+    libc = ctypes.CDLL(None, use_errno=True)
+    waitid = libc.waitid
+    waitid.argtypes = [ctypes.c_int, ctypes.c_uint, ctypes.c_void_p, ctypes.c_int]
+    waitid.restype = ctypes.c_int
 
 
 def lock_file(stream, blocking=True):
@@ -172,11 +179,22 @@ class Lines:
 
 
 def launch_tool(arguments, **kwargs):
-    """Windows 在工具派生之前绑定独立 job；协议退出也回收其 CLI 后代。"""
+    """工具树独立回收；Windows用job，POSIX bootstrap监测worker持有的生命管道。"""
     resolved = command(arguments)
-    if not WINDOWS:
-        return subprocess.Popen(resolved, start_new_session=True, **kwargs)
     import json
+    if not WINDOWS:
+        reader, writer = os.pipe()
+        try:
+            process = subprocess.Popen([os.sys.executable, '-B', str(Path(__file__).resolve()),
+                                        '_posix_exec', str(reader), json.dumps(resolved)],
+                                       pass_fds=(reader,), start_new_session=True, **kwargs)
+            process._guard_owner_fd = writer
+            return process
+        except BaseException:
+            os.close(writer)
+            raise
+        finally:
+            os.close(reader)
     job = Job()
     process = None
     try:
@@ -199,9 +217,58 @@ def launch_tool(arguments, **kwargs):
         raise
 
 
+def posix_tool(reader, arguments):
+    """组长保留为未回收子进程，避免回收后按复用PID清理其他进程组。"""
+    stopped = False
+    def stop(_signum, _frame):
+        nonlocal stopped
+        stopped = True
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
+    process = None
+    try:
+        # worker可能在bootstrap获得执行时间前已退出，此时不再启动工具。
+        if select.select([reader], [], [], 0)[0] and not os.read(reader, 1):
+            return 0
+        process = subprocess.Popen(arguments, start_new_session=True)
+        while not stopped:
+            # siginfo_t 在支持的macOS/Linux上小于256字节；长整型数组保证对齐。
+            # 仅检查是否有退出事件，不依赖各平台siginfo_t字段布局。
+            info = (ctypes.c_longlong * 32)()
+            result = waitid(os.P_PID, process.pid, ctypes.byref(info), os.WEXITED | os.WNOWAIT | os.WNOHANG)
+            if result:
+                error = ctypes.get_errno()
+                if error == 4:  # EINTR
+                    continue
+                raise OSError(error, os.strerror(error))
+            if any(info):
+                break
+            if select.select([reader], [], [], .2)[0] and not os.read(reader, 1):
+                break
+    finally:
+        if process is not None:
+            # waitid(WNOWAIT)未回收组长，pgid仍属于本次启动；不做PID扫描。
+            try:
+                os.killpg(process.pid, signal.SIGTERM)
+            except (ProcessLookupError, PermissionError):
+                # macOS仅剩不可执行的僵尸组长时killpg返回EPERM。
+                # 不尝试提权或扫描其他进程；真正可发信号的自有后代仍会接收信号。
+                pass
+            time.sleep(.5)
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
+            code = process.wait()
+        os.close(reader)
+    return code
+
+
 if __name__ == '__main__':
     import json
     import sys
+    if len(sys.argv) == 4 and sys.argv[1] == '_posix_exec' and not WINDOWS:
+        raise SystemExit(posix_tool(int(sys.argv[2]), json.loads(sys.argv[3])))
     if len(sys.argv) != 3 or sys.argv[1] != '_exec' or os.read(sys.stdin.fileno(), 1) != b'1':
         raise SystemExit('无效工具启动协议')
     raise SystemExit(subprocess.call(json.loads(sys.argv[2])))

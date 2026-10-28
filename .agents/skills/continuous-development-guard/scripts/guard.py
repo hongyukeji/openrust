@@ -433,6 +433,14 @@ def worker(runtime, parent_pid):
 
 
 def terminate_child(process):
+    owner_fd = getattr(process, '_guard_owner_fd', None)
+    if hasattr(process, '_guard_owner_fd'):
+        if owner_fd is not None:
+            os.close(owner_fd)
+            process._guard_owner_fd = None
+        # EOF由独立bootstrap处理，worker被SIGKILL也触发同一回收路径。
+        process.wait(timeout=5)
+        return
     if platform.WINDOWS:
         job = getattr(process, '_guard_job', None)
         if job:
