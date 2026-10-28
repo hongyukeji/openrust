@@ -81,7 +81,6 @@ R2 目标是统一 Container 与 ServiceProvider：register 阶段只绑定容�
 | database/migrations/mod.rs、database/seeders/mod.rs | 模块业务迁移与种子 |
 | resources/views/ | 业务模板 |
 | jobs/ | 当前心跳任务和调度插件 |
-| extensions.rs | 公开 driver/Plugin 扩展的后继 WIP，尚未挂载/验收 |
 | tests/auth_flows.rs、tests/registration.rs | 同一根 Server 认证流程、模块注册与路由边界测试 |
 | proto/、generated/、grpc.rs | 实际协议输入、显式生成脚本与已生成类型；完整 RPC 服务示例仍待补 |
 
@@ -106,7 +105,7 @@ serde_json.workspace = true
 chrono.workspace = true
 ```
 
-`http/controllers/example.rs::show` 已实际调用 `chrono::Utc::now()`，`http/resources/example.rs::ExampleInfo` 保存 `chrono::DateTime<chrono::Utc>` 并 derive `serde::Serialize`；认证输入也 derive `serde::Deserialize`，`extensions.rs` 使用 `use serde::Deserialize;`。业务可直接导入这些已声明的包；下面是可用于新业务模块的序列化用法，不需要再添加依赖：
+`http/controllers/example.rs::show` 已实际调用 `chrono::Utc::now()`，`http/resources/example.rs::ExampleInfo` 保存 `chrono::DateTime<chrono::Utc>` 并 derive `serde::Serialize`；认证输入也 derive `serde::Deserialize`。业务可直接导入这些已声明的包；下面是可用于新业务模块的序列化用法，不需要再添加依赖：
 
 ```rust
 use serde::Serialize;
@@ -168,7 +167,7 @@ cargo deny check
 | 数据库、迁移、种子、事务、查询 | 认证流程间接使用数据库；独立业务查询与事务待补 | 模块 database/migrations 与 database/seeders，ExamplePlugin 通过公开插件挂载；对应 db feature 与真实服务 | CRUD/查询/事务业务示例待补；旧框架测试不代替本模块覆盖 |
 | JWT/PAT 与认证流程 | `routes/api.rs` + `http/controllers/auth.rs` 调用 `AuthFlows/AuthLayer/CurrentUser` | `auth`、对应 db feature；通用 auth 配置与模块业务迁移、授权注入密钥 | `app/example/tests/auth_flows.rs` 复用同 Server；当前布局双库结果待记录；Policy/MFA/OIDC/Session 业务参考仍待补 |
 | 邮件及公开邮件实现 | `http/controllers/auth.rs::AuthCodeEmail` 实现 `Email`，`send_auth_code` 使用 `Mailer` | 根 mail 配置与 `MailerPlugin` | 认证测试有捕获 MailDriver；SMTP/真实发送须独立授权和条件，不能从 fake 推断 |
-| 自定义缓存/邮件/SMS driver | `extensions.rs` 定义 PrefixCachePlugin、WelcomeEmail、LocalCapturePlugin/CapturedDeliveries，使用公开 Plugin/driver trait | 尚待通过根通用公开入口挂载；示例配置留模块 | 4 项内嵌回归已写，尚未 Cargo 实跑，不能记已验收；不以其他 consumer 替代 |
+| 自定义缓存/邮件/SMS driver | 待补通过统一 Provider 与公开 driver 契约接入的业务示例 | 示例配置与实现留模块，通过通用入口注册 | 注册、TTL、配置拒绝、捕获通信与生产环境保护等行为待实现并实测；不以其他 consumer 替代 |
 | 队列与调度 | `jobs::JobsPlugin`、`ExampleHeartbeatJob`；路由派发任务 | `queue`、数据库与模块迁移的公开挂载；API/worker/scheduler 为同一应用的进程角色 | 任务与间隔调度代码存在；真实派发/消费、失败/重试/事务示例和新测试待补 |
 | 事件与通知 | 待补公开事件/通知业务调用 | 按既有 events/notifications 契约与 feature | 本模块无完整业务链，不以框架测试代替 |
 | 缓存、tag/SWR、并发加载 | 待补真实业务缓存及驱动扩展 | 现有缓存配置与选定 store；Redis 条件明确 | 根安装 CachePlugin 不等于示例已调用，业务与扩展测试待补 |
@@ -191,6 +190,6 @@ cargo deny check
 
 根框架测试使用 `cargo test -p openrust`，完整工具门禁使用 `cargo test --workspace`。认证 target 为 example_auth_flows，路径为模块 tests/auth_flows.rs；需要对应 feature 和有建库权限的隔离测试 URL，没有 URL 时跳过不算真实数据库通过。实际命令与结果统一记录于 [测试基线](../../.agents/project/memory/testing.md)。
 
-编写业务时使用公开 `Routes`、`Inject`、`AuthFlows`、`Queue` 等入口；扩展框架时参考现有 `JobsPlugin` 的 `Plugin::build` 和 `AuthCodeEmail` 的公开 trait 实现，在根 bootstrap 注册。`extensions.rs` 提供实际公开扩展代码：PrefixCachePlugin 的 example-prefix 只为显式命名 store 提供进程内 get/set/remove/TTL，不是共享缓存，也不支持 tag；LocalCapturePlugin 仅本地/测试，要求 mail/SMS 的 driver 均明确为 example-capture，拒绝 production，捕获内容不会外发。WelcomeEmail 可交 Mailer::send。当前尚未根挂载或 Cargo 实跑，不能写成完成。
+编写业务时使用公开 `Routes`、`Inject`、`AuthFlows`、`Queue` 等入口；当前可参考 `JobsPlugin` 的 `Plugin::build` 和 `AuthCodeEmail` 的公开 trait 实现。后继缓存与通信扩展示例必须按统一 Provider 契约实现、挂载并实测后再提供使用说明；进程内演示缓存不作为共享缓存，捕获通信仅允许显式本地/测试配置并拒绝 production。
 
 自定义 driver 应实现框架已公开的 trait，通过应用 Plugin 装配，不能修改框架核心来识别某个业务模块。其他 [公开 consumer](../../tests/consumers/README.md) 可辅助理解边界，但不能替代本模块的覆盖交付。
