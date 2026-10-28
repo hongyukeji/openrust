@@ -201,7 +201,7 @@ R2 配置补强以现有 Figment/ConfigLoader 和 section<T> 为唯一来源，�
 | C17 | Mail/Mailable、模板/附件/多 mailer、SMS、Notifications 多通道/按需/locale/队列/数据库与自定义通道 | R9/R10 |
 | C18 | 有序同步事件、listener/subscriber、queued listener、短路/异常、model/auth/upload/transaction 扩展 | R10 |
 | C19 | 数据库/Redis queue、失败任务、retry/backoff、timeout、unique/middleware、chain/batch/cancel/progress、after_commit/outbox | R10 |
-| C20 | Schedule/cron/timezone/DST、去重/锁/lease、单节点执行策略、多实例/故障补跑、worker/scheduler 安全停机 | R10 |
+| C20 | Schedule/cron/timezone/DST；每任务显式 onOneServer / withoutOverlapping、命名锁存储与身份；去重/lease、多实例/故障补跑及安全停机；现有统一时段去重不算公开策略已交付 | R10 |
 | C21 | HTTP client、认证/重试/并发池/超时/流/测试替换；Process 有界输出/取消/进程组回收；上下文传播 | R11 |
 | C22 | 请求幂等、持久去重、事务边界、通知/任务/上传组合；外部副作用幂等及补偿责任 | R10/R11 |
 | C23 | WebSocket/SSE、公共/私有/presence channel、广播授权/事件、连接限额/撤销/背压/跨节点 transport | R11 |
@@ -245,6 +245,18 @@ R2 配置补强以现有 Figment/ConfigLoader 和 section<T> 为唯一来源，�
 R1-S → R2基础 → R2-M模块闭环 → R1-E的CRUD/当前能力贯通是当前可完成主链；R2后继与R3–R12按依赖逐簇推进，每新增/改写能力同簇更新综合示例，不要求R1先演示尚未实现的全部未来能力，也不把当前CRUD缺失藏到最后。R1-S代码提交、GET基础信息路由或旧测试通过都不代表R1整体/1:1已完成。
 
 R0–R16 是依赖路线，`todo.md` 只维护当前可领取项。旧观测审查、TestApp、复制验收、最低版本、供应商实发和集群缺口逐项关联，不得因重构重置为“无需验证”。
+
+### R10 明确待办：每任务调度执行策略
+
+用户已明确要求 V1 提供 Laravel `onOneServer()` 对应的每任务可选链式配置；当前所有数据库调度统一按时段去重只是已有事实，不能算本项完成。此项归 R10，不改变当前功能簇顺序。
+
+- 以固定上游 scheduling 源码、测试及默认行为实现：未启用与启用单服务器策略分别验收；同一任务同一次触发由任意一个节点获得资格，不代表固定某台服务器。任务名称及不同参数组合的锁身份须明确隔离。
+- `withoutOverlapping` 独立控制前次执行未结束时的后续触发，可与 `onOneServer` 组合；锁存储选择、过期/清理及失败行为对应上游。跨节点使用共享数据库/Redis等具备实际原子锁能力的公开驱动；本地file/memory不能冒充集群锁，缺条件明确报错。
+- 复用统一 Cache/锁、Scheduler、Queue 与 Provider；实现前评估现有 schedule_runs 全局唯一槽如何表达按节点与全局两种策略，避免仅增加无效开关或自建第二调度器。排队任务的调度派发锁与worker执行互斥分别定义，不能把入队结束当作业务执行完成。
+- 验收至少覆盖多独立scheduler同次竞争、未启用策略的上游默认、任务/参数命名隔离、组合不重叠、节点故障与锁过期、共享驱动失败；在PostgreSQL/MySQL及适用Redis上实际验证，并同步modules/example、生成器与文档。
+- 邮件等外部副作用仍需业务幂等与供应商能力；单服务器调度不承诺崩溃重试下外部副作用恰好一次。依据：[Laravel scheduling](https://github.com/laravel/docs/blob/13.x/scheduling.md)，具体revision以R0固定基线为准。
+
+集群自动发现、数据库发现后节点直连等方案仍仅为讨论，未授权实施；不得将其作为本项依赖或借机增加注册中心、节点网络及第二套集群系统。
 
 ## 6. 功能簇 contract 模板
 
