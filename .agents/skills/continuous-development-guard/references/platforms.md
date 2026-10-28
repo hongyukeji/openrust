@@ -16,7 +16,8 @@ Windows 的 `.cmd` / `.bat` 只通过同目录已有 npm package 的唯一 `bin`
 - Windows 后台子进程不打开控制台；判活比较内核创建时间，不仅比较 PID。协议用有界 reader queue 和截止时间，避免 Windows pipe 不支持 `select`。JSON/状态/协议显式 UTF-8。
 - 单次读取最多512KiB rollout，未变化复用解析。watch.log 超过1MiB时保留末512KiB；每秒监督只检查本地子进程、禁用标记与日志大小，业务检查仍为120秒，不启动模型轮询。保留任务审计和空锁，清理仅本任务进程/PID。
 - 确定工具未启动的 FileNotFound 可清除发送意图后冷却重试；退出码、网络错误或返回不明不能证明未入队，同一意图保留并等待新轮次，避免重复开发。同一Goal的plain stop/start保留attempts、退避和未知发送意图，不通过重启绕过保护；只有换新Goal才重置。认证失败、目标改变或协议限制可能需要开发者处理。
-- 未完成原目标默认退避恢复，包括未知临时错误和运行器留下的blocked；blocked枚举本身不是硬阻塞。最近显式update_goal blocked按工具契约代表必须外部条件的语义阻塞，兼容直接调用、原始JS和JSON code包装，观察到后持久化到既有state防止日志截尾或重启丢失，优先于旧错误恢复；最新用户输入/取消、暂停/归档、权限、认证、预算、身份变化继续保护。规则只读最多512KiB日志尾部，不引入模型判断轮询；AI仅实际恢复后判断业务下一步。启动恢复暂停、暂停用户任务及每次中断前，核对本地 goal_id 前后相等及协议公开身份。当前正式协议不暴露 goal_id，使用 threadId、createdAt（秒）和 objective 与本地记录比较；不输出目标正文。协议缺少条件写/CAS，无法完全消除最后复核与写入之间由另一客户端替换目标的竞态，身份不明即拒绝操作。
+- 未完成原目标默认退避恢复，包括未知临时错误和运行器留下的blocked；blocked枚举本身不是硬阻塞。最近显式update_goal blocked按工具契约代表必须外部条件的语义阻塞，兼容直接调用、原始JS和JSON code包装，观察到后按日志文件、字节位置和时间标识持久化到既有state，防止日志截尾或重启丢失，优先于旧错误恢复。同一原Goal确认active且其本地更新时间晚于该控制调用时，持久记录已解除控制版本；尾部日志重复读取不会重新引入旧blocked，后续新控制仍保留。普通用户输入、task_started和plain stop/start不能解除显式阻塞；最新用户输入/取消、暂停/归档、权限、认证、预算、身份变化继续保护。规则只读最多512KiB日志尾部，不引入模型判断轮询；AI仅实际恢复后判断业务下一步。启动恢复暂停、暂停用户任务及每次中断前，核对本地 goal_id 前后相等及协议公开身份。当前正式协议不暴露 goal_id，使用 threadId、createdAt（秒）和 objective 与本地记录比较；不输出目标正文。协议缺少条件写/CAS，无法完全消除最后复核与写入之间由另一客户端替换目标的竞态，身份不明即拒绝操作。
+- 状态中`guard_alive`和兼容字段`active`表示锁、监督进程与心跳确认守护存活，不等于开发推进；`task_running`仅在最近检查确认业务主控running时为真。`reason`说明等待原因，`next_recovery_at`给出最早恢复复核时间，`next_check_at`仍为本地业务控制检查时间。额度自然窗口已知时保存`quota_check_at`至最晚耗尽窗口reset后30秒，未知用量或资格每300秒重查；等待跨worker重启保留，但每120秒继续核对完成、暂停、权限、认证和身份，主动运行主控优先于旧额度期限。额度到期也必须重新确认ordinaryUsageAllowed及窗口可用，不能据到期直接派发。
 - 完成事件缺少 completed_at 时，仅使用原始事件中带时区的 ISO timestamp；无可信时间进入待处理，不把每轮当前时间误作完成时间。Windows没有现成通知实现时记录 notification_status=unavailable 和 notification_delivered=false；不安装通知组件，不承诺送达。macOS工具失败则记录 failed。
 
 ## 验证矩阵与限制

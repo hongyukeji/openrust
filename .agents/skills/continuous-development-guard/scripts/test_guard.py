@@ -76,12 +76,12 @@ class Decisions(unittest.TestCase):
                 self.assertEqual(self.decide(goal={'id': 'g', 'status': 'blocked'}, turn=turn), 'needs_attention')
 
     def test_worker_reactivates_runner_blocked_only_with_quota_and_fresh_controls(self):
-        for boundary in ('none', 'unknown_quota', 'exhausted_quota', 'semantic_blocked', 'persisted_semantic_blocked', 'new_permission', 'new_pause', 'new_cancel', 'new_goal'):
+        for boundary in ('none', 'expired_quota_deadline', 'unknown_quota', 'exhausted_quota', 'semantic_blocked', 'persisted_semantic_blocked', 'new_permission', 'new_pause', 'new_cancel', 'new_goal'):
             with self.subTest(boundary=boundary), tempfile.TemporaryDirectory() as folder:
                 runtime = Path(folder)
                 config = {'agent': 'a', 'thread': 't', 'rollout': 'r', 'goal_id': 'g'}
                 (runtime / 'config.json').write_text(json.dumps(config))
-                (runtime / 'state.json').write_text(json.dumps(dict({'pending_key': 't', 'retry_at': 0}, **({'goal_control': {'status': 'blocked', 'key': 'old-control'}} if boundary == 'persisted_semantic_blocked' else {}))))
+                (runtime / 'state.json').write_text(json.dumps(dict({'pending_key': 't', 'retry_at': 0, 'quota_check_at': 1 if boundary == 'expired_quota_deadline' else 0}, **({'goal_control': {'status': 'blocked', 'key': 'old-control'}} if boundary == 'persisted_semantic_blocked' else {}))))
                 current = {'id': 'g', 'status': 'blocked'}
                 turn = dict(self.turn, payload={'error': {'message': 'unknown temporary transport failure'}}, semantic_blocked=boundary == 'semantic_blocked')
                 agent = dict(self.agent)
@@ -102,13 +102,132 @@ class Decisions(unittest.TestCase):
                     raise AssertionError(method)
                 with patch.object(recovery, 'binding_valid', return_value=True), patch.object(recovery, 'inspect', side_effect=lambda *_: dict(agent)), patch.object(recovery, 'goal', side_effect=lambda *_: dict(current)), patch.object(recovery, 'timeline', side_effect=lambda *_: dict(turn)), patch.object(recovery, 'notify', return_value=True), patch.object(recovery, 'rpc', side_effect=remote), patch.object(recovery, 'run_json', return_value={}) as send, patch.object(recovery, 'sleep_until', side_effect=lambda *_: (runtime / 'disabled').touch()):
                     recovery.worker(runtime, os.getppid())
-                if boundary == 'none':
+                if boundary in ('none', 'expired_quota_deadline'):
                     send.assert_called_once()
                     self.assertEqual(current['status'], 'active')
                 else:
                     send.assert_not_called()
                 if boundary in ('unknown_quota', 'exhausted_quota', 'semantic_blocked', 'persisted_semantic_blocked'):
                     self.assertFalse(any(method == 'thread/goal/set' for method, _ in operations))
+
+    def test_confirmed_active_watermark_prevents_old_block_replay(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'rollout'
+            def append(kind, payload, key):
+                with path.open('a') as output:
+                    output.write(json.dumps({'type': kind, 'timestamp': key, 'payload': payload}) + '\n')
+            append('response_item', {'type': 'function_call', 'name': 'update_goal',
+                                     'arguments': '{"status":"blocked"}'}, '2026-10-29T12:00:00Z')
+            append('event_msg', {'type': 'task_complete', 'error': {'message': '429'}}, 't')
+            turn = recovery.timeline(path)
+            state = {}
+            blocked = dict(self.goal, status='blocked')
+            self.assertTrue(recovery.controlled_turn(state, turn, blocked, self.config)['semantic_blocked'])
+            # 普通输入、启动轮次及state重载均不能解除硬阻塞。
+            for kind in ('user_message', 'task_started', 'task_complete'):
+                append('event_msg', {'type': kind}, kind)
+                state = json.loads(json.dumps(state))
+                self.assertTrue(recovery.controlled_turn(state, recovery.timeline(path), blocked, self.config)['semantic_blocked'])
+            active = dict(self.goal, updated_at_ms=int(recovery.datetime.fromisoformat('2026-10-29T12:01:00+00:00').timestamp() * 1000))
+            recovered = recovery.controlled_turn(state, recovery.timeline(path), active, self.config)
+            self.assertFalse(recovered['semantic_blocked'])
+            self.assertNotIn('goal_control', state)
+            self.assertIn('control_watermark', state)
+            append('event_msg', {'type': 'task_complete', 'error': {'message': '429'}}, 'later-error')
+            # 旧blocked仍在512KiB尾部，跨worker重启仍不污染后续429。
+            state = json.loads(json.dumps(state))
+            turn = recovery.controlled_turn(state, recovery.timeline(path), blocked, self.config)
+            self.assertFalse(turn['semantic_blocked'])
+            self.assertEqual(self.decide(goal=blocked, turn=turn), 'recover_error')
+            append('response_item', {'type': 'function_call', 'name': 'update_goal',
+                                     'arguments': '{"status":"blocked"}'}, 'new-block')
+            append('event_msg', {'type': 'task_complete', 'error': {'message': '429'}}, 'new-error')
+            turn = recovery.controlled_turn(state, recovery.timeline(path), blocked, self.config)
+            self.assertTrue(turn['semantic_blocked'])
+            self.assertEqual(self.decide(goal=blocked, turn=turn), 'needs_attention')
+            self.assertEqual(self.decide(goal=dict(self.goal, status='paused'), turn=turn), 'paused')
+            watermark = state['control_watermark']
+            recovery.controlled_turn(state, turn, dict(self.goal, id='replacement'), self.config)
+            self.assertEqual(state['control_watermark'], watermark)
+            self.assertEqual(state['goal_control']['key'], 'new-block')
+
+    def test_new_control_waits_for_goal_database_commit(self):
+        for status in ('blocked', 'paused', 'complete'):
+            with self.subTest(status=status):
+                state = {}
+                control = {'status': status, 'key': '2026-10-29T12:01:00Z',
+                           'source': ['rollout', 1], 'offset': 200}
+                turn = dict(self.turn, goal_control=control)
+                before = int(recovery.datetime.fromisoformat('2026-10-29T12:00:00+00:00').timestamp() * 1000)
+                active = dict(self.goal, updated_at_ms=before)
+                unknown = recovery.controlled_turn(state, turn, self.goal, self.config)
+                self.assertTrue(unknown['semantic_blocked'])
+                self.assertEqual(state['goal_control'], control)
+                pending = recovery.controlled_turn(state, turn, active, self.config)
+                self.assertEqual(state['goal_control'], control)
+                self.assertNotIn('control_watermark', state)
+                self.assertEqual(self.decide(goal=active, turn=pending), 'needs_attention')
+                if status == 'blocked':
+                    committed = recovery.controlled_turn(state, turn, dict(active, status='blocked'), self.config)
+                    self.assertEqual(self.decide(goal=dict(active, status='blocked'), turn=committed), 'needs_attention')
+                    restored = recovery.controlled_turn(state, turn, dict(active, updated_at_ms=before + 120000), self.config)
+                    self.assertFalse(restored['semantic_blocked'])
+                    replayed = recovery.controlled_turn(state, turn, dict(active, status='blocked'), self.config)
+                    self.assertFalse(replayed['semantic_blocked'])
+                # 文件截短后同inode较小offset的新控制不能被旧水位吞掉。
+                fresh = dict(control, key='2026-10-29T12:03:00Z', offset=50)
+                latest = recovery.controlled_turn(state, dict(turn, goal_control=fresh), active, self.config)
+                self.assertTrue(latest['semantic_blocked'])
+
+    def test_quota_deadline_persists_but_controls_and_running_are_checked(self):
+        for boundary in ('wait', 'running', 'permission', 'paused', 'new_goal', 'auth'):
+            with self.subTest(boundary=boundary), tempfile.TemporaryDirectory() as folder:
+                runtime = Path(folder)
+                config = {'agent': 'a', 'thread': 't', 'rollout': 'r', 'goal_id': 'g'}
+                (runtime / 'config.json').write_text(json.dumps(config))
+                (runtime / 'state.json').write_text(json.dumps({'pending_key': 't', 'retry_at': 0}))
+                current = dict(self.goal)
+                agent = dict(self.agent)
+                turn = dict(self.turn, payload={'error': {'message': '429'}})
+                calls = []
+                reset = time.time() + 7200
+                def remote(method, params):
+                    calls.append(method)
+                    self.assertEqual(method, 'account/rateLimits/read')
+                    return {'ordinaryUsageAllowed': True, 'rateLimits': {'primary': {'usedPercent': 100, 'resetsAt': reset}}}
+                def next_cycle(*_):
+                    if len(observed) == 0:
+                        observed.append(json.loads((runtime / 'state.json').read_text()))
+                        if boundary == 'running': agent['Status'] = 'running'
+                        if boundary == 'permission': agent['PendingPermissions'] = [1]
+                        if boundary == 'paused': current['status'] = 'paused'
+                        if boundary == 'new_goal': current['id'] = 'replacement'
+                        if boundary == 'auth': turn['payload'] = {'error': {'message': '401 unauthorized'}}
+                    else:
+                        observed.append(json.loads((runtime / 'state.json').read_text()))
+                        (runtime / 'disabled').touch()
+                observed = []
+                with patch.object(recovery, 'binding_valid', return_value=True), patch.object(recovery, 'inspect', side_effect=lambda *_: dict(agent)), patch.object(recovery, 'goal', side_effect=lambda *_: dict(current)), patch.object(recovery, 'timeline', side_effect=lambda *_: dict(turn)), patch.object(recovery, 'notify', return_value=True), patch.object(recovery, 'rpc', side_effect=remote), patch.object(recovery, 'run_json') as send, patch.object(recovery, 'sleep_until', side_effect=next_cycle):
+                    recovery.worker(runtime, os.getppid())
+                self.assertEqual(calls, ['account/rateLimits/read'])
+                self.assertAlmostEqual(observed[0]['quota_check_at'], reset + 30, delta=1)
+                self.assertEqual(observed[0]['next_recovery_at'], observed[0]['quota_check_at'])
+                state = json.loads((runtime / 'state.json').read_text())
+                self.assertEqual(state['quota_check_at'], observed[0]['quota_check_at'])
+                send.assert_not_called()
+                if boundary == 'paused': self.assertEqual(state['status'], 'paused')
+                elif boundary == 'running':
+                    self.assertEqual(observed[1]['status'], 'working')
+                    self.assertTrue(observed[1]['task_running'])
+                    self.assertIsNone(observed[1]['next_recovery_at'])
+                elif boundary in ('permission', 'new_goal', 'auth'):
+                    self.assertEqual(observed[1]['status'], 'needs_attention')
+                else: self.assertEqual(observed[1]['status'], 'quota_wait')
+                # 模拟worker重启，不重查仍未到期的已知额度窗口。
+                (runtime / 'disabled').unlink(missing_ok=True)
+                with patch.object(recovery, 'binding_valid', return_value=True), patch.object(recovery, 'inspect', return_value=self.agent), patch.object(recovery, 'goal', return_value=self.goal), patch.object(recovery, 'timeline', return_value=dict(self.turn, payload={'error': {'message': '429'}})), patch.object(recovery, 'notify', return_value=True), patch.object(recovery, 'rpc') as remote, patch.object(recovery, 'sleep_until', side_effect=lambda *_: (runtime / 'disabled').touch()):
+                    recovery.worker(runtime, os.getppid())
+                    remote.assert_not_called()
 
     def test_completion_without_completed_at_uses_event_timestamp(self):
         turn = dict(self.turn, key='2026-10-28T12:00:00.000Z', payload={})
@@ -167,6 +286,7 @@ class Decisions(unittest.TestCase):
         limits = {'primary': {'usedPercent': 100, 'resetsAt': 150},
                   'secondary': {'usedPercent': 100, 'resetsAt': 500}}
         self.assertEqual(recovery.quota_delay({'ordinaryUsageAllowed': True, 'rateLimits': limits}, 100), 430)
+        self.assertEqual(recovery.quota_delay({'ordinaryUsageAllowed': False, 'rateLimits': limits}, 100), 430)
         limits['secondary'].pop('resetsAt')
         self.assertEqual(recovery.quota_delay({'ordinaryUsageAllowed': True, 'rateLimits': limits}, 100), 300)
 
@@ -200,6 +320,22 @@ class Decisions(unittest.TestCase):
             self.assertTrue(view['lock_held'])
             self.assertFalse(view['active'])
             self.assertEqual(view['status'], 'orphaned')
+
+    def test_summary_separates_guard_liveness_from_business_execution(self):
+        for status, running in (('working', True), ('working', False), ('quota_wait', False), ('cooldown', False)):
+            with self.subTest(status=status, running=running), tempfile.TemporaryDirectory() as folder:
+                runtime = Path(folder)
+                state = {'status': status, 'checked_at': time.time(), 'task_running': running,
+                         'reason': 'quota_check_pending' if status == 'quota_wait' else status,
+                         'next_recovery_at': 7200 if status == 'quota_wait' else None}
+                (runtime / 'state.json').write_text(json.dumps(state))
+                with (runtime / 'lock').open('a') as lock, patch.object(recovery, 'supervisor_alive', return_value=True):
+                    recovery.platform.lock_file(lock)
+                    view = recovery.summary(runtime)
+                self.assertTrue(view['active'])
+                self.assertTrue(view['guard_alive'])
+                self.assertEqual(view['task_running'], running)
+                self.assertEqual(view['next_recovery_at'], state['next_recovery_at'])
 
     def test_finish_rechecks_goal_under_control_lock(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -344,8 +480,8 @@ class Lifecycle(unittest.TestCase):
             db.execute('CREATE TABLE threads(id,rollout_path,cwd)')
             db.execute('INSERT INTO threads VALUES(?,?,?)', (self.thread, str(rollout), str(self.root)))
         with sqlite3.connect(self.home / 'goals_1.sqlite') as db:
-            db.execute('CREATE TABLE thread_goals(thread_id,goal_id,status,created_at_ms,objective)')
-            db.execute('INSERT INTO thread_goals VALUES(?,?,?,?,?)', (self.thread, 'goal', 'active', 123000, 'test'))
+            db.execute('CREATE TABLE thread_goals(thread_id,goal_id,status,created_at_ms,objective,updated_at_ms)')
+            db.execute('INSERT INTO thread_goals VALUES(?,?,?,?,?,?)', (self.thread, 'goal', 'active', 123000, 'test', 123000))
         binaries = self.root / 'bin'; binaries.mkdir()
         code = '''import json,os,sys,sqlite3
 from pathlib import Path

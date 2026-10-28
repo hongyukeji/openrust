@@ -78,6 +78,8 @@ def summary(runtime):
             state['status'] = 'orphaned'
         elif not fresh:
             state['status'] = 'stale'
+    state['guard_alive'] = state['active']
+    state['task_running'] = bool(state['active'] and state.get('task_running'))
     return state
 
 
@@ -156,9 +158,9 @@ def rpc(method, params):
 
 def goal(config):
     with sqlite3.connect(Path(config['goals_db']).resolve().as_uri() + '?mode=ro', uri=True) as db:
-        row = db.execute('SELECT goal_id,status,created_at_ms,objective FROM thread_goals WHERE thread_id=?',
+        row = db.execute('SELECT goal_id,status,created_at_ms,objective,updated_at_ms FROM thread_goals WHERE thread_id=?',
                          (config['thread'],)).fetchone()
-    return {'id': row[0], 'status': row[1], 'created_at_ms': row[2], 'objective': row[3]} if row else None
+    return {'id': row[0], 'status': row[1], 'created_at_ms': row[2], 'objective': row[3], 'updated_at_ms': row[4]} if row else None
 
 
 def bound_goal(config):
@@ -234,7 +236,8 @@ def timeline(path):
         source.seek(max(0, size - TAIL_BYTES))
         if size > TAIL_BYTES:
             source.readline()
-        for line in source:
+        while line := source.readline():
+            offset = source.tell()
             try:
                 row = json.loads(line)
             except (json.JSONDecodeError, UnicodeDecodeError):
@@ -245,7 +248,8 @@ def timeline(path):
                 explicit = explicit_goal_status(payload)
                 if explicit is not None:
                     semantic_blocked = explicit == 'blocked'
-                    goal_control = {'status': explicit, 'key': row.get('timestamp')}
+                    goal_control = {'status': explicit, 'key': row.get('timestamp'),
+                                    'source': [str(path.resolve()), info.st_ino], 'offset': offset}
             if row.get('type') != 'event_msg':
                 continue
             kind = payload.get('type')
@@ -258,6 +262,31 @@ def timeline(path):
         last['goal_control'] = goal_control
     _TIMELINE_CACHE = (identity, last)
     return last
+
+
+def controlled_turn(state, turn, current, config):
+    """同一Goal确认为active后记录恢复水位，旧日志不能重新引入已解除的控制。"""
+    if not turn:
+        return turn
+    control = turn.get('goal_control')
+    watermark = state.get('control_watermark') or {}
+    if control and control == watermark:
+        control = None
+    if control:
+        state['goal_control'] = control
+    if current and current['id'] == config['goal_id'] and current['status'] == 'active':
+        resolved = state.get('goal_control')
+        # active的本地版本必须晚于控制调用；刚发出的blocked尚未入库时不能误清。
+        control_time = completed_at({'key': (resolved or {}).get('key'), 'payload': {}})
+        version = current.get('updated_at_ms')
+        if (resolved and isinstance(version, int) and control_time is not None
+                and control_time * 1000 <= version):
+            state.pop('goal_control', None)
+            if resolved.get('source') and isinstance(resolved.get('offset'), int):
+                state['control_watermark'] = dict(resolved)
+    blocked = (state.get('goal_control') or {}).get('status') in ('blocked', 'paused', 'complete')
+    # 无版本的既有state继续保守保护；只有确认原Goal active才解除。
+    return dict(turn, semantic_blocked=blocked or (not turn.get('goal_control') and turn.get('semantic_blocked', False)))
 
 
 def decision(agent, current_goal, turn, config, now):
@@ -278,7 +307,7 @@ def decision(agent, current_goal, turn, config, now):
         return 'working'
     if not turn or turn['kind'] == 'user_message':
         return 'needs_attention'
-    if status == 'blocked' and turn.get('semantic_blocked'):
+    if turn.get('semantic_blocked'):
         return 'needs_attention'
     error = turn['payload'].get('error')
     if error:
@@ -304,8 +333,6 @@ def decision(agent, current_goal, turn, config, now):
 def quota_delay(response, now):
     """只确认自然用量窗口，不购买credits、不兑换reset、不更换账户。"""
     # 新协议明确要求由后台确认included usage可用，不能仅从百分比推断。
-    if response.get('ordinaryUsageAllowed') is not True:
-        return 300
     limits = response.get('rateLimits') or {}
     windows = [limits[k] for k in ('primary', 'secondary') if limits.get(k)]
     if not windows or any(not isinstance(w.get('usedPercent'), (int, float)) for w in windows):
@@ -316,7 +343,7 @@ def quota_delay(response, now):
         if any(not isinstance(t, (int, float)) for t in resets):
             return 300
         return max(60, max(resets) + 30 - now)
-    if limits.get('rateLimitReachedType'):
+    if response.get('ordinaryUsageAllowed') is not True or limits.get('rateLimitReachedType'):
         return 300
     return 0
 
@@ -359,6 +386,15 @@ def worker(runtime, parent_pid):
         changed = state.get('status') != status
         state.update(status=status, attempts=attempts, checked_at=time.time(),
                          updated_at=datetime.now().astimezone().isoformat(), **extra)
+        if status != 'working':
+            state['task_running'] = False
+        state['reason'] = extra.get('reason', {
+            'working': 'task_running' if state.get('task_running') else 'waiting_for_turn',
+            'cooldown': 'recovery_cooldown', 'backoff': 'recovery_backoff',
+            'quota_wait': 'quota_check_pending', 'needs_attention': 'hard_boundary',
+        }.get(status, status))
+        state['next_recovery_at'] = (state.get('quota_check_at') if status == 'quota_wait' else
+                                     state.get('retry_at') if status in ('backoff', 'cooldown') else None)
         state['next_check_at'] = None if status in ('complete', 'paused', 'stopped', 'parent_lost') else time.time() + CHECK_INTERVAL
         atomic(path, state)
         publish_registry(runtime)
@@ -384,24 +420,15 @@ def worker(runtime, parent_pid):
             if terminal and terminal['id'] == config['goal_id'] and terminal['status'] in ('complete', 'paused'):
                 record(terminal['status'])
                 return
-            if time.time() < state.get('check_after', 0):
-                record('cooldown')
-                sleep_until(runtime, CHECK_INTERVAL)
-                continue
             if not binding_valid(config):
-                record('needs_attention')
+                record('needs_attention', reason='task_binding_changed')
                 sleep_until(runtime, CHECK_INTERVAL)
                 continue
             agent = inspect(config['agent'])
+            state['task_running'] = agent.get('Status') == 'running'
             current = goal(config)
             turn = timeline(config['rollout'])
-            if turn:
-                if turn.get('goal_control'):
-                    state['goal_control'] = turn['goal_control']
-                elif current and current['status'] != 'blocked':
-                    state.pop('goal_control', None)
-                if current and current['status'] == 'blocked' and (state.get('goal_control') or {}).get('status') == 'blocked':
-                    turn = dict(turn, semantic_blocked=True)
+            turn = controlled_turn(state, turn, current, config)
             action = decision(agent, current, turn, config, time.time())
             if action in ('complete', 'paused', 'stopped'):
                 record(action)
@@ -417,7 +444,16 @@ def worker(runtime, parent_pid):
                 sleep_until(runtime, CHECK_INTERVAL)
                 continue
             if action == 'needs_attention':
-                record(action)
+                reason = ('goal_changed' if not current or current['id'] != config['goal_id'] else
+                          'permissions_pending' if agent.get('PendingPermissions') else
+                          'budget_limited' if current['status'] == 'budget_limited' else
+                          'explicit_goal_control' if turn and turn.get('semantic_blocked') else
+                          'input_or_authentication_required')
+                record(action, reason=reason)
+                sleep_until(runtime, CHECK_INTERVAL)
+                continue
+            if time.time() < state.get('check_after', 0):
+                record('cooldown', reason=state.get('reason', 'check_failure'))
                 sleep_until(runtime, CHECK_INTERVAL)
                 continue
             # 同一发送意图尚无新轮次确认时不重发，避免队列延迟造成重复开发。
@@ -433,19 +469,25 @@ def worker(runtime, parent_pid):
                 record(state.get('status', 'backoff'))
                 sleep_until(runtime, CHECK_INTERVAL)
                 continue
+            if time.time() < state.get('quota_check_at', 0):
+                record('quota_wait')
+                sleep_until(runtime, CHECK_INTERVAL)
+                continue
             delay = quota_delay(rpc('account/rateLimits/read', {}), time.time())
             if delay:
                 state['check_failures'] = 0
-                record('quota_wait', retry_at=time.time() + min(delay, 300))
+                record('quota_wait', quota_check_at=time.time() + delay)
                 sleep_until(runtime, CHECK_INTERVAL)
                 continue
+            state.pop('quota_check_at', None)
             # 与stop串行；停止标记会先于等待锁写入，从而阻断新的发送。
             with (runtime / 'control.lock').open('a') as control:
                 platform.lock_file(control)
                 if (runtime / 'disabled').exists() or not binding_valid(config):
                     continue
-                current_turn = timeline(config['rollout'])
-                fresh = decision(inspect(config['agent']), goal(config), current_turn, config, time.time())
+                current = goal(config)
+                current_turn = controlled_turn(state, timeline(config['rollout']), current, config)
+                fresh = decision(inspect(config['agent']), current, current_turn, config, time.time())
                 if fresh != action or not current_turn or current_turn['key'] != key:
                     continue
                 latest_goal = bound_goal(config)
@@ -458,9 +500,10 @@ def worker(runtime, parent_pid):
                     # 协议往返期间的新暂停/输入/权限和Goal替换仍优先于发送。
                     if bound_goal(config).get('status') != 'active':
                         continue
-                    current_turn = timeline(config['rollout'])
+                    current = goal(config)
+                    current_turn = controlled_turn(state, timeline(config['rollout']), current, config)
                     if (not current_turn or current_turn['key'] != key
-                            or decision(inspect(config['agent']), goal(config), current_turn, config, time.time()) != action):
+                            or decision(inspect(config['agent']), current, current_turn, config, time.time()) != action):
                         continue
                 if (runtime / 'disabled').exists():
                     continue
@@ -731,7 +774,8 @@ def main():
             state_path = runtime / 'state.json'
             state = json.loads(state_path.read_text(encoding='utf-8')) if state_path.exists() else {}
             state.update(status='complete' if args.command == 'finish' else 'stopped',
-                         next_check_at=None, updated_at=datetime.now().astimezone().isoformat())
+                         task_running=False, next_recovery_at=None,
+                         reason='complete' if args.command == 'finish' else 'stopped', next_check_at=None, updated_at=datetime.now().astimezone().isoformat())
             atomic(state_path, state)
             publish_registry(runtime)
             print(json.dumps({'status': state['status']}))
