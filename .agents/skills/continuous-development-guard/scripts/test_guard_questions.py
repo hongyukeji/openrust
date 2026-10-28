@@ -60,6 +60,14 @@ class Questions(unittest.TestCase):
             return questions.step(self.runtime, self.state, self.config, self.agent,
                                   self.current, self.turn, self.api, self.classifier)
 
+    def test_questions_share_task_credit_policy_and_model_without_global_changes(self):
+        self.config.update(allow_existing_credits=True, question_model='gpt-6.1-sol')
+        self.step(10)
+        self.assertEqual(self.step(130), 'question_answered')
+        self.assertTrue(all(call.args[2] is True for call in self.api.quota_delay.call_args_list))
+        self.assertEqual(self.classifier.call_args.args[0]['question_model'], 'gpt-6.1-sol')
+        self.assertEqual(questions.MODEL, 'gpt-6-sol')
+
     def test_timeout_selects_second_option_without_recommended_label(self):
         self.assertEqual(self.step(10), 'question_wait')
         self.step(129)
@@ -479,6 +487,13 @@ class NativePaseo(unittest.TestCase):
 class NativeNoTools(unittest.TestCase):
     @unittest.skipUnless(shutil.which('codex'), '需要已有Codex；不安装')
     def test_actual_cli_sends_no_tools_or_repository_context(self):
+        self.probe_model(questions.MODEL)
+
+    @unittest.skipUnless(shutil.which('codex'), '需要已有Codex；不安装')
+    def test_actual_cli_gpt61_sol_sends_no_tools_or_repository_context(self):
+        self.probe_model('gpt-6.1-sol')
+
+    def probe_model(self, model_name):
         if subprocess.check_output(['codex', '--version'], text=True).strip() != questions.VERSION:
             self.skipTest('未验证的CLI版本保守等待')
         captured = []
@@ -493,9 +508,11 @@ class NativeNoTools(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp, http.server.HTTPServer(('127.0.0.1', 0), Handler) as server:
             folder = Path(temp)
             catalog = guard.run_json(['codex', 'debug', 'models', '--bundled'])
-            model = next(m for m in catalog['models'] if m['slug'] == questions.MODEL)
+            model = next((m for m in catalog['models'] if m['slug'] == model_name), None)
+            if model is None:
+                self.skipTest('现有catalog缺少指定模型，保守等待')
             questions.prepare_classifier(folder, model)
-            command = questions.classifier_command(folder)
+            command = questions.classifier_command(folder, model_name)
             command[-1:-1] = ['-c', 'model_provider="guard_probe"', '-c',
                 'model_providers.guard_probe={name="guard-probe",base_url="http://127.0.0.1:'
                 + str(server.server_port) + '",wire_api="responses",requires_openai_auth=false,request_max_retries=0,stream_max_retries=0}']
@@ -512,7 +529,7 @@ class NativeNoTools(unittest.TestCase):
                 worker.join(timeout=3)
         self.assertEqual(len(captured), 1)
         body = captured[0]
-        self.assertEqual(body['model'], questions.MODEL)
+        self.assertEqual(body['model'], model_name)
         self.assertFalse(body.get('tools'))
         tool_entries = [x for x in body['input'] if x['type'] == 'additional_tools']
         self.assertTrue(tool_entries)

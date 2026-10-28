@@ -3,6 +3,8 @@
 
 import argparse
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
+import math
 import json
 import os
 from pathlib import Path
@@ -350,17 +352,38 @@ def decision(agent, current_goal, turn, config, now):
     return 'working'
 
 
-def quota_delay(response, now):
-    """只确认自然用量窗口，不购买credits、不兑换reset、不更换账户。"""
-    # 新协议明确要求由后台确认included usage可用，不能仅从百分比推断。
-    limits = response.get('rateLimits') or {}
-    windows = [limits[k] for k in ('primary', 'secondary') if limits.get(k)]
-    if not windows or any(not isinstance(w.get('usedPercent'), (int, float)) for w in windows):
+def quota_delay(response, now, allow_existing_credits=False):
+    """默认只用普通窗口；当前任务明确获准后才消费已有余额，绝不购买。"""
+    if not isinstance(response, dict) or not isinstance(response.get('rateLimits'), dict):
         return 300
+    limits = response['rateLimits']
+    windows = [limits[k] for k in ('primary', 'secondary') if limits.get(k)]
+    if (not windows or any(not isinstance(w, dict) or type(w.get('usedPercent')) not in (int, float)
+                           or not math.isfinite(w['usedPercent']) or w['usedPercent'] < 0 for w in windows)
+            or limits.get('spendControlReached') is True
+            or limits.get('rateLimitReachedType') not in (None, 'rate_limit_reached')):
+        return 300
+    # 付费资格须有完整官方状态，消费控制和未知硬限制始终优先。
+    if allow_existing_credits is True and isinstance(response.get('ordinaryUsageAllowed'), bool):
+        credits = limits.get('credits') or {}
+        if not isinstance(credits, dict):
+            return 300
+        try:
+            balance = Decimal(str(credits.get('balance')))
+            positive = balance.is_finite() and balance > 0
+        except (InvalidOperation, ValueError):
+            positive = False
+        if (limits.get('spendControlReached') is False
+                and limits.get('rateLimitReachedType') in (None, 'rate_limit_reached')
+                and credits.get('hasCredits') is True
+                and isinstance(credits.get('unlimited'), bool)
+                and (positive or credits.get('unlimited') is True)):
+            return 0
+    # 新协议明确要求由后台确认included usage可用，不能仅从百分比推断。
     exhausted = [w for w in windows if w['usedPercent'] >= 100]
     if exhausted:
         resets = [w.get('resetsAt') for w in exhausted]
-        if any(not isinstance(t, (int, float)) for t in resets):
+        if any(type(t) not in (int, float) or not math.isfinite(t) for t in resets):
             return 300
         return max(60, max(resets) + 30 - now)
     if response.get('ordinaryUsageAllowed') is not True or limits.get('rateLimitReachedType'):
@@ -396,10 +419,20 @@ def binding_valid(config):
             and persistence.get('metadata', {}).get('threadId') == config['thread'])
 
 
+def apply_task_policy(state, config):
+    """策略变化只失效额度等待；保留退避、发送与问答幂等记录。"""
+    policy = {'allow_existing_credits': config.get('allow_existing_credits') is True}
+    previous = state.get('quota_policy', {'allow_existing_credits': False})
+    if policy != previous:
+        state.pop('quota_check_at', None)
+    state['quota_policy'] = policy
+
+
 def worker(runtime, parent_pid):
     config = json.loads((runtime / 'config.json').read_text(encoding='utf-8'))
     path = runtime / 'state.json'
     state = json.loads(path.read_text(encoding='utf-8')) if path.exists() else {}
+    apply_task_policy(state, config)
     attempts = state.get('attempts', 0)
 
     def record(status, **extra):
@@ -498,7 +531,7 @@ def worker(runtime, parent_pid):
                 record('quota_wait')
                 sleep_until(runtime, CHECK_INTERVAL)
                 continue
-            delay = quota_delay(rpc('account/rateLimits/read', {}), time.time())
+            delay = quota_delay(rpc('account/rateLimits/read', {}), time.time(), config.get('allow_existing_credits', False))
             if delay:
                 state['check_failures'] = 0
                 record('quota_wait', quota_check_at=time.time() + delay)
@@ -715,6 +748,9 @@ def main():
     parser.add_argument('--runtime', type=Path)
     parser.add_argument('--lock-fd', type=int)
     parser.add_argument('--parent-pid', type=int)
+    parser.add_argument('--allow-existing-credits', action=argparse.BooleanOptionalAction, default=None,
+                        help='仅当前任务经用户明确授权消费已有credits，不购买或充值；默认关闭')
+    parser.add_argument('--question-model', help='仅当前任务的无工具问答分类模型，须来自现有catalog')
     parser.add_argument('--stop-task', action='store_true', help='同时暂停Goal并中断主控，须用户明确停止')
     args = parser.parse_args()
     requested_at = time.time()
@@ -815,6 +851,11 @@ def main():
                 return
             config = config_for(args)
             prior_config = json.loads((runtime / 'config.json').read_text(encoding='utf-8')) if (runtime / 'config.json').exists() else {}
+            same_goal = prior_config.get('goal_id') == config['goal_id']
+            config['allow_existing_credits'] = (args.allow_existing_credits if args.allow_existing_credits is not None
+                                                else prior_config.get('allow_existing_credits', False) if same_goal else False)
+            config['question_model'] = (args.question_model or
+                                        (prior_config.get('question_model') if same_goal else None) or questions.MODEL)
             atomic(runtime / 'config.json', config)
             # 用户明确重新授权start，才可清除之前停止标记并恢复暂停的原目标。
             (runtime / 'disabled').unlink(missing_ok=True)
@@ -830,6 +871,7 @@ def main():
             if prior_config.get('goal_id') != config['goal_id']:
                 atomic(runtime / 'state.json', {})
             pending_state = json.loads((runtime / 'state.json').read_text(encoding='utf-8')) if (runtime / 'state.json').exists() else {}
+            apply_task_policy(pending_state, config)
             pending_state.update(status='starting', checked_at=time.time(), updated_at=datetime.now().astimezone().isoformat())
             atomic(runtime / 'state.json', pending_state)
             for name in ('supervisor.json', 'worker.json', 'pid'):

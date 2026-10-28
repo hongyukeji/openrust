@@ -116,11 +116,11 @@ def normalize(request, thread):
     return qs
 
 
-def classifier_command(folder):
+def classifier_command(folder, model_name=MODEL):
     """仅进程内覆盖；认证仍由已登录Codex提供，不读写认证文件。"""
     command = ['codex', 'exec', '--ignore-user-config', '--ignore-rules', '--ephemeral',
                '--skip-git-repo-check', '--sandbox', 'read-only', '--json', '-C', str(folder),
-               '-m', MODEL, '--output-schema', str(folder / 'schema.json'),
+               '-m', model_name, '--output-schema', str(folder / 'schema.json'),
                '-o', str(folder / 'answer.json')]
     options = {'model_catalog_json': str(folder / 'models.json'),
                'model_instructions_file': str(folder / 'instructions.txt'),
@@ -156,7 +156,8 @@ def classify(payload, guard):
     if guard.run_json_command_text(['codex', '--version']).strip() != VERSION:
         return None
     bundled = guard.run_json(['codex', 'debug', 'models', '--bundled'])
-    model = next((m for m in bundled.get('models', []) if m.get('slug') == MODEL), None)
+    model_name = payload.get('question_model', MODEL)
+    model = next((m for m in bundled.get('models', []) if m.get('slug') == model_name), None)
     if model is None:
         return None
     with tempfile.TemporaryDirectory(prefix='guard-question-') as temp:
@@ -164,7 +165,7 @@ def classify(payload, guard):
         prepare_classifier(folder, model)
         # stdout只存临时文件，不把模型事件/题面带入守护日志；结束后自动删除。
         with (folder / 'events.jsonl').open('wb') as events:
-            process = guard.platform.launch_tool(classifier_command(folder), stdin=subprocess.PIPE,
+            process = guard.platform.launch_tool(classifier_command(folder, model_name), stdin=subprocess.PIPE,
                                                  stdout=events, stderr=subprocess.DEVNULL)
             try:
                 process.communicate(raw, timeout=45)
@@ -273,12 +274,12 @@ def step(runtime, state, config, agent, current, turn, guard, classifier=classif
                 return 'question_binding_wait'
             if request['name'].endswith('_async') and not async_owned(request, config, guard):
                 row['status'] = 'rejected'; save(); continue
-            if guard.quota_delay(guard.rpc('account/rateLimits/read', {}), now):
+            if guard.quota_delay(guard.rpc('account/rateLimits/read', {}), now, config.get('allow_existing_credits', False)):
                 return 'question_quota_wait'
             # 分类意图先落盘，进程/模型失败、重启后均不再次消耗token。
             row['status'] = 'classifying'; save()
             try:
-                result = classifier({'goal': current.get('objective', ''), 'questions': qs,
+                result = classifier({'question_model': config.get('question_model', MODEL), 'goal': current.get('objective', ''), 'questions': qs,
                                      'pending_questions': normalized, 'goal_status': current.get('status'),
                                      'semantic_blocked': bool(turn.get('semantic_blocked')),
                                      'block_context': turn.get('payload'),
@@ -325,7 +326,7 @@ def step(runtime, state, config, agent, current, turn, guard, classifier=classif
                 row['status'] = 'cancelled'; save(); continue
             if request['name'].endswith('_async') and not async_owned(request, config, guard):
                 row['status'] = 'cancelled'; save(); continue
-            if guard.quota_delay(guard.rpc('account/rateLimits/read', {}), time.time()):
+            if guard.quota_delay(guard.rpc('account/rateLimits/read', {}), time.time(), config.get('allow_existing_credits', False)):
                 return 'question_quota_wait'
             if ((runtime / 'disabled').exists() or guard.goal(config) != current
                     or not guard.binding_valid(config)

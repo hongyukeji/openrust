@@ -315,6 +315,42 @@ class Decisions(unittest.TestCase):
         turn = dict(self.turn, payload={'error': {'message': '401 unauthorized'}})
         self.assertEqual(self.decide(turn=turn), 'needs_attention')
 
+    def test_existing_credits_require_task_authorization_and_formal_eligibility(self):
+        response = {'ordinaryUsageAllowed': False, 'rateLimits': {
+            'primary': {'usedPercent': 100, 'resetsAt': 1000},
+            'spendControlReached': False, 'rateLimitReachedType': 'rate_limit_reached',
+            'credits': {'hasCredits': True, 'unlimited': False, 'balance': '6342.9273670000'}}}
+        self.assertGreater(recovery.quota_delay(response, 100), 0)
+        self.assertEqual(recovery.quota_delay(response, 100, True), 0)
+        for balance in ('0', '-1', 'NaN', 'Infinity', None, 'invalid'):
+            changed = json.loads(json.dumps(response)); changed['rateLimits']['credits']['balance'] = balance
+            self.assertGreater(recovery.quota_delay(changed, 100, True), 0)
+        for key, value in (('spendControlReached', True), ('spendControlReached', None),
+                           ('rateLimitReachedType', 'spend_control_reached'),
+                           ('rateLimitReachedType', 'unknown_future_limit')):
+            changed = json.loads(json.dumps(response)); changed['rateLimits'][key] = value
+            self.assertGreater(recovery.quota_delay(changed, 100, True), 0)
+        for key in ('ordinaryUsageAllowed', 'rateLimits'):
+            changed = dict(response); changed.pop(key)
+            self.assertGreater(recovery.quota_delay(changed, 100, True), 0)
+        changed = json.loads(json.dumps(response)); changed['rateLimits']['primary']['usedPercent'] = float('nan')
+        self.assertGreater(recovery.quota_delay(changed, 100, True), 0)
+
+    def test_policy_change_rechecks_only_quota_and_survives_restart(self):
+        state = {'quota_check_at': 99999999, 'retry_at': 10, 'attempts': 2,
+                 'dispatch_key': 'sent', 'questions': {'q': {'status': 'sending'}}}
+        preserved = {key: value for key, value in state.items() if key != 'quota_check_at'}
+        recovery.apply_task_policy(state, {'allow_existing_credits': True})
+        self.assertNotIn('quota_check_at', state)
+        self.assertTrue(all(state[key] == value for key, value in preserved.items()))
+        state['quota_check_at'] = 123
+        restarted = json.loads(json.dumps(state))
+        recovery.apply_task_policy(restarted, {'allow_existing_credits': True})
+        self.assertEqual(restarted['quota_check_at'], 123)
+        recovery.apply_task_policy(restarted, {})
+        self.assertNotIn('quota_check_at', restarted)
+        self.assertEqual(restarted['questions'], preserved['questions'])
+
     def test_quota_requires_known_available_windows(self):
         self.assertEqual(recovery.quota_delay({}, 100), 300)
         self.assertEqual(recovery.quota_delay({'ordinaryUsageAllowed': True, 'rateLimits': {'primary': {'usedPercent': 99}}}, 100), 0)
@@ -611,13 +647,20 @@ else:
         state_path = self.runtime / 'state.json'
         state = json.loads(state_path.read_text())
         state.update(attempts=2, retry_at=time.time() + 3600, pending_key='original', dispatch_key='uncertain',
+                     quota_check_at=time.time() + 86400, questions={'q': {'status': 'sending'}},
                      goal_control={'status': 'blocked', 'key': 'original-control'})
         state_path.write_text(json.dumps(state))
-        self.call('start')
+        self.call('start', '--allow-existing-credits', '--question-model', 'gpt-6.1-sol')
         self.call('stop')
         after = json.loads(state_path.read_text())
-        for key in ('attempts', 'retry_at', 'pending_key', 'dispatch_key'):
+        for key in ('attempts', 'retry_at', 'pending_key', 'dispatch_key', 'questions'):
             self.assertEqual(after[key], state[key])
+        self.assertNotIn('quota_check_at', after)
+        self.call('start')
+        self.call('stop')
+        config = json.loads((self.runtime / 'config.json').read_text())
+        self.assertTrue(config['allow_existing_credits'])
+        self.assertEqual(config['question_model'], 'gpt-6.1-sol')
 
     def test_supervisor_bounds_long_running_log(self):
         self.call('start')
