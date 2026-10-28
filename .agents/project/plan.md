@@ -1,10 +1,10 @@
 # 当前计划
 
-> 当前代码与目标：旧 `app/example/` 过渡结构已迁至 `modules/example/`；R2-M 已完成。R1-E 既有 CRUD 与公开能力验收已通过；附件 EOF/deadline 原子仲裁、真实 MinIO CopyObject 成功但响应延迟时删除等待在 PG18/MySQL8.4 均通过；`storage_publication_uncertain` 后远端迟完成、进程强杀与关闭超时仍是明确边界；OIDC 确认页生产 JavaScript 的 Chromium 四分支回归通过，真实 Keycloak/双库 `AlwaysOk` 确认错误密码、已消费 state 与成功夹证各 1/1 已通过；最终独立审查与资源清理已完成，当前仅待限定本地提交；完整模块管理仍属后继，按 [ADR-074](decisions/adr-074-laravel-modules-directory.md) 推进。
+> 当前代码与目标：R1-E 综合示例与适用验收已由 bc3fa01 限定提交；附件、真实 MinIO 双库、Keycloak OIDC 双库和 Collector PostgreSQL 证据已通过，独立审查与任务资源清理完成。`storage_publication_uncertain` 后远端迟到完成、进程强杀与关闭超时仍是明确边界。下一子簇按当前依赖进入 R2-N 模块硬依赖图与确定性启动顺序；完整模块管理仍属后继，按 [ADR-074](decisions/adr-074-laravel-modules-directory.md) 推进。
 
 > 受众：AI Agent
 > 更新：2026-10-29
-> 摘要：执行 Laravel + laravel-modules 的 Rust 1:1 实现；R0 上游和逐章资产基线已记录，R1-S 已提交34dfb5e，R2-A/A2/A3 已验收。R2-B 统一 Provider、R2-C 入口 scope 与 R2-D TestApp 已通过各自门禁，随后 R2-M 模块闭环、R1-E 真实 CRUD/当前能力示例；R1 整体未完成。
+> 摘要：执行 Laravel + laravel-modules 的 Rust 1:1 实现；R0 上游和逐章资产基线已记录，R1-S、R2-A/A2/A3、R2-B/C/D/M及R1-E真实CRUD/当前能力示例已按簇完成适用验收，R1-E 提交 bc3fa01。继续 R2 后继内核与模块行为矩阵，R0–R16 全体及严格 1:1 仍未完成。
 
 ## 当前里程碑
 
@@ -22,7 +22,7 @@
 8. R14 底座完整通过再做 R15 V2：Vue Admin、uni-app App、PC 只规划。独立 AI模型平台仍未获启动授权。
 9. WIP、他人资源、依赖安全、真实证据及对外授权边界继续有效。常规问题自主决策并记录；外部缺口继续独立工作，不能虚报完成。
 
-当前交付依赖是 R1-S结构/挂载 → R2基础Container/Provider/配置/TestApp（A–D 已验收）→ R2-M模块契约/目录迁移 → R1-E真实CRUD与当前能力演示；R2后继和各领域逐簇实现并同步示例。R2-D 测试应用由生产 Provider/Router 同路径构建，但不代表模块管理已完成；结构已提交不等于R1整体/严格1:1完成，GET基础响应不等于真实业务CRUD。当前 R1-E 的 Article、租户、附件、通信、观测等已按 [testing.md](memory/testing.md#r1-e-业务示例定向验收证据整簇进行中) 分别核对生产路径；默认/全特性 workspace、独立 consumer 与普通/双库认证/MFA/gRPC 组合生成应用的适用门禁均已执行。Collector PostgreSQL delivery/unavailable 已使用独立 Collector 与空白追加 sink 通过真实验收，原共享 Collector 与原日志未更改；当前附件上传本地两库全模块回归各 15/15，新增期限释放锁用例各 1/1；App 受管任务、租户上下文、请求体取消和 45 秒上限已实现。真实 MinIO CopyObject 成功但 SDK 响应暂缓期间的双库上传/删除竞争各 1/1；uncertain 后远端迟到完成边界仍不保证。新增真实 Keycloak `AlwaysOk` 错误密码、已消费 state 与成功夹证在 PostgreSQL/MySQL 各 1/1。Collector 使用任务专属空白 sink 与匹配 run ID 后，PostgreSQL delivery/unavailable 各 1/1，保留 16 MiB 限制与内容断言，未改共享 Collector；最终审查、资源收尾与限定提交仍待执行。
+当前交付依赖是 R1-S结构/挂载 → R2基础Container/Provider/配置/TestApp（A–D 已验收）→ R2-M模块契约/目录迁移 → R1-E真实CRUD与当前能力演示（已由 bc3fa01 提交）；R2后继和各领域逐簇实现并同步示例。R2-D 测试应用由生产 Provider/Router 同路径构建，但不代表模块管理已完成；R1-E 的 Article、租户、附件、通信、观测等生产路径、默认/全特性 workspace、独立 consumer 与生成应用门禁详见 [testing.md](memory/testing.md#r1-e-业务示例定向验收证据整簇进行中)。当前首个 R2 后继子簇为模块硬依赖与启动顺序：硬依赖拓扑优先于原 priority，ready 节点按 priority/声明顺序稳定选择；真实模块示例和双库 HTTP/生成应用仍需验收。模块完整管理与 Laravel 严格 1:1 范围继续保留。
 
 ## 路由
 
