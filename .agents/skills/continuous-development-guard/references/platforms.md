@@ -15,8 +15,8 @@ Windows 的 `.cmd` / `.bat` 只通过同目录已有 npm package 的唯一 `bin`
 - Windows 监督进程独占非继承 Job Object handle，启用 `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`。worker 在原始 stdin 单字节屏障前不执行任务逻辑；先绑定 job 再放行，绑定失败直接回收未放行进程。CLI/协议使用相同屏障的标准库 bootstrap，单独 job 保证每次调用退出/超时后回收后代。不用 PID `taskkill` 或全局进程名清理，主开发 Agent 与构建服务不加入这些 job。
 - Windows 后台子进程不打开控制台；判活比较内核创建时间，不仅比较 PID。协议用有界 reader queue 和截止时间，避免 Windows pipe 不支持 `select`。JSON/状态/协议显式 UTF-8。
 - 单次读取最多512KiB rollout，未变化复用解析。watch.log 超过1MiB时保留末512KiB；每秒监督只检查本地子进程、禁用标记与日志大小，业务检查仍为120秒，不启动模型轮询。保留任务审计和空锁，清理仅本任务进程/PID。
-- 确定工具未启动的 FileNotFound 可清除发送意图后冷却重试；退出码、网络错误或返回不明不能证明未入队，同一意图保留并等待新轮次，避免重复开发。认证失败、目标改变或协议限制可能需要开发者处理。
-- blocked 原Goal优先于错误/额度恢复，守护不自动解除硬阻塞。启动恢复暂停、暂停用户任务及每次中断前，核对本地 goal_id 前后相等及协议公开身份。当前正式协议不暴露 goal_id，使用 threadId、createdAt（秒）和 objective 与本地记录比较；不输出目标正文。协议缺少条件写/CAS，无法完全消除最后复核与写入之间由另一客户端替换目标的竞态，身份不明即拒绝操作。
+- 确定工具未启动的 FileNotFound 可清除发送意图后冷却重试；退出码、网络错误或返回不明不能证明未入队，同一意图保留并等待新轮次，避免重复开发。同一Goal的plain stop/start保留attempts、退避和未知发送意图，不通过重启绕过保护；只有换新Goal才重置。认证失败、目标改变或协议限制可能需要开发者处理。
+- 未完成原目标默认退避恢复，包括未知临时错误和运行器留下的blocked；blocked枚举本身不是硬阻塞。最近显式update_goal blocked按工具契约代表必须外部条件的语义阻塞，兼容直接调用、原始JS和JSON code包装，观察到后持久化到既有state防止日志截尾或重启丢失，优先于旧错误恢复；最新用户输入/取消、暂停/归档、权限、认证、预算、身份变化继续保护。规则只读最多512KiB日志尾部，不引入模型判断轮询；AI仅实际恢复后判断业务下一步。启动恢复暂停、暂停用户任务及每次中断前，核对本地 goal_id 前后相等及协议公开身份。当前正式协议不暴露 goal_id，使用 threadId、createdAt（秒）和 objective 与本地记录比较；不输出目标正文。协议缺少条件写/CAS，无法完全消除最后复核与写入之间由另一客户端替换目标的竞态，身份不明即拒绝操作。
 - 完成事件缺少 completed_at 时，仅使用原始事件中带时区的 ISO timestamp；无可信时间进入待处理，不把每轮当前时间误作完成时间。Windows没有现成通知实现时记录 notification_status=unavailable 和 notification_delivered=false；不安装通知组件，不承诺送达。macOS工具失败则记录 failed。
 
 ## 验证矩阵与限制

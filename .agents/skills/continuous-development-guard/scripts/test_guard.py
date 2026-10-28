@@ -41,8 +41,74 @@ class Decisions(unittest.TestCase):
 
     def test_blocked_goal_overrides_error_and_quota_recovery(self):
         for error in ('500 network', 'usage_limit exceeded'):
-            turn = dict(self.turn, payload={'error': {'message': error}})
+            turn = dict(self.turn, semantic_blocked=True, payload={'error': {'message': error}})
             self.assertEqual(self.decide(goal={'id': 'g', 'status': 'blocked'}, turn=turn), 'needs_attention')
+
+    def test_runner_blocked_and_unknown_errors_resume_except_explicit_hard_controls(self):
+        blocked = {'id': 'g', 'status': 'blocked'}
+        for error in ({'message': 'unknown transient failure'}, {'message': '429', 'codex_error_info': {'response_too_many_failed_attempts': {'http_status_code': 429}}}):
+            turn = dict(self.turn, payload={'error': error})
+            self.assertEqual(self.decide(goal=blocked, turn=turn), 'recover_error')
+            self.assertEqual(self.decide(goal=blocked, turn=turn, agent=dict(self.agent, Status='running')), 'working')
+            self.assertEqual(self.decide(goal=blocked, turn=dict(turn, kind='user_message')), 'needs_attention')
+            self.assertEqual(self.decide(goal=blocked, turn=dict(turn, kind='turn_aborted')), 'stopped')
+            self.assertEqual(self.decide(goal=blocked, turn=turn, agent=dict(self.agent, PendingPermissions=[1])), 'needs_attention')
+        for message in ('401 unauthorized', 'authentication invalid', '403 permission denied', '401 unauthorized; quota exceeded'):
+            self.assertEqual(self.decide(goal=blocked, turn=dict(self.turn, payload={'error': {'message': message}})), 'needs_attention')
+
+    def test_running_and_auth_controls_override_usage_limited_enum(self):
+        limited = {'id': 'g', 'status': 'usage_limited'}
+        self.assertEqual(self.decide(goal=limited, agent=dict(self.agent, Status='running')), 'working')
+        self.assertEqual(self.decide(goal=limited, turn=dict(self.turn, kind='user_message')), 'needs_attention')
+        self.assertEqual(self.decide(goal=limited, turn=dict(self.turn, payload={'error': {'message': '401 unauthorized'}})), 'needs_attention')
+
+    def test_explicit_goal_block_is_preserved_in_timeline_across_later_runner_error(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'rollout'
+            for name, arguments in [('functions.update_goal', '{"status":"blocked"}'), ('functions.exec', 'await tools.update_goal({status: "blocked"})'), ('functions.exec', json.dumps({'code': 'await tools.update_goal({status: "blocked"})'}))]:
+                rows = [
+                    {'type': 'response_item', 'timestamp': 'control', 'payload': {'type': 'function_call', 'name': name, 'arguments': arguments}},
+                    {'type': 'event_msg', 'timestamp': 't', 'payload': {'type': 'task_complete', 'error': {'message': '429'}}},
+                ]
+                path.write_text('\n'.join(json.dumps(row) for row in rows))
+                turn = recovery.timeline(path)
+                self.assertTrue(turn['semantic_blocked'])
+                self.assertEqual(self.decide(goal={'id': 'g', 'status': 'blocked'}, turn=turn), 'needs_attention')
+
+    def test_worker_reactivates_runner_blocked_only_with_quota_and_fresh_controls(self):
+        for boundary in ('none', 'unknown_quota', 'exhausted_quota', 'semantic_blocked', 'persisted_semantic_blocked', 'new_permission', 'new_pause', 'new_cancel', 'new_goal'):
+            with self.subTest(boundary=boundary), tempfile.TemporaryDirectory() as folder:
+                runtime = Path(folder)
+                config = {'agent': 'a', 'thread': 't', 'rollout': 'r', 'goal_id': 'g'}
+                (runtime / 'config.json').write_text(json.dumps(config))
+                (runtime / 'state.json').write_text(json.dumps(dict({'pending_key': 't', 'retry_at': 0}, **({'goal_control': {'status': 'blocked', 'key': 'old-control'}} if boundary == 'persisted_semantic_blocked' else {}))))
+                current = {'id': 'g', 'status': 'blocked'}
+                turn = dict(self.turn, payload={'error': {'message': 'unknown temporary transport failure'}}, semantic_blocked=boundary == 'semantic_blocked')
+                agent = dict(self.agent)
+                operations = []
+                def remote(method, params):
+                    operations.append((method, params))
+                    if method == 'account/rateLimits/read':
+                        if boundary == 'unknown_quota':return {}
+                        return {'ordinaryUsageAllowed': True, 'rateLimits': {'primary': {'usedPercent': 100 if boundary == 'exhausted_quota' else 1}}}
+                    if method == 'thread/goal/get':return {'goal': {'id': current['id'], 'status': current['status']}}
+                    if method == 'thread/goal/set':
+                        current['status'] = 'active'
+                        if boundary == 'new_permission':agent['PendingPermissions'] = [1]
+                        if boundary == 'new_pause':current['status'] = 'paused'
+                        if boundary == 'new_cancel':turn['kind'] = 'turn_aborted'
+                        if boundary == 'new_goal':current['id'] = 'replacement'
+                        return {}
+                    raise AssertionError(method)
+                with patch.object(recovery, 'binding_valid', return_value=True), patch.object(recovery, 'inspect', side_effect=lambda *_: dict(agent)), patch.object(recovery, 'goal', side_effect=lambda *_: dict(current)), patch.object(recovery, 'timeline', side_effect=lambda *_: dict(turn)), patch.object(recovery, 'notify', return_value=True), patch.object(recovery, 'rpc', side_effect=remote), patch.object(recovery, 'run_json', return_value={}) as send, patch.object(recovery, 'sleep_until', side_effect=lambda *_: (runtime / 'disabled').touch()):
+                    recovery.worker(runtime, os.getppid())
+                if boundary == 'none':
+                    send.assert_called_once()
+                    self.assertEqual(current['status'], 'active')
+                else:
+                    send.assert_not_called()
+                if boundary in ('unknown_quota', 'exhausted_quota', 'semantic_blocked', 'persisted_semantic_blocked'):
+                    self.assertFalse(any(method == 'thread/goal/set' for method, _ in operations))
 
     def test_completion_without_completed_at_uses_event_timestamp(self):
         turn = dict(self.turn, key='2026-10-28T12:00:00.000Z', payload={})
@@ -365,6 +431,20 @@ else:
         with sqlite3.connect(self.home / 'goals_1.sqlite') as db:
             self.assertEqual(db.execute('SELECT status FROM thread_goals').fetchone()[0], 'paused')
         self.assertGreater(first['pid'], 0)
+
+    def test_plain_guard_restart_preserves_backoff_and_uncertain_dispatch(self):
+        self.call('start')
+        self.call('stop')
+        state_path = self.runtime / 'state.json'
+        state = json.loads(state_path.read_text())
+        state.update(attempts=2, retry_at=time.time() + 3600, pending_key='original', dispatch_key='uncertain',
+                     goal_control={'status': 'blocked', 'key': 'original-control'})
+        state_path.write_text(json.dumps(state))
+        self.call('start')
+        self.call('stop')
+        after = json.loads(state_path.read_text())
+        for key in ('attempts', 'retry_at', 'pending_key', 'dispatch_key'):
+            self.assertEqual(after[key], state[key])
 
     def test_supervisor_bounds_long_running_log(self):
         self.call('start')

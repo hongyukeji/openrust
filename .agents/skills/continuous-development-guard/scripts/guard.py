@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import random
+import re
 import signal
 import sqlite3
 import subprocess
@@ -192,6 +193,30 @@ def completed_at(turn):
         return None
 
 
+def explicit_goal_status(payload):
+    """只读显式Goal控制调用；不从普通错误文字猜测业务阻塞。"""
+    name = payload.get('name', '').rsplit('.', 1)[-1]
+    arguments = payload.get('arguments', payload.get('input', ''))
+    if name == 'update_goal':
+        try:
+            value = json.loads(arguments) if isinstance(arguments, str) else arguments
+            return value.get('status') if isinstance(value, dict) else None
+        except ValueError:
+            return None
+    if name == 'exec' and isinstance(arguments, str):
+        try:
+            decoded = json.loads(arguments)
+            if isinstance(decoded, dict):
+                arguments = decoded.get('code', '')
+        except ValueError:
+            pass
+        if not isinstance(arguments, str):
+            return None
+        matches = re.findall(r"\bupdate_goal\s*\(\s*\{[^{}]*?['\"]?status['\"]?\s*:\s*['\"](blocked|paused|complete|active)['\"]", arguments)
+        return matches[-1] if matches else None
+    return None
+
+
 def timeline(path):
     """只使用原线程生命周期；新输入和取消使旧恢复依据失效。"""
     global _TIMELINE_CACHE
@@ -202,6 +227,8 @@ def timeline(path):
         return _TIMELINE_CACHE[1]
     last = None
     tools = 0
+    semantic_blocked = False
+    goal_control = None
     with path.open('rb') as source:
         size = source.seek(0, os.SEEK_END)
         source.seek(max(0, size - TAIL_BYTES))
@@ -215,6 +242,10 @@ def timeline(path):
             payload = row.get('payload', {})
             if row.get('type') == 'response_item' and payload.get('type') in ('function_call', 'custom_tool_call'):
                 tools += 1
+                explicit = explicit_goal_status(payload)
+                if explicit is not None:
+                    semantic_blocked = explicit == 'blocked'
+                    goal_control = {'status': explicit, 'key': row.get('timestamp')}
             if row.get('type') != 'event_msg':
                 continue
             kind = payload.get('type')
@@ -222,6 +253,9 @@ def timeline(path):
                 if kind == 'task_started':
                     tools = 0
                 last = {'kind': kind, 'key': row['timestamp'], 'payload': payload, 'tools': tools}
+    if last is not None:
+        last['semantic_blocked'] = semantic_blocked
+        last['goal_control'] = goal_control
     _TIMELINE_CACHE = (identity, last)
     return last
 
@@ -238,22 +272,24 @@ def decision(agent, current_goal, turn, config, now):
         return status
     if turn and turn['kind'] == 'turn_aborted':
         return 'stopped'
-    if agent.get('PendingPermissions') or status in ('budget_limited', 'blocked'):
+    if agent.get('PendingPermissions') or status == 'budget_limited':
         return 'needs_attention'
-    if status == 'usage_limited':
-        return 'quota_wait'
     if agent.get('Status') not in ('idle', 'error', 'closed'):
         return 'working'
     if not turn or turn['kind'] == 'user_message':
         return 'needs_attention'
+    if status == 'blocked' and turn.get('semantic_blocked'):
+        return 'needs_attention'
     error = turn['payload'].get('error')
     if error:
         message = json.dumps(error).lower()
-        if any(x in message for x in ('insufficient_quota', 'usage_limit', 'quota exceeded', 'credit', 'billing', 'usage limit')):
-            return 'quota_wait'
         if any(x in message for x in ('unauthorized', 'authentication', 'permission denied', '401', '403')):
             return 'needs_attention'
-        return 'recover_error'
+        if any(x in message for x in ('insufficient_quota', 'usage_limit', 'quota exceeded', 'credit', 'billing', 'usage limit')):
+            return 'quota_wait'
+        return 'quota_wait' if status == 'usage_limited' else 'recover_error'
+    if status == 'usage_limited':
+        return 'quota_wait'
     if agent.get('Status') in ('error', 'closed'):
         return 'recover_error'
     if turn['kind'] == 'task_complete':
@@ -359,6 +395,13 @@ def worker(runtime, parent_pid):
             agent = inspect(config['agent'])
             current = goal(config)
             turn = timeline(config['rollout'])
+            if turn:
+                if turn.get('goal_control'):
+                    state['goal_control'] = turn['goal_control']
+                elif current and current['status'] != 'blocked':
+                    state.pop('goal_control', None)
+                if current and current['status'] == 'blocked' and (state.get('goal_control') or {}).get('status') == 'blocked':
+                    turn = dict(turn, semantic_blocked=True)
             action = decision(agent, current, turn, config, time.time())
             if action in ('complete', 'paused', 'stopped'):
                 record(action)
@@ -406,10 +449,19 @@ def worker(runtime, parent_pid):
                 if fresh != action or not current_turn or current_turn['key'] != key:
                     continue
                 latest_goal = bound_goal(config)
-                if latest_goal.get('status') in ('paused', 'complete', 'budgetLimited', 'blocked'):
+                if latest_goal.get('status') in ('paused', 'complete', 'budgetLimited'):
                     continue
-                if latest_goal['status'] == 'usageLimited':
+                if latest_goal['status'] in ('usageLimited', 'blocked'):
+                    if latest_goal['status'] == 'blocked' and current_turn.get('semantic_blocked'):
+                        continue
                     rpc('thread/goal/set', {'threadId': config['thread'], 'status': 'active'})
+                    # 协议往返期间的新暂停/输入/权限和Goal替换仍优先于发送。
+                    if bound_goal(config).get('status') != 'active':
+                        continue
+                    current_turn = timeline(config['rollout'])
+                    if (not current_turn or current_turn['key'] != key
+                            or decision(inspect(config['agent']), goal(config), current_turn, config, time.time()) != action):
+                        continue
                 if (runtime / 'disabled').exists():
                     continue
                 attempts += 1
@@ -693,6 +745,7 @@ def main():
                 print('{"status":"already_running"}')
                 return
             config = config_for(args)
+            prior_config = json.loads((runtime / 'config.json').read_text(encoding='utf-8')) if (runtime / 'config.json').exists() else {}
             atomic(runtime / 'config.json', config)
             # 用户明确重新授权start，才可清除之前停止标记并恢复暂停的原目标。
             (runtime / 'disabled').unlink(missing_ok=True)
@@ -704,10 +757,9 @@ def main():
                 if remote.get('status') != 'paused':
                     raise SystemExit('暂停Goal状态不一致，未恢复任务')
                 rpc('thread/goal/set', {'threadId': config['thread'], 'status': 'active'})
-            if (runtime / 'state.json').exists():
-                prior = json.loads((runtime / 'state.json').read_text(encoding='utf-8'))
-                if prior.get('status') in ('complete', 'paused', 'stopped', 'parent_lost', 'disabled'):
-                    atomic(runtime / 'state.json', {})
+            # 同一Goal重启保留退避、语义阻塞及不明确发送记录，只有新目标才重置。
+            if prior_config.get('goal_id') != config['goal_id']:
+                atomic(runtime / 'state.json', {})
             pending_state = json.loads((runtime / 'state.json').read_text(encoding='utf-8')) if (runtime / 'state.json').exists() else {}
             pending_state.update(status='starting', checked_at=time.time(), updated_at=datetime.now().astimezone().isoformat())
             atomic(runtime / 'state.json', pending_state)
