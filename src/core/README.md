@@ -2,6 +2,16 @@
 
 OpenRust 框架的应用内核。
 
+## R2 容器基元
+
+`openrust::core::container` 提供 `ContainerBuilder`、`Container`、`Resolver` 与 `Scope`。`Resolver` 使用弱容器句柄，延迟解析时容器已释放则报告 `container_closed`，避免 singleton 保存解析器造成引用环。类型键支持 `dyn Trait`，`bind` 每次创建，`singleton` 同容器共享，`scoped` 同生命周期共享，`instance` 注册已有 `Arc`。同类型后注册覆盖前定义；定义经 `build` 封闭，不使用 PHP 反射构造。
+
+根容器也有 scoped 生命周期，`forget_scoped_instances()` 清除旧代，下次解析重建；子 scope 独立。关闭/取消在途解析后可重新构造，不保留失败占位；同链与并发等待环返回类型链。singleton 捕获 scoped 被拒绝，这是长驻进程安全增强。错误 `Debug` 只输出 code/status，工厂原始错误保留在内部 source，不直接输出 HTTP。
+
+本阶段仅提供基元，**尚未接入生产 AppBuilder/Plugin、HTTP/队列自动 scope 或异步资源关闭**。`Scope::close()` 与 root reset 当前仅关闭解析并释放缓存；不能用于宣称连接池/后台任务已经异步清理。统一 `ServiceProvider` 切换时替换旧注册表与循环，不提供双运行模式。
+
+## 当前应用启动资产
+
 其他 OpenRust package 所依赖的核心契约包括：
 
 - [`Application`]：项目实现一次该 trait，用于描述应用的组装方式。

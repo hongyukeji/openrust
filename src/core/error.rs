@@ -44,7 +44,7 @@ impl ValidationErrors {
 /// 处理器、命令或插件可能遇到的所有错误都通过此类型表示，因此可以统一使用 `?` 传播错误，
 /// 并由唯一位置负责生成 HTTP 响应。客户端错误包含可安全展示给调用方的消息；
 /// [`Error::Internal`] 会隐藏错误来源，只写入日志。
-#[derive(Debug, thiserror::Error)]
+#[derive(thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
     /// 请求格式错误：正文不可读或参数无效。
@@ -95,6 +95,26 @@ pub enum Error {
     /// 未预期的失败。错误来源会写入日志；调用方只会看到通用消息。
     #[error("internal error: {0}")]
     Internal(#[source] Box<dyn std::error::Error + Send + Sync>),
+    /// 容器工厂失败；公开详情不包含底层配置值，source 保留原始错误链。
+    #[error("service `{service}` initialization failed")]
+    ServiceInitialization {
+        /// 构造失败的 Rust 服务类型。
+        service: &'static str,
+        /// 内部错误链；不得直接作为 HTTP 响应输出。
+        #[source]
+        source: std::sync::Arc<Error>,
+    },
+}
+
+// Debug 常用于 tracing/断言，不能递归打印任意业务或配置 source 中的秘密值。
+impl std::fmt::Debug for Error {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("Error")
+            .field("code", &self.code())
+            .field("status", &self.status())
+            .finish_non_exhaustive()
+    }
 }
 
 impl Error {
@@ -152,7 +172,9 @@ impl Error {
             Self::Validation(_) | Self::ValidationDetail { .. } => StatusCode::UNPROCESSABLE_ENTITY,
             Self::RateLimited | Self::RateLimitedWithRetryAfter(_) => StatusCode::TOO_MANY_REQUESTS,
             Self::Custom { status, .. } => status.unwrap_or(StatusCode::BAD_REQUEST),
-            Self::Config(_) | Self::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::Config(_) | Self::Internal(_) | Self::ServiceInitialization { .. } => {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
         }
     }
 
@@ -169,6 +191,7 @@ impl Error {
             Self::Config(_) => "configuration_error",
             Self::Custom { code, .. } => code,
             Self::Internal(_) => "internal_error",
+            Self::ServiceInitialization { .. } => "service_initialization_failed",
         }
     }
 

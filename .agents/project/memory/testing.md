@@ -4,6 +4,20 @@
 > 更新：2026-10-28
 > 摘要：当前目录迁移与原专项测试入口，分开记录真实服务和未验收边界。
 
+## R2-A 类型化容器基元
+
+新增 src/core/container.rs，15项回归实际通过：typed dyn接口、覆盖与bind生命周期、singleton并发单次构造/应用隔离、root scoped/reset与子scope、同链/跨根等待环、取消恢复、嵌套缺绑定码/链、source保留与秘密Debug/HTTP脱敏、在途reset、scope Drop缓存释放、保存Resolver延迟解析、关闭singleton owner/waiter、业务析构重入、弱句柄引用环释放。scope/工厂全用显式句柄，不创建全局容器。
+
+冻结源码后实际执行 cargo fmt --all --check；默认及all-features workspace all-target Clippy -D warnings；cargo test --workspace（279 passed/22 ignored）与all-features（502 passed/32 ignored）；warnings-denied默认/full workspace doc；cargo deny check；cargo +1.97.0 check --workspace --all-targets --all-features；root no-default check，全部通过。忽略和无服务skip不记真实外部服务通过。本簇未改DB/queue/auth/配置加载或CLI模板行为，不将R1双库/生成验证转记新Provider通过。
+
+/tmp/openrust-r2-container-consumer-mqyjcnb4 是仅依赖公开openrust的独立下游，check/test通过，1项真实公开dyn绑定/root reset/scope断言；首轮fixture错误使用Tokio重导出属性宏且未声明直接Tokio包，已改为公开Runtime显式block_on后重跑通过，未因此改变框架API。根argv恰为cargo run，/health、HTML、/api、/api/example各200，SIGINT0。启动仍是旧生产Plugin路径，不把它当新Provider已接入。
+
+不同模型gpt-6-sol逐轮静态审查发现秘密Debug、错误码/链和Resolver强引用环，均修复并补测试；最终冻结弱句柄版本无blocker/should-fix，审查没有替代运行。Error保留内部source，Debug仅code/status，HTTP仍按5xx隐藏详情。无新依赖，Cargo.toml/Cargo.lock未变。
+
+资源：独占/tmp/openrust-r2-target在软限阶段确认无构建进程后dry-run/clean回收63458files/19.3GiB；最终再次dry-run/clean回收45539files/14.1GiB，磁盘余119GiB。未知归属root/consumer缓存未触碰，日志和临时consumer源码保留用于诊断。日志前缀/tmp/openrust-r2-。
+
+本次仅容器基元；Provider/Registry切换、异步shutdown/managed任务与HTTP/job自动scope、配置合并/模块overlay、TestApp和modules迁移均未完成。AppBuilder仍使用唯一旧生产引擎，无新旧运行开关；后继按R2合同和todo继续。
+
 ## R1 当前工程边界与验收入口
 
 按 [ADR-073](../decisions/adr-073-root-application-and-example-module.md)，根 openrust package 同时提供框架 src/lib.rs 与默认 server 薄 src/main.rs。default-members=["."]、default-run="server"；Laravel 应用职责直接位于根，唯一 app/example 通过 app/mod.rs 注册薄业务 Plugin。以下是结构迁移子步骤的新执行记录，不表示 R1 综合 CRUD、全能力示例或 Laravel/modules 1:1 目标已完成。

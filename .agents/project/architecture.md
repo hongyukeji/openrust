@@ -22,7 +22,7 @@ CLI 模板与生成器是用户应用骨架的唯一维护来源。CLI new 可�
 
 ## 验证边界
 
-当前根应用与唯一示例的迁移进行中，尚未完成新布局门禁。默认 cargo run、workspace 门禁、根 package 真实服务测试、consumer 及生成应用分别实际验证；ADR-072 与更早布局的通过记录仅作历史输入。
+当前根应用与 app/example 过渡结构已通过R1-S门禁并提交34dfb5e；modules目标与统一Provider尚未实现。默认 cargo run、workspace 门禁、根 package 真实服务测试、consumer 及生成应用分别实际验证；ADR-072 与更早布局的通过记录仅作历史输入。
 
 ## 当前状态
 

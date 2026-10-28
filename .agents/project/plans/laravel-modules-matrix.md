@@ -115,7 +115,7 @@ R2交共享Provider/Container、配置注册和模块依赖/贡献基础；R13�
 2. 一个模块 provider 进入唯一 register/boot 清单；显式清单、模块发现顺序和 priority 排序分别有记录。Provider 依赖诊断不可冒充上游模块依赖管理；未验证的 package 依赖由 Cargo 负责，不是运行时自动 enable。
 3. 共享配置仓储提供受控的 module overlay 操作，携带来源、namespace 与版本。阶段应为 Prepare/Register→基础来源校验→有序 Boot（按模块时点 overlay/读取/资源装配）→最终配置/贡献校验→Ready。类型化 section 每次解析对应仓储版本，不能全程缓存旧快照。已解析服务不会因后续 overlay 被秘密重建，这与上游读取时序一致。
 4. `BootContext` 的一般业务写配置权限可限制；模块 overlay 由框架公开资源贡献执行器按已声明数据执行。仍须容许其在对应 boot 时点改变后续读取，不能靠一个不可变最终快照抹掉差异。最终 schema 失败启动失败、清理已创建资源，不打开 listener。
-5. 当前未提交的 `r2-service-provider-contract.md` 草稿 的“所有 defaults 最低层”“boot 禁止任何配置变更”与 B017/B020 冲突，必须由集成者修正后再实现。若坚持前置所有 overlay，必须把 boot 可见性标为尚未等价缺口，不能称必要 Rust 约束。
+5. [R2合同初稿](r2-service-provider-contract.md)曾将所有defaults置于最低层并禁止boot配置变更，与B017/B020冲突；当前修订已区分核心配置操作与模块boot时点overlay。配置实现与对应验收仍未交付，不能把容器基元通过当作模块配置已等价。
 6. 根 DB/View 等能力按有效配置启用：未配置跳过，显式错误/缺 driver 启动失败，模块按真正可用服务挂载相关路由；仅有 binding 不证明后端可用。模块 overlay 若改变连接配置，必须明确服务首次解析时点，不能静默沿用旧连接。
 7. 运行 enable/disable 只影响后续 App 构建。当前 App 资源由自己的 shutdown 持有；持久状态操作不隐式关闭共享连接、不 rollback、不删除代码。热卸载若后继实现须另立合同与证明，不计本批交付。
 

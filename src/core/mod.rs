@@ -4,6 +4,7 @@
 
 pub mod app;
 pub mod command;
+pub mod container;
 pub mod error;
 pub mod execution;
 pub mod lifecycle;

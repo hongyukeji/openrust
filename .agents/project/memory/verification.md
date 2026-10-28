@@ -4,6 +4,10 @@
 
 2026-10-28 按用户明确授权整合 `9b6268e` / `eeba3e1` 与 main 原有三笔设计提交；冲突仅在 plan/progress/todo，保留最新设计要求及 R0/R1 实际进度。与 eeba3e1 对比，源码、manifest、lock、模板、脚本、CI 和测试内容一致，额外变化仅为项目文档/协作规则。R1 代码门禁使用该提交的实际执行记录，本次整合不宣称重新执行构建或双库验收。
 
+## R2-A 基元验收边界
+
+15项容器回归、默认279/22与全feature502/32、双Clippy/docs、deny、MSRV1.97/no-default、独立公开API consumer1项、根cargo run真实HTTP/正常退出通过。不同模型最终静态审查无blocker/should-fix；资源清理与早期失败修复记录见[testing](testing.md#r2-a-类型化容器基元)。本次未切换生产Provider，没有异步清理或自动请求scope，不宣称完整R2/模块配置/CRUD通过。
+
 ## R1-S 当前根结构与过渡模块
 
 根 openrust 同 package 提供框架 lib 与默认 server，应用职责回根，当前 app/example 通过现有公开 Plugin 清单装配。按 ADR-074，modules/example 仍为后继 R2-M 目标；当前验收不等于该目录、统一 Provider 或完整 CRUD 已实现。
