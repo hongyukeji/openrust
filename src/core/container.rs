@@ -18,10 +18,15 @@
 
 use std::any::{Any, TypeId, type_name};
 use std::collections::{HashMap, HashSet};
+use std::future::Future;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
 
 use tokio::sync::Notify;
+
+tokio::task_local! {
+    static ENTRY_SCOPE: Arc<Scope>;
+}
 
 use super::resources::{ResourceOwner, ResourceRegistrar};
 use crate::config::{ConfigError, ServerConfig, repository::ConfigRepository};
@@ -395,7 +400,38 @@ pub struct Container {
     inner: Arc<Inner>,
 }
 
+/// 弱引用同一容器的入口 scope 创建句柄；长寿命 singleton 持有它不会形成引用环。
+#[derive(Clone)]
+pub struct ScopeFactory {
+    inner: Weak<Inner>,
+}
+
+impl ScopeFactory {
+    /// 为一次独立入口创建新 scope；容器已释放或关闭时返回错误。
+    pub fn scope(&self) -> Result<Scope> {
+        let inner = self
+            .inner
+            .upgrade()
+            .ok_or_else(|| container_error("container_closed", "容器已关闭"))?;
+        Container { inner }.scope()
+    }
+}
+
 impl Container {
+    /// 创建可由长寿命服务持有、但不延长容器寿命的 scope 工厂。
+    pub fn scope_factory(&self) -> ScopeFactory {
+        ScopeFactory {
+            inner: Arc::downgrade(&self.inner),
+        }
+    }
+    pub(crate) fn current_entry_scope(&self) -> Option<Arc<Scope>> {
+        ENTRY_SCOPE
+            .try_with(|scope| {
+                Arc::ptr_eq(&scope.container.inner, &self.inner).then(|| Arc::clone(scope))
+            })
+            .ok()
+            .flatten()
+    }
     /// 检查实例或工厂绑定是否存在，不执行构造。
     pub fn contains<T: ?Sized + Send + Sync + 'static>(&self) -> bool {
         self.inner.bindings.contains_key(&TypeId::of::<T>())
@@ -580,6 +616,44 @@ pub struct Scope {
 }
 
 impl Scope {
+    #[cfg(feature = "queue")]
+    pub(crate) fn belongs_to(&self, container: &Container) -> bool {
+        Arc::ptr_eq(&self.container.inner, &container.inner)
+    }
+
+    /// 在当前 future 安装本入口 scope；普通 `tokio::spawn` 不继承此上下文。
+    pub async fn run<F: Future>(self: &Arc<Self>, future: F) -> F::Output {
+        ENTRY_SCOPE.scope(Arc::clone(self), future).await
+    }
+
+    /// 在本 scope 登记受管任务，并只传递明确允许的执行元数据。
+    pub fn spawn<F, Fut>(
+        self: &Arc<Self>,
+        metadata: super::ExecutionMetadata,
+        deadline: Option<tokio::time::Instant>,
+        task: F,
+    ) -> Result<()>
+    where
+        F: FnOnce(super::Cancellation) -> Fut + Send + 'static,
+        Fut: Future<Output = ()> + Send + 'static,
+    {
+        if self.closed.closed.load(Ordering::Acquire) {
+            return Err(container_error("scope_closed", "生命周期已关闭"));
+        }
+        let scope = Arc::clone(self);
+        self.resources
+            .registrar()
+            .spawn(move |cancellation| async move {
+                let execution =
+                    super::ExecutionContext::new(metadata, deadline, cancellation.clone());
+                scope
+                    .run(super::with_execution_context(execution, async move {
+                        task(cancellation).await;
+                    }))
+                    .await;
+            })
+    }
+
     /// 在本生命周期解析服务。
     pub async fn resolve<T: ?Sized + Send + Sync + 'static>(&self) -> Result<Arc<T>> {
         self.container
@@ -607,8 +681,7 @@ impl Scope {
         if !self.close_cache() {
             return;
         }
-        let resources = Arc::clone(&self.resources);
-        let parent = self.parent.clone();
+        self.resources.cancel_tasks();
         let timeout = self
             .container
             .inner
@@ -617,14 +690,18 @@ impl Scope {
             .and_then(|config| config.section::<ServerConfig>("server").ok())
             .unwrap_or_default()
             .shutdown_timeout_secs;
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(timeout);
+        if let Some((parent, child_id)) = &self.parent {
+            if let Err(error) = parent.request_child_cleanup(*child_id, deadline) {
+                tracing::error!(code = error.code(), "scope cleanup submission failed");
+            }
+            // 父所有者保留未完成的子资源；提交失败由 App.shutdown 有界回收。
+            return;
+        }
+        let resources = Arc::clone(&self.resources);
         if let Ok(runtime) = tokio::runtime::Handle::try_current() {
             runtime.spawn(async move {
-                let result = resources
-                    .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(timeout))
-                    .await;
-                if let Some((parent, child_id)) = parent {
-                    parent.finish_child(child_id, result.is_err());
-                }
+                let result = resources.shutdown(deadline).await;
                 if let Err(error) = result {
                     tracing::error!(code = error.code(), "scope resource cleanup failed");
                 }
@@ -706,6 +783,12 @@ pub struct Resolver {
 }
 
 impl Resolver {
+    /// 取得同一容器的弱 scope 工厂，用于 scheduler 等长寿命服务创建独立入口。
+    pub fn scope_factory(&self) -> ScopeFactory {
+        ScopeFactory {
+            inner: self.container.clone(),
+        }
+    }
     /// 检查同一容器是否声明服务，不执行工厂；容器已释放时返回错误。
     pub fn is_bound<T: ?Sized + Send + Sync + 'static>(&self) -> Result<bool> {
         Ok(self.container()?.contains::<T>())
@@ -934,6 +1017,38 @@ mod tests {
         fn greet(&self) -> &'static str {
             "你好"
         }
+    }
+
+    #[tokio::test]
+    async fn scope_factory_is_weak_and_creates_distinct_lifecycles() -> Result<()> {
+        let mut builder = ContainerBuilder::new();
+        builder.scoped::<usize, _>({
+            let next = Arc::new(AtomicUsize::new(0));
+            move |_| {
+                let next = Arc::clone(&next);
+                Box::pin(async move { Ok(Arc::new(next.fetch_add(1, Ordering::SeqCst) + 1)) })
+            }
+        });
+        let container = builder.build();
+        let factory = container.scope_factory();
+        let first = factory.scope()?;
+        let second = factory.scope()?;
+        assert_eq!(*first.resolve::<usize>().await?, 1);
+        assert_eq!(*second.resolve::<usize>().await?, 2);
+        first
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await?;
+        second
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await?;
+        drop(first);
+        drop(second);
+        drop(container);
+        assert_eq!(
+            factory.scope().err().map(|error| error.code().to_owned()),
+            Some("container_closed".to_owned())
+        );
+        Ok(())
     }
 
     #[tokio::test]
@@ -1643,6 +1758,66 @@ mod tests {
         );
         release.notify_one();
         shutdown.await.unwrap().unwrap();
+    }
+
+    #[tokio::test]
+    async fn queued_scope_close_cancels_its_task_before_earlier_cleanup_finishes() {
+        let app_owner = Arc::new(ResourceOwner::new());
+        let entered = Arc::new(Notify::new());
+        let release = Arc::new(Notify::new());
+        let mut builder = ContainerBuilder::new();
+        builder.context(
+            ConfigRepository::new(figment::Figment::new()),
+            app_owner.registrar(),
+        );
+        builder.scoped::<usize, _>({
+            let entered = Arc::clone(&entered);
+            let release = Arc::clone(&release);
+            move |resolver| {
+                let entered = Arc::clone(&entered);
+                let release = Arc::clone(&release);
+                Box::pin(async move {
+                    resolver.resources()?.on_shutdown(move || {
+                        Box::pin(async move {
+                            entered.notify_one();
+                            release.notified().await;
+                            Ok(())
+                        })
+                    })?;
+                    Ok(Arc::new(1))
+                })
+            }
+        });
+        let container = builder.build();
+        let first = container.scope().unwrap();
+        first.resolve::<usize>().await.unwrap();
+        first.close();
+        entered.notified().await;
+
+        let second = Arc::new(container.scope().unwrap());
+        let started = Arc::new(Notify::new());
+        let cancelled = Arc::new(Notify::new());
+        second
+            .spawn(crate::core::ExecutionMetadata::default(), None, {
+                let started = Arc::clone(&started);
+                let cancelled = Arc::clone(&cancelled);
+                move |token| async move {
+                    started.notify_one();
+                    token.cancelled().await;
+                    cancelled.notify_one();
+                }
+            })
+            .unwrap();
+        started.notified().await;
+        second.close();
+        tokio::time::timeout(Duration::from_secs(1), cancelled.notified())
+            .await
+            .unwrap();
+        release.notify_one();
+        app_owner
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await
+            .unwrap();
     }
 
     #[tokio::test]

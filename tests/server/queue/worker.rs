@@ -634,3 +634,276 @@ async fn database_queue_dispatch_worker_concurrency_failure_and_retry()
     test_database.close().await?;
     Ok(())
 }
+
+#[derive(Default)]
+struct AttemptTracker {
+    next: AtomicUsize,
+    closed: AtomicUsize,
+    children_stopped: AtomicUsize,
+    started: tokio::sync::Notify,
+    cleanup: tokio::sync::Notify,
+    state: std::sync::Mutex<Option<openrust::core::AppState>>,
+    observed: std::sync::Mutex<Vec<(u64, usize)>>,
+    scopes: std::sync::Mutex<Vec<Arc<openrust::core::container::Scope>>>,
+}
+struct AttemptInstance(usize);
+struct AttemptBindings(Arc<AttemptTracker>);
+impl openrust::core::ServiceProvider for AttemptBindings {
+    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> FrameworkResult<()> {
+        app.instance(Arc::clone(&self.0));
+        app.scoped::<AttemptInstance, _>(|resolver| {
+            Box::pin(async move {
+                let tracker = resolver.resolve::<AttemptTracker>().await?;
+                let id = tracker.next.fetch_add(1, Ordering::SeqCst) + 1;
+                resolver.resources()?.on_shutdown(move || {
+                    Box::pin(async move {
+                        tracker.closed.fetch_add(1, Ordering::SeqCst);
+                        tracker.cleanup.notify_one();
+                        Ok(())
+                    })
+                })?;
+                Ok(Arc::new(AttemptInstance(id)))
+            })
+        });
+        Ok(())
+    }
+}
+#[derive(serde::Deserialize)]
+struct AttemptScopedJob {
+    #[serde(default)]
+    pending: bool,
+}
+impl Job for AttemptScopedJob {
+    const NAME: &'static str = "tests.attempt-scope.v1";
+    fn handle(&self, context: JobContext) -> BoxFuture<'_, FrameworkResult<()>> {
+        Box::pin(async move {
+            let one = context.service::<AttemptInstance>().await?;
+            let two = context.service::<AttemptInstance>().await?;
+            assert!(Arc::ptr_eq(&one, &two));
+            let tracker = context.service::<AttemptTracker>().await?;
+            let state = tracker
+                .state
+                .lock()
+                .map_err(|_| Error::custom("test_lock", "attempt tracker lock failed"))?
+                .clone()
+                .ok_or_else(|| Error::custom("test_state", "application state missing"))?;
+            assert!(Arc::ptr_eq(
+                &one,
+                &state.resolve::<AttemptInstance>().await?
+            ));
+            let scope = context.scope()?;
+            tracker
+                .observed
+                .lock()
+                .map_err(|_| Error::custom("test_lock", "attempt tracker lock failed"))?
+                .push((context.attempt(), one.0));
+            tracker
+                .scopes
+                .lock()
+                .map_err(|_| Error::custom("test_lock", "attempt tracker lock failed"))?
+                .push(Arc::clone(&scope));
+            let started = Arc::new(tokio::sync::Notify::new());
+            let ready = Arc::clone(&started);
+            let stopped = Arc::clone(&tracker);
+            scope.spawn(
+                context.metadata().clone(),
+                None,
+                move |cancellation| async move {
+                    ready.notify_one();
+                    cancellation.cancelled().await;
+                    stopped.children_stopped.fetch_add(1, Ordering::SeqCst);
+                },
+            )?;
+            started.notified().await;
+            if self.pending {
+                tracker.started.notify_one();
+                return std::future::pending::<FrameworkResult<()>>().await;
+            }
+            if context.attempt() == 1 {
+                return Err(Error::custom("retry_once", "exercise retry"));
+            }
+            Ok(())
+        })
+    }
+}
+
+#[tokio::test]
+async fn custom_driver_awaits_attempt_cleanup_before_retry() -> FrameworkResult<()> {
+    let tracker = Arc::new(AttemptTracker::default());
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder.provider(AttemptBindings(Arc::clone(&tracker)));
+    let app = openrust::core::App::from_provider_runtime(builder.start(Figment::new()).await?)?;
+    *tracker
+        .state
+        .lock()
+        .map_err(|_| Error::custom("test_lock", "tracker lock failed"))? =
+        Some(app.state().clone());
+    let mut registry = openrust::queue::JobRegistry::default();
+    registry.register_job::<AttemptScopedJob>()?;
+    let attempt = JobContext::new("custom", 1, 2, openrust::core::Cancellation::new())?
+        .with_app_state(app.state().clone())
+        .begin_attempt()?;
+    let scope = attempt.context().scope()?;
+    {
+        let future = registry.execute(
+            AttemptScopedJob::NAME,
+            serde_json::json!({"pending": true}),
+            attempt.context().clone(),
+        );
+        tokio::pin!(future);
+        tokio::select! {
+            result = &mut future => return result,
+            () = tracker.started.notified() => {}
+        }
+    }
+    attempt
+        .shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    assert_eq!(tracker.closed.load(Ordering::SeqCst), 1);
+    assert_eq!(tracker.children_stopped.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        scope
+            .resolve::<AttemptInstance>()
+            .await
+            .err()
+            .map(|e| e.code().to_owned())
+            .as_deref(),
+        Some("scope_closed")
+    );
+    *tracker
+        .state
+        .lock()
+        .map_err(|_| Error::custom("test_lock", "tracker lock failed"))? = None;
+    Ok(())
+}
+
+async fn assert_attempt_scope_closed(
+    tracker: &AttemptTracker,
+    index: usize,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let scope = tracker.scopes.lock().map_err(|_| "scope lock")?[index].clone();
+    assert_eq!(
+        scope
+            .resolve::<AttemptInstance>()
+            .await
+            .err()
+            .map(|e| e.code().to_owned())
+            .as_deref(),
+        Some("scope_closed")
+    );
+    Ok(())
+}
+
+async fn make_attempt_available(db: &Db, id: &str) -> Result<(), Box<dyn std::error::Error>> {
+    use openrust::database::sea_orm::{ConnectionTrait, Statement};
+    let table = db.quoted_table_name("jobs")?;
+    db.connection()?
+        .execute_raw(Statement::from_string(
+            db.backend()?,
+            format!("UPDATE {table} SET available_at = CURRENT_TIMESTAMP WHERE id = '{id}'"),
+        ))
+        .await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn database_worker_attempts_isolate_scoped_services_and_join_children()
+-> Result<(), Box<dyn std::error::Error>> {
+    let Ok(admin_url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+        eprintln!("skipping database queue attempt scope: OPENRUST_TEST_DATABASE_URL is unset");
+        return Ok(());
+    };
+    let database = openrust::testing::TestDatabase::create::<QueueMigrator>(&admin_url).await?;
+    let queue_provider = QueueServiceProvider::new();
+    queue_provider
+        .contributions()
+        .register_job::<AttemptScopedJob>()?;
+    let tracker = Arc::new(AttemptTracker::default());
+    let source = Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ))
+    .merge(Toml::string(&format!(
+        "[database]\nurl = {:?}\n[queue]\njob_timeout_secs = 1\n",
+        database.url()
+    )));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(DatabaseServiceProvider)
+        .provider(AttemptBindings(Arc::clone(&tracker)))
+        .provider(queue_provider);
+    let app = openrust::App::from_provider_runtime(builder.start(source).await?)?;
+    *tracker.state.lock().map_err(|_| "state lock")? = Some(app.state().clone());
+    let queue = app.state().resolve::<Queue>().await?;
+    let db = app.state().resolve::<Db>().await?;
+    let name = format!("scope{}", std::process::id());
+    let id = queue
+        .dispatch(&name, AttemptScopedJob::NAME, &serde_json::json!({}))
+        .await?;
+    assert!(queue.run_next_with_state(&name, app.state()).await?);
+    assert_eq!(tracker.closed.load(Ordering::SeqCst), 1);
+    assert_eq!(tracker.children_stopped.load(Ordering::SeqCst), 1);
+    assert_attempt_scope_closed(&tracker, 0).await?;
+    make_attempt_available(&db, &id).await?;
+    assert!(queue.run_next_with_state(&name, app.state()).await?);
+    let observed = tracker
+        .observed
+        .lock()
+        .map_err(|_| "observation lock")?
+        .clone();
+    assert_eq!(observed.len(), 2);
+    assert_eq!((observed[0].0, observed[1].0), (1, 2));
+    assert_ne!(observed[0].1, observed[1].1);
+    assert_eq!(tracker.closed.load(Ordering::SeqCst), 2);
+    assert_eq!(tracker.children_stopped.load(Ordering::SeqCst), 2);
+    // A timed out handler and an externally cancelled worker both close the attempt
+    // even when the test retains an Arc to the scope.
+    queue
+        .dispatch(
+            &name,
+            AttemptScopedJob::NAME,
+            &serde_json::json!({"pending": true}),
+        )
+        .await?;
+    let state = app.state().clone();
+    let running_queue = Arc::clone(&queue);
+    let worker_name = name.clone();
+    let worker = tokio::spawn(async move {
+        running_queue
+            .run_next_with_state(&worker_name, &state)
+            .await
+    });
+    tracker.started.notified().await;
+    assert!(worker.await??);
+    assert_eq!(tracker.closed.load(Ordering::SeqCst), 3);
+    assert_eq!(tracker.children_stopped.load(Ordering::SeqCst), 3);
+    assert_attempt_scope_closed(&tracker, 2).await?;
+    queue
+        .dispatch(
+            &name,
+            AttemptScopedJob::NAME,
+            &serde_json::json!({"pending": true}),
+        )
+        .await?;
+    let state = app.state().clone();
+    let running_queue = Arc::clone(&queue);
+    let worker_name = name.clone();
+    let worker = tokio::spawn(async move {
+        running_queue
+            .run_next_with_state(&worker_name, &state)
+            .await
+    });
+    tracker.started.notified().await;
+    worker.abort();
+    assert!(worker.await.is_err());
+    while tracker.closed.load(Ordering::SeqCst) < 4 {
+        tracker.cleanup.notified().await;
+    }
+    assert_eq!(tracker.children_stopped.load(Ordering::SeqCst), 4);
+    assert_attempt_scope_closed(&tracker, 3).await?;
+    *tracker.state.lock().map_err(|_| "state lock")? = None;
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    drop(app);
+    database.close().await?;
+    Ok(())
+}

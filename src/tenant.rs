@@ -55,7 +55,7 @@ impl std::fmt::Debug for TenantId {
 }
 
 tokio::task_local! {
-    static CURRENT_TENANT: TenantId;
+    static CURRENT_TENANT: Option<TenantId>;
 }
 
 /// 读取并显式建立当前异步调用的租户作用域。
@@ -64,7 +64,7 @@ pub struct TenantContext;
 impl TenantContext {
     /// 返回当前 task-local 租户；未启用隔离时为 `None`。
     pub fn current() -> Option<TenantId> {
-        CURRENT_TENANT.try_with(Clone::clone).ok()
+        CURRENT_TENANT.try_with(Clone::clone).ok().flatten()
     }
 
     /// 要求当前调用已绑定租户；缺失时拒绝操作。
@@ -89,7 +89,13 @@ impl TenantContext {
                 "a nested call cannot change its tenant context",
             ));
         }
-        Ok(CURRENT_TENANT.scope(tenant, future).await)
+        Ok(CURRENT_TENANT.scope(Some(tenant), future).await)
+    }
+
+    /// 在全局调度触发内隔离外层请求租户；仅框架可使用此边界。
+    #[cfg(any(feature = "queue", test))]
+    pub(crate) async fn without_current<F: Future>(future: F) -> F::Output {
+        CURRENT_TENANT.scope(None, future).await
     }
 }
 
@@ -206,6 +212,28 @@ mod tests {
                 .map(|error| error.code().to_owned()),
             Some("tenant_context_missing".to_owned())
         );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn global_trigger_temporarily_clears_outer_tenant() -> crate::Result<()> {
+        TenantContext::scope(TenantId::new("tenant-a")?, async {
+            assert_eq!(TenantContext::require_current()?.as_str(), "tenant-a");
+            TenantContext::without_current(async {
+                assert!(TenantContext::current().is_none());
+                TenantContext::scope(TenantId::new("job-tenant")?, async {
+                    assert_eq!(TenantContext::require_current()?.as_str(), "job-tenant");
+                    Ok::<_, crate::Error>(())
+                })
+                .await??;
+                assert!(TenantContext::current().is_none());
+                Ok::<_, crate::Error>(())
+            })
+            .await?;
+            assert_eq!(TenantContext::require_current()?.as_str(), "tenant-a");
+            Ok::<_, crate::Error>(())
+        })
+        .await??;
         Ok(())
     }
 

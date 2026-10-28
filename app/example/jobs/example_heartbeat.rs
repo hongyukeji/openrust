@@ -11,9 +11,14 @@ pub struct ExampleHeartbeatJob;
 impl Job for ExampleHeartbeatJob {
     const NAME: &'static str = "example_heartbeat.v1";
 
-    fn handle(&self, _context: JobContext) -> BoxFuture<'_, Result<()>> {
-        Box::pin(async {
-            tracing::info!("example heartbeat job processed");
+    fn handle(&self, context: JobContext) -> BoxFuture<'_, Result<()>> {
+        Box::pin(async move {
+            let run = context.service::<super::HeartbeatRun>().await?;
+            tracing::info!(
+                run_id = run.id,
+                attempt = context.attempt(),
+                "example heartbeat job processed"
+            );
             Ok(())
         })
     }

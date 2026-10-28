@@ -281,7 +281,8 @@ impl RedisQueueDriver {
                 }
             })
         });
-        let context = state.map_or(context.clone(), |state| context.with_app_state(state));
+        let mut context = state.map_or(context.clone(), |state| context.with_app_state(state));
+        let attempt = super::AttemptScope::create(&mut context)?;
         let registry = Arc::clone(&self.registry);
         let mut handler = Box::pin(registry.execute(&job.job_name, payload, context));
         let heartbeat_ms = std::cmp::Ord::max(lease_ms / 3, 100);
@@ -321,6 +322,14 @@ impl RedisQueueDriver {
                     break Some(Err(Error::custom("queue_shutdown_timeout", "job did not stop before the worker shutdown deadline")));
                 }
             }
+        };
+        drop(handler);
+        let result = if let Some(result) = result {
+            Some(super::finish_attempt(attempt, result).await)
+        } else {
+            let timeout = Error::custom("job_timeout", "job attempt timed out");
+            let _ = super::finish_attempt(attempt, Err(timeout)).await;
+            None
         };
         match result {
             Some(Ok(())) => acknowledge(&mut connection, &keys, &job.id, &owner).await?,

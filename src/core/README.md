@@ -10,7 +10,62 @@ OpenRust 框架的应用内核。
 
 缓存工厂在成功、失败或取消时先结束构造帧并清除已结束的等待边，再发布结果；已完成服务不再创建等待关系。scope关闭和根reset的唤醒、用户值释放都在容器内部锁之外执行，允许Waker同步重入。
 
-生产 `bootstrap` 使用同一 `Container`：`Application::providers` 给出清单，`ProviderBuilder` 先执行所有 `register`，再合并基础配置、顺序执行 `boot`，最后校验配置与贡献并解析必需服务。请求 `Inject<T>` 先从请求 `Scope` 异步解析；命令与 Provider 使用根容器。`AppState::get<T>` 仅同步读取已就绪的实例，首次工厂构造使用 `resolve<T>().await`。应用、请求 scope、受管任务和连接池通过 `ResourceOwner` 在共同期限内关闭，错误不会静默忽略。
+生产 `bootstrap` 使用同一 `Container`：`Application::providers` 给出清单，`ProviderBuilder` 先执行所有 `register`，再合并基础配置、顺序执行 `boot`，最后校验配置与贡献并解析必需服务。请求 `Inject<T>` 从请求 `Scope` 异步解析；每次命令使用独立 scope，Provider 使用同一应用容器。`AppState::get<T>` 仅同步读取已就绪的实例，首次工厂构造使用 `resolve<T>().await`。应用、请求 scope、受管任务和连接池通过 `ResourceOwner` 在共同期限内关闭，错误不会静默忽略。
+
+## 入口作用域与资源回收
+
+- HTTP：每个请求创建独立 scope，响应 body 仍持有它；body 结束、出错或丢弃，以及请求处理被取消时关闭。流式响应尚未结束时，scope 仍然有效。
+- 命令：每次 `App::run_command` 有独立 scope；长驻的 `queue work` 命令 scope 不代替每次任务尝试的 scope。
+- 队列：每次 job attempt 使用新 scope，成功、失败、超时或取消都会关闭；重试不会复用上一次的 scoped 实例。`JobContext::service` 从该 attempt 解析。直接调用没有应用状态的 `Queue::run_next` 时，不提供应用服务上下文。
+- 调度：每个到期时段的事务派发使用独立 scope，后续 worker 执行时再创建 job attempt scope。当前全局调度不继承调用者的租户、请求 ID 或其他执行元数据；调度项目前不声明租户。
+
+`Scope::run` 为当前 future 安装 scope，让同一容器的 `AppState::resolve` 使用它。普通 `tokio::spawn` 不继承 task-local scope 或执行上下文；需要共享本次生命周期的后台工作时，用 `Scope::spawn` 登记受管任务，显式传入允许传播的元数据和 deadline。scope 关闭时会请求取消并等待受管任务；任务仍需合作检查取消信号。例如，在已取得 `Arc<Scope>` 的代码中：
+
+```rust,ignore
+use openrust::core::ExecutionMetadata;
+
+scope.spawn(ExecutionMetadata::default(), None, |cancel| async move {
+    cancel.cancelled().await;
+})?;
+// 在 scope 的所有者处：
+scope.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5)).await?;
+```
+
+`Scope::shutdown(deadline).await` 关闭解析并等待资源清理；`Scope::close()` 和 Drop 触发关闭与有界回收，但调用者不能据此认定异步清理已结束。超过期限会返回错误，已逃逸的 `Arc` 仍由持有者持有，不能强制销毁；关闭后通过该 scope 新解析返回 `scope_closed`。应用对活动子 scope 有容量限制，达到上限返回 `scope_capacity_exceeded`；生命周期标识耗尽返回 `container_capacity_exceeded`，调用方应处理这些错误。
+
+自定义队列 driver 若在超时或租约丢失时丢弃 handler future，应在确认或重试前显式等待 `JobAttempt::shutdown`。每次重试都创建新的 context 和 guard；`JobRegistry::execute` 会复用已创建的 attempt scope。下面省略 driver 的租约和持久化逻辑：
+
+```rust,ignore
+use openrust::core::{Cancellation, Error};
+use openrust::queue::JobContext;
+use std::time::Duration;
+
+let attempt = JobContext::new(job_id, attempt_number, max_attempts, Cancellation::new())?
+    .with_app_state(app_state.clone())
+    .begin_attempt()?;
+let result = {
+    let execution = registry.execute(job_name, payload, attempt.context().clone());
+    tokio::pin!(execution);
+    tokio::select! {
+        result = &mut execution => result,
+        () = tokio::time::sleep(Duration::from_secs(30)) => {
+            Err(Error::custom("job_timeout", "job attempt timed out"))
+        }
+    }
+}; // 先丢弃执行 future
+let cleanup = attempt.shutdown(tokio::time::Instant::now() + Duration::from_secs(5)).await;
+match (result, cleanup) {
+    (Err(error), Err(cleanup_error)) => {
+        // 安全记录 cleanup_error 的错误码，然后保留首个错误。
+        let _ = cleanup_error.code();
+        return Err(error);
+    }
+    (Err(error), _) | (Ok(()), Err(error)) => return Err(error),
+    (Ok(()), Ok(())) => {}
+}
+```
+
+`JobAttempt` 的 Drop 是取消兜底，不等待回收。已开始的 context 不能重绑定到另一个应用：`scope`、`service` 和 `JobRegistry::execute` 会以 `queue_attempt_container_mismatch` 拒绝跨容器使用。将 context 留在原应用内使用；若 handler 与清理均失败，调用方应保留首个业务错误并安全记录清理失败。
 
 ## 当前应用启动资产
 
@@ -36,7 +91,7 @@ HTTP 响应使用 `ApiResponse<T>`，包含 `success`、稳定的 `code`、安�
 
 `FrameworkConfig.i18n` 定义 locale 默认值。`I18nServiceProvider` 注册共享 `I18n` 服务；HTTP middleware 解析 `Accept-Language`，并为当前 task 设置请求 locale。框架响应和内置 validator 规则消息使用该 locale，同时保留错误码与字段路径。应用消息可从 JSON 资源合并，并通过 `RequestLocale` 翻译；普通 `{name}` 文本保持兼容，也可用有限 `plural` / `select` 分支。`I18n::format_number` 接受精确十进制字符串；`format_date` 接受已按业务时区确定的日期，`format_datetime` 按传入 Chrono 值的本地墙上时间格式化。显式 task scope 使用 `I18n::with_locale`。
 
-`openrust::validation::validate(value)` 可在命令与 typed Job 中复用 HTTP `Validated<T>` 的 validator 错误转换。`ExecutionContext::current()` 读取单次调用的 metadata、剩余 budget 与 cancellation；子调用 deadline 不超过父级，子 timeout 不会取消父级。队列只允许有界 request ID 和 locale 入库，不序列化身份或请求凭据；见 [ADR-044](../../.agents/project/decisions/adr-044-cross-protocol-execution-context.md)。
+`openrust::validation::validate(value)` 可在命令与 typed Job 中复用 HTTP `Validated<T>` 的 validator 错误转换。`ExecutionContext::current()` 读取单次调用的 metadata、剩余 budget 与 cancellation；子调用 deadline 不超过父级，子 timeout 不会取消父级。队列可传播经校验的 request ID、traceparent、locale 和可信租户 ID；不序列化用户身份或请求凭据；见 [ADR-044](../../.agents/project/decisions/adr-044-cross-protocol-execution-context.md)。
 
 ```json
 {

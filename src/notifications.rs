@@ -489,17 +489,28 @@ mod provider_service_tests {
             crate::core::App::from_provider_runtime(builder.start(figment::Figment::new()).await?)?;
         let context = JobContext::new("test", 1, 1, crate::core::Cancellation::new())?
             .with_app_state(app.state().clone());
-        EmailDeliveryJob(EmailDelivery::new(
-            "sender@example.test",
-            "user@example.test",
-            "subject",
-            "body",
-            None,
-        )?)
-        .handle(context.clone())
-        .await?;
-        SmsDeliveryJob(SmsDelivery::text("+12025550123", "body")?)
-            .handle(context)
+        let registry = crate::queue::QueueContributions::default().job_registry();
+        registry
+            .execute(
+                EmailDeliveryJob::NAME,
+                serde_json::to_value(EmailDeliveryJob(EmailDelivery::new(
+                    "sender@example.test",
+                    "user@example.test",
+                    "subject",
+                    "body",
+                    None,
+                )?))
+                .map_err(Error::internal)?,
+                context.clone(),
+            )
+            .await?;
+        registry
+            .execute(
+                SmsDeliveryJob::NAME,
+                serde_json::to_value(SmsDeliveryJob(SmsDelivery::text("+12025550123", "body")?))
+                    .map_err(Error::internal)?,
+                context,
+            )
             .await?;
         assert_eq!(mail_count.load(Ordering::SeqCst), 1);
         assert_eq!(sms_count.load(Ordering::SeqCst), 1);

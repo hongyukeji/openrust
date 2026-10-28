@@ -49,6 +49,47 @@ const EXECUTION_ENVELOPE_KEY: &str = "__openrust_execution";
 const EXECUTION_ENVELOPE_VERSION: &str = "v1";
 type ProgressReporter = Arc<dyn Fn(Value) -> BoxFuture<'static, Result<()>> + Send + Sync>;
 
+struct AttemptScope {
+    scope: Option<Arc<crate::core::container::Scope>>,
+    timeout: Duration,
+}
+impl AttemptScope {
+    fn create(context: &mut JobContext) -> Result<Option<Self>> {
+        if context.attempt_scope.is_some() {
+            context.scope()?;
+            return Ok(None);
+        }
+        let Some(state) = &context.app_state else {
+            return Ok(None);
+        };
+        let scope = Arc::new(state.container().scope()?);
+        context.attempt_scope = Some(Arc::clone(&scope));
+        Ok(Some(Self {
+            scope: Some(scope),
+            timeout: Duration::from_secs(state.config().server.shutdown_timeout_secs),
+        }))
+    }
+    async fn shutdown(self) -> Result<()> {
+        let deadline = tokio::time::Instant::now() + self.timeout;
+        self.shutdown_at(deadline).await
+    }
+
+    async fn shutdown_at(mut self, deadline: tokio::time::Instant) -> Result<()> {
+        if let Some(scope) = &self.scope {
+            scope.shutdown(deadline).await?;
+        }
+        self.scope = None;
+        Ok(())
+    }
+}
+impl Drop for AttemptScope {
+    fn drop(&mut self) {
+        if let Some(scope) = &self.scope {
+            scope.close();
+        }
+    }
+}
+
 #[cfg(feature = "metrics")]
 struct WorkerJobMetricGuard;
 
@@ -84,12 +125,56 @@ pub struct JobContext {
     max_attempts: u64,
     cancelled: Cancellation,
     app_state: Option<crate::core::AppState>,
+    attempt_scope: Option<Arc<crate::core::container::Scope>>,
     progress_reporter: Option<ProgressReporter>,
     metadata: ExecutionMetadata,
     deadline: Option<tokio::time::Instant>,
 }
 
+/// 自定义 driver 持有的一次任务尝试及其资源作用域。
+///
+/// 超时或租约丢失时，先丢弃 handler future，再在确认或重试前等待
+/// [`JobAttempt::shutdown`]。Drop 仅触发取消兜底，不等待资源回收。
+pub struct JobAttempt {
+    context: JobContext,
+    scope: AttemptScope,
+}
+
+impl JobAttempt {
+    /// 获取可传给 [`JobRegistry::execute`] 的本次尝试上下文。
+    pub fn context(&self) -> &JobContext {
+        &self.context
+    }
+
+    /// 等待本次作用域及受管任务关闭，deadline 为单调时钟时间。
+    pub async fn shutdown(self, deadline: tokio::time::Instant) -> Result<()> {
+        self.scope.shutdown_at(deadline).await
+    }
+}
+
 impl JobContext {
+    /// 为自定义 driver 创建独立的尝试作用域。
+    ///
+    /// 必须先设置应用状态；每次重试均须创建新的上下文和 guard。
+    pub fn begin_attempt(mut self) -> Result<JobAttempt> {
+        if self.attempt_scope.is_some() {
+            return Err(Error::custom(
+                "queue_attempt_already_started",
+                "job attempt already started",
+            ));
+        }
+        let scope = AttemptScope::create(&mut self)?.ok_or_else(|| {
+            Error::custom(
+                "queue_application_state_unavailable",
+                "this queue execution has no application service context",
+            )
+        })?;
+        Ok(JobAttempt {
+            context: self,
+            scope,
+        })
+    }
+
     /// 为自定义 driver 创建一次任务尝试的上下文。
     ///
     /// `cancellation` 应由 driver 持有，并在任务需要停止时调用 [`Cancellation::cancel`]。
@@ -113,6 +198,7 @@ impl JobContext {
             max_attempts,
             cancelled: cancellation,
             app_state: None,
+            attempt_scope: None,
             progress_reporter: None,
             metadata: ExecutionMetadata::default(),
             deadline: None,
@@ -180,13 +266,30 @@ impl JobContext {
     ///
     /// 直接调用 `Queue::run_next` 的 worker driver 没有应用状态，此时返回错误。
     pub async fn service<T: Send + Sync + 'static>(&self) -> Result<Arc<T>> {
+        self.scope()?.resolve::<T>().await
+    }
+
+    /// 当前尝试的作用域；可用于登记随本次尝试取消并回收的受管任务。
+    pub fn scope(&self) -> Result<Arc<crate::core::container::Scope>> {
         let state = self.app_state.as_ref().ok_or_else(|| {
             Error::custom(
                 "queue_application_state_unavailable",
                 "this queue execution has no application service context",
             )
         })?;
-        state.resolve::<T>().await
+        let scope = self.attempt_scope.as_ref().ok_or_else(|| {
+            Error::custom(
+                "queue_attempt_scope_unavailable",
+                "this queue context is not executing a job attempt",
+            )
+        })?;
+        if !scope.belongs_to(state.container()) {
+            return Err(Error::custom(
+                "queue_attempt_container_mismatch",
+                "job attempt belongs to another application container",
+            ));
+        }
+        Ok(Arc::clone(scope))
     }
 
     /// 等待 worker 停机流程请求协作取消。
@@ -344,8 +447,26 @@ impl JobRegistry {
                 format!("no handler is registered for job `{job_name}`"),
             )
         })?;
-        execute_handler(handler, payload, context).await
+        let mut context = context;
+        let attempt = AttemptScope::create(&mut context)?;
+        let result = execute_handler(handler, payload, context).await;
+        finish_attempt(attempt, result).await
     }
+}
+
+async fn finish_attempt(attempt: Option<AttemptScope>, result: Result<()>) -> Result<()> {
+    if let Some(attempt) = attempt
+        && let Err(cleanup) = attempt.shutdown().await
+    {
+        if result.is_ok() {
+            return Err(cleanup);
+        }
+        tracing::warn!(
+            code = safe_error_code(cleanup.code()),
+            "queue attempt cleanup failed"
+        );
+    }
+    result
 }
 
 fn is_reserved_job_name(name: &str) -> bool {
@@ -1023,6 +1144,11 @@ impl Default for QueueContributions {
 }
 
 impl QueueContributions {
+    #[cfg(test)]
+    pub(crate) fn job_registry(&self) -> JobRegistry {
+        self.jobs.clone()
+    }
+
     /// 注册类型化任务；重复名称报错。
     pub fn register_job<J: Job>(&self) -> Result<()> {
         self.jobs.clone().register_job::<J>()?;
@@ -1235,6 +1361,7 @@ impl crate::core::ServiceProvider for QueueServiceProvider {
                     (*queue).clone(),
                     schedules,
                     config,
+                    resolver.scope_factory(),
                 )))
             })
         });
@@ -1281,12 +1408,27 @@ mod provider_tests {
                 Ok(())
             }
         }
+        #[derive(serde::Deserialize)]
+        struct FactoryJob {}
+        impl Job for FactoryJob {
+            const NAME: &'static str = "test.factory-scope";
+            fn handle(&self, context: JobContext) -> BoxFuture<'_, Result<()>> {
+                Box::pin(async move {
+                    assert_eq!(context.service::<FactoryValue>().await?.0, 7);
+                    Ok(())
+                })
+            }
+        }
         let mut builder = ProviderBuilder::new();
         builder.provider(FactoryProvider);
         let app = crate::core::App::from_provider_runtime(builder.start(Figment::new()).await?)?;
         let context =
             JobContext::new("job", 1, 1, Cancellation::new())?.with_app_state(app.state().clone());
-        assert_eq!(context.service::<FactoryValue>().await?.0, 7);
+        let mut registry = JobRegistry::default();
+        registry.register_job::<FactoryJob>()?;
+        registry
+            .execute(FactoryJob::NAME, serde_json::json!({}), context)
+            .await?;
         let missing = JobContext::new("job", 1, 1, Cancellation::new())?;
         assert_eq!(
             missing
@@ -1297,6 +1439,125 @@ mod provider_tests {
                 .as_deref(),
             Some("queue_application_state_unavailable")
         );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn attempt_preserves_handler_error_when_cleanup_fails() -> Result<()> {
+        struct Scoped;
+        struct Provider;
+        impl ServiceProvider for Provider {
+            fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
+                app.scoped::<Scoped, _>(|resolver| {
+                    Box::pin(async move {
+                        resolver.resources()?.on_shutdown(|| {
+                            Box::pin(async {
+                                Err(Error::custom("cleanup_failure", "sensitive cleanup detail"))
+                            })
+                        })?;
+                        Ok(Arc::new(Scoped))
+                    })
+                });
+                Ok(())
+            }
+        }
+        #[derive(serde::Deserialize)]
+        struct FailingJob {}
+        static HANDLED: AtomicUsize = AtomicUsize::new(0);
+        impl Job for FailingJob {
+            const NAME: &'static str = "test.handler-error";
+            fn handle(&self, context: JobContext) -> BoxFuture<'_, Result<()>> {
+                assert!(ExecutionContext::current().is_some());
+                HANDLED.fetch_add(1, Ordering::SeqCst);
+                Box::pin(async move {
+                    context.service::<Scoped>().await?;
+                    Err(Error::custom("handler_failure", "handler failed"))
+                })
+            }
+        }
+        let mut builder = ProviderBuilder::new();
+        builder.provider(Provider);
+        let app = crate::core::App::from_provider_runtime(builder.start(Figment::new()).await?)?;
+        let mut registry = JobRegistry::default();
+        registry.register_job::<FailingJob>()?;
+        let context =
+            JobContext::new("job", 1, 1, Cancellation::new())?.with_app_state(app.state().clone());
+        let error = registry
+            .execute(FailingJob::NAME, serde_json::json!({}), context)
+            .await
+            .err();
+        assert_eq!(error.as_ref().map(Error::code), Some("handler_failure"));
+        assert_eq!(HANDLED.load(Ordering::SeqCst), 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn attempt_rejects_application_rebinding_before_handler() -> Result<()> {
+        static HANDLED: AtomicUsize = AtomicUsize::new(0);
+        #[derive(serde::Deserialize)]
+        struct ReboundJob {}
+        impl Job for ReboundJob {
+            const NAME: &'static str = "test.rebound-attempt";
+            fn handle(&self, _: JobContext) -> BoxFuture<'_, Result<()>> {
+                HANDLED.fetch_add(1, Ordering::SeqCst);
+                Box::pin(async { Ok(()) })
+            }
+        }
+        let app_a = crate::core::App::from_provider_runtime(
+            ProviderBuilder::new().start(Figment::new()).await?,
+        )?;
+        let app_b = crate::core::App::from_provider_runtime(
+            ProviderBuilder::new().start(Figment::new()).await?,
+        )?;
+        let attempt = JobContext::new("job", 1, 1, Cancellation::new())?
+            .with_app_state(app_a.state().clone())
+            .begin_attempt()?;
+        let mut registry = JobRegistry::default();
+        registry.register_job::<ReboundJob>()?;
+        let rebound = attempt
+            .context()
+            .clone()
+            .with_app_state(app_b.state().clone());
+        assert_eq!(
+            rebound
+                .scope()
+                .err()
+                .map(|e| e.code().to_owned())
+                .as_deref(),
+            Some("queue_attempt_container_mismatch")
+        );
+        assert_eq!(
+            rebound
+                .service::<u8>()
+                .await
+                .err()
+                .map(|e| e.code().to_owned())
+                .as_deref(),
+            Some("queue_attempt_container_mismatch")
+        );
+        let error = registry
+            .execute(ReboundJob::NAME, serde_json::json!({}), rebound)
+            .await
+            .err();
+        assert_eq!(
+            error.as_ref().map(Error::code),
+            Some("queue_attempt_container_mismatch")
+        );
+        assert_eq!(HANDLED.load(Ordering::SeqCst), 0);
+        registry
+            .execute(
+                ReboundJob::NAME,
+                serde_json::json!({}),
+                attempt
+                    .context()
+                    .clone()
+                    .with_app_state(app_a.state().clone()),
+            )
+            .await?;
+        assert_eq!(HANDLED.load(Ordering::SeqCst), 1);
+        attempt
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await?;
         Ok(())
     }
 
@@ -1881,11 +2142,22 @@ fn run_job<J: Job>(payload: Value, context: JobContext) -> BoxFuture<'static, Re
 }
 
 async fn execute_handler(handler: JobFn, payload: Value, context: JobContext) -> Result<()> {
-    let handler_future = handler(payload, context.clone());
+    let handler_context = context.clone();
+    let handler_future = Box::pin(async move { handler(payload, handler_context).await });
     run_scoped(handler_future, &context).await
 }
 
 async fn run_scoped<'a>(
+    handler_future: BoxFuture<'a, Result<()>>,
+    context: &'a JobContext,
+) -> Result<()> {
+    if let Some(scope) = &context.attempt_scope {
+        return scope.run(run_scoped_inner(handler_future, context)).await;
+    }
+    run_scoped_inner(handler_future, context).await
+}
+
+async fn run_scoped_inner<'a>(
     handler_future: BoxFuture<'a, Result<()>>,
     context: &'a JobContext,
 ) -> Result<()> {
@@ -2001,12 +2273,13 @@ impl DatabaseQueue {
         let progress_id = claim.id.clone();
         let progress_owner = claim.owner.clone();
         let progress_token = claim.token.clone();
-        let context = JobContext {
+        let mut context = JobContext {
             id: claim.id.clone(),
             attempt: claim.attempts,
             max_attempts: claim.max_attempts,
             cancelled: job_cancellation.clone(),
             app_state: app_state.clone(),
+            attempt_scope: None,
             progress_reporter: Some(Arc::new(move |value| {
                 Box::pin(persist_database_progress(
                     progress_db.clone(),
@@ -2019,41 +2292,48 @@ impl DatabaseQueue {
             metadata: metadata.clone(),
             deadline: Some(deadline),
         };
+        let attempt = AttemptScope::create(&mut context)?;
+        let scope = context.attempt_scope.clone();
         let mut cancellation = self.cancelled.subscribe();
-        let handler_future: BoxFuture<'static, Result<()>> = if is_group {
-            let payload = job_payload.clone();
-            let registry = Arc::clone(&self.registry);
-            Box::pin(async move {
+        let registry = Arc::clone(&self.registry);
+        let handler_future: BoxFuture<'static, Result<()>> = Box::pin(async move {
+            if is_group {
                 let group =
-                    serde_json::from_value::<TaskGroup>(payload).map_err(Error::internal)?;
+                    serde_json::from_value::<TaskGroup>(job_payload).map_err(Error::internal)?;
                 run_task_group(registry, group, context).await
-            })
-        } else if let Some(handler) = handler {
-            handler(job_payload, context)
-        } else {
-            return Err(Error::custom(
-                "unregistered_queue_job",
-                "claimed task has no registered handler",
-            ));
-        };
+            } else if let Some(handler) = handler {
+                handler(job_payload, context).await
+            } else {
+                Err(Error::custom(
+                    "unregistered_queue_job",
+                    "claimed task has no registered handler",
+                ))
+            }
+        });
         let execution =
             ExecutionContext::new(metadata.clone(), Some(deadline), job_cancellation.clone());
-        let i18n = match app_state.as_ref() {
-            Some(state) if state.container().contains::<crate::i18n::I18n>() => {
-                Some(state.resolve::<crate::i18n::I18n>().await?)
-            }
-            _ => None,
-        };
-        let locale = metadata
-            .locale()
-            .cloned()
-            .or_else(|| i18n.as_ref().map(|service| service.select(None)));
-        let task_future: BoxFuture<'static, Result<()>> =
-            if let (Some(i18n), Some(locale)) = (i18n, locale) {
-                Box::pin(async move { i18n.with_locale(locale, handler_future).await })
-            } else {
-                handler_future
+        let locale_metadata = metadata.clone();
+        let locale_scope = scope.clone();
+        let task_future: BoxFuture<'static, Result<()>> = Box::pin(async move {
+            let i18n = match app_state.as_ref() {
+                Some(state) if state.container().contains::<crate::i18n::I18n>() => {
+                    Some(match &locale_scope {
+                        Some(scope) => scope.resolve::<crate::i18n::I18n>().await?,
+                        None => state.resolve::<crate::i18n::I18n>().await?,
+                    })
+                }
+                _ => None,
             };
+            if let Some(i18n) = i18n {
+                let locale = locale_metadata
+                    .locale()
+                    .cloned()
+                    .unwrap_or_else(|| i18n.select(None));
+                i18n.with_locale(locale, handler_future).await
+            } else {
+                handler_future.await
+            }
+        });
         let tenant_future: BoxFuture<'static, Result<()>> =
             if let Some(tenant) = metadata.tenant_id().cloned() {
                 Box::pin(async move {
@@ -2067,13 +2347,19 @@ impl DatabaseQueue {
         #[cfg(feature = "otel")]
         crate::core::otel::set_remote_parent(&span, metadata.traceparent());
         let tenant_future = tracing::Instrument::instrument(tenant_future, span);
-        let handler_future: BoxFuture<'static, Result<()>> =
-            Box::pin(with_execution_context(execution, tenant_future));
+        let handler_future: BoxFuture<'static, Result<()>> = match scope {
+            Some(scope) => Box::pin(async move {
+                scope
+                    .run(with_execution_context(execution, tenant_future))
+                    .await
+            }),
+            None => Box::pin(with_execution_context(execution, tenant_future)),
+        };
+        let mut handler_future = handler_future;
         #[cfg(feature = "metrics")]
         let _job_metric_guard = WorkerJobMetricGuard::new();
         #[cfg(feature = "metrics")]
         let job_started = std::time::Instant::now();
-        tokio::pin!(handler_future);
         let mut shutdown_deadline = if *cancellation.borrow() {
             job_cancellation.cancel();
             Some(
@@ -2095,9 +2381,10 @@ impl DatabaseQueue {
             tokio::select! {
                 result = &mut handler_future => break Some(result),
                 _ = heartbeat.tick() => {
-                    if !renew_job(&self.db, &claim, self.config.lease_secs).await? {
-                        job_cancellation.cancel();
-                        break Some(Err(Error::custom("queue_lease_lost", "job lease ownership changed")));
+                    match renew_job(&self.db, &claim, self.config.lease_secs).await {
+                        Ok(true) => {},
+                        Ok(false) => { job_cancellation.cancel(); break Some(Err(Error::custom("queue_lease_lost", "job lease ownership changed"))); },
+                        Err(error) => { job_cancellation.cancel(); break Some(Err(error)); },
                     }
                 }
                 changed = cancellation.changed() => {
@@ -2120,6 +2407,14 @@ impl DatabaseQueue {
                     break None;
                 }
             }
+        };
+        drop(handler_future);
+        let result = if let Some(result) = result {
+            Some(finish_attempt(attempt, result).await)
+        } else {
+            let timeout = Error::custom("job_timeout", "job attempt timed out");
+            let _ = finish_attempt(attempt, Err(timeout)).await;
+            None
         };
         #[cfg(feature = "metrics")]
         {
@@ -3186,7 +3481,7 @@ async fn run_group_task(
             format!("no handler is registered for job `{}`", task.job_name),
         ));
     };
-    handler(task.payload, context).await
+    execute_handler(handler, task.payload, context).await
 }
 
 struct QueueWorkCommand;

@@ -9,7 +9,7 @@ use serde::de::DeserializeOwned;
 
 use crate::config::{ConfigError, FrameworkConfig};
 use crate::core::command::Command;
-use crate::core::container::Container;
+use crate::core::container::{Container, Scope};
 use crate::core::error::{Error, Result};
 use crate::core::provider::{ProviderRuntime, ServiceProvider};
 use crate::core::resources::ResourceOwner;
@@ -78,6 +78,14 @@ struct StateInner {
     provider_resources: Arc<ResourceOwner>,
 }
 
+struct CommandScopeGuard(Arc<Scope>);
+
+impl Drop for CommandScopeGuard {
+    fn drop(&mut self) {
+        self.0.close();
+    }
+}
+
 /// 可低成本克隆、供每个请求和任务共享的句柄，包含配置和服务。
 #[derive(Clone)]
 pub struct AppState {
@@ -90,9 +98,13 @@ impl AppState {
         &self.inner.services
     }
 
-    /// 在根生命周期异步解析服务，包含工厂绑定。
+    /// 在当前入口 scope（若属于本应用）或根生命周期异步解析服务。
     pub async fn resolve<T: ?Sized + Send + Sync + 'static>(&self) -> Result<Arc<T>> {
-        self.inner.services.resolve::<T>().await
+        if let Some(scope) = self.inner.services.current_entry_scope() {
+            scope.resolve::<T>().await
+        } else {
+            self.inner.services.resolve::<T>().await
+        }
     }
     /// 框架配置。
     pub fn config(&self) -> &FrameworkConfig {
@@ -262,26 +274,49 @@ impl App {
                 ),
             ));
         }
-        let i18n = if self.state().container().contains::<crate::i18n::I18n>() {
-            Some(self.state().resolve::<crate::i18n::I18n>().await?)
-        } else {
-            None
-        };
-        let mut metadata = crate::core::ExecutionMetadata::default();
-        let locale = i18n.as_ref().map(|service| service.select(None));
-        if let Some(locale) = &locale {
-            metadata = metadata.with_locale(locale.clone());
-        }
-        let execution =
-            crate::core::ExecutionContext::new(metadata, None, crate::core::Cancellation::new());
-        crate::core::with_execution_context(execution, async move {
-            if let (Some(i18n), Some(locale)) = (i18n, locale) {
-                i18n.with_locale(locale, command.run(self, remaining)).await
-            } else {
-                command.run(self, remaining).await
+        let scope = Arc::new(self.state().container().scope()?);
+        let _scope_guard = CommandScopeGuard(Arc::clone(&scope));
+        let result = scope
+            .run(async {
+                let i18n = if self.state().container().contains::<crate::i18n::I18n>() {
+                    Some(self.state().resolve::<crate::i18n::I18n>().await?)
+                } else {
+                    None
+                };
+                let mut metadata = crate::core::ExecutionMetadata::default();
+                let locale = i18n.as_ref().map(|service| service.select(None));
+                if let Some(locale) = &locale {
+                    metadata = metadata.with_locale(locale.clone());
+                }
+                let execution = crate::core::ExecutionContext::new(
+                    metadata,
+                    None,
+                    crate::core::Cancellation::new(),
+                );
+                crate::core::with_execution_context(execution, async move {
+                    if let (Some(i18n), Some(locale)) = (i18n, locale) {
+                        i18n.with_locale(locale, command.run(self, remaining)).await
+                    } else {
+                        command.run(self, remaining).await
+                    }
+                })
+                .await
+            })
+            .await;
+        let deadline = tokio::time::Instant::now()
+            + std::time::Duration::from_secs(self.config().server.shutdown_timeout_secs);
+        let cleanup = scope.shutdown(deadline).await;
+        match (result, cleanup) {
+            (Err(error), Err(cleanup_error)) => {
+                tracing::error!(
+                    code = cleanup_error.code(),
+                    "command scope cleanup also failed"
+                );
+                Err(error)
             }
-        })
-        .await
+            (Err(error), Ok(())) => Err(error),
+            (Ok(()), cleanup) => cleanup,
+        }
     }
 }
 
@@ -290,6 +325,8 @@ mod tests {
     use super::*;
     use crate::core::{BootContext, BoxFuture, ExecutionContext, ProviderBuilder, RegisterContext};
     use figment::providers::Serialized;
+    use std::sync::Mutex;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[derive(Debug, PartialEq)]
     struct Counter(u32);
@@ -360,6 +397,99 @@ mod tests {
     struct TaskProvider {
         started: Arc<tokio::sync::Notify>,
         stopped: Arc<tokio::sync::Notify>,
+    }
+
+    struct ScopedCommandProvider {
+        created: Arc<AtomicUsize>,
+        cleaned: Arc<AtomicUsize>,
+        seen: Arc<Mutex<Vec<usize>>>,
+        pending_scope: Option<tokio::sync::mpsc::UnboundedSender<Arc<Scope>>>,
+        cleaned_notify: Option<Arc<tokio::sync::Notify>>,
+    }
+
+    struct ScopedCommand {
+        seen: Arc<Mutex<Vec<usize>>>,
+        pending_scope: Option<tokio::sync::mpsc::UnboundedSender<Arc<Scope>>>,
+    }
+
+    impl Command for ScopedCommand {
+        fn name(&self) -> &'static str {
+            "scope check"
+        }
+
+        fn about(&self) -> &'static str {
+            "Check command scope"
+        }
+
+        fn accepts_args(&self) -> bool {
+            true
+        }
+
+        fn run<'a>(&'a self, app: &'a App, args: Vec<String>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                let first = app.state().resolve::<usize>().await?;
+                let second = app.state().resolve::<usize>().await?;
+                assert!(Arc::ptr_eq(&first, &second));
+                self.seen
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .push(*first);
+                if args.first().map(String::as_str) == Some("pending") {
+                    let scope = app
+                        .state()
+                        .container()
+                        .current_entry_scope()
+                        .ok_or_else(|| {
+                            Error::custom("command_scope_missing", "command scope missing")
+                        })?;
+                    if let Some(sender) = &self.pending_scope {
+                        let _ = sender.send(scope);
+                    }
+                    std::future::pending::<()>().await;
+                }
+                if args.first().map(String::as_str) == Some("fail") {
+                    return Err(Error::custom("command_failed", "intentional test failure"));
+                }
+                Ok(())
+            })
+        }
+    }
+
+    impl ServiceProvider for ScopedCommandProvider {
+        fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
+            let created = Arc::clone(&self.created);
+            let cleaned = Arc::clone(&self.cleaned);
+            let cleaned_notify = self.cleaned_notify.clone();
+            app.scoped::<usize, _>(move |resolver| {
+                let created = Arc::clone(&created);
+                let cleaned = Arc::clone(&cleaned);
+                let cleaned_notify = cleaned_notify.clone();
+                Box::pin(async move {
+                    let id = created.fetch_add(1, Ordering::SeqCst) + 1;
+                    resolver.resources()?.on_shutdown(move || {
+                        Box::pin(async move {
+                            cleaned.fetch_add(1, Ordering::SeqCst);
+                            if let Some(notify) = cleaned_notify {
+                                notify.notify_one();
+                            }
+                            Ok(())
+                        })
+                    })?;
+                    Ok(Arc::new(id))
+                })
+            });
+            Ok(())
+        }
+
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.command(ScopedCommand {
+                    seen: Arc::clone(&self.seen),
+                    pending_scope: self.pending_scope.clone(),
+                });
+                Ok(())
+            })
+        }
     }
     impl ServiceProvider for TaskProvider {
         fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
@@ -457,6 +587,203 @@ mod tests {
         app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
             .await?;
         stopped.notified().await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn consecutive_commands_use_distinct_scopes_and_close_each_one() -> Result<()> {
+        let created = Arc::new(AtomicUsize::new(0));
+        let cleaned = Arc::new(AtomicUsize::new(0));
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let app = start(ScopedCommandProvider {
+            created: Arc::clone(&created),
+            cleaned: Arc::clone(&cleaned),
+            seen: Arc::clone(&seen),
+            pending_scope: None,
+            cleaned_notify: None,
+        })
+        .await?;
+        app.run_command("scope", vec!["check".into()]).await?;
+        assert_eq!(cleaned.load(Ordering::SeqCst), 1);
+        app.run_command("scope", vec!["check".into()]).await?;
+        assert_eq!(created.load(Ordering::SeqCst), 2);
+        assert_eq!(cleaned.load(Ordering::SeqCst), 2);
+        let failure = app
+            .run_command("scope", vec!["check".into(), "fail".into()])
+            .await
+            .err();
+        assert_eq!(failure.as_ref().map(Error::code), Some("command_failed"));
+        assert_eq!(created.load(Ordering::SeqCst), 3);
+        assert_eq!(cleaned.load(Ordering::SeqCst), 3);
+        assert_eq!(
+            *seen
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+            vec![1, 2, 3]
+        );
+        app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
+            .await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn cancelled_and_timed_out_commands_close_their_scopes() -> Result<()> {
+        let created = Arc::new(AtomicUsize::new(0));
+        let cleaned = Arc::new(AtomicUsize::new(0));
+        let cleaned_notify = Arc::new(tokio::sync::Notify::new());
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let (pending_scope, mut scopes) = tokio::sync::mpsc::unbounded_channel();
+        let app = Arc::new(
+            start(ScopedCommandProvider {
+                created: Arc::clone(&created),
+                cleaned: Arc::clone(&cleaned),
+                seen: Arc::clone(&seen),
+                pending_scope: Some(pending_scope),
+                cleaned_notify: Some(Arc::clone(&cleaned_notify)),
+            })
+            .await?,
+        );
+
+        let cancelled = tokio::spawn({
+            let app = Arc::clone(&app);
+            async move {
+                app.run_command("scope", vec!["check".into(), "pending".into()])
+                    .await
+            }
+        });
+        let first_scope = scopes
+            .recv()
+            .await
+            .ok_or_else(|| Error::custom("scope_missing", "scope missing"))?;
+        let cleaned_once = cleaned_notify.notified();
+        tokio::pin!(cleaned_once);
+        cleaned_once.as_mut().enable();
+        cancelled.abort();
+        let cancelled_result = cancelled.await;
+        assert!(
+            cancelled_result
+                .as_ref()
+                .is_err_and(tokio::task::JoinError::is_cancelled)
+        );
+        tokio::time::timeout(std::time::Duration::from_secs(1), cleaned_once)
+            .await
+            .map_err(Error::internal)?;
+        assert_eq!(cleaned.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            first_scope
+                .resolve::<usize>()
+                .await
+                .err()
+                .map(|error| error.code().to_owned()),
+            Some("scope_closed".to_owned())
+        );
+
+        let timed_out = tokio::spawn({
+            let app = Arc::clone(&app);
+            async move {
+                tokio::time::timeout(
+                    std::time::Duration::from_millis(100),
+                    app.run_command("scope", vec!["check".into(), "pending".into()]),
+                )
+                .await
+            }
+        });
+        let second_scope = scopes
+            .recv()
+            .await
+            .ok_or_else(|| Error::custom("scope_missing", "scope missing"))?;
+        let cleaned_twice = cleaned_notify.notified();
+        tokio::pin!(cleaned_twice);
+        cleaned_twice.as_mut().enable();
+        assert!(timed_out.await.map_err(Error::internal)?.is_err());
+        tokio::time::timeout(std::time::Duration::from_secs(1), cleaned_twice)
+            .await
+            .map_err(Error::internal)?;
+        assert_eq!(cleaned.load(Ordering::SeqCst), 2);
+        assert_eq!(
+            second_scope
+                .resolve::<usize>()
+                .await
+                .err()
+                .map(|error| error.code().to_owned()),
+            Some("scope_closed".to_owned())
+        );
+
+        app.run_command("scope", vec!["check".into()]).await?;
+        assert_eq!(created.load(Ordering::SeqCst), 3);
+        assert_eq!(cleaned.load(Ordering::SeqCst), 3);
+        assert_eq!(
+            *seen
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+            vec![1, 2, 3]
+        );
+        app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
+            .await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn managed_scope_task_sees_same_service_and_explicit_metadata() -> Result<()> {
+        let created = Arc::new(AtomicUsize::new(0));
+        let cleaned = Arc::new(AtomicUsize::new(0));
+        let app = start(ScopedCommandProvider {
+            created: Arc::clone(&created),
+            cleaned: Arc::clone(&cleaned),
+            seen: Arc::new(Mutex::new(Vec::new())),
+            pending_scope: None,
+            cleaned_notify: None,
+        })
+        .await?;
+        let scope = Arc::new(app.state().container().scope()?);
+        let first = scope.run(app.state().resolve::<usize>()).await?;
+        let (sent, received) = tokio::sync::oneshot::channel();
+        let state = app.state().clone();
+        let metadata = crate::core::ExecutionMetadata::default().with_request_id("safe-id")?;
+        scope.spawn(metadata, None, move |cancel| {
+            let constructed_in_scope = state.container().current_entry_scope().is_some();
+            let constructor_request_id = ExecutionContext::current()
+                .and_then(|context| context.metadata().request_id().map(str::to_owned));
+            async move {
+                let result = async {
+                    let value = state.resolve::<usize>().await?;
+                    let request_id = ExecutionContext::current()
+                        .and_then(|context| context.metadata().request_id().map(str::to_owned));
+                    Ok::<_, Error>((
+                        *value,
+                        request_id,
+                        constructor_request_id,
+                        constructed_in_scope,
+                    ))
+                }
+                .await;
+                let _ = sent.send(result);
+                cancel.cancelled().await;
+            }
+        })?;
+        let (child, request_id, constructor_request_id, constructed_in_scope) =
+            received.await.map_err(Error::internal)??;
+        assert_eq!(child, *first);
+        assert_eq!(request_id.as_deref(), Some("safe-id"));
+        assert_eq!(constructor_request_id.as_deref(), Some("safe-id"));
+        assert!(constructed_in_scope);
+        let root = tokio::spawn({
+            let state = app.state().clone();
+            async move {
+                assert!(ExecutionContext::current().is_none());
+                state.resolve::<usize>().await
+            }
+        })
+        .await
+        .map_err(Error::internal)??;
+        assert_ne!(*root, *first);
+        scope
+            .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
+            .await?;
+        assert_eq!(cleaned.load(Ordering::SeqCst), 1);
+        app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
+            .await?;
+        assert_eq!(cleaned.load(Ordering::SeqCst), 2);
         Ok(())
     }
 

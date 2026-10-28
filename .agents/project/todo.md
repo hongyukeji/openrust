@@ -4,7 +4,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-28
-> 摘要：Laravel + laravel-modules 的 Rust 1:1 实现唯一活跃队列；R0旧基线已记录，模块包逐项盘点待补；R1-S已提交，R2-B统一Provider生产内核已通过本簇门禁，R1整体/真实CRUD仍未完成。
+> 摘要：Laravel + laravel-modules 的 Rust 1:1 实现唯一活跃队列；R0旧基线已记录，模块包逐项盘点待补；R1-S已提交，R2-B统一Provider及R2-C入口scope已通过各自门禁，R1整体/真实CRUD仍未完成。
 
 ## 领取规则
 
@@ -14,14 +14,14 @@
 
 用户再次明确按 Laravel + laravel-modules 的完整 Rust 实现从零设计、重写核心；旧 API、目录和实现不构成兼容约束。新内核以固定上游行为为依据，不继续堆叠旧 Plugin 装配；旧源码仅作事实与回归输入，由对应功能簇替换后通过 git rm 清除失效实现。此授权不删除他人 WIP、共享服务、数据或原始测试证据，也不要求重造成熟密码学和数据库驱动。
 
-当前一个主功能簇为 R2 基础。R1-S及R2-A/A2/A3已提交，R2-B 统一 Provider 已通过本簇门禁；后续依次处理 R2-C/D 的 scope/TestApp 与 R2-M 模块闭环。全部工作留在 main；共享 Cargo 清单、锁文件、验证服务和提交串行协调；子代理不得递归派发。
+当前一个主功能簇为 R2 基础。R1-S及R2-A/A2/A3已提交，R2-B 统一 Provider 与 R2-C 入口 scope 已通过各自门禁；后续依次处理 R2-D TestApp 与 R2-M 模块闭环。全部工作留在 main；共享 Cargo 清单、锁文件、验证服务和提交串行协调；子代理不得递归派发。
 
 ## 当前可领取
 
 | 功能簇 | 状态 | 交付与验收 |
 | --- | --- | --- |
 | R1-S 根结构与普通模块挂载 | 已完成结构子交付34dfb5e | 根Laravel职责、同package lib/server、资源内聚、模块公开挂载；按范围实际门禁与独立审查通过后可限定提交，仅结构子交付 |
-| R2 基础：Container/Provider/模块配置/TestApp | in_progress：R2-A/A2/A3 与 R2-B 已实现验收，续 R2-C/D/M | 全体register后boot、统一Container与typed配置、最小TestApp及模块闭环；先形成真实CRUD/扩展接入的稳定API，不依赖完整R1-E |
+| R2 基础：Container/Provider/模块配置/TestApp | in_progress：R2-A/A2/A3、R2-B、R2-C 已实现验收，续 R2-D/M | 全体register后boot、统一Container与typed配置、最小TestApp及模块闭环；先形成真实CRUD/扩展接入的稳定API，不依赖完整R1-E |
 | R2-M 模块最小闭环与目录迁移 | 待R2基础 | modules/ 声明注册、模块配置/资源/迁移、依赖与冲突错误；迁移现有示例到 modules/example，验证注册/未注册与真实HTTP；完整管理命令归R13 |
 | R1-E 真实CRUD与当前能力示例 | 待R2基础与R2-M；未交付 | 真实实体列表/详情/新增/更新/删除，校验/分页/404/授权/事务；PG18/MySQL8.4真实HTTP闭环；当前公开能力实际业务/扩展/测试逐项覆盖，GET基础信息响应不算CRUD |
 | R2 后继内核与测试底座 | 待R2基础，按依赖分簇 | scope/Facade/DI/停机与模块依赖/顺序等完整对应；每簇同步modules/example，不建双内核；不把全部R2能力塞入首批 |
@@ -120,3 +120,17 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 5. B0逐族拆分即时构造与贡献；B1实际替换私有Registry/旧Plugin循环、AppState/Inject/命令读同Container，不增双运行开关，不删除领域贡献registries。
 6. 配置worker仅src/config/repository.rs；集成者持core/resources/provider/app/lifecycle等与mod导出、Cargo/共享文档/串行真实门禁；不同模型独立审查。
 7. R2-C再接HTTP body/job/console scope，R2-D同生产TestApp；R2-M再迁modules/example，随后R1-E真实CRUD，不能跳依赖或将基元当整体完成。
+
+## 当前 R2-C Spec：入口 scope 与清理
+
+状态：代码、真实 HTTP/Redis/PostgreSQL 18/MySQL 8.4、生成双库项目、公开队列 consumer、默认/全特性与 MSRV 门禁已实际通过；提交与资源收尾见本簇 Git/验收记录。R2-D TestApp、R2-M 模块目录和 R1-E 真实业务 CRUD 仍待后继，不计入本簇完成。
+
+1. 复用 R2-B 的 Container、Scope、ResourceOwner 与 ExecutionContext；HTTP 已有请求 scope/Body 关闭，只补实际缺失的后台任务与取消边界。
+2. 一次命令、一次队列 attempt、一次 scheduler 触发各建独立 scope；成功、错误、超时、取消均封闭解析并执行有界回收，App 可连续运行多个命令。
+3. `Scope::run` 仅在当前 future 安装与所属 Container 匹配的 task-local scope；`AppState::resolve` 只在匹配时取该 scope，普通 `tokio::spawn` 不继承它。
+4. `Scope::spawn` 使用同一 ResourceOwner 管理任务，显式传递允许的 ExecutionMetadata、预算和取消；关闭时取消/join，禁止跨入口继承身份或已关闭 scope。
+5. Queue 的 `JobContext::service` 优先本次 attempt scope，worker 与自定义 driver 都经实际 handler 入口建 scope；retry 必须得到新实例，租约失败和超时也清理。
+6. Scheduler 每次触发才进入 scope，不把任务服务缓存进 Scheduler singleton；命令自身 scope 与任务触发 scope 分离。
+7. 受管回调逆序且仅一次；入口 future 取消后由 App 持有的子资源关闭队列接管，App.shutdown 等待并聚合失败，不以 `Drop` 冒充异步关闭。
+8. 用真实 HTTP stream/drop、连续 console 命令、queue 成败/超时/取消/重试与 scheduler 多次触发验证隔离和清理；适用 PostgreSQL 18/MySQL 8.4、生成项目及完整门禁后限定提交。
+9. 本簇只处理入口生命周期；R2-D TestApp、R2-M 模块目录及 R1-E CRUD 不计入完成，保留既有 Figment/第三方 driver 差异。

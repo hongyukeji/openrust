@@ -149,7 +149,7 @@ cargo deny check
 | JWT/PAT 与认证流程 | `routes/api.rs` + `http/controllers/auth.rs` 调用 `AuthFlows/AuthLayer/CurrentUser` | `auth`、对应 db feature；通用 auth 配置与模块业务迁移、授权注入密钥 | `app/example/tests/auth_flows.rs` 复用同 Server；当前布局双库结果待记录；Policy/MFA/OIDC/Session 业务参考仍待补 |
 | 邮件及公开邮件实现 | `http/controllers/auth.rs::AuthCodeEmail` 实现 `Email`，`send_auth_code` 使用 `Mailer` | 根 mail 配置与 `MailerServiceProvider` | 认证测试有捕获 MailDriver；SMTP/真实发送须独立授权和条件，不能从 fake 推断 |
 | 自定义缓存/邮件/SMS driver | 待补通过统一 Provider 与公开 driver 契约接入的业务示例 | 示例配置与实现留模块，通过通用入口注册 | 注册、TTL、配置拒绝、捕获通信与生产环境保护等行为待实现并实测；不以其他 consumer 替代 |
-| 队列与调度 | `jobs::JobsServiceProvider`、`ExampleHeartbeatJob`；路由派发任务 | `queue`、数据库与模块迁移的公开挂载；API/worker/scheduler 为同一应用的进程角色 | 任务与间隔调度代码存在；真实派发/消费、失败/重试/事务示例和新测试待补 |
+| 队列与调度 | `jobs::JobsServiceProvider`、`ExampleHeartbeatJob`；路由派发任务 | `queue`、数据库与模块迁移的公开挂载；API/worker/scheduler 为同一应用的进程角色 | heartbeat 通过公开 Provider 注册 scoped `HeartbeatRun`，每个 attempt 解析独立关联号，关闭时记录完成；内嵌测试以公开 `JobRegistry::execute` 验证两次 attempt 不复用。真实持久化派发/消费、失败/重试/事务业务示例仍待补 |
 | 事件与通知 | 待补公开事件/通知业务调用 | 按既有 events/notifications 契约与 feature | 本模块无完整业务链，不以框架测试代替 |
 | 缓存、tag/SWR、并发加载 | 待补真实业务缓存及驱动扩展 | 现有缓存配置与选定 store；Redis 条件明确 | 根安装 CacheServiceProvider 不等于示例已调用，业务与扩展测试待补 |
 | 本地/S3 存储与流式上传下载 | 待补业务路由、授权、公开 Storage 调用 | storage feature、根配置及适用真实后端 | 既有 storage_http/S3 测试是框架证据，尚不算本模块示例 |

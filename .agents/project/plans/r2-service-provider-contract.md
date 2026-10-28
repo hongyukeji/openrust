@@ -166,7 +166,7 @@ async fn resolve<T: ?Sized + Send + Sync + 'static>(&self) -> Result<Arc<T>>;
 
 ## 6. 请求、任务与 Tokio scope
 
-提供 `Container::scope() -> Scope`、`Scope::resolve<T>().await` 与 `Scope::close().await`。Scope 自有缓存/取消/关闭登记，根 Container 同时持有 singleton 缓存及独立 root lifecycle 的 scoped 缓存；两者不混用，子 scope 不继承父缓存。提供 forget_scoped_instances 异步封闭当前 lifecycle generation，拒绝该旧代新解析，等待/取消其受管构造并逆序执行已登记关闭；清理完成后发布新代，下一次 resolve 新建。旧代值不写入新代；已逃逸Arc不能强制销毁。A阶段尚不提供资源关闭回调，reset先用同一generation/在途封闭机制测试，B1前必须补清理且不能以cache释放冒充async关闭。作用域在框架入口自动建立，业务通常不手动创建。
+提供 `Container::scope() -> Scope`、`Scope::resolve<T>().await`、同步 `Scope::close()` 与 `Scope::shutdown(deadline).await`。`close()` 立即封闭新解析、取消受管子任务并请求父级受管清理；需要确认回调完成时显式 await `shutdown` 或应用最终 `App::shutdown`。Scope 自有缓存/取消/关闭登记，根 Container 同时持有 singleton 缓存及独立 root lifecycle 的 scoped 缓存；两者不混用，子 scope 不继承父缓存。`forget_scoped_instances` 异步封闭当前 lifecycle generation，拒绝该旧代新解析，等待/取消其受管构造并逆序执行已登记关闭；清理完成后发布新代，下一次 resolve 新建。旧代值不写入新代；已逃逸 Arc 不能强制销毁。A阶段曾只提供封闭机制；B/C 已补受管异步清理，不能以缓存释放冒充关闭完成。作用域在框架入口自动建立，业务通常不手动创建。
 
 | 入口 | 创建与销毁边界 |
 | --- | --- |
@@ -178,7 +178,7 @@ async fn resolve<T: ?Sized + Send + Sync + 'static>(&self) -> Result<Arc<T>>;
 - singleton 的 factory Resolver 不携带 scoped 解析权限；即使从请求首次触发 singleton，也不能解析 scoped。经 transient 间接捕获 scoped 同样拒绝，避免长驻 worker 注入旧用户。
 - scoped/transient 通过当前 Resolver 保留有效 scope；从根/boot 解析 scoped 使用启动 lifecycle，同一 lifecycle 两次同实例，forget_scoped_instances 后创建新实例。此行为对应固定 Laravel ContainerTest 的 scoped/reset 断言，不把 scoped 静默提升永久 singleton。当前 Inject<T> 从请求 scope 解析，再按生命周期获得相同底层类型实例，不从根表旁路。
 - 复用 ExecutionContext 的 metadata/预算/取消；Tokio task-local 不自动跨 spawn。默认普通 tokio::spawn 不继承请求 scope；显式克隆根 Container 时仅能解析 root lifecycle，不获得请求身份。需要共同存活的任务使用受管 scope.spawn，关闭时取消并 join；独立任务必须创建新 scope，只显式传播允许的 metadata。
-- Scope.close 禁止新解析、取消/join 受管任务、逆序清理、释放缓存。Arc 已被业务显式克隆并逃逸时 Rust 无法撤回该对象；此限制必须公开，不承诺阻止用户主动跨作用域保存句柄。框架自身不能捕获/传播这种句柄。
+- `Scope::close()` 同步禁止新解析、取消受管任务并请求父级有界清理；实际 join、逆序回调与失败结果须通过 `Scope::shutdown(deadline).await` 或 `App::shutdown` 等待。Arc 已被业务显式克隆并逃逸时 Rust 无法撤回该对象；此限制必须公开，不承诺阻止用户主动跨作用域保存句柄。框架自身不能捕获/传播这种句柄。
 - HTTP body drop 的同步 Drop 不执行 async 关闭；由 App 拥有的有界清理任务队列接管，App shutdown 必须 await 此队列，不产生失管 spawn。body cancel 与应用退出的清理各只执行一次。
 
 ## 7. 失败清理与可观测性

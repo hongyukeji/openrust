@@ -12,6 +12,7 @@ use sha2::Digest;
 use std::collections::HashSet;
 use std::fmt::Write as FmtWrite;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::time::Duration;
 
 const MAX_INTERVAL_SECS: u64 = 2_592_000;
@@ -230,6 +231,14 @@ pub struct Scheduler {
     queue: Queue,
     entries: Vec<ScheduleDefinition>,
     config: crate::config::QueueConfig,
+    scopes: crate::core::container::ScopeFactory,
+}
+
+struct TriggerScope(Arc<crate::core::container::Scope>);
+impl Drop for TriggerScope {
+    fn drop(&mut self) {
+        self.0.close();
+    }
 }
 
 impl Scheduler {
@@ -238,12 +247,14 @@ impl Scheduler {
         queue: Queue,
         entries: Vec<ScheduleDefinition>,
         config: crate::config::QueueConfig,
+        scopes: crate::core::container::ScopeFactory,
     ) -> Self {
         Self {
             db,
             queue,
             entries,
             config,
+            scopes,
         }
     }
 
@@ -253,6 +264,10 @@ impl Scheduler {
     }
 
     /// 在所有共享该数据库的进程中，对每个到期调度时段仅派发一次。
+    ///
+    /// 每个时段的事务派发使用独立作用域及空执行元数据，不继承调用者的租户或请求；
+    /// 后续队列任务由 worker 为每次尝试另建作用域。当前调度项不声明租户。
+    /// Scheduler 由服务提供方构造，作用域工厂引用同一个应用容器。
     pub async fn tick(&self) -> Result<ScheduleReport> {
         let now = database_unix_time(&self.db).await?;
         let mut report = ScheduleReport::default();
@@ -263,24 +278,67 @@ impl Scheduler {
             }
             report.has_deferred |= deferred;
             for (slot, scheduled_at) in slots {
-                let connection = self.db.connection()?;
-                let transaction = connection.begin().await.map_err(Error::internal)?;
-                let job_id = self
-                    .queue
-                    .dispatch_in_transaction(
-                        &transaction,
-                        &entry.queue,
-                        &entry.job_name,
-                        &entry.payload,
+                let scope = TriggerScope(Arc::new(self.scopes.scope()?));
+                let result = scope
+                    .0
+                    .run(crate::tenant::TenantContext::without_current(
+                        crate::core::with_execution_context(
+                            crate::core::ExecutionContext::new(
+                                crate::core::ExecutionMetadata::default(),
+                                None,
+                                crate::core::Cancellation::new(),
+                            ),
+                            async {
+                                let connection = self.db.connection()?;
+                                let transaction =
+                                    connection.begin().await.map_err(Error::internal)?;
+                                let job_id = self
+                                    .queue
+                                    .dispatch_in_transaction(
+                                        &transaction,
+                                        &entry.queue,
+                                        &entry.job_name,
+                                        &entry.payload,
+                                    )
+                                    .await?;
+                                if insert_schedule_slot(
+                                    &self.db,
+                                    &transaction,
+                                    entry,
+                                    &slot,
+                                    scheduled_at,
+                                    &job_id,
+                                )
+                                .await?
+                                {
+                                    transaction.commit().await.map_err(Error::internal)?;
+                                    Ok(true)
+                                } else {
+                                    transaction.rollback().await.map_err(Error::internal)?;
+                                    Ok(false)
+                                }
+                            },
+                        ),
+                    ))
+                    .await;
+                let cleanup = scope
+                    .0
+                    .shutdown(
+                        tokio::time::Instant::now()
+                            + Duration::from_secs(self.config.shutdown_timeout_secs),
                     )
-                    .await?;
-                if insert_schedule_slot(&self.db, &transaction, entry, &slot, scheduled_at, &job_id)
-                    .await?
-                {
-                    transaction.commit().await.map_err(Error::internal)?;
+                    .await;
+                let dispatched = match (result, cleanup) {
+                    (Ok(value), Ok(())) => value,
+                    (Err(error), Ok(())) | (Ok(_), Err(error)) => return Err(error),
+                    (Err(error), Err(_)) => {
+                        tracing::warn!("scheduler trigger scope cleanup failed");
+                        return Err(error);
+                    }
+                };
+                if dispatched {
                     report.dispatched += 1;
                 } else {
-                    transaction.rollback().await.map_err(Error::internal)?;
                     report.already_dispatched += 1;
                 }
             }
@@ -622,14 +680,15 @@ mod provider_command_tests {
         struct SchedulerProvider;
         impl ServiceProvider for SchedulerProvider {
             fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-                app.singleton::<Scheduler, _>(|_| {
-                    Box::pin(async {
+                app.singleton::<Scheduler, _>(|resolver| {
+                    Box::pin(async move {
                         let db = crate::db::Db::default();
                         Ok(Arc::new(Scheduler::new(
                             db.clone(),
                             crate::queue::Queue::new(db),
                             Vec::new(),
                             crate::config::QueueConfig::default(),
+                            resolver.scope_factory(),
                         )))
                     })
                 });

@@ -288,10 +288,10 @@ async fn expose_app_state(
     let mut close_on_cancel = ScopeCloseGuard(Some(Arc::clone(&scope)));
     request.extensions_mut().insert(state);
     request.extensions_mut().insert(Arc::clone(&scope));
-    let response = next.run(request).await.map(|body| {
+    let response = scope.run(next.run(request)).await.map(|body| {
         Body::new(ScopeBody {
             inner: body,
-            scope: Some(scope),
+            scope: Some(Arc::clone(&scope)),
         })
     });
     // 响应 body 已接管关闭责任；handler future 取消时 guard 仍会同步封闭 scope。
@@ -331,7 +331,14 @@ impl HttpBody for ScopeBody {
         context: &mut Context<'_>,
     ) -> Poll<Option<std::result::Result<Frame<Self::Data>, Self::Error>>> {
         let this = self.get_mut();
-        let result = Pin::new(&mut this.inner).poll_frame(context);
+        let result = if let Some(scope) = &this.scope {
+            let mut scoped = std::pin::pin!(scope.run(std::future::poll_fn(|cx| {
+                Pin::new(&mut this.inner).poll_frame(cx)
+            })));
+            scoped.as_mut().poll(context)
+        } else {
+            Pin::new(&mut this.inner).poll_frame(context)
+        };
         if matches!(&result, Poll::Ready(None | Some(Err(_)))) {
             this.close();
         }

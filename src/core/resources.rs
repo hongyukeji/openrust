@@ -15,6 +15,7 @@ use super::lifecycle::{BackgroundTaskHandle, BackgroundTasks};
 use super::{BoxFuture, Cancellation, Error, Result};
 
 type Cleanup = Box<dyn FnOnce() -> BoxFuture<'static, Result<()>> + Send>;
+const MAX_CHILD_SCOPES: usize = 4096;
 
 fn lock<T>(value: &Mutex<T>) -> MutexGuard<'_, T> {
     value
@@ -60,7 +61,8 @@ struct Inner {
     outcome: OnceLock<Outcome>,
     finished: Notify,
     deadline: OnceLock<Instant>,
-    children: Mutex<HashMap<u64, ChildEntry>>,
+    children: Mutex<Children>,
+    child_requested: Arc<Notify>,
     next_child: AtomicU64,
     child_failures: AtomicUsize,
 }
@@ -73,6 +75,14 @@ struct Completion {
 struct ChildEntry {
     owner: Arc<ResourceOwner>,
     close: Box<dyn FnOnce() + Send>,
+    requested: Option<Instant>,
+    started: bool,
+}
+
+#[derive(Default)]
+struct Children {
+    entries: HashMap<u64, ChildEntry>,
+    driver_running: bool,
 }
 
 impl Completion {
@@ -110,6 +120,10 @@ impl Default for ResourceOwner {
 }
 
 impl ResourceOwner {
+    /// 立即通知受管任务合作取消；实际 join 与回调仍由 shutdown 负责。
+    pub(crate) fn cancel_tasks(&self) {
+        self.inner.tasks.cancel();
+    }
     fn shutdown_child(child: Arc<Self>, deadline: Instant) -> BoxFuture<'static, Result<()>> {
         Box::pin(async move { child.shutdown(deadline).await })
     }
@@ -156,6 +170,7 @@ impl ResourceOwner {
                 completed: false,
             };
             let children: Vec<_> = lock(&self.inner.children)
+                .entries
                 .drain()
                 .map(|(_, child)| child)
                 .collect();
@@ -253,6 +268,100 @@ pub struct ResourceRegistrar {
 }
 
 impl ResourceRegistrar {
+    /// 提交子 scope 回收请求；同一父所有者至多运行一个回收驱动。
+    pub(crate) fn request_child_cleanup(&self, id: u64, deadline: Instant) -> Result<()> {
+        let inner = self.inner.upgrade().ok_or_else(resources_closed)?;
+        let callbacks = lock(&inner.callbacks);
+        if callbacks.is_none() {
+            // 父 shutdown 已接管全部仍跟踪的子 scope。
+            return Ok(());
+        }
+        let should_spawn = {
+            let mut children = lock(&inner.children);
+            if let Some(child) = children.entries.get_mut(&id) {
+                child.requested = Some(deadline);
+            } else {
+                return Ok(());
+            }
+            if children.driver_running {
+                false
+            } else {
+                children.driver_running = true;
+                true
+            }
+        };
+        if should_spawn {
+            let weak = Arc::downgrade(&inner);
+            let notify = Arc::clone(&inner.child_requested);
+            if let Err(error) =
+                inner
+                    .tasks
+                    .handle()
+                    .spawn_cleanup_driver(move |cancel| async move {
+                        Self::drive_child_cleanup(weak, notify, cancel).await;
+                    })
+            {
+                lock(&inner.children).driver_running = false;
+                return Err(error);
+            }
+        }
+        inner.child_requested.notify_one();
+        drop(callbacks);
+        Ok(())
+    }
+
+    async fn drive_child_cleanup(
+        inner: Weak<Inner>,
+        notify: Arc<Notify>,
+        cancellation: Cancellation,
+    ) {
+        loop {
+            let notified = notify.notified();
+            tokio::pin!(notified);
+            notified.as_mut().enable();
+            let Some(owner) = inner.upgrade() else {
+                break;
+            };
+            let next = {
+                let mut children = lock(&owner.children);
+                if cancellation.is_cancelled() {
+                    children.driver_running = false;
+                    None
+                } else if let Some((id, child)) = children
+                    .entries
+                    .iter_mut()
+                    .find(|(_, child)| child.requested.is_some() && !child.started)
+                {
+                    child.started = true;
+                    Some((*id, Arc::clone(&child.owner), child.requested))
+                } else {
+                    None
+                }
+            };
+            drop(owner);
+            let Some((id, child, Some(deadline))) = next else {
+                if cancellation.is_cancelled() {
+                    break;
+                }
+                tokio::select! {
+                    () = cancellation.cancelled() => break,
+                    () = &mut notified => continue,
+                }
+            };
+            let failed = tokio::select! {
+                biased;
+                () = cancellation.cancelled() => break,
+                result = child.shutdown(deadline) => result.is_err(),
+            };
+            if let Some(owner) = inner.upgrade() {
+                ResourceRegistrar {
+                    inner: Arc::downgrade(&owner),
+                }
+                .finish_child(id, failed);
+            }
+        }
+    }
+
     /// 跟踪仍活跃的子生命周期；父关闭时会等待并聚合子资源回收结果。
     pub(crate) fn track_child(
         &self,
@@ -265,11 +374,21 @@ impl ResourceRegistrar {
             return Err(resources_closed());
         }
         let id = inner.next_child.fetch_add(1, Ordering::Relaxed);
-        lock(&inner.children).insert(
+        let mut children = lock(&inner.children);
+        if children.entries.len() >= MAX_CHILD_SCOPES {
+            return Err(Error::custom_with_status(
+                http::StatusCode::SERVICE_UNAVAILABLE,
+                "scope_capacity_exceeded",
+                "活跃生命周期已达到上限",
+            ));
+        }
+        children.entries.insert(
             id,
             ChildEntry {
                 owner: child,
                 close: Box::new(close),
+                requested: None,
+                started: false,
             },
         );
         Ok(id)
@@ -279,7 +398,7 @@ impl ResourceRegistrar {
     pub(crate) fn finish_child(&self, id: u64, failed: bool) {
         if let Some(inner) = self.inner.upgrade() {
             let mut children = lock(&inner.children);
-            if children.remove(&id).is_some() && failed {
+            if children.entries.remove(&id).is_some() && failed {
                 inner.child_failures.fetch_add(1, Ordering::AcqRel);
             }
         }
@@ -333,6 +452,139 @@ mod tests {
     use super::*;
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::time::Duration;
+
+    #[tokio::test]
+    async fn child_cleanup_requests_use_one_driver_and_close_each_child() -> Result<()> {
+        let parent = ResourceOwner::new();
+        let registrar = parent.registrar();
+        let active = Arc::new(AtomicUsize::new(0));
+        let maximum = Arc::new(AtomicUsize::new(0));
+        let completed = Arc::new(AtomicUsize::new(0));
+        let finished = Arc::new(Notify::new());
+        for _ in 0..16 {
+            let child = Arc::new(ResourceOwner::new());
+            let active = Arc::clone(&active);
+            let maximum = Arc::clone(&maximum);
+            let completed = Arc::clone(&completed);
+            let finished = Arc::clone(&finished);
+            child.registrar().on_shutdown(move || {
+                Box::pin(async move {
+                    let current = active.fetch_add(1, Ordering::SeqCst) + 1;
+                    maximum.fetch_max(current, Ordering::SeqCst);
+                    tokio::time::sleep(Duration::from_millis(2)).await;
+                    active.fetch_sub(1, Ordering::SeqCst);
+                    if completed.fetch_add(1, Ordering::SeqCst) + 1 == 16 {
+                        finished.notify_one();
+                    }
+                    Ok(())
+                })
+            })?;
+            let id = registrar.track_child(child, || {})?;
+            registrar.request_child_cleanup(id, Instant::now() + Duration::from_secs(2))?;
+        }
+        tokio::time::timeout(Duration::from_secs(2), finished.notified())
+            .await
+            .unwrap();
+        assert_eq!(maximum.load(Ordering::SeqCst), 1);
+        parent
+            .shutdown(Instant::now() + Duration::from_secs(1))
+            .await?;
+        assert_eq!(completed.load(Ordering::SeqCst), 16);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn parent_shutdown_racing_child_requests_keeps_every_callback() -> Result<()> {
+        let parent = ResourceOwner::new();
+        let registrar = parent.registrar();
+        let completed = Arc::new(AtomicUsize::new(0));
+        for _ in 0..32 {
+            let child = Arc::new(ResourceOwner::new());
+            let count = Arc::clone(&completed);
+            child.registrar().on_shutdown(move || {
+                Box::pin(async move {
+                    count.fetch_add(1, Ordering::SeqCst);
+                    Ok(())
+                })
+            })?;
+            let id = registrar.track_child(child, || {})?;
+            registrar.request_child_cleanup(id, Instant::now() + Duration::from_secs(2))?;
+        }
+        parent
+            .shutdown(Instant::now() + Duration::from_secs(2))
+            .await?;
+        assert_eq!(completed.load(Ordering::SeqCst), 32);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn active_child_capacity_rejects_before_unbounded_backlog() -> Result<()> {
+        let parent = ResourceOwner::new();
+        let registrar = parent.registrar();
+        for _ in 0..MAX_CHILD_SCOPES {
+            registrar.track_child(Arc::new(ResourceOwner::new()), || {})?;
+        }
+        let error = registrar
+            .track_child(Arc::new(ResourceOwner::new()), || {})
+            .err();
+        assert_eq!(
+            error.as_ref().map(Error::code),
+            Some("scope_capacity_exceeded")
+        );
+        parent
+            .shutdown(Instant::now() + Duration::from_secs(10))
+            .await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn child_cleanup_driver_has_reserved_slot_when_user_tasks_are_full() -> Result<()> {
+        let parent = ResourceOwner::new();
+        let registrar = parent.registrar();
+        for _ in 0..super::super::lifecycle::MAX_BACKGROUND_TASKS {
+            registrar.spawn(|cancel| async move { cancel.cancelled().await })?;
+        }
+        let cleaned = Arc::new(AtomicUsize::new(0));
+        let done = Arc::new(Notify::new());
+        let child = Arc::new(ResourceOwner::new());
+        let count = Arc::clone(&cleaned);
+        let notice = Arc::clone(&done);
+        child.registrar().on_shutdown(move || {
+            Box::pin(async move {
+                count.fetch_add(1, Ordering::SeqCst);
+                notice.notify_one();
+                Ok(())
+            })
+        })?;
+        let id = registrar.track_child(child, || {})?;
+        registrar.request_child_cleanup(id, Instant::now() + Duration::from_secs(2))?;
+        tokio::time::timeout(Duration::from_secs(2), done.notified())
+            .await
+            .unwrap();
+        assert_eq!(cleaned.load(Ordering::SeqCst), 1);
+        // 旧请求完成后驱动仍占保留槽；第二请求须由同一驱动继续回收。
+        let second = Arc::new(ResourceOwner::new());
+        let count = Arc::clone(&cleaned);
+        let notice = Arc::clone(&done);
+        second.registrar().on_shutdown(move || {
+            Box::pin(async move {
+                count.fetch_add(1, Ordering::SeqCst);
+                notice.notify_one();
+                Ok(())
+            })
+        })?;
+        let second_id = registrar.track_child(second, || {})?;
+        registrar.request_child_cleanup(second_id, Instant::now() + Duration::from_secs(2))?;
+        tokio::time::timeout(Duration::from_secs(2), done.notified())
+            .await
+            .unwrap();
+        assert_eq!(cleaned.load(Ordering::SeqCst), 2);
+        parent
+            .shutdown(Instant::now() + Duration::from_secs(2))
+            .await?;
+        assert!(lock(&parent.inner.children).entries.is_empty());
+        Ok(())
+    }
 
     #[tokio::test]
     async fn panicking_child_close_keeps_other_children_and_callbacks() {

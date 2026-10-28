@@ -1725,3 +1725,358 @@ impl openrust::core::ServiceProvider for SharedHttpLayer {
         })
     }
 }
+
+// 以下 fixture 经生产 Provider/Router 装配后绑定真实 TCP listener；不以 oneshot 代替断连。
+type NetworkResult<T> = Result<T, Box<dyn std::error::Error>>;
+
+struct NetworkScopedResource(usize);
+struct NetworkScopedIdentity(usize);
+struct NetworkScopeProbe {
+    next: AtomicUsize,
+    cleanup_starts: AtomicUsize,
+    cleanup_finishes: AtomicUsize,
+    identity_barrier: tokio::sync::Barrier,
+    release: tokio::sync::Semaphore,
+    started: tokio::sync::mpsc::UnboundedSender<usize>,
+    completed: tokio::sync::mpsc::UnboundedSender<usize>,
+    scopes: tokio::sync::mpsc::UnboundedSender<Arc<Scope>>,
+}
+struct NetworkScopeEvents {
+    started: tokio::sync::mpsc::UnboundedReceiver<usize>,
+    completed: tokio::sync::mpsc::UnboundedReceiver<usize>,
+    scopes: tokio::sync::mpsc::UnboundedReceiver<Arc<Scope>>,
+}
+struct NetworkScopeProvider(Arc<NetworkScopeProbe>);
+impl openrust::core::ServiceProvider for NetworkScopeProvider {
+    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
+        app.instance(Arc::clone(&self.0));
+        app.scoped::<NetworkScopedResource, _>(|resolver| {
+            Box::pin(async move {
+                let probe = resolver.resolve::<NetworkScopeProbe>().await?;
+                let id = probe.next.fetch_add(1, Ordering::SeqCst) + 1;
+                resolver.resources()?.on_shutdown(move || {
+                    Box::pin(async move {
+                        probe.cleanup_starts.fetch_add(1, Ordering::SeqCst);
+                        probe.started.send(id).map_err(openrust::Error::internal)?;
+                        let permit = probe
+                            .release
+                            .acquire()
+                            .await
+                            .map_err(openrust::Error::internal)?;
+                        permit.forget();
+                        probe.cleanup_finishes.fetch_add(1, Ordering::SeqCst);
+                        probe
+                            .completed
+                            .send(id)
+                            .map_err(openrust::Error::internal)?;
+                        Ok(())
+                    })
+                })?;
+                Ok(Arc::new(NetworkScopedResource(id)))
+            })
+        });
+        app.scoped::<NetworkScopedIdentity, _>(|resolver| {
+            Box::pin(async move {
+                let probe = resolver.resolve::<NetworkScopeProbe>().await?;
+                Ok(Arc::new(NetworkScopedIdentity(
+                    probe.next.fetch_add(1, Ordering::SeqCst) + 1,
+                )))
+            })
+        });
+        Ok(())
+    }
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut openrust::core::BootContext<'_>,
+    ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.routes(|routes| {
+                routes
+                    .get("/scope-stream", network_scope_stream)
+                    .get("/scope-sse", network_scope_sse)
+                    .get("/scope-identity", network_scope_identity)
+            })?;
+            Ok(())
+        })
+    }
+}
+
+async fn network_scope_stream(
+    Inject(resource): Inject<NetworkScopedResource>,
+    Inject(probe): Inject<NetworkScopeProbe>,
+    axum::extract::State(state): axum::extract::State<openrust::AppState>,
+    Extension(scope): Extension<Arc<Scope>>,
+) -> openrust::Result<Response> {
+    probe
+        .scopes
+        .send(scope)
+        .map_err(openrust::Error::internal)?;
+    let first = futures_util::stream::once(async move {
+        let body_resource = state
+            .resolve::<NetworkScopedResource>()
+            .await
+            .map_err(std::io::Error::other)?;
+        if !Arc::ptr_eq(&resource, &body_resource) {
+            return Err(std::io::Error::other(
+                "stream body resolved a different request scope",
+            ));
+        }
+        Ok::<_, std::io::Error>(bytes::Bytes::from(format!("scope={}\n", resource.0)))
+    });
+    Ok(Body::from_stream(first.chain(futures_util::stream::pending())).into_response())
+}
+
+async fn network_scope_sse(
+    Inject(resource): Inject<NetworkScopedResource>,
+    Inject(probe): Inject<NetworkScopeProbe>,
+    axum::extract::State(state): axum::extract::State<openrust::AppState>,
+    Extension(scope): Extension<Arc<Scope>>,
+) -> openrust::Result<Response> {
+    use axum::response::sse::{Event, Sse};
+    probe
+        .scopes
+        .send(scope)
+        .map_err(openrust::Error::internal)?;
+    let first = futures_util::stream::once(async move {
+        let body_resource = state
+            .resolve::<NetworkScopedResource>()
+            .await
+            .map_err(std::io::Error::other)?;
+        if !Arc::ptr_eq(&resource, &body_resource) {
+            return Err(std::io::Error::other(
+                "SSE body resolved a different request scope",
+            ));
+        }
+        Ok::<_, std::io::Error>(Event::default().data(format!("scope={}", resource.0)))
+    });
+    Ok(Sse::new(first.chain(futures_util::stream::pending())).into_response())
+}
+
+async fn network_scope_identity(
+    Inject(identity): Inject<NetworkScopedIdentity>,
+    Inject(probe): Inject<NetworkScopeProbe>,
+    axum::extract::State(state): axum::extract::State<openrust::AppState>,
+) -> openrust::Result<axum::Json<serde_json::Value>> {
+    let _ = probe.identity_barrier.wait().await;
+    let again = state.resolve::<NetworkScopedIdentity>().await?;
+    let request_id = ExecutionContext::current()
+        .and_then(|context| context.metadata().request_id().map(str::to_owned));
+    let plain = tokio::spawn(async move {
+        let inherited = ExecutionContext::current().is_some();
+        let root = state.resolve::<NetworkScopedIdentity>().await?;
+        Ok::<_, openrust::Error>((inherited, root.0))
+    })
+    .await
+    .map_err(openrust::Error::internal)??;
+    Ok(axum::Json(serde_json::json!({
+        "id":identity.0, "again":again.0, "request_id":request_id,
+        "plain_inherited":plain.0, "plain_id":plain.1,
+    })))
+}
+
+struct NetworkScopeServer {
+    app: Arc<openrust::App>,
+    address: std::net::SocketAddr,
+    stop: tokio::sync::oneshot::Sender<()>,
+    task: tokio::task::JoinHandle<std::io::Result<()>>,
+}
+impl NetworkScopeServer {
+    async fn start() -> NetworkResult<(Self, Arc<NetworkScopeProbe>, NetworkScopeEvents)> {
+        let (started, started_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (completed, completed_rx) = tokio::sync::mpsc::unbounded_channel();
+        let (scopes, scopes_rx) = tokio::sync::mpsc::unbounded_channel();
+        let probe = Arc::new(NetworkScopeProbe {
+            next: AtomicUsize::new(0),
+            cleanup_starts: AtomicUsize::new(0),
+            cleanup_finishes: AtomicUsize::new(0),
+            identity_barrier: tokio::sync::Barrier::new(2),
+            release: tokio::sync::Semaphore::new(0),
+            started,
+            completed,
+            scopes,
+        });
+        let mut builder = openrust::core::ProviderBuilder::new();
+        builder
+            .provider(HttpServiceProvider)
+            .provider(NetworkScopeProvider(Arc::clone(&probe)));
+        let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+            FrameworkConfig::default(),
+        ));
+        let app = Arc::new(openrust::App::from_provider_runtime(
+            builder.start(sources).await?,
+        )?);
+        let router = build_router(&app)?;
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+        let address = listener.local_addr()?;
+        let (stop, signal) = tokio::sync::oneshot::channel();
+        let task = tokio::spawn(async move {
+            axum::serve(listener, router)
+                .with_graceful_shutdown(async move {
+                    let _ = signal.await;
+                })
+                .await
+        });
+        Ok((
+            Self {
+                app,
+                address,
+                stop,
+                task,
+            },
+            probe,
+            NetworkScopeEvents {
+                started: started_rx,
+                completed: completed_rx,
+                scopes: scopes_rx,
+            },
+        ))
+    }
+    async fn finish(self) -> NetworkResult<()> {
+        let _ = self.stop.send(());
+        tokio::time::timeout(Duration::from_secs(5), self.task).await???;
+        self.app
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+            .await?;
+        Ok(())
+    }
+}
+
+async fn open_scope_stream(
+    address: std::net::SocketAddr,
+    path: &str,
+) -> NetworkResult<tokio::net::TcpStream> {
+    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+    let mut socket = tokio::net::TcpStream::connect(address).await?;
+    socket
+        .write_all(
+            format!("GET {path} HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\n\r\n")
+                .as_bytes(),
+        )
+        .await?;
+    let mut response = Vec::new();
+    tokio::time::timeout(Duration::from_secs(5), async {
+        let mut buffer = [0_u8; 2048];
+        loop {
+            let read = socket.read(&mut buffer).await?;
+            if read == 0 {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::UnexpectedEof,
+                    "stream ended before first event",
+                ));
+            }
+            response.extend_from_slice(&buffer[..read]);
+            if response
+                .windows(b"scope=".len())
+                .any(|part| part == b"scope=")
+            {
+                return Ok(());
+            }
+        }
+    })
+    .await??;
+    assert!(response.starts_with(b"HTTP/1.1 200"));
+    if path == "/scope-sse" {
+        assert!(String::from_utf8_lossy(&response).contains("text/event-stream"));
+    }
+    Ok(socket)
+}
+
+async fn scope_event<T>(
+    receiver: &mut tokio::sync::mpsc::UnboundedReceiver<T>,
+) -> NetworkResult<T> {
+    tokio::time::timeout(Duration::from_secs(5), receiver.recv())
+        .await?
+        .ok_or_else(|| "scope event channel closed".into())
+}
+
+#[tokio::test]
+async fn real_tcp_stream_and_sse_keep_scope_until_disconnect_and_cleanup_once() -> NetworkResult<()>
+{
+    for path in ["/scope-stream", "/scope-sse"] {
+        let (server, probe, mut events) = NetworkScopeServer::start().await?;
+        let socket = open_scope_stream(server.address, path).await?;
+        let scope = scope_event(&mut events.scopes).await?;
+        let resource = scope.resolve::<NetworkScopedResource>().await?;
+        assert_eq!(probe.cleanup_starts.load(Ordering::SeqCst), 0);
+        drop(socket);
+        assert_eq!(scope_event(&mut events.started).await?, resource.0);
+        assert_eq!(
+            scope
+                .resolve::<NetworkScopedResource>()
+                .await
+                .err()
+                .map(|error| error.code().to_owned()),
+            Some("scope_closed".to_owned())
+        );
+        probe.release.add_permits(1);
+        assert_eq!(scope_event(&mut events.completed).await?, resource.0);
+        server.finish().await?;
+        assert_eq!(probe.cleanup_starts.load(Ordering::SeqCst), 1);
+        assert_eq!(probe.cleanup_finishes.load(Ordering::SeqCst), 1);
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn real_tcp_app_shutdown_waits_for_disconnected_scope_async_cleanup() -> NetworkResult<()> {
+    use futures_util::FutureExt as _;
+    let (server, probe, mut events) = NetworkScopeServer::start().await?;
+    let socket = open_scope_stream(server.address, "/scope-stream").await?;
+    let scope = scope_event(&mut events.scopes).await?;
+    let id = scope.resolve::<NetworkScopedResource>().await?.0;
+    drop(socket);
+    assert_eq!(scope_event(&mut events.started).await?, id);
+    let app = Arc::clone(&server.app);
+    let shutdown = app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5));
+    tokio::pin!(shutdown);
+    assert!(
+        shutdown.as_mut().now_or_never().is_none(),
+        "shutdown must wait for the registered cleanup"
+    );
+    assert_eq!(probe.cleanup_finishes.load(Ordering::SeqCst), 0);
+    probe.release.add_permits(1);
+    tokio::time::timeout(Duration::from_secs(5), shutdown).await??;
+    assert_eq!(scope_event(&mut events.completed).await?, id);
+    server.finish().await?;
+    assert_eq!(probe.cleanup_starts.load(Ordering::SeqCst), 1);
+    assert_eq!(probe.cleanup_finishes.load(Ordering::SeqCst), 1);
+    Ok(())
+}
+
+async fn request_scope_identity(
+    address: std::net::SocketAddr,
+    request_id: &str,
+) -> NetworkResult<serde_json::Value> {
+    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+    let mut socket = tokio::net::TcpStream::connect(address).await?;
+    socket.write_all(format!("GET /scope-identity HTTP/1.1\r\nHost: {address}\r\nx-request-id: {request_id}\r\nConnection: close\r\n\r\n").as_bytes()).await?;
+    let mut bytes = Vec::new();
+    tokio::time::timeout(Duration::from_secs(5), socket.read_to_end(&mut bytes)).await??;
+    assert!(bytes.starts_with(b"HTTP/1.1 200"));
+    let split = bytes
+        .windows(4)
+        .position(|part| part == b"\r\n\r\n")
+        .ok_or("HTTP headers missing")?;
+    Ok(serde_json::from_slice(&bytes[split + 4..])?)
+}
+
+#[tokio::test]
+async fn real_tcp_concurrent_requests_isolate_scope_and_plain_spawn_identity() -> NetworkResult<()>
+{
+    let (server, _, _) = NetworkScopeServer::start().await?;
+    let (left, right) = tokio::join!(
+        request_scope_identity(server.address, "scope-network-left"),
+        request_scope_identity(server.address, "scope-network-right"),
+    );
+    let (left, right) = (left?, right?);
+    assert_ne!(left["id"], right["id"]);
+    assert_eq!(left["request_id"], "scope-network-left");
+    assert_eq!(right["request_id"], "scope-network-right");
+    for body in [&left, &right] {
+        assert_eq!(body["id"], body["again"]);
+        assert_eq!(body["plain_inherited"], false);
+        assert_ne!(body["id"], body["plain_id"]);
+    }
+    assert_eq!(left["plain_id"], right["plain_id"]);
+    server.finish().await
+}

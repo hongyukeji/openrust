@@ -20,7 +20,7 @@ use crate::core::provider::{BootContext, ProviderBuilder, ServiceProvider};
 use std::sync::{Arc, Mutex, Weak};
 use tokio::{task::JoinSet, time::Instant};
 
-const MAX_BACKGROUND_TASKS: usize = 256;
+pub(crate) const MAX_BACKGROUND_TASKS: usize = 256;
 
 struct CoreCommandsProvider;
 
@@ -58,6 +58,9 @@ struct BackgroundTaskSet {
 }
 
 impl BackgroundTasks {
+    pub(crate) fn cancel(&self) {
+        self.inner.cancellation.cancel();
+    }
     pub(crate) fn handle(&self) -> BackgroundTaskHandle {
         BackgroundTaskHandle {
             inner: Arc::downgrade(&self.inner),
@@ -119,6 +122,23 @@ impl BackgroundTaskHandle {
         F: FnOnce(Cancellation) -> Fut + Send + 'static,
         Fut: std::future::Future<Output = ()> + Send + 'static,
     {
+        self.spawn_with_limit(MAX_BACKGROUND_TASKS, task)
+    }
+
+    /// 给父资源所有者的单一子清理驱动保留一个内部任务槽。
+    pub(crate) fn spawn_cleanup_driver<F, Fut>(&self, task: F) -> Result<()>
+    where
+        F: FnOnce(Cancellation) -> Fut + Send + 'static,
+        Fut: std::future::Future<Output = ()> + Send + 'static,
+    {
+        self.spawn_with_limit(MAX_BACKGROUND_TASKS + 1, task)
+    }
+
+    fn spawn_with_limit<F, Fut>(&self, limit: usize, task: F) -> Result<()>
+    where
+        F: FnOnce(Cancellation) -> Fut + Send + 'static,
+        Fut: std::future::Future<Output = ()> + Send + 'static,
+    {
         let inner = self.inner.upgrade().ok_or_else(|| {
             Error::custom(
                 "background_tasks_stopped",
@@ -144,7 +164,7 @@ impl BackgroundTaskHandle {
                 tracing::error!("application background task failed");
             }
         }
-        if tasks.len() >= MAX_BACKGROUND_TASKS {
+        if tasks.len() >= limit {
             return Err(Error::custom(
                 "background_task_capacity",
                 "application background task capacity is exhausted",
