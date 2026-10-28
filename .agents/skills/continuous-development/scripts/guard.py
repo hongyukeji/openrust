@@ -2,7 +2,6 @@
 """持续开发守护：原目标接续、冷却、单实例监督和按任务停止；仅使用标准库。"""
 
 import argparse
-from collections import deque
 from datetime import datetime
 import fcntl
 import json
@@ -15,14 +14,17 @@ import sqlite3
 import subprocess
 import sys
 import time
+import tempfile
 import uuid
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path.cwd().resolve()
+CHECK_INTERVAL = 120
+TAIL_BYTES = 512 * 1024
 SCRIPT = Path(__file__).resolve()
 DELAYS = (60, 180, 600)
 PROMPT = (
     "用户已授权持续开发至整个计划完成；守护检测到异常或遗漏接续。"
-    "核对AGENTS.md、Git/WIP、todo/plan、原Goal及在途子代理，沿用原目标继续。"
+    "结合当前项目约束、任务计划、Git/WIP、原Goal及在途子代理智能判断下一步。"
     "先收取既有任务结果，不重复派发、构建或创建第二个写入者。"
     "单簇完成不等于整体完成；通过计划验收后才标记Goal完成。"
     "用户暂停优先，外部缺口保留并继续独立项，不改账户、模型或付款设置。"
@@ -30,9 +32,68 @@ PROMPT = (
 
 
 def atomic(path, value):
-    temp = path.with_suffix('.tmp')
-    temp.write_text(json.dumps(value, ensure_ascii=False, indent=2) + '\n')
-    temp.replace(path)
+    # 各任务可同时更新项目看板，临时文件须唯一，避免互相覆盖/删除。
+    fd, name = tempfile.mkstemp(prefix=path.name + '.', suffix='.tmp', dir=path.parent)
+    try:
+        with os.fdopen(fd, 'w') as output:
+            output.write(json.dumps(value, ensure_ascii=False, indent=2) + '\n')
+        os.replace(name, path)
+    finally:
+        Path(name).unlink(missing_ok=True)
+
+
+def supervisor_alive(supervisor, runtime):
+    pid = (supervisor or {}).get('pid')
+    if not isinstance(pid, int) or pid <= 0:
+        return False
+    result = subprocess.run(['ps', '-p', str(pid), '-o', 'command='], capture_output=True,
+                            text=True, timeout=5)
+    command = result.stdout
+    return result.returncode == 0 and str(SCRIPT) in command and ' _supervise ' in command and str(runtime) in command
+
+
+def summary(runtime):
+    state = json.loads((runtime / 'state.json').read_text()) if (runtime / 'state.json').exists() else {'status': 'not_started'}
+    config = json.loads((runtime / 'config.json').read_text()) if (runtime / 'config.json').exists() else {}
+    held = False
+    with (runtime / 'lock').open('a') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            held = True
+    supervisor = json.loads((runtime / 'supervisor.json').read_text()) if (runtime / 'supervisor.json').exists() else None
+    alive = supervisor_alive(supervisor, runtime)
+    fresh = time.time() - state.get('checked_at', 0) <= CHECK_INTERVAL * 3
+    terminal = state.get('status') in ('complete', 'paused', 'stopped', 'parent_lost')
+    state.update(agent=config.get('agent', runtime.name), thread=config.get('thread'),
+                 label=config.get('label', '持续开发任务'), goal_id=config.get('goal_id'),
+                 lock_held=held, supervisor=supervisor, supervisor_alive=alive,
+                 heartbeat_fresh=fresh, active=held and alive and fresh and not terminal)
+    if not terminal and state.get('status') != 'not_started':
+        if not held or not alive:
+            state['status'] = 'orphaned'
+        elif not fresh:
+            state['status'] = 'stale'
+    return state
+
+
+def publish_registry(runtime):
+    base = runtime.parent
+    if base.name != 'guards' or base.parent.name != 'project' or base.parent.parent.name != '.agents':
+        return
+    # 串行整次快照，防止较旧快照后写覆盖另一个守护的新状态。
+    with (base / '.registry.lock').open('a') as registry_lock:
+        fcntl.flock(registry_lock, fcntl.LOCK_EX)
+        rows = []
+        for item in sorted(base.iterdir()):
+            if not item.is_dir() or not (item / 'config.json').exists():
+                continue
+            try:
+                rows.append(summary(item))
+            except (OSError, ValueError, subprocess.SubprocessError):
+                rows.append({'agent': item.name, 'status': 'unreadable', 'active': False})
+        atomic(base / 'registry.json', {'updated_at': datetime.now().astimezone().isoformat(),
+                                       'guards': rows})
 
 
 def run_json(command):
@@ -73,7 +134,7 @@ def rpc(method, params):
         raise TimeoutError(name)
 
     try:
-        request(1, 'initialize', {'clientInfo': {'name': 'openrust-recovery', 'version': '2'},
+        request(1, 'initialize', {'clientInfo': {'name': 'continuous-development-guard', 'version': '2'},
                                  'capabilities': {'experimentalApi': True}})
         process.stdin.write(b'{"method":"initialized"}\n')
         process.stdin.flush()
@@ -100,11 +161,15 @@ def timeline(path):
     """只使用原线程生命周期；新输入和取消使旧恢复依据失效。"""
     last = None
     tools = 0
-    with Path(path).open() as source:
-        for line in deque(source, maxlen=2000):
+    with Path(path).open('rb') as source:
+        size = source.seek(0, os.SEEK_END)
+        source.seek(max(0, size - TAIL_BYTES))
+        if size > TAIL_BYTES:
+            source.readline()
+        for line in source:
             try:
                 row = json.loads(line)
-            except json.JSONDecodeError:
+            except (json.JSONDecodeError, UnicodeDecodeError):
                 continue
             payload = row.get('payload', {})
             if row.get('type') == 'response_item' and payload.get('type') in ('function_call', 'custom_tool_call'):
@@ -179,7 +244,7 @@ def quota_delay(response, now):
 def notify(reason):
     """仅本机系统通知，失败不阻断守护；正文不含线程内容或凭据。"""
     try:
-        subprocess.run(['osascript', '-e', 'on run argv\ndisplay notification (item 1 of argv) with title "OpenRust 持续开发"\nend run',
+        subprocess.run(['osascript', '-e', 'on run argv\ndisplay notification (item 1 of argv) with title "持续开发守护"\nend run',
                         reason], capture_output=True, timeout=5, check=True)
         return True
     except (OSError, subprocess.SubprocessError):
@@ -212,7 +277,9 @@ def worker(runtime, parent_pid):
         changed = state.get('status') != status
         state.update(status=status, attempts=attempts, checked_at=time.time(),
                          updated_at=datetime.now().astimezone().isoformat(), **extra)
+        state['next_check_at'] = None if status in ('complete', 'paused', 'stopped', 'parent_lost') else time.time() + CHECK_INTERVAL
         atomic(path, state)
+        publish_registry(runtime)
         if changed:
             print(json.dumps({'status': status, 'attempts': attempts}, ensure_ascii=False), flush=True)
         if changed and status in ('cooldown', 'needs_attention', 'quota_wait', 'complete'):
@@ -234,11 +301,12 @@ def worker(runtime, parent_pid):
                 record(terminal['status'])
                 return
             if time.time() < state.get('check_after', 0):
-                sleep_until(runtime, 15)
+                record('cooldown')
+                sleep_until(runtime, CHECK_INTERVAL)
                 continue
             if not binding_valid(config):
                 record('needs_attention')
-                sleep_until(runtime, 60)
+                sleep_until(runtime, CHECK_INTERVAL)
                 continue
             agent = inspect(config['agent'])
             current = goal(config)
@@ -255,29 +323,30 @@ def worker(runtime, parent_pid):
             if action == 'working':
                 state['check_failures'] = 0
                 record(action)
-                sleep_until(runtime, 15)
+                sleep_until(runtime, CHECK_INTERVAL)
                 continue
             if action == 'needs_attention':
                 record(action)
-                sleep_until(runtime, 60)
+                sleep_until(runtime, CHECK_INTERVAL)
                 continue
             # 同一发送意图尚无新轮次确认时不重发，避免队列延迟造成重复开发。
             if state.get('dispatch_key') == key:
                 record('needs_attention', reason='awaiting_new_turn')
-                sleep_until(runtime, 60)
+                sleep_until(runtime, CHECK_INTERVAL)
                 continue
             if state.get('pending_key') != key:
                 delay = DELAYS[min(attempts, 2)] if attempts < 3 else 1800
                 record('cooldown' if attempts >= 3 else 'backoff', pending_key=key,
                        retry_at=time.time() + delay + random.uniform(0, 15))
             if time.time() < state.get('retry_at', 0):
-                sleep_until(runtime, 15)
+                record(state.get('status', 'backoff'))
+                sleep_until(runtime, CHECK_INTERVAL)
                 continue
             delay = quota_delay(rpc('account/rateLimits/read', {}), time.time())
             if delay:
                 state['check_failures'] = 0
                 record('quota_wait', retry_at=time.time() + min(delay, 300))
-                sleep_until(runtime, 15)
+                sleep_until(runtime, CHECK_INTERVAL)
                 continue
             # 与stop串行；停止标记会先于等待锁写入，从而阻断新的发送。
             with (runtime / 'control.lock').open('a') as control:
@@ -306,7 +375,7 @@ def worker(runtime, parent_pid):
             record('cooldown', check_failures=failures,
                    check_after=time.time() + (1800 if failures >= 3 else 60),
                    retry_at=time.time() + (1800 if failures >= 3 else 60), reason=type(error).__name__)
-        sleep_until(runtime, 15)
+        sleep_until(runtime, CHECK_INTERVAL)
     record('stopped')
 
 
@@ -348,7 +417,7 @@ def supervise(runtime, lock_fd):
         while not stopped and not (runtime / 'disabled').exists():
             process = subprocess.Popen([sys.executable, '-B', str(SCRIPT), '_worker', '--runtime', str(runtime),
                                         '--parent-pid', str(os.getpid())], pass_fds=(lock_fd,),
-                                       start_new_session=True, stdin=subprocess.DEVNULL)
+                                       start_new_session=True, stdin=subprocess.DEVNULL, cwd=ROOT)
             atomic(runtime / 'worker.json', {'pid': process.pid})
             while process.poll() is None and not stopped and not (runtime / 'disabled').exists():
                 time.sleep(1)
@@ -365,6 +434,7 @@ def supervise(runtime, lock_fd):
         for name in ('supervisor.json', 'worker.json', 'pid'):
             (runtime / name).unlink(missing_ok=True)
         os.close(lock_fd)
+        publish_registry(runtime)
         # 保留空锁文件的inode，避免并发start在不同inode上各自获得锁。
 
 
@@ -388,7 +458,7 @@ def config_for(args):
         raise ValueError('Paseo目标不是本仓Codex任务')
     record = Path(os.environ.get('PASEO_HOME', str(Path.home() / '.paseo'))) / 'agents' / str(ROOT).lstrip('/').replace('/', '-') / (agent + '.json')
     config = {'agent': agent, 'thread': thread, 'rollout': row[0], 'goals_db': str(home / 'goals_1.sqlite'),
-              'agent_record': str(record)}
+              'agent_record': str(record), 'project': str(ROOT), 'label': args.label or '持续开发任务'}
     if not binding_valid(config):
         raise ValueError('Paseo agent与Codex线程不匹配')
     current = goal(config)
@@ -402,9 +472,10 @@ def config_for(args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=['start', 'status', 'stop', '_supervise', '_worker'])
+    parser.add_argument('command', choices=['start', 'status', 'list', 'stop', 'finish', '_supervise', '_worker'])
     parser.add_argument('--agent')
     parser.add_argument('--thread')
+    parser.add_argument('--label', help='供本地看板显示的简短任务名，不写凭据')
     parser.add_argument('--runtime', type=Path)
     parser.add_argument('--lock-fd', type=int)
     parser.add_argument('--parent-pid', type=int)
@@ -412,35 +483,50 @@ def main():
     args = parser.parse_args()
     requested_at = time.time()
     if args.command.startswith('_'):
-        if not args.runtime or not args.runtime.resolve().is_relative_to(ROOT / 'storage/controller-recovery'):
+        if not args.runtime or not args.runtime.resolve().is_relative_to(ROOT / '.agents/project/guards'):
             raise SystemExit('无效守护运行目录')
         if args.command == '_worker':
             worker(args.runtime, args.parent_pid)
         else:
             supervise(args.runtime, args.lock_fd)
         return
+    if args.command == 'list':
+        base = ROOT / '.agents/project/guards'
+        if base.exists():
+            publish_registry(base / '_overview')
+        print((base / 'registry.json').read_text() if (base / 'registry.json').exists() else '{"guards":[]}')
+        return
     agent = args.agent or os.environ.get('PASEO_AGENT_ID')
     if not agent:
         raise SystemExit('缺少Paseo任务身份')
     uuid.UUID(agent)
-    runtime = ROOT / 'storage/controller-recovery' / agent
+    runtime = ROOT / '.agents/project/guards' / agent
     if args.command == 'status':
-        state = json.loads((runtime / 'state.json').read_text()) if (runtime / 'state.json').exists() else {'status': 'not_started'}
-        with (runtime / 'lock').open('a') if runtime.exists() else open(os.devnull) as lock:
-            try:
-                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                state['lock_held'] = False
-            except BlockingIOError:
-                state['lock_held'] = True
-        state['supervisor'] = json.loads((runtime / 'supervisor.json').read_text()) if (runtime / 'supervisor.json').exists() else None
-        print(json.dumps(state, ensure_ascii=False))
+        print(json.dumps(summary(runtime) if runtime.exists() else {'status': 'not_started'}, ensure_ascii=False))
         return
     runtime.mkdir(parents=True, exist_ok=True)
+    ignore = runtime.parent / '.gitignore'
+    if not ignore.exists():
+        ignore.write_text('*\n!.gitignore\n')
+    if args.command == 'finish' and args.stop_task:
+        raise SystemExit('finish只清理完成目标的守护，不能暂停开发任务')
+    finish_goal_id = None
+    if args.command == 'finish':
+        config = json.loads((runtime / 'config.json').read_text())
+        current = goal(config)
+        if not current or current['id'] != config['goal_id'] or current['status'] != 'complete':
+            raise SystemExit('整体Goal尚未完成，拒绝提前清理守护')
+        finish_goal_id = config['goal_id']
     if args.command == 'stop':
         (runtime / 'disabled').touch()
     with (runtime / 'control.lock').open('a') as control:
         fcntl.flock(control, fcntl.LOCK_EX)
-        if args.command == 'stop':
+        if args.command in ('stop', 'finish'):
+            if args.command == 'finish':
+                config = json.loads((runtime / 'config.json').read_text())
+                current = goal(config)
+                if config['goal_id'] != finish_goal_id or not current or current['id'] != finish_goal_id or current['status'] != 'complete':
+                    raise SystemExit('目标已变化或未完成，保留当前守护')
             # start可能在本次stop等待控制锁时清过标记；获锁后重新确立停止优先。
             (runtime / 'disabled').touch()
             if args.stop_task:
@@ -461,7 +547,13 @@ def main():
                 time.sleep(1)
             if (runtime / 'supervisor.json').exists():
                 raise SystemExit('停止请求已记录，但监督进程尚未确认退出')
-            print('{"status":"stopped"}')
+            state_path = runtime / 'state.json'
+            state = json.loads(state_path.read_text()) if state_path.exists() else {}
+            state.update(status='complete' if args.command == 'finish' else 'stopped',
+                         next_check_at=None, updated_at=datetime.now().astimezone().isoformat())
+            atomic(state_path, state)
+            publish_registry(runtime)
+            print(json.dumps({'status': state['status']}))
             return
         if (runtime / 'disabled').exists() and (runtime / 'disabled').stat().st_mtime >= requested_at:
             raise SystemExit('并发停止优先，未启动守护')
@@ -482,14 +574,14 @@ def main():
             if prior.get('status') in ('complete', 'paused', 'stopped', 'parent_lost', 'disabled'):
                 atomic(runtime / 'state.json', {})
         pending_state = json.loads((runtime / 'state.json').read_text()) if (runtime / 'state.json').exists() else {}
-        pending_state.update(status='starting', updated_at=datetime.now().astimezone().isoformat())
+        pending_state.update(status='starting', checked_at=time.time(), updated_at=datetime.now().astimezone().isoformat())
         atomic(runtime / 'state.json', pending_state)
         for name in ('supervisor.json', 'worker.json', 'pid'):
             (runtime / name).unlink(missing_ok=True)
         with (runtime / 'watch.log').open('ab') as log:
             process = subprocess.Popen([sys.executable, '-B', str(SCRIPT), '_supervise', '--runtime', str(runtime),
                                         '--lock-fd', str(lock.fileno())], pass_fds=(lock.fileno(),),
-                                       stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)
+                                       stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True, cwd=ROOT)
         lock.close()
         deadline = time.monotonic() + 5
         while not (runtime / 'supervisor.json').exists() and process.poll() is None and time.monotonic() < deadline:

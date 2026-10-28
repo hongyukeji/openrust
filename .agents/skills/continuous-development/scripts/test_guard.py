@@ -1,6 +1,7 @@
 """高价值回归：防跨任务恢复、停止竞态与守护进程泄漏，不调用真实模型或Paseo。"""
 
 import importlib.util
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -14,7 +15,7 @@ import time
 import unittest
 from unittest.mock import patch
 
-SCRIPT = Path(__file__).with_name('controller-recovery.py')
+SCRIPT = Path(__file__).with_name('guard.py')
 spec = importlib.util.spec_from_file_location('recovery', SCRIPT)
 recovery = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(recovery)
@@ -65,6 +66,30 @@ class Decisions(unittest.TestCase):
                                         'payload': {'type': 'task_complete', 'error': {'message': '500'}}}) + '\n' +
                             json.dumps({'type': 'event_msg', 'timestamp': 'b', 'payload': {'type': 'user_message'}}) + '\n')
             self.assertEqual(recovery.timeline(path)['kind'], 'user_message')
+
+    def test_held_lock_without_supervisor_is_not_active(self):
+        with tempfile.TemporaryDirectory() as folder:
+            runtime = Path(folder)
+            (runtime / 'state.json').write_text(json.dumps({'status': 'working', 'checked_at': time.time()}))
+            (runtime / 'supervisor.json').write_text(json.dumps({'pid': os.getpid()}))
+            with (runtime / 'lock').open('a') as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX)
+                view = recovery.summary(runtime)
+            self.assertTrue(view['lock_held'])
+            self.assertFalse(view['active'])
+            self.assertEqual(view['status'], 'orphaned')
+
+    def test_finish_rechecks_goal_under_control_lock(self):
+        with tempfile.TemporaryDirectory() as folder:
+            project = Path(folder).resolve()
+            agent = '11111111-1111-4111-8111-111111111111'
+            runtime = project / '.agents/project/guards' / agent
+            runtime.mkdir(parents=True)
+            (runtime / 'config.json').write_text(json.dumps({'goal_id': 'old'}))
+            with patch.object(recovery, 'ROOT', project), patch.object(sys, 'argv', ['guard.py', 'finish', '--agent', agent]), patch.object(recovery, 'goal', side_effect=[{'id': 'old', 'status': 'complete'}, {'id': 'new', 'status': 'active'}]):
+                with self.assertRaises(SystemExit):
+                    recovery.main()
+            self.assertFalse((runtime / 'disabled').exists())
 
     def test_ambiguous_dispatch_is_not_repeated(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -160,7 +185,7 @@ class Lifecycle(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name).resolve()
-        self.script = self.root / '.agents/project/scripts/controller-recovery.py'
+        self.script = self.root / 'reusable-skill/scripts/guard.py'
         self.script.parent.mkdir(parents=True)
         shutil.copyfile(SCRIPT, self.script)
         self.agent = '11111111-1111-4111-8111-111111111111'
@@ -211,11 +236,11 @@ else:
         self.env = dict(os.environ, PATH=str(binaries) + os.pathsep + os.environ['PATH'],
                         CODEX_HOME=str(self.home), PASEO_HOME=str(self.paseo), TEST_ROOT=str(self.root),
                         CODEX_THREAD_ID=self.thread, PASEO_AGENT_ID=self.agent)
-        self.runtime = self.root / 'storage/controller-recovery' / self.agent
+        self.runtime = self.root / '.agents/project/guards' / self.agent
 
     def call(self, command, *args, check=True):
         return subprocess.run([sys.executable, '-B', str(self.script), command, *args],
-                              env=self.env, capture_output=True, text=True, timeout=55, check=check)
+                              env=self.env, cwd=self.root, capture_output=True, text=True, timeout=55, check=check)
 
     def wait_for(self, predicate, timeout=20):
         end = time.monotonic() + timeout
@@ -227,7 +252,7 @@ else:
     def tearDown(self):
         if self.runtime.exists():
             (self.runtime / 'disabled').touch()
-            self.wait_for(lambda: not (self.runtime / 'supervisor.json').exists())
+            self.wait_for(lambda: not (self.runtime / 'supervisor.json').exists(), timeout=45)
         self.temp.cleanup()
 
     def test_binding_mismatch_cannot_enrol(self):
@@ -239,6 +264,10 @@ else:
 
     def test_start_is_singleton_stop_cleans_processes_and_pid(self):
         first = json.loads(self.call('start').stdout)
+        self.assertEqual((self.runtime.parent / '.gitignore').read_text(), '*\n!.gitignore\n')
+        self.assertFalse((self.root / '.gitignore').exists())
+        self.assertNotEqual(self.call('finish', check=False).returncode, 0)
+        self.assertFalse((self.runtime / 'disabled').exists())
         self.assertEqual(json.loads(self.call('start').stdout)['status'], 'already_running')
         self.wait_for(lambda: (self.runtime / 'worker.json').exists())
         self.assertTrue(json.loads(self.call('status').stdout)['lock_held'])
@@ -257,6 +286,7 @@ else:
         self.wait_for(lambda: (self.runtime / 'worker.json').exists())
         with sqlite3.connect(self.home / 'goals_1.sqlite') as db:
             db.execute("UPDATE thread_goals SET status='complete'")
+        self.call('finish')
         self.wait_for(lambda: not (self.runtime / 'supervisor.json').exists())
         self.assertFalse((self.runtime / 'worker.json').exists())
         self.assertEqual(json.loads((self.runtime / 'state.json').read_text())['status'], 'complete')
@@ -272,11 +302,11 @@ else:
     def test_stop_wins_while_start_is_registering(self):
         (self.root / 'pause-inspect').touch()
         command = [sys.executable, '-B', str(self.script)]
-        start = subprocess.Popen(command + ['start'], env=self.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        start = subprocess.Popen(command + ['start'], env=self.env, cwd=self.root, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stop = None
         try:
             self.wait_for(lambda: (self.root / 'inspect-entered').exists())
-            stop = subprocess.Popen(command + ['stop'], env=self.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            stop = subprocess.Popen(command + ['stop'], env=self.env, cwd=self.root, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             self.wait_for(lambda: (self.runtime / 'disabled').exists())
             (self.root / 'release-inspect').touch()
             start.communicate(timeout=10)
