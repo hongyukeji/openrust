@@ -3,20 +3,23 @@
 use std::time::{Duration, SystemTime};
 
 use openrust::{
-    AppBuilder, Application, BoxFuture, Error, NoConfig, Result,
+    Application, BoxFuture, Error, NoConfig, Result,
     auth::{
-        AuthCredential, AuthLayer, AuthMode, AuthPlugin, AuthPrincipal, Authenticator, CurrentUser,
+        AuthCredential, AuthLayer, AuthMode, AuthPrincipal, AuthServiceProvider, Authenticator,
+        CurrentUser,
     },
     config::RealtimeConfig,
+    core::{BootContext, ServiceProvider},
     http::{
-        AppBuilderHttpExt, HttpPlugin,
+        HttpServiceProvider,
         axum::{
             extract::{Path, ws::WebSocketUpgrade},
             http::HeaderMap,
             response::{IntoResponse, Response},
         },
     },
-    prelude::{Inject, Json, Realtime, RealtimePlugin},
+    prelude::{Inject, Json, Realtime},
+    realtime::RealtimeServiceProvider,
 };
 use serde_json::{Value, json};
 
@@ -55,23 +58,35 @@ impl Authenticator for TokenAuthenticator {
 impl Application for RealtimeNode {
     type Config = NoConfig;
 
-    fn build(app: &mut AppBuilder) {
+    fn providers(_config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
         let redis_url = std::env::var("OPENRUST_REALTIME_REDIS_URL")
             .unwrap_or_else(|_| "redis://127.0.0.1:6379/".into());
         let config = RealtimeConfig::new()
             .with_redis_url(redis_url)
             .with_allowed_origins(["http://localhost".to_owned(), "http://127.0.0.1".to_owned()]);
-        app.plugin(HttpPlugin)
-            .plugin(AuthPlugin::with_authenticator(TokenAuthenticator))
-            .plugin(RealtimePlugin::with_config(config))
-            .routes(|routes| {
+        vec![
+            Box::new(HttpServiceProvider),
+            Box::new(AuthServiceProvider::with_authenticator(TokenAuthenticator)),
+            Box::new(RealtimeServiceProvider::with_config(config)),
+            Box::new(RealtimeRoutes),
+        ]
+    }
+}
+
+struct RealtimeRoutes;
+impl ServiceProvider for RealtimeRoutes {
+    fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.routes(|routes| {
                 routes
                     .get("/realtime/ws", websocket)
                     .get("/realtime/sse", sse)
                     .post("/realtime/send/{user_id}", send)
                     .post("/realtime/revoke/{user_id}", revoke)
                     .layer(AuthLayer::required(AuthMode::PersonalAccessToken))
-            });
+            })?;
+            Ok(())
+        })
     }
 }
 

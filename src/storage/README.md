@@ -1,10 +1,14 @@
 # 文件存储
 
-`openrust::storage` 提供具名存储 disk、流式上传/下载、对象元数据和公开 driver 扩展。插件负责初始化配置；业务 handler 必须先完成用户身份和资源授权，再调用存储服务。框架不提供公开匿名下载路由，也不把用户文件名用作对象 key。
+Provider 装配的存储 disk 按名称异步构造并缓存；`disk/default_disk` 需要 await。driver 的 `validate` 默认不执行专属检查，自定义 driver 应覆盖它，才能在最终配置校验时拒绝无效选项。
+
+`StorageServiceProvider` 支持在统一容器中装配内置和自定义 driver。
+
+`openrust::storage` 提供具名存储 disk、流式上传/下载、对象元数据和公开 driver 扩展。Provider 负责装配配置；业务 handler 必须先完成用户身份和资源授权，再调用存储服务。框架不提供公开匿名下载路由，也不把用户文件名用作对象 key。
 
 ## 配置
 
-启用本地文件系统时，在应用依赖中打开 `storage-local`，并在 `Application::build` 中安装 `StoragePlugin`。未配置 `[storage]` 时，默认使用 `local` disk 和当前工作目录下的 `storage/app`。
+启用本地文件系统时，在应用依赖中打开 `storage-local`，并在 `Application::providers` 清单中注册 `StorageServiceProvider::new()`。未配置 `[storage]` 时，默认使用 `local` disk 和当前工作目录下的 `storage/app`。
 
 ```toml
 [storage]
@@ -35,7 +39,7 @@ access_key_id = "本地环境变量提供"
 secret_access_key = "本地环境变量提供"
 ```
 
-未知 disk、driver、无效选项或 backend 初始化失败均会使应用启动失败，不会静默回退到其他 disk。使用具名 disk 时显式调用 `storage.disk("media")`。 在可信 `TenantContext` 作用域内，框架会将 tenant ID 的 SHA-256 摘要加到后端物理 key 前缀；应用获得的 `StoredObject.path` 与上传检查器仍只看到逻辑路径。没有租户作用域时沿用原有物理路径。自定义 driver 通过同一 facade 调用时也会收到隔离后的路径；直接使用 driver 不受此保护。
+启动时校验默认 disk 和已登记 driver 的配置；默认 disk 初始化失败会使启动失败。其他 disk 按需初始化，未知名称、初始化失败或 driver 专属配置错误会在解析时返回错误，不会静默回退。自定义 driver 的专属选项是否在启动时校验取决于其 `validate` 实现。使用具名 disk 时调用 `storage.disk("media").await?`。 在可信 `TenantContext` 作用域内，框架会将 tenant ID 的 SHA-256 摘要加到后端物理 key 前缀；应用获得的 `StoredObject.path` 与上传检查器仍只看到逻辑路径。没有租户作用域时沿用原有物理路径。自定义 driver 通过同一 facade 调用时也会收到隔离后的路径；直接使用 driver 不受此保护。
 
 ## 上传与下载
 
@@ -44,7 +48,7 @@ secret_access_key = "本地环境变量提供"
 对于 HTTP 请求正文，`StorageDisk::put_body` 将交给 inspector 和 driver 的块切到配置上限，并保留流式背压；它不能限制 Axum 上游在产生单个 body frame 时已分配的内存。直接使用 `put_stream` 时，调用方应按有界块提供 `StorageStream`，单个上游块也会占用内存。两种入口均执行总字节数、单块大小、声明 MIME allowlist 和可选 `UploadInspector`；检查按块有序执行，EOF 时调用 `finish`，任何失败都不会发布部分对象。MIME 检查只校验客户端声明，敏感内容检测由应用提供 Inspector 实现。
 
 ```rust,ignore
-let disk = storage.default_disk()?;
+let disk = storage.default_disk().await?;
 let key = StoragePath::new(format!("users/{opaque_id}"))?;
 let stored = disk
     .put_body(
@@ -61,6 +65,6 @@ let stored = disk
 
 ## Driver 与版本链接
 
-应用可实现 `StorageBackend` / `StorageDriver`，并在插件的 `build` 阶段通过 `StorageDrivers` 注册。driver 必须维持单调用背压、版本读取 metadata 对齐、失败/取消时尽力 abort，以及只有完成提交后目标 key 才可见。写入关闭时是 backend 发布边界；如果调用方在提交已经开始后取消，完整对象可能仍被发布，但部分对象不得可见。进程强杀可能留下不可见的服务端 multipart 残片；driver 需提供有界清理策略。
+应用可实现 `StorageBackend` / `StorageDriver`，通过 `StorageServiceProvider::new().with_driver(driver)` 注册，或在后续 Provider boot 中解析 `Storage` 并调用 `extend(driver)`。默认 disk 在 boot 解析，其他 named disk 按需构造并缓存；替换 creator 不改变已解析实例，调用 `forget_disk` / `purge` 后可重建。driver 可实现 `validate` 检查专属选项，未实现时框架无法验证自定义选项。driver 必须维持单调用背压、版本读取 metadata 对齐、失败/取消时尽力 abort，以及只有完成提交后目标 key 才可见。写入关闭时是 backend 发布边界；如果调用方在提交已经开始后取消，完整对象可能仍被发布，但部分对象不得可见。进程强杀可能留下不可见的服务端 multipart 残片；driver 需提供有界清理策略。
 
 `presign_read` 只为当前对象的确切版本生成短期只读 URL。bucket 未启用版本控制、对象没有 version ID 或 backend 不支持版本化 presign 时会 fail-closed。此 URL 是到期前可转发的 bearer 凭据，不能通过 `SignedLinks` 撤销；local disk 不提供 provider presign，需要应用自行建立授权 route。框架不提供 presigned write URL。

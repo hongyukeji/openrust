@@ -1,5 +1,6 @@
 //! 聚合 server package 的 gRPC 插件与 TCP 生命周期验收。
 
+use openrust::core::lifecycle;
 use std::io::{BufRead, BufReader, Write as _};
 use std::process::{Command, Stdio};
 use std::sync::Arc;
@@ -9,10 +10,10 @@ use std::{convert::Infallible, future::Ready, task::Poll};
 
 use openrust::{
     config::FrameworkConfig,
-    core::{AppBuilder, Readiness, finalize, lifecycle},
-    grpc::{GrpcPlugin, GrpcServer, health_pb, tonic},
-    http::{AppBuilderHttpExt, HttpPlugin},
-    runtime::{HttpGrpcPlugin, serve_http_and_grpc_until},
+    core::Readiness,
+    grpc::{GrpcServer, GrpcServiceProvider, health_pb, tonic},
+    http::HttpServiceProvider,
+    runtime::{HttpGrpcServiceProvider, serve_http_and_grpc_until},
 };
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -52,14 +53,21 @@ async fn plugin_registers_service_and_serves_a_bound_tcp_listener()
 -> Result<(), Box<dyn std::error::Error>> {
     let mut config = FrameworkConfig::default();
     config.grpc.allow_insecure_server = true;
-    let mut builder = AppBuilder::new(config, figment::Figment::new());
-    GrpcPlugin::register_service::<ProbeService, _>(&mut builder, |_| ProbeService)?;
-    builder.plugin(GrpcPlugin::new());
-    let app = finalize(builder).await?;
-    let readiness = app.state().try_get::<Readiness>()?;
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(config))
+        .merge(figment::Figment::new());
+    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut registry = openrust::grpc::GrpcServiceRegistry::default();
+    registry.register::<ProbeService, _>(|_| ProbeService)?;
+    builder.provider(GrpcServiceProvider::new());
+    builder.provider(TestInstance(std::sync::Arc::new(registry)));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let readiness = app.state().resolve::<Readiness>().await?;
 
     assert!(app.commands().any(|command| command.name() == "grpc serve"));
-    let server = GrpcServer::from_app(&app)?;
+    let server = GrpcServer::from_app(&app).await?;
     assert_eq!(server.listen_addr(), "127.0.0.1:50051".parse()?);
 
     let listener = TcpListener::bind("127.0.0.1:0").await?;
@@ -114,11 +122,10 @@ async fn plugin_registers_service_and_serves_a_bound_tcp_listener()
 
 #[tokio::test]
 async fn plugin_rejects_duplicate_services_by_name() -> Result<(), Box<dyn std::error::Error>> {
-    let mut config = FrameworkConfig::default();
-    config.grpc.allow_insecure_server = true;
-    let mut builder = AppBuilder::new(config, figment::Figment::new());
-    GrpcPlugin::register_service::<ProbeService, _>(&mut builder, |_| ProbeService)?;
-    let error = GrpcPlugin::register_service::<ProbeService, _>(&mut builder, |_| ProbeService)
+    let mut registry = openrust::grpc::GrpcServiceRegistry::default();
+    registry.register::<ProbeService, _>(|_| ProbeService)?;
+    let error = registry
+        .register::<ProbeService, _>(|_| ProbeService)
         .err()
         .ok_or("duplicate service registration unexpectedly succeeded")?;
     assert_eq!(error.code(), "grpc_service_duplicate");
@@ -132,9 +139,12 @@ async fn plugin_rejects_health_drain_grace_that_exhausts_shutdown_deadline()
     config.server.shutdown_timeout_secs = 1;
     config.grpc.allow_insecure_server = true;
     config.grpc.health_drain_grace_ms = 1_000;
-    let mut builder = AppBuilder::new(config, figment::Figment::new());
-    builder.plugin(GrpcPlugin::new());
-    let error = finalize(builder)
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(config))
+        .merge(figment::Figment::new());
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder.provider(GrpcServiceProvider::new());
+    let error = builder
+        .start(sources)
         .await
         .err()
         .ok_or("health drain grace unexpectedly consumed the shutdown deadline")?;
@@ -158,22 +168,31 @@ async fn server_host_composes_http_and_grpc_under_one_lifecycle()
     config.grpc.listen_addr = grpc_address;
     config.grpc.allow_insecure_server = true;
     lifecycle::init_tracing(&config.log);
-    let mut builder = AppBuilder::new(config, figment::Figment::new());
-    GrpcPlugin::register_service::<ProbeService, _>(&mut builder, |_| ProbeService)?;
-    builder.routes(|routes| {
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(config))
+        .merge(figment::Figment::new());
+    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut registry = openrust::grpc::GrpcServiceRegistry::default();
+    registry.register::<ProbeService, _>(|_| ProbeService)?;
+    builder.provider(TestRoutes::new(|routes| {
         routes.get("/trace", || async {
             openrust::core::ExecutionContext::current()
                 .and_then(|context| context.metadata().traceparent().map(str::to_owned))
                 .unwrap_or_default()
         })
-    });
+    }));
     builder
-        .plugin(HttpPlugin)
-        .plugin(GrpcPlugin::new())
-        .plugin(HttpGrpcPlugin);
-    let app = Arc::new(finalize(builder).await?);
+        .provider(HttpServiceProvider)
+        .provider(GrpcServiceProvider::new())
+        .provider(HttpGrpcServiceProvider);
+    builder.provider(TestInstance(std::sync::Arc::new(registry)));
+    let app = Arc::new(
+        builder
+            .start(sources)
+            .await
+            .and_then(openrust::App::from_provider_runtime)?,
+    );
     assert!(app.commands().any(|command| command.name() == "serve all"));
-    let readiness = app.state().try_get::<Readiness>()?;
+    let readiness = app.state().resolve::<Readiness>().await?;
     let (stop, signal) = oneshot::channel();
     let running_app = Arc::clone(&app);
     let task = tokio::spawn(async move {
@@ -240,10 +259,20 @@ async fn server_host_composes_http_and_grpc_under_one_lifecycle()
 #[tokio::test]
 async fn server_requires_an_explicit_service_registration() -> Result<(), Box<dyn std::error::Error>>
 {
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment::Figment::new());
-    builder.plugin(GrpcPlugin::new());
-    let app = finalize(builder).await?;
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ))
+    .merge(figment::Figment::new());
+    let mut builder = openrust::core::ProviderBuilder::new();
+    let registry = openrust::grpc::GrpcServiceRegistry::default();
+    builder.provider(GrpcServiceProvider::new());
+    builder.provider(TestInstance(std::sync::Arc::new(registry)));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
     let error = GrpcServer::from_app(&app)
+        .await
         .err()
         .ok_or("server construction unexpectedly succeeded without a service")?;
     assert_eq!(error.code(), "grpc_service_missing");
@@ -253,11 +282,21 @@ async fn server_requires_an_explicit_service_registration() -> Result<(), Box<dy
 #[tokio::test]
 async fn plaintext_server_requires_an_explicit_development_or_proxy_opt_in()
 -> Result<(), Box<dyn std::error::Error>> {
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment::Figment::new());
-    GrpcPlugin::register_service::<ProbeService, _>(&mut builder, |_| ProbeService)?;
-    builder.plugin(GrpcPlugin::new());
-    let app = finalize(builder).await?;
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ))
+    .merge(figment::Figment::new());
+    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut registry = openrust::grpc::GrpcServiceRegistry::default();
+    registry.register::<ProbeService, _>(|_| ProbeService)?;
+    builder.provider(GrpcServiceProvider::new());
+    builder.provider(TestInstance(std::sync::Arc::new(registry)));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
     let error = GrpcServer::from_app(&app)
+        .await
         .err()
         .ok_or("plaintext gRPC server unexpectedly passed secure defaults")?;
     assert_eq!(error.code(), "grpc_tls_required");
@@ -345,11 +384,18 @@ async fn grpc_sigterm_child() -> Result<(), Box<dyn std::error::Error>> {
     let mut config = FrameworkConfig::default();
     config.grpc.allow_insecure_server = true;
     config.server.shutdown_timeout_secs = 1;
-    let mut builder = AppBuilder::new(config, figment::Figment::new());
-    GrpcPlugin::register_service::<ProbeService, _>(&mut builder, |_| ProbeService)?;
-    builder.plugin(GrpcPlugin::new());
-    let app = finalize(builder).await?;
-    let server = GrpcServer::from_app(&app)?;
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(config))
+        .merge(figment::Figment::new());
+    let mut builder = openrust::core::ProviderBuilder::new();
+    let mut registry = openrust::grpc::GrpcServiceRegistry::default();
+    registry.register::<ProbeService, _>(|_| ProbeService)?;
+    builder.provider(GrpcServiceProvider::new());
+    builder.provider(TestInstance(std::sync::Arc::new(registry)));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let server = GrpcServer::from_app(&app).await?;
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let listener_addr = listener.local_addr()?;
     let task = tokio::spawn(server.serve(listener, openrust::core::shutdown_signal()));
@@ -362,4 +408,34 @@ async fn grpc_sigterm_child() -> Result<(), Box<dyn std::error::Error>> {
     std::io::stdout().flush()?;
     task.await??;
     Ok(())
+}
+
+struct TestInstance<T: Send + Sync + 'static>(std::sync::Arc<T>);
+impl<T: Send + Sync + 'static> openrust::core::ServiceProvider for TestInstance<T> {
+    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
+        app.instance(std::sync::Arc::clone(&self.0));
+        Ok(())
+    }
+}
+
+struct TestRoutes<F>(std::sync::Arc<F>);
+impl<F: Fn(openrust::http::Routes) -> openrust::http::Routes> TestRoutes<F> {
+    fn new(routes: F) -> Self {
+        Self(std::sync::Arc::new(routes))
+    }
+}
+impl<F> openrust::core::ServiceProvider for TestRoutes<F>
+where
+    F: Fn(openrust::http::Routes) -> openrust::http::Routes + Send + Sync + 'static,
+{
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut openrust::core::BootContext<'_>,
+    ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
+        let routes = std::sync::Arc::clone(&self.0);
+        Box::pin(async move {
+            app.routes(move |value| routes(value))?;
+            Ok(())
+        })
+    }
 }

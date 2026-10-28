@@ -6,7 +6,7 @@ use sea_orm_migration::sea_orm::{DbBackend, DbErr, sea_query::ColumnDef};
 /// 为受支持的数据库后端创建非空 UTC 时间戳列。
 ///
 /// PostgreSQL 使用 `TIMESTAMP WITH TIME ZONE`；MySQL 使用 `DATETIME(6)` 保留微秒精度，避免 `TIMESTAMP`
-/// 的 2038 年上限。`DatabasePlugin` 会将每个 MySQL 连接的 session 时区设为 `+00:00`，因此 MySQL 值均为 UTC。
+/// 的 2038 年上限。`DatabaseServiceProvider` 会将每个 MySQL 连接的 session 时区设为 `+00:00`，因此 MySQL 值均为 UTC。
 pub fn timestamp_utc(name: impl IntoIden, backend: DbBackend) -> Result<ColumnDef, DbErr> {
     let mut column = ColumnDef::new(name);
     match backend {

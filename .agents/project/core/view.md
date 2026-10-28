@@ -7,7 +7,7 @@
 ## 当前实现
 
 - Cargo feature `view` 启用 MiniJinja 文件 loader；默认构建不增加模板加载能力。
-- `ViewPlugin` 从 `[view]` 读取 `directory`（默认应用工作目录的 `views/`）和 `auto_reload`（默认关闭），构建 `Views` 服务。
+- `ViewServiceProvider` 从 `[view]` 读取 `directory`（默认应用工作目录的 `views/`）和 `auto_reload`（默认关闭），构建 `Views` 服务。
 - `Views::render(name, context)` 返回 Axum `Html<String>`，仅接受 `.html` 模板。模板名拒绝绝对路径和遍历；文件 canonical path 必须位于模板根内，阻止符号链接越界。
 - `.html` 自动 HTML 转义；strict undefined、每次渲染 100,000 fuel；模板读写/语法/执行错误以内部错误处理，错误来源不作为响应正文返回。
 - `server.root_target = "view:index.html"` 会在 router 组装时检查插件与模板，任何缺失均启动配置失败；默认宿主仍使用 `file:/index.html`。

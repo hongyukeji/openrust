@@ -4,6 +4,8 @@
 use std::time::Duration;
 
 use openrust::core::Error;
+#[cfg(feature = "cache-redis")]
+use openrust::core::{ProviderBuilder, RegisterContext, ServiceProvider};
 use openrust::database::{
     CoordinationMigration, DatabaseTableNames, Db, IdempotencyClaim, IdempotencyResponse,
     LockAcquire, RequestIdempotency, SharedLocks, sea_orm, sea_orm_migration,
@@ -15,6 +17,17 @@ use serde_json::json;
 use std::collections::BTreeMap;
 
 struct CoordinationMigrator;
+
+#[cfg(feature = "cache-redis")]
+struct SharedLocksProvider(Db);
+
+#[cfg(feature = "cache-redis")]
+impl ServiceProvider for SharedLocksProvider {
+    fn register(&self, app: &mut RegisterContext<'_>) -> openrust::Result<()> {
+        app.instance(std::sync::Arc::new(SharedLocks::new(self.0.clone())));
+        Ok(())
+    }
+}
 
 impl MigratorTrait for CoordinationMigrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
@@ -30,11 +43,13 @@ async fn cache_app_with_shared_locks(db: Db) -> Result<openrust::App, Box<dyn st
     let figment = Figment::new().merge(figment::providers::Toml::string(&format!(
         "[cache]\ndefault_store='default'\n[cache.stores.default]\ndriver='redis'\nnamespace='coordination-swr'\ndsn='{dsn}'\n"
     )));
-    let mut builder =
-        openrust::AppBuilder::new(openrust::config::FrameworkConfig::default(), figment);
-    builder.insert(SharedLocks::new(db));
-    builder.plugin(openrust::cache::CachePlugin);
-    Ok(openrust::lifecycle::finalize(builder).await?)
+    let mut builder = ProviderBuilder::new();
+    builder
+        .provider(SharedLocksProvider(db))
+        .provider(openrust::cache::CacheServiceProvider::new());
+    Ok(openrust::App::from_provider_runtime(
+        builder.start(figment).await?,
+    )?)
 }
 
 #[cfg(feature = "cache-redis")]
@@ -81,12 +96,16 @@ async fn f4c_swr_uses_shared_locks_across_apps_and_redis_connections()
     let second = cache_app_with_shared_locks(second_db).await?;
     let store_a = first
         .state()
-        .try_get::<openrust::cache::Cache>()?
-        .default_store()?;
+        .resolve::<openrust::cache::Cache>()
+        .await?
+        .default_store()
+        .await?;
     let store_b = second
         .state()
-        .try_get::<openrust::cache::Cache>()?
-        .default_store()?;
+        .resolve::<openrust::cache::Cache>()
+        .await?
+        .default_store()
+        .await?;
     let tags_a = store_a.tagged(&["coordination-swr"])?;
     let tags_b = store_b.tagged(&["coordination-swr"])?;
     let key = format!("profile-{}", std::process::id());

@@ -1,6 +1,8 @@
 # `openrust::view`
 
-启用 `view` Cargo feature 并注册 `openrust::view::ViewPlugin`，即可使用服务端 HTML 模板。应用模板放在项目根 `views/`，静态 CSS、图片等仍放在 `public/`。
+`ViewServiceProvider` 显式安装后在启动时加载并校验模板目录。
+
+启用 `view` Cargo feature 并注册 `openrust::view::ViewServiceProvider`，即可使用服务端 HTML 模板。应用模板放在项目根 `views/`，静态 CSS、图片等仍放在 `public/`。
 
 ```toml
 [server]
@@ -13,7 +15,7 @@ auto_reload = false
 
 在本地 `.env` 中设置 `APP_VIEW_AUTO_RELOAD=true` 可启用开发期模板热重载；部署环境默认关闭。
 
-`openrust new` 已默认生成这组配置和 `views/index.html`。部署时可把 `root_target` 改为 `file:/index.html`、`forward:/path` 或 `redirect:/path`；设置 `view:` 时必须启用 feature、注册 `ViewPlugin` 并提供模板，否则 router 构建失败。
+`openrust new` 已默认生成这组配置和 `views/index.html`。部署时可把 `root_target` 改为 `file:/index.html`、`forward:/path` 或 `redirect:/path`；设置 `view:` 时必须启用 feature、注册 `ViewServiceProvider` 并提供模板，否则 router 构建失败。
 
 在应用处理器中注入 `openrust::view::Views` 并调用 `render`：
 

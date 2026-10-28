@@ -1,6 +1,10 @@
 # 缓存
 
-`CachePlugin` 按 `[cache]` 配置初始化默认与命名 store。缓存能力为可选项：不安装插件时不会连接 Redis；安装后必须显式配置 store，未配置、driver 不支持、初始化失败或缓存 I/O 失败均返回错误，不会回退到本地内存。启用 `HttpPlugin` 时，每个已配置 store 会注册只读依赖探针；其 I/O 失败会令 `/ready` 返回 503，错误细节不会出现在健康响应中。
+Provider 装配的缓存 store 按名称异步构造并缓存；`store/default_store` 需要 await。driver 的 `validate` 默认不执行专属检查，自定义 driver 应覆盖它，才能在最终配置校验时拒绝无效选项。
+
+`CacheServiceProvider` 支持在统一容器中装配内置和自定义 driver。
+
+`CacheServiceProvider` 按 `[cache]` 配置启动默认 store 并按需初始化命名 store。缓存能力为可选项：不安装 Provider 时不会连接 Redis；安装后必须显式配置 store，未配置、driver 不支持、初始化失败或缓存 I/O 失败均返回错误，不会回退到本地内存。容器中注册了共享 `Readiness` 时，每个已解析 store 会注册只读依赖探针；其 I/O 失败会令 `/ready` 返回 503，错误细节不会出现在健康响应中。
 
 ```toml
 [cache]
@@ -79,4 +83,4 @@ let profile = store
     .await?;
 ```
 
-扩展包可以实现 `CacheDriver` 与 `CacheBackend`，并在插件 `build` 阶段通过 `AppBuilder::extension_mut::<CacheDrivers>()` 注册；`CachePlugin::finish` 会在所有插件完成注册后解析实例。自定义选项使用 `[cache.stores.<name>]` 下除 `driver`、`namespace` 以外的字段，配置调试输出只显示选项名称。
+扩展包可实现 `CacheDriver` 与 `CacheBackend`，通过 `CacheServiceProvider::new().with_driver(driver)` 在构造时登记，或在后续 Provider boot 中异步解析 `Cache` 并调用 `extend(driver)`。默认 store 在 boot 时解析；其他 named store 按需异步构造并缓存。同名 creator 替换不会改变已解析的 store；`forget_driver` / `purge` 后重新解析会使用当前配置和 creator。driver 可实现 `validate` 以在最终配置校验时检查专属选项；未实现时框架无法验证其自定义选项。自定义选项使用 `[cache.stores.<name>]` 下除 `driver`、`namespace` 以外的字段。

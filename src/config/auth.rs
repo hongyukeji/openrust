@@ -85,7 +85,7 @@ impl Default for PasswordConfig {
 }
 
 /// 共享 Cookie Session middleware 的设置。
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct SessionConfig {
     /// Cookie 名称。默认值为 `openrust_session`。

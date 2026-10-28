@@ -1,6 +1,6 @@
 //! gRPC server 与客户端入口，基于 tonic / Protobuf。
 //!
-//! 应用通过 [`GrpcPlugin`] 显式启用 gRPC；注册服务不会启动监听器，需运行 `grpc serve`。
+//! 应用通过 [`GrpcServiceProvider`] 显式启用 gRPC；注册服务不会启动监听器，需运行 `grpc serve`。
 
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
@@ -17,11 +17,10 @@ use std::{
 #[cfg(feature = "auth")]
 use crate::auth::{CurrentUser, Policy, authenticate_grpc_bearer};
 use crate::{
-    App, AppBuilder, AppState, BoxFuture, Command, Error, Result,
+    App, AppState, BoxFuture, Command, Error, Result,
     config::{GrpcClientTlsConfig, GrpcConfig, GrpcServerTlsConfig},
     core::{
-        CancelOnDrop, Cancellation, ExecutionContext, ExecutionMetadata, Plugin, Readiness,
-        shutdown_signal,
+        CancelOnDrop, Cancellation, ExecutionContext, ExecutionMetadata, Readiness, shutdown_signal,
     },
 };
 use http::Request;
@@ -50,7 +49,7 @@ pub use tonic_prost;
 /// gRPC reflection v1 的标准 Protobuf 消息与 typed client。
 pub use tonic_reflection::pb as reflection_pb;
 
-type ServiceRegistration = Box<dyn Fn(&AppState, &GrpcConfig, &mut RoutesBuilder) + Send + Sync>;
+type ServiceRegistration = Arc<dyn Fn(&AppState, &GrpcConfig, &mut RoutesBuilder) + Send + Sync>;
 
 #[cfg(feature = "metrics")]
 struct GrpcCallMetricGuard {
@@ -230,9 +229,14 @@ impl tonic_health::pb::health_server::Health for GrpcHealthService {
     }
 }
 
-/// 由 [`GrpcPlugin::register_service`] 收集的应用服务工厂。
-#[derive(Default)]
+/// 由 [`GrpcServiceRegistry::register`] 收集的应用服务工厂。
+#[derive(Clone, Default)]
 pub struct GrpcServiceRegistry {
+    inner: Arc<std::sync::Mutex<GrpcRegistryInner>>,
+}
+
+#[derive(Clone, Default)]
+struct GrpcRegistryInner {
     names: HashSet<&'static str>,
     factories: Vec<ServiceRegistration>,
     reflection_descriptor_set: Option<Arc<[u8]>>,
@@ -240,7 +244,8 @@ pub struct GrpcServiceRegistry {
 }
 
 impl GrpcServiceRegistry {
-    fn register<S, F>(&mut self, factory: F) -> Result<()>
+    /// 注册 tonic 服务工厂，重复服务名称会失败。
+    pub fn register<S, F>(&mut self, factory: F) -> Result<()>
     where
         S: Service<Request<Body>, Error = Infallible>
             + NamedService
@@ -255,7 +260,8 @@ impl GrpcServiceRegistry {
         self.register_with_config::<S, _>(move |state, _| factory(state))
     }
 
-    fn register_with_config<S, F>(&mut self, factory: F) -> Result<()>
+    /// 注册可读取 gRPC 配置的 tonic 服务工厂。
+    pub fn register_with_config<S, F>(&mut self, factory: F) -> Result<()>
     where
         S: Service<Request<Body>, Error = Infallible>
             + NamedService
@@ -267,15 +273,153 @@ impl GrpcServiceRegistry {
         S::Future: Send + 'static,
         F: Fn(AppState, &GrpcConfig) -> S + Send + Sync + 'static,
     {
-        if !self.names.insert(S::NAME) {
+        let mut inner = self
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if !inner.names.insert(S::NAME) {
             return Err(Error::custom(
                 "grpc_service_duplicate",
                 "同一 gRPC 服务不能重复注册",
             ));
         }
-        self.factories.push(Box::new(move |state, config, routes| {
+        inner.factories.push(Arc::new(move |state, config, routes| {
             routes.add_service(factory(state.clone(), config));
         }));
+        Ok(())
+    }
+
+    /// 注册应用的 reflection 描述符和服务名称。
+    pub fn register_reflection_descriptor_set<I, S>(
+        &mut self,
+        descriptor_set: impl Into<Vec<u8>>,
+        service_names: I,
+    ) -> Result<()>
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        let descriptor_set = descriptor_set.into();
+        if descriptor_set.is_empty() {
+            return Err(Error::custom(
+                "grpc_reflection_descriptor_invalid",
+                "gRPC reflection 描述符不能为空",
+            ));
+        }
+        let service_names = service_names
+            .into_iter()
+            .map(Into::into)
+            .collect::<Vec<_>>();
+        if service_names.is_empty() || service_names.iter().any(|name| name.trim().is_empty()) {
+            return Err(Error::custom(
+                "grpc_reflection_service_invalid",
+                "reflection 至少需要一个非空服务名称",
+            ));
+        }
+        let mut inner = self
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if inner.reflection_descriptor_set.is_some() {
+            return Err(Error::custom(
+                "grpc_reflection_descriptor_duplicate",
+                "gRPC reflection 描述符只能注册一次",
+            ));
+        }
+        inner.reflection_descriptor_set = Some(Arc::from(descriptor_set));
+        inner.reflection_service_names = service_names;
+        Ok(())
+    }
+
+    fn absorb(&self, other: &Self) -> Result<()> {
+        if Arc::ptr_eq(&self.inner, &other.inner) {
+            return Ok(());
+        }
+        let snapshot = other
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        let mut inner = self
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if snapshot.names.iter().any(|name| inner.names.contains(name)) {
+            return Err(Error::custom(
+                "grpc_service_duplicate",
+                "同一 gRPC 服务不能重复注册",
+            ));
+        }
+        if snapshot.reflection_descriptor_set.is_some() && inner.reflection_descriptor_set.is_some()
+        {
+            return Err(Error::custom(
+                "grpc_reflection_descriptor_duplicate",
+                "gRPC reflection 描述符只能注册一次",
+            ));
+        }
+        inner.names.extend(snapshot.names);
+        inner.factories.extend(snapshot.factories);
+        if snapshot.reflection_descriptor_set.is_some() {
+            inner.reflection_descriptor_set = snapshot.reflection_descriptor_set;
+            inner.reflection_service_names = snapshot.reflection_service_names;
+        }
+        Ok(())
+    }
+    pub(crate) fn validate_contributions(
+        &self,
+        require_services: bool,
+        reflection: bool,
+    ) -> Result<()> {
+        let inner = self
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if require_services && inner.factories.is_empty() {
+            return Err(Error::custom(
+                "grpc_service_missing",
+                "联合运行需要至少注册一个 gRPC 服务",
+            ));
+        }
+        if reflection && inner.reflection_descriptor_set.is_none() {
+            return Err(Error::custom(
+                "grpc_reflection_descriptor_missing",
+                "启用 gRPC reflection 时必须注册应用 FileDescriptorSet",
+            ));
+        }
+        if reflection
+            && (inner.reflection_service_names.is_empty()
+                || inner
+                    .reflection_service_names
+                    .iter()
+                    .any(|name| !inner.names.contains(name.as_str())))
+        {
+            return Err(Error::custom(
+                "grpc_reflection_service_invalid",
+                "reflection 只能公开已注册的 gRPC 服务",
+            ));
+        }
+        let descriptor = inner.reflection_descriptor_set.clone();
+        let names = inner.reflection_service_names.clone();
+        drop(inner);
+        if reflection {
+            let descriptor = descriptor.ok_or_else(|| {
+                Error::custom(
+                    "grpc_reflection_descriptor_missing",
+                    "启用 gRPC reflection 时必须注册应用 FileDescriptorSet",
+                )
+            })?;
+            let mut builder = tonic_reflection::server::Builder::configure()
+                .register_encoded_file_descriptor_set(&descriptor);
+            for name in &names {
+                builder = builder.with_service_name(name);
+            }
+            builder.build_v1().map_err(|_| {
+                Error::custom(
+                    "grpc_reflection_descriptor_invalid",
+                    "gRPC reflection 描述符无效",
+                )
+            })?;
+        }
         Ok(())
     }
 
@@ -285,31 +429,36 @@ impl GrpcServiceRegistry {
         config: &GrpcConfig,
         reflection_enabled: bool,
     ) -> Result<(Routes, GrpcHealthReporter, Vec<&'static str>)> {
-        if self.factories.is_empty() {
+        let snapshot = self
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        if snapshot.factories.is_empty() {
             return Err(Error::custom(
                 "grpc_service_missing",
-                "没有注册 gRPC 服务；请在应用构建时调用 GrpcPlugin::register_service",
+                "没有注册 gRPC 服务；请在应用构建时调用 GrpcServiceRegistry::register",
             ));
         }
         let mut routes = RoutesBuilder::default();
-        for factory in &self.factories {
+        for factory in &snapshot.factories {
             factory(state, config, &mut routes);
         }
-        let health_services = self.names.iter().copied().collect::<Vec<_>>();
+        let health_services = snapshot.names.iter().copied().collect::<Vec<_>>();
         let (health_reporter, health_service) = GrpcHealthReporter::new(&health_services);
         routes.add_service(health_service);
         if reflection_enabled {
-            let descriptor_set = self.reflection_descriptor_set.as_deref().ok_or_else(|| {
+            let descriptor_set = snapshot.reflection_descriptor_set.as_deref().ok_or_else(|| {
                 Error::custom(
                     "grpc_reflection_descriptor_missing",
-                    "启用 gRPC reflection 时必须通过 GrpcPlugin::register_reflection_descriptor_set 注册应用描述符",
+                    "启用 gRPC reflection 时必须通过 GrpcServiceRegistry::register_reflection_descriptor_set 注册应用描述符",
                 )
             })?;
-            if self.reflection_service_names.is_empty()
-                || self
+            if snapshot.reflection_service_names.is_empty()
+                || snapshot
                     .reflection_service_names
                     .iter()
-                    .any(|name| !self.names.contains(name.as_str()))
+                    .any(|name| !snapshot.names.contains(name.as_str()))
             {
                 return Err(Error::custom(
                     "grpc_reflection_service_invalid",
@@ -318,7 +467,7 @@ impl GrpcServiceRegistry {
             }
             let mut reflection_builder = tonic_reflection::server::Builder::configure()
                 .register_encoded_file_descriptor_set(descriptor_set);
-            for service_name in &self.reflection_service_names {
+            for service_name in &snapshot.reflection_service_names {
                 reflection_builder = reflection_builder.with_service_name(service_name);
             }
             let reflection = reflection_builder.build_v1().map_err(|_| {
@@ -721,12 +870,12 @@ fn validate_health_drain_grace(grace_ms: u64, shutdown_timeout_secs: u64) -> Res
 
 impl GrpcServer {
     /// 从服务注册表和配置构建 server；不绑定端口或启动后台任务。
-    pub fn from_app(app: &App) -> Result<Self> {
-        app.state().try_get::<GrpcPluginInstalled>()?;
+    pub async fn from_app(app: &App) -> Result<Self> {
+        app.state().resolve::<GrpcPluginInstalled>().await?;
         let registry = app.extension::<GrpcServiceRegistry>().ok_or_else(|| {
             Error::custom(
                 "grpc_service_registry_missing",
-                "GrpcPlugin 未注册到当前应用",
+                "GrpcServiceProvider 未注册到当前应用",
             )
         })?;
         let config = &app.config().grpc;
@@ -755,7 +904,7 @@ impl GrpcServer {
             tls: config.tls.as_ref().map(server_tls_config).transpose()?,
             health,
             health_services,
-            readiness: app.state().try_get::<Readiness>()?,
+            readiness: app.state().resolve::<Readiness>().await?,
             max_concurrent_rpcs: config.max_concurrent_rpcs,
             max_concurrent_streams_per_connection: config.max_concurrent_streams_per_connection,
             max_concurrent_rpcs_per_connection: config.max_concurrent_rpcs_per_connection,
@@ -1104,160 +1253,132 @@ fn read_pem(path: &Path, key: &str) -> Result<Vec<u8>> {
     })
 }
 
-/// 显式注册 gRPC 命令、客户端 channel 和应用服务。
+#[derive(Clone, Copy)]
+pub(crate) struct GrpcPluginInstalled;
+
+/// 通过统一容器注册 gRPC 客户端，并贡献服务目录和命令。
 #[derive(Default)]
-pub struct GrpcPlugin {
+pub struct GrpcServiceProvider {
     clients: Option<GrpcClientRegistry>,
 }
-
-#[derive(Clone, Copy)]
-struct GrpcPluginInstalled;
-
-impl GrpcPlugin {
-    /// 创建配置驱动的 gRPC 插件。
+impl GrpcServiceProvider {
+    /// 使用配置驱动的客户端。
     pub fn new() -> Self {
         Self::default()
     }
-
-    /// 使用外部构造的 channel registry，便于测试替换或应用托管连接。
+    /// 使用调用方提供的客户端目录。
     #[must_use]
     pub fn with_clients(mut self, clients: GrpcClientRegistry) -> Self {
         self.clients = Some(clients);
         self
     }
-
-    /// 在应用构建时注册一个 tonic 生成的 server 工厂。
-    ///
-    /// 工厂在 `grpc serve` 构造路由时接收共享的 [`AppState`]；注册本身不会启动 listener。
-    pub fn register_service<S, F>(builder: &mut AppBuilder, factory: F) -> Result<()>
-    where
-        S: Service<Request<Body>, Error = Infallible>
-            + NamedService
-            + Clone
-            + Send
-            + Sync
-            + 'static,
-        S::Response: axum::response::IntoResponse,
-        S::Future: Send + 'static,
-        F: Fn(AppState) -> S + Send + Sync + 'static,
-    {
-        builder
-            .extension_mut::<GrpcServiceRegistry>()
-            .register(factory)
-    }
-
-    /// 注册一个可按 `[grpc]` 限额配置的 tonic 生成服务。
-    ///
-    /// 生成 server 必须在工厂中将 `max_decoding_message_size_bytes` 与
-    /// `max_encoding_message_size_bytes` 应用到其对应构造方法。
-    pub fn register_service_with_config<S, F>(builder: &mut AppBuilder, factory: F) -> Result<()>
-    where
-        S: Service<Request<Body>, Error = Infallible>
-            + NamedService
-            + Clone
-            + Send
-            + Sync
-            + 'static,
-        S::Response: axum::response::IntoResponse,
-        S::Future: Send + 'static,
-        F: Fn(AppState, &GrpcConfig) -> S + Send + Sync + 'static,
-    {
-        builder
-            .extension_mut::<GrpcServiceRegistry>()
-            .register_with_config(factory)
-    }
-
-    /// 注册应用编译时生成的 FileDescriptorSet，供显式开启的 reflection 使用。
-    pub fn register_reflection_descriptor_set<I, S>(
-        builder: &mut AppBuilder,
-        descriptor_set: impl Into<Vec<u8>>,
-        service_names: I,
-    ) -> Result<()>
-    where
-        I: IntoIterator<Item = S>,
-        S: Into<String>,
-    {
-        let descriptor_set = descriptor_set.into();
-        if descriptor_set.is_empty() {
-            return Err(Error::custom(
-                "grpc_reflection_descriptor_invalid",
-                "gRPC reflection 描述符不能为空",
-            ));
-        }
-        let registry = builder.extension_mut::<GrpcServiceRegistry>();
-        if registry.reflection_descriptor_set.is_some() {
-            return Err(Error::custom(
-                "grpc_reflection_descriptor_duplicate",
-                "gRPC reflection 描述符只能注册一次",
-            ));
-        }
-        let service_names = service_names
-            .into_iter()
-            .map(Into::into)
-            .collect::<Vec<_>>();
-        if service_names.is_empty() || service_names.iter().any(|name| name.trim().is_empty()) {
-            return Err(Error::custom(
-                "grpc_reflection_service_invalid",
-                "reflection 至少需要一个非空服务名称",
-            ));
-        }
-        registry.reflection_descriptor_set = Some(Arc::from(descriptor_set));
-        registry.reflection_service_names = service_names;
-        Ok(())
-    }
 }
-
-impl Plugin for GrpcPlugin {
-    fn build(&self, builder: &mut AppBuilder) -> Result<()> {
-        let config = builder.config().grpc.clone();
-        config.validate()?;
-        if !(1..=3600).contains(&builder.config().server.shutdown_timeout_secs) {
-            return Err(Error::custom(
-                "grpc_config_invalid",
-                "server.shutdown_timeout_secs 必须在 1..=3600 秒之间",
-            ));
-        }
-        validate_health_drain_grace(
-            config.health_drain_grace_ms,
-            builder.config().server.shutdown_timeout_secs,
-        )?;
-        if config.reflection_enabled
-            && builder
-                .extension_mut::<GrpcServiceRegistry>()
-                .reflection_descriptor_set
-                .is_none()
-        {
-            return Err(Error::custom(
-                "grpc_reflection_descriptor_missing",
-                "启用 gRPC reflection 时必须先注册应用 FileDescriptorSet",
-            ));
-        }
-        let clients = match &self.clients {
-            Some(clients) => clients.clone(),
-            None => GrpcClientRegistry::from_config(&config)?,
+impl crate::core::ServiceProvider for GrpcServiceProvider {
+    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
+        use crate::config::repository::SectionSchema as S;
+        let path = || S::String.sensitive();
+        let client_tls = || {
+            S::object([
+                ("ca_certificate_file", path()),
+                ("client_certificate_file", path().nullable()),
+                ("client_private_key_file", path().nullable()),
+                ("domain_name", S::String.nullable()),
+            ])
+            .nullable()
         };
-        builder.extension_mut::<GrpcServiceRegistry>();
-        builder.insert(Readiness::default());
-        builder.insert(GrpcPluginInstalled);
-        builder.try_insert(clients)?;
-        builder.try_command(GrpcServeCommand)?;
+        app.config_section(
+            "grpc",
+            GrpcConfig::default(),
+            S::object([
+                ("listen_addr", S::String),
+                (
+                    "tls",
+                    S::object([
+                        ("certificate_file", path()),
+                        ("private_key_file", path()),
+                        ("client_ca_certificate_file", path().nullable()),
+                    ])
+                    .nullable(),
+                ),
+                ("allow_insecure_server", S::Boolean),
+                ("max_concurrent_streams_per_connection", S::Integer),
+                ("max_concurrent_rpcs_per_connection", S::Integer),
+                ("max_concurrent_rpcs", S::Integer),
+                ("max_decoding_message_size_bytes", S::Integer),
+                ("max_encoding_message_size_bytes", S::Integer),
+                ("default_timeout_secs", S::Integer),
+                ("max_timeout_secs", S::Integer),
+                ("max_metadata_size_bytes", S::Integer),
+                ("reflection_enabled", S::Boolean),
+                ("health_drain_grace_ms", S::Integer),
+                (
+                    "clients",
+                    S::map(S::object([
+                        ("endpoint", S::String.sensitive()),
+                        ("tls", client_tls()),
+                    ])),
+                ),
+                ("default_client", S::String.nullable()),
+            ]),
+            GrpcConfig::validate,
+        )?;
+        app.instance(Arc::new(GrpcPluginInstalled));
+        if !app.is_bound::<GrpcServiceRegistry>() {
+            app.instance(Arc::new(GrpcServiceRegistry::default()));
+        }
+        if !app.is_bound::<Readiness>() {
+            app.instance(Arc::new(Readiness::default()));
+        }
+        let clients = self.clients.clone();
+        app.singleton::<GrpcClientRegistry, _>(move |resolver| {
+            let clients = clients.clone();
+            Box::pin(async move {
+                let clients = match clients {
+                    Some(clients) => clients,
+                    None => {
+                        GrpcClientRegistry::from_config(&resolver.section::<GrpcConfig>("grpc")?)?
+                    }
+                };
+                Ok(Arc::new(clients))
+            })
+        });
         Ok(())
     }
-}
-
-pub(crate) fn require_joint_plugin(builder: &mut AppBuilder) -> Result<()> {
-    builder.try_get::<GrpcPluginInstalled>()?;
-    if builder
-        .extension_mut::<GrpcServiceRegistry>()
-        .factories
-        .is_empty()
-    {
-        return Err(Error::custom(
-            "grpc_service_missing",
-            "联合运行需要至少注册一个 gRPC 服务",
-        ));
+    fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            let config = app.section::<GrpcConfig>("grpc")?;
+            let server = app.section::<crate::config::ServerConfig>("server")?;
+            validate_health_drain_grace(
+                config.health_drain_grace_ms,
+                server.shutdown_timeout_secs,
+            )?;
+            app.resolve::<GrpcClientRegistry>().await?;
+            let registry = app.resolve::<GrpcServiceRegistry>().await?;
+            let extension = app.extension_mut::<GrpcServiceRegistry>()?;
+            registry.absorb(extension)?;
+            *extension = (*registry).clone();
+            let config = app.config_repository();
+            app.validate_at_finalize(move || {
+                Box::pin(async move {
+                    let grpc = config.section::<GrpcConfig>("grpc")?;
+                    let server = config.section::<crate::config::ServerConfig>("server")?;
+                    if !(1..=3600).contains(&server.shutdown_timeout_secs) {
+                        return Err(Error::custom(
+                            "grpc_config_invalid",
+                            "server.shutdown_timeout_secs 必须在 1..=3600 秒之间",
+                        ));
+                    }
+                    validate_health_drain_grace(
+                        grpc.health_drain_grace_ms,
+                        server.shutdown_timeout_secs,
+                    )?;
+                    registry.validate_contributions(false, grpc.reflection_enabled)
+                })
+            });
+            app.command(GrpcServeCommand);
+            Ok(())
+        })
     }
-    Ok(())
 }
 
 struct GrpcServeCommand;
@@ -1273,7 +1394,7 @@ impl Command for GrpcServeCommand {
 
     fn run<'a>(&'a self, app: &'a App, _args: Vec<String>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            let server = GrpcServer::from_app(app)?;
+            let server = GrpcServer::from_app(app).await?;
             let listener = TcpListener::bind(server.listen_addr()).await?;
             let address = listener.local_addr()?;
             tracing::info!(%address, "gRPC listener ready");
@@ -1446,5 +1567,126 @@ mod tests {
         let invalid = super::GrpcAuth::status(&Error::Validation(fields));
         assert_eq!(invalid.code(), Code::InvalidArgument);
         assert_eq!(invalid.details(), b"invalid_argument");
+    }
+}
+
+#[cfg(test)]
+mod provider_tests {
+    use super::*;
+    use crate::core::{BootContext, ProviderBuilder, ServiceProvider};
+    use figment::{Figment, providers::Serialized};
+    struct InvalidOverlay;
+    impl ServiceProvider for InvalidOverlay {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(
+                async move { app.overlay("grpc", serde_json::json!({"max_concurrent_rpcs": 0})) },
+            )
+        }
+    }
+    #[tokio::test]
+    async fn provider_binds_shared_clients_and_command() -> Result<()> {
+        let mut builder = ProviderBuilder::new();
+        builder.provider(GrpcServiceProvider::new());
+        let runtime = builder
+            .start(Figment::from(Serialized::defaults(
+                crate::config::FrameworkConfig::default(),
+            )))
+            .await?;
+        let a = runtime.container().resolve::<GrpcClientRegistry>().await?;
+        let b = runtime.container().resolve::<GrpcClientRegistry>().await?;
+        assert!(Arc::ptr_eq(&a, &b));
+        assert!(
+            runtime
+                .commands()
+                .any(|command| command.name() == "grpc serve")
+        );
+        runtime
+            .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
+            .await
+    }
+    struct LateGrace;
+    impl ServiceProvider for LateGrace {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.overlay("grpc", serde_json::json!({"health_drain_grace_ms": 60_000}))
+            })
+        }
+    }
+    #[tokio::test]
+    async fn finalizer_rejects_cross_section_grace() {
+        let mut builder = ProviderBuilder::new();
+        builder
+            .provider(GrpcServiceProvider::new())
+            .provider(LateGrace);
+        assert!(
+            builder
+                .start(Figment::from(Serialized::defaults(
+                    crate::config::FrameworkConfig::default()
+                )))
+                .await
+                .is_err()
+        );
+    }
+    #[test]
+    fn reflection_iterator_runs_without_registry_lock() -> Result<()> {
+        let mut registry = GrpcServiceRegistry::default();
+        let shared = registry.clone();
+        let mut emitted = false;
+        let names = std::iter::from_fn(move || {
+            if emitted {
+                return None;
+            }
+            emitted = true;
+            assert!(shared.inner.try_lock().is_ok());
+            Some("test.Service")
+        });
+        registry.register_reflection_descriptor_set(vec![1], names)
+    }
+    #[test]
+    fn invalid_reflection_descriptor_fails_before_ready() -> Result<()> {
+        let mut registry = GrpcServiceRegistry::default();
+        registry.register_reflection_descriptor_set(vec![0xff], ["test.Service"])?;
+        registry
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .names
+            .insert("test.Service");
+        let error = registry
+            .validate_contributions(false, true)
+            .err()
+            .ok_or_else(|| Error::custom("test", "invalid descriptor accepted"))?;
+        assert_eq!(error.code(), "grpc_reflection_descriptor_invalid");
+        Ok(())
+    }
+    #[test]
+    fn registry_clones_share_late_contributions() -> Result<()> {
+        let registry = GrpcServiceRegistry::default();
+        let clone = registry.clone();
+        assert!(clone.validate_contributions(true, false).is_err());
+        {
+            let mut inner = registry
+                .inner
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            inner.names.insert("test.Service");
+            inner.factories.push(Arc::new(|_, _, _| {}));
+        }
+        clone.validate_contributions(true, false)
+    }
+    #[tokio::test]
+    async fn provider_rejects_late_invalid_limits() {
+        let mut builder = ProviderBuilder::new();
+        builder
+            .provider(GrpcServiceProvider::new())
+            .provider(InvalidOverlay);
+        assert!(
+            builder
+                .start(Figment::from(Serialized::defaults(
+                    crate::config::FrameworkConfig::default()
+                )))
+                .await
+                .is_err()
+        );
     }
 }

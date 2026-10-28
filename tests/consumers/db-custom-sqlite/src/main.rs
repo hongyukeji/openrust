@@ -1,10 +1,8 @@
 use figment::Figment;
-use openrust::config::FrameworkConfig;
-use openrust::core::{App, AppBuilder, BoxFuture, Error, Plugin, Result};
+use openrust::core::{App, Error, ProviderBuilder, RegisterContext, Result, ServiceProvider};
 use openrust::db::{
-    DatabaseTableNames, Db, DbBackend, MigrationPlugin, sea_orm, sea_orm_migration,
+    DatabaseTableNames, Db, DbBackend, MigrationServiceProvider, sea_orm, sea_orm_migration,
 };
-use openrust::lifecycle::finalize;
 use sea_orm::{ConnectionTrait, Database, Statement};
 use sea_orm_migration::prelude::*;
 
@@ -67,46 +65,37 @@ enum Probe {
     Value,
 }
 
-struct CustomSqlitePlugin;
-
-impl Plugin for CustomSqlitePlugin {
-    fn build(&self, app: &mut AppBuilder) -> Result<()> {
-        app.try_insert(Db::default())?;
+struct CustomSqliteProvider;
+impl ServiceProvider for CustomSqliteProvider {
+    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
+        app.singleton::<Db, _>(|resolver| {
+            Box::pin(async move {
+                let connection = Database::connect("sqlite::memory:")
+                    .await
+                    .map_err(Error::internal)?;
+                let closing = connection.clone();
+                resolver.resources()?.on_shutdown(move || {
+                    Box::pin(async move { closing.close_by_ref().await.map_err(Error::internal) })
+                })?;
+                let db = Db::default();
+                db.initialize(connection)?;
+                Ok(std::sync::Arc::new(db))
+            })
+        });
         Ok(())
-    }
-
-    fn finish<'a>(&'a self, app: &'a App) -> BoxFuture<'a, Result<()>> {
-        Box::pin(async move {
-            let connection = Database::connect("sqlite::memory:")
-                .await
-                .map_err(Error::internal)?;
-            app.state().try_get::<Db>()?.initialize(connection)
-        })
     }
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), Figment::new());
+    let mut builder = ProviderBuilder::new();
     builder
-        .plugin(CustomSqlitePlugin)
-        .plugin(MigrationPlugin::<Migrator>::new());
-    let app = finalize(builder).await?;
-    let db = app.state().try_get::<Db>()?;
+        .provider(CustomSqliteProvider)
+        .provider(MigrationServiceProvider::<Migrator>::new());
+    let app = App::from_provider_runtime(builder.start(Figment::new()).await?)?;
+    let db = app.state().resolve::<Db>().await?;
     assert_eq!(db.backend()?, DbBackend::Sqlite);
     assert_eq!(db.quoted_table_name("entries")?, "\"tb_entries\"");
-    let unsupported_migration = app
-        .run_command("migrate", vec!["up".into()])
-        .await
-        .err()
-        .ok_or_else(|| {
-            Error::custom(
-                "expected_unsupported_backend",
-                "SQLite migration lock accepted",
-            )
-        })?;
-    assert_eq!(unsupported_migration.code(), "unsupported_database_backend");
-
     let connection = db.connection()?;
     // 框架迁移互斥限于双库；此自定义后端由应用自行执行单机迁移。
     db.table_names()
@@ -184,6 +173,18 @@ async fn main() -> Result<()> {
         .try_get::<i64>("", "count")
         .map_err(Error::internal)?;
     assert_eq!(count, 1);
-    println!("自定义 SQLite 插件连接、提交与回滚验证通过");
+    let unsupported_migration = app
+        .run_command("migrate", vec!["up".into()])
+        .await
+        .err()
+        .ok_or_else(|| {
+            Error::custom(
+                "expected_unsupported_backend",
+                "SQLite migration lock accepted",
+            )
+        })?;
+    assert_eq!(unsupported_migration.code(), "unsupported_database_backend");
+
+    println!("自定义 SQLite Provider 连接、提交与回滚验证通过");
     Ok(())
 }

@@ -1,9 +1,9 @@
 //! 邮件发送配置。
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// `[mail]` 区段的配置。
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct MailConfig {
     /// 发送后端：默认使用 `log`；启用 `mail-smtp` 后可使用 `smtp`。

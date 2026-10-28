@@ -17,19 +17,19 @@ use base64::{Engine as _, engine::general_purpose::STANDARD};
 #[cfg(feature = "auth-mfa")]
 use hmac::{Hmac, Mac, digest::KeyInit};
 #[cfg(feature = "auth-mfa")]
-use openrust::auth::MfaPlugin;
+use openrust::auth::MfaServiceProvider;
+use openrust::config::FrameworkConfig;
 use openrust::testing::TestDatabase;
-use openrust::{AppBuilder, config::FrameworkConfig, lifecycle::finalize};
 use openrust::{
     Error, Result,
     audit::{DatabaseAuditMigration, DatabaseAuditTenantMigration},
     auth::{
-        AuthExternalIdentityMigration, AuthExternalSessionMigration, AuthFlows, AuthFlowsPlugin,
-        AuthMigration, AuthRefreshTokenMigration, AuthVerificationCodeMigration,
-        BackchannelLogoutOutcome, DatabaseVerificationCodeStore, ExternalIdentityFlows,
-        ExternalIdentityProvider, JwtConfig, JwtTokens, OidcAuthorization, PasswordConfig,
-        Passwords, RefreshTokens, Session, SessionStoreHandle, VerifiedExternalIdentity,
-        VerifiedLogoutToken,
+        AuthExternalIdentityMigration, AuthExternalSessionMigration, AuthFlows,
+        AuthFlowsServiceProvider, AuthMigration, AuthRefreshTokenMigration,
+        AuthVerificationCodeMigration, BackchannelLogoutOutcome, DatabaseVerificationCodeStore,
+        ExternalIdentityFlows, ExternalIdentityProvider, JwtConfig, JwtTokens, OidcAuthorization,
+        PasswordConfig, Passwords, RefreshTokens, Session, SessionStoreHandle,
+        VerifiedExternalIdentity, VerifiedLogoutToken,
     },
     config::EncryptionConfig,
     core::RateLimiter,
@@ -289,20 +289,29 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
         BTreeMap::from([("test-key".to_owned(), STANDARD.encode([0xa3_u8; 32]))]),
     ))?;
     let auth = {
-        let mut builder = AppBuilder::new(FrameworkConfig::default(), figment::Figment::new());
+        let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+            FrameworkConfig::default(),
+        ))
+        .merge(figment::Figment::new());
+        let mut builder = openrust::core::ProviderBuilder::new();
         builder
-            .insert(db.clone())
-            .insert(passwords)
-            .insert(jwt)
-            .insert(refresh.clone())
-            .insert(codes)
-            .insert(RateLimiter::new(DatabaseRateLimitStore::new(db.clone())))
-            .insert(encryptor.clone());
+            .provider(TestInstance(std::sync::Arc::new(db.clone())))
+            .provider(TestInstance(std::sync::Arc::new(passwords)))
+            .provider(TestInstance(std::sync::Arc::new(jwt)))
+            .provider(TestInstance(std::sync::Arc::new(refresh.clone())))
+            .provider(TestInstance(std::sync::Arc::new(codes)))
+            .provider(TestInstance(std::sync::Arc::new(RateLimiter::new(
+                DatabaseRateLimitStore::new(db.clone()),
+            ))))
+            .provider(TestInstance(std::sync::Arc::new(encryptor.clone())));
         #[cfg(feature = "auth-mfa")]
-        builder.plugin(MfaPlugin);
-        builder.plugin(AuthFlowsPlugin::new());
-        let app = finalize(builder).await?;
-        (*app.state().try_get::<AuthFlows>()?).clone()
+        builder.provider(MfaServiceProvider);
+        builder.provider(AuthFlowsServiceProvider::new());
+        let app = builder
+            .start(sources)
+            .await
+            .and_then(openrust::App::from_provider_runtime)?;
+        (*app.state().resolve::<AuthFlows>().await?).clone()
     };
     let provider = Arc::new(TestProvider::new());
     let provider_trait: Arc<dyn ExternalIdentityProvider> = provider.clone();
@@ -1259,4 +1268,12 @@ async fn expire_request(
         .execute_raw(Statement::from_sql_and_values(backend, &sql, [hash.into()]))
         .await?;
     Ok(())
+}
+
+struct TestInstance<T: Send + Sync + 'static>(std::sync::Arc<T>);
+impl<T: Send + Sync + 'static> openrust::core::ServiceProvider for TestInstance<T> {
+    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
+        app.instance(std::sync::Arc::clone(&self.0));
+        Ok(())
+    }
 }

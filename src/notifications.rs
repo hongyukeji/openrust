@@ -13,7 +13,7 @@ use lettre::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::core::{App, AppBuilder, BoxFuture, Error, Plugin, Result};
+use crate::core::{BoxFuture, Error, Result};
 use crate::db::DatabaseTransaction;
 use crate::mail::{Email, Mailer};
 use crate::queue::{Job, JobContext, Queue};
@@ -377,24 +377,26 @@ fn scoped_unique_key(key: &str, channel: &str) -> String {
     encoded
 }
 
-/// 将 `Notifier` 服务加入已安装 `QueuePlugin` 的应用。
+/// 通过统一容器提供队列通知；队列目录内置邮件与短信任务。
 #[derive(Debug, Default, Clone, Copy)]
-pub struct NotificationsPlugin;
+pub struct NotificationsServiceProvider;
 
-impl Plugin for NotificationsPlugin {
-    fn build(&self, app: &mut AppBuilder) -> Result<()> {
-        let queue = app.get::<Queue>().ok_or_else(|| {
-            Error::custom(
-                "notifications_requires_queue",
-                "register QueuePlugin before NotificationsPlugin",
-            )
-        })?;
-        app.insert(Notifier::new((*queue).clone()));
+impl crate::core::ServiceProvider for NotificationsServiceProvider {
+    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
+        app.singleton::<Notifier, _>(|resolver| {
+            Box::pin(async move {
+                let queue = resolver.resolve::<Queue>().await?;
+                Ok(std::sync::Arc::new(Notifier::new((*queue).clone())))
+            })
+        });
         Ok(())
     }
 
-    fn finish<'a>(&'a self, _app: &'a App) -> BoxFuture<'a, Result<()>> {
-        Box::pin(async { Ok(()) })
+    fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.resolve::<Notifier>().await?;
+            Ok(())
+        })
     }
 }
 
@@ -406,7 +408,7 @@ impl Job for EmailDeliveryJob {
 
     fn handle(&self, context: JobContext) -> BoxFuture<'_, Result<()>> {
         Box::pin(async move {
-            let mailer = context.service::<Mailer>()?;
+            let mailer = context.service::<Mailer>().await?;
             mailer.send(&self.0).await
         })
     }
@@ -420,9 +422,197 @@ impl Job for SmsDeliveryJob {
 
     fn handle(&self, context: JobContext) -> BoxFuture<'_, Result<()>> {
         Box::pin(async move {
-            let sender = context.service::<SmsSender>()?;
+            let sender = context.service::<SmsSender>().await?;
             sender.send(self.0.message()?).await?;
             Ok(())
         })
+    }
+}
+
+#[cfg(test)]
+mod provider_service_tests {
+    use super::*;
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    struct MailSink(Arc<AtomicUsize>);
+    impl crate::mail::MailDriver for MailSink {
+        fn send(&self, _: Message) -> BoxFuture<'_, Result<()>> {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            Box::pin(async { Ok(()) })
+        }
+    }
+    struct SmsSink(Arc<AtomicUsize>);
+    impl crate::sms::SmsDriver for SmsSink {
+        fn send(&self, _: SmsMessage) -> BoxFuture<'_, Result<crate::sms::SmsReceipt>> {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            Box::pin(async {
+                Ok(crate::sms::SmsReceipt {
+                    provider: "test".into(),
+                    message_id: None,
+                })
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn notification_jobs_resolve_factory_services() -> Result<()> {
+        struct DeliveryProvider {
+            mail: Arc<AtomicUsize>,
+            sms: Arc<AtomicUsize>,
+        }
+        impl crate::core::ServiceProvider for DeliveryProvider {
+            fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
+                let count = Arc::clone(&self.mail);
+                app.singleton::<Mailer, _>(move |_| {
+                    let count = Arc::clone(&count);
+                    Box::pin(async move { Ok(Arc::new(Mailer::new(MailSink(count)))) })
+                });
+                let count = Arc::clone(&self.sms);
+                app.singleton::<SmsSender, _>(move |_| {
+                    let count = Arc::clone(&count);
+                    Box::pin(async move { Ok(Arc::new(SmsSender::new(SmsSink(count)))) })
+                });
+                Ok(())
+            }
+        }
+        let mail_count = Arc::new(AtomicUsize::new(0));
+        let sms_count = Arc::new(AtomicUsize::new(0));
+        let mut builder = crate::core::ProviderBuilder::new();
+        builder.provider(DeliveryProvider {
+            mail: Arc::clone(&mail_count),
+            sms: Arc::clone(&sms_count),
+        });
+        let app =
+            crate::core::App::from_provider_runtime(builder.start(figment::Figment::new()).await?)?;
+        let context = JobContext::new("test", 1, 1, crate::core::Cancellation::new())?
+            .with_app_state(app.state().clone());
+        EmailDeliveryJob(EmailDelivery::new(
+            "sender@example.test",
+            "user@example.test",
+            "subject",
+            "body",
+            None,
+        )?)
+        .handle(context.clone())
+        .await?;
+        SmsDeliveryJob(SmsDelivery::text("+12025550123", "body")?)
+            .handle(context)
+            .await?;
+        assert_eq!(mail_count.load(Ordering::SeqCst), 1);
+        assert_eq!(sms_count.load(Ordering::SeqCst), 1);
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod provider_tests {
+    use super::*;
+    use crate::core::{ProviderBuilder, RegisterContext, ServiceProvider};
+    use crate::queue::{DispatchOptions, QueueDriver};
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    struct Driver(Arc<AtomicUsize>);
+    impl QueueDriver for Driver {
+        fn dispatch<'a>(
+            &'a self,
+            _: &'a str,
+            _: &'a str,
+            _: serde_json::Value,
+            _: DispatchOptions,
+        ) -> BoxFuture<'a, Result<String>> {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            Box::pin(async { Ok("job-id".into()) })
+        }
+        fn dispatch_in_transaction<'a>(
+            &'a self,
+            _: &'a DatabaseTransaction,
+            _: &'a str,
+            _: &'a str,
+            _: serde_json::Value,
+            _: DispatchOptions,
+        ) -> BoxFuture<'a, Result<String>> {
+            Box::pin(async { Err(Error::custom("test", "unsupported")) })
+        }
+        fn run_next<'a>(&'a self, _: &'a str) -> BoxFuture<'a, Result<bool>> {
+            Box::pin(async { Ok(false) })
+        }
+        fn retry_failed<'a>(&'a self, _: &'a str) -> BoxFuture<'a, Result<String>> {
+            Box::pin(async { Err(Error::custom("test", "unsupported")) })
+        }
+        fn reset_shutdown(&self) {}
+        fn request_shutdown(&self) {}
+        fn is_shutdown_requested(&self) -> bool {
+            false
+        }
+    }
+    struct QueueBinding(Arc<AtomicUsize>);
+    impl ServiceProvider for QueueBinding {
+        fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
+            let calls = Arc::clone(&self.0);
+            app.singleton::<Queue, _>(move |_| {
+                let calls = Arc::clone(&calls);
+                Box::pin(async move {
+                    Ok(Arc::new(Queue::with_driver(
+                        Driver(calls),
+                        &crate::config::QueueConfig::default(),
+                    )?))
+                })
+            });
+            Ok(())
+        }
+    }
+    #[tokio::test]
+    async fn later_queue_binding_and_shared_notifier_are_used() -> Result<()> {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let mut builder = ProviderBuilder::new();
+        builder
+            .provider(NotificationsServiceProvider)
+            .provider(QueueBinding(Arc::clone(&calls)));
+        let runtime = builder.start(figment::Figment::new()).await?;
+        let a = runtime.container().resolve::<Notifier>().await?;
+        let b = runtime.container().resolve::<Notifier>().await?;
+        assert!(Arc::ptr_eq(&a, &b));
+        let notification = Notification::new().sms(SmsDelivery::text("+12025550123", "message")?);
+        a.dispatch(&notification).await?;
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        runtime
+            .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
+            .await
+    }
+    struct BrokenQueue;
+    impl ServiceProvider for BrokenQueue {
+        fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
+            app.singleton::<Queue, _>(|_| {
+                Box::pin(async { Err(Error::custom("broken_driver", "private-queue-secret")) })
+            });
+            Ok(())
+        }
+    }
+    #[tokio::test]
+    async fn queue_factory_failure_is_not_ignored_or_exposed() -> Result<()> {
+        let mut builder = ProviderBuilder::new();
+        builder
+            .provider(NotificationsServiceProvider)
+            .provider(BrokenQueue);
+        let error = builder
+            .start(figment::Figment::new())
+            .await
+            .err()
+            .ok_or_else(|| Error::custom("test", "broken queue must fail startup"))?;
+        assert_eq!(error.code(), "service_initialization_failed");
+        assert!(!error.to_string().contains("private-queue-secret"));
+        Ok(())
+    }
+    #[tokio::test]
+    async fn missing_queue_fails_startup() {
+        let mut builder = ProviderBuilder::new();
+        builder.provider(NotificationsServiceProvider);
+        assert!(builder.start(figment::Figment::new()).await.is_err());
     }
 }

@@ -5,7 +5,7 @@
 use std::{convert::Infallible, sync::Arc};
 
 use crate::config::ConfigError;
-use crate::core::{App, AppBuilder, AppState, BoxFuture, Error, Plugin, Result};
+use crate::core::{AppState, BoxFuture, Error, Result};
 use crate::db::{Db, DbBackend};
 use axum::extract::{Extension, FromRequestParts, Request, State};
 use axum::http::{HeaderMap, Method, StatusCode, header};
@@ -35,12 +35,15 @@ use database::DatabaseAuthenticator;
 
 pub use crate::config::JwtConfig;
 pub use flows::{
-    AuthCredentials, AuthFlows, AuthFlowsPlugin, LoginAttempt, LoginFailed, LoginSucceeded,
-    LoginValidating, RegistrationSucceeded, RegistrationValidating, SessionCredentials,
+    AuthCredentials, AuthFlows, AuthFlowsServiceProvider, LoginAttempt, LoginFailed,
+    LoginSucceeded, LoginValidating, RegistrationSucceeded, RegistrationValidating,
+    SessionCredentials,
 };
-pub use jwt::{JwtPlugin, JwtTokens};
+pub use jwt::{JwtServiceProvider, JwtTokens};
 #[cfg(feature = "auth-mfa")]
-pub use mfa::{AuthMfaMigration, MfaLoginChallenge, MfaPlugin, RecoveryCodes, TotpEnrollment};
+pub use mfa::{
+    AuthMfaMigration, MfaLoginChallenge, MfaServiceProvider, RecoveryCodes, TotpEnrollment,
+};
 pub use migration::{
     AuthExternalIdentityMigration, AuthExternalSessionMigration, AuthMigration,
     AuthPolicyMigration, AuthRefreshTokenMigration, AuthVerificationCodeMigration,
@@ -91,7 +94,7 @@ pub use pat::{IssuedPersonalAccessToken, PersonalAccessTokenInfo, PersonalAccess
 pub use refresh::{IssuedRefreshToken, RefreshRotation, RefreshTokens};
 #[cfg(feature = "session-redis")]
 pub use session::RedisSessionStore;
-pub use session::{DatabaseSessionStore, SessionPlugin, SessionStoreHandle};
+pub use session::{DatabaseSessionStore, SessionServiceProvider, SessionStoreHandle};
 pub use tower_sessions::Session;
 pub use verification::{
     DatabaseVerificationCodeStore, IssuedVerificationCode, VerificationChallenge,
@@ -117,7 +120,8 @@ pub(crate) async fn authenticate_grpc_bearer(state: &AppState, value: &str) -> R
     }
     let (source, principal) = if value.starts_with("openrust_pat_") {
         let service = state
-            .try_get::<AuthService>()
+            .resolve::<AuthService>()
+            .await
             .map_err(|_| Error::Unauthorized)?;
         let method = Method::POST;
         let credential = AuthCredential {
@@ -133,7 +137,8 @@ pub(crate) async fn authenticate_grpc_bearer(state: &AppState, value: &str) -> R
         )
     } else {
         let tokens = state
-            .try_get::<JwtTokens>()
+            .resolve::<JwtTokens>()
+            .await
             .map_err(|_| Error::Unauthorized)?;
         let user_id = tokens.verify_access_token(value)?;
         (AuthSource::Jwt, AuthPrincipal::new(user_id, None))
@@ -315,44 +320,34 @@ struct AuthService {
     authenticator: Arc<dyn Authenticator>,
 }
 
-/// 注册默认数据库 authenticator 或应用提供的实现。
-pub struct AuthPlugin {
+/// 注册认证、密码与数据库授权服务的统一 Provider。
+pub struct AuthServiceProvider {
     authenticator: Arc<dyn Authenticator>,
     database_authenticator: Option<Arc<DatabaseAuthenticator>>,
-    password_config: PasswordConfig,
     password_operation_capacity: usize,
 }
 
-impl AuthPlugin {
-    /// 创建默认的数据库 authenticator。
+impl AuthServiceProvider {
+    /// 创建默认的数据库认证 Provider。
     pub fn new() -> Self {
         let authenticator = Arc::new(DatabaseAuthenticator::default());
         Self {
             authenticator: authenticator.clone(),
             database_authenticator: Some(authenticator),
-            password_config: PasswordConfig::default(),
             password_operation_capacity: 2,
         }
     }
 
-    /// 使用应用或第三方实现创建 authenticator 插件。
+    /// 使用应用提供的认证器，不要求数据库认证器。
     pub fn with_authenticator(authenticator: impl Authenticator) -> Self {
         Self {
             authenticator: Arc::new(authenticator),
             database_authenticator: None,
-            password_config: PasswordConfig::default(),
             password_operation_capacity: 2,
         }
     }
 
-    /// 覆盖密码服务使用的、已校验的 Argon2id 参数。
-    #[must_use]
-    pub fn with_password_config(mut self, config: PasswordConfig) -> Self {
-        self.password_config = config;
-        self
-    }
-
-    /// 设置单个应用密码服务的并发哈希/验证上限（1..=4），超过容量时立即拒绝且不排队。
+    /// 设置密码哈希的最大并发操作数。
     #[must_use]
     pub fn with_password_operation_capacity(mut self, capacity: usize) -> Self {
         self.password_operation_capacity = capacity;
@@ -360,64 +355,94 @@ impl AuthPlugin {
     }
 }
 
-impl Default for AuthPlugin {
+impl Default for AuthServiceProvider {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Plugin for AuthPlugin {
-    fn name(&self) -> &'static str {
-        "auth"
-    }
-
-    fn build(&self, app: &mut AppBuilder) -> Result<()> {
-        if app.get::<AuthService>().is_some() {
-            return Err(Error::custom(
-                "auth_service_already_registered",
-                "register only one authentication plugin per application",
-            ));
-        }
-        app.insert(AuthService {
-            authenticator: self.authenticator.clone(),
-        });
-        let passwords = Passwords::with_max_concurrent_operations(
-            self.password_config.clone(),
-            self.password_operation_capacity,
+impl crate::core::ServiceProvider for AuthServiceProvider {
+    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
+        use crate::config::repository::SectionSchema as S;
+        app.config_section(
+            "auth.password",
+            PasswordConfig::default(),
+            S::object([
+                ("memory_kib", S::Integer),
+                ("iterations", S::Integer),
+                ("parallelism", S::Integer),
+            ]),
+            |config| Passwords::new(config.clone()).map(|_| ()),
         )?;
-        app.insert(passwords.clone());
-        if let Some(db) = app.get::<Db>() {
-            let db = (*db).clone();
-            app.insert(RefreshTokens::new(db.clone()));
-            app.insert(PersonalAccessTokens::new(db.clone()));
-            if app.get::<VerificationCodes>().is_none() {
-                app.insert(VerificationCodes::new(
-                    DatabaseVerificationCodeStore::new(db.clone()),
-                    passwords.clone(),
-                ));
-            }
-            app.insert(Policy::new(db));
-        }
+        let authenticator = Arc::clone(&self.authenticator);
+        let database_authenticator = self.database_authenticator.clone();
+        app.singleton::<AuthService, _>(move |resolver| {
+            let authenticator = Arc::clone(&authenticator);
+            let database_authenticator = database_authenticator.clone();
+            Box::pin(async move {
+                if let Some(database_authenticator) = database_authenticator {
+                    let db = resolver.resolve::<Db>().await?;
+                    if !matches!(db.backend()?, DbBackend::Postgres | DbBackend::MySql) {
+                        return Err(Error::Config(ConfigError::Invalid(
+                            "the default authenticator supports PostgreSQL and MySQL only".into(),
+                        )));
+                    }
+                    database_authenticator.initialize((*db).clone())?;
+                }
+                Ok(Arc::new(AuthService { authenticator }))
+            })
+        });
+        let capacity = self.password_operation_capacity;
+        app.singleton::<Passwords, _>(move |resolver| {
+            Box::pin(async move {
+                let config = resolver.section::<PasswordConfig>("auth.password")?;
+                Ok(Arc::new(Passwords::with_max_concurrent_operations(
+                    config, capacity,
+                )?))
+            })
+        });
+        app.singleton::<RefreshTokens, _>(|resolver| {
+            Box::pin(async move {
+                let db = resolver.resolve::<Db>().await?;
+                Ok(Arc::new(RefreshTokens::new((*db).clone())))
+            })
+        });
+        app.singleton::<PersonalAccessTokens, _>(|resolver| {
+            Box::pin(async move {
+                let db = resolver.resolve::<Db>().await?;
+                Ok(Arc::new(PersonalAccessTokens::new((*db).clone())))
+            })
+        });
+        app.singleton::<Policy, _>(|resolver| {
+            Box::pin(async move {
+                let db = resolver.resolve::<Db>().await?;
+                Ok(Arc::new(Policy::new((*db).clone())))
+            })
+        });
+        app.singleton::<VerificationCodes, _>(|resolver| {
+            Box::pin(async move {
+                let db = resolver.resolve::<Db>().await?;
+                let passwords = resolver.resolve::<Passwords>().await?;
+                Ok(Arc::new(VerificationCodes::new(
+                    DatabaseVerificationCodeStore::new((*db).clone()),
+                    (*passwords).clone(),
+                )))
+            })
+        });
+        app.require::<AuthService>();
+        app.require::<Passwords>();
         Ok(())
     }
 
-    fn finish<'a>(&'a self, app: &'a App) -> BoxFuture<'a, Result<()>> {
+    fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            let service = app.state().try_get::<AuthService>()?;
-            if !Arc::ptr_eq(&self.authenticator, &service.authenticator) {
-                return Err(Error::custom(
-                    "auth_service_replaced",
-                    "a later plugin replaced the authentication service",
-                ));
-            }
-            if let Some(authenticator) = &self.database_authenticator {
-                let db = app.state().try_get::<Db>()?;
-                if !matches!(db.backend()?, DbBackend::Postgres | DbBackend::MySql) {
-                    return Err(Error::Config(ConfigError::Invalid(
-                        "the default authenticator supports PostgreSQL and MySQL only".into(),
-                    )));
-                }
-                authenticator.initialize((*db).clone())?;
+            let _ = app.resolve::<AuthService>().await?;
+            let _ = app.resolve::<Passwords>().await?;
+            if self.database_authenticator.is_some() {
+                let _ = app.resolve::<RefreshTokens>().await?;
+                let _ = app.resolve::<PersonalAccessTokens>().await?;
+                let _ = app.resolve::<Policy>().await?;
+                let _ = app.resolve::<VerificationCodes>().await?;
             }
             Ok(())
         })
@@ -489,6 +514,16 @@ struct AuthLayerConfig {
     optional: bool,
 }
 
+async fn resolve_request_service<T: Send + Sync + 'static>(
+    state: &AppState,
+    scope: Option<&Arc<crate::core::container::Scope>>,
+) -> Result<Arc<T>> {
+    match scope {
+        Some(scope) => scope.resolve::<T>().await,
+        None => state.resolve::<T>().await,
+    }
+}
+
 async fn authenticate(
     State(config): State<AuthLayerConfig>,
     Extension(state): Extension<AppState>,
@@ -507,7 +542,10 @@ async fn authenticate(
         request.extensions_mut().insert(AuthOutcome(None));
         return next.run(request).await;
     };
-    let service = match state.try_get::<AuthService>() {
+    let scope = request
+        .extensions()
+        .get::<Arc<crate::core::container::Scope>>();
+    let service = match resolve_request_service::<AuthService>(&state, scope).await {
         Ok(service) => service,
         Err(error) => return error.into_response(),
     };
@@ -529,7 +567,7 @@ async fn authenticate(
         method: request.method(),
     };
     let principal = if source == AuthSource::Jwt {
-        let tokens = match state.try_get::<JwtTokens>() {
+        let tokens = match resolve_request_service::<JwtTokens>(&state, scope).await {
             Ok(tokens) => tokens,
             Err(error) => return error.into_response(),
         };
@@ -552,9 +590,11 @@ async fn authenticate(
         return Error::internal(InvalidPrincipal).into_response();
     }
     #[cfg(feature = "auth-mfa")]
-    if source == AuthSource::Session
-        && let Some(mfa) = state.get::<mfa::MfaService>()
-    {
+    if source == AuthSource::Session && state.container().contains::<mfa::MfaService>() {
+        let mfa = match resolve_request_service::<mfa::MfaService>(&state, scope).await {
+            Ok(mfa) => mfa,
+            Err(error) => return error.into_response(),
+        };
         match mfa.enabled(principal.user_id).await {
             Ok(true) => {
                 // 已启用 MFA 的账户不能继续使用先前建立的 Cookie Session 绕过第二因子。
@@ -729,6 +769,272 @@ impl std::fmt::Display for InvalidPrincipal {
 }
 
 impl std::error::Error for InvalidPrincipal {}
+
+#[cfg(test)]
+mod provider_tests {
+    use super::*;
+    use crate::core::{BootContext, ProviderBuilder, ServiceProvider};
+    use figment::Figment;
+    use serde_json::json;
+
+    #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+    struct RealCustomDbProvider {
+        url: String,
+        db: Arc<Db>,
+    }
+
+    #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+    impl ServiceProvider for RealCustomDbProvider {
+        fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
+            app.instance(Arc::clone(&self.db));
+            Ok(())
+        }
+
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                let pool = crate::db::sea_orm::Database::connect(self.url.as_str())
+                    .await
+                    .map_err(Error::internal)?;
+                pool.ping().await.map_err(Error::internal)?;
+                let closing = pool.clone();
+                app.resources().on_shutdown(move || {
+                    Box::pin(async move { closing.close_by_ref().await.map_err(Error::internal) })
+                })?;
+                self.db.initialize(pool)
+            })
+        }
+    }
+
+    #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+    #[tokio::test]
+    async fn default_auth_boots_with_real_custom_database_provider() -> Result<()> {
+        let Ok(url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+            eprintln!("skipping real custom auth database: OPENRUST_TEST_DATABASE_URL is unset");
+            return Ok(());
+        };
+        let db = Arc::new(Db::default());
+        let mut providers = ProviderBuilder::new();
+        providers
+            .provider(RealCustomDbProvider {
+                url,
+                db: Arc::clone(&db),
+            })
+            .provider(AuthServiceProvider::new());
+        let runtime = providers.start(Figment::new()).await?;
+        assert!(runtime.container().resolve::<AuthService>().await.is_ok());
+        let pool = db.connection()?;
+        pool.ping().await.map_err(Error::internal)?;
+        runtime
+            .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+            .await?;
+        assert!(
+            pool.ping().await.is_err(),
+            "custom pool must close at shutdown"
+        );
+        Ok(())
+    }
+
+    #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+    struct EarlyAuthResolve;
+
+    #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+    impl ServiceProvider for EarlyAuthResolve {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                let _auth = app.resolve::<AuthService>().await?;
+                let db = app.resolve::<Db>().await?;
+                db.connection()?.ping().await.map_err(Error::internal)?;
+                Ok(())
+            })
+        }
+    }
+
+    #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+    #[tokio::test]
+    async fn early_boot_resolves_connected_database_and_initialized_auth() -> Result<()> {
+        let Ok(url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+            eprintln!("skipping early provider resolve: OPENRUST_TEST_DATABASE_URL is unset");
+            return Ok(());
+        };
+        let mut providers = ProviderBuilder::new();
+        providers
+            .provider(EarlyAuthResolve)
+            .provider(crate::db::DatabaseServiceProvider)
+            .provider(AuthServiceProvider::new());
+        let runtime = providers
+            .start(Figment::from(figment::providers::Serialized::defaults(
+                json!({"database": {"url": url}}),
+            )))
+            .await?;
+        runtime
+            .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+            .await
+    }
+
+    struct RejectAuthenticator;
+    impl Authenticator for RejectAuthenticator {
+        fn authenticate<'a>(
+            &'a self,
+            _: AuthCredential<'a>,
+        ) -> BoxFuture<'a, Result<AuthPrincipal>> {
+            Box::pin(async { Err(Error::Unauthorized) })
+        }
+    }
+    struct InvalidPassword;
+    impl ServiceProvider for InvalidPassword {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move { app.overlay("auth.password", json!({"memory_kib": 1})) })
+        }
+    }
+
+    struct CustomDbProvider;
+    impl ServiceProvider for CustomDbProvider {
+        fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
+            app.instance(Arc::new(Db::default()));
+            Ok(())
+        }
+    }
+    struct CleanupProbe(Arc<std::sync::atomic::AtomicBool>);
+    impl ServiceProvider for CleanupProbe {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            let closed = Arc::clone(&self.0);
+            Box::pin(async move {
+                app.resources().on_shutdown(move || {
+                    Box::pin(async move {
+                        closed.store(true, std::sync::atomic::Ordering::SeqCst);
+                        Ok(())
+                    })
+                })?;
+                app.overlay("auth.password", json!({"memory_kib":1}))
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn custom_db_binding_is_accepted_and_uninitialized_db_fails_closed() {
+        let mut builder = ProviderBuilder::new();
+        builder
+            .provider(CustomDbProvider)
+            .provider(AuthServiceProvider::new());
+        let result = builder.start(Figment::new()).await;
+        assert!(result.is_err());
+        let Err(error) = result else { return };
+        assert_ne!(error.code(), "provider_dependency_missing");
+        assert_ne!(error.code(), "service_not_bound");
+    }
+
+    #[tokio::test]
+    async fn later_invalid_password_overlay_fails_and_cleans_resources() {
+        let closed = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let mut builder = ProviderBuilder::new();
+        builder
+            .provider(AuthServiceProvider::with_authenticator(RejectAuthenticator))
+            .provider(CleanupProbe(Arc::clone(&closed)));
+        assert!(builder.start(Figment::new()).await.is_err());
+        assert!(closed.load(std::sync::atomic::Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn jwt_middleware_and_inject_use_same_request_scope() -> Result<()> {
+        use crate::http::{HttpServiceProvider, Inject, build_router};
+        use base64::Engine as _;
+        use tower::ServiceExt;
+        fn make_tokens(key: u8) -> Result<JwtTokens> {
+            JwtTokens::new(JwtConfig::new(
+                "issuer",
+                "audience",
+                "main",
+                std::collections::BTreeMap::from([(
+                    "main".into(),
+                    base64::engine::general_purpose::STANDARD.encode([key; 32]),
+                )]),
+            ))
+        }
+        async fn handler(Inject(tokens): Inject<JwtTokens>) -> String {
+            tokens.issue_access_token(42).unwrap_or_default()
+        }
+        struct ScopedTokens(Arc<std::sync::atomic::AtomicUsize>);
+        impl ServiceProvider for ScopedTokens {
+            fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
+                app.instance(Arc::new(AuthService {
+                    authenticator: Arc::new(RejectAuthenticator),
+                }));
+                let counter = Arc::clone(&self.0);
+                app.scoped::<JwtTokens, _>(move |_| {
+                    let index = counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    Box::pin(
+                        async move { Ok(Arc::new(make_tokens(if index == 0 { 1 } else { 2 })?)) },
+                    )
+                });
+                Ok(())
+            }
+            fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+                Box::pin(async move {
+                    app.routes(|routes| {
+                        routes
+                            .get("/scope-auth", handler)
+                            .layer(AuthLayer::required(AuthMode::Jwt))
+                    })?;
+                    Ok(())
+                })
+            }
+        }
+        let token = make_tokens(2)?.issue_access_token(42)?;
+        let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let mut builder = ProviderBuilder::new();
+        builder
+            .provider(HttpServiceProvider)
+            .provider(ScopedTokens(Arc::clone(&calls)));
+        let source = Figment::from(figment::providers::Serialized::defaults(
+            crate::config::FrameworkConfig::default(),
+        ));
+        let app = crate::core::App::from_provider_runtime(builder.start(source).await?)?;
+        let _ = app.state().resolve::<JwtTokens>().await?;
+        let response = build_router(&app)?
+            .oneshot(
+                Request::builder()
+                    .uri("/scope-auth")
+                    .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                    .body(axum::body::Body::empty())
+                    .map_err(Error::internal)?,
+            )
+            .await
+            .map_err(Error::internal)?;
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), 4096)
+            .await
+            .map_err(Error::internal)?;
+        let issued = std::str::from_utf8(&body).map_err(Error::internal)?;
+        assert_eq!(make_tokens(2)?.verify_access_token(issued)?, 42);
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 2);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn custom_auth_provider_shares_password_service_without_database() -> Result<()> {
+        let mut builder = ProviderBuilder::new();
+        builder.provider(AuthServiceProvider::with_authenticator(RejectAuthenticator));
+        let runtime = builder.start(Figment::new()).await?;
+        let first = runtime.container().resolve::<Passwords>().await?;
+        let second = runtime.container().resolve::<Passwords>().await?;
+        assert!(Arc::ptr_eq(&first, &second));
+        runtime
+            .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
+            .await
+    }
+
+    #[tokio::test]
+    async fn provider_rejects_missing_database_and_invalid_password_overlay() {
+        let mut missing = ProviderBuilder::new();
+        missing.provider(AuthServiceProvider::new());
+        assert!(missing.start(Figment::new()).await.is_err());
+        let mut invalid = ProviderBuilder::new();
+        invalid
+            .provider(InvalidPassword)
+            .provider(AuthServiceProvider::with_authenticator(RejectAuthenticator));
+        assert!(invalid.start(Figment::new()).await.is_err());
+    }
+}
 
 #[cfg(test)]
 mod tests {

@@ -4,12 +4,11 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use figment::providers::Format;
 use futures_util::{StreamExt, stream};
-use openrust::core::{AppBuilder, BoxFuture, Error, Plugin, Result};
+use openrust::core::{BoxFuture, Error, ProviderBuilder, Result};
 use openrust::storage::{
-    Storage, StorageBackend, StorageDriver, StorageDriverConfig, StorageDrivers, StorageMetadata,
-    StoragePath, StoragePlugin, StorageReader, StorageStream, UploadCancellation, UploadOptions,
+    Storage, StorageBackend, StorageDriver, StorageDriverConfig, StorageMetadata, StoragePath,
+    StorageReader, StorageServiceProvider, StorageStream, UploadCancellation, UploadOptions,
 };
-use openrust::{config::FrameworkConfig, lifecycle};
 use std::{collections::BTreeMap, sync::Arc};
 
 #[tokio::test]
@@ -18,12 +17,12 @@ async fn consumer_registers_custom_named_disks_without_private_framework_access(
     let figment = figment::Figment::new().merge(figment::providers::Toml::string(
         "[storage]\ndefault_disk = 'primary'\n[storage.disks.primary]\ndriver = 'custom-memory'\nnamespace = 'primary'\n[storage.disks.archive]\ndriver = 'custom-memory'\nnamespace = 'archive'\n",
     ));
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment);
-    builder.plugin(StoragePlugin).plugin(CustomDriverPlugin);
-    let app = lifecycle::finalize(builder).await?;
-    let storage = app.state().try_get::<Storage>()?;
-    let primary = storage.default_disk()?;
-    let archive = storage.disk("archive")?;
+    let mut builder = ProviderBuilder::new();
+    builder.provider(StorageServiceProvider::new().with_driver(MemoryDriver));
+    let app = openrust::App::from_provider_runtime(builder.start(figment).await?)?;
+    let storage = app.state().resolve::<Storage>().await?;
+    let primary = storage.default_disk().await?;
+    let archive = storage.disk("archive").await?;
     let key = StoragePath::new("objects/report.bin")?;
     primary
         .put_stream(
@@ -68,14 +67,6 @@ async fn consumer_registers_custom_named_disks_without_private_framework_access(
     primary.delete(&key).await?;
     assert!(primary.stat(&key).await.is_err());
     Ok(())
-}
-
-struct CustomDriverPlugin;
-
-impl Plugin for CustomDriverPlugin {
-    fn build(&self, app: &mut AppBuilder) -> Result<()> {
-        app.extension_mut::<StorageDrivers>().register(MemoryDriver)
-    }
 }
 
 struct MemoryDriver;

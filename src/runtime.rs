@@ -3,10 +3,10 @@
 use std::{future::Future, time::Duration};
 
 use crate::{
-    App, AppBuilder, BoxFuture, Command, Error, Plugin, Result,
-    core::{Readiness, lifecycle::BackgroundTasks, shutdown_signal},
+    App, BoxFuture, Command, Error, Result,
+    core::{Readiness, shutdown_signal},
     grpc::GrpcServer,
-    http::{HttpPlugin, build_router, serve::serve_listener_for_supervisor},
+    http::{build_router, serve::serve_listener_for_supervisor},
 };
 use tokio::{
     net::TcpListener,
@@ -14,22 +14,26 @@ use tokio::{
     time::{Instant, timeout_at},
 };
 
-/// 为显式装配了 [`HttpPlugin`] 和 [`crate::grpc::GrpcPlugin`] 的应用增加 `serve all` 命令。
-///
-/// 既有 `serve` 与 `grpc serve` 命令仍可单独运行。联合命令会先构建并绑定两个 listener，
-/// 再统一管理就绪状态、退出信号和限时停机。
-pub struct HttpGrpcPlugin;
-
-impl Plugin for HttpGrpcPlugin {
-    fn name(&self) -> &'static str {
-        "http-grpc-runtime"
-    }
-
-    fn build(&self, builder: &mut AppBuilder) -> Result<()> {
-        HttpPlugin::require_installed(builder)?;
-        crate::grpc::require_joint_plugin(builder)?;
-        builder.try_command(ServeAllCommand)?;
-        Ok(())
+/// 为已注册 HTTP 与 gRPC 能力贡献联合运行命令。
+pub struct HttpGrpcServiceProvider;
+impl crate::core::ServiceProvider for HttpGrpcServiceProvider {
+    fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            if !app.is_bound::<crate::routes::HttpPluginInstalled>()
+                || !app.is_bound::<crate::grpc::GrpcPluginInstalled>()
+            {
+                return Err(Error::custom(
+                    "http_grpc_dependency_missing",
+                    "联合运行需要 HTTP 与 gRPC 服务",
+                ));
+            }
+            let registry = app.resolve::<crate::grpc::GrpcServiceRegistry>().await?;
+            app.validate_at_finalize(move || {
+                Box::pin(async move { registry.validate_contributions(true, false) })
+            });
+            app.command(ServeAllCommand);
+            Ok(())
+        })
     }
 }
 
@@ -46,14 +50,23 @@ pub async fn serve_http_and_grpc_until<F>(app: &App, shutdown: F) -> Result<()>
 where
     F: Future<Output = ()> + Send + 'static,
 {
-    HttpPlugin::ensure_installed(app)?;
+    if !app
+        .state()
+        .container()
+        .contains::<crate::routes::HttpPluginInstalled>()
+    {
+        return Err(Error::custom(
+            "http_service_missing",
+            "联合运行需要 HTTP 服务",
+        ));
+    }
     let router = build_router(app)?;
-    let grpc_server = GrpcServer::from_app(app)?;
+    let grpc_server = GrpcServer::from_app(app).await?;
     let http_listener = TcpListener::bind(app.config().server.bind_addr()).await?;
     let grpc_listener = TcpListener::bind(grpc_server.listen_addr()).await?;
     let http_address = http_listener.local_addr()?;
     let grpc_address = grpc_listener.local_addr()?;
-    let readiness = app.state().try_get::<Readiness>()?;
+    let readiness = app.state().resolve::<Readiness>().await?;
     readiness.expect_listeners(2)?;
     let shutdown_timeout = Duration::from_secs(app.config().server.shutdown_timeout_secs);
     let app_state = app.state().clone();
@@ -107,7 +120,8 @@ where
                 failure = Some(error);
             }
         }
-        BackgroundTasks::join_until(background_state.background_tasks().stop(), deadline)
+        background_state
+            .shutdown_resources(deadline)
             .await
             .map_err(Some)
     })
@@ -117,8 +131,7 @@ where
         readiness.cancel_requests();
         tasks.abort_all();
         while tasks.join_next().await.is_some() {}
-        let _ =
-            BackgroundTasks::join_until(background_state.background_tasks().stop(), deadline).await;
+        let _ = background_state.shutdown_resources(deadline).await;
         crate::core::lifecycle::flush_telemetry().await;
         return Err(Error::custom(
             "http_grpc_shutdown_timeout",
@@ -239,5 +252,42 @@ mod tests {
         let sibling = tasks.join_next().await;
         assert!(completion_error(sibling, false).is_ok());
         assert!(tasks.join_next().await.is_none());
+    }
+}
+
+#[cfg(test)]
+mod provider_tests {
+    use super::*;
+    use crate::core::ProviderBuilder;
+    use figment::{Figment, providers::Serialized};
+
+    #[tokio::test]
+    async fn joint_provider_requires_both_capabilities() {
+        let mut builder = ProviderBuilder::new();
+        builder.provider(HttpGrpcServiceProvider);
+        assert!(
+            builder
+                .start(Figment::from(Serialized::defaults(
+                    crate::config::FrameworkConfig::default()
+                )))
+                .await
+                .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn joint_provider_rejects_empty_registry() -> Result<()> {
+        let mut builder = ProviderBuilder::new();
+        builder
+            .provider(crate::http::HttpServiceProvider)
+            .provider(crate::grpc::GrpcServiceProvider::new())
+            .provider(HttpGrpcServiceProvider);
+        let result = builder
+            .start(Figment::from(Serialized::defaults(
+                crate::config::FrameworkConfig::default(),
+            )))
+            .await;
+        assert!(result.is_err());
+        Ok(())
     }
 }

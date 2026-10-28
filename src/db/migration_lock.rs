@@ -1,4 +1,4 @@
-//! `MigrationPlugin` 使用的 PostgreSQL/MySQL 执行互斥。
+//! `MigrationServiceProvider` 使用的 PostgreSQL/MySQL 执行互斥。
 
 use std::time::{Duration, Instant};
 

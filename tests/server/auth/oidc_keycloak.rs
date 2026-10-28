@@ -1506,18 +1506,17 @@ async fn serve_keycloak_api_node(
 ) -> TestResult {
     use base64::{Engine as _, engine::general_purpose::STANDARD};
     #[cfg(feature = "auth-mfa")]
-    use openrust::auth::MfaPlugin;
+    use openrust::auth::MfaServiceProvider;
     use openrust::{
-        AppBuilder,
         auth::{
-            AuthFlows, AuthFlowsPlugin, DatabaseVerificationCodeStore, JwtConfig, JwtTokens,
-            PasswordConfig, Passwords, RefreshTokens, SessionStoreHandle, VerificationCodes,
+            AuthFlows, AuthFlowsServiceProvider, DatabaseVerificationCodeStore, JwtConfig,
+            JwtTokens, PasswordConfig, Passwords, RefreshTokens, SessionStoreHandle,
+            VerificationCodes,
         },
         config::EncryptionConfig,
         config::FrameworkConfig,
         core::RateLimiter,
         database::{DatabaseRateLimitStore, DatabaseTableNames, Db},
-        lifecycle::finalize,
         security::Encryptor,
     };
 
@@ -1552,22 +1551,29 @@ async fn serve_keycloak_api_node(
         "keycloak-test-key",
         BTreeMap::from([("keycloak-test-key".to_owned(), encryption_key)]),
     ))?;
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment::Figment::new());
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ))
+    .merge(figment::Figment::new());
+    let mut builder = openrust::core::ProviderBuilder::new();
     builder
-        .insert(connection.clone())
-        .insert(passwords)
-        .insert(jwt.clone())
-        .insert(refresh)
-        .insert(codes)
-        .insert(RateLimiter::new(DatabaseRateLimitStore::new(
-            connection.clone(),
-        )))
-        .insert(encryptor.clone());
+        .provider(TestInstance(std::sync::Arc::new(connection.clone())))
+        .provider(TestInstance(std::sync::Arc::new(passwords)))
+        .provider(TestInstance(std::sync::Arc::new(jwt.clone())))
+        .provider(TestInstance(std::sync::Arc::new(refresh)))
+        .provider(TestInstance(std::sync::Arc::new(codes)))
+        .provider(TestInstance(std::sync::Arc::new(RateLimiter::new(
+            DatabaseRateLimitStore::new(connection.clone()),
+        ))))
+        .provider(TestInstance(std::sync::Arc::new(encryptor.clone())));
     #[cfg(feature = "auth-mfa")]
-    builder.plugin(MfaPlugin);
-    builder.plugin(AuthFlowsPlugin::new());
-    let app = finalize(builder).await?;
-    let auth = (*app.state().try_get::<AuthFlows>()?).clone();
+    builder.provider(MfaServiceProvider);
+    builder.provider(AuthFlowsServiceProvider::new());
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let auth = (*app.state().resolve::<AuthFlows>().await?).clone();
 
     let issuer_url = url::Url::parse(issuer)?;
     let host = issuer_url.host_str().ok_or("Keycloak issuer has no host")?;
@@ -1811,18 +1817,17 @@ async fn create_logout_app(
 ) -> std::result::Result<LogoutApp, Box<dyn StdError>> {
     use base64::{Engine as _, engine::general_purpose::STANDARD};
     #[cfg(feature = "auth-mfa")]
-    use openrust::auth::MfaPlugin;
+    use openrust::auth::MfaServiceProvider;
     use openrust::{
-        AppBuilder,
         auth::{
-            AuthFlows, AuthFlowsPlugin, DatabaseVerificationCodeStore, JwtConfig, JwtTokens,
-            PasswordConfig, Passwords, RefreshTokens, SessionStoreHandle, VerificationCodes,
+            AuthFlows, AuthFlowsServiceProvider, DatabaseVerificationCodeStore, JwtConfig,
+            JwtTokens, PasswordConfig, Passwords, RefreshTokens, SessionStoreHandle,
+            VerificationCodes,
         },
         config::EncryptionConfig,
         config::FrameworkConfig,
         core::RateLimiter,
         database::{DatabaseRateLimitStore, DatabaseTableNames, Db},
-        lifecycle::finalize,
         security::Encryptor,
     };
 
@@ -1862,22 +1867,29 @@ async fn create_logout_app(
         "keycloak-test-key",
         BTreeMap::from([("keycloak-test-key".to_owned(), key)]),
     ))?;
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment::Figment::new());
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ))
+    .merge(figment::Figment::new());
+    let mut builder = openrust::core::ProviderBuilder::new();
     builder
-        .insert(connection.clone())
-        .insert(passwords)
-        .insert(jwt.clone())
-        .insert(refresh.clone())
-        .insert(codes)
-        .insert(RateLimiter::new(DatabaseRateLimitStore::new(
-            connection.clone(),
-        )))
-        .insert(encryptor.clone());
+        .provider(TestInstance(std::sync::Arc::new(connection.clone())))
+        .provider(TestInstance(std::sync::Arc::new(passwords)))
+        .provider(TestInstance(std::sync::Arc::new(jwt.clone())))
+        .provider(TestInstance(std::sync::Arc::new(refresh.clone())))
+        .provider(TestInstance(std::sync::Arc::new(codes)))
+        .provider(TestInstance(std::sync::Arc::new(RateLimiter::new(
+            DatabaseRateLimitStore::new(connection.clone()),
+        ))))
+        .provider(TestInstance(std::sync::Arc::new(encryptor.clone())));
     #[cfg(feature = "auth-mfa")]
-    builder.plugin(MfaPlugin);
-    builder.plugin(AuthFlowsPlugin::new());
-    let app = finalize(builder).await?;
-    let auth = (*app.state().try_get::<AuthFlows>()?).clone();
+    builder.provider(MfaServiceProvider);
+    builder.provider(AuthFlowsServiceProvider::new());
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let auth = (*app.state().resolve::<AuthFlows>().await?).clone();
     let provider_trait: std::sync::Arc<dyn ExternalIdentityProvider> = provider;
     let flows = openrust::auth::ExternalIdentityFlows::new(
         connection.clone(),
@@ -3485,4 +3497,12 @@ fn decode_html_attribute(value: &str) -> String {
         .replace("&#47;", "/")
         .replace("&quot;", "\"")
         .replace("&#39;", "'")
+}
+
+struct TestInstance<T: Send + Sync + 'static>(std::sync::Arc<T>);
+impl<T: Send + Sync + 'static> openrust::core::ServiceProvider for TestInstance<T> {
+    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
+        app.instance(std::sync::Arc::clone(&self.0));
+        Ok(())
+    }
 }

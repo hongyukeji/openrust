@@ -2,9 +2,9 @@
 
 > 受众：AI Agent
 > 更新：2026-10-28
-> 摘要：R0 已固定上游；R1-S 根结构与过渡模块的实际门禁已通过，已本地提交34dfb5e；R1整体及R2/模块系统仍未完成，当前R2-A/A2/A3基元与配置来源子簇已验收，统一Provider未切换。
+> 摘要：R0 已固定上游；R1-S 根结构与过渡模块已提交34dfb5e；R2-A/A2/A3 已验收。R2-B 生产启动、HTTP、命令与领域服务已切到同一 Container/ServiceProvider 并通过本簇门禁；模块系统与 R1 整体仍未完成。
 
-当前根 openrust 同 package 提供框架 lib 和唯一默认 server，应用职责回根；app/example 是通过现有公开 Plugin 注册的普通业务模块，已规范分离 providers/routes/http/database/resources/tests。框架库实现与依赖/feature 语义未改，根显式 34 targets 保留原有效覆盖。根无示例 build.rs 或构建依赖；protobuf 工具和锁都在模块内。
+当前根 openrust 同 package 提供框架 lib 和唯一默认 server，应用职责回根；app/example 仍是过渡普通业务模块，现由 `ExampleServiceProvider` 通过生产 `Application::providers` 接入。根无示例 build.rs 或构建依赖；protobuf 工具和锁仍在模块内。
 
 结构子步骤已实际通过 fmt、默认/full Clippy/tests/docs、deny、no-default；默认 263/22、full 486/32（passed/ignored）。根裸 cargo run 的健康/API/公开 HTML/业务响应与正常退出、根 CLI 转发、PG18.6/MySQL8.4.13 各 12 targets/48 项及 testing 1 项、三类生成项目、最小 orders 模块仅改应用清单的真实 HTTP 闭环通过。CI 双库六组、MSRV1.97、八个独立 consumer 与额外 gRPC 生成项目均通过；不同模型最终源码复审无 blocker/should-fix，独立 CI 复核无 blocker/should-fix，已本地提交34dfb5e；最新事实见 [testing](memory/testing.md#r1-当前工程边界与验收入口)。
 
@@ -18,4 +18,6 @@ R2-A 容器基元已实际完成15项回归与默认279/22、full502/32及双Cli
 
 R2-A2已实际通过25项配置定向、默认286/22与full509/32及对应双库/生成/consumer/HTTP门禁；来源错误不再退默认，Debug/日志不输出目录原值，已提交2003f0a；独立A3补齐容器发布/构造帧竞态回归，继续Provider/配置契约，不把源加载修复当完整内核完成。
 
-R2-A3已实际修复缓存发布早于构造帧结束导致误报cycle，以及scope/root reset锁内通知导致同步Wake重入死锁。19项定向、默认290/22与full513/32、双Clippy/docs、deny、MSRV1.97/no-default通过；公开下游check/test1项通过，根裸run的health/HTML/API/example200及SIGINT0通过。生产仍是旧Plugin，完整Provider/资源异步关闭和模块/CRUD未实现；缓存/通信扩展示例留后继交付。
+R2-A3已实际修复缓存发布早于构造帧结束导致误报cycle，以及scope/root reset锁内通知导致同步Wake重入死锁。19项定向、默认290/22与full513/32、双Clippy/docs、deny、MSRV1.97/no-default通过；公开下游check/test1项通过，根裸run的health/HTML/API/example200及SIGINT0通过；已提交。旧生产 Plugin 路径已由 R2-B 替换，不把此前基元证据转记新架构验收。
+
+R2-B：生产启动已改为全部 register→基础配置→顺序 boot→最终校验/required 解析；HTTP 请求、命令及领域服务使用唯一 Container，旧 AppBuilder/Plugin 启动循环和领域 Plugin 类型已移除。受管资源覆盖启动失败/取消与 App/HTTP scope 关闭。默认/all-features workspace 测试、Clippy、Rustdoc、deny、MSRV1.97、无默认 feature 均已实际通过；PG18/MySQL8.4 各 12 targets/54 项，独立生成双库应用、八个消费者及根默认 server 真实 HTTP/退出的证据见 [testing](memory/testing.md#r2-b-统一-provider-内核验收证据)。Figment 来源字典顺序和第三方自定义 driver 校验仍有明确差异；不宣称 R2-M 模块管理或 R1-E CRUD。

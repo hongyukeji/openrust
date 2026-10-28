@@ -24,7 +24,7 @@ pub struct RealtimeConfig {
     pub namespace: String,
     /// WebSocket 与 `EventSource` 的精确 Origin allowlist；不支持通配符。
     pub allowed_origins: Vec<String>,
-    /// 可选 Redis URL。仅在启用 `realtime-redis` 且安装 `RealtimePlugin` 时使用。
+    /// 可选 Redis URL。仅在启用 `realtime-redis` 且安装 `RealtimeServiceProvider` 时使用。
     #[serde(skip_serializing)]
     redis_url: Option<String>,
 }

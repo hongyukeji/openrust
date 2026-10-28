@@ -8,10 +8,10 @@ use openrust::config::FrameworkConfig;
 use openrust::http::Json;
 use openrust::http::axum;
 use openrust::http::{
-    Action, AppBuilderHttpExt, Created, NoContent, PageParams, Paginated, Resource,
-    ResourceActions, Routes, build_router,
+    Action, Created, NoContent, PageParams, Paginated, Resource, ResourceActions, Routes,
+    build_router,
 };
-use openrust::{AppBuilder, lifecycle::finalize};
+
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
@@ -83,9 +83,16 @@ async fn router(
 ) -> openrust::Result<axum::Router> {
     let mut config = FrameworkConfig::default();
     config.api.http_status = openrust::config::HttpStatusMode::Semantic;
-    let mut builder = AppBuilder::new(config, figment::Figment::new());
-    builder.routes(f);
-    let app = finalize(builder).await?;
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(config))
+        .merge(figment::Figment::new());
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(openrust::http::HttpServiceProvider)
+        .provider(TestRoutes::new(f));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
     build_router(&app)
 }
 
@@ -434,4 +441,26 @@ fn created_location_is_set_and_invalid_value_is_safe() -> TestResult {
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(response.headers()[header::CONTENT_TYPE], "application/json");
     Ok(())
+}
+
+struct TestRoutes<F>(std::sync::Arc<F>);
+impl<F: Fn(openrust::http::Routes) -> openrust::http::Routes> TestRoutes<F> {
+    fn new(routes: F) -> Self {
+        Self(std::sync::Arc::new(routes))
+    }
+}
+impl<F> openrust::core::ServiceProvider for TestRoutes<F>
+where
+    F: Fn(openrust::http::Routes) -> openrust::http::Routes + Send + Sync + 'static,
+{
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut openrust::core::BootContext<'_>,
+    ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
+        let routes = std::sync::Arc::clone(&self.0);
+        Box::pin(async move {
+            app.routes(move |value| routes(value))?;
+            Ok(())
+        })
+    }
 }

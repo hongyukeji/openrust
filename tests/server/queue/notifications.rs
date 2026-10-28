@@ -10,18 +10,21 @@ use figment::{
     providers::{Format, Toml},
 };
 #[cfg(feature = "mail-smtp")]
-use openrust::mail::MailerPlugin;
+use openrust::mail::MailerServiceProvider;
 use openrust::mail::lettre::Message;
 use openrust::testing::TestDatabase;
 use openrust::{
     config::FrameworkConfig,
-    core::{App, AppBuilder, BoxFuture, Error, Result as FrameworkResult, lifecycle},
+    core::{App, BoxFuture, Error, Result as FrameworkResult},
     database::{
-        DatabasePlugin, Db, sea_orm_migration::MigrationTrait, sea_orm_migration::MigratorTrait,
+        DatabaseServiceProvider, Db, sea_orm_migration::MigrationTrait,
+        sea_orm_migration::MigratorTrait,
     },
     mail::{MailDriver, Mailer},
-    notifications::{EmailDelivery, Notification, NotificationsPlugin, Notifier, SmsDelivery},
-    queue::{Queue, QueueMigration, QueuePlugin},
+    notifications::{
+        EmailDelivery, Notification, NotificationsServiceProvider, Notifier, SmsDelivery,
+    },
+    queue::{Queue, QueueMigration, QueueServiceProvider},
     sms::{SmsDriver, SmsMessage, SmsReceipt, SmsSender},
 };
 
@@ -72,20 +75,28 @@ async fn build_fake_app(admin_url: &str) -> FrameworkResult<(App, TestDatabase)>
     EMAIL_SENT.store(0, Ordering::SeqCst);
     SMS_SENT.store(0, Ordering::SeqCst);
     FAIL_AFTER_ACCEPT.store(false, Ordering::SeqCst);
-    let mut builder = AppBuilder::new(
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
-        Figment::new().merge(Toml::string(&format!(
-            "[database]\nurl = {:?}\n",
-            test_database.url()
-        ))),
-    );
+    ))
+    .merge(Figment::new().merge(Toml::string(&format!(
+        "[database]\nurl = {:?}\n",
+        test_database.url()
+    ))));
+    let mut builder = openrust::core::ProviderBuilder::new();
     builder
-        .insert(Mailer::new(CountingMailer))
-        .insert(SmsSender::new(CountingSms))
-        .plugin(DatabasePlugin)
-        .plugin(QueuePlugin::default())
-        .plugin(NotificationsPlugin);
-    let app = lifecycle::finalize(builder).await?;
+        .provider(TestInstance(std::sync::Arc::new(Mailer::new(
+            CountingMailer,
+        ))))
+        .provider(TestInstance(std::sync::Arc::new(SmsSender::new(
+            CountingSms,
+        ))))
+        .provider(DatabaseServiceProvider)
+        .provider(QueueServiceProvider::new())
+        .provider(NotificationsServiceProvider);
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
     Ok((app, test_database))
 }
 
@@ -109,9 +120,9 @@ async fn notification_channels_share_transaction_but_run_as_independent_jobs()
         return Ok(());
     };
     let (app, test_database) = build_fake_app(&admin_url).await?;
-    let queue = app.state().try_get::<Queue>()?;
-    let notifier = app.state().try_get::<Notifier>()?;
-    let db = app.state().try_get::<Db>()?;
+    let queue = app.state().resolve::<Queue>().await?;
+    let notifier = app.state().resolve::<Notifier>().await?;
+    let db = app.state().resolve::<Db>().await?;
     let queue_name = format!("notify{}", std::process::id());
     let notifier = (*notifier).clone().with_queue(queue_name.clone());
     let message = notification()?;
@@ -203,15 +214,22 @@ async fn queued_notification_is_accepted_by_configured_smtp_sink()
         "[database]\nurl = {:?}\n[mail]\ndriver = \"smtp\"\nsmtp_host = {:?}\nsmtp_port = {}\nsmtp_starttls = false\n",
         test_database.url(), host, port.parse::<u16>()?
     )));
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), config);
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ))
+    .merge(config);
+    let mut builder = openrust::core::ProviderBuilder::new();
     builder
-        .plugin(DatabasePlugin)
-        .plugin(QueuePlugin::default())
-        .plugin(MailerPlugin)
-        .plugin(NotificationsPlugin);
-    let app = lifecycle::finalize(builder).await?;
-    let queue = app.state().try_get::<Queue>()?;
-    let notifier = app.state().try_get::<Notifier>()?;
+        .provider(DatabaseServiceProvider)
+        .provider(QueueServiceProvider::new())
+        .provider(MailerServiceProvider)
+        .provider(NotificationsServiceProvider);
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let queue = app.state().resolve::<Queue>().await?;
+    let notifier = app.state().resolve::<Notifier>().await?;
     let queue_name = format!("smtp{}", std::process::id());
     let notifier = (*notifier).clone().with_queue(queue_name.clone());
     notifier
@@ -224,10 +242,23 @@ async fn queued_notification_is_accepted_by_configured_smtp_sink()
         )?))
         .await?;
     assert!(queue.run_next_with_state(&queue_name, app.state()).await?);
-    app.state().try_get::<Db>()?.connection()?.close().await?;
+    app.state()
+        .resolve::<Db>()
+        .await?
+        .connection()?
+        .close()
+        .await?;
     drop(notifier);
     drop(queue);
     drop(app);
     test_database.close().await?;
     Ok(())
+}
+
+struct TestInstance<T: Send + Sync + 'static>(std::sync::Arc<T>);
+impl<T: Send + Sync + 'static> openrust::core::ServiceProvider for TestInstance<T> {
+    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
+        app.instance(std::sync::Arc::clone(&self.0));
+        Ok(())
+    }
 }

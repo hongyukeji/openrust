@@ -99,7 +99,7 @@ impl Routes {
     /// # Panics
     ///
     /// 若路由与现有路由冲突（路径和方法相同，或同一位置的参数名称不同），Axum 会在构建时 panic。
-    /// 经 `AppBuilderHttpExt::routes` 注册时，`build_router` 会将此情况转换为启动错误；直接使用
+    /// 经 `BootContext::routes` 注册时，`build_router` 会将此情况转换为启动错误；直接使用
     /// 本类型或 Axum 构建 API 时仍由调用方负责处理 panic。成员路由始终使用参数名 `id`。
     #[must_use]
     pub fn resource<R: Resource>(self, path: &str) -> Self {
@@ -111,7 +111,7 @@ impl Routes {
     /// # Panics
     ///
     /// 若路由与现有路由冲突（路径和方法相同，或同一位置的参数名称不同），Axum 会在构建时 panic。
-    /// 经 `AppBuilderHttpExt::routes` 注册时，`build_router` 会将此情况转换为启动错误；直接使用
+    /// 经 `BootContext::routes` 注册时，`build_router` 会将此情况转换为启动错误；直接使用
     /// 本类型或 Axum 构建 API 时仍由调用方负责处理 panic。成员路由始终使用参数名 `id`。
     #[must_use]
     pub fn resource_with<R: Resource>(

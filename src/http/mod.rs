@@ -30,7 +30,7 @@ pub use client::{
 };
 pub use client_ip::ClientIp;
 pub use extract::{Inject, Json, Path, Query, Validated};
-pub use plugin::{AppBuilderHttpExt, HttpPlugin, RouteRegistry, build_router};
+pub use plugin::{HttpServiceProvider, RouteRegistry, build_router};
 pub use rate_limit::{RateLimitKey, RateLimitLayer};
 pub use resource::{Action, Resource, ResourceActions};
 pub use response::{Created, Located, NoContent, PageParams, Paginated};

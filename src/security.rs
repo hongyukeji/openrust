@@ -14,7 +14,7 @@ use zeroize::Zeroizing;
 
 use crate::config::ConfigError;
 pub use crate::config::EncryptionConfig;
-use crate::core::{AppBuilder, Error, Plugin, Result};
+use crate::core::{Error, Result};
 
 const ENVELOPE_VERSION: &str = "or1";
 const KEY_BYTES: usize = 32;
@@ -193,17 +193,104 @@ impl std::fmt::Debug for Encryptor {
     }
 }
 
-/// 安装已配置的 [`Encryptor`] 服务。
+/// 将加密服务注册到统一容器；密钥从当前配置读取并在启动时校验。
+///
 #[derive(Debug, Default, Clone, Copy)]
-pub struct EncryptionPlugin;
+pub struct EncryptionServiceProvider;
 
-impl Plugin for EncryptionPlugin {
-    fn build(&self, app: &mut AppBuilder) -> Result<()> {
-        let config = app
-            .sensitive_section::<EncryptionConfig>("security.encryption")
-            .map_err(Error::Config)?;
-        app.insert(Encryptor::new(config)?);
+impl crate::core::ServiceProvider for EncryptionServiceProvider {
+    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
+        use crate::config::repository::SectionSchema;
+        app.config_section(
+            "security.encryption",
+            serde_json::json!({}),
+            SectionSchema::object([
+                ("active_key_id", SectionSchema::String),
+                (
+                    "keys",
+                    SectionSchema::map(SectionSchema::String.sensitive()),
+                ),
+            ]),
+            |_| Ok(()),
+        )?;
+        app.singleton::<Encryptor, _>(|resolver| {
+            Box::pin(async move {
+                let config = resolver.section::<EncryptionConfig>("security.encryption")?;
+                Ok(Arc::new(Encryptor::new(config)?))
+            })
+        });
+        app.require::<Encryptor>();
         Ok(())
+    }
+
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut crate::core::BootContext<'_>,
+    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            let _ = app.resolve::<Encryptor>().await?;
+            Ok(())
+        })
+    }
+}
+
+#[cfg(test)]
+mod provider_tests {
+    use super::*;
+    use crate::core::{BootContext, BoxFuture, ProviderBuilder, ServiceProvider};
+    use figment::{Figment, providers::Serialized};
+    use serde_json::json;
+
+    struct Rotate;
+    impl ServiceProvider for Rotate {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(
+                async move { app.overlay("security.encryption", json!({"active_key_id": "new"})) },
+            )
+        }
+    }
+
+    #[tokio::test]
+    async fn provider_uses_overlay_key_and_decrypts_old_key() -> Result<()> {
+        let old = STANDARD.encode([1u8; 32]);
+        let new = STANDARD.encode([2u8; 32]);
+        let prior = Encryptor::new(EncryptionConfig::new(
+            "old",
+            BTreeMap::from([("old".into(), old.clone())]),
+        ))?;
+        let ciphertext = prior.encrypt(b"message")?;
+        let sources = Figment::from(Serialized::defaults(
+            json!({"security":{"encryption":{"active_key_id":"old","keys":{"old":old,"new":new}}}}),
+        ));
+        let mut providers = ProviderBuilder::new();
+        providers
+            .provider(Rotate)
+            .provider(EncryptionServiceProvider);
+        let runtime = providers.start(sources).await?;
+        let service = runtime.container().resolve::<Encryptor>().await?;
+        assert!(service.encrypt(b"next")?.starts_with("or1.new."));
+        assert_eq!(service.decrypt(&ciphertext)?, b"message");
+        runtime
+            .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
+            .await
+    }
+
+    #[tokio::test]
+    async fn provider_rejects_missing_and_invalid_keys_without_secret_output() {
+        for source in [
+            json!({}),
+            json!({"security":{"encryption":{"active_key_id":"main","keys":{"main":"secret-sentinel"}}}}),
+        ] {
+            let mut providers = ProviderBuilder::new();
+            providers.provider(EncryptionServiceProvider);
+            let result = providers
+                .start(Figment::from(Serialized::defaults(source)))
+                .await;
+            assert!(result.is_err());
+            if let Err(error) = result {
+                assert!(!format!("{error:?} {error}").contains("secret-sentinel"));
+            }
+        }
     }
 }
 

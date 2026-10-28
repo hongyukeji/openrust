@@ -8,7 +8,7 @@ use crate::core::plugin::BoxFuture;
 
 /// 可通过 `<app-binary> <name> [args…]` 运行的命名命令。
 ///
-/// 插件在 [`Plugin::build`](crate::Plugin::build) 阶段注册命令；HTTP crate 提供 `serve`，数据库 crate 提供 `migrate` 等。
+/// Provider 在 `boot` 阶段注册命令；HTTP 模块提供 `serve`，数据库模块提供 `migrate` 等。
 /// 嵌套命令使用空格分隔单词，例如 `queue work`、`db seed`。
 pub trait Command: Send + Sync + 'static {
     /// 在命令行中输入的命令名称。

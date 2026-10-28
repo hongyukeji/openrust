@@ -3,22 +3,19 @@
 use std::marker::PhantomData;
 use std::time::Duration;
 
-use crate::core::{App, AppBuilder, BoxFuture, Command, Error, Plugin, Result};
+use crate::core::{App, BootContext, BoxFuture, Command, Error, Result, ServiceProvider};
 use sea_orm_migration::MigratorTrait;
 
 use crate::db::{Databases, Db, migration_lock::MigrationLock};
 
-/// 为应用的 migration 集注册 `migrate` 运行时命令。
-///
-/// 将此插件与 [`DatabasePlugin`](crate::db::DatabasePlugin) 一同注册。migration 类型通常定义在应用的
-/// `migration` crate 中，并实现 [`MigratorTrait`]。
-pub struct MigrationPlugin<M> {
+/// 在 Provider boot 阶段贡献 `migrate` 命令。
+pub struct MigrationServiceProvider<M> {
     lock_wait_timeout: Duration,
     marker: PhantomData<fn() -> M>,
 }
 
-impl<M> MigrationPlugin<M> {
-    /// 为 `M` 创建迁移命令插件。
+impl<M> MigrationServiceProvider<M> {
+    /// 创建使用默认锁等待期限的迁移命令 Provider。
     pub fn new() -> Self {
         Self {
             lock_wait_timeout: super::migration_lock::default_wait_timeout(),
@@ -26,7 +23,7 @@ impl<M> MigrationPlugin<M> {
         }
     }
 
-    /// 设置等待其他迁移完成的最长时间；默认值为 30 秒。
+    /// 设置等待其他迁移完成的最长时间。
     #[must_use]
     pub fn with_lock_wait_timeout(mut self, timeout: Duration) -> Self {
         self.lock_wait_timeout = timeout;
@@ -34,22 +31,24 @@ impl<M> MigrationPlugin<M> {
     }
 }
 
-impl<M> Default for MigrationPlugin<M> {
+impl<M> Default for MigrationServiceProvider<M> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<M> Plugin for MigrationPlugin<M>
+impl<M> ServiceProvider for MigrationServiceProvider<M>
 where
     M: MigratorTrait + Send + Sync + 'static,
 {
-    fn build(&self, app: &mut AppBuilder) -> Result<()> {
-        app.command(MigrationCommand::<M> {
-            lock_wait_timeout: self.lock_wait_timeout,
-            marker: PhantomData,
-        });
-        Ok(())
+    fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.command(MigrationCommand::<M> {
+                lock_wait_timeout: self.lock_wait_timeout,
+                marker: PhantomData,
+            });
+            Ok(())
+        })
     }
 }
 
@@ -78,9 +77,9 @@ where
         Box::pin(async move {
             let (database_name, action) = MigrationAction::parse(&args)?;
             let db = if let Some(name) = database_name {
-                app.state().try_get::<Databases>()?.get(&name)?
+                app.state().resolve::<Databases>().await?.get(&name)?
             } else {
-                app.state().try_get::<Db>()?.as_ref().clone()
+                app.state().resolve::<Db>().await?.as_ref().clone()
             };
             let lock = MigrationLock::acquire(&db, self.lock_wait_timeout).await?;
             let database = db.connection()?;

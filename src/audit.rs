@@ -10,8 +10,7 @@ use std::{
 };
 
 use crate::{
-    BoxFuture, Error, Plugin, Result,
-    core::AppBuilder,
+    BoxFuture, Error, Result,
     db::{DatabaseTransaction, Db},
 };
 use sea_orm::{ConnectionTrait, DbBackend, Statement};
@@ -281,21 +280,23 @@ impl Audit {
     }
 }
 
-/// 注册内置数据库 sink 或调用方提供的实现。
-pub struct AuditPlugin {
+/// 通过统一容器注册数据库审计或应用自定义 sink。
+///
+pub struct AuditServiceProvider {
     sink: Option<Arc<dyn AuditSink>>,
     policy: AuditPolicy,
 }
 
-impl AuditPlugin {
-    /// 注册数据库 sink；使用此插件前须先注册 `DatabasePlugin`。
+impl AuditServiceProvider {
+    /// 使用当前容器中的数据库服务。
     pub fn database() -> Self {
         Self {
             sink: None,
             policy: AuditPolicy::default(),
         }
     }
-    /// 注册自定义公开 sink。
+
+    /// 使用应用提供的 sink 和详情策略。
     pub fn with_sink(sink: impl AuditSink, policy: AuditPolicy) -> Self {
         Self {
             sink: Some(Arc::new(sink)),
@@ -304,36 +305,77 @@ impl AuditPlugin {
     }
 }
 
-impl Plugin for AuditPlugin {
-    fn name(&self) -> &'static str {
-        "audit"
-    }
-    fn build(&self, app: &mut AppBuilder) -> Result<()> {
-        if app.get::<Audit>().is_some() {
-            return Err(Error::custom(
-                "audit_service_already_registered",
-                "register only one audit plugin per application",
-            ));
-        }
-        let sink: Arc<dyn AuditSink> = match &self.sink {
-            Some(sink) => Arc::clone(sink),
-            None => Arc::new(DatabaseAuditSink::new(
-                app.get::<Db>()
-                    .ok_or_else(|| {
-                        Error::custom(
-                            "audit_database_missing",
-                            "AuditPlugin::database requires DatabasePlugin to be registered first",
-                        )
-                    })?
-                    .as_ref()
-                    .clone(),
-            )),
-        };
-        app.insert(Audit {
-            sink,
-            policy: self.policy.clone(),
+impl crate::core::ServiceProvider for AuditServiceProvider {
+    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
+        let sink = self.sink.clone();
+        let policy = self.policy.clone();
+        app.singleton::<Audit, _>(move |resolver| {
+            let sink = sink.clone();
+            let policy = policy.clone();
+            Box::pin(async move {
+                let sink: Arc<dyn AuditSink> = match sink {
+                    Some(sink) => sink,
+                    None => Arc::new(DatabaseAuditSink::new(
+                        (*resolver.resolve::<Db>().await?).clone(),
+                    )),
+                };
+                Ok(Arc::new(Audit { sink, policy }))
+            })
         });
+        app.require::<Audit>();
         Ok(())
+    }
+
+    fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            let _ = app.resolve::<Audit>().await?;
+            Ok(())
+        })
+    }
+}
+
+#[cfg(test)]
+mod provider_tests {
+    use super::*;
+    use crate::core::ProviderBuilder;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct Sink(Arc<AtomicUsize>);
+    impl AuditSink for Sink {
+        fn append<'a>(&'a self, _: &'a AuditRecord) -> BoxFuture<'a, Result<()>> {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            Box::pin(async { Ok(()) })
+        }
+    }
+    #[tokio::test]
+    async fn provider_uses_custom_sink_without_database() -> Result<()> {
+        let count = Arc::new(AtomicUsize::new(0));
+        let mut providers = ProviderBuilder::new();
+        providers.provider(AuditServiceProvider::with_sink(
+            Sink(Arc::clone(&count)),
+            AuditPolicy::new(),
+        ));
+        let runtime = providers.start(figment::Figment::new()).await?;
+        let first = runtime.container().resolve::<Audit>().await?;
+        let second = runtime.container().resolve::<Audit>().await?;
+        assert!(Arc::ptr_eq(&first, &second));
+        first
+            .record(AuditEvent::new(
+                "read",
+                AuditSubject::new("item", "1")?,
+                AuditOutcome::Succeeded,
+            )?)
+            .await?;
+        assert_eq!(count.load(Ordering::SeqCst), 1);
+        runtime
+            .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
+            .await
+    }
+    #[tokio::test]
+    async fn database_sink_missing_dependency_fails_startup() {
+        let mut providers = ProviderBuilder::new();
+        providers.provider(AuditServiceProvider::database());
+        assert!(providers.start(figment::Figment::new()).await.is_err());
     }
 }
 
@@ -564,7 +606,9 @@ impl MigrationTrait for DatabaseAuditTenantMigration {
 
 fn migration_table(logical: &str, backend: DbBackend) -> std::result::Result<Alias, DbErr> {
     let names = crate::db::DatabaseTableNames::current().ok_or_else(|| {
-        DbErr::Migration("audit migration requires MigrationPlugin or TestDatabase scope".into())
+        DbErr::Migration(
+            "audit migration requires MigrationServiceProvider or TestDatabase scope".into(),
+        )
     })?;
     names
         .quote(logical, backend)
@@ -826,31 +870,31 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn plugin_registers_the_database_sink_service() -> Result<()> {
-        let mut builder = crate::AppBuilder::new(
-            crate::config::FrameworkConfig::default(),
-            figment::Figment::new(),
-        );
+    async fn provider_registers_the_database_sink_service() -> Result<()> {
+        struct DatabaseBinding;
+        impl crate::core::ServiceProvider for DatabaseBinding {
+            fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
+                app.instance(Arc::new(Db::default()));
+                Ok(())
+            }
+        }
+        let mut builder = crate::core::ProviderBuilder::new();
         builder
-            .insert(Db::default())
-            .plugin(AuditPlugin::database());
-        let app = crate::lifecycle::finalize(builder).await?;
-        assert!(app.state().get::<Audit>().is_some());
+            .provider(DatabaseBinding)
+            .provider(AuditServiceProvider::database());
+        let runtime = builder.start(figment::Figment::new()).await?;
+        runtime.container().resolve::<Audit>().await?;
         Ok(())
     }
-
     #[tokio::test]
-    async fn plugin_registers_a_custom_sink() -> Result<()> {
-        let mut builder = crate::AppBuilder::new(
-            crate::config::FrameworkConfig::default(),
-            figment::Figment::new(),
-        );
-        builder.plugin(AuditPlugin::with_sink(
+    async fn provider_registers_a_custom_sink() -> Result<()> {
+        let mut builder = crate::core::ProviderBuilder::new();
+        builder.provider(AuditServiceProvider::with_sink(
             MemorySink::default(),
             AuditPolicy::default(),
         ));
-        let app = crate::lifecycle::finalize(builder).await?;
-        assert!(app.state().get::<Audit>().is_some());
+        let runtime = builder.start(figment::Figment::new()).await?;
+        runtime.container().resolve::<Audit>().await?;
         Ok(())
     }
 

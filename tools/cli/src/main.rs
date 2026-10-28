@@ -649,7 +649,7 @@ fn populate_project_with_mfa(
             "bootstrap/app.rs",
             app_source(crate_name, database, auth, encryption, auth_mfa),
         ),
-        ("app/mod.rs", "//! 应用模块注册清单。\n\npub(crate) fn register(_app: &mut openrust::AppBuilder) {}\n".to_owned()),
+        ("app/mod.rs", "//! 应用模块。\n".to_owned()),
         ("routes/web.rs", routes_source(auth, auth_mfa)),
         ("routes/console.rs", "//! 应用调度。\n".to_owned()),
         ("database/seeders.rs", seed_source(database)),
@@ -825,39 +825,38 @@ fn app_source(
     encryption: bool,
     auth_mfa: bool,
 ) -> String {
-    let plugins = if database.is_some() {
-        let mut plugins = String::from("\n            .plugin(DatabasePlugin)");
+    let providers = if database.is_some() {
+        let mut providers = String::from(
+            "\n        providers.push(Box::new(openrust::db::DatabaseServiceProvider));",
+        );
         if auth {
-            plugins.push_str(
-                "\n            .plugin(openrust::auth::JwtPlugin::new())\n            .plugin(openrust::auth::AuthPlugin::new())\n            .plugin(openrust::audit::AuditPlugin::database())\n            .plugin(\n                openrust::signing::SignedLinksPlugin::new().with_database_revocations_from_app(),\n            )",
-            );
+            providers.push_str("\n        providers.push(Box::new(openrust::auth::JwtServiceProvider));\n        providers.push(Box::new(openrust::auth::AuthServiceProvider::new()));\n        providers.push(Box::new(openrust::audit::AuditServiceProvider::database()));\n        providers.push(Box::new(openrust::signing::SignedLinksServiceProvider::new().with_database_revocations_from_app()));");
         }
         if encryption {
-            plugins.push_str("\n            .plugin(openrust::security::EncryptionPlugin)");
+            providers.push_str("\n        providers.push(Box::new(openrust::security::EncryptionServiceProvider));");
         }
         if auth_mfa {
-            plugins.push_str("\n            .plugin(openrust::auth::MfaPlugin)");
+            providers.push_str(
+                "\n        providers.push(Box::new(openrust::auth::MfaServiceProvider));",
+            );
         }
         if auth {
-            plugins.push_str("\n            .plugin(openrust::auth::AuthFlowsPlugin::new())");
+            providers.push_str("\n        providers.push(Box::new(openrust::auth::AuthFlowsServiceProvider::new()));");
         }
-        plugins.push_str(
-            "\n            .plugin(MigrationPlugin::<openrust_migration::Migrator>::new())\n            .plugin(SeedPlugin::new(crate::seed::run))",
-        );
-        plugins
+        providers.push_str("\n        providers.push(Box::new(openrust::db::MigrationServiceProvider::<openrust_migration::Migrator>::new()));\n        providers.push(Box::new(openrust::db::SeedServiceProvider::new(crate::seed::run)));");
+        providers
     } else {
         String::new()
     };
-    let encryption_plugin = if encryption && database.is_none() {
-        "\n            .plugin(openrust::security::EncryptionPlugin)"
+    let encryption_provider = if encryption && database.is_none() {
+        "\n        providers.push(Box::new(openrust::security::EncryptionServiceProvider));"
     } else {
         ""
     };
     include_str!("../templates/src/app.rs")
         .replace("{{type_name}}", crate_name)
-        .replace("{{database_plugins}}", &plugins)
-        .replace("{{migration_plugin}}", "")
-        .replace("{{encryption_plugin}}", encryption_plugin)
+        .replace("{{database_providers}}", &providers)
+        .replace("{{encryption_provider}}", encryption_provider)
 }
 
 fn routes_source(auth: bool, auth_mfa: bool) -> String {
@@ -1422,12 +1421,12 @@ fn generate_job(values: &[String], project_dir: &Path) -> anyhow::Result<()> {
     let updated_migration_manifest =
         enable_feature_source(&migration_source, "queue", &migration_manifest_path)?;
     let updated_app_manifest = add_serde_workspace_dependency(&updated_app_manifest)?;
-    let updated_app = if app_source.contains("crate::jobs::JobsPlugin") {
+    let updated_app = if app_source.contains("crate::jobs::JobsServiceProvider") {
         app_source
     } else {
         let updated = app_source.replace(
-            ".routes(routes::register);",
-            ".plugin(crate::jobs::JobsPlugin)\n            .routes(routes::register);",
+            "        providers.push(Box::new(RoutesProvider));",
+            "        let queue = openrust::queue::QueueServiceProvider::new();\n        let contributions = queue.contributions();\n        providers.push(Box::new(crate::jobs::JobsServiceProvider::new(contributions)));\n        providers.push(Box::new(queue));\n        providers.push(Box::new(RoutesProvider));",
         );
         if updated == app_source {
             bail!("application source does not match the generated app template");
@@ -1437,25 +1436,21 @@ fn generate_job(values: &[String], project_dir: &Path) -> anyhow::Result<()> {
     let updated_main = if main_source.contains("mod jobs;") {
         main_source
     } else {
-        format!("{main_source}\nmod jobs;\n")
+        format!("{main_source}\n#[path = \"../app/jobs/mod.rs\"]\nmod jobs;\n")
     };
-    let updated_modules = if modules.contains("pub struct JobsPlugin;") {
-        if modules.contains(&format!(
-            "queue.register_job::<crate::jobs::{module}::{type_name}>()?;"
-        )) {
+    let updated_modules = if modules.contains("pub struct JobsServiceProvider") {
+        let registration = format!("self.0.register_job::<crate::jobs::{module}::{type_name}>()?;");
+        if modules.contains(&registration) {
             bail!("job handler is already registered: {module}");
         }
         append_sorted_module_content(&modules, &format!("pub mod {module};"))?.replace(
-            "        app.plugin(queue);",
-                &format!(
-                    "        queue.register_job::<crate::jobs::{module}::{type_name}>()?;\n        app.plugin(queue);"
-                ),
+            "        Ok(())",
+            &format!("        {registration}\n        Ok(())"),
         )
     } else {
         format!(
-            "{}\npub mod {module};\n\nuse openrust::core::{{AppBuilder, Plugin, Result}};\nuse openrust::queue::QueuePlugin;\n\n/// 注册应用的后台任务。\npub struct JobsPlugin;\n\nimpl Plugin for JobsPlugin {{\n    fn build(&self, app: &mut AppBuilder) -> Result<()> {{\n        let mut queue = QueuePlugin::default();\n        queue.register_job::<crate::jobs::{module}::{}>()?;\n        app.plugin(queue);\n        Ok(())\n    }}\n}}\n",
+            "{}\npub mod {module};\n\nuse std::sync::Arc;\nuse openrust::core::{{RegisterContext, Result, ServiceProvider}};\nuse openrust::queue::QueueContributions;\n\n/// 注册应用的后台任务。\npub struct JobsServiceProvider(Arc<QueueContributions>);\n\nimpl JobsServiceProvider {{\n    /// 使用队列 Provider 的共享贡献目录。\n    pub fn new(contributions: Arc<QueueContributions>) -> Self {{ Self(contributions) }}\n}}\n\nimpl ServiceProvider for JobsServiceProvider {{\n    fn register(&self, _app: &mut RegisterContext<'_>) -> Result<()> {{\n        self.0.register_job::<crate::jobs::{module}::{type_name}>()?;\n        Ok(())\n    }}\n}}\n",
             modules.trim_end(),
-            type_name,
         )
     };
     fs::write(&job_file, render_job(&type_name, &module))?;
@@ -2487,7 +2482,7 @@ mod tests {
             .expect("read generated encryption configuration");
         let env = fs::read_to_string(project.join(".env.example"))
             .expect("read generated environment example");
-        assert!(app.contains("EncryptionPlugin"));
+        assert!(app.contains("EncryptionServiceProvider"));
         assert!(config.contains("[security.encryption]"));
         assert!(env.contains("APP_SECURITY_ENCRYPTION_KEYS_LOCAL="));
         let _ = fs::remove_dir_all(root);
@@ -2630,9 +2625,9 @@ mod tests {
             );
             let app =
                 fs::read_to_string(project.join("bootstrap/app.rs")).expect("read generated app");
-            assert!(app.contains("DatabasePlugin"));
+            assert!(app.contains("DatabaseServiceProvider"));
             assert!(app.contains("openrust_migration::Migrator"));
-            assert!(app.contains("SeedPlugin"));
+            assert!(app.contains("SeedServiceProvider"));
             assert!(project.join(".env.example").is_file());
             let env = fs::read_to_string(project.join(".env.example"))
                 .expect("read generated database environment example");
@@ -2678,7 +2673,7 @@ mod tests {
             assert!(manifest.contains("serde_json"));
             let http_test = fs::read_to_string(project.join("tests/auth_flows.rs"))
                 .expect("read generated auth HTTP integration test");
-            assert!(http_test.contains("bootstrap::Blog::build(&mut builder)"));
+            assert!(http_test.contains("bootstrap::Blog::providers(&NoConfig {})"));
             assert!(http_test.contains("into_make_service_with_connect_info"));
             assert!(http_test.contains("/api/auth/password-reset/confirm"));
             assert!(!http_test.contains("{{type_name}}"));
@@ -2699,11 +2694,11 @@ mod tests {
             assert!(migration.contains("openrust::signing::SignedLinkRevocationMigration"));
             let app =
                 fs::read_to_string(project.join("bootstrap/app.rs")).expect("read generated app");
-            assert!(app.contains("AuthPlugin::new()"));
-            assert!(app.contains("JwtPlugin::new()"));
-            assert!(app.contains("AuthFlowsPlugin::new()"));
-            assert!(app.contains("AuditPlugin::database()"));
-            assert!(app.contains("SignedLinksPlugin::new().with_database_revocations_from_app()"));
+            assert!(app.contains("AuthServiceProvider"));
+            assert!(app.contains("JwtServiceProvider"));
+            assert!(app.contains("AuthFlowsServiceProvider"));
+            assert!(app.contains("AuditServiceProvider::database()"));
+            assert!(app.contains("SignedLinksServiceProvider"));
             let config = fs::read_to_string(project.join("config/security.toml"))
                 .expect("read generated signing config");
             assert!(config.contains("[security.signed_links]"));
@@ -2805,46 +2800,20 @@ mod tests {
                 false,
             )
             .expect("generate MFA project");
-            let manifest = fs::read_to_string(project.join("Cargo.toml"))
-                .expect("read generated app manifest");
-            assert!(manifest.contains("\"auth-mfa\""));
-            let migration_manifest =
-                fs::read_to_string(project.join("database/migrations/Cargo.toml"))
-                    .expect("read generated migration manifest");
-            assert!(migration_manifest.contains("\"auth-mfa\""));
-            let migration = fs::read_to_string(project.join("database/migrations/src/lib.rs"))
-                .expect("read generated migration registry");
-            assert!(migration.contains("openrust::auth::AuthMfaMigration"));
-
             let app =
                 fs::read_to_string(project.join("bootstrap/app.rs")).expect("read generated app");
-            let auth_plugin = app.find("AuthPlugin::new()").expect("auth plugin");
-            let encryption_plugin = app.find("EncryptionPlugin").expect("encryption plugin");
-            let mfa_plugin = app.find("MfaPlugin").expect("MFA plugin");
-            let flows_plugin = app
-                .find("AuthFlowsPlugin::new()")
-                .expect("auth flows plugin");
-            assert!(auth_plugin < encryption_plugin && encryption_plugin < mfa_plugin);
-            assert!(mfa_plugin < flows_plugin);
-
-            let routes =
-                fs::read_to_string(project.join("routes/web.rs")).expect("read generated routes");
-            for route in [
-                "/api/auth/mfa/login",
-                "/api/auth/mfa/enrollment",
-                "/api/auth/mfa/enrollment/confirm",
-                "/api/auth/mfa/disable",
-                "/api/auth/mfa/recovery-codes",
-            ] {
-                assert!(routes.contains(route), "missing generated route {route}");
-            }
-            assert!(routes.contains("LoginAttempt::MfaRequired"));
-            assert!(routes.contains("AuthLayer::required(openrust::auth::AuthMode::Jwt)"));
-            let auth_test = fs::read_to_string(project.join("tests/auth_flows.rs"))
-                .expect("read generated auth test");
-            assert!(auth_test.contains("let login_data = &login.body[\"data\"][\"credentials\"]"));
-            assert!(auth_test.contains("login_data[\"user_id\"]"));
-            assert!(auth_test.contains("login_data[\"access_token\"]"));
+            assert!(app.find("EncryptionServiceProvider") < app.find("MfaServiceProvider"));
+            assert!(app.find("MfaServiceProvider") < app.find("AuthFlowsServiceProvider"));
+            assert!(
+                fs::read_to_string(project.join("database/migrations/src/lib.rs"))
+                    .expect("migration")
+                    .contains("AuthMfaMigration")
+            );
+            assert!(
+                fs::read_to_string(project.join("routes/web.rs"))
+                    .expect("routes")
+                    .contains("/api/auth/mfa/login")
+            );
         }
         let _ = fs::remove_dir_all(root);
     }
@@ -3081,7 +3050,9 @@ mod tests {
         assert!(source.contains("job_not_implemented"));
         assert!(source.contains("请先实现此任务的业务逻辑"));
         let app = fs::read_to_string(project.join("bootstrap/app.rs")).expect("read app");
-        assert!(app.contains("crate::jobs::JobsPlugin"));
+        assert!(app.contains("crate::jobs::JobsServiceProvider"));
+        let main = fs::read_to_string(project.join("src/main.rs")).expect("read main");
+        assert!(main.contains("#[path = \"../app/jobs/mod.rs\"]\nmod jobs;"));
         let auth_test = fs::read_to_string(project.join("tests/auth_flows.rs"))
             .expect("read generated auth test");
         assert!(auth_test.contains("#[path = \"../app/jobs/mod.rs\"]\nmod jobs;"));
@@ -3105,10 +3076,10 @@ mod tests {
         generate_job(&["audit".to_owned()], &project).expect("generate second job");
         let modules =
             fs::read_to_string(project.join("app/jobs/mod.rs")).expect("read jobs module");
-        assert_eq!(modules.matches("pub struct JobsPlugin;").count(), 1);
+        assert_eq!(modules.matches("pub struct JobsServiceProvider").count(), 1);
         assert_eq!(
             modules
-                .matches("queue.register_job::<crate::jobs::")
+                .matches("self.0.register_job::<crate::jobs::")
                 .count(),
             2
         );

@@ -1,11 +1,11 @@
 //! 严格配置的 JWT access token 签名与校验。
 
 use std::collections::BTreeMap;
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::config::{ConfigError, JwtConfig};
-use crate::core::{App, AppBuilder, BoxFuture, Error, Plugin, Result};
+use crate::core::{BoxFuture, Error, Result};
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
 use jsonwebtoken::{
@@ -137,77 +137,136 @@ impl JwtTokens {
     }
 }
 
-/// 根据显式配置或 `auth.jwt` 配置区段注册 [`JwtTokens`]。
-pub struct JwtPlugin {
-    config: Option<JwtConfig>,
-    tokens: OnceLock<JwtTokens>,
-}
+/// 从当前配置注册 JWT 签发与验证服务。
+#[derive(Debug, Default, Clone, Copy)]
+pub struct JwtServiceProvider;
 
-impl JwtPlugin {
-    /// 在构建应用时从 `[auth.jwt]` 加载 JWT 配置。
-    pub fn new() -> Self {
-        Self {
-            config: None,
-            tokens: OnceLock::new(),
-        }
-    }
-
-    /// 使用已在启动时校验的显式配置注册 JWT token 服务。
-    pub fn with_config(config: JwtConfig) -> Self {
-        Self {
-            config: Some(config),
-            tokens: OnceLock::new(),
-        }
-    }
-}
-
-impl Default for JwtPlugin {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Plugin for JwtPlugin {
-    fn name(&self) -> &'static str {
-        "jwt"
-    }
-
-    fn build(&self, app: &mut AppBuilder) -> Result<()> {
-        if app.get::<JwtTokens>().is_some() {
-            return Err(Error::custom(
-                "jwt_service_already_registered",
-                "register only one JWT plugin per application",
-            ));
-        }
-        let config = match &self.config {
-            Some(config) => config.clone(),
-            None => app
-                .sensitive_section::<JwtConfig>("auth.jwt")
-                .map_err(Error::Config)?,
-        };
-        let tokens = JwtTokens::new(config)?;
-        self.tokens
-            .set(tokens.clone())
-            .map_err(|_| Error::custom("jwt_plugin_reused", "JWT plugin can only build once"))?;
-        app.insert(tokens);
+impl crate::core::ServiceProvider for JwtServiceProvider {
+    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
+        use crate::config::repository::SectionSchema as S;
+        app.config_section(
+            "auth.jwt",
+            serde_json::json!({}),
+            S::object([
+                ("issuer", S::String),
+                ("audience", S::String),
+                ("active_key_id", S::String),
+                ("keys", S::map(S::String.sensitive())),
+                ("access_ttl_secs", S::Integer),
+                ("max_valid_ttl_secs", S::Integer),
+            ]),
+            |value| {
+                let config: JwtConfig = serde_json::from_value(value.clone())
+                    .map_err(|_| invalid_config("auth.jwt configuration is invalid"))?;
+                JwtTokens::new(config).map(|_| ())
+            },
+        )?;
+        app.singleton::<JwtTokens, _>(|resolver| {
+            Box::pin(async move {
+                let config = resolver.section::<JwtConfig>("auth.jwt")?;
+                Ok(Arc::new(JwtTokens::new(config)?))
+            })
+        });
+        app.require::<JwtTokens>();
         Ok(())
     }
-
-    fn finish<'a>(&'a self, app: &'a App) -> BoxFuture<'a, Result<()>> {
+    fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            let expected = self
-                .tokens
-                .get()
-                .ok_or_else(|| Error::internal(MissingJwtPluginBuild))?;
-            let registered = app.state().try_get::<JwtTokens>()?;
-            if !Arc::ptr_eq(&expected.inner, &registered.inner) {
-                return Err(Error::custom(
-                    "jwt_service_replaced",
-                    "a later plugin replaced the JWT service",
-                ));
-            }
+            let _ = app.resolve::<JwtTokens>().await?;
             Ok(())
         })
+    }
+}
+
+#[cfg(test)]
+mod provider_tests {
+    use super::*;
+    use crate::core::{BootContext, ProviderBuilder, ServiceProvider};
+    use figment::{Figment, providers::Serialized};
+    use serde_json::json;
+
+    struct Rotate;
+    impl ServiceProvider for Rotate {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move { app.overlay("auth.jwt", json!({"active_key_id":"new"})) })
+        }
+    }
+
+    #[tokio::test]
+    async fn provider_uses_overlay_key_and_keeps_old_token_verification() -> Result<()> {
+        let old = STANDARD.encode([1u8; 32]);
+        let new = STANDARD.encode([2u8; 32]);
+        let prior = JwtTokens::new(JwtConfig::new(
+            "issuer",
+            "audience",
+            "old",
+            BTreeMap::from([("old".into(), old.clone())]),
+        ))?;
+        let token = prior.issue_access_token(42)?;
+        let sources = Figment::from(Serialized::defaults(
+            json!({"auth":{"jwt":{"issuer":"issuer","audience":"audience","active_key_id":"old","keys":{"old":old,"new":new}}}}),
+        ));
+        let mut builder = ProviderBuilder::new();
+        builder.provider(Rotate).provider(JwtServiceProvider);
+        let runtime = builder.start(sources).await?;
+        let tokens = runtime.container().resolve::<JwtTokens>().await?;
+        assert_eq!(tokens.verify_access_token(&token)?, 42);
+        let header = jsonwebtoken::decode_header(&tokens.issue_access_token(42)?)
+            .map_err(Error::internal)?;
+        assert_eq!(header.kid.as_deref(), Some("new"));
+        runtime
+            .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
+            .await
+    }
+
+    struct InvalidLate(Arc<std::sync::atomic::AtomicBool>);
+    impl ServiceProvider for InvalidLate {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            let closed = Arc::clone(&self.0);
+            Box::pin(async move {
+                app.resources().on_shutdown(move || {
+                    Box::pin(async move {
+                        closed.store(true, std::sync::atomic::Ordering::SeqCst);
+                        Ok(())
+                    })
+                })?;
+                app.overlay("auth.jwt", json!({"active_key_id":"missing"}))
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn late_invalid_overlay_fails_and_cleans_resources() {
+        let secret = STANDARD.encode([1u8; 32]);
+        let source = Figment::from(Serialized::defaults(
+            json!({"auth":{"jwt":{"issuer":"i","audience":"a","active_key_id":"key","keys":{"key":secret}}}}),
+        ));
+        let closed = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let mut builder = ProviderBuilder::new();
+        builder
+            .provider(JwtServiceProvider)
+            .provider(InvalidLate(Arc::clone(&closed)));
+        let result = builder.start(source).await;
+        assert!(result.is_err());
+        assert!(closed.load(std::sync::atomic::Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn provider_rejects_bad_or_missing_secret_without_disclosure() {
+        for source in [
+            json!({}),
+            json!({"auth":{"jwt":{"issuer":"i","audience":"a","active_key_id":"key","keys":{"key":"secret-sentinel"}}}}),
+        ] {
+            let mut builder = ProviderBuilder::new();
+            builder.provider(JwtServiceProvider);
+            let result = builder
+                .start(Figment::from(Serialized::defaults(source)))
+                .await;
+            assert!(result.is_err());
+            if let Err(error) = result {
+                assert!(!format!("{error:?} {error}").contains("secret-sentinel"));
+            }
+        }
     }
 }
 
@@ -321,17 +380,6 @@ impl std::fmt::Display for TokenSigningError {
 }
 
 impl std::error::Error for TokenSigningError {}
-
-#[derive(Debug)]
-struct MissingJwtPluginBuild;
-
-impl std::fmt::Display for MissingJwtPluginBuild {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str("JWT plugin build state is unavailable")
-    }
-}
-
-impl std::error::Error for MissingJwtPluginBuild {}
 
 #[cfg(test)]
 #[allow(clippy::expect_used)] // Fixed test keys/config are valid fixtures; failures should identify the setup.

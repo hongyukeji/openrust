@@ -5,8 +5,7 @@ use figment::providers::Format;
 use openrust::{
     BoxFuture, Error, Result,
     config::FrameworkConfig,
-    core::{AppBuilder, lifecycle::finalize},
-    queue::{Job, JobContext, Queue, QueuePlugin},
+    queue::{Job, JobContext, Queue, QueueServiceProvider},
 };
 use serde::Deserialize;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -34,23 +33,30 @@ fn redis_url() -> String {
     std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379/".to_owned())
 }
 
-fn builder(namespace: &str) -> Result<AppBuilder> {
+async fn assembled(namespace: &str) -> Result<openrust::App> {
     let url = redis_url();
     let figment = figment::Figment::from(figment::providers::Toml::string(&format!(
         "[queue]\ndriver = 'redis'\nredis_url = {url:?}\nredis_namespace = '{namespace}'\n"
     )));
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment);
-    let mut plugin = QueuePlugin::default();
-    plugin.register_job::<ProbeJob>()?;
-    builder.plugin(plugin);
-    Ok(builder)
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ))
+    .merge(figment);
+    let mut builder = openrust::core::ProviderBuilder::new();
+    let plugin = QueueServiceProvider::new();
+    plugin.contributions().register_job::<ProbeJob>()?;
+    builder.provider(plugin);
+    builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)
 }
 
 #[tokio::test]
 async fn queue_plugin_selects_redis_without_a_database_plugin() -> Result<()> {
     let namespace = namespace();
-    let app = finalize(builder(&namespace)?).await?;
-    let queue = app.state().try_get::<Queue>()?;
+    let app = assembled(&namespace).await?;
+    let queue = app.state().resolve::<Queue>().await?;
     queue.dispatch("default", ProbeJob::NAME, &()).await?;
     assert!(queue.run_next("default").await?);
     assert!(!queue.run_next("default").await?);
@@ -83,20 +89,29 @@ async fn redis_queue_rejects_database_transactional_schedules_at_build() -> Resu
     let figment = figment::Figment::from(figment::providers::Toml::string(&format!(
         "[queue]\ndriver = 'redis'\nredis_url = {url:?}\nredis_namespace = '{namespace}'\n"
     )));
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment);
-    let mut plugin = QueuePlugin::default();
-    plugin.register_job::<ProbeJob>()?;
-    plugin.schedule_interval(
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ))
+    .merge(figment);
+    let mut builder = openrust::core::ProviderBuilder::new();
+    let plugin = QueueServiceProvider::new();
+    plugin.contributions().register_job::<ProbeJob>()?;
+    plugin.contributions().schedule_interval(
         "probe",
         "default",
         ProbeJob::NAME,
         &(),
         std::time::Duration::from_secs(60),
     )?;
-    builder.plugin(plugin);
-    let error = finalize(builder).await.err().ok_or_else(|| {
-        Error::custom("test_expected_error", "Redis scheduler unexpectedly built")
-    })?;
+    builder.provider(plugin);
+    let error = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)
+        .err()
+        .ok_or_else(|| {
+            Error::custom("test_expected_error", "Redis scheduler unexpectedly built")
+        })?;
     assert_eq!(error.code(), "redis_queue_schedule_unsupported");
     Ok(())
 }

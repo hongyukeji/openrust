@@ -7,13 +7,11 @@ use figment::{
     providers::{Format, Toml},
 };
 use openrust::{
-    AppBuilder,
     config::FrameworkConfig,
     database::{
-        DatabasePlugin, Db,
+        DatabaseServiceProvider, Db,
         sea_orm::{ConnectionTrait, Statement},
     },
-    lifecycle,
 };
 
 #[tokio::main]
@@ -26,13 +24,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .filter(|count| *count >= 100)
         .unwrap_or(500);
     let source = format!("[database]\nurl = {primary_url:?}\nread_replicas = [{replica_url:?}]\n");
-    let mut builder = AppBuilder::new(
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
-        Figment::new().merge(Toml::string(&source)),
-    );
-    builder.plugin(DatabasePlugin);
-    let app = lifecycle::finalize(builder).await?;
-    let db = app.state().try_get::<Db>()?;
+    ))
+    .merge(Figment::new().merge(Toml::string(&source)));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder.provider(DatabaseServiceProvider);
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let db = app.state().resolve::<Db>().await?;
     let backend = db.backend()?;
 
     eprintln!(
@@ -40,6 +42,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     measure("primary", sample_count, || db.primary_connection()).await?;
     measure("read_replica", sample_count, || db.read_connection()).await?;
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
     Ok(())
 }
 

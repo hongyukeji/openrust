@@ -4,7 +4,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-28
-> 摘要：Laravel + laravel-modules 的 Rust 1:1 实现唯一活跃队列；R0旧基线已记录，模块包逐项盘点待补；当前R1-S结构子簇，R1整体/真实CRUD仍未完成。
+> 摘要：Laravel + laravel-modules 的 Rust 1:1 实现唯一活跃队列；R0旧基线已记录，模块包逐项盘点待补；R1-S已提交，R2-B统一Provider生产内核已通过本簇门禁，R1整体/真实CRUD仍未完成。
 
 ## 领取规则
 
@@ -14,14 +14,14 @@
 
 用户再次明确按 Laravel + laravel-modules 的完整 Rust 实现从零设计、重写核心；旧 API、目录和实现不构成兼容约束。新内核以固定上游行为为依据，不继续堆叠旧 Plugin 装配；旧源码仅作事实与回归输入，由对应功能簇替换后通过 git rm 清除失效实现。此授权不删除他人 WIP、共享服务、数据或原始测试证据，也不要求重造成熟密码学和数据库驱动。
 
-当前一个主功能簇仍为 R1-S。核心集成负责人收口其实际门禁后直接进入 R2 基础重写；在此期间，并行完成 R2 契约独立审查与模块上游行为/验收用例准备，不抢先改变未定公共 API。全部工作留在 main；核心源码、模块规格、独立审查分属不同责任人。共享 Cargo 清单、锁文件、验证服务和提交串行协调；子代理不得递归派发。后续契约稳定后按非重叠模块扩展并行实现，不以增加代理数量代替依赖收敛。
+当前一个主功能簇为 R2 基础。R1-S及R2-A/A2/A3已提交，R2-B 统一 Provider 已通过本簇门禁；后续依次处理 R2-C/D 的 scope/TestApp 与 R2-M 模块闭环。全部工作留在 main；共享 Cargo 清单、锁文件、验证服务和提交串行协调；子代理不得递归派发。
 
 ## 当前可领取
 
 | 功能簇 | 状态 | 交付与验收 |
 | --- | --- | --- |
 | R1-S 根结构与普通模块挂载 | 已完成结构子交付34dfb5e | 根Laravel职责、同package lib/server、资源内聚、模块公开挂载；按范围实际门禁与独立审查通过后可限定提交，仅结构子交付 |
-| R2 基础：Container/Provider/模块配置/TestApp | in_progress：R2-A/A2/A3已实现验收，续统一Provider | 全体register后boot、统一Container与typed配置、最小TestApp；当前Plugin仅迁移资产，不冒充Laravel等价；先形成真实CRUD/扩展接入的稳定API，不依赖完整R1-E |
+| R2 基础：Container/Provider/模块配置/TestApp | in_progress：R2-A/A2/A3 与 R2-B 已实现验收，续 R2-C/D/M | 全体register后boot、统一Container与typed配置、最小TestApp及模块闭环；先形成真实CRUD/扩展接入的稳定API，不依赖完整R1-E |
 | R2-M 模块最小闭环与目录迁移 | 待R2基础 | modules/ 声明注册、模块配置/资源/迁移、依赖与冲突错误；迁移现有示例到 modules/example，验证注册/未注册与真实HTTP；完整管理命令归R13 |
 | R1-E 真实CRUD与当前能力示例 | 待R2基础与R2-M；未交付 | 真实实体列表/详情/新增/更新/删除，校验/分页/404/授权/事务；PG18/MySQL8.4真实HTTP闭环；当前公开能力实际业务/扩展/测试逐项覆盖，GET基础信息响应不算CRUD |
 | R2 后继内核与测试底座 | 待R2基础，按依赖分簇 | scope/Facade/DI/停机与模块依赖/顺序等完整对应；每簇同步modules/example，不建双内核；不把全部R2能力塞入首批 |
@@ -108,3 +108,15 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 4. 已发现TOML文件必须实际可读/可解析，不因缺失静默跳过；错误只含安全来源key和类别，不泄漏路径/文件内容/密钥。
 5. 同步全部loader调用与真实既有fixture，新增显式坏目录、默认缺目录、有效空目录、损坏文件和启动传播回归。
 6. 源码门禁、独立consumer/生成与根HTTP及适用双库重新执行，不用R2-A或R1旧结果冒充；不同模型复审后限定提交。
+
+## 当前 R2-B Spec
+
+状态：生产切换与领域 Provider 已落盘；默认/all-features、双库、生成项目、消费者和根实际入口门禁已实际运行，详见 [testing](memory/testing.md#r2-b-统一-provider-内核验收证据)。本簇实现与验证完成，后继按 R2-C/D/M 依赖顺序推进。Figment 来源字典原始插入顺序与第三方 driver 无专属 validator 的限制须继续公开，不归零宣称严格 PHP/Laravel 等价。
+
+1. 统一ServiceProvider的register仅绑定/schema，所有register后seal，再顺序boot贡献，最终配置/贡献校验后Ready。
+2. 先并行实现ConfigRepository/schema与可显式await的资源关闭基元；这些前置不宣称生产已切换。
+3. 资源清理复用既有受管任务/Cancellation：关闭先拒新登记，取消并join任务，逆序尝试全部回调；共同deadline、失败继续且诊断不泄密。
+4. 并发shutdown只启动一次，调用future被取消后已启动的有界关闭继续；弱注册句柄不得延长所有者寿命，Drop仅取消不伪装async清理。
+5. B0逐族拆分即时构造与贡献；B1实际替换私有Registry/旧Plugin循环、AppState/Inject/命令读同Container，不增双运行开关，不删除领域贡献registries。
+6. 配置worker仅src/config/repository.rs；集成者持core/resources/provider/app/lifecycle等与mod导出、Cargo/共享文档/串行真实门禁；不同模型独立审查。
+7. R2-C再接HTTP body/job/console scope，R2-D同生产TestApp；R2-M再迁modules/example，随后R1-E真实CRUD，不能跳依赖或将基元当整体完成。

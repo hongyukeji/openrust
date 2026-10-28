@@ -1,9 +1,11 @@
 //! 数据库与 Redis 队列 worker 配置。
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::collections::HashMap;
 
 /// 任务队列的显式存储后端。
-#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum QueueDriverKind {
     /// 使用应用数据库保存任务，支持数据库事务派发。
@@ -14,9 +16,45 @@ pub enum QueueDriverKind {
 }
 
 /// 设置轮询、任务租约和 worker 优雅停机的边界。
-#[derive(Clone, Deserialize)]
+/// 具名队列连接的存储后端与专属连接参数。
+#[derive(Clone, Deserialize, Serialize)]
+pub struct QueueConnectionConfig {
+    /// 已注册的 driver 名称。
+    pub driver: String,
+    /// Redis 连接 URL，仅 Redis driver 使用。
+    #[serde(default)]
+    pub redis_url: Option<String>,
+    /// Redis 键隔离命名空间，仅 Redis driver 使用。
+    #[serde(default)]
+    pub redis_namespace: Option<String>,
+    /// 自定义 driver 的连接选项；内置 driver 会验证允许的键。
+    #[serde(default)]
+    pub options: Value,
+}
+
+impl std::fmt::Debug for QueueConnectionConfig {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("QueueConnectionConfig")
+            .field("driver", &self.driver)
+            .field("redis_url", &self.redis_url.as_ref().map(|_| "[redacted]"))
+            .field(
+                "redis_namespace",
+                &self.redis_namespace.as_ref().map(|_| "[redacted]"),
+            )
+            .field("options", &"[redacted]")
+            .finish()
+    }
+}
+
+/// 队列默认连接、具名连接与 worker 运行边界。
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct QueueConfig {
+    /// 默认具名连接。
+    pub default_connection: String,
+    /// 具名连接的 driver 与连接参数；空表时使用旧版 default 配置。
+    pub connections: HashMap<String, QueueConnectionConfig>,
     /// 持久化任务后端；默认使用应用数据库。
     pub driver: QueueDriverKind,
     /// Redis 队列连接 URL；仅 Redis 后端使用，默认由共享的 `REDIS_*` 连接设置生成。
@@ -39,6 +77,8 @@ pub struct QueueConfig {
 impl Default for QueueConfig {
     fn default() -> Self {
         Self {
+            default_connection: "default".to_owned(),
+            connections: HashMap::new(),
             driver: QueueDriverKind::Database,
             redis_url: None,
             redis_namespace: None,

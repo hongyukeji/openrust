@@ -5,10 +5,9 @@ use std::error::Error as StdError;
 
 use openrust::testing::TestDatabase;
 use openrust::{
-    AppBuilder,
     auth::{
-        AuthCredential, AuthLayer, AuthMode, AuthPlugin, AuthPrincipal, Authenticator, CurrentUser,
-        QueryRule, QueryScope,
+        AuthCredential, AuthLayer, AuthMode, AuthPrincipal, AuthServiceProvider, Authenticator,
+        CurrentUser, QueryRule, QueryScope,
     },
     config::{FrameworkConfig, HttpStatusMode},
     core::{BoxFuture, Result},
@@ -18,14 +17,13 @@ use openrust::{
         sea_orm::{self, ActiveValue, Condition, ConnectionTrait, Statement},
     },
     http::{
-        AppBuilderHttpExt, HttpPlugin, Inject, Json, Routes,
+        HttpServiceProvider, Inject, Json, Routes,
         axum::{
             body::{Body, to_bytes},
             http::{Request, StatusCode},
         },
         build_router,
     },
-    lifecycle::finalize,
     tenant::{TenantContext, TenantId, TenantLayer},
 };
 use sea_orm::entity::prelude::*;
@@ -458,7 +456,9 @@ async fn tenant_missing_context() -> Result<Json<&'static str>> {
 async fn tenant_node(db: Db) -> Result<openrust::http::axum::Router> {
     let mut config = FrameworkConfig::default();
     config.api.http_status = HttpStatusMode::Semantic;
-    let mut builder = AppBuilder::new(config, figment::Figment::new());
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(config))
+        .merge(figment::Figment::new());
+    let mut builder = openrust::core::ProviderBuilder::new();
     let tenant_layer = TenantLayer::new(|request| {
         let user = request
             .extensions()
@@ -471,10 +471,10 @@ async fn tenant_node(db: Db) -> Result<openrust::http::axum::Router> {
         }
     });
     builder
-        .plugin(HttpPlugin)
-        .plugin(AuthPlugin::with_authenticator(TestAuthenticator))
-        .insert(db)
-        .routes(move |routes: Routes| {
+        .provider(HttpServiceProvider)
+        .provider(AuthServiceProvider::with_authenticator(TestAuthenticator))
+        .provider(TestInstance(std::sync::Arc::new(db)))
+        .provider(TestRoutes::new(move |routes: Routes| {
             let tenant_layer = tenant_layer.clone();
             routes
                 .post("/tenant/missing", tenant_missing_context)
@@ -485,8 +485,11 @@ async fn tenant_node(db: Db) -> Result<openrust::http::axum::Router> {
                         .layer(tenant_layer.layer())
                         .layer(AuthLayer::required(AuthMode::PersonalAccessToken))
                 })
-        });
-    let app = finalize(builder).await?;
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
     openrust::http::build_router(&app)
 }
 
@@ -512,17 +515,24 @@ async fn query_scope_filters_mutations_and_relations_on_real_database() -> TestR
     let db = Db::default();
     db.initialize(connection.clone())?;
     verify_composite_batches(&db, backend).await?;
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment::Figment::new());
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ))
+    .merge(figment::Figment::new());
+    let mut builder = openrust::core::ProviderBuilder::new();
     builder
-        .plugin(HttpPlugin)
-        .plugin(AuthPlugin::with_authenticator(TestAuthenticator))
-        .insert(db)
-        .routes(|routes: Routes| {
+        .provider(HttpServiceProvider)
+        .provider(AuthServiceProvider::with_authenticator(TestAuthenticator))
+        .provider(TestInstance(std::sync::Arc::new(db)))
+        .provider(TestRoutes::new(|routes: Routes| {
             routes
                 .post("/exercise", exercise)
                 .layer(AuthLayer::required(AuthMode::PersonalAccessToken))
-        });
-    let app = finalize(builder).await?;
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
     let router = build_router(&app)?;
     for (token, expected) in [(
         "owner-one",
@@ -662,4 +672,34 @@ async fn tenant_scope_is_trusted_and_shared_between_real_api_nodes() -> TestResu
     drop(connection);
     drop(isolated);
     Ok(())
+}
+
+struct TestInstance<T: Send + Sync + 'static>(std::sync::Arc<T>);
+impl<T: Send + Sync + 'static> openrust::core::ServiceProvider for TestInstance<T> {
+    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
+        app.instance(std::sync::Arc::clone(&self.0));
+        Ok(())
+    }
+}
+
+struct TestRoutes<F>(std::sync::Arc<F>);
+impl<F: Fn(openrust::http::Routes) -> openrust::http::Routes> TestRoutes<F> {
+    fn new(routes: F) -> Self {
+        Self(std::sync::Arc::new(routes))
+    }
+}
+impl<F> openrust::core::ServiceProvider for TestRoutes<F>
+where
+    F: Fn(openrust::http::Routes) -> openrust::http::Routes + Send + Sync + 'static,
+{
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut openrust::core::BootContext<'_>,
+    ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
+        let routes = std::sync::Arc::clone(&self.0);
+        Box::pin(async move {
+            app.routes(move |value| routes(value))?;
+            Ok(())
+        })
+    }
 }

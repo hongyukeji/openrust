@@ -79,7 +79,7 @@ fn parse_target(value: &str) -> Result<RootTarget> {
             #[cfg(not(feature = "view"))]
             Err(invalid_config(
                 "server.root_target",
-                "view target requires the `view` feature and ViewPlugin",
+                "view target requires the `view` feature and ViewServiceProvider",
             ))
         }
         _ => Err(invalid_config(
@@ -153,10 +153,17 @@ pub(crate) fn mount(router: Router, config: &ServerConfig, state: AppState) -> R
     #[cfg(feature = "view")]
     let views = if let RootTarget::View(name) = &target {
         let views = state.get::<crate::view::Views>().ok_or_else(|| {
-            invalid_config(
-                "server.root_target",
-                "view target requires the `view` feature and ViewPlugin",
-            )
+            if state.container().contains::<crate::view::Views>() {
+                Error::custom(
+                    "service_requires_async_resolution",
+                    "Views 服务必须在构建 Router 前解析",
+                )
+            } else {
+                invalid_config(
+                    "server.root_target",
+                    "view target requires the `view` feature and ViewServiceProvider",
+                )
+            }
         })?;
         views.validate_template(name)?;
         Some(views)

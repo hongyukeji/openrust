@@ -6,9 +6,9 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
 
+use crate::config::ConfigError;
 pub use crate::config::SmsConfig;
-use crate::config::{ConfigError, Environment};
-use crate::core::{App, AppBuilder, BoxFuture, Error, Plugin, Result};
+use crate::core::{BoxFuture, Error, Result};
 use crate::i18n::{I18n, Locale};
 #[cfg(feature = "sms-twilio")]
 use http::header::AUTHORIZATION;
@@ -158,26 +158,132 @@ impl SmsSender {
     }
 }
 
-/// 安装已配置的 [`SmsSender`] 服务。
+/// 声明从当前配置构造的 sms 服务；生产入口仍待统一 Provider 切换。
 #[derive(Debug, Default, Clone, Copy)]
-pub struct SmsPlugin;
+pub struct SmsServiceProvider;
 
-impl Plugin for SmsPlugin {
-    fn build(&self, app: &mut AppBuilder) -> Result<()> {
-        let config = app.sensitive_section::<SmsConfig>("sms")?;
-        if app.config().app.env == Environment::Production && config.driver == "log" {
-            return Err(Error::Config(ConfigError::Invalid(
-                "sms.driver=log is not allowed in production; configure a real SMS provider".into(),
-            )));
-        }
-        let sender = configured_sender(&config)?;
-        app.insert(config);
-        app.insert(sender);
+impl crate::core::ServiceProvider for SmsServiceProvider {
+    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
+        use crate::config::repository::SectionSchema;
+        app.config_section(
+            "sms",
+            SmsConfig::default(),
+            SectionSchema::object([
+                ("driver", SectionSchema::String),
+                ("account_sid", SectionSchema::String.nullable().sensitive()),
+                ("api_key_sid", SectionSchema::String.nullable().sensitive()),
+                (
+                    "api_key_secret",
+                    SectionSchema::String.nullable().sensitive(),
+                ),
+                ("from", SectionSchema::String.nullable().sensitive()),
+                (
+                    "messaging_service_sid",
+                    SectionSchema::String.nullable().sensitive(),
+                ),
+            ]),
+            |_| Ok(()),
+        )?;
+        app.singleton::<SmsConfig, _>(|resolver| {
+            Box::pin(async move { Ok(Arc::new(resolver.section::<SmsConfig>("sms")?)) })
+        });
+        app.singleton::<SmsSender, _>(|resolver| {
+            Box::pin(async move {
+                let config = resolver.section::<SmsConfig>("sms")?;
+                let env = resolver.section::<crate::config::Environment>("app.env")?;
+                if env == crate::config::Environment::Production && config.driver == "log" {
+                    return Err(Error::Config(ConfigError::Invalid(
+                        "sms.driver=log is not allowed in production".into(),
+                    )));
+                }
+                Ok(Arc::new(configured_sender(&config)?))
+            })
+        });
+        app.require::<SmsSender>();
         Ok(())
     }
 
-    fn finish<'a>(&'a self, _app: &'a App) -> BoxFuture<'a, Result<()>> {
-        Box::pin(async { Ok(()) })
+    fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            let _ = app.resolve::<SmsSender>().await?;
+            Ok(())
+        })
+    }
+}
+
+#[cfg(test)]
+mod provider_tests {
+    use super::*;
+    use crate::core::{BootContext, ProviderBuilder, ServiceProvider};
+    use figment::{Figment, providers::Serialized};
+    use serde_json::json;
+
+    struct ChangeDriver;
+    impl ServiceProvider for ChangeDriver {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move { app.overlay("sms", json!({"driver": "secret-driver-sentinel"})) })
+        }
+    }
+
+    fn sources(env: &str) -> Figment {
+        Figment::from(Serialized::defaults(json!({"app": {"env": env}})))
+    }
+
+    #[tokio::test]
+    async fn provider_constructs_in_test_environment() -> Result<()> {
+        let mut builder = ProviderBuilder::new();
+        builder.provider(SmsServiceProvider);
+        let runtime = builder.start(sources("test")).await?;
+        let _ = runtime.container().resolve::<SmsSender>().await?;
+        runtime
+            .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
+            .await
+    }
+
+    #[tokio::test]
+    async fn provider_rejects_production_log_and_missing_environment() {
+        let mut builder = ProviderBuilder::new();
+        builder.provider(SmsServiceProvider);
+        assert!(builder.start(sources("production")).await.is_err());
+        let mut builder = ProviderBuilder::new();
+        builder.provider(SmsServiceProvider);
+        assert!(builder.start(Figment::new()).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn provider_reads_prior_overlay_and_redacts_invalid_driver() {
+        let mut builder = ProviderBuilder::new();
+        builder.provider(ChangeDriver).provider(SmsServiceProvider);
+        let result = builder.start(sources("test")).await;
+        assert!(result.is_err());
+        if let Err(error) = result {
+            assert!(!format!("{error:?} {error}").contains("secret-driver-sentinel"));
+        }
+    }
+
+    #[tokio::test]
+    async fn provider_rejects_malformed_config_without_echoing_value() {
+        let mut builder = ProviderBuilder::new();
+        builder.provider(SmsServiceProvider);
+        let source = Figment::from(Serialized::defaults(
+            json!({"app":{"env":"test"},"sms":{"driver":{"secret":"private-sentinel"}}}),
+        ));
+        let result = builder.start(source).await;
+        assert!(result.is_err());
+        if let Err(error) = result {
+            assert!(!format!("{error:?} {error}").contains("private-sentinel"));
+        }
+    }
+
+    #[cfg(not(feature = "sms-twilio"))]
+    #[tokio::test]
+    async fn provider_rejects_driver_without_feature() {
+        let mut builder = ProviderBuilder::new();
+        builder.provider(SmsServiceProvider);
+        let sources = Figment::from(Serialized::defaults(
+            json!({"app":{"env":"test"},"sms":{"driver":"twilio"}}),
+        ));
+        assert!(builder.start(sources).await.is_err());
     }
 }
 
@@ -185,9 +291,9 @@ fn configured_sender(config: &SmsConfig) -> Result<SmsSender> {
     match config.driver.as_str() {
         "log" => Ok(SmsSender::new(LogSmsDriver)),
         "twilio" => configured_twilio(config),
-        other => Err(Error::Config(ConfigError::Invalid(format!(
-            "unsupported sms.driver `{other}`; expected `log` or `twilio`"
-        )))),
+        _ => Err(Error::Config(ConfigError::Invalid(
+            "unsupported sms.driver; expected `log` or `twilio`".into(),
+        ))),
     }
 }
 
@@ -441,14 +547,14 @@ fn valid_e164(value: &str) -> bool {
 mod tests {
     use super::*;
 
-    #[test]
-    fn production_rejects_log_driver() {
-        use crate::core::Plugin as _;
-        let mut framework = crate::config::FrameworkConfig::default();
-        framework.app.env = Environment::Production;
-        let figment = figment::Figment::new().merge(("sms.driver", "log"));
-        let mut builder = AppBuilder::new(framework, figment);
-        assert!(SmsPlugin.build(&mut builder).is_err());
+    #[tokio::test]
+    async fn production_rejects_log_driver() {
+        let mut builder = crate::core::ProviderBuilder::new();
+        builder.provider(SmsServiceProvider);
+        let figment = figment::Figment::from(figment::providers::Serialized::defaults(
+            serde_json::json!({"app":{"env":"production"},"sms":{"driver":"log"}}),
+        ));
+        assert!(builder.start(figment).await.is_err());
     }
 
     #[test]

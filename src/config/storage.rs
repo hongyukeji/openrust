@@ -2,10 +2,10 @@
 
 use std::collections::BTreeMap;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// `[storage]` 区段：默认 disk 与最大上传资源限制。
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct StorageConfig {
     /// 未指定时使用的具名 disk。
@@ -32,7 +32,7 @@ impl Default for StorageConfig {
 }
 
 /// 单个存储 disk 配置；driver 专属字段留在 options 中。
-#[derive(Clone, Default, Deserialize)]
+#[derive(Clone, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct StorageDiskConfig {
     /// Driver 注册名，例如 `fs` 或 `s3`。

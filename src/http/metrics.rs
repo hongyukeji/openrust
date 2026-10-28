@@ -100,28 +100,34 @@ mod tests {
     {
         use crate::{
             config::FrameworkConfig,
-            core::{AppBuilder, Application, NoConfig, lifecycle},
-            http::{AppBuilderHttpExt, build_router},
+            core::{BootContext, BoxFuture, ProviderBuilder, ServiceProvider},
+            http::build_router,
         };
         use axum::{body::Body, http::Request};
-        use figment::Figment;
+        use figment::{Figment, providers::Serialized};
         use tower::ServiceExt;
 
-        struct MetricsApp;
-        impl Application for MetricsApp {
-            type Config = NoConfig;
-
-            fn build(builder: &mut AppBuilder) {
-                builder
-                    .plugin(crate::http::HttpPlugin)
-                    .routes(|routes| routes.get("/users/{id}", || async { "ok" }));
+        struct MetricsRoutes;
+        impl ServiceProvider for MetricsRoutes {
+            fn boot<'a>(
+                &'a self,
+                app: &'a mut BootContext<'_>,
+            ) -> BoxFuture<'a, crate::core::Result<()>> {
+                Box::pin(async move {
+                    app.routes(|routes| routes.get("/users/{id}", || async { "ok" }))?;
+                    Ok(())
+                })
             }
         }
 
         let mut config = FrameworkConfig::default();
-        let mut disabled = AppBuilder::new(config.clone(), Figment::new());
-        disabled.plugin(crate::http::HttpPlugin);
-        let disabled = lifecycle::finalize(disabled).await?;
+        let mut disabled = ProviderBuilder::new();
+        disabled.provider(crate::http::HttpServiceProvider);
+        let disabled = crate::core::App::from_provider_runtime(
+            disabled
+                .start(Figment::from(Serialized::defaults(config.clone())))
+                .await?,
+        )?;
         let response = build_router(&disabled)?
             .oneshot(
                 Request::get("/metrics")
@@ -140,9 +146,15 @@ mod tests {
         );
 
         config.server.metrics_endpoint_enabled = true;
-        let mut builder = AppBuilder::new(config, Figment::new());
-        MetricsApp::build(&mut builder);
-        let app = lifecycle::finalize(builder).await?;
+        let mut builder = ProviderBuilder::new();
+        builder
+            .provider(crate::http::HttpServiceProvider)
+            .provider(MetricsRoutes);
+        let app = crate::core::App::from_provider_runtime(
+            builder
+                .start(Figment::from(Serialized::defaults(config)))
+                .await?,
+        )?;
         let router = build_router(&app)?;
         let request = Request::get("/users/secret-user?token=secret-token")
             .body(Body::empty())

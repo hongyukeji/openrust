@@ -1,11 +1,8 @@
 //! 基于数据库的账户与凭据生命周期编排。
 
-use std::{
-    sync::{Arc, OnceLock},
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 
-use crate::core::{App, AppBuilder, BoxFuture, Error, Plugin, RateLimiter, Result};
+use crate::core::{BoxFuture, Error, RateLimiter, Result};
 use crate::db::Db;
 #[cfg(feature = "auth")]
 use crate::db::sea_orm::DatabaseTransaction;
@@ -1086,31 +1083,28 @@ impl AuthFlows {
     }
 }
 
-/// 在 `DatabasePlugin`、`AuthPlugin` 和 `JwtPlugin` 之后注册 [`AuthFlows`]。
-pub struct AuthFlowsPlugin {
+/// 通过同一容器解析认证流程依赖；请求 scope 各自获取自己的依赖。
+///
+pub struct AuthFlowsServiceProvider {
     refresh_lifetime: ChronoDuration,
     code_policy: VerificationCodePolicy,
-    expected: OnceLock<Arc<AuthFlows>>,
 }
 
-impl AuthFlowsPlugin {
-    /// 创建应用流程服务，refresh token 有效期默认为 30 天。
+impl AuthFlowsServiceProvider {
+    /// 创建默认 30 天 refresh lifetime 的流程 Provider。
     pub fn new() -> Self {
         Self {
             refresh_lifetime: ChronoDuration::days(30),
             code_policy: VerificationCodePolicy::default(),
-            expected: OnceLock::new(),
         }
     }
-
-    /// 设置 refresh token 家族的最长有效期，范围为 1 秒至 1 年。
+    /// 设置 refresh token 家族的最长有效期。
     #[must_use]
     pub fn with_refresh_lifetime(mut self, lifetime: ChronoDuration) -> Self {
         self.refresh_lifetime = lifetime;
         self
     }
-
-    /// 设置邮箱验证码和密码重置码的策略。
+    /// 设置验证码策略。
     #[must_use]
     pub fn with_code_policy(mut self, policy: VerificationCodePolicy) -> Self {
         self.code_policy = policy;
@@ -1118,107 +1112,166 @@ impl AuthFlowsPlugin {
     }
 }
 
-impl Default for AuthFlowsPlugin {
+impl Default for AuthFlowsServiceProvider {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Plugin for AuthFlowsPlugin {
-    fn name(&self) -> &'static str {
-        "auth-flows"
-    }
-
-    fn build(&self, app: &mut AppBuilder) -> Result<()> {
-        if app.get::<AuthFlows>().is_some() {
-            return Err(Error::custom(
-                "auth_flows_already_registered",
-                "register only one AuthFlowsPlugin per application",
-            ));
-        }
-        if !(1..=31_536_000).contains(&self.refresh_lifetime.num_seconds()) {
+impl crate::core::ServiceProvider for AuthFlowsServiceProvider {
+    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
+        let lifetime = self.refresh_lifetime;
+        let policy = self.code_policy;
+        if !(1..=31_536_000).contains(&lifetime.num_seconds()) {
             return Err(Error::Config(crate::config::ConfigError::Invalid(
                 "auth flow refresh lifetime must be between 1 second and 365 days".into(),
             )));
         }
-        let required = |name: &'static str| {
-            Error::custom(
-                "auth_flow_dependency_missing",
-                format!("AuthFlowsPlugin requires {name} to be registered first"),
-            )
-        };
-        let db = app
-            .get::<Db>()
-            .map(|value| (*value).clone())
-            .ok_or_else(|| required("DatabasePlugin"))?;
-        let passwords = app
-            .get::<Passwords>()
-            .map(|value| (*value).clone())
-            .ok_or_else(|| required("AuthPlugin"))?;
-        let jwt = app
-            .get::<JwtTokens>()
-            .map(|value| (*value).clone())
-            .ok_or_else(|| required("JwtPlugin"))?;
-        let refresh = app
-            .get::<RefreshTokens>()
-            .map(|value| (*value).clone())
-            .ok_or_else(|| required("AuthPlugin with DatabasePlugin"))?;
-        let codes = app
-            .get::<VerificationCodes>()
-            .map(|value| (*value).clone())
-            .ok_or_else(|| required("AuthPlugin with DatabasePlugin"))?;
-        let limiter = app
-            .get::<RateLimiter>()
-            .map(|value| (*value).clone())
-            .ok_or_else(|| required("DatabasePlugin shared rate limiter"))?;
-        let flows = AuthFlows::new(db, passwords, jwt, refresh, codes, limiter)
-            .with_refresh_lifetime(self.refresh_lifetime)
-            .with_code_policy(self.code_policy);
-        #[cfg(feature = "auth-mfa")]
-        let flows = flows.with_mfa(app.get::<MfaService>().map(|value| (*value).clone()));
-        app.insert(flows);
-        self.expected
-            .set(
-                app.get::<AuthFlows>()
-                    .ok_or_else(|| Error::internal(MissingRegisteredFlows))?,
-            )
-            .map_err(|_| {
-                Error::custom(
-                    "auth_flows_plugin_reused",
-                    "AuthFlowsPlugin can only build once",
+        app.scoped::<AuthFlows, _>(move |resolver| {
+            Box::pin(async move {
+                let db = resolver.resolve::<Db>().await?;
+                let passwords = resolver.resolve::<Passwords>().await?;
+                let jwt = resolver.resolve::<JwtTokens>().await?;
+                let refresh = resolver.resolve::<RefreshTokens>().await?;
+                let codes = resolver.resolve::<VerificationCodes>().await?;
+                let limiter = resolver.resolve::<RateLimiter>().await?;
+                let flows = AuthFlows::new(
+                    (*db).clone(),
+                    (*passwords).clone(),
+                    (*jwt).clone(),
+                    (*refresh).clone(),
+                    (*codes).clone(),
+                    (*limiter).clone(),
                 )
-            })?;
+                .with_refresh_lifetime(lifetime)
+                .with_code_policy(policy);
+                #[cfg(feature = "auth-mfa")]
+                let flows = {
+                    let mfa = if resolver.is_bound::<MfaService>()? {
+                        Some((*resolver.resolve::<MfaService>().await?).clone())
+                    } else {
+                        None
+                    };
+                    flows.with_mfa(mfa)
+                };
+                Ok(Arc::new(flows))
+            })
+        });
+        app.require::<AuthFlows>();
         Ok(())
     }
 
-    fn finish<'a>(&'a self, app: &'a App) -> BoxFuture<'a, Result<()>> {
+    fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            let expected = self
-                .expected
-                .get()
-                .ok_or_else(|| Error::internal(MissingRegisteredFlows))?;
-            let registered = app.state().try_get::<AuthFlows>()?;
-            if !Arc::ptr_eq(expected, &registered) {
-                return Err(Error::custom(
-                    "auth_flows_replaced",
-                    "a later plugin replaced the AuthFlows service",
-                ));
-            }
+            let _ = app.resolve::<AuthFlows>().await?;
             Ok(())
         })
     }
 }
 
-#[derive(Debug)]
-struct MissingRegisteredFlows;
+#[cfg(test)]
+mod provider_tests {
+    use super::*;
+    use crate::core::ProviderBuilder;
 
-impl std::fmt::Display for MissingRegisteredFlows {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str("AuthFlowsPlugin built without registering its service")
+    struct Dependencies(Arc<std::sync::atomic::AtomicUsize>);
+    impl crate::core::ServiceProvider for Dependencies {
+        fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
+            use base64::Engine as _;
+            let db = Db::default();
+            let passwords = Passwords::new(crate::config::PasswordConfig::default())?;
+            app.instance(Arc::new(db.clone()));
+            app.instance(Arc::new(passwords.clone()));
+            app.instance(Arc::new(RefreshTokens::new(db.clone())));
+            app.instance(Arc::new(VerificationCodes::new(
+                crate::auth::DatabaseVerificationCodeStore::new(db.clone()),
+                passwords,
+            )));
+            app.instance(Arc::new(RateLimiter::new(
+                crate::db::DatabaseRateLimitStore::new(db),
+            )));
+            let counter = Arc::clone(&self.0);
+            app.scoped::<JwtTokens, _>(move |_| {
+                let index = counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                Box::pin(async move {
+                    let secret = base64::engine::general_purpose::STANDARD
+                        .encode([if index == 0 { 1 } else { 2 }; 32]);
+                    let config = crate::config::JwtConfig::new(
+                        "i",
+                        "a",
+                        "key",
+                        std::collections::BTreeMap::from([("key".into(), secret)]),
+                    );
+                    Ok(Arc::new(JwtTokens::new(config)?))
+                })
+            });
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn later_custom_dependencies_and_scoped_jwt_are_used() -> Result<()> {
+        let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let mut builder = ProviderBuilder::new();
+        builder
+            .provider(AuthFlowsServiceProvider::new())
+            .provider(Dependencies(Arc::clone(&calls)));
+        let runtime = builder.start(figment::Figment::new()).await?;
+        let scope = runtime.container().scope()?;
+        let flows = scope.resolve::<AuthFlows>().await?;
+        let jwt = scope.resolve::<JwtTokens>().await?;
+        assert_eq!(
+            flows
+                .jwt
+                .verify_access_token(&jwt.issue_access_token(42)?)?,
+            42
+        );
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 2);
+        scope.close();
+        runtime
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await
+    }
+
+    #[cfg(feature = "auth-mfa")]
+    struct BrokenMfa;
+    #[cfg(feature = "auth-mfa")]
+    impl crate::core::ServiceProvider for BrokenMfa {
+        fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
+            app.singleton::<MfaService, _>(|resolver| {
+                Box::pin(async move {
+                    let _ = resolver.resolve::<u128>().await?;
+                    Err(Error::custom("test", "unreachable"))
+                })
+            });
+            Ok(())
+        }
+    }
+    #[cfg(feature = "auth-mfa")]
+    #[tokio::test]
+    async fn configured_mfa_missing_internal_dependency_fails_startup() {
+        let mut builder = ProviderBuilder::new();
+        builder
+            .provider(AuthFlowsServiceProvider::new())
+            .provider(Dependencies(Arc::new(std::sync::atomic::AtomicUsize::new(
+                0,
+            ))))
+            .provider(BrokenMfa);
+        assert!(builder.start(figment::Figment::new()).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn provider_rejects_missing_dependencies_and_invalid_lifetime() {
+        let mut missing = ProviderBuilder::new();
+        missing.provider(AuthFlowsServiceProvider::new());
+        assert!(missing.start(figment::Figment::new()).await.is_err());
+        let mut invalid = ProviderBuilder::new();
+        invalid.provider(
+            AuthFlowsServiceProvider::new().with_refresh_lifetime(ChronoDuration::seconds(0)),
+        );
+        assert!(invalid.start(figment::Figment::new()).await.is_err());
     }
 }
-
-impl std::error::Error for MissingRegisteredFlows {}
 
 /// 登录或 refresh 成功后一次性返回的凭据对。
 pub struct AuthCredentials {

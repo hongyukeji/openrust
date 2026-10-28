@@ -4,9 +4,9 @@ use bytes::Bytes;
 use figment::providers::Format;
 use futures_util::{StreamExt, stream};
 use openrust::storage::{
-    Storage, StoragePath, StoragePlugin, StorageStream, UploadInspector, UploadOptions,
+    Storage, StoragePath, StorageServiceProvider, StorageStream, UploadInspector, UploadOptions,
 };
-use openrust::{Error, Result, config::FrameworkConfig, core::AppBuilder, lifecycle};
+use openrust::{Error, Result, core::ProviderBuilder};
 use std::{sync::Arc, time::Duration};
 
 type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
@@ -33,12 +33,12 @@ async fn s3_streams_multipart_cancellation_and_exact_version_presigned_reads() -
     let figment = figment::Figment::new().merge(figment::providers::Toml::string(&format!(
         "[storage]\nmax_upload_bytes = 33554432\nmax_chunk_bytes = 1048576\ndefault_disk = 'versioned'\n[storage.disks.versioned]\ndriver = 's3'\nbucket = {versioned}\nregion = 'us-east-1'\nendpoint = {endpoint}\naccess_key_id = {access_key}\nsecret_access_key = {secret_key}\n[storage.disks.plain]\ndriver = 's3'\nbucket = {plain}\nregion = 'us-east-1'\nendpoint = {endpoint}\naccess_key_id = {access_key}\nsecret_access_key = {secret_key}\n"
     )));
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment);
-    builder.plugin(StoragePlugin);
-    let app = lifecycle::finalize(builder).await?;
-    let storage = app.state().try_get::<Storage>()?;
-    let versioned = storage.disk("versioned")?;
-    let plain = storage.disk("plain")?;
+    let mut builder = ProviderBuilder::new();
+    builder.provider(StorageServiceProvider::new());
+    let app = openrust::App::from_provider_runtime(builder.start(figment).await?)?;
+    let storage = app.state().resolve::<Storage>().await?;
+    let versioned = storage.disk("versioned").await?;
+    let plain = storage.disk("plain").await?;
     let prefix = format!("acceptance/{}", unique_suffix());
     let object_path = StoragePath::new(format!("{prefix}/versioned.bin"))?;
 

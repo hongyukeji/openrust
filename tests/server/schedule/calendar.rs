@@ -5,13 +5,13 @@ use chrono::{TimeZone, Utc};
 use figment::Figment;
 use figment::providers::{Format, Toml};
 use openrust::config::FrameworkConfig;
-use openrust::core::{App, AppBuilder, BoxFuture, Result as FrameworkResult, lifecycle};
+use openrust::core::{App, BoxFuture, Result as FrameworkResult};
 use openrust::database::{
-    DatabasePlugin, Db,
+    DatabaseServiceProvider, Db,
     sea_orm::Statement,
     sea_orm_migration::{MigrationTrait, MigratorTrait},
 };
-use openrust::queue::{Job, JobContext, QueueMigration, QueuePlugin};
+use openrust::queue::{Job, JobContext, QueueMigration, QueueServiceProvider};
 use openrust::schedule::{CronOptions, MissedRunPolicy, Scheduler};
 use sea_orm::ConnectionTrait;
 use sha2::Digest;
@@ -46,9 +46,9 @@ async fn build_app(
 ) -> FrameworkResult<App> {
     let source = format!("[database]\nurl = {url:?}\n");
     let figment = Figment::new().merge(Toml::string(&source));
-    let mut queue = QueuePlugin::default();
-    queue.register_job::<CalendarJob>()?;
-    queue.schedule_cron(
+    let queue = QueueServiceProvider::new();
+    queue.contributions().register_job::<CalendarJob>()?;
+    queue.contributions().schedule_cron(
         key,
         "schedule-calendar-tests",
         CalendarJob::NAME,
@@ -59,9 +59,16 @@ async fn build_app(
             missed_runs,
         },
     )?;
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment);
-    builder.plugin(DatabasePlugin).plugin(queue);
-    lifecycle::finalize(builder).await
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ))
+    .merge(figment);
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder.provider(DatabaseServiceProvider).provider(queue);
+    builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)
 }
 
 #[tokio::test]
@@ -81,7 +88,7 @@ async fn cron_plan_revisions_are_separate_and_shared_ticks_dispatch_once()
         MissedRunPolicy::Skip,
     )
     .await?;
-    let scheduler = app.state().try_get::<Scheduler>()?;
+    let scheduler = app.state().resolve::<Scheduler>().await?;
     let ready = format!("/tmp/openrust-calendar-ready-{}", std::process::id());
     let result_path = format!("/tmp/openrust-calendar-result-{}", std::process::id());
     let current = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
@@ -129,7 +136,7 @@ async fn cron_plan_revisions_are_separate_and_shared_ticks_dispatch_once()
         MissedRunPolicy::Skip,
     )
     .await?;
-    let revised_report = revised.state().try_get::<Scheduler>()?.tick().await?;
+    let revised_report = revised.state().resolve::<Scheduler>().await?.tick().await?;
     assert_eq!(revised_report.dispatched, 1);
     let revised_time_zone = build_app(
         database.url(),
@@ -141,12 +148,13 @@ async fn cron_plan_revisions_are_separate_and_shared_ticks_dispatch_once()
     .await?;
     let time_zone_report = revised_time_zone
         .state()
-        .try_get::<Scheduler>()?
+        .resolve::<Scheduler>()
+        .await?
         .tick()
         .await?;
     assert_eq!(time_zone_report.dispatched, 1);
 
-    let db = app.state().try_get::<Db>()?;
+    let db = app.state().resolve::<Db>().await?;
     assert_eq!(database_count(&db, "schedule_runs").await?, 3);
     assert_eq!(database_count(&db, "jobs").await?, 3);
     db.connection()?.close().await?;
@@ -172,7 +180,7 @@ async fn child_calendar_scheduler_ticks_due_slot() -> Result<(), Box<dyn std::er
         MissedRunPolicy::Skip,
     )
     .await?;
-    let scheduler = app.state().try_get::<Scheduler>()?;
+    let scheduler = app.state().resolve::<Scheduler>().await?;
     std::fs::write(std::env::var("OPENRUST_CRON_READY_FILE")?, b"ready")?;
     wait_until_epoch(std::env::var("OPENRUST_CRON_START_AT")?.parse()?).await?;
     let report = scheduler.tick().await?;
@@ -203,8 +211,8 @@ async fn cron_dst_gap_and_fold_slots_are_persisted_correctly()
         MissedRunPolicy::CatchUp { max_slots: 1 },
     )
     .await?;
-    let spring_scheduler = spring.state().try_get::<Scheduler>()?;
-    let spring_db = spring.state().try_get::<Db>()?;
+    let spring_scheduler = spring.state().resolve::<Scheduler>().await?;
+    let spring_db = spring.state().resolve::<Db>().await?;
     let spring_watermark = Utc
         .with_ymd_and_hms(2024, 3, 10, 6, 0, 0)
         .single()
@@ -249,8 +257,8 @@ async fn cron_dst_gap_and_fold_slots_are_persisted_correctly()
         MissedRunPolicy::CatchUp { max_slots: 1 },
     )
     .await?;
-    let fall_scheduler = fall.state().try_get::<Scheduler>()?;
-    let fall_db = fall.state().try_get::<Db>()?;
+    let fall_scheduler = fall.state().resolve::<Scheduler>().await?;
+    let fall_db = fall.state().resolve::<Db>().await?;
     let fall_watermark = Utc
         .with_ymd_and_hms(2024, 11, 3, 5, 0, 0)
         .single()
@@ -300,8 +308,8 @@ async fn cron_catch_up_is_bounded_per_tick_and_continues_backlog()
         MissedRunPolicy::CatchUp { max_slots: 2 },
     )
     .await?;
-    let scheduler = app.state().try_get::<Scheduler>()?;
-    let db = app.state().try_get::<Db>()?;
+    let scheduler = app.state().resolve::<Scheduler>().await?;
+    let db = app.state().resolve::<Db>().await?;
     let seed_time = database_clock_seconds(&db).await? - 26 * 60 * 60;
     let seed_slot = format!("c{revision}-seed");
     insert_seed_marker(&db, key, &seed_slot, seed_time).await?;

@@ -11,18 +11,11 @@ use figment::providers::Format;
 use openrust::{
     BoxFuture, Error, Result,
     cache::{
-        Cache, CacheBackend, CacheDriver, CacheDriverConfig, CacheDrivers, CachePlugin, CacheScope,
+        Cache, CacheBackend, CacheDriver, CacheDriverConfig, CacheScope, CacheServiceProvider,
     },
-    core::{AppBuilder, Plugin, lifecycle},
+    core::ProviderBuilder,
 };
 use tokio::sync::Mutex;
-
-struct ApplicationCachePlugin;
-impl Plugin for ApplicationCachePlugin {
-    fn build(&self, app: &mut AppBuilder) -> Result<()> {
-        app.extension_mut::<CacheDrivers>().register(PrefixDriver)
-    }
-}
 
 struct PrefixDriver;
 impl CacheDriver for PrefixDriver {
@@ -101,10 +94,10 @@ async fn main() -> Result<()> {
     let config = figment::Figment::new().merge(figment::providers::Toml::string(
         "[cache]\ndefault_store = 'default'\n[cache.stores.default]\ndriver = 'example-prefix'\nkey_prefix = 'example'\n",
     ));
-    let mut builder = AppBuilder::new(openrust::config::FrameworkConfig::default(), config);
-    builder.plugin(CachePlugin).plugin(ApplicationCachePlugin);
-    let app = lifecycle::finalize(builder).await?;
-    let cache = app.state().try_get::<Cache>()?;
+    let mut builder = ProviderBuilder::new();
+    builder.provider(CacheServiceProvider::new().with_driver(PrefixDriver));
+    let runtime = builder.start(config).await?;
+    let cache = runtime.container().resolve::<Cache>().await?;
     cache
         .set("greeting", &"hello", Some(Duration::from_secs(30)))
         .await?;
@@ -114,6 +107,9 @@ async fn main() -> Result<()> {
             "custom cache driver failed its roundtrip",
         ));
     }
+    runtime
+        .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+        .await?;
     Ok(())
 }
 

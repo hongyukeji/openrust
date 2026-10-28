@@ -1,16 +1,16 @@
 # 综合业务示例
 
-> 迁移边界：本文代码与链接描述当前 `app/example/` 实现；最新目标为 `modules/example/`，按 [ADR-074](../../.agents/project/decisions/adr-074-laravel-modules-directory.md) 随统一模块契约迁移。当前 Plugin 用法不是最终 ServiceProvider/module 管理已完成的声明。
+> 迁移边界：本文代码与链接描述当前 `app/example/` 实现；最新目标为 `modules/example/`，按 [ADR-074](../../.agents/project/decisions/adr-074-laravel-modules-directory.md) 随统一模块契约迁移。当前 Provider 装配不表示 module 管理已完成。
 
-`app/example` 是根应用挂载的普通业务模块，供开发者学习如何在 `app/<业务>/` 调用框架公开 API，以及通过现有 Plugin/driver 契约扩展框架。框架和应用都在本仓 `main` 开发；这里没有独立 package、bin、启动模式或 example feature，也不复制完整应用骨架。
+`app/example` 是根应用挂载的普通业务模块，供开发者学习如何在 `app/<业务>/` 调用框架公开 API，以及通过公开 Provider/driver 契约扩展框架。框架和应用都在本仓 `main` 开发；这里没有独立 package、bin、启动模式或 example feature，也不复制完整应用骨架。
 
 **当前正在补齐示例与根布局验收。** 目标是贯穿所有当前已实现的公开框架能力；基础路由、旧认证与任务代码迁移不代表该目标完成。完整业务 CRUD、其他能力的实际示例代码和新布局门禁仍有缺口，详见下表。
 
-模块扩展目标参考用户指定的第三方 [nWidart/laravel-modules](https://github.com/nWidart/laravel-modules)；当前依据为 [v13 文档](https://laravelmodules.com/docs/13/getting-started/introduction)，读取日期 2026-10-28，未宣称源码 revision 已对齐。借鉴自有路由/API、controller/model/resource、迁移、测试与 provider 装配；它不是 Laravel 核心，不扩张 Laravel 主基线，也不表示本框架已全量实现该包。按本项目约定采用 app/<模块>、snake_case 和编译期静态注册。修改 app/mod.rs 的模块声明和应用注册清单是正常业务接入；为某个业务修改 src/ 核心或加入全局样例特判不属于接入方式。优先复用现有 Plugin/Routes；Rust 模块编译期声明，无运行时源码扫描。
+模块扩展目标参考用户指定的第三方 [nWidart/laravel-modules](https://github.com/nWidart/laravel-modules)；当前依据为 [v13 文档](https://laravelmodules.com/docs/13/getting-started/introduction)，读取日期 2026-10-28，未宣称源码 revision 已对齐。借鉴自有路由/API、controller/model/resource、迁移、测试与 provider 装配；它不是 Laravel 核心，不扩张 Laravel 主基线，也不表示本框架已全量实现该包。按本项目约定采用 app/<模块>、snake_case 和编译期静态注册。修改 app/mod.rs 的模块声明和应用注册清单是正常业务接入；为某个业务修改 src/ 核心或加入全局样例特判不属于接入方式。优先复用现有 ServiceProvider/Routes；Rust 模块编译期声明，无运行时源码扫描。
 
 ## 从真实调用链开始
 
-根 [`src/main.rs`](../../src/main.rs) 静态声明 app、bootstrap 和通用 routes，然后运行 `bootstrap::Server`。[`bootstrap/app.rs`](../../bootstrap/app.rs) 安装框架基础设施后调用根 [`app/mod.rs::register`](../mod.rs)，注册 [`ExamplePlugin`](providers/example.rs)。模块在现有 `Plugin::build` 内通过公开 `AppBuilderHttpExt::routes` 贡献 [`routes::register`](routes/mod.rs)，并按已启用服务贡献自己的迁移/种子/任务。根 [`routes/web.rs`](../../routes/web.rs) 只保留框架通用路由，不硬编码业务 handler。
+根 [`src/main.rs`](../../src/main.rs) 静态声明 app、bootstrap 和通用 routes，然后运行 `bootstrap::Server`。[`bootstrap/app.rs`](../../bootstrap/app.rs) 在 Provider 清单中注册 [`ExampleServiceProvider`](providers/example.rs)。模块在 `boot` 内通过 `BootContext::routes` 贡献 [`routes::register`](routes/mod.rs)；应用清单按已启用服务注册迁移、种子和任务。根 [`routes/web.rs`](../../routes/web.rs) 只保留框架通用路由，不硬编码业务 handler。
 
 模块 `GET /api/example` 由 `show` 返回 `Json<ExampleInfo>`，其中 `message` 是示例文字，`served_at` 直接调用第三方 `chrono::Utc::now()`；类型通过 serde 序列化，经过框架 HTTP 处理链。
 从仓库根启动，在另一终端请求默认端口：
@@ -28,43 +28,23 @@ curl --noproxy '*' http://127.0.0.1:3000/health
 
 ## 新建自己的业务模块
 
-以 `app/orders/mod.rs` 为例，沿用当前模块的真实 `Plugin` 和 `Routes` 接口：
+以 `app/orders/mod.rs` 为例，在 Provider boot 阶段贡献路由：
 
 ```rust
 use openrust::prelude::*;
-use openrust::http::AppBuilderHttpExt;
+use openrust::core::{BootContext, BoxFuture, ServiceProvider};
 
-pub(crate) struct OrdersPlugin;
-
-impl Plugin for OrdersPlugin {
-    fn build(&self, app: &mut AppBuilder) -> Result<()> {
-        app.routes(register);
-        Ok(())
+pub(crate) struct OrdersServiceProvider;
+impl ServiceProvider for OrdersServiceProvider {
+    fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move { app.routes(register)?; Ok(()) })
     }
 }
-
-fn register(routes: Routes) -> Routes {
-    routes.get("/api/orders", index)
-}
-
-async fn index() -> Json<Vec<&'static str>> {
-    Json(vec!["first-order"])
-}
+fn register(routes: Routes) -> Routes { routes.get("/api/orders", index) }
+async fn index() -> Json<Vec<&'static str>> { Json(vec!["first-order"]) }
 ```
 
-在根 `app/mod.rs` 增加 `pub(crate) mod orders;`，并在现有 `register` 清单中保留已有模块，再增加：
-
-```rust
-app.plugin(orders::OrdersPlugin);
-```
-
-重新运行根 `cargo run`，请求 `http://127.0.0.1:3000/api/orders`。业务路由与 API 留在业务模块，通过公开 Plugin 挂载；无需为该业务改 `src/` 核心或根通用路由。真实业务的数据访问、校验、授权、事务继续使用框架公开 API；此处静态列表只说明注册，不代替完整 CRUD。
-
-### 当前 Plugin 与后继 ServiceProvider
-
-当前可用的是 `Plugin::build`、`AppBuilder` 与公开 `Routes`，上面的示例只使用这些真实接口。它们处于迁移阶段，不等于 Laravel ServiceProvider 生命周期已经实现。
-
-R2 目标是统一 Container 与 ServiceProvider：register 阶段只绑定容器；全部 provider 完成注册后，boot 阶段才装配路由、事件和资源。后继将同步 ExampleServiceProvider 与应用 provider 注册清单，不保留两套内核；这些尚不是可调用的 Rust 方法。依据 [Laravel Providers](https://laravel.com/framework/docs/13.x/providers) 与 [Package Development](https://laravel.com/framework/docs/13.x/packages)。ServiceProvider 解决运行时装配，第三方依赖仍由 Cargo 解析，不会自动隔离版本或 feature。模块依赖/顺序与统一 provider 生命周期留 R2，模块启停/生成/管理的开发体验留 R13；当前手工 Plugin 注册不代表这些能力已实现。
+在根 `app/mod.rs` 声明模块，并将 `OrdersServiceProvider` 加入应用的 Provider 清单。业务路由留在业务模块，示例静态列表只说明注册，不代替完整 CRUD。register 阶段绑定服务，所有 Provider 注册后依序 boot；第三方依赖由 Cargo 解析。模块启停与管理仍待后续实现。
 
 ## 模块里各类代码写在哪里
 
@@ -72,8 +52,8 @@ R2 目标是统一 Container 与 ServiceProvider：register 阶段只绑定容�
 
 | 实际位置 | 写什么 |
 | --- | --- |
-| mod.rs | 模块声明与 ExamplePlugin 导出，保持薄入口 |
-| providers/example.rs | 通过当前公开 Plugin 组合路由、迁移、种子和任务 |
+| mod.rs | 模块声明，保持薄入口 |
+| providers/example.rs | 通过 ServiceProvider 贡献业务路由 |
 | routes/api.rs、routes/web.rs | API/页面路由组合，调用 controller |
 | http/controllers/example.rs、auth.rs、jobs.rs、pages.rs | 实际请求处理 |
 | http/requests/auth.rs | 当前认证输入 DTO；完整业务校验仍待 CRUD 补齐 |
@@ -81,7 +61,7 @@ R2 目标是统一 Container 与 ServiceProvider：register 阶段只绑定容�
 | database/migrations/mod.rs、database/seeders/mod.rs | 模块业务迁移与种子 |
 | resources/views/ | 业务模板 |
 | jobs/ | 当前心跳任务和调度插件 |
-| extensions.rs | 缓存/通信公开扩展参考源码；尚未声明模块或验收，后续按统一 Provider 契约接入 |
+| extensions.rs | 缓存/通信公开 Provider 扩展参考；尚未接入生产清单 |
 | tests/auth_flows.rs、tests/registration.rs | 同一根 Server 认证流程、模块注册与路由边界测试 |
 | proto/、generated/、grpc.rs | 实际协议输入、显式生成脚本与已生成类型；完整 RPC 服务示例仍待补 |
 
@@ -163,20 +143,20 @@ cargo deny check
 | 能力 | 本模块实际代码/公开扩展 | 根接入与条件 | 测试/当前缺口 |
 | --- | --- | --- | --- |
 | 完整业务实体 CRUD | 待补列表、详情、新增、更新、删除及业务模型 | 模块内业务迁移经公开入口挂载；PG18/MySQL8.4；真实 HTTP | 校验、分页、未找到、授权、事务与两库完整闭环均待补，基础常量路由不算完成 |
-| HTTP 路由与 JSON 响应 | `routes/api.rs` + `http/controllers/example.rs::show`，公开 `Routes/Json` | ExamplePlugin 公开贡献模块 routes，包含 `/api/example` | 根 server 路由回归；本布局结果待记录，复杂响应/资源/限流示例仍待补 |
+| HTTP 路由与 JSON 响应 | `routes/api.rs` + `http/controllers/example.rs::show`，公开 `Routes/Json` | ExampleServiceProvider 公开贡献模块 routes，包含 `/api/example` | 根 server 路由回归；本布局结果待记录，复杂响应/资源/限流示例仍待补 |
 | 配置、应用生命周期、命令 | 本模块尚无完整业务与扩展演示 | 根 bootstrap、config 与唯一 server | 仅根装配不算完整示例覆盖；公开自定义命令、配置错误及退出行为参考待补 |
-| 数据库、迁移、种子、事务、查询 | 认证流程间接使用数据库；独立业务查询与事务待补 | 模块 database/migrations 与 database/seeders，ExamplePlugin 通过公开插件挂载；对应 db feature 与真实服务 | CRUD/查询/事务业务示例待补；旧框架测试不代替本模块覆盖 |
+| 数据库、迁移、种子、事务、查询 | 认证流程间接使用数据库；独立业务查询与事务待补 | 模块 database/migrations 与 database/seeders，ExampleServiceProvider 通过公开插件挂载；对应 db feature 与真实服务 | CRUD/查询/事务业务示例待补；旧框架测试不代替本模块覆盖 |
 | JWT/PAT 与认证流程 | `routes/api.rs` + `http/controllers/auth.rs` 调用 `AuthFlows/AuthLayer/CurrentUser` | `auth`、对应 db feature；通用 auth 配置与模块业务迁移、授权注入密钥 | `app/example/tests/auth_flows.rs` 复用同 Server；当前布局双库结果待记录；Policy/MFA/OIDC/Session 业务参考仍待补 |
-| 邮件及公开邮件实现 | `http/controllers/auth.rs::AuthCodeEmail` 实现 `Email`，`send_auth_code` 使用 `Mailer` | 根 mail 配置与 `MailerPlugin` | 认证测试有捕获 MailDriver；SMTP/真实发送须独立授权和条件，不能从 fake 推断 |
+| 邮件及公开邮件实现 | `http/controllers/auth.rs::AuthCodeEmail` 实现 `Email`，`send_auth_code` 使用 `Mailer` | 根 mail 配置与 `MailerServiceProvider` | 认证测试有捕获 MailDriver；SMTP/真实发送须独立授权和条件，不能从 fake 推断 |
 | 自定义缓存/邮件/SMS driver | 待补通过统一 Provider 与公开 driver 契约接入的业务示例 | 示例配置与实现留模块，通过通用入口注册 | 注册、TTL、配置拒绝、捕获通信与生产环境保护等行为待实现并实测；不以其他 consumer 替代 |
-| 队列与调度 | `jobs::JobsPlugin`、`ExampleHeartbeatJob`；路由派发任务 | `queue`、数据库与模块迁移的公开挂载；API/worker/scheduler 为同一应用的进程角色 | 任务与间隔调度代码存在；真实派发/消费、失败/重试/事务示例和新测试待补 |
+| 队列与调度 | `jobs::JobsServiceProvider`、`ExampleHeartbeatJob`；路由派发任务 | `queue`、数据库与模块迁移的公开挂载；API/worker/scheduler 为同一应用的进程角色 | 任务与间隔调度代码存在；真实派发/消费、失败/重试/事务示例和新测试待补 |
 | 事件与通知 | 待补公开事件/通知业务调用 | 按既有 events/notifications 契约与 feature | 本模块无完整业务链，不以框架测试代替 |
-| 缓存、tag/SWR、并发加载 | 待补真实业务缓存及驱动扩展 | 现有缓存配置与选定 store；Redis 条件明确 | 根安装 CachePlugin 不等于示例已调用，业务与扩展测试待补 |
+| 缓存、tag/SWR、并发加载 | 待补真实业务缓存及驱动扩展 | 现有缓存配置与选定 store；Redis 条件明确 | 根安装 CacheServiceProvider 不等于示例已调用，业务与扩展测试待补 |
 | 本地/S3 存储与流式上传下载 | 待补业务路由、授权、公开 Storage 调用 | storage feature、根配置及适用真实后端 | 既有 storage_http/S3 测试是框架证据，尚不算本模块示例 |
 | 服务端视图 | `http/controllers/pages.rs::about_page` 注入 `Views` | `view`；模块 resources/views，显式 APP_VIEW_DIRECTORY 配置与公开视图挂载 | `/pages/about` 代码存在，新布局真实页面与错误场景待记录 |
 | i18n 与地区格式化 | 待补业务 locale/消息/格式化调用 | 根 i18n 插件与资源 | 根安装插件不等于模块覆盖 |
 | 加密与签名链接 | 待补公开 API 的业务加解密/签名验证 | 对应 feature、根密钥与配置，敏感值不进入文档 | 根插件和认证测试密钥不是完整业务示例，仍待补 |
-| 审计、租户、权限边界 | 待补业务审计/租户传播/资源授权代码 | 通用数据库配置、模块业务迁移，公开 API | 仅根 AuditPlugin 装配不算覆盖，事务/隔离测试待补 |
+| 审计、租户、权限边界 | 待补业务审计/租户传播/资源授权代码 | 通用数据库配置、模块业务迁移，公开 API | 仅根 AuditServiceProvider 装配不算覆盖，事务/隔离测试待补 |
 | HTTP 出站与上下文 | 待补公开客户端、预算/取消与失败语义 | http-client 等已有 feature、受控本地服务 | 真实请求、超时/取消与传播演示待补 |
 | WebSocket/SSE 与跨节点 | 待补业务路由与公开 transport 使用 | realtime feature；Redis 跨节点条件 | 其他 consumer 的真实拓扑不代替本模块代码 |
 | gRPC 与 HTTP/gRPC 组合 | `grpc.rs`、`proto/echo.proto` 仅保留类型构建 | 模块 proto/generate.py 显式生成 generated/echo.rs；根无示例构建脚本/依赖 | 目前没有本模块完整服务实现/注册与请求闭环，不能称 gRPC 示例已完成 |
@@ -191,6 +171,6 @@ cargo deny check
 
 根框架测试使用 `cargo test -p openrust`，完整工具门禁使用 `cargo test --workspace`。认证 target 为 example_auth_flows，路径为模块 tests/auth_flows.rs；需要对应 feature 和有建库权限的隔离测试 URL，没有 URL 时跳过不算真实数据库通过。实际命令与结果统一记录于 [测试基线](../../.agents/project/memory/testing.md)。
 
-编写业务时使用公开 `Routes`、`Inject`、`AuthFlows`、`Queue` 等入口；当前可参考 `JobsPlugin` 的 `Plugin::build` 和 `AuthCodeEmail` 的公开 trait 实现。后继缓存与通信扩展示例必须按统一 Provider 契约实现、挂载并实测后再提供使用说明；进程内演示缓存不作为共享缓存，捕获通信仅允许显式本地/测试配置并拒绝 production。
+编写业务时使用公开 `Routes`、`Inject`、`AuthFlows`、`Queue` 等入口；当前可参考 `JobsServiceProvider` 的 Provider 注册 和 `AuthCodeEmail` 的公开 trait 实现。缓存与通信扩展参考源码尚未接入生产清单，实际挂载与验证仍待完成；进程内演示缓存不作为共享缓存，捕获通信仅允许显式本地/测试配置并拒绝 production。
 
-自定义 driver 应实现框架已公开的 trait，通过应用 Plugin 装配，不能修改框架核心来识别某个业务模块。其他 [公开 consumer](../../tests/consumers/README.md) 可辅助理解边界，但不能替代本模块的覆盖交付。
+自定义 driver 应实现框架已公开的 trait，通过应用 ServiceProvider 装配，不能修改框架核心来识别某个业务模块。其他 [公开 consumer](../../tests/consumers/README.md) 可辅助理解边界，但不能替代本模块的覆盖交付。

@@ -8,18 +8,15 @@ use figment::Figment;
 use figment::providers::{Format, Toml};
 use openrust::core::RateLimiter;
 use openrust::database::{
-    DatabaseConfig, DatabasePlugin, DatabaseRateLimitMigration, DatabaseRateLimitStore,
-    DatabaseTableNames, Databases, Db, MigrationPlugin, SeedPlugin, dialect, sea_orm,
-    sea_orm_migration,
+    DatabaseConfig, DatabaseRateLimitMigration, DatabaseRateLimitStore, DatabaseServiceProvider,
+    DatabaseTableNames, Databases, Db, MigrationServiceProvider, SeedServiceProvider, dialect,
+    sea_orm, sea_orm_migration,
 };
-use openrust::http::{AppBuilderHttpExt, HttpPlugin, RateLimitLayer, axum, build_router};
+use openrust::http::{HttpServiceProvider, RateLimitLayer, axum, build_router};
 #[cfg(feature = "queue")]
 use openrust::queue::QueueMigration;
 use openrust::testing::TestDatabase;
-use openrust::{
-    App, AppBuilder, BoxFuture, Error, Plugin, Result as FrameworkResult, config::FrameworkConfig,
-    lifecycle,
-};
+use openrust::{App, Error, Result as FrameworkResult, config::FrameworkConfig};
 use sea_orm::{
     ConnectOptions, ConnectionTrait, Database, DatabaseConnection, DbBackend, Statement,
 };
@@ -32,57 +29,64 @@ use tower::ServiceExt;
 
 static SEED_RUNS: AtomicUsize = AtomicUsize::new(0);
 
-struct CustomConnectionPlugin;
+struct CustomConnectionProvider;
 
-impl Plugin for CustomConnectionPlugin {
-    fn build(&self, app: &mut AppBuilder) -> FrameworkResult<()> {
-        if app.get::<Db>().is_some() {
-            return Err(Error::custom(
-                "database_service_already_registered",
-                "register only one database plugin per application",
-            ));
-        }
-        let config = app.section::<DatabaseConfig>("database")?;
-        let table_names =
-            DatabaseTableNames::new(config.table_prefix.clone(), config.table_names.clone())?;
-        let db = Db::with_table_names(table_names);
-        app.insert(config);
-        app.insert(RateLimiter::new(DatabaseRateLimitStore::new(db.clone())));
-        app.insert(db);
-        Ok(())
-    }
-
-    fn finish<'a>(&'a self, app: &'a App) -> BoxFuture<'a, FrameworkResult<()>> {
-        Box::pin(async move {
-            let config = app.state().try_get::<DatabaseConfig>()?;
-            let url = config
-                .url
-                .as_ref()
-                .ok_or_else(|| Error::custom("missing_database_url", "database.url is required"))?;
-            let mysql = url.starts_with("mysql:");
-            #[cfg(feature = "db-mysql")]
-            let mut options = ConnectOptions::new(url.clone());
-            #[cfg(not(feature = "db-mysql"))]
-            let options = ConnectOptions::new(url.clone());
-            if mysql {
+impl openrust::core::ServiceProvider for CustomConnectionProvider {
+    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> FrameworkResult<()> {
+        app.merge_defaults(
+            "database",
+            serde_json::to_value(DatabaseConfig::default()).map_err(Error::internal)?,
+        )?;
+        app.singleton::<Db, _>(|resolver| {
+            Box::pin(async move {
+                let config = resolver.section::<DatabaseConfig>("database")?;
+                let names = DatabaseTableNames::new(
+                    config.table_prefix.clone(),
+                    config.table_names.clone(),
+                )?;
+                let db = Db::with_table_names(names);
+                let url = config.url.as_ref().ok_or_else(|| {
+                    Error::custom("missing_database_url", "database.url is required")
+                })?;
+                let mysql = url.starts_with("mysql:");
                 #[cfg(feature = "db-mysql")]
-                {
-                    options.map_sqlx_mysql_opts(|mysql| {
-                        mysql.ssl_mode(sqlx::mysql::MySqlSslMode::Required)
-                    });
-                    options.after_connect(|connection| {
-                        Box::pin(async move {
-                            connection
-                                .execute_unprepared("SET time_zone = '+00:00'")
-                                .await?;
-                            Ok(())
-                        })
-                    });
+                let mut options = ConnectOptions::new(url.clone());
+                #[cfg(not(feature = "db-mysql"))]
+                let options = ConnectOptions::new(url.clone());
+                if mysql {
+                    #[cfg(feature = "db-mysql")]
+                    {
+                        options.map_sqlx_mysql_opts(|mysql| {
+                            mysql.ssl_mode(sqlx::mysql::MySqlSslMode::Required)
+                        });
+                        options.after_connect(|connection| {
+                            Box::pin(async move {
+                                connection
+                                    .execute_unprepared("SET time_zone = '+00:00'")
+                                    .await?;
+                                Ok(())
+                            })
+                        });
+                    }
                 }
-            }
-            let connection = Database::connect(options).await.map_err(Error::internal)?;
-            app.state().try_get::<Db>()?.initialize(connection)
-        })
+                let connection = Database::connect(options).await.map_err(Error::internal)?;
+                let closing = connection.clone();
+                resolver.resources()?.on_shutdown(move || {
+                    Box::pin(async move { closing.close_by_ref().await.map_err(Error::internal) })
+                })?;
+                db.initialize(connection)?;
+                Ok(std::sync::Arc::new(db))
+            })
+        });
+        app.singleton::<RateLimiter, _>(|resolver| {
+            Box::pin(async move {
+                let db = resolver.resolve::<Db>().await?;
+                Ok(std::sync::Arc::new(RateLimiter::new(
+                    DatabaseRateLimitStore::new((*db).clone()),
+                )))
+            })
+        });
+        Ok(())
     }
 }
 
@@ -156,7 +160,9 @@ impl MigrationTrait for CreateProbe {
 
 fn probe_table_name() -> Result<Alias, DbErr> {
     let names = DatabaseTableNames::current().ok_or_else(|| {
-        DbErr::Migration("probe migration requires MigrationPlugin table-name scope".into())
+        DbErr::Migration(
+            "probe migration requires MigrationServiceProvider table-name scope".into(),
+        )
     })?;
     names
         .resolve("openrust_migration_probe")
@@ -185,20 +191,26 @@ async fn migration_command_applies_repeats_reports_and_rolls_back()
     let figment = Figment::new().merge(Toml::string(&source));
     let mut framework_config = FrameworkConfig::default();
     framework_config.api.http_status = openrust::config::HttpStatusMode::Semantic;
-    let mut builder = AppBuilder::new(framework_config, figment);
+    let sources =
+        figment::Figment::from(figment::providers::Serialized::defaults(framework_config))
+            .merge(figment);
+    let mut builder = openrust::core::ProviderBuilder::new();
     builder
-        .plugin(CustomConnectionPlugin)
-        .plugin(HttpPlugin)
-        .plugin(MigrationPlugin::<TestMigrator>::new())
-        .plugin(SeedPlugin::new(seed_probe))
-        .routes(|routes| {
+        .provider(CustomConnectionProvider)
+        .provider(HttpServiceProvider)
+        .provider(MigrationServiceProvider::<TestMigrator>::new())
+        .provider(SeedServiceProvider::new(seed_probe))
+        .provider(TestRoutes::new(|routes| {
             routes.get("/limited", migration_limit_probe).layer(
                 RateLimitLayer::by_client_ip("migration:probe", 1, Duration::from_secs(60)).layer(),
             )
-        });
+        }));
 
-    let app = lifecycle::finalize(builder).await?;
-    assert!(app.state().try_get::<RateLimiter>().is_ok());
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    assert!(app.state().resolve::<RateLimiter>().await.is_ok());
     app.run_command("migrate", vec![]).await?;
     app.run_command("migrate", vec!["up".into()]).await?;
     app.run_command("migrate", vec!["status".into()]).await?;
@@ -210,8 +222,8 @@ async fn migration_command_applies_repeats_reports_and_rolls_back()
             .is_err()
     );
 
-    let database = app.state().try_get::<Db>()?.connection()?;
-    let db_service = app.state().try_get::<Db>()?;
+    let database = app.state().resolve::<Db>().await?.connection()?;
+    let db_service = app.state().resolve::<Db>().await?;
     assert_eq!(db_service.backend()?, database.get_database_backend());
     assert!(db_service.initialize(database.clone()).is_err());
     let row = database
@@ -226,7 +238,7 @@ async fn migration_command_applies_repeats_reports_and_rolls_back()
         .ok_or("migration-created table query returned no row")?;
     assert_eq!(row.try_get::<i64>("", "row_count")?, 0);
 
-    let limiter = app.state().try_get::<RateLimiter>()?;
+    let limiter = app.state().resolve::<RateLimiter>().await?;
     verify_rate_limiter(&database, &db_service, &limiter).await?;
     verify_http_rate_limit_layer(&app).await?;
 
@@ -350,14 +362,18 @@ impl MigrationTrait for LockProbeMigration {
 
 async fn build_lock_probe_app(url: &str, timeout: Duration) -> FrameworkResult<App> {
     let source = format!("[database]\nurl = {url:?}\ntable_prefix = 'migration_lock_test_'\n");
-    let mut builder = AppBuilder::new(
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
-        Figment::new().merge(Toml::string(&source)),
+    ))
+    .merge(Figment::new().merge(Toml::string(&source)));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder.provider(DatabaseServiceProvider).provider(
+        MigrationServiceProvider::<LockProbeMigrator>::new().with_lock_wait_timeout(timeout),
     );
     builder
-        .plugin(DatabasePlugin)
-        .plugin(MigrationPlugin::<LockProbeMigrator>::new().with_lock_wait_timeout(timeout));
-    lifecycle::finalize(builder).await
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)
 }
 
 fn spawn_lock_probe_migration(
@@ -477,44 +493,23 @@ async fn named_database_instances_keep_migrations_and_transactions_isolated()
         reporting_database.url()
     );
     let figment = Figment::new().merge(Toml::string(&source));
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment);
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ))
+    .merge(figment);
+    let mut builder = openrust::core::ProviderBuilder::new();
     builder
-        .plugin(DatabasePlugin)
-        .plugin(MigrationPlugin::<TestMigrator>::new());
-    let app = lifecycle::finalize(builder).await?;
-    let databases = app.state().try_get::<Databases>()?;
-    let default_db = app.state().try_get::<Db>()?;
+        .provider(DatabaseServiceProvider)
+        .provider(MigrationServiceProvider::<TestMigrator>::new());
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let databases = app.state().resolve::<Databases>().await?;
+    let default_db = app.state().resolve::<Db>().await?;
     let analytics_db = databases.get("analytics")?;
     let reporting_db = databases.get("reporting")?;
-    assert_eq!(
-        databases.names(),
-        vec![
-            "default".to_owned(),
-            "analytics".to_owned(),
-            "reporting".to_owned()
-        ]
-    );
-    assert!(databases.get("missing").is_err());
-    assert_eq!(
-        database_identity(&default_db.connection()?).await?,
-        database_identity(&databases.default_database().connection()?).await?
-    );
-    assert_ne!(
-        database_identity(&default_db.connection()?).await?,
-        database_identity(&analytics_db.connection()?).await?
-    );
-    assert_ne!(
-        database_identity(&analytics_db.connection()?).await?,
-        database_identity(&reporting_db.connection()?).await?
-    );
-    assert_eq!(
-        database_identity(&default_db.read_connection()?).await?,
-        database_identity(&default_db.connection()?).await?
-    );
-    assert_eq!(
-        database_identity(&analytics_db.read_connection()?).await?,
-        database_identity(&analytics_db.connection()?).await?
-    );
+    assert_named_database_isolation(&databases, &default_db, &analytics_db, &reporting_db).await?;
 
     app.run_command(
         "migrate",
@@ -554,6 +549,44 @@ async fn named_database_instances_keep_migrations_and_transactions_isolated()
     named_database.close().await?;
     reporting_database.close().await?;
     default_database.close().await?;
+    Ok(())
+}
+
+async fn assert_named_database_isolation(
+    databases: &Databases,
+    default_db: &Db,
+    analytics_db: &Db,
+    reporting_db: &Db,
+) -> Result<(), Box<dyn std::error::Error>> {
+    assert_eq!(
+        databases.names(),
+        vec![
+            "default".to_owned(),
+            "analytics".to_owned(),
+            "reporting".to_owned()
+        ]
+    );
+    assert!(databases.get("missing").is_err());
+    assert_eq!(
+        database_identity(&default_db.connection()?).await?,
+        database_identity(&databases.default_database().connection()?).await?
+    );
+    assert_ne!(
+        database_identity(&default_db.connection()?).await?,
+        database_identity(&analytics_db.connection()?).await?
+    );
+    assert_ne!(
+        database_identity(&analytics_db.connection()?).await?,
+        database_identity(&reporting_db.connection()?).await?
+    );
+    assert_eq!(
+        database_identity(&default_db.read_connection()?).await?,
+        database_identity(&default_db.connection()?).await?
+    );
+    assert_eq!(
+        database_identity(&analytics_db.read_connection()?).await?,
+        database_identity(&analytics_db.connection()?).await?
+    );
     Ok(())
 }
 
@@ -752,4 +785,26 @@ async fn verify_rate_limiter(
         .ok_or("rate-limit cleanup check returned no row")?;
     assert_eq!(expired_row_count.try_get::<i64>("", "row_count")?, 0);
     Ok(())
+}
+
+struct TestRoutes<F>(std::sync::Arc<F>);
+impl<F: Fn(openrust::http::Routes) -> openrust::http::Routes> TestRoutes<F> {
+    fn new(routes: F) -> Self {
+        Self(std::sync::Arc::new(routes))
+    }
+}
+impl<F> openrust::core::ServiceProvider for TestRoutes<F>
+where
+    F: Fn(openrust::http::Routes) -> openrust::http::Routes + Send + Sync + 'static,
+{
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut openrust::core::BootContext<'_>,
+    ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
+        let routes = std::sync::Arc::clone(&self.0);
+        Box::pin(async move {
+            app.routes(move |value| routes(value))?;
+            Ok(())
+        })
+    }
 }

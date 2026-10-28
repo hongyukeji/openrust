@@ -25,7 +25,7 @@ use uuid::Uuid;
 use crate::{
     auth::CurrentUser,
     config::RealtimeConfig,
-    core::{App, AppBuilder, BoxFuture, Cancellation, Error, Plugin, Result},
+    core::{BoxFuture, Cancellation, Error, Result},
 };
 
 const ENVELOPE_VERSION: u8 = 1;
@@ -530,105 +530,142 @@ impl Drop for RealtimeSession {
     }
 }
 
-/// 注册本机连接管理及可选共享 transport。
-pub struct RealtimePlugin {
+/// 使用统一容器管理实时连接及共享 transport 生命周期。
+pub struct RealtimeServiceProvider {
     config: Option<RealtimeConfig>,
     transport: Option<Arc<dyn RealtimeTransport>>,
 }
 
-impl RealtimePlugin {
-    /// 从应用 `[realtime]` 配置加载并注册服务。
+impl RealtimeServiceProvider {
+    /// 使用当前配置仓储。
     pub fn new() -> Self {
         Self {
             config: None,
             transport: None,
         }
     }
-
-    /// 使用显式配置创建插件。
+    /// 使用显式实时配置。
     pub fn with_config(config: RealtimeConfig) -> Self {
         Self {
             config: Some(config),
             transport: None,
         }
     }
-
-    /// 安装外部 transport driver，以支持自定义跨节点路由。
+    /// 使用应用提供的共享 transport。
     #[must_use]
     pub fn with_transport(mut self, transport: impl RealtimeTransport) -> Self {
         self.transport = Some(Arc::new(transport));
         self
     }
-
-    /// 使用 Redis Pub/Sub 建立 best-effort 跨节点在线路由。
-    #[cfg(feature = "realtime-redis")]
-    pub fn with_redis(mut self, url: &str) -> Result<Self> {
-        let transport = RedisRealtimeTransport::connect(url)?;
-        if let Some(config) = &mut self.config {
-            *config = config.clone().with_redis_url(url);
-        }
-        self.transport = Some(Arc::new(transport));
-        Ok(self)
-    }
 }
-
-impl Default for RealtimePlugin {
+impl Default for RealtimeServiceProvider {
     fn default() -> Self {
         Self::new()
     }
 }
-
-impl Plugin for RealtimePlugin {
-    fn name(&self) -> &'static str {
-        "realtime"
-    }
-
-    fn build(&self, app: &mut AppBuilder) -> Result<()> {
-        let config = self
-            .config
-            .clone()
-            .unwrap_or_else(|| app.config().realtime.clone());
-        config
-            .validate()
-            .map_err(|error| Error::custom("invalid_realtime_config", error))?;
-        #[cfg(feature = "realtime-redis")]
-        let transport = self.transport.clone().or_else(|| {
-            config.redis_url().and_then(|url| {
-                RedisRealtimeTransport::connect(url)
-                    .ok()
-                    .map(|item| Arc::new(item) as Arc<dyn RealtimeTransport>)
+impl crate::core::ServiceProvider for RealtimeServiceProvider {
+    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
+        use crate::config::repository::SectionSchema as S;
+        app.config_section(
+            "realtime",
+            RealtimeConfig::default(),
+            S::object([
+                ("max_connections", S::Integer),
+                ("max_queue_messages", S::Integer),
+                ("max_queue_bytes", S::Integer),
+                ("max_total_queue_bytes", S::Integer),
+                ("max_message_bytes", S::Integer),
+                ("heartbeat_interval_secs", S::Integer),
+                ("max_connection_age_secs", S::Integer),
+                ("namespace", S::String),
+                ("allowed_origins", S::array(S::String)),
+                ("redis_url", S::String.nullable().sensitive()),
+            ]),
+            |config: &RealtimeConfig| {
+                config
+                    .validate()
+                    .map_err(|error| Error::custom("invalid_realtime_config", error))
+            },
+        )?;
+        let explicit = self.config.clone();
+        let supplied = self.transport.clone();
+        app.singleton::<Realtime, _>(move |resolver| {
+            let explicit = explicit.clone();
+            let supplied = supplied.clone();
+            Box::pin(async move {
+                let config = match explicit {
+                    Some(config) => config,
+                    None => resolver.section::<RealtimeConfig>("realtime")?,
+                };
+                config
+                    .validate()
+                    .map_err(|error| Error::custom("invalid_realtime_config", error))?;
+                let app_config = resolver.section::<crate::config::AppConfig>("app")?;
+                #[cfg(feature = "realtime-redis")]
+                let transport = match (supplied, config.redis_url()) {
+                    (Some(transport), _) => Some(transport),
+                    (None, Some(url)) => Some(Arc::new(RedisRealtimeTransport::connect(url)?)
+                        as Arc<dyn RealtimeTransport>),
+                    (None, None) => None,
+                };
+                #[cfg(not(feature = "realtime-redis"))]
+                let transport = supplied;
+                if config.redis_url().is_some() && transport.is_none() {
+                    return Err(Error::custom(
+                        "realtime_transport_unavailable",
+                        "Redis 实时驱动不可用或 realtime-redis feature 未启用",
+                    ));
+                }
+                Ok(Arc::new(Realtime(Arc::new(RealtimeInner {
+                    node_id: Uuid::now_v7().to_string(),
+                    app_name: app_config.name,
+                    connection_slots: Arc::new(Semaphore::new(config.max_connections)),
+                    queued_bytes: Arc::new(Semaphore::new(config.max_total_queue_bytes)),
+                    config,
+                    transport,
+                    connections: Mutex::new(HashMap::new()),
+                    connection_count: AtomicUsize::new(0),
+                    accepting: AtomicBool::new(true),
+                }))))
             })
         });
-        #[cfg(not(feature = "realtime-redis"))]
-        let transport = self.transport.clone();
-        if config.redis_url().is_some() && transport.is_none() {
-            return Err(Error::custom(
-                "realtime_transport_unavailable",
-                "Redis 实时驱动不可用或 realtime-redis feature 未启用",
-            ));
-        }
-        let service = Realtime(Arc::new(RealtimeInner {
-            node_id: Uuid::now_v7().to_string(),
-            app_name: app.config().app.name.clone(),
-            connection_slots: Arc::new(Semaphore::new(config.max_connections)),
-            queued_bytes: Arc::new(Semaphore::new(config.max_total_queue_bytes)),
-            config,
-            transport,
-            connections: Mutex::new(HashMap::new()),
-            connection_count: AtomicUsize::new(0),
-            accepting: AtomicBool::new(true),
-        }));
-        app.try_insert(service)?;
         Ok(())
     }
-
-    fn finish<'a>(&'a self, app: &'a App) -> BoxFuture<'a, Result<()>> {
+    fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            let service = app.state().try_get::<Realtime>()?;
+            let config = app.config_repository();
+            let has_custom_transport = self.transport.is_some();
+            app.validate_at_finalize(move || {
+                Box::pin(async move {
+                    let config = config.section::<RealtimeConfig>("realtime")?;
+                    if let Some(url) = config.redis_url() {
+                        url::Url::parse(url).map_err(|_| {
+                            Error::custom("realtime_redis_config", "Redis 实时 URL 无效")
+                        })?;
+                        #[cfg(feature = "realtime-redis")]
+                        {
+                            redis::Client::open(url).map_err(|_| {
+                                Error::custom("realtime_redis_config", "Redis 实时 URL 无效")
+                            })?;
+                        }
+                        #[cfg(not(feature = "realtime-redis"))]
+                        if !has_custom_transport {
+                            return Err(Error::custom(
+                                "realtime_transport_unavailable",
+                                "Redis 实时驱动不可用或 realtime-redis feature 未启用",
+                            ));
+                        }
+                        #[cfg(feature = "realtime-redis")]
+                        let _ = has_custom_transport;
+                    }
+                    Ok(())
+                })
+            });
+            let service = app.resolve::<Realtime>().await?;
             let transport = service.0.transport.clone();
             let task_service = service.clone();
             let namespace = service.topic();
-            app.state().background_tasks().handle().spawn(move |cancellation| async move {
+            app.resources().spawn(move |cancellation| async move {
                 let (sender, mut receiver) = mpsc::channel::<Vec<u8>>(32);
                 let mut backoff = Duration::from_millis(100);
                 loop {
@@ -893,5 +930,96 @@ mod tests {
                 .is_err()
         );
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod provider_tests {
+    use super::*;
+    use crate::core::{BootContext, ProviderBuilder, ServiceProvider};
+    use figment::{Figment, providers::Serialized};
+
+    struct InvalidOverlay;
+    impl ServiceProvider for InvalidOverlay {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(
+                async move { app.overlay("realtime", serde_json::json!({"max_connections": 0})) },
+            )
+        }
+    }
+    #[tokio::test]
+    async fn singleton_and_shutdown_use_managed_task() -> Result<()> {
+        let mut builder = ProviderBuilder::new();
+        builder.provider(RealtimeServiceProvider::new());
+        let runtime = builder
+            .start(Figment::from(Serialized::defaults(
+                crate::config::FrameworkConfig::default(),
+            )))
+            .await?;
+        let service = runtime.container().resolve::<Realtime>().await?;
+        assert!(Arc::ptr_eq(
+            &service,
+            &runtime.container().resolve::<Realtime>().await?
+        ));
+        runtime
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await?;
+        assert!(!service.0.accepting.load(Ordering::SeqCst));
+        Ok(())
+    }
+    struct RedisOverlay(&'static str);
+    impl ServiceProvider for RedisOverlay {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(
+                async move { app.overlay("realtime", serde_json::json!({"redis_url": self.0})) },
+            )
+        }
+    }
+    #[tokio::test]
+    async fn invalid_late_redis_url_fails_without_exposing_value() -> Result<()> {
+        let mut builder = ProviderBuilder::new();
+        builder
+            .provider(RealtimeServiceProvider::new())
+            .provider(RedisOverlay("redis://[secret-sentinel"));
+        let error = builder
+            .start(Figment::from(Serialized::defaults(
+                crate::config::FrameworkConfig::default(),
+            )))
+            .await
+            .err()
+            .ok_or_else(|| Error::custom("test_expected_error", "invalid Redis URL accepted"))?;
+        assert!(!error.to_string().contains("secret-sentinel"));
+        Ok(())
+    }
+    #[cfg(not(feature = "realtime-redis"))]
+    #[tokio::test]
+    async fn late_redis_url_without_driver_fails() {
+        let mut builder = ProviderBuilder::new();
+        builder
+            .provider(RealtimeServiceProvider::new())
+            .provider(RedisOverlay("redis://localhost/"));
+        assert!(
+            builder
+                .start(Figment::from(Serialized::defaults(
+                    crate::config::FrameworkConfig::default()
+                )))
+                .await
+                .is_err()
+        );
+    }
+    #[tokio::test]
+    async fn late_invalid_overlay_fails() {
+        let mut builder = ProviderBuilder::new();
+        builder
+            .provider(RealtimeServiceProvider::new())
+            .provider(InvalidOverlay);
+        assert!(
+            builder
+                .start(Figment::from(Serialized::defaults(
+                    crate::config::FrameworkConfig::default()
+                )))
+                .await
+                .is_err()
+        );
     }
 }

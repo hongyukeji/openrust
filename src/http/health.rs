@@ -26,7 +26,7 @@ pub async fn live() -> ApiResponse<Health> {
 
 /// 就绪探针：listener 正在接收流量且全部依赖探针成功时返回 200，否则返回 503。
 pub async fn ready(State(state): State<crate::core::AppState>) -> Response {
-    let is_ready = match state.try_get::<Readiness>() {
+    let is_ready = match state.resolve::<Readiness>().await {
         Ok(readiness) => readiness.is_ready() && readiness.dependencies_ready().await,
         Err(_) => false,
     };
@@ -48,12 +48,22 @@ pub fn routes(routes: Routes) -> Routes {
 #[cfg(test)]
 mod tests {
     use super::ready;
-    use crate::{
-        config::FrameworkConfig,
-        core::{AppBuilder, Error, Readiness},
-    };
+    use crate::core::{Error, ProviderBuilder, Readiness, RegisterContext, ServiceProvider};
     use axum::{extract::State, http::StatusCode};
     use figment::Figment;
+
+    struct TestReadiness(Readiness);
+
+    impl ServiceProvider for TestReadiness {
+        fn register(&self, app: &mut RegisterContext<'_>) -> crate::core::Result<()> {
+            let readiness = self.0.clone();
+            app.singleton::<Readiness, _>(move |_| {
+                let readiness = readiness.clone();
+                Box::pin(async move { Ok(std::sync::Arc::new(readiness)) })
+            });
+            Ok(())
+        }
+    }
 
     #[tokio::test]
     async fn ready_returns_503_without_leaking_dependency_errors() -> crate::core::Result<()> {
@@ -64,9 +74,9 @@ mod tests {
                 "private connection detail",
             ))
         })?;
-        let mut builder = AppBuilder::new(FrameworkConfig::default(), Figment::new());
-        builder.insert(readiness.clone());
-        let app = crate::core::lifecycle::finalize(builder).await?;
+        let mut builder = ProviderBuilder::new();
+        builder.provider(TestReadiness(readiness.clone()));
+        let app = crate::core::App::from_provider_runtime(builder.start(Figment::new()).await?)?;
         let _listener = readiness.begin_listening();
 
         let response = ready(State(app.state().clone())).await;

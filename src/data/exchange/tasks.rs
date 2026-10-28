@@ -190,11 +190,11 @@ where
     let report_path =
         options.report_path_for_attempt(context.id(), context.attempt(), &input.import_id)?;
     validate_exchange_object_path(&report_path)?;
-    let storage = context.service::<Storage>()?;
-    let db = context.service::<Db>()?;
-    let queue = context.service::<Queue>()?;
-    let source = storage.disk(&input.disk)?;
-    let report_disk = storage.disk(&options.report_disk)?;
+    let storage = context.service::<Storage>().await?;
+    let db = context.service::<Db>().await?;
+    let queue = context.service::<Queue>().await?;
+    let source = storage.disk(&input.disk).await?;
+    let report_disk = storage.disk(&options.report_disk).await?;
 
     let temporary = tempfile::tempfile().map_err(Error::internal)?;
     let mut temporary = tokio::fs::File::from_std(temporary);
@@ -649,9 +649,9 @@ where
     validate_exchange_object_path(&output_path)?;
     let output_path =
         options.output_path_for_attempt(&output_path, context.id(), context.attempt())?;
-    let storage = context.service::<Storage>()?;
-    let queue = context.service::<Queue>()?;
-    let disk = storage.disk(disk_name)?;
+    let storage = context.service::<Storage>().await?;
+    let queue = context.service::<Queue>().await?;
+    let disk = storage.disk(disk_name).await?;
     let temporary = tempfile::tempfile().map_err(Error::internal)?;
     let (sender, mut receiver) = tokio::sync::mpsc::channel::<Map<String, Value>>(1);
     let rows_written = Arc::new(AtomicU64::new(0));
@@ -741,7 +741,7 @@ async fn publish_export_object(
     chunk_size: usize,
     expires_at_unix_secs: u64,
 ) -> Result<()> {
-    let locks = SharedLocks::new((*context.service::<Db>()?).clone());
+    let locks = SharedLocks::new((*context.service::<Db>().await?).clone());
     let context = context.clone();
     let queue = queue.clone();
     let disk = disk.clone();
@@ -832,11 +832,11 @@ impl Job for ImportReportCleanupJob {
 
     fn handle(&self, context: JobContext) -> BoxFuture<'_, Result<()>> {
         Box::pin(async move {
-            let storage = context.service::<Storage>()?;
-            let queue = context.service::<Queue>()?;
-            let db = context.service::<Db>()?;
+            let storage = context.service::<Storage>().await?;
+            let queue = context.service::<Queue>().await?;
+            let db = context.service::<Db>().await?;
             let path = StoragePath::new(self.path.clone())?;
-            let disk = storage.disk(&self.disk)?;
+            let disk = storage.disk(&self.disk).await?;
             let marker_path = retention_marker_path(&self.disk, &path)?;
             let locks = SharedLocks::new((*db).clone());
             let disk_name = self.disk.clone();

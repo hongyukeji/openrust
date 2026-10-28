@@ -4,9 +4,9 @@
 use figment::Figment;
 use figment::providers::{Format, Toml};
 use openrust::core::RateLimiter;
-use openrust::database::{DatabasePlugin, Db};
-use openrust::events::EventsPlugin;
-use openrust::{AppBuilder, Error, config::FrameworkConfig, http::HttpPlugin, lifecycle};
+use openrust::database::{DatabaseServiceProvider, Db};
+use openrust::events::EventsServiceProvider;
+use openrust::{Error, config::FrameworkConfig, http::HttpServiceProvider};
 use sea_orm::{ConnectionTrait, DbBackend, Statement, TransactionTrait};
 use std::{net::SocketAddr, time::Duration};
 use tokio::{
@@ -32,16 +32,25 @@ async fn plugin_opens_pool_and_executes_a_query() -> Result<(), Box<dyn std::err
     let replica_url = configured_replica.unwrap_or_else(|| url.clone());
     let source = format!("[database]\nurl = {url:?}\nread_replicas = [{replica_url:?}]\n");
     let figment = Figment::new().merge(Toml::string(&source));
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment);
-    builder.plugin(HttpPlugin).plugin(DatabasePlugin);
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ))
+    .merge(figment);
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(DatabaseServiceProvider);
 
-    let app = lifecycle::finalize(builder).await?;
-    assert!(app.state().try_get::<RateLimiter>().is_ok());
-    let readiness = app.state().try_get::<openrust::core::Readiness>()?;
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    assert!(app.state().resolve::<RateLimiter>().await.is_ok());
+    let readiness = app.state().resolve::<openrust::core::Readiness>().await?;
     assert!(readiness.dependencies_ready().await);
-    let database = app.state().try_get::<Db>()?.connection()?;
+    let database = app.state().resolve::<Db>().await?.connection()?;
     database.execute_unprepared("SELECT 1").await?;
-    let db = app.state().try_get::<Db>()?;
+    let db = app.state().resolve::<Db>().await?;
     let read_connection = db.read_connection()?;
     assert_eq!(
         read_connection.get_database_backend(),
@@ -129,13 +138,19 @@ async fn runtime_database_readiness_fails_and_recovers_through_a_proxy()
         proxied_url.as_str(),
         proxied_url.as_str()
     );
-    let mut builder = AppBuilder::new(
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
-        Figment::new().merge(Toml::string(&source)),
-    );
-    builder.plugin(HttpPlugin).plugin(DatabasePlugin);
-    let app = lifecycle::finalize(builder).await?;
-    let readiness = app.state().try_get::<openrust::core::Readiness>()?;
+    ))
+    .merge(Figment::new().merge(Toml::string(&source)));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(DatabaseServiceProvider);
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let readiness = app.state().resolve::<openrust::core::Readiness>().await?;
     assert!(readiness.dependencies_ready().await);
 
     proxy.set_enabled(false);
@@ -253,15 +268,29 @@ async fn primary_scope_reads_fresh_data_while_replica_apply_is_paused()
     let replica_url = std::env::var("OPENRUST_TEST_READ_REPLICA_URL")?;
     let source = format!("[database]\nurl = {url:?}\nread_replicas = [{replica_url:?}]\n");
     let figment = Figment::new().merge(Toml::string(&source));
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment);
-    builder.plugin(DatabasePlugin);
-    let app = lifecycle::finalize(builder).await?;
-    let db = app.state().try_get::<Db>()?;
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ))
+    .merge(figment);
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder.provider(DatabaseServiceProvider);
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let db = app.state().resolve::<Db>().await?;
     let peer_figment = Figment::new().merge(Toml::string(&source));
-    let mut peer_builder = AppBuilder::new(FrameworkConfig::default(), peer_figment);
-    peer_builder.plugin(DatabasePlugin);
-    let peer_app = lifecycle::finalize(peer_builder).await?;
-    let peer_db = peer_app.state().try_get::<Db>()?;
+    let peer_builder_sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ))
+    .merge(peer_figment);
+    let mut peer_builder = openrust::core::ProviderBuilder::new();
+    peer_builder.provider(DatabaseServiceProvider);
+    let peer_app = peer_builder
+        .start(peer_builder_sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let peer_db = peer_app.state().resolve::<Db>().await?;
     let primary = db.primary_connection()?;
     let replica = db.read_connection()?;
     if database_identity(&primary).await? == database_identity(&replica).await? {
@@ -416,11 +445,18 @@ async fn transaction_commits_success_and_rolls_back_callback_errors()
     };
     let source = format!("[database]\nurl = {url:?}\n");
     let figment = Figment::new().merge(Toml::string(&source));
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment);
-    builder.plugin(DatabasePlugin);
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ))
+    .merge(figment);
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder.provider(DatabaseServiceProvider);
 
-    let app = lifecycle::finalize(builder).await?;
-    let database = app.state().try_get::<Db>()?;
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let database = app.state().resolve::<Db>().await?;
     let connection = database.connection()?;
     let table = format!(
         "openrust_db_transaction_{}_{}",
@@ -493,10 +529,14 @@ async fn transaction_events_rollback_before_commit_and_ignore_after_commit_error
     };
     let source = format!("[database]\nurl = {url:?}\n");
     let figment = Figment::new().merge(Toml::string(&source));
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment);
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ))
+    .merge(figment);
+    let mut builder = openrust::core::ProviderBuilder::new();
     let reject = Arc::new(AtomicBool::new(false));
     let after_calls = Arc::new(AtomicUsize::new(0));
-    let mut events = EventsPlugin::new();
+    let mut events = EventsServiceProvider::new();
     let reject_listener = Arc::clone(&reject);
     events.listen::<openrust::database::TransactionBeforeCommit, _>(move |_, _| {
         let reject = Arc::clone(&reject_listener);
@@ -519,9 +559,12 @@ async fn transaction_events_rollback_before_commit_and_ignore_after_commit_error
             Err(Error::custom("after_commit_failed", "notification failed"))
         })
     });
-    builder.plugin(DatabasePlugin).plugin(events);
-    let app = lifecycle::finalize(builder).await?;
-    let db = app.state().try_get::<Db>()?;
+    builder.provider(DatabaseServiceProvider).provider(events);
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let db = app.state().resolve::<Db>().await?;
     let connection = db.connection()?;
     let table = format!("openrust_tx_events_{}", std::process::id());
     connection
@@ -589,11 +632,18 @@ async fn supported_backends_skip_rows_locked_by_another_transaction()
     };
     let source = format!("[database]\nurl = {url:?}\n");
     let figment = Figment::new().merge(Toml::string(&source));
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment);
-    builder.plugin(DatabasePlugin);
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ))
+    .merge(figment);
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder.provider(DatabaseServiceProvider);
 
-    let app = lifecycle::finalize(builder).await?;
-    let database = app.state().try_get::<Db>()?;
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let database = app.state().resolve::<Db>().await?;
     let connection = database.connection()?;
     let table = format!(
         "openrust_skip_locked_{}_{}",

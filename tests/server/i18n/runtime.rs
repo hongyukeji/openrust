@@ -9,10 +9,10 @@ use openrust::http::axum::http::{Request, StatusCode};
 use openrust::http::axum::response::{IntoResponse, Response};
 use openrust::http::axum::routing::get;
 use openrust::http::{
-    AppBuilderHttpExt, HttpPlugin, Inject, Json, RequestLocale, Routes, Validated, build_router,
+    HttpServiceProvider, Inject, Json, RequestLocale, Routes, Validated, build_router,
 };
-use openrust::i18n::{I18n, I18nConfig, I18nPlugin, Locale, MessageArgs, MessageCatalog};
-use openrust::{AppBuilder, Error, Result, lifecycle};
+use openrust::i18n::{I18n, I18nConfig, I18nServiceProvider, Locale, MessageArgs, MessageCatalog};
+use openrust::{Error, Result};
 use serde::Deserialize;
 use validator::Validate;
 
@@ -69,7 +69,11 @@ fn i18n_routes(routes: Routes) -> Routes {
 }
 
 async fn router() -> Result<openrust::http::axum::Router> {
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment::Figment::new());
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ))
+    .merge(figment::Figment::new());
+    let mut builder = openrust::core::ProviderBuilder::new();
     let mut catalog = MessageCatalog::new();
     catalog.insert_plural(
         "en",
@@ -110,10 +114,13 @@ async fn router() -> Result<openrust::http::axum::Router> {
         ]),
     )?;
     builder
-        .plugin(HttpPlugin)
-        .plugin(I18nPlugin::new(I18nConfig::default(), catalog)?)
-        .routes(i18n_routes);
-    let app = lifecycle::finalize(builder).await?;
+        .provider(HttpServiceProvider)
+        .provider(I18nServiceProvider::new(catalog))
+        .provider(TestRoutes::new(i18n_routes));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
     build_router(&app)
 }
 
@@ -237,7 +244,7 @@ async fn untranslated_application_error_keeps_its_safe_message() -> TestResult {
 async fn app_catalog_can_override_builtin_messages_with_parameters() -> TestResult {
     let mut catalog = MessageCatalog::new();
     catalog.merge_json("en", r#"{"greeting":"Hello, {name}!"}"#)?;
-    let plugin = I18nPlugin::new(I18nConfig::default(), catalog)?;
+    let plugin = I18nServiceProvider::new(catalog);
     let app = I18n::new(I18nConfig::default(), {
         let mut messages = MessageCatalog::new();
         messages.merge_json("en", r#"{"greeting":"Hello, {name}!"}"#)?;
@@ -250,11 +257,18 @@ async fn app_catalog_can_override_builtin_messages_with_parameters() -> TestResu
         "Hello, Ada!"
     );
 
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment::Figment::new());
-    builder.plugin(HttpPlugin).plugin(plugin);
-    builder.routes(i18n_routes);
-    let assembled = lifecycle::finalize(builder).await?;
-    assert!(assembled.state().get::<I18n>().is_some());
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ))
+    .merge(figment::Figment::new());
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder.provider(HttpServiceProvider).provider(plugin);
+    builder.provider(TestRoutes::new(i18n_routes));
+    let assembled = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    assert!(assembled.state().resolve::<I18n>().await.is_ok());
     let response = build_router(&assembled)?
         .oneshot(
             Request::get("/greeting")
@@ -270,4 +284,26 @@ async fn app_catalog_can_override_builtin_messages_with_parameters() -> TestResu
         "unknown"
     );
     Ok(())
+}
+
+struct TestRoutes<F>(std::sync::Arc<F>);
+impl<F: Fn(openrust::http::Routes) -> openrust::http::Routes> TestRoutes<F> {
+    fn new(routes: F) -> Self {
+        Self(std::sync::Arc::new(routes))
+    }
+}
+impl<F> openrust::core::ServiceProvider for TestRoutes<F>
+where
+    F: Fn(openrust::http::Routes) -> openrust::http::Routes + Send + Sync + 'static,
+{
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut openrust::core::BootContext<'_>,
+    ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
+        let routes = std::sync::Arc::clone(&self.0);
+        Box::pin(async move {
+            app.routes(move |value| routes(value))?;
+            Ok(())
+        })
+    }
 }

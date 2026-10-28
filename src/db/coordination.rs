@@ -154,7 +154,7 @@ impl MigrationTrait for CoordinationMigration {
 fn migration_table_alias(name: &str, backend: DbBackend) -> std::result::Result<Alias, DbErr> {
     let names = crate::db::DatabaseTableNames::current().ok_or_else(|| {
         DbErr::Migration(
-            "coordination migration requires MigrationPlugin or TestDatabase scope".into(),
+            "coordination migration requires MigrationServiceProvider or TestDatabase scope".into(),
         )
     })?;
     names

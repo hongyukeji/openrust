@@ -2,10 +2,10 @@
 
 use std::collections::BTreeMap;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// `[cache]` 区段：默认 store 与命名实例。
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct CacheConfig {
     /// 未显式选择 store 时使用的名称。
@@ -30,7 +30,7 @@ impl Default for CacheConfig {
 }
 
 /// 同进程同键加载合并的容量与超时设置。
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct CacheSingleflightConfig {
     /// 同时执行 loader 的不同 key 上限（1–4096）。
@@ -52,7 +52,7 @@ impl Default for CacheSingleflightConfig {
 }
 
 /// SWR 后台刷新的资源上限。
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct CacheSwrConfig {
     /// 同一应用实例中同时运行的刷新 loader 上限（1–256）。
@@ -68,7 +68,7 @@ impl Default for CacheSwrConfig {
 }
 
 /// 单个缓存 store 配置。未识别的字段会交给所选 driver 解析。
-#[derive(Clone, Default, Deserialize)]
+#[derive(Clone, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct CacheStoreConfig {
     /// Driver 注册名称，如 `redis`、`memory` 或 `file`。

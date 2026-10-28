@@ -1,6 +1,5 @@
-use openrust::http::AppBuilderHttpExt;
 use openrust::http::{
-    HttpPlugin,
+    HttpServiceProvider,
     axum::{
         body::{Body, to_bytes},
         http::{Request, StatusCode},
@@ -8,21 +7,35 @@ use openrust::http::{
 };
 use tower::ServiceExt;
 
+struct FrameworkRoutes;
+impl openrust::core::ServiceProvider for FrameworkRoutes {
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut openrust::core::BootContext<'_>,
+    ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.routes(openrust::routes::framework_routes)?;
+            Ok(())
+        })
+    }
+}
+
 #[tokio::test]
 async fn module_registration_controls_only_its_business_routes()
 -> Result<(), Box<dyn std::error::Error>> {
     for registered in [false, true] {
-        let mut builder = openrust::AppBuilder::new(
-            openrust::config::FrameworkConfig::default(),
-            figment::Figment::new(),
-        );
+        let mut builder = openrust::core::ProviderBuilder::new();
         builder
-            .plugin(HttpPlugin)
-            .routes(openrust::routes::framework_routes);
+            .provider(HttpServiceProvider)
+            .provider(openrust::db::DatabaseServiceProvider)
+            .provider(FrameworkRoutes);
         if registered {
-            builder.plugin(super::ExamplePlugin);
+            builder.provider(super::providers::ExampleServiceProvider);
         }
-        let app = openrust::lifecycle::finalize(builder).await?;
+        let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+            openrust::config::FrameworkConfig::default(),
+        ));
+        let app = openrust::App::from_provider_runtime(builder.start(sources).await?)?;
         let router = openrust::http::build_router(&app)?;
         for path in ["/health", "/api"] {
             let response = router

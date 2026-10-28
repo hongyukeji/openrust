@@ -5,11 +5,11 @@ use std::collections::BTreeMap;
 use std::error::Error as StdError;
 
 use openrust::ServiceExt;
-use openrust::auth::Passwords;
+use openrust::auth::{AuthServiceProvider, JwtServiceProvider, Passwords};
 use openrust::config::FrameworkConfig;
 use openrust::http::axum::body::{Body, to_bytes};
 use openrust::http::axum::http::{Request, StatusCode};
-use openrust::http::{AppBuilderHttpExt, HttpPlugin, build_router};
+use openrust::http::{HttpServiceProvider, build_router};
 use openrust::prelude::*;
 
 type TestResult = Result<(), Box<dyn StdError>>;
@@ -40,40 +40,45 @@ struct ProfileService;
 impl Application for App {
     type Config = NoConfig;
 
-    fn build(app: &mut AppBuilder) {
-        app.plugin(HttpPlugin)
-            .plugin(AuthPlugin::with_authenticator(TestAuthenticator))
-            .insert(ProfileService)
-            .routes(|routes| {
+    fn providers(_config: &Self::Config) -> Vec<Box<dyn openrust::core::ServiceProvider>> {
+        vec![
+            Box::new(HttpServiceProvider),
+            Box::new(AuthServiceProvider::with_authenticator(TestAuthenticator)),
+            Box::new(TestInstance(std::sync::Arc::new(ProfileService))),
+            Box::new(TestRoutes::new(|routes| {
                 routes
                     .get("/api/profile", profile)
                     .layer(AuthLayer::required(AuthMode::PersonalAccessToken))
-            });
+            })),
+        ]
     }
 }
 
 impl Application for JwtApp {
     type Config = NoConfig;
 
-    fn build(app: &mut AppBuilder) {
+    fn providers(_config: &Self::Config) -> Vec<Box<dyn openrust::core::ServiceProvider>> {
         let key = [0x5a; 32];
-        app.plugin(HttpPlugin)
-            .plugin(JwtPlugin::with_config(JwtConfig::new(
+        vec![
+            Box::new(HttpServiceProvider),
+            Box::new(JwtSettings::new(
                 "https://openrust.example",
                 "openrust-server-tests",
                 "test-key",
-                BTreeMap::from([(
+                &BTreeMap::from([(
                     "test-key".to_owned(),
                     base64::Engine::encode(&base64::engine::general_purpose::STANDARD, key),
                 )]),
-            )))
-            .plugin(AuthPlugin::with_authenticator(TestAuthenticator))
-            .insert(ProfileService)
-            .routes(|routes| {
+            )),
+            Box::new(JwtServiceProvider),
+            Box::new(AuthServiceProvider::with_authenticator(TestAuthenticator)),
+            Box::new(TestInstance(std::sync::Arc::new(ProfileService))),
+            Box::new(TestRoutes::new(|routes| {
                 routes
                     .get("/api/profile", profile)
                     .layer(AuthLayer::required(AuthMode::Jwt))
-            });
+            })),
+        ]
     }
 }
 
@@ -108,8 +113,8 @@ async fn facade_application_authentication_coexists_with_dependency_injection() 
 #[openrust::tokio::test]
 async fn facade_application_authenticates_jwt_without_session_plugin() -> TestResult {
     let app = test_application::<JwtApp>().await?;
-    let _passwords = app.state().try_get::<Passwords>()?;
-    let tokens = app.state().try_get::<JwtTokens>()?;
+    let _passwords = app.state().resolve::<Passwords>().await?;
+    let tokens = app.state().resolve::<JwtTokens>().await?;
     let token = tokens.issue_access_token(73)?;
     let response = build_router(&app)?
         .oneshot(
@@ -125,9 +130,67 @@ async fn facade_application_authenticates_jwt_without_session_plugin() -> TestRe
     Ok(())
 }
 
-async fn test_application<A: Application>() -> Result<openrust::App, openrust::Error> {
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment::Figment::new());
-    builder.insert(NoConfig {});
-    A::build(&mut builder);
-    openrust::lifecycle::finalize(builder).await
+async fn test_application<A: Application<Config = NoConfig>>()
+-> Result<openrust::App, openrust::Error> {
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ))
+    .merge(figment::Figment::new());
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder.app_config::<NoConfig>();
+    for provider in A::providers(&NoConfig {}) {
+        builder.boxed_provider(provider);
+    }
+    builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)
+}
+
+struct TestInstance<T: Send + Sync + 'static>(std::sync::Arc<T>);
+impl<T: Send + Sync + 'static> openrust::core::ServiceProvider for TestInstance<T> {
+    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
+        app.instance(std::sync::Arc::clone(&self.0));
+        Ok(())
+    }
+}
+
+struct TestRoutes<F>(std::sync::Arc<F>);
+impl<F: Fn(openrust::http::Routes) -> openrust::http::Routes> TestRoutes<F> {
+    fn new(routes: F) -> Self {
+        Self(std::sync::Arc::new(routes))
+    }
+}
+impl<F> openrust::core::ServiceProvider for TestRoutes<F>
+where
+    F: Fn(openrust::http::Routes) -> openrust::http::Routes + Send + Sync + 'static,
+{
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut openrust::core::BootContext<'_>,
+    ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
+        let routes = std::sync::Arc::clone(&self.0);
+        Box::pin(async move {
+            app.routes(move |value| routes(value))?;
+            Ok(())
+        })
+    }
+}
+
+struct JwtSettings(serde_json::Value);
+impl JwtSettings {
+    fn new(
+        issuer: &str,
+        audience: &str,
+        active_key_id: &str,
+        keys: &std::collections::BTreeMap<String, String>,
+    ) -> Self {
+        Self(serde_json::json!({"issuer":issuer,"audience":audience,
+            "active_key_id":active_key_id,"keys":keys}))
+    }
+}
+impl openrust::core::ServiceProvider for JwtSettings {
+    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
+        app.merge_defaults("auth.jwt", self.0.clone())
+    }
 }

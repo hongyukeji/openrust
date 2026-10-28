@@ -17,8 +17,8 @@
 //! ```
 
 use crate::core::{
-    AppBuilder, BoxFuture, Cancellation, Error, ExecutionContext, ExecutionMetadata, Plugin,
-    Result, with_execution_context,
+    BoxFuture, Cancellation, Error, ExecutionContext, ExecutionMetadata, Result,
+    with_execution_context,
 };
 use crate::db::{DatabaseTransaction, Db, DbBackend};
 use sea_orm::{ConnectionTrait, Statement, TransactionTrait};
@@ -67,7 +67,7 @@ impl Drop for WorkerJobMetricGuard {
     }
 }
 
-/// 通过 [`QueuePlugin`] 显式注册的类型化任务处理器。
+/// 通过队列贡献目录显式注册的类型化任务处理器。
 pub trait Job: DeserializeOwned + Send + Sync + 'static {
     /// 持久化使用的稳定任务名称。重命名 Rust 类型时应保留此名称。
     const NAME: &'static str;
@@ -179,14 +179,14 @@ impl JobContext {
     /// 从 `queue work` worker 正常运行时取得应用中注册的服务。
     ///
     /// 直接调用 `Queue::run_next` 的 worker driver 没有应用状态，此时返回错误。
-    pub fn service<T: Send + Sync + 'static>(&self) -> Result<Arc<T>> {
+    pub async fn service<T: Send + Sync + 'static>(&self) -> Result<Arc<T>> {
         let state = self.app_state.as_ref().ok_or_else(|| {
             Error::custom(
                 "queue_application_state_unavailable",
                 "this queue execution has no application service context",
             )
         })?;
-        state.try_get::<T>()
+        state.resolve::<T>().await
     }
 
     /// 等待 worker 停机流程请求协作取消。
@@ -282,10 +282,30 @@ async fn persist_database_progress(
 type JobFn = fn(Value, JobContext) -> BoxFuture<'static, Result<()>>;
 
 /// 可供队列 driver 复用的 typed Job 注册表。
+///
+/// 克隆共享同一目录；后续 Provider boot 登记的任务也对既有 driver 可见。
+/// handler 查询在调用前结束，不持有目录锁执行用户代码。
 #[derive(Default, Clone)]
-pub struct JobRegistry(HashMap<&'static str, JobFn>);
+pub struct JobRegistry(Arc<std::sync::RwLock<HashMap<&'static str, JobFn>>>);
 
 impl JobRegistry {
+    fn from_handlers(handlers: HashMap<&'static str, JobFn>) -> Self {
+        Self(Arc::new(std::sync::RwLock::new(handlers)))
+    }
+
+    fn handler(&self, name: &str) -> Option<JobFn> {
+        self.0
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(name)
+            .copied()
+    }
+
+    /// 检查当前共享目录是否已经登记指定任务。
+    pub fn contains(&self, name: &str) -> bool {
+        self.handler(name).is_some()
+    }
+
     /// 注册一个 typed Job；重复名称或框架保留名称会返回错误。
     pub fn register_job<J: Job>(&mut self) -> Result<&mut Self> {
         validate_name("job name", J::NAME, MAX_JOB_NAME)?;
@@ -295,13 +315,18 @@ impl JobRegistry {
                 "job name is reserved for framework task groups",
             ));
         }
-        if self.0.contains_key(J::NAME) {
+        let mut handlers = self
+            .0
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if handlers.contains_key(J::NAME) {
             return Err(Error::custom(
                 "duplicate_queue_job",
                 format!("job handler `{}` is registered more than once", J::NAME),
             ));
         }
-        self.0.insert(J::NAME, run_job::<J>);
+        handlers.insert(J::NAME, run_job::<J>);
+        drop(handlers);
         Ok(self)
     }
 
@@ -313,7 +338,7 @@ impl JobRegistry {
     pub async fn execute(&self, job_name: &str, payload: Value, context: JobContext) -> Result<()> {
         validate_name("job name", job_name, MAX_JOB_NAME)?;
         validate_payload(&payload)?;
-        let handler = self.0.get(job_name).copied().ok_or_else(|| {
+        let handler = self.handler(job_name).ok_or_else(|| {
             Error::custom(
                 "unregistered_queue_job",
                 format!("no handler is registered for job `{job_name}`"),
@@ -639,7 +664,9 @@ impl MigrationTrait for QueueMigration {
 
 fn queue_table(logical: &str, backend: DbBackend) -> std::result::Result<Alias, DbErr> {
     let names = crate::db::DatabaseTableNames::current().ok_or_else(|| {
-        DbErr::Migration("queue migration requires MigrationPlugin or TestDatabase scope".into())
+        DbErr::Migration(
+            "queue migration requires MigrationServiceProvider or TestDatabase scope".into(),
+        )
     })?;
     names
         .quote(logical, backend)
@@ -812,7 +839,8 @@ pub struct DatabaseQueue {
 /// 将任务持久化与执行委托给已注册 driver 的 Queue facade。
 #[derive(Clone)]
 pub struct Queue {
-    driver: Arc<dyn QueueDriver>,
+    driver: Option<Arc<dyn QueueDriver>>,
+    manager: Option<Arc<QueueManager>>,
 }
 
 /// 单个任务的重试、延迟与活动任务唯一性设置。
@@ -934,22 +962,826 @@ impl Default for DispatchOptions {
     }
 }
 
+type QueueCreator = Arc<
+    dyn Fn(
+            crate::core::container::Resolver,
+            String,
+            crate::config::QueueConnectionConfig,
+            crate::config::QueueConfig,
+            JobRegistry,
+        ) -> BoxFuture<'static, Result<Arc<dyn QueueDriver>>>
+        + Send
+        + Sync,
+>;
+
+type QueueValidator =
+    Arc<dyn Fn(&str, &crate::config::QueueConnectionConfig) -> Result<()> + Send + Sync>;
+#[derive(Clone)]
+struct QueueCreatorEntry {
+    creator: QueueCreator,
+    validator: Option<QueueValidator>,
+}
+
+#[derive(Default)]
+struct QueueContributionsInner {
+    plugin: QueueSchedules,
+    creators: HashMap<String, QueueCreatorEntry>,
+}
+
+/// 队列 Provider 共用的任务、调度及 driver creator 贡献目录。
+pub struct QueueContributions {
+    inner: std::sync::Mutex<QueueContributionsInner>,
+    jobs: JobRegistry,
+}
+
+impl Default for QueueContributions {
+    fn default() -> Self {
+        let handlers: HashMap<&'static str, JobFn> = HashMap::from([
+            (
+                crate::notifications::EmailDeliveryJob::NAME,
+                run_job::<crate::notifications::EmailDeliveryJob> as JobFn,
+            ),
+            (
+                crate::notifications::SmsDeliveryJob::NAME,
+                run_job::<crate::notifications::SmsDeliveryJob> as JobFn,
+            ),
+        ]);
+        #[cfg(feature = "data-exchange-tasks")]
+        let handlers = {
+            let mut handlers = handlers;
+            handlers.insert(
+                crate::data::exchange::tasks::ImportReportCleanupJob::NAME,
+                run_job::<crate::data::exchange::tasks::ImportReportCleanupJob>,
+            );
+            handlers
+        };
+        Self {
+            inner: std::sync::Mutex::new(QueueContributionsInner::default()),
+            jobs: JobRegistry::from_handlers(handlers),
+        }
+    }
+}
+
+impl QueueContributions {
+    /// 注册类型化任务；重复名称报错。
+    pub fn register_job<J: Job>(&self) -> Result<()> {
+        self.jobs.clone().register_job::<J>()?;
+        Ok(())
+    }
+    /// 注册固定间隔任务。
+    pub fn schedule_interval<T: Serialize>(
+        &self,
+        key: &str,
+        queue: &str,
+        job: &str,
+        payload: &T,
+        interval: Duration,
+    ) -> Result<()> {
+        self.inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .plugin
+            .schedule_interval(key, queue, job, payload, interval)?;
+        Ok(())
+    }
+    /// 注册每日 UTC 任务。
+    pub fn schedule_daily_at<T: Serialize>(
+        &self,
+        key: &str,
+        queue: &str,
+        job: &str,
+        payload: &T,
+        hour: u8,
+        minute: u8,
+    ) -> Result<()> {
+        self.inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .plugin
+            .schedule_daily_at(key, queue, job, payload, hour, minute)?;
+        Ok(())
+    }
+    /// 注册带时区和补跑策略的 cron 任务。
+    pub fn schedule_cron<T: Serialize>(
+        &self,
+        key: &str,
+        queue: &str,
+        job: &str,
+        payload: &T,
+        expression: &str,
+        options: crate::schedule::CronOptions,
+    ) -> Result<()> {
+        self.inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .plugin
+            .schedule_cron(key, queue, job, payload, expression, options)?;
+        Ok(())
+    }
+    /// 注册或替换 driver creator；已创建的连接保持不变。
+    ///
+    /// 此方法不校验 driver 专属选项；需要最终配置校验时使用 `extend_validated`。
+    pub fn extend<F>(&self, name: &str, creator: F) -> Result<()>
+    where
+        F: Fn(
+                crate::core::container::Resolver,
+                String,
+                crate::config::QueueConnectionConfig,
+                crate::config::QueueConfig,
+                JobRegistry,
+            ) -> BoxFuture<'static, Result<Arc<dyn QueueDriver>>>
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.install_creator(name, Arc::new(creator), None)
+    }
+
+    /// 注册 creator 与不执行 I/O 的配置校验器；同名替换两者。
+    pub fn extend_validated<F, V>(&self, name: &str, validator: V, creator: F) -> Result<()>
+    where
+        F: Fn(
+                crate::core::container::Resolver,
+                String,
+                crate::config::QueueConnectionConfig,
+                crate::config::QueueConfig,
+                JobRegistry,
+            ) -> BoxFuture<'static, Result<Arc<dyn QueueDriver>>>
+            + Send
+            + Sync
+            + 'static,
+        V: Fn(&str, &crate::config::QueueConnectionConfig) -> Result<()> + Send + Sync + 'static,
+    {
+        self.install_creator(name, Arc::new(creator), Some(Arc::new(validator)))
+    }
+
+    fn install_creator(
+        &self,
+        name: &str,
+        creator: QueueCreator,
+        validator: Option<QueueValidator>,
+    ) -> Result<()> {
+        validate_name("driver", name, MAX_QUEUE_NAME)?;
+        let previous = self
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .creators
+            .insert(name.to_owned(), QueueCreatorEntry { creator, validator });
+        drop(previous);
+        Ok(())
+    }
+}
+
+fn queue_stopped() -> Error {
+    Error::custom("queue_shutdown_requested", "queue manager is stopped")
+}
+
+type QueueConnections =
+    std::sync::Mutex<HashMap<String, Arc<tokio::sync::OnceCell<Arc<dyn QueueDriver>>>>>;
+
+struct QueueManager {
+    resolver: crate::core::container::Resolver,
+    contributions: Arc<QueueContributions>,
+    connections: QueueConnections,
+    shutdown: std::sync::atomic::AtomicBool,
+    generation: std::sync::atomic::AtomicU64,
+}
+
+/// 在统一容器中装配任务目录、队列连接与 worker 命令。
+#[derive(Default)]
+pub struct QueueServiceProvider {
+    contributions: Arc<QueueContributions>,
+}
+
+impl QueueServiceProvider {
+    /// 创建共享贡献目录。
+    pub fn new() -> Self {
+        Self::default()
+    }
+    /// 获取可在 Provider register 阶段共享的贡献句柄。
+    pub fn contributions(&self) -> Arc<QueueContributions> {
+        Arc::clone(&self.contributions)
+    }
+}
+
+impl crate::core::ServiceProvider for QueueServiceProvider {
+    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
+        use crate::config::repository::SectionSchema as S;
+        app.config_section(
+            "queue",
+            crate::config::QueueConfig::default(),
+            S::object([
+                ("default_connection", S::String),
+                (
+                    "connections",
+                    S::map(S::object([
+                        ("driver", S::String),
+                        ("redis_url", S::String.nullable().sensitive()),
+                        ("redis_namespace", S::String.nullable()),
+                        ("options", S::any().sensitive()),
+                    ])),
+                ),
+                ("driver", S::String),
+                ("redis_url", S::String.nullable().sensitive()),
+                ("redis_namespace", S::String.nullable()),
+                ("poll_interval_millis", S::Integer),
+                ("lease_secs", S::Integer),
+                ("job_timeout_secs", S::Integer),
+                ("worker_concurrency", S::Integer),
+                ("shutdown_timeout_secs", S::Integer),
+            ]),
+            validate_config,
+        )?;
+        let contributions = Arc::clone(&self.contributions);
+        app.instance(Arc::clone(&contributions));
+        app.singleton::<crate::config::QueueConfig, _>(|resolver| {
+            Box::pin(async move {
+                Ok(Arc::new(
+                    resolver.section::<crate::config::QueueConfig>("queue")?,
+                ))
+            })
+        });
+        app.singleton::<Queue, _>(move |resolver| {
+            Box::pin(async move {
+                let contributions = resolver.resolve::<QueueContributions>().await?;
+                Ok(Arc::new(Queue {
+                    driver: None,
+                    manager: Some(Arc::new(QueueManager {
+                        resolver,
+                        contributions,
+                        connections: std::sync::Mutex::new(HashMap::new()),
+                        shutdown: std::sync::atomic::AtomicBool::new(false),
+                        generation: std::sync::atomic::AtomicU64::new(0),
+                    })),
+                }))
+            })
+        });
+        app.singleton::<crate::schedule::Scheduler, _>(move |resolver| {
+            Box::pin(async move {
+                let contributions = resolver.resolve::<QueueContributions>().await?;
+                let db = resolver.resolve::<Db>().await?;
+                let queue = resolver.resolve::<Queue>().await?;
+                let config = resolver.section::<crate::config::QueueConfig>("queue")?;
+                let schedules = contributions
+                    .inner
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .plugin
+                    .schedules
+                    .clone();
+                Ok(Arc::new(crate::schedule::Scheduler::new(
+                    (*db).clone(),
+                    (*queue).clone(),
+                    schedules,
+                    config,
+                )))
+            })
+        });
+        app.require::<Queue>();
+        Ok(())
+    }
+    fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            let queue = app.resolve::<Queue>().await?;
+            let _ = queue.resolve_driver().await?;
+            let config = app.section::<crate::config::QueueConfig>("queue")?;
+            let final_queue = Arc::clone(&queue);
+            app.validate_at_finalize(move || {
+                Box::pin(async move { final_queue.validate_configured() })
+            });
+            app.command(QueueWorkCommand);
+            app.command(QueueRetryCommand);
+            if Queue::default_driver_name(&config)? == "database" {
+                let _ = app.resolve::<crate::schedule::Scheduler>().await?;
+                app.command(crate::schedule::ScheduleRunCommand);
+                app.command(crate::schedule::ScheduleListCommand);
+            }
+            Ok(())
+        })
+    }
+}
+
+#[cfg(test)]
+mod provider_tests {
+    use super::*;
+    use crate::core::{BootContext, ProviderBuilder, ServiceProvider};
+    use figment::{Figment, providers::Serialized};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[tokio::test]
+    async fn job_context_resolves_factory_service() -> Result<()> {
+        struct FactoryValue(u8);
+        struct FactoryProvider;
+        impl ServiceProvider for FactoryProvider {
+            fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
+                app.singleton::<FactoryValue, _>(|_| {
+                    Box::pin(async { Ok(Arc::new(FactoryValue(7))) })
+                });
+                Ok(())
+            }
+        }
+        let mut builder = ProviderBuilder::new();
+        builder.provider(FactoryProvider);
+        let app = crate::core::App::from_provider_runtime(builder.start(Figment::new()).await?)?;
+        let context =
+            JobContext::new("job", 1, 1, Cancellation::new())?.with_app_state(app.state().clone());
+        assert_eq!(context.service::<FactoryValue>().await?.0, 7);
+        let missing = JobContext::new("job", 1, 1, Cancellation::new())?;
+        assert_eq!(
+            missing
+                .service::<FactoryValue>()
+                .await
+                .err()
+                .map(|error| error.code().to_owned())
+                .as_deref(),
+            Some("queue_application_state_unavailable")
+        );
+        Ok(())
+    }
+
+    struct Driver;
+    impl QueueDriver for Driver {
+        fn dispatch<'a>(
+            &'a self,
+            _: &'a str,
+            _: &'a str,
+            _: Value,
+            _: DispatchOptions,
+        ) -> BoxFuture<'a, Result<String>> {
+            Box::pin(async { Ok("id".into()) })
+        }
+        fn dispatch_in_transaction<'a>(
+            &'a self,
+            _: &'a DatabaseTransaction,
+            _: &'a str,
+            _: &'a str,
+            _: Value,
+            _: DispatchOptions,
+        ) -> BoxFuture<'a, Result<String>> {
+            Box::pin(async { Ok("id".into()) })
+        }
+        fn run_next<'a>(&'a self, _: &'a str) -> BoxFuture<'a, Result<bool>> {
+            Box::pin(async { Ok(false) })
+        }
+        fn retry_failed<'a>(&'a self, _: &'a str) -> BoxFuture<'a, Result<String>> {
+            Box::pin(async { Ok("id".into()) })
+        }
+        fn reset_shutdown(&self) {}
+        fn request_shutdown(&self) {}
+        fn is_shutdown_requested(&self) -> bool {
+            false
+        }
+    }
+    fn creator(
+        count: Arc<AtomicUsize>,
+    ) -> impl Fn(
+        crate::core::container::Resolver,
+        String,
+        crate::config::QueueConnectionConfig,
+        crate::config::QueueConfig,
+        JobRegistry,
+    ) -> BoxFuture<'static, Result<Arc<dyn QueueDriver>>>
+    + Send
+    + Sync {
+        move |_, _, _, _, _| {
+            count.fetch_add(1, Ordering::SeqCst);
+            Box::pin(async {
+                tokio::task::yield_now().await;
+                Ok(Arc::new(Driver) as Arc<dyn QueueDriver>)
+            })
+        }
+    }
+    fn sources() -> Figment {
+        Figment::from(Serialized::defaults(
+            serde_json::json!({"queue":{"default_connection":"first","connections":{"first":{"driver":"custom"},"second":{"driver":"custom"}}}}),
+        ))
+    }
+    #[derive(serde::Serialize, serde::Deserialize)]
+    struct ExampleJob;
+    impl Job for ExampleJob {
+        const NAME: &'static str = "test.queue.provider";
+        fn handle(&self, _: JobContext) -> BoxFuture<'_, Result<()>> {
+            Box::pin(async { Ok(()) })
+        }
+    }
+    #[tokio::test]
+    async fn registered_job_is_visible_to_creator() -> Result<()> {
+        let provider = QueueServiceProvider::new();
+        let contributions = provider.contributions();
+        contributions.register_job::<ExampleJob>()?;
+        contributions.extend("custom", |_, _, _, _, registry| {
+            Box::pin(async move {
+                if !registry.contains(ExampleJob::NAME) {
+                    return Err(Error::custom("test_missing_job", "missing"));
+                }
+                Ok(Arc::new(Driver) as Arc<dyn QueueDriver>)
+            })
+        })?;
+        let mut builder = ProviderBuilder::new();
+        builder.provider(provider);
+        let runtime = builder.start(sources()).await?;
+        runtime
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await
+    }
+
+    struct Early;
+    impl ServiceProvider for Early {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                let queue = app.resolve::<Queue>().await?;
+                let _ = queue.connection("first").await?;
+                Ok(())
+            })
+        }
+    }
+    #[tokio::test]
+    async fn early_resolve_late_extend_and_named_singleflight() -> Result<()> {
+        let provider = QueueServiceProvider::new();
+        let contributions = provider.contributions();
+        let first_count = Arc::new(AtomicUsize::new(0));
+        let next_count = Arc::new(AtomicUsize::new(0));
+        contributions.extend("custom", creator(Arc::clone(&first_count)))?;
+        let mut builder = ProviderBuilder::new();
+        builder.provider(Early).provider(provider);
+        let runtime = builder.start(sources()).await?;
+        let queue = runtime.container().resolve::<Queue>().await?;
+        let first = queue
+            .connection("first")
+            .await?
+            .driver
+            .ok_or_else(|| Error::custom("test", "missing"))?;
+        contributions.extend("custom", creator(Arc::clone(&next_count)))?;
+        let retained = queue
+            .connection("first")
+            .await?
+            .driver
+            .ok_or_else(|| Error::custom("test", "missing"))?;
+        assert!(Arc::ptr_eq(&first, &retained));
+        let (left, right) = tokio::join!(queue.connection("second"), queue.connection("second"));
+        assert!(Arc::ptr_eq(
+            &left?
+                .driver
+                .ok_or_else(|| Error::custom("test", "missing"))?,
+            &right?
+                .driver
+                .ok_or_else(|| Error::custom("test", "missing"))?
+        ));
+        assert_eq!(first_count.load(Ordering::SeqCst), 1);
+        assert_eq!(next_count.load(Ordering::SeqCst), 1);
+        runtime
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await
+    }
+    struct BadOptions;
+    impl ServiceProvider for BadOptions {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.overlay("queue", serde_json::json!({"connections":{"second":{"options":{"valid":false,"secret":"secret-sentinel"}}}}))
+            })
+        }
+    }
+    fn require_valid(_: &str, config: &crate::config::QueueConnectionConfig) -> Result<()> {
+        if config.options.get("valid").and_then(Value::as_bool) == Some(true) {
+            Ok(())
+        } else {
+            Err(Error::custom("private", "secret-sentinel"))
+        }
+    }
+    #[tokio::test]
+    async fn validated_creator_rejects_late_invalid_options_and_redacts() -> Result<()> {
+        let provider = QueueServiceProvider::new();
+        provider.contributions().extend_validated(
+            "custom",
+            require_valid,
+            creator(Arc::new(AtomicUsize::new(0))),
+        )?;
+        let source = Figment::from(Serialized::defaults(
+            serde_json::json!({"queue":{"default_connection":"first","connections":{"first":{"driver":"custom","options":{"valid":true}},"second":{"driver":"custom","options":{"valid":true}}}}}),
+        ));
+        let mut builder = ProviderBuilder::new();
+        builder.provider(provider).provider(BadOptions);
+        let result = builder.start(source).await;
+        assert!(result.is_err());
+        if let Err(error) = result {
+            assert!(!format!("{error:?} {error}").contains("secret-sentinel"));
+        }
+        Ok(())
+    }
+    #[tokio::test]
+    async fn replacing_creator_discards_previous_validator() -> Result<()> {
+        let provider = QueueServiceProvider::new();
+        let contributions = provider.contributions();
+        contributions.extend_validated(
+            "custom",
+            |_, _| Err(Error::custom("old", "old")),
+            creator(Arc::new(AtomicUsize::new(0))),
+        )?;
+        contributions.extend("custom", creator(Arc::new(AtomicUsize::new(0))))?;
+        let mut builder = ProviderBuilder::new();
+        builder.provider(provider);
+        let runtime = builder.start(sources()).await?;
+        runtime
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await
+    }
+
+    struct BadOverlay;
+    impl ServiceProvider for BadOverlay {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.overlay(
+                    "queue",
+                    serde_json::json!({"connections":{"second":{"driver":"missing"}}}),
+                )
+            })
+        }
+    }
+    #[tokio::test]
+    async fn late_invalid_driver_fails_final_validation() -> Result<()> {
+        let provider = QueueServiceProvider::new();
+        provider
+            .contributions()
+            .extend("custom", creator(Arc::new(AtomicUsize::new(0))))?;
+        let mut builder = ProviderBuilder::new();
+        builder.provider(provider).provider(BadOverlay);
+        assert!(builder.start(sources()).await.is_err());
+        Ok(())
+    }
+
+    struct OverrideContributions(Arc<QueueContributions>);
+    impl ServiceProvider for OverrideContributions {
+        fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
+            app.instance(Arc::clone(&self.0));
+            Ok(())
+        }
+    }
+    #[tokio::test]
+    async fn factory_uses_final_contributions_binding() -> Result<()> {
+        let provider = QueueServiceProvider::new();
+        let original_count = Arc::new(AtomicUsize::new(0));
+        provider
+            .contributions()
+            .extend("custom", creator(Arc::clone(&original_count)))?;
+        let replacement = Arc::new(QueueContributions::default());
+        let replacement_count = Arc::new(AtomicUsize::new(0));
+        replacement.extend("custom", creator(Arc::clone(&replacement_count)))?;
+        let mut builder = ProviderBuilder::new();
+        builder
+            .provider(provider)
+            .provider(OverrideContributions(Arc::clone(&replacement)));
+        let runtime = builder.start(sources()).await?;
+        assert!(Arc::ptr_eq(
+            &runtime.container().resolve::<QueueContributions>().await?,
+            &replacement
+        ));
+        assert_eq!(original_count.load(Ordering::SeqCst), 0);
+        assert_eq!(replacement_count.load(Ordering::SeqCst), 1);
+        runtime
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await
+    }
+    struct LateJob;
+    impl ServiceProvider for LateJob {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.resolve::<QueueContributions>()
+                    .await?
+                    .register_job::<ExampleJob>()
+            })
+        }
+    }
+    #[tokio::test]
+    async fn boot_job_registration_is_visible_to_existing_driver() -> Result<()> {
+        let provider = QueueServiceProvider::new();
+        let observed = Arc::new(std::sync::Mutex::new(None::<JobRegistry>));
+        let captured = Arc::clone(&observed);
+        provider
+            .contributions()
+            .extend("custom", move |_, _, _, _, registry| {
+                *captured
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(registry);
+                Box::pin(async { Ok(Arc::new(Driver) as Arc<dyn QueueDriver>) })
+            })?;
+        let mut builder = ProviderBuilder::new();
+        builder.provider(provider).provider(LateJob);
+        let runtime = builder.start(sources()).await?;
+        let registry = observed
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
+            .ok_or_else(|| Error::custom("test", "registry missing"))?;
+        assert!(registry.contains(ExampleJob::NAME));
+        assert!(registry.contains(crate::notifications::EmailDeliveryJob::NAME));
+        assert!(registry.contains(crate::notifications::SmsDeliveryJob::NAME));
+        runtime
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await
+    }
+
+    #[derive(Default)]
+    struct StopDriver(std::sync::atomic::AtomicBool);
+    impl QueueDriver for StopDriver {
+        fn dispatch<'a>(
+            &'a self,
+            queue: &'a str,
+            job: &'a str,
+            value: Value,
+            options: DispatchOptions,
+        ) -> BoxFuture<'a, Result<String>> {
+            Driver.dispatch(queue, job, value, options)
+        }
+        fn dispatch_in_transaction<'a>(
+            &'a self,
+            transaction: &'a DatabaseTransaction,
+            queue: &'a str,
+            job: &'a str,
+            value: Value,
+            options: DispatchOptions,
+        ) -> BoxFuture<'a, Result<String>> {
+            Driver.dispatch_in_transaction(transaction, queue, job, value, options)
+        }
+        fn run_next<'a>(&'a self, _: &'a str) -> BoxFuture<'a, Result<bool>> {
+            Box::pin(async { Ok(false) })
+        }
+        fn retry_failed<'a>(&'a self, _: &'a str) -> BoxFuture<'a, Result<String>> {
+            Box::pin(async { Ok("id".into()) })
+        }
+        fn reset_shutdown(&self) {
+            self.0.store(false, Ordering::SeqCst);
+        }
+        fn request_shutdown(&self) {
+            self.0.store(true, Ordering::SeqCst);
+        }
+        fn is_shutdown_requested(&self) -> bool {
+            self.0.load(Ordering::SeqCst)
+        }
+    }
+    #[tokio::test]
+    async fn shutdown_seals_unresolved_names_and_stops_all_cached_drivers() -> Result<()> {
+        let provider = QueueServiceProvider::new();
+        let count = Arc::new(AtomicUsize::new(0));
+        let captured = Arc::clone(&count);
+        provider
+            .contributions()
+            .extend("custom", move |_, _, _, _, _| {
+                captured.fetch_add(1, Ordering::SeqCst);
+                Box::pin(async { Ok(Arc::new(StopDriver::default()) as Arc<dyn QueueDriver>) })
+            })?;
+        let mut builder = ProviderBuilder::new();
+        builder.provider(provider);
+        let runtime = builder.start(sources()).await?;
+        let queue = runtime.container().resolve::<Queue>().await?;
+        let first = queue.connection("first").await?;
+        queue.request_shutdown();
+        assert!(queue.is_shutdown_requested());
+        assert!(first.is_shutdown_requested());
+        assert_eq!(
+            queue
+                .connection("second")
+                .await
+                .err()
+                .map(|e| e.code().to_owned())
+                .as_deref(),
+            Some("queue_shutdown_requested")
+        );
+        assert_eq!(count.load(Ordering::SeqCst), 1);
+        assert!(!queue.run_next("default").await?);
+        queue.reset_shutdown();
+        let second = queue.connection("second").await?;
+        let rebuilt = queue.connection("first").await?;
+        queue.request_shutdown();
+        assert!(second.is_shutdown_requested());
+        assert!(rebuilt.is_shutdown_requested());
+        runtime
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await
+    }
+    #[tokio::test]
+    async fn inflight_old_generation_cannot_publish_after_stop_and_reset() -> Result<()> {
+        let provider = QueueServiceProvider::new();
+        let started = Arc::new(tokio::sync::Notify::new());
+        let release = Arc::new(tokio::sync::Notify::new());
+        let slow = Arc::new(StopDriver::default());
+        let count = Arc::new(AtomicUsize::new(0));
+        let (s, r, d, c) = (
+            Arc::clone(&started),
+            Arc::clone(&release),
+            Arc::clone(&slow),
+            Arc::clone(&count),
+        );
+        provider
+            .contributions()
+            .extend("custom", move |_, name, _, _, _| {
+                let (s, r, d, c) = (
+                    Arc::clone(&s),
+                    Arc::clone(&r),
+                    Arc::clone(&d),
+                    Arc::clone(&c),
+                );
+                Box::pin(async move {
+                    if name == "second" && c.fetch_add(1, Ordering::SeqCst) == 0 {
+                        s.notify_one();
+                        r.notified().await;
+                        Ok(d as Arc<dyn QueueDriver>)
+                    } else {
+                        Ok(Arc::new(StopDriver::default()) as Arc<dyn QueueDriver>)
+                    }
+                })
+            })?;
+        let mut builder = ProviderBuilder::new();
+        builder.provider(provider);
+        let runtime = builder.start(sources()).await?;
+        // 默认连接创建不消耗第二连接的首次慢构造计数。
+        count.store(0, Ordering::SeqCst);
+        let queue = runtime.container().resolve::<Queue>().await?;
+        let task_queue = Arc::clone(&queue);
+        let task = tokio::spawn(async move { task_queue.connection("second").await });
+        started.notified().await;
+        queue.request_shutdown();
+        queue.reset_shutdown();
+        let current = queue.connection("second").await?;
+        release.notify_one();
+        assert!(
+            task.await
+                .map_err(|_| Error::custom("test", "task failed"))?
+                .is_err()
+        );
+        assert!(slow.is_shutdown_requested());
+        assert!(!current.is_shutdown_requested());
+        let again = queue.connection("second").await?;
+        assert!(Arc::ptr_eq(
+            current
+                .driver
+                .as_ref()
+                .ok_or_else(|| Error::custom("test", "missing"))?,
+            again
+                .driver
+                .as_ref()
+                .ok_or_else(|| Error::custom("test", "missing"))?
+        ));
+        runtime
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await
+    }
+
+    #[cfg(feature = "queue-redis")]
+    struct RedisOverlay;
+    #[cfg(feature = "queue-redis")]
+    impl ServiceProvider for RedisOverlay {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move { app.overlay("queue", serde_json::json!({"redis_url":null})) })
+        }
+    }
+    #[cfg(feature = "queue-redis")]
+    #[tokio::test]
+    async fn fallback_redis_is_revalidated_after_overlay_without_io() -> Result<()> {
+        let source = Figment::from(Serialized::defaults(
+            serde_json::json!({"queue":{"driver":"redis","redis_url":"redis://127.0.0.1:1","redis_namespace":"test"}}),
+        ));
+        let mut builder = ProviderBuilder::new();
+        builder
+            .provider(QueueServiceProvider::new())
+            .provider(RedisOverlay);
+        assert!(builder.start(source).await.is_err());
+        Ok(())
+    }
+    #[cfg(feature = "queue-redis")]
+    #[tokio::test]
+    async fn named_redis_url_and_namespace_are_validated_without_io() -> Result<()> {
+        for (url, namespace) in [
+            ("secret-sentinel", "valid"),
+            ("redis://127.0.0.1:1", "bad:secret-sentinel"),
+        ] {
+            let provider = QueueServiceProvider::new();
+            provider
+                .contributions()
+                .extend("custom", creator(Arc::new(AtomicUsize::new(0))))?;
+            let source = Figment::from(Serialized::defaults(
+                serde_json::json!({"queue":{"default_connection":"first","connections":{"first":{"driver":"custom"},"second":{"driver":"redis","redis_url":url,"redis_namespace":namespace}}}}),
+            ));
+            let mut builder = ProviderBuilder::new();
+            builder.provider(provider);
+            let error = builder
+                .start(source)
+                .await
+                .err()
+                .ok_or_else(|| Error::custom("test", "invalid configuration accepted"))?;
+            assert!(!format!("{error:?} {error}").contains("secret-sentinel"));
+        }
+        Ok(())
+    }
+}
+
 /// 注册队列服务与显式允许的任务 handler。
 #[derive(Debug, Default, Clone)]
-pub struct QueuePlugin {
-    handlers: HashMap<&'static str, JobFn>,
+struct QueueSchedules {
     schedules: Vec<crate::schedule::ScheduleDefinition>,
 }
 
-impl QueuePlugin {
-    /// 使用稳定的 [`Job::NAME`] 注册类型化 handler。
-    pub fn register_job<J: Job>(&mut self) -> Result<&mut Self> {
-        let mut registry = JobRegistry(self.handlers.clone());
-        registry.register_job::<J>()?;
-        self.handlers = registry.0;
-        Ok(self)
-    }
-
+impl QueueSchedules {
     /// 注册一个任务，使其在每个有界 UTC interval 时段派发。
     pub fn schedule_interval<T: Serialize>(
         &mut self,
@@ -1041,120 +1873,6 @@ impl QueuePlugin {
     }
 }
 
-impl Plugin for QueuePlugin {
-    // 一个 build 阶段必须原子装配所选 driver 及其匹配的 command/scheduler 能力。
-    #[allow(clippy::too_many_lines)]
-    fn build(&self, app: &mut AppBuilder) -> Result<()> {
-        let mut handlers = self.handlers.clone();
-        handlers.insert(
-            crate::notifications::EmailDeliveryJob::NAME,
-            run_job::<crate::notifications::EmailDeliveryJob>,
-        );
-        handlers.insert(
-            crate::notifications::SmsDeliveryJob::NAME,
-            run_job::<crate::notifications::SmsDeliveryJob>,
-        );
-        #[cfg(feature = "data-exchange-tasks")]
-        handlers.insert(
-            crate::data::exchange::tasks::ImportReportCleanupJob::NAME,
-            run_job::<crate::data::exchange::tasks::ImportReportCleanupJob>,
-        );
-        let registry = JobRegistry(handlers);
-        let config = match app.section::<crate::config::QueueConfig>("queue") {
-            Ok(config) => config,
-            Err(crate::config::ConfigError::Source(source)) if source.missing() => {
-                crate::config::QueueConfig::default()
-            }
-            Err(error) => return Err(Error::Config(error)),
-        };
-        validate_config(&config)?;
-        for schedule in &self.schedules {
-            if !self.handlers.contains_key(schedule.job_name()) {
-                return Err(Error::custom(
-                    "unregistered_schedule_job",
-                    format!(
-                        "schedule `{}` references unregistered job `{}`",
-                        schedule.key(),
-                        schedule.job_name()
-                    ),
-                ));
-            }
-        }
-        let db = app.get::<Db>();
-        let driver: Box<dyn QueueDriver> = match config.driver {
-            crate::config::QueueDriverKind::Database => {
-                let db = db.as_ref().ok_or_else(|| {
-                    Error::custom(
-                        "queue_requires_database",
-                        "register DatabasePlugin before QueuePlugin",
-                    )
-                })?;
-                Box::new(DatabaseQueue::configured(
-                    (**db).clone(),
-                    registry,
-                    config.clone(),
-                ))
-            }
-            crate::config::QueueDriverKind::Redis => {
-                if !self.schedules.is_empty() {
-                    return Err(Error::custom(
-                        "redis_queue_schedule_unsupported",
-                        "Redis queue cannot atomically dispatch database-backed schedules",
-                    ));
-                }
-                #[cfg(feature = "queue-redis")]
-                {
-                    let url = config.redis_url.as_deref().ok_or_else(|| {
-                        Error::custom(
-                            "queue_redis_url_required",
-                            "set queue.redis_url to select the Redis queue driver",
-                        )
-                    })?;
-                    let namespace = config.redis_namespace.as_deref().ok_or_else(|| {
-                        Error::custom(
-                            "queue_redis_namespace_required",
-                            "set queue.redis_namespace for the Redis queue driver",
-                        )
-                    })?;
-                    Box::new(RedisQueueDriver::new(
-                        url,
-                        namespace,
-                        registry,
-                        config.clone(),
-                    )?)
-                }
-                #[cfg(not(feature = "queue-redis"))]
-                {
-                    return Err(Error::custom(
-                        "queue_redis_feature_disabled",
-                        "enable the queue-redis feature to use the Redis queue driver",
-                    ));
-                }
-            }
-        };
-        let queue = Queue {
-            driver: Arc::from(driver),
-        };
-        if matches!(config.driver, crate::config::QueueDriverKind::Database)
-            && let Some(db) = db
-        {
-            app.insert(crate::schedule::Scheduler::new(
-                (*db).clone(),
-                queue.clone(),
-                self.schedules.clone(),
-                config.clone(),
-            ));
-            app.command(crate::schedule::ScheduleRunCommand);
-            app.command(crate::schedule::ScheduleListCommand);
-        }
-        app.insert(queue);
-        app.insert(config);
-        app.command(QueueWorkCommand);
-        app.command(QueueRetryCommand);
-        Ok(())
-    }
-}
-
 fn run_job<J: Job>(payload: Value, context: JobContext) -> BoxFuture<'static, Result<()>> {
     Box::pin(async move {
         let job = serde_json::from_value::<J>(payload).map_err(Error::internal)?;
@@ -1176,10 +1894,12 @@ async fn run_scoped<'a>(
         context.deadline,
         context.cancelled.clone(),
     );
-    let i18n = context
-        .app_state
-        .as_ref()
-        .and_then(|state| state.try_get::<crate::i18n::I18n>().ok());
+    let i18n = match context.app_state.as_ref() {
+        Some(state) if state.container().contains::<crate::i18n::I18n>() => {
+            Some(state.resolve::<crate::i18n::I18n>().await?)
+        }
+        _ => None,
+    };
     let task_future: BoxFuture<'a, Result<()>> = if let Some(i18n) = i18n {
         let locale = context
             .metadata
@@ -1266,7 +1986,7 @@ impl DatabaseQueue {
         }
         let (job_payload, metadata) = restore_execution_metadata(claim.payload.clone())?;
         let is_group = claim.job_name == CHAIN_JOB_NAME || claim.job_name == BATCH_JOB_NAME;
-        let handler = self.registry.0.get(claim.job_name.as_str()).copied();
+        let handler = self.registry.handler(claim.job_name.as_str());
         if !is_group && handler.is_none() {
             fail_job(&self.db, &claim, "unregistered_job_type", 1).await?;
             return Err(Error::custom(
@@ -1318,9 +2038,12 @@ impl DatabaseQueue {
         };
         let execution =
             ExecutionContext::new(metadata.clone(), Some(deadline), job_cancellation.clone());
-        let i18n = app_state
-            .as_ref()
-            .and_then(|state| state.try_get::<crate::i18n::I18n>().ok());
+        let i18n = match app_state.as_ref() {
+            Some(state) if state.container().contains::<crate::i18n::I18n>() => {
+                Some(state.resolve::<crate::i18n::I18n>().await?)
+            }
+            _ => None,
+        };
         let locale = metadata
             .locale()
             .cloned()
@@ -1532,15 +2255,358 @@ impl DatabaseQueue {
 }
 
 impl Queue {
+    fn default_driver_name(config: &crate::config::QueueConfig) -> Result<String> {
+        if config.connections.is_empty() {
+            return Ok(match config.driver {
+                crate::config::QueueDriverKind::Database => "database",
+                crate::config::QueueDriverKind::Redis => "redis",
+            }
+            .to_owned());
+        }
+        config
+            .connections
+            .get(&config.default_connection)
+            .map(|connection| connection.driver.clone())
+            .ok_or_else(|| {
+                Error::custom(
+                    "queue_connection_missing",
+                    "default queue connection is not configured",
+                )
+            })
+    }
+
+    /// 校验最终队列配置与已登记的连接 creator，不建立新连接。
+    #[allow(clippy::too_many_lines, reason = "逐项校验连接与调度配置")]
+    pub fn validate_configured(&self) -> Result<()> {
+        let manager = self
+            .manager
+            .as_ref()
+            .ok_or_else(|| Error::custom("queue_manager_missing", "queue manager unavailable"))?;
+        let config = manager
+            .resolver
+            .section::<crate::config::QueueConfig>("queue")?;
+        validate_config(&config)?;
+        validate_name(
+            "queue connection",
+            &config.default_connection,
+            MAX_QUEUE_NAME,
+        )?;
+        let _ = Self::default_driver_name(&config)?;
+        let (plugin, creators) = {
+            let inner = manager
+                .contributions
+                .inner
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            (inner.plugin.clone(), inner.creators.clone())
+        };
+        for schedule in &plugin.schedules {
+            if !manager.contributions.jobs.contains(schedule.job_name()) {
+                return Err(Error::custom(
+                    "unregistered_schedule_job",
+                    "schedule references an unregistered job",
+                ));
+            }
+        }
+        let connections = if config.connections.is_empty() {
+            HashMap::from([(
+                config.default_connection.clone(),
+                crate::config::QueueConnectionConfig {
+                    driver: Self::default_driver_name(&config)?,
+                    redis_url: config.redis_url.clone(),
+                    redis_namespace: config.redis_namespace.clone(),
+                    options: Value::Null,
+                },
+            )])
+        } else {
+            config.connections.clone()
+        };
+        for (name, connection) in &connections {
+            validate_name("queue connection", name, MAX_QUEUE_NAME)?;
+            if !matches!(connection.driver.as_str(), "database" | "redis")
+                && !creators.contains_key(&connection.driver)
+            {
+                return Err(Error::custom(
+                    "queue_driver_missing",
+                    "queue driver is not registered",
+                ));
+            }
+            if let Some(validator) = creators
+                .get(&connection.driver)
+                .and_then(|entry| entry.validator.as_ref())
+            {
+                validator(name, connection).map_err(|_| {
+                    Error::custom(
+                        "queue_invalid_driver_config",
+                        "queue driver configuration is invalid",
+                    )
+                })?;
+            }
+            if matches!(connection.driver.as_str(), "database" | "redis")
+                && !creators.contains_key(&connection.driver)
+                && !serde_json::Value::is_null(&connection.options)
+                && !connection
+                    .options
+                    .as_object()
+                    .is_some_and(serde_json::Map::is_empty)
+            {
+                return Err(Error::custom(
+                    "queue_invalid_options",
+                    "built-in queue driver does not accept options",
+                ));
+            }
+            if connection.driver == "redis" && !creators.contains_key(&connection.driver) {
+                #[cfg(not(feature = "queue-redis"))]
+                return Err(Error::custom(
+                    "queue_redis_feature_disabled",
+                    "enable queue-redis",
+                ));
+                #[cfg(feature = "queue-redis")]
+                {
+                    let mut candidate = config.clone();
+                    candidate.redis_url.clone_from(&connection.redis_url);
+                    candidate
+                        .redis_namespace
+                        .clone_from(&connection.redis_namespace);
+                    let url = candidate.redis_url.as_deref().ok_or_else(|| {
+                        Error::custom("queue_redis_config_invalid", "queue Redis URL is required")
+                    })?;
+                    let namespace = candidate.redis_namespace.as_deref().ok_or_else(|| {
+                        Error::custom(
+                            "queue_redis_config_invalid",
+                            "queue Redis namespace is required",
+                        )
+                    })?;
+                    // 构造器只解析 URL/命名空间；网络连接由 driver 首次操作建立。
+                    RedisQueueDriver::new(
+                        url,
+                        namespace,
+                        JobRegistry::default(),
+                        candidate.clone(),
+                    )
+                    .map_err(|_| {
+                        Error::custom(
+                            "queue_redis_config_invalid",
+                            "queue Redis configuration is invalid",
+                        )
+                    })?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// 按配置名称异步构造并缓存连接；同名并发请求共享一次构造。
+    ///
+    /// manager 停机后拒绝解析所有名称，包括尚未构造的连接。worker 显式重启时开启
+    /// 新代缓存；旧代在途构造即使随后完成，也只会被停止而不会发布到新代。
+    #[allow(clippy::too_many_lines, reason = "连接创建与停机竞态需在同一流程处理")]
+    pub async fn connection(&self, name: &str) -> Result<Queue> {
+        use std::sync::atomic::Ordering;
+        let manager = self
+            .manager
+            .as_ref()
+            .ok_or_else(|| Error::custom("queue_manager_missing", "queue manager unavailable"))?;
+        if manager.shutdown.load(Ordering::SeqCst) {
+            return Err(queue_stopped());
+        }
+        let generation = manager.generation.load(Ordering::SeqCst);
+        validate_name("queue connection", name, MAX_QUEUE_NAME)?;
+        let cell = manager
+            .connections
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .entry(name.to_owned())
+            .or_default()
+            .clone();
+        let driver = cell
+            .get_or_try_init(|| async {
+                if manager.shutdown.load(Ordering::SeqCst)
+                    || manager.generation.load(Ordering::SeqCst) != generation
+                {
+                    return Err(queue_stopped());
+                }
+                let mut config = manager
+                    .resolver
+                    .section::<crate::config::QueueConfig>("queue")?;
+                validate_config(&config)?;
+                let connection =
+                    if config.connections.is_empty() && name == config.default_connection {
+                        crate::config::QueueConnectionConfig {
+                            driver: Self::default_driver_name(&config)?,
+                            redis_url: config.redis_url.clone(),
+                            redis_namespace: config.redis_namespace.clone(),
+                            options: Value::Null,
+                        }
+                    } else {
+                        config.connections.get(name).cloned().ok_or_else(|| {
+                            Error::custom(
+                                "queue_connection_missing",
+                                "queue connection is not configured",
+                            )
+                        })?
+                    };
+                config.redis_url = connection.redis_url.clone();
+                config.redis_namespace = connection.redis_namespace.clone();
+                let driver_name = connection.driver.clone();
+                let (creator, registry, schedules) = {
+                    let inner = manager
+                        .contributions
+                        .inner
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
+                    (
+                        inner.creators.get(&driver_name).cloned(),
+                        manager.contributions.jobs.clone(),
+                        inner.plugin.schedules.clone(),
+                    )
+                };
+                let driver = if let Some(entry) = creator {
+                    if let Some(validator) = &entry.validator {
+                        validator(name, &connection).map_err(|_| {
+                            Error::custom(
+                                "queue_invalid_driver_config",
+                                "queue driver configuration is invalid",
+                            )
+                        })?;
+                    }
+                    (entry.creator)(
+                        manager.resolver.clone(),
+                        name.to_owned(),
+                        connection.clone(),
+                        config,
+                        registry,
+                    )
+                    .await?
+                } else {
+                    if !serde_json::Value::is_null(&connection.options)
+                        && !connection
+                            .options
+                            .as_object()
+                            .is_some_and(serde_json::Map::is_empty)
+                    {
+                        return Err(Error::custom(
+                            "queue_invalid_options",
+                            "built-in queue driver does not accept options",
+                        ));
+                    }
+                    match driver_name.as_str() {
+                        "database" => {
+                            let db = manager.resolver.resolve::<Db>().await?;
+                            Ok(
+                                Arc::new(DatabaseQueue::configured((*db).clone(), registry, config))
+                                    as Arc<dyn QueueDriver>,
+                            )
+                        }
+                        "redis" => {
+                            if !schedules.is_empty() {
+                                return Err(Error::custom(
+                                    "redis_queue_schedule_unsupported",
+                                    "Redis queue cannot use database schedules",
+                                ));
+                            }
+                            #[cfg(feature = "queue-redis")]
+                            {
+                                let url = config.redis_url.as_deref().ok_or_else(|| {
+                                    Error::custom(
+                                        "queue_redis_url_required",
+                                        "queue Redis URL is required",
+                                    )
+                                })?;
+                                let namespace =
+                                    config.redis_namespace.as_deref().ok_or_else(|| {
+                                        Error::custom(
+                                            "queue_redis_namespace_required",
+                                            "queue Redis namespace is required",
+                                        )
+                                    })?;
+                                Ok(Arc::new(RedisQueueDriver::new(
+                                    url,
+                                    namespace,
+                                    registry,
+                                    config.clone(),
+                                )?) as Arc<dyn QueueDriver>)
+                            }
+                            #[cfg(not(feature = "queue-redis"))]
+                            {
+                                Err(Error::custom(
+                                    "queue_redis_feature_disabled",
+                                    "enable queue-redis",
+                                ))
+                            }
+                        }
+                        _ => Err(Error::custom(
+                            "queue_driver_missing",
+                            "queue driver is not registered",
+                        )),
+                    }?
+                };
+                if manager.shutdown.load(Ordering::SeqCst)
+                    || manager.generation.load(Ordering::SeqCst) != generation
+                {
+                    driver.request_shutdown();
+                    return Err(queue_stopped());
+                }
+                Ok(driver)
+            })
+            .await?;
+        if manager.shutdown.load(Ordering::SeqCst)
+            || manager.generation.load(Ordering::SeqCst) != generation
+        {
+            driver.request_shutdown();
+            return Err(queue_stopped());
+        }
+        Ok(Queue {
+            driver: Some(Arc::clone(driver)),
+            manager: None,
+        })
+    }
+
+    async fn resolve_driver(&self) -> Result<Arc<dyn QueueDriver>> {
+        if let Some(driver) = &self.driver {
+            return Ok(Arc::clone(driver));
+        }
+        let manager = self
+            .manager
+            .as_ref()
+            .ok_or_else(|| Error::custom("queue_manager_missing", "queue manager unavailable"))?;
+        let config = manager
+            .resolver
+            .section::<crate::config::QueueConfig>("queue")?;
+        self.connection(&config.default_connection)
+            .await?
+            .driver
+            .ok_or_else(|| Error::custom("queue_driver_missing", "queue driver unavailable"))
+    }
+
+    fn ready_driver(&self) -> Option<Arc<dyn QueueDriver>> {
+        if let Some(driver) = &self.driver {
+            return Some(Arc::clone(driver));
+        }
+        let manager = self.manager.as_ref()?;
+        let config = manager
+            .resolver
+            .section::<crate::config::QueueConfig>("queue")
+            .ok()?;
+        manager
+            .connections
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(&config.default_connection)
+            .and_then(|cell| cell.get())
+            .cloned()
+    }
+
     /// 使用应用共享数据库服务创建数据库派发器。
     pub fn new(db: Db) -> Self {
         let config = crate::config::QueueConfig::default();
         Self {
-            driver: Arc::new(DatabaseQueue::configured(
+            driver: Some(Arc::new(DatabaseQueue::configured(
                 db,
                 JobRegistry::default(),
                 config,
-            )),
+            ))),
+            manager: None,
         }
     }
 
@@ -1551,7 +2617,8 @@ impl Queue {
     ) -> Result<Self> {
         validate_config(config)?;
         Ok(Self {
-            driver: Arc::new(driver),
+            driver: Some(Arc::new(driver)),
+            manager: None,
         })
     }
 
@@ -1575,7 +2642,8 @@ impl Queue {
         options: DispatchOptions,
     ) -> Result<String> {
         validate_options(&options)?;
-        self.driver
+        self.resolve_driver()
+            .await?
             .dispatch_with_metadata(
                 queue,
                 job_name,
@@ -1612,7 +2680,8 @@ impl Queue {
         job_name: &str,
         payload: &T,
     ) -> Result<String> {
-        self.driver
+        self.resolve_driver()
+            .await?
             .dispatch_in_transaction_with_metadata(
                 transaction,
                 queue,
@@ -1638,7 +2707,8 @@ impl Queue {
             ..DispatchOptions::default()
         };
         validate_options(&options)?;
-        self.driver
+        self.resolve_driver()
+            .await?
             .dispatch_in_transaction_with_metadata(
                 transaction,
                 queue,
@@ -1728,7 +2798,8 @@ impl Queue {
 
     async fn dispatch_task_group(&self, queue: &str, group: TaskGroup) -> Result<String> {
         group.validate()?;
-        self.driver
+        self.resolve_driver()
+            .await?
             .dispatch_group_with_metadata(
                 queue,
                 group,
@@ -1745,7 +2816,8 @@ impl Queue {
         group: TaskGroup,
     ) -> Result<String> {
         group.validate()?;
-        self.driver
+        self.resolve_driver()
+            .await?
             .dispatch_group_in_transaction_with_metadata(
                 transaction,
                 queue,
@@ -1758,7 +2830,11 @@ impl Queue {
 
     /// 领取并运行指定队列中的一个就绪任务，并返回是否成功领取。
     pub async fn run_next(&self, queue: &str) -> Result<bool> {
-        self.driver.run_next(queue).await
+        match self.resolve_driver().await {
+            Ok(driver) => driver.run_next(queue).await,
+            Err(error) if error.code() == "queue_shutdown_requested" => Ok(false),
+            Err(error) => Err(error),
+        }
     }
 
     /// 通过应用 worker context 领取并运行一个任务。
@@ -1767,22 +2843,58 @@ impl Queue {
         queue: &str,
         state: &crate::core::AppState,
     ) -> Result<bool> {
-        self.driver.run_next_with_state(queue, state).await
+        match self.resolve_driver().await {
+            Ok(driver) => driver.run_next_with_state(queue, state).await,
+            Err(error) if error.code() == "queue_shutdown_requested" => Ok(false),
+            Err(error) => Err(error),
+        }
     }
 
     /// 将失败任务重新入队，并返回新任务的稳定 ID。
     pub async fn retry_failed(&self, failed_id: &str) -> Result<String> {
-        self.driver.retry_failed(failed_id).await
+        self.resolve_driver().await?.retry_failed(failed_id).await
     }
 
     fn reset_shutdown(&self) {
-        self.driver.reset_shutdown();
+        if let Some(manager) = &self.manager {
+            manager
+                .shutdown
+                .store(false, std::sync::atomic::Ordering::SeqCst);
+        } else if let Some(driver) = &self.driver {
+            driver.reset_shutdown();
+        }
     }
     fn request_shutdown(&self) {
-        self.driver.request_shutdown();
+        if let Some(manager) = &self.manager {
+            // 先封整个 manager，再脱离旧代缓存。旧代在途构造不得发布至新代。
+            manager
+                .shutdown
+                .store(true, std::sync::atomic::Ordering::SeqCst);
+            manager
+                .generation
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            let cells = std::mem::take(
+                &mut *manager
+                    .connections
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner),
+            );
+            for cell in cells.values() {
+                if let Some(driver) = cell.get() {
+                    driver.request_shutdown();
+                }
+            }
+        } else if let Some(driver) = &self.driver {
+            driver.request_shutdown();
+        }
     }
     fn is_shutdown_requested(&self) -> bool {
-        self.driver.is_shutdown_requested()
+        self.manager
+            .as_ref()
+            .is_some_and(|manager| manager.shutdown.load(std::sync::atomic::Ordering::SeqCst))
+            || self
+                .ready_driver()
+                .is_some_and(|driver| driver.is_shutdown_requested())
     }
 }
 
@@ -2068,7 +3180,7 @@ async fn run_group_task(
     task: QueueTask,
     context: JobContext,
 ) -> Result<()> {
-    let Some(handler) = registry.0.get(task.job_name.as_str()).copied() else {
+    let Some(handler) = registry.handler(task.job_name.as_str()) else {
         return Err(Error::custom(
             "unregistered_queue_job",
             format!("no handler is registered for job `{}`", task.job_name),
@@ -2106,9 +3218,9 @@ impl crate::core::Command for QueueWorkCommand {
             }
             let queue_name = args.first().map_or("default", String::as_str);
             validate_name("queue", queue_name, MAX_QUEUE_NAME)?;
-            let queue = app.state().try_get::<Queue>()?;
+            let queue = app.state().resolve::<Queue>().await?;
             let app_state = app.state().clone();
-            let config = app.state().try_get::<crate::config::QueueConfig>()?;
+            let config = app.state().resolve::<crate::config::QueueConfig>().await?;
             queue.reset_shutdown();
             let mut workers = tokio::task::JoinSet::new();
             for _ in 0..config.worker_concurrency {
@@ -2207,7 +3319,7 @@ impl crate::core::Command for QueueRetryCommand {
                     "usage: queue retry <failed-job-id>",
                 ));
             };
-            let queue = app.state().try_get::<Queue>()?;
+            let queue = app.state().resolve::<Queue>().await?;
             let id = queue.retry_failed(failed_id).await?;
             print_requeued(&id);
             Ok(())
@@ -2743,7 +3855,7 @@ fn print_requeued(id: &str) {
 #[cfg(all(test, feature = "queue"))]
 mod tests {
     use super::{
-        Job, JobContext, JobRegistry, QueuePlugin, persist_execution_metadata,
+        Job, JobContext, JobRegistry, QueueContributions, persist_execution_metadata,
         restore_execution_metadata,
     };
     use crate::core::{BoxFuture, Cancellation, ExecutionContext, ExecutionMetadata};
@@ -2889,7 +4001,7 @@ mod tests {
     #[test]
     fn cron_registration_rejects_invalid_schedule_configuration()
     -> Result<(), Box<dyn std::error::Error>> {
-        let mut plugin = QueuePlugin::default();
+        let plugin = QueueContributions::default();
         plugin.schedule_cron(
             "reports.daily",
             "reports",

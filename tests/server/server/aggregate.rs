@@ -14,17 +14,16 @@ use figment::Figment;
 #[cfg(any(feature = "db-postgres", feature = "db-mysql", feature = "cache-redis"))]
 use figment::providers::Format;
 use openrust::ServiceExt;
-#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
-use openrust::config::FrameworkConfig;
+use openrust::config;
+use openrust::core::{BootContext, BoxFuture, ProviderBuilder, ServiceProvider};
 use openrust::http::axum::body::{Body, to_bytes};
 use openrust::http::axum::http::{Request, StatusCode};
 use openrust::http::build_router;
-use openrust::prelude::{AppBuilder, AppBuilderHttpExt, Application, Json};
+use openrust::prelude::{Application, Json};
 #[cfg(unix)]
 use openrust::tokio::io::{AsyncReadExt, AsyncWriteExt};
 #[cfg(unix)]
 use openrust::tokio::net::TcpStream;
-use openrust::{config, lifecycle};
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 use sea_orm::ConnectionTrait;
 #[cfg(unix)]
@@ -38,8 +37,8 @@ type TestResult = Result<(), Box<dyn std::error::Error>>;
 fn mailer_plugin_is_registered_by_the_assembled_server() -> TestResult {
     openrust::tokio::runtime::Runtime::new()?.block_on(async {
         let app = test_server().await?;
-        app.state().try_get::<openrust::mail::Mailer>()?;
-        app.state().try_get::<openrust::sms::SmsSender>()?;
+        app.state().resolve::<openrust::mail::Mailer>().await?;
+        app.state().resolve::<openrust::sms::SmsSender>().await?;
         Ok(())
     })
 }
@@ -53,10 +52,10 @@ fn mailer_plugin_is_registered_by_the_assembled_server() -> TestResult {
 fn cache_plugin_uses_the_configured_shared_redis_store() -> TestResult {
     openrust::tokio::runtime::Runtime::new()?.block_on(async {
         let app = test_server().await?;
-        let cache = app.state().try_get::<openrust::cache::Cache>()?;
-        let readiness = app.state().try_get::<openrust::core::Readiness>()?;
+        let cache = app.state().resolve::<openrust::cache::Cache>().await?;
+        let readiness = app.state().resolve::<openrust::core::Readiness>().await?;
         assert!(readiness.dependencies_ready().await);
-        let store = cache.default_store()?;
+        let store = cache.default_store().await?;
         assert_eq!(store.scope(), openrust::cache::CacheScope::Shared);
         let key = format!("server-test-{}", std::process::id());
         cache
@@ -116,10 +115,14 @@ fn cache_plugin_uses_the_configured_shared_redis_store() -> TestResult {
         assert_eq!(calls.load(std::sync::atomic::Ordering::Acquire), 1);
 
         let second_app = test_server().await?;
-        let second_cache = second_app.state().try_get::<openrust::cache::Cache>()?;
+        let second_cache = second_app
+            .state()
+            .resolve::<openrust::cache::Cache>()
+            .await?;
         let tagged_a = store.tagged(&["server-swr-integration"])?;
         let tagged_b = second_cache
-            .default_store()?
+            .default_store()
+            .await?
             .tagged(&["server-swr-integration"])?;
         let swr_key = format!("profile-{}", std::process::id());
         let initial = tagged_a
@@ -169,9 +172,22 @@ struct ResourceMacroApp;
 impl Application for ResourceMacroApp {
     type Config = openrust::NoConfig;
 
-    fn build(app: &mut AppBuilder) {
-        app.plugin(openrust::http::HttpPlugin)
-            .routes(|routes| routes.resource::<MacroPosts>("/api/posts"));
+    fn providers(_: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+        vec![
+            Box::new(openrust::http::HttpServiceProvider),
+            Box::new(MacroRoutesProvider),
+        ]
+    }
+}
+
+struct MacroRoutesProvider;
+
+impl ServiceProvider for MacroRoutesProvider {
+    fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.routes(|routes| routes.resource::<MacroPosts>("/api/posts"))?;
+            Ok(())
+        })
     }
 }
 
@@ -230,10 +246,12 @@ async fn test_server() -> Result<openrust::App, openrust::Error> {
     let application_config = figment
         .extract::<<apps::Server as Application>::Config>()
         .map_err(openrust::config::ConfigError::from)?;
-    let mut builder = AppBuilder::new(loader.load_framework()?, figment);
-    builder.insert(application_config);
-    apps::Server::build(&mut builder);
-    lifecycle::finalize(builder).await
+    let mut builder = ProviderBuilder::new();
+    builder.app_config::<<apps::Server as Application>::Config>();
+    for provider in apps::Server::providers(&application_config) {
+        builder.boxed_provider(provider);
+    }
+    openrust::App::from_provider_runtime(builder.start(figment).await?)
 }
 
 #[test]
@@ -466,16 +484,18 @@ fn database_configuration_enables_infrastructure_without_silent_fallback() -> Te
                 "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=",
             ));
         let configuration = figment.extract::<apps::Configuration>()?;
-        let mut builder = AppBuilder::new(openrust::config::FrameworkConfig::default(), figment);
-        builder.insert(configuration);
-        apps::Server::build(&mut builder);
-        let error = lifecycle::finalize(builder)
+        let mut builder = ProviderBuilder::new();
+        builder.app_config::<apps::Configuration>();
+        for provider in apps::Server::providers(&configuration) {
+            builder.boxed_provider(provider);
+        }
+        let error = builder
+            .start(figment)
             .await
             .err()
             .ok_or("声明错误数据库应导致启动失败")?;
-        assert!(
-            error.to_string().contains("database") || error.to_string().contains("unsupported")
-        );
+        assert_eq!(error.code(), "configuration_error");
+        assert!(!error.to_string().contains("configured-but-invalid"));
         Ok(())
     })
 }
@@ -536,10 +556,12 @@ async fn test_application<A: Application>() -> Result<openrust::App, openrust::E
         config::Environment::Development,
     );
     let application_config = loader.load::<A::Config>()?;
-    let mut builder = AppBuilder::new(loader.load_framework()?, loader.figment()?);
-    builder.insert(application_config);
-    A::build(&mut builder);
-    lifecycle::finalize(builder).await
+    let mut builder = ProviderBuilder::new();
+    builder.app_config::<A::Config>();
+    for provider in A::providers(&application_config) {
+        builder.boxed_provider(provider);
+    }
+    openrust::App::from_provider_runtime(builder.start(loader.figment()?).await?)
 }
 
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
@@ -552,13 +574,13 @@ fn database_plugin_is_available_through_the_facade() -> TestResult {
         };
         let source = format!("[database]\nurl = {url:?}\n");
         let figment = Figment::new().merge(figment::providers::Toml::string(&source));
-        let mut builder = AppBuilder::new(FrameworkConfig::default(), figment);
-        builder.plugin(openrust::http::HttpPlugin);
-        builder.plugin(openrust::DatabasePlugin);
-
-        let app = lifecycle::finalize(builder).await?;
-        let database = app.state().try_get::<openrust::Db>()?.connection()?;
+        let mut builder = ProviderBuilder::new();
+        builder.provider(openrust::db::DatabaseServiceProvider);
+        let app = openrust::App::from_provider_runtime(builder.start(figment).await?)?;
+        let database = app.state().resolve::<openrust::Db>().await?.connection()?;
         database.execute_unprepared("SELECT 1").await?;
+        app.shutdown(openrust::tokio::time::Instant::now() + Duration::from_secs(5))
+            .await?;
         Ok(())
     })
 }

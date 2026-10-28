@@ -6,7 +6,7 @@ use std::{fmt, sync::Arc};
 
 use crate::config::ConfigError;
 pub use crate::config::mailer::MailConfig;
-use crate::core::{App, AppBuilder, BoxFuture, Error, Plugin, Result};
+use crate::core::{BoxFuture, Error, Result};
 use crate::i18n::{I18n, Locale, MessageArgs};
 #[cfg(feature = "mail-smtp")]
 use lettre::AsyncTransport;
@@ -100,28 +100,136 @@ impl Mailer {
     }
 }
 
-/// 安装配置好的 [`Mailer`] 服务；默认 driver 仅记录投递状态，不记录邮件内容。
+/// 声明从当前配置构造的 mail 服务；生产入口仍待统一 Provider 切换。
 #[derive(Debug, Default, Clone, Copy)]
-pub struct MailerPlugin;
+pub struct MailerServiceProvider;
 
-impl Plugin for MailerPlugin {
-    fn build(&self, app: &mut AppBuilder) -> Result<()> {
-        let config = app.sensitive_section::<MailConfig>("mail")?;
-        if app.config().app.env == crate::config::Environment::Production && config.driver == "log"
-        {
-            return Err(Error::Config(ConfigError::Invalid(
-                "mail.driver=log is not allowed in production; configure a real mail provider"
-                    .into(),
-            )));
-        }
-        let mailer = configured_mailer(&config)?;
-        app.insert(config);
-        app.insert(mailer);
+impl crate::core::ServiceProvider for MailerServiceProvider {
+    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
+        use crate::config::repository::SectionSchema;
+        app.config_section(
+            "mail",
+            MailConfig::default(),
+            SectionSchema::object([
+                ("driver", SectionSchema::String),
+                ("smtp_host", SectionSchema::String.nullable()),
+                ("smtp_port", SectionSchema::Integer),
+                ("smtp_starttls", SectionSchema::Boolean),
+                (
+                    "smtp_username",
+                    SectionSchema::String.nullable().sensitive(),
+                ),
+                (
+                    "smtp_password",
+                    SectionSchema::String.nullable().sensitive(),
+                ),
+            ]),
+            |_| Ok(()),
+        )?;
+        app.singleton::<MailConfig, _>(|resolver| {
+            Box::pin(async move { Ok(Arc::new(resolver.section::<MailConfig>("mail")?)) })
+        });
+        app.singleton::<Mailer, _>(|resolver| {
+            Box::pin(async move {
+                let config = resolver.section::<MailConfig>("mail")?;
+                let env = resolver.section::<crate::config::Environment>("app.env")?;
+                if env == crate::config::Environment::Production && config.driver == "log" {
+                    return Err(Error::Config(ConfigError::Invalid(
+                        "mail.driver=log is not allowed in production".into(),
+                    )));
+                }
+                Ok(Arc::new(configured_mailer(&config)?))
+            })
+        });
+        app.require::<Mailer>();
         Ok(())
     }
 
-    fn finish<'a>(&'a self, _app: &'a App) -> BoxFuture<'a, Result<()>> {
-        Box::pin(async { Ok(()) })
+    fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            let _ = app.resolve::<Mailer>().await?;
+            Ok(())
+        })
+    }
+}
+
+#[cfg(test)]
+mod provider_tests {
+    use super::*;
+    use crate::core::{BootContext, ProviderBuilder, ServiceProvider};
+    use figment::{Figment, providers::Serialized};
+    use serde_json::json;
+
+    struct ChangeDriver;
+    impl ServiceProvider for ChangeDriver {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(
+                async move { app.overlay("mail", json!({"driver": "secret-driver-sentinel"})) },
+            )
+        }
+    }
+
+    fn sources(env: &str) -> Figment {
+        Figment::from(Serialized::defaults(json!({"app": {"env": env}})))
+    }
+
+    #[tokio::test]
+    async fn provider_constructs_in_test_environment() -> Result<()> {
+        let mut builder = ProviderBuilder::new();
+        builder.provider(MailerServiceProvider);
+        let runtime = builder.start(sources("test")).await?;
+        let _ = runtime.container().resolve::<Mailer>().await?;
+        runtime
+            .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
+            .await
+    }
+
+    #[tokio::test]
+    async fn provider_rejects_production_log_and_missing_environment() {
+        let mut builder = ProviderBuilder::new();
+        builder.provider(MailerServiceProvider);
+        assert!(builder.start(sources("production")).await.is_err());
+        let mut builder = ProviderBuilder::new();
+        builder.provider(MailerServiceProvider);
+        assert!(builder.start(Figment::new()).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn provider_reads_prior_overlay_and_redacts_invalid_driver() {
+        let mut builder = ProviderBuilder::new();
+        builder
+            .provider(ChangeDriver)
+            .provider(MailerServiceProvider);
+        let result = builder.start(sources("test")).await;
+        assert!(result.is_err());
+        if let Err(error) = result {
+            assert!(!format!("{error:?} {error}").contains("secret-driver-sentinel"));
+        }
+    }
+
+    #[tokio::test]
+    async fn provider_rejects_malformed_config_without_echoing_value() {
+        let mut builder = ProviderBuilder::new();
+        builder.provider(MailerServiceProvider);
+        let source = Figment::from(Serialized::defaults(
+            json!({"app":{"env":"test"},"mail":{"driver":{"secret":"private-sentinel"}}}),
+        ));
+        let result = builder.start(source).await;
+        assert!(result.is_err());
+        if let Err(error) = result {
+            assert!(!format!("{error:?} {error}").contains("private-sentinel"));
+        }
+    }
+
+    #[cfg(not(feature = "mail-smtp"))]
+    #[tokio::test]
+    async fn provider_rejects_driver_without_feature() {
+        let mut builder = ProviderBuilder::new();
+        builder.provider(MailerServiceProvider);
+        let sources = Figment::from(Serialized::defaults(
+            json!({"app":{"env":"test"},"mail":{"driver":"smtp"}}),
+        ));
+        assert!(builder.start(sources).await.is_err());
     }
 }
 
@@ -129,9 +237,9 @@ fn configured_mailer(config: &MailConfig) -> Result<Mailer> {
     match config.driver.as_str() {
         "log" => Ok(Mailer::new(LogMailer)),
         "smtp" => configured_smtp(config),
-        other => Err(Error::Config(ConfigError::Invalid(format!(
-            "unsupported mail.driver `{other}`; expected `log` or `smtp`"
-        )))),
+        _ => Err(Error::Config(ConfigError::Invalid(
+            "unsupported mail.driver; expected `log` or `smtp`".into(),
+        ))),
     }
 }
 
@@ -339,13 +447,14 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn production_rejects_log_driver() {
-        let mut framework = crate::config::FrameworkConfig::default();
-        framework.app.env = crate::config::Environment::Production;
-        let figment = figment::Figment::new().merge(("mail.driver", "log"));
-        let mut builder = AppBuilder::new(framework, figment);
-        assert!(MailerPlugin.build(&mut builder).is_err());
+    #[tokio::test]
+    async fn production_rejects_log_driver() {
+        let mut builder = crate::core::ProviderBuilder::new();
+        builder.provider(MailerServiceProvider);
+        let figment = figment::Figment::from(figment::providers::Serialized::defaults(
+            serde_json::json!({"app":{"env":"production"},"mail":{"driver":"log"}}),
+        ));
+        assert!(builder.start(figment).await.is_err());
     }
 
     #[cfg(feature = "mail-smtp")]

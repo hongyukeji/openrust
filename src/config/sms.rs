@@ -1,9 +1,9 @@
 //! SMS 发送配置。
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// `[sms]` 区段的配置。
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct SmsConfig {
     /// 发送后端：默认使用 `log`；启用 `sms-twilio` 后可使用 `twilio`。

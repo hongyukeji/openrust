@@ -8,7 +8,7 @@
 
 - `AuditEvent` 创建时捕获当前可信 `TenantContext`，并显式提供 actor、action、object、outcome、时间、可选 request ID、可信来源 IP 和 details；`AuditRecord` 字段私有，必须经过 `AuditPolicy` 的详情白名单和大小校验。subject ID 应使用稳定非敏感标识，不得用凭据、邮箱或用户自由文本。
 - 密码、token、secret、credential、code、authorization 等敏感名称的详情值固定写为 `[REDACTED]`；详情只接收有界 scalar，不接受嵌套 JSON。Event/Record Debug 隐藏 tenant ID、对象 ID、请求 ID 和详情值。
-- `AuditSink` 提供第三方可实现的 append contract；`AuditPlugin::with_sink` 注册 custom sink，错误向调用方传播，不自动 fallback/retry。`AuditPlugin::database` 要求此前已注册 `DatabasePlugin`；`test-util` feature 提供 `audit::testing::FakeAuditSink`。
+- `AuditSink` 提供第三方可实现的 append contract；`AuditServiceProvider::with_sink` 注册 custom sink，错误向调用方传播，不自动 fallback/retry。`AuditServiceProvider::database` 要求此前已注册 `DatabaseServiceProvider`；`test-util` feature 提供 `audit::testing::FakeAuditSink`。
 - `DatabaseAuditMigration` 由应用 migrator 显式注册，并遵循 `DatabaseTableNames`；`DatabaseAuditTenantMigration` 为既有表补充可空 tenant_id，新表的初始迁移直接含此列；`DatabaseAuditSink::append` 始终使用主库。`record_in_transaction` 在调用方的既有 SeaORM transaction 内插入，不提交或嵌套事务。
 - `purge_before(cutoff, batch_size)` 删除主库中严格早于 cutoff 的至多指定批次；无后台自动清理、查询 HTTP、固定保留期或不可篡改保证。
 - `Policy::grant_permission_in_transaction` 允许应用将角色权限变更与审计记录放在同一个 `Db::transaction`；`--auth` 模板注册数据库 audit plugin 并加入两项迁移。审计记录不自动添加查询 tenant filter。其他认证方法不自动全量审计。

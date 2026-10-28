@@ -6,14 +6,14 @@
 
 ## 边界
 
-基于 `axum` 0.8 + `tower-http`。提供路由约定、提取器、默认中间件、`/health` 与 `serve`；core 已提供 `RateLimiter`，DatabasePlugin 提供双库共享 store，AuthFlows 与显式 `RateLimitLayer` 已复用它。OpenAPI schema 与 `/docs` 尚未实现。
+基于 `axum` 0.8 + `tower-http`。提供路由约定、提取器、默认中间件、`/health` 与 `serve`；core 已提供 `RateLimiter`，DatabaseServiceProvider 提供双库共享 store，AuthFlows 与显式 `RateLimitLayer` 已复用它。OpenAPI schema 与 `/docs` 尚未实现。
 
 ## 当前实现
 
 | 模块 | 内容 |
 | --- | --- |
-| `plugin` | `HttpPlugin`（注册 `serve`、`/health` 与 `/ready`）；启用 `metrics` feature 并配置 `[server].metrics_endpoint_enabled` 后注册 `/metrics`；`AppBuilderHttpExt::routes(Fn(Routes) -> Routes)`；`RouteRegistry` 扩展；`build_router(&App) -> Result<Router>` 在任何 route layer 前向请求扩展注入最终 `AppState`，供跨能力中间件读取；经应用路由组合发现的 Axum 冲突转换为 `http_route_registration_failed` 启动错误，直接调用底层 Axum API 不在转换范围 |
-| `site` | `[server].public_dir` 默认 `public`，`tower-http::ServeDir` 将站点目录映射至 URL 根；`root_target` 支持 `file:`、`forward:`、`redirect:`，以及启用 `view` feature 并注册 `ViewPlugin` 后的 `view:`。视图首页在 router 构建时验证模板；`/api/*` 和 `/ws/*` 未匹配请求保留框架 JSON 404，不回落到静态文件 |
+| `provider` | `HttpServiceProvider` 在 register 登记 server schema，在 boot 贡献 `serve`、`/health` 与 `/ready`；启用 `metrics` feature 并配置 `[server].metrics_endpoint_enabled` 后注册 `/metrics`。应用 Provider 在 `BootContext::routes` 贡献业务路由；`build_router(&App) -> Result<Router>` 向请求扩展注入最终 `AppState` 与请求 `Scope`，供 Inject/Auth/RateLimit 使用；经应用路由组合发现的 Axum 冲突转换为 `http_route_registration_failed` 启动错误，直接调用底层 Axum API 不在转换范围 |
+| `site` | `[server].public_dir` 默认 `public`，`tower-http::ServeDir` 将站点目录映射至 URL 根；`root_target` 支持 `file:`、`forward:`、`redirect:`，以及启用 `view` feature 并注册 `ViewServiceProvider` 后的 `view:`。视图首页在 router 构建时验证模板；`/api/*` 和 `/ws/*` 未匹配请求保留框架 JSON 404，不回落到静态文件 |
 | `routes` | `Routes`：`route` / `get` / `post` / `put` / `patch` / `delete` / `resource` / `resource_with` / `nest(prefix, f)` / `merge` / `layer` / `into_router`；`nest("")` 或 `"/"` 走 merge |
 | `resource` | `Resource` 显式登记动作；`#[openrust::resource]` 从 controller inherent impl 的动作关联函数生成实现；`only` 连续调用取交集、`except` 裁剪；路径去尾斜杠后注册集合与成员，`update` 同时映射 PUT / PATCH |
 | `response` | `Created<T>` → semantic 201 / 默认 200，`with_location` 返回 `Result<Located<T>>`（非法值 → 500 包装）；`NoContent` → 200 成功包装并省略 `data`；无载荷的错误包装也省略 `data`，已有载荷保持原样；直接提取 `PageParams` 默认 1/20，并校验页数、每页 1..=100 与 offset 不超过 `i64::MAX`；`Paginated<T>` 输出 `data` 与 `meta` |
@@ -36,7 +36,7 @@ CORS 预检（`OPTIONS` 且带 `Access-Control-Request-Method`）保持 tower-ht
 - 路由限流仅覆盖显式包裹的路由；默认不覆盖 health、fallback 或其他能力层。认证限流需确保 `AuthLayer` 在请求方向先执行。
 - `SortParams` 仅负责安全解析，不提供 ORM 字段反射、过滤 DSL 或自动授权；应用仍须按资源授权并将排序/过滤白名单映射到查询。DTO/查询与关联加载示例见 [HTTP README](../../../src/http/README.md)。
 - OpenAPI schema 与 `/docs`（后续里程碑）；`utoipa` / `utoipa-axum` 尚未引入，统一响应需与生成文档一致。
-- `Readiness::is_ready()` 仍只表示 listener 生命周期；`/ready` 聚合 DatabasePlugin 的全部数据库池、CachePlugin 的全部 store 和应用显式注册的依赖探针。探针最多注册 64 个、每轮最多并发 16 个、总时限 2 秒，失败只向客户端返回通用 503，并只在日志记录探针名与稳定错误码。此端点不覆盖 gRPC health、WebSocket/SSE、跨节点实时投递或任意应用原生依赖；metrics/OTel 已有专项实现，完整生产就绪验收仍待完成。
+- `Readiness::is_ready()` 仍只表示 listener 生命周期；`/ready` 聚合 DatabaseServiceProvider 的已连接池、CacheServiceProvider 已解析的 default/named store 和应用显式注册的依赖探针。具名 cache store 不为健康检查提前建立连接。探针最多注册 64 个、每轮最多并发 16 个、总时限 2 秒，失败只向客户端返回通用 503，并只在日志记录探针名与稳定错误码。此端点不覆盖 gRPC health、WebSocket/SSE、跨节点实时投递或任意应用原生依赖；metrics/OTel 已有专项实现，完整生产就绪验收仍待完成。
 - request ID 只作为队列 request metadata 与 worker span 的日志关联，不表示 W3C trace context/OpenTelemetry span link；gRPC G2 仍须按 ADR-040 复验 deadline、cancel、locale 与 trace 传播。
 
 ## 验证

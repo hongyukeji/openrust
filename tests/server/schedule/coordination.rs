@@ -4,13 +4,13 @@
 use figment::Figment;
 use figment::providers::{Format, Toml};
 use openrust::config::FrameworkConfig;
-use openrust::core::{App, AppBuilder, BoxFuture, Result as FrameworkResult, lifecycle};
+use openrust::core::{App, BoxFuture, Result as FrameworkResult};
 use openrust::database::{
-    DatabasePlugin, Db,
+    DatabaseServiceProvider, Db,
     sea_orm::Statement,
     sea_orm_migration::{MigrationTrait, MigratorTrait},
 };
-use openrust::queue::{Job, JobContext, QueueMigration, QueuePlugin};
+use openrust::queue::{Job, JobContext, QueueMigration, QueueServiceProvider};
 use openrust::schedule::Scheduler;
 use sea_orm::ConnectionTrait;
 use std::process::{Command, Stdio};
@@ -38,18 +38,27 @@ impl Job for TickJob {
 async fn build_app(url: &str) -> FrameworkResult<App> {
     let source = format!("[database]\nurl = {url:?}\n");
     let figment = Figment::new().merge(Toml::string(&source));
-    let mut queue_plugin = QueuePlugin::default();
-    queue_plugin.register_job::<TickJob>()?;
-    queue_plugin.schedule_interval(
+    let queue_plugin = QueueServiceProvider::new();
+    queue_plugin.contributions().register_job::<TickJob>()?;
+    queue_plugin.contributions().schedule_interval(
         "tests.schedule-tick.v1",
         "schedule-tests",
         TickJob::NAME,
         &serde_json::json!({}),
         Duration::from_secs(60),
     )?;
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment);
-    builder.plugin(DatabasePlugin).plugin(queue_plugin);
-    lifecycle::finalize(builder).await
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ))
+    .merge(figment);
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(DatabaseServiceProvider)
+        .provider(queue_plugin);
+    builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)
 }
 
 #[tokio::test]
@@ -61,8 +70,8 @@ async fn independent_scheduler_processes_dispatch_one_job_per_slot()
     };
     let database = openrust::testing::TestDatabase::create::<ScheduleMigrator>(&admin_url).await?;
     let app = build_app(database.url()).await?;
-    let scheduler = app.state().try_get::<Scheduler>()?;
-    let db = app.state().try_get::<Db>()?;
+    let scheduler = app.state().resolve::<Scheduler>().await?;
+    let db = app.state().resolve::<Db>().await?;
     let target = SystemTime::now() + Duration::from_secs(2);
     let target_millis = target.duration_since(UNIX_EPOCH)?.as_millis().to_string();
     let ready_path = format!("/tmp/openrust-scheduler-ready-{}", std::process::id());
@@ -146,7 +155,7 @@ async fn child_scheduler_dispatches_due_slot() -> Result<(), Box<dyn std::error:
         return Ok(());
     };
     let app = build_app(&url).await?;
-    let scheduler = app.state().try_get::<Scheduler>()?;
+    let scheduler = app.state().resolve::<Scheduler>().await?;
     let start = std::env::var("OPENRUST_SCHEDULE_START_AT")?.parse::<u64>()?;
     std::fs::write(std::env::var("OPENRUST_SCHEDULE_READY_FILE")?, b"ready")?;
     wait_until(SystemTime::UNIX_EPOCH + Duration::from_millis(start)).await;
@@ -160,7 +169,7 @@ async fn child_scheduler_stops_on_sigterm() -> Result<(), Box<dyn std::error::Er
         return Ok(());
     };
     let app = build_app(&url).await?;
-    let scheduler = app.state().try_get::<Scheduler>()?;
+    let scheduler = app.state().resolve::<Scheduler>().await?;
     let signaler = tokio::spawn(async move {
         tokio::time::sleep(Duration::from_millis(100)).await;
         tokio::task::spawn_blocking(move || {
@@ -182,7 +191,7 @@ async fn child_scheduler_exits_after_committing_slot() -> Result<(), Box<dyn std
         return Ok(());
     };
     let app = build_app(&url).await?;
-    let scheduler = app.state().try_get::<Scheduler>()?;
+    let scheduler = app.state().resolve::<Scheduler>().await?;
     scheduler.tick().await?;
     std::process::exit(97);
 }

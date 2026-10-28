@@ -130,10 +130,18 @@ async fn response_context(
         .and_then(|value| value.to_str().ok())
         .unwrap_or("-")
         .to_owned();
-    let locale_service = request
-        .extensions()
-        .get::<crate::core::AppState>()
-        .and_then(crate::core::AppState::get::<I18n>);
+    let locale_service = if let Some(state) = request.extensions().get::<crate::core::AppState>() {
+        if state.container().contains::<I18n>() {
+            match state.resolve::<I18n>().await {
+                Ok(service) => Some(service),
+                Err(error) => return error.into_response(),
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
     let server_readiness = request
         .extensions()
         .get::<crate::core::AppState>()

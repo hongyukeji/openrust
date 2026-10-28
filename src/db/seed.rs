@@ -2,20 +2,17 @@
 
 use std::{future::Future, sync::Arc};
 
-use crate::core::{App, AppBuilder, BoxFuture, Command, Plugin, Result};
+use crate::core::{App, BootContext, BoxFuture, Command, Result, ServiceProvider};
 
 use crate::db::Db;
 
-/// 将应用种子函数注册为 `db seed` 运行时命令。
-///
-/// 种子数据及其幂等性由应用负责。将此插件与
-/// [`DatabasePlugin`](crate::db::DatabasePlugin).
-pub struct SeedPlugin<F> {
+/// 在 Provider boot 阶段贡献应用自定义 `db seed` 命令。
+pub struct SeedServiceProvider<F> {
     seed: Arc<F>,
 }
 
-impl<F> SeedPlugin<F> {
-    /// 根据接收数据库句柄的异步函数创建种子命令插件。
+impl<F> SeedServiceProvider<F> {
+    /// 注册接收数据库句柄的异步种子函数。
     pub fn new(seed: F) -> Self {
         Self {
             seed: Arc::new(seed),
@@ -23,14 +20,16 @@ impl<F> SeedPlugin<F> {
     }
 }
 
-impl<F, Fut> Plugin for SeedPlugin<F>
+impl<F, Fut> ServiceProvider for SeedServiceProvider<F>
 where
     F: Fn(Db) -> Fut + Send + Sync + 'static,
     Fut: Future<Output = Result<()>> + Send + 'static,
 {
-    fn build(&self, app: &mut AppBuilder) -> Result<()> {
-        app.command(SeedCommand(Arc::clone(&self.seed)));
-        Ok(())
+    fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.command(SeedCommand(Arc::clone(&self.seed)));
+            Ok(())
+        })
     }
 }
 
@@ -51,7 +50,7 @@ where
 
     fn run<'a>(&'a self, app: &'a App, _args: Vec<String>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            let db = (*app.state().try_get::<Db>()?).clone();
+            let db = (*app.state().resolve::<Db>().await?).clone();
             db.connection()?;
             (self.0)(db).await
         })

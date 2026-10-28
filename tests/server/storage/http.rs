@@ -5,14 +5,11 @@ use axum::extract::Request;
 use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::Response;
 use figment::providers::Format;
-use openrust::core::Error;
-use openrust::http::{AppBuilderHttpExt, HttpPlugin, Inject, Path, build_router};
-use openrust::prelude::{AppBuilder, Application, NoConfig};
-use openrust::storage::{Storage, StoragePath, StoragePlugin, UploadOptions};
-use openrust::{
-    config::{FrameworkConfig, HttpStatusMode},
-    lifecycle,
-};
+use openrust::config::{FrameworkConfig, HttpStatusMode};
+use openrust::core::{BootContext, BoxFuture, Error, ProviderBuilder, ServiceProvider};
+use openrust::http::{Inject, Path, build_router};
+use openrust::prelude::{Application, NoConfig};
+use openrust::storage::{Storage, StoragePath, StorageServiceProvider, UploadOptions};
 use std::time::Duration;
 
 struct StorageHttpApp;
@@ -20,14 +17,27 @@ struct StorageHttpApp;
 impl Application for StorageHttpApp {
     type Config = NoConfig;
 
-    fn build(app: &mut AppBuilder) {
-        app.plugin(HttpPlugin)
-            .plugin(StoragePlugin)
-            .routes(|routes| {
+    fn providers(_: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+        vec![
+            Box::new(openrust::http::HttpServiceProvider),
+            Box::new(StorageServiceProvider::new()),
+            Box::new(StorageHttpRoutes),
+        ]
+    }
+}
+
+struct StorageHttpRoutes;
+
+impl ServiceProvider for StorageHttpRoutes {
+    fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.routes(|routes| {
                 routes
                     .put("/objects/{key}", upload)
                     .get("/objects/{key}", download)
-            });
+            })?;
+            Ok(())
+        })
     }
 }
 
@@ -43,7 +53,8 @@ async fn upload(
         .and_then(|value| value.to_str().ok())
         .map(str::to_owned);
     storage
-        .default_disk()?
+        .default_disk()
+        .await?
         .put_body(
             StoragePath::new(key)?,
             content_type,
@@ -61,7 +72,7 @@ async fn download(
     request: Request,
 ) -> Result<Response, Error> {
     authorize(&request)?;
-    let disk = storage.default_disk()?;
+    let disk = storage.default_disk().await?;
     let reader = disk.open(&StoragePath::new(key)?, None).await?;
     let mut response = Response::new(Body::from_stream(reader.body));
     if let Some(content_type) = reader.metadata.content_type {
@@ -92,14 +103,17 @@ async fn assembled_server_streams_upload_and_download_over_tcp_with_authorizatio
     ));
     std::fs::create_dir_all(&root)?;
     let encoded_root = serde_json::to_string(&root.join("objects").to_string_lossy().to_string())?;
-    let figment = figment::Figment::new().merge(figment::providers::Toml::string(&format!(
-        "[storage]\nmax_upload_bytes = 64\nmax_chunk_bytes = 4\n[storage.disks.local]\ndriver = 'fs'\nroot = {encoded_root}\n"
-    )));
     let mut framework = FrameworkConfig::default();
     framework.api.http_status = HttpStatusMode::Semantic;
-    let mut builder = AppBuilder::new(framework, figment);
-    StorageHttpApp::build(&mut builder);
-    let app = lifecycle::finalize(builder).await?;
+    let figment = figment::Figment::from(figment::providers::Serialized::defaults(framework))
+        .merge(figment::providers::Toml::string(&format!(
+            "[storage]\nmax_upload_bytes = 64\nmax_chunk_bytes = 4\n[storage.disks.local]\ndriver = 'fs'\nroot = {encoded_root}\n"
+        )));
+    let mut builder = ProviderBuilder::new();
+    for provider in StorageHttpApp::providers(&NoConfig {}) {
+        builder.boxed_provider(provider);
+    }
+    let app = openrust::App::from_provider_runtime(builder.start(figment).await?)?;
     let router = build_router(&app)?;
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
     let address = listener.local_addr()?;

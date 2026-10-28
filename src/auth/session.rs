@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use crate::config::ConfigError;
 use crate::config::SessionConfig;
-use crate::core::{App, AppBuilder, BoxFuture, Error, Plugin, Result};
+use crate::core::{BoxFuture, Error, Result};
 use crate::db::sea_orm::{ConnectionTrait, DbBackend, Statement};
 use crate::db::{DatabaseConnection, Db};
 use chrono::{DateTime, Utc};
@@ -16,8 +16,6 @@ use tower_sessions::{Expiry, SessionManagerLayer};
 
 #[cfg(feature = "session-redis")]
 use redis::AsyncCommands as _;
-
-use crate::http::AppBuilderHttpExt;
 
 impl SessionConfig {
     fn validate(&self) -> Result<SameSite> {
@@ -336,12 +334,6 @@ impl SessionStore for DatabaseSessionStore {
     }
 }
 
-/// 注册共享数据库 Session store 和全局 Cookie 中间件。
-pub struct SessionPlugin {
-    config: Option<SessionConfig>,
-    storage: SessionStorage,
-}
-
 /// 允许框架认证流程精确撤销一个共享 Session 的窄句柄。
 #[derive(Clone)]
 pub struct SessionStoreHandle(Arc<dyn SessionStore>);
@@ -371,32 +363,28 @@ impl SessionStoreHandle {
     }
 }
 
-impl SessionPlugin {
-    /// 使用安全的默认 Cookie 设置创建 Session 插件。
+/// 在统一容器中装配共享 Session store 和 Cookie 中间件。
+pub struct SessionServiceProvider {
+    config: Option<SessionConfig>,
+    storage: SessionStorage,
+}
+
+impl SessionServiceProvider {
+    /// 使用数据库 store 和配置仓储中的 Cookie 设置。
     pub fn new() -> Self {
         Self {
             config: None,
             storage: SessionStorage::Database,
         }
     }
-
-    /// 设置 Session Cookie 与有效期配置。
-    pub fn with_config(config: SessionConfig) -> Self {
-        Self {
-            config: Some(config),
-            storage: SessionStorage::Database,
-        }
-    }
-
-    /// 使用应用提供的 [`SessionStore`] 创建 Session 插件。
-    pub fn with_store(store: impl SessionStore) -> Self {
+    /// 使用调用方提供的共享 store。
+    pub fn with_store(store: impl SessionStore + 'static) -> Self {
         Self {
             config: None,
             storage: SessionStorage::Custom(Arc::new(store)),
         }
     }
-
-    /// 覆盖此插件实例的 Cookie 与有效期配置。
+    /// 使用显式 Cookie 配置。
     #[must_use]
     pub fn with_cookie_config(mut self, config: SessionConfig) -> Self {
         self.config = Some(config);
@@ -404,75 +392,75 @@ impl SessionPlugin {
     }
 }
 
-impl Default for SessionPlugin {
+impl Default for SessionServiceProvider {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Plugin for SessionPlugin {
-    fn name(&self) -> &'static str {
-        "session"
-    }
-
-    fn build(&self, app: &mut AppBuilder) -> Result<()> {
-        if app.get::<SessionService>().is_some() {
-            return Err(Error::custom(
-                "session_service_already_registered",
-                "register only one Session plugin per application",
-            ));
-        }
-        let config = match self.config.clone() {
-            Some(config) => config,
-            None => match app.section::<SessionConfig>("session") {
-                Ok(config) => config,
-                Err(ConfigError::Source(error)) if error.missing() => SessionConfig::default(),
-                Err(error) => return Err(error.into()),
-            },
+impl crate::core::ServiceProvider for SessionServiceProvider {
+    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
+        use crate::config::repository::SectionSchema as S;
+        app.config_section(
+            "session",
+            SessionConfig::default(),
+            S::object([
+                ("cookie_name", S::String),
+                ("secure", S::Boolean),
+                ("http_only", S::Boolean),
+                ("same_site", S::String),
+                ("ttl_secs", S::Integer),
+            ]),
+            |config: &SessionConfig| config.validate().map(|_| ()),
+        )?;
+        let custom = match &self.storage {
+            SessionStorage::Custom(store) => Some(Arc::clone(store)),
+            SessionStorage::Database => None,
         };
-        let same_site = config.validate()?;
-        let store: Arc<dyn SessionStore> = match &self.storage {
-            SessionStorage::Database => {
-                let db = app.get::<Db>().ok_or_else(|| {
-                    Error::Config(ConfigError::Invalid(
-                        "SessionPlugin requires DatabasePlugin to be registered first".into(),
-                    ))
-                })?;
-                Arc::new(DatabaseSessionStore::new((*db).clone()))
-            }
-            SessionStorage::Custom(store) => store.clone(),
-        };
-        app.insert(SessionService);
-        app.insert(SessionStoreHandle(store.clone()));
-        app.http_layer(
-            SessionManagerLayer::new(SharedSessionStore(store))
-                .with_name(config.cookie_name)
-                .with_secure(config.secure)
-                .with_http_only(config.http_only)
-                .with_same_site(same_site)
-                .with_expiry(Expiry::OnInactivity(time::Duration::seconds(
-                    i64::try_from(config.ttl_secs).map_err(|_| {
-                        invalid_session_config("ttl_secs exceeds supported duration")
-                    })?,
-                ))),
-        );
+        app.singleton::<SessionStoreHandle, _>(move |resolver| {
+            let custom = custom.clone();
+            Box::pin(async move {
+                let store: Arc<dyn SessionStore> = if let Some(store) = custom {
+                    store
+                } else {
+                    let db = resolver.resolve::<Db>().await?;
+                    match db.backend()? {
+                        DbBackend::Postgres | DbBackend::MySql => {}
+                        _ => {
+                            return Err(Error::Config(ConfigError::Invalid(
+                                "the Session store supports PostgreSQL and MySQL only".into(),
+                            )));
+                        }
+                    }
+                    Arc::new(DatabaseSessionStore::new((*db).clone()))
+                };
+                Ok(Arc::new(SessionStoreHandle(store)))
+            })
+        });
         Ok(())
     }
 
-    fn finish<'a>(&'a self, app: &'a App) -> BoxFuture<'a, Result<()>> {
+    fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            app.state().try_get::<SessionService>()?;
-            if matches!(&self.storage, SessionStorage::Database) {
-                let db = app.state().try_get::<Db>()?;
-                match db.backend()? {
-                    DbBackend::Postgres | DbBackend::MySql => Ok(()),
-                    _ => Err(Error::Config(ConfigError::Invalid(
-                        "the Session store supports PostgreSQL and MySQL only".into(),
+            let config = match &self.config {
+                Some(config) => config.clone(),
+                None => app.section::<SessionConfig>("session")?,
+            };
+            let same_site = config.validate()?;
+            let store = app.resolve::<SessionStoreHandle>().await?;
+            app.http_layer(
+                SessionManagerLayer::new(SharedSessionStore(Arc::clone(&store.0)))
+                    .with_name(config.cookie_name)
+                    .with_secure(config.secure)
+                    .with_http_only(config.http_only)
+                    .with_same_site(same_site)
+                    .with_expiry(Expiry::OnInactivity(time::Duration::seconds(
+                        i64::try_from(config.ttl_secs).map_err(|_| {
+                            invalid_session_config("ttl_secs exceeds supported duration")
+                        })?,
                     ))),
-                }
-            } else {
-                Ok(())
-            }
+            )?;
+            Ok(())
         })
     }
 }
@@ -503,8 +491,6 @@ impl SessionStore for SharedSessionStore {
         self.0.delete(session_id).await
     }
 }
-
-pub(super) struct SessionService;
 
 fn id_hash(id: &Id) -> String {
     const HEX: &[u8; 16] = b"0123456789abcdef";
@@ -546,4 +532,69 @@ fn redis_ttl_millis(expiry: time::OffsetDateTime) -> session_store::Result<u64> 
 
 fn invalid_session_config(detail: &str) -> Error {
     Error::Config(ConfigError::Invalid(format!("session: {detail}")))
+}
+
+#[cfg(test)]
+mod provider_tests {
+    use super::*;
+    use crate::core::{BootContext, ProviderBuilder, RegisterContext, ServiceProvider};
+    use figment::Figment;
+    use tower_sessions::MemoryStore;
+
+    struct InvalidOverlay;
+    impl ServiceProvider for InvalidOverlay {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move { app.overlay("session", serde_json::json!({"ttl_secs": 0})) })
+        }
+    }
+
+    struct CleanupProbe(Arc<std::sync::atomic::AtomicBool>);
+    impl ServiceProvider for CleanupProbe {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            let closed = Arc::clone(&self.0);
+            Box::pin(async move {
+                app.resources().on_shutdown(move || {
+                    Box::pin(async move {
+                        closed.store(true, std::sync::atomic::Ordering::SeqCst);
+                        Ok(())
+                    })
+                })?;
+                Ok(())
+            })
+        }
+    }
+
+    struct OverrideStore;
+    impl ServiceProvider for OverrideStore {
+        fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
+            app.instance(Arc::new(SessionStoreHandle::new(MemoryStore::default())));
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn custom_store_and_later_override_do_not_require_database() -> Result<()> {
+        let mut builder = ProviderBuilder::new();
+        builder.provider(SessionServiceProvider::new());
+        builder.provider(OverrideStore);
+        let runtime = builder.start(Figment::new()).await?;
+        runtime.container().resolve::<SessionStoreHandle>().await?;
+        runtime
+            .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
+            .await
+    }
+
+    #[tokio::test]
+    async fn missing_database_and_invalid_late_overlay_fail_closed() {
+        let mut missing = ProviderBuilder::new();
+        missing.provider(SessionServiceProvider::new());
+        assert!(missing.start(Figment::new()).await.is_err());
+        let mut invalid = ProviderBuilder::new();
+        invalid.provider(SessionServiceProvider::with_store(MemoryStore::default()));
+        let closed = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        invalid.provider(CleanupProbe(Arc::clone(&closed)));
+        invalid.provider(InvalidOverlay);
+        assert!(invalid.start(Figment::new()).await.is_err());
+        assert!(closed.load(std::sync::atomic::Ordering::SeqCst));
+    }
 }

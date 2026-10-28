@@ -2,8 +2,8 @@ use std::{collections::BTreeSet, env, error::Error, time::Duration};
 
 use openrust::{
     config::{FrameworkConfig, GrpcClientConfig, GrpcConfig},
-    core::{AppBuilder, finalize},
-    grpc::{GrpcClientRegistry, GrpcPlugin, health_pb, tonic},
+    core::ProviderBuilder,
+    grpc::{GrpcClientRegistry, GrpcServiceProvider, health_pb, tonic},
 };
 use tonic::Request;
 
@@ -29,10 +29,14 @@ async fn channel() -> Result<tonic::transport::Channel, Box<dyn Error>> {
         },
         ..FrameworkConfig::default()
     };
-    let mut builder = AppBuilder::new(config, figment::Figment::new());
-    builder.plugin(GrpcPlugin::new());
-    let app = finalize(builder).await?;
-    let clients = app.state().try_get::<GrpcClientRegistry>()?;
+    let mut builder = ProviderBuilder::new();
+    builder.provider(GrpcServiceProvider::new());
+    let runtime = builder
+        .start(figment::Figment::from(
+            figment::providers::Serialized::defaults(config),
+        ))
+        .await?;
+    let clients = runtime.container().resolve::<GrpcClientRegistry>().await?;
     let channel = clients.channel(None)?;
     Ok(channel)
 }
@@ -85,8 +89,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             println!("STREAM_NODE={}", first.api_revision);
             println!("STREAM_FIRST={}", first.value);
             let interrupted = tokio::time::timeout(Duration::from_secs(20), async {
-                while let Ok(Some(_)) = stream.message().await {
-                }
+                while let Ok(Some(_)) = stream.message().await {}
             })
             .await;
             if interrupted.is_err() {

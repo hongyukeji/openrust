@@ -110,7 +110,7 @@ struct RedisJob {
 
 /// 使用 Redis 共享任务状态的可选队列驱动。
 ///
-/// 启用 `queue-redis` feature 后，标准应用通过 `QueuePlugin` 和 `queue` 配置选择。
+/// 启用 `queue-redis` feature 后，标准应用通过 `QueueServiceProvider` 和 `queue` 配置选择。
 /// Redis 的持久性与故障切换取决于 Redis 部署设置。
 pub struct RedisQueueDriver {
     client: redis::Client,

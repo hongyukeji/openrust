@@ -15,7 +15,7 @@ use std::sync::{Arc, Mutex};
 
 use figment::{
     Figment,
-    providers::{Format, Toml},
+    providers::{Format, Serialized, Toml},
 };
 use openrust::http::axum::http::StatusCode;
 use openrust::mail::{MailDriver, Mailer};
@@ -72,16 +72,12 @@ impl MailDriver for CaptureMailer {
     }
 }
 
-struct CaptureMailerPlugin(CaptureMailer);
+struct CaptureMailerProvider(CaptureMailer);
 
-impl Plugin for CaptureMailerPlugin {
-    fn build(&self, app: &mut AppBuilder) -> openrust::Result<()> {
-        app.insert(Mailer::new(self.0.clone()));
+impl openrust::core::ServiceProvider for CaptureMailerProvider {
+    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
+        app.instance(Arc::new(Mailer::new(self.0.clone())));
         Ok(())
-    }
-
-    fn finish<'a>(&'a self, _app: &'a App) -> BoxFuture<'a, openrust::Result<()>> {
-        Box::pin(async { Ok(()) })
     }
 }
 
@@ -101,15 +97,17 @@ async fn generated_auth_routes_run_over_http_with_isolated_database_and_fake_mai
         key,
         link_key
     );
-    let figment = Figment::new().merge(Toml::string(&config));
-    let framework = figment
-        .clone()
-        .extract::<openrust::config::FrameworkConfig>()?;
-    let mut builder = AppBuilder::new(framework, figment);
-    bootstrap::OpenRustGeneratedApplication::build(&mut builder);
+    let figment = Figment::from(Serialized::defaults(openrust::config::FrameworkConfig::default()))
+        .merge(Toml::string(&config));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder.app_config::<NoConfig>();
+    for provider in bootstrap::OpenRustGeneratedApplication::providers(&NoConfig {}) {
+        builder.boxed_provider(provider);
+    }
     let captured_mail = CaptureMailer::default();
-    builder.plugin(CaptureMailerPlugin(captured_mail.clone()));
-    let app = openrust::lifecycle::finalize(builder).await?;
+    builder.provider(CaptureMailerProvider(captured_mail.clone()));
+    let runtime = builder.start(figment).await?;
+    let app = openrust::core::App::from_provider_runtime(runtime)?;
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let address = listener.local_addr()?;
     let router = openrust::http::build_router(&app)?;
@@ -202,7 +200,7 @@ async fn run_auth_flow(
     assert_eq!(current_user.body["data"]["user_id"], user_id);
     let personal_access_token = app
         .state()
-        .try_get::<openrust::auth::PersonalAccessTokens>()?
+        .resolve::<openrust::auth::PersonalAccessTokens>().await?
         .issue(
             user_id,
             "generated-http-test",

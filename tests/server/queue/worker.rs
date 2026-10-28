@@ -4,13 +4,13 @@
 use figment::Figment;
 use figment::providers::{Format, Toml};
 use openrust::config::FrameworkConfig;
-use openrust::core::{AppBuilder, BoxFuture, Error, Result as FrameworkResult, lifecycle};
+use openrust::core::{BoxFuture, Error, Result as FrameworkResult};
 use openrust::database::sea_orm_migration::MigrationTrait;
-use openrust::database::{DatabasePlugin, Db, sea_orm_migration::MigratorTrait};
-use openrust::events::{Events, EventsPlugin};
+use openrust::database::{DatabaseServiceProvider, Db, sea_orm_migration::MigratorTrait};
+use openrust::events::{Events, EventsServiceProvider};
 use openrust::queue::{
-    DispatchOptions, GroupFailurePolicy, Job, JobContext, Queue, QueueMigration, QueuePlugin,
-    QueueTask,
+    DispatchOptions, GroupFailurePolicy, Job, JobContext, Queue, QueueMigration,
+    QueueServiceProvider, QueueTask,
 };
 use std::sync::{
     Arc,
@@ -184,15 +184,19 @@ async fn database_queue_dispatch_worker_concurrency_failure_and_retry()
     };
     let test_database =
         openrust::testing::TestDatabase::create::<QueueMigrator>(&admin_url).await?;
-    let mut queue_plugin = QueuePlugin::default();
-    queue_plugin.register_job::<CountJob>()?;
-    queue_plugin.register_job::<AlwaysFailJob>()?;
-    queue_plugin.register_job::<SlowJob>()?;
-    queue_plugin.register_job::<OrderedJob>()?;
-    queue_plugin.register_job::<MetadataJob>()?;
-    queue_plugin.register_job::<SignupNotificationJob>()?;
+    let queue_plugin = QueueServiceProvider::new();
+    queue_plugin.contributions().register_job::<CountJob>()?;
+    queue_plugin
+        .contributions()
+        .register_job::<AlwaysFailJob>()?;
+    queue_plugin.contributions().register_job::<SlowJob>()?;
+    queue_plugin.contributions().register_job::<OrderedJob>()?;
+    queue_plugin.contributions().register_job::<MetadataJob>()?;
+    queue_plugin
+        .contributions()
+        .register_job::<SignupNotificationJob>()?;
     let event_queue = format!("event{}", std::process::id());
-    let mut events_plugin = EventsPlugin::new();
+    let mut events_plugin = EventsServiceProvider::new();
     events_plugin.listen::<SignupEvent, _>(|_, context| {
         Box::pin(async move {
             if context.transaction().is_some() {
@@ -211,21 +215,25 @@ async fn database_queue_dispatch_worker_concurrency_failure_and_retry()
             })
         },
     );
-    let mut builder = AppBuilder::new(
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
-        Figment::new().merge(Toml::string(&format!(
-            "[database]\nurl = {:?}\n[queue]\njob_timeout_secs = 1\n",
-            test_database.url()
-        ))),
-    );
+    ))
+    .merge(Figment::new().merge(Toml::string(&format!(
+        "[database]\nurl = {:?}\n[queue]\njob_timeout_secs = 1\n",
+        test_database.url()
+    ))));
+    let mut builder = openrust::core::ProviderBuilder::new();
     builder
-        .plugin(DatabasePlugin)
-        .plugin(queue_plugin)
-        .plugin(events_plugin);
-    let app = lifecycle::finalize(builder).await?;
-    let queue = app.state().try_get::<Queue>()?;
-    let db = app.state().try_get::<Db>()?;
-    let events = app.state().try_get::<Events>()?;
+        .provider(DatabaseServiceProvider)
+        .provider(queue_plugin)
+        .provider(events_plugin);
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let queue = app.state().resolve::<Queue>().await?;
+    let db = app.state().resolve::<Db>().await?;
+    let events = app.state().resolve::<Events>().await?;
 
     *EXECUTION_METADATA
         .lock()

@@ -1,8 +1,7 @@
 //! 引导启动顺序与关闭信号。
 //!
-//! [`bootstrap`] 按以下顺序执行：加载 `.env`、加载配置、初始化 `tracing`、
-//! 提取应用自身的配置、调用 [`Application`] 构建插件、运行每个插件的 `build`、
-//! 冻结构建器，最后运行每个插件的 `finish`。
+//! [`bootstrap`] 加载 `.env` 和配置，按清单完成所有 Provider 的 `register`，
+//! 再顺序执行 `boot`、最终配置校验与必需服务解析，最后发布应用。
 
 #[cfg(feature = "otel")]
 use opentelemetry::trace::TracerProvider as _;
@@ -14,13 +13,26 @@ use tracing_subscriber::util::SubscriberInitExt as _;
 
 use crate::config::{self, ConfigLoader, Environment, LogConfig, LogFormat};
 use crate::core::Cancellation;
-use crate::core::app::{App, AppBuilder, Application};
+use crate::core::app::{App, Application};
 use crate::core::command::{ConfigShowCommand, HelpCommand};
 use crate::core::error::{Error, Result};
+use crate::core::provider::{BootContext, ProviderBuilder, ServiceProvider};
 use std::sync::{Arc, Mutex, Weak};
 use tokio::{task::JoinSet, time::Instant};
 
 const MAX_BACKGROUND_TASKS: usize = 256;
+
+struct CoreCommandsProvider;
+
+impl ServiceProvider for CoreCommandsProvider {
+    fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> crate::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.command(HelpCommand);
+            app.command(ConfigShowCommand);
+            Ok(())
+        })
+    }
+}
 
 /// 应用拥有的合作式后台任务集合，供有界框架刷新任务使用。
 #[derive(Default)]
@@ -63,6 +75,7 @@ impl BackgroundTasks {
         state.tasks.take().unwrap_or_default()
     }
 
+    #[cfg(test)]
     pub(crate) async fn shutdown_default(&self, timeout: std::time::Duration) -> Result<()> {
         let deadline = Instant::now() + timeout;
         Self::join_until(self.stop(), deadline).await
@@ -92,7 +105,6 @@ impl BackgroundTasks {
             result
         } else {
             tasks.abort_all();
-            while tasks.join_next().await.is_some() {}
             Err(Error::custom(
                 "background_task_shutdown_timeout",
                 "application background tasks did not stop before the shutdown deadline",
@@ -146,23 +158,32 @@ impl BackgroundTaskHandle {
 
 /// 从当前工作目录的配置引导启动 `A`。
 pub async fn bootstrap<A: Application>() -> Result<App> {
-    bootstrap_with::<A>(|_| {}).await
-}
-
-/// 与 [`bootstrap`] 类似，但允许调用方在 [`Application::build`] 前添加默认插件。
-pub async fn bootstrap_with<A: Application>(defaults: impl FnOnce(&mut AppBuilder)) -> Result<App> {
     let loader = bootstrap_config_loader(A::config_namespace())?;
-    let framework = loader.load_framework()?;
-    init_tracing(&framework.log);
-    tracing::debug!(env = %framework.app.env, config_source = loader.config_dir_source(), "configuration loaded");
-
     let app_config: A::Config = loader.load()?;
-    let mut builder = AppBuilder::new(framework, loader.figment()?);
-    builder.insert(app_config);
-    builder.command(HelpCommand).command(ConfigShowCommand);
-    defaults(&mut builder);
-    A::build(&mut builder);
-    finalize(builder).await
+    let providers = A::providers(&app_config);
+    let mut builder = ProviderBuilder::new();
+    builder.app_config::<A::Config>();
+    builder.provider(CoreCommandsProvider);
+    for provider in providers {
+        builder.boxed_provider(provider);
+    }
+    let runtime = builder.start(loader.figment()?).await?;
+    if let Err(error) = runtime.container().resolve::<A::Config>().await {
+        if let Err(cleanup_error) = runtime
+            .shutdown(Instant::now() + std::time::Duration::from_secs(5))
+            .await
+        {
+            tracing::error!(
+                code = cleanup_error.code(),
+                "application config failure cleanup failed"
+            );
+        }
+        return Err(error);
+    }
+    let app = App::from_provider_runtime(runtime)?;
+    init_tracing(&app.config().log);
+    tracing::debug!(env = %app.config().app.env, config_source = loader.config_dir_source(), "provider configuration loaded");
+    Ok(app)
 }
 
 fn bootstrap_config_loader(namespace: &str) -> Result<ConfigLoader> {
@@ -177,26 +198,6 @@ fn bootstrap_config_loader(namespace: &str) -> Result<ConfigLoader> {
     Ok(ConfigLoader::from_environment_with_namespace(
         env, namespace,
     )?)
-}
-
-/// 在组装完成的构建器上运行插件的构建与完成阶段。
-///
-/// 暴露此入口，使测试无需修改进程环境即可构建应用。
-pub async fn finalize(mut builder: AppBuilder) -> Result<App> {
-    let mut built = Vec::new();
-    while builder.has_pending_plugins() {
-        for plugin in builder.take_plugins() {
-            tracing::trace!(plugin = plugin.name(), "building");
-            plugin.build(&mut builder)?;
-            built.push(plugin);
-        }
-    }
-    let app = builder.build();
-    for plugin in &built {
-        tracing::trace!(plugin = plugin.name(), "finishing");
-        plugin.finish(&app).await?;
-    }
-    Ok(app)
 }
 
 /// 安装全局 `tracing` subscriber。第二次调用（例如测试或嵌入式使用）不会执行任何操作。
@@ -312,8 +313,6 @@ pub async fn shutdown_signal() {
 #[allow(clippy::result_large_err)]
 mod tests {
     use super::*;
-    use crate::config::FrameworkConfig;
-    use crate::core::plugin::{BoxFuture, Plugin};
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -413,10 +412,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn finalize_without_http_exposes_only_builtin_commands() -> Result<()> {
-        let mut builder = AppBuilder::new(FrameworkConfig::default(), figment::Figment::new());
-        builder.command(HelpCommand).command(ConfigShowCommand);
-        let app = finalize(builder).await?;
+    async fn provider_boot_without_http_exposes_only_builtin_commands() -> Result<()> {
+        let mut builder = ProviderBuilder::new();
+        builder.provider(CoreCommandsProvider);
+        let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+            crate::config::FrameworkConfig::default(),
+        ));
+        let app = App::from_provider_runtime(builder.start(sources).await?)?;
         let names: Vec<&str> = app
             .commands()
             .map(crate::core::command::Command::name)
@@ -438,33 +440,40 @@ mod tests {
     struct Log(Mutex<Vec<&'static str>>);
 
     struct Second;
-    impl Plugin for Second {
-        fn build(&self, app: &mut AppBuilder) -> Result<()> {
-            app.extension_mut::<Log>()
-                .0
-                .lock()
-                .map(|mut l| l.push("second:build"))
-                .ok();
+    impl ServiceProvider for Second {
+        fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
+            app.instance(Arc::new(AtomicBool::new(false)));
             Ok(())
+        }
+        fn boot<'a>(
+            &'a self,
+            app: &'a mut BootContext<'_>,
+        ) -> crate::core::BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.extension_mut::<Log>()?
+                    .0
+                    .lock()
+                    .map(|mut l| l.push("second:boot"))
+                    .ok();
+                Ok(())
+            })
         }
     }
 
     struct First;
-    impl Plugin for First {
-        fn build(&self, app: &mut AppBuilder) -> Result<()> {
-            app.extension_mut::<Log>()
-                .0
-                .lock()
-                .map(|mut l| l.push("first:build"))
-                .ok();
-            app.plugin(Second);
-            app.insert(AtomicBool::new(false));
-            Ok(())
-        }
-        fn finish<'a>(&'a self, app: &'a App) -> BoxFuture<'a, Result<()>> {
+    impl ServiceProvider for First {
+        fn boot<'a>(
+            &'a self,
+            app: &'a mut BootContext<'_>,
+        ) -> crate::core::BoxFuture<'a, Result<()>> {
             Box::pin(async move {
-                app.state()
-                    .try_get::<AtomicBool>()?
+                app.extension_mut::<Log>()?
+                    .0
+                    .lock()
+                    .map(|mut l| l.push("first:boot"))
+                    .ok();
+                app.resolve::<AtomicBool>()
+                    .await?
                     .store(true, Ordering::SeqCst);
                 Ok(())
             })
@@ -472,20 +481,22 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn plugins_added_during_build_are_processed_and_finished() -> Result<()> {
-        let mut builder = AppBuilder::new(
+    async fn all_register_precedes_ordered_provider_boot() -> Result<()> {
+        let mut builder = ProviderBuilder::new();
+        builder.provider(First).provider(Second);
+        let sources = figment::Figment::from(figment::providers::Serialized::defaults(
             crate::config::FrameworkConfig::default(),
-            figment::Figment::new(),
-        );
-        builder.plugin(First);
-        let app = finalize(builder).await?;
+        ));
+        let app = App::from_provider_runtime(builder.start(sources).await?)?;
         let log = app
             .extension::<Log>()
             .and_then(|l| l.0.lock().ok().map(|l| l.clone()));
-        assert_eq!(log, Some(vec!["first:build", "second:build"]));
+        assert_eq!(log, Some(vec!["first:boot", "second:boot"]));
         assert!(
-            app.state().try_get::<AtomicBool>()?.load(Ordering::SeqCst),
-            "finish ran"
+            app.state()
+                .resolve::<AtomicBool>()
+                .await?
+                .load(Ordering::SeqCst)
         );
         Ok(())
     }

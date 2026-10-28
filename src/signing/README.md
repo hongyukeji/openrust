@@ -1,6 +1,8 @@
 # 签名链接
 
-启用 `signing` feature，并使用 `[security.signed_links]` 配置注册 `SignedLinksPlugin`。签名密钥使用独立 key ring，与 JWT 和应用加密密钥相互隔离。新链接使用当前 active key；保留的历史密钥可验证轮换前创建的链接。
+`SignedLinksServiceProvider` 通过统一容器配置密钥与可选撤销服务。
+
+启用 `signing` feature，并使用 `[security.signed_links]` 配置注册 `SignedLinksServiceProvider`。签名密钥使用独立 key ring，与 JWT 和应用加密密钥相互隔离。新链接使用当前 active key；保留的历史密钥可验证轮换前创建的链接。
 
 ```rust,ignore
 let links = SignedLinks::new(SignedLinksConfig::new(

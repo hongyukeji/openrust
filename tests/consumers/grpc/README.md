@@ -10,7 +10,7 @@ OPENRUST_TEST_DATABASE_URL="<隔离测试库管理 URL>" cargo test --locked --f
 OPENRUST_TEST_DATABASE_URL="<隔离测试库管理 URL>" cargo test --locked --features db-mysql database_auth_tests::database_bearer_and_method_policy_work_over_real_tcp
 ```
 
-应用可从 `GrpcClientRegistry` 选择默认或具名共享 `Channel`，服务由 `GrpcPlugin::register_service` 注册。需要把配置的消息大小限额应用到 tonic 生成 server 时，使用 `GrpcPlugin::register_service_with_config`。启用 `grpc` feature 不会自动监听端口；示例仅在本机 loopback 显式允许明文，并通过 shutdown future 优雅停止。正式服务配置证书与私钥；mTLS 额外配置客户端 CA。证书轮换使用滚动重启。
+应用可从 `GrpcClientRegistry` 选择默认或具名共享 `Channel`，服务由 `GrpcServiceRegistry::register` 注册。需要把配置的消息大小限额应用到 tonic 生成 server 时，使用 `GrpcServiceRegistry::register_with_config`。启用 `grpc` feature 不会自动监听端口；示例仅在本机 loopback 显式允许明文，并通过 shutdown future 优雅停止。正式服务配置证书与私钥；mTLS 额外配置客户端 CA。证书轮换使用滚动重启。
 
 生产 server 示例配置：
 
@@ -45,13 +45,12 @@ client_private_key_file = "config/certs/client-key.pem"
 
 生成项目的 `.env.example` 将 `APP_GRPC_ALLOW_INSECURE_SERVER=true` 作为注释的本地开发选项；生产环境必须关闭明文 server。证书与私钥由部署环境提供，不要提交私钥或把它们放进公共示例。
 
-HTTP 与 gRPC 同进程运行时，在 builder 中先安装 `HttpPlugin`、`GrpcPlugin`，注册至少一个 gRPC 服务，再安装 `HttpGrpcPlugin`。它增加 `serve all` 命令；两个 listener 会先全部绑定，两个都开始服务后 readiness 才为 true。统一退出信号会同时摘除两个 listener，并在 `[server].shutdown_timeout_secs` 内 drain、join。原有 `serve` 与 `grpc serve` 命令仍可单独运行。该入口的真实 TCP 测试只证明单进程联合生命周期，不证明代理路由或跨节点集群。
+HTTP 与 gRPC 同进程运行时，在 Provider 清单中安装 `HttpServiceProvider`、`GrpcServiceProvider` 与 `HttpGrpcServiceProvider`，并在启动阶段通过共享 `GrpcServiceRegistry` 注册至少一个 gRPC 服务。它增加 `serve all` 命令；两个 listener 会先全部绑定，两个都开始服务后 readiness 才为 true。统一退出信号会同时摘除两个 listener，并在 `[server].shutdown_timeout_secs` 内 drain、join。原有 `serve` 与 `grpc serve` 命令仍可单独运行。该入口的真实 TCP 测试只证明单进程联合生命周期，不证明代理路由或跨节点集群。
 
 ```rust
-builder
-    .plugin(HttpPlugin)
-    .plugin(GrpcPlugin::new())
-    .plugin(HttpGrpcPlugin);
+providers.push(Box::new(HttpServiceProvider));
+providers.push(Box::new(GrpcServiceProvider::new()));
+providers.push(Box::new(HttpGrpcServiceProvider));
 ```
 
 ## 身份与方法授权
@@ -79,8 +78,7 @@ client.call(request).await?;
 配置的每连接并发与全局并发会快速拒绝过载请求，不建立无限等待队列；全局并发名额在流结束、deadline 或客户端断连时释放。连接与 metadata 使用 HTTP/2 限制，压缩后的 Protobuf 消息限制由 tonic 生成 server 在解码后应用。使用配置消息大小的服务工厂示例：
 
 ```rust
-GrpcPlugin::register_service_with_config::<EchoServer<MyService>, _>(
-    &mut builder,
+app.extension_mut::<GrpcServiceRegistry>()?.register_with_config::<EchoServer<MyService>, _>(
     |state, config| {
         EchoServer::new(MyService::new(state))
             .max_decoding_message_size(config.max_decoding_message_size_bytes)
@@ -119,8 +117,7 @@ reflection 默认关闭。启用后，应用必须注册编译时生成的 FileD
 
 ```rust
 config.grpc.reflection_enabled = true;
-GrpcPlugin::register_reflection_descriptor_set(
-    &mut builder,
+app.extension_mut::<GrpcServiceRegistry>()?.register_reflection_descriptor_set(
     include_bytes!(concat!(env!("OUT_DIR"), "/file_descriptor_set.bin")).to_vec(),
     ["example.v1.Echo"],
 )?;

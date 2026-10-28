@@ -19,7 +19,7 @@
 | OpenAPI | 规划 `utoipa` + `utoipa-axum`，尚未引入 | 类型 schema、统一响应文档与非生产 `/docs` 均待实现 |
 | 出站 HTTP | `reqwest` 0.13（Rustls）、`ipnet` 2.11、`httpdate` 1.x | `http-client` 可选 feature；共享连接池、JSON/query/form/multipart/stream、显式超时；默认禁重定向和代理继承；`HttpClient::restricted` 可选执行目标主机/端口、DNS 全结果及公网地址策略，内网例外由主机 + CIDR + 端口显式登记；命名依赖隔离及可选进程内熔断复用此客户端 |
 | 外部 OIDC 客户端 | `oauth2` 5.0（禁用 crate 默认 feature）+ 现有 `jsonwebtoken` 11.1（aws-lc-rs） | 可选 `auth-oidc` feature 依赖 `auth`、`http-client`、`encryption`；授权码/PKCE/令牌交换由 oauth2 提供，OIDC Discovery/JWKS 与 ID Token 必需声明校验由框架 glue 完成并通过受限命名 `DependencyClient` 出站；避免引入 `openidconnect` 的受影响 `rsa` 依赖，见 ADR-053 |
-| 序列化 | `serde` + `serde_json` | 根集成测试用 `serde_json` 比对包装字段与请求 ID |
+| 序列化 | `serde` + `serde_json`（`preserve_order`） | R2 包配置合并需要保留 JSON 对象的插入顺序以对应 PHP 数组键顺序；`indexmap` 已在锁图中。根集成测试用 `serde_json` 比对包装字段与请求 ID |
 | 验证 | `validator` | M0 评估 `garde` 后定稿 |
 | 国际化 | `openrust::i18n`、`serde_json` 与 ICU4X `icu_datetime`/`icu_decimal`/`icu_locale`/`icu_plurals` 2.3.x | 同一 catalog 支持字符串插值、CLDR plural/select；编译数据用于 locale 数字与公历日期格式化。仅启用所需组件；数据随二进制构建，不使用运行时网络。日期时区转换由调用方显式完成；最终二进制尺寸增量纳入 M6 构建基线测量 |
 | 配置 | `figment` | 已采用；错误信息含键名（测试覆盖） |
@@ -52,7 +52,7 @@
 | --- | --- | --- |
 | 队列 | `queue` feature 下默认使用数据库 driver（[ADR-003](decisions/adr-003-database-queue-default.md)，不依赖 `apalis`）；可选 `queue-redis` 复用已有 `redis` 1.8.0 | Redis Queue 已通过 Redis 8.10.2 多连接、唯一派发、失败重试、租约恢复与 Redis-only server 集成验收；至少一次及事务/任务组限制见 ADR-046，Redis 持久性/复制与最低版本仍由部署和 v1 发布门禁负责 |
 | 调度 | `queue` feature；`Scheduler` + interval/UTC daily/五字段 cron，`cron-parser` 0.12 与 `chrono-tz` 0.10.4 | F1 已实现；cron 使用 IANA zoneinfo 表，DST gap 跳过、重复 wall minute 去重；有界补跑及双库验收见 ADR-037 |
-| 缓存 | 根 `openrust::cache` 提供 Cache、命名 stores、memory/file 与公开 custom driver contract；Redis 由 `redis` 1.8.0、`connection-manager` + `tokio-rustls-comp` feature 提供 | `cache-redis` 可选 feature；标准生成应用启用 Redis 默认 store；Redis 6.2 最低版兼容、F4 tag/SWR/singleflight 尚待验收 |
+| 缓存 | 根 `openrust::cache` 提供 Cache、命名 stores、memory/file 与公开 custom driver contract；Redis 由 `redis` 1.8.0、`connection-manager` + `tokio-rustls-comp` feature 提供 | 根 package 默认启用 `cache-redis`，与标准应用 Redis store 配置一致；`--no-default-features` 仅保留未编译 Redis driver 的库构建，显式 Redis 配置启动时拒绝，不回退 memory；Redis 6.2 最低版兼容仍待专项验收 |
 | 存储 | OpenDAL 0.59.x（当前锁定 0.59.5）提供 filesystem/S3-compatible I/O；`bytes` 1.12 与 `futures-util` 0.3 承载有界流 | 根模块 `openrust::storage` 提供配置、流检查和 driver contract；默认不启用，`storage-local` 启用文件系统，`storage-s3` 增加 S3 服务和 Rustls HTTP transport；OpenDAL facade 关闭默认 feature，仅开启相应服务。S3 签名依赖链使用 `tiny-keccak`（CC0-1.0），许可在 `deny.toml` 中显式允许 |
 | 邮件 / 短信 | `lettre` 0.11 + log/fake；`mail-smtp` 启用 Tokio/Rustls STARTTLS，仅本机 loopback 可显式关闭；`sms-twilio` 复用 `http-client` 与 `base64` | 本机 Mailpit SMTP 实收已有验收记录；真实 Twilio 投递待授权账号和目标，log/fake 不能代替送达证据 |
 | 模板 | MiniJinja `~2.24.0` 关闭默认 feature；邮件使用 `mail-templates` 编译期模板，服务端页面使用可选 `view` feature 及其 `loader` 能力 | 邮件继续使用受信任编译期资源；视图使用应用根目录 loader、严格变量、HTML 自动转义、燃料上限和可选开发重载；不读取网络或用户上传模板 |
@@ -94,6 +94,6 @@ Edition 2024；MSRV 为 stable 减两个小版本；0.x 期间破坏性变更只
 
 ## R1 Cargo 布局
 
-根 openrust package 同时提供框架 src/lib.rs 与默认 server 薄 src/main.rs，app/example 业务模块通过公开 API 使用框架；工具保留独立 package。没有新增依赖或依赖升级，workspace 的 openrust 显式 default-features=false，与既有空默认 feature 一致；MSRV 保持 1.97。
+根 openrust package 同时提供框架 src/lib.rs 与默认 server 薄 src/main.rs，app/example 业务模块通过公开 API 使用框架；工具保留独立 package。没有新增依赖或依赖升级；默认 feature 改为 `cache-redis` 以满足标准配置，显式 `default-features=false` 的消费者仍可关闭它；MSRV 保持 1.97。
 
 根框架库、server 与工具共用根 Cargo.lock，独立 consumer/生成应用拥有自己的锁图，本轮只调整本地 package 身份/路径解析，不升级注册表依赖。框架根无需额外包别名或包装 crate；公共导入、宏与 Rustdoc 都保持 openrust。

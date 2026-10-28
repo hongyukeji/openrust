@@ -23,6 +23,9 @@ use std::sync::{Arc, Mutex, MutexGuard, Weak};
 
 use tokio::sync::Notify;
 
+use super::resources::{ResourceOwner, ResourceRegistrar};
+use crate::config::{ConfigError, ServerConfig, repository::ConfigRepository};
+
 use super::{BoxFuture, Error, Result};
 
 type Value = Arc<dyn Any + Send + Sync>;
@@ -48,18 +51,28 @@ enum Lifetime {
 struct Binding {
     lifetime: Lifetime,
     factory: Factory,
+    instance: Option<Value>,
 }
 
 /// 注册服务定义；消费 builder 后得到不再重绑的容器。
 #[derive(Default)]
 pub struct ContainerBuilder {
     bindings: HashMap<TypeId, Binding>,
+    config: Option<ConfigRepository>,
+    resources: Option<ResourceRegistrar>,
 }
 
 impl ContainerBuilder {
     /// 创建空定义集合。
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// 给所有工厂共享启动配置视图和应用级资源登记入口。
+    pub fn context(&mut self, config: ConfigRepository, resources: ResourceRegistrar) -> &mut Self {
+        self.config = Some(config);
+        self.resources = Some(resources);
+        self
     }
 
     /// 每次解析调用一次工厂，同类型后注册覆盖前定义。
@@ -91,10 +104,33 @@ impl ContainerBuilder {
 
     /// 注册调用者已创建的共享实例，允许绑定 `dyn Trait`。
     pub fn instance<T: ?Sized + Send + Sync + 'static>(&mut self, value: Arc<T>) -> &mut Self {
-        self.singleton::<T, _>(move |_| {
-            let value = Arc::clone(&value);
-            Box::pin(async move { Ok(value) })
-        })
+        let stored: Value = Arc::new(Arc::clone(&value));
+        self.bindings.insert(
+            TypeId::of::<T>(),
+            Binding {
+                lifetime: Lifetime::Singleton,
+                factory: Arc::new(move |_| {
+                    let value = Arc::clone(&stored);
+                    Box::pin(async move { Ok(value) })
+                }),
+                instance: Some(Arc::new(value)),
+            },
+        );
+        self
+    }
+
+    /// 同步读取已登记实例；异步 factory 必须通过 `resolve` 构造。
+    pub fn get_instance<T: ?Sized + Send + Sync + 'static>(&self) -> Option<Arc<T>> {
+        self.bindings
+            .get(&TypeId::of::<T>())
+            .and_then(|binding| binding.instance.as_ref())
+            .and_then(|value| value.downcast_ref::<Arc<T>>())
+            .cloned()
+    }
+
+    /// 检查类型是否已绑定，无论其构造方式。
+    pub fn contains<T: ?Sized + Send + Sync + 'static>(&self) -> bool {
+        self.bindings.contains_key(&TypeId::of::<T>())
     }
 
     fn register<T, F>(&mut self, lifetime: Lifetime, factory: F) -> &mut Self
@@ -111,6 +147,7 @@ impl ContainerBuilder {
                     let factory = Arc::clone(&factory);
                     Box::pin(async move { Ok(Arc::new(factory(resolver).await?) as Value) })
                 }),
+                instance: None,
             },
         );
         self
@@ -122,6 +159,9 @@ impl ContainerBuilder {
             inner: Arc::new(Inner {
                 bindings: self.bindings,
                 state: Mutex::new(State::default()),
+                reset: tokio::sync::Mutex::new(()),
+                config: self.config,
+                resources: self.resources,
             }),
         }
     }
@@ -160,10 +200,12 @@ impl ScopeStatus {
 #[derive(Default)]
 struct State {
     next_id: u64,
+    terminated: bool,
     root_scope: u64,
     slots: HashMap<CacheKey, Arc<Attempt>>,
     edges: HashMap<(u64, u64), usize>,
     root_closed: Arc<ScopeStatus>,
+    root_resources: Arc<ResourceOwner>,
 }
 
 impl State {
@@ -201,6 +243,9 @@ impl State {
 struct Inner {
     bindings: HashMap<TypeId, Binding>,
     state: Mutex<State>,
+    reset: tokio::sync::Mutex<()>,
+    config: Option<ConfigRepository>,
+    resources: Option<ResourceRegistrar>,
 }
 
 #[derive(Clone)]
@@ -351,48 +396,168 @@ pub struct Container {
 }
 
 impl Container {
-    /// 在根生命周期解析；`scoped` 在根也会共享，符合 Laravel 行为。
-    pub async fn resolve<T: ?Sized + Send + Sync + 'static>(&self) -> Result<Arc<T>> {
-        let (scope, closed) = {
-            let state = lock(&self.inner.state);
-            (state.root_scope, Arc::clone(&state.root_closed))
-        };
-        self.resolver(scope, closed).resolve().await
+    /// 检查实例或工厂绑定是否存在，不执行构造。
+    pub fn contains<T: ?Sized + Send + Sync + 'static>(&self) -> bool {
+        self.inner.bindings.contains_key(&TypeId::of::<T>())
     }
 
-    /// 清除根 lifecycle 的 scoped 实例，下一次解析重新构造。
-    ///
-    /// 当前基元没有异步清理回调；资源回收协议须在 Provider 集成前补齐。
-    pub fn forget_scoped_instances(&self) -> Result<()> {
-        let mut state = lock(&self.inner.state);
-        let next = state.id()?;
-        let old = state.root_scope;
-        state.root_scope = next;
-        let closed = Arc::clone(&state.root_closed);
-        closed.mark_closed();
-        state.root_closed = Arc::new(ScopeStatus::default());
-        let removed = close_scope(&mut state, old);
-        drop(state);
+    /// 同步读取已登记实例；未构造的 factory 不会在这里执行。
+    pub fn get_instance<T: ?Sized + Send + Sync + 'static>(&self) -> Option<Arc<T>> {
+        self.inner
+            .bindings
+            .get(&TypeId::of::<T>())
+            .and_then(|binding| binding.instance.as_ref())
+            .and_then(|value| value.downcast_ref::<Arc<T>>())
+            .cloned()
+    }
+
+    /// 同步读取实例或本容器已构造的缓存服务；不会启动异步工厂。
+    pub fn get_ready<T: ?Sized + Send + Sync + 'static>(&self) -> Option<Arc<T>> {
+        let state = lock(&self.inner.state);
+        if state.terminated {
+            return None;
+        }
+        if let Some(value) = self.get_instance::<T>() {
+            return Some(value);
+        }
+        let binding = self.inner.bindings.get(&TypeId::of::<T>())?;
+        let scope = match binding.lifetime {
+            Lifetime::Bind => return None,
+            Lifetime::Singleton => u64::MAX,
+            Lifetime::Scoped => state.root_scope,
+        };
+        let attempt = state.slots.get(&CacheKey {
+            service: TypeId::of::<T>(),
+            scope,
+        })?;
+        let outcome = lock(&attempt.outcome);
+        outcome
+            .as_ref()?
+            .as_ref()
+            .ok()?
+            .downcast_ref::<Arc<T>>()
+            .cloned()
+    }
+
+    /// 已注册服务类型数量。
+    pub fn len(&self) -> usize {
+        self.inner.bindings.len()
+    }
+
+    /// 容器尚无绑定时返回 `true`。
+    pub fn is_empty(&self) -> bool {
+        self.inner.bindings.is_empty()
+    }
+
+    /// 在根生命周期解析；`scoped` 在根也会共享，符合 Laravel 行为。
+    pub async fn resolve<T: ?Sized + Send + Sync + 'static>(&self) -> Result<Arc<T>> {
+        let (scope, closed, resources) = {
+            let state = lock(&self.inner.state);
+            (
+                state.root_scope,
+                Arc::clone(&state.root_closed),
+                state.root_resources.registrar(),
+            )
+        };
+        self.resolver(scope, closed, resources).resolve().await
+    }
+
+    /// 关闭根 scoped 旧代，等待资源回收后才发布可解析的新代。
+    pub async fn forget_scoped_instances(&self, deadline: tokio::time::Instant) -> Result<()> {
+        let _reset = tokio::time::timeout_at(deadline, self.inner.reset.lock())
+            .await
+            .map_err(|_| container_error("scope_reset_timeout", "等待根生命周期重置超过期限"))?;
+        let (closed, resources, removed) = {
+            let mut state = lock(&self.inner.state);
+            if state.terminated {
+                return Err(container_error("container_closed", "容器已关闭"));
+            }
+            let closed = Arc::clone(&state.root_closed);
+            closed.mark_closed();
+            let old = state.root_scope;
+            let resources = Arc::clone(&state.root_resources);
+            let removed = close_scope(&mut state, old);
+            (closed, resources, removed)
+        };
         // Waker 和用户服务的 Drop 都可能同步重入容器，必须先释放内部锁。
         closed.changed.notify_waiters();
         for attempt in &removed {
             attempt.changed.notify_waiters();
         }
         drop(removed);
+        resources.shutdown(deadline).await?;
+        let mut state = lock(&self.inner.state);
+        state.root_scope = state.id()?;
+        state.root_closed = Arc::new(ScopeStatus::default());
+        state.root_resources = Arc::new(ResourceOwner::new());
         Ok(())
+    }
+
+    /// 永久关闭根生命周期并回收其资源；之后不发布新代。
+    pub async fn shutdown_root(&self, deadline: tokio::time::Instant) -> Result<()> {
+        let _reset = tokio::time::timeout_at(deadline, self.inner.reset.lock())
+            .await
+            .map_err(|_| container_error("scope_shutdown_timeout", "等待根生命周期关闭超过期限"))?;
+        let (closed, resources, removed) = {
+            let mut state = lock(&self.inner.state);
+            state.terminated = true;
+            let closed = Arc::clone(&state.root_closed);
+            closed.mark_closed();
+            let resources = Arc::clone(&state.root_resources);
+            let root_scope = state.root_scope;
+            let removed = close_scope(&mut state, root_scope);
+            (closed, resources, removed)
+        };
+        closed.changed.notify_waiters();
+        for attempt in &removed {
+            attempt.changed.notify_waiters();
+        }
+        drop(removed);
+        resources.shutdown(deadline).await
     }
 
     /// 创建独立生命周期，不继承根或其他 scope 的 scoped 实例。
     pub fn scope(&self) -> Result<Scope> {
-        let id = lock(&self.inner.state).id()?;
+        let id = {
+            let mut state = lock(&self.inner.state);
+            if state.terminated {
+                return Err(container_error("container_closed", "容器已关闭"));
+            }
+            state.id()?
+        };
+        let resources = Arc::new(ResourceOwner::new());
+        let closed = Arc::new(ScopeStatus::default());
+        let parent = self
+            .inner
+            .resources
+            .as_ref()
+            .map(|registrar| {
+                let inner = Arc::downgrade(&self.inner);
+                let on_close = Arc::clone(&closed);
+                registrar
+                    .track_child(Arc::clone(&resources), move || {
+                        if let Some(inner) = inner.upgrade() {
+                            close_scope_status(&inner, id, &on_close);
+                        }
+                    })
+                    .map(|child_id| (registrar.clone(), child_id))
+            })
+            .transpose()?;
         Ok(Scope {
             container: self.clone(),
             id,
-            closed: Arc::new(ScopeStatus::default()),
+            closed,
+            resources,
+            parent,
         })
     }
 
-    fn resolver(&self, scope: u64, closed: Arc<ScopeStatus>) -> Resolver {
+    fn resolver(
+        &self,
+        scope: u64,
+        closed: Arc<ScopeStatus>,
+        resources: ResourceRegistrar,
+    ) -> Resolver {
         Resolver {
             container: Arc::downgrade(&self.inner),
             scope,
@@ -400,6 +565,7 @@ impl Container {
             constructing: None,
             captive: false,
             closed,
+            resources: Some(resources),
         }
     }
 }
@@ -409,28 +575,67 @@ pub struct Scope {
     container: Container,
     id: u64,
     closed: Arc<ScopeStatus>,
+    resources: Arc<ResourceOwner>,
+    parent: Option<(ResourceRegistrar, u64)>,
 }
 
 impl Scope {
     /// 在本生命周期解析服务。
     pub async fn resolve<T: ?Sized + Send + Sync + 'static>(&self) -> Result<Arc<T>> {
         self.container
-            .resolver(self.id, Arc::clone(&self.closed))
+            .resolver(
+                self.id,
+                Arc::clone(&self.closed),
+                self.resources.registrar(),
+            )
             .resolve()
             .await
     }
 
-    /// 关闭本生命周期，后续解析失败；本基元尚不登记异步资源回收。
-    pub fn close(&self) {
-        let mut state = lock(&self.container.inner.state);
-        self.closed.mark_closed();
-        let removed = close_scope(&mut state, self.id);
-        drop(state);
-        self.closed.changed.notify_waiters();
-        for attempt in &removed {
-            attempt.changed.notify_waiters();
+    /// 封闭解析并显式等待本 scope 的资源回收。
+    pub async fn shutdown(&self, deadline: tokio::time::Instant) -> Result<()> {
+        self.close_cache();
+        let result = self.resources.shutdown(deadline).await;
+        if let Some((parent, child_id)) = &self.parent {
+            parent.finish_child(*child_id, result.is_err());
         }
-        drop(removed);
+        result
+    }
+
+    /// 关闭本生命周期并启动有界资源回收；需确认完成时使用 `shutdown`。
+    pub fn close(&self) {
+        if !self.close_cache() {
+            return;
+        }
+        let resources = Arc::clone(&self.resources);
+        let parent = self.parent.clone();
+        let timeout = self
+            .container
+            .inner
+            .config
+            .as_ref()
+            .and_then(|config| config.section::<ServerConfig>("server").ok())
+            .unwrap_or_default()
+            .shutdown_timeout_secs;
+        if let Ok(runtime) = tokio::runtime::Handle::try_current() {
+            runtime.spawn(async move {
+                let result = resources
+                    .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(timeout))
+                    .await;
+                if let Some((parent, child_id)) = parent {
+                    parent.finish_child(child_id, result.is_err());
+                }
+                if let Err(error) = result {
+                    tracing::error!(code = error.code(), "scope resource cleanup failed");
+                }
+            });
+        } else {
+            tracing::error!("scope cleanup needs a runtime or explicit owner shutdown");
+        }
+    }
+
+    fn close_cache(&self) -> bool {
+        close_scope_status(&self.container.inner, self.id, &self.closed)
     }
 }
 
@@ -438,6 +643,22 @@ impl Drop for Scope {
     fn drop(&mut self) {
         self.close();
     }
+}
+
+fn close_scope_status(inner: &Arc<Inner>, id: u64, closed: &Arc<ScopeStatus>) -> bool {
+    let mut state = lock(&inner.state);
+    if closed.closed.swap(true, Ordering::AcqRel) {
+        return false;
+    }
+    closed.mark_closed();
+    let removed = close_scope(&mut state, id);
+    drop(state);
+    closed.changed.notify_waiters();
+    for attempt in &removed {
+        attempt.changed.notify_waiters();
+    }
+    drop(removed);
+    true
 }
 
 fn close_scope(state: &mut State, scope: u64) -> Vec<Arc<Attempt>> {
@@ -481,9 +702,41 @@ pub struct Resolver {
     constructing: Option<(u64, Arc<AtomicBool>)>,
     captive: bool,
     closed: Arc<ScopeStatus>,
+    resources: Option<ResourceRegistrar>,
 }
 
 impl Resolver {
+    /// 检查同一容器是否声明服务，不执行工厂；容器已释放时返回错误。
+    pub fn is_bound<T: ?Sized + Send + Sync + 'static>(&self) -> Result<bool> {
+        Ok(self.container()?.contains::<T>())
+    }
+
+    /// 从同一应用的已发布配置视图读取区段；boot overlay 后首次解析可见新版本。
+    pub fn section<T: serde::de::DeserializeOwned>(
+        &self,
+        key: &str,
+    ) -> std::result::Result<T, ConfigError> {
+        let container = self
+            .container()
+            .map_err(|_| ConfigError::Invalid("服务容器已关闭，无法读取配置".into()))?;
+        container
+            .inner
+            .config
+            .as_ref()
+            .ok_or_else(|| ConfigError::Invalid("服务容器未配置配置仓储".into()))?
+            .section(key)
+    }
+
+    /// 当前服务生命周期的资源登记句柄；singleton 归应用，scoped 归请求或根 scope。
+    pub fn resources(&self) -> Result<ResourceRegistrar> {
+        if self.closed.closed.load(Ordering::Acquire) {
+            return Err(container_error("scope_closed", "生命周期已关闭"));
+        }
+        self.resources
+            .clone()
+            .ok_or_else(|| container_error("resources_unavailable", "服务容器未配置资源所有者"))
+    }
+
     fn container(&self) -> Result<Container> {
         self.container
             .upgrade()
@@ -546,6 +799,7 @@ impl Resolver {
                 child.captive = true;
                 child.scope = u64::MAX;
                 child.closed = Arc::new(ScopeStatus::default());
+                child.resources = container.inner.resources.clone();
             }
             let value = if binding.lifetime == Lifetime::Bind {
                 tokio::select! { result = (binding.factory)(child) => result?, () = self.closed.wait_closed() => return Err(container_error("scope_closed", "生命周期已关闭")) }
@@ -683,6 +937,20 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn synchronous_ready_read_uses_only_constructed_singleton() -> Result<()> {
+        let mut builder = ContainerBuilder::new();
+        builder.singleton::<String, _>(|_| Box::pin(async { Ok(Arc::new("ready".to_owned())) }));
+        let container = builder.build();
+        assert!(container.get_ready::<String>().is_none());
+        let resolved = container.resolve::<String>().await?;
+        let ready = container
+            .get_ready::<String>()
+            .ok_or_else(|| Error::custom("ready_service_missing", "已解析单例不可同步读取"))?;
+        assert!(Arc::ptr_eq(&resolved, &ready));
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn trait_binding_override_and_transient_lifetime() {
         let mut builder = ContainerBuilder::new();
         builder
@@ -749,7 +1017,10 @@ mod tests {
             &child,
             &scope.resolve::<usize>().await.unwrap()
         ));
-        container.forget_scoped_instances().unwrap();
+        container
+            .forget_scoped_instances(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await
+            .unwrap();
         assert!(!Arc::ptr_eq(
             &old,
             &container.resolve::<usize>().await.unwrap()
@@ -939,7 +1210,10 @@ mod tests {
         let owner = container.clone();
         let task = tokio::spawn(async move { owner.resolve::<usize>().await });
         started.notified().await;
-        container.forget_scoped_instances().unwrap();
+        container
+            .forget_scoped_instances(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await
+            .unwrap();
         assert_eq!(
             tokio::time::timeout(Duration::from_secs(1), task)
                 .await
@@ -1063,8 +1337,340 @@ mod tests {
         });
         let container = builder.build();
         container.resolve::<Reentrant>().await.unwrap();
-        container.forget_scoped_instances().unwrap();
+        container
+            .forget_scoped_instances(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await
+            .unwrap();
         assert!(dropped.load(Ordering::Acquire));
+    }
+
+    #[tokio::test]
+    async fn root_reset_waits_for_old_resource_before_new_generation() {
+        let entered = Arc::new(Notify::new());
+        let release = Arc::new(Notify::new());
+        let mut builder = ContainerBuilder::new();
+        builder.scoped::<usize, _>({
+            let entered = Arc::clone(&entered);
+            let release = Arc::clone(&release);
+            move |resolver| {
+                let entered = Arc::clone(&entered);
+                let release = Arc::clone(&release);
+                Box::pin(async move {
+                    resolver.resources()?.on_shutdown(move || {
+                        Box::pin(async move {
+                            entered.notify_one();
+                            release.notified().await;
+                            Ok(())
+                        })
+                    })?;
+                    Ok(Arc::new(1))
+                })
+            }
+        });
+        let container = builder.build();
+        container.resolve::<usize>().await.unwrap();
+        let copy = container.clone();
+        let reset = tokio::spawn(async move {
+            copy.forget_scoped_instances(tokio::time::Instant::now() + Duration::from_secs(1))
+                .await
+        });
+        entered.notified().await;
+        assert_eq!(
+            container.resolve::<usize>().await.unwrap_err().code(),
+            "scope_closed"
+        );
+        release.notify_one();
+        reset.await.unwrap().unwrap();
+        assert_eq!(*container.resolve::<usize>().await.unwrap(), 1);
+    }
+
+    #[tokio::test]
+    async fn app_shutdown_joins_scope_cleanup_started_by_close() {
+        let app_owner = ResourceOwner::new();
+        let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let mut builder = ContainerBuilder::new();
+        builder.context(
+            ConfigRepository::new(figment::Figment::new()),
+            app_owner.registrar(),
+        );
+        builder.scoped::<usize, _>({
+            let calls = Arc::clone(&calls);
+            move |resolver| {
+                let calls = Arc::clone(&calls);
+                Box::pin(async move {
+                    resolver.resources()?.on_shutdown(move || {
+                        Box::pin(async move {
+                            calls.fetch_add(1, Ordering::SeqCst);
+                            Ok(())
+                        })
+                    })?;
+                    Ok(Arc::new(1))
+                })
+            }
+        });
+        let container = builder.build();
+        let scope = container.scope().unwrap();
+        scope.resolve::<usize>().await.unwrap();
+        scope.close();
+        app_owner
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await
+            .unwrap();
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn failed_root_reset_does_not_publish_new_generation() {
+        let mut builder = ContainerBuilder::new();
+        builder.scoped::<usize, _>(|resolver| {
+            Box::pin(async move {
+                resolver.resources()?.on_shutdown(|| {
+                    Box::pin(async { std::future::pending::<Result<()>>().await })
+                })?;
+                Ok(Arc::new(1))
+            })
+        });
+        let container = builder.build();
+        container.resolve::<usize>().await.unwrap();
+        let error = container
+            .forget_scoped_instances(tokio::time::Instant::now() + Duration::from_millis(10))
+            .await
+            .unwrap_err();
+        assert_eq!(error.code(), "resource_shutdown_timeout");
+        assert_eq!(
+            container.resolve::<usize>().await.unwrap_err().code(),
+            "scope_closed"
+        );
+    }
+
+    #[tokio::test]
+    async fn queued_root_reset_obeys_its_own_deadline() {
+        let entered = Arc::new(Notify::new());
+        let release = Arc::new(Notify::new());
+        let mut builder = ContainerBuilder::new();
+        builder.scoped::<usize, _>({
+            let entered = Arc::clone(&entered);
+            let release = Arc::clone(&release);
+            move |resolver| {
+                let entered = Arc::clone(&entered);
+                let release = Arc::clone(&release);
+                Box::pin(async move {
+                    resolver.resources()?.on_shutdown(move || {
+                        Box::pin(async move {
+                            entered.notify_one();
+                            release.notified().await;
+                            Ok(())
+                        })
+                    })?;
+                    Ok(Arc::new(1))
+                })
+            }
+        });
+        let container = builder.build();
+        container.resolve::<usize>().await.unwrap();
+        let first = container.clone();
+        let first_reset = tokio::spawn(async move {
+            first
+                .forget_scoped_instances(tokio::time::Instant::now() + Duration::from_secs(1))
+                .await
+        });
+        entered.notified().await;
+        let error = container
+            .forget_scoped_instances(tokio::time::Instant::now() + Duration::from_millis(10))
+            .await
+            .unwrap_err();
+        assert_eq!(error.code(), "scope_reset_timeout");
+        release.notify_one();
+        first_reset.await.unwrap().unwrap();
+        assert_eq!(*container.resolve::<usize>().await.unwrap(), 1);
+    }
+
+    #[tokio::test]
+    async fn app_shutdown_reclaims_child_when_scope_closes_after_parent_seals() {
+        let app_owner = Arc::new(ResourceOwner::new());
+        let calls = Arc::new(AtomicUsize::new(0));
+        let entered = Arc::new(Notify::new());
+        let release = Arc::new(Notify::new());
+        let mut builder = ContainerBuilder::new();
+        builder.context(
+            ConfigRepository::new(figment::Figment::new()),
+            app_owner.registrar(),
+        );
+        builder.scoped::<usize, _>({
+            let calls = Arc::clone(&calls);
+            let entered = Arc::clone(&entered);
+            let release = Arc::clone(&release);
+            move |resolver| {
+                let calls = Arc::clone(&calls);
+                let entered = Arc::clone(&entered);
+                let release = Arc::clone(&release);
+                Box::pin(async move {
+                    resolver.resources()?.on_shutdown(move || {
+                        Box::pin(async move {
+                            calls.fetch_add(1, Ordering::SeqCst);
+                            entered.notify_one();
+                            release.notified().await;
+                            Ok(())
+                        })
+                    })?;
+                    Ok(Arc::new(1))
+                })
+            }
+        });
+        let container = builder.build();
+        let scope = container.scope().unwrap();
+        scope.resolve::<usize>().await.unwrap();
+        let owner = Arc::clone(&app_owner);
+        let shutdown = tokio::spawn(async move {
+            owner
+                .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+                .await
+        });
+        entered.notified().await;
+        scope.close();
+        release.notify_one();
+        shutdown.await.unwrap().unwrap();
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn child_cleanup_failure_reaches_app_shutdown() {
+        let app_owner = ResourceOwner::new();
+        let mut builder = ContainerBuilder::new();
+        builder.context(
+            ConfigRepository::new(figment::Figment::new()),
+            app_owner.registrar(),
+        );
+        builder.scoped::<usize, _>(|resolver| {
+            Box::pin(async move {
+                resolver.resources()?.on_shutdown(|| {
+                    Box::pin(async { Err(Error::custom("child_failed", "child failed")) })
+                })?;
+                Ok(Arc::new(1))
+            })
+        });
+        let container = builder.build();
+        let scope = container.scope().unwrap();
+        scope.resolve::<usize>().await.unwrap();
+        scope.close();
+        let error = app_owner
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await
+            .unwrap_err();
+        assert_eq!(error.code(), "resource_shutdown_failed");
+    }
+
+    #[tokio::test]
+    async fn app_shutdown_closes_retained_scope_before_reclaiming_resources() {
+        let app_owner = ResourceOwner::new();
+        let closed = Arc::new(AtomicBool::new(false));
+        let mut builder = ContainerBuilder::new();
+        builder.context(
+            ConfigRepository::new(figment::Figment::new()),
+            app_owner.registrar(),
+        );
+        builder.scoped::<usize, _>({
+            let closed = Arc::clone(&closed);
+            move |resolver| {
+                let closed = Arc::clone(&closed);
+                Box::pin(async move {
+                    resolver.resources()?.on_shutdown(move || {
+                        Box::pin(async move {
+                            closed.store(true, Ordering::SeqCst);
+                            Ok(())
+                        })
+                    })?;
+                    Ok(Arc::new(1))
+                })
+            }
+        });
+        let container = builder.build();
+        let scope = container.scope().unwrap();
+        scope.resolve::<usize>().await.unwrap();
+        app_owner
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await
+            .unwrap();
+        assert!(closed.load(Ordering::SeqCst));
+        assert_eq!(
+            scope.resolve::<usize>().await.unwrap_err().code(),
+            "scope_closed"
+        );
+    }
+
+    #[tokio::test]
+    async fn app_shutdown_seals_all_scopes_before_waiting_for_background_tasks() {
+        let app_owner = Arc::new(ResourceOwner::new());
+        let cancelled = Arc::new(Notify::new());
+        let release = Arc::new(Notify::new());
+        app_owner
+            .registrar()
+            .spawn({
+                let cancelled = Arc::clone(&cancelled);
+                let release = Arc::clone(&release);
+                move |token| async move {
+                    token.cancelled().await;
+                    cancelled.notify_one();
+                    release.notified().await;
+                }
+            })
+            .unwrap();
+        let mut builder = ContainerBuilder::new();
+        builder.context(
+            ConfigRepository::new(figment::Figment::new()),
+            app_owner.registrar(),
+        );
+        builder.scoped::<usize, _>(|_| Box::pin(async { Ok(Arc::new(1)) }));
+        let container = builder.build();
+        let first = container.scope().unwrap();
+        let second = container.scope().unwrap();
+        first.resolve::<usize>().await.unwrap();
+        second.resolve::<usize>().await.unwrap();
+        let owner = Arc::clone(&app_owner);
+        let shutdown = tokio::spawn(async move {
+            owner
+                .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+                .await
+        });
+        cancelled.notified().await;
+        assert_eq!(
+            first.resolve::<usize>().await.unwrap_err().code(),
+            "scope_closed"
+        );
+        assert_eq!(
+            second.resolve::<usize>().await.unwrap_err().code(),
+            "scope_closed"
+        );
+        release.notify_one();
+        shutdown.await.unwrap().unwrap();
+    }
+
+    #[tokio::test]
+    async fn manual_scope_close_runs_its_callback_without_app_owner() {
+        let done = Arc::new(Notify::new());
+        let mut builder = ContainerBuilder::new();
+        builder.scoped::<usize, _>({
+            let done = Arc::clone(&done);
+            move |resolver| {
+                let done = Arc::clone(&done);
+                Box::pin(async move {
+                    resolver.resources()?.on_shutdown(move || {
+                        Box::pin(async move {
+                            done.notify_one();
+                            Ok(())
+                        })
+                    })?;
+                    Ok(Arc::new(1))
+                })
+            }
+        });
+        let container = builder.build();
+        let scope = container.scope().unwrap();
+        scope.resolve::<usize>().await.unwrap();
+        scope.close();
+        tokio::time::timeout(Duration::from_secs(1), done.notified())
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
@@ -1275,9 +1881,17 @@ mod tests {
             let scope = container.scope().unwrap();
             let resolver = if root_reset {
                 let state = lock(&container.inner.state);
-                container.resolver(state.root_scope, Arc::clone(&state.root_closed))
+                container.resolver(
+                    state.root_scope,
+                    Arc::clone(&state.root_closed),
+                    state.root_resources.registrar(),
+                )
             } else {
-                container.resolver(scope.id, Arc::clone(&scope.closed))
+                container.resolver(
+                    scope.id,
+                    Arc::clone(&scope.closed),
+                    scope.resources.registrar(),
+                )
             };
             let mut future = resolver.resolve::<usize>();
             let mut context = std::task::Context::from_waker(std::task::Waker::noop());
@@ -1295,7 +1909,10 @@ mod tests {
             assert!(std::future::Future::poll(closed.as_mut(), &mut context).is_pending());
             assert!(std::future::Future::poll(published.as_mut(), &mut context).is_pending());
             if root_reset {
-                container.forget_scoped_instances().unwrap();
+                container
+                    .forget_scoped_instances(tokio::time::Instant::now() + Duration::from_secs(1))
+                    .await
+                    .unwrap();
             } else {
                 scope.close();
             }

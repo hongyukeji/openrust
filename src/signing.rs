@@ -4,7 +4,7 @@
 use std::{
     collections::BTreeMap,
     fmt,
-    sync::{Arc, OnceLock},
+    sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -17,7 +17,7 @@ use sha2::{Digest, Sha256};
 
 use crate::{
     config::ConfigError,
-    core::{App, AppBuilder, BoxFuture, Error, Plugin, Result},
+    core::{BoxFuture, Error, Result},
 };
 
 pub use crate::config::SignedLinksConfig;
@@ -248,105 +248,176 @@ impl SignedLinks {
     }
 }
 
-/// 根据 `[security.signed_links]` 配置注册 [`SignedLinks`]。
-pub struct SignedLinksPlugin {
+/// 从当前配置或显式密钥构造签名链接服务。
+///
+#[derive(Default)]
+pub struct SignedLinksServiceProvider {
     config: Option<SignedLinksConfig>,
     database: Option<crate::db::Db>,
     database_from_app: bool,
-    service: OnceLock<SignedLinks>,
+    revocations: Option<Arc<dyn SignedLinkRevocationStore>>,
 }
-impl SignedLinksPlugin {
-    /// 在构建应用时加载签名配置。
+
+impl SignedLinksServiceProvider {
+    /// 使用当前配置仓储的签名密钥。
     pub fn new() -> Self {
-        Self {
-            config: None,
-            database: None,
-            database_from_app: false,
-            service: OnceLock::new(),
-        }
+        Self::default()
     }
-    /// 注册显式指定的签名配置。
+    /// 使用调用方显式提供的配置，优先于仓储配置。
     pub fn with_config(config: SignedLinksConfig) -> Self {
         Self {
             config: Some(config),
-            database: None,
-            database_from_app: false,
-            service: OnceLock::new(),
+            ..Self::default()
         }
     }
-
-    /// 使用应用的共享数据库启用单链接撤销。
+    /// 使用调用方显式提供的共享撤销服务。
+    #[must_use]
+    pub fn with_revocation_store(mut self, store: impl SignedLinkRevocationStore) -> Self {
+        self.revocations = Some(Arc::new(store));
+        self
+    }
+    /// 使用指定数据库启用撤销。
     #[must_use]
     pub fn with_database_revocations(mut self, db: crate::db::Db) -> Self {
         self.database = Some(db);
         self
     }
-
-    /// 使用之前插件注册的 `Db` 启用数据库撤销。
+    /// 从统一容器取得数据库以启用撤销。
     #[must_use]
-    pub const fn with_database_revocations_from_app(mut self) -> Self {
+    pub fn with_database_revocations_from_app(mut self) -> Self {
         self.database_from_app = true;
         self
     }
 }
-impl Default for SignedLinksPlugin {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-impl Plugin for SignedLinksPlugin {
-    fn name(&self) -> &'static str {
-        "signed-links"
-    }
-    fn build(&self, app: &mut AppBuilder) -> Result<()> {
-        if app.get::<SignedLinks>().is_some() {
-            return Err(Error::custom(
-                "signed_links_already_registered",
-                "register only one signed-link service per application",
-            ));
+
+impl crate::core::ServiceProvider for SignedLinksServiceProvider {
+    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
+        use crate::config::repository::SectionSchema as S;
+        if self.config.is_none() {
+            app.config_section(
+                "security.signed_links",
+                serde_json::json!({}),
+                S::object([
+                    ("issuer", S::String),
+                    ("active_key_id", S::String),
+                    ("keys", S::map(S::String.sensitive())),
+                    ("max_ttl_secs", S::Integer),
+                ]),
+                |value| {
+                    let config: SignedLinksConfig = serde_json::from_value(value.clone())
+                        .map_err(|_| invalid_config("signed-link configuration is invalid"))?;
+                    SignedLinks::new(config).map(|_| ())
+                },
+            )?;
         }
-        let config = match &self.config {
-            Some(config) => config.clone(),
-            None => app
-                .sensitive_section::<SignedLinksConfig>("security.signed_links")
-                .map_err(Error::Config)?,
-        };
-        let mut service = SignedLinks::new(config)?;
-        if let Some(db) = &self.database {
-            service = service.with_database_revocations(db.clone());
-        } else if self.database_from_app {
-            let db = app.get::<crate::db::Db>().ok_or_else(|| {
-                Error::custom(
-                    "signed_link_database_missing",
-                    "database revocation requires a previously registered database plugin",
-                )
-            })?;
-            service = service.with_database_revocations(db.as_ref().clone());
-        }
-        self.service.set(service.clone()).map_err(|_| {
-            Error::custom(
-                "signed_links_plugin_reused",
-                "signed-link plugin can only build once",
-            )
-        })?;
-        app.insert(service);
+        let config = self.config.clone();
+        let database = self.database.clone();
+        let database_from_app = self.database_from_app;
+        let revocations = self.revocations.clone();
+        app.singleton::<SignedLinks, _>(move |resolver| {
+            let config = config.clone();
+            let database = database.clone();
+            let revocations = revocations.clone();
+            Box::pin(async move {
+                let config = match config {
+                    Some(config) => config,
+                    None => resolver.section::<SignedLinksConfig>("security.signed_links")?,
+                };
+                let mut service = SignedLinks::new(config)?;
+                if let Some(store) = revocations {
+                    service.revocations = Some(store);
+                } else if let Some(db) = database {
+                    db.backend()?;
+                    service = service.with_database_revocations(db);
+                } else if database_from_app {
+                    let db = resolver.resolve::<crate::db::Db>().await?;
+                    db.backend()?;
+                    service = service.with_database_revocations((*db).clone());
+                }
+                Ok(Arc::new(service))
+            })
+        });
+        app.require::<SignedLinks>();
         Ok(())
     }
-    fn finish<'a>(&'a self, app: &'a App) -> BoxFuture<'a, Result<()>> {
+    fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            let expected = self
-                .service
-                .get()
-                .ok_or_else(|| Error::internal(MissingPluginBuild))?;
-            let actual = app.state().try_get::<SignedLinks>()?;
-            if !Arc::ptr_eq(&expected.inner, &actual.inner) {
-                return Err(Error::custom(
-                    "signed_links_service_replaced",
-                    "a later plugin replaced the signed-link service",
-                ));
-            }
+            let _ = app.resolve::<SignedLinks>().await?;
             Ok(())
         })
+    }
+}
+
+#[cfg(test)]
+mod provider_tests {
+    use super::*;
+    use crate::core::{BootContext, ProviderBuilder, ServiceProvider};
+    use figment::{Figment, providers::Serialized};
+    use serde_json::json;
+    struct BadOverlay;
+    impl ServiceProvider for BadOverlay {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.overlay("security.signed_links", json!({"active_key_id":"missing"}))
+            })
+        }
+    }
+    struct CustomStore;
+    impl SignedLinkRevocationStore for CustomStore {
+        fn revoke<'a>(&'a self, _: &'a str, _: u64) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async { Ok(()) })
+        }
+        fn is_revoked<'a>(&'a self, _: &'a str) -> BoxFuture<'a, Result<bool>> {
+            Box::pin(async { Ok(false) })
+        }
+    }
+    #[tokio::test]
+    async fn explicit_config_and_custom_revocation_store_are_used() -> Result<()> {
+        let config = SignedLinksConfig::new(
+            "i",
+            "key",
+            BTreeMap::from([("key".into(), STANDARD.encode([1u8; 32]))]),
+        );
+        let mut builder = ProviderBuilder::new();
+        builder.provider(
+            SignedLinksServiceProvider::with_config(config).with_revocation_store(CustomStore),
+        );
+        let runtime = builder.start(Figment::new()).await?;
+        let service = runtime.container().resolve::<SignedLinks>().await?;
+        let token = service.issue("login", "42", 60)?;
+        assert_eq!(
+            service.verify(token.expose(), "login").await?.subject(),
+            "42"
+        );
+        runtime
+            .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
+            .await
+    }
+
+    #[tokio::test]
+    async fn provider_rejects_late_invalid_overlay_and_missing_database() {
+        let secret = STANDARD.encode([1u8; 32]);
+        let config = json!({"security":{"signed_links":{"issuer":"i","active_key_id":"key","keys":{"key":secret}}}});
+        let mut builder = ProviderBuilder::new();
+        builder
+            .provider(SignedLinksServiceProvider::new())
+            .provider(BadOverlay);
+        assert!(
+            builder
+                .start(Figment::from(Serialized::defaults(config)))
+                .await
+                .is_err()
+        );
+        let mut builder = ProviderBuilder::new();
+        let config = SignedLinksConfig::new(
+            "i",
+            "key",
+            BTreeMap::from([("key".into(), STANDARD.encode([1u8; 32]))]),
+        );
+        builder.provider(
+            SignedLinksServiceProvider::with_config(config).with_database_revocations_from_app(),
+        );
+        assert!(builder.start(Figment::new()).await.is_err());
     }
 }
 
@@ -424,14 +495,6 @@ impl fmt::Display for SigningFailure {
     }
 }
 impl std::error::Error for SigningFailure {}
-#[derive(Debug)]
-struct MissingPluginBuild;
-impl fmt::Display for MissingPluginBuild {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("signed-link plugin build state is unavailable")
-    }
-}
-impl std::error::Error for MissingPluginBuild {}
 
 /// 基于 PostgreSQL/MySQL 的签名链接共享撤销存储。
 #[derive(Clone)]

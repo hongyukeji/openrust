@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use crate::config::ConfigError;
-use crate::core::{App, AppBuilder, BoxFuture, Error, Plugin, RateLimiter, Result};
+use crate::core::{BoxFuture, Error, RateLimiter, Result};
 use sea_orm::ConnectionTrait;
 use sea_orm::{ConnectOptions, Database, Statement, TransactionTrait};
 use std::collections::BTreeMap;
@@ -35,12 +35,12 @@ pub use coordination::{
     CoordinationMigration, IdempotencyClaim, IdempotencyLease, IdempotencyResponse, LockAcquire,
     LockLease, RequestIdempotency, SharedLocks,
 };
-pub use migration::MigrationPlugin;
+pub use migration::MigrationServiceProvider;
 pub use rate_limit::{DatabaseRateLimitMigration, DatabaseRateLimitStore};
 pub use sea_orm;
 pub use sea_orm::{DatabaseConnection, DatabaseTransaction, DbBackend};
 pub use sea_orm_migration;
-pub use seed::SeedPlugin;
+pub use seed::SeedServiceProvider;
 pub use table_names::DatabaseTableNames;
 
 /// OpenRust 官方 PostgreSQL/MySQL feature 集支持的数据库后端。
@@ -95,7 +95,7 @@ impl DatabaseBackend {
     }
 }
 
-/// 对 [`DatabasePlugin`] 注册的数据库连接池的可克隆句柄。
+/// 对 [`DatabaseServiceProvider`] 注册的数据库连接池的可克隆句柄。
 #[derive(Clone, Default)]
 pub struct Db {
     connections: Arc<OnceLock<DatabaseConnections>>,
@@ -121,7 +121,7 @@ impl Databases {
         }
     }
 
-    /// 返回与 `AppState::try_get::<Db>()` 相同的默认数据库句柄。
+    /// 返回与容器解析 `Db` 相同的默认数据库句柄。
     pub fn default_database(&self) -> Db {
         self.default.clone()
     }
@@ -163,12 +163,12 @@ struct DatabaseConnections {
 }
 
 impl Db {
-    /// 安装自定义数据库插件提供的 SeaORM 连接。
+    /// 安装自定义数据库 Provider 提供的 SeaORM 连接。
     ///
-    /// 自定义插件可在 `build` 阶段注册 `Db::default()`，随后建立连接并在 `finish` 阶段调用此方法。
+    /// 自定义 Provider 在 register 阶段登记异步工厂；工厂建立连接后先登记受管关闭，再调用此方法并返回句柄。
     /// 当前通用初始化支持 PostgreSQL、MySQL 和 SQLite SeaORM 连接；其他后端会因缺少
     /// [`DatabaseTableNames`] quoting 策略而返回错误。这样连接、事务、迁移和种子操作可复用同一个框架服务；
-    /// 自定义插件仍须验证应用所需的能力，且不能据此推断框架的方言专属能力可用。
+    /// 自定义 Provider 仍须验证应用所需的能力，且不能据此推断框架的方言专属能力可用。
     ///
     /// # Errors
     ///
@@ -177,7 +177,7 @@ impl Db {
         self.initialize_with_replicas(connection, Vec::new())
     }
 
-    /// 为自定义数据库插件安装主库连接池和可选的只读副本连接池。
+    /// 为自定义数据库 Provider 安装主库连接池和可选的只读副本连接池。
     ///
     /// 所有连接池必须使用相同后端。框架不会配置或验证数据库复制；调用方必须确保副本为只读，并接受复制延迟。
     ///
@@ -264,7 +264,7 @@ impl Db {
     ///
     /// # Errors
     ///
-    /// 数据库插件尚未完成初始化时返回内部错误。
+    /// 数据库服务尚未完成初始化时返回内部错误。
     pub fn connection(&self) -> Result<DatabaseConnection> {
         self.primary_connection()
     }
@@ -323,7 +323,7 @@ impl Db {
 
     /// 在数据库事务中运行操作。
     ///
-    /// 回调成功后，在标准 [`DatabasePlugin`] 与 `EventsPlugin` 同时安装时会先派发
+    /// 回调成功后，在标准 [`DatabaseServiceProvider`] 与 `EventsServiceProvider` 同时安装时会先派发
     /// [`TransactionBeforeCommit`]；该事件任一监听器失败都会回滚事务。提交成功后尽力派发
     /// [`TransactionCommitted`] 的 direct listeners；其错误只记录稳定错误码，不改变已提交结果。
     /// 可靠的提交后副作用应在提交前事件中排入同一事务的队列。
@@ -379,66 +379,130 @@ impl fmt::Debug for Db {
     }
 }
 
-/// 将已配置的 PostgreSQL 或 MySQL 连接池安装为 [`Db`] 应用服务。
-///
-/// 在 `openrust` 上启用 `db-postgres` 或 `db-mysql` 以包含相应驱动。应用可通过 Laravel 风格的
-/// `DB_*` 分项变量连接；需要完整 URL 时可在 `[database].url` 或 `APP_DATABASE_URL` 中配置。
+/// 声明数据库服务，并在启动阶段建立配置的连接池。
 #[derive(Debug, Default, Clone, Copy)]
-pub struct DatabasePlugin;
+pub struct DatabaseServiceProvider;
 
-impl Plugin for DatabasePlugin {
-    fn build(&self, app: &mut AppBuilder) -> Result<()> {
-        if app.get::<Db>().is_some() || app.get::<Databases>().is_some() {
-            return Err(Error::custom(
-                "database_service_already_registered",
-                "register only one database plugin per application",
-            ));
-        }
-        let config = app.sensitive_section::<DatabaseConfig>("database")?;
-        validate_config(&config)?;
-        let table_names =
-            DatabaseTableNames::new(config.table_prefix.clone(), config.table_names.clone())?;
-        let db = Db::with_table_names(table_names);
-        let mut handles = BTreeMap::from([("default".to_owned(), db.clone())]);
-        for (name, instance) in &config.instances {
-            let table_names = DatabaseTableNames::new(
-                instance.table_prefix.clone(),
-                instance.table_names.clone(),
-            )?;
-            handles.insert(name.clone(), Db::with_table_names(table_names));
-        }
-        app.insert(config);
-        app.insert(RateLimiter::new(DatabaseRateLimitStore::new(db.clone())));
-        let databases = Databases::new(db.clone(), handles);
-        app.insert(db);
-        app.insert(databases);
+fn database_instance_schema() -> crate::config::repository::SectionSchema {
+    use crate::config::repository::SectionSchema as S;
+    S::object([
+        ("url", S::String.nullable().sensitive()),
+        ("read_replicas", S::array(S::String.sensitive())),
+        ("max_connections", S::Integer),
+        ("min_connections", S::Integer),
+        ("connect_timeout_secs", S::Integer),
+        ("acquire_timeout_secs", S::Integer),
+        ("table_prefix", S::String),
+        ("table_names", S::map(S::String)),
+    ])
+}
+
+fn database_schema() -> crate::config::repository::SectionSchema {
+    use crate::config::repository::SectionSchema as S;
+    if let S::Object { mut fields, .. } = database_instance_schema() {
+        fields.insert("instances".into(), S::map(database_instance_schema()));
+        S::object(fields)
+    } else {
+        S::any()
+    }
+}
+
+fn database_handles(config: &DatabaseConfig) -> Result<Databases> {
+    validate_config(config)?;
+    let db = Db::with_table_names(DatabaseTableNames::new(
+        config.table_prefix.clone(),
+        config.table_names.clone(),
+    )?);
+    let mut handles = BTreeMap::from([("default".to_owned(), db.clone())]);
+    for (name, instance) in &config.instances {
+        let names =
+            DatabaseTableNames::new(instance.table_prefix.clone(), instance.table_names.clone())?;
+        handles.insert(name.clone(), Db::with_table_names(names));
+    }
+    Ok(Databases::new(db, handles))
+}
+
+impl crate::core::ServiceProvider for DatabaseServiceProvider {
+    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
+        app.config_section(
+            "database",
+            DatabaseConfig::default(),
+            database_schema(),
+            validate_config,
+        )?;
+        app.singleton::<DatabaseConfig, _>(|resolver| {
+            Box::pin(async move { Ok(Arc::new(resolver.section::<DatabaseConfig>("database")?)) })
+        });
+        app.singleton::<Databases, _>(|resolver| {
+            Box::pin(async move {
+                let config = resolver.section::<DatabaseConfig>("database")?;
+                let databases = database_handles(&config)?;
+                let resources = resolver.resources()?;
+                for name in databases.names() {
+                    let handle = databases.get(&name)?;
+                    let instance = if name == "default" {
+                        DatabaseInstanceConfig::from(&config)
+                    } else {
+                        config.instances.get(&name).cloned().ok_or_else(|| {
+                            Error::custom(
+                                "database_config_missing",
+                                "registered instance configuration missing",
+                            )
+                        })?
+                    };
+                    if name == "default" && instance.url.is_none() {
+                        continue;
+                    }
+                    connect_instance_managed(&handle, &instance, &name, Some(&resources)).await?;
+                }
+                Ok(Arc::new(databases))
+            })
+        });
+        app.singleton::<Db, _>(|resolver| {
+            Box::pin(async move {
+                Ok(Arc::new(
+                    resolver.resolve::<Databases>().await?.default_database(),
+                ))
+            })
+        });
+        app.singleton::<RateLimiter, _>(|resolver| {
+            Box::pin(async move {
+                let db = resolver.resolve::<Db>().await?;
+                Ok(Arc::new(RateLimiter::new(DatabaseRateLimitStore::new(
+                    (*db).clone(),
+                ))))
+            })
+        });
+        app.require::<Databases>();
         Ok(())
     }
 
-    fn finish<'a>(&'a self, app: &'a App) -> crate::core::BoxFuture<'a, Result<()>> {
+    fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            let config = app.state().try_get::<DatabaseConfig>()?;
-            let dbs = app.state().try_get::<Databases>()?;
-            let events = app.state().get::<crate::events::Events>();
-            for name in dbs.names() {
-                let handle = dbs.get(&name)?;
+            let config = app.section::<DatabaseConfig>("database")?;
+            validate_config(&config)?;
+            let databases = app.resolve::<Databases>().await?;
+            let events = if app.is_bound::<crate::events::Events>() {
+                Some(app.resolve::<crate::events::Events>().await?)
+            } else {
+                None
+            };
+            let readiness = if app.is_bound::<crate::core::Readiness>() {
+                Some(app.resolve::<crate::core::Readiness>().await?)
+            } else {
+                None
+            };
+            for name in databases.names() {
+                let handle = databases.get(&name)?;
                 if let Some(events) = &events {
                     handle.install_events((**events).clone());
                 }
-                let instance = if name == "default" {
-                    DatabaseInstanceConfig::from(config.as_ref())
-                } else {
-                    config.instances.get(&name).cloned().ok_or_else(|| {
-                        Error::internal(std::io::Error::other(
-                            "registered database instance has no configuration",
-                        ))
-                    })?
-                };
-                connect_instance(&handle, &instance, &name).await?;
-                if let Some(readiness) = app.state().get::<crate::core::Readiness>() {
-                    let probe_name = format!("database.{name}");
+                if name == "default" && config.url.is_none() {
+                    continue;
+                }
+                if let Some(readiness) = &readiness {
                     let database = handle.clone();
-                    readiness.register_probe(probe_name, move || {
+                    readiness.register_probe(format!("database.{name}"), move || {
                         let database = database.clone();
                         async move { database.check_readiness().await }
                     })?;
@@ -483,6 +547,11 @@ fn validate_instance(key: &str, config: &DatabaseInstanceConfig, require_url: bo
             "database.{key} pool sizes and timeouts must be positive, and min_connections must not exceed max_connections"
         ))));
     }
+    if config.url.is_none() && !config.read_replicas.is_empty() {
+        return Err(Error::Config(ConfigError::Invalid(format!(
+            "database.{key}.read_replicas requires a primary URL"
+        ))));
+    }
     if require_url && config.url.is_none() {
         return Err(Error::Config(ConfigError::Invalid(format!(
             "missing database.{key}.url"
@@ -494,6 +563,7 @@ fn validate_instance(key: &str, config: &DatabaseInstanceConfig, require_url: bo
                 "database.{key}.url has an unsupported database URL"
             )))
         })?;
+        validate_database_url(url, &format!("database.{key}.url"))?;
         if !backend.is_enabled() {
             return Err(Error::Config(ConfigError::Invalid(format!(
                 "database.{key}.url requires the openrust feature `{}`",
@@ -506,6 +576,10 @@ fn validate_instance(key: &str, config: &DatabaseInstanceConfig, require_url: bo
                     "database.{key}.read_replicas[{index}] has an unsupported database URL"
                 )))
             })?;
+            validate_database_url(
+                replica_url,
+                &format!("database.{key}.read_replicas[{index}]"),
+            )?;
             if !replica_backend.is_enabled() {
                 return Err(Error::Config(ConfigError::Invalid(format!(
                     "database.{key}.read_replicas[{index}] requires the openrust feature `{}`",
@@ -522,7 +596,21 @@ fn validate_instance(key: &str, config: &DatabaseInstanceConfig, require_url: bo
     Ok(())
 }
 
-async fn connect_instance(db: &Db, config: &DatabaseInstanceConfig, name: &str) -> Result<()> {
+fn validate_database_url(url: &str, key: &str) -> Result<()> {
+    url::Url::parse(url).map_err(|_| {
+        Error::Config(ConfigError::Invalid(format!(
+            "{key} has an invalid database URL"
+        )))
+    })?;
+    Ok(())
+}
+
+async fn connect_instance_managed(
+    db: &Db,
+    config: &DatabaseInstanceConfig,
+    name: &str,
+    resources: Option<&crate::core::resources::ResourceRegistrar>,
+) -> Result<()> {
     let url = config.url.as_deref().ok_or_else(|| {
         let message = if name == "default" {
             "missing database.url (set DB_CONNECTION and DB_* fields, or configure [database].url / APP_DATABASE_URL)".to_owned()
@@ -537,7 +625,7 @@ async fn connect_instance(db: &Db, config: &DatabaseInstanceConfig, name: &str) 
     } else {
         format!("primary for database.instances.{name}")
     };
-    let connection = connect_database(url, config, backend, &primary_role).await?;
+    let connection = connect_database(url, config, backend, &primary_role, resources).await?;
     let mut replicas = Vec::with_capacity(config.read_replicas.len());
     for (index, replica_url) in config.read_replicas.iter().enumerate() {
         let replica_backend = DatabaseBackend::from_url(replica_url)?;
@@ -547,6 +635,7 @@ async fn connect_instance(db: &Db, config: &DatabaseInstanceConfig, name: &str) 
                 config,
                 replica_backend,
                 &format!("read replica {index} for database.{name}"),
+                resources,
             )
             .await?,
         );
@@ -559,6 +648,7 @@ async fn connect_database(
     config: &DatabaseInstanceConfig,
     backend: DatabaseBackend,
     role: &str,
+    resources: Option<&crate::core::resources::ResourceRegistrar>,
 ) -> Result<DatabaseConnection> {
     let mut options = ConnectOptions::new(url.to_owned());
     options
@@ -589,6 +679,15 @@ async fn connect_database(
             backend.name()
         )))
     })?;
+    if let Some(resources) = resources {
+        let pool = connection.clone();
+        if let Err(error) = resources.on_shutdown(move || {
+            Box::pin(async move { pool.close_by_ref().await.map_err(Error::internal) })
+        }) {
+            let _ = connection.close_by_ref().await;
+            return Err(error);
+        }
+    }
     validate_server_version(&connection, backend).await?;
     Ok(connection)
 }
@@ -660,6 +759,335 @@ impl std::fmt::Display for DatabaseNotReady {
 }
 
 impl std::error::Error for DatabaseNotReady {}
+
+#[cfg(test)]
+mod provider_tests {
+    use super::*;
+    use figment::{Figment, providers::Serialized};
+    use serde_json::json;
+
+    struct CaptureFirstPool {
+        url: String,
+        captured: Arc<std::sync::Mutex<Option<DatabaseConnection>>>,
+    }
+
+    impl crate::core::ServiceProvider for CaptureFirstPool {
+        fn boot<'a>(
+            &'a self,
+            app: &'a mut crate::core::BootContext<'_>,
+        ) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                let pool = sea_orm::Database::connect(self.url.as_str())
+                    .await
+                    .map_err(Error::internal)?;
+                pool.ping().await.map_err(Error::internal)?;
+                let closing = pool.clone();
+                app.resources().on_shutdown(move || {
+                    Box::pin(async move { closing.close_by_ref().await.map_err(Error::internal) })
+                })?;
+                *self
+                    .captured
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(pool);
+                Ok(())
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn failed_provider_second_connection_closes_first_pool() -> Result<()> {
+        let Ok(url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+            eprintln!(
+                "skipping real provider startup cleanup: OPENRUST_TEST_DATABASE_URL is unset"
+            );
+            return Ok(());
+        };
+        let backend = DatabaseBackend::from_url(&url)?;
+        if !backend.is_enabled() {
+            eprintln!("skipping real provider startup cleanup: backend feature is disabled");
+            return Ok(());
+        }
+        let mut missing = url::Url::parse(&url).map_err(Error::internal)?;
+        let name = format!(
+            "openrust_r2_missing_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_err(Error::internal)?
+                .as_nanos()
+        );
+        missing.set_path(&format!("/{name}"));
+        let captured = Arc::new(std::sync::Mutex::new(None));
+        let mut providers = crate::core::ProviderBuilder::new();
+        providers
+            .provider(CaptureFirstPool {
+                url: url.clone(),
+                captured: Arc::clone(&captured),
+            })
+            .provider(DatabaseServiceProvider);
+        let result = providers
+            .start(Figment::from(Serialized::defaults(json!({
+                "database": {
+                    "url": url,
+                    "min_connections": 1,
+                    "instances": {
+                        "second": {"url": missing.as_str(), "min_connections": 1}
+                    }
+                }
+            }))))
+            .await;
+        assert!(
+            result.is_err(),
+            "second pool must fail during provider boot"
+        );
+        let pool = captured
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
+            .ok_or_else(|| Error::custom("test", "first database pool was not captured"))?;
+        assert!(
+            pool.ping().await.is_err(),
+            "startup must close the first pool"
+        );
+        Ok(())
+    }
+
+    struct PendingAfterFirstPool(Arc<tokio::sync::Notify>);
+
+    impl crate::core::ServiceProvider for PendingAfterFirstPool {
+        fn boot<'a>(
+            &'a self,
+            _: &'a mut crate::core::BootContext<'_>,
+        ) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                self.0.notify_one();
+                std::future::pending::<()>().await;
+                Ok(())
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn cancelled_provider_start_closes_first_real_pool() -> Result<()> {
+        let Ok(url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+            eprintln!("skipping cancelled real provider pool: OPENRUST_TEST_DATABASE_URL is unset");
+            return Ok(());
+        };
+        let captured = Arc::new(std::sync::Mutex::new(None));
+        let entered = Arc::new(tokio::sync::Notify::new());
+        let mut providers = crate::core::ProviderBuilder::new();
+        providers
+            .provider(CaptureFirstPool {
+                url,
+                captured: Arc::clone(&captured),
+            })
+            .provider(PendingAfterFirstPool(Arc::clone(&entered)));
+        let startup = tokio::spawn(async move { providers.start(Figment::new()).await });
+        tokio::time::timeout(Duration::from_secs(5), entered.notified())
+            .await
+            .map_err(Error::internal)?;
+        let pool = captured
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
+            .ok_or_else(|| Error::custom("test", "first database pool was not captured"))?;
+        pool.ping().await.map_err(Error::internal)?;
+        startup.abort();
+        let _ = startup.await;
+        tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                if pool.ping().await.is_err() {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .map_err(Error::internal)?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn real_second_pool_failure_closes_first_pool() -> Result<()> {
+        let Ok(url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+            eprintln!("skipping real provider pool cleanup: OPENRUST_TEST_DATABASE_URL is unset");
+            return Ok(());
+        };
+        let backend = DatabaseBackend::from_url(&url)?;
+        let config = DatabaseInstanceConfig {
+            min_connections: 1,
+            connect_timeout_secs: 2,
+            ..DatabaseInstanceConfig::default()
+        };
+        let owner = crate::core::resources::ResourceOwner::new();
+        let registrar = owner.registrar();
+        let first = connect_database(
+            &url,
+            &config,
+            backend,
+            "provider cleanup first pool",
+            Some(&registrar),
+        )
+        .await?;
+        first.ping().await.map_err(Error::internal)?;
+        let mut missing = url::Url::parse(&url).map_err(Error::internal)?;
+        let name = format!(
+            "openrust_r2_missing_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_err(Error::internal)?
+                .as_nanos()
+        );
+        missing.set_path(&format!("/{name}"));
+        let second = connect_database(
+            missing.as_str(),
+            &config,
+            backend,
+            "provider cleanup second pool",
+            Some(&registrar),
+        )
+        .await;
+        assert!(second.is_err(), "missing database must fail during connect");
+        owner
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+            .await?;
+        assert!(first.ping().await.is_err(), "first pool must be closed");
+        Ok(())
+    }
+
+    struct Overlay;
+    impl crate::core::ServiceProvider for Overlay {
+        fn boot<'a>(
+            &'a self,
+            app: &'a mut crate::core::BootContext<'_>,
+        ) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move { app.overlay("database", json!({"table_prefix": "new_"})) })
+        }
+    }
+
+    #[tokio::test]
+    async fn missing_database_is_optional_and_overlay_configures_shared_handles() -> Result<()> {
+        let mut builder = crate::core::ProviderBuilder::new();
+        builder.provider(Overlay).provider(DatabaseServiceProvider);
+        let runtime = builder.start(Figment::new()).await?;
+        let databases = runtime.container().resolve::<Databases>().await?;
+        let db = runtime.container().resolve::<Db>().await?;
+        assert_eq!(db.table_names().resolve("posts")?, "new_posts");
+        assert_eq!(
+            databases
+                .default_database()
+                .table_names()
+                .resolve("posts")?,
+            "new_posts"
+        );
+        assert!(db.connection().is_err());
+        runtime
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await
+    }
+
+    struct LateReadiness(Arc<AtomicUsize>);
+    impl crate::core::ServiceProvider for LateReadiness {
+        fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
+            let calls = Arc::clone(&self.0);
+            app.singleton::<crate::core::Readiness, _>(move |_| {
+                let calls = Arc::clone(&calls);
+                Box::pin(async move {
+                    calls.fetch_add(1, Ordering::SeqCst);
+                    Ok(Arc::new(crate::core::Readiness::default()))
+                })
+            });
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn boot_resolves_readiness_registered_by_later_provider() -> Result<()> {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let mut builder = crate::core::ProviderBuilder::new();
+        builder
+            .provider(DatabaseServiceProvider)
+            .provider(LateReadiness(Arc::clone(&calls)));
+        let runtime = builder.start(Figment::new()).await?;
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        runtime
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await
+    }
+
+    struct BrokenReadiness;
+    impl crate::core::ServiceProvider for BrokenReadiness {
+        fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
+            app.singleton::<crate::core::Readiness, _>(|resolver| {
+                Box::pin(async move {
+                    resolver.resolve::<u128>().await?;
+                    Ok(Arc::new(crate::core::Readiness::default()))
+                })
+            });
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn bound_readiness_factory_failure_is_not_treated_as_optional() {
+        let mut builder = crate::core::ProviderBuilder::new();
+        builder
+            .provider(DatabaseServiceProvider)
+            .provider(BrokenReadiness);
+        let error = builder.start(Figment::new()).await.err();
+        assert!(error.is_some(), "bound readiness factory must fail startup");
+    }
+
+    #[cfg(feature = "db-postgres")]
+    struct MalformedLateDatabaseUrl;
+    #[cfg(feature = "db-postgres")]
+    impl crate::core::ServiceProvider for MalformedLateDatabaseUrl {
+        fn boot<'a>(
+            &'a self,
+            app: &'a mut crate::core::BootContext<'_>,
+        ) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.overlay("database", json!({"url": "postgres://[secret-sentinel"}))
+            })
+        }
+    }
+
+    #[cfg(feature = "db-postgres")]
+    #[tokio::test]
+    async fn malformed_late_database_url_fails_final_validation_without_leaking_secret() {
+        let mut builder = crate::core::ProviderBuilder::new();
+        builder
+            .provider(DatabaseServiceProvider)
+            .provider(MalformedLateDatabaseUrl);
+        let error = builder.start(Figment::new()).await.err();
+        assert!(error.is_some());
+        if let Some(error) = error {
+            assert!(!format!("{error:?} {error}").contains("secret-sentinel"));
+        }
+    }
+
+    #[tokio::test]
+    async fn invalid_database_and_replica_without_primary_fail_before_connecting() {
+        for database in [
+            json!({"max_connections": 0}),
+            json!({"read_replicas": ["postgres://private-sentinel"]}),
+            json!({"url": "bad-secret-sentinel"}),
+        ] {
+            let mut builder = crate::core::ProviderBuilder::new();
+            builder.provider(DatabaseServiceProvider);
+            let result = builder
+                .start(Figment::from(Serialized::defaults(
+                    json!({"database":database}),
+                )))
+                .await;
+            assert!(result.is_err());
+            if let Err(error) = result {
+                assert!(!format!("{error:?} {error}").contains("sentinel"));
+            }
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

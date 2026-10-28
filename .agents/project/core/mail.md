@@ -11,12 +11,12 @@
 - `LocalizedEmail` 使用 `I18n` catalog、显式 `Locale` 与命名参数渲染纯文本主题/正文；后台任务不依赖请求 task-local locale。
 - 可选 `mail-templates` 使用 MiniJinja 2.24；`EmailTemplateCatalog` 只注册 `include_str!` 嵌入式应用资源，不开文件/网络 loader。按 locale 分层覆盖并支持继承布局；HTML 自动转义、严格缺参失败，模板燃料和输出分别限制为 100,000 与 256 KiB；主题拒绝换行且最多 998 字节。
 - `RenderedEmail` 生成纯文本/HTML alternative，保留 lettre multipart 附件组合能力；新消息继续经现有 `Email`/`Mailer` driver。`openrust generate mailer` 生成中英模板与注册封装，并为应用启用 feature，不覆盖已有文件。
-- `MailerPlugin` 默认注册不记录内容的 `LogMailer`；production 选择 `log` 会启动失败。
+- `MailerServiceProvider` 默认注册不记录内容的 `LogMailer`；production 选择 `log` 会启动失败。
 - `mail-smtp` 使用 Tokio / Rustls，默认要求 STARTTLS；只有无认证 loopback 开发服务可显式关闭 TLS。SMTP 密码 Debug 脱敏，`test-util` 暴露 `FakeMailer`。
 
 ## 短信
 
-- `SmsConfig` 在 `openrust::config::sms`；应用可安装 `SmsPlugin` 获得 `SmsSender`。`SmsMessage` 支持 E.164 文本或供应商 template SID 与参数，号码与内容 Debug 脱敏。
+- `SmsConfig` 在 `openrust::config::sms`；应用可安装 `SmsServiceProvider` 获得 `SmsSender`。`SmsMessage` 支持 E.164 文本或供应商 template SID 与参数，号码与内容 Debug 脱敏。
 - 公开 `SmsDriver`/`SmsSender::new` 可由第三方驱动扩展；默认 `LogSmsDriver` 不记录 PII，production 选择 log 启动失败；`test-util` 的 `FakeSmsDriver` 仅用于测试。
 - `sms-twilio` feature 启用 `http-client` 与 Twilio Messages REST adapter，认证使用 API key SID/secret，凭据配合 account SID 与发送方配置；使用有界超时/响应、不会自动重试。成功表示 Twilio 接受请求，不表示最终送达。
 - 邮件与短信文本由调用方显式选择语言；邮件可直接用 `LocalizedEmail`，短信通过 `I18n::translate(locale, ...)` 准备文本；短信 provider templates 使用供应商管理的模板，不被框架本地插值。

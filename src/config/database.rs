@@ -2,10 +2,10 @@
 
 use std::fmt;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// `[database]` 配置区段中的数据库连接和连接池设置。
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct DatabaseConfig {
     /// 数据库连接 URL；可由 `DB_*` 分项设置生成，也可通过配置文件或 `APP_DATABASE_URL` 指定。
@@ -29,7 +29,7 @@ pub struct DatabaseConfig {
 }
 
 /// `[database.instances.<name>]` 中独立连接池的配置。
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct DatabaseInstanceConfig {
     /// 此实例的数据库连接 URL。

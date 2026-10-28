@@ -11,12 +11,45 @@ use std::{
 use futures_util::{Stream, StreamExt, TryStreamExt, stream};
 use openrust::{
     config::{FrameworkConfig, GrpcConfig},
-    core::{AppBuilder, finalize},
-    grpc::{GrpcClientRegistry, GrpcPlugin, GrpcServer, tonic},
+    core::{App, BootContext, BoxFuture, ProviderBuilder, RegisterContext, ServiceProvider},
+    grpc::{GrpcClientRegistry, GrpcServer, GrpcServiceProvider, GrpcServiceRegistry, tonic},
 };
 use tokio::{net::TcpListener, sync::oneshot};
 use tokio_stream::iter;
 use tonic::{Request, Response, Status};
+
+struct TokensProvider(openrust::auth::JwtTokens);
+impl ServiceProvider for TokensProvider {
+    fn register(&self, app: &mut RegisterContext<'_>) -> openrust::Result<()> {
+        app.instance(Arc::new(self.0.clone()));
+        Ok(())
+    }
+}
+struct RegistryProvider(GrpcServiceRegistry);
+impl ServiceProvider for RegistryProvider {
+    fn register(&self, app: &mut RegisterContext<'_>) -> openrust::Result<()> {
+        app.instance(Arc::new(self.0.clone()));
+        Ok(())
+    }
+}
+struct RouteProvider<F>(F);
+impl<F: Fn(openrust::http::Routes) -> openrust::http::Routes + Send + Sync + Clone + 'static>
+    ServiceProvider for RouteProvider<F>
+{
+    fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, openrust::Result<()>> {
+        let routes = self.0.clone();
+        Box::pin(async move {
+            app.routes(routes)?;
+            Ok(())
+        })
+    }
+}
+fn sources(config: FrameworkConfig) -> figment::Figment {
+    figment::Figment::from(figment::providers::Serialized::defaults(config))
+}
+async fn start(builder: ProviderBuilder, sources: figment::Figment) -> openrust::Result<App> {
+    App::from_provider_runtime(builder.start(sources).await?)
+}
 
 pub mod proto {
     tonic::include_proto!("openrust.example.v1");
@@ -176,24 +209,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ..FrameworkConfig::default()
     };
 
-    let mut builder = AppBuilder::new(config, figment::Figment::new());
+    let config = sources(config);
+    let mut builder = ProviderBuilder::new();
+    let mut registry = GrpcServiceRegistry::default();
     let dropped_streams = Arc::new(AtomicUsize::new(0));
     let service_dropped_streams = Arc::clone(&dropped_streams);
-    GrpcPlugin::register_service_with_config::<EchoServer<EchoService>, _>(
-        &mut builder,
-        move |_, config| {
-            EchoServer::new(EchoService {
-                dropped_streams: Arc::clone(&service_dropped_streams),
-                policy: None,
-            })
-            .max_decoding_message_size(config.max_decoding_message_size_bytes)
-            .max_encoding_message_size(config.max_encoding_message_size_bytes)
-        },
-    )?;
-    builder.plugin(GrpcPlugin::new());
-    let app = finalize(builder).await?;
-    let server = GrpcServer::from_app(&app)?;
-    let clients = Arc::clone(&app.state().try_get::<GrpcClientRegistry>()?);
+    registry.register_with_config::<EchoServer<EchoService>, _>(move |_, config| {
+        EchoServer::new(EchoService {
+            dropped_streams: Arc::clone(&service_dropped_streams),
+            policy: None,
+        })
+        .max_decoding_message_size(config.max_decoding_message_size_bytes)
+        .max_encoding_message_size(config.max_encoding_message_size_bytes)
+    })?;
+    builder
+        .provider(RegistryProvider(registry))
+        .provider(GrpcServiceProvider::new());
+    let app = start(builder, config).await?;
+    let server = GrpcServer::from_app(&app).await?;
+    let clients = Arc::clone(&app.state().resolve::<GrpcClientRegistry>().await?);
     let (shutdown, signal) = oneshot::channel::<()>();
     let server_task = tokio::spawn(server.serve(listener, async move {
         let _ = signal.await;
@@ -373,17 +407,21 @@ mod tls_tests {
             private_key_file: private_key_file.to_owned(),
             client_ca_certificate_file: client_ca_certificate_file.map(Path::to_owned),
         });
-        let mut builder = AppBuilder::new(config, figment::Figment::new());
+        let config = sources(config);
+        let mut builder = ProviderBuilder::new();
+        let mut registry = GrpcServiceRegistry::default();
         let dropped = Arc::new(AtomicUsize::new(0));
-        GrpcPlugin::register_service::<EchoServer<EchoService>, _>(&mut builder, move |_| {
+        registry.register::<EchoServer<EchoService>, _>(move |_| {
             EchoServer::new(EchoService {
                 dropped_streams: Arc::clone(&dropped),
                 policy: None,
             })
         })?;
-        builder.plugin(GrpcPlugin::new());
-        let app = finalize(builder).await?;
-        let server = GrpcServer::from_app(&app)?;
+        builder
+            .provider(RegistryProvider(registry))
+            .provider(GrpcServiceProvider::new());
+        let app = start(builder, config).await?;
+        let server = GrpcServer::from_app(&app).await?;
         let (stop, signal) = oneshot::channel();
         let task = tokio::spawn(server.serve(listener, async move {
             let _ = signal.await;
@@ -412,10 +450,14 @@ mod tls_tests {
             },
         );
         config.grpc.default_client = Some("test".to_owned());
-        let mut builder = AppBuilder::new(config, figment::Figment::new());
-        builder.plugin(GrpcPlugin::new());
-        let app = finalize(builder).await?;
-        let clients = Arc::clone(&app.state().try_get::<GrpcClientRegistry>()?);
+        let config = sources(config);
+        let mut builder = ProviderBuilder::new();
+        let registry = GrpcServiceRegistry::default();
+        builder
+            .provider(RegistryProvider(registry))
+            .provider(GrpcServiceProvider::new());
+        let app = start(builder, config).await?;
+        let clients = Arc::clone(&app.state().resolve::<GrpcClientRegistry>().await?);
         Ok(EchoClient::new(clients.channel(None)?))
     }
 
@@ -562,7 +604,7 @@ mod auth_tests {
     use super::*;
     use openrust::{
         auth::{
-            AuthCredential, AuthPlugin, AuthPrincipal, AuthSource, Authenticator, JwtPlugin,
+            AuthCredential, AuthPrincipal, AuthServiceProvider, AuthSource, Authenticator,
             JwtTokens,
         },
         config::JwtConfig,
@@ -607,25 +649,31 @@ mod auth_tests {
         let mut config = FrameworkConfig::default();
         config.grpc.listen_addr = address;
         config.grpc.allow_insecure_server = true;
-        let mut builder = AppBuilder::new(config, figment::Figment::new());
-        GrpcPlugin::register_service_with_config::<EchoServer<EchoService>, _>(
-            &mut builder,
-            |_, config| {
-                EchoServer::new(EchoService {
-                    dropped_streams: Arc::new(AtomicUsize::new(0)),
-                    policy: None,
-                })
-                .max_decoding_message_size(config.max_decoding_message_size_bytes)
-                .max_encoding_message_size(config.max_encoding_message_size_bytes)
-            },
-        )?;
+        let config = sources(config);
+        let mut builder = ProviderBuilder::new();
+        let mut registry = GrpcServiceRegistry::default();
+        registry.register_with_config::<EchoServer<EchoService>, _>(|_, config| {
+            EchoServer::new(EchoService {
+                dropped_streams: Arc::new(AtomicUsize::new(0)),
+                policy: None,
+            })
+            .max_decoding_message_size(config.max_decoding_message_size_bytes)
+            .max_encoding_message_size(config.max_encoding_message_size_bytes)
+        })?;
         builder
-            .plugin(JwtPlugin::with_config(jwt))
-            .plugin(AuthPlugin::with_authenticator(FakePatAuthenticator))
-            .plugin(GrpcPlugin::new());
-        let app = finalize(builder).await?;
-        let token = app.state().try_get::<JwtTokens>()?.issue_access_token(73)?;
-        let server = GrpcServer::from_app(&app)?;
+            .provider(TokensProvider(JwtTokens::new(jwt)?))
+            .provider(AuthServiceProvider::with_authenticator(
+                FakePatAuthenticator,
+            ))
+            .provider(RegistryProvider(registry))
+            .provider(GrpcServiceProvider::new());
+        let app = start(builder, config).await?;
+        let token = app
+            .state()
+            .resolve::<JwtTokens>()
+            .await?
+            .issue_access_token(73)?;
+        let server = GrpcServer::from_app(&app).await?;
         let (shutdown, signal) = oneshot::channel::<()>();
         let task = tokio::spawn(server.serve(listener, async move {
             let _ = signal.await;
@@ -735,8 +783,8 @@ mod runtime_tests {
     use super::*;
     use openrust::grpc::{health_pb, reflection_pb};
     use openrust::{
-        http::{AppBuilderHttpExt, HttpPlugin},
-        runtime::{HttpGrpcPlugin, serve_http_and_grpc_until},
+        http::HttpServiceProvider,
+        runtime::{HttpGrpcServiceProvider, serve_http_and_grpc_until},
     };
     use std::{error::Error as StdError, net::SocketAddr, sync::Arc};
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -816,28 +864,28 @@ mod runtime_tests {
         config.grpc.listen_addr = address;
         config.grpc.allow_insecure_server = true;
         config.grpc.reflection_enabled = reflection;
-        let mut builder = AppBuilder::new(config, figment::Figment::new());
-        GrpcPlugin::register_service_with_config::<EchoServer<EchoService>, _>(
-            &mut builder,
-            |_, config| {
-                EchoServer::new(EchoService {
-                    dropped_streams: Arc::new(AtomicUsize::new(0)),
-                    policy: None,
-                })
-                .max_decoding_message_size(config.max_decoding_message_size_bytes)
-                .max_encoding_message_size(config.max_encoding_message_size_bytes)
-            },
-        )?;
+        let config = sources(config);
+        let mut builder = ProviderBuilder::new();
+        let mut registry = GrpcServiceRegistry::default();
+        registry.register_with_config::<EchoServer<EchoService>, _>(|_, config| {
+            EchoServer::new(EchoService {
+                dropped_streams: Arc::new(AtomicUsize::new(0)),
+                policy: None,
+            })
+            .max_decoding_message_size(config.max_decoding_message_size_bytes)
+            .max_encoding_message_size(config.max_encoding_message_size_bytes)
+        })?;
         if reflection {
-            GrpcPlugin::register_reflection_descriptor_set(
-                &mut builder,
+            registry.register_reflection_descriptor_set(
                 include_bytes!(concat!(env!("OUT_DIR"), "/echo_descriptor.bin")).to_vec(),
                 ["openrust.example.v1.Echo"],
             )?;
         }
-        builder.plugin(GrpcPlugin::new());
-        let app = finalize(builder).await?;
-        let server = GrpcServer::from_app(&app)?;
+        builder
+            .provider(RegistryProvider(registry))
+            .provider(GrpcServiceProvider::new());
+        let app = start(builder, config).await?;
+        let server = GrpcServer::from_app(&app).await?;
         let (stop, signal) = oneshot::channel();
         let task = tokio::spawn(server.serve(listener, async move {
             let _ = signal.await;
@@ -946,20 +994,19 @@ mod runtime_tests {
         config.grpc.listen_addr = grpc_address;
         config.grpc.allow_insecure_server = true;
         openrust::core::lifecycle::init_tracing(&config.log);
-        let mut builder = AppBuilder::new(config, figment::Figment::new());
-        GrpcPlugin::register_service_with_config::<EchoServer<EchoService>, _>(
-            &mut builder,
-            |_, grpc| {
-                EchoServer::new(EchoService {
-                    dropped_streams: Arc::new(AtomicUsize::new(0)),
-                    policy: None,
-                })
-                .max_decoding_message_size(grpc.max_decoding_message_size_bytes)
-                .max_encoding_message_size(grpc.max_encoding_message_size_bytes)
-            },
-        )?;
+        let config = sources(config);
+        let mut builder = ProviderBuilder::new();
+        let mut registry = GrpcServiceRegistry::default();
+        registry.register_with_config::<EchoServer<EchoService>, _>(|_, grpc| {
+            EchoServer::new(EchoService {
+                dropped_streams: Arc::new(AtomicUsize::new(0)),
+                policy: None,
+            })
+            .max_decoding_message_size(grpc.max_decoding_message_size_bytes)
+            .max_encoding_message_size(grpc.max_encoding_message_size_bytes)
+        })?;
         if let Some(blocked_request) = blocked_request {
-            builder.routes(move |routes| {
+            builder.provider(RouteProvider(move |routes: openrust::http::Routes| {
                 let blocked_request = Arc::clone(&blocked_request);
                 routes.get("/blocked", move || {
                     let blocked_request = Arc::clone(&blocked_request);
@@ -968,12 +1015,12 @@ mod runtime_tests {
                         std::future::pending::<&'static str>().await
                     }
                 })
-            });
+            }));
         }
         let grpc_channel =
             tonic::transport::Endpoint::from_shared(format!("http://{grpc_address}"))?
                 .connect_lazy();
-        builder.routes(move |routes| {
+        builder.provider(RouteProvider(move |routes: openrust::http::Routes| {
             let grpc_channel = grpc_channel.clone();
             routes.get("/trace", move || {
                 let mut client = EchoClient::new(grpc_channel.clone());
@@ -992,12 +1039,13 @@ mod runtime_tests {
                         .unwrap_or_else(|_| "rpc-failed".to_owned())
                 }
             })
-        });
+        }));
         builder
-            .plugin(HttpPlugin)
-            .plugin(GrpcPlugin::new())
-            .plugin(HttpGrpcPlugin);
-        Ok(Arc::new(finalize(builder).await?))
+            .provider(HttpServiceProvider)
+            .provider(RegistryProvider(registry))
+            .provider(GrpcServiceProvider::new())
+            .provider(HttpGrpcServiceProvider);
+        Ok(Arc::new(start(builder, config).await?))
     }
 
     async fn wait_until_ready(
@@ -1181,15 +1229,19 @@ mod runtime_tests {
         let listener = TcpListener::bind("127.0.0.1:0").await?;
         config.grpc.listen_addr = listener.local_addr()?;
         config.grpc.allow_insecure_server = true;
-        let mut builder = AppBuilder::new(config, figment::Figment::new());
-        GrpcPlugin::register_service::<EchoServer<EchoService>, _>(&mut builder, |_| {
+        let config = sources(config);
+        let mut builder = ProviderBuilder::new();
+        let mut registry = GrpcServiceRegistry::default();
+        registry.register::<EchoServer<EchoService>, _>(|_| {
             EchoServer::new(EchoService {
                 dropped_streams: Arc::new(AtomicUsize::new(0)),
                 policy: None,
             })
         })?;
-        builder.plugin(GrpcPlugin::new());
-        let error = match finalize(builder).await {
+        builder
+            .provider(RegistryProvider(registry))
+            .provider(GrpcServiceProvider::new());
+        let error = match start(builder, config).await {
             Ok(_) => return Err("reflection unexpectedly enabled without a descriptor".into()),
             Err(error) => error,
         };
@@ -1367,12 +1419,15 @@ mod runtime_tests {
     #[tokio::test]
     async fn combined_plugin_rejects_missing_http_or_grpc_registration()
     -> Result<(), Box<dyn StdError>> {
-        let mut builder = AppBuilder::new(FrameworkConfig::default(), figment::Figment::new());
+        let config = sources(FrameworkConfig::default());
+        let mut builder = ProviderBuilder::new();
+        let registry = GrpcServiceRegistry::default();
         builder
-            .plugin(HttpPlugin)
-            .plugin(GrpcPlugin::new())
-            .plugin(HttpGrpcPlugin);
-        let error = match finalize(builder).await {
+            .provider(HttpServiceProvider)
+            .provider(RegistryProvider(registry))
+            .provider(GrpcServiceProvider::new())
+            .provider(HttpGrpcServiceProvider);
+        let error = match start(builder, config).await {
             Ok(_) => {
                 return Err("joint runtime unexpectedly accepted an empty service registry".into());
             }
@@ -1380,21 +1435,26 @@ mod runtime_tests {
         };
         assert_eq!(error.code(), "grpc_service_missing");
 
-        let mut builder = AppBuilder::new(FrameworkConfig::default(), figment::Figment::new());
-        GrpcPlugin::register_service::<EchoServer<EchoService>, _>(&mut builder, |_| {
+        let config = sources(FrameworkConfig::default());
+        let mut builder = ProviderBuilder::new();
+        let mut registry = GrpcServiceRegistry::default();
+        registry.register::<EchoServer<EchoService>, _>(|_| {
             EchoServer::new(EchoService {
                 dropped_streams: Arc::new(AtomicUsize::new(0)),
                 policy: None,
             })
         })?;
-        builder.plugin(GrpcPlugin::new()).plugin(HttpGrpcPlugin);
-        let error = match finalize(builder).await {
+        builder
+            .provider(RegistryProvider(registry))
+            .provider(GrpcServiceProvider::new())
+            .provider(HttpGrpcServiceProvider);
+        let error = match start(builder, config).await {
             Ok(_) => {
                 return Err("joint runtime unexpectedly accepted a missing HTTP plugin".into());
             }
             Err(error) => error,
         };
-        assert_eq!(error.code(), "plugin_dependency_missing");
+        assert_eq!(error.code(), "http_grpc_dependency_missing");
         Ok(())
     }
 }
@@ -1405,11 +1465,11 @@ mod database_auth_tests {
     use figment::providers::Format;
     use openrust::{
         auth::{
-            AuthMigration, AuthPlugin, AuthPolicyMigration, JwtConfig, JwtPlugin, JwtTokens,
+            AuthMigration, AuthPolicyMigration, AuthServiceProvider, JwtConfig, JwtTokens,
             PersonalAccessTokens, Policy,
         },
         database::{
-            DatabaseBackend, DatabasePlugin,
+            DatabaseBackend, DatabaseServiceProvider,
             sea_orm::ConnectionTrait,
             sea_orm_migration::{MigrationTrait, MigratorTrait},
         },
@@ -1457,34 +1517,43 @@ mod database_auth_tests {
         let mut config = FrameworkConfig::default();
         config.grpc.listen_addr = address;
         config.grpc.allow_insecure_server = true;
-        let mut builder = AppBuilder::new(config, figment);
-        GrpcPlugin::register_service::<EchoServer<EchoService>, _>(&mut builder, |state| {
+        let config = sources(config).merge(figment);
+        let mut builder = ProviderBuilder::new();
+        let mut registry = GrpcServiceRegistry::default();
+        let policy_for_service = Arc::new(std::sync::OnceLock::<Policy>::new());
+        let policy_factory = Arc::clone(&policy_for_service);
+        registry.register::<EchoServer<EchoService>, _>(move |_| {
             EchoServer::new(EchoService {
                 dropped_streams: Arc::new(AtomicUsize::new(0)),
-                policy: state
-                    .try_get::<Policy>()
-                    .ok()
-                    .map(|policy| (*policy).clone()),
+                policy: policy_factory.get().cloned(),
             })
         })?;
         builder
-            .plugin(DatabasePlugin)
-            .plugin(JwtPlugin::with_config(jwt))
-            .plugin(AuthPlugin::new())
-            .plugin(GrpcPlugin::new());
-        let app = finalize(builder).await?;
-        let jwt_token = app.state().try_get::<JwtTokens>()?.issue_access_token(1)?;
-        let policy = app.state().try_get::<Policy>()?;
+            .provider(DatabaseServiceProvider)
+            .provider(TokensProvider(JwtTokens::new(jwt)?))
+            .provider(AuthServiceProvider::new())
+            .provider(RegistryProvider(registry))
+            .provider(GrpcServiceProvider::new());
+        let app = start(builder, config).await?;
+        let jwt_token = app
+            .state()
+            .resolve::<JwtTokens>()
+            .await?
+            .issue_access_token(1)?;
+        let policy = app.state().resolve::<Policy>().await?;
+        policy_for_service
+            .set((*policy).clone())
+            .map_err(|_| "policy was already initialized")?;
         let role = policy.ensure_role("grpc-reader").await?;
         policy.assign_role(1, role).await?;
         policy.grant_permission(role, "posts:read").await?;
-        let pats = app.state().try_get::<PersonalAccessTokens>()?;
+        let pats = app.state().resolve::<PersonalAccessTokens>().await?;
         let pat = pats
             .issue(1, "grpc-reader", &["posts:read".to_owned()], None)
             .await?;
         let denied_pat = pats.issue(1, "grpc-denied", &[], None).await?;
 
-        let server = GrpcServer::from_app(&app)?;
+        let server = GrpcServer::from_app(&app).await?;
         let (shutdown, signal) = oneshot::channel::<()>();
         let server_task = tokio::spawn(server.serve(listener, async move {
             let _ = signal.await;

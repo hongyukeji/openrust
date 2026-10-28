@@ -1,6 +1,8 @@
 # 应用数据加密
 
-启用 `encryption` feature 并注册 `EncryptionPlugin`，即可使用进程内的 `Encryptor` 服务。在
+`EncryptionServiceProvider` 以当前配置注册统一容器中的加密服务，启动时校验密钥。
+
+启用 `encryption` feature 并注册 `EncryptionServiceProvider`，即可使用进程内的 `Encryptor` 服务。在
 `[security.encryption]` 中配置 `active_key_id`，并在 `keys` 映射中提供 Base64 编码的 32 字节密钥。
 `openrust key generate` 会将新密钥输出到标准输出；请将其存入密钥管理工具或已忽略的本地
 `.env` 文件。

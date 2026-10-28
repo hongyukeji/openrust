@@ -24,20 +24,20 @@ use futures_util::{StreamExt, stream};
 use openrust::testing::TestDatabase;
 use openrust::{
     Cancellation,
-    config::FrameworkConfig,
-    core::{App, AppBuilder, BoxFuture, Error, Result as FrameworkResult, lifecycle},
+    core::{App, BoxFuture, Error, ProviderBuilder, Result as FrameworkResult},
     data_exchange::tasks::{
         ExchangeFormat, ExportTaskOptions, ImportReportCleanupJob, ImportTaskInput,
         ImportTaskOptions, ImportTaskReport, export_storage_task, import_storage_task,
     },
     data_exchange::{CellType, ExportOptions, ImportColumn, ImportLimits, ImportSchema},
     database::{
-        CoordinationMigration, DatabasePlugin, DatabaseTransaction, Db, DbBackend, SharedLocks,
+        CoordinationMigration, DatabaseServiceProvider, DatabaseTransaction, Db, DbBackend,
+        SharedLocks,
         sea_orm::{ConnectionTrait, Statement},
         sea_orm_migration::{MigrationTrait, MigratorTrait},
     },
-    queue::{DispatchOptions, Job, JobContext, Queue, QueueMigration, QueuePlugin},
-    storage::{Storage, StoragePath, StoragePlugin, UploadOptions},
+    queue::{DispatchOptions, Job, JobContext, Queue, QueueMigration, QueueServiceProvider},
+    storage::{Storage, StoragePath, StorageServiceProvider, UploadOptions},
 };
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
@@ -60,13 +60,13 @@ async fn build_app(admin_url: &str) -> FrameworkResult<(App, TestDatabase, tempf
         database.url(),
         storage_root.path().to_string_lossy()
     )));
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment);
+    let mut builder = ProviderBuilder::new();
     builder
-        .plugin(DatabasePlugin)
-        .plugin(QueuePlugin::default())
-        .plugin(StoragePlugin);
-    let app = lifecycle::finalize(builder).await?;
-    let db = app.state().try_get::<Db>()?;
+        .provider(DatabaseServiceProvider)
+        .provider(QueueServiceProvider::new())
+        .provider(StorageServiceProvider::new());
+    let app = App::from_provider_runtime(builder.start(figment).await?)?;
+    let db = app.state().resolve::<Db>().await?;
     db.connection()?
         .execute_unprepared("CREATE TABLE exchange_task_rows (email VARCHAR(255) NOT NULL)")
         .await
@@ -98,8 +98,10 @@ fn context_with_progress(
 
 async fn put_source(app: &App, path: &StoragePath, source: &'static [u8]) -> FrameworkResult<()> {
     app.state()
-        .try_get::<Storage>()?
-        .disk("local")?
+        .resolve::<Storage>()
+        .await?
+        .disk("local")
+        .await?
         .put_stream(
             path.clone(),
             Some("text/csv".to_owned()),
@@ -189,7 +191,7 @@ async fn import_batches_are_atomic_idempotent_and_export_is_streamed()
         return Ok(());
     };
     let (app, database, _storage_root) = build_app(&admin_url).await?;
-    let storage = app.state().try_get::<Storage>()?;
+    let storage = app.state().resolve::<Storage>().await?;
     let input_path = StoragePath::new("private/import/source.csv")?;
     put_source(
         &app,
@@ -230,7 +232,7 @@ async fn import_batches_are_atomic_idempotent_and_export_is_streamed()
             .iter()
             .any(|value| { value.get("batches_committed").and_then(Value::as_u64) == Some(2) })
     );
-    let queue = app.state().try_get::<Queue>()?;
+    let queue = app.state().resolve::<Queue>().await?;
     assert!(
         !queue
             .run_next_with_state("data-exchange-cleanup", app.state())
@@ -322,7 +324,8 @@ async fn import_batches_are_atomic_idempotent_and_export_is_streamed()
         .is_err()
     );
     let mut partial_reader = storage
-        .disk("local")?
+        .disk("local")
+        .await?
         .open(&partial_report_path, None)
         .await?;
     let mut partial_bytes = Vec::new();
@@ -394,7 +397,8 @@ async fn import_batches_are_atomic_idempotent_and_export_is_streamed()
         .is_err()
     );
     let mut cancelled_reader = storage
-        .disk("local")?
+        .disk("local")
+        .await?
         .open(&cancelled_report_path, None)
         .await?;
     let mut cancelled_bytes = Vec::new();
@@ -492,7 +496,7 @@ async fn import_batches_are_atomic_idempotent_and_export_is_streamed()
         .await??;
         assert_eq!(tenant_report.rows_committed, 2);
     }
-    let db = app.state().try_get::<Db>()?;
+    let db = app.state().resolve::<Db>().await?;
     let rows = db
         .connection()?
         .query_one_raw(Statement::from_string(
@@ -533,7 +537,11 @@ async fn import_batches_are_atomic_idempotent_and_export_is_streamed()
         published_output,
         ExportTaskOptions::default().output_path_for_attempt(&output, retry_context.id(), 2)?
     );
-    let mut reader = storage.disk("local")?.open(&published_output, None).await?;
+    let mut reader = storage
+        .disk("local")
+        .await?
+        .open(&published_output, None)
+        .await?;
     let mut exported = Vec::new();
     while let Some(chunk) = reader.body.next().await {
         exported.extend_from_slice(&chunk?);
@@ -564,7 +572,14 @@ async fn import_batches_are_atomic_idempotent_and_export_is_streamed()
     .expect_err("cleanup must not pass an active object writer lock");
     assert_eq!(cleanup_error.code(), "data_exchange_object_busy");
     locks.release(&lock_lease).await?;
-    assert!(storage.disk("local")?.stat(&published_output).await.is_ok());
+    assert!(
+        storage
+            .disk("local")
+            .await?
+            .stat(&published_output)
+            .await
+            .is_ok()
+    );
 
     queue
         .dispatch_with_options(
@@ -583,7 +598,14 @@ async fn import_batches_are_atomic_idempotent_and_export_is_streamed()
             .run_next_with_state("data-exchange-cleanup", app.state())
             .await?
     );
-    assert!(storage.disk("local")?.stat(&published_output).await.is_ok());
+    assert!(
+        storage
+            .disk("local")
+            .await?
+            .stat(&published_output)
+            .await
+            .is_ok()
+    );
 
     let cancellation = Cancellation::new();
     cancellation.cancel();
@@ -603,7 +625,14 @@ async fn import_batches_are_atomic_idempotent_and_export_is_streamed()
         .await
         .is_err()
     );
-    assert!(storage.disk("local")?.stat(&cancelled_path).await.is_err());
+    assert!(
+        storage
+            .disk("local")
+            .await?
+            .stat(&cancelled_path)
+            .await
+            .is_err()
+    );
 
     let cleanup_path = StoragePath::new("private/reports/cleanup-probe.json")?;
     put_source(&app, &cleanup_path, b"temporary report").await?;
@@ -624,7 +653,14 @@ async fn import_batches_are_atomic_idempotent_and_export_is_streamed()
             .run_next_with_state("data-exchange-cleanup", app.state())
             .await?
     );
-    assert!(storage.disk("local")?.stat(&cleanup_path).await.is_err());
+    assert!(
+        storage
+            .disk("local")
+            .await?
+            .stat(&cleanup_path)
+            .await
+            .is_err()
+    );
     drop(database);
     Ok(())
 }

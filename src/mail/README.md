@@ -1,12 +1,14 @@
 # 邮件
 
+`MailerServiceProvider` 提供配置驱动的 Provider 装配入口。装配只构造 driver，不发送邮件。
+
 `MailConfig` 定义于 `openrust::config::mailer`，并从 `openrust::mail` 重新导出。运行时 TOML 配置放在应用根目录的 `config/`；SMTP 凭据可通过受保护的 `.env` 或部署环境变量提供，进程环境变量优先。生产使用 `.env` 时须限制文件权限，并确保应用根目录不作为静态公开目录。
 
-OpenRust 框架的邮件能力。实现 `Email::message` 来构造 `lettre::Message`，然后通过 `Mailer` 服务发送。`MailerPlugin` 默认注册 log driver。启用 `mail-smtp`，并设置 `[mail] driver = "smtp"`、`smtp_host`，还可按需设置成对的 `smtp_username` / `smtp_password` 字段，以使用强制 STARTTLS 的 SMTP 发送邮件。SMTP 凭据在 `Debug` 输出中会被隐藏。默认要求 STARTTLS；只有 Mailpit 等未认证的 localhost/loopback 开发接收端可以显式设置 `smtp_starttls = false`，生产环境会拒绝该设置。使用 `docker compose -f compose.ci.yaml up -d mailpit` 启动本地 Mailpit 服务，然后设置 `MAIL_DRIVER=smtp`、`MAIL_SMTP_HOST=127.0.0.1`、`MAIL_SMTP_PORT=1025` 和 `MAIL_SMTP_STARTTLS=false`。生产环境拒绝默认的 `log` driver，因此必须显式配置实际邮件供应商。启用 `test-util` 后，可在测试中使用 `FakeMailer` 的 `sent_count` 和 `assert_sent_to` 断言。SMS 是 `openrust::sms` 中的同级服务；两者都使用公开 driver trait、显式 locale 选择，并且单次提交不会自动重试。启用 `sms-twilio`（同时启用 `http-client`）即可使用 Twilio；配置时必须设置 `SMS_ACCOUNT_SID`、`SMS_API_KEY_SID`、`SMS_API_KEY_SECRET`，并在 `SMS_FROM` 与 `SMS_MESSAGING_SERVICE_SID` 中二选一。凭据和消息数据在 debug 输出中会被隐藏；生产环境拒绝 log driver。
+OpenRust 框架的邮件能力。实现 `Email::message` 来构造 `lettre::Message`，然后通过 `Mailer` 服务发送。`MailerServiceProvider` 默认注册 log driver。启用 `mail-smtp`，并设置 `[mail] driver = "smtp"`、`smtp_host`，还可按需设置成对的 `smtp_username` / `smtp_password` 字段，以使用强制 STARTTLS 的 SMTP 发送邮件。SMTP 凭据在 `Debug` 输出中会被隐藏。默认要求 STARTTLS；只有 Mailpit 等未认证的 localhost/loopback 开发接收端可以显式设置 `smtp_starttls = false`，生产环境会拒绝该设置。使用 `docker compose -f compose.ci.yaml up -d mailpit` 启动本地 Mailpit 服务，然后设置 `MAIL_DRIVER=smtp`、`MAIL_SMTP_HOST=127.0.0.1`、`MAIL_SMTP_PORT=1025` 和 `MAIL_SMTP_STARTTLS=false`。生产环境拒绝默认的 `log` driver，因此必须显式配置实际邮件供应商。启用 `test-util` 后，可在测试中使用 `FakeMailer` 的 `sent_count` 和 `assert_sent_to` 断言。SMS 是 `openrust::sms` 中的同级服务；两者都使用公开 driver trait、显式 locale 选择，并且单次提交不会自动重试。启用 `sms-twilio`（同时启用 `http-client`）即可使用 Twilio；配置时必须设置 `SMS_ACCOUNT_SID`、`SMS_API_KEY_SID`、`SMS_API_KEY_SECRET`，并在 `SMS_FROM` 与 `SMS_MESSAGING_SERVICE_SID` 中二选一。凭据和消息数据在 debug 输出中会被隐藏；生产环境拒绝 log driver。
 
-`Mailer::send` 会立即发送。启用 `queue` 后，`openrust::notifications::Notifier` 可把固定邮件/SMS 内容排入数据库队列；worker 重试复用已渲染内容，不会重新读取 locale 或模板。先注册 `DatabasePlugin`、`QueuePlugin` 与 `NotificationsPlugin`，并把 `QueueMigration` 加入应用迁移器；标准 worker 用 `queue work notifications` 处理默认通知队列。邮件与短信分别作为独立任务，渠道之间没有顺序保证。
+`Mailer::send` 会立即发送。启用 `queue` 后，`openrust::notifications::Notifier` 可把固定邮件/SMS 内容排入数据库队列；worker 重试复用已渲染内容，不会重新读取 locale 或模板。先注册 `DatabaseServiceProvider`、`QueueServiceProvider` 与 `NotificationsServiceProvider`，并把 `QueueMigration` 加入应用迁移器；标准 worker 用 `queue work notifications` 处理默认通知队列。邮件与短信分别作为独立任务，渠道之间没有顺序保证。
 
-应用可实现公开的 `MailDriver` / `SmsDriver`，再由应用自己的 `Plugin::build` 读取供应商配置并通过 `app.try_insert(Mailer::new(driver))`、`app.try_insert(SmsSender::new(driver))` 注册服务。使用自定义供应商时，不注册对应的内建 `MailerPlugin` 或 `SmsPlugin`；内建 driver 名称只由框架维护。独立 consumer 展示从配置到发送的完整路径：[自定义邮件与短信 driver](../../tests/consumers/communication-drivers/README.md)。应用自定义供应商时也要自行定义其重试、幂等、凭据轮换和送达状态处理；短信 `SmsReceipt` 仅代表提交被接受。
+应用可实现公开的 `MailDriver` / `SmsDriver`，再由应用自己的 `ServiceProvider::register` 注册 singleton 工厂，工厂通过 `Resolver::section` 读取当前配置并返回 `Arc<Mailer>` / `Arc<SmsSender>`。使用自定义供应商时，不注册对应的内建 `MailerServiceProvider` 或 `SmsServiceProvider`；内建 driver 名称只由框架维护。独立 consumer 展示从配置到发送的完整路径：[自定义邮件与短信 driver](../../tests/consumers/communication-drivers/README.md)。应用自定义供应商时也要自行定义其重试、幂等、凭据轮换和送达状态处理；短信 `SmsReceipt` 仅代表提交被接受。
 
 通知消息会将收件人和正文写入队列数据库，调用方应按业务数据保护数据库、备份和保留期；不要将密码、access/refresh token、验证码或不必要的个人信息放入任务。直接 `dispatch` 对各渠道分别提交，若后续渠道入队失败，已提交的前序任务不会自动撤销；需要与业务变更或多个渠道一起原子提交时，使用 `dispatch_in_transaction`。活动唯一键按渠道分别生效，任务完成或失败归档后释放，不是永久请求幂等记录。
 
@@ -24,7 +26,7 @@ use openrust::{
 
 #[cfg(feature = "queue")]
 async fn queue_account_notice(app: &App, db: &Db) -> Result<()> {
-    let notifier = app.state().try_get::<Notifier>()?;
+    let notifier = app.state().resolve::<Notifier>().await?;
     let message = Notification::new()
         .email(EmailDelivery::new(
             "noreply@example.com",

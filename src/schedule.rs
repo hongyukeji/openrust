@@ -66,7 +66,7 @@ pub enum ScheduleFrequency {
     Cron(CronScheduleConfig),
 }
 
-/// 调度器内部持有的已编译 cron 计划；应用通过 `QueuePlugin::schedule_cron` 创建。
+/// 调度器内部持有的已编译 cron 计划；应用通过 `QueueContributions::schedule_cron` 创建。
 #[doc(hidden)]
 #[derive(Debug, Clone)]
 pub struct CronScheduleConfig {
@@ -543,7 +543,7 @@ impl crate::core::Command for ScheduleRunCommand {
         args: Vec<String>,
     ) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            let scheduler = app.state().try_get::<Scheduler>()?;
+            let scheduler = app.state().resolve::<Scheduler>().await?;
             match args.as_slice() {
                 [once] if once == "--once" => {
                     scheduler.tick().await?;
@@ -581,7 +581,7 @@ impl crate::core::Command for ScheduleListCommand {
         _args: Vec<String>,
     ) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            let scheduler = app.state().try_get::<Scheduler>()?;
+            let scheduler = app.state().resolve::<Scheduler>().await?;
             for entry in scheduler.entries() {
                 println!(
                     "{} {} {} {}",
@@ -609,6 +609,39 @@ async fn shutdown_signal() -> Result<()> {
 #[cfg(not(unix))]
 async fn shutdown_signal() -> Result<()> {
     tokio::signal::ctrl_c().await.map_err(Error::internal)
+}
+
+#[cfg(test)]
+mod provider_command_tests {
+    use super::*;
+    use crate::core::{Command, ProviderBuilder, RegisterContext, ServiceProvider};
+    use std::sync::Arc;
+
+    #[tokio::test]
+    async fn schedule_list_resolves_factory_scheduler() -> Result<()> {
+        struct SchedulerProvider;
+        impl ServiceProvider for SchedulerProvider {
+            fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
+                app.singleton::<Scheduler, _>(|_| {
+                    Box::pin(async {
+                        let db = crate::db::Db::default();
+                        Ok(Arc::new(Scheduler::new(
+                            db.clone(),
+                            crate::queue::Queue::new(db),
+                            Vec::new(),
+                            crate::config::QueueConfig::default(),
+                        )))
+                    })
+                });
+                Ok(())
+            }
+        }
+        let mut builder = ProviderBuilder::new();
+        builder.provider(SchedulerProvider);
+        let app =
+            crate::core::App::from_provider_runtime(builder.start(figment::Figment::new()).await?)?;
+        ScheduleListCommand.run(&app, Vec::new()).await
+    }
 }
 
 #[cfg(test)]

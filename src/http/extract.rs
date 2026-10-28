@@ -1,9 +1,9 @@
 //! 提取器：使用 [`Validated`] 读取经过校验的输入，使用 [`Inject`] 获取服务。
 
-use std::future::{Future, ready};
 use std::ops::Deref;
 use std::sync::Arc;
 
+use crate::core::container::Scope;
 use crate::core::{ApiResponse, AppState, Error, Result, ValidationErrors};
 use crate::validation::{Validate, validate};
 use axum::extract::rejection::JsonRejection;
@@ -105,7 +105,7 @@ where
     }
 }
 
-/// 获取通过 `AppBuilder::insert` 注册的服务。
+/// 从应用容器解析已登记实例或异步工厂；请求内使用独立 scope。
 ///
 /// 若服务未注册，将返回包含类型名称的内部错误，不会 panic。
 pub struct Inject<T>(pub Arc<T>);
@@ -126,12 +126,12 @@ where
 {
     type Rejection = Error;
 
-    fn from_request_parts(
-        _parts: &mut Parts,
-        state: &S,
-    ) -> impl Future<Output = Result<Self>> + Send {
-        // 查找是同步操作，无需 `.await`。
-        ready(AppState::from_ref(state).try_get::<T>().map(Self))
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self> {
+        if let Some(scope) = parts.extensions.get::<Arc<Scope>>() {
+            scope.resolve::<T>().await.map(Self)
+        } else {
+            AppState::from_ref(state).resolve::<T>().await.map(Self)
+        }
     }
 }
 

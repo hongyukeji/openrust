@@ -14,6 +14,9 @@
 //! 若进程未设置环境，bootstrap 只会从 `.env` 读取 `APP_ENV` 以选择运行环境。
 //! 所有环境都可从应用工作目录的 `.env` 加载变量；已有进程变量的优先级高于 `.env` 中的值。
 
+/// Provider 配置仓储、显式 schema 与启动合并操作。
+pub mod repository;
+
 use std::fmt;
 use std::path::{Path, PathBuf};
 
@@ -54,7 +57,7 @@ pub use grpc::{GrpcClientConfig, GrpcClientTlsConfig, GrpcConfig, GrpcServerTlsC
 pub use logger::{LogConfig, LogFormat};
 pub use mailer::MailConfig;
 #[cfg(feature = "queue")]
-pub use queue::{QueueConfig, QueueDriverKind};
+pub use queue::{QueueConfig, QueueConnectionConfig, QueueDriverKind};
 #[cfg(feature = "realtime")]
 pub use realtime::RealtimeConfig;
 #[cfg(feature = "encryption")]

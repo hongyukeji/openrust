@@ -9,7 +9,8 @@ use crate::db::{
 fn migration_table(logical: &str, backend: DbBackend) -> Result<Alias, DbErr> {
     let names = DatabaseTableNames::current().ok_or_else(|| {
         DbErr::Migration(
-            "OpenRust migration requires MigrationPlugin or TestDatabase table-name scope".into(),
+            "OpenRust migration requires MigrationServiceProvider or TestDatabase table-name scope"
+                .into(),
         )
     })?;
     names

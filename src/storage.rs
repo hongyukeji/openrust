@@ -3,20 +3,14 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
-use std::{
-    collections::BTreeMap,
-    fmt,
-    pin::Pin,
-    sync::{Arc, OnceLock},
-    time::Duration,
-};
+use std::{collections::BTreeMap, fmt, pin::Pin, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures_util::{Stream, StreamExt};
 use serde::de::DeserializeOwned;
 
-use crate::core::{App, AppBuilder, BoxFuture, Error, Plugin, Result};
+use crate::core::{BoxFuture, Error, Result};
 
 pub use crate::config::{StorageConfig, StorageDiskConfig};
 
@@ -193,6 +187,10 @@ pub trait StorageDriver: Send + Sync + 'static {
     /// driver 配置使用的稳定名称。
     fn name(&self) -> &'static str;
 
+    /// 不执行 I/O 地校验 driver 配置；第三方 driver 可覆盖此方法。
+    fn validate(&self, _config: &StorageDriverConfig) -> Result<()> {
+        Ok(())
+    }
     /// 初始化 driver；连接或配置错误会使应用启动失败。
     fn build<'a>(
         &'a self,
@@ -258,7 +256,7 @@ impl fmt::Debug for StorageDriverConfig {
 }
 
 /// 应用插件收集的具名 storage driver。
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct StorageDrivers {
     drivers: BTreeMap<&'static str, Arc<dyn StorageDriver>>,
 }
@@ -266,6 +264,10 @@ pub struct StorageDrivers {
 impl StorageDrivers {
     /// 注册 driver；重复名称返回错误，不覆盖已有实现。
     pub fn register(&mut self, driver: impl StorageDriver) -> Result<()> {
+        self.register_shared(Arc::new(driver))
+    }
+
+    fn register_shared(&mut self, driver: Arc<dyn StorageDriver>) -> Result<()> {
         let name = driver.name();
         if !valid_driver_name(name) {
             return Err(Error::custom(
@@ -279,53 +281,146 @@ impl StorageDrivers {
                 format!("storage driver `{name}` is already registered"),
             ));
         }
-        self.drivers.insert(name, Arc::new(driver));
+        self.drivers.insert(name, driver);
         Ok(())
     }
 }
 
-#[derive(Default)]
-struct StorageDisks {
-    default_name: String,
-    disks: BTreeMap<String, StorageDisk>,
+struct StorageManager {
+    resolver: crate::core::container::Resolver,
+    drivers: std::sync::Mutex<StorageDrivers>,
+    disks: std::sync::Mutex<BTreeMap<String, Arc<tokio::sync::OnceCell<StorageDisk>>>>,
 }
 
 /// 应用可查询 default 与 named storage disk 的统一服务。
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct Storage {
-    disks: Arc<OnceLock<StorageDisks>>,
+    manager: Arc<StorageManager>,
 }
 
 impl Storage {
-    /// 返回配置选定的默认 disk。
-    pub fn default_disk(&self) -> Result<StorageDisk> {
-        let disks = self.disks.get().ok_or_else(storage_not_initialized)?;
-        disks
-            .disks
-            .get(&disks.default_name)
-            .cloned()
-            .ok_or_else(|| {
-                Error::custom(
-                    "storage_default_disk_missing",
-                    "default storage disk is missing",
-                )
-            })
+    fn managed(resolver: crate::core::container::Resolver, drivers: StorageDrivers) -> Self {
+        Self {
+            manager: Arc::new(StorageManager {
+                resolver,
+                drivers: std::sync::Mutex::new(drivers),
+                disks: std::sync::Mutex::new(BTreeMap::new()),
+            }),
+        }
     }
 
-    /// 按名称取得 disk；未知名称不会回退到 default。
-    pub fn disk(&self, name: &str) -> Result<StorageDisk> {
-        self.disks
-            .get()
-            .ok_or_else(storage_not_initialized)?
+    /// 注册或替换 driver creator；已解析的 disk 保持不变。
+    pub fn extend(&self, driver: impl StorageDriver) -> Result<()> {
+        let manager = &self.manager;
+        let name = driver.name();
+        if !valid_driver_name(name) {
+            return Err(Error::custom(
+                "storage_invalid_driver_name",
+                "storage driver name must be lowercase ASCII",
+            ));
+        }
+        let old = manager
+            .drivers
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .drivers
+            .insert(name, Arc::new(driver));
+        drop(old);
+        Ok(())
+    }
+
+    /// 移除已解析 disk，下一次读取时重新构造。
+    pub fn forget_disk(&self, name: &str) -> Result<()> {
+        let manager = &self.manager;
+        let removed = manager
             .disks
-            .get(name)
-            .cloned()
-            .ok_or_else(|| {
-                Error::custom(
-                    "storage_disk_not_found",
-                    format!("storage disk `{name}` is not configured"),
-                )
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(name);
+        drop(removed);
+        Ok(())
+    }
+
+    /// 移除指定 disk 的缓存引用。
+    pub fn purge(&self, name: &str) -> Result<()> {
+        self.forget_disk(name)
+    }
+
+    /// 校验当前配置与 driver 名称；driver 专属选项在构造时校验。
+    pub fn validate_configured(&self) -> Result<()> {
+        let manager = &self.manager;
+        let config = manager.resolver.section::<StorageConfig>("storage")?;
+        validate_storage_config(&config)?;
+        let drivers = manager
+            .drivers
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        for (name, disk) in config.disks {
+            let driver = drivers.drivers.get(disk.driver.as_str()).ok_or_else(|| {
+                Error::Config(crate::config::ConfigError::Invalid(
+                    "unknown storage driver".into(),
+                ))
+            })?;
+            driver.validate(&StorageDriverConfig {
+                disk_name: name,
+                options: disk.options,
+            })?;
+        }
+        Ok(())
+    }
+
+    /// 返回当前配置选定的默认 disk。
+    pub async fn default_disk(&self) -> Result<StorageDisk> {
+        let config = self.manager.resolver.section::<StorageConfig>("storage")?;
+        self.disk(&config.default_disk).await
+    }
+
+    /// 按名称异步构造并缓存 disk；未知名称不会回退。
+    pub async fn disk(&self, name: &str) -> Result<StorageDisk> {
+        let manager = &self.manager;
+        validate_disk_name(name)?;
+        let cell = manager
+            .disks
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .entry(name.to_owned())
+            .or_default()
+            .clone();
+        let value = cell
+            .get_or_try_init(|| async {
+                let config = manager.resolver.section::<StorageConfig>("storage")?;
+                validate_storage_config(&config)?;
+                let disk = config.disks.get(name).ok_or_else(|| {
+                    Error::custom("storage_disk_not_found", "storage disk is not configured")
+                })?;
+                let driver = manager
+                    .drivers
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .drivers
+                    .get(disk.driver.as_str())
+                    .cloned()
+                    .ok_or_else(|| {
+                        Error::Config(crate::config::ConfigError::Invalid(
+                            "unknown storage driver".into(),
+                        ))
+                    })?;
+                let driver_config = StorageDriverConfig {
+                    disk_name: name.to_owned(),
+                    options: disk.options.clone(),
+                };
+                driver.validate(&driver_config)?;
+                let backend = driver.build(&driver_config).await?;
+                Ok::<_, Error>(StorageDisk {
+                    name: name.to_owned(),
+                    backend,
+                    max_upload_bytes: config.max_upload_bytes,
+                    max_chunk_bytes: config.max_chunk_bytes,
+                })
             })
+            .await?;
+        Ok(value.clone())
     }
 }
 
@@ -577,94 +672,349 @@ fn checked_upload_stream(
     ))
 }
 
-/// 初始化配置中的 storage disks。
-#[derive(Debug, Default, Clone, Copy)]
-pub struct StoragePlugin;
+/// 按当前配置装配内置及应用自定义存储 driver。
+///
+/// Provider 尚待生产入口统一切换。
+#[derive(Default)]
+pub struct StorageServiceProvider {
+    drivers: Vec<Arc<dyn StorageDriver>>,
+}
 
-impl Plugin for StoragePlugin {
-    fn build(&self, app: &mut AppBuilder) -> Result<()> {
-        app.try_insert(Storage::default())?;
-        let drivers = app.extension_mut::<StorageDrivers>();
-        #[cfg(feature = "storage-local")]
-        drivers.register(FsDriver)?;
-        #[cfg(not(feature = "storage-local"))]
-        drivers.register(LocalUnavailableDriver)?;
-        #[cfg(feature = "storage-s3")]
-        drivers.register(S3Driver)?;
-        #[cfg(not(feature = "storage-s3"))]
-        drivers.register(S3UnavailableDriver)?;
+impl StorageServiceProvider {
+    /// 创建不含应用自定义 driver 的 Provider。
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// 添加应用 driver；与既有名称冲突时启动失败。
+    #[must_use]
+    pub fn with_driver(mut self, driver: impl StorageDriver) -> Self {
+        self.drivers.push(Arc::new(driver));
+        self
+    }
+}
+
+fn validate_storage_config(config: &StorageConfig) -> Result<()> {
+    validate_disk_name(&config.default_disk)?;
+    if !config.disks.contains_key(&config.default_disk) {
+        return Err(Error::Config(crate::config::ConfigError::Invalid(
+            "storage.default_disk is not configured".into(),
+        )));
+    }
+    if config.max_upload_bytes == 0
+        || config.max_upload_bytes > 5 * 1024 * 1024 * 1024
+        || config.max_chunk_bytes == 0
+        || config.max_chunk_bytes > 8 * 1024 * 1024
+    {
+        return Err(Error::Config(crate::config::ConfigError::Invalid(
+            "storage upload limits are outside their supported range".into(),
+        )));
+    }
+    for name in config.disks.keys() {
+        validate_disk_name(name)?;
+    }
+    Ok(())
+}
+
+impl crate::core::ServiceProvider for StorageServiceProvider {
+    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
+        use crate::config::repository::SectionSchema as S;
+        app.config_section(
+            "storage",
+            serde_json::json!({}),
+            S::object([
+                ("default_disk", S::String),
+                ("max_upload_bytes", S::Integer),
+                ("max_chunk_bytes", S::Integer),
+                ("disks", S::map(S::object([("driver", S::String)]).open())),
+            ]),
+            |value| {
+                let config: StorageConfig =
+                    serde_json::from_value(value.clone()).map_err(|_| {
+                        Error::Config(crate::config::ConfigError::Invalid(
+                            "storage configuration is invalid".into(),
+                        ))
+                    })?;
+                validate_storage_config(&config)
+            },
+        )?;
+        let custom = self.drivers.clone();
+        app.singleton::<Storage, _>(move |resolver| {
+            let custom = custom.clone();
+            Box::pin(async move {
+                let mut drivers = StorageDrivers::default();
+                #[cfg(feature = "storage-local")]
+                drivers.register(FsDriver)?;
+                #[cfg(not(feature = "storage-local"))]
+                drivers.register(LocalUnavailableDriver)?;
+                #[cfg(feature = "storage-s3")]
+                drivers.register(S3Driver)?;
+                #[cfg(not(feature = "storage-s3"))]
+                drivers.register(S3UnavailableDriver)?;
+                for driver in custom {
+                    drivers.register_shared(driver)?;
+                }
+                Ok(Arc::new(Storage::managed(resolver, drivers)))
+            })
+        });
+        app.require::<Storage>();
         Ok(())
     }
 
-    fn finish<'a>(&'a self, app: &'a App) -> BoxFuture<'a, Result<()>> {
+    fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            let config = match app.section::<StorageConfig>("storage") {
-                Ok(config) => config,
-                Err(crate::config::ConfigError::Source(source)) if source.missing() => {
-                    StorageConfig::default()
-                }
-                Err(error) => return Err(Error::Config(error)),
-            };
-            validate_disk_name(&config.default_disk)?;
-            if !config.disks.contains_key(&config.default_disk) {
-                return Err(Error::Config(crate::config::ConfigError::Invalid(format!(
-                    "storage.default_disk `{}` is not configured",
-                    config.default_disk
-                ))));
-            }
-            if config.max_upload_bytes == 0
-                || config.max_upload_bytes > 5 * 1024 * 1024 * 1024
-                || config.max_chunk_bytes == 0
-                || config.max_chunk_bytes > 8 * 1024 * 1024
-            {
-                return Err(Error::Config(crate::config::ConfigError::Invalid(
-                    "storage upload limits are outside their supported range".into(),
-                )));
-            }
-            let drivers = app.extension::<StorageDrivers>().ok_or_else(|| {
-                Error::custom(
-                    "storage_driver_registry_missing",
-                    "storage driver registry was not created",
+            let storage = app.resolve::<Storage>().await?;
+            let _ = storage.default_disk().await?;
+            let final_storage = Arc::clone(&storage);
+            app.validate_at_finalize(move || {
+                Box::pin(async move { final_storage.validate_configured() })
+            });
+            Ok(())
+        })
+    }
+}
+
+#[cfg(test)]
+mod provider_tests {
+    use super::*;
+    use crate::core::{BootContext, ProviderBuilder, ServiceProvider};
+    use figment::{Figment, providers::Serialized};
+    use serde_json::json;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct DropCheck(Arc<StorageManager>, Arc<std::sync::atomic::AtomicBool>);
+    impl Drop for DropCheck {
+        fn drop(&mut self) {
+            self.1
+                .store(self.0.drivers.try_lock().is_ok(), Ordering::SeqCst);
+        }
+    }
+    impl StorageDriver for DropCheck {
+        fn name(&self) -> &'static str {
+            "drop-check"
+        }
+        fn build<'a>(
+            &'a self,
+            _: &'a StorageDriverConfig,
+        ) -> BoxFuture<'a, Result<Arc<dyn StorageBackend>>> {
+            Box::pin(async { Err(Error::custom("unused", "unused")) })
+        }
+    }
+    struct Replacement;
+    impl StorageDriver for Replacement {
+        fn name(&self) -> &'static str {
+            "drop-check"
+        }
+        fn build<'a>(
+            &'a self,
+            _: &'a StorageDriverConfig,
+        ) -> BoxFuture<'a, Result<Arc<dyn StorageBackend>>> {
+            Box::pin(async { Err(Error::custom("unused", "unused")) })
+        }
+    }
+    #[tokio::test]
+    async fn replacing_driver_drops_old_creator_outside_registry_lock() -> Result<()> {
+        let mut builder = ProviderBuilder::new();
+        builder.provider(
+            StorageServiceProvider::new().with_driver(Custom(Arc::new(AtomicUsize::new(0)))),
+        );
+        let runtime = builder
+            .start(sources(json!({"first":{"driver":"custom"}})))
+            .await?;
+        let storage = runtime.container().resolve::<Storage>().await?;
+        let manager = Arc::clone(&storage.manager);
+        let unlocked = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        storage.extend(DropCheck(manager, Arc::clone(&unlocked)))?;
+        storage.extend(Replacement)?;
+        assert!(unlocked.load(Ordering::SeqCst));
+        runtime
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await
+    }
+
+    struct Backend(Arc<AtomicUsize>);
+    impl Drop for Backend {
+        fn drop(&mut self) {
+            self.0.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+    #[async_trait]
+    impl StorageBackend for Backend {
+        async fn put(
+            &self,
+            _: &StoragePath,
+            _: Option<&str>,
+            _: StorageStream,
+            _: UploadCancellation,
+        ) -> Result<StorageMetadata> {
+            Err(Error::custom("test", "unused"))
+        }
+        async fn open(&self, _: &StoragePath, _: Option<&str>) -> Result<StorageReader> {
+            Err(Error::custom("test", "unused"))
+        }
+        async fn stat(&self, _: &StoragePath) -> Result<StorageMetadata> {
+            Err(Error::custom("test", "unused"))
+        }
+        async fn delete(&self, _: &StoragePath) -> Result<()> {
+            Ok(())
+        }
+    }
+    struct Custom(Arc<AtomicUsize>);
+    impl StorageDriver for Custom {
+        fn name(&self) -> &'static str {
+            "custom"
+        }
+        fn build<'a>(
+            &'a self,
+            _: &'a StorageDriverConfig,
+        ) -> BoxFuture<'a, Result<Arc<dyn StorageBackend>>> {
+            let dropped = Arc::clone(&self.0);
+            Box::pin(async move { Ok(Arc::new(Backend(dropped)) as Arc<dyn StorageBackend>) })
+        }
+    }
+    struct Earlier(Arc<AtomicUsize>);
+    impl ServiceProvider for Earlier {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            let dropped = Arc::clone(&self.0);
+            Box::pin(async move { app.resolve::<Storage>().await?.extend(Custom(dropped)) })
+        }
+    }
+    #[allow(clippy::needless_pass_by_value, reason = "测试调用直接传入 JSON 值")]
+    fn sources(disks: serde_json::Value) -> Figment {
+        Figment::from(Serialized::defaults(
+            json!({"storage":{"default_disk":"first","disks":disks}}),
+        ))
+    }
+    struct Counted(Arc<AtomicUsize>);
+    impl StorageDriver for Counted {
+        fn name(&self) -> &'static str {
+            "custom"
+        }
+        fn build<'a>(
+            &'a self,
+            _: &'a StorageDriverConfig,
+        ) -> BoxFuture<'a, Result<Arc<dyn StorageBackend>>> {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            Box::pin(async {
+                tokio::task::yield_now().await;
+                Ok(Arc::new(Backend(Arc::new(AtomicUsize::new(0)))) as Arc<dyn StorageBackend>)
+            })
+        }
+    }
+    struct InvalidOverlay;
+    impl ServiceProvider for InvalidOverlay {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.overlay(
+                    "storage",
+                    json!({"disks": {"second": {"driver": "missing"}}}),
                 )
-            })?;
-            let mut disks = BTreeMap::new();
-            for (name, disk) in config.disks {
-                validate_disk_name(&name)?;
-                let driver = drivers.drivers.get(disk.driver.as_str()).ok_or_else(|| {
-                    Error::Config(crate::config::ConfigError::Invalid(format!(
-                        "unknown storage driver `{}` for disk `{name}`",
-                        disk.driver
-                    )))
-                })?;
-                let driver_config = StorageDriverConfig {
-                    disk_name: name.clone(),
-                    options: disk.options,
-                };
-                let backend = driver.build(&driver_config).await?;
-                disks.insert(
-                    name.clone(),
-                    StorageDisk {
-                        name,
-                        backend,
-                        max_upload_bytes: config.max_upload_bytes,
-                        max_chunk_bytes: config.max_chunk_bytes,
-                    },
+            })
+        }
+    }
+    #[tokio::test]
+    async fn late_overlay_unknown_driver_fails_final_validation() {
+        let mut builder = ProviderBuilder::new();
+        builder
+            .provider(
+                StorageServiceProvider::new().with_driver(Custom(Arc::new(AtomicUsize::new(0)))),
+            )
+            .provider(InvalidOverlay);
+        let source = sources(json!({"first":{"driver":"custom"}}));
+        assert!(builder.start(source).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn late_extend_preserves_old_and_purge_rebuilds_with_new_driver() -> Result<()> {
+        let old = Arc::new(AtomicUsize::new(0));
+        let new = Arc::new(AtomicUsize::new(0));
+        let mut builder = ProviderBuilder::new();
+        builder.provider(StorageServiceProvider::new().with_driver(Counted(Arc::clone(&old))));
+        let runtime = builder
+            .start(sources(
+                json!({"first":{"driver":"custom"},"second":{"driver":"custom"}}),
+            ))
+            .await?;
+        let storage = runtime.container().resolve::<Storage>().await?;
+        let first = storage.disk("first").await?;
+        storage.extend(Counted(Arc::clone(&new)))?;
+        assert!(Arc::ptr_eq(
+            &first.backend,
+            &storage.disk("first").await?.backend
+        ));
+        let (left, right) = tokio::join!(storage.disk("second"), storage.disk("second"));
+        assert!(Arc::ptr_eq(&left?.backend, &right?.backend));
+        assert_eq!(new.load(Ordering::SeqCst), 1);
+        storage.purge("first")?;
+        assert!(!Arc::ptr_eq(
+            &first.backend,
+            &storage.disk("first").await?.backend
+        ));
+        assert_eq!(new.load(Ordering::SeqCst), 2);
+        runtime
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await
+    }
+
+    #[tokio::test]
+    async fn provider_uses_custom_and_earlier_drivers_for_named_disks() -> Result<()> {
+        for earlier in [false, true] {
+            let dropped = Arc::new(AtomicUsize::new(0));
+            let mut builder = ProviderBuilder::new();
+            if earlier {
+                builder
+                    .provider(Earlier(Arc::clone(&dropped)))
+                    .provider(StorageServiceProvider::new());
+            } else {
+                builder.provider(
+                    StorageServiceProvider::new().with_driver(Custom(Arc::clone(&dropped))),
                 );
             }
-            let storage = app.state().try_get::<Storage>()?;
-            storage
-                .disks
-                .set(StorageDisks {
-                    default_name: config.default_disk,
-                    disks,
-                })
-                .map_err(|_| {
-                    Error::custom(
-                        "storage_already_initialized",
-                        "storage plugin initialized twice",
-                    )
-                })
-        })
+            let runtime = builder
+                .start(sources(
+                    json!({"first":{"driver":"custom"},"second":{"driver":"custom"}}),
+                ))
+                .await?;
+            let storage = runtime.container().resolve::<Storage>().await?;
+            assert!(storage.default_disk().await.is_ok());
+            assert!(storage.disk("second").await.is_ok());
+            runtime
+                .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+                .await?;
+        }
+        Ok(())
+    }
+    #[tokio::test]
+    async fn provider_rejects_conflicts_and_releases_constructed_backends_on_failure() {
+        let dropped = Arc::new(AtomicUsize::new(0));
+        let mut duplicate = ProviderBuilder::new();
+        duplicate.provider(
+            StorageServiceProvider::new()
+                .with_driver(Custom(Arc::clone(&dropped)))
+                .with_driver(Custom(Arc::clone(&dropped))),
+        );
+        assert!(
+            duplicate
+                .start(sources(json!({"first":{"driver":"custom"}})))
+                .await
+                .is_err()
+        );
+        let mut missing = ProviderBuilder::new();
+        missing.provider(StorageServiceProvider::new());
+        assert!(
+            missing
+                .start(sources(json!({"first":{"driver":"unknown"}})))
+                .await
+                .is_err()
+        );
+        let mut invalid = ProviderBuilder::new();
+        invalid.provider(StorageServiceProvider::new());
+        assert!(
+            invalid
+                .start(sources(json!({"other":{"driver":"custom"}})))
+                .await
+                .is_err()
+        );
     }
 }
 
@@ -715,13 +1065,6 @@ fn validate_content_type(content_type: &str) -> Result<()> {
     Ok(())
 }
 
-fn storage_not_initialized() -> Error {
-    Error::custom(
-        "storage_not_initialized",
-        "storage service is not initialized",
-    )
-}
-
 fn unsupported_storage_capability(name: &str) -> Error {
     Error::custom(
         "storage_capability_unsupported",
@@ -759,6 +1102,11 @@ mod opendal_driver {
             "fs"
         }
 
+        fn validate(&self, config: &StorageDriverConfig) -> Result<()> {
+            config.reject_unknown_options(&["root"])?;
+            let _: Option<String> = config.option("root")?;
+            Ok(())
+        }
         fn build<'a>(
             &'a self,
             config: &'a StorageDriverConfig,
@@ -804,6 +1152,48 @@ mod opendal_driver {
             "s3"
         }
 
+        fn validate(&self, config: &StorageDriverConfig) -> Result<()> {
+            config.reject_unknown_options(&[
+                "bucket",
+                "region",
+                "endpoint",
+                "access_key_id",
+                "secret_access_key",
+                "root",
+            ])?;
+            for key in [
+                "bucket",
+                "region",
+                "endpoint",
+                "access_key_id",
+                "secret_access_key",
+            ] {
+                let value: Option<String> = config.option(key)?;
+                if value.as_deref().is_none_or(|value| value.trim().is_empty()) {
+                    return Err(Error::Config(crate::config::ConfigError::Invalid(
+                        "S3 required option is missing or empty".into(),
+                    )));
+                }
+            }
+            let endpoint: Option<String> = config.option("endpoint")?;
+            let endpoint = endpoint.ok_or_else(|| {
+                Error::Config(crate::config::ConfigError::Invalid(
+                    "S3 endpoint is missing".into(),
+                ))
+            })?;
+            let url = url::Url::parse(&endpoint).map_err(|_| {
+                Error::Config(crate::config::ConfigError::Invalid(
+                    "S3 endpoint is invalid".into(),
+                ))
+            })?;
+            if !matches!(url.scheme(), "http" | "https") || url.host_str().is_none() {
+                return Err(Error::Config(crate::config::ConfigError::Invalid(
+                    "S3 endpoint is invalid".into(),
+                )));
+            }
+            let _: Option<String> = config.option("root")?;
+            Ok(())
+        }
         fn build<'a>(
             &'a self,
             config: &'a StorageDriverConfig,
@@ -1204,6 +1594,12 @@ impl StorageDriver for LocalUnavailableDriver {
     fn name(&self) -> &'static str {
         "fs"
     }
+    fn validate(&self, _config: &StorageDriverConfig) -> Result<()> {
+        Err(Error::custom(
+            "storage_feature_required",
+            "enable storage-local feature",
+        ))
+    }
     fn build<'a>(
         &'a self,
         _config: &'a StorageDriverConfig,
@@ -1225,6 +1621,12 @@ impl StorageDriver for S3UnavailableDriver {
     fn name(&self) -> &'static str {
         "s3"
     }
+    fn validate(&self, _config: &StorageDriverConfig) -> Result<()> {
+        Err(Error::custom(
+            "storage_feature_required",
+            "enable storage-s3 feature",
+        ))
+    }
     fn build<'a>(
         &'a self,
         _config: &'a StorageDriverConfig,
@@ -1243,9 +1645,9 @@ mod tests {
     use super::StoragePath;
 
     #[cfg(feature = "storage-local")]
-    use super::{Storage, StoragePlugin, StorageStream, UploadOptions};
+    use super::{Storage, StorageServiceProvider, StorageStream, UploadOptions};
     #[cfg(feature = "storage-local")]
-    use crate::core::{AppBuilder, lifecycle};
+    use crate::core::ProviderBuilder;
     #[cfg(feature = "storage-local")]
     use figment::providers::{Format, Toml};
     #[cfg(feature = "storage-local")]
@@ -1297,16 +1699,24 @@ mod tests {
         let figment = figment::Figment::new().merge(Toml::string(&format!(
             "[storage]\nmax_upload_bytes = 8\nmax_chunk_bytes = 4\n[storage.disks.local]\ndriver = 'fs'\nroot = '{root_value}/objects'\n"
         )));
-        let mut builder =
-            AppBuilder::new(crate::config::FrameworkConfig::default(), figment.clone());
-        builder.plugin(StoragePlugin);
-        let app = lifecycle::finalize(builder).await?;
-        let disk = app.state().try_get::<Storage>()?.default_disk()?;
-        let mut second_builder =
-            AppBuilder::new(crate::config::FrameworkConfig::default(), figment);
-        second_builder.plugin(StoragePlugin);
-        let second_app = lifecycle::finalize(second_builder).await?;
-        let second_disk = second_app.state().try_get::<Storage>()?.default_disk()?;
+        let mut builder = ProviderBuilder::new();
+        builder.provider(StorageServiceProvider::new());
+        let app = builder.start(figment.clone()).await?;
+        let disk = app
+            .container()
+            .resolve::<Storage>()
+            .await?
+            .default_disk()
+            .await?;
+        let mut second_builder = ProviderBuilder::new();
+        second_builder.provider(StorageServiceProvider::new());
+        let second_app = second_builder.start(figment).await?;
+        let second_disk = second_app
+            .container()
+            .resolve::<Storage>()
+            .await?
+            .default_disk()
+            .await?;
         let path = StoragePath::new("files/object.bin")?;
         let data = stream::iter([
             Ok(bytes::Bytes::from_static(b"abcd")),

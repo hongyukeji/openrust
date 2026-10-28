@@ -11,29 +11,29 @@ use openrust::audit::{
     DatabaseAuditSink, DatabaseAuditTenantMigration,
 };
 use openrust::auth::{
-    AuthFlows, AuthLayer, AuthMigration, AuthMode, AuthPlugin, AuthPolicyMigration,
-    AuthRefreshTokenMigration, AuthSource, AuthVerificationCodeMigration, CurrentUser,
-    DatabaseSessionStore, JwtConfig, JwtPlugin, JwtTokens, PasswordConfig, Passwords,
-    PersonalAccessTokens, Policy, RefreshTokens, Session, SessionPlugin, VerificationCodePolicy,
-    VerificationCodes,
+    AuthFlows, AuthLayer, AuthMigration, AuthMode, AuthPolicyMigration, AuthRefreshTokenMigration,
+    AuthServiceProvider, AuthSource, AuthVerificationCodeMigration, CurrentUser,
+    DatabaseSessionStore, JwtConfig, JwtServiceProvider, JwtTokens, PasswordConfig, Passwords,
+    PersonalAccessTokens, Policy, RefreshTokens, Session, SessionServiceProvider,
+    VerificationCodePolicy, VerificationCodes,
 };
 use openrust::core::RateLimiter;
 use openrust::database::sea_orm::{ConnectOptions, ConnectionTrait, Database, Statement};
 use openrust::database::sea_orm_migration::{MigratorTrait, prelude::*};
 use openrust::database::{
-    DatabaseBackend, DatabasePlugin, DatabaseRateLimitMigration, DatabaseRateLimitStore,
+    DatabaseBackend, DatabaseRateLimitMigration, DatabaseRateLimitStore, DatabaseServiceProvider,
     DatabaseTableNames, Db,
 };
-use openrust::events::EventsPlugin;
+use openrust::events::EventsServiceProvider;
 use openrust::http::axum::body::{Body, to_bytes};
 use openrust::http::axum::http::{Request, StatusCode};
-use openrust::http::{AppBuilderHttpExt, HttpPlugin, Inject, Json, Routes, build_router};
+use openrust::http::{HttpServiceProvider, Inject, Json, Routes, build_router};
 use openrust::signing::{
     DatabaseSignedLinkRevocationStore, SignedLinkRevocationMigration, SignedLinkRevocationStore,
-    SignedLinks, SignedLinksConfig, SignedLinksPlugin,
+    SignedLinks, SignedLinksConfig, SignedLinksServiceProvider,
 };
 use openrust::testing::TestDatabase;
-use openrust::{App, AppBuilder, Result, config::FrameworkConfig, lifecycle::finalize};
+use openrust::{App, Result, config::FrameworkConfig};
 use sha2::{Digest, Sha256};
 use time::Duration;
 use tower::ServiceExt;
@@ -104,32 +104,39 @@ async fn app_router(url: &str, table_prefix: &str) -> Result<(App, openrust::htt
         "[database]\nurl = {url:?}\ntable_prefix = {table_prefix:?}\n\n[database.table_names]\nusers = \"mapped_accounts\"\n"
     );
     let figment = Figment::new().merge(figment::providers::Toml::string(&source));
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment);
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ))
+    .merge(figment);
+    let mut builder = openrust::core::ProviderBuilder::new();
     builder
-        .plugin(DatabasePlugin)
-        .plugin(openrust::audit::AuditPlugin::database())
-        .plugin(SessionPlugin::new())
-        .plugin(JwtPlugin::with_config(JwtConfig::new(
+        .provider(DatabaseServiceProvider)
+        .provider(openrust::audit::AuditServiceProvider::database())
+        .provider(SessionServiceProvider::new())
+        .provider(JwtSettings::new(
             "testing-issuer",
             "testing-audience",
             "auth-test-key",
-            std::collections::BTreeMap::from([(
+            &std::collections::BTreeMap::from([(
                 "auth-test-key".to_owned(),
                 STANDARD.encode([0x53_u8; 32]),
             )]),
-        )))
-        .plugin(SignedLinksPlugin::with_config(SignedLinksConfig::new(
-            "testing-issuer",
-            "link-key",
-            std::collections::BTreeMap::from([(
-                "link-key".to_owned(),
-                STANDARD.encode([0x71_u8; 32]),
-            )]),
-        )))
-        .plugin(AuthPlugin::new())
-        .plugin(HttpPlugin)
-        .insert(Marker)
-        .routes(|routes: Routes| {
+        ))
+        .provider(JwtServiceProvider)
+        .provider(SignedLinksServiceProvider::with_config(
+            SignedLinksConfig::new(
+                "testing-issuer",
+                "link-key",
+                std::collections::BTreeMap::from([(
+                    "link-key".to_owned(),
+                    STANDARD.encode([0x71_u8; 32]),
+                )]),
+            ),
+        ))
+        .provider(AuthServiceProvider::new())
+        .provider(HttpServiceProvider)
+        .provider(TestInstance(std::sync::Arc::new(Marker)))
+        .provider(TestRoutes::new(|routes: Routes| {
             routes
                 .merge(
                     Routes::new()
@@ -150,12 +157,15 @@ async fn app_router(url: &str, table_prefix: &str) -> Result<(App, openrust::htt
                         .get("/auth/policy-pat", check_policy)
                         .layer(AuthLayer::required(AuthMode::PersonalAccessToken)),
                 )
-        });
-    let app = finalize(builder).await?;
-    assert!(app.state().get::<Audit>().is_some());
-    assert!(app.state().get::<SignedLinks>().is_some());
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    assert!(app.state().resolve::<Audit>().await.is_ok());
+    assert!(app.state().resolve::<SignedLinks>().await.is_ok());
     assert_eq!(
-        app.state().try_get::<Db>()?.table_name("users")?,
+        app.state().resolve::<Db>().await?.table_name("users")?,
         "mapped_accounts",
         "the configured full-name mapping must override the table prefix"
     );
@@ -376,8 +386,8 @@ async fn auth_migration_and_shared_revocation_work_on_the_configured_database() 
 
     let (app_a, router_a) = app_router(database.url(), "it_").await?;
     let (app_b, router_b) = app_router(database.url(), "it_").await?;
-    let verification_codes = app_a.state().try_get::<VerificationCodes>()?;
-    let verification_codes_b = app_b.state().try_get::<VerificationCodes>()?;
+    let verification_codes = app_a.state().resolve::<VerificationCodes>().await?;
+    let verification_codes_b = app_b.state().resolve::<VerificationCodes>().await?;
     let code_policy = VerificationCodePolicy::new(
         6,
         std::time::Duration::from_secs(3600),
@@ -494,7 +504,7 @@ async fn auth_migration_and_shared_revocation_work_on_the_configured_database() 
             )
             .await?
     );
-    let personal_access_tokens = app_a.state().try_get::<PersonalAccessTokens>()?;
+    let personal_access_tokens = app_a.state().resolve::<PersonalAccessTokens>().await?;
     let issued_pat = personal_access_tokens
         .issue(
             user_id,
@@ -562,7 +572,7 @@ async fn auth_migration_and_shared_revocation_work_on_the_configured_database() 
         )
         .await;
     assert!(expired_pat.is_err());
-    let app_refresh_tokens = app_a.state().try_get::<RefreshTokens>()?;
+    let app_refresh_tokens = app_a.state().resolve::<RefreshTokens>().await?;
     let concurrent = app_refresh_tokens
         .issue(user_id, chrono::Utc::now() + chrono::Duration::hours(1))
         .await?;
@@ -757,6 +767,9 @@ async fn auth_migration_and_shared_revocation_work_on_the_configured_database() 
     drop(session_db);
     drop(verification_codes);
     drop(verification_codes_b);
+    let shutdown_deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+    app_a.shutdown(shutdown_deadline).await?;
+    app_b.shutdown(shutdown_deadline).await?;
     drop(app_a);
     drop(app_b);
     drop(connection);
@@ -1233,7 +1246,7 @@ async fn auth_flow_events_share_account_and_refresh_transactions() -> TestResult
     let reject_registration = Arc::new(AtomicBool::new(false));
     let reject_login_success = Arc::new(AtomicBool::new(false));
     let failed_login_events = Arc::new(AtomicUsize::new(0));
-    let mut events = EventsPlugin::new();
+    let mut events = EventsServiceProvider::new();
     let reject_registration_listener = Arc::clone(&reject_registration);
     events.listen::<openrust::auth::RegistrationValidating, _>(move |event, _| {
         let reject = Arc::clone(&reject_registration_listener);
@@ -1275,27 +1288,32 @@ async fn auth_flow_events_share_account_and_refresh_transactions() -> TestResult
         "[database]\nurl = {:?}\ntable_prefix = \"flowev_\"\n",
         database.url()
     );
-    let mut builder = AppBuilder::new(
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
-        Figment::new().merge(figment::providers::Toml::string(&source)),
-    );
+    ))
+    .merge(Figment::new().merge(figment::providers::Toml::string(&source)));
+    let mut builder = openrust::core::ProviderBuilder::new();
     builder
-        .plugin(DatabasePlugin)
-        .plugin(events)
-        .plugin(AuthPlugin::new())
-        .plugin(JwtPlugin::with_config(JwtConfig::new(
+        .provider(DatabaseServiceProvider)
+        .provider(events)
+        .provider(AuthServiceProvider::new())
+        .provider(JwtSettings::new(
             "event-test-issuer",
             "event-test-audience",
             "event-test-key",
-            std::collections::BTreeMap::from([(
+            &std::collections::BTreeMap::from([(
                 "event-test-key".to_owned(),
                 STANDARD.encode([0x45_u8; 32]),
             )]),
-        )))
-        .plugin(openrust::auth::AuthFlowsPlugin::new());
-    let app = finalize(builder).await?;
-    let flows = app.state().try_get::<AuthFlows>()?;
-    let db = app.state().try_get::<Db>()?;
+        ))
+        .provider(JwtServiceProvider)
+        .provider(openrust::auth::AuthFlowsServiceProvider::new());
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let flows = app.state().resolve::<AuthFlows>().await?;
+    let db = app.state().resolve::<Db>().await?;
     let connection = db.connection()?;
 
     reject_registration.store(true, Ordering::SeqCst);
@@ -1387,7 +1405,7 @@ async fn policy_grants_and_revocations_are_visible_to_authenticated_routes() -> 
     )?;
     let database = TestDatabase::create_with_table_names::<AuthMigrator>(&url, names).await?;
     let (app, router) = app_router(database.url(), "policy_").await?;
-    let connection = app.state().try_get::<Db>()?.connection()?;
+    let connection = app.state().resolve::<Db>().await?.connection()?;
     connection.execute_unprepared(
         "INSERT INTO mapped_accounts (email, password_hash, created_at, updated_at) VALUES ('policy@example.test', 'unused', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
     ).await?;
@@ -1399,17 +1417,17 @@ async fn policy_grants_and_revocations_are_visible_to_authenticated_routes() -> 
         .await?
         .ok_or("policy account insert returned no row")?
         .try_get::<i64>("", "id")?;
-    let policy = app.state().try_get::<Policy>()?;
+    let policy = app.state().resolve::<Policy>().await?;
     let role = policy.ensure_role("content-editor").await?;
     policy.assign_role(user_id, role).await?;
-    let tokens = app.state().try_get::<PersonalAccessTokens>()?;
+    let tokens = app.state().resolve::<PersonalAccessTokens>().await?;
     let scoped_token = tokens
         .issue(user_id, "scoped", &["posts:read".to_owned()], None)
         .await?;
     let unscoped_token = tokens
         .issue(user_id, "unscoped", &["posts:write".to_owned()], None)
         .await?;
-    let jwt = app.state().try_get::<JwtTokens>()?;
+    let jwt = app.state().resolve::<JwtTokens>().await?;
     let token = jwt.issue_access_token(user_id)?;
     let request = || {
         Request::get("/auth/policy")
@@ -1757,4 +1775,52 @@ async fn audit_and_permission_change_share_a_transaction_on_the_configured_datab
         "audit insert failure must roll back permission changes"
     );
     Ok(())
+}
+
+struct TestInstance<T: Send + Sync + 'static>(std::sync::Arc<T>);
+impl<T: Send + Sync + 'static> openrust::core::ServiceProvider for TestInstance<T> {
+    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
+        app.instance(std::sync::Arc::clone(&self.0));
+        Ok(())
+    }
+}
+
+struct TestRoutes<F>(std::sync::Arc<F>);
+impl<F: Fn(openrust::http::Routes) -> openrust::http::Routes> TestRoutes<F> {
+    fn new(routes: F) -> Self {
+        Self(std::sync::Arc::new(routes))
+    }
+}
+impl<F> openrust::core::ServiceProvider for TestRoutes<F>
+where
+    F: Fn(openrust::http::Routes) -> openrust::http::Routes + Send + Sync + 'static,
+{
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut openrust::core::BootContext<'_>,
+    ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
+        let routes = std::sync::Arc::clone(&self.0);
+        Box::pin(async move {
+            app.routes(move |value| routes(value))?;
+            Ok(())
+        })
+    }
+}
+
+struct JwtSettings(serde_json::Value);
+impl JwtSettings {
+    fn new(
+        issuer: &str,
+        audience: &str,
+        active_key_id: &str,
+        keys: &std::collections::BTreeMap<String, String>,
+    ) -> Self {
+        Self(serde_json::json!({"issuer":issuer,"audience":audience,
+            "active_key_id":active_key_id,"keys":keys}))
+    }
+}
+impl openrust::core::ServiceProvider for JwtSettings {
+    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
+        app.merge_defaults("auth.jwt", self.0.clone())
+    }
 }

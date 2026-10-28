@@ -230,6 +230,15 @@ R2-A2已将ConfigLoader.figment改为fallible并逐处传播；仍只有一个lo
 
 秘密值永不进入错误、Debug、config show、日志与测试快照。使用 schema 标记叠加现有 redact_secrets；未知或未分类字段默认不回显原值。错误带 key/path、来源和约束/类型；只有明确标安全的 bounded 数值/布尔值可附原值。公开 validator 返回安全消息，内部 source 保留结构化诊断而不透出原值。Redis 仍为标准生成应用默认，未知 store/driver 或失联明确失败，不回退 memory/file。
 
+### Cache / Filesystem / Queue manager 的 Provider 可见时点
+
+固定 Laravel v13.39.0 的 [CacheManager::store/extend/forgetDriver/purge](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Cache/CacheManager.php)、[FilesystemManager::disk/extend/forgetDisk/purge](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Filesystem/FilesystemManager.php) 与 [QueueManager::connection/extend](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Queue/QueueManager.php) 均按名称首次构造并缓存；后注册或替换 creator 对尚未解析的名称可见，已缓存实例保持原状。Cache/Filesystem 显式忘记或 purge 后可按当前 creator 重建；固定 QueueManager 无同名 purge API，不虚构等价。
+
+- register 登记完整可解析的 manager factory 与配置约束，不用仅含空 `OnceLock` 的 facade 冒充已构造服务。boot 可 resolve manager、调用其公开 `extend` 或贡献 job/schedule；使用时点由 provider 顺序决定。后注册 driver 不全局冻结，也不自动追溯替换已解析实例。框架 `CacheDrivers::register` 的重复拒绝是声明式登记；运行时 `extend` 的同名替换须作为不同公开操作。
+- Rust driver 初始化是 async，具名 `store`/`disk`/`connection` 首次解析因而是 async；同步旧调用方、模板及 consumers 必须随生产切换迁移。相同名称并发只发布一次成功实例，失败可重试，不同名称互不串行；已缓存对象允许明确 purge 后重建。
+- 默认实例在 Provider boot 预解析并 fail closed，未使用具名实例保持懒构造。最终配置的未知 driver、非法公共字段和可静态校验的 driver options 必须在 Ready 前拒绝；晚 overlay 不得让已构造服务与最终配置互相矛盾或绕过验证。连接成功后立即登记受管回收；现有第三方 backend trait 无 async close 时只能报告所有权释放，不能声称远端连接协议已关闭。
+- Queue 还须独立区分 job handler/schedule 贡献与 named connection/driver creator；前者在 worker 启动前封口，后者遵守同一时点规则。现有单 driver facade 不等于 Laravel named QueueManager，未实现前保留 R2 缺口。
+
 ## 9. Plugin 迁移与分批实施
 
 不接受把旧 build 全部搬到 register、把 finish 改名 boot 就宣布完成。旧 build 中即时读取服务、打开连接、注册路由的部分必须逐个归位。最终 App/Inject/命令/队列均使用同一 Container，旧 Registry 与 Plugin 执行循环移除；0.x 不新增长期兼容壳。

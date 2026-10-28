@@ -10,7 +10,7 @@
 - `auth` 启用 JWT、Session、认证流程与授权模块；依赖 DB feature 的认证流程在运行时要求配置相应数据库及迁移。
 - `queue` 启用 `openrust::queue` 与 `openrust::schedule`；数据库 driver、worker 和 UTC 调度通过应用显式注册，当前功能与验收边界见 [queue](queue.md) / [schedule](schedule.md)。
 - `mail-smtp` 可选启用 SMTP transport；`sms-twilio` 复用可选 `http-client` feature；`test-util` 提供邮件/SMS fake。log 仅供非生产默认路径，生产启动拒绝 log；运行配置保持在应用项目根 `config/`。
-- `encryption` 可选启用 AES-256-GCM-SIV 应用数据加密；`EncryptionPlugin` 注册持有轮换 key ring 的 `Encryptor`。仅 active key 写入、历史 key 解密；密钥需由受控配置注入，不含默认 key。
+- `encryption` 可选启用 AES-256-GCM-SIV 应用数据加密；`EncryptionServiceProvider` 注册持有轮换 key ring 的 `Encryptor`。仅 active key 写入、历史 key 解密；密钥需由受控配置注入，不含默认 key。
 - `signing` 可选启用用途绑定的限时签名链接；独立 link key ring 与 JWT/加密密钥隔离；逐条撤销需应用加入共享数据库迁移并配置 `SignedLinkRevocationStore`。
 - Workspace package：根 `openrust` package 提供名为 `openrust` 的 library，同一根 package 提供默认 server bin，另有 `cli` 命令行与模板、`macros` proc-macro、`testing` 测试工具和 `performance` 基准工具。源码交付与命名见 [ADR-039](../decisions/adr-039-source-workspace-distribution.md)。
 - `testing` 单向依赖 `openrust` package（dependency alias `openrust`）；框架 package 不依赖测试工具，避免依赖环。

@@ -10,7 +10,7 @@ use crate::db::sea_orm_migration::prelude::*;
 use crate::{
     Error, Result,
     audit::{Audit, AuditEvent, AuditOutcome, AuditPolicy, AuditSubject, DatabaseAuditSink},
-    core::{App, AppBuilder, BoxFuture, Plugin, RateLimiter},
+    core::{BoxFuture, RateLimiter},
     db::{DatabaseTableNames, DatabaseTransaction, Db, dialect},
     security::Encryptor,
 };
@@ -739,53 +739,31 @@ impl MfaService {
     }
 }
 
-/// 显式启用 TOTP 多因素认证，要求先注册数据库、认证、加密与共享限流服务。
+/// 通过统一容器装配多因素认证服务。
 #[derive(Debug, Clone, Copy, Default)]
-pub struct MfaPlugin;
+pub struct MfaServiceProvider;
 
-impl Plugin for MfaPlugin {
-    fn name(&self) -> &'static str {
-        "mfa"
-    }
-    fn build(&self, app: &mut AppBuilder) -> Result<()> {
-        let db = app
-            .get::<Db>()
-            .ok_or_else(|| required_service("DatabasePlugin"))?;
-        app.get::<Passwords>()
-            .ok_or_else(|| required_service("AuthPlugin"))?;
-        let encryptor = app
-            .get::<Encryptor>()
-            .ok_or_else(|| required_service("EncryptionPlugin"))?;
-        let limiter = app
-            .get::<RateLimiter>()
-            .ok_or_else(|| required_service("database rate limiter"))?;
-        if app.get::<MfaService>().is_some() {
-            return Err(Error::custom(
-                "auth_mfa_already_registered",
-                "register only one MfaPlugin per application",
-            ));
-        }
-        app.insert(MfaService::new(
-            (*db).clone(),
-            (*encryptor).clone(),
-            (*limiter).clone(),
-        ));
+impl crate::core::ServiceProvider for MfaServiceProvider {
+    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
+        app.singleton::<MfaService, _>(|resolver| {
+            Box::pin(async move {
+                let db = resolver.resolve::<Db>().await?;
+                resolver.resolve::<Passwords>().await?;
+                let encryptor = resolver.resolve::<Encryptor>().await?;
+                let limiter = resolver.resolve::<RateLimiter>().await?;
+                Ok(std::sync::Arc::new(MfaService::new(
+                    (*db).clone(),
+                    (*encryptor).clone(),
+                    (*limiter).clone(),
+                )))
+            })
+        });
         Ok(())
     }
 
-    fn finish<'a>(&'a self, app: &'a App) -> BoxFuture<'a, Result<()>> {
-        Box::pin(async move {
-            let service = app.state().try_get::<MfaService>()?;
-            service.check_schema().await
-        })
+    fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move { app.resolve::<MfaService>().await?.check_schema().await })
     }
-}
-
-fn required_service(name: &str) -> Error {
-    Error::custom(
-        "auth_mfa_dependency_missing",
-        format!("MfaPlugin requires {name} to be registered first"),
-    )
 }
 
 fn digest(value: &str) -> String {
@@ -850,7 +828,8 @@ fn placeholder(backend: DbBackend, index: usize) -> String {
 fn migration_table(logical: &str, backend: DbBackend) -> std::result::Result<Alias, DbErr> {
     let names = DatabaseTableNames::current().ok_or_else(|| {
         DbErr::Migration(
-            "OpenRust migration requires MigrationPlugin or TestDatabase table-name scope".into(),
+            "OpenRust migration requires MigrationServiceProvider or TestDatabase table-name scope"
+                .into(),
         )
     })?;
     names
@@ -1240,5 +1219,18 @@ mod tests {
         assert_eq!(matching_step(secret, "12345", 100), None);
         assert_eq!(matching_step(secret, "12a456", 100), None);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod provider_tests {
+    use super::*;
+    use crate::core::ProviderBuilder;
+
+    #[tokio::test]
+    async fn missing_dependencies_fail_startup() {
+        let mut builder = ProviderBuilder::new();
+        builder.provider(MfaServiceProvider);
+        assert!(builder.start(figment::Figment::new()).await.is_err());
     }
 }

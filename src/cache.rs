@@ -6,12 +6,12 @@ mod tags;
 pub use tags::{CacheTagBackend, TaggedCacheEntry, TaggedCacheStore};
 
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
     fmt::Write as _,
     future::Future,
     path::PathBuf,
     sync::{
-        Arc, OnceLock, Weak,
+        Arc, Weak,
         atomic::{AtomicU64, AtomicUsize, Ordering},
     },
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -20,7 +20,7 @@ use std::{
 use async_trait::async_trait;
 use serde::{Serialize, de::DeserializeOwned};
 
-use crate::core::{App, AppBuilder, BoxFuture, Error, Plugin, Result};
+use crate::core::{BoxFuture, Error, Result};
 
 pub use crate::config::cache::{
     CacheConfig, CacheSingleflightConfig, CacheStoreConfig, CacheSwrConfig,
@@ -107,6 +107,10 @@ impl std::fmt::Debug for CacheDriverConfig {
 pub trait CacheDriver: Send + Sync + 'static {
     /// driver 配置中使用的稳定名称。
     fn name(&self) -> &'static str;
+    /// 不执行 I/O 地校验 driver 配置；第三方 driver 可覆盖此方法。
+    fn validate(&self, _config: &CacheDriverConfig) -> Result<()> {
+        Ok(())
+    }
     /// 初始化后端；连接错误会使应用启动失败。
     fn build<'a>(
         &'a self,
@@ -115,7 +119,7 @@ pub trait CacheDriver: Send + Sync + 'static {
 }
 
 /// 由应用插件在组装阶段收集的缓存 driver 注册表。
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct CacheDrivers {
     drivers: BTreeMap<&'static str, Arc<dyn CacheDriver>>,
 }
@@ -123,6 +127,10 @@ pub struct CacheDrivers {
 impl CacheDrivers {
     /// 注册一个 driver；重复名称返回错误，不会覆盖先前实现。
     pub fn register(&mut self, driver: impl CacheDriver) -> Result<()> {
+        self.register_shared(Arc::new(driver))
+    }
+
+    fn register_shared(&mut self, driver: Arc<dyn CacheDriver>) -> Result<()> {
         let name = driver.name();
         if name.is_empty()
             || !name
@@ -140,15 +148,9 @@ impl CacheDrivers {
                 format!("cache driver `{name}` is already registered"),
             ));
         }
-        self.drivers.insert(name, Arc::new(driver));
+        self.drivers.insert(name, driver);
         Ok(())
     }
-}
-
-#[derive(Clone, Default)]
-struct CacheStores {
-    default_name: String,
-    stores: BTreeMap<String, CacheStore>,
 }
 
 struct SingleFlight {
@@ -367,47 +369,246 @@ impl FlightWaiter {
     }
 }
 
+struct CacheManager {
+    resolver: crate::core::container::Resolver,
+    drivers: std::sync::Mutex<CacheDrivers>,
+    stores: std::sync::Mutex<BTreeMap<String, Arc<tokio::sync::OnceCell<CacheStore>>>>,
+    runtime: std::sync::Mutex<Option<(Arc<SingleFlight>, Arc<RefreshLimiter>)>>,
+    readiness: std::sync::Mutex<Option<crate::core::Readiness>>,
+    readiness_names: std::sync::Mutex<HashSet<String>>,
+}
+
 /// 可注入的默认缓存服务，可按名称取得其他 store。
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct Cache {
-    stores: Arc<OnceLock<CacheStores>>,
+    manager: Arc<CacheManager>,
 }
 
 impl Cache {
-    /// 返回配置选定的默认 store。
-    pub fn default_store(&self) -> Result<CacheStore> {
-        let stores = self.stores.get().ok_or_else(not_initialized)?;
-        stores
-            .stores
-            .get(&stores.default_name)
-            .cloned()
-            .ok_or_else(|| {
-                Error::custom(
-                    "cache_default_store_missing",
-                    "configured default cache store is missing",
-                )
-            })
+    fn managed(resolver: crate::core::container::Resolver, drivers: CacheDrivers) -> Self {
+        Self {
+            manager: Arc::new(CacheManager {
+                resolver,
+                drivers: std::sync::Mutex::new(drivers),
+                stores: std::sync::Mutex::new(BTreeMap::new()),
+                runtime: std::sync::Mutex::new(None),
+                readiness: std::sync::Mutex::new(None),
+                readiness_names: std::sync::Mutex::new(HashSet::new()),
+            }),
+        }
     }
 
-    /// 按名称取得 store；未知名称返回错误，不回退到默认 store。
-    pub fn store(&self, name: &str) -> Result<CacheStore> {
-        self.stores
-            .get()
-            .ok_or_else(not_initialized)?
+    /// 注册或替换 driver creator；已解析的 store 保持不变。
+    pub fn extend(&self, driver: impl CacheDriver) -> Result<()> {
+        let manager = &self.manager;
+        let name = driver.name();
+        if name.is_empty()
+            || !name
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+        {
+            return Err(Error::custom(
+                "cache_invalid_driver_name",
+                "cache driver name must be lowercase ASCII",
+            ));
+        }
+        let old = manager
+            .drivers
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .drivers
+            .insert(name, Arc::new(driver));
+        drop(old);
+        Ok(())
+    }
+
+    /// 移除已解析 store，下一次读取时重新构造。
+    pub fn forget_driver(&self, name: &str) -> Result<()> {
+        let manager = &self.manager;
+        let removed = manager
             .stores
-            .get(name)
-            .cloned()
-            .ok_or_else(|| {
-                Error::custom(
-                    "cache_store_not_found",
-                    format!("cache store `{name}` is not configured"),
-                )
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(name);
+        drop(removed);
+        Ok(())
+    }
+
+    /// 移除指定 store 的缓存引用。
+    pub fn purge(&self, name: &str) -> Result<()> {
+        self.forget_driver(name)
+    }
+
+    /// 校验当前配置与 driver 名称；driver 专属选项在构造时校验。
+    pub fn validate_configured(&self) -> Result<()> {
+        let manager = &self.manager;
+        let config = manager.resolver.section::<CacheConfig>("cache")?;
+        validate_cache_config(&config)?;
+        let drivers = manager
+            .drivers
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        for (name, store) in config.stores {
+            let driver = drivers.drivers.get(store.driver.as_str()).ok_or_else(|| {
+                Error::Config(crate::config::ConfigError::Invalid(
+                    "unknown cache driver".into(),
+                ))
+            })?;
+            driver.validate(&CacheDriverConfig {
+                store_name: name,
+                namespace: store.namespace,
+                options: store.options,
+            })?;
+        }
+        Ok(())
+    }
+
+    /// 返回当前配置选定的默认 store。
+    pub async fn default_store(&self) -> Result<CacheStore> {
+        let config = self.manager.resolver.section::<CacheConfig>("cache")?;
+        self.store(&config.default_store).await
+    }
+
+    /// 按名称异步构造并缓存 store；未知名称不会回退。
+    pub async fn store(&self, name: &str) -> Result<CacheStore> {
+        let manager = &self.manager;
+        validate_store_name(name)?;
+        let cell = manager
+            .stores
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .entry(name.to_owned())
+            .or_default()
+            .clone();
+        let value = cell
+            .get_or_try_init(|| async {
+                let config = manager.resolver.section::<CacheConfig>("cache")?;
+                validate_cache_config(&config)?;
+                let store = config.stores.get(name).ok_or_else(|| {
+                    Error::custom("cache_store_not_found", "cache store is not configured")
+                })?;
+                let driver = manager
+                    .drivers
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .drivers
+                    .get(store.driver.as_str())
+                    .cloned()
+                    .ok_or_else(|| {
+                        Error::Config(crate::config::ConfigError::Invalid(
+                            "unknown cache driver".into(),
+                        ))
+                    })?;
+                let driver_config = CacheDriverConfig {
+                    store_name: name.to_owned(),
+                    namespace: store.namespace.clone(),
+                    options: store.options.clone(),
+                };
+                let background_tasks = manager.resolver.resources()?.background_handle()?;
+                let shared_locks = if manager.resolver.is_bound::<crate::db::SharedLocks>()? {
+                    Some((*manager.resolver.resolve::<crate::db::SharedLocks>().await?).clone())
+                } else {
+                    None
+                };
+                let (singleflight, refresh_limiter) = {
+                    let mut runtime = manager
+                        .runtime
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
+                    if runtime.is_none() {
+                        *runtime = Some((
+                            SingleFlight::new(&config.singleflight)?,
+                            Arc::new(RefreshLimiter {
+                                active: AtomicUsize::new(0),
+                                maximum: config.swr.max_in_flight_refreshes,
+                            }),
+                        ));
+                    }
+                    runtime.as_ref().cloned().ok_or_else(not_initialized)?
+                };
+                driver.validate(&driver_config)?;
+                let backend = driver.build(&driver_config).await?;
+                Ok::<_, Error>(CacheStore {
+                    store_name: name.to_owned(),
+                    namespace: driver_config.namespace,
+                    backend,
+                    singleflight,
+                    background_tasks,
+                    refresh_limiter,
+                    shared_locks,
+                })
             })
+            .await?;
+        self.register_readiness_probe(name)?;
+        Ok(value.clone())
+    }
+
+    fn install_readiness(&self, readiness: crate::core::Readiness) -> Result<()> {
+        let manager = &self.manager;
+        *manager
+            .readiness
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(readiness);
+        let names: Vec<_> = manager
+            .stores
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .iter()
+            .filter(|(_, cell)| cell.get().is_some())
+            .map(|(name, _)| name.clone())
+            .collect();
+        for name in names {
+            self.register_readiness_probe(&name)?;
+        }
+        Ok(())
+    }
+
+    fn register_readiness_probe(&self, name: &str) -> Result<()> {
+        let manager = &self.manager;
+        let Some(readiness) = manager
+            .readiness
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
+        else {
+            return Ok(());
+        };
+        let mut names = manager
+            .readiness_names
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if names.contains(name) {
+            return Ok(());
+        }
+        let manager = Arc::downgrade(manager);
+        let store_name = name.to_owned();
+        readiness.register_probe(format!("cache.{name}"), move || {
+            let manager = manager.clone();
+            let store_name = store_name.clone();
+            async move {
+                let Some(manager) = manager.upgrade() else {
+                    return Ok(());
+                };
+                let cell = manager
+                    .stores
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .get(&store_name)
+                    .cloned();
+                if let Some(store) = cell.and_then(|cell| cell.get().cloned()) {
+                    store.check_readiness().await?;
+                }
+                Ok(())
+            }
+        })?;
+        names.insert(name.to_owned());
+        Ok(())
     }
 
     /// 从默认 store 读取 JSON 值。
     pub async fn get<T: DeserializeOwned>(&self, key: &str) -> Result<Option<T>> {
-        self.default_store()?.get(key).await
+        self.default_store().await?.get(key).await
     }
     /// 将值写入默认 store。
     pub async fn set<T: Serialize>(
@@ -416,11 +617,11 @@ impl Cache {
         value: &T,
         ttl: Option<Duration>,
     ) -> Result<()> {
-        self.default_store()?.set(key, value, ttl).await
+        self.default_store().await?.set(key, value, ttl).await
     }
     /// 从默认 store 删除键。
     pub async fn remove(&self, key: &str) -> Result<()> {
-        self.default_store()?.remove(key).await
+        self.default_store().await?.remove(key).await
     }
 
     /// 缓存未命中时，在本进程合并同 key、同类型与同 load ID 的加载。
@@ -436,7 +637,8 @@ impl Cache {
         F: Fn() -> Fut + Send + Sync,
         Fut: Future<Output = Result<T>> + Send,
     {
-        self.default_store()?
+        self.default_store()
+            .await?
             .get_or_load_with(key, load_id, ttl, loader)
             .await
     }
@@ -713,109 +915,420 @@ fn validate_load_id(load_id: &str) -> Result<()> {
     Ok(())
 }
 
-/// 初始化配置的默认与命名缓存实例。
-#[derive(Debug, Default, Clone, Copy)]
-pub struct CachePlugin;
+/// 按当前配置装配内置及应用自定义缓存 driver。
+///
+/// Provider 尚待生产入口统一切换。
+#[derive(Default)]
+pub struct CacheServiceProvider {
+    drivers: Vec<Arc<dyn CacheDriver>>,
+}
 
-impl Plugin for CachePlugin {
-    fn build(&self, app: &mut AppBuilder) -> Result<()> {
-        app.try_insert(Cache::default())?;
-        let registry = app.extension_mut::<CacheDrivers>();
-        registry.register(MemoryDriver)?;
-        registry.register(FileDriver)?;
-        #[cfg(feature = "cache-redis")]
-        registry.register(RedisDriver)?;
-        #[cfg(not(feature = "cache-redis"))]
-        registry.register(RedisUnavailableDriver)?;
+impl CacheServiceProvider {
+    /// 创建不含应用自定义 driver 的 Provider。
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// 添加应用 driver；与既有名称冲突时启动失败。
+    #[must_use]
+    pub fn with_driver(mut self, driver: impl CacheDriver) -> Self {
+        self.drivers.push(Arc::new(driver));
+        self
+    }
+}
+
+fn validate_cache_config(config: &CacheConfig) -> Result<()> {
+    validate_store_name(&config.default_store)?;
+    if !config.stores.contains_key(&config.default_store) {
+        return Err(Error::Config(crate::config::ConfigError::Invalid(
+            "cache.default_store is not configured".into(),
+        )));
+    }
+    let _ = SingleFlight::new(&config.singleflight)?;
+    if !(1..=256).contains(&config.swr.max_in_flight_refreshes) {
+        return Err(Error::Config(crate::config::ConfigError::Invalid(
+            "cache.swr.max_in_flight_refreshes must be within 1..=256".into(),
+        )));
+    }
+    for name in config.stores.keys() {
+        validate_store_name(name)?;
+    }
+    Ok(())
+}
+
+impl crate::core::ServiceProvider for CacheServiceProvider {
+    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
+        use crate::config::repository::SectionSchema as S;
+        app.config_section(
+            "cache",
+            CacheConfig::default(),
+            S::object([
+                ("default_store", S::String),
+                (
+                    "stores",
+                    S::map(S::object([("driver", S::String), ("namespace", S::String)]).open()),
+                ),
+                (
+                    "singleflight",
+                    S::object([
+                        ("max_in_flight_keys", S::Integer),
+                        ("max_waiters_per_key", S::Integer),
+                        ("loader_timeout_secs", S::Integer),
+                    ]),
+                ),
+                ("swr", S::object([("max_in_flight_refreshes", S::Integer)])),
+            ]),
+            validate_cache_config,
+        )?;
+        let custom = self.drivers.clone();
+        app.singleton::<Cache, _>(move |resolver| {
+            let custom = custom.clone();
+            Box::pin(async move {
+                let mut drivers = CacheDrivers::default();
+                drivers.register(MemoryDriver)?;
+                drivers.register(FileDriver)?;
+                #[cfg(feature = "cache-redis")]
+                drivers.register(RedisDriver)?;
+                #[cfg(not(feature = "cache-redis"))]
+                drivers.register(RedisUnavailableDriver)?;
+                for driver in custom {
+                    drivers.register_shared(driver)?;
+                }
+                Ok(Arc::new(Cache::managed(resolver, drivers)))
+            })
+        });
+        app.require::<Cache>();
         Ok(())
     }
 
-    fn finish<'a>(&'a self, app: &'a App) -> BoxFuture<'a, Result<()>> {
+    fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            let config = app.section::<CacheConfig>("cache").map_err(Error::Config)?;
-            validate_store_name(&config.default_store)?;
-            if !config.stores.contains_key(&config.default_store) {
-                return Err(Error::Config(crate::config::ConfigError::Invalid(format!(
-                    "cache.default_store `{}` is not configured",
-                    config.default_store
-                ))));
-            }
-            let singleflight = SingleFlight::new(&config.singleflight)?;
-            if !(1..=256).contains(&config.swr.max_in_flight_refreshes) {
-                return Err(Error::Config(crate::config::ConfigError::Invalid(
-                    "cache.swr.max_in_flight_refreshes must be within 1..=256".into(),
-                )));
-            }
-            let background_tasks = app.state().background_tasks().handle();
-            let refresh_limiter = Arc::new(RefreshLimiter {
-                active: AtomicUsize::new(0),
-                maximum: config.swr.max_in_flight_refreshes,
+            let cache = app.resolve::<Cache>().await?;
+            let _ = cache.default_store().await?;
+            let final_cache = Arc::clone(&cache);
+            app.validate_at_finalize(move || {
+                Box::pin(async move { final_cache.validate_configured() })
             });
-            let shared_locks = app
-                .state()
-                .get::<crate::db::SharedLocks>()
-                .map(|locks| (*locks).clone());
-            let drivers = app.extension::<CacheDrivers>().ok_or_else(|| {
-                Error::custom(
-                    "cache_driver_registry_missing",
-                    "cache driver registry was not created",
-                )
-            })?;
-            let mut stores = BTreeMap::new();
-            for (name, store) in config.stores {
-                validate_store_name(&name)?;
-                let driver = drivers.drivers.get(store.driver.as_str()).ok_or_else(|| {
-                    Error::Config(crate::config::ConfigError::Invalid(format!(
-                        "unknown cache driver `{}` for store `{name}`",
-                        store.driver
-                    )))
-                })?;
-                let driver_config = CacheDriverConfig {
-                    store_name: name.clone(),
-                    namespace: store.namespace,
-                    options: store.options,
-                };
-                let backend = driver.build(&driver_config).await?;
-                stores.insert(
-                    name.clone(),
-                    CacheStore {
-                        store_name: name.clone(),
-                        namespace: driver_config.namespace,
-                        backend,
-                        singleflight: Arc::clone(&singleflight),
-                        background_tasks: background_tasks.clone(),
-                        refresh_limiter: Arc::clone(&refresh_limiter),
-                        shared_locks: shared_locks.clone(),
-                    },
-                );
-            }
-            let cache = app.state().try_get::<Cache>()?;
-            let probes: Vec<_> = stores
-                .iter()
-                .map(|(name, store)| (name.clone(), store.clone()))
-                .collect();
-            cache
-                .stores
-                .set(CacheStores {
-                    default_name: config.default_store,
-                    stores,
-                })
-                .map_err(|_| {
-                    Error::custom(
-                        "cache_already_initialized",
-                        "cache plugin was initialized more than once",
-                    )
-                })?;
-            if let Some(readiness) = app.state().get::<crate::core::Readiness>() {
-                for (name, store) in probes {
-                    readiness.register_probe(format!("cache.{name}"), move || {
-                        let store = store.clone();
-                        async move { store.check_readiness().await }
-                    })?;
-                }
+            if app.is_bound::<crate::core::Readiness>() {
+                let readiness = app.resolve::<crate::core::Readiness>().await?;
+                cache.install_readiness((*readiness).clone())?;
             }
             Ok(())
         })
+    }
+}
+
+#[cfg(test)]
+mod provider_tests {
+    use super::*;
+    use crate::core::{BootContext, ProviderBuilder, ServiceProvider};
+    use figment::{Figment, providers::Serialized};
+    use serde_json::json;
+
+    struct ReadinessProvider(Arc<crate::core::Readiness>);
+    impl ServiceProvider for ReadinessProvider {
+        fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
+            app.instance(Arc::clone(&self.0));
+            Ok(())
+        }
+    }
+
+    struct ProbeBackend(bool);
+    #[async_trait]
+    impl CacheBackend for ProbeBackend {
+        async fn get(&self, _: &str) -> Result<Option<Vec<u8>>> {
+            if self.0 {
+                Err(Error::custom("probe_failed", "probe failed"))
+            } else {
+                Ok(None)
+            }
+        }
+        async fn set(&self, _: &str, _: Vec<u8>, _: Option<Duration>) -> Result<()> {
+            Ok(())
+        }
+        async fn remove(&self, _: &str) -> Result<()> {
+            Ok(())
+        }
+        fn scope(&self) -> CacheScope {
+            CacheScope::Process
+        }
+    }
+    struct ProbeDriver(bool);
+    impl CacheDriver for ProbeDriver {
+        fn name(&self) -> &'static str {
+            "probe"
+        }
+        fn build<'a>(
+            &'a self,
+            _: &'a CacheDriverConfig,
+        ) -> BoxFuture<'a, Result<Arc<dyn CacheBackend>>> {
+            Box::pin(async move { Ok(Arc::new(ProbeBackend(self.0)) as Arc<dyn CacheBackend>) })
+        }
+    }
+
+    #[tokio::test]
+    async fn named_store_readiness_tracks_purged_replacement() -> Result<()> {
+        let readiness = Arc::new(crate::core::Readiness::default());
+        let mut builder = ProviderBuilder::new();
+        builder
+            .provider(ReadinessProvider(Arc::clone(&readiness)))
+            .provider(CacheServiceProvider::new().with_driver(ProbeDriver(true)));
+        let runtime = builder
+            .start(Figment::from(Serialized::defaults(json!({"cache": {
+                "default_store": "first",
+                "stores": {"first": {"driver": "memory"}, "second": {"driver": "probe"}}
+            }}))))
+            .await?;
+        let cache = runtime.container().resolve::<Cache>().await?;
+        assert!(readiness.dependencies_ready().await);
+        let _ = cache.store("second").await?;
+        assert!(!readiness.dependencies_ready().await);
+        cache.extend(ProbeDriver(false))?;
+        cache.purge("second")?;
+        let _ = cache.store("second").await?;
+        assert!(readiness.dependencies_ready().await);
+        runtime
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await
+    }
+
+    struct DropCheck(Arc<CacheManager>, Arc<std::sync::atomic::AtomicBool>);
+    impl Drop for DropCheck {
+        fn drop(&mut self) {
+            self.1
+                .store(self.0.drivers.try_lock().is_ok(), Ordering::SeqCst);
+        }
+    }
+    impl CacheDriver for DropCheck {
+        fn name(&self) -> &'static str {
+            "drop-check"
+        }
+        fn build<'a>(
+            &'a self,
+            _: &'a CacheDriverConfig,
+        ) -> BoxFuture<'a, Result<Arc<dyn CacheBackend>>> {
+            Box::pin(async { Ok(Arc::new(MemoryBackend::default()) as Arc<dyn CacheBackend>) })
+        }
+    }
+    struct Replacement;
+    impl CacheDriver for Replacement {
+        fn name(&self) -> &'static str {
+            "drop-check"
+        }
+        fn build<'a>(
+            &'a self,
+            _: &'a CacheDriverConfig,
+        ) -> BoxFuture<'a, Result<Arc<dyn CacheBackend>>> {
+            Box::pin(async { Ok(Arc::new(MemoryBackend::default()) as Arc<dyn CacheBackend>) })
+        }
+    }
+    #[tokio::test]
+    async fn replacing_driver_drops_old_creator_outside_registry_lock() -> Result<()> {
+        let mut builder = ProviderBuilder::new();
+        builder.provider(CacheServiceProvider::new());
+        let runtime = builder.start(sources("memory")).await?;
+        let cache = runtime.container().resolve::<Cache>().await?;
+        let manager = Arc::clone(&cache.manager);
+        let unlocked = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        cache.extend(DropCheck(manager, Arc::clone(&unlocked)))?;
+        cache.extend(Replacement)?;
+        assert!(unlocked.load(Ordering::SeqCst));
+        runtime
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await
+    }
+
+    struct Custom;
+    impl CacheDriver for Custom {
+        fn name(&self) -> &'static str {
+            "custom"
+        }
+        fn build<'a>(
+            &'a self,
+            _: &'a CacheDriverConfig,
+        ) -> BoxFuture<'a, Result<Arc<dyn CacheBackend>>> {
+            Box::pin(async { Ok(Arc::new(MemoryBackend::default()) as Arc<dyn CacheBackend>) })
+        }
+    }
+    struct Earlier;
+    impl ServiceProvider for Earlier {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move { app.resolve::<Cache>().await?.extend(Custom) })
+        }
+    }
+    fn sources(driver: &str) -> Figment {
+        Figment::from(Serialized::defaults(
+            json!({"cache":{"default_store":"first","stores":{"first":{"driver":driver},"second":{"driver":"memory"}}}}),
+        ))
+    }
+    struct TrackedBackend(Arc<AtomicUsize>);
+    impl Drop for TrackedBackend {
+        fn drop(&mut self) {
+            self.0.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+    #[async_trait]
+    impl CacheBackend for TrackedBackend {
+        async fn get(&self, _: &str) -> Result<Option<Vec<u8>>> {
+            Ok(None)
+        }
+        async fn set(&self, _: &str, _: Vec<u8>, _: Option<Duration>) -> Result<()> {
+            Ok(())
+        }
+        async fn remove(&self, _: &str) -> Result<()> {
+            Ok(())
+        }
+        fn scope(&self) -> CacheScope {
+            CacheScope::Process
+        }
+    }
+    struct TrackedDriver(Arc<AtomicUsize>);
+    impl CacheDriver for TrackedDriver {
+        fn name(&self) -> &'static str {
+            "tracked"
+        }
+        fn build<'a>(
+            &'a self,
+            _: &'a CacheDriverConfig,
+        ) -> BoxFuture<'a, Result<Arc<dyn CacheBackend>>> {
+            let dropped = Arc::clone(&self.0);
+            Box::pin(async move { Ok(Arc::new(TrackedBackend(dropped)) as Arc<dyn CacheBackend>) })
+        }
+    }
+    struct FailAfter;
+    impl ServiceProvider for FailAfter {
+        fn boot<'a>(&'a self, _: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async { Err(Error::custom("test_failed", "failed")) })
+        }
+    }
+    #[tokio::test]
+    async fn failed_store_construction_releases_prior_backend() {
+        let dropped = Arc::new(AtomicUsize::new(0));
+        let mut builder = ProviderBuilder::new();
+        builder
+            .provider(CacheServiceProvider::new().with_driver(TrackedDriver(Arc::clone(&dropped))))
+            .provider(FailAfter);
+        let source = Figment::from(Serialized::defaults(
+            json!({"cache":{"default_store":"first","stores":{"first":{"driver":"tracked"}}}}),
+        ));
+        assert!(builder.start(source).await.is_err());
+        assert_eq!(dropped.load(Ordering::SeqCst), 1);
+    }
+
+    struct Counted(Arc<AtomicUsize>);
+    impl CacheDriver for Counted {
+        fn name(&self) -> &'static str {
+            "custom"
+        }
+        fn build<'a>(
+            &'a self,
+            _: &'a CacheDriverConfig,
+        ) -> BoxFuture<'a, Result<Arc<dyn CacheBackend>>> {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            Box::pin(async {
+                tokio::task::yield_now().await;
+                Ok(Arc::new(MemoryBackend::default()) as Arc<dyn CacheBackend>)
+            })
+        }
+    }
+    struct InvalidOverlay;
+    impl ServiceProvider for InvalidOverlay {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.overlay(
+                    "cache",
+                    json!({"stores": {"second": {"driver": "missing"}}}),
+                )
+            })
+        }
+    }
+    #[tokio::test]
+    async fn late_overlay_unknown_driver_fails_final_validation() {
+        let mut builder = ProviderBuilder::new();
+        builder
+            .provider(CacheServiceProvider::new().with_driver(Custom))
+            .provider(InvalidOverlay);
+        let source = sources("custom");
+        assert!(builder.start(source).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn late_extend_preserves_old_and_purge_rebuilds_with_new_driver() -> Result<()> {
+        let old = Arc::new(AtomicUsize::new(0));
+        let new = Arc::new(AtomicUsize::new(0));
+        let mut builder = ProviderBuilder::new();
+        builder.provider(CacheServiceProvider::new().with_driver(Counted(Arc::clone(&old))));
+        let source = Figment::from(Serialized::defaults(
+            json!({"cache":{"default_store":"first","stores":{"first":{"driver":"custom"},"second":{"driver":"custom"}}}}),
+        ));
+        let runtime = builder.start(source).await?;
+        let cache = runtime.container().resolve::<Cache>().await?;
+        let first = cache.store("first").await?;
+        cache.extend(Counted(Arc::clone(&new)))?;
+        let retained = cache.store("first").await?;
+        assert!(Arc::ptr_eq(&first.backend, &retained.backend));
+        let (left, right) = tokio::join!(cache.store("second"), cache.store("second"));
+        assert!(Arc::ptr_eq(&left?.backend, &right?.backend));
+        assert_eq!(new.load(Ordering::SeqCst), 1);
+        cache.purge("first")?;
+        assert!(!Arc::ptr_eq(
+            &first.backend,
+            &cache.store("first").await?.backend
+        ));
+        assert_eq!(new.load(Ordering::SeqCst), 2);
+        runtime
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await
+    }
+
+    #[tokio::test]
+    async fn provider_accepts_custom_and_earlier_registered_drivers() -> Result<()> {
+        for earlier in [false, true] {
+            let mut builder = ProviderBuilder::new();
+            if earlier {
+                builder.provider(Earlier);
+                builder.provider(CacheServiceProvider::new());
+            } else {
+                builder.provider(CacheServiceProvider::new().with_driver(Custom));
+            }
+            let runtime = builder.start(sources("custom")).await?;
+            let cache = runtime.container().resolve::<Cache>().await?;
+            cache.set("key", &42, None).await?;
+            assert_eq!(cache.get::<u32>("key").await?, Some(42));
+            assert!(cache.store("second").await.is_ok());
+            runtime
+                .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+                .await?;
+        }
+        Ok(())
+    }
+    #[tokio::test]
+    async fn provider_rejects_conflict_bad_config_and_missing_driver() {
+        let mut duplicate = ProviderBuilder::new();
+        duplicate.provider(
+            CacheServiceProvider::new()
+                .with_driver(Custom)
+                .with_driver(Custom),
+        );
+        assert!(duplicate.start(sources("custom")).await.is_err());
+        let mut missing = ProviderBuilder::new();
+        missing.provider(CacheServiceProvider::new());
+        assert!(
+            missing
+                .start(sources("unknown-secret-sentinel"))
+                .await
+                .is_err()
+        );
+        let mut invalid = ProviderBuilder::new();
+        invalid.provider(CacheServiceProvider::new());
+        assert!(
+            invalid
+                .start(Figment::from(Serialized::defaults(
+                    json!({"cache":{"default_store":"absent"}})
+                )))
+                .await
+                .is_err()
+        );
     }
 }
 
@@ -836,6 +1349,7 @@ fn validate_store_name(name: &str) -> Result<()> {
 fn not_initialized() -> Error {
     Error::custom("cache_not_initialized", "cache service is not initialized")
 }
+
 fn backend_failure() -> Error {
     Error::custom("cache_backend_error", "cache backend operation failed")
 }
@@ -845,6 +1359,9 @@ struct MemoryDriver;
 impl CacheDriver for MemoryDriver {
     fn name(&self) -> &'static str {
         "memory"
+    }
+    fn validate(&self, config: &CacheDriverConfig) -> Result<()> {
+        reject_unknown_options(config, &[])
     }
     fn build<'a>(
         &'a self,
@@ -960,6 +1477,16 @@ struct FileDriver;
 impl CacheDriver for FileDriver {
     fn name(&self) -> &'static str {
         "file"
+    }
+    fn validate(&self, config: &CacheDriverConfig) -> Result<()> {
+        reject_unknown_options(config, &["path"])?;
+        let path: Option<PathBuf> = config.option("path")?;
+        if path.is_none() {
+            return Err(Error::Config(crate::config::ConfigError::Invalid(
+                "file cache requires path".into(),
+            )));
+        }
+        Ok(())
     }
     fn build<'a>(
         &'a self,
@@ -1086,6 +1613,17 @@ struct RedisDriver;
 impl CacheDriver for RedisDriver {
     fn name(&self) -> &'static str {
         "redis"
+    }
+    fn validate(&self, config: &CacheDriverConfig) -> Result<()> {
+        reject_unknown_options(config, &["dsn"])?;
+        let dsn: Option<String> = config.option("dsn")?;
+        let _ = redis::Client::open(dsn.unwrap_or_else(|| "redis://127.0.0.1:6379/".into()))
+            .map_err(|_| {
+                Error::Config(crate::config::ConfigError::Invalid(
+                    "invalid Redis cache configuration".into(),
+                ))
+            })?;
+        Ok(())
     }
     fn build<'a>(
         &'a self,
@@ -1223,6 +1761,11 @@ struct RedisUnavailableDriver;
 impl CacheDriver for RedisUnavailableDriver {
     fn name(&self) -> &'static str {
         "redis"
+    }
+    fn validate(&self, _config: &CacheDriverConfig) -> Result<()> {
+        Err(Error::Config(crate::config::ConfigError::Invalid(
+            "cache driver redis requires cache-redis feature".into(),
+        )))
     }
     fn build<'a>(
         &'a self,
@@ -2046,53 +2589,41 @@ mod tests {
 
     #[tokio::test]
     async fn plugin_requires_config_and_registers_named_memory_stores() -> Result<()> {
-        use crate::core::{AppBuilder, lifecycle};
+        use crate::core::ProviderBuilder;
         use figment::providers::{Format, Toml};
 
-        let mut missing_builder = AppBuilder::new(
-            crate::config::FrameworkConfig::default(),
-            figment::Figment::new(),
-        );
-        missing_builder.plugin(CachePlugin);
-        let missing = lifecycle::finalize(missing_builder).await;
+        let mut missing_builder = ProviderBuilder::new();
+        missing_builder.provider(CacheServiceProvider::new());
+        let missing = missing_builder.start(figment::Figment::new()).await;
         assert!(missing.is_err());
 
         let invalid_config = figment::Figment::new().merge(Toml::string(
             "[cache]\ndefault_store = 'primary'\n[cache.stores.primary]\ndriver = 'memory'\n[cache.singleflight]\nmax_in_flight_keys = 0\n",
         ));
-        let mut invalid_builder =
-            AppBuilder::new(crate::config::FrameworkConfig::default(), invalid_config);
-        invalid_builder.plugin(CachePlugin);
-        assert!(lifecycle::finalize(invalid_builder).await.is_err());
+        let mut invalid_builder = ProviderBuilder::new();
+        invalid_builder.provider(CacheServiceProvider::new());
+        assert!(invalid_builder.start(invalid_config).await.is_err());
 
         let invalid_swr = figment::Figment::new().merge(Toml::string(
             "[cache]\ndefault_store = 'primary'\n[cache.stores.primary]\ndriver = 'memory'\n[cache.swr]\nmax_in_flight_refreshes = 0\n",
         ));
-        let mut invalid_swr_builder =
-            AppBuilder::new(crate::config::FrameworkConfig::default(), invalid_swr);
-        invalid_swr_builder.plugin(CachePlugin);
-        assert!(lifecycle::finalize(invalid_swr_builder).await.is_err());
+        let mut invalid_swr_builder = ProviderBuilder::new();
+        invalid_swr_builder.provider(CacheServiceProvider::new());
+        assert!(invalid_swr_builder.start(invalid_swr).await.is_err());
 
         let figment = figment::Figment::new().merge(Toml::string(
             "[cache]\ndefault_store = 'primary'\n[cache.stores.primary]\ndriver = 'memory'\nnamespace = 'main'\n[cache.stores.secondary]\ndriver = 'memory'\nnamespace = 'other'\n",
         ));
-        let mut builder = AppBuilder::new(crate::config::FrameworkConfig::default(), figment);
-        builder.plugin(CachePlugin);
-        let app = lifecycle::finalize(builder).await?;
-        let cache = app.state().try_get::<Cache>()?;
-        assert_eq!(cache.default_store()?.scope(), CacheScope::Process);
-        assert_eq!(cache.store("secondary")?.scope(), CacheScope::Process);
-        assert!(cache.store("unknown").is_err());
+        let mut builder = ProviderBuilder::new();
+        builder.provider(CacheServiceProvider::new());
+        let app = builder.start(figment).await?;
+        let cache = app.container().resolve::<Cache>().await?;
+        assert_eq!(cache.default_store().await?.scope(), CacheScope::Process);
+        assert_eq!(cache.store("secondary").await?.scope(), CacheScope::Process);
+        assert!(cache.store("unknown").await.is_err());
         cache.set("key", &"value", None).await?;
         assert_eq!(cache.get::<String>("key").await?, Some("value".into()));
         Ok(())
-    }
-
-    struct CustomDriverPlugin;
-    impl Plugin for CustomDriverPlugin {
-        fn build(&self, app: &mut AppBuilder) -> Result<()> {
-            app.extension_mut::<CacheDrivers>().register(CustomDriver)
-        }
     }
 
     struct CustomDriver;
@@ -2115,16 +2646,16 @@ mod tests {
 
     #[tokio::test]
     async fn external_driver_is_collected_before_cache_initialization() -> Result<()> {
-        use crate::core::{AppBuilder, lifecycle};
+        use crate::core::ProviderBuilder;
         use figment::providers::{Format, Toml};
 
         let figment = figment::Figment::new().merge(Toml::string(
             "[cache]\ndefault_store = 'primary'\n[cache.stores.primary]\ndriver = 'custom-test'\nsetting = 'parsed'\n",
         ));
-        let mut builder = AppBuilder::new(crate::config::FrameworkConfig::default(), figment);
-        builder.plugin(CachePlugin).plugin(CustomDriverPlugin);
-        let app = lifecycle::finalize(builder).await?;
-        let cache = app.state().try_get::<Cache>()?;
+        let mut builder = ProviderBuilder::new();
+        builder.provider(CacheServiceProvider::new().with_driver(CustomDriver));
+        let app = builder.start(figment).await?;
+        let cache = app.container().resolve::<Cache>().await?;
         cache.set("key", &42, None).await?;
         assert_eq!(cache.get::<i32>("key").await?, Some(42));
         Ok(())
@@ -2133,15 +2664,15 @@ mod tests {
     #[cfg(feature = "cache-redis")]
     #[tokio::test]
     async fn redis_connection_failure_does_not_fall_back_to_memory() {
-        use crate::core::{AppBuilder, lifecycle};
+        use crate::core::ProviderBuilder;
         use figment::providers::{Format, Toml};
 
         let figment = figment::Figment::new().merge(Toml::string(
             "[cache]\ndefault_store = 'primary'\n[cache.stores.primary]\ndriver = 'redis'\ndsn = 'redis://127.0.0.1:1/'\n",
         ));
-        let mut builder = AppBuilder::new(crate::config::FrameworkConfig::default(), figment);
-        builder.plugin(CachePlugin);
-        assert!(lifecycle::finalize(builder).await.is_err());
+        let mut builder = ProviderBuilder::new();
+        builder.provider(CacheServiceProvider::new());
+        assert!(builder.start(figment).await.is_err());
     }
 
     #[cfg(feature = "cache-redis")]

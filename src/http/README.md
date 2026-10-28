@@ -2,25 +2,25 @@
 
 OpenRust 框架基于 `axum` 和 `tower` 构建的 HTTP 层。
 
-- [`HttpPlugin`]：通过 `app.plugin(HttpPlugin)` 注册 `serve` 命令、默认 middleware 栈、存活探针 `/health` 和就绪探针 `/ready`。
-- [`AppBuilderHttpExt::routes`]：应用添加路由的入口。
-- [`AppBuilderHttpExt::http_layer`]：在所有路由外层注册共享 Tower 请求上下文，并置于路由级 layer 之外。
+- [`HttpServiceProvider`]：在 `register` 登记 HTTP 配置与能力，在 `boot` 贡献 `serve` 命令、默认 middleware 栈、`/health` 和 `/ready`。
+- `BootContext::routes`：应用 Provider 在 `boot` 阶段添加路由。
+- `BootContext::http_layer`：在所有路由外层注册共享 Tower 请求上下文，并置于路由级 layer 之外。
 - [`Routes`]：基于 `axum::Router` 的轻量路由约定，提供 `get` / `post` / …、`nest(prefix, …)`、`merge`、`layer`。
 - [`Resource`] 与 [`ResourceActions`]：只注册实际存在的 controller action；`Routes::resource` 将 `list` / `create` 映射到集合路由，将 `get` / `update` / `delete` 映射到 `{id}`。`resource_with` 可通过 `only` 或 `except` 过滤 action。
 - [`Created<T>`] 与 [`NoContent`]：成功响应封装；前者可选携带 `Location`（semantic 模式为 201），后者返回省略 `data` 的成功包装（HTTP 200）。
 - [`PageParams`] 与 [`Paginated<T>`]：校验 `page` / `per_page` 查询参数，并返回含数组 `data` 和分页 `meta` 的 API 封装。
 - 统一响应使用 `ApiResponse<T>`；错误响应额外包含 `request_id` 和 RFC 3339 UTC 字符串 `timestamp`（毫秒精度），成功响应不重复包含诊断字段。
 - JSON 业务 API 统一挂在 `/api` 下，包括根 API `GET /api` 与其子路径 `/api/*`；使用框架 `Json`、`ApiResponse` 等响应类型时，成功和错误都遵循统一 JSON 包装。`/health`、`/ready` 与可选 `/metrics` 是独立运维端点，不属于业务 API。
-- 公开站点由 `[server].public_dir` 指定，默认是应用工作目录下的 `public/`；其他文件从站点根按 URL 路径提供。`[server].root_target` 默认 `file:/index.html`，也支持 `forward:/path`、`redirect:/path` / `redirect:https://host/path`，以及启用 `view` feature 并注册 `ViewPlugin` 后的 `view:index.html`。视图模板放在 `[view].directory`（默认 `views/`），静态资源仍放在 `public/`。`APP_SERVER_PUBLIC_DIR` 和 `APP_SERVER_ROOT_TARGET` 可在 `.env` 或进程环境覆盖 TOML；进程环境优先。生产部署不得将包含 `.env` 的应用根目录设为静态公开目录。API 与 `/ws/*` 的未匹配路径保留框架 404 响应，不回落到静态文件。
+- 公开站点由 `[server].public_dir` 指定，默认是应用工作目录下的 `public/`；其他文件从站点根按 URL 路径提供。`[server].root_target` 默认 `file:/index.html`，也支持 `forward:/path`、`redirect:/path` / `redirect:https://host/path`，以及启用 `view` feature 并注册 `ViewServiceProvider` 后的 `view:index.html`。视图模板放在 `[view].directory`（默认 `views/`），静态资源仍放在 `public/`。`APP_SERVER_PUBLIC_DIR` 和 `APP_SERVER_ROOT_TARGET` 可在 `.env` 或进程环境覆盖 TOML；进程环境优先。生产部署不得将包含 `.env` 的应用根目录设为静态公开目录。API 与 `/ws/*` 的未匹配路径保留框架 404 响应，不回落到静态文件。
 - [`SortParams`]：只按显式字段白名单解析 ADR-008 定义的逗号分隔排序语法；应用将字段名映射为固定 ORM 列。
 - [`Json<T>`]、[`Path<T>`] 与 [`Query<T>`]：兼容 axum 的 extractors，并将拒绝结果包装为 API 响应。`Json<T>` 还实现了 `IntoResponse`。
 - [`Validated`]：在 OpenRust 的 `Json<T>` 或 `Query<T>` extractor 成功后运行 `validator`。
-- [`Inject`]：提取由 `AppBuilder::provide` 注册的服务。
+- [`Inject`]：提取由容器实例或异步工厂注册的服务。
 - [`ClientIp`]：默认解析 socket peer；只有来自已配置可信代理 IP/CIDR 的请求才接受 `X-Forwarded-For`。
 - [`RateLimitLayer`]：通过已注册的共享 `RateLimiter` 对选定路由限流。IP key 遵循 `ClientIp` 的可信代理规则；认证用户 key 需要外层 `AuthLayer`；自定义 key 函数可取得请求及策略 scope。
 - [`middleware::apply`]：依次应用 request ID、tracing span、CORS、timeout、gzip/br 压缩和 panic 捕获。`build_router` 会在路由 layer 执行前将最终 `AppState` 注入请求扩展，使能力 middleware 能使用应用注册表。启用的 CORS 配置无效时，会在开始监听前返回配置错误。
 
-`/health` 是进程存活探针；`/ready` 要求 listener 正在接收流量且所有依赖探针成功，否则返回 503。DatabasePlugin 检查每个已配置连接池，CachePlugin 对每个 store 执行只读读取探针；应用插件也可通过 `Readiness::register_probe` 注册最多 64 个稳定命名的异步探针。每轮最多并发 16 个探针、总时限 2 秒且全局仅允许一轮并发检查；错误详情不返回给请求方，服务端只记录稳定错误码和探针名。探针须只读且有界。该 HTTP 端点不代表 gRPC health、实时连接或任意外部依赖的状态。收到 SIGINT/SIGTERM 后，服务器先将自身标为 not-ready 并停止接受连接，再按 `[server].shutdown_timeout_secs` 等待在途请求；到期会合作取消请求、强制终止剩余 server task 并以 `http_shutdown_timeout` 失败退出。请求取消会丢弃本地 handler future，不能撤销已提交的数据库或外部副作用。
+`/health` 是进程存活探针；`/ready` 要求 listener 正在接收流量且所有依赖探针成功，否则返回 503。DatabaseServiceProvider 检查每个已配置连接池，CacheServiceProvider 对已解析 store 执行只读读取探针；应用 Provider 也可通过 `Readiness::register_probe` 注册最多 64 个稳定命名的异步探针。每轮最多并发 16 个探针、总时限 2 秒且全局仅允许一轮并发检查；错误详情不返回给请求方，服务端只记录稳定错误码和探针名。探针须只读且有界。该 HTTP 端点不代表 gRPC health、实时连接或任意外部依赖的状态。收到 SIGINT/SIGTERM 后，服务器先将自身标为 not-ready 并停止接受连接，再按 `[server].shutdown_timeout_secs` 等待在途请求；到期会合作取消请求、强制终止剩余 server task 并以 `http_shutdown_timeout` 失败退出。请求取消会丢弃本地 handler future，不能撤销已提交的数据库或外部副作用。
 
 启用 `metrics` Cargo feature 后，HTTP 请求会记录请求数、耗时和在途数；指标标签只包含固定的 HTTP 方法类别和状态类别，不包含路径、请求标识、用户信息或错误内容。`/metrics` 默认不注册。仅当 `[server].metrics_endpoint_enabled = true` 时才开放 Prometheus scrape 端点；生产部署应通过监听网络、反向代理或防火墙限制采集访问，不要将端点公开给普通客户端。日志中的 HTTP 请求 span 只记录方法，不记录完整 URI、查询参数、request ID 或 `traceparent`。
 
@@ -30,7 +30,7 @@ OpenRust 框架基于 `axum` 和 `tower` 构建的 HTTP 层。
 
 `[server].trusted_proxy_ranges` 默认为空。条目接受 IP 地址或 CIDR。若直接 socket peer 位于配置范围内，`ClientIp` 会解析 `X-Forwarded-For`，从右向左遍历可信代理链，并返回第一个不可信地址；否则忽略转发头。可信范围配置无效时 router 构建失败；来自可信 peer 的转发值格式错误时返回 bad-request 响应封装。
 
-使用 route layer 可应用共享固定窗口配额。应用必须注册 `RateLimiter`，通常通过 `DatabasePlugin` 注册；存储故障会失败关闭。每个 scope 应对应一个 endpoint/policy，并在所有路由实例中使用相同的 limit/window。`by_user` 要求先添加认证 layer，使其先于限流 layer 执行；允许匿名请求的路由也可使用 `by_user_or_client_ip`。
+使用 route layer 可应用共享固定窗口配额。应用必须注册 `RateLimiter`，通常通过 `DatabaseServiceProvider` 注册；存储故障会失败关闭。每个 scope 应对应一个 endpoint/policy，并在所有路由实例中使用相同的 limit/window。`by_user` 要求先添加认证 layer，使其先于限流 layer 执行；允许匿名请求的路由也可使用 `by_user_or_client_ip`。
 
 ```rust,ignore
 use std::time::Duration;
@@ -46,8 +46,9 @@ fn routes(routes: Routes) -> Routes {
 每个后续 route layer 都会包裹先前的 layer。在此示例中，`AuthLayer` 位于最外层并先执行，之后限流 layer 读取经过验证的账户身份。只有应用了该 layer 的路由会受限；除非显式包裹，health 与 fallback 路由不受影响。自定义 key 函数应返回有界、稳定且不含秘密的身份值。
 
 ```rust
-use openrust::http::{AppBuilderHttpExt, Inject, Json, Routes, Validated};
-use openrust::core::{AppBuilder, Result};
+use std::sync::Arc;
+use openrust::http::{Inject, Json, Routes, Validated};
+use openrust::core::{BootContext, BoxFuture, RegisterContext, Result, ServiceProvider};
 use serde::Deserialize;
 use validator::Validate;
 
@@ -60,8 +61,18 @@ async fn create(Inject(_posts): Inject<Posts>, Validated(Json(input)): Validated
     Ok(Json(input.title))
 }
 
-fn register(app: &mut AppBuilder) {
-    app.insert(Posts).routes(|r| r.nest("/api", |api| api.post("/posts", create)));
+struct PostServiceProvider;
+impl ServiceProvider for PostServiceProvider {
+    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
+        app.instance(Arc::new(Posts));
+        Ok(())
+    }
+    fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.routes(|r: Routes| r.nest("/api", |api| api.post("/posts", create)))?;
+            Ok(())
+        })
+    }
 }
 ```
 
@@ -87,7 +98,7 @@ fn routes(routes: Routes) -> Routes {
 }
 ```
 
-注册集合路由和 `{id}` 成员路由前，Resource path 会去掉尾部斜杠；`nest("/posts", …)` 中的空路径会响应 `/posts` 和 `/posts/{id}`。多次调用 `only` 会保留 action 列表的交集。经 `AppBuilderHttpExt::routes` 组装时，重复路由（包括相同路径位置上的成员参数名不是 `id`）会由 `build_router` 转为 `http_route_registration_failed` 启动错误；直接使用 Axum 构建 API 时仍由调用方处理路由冲突。
+注册集合路由和 `{id}` 成员路由前，Resource path 会去掉尾部斜杠；`nest("/posts", …)` 中的空路径会响应 `/posts` 和 `/posts/{id}`。多次调用 `only` 会保留 action 列表的交集。经 `BootContext::routes` 组装时，重复路由（包括相同路径位置上的成员参数名不是 `id`）会由 `build_router` 转为 `http_route_registration_failed` 启动错误；直接使用 Axum 构建 API 时仍由调用方处理路由冲突。
 
 `PageParams` 默认为 `page=1&per_page=20`；直接提取时接受 `page >= 1`、`1 <= per_page <= 100`，且 offset 不得超过 `i64::MAX`。无效值会返回包含字段级 `errors` 的 `validation_failed` API 封装。`Query<PageParams>` 只负责反序列化，不会校验这些边界。`offset()` 从 0 开始，`limit()` 返回页大小。`Paginated::new(items, params, total)` 使用类型化 `PageMeta` 输出 `{"success": true, "code": "ok", "message": "ok", "data": [...], "meta": {"page": 1, "per_page": 20, "total": 57, "total_pages": 3}}`。
 

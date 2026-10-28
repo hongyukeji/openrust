@@ -5,19 +5,21 @@ use axum::extract::{Extension, Request};
 use axum::http::{StatusCode, header};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
+use futures_util::StreamExt as _;
+use http_body::Body as _;
 use openrust::ExecutionContext;
 use openrust::config::FrameworkConfig;
+use openrust::core::container::Scope;
 use openrust::core::{RateLimitBucket, RateLimitFuture, RateLimitStore, RateLimiter};
 use openrust::http::RateLimitLayer;
 use openrust::http::axum;
 use openrust::http::{
-    AppBuilderHttpExt, Created, HttpPlugin, Inject, NoContent, PageParams, Paginated, Validated,
-    build_router,
+    Created, HttpServiceProvider, Inject, NoContent, PageParams, Paginated, Validated, build_router,
 };
 use openrust::http::{Json, Path, Query};
-use openrust::{AppBuilder, lifecycle::finalize};
+
 use serde::Deserialize;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tower::ServiceExt;
@@ -25,6 +27,336 @@ use validator::Validate;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 static REQUEST_CANCELLED: AtomicBool = AtomicBool::new(false);
+
+struct ScopeProbe(Arc<Mutex<Option<Arc<Scope>>>>);
+
+async fn streamed_scoped_identity(
+    Extension(scope): Extension<Arc<Scope>>,
+    Inject(probe): Inject<ScopeProbe>,
+) -> Response {
+    *probe
+        .0
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(Arc::clone(&scope));
+    Body::from_stream(
+        futures_util::stream::once(async move {
+            let identity = scope.resolve::<RequestIdentity>().await;
+            Ok::<_, std::io::Error>(bytes::Bytes::from(match identity {
+                Ok(identity) => identity.0.to_string(),
+                Err(error) => error.code().to_owned(),
+            }))
+        })
+        .chain(futures_util::stream::iter([Ok(bytes::Bytes::from_static(
+            b"next",
+        ))])),
+    )
+    .into_response()
+}
+
+#[tokio::test]
+async fn scoped_factory_survives_response_into_body_until_stream_finishes() -> TestResult {
+    let probe = Arc::new(Mutex::new(None));
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ))
+    .merge(figment::Figment::new());
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(TestInstance(std::sync::Arc::new(ScopeProbe(Arc::clone(
+            &probe,
+        )))))
+        .provider(IdentityProvider::new(|_| {
+            Box::pin(async { Ok(Arc::new(RequestIdentity(7))) })
+        }))
+        .provider(TestRoutes::new(|routes| {
+            routes.get("/streamed-scope", streamed_scoped_identity)
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let router = build_router(&app)?;
+    let response = router
+        .oneshot(
+            Request::builder()
+                .uri("/streamed-scope")
+                .body(Body::empty())?,
+        )
+        .await?;
+    let mut body = response.into_body();
+    let scope = probe
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone()
+        .ok_or("missing scope")?;
+    assert_eq!(scope.resolve::<RequestIdentity>().await?.0, 7);
+    let first = futures_util::future::poll_fn(|cx| std::pin::Pin::new(&mut body).poll_frame(cx))
+        .await
+        .ok_or("missing first frame")??;
+    assert_eq!(
+        first.into_data().map_err(|_| "expected data")?.as_ref(),
+        b"7"
+    );
+    assert_eq!(scope.resolve::<RequestIdentity>().await?.0, 7);
+    let second = futures_util::future::poll_fn(|cx| std::pin::Pin::new(&mut body).poll_frame(cx))
+        .await
+        .ok_or("missing second frame")??;
+    assert_eq!(
+        second.into_data().map_err(|_| "expected data")?.as_ref(),
+        b"next"
+    );
+    assert!(
+        futures_util::future::poll_fn(|cx| std::pin::Pin::new(&mut body).poll_frame(cx))
+            .await
+            .is_none()
+    );
+    assert_eq!(
+        scope
+            .resolve::<RequestIdentity>()
+            .await
+            .err()
+            .map(|error| error.code().to_owned()),
+        Some("scope_closed".to_owned())
+    );
+    Ok(())
+}
+
+async fn scoped_empty(
+    Extension(scope): Extension<Arc<Scope>>,
+    Inject(probe): Inject<ScopeProbe>,
+    Inject(_identity): Inject<RequestIdentity>,
+) -> Response {
+    *probe
+        .0
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(scope);
+    Response::new(Body::empty())
+}
+
+async fn scoped_error(
+    Extension(scope): Extension<Arc<Scope>>,
+    Inject(probe): Inject<ScopeProbe>,
+    Inject(_identity): Inject<RequestIdentity>,
+) -> Response {
+    *probe
+        .0
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(scope);
+    Response::new(Body::from_stream(futures_util::stream::once(async {
+        Err::<bytes::Bytes, _>(std::io::Error::other("stream failed"))
+    })))
+}
+
+async fn scoped_pending_body(
+    Extension(scope): Extension<Arc<Scope>>,
+    Inject(probe): Inject<ScopeProbe>,
+    Inject(_identity): Inject<RequestIdentity>,
+) -> Response {
+    *probe
+        .0
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(scope);
+    Response::new(Body::from_stream(futures_util::stream::pending::<
+        std::result::Result<bytes::Bytes, std::io::Error>,
+    >()))
+}
+
+struct CancelScopeProbe {
+    scope: Arc<Mutex<Option<Arc<Scope>>>>,
+    ready: Arc<tokio::sync::Notify>,
+}
+
+async fn scoped_pending_handler(
+    Extension(scope): Extension<Arc<Scope>>,
+    Inject(probe): Inject<CancelScopeProbe>,
+    Inject(_identity): Inject<RequestIdentity>,
+) -> Response {
+    *probe
+        .scope
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(scope);
+    probe.ready.notify_one();
+    std::future::pending::<Response>().await
+}
+
+async fn scope_test_router(
+    probe: Arc<Mutex<Option<Arc<Scope>>>>,
+    ready: Arc<tokio::sync::Notify>,
+) -> openrust::Result<axum::Router> {
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ))
+    .merge(figment::Figment::new());
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(TestInstance(std::sync::Arc::new(ScopeProbe(Arc::clone(
+            &probe,
+        )))))
+        .provider(TestInstance(std::sync::Arc::new(CancelScopeProbe {
+            scope: probe,
+            ready,
+        })))
+        .provider(IdentityProvider::new(|_| {
+            Box::pin(async { Ok(Arc::new(RequestIdentity(7))) })
+        }))
+        .provider(TestRoutes::new(|routes| {
+            routes
+                .get("/empty", scoped_empty)
+                .get("/error", scoped_error)
+                .get("/pending-body", scoped_pending_body)
+                .get("/pending-handler", scoped_pending_handler)
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    build_router(&app)
+}
+
+fn observed_scope(probe: &Mutex<Option<Arc<Scope>>>) -> TestResultScope {
+    probe
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone()
+        .ok_or_else(|| "missing scope".into())
+}
+
+type TestResultScope = Result<Arc<Scope>, Box<dyn std::error::Error>>;
+
+#[tokio::test]
+async fn scope_closes_when_response_body_dropped_or_empty() -> TestResult {
+    for path in ["/pending-body", "/empty"] {
+        let probe = Arc::new(Mutex::new(None));
+        let router =
+            scope_test_router(Arc::clone(&probe), Arc::new(tokio::sync::Notify::new())).await?;
+        let response = router
+            .oneshot(Request::builder().uri(path).body(Body::empty())?)
+            .await?;
+        let body = response.into_body();
+        let scope = observed_scope(&probe)?;
+        assert_eq!(scope.resolve::<RequestIdentity>().await?.0, 7);
+        drop(body);
+        assert_eq!(
+            scope
+                .resolve::<RequestIdentity>()
+                .await
+                .err()
+                .map(|error| error.code().to_owned()),
+            Some("scope_closed".to_owned())
+        );
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn scope_closes_on_body_error_before_body_drop() -> TestResult {
+    let probe = Arc::new(Mutex::new(None));
+    let router =
+        scope_test_router(Arc::clone(&probe), Arc::new(tokio::sync::Notify::new())).await?;
+    let response = router
+        .oneshot(Request::builder().uri("/error").body(Body::empty())?)
+        .await?;
+    let mut body = response.into_body();
+    let scope = observed_scope(&probe)?;
+    assert!(
+        futures_util::future::poll_fn(|cx| std::pin::Pin::new(&mut body).poll_frame(cx))
+            .await
+            .ok_or("missing error frame")?
+            .is_err()
+    );
+    assert_eq!(
+        scope
+            .resolve::<RequestIdentity>()
+            .await
+            .err()
+            .map(|error| error.code().to_owned()),
+        Some("scope_closed".to_owned())
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn cancelling_handler_closes_scope_even_if_scope_is_retained() -> TestResult {
+    let probe = Arc::new(Mutex::new(None));
+    let ready = Arc::new(tokio::sync::Notify::new());
+    let router = scope_test_router(Arc::clone(&probe), Arc::clone(&ready)).await?;
+    let request = Request::builder()
+        .uri("/pending-handler")
+        .body(Body::empty())?;
+    let request = tokio::spawn(async move { router.oneshot(request).await });
+    ready.notified().await;
+    let scope = observed_scope(&probe)?;
+    assert_eq!(scope.resolve::<RequestIdentity>().await?.0, 7);
+    request.abort();
+    assert!(request.await.is_err());
+    assert_eq!(
+        scope
+            .resolve::<RequestIdentity>()
+            .await
+            .err()
+            .map(|error| error.code().to_owned()),
+        Some("scope_closed".to_owned())
+    );
+    Ok(())
+}
+
+#[derive(Debug)]
+struct RequestIdentity(usize);
+
+async fn scoped_identity(
+    Inject(first): Inject<RequestIdentity>,
+    Inject(second): Inject<RequestIdentity>,
+) -> String {
+    format!("{}:{}", first.0, second.0)
+}
+
+#[tokio::test]
+async fn inject_resolves_async_scoped_factory_once_per_request() -> TestResult {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ))
+    .merge(figment::Figment::new());
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder.provider(HttpServiceProvider);
+    builder.provider(IdentityProvider::new({
+        let calls = Arc::clone(&calls);
+        move |_| {
+            let calls = Arc::clone(&calls);
+            Box::pin(async move {
+                tokio::task::yield_now().await;
+                Ok(Arc::new(RequestIdentity(
+                    calls.fetch_add(1, Ordering::SeqCst) + 1,
+                )))
+            })
+        }
+    }));
+    builder.provider(TestRoutes::new(|routes| {
+        routes.get("/scoped-identity", scoped_identity)
+    }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let router = build_router(&app)?;
+    for expected in ["1:1", "2:2"] {
+        let response = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/scoped-identity")
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), 1024).await?;
+        assert_eq!(body.as_ref(), expected.as_bytes());
+    }
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+    Ok(())
+}
 
 fn is_utc_rfc3339(value: &serde_json::Value) -> bool {
     let Some(value) = value.as_str() else {
@@ -93,11 +425,13 @@ async fn router_with_config(config: FrameworkConfig) -> openrust::Result<axum::R
 }
 
 async fn router_with_exact_config(config: FrameworkConfig) -> openrust::Result<axum::Router> {
-    let mut builder = AppBuilder::new(config, figment::Figment::new());
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(config))
+        .merge(figment::Figment::new());
+    let mut builder = openrust::core::ProviderBuilder::new();
     builder
-        .plugin(HttpPlugin)
-        .insert(Greeting("hello"))
-        .routes(|r| {
+        .provider(HttpServiceProvider)
+        .provider(TestInstance(std::sync::Arc::new(Greeting("hello"))))
+        .provider(TestRoutes::new(|r| {
             r.nest("/api", |api| {
                 api.get("/greet", greet)
                     .post("/posts", create)
@@ -116,8 +450,11 @@ async fn router_with_exact_config(config: FrameworkConfig) -> openrust::Result<a
                     .get("/page", page)
                     .get("/limited", limited)
             })
-        });
-    let app = finalize(builder).await?;
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
     build_router(&app)
 }
 
@@ -217,16 +554,23 @@ async fn health_and_request_id_are_installed_by_the_plugin() -> TestResult {
 
 #[tokio::test]
 async fn app_builder_http_layer_wraps_routes() -> TestResult {
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment::Figment::new());
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ))
+    .merge(figment::Figment::new());
+    let mut builder = openrust::core::ProviderBuilder::new();
     builder
-        .plugin(HttpPlugin)
-        .http_layer(axum::middleware::from_fn(add_shared_extension))
-        .routes(|routes| {
+        .provider(HttpServiceProvider)
+        .provider(SharedHttpLayer)
+        .provider(TestRoutes::new(|routes| {
             routes
                 .get("/shared", global_layer_value)
                 .get("/plain-error", global_layer_value)
-        });
-    let app = finalize(builder).await?;
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
     let response = build_router(&app)?
         .oneshot(Request::get("/shared").body(Body::empty())?)
         .await?;
@@ -278,12 +622,21 @@ async fn route_rate_limit_uses_scoped_custom_keys_and_returns_retry_after() -> T
     });
     let mut config = FrameworkConfig::default();
     config.api.http_status = openrust::config::HttpStatusMode::Semantic;
-    let mut builder = AppBuilder::new(config, figment::Figment::new());
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(config))
+        .merge(figment::Figment::new());
+    let mut builder = openrust::core::ProviderBuilder::new();
     builder
-        .plugin(HttpPlugin)
-        .insert(RateLimiter::new(TestRateStore::default()))
-        .routes(move |routes| routes.get("/limited", rate_limited_ok).layer(layer.layer()));
-    let app = finalize(builder).await?;
+        .provider(HttpServiceProvider)
+        .provider(TestInstance(std::sync::Arc::new(RateLimiter::new(
+            TestRateStore::default(),
+        ))))
+        .provider(TestRoutes::new(move |routes| {
+            routes.get("/limited", rate_limited_ok).layer(layer.layer())
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
     let router = build_router(&app)?;
 
     let first = router
@@ -322,22 +675,76 @@ async fn route_rate_limit_uses_scoped_custom_keys_and_returns_retry_after() -> T
     Ok(())
 }
 
+#[tokio::test]
+async fn rate_limit_and_handler_share_the_request_scoped_factory() -> TestResult {
+    struct ScopedLimiter(Arc<AtomicUsize>);
+    impl openrust::core::ServiceProvider for ScopedLimiter {
+        fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
+            let calls = Arc::clone(&self.0);
+            app.scoped::<RateLimiter, _>(move |_| {
+                let calls = Arc::clone(&calls);
+                Box::pin(async move {
+                    calls.fetch_add(1, Ordering::SeqCst);
+                    Ok(Arc::new(RateLimiter::new(TestRateStore::default())))
+                })
+            });
+            Ok(())
+        }
+    }
+    async fn handler(Inject(_limiter): Inject<RateLimiter>) -> &'static str {
+        "ok"
+    }
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(ScopedLimiter(Arc::clone(&calls)))
+        .provider(TestRoutes::new(|routes| {
+            routes.get("/scoped-limit", handler).layer(
+                RateLimitLayer::with_key("scope", 10, Duration::from_secs(60), |_| {
+                    Ok("one".to_owned())
+                })
+                .layer(),
+            )
+        }));
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let response = build_router(&app)?
+        .oneshot(Request::get("/scoped-limit").body(Body::empty())?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    Ok(())
+}
+
 #[cfg(feature = "auth")]
 #[tokio::test]
 async fn authenticated_rate_limit_rejects_a_missing_identity() -> TestResult {
     let layer = RateLimitLayer::by_user("profile:read", 10, Duration::from_secs(60));
     let mut config = FrameworkConfig::default();
     config.api.http_status = openrust::config::HttpStatusMode::Semantic;
-    let mut builder = AppBuilder::new(config, figment::Figment::new());
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(config))
+        .merge(figment::Figment::new());
+    let mut builder = openrust::core::ProviderBuilder::new();
     builder
-        .plugin(HttpPlugin)
-        .insert(RateLimiter::new(TestRateStore::default()))
-        .routes(move |routes| {
+        .provider(HttpServiceProvider)
+        .provider(TestInstance(std::sync::Arc::new(RateLimiter::new(
+            TestRateStore::default(),
+        ))))
+        .provider(TestRoutes::new(move |routes| {
             routes
                 .get("/limited-user", rate_limited_ok)
                 .layer(layer.layer())
-        });
-    let app = finalize(builder).await?;
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
     let response = build_router(&app)?
         .oneshot(Request::get("/limited-user").body(Body::empty())?)
         .await?;
@@ -364,7 +771,7 @@ async fn inject_of_unregistered_service_is_a_envelope_not_a_panic() -> TestResul
         .await?;
     assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
     let body = json_body(response).await;
-    assert_eq!(body["code"], "internal_error");
+    assert_eq!(body["code"], "service_not_bound");
     assert_eq!(body["message"], "internal server error");
     Ok(())
 }
@@ -1248,4 +1655,73 @@ async fn always_ok_maps_extractor_errors_and_timeout_to_envelopes() -> TestResul
         assert_eq!(body["success"], false);
     }
     Ok(())
+}
+
+struct TestInstance<T: Send + Sync + 'static>(std::sync::Arc<T>);
+impl<T: Send + Sync + 'static> openrust::core::ServiceProvider for TestInstance<T> {
+    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
+        app.instance(std::sync::Arc::clone(&self.0));
+        Ok(())
+    }
+}
+
+struct TestRoutes<F>(std::sync::Arc<F>);
+impl<F: Fn(openrust::http::Routes) -> openrust::http::Routes> TestRoutes<F> {
+    fn new(routes: F) -> Self {
+        Self(std::sync::Arc::new(routes))
+    }
+}
+impl<F> openrust::core::ServiceProvider for TestRoutes<F>
+where
+    F: Fn(openrust::http::Routes) -> openrust::http::Routes + Send + Sync + 'static,
+{
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut openrust::core::BootContext<'_>,
+    ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
+        let routes = std::sync::Arc::clone(&self.0);
+        Box::pin(async move {
+            app.routes(move |value| routes(value))?;
+            Ok(())
+        })
+    }
+}
+
+type IdentityFactory = dyn Fn(
+        openrust::core::container::Resolver,
+    ) -> openrust::BoxFuture<'static, openrust::Result<Arc<RequestIdentity>>>
+    + Send
+    + Sync;
+struct IdentityProvider(std::sync::Arc<IdentityFactory>);
+impl IdentityProvider {
+    fn new(
+        factory: impl Fn(
+            openrust::core::container::Resolver,
+        )
+            -> openrust::BoxFuture<'static, openrust::Result<Arc<RequestIdentity>>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Self {
+        Self(Arc::new(factory))
+    }
+}
+impl openrust::core::ServiceProvider for IdentityProvider {
+    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
+        let factory = Arc::clone(&self.0);
+        app.scoped::<RequestIdentity, _>(move |resolver| factory(resolver));
+        Ok(())
+    }
+}
+struct SharedHttpLayer;
+impl openrust::core::ServiceProvider for SharedHttpLayer {
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut openrust::core::BootContext<'_>,
+    ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.http_layer(axum::middleware::from_fn(add_shared_extension))?;
+            Ok(())
+        })
+    }
 }

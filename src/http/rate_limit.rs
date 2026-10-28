@@ -133,7 +133,14 @@ async fn enforce(
         Err(error) => return error.into_response(),
     };
     let key = format!("{}:{identity}", policy.scope);
-    let limiter = match state.try_get::<RateLimiter>() {
+    let resolved = match request
+        .extensions()
+        .get::<std::sync::Arc<crate::core::container::Scope>>()
+    {
+        Some(scope) => scope.resolve::<RateLimiter>().await,
+        None => state.resolve::<RateLimiter>().await,
+    };
+    let limiter = match resolved {
         Ok(limiter) => limiter,
         Err(error) => return error.into_response(),
     };

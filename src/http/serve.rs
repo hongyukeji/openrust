@@ -1,6 +1,5 @@
 //! HTTP 服务器生命周期与 `serve` 命令。
 
-use crate::core::lifecycle::BackgroundTasks;
 use crate::core::{App, AppState, BoxFuture, Command, Error, Result, shutdown_signal};
 use axum::Router;
 use std::net::SocketAddr;
@@ -80,9 +79,8 @@ where
     let result = tokio::select! {
         result = &mut server => {
             let task_result = if stop_background_tasks {
-                let tasks = state.background_tasks().stop();
                 let deadline = tokio::time::Instant::now() + timeout;
-                BackgroundTasks::join_until(tasks, deadline).await
+                state.shutdown_resources(deadline).await
             } else {
                 Ok(())
             };
@@ -97,18 +95,27 @@ where
         () = shutdown => {
             readiness.stop_accepting();
             #[cfg(feature = "realtime")]
-            if let Some(realtime) = state.get::<crate::realtime::Realtime>() {
-                realtime.begin_shutdown().await;
-            }
+            let realtime_shutdown = if state.container().contains::<crate::realtime::Realtime>() {
+                match state.resolve::<crate::realtime::Realtime>().await {
+                    Ok(realtime) => {
+                        realtime.begin_shutdown().await;
+                        Ok(())
+                    }
+                    Err(error) => Err(error),
+                }
+            } else {
+                Ok(())
+            };
             let deadline = tokio::time::Instant::now() + timeout;
             let _ = shutdown_tx.send(());
             let server_result = tokio::time::timeout_at(deadline, &mut server).await;
             let task_result = if stop_background_tasks {
-                let tasks = state.background_tasks().stop();
-                BackgroundTasks::join_until(tasks, deadline).await
+                state.shutdown_resources(deadline).await
             } else {
                 Ok(())
             };
+            #[cfg(feature = "realtime")]
+            realtime_shutdown?;
             if let Ok(result) = server_result {
                 result.map_err(Error::internal)?;
                 task_result
@@ -144,11 +151,11 @@ mod tests {
     use super::serve_listener;
     use crate::{
         config::FrameworkConfig,
-        core::{AppBuilder, Error, lifecycle},
-        http::{AppBuilderHttpExt, HttpPlugin, build_router, health::ServerReadiness},
+        core::{BootContext, BoxFuture, Error, ProviderBuilder, ServiceProvider},
+        http::{HttpServiceProvider, build_router, health::ServerReadiness},
     };
     use axum::{body::Body, http::Request};
-    use figment::Figment;
+    use figment::{Figment, providers::Serialized};
     use std::{io, net::SocketAddr, sync::Arc, time::Duration};
     use tokio::{
         io::{AsyncReadExt, AsyncWriteExt},
@@ -163,23 +170,77 @@ mod tests {
         release: Notify,
     }
 
+    struct BlockingRoutes(Arc<Probe>);
+
+    impl ServiceProvider for BlockingRoutes {
+        fn boot<'a>(
+            &'a self,
+            app: &'a mut BootContext<'_>,
+        ) -> BoxFuture<'a, crate::core::Result<()>> {
+            Box::pin(async move {
+                let probe = Arc::clone(&self.0);
+                app.routes(move |routes| {
+                    let probe = Arc::clone(&probe);
+                    routes.get("/blocked", move || {
+                        let probe = Arc::clone(&probe);
+                        async move {
+                            probe.started.notify_one();
+                            probe.release.notified().await;
+                            "finished"
+                        }
+                    })
+                })?;
+                Ok(())
+            })
+        }
+    }
+
+    struct ManagedTaskProvider {
+        started: Arc<Notify>,
+        stopped: Arc<Notify>,
+    }
+
+    impl ServiceProvider for ManagedTaskProvider {
+        fn boot<'a>(
+            &'a self,
+            app: &'a mut BootContext<'_>,
+        ) -> BoxFuture<'a, crate::core::Result<()>> {
+            Box::pin(async move {
+                let started = Arc::clone(&self.started);
+                let stopped = Arc::clone(&self.stopped);
+                app.resources().spawn(move |cancellation| async move {
+                    started.notify_one();
+                    cancellation.cancelled().await;
+                    stopped.notify_one();
+                })
+            })
+        }
+    }
+
     async fn app(shutdown_timeout_secs: u64, probe: Arc<Probe>) -> crate::core::Result<crate::App> {
+        app_with_task(shutdown_timeout_secs, probe, None).await
+    }
+
+    async fn app_with_task(
+        shutdown_timeout_secs: u64,
+        probe: Arc<Probe>,
+        task: Option<(Arc<Notify>, Arc<Notify>)>,
+    ) -> crate::core::Result<crate::App> {
         let mut config = FrameworkConfig::default();
         config.server.shutdown_timeout_secs = shutdown_timeout_secs;
         config.api.http_status = crate::config::HttpStatusMode::Semantic;
-        let mut builder = AppBuilder::new(config, Figment::new());
-        builder.plugin(HttpPlugin).routes(move |routes| {
-            let probe = Arc::clone(&probe);
-            routes.get("/blocked", move || {
-                let probe = Arc::clone(&probe);
-                async move {
-                    probe.started.notify_one();
-                    probe.release.notified().await;
-                    "finished"
-                }
-            })
-        });
-        lifecycle::finalize(builder).await
+        let mut builder = ProviderBuilder::new();
+        builder
+            .provider(HttpServiceProvider)
+            .provider(BlockingRoutes(probe));
+        if let Some((started, stopped)) = task {
+            builder.provider(ManagedTaskProvider { started, stopped });
+        }
+        crate::core::App::from_provider_runtime(
+            builder
+                .start(Figment::from(Serialized::defaults(config)))
+                .await?,
+        )
     }
 
     async fn send_request(address: SocketAddr, path: &str) -> io::Result<TcpStream> {
@@ -203,21 +264,16 @@ mod tests {
     #[tokio::test]
     async fn readiness_changes_after_bind_and_before_graceful_drain() -> crate::core::Result<()> {
         let probe = Arc::new(Probe::default());
-        let app = app(2, Arc::clone(&probe)).await?;
         let task_started = Arc::new(Notify::new());
         let task_stopped = Arc::new(Notify::new());
-        let started_signal = Arc::clone(&task_started);
-        let stopped_signal = Arc::clone(&task_stopped);
-        app.state()
-            .background_tasks()
-            .handle()
-            .spawn(move |cancellation| async move {
-                started_signal.notify_one();
-                cancellation.cancelled().await;
-                stopped_signal.notify_one();
-            })?;
+        let app = app_with_task(
+            2,
+            Arc::clone(&probe),
+            Some((Arc::clone(&task_started), Arc::clone(&task_stopped))),
+        )
+        .await?;
         task_started.notified().await;
-        let readiness = app.state().try_get::<ServerReadiness>()?;
+        let readiness = app.state().resolve::<ServerReadiness>().await?;
         let router = build_router(&app)?;
         let listener = TcpListener::bind("127.0.0.1:0")
             .await
@@ -293,7 +349,7 @@ mod tests {
     async fn non_cooperative_request_is_aborted_at_shutdown_deadline() -> crate::core::Result<()> {
         let probe = Arc::new(Probe::default());
         let app = app(1, Arc::clone(&probe)).await?;
-        let readiness = app.state().try_get::<ServerReadiness>()?;
+        let readiness = app.state().resolve::<ServerReadiness>().await?;
         let router = build_router(&app)?;
         let listener = TcpListener::bind("127.0.0.1:0")
             .await
@@ -359,10 +415,14 @@ mod tests {
         let mut config = FrameworkConfig::default();
         config.server.host = address.ip().to_string();
         config.server.port = address.port();
-        let mut builder = AppBuilder::new(config, Figment::new());
-        builder.plugin(HttpPlugin);
-        let app = lifecycle::finalize(builder).await?;
-        assert!(!app.state().try_get::<ServerReadiness>()?.is_ready());
+        let mut builder = ProviderBuilder::new();
+        builder.provider(HttpServiceProvider);
+        let app = crate::core::App::from_provider_runtime(
+            builder
+                .start(Figment::from(Serialized::defaults(config)))
+                .await?,
+        )?;
+        assert!(!app.state().resolve::<ServerReadiness>().await?.is_ready());
         let response = build_router(&app)?
             .oneshot(
                 Request::get("/ready")
@@ -376,7 +436,7 @@ mod tests {
             axum::http::StatusCode::SERVICE_UNAVAILABLE
         );
         assert!(super::serve(&app).await.is_err());
-        assert!(!app.state().try_get::<ServerReadiness>()?.is_ready());
+        assert!(!app.state().resolve::<ServerReadiness>().await?.is_ready());
         Ok(())
     }
 }

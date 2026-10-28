@@ -2,7 +2,7 @@
 
 OpenRust 框架的应用内核。
 
-## R2 容器基元
+## 容器与 Provider 生命周期
 
 `openrust::core::container` 提供 `ContainerBuilder`、`Container`、`Resolver` 与 `Scope`。`Resolver` 使用弱容器句柄，延迟解析时容器已释放则报告 `container_closed`，避免 singleton 保存解析器造成引用环。类型键支持 `dyn Trait`，`bind` 每次创建，`singleton` 同容器共享，`scoped` 同生命周期共享，`instance` 注册已有 `Arc`。同类型后注册覆盖前定义；定义经 `build` 封闭，不使用 PHP 反射构造。
 
@@ -10,20 +10,19 @@ OpenRust 框架的应用内核。
 
 缓存工厂在成功、失败或取消时先结束构造帧并清除已结束的等待边，再发布结果；已完成服务不再创建等待关系。scope关闭和根reset的唤醒、用户值释放都在容器内部锁之外执行，允许Waker同步重入。
 
-本阶段仅提供基元，**尚未接入生产 AppBuilder/Plugin、HTTP/队列自动 scope 或异步资源关闭**。`Scope::close()` 与 root reset 当前仅关闭解析并释放缓存；不能用于宣称连接池/后台任务已经异步清理。统一 `ServiceProvider` 切换时替换旧注册表与循环，不提供双运行模式。
+生产 `bootstrap` 使用同一 `Container`：`Application::providers` 给出清单，`ProviderBuilder` 先执行所有 `register`，再合并基础配置、顺序执行 `boot`，最后校验配置与贡献并解析必需服务。请求 `Inject<T>` 先从请求 `Scope` 异步解析；命令与 Provider 使用根容器。`AppState::get<T>` 仅同步读取已就绪的实例，首次工厂构造使用 `resolve<T>().await`。应用、请求 scope、受管任务和连接池通过 `ResourceOwner` 在共同期限内关闭，错误不会静默忽略。
 
 ## 当前应用启动资产
 
 其他 OpenRust package 所依赖的核心契约包括：
 
 - [`Application`]：项目实现一次该 trait，用于描述应用的组装方式。
-- [`AppBuilder`] / [`App`] / [`AppState`]：编译期组装的应用与类型化服务注册表。Handler 和命令显式获取所需服务，不使用运行时容器或反射。`insert` / `command` 的同类重复注册由后注册项替换；需要拒绝冲突时使用 `try_insert` / `try_command`。
-- [`Plugin`]：框架能力、应用模块和第三方 package 的统一扩展点。宿主按静态顺序运行 `build` 并异步调用 `finish`；依赖插件可用 `try_get` 检查前序服务。应用拥有受控的后台刷新任务；`App::run_command` 与 HTTP `serve` 结束时合作取消、限时 join，见 `openrust::cache` 的 SWR 契约。
+- [`ProviderBuilder`] / [`ServiceProvider`] / [`App`] / [`AppState`]：框架、应用模块和第三方 package 使用同一扩展点与容器。`register` 声明绑定和配置区段，`boot` 贡献路由、命令及 middleware。依赖可在所有注册完成后解析；配置覆盖在最终校验前仍可提交。`App::run_command` 允许同一应用依次执行命令；顶层 CLI 在命令结束后调用 `App::shutdown`，HTTP `serve` 在退出时合作取消、限时回收受管资源。
 - [`Command`]：应用二进制对外提供的运行时命令（`serve`、`migrate`、`queue work` 等）。命令默认拒绝额外参数；接受参数的命令须实现 `accepts_args`。
 - [`Error`] / [`Result`] / [`ApiResponse<T>`] / [`PageMeta`]：统一错误类型、JSON 响应封装和类型化分页元数据。
 - [`ExecutionContext`] / [`ExecutionMetadata`] / [`Cancellation`]：单次 HTTP、命令或 Job 尝试的 task-local 关联信息、时间预算和合作取消；task-local 不自动传播至 `tokio::spawn`。
 - [`RateLimiter`] / [`RateLimitStore`]：固定窗口配额服务契约。存储故障向上传播；超限请求返回 429 和 `Retry-After`；每种实现都需说明共享范围与原子性边界。
-- [`Readiness`]：进程 listener 生命周期状态，并允许插件注册有界异步依赖探针；HTTP `/ready` 聚合探针结果，`is_ready()` 本身仍只表示 listener 状态。
+- [`Readiness`]：进程 listener 生命周期状态，并允许 Provider 注册有界异步依赖探针；HTTP `/ready` 聚合探针结果，`is_ready()` 本身仍只表示 listener 状态。
 - `config`：类型化配置按领域组织在 `openrust::config::{app,api,auth,database,logger,mailer,server}`，并由统一加载器合并：crate 默认值 → 根 `config/*.toml` 按文件名排序读取 → 应用工作目录 `.env` → 进程环境变量。领域文件如 `app.toml`、`server.toml`、`cache.toml`；环境差异与密钥放 `.env` 或部署环境变量，不再按环境拆 TOML。`APP_NAME`、`APP_URL` 可直接配置应用名与地址。若进程尚未设置 `APP_ENV`，启动引导阶段先从 `.env` 选择环境。进程环境变量优先；未显式选择目录且默认 `config/` 不存在时可使用内置默认；显式目录缺失、为空、非目录或不可读均失败，已发现的 TOML 必须可读且格式有效。错误、`Debug` 和引导日志不回显目录原值。`APP_CONFIG_DIR` 用于指定运行时 TOML 目录；`src/config/` 仅存放 Rust 配置代码。`Application::config_namespace()` 可选用其他有效前缀，如 `SHOP_`；只读取选定的命名空间。旧配置按领域重新导出以保持兼容。
 - [`lifecycle`]：启动顺序、优雅停机信号与应用后台刷新任务回收。
 
@@ -35,7 +34,7 @@ HTTP 响应使用 `ApiResponse<T>`，包含 `success`、稳定的 `code`、安�
 
 `RateLimiter::check(key, limit, window)` 会在已注册的 `RateLimitStore` 中计入一次请求，并返回剩余配额；超限时返回带 `Retry-After` 的 429 错误。核心契约不决定 HTTP 身份提取方式或 middleware 策略。调用方应按策略命名 key，并对同一个 key 使用一致的时间窗口；存储故障不会被当成未超限。数据库 store 保存 SHA-256 摘要而非原始 key，但无法阻止对低熵值的猜测。
 
-`FrameworkConfig.i18n` 定义 locale 默认值。`I18nPlugin` 会注册不可变的 `I18n` 服务；HTTP middleware 解析 `Accept-Language`，并为当前 task 设置请求 locale。框架响应和内置 validator 规则消息使用该 locale，同时保留错误码与字段路径。应用消息可从 JSON 资源合并，并通过 `RequestLocale` 翻译；普通 `{name}` 文本保持兼容，也可用有限 `plural` / `select` 分支。`I18n::format_number` 接受精确十进制字符串；`format_date` 接受已按业务时区确定的日期，`format_datetime` 按传入 Chrono 值的本地墙上时间格式化。显式 task scope 使用 `I18n::with_locale`。
+`FrameworkConfig.i18n` 定义 locale 默认值。`I18nServiceProvider` 注册共享 `I18n` 服务；HTTP middleware 解析 `Accept-Language`，并为当前 task 设置请求 locale。框架响应和内置 validator 规则消息使用该 locale，同时保留错误码与字段路径。应用消息可从 JSON 资源合并，并通过 `RequestLocale` 翻译；普通 `{name}` 文本保持兼容，也可用有限 `plural` / `select` 分支。`I18n::format_number` 接受精确十进制字符串；`format_date` 接受已按业务时区确定的日期，`format_datetime` 按传入 Chrono 值的本地墙上时间格式化。显式 task scope 使用 `I18n::with_locale`。
 
 `openrust::validation::validate(value)` 可在命令与 typed Job 中复用 HTTP `Validated<T>` 的 validator 错误转换。`ExecutionContext::current()` 读取单次调用的 metadata、剩余 budget 与 cancellation；子调用 deadline 不超过父级，子 timeout 不会取消父级。队列只允许有界 request ID 和 locale 入库，不序列化身份或请求凭据；见 [ADR-044](../../.agents/project/decisions/adr-044-cross-protocol-execution-context.md)。
 
@@ -58,6 +57,6 @@ HTTP 响应使用 `ApiResponse<T>`，包含 `success`、稳定的 `code`、安�
 
 `plural` 使用 ICU/CLDR 类别键（`zero`、`one`、`two`、`few`、`many`、`other`），`select` 按参数精确匹配有限字符串键；两者都必须提供 `other`。缺少参数或分支时走 `other`，模板中缺少的 `{name}` 仍保留原占位符。地区格式使用 ICU4X 编译数据，无效十进制或不可格式化日期返回错误，不会改写 API 数值字段。
 
-邮件支持 `LocalizedEmail`，可使用显式选择的 locale 从共享 i18n catalog 渲染主题和正文；其他格式仍可通过自定义 `Email` 实现。SMS 使用 `openrust::sms::{SmsMessage, SmsSender, SmsPlugin}` 和公开的 `SmsDriver` 契约。默认 log driver 仅用于本地；`sms-twilio` 会启用 Twilio Messages adapter 和有界共享 HTTP client。生产环境拒绝 log driver。成功 receipt 仅表示供应商接受请求；异步队列重试和最终送达跟踪是独立能力。
+邮件支持 `LocalizedEmail`，可使用显式选择的 locale 从共享 i18n catalog 渲染主题和正文；其他格式仍可通过自定义 `Email` 实现。SMS 使用 `openrust::sms::{SmsMessage, SmsSender, SmsServiceProvider}` 和公开的 `SmsDriver` 契约。默认 log driver 仅用于本地；`sms-twilio` 会启用 Twilio Messages adapter 和有界共享 HTTP client。生产环境拒绝 log driver。成功 receipt 仅表示供应商接受请求；异步队列重试和最终送达跟踪是独立能力。
 
 `ConfigLoader::figment()` 现在返回 `Result<Figment, ConfigError>`，直接调用者使用 `?` 传播来源错误；`load`/`load_framework` 使用同一失败语义。此行为不修改领域默认值、环境变量优先级或具名driver配置。

@@ -6,21 +6,22 @@ use std::{
 };
 
 use openrust::{
-    AppBuilder, Application, BoxFuture, Error, NoConfig, Result, ServiceExt,
+    Application, BoxFuture, Error, NoConfig, Result, ServiceExt,
     auth::{
-        AuthCredential, AuthLayer, AuthMode, AuthPlugin, AuthPrincipal, Authenticator, CurrentUser,
+        AuthCredential, AuthLayer, AuthMode, AuthPrincipal, AuthServiceProvider, Authenticator,
+        CurrentUser,
     },
     config::{FrameworkConfig, HttpStatusMode, RealtimeConfig},
-    core::lifecycle::finalize,
     http::{
-        AppBuilderHttpExt, HttpPlugin,
+        HttpServiceProvider,
         axum::{
             body::Body,
             http::{Request, StatusCode, header},
             response::Response,
         },
     },
-    prelude::{Inject, Realtime, RealtimePlugin},
+    prelude::{Inject, Realtime},
+    realtime::RealtimeServiceProvider,
 };
 
 type TestResult = Result<(), Box<dyn StdError>>;
@@ -49,17 +50,21 @@ impl Authenticator for AuthenticatorForTest {
 impl Application for RealtimeHttpApp {
     type Config = NoConfig;
 
-    fn build(app: &mut AppBuilder) {
-        app.plugin(HttpPlugin)
-            .plugin(AuthPlugin::with_authenticator(AuthenticatorForTest))
-            .plugin(RealtimePlugin::with_config(
+    fn providers(_config: &Self::Config) -> Vec<Box<dyn openrust::core::ServiceProvider>> {
+        vec![
+            Box::new(HttpServiceProvider),
+            Box::new(AuthServiceProvider::with_authenticator(
+                AuthenticatorForTest,
+            )),
+            Box::new(RealtimeServiceProvider::with_config(
                 RealtimeConfig::new().with_allowed_origins(["https://app.example".to_owned()]),
-            ))
-            .routes(|routes| {
+            )),
+            Box::new(TestRoutes::new(|routes| {
                 routes
                     .get("/api/realtime/sse", sse)
                     .layer(AuthLayer::required(AuthMode::PersonalAccessToken))
-            });
+            })),
+        ]
     }
 }
 
@@ -85,10 +90,17 @@ async fn sse(
 async fn assembled_app() -> Result<openrust::App> {
     let mut config = FrameworkConfig::default();
     config.api.http_status = HttpStatusMode::Semantic;
-    let mut builder = AppBuilder::new(config, figment::Figment::new());
-    builder.insert(NoConfig {});
-    RealtimeHttpApp::build(&mut builder);
-    finalize(builder).await
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(config))
+        .merge(figment::Figment::new());
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder.app_config::<NoConfig>();
+    for provider in RealtimeHttpApp::providers(&NoConfig {}) {
+        builder.boxed_provider(provider);
+    }
+    builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)
 }
 
 #[openrust::tokio::test]
@@ -133,4 +145,26 @@ async fn http_auth_origin_and_sse_headers_are_enforced() -> TestResult {
     assert_eq!(accepted.headers()["x-accel-buffering"], "no");
     drop(accepted);
     Ok(())
+}
+
+struct TestRoutes<F>(std::sync::Arc<F>);
+impl<F: Fn(openrust::http::Routes) -> openrust::http::Routes> TestRoutes<F> {
+    fn new(routes: F) -> Self {
+        Self(std::sync::Arc::new(routes))
+    }
+}
+impl<F> openrust::core::ServiceProvider for TestRoutes<F>
+where
+    F: Fn(openrust::http::Routes) -> openrust::http::Routes + Send + Sync + 'static,
+{
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut openrust::core::BootContext<'_>,
+    ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
+        let routes = std::sync::Arc::clone(&self.0);
+        Box::pin(async move {
+            app.routes(move |value| routes(value))?;
+            Ok(())
+        })
+    }
 }

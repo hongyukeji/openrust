@@ -4,16 +4,19 @@
 use figment::Figment;
 use figment::providers::{Format, Toml};
 use openrust::config::FrameworkConfig;
+use openrust::core::lifecycle;
 use openrust::core::{
-    App, AppBuilder, BoxFuture, Cancellation, Error, ExecutionContext, ExecutionMetadata,
-    Result as FrameworkResult, lifecycle,
+    App, BoxFuture, Cancellation, Error, ExecutionContext, ExecutionMetadata,
+    Result as FrameworkResult,
 };
 use openrust::database::{
-    DatabasePlugin, Db, DbBackend,
+    DatabaseServiceProvider, Db, DbBackend,
     sea_orm::Statement,
     sea_orm_migration::{MigrationTrait, MigratorTrait},
 };
-use openrust::queue::{DispatchOptions, Job, JobContext, Queue, QueueMigration, QueuePlugin};
+use openrust::queue::{
+    DispatchOptions, Job, JobContext, Queue, QueueMigration, QueueServiceProvider,
+};
 use sea_orm::ConnectionTrait;
 use std::process::{Command, Stdio};
 use std::sync::OnceLock;
@@ -137,14 +140,29 @@ async fn build_app(url: &str) -> FrameworkResult<App> {
         "[database]\nurl = {url:?}\n[queue]\npoll_interval_millis = 20\nlease_secs = 1\njob_timeout_secs = 60\nworker_concurrency = 1\nshutdown_timeout_secs = 2\n"
     );
     let figment = Figment::new().merge(Toml::string(&source));
-    let mut queue_plugin = QueuePlugin::default();
-    queue_plugin.register_job::<CrashProbe>()?;
-    queue_plugin.register_job::<ShutdownProbe>()?;
-    queue_plugin.register_job::<StaleLeaseProbe>()?;
-    queue_plugin.register_job::<TenantRetryProbe>()?;
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment);
-    builder.plugin(DatabasePlugin).plugin(queue_plugin);
-    lifecycle::finalize(builder).await
+    let queue_plugin = QueueServiceProvider::new();
+    queue_plugin.contributions().register_job::<CrashProbe>()?;
+    queue_plugin
+        .contributions()
+        .register_job::<ShutdownProbe>()?;
+    queue_plugin
+        .contributions()
+        .register_job::<StaleLeaseProbe>()?;
+    queue_plugin
+        .contributions()
+        .register_job::<TenantRetryProbe>()?;
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ))
+    .merge(figment);
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(DatabaseServiceProvider)
+        .provider(queue_plugin);
+    builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)
 }
 
 #[tokio::test]
@@ -156,7 +174,7 @@ async fn tenant_metadata_survives_a_separate_worker_process_and_retry()
     };
     let database = openrust::testing::TestDatabase::create::<QueueMigrator>(&admin_url).await?;
     let app = build_app(database.url()).await?;
-    let queue = app.state().try_get::<Queue>()?;
+    let queue = app.state().resolve::<Queue>().await?;
     let queue_name = format!("tenant-process-{}", std::process::id());
     let execution = ExecutionContext::new(
         ExecutionMetadata::default().with_traceparent(QUEUE_TRACEPARENT)?,
@@ -206,9 +224,9 @@ async fn tenant_metadata_survives_a_separate_worker_process_and_retry()
 
     tokio::time::sleep(Duration::from_millis(1_100)).await;
     let retry_app = build_app(database.url()).await?;
-    let retry_queue = retry_app.state().try_get::<Queue>()?;
+    let retry_queue = retry_app.state().resolve::<Queue>().await?;
     assert!(retry_queue.run_next(&queue_name).await?);
-    let db = retry_app.state().try_get::<Db>()?;
+    let db = retry_app.state().resolve::<Db>().await?;
     let jobs = db.quoted_table_name("jobs")?;
     let backend = db.backend()?;
     let query = match backend {
@@ -245,8 +263,8 @@ async fn worker_sigterm_drains_cooperative_handler_and_times_out_other_handlers(
     let database = openrust::testing::TestDatabase::create::<QueueMigrator>(&admin_url).await?;
     for (cooperative, disconnect_on_cancel) in [(true, false), (false, false), (true, true)] {
         let app = build_app(database.url()).await?;
-        let queue = app.state().try_get::<Queue>()?;
-        let db = app.state().try_get::<Db>()?;
+        let queue = app.state().resolve::<Queue>().await?;
+        let db = app.state().resolve::<Db>().await?;
         let queue_name = format!("drain-{cooperative}-{disconnect_on_cancel}");
         let job_id = queue
             .dispatch_with_options(
@@ -284,7 +302,7 @@ async fn worker_sigterm_drains_cooperative_handler_and_times_out_other_handlers(
             .stderr(Stdio::inherit())
             .spawn()?;
         let observe = build_app(database.url()).await?;
-        let db = observe.state().try_get::<Db>()?;
+        let db = observe.state().resolve::<Db>().await?;
         let backend = db.backend()?;
         let table = db.quoted_table_name("jobs")?;
         let query = match backend {
@@ -320,7 +338,7 @@ async fn worker_sigterm_drains_cooperative_handler_and_times_out_other_handlers(
             let _ = child.wait();
             return Err("worker did not start the shutdown probe".into());
         }
-        let observe_queue = observe.state().try_get::<Queue>()?;
+        let observe_queue = observe.state().resolve::<Queue>().await?;
         let pending_id = observe_queue
             .dispatch_with_options(
                 &queue_name,
@@ -420,8 +438,8 @@ async fn stale_worker_token_cannot_acknowledge_a_reclaimed_job()
     };
     let database = openrust::testing::TestDatabase::create::<QueueMigrator>(&admin_url).await?;
     let app = build_app(database.url()).await?;
-    let queue = app.state().try_get::<Queue>()?;
-    let db = app.state().try_get::<Db>()?;
+    let queue = app.state().resolve::<Queue>().await?;
+    let db = app.state().resolve::<Db>().await?;
     let queue_name = format!("stale{}", std::process::id());
     let job_id = queue
         .dispatch_with_options(
@@ -499,7 +517,7 @@ async fn child_queue_worker_drains_on_sigterm() -> Result<(), Box<dyn std::error
     };
     let cooperative = cooperative.parse::<bool>()?;
     let app = build_app(&url).await?;
-    let db = app.state().try_get::<Db>()?;
+    let db = app.state().resolve::<Db>().await?;
     let _ = SHUTDOWN_TEST_DB.set((*db).clone());
     match app
         .run_command("queue", vec!["work".into(), queue_name])
@@ -528,8 +546,8 @@ async fn process_crash_releases_job_after_lease_expiry() -> Result<(), Box<dyn s
     let test_database =
         openrust::testing::TestDatabase::create::<QueueMigrator>(&admin_url).await?;
     let app = build_app(test_database.url()).await?;
-    let queue = app.state().try_get::<Queue>()?;
-    let db = app.state().try_get::<Db>()?;
+    let queue = app.state().resolve::<Queue>().await?;
+    let db = app.state().resolve::<Db>().await?;
     let queue_name = format!("crash{}", std::process::id());
     let job_id = queue
         .dispatch_with_options(
@@ -624,7 +642,7 @@ async fn child_worker_holds_crash_probe() -> Result<(), Box<dyn std::error::Erro
         return Ok(());
     };
     let app = build_app(&url).await?;
-    let queue = app.state().try_get::<Queue>()?;
+    let queue = app.state().resolve::<Queue>().await?;
     if !queue.run_next(&queue_name).await? {
         return Err("child worker could not claim probe job".into());
     }
@@ -642,7 +660,7 @@ async fn child_worker_processes_tenant_retry_probe() -> Result<(), Box<dyn std::
     let config = FrameworkConfig::default();
     lifecycle::init_tracing(&config.log);
     let app = build_app(&url).await?;
-    let queue = app.state().try_get::<Queue>()?;
+    let queue = app.state().resolve::<Queue>().await?;
     if !queue.run_next(&queue_name).await? {
         return Err("child worker could not claim tenant retry probe".into());
     }

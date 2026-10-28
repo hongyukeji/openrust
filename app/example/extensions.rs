@@ -1,6 +1,6 @@
 //! 缓存与通信扩展的参考源码，尚未声明模块、接入生产或通过 Cargo 验收。
 //!
-//! 后续按统一 ServiceProvider 契约改写并挂载；本文件中的旧 Plugin 用法不作为最终接口。
+//! Provider 入口仍需由应用显式挂载。
 //! 捕获驱动仅供本地演示和测试。
 
 use std::{
@@ -12,9 +12,9 @@ use std::{
 use async_trait::async_trait;
 use openrust::{
     BoxFuture, Error, Result,
-    cache::{CacheBackend, CacheDriver, CacheDriverConfig, CacheDrivers, CacheScope},
+    cache::{Cache, CacheBackend, CacheDriver, CacheDriverConfig, CacheScope},
     config::Environment,
-    core::{AppBuilder, Plugin},
+    core::{BootContext, RegisterContext, ServiceProvider},
     mail::{Email, MailDriver, Mailer, lettre::Message},
     sms::{SmsDriver, SmsMessage, SmsReceipt, SmsSender},
 };
@@ -22,11 +22,10 @@ use serde::Deserialize;
 use tokio::sync::Mutex;
 
 /// 注册业务缓存 driver；仅配置选择 `example-prefix` 的 store 才会实例化它。
-pub struct PrefixCachePlugin;
-
-impl Plugin for PrefixCachePlugin {
-    fn build(&self, app: &mut AppBuilder) -> Result<()> {
-        app.extension_mut::<CacheDrivers>().register(PrefixDriver)
+pub struct PrefixCacheServiceProvider;
+impl ServiceProvider for PrefixCacheServiceProvider {
+    fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move { app.resolve::<Cache>().await?.extend(PrefixDriver) })
     }
 }
 
@@ -37,28 +36,36 @@ impl CacheDriver for PrefixDriver {
         "example-prefix"
     }
 
+    fn validate(&self, config: &CacheDriverConfig) -> Result<()> {
+        for name in config.option_names() {
+            if name != "key_prefix" {
+                return Err(Error::custom(
+                    "example_cache_option_invalid",
+                    format!("cache.stores.{}.{name} 不受支持", config.store_name()),
+                ));
+            }
+        }
+        let prefix = config
+            .option::<String>("key_prefix")?
+            .unwrap_or_else(|| config.store_name().to_owned());
+        if prefix.trim().is_empty() {
+            return Err(Error::custom(
+                "example_cache_prefix_invalid",
+                format!("cache.stores.{}.key_prefix 不能为空", config.store_name()),
+            ));
+        }
+        Ok(())
+    }
+
     fn build<'a>(
         &'a self,
         config: &'a CacheDriverConfig,
     ) -> BoxFuture<'a, Result<Arc<dyn CacheBackend>>> {
         Box::pin(async move {
-            for name in config.option_names() {
-                if name != "key_prefix" {
-                    return Err(Error::custom(
-                        "example_cache_option_invalid",
-                        format!("cache.stores.{}.{name} 不受支持", config.store_name()),
-                    ));
-                }
-            }
+            self.validate(config)?;
             let prefix = config
                 .option::<String>("key_prefix")?
                 .unwrap_or_else(|| config.store_name().to_owned());
-            if prefix.trim().is_empty() {
-                return Err(Error::custom(
-                    "example_cache_prefix_invalid",
-                    format!("cache.stores.{}.key_prefix 不能为空", config.store_name()),
-                ));
-            }
             Ok(Arc::new(PrefixBackend {
                 prefix,
                 values: Mutex::new(HashMap::new()),
@@ -137,45 +144,93 @@ impl CapturedDeliveries {
     }
 }
 
-/// 显式替换通信服务的本地测试插件，不能与内建通信插件同时安装。
-pub struct LocalCapturePlugin {
+/// 显式替换通信服务的本地测试 Provider。
+pub struct LocalCaptureServiceProvider {
     captured: CapturedDeliveries,
 }
-
-impl LocalCapturePlugin {
+impl LocalCaptureServiceProvider {
     /// 由调用方持有捕获句柄，用于断言业务实际提交的消息。
     pub fn new(captured: CapturedDeliveries) -> Self {
         Self { captured }
     }
 }
-
 #[derive(Deserialize)]
 struct DriverSelection {
     driver: String,
 }
-
-impl Plugin for LocalCapturePlugin {
-    fn build(&self, app: &mut AppBuilder) -> Result<()> {
-        if app.config().app.env == Environment::Production {
-            return Err(Error::custom(
-                "example_capture_production_forbidden",
-                "production 禁止本地捕获通信驱动；请显式配置真实供应商",
-            ));
+fn validate_capture(
+    app: &openrust::config::AppConfig,
+    mail: &DriverSelection,
+    sms: &DriverSelection,
+) -> Result<()> {
+    if app.env == Environment::Production {
+        return Err(Error::custom(
+            "example_capture_production_forbidden",
+            "production 禁止本地捕获通信驱动",
+        ));
+    }
+    if mail.driver != "example-capture" || sms.driver != "example-capture" {
+        return Err(Error::custom(
+            "example_capture_driver_invalid",
+            "本地捕获需要 mail.driver 与 sms.driver 均选择 example-capture",
+        ));
+    }
+    Ok(())
+}
+impl ServiceProvider for LocalCaptureServiceProvider {
+    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
+        use openrust::config::repository::SectionSchema as S;
+        for section in ["mail", "sms"] {
+            app.config_section(
+                section,
+                serde_json::json!({}),
+                S::object([("driver", S::String)]),
+                |value: &serde_json::Value| {
+                    if value.get("driver").and_then(serde_json::Value::as_str)
+                        != Some("example-capture")
+                    {
+                        return Err(Error::custom(
+                            "example_capture_driver_invalid",
+                            "本地捕获需要选择 example-capture",
+                        ));
+                    }
+                    Ok(())
+                },
+            )?;
         }
-        let mail: DriverSelection = app.section("mail")?;
-        let sms: DriverSelection = app.section("sms")?;
-        if mail.driver != "example-capture" || sms.driver != "example-capture" {
-            return Err(Error::custom(
-                "example_capture_driver_invalid",
-                format!(
-                    "本地插件要求 mail.driver=example-capture、sms.driver=example-capture；当前 mail.driver={}、sms.driver={}",
-                    mail.driver, sms.driver,
-                ),
-            ));
-        }
-        app.try_insert(Mailer::new(CaptureMailDriver(self.captured.clone())))?;
-        app.try_insert(SmsSender::new(CaptureSmsDriver(self.captured.clone())))?;
+        let captured = self.captured.clone();
+        app.singleton::<Mailer, _>(move |_| {
+            let captured = captured.clone();
+            Box::pin(async move { Ok(Arc::new(Mailer::new(CaptureMailDriver(captured)))) })
+        });
+        let captured = self.captured.clone();
+        app.singleton::<SmsSender, _>(move |_| {
+            let captured = captured.clone();
+            Box::pin(async move { Ok(Arc::new(SmsSender::new(CaptureSmsDriver(captured)))) })
+        });
         Ok(())
+    }
+    fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            validate_capture(
+                &app.section("app")?,
+                &app.section("mail")?,
+                &app.section("sms")?,
+            )?;
+            app.resolve::<Mailer>().await?;
+            app.resolve::<SmsSender>().await?;
+            let config = app.config_repository();
+            app.validate_at_finalize(move || {
+                Box::pin(async move {
+                    validate_capture(
+                        &config.section("app")?,
+                        &config.section("mail")?,
+                        &config.section("sms")?,
+                    )
+                })
+            });
+            Ok(())
+        })
     }
 }
 
@@ -237,25 +292,27 @@ impl Email for WelcomeEmail {
 mod tests {
     use std::time::Duration;
 
-    use super::{CapturedDeliveries, LocalCapturePlugin, PrefixCachePlugin, WelcomeEmail};
+    use super::{
+        CapturedDeliveries, LocalCaptureServiceProvider, PrefixCacheServiceProvider, WelcomeEmail,
+    };
     use figment::{
         Figment,
         providers::{Format, Toml},
     };
     use openrust::{
         Result,
-        cache::{Cache, CachePlugin, CacheScope},
+        cache::{Cache, CacheScope, CacheServiceProvider},
         config::{Environment, FrameworkConfig},
-        core::{AppBuilder, lifecycle},
+        core::ProviderBuilder,
         mail::Mailer,
         sms::{SmsContent, SmsMessage, SmsSender},
     };
 
-    fn builder(config: &str) -> AppBuilder {
-        AppBuilder::new(
+    fn sources(config: &str) -> Figment {
+        Figment::from(figment::providers::Serialized::defaults(
             FrameworkConfig::default(),
-            Figment::new().merge(Toml::string(config)),
-        )
+        ))
+        .merge(Toml::string(config))
     }
 
     const CACHE_CONFIG: &str = r#"
@@ -279,11 +336,13 @@ driver = "example-capture"
 
     #[tokio::test]
     async fn custom_named_store_preserves_crud_ttl_and_default_store() -> Result<()> {
-        let mut builder = builder(CACHE_CONFIG);
-        builder.plugin(CachePlugin).plugin(PrefixCachePlugin);
-        let app = lifecycle::finalize(builder).await?;
-        let cache = app.state().try_get::<Cache>()?;
-        let workshop = cache.store("workshop")?;
+        let mut builder = ProviderBuilder::new();
+        builder
+            .provider(CacheServiceProvider::new())
+            .provider(PrefixCacheServiceProvider);
+        let app = builder.start(sources(CACHE_CONFIG)).await?;
+        let cache = app.container().resolve::<Cache>().await?;
+        let workshop = cache.store("workshop").await?;
         assert_eq!(workshop.scope(), CacheScope::Process);
         assert!(workshop.tagged(&["lessons"]).is_err());
 
@@ -324,24 +383,26 @@ driver = "example-capture"
             CACHE_CONFIG.replace("key_prefix = \"lesson\"", "key_prefix = \" \""),
             CACHE_CONFIG.replace("key_prefix = \"lesson\"", "key_prefix = 42"),
         ] {
-            let mut builder = builder(&config);
-            builder.plugin(CachePlugin).plugin(PrefixCachePlugin);
-            assert!(lifecycle::finalize(builder).await.is_err());
+            let mut builder = ProviderBuilder::new();
+            builder
+                .provider(CacheServiceProvider::new())
+                .provider(PrefixCacheServiceProvider);
+            assert!(builder.start(sources(&config)).await.is_err());
         }
-        let mut builder = builder(CACHE_CONFIG);
-        builder.plugin(CachePlugin);
-        assert!(lifecycle::finalize(builder).await.is_err());
+        let mut builder = ProviderBuilder::new();
+        builder.provider(CacheServiceProvider::new());
+        assert!(builder.start(sources(CACHE_CONFIG)).await.is_err());
     }
 
     #[tokio::test]
     async fn public_communication_services_capture_business_content_without_delivery() -> Result<()>
     {
         let captured = CapturedDeliveries::default();
-        let mut builder = builder(CAPTURE_CONFIG);
-        builder.plugin(LocalCapturePlugin::new(captured.clone()));
-        let app = lifecycle::finalize(builder).await?;
-        let mailer = app.state().try_get::<Mailer>()?;
-        let sms = app.state().try_get::<SmsSender>()?;
+        let mut builder = ProviderBuilder::new();
+        builder.provider(LocalCaptureServiceProvider::new(captured.clone()));
+        let app = builder.start(sources(CAPTURE_CONFIG)).await?;
+        let mailer = app.container().resolve::<Mailer>().await?;
+        let sms = app.container().resolve::<SmsSender>().await?;
 
         mailer
             .send(&WelcomeEmail::new("learner@example.test"))
@@ -363,8 +424,8 @@ driver = "example-capture"
             messages[0].content(),
             &SmsContent::Text("课程已发布".into())
         );
-        assert!(captured.take_mail().await.is_empty());
-        assert!(captured.take_sms().await.is_empty());
+        assert!(matches!(captured.take_mail().await.as_slice(), []));
+        assert!(matches!(captured.take_sms().await.as_slice(), []));
 
         assert!(
             mailer
@@ -376,16 +437,37 @@ driver = "example-capture"
         Ok(())
     }
 
+    struct InvalidCaptureOverlay;
+    impl openrust::core::ServiceProvider for InvalidCaptureOverlay {
+        fn boot<'a>(
+            &'a self,
+            app: &'a mut openrust::core::BootContext<'_>,
+        ) -> openrust::BoxFuture<'a, Result<()>> {
+            Box::pin(async move { app.overlay("mail", serde_json::json!({"driver": "log"})) })
+        }
+    }
     #[tokio::test]
-    async fn capture_plugin_rejects_production_and_unselected_drivers() {
+    async fn capture_rejects_later_driver_overlay() {
+        let mut builder = ProviderBuilder::new();
+        builder
+            .provider(LocalCaptureServiceProvider::new(
+                CapturedDeliveries::default(),
+            ))
+            .provider(InvalidCaptureOverlay);
+        assert!(builder.start(sources(CAPTURE_CONFIG)).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn capture_provider_rejects_production_and_unselected_drivers() {
         let mut production = FrameworkConfig::default();
         production.app.env = Environment::Production;
-        let mut builder = AppBuilder::new(
-            production,
-            Figment::new().merge(Toml::string(CAPTURE_CONFIG)),
-        );
-        builder.plugin(LocalCapturePlugin::new(CapturedDeliveries::default()));
-        assert!(lifecycle::finalize(builder).await.is_err());
+        let config = Figment::from(figment::providers::Serialized::defaults(production))
+            .merge(Toml::string(CAPTURE_CONFIG));
+        let mut builder = ProviderBuilder::new();
+        builder.provider(LocalCaptureServiceProvider::new(
+            CapturedDeliveries::default(),
+        ));
+        assert!(builder.start(config).await.is_err());
 
         for config in [
             CAPTURE_CONFIG.replace(
@@ -397,9 +479,11 @@ driver = "example-capture"
                 "[sms]\ndriver = \"log\"",
             ),
         ] {
-            let mut builder = self::builder(&config);
-            builder.plugin(LocalCapturePlugin::new(CapturedDeliveries::default()));
-            assert!(lifecycle::finalize(builder).await.is_err());
+            let mut builder = ProviderBuilder::new();
+            builder.provider(LocalCaptureServiceProvider::new(
+                CapturedDeliveries::default(),
+            ));
+            assert!(builder.start(sources(&config)).await.is_err());
         }
     }
 }

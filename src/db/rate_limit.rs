@@ -83,7 +83,8 @@ fn migration_table_alias(
 ) -> std::result::Result<Alias, DbErr> {
     let names = crate::db::DatabaseTableNames::current().ok_or_else(|| {
         DbErr::Migration(
-            "database rate-limit migration requires MigrationPlugin or TestDatabase scope".into(),
+            "database rate-limit migration requires MigrationServiceProvider or TestDatabase scope"
+                .into(),
         )
     })?;
     names

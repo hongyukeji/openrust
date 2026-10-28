@@ -19,7 +19,7 @@ use icu_plurals::{PluralOperands, PluralRules};
 use serde::{Deserialize, Serialize};
 
 use crate::config::ConfigError;
-use crate::core::{AppBuilder, Error, Plugin, Result};
+use crate::core::{Error, Result};
 
 /// 应用消息目录使用的规范语言标签。
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -642,36 +642,91 @@ fn format_error(locale: &Locale, error: impl std::fmt::Display) -> I18nFormatErr
     }
 }
 
-/// 将已配置的国际化服务安装到应用状态中。
+/// 注册配置驱动的国际化服务；应用可提供自定义消息目录。
+///
 #[derive(Default)]
-pub struct I18nPlugin {
-    config: Option<I18nConfig>,
+pub struct I18nServiceProvider {
     catalog: MessageCatalog,
 }
 
-impl I18nPlugin {
-    /// 使用应用专属消息目录和默认语言创建插件。
-    pub fn new(config: I18nConfig, catalog: MessageCatalog) -> Result<Self, ConfigError> {
-        I18n::new(config.clone(), catalog.clone())?;
-        Ok(Self {
-            config: Some(config),
-            catalog,
+impl I18nServiceProvider {
+    /// 使用应用的消息目录；语言配置始终从当前配置仓储读取。
+    pub fn new(catalog: MessageCatalog) -> Self {
+        Self { catalog }
+    }
+}
+
+impl crate::core::ServiceProvider for I18nServiceProvider {
+    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
+        use crate::config::repository::SectionSchema;
+        app.config_section(
+            "i18n",
+            I18nConfig::default(),
+            SectionSchema::object([
+                ("default_locale", SectionSchema::String),
+                ("fallback_locale", SectionSchema::String),
+            ]),
+            |_| Ok(()),
+        )?;
+        let catalog = self.catalog.clone();
+        app.singleton::<I18n, _>(move |resolver| {
+            let catalog = catalog.clone();
+            Box::pin(async move {
+                let config = resolver.section::<I18nConfig>("i18n")?;
+                Ok(Arc::new(I18n::new(config, catalog)?))
+            })
+        });
+        app.require::<I18n>();
+        Ok(())
+    }
+
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut crate::core::BootContext<'_>,
+    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            let _ = app.resolve::<I18n>().await?;
+            Ok(())
         })
     }
 }
 
-impl Plugin for I18nPlugin {
-    fn name(&self) -> &'static str {
-        "i18n"
+#[cfg(test)]
+mod provider_tests {
+    use super::*;
+    use crate::core::{BootContext, BoxFuture, ProviderBuilder, ServiceProvider};
+    use figment::{Figment, providers::Serialized};
+    use serde_json::json;
+
+    struct ChangeLocale;
+    impl ServiceProvider for ChangeLocale {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move { app.overlay("i18n", json!({"default_locale": "zh-CN"})) })
+        }
     }
 
-    fn build(&self, app: &mut AppBuilder) -> Result<()> {
-        let config = self
-            .config
-            .clone()
-            .unwrap_or_else(|| app.config().i18n.clone());
-        app.insert(I18n::new(config, self.catalog.clone())?);
-        Ok(())
+    #[tokio::test]
+    async fn provider_factory_reads_current_overlay() -> Result<()> {
+        let mut builder = ProviderBuilder::new();
+        builder
+            .provider(ChangeLocale)
+            .provider(I18nServiceProvider::default());
+        let runtime = builder.start(Figment::new()).await?;
+        let service = runtime.container().resolve::<I18n>().await?;
+        assert_eq!(service.locale_for_request(None).as_str(), "zh-CN");
+        runtime
+            .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
+            .await
+    }
+
+    #[tokio::test]
+    async fn provider_rejects_unsupported_configured_locale() {
+        let mut builder = ProviderBuilder::new();
+        builder.provider(I18nServiceProvider::default());
+        let sources = Figment::from(Serialized::defaults(
+            json!({"i18n": {"fallback_locale": "fr"}}),
+        ));
+        assert!(builder.start(sources).await.is_err());
     }
 }
 

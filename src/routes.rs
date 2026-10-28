@@ -1,19 +1,25 @@
 //! 框架 HTTP 路由注册与应用扩展入口。
 //!
-//! `Application::build` 和插件可通过 [`AppBuilderHttpExt::routes`] 按注册顺序追加路由，
-//! 并通过 [`AppBuilderHttpExt::http_layer`] 应用 Tower middleware。重复路由会在 router
-//! 装配时转换为启动错误。这里集中管理框架路由注册契约；具体业务路由仍由应用提供。
+//! `ServiceProvider::boot` 可通过 `BootContext::routes` 按注册顺序追加路由，
+//! 并通过 `BootContext::http_layer` 应用 Tower middleware。重复路由会在 router
+//! 装配时转换为启动错误；具体业务路由由应用 Provider 提供。
 
 use std::convert::Infallible;
 use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll};
 
-use crate::core::{ApiResponse, App, AppBuilder, AppState, Error, Plugin, Result};
+use crate::core::{ApiResponse, App, AppState, BootContext, Error, Result};
 use axum::Router;
+use axum::body::Body;
 use axum::extract::{Request, State};
 use axum::http::StatusCode;
 use axum::middleware::Next;
-use axum::response::Response;
+use axum::response::{IntoResponse, Response};
 use axum::routing::Route;
+use bytes::Bytes;
+use http_body::{Body as HttpBody, Frame, SizeHint};
 use tower::{Layer, Service};
 
 use crate::http::client_ip::validate_trusted_proxy_ranges;
@@ -64,42 +70,20 @@ impl RouteRegistry {
     }
 }
 
-/// 向 [`AppBuilder`] 添加路由和 Tower layer。
-pub trait AppBuilderHttpExt {
-    /// 提供路由。请在 [`Application::build`](crate::core::Application::build) 中调用，
-    /// 或在插件的 `build` 阶段调用；构建器按注册顺序运行。
-    fn routes<F>(&mut self, builder: F) -> &mut Self
-    where
-        F: Fn(Routes) -> Routes + Send + Sync + 'static;
-
-    /// 路由注册完成后，为所有路由添加 Tower layer。
-    ///
-    /// 能力插件可用此方法安装请求上下文 middleware，使其运行在路由级 layer 之外。
-    /// 默认 HTTP 响应/错误 middleware 仍运行在此 layer 之外。
-    fn http_layer<L>(&mut self, layer: L) -> &mut Self
-    where
-        L: Layer<Route> + Clone + Send + Sync + 'static,
-        L::Service: Service<Request, Response = Response, Error = Infallible>
-            + Clone
-            + Send
-            + Sync
-            + 'static,
-        <L::Service as Service<Request>>::Future:
-            Future<Output = Result<Response, Infallible>> + Send + 'static;
-}
-
-impl AppBuilderHttpExt for AppBuilder {
-    fn routes<F>(&mut self, builder: F) -> &mut Self
+impl BootContext<'_> {
+    /// 在 Provider boot 阶段贡献路由。
+    pub fn routes<F>(&mut self, builder: F) -> Result<&mut Self>
     where
         F: Fn(Routes) -> Routes + Send + Sync + 'static,
     {
-        self.extension_mut::<RouteRegistry>()
+        self.extension_mut::<RouteRegistry>()?
             .builders
             .push(Box::new(builder));
-        self
+        Ok(self)
     }
 
-    fn http_layer<L>(&mut self, layer: L) -> &mut Self
+    /// 在 Provider boot 阶段贡献共享 HTTP layer。
+    pub fn http_layer<L>(&mut self, layer: L) -> Result<&mut Self>
     where
         L: Layer<Route> + Clone + Send + Sync + 'static,
         L::Service: Service<Request, Response = Response, Error = Infallible>
@@ -110,75 +94,145 @@ impl AppBuilderHttpExt for AppBuilder {
         <L::Service as Service<Request>>::Future:
             Future<Output = Result<Response, Infallible>> + Send + 'static,
     {
-        self.extension_mut::<RouterLayerRegistry>()
+        self.extension_mut::<RouterLayerRegistry>()?
             .builders
             .push(Box::new(move |router| router.layer(layer.clone())));
-        self
+        Ok(self)
     }
 }
 
-/// 安装 HTTP 能力：`serve` 命令、默认 middleware 和 `GET /health`。
-///
-/// 应用通过 `app.plugin(HttpPlugin)` 显式安装。
-pub struct HttpPlugin;
+/// 声明 HTTP 服务，在 boot 阶段贡献 serve、健康探针与可选指标路由。
+pub struct HttpServiceProvider;
 
-#[derive(Clone, Copy)]
-struct HttpPluginInstalled;
-
-impl HttpPlugin {
-    #[cfg(feature = "grpc")]
-    pub(crate) fn require_installed(builder: &AppBuilder) -> Result<()> {
-        builder.try_get::<HttpPluginInstalled>().map(|_| ())
-    }
-
-    #[cfg(feature = "grpc")]
-    pub(crate) fn ensure_installed(app: &App) -> Result<()> {
-        app.state().try_get::<HttpPluginInstalled>().map(|_| ())
-    }
-}
-
-impl Plugin for HttpPlugin {
-    fn name(&self) -> &'static str {
-        "http"
-    }
-
-    fn build(&self, app: &mut AppBuilder) -> Result<()> {
-        let timeout = app.config().server.shutdown_timeout_secs;
-        if !(1..=3600).contains(&timeout) {
-            return Err(crate::config::ConfigError::Invalid(
-                "server.shutdown_timeout_secs must be 1..=3600 seconds".into(),
-            )
-            .into());
-        }
-        if !(1..=65_536).contains(&app.config().server.max_concurrent_requests) {
-            return Err(crate::config::ConfigError::Invalid(
-                "server.max_concurrent_requests must be 1..=65536".into(),
-            )
-            .into());
-        }
-        app.insert(health::ServerReadiness::default())
-            .insert(HttpPluginInstalled)
-            .command(ServeCommand)
-            .routes(health::routes);
-        if app.config().server.metrics_endpoint_enabled {
-            #[cfg(feature = "metrics")]
-            {
-                let _ = crate::http::metrics::initialize()?;
-                app.routes(crate::http::metrics::routes);
-            }
-            #[cfg(not(feature = "metrics"))]
-            return Err(crate::config::ConfigError::Invalid(
-                "server.metrics_endpoint_enabled requires the `metrics` feature".into(),
-            )
-            .into());
-        }
+impl crate::core::ServiceProvider for HttpServiceProvider {
+    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
+        use crate::config::repository::SectionSchema as Schema;
+        let strings = || Schema::array(Schema::String);
+        let schema = Schema::object([
+            ("host", Schema::String),
+            ("port", Schema::Integer),
+            ("public_dir", Schema::String),
+            ("root_target", Schema::String),
+            ("request_timeout_secs", Schema::Integer),
+            ("max_concurrent_requests", Schema::Integer),
+            ("shutdown_timeout_secs", Schema::Integer),
+            ("metrics_endpoint_enabled", Schema::Boolean),
+            ("trusted_proxy_ranges", strings()),
+            (
+                "compression",
+                Schema::object([("enabled", Schema::Boolean)]),
+            ),
+            (
+                "cors",
+                Schema::object([
+                    ("enabled", Schema::Boolean),
+                    ("allowed_origins", strings()),
+                    ("allowed_methods", strings()),
+                    ("allowed_headers", strings()),
+                    ("expose_headers", strings()),
+                    ("allow_credentials", Schema::Boolean),
+                    ("max_age_secs", Schema::Integer),
+                ]),
+            ),
+        ]);
+        app.config_section(
+            "server",
+            crate::config::ServerConfig::default(),
+            schema,
+            validate_http_config,
+        )?;
+        app.instance(Arc::new(health::ServerReadiness::default()));
+        app.instance(Arc::new(HttpPluginInstalled));
         Ok(())
     }
+
+    fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> crate::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            let config: crate::config::ServerConfig = app.section("server")?;
+            validate_http_config(&config)?;
+            validate_trusted_proxy_ranges(&config.trusted_proxy_ranges)?;
+            let _ = app.resolve::<health::ServerReadiness>().await?;
+            app.command(ServeCommand);
+            app.routes(health::routes)?;
+            if config.metrics_endpoint_enabled {
+                #[cfg(feature = "metrics")]
+                {
+                    let _ = crate::http::metrics::initialize()?;
+                    app.routes(crate::http::metrics::routes)?;
+                }
+                #[cfg(not(feature = "metrics"))]
+                return Err(crate::config::ConfigError::Invalid(
+                    "server.metrics_endpoint_enabled requires the `metrics` feature".into(),
+                )
+                .into());
+            }
+            Ok(())
+        })
+    }
 }
+
+fn validate_http_config(config: &crate::config::ServerConfig) -> Result<()> {
+    if !(1..=3600).contains(&config.shutdown_timeout_secs) {
+        return Err(crate::config::ConfigError::Invalid(
+            "server.shutdown_timeout_secs must be 1..=3600 seconds".into(),
+        )
+        .into());
+    }
+    if !(1..=65_536).contains(&config.max_concurrent_requests) {
+        return Err(crate::config::ConfigError::Invalid(
+            "server.max_concurrent_requests must be 1..=65536".into(),
+        )
+        .into());
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod provider_tests {
+    use super::*;
+    use figment::{Figment, providers::Serialized};
+    use serde_json::json;
+
+    #[tokio::test]
+    async fn http_provider_contributes_health_and_command() -> Result<()> {
+        let mut providers = crate::core::ProviderBuilder::new();
+        providers.provider(HttpServiceProvider);
+        let runtime = providers.start(Figment::new()).await?;
+        assert!(
+            runtime
+                .container()
+                .resolve::<health::ServerReadiness>()
+                .await
+                .is_ok()
+        );
+        assert_eq!(
+            runtime.extension::<RouteRegistry>().map(RouteRegistry::len),
+            Some(1)
+        );
+        assert!(runtime.commands().any(|command| command.name() == "serve"));
+        runtime
+            .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
+            .await
+    }
+
+    #[tokio::test]
+    async fn http_provider_rejects_invalid_server_config() {
+        let mut providers = crate::core::ProviderBuilder::new();
+        providers.provider(HttpServiceProvider);
+        let sources = Figment::from(Serialized::defaults(
+            json!({"server":{"max_concurrent_requests":0}}),
+        ));
+        assert!(providers.start(sources).await.is_err());
+    }
+}
+
+/// HTTP Provider 已安装的内部能力标记。
+#[derive(Clone, Copy)]
+pub(crate) struct HttpPluginInstalled;
 
 /// 根据所有已注册的路由构建最终 [`Router`]，并套用默认 middleware stack。
 ///
-/// 通过 [`AppBuilderHttpExt::routes`] 注册的路由若在组装时 panic（例如 Axum 检测到重复路由），
+/// 通过 `BootContext::routes` 注册的路由若在组装时 panic（例如 Axum 检测到重复路由），
 /// 此函数会将其转换为启动错误 `http_route_registration_failed`。直接调用底层 Axum 构建 API
 /// 不在此错误转换范围内。
 pub fn build_router(app: &App) -> Result<Router> {
@@ -227,29 +281,92 @@ async fn expose_app_state(
     mut request: Request,
     next: Next,
 ) -> Response {
+    let scope = match state.container().scope() {
+        Ok(scope) => Arc::new(scope),
+        Err(error) => return error.into_response(),
+    };
+    let mut close_on_cancel = ScopeCloseGuard(Some(Arc::clone(&scope)));
     request.extensions_mut().insert(state);
-    next.run(request).await
+    request.extensions_mut().insert(Arc::clone(&scope));
+    let response = next.run(request).await.map(|body| {
+        Body::new(ScopeBody {
+            inner: body,
+            scope: Some(scope),
+        })
+    });
+    // 响应 body 已接管关闭责任；handler future 取消时 guard 仍会同步封闭 scope。
+    close_on_cancel.0.take();
+    response
+}
+
+struct ScopeCloseGuard(Option<Arc<crate::core::container::Scope>>);
+
+impl Drop for ScopeCloseGuard {
+    fn drop(&mut self) {
+        if let Some(scope) = self.0.take() {
+            scope.close();
+        }
+    }
+}
+
+struct ScopeBody {
+    inner: Body,
+    scope: Option<Arc<crate::core::container::Scope>>,
+}
+
+impl ScopeBody {
+    fn close(&mut self) {
+        if let Some(scope) = self.scope.take() {
+            scope.close();
+        }
+    }
+}
+
+impl HttpBody for ScopeBody {
+    type Data = Bytes;
+    type Error = axum::Error;
+
+    fn poll_frame(
+        self: Pin<&mut Self>,
+        context: &mut Context<'_>,
+    ) -> Poll<Option<std::result::Result<Frame<Self::Data>, Self::Error>>> {
+        let this = self.get_mut();
+        let result = Pin::new(&mut this.inner).poll_frame(context);
+        if matches!(&result, Poll::Ready(None | Some(Err(_)))) {
+            this.close();
+        }
+        result
+    }
+
+    fn is_end_stream(&self) -> bool {
+        self.inner.is_end_stream()
+    }
+
+    fn size_hint(&self) -> SizeHint {
+        self.inner.size_hint()
+    }
+}
+
+impl Drop for ScopeBody {
+    fn drop(&mut self) {
+        self.close();
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::HttpPlugin;
-    use crate::{
-        config::FrameworkConfig,
-        core::{AppBuilder, lifecycle},
-    };
-    use figment::Figment;
+    use super::HttpServiceProvider;
+    use crate::core::ProviderBuilder;
+    use figment::{Figment, providers::Serialized};
 
     #[tokio::test]
-    async fn invalid_shutdown_timeout_fails_during_plugin_build() {
-        let mut config = FrameworkConfig::default();
-        config.server.shutdown_timeout_secs = 0;
-        let mut builder = AppBuilder::new(config, Figment::new());
-        builder.plugin(HttpPlugin);
-        let result = lifecycle::finalize(builder).await;
-        assert!(matches!(
-            result,
-            Err(ref error) if error.to_string().contains("server.shutdown_timeout_secs")
-        ));
+    async fn invalid_shutdown_timeout_fails_during_provider_boot() {
+        let mut providers = ProviderBuilder::new();
+        providers.provider(HttpServiceProvider);
+        let sources = Figment::from(Serialized::defaults(serde_json::json!({
+            "server": {"shutdown_timeout_secs": 0}
+        })));
+        let result = providers.start(sources).await;
+        assert!(result.is_err());
     }
 }

@@ -19,7 +19,7 @@ OPENRUST_REALTIME_TEST_REDIS_URL=redis://127.0.0.1:6379/ \
 
 ## 应用接入边界
 
-- 在应用中启用 `realtime`，安装 `RealtimePlugin`；需要跨节点路由时再启用 `realtime-redis` 并配置 Redis URL。
+- 在应用中启用 `realtime`，安装 `RealtimeServiceProvider`；需要跨节点路由时再启用 `realtime-redis` 并配置 Redis URL。
 - 应用自行注册端点、认证请求、检查 Origin 和授权频道。不得从客户端直接信任用户、租户或频道身份。
 - `Realtime::connect` 接收授权截止时间；应用应取凭据与业务授权两者中较早的截止时间。Session/PAT 或业务权限变更时，应用显式调用 `Realtime::revoke_user`。
 - WebSocket 仅处理在线服务端推送，不接受应用业务输入帧；SSE 不提供 `Last-Event-ID` 离线恢复。

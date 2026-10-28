@@ -7,16 +7,14 @@ use base64::Engine as _;
 #[cfg(feature = "session-redis")]
 use openrust::auth::RedisSessionStore;
 use openrust::auth::{
-    AuthCredential, AuthLayer, AuthMode, AuthPlugin, AuthPrincipal, AuthSource, Authenticator,
-    CurrentUser, JwtConfig, JwtPlugin, JwtTokens, OptionalUser, Session, SessionConfig,
-    SessionPlugin,
+    AuthCredential, AuthLayer, AuthMode, AuthPrincipal, AuthServiceProvider, AuthSource,
+    Authenticator, CurrentUser, JwtServiceProvider, JwtTokens, OptionalUser, Session,
+    SessionConfig, SessionServiceProvider,
 };
 use openrust::http::axum::body::{Body, to_bytes};
 use openrust::http::axum::http::{Request, StatusCode};
-use openrust::http::{AppBuilderHttpExt, HttpPlugin, Inject, Json, Routes, build_router};
-use openrust::{
-    AppBuilder, BoxFuture, Error, Plugin, Result, config::FrameworkConfig, lifecycle::finalize,
-};
+use openrust::http::{HttpServiceProvider, Inject, Json, Routes, build_router};
+use openrust::{BoxFuture, Error, Result, config::FrameworkConfig};
 use tower::ServiceExt;
 use tower_sessions::MemoryStore;
 #[cfg(feature = "session-redis")]
@@ -98,24 +96,32 @@ async fn jwt_user(user: CurrentUser) -> Result<Json<String>> {
 async fn jwt_authentication_uses_the_configured_key_ring_without_session_middleware() -> TestResult
 {
     let key = base64::engine::general_purpose::STANDARD.encode([0x53_u8; 32]);
-    let jwt = JwtConfig::new(
+    let jwt = JwtSettings::new(
         "https://issuer.example",
         "runtime-tests",
         "active",
-        [("active".to_owned(), key)].into_iter().collect(),
+        &[("active".to_owned(), key)].into_iter().collect(),
     );
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment::Figment::new());
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ))
+    .merge(figment::Figment::new());
+    let mut builder = openrust::core::ProviderBuilder::new();
     builder
-        .plugin(HttpPlugin)
-        .plugin(JwtPlugin::with_config(jwt))
-        .plugin(AuthPlugin::with_authenticator(FakeAuthenticator))
-        .routes(|routes| {
+        .provider(HttpServiceProvider)
+        .provider(jwt)
+        .provider(JwtServiceProvider)
+        .provider(AuthServiceProvider::with_authenticator(FakeAuthenticator))
+        .provider(TestRoutes::new(|routes| {
             routes
                 .get("/jwt", jwt_user)
                 .layer(AuthLayer::required(AuthMode::Jwt))
-        });
-    let app = finalize(builder).await?;
-    let tokens = app.state().try_get::<JwtTokens>()?;
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let tokens = app.state().resolve::<JwtTokens>().await?;
     let token = tokens.issue_access_token(73)?;
     let response = build_router(&app)?
         .oneshot(
@@ -172,20 +178,27 @@ fn current_routes(routes: Routes) -> Routes {
 
 #[cfg(feature = "session-redis")]
 async fn build_redis_session_app(store: RedisSessionStore) -> Result<openrust::App> {
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment::Figment::new());
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ))
+    .merge(figment::Figment::new());
+    let mut builder = openrust::core::ProviderBuilder::new();
     builder
-        .plugin(HttpPlugin)
-        .plugin(AuthPlugin::with_authenticator(FakeAuthenticator))
-        .plugin(
-            SessionPlugin::with_store(store).with_cookie_config(SessionConfig {
+        .provider(HttpServiceProvider)
+        .provider(AuthServiceProvider::with_authenticator(FakeAuthenticator))
+        .provider(
+            SessionServiceProvider::with_store(store).with_cookie_config(SessionConfig {
                 secure: false,
                 ttl_secs: 30,
                 ..SessionConfig::default()
             }),
         )
-        .insert(Marker("injected"))
-        .routes(current_routes);
-    finalize(builder).await
+        .provider(TestInstance(std::sync::Arc::new(Marker("injected"))))
+        .provider(TestRoutes::new(current_routes));
+    builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)
 }
 
 fn optional_routes(routes: Routes) -> Routes {
@@ -195,20 +208,32 @@ fn optional_routes(routes: Routes) -> Routes {
         .get("/session", create_test_session)
 }
 
-async fn build_app(routes: fn(Routes) -> Routes, auth: AuthPlugin) -> Result<openrust::App> {
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment::Figment::new());
+async fn build_app(
+    routes: fn(Routes) -> Routes,
+    auth: AuthServiceProvider,
+) -> Result<openrust::App> {
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ))
+    .merge(figment::Figment::new());
+    let mut builder = openrust::core::ProviderBuilder::new();
     builder
-        .plugin(HttpPlugin)
-        .plugin(auth)
-        .plugin(
-            SessionPlugin::with_store(MemoryStore::default()).with_cookie_config(SessionConfig {
-                secure: false,
-                ..SessionConfig::default()
-            }),
+        .provider(HttpServiceProvider)
+        .provider(auth)
+        .provider(
+            SessionServiceProvider::with_store(MemoryStore::default()).with_cookie_config(
+                SessionConfig {
+                    secure: false,
+                    ..SessionConfig::default()
+                },
+            ),
         )
-        .insert(Marker("injected"))
-        .routes(routes);
-    finalize(builder).await
+        .provider(TestInstance(std::sync::Arc::new(Marker("injected"))))
+        .provider(TestRoutes::new(routes));
+    builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)
 }
 
 async fn payload(
@@ -222,7 +247,7 @@ async fn payload(
 async fn current_user_and_injected_service_share_the_route_request() -> TestResult {
     let app = build_app(
         current_routes,
-        AuthPlugin::with_authenticator(FakeAuthenticator),
+        AuthServiceProvider::with_authenticator(FakeAuthenticator),
     )
     .await?;
     let router = build_router(&app)?;
@@ -243,7 +268,7 @@ async fn current_user_and_injected_service_share_the_route_request() -> TestResu
 async fn cookie_authentication_uses_the_shared_session_and_preserves_csrf_checks() -> TestResult {
     let app = build_app(
         current_routes,
-        AuthPlugin::with_authenticator(FakeAuthenticator),
+        AuthServiceProvider::with_authenticator(FakeAuthenticator),
     )
     .await?;
     let router = build_router(&app)?;
@@ -509,7 +534,7 @@ async fn verify_redis_session_store_lifecycle(
 async fn optional_identity_is_anonymous_only_when_selected_credentials_are_absent() -> TestResult {
     let app = build_app(
         optional_routes,
-        AuthPlugin::with_authenticator(FakeAuthenticator),
+        AuthServiceProvider::with_authenticator(FakeAuthenticator),
     )
     .await?;
     let router = build_router(&app)?;
@@ -532,9 +557,17 @@ async fn optional_identity_is_anonymous_only_when_selected_credentials_are_absen
 
 #[tokio::test]
 async fn default_database_authenticator_requires_database_at_startup() -> TestResult {
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment::Figment::new());
-    builder.plugin(AuthPlugin::new());
-    let Err(error) = finalize(builder).await else {
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ))
+    .merge(figment::Figment::new());
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder.provider(AuthServiceProvider::new());
+    let Err(error) = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)
+    else {
         return Err("default auth plugin started without its database".into());
     };
     assert!(error.to_string().contains("openrust::db::Db"), "{error}");
@@ -543,39 +576,112 @@ async fn default_database_authenticator_requires_database_at_startup() -> TestRe
 
 #[tokio::test]
 async fn auth_plugin_rejects_invalid_password_capacity_during_startup() -> TestResult {
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment::Figment::new());
-    builder.plugin(
-        AuthPlugin::with_authenticator(FakeAuthenticator).with_password_operation_capacity(0),
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ))
+    .merge(figment::Figment::new());
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder.provider(
+        AuthServiceProvider::with_authenticator(FakeAuthenticator)
+            .with_password_operation_capacity(0),
     );
-    let Err(error) = finalize(builder).await else {
+    let Err(error) = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)
+    else {
         return Err("auth plugin accepted a zero password operation capacity".into());
     };
-    assert!(error.to_string().contains("max_concurrent_operations"));
+    match error {
+        Error::ServiceInitialization { source, .. } => {
+            assert!(source.to_string().contains("max_concurrent_operations"));
+        }
+        other => return Err(format!("unexpected capacity error: {other}").into()),
+    }
     Ok(())
 }
 
-struct DuplicateAuthService;
+#[tokio::test]
+async fn duplicate_auth_provider_keeps_first_authenticator() -> TestResult {
+    struct RejectAuthenticator;
+    impl Authenticator for RejectAuthenticator {
+        fn authenticate<'a>(
+            &'a self,
+            _: AuthCredential<'a>,
+        ) -> BoxFuture<'a, Result<AuthPrincipal>> {
+            Box::pin(async { Err(Error::Unauthorized) })
+        }
+    }
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(AuthServiceProvider::with_authenticator(FakeAuthenticator))
+        .provider(AuthServiceProvider::with_authenticator(RejectAuthenticator))
+        .provider(TestInstance(std::sync::Arc::new(Marker("first"))))
+        .provider(TestRoutes::new(current_routes));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let response = build_router(&app)?
+        .oneshot(
+            Request::get("/current")
+                .header("authorization", "Bearer pat-secret")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(payload(response).await?["data"], "42:first:true:true");
+    Ok(())
+}
 
-impl Plugin for DuplicateAuthService {
-    fn build(&self, app: &mut AppBuilder) -> Result<()> {
-        app.plugin(AuthPlugin::with_authenticator(FakeAuthenticator));
+struct TestInstance<T: Send + Sync + 'static>(std::sync::Arc<T>);
+impl<T: Send + Sync + 'static> openrust::core::ServiceProvider for TestInstance<T> {
+    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
+        app.instance(std::sync::Arc::clone(&self.0));
         Ok(())
     }
 }
 
-#[tokio::test]
-async fn duplicate_auth_plugin_is_rejected() -> TestResult {
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment::Figment::new());
-    builder
-        .plugin(AuthPlugin::with_authenticator(FakeAuthenticator))
-        .plugin(DuplicateAuthService);
-    let Err(error) = finalize(builder).await else {
-        return Err("duplicate auth plugin unexpectedly started".into());
-    };
-    assert!(
-        error
-            .to_string()
-            .contains("register only one authentication plugin")
-    );
-    Ok(())
+struct TestRoutes<F>(std::sync::Arc<F>);
+impl<F: Fn(openrust::http::Routes) -> openrust::http::Routes> TestRoutes<F> {
+    fn new(routes: F) -> Self {
+        Self(std::sync::Arc::new(routes))
+    }
+}
+impl<F> openrust::core::ServiceProvider for TestRoutes<F>
+where
+    F: Fn(openrust::http::Routes) -> openrust::http::Routes + Send + Sync + 'static,
+{
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut openrust::core::BootContext<'_>,
+    ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
+        let routes = std::sync::Arc::clone(&self.0);
+        Box::pin(async move {
+            app.routes(move |value| routes(value))?;
+            Ok(())
+        })
+    }
+}
+
+struct JwtSettings(serde_json::Value);
+impl JwtSettings {
+    fn new(
+        issuer: &str,
+        audience: &str,
+        active_key_id: &str,
+        keys: &std::collections::BTreeMap<String, String>,
+    ) -> Self {
+        Self(serde_json::json!({"issuer":issuer,"audience":audience,
+            "active_key_id":active_key_id,"keys":keys}))
+    }
+}
+impl openrust::core::ServiceProvider for JwtSettings {
+    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
+        app.merge_defaults("auth.jwt", self.0.clone())
+    }
 }

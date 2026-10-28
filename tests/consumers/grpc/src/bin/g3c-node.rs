@@ -3,8 +3,8 @@ use std::{env, net::SocketAddr, pin::Pin, time::Duration};
 use futures_util::{Stream, stream};
 use openrust::{
     config::{FrameworkConfig, GrpcConfig},
-    core::{AppBuilder, finalize},
-    grpc::{GrpcPlugin, GrpcServer, tonic},
+    core::{App, BootContext, BoxFuture, ProviderBuilder, ServiceProvider},
+    grpc::{GrpcServer, GrpcServiceProvider, GrpcServiceRegistry, tonic},
 };
 use tokio::net::TcpListener;
 use tonic::{Request, Response, Status};
@@ -73,6 +73,19 @@ impl Echo for NodeService {
     }
 }
 
+struct NodeProvider(String);
+impl ServiceProvider for NodeProvider {
+    fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, openrust::Result<()>> {
+        let id = self.0.clone();
+        Box::pin(async move {
+            app.extension_mut::<GrpcServiceRegistry>()?
+                .register::<EchoServer<NodeService>, _>(move |_| {
+                    EchoServer::new(NodeService { id: id.clone() })
+                })
+        })
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let id = env::var("G3C_NODE_ID")?;
@@ -89,16 +102,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ..FrameworkConfig::default()
     };
     config.server.shutdown_timeout_secs = 12;
-    let mut builder = AppBuilder::new(config, figment::Figment::new());
-    let service_id = id.clone();
-    GrpcPlugin::register_service::<EchoServer<NodeService>, _>(&mut builder, move |_| {
-        EchoServer::new(NodeService {
-            id: service_id.clone(),
-        })
-    })?;
-    builder.plugin(GrpcPlugin::new());
-    let app = finalize(builder).await?;
-    let server = GrpcServer::from_app(&app)?;
+    let mut builder = ProviderBuilder::new();
+    builder
+        .provider(GrpcServiceProvider::new())
+        .provider(NodeProvider(id.clone()));
+    let app = App::from_provider_runtime(
+        builder
+            .start(figment::Figment::from(
+                figment::providers::Serialized::defaults(config),
+            ))
+            .await?,
+    )?;
+    let server = GrpcServer::from_app(&app).await?;
     println!("NODE_READY={id} ADDRESS={bound_address}");
 
     let shutdown_node_id = id;

@@ -7,14 +7,18 @@ use figment::{
     providers::{Format, Toml},
 };
 use openrust::config::FrameworkConfig;
-use openrust::core::lifecycle::finalize;
-use openrust::http::{HttpPlugin, build_router};
-use openrust::view::{ViewPlugin, Views};
-use openrust::{AppBuilder, ServiceExt};
+
+use openrust::ServiceExt;
+use openrust::http::{HttpServiceProvider, build_router};
+use openrust::view::{ViewServiceProvider, Views};
 use serde::Serialize;
 use tempfile::tempdir;
 
-fn configured_app(directory: &std::path::Path, with_plugin: bool, auto_reload: bool) -> AppBuilder {
+async fn configured_app(
+    directory: &std::path::Path,
+    with_provider: bool,
+    auto_reload: bool,
+) -> openrust::Result<openrust::App> {
     let mut config = FrameworkConfig::default();
     "Example & Co".clone_into(&mut config.app.name);
     "view:index.html".clone_into(&mut config.server.root_target);
@@ -25,12 +29,16 @@ fn configured_app(directory: &std::path::Path, with_plugin: bool, auto_reload: b
     let figment = Figment::new().merge(Toml::string(&format!(
         "[view]\ndirectory = \"{directory}\"\nauto_reload = {auto_reload}"
     )));
-    let mut app = AppBuilder::new(config, figment);
-    app.plugin(HttpPlugin);
-    if with_plugin {
-        app.plugin(ViewPlugin);
+    let sources =
+        figment::Figment::from(figment::providers::Serialized::defaults(config)).merge(figment);
+    let mut app = openrust::core::ProviderBuilder::new();
+    app.provider(HttpServiceProvider);
+    if with_provider {
+        app.provider(ViewServiceProvider);
     }
-    app
+    app.start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)
 }
 
 #[tokio::test]
@@ -40,7 +48,7 @@ async fn root_view_is_html_and_escapes_context() -> Result<(), Box<dyn std::erro
         directory.path().join("index.html"),
         "<!doctype html><title>{{ app_name }}</title>",
     )?;
-    let app = finalize(configured_app(directory.path(), true, false)).await?;
+    let app = configured_app(directory.path(), true, false).await?;
     let router = build_router(&app)?;
     let response = router
         .oneshot(
@@ -64,12 +72,12 @@ async fn root_view_is_html_and_escapes_context() -> Result<(), Box<dyn std::erro
 async fn view_root_requires_plugin_and_existing_template() -> Result<(), Box<dyn std::error::Error>>
 {
     let directory = tempdir()?;
-    let app = finalize(configured_app(directory.path(), false, false)).await?;
+    let app = configured_app(directory.path(), false, false).await?;
     assert!(build_router(&app).is_err());
 
     let directory = tempdir()?;
     std::fs::write(directory.path().join("index.html"), "{% if %}")?;
-    let app = finalize(configured_app(directory.path(), true, false)).await?;
+    let app = configured_app(directory.path(), true, false).await?;
     assert!(
         build_router(&app).is_err(),
         "invalid template syntax should fail during root validation"
@@ -90,9 +98,8 @@ async fn renderer_loads_named_views() -> Result<(), Box<dyn std::error::Error>> 
         directory.path().join("pages/home.html"),
         "<h1>{{ title }}</h1>",
     )?;
-    let app = configured_app(directory.path(), true, false);
-    let app = finalize(app).await?;
-    let views = app.state().try_get::<Views>()?;
+    let app = configured_app(directory.path(), true, false).await?;
+    let views = app.state().resolve::<Views>().await?;
     let response = views.render("pages/home.html", &PageContext { title: "Hello" })?;
     assert_eq!(response.0, "<h1>Hello</h1>");
     assert!(
@@ -108,8 +115,8 @@ async fn development_reload_reads_updated_template() -> Result<(), Box<dyn std::
     let directory = tempdir()?;
     let path = directory.path().join("page.html");
     std::fs::write(&path, "first")?;
-    let app = finalize(configured_app(directory.path(), true, true)).await?;
-    let views = app.state().try_get::<Views>()?;
+    let app = configured_app(directory.path(), true, true).await?;
+    let views = app.state().resolve::<Views>().await?;
     assert_eq!(views.render("page.html", &())?.0, "first");
     std::fs::write(&path, "second")?;
     assert_eq!(views.render("page.html", &())?.0, "second");
@@ -127,8 +134,8 @@ async fn template_symlink_cannot_escape_template_directory()
     let secret = outside.path().join("secret.html");
     std::fs::write(&secret, "secret")?;
     symlink(&secret, directory.path().join("linked.html"))?;
-    let app = finalize(configured_app(directory.path(), true, false)).await?;
-    let views = app.state().try_get::<Views>()?;
+    let app = configured_app(directory.path(), true, false).await?;
+    let views = app.state().resolve::<Views>().await?;
     assert!(views.render("linked.html", &()).is_err());
     Ok(())
 }

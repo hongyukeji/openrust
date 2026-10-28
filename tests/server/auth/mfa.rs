@@ -15,22 +15,21 @@ use base64::{Engine as _, engine::general_purpose::STANDARD};
 use chrono::Utc;
 use figment::{Figment, providers::Format};
 use hmac::{Hmac, Mac, digest::KeyInit};
-use openrust::http::{
-    AppBuilderHttpExt, HttpPlugin, Inject, Json as FrameworkJson, Routes, build_router,
-};
+use openrust::http::{HttpServiceProvider, Inject, Json as FrameworkJson, Routes, build_router};
 use openrust::testing::TestDatabase;
 use openrust::{
-    App, AppBuilder, Result,
+    App, Result,
     audit::DatabaseAuditMigration,
     auth::{
-        AuthFlows, AuthFlowsPlugin, AuthLayer, AuthMfaMigration, AuthMigration, AuthMode,
-        AuthPlugin, AuthRefreshTokenMigration, AuthVerificationCodeMigration, CurrentUser,
-        JwtConfig, JwtPlugin, JwtTokens, LoginAttempt, MfaLoginChallenge, MfaPlugin,
-        PasswordConfig, Session, SessionPlugin, TotpEnrollment,
+        AuthFlows, AuthFlowsServiceProvider, AuthLayer, AuthMfaMigration, AuthMigration, AuthMode,
+        AuthRefreshTokenMigration, AuthServiceProvider, AuthVerificationCodeMigration, CurrentUser,
+        JwtServiceProvider, JwtTokens, LoginAttempt, MfaLoginChallenge, MfaServiceProvider,
+        PasswordConfig, Session, SessionServiceProvider, TotpEnrollment,
     },
     config::FrameworkConfig,
     database::{
-        DatabaseBackend, DatabasePlugin, DatabaseRateLimitMigration, DatabaseTableNames, Db,
+        DatabaseBackend, DatabaseRateLimitMigration, DatabaseServiceProvider, DatabaseTableNames,
+        Db,
         sea_orm::{ConnectionTrait, DbBackend, Statement},
         sea_orm_migration::{MigratorTrait, prelude::*},
     },
@@ -41,8 +40,7 @@ use openrust::{
         response::{IntoResponse, Response},
         routing::post,
     },
-    lifecycle::finalize,
-    security::EncryptionPlugin,
+    security::EncryptionServiceProvider,
 };
 use serde::{Deserialize, Serialize};
 use sha1::Sha1;
@@ -336,26 +334,32 @@ async fn build_app(
         "[database]\nurl = {database_url:?}\ntable_prefix = {prefix:?}\n\n[security.encryption]\nactive_key_id = {active_key:?}\n[security.encryption.keys]\n{key_entries}\n"
     );
     let figment = Figment::new().merge(figment::providers::Toml::string(&source));
-    let mut builder = AppBuilder::new(FrameworkConfig::default(), figment);
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ))
+    .merge(figment);
+    let mut builder = openrust::core::ProviderBuilder::new();
     builder
-        .plugin(DatabasePlugin)
-        .plugin(AuthPlugin::new().with_password_config(PasswordConfig {
+        .provider(DatabaseServiceProvider)
+        .provider(PasswordSettings(PasswordConfig {
             memory_kib: 19_456,
             iterations: 1,
             parallelism: 1,
         }))
-        .plugin(JwtPlugin::with_config(JwtConfig::new(
+        .provider(AuthServiceProvider::new())
+        .provider(JwtSettings::new(
             "mfa-test-issuer",
             "mfa-test-audience",
             "mfa-test-jwt-key",
-            BTreeMap::from([("mfa-test-jwt-key".to_owned(), STANDARD.encode([0x6d; 32]))]),
-        )))
-        .plugin(EncryptionPlugin)
-        .plugin(SessionPlugin::new())
-        .plugin(MfaPlugin)
-        .plugin(AuthFlowsPlugin::new())
-        .plugin(HttpPlugin)
-        .routes(|routes: Routes| {
+            &BTreeMap::from([("mfa-test-jwt-key".to_owned(), STANDARD.encode([0x6d; 32]))]),
+        ))
+        .provider(JwtServiceProvider)
+        .provider(EncryptionServiceProvider)
+        .provider(SessionServiceProvider::new())
+        .provider(MfaServiceProvider)
+        .provider(AuthFlowsServiceProvider::new())
+        .provider(HttpServiceProvider)
+        .provider(TestRoutes::new(|routes: Routes| {
             routes
                 .post("/mfa-test/session/seed", seed_session)
                 .merge(
@@ -364,8 +368,11 @@ async fn build_app(
                         .layer(AuthLayer::required(AuthMode::Session)),
                 )
                 .post("/mfa-test/session/login", session_login)
-        });
-    finalize(builder).await
+        }));
+    builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)
 }
 
 fn decode_base32(encoded: &str) -> TestResult<Vec<u8>> {
@@ -515,9 +522,9 @@ async fn mfa_lifecycle_is_shared_secure_and_reachable_over_real_tcp() -> TestRes
         BTreeMap::from([("mfa-old".to_owned(), key_old.clone())]),
     )
     .await?;
-    let flows = (*app.state().try_get::<AuthFlows>()?).clone();
-    let db = (*app.state().try_get::<Db>()?).clone();
-    let jwt = (*app.state().try_get::<JwtTokens>()?).clone();
+    let flows = (*app.state().resolve::<AuthFlows>().await?).clone();
+    let db = (*app.state().resolve::<Db>().await?).clone();
+    let jwt = (*app.state().resolve::<JwtTokens>().await?).clone();
     let sea_backend = db.backend()?;
     let email = "mfa.user@example.test";
     let user_id = create_verified_user(&flows, &db, email).await?;
@@ -593,7 +600,11 @@ async fn mfa_lifecycle_is_shared_secure_and_reachable_over_real_tcp() -> TestRes
         let provider = std::sync::Arc::new(oidc_mfa::Provider::new());
         let provider_trait: std::sync::Arc<dyn openrust::auth::ExternalIdentityProvider> =
             provider.clone();
-        let encryptor = (*app.state().try_get::<openrust::security::Encryptor>()?).clone();
+        let encryptor = (*app
+            .state()
+            .resolve::<openrust::security::Encryptor>()
+            .await?)
+            .clone();
         let external = openrust::auth::ExternalIdentityFlows::new(
             db.clone(),
             flows.clone(),
@@ -783,9 +794,9 @@ async fn mfa_lifecycle_is_shared_secure_and_reachable_over_real_tcp() -> TestRes
         ]),
     )
     .await?;
-    let rotated_flows = (*rotated.state().try_get::<AuthFlows>()?).clone();
-    let rotated_db = (*rotated.state().try_get::<Db>()?).clone();
-    let rotated_jwt = (*rotated.state().try_get::<JwtTokens>()?).clone();
+    let rotated_flows = (*rotated.state().resolve::<AuthFlows>().await?).clone();
+    let rotated_db = (*rotated.state().resolve::<Db>().await?).clone();
+    let rotated_jwt = (*rotated.state().resolve::<JwtTokens>().await?).clone();
     let rotated_challenge = begin_challenge(&rotated_flows, email, "rotated-key-login").await?;
     let rotated_credentials = rotated_flows
         .complete_mfa_login(
@@ -921,4 +932,51 @@ async fn mfa_lifecycle_is_shared_secure_and_reachable_over_real_tcp() -> TestRes
     drop(flows);
     database.close().await?;
     Ok(())
+}
+
+struct TestRoutes<F>(std::sync::Arc<F>);
+impl<F: Fn(openrust::http::Routes) -> openrust::http::Routes> TestRoutes<F> {
+    fn new(routes: F) -> Self {
+        Self(std::sync::Arc::new(routes))
+    }
+}
+impl<F> openrust::core::ServiceProvider for TestRoutes<F>
+where
+    F: Fn(openrust::http::Routes) -> openrust::http::Routes + Send + Sync + 'static,
+{
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut openrust::core::BootContext<'_>,
+    ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
+        let routes = std::sync::Arc::clone(&self.0);
+        Box::pin(async move {
+            app.routes(move |value| routes(value))?;
+            Ok(())
+        })
+    }
+}
+
+struct JwtSettings(serde_json::Value);
+impl JwtSettings {
+    fn new(
+        issuer: &str,
+        audience: &str,
+        active_key_id: &str,
+        keys: &std::collections::BTreeMap<String, String>,
+    ) -> Self {
+        Self(serde_json::json!({"issuer":issuer,"audience":audience,
+            "active_key_id":active_key_id,"keys":keys}))
+    }
+}
+impl openrust::core::ServiceProvider for JwtSettings {
+    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
+        app.merge_defaults("auth.jwt", self.0.clone())
+    }
+}
+
+struct PasswordSettings(openrust::auth::PasswordConfig);
+impl openrust::core::ServiceProvider for PasswordSettings {
+    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
+        app.merge_defaults("auth.password", serde_json::json!({"memory_kib":self.0.memory_kib,"iterations":self.0.iterations,"parallelism":self.0.parallelism}))
+    }
 }
