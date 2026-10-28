@@ -215,6 +215,7 @@ R2 配置补强以现有 Figment/ConfigLoader 和 section<T> 为唯一来源，�
 | C31 | 单机部署、服务复用、dev/watch 编排、Compose、迁移发布、备份恢复、构建成本、性能/故障/集群 | R14 |
 | C32 | V2 Rust Admin + Vue/pure-admin + uni-app，PC 仅设计；运维视图与业务权限均通过公开 API | R15 |
 | C33 | 官方生态可选包的逐项等价能力、独立应用接入和实际验收；领域模型不进核心 | R16 |
+| C34 | MQTT独立可选服务端/Broker与客户端；Laravel式Provider/配置/Manager/Contract，默认编译和运行关闭，按角色隔离依赖与真实协议验收 | R11/R14 |
 
 ## 5. 按依赖实施
 
@@ -235,10 +236,10 @@ R2 配置补强以现有 Figment/ConfigLoader 和 section<T> 为唯一来源，�
 | R8 Cache/Storage | R2/R4/R7 | 统一 stores/disks 与驱动、并发/锁/私有文件/流式上传、第三方扩展；真实 Redis/S3 和跨节点文件验收 |
 | R9 视图与通信 | R3/R7/R8 | 模板/国际化/资产、Mailable/SMS/Notification 同步路径，真实 SMTP；供应商实发缺条件如实保持缺口 |
 | R10 异步与事务组合 | R4–R9 | events/queue/schedule/queued notifications、chain/batch/幂等/outbox；双库/Redis、多 worker/scheduler、强杀恢复和安全停机 |
-| R11 网络与组合能力 | R7–R10 | HTTP/Process/context、广播/WebSocket/SSE/gRPC、数据交换；真实网络、跨节点、事务组合和资源压力 |
+| R11 网络与组合能力 | R7–R10 | HTTP/Process/context、广播/WebSocket/SSE/gRPC、数据交换与独立可选MQTT服务端/客户端；真实网络、跨节点、事务组合和资源压力 |
 | R12 搜索/特性与观测 | R8–R11 | search/feature flags/图片接口、完整观测；真实驱动、索引一致性/重建、探针/Collector/资源退化 |
 | R13 完整开发体验 | R1-S、R2–R12与对应R1-E交付 | 补全命令/生成/stubs、测试 assertions/fakes、docs、示例、开发编排、独立扩展与更新体验；各簇生成器应随能力交付，不全部推迟到这里 |
-| R14 底座最终验收 | R1-S、R1-E、R2（含R2-M）–R13 | 底座 C01–C31 的适用矩阵项完成（不包含 C32/C33）；双库完整集群、SQLite 单机、最低版本、性能资源、干净环境全链路、Laravel 对照走查及独立审查 |
+| R14 底座最终验收 | R1-S、R1-E、R2（含R2-M）–R13 | 底座 C01–C31 与 C34 的适用矩阵项完成（不包含 C32/C33）；双库完整集群、SQLite 单机、最低版本、性能资源、干净环境全链路、Laravel 对照走查及独立审查 |
 | R15 V2 后台/App | R14 | 按既有 B1–B5 全面适配新 contract；Vue Admin 与 uni-app 实机，PC 只规划；观测/队列等管理视图复用底座 |
 | R16 生态可选包 | R14；UI 依赖 R15 | R0 已纳入的领域包逐个实现和验收；缺外部条件保留证据缺口；C32/C33 及 R0 固定范围的适用子项全部通过后才可报告整个计划完成 |
 
@@ -257,6 +258,17 @@ R0–R16 是依赖路线，`todo.md` 只维护当前可领取项。旧观测审�
 - 邮件等外部副作用仍需业务幂等与供应商能力；单服务器调度不承诺崩溃重试下外部副作用恰好一次。依据：[Laravel scheduling](https://github.com/laravel/docs/blob/13.x/scheduling.md)，具体revision以R0固定基线为准。
 
 集群自动发现、数据库发现后节点直连等方案仍仅为讨论，未授权实施；不得将其作为本项依赖或借机增加注册中心、节点网络及第二套集群系统。
+
+### R11 明确待办：MQTT 可选服务端与客户端
+
+用户已授权将两种角色纳入V1：服务端作为Broker接受外部客户端，客户端连接外部Broker；两者可独立启用、同时使用或均不使用。此为Laravel包/扩展机制下的通用增强，不称Laravel原生MQTT对应项；不与集群自动发现、调度或缓存强行串联，不改变当前任务顺序。
+
+- 统一ServiceProvider/Container、配置仓储与.env、默认及命名连接、Manager与公开Contract；外部驱动可公开注册替换，不改src核心。Facade与DI（如提供）共用同一Manager，不建立第二容器或业务事件系统；服务端认证/主题授权通过既有公开机制扩展。
+- 复用成熟组件，客户端首选评估rumqttc；Broker评估rumqttd/RMQTT等实际嵌入与部署边界。协议版本、QoS、会话/遗嘱/保留消息、TLS及资源/持久性边界须逐项核实；未支持不虚报。实施时才在stack.md登记选定版本、许可证、MSRV、维护情况及构建成本，不在本轮增加Cargo依赖。
+- 候选feature名为`mqtt-client`与`mqtt-server`，均不在default，独立依赖以`optional = true`和`dep:`显式关联，按需控制第三方default-features。HTTP默认入口不传递启用；仅客户端不编译Broker专属依赖，反之亦然（公共依赖复用除外）。不得以.env运行开关代替编译隔离；工作区feature合并及all-features构建仍会显式引入对应依赖。
+- 可选依赖仍可能进入共用Cargo.lock及版本解析，不能承诺锁图/版本约束完全无影响；验收关注未启用角色的专属依赖不进入默认编译/链接及原生构建脚本。若实际解析冲突无法隔离，先记录证据再评估最小独立可选集成包，不为假设拆大量crate。依据：[Cargo features](https://doc.rust-lang.org/cargo/reference/features.html)、[dependency resolution](https://doc.rust-lang.org/cargo/reference/resolver.html)。
+- 运行也显式启用：默认不开端口、不连接Broker、不启动消费循环或自动部署服务；复用现有受管任务/取消/关闭，长驻入口不阻塞Provider boot。配置错误和连接失败明确传播，限队列/连接/消息/重试与背压，消息内容及凭据脱敏；发布入队、Broker确认和业务处理完成分别定义。
+- 门禁覆盖默认关闭、client-only、server-only、两者同时启用与无默认feature；检查cargo tree/build/Rustdoc/生成应用及默认运行无MQTT副作用。真实Broker/独立客户端验证收发、认证/ACL、声明的协议与QoS、重连/会话、并发背压和有界关闭；modules/example展示公开接入并有fake/真实行为证据，MQTT默认关闭时示例不反向启用依赖。
 
 ## 6. 功能簇 contract 模板
 
