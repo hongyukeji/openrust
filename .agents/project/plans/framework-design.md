@@ -135,22 +135,22 @@ v2 保持 Loco、Laravel、Goravel、OpenSpring、若依、芋道的原顺序，
 
 ## 框架仓库布局
 
-框架实现集中在根 `openrust` package 的 `framework/src/`，配置代码在 `framework/src/config/`。目录迁移与源码 workspace 交付已完成，当前实际结构见 [architecture.md](../architecture.md)，验收入口见 [Spec](module-layout-migration-spec.md) 与 [ADR-021](../decisions/adr-021-loco-style-module-layout.md)。
+框架实现集中在根 `openrust` package 的 `src/`，配置代码在 `src/config/`。目录迁移与源码 workspace 交付已完成，当前实际结构见 [architecture.md](../architecture.md)，验收入口见 [Spec](module-layout-migration-spec.md) 与 [ADR-021](../decisions/adr-021-loco-style-module-layout.md)。
 
 工具 package 统一位于 `tools/{cli,macros,testing,performance}/`，旧 `crates/` 已移除。按 [ADR-039](../decisions/adr-039-source-workspace-distribution.md)，整套源码交付，内部包名仍与各工具目录末级同名，全部禁用发布；proc-macro 不合入普通 library。`performance` 单独承载性能基准且不进入默认成员。`examples/example/`（综合用户示例）、`tests/consumers/<capability>/`（独立验收） 采用明确的 Cargo target/harness，不能靠嵌套目录自动发现测试。`apps/` 保留应用约定；根目录集成宿主按 ADR-062 迁入根 package。
 
-未实现的 cache/storage 等能力在对应里程碑以实际实现进入 `framework/src/`；不预建空模块或为每种能力创建独立 package。事件当前事实见 [core/events.md](../core/events.md)。
+未实现的 cache/storage 等能力在对应里程碑以实际实现进入 `src/`；不预建空模块或为每种能力创建独立 package。事件当前事实见 [core/events.md](../core/events.md)。
 
 ## 生成的应用布局
 
-默认在整套源码的 `apps/<name>/` 生成独立业务应用，其 `framework/src/` 是业务代码，与框架根 `framework/src/` 职责不同；应用与 migration 使用本地 workspace 依赖。源码 workspace 根宿主也支持通过 `apps/mod.rs` 显式组合业务模块，见 [ADR-063](../decisions/adr-063-explicit-app-module-registry.md)。当前生成器以 [CLI 事实](../core/cli.md) 和模板源码为准；以下是 v1 完成时的组织目标，不表示现有 `new` 已生成所有目录。
+默认在整套源码的 `apps/<name>/` 生成独立业务应用，其 `src/` 是业务代码，与框架根 `src/` 职责不同；应用与 migration 使用本地 workspace 依赖。源码 workspace 根宿主也支持通过 `apps/mod.rs` 显式组合业务模块，见 [ADR-063](../decisions/adr-063-explicit-app-module-registry.md)。当前生成器以 [CLI 事实](../core/cli.md) 和模板源码为准；以下是 v1 完成时的组织目标，不表示现有 `new` 已生成所有目录。
 
 ```text
 apps/<app>/
 ├── Cargo.toml                 # package.metadata.openrust
 ├── .env.example               # .env 不入库
 ├── config/                    # app.toml、database.toml、cache.toml 等领域配置
-├── framework/src/
+├── src/
 │   ├── main.rs                # openrust::run::<App>()
 │   ├── app.rs                 # 显式 Plugin/路由/命令组装
 │   ├── config/                # 需要自定义类型化配置时建立
@@ -184,7 +184,7 @@ apps/<app>/
 
 - 唯一 ConfigLoader 合并类型默认值、根 `config/*.toml` 领域文件、应用工作目录 `.env`、进程环境；环境值和秘密放 `.env` 或进程环境，进程变量优先，文件格式错误时启动失败且不回显内容。
 - 默认命名空间 `APP_`，启动前可定制；应用自身配置使用 `APP_ENV`、`APP_CONFIG_DIR` 和单下划线扁平名称，例如 `APP_SERVER_PORT`、`APP_LOG_LEVEL`。数据库、Redis、队列、邮件、短信与国际化常用配置采用 `DB_*`、`REDIS_*`、`QUEUE_*`、`MAIL_*`、`SMS_*`、`I18N_*` 领域变量，具体映射见 [ADR-016](../decisions/adr-016-neutral-application-namespaces.md)。不提供 `DATABASE_URL` / `REDIS_URL` 通用环境别名。
-- 框架 Rust 配置类型集中在 `framework/src/config/`，能力 plugin 通过 `section` 提取类型；业务通过 `Application::Config` 定义应用配置。旧类型路径用 re-export 保持必要兼容，不复制配置 loader。
+- 框架 Rust 配置类型集中在 `src/config/`，能力 plugin 通过 `section` 提取类型；业务通过 `Application::Config` 定义应用配置。旧类型路径用 re-export 保持必要兼容，不复制配置 loader。
 - 启动验证完整配置键和错误来源；敏感值始终脱敏。`config show` 只读展示，`.env.example` 不含可用凭据。详见 [ADR-030](../decisions/adr-030-modular-configuration.md)。
 
 ## 路由与控制器

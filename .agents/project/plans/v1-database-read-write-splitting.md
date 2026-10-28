@@ -30,7 +30,7 @@
 
 1. 用户已调整优先级：根 package 模块迁移闭环后先实施此 M2 数据层增补，M3 认证功能 WIP 暂停并保留。认证及其他关键路径强制主库读取，不能隐含进入副本路由。
 2. 在依赖路由语义的后续数据功能簇前领取 `todo.md` 对应项；原 M2 完成标签不能覆盖此新增范围。先评估现有 API、下游、事务钩子和 Plugin 扩展，形成 5–15 行 Spec 与公共 contract，再实现。
-3. 已同步 `Db` public API、`DatabasePlugin`、根 `tests/server/` 双库集成、数据库 README 与测试基线；默认配置保持单库，并提供只读副本配置示例。
+3. 已同步 `Db` public API、`DatabasePlugin`、根 `examples/demo/tests/server/` 双库集成、数据库 README 与测试基线；默认配置保持单库，并提供只读副本配置示例。
 4. 已更新 `core/db.md`、`progress.md` 和测试基线；不能把本计划以外的多 API 集群或完整业务性能报告视为已完成。
 
 ## 本轮最小 contract（ADR-029）

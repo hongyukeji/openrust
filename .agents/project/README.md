@@ -19,7 +19,7 @@
 | `progress.md` | 当前交付与验证摘要，不保存逐日流水 |
 | `roadmap.md` | v1 之后的版本方向 |
 | `plans/` | 框架版本计划与设计方案，以及独立排期的可选领域套件与完整应用规划；仅框架活跃任务进入 `todo.md` |
-| [`plans/ai-model-platform.md`](plans/ai-model-platform.md) | AI模型平台唯一计划：完整范围、内含网关源码、工程验收及 `projects/ai-model-platform` 隔离；用户明确要求开发后才启动 |
+| [`plans/ai-model-platform.md`](plans/ai-model-platform.md) | AI模型平台唯一计划：完整范围、内含网关源码、工程验收及同仓 main 的模块/目录隔离；用户明确要求开发后才启动 |
 | `architecture.md` / `stack.md` / `conventions.md` | 架构、技术栈和工程规范 |
 | `style.md` | 文档写作、文件命名和清理规范 |
 | [decisions/README.md](decisions/README.md) | ADR 唯一编号、有效决定与替代关系索引 |
@@ -27,7 +27,7 @@
 | `scripts/` | 提交脚本 |
 | [`../skills/`](../skills/README.md) | 专项工作流；按任务读取 |
 
-代码落地后按框架模块或保留的独立 package 在 `core/` 维护当前事实；认证模块事实见 `core/auth.md`，缓存事实见 `core/cache.md`，实时通信见 `core/realtime.md`，服务端视图见 `core/view.md`。框架能力放在 `framework/` 的 `openrust` package，不为业务能力预建空 crate。
+代码落地后按框架模块或保留的独立 package 在 `core/` 维护当前事实；认证模块事实见 `core/auth.md`，缓存事实见 `core/cache.md`，实时通信见 `core/realtime.md`，服务端视图见 `core/view.md`。根 `openrust` package/lib 与 `src/` 对应 `laravel/framework`；同一 workspace 内的 `examples/demo/` 作为根 workspace 成员承担聚合回归，共用根 Cargo.lock，根默认启动 demo；应用骨架唯一来源是 CLI 模板与生成器，生成独立的 Laravel 式应用工程，对应 `laravel/laravel`。边界与迁移验收见 [ADR-072](decisions/adr-072-framework-and-application-projects.md)，不为业务能力预建空 crate。
 
 ## 维护规则
 

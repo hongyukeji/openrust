@@ -2,7 +2,7 @@
 
 - 状态：Accepted
 - 日期：2026-10-27
-- 依据：[v1 底层补齐计划 F8](../plans/v1-foundation-completion.md#f8-通用数据交换)、[F5 查询授权](adr-047-query-authorization.md)、[F6 租户隔离](adr-056-tenant-context-and-query-isolation.md)
+- 依据：[v1 底层补齐计划 F8](../plans/v1-foundation-completion.md#f8-通用数据交换)、[F5 查询授权](adr-047-typed-query-authorization.md)、[F6 租户隔离](adr-056-tenant-context-and-query-isolation.md)
 
 ## 决策
 

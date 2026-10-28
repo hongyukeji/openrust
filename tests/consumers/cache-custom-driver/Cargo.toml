@@ -11,6 +11,6 @@ publish = false
 [dependencies]
 async-trait = "0.1"
 figment = { version = "0.10", features = ["toml"] }
-openrust = { path = "../../../framework", version = "0.0.0" }
+openrust = { path = "../../..", version = "0.0.0" }
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1.54", features = ["macros", "rt-multi-thread", "sync"] }

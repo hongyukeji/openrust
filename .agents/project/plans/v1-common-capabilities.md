@@ -8,7 +8,7 @@
 
 - 本计划补充 [v1 总计划](gen1-plan.md)、[性能与开箱即用补强](v1-performance-and-readiness.md) 及 ADR-009 的扩展原则。
 - 剩余通用能力均纳入 v1；其余通用能力的补齐与唯一归属见 [覆盖计划](v1-capability-coverage.md)。具体公共 API、配置键、依赖、默认限制、feature 和模块布局仍需设计 Agent 形成 Spec/contract，不能把本计划中的建议直接当成已定接口。
-- 优先扩展根 `framework/src/` 的既有能力模块与成熟库；不为每一项能力机械新增 Cargo package，不以自研密码算法、HTTP 协议栈或消息平台替代成熟实现。
+- 优先扩展根 `src/` 的既有能力模块与成熟库；不为每一项能力机械新增 Cargo package，不以自研密码算法、HTTP 协议栈或消息平台替代成熟实现。
 - 实施按单功能簇闭环，先完成当前 WIP；新增依赖先记录 `stack.md`，公开名称按 ADR-006 登记。设计与实现职责遵循仓库契约。
 
 国际化表达、邮件模板、查询授权/租户隔离、外部身份/TOTP 和 CSV/XLSX 等新增必交范围集中在 [底层补齐计划](v1-foundation-completion.md)，复用本文件定义的验证、调用作用域、出站和生命周期边界。

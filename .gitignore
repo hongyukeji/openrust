@@ -2,8 +2,8 @@
 /target/
 **/target/
 Cargo.lock.bak
-/storage/*
-!/storage/README.md
+/examples/demo/storage/*
+!/examples/demo/storage/README.md
 
 # Generated projects and spikes
 /tmp/

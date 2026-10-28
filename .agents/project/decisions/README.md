@@ -93,4 +93,6 @@
 
 版本分工、分版本框架参考和独立 AI 产品边界见 [当前计划](../plan.md)、[版本路线](../roadmap.md) 与 [框架设计](../plans/framework-design.md)，不在 ADR 索引复制另一份任务队列。
 
-- [ADR-071：应用职责目录与独立框架库](adr-071-application-framework-layout.md)：Accepted；Laravel 式布局、单默认入口与独立生成应用。
+- [ADR-071：应用职责目录与独立框架库](adr-071-application-framework-layout.md)：Superseded；原根应用布局由 ADR-072 替代；保留旧验收事实。
+
+- [ADR-072：同仓框架与应用 workspace](adr-072-framework-and-application-projects.md)：Accepted；根框架库与 demo 位于同一 workspace，共用根锁文件，根默认启动 demo；R1 迁移及适用门禁已通过。

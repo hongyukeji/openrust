@@ -116,3 +116,23 @@ async fn main() -> Result<()> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    struct PublicResource;
+
+    #[openrust::resource]
+    impl PublicResource {
+        async fn list() -> &'static str {
+            "public"
+        }
+    }
+
+    #[test]
+    fn resource_macro_resolves_the_public_framework_dependency() {
+        // 框架迁回根工程后，宏必须继续通过下游的 openrust 依赖找到 Resource。
+        let _ = <PublicResource as openrust::http::Resource>::actions(
+            openrust::http::ResourceActions::new(),
+        );
+    }
+}

@@ -27,8 +27,8 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - run: cargo test --workspace --all-features
-      - run: cargo run --locked --manifest-path tests/consumers/grpc/Cargo.toml
-      - run: cargo test -p application --features queue-redis --test queue_redis
+      - run: cargo run --locked --manifest-path tests/consumers/grpc/Cargo.toml --bin grpc-example
+      - run: cargo test -p demo --features queue-redis --test queue_redis
         env:
           REDIS_URL: redis://127.0.0.1:6379/
       - run: cargo doc --workspace --no-deps --all-features
@@ -126,24 +126,24 @@ jobs:
       - run: cargo test --workspace --features auth,db-postgres
         env:
           OPENRUST_TEST_DATABASE_URL: postgres://openrust:openrust@localhost:5432/openrust_test
-      - run: cargo test -p application --features 'auth-mfa auth-oidc db-postgres' --test auth_mfa --test auth_oidc
+      - run: cargo test -p demo --features 'auth-mfa auth-oidc db-postgres' --test auth_mfa --test auth_oidc
         env:
           OPENRUST_TEST_DATABASE_URL: postgres://openrust:openrust@localhost:5432/openrust_test
-      - run: cargo test -p application --features queue,db-postgres --test db_migration --test queue --test queue_crash_recovery --test schedule --test schedule_calendar --test queue_notifications
+      - run: cargo test -p demo --features queue,db-postgres --test db_migration --test queue --test queue_crash_recovery --test schedule --test schedule_calendar --test queue_notifications
         env:
           OPENRUST_TEST_DATABASE_URL: postgres://openrust:openrust@localhost:5432/openrust_test
       - run: cargo test --workspace --features db-mysql
         env:
-          OPENRUST_TEST_DATABASE_URL: mysql://openrust:openrust@localhost:3306/openrust_test
+          OPENRUST_TEST_DATABASE_URL: mysql://root:root@localhost:3306/openrust_test
       - run: cargo test -p testing --features db-mysql --test database
         env:
           OPENRUST_TEST_DATABASE_URL: mysql://root:root@localhost:3306/openrust_test
       - run: cargo test --workspace --features auth,db-mysql
         env:
-          OPENRUST_TEST_DATABASE_URL: mysql://openrust:openrust@localhost:3306/openrust_test
-      - run: cargo test -p application --features 'auth-mfa auth-oidc db-mysql' --test auth_mfa --test auth_oidc
+          OPENRUST_TEST_DATABASE_URL: mysql://root:root@localhost:3306/openrust_test
+      - run: cargo test -p demo --features 'auth-mfa auth-oidc db-mysql' --test auth_mfa --test auth_oidc
         env:
           OPENRUST_TEST_DATABASE_URL: mysql://root:root@localhost:3306/openrust_test
-      - run: cargo test -p application --features queue,db-mysql --test db_migration --test queue --test queue_crash_recovery --test schedule --test schedule_calendar --test queue_notifications
+      - run: cargo test -p demo --features queue,db-mysql --test db_migration --test queue --test queue_crash_recovery --test schedule --test schedule_calendar --test queue_notifications
         env:
           OPENRUST_TEST_DATABASE_URL: mysql://root:root@localhost:3306/openrust_test

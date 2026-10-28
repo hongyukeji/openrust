@@ -2,7 +2,7 @@
 
 - 状态：Accepted
 - 日期：2026-10-27
-- 依据：[ADR-057 通用 CSV/XLSX 数据交换](adr-057-data-exchange-contract.md)、[ADR-042 共享锁与请求幂等](adr-042-shared-locks-and-idempotency.md)、[ADR-047 查询授权](adr-047-typed-query-authorization.md)、[ADR-050 文件存储](adr-050-storage-drivers.md)
+- 依据：[ADR-057 通用 CSV/XLSX 数据交换](adr-057-data-exchange-contract.md)、[ADR-042 共享锁与请求幂等](adr-042-shared-locks-and-request-idempotency.md)、[ADR-047 查询授权](adr-047-typed-query-authorization.md)、[ADR-050 文件存储](adr-050-storage-drivers.md)
 
 ## 决策
 

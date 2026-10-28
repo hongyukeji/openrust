@@ -13,9 +13,13 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 cargo doc --workspace --no-deps
 cargo deny check
+cargo fmt --manifest-path examples/demo/Cargo.toml --all --check
+cargo clippy --manifest-path examples/demo/Cargo.toml --all-targets --all-features -- -D warnings
+cargo test --manifest-path examples/demo/Cargo.toml --all-features
+cargo doc --manifest-path examples/demo/Cargo.toml --no-deps --all-features
 ```
 
-五项主要门禁是 `fmt`、`clippy`、`test`、`doc` 和 `deny`；`cargo check` 用于快速检查构建。数据相关变更还必须按照 [.agents/project/memory/testing.md](.agents/project/memory/testing.md) 执行 PostgreSQL 和 MySQL 集成测试。
+框架和 demo 位于同一 Cargo workspace，完整门禁使用 --workspace 覆盖两者；框架定向测试使用 -p openrust，根默认 cargo test 仅覆盖 default-members 中的 demo。五项主要门禁是 `fmt`、`clippy`、`test`、`doc` 和 `deny`；`cargo check` 用于快速检查构建。数据相关变更还必须按照 [.agents/project/memory/testing.md](.agents/project/memory/testing.md) 执行 PostgreSQL 和 MySQL 集成测试。
 
 ## 构建空间管理
 

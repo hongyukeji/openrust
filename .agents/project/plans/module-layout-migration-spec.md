@@ -6,23 +6,23 @@
 
 ## 目标
 
-1. 根 `openrust` package 承载框架 library 与框架开发/集成用 `server` bin，二进制源码统一位于根 `framework/src/`。
+1. 根 `openrust` package 承载框架 library 与框架开发/集成用 `server` bin，二进制源码统一位于根 `src/`。
 2. 从仓库根目录直接执行 `cargo run` 启动宿主；根 package 是默认成员，`cargo test` 运行根 package 的集成测试；全 workspace 验证使用 `--workspace`。保留 `CARGO_BIN_EXE_server` 真实进程覆盖。
 3. `apps/` 不保留框架自带的 `apps/server` package；根宿主显式业务模块注册后续由 [ADR-063](../decisions/adr-063-explicit-app-module-registry.md) 补充，生成应用仍由 `apps/<name>/` 承载。
-4. 集成测试迁至根 `tests/server/`，配置放项目根 `config/`；Rust 配置代码仍放 `framework/src/config/`。性能基准集中在 `tools/performance/` workspace package；唯一综合用户示例位于 `examples/example/`。
-5. 保留 `testing` 独立工具 package 的下游入口 `testing::TestDatabase`，内部实现统一在根 `framework/src/testing/`，避免根集成测试依赖 `testing` 造成 package 依赖环。
+4. 集成测试迁至根 `examples/demo/tests/server/`，配置放项目根 `config/`；Rust 配置代码仍放 `src/config/`。性能基准集中在 `tools/performance/` workspace package；唯一综合用户示例位于 `examples/example/`。
+5. 保留 `testing` 独立工具 package 的下游入口 `testing::TestDatabase`，内部实现统一在根 `src/testing/`，避免根集成测试依赖 `testing` 造成 package 依赖环。
 6. 同步 workspace、feature、CLI 工作区识别、CI、README、Agent 规则与当前事实；不丢失现有测试、feature 门控、子进程语义或未提交 WIP。
 
 ## 当前与目标
 
 | 目标 | 路径/入口 |
 | --- | --- |
-| 框架 library | `framework/src/lib.rs` 与根 `framework/src/` modules |
+| 框架 library | `src/lib.rs` 与根 `src/` modules |
 | 集成宿主 | `src/main.rs`，Cargo bin 名称 `server`；仓库根 `cargo run` |
 | 用户应用 | `apps/<name>/`，由生成器维护 workspace 与应用启动/配置边界 |
-| 运行配置 | 根 `config/`；Rust 配置实现 `framework/src/config/` |
-| 宿主集成测试 | 根 `tests/server/`，显式 `[[test]]` 声明、原 target 名和 feature 要求保持 |
-| TestDatabase 实现/兼容入口 | `framework/src/testing/`；独立 `testing` package re-export `openrust::testing::TestDatabase` |
+| 运行配置 | 根 `config/`；Rust 配置实现 `src/config/` |
+| 宿主集成测试 | 根 `examples/demo/tests/server/`，显式 `[[test]]` 声明、原 target 名和 feature 要求保持 |
+| TestDatabase 实现/兼容入口 | `src/testing/`；独立 `testing` package re-export `openrust::testing::TestDatabase` |
 | 基准测试 | `tools/performance/benches/db_routing.rs`，`performance` package 的 `db-routing-bench` feature；数据库 feature 转发到根 `openrust` package |
 | 工具边界 | `tools/cli/`、`tools/macros/`、`tools/testing/`、`tools/performance/` 为独立 package，分别承担命令、proc-macro、下游测试工具与性能验证 |
 

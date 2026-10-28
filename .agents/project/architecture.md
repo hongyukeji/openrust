@@ -2,21 +2,19 @@
 
 > 受众：AI Agent
 > 更新：2026-10-28
-> 摘要：应用职责目录与独立 framework library；目录决定见 [ADR-071](decisions/adr-071-application-framework-layout.md)。公共语义后继阶段逐项重构。
+> 摘要：同一 workspace 内的框架 library 与应用；目录决定见 [ADR-072](decisions/adr-072-framework-and-application-projects.md)。公共语义后继阶段逐项重构。
 
 ## Workspace 与职责
 
-根 `application` package 只有 `src/main.rs` 的 `server` bin，default-members 仅根应用；默认 `cargo run` 无需选择 package/bin。`bootstrap/app.rs` 装配应用，`routes/web.rs` 注册路由，`app/` 放业务，config/database/resources/public/storage/tests 分别承担配置、数据代码、资源、公开文件、运行数据与集成测试。顶层职责目录通过编译期 `#[path]` 接入，Cargo 静态发现，无运行时源码扫描。
+工程分工见 [ADR-072](decisions/adr-072-framework-and-application-projects.md)：本仓库对应 laravel/framework，根 openrust package/lib 的领域源码位于 src/；工具位于 tools/，框架公开测试与独立 consumers 位于 tests/。工具和应用单向依赖框架，根 package 无业务 bin，根 workspace 的 default-members=["examples/demo"] 默认启动应用。
 
-`framework/` 是唯一 `openrust` library package，通用实现位于 framework/src，原公开路径 `openrust::...` 在 R1 位置迁移期间保持；Container/Provider 等语义按后继 contract 重写。tools/cli、tools/macros、tools/testing、tools/performance 保持独立编译边界，不为每个领域拆空 crate。工具与应用单向依赖 framework。
+examples/demo 是根 workspace 的聚合回归应用成员，共用根 Cargo.lock，保留原根 server、app/bootstrap/routes/config/database/resources/public/storage 与进程/数据测试。CI workspace 门禁包含 demo，并显式执行其真实服务 targets。examples/example 保留完整能力演示及其迁移 package，职责不等于第二份应用模板。
 
-综合示例位于 examples/example，迁移 package 位于其 database/migrations。公开扩展 consumer 保留 tests/consumers；根 tests 是默认应用的公开 API/真实服务集成回归，framework/src 单元测试随库发现。数据方言与协议驱动仍按既有边界，R1 不改变事务、认证和队列语义。
-
-生成应用拥有独立 workspace 和 Cargo.lock；从框架源码执行 new 指定目标目录，生成 manifest 复制必要 workspace 配置并将本地 framework/tool path 明确解析，不修改源 workspace，也不依赖尚未发布的 crate。源目录需保持可达。
+应用骨架唯一来源是 tools/cli/templates 和生成器；生成应用使用自身名称、独立 workspace/lock、本地明确解析的框架/tool 依赖，不继承开发 workspace，也不修改源工程。应用用静态模块声明连接职责目录，保留 Rust 类型/async/Cargo。
 
 ## 验证边界
 
-根 CLI 启动、应用/框架测试、生成应用 check/test/HTTP、双库与 IDE 各有独立证据；具体见 testing/verification。IDE Command=run 的 UI 调试在实际执行前保留缺口，Cargo 编译不能代替。
+框架 workspace、workspace 成员 demo、生成应用 check/test/HTTP、consumer、双库分别验收。根 workspace 默认启动 demo，根与 demo 目录无参数 cargo run 及真实 HTTP 须执行。目录迁移中，不将旧 ADR-071 验收记作新布局通过。
 
 ## 当前状态
 
@@ -33,5 +31,5 @@
 | `cli` | new/dev/generate 与模板，见 [core/cli.md](core/cli.md) |
 | `macros` | `#[openrust::resource]` proc-macro，见 [core/macros.md](core/macros.md) |
 | `testing` | PostgreSQL/MySQL `TestDatabase`，见 [core/test.md](core/test.md) |
-| 根 `server` bin | 聚合入口及启动/数据库/认证集成验证，见 [core/server.md](core/server.md) |
+| workspace 成员 demo 的 `server` bin | 聚合入口及启动/数据库/认证集成验证，见 [core/server.md](core/server.md) |
 | cache/events/storage 等剩余能力 | 尚未完整实现；按 [当前计划](plan.md) 与 [能力覆盖](plans/v1-capability-coverage.md) 逐簇推进 |

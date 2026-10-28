@@ -263,6 +263,7 @@ fn serve_process_exits_successfully_after_sigterm() -> TestResult {
         drop(reservation);
         let mut child = ChildGuard(
             Command::new(env!("CARGO_BIN_EXE_server"))
+                .current_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."))
                 .env("APP_SERVER_HOST", "127.0.0.1")
                 .env("APP_SERVER_PORT", port.to_string())
                 .env("APP_SERVER_SHUTDOWN_TIMEOUT_SECS", "2")
@@ -288,6 +289,8 @@ fn serve_process_exits_successfully_after_sigterm() -> TestResult {
             }
         })
         .await?;
+        let homepage = request_bytes(&address, "/").await?;
+        assert!(String::from_utf8_lossy(&homepage).contains("<title>OpenRust</title>"));
         let signal = std::process::Command::new("kill")
             .args(["-TERM", &child.0.id().to_string()])
             .status()?;

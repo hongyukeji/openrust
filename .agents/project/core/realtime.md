@@ -8,4 +8,4 @@ Realtime::connect 建立有界本地连接；send_to_user 按用户与频道将 
 
 启用 `metrics` feature 后记录本地在途连接数、容量拒绝数和成功发送数；指标不带用户、频道、节点或消息字段。应用自行创建的裸连接及自定义 transport 不纳入框架计数。
 
-验证边界与公共配置见 [ADR-059](../decisions/adr-059-realtime-transport.md)；真实两 API 进程路由与依赖故障验收见 [memory/testing.md](../memory/testing.md#M5-WebSocket-与-SSE-跨节点路由)，示例用法见 [tests/consumers/realtime](../../../tests/consumers/realtime/README.md)。当前实现不自动限制应用自行创建的裸连接、任意 transport 或其他网络 client。
+验证边界与公共配置见 [ADR-059](../decisions/adr-059-realtime-transport.md)；真实两 API 进程路由与依赖故障验收见 [memory/testing.md](../memory/testing.md#m5-websocket-与-sse-跨节点路由)，示例用法见 [tests/consumers/realtime](../../../tests/consumers/realtime/README.md)。当前实现不自动限制应用自行创建的裸连接、任意 transport 或其他网络 client。

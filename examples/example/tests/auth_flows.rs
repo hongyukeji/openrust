@@ -138,7 +138,7 @@ async fn run_auth_flow(
     mail: &CaptureMailer,
     app: &openrust::App,
 ) -> TestResult {
-    let root = request(address, "GET", "/", None, None, None).await?;
+    let root = request(address, "GET", "/api", None, None, None).await?;
     assert_eq!(root.status, StatusCode::OK);
     assert_eq!(root.body["success"], true);
     assert_eq!(root.body["data"]["name"], "example");

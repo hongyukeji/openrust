@@ -2,11 +2,11 @@
 
 > 受众：设计、实现、验收 Agent
 > 更新：2026-10-28
-> 状态：整体方向已授权；本文件是目标设计与实施计划，R0 基线与 R1 目录/启动已实际交付；后继语义按阶段推进。
+> 状态：整体方向已授权；本文件是目标设计与实施计划，R0 基线已交付，R1 按 ADR-072 纠正框架/应用工程边界；后继语义按阶段推进。
 
 ## 1. 目标与授权
 
-产品定位为用 Rust 忠实实现 Laravel，并长期跟进 Laravel 框架功能更新。目录、术语、命名、配置、默认行为、生命周期、开发流程与扩展方式以 Laravel 为准，使 Laravel 开发者能直接沿用已有框架知识。Goravel 是跨语言实现参考。允许架构和代码推倒重来，无旧 API、数据或目录兼容要求；必须保留 Rust 类型安全、所有权、原生 async、trait、Cargo 与 IDE 能力。语言适配须有具体语言、运行时或工具约束；已有优秀通用机制按下述融合规则保留，不以个人偏好或笼统“Rust 惯用”改变 Laravel 体验。
+产品定位为用 Rust 语言实现 Laravel 框架，与 Laravel 框架高度吻合，并长期跟进其功能更新。机制、目录、概念、术语、命名、配置、默认行为、生命周期、开发工作流与扩展方式以 Laravel 为准，使 Laravel 开发者能直接沿用已有框架知识。Goravel 是跨语言实现参考。允许架构和代码推倒重来，无旧 API、数据或目录兼容要求；必须保留 Rust 类型安全、所有权、原生 async、trait、Cargo 能力。语言适配须有具体语言、运行时或工具约束；已有优秀通用机制按下述融合规则保留，不以个人偏好或笼统“Rust 惯用”改变 Laravel 体验。
 
 “低学习成本”以常见任务的对照走查验收；Rust 语法、所有权和异步仍需学习，不承诺 PHP 源码直接运行或跨语言零知识成本。范围覆盖机制、默认体验、生成、文档、运维和故障语义，不能以目录改名完成本任务。
 
@@ -60,40 +60,33 @@ R0 为已有增强记录对应 Laravel 职责、开发价值、接入/定制方�
 
 统一返回格式作为明确保留项，归 C05/C06、R3/R5 的 Response / API Resource 与异常渲染：成功、分页、校验和错误复用共同契约，保持无载荷省略 `data` 等已确认行为，并覆盖元信息和嵌套资源只包装一次。提供便捷接入与公开定制，应用仍可选择原生响应；具体默认值在 R3 定稿。HTML、下载、SSE/gRPC、无正文等响应保持各自协议语义，统一格式不等于统一 HTTP 200。生成器、OpenAPI、测试 assertions 与文档同步；其他增强也按实际价值和对应职责融合，避免功能堆积。
 
-### 3.1 面向应用的默认目录
+### 3.1 同仓框架与应用 workspace
 
-推荐采用 Laravel 职责目录作为默认源码交付入口；R1 通过 Cargo/IDE 原型后形成最终目录 ADR，并迁移全部受影响调用方。
+本仓库对应 `laravel/framework`，用 Rust 重写 PHP Laravel 框架。根 Cargo package/lib 均为 `openrust`，框架实现位于 `src/`，工具位于 `tools/`，框架公开测试/consumers 位于 `tests/`。根 package 是框架库，根 workspace 通过 default-members=["examples/demo"] 默认启动应用。最终边界见 [ADR-072](../decisions/adr-072-framework-and-application-projects.md)，替代 ADR-071 的根应用布局。
+
+应用骨架对应 `laravel/laravel`，唯一来源为 tools/cli/templates 与生成器；生成工程独立使用自身名称、workspace/lock 和 openrust 依赖：
 
 ```text
-openrust/
-├── app/                    # 应用业务 Rust 模块
-│   ├── http/               # controllers、requests、middleware、resources
-│   ├── models/             # 模型、关系、casts、scopes
-│   ├── providers/          # 应用服务提供者
-│   └── ...                 # jobs、events、listeners、mail、notifications 等按需生成
-├── bootstrap/              # 应用装配与 provider 注册
-├── config/                 # app/database/cache/auth/mail 等领域配置
-├── database/               # migrations、factories、seeders
-├── routes/                 # web.rs、api.rs、console.rs、channels.rs（按需）
-├── resources/              # views、语言/前端源资源（按能力创建）
-├── public/                 # 可公开的构建产物和静态文件
-├── storage/                # app、logs、framework 的运行数据
-├── src/main.rs             # 唯一默认进程入口，尽量薄
-├── tests/                  # 当前应用的 unit/feature/真实服务测试
-├── framework/              # 框架 library 源码、Cargo.toml、自身 tests
-├── tools/                  # CLI、proc-macro、测试/性能工具的独立编译边界
-├── examples/               # 多个独立示例各占子目录，按实际需要增加
+application/
+├── app/
+├── bootstrap/
+├── config/
+├── database/
+├── routes/
+├── resources/
+├── public/
+├── storage/
+├── tests/
+├── src/main.rs
 ├── .env.example
 └── Cargo.toml
 ```
 
-目录骨架已按 [ADR-071](../decisions/adr-071-application-framework-layout.md) 实施到 framework 与应用职责目录；R1 的同一 Command=run 普通运行与断点调试已由 Agent 实际 UI 验收。不先复制整套实现后长期保留两份；按可构建的功能簇迁移，旧入口和别名在替代验收后删除。现有 `examples/example`、`tests/consumers` 的行为证据需迁入对应应用/框架测试职责，不能随目录一起丢弃。
+原根聚合应用迁入同一 workspace 内的 `examples/demo/`，完整保留 HTTP/认证/双库/真实服务验收责任；CI 的 workspace 门禁包含 demo，并显式执行真实服务 targets。examples/example 保留完整能力演示，tests/consumers 保留公开扩展验收，不复制第二份应用骨架。
 
-Rust 根 `src/main.rs` 用明确的编译期模块声明连接职责目录；允许薄层 `#[path]` 或 Cargo target path，禁止运行时扫描 Rust 源码。R1 必须比较顶层职责目录与 `src/` 内职责模块的 IDE/测试成本；若顶层形式妨碍 Cargo/IDE，则自主采用 `src/app`、`src/bootstrap`、`src/routes` 等等价布局，并更新 ADR、生成器和本文，不能牺牲语言工具便利性。
+Rust 薄入口以静态模块声明连接职责目录，无运行时源码扫描。demo 只有一个默认 server bin，在仓库根与 demo 目录无参数 cargo run 与真实 HTTP 启动实际验收；不得以选包/选 bin 代替。旧布局已验证事实保留，但新布局重新验收。
 
-默认应用只有一个启动 bin；框架库与维护 CLI 是独立 package，默认 workspace 成员明确。无参数 `cargo run` 启动应用，RustRover 同一配置 Command=`run` 普通运行和断点调试都成功。不把命令别名、另存带 `--bin/--package` 的调试配置当作验收通过。
-
-支持干净源码分发与独立生成应用；独立应用依赖在本地可解析，不依赖未发布的 crates。源码交付、可打包边界与更新方式在 R1 定稿，创建外部项目的验收在 `/tmp` 或仓库隔离目录进行，不默认授权写用户其他项目。
+生成应用自有 workspace/lock，不继承框架开发成员；本地依赖可解析，不依赖尚未发布的 crates。只在 /tmp 或本仓库验证，不创建外部仓库或发布。
 
 ### 3.2 内核和语言适配
 
@@ -101,7 +94,7 @@ Rust 根 `src/main.rs` 用明确的编译期模块声明连接职责目录；允
 | --- | --- |
 | Container、ServiceProvider | 类型化注册/解析；singleton、scoped、transient；register/boot 顺序、缺失和环依赖启动失败。HTTP、job、console 都有明确 scope；禁止持锁 await 和跨请求状态泄漏 |
 | Facade、依赖注入 | 熟悉的能力入口与可测试替换；底层为容器绑定的类型化 handle，可显式注入。若提供上下文便捷入口，须定义无 scope 错误、spawn 传播与并发隔离，不能依赖不可替换全局单例 |
-| 自动装配、发现 | 显式 provider 列表、derive 或构建期可检查注册；保留 IDE 跳转和编译错误，不引入 PHP 反射解释器 |
+| 自动装配、发现 | 显式 provider 列表、derive 或构建期可检查注册；保留静态可检查性和编译错误，不引入 PHP 反射解释器 |
 | Eloquent | 熟悉模型/关系/查询/事件/工厂语义，typed builder + derive/trait + 成熟数据库组件；数据库 I/O 显式 async，禁止属性读取隐式网络调用 |
 | fluent API | 返回类型表达链式状态和错误，使用 snake_case；不用字符串万能字典抹掉类型信息。集合优先 Iterator/Vec，公共包装需有业务价值 |
 | HTTP/异常 | `Result` 和类型化响应；语义 HTTP 状态默认；在 Response / Resource / 异常渲染中融合统一返回格式增强；分页、redirect、view、stream 各自正确，不强制所有响应套统一 200 包装 |
@@ -144,7 +137,7 @@ Rust 根 `src/main.rs` 用明确的编译期模块声明连接职责目录；允
 | C25 | 日志/metrics/OTel、health/readiness、错误诊断、队列/任务观测；采样与低基数/资源上限 | R12 |
 | C26 | Artisan 风格命令、make:*、route:list、migrate:*、db:seed、queue:*、schedule:*、config:*、doctor、交互/进度/退出码 | R1/R13 |
 | C27 | TestApp、HTTP/session/auth assertions、各能力 fake/spy、factory/seed、时间控制、真实 DB 与浏览器测试 | R2/R6/R13 |
-| C28 | 模板覆盖/stubs、资源发布、第三方 provider/driver、公开 consumer、文档/Rustdoc/IDE、干净环境生成与升级 | R13 |
+| C28 | 模板覆盖/stubs、资源发布、第三方 provider/driver、公开 consumer、文档/Rustdoc、干净环境生成与升级 | R13 |
 | C29 | Search 索引/同步/队列/查询、运行时 feature flags、图片处理有界接口；真实 driver 与失败语义 | R12 |
 | C30 | CSV/XLSX 流式数据交换、任务化进度/恢复、tenant/context 隔离等现有通用能力的适配回归 | R11 |
 | C31 | 单机部署、服务复用、dev/watch 编排、Compose、迁移发布、备份恢复、构建成本、性能/故障/集群 | R14 |
@@ -158,7 +151,7 @@ Rust 根 `src/main.rs` 用明确的编译期模块声明连接职责目录；允
 | 阶段 | 前置 | 交付与退出条件 |
 | --- | --- | --- |
 | R0 基线和全量对照 | 本计划 | 固定上游；逐章矩阵；资产/回归清单；旧规则替代清单；每项归属/测试/外部条件；优先识别破坏性共享 contract，完成后立即进入 R1 |
-| R1 骨架与启动 | R0 | 最终目录/分发 ADR，最小可运行应用，框架迁移，生成器起步，`cargo run` 与 IDE run/debug，应用/框架测试可发现，无旧双入口 |
+| R1 骨架与启动 | R0 | 最终目录/分发 ADR，最小可运行应用，框架迁移，生成器起步，`cargo run` 与真实 HTTP，应用/框架测试可发现，无旧双入口 |
 | R2 内核与测试底座 | R1 | Container/Provider、scope、Facade/DI、配置/日志/停机统一；先交 TestApp 最小路径、测试替换和独立扩展 consumer，为后续簇提供回归工具 |
 | R3 HTTP 与 Web | R2 | 路由、控制器、FormRequest、response/resource 基础、middleware、Session/CSRF 基础、异常；默认错误码与 HTML/JSON 行为在真实 HTTP 验收 |
 | R4 数据基础 | R2–R3 | 公开连接/QueryBuilder/Schema/迁移、事务/读写路由和 before/after 边界；PG/MySQL 真实复制拓扑和故障/恢复 |
@@ -199,7 +192,7 @@ R0–R16 是依赖路线，`todo.md` 只维护当前可领取项。旧观测审�
 - `cargo clippy --workspace --all-targets -- -D warnings`、`cargo test --workspace`、`cargo doc --workspace --no-deps`；关键 features、all-features、MSRV 按改动与 CI 矩阵补测，记录实际 feature/忽略测试。
 - `cargo deny check`；新增依赖登记 `stack.md`，许可证和安全问题不能靠关门禁解决。
 - 数据相关能力实际执行 PostgreSQL 18、MySQL 8.4 LTS 集成；SQLite 从支持落地起加入适用单机矩阵。最低版本在最终验收确定和验证，PG16 历史记录不充当当前基线。
-- 模板/生成命令生成干净应用后 `cargo check` + `cargo test`，实际启动 HTTP 与新增流程；IDE 默认 run/debug 在 R1 及最终验收保留证据。
+- 模板/生成命令生成干净应用后 `cargo check` + `cargo test`，实际启动 HTTP 与新增流程；默认 cargo run 与真实 HTTP 保留证据。
 - 检查公开扩展 consumer、真实服务失败和恢复、文档/Rustdoc、所有下游和废弃路径引用；只提交本簇变更。
 
 文档-only 功能簇只做 diff、链接/锚点和旧口径扫描；本次规划不运行全量代码门禁，也不增加“代码已通过”的记录。
@@ -224,7 +217,7 @@ R0–R16 是依赖路线，`todo.md` 只维护当前可领取项。旧观测审�
 
 - 本地主控可用时按环境规则负责分类、派发、进度汇总；已定 contract 的实现/测试优先用用户指定的 `gpt-6.1-sol`，常规 `medium`，只有具体难题才单次提高推理强度。不可用时记录真实原因并选择可用且成本合适的模型，不伪称使用指定模型。
 - 一个功能簇内按互不写同一文件的子任务分配：实现、配套测试/文档、独立审查；小任务由一个 worker 闭合，避免每个文件一个代理。不要复制全仓/完整会话给每个 worker，只提供路径、Spec、必要事实和验收命令。
-- 当前及以后所有 worker 直接在本仓库 main 开发，不创建隔离分支/worktree。主控指定唯一写入者和文件 owner，其他代理仅并行只读；共享 ADR/计划/锁文件/构建资源串行更新。不推送、不发布。现有隔离分支转移并删除已获用户明确授权。
+- 当前及以后所有 worker 直接在本仓库 main 开发，不创建额外源码仓库、开发分支或隔离 worktree。同一功能簇内，主控明确划分互不重叠的文件所有权后可并行实现；存在依赖的任务按顺序推进。Cargo manifests/lock、大规模迁移、共享 ADR/计划与最终提交由集成负责人协调，同一共享文件不得并发写入；target、端口和服务资源预先分配。不推送、不发布。
 - worker 不递归派发、不擅改 contract、不顺手扩大范围；返回文件清单、commit/未提交 diff、实际命令与结果、外部条件、待审查问题。测试环境/端口/库名/构建目录隔离，禁止多个 agent 同时清理共享 target。
 - 同模型独立会话可做普通回归审查；认证、密钥、事务、并发/分布式等高风险修改必须不同模型或 Provider 独立审查。首选任务适配且成本可控的方案，不自动升级到最高模型。
 - 长任务派发后前台给出任务名、模型、范围和输出位置；异步运行，收到完成通知再收集证据。额度不足/服务不可用时保存下一步与已完成证据，不把中断写成完成。
@@ -235,6 +228,6 @@ R0–R16 是依赖路线，`todo.md` 只维护当前可领取项。旧观测审�
 
 删除已替代代码、兼容别名、旧模板/脚本/目录走 `git rm`，先核对 WIP 与行为覆盖。不得清理他人 worktree、进程或共享服务。新结构可改变全部历史约束，但不能通过复制旧实现再长期维护两套核心完成重构。
 
-最终报告提供矩阵关闭情况、真实测试/拓扑/性能证据、生成项目与 IDE 证据、独立审查结论、提交范围及外部缺口；本地 commit 后不 push、不发布、不打 tag。
+最终报告提供矩阵关闭情况、真实测试/拓扑/性能证据、生成项目 check/test、默认 cargo run 与真实 HTTP 证据、独立审查结论、提交范围及外部缺口。本地 commit 后不 push、不发布、不打 tag。
 
 执行任务入口见 [重构执行说明](laravel-rebuild-execution.md)。本计划记录完成不代表 R0 盘点或 R1 代码已完成。

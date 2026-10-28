@@ -3,7 +3,7 @@
 use openrust::http::HttpPlugin;
 use openrust::prelude::*;
 
-/// 仓库根目录的默认集成宿主。
+/// workspace 默认 demo 的聚合集成宿主。
 pub(crate) struct Server;
 
 impl Application for Server {

@@ -2,7 +2,7 @@
 
 - 状态：Accepted
 - 日期：2026-10-27
-- 依据：[ADR-008 游标分页边界](adr-008-api-conventions.md#3-查询参数)、[M5 ORM 与查询体验](../plans/v1-capability-coverage.md#能力表)
+- 依据：[ADR-008 游标分页边界](adr-008-api-conventions.md#3-查询参数)、[M5 ORM 与查询体验](../plans/v1-capability-coverage.md#v1-能力覆盖与单一归属)
 
 ## 背景
 

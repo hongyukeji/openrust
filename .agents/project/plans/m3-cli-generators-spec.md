@@ -5,7 +5,7 @@
 
 ## 范围
 
-1. 增加 `openrust generate mailer <snake_case_name>`，生成独立邮件类型，实现 `Email` 并注册到 `framework/src/mailers/mod.rs` 与 `src/main.rs`。
+1. 增加 `openrust generate mailer <snake_case_name>`，生成独立邮件类型，实现 `Email` 并注册到 `src/mailers/mod.rs` 与 `src/main.rs`。
 2. 增加 `openrust generate policy <singular_resource>`，生成资源级 Policy 包装，提供 read/create/update/delete 的精确权限常量和 `authorize_*` 方法。
 3. Policy 生成要求项目 manifest 已启用 `auth`；不自动修改依赖或迁移。
 4. 两个生成器复用当前标识符规范和模块注册规则；非法名称、重复模块、缺少前置依赖必须报错，不覆盖已有文件。

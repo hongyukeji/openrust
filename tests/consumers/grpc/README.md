@@ -3,7 +3,7 @@
 该独立示例使用应用自有的 `proto/echo.proto` 和 `build.rs` 生成 typed client/server，并通过真实 TCP loopback 完成 unary、服务端流、客户端流和双向流调用。客户端流通过结束输入完成半关闭；所有连接都在本进程中运行，不需要数据库或全局 `protoc`。TLS 集成测试使用临时生成的 CA/server/client 证书，验证 hostname、信任链、过期证书和 mTLS 客户端身份拒绝；认证测试通过真实 TCP 验证 JWT/PAT Bearer、重复/无效凭据、Cookie Session 排除与标准 Status 映射。数据库授权测试以 PostgreSQL/MySQL 隔离库验证真实 PAT、Policy abilities 和撤销。
 
 ```bash
-cargo run --locked
+cargo run --locked --bin grpc-example
 cargo test --locked
 # 真实数据库认证测试分别使用当前 PostgreSQL / MySQL 管理连接
 OPENRUST_TEST_DATABASE_URL="<隔离测试库管理 URL>" cargo test --locked --features db-postgres database_auth_tests::database_bearer_and_method_policy_work_over_real_tcp

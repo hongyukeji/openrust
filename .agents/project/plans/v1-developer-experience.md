@@ -12,8 +12,8 @@
 - 当前先闭合 [todo.md](../todo.md) 的 M5 功能簇，再进入本计划。活跃状态只在 `todo.md` 维护；每次领取一个可独立提交的子簇，执行 Spec → Implement → Verify → Commit。
 - 本计划细化已有 M6、[F9/F10](v1-foundation-completion.md#f9-应用模板覆盖) 与 [生产交付计划](v1-performance-and-readiness.md)，不替代其安全、双库、集群和发布门禁。遇到已经实现的条目，核对源码/提交/验收后复用，不重新开发。
 - 每簇 Spec 写明现有入口、实际缺口、最小改动、下游兼容、失败语义及验收命令；公开 API 尚未确定时先设计，再实现。以下能力描述不是已存在的方法签名。
-- 源码与当前 ADR 高于历史分析。框架在 `framework/src/`，工具在 `tools/`，应用模块由 `apps/mod.rs` 显式组合，综合示例在 `examples/example/`，独立 consumer/拓扑验收在 `tests/consumers/`；不恢复已移除目录。
-- 本轮仅记录计划；不安装依赖、不修改 IDE 或运行默认值、不启动 V2 或独立产品。实现时保护既有 WIP，新增依赖登记 `stack.md`，提交仅包含本簇。
+- 源码与当前 ADR 高于历史分析。框架在 `src/`，工具在 `tools/`，应用模块由 `apps/mod.rs` 显式组合，综合示例在 `examples/example/`，独立 consumer/拓扑验收在 `tests/consumers/`；不恢复已移除目录。
+- 本轮仅记录计划；不安装依赖、不修改运行默认值、不启动 V2 或独立产品。实现时保护既有 WIP，新增依赖登记 `stack.md`，提交仅包含本簇。
 
 ## 现有能力与借鉴边界
 
@@ -32,7 +32,7 @@
 
 | 编号 | 可交付功能簇 | 前置 | 主要位置 |
 | --- | --- | --- | --- |
-| DX1 | 默认启动与 IDE 调试 | 当前 M5 簇闭合；启动配置基线核对 | 根 manifest、启动/配置、必要的 IDE 项目配置及文档 |
+| DX1 | 默认启动 | 当前 M5 簇闭合；启动配置基线核对 | 根 manifest、启动/配置、相关文档 |
 | DX2 | TestApp 与行为断言 | DX1；公开 router/生命周期接口 | `tools/testing/`、测试 consumer |
 | DX3 | 显式测试数据与可控时间 | DX2；F10 | `tools/cli/`、`tools/testing/`、示例 |
 | DX4 | 业务生成与输入输出契约 | DX2/DX3；F9 | CLI 模板/生成器、HTTP/Auth/DB 公开组合 |
@@ -43,12 +43,10 @@
 
 按表顺序逐簇执行；DX4 内先完成 F9 模板覆盖，再交付业务生成。较大簇拆成连续小提交，前一子簇验证通过后再继续，不把全部门禁推迟到 DX8。
 
-## DX1 默认启动与 IDE 调试
+## DX1 默认启动
 
 - **交付**：核对 `default-run`、默认 workspace 成员、bin/lib targets、工作目录和配置加载，消除启动歧义；保留完整 workspace 显式检查/测试以及 CLI 和性能工具的使用路径。
-- **硬验收**：RustRover 同一个 Cargo 配置的 Command 始终只有 `run`；Run 正常提供 HTTP 服务，停止后 Debug 正常启动，请求接口命中业务断点并能继续执行。记录 IDE/工具链版本、配置与断点证据。
-- 不能通过加入 `--bin`/`--package`、Cargo alias、包装脚本或另一份调试命令代替该验收。终端 `cargo run`、构建成功和配置文件存在均不能证明 IDE 调试通过。
-- Cargo 配置变更前说明默认 build/check/test 与显式 `--workspace` 的差异，并验证 CLI、测试与工具 targets 未丢失。若版本缺陷导致无法满足，记录可复现条件与上游证据，本项保持未通过。
+- **硬验收**：根宿主与生成应用无参数 `cargo run` 实际提供 HTTP 服务，并能正常退出。Cargo 配置变更前说明默认 build/check/test 与显式 `--workspace` 的差异，并验证 CLI、测试与工具 targets 未丢失。若版本缺陷导致无法满足，记录可复现条件与上游证据，本项保持未通过。
 - 验证根宿主与生成应用的实际配置名称、端口、环境覆盖、应用工作目录隔离和正常退出；非法配置给出脱敏的配置键/来源/修复指引，不能暴露凭据。配置优先级以当前 contract 为准，不恢复旧策略。
 
 ## DX2 TestApp 与行为断言
@@ -99,14 +97,14 @@
 
 - **交付**：在唯一 `examples/example/` 中演示资源开发、认证授权、数据库、缓存、队列通知、文件与已实现实时能力；复用真实 v1 API，页面/组织业务仍归 V2。
 - 按 [生产交付计划](v1-performance-and-readiness.md#8-源码升级与维护约定) 在临时源码副本演练框架升级，保留用户 apps/配置/迁移，验证冲突、公开 API/任务载荷兼容和数据迁移回滚限制。
-- 中文文档贯穿创建、Run/Debug、增加资源、替换驱动、测试、诊断、部署及升级；对外支持矩阵只按实际验证承诺。记录构建时间、操作步骤和阻塞点，不能用主观“优雅”替代证据。
+- 中文文档贯穿创建、启动、增加资源、替换驱动、测试、诊断、部署及升级；对外支持矩阵只按实际验证承诺。记录构建时间、操作步骤和阻塞点，不能用主观“优雅”替代证据。
 - **验收**：未参与实现的走查者仅凭文档完成上述任务；Agent 代走查注明身份。PG18/MySQL8.4 分别提供生成应用和部署证据；全部关联 CI/consumer targets 实际被发现，完整集群门禁仍按专门计划执行。
 
 ## 每簇验收与收口
 
 1. 核对 Git/WIP、当前 ADR 与上述基础能力；只补缺口。审计已有能力后无代码缺口的部分，记录可复验入口而不伪造新增实现。
 2. 源码执行 `cargo fmt --all --check`、`cargo clippy --workspace --all-targets -- -D warnings`、`cargo test --workspace`、`cargo doc --workspace --no-deps`、`cargo deny check`，并运行相关可选 feature；精确矩阵按 [testing.md](../memory/testing.md) 和最新 AGENTS 执行。
-3. 数据行为在 PG18/MySQL8.4 真实验证；生成器在生成项目 check/test；HTTP/IDE/进程/外部 driver/集群使用相应真实证据。fake、test skip、编译通过不能替代未执行的验收。
+3. 数据行为在 PG18/MySQL8.4 真实验证；生成器在生成项目 check/test；HTTP/进程/外部 driver/集群使用相应真实证据。fake、test skip、编译通过不能替代未执行的验收。
 4. 更新受影响 core、模块 README、必要 ADR、todo/plan/progress 和测试记录；成功、失败、未执行和外部阻塞分别报告。使用仓库提交脚本创建仅本簇本地 commit，不推送、发布或打 tag。
 5. 按构建产物规则回收本任务资源；其他任务使用共享 target 时延后清理。文档规划仅做 diff、链接与旧引用检查，不启动构建或清理其他任务产物。
 

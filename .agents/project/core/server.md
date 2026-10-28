@@ -1,20 +1,11 @@
-# 默认应用当前事实
+# 聚合应用事实
 
 > 受众：AI Agent
 > 更新：2026-10-28
-> 摘要：根 application package 只有 server bin；框架库位于 framework。
+> 摘要：原根集成宿主迁入同一 workspace 内的 examples/demo，完整验收责任保留并重新通过本轮适用门禁。
 
-## 职责与装配
+根 openrust 是框架库，不含业务启动 bin。examples/demo 是根 Cargo workspace 的成员，共用根 Cargo.lock，package 为 demo，只有 server 默认 bin；薄 src/main.rs、bootstrap/app.rs、routes/web.rs 与 app/ 通过静态模块声明连接。运行时从应用工作目录加载 config/public/storage。
 
-| 路径 | 内容 |
-| --- | --- |
-| `src/main.rs` | 薄入口，调用 `openrust::run::<bootstrap::Server>()` |
-| `bootstrap/app.rs` | 使用公开 API 组合 HTTP、I18n、Mailer、SMS；按 feature 显式组合 Encryption、Cache、Storage |
-| `routes/web.rs` | 应用路由注册，当前复用 framework_routes；HTTP 插件提供 health/readiness |
-| `app/` | 应用业务模块；不扫描或动态加载源码 |
-| `config/*.toml` | 应用运行配置；配置类型/加载机制位于 framework/src/config |
-| `tests/server/` | 公开 API、真实数据库、worker/scheduler 与子进程回归 |
+框架扩展继续用 openrust:: 公共 API；本簇不改 Application/AppBuilder/Plugin/认证/数据库/队列语义。examples/demo/tests/server 保留全部原应用/进程/真实服务测试，根 tests/core/http/queue 保留框架公开契约；根 default-members=["examples/demo"]，根无参数 cargo run 默认 server；CI 的 --workspace 门禁覆盖框架和 demo，双库另行实际执行。
 
-根 feature 转发到 openrust 并控制集成测试，启用 feature 不自动安装数据库/认证/队列插件。默认根 `cargo run` 不依赖外部服务；`APP_SERVER_PORT=4000 cargo run` 可覆盖端口。集成测试命令为 `cargo test -p application --test server`；库单元测试为 `cargo test -p openrust --lib`。
-
-目录/生成分发见 [ADR-071](../decisions/adr-071-application-framework-layout.md) 与 [architecture](../architecture.md)。新的生命周期、HTTP、认证语义留对应后继阶段；真实验证见 [testing](../memory/testing.md)，IDE 验收单列。
+根与 demo 目录无参数 cargo run 均实测 /health 200、公开 HTML 首页 200 与 SIGINT exit 0。薄入口仅在 workspace 根启动时切换到应用目录，配置与静态资源保持应用职责。原进程测试从根启动并验证 HTML 与 SIGTERM；双库各 11 targets/46 项及最终 CI workspace feature 组通过。旧布局验收只作历史证据。新布局实际结果见 [testing](../memory/testing.md)，当前待办见 [todo](../todo.md)。

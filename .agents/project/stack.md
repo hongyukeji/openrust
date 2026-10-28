@@ -94,4 +94,6 @@ Edition 2024；MSRV 为 stable 减两个小版本；0.x 期间破坏性变更只
 
 ## R1 Cargo 布局
 
-框架库迁入 framework，根 application 只依赖公开 openrust；工具保留独立 package。没有新增依赖。workspace 的 openrust 显式 default-features=false，与现有空默认 feature 一致，使 Cargo 1.97 能继承 tools/performance 的同一设定；不提高 MSRV。独立 consumer lock 补齐既有框架依赖图，未借迁移升级依赖版本。
+框架 library 位于根 openrust package/src，同一 workspace 内的 examples/demo 应用只通过 openrust 公开 API 依赖框架；工具保留独立 package。没有新增依赖或依赖升级，workspace 的 openrust 显式 default-features=false，与既有空默认 feature 一致；MSRV 保持 1.97。
+
+demo 与框架共用根 Cargo.lock，独立 consumer/生成应用拥有自己的锁图，本轮只调整本地 package 身份/路径解析，不升级注册表依赖。框架根无需额外包别名或包装 crate；公共导入、宏与 Rustdoc 都保持 openrust。

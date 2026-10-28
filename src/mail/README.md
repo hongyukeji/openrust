@@ -6,7 +6,7 @@ OpenRust 框架的邮件能力。实现 `Email::message` 来构造 `lettre::Mess
 
 `Mailer::send` 会立即发送。启用 `queue` 后，`openrust::notifications::Notifier` 可把固定邮件/SMS 内容排入数据库队列；worker 重试复用已渲染内容，不会重新读取 locale 或模板。先注册 `DatabasePlugin`、`QueuePlugin` 与 `NotificationsPlugin`，并把 `QueueMigration` 加入应用迁移器；标准 worker 用 `queue work notifications` 处理默认通知队列。邮件与短信分别作为独立任务，渠道之间没有顺序保证。
 
-应用可实现公开的 `MailDriver` / `SmsDriver`，再由应用自己的 `Plugin::build` 读取供应商配置并通过 `app.try_insert(Mailer::new(driver))`、`app.try_insert(SmsSender::new(driver))` 注册服务。使用自定义供应商时，不注册对应的内建 `MailerPlugin` 或 `SmsPlugin`；内建 driver 名称只由框架维护。独立 consumer 展示从配置到发送的完整路径：[自定义邮件与短信 driver](../../../tests/consumers/communication-drivers/README.md)。应用自定义供应商时也要自行定义其重试、幂等、凭据轮换和送达状态处理；短信 `SmsReceipt` 仅代表提交被接受。
+应用可实现公开的 `MailDriver` / `SmsDriver`，再由应用自己的 `Plugin::build` 读取供应商配置并通过 `app.try_insert(Mailer::new(driver))`、`app.try_insert(SmsSender::new(driver))` 注册服务。使用自定义供应商时，不注册对应的内建 `MailerPlugin` 或 `SmsPlugin`；内建 driver 名称只由框架维护。独立 consumer 展示从配置到发送的完整路径：[自定义邮件与短信 driver](../../tests/consumers/communication-drivers/README.md)。应用自定义供应商时也要自行定义其重试、幂等、凭据轮换和送达状态处理；短信 `SmsReceipt` 仅代表提交被接受。
 
 通知消息会将收件人和正文写入队列数据库，调用方应按业务数据保护数据库、备份和保留期；不要将密码、access/refresh token、验证码或不必要的个人信息放入任务。直接 `dispatch` 对各渠道分别提交，若后续渠道入队失败，已提交的前序任务不会自动撤销；需要与业务变更或多个渠道一起原子提交时，使用 `dispatch_in_transaction`。活动唯一键按渠道分别生效，任务完成或失败归档后释放，不是永久请求幂等记录。
 

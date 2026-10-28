@@ -2,19 +2,15 @@
 
 ## 主分支整合核对
 
-2026-10-28 按用户明确授权整合 `9b6268e` / `eeba3e1` 与 main 原有三笔设计提交；冲突仅在 plan/progress/todo，保留最新设计要求及 R0/R1 实际进度。与 eeba3e1 对比，源码、manifest、lock、模板、脚本、CI 和测试内容一致，额外变化仅为项目文档/协作规则。R1 代码门禁使用该提交的实际执行记录，本次整合不宣称重新执行构建、双库或 IDE 验收。
+2026-10-28 按用户明确授权整合 `9b6268e` / `eeba3e1` 与 main 原有三笔设计提交；冲突仅在 plan/progress/todo，保留最新设计要求及 R0/R1 实际进度。与 eeba3e1 对比，源码、manifest、lock、模板、脚本、CI 和测试内容一致，额外变化仅为项目文档/协作规则。R1 代码门禁使用该提交的实际执行记录，本次整合不宣称重新执行构建或双库验收。
 
-## R1 当前边界
+## R1 当前工程边界（已实现与验收）
 
-独立 framework library、单默认 application/server、职责目录、独立生成应用与全部路径迁移已实现。默认及 all-features workspace/双库回归、MSRV、生成应用 check/test/真实 HTTP 和公开 consumer 的实际命令/数量见 [testing](testing.md#r1-目录迁移验收基线)。
+根 openrust/src 与 examples/demo 位于同一仓库、同一 Cargo workspace，共用根 Cargo.lock；根 default-members=["examples/demo"] 默认启动 server。CLI 模板是新应用骨架唯一来源，ADR-072 替代 ADR-071 布局。新布局已重新执行 fmt、默认/all-features workspace Clippy/test/doc、deny、MSRV/no-default、八个 consumer、三类生成项目、根/demo 默认 cargo run 与 HTTP。默认 361/26、全 feature 481/32（passed/ignored），显式库单测 146/0；双库各 11 targets/46 项真实集成与 testing 1 项，最终 CI workspace db/auth 组分别 373/26 与 392/26。详细命令、真实服务和证据边界见 [testing](testing.md#r1-当前工程边界与验收入口)。
 
-RustRover 2026.2.4 同一 Command=run 的普通运行和断点调试已由 Agent 实际 UI 验收：根 src/main.rs:12 暂停，恢复后真实 HTTP 成功；共享运行配置已保存。R1 目录/启动/生成器退出条件已通过。复制、集群、SQLite、最低后端版本与真实供应商条件依原阶段和 R4–R14 门禁保留。下文原专项记录保持历史证据身份。
+最终不同模型 gpt-6-sol 只读审查无 blocker/should-fix；其静态核对不替代实现者实际执行记录。仅目录职责、路径与 Cargo 工作流在本簇完成，不代表 R2 内核或 Laravel 全功能等价；忽略项、复制/完整集群、SQLite 全支持及供应商外部条件保持后继门禁。
 
-> 新目标边界：[全面重构计划](../plans/laravel-rebuild.md) 已记录；下文为迁移前专项证据。新实现必须重新验收，不继承为新版本已通过。当前执行顺序以 todo.md 为准。
-
-> 受众：AI Agent
-> 更新：2026-10-27
-> 摘要：下表归纳重构前专项证据及其边界；旧阶段/目录描述不构成新目标验收。重构从 R0 开始，命令与历史基线见 [testing.md](testing.md)。
+旧 ADR-071 的根应用/独立 framework 的命令行与真实服务记录见 [testing](testing.md#r1-旧布局验收事实adr-071)，仅作为迁移回归输入。
 
 ## 当前已有证据
 
@@ -22,8 +18,8 @@ RustRover 2026.2.4 同一 Command=run 的普通运行和断点调试已由 Agent
 
 | 范围 | 已有通过记录 | 证据边界 |
 | --- | --- | --- |
-| Laravel 式全面重构规划 | ADR-070、R0–R16、33 类能力与执行任务已记录；38 个 Markdown 文档的本地链接/锚点检查与 diff 检查通过；gpt-6.1-sol 只读计划审查发现的阶段门禁循环已修正 | 仅计划/规则/技能文档；未实施 R0/R1，未运行代码、IDE、双库或真实服务验收；旧专项证据不转记为重写通过 |
-| M6 开发体验规划 | DX1–DX8 已记录依赖、交付范围和验收条件；diff 与旧引用检查通过；81 个本地链接目标、10 个锚点通过；8 个官方链接经浏览工具解析（直连返回 403） | 仅计划文档；不代表 IDE 调试、TestApp、生成器、进程编排或源码升级已实现/验收 |
+| Laravel 式全面重构规划 | ADR-070、R0–R16、33 类能力与执行任务已记录；38 个 Markdown 文档的本地链接/锚点检查与 diff 检查通过；gpt-6.1-sol 只读计划审查发现的阶段门禁循环已修正 | 仅计划/规则/技能文档；未实施 R0/R1，未运行代码、双库或真实服务验收；旧专项证据不转记为重写通过 |
+| M6 开发体验规划 | DX1–DX8 已记录依赖、交付范围和验收条件；diff 与旧引用检查通过；81 个本地链接目标、10 个锚点通过；8 个官方链接经浏览工具解析（直连返回 403） | 仅计划文档；不代表 TestApp、生成器、进程编排或源码升级已实现/验收 |
 | C1 默认文档入口中文化 | 根 README、贡献/安全/行为准则/变更日志及 `src/**/README.md`、工具/宿主 README；13 个改动 Markdown 的相对链接与锚点检查、`git diff --check`、warnings-denied `cargo doc -p openrust --no-deps`、`cargo test -p openrust --doc` 通过 | 本簇仅整改默认入口说明，不覆盖 Rustdoc/源码注释（C2）或 CLI/生成模板说明（C3）；英文许可、引用和协议原文保留 |
 | C2 Rustdoc 与源码/配置注释中文化 | 注释-only 改动；workspace fmt、clippy、test、warnings-denied doc、`cargo deny check`、`git diff --check` 通过；PostgreSQL 18/MySQL 8.4 各以 `auth,queue,db-<backend>` 执行 `auth_database`（6）、`db_connection`（4）、`db_migration`（1）、`queue`（1）、`queue_crash_recovery`（2）、`schedule`（4），均全部通过 | 不改 API/运行时文案/行为；生成入口 Rustdoc 改动同步快照；CLI 帮助、生成说明和模板注释仍属 C3 |
 | C3 生成说明与 CLI 帮助中文化 | CLI 15 项测试覆盖中文帮助/生成模板；workspace fmt、clippy、test、warnings-denied doc、`cargo deny check`、`git diff --check` 通过；在干净源码副本中用本地 workspace/path 依赖生成无数据库、PostgreSQL、MySQL 应用，各自 `cargo check` 与 `cargo test` 通过 | 真实渲染根命令、`new`、`generate` 帮助；快照取自生成器真实产物；未改变邮件/SMS 等运行时语言策略，也不表示数据库集成测试已在该副本执行 |

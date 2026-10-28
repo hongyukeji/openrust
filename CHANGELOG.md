@@ -23,7 +23,11 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Changed
 
-- 框架源码迁入独立 `framework/` library；根默认应用使用 app/bootstrap/routes/database/resources/storage 职责目录。生成器创建独立 workspace 与本地依赖，不再限定 apps/<name> 或修改源 workspace。
+- 根 Cargo package/library 为 openrust，框架源码归根 src；原聚合 server 应用迁到同一 workspace 成员 examples/demo，共用根 lock；根默认成员指向 demo，保持无参数 cargo run。
+
+- 框架与应用严格对应 Laravel framework/laravel 分工；CLI 为唯一可生成骨架来源，demo 保留 app/bootstrap/routes/database/resources/storage 职责目录；用户生成应用拥有自己的 workspace，不继承源码 demo/工具成员。
+
+- 根 CLI 运行命令按 Cargo metadata 唯一默认应用转发；demo 从 workspace 根启动时解析应用自己的配置和静态资源。
 
 - 错误响应中的 `timestamp_ms` Unix 毫秒数改为 `timestamp` RFC 3339 UTC 字符串（毫秒精度）。
 

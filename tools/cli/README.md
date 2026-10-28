@@ -22,7 +22,7 @@ cargo run -p cli -- dev
 
 启用 MFA 的应用中，`POST /auth/login` 对未启用 MFA 的账户返回 `status: "authenticated"` 和 `credentials`；对已启用 MFA 的账户只返回 `status: "mfa_required"`、短时 `challenge` 与 `expires_at`。客户端把 challenge 与 TOTP 或恢复码提交到 `POST /auth/mfa/login`，成功后才会收到 access/refresh 凭据。已登录用户使用 JWT 调用 `POST /auth/mfa/enrollment`（邮箱与密码重新认证）获取一次性 provisioning URI，再以 `POST /auth/mfa/enrollment/confirm` 确认 TOTP 并领取一次性恢复码。`POST /auth/mfa/disable` 和 `POST /auth/mfa/recovery-codes` 同样要求 JWT、密码及当前 TOTP/恢复码；成功后撤销 refresh token。无状态 access JWT 仍会在其配置 TTL 到期前有效。
 
-从应用目录运行后续命令。CLI 会根据 Cargo metadata 选中该目录对应的应用 package，并以应用目录作为子进程工作目录，因而读取该应用自己的 `config/`：
+从应用目录运行后续命令；从 workspace 根执行时选择 Cargo metadata 中唯一的默认应用成员。CLI 会选中对应应用 package，并以应用目录作为子进程工作目录，因而读取该应用自己的 `config/`：
 
 ```bash
 cargo run -p cli -- key generate
@@ -45,7 +45,7 @@ cargo run -p cli -- g migration labels slug:string
 
 ## 配置与验收
 
-生成项目采用按领域命名的配置文件，例如 `config/app.toml`、`config/cache.toml`、`config/database.toml`；Rust 配置类型和默认值位于框架 `framework/src/config/`。`.env.example` 按领域列出常用值：数据库使用 `DB_CONNECTION=postgres|mysql` 及 `DB_HOST`、`DB_PORT`、`DB_DATABASE`、`DB_USERNAME`、`DB_PASSWORD`、`DB_TABLE_PREFIX`；Redis 使用 `REDIS_HOST`、`REDIS_USERNAME`、`REDIS_PASSWORD`、`REDIS_PORT`、`REDIS_DB`、`REDIS_DEFAULT_STORE`；队列使用 `QUEUE_DRIVER`；邮件、短信和国际化分别使用 `MAIL_*`、`SMS_*` 和 `I18N_DEFAULT_LOCALE`。缓存和 Redis 队列共用同一组 Redis 连接设置。应用配置采用单下划线的扁平环境变量，如 `APP_SERVER_PORT=4000`、`APP_LOG_LEVEL=info`、`APP_NAME` 和 `APP_URL`，由框架映射到相应配置字段。复制 `.env.example` 为 `.env` 以配置本地或部署环境；不要提交含有密钥的 `.env`。生产环境可使用权限受控的 `.env`，进程环境变量优先；应用根目录不得作为静态公开目录。`openrust key generate` 输出一个 32 字节 Base64 密钥，不写入配置文件；请将输出保存到受保护的 secret store 或被忽略的 `.env`。加密只处理应用数据，不会加密数据库备份或 JWT。
+生成项目采用按领域命名的配置文件，例如 `config/app.toml`、`config/cache.toml`、`config/database.toml`；Rust 配置类型和默认值位于框架 `src/config/`。`.env.example` 按领域列出常用值：数据库使用 `DB_CONNECTION=postgres|mysql` 及 `DB_HOST`、`DB_PORT`、`DB_DATABASE`、`DB_USERNAME`、`DB_PASSWORD`、`DB_TABLE_PREFIX`；Redis 使用 `REDIS_HOST`、`REDIS_USERNAME`、`REDIS_PASSWORD`、`REDIS_PORT`、`REDIS_DB`、`REDIS_DEFAULT_STORE`；队列使用 `QUEUE_DRIVER`；邮件、短信和国际化分别使用 `MAIL_*`、`SMS_*` 和 `I18N_DEFAULT_LOCALE`。缓存和 Redis 队列共用同一组 Redis 连接设置。应用配置采用单下划线的扁平环境变量，如 `APP_SERVER_PORT=4000`、`APP_LOG_LEVEL=info`、`APP_NAME` 和 `APP_URL`，由框架映射到相应配置字段。复制 `.env.example` 为 `.env` 以配置本地或部署环境；不要提交含有密钥的 `.env`。生产环境可使用权限受控的 `.env`，进程环境变量优先；应用根目录不得作为静态公开目录。`openrust key generate` 输出一个 32 字节 Base64 密钥，不写入配置文件；请将输出保存到受保护的 secret store 或被忽略的 `.env`。加密只处理应用数据，不会加密数据库备份或 JWT。
 
 启用认证的应用包含真实 HTTP 集成测试 `tests/auth_flows.rs`，使用隔离数据库和 fake 邮件驱动验证端点。运行数据库测试前，设置 `OPENRUST_TEST_DATABASE_URL` 为可创建和删除测试库的 PostgreSQL 或 MySQL 管理连接；变量缺失时测试会跳过数据库路径，不能视为真实数据库验收通过。新生成项目应执行 `cargo fmt --all --check`、`cargo check` 与 `cargo test`；涉及数据库的测试还须在相应真实服务上实际运行。
 

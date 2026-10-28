@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-28
-> 摘要：Laravel 式全面重构的唯一活跃队列；R0/R1 已交付，下一功能簇 R2。
+> 摘要：Laravel 式全面重构的唯一活跃队列；R0 与 R1 已交付；下一功能簇 R2 待 contract 收敛后领取。
 
 ## 领取规则
 
@@ -22,7 +22,7 @@ R2 内核/测试底座 → R3 HTTP → R4 数据 → R5 Model → R6 Factory/SQL
 
 - 统一返回格式等已有优秀机制 → R0 登记对应 Laravel 职责与保留价值，R3/R5 在 Response / Resource / 异常渲染融合并回归，见[融合计划](plans/laravel-rebuild.md#已有优秀机制的融合)；重写不等于删除能力。
 - 原 M5 可观测性/资源独立审查与完整生产门禁 → R12/R14。
-- 原 DX1–DX8、F9/F10：默认 run/debug、TestApp/assertions、factory、命令/生成/stubs、只读 doctor、dev 编排、文档和更新体验 → R1/R2/R6/R13。
+- 原 DX1–DX8、F9/F10：默认 cargo run 与 Cargo 正常兼容设计、TestApp/assertions、factory、命令/生成/stubs、只读 doctor、dev 编排、文档和更新体验 → R1/R2/R6/R13。
 - 双库负载均衡、多 API/worker/scheduler、共享状态/文件/实时、滚动升级/依赖故障、最低版本与性能 → R14。
 - [SQLite 完整支持](plans/v1-sqlite-backend.md) → R6 及各能力适用验收；不能只接通连接。
 - [V2 后台/App](plans/v2-admin-platform.md) → R15；PC 仅规划；独立 AI 产品未启动。

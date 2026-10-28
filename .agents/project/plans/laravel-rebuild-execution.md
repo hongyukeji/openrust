@@ -11,7 +11,7 @@
 - 产品目标是用 Rust 忠实实现 Laravel，并长期跟进框架功能与行为更新；默认保持其目录、概念、命名、默认值、工作流和扩展方式。必要 Rust 适配与版本差异依总计划[长期上游跟进](laravel-rebuild.md#长期上游跟进)记录和验收，不自行降低为仅部分概念相似的框架。
 - Laravel 是能力、概念、默认流程和开发体验的首要参照，Goravel 是跨语言落地参照。允许目录、架构、公共 API、默认值和实现推倒重来，无旧接口或历史数据兼容义务。
 - 保留并融合已有优秀机制，R0 记录对应 Laravel 职责与回归证据。统一返回格式明确纳入 Response / API Resource 与异常渲染，提供便捷接入和公开定制，R3 定稿默认值；不得因上游无相同内置能力而删除，也不强制包装所有协议响应或改成 HTTP 200。
-- Rust 类型、所有权、trait、async、Cargo 和 IDE 便利性必须保留。不得用动态字典、全局可变单例、隐式阻塞 I/O 或 PHP 解释器模拟来追求外形一致。
+- Rust 类型、所有权、trait、async、Cargo 的便利性必须保留。不得用动态字典、全局可变单例、隐式阻塞 I/O 或 PHP 解释器模拟来追求外形一致。
 - 旧 ADR/规范中与新方向冲突的约束按 ADR-070 替代；当前代码是已实现事实，不能用“旧规定不允许”拒绝本次重构。普通设计决策自主完成并记录，不重复询问是否允许重写。
 - 已有 WIP、他人工作、用户数据与共享服务必须保护；发布、推送、tag、凭据和项目外写操作仍遵守授权边界。
 
@@ -20,7 +20,7 @@
 1. 读取 AGENTS.md、`.agents/project/README.md`、context.md、todo.md、plan.md、ADR-070 和全面重构计划；核对 Git HEAD/status、worktree、进程/其他代理、已完成提交和最近验收。
 2. 根据 todo.md 领取当前功能簇。首次从 R0 开始，固定 Laravel/Goravel 版本和源码 commit，逐章建立能力/子行为/现有资产/差异/验收矩阵；随后直接进入 R1，不把完成计划当作完成重构。
 3. 按 R0–R16 的依赖顺序连续推进；一次一个主功能簇，内部可分派不冲突的子任务。每簇执行 Spec → Implement → Verify → Commit，写明公共 contract、生命周期、事务、错误与资源边界。
-4. 默认应用骨架向 app/bootstrap/config/database/routes/resources/public/storage/tests 职责目录收敛，框架实现独立；R1 实测 Cargo/IDE 成本后定稿。允许 Rust 合理适配，不能只搬目录而保留不一致的使用流程。
+4. 框架工程对应 laravel/framework：根 openrust library/src 与 examples/demo 同一 Cargo workspace，根 default-members=["examples/demo"]；应用骨架对应 laravel/laravel：CLI 模板唯一来源，独立 app/bootstrap/config/database/routes/resources/public/storage/tests，原聚合应用迁入 examples/demo。按 ADR-072 重新验收。允许 Rust 合理适配，不能只搬目录而保留不一致的使用流程。
 5. 完成交付矩阵的全部适用机制：内核/Provider/Container/Facade、HTTP/FormRequest/Resource、ORM/关系/Factory、认证授权、缓存/存储、视图/国际化/通信、事件/队列/调度、网络/广播、观测、Artisan 式 CLI、测试与生成器、生产集群、V2 和已纳入的生态可选包。子行为、排期和证据以总计划为准，不私自缩小范围。
 6. 已有实现可复用、适配或重写；复用必须通过新 contract 测试。删除失效代码、旧别名和重复内核，迁移全部调用方、模板、示例、CI 与文档，不长期并存两套框架。
 
@@ -28,7 +28,7 @@
 
 - 已定 contract 的实现和测试优先派给 `gpt-6.1-sol` 子智能体；普通任务使用适中推理，提供最小必要上下文和明确路径，节约 token。
 - 按环境支持使用本地主控做轻量编排；指定模型不可用时如实说明并选成本合适的可用模型。不要仅凭风险词升级到最贵模型。
-- 当前及以后直接在本仓库 main 开发和本地提交，不创建隔离分支/worktree；主控指定唯一写入者和测试资源，其他代理并行只读。worker 不递归派发、不擅改整体 contract、不推送。高风险代码由不同模型或 Provider 独立审查。
+- 当前及以后直接在本仓库 main 开发和本地提交，不创建额外源码仓库、开发分支或隔离 worktree。同一功能簇内，主控明确划分互不重叠的文件所有权后可并行实现；存在依赖的任务按顺序推进。Cargo manifests/lock、大规模迁移、共享文档与最终提交由集成负责人协调，同一共享文件不得并发写入；构建 target、端口和服务资源预先分配，清理前确认无其他任务占用。worker 不递归派发、不擅改整体 contract、不推送。高风险代码由不同模型或 Provider 独立审查。
 - 按当前工具的异步任务规则汇报启动和完成；不虚报后台任务已运行，不把计划中的验证写成已执行。
 
 ## 必须实际验证
@@ -36,7 +36,7 @@
 - 每个代码簇执行适用 fmt、workspace clippy/test/doc、cargo deny、feature/MSRV 门禁；失败先修复。生成项目执行 check/test 和真实启动/HTTP 流程。
 - PostgreSQL 18/MySQL 8.4 LTS 双库；SQLite 单机支持按阶段纳入。真实复制验收延迟/追平/强制主库/故障恢复，不能用两个独立数据库替代。
 - 真实 Redis、S3、SMTP、HTTP/WebSocket/SSE/gRPC、Collector；各数据库分别验收负载均衡、两个 API、多 worker/scheduler 和共享状态/文件/广播/恢复。外部 SMS/支付等仅用授权目标和凭据。
-- 根目录普通 `cargo run` 和 RustRover 同一个 Command=`run` 的运行与断点调试均实际成功；额外 --bin/--package 或命令别名不能替代。
+- 根 workspace 与 demo 目录普通 `cargo run` 和真实 HTTP 启动实际成功；额外 --bin/--package 或命令别名不能替代。
 - 验证单机部署、完整集群、资源上限、性能、干净环境黄金路径与 Laravel 使用者任务对照；没有真人走查时注明 Agent 证据。
 
 ## 持续交付

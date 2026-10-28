@@ -8,5 +8,5 @@ publish = false
 [workspace]
 
 [dependencies]
-openrust = { path = "../../../framework", features = ["auth"] }
+openrust = { path = "../../..", features = ["auth"] }
 sea-orm = { version = "2.0.4", default-features = false, features = ["macros"] }

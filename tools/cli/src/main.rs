@@ -113,6 +113,7 @@ enum DatabaseBackend {
 struct WorkspacePackage {
     name: String,
     manifest_path: PathBuf,
+    default_member: bool,
 }
 
 #[derive(Debug)]
@@ -138,12 +139,16 @@ fn framework_workspace(start: &Path) -> anyhow::Result<FrameworkWorkspace> {
             .context("Cargo metadata omitted workspace_root")?,
     )
     .canonicalize()?;
+    let default_members = metadata["workspace_default_members"]
+        .as_array()
+        .context("Cargo metadata 缺少 workspace_default_members")?;
     let packages = metadata["packages"]
         .as_array()
         .context("Cargo metadata omitted packages")?
         .iter()
         .map(|package| {
             Ok(WorkspacePackage {
+                default_member: default_members.contains(&package["id"]),
                 name: package["name"]
                     .as_str()
                     .context("Cargo metadata package omitted name")?
@@ -165,6 +170,12 @@ fn application_directory(
     current_dir: &Path,
 ) -> anyhow::Result<(PathBuf, String)> {
     let current_dir = current_dir.canonicalize()?;
+    let unique_default = workspace
+        .packages
+        .iter()
+        .filter(|package| package.default_member)
+        .count()
+        == 1;
     let app = workspace
         .packages
         .iter()
@@ -172,8 +183,9 @@ fn application_directory(
             let directory = package.manifest_path.parent()?;
             (directory.join("src/main.rs").is_file()
                 && directory.join("bootstrap/app.rs").is_file()
-                && current_dir.starts_with(directory))
-            .then_some((directory, package.name.as_str()))
+                && (current_dir.starts_with(directory)
+                    || (current_dir == workspace.root && unique_default && package.default_member)))
+                .then_some((directory, package.name.as_str()))
         })
         .max_by_key(|(directory, _)| directory.components().count())
         .context("未找到应用，请从含 bootstrap/app.rs 的应用目录执行")?;
@@ -186,6 +198,9 @@ fn standalone_manifest(source: &Path, project: &Path, database: bool) -> anyhow:
     let mut app =
         fs::read_to_string(project.join("Cargo.toml"))?.parse::<toml_edit::DocumentMut>()?;
     app["workspace"] = source_manifest["workspace"].clone();
+    if let Some(workspace) = app["workspace"].as_table_mut() {
+        workspace.remove("exclude");
+    }
     app["workspace"]["members"] = toml_edit::value(if database {
         ["database/migrations"]
             .into_iter()
@@ -414,10 +429,9 @@ fn create_project_with_mfa(
     }
     let workspace = framework_workspace(current_dir)?;
     if !workspace.packages.iter().any(|package| {
-        package.name == "openrust"
-            && package.manifest_path == workspace.root.join("framework/Cargo.toml")
+        package.name == "openrust" && package.manifest_path == workspace.root.join("Cargo.toml")
     }) {
-        bail!("请从包含 framework/Cargo.toml 的 OpenRust 源码 workspace 创建应用");
+        bail!("请从包含根 openrust library 的 OpenRust 源码 workspace 创建应用");
     }
     let destination = Path::new(name);
     if destination
@@ -2331,20 +2345,21 @@ mod tests {
     }
 
     fn create_framework_fixture(root: &Path) {
-        fs::create_dir_all(root.join("src")).expect("创建应用目录");
-        fs::write(root.join("src/main.rs"), "fn main() {} ").expect("创建应用入口");
-        fs::create_dir_all(root.join("framework/src")).expect("创建框架目录");
-        fs::write(root.join("framework/src/lib.rs"), "").expect("创建框架库");
-        fs::write(
-            root.join("framework/Cargo.toml"),
-            "[package]\nname = \"openrust\"\nversion = \"0.0.0\"\nedition = \"2024\"\n",
-        )
-        .expect("框架配置");
+        fs::create_dir_all(root.join("src")).expect("创建框架目录");
+        fs::write(root.join("src/lib.rs"), "").expect("创建框架库");
         fs::write(
             root.join("Cargo.toml"),
-            "[package]\nname = \"application\"\nversion = \"0.0.0\"\nedition = \"2024\"\npublish = false\n\n[workspace]\nresolver = \"3\"\n# 保留工作区专有配置与成员说明。\ncustom-marker = \"keep-me\"\nmembers = [\"framework\", \"tools/cli\", \"tools/macros\", \"tools/testing\", \"tools/performance\"]\n\n[workspace.package]\nversion = \"0.0.0\"\nedition = \"2024\"\nlicense = \"MIT OR Apache-2.0\"\n\n[workspace.dependencies]\nopenrust = { path = \"framework\" }\ncli = { path = \"tools/cli\" }\nmacros = { path = \"tools/macros\" }\ntesting = { path = \"tools/testing\" }\n",
+            "[package]\nname = \"openrust\"\nversion = \"0.0.0\"\nedition = \"2024\"\npublish = false\n\n[workspace]\nresolver = \"3\"\n# 保留工作区专有配置与成员说明。\ncustom-marker = \"keep-me\"\nexclude = [\"source-only\"]\nmembers = [\"examples/demo\", \"tools/cli\", \"tools/macros\", \"tools/testing\", \"tools/performance\"]\ndefault-members = [\"examples/demo\"]\n\n[workspace.package]\nversion = \"0.0.0\"\nedition = \"2024\"\nlicense = \"MIT OR Apache-2.0\"\n\n[workspace.dependencies]\nopenrust = { path = \".\" }\ncli = { path = \"tools/cli\" }\nmacros = { path = \"tools/macros\" }\ntesting = { path = \"tools/testing\" }\n",
         )
         .expect("create framework workspace manifest");
+        let demo = root.join("examples/demo");
+        fs::create_dir_all(demo.join("src")).expect("创建默认应用目录");
+        fs::write(demo.join("src/main.rs"), "fn main() {} ").expect("默认应用入口");
+        fs::write(
+            demo.join("Cargo.toml"),
+            "[package]\nname = \"demo\"\nversion = \"0.0.0\"\nedition = \"2024\"\n",
+        )
+        .expect("默认应用配置");
         for (name, path, target) in [
             ("cli", "tools/cli", "src/main.rs"),
             ("macros", "tools/macros", "src/lib.rs"),
@@ -3157,12 +3172,35 @@ mod tests {
     }
 
     #[test]
+    fn workspace_root_commands_select_the_unique_default_application() {
+        let root =
+            std::env::temp_dir().join(format!("openrust-cli-default-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("创建临时目录");
+        create_framework_fixture(&root);
+        let demo = root.join("examples/demo");
+        fs::create_dir_all(demo.join("bootstrap")).expect("创建应用装配目录");
+        fs::write(demo.join("bootstrap/app.rs"), "").expect("应用标识文件");
+        let workspace = framework_workspace(&root).expect("源码 workspace metadata");
+        let (directory, package) = application_directory(&workspace, &root).expect("默认应用");
+        assert_eq!(directory, demo.canonicalize().expect("应用路径"));
+        assert_eq!(package, "demo");
+        fs::remove_dir_all(root).expect("清理临时目录");
+    }
+
+    #[test]
     fn creates_independent_apps_without_changing_source_workspace() {
         let root =
             std::env::temp_dir().join(format!("openrust-cli-independent-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).expect("创建临时目录");
         create_framework_fixture(&root);
+        let source = framework_workspace(&root).expect("解析源码 workspace");
+        assert!(source.packages.iter().any(|package| {
+            package.name == "openrust"
+                && package.manifest_path
+                    == root.join("Cargo.toml").canonicalize().expect("源码路径")
+        }));
         let original = fs::read_to_string(root.join("Cargo.toml")).expect("读取源配置");
         for (name, backend) in [
             ("blog", DatabaseBackend::Postgres),
@@ -3174,7 +3212,13 @@ mod tests {
             let manifest = fs::read_to_string(app.join("Cargo.toml")).expect("读取应用配置");
             assert!(manifest.contains("[workspace]"));
             assert!(manifest.contains("database/migrations"));
+            assert!(!manifest.contains("examples/demo"));
+            assert!(!manifest.contains("source-only"));
             let metadata = framework_workspace(&app).expect("独立应用 metadata");
+            assert_eq!(
+                metadata.root,
+                app.canonicalize().expect("独立 workspace 根")
+            );
             let (resolved, package) = application_directory(&metadata, &app).expect("解析当前应用");
             assert_eq!(resolved, app.canonicalize().expect("应用路径"));
             assert_eq!(package, name);

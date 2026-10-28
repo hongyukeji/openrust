@@ -10,7 +10,7 @@
 | PostgreSQL、迁移、seed、认证流程、JWT/PAT、数据库审计和授权 | `database/migrations/`、`routes/web.rs` |
 | Redis 缓存、加密、出站 HTTP | `Cargo.toml`、`config/cache.toml`、`config/security.toml` |
 | 数据库队列、typed job 与 API/worker/scheduler 分进程 | `app/jobs/`、`POST /api/jobs/example-heartbeat` |
-| gRPC Protobuf/build scaffold | `framework/src/grpc.rs`、`build.rs`、`proto/`；真实 RPC server 组合见 gRPC consumer |
+| gRPC Protobuf/build scaffold | `src/grpc.rs`、`build.rs`、`proto/`；真实 RPC server 组合见 gRPC consumer |
 
 存储上传、实时 WebSocket/SSE、双库矩阵及自定义 driver 的独立验收有不同服务拓扑或依赖边界，保留在 [`tests/consumers/`](../../tests/consumers)；待综合示例能在本地配置下端到端展示时，再逐步接入。目录调整与不做 Rust 源码自动扫描的理由见 [ADR-064](../../.agents/project/decisions/adr-064-canonical-example-application.md) 和 [ADR-063](../../.agents/project/decisions/adr-063-explicit-app-module-registry.md)。
 

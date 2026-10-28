@@ -15,7 +15,7 @@
 - 根 package 同时提供 `openrust` library 与名为 `server` 的 binary target。唯一进程入口位于根 `src/main.rs`；应用组装可由根 `apps/mod.rs` 承载，细节见 ADR-063。从仓库根目录直接 `cargo run` 即启动；`cargo run -- ...` 将参数传给宿主。
 - workspace `default-members` 只列根 package，使裸 `cargo run` 不会与 `tools/cli` 的 `openrust` 可执行目标冲突；完整 workspace 检查显式使用 `--workspace`。
 - `apps/` 只保留开发者业务应用目录约定，不再放置框架自带宿主 package。生成应用继续作为 `apps/<name>/` 下独立 package，有自己的 `src/` 与根 `config/`。
-- 宿主测试保留在根 `tests/server/`，通过根 package 的 feature 和显式 target 管理；配置放根 `config/`。性能基准归独立 `tools/performance/` workspace package；框架配置 Rust 模块仍在 `src/config/`。
+- 宿主测试保留在根 `examples/demo/tests/server/`，通过根 package 的 feature 和显式 target 管理；配置放根 `config/`。性能基准归独立 `tools/performance/` workspace package；框架配置 Rust 模块仍在 `src/config/`。
 - `testing` package 保留为下游测试工具兼容入口。`TestDatabase` 实现在根 `src/testing/`，工具 package 只 re-export 框架实现，根集成测试直接用 `openrust::testing::TestDatabase`，避免 package 依赖环和实现重复。
 - 迁移必须保留 HTTP smoke、双库隔离测试、子进程信号/崩溃、feature 组合、CLI 生成与配置隔离等现有覆盖；移除的是重复宿主 package，不是集成验收。
 

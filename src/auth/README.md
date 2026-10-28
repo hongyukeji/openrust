@@ -15,14 +15,14 @@ OpenRust 的认证与授权能力。
 - `AuthPlugin` 还会在 `AppState` 注册 Argon2id `Passwords` 服务。它使用随机 salt 生成 PHC 格式哈希，并在 Tokio blocking pool 中执行。`AuthPlugin::new().with_password_config(PasswordConfig { memory_kib: 19456, iterations: 2, parallelism: 1 })` 配置成本参数；`with_password_operation_capacity(2)` 设置并发上限，默认每个服务实例 2 个操作，范围为 1..=4。超过容量立即返回稳定错误码 `password_capacity_exhausted`，不建立等待队列；在 `semantic` HTTP 状态模式下响应为 503，默认 `always_ok` 模式仍遵循统一 JSON 状态策略。插件注册的 `AuthFlows` 与验证码服务共享同一个 `Passwords` 实例；独立构造的实例有各自的容量。考虑已接受的最大 PHC 参数，并发上限确保单服务 Argon2 工作内存不超过约 1 GiB。验证前会检查编码中的算法、版本和成本参数，以拒绝不安全的存储值。`EncodedPasswordHash::as_str()` 是持久化边界；该封装有意不实现 `Debug`。空密码和超过 1024 字节的密码会被拒绝；密码不匹配时返回 `Ok(false)`；格式错误的 PHC 数据会返回内部错误。
 - 配置 `DatabasePlugin` 后，`AuthPlugin` 会使用共享数据库 store 和同一个 Argon2id 密码哈希器注册 `VerificationCodes`。签发验证码前，将 `AuthVerificationCodeMigration` 加入应用 migrator。默认策略生成六位数字，有效期十分钟，最多允许五次错误尝试，并设置 60 秒重发冷却时间。返回的 `IssuedVerificationCode` 会在 `Debug` 中隐藏验证码；请自行通过 Mail/SMS 发送，且不要记录日志。签发/验证路由前应应用共享 `RateLimiter`，key 至少包括 endpoint 和请求来源，并可加入身份专属策略。
 - `AuthFlowsPlugin` 在 `DatabasePlugin`、`AuthPlugin` 和 `JwtPlugin` 之后注册 `AuthFlows`。它组合账户注册、邮箱验证、登录、刷新、登出、密码重置请求与密码替换，但不会定义 HTTP 路由或发送邮件/SMS。默认 refresh family 有效期为 30 天；共享固定窗口限流默认为每个 endpoint/source/identity 每 15 分钟最多五次请求。请传入可信请求来源值（例如 socket peer 地址，或仅根据显式可信代理得出的值）；不要信任任意转发头。
-- 通过 `EventsPlugin` 可按 [ADR-041](../../../.agents/project/decisions/adr-041-transaction-and-auth-flow-events.md) 订阅 `RegistrationValidating`、`RegistrationSucceeded`、`LoginValidating`、`LoginSucceeded` 和 `LoginFailed`。校验失败会短路流程；注册成功事件与账户写入、JWT 登录成功事件与 refresh token 写入共享事务。`LoginFailed` 不含邮箱或失败原因。邮箱只供注册/登录校验策略读取，不能写入日志；认证密钥和 token 不会放进事件。注册成功提交后再签发邮箱验证码，验证码存储失败时账户保留为未验证状态。`login_session` 只触发登录前校验，不发 `LoginSucceeded`，因为 Session middleware 在稍后持久化 Session。
+- 通过 `EventsPlugin` 可按 [ADR-041](../../.agents/project/decisions/adr-041-transaction-and-auth-flow-events.md) 订阅 `RegistrationValidating`、`RegistrationSucceeded`、`LoginValidating`、`LoginSucceeded` 和 `LoginFailed`。校验失败会短路流程；注册成功事件与账户写入、JWT 登录成功事件与 refresh token 写入共享事务。`LoginFailed` 不含邮箱或失败原因。邮箱只供注册/登录校验策略读取，不能写入日志；认证密钥和 token 不会放进事件。注册成功提交后再签发邮箱验证码，验证码存储失败时账户保留为未验证状态。`login_session` 只触发登录前校验，不发 `LoginSucceeded`，因为 Session middleware 在稍后持久化 Session。
 - JWT 登录仍是默认方式。选择 Cookie Session 登录的应用可调用 `AuthFlows::login_session`；该方法会在共享登录限流下验证凭据、轮换 Session ID、存储账户 ID 和 CSRF token 的 SHA-256 摘要，并返回经过脱敏的 `SessionCredentials`。应用响应中应将 CSRF token 返回给客户端。退出路由使用 `AuthMode::Session` 保护，并调用 `AuthFlows::logout_session`；它会删除认证 key、轮换 ID，同时保留应用自己的 Session 数据。两种方式都依赖 `SessionPlugin`。
 - `AuthFlows::register`、`request_email_verification` 和 `request_password_reset` 会返回可选的 `IssuedVerificationCode`；该封装的 `Debug` 输出会隐藏验证码。只有电子邮件唯一约束冲突才会让重复注册返回 `None`；其他数据库错误会继续传播。遇到无效或过期挑战时，`verify_email` 和 `reset_password` 返回布尔值。Handler 可保持公开响应一致，只在有验证码时发送。对于不存在、未验证、已禁用账户或密码错误，`login` 返回相同的 unauthorized 错误。登录/刷新成功时返回 `AuthCredentials`，其 `Debug` 输出会隐藏两种 bearer 凭据。DTO、响应格式、路由授权和消息发送均由 handler 负责。
 
 `--auth` 生成路由接受以下 JSON 字段：`/auth/register` 和 `/auth/login` 使用 `email` + `password`；`/auth/request-email-verification` 和 `/auth/password-reset` 使用 `email`；`/auth/verify-email` 使用 `email` + `code`；`/auth/refresh` 和 `/auth/logout` 使用 `refresh_token`；`/auth/password-reset/confirm` 使用 `email`、`code` 和 `new_password`。凭据响应会在 JSON 响应封装中各返回一次 access token 和 refresh token。限流来源 key 使用公开的 HTTP `ClientIp` extractor：默认以 TCP peer 为准；仅当 peer 匹配 `[server].trusted_proxy_ranges` 时才信任 `X-Forwarded-For`。
 - `JwtPlugin` 会在启动时校验显式提供的 key ring；`JwtTokens` 用于签发和验证短时 HS256 access token。`AuthLayer` 支持不依赖 Session middleware 的 `AuthMode::Jwt`；`SessionOrToken` 仍将 Bearer 凭据识别为 PAT。
 - `CurrentUser` 和 `OptionalUser` 用于提取已验证的账户身份，并暴露账户 ID、凭据来源和 PAT abilities；应用 handler 根据 ID 加载自己的业务用户模型。
-- PAT 数据库认证会在每个请求中检查撤销、过期和账户禁用状态，并更新 PAT 的 `last_used_at`。变更提交后，使用同一数据库的其他节点会在下一次请求中看到新状态。Cookie Session 认证使用 [ADR-017](../../../.agents/project/decisions/adr-017-generic-session-runtime.md) 定义的共享 Session 运行时。
+- PAT 数据库认证会在每个请求中检查撤销、过期和账户禁用状态，并更新 PAT 的 `last_used_at`。变更提交后，使用同一数据库的其他节点会在下一次请求中看到新状态。Cookie Session 认证使用 [ADR-017](../../.agents/project/decisions/adr-017-generic-session-runtime.md) 定义的共享 Session 运行时。
 - `PersonalAccessTokens` 提供账户范围内的签发、列举和撤销操作。256 位 bearer 值仅返回一次，数据库只存储其 SHA-256 摘要和短前缀。列举操作不返回秘密；撤销限定于账户，并会立即共享给使用数据库的认证器。
 - `Policy` 提供精确匹配、基于数据库的角色权限。`ensure_role`、`assign_role`、`grant_permission` 及相应撤销方法管理全局角色分配。`allows` / `authorize` 每次都会读取共享数据库；JWT 和 Session 需要已授予的角色权限，PAT 还必须拥有完全匹配的 token ability。未知权限默认拒绝；权限撤销提交后，各节点在下一次检查时都会看到。
 
@@ -49,7 +49,7 @@ async fn me(user: CurrentUser) -> openrust::Result<openrust::http::Json<i64>> {
 
 若需以原子方式审计权限变更，请在调用方的 `Db::transaction` 中调用 `Policy::grant_permission_in_transaction`，并在同一事务提交前通过 `DatabaseAuditSink::record_in_transaction` 写入已准备好的 `AuditRecord`。`--auth` 模板会注册 `AuditPlugin::database()` 并加入 `DatabaseAuditMigration` 与 `DatabaseAuditTenantMigration`；审计事件仍需显式记录，`AuthFlows` 不会默默审计所有操作。数据策略与 sink 故障语义见[审计模块指南](../audit/README.md)。
 
-`VerificationCodes::issue(purpose, normalized_identity, policy)` 只返回数字验证码，不负责发送。验证时 purpose 和 identity 必须完全匹配；调用方负责保持规范化方式一致。每个 purpose/identity 同时只允许一个有效验证码；验证成功后会在各节点间原子消费。格式错误或验证码错误会消耗有限的尝试次数；挑战不存在、过期、已消费、次数耗尽、过时或不匹配时均返回 `Ok(false)`。冷却时间尚未结束时重发会返回带 `Retry-After` 的 429。自定义存储可实现 `VerificationCodeStore`，但必须提供原子的冷却、尝试计数和单次消费语义。详见 [ADR-026](../../../.agents/project/decisions/adr-026-generic-verification-codes.md)。
+`VerificationCodes::issue(purpose, normalized_identity, policy)` 只返回数字验证码，不负责发送。验证时 purpose 和 identity 必须完全匹配；调用方负责保持规范化方式一致。每个 purpose/identity 同时只允许一个有效验证码；验证成功后会在各节点间原子消费。格式错误或验证码错误会消耗有限的尝试次数；挑战不存在、过期、已消费、次数耗尽、过时或不匹配时均返回 `Ok(false)`。冷却时间尚未结束时重发会返回带 `Retry-After` 的 429。自定义存储可实现 `VerificationCodeStore`，但必须提供原子的冷却、尝试计数和单次消费语义。详见 [ADR-026](../../.agents/project/decisions/adr-026-generic-verification-codes.md)。
 
 服务层不会把验证码消费和账户更新放进同一数据库事务：账户变更前验证码已经被消费。如果之后的写入失败，调用方应允许用户重新申请验证码。密码替换与 refresh family 撤销共用一个数据库事务。登出会撤销 refresh 凭据；已签发的 access token 仍会在短暂 TTL 到期前有效。生成路由使用公开的 `ClientIp` extractor：默认以 socket peer 为准；只有 peer 匹配已配置的 `[server].trusted_proxy_ranges` 时才信任 `X-Forwarded-For`。请按实际反向代理链配置可信范围。
 
@@ -81,7 +81,7 @@ let (rows, total) = documents.select(&user, Condition::all())?
     .page(&connection, 0, 50).await?;
 ```
 
-分页页大小上限为 `MAX_AUTHORIZED_PAGE_SIZE`（500），页偏移溢出会拒绝。关联读取会先按父实体规则验证给定父记录，再用关联实体自己的规则查询子记录。软删除条件仍由应用显式 AND 组合。普通 SeaORM 查询/写入、直接关联加载、原生 SQL 与自定义 driver 都不会自动套用规则；应用必须在这些逃生路径自行维护授权范围。类型化用法见 [`tests/consumers/query-authorization`](../../../tests/consumers/query-authorization/README.md)。
+分页页大小上限为 `MAX_AUTHORIZED_PAGE_SIZE`（500），页偏移溢出会拒绝。关联读取会先按父实体规则验证给定父记录，再用关联实体自己的规则查询子记录。软删除条件仍由应用显式 AND 组合。普通 SeaORM 查询/写入、直接关联加载、原生 SQL 与自定义 driver 都不会自动套用规则；应用必须在这些逃生路径自行维护授权范围。类型化用法见 [`tests/consumers/query-authorization`](../../tests/consumers/query-authorization/README.md)。
 
 可选租户隔离由 `openrust::tenant::TenantLayer` 从应用提供的可信 resolver 建立，未验证的请求 header/query 不可直接作为租户身份。将资源规则用 `QueryRule::for_tenant(entity::Column::TenantId)` 绑定后，列表、关联和批量写入都会同时应用用户授权与 tenant 条件；未绑定租户的普通应用不受影响。完整 resolver 与逃生口说明见 [`openrust::tenant`](../tenant/README.md)。
 

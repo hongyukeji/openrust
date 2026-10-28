@@ -1,6 +1,6 @@
 # 存储
 
-公共实现位于根 `openrust` package 的 `openrust::storage`，配置位于 `framework/src/config/storage.rs`，用户用法见 [`framework/src/storage/README.md`](../../../framework/src/storage/README.md)。
+公共实现位于根 `openrust` package 的 `openrust::storage`，配置位于 `src/config/storage.rs`，用户用法见 [`src/storage/README.md`](../../../src/storage/README.md)。
 
 - `StoragePlugin` 从 `[storage]` 初始化 default/named disk。缺少该配置区时使用 local disk、`storage/app` 和默认上传限制；错误配置、未知 driver、重复 driver 或 backend 初始化失败均阻止应用启动。
 - 默认 builtin driver 名为 `fs`，由 `storage-local` feature 提供；`s3` 由 `storage-s3` 提供。关闭 feature 时相应 driver 名仍注册为明确失败的占位项，避免错误悄悄落到另一个 disk。

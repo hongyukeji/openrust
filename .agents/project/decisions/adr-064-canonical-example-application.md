@@ -16,7 +16,7 @@
 - 根 `examples/` 不再作为可运行示例或 Cargo target 的存放目录；简单 `hello`/`queue` 用法并入综合应用。
 - 需要独立依赖图、下游 API 边界或真实多进程/容器拓扑的验收工程放在 `tests/consumers/<capability>/`，保留各自 manifest、锁文件、脚本和测试；它们是验收夹具，不作为多个入门应用宣传。
 - CLI 通过 Cargo metadata 和 workspace package 发现用户应用；根宿主 `apps/mod.rs` 的 Rust 模块保持编译期显式声明。目录增加文件不会自动把 Rust 代码编入二进制；运行时文件扫描无法代替 Rust 编译与依赖声明。
-- 不引入 build.rs 文件扫描、链接时注册表或运行时动态库装载。build.rs 虽可生成固定目录的 `mod` 声明，但仍须约定模块 trait、冲突/顺序、feature 门控和依赖来源，隐式行为增加诊断与 IDE 成本；显式应用 package 与现有 `Application`/`AppBuilder` 是更直接、可检查的扩展方式。
+- 不引入 build.rs 文件扫描、链接时注册表或运行时动态库装载。build.rs 虽可生成固定目录的 `mod` 声明，但仍须约定模块 trait、冲突/顺序、feature 门控和依赖来源，隐式行为增加诊断成本；显式应用 package 与现有 `Application`/`AppBuilder` 是更直接、可检查的扩展方式。
 
 ## 后果与验收
 

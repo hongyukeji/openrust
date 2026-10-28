@@ -21,7 +21,7 @@
 
 根模块与工具目录统一按 ADR-021；本 ADR 不再规定逐能力 crate 或旧示例路径。`apps/` 是应用目录约定，`apps/server` 是可在职责替代后移除的具体宿主。
 
-当前目录结论由 ADR-062 更新：`server` 二进制和聚合集成职责保留在根 package，测试位于根 `tests/server/`，配置位于根 `config/`。不得恢复单独的 `apps/server` package；验收职责仍须保留。
+当前目录结论由 ADR-062 更新：`server` 二进制和聚合集成职责保留在根 package，测试位于根 `examples/demo/tests/server/`，配置位于根 `config/`。不得恢复单独的 `apps/server` package；验收职责仍须保留。
 
 ## 完成条件
 

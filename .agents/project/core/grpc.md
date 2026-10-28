@@ -17,10 +17,10 @@
 - 框架自动注册标准 gRPC health `Check`/`Watch`，总状态及每个已注册服务在 listener 可用后为 `SERVING`；停机先更新为 `NOT_SERVING`，在 `health_drain_grace_ms` 内继续响应 Health `Check`/`Watch` 并拒绝业务新 RPC，再关闭 Watch stream、限时 drain。该宽限时间计入且不能超过 `[server].shutdown_timeout_secs`；默认 250 ms。reflection 默认关闭；开启时必须注册应用 descriptor set 和明确服务白名单，不公布白名单外的服务。
 - 双节点验收使用 Envoy 1.40.1 HTTP/2 L7 代理和两个独立 Linux 容器节点。40 次 unary RPC 由同一 HTTP/2 downstream connection 分布到两个节点；停机期间 Envoy gRPC active health check 摘除 `NOT_SERVING` 节点，既有 server stream 中断，同一 `Channel` 的新 unary RPC 到达存活节点，节点重启后重新加入。长流进度不自动迁移，调用方负责按业务语义重试。可复跑入口与资源记录见 `memory/testing.md`。
 - gRPC 停机切换共享 `core::Readiness`、拒绝新 RPC、限时 drain；超过 `[server].shutdown_timeout_secs` 后合作取消在途调用、abort 并 join server task，再返回 `grpc_shutdown_timeout`。响应流和 health Watch 均覆盖在停机生命周期内。
-- `HttpGrpcPlugin` 要求应用先安装 `HttpPlugin`、`GrpcPlugin` 并注册至少一个 gRPC service，提供 `serve all` 与 `runtime::serve_http_and_grpc`；它先构建 router/TLS 并绑定两个 listener，再启动服务。共享 readiness 仅在两个 listener 都运行时为 true；统一 shutdown timeout 覆盖 HTTP、gRPC 和 app-owned background task join，超时会取消请求、abort 并 join listener task。既有 `serve`、`grpc serve` 保留。真实 TCP 联合路径覆盖于示例与 根 `tests/server/` 集成测试。
+- `HttpGrpcPlugin` 要求应用先安装 `HttpPlugin`、`GrpcPlugin` 并注册至少一个 gRPC service，提供 `serve all` 与 `runtime::serve_http_and_grpc`；它先构建 router/TLS 并绑定两个 listener，再启动服务。共享 readiness 仅在两个 listener 都运行时为 true；统一 shutdown timeout 覆盖 HTTP、gRPC 和 app-owned background task join，超时会取消请求、abort 并 join listener task。既有 `serve`、`grpc serve` 保留。真实 TCP 联合路径覆盖于示例与 同一 workspace 内的 `examples/demo/tests/server/` 集成测试。
 - `ExecutionMetadata` 可选携带严格校验的 W3C version 00 `traceparent`，HTTP middleware 与 gRPC 入站层只接受小写十六进制、非零 trace/span ID 和正确边界。`GrpcClientRegistry::propagate_trace_context` 仅显式写入该字段；不会转发 `tracestate`、`baggage`、授权信息或任意 headers。启用 `otel` feature 并配置 OTLP endpoint 后，真实 HTTP→typed RPC 调用的 HTTP 与 gRPC server spans 已由 Collector 收到并保留同一 trace ID；默认不启用 exporter。
 - 示例同时生成旧版（仅 tag 1）与当前版（请求新增 tag 2 `client_hint`、响应新增 tag 2 `api_revision`）Echo schema，并在真实 TCP 上分别验证旧 client→当前 server、当前 client 携带未知 tag 2→旧 server；旧 decoder 忽略新增字段，新 client 对旧响应读取默认空字段。
-- 服务注册、配置与 loopback TCP 生命周期由 `tests/server/grpc.rs` 覆盖；四种 RPC、半关闭和异常断连见 `tests/consumers/grpc/`。
+- 服务注册、配置与 loopback TCP 生命周期由 `examples/demo/tests/server/grpc.rs` 覆盖；四种 RPC、半关闭和异常断连见 `tests/consumers/grpc/`。
 
 ## 未覆盖范围
 

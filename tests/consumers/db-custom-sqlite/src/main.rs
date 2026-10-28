@@ -95,9 +95,38 @@ async fn main() -> Result<()> {
     let db = app.state().try_get::<Db>()?;
     assert_eq!(db.backend()?, DbBackend::Sqlite);
     assert_eq!(db.quoted_table_name("entries")?, "\"tb_entries\"");
-    app.run_command("migrate", vec!["up".into()]).await?;
+    let unsupported_migration = app
+        .run_command("migrate", vec!["up".into()])
+        .await
+        .err()
+        .ok_or_else(|| {
+            Error::custom(
+                "expected_unsupported_backend",
+                "SQLite migration lock accepted",
+            )
+        })?;
+    assert_eq!(unsupported_migration.code(), "unsupported_database_backend");
 
     let connection = db.connection()?;
+    // 框架迁移互斥限于双库；此自定义后端由应用自行执行单机迁移。
+    db.table_names()
+        .scope(Migrator::up(&connection, None))
+        .await
+        .map_err(Error::internal)?;
+    let migrated_probe = connection
+        .query_one_raw(Statement::from_string(
+            DbBackend::Sqlite,
+            "SELECT COUNT(*) AS count FROM \"tb_plugin_probes\"".to_owned(),
+        ))
+        .await
+        .map_err(Error::internal)?
+        .ok_or_else(|| Error::custom("missing_migration_probe", "migration probe missing"))?;
+    assert_eq!(
+        migrated_probe
+            .try_get::<i64>("", "count")
+            .map_err(Error::internal)?,
+        0
+    );
     let duplicate_initialization = db
         .initialize(connection.clone())
         .err()
