@@ -20,6 +20,18 @@ Windows 的 `.cmd` / `.bat` 只通过同目录已有 npm package 的唯一 `bin`
 - 状态中`guard_alive`和兼容字段`active`表示锁、监督进程与心跳确认守护存活，不等于开发推进；`task_running`仅在最近检查确认业务主控running时为真。`reason`说明等待原因，`next_recovery_at`给出最早恢复复核时间，`next_check_at`仍为本地业务控制检查时间。额度自然窗口已知时保存`quota_check_at`至最晚耗尽窗口reset后30秒，未知用量或资格每300秒重查；等待跨worker重启保留，但每120秒继续核对完成、暂停、权限、认证和身份，主动运行主控优先于旧额度期限。额度到期也必须重新确认ordinaryUsageAllowed及窗口可用，不能据到期直接派发。
 - 完成事件缺少 completed_at 时，仅使用原始事件中带时区的 ISO timestamp；无可信时间进入待处理，不把每轮当前时间误作完成时间。Windows没有现成通知实现时记录 notification_status=unavailable 和 notification_delivered=false；不安装通知组件，不承诺送达。macOS工具失败则记录 failed。
 
+## 普通问答与审批
+
+无人值守优先由AI在提问前处理信息充分的普通开发决策；恢复消息包含这一规则。已弹窗等待120秒后选推荐项是期望行为，当前没有启用计时代答，120秒业务监测也不代表已授权或已回答。
+
+2026-10-29按本机已安装代码与正式schema只读核实：
+
+- Paseo CLI只有`permit ls/allow/deny`相关入口；`permit allow --input`可携带修改输入，但属于权限响应通道。`@getpaseo/server`的`codex-app-server-agent.js`中`handleToolApprovalRequest`把`request_user_input`映射为`kind: question`并存入`pendingPermissions`；`providers/codex/async-questions.js`同样把异步问答映射为permission请求。问答名称、`kind: question`和题面都不能证明内容只是普通开发选择。
+- 通过`codex app-server generate-json-schema --experimental --out <临时目录>`得到的`ToolRequestUserInputParams`包含`threadId/turnId/itemId/questions/isBlocking`；问题含`isSecret`，选项仅`label/description`，没有可信推荐项、普通决策/硬审批分类或可供守护使用的请求更新时间。`ToolRequestUserInputResponse`定义答案结构，不能单凭存在该结构证明新启动的stdio客户端能接管另一客户端的待答请求。
+- 现阶段不能安全区分、核对和代答现有`PendingPermissions`，因此不新增回答器或UI自动点击，不将`(Recommended)`标签、首项位置、日志文本或超时时间视为授权。未增加超时代答就不声称已覆盖用户先答、请求替换、幂等发送等完整回答器竞态；隔离回归验证问答/审批即使等待很久也不发送恢复或允许操作，停止与身份变化继续优先。
+
+后续仅在正式接口具备上述元数据后接入普通选择题：记录首次观察时间与请求版本，120秒后再次检查原Goal/线程、请求ID/版本、仍待答状态及用户停止；用户已答或请求变化即撤销旧意图；发送前持久化意图，结果不明不重发。硬审批、秘密输入、必需信息缺失、无明确推荐或歧义始终不自动回答。接口核实不向真实开发线程制造问答或测试消息。
+
 ## 验证矩阵与限制
 
 | 范围 | 当前证据 |

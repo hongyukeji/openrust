@@ -39,6 +39,42 @@ class Decisions(unittest.TestCase):
         self.assertEqual(self.decide(goal={'id': 'other', 'status': 'active'}), 'needs_attention')
         self.assertEqual(self.decide(agent=dict(self.agent, Status='running')), 'working')
 
+    def test_pending_questions_never_become_timeout_approval(self):
+        # Paseo将问答与审批放在同一容器；推荐标签/长时间等待不应触发permit或恢复发送。
+        requests = (
+            {'id': 'permission-q', 'kind': 'question', 'name': 'request_user_input',
+             'input': {'questions': [{'id': 'layout', 'options': [{'label': 'A (Recommended)'}]}]}},
+            {'id': 'permission-async', 'kind': 'question', 'name': 'request_user_input_async'},
+            {'id': 'permission-tool', 'kind': 'tool', 'name': 'CodexCommand'},
+            {'id': 'unknown', 'kind': 'unknown'},
+        )
+        for request in requests:
+            for boundary in ('pending', 'user_answered', 'stop', 'replaced_goal'):
+                with self.subTest(request=request['id'], boundary=boundary), tempfile.TemporaryDirectory() as folder:
+                    runtime = Path(folder)
+                    config = dict(self.config, agent='a', thread='t', rollout='r')
+                    (runtime / 'config.json').write_text(json.dumps(config))
+                    current = dict(self.goal)
+                    agent = dict(self.agent, PendingPermissions=[request])
+                    turn = dict(self.turn)
+                    if boundary == 'user_answered':
+                        # 人工回答后新的业务轮次正在运行，不注入重复继续或伪造答案。
+                        agent.update(PendingPermissions=[], Status='running')
+                    elif boundary == 'stop':
+                        current['status'] = 'paused'
+                    elif boundary == 'replaced_goal':
+                        current['id'] = 'replacement'
+                    observed = []
+                    def finish_check(*_):
+                        observed.append(json.loads((runtime / 'state.json').read_text()))
+                        (runtime / 'disabled').touch()
+                    with patch.object(recovery, 'binding_valid', return_value=True), patch.object(recovery, 'inspect', return_value=agent), patch.object(recovery, 'goal', return_value=current), patch.object(recovery, 'timeline', return_value=turn), patch.object(recovery, 'notify', return_value=True), patch.object(recovery.time, 'time', return_value=3600), patch.object(recovery, 'rpc') as remote, patch.object(recovery, 'run_json') as send, patch.object(recovery, 'sleep_until', side_effect=finish_check):
+                        recovery.worker(runtime, os.getppid())
+                    remote.assert_not_called()
+                    send.assert_not_called()
+                    state = observed[0] if observed else json.loads((runtime / 'state.json').read_text())
+                    self.assertEqual(state['status'], 'paused' if boundary == 'stop' else 'working' if boundary == 'user_answered' else 'needs_attention')
+
     def test_blocked_goal_overrides_error_and_quota_recovery(self):
         for error in ('500 network', 'usage_limit exceeded'):
             turn = dict(self.turn, semantic_blocked=True, payload={'error': {'message': error}})
