@@ -1,6 +1,6 @@
 ---
-name: continuous-development
-description: 理解持续开发、全部处理好等完整执行计划的意图，自动管理当前项目守护、中断恢复和完成清理；普通问答与一次性小改动不启用。
+name: continuous-development-guard
+description: 自动守护持续开发任务，中断后恢复，完成后清理；理解持续开发、全部处理好等完整执行意图，普通问答与一次性小改动不启用。
 ---
 
 # 持续开发守护

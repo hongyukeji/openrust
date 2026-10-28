@@ -52,14 +52,14 @@
 
 ### 整计划执行守护
 
-由AI结合上下文理解持续执行意图（包括“持续开发”）并自动调用 [continuous-development](../../skills/continuous-development/SKILL.md)，按可信环境登记本任务原Goal与Paseo/Codex线程；普通任务不启用，子代理不重复登记。入口为 `python3 -B .agents/skills/continuous-development/scripts/guard.py start`，`status` 检查运行事实，`stop --stop-task` 响应用户明确停止。
+由AI结合上下文理解持续执行意图（包括“持续开发”）并自动调用 [continuous-development-guard](../../skills/continuous-development-guard/SKILL.md)，按可信环境登记本任务原Goal与Paseo/Codex线程；普通任务不启用，子代理不重复登记。入口为 `python3 -B .agents/skills/continuous-development-guard/scripts/guard.py start`，`status` 检查运行事实，`stop --stop-task` 响应用户明确停止。
 
 - 原生Goal负责正常接续；独立监督进程持单实例锁，监控恢复worker并在异常退出后重启。worker默认每120秒只读核对实际状态，并限制日志尾部读取量，正常运行不打断；异常或整目标active且idle超过120秒时退避恢复原任务，不另建开发者/写入者。
 - 临时失败按60/180/600秒加抖动恢复，三次后转30分钟冷却，持续监测而非退出；只在新一轮有工具调用且正常结束后重置失败计数。发送前持久化意图，结果未确认先观察原线程，不立即重发。
 - 额度通过正式 `account/rateLimits/read` 检查，等待自然重置后复核；不消费额外credits、兑换reset、切账户或擅改模型。认证/权限、预算、真正外部blocked与目标身份变化进入待处理并本机通知，保留监测；外部缺口继续独立项的责任在总控。
 - 暂停、取消和用户停止优先。停止先持久禁止唤醒，再暂停Goal/中断主控；只回收本任务监督/worker和其专属协议/CLI进程树及PID文件（POSIX进程组，Windows自有Job Object），不碰开发Agent、构建或基础服务。整Goal完成后Agent自动调用finish及时清理，周期检查亦能自动清理；完成真实性由计划矩阵与实际验收负责，脚本不能独立证明语义等价。
 - 项目 `.agents/project/guards/registry.json` 为运行看板，配置/状态/精简日志在忽略的 `.agents/project/guards/<agent>/`；保留空锁文件inode避免并发start双实例，退出时释放实际锁。明确新授权的start可清除旧停止标记，不自动扩大目标范围。无完整身份时拒绝猜测最新会话。
-- 使用标准库与已安装的Python 3.10+/Paseo/Codex，复用现有环境，不自动安装软件、改系统或认证。macOS/POSIX使用文件锁与进程组，Windows使用字节锁、创建时间身份和先绑定再放行的Job Object；不通过全局进程名或裸PID杀进程。平台验收范围与Windows原生未验证项见[按需参考](../../skills/continuous-development/references/platforms.md)。正常监测无模型调用，watch.log有容量上限；不安装系统自启动服务。worker退出可自恢复，但电脑重启、监督进程自身被杀或客户端协议变化仍需重新启动/修复；本机通知不可用时保留通知失败状态和日志，不声称已通知送达。恢复入队不能当作模型恢复或任务完成。
+- 使用标准库与已安装的Python 3.10+/Paseo/Codex，复用现有环境，不自动安装软件、改系统或认证。macOS/POSIX使用文件锁与进程组，Windows使用字节锁、创建时间身份和先绑定再放行的Job Object；不通过全局进程名或裸PID杀进程。平台验收范围与Windows原生未验证项见[按需参考](../../skills/continuous-development-guard/references/platforms.md)。正常监测无模型调用，watch.log有容量上限；不安装系统自启动服务。worker退出可自恢复，但电脑重启、监督进程自身被杀或客户端协议变化仍需重新启动/修复；本机通知不可用时保留通知失败状态和日志，不声称已通知送达。恢复入队不能当作模型恢复或任务完成。
 
 压缩或恢复后重新核对 Git、todo、在途任务与 Goal。用户暂停、额度或工具限制按真实状态处理并报告；外部阻塞保留证据缺口并继续独立项。不能为保持运行虚报完成、删除范围或越过授权边界，也不承诺忽略暂停及运行限制的无限执行。
 
