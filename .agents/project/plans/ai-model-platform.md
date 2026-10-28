@@ -36,7 +36,7 @@ AI模型平台
 
 ```text
 项目工作区
-├── src/                         # OpenRust 框架代码
+├── framework/src/                         # OpenRust 框架代码
 ├── plugins/
 │   └── ai-model-gateway/         # 可复用网关源码，内部包含 router 与调用子层
 └── apps/

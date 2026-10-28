@@ -106,7 +106,7 @@ Agent 不替代开发者做方向决策、发布判断和对外动作；开发�
 
 - 一个功能簇 = 一个工程闭环，不夹带无关需求。
 - 设计与重写遵循 ADR-070：以 Laravel 能力和体验为首要依据，参考 Goravel 的跨语言实现；Spec 说明 Rust 适配、复用/重写选择和验收。允许重写已验证实现，但保留并重新验证其有效行为证据。
-- 公共 API 变更先评估下游（其他 crate、模板、`apps/example/`、`tests/consumers/`、`docs/`）兼容性；0.x 允许破坏性变更，但必须同步更新全部调用方、文档与 changelog 条目。
+- 公共 API 变更先评估下游（其他 crate、模板、`examples/example/`、`tests/consumers/`、`docs/`）兼容性；0.x 允许破坏性变更，但必须同步更新全部调用方、文档与 changelog 条目。
 - 新增依赖必须有理由并写入 `stack.md`；主版本升级写 ADR 或 changelog。
 - 遵守 `conventions.md`：`#![forbid(unsafe_code)]`、`#![deny(missing_docs)]`、库 crate 禁止 `unwrap` / `expect` / `panic` / `todo` / `unimplemented`、不写 `TODO` 注释。
 - 顺手修边界清楚、可当场验证的小问题并纳入说明；需要跨 crate 设计或改变方向的问题写入 `todo.md`。
@@ -154,8 +154,8 @@ Agent 不替代开发者做方向决策、发布判断和对外动作；开发�
 - Agent 回复语言跟随开发者提问语言；代码、命令、路径和专有名词保持原文。
 - 日常决策（命名、文件组织、测试布局、小版本依赖）Agent 直接定。
 - 只在以下情况停下询问：§5 授权边界、需求方向真正模糊、信息必须由开发者提供、连续 3 次同类失败。
-- 多模型协作：用户授权优先使用 `gpt-6.1-sol` 子智能体做已定 contract 的实现/测试；架构由主控收敛，高风险改码由不同模型或 Provider 独立审查。一个主功能簇可拆互不冲突子任务，worker 不递归派发、不擅改 contract；改码默认独立 worktree，不自动合并。模型不可用时如实记录并选成本合适的可用方案。
-- 单代理文档维护可在当前工作区；并行改码使用隔离工作分支/worktree，不自动合并或推送。产品分支规则如下。已明确后续独立插件及领域套件使用 `plugins/*`，独立产品使用 `projects/*`，均配独立 worktree；框架自身通用 Plugin/driver 机制仍按框架当前流程开发。AI模型平台以 `projects/ai-model-platform` 和一个独立 worktree 开发，直接包含可复用 `ai-model-gateway` 源码并以本地依赖使用；`plugins/ai-model-gateway` 仅在后续独立插件任务需要时使用，不要求同时维护两条分支。只有用户明确要求开发且满足成熟门禁后才启动。领域业务不得进入核心或迫使框架改变通用契约，不能将整个领域项目分支合回主线；具体范围与门禁见 [AI模型平台](.agents/project/plans/ai-model-platform.md#分支与工作区硬性约束)。
+- 多模型协作：用户授权优先使用 `gpt-6.1-sol` 子智能体做已定 contract 的实现/测试；架构由主控收敛，高风险改码由不同模型或 Provider 独立审查。一个主功能簇可拆互不冲突子任务，worker 不递归派发、不擅改 contract；所有 Agent 直接在本仓库 `main` 工作；一个写入者串行实现，审查可并行只读。不得自行创建开发分支或隔离 worktree。模型不可用时如实记录并选成本合适的可用方案。
+- **长期 Git 工作方式**：开发者已明确要求当前及以后直接在 `main` 开发和创建本地提交，不使用隔离开发分支/worktree；2026-10-28 授权将现有隔离分支完整转入 main 后删除。后续只有开发者另行明确改变要求才新建分支/worktree；不推送、不发布、不打 tag。独立 AI 产品仍未启动，业务隔离边界保留，不能以此提前创建产品分支。
 
 ## 9. 记忆维护
 

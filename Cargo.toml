@@ -1,7 +1,7 @@
 [package]
-name = "openrust"
+name = "application"
 publish = false
-description = "OpenRust：面向 Rust 应用开发的约定优于配置框架，提供常用基础能力与扩展机制。"
+description = "OpenRust 默认应用与框架集成验收。"
 readme = "README.md"
 autobins = false
 version.workspace = true
@@ -17,7 +17,7 @@ autotests = false
 
 [workspace]
 resolver = "3"
-members = ["tools/cli", "tools/macros", "tools/testing", "tools/performance", "apps/example", "apps/example/migration"]
+members = ["framework", "tools/cli", "tools/macros", "tools/testing", "tools/performance", "examples/example", "examples/example/database/migrations"]
 default-members = ["."]
 
 [workspace.package]
@@ -32,7 +32,7 @@ categories = ["web-programming", "web-programming::http-server"]
 keywords = ["framework", "web", "axum", "batteries-included", "backend"]
 
 [workspace.dependencies]
-openrust = { path = ".", version = "0.0.0" }
+openrust = { path = "framework", version = "0.0.0", default-features = false }
 cli = { path = "tools/cli", version = "0.0.0" }
 macros = { path = "tools/macros", version = "0.0.0" }
 testing = { path = "tools/testing", version = "0.0.0" }
@@ -138,77 +138,7 @@ module_name_repetitions = "allow"
 must_use_candidate = "allow"
 
 [dependencies]
-aes-gcm-siv = { workspace = true, optional = true }
-axum.workspace = true
-axum-core.workspace = true
-bytes.workspace = true
-argon2 = { workspace = true, optional = true }
-async-trait.workspace = true
-base64 = { workspace = true, optional = true }
-chrono.workspace = true
-chrono-tz = { workspace = true, optional = true }
-cron-parser = { workspace = true, optional = true }
-icu_datetime.workspace = true
-icu_decimal.workspace = true
-icu_locale.workspace = true
-icu_plurals.workspace = true
-dotenvy.workspace = true
-figment.workspace = true
-futures-util.workspace = true
-getrandom.workspace = true
-uuid = { workspace = true, optional = true }
-http.workspace = true
-httpdate = { workspace = true, optional = true }
-ipnet = { workspace = true, optional = true }
-jsonwebtoken = { workspace = true, optional = true }
-lettre.workspace = true
-minijinja = { workspace = true, optional = true }
-oauth2 = { workspace = true, optional = true }
-reqwest = { workspace = true, optional = true }
-opendal = { workspace = true, optional = true }
-macros.workspace = true
-sea-orm.workspace = true
-sea-orm-migration.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-redis = { workspace = true, optional = true }
-hmac = { workspace = true, optional = true }
-sha1 = { workspace = true, optional = true }
-sha2.workspace = true
-sqlx = { workspace = true, optional = true }
-subtle = { workspace = true, optional = true }
-thiserror.workspace = true
-time = { workspace = true, optional = true }
-tokio.workspace = true
-tower.workspace = true
-tower-http.workspace = true
-tower-sessions = { workspace = true, optional = true }
-toml.workspace = true
-tracing.workspace = true
-tracing-subscriber.workspace = true
-url.workspace = true
-validator.workspace = true
-zeroize = { workspace = true, optional = true }
-csv = { workspace = true, optional = true }
-calamine = { workspace = true, optional = true }
-rust_xlsxwriter = { workspace = true, optional = true }
-zip = { workspace = true, optional = true }
-quick-xml = { workspace = true, optional = true }
-tempfile = { workspace = true, optional = true }
-tokio-stream = { workspace = true, optional = true }
-tonic = { workspace = true, optional = true }
-tonic-prost = { workspace = true, optional = true }
-tonic-health = { workspace = true, optional = true }
-tonic-reflection = { workspace = true, optional = true }
-http-body-util = { workspace = true, optional = true }
-http-body.workspace = true
-prost = { workspace = true, optional = true }
-metrics = { workspace = true, optional = true }
-metrics-exporter-prometheus = { workspace = true, optional = true }
-opentelemetry = { workspace = true, optional = true }
-opentelemetry_sdk = { workspace = true, optional = true }
-opentelemetry-otlp = { workspace = true, optional = true }
-tracing-opentelemetry = { workspace = true, optional = true }
+openrust.workspace = true
 
 [dev-dependencies]
 figment = { workspace = true, features = ["test"] }
@@ -391,46 +321,33 @@ path = "src/main.rs"
 
 [features]
 default = []
-db-postgres = ["sea-orm/sqlx-postgres", "sea-orm-migration/sqlx-postgres"]
-db-mysql = ["sea-orm/sqlx-mysql", "sea-orm-migration/sqlx-mysql", "dep:sqlx", "sqlx/mysql"]
-db-uuid = ["dep:uuid", "sea-orm/with-uuid", "sea-orm-migration/with-uuid"]
-auth = [
-    "dep:argon2",
-    "dep:base64",
-    "dep:jsonwebtoken",
-    "dep:subtle",
-    "dep:time",
-    "dep:tower-sessions",
-    "signing",
-]
-queue = ["dep:chrono-tz", "dep:cron-parser"]
-queue-redis = ["queue", "dep:redis"]
-signing = ["dep:base64", "dep:jsonwebtoken"]
-mail-smtp = ["lettre/smtp-transport", "lettre/tokio1-rustls-tls"]
-mail-templates = ["dep:minijinja"]
-view = ["dep:minijinja", "minijinja/loader"]
-http-client = ["dep:reqwest", "dep:ipnet", "dep:httpdate"]
-auth-oidc = ["auth", "http-client", "encryption", "dep:oauth2"]
-auth-mfa = ["auth", "encryption", "dep:hmac", "dep:sha1", "dep:subtle"]
-sms-twilio = ["http-client", "dep:base64"]
-encryption = ["dep:aes-gcm-siv", "dep:base64", "dep:zeroize"]
-test-util = []
-data-exchange = ["dep:csv", "dep:calamine", "dep:rust_xlsxwriter", "dep:zip", "dep:quick-xml"]
-data-exchange-tasks = ["data-exchange", "queue", "dep:tempfile"]
-grpc = ["dep:tonic", "dep:tonic-prost", "dep:prost", "dep:tokio-stream", "dep:tonic-health", "dep:tonic-reflection", "dep:http-body-util"]
-metrics = ["dep:metrics", "dep:metrics-exporter-prometheus"]
-otel = ["dep:opentelemetry", "dep:opentelemetry_sdk", "dep:opentelemetry-otlp", "dep:tracing-opentelemetry"]
-realtime = ["auth", "axum/ws", "dep:uuid"]
-realtime-redis = ["realtime", "dep:redis"]
-cache-redis = ["dep:redis"]
-session-redis = ["auth", "dep:redis"]
-storage-local = ["dep:opendal"]
-storage-s3 = [
-    "storage-local",
-    "opendal/services-s3",
-    "opendal/http-transport-reqwest",
-    "opendal/executors-tokio",
-]
+db-postgres = ["openrust/db-postgres"]
+db-mysql = ["openrust/db-mysql"]
+db-uuid = ["openrust/db-uuid"]
+auth = ["openrust/auth"]
+queue = ["openrust/queue"]
+queue-redis = ["openrust/queue-redis"]
+signing = ["openrust/signing"]
+mail-smtp = ["openrust/mail-smtp"]
+mail-templates = ["openrust/mail-templates"]
+view = ["openrust/view"]
+http-client = ["openrust/http-client"]
+auth-oidc = ["openrust/auth-oidc"]
+auth-mfa = ["openrust/auth-mfa"]
+sms-twilio = ["openrust/sms-twilio"]
+encryption = ["openrust/encryption"]
+test-util = ["openrust/test-util"]
+data-exchange = ["openrust/data-exchange"]
+data-exchange-tasks = ["openrust/data-exchange-tasks"]
+grpc = ["openrust/grpc"]
+metrics = ["openrust/metrics"]
+otel = ["openrust/otel"]
+realtime = ["openrust/realtime"]
+realtime-redis = ["openrust/realtime-redis"]
+cache-redis = ["openrust/cache-redis"]
+session-redis = ["openrust/session-redis"]
+storage-local = ["openrust/storage-local"]
+storage-s3 = ["openrust/storage-s3"]
 
 [lints]
 workspace = true

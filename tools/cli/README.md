@@ -10,11 +10,11 @@
 ```bash
 cargo run -p cli -- --help
 cargo run -p cli -- new blog --db postgres --auth
-cd apps/blog
+cd blog
 cargo run -p cli -- dev
 ```
 
-`openrust new <name>` 将应用生成到 `apps/<name>/`，把应用和可选 migration package 追加到现有 workspace，并使用本地 workspace 依赖。也可传 `apps/<name>`；绝对路径、外部目录和嵌套 workspace 不受支持。重复目录、应用 package 名或 migration package 名会在写入前报错。
+`openrust new <目标目录>` 创建独立应用 workspace，支持相对和绝对路径；本地 framework/tool 依赖在生成 manifest 中明确解析，源框架 workspace 不被修改。已有目标、非法目录名、冲突 package 名在写入前拒绝。应用 `src/main.rs` 是薄入口，装配在 `bootstrap/app.rs`，路由在 `routes/web.rs`，业务在 `app/`，资源在 `resources/`，迁移与种子在 `database/`。
 
 生成项目默认启用可选 `view` feature、注册 `ViewPlugin`，并以 `views/index.html` 渲染 `/`。HTML 页面模板放在 `views/`，CSS、图片等静态资源放在 `public/`；`root_target` 可切换为静态文件、应用内转发或重定向。需要纯 API 应用时，可在生成后的 `Cargo.toml` 移除 `view` feature 和插件注册，再将 `root_target` 设为其他模式。
 
@@ -37,7 +37,7 @@ cargo run -p cli -- g migration labels slug:string
 
 ## 生成代码
 
-`generate model` 在 `src/models/_entities/` 生成 SeaORM entity；`generate migration` 在 `migration/` 生成迁移并写入 registry。字段支持 `string`、`text`、`integer`、`big_integer`、`boolean`、`date_time`、`json` 和 `references`，在字段类型后加 `?` 表示可空。model 使用单数名称，表名采用简单英语复数；migration 接受表名。被引用表须在外键迁移前创建。
+`generate model` 在 `app/models/_entities/` 生成 SeaORM entity；`generate migration` 在 `database/migrations/` 生成迁移并写入 registry。字段支持 `string`、`text`、`integer`、`big_integer`、`boolean`、`date_time`、`json` 和 `references`，在字段类型后加 `?` 表示可空。model 使用单数名称，表名采用简单英语复数；migration 接受表名。被引用表须在外键迁移前创建。
 
 两个数据库生成命令均支持 `--uuid-id` 与 `--soft-delete`，model 与对应迁移须使用相同选项。UUID 使用 UUIDv7，并同时为应用与 migration package 启用 `db-uuid`；软删除增加可空 UTC `deleted_at`，只提供显式 `Entity::not_deleted()` scope，不改变普通 `Entity::find()`。
 
@@ -45,7 +45,7 @@ cargo run -p cli -- g migration labels slug:string
 
 ## 配置与验收
 
-生成项目采用按领域命名的配置文件，例如 `config/app.toml`、`config/cache.toml`、`config/database.toml`；Rust 配置类型和默认值位于框架 `src/config/`。`.env.example` 按领域列出常用值：数据库使用 `DB_CONNECTION=postgres|mysql` 及 `DB_HOST`、`DB_PORT`、`DB_DATABASE`、`DB_USERNAME`、`DB_PASSWORD`、`DB_TABLE_PREFIX`；Redis 使用 `REDIS_HOST`、`REDIS_USERNAME`、`REDIS_PASSWORD`、`REDIS_PORT`、`REDIS_DB`、`REDIS_DEFAULT_STORE`；队列使用 `QUEUE_DRIVER`；邮件、短信和国际化分别使用 `MAIL_*`、`SMS_*` 和 `I18N_DEFAULT_LOCALE`。缓存和 Redis 队列共用同一组 Redis 连接设置。应用配置采用单下划线的扁平环境变量，如 `APP_SERVER_PORT=4000`、`APP_LOG_LEVEL=info`、`APP_NAME` 和 `APP_URL`，由框架映射到相应配置字段。复制 `.env.example` 为 `.env` 以配置本地或部署环境；不要提交含有密钥的 `.env`。生产环境可使用权限受控的 `.env`，进程环境变量优先；应用根目录不得作为静态公开目录。`openrust key generate` 输出一个 32 字节 Base64 密钥，不写入配置文件；请将输出保存到受保护的 secret store 或被忽略的 `.env`。加密只处理应用数据，不会加密数据库备份或 JWT。
+生成项目采用按领域命名的配置文件，例如 `config/app.toml`、`config/cache.toml`、`config/database.toml`；Rust 配置类型和默认值位于框架 `framework/src/config/`。`.env.example` 按领域列出常用值：数据库使用 `DB_CONNECTION=postgres|mysql` 及 `DB_HOST`、`DB_PORT`、`DB_DATABASE`、`DB_USERNAME`、`DB_PASSWORD`、`DB_TABLE_PREFIX`；Redis 使用 `REDIS_HOST`、`REDIS_USERNAME`、`REDIS_PASSWORD`、`REDIS_PORT`、`REDIS_DB`、`REDIS_DEFAULT_STORE`；队列使用 `QUEUE_DRIVER`；邮件、短信和国际化分别使用 `MAIL_*`、`SMS_*` 和 `I18N_DEFAULT_LOCALE`。缓存和 Redis 队列共用同一组 Redis 连接设置。应用配置采用单下划线的扁平环境变量，如 `APP_SERVER_PORT=4000`、`APP_LOG_LEVEL=info`、`APP_NAME` 和 `APP_URL`，由框架映射到相应配置字段。复制 `.env.example` 为 `.env` 以配置本地或部署环境；不要提交含有密钥的 `.env`。生产环境可使用权限受控的 `.env`，进程环境变量优先；应用根目录不得作为静态公开目录。`openrust key generate` 输出一个 32 字节 Base64 密钥，不写入配置文件；请将输出保存到受保护的 secret store 或被忽略的 `.env`。加密只处理应用数据，不会加密数据库备份或 JWT。
 
 启用认证的应用包含真实 HTTP 集成测试 `tests/auth_flows.rs`，使用隔离数据库和 fake 邮件驱动验证端点。运行数据库测试前，设置 `OPENRUST_TEST_DATABASE_URL` 为可创建和删除测试库的 PostgreSQL 或 MySQL 管理连接；变量缺失时测试会跳过数据库路径，不能视为真实数据库验收通过。新生成项目应执行 `cargo fmt --all --check`、`cargo check` 与 `cargo test`；涉及数据库的测试还须在相应真实服务上实际运行。
 
@@ -53,4 +53,4 @@ cargo run -p cli -- g migration labels slug:string
 
 ## API、worker 与 scheduler
 
-参见 [`apps/example/`](../../apps/example/README.md)：同一应用可分别作为 API、worker、scheduler 进程启动，共用数据库和队列迁移。`serve` 不会隐式启动后台进程。两个数据库后端使用相同示例，只需选择 `db-postgres` 或 `db-mysql` feature。
+参见 [`examples/example/`](../../examples/example/README.md)：同一应用可分别作为 API、worker、scheduler 进程启动，共用数据库和队列迁移。`serve` 不会隐式启动后台进程。两个数据库后端使用相同示例，只需选择 `db-postgres` 或 `db-mysql` feature。

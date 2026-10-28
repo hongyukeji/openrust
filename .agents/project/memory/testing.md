@@ -1,8 +1,23 @@
 # 测试基线
 
 > 受众：AI Agent
-> 更新：2026-10-27
-> 摘要：源码交付、HTTP 生命周期、双库与生成项目当前可复验入口。
+> 更新：2026-10-28
+> 摘要：当前目录迁移与原专项测试入口，分开记录真实服务和未验收边界。
+
+## R1 目录迁移验收基线
+
+目录与分发依据 ADR-071。根为 application/server，框架库为 framework/openrust，默认成员只有根应用；apps/example 已迁为 examples/example。下文保留的原专项记录是迁移前行为证据，含 `cargo test -p openrust --test ...` 的旧命令；当前应用集成 target 应改用 `-p application`，框架单元测试仍用 `-p openrust --lib`。
+
+实际执行：fmt，默认/all-features workspace all-target Clippy，默认/all-features workspace test，默认及 warnings-denied all-features Rustdoc，cargo deny；MSRV `cargo +1.97.0 check --workspace --all-targets --all-features`，no-default-features check。依赖审计仅保留既有重复版本告警。最终默认 workspace 349 passed / 26 ignored，all-features 480 passed / 32 ignored；忽略或缺服务导致 skip 不计真实服务通过。
+
+真实 PostgreSQL 18 与 MySQL 8.4 各执行 `cargo test -p application --all-features --test db_connection --test db_migration --test auth_database --test auth_runtime --test queue --test schedule -- --nocapture`，各 6 targets、31 passed、0 ignored；从现有服务读取授权测试连接，使用 TestDatabase 隔离数据，不改共享容器/配置。数据库连接 target 中依赖真实复制的分支仍有独立环境门禁，本次未提供复制拓扑；完整复制/集群不属于 R1 新验收。
+
+干净 `/tmp` 默认生成应用 check/test 通过，普通 cargo run 后真实 TCP `/health` 为 200、SIGINT 正常退出。PG/MySQL 认证生成应用分别 check/test 通过，`generated_auth_routes_run_over_http_with_isolated_database_and_fake_mail` 各真实执行 1 项；使用当前模板、database/migrations 与 resources/views。发现模板 fake 配置缺 view 段后已同步修复模板/综合示例并重新生成验收。公开 `tests/consumers/cache-custom-driver` 已通过 locked 实际运行，所有 consumer lock 同步本地框架依赖图。
+
+根普通 cargo run（无 --bin/--package）真实 TCP `/health` 返回 200，SIGINT exit 0。RustRover 2026.2.4 通过实际 UI 验收：同一 Default run 配置、Command 精确 run、根工作目录，临时 APP_SERVER_PORT=43183；普通运行 `/health` 200，Debug 命中 server::main 的 src/main.rs:12，恢复后 `/health` 再次 200。共享 `.run/Default run.run.xml` 保留 Command=run 与 PROJECT_DIR，移除验收专用端口。项目已关闭回欢迎页，未操作主仓项目。
+
+验证隔离：默认 cargo run 与 all-features 子进程测试禁止交叉占用同一 target/debug/server。首次 all-features metrics 子进程超时发生在并行默认 cargo run 覆盖二进制期间；停止交叉运行后整组重跑通过。此项不是新语义验收或放宽超时。原真实供应商/复制/集群、SQLite、最低后端版本与 R2 以后 contract 缺口继续保留。
+
 
 ## M5 WebSocket 与 SSE 跨节点路由
 
@@ -331,3 +346,5 @@ trace 仅传播经严格校验的 W3C version 00 `traceparent`。`cargo test -p 
 当前轮门禁：`cargo fmt --all --check`、`git diff --check`、默认与 all-features `cargo clippy --workspace --all-targets`、默认与 all-features `cargo test --workspace`、`RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps --all-features` 与 `cargo deny check` 均通过；default workspace 中未设置 `OPENRUST_TEST_DATABASE_URL` 的集成测试按条件跳过。all-features workspace 测试 270 项通过、2 项忽略；默认 230 项通过。deny 的 advisories/bans/licenses/sources 通过，仍有既有 duplicate crate 与未匹配 MPL allowance 警告。PG18/MySQL8.4 突发单次样本分别为：PG pool=2、16 请求、4 成功/12 容量拒绝、623.1 req/s、p50 10.9ms、p95/p99 17.8ms、恢复 7.8ms；MySQL pool=2、16 请求、4 成功/12 拒绝、488.7 req/s、p50 16.8ms、p95/p99 23.9ms、恢复 8.7ms。单次本机小样本不能作为回归阈值；`/usr/bin/time -lp` 包含编译与测试进程，不能分离服务 CPU/内存。仍缺稳定重复压力模型、服务资源分项及过载下真实 API 吞吐/错误率报告，因此 ADR-067 保持 Proposed，M5 继续 in_progress。
 
 后续对 HTTP response body 持有并发许可的工作区 WIP 做定向复验：`cargo test -p openrust --features 'metrics,otel,grpc' http::middleware::tests --lib` 4 项通过；`cargo clippy -p openrust --all-targets --features 'metrics,otel,grpc' -- -D warnings` 通过。测试验证许可在 body 读完/丢弃后释放，并保持并发超限立即返回 503；这部分 WIP 未包含在前述全 workspace 门禁或已提交实现中。
+
+构建资源：代码门禁结束后 dry-run 再 clean，Cargo 报告主 target 回收 23.5 GiB、consumer 1.2 GiB、默认生成应用 1.8 GiB、双库生成验收 3.9 GiB；磁盘余量由约 101 GiB 恢复至 125 GiB。主 target 实际磁盘占用峰值约 17.95 GiB，合计 consumer 约 19.1 GiB；IDE 首次加载随后重建本 worktree target，项目关闭后再次 dry-run/clean 回收 2.2 GiB，最终磁盘余量约 125 GiB。不清理主仓 target 或他人服务。生成应用源码与 /tmp 验收日志暂留供主控核对。

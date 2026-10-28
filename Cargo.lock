@@ -160,6 +160,38 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
+name = "application"
+version = "0.0.0"
+dependencies = [
+ "async-trait",
+ "axum",
+ "base64 0.22.1",
+ "bytes",
+ "chrono",
+ "figment",
+ "futures-util",
+ "hmac",
+ "openrust",
+ "rcgen",
+ "redis",
+ "reqwest",
+ "sea-orm",
+ "serde",
+ "serde_json",
+ "sha1 0.11.0",
+ "sha2 0.10.9",
+ "sqlx",
+ "tempfile",
+ "time",
+ "tokio",
+ "tokio-stream",
+ "tower",
+ "tower-sessions",
+ "url",
+ "validator",
+]
+
+[[package]]
 name = "arc-swap"
 version = "1.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -1,0 +1,162 @@
+[package]
+name = "openrust"
+publish = false
+description = "OpenRust：面向 Rust 应用开发的约定优于配置框架，提供常用基础能力与扩展机制。"
+readme = "README.md"
+autobins = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+categories.workspace = true
+keywords.workspace = true
+autotests = false
+
+[dependencies]
+aes-gcm-siv = { workspace = true, optional = true }
+axum.workspace = true
+axum-core.workspace = true
+bytes.workspace = true
+argon2 = { workspace = true, optional = true }
+async-trait.workspace = true
+base64 = { workspace = true, optional = true }
+chrono.workspace = true
+chrono-tz = { workspace = true, optional = true }
+cron-parser = { workspace = true, optional = true }
+icu_datetime.workspace = true
+icu_decimal.workspace = true
+icu_locale.workspace = true
+icu_plurals.workspace = true
+dotenvy.workspace = true
+figment.workspace = true
+futures-util.workspace = true
+getrandom.workspace = true
+uuid = { workspace = true, optional = true }
+http.workspace = true
+httpdate = { workspace = true, optional = true }
+ipnet = { workspace = true, optional = true }
+jsonwebtoken = { workspace = true, optional = true }
+lettre.workspace = true
+minijinja = { workspace = true, optional = true }
+oauth2 = { workspace = true, optional = true }
+reqwest = { workspace = true, optional = true }
+opendal = { workspace = true, optional = true }
+macros.workspace = true
+sea-orm.workspace = true
+sea-orm-migration.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+redis = { workspace = true, optional = true }
+hmac = { workspace = true, optional = true }
+sha1 = { workspace = true, optional = true }
+sha2.workspace = true
+sqlx = { workspace = true, optional = true }
+subtle = { workspace = true, optional = true }
+thiserror.workspace = true
+time = { workspace = true, optional = true }
+tokio.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+tower-sessions = { workspace = true, optional = true }
+toml.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+url.workspace = true
+validator.workspace = true
+zeroize = { workspace = true, optional = true }
+csv = { workspace = true, optional = true }
+calamine = { workspace = true, optional = true }
+rust_xlsxwriter = { workspace = true, optional = true }
+zip = { workspace = true, optional = true }
+quick-xml = { workspace = true, optional = true }
+tempfile = { workspace = true, optional = true }
+tokio-stream = { workspace = true, optional = true }
+tonic = { workspace = true, optional = true }
+tonic-prost = { workspace = true, optional = true }
+tonic-health = { workspace = true, optional = true }
+tonic-reflection = { workspace = true, optional = true }
+http-body-util = { workspace = true, optional = true }
+http-body.workspace = true
+prost = { workspace = true, optional = true }
+metrics = { workspace = true, optional = true }
+metrics-exporter-prometheus = { workspace = true, optional = true }
+opentelemetry = { workspace = true, optional = true }
+opentelemetry_sdk = { workspace = true, optional = true }
+opentelemetry-otlp = { workspace = true, optional = true }
+tracing-opentelemetry = { workspace = true, optional = true }
+
+[dev-dependencies]
+figment = { workspace = true, features = ["test"] }
+serde_json.workspace = true
+tower-sessions = { workspace = true, features = ["memory-store"] }
+tokio-stream.workspace = true
+
+axum.workspace = true
+async-trait.workspace = true
+base64.workspace = true
+bytes.workspace = true
+chrono.workspace = true
+futures-util.workspace = true
+sea-orm.workspace = true
+serde.workspace = true
+sha2.workspace = true
+hmac.workspace = true
+sha1.workspace = true
+sqlx.workspace = true
+time.workspace = true
+tokio.workspace = true
+tower.workspace = true
+url.workspace = true
+validator.workspace = true
+redis.workspace = true
+reqwest.workspace = true
+tempfile.workspace = true
+rcgen.workspace = true
+[features]
+default = []
+db-postgres = ["sea-orm/sqlx-postgres", "sea-orm-migration/sqlx-postgres"]
+db-mysql = ["sea-orm/sqlx-mysql", "sea-orm-migration/sqlx-mysql", "dep:sqlx", "sqlx/mysql"]
+db-uuid = ["dep:uuid", "sea-orm/with-uuid", "sea-orm-migration/with-uuid"]
+auth = [
+    "dep:argon2",
+    "dep:base64",
+    "dep:jsonwebtoken",
+    "dep:subtle",
+    "dep:time",
+    "dep:tower-sessions",
+    "signing",
+]
+queue = ["dep:chrono-tz", "dep:cron-parser"]
+queue-redis = ["queue", "dep:redis"]
+signing = ["dep:base64", "dep:jsonwebtoken"]
+mail-smtp = ["lettre/smtp-transport", "lettre/tokio1-rustls-tls"]
+mail-templates = ["dep:minijinja"]
+view = ["dep:minijinja", "minijinja/loader"]
+http-client = ["dep:reqwest", "dep:ipnet", "dep:httpdate"]
+auth-oidc = ["auth", "http-client", "encryption", "dep:oauth2"]
+auth-mfa = ["auth", "encryption", "dep:hmac", "dep:sha1", "dep:subtle"]
+sms-twilio = ["http-client", "dep:base64"]
+encryption = ["dep:aes-gcm-siv", "dep:base64", "dep:zeroize"]
+test-util = []
+data-exchange = ["dep:csv", "dep:calamine", "dep:rust_xlsxwriter", "dep:zip", "dep:quick-xml"]
+data-exchange-tasks = ["data-exchange", "queue", "dep:tempfile"]
+grpc = ["dep:tonic", "dep:tonic-prost", "dep:prost", "dep:tokio-stream", "dep:tonic-health", "dep:tonic-reflection", "dep:http-body-util"]
+metrics = ["dep:metrics", "dep:metrics-exporter-prometheus"]
+otel = ["dep:opentelemetry", "dep:opentelemetry_sdk", "dep:opentelemetry-otlp", "dep:tracing-opentelemetry"]
+realtime = ["auth", "axum/ws", "dep:uuid"]
+realtime-redis = ["realtime", "dep:redis"]
+cache-redis = ["dep:redis"]
+session-redis = ["auth", "dep:redis"]
+storage-local = ["dep:opendal"]
+storage-s3 = [
+    "storage-local",
+    "opendal/services-s3",
+    "opendal/http-transport-reqwest",
+    "opendal/executors-tokio",
+]
+
+[lints]
+workspace = true

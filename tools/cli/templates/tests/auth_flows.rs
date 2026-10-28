@@ -1,10 +1,10 @@
 //! 验证生成的认证路由端到端行为。
 
-#[path = "../src/app.rs"]
+#[path = "../bootstrap/app.rs"]
 mod app;
-#[path = "../src/routes.rs"]
+#[path = "../routes/web.rs"]
 mod routes;
-#[path = "../src/seed.rs"]
+#[path = "../database/seeders.rs"]
 mod seed;
 
 use std::error::Error as StdError;
@@ -94,7 +94,7 @@ async fn generated_auth_routes_run_over_http_with_isolated_database_and_fake_mai
     let link_key =
         base64::Engine::encode(&base64::engine::general_purpose::STANDARD, [0x24_u8; 32]);
     let config = format!(
-        "[database]\nurl = {:?}\n\n[cache]\ndefault_store = \"default\"\n\n[cache.stores.default]\ndriver = \"memory\"\n\n[server]\ntrusted_proxy_ranges = [\"127.0.0.1/32\"]\n\n[auth.jwt]\nissuer = \"http://openrust.test\"\naudience = \"generated-auth-tests\"\nactive_key_id = \"test\"\n\n[auth.jwt.keys]\ntest = {:?}\n\n[security.signed_links]\nissuer = \"http://openrust.test\"\nactive_key_id = \"test-link\"\n\n[security.signed_links.keys]\ntest-link = {:?}\n\n{{encryption_config}}\n\n[mail]\ndriver = \"log\"\n\n[sms]\ndriver = \"log\"\n",
+        "[database]\nurl = {:?}\n\n[cache]\ndefault_store = \"default\"\n\n[cache.stores.default]\ndriver = \"memory\"\n\n[server]\ntrusted_proxy_ranges = [\"127.0.0.1/32\"]\n\n[auth.jwt]\nissuer = \"http://openrust.test\"\naudience = \"generated-auth-tests\"\nactive_key_id = \"test\"\n\n[auth.jwt.keys]\ntest = {:?}\n\n[security.signed_links]\nissuer = \"http://openrust.test\"\nactive_key_id = \"test-link\"\n\n[security.signed_links.keys]\ntest-link = {:?}\n\n{{encryption_config}}\n\n[view]\ndirectory = \"resources/views\"\n\n[mail]\ndriver = \"log\"\n\n[sms]\ndriver = \"log\"\n",
         database.url(),
         key,
         link_key

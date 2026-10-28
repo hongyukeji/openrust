@@ -23,7 +23,7 @@ enabled = false
 http_status = "always_ok"
 
 [view]
-directory = "views"
+directory = "resources/views"
 auto_reload = false
 
 [i18n]

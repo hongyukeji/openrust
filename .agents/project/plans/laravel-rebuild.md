@@ -2,7 +2,7 @@
 
 > 受众：设计、实现、验收 Agent
 > 更新：2026-10-28
-> 状态：整体方向已授权；本文件是目标设计与实施计划，代码重构尚未开始。
+> 状态：整体方向已授权；本文件是目标设计与实施计划，R0 基线与 R1 目录/启动已实际交付；后继语义按阶段推进。
 
 ## 1. 目标与授权
 
@@ -23,7 +23,7 @@
 - [Container](https://laravel.com/docs/13.x/container)、[Eloquent](https://laravel.com/docs/13.x/eloquent)、[Queues](https://laravel.com/docs/13.x/queues)：生命周期、数据与异步 contract 的首批依据。
 - [Goravel](https://www.goravel.dev/)、[目录](https://www.goravel.dev/getting-started/directory-structure.html)、[框架源码](https://github.com/goravel/framework)：跨语言概念、配置、目录和统一入口的参照。
 
-R0 固定 Laravel 文档版本、`laravel/laravel`、`laravel/framework`、Goravel 源码 tag/commit 与读取日期；不能按浮动 master 的变化无限扩张开发。每个功能簇再读对应官方文档、实现和测试，保留来源与差异说明。仅参考设计可自行实现；复制代码或文档须遵守原许可并保留必要声明。
+固定基线与逐章矩阵见 [R0 基线](laravel-rebuild-baseline.md)。R0 固定 Laravel 文档版本、`laravel/laravel`、`laravel/framework`、Goravel 源码 tag/commit 与读取日期；不能按浮动 master 的变化无限扩张开发。每个功能簇再读对应官方文档、实现和测试，保留来源与差异说明。仅参考设计可自行实现；复制代码或文档须遵守原许可并保留必要声明。
 
 建立逐项矩阵：`ID / 上游章节与源码锚点 / 子行为 / OpenRust 目标 / 现有实现与证据 / 复用或重写 / 依赖 / 测试 / 状态 / 差异理由`。矩阵必须覆盖固定版本完整导航和官方包列表，以下清单是启动范围，不是用来跳过新发现章节的封闭简表。
 
@@ -87,7 +87,7 @@ openrust/
 └── Cargo.toml
 ```
 
-这是目标布局，当前框架仍在根 `src/`。不先复制整套实现后长期保留两份；按可构建的功能簇迁移，旧入口和别名在替代验收后删除。现有 `apps/example`、`tests/consumers` 的行为证据需迁入对应应用/框架测试职责，不能随目录一起丢弃。
+目录骨架已按 [ADR-071](../decisions/adr-071-application-framework-layout.md) 实施到 framework 与应用职责目录；R1 的同一 Command=run 普通运行与断点调试已由 Agent 实际 UI 验收。不先复制整套实现后长期保留两份；按可构建的功能簇迁移，旧入口和别名在替代验收后删除。现有 `examples/example`、`tests/consumers` 的行为证据需迁入对应应用/框架测试职责，不能随目录一起丢弃。
 
 Rust 根 `src/main.rs` 用明确的编译期模块声明连接职责目录；允许薄层 `#[path]` 或 Cargo target path，禁止运行时扫描 Rust 源码。R1 必须比较顶层职责目录与 `src/` 内职责模块的 IDE/测试成本；若顶层形式妨碍 Cargo/IDE，则自主采用 `src/app`、`src/bootstrap`、`src/routes` 等等价布局，并更新 ADR、生成器和本文，不能牺牲语言工具便利性。
 
@@ -224,7 +224,7 @@ R0–R16 是依赖路线，`todo.md` 只维护当前可领取项。旧观测审�
 
 - 本地主控可用时按环境规则负责分类、派发、进度汇总；已定 contract 的实现/测试优先用用户指定的 `gpt-6.1-sol`，常规 `medium`，只有具体难题才单次提高推理强度。不可用时记录真实原因并选择可用且成本合适的模型，不伪称使用指定模型。
 - 一个功能簇内按互不写同一文件的子任务分配：实现、配套测试/文档、独立审查；小任务由一个 worker 闭合，避免每个文件一个代理。不要复制全仓/完整会话给每个 worker，只提供路径、Spec、必要事实和验收命令。
-- 改码 worker 默认独立 worktree，目标任务目录、分支基线和 owner 明确；不自动 merge/main、不推送。只读审查可以读当前目录。共享 ADR/计划/锁文件由主控指定唯一维护者。
+- 当前及以后所有 worker 直接在本仓库 main 开发，不创建隔离分支/worktree。主控指定唯一写入者和文件 owner，其他代理仅并行只读；共享 ADR/计划/锁文件/构建资源串行更新。不推送、不发布。现有隔离分支转移并删除已获用户明确授权。
 - worker 不递归派发、不擅改 contract、不顺手扩大范围；返回文件清单、commit/未提交 diff、实际命令与结果、外部条件、待审查问题。测试环境/端口/库名/构建目录隔离，禁止多个 agent 同时清理共享 target。
 - 同模型独立会话可做普通回归审查；认证、密钥、事务、并发/分布式等高风险修改必须不同模型或 Provider 独立审查。首选任务适配且成本可控的方案，不自动升级到最高模型。
 - 长任务派发后前台给出任务名、模型、范围和输出位置；异步运行，收到完成通知再收集证据。额度不足/服务不可用时保存下一步与已完成证据，不把中断写成完成。

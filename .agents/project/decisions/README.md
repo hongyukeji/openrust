@@ -92,3 +92,5 @@
 | [046 Redis Queue driver](adr-046-redis-queue-driver.md) | Accepted（实现及 Redis 8 真实服务验收完成） | 可选 Redis 至少一次队列、lease/token、事务/任务组限制；默认数据库队列保持不变；最低版本及集群门禁待 v1 总验收 |
 
 版本分工、分版本框架参考和独立 AI 产品边界见 [当前计划](../plan.md)、[版本路线](../roadmap.md) 与 [框架设计](../plans/framework-design.md)，不在 ADR 索引复制另一份任务队列。
+
+- [ADR-071：应用职责目录与独立框架库](adr-071-application-framework-layout.md)：Accepted；Laravel 式布局、单默认入口与独立生成应用。

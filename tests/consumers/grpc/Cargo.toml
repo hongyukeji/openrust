@@ -14,7 +14,7 @@ db-postgres = ["openrust/db-postgres", "testing/db-postgres"]
 db-mysql = ["openrust/db-mysql", "testing/db-mysql"]
 
 [dependencies]
-openrust = { path = "../../..", version = "0.0.0", features = ["grpc", "auth"] }
+openrust = { path = "../../../framework", version = "0.0.0", features = ["grpc", "auth"] }
 prost = "0.14"
 tonic = { version = "~0.14.6", default-features = false, features = ["codegen", "router", "transport"] }
 tonic-prost = "~0.14.6"

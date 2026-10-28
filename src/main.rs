@@ -1,11 +1,13 @@
-//! OpenRust 框架集成宿主。
+//! 默认应用入口。
 #![forbid(unsafe_code)]
 
-#[path = "../apps/mod.rs"]
-mod apps;
-
-use apps::Server;
+#[path = "../app/mod.rs"]
+mod app;
+#[path = "../bootstrap/app.rs"]
+mod bootstrap;
+#[path = "../routes/web.rs"]
+mod routes;
 
 fn main() -> std::process::ExitCode {
-    openrust::run::<Server>()
+    openrust::run::<bootstrap::Server>()
 }
