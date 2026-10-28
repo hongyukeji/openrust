@@ -154,10 +154,10 @@ pub async fn bootstrap_with<A: Application>(defaults: impl FnOnce(&mut AppBuilde
     let loader = bootstrap_config_loader(A::config_namespace())?;
     let framework = loader.load_framework()?;
     init_tracing(&framework.log);
-    tracing::debug!(env = %framework.app.env, config_dir = %loader.config_dir().display(), "configuration loaded");
+    tracing::debug!(env = %framework.app.env, config_source = loader.config_dir_source(), "configuration loaded");
 
     let app_config: A::Config = loader.load()?;
-    let mut builder = AppBuilder::new(framework, loader.figment());
+    let mut builder = AppBuilder::new(framework, loader.figment()?);
     builder.insert(app_config);
     builder.command(HelpCommand).command(ConfigShowCommand);
     defaults(&mut builder);

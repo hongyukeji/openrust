@@ -6,6 +6,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Fixed
 
+- 配置目录显式错误不再静默退默认；已发现 TOML 精确读取，来源错误安全传播，Debug/启动日志不输出目录原值。
+
 - 在 API 响应中保留类型化 `PageMeta`；明确 CORS 预检响应正文为空，同时普通跨域错误仍使用统一包装。
 
 ### Added
@@ -24,6 +26,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 - 新增贡献、安全和社区指南。
 
 ### Changed
+
+- `ConfigLoader::figment()` 返回 `Result`，直接调用方须传播配置来源错误。
 
 - 根 Cargo package openrust 同时提供框架 src/lib.rs 与默认 server 薄 src/main.rs；Laravel 应用职责目录回根，default-members=["."]、default-run="server"，根无参数 cargo run 启动唯一应用。
 

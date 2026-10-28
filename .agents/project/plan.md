@@ -4,7 +4,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-28
-> 摘要：执行 Laravel + laravel-modules 的 Rust 1:1 实现；R0 上游和逐章资产基线已记录，R1-S结构子簇已提交34dfb5e，当前R2-A基元进行中，随后R2基础→R2-M模块闭环→R1-E真实CRUD/当前能力示例；R1整体未完成。
+> 摘要：执行 Laravel + laravel-modules 的 Rust 1:1 实现；R0 上游和逐章资产基线已记录，R1-S结构子簇已提交34dfb5e，R2-A基元已提交26df75c、A2配置来源已验收，随后R2基础→R2-M模块闭环→R1-E真实CRUD/当前能力示例；R1整体未完成。
 
 ## 当前里程碑
 

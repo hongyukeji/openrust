@@ -45,3 +45,5 @@
 限流单测验证 quota 边界、固定窗口重试语义、非法策略和存储故障关闭。
 
 R2-A：新增服务工厂错误保留内部source，公开Error Debug仅code/status，HTTP仍按5xx统一脱敏；容器基元尚未接入生产启动，不代表完整ServiceProvider或异步资源生命周期完成。
+
+R2-A2：ConfigLoader::figment现为fallible；显式目录或已发现文件无效即失败，默认未声明且缺目录仍可用内置默认。ConfigLoader Debug/引导日志只暴露来源key；未知字段schema、Provider模块配置合并与单次配置快照仍待对应R2子簇。

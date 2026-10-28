@@ -215,7 +215,7 @@ async fn test_server() -> Result<openrust::App, openrust::Error> {
         concat!(env!("CARGO_MANIFEST_DIR"), "/config"),
         config::Environment::Development,
     );
-    let figment = loader.figment();
+    let figment = loader.figment()?;
     #[cfg(feature = "cache-redis")]
     let figment = figment.merge(figment::providers::Toml::string(
         "[cache]\ndefault_store = 'default'\n[cache.stores.default]\ndriver = 'redis'\nnamespace = 'server-test'\ndsn = 'redis://127.0.0.1:6379/'\n",
@@ -458,7 +458,7 @@ fn database_configuration_enables_infrastructure_without_silent_fallback() -> Te
             config::Environment::Development,
         );
         let figment = loader
-            .figment()
+            .figment()?
             .merge(("database.url", "unsupported://configured-but-invalid"))
             .merge(("security.encryption.active_key_id", "local"))
             .merge((
@@ -536,7 +536,7 @@ async fn test_application<A: Application>() -> Result<openrust::App, openrust::E
         config::Environment::Development,
     );
     let application_config = loader.load::<A::Config>()?;
-    let mut builder = AppBuilder::new(loader.load_framework()?, loader.figment());
+    let mut builder = AppBuilder::new(loader.load_framework()?, loader.figment()?);
     builder.insert(application_config);
     A::build(&mut builder);
     lifecycle::finalize(builder).await
@@ -565,11 +565,26 @@ fn database_plugin_is_available_through_the_facade() -> TestResult {
 
 #[test]
 fn config_show_runs_and_redacts_secrets() -> TestResult {
+    let selected = tempfile::Builder::new()
+        .prefix("SECRET_CONFIG_DIRECTORY_SENTINEL")
+        .tempdir()?;
+    for entry in std::fs::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/config"))? {
+        let path = entry?.path();
+        if path
+            .extension()
+            .is_some_and(|extension| extension == "toml")
+        {
+            let name = path.file_name().ok_or("配置文件名缺失")?;
+            std::fs::copy(&path, selected.path().join(name))?;
+        }
+    }
     let mut command = std::process::Command::new(env!("CARGO_BIN_EXE_server"));
     command
         .args(["config", "show"])
         .current_dir(env!("CARGO_MANIFEST_DIR"))
-        .env("APP_API_TOKEN", "server-secret-value");
+        .env("APP_API_TOKEN", "server-secret-value")
+        .env("APP_CONFIG_DIR", selected.path())
+        .env("APP_LOG_LEVEL", "debug");
     #[cfg(feature = "encryption")]
     command
         .env("APP_SECURITY_ENCRYPTION_ACTIVE_KEY_ID", "local")
@@ -584,9 +599,32 @@ fn config_show_runs_and_redacts_secrets() -> TestResult {
         String::from_utf8_lossy(&output.stderr)
     );
     let stdout = String::from_utf8(output.stdout)?;
+    let stderr = String::from_utf8(output.stderr)?;
+    assert!(!stdout.contains("SECRET_CONFIG_DIRECTORY_SENTINEL"));
+    assert!(!stderr.contains("SECRET_CONFIG_DIRECTORY_SENTINEL"));
     assert!(stdout.contains("server"));
     assert!(stdout.contains("********"), "{stdout}");
     assert!(!stdout.contains("server-secret-value"));
+    Ok(())
+}
+
+#[test]
+fn configured_missing_directory_fails_before_application_boot() -> TestResult {
+    let missing = std::env::temp_dir().join(format!(
+        "openrust-SECRET_CONFIG_DIRECTORY_SENTINEL-{}",
+        std::process::id()
+    ));
+    assert!(!missing.exists());
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_server"))
+        .args(["config", "show"])
+        .current_dir(env!("CARGO_MANIFEST_DIR"))
+        .env("APP_CONFIG_DIR", missing)
+        .output()?;
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = String::from_utf8(output.stderr)?;
+    assert!(stderr.contains("APP_CONFIG_DIR"));
+    assert!(!stderr.contains("SECRET_CONFIG_DIRECTORY_SENTINEL"));
+    assert!(!stderr.contains("panicked"));
     Ok(())
 }
 

@@ -249,11 +249,24 @@ pub(crate) fn dotenv_environment(namespace: &str) -> Result<Environment, ConfigE
 }
 
 /// 为一个运行环境构建合并后的配置源。
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ConfigLoader {
     config_dir: PathBuf,
+    explicit_config_dir: bool,
+    config_dir_key: String,
     env: Environment,
     namespace: String,
+}
+
+impl fmt::Debug for ConfigLoader {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ConfigLoader")
+            .field("environment", &self.env)
+            .field("namespace", &self.namespace)
+            .field("config_dir_source", &self.config_dir_source())
+            .finish_non_exhaustive()
+    }
 }
 
 impl ConfigLoader {
@@ -275,30 +288,30 @@ impl ConfigLoader {
     ) -> Result<Self, ConfigError> {
         validate_namespace(namespace)?;
         let config_dir_key = format!("{namespace}CONFIG_DIR");
-        let config_dir = std::env::var_os(&config_dir_key)
-            .filter(|value| !value.is_empty())
-            .map_or_else(|| PathBuf::from(DEFAULT_CONFIG_DIR), PathBuf::from);
-        Self::new(DEFAULT_CONFIG_DIR, env).with_config_dir_and_namespace(config_dir, namespace)
+        let selected = std::env::var_os(&config_dir_key);
+        if selected.as_ref().is_some_and(|value| value.is_empty()) {
+            return Err(ConfigError::Invalid(format!(
+                "{config_dir_key}: 配置目录不能为空"
+            )));
+        }
+        Ok(Self {
+            explicit_config_dir: selected.is_some(),
+            config_dir: selected.map_or_else(|| PathBuf::from(DEFAULT_CONFIG_DIR), PathBuf::from),
+            config_dir_key,
+            env,
+            namespace: namespace.to_owned(),
+        })
     }
 
-    /// 使用显式指定的目录和运行环境。
+    /// 使用显式指定的目录和运行环境；目录在 `figment` 或 `load` 时验证。
     pub fn new(config_dir: impl Into<PathBuf>, env: Environment) -> Self {
         Self {
             config_dir: config_dir.into(),
+            explicit_config_dir: true,
+            config_dir_key: "config_dir".to_owned(),
             env,
             namespace: ENV_PREFIX.to_owned(),
         }
-    }
-
-    fn with_config_dir_and_namespace(
-        mut self,
-        config_dir: PathBuf,
-        namespace: &str,
-    ) -> Result<Self, ConfigError> {
-        validate_namespace(namespace)?;
-        self.config_dir = config_dir;
-        namespace.clone_into(&mut self.namespace);
-        Ok(self)
     }
 
     /// 返回只读取所选应用命名空间的加载器。
@@ -321,27 +334,21 @@ impl ConfigLoader {
         &self.config_dir
     }
 
-    /// 提取所有配置区段所用的分层 [`Figment`]。
-    pub fn figment(&self) -> Figment {
+    pub(crate) fn config_dir_source(&self) -> &str {
+        if self.explicit_config_dir {
+            &self.config_dir_key
+        } else {
+            "default"
+        }
+    }
+
+    /// 构建分层 [`Figment`]；显式目录或已发现文件无效时立即失败。
+    pub fn figment(&self) -> Result<Figment, ConfigError> {
         // 领域配置文件相互独立，按文件名稳定合并；环境差异由 .env 与进程变量表达。
         let mut figment = Figment::from(Serialized::defaults(FrameworkConfig::default()));
-        if let Ok(entries) = std::fs::read_dir(&self.config_dir) {
-            let mut files = entries
-                .filter_map(Result::ok)
-                .map(|entry| entry.path())
-                .filter(|path| {
-                    path.extension()
-                        .is_some_and(|extension| extension == "toml")
-                        && !matches!(
-                            path.file_stem().and_then(|stem| stem.to_str()),
-                            Some("default" | "development" | "test" | "production")
-                        )
-                })
-                .collect::<Vec<_>>();
-            files.sort();
-            for file in files {
-                figment = figment.merge(Toml::file(file));
-            }
+        for file in self.domain_files()? {
+            // 已发现的文件必须读取此精确路径，不能向父目录搜索或忽略缺失。
+            figment = figment.merge(Toml::file_exact(file));
         }
         if let Some(url) = conventional_database_url() {
             figment = figment.merge(Serialized::defaults(serde_json::json!({
@@ -402,17 +409,58 @@ impl ConfigLoader {
                 })
                 .split("."),
         );
-        figment.merge(
+        let figment = figment.merge(
             Env::prefixed(&self.namespace)
                 .filter(|key| key != "ENV" && key != "CONFIG_DIR" && !key.as_str().contains("__"))
                 .map(|key| flat_environment_path(key.as_str()).into())
                 .split("."),
-        )
+        );
+        // 仅确认来源有效，不在此提前提取尚未注册的领域配置类型。
+        let _: figment::value::Value = figment.extract()?;
+        Ok(figment)
+    }
+
+    fn domain_files(&self) -> Result<Vec<PathBuf>, ConfigError> {
+        let entries = match std::fs::read_dir(&self.config_dir) {
+            Ok(entries) => entries,
+            Err(error)
+                if !self.explicit_config_dir
+                    && error.kind() == std::io::ErrorKind::NotFound
+                    && std::fs::symlink_metadata(&self.config_dir)
+                        .is_err_and(|error| error.kind() == std::io::ErrorKind::NotFound) =>
+            {
+                return Ok(Vec::new());
+            }
+            Err(_) => return Err(self.directory_error()),
+        };
+        let mut files = Vec::new();
+        for entry in entries {
+            let path = entry.map_err(|_| self.directory_error())?.path();
+            if path
+                .extension()
+                .is_some_and(|extension| extension == "toml")
+                && !matches!(
+                    path.file_stem().and_then(|stem| stem.to_str()),
+                    Some("default" | "development" | "test" | "production")
+                )
+            {
+                files.push(path);
+            }
+        }
+        files.sort();
+        Ok(files)
+    }
+
+    fn directory_error(&self) -> ConfigError {
+        ConfigError::Invalid(format!(
+            "{}: 配置目录不存在、不是目录或无法完整读取（源值未公开）",
+            self.config_dir_key
+        ))
     }
 
     /// 将完整的合并配置提取为 `T`。
     pub fn load<T: DeserializeOwned>(&self) -> Result<T, ConfigError> {
-        Ok(self.figment().extract()?)
+        Ok(self.figment()?.extract()?)
     }
 
     /// 提取框架配置区段，并将 `app.env` 固定为所选运行环境。
@@ -627,6 +675,143 @@ fn redact_secret_values(value: &mut serde_json::Value) {
 #[allow(clippy::result_large_err)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn explicit_config_directories_fail_closed_without_exposing_values() {
+        let _environment_guard = crate::lock_test_env();
+        figment::Jail::expect_with(|jail| {
+            let loader = ConfigLoader::new("SECRET_MISSING_PATH", Environment::Test);
+            assert!(!format!("{loader:?}").contains("SECRET_MISSING_PATH"));
+            let result = loader.load_framework();
+            assert!(result.is_err(), "显式路径缺失不能静默使用默认值");
+            let error = result
+                .err()
+                .map(|error| error.to_string())
+                .unwrap_or_default();
+            assert!(error.contains("config_dir"));
+            assert!(!error.contains("SECRET_MISSING_PATH"));
+
+            jail.set_env("APP_CONFIG_DIR", "SECRET_MISSING_PATH");
+            let result = ConfigLoader::from_env().and_then(|loader| loader.load_framework());
+            assert!(result.is_err());
+            let error = result
+                .err()
+                .map(|error| error.to_string())
+                .unwrap_or_default();
+            assert!(error.contains("APP_CONFIG_DIR"));
+            assert!(!error.contains("SECRET_MISSING_PATH"));
+
+            jail.set_env("APP_CONFIG_DIR", "");
+            assert!(ConfigLoader::from_env().is_err(), "空的显式路径不是未声明");
+            jail.create_file("not-a-directory", "secret-content")?;
+            assert!(
+                ConfigLoader::new("not-a-directory", Environment::Test)
+                    .load_framework()
+                    .is_err()
+            );
+            jail.set_env("SHOP_CONFIG_DIR", "SECRET_MISSING_PATH");
+            let error = ConfigLoader::from_env_with_namespace("SHOP_")
+                .and_then(|loader| loader.load_framework())
+                .err()
+                .map(|error| error.to_string())
+                .unwrap_or_default();
+            assert!(error.contains("SHOP_CONFIG_DIR"));
+            assert!(!error.contains("SECRET_MISSING_PATH"));
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn missing_implicit_default_directory_and_existing_empty_directory_are_valid() {
+        let _environment_guard = crate::lock_test_env();
+        figment::Jail::expect_with(|jail| {
+            let loader =
+                ConfigLoader::from_environment_with_namespace(Environment::Test, "OPTIONAL_")
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+            assert!(loader.load_framework().is_ok());
+            jail.create_dir("empty-config")?;
+            assert!(
+                ConfigLoader::new("empty-config", Environment::Test)
+                    .load_framework()
+                    .is_ok()
+            );
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn discovered_invalid_domain_file_reports_safe_failure() {
+        let _environment_guard = crate::lock_test_env();
+        figment::Jail::expect_with(|jail| {
+            jail.create_dir("config")?;
+            jail.create_file(
+                "config/application.toml",
+                "[app]\nname = 'SECRET_UNTERMINATED",
+            )?;
+            let result = ConfigLoader::new("config", Environment::Test).load_framework();
+            assert!(result.is_err());
+            let error = result
+                .err()
+                .map(|error| error.to_string())
+                .unwrap_or_default();
+            assert!(!error.contains("SECRET_UNTERMINATED"));
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn discovered_toml_directory_is_not_silently_ignored() {
+        let _environment_guard = crate::lock_test_env();
+        figment::Jail::expect_with(|jail| {
+            jail.create_dir("config/not-a-file.toml")?;
+            assert!(
+                ConfigLoader::new("config", Environment::Test)
+                    .figment()
+                    .is_err()
+            );
+            Ok(())
+        });
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn broken_default_directory_symlink_is_an_error() {
+        let _environment_guard = crate::lock_test_env();
+        figment::Jail::expect_with(|_| {
+            std::os::unix::fs::symlink("missing-target", "config")
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            let loader =
+                ConfigLoader::from_environment_with_namespace(Environment::Test, "OPTIONAL_")
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+            assert!(loader.figment().is_err());
+            Ok(())
+        });
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unreadable_directory_is_rejected_when_permissions_are_enforced() {
+        use std::os::unix::fs::PermissionsExt;
+        let _environment_guard = crate::lock_test_env();
+        figment::Jail::expect_with(|jail| {
+            let directory = jail.create_dir("private-config")?;
+            let original = std::fs::metadata(&directory)
+                .map_err(|error| figment::Error::from(error.to_string()))?
+                .permissions();
+            std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(0o000))
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            let enforced = std::fs::read_dir(&directory).is_err();
+            let result = ConfigLoader::new(&directory, Environment::Test).figment();
+            std::fs::set_permissions(&directory, original)
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            if enforced {
+                assert!(result.is_err());
+            } else {
+                eprintln!("跳过权限拒绝断言：当前进程可绕过目录读取权限");
+            }
+            Ok(())
+        });
+    }
 
     #[test]
     fn domain_modules_preserve_capability_config_paths() {
@@ -888,7 +1073,8 @@ mod tests {
                 "APP_SERVER_CORS_ALLOWED_ORIGINS",
                 "[\"https://example.com\", \"https://other.example\"]",
             );
-            let config = ConfigLoader::new("missing-config", Environment::Test)
+            jail.create_dir("empty-config")?;
+            let config = ConfigLoader::new("empty-config", Environment::Test)
                 .load_framework()
                 .map_err(|error| figment::Error::from(error.to_string()))?;
             assert_eq!(
@@ -904,7 +1090,8 @@ mod tests {
         let _environment_guard = crate::lock_test_env();
         figment::Jail::expect_with(|jail| {
             jail.set_env("PORT", "4100");
-            let loader = ConfigLoader::new("missing-config", Environment::Test);
+            jail.create_dir("empty-config")?;
+            let loader = ConfigLoader::new("empty-config", Environment::Test);
             assert_eq!(
                 loader
                     .load_framework()
@@ -917,9 +1104,15 @@ mod tests {
             jail.set_env("APP_DATABASE_URL", "postgres://custom/database");
             jail.set_env("APP_SERVER_PORT", "4200");
             jail.set_env("APP_LOG_LEVEL", "debug");
-            let database: serde_json::Value = loader.figment().extract_inner("database")?;
+            let database: serde_json::Value = loader
+                .figment()
+                .map_err(|error| figment::Error::from(error.to_string()))?
+                .extract_inner("database")?;
             assert_eq!(database["url"], "postgres://custom/database");
-            let log: serde_json::Value = loader.figment().extract_inner("log")?;
+            let log: serde_json::Value = loader
+                .figment()
+                .map_err(|error| figment::Error::from(error.to_string()))?
+                .extract_inner("log")?;
             assert_eq!(log["level"], "debug");
             assert_eq!(
                 loader
@@ -956,8 +1149,12 @@ mod tests {
             #[cfg(feature = "queue")]
             jail.set_env("QUEUE_DRIVER", "redis");
 
-            let loader = ConfigLoader::new("missing-config", Environment::Test);
-            let database: serde_json::Value = loader.figment().extract_inner("database")?;
+            jail.create_dir("empty-config")?;
+            let loader = ConfigLoader::new("empty-config", Environment::Test);
+            let database: serde_json::Value = loader
+                .figment()
+                .map_err(|error| figment::Error::from(error.to_string()))?
+                .extract_inner("database")?;
             let database_url = url::Url::parse(database["url"].as_str().unwrap_or_default())
                 .map_err(|error| figment::Error::from(error.to_string()))?;
             assert_eq!(database_url.scheme(), "mysql");
@@ -967,7 +1164,10 @@ mod tests {
             assert_eq!(database_url.password(), Some("p%40ss%3Aword"));
             assert_eq!(database["table_prefix"], "shop_");
 
-            let cache: serde_json::Value = loader.figment().extract_inner("cache")?;
+            let cache: serde_json::Value = loader
+                .figment()
+                .map_err(|error| figment::Error::from(error.to_string()))?
+                .extract_inner("cache")?;
             let redis_url = url::Url::parse(
                 cache["stores"]["default"]["dsn"]
                     .as_str()
@@ -979,16 +1179,28 @@ mod tests {
             assert_eq!(redis_url.path(), "/4");
             assert_eq!(redis_url.password(), Some("redis%3Asecret"));
             assert_eq!(cache["default_store"], "shared");
-            let mail: serde_json::Value = loader.figment().extract_inner("mail")?;
+            let mail: serde_json::Value = loader
+                .figment()
+                .map_err(|error| figment::Error::from(error.to_string()))?
+                .extract_inner("mail")?;
             assert_eq!(mail["driver"], "smtp");
             assert_eq!(mail["smtp_host"], "mail.example.test");
-            let sms: serde_json::Value = loader.figment().extract_inner("sms")?;
+            let sms: serde_json::Value = loader
+                .figment()
+                .map_err(|error| figment::Error::from(error.to_string()))?
+                .extract_inner("sms")?;
             assert_eq!(sms["driver"], "log");
-            let i18n: serde_json::Value = loader.figment().extract_inner("i18n")?;
+            let i18n: serde_json::Value = loader
+                .figment()
+                .map_err(|error| figment::Error::from(error.to_string()))?
+                .extract_inner("i18n")?;
             assert_eq!(i18n["default_locale"], "zh-CN");
             #[cfg(feature = "queue")]
             {
-                let queue: serde_json::Value = loader.figment().extract_inner("queue")?;
+                let queue: serde_json::Value = loader
+                    .figment()
+                    .map_err(|error| figment::Error::from(error.to_string()))?
+                    .extract_inner("queue")?;
                 assert_eq!(queue["driver"], "redis");
                 let queue_url = url::Url::parse(queue["redis_url"].as_str().unwrap_or_default())
                     .map_err(|error| figment::Error::from(error.to_string()))?;

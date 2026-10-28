@@ -4,6 +4,22 @@
 > 更新：2026-10-28
 > 摘要：当前目录迁移与原专项测试入口，分开记录真实服务和未验收边界。
 
+## R2-A2 配置目录与来源失败语义
+
+ConfigLoader::figment现在返回Result，全部第一方loader调用同步传播；显式new/APP_CONFIG_DIR/自定义namespace目录为空、缺失、非目录、读目录/条目失败即报错，未显式默认config缺失仍可使用内置默认。坏symlink不当作默认目录缺失，已发现领域TOML使用file_exact精确读取并在figment阶段验证来源，不向父目录搜索或静默跳文件。ConfigLoader Debug与bootstrap日志只打印安全来源key。
+
+红测实际复现旧代码对显式缺目录静默退默认；修复后25项config定向测试通过，包含显式/默认/空目录、坏文件、TOML目录、坏symlink与路径哨兵。权限拒绝断言仅在OS实际强制目录权限时执行，root豁免分支不算权限拒绝证明。真实server config show在有效秘密前缀目录+debug日志下不输出路径哨兵，坏目录子进程exit1、含来源key且无原值/无panic。
+
+实际通过fmt、默认及all-features workspace all-target Clippy -D warnings、默认286 passed/22 ignored与full509/32、warnings-denied双doc、deny、MSRV1.97 all-target/all-features与no-default。未把ignored或无URL早退当真实服务通过；日志前缀/tmp/openrust-r2-config-。
+
+复用既有PG18/MySQL8.4，各12 targets/48 passed/0 ignored及testing database1项；新生成普通/PG auth/MySQL auth三工程check/test，双库各1项真实TCP/隔离SQL/fake mail流程通过；普通生成应用裸run/health200/SIGINT0。八个独立consumer locked test全部通过，cache/communication/SQLite/queue/gRPC实际run，gRPC15项/四类RPC、realtime真实Redis跨进程1项通过；query授权consumer仍仅编译，无SQLite完整支持或供应商实发声明。根裸cargo run再次验证health/HTML/API/example与SIGINT0。
+
+不同模型gpt-6-sol最终只读复审无blocker/should-fix，未替代实际运行。Cargo/锁图/配置值/Redis默认/env优先级/模板行为未改；Provider/schema/核心与模块合并操作仍未实现。
+
+构建达到聚合21.06GiB软限后停止扩展，确认无构建进程并仅对独占/tmp/openrust-r2-config-target dry-run/clean，报告移除57698files/18.8GiB；保留状态续跑未验收阶段。最终root启动后再次dry-run/clean，移除40556files/17.4GiB，磁盘余119GiB。未知root/consumer缓存未触碰；/tmp生成源码与日志保留作诊断证据。
+
+独立于A2，后续审查已确认R2-A容器缓存发布早于active factory frame结束的竞态；当前15项容器测试未覆盖，生产尚未挂载该容器。下一子簇须补确定性发布/取消观察回归、发布前结束帧/等待边，不以本次配置门禁覆盖该缺口。
+
 ## R2-A 类型化容器基元
 
 新增 src/core/container.rs，15项回归实际通过：typed dyn接口、覆盖与bind生命周期、singleton并发单次构造/应用隔离、root scoped/reset与子scope、同链/跨根等待环、取消恢复、嵌套缺绑定码/链、source保留与秘密Debug/HTTP脱敏、在途reset、scope Drop缓存释放、保存Resolver延迟解析、关闭singleton owner/waiter、业务析构重入、弱句柄引用环释放。scope/工厂全用显式句柄，不创建全局容器。

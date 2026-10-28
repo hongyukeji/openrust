@@ -196,7 +196,7 @@ Resolver/BootContext 提供 `on_shutdown(name, FnOnce() -> BoxFuture<'static, Re
 
 只读配置审计与源码一致：ConfigLoader 当前从 FrameworkConfig 默认值开始，按领域文件名排序 merge，再合并 DB_*/REDIS_* 便捷值、PORT 等白名单别名，最后 namespace（如 APP_）覆盖；bootstrap 先选环境再加载 .env，进程变量优先。不增加字符串插值语言。
 
-- config/mod.rs 的 figment 当前非 fallible，read_dir 错误与单条目录读取错误会被静默略过；这是显式 APP_CONFIG_DIR fail closed 的真实缺口。
+- config/mod.rs 的 figment 原先非fallible并静默略过read_dir/条目错误；R2-A2已改为Result并逐处传播，实际对应门禁已通过，不能当作完整配置schema/Provider已验收。
 - FrameworkConfig 只覆盖框架根字段，DB/cache 等由插件 section 读取。全局根 deny_unknown_fields 会误拒合法插件/应用 section，不能这样修复。
 - AppConfig/DatabaseConfig/CacheConfig 多数 serde(default) 未拒未知字段；`database.max_conections` 拼错可能回退默认。CacheStoreConfig.flatten options、动态 store/instance 名称本来开放，不能一并禁止。
 - ConfigError 的 Figment 转换已有安全路径/类别；Invalid(String) 不会自动脱敏，领域 validator 不能写入原 DSN/密码。sensitive_section 当前丢失字段路径，应在不回显 value 的前提下补足。
@@ -226,7 +226,7 @@ Resolver/BootContext 提供 `on_shutdown(name, FnOnce() -> BoxFuture<'static, Re
 | TOML 文件错误 | 已发现文件读取/解析/字段校验失败立即错误；不跳文件、不忽略未知已注册字段 |
 | env 映射 | 保留既有便捷变量与 namespace 优先；不借 R2 默改含下划线命名 map 的含义。完整 escaped/深层映射需配置子簇新增精确语法与迁移测试 |
 
-ConfigLoader.figment 改为 fallible 结果，并在调用链逐处传播；不得加另一个 loader 绕过现入口。数组和 map 回归先建立，再接 provider defaults。
+R2-A2已将ConfigLoader.figment改为fallible并逐处传播；仍只有一个loader入口。数组和 map 回归先建立，再接 provider defaults。
 
 秘密值永不进入错误、Debug、config show、日志与测试快照。使用 schema 标记叠加现有 redact_secrets；未知或未分类字段默认不回显原值。错误带 key/path、来源和约束/类型；只有明确标安全的 bounded 数值/布尔值可附原值。公开 validator 返回安全消息，内部 source 保留结构化诊断而不透出原值。Redis 仍为标准生成应用默认，未知 store/driver 或失联明确失败，不回退 memory/file。
 
