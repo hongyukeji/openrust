@@ -1,7 +1,6 @@
 """高价值回归：防跨任务恢复、停止竞态与守护进程泄漏，不调用真实模型或Paseo。"""
 
 import importlib.util
-import fcntl
 import json
 import os
 from pathlib import Path
@@ -39,6 +38,52 @@ class Decisions(unittest.TestCase):
         self.assertEqual(self.decide(agent=dict(self.agent, PendingPermissions=[1])), 'needs_attention')
         self.assertEqual(self.decide(goal={'id': 'other', 'status': 'active'}), 'needs_attention')
         self.assertEqual(self.decide(agent=dict(self.agent, Status='running')), 'working')
+
+    def test_blocked_goal_overrides_error_and_quota_recovery(self):
+        for error in ('500 network', 'usage_limit exceeded'):
+            turn = dict(self.turn, payload={'error': {'message': error}})
+            self.assertEqual(self.decide(goal={'id': 'g', 'status': 'blocked'}, turn=turn), 'needs_attention')
+
+    def test_completion_without_completed_at_uses_event_timestamp(self):
+        turn = dict(self.turn, key='2026-10-28T12:00:00.000Z', payload={})
+        now = recovery.datetime.fromisoformat('2026-10-28T12:02:00+00:00').timestamp()
+        self.assertEqual(recovery.decision(self.agent, self.goal, turn, self.config, now), 'recover_idle')
+        self.assertEqual(recovery.decision(self.agent, self.goal, turn, self.config, now - 1), 'working')
+        for key in ('not-a-date', '2026-10-28T12:00:00'):
+            self.assertEqual(self.decide(turn=dict(turn, key=key)), 'needs_attention')
+
+    def test_bound_goal_validates_native_public_identity_and_local_id(self):
+        config = {'goal_id': 'g', 'thread': 't'}
+        local = dict(self.goal, created_at_ms=123456, objective='原始目标')
+        remote = {'threadId': 't', 'createdAt': 123, 'objective': '原始目标', 'status': 'active'}
+        with patch.object(recovery, 'binding_valid', return_value=True), patch.object(recovery, 'goal', return_value=local), patch.object(recovery, 'rpc', return_value={'goal': remote}):
+            self.assertEqual(recovery.bound_goal(config), remote)
+            with patch.object(recovery, 'goal', side_effect=[local, dict(local, id='replacement')]):
+                with self.assertRaises(ValueError): recovery.bound_goal(config)
+            with patch.object(recovery, 'rpc', return_value={'goal': dict(remote, createdAt=124)}):
+                with self.assertRaises(ValueError): recovery.bound_goal(config)
+
+    def test_stop_task_does_not_pause_or_interrupt_replacement_goal(self):
+        with tempfile.TemporaryDirectory() as folder:
+            project = Path(folder).resolve()
+            agent = '11111111-1111-4111-8111-111111111111'
+            runtime = project / '.agents/project/guards' / agent
+            runtime.mkdir(parents=True)
+            (runtime / 'config.json').write_text(json.dumps({'goal_id': 'old', 'thread': 't'}))
+            with patch.object(recovery, 'ROOT', project), patch.object(sys, 'argv', ['guard.py', 'stop', '--stop-task', '--agent', agent]), patch.object(recovery, 'binding_valid', return_value=True), patch.object(recovery, 'goal', return_value={'id': 'replacement', 'status': 'active'}), patch.object(recovery, 'rpc') as remote, patch.object(recovery, 'run_json') as paseo:
+                with self.assertRaises(ValueError): recovery.main()
+                remote.assert_not_called(); paseo.assert_not_called()
+            self.assertTrue((runtime / 'disabled').exists())
+
+    def test_unavailable_notification_is_recorded_without_external_tool(self):
+        with tempfile.TemporaryDirectory() as folder:
+            runtime = Path(folder)
+            (runtime / 'config.json').write_text(json.dumps({'agent': 'a', 'thread': 't', 'goal_id': 'g'}))
+            with patch.object(recovery.sys, 'platform', 'win32'), patch.object(recovery, 'goal', return_value={'id': 'g', 'status': 'complete'}), patch.object(recovery.subprocess, 'run', side_effect=AssertionError('不应启动通知工具')):
+                recovery.worker(runtime, os.getppid())
+            state = json.loads((runtime / 'state.json').read_text())
+            self.assertFalse(state['notification_delivered'])
+            self.assertEqual(state['notification_status'], 'unavailable')
 
     def test_idle_grace_and_generic_error(self):
         self.assertEqual(self.decide(), 'recover_idle')
@@ -84,7 +129,7 @@ class Decisions(unittest.TestCase):
             (runtime / 'state.json').write_text(json.dumps({'status': 'working', 'checked_at': time.time()}))
             (runtime / 'supervisor.json').write_text(json.dumps({'pid': os.getpid()}))
             with (runtime / 'lock').open('a') as lock:
-                fcntl.flock(lock, fcntl.LOCK_EX)
+                recovery.platform.lock_file(lock)
                 view = recovery.summary(runtime)
             self.assertTrue(view['lock_held'])
             self.assertFalse(view['active'])
@@ -112,6 +157,22 @@ class Decisions(unittest.TestCase):
                 recovery.worker(runtime, os.getppid())
                 send.assert_not_called()
 
+    def test_confirmed_unstarted_send_can_retry_after_cooldown(self):
+        with tempfile.TemporaryDirectory() as folder:
+            runtime = Path(folder)
+            (runtime / 'config.json').write_text(json.dumps({'agent': 'a', 'thread': 't', 'rollout': 'r', 'goal_id': 'g'}))
+            (runtime / 'state.json').write_text(json.dumps({'pending_key': 't', 'retry_at': 0}))
+            turn = dict(self.turn, payload={'error': {'message': '500'}})
+            def remote(method, _params):
+                if method == 'account/rateLimits/read':
+                    return {'ordinaryUsageAllowed': True, 'rateLimits': {'primary': {'usedPercent': 1}}}
+                return {'goal': {'id': 'g', 'status': 'active'}}
+            with patch.object(recovery, 'binding_valid', return_value=True), patch.object(recovery, 'inspect', return_value=self.agent), patch.object(recovery, 'goal', return_value=self.goal), patch.object(recovery, 'timeline', return_value=turn), patch.object(recovery, 'notify', return_value=True), patch.object(recovery, 'rpc', side_effect=remote), patch.object(recovery, 'run_json', side_effect=FileNotFoundError('not launched')), patch.object(recovery, 'sleep_until', side_effect=lambda *_: (runtime / 'disabled').touch()):
+                recovery.worker(runtime, os.getppid())
+            state = json.loads((runtime / 'state.json').read_text())
+            self.assertNotIn('dispatch_key', state)
+            self.assertEqual(state['check_failures'], 1)
+
     def test_three_errors_enter_cooldown_instead_of_exiting(self):
         with tempfile.TemporaryDirectory() as folder:
             runtime = Path(folder)
@@ -132,6 +193,7 @@ class Decisions(unittest.TestCase):
             self.assertEqual(checks[0]['status'], 'cooldown')
             self.assertGreaterEqual(checks[0]['retry_at'] - time.time(), 1790)
 
+    @unittest.skipIf(os.name == 'nt', 'POSIX进程组场景')
     def test_cleanup_kills_descendant_after_worker_has_exited(self):
         with tempfile.TemporaryDirectory() as folder:
             pid_file = Path(folder) / 'child.pid'
@@ -199,6 +261,7 @@ class Lifecycle(unittest.TestCase):
         self.script = self.root / 'reusable-skill/scripts/guard.py'
         self.script.parent.mkdir(parents=True)
         shutil.copyfile(SCRIPT, self.script)
+        shutil.copyfile(SCRIPT.with_name('guard_platform.py'), self.script.with_name('guard_platform.py'))
         self.agent = '11111111-1111-4111-8111-111111111111'
         self.thread = '22222222-2222-4222-8222-222222222222'
         self.home = self.root / 'codex'; self.home.mkdir()
@@ -215,8 +278,8 @@ class Lifecycle(unittest.TestCase):
             db.execute('CREATE TABLE threads(id,rollout_path,cwd)')
             db.execute('INSERT INTO threads VALUES(?,?,?)', (self.thread, str(rollout), str(self.root)))
         with sqlite3.connect(self.home / 'goals_1.sqlite') as db:
-            db.execute('CREATE TABLE thread_goals(thread_id,goal_id,status)')
-            db.execute('INSERT INTO thread_goals VALUES(?,?,?)', (self.thread, 'goal', 'active'))
+            db.execute('CREATE TABLE thread_goals(thread_id,goal_id,status,created_at_ms,objective)')
+            db.execute('INSERT INTO thread_goals VALUES(?,?,?,?,?)', (self.thread, 'goal', 'active', 123000, 'test'))
         binaries = self.root / 'bin'; binaries.mkdir()
         code = '''import json,os,sys,sqlite3
 from pathlib import Path
@@ -236,6 +299,9 @@ else:
   request=json.loads(line);method=request.get('method')
   if 'id' not in request:continue
   result={}
+  if method=='thread/goal/get':
+   with sqlite3.connect(root/'codex/goals_1.sqlite') as db:row=db.execute('SELECT goal_id,status,created_at_ms,objective FROM thread_goals').fetchone()
+   result={'goal':{'threadId':os.environ['CODEX_THREAD_ID'],'status':row[1],'createdAt':row[2]//1000,'objective':row[3]}}
   if method=='thread/goal/set':
    with sqlite3.connect(root/'codex/goals_1.sqlite') as db:db.execute('UPDATE thread_goals SET status=?',(request['params']['status'],))
   print(json.dumps({'id':request['id'],'result':result}),flush=True)
@@ -247,6 +313,14 @@ else:
         self.env = dict(os.environ, PATH=str(binaries) + os.pathsep + os.environ['PATH'],
                         CODEX_HOME=str(self.home), PASEO_HOME=str(self.paseo), TEST_ROOT=str(self.root),
                         CODEX_THREAD_ID=self.thread, PASEO_AGENT_ID=self.agent)
+        if os.name == 'nt':
+            # 临时测试副本以 Python 假CLI替代shebang；不依赖Node或修改系统PATHEXT。
+            helper = self.script.with_name('guard_platform.py')
+            with helper.open('a', encoding='utf-8') as output:
+                output.write("\n_original_command = command\ndef command(arguments):\n"
+                             "    if arguments[0] in ('paseo', 'codex'):\n"
+                             "        return [os.sys.executable, str(Path(os.environ['TEST_ROOT']) / 'bin' / arguments[0]), *arguments[1:]]\n"
+                             "    return _original_command(arguments)\n")
         self.runtime = self.root / '.agents/project/guards' / self.agent
 
     def call(self, command, *args, check=True):
@@ -292,6 +366,15 @@ else:
             self.assertEqual(db.execute('SELECT status FROM thread_goals').fetchone()[0], 'paused')
         self.assertGreater(first['pid'], 0)
 
+    def test_supervisor_bounds_long_running_log(self):
+        self.call('start')
+        self.wait_for(lambda: (self.runtime / 'worker.json').exists())
+        log = self.runtime / 'watch.log'
+        with log.open('ab') as output:
+            output.write(b'x' * (recovery.TAIL_BYTES * 3))
+        self.wait_for(lambda: log.stat().st_size <= recovery.TAIL_BYTES * 2)
+        self.call('stop')
+
     def test_completed_goal_automatically_cleans_guard(self):
         self.call('start')
         self.wait_for(lambda: (self.runtime / 'worker.json').exists())
@@ -302,6 +385,7 @@ else:
         self.assertFalse((self.runtime / 'worker.json').exists())
         self.assertEqual(json.loads((self.runtime / 'state.json').read_text())['status'], 'complete')
 
+    @unittest.skipIf(os.name == 'nt', 'POSIX SIGKILL 注入；原生Windows Job 清理另测')
     def test_killed_worker_is_restarted_without_second_supervisor(self):
         self.call('start')
         self.wait_for(lambda: (self.runtime / 'worker.json').exists())
@@ -332,6 +416,114 @@ else:
                     process.terminate()
                     process.communicate(timeout=10)
 
+
+class PlatformBoundaries(unittest.TestCase):
+    def test_pipe_timeout_and_unicode_without_select(self):
+        process = subprocess.Popen([sys.executable, '-u', '-c',
+                                    "import sys,time;sys.stdout.reconfigure(encoding='utf-8');print('中文');time.sleep(10)"], stdout=subprocess.PIPE)
+        lines = recovery.platform.Lines(process.stdout)
+        try:
+            self.assertEqual(lines.get(time.monotonic() + 5).decode('utf-8').strip(), '中文')
+            with self.assertRaises(TimeoutError):
+                lines.get(time.monotonic() + .05)
+        finally:
+            process.kill(); process.wait(); process.stdout.close(); lines.close()
+        self.assertFalse(lines.thread.is_alive())
+
+    def test_npm_cmd_resolves_bin_without_shell_interpretation(self):
+        with tempfile.TemporaryDirectory() as folder:
+            base = Path(folder)
+            shim = base / 'paseo.cmd'; shim.touch()
+            package = base / 'node_modules/@vendor/paseo'; package.mkdir(parents=True)
+            entry = package / 'cli.js'; entry.touch()
+            (package / 'package.json').write_text(json.dumps({'bin': {'paseo': 'cli.js'}}))
+            with patch.object(recovery.platform, 'WINDOWS', True), patch.object(recovery.platform.shutil, 'which', side_effect=lambda name: str(shim) if name == 'paseo' else 'node'):
+                argument = '原目标 %PATH% & echo $HOME'
+                result = recovery.platform.command(['paseo', 'send', argument])
+                self.assertEqual(result, ['node', str(entry.resolve()), 'send', argument])
+                (package / 'package.json').write_text(json.dumps({'bin': {'paseo': '../../escape.js'}}))
+                with self.assertRaises(FileNotFoundError):
+                    recovery.platform.command(['paseo'])
+
+    def test_start_paused_goal_rechecks_identity_before_activation(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            agent = '11111111-1111-4111-8111-111111111111'
+            config = {'agent': agent, 'thread': 't', 'goal_id': 'old'}
+            with patch.object(recovery, 'ROOT', root), patch.object(sys, 'argv', ['guard.py', 'start', '--agent', agent]), patch.object(recovery.platform, 'command'), patch.object(recovery, 'config_for', return_value=config), patch.object(recovery, 'goal', return_value={'id': 'old', 'status': 'paused'}), patch.object(recovery, 'bound_goal', side_effect=[{'status': 'paused'}, ValueError('replaced')]), patch.object(recovery, 'rpc') as remote:
+                with self.assertRaises(ValueError): recovery.main()
+                remote.assert_not_called()
+
+    def test_missing_dependency_does_not_create_runtime(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            agent = '11111111-1111-4111-8111-111111111111'
+            with patch.object(recovery, 'ROOT', root), patch.object(sys, 'argv', ['guard.py', 'start', '--agent', agent]), patch.object(recovery.platform, 'command', side_effect=FileNotFoundError('missing')):
+                with self.assertRaises(FileNotFoundError):
+                    recovery.main()
+            self.assertFalse((root / '.agents').exists())
+
+    def test_lock_exclusion_and_release_across_real_process(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'lock'
+            code = ("import sys;sys.path.insert(0,sys.argv[1]);import guard_platform as p;"
+                    "f=open(sys.argv[2],'a');p.lock_file(f);print('ready',flush=True);sys.stdin.read()")
+            process = subprocess.Popen([sys.executable, '-B', '-c', code, str(SCRIPT.parent), str(path)],
+                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+            try:
+                self.assertEqual(process.stdout.readline().strip(), b'ready')
+                with path.open('a') as lock:
+                    with self.assertRaises(BlockingIOError):
+                        recovery.platform.lock_file(lock, blocking=False)
+                process.communicate(timeout=5)
+                with path.open('a') as lock:
+                    recovery.platform.lock_file(lock, blocking=False)
+            finally:
+                if process.poll() is None:
+                    process.kill(); process.communicate()
+
+
+@unittest.skipUnless(os.name == 'nt', '需要原生Windows Job Objects，POSIX不冒充验收')
+class WindowsProcesses(unittest.TestCase):
+    def test_job_cleanup_after_wrapper_exit_preserves_unrelated_process(self):
+        with tempfile.TemporaryDirectory() as folder:
+            marker = Path(folder) / 'child.json'
+            child = 'import time;time.sleep(60)'
+            parent = ('import subprocess,sys,json;from pathlib import Path;'
+                      f'p=subprocess.Popen([sys.executable,"-c",{child!r}]);'
+                      f'Path({str(marker)!r}).write_text(str(p.pid))')
+            unrelated = subprocess.Popen([sys.executable, '-c', child])
+            process = recovery.platform.launch_tool([sys.executable, '-c', parent],
+                                                     stdin=subprocess.PIPE, stdout=subprocess.DEVNULL)
+            try:
+                process.communicate(timeout=10)
+                self.assertTrue(marker.exists())
+                pid = int(marker.read_text())
+                self.assertIsNotNone(recovery.platform.process_identity(pid))
+                recovery.terminate_child(process)
+                end = time.monotonic() + 5
+                while recovery.platform.process_identity(pid) is not None and time.monotonic() < end:
+                    time.sleep(.05)
+                self.assertIsNone(recovery.platform.process_identity(pid))
+                self.assertIsNone(unrelated.poll())
+            finally:
+                recovery.terminate_child(process)
+                unrelated.kill(); unrelated.wait()
+
+    def test_failed_job_assignment_never_runs_tool(self):
+        with tempfile.TemporaryDirectory() as folder:
+            marker = Path(folder) / 'must-not-exist'
+            command = [sys.executable, '-c', f'from pathlib import Path;Path({str(marker)!r}).touch()']
+            with patch.object(recovery.platform.Job, 'assign', side_effect=OSError('assignment denied')):
+                with self.assertRaises(OSError):
+                    recovery.platform.launch_tool(command, stdin=subprocess.PIPE)
+            self.assertFalse(marker.exists())
+
+    def test_creation_identity_rejects_reused_pid_record(self):
+        identity = recovery.platform.process_identity(os.getpid())
+        self.assertIsNotNone(identity)
+        self.assertFalse(recovery.supervisor_alive({'pid': os.getpid(), 'created': identity + 1}, Path.cwd()))
+        self.assertFalse(recovery.supervisor_alive({'pid': os.getpid()}, Path.cwd()))
 
 if __name__ == '__main__':
     unittest.main()

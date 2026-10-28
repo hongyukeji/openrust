@@ -3,12 +3,10 @@
 
 import argparse
 from datetime import datetime
-import fcntl
 import json
 import os
 from pathlib import Path
 import random
-import select
 import signal
 import sqlite3
 import subprocess
@@ -16,6 +14,9 @@ import sys
 import time
 import tempfile
 import uuid
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import guard_platform as platform
 
 ROOT = Path.cwd().resolve()
 CHECK_INTERVAL = 120
@@ -34,7 +35,7 @@ def atomic(path, value):
     # 各任务可同时更新项目看板，临时文件须唯一，避免互相覆盖/删除。
     fd, name = tempfile.mkstemp(prefix=path.name + '.', suffix='.tmp', dir=path.parent)
     try:
-        with os.fdopen(fd, 'w') as output:
+        with os.fdopen(fd, 'w', encoding='utf-8') as output:
             output.write(json.dumps(value, ensure_ascii=False, indent=2) + '\n')
         os.replace(name, path)
     finally:
@@ -45,6 +46,9 @@ def supervisor_alive(supervisor, runtime):
     pid = (supervisor or {}).get('pid')
     if not isinstance(pid, int) or pid <= 0:
         return False
+    if platform.WINDOWS:
+        identity = supervisor.get('created')
+        return identity is not None and platform.process_identity(pid) == identity
     result = subprocess.run(['ps', '-p', str(pid), '-o', 'command='], capture_output=True,
                             text=True, timeout=5)
     command = result.stdout
@@ -52,15 +56,15 @@ def supervisor_alive(supervisor, runtime):
 
 
 def summary(runtime):
-    state = json.loads((runtime / 'state.json').read_text()) if (runtime / 'state.json').exists() else {'status': 'not_started'}
-    config = json.loads((runtime / 'config.json').read_text()) if (runtime / 'config.json').exists() else {}
+    state = json.loads((runtime / 'state.json').read_text(encoding='utf-8')) if (runtime / 'state.json').exists() else {'status': 'not_started'}
+    config = json.loads((runtime / 'config.json').read_text(encoding='utf-8')) if (runtime / 'config.json').exists() else {}
     held = False
     with (runtime / 'lock').open('a') as lock:
         try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            platform.lock_file(lock, blocking=False)
         except BlockingIOError:
             held = True
-    supervisor = json.loads((runtime / 'supervisor.json').read_text()) if (runtime / 'supervisor.json').exists() else None
+    supervisor = json.loads((runtime / 'supervisor.json').read_text(encoding='utf-8')) if (runtime / 'supervisor.json').exists() else None
     alive = supervisor_alive(supervisor, runtime)
     fresh = time.time() - state.get('checked_at', 0) <= CHECK_INTERVAL * 3
     terminal = state.get('status') in ('complete', 'paused', 'stopped', 'parent_lost')
@@ -82,7 +86,7 @@ def publish_registry(runtime):
         return
     # 串行整次快照，防止较旧快照后写覆盖另一个守护的新状态。
     with (base / '.registry.lock').open('a') as registry_lock:
-        fcntl.flock(registry_lock, fcntl.LOCK_EX)
+        platform.lock_file(registry_lock)
         rows = []
         for item in sorted(base.iterdir()):
             if not item.is_dir() or not (item / 'config.json').exists():
@@ -96,8 +100,20 @@ def publish_registry(runtime):
 
 
 def run_json(command):
-    return json.loads(subprocess.run(command, check=True, capture_output=True,
-                                     text=True, timeout=30).stdout)
+    process = platform.launch_tool(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE)
+    try:
+        output, error = process.communicate(timeout=30)
+        if process.returncode:
+            raise subprocess.CalledProcessError(process.returncode, command, output, error)
+        return json.loads(output.decode('utf-8'))
+    finally:
+        try:
+            terminate_child(process)
+        finally:
+            for stream in (process.stdin, process.stdout, process.stderr):
+                if stream:
+                    stream.close()
 
 
 def inspect(agent):
@@ -106,26 +122,16 @@ def inspect(agent):
 
 def rpc(method, params):
     """使用已安装Codex的正式本机协议；子进程总会回收，不读取认证文件。"""
-    process = subprocess.Popen(['codex', 'app-server', '--stdio'], stdin=subprocess.PIPE,
-                               stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-    buffer = b''
+    process = platform.launch_tool(['codex', 'app-server', '--stdio'], stdin=subprocess.PIPE,
+                                   stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    lines = platform.Lines(process.stdout)
 
     def request(number, name, arguments):
-        nonlocal buffer
-        process.stdin.write(json.dumps({'id': number, 'method': name, 'params': arguments}).encode() + b'\n')
+        process.stdin.write(json.dumps({'id': number, 'method': name, 'params': arguments}).encode('utf-8') + b'\n')
         process.stdin.flush()
         end = time.monotonic() + 20
         while time.monotonic() < end:
-            if b'\n' not in buffer:
-                if not select.select([process.stdout], [], [], 1)[0]:
-                    continue
-                data = os.read(process.stdout.fileno(), 65536)
-                if not data:
-                    raise RuntimeError('协议进程退出')
-                buffer += data
-                continue
-            line, buffer = buffer.split(b'\n', 1)
-            value = json.loads(line)
+            value = json.loads(lines.get(end))
             if value.get('id') == number:
                 if 'error' in value:
                     raise RuntimeError('协议返回错误')
@@ -139,21 +145,51 @@ def rpc(method, params):
         process.stdin.flush()
         return request(2, method, params)
     finally:
-        process.terminate()
         try:
-            process.wait(timeout=3)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait()
-        process.stdin.close()
-        process.stdout.close()
+            terminate_child(process)
+        finally:
+            process.stdin.close()
+            process.stdout.close()
+            lines.close()
 
 
 def goal(config):
     with sqlite3.connect(Path(config['goals_db']).resolve().as_uri() + '?mode=ro', uri=True) as db:
-        row = db.execute('SELECT goal_id,status FROM thread_goals WHERE thread_id=?',
+        row = db.execute('SELECT goal_id,status,created_at_ms,objective FROM thread_goals WHERE thread_id=?',
                          (config['thread'],)).fetchone()
-    return {'id': row[0], 'status': row[1]} if row else None
+    return {'id': row[0], 'status': row[1], 'created_at_ms': row[2], 'objective': row[3]} if row else None
+
+
+def bound_goal(config):
+    """协议不暴露 goal_id 时，以本地ID前后校验与协议公开身份交叉确认。"""
+    before = goal(config)
+    if not before or before['id'] != config['goal_id'] or not binding_valid(config):
+        raise ValueError('原Goal或线程绑定已改变，拒绝操作新任务')
+    remote = rpc('thread/goal/get', {'threadId': config['thread']}).get('goal')
+    after = goal(config)
+    if before != after or not remote:
+        raise ValueError('核对期间Goal已变化，拒绝操作')
+    if remote.get('id') is not None:
+        matches = remote['id'] == config['goal_id']
+    else:
+        matches = (remote.get('threadId') == config['thread']
+                   and isinstance(before.get('created_at_ms'), int)
+                   and remote.get('createdAt') == before['created_at_ms'] // 1000
+                   and remote.get('objective') == before.get('objective'))
+    if not matches:
+        raise ValueError('协议与本地原Goal身份不一致，拒绝操作')
+    return remote
+
+
+def completed_at(turn):
+    value = turn['payload'].get('completed_at')
+    if isinstance(value, (int, float)):
+        return value
+    try:
+        timestamp = datetime.fromisoformat(turn['key'].replace('Z', '+00:00'))
+        return timestamp.timestamp() if timestamp.tzinfo is not None else None
+    except (ValueError, TypeError, AttributeError):
+        return None
 
 
 def timeline(path):
@@ -202,7 +238,7 @@ def decision(agent, current_goal, turn, config, now):
         return status
     if turn and turn['kind'] == 'turn_aborted':
         return 'stopped'
-    if agent.get('PendingPermissions') or status == 'budget_limited':
+    if agent.get('PendingPermissions') or status in ('budget_limited', 'blocked'):
         return 'needs_attention'
     if status == 'usage_limited':
         return 'quota_wait'
@@ -218,12 +254,14 @@ def decision(agent, current_goal, turn, config, now):
         if any(x in message for x in ('unauthorized', 'authentication', 'permission denied', '401', '403')):
             return 'needs_attention'
         return 'recover_error'
-    if status == 'blocked':
-        return 'needs_attention'
     if agent.get('Status') in ('error', 'closed'):
         return 'recover_error'
-    if turn['kind'] == 'task_complete' and now - turn['payload'].get('completed_at', now) >= 120:
-        return 'recover_idle'
+    if turn['kind'] == 'task_complete':
+        finished = completed_at(turn)
+        if finished is None:
+            return 'needs_attention'
+        if now - finished >= 120:
+            return 'recover_idle'
     return 'working'
 
 
@@ -249,6 +287,8 @@ def quota_delay(response, now):
 
 def notify(reason):
     """仅本机系统通知，失败不阻断守护；正文不含线程内容或凭据。"""
+    if sys.platform != 'darwin':
+        return False
     try:
         subprocess.run(['osascript', '-e', 'on run argv\ndisplay notification (item 1 of argv) with title "持续开发守护"\nend run',
                         reason], capture_output=True, timeout=5, check=True)
@@ -264,7 +304,7 @@ def sleep_until(runtime, seconds):
 
 
 def binding_valid(config):
-    record = json.loads(Path(config['agent_record']).read_text())
+    record = json.loads(Path(config['agent_record']).read_text(encoding='utf-8'))
     persistence = record.get('persistence') or {}
     return (record.get('id') == config['agent'] and record.get('provider') == 'codex'
             and Path(record.get('cwd', '/')).resolve() == ROOT
@@ -274,9 +314,9 @@ def binding_valid(config):
 
 
 def worker(runtime, parent_pid):
-    config = json.loads((runtime / 'config.json').read_text())
+    config = json.loads((runtime / 'config.json').read_text(encoding='utf-8'))
     path = runtime / 'state.json'
-    state = json.loads(path.read_text()) if path.exists() else {}
+    state = json.loads(path.read_text(encoding='utf-8')) if path.exists() else {}
     attempts = state.get('attempts', 0)
 
     def record(status, **extra):
@@ -295,6 +335,8 @@ def worker(runtime, parent_pid):
                 'quota_wait': '正在等待自然额度恢复，恢复后继续原任务。',
                 'complete': '整个目标已标记完成，正在清理本任务守护进程。',
             }[status])
+            state['notification_status'] = ('delivered' if state['notification_delivered'] else
+                                            'unavailable' if sys.platform != 'darwin' else 'failed')
             atomic(path, state)
 
     while not (runtime / 'disabled').exists():
@@ -356,24 +398,29 @@ def worker(runtime, parent_pid):
                 continue
             # 与stop串行；停止标记会先于等待锁写入，从而阻断新的发送。
             with (runtime / 'control.lock').open('a') as control:
-                fcntl.flock(control, fcntl.LOCK_EX)
+                platform.lock_file(control)
                 if (runtime / 'disabled').exists() or not binding_valid(config):
                     continue
                 current_turn = timeline(config['rollout'])
                 fresh = decision(inspect(config['agent']), goal(config), current_turn, config, time.time())
                 if fresh != action or not current_turn or current_turn['key'] != key:
                     continue
-                latest_goal = rpc('thread/goal/get', {'threadId': config['thread']}).get('goal')
-                if not latest_goal or latest_goal.get('status') in ('paused', 'complete', 'budgetLimited'):
+                latest_goal = bound_goal(config)
+                if latest_goal.get('status') in ('paused', 'complete', 'budgetLimited', 'blocked'):
                     continue
-                if latest_goal['status'] in ('blocked', 'usageLimited'):
+                if latest_goal['status'] == 'usageLimited':
                     rpc('thread/goal/set', {'threadId': config['thread'], 'status': 'active'})
                 if (runtime / 'disabled').exists():
                     continue
                 attempts += 1
                 record('dispatching', dispatch_key=key, dispatch_at=time.time())
                 # 先落盘意图；发送异常也不清除，必须看到新的实际轮次才可再发送。
-                run_json(['paseo', 'send', config['agent'], PROMPT, '--no-wait', '--json'])
+                try:
+                    run_json(['paseo', 'send', config['agent'], PROMPT, '--no-wait', '--json'])
+                except FileNotFoundError:
+                    # 工具尚未启动，确定没有入队；网络/退出错误仍保留意图避免重发。
+                    state.pop('dispatch_key', None)
+                    raise
                 state['check_failures'] = 0
                 record('sent')
         except Exception as error:
@@ -386,6 +433,14 @@ def worker(runtime, parent_pid):
 
 
 def terminate_child(process):
+    if platform.WINDOWS:
+        job = getattr(process, '_guard_job', None)
+        if job:
+            job.close()
+        elif process.poll() is None:
+            process.kill()  # 仅尚未放行、不能派生子进程的 bootstrap
+        process.wait(timeout=10)
+        return
     # 即使worker先退出，也限时回收本次创建的专属进程组中的CLI/协议后代。
     try:
         os.killpg(process.pid, signal.SIGTERM)
@@ -409,6 +464,10 @@ def terminate_child(process):
 
 
 def supervise(runtime, lock_fd):
+    owned_lock = None
+    if platform.WINDOWS:
+        owned_lock = (runtime / 'lock').open('a')
+        platform.lock_file(owned_lock, blocking=False)
     stopped = False
 
     def stop_signal(_signal, _frame):
@@ -419,13 +478,39 @@ def supervise(runtime, lock_fd):
     signal.signal(signal.SIGINT, stop_signal)
     process = None
     try:
-        atomic(runtime / 'supervisor.json', {'pid': os.getpid()})
         while not stopped and not (runtime / 'disabled').exists():
-            process = subprocess.Popen([sys.executable, '-B', str(SCRIPT), '_worker', '--runtime', str(runtime),
-                                        '--parent-pid', str(os.getpid())], pass_fds=(lock_fd,),
-                                       start_new_session=True, stdin=subprocess.DEVNULL, cwd=ROOT)
+            command = [sys.executable, '-B', str(SCRIPT), '_worker', '--runtime', str(runtime),
+                       '--parent-pid', str(os.getpid())]
+            if platform.WINDOWS:
+                # worker 在 stdin barrier 前不得运行任何任务逻辑；先入 job 再放行。
+                job = platform.Job()
+                try:
+                    process = subprocess.Popen(command, stdin=subprocess.PIPE, cwd=ROOT, **platform.background())
+                    process._guard_job = job
+                    job.assign(process)
+                    process.stdin.write(b'1')
+                    process.stdin.flush()
+                    process.stdin.close()
+                except BaseException:
+                    job.close()
+                    if process is not None:
+                        if process.poll() is None:
+                            process.kill()
+                        process.wait(timeout=10)
+                    raise
+            else:
+                process = subprocess.Popen(command, pass_fds=(lock_fd,), start_new_session=True,
+                                           stdin=subprocess.DEVNULL, cwd=ROOT)
+            atomic(runtime / 'supervisor.json', {'pid': os.getpid(), 'created': platform.process_identity(os.getpid())})
             atomic(runtime / 'worker.json', {'pid': process.pid})
             while process.poll() is None and not stopped and not (runtime / 'disabled').exists():
+                if (runtime / 'watch.log').exists() and (runtime / 'watch.log').stat().st_size > TAIL_BYTES * 2:
+                    with (runtime / 'watch.log').open('r+b') as log:
+                        log.seek(-TAIL_BYTES, os.SEEK_END)
+                        tail = log.read()
+                        log.seek(0)
+                        log.write(tail)
+                        log.truncate()
                 time.sleep(1)
             terminate_child(process)
             code = process.returncode
@@ -439,7 +524,10 @@ def supervise(runtime, lock_fd):
             terminate_child(process)
         for name in ('supervisor.json', 'worker.json', 'pid'):
             (runtime / name).unlink(missing_ok=True)
-        os.close(lock_fd)
+        if owned_lock:
+            owned_lock.close()
+        else:
+            os.close(lock_fd)
         publish_registry(runtime)
         # 保留空锁文件的inode，避免并发start在不同inode上各自获得锁。
 
@@ -456,13 +544,27 @@ def config_for(args):
         row = db.execute('SELECT rollout_path,cwd FROM threads WHERE id=?', (thread,)).fetchone()
     if not row or Path(row[1]).resolve() != ROOT:
         raise ValueError('线程不属于本仓库')
-    metadata = json.loads(Path(row[0]).open().readline())['payload']
+    with Path(row[0]).open(encoding='utf-8') as source:
+        metadata = json.loads(source.readline())['payload']
     if metadata.get('id') != thread or isinstance(metadata.get('source'), dict):
         raise ValueError('只能登记已确认的主线程，不能为子代理另建守护')
     inspected = inspect(agent)
     if Path(inspected.get('Cwd', '/')).resolve() != ROOT or inspected.get('Provider') != 'codex':
         raise ValueError('Paseo目标不是本仓Codex任务')
-    record = Path(os.environ.get('PASEO_HOME', str(Path.home() / '.paseo'))) / 'agents' / str(ROOT).lstrip('/').replace('/', '-') / (agent + '.json')
+    # Paseo 在不同系统有不同路径编码；只在已知 agents 层查同 UUID，再验证完整绑定。
+    agents = Path(os.environ.get('PASEO_HOME', str(Path.home() / '.paseo'))) / 'agents'
+    records = list(agents.glob('*/' + agent + '.json'))
+    matching = []
+    for candidate in records:
+        try:
+            value = json.loads(candidate.read_text(encoding='utf-8'))
+            if value.get('id') == agent and Path(value.get('cwd', '/')).resolve() == ROOT:
+                matching.append(candidate)
+        except (ValueError, OSError):
+            continue
+    if len(matching) != 1:
+        raise ValueError('找不到唯一匹配当前项目的Paseo任务记录')
+    record = matching[0]
     config = {'agent': agent, 'thread': thread, 'rollout': row[0], 'goals_db': str(home / 'goals_1.sqlite'),
               'agent_record': str(record), 'project': str(ROOT), 'label': args.label or '持续开发任务'}
     if not binding_valid(config):
@@ -492,6 +594,8 @@ def main():
         if not args.runtime or not args.runtime.resolve().is_relative_to(ROOT / '.agents/project/guards'):
             raise SystemExit('无效守护运行目录')
         if args.command == '_worker':
+            if platform.WINDOWS and os.read(sys.stdin.fileno(), 1) != b'1':
+                raise SystemExit('worker未获监督进程放行')
             worker(args.runtime, args.parent_pid)
         else:
             supervise(args.runtime, args.lock_fd)
@@ -500,7 +604,7 @@ def main():
         base = ROOT / '.agents/project/guards'
         if base.exists():
             publish_registry(base / '_overview')
-        print((base / 'registry.json').read_text() if (base / 'registry.json').exists() else '{"guards":[]}')
+        print((base / 'registry.json').read_text(encoding='utf-8') if (base / 'registry.json').exists() else '{"guards":[]}')
         return
     agent = args.agent or os.environ.get('PASEO_AGENT_ID')
     if not agent:
@@ -510,15 +614,23 @@ def main():
     if args.command == 'status':
         print(json.dumps(summary(runtime) if runtime.exists() else {'status': 'not_started'}, ensure_ascii=False))
         return
+    if args.command == 'start':
+        if sys.version_info < (3, 10):
+            raise SystemExit('需要已有 Python 3.10+，不会自动安装')
+        for executable in ('paseo', 'codex'):
+            platform.command([executable])
+        # 在任何项目运行状态写入之前，确认现有客户端可用。
+        preflight = config_for(args)
+        bound_goal(preflight)
     runtime.mkdir(parents=True, exist_ok=True)
     ignore = runtime.parent / '.gitignore'
     if not ignore.exists():
-        ignore.write_text('*\n!.gitignore\n')
+        ignore.write_text('*\n!.gitignore\n', encoding='utf-8')
     if args.command == 'finish' and args.stop_task:
         raise SystemExit('finish只清理完成目标的守护，不能暂停开发任务')
     finish_goal_id = None
     if args.command == 'finish':
-        config = json.loads((runtime / 'config.json').read_text())
+        config = json.loads((runtime / 'config.json').read_text(encoding='utf-8'))
         current = goal(config)
         if not current or current['id'] != config['goal_id'] or current['status'] != 'complete':
             raise SystemExit('整体Goal尚未完成，拒绝提前清理守护')
@@ -526,24 +638,27 @@ def main():
     if args.command == 'stop':
         (runtime / 'disabled').touch()
     with (runtime / 'control.lock').open('a') as control:
-        fcntl.flock(control, fcntl.LOCK_EX)
+        platform.lock_file(control)
         if args.command in ('stop', 'finish'):
             if args.command == 'finish':
-                config = json.loads((runtime / 'config.json').read_text())
+                config = json.loads((runtime / 'config.json').read_text(encoding='utf-8'))
                 current = goal(config)
                 if config['goal_id'] != finish_goal_id or not current or current['id'] != finish_goal_id or current['status'] != 'complete':
                     raise SystemExit('目标已变化或未完成，保留当前守护')
             # start可能在本次stop等待控制锁时清过标记；获锁后重新确立停止优先。
             (runtime / 'disabled').touch()
             if args.stop_task:
-                config = json.loads((runtime / 'config.json').read_text())
+                config = json.loads((runtime / 'config.json').read_text(encoding='utf-8'))
                 if not binding_valid(config):
                     raise SystemExit('任务绑定已改变，已禁用守护但不操作其他线程')
+                bound_goal(config)
                 rpc('thread/goal/set', {'threadId': config['thread'], 'status': 'paused'})
+                bound_goal(config)
                 run_json(['paseo', 'stop', agent, '--json'])
                 # Paseo发送会等两个安静秒；让已入队操作落定后再确认中断。
                 time.sleep(3)
                 if inspect(agent).get('Status') == 'running':
+                    bound_goal(config)
                     run_json(['paseo', 'stop', agent, '--json'])
                     time.sleep(2)
                     if inspect(agent).get('Status') == 'running':
@@ -554,7 +669,7 @@ def main():
             if (runtime / 'supervisor.json').exists():
                 raise SystemExit('停止请求已记录，但监督进程尚未确认退出')
             state_path = runtime / 'state.json'
-            state = json.loads(state_path.read_text()) if state_path.exists() else {}
+            state = json.loads(state_path.read_text(encoding='utf-8')) if state_path.exists() else {}
             state.update(status='complete' if args.command == 'finish' else 'stopped',
                          next_check_at=None, updated_at=datetime.now().astimezone().isoformat())
             atomic(state_path, state)
@@ -563,39 +678,61 @@ def main():
             return
         if (runtime / 'disabled').exists() and (runtime / 'disabled').stat().st_mtime >= requested_at:
             raise SystemExit('并发停止优先，未启动守护')
-        lock = (runtime / 'lock').open('a')
-        try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            print('{"status":"already_running"}')
-            return
-        config = config_for(args)
-        atomic(runtime / 'config.json', config)
-        # 用户明确重新授权start，才可清除之前停止标记并恢复暂停的原目标。
-        (runtime / 'disabled').unlink(missing_ok=True)
-        if goal(config)['status'] == 'paused':
-            rpc('thread/goal/set', {'threadId': config['thread'], 'status': 'active'})
-        if (runtime / 'state.json').exists():
-            prior = json.loads((runtime / 'state.json').read_text())
-            if prior.get('status') in ('complete', 'paused', 'stopped', 'parent_lost', 'disabled'):
-                atomic(runtime / 'state.json', {})
-        pending_state = json.loads((runtime / 'state.json').read_text()) if (runtime / 'state.json').exists() else {}
-        pending_state.update(status='starting', checked_at=time.time(), updated_at=datetime.now().astimezone().isoformat())
-        atomic(runtime / 'state.json', pending_state)
-        for name in ('supervisor.json', 'worker.json', 'pid'):
-            (runtime / name).unlink(missing_ok=True)
-        with (runtime / 'watch.log').open('ab') as log:
-            process = subprocess.Popen([sys.executable, '-B', str(SCRIPT), '_supervise', '--runtime', str(runtime),
-                                        '--lock-fd', str(lock.fileno())], pass_fds=(lock.fileno(),),
-                                       stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True, cwd=ROOT)
-        lock.close()
-        deadline = time.monotonic() + 5
-        while not (runtime / 'supervisor.json').exists() and process.poll() is None and time.monotonic() < deadline:
-            time.sleep(.1)
-        if process.poll() is not None:
-            raise SystemExit('监督进程启动失败，见watch.log')
-        print(json.dumps({'status': 'started', 'pid': process.pid, 'agent': agent, 'thread': config['thread']}))
-
+        with (runtime / 'lock').open('a') as lock:
+            try:
+                platform.lock_file(lock, blocking=False)
+            except BlockingIOError:
+                print('{"status":"already_running"}')
+                return
+            config = config_for(args)
+            atomic(runtime / 'config.json', config)
+            # 用户明确重新授权start，才可清除之前停止标记并恢复暂停的原目标。
+            (runtime / 'disabled').unlink(missing_ok=True)
+            current_goal = goal(config)
+            if not current_goal or current_goal['id'] != config['goal_id']:
+                raise SystemExit('原Goal已变化，未启动守护')
+            if current_goal['status'] == 'paused':
+                remote = bound_goal(config)
+                if remote.get('status') != 'paused':
+                    raise SystemExit('暂停Goal状态不一致，未恢复任务')
+                rpc('thread/goal/set', {'threadId': config['thread'], 'status': 'active'})
+            if (runtime / 'state.json').exists():
+                prior = json.loads((runtime / 'state.json').read_text(encoding='utf-8'))
+                if prior.get('status') in ('complete', 'paused', 'stopped', 'parent_lost', 'disabled'):
+                    atomic(runtime / 'state.json', {})
+            pending_state = json.loads((runtime / 'state.json').read_text(encoding='utf-8')) if (runtime / 'state.json').exists() else {}
+            pending_state.update(status='starting', checked_at=time.time(), updated_at=datetime.now().astimezone().isoformat())
+            atomic(runtime / 'state.json', pending_state)
+            for name in ('supervisor.json', 'worker.json', 'pid'):
+                (runtime / name).unlink(missing_ok=True)
+            log_path = runtime / 'watch.log'
+            if log_path.exists() and log_path.stat().st_size > TAIL_BYTES:
+                with log_path.open('rb') as source:
+                    source.seek(-TAIL_BYTES, os.SEEK_END)
+                    tail = source.read()
+                log_path.write_bytes(tail)
+            # Windows 不继承进程字节锁。控制锁保证交接期间无另一 start；
+            # supervisor 自行获锁并发布身份，父进程在确认之前不释放控制锁。
+            if platform.WINDOWS:
+                lock.close()
+            with log_path.open('ab') as log:
+                kwargs = platform.background()
+                if not platform.WINDOWS:
+                    kwargs['pass_fds'] = (lock.fileno(),)
+                process = subprocess.Popen([sys.executable, '-B', str(SCRIPT), '_supervise', '--runtime', str(runtime),
+                                            '--lock-fd', str(lock.fileno() if not platform.WINDOWS else -1)],
+                                           stdin=subprocess.DEVNULL, stdout=log, stderr=log, cwd=ROOT, **kwargs)
+            lock.close()
+            deadline = time.monotonic() + 5
+            while not (runtime / 'supervisor.json').exists() and process.poll() is None and time.monotonic() < deadline:
+                time.sleep(.1)
+            if process.poll() is not None or not (runtime / 'supervisor.json').exists():
+                (runtime / 'disabled').touch()
+                terminate_child(process)
+                raise SystemExit('监督进程未确认启动，已禁用并回收；见watch.log')
+            print(json.dumps({'status': 'started', 'pid': process.pid, 'agent': agent, 'thread': config['thread']}))
 
 if __name__ == '__main__':
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8')
     main()
