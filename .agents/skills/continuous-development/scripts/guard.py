@@ -23,12 +23,11 @@ TAIL_BYTES = 512 * 1024
 SCRIPT = Path(__file__).resolve()
 DELAYS = (60, 180, 600)
 PROMPT = (
-    "用户已授权持续开发至整个计划完成；守护检测到异常或遗漏接续。"
-    "结合当前项目约束、任务计划、Git/WIP、原Goal及在途子代理智能判断下一步。"
-    "先收取既有任务结果，不重复派发、构建或创建第二个写入者。"
-    "单簇完成不等于整体完成；通过计划验收后才标记Goal完成。"
-    "用户暂停优先，外部缺口保留并继续独立项，不改账户、模型或付款设置。"
+    "按原目标与项目约束，从当前证据继续；先收件避免重复执行。"
+    "用户停止优先，整体验收后完成Goal并清理守护。"
 )
+_TIMELINE_CACHE = (None, None)
+
 
 
 def atomic(path, value):
@@ -159,9 +158,15 @@ def goal(config):
 
 def timeline(path):
     """只使用原线程生命周期；新输入和取消使旧恢复依据失效。"""
+    global _TIMELINE_CACHE
+    path = Path(path)
+    info = path.stat()
+    identity = (str(path.resolve()), info.st_ino, info.st_size, info.st_mtime_ns)
+    if identity == _TIMELINE_CACHE[0]:
+        return _TIMELINE_CACHE[1]
     last = None
     tools = 0
-    with Path(path).open('rb') as source:
+    with path.open('rb') as source:
         size = source.seek(0, os.SEEK_END)
         source.seek(max(0, size - TAIL_BYTES))
         if size > TAIL_BYTES:
@@ -181,6 +186,7 @@ def timeline(path):
                 if kind == 'task_started':
                     tools = 0
                 last = {'kind': kind, 'key': row['timestamp'], 'payload': payload, 'tools': tools}
+    _TIMELINE_CACHE = (identity, last)
     return last
 
 

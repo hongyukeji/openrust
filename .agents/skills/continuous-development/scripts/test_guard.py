@@ -67,6 +67,17 @@ class Decisions(unittest.TestCase):
                             json.dumps({'type': 'event_msg', 'timestamp': 'b', 'payload': {'type': 'user_message'}}) + '\n')
             self.assertEqual(recovery.timeline(path)['kind'], 'user_message')
 
+    def test_unchanged_log_reuses_parse_but_new_event_is_read(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'rollout'
+            path.write_text(json.dumps({'type': 'event_msg', 'timestamp': 'a', 'payload': {'type': 'task_started'}}) + '\n')
+            self.assertEqual(recovery.timeline(path)['kind'], 'task_started')
+            with patch.object(Path, 'open', side_effect=AssertionError('不应重读未变化日志')):
+                self.assertEqual(recovery.timeline(path)['kind'], 'task_started')
+            with path.open('a') as output:
+                output.write(json.dumps({'type': 'event_msg', 'timestamp': 'b', 'payload': {'type': 'task_complete'}}) + '\n')
+            self.assertEqual(recovery.timeline(path)['kind'], 'task_complete')
+
     def test_held_lock_without_supervisor_is_not_active(self):
         with tempfile.TemporaryDirectory() as folder:
             runtime = Path(folder)
