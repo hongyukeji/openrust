@@ -32,7 +32,8 @@ const { isDeepStrictEqual } = require('node:util');
       if (!Array.isArray(questions) || !questions.length || !answers
           || Object.keys(answers).length !== questions.length
           || questions.some(q => q.isSecret || q.multiSelect || typeof answers[q.header] !== 'string'
-            || !q.options?.some(o => o.label === answers[q.header]))) throw new Error('Incomplete answer');
+            || !(answers[q.header] === '请AI依据已授权目标与现有证据自行决策并继续'
+              || q.options?.some(o => o.label === answers[q.header])))) throw new Error('Incomplete answer');
       // 直接用CLI同一正式客户端函数；不走CLI的前缀匹配与首项fallback。
       await client.respondToPermissionAndWait(agent, pending.id, { behavior: 'allow', updatedInput: expected.answer }, { timeoutMs: 10000 });
       console.log(JSON.stringify({ answered: pending.id }));

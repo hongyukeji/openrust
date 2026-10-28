@@ -53,7 +53,7 @@ class Questions(unittest.TestCase):
                                    controlled_turn=lambda state, turn, goal, config: turn,
                                    inspect=Mock(side_effect=lambda _: self.agent),
                                    bound_goal=Mock(return_value={'status': 'active'}), run_json=Mock(), answer_question=Mock())
-        self.classifier = Mock(return_value={'ordinary': True, 'confidence': 'high', 'choices': [1]})
+        self.classifier = Mock(return_value={'ordinary': True, 'confidence': 'high', 'choices': [1], 'awaiting_question': False})
 
     def step(self, now):
         with patch.object(questions.time, 'time', return_value=now):
@@ -113,8 +113,8 @@ class Questions(unittest.TestCase):
         self.api.answer_question.assert_called_once()
         self.classifier.assert_called_once()
 
-    def test_reject_hard_secret_missing_options_and_mixed_approval(self):
-        for mutation in ('secret', 'risk', 'missing', 'mixed', 'foreign', 'malicious', 'duplicate_header', 'external', 'production', 'overwrite', 'migration', 'partner', 'customer', 'cluster', 'remove', 'trash'):
+    def test_reject_secret_foreign_or_mixed_approval_schema(self):
+        for mutation in ('secret', 'mixed', 'foreign', 'duplicate_header'):
             with self.subTest(mutation=mutation):
                 self.setUp()
                 req = self.agent['PendingPermissions'][0]
@@ -165,6 +165,172 @@ class Questions(unittest.TestCase):
         self.classifier.assert_called_once()
         self.api.answer_question.assert_not_called()
 
+    def test_free_text_and_no_recommendation_use_fixed_delegation_only(self):
+        for free in (False, True):
+            with self.subTest(free=free):
+                self.setUp()
+                if free:
+                    self.agent['PendingPermissions'][0]['input']['questions'][0].pop('options')
+                self.classifier.return_value.update(choices=[-1])
+                self.step(0)
+                self.assertEqual(self.step(120), 'question_answered')
+                self.assertEqual(self.api.answer_question.call_args.args[2],
+                                 {'answers': {'布局': questions.SELF_DECISION}})
+                self.classifier.assert_called_once()
+
+    def test_ordinary_repair_is_not_rejected_for_quoted_pause_failure_or_auth_words(self):
+        q = self.agent['PendingPermissions'][0]['input']['questions'][0]
+        q['question'] = 'Collector PG验收连续3次失败，脚本错读evidence-pg.log，应为evidence-pg-final.log。是否修路径加活跃日志检查重验，还是暂停？认证邮件解析测试也需保留。'
+        q['options'] = [{'label': '修路径并检查活跃日志重验（推荐）'}, {'label': '暂停'}]
+        self.classifier.return_value.update(choices=[0])
+        self.step(0)
+        self.assertEqual(self.step(120), 'question_answered')
+        self.assertEqual(self.classifier.call_args.args[0]['questions'][0]['question'], q['question'])
+        self.assertEqual(self.api.answer_question.call_args.args[2]['answers']['布局'], q['options'][0]['label'])
+
+    def test_secret_facts_and_true_external_dependencies_are_not_invented(self):
+        q = self.agent['PendingPermissions'][0]['input']['questions'][0]
+        q['question'] = '请填写生产邮箱密码和客户真实收件地址；现有证据没有。'
+        q.pop('options')
+        self.classifier.return_value = {'ordinary': False, 'confidence': 'high',
+                                        'awaiting_question': False, 'choices': []}
+        self.step(0); self.step(120)
+        self.classifier.assert_called_once()
+        self.api.answer_question.assert_not_called()
+
+    def blocked_setup(self):
+        self.current = dict(self.current, status='blocked')
+        control = {'status': 'blocked', 'key': 'control'}
+        self.state['goal_control'] = control
+        self.turn.update(semantic_blocked=True, goal_control=control,
+                         payload={'last_agent_message': '仅等待普通局部测试路径修复选择，没有外部条件。'},
+                         user_context={'key': 'user', 'message': '按已授权目标持续开发'})
+        self.classifier.return_value.update(awaiting_question=True)
+
+    def test_blocked_only_for_this_question_resumes_via_protocol_after_exact_answer(self):
+        self.blocked_setup()
+        remote_status = ['blocked']
+        self.api.bound_goal.side_effect = lambda _: {'status': remote_status[0]}
+        def respond(*_):
+            self.agent['PendingPermissions'] = []
+        def rpc(method, params):
+            if method == 'thread/goal/set':
+                self.current = dict(self.current, status='active')
+                remote_status[0] = 'active'
+            return {}
+        self.api.answer_question.side_effect = respond
+        self.api.rpc.side_effect = rpc
+        self.step(0)
+        self.assertEqual(self.step(120), 'question_answered')
+        row = self.state['questions']['permission-item']
+        self.assertEqual(row['resume_status'], 'active')
+        self.assertEqual([c.args[0] for c in self.api.rpc.call_args_list].count('thread/goal/set'), 1)
+        self.assertNotIn('continuation', row)  # active不等于新开发已经推进。
+        self.turn = dict(self.turn, kind='task_started', key='new-turn', tools=1)
+        self.step(240)
+        self.assertEqual(row['continuation'], 'tools')
+        self.api.answer_question.assert_called_once()
+        self.classifier.assert_called_once()
+
+    def test_entire_pending_question_batch_is_visible_to_semantic_classifier(self):
+        extra = request()
+        extra['id'] = 'permission-extra'
+        extra['metadata']['itemId'] = 'extra'
+        extra['input']['questions'][0]['question'] = '填写现有证据缺失的生产密码。'
+        self.agent['PendingPermissions'].append(extra)
+        self.classifier.return_value.update(ordinary=False, choices=[])
+        self.step(0); self.step(120)
+        self.assertEqual(len(self.classifier.call_args.args[0]['pending_questions']), 2)
+        self.api.answer_question.assert_not_called()
+
+    def test_new_sensitive_question_during_fresh_inspect_invalidates_batch_classification(self):
+        self.step(0)
+        extra = request()
+        extra['id'] = 'permission-extra'
+        extra['metadata']['itemId'] = 'extra'
+        extra['input']['questions'][0]['question'] = '填写现有证据缺失的生产密码。'
+        fresh = dict(self.agent, PendingPermissions=[*self.agent['PendingPermissions'], extra])
+        self.api.inspect.side_effect = lambda _: fresh
+        self.step(120)
+        self.api.answer_question.assert_not_called()
+        self.classifier.assert_called_once()
+
+    def test_multiple_ordinary_requests_each_answer_once_when_only_own_ack_removes_first(self):
+        extra = request()
+        extra['id'] = 'permission-extra'
+        extra['metadata']['itemId'] = 'extra'
+        self.agent['PendingPermissions'].append(extra)
+        def respond(config, req, *_):
+            self.agent['PendingPermissions'] = [r for r in self.agent['PendingPermissions'] if r['id'] != req['id']]
+        self.api.answer_question.side_effect = respond
+        self.step(0)
+        self.step(120)
+        self.step(240)
+        self.assertEqual(self.classifier.call_count, 2)
+        self.assertEqual(self.api.answer_question.call_count, 2)
+        self.assertTrue(all(r['status'] == 'answered' for r in self.state['questions'].values()))
+
+    def test_new_block_control_version_invalidates_previous_waiting_classification(self):
+        self.blocked_setup()
+        self.step(0)
+        self.state['goal_control'] = {'status': 'blocked', 'key': 'new-external-control'}
+        self.step(120)
+        self.api.answer_question.assert_not_called()
+        self.assertEqual(self.state['questions']['permission-item']['status'], 'cancelled')
+
+    def test_sync_answer_does_not_mask_new_user_timestamp_before_rollout(self):
+        self.blocked_setup()
+        self.turn['user_context'] = None
+        self.api.bound_goal.return_value = {'status': 'blocked'}
+        def respond(*_):
+            self.agent['PendingPermissions'] = []
+            self.agent['QuestionBinding'] = dict(self.agent['QuestionBinding'], lastUserMessageAt='new-user-message')
+        self.api.answer_question.side_effect = respond
+        self.step(0); self.step(120)
+        self.assertEqual(self.state['questions']['permission-item']['resume_status'], 'cancelled')
+        self.assertNotIn('thread/goal/set', [c.args[0] for c in self.api.rpc.call_args_list])
+
+    def test_unknown_goal_resume_result_is_durable_and_not_retried(self):
+        self.blocked_setup()
+        self.api.bound_goal.return_value = {'status': 'blocked'}
+        self.api.answer_question.side_effect = lambda *_: self.agent.update(PendingPermissions=[])
+        def fail_set(method, params):
+            if method == 'thread/goal/set':
+                row = json.loads((self.runtime / 'state.json').read_text())['questions']['permission-item']
+                self.assertEqual(row['status'], 'answered')
+                self.assertEqual(row['resume_status'], 'sending')
+                raise TimeoutError()
+            return {}
+        self.api.rpc.side_effect = fail_set
+        self.step(0); self.step(120)
+        self.assertEqual(self.state['questions']['permission-item']['resume_status'], 'unknown')
+        self.state = json.loads((self.runtime / 'state.json').read_text())
+        self.step(240); self.step(360)
+        self.assertEqual([c.args[0] for c in self.api.rpc.call_args_list].count('thread/goal/set'), 1)
+        self.api.answer_question.assert_called_once()
+
+    def test_real_blocked_user_pause_or_new_control_never_resumes(self):
+        for boundary in ('external', 'user_pause', 'pause_after_answer', 'new_block_after_answer', 'unknown_answer'):
+            with self.subTest(boundary=boundary):
+                self.setUp(); self.blocked_setup()
+                self.api.bound_goal.return_value = {'status': 'blocked'}
+                if boundary == 'external':
+                    self.classifier.return_value.update(awaiting_question=False)
+                elif boundary == 'user_pause':
+                    self.current['status'] = 'paused'
+                def respond(*_, kind=boundary):
+                    self.agent['PendingPermissions'] = []
+                    if kind == 'pause_after_answer': self.current = dict(self.current, status='paused')
+                    if kind == 'new_block_after_answer': self.current = dict(self.current, updated_at_ms=2)
+                    if kind == 'unknown_answer': raise TimeoutError()
+                self.api.answer_question.side_effect = respond
+                self.step(0); self.step(120); self.step(240)
+                self.assertNotIn('thread/goal/set', [c.args[0] for c in self.api.rpc.call_args_list])
+                if boundary in ('external', 'user_pause'):
+                    self.api.answer_question.assert_not_called()
+                else:
+                    self.api.answer_question.assert_called_once()
+
     def test_missing_binding_and_changed_thread_turn_or_user_message_cancels(self):
         self.agent.pop('QuestionBinding')
         self.step(0); self.step(120)
@@ -193,8 +359,8 @@ class Questions(unittest.TestCase):
         qs = request()['input']['questions']
         for r in (None, {'ordinary': False, 'confidence': 'high', 'choices': []},
                   {'ordinary': True, 'confidence': 'uncertain', 'choices': [0]},
-                  {'ordinary': True, 'confidence': 'high', 'choices': [True]},
-                  {'ordinary': True, 'confidence': 'high', 'choices': [8]},
+                  {'ordinary': True, 'confidence': 'high', 'choices': [True], 'awaiting_question': False},
+                  {'ordinary': True, 'confidence': 'high', 'choices': [8], 'awaiting_question': False},
                   {'ordinary': True, 'confidence': 'high', 'choices': [], 'override': 'allow'}):
             self.assertIsNone(questions.answers(r, qs))
         self.current['objective'] = 'x' * (questions.MAX_INPUT + 1)
@@ -241,11 +407,16 @@ class BridgeSubmission(unittest.TestCase):
                        'answer': {'answers': {'布局': '按模块分组'}}}
             target = root / 'sent.json'
             bridge = Path(questions.__file__).with_name('guard_paseo.cjs')
-            for mode in ('valid', 'new_question', 'new_tool', 'changed_binding', 'missing_answer', 'request_prefix'):
+            for mode in ('valid', 'guide', 'new_question', 'new_tool', 'changed_binding', 'missing_answer', 'request_prefix'):
                 with self.subTest(mode=mode):
                     current = copy.deepcopy(snapshot)
                     submission = copy.deepcopy(payload)
                     target.unlink(missing_ok=True)
+                    if mode == 'guide':
+                        current['pendingPermissions'][0]['input']['questions'][0].pop('options')
+                        submission['request'] = copy.deepcopy(current['pendingPermissions'][0])
+                        submission['pending'] = copy.deepcopy(current['pendingPermissions'])
+                        submission['answer'] = {'answers': {'布局': questions.SELF_DECISION}}
                     if mode == 'new_question':
                         extra = request();extra['id'] = 'permission-new';extra['input']['questions'][0]['question'] = '发给合作方？'
                         current['pendingPermissions'].append(extra)
@@ -256,7 +427,7 @@ class BridgeSubmission(unittest.TestCase):
                     env = dict(os.environ, QUESTION_SNAPSHOT=json.dumps(current), QUESTION_SENT=str(target))
                     result = subprocess.run(['node', str(bridge), str(root), agent_id, json.dumps(submission)],
                                             env=env, capture_output=True, text=True, timeout=10)
-                    if mode == 'valid':
+                    if mode in ('valid', 'guide'):
                         self.assertEqual(result.returncode, 0, result.stderr)
                         self.assertEqual(json.loads(target.read_text())['id'], req['id'])
                     else:
@@ -278,11 +449,17 @@ class NativePaseo(unittest.TestCase):
  const request=session.pendingPermissions.get('permission-item');
  await Session.prototype.respondToPermission.call(session,'permission-item',{behavior:'allow',updatedInput:{answers:{Layout:'By module'}}});
  const answer=await promise;
+ const freeQuestion={id:'free',header:'Free',question:'Ordinary implementation detail?',options:[]};
+ const freePromise=Session.prototype.handleToolApprovalRequest.call(session,{threadId:'thread',turnId:'turn',itemId:'free-item',questions:[freeQuestion]});
+ await Session.prototype.respondToPermission.call(session,'permission-free-item',{behavior:'allow',updatedInput:{answers:{Free:'请AI依据已授权目标与现有证据自行决策并继续'}}});
+ const freeAnswer=await freePromise;
  let duplicate=false;try{await Session.prototype.respondToPermission.call(session,'permission-item',{behavior:'allow'});}catch{duplicate=true;}
  const async=new CodexAsyncQuestions();async.receive({type:'agentMessage',id:'async-item',delivery:'async',questions:[{title:'Unit test layout?',options:['Single file','By module']}]});
  const prepared=async.prepareResponse('permission-async-item',{behavior:'allow',updatedInput:{answers:{'Question 1':'By module'}}});prepared.complete();
  let asyncDuplicate=false;try{async.prepareResponse('permission-async-item',{behavior:'allow',updatedInput:{answers:{'Question 1':'Single file'}}});}catch{asyncDuplicate=true;}
- console.log(JSON.stringify({request,answer,duplicate,asyncDuplicate,pending:async.pending(),prompt:prepared.prompt}));
+ const freeAsync=new CodexAsyncQuestions();freeAsync.receive({type:'agentMessage',id:'free-async',delivery:'async',questions:[{title:'Ordinary implementation detail?'}]});
+ const freePrepared=freeAsync.prepareResponse('permission-free-async',{behavior:'allow',updatedInput:{answers:{'Question 1':'请AI依据已授权目标与现有证据自行决策并继续'}}});freePrepared.complete();
+ console.log(JSON.stringify({request,answer,freeAnswer,freePrompt:freePrepared.prompt,duplicate,asyncDuplicate,pending:async.pending(),prompt:prepared.prompt}));
 })().catch(e=>{console.error(e.message);process.exitCode=1});
 """
         env = dict(os.environ, ELECTRON_RUN_AS_NODE='1')
@@ -290,6 +467,8 @@ class NativePaseo(unittest.TestCase):
         result=subprocess.run([executable, '-e', code], env=env, capture_output=True, text=True, timeout=20, check=True)
         data=json.loads(result.stdout)
         self.assertEqual(data['answer'], {'answers': {'layout': {'answers': ['By module']}}})
+        self.assertEqual(data['freeAnswer'], {'answers': {'free': {'answers': [questions.SELF_DECISION]}}})
+        self.assertIn(questions.SELF_DECISION, data['freePrompt'])
         self.assertTrue(data['duplicate'])
         self.assertTrue(data['asyncDuplicate'])
         self.assertEqual(data['pending'], [])

@@ -247,6 +247,7 @@ def timeline(path):
     tools = 0
     semantic_blocked = False
     goal_control = None
+    user_context = None
     with path.open('rb') as source:
         size = source.seek(0, os.SEEK_END)
         source.seek(max(0, size - TAIL_BYTES))
@@ -269,6 +270,8 @@ def timeline(path):
             if row.get('type') != 'event_msg':
                 continue
             kind = payload.get('type')
+            if kind == 'user_message':
+                user_context = {'key': row['timestamp'], 'message': str(payload.get('message', ''))[-2000:]}
             if kind in ('task_started', 'task_complete', 'turn_aborted', 'user_message'):
                 if kind == 'task_started':
                     tools = 0
@@ -276,6 +279,7 @@ def timeline(path):
     if last is not None:
         last['semantic_blocked'] = semantic_blocked
         last['goal_control'] = goal_control
+        last['user_context'] = user_context
     _TIMELINE_CACHE = (identity, last)
     return last
 
