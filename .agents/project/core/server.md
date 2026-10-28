@@ -1,11 +1,11 @@
-# 聚合应用事实
+# 根应用事实
 
 > 受众：AI Agent
 > 更新：2026-10-28
-> 摘要：原根集成宿主迁入同一 workspace 内的 examples/demo，完整验收责任保留并重新通过本轮适用门禁。
+> 摘要：根 Laravel 应用与唯一业务模块已落地；R1-S 结构子步骤门禁已通过，综合 CRUD/能力贯通与 modules 迁移仍未完成。
 
-根 openrust 是框架库，不含业务启动 bin。examples/demo 是根 Cargo workspace 的成员，共用根 Cargo.lock，package 为 demo，只有 server 默认 bin；薄 src/main.rs、bootstrap/app.rs、routes/web.rs 与 app/ 通过静态模块声明连接。运行时从应用工作目录加载 config/public/storage。
+根 package openrust 同时提供 src/lib.rs 框架库与默认 server 薄入口 src/main.rs。default-members=["."]、default-run="server"，根无参数 cargo run 启动唯一应用；app/bootstrap/config/database/public/resources/routes/storage/tests 直接位于根，按根工作目录读取配置和资源。
 
-框架扩展继续用 openrust:: 公共 API；本簇不改 Application/AppBuilder/Plugin/认证/数据库/队列语义。examples/demo/tests/server 保留全部原应用/进程/真实服务测试，根 tests/core/http/queue 保留框架公开契约；根 default-members=["examples/demo"]，根无参数 cargo run 默认 server；CI 的 --workspace 门禁覆盖框架和 demo，双库另行实际执行。
+唯一综合示例 app/example 的薄 provider 使用当前公开 Plugin，由根 bootstrap 调用 app/mod.rs 注册清单统一接入；模块自有 routes/api.rs、routes/web.rs 贡献业务路由，根 routes 仅框架通用路由。模块内部 providers/http/database/resources/tests 按实际业务规范组织，未有实现不建空models/services。它是贯穿框架能力的目标示例，目前仅已有认证/队列/页面与基本模块路由，完整 CRUD/能力覆盖仍待交付；不保留独立示例 bin/package。示例有效业务、迁移、种子、资源、协议/生成脚本和专属 fixture 全部归 app/example；根职责目录只保留框架通用结构与公开挂载，不存示例 build.rs/build 依赖或样例特判；tests/server 承担真实进程与服务回归，tests/consumers 承担公开 API/独立拓扑验收。
 
-根与 demo 目录无参数 cargo run 均实测 /health 200、公开 HTML 首页 200 与 SIGINT exit 0。薄入口仅在 workspace 根启动时切换到应用目录，配置与静态资源保持应用职责。原进程测试从根启动并验证 HTML 与 SIGTERM；双库各 11 targets/46 项及最终 CI workspace feature 组通过。旧布局验收只作历史证据。新布局实际结果见 [testing](../memory/testing.md)，当前待办见 [todo](../todo.md)。
+本簇保持 openrust:: 公共入口及底层已确认行为，变更目录、应用装配与路径。布局依据 [ADR-073](../decisions/adr-073-root-application-and-example-module.md)，当前待办见 [todo](../todo.md)。先前布局通过记录仅作历史证据；本布局的默认启动/HTTP、双库 12 targets 各 48 项、三类生成应用及默认/full workspace 测试已重新通过；其余 CI 双库、MSRV、consumer 与最终文档门禁已通过，实际结果见 [测试基线](../memory/testing.md)。

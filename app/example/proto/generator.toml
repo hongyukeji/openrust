@@ -1,0 +1,9 @@
+[package]
+name = "example-proto-codegen"
+version = "0.0.0"
+edition = "2024"
+publish = false
+[workspace]
+[dependencies]
+tonic-prost-build = "=0.14.7"
+protoc-bin-vendored = "=3.3.0"

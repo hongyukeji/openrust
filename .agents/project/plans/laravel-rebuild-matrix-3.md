@@ -3,6 +3,8 @@
 > 受众：实现与验收 Agent
 > 基线：2026-10-28；来源、状态和继承规则见 [基线总表](laravel-rebuild-baseline.md)。
 
+对应关系、差异分类与验收证据以[公共矩阵规则](laravel-rebuild-baseline.md#对应关系差异分类与证据)为准。本次不改变各行完成状态；既有“适配/不适用”须逐项按新规则复核，名称近似或旧测试不算1:1通过。模块包正式范围另见[模块矩阵](laravel-modules-matrix.md)。
+
 | ID / 固定源码章节 | 子行为范围 | 目标/差异与选择 | 资产/依赖/测试 | 状态 |
 | --- | --- | --- | --- | --- |
 | L069.01 [eloquent-serialization: Introduction](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-serialization.md#introduction) | Introduction | 适配驱动/事务资产；重写 Model/QueryBuilder/Factory contract，逐后端验证 | [db](../core/db.md)；R1/R2→R4/R5/R6；单元/公开 consumer + 错误/取消/资源上限回归；PG18/MySQL8.4；复制/集群后续真实拓扑 | 待真实验收 |

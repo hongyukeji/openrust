@@ -27,6 +27,6 @@
 - controller/scaffold/command 等生成器、只读 `doctor`、诊断和开发编排属于 M6 待补项。具体顺序以 [v1 计划](../plans/gen1-plan.md) 与活跃待办为准。
 - 出站 HTTP 客户端与生成 feature 的已有验收见 [测试基线](../memory/testing.md)；外部邮件/SMS 投递属于各通信 driver 的单独验收边界。
 
-目录/分发以 [ADR-072](../decisions/adr-072-framework-and-application-projects.md) 和 [architecture](../architecture.md) 为准；独立生成应用不修改源 workspace。根 package 为 openrust library；workspace 成员 demo package 提供唯一默认 server bin。
+目录/分发以 [ADR-073](../decisions/adr-073-root-application-and-example-module.md) 和 [architecture](../architecture.md) 为准；独立生成应用不修改源 workspace。根 package 为 openrust library；同一根 package 提供唯一默认 server bin。
 
 后继 R13 补全命令/生成器、doctor、watch 和编排；当前 generate API 暂保留，未宣称 Artisan 全命令完成。

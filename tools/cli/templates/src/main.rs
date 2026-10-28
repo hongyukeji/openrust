@@ -1,6 +1,8 @@
 //! 应用程序入口。
 
 #[path = "../bootstrap/app.rs"]
+mod bootstrap;
+#[path = "../app/mod.rs"]
 mod app;
 #[path = "../routes/web.rs"]
 mod routes;
@@ -8,5 +10,5 @@ mod routes;
 {{grpc_module}}
 
 fn main() -> std::process::ExitCode {
-    openrust::run::<app::{{type_name}}>()
+    openrust::run::<bootstrap::{{type_name}}>()
 }

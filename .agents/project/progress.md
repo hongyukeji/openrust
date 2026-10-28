@@ -2,12 +2,14 @@
 
 > 受众：AI Agent
 > 更新：2026-10-28
-> 摘要：R0 已固定上游；R1 按 ADR-072 完成同仓框架与应用 workspace，下一功能簇 R2 待开始。
+> 摘要：R0 已固定上游；R1-S 根结构与过渡模块的实际门禁已通过，限定提交收口中；R1整体及R2/模块系统仍未完成。
 
-根 openrust/src 与 examples/demo 位于同一仓库、同一 Cargo workspace，根 `default-members=["examples/demo"]` 默认启动应用，共用根 Cargo.lock；CLI 模板仍是新应用骨架唯一来源。原框架 Rust 源码保持不变，原 33 个测试 target 完整保留为根 6 个与 demo 27 个；注册表依赖 name/version/checksum 集合不变。
+当前根 openrust 同 package 提供框架 lib 和唯一默认 server，应用职责回根；app/example 是通过现有公开 Plugin 注册的普通业务模块，已规范分离 providers/routes/http/database/resources/tests。框架库实现与依赖/feature 语义未改，根显式 34 targets 保留原有效覆盖。根无示例 build.rs 或构建依赖；protobuf 工具和锁都在模块内。
 
-新布局实际通过 fmt、默认/all-features workspace Clippy/test/doc、deny、MSRV/no-default；默认 361 passed/26 ignored，全 feature 481 passed/32 ignored，显式库单测 146 passed。PostgreSQL 18.6/MySQL 8.4.13 各完成 11 targets/46 项真实集成、testing 1 项及最终 CI 两组 workspace 命令。三类干净生成应用 check/test、真实认证双库、默认 HTTP 启动与八个 consumer 的适用门禁通过。根与 demo 无参数 cargo run 均验证健康页、公开 HTML 与正常退出；根 CLI config show 转发默认应用通过。详见 [测试基线](memory/testing.md#r1-当前工程边界与验收入口)。
+结构子步骤已实际通过 fmt、默认/full Clippy/tests/docs、deny、no-default；默认 263/22、full 486/32（passed/ignored）。根裸 cargo run 的健康/API/公开 HTML/业务响应与正常退出、根 CLI 转发、PG18.6/MySQL8.4.13 各 12 targets/48 项及 testing 1 项、三类生成项目、最小 orders 模块仅改应用清单的真实 HTTP 闭环通过。CI 双库六组、MSRV1.97、八个独立 consumer 与额外 gRPC 生成项目均通过；不同模型最终源码复审无 blocker/should-fix，独立 CI 复核无 blocker/should-fix，限定提交收口中；最新事实见 [testing](memory/testing.md#r1-当前工程边界与验收入口)。
 
-不同模型 gpt-6-sol 对最终代码只读复审，无 blocker/should-fix；审查未重跑构建或服务测试，实际执行证据由实现者记录。本任务根 target 与临时生成项目已清理；根 target 随后被后台重新生成约 344 MiB，归属未确认，连同预存 consumer 缓存保留，未中断共享服务或改配置。
+R1 总体保持 in_progress：结构提交只是前置子步骤，不代表真实 CRUD、所有当前公开能力示例、Laravel/modules 等价或 ServiceProvider 生命周期已完成。后继 app/example/extensions.rs 未挂载/未验收，单独保留 WIP。后继依赖与 Provider contract 按最新 [计划](plan.md) 和 [待办](todo.md) 推进。
 
-旧 ADR-071 与中间布局的验收仅保留为历史输入。R2 尚未实现；本轮目录迁移不等于 Laravel 完整等价，真实复制/完整集群、SQLite 完整支持、供应商外部条件等继续按总计划逐项验收。
+最终目标已收敛为 `modules/<模块名>/` 与唯一 `modules/example/`，见 [ADR-074](decisions/adr-074-laravel-modules-directory.md)。当前证据仍归 app/example 过渡代码；modules 目录、完整 ServiceProvider、模块管理和 CRUD 未交付。计划修订与文档检查不能代替这些代码验收。
+
+当前规划记录已统一：ADR-074、总计划、活跃队列、执行说明与 README 区分 app/example 过渡事实和 modules/example 目标；此前规划文档检查覆盖 63 个变更 Markdown、1222 个本地链接和 53 个锚点，无断链；749 个 Laravel 稳定 ID 与 35 个模块入口 ID 未改状态。文档检查不是代码门禁，代码门禁已补齐，限定提交仍须完成最终审查与提交树核对。

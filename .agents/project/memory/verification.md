@@ -4,9 +4,17 @@
 
 2026-10-28 按用户明确授权整合 `9b6268e` / `eeba3e1` 与 main 原有三笔设计提交；冲突仅在 plan/progress/todo，保留最新设计要求及 R0/R1 实际进度。与 eeba3e1 对比，源码、manifest、lock、模板、脚本、CI 和测试内容一致，额外变化仅为项目文档/协作规则。R1 代码门禁使用该提交的实际执行记录，本次整合不宣称重新执行构建或双库验收。
 
-## R1 当前工程边界（已实现与验收）
+## R1-S 当前根结构与过渡模块
 
-根 openrust/src 与 examples/demo 位于同一仓库、同一 Cargo workspace，共用根 Cargo.lock；根 default-members=["examples/demo"] 默认启动 server。CLI 模板是新应用骨架唯一来源，ADR-072 替代 ADR-071 布局。新布局已重新执行 fmt、默认/all-features workspace Clippy/test/doc、deny、MSRV/no-default、八个 consumer、三类生成项目、根/demo 默认 cargo run 与 HTTP。默认 361/26、全 feature 481/32（passed/ignored），显式库单测 146/0；双库各 11 targets/46 项真实集成与 testing 1 项，最终 CI workspace db/auth 组分别 373/26 与 392/26。详细命令、真实服务和证据边界见 [testing](testing.md#r1-当前工程边界与验收入口)。
+根 openrust 同 package 提供框架 lib 与默认 server，应用职责回根，当前 app/example 通过现有公开 Plugin 清单装配。按 ADR-074，modules/example 仍为后继 R2-M 目标；当前验收不等于该目录、统一 Provider 或完整 CRUD 已实现。
+
+R1-S 实际重新通过默认/full workspace fmt/Clippy/tests/docs、deny、no-default 与 MSRV1.97；默认 263/22，全 feature 486/32（passed/ignored）。PG18.6/MySQL8.4.13 各 12 targets/48 项及 testing 1 项；最终 CI db/auth/example 三组两库均通过。四类生成项目（普通/auth双库/gRPC）、普通模块复制与直接 serde/chrono 依赖、根无参数运行/HTML/API/退出及八个消费者的适用门禁通过。gRPC 生成项目仅 compile/test（无业务用例），真实 RPC 来自明确运行的 consumer，不能混淆。
+
+框架领域 .rs、dependencies/features 与 14c143f 等值，根 34 test targets 完整保留原覆盖；根 registry 无新增或升级，consumer 锁不变。模块自有 proto 工具锁定且重生字节一致。审查静态证据与实现者实际运行分开记录；结果及保留的外部/资源限制见 [testing](testing.md#r1-当前工程边界与验收入口)。完整模块能力、配置改进及 Provider 生命周期依后继合同，R1 总体未完成。
+
+## R1 ADR-072 历史验收事实
+
+根 openrust/src 与 examples/demo 位于同一仓库、同一 Cargo workspace，共用根 Cargo.lock；根 default-members=["examples/demo"] 默认启动 server。CLI 模板是新应用骨架唯一来源，ADR-072 替代 ADR-071 布局。新布局已重新执行 fmt、默认/all-features workspace Clippy/test/doc、deny、MSRV/no-default、八个 consumer、三类生成项目、根/demo 默认 cargo run 与 HTTP。默认 361/26、全 feature 481/32（passed/ignored），显式库单测 146/0；双库各 11 targets/46 项真实集成与 testing 1 项，最终 CI workspace db/auth 组分别 373/26 与 392/26。详细命令、真实服务和证据边界见 [testing](testing.md#r1-adr-072-历史验收事实)。
 
 最终不同模型 gpt-6-sol 只读审查无 blocker/should-fix；其静态核对不替代实现者实际执行记录。仅目录职责、路径与 Cargo 工作流在本簇完成，不代表 R2 内核或 Laravel 全功能等价；忽略项、复制/完整集群、SQLite 全支持及供应商外部条件保持后继门禁。
 

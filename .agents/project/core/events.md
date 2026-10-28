@@ -14,7 +14,7 @@
 
 - `cargo test -p openrust --all-features events::tests`：listener 类型隔离、顺序及首错短路（各 1 项，queued mapper fake test 另测）。
 - `cargo test -p openrust --features queue --lib events::queued_tests`：fake QueueDriver 检查成功 payload 映射、mapper error 传播/短路、queue dispatch error 传播/短路，3 项已通过。
-- `cargo test --manifest-path examples/demo/Cargo.toml --features queue,db-postgres --test queue database_queue_dispatch_worker_concurrency_failure_and_retry -- --exact`：真实 PostgreSQL 18.6 隔离库通过；事务回滚不留 event job、提交后 worker 消费、普通 dispatch 消费及 transaction context 断言均通过。
+- `cargo test -p openrust --features queue,db-postgres --test queue database_queue_dispatch_worker_concurrency_failure_and_retry -- --exact`：真实 PostgreSQL 18.6 隔离库通过；事务回滚不留 event job、提交后 worker 消费、普通 dispatch 消费及 transaction context 断言均通过。
 - 同测试使用 `--features queue,db-mysql`：仓库 Compose 临时 MySQL 8.4 隔离服务上通过；测试后仅清理本次 `openrust-ci` 容器/网络/临时卷，预置 MySQL 容器未修改。
 - 真实验收发现 Events 句柄保有 Queue 数据库池；测试关闭隔离库前显式释放 Events、Queue、Db 与 App，随后 `TestDatabase::close` 成功完成清理。
 - 临时下游 consumer crate 在 `/tmp/openrust-events-consumer` 使用 `queue,db-postgres`，离线 `cargo check` 通过；验证了外部 crate 可见的 listener、queued Job、插件注册和 transaction dispatch 签名，不代表生成项目或数据库运行验收。

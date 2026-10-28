@@ -1,6 +1,8 @@
 //! 验证生成的认证路由端到端行为。
 
 #[path = "../bootstrap/app.rs"]
+mod bootstrap;
+#[path = "../app/mod.rs"]
 mod app;
 #[path = "../routes/web.rs"]
 mod routes;
@@ -104,7 +106,7 @@ async fn generated_auth_routes_run_over_http_with_isolated_database_and_fake_mai
         .clone()
         .extract::<openrust::config::FrameworkConfig>()?;
     let mut builder = AppBuilder::new(framework, figment);
-    app::OpenRustGeneratedApplication::build(&mut builder);
+    bootstrap::OpenRustGeneratedApplication::build(&mut builder);
     let captured_mail = CaptureMailer::default();
     builder.plugin(CaptureMailerPlugin(captured_mail.clone()));
     let app = openrust::lifecycle::finalize(builder).await?;

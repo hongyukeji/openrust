@@ -1,6 +1,6 @@
 # 独立 consumer 与拓扑验收
 
-这里保存需要独立 Cargo manifest、公开 API 边界或真实服务拓扑的框架验收工程。它们不是面向用户的多个示例应用；用户综合示例统一位于 [`examples/example/`](../../examples/example/README.md)。
+这里保存需要独立 Cargo manifest、公开 API 边界或真实服务拓扑的框架验收工程。它们不是面向用户的多个示例应用；用户综合示例统一位于 [`app/example/`](../../app/example/README.md)。
 
 | Consumer | 验收范围 |
 | --- | --- |

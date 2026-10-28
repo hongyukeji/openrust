@@ -1,6 +1,6 @@
 # ADR-072：同仓框架与应用 workspace
 
-- 状态：Accepted；同一 workspace 已实现并通过适用门禁与不同模型只读审查
+- 状态：Superseded；布局由 [ADR-073](adr-073-root-application-and-example-module.md) 替代；下文保留原决定与当时验收事实
 - 日期：2026-10-28
 - 前置：[ADR-070](adr-070-laravel-first-rebuild.md)
 - 替代：[ADR-071](adr-071-application-framework-layout.md) 的目录、包身份与根默认启动约束
@@ -21,4 +21,4 @@ demo 保留 app/bootstrap/config/database/routes/resources/public/storage/tests 
 
 应用职责目录通过静态模块声明接入薄 Rust 入口，保持类型、所有权、async、Cargo。根与 demo 目录无参数 `cargo run`、真实 HTTP、配置与资源路径须实际验证。Cargo 从 workspace 根启动成员时保留根工作目录，因此 demo 薄入口仅在该场景切至应用目录，使 config/public/storage/.env 相对路径属于应用；从其他目录直接部署启动保持既有工作目录约定，不修改框架配置 API。
 
-本簇保持 `openrust::` 导入与框架语义，仅迁移工程职责及依赖路径。ADR-071 及中间独立 demo 布局的命令行与真实服务验收保留为历史证据，不能作为同一 workspace 已通过；新布局已重新通过 workspace、生成应用、双库和 CLI/HTTP 门禁及不同模型只读审查，实际执行和外部边界见 [测试基线](../memory/testing.md#r1-当前工程边界与验收入口)。
+本簇保持 `openrust::` 导入与框架语义，仅迁移工程职责及依赖路径。ADR-071 及中间独立 demo 布局的命令行与真实服务验收保留为历史证据，不能作为同一 workspace 已通过；新布局已重新通过 workspace、生成应用、双库和 CLI/HTTP 门禁及不同模型只读审查，实际执行和外部边界见 [测试基线](../memory/testing.md#r1-adr-072-历史验收事实)。

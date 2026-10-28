@@ -1,5 +1,0 @@
-[session]
-secure = true
-http_only = true
-same_site = "lax"
-ttl_secs = 1209600

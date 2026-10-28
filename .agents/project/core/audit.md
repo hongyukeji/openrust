@@ -23,4 +23,4 @@
 ## 验证
 
 - 模块测试覆盖详情 allowlist、敏感名脱敏、Debug 脱敏、有界 scalar、sink 错误传播和 database/custom plugin 注册。
-- `examples/demo/tests/server/auth/database.rs` 在 PostgreSQL 18 与 MySQL 8.4 真实隔离库验证迁移、映射表写入、角色权限和审计同事务提交、外层回滚双向撤销及有界重复清理。
+- `tests/server/auth/database.rs` 在 PostgreSQL 18 与 MySQL 8.4 真实隔离库验证迁移、映射表写入、角色权限和审计同事务提交、外层回滚双向撤销及有界重复清理。

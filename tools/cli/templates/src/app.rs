@@ -19,5 +19,6 @@ impl Application for {{type_name}} {
             .plugin(MailerPlugin)
             .plugin(SmsPlugin){{database_plugins}}{{encryption_plugin}}
             .routes(routes::register);
+        crate::app::register(app);
     }
 }

@@ -108,12 +108,14 @@ fallback_locale = "en"
 //! 应用程序入口。
 
 #[path = "../bootstrap/app.rs"]
+mod bootstrap;
+#[path = "../app/mod.rs"]
 mod app;
 #[path = "../routes/web.rs"]
 mod routes;
 
 fn main() -> std::process::ExitCode {
-    openrust::run::<app::Blog>()
+    openrust::run::<bootstrap::Blog>()
 }
 
 --- bootstrap/app.rs ---
@@ -138,6 +140,7 @@ impl Application for Blog {
             .plugin(MailerPlugin)
             .plugin(SmsPlugin)
             .routes(routes::register);
+        crate::app::register(app);
     }
 }
 

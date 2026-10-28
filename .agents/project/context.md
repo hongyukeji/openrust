@@ -1,16 +1,18 @@
 # 项目上下文
 
+> 当前代码与目标：源码仍有 `app/example/` 迁移 WIP；最终业务位置为 `modules/<模块名>/`，唯一示例为 `modules/example/`。目录和模块能力尚未完成验收，按 [ADR-074](decisions/adr-074-laravel-modules-directory.md) 推进，不能将目标路径当作已实现。
+
 > 受众：AI Agent
 > 更新：2026-10-28
-> 摘要：当前方向为 Laravel 式全面重构。计划与授权已记录，R0 已固定上游与资产，R1 同仓框架与应用 workspace 已实现并重新验收；原 v1 专项证据作为复用/重写基线。
+> 摘要：正式目标为 Laravel + laravel-modules 的 Rust 1:1 实现。计划与授权已记录，R0 已固定上游与资产，R1 正按根 Laravel 应用与唯一综合示例 contract 纠偏，新布局尚未验收；原 v1 专项证据作为复用/重写基线。
 
 ## 当前状态
 
 | 项 | 当前事实与目标 |
 | --- | --- |
-| 当前代码基线 | 规划开始 HEAD 为 `7f964b8`；根框架 openrust/src 与同一 workspace 内的 examples/demo 正在迁移，tools 和 examples/example 保留；版本和依赖以 Cargo.toml 为准 |
-| 当前阶段 | [全面重构计划](plans/laravel-rebuild.md) 已记录；R1 工程边界已交付，下一项 R2 内核与测试底座待开始，唯一队列见 [todo.md](todo.md) |
-| 目标授权 | [ADR-070](decisions/adr-070-laravel-first-rebuild.md)：Laravel 为首要概念/行为/体验参照，Goravel 为跨语言参照；允许全面重写，无历史兼容义务 |
+| 当前代码基线 | 规划开始 HEAD 为 `7f964b8`；根 openrust 同 package 的框架 lib 与默认 server 正在装配；应用职责回根，当前示例仍在 app/example，目标 modules/example；tools 与 consumers 保留；版本和依赖以 Cargo.toml 为准 |
+| 当前阶段 | [全面重构计划](plans/laravel-rebuild.md) 已记录；当前R1-S结构子簇in_progress；结构收口后进入R2基础，再补R1-E真实CRUD/当前能力示例；R1整体未完成，唯一队列见 [todo.md](todo.md) |
+| 目标授权 | [ADR-070](decisions/adr-070-laravel-first-rebuild.md)：Laravel固定基线为1:1行为标准，laravel-modules为正式模块化范围，Goravel仅跨语言实现参考；允许全面重写，无历史兼容义务 |
 | 当前完成边界 | 原认证/数据/队列/缓存/存储/实时/gRPC/视图等有专项证据；完整生产/集群/最低版本仍有缺口，新目标不能继承为已验收 |
 | 协作 | 已定 contract 优先 gpt-6.1-sol 子智能体；主控负责设计/协调；所有 Agent 直接 main，非重叠文件可并行实现；共享 manifest/lock/迁移/文档/提交由集成负责人串行协调，target/服务资源预先分配，审查并行只读；高风险改码不同模型或 Provider 审查；不推送 |
 
@@ -18,15 +20,20 @@
 
 - 当前及以后全部开发仅在本仓库 `main` 进行并创建本地提交，不新建源码仓库、开发分支或隔离 worktree；子代理遵守同一目录、明确文件所有权、共享文件串行协调和 WIP 保护规则。
 
-- 长期定位为用 Rust 语言实现 Laravel 框架，与 Laravel 框架高度吻合，持续跟进其框架功能与行为演进；Laravel 的目录、概念、命名、默认值、工作流与扩展方式是默认标准。版本基线、差异矩阵与必要 Rust 适配遵循[长期上游跟进](plans/laravel-rebuild.md#长期上游跟进)。
+- 正式定位为 Laravel + laravel-modules = OpenRust，以固定基线1:1实现功能与可观察语义，持续跟进其框架功能与行为演进；Laravel的目录、概念、默认值、错误/安全边界、Container/Provider register→boot与开发/CLI/生成/测试/部署流程是验收标准。逐项上游源码/测试→Rust API/配置→等价测试→modules/example→文档→真实服务证据，未等价/未实测保留缺口。版本基线、差异矩阵与必要 Rust 适配遵循[长期上游跟进](plans/laravel-rebuild.md#长期上游跟进)。
 - 已有优秀机制保留并融合进 Laravel 对应职责；统一返回格式明确归 HTTP Response / API Resource 与异常渲染，提供便捷接入与公开定制，避免重复内核和协议破坏。规则见[融合计划](plans/laravel-rebuild.md#已有优秀机制的融合)。
+- 用户明确要求从零设计并重写 Laravel 式框架核心，旧实现不构成设计或兼容约束；旧源码按功能簇替换、验证后清除，不批量抹除 WIP 和证据。
 - 旧目录、API 名称、CLI 风格、默认值、交付方式和“已验证不可重写”等约束可被新 contract 替代。先校准领域 ADR 与调用方；当前实现事实不等于未来设计约束。
 - 保留 Rust 类型、所有权、trait、async、Cargo 的便利性。采用熟悉的 Laravel 术语，语法用 Rust 惯用形式；不做 PHP 运行环境，也不引入不可测试的全局可变状态。
 - 允许重构全部框架，但保护他人 WIP、进程、服务、数据和已存在证据；底层成熟组件按能力复用，不为全面重写重造密码算法/协议驱动。
 - 对应新能力按 Spec → Implement → Verify → Commit 连续推进；一次一个主功能簇。旧 M0–M6/DX/F/G 范围作为矩阵输入，顺序由新计划重排，不能丢失原未完成验收。
 - 第一方说明使用简体中文，技术标识符/原许可保持原文，见 [style.md](style.md)。代码安全、依赖记录和测试/提交规则见 [conventions.md](conventions.md)。
 
-- 框架和 demo 属于同一 Cargo workspace，共用根锁文件，根默认启动 demo；生成应用与真实 HTTP 验证继续执行。
+- 除 modules/example 外均为框架通用结构与代码；示例专有迁移/种子/资源/协议/生成脚本/测试 fixture 均归模块内，根只保留通用加载与公开挂载，不因示例新增 build.rs/build 依赖。
+
+- 根 openrust 同 package 提供框架库与默认 server；default-members=["."]、default-run="server"，根默认启动，modules/example 是唯一综合示例；生成应用与真实 HTTP 验证继续执行。
+
+必要Rust差异、用户约定和授权增强按[差异分类](plans/laravel-rebuild.md#逐项对应与差异分类)公开；单仓main、根结构、modules/<模块>、模块专属资源、Vue/uni-app与Redis策略不被字面1:1覆盖。核心全量，模块包独立来源但同内核，生态/商业/外部授权边界保持。
 
 ## 服务与验收
 

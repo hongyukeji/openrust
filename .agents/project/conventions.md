@@ -40,6 +40,29 @@
 - 外部服务和密钥能力须显式配置，实际验证 feature、provider/迁移注册与运行入口，不以声明替代装配。
 - 测试、模板、示例、部署脚本和 CI 跟随目标目录迁移，不能只改框架源码。
 
+### 普通业务模块布局
+
+本仓目标唯一综合模块为 modules/example（当前 app/example 待迁移）；新增业务可参考 modules/<业务>，遵循 [ADR-074](decisions/adr-074-laravel-modules-directory.md)。以下是有实现才采用的职责约定，不是要求预建整棵空目录：
+
+| 位置 | 职责 |
+| --- | --- |
+| mod.rs | 模块声明与接入导出，不堆放业务实现 |
+| providers/ | 业务公开注册；当前使用真实 Plugin API，R2 后统一 ServiceProvider |
+| routes/api.rs、routes/web.rs | 模块路由定义与组合 |
+| http/controllers/ | 请求处理与业务调用 |
+| http/requests/、http/resources/ | 输入 DTO/校验与输出资源 |
+| models/、services/ | 实际实体与确有需要的业务编排 |
+| database/migrations/、database/seeders/ | 模块专属迁移与种子 |
+| resources/views/ | 模块视图与其他实际资源 |
+| jobs/、events/、listeners/、notifications/ | 相应真实异步/事件业务，按需创建 |
+| extensions/ 或既有 extensions.rs | 公开 driver/Plugin 扩展示例 |
+| tests/ | 模块专有测试与 fixture |
+| proto/、generated/ | 仅实际 gRPC 示例需要的协议与已生成代码 |
+
+模块只保留实际业务与专属资源，不复制 app/bootstrap/main/Cargo 完整骨架。除 modules/example 外均为框架通用结构和代码；应用 Provider/模块清单及 Rust 编译声明是公开接入入口，根其余职责只提供通用加载/公开挂载，不加入样例逻辑、专有 build.rs 或 build 依赖。框架核心不反向依赖业务。
+
+新能力在同功能簇同步 modules/example 实际调用/扩展与测试；文档或独立 consumer 不能替代综合模块覆盖。当前 Plugin 不是 Laravel ServiceProvider 等价声明，R2 收敛 register/boot 时统一迁移，不能形成双内核；provider 不替代 Cargo 依赖解析。
+
 ### 起名前三问
 
 1. Laravel 中对应的概念和典型调用是什么，开发者能否直接找到它？

@@ -6,11 +6,15 @@
 
 ## 当前设计授权
 
-长期产品定位为 **用 Rust 语言实现 Laravel 框架，与 Laravel 框架高度吻合，并持续跟进其功能演进**。目录、概念、命名、默认行为、工作流和扩展方式以 Laravel 为准；仅在 Rust 语言、运行时或工具约束确有必要时适配，并记录原因与等价行为证据。上游跟进与版本范围规则见 [总计划](.agents/project/plans/laravel-rebuild.md#长期上游跟进)。
+正式定位为 **Laravel + laravel-modules = OpenRust**：用 Rust 1:1 实现固定基线 Laravel 框架能力与 laravel-modules 模块化能力，并持续跟进上游。目录、概念、命名、默认行为、工作流和扩展方式以 Laravel 为准；仅在 Rust 语言、运行时或工具约束确有必要时适配，并记录原因与等价行为证据。上游跟进与版本范围规则见 [总计划](.agents/project/plans/laravel-rebuild.md#长期上游跟进)。
+
+1:1 以逐项功能与可观察语义、默认值、错误/安全边界、Container/Provider 生命周期、扩展契约和 CLI/生成/测试/部署流程为验收；Laravel 使用者可按官方章节完成对应操作，仅 Rust 语法、类型、所有权、async 等确有必要时适配。不是 PHP 运行环境或字节兼容。每项须具备上游源码/测试→Rust API/配置→等价行为测试→modules/example→文档→真实服务证据；名称近似、旧测试或目录相似不算完成。适用核心能力不得因难度、个人偏好或“Rust 惯用”被划为不适用。差异按[对应与分类规则](.agents/project/plans/laravel-rebuild.md#逐项对应与差异分类)公开记录，无法等价保留缺口，不虚报严格 1:1 已达成。
 
 保留并融合本框架已有优秀设计，例如统一返回格式，放入 Laravel 对应职责与公开扩展位置；这是已授权的通用增强，不限于语言适配。不得因上游没有相同内置能力就删除；具体边界见 [ADR-070](.agents/project/decisions/adr-070-laravel-first-rebuild.md#用户意图与验收原则)。
 
 [ADR-070](.agents/project/decisions/adr-070-laravel-first-rebuild.md) 与 [全面重构计划](.agents/project/plans/laravel-rebuild.md) 是当前目标：Laravel 优先、参考 Goravel，允许全面重写目录/API/默认值/实现，无历史兼容义务，保留 Rust 语言与工具优势。旧规定不能阻止已批准的重构；已实现事实和真实验收记录仍须保留。工程质量、WIP 保护和 §5 对外授权边界继续适用。当前任务与后续顺序只在 `todo.md` 领取。
+
+当前目标布局以 [ADR-074](.agents/project/decisions/adr-074-laravel-modules-directory.md) 为准；源码仍有 `app/example/` 迁移 WIP，不能将目标当已验收：Laravel 应用职责直接位于根；openrust 同 package 提供框架 src/lib.rs 与默认 server 薄 src/main.rs，default-members=["."]、default-run="server"。业务模块统一在 `modules/<模块名>/`，模块目录外均为框架通用结构和代码，示例专有迁移、种子、模板、协议、生成脚本与测试 fixture 全留模块内；根只提供通用结构与公开挂载，不放示例 build.rs/build 依赖或业务特判。唯一 modules/example 是供开发者参考的普通业务模块；根 app/ 保留应用级装配，模块经统一 Provider/模块清单与公开接口接入，只用公开框架 API；不包含完整子应用骨架，不新增 example feature，不保留 demo/example 双应用或根 examples 目录。新布局迁移与验收以当前 todo、源码和 Git 为准。
 
 ## 1. 角色与契约
 
@@ -106,7 +110,7 @@ Agent 不替代开发者做方向决策、发布判断和对外动作；开发�
 
 - 一个功能簇 = 一个工程闭环，不夹带无关需求。
 - 设计与重写遵循 ADR-070：以 Laravel 能力和体验为首要依据，参考 Goravel 的跨语言实现；Spec 说明 Rust 适配、复用/重写选择和验收。允许重写已验证实现，但保留并重新验证其有效行为证据。
-- 公共 API 变更先评估下游（其他 crate、模板、`examples/example/`、`tests/consumers/`、`docs/`）兼容性；0.x 允许破坏性变更，但必须同步更新全部调用方、文档与 changelog 条目。
+- 公共 API 变更先评估下游（其他 crate、模板、`modules/example/`、`tests/consumers/`、`docs/`）兼容性；0.x 允许破坏性变更，但必须同步更新全部调用方、文档与 changelog 条目。
 - 新增依赖必须有理由并写入 `stack.md`；主版本升级写 ADR 或 changelog。
 - 遵守 `conventions.md`：`#![forbid(unsafe_code)]`、`#![deny(missing_docs)]`、库 crate 禁止 `unwrap` / `expect` / `panic` / `todo` / `unimplemented`、不写 `TODO` 注释。
 - 顺手修边界清楚、可当场验证的小问题并纳入说明；需要跨 crate 设计或改变方向的问题写入 `todo.md`。
@@ -140,7 +144,7 @@ Agent 不替代开发者做方向决策、发布判断和对外动作；开发�
 同一时刻只有一个功能簇 in_progress。功能簇完成必须满足：
 
 - [ ] §6.3 匹配范围的验证实际执行并通过
-- [ ] 公共行为变化有测试
+- [ ] 公共行为变化有测试；新增或变化能力在唯一 modules/example 综合业务模块同步真实调用/公开扩展、根装配/配置及行为验证，不以文档链接或独立 consumer 替代示例覆盖
 - [ ] 新能力已接入当前获准架构的可运行应用，并有公开 API、生成项目及集成测试；迁移前根 `server` 的验收责任在新结构中保留
 - [ ] 受影响 `docs/`、crate `README.md` 已更新
 - [ ] 受影响 `.agents/project/`（`context.md` / `todo.md` / `plan.md` / `core/<crate>.md` / 必要时 ADR）已更新

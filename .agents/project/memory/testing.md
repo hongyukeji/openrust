@@ -6,6 +6,32 @@
 
 ## R1 当前工程边界与验收入口
 
+按 [ADR-073](../decisions/adr-073-root-application-and-example-module.md)，根 openrust package 同时提供框架 src/lib.rs 与默认 server 薄 src/main.rs。default-members=["."]、default-run="server"；Laravel 应用职责直接位于根，唯一 app/example 通过 app/mod.rs 注册薄业务 Plugin。以下是结构迁移子步骤的新执行记录，不表示 R1 综合 CRUD、全能力示例或 Laravel/modules 1:1 目标已完成。
+
+本布局已实际通过 fmt、默认/all-features workspace all-target Clippy、默认/all-features workspace tests、warnings-denied 默认/all-features Rustdoc、deny 和 no-default check。默认 263 passed/22 ignored，全 feature 486 passed/32 ignored；默认不再由独立 example 包隐式强开 auth/grpc 等 feature，不与旧默认测试计数机械比较。根显式 34 个测试 target 保留原框架+demo 的 33 个与原 example auth HTTP 测试；模块注册有/无、普通业务路由、声明错误数据库启动失败回归已执行。底层框架源码、dependencies/features 未改；根锁无新增或升级 registry name/version/checksum，仅移除 20 个不再由根示例 build 使用的工具节点。
+
+根无参数 cargo run 实际验证 /health、公开 HTML、/api 和 /api/example 均 200，业务响应包含 chrono::Utc::now 产生的时间；SIGINT exit 0。现有真实子进程 SIGTERM 退出测试保留。根 CLI config show 转发通过。
+
+PostgreSQL 18.6/MySQL 8.4.13 各执行 cargo test --locked -p openrust --all-features 的 db_connection/db_migration/auth_database/auth_runtime/queue/schedule/auth_mfa/auth_oidc/queue_crash_recovery/schedule_calendar/queue_notifications/example_auth_flows，共 12 targets/48 passed/0 ignored；testing backend database 集成各 1 passed。原 example 的认证/JWT/PAT/入队流程已迁为模块专有测试并通过同一根 Server 装配。第一轮 fixture 未声明 app.name 而沿用默认 OpenRust，预期 openrust 的断言失败；现显式声明 fixture 名称后双库重跑通过，未改框架默认值。使用既有服务和 TestDatabase 隔离库，不修改业务数据或服务配置；测试 helper 的 Drop 清理为 best effort，不能把未能确认归属的历史隔离库批量删除或宣称均已清理。
+
+/tmp 新生成普通/PG auth/MySQL auth 三类应用，均 check/test 通过，双库 auth 各 1 项真实 TCP 流程通过，普通工程公开 resource 宏回归与无参数 cargo run /health 200、SIGINT0 通过。进一步在普通工程仅添加 app/orders、修改 app/mod.rs 注册清单和声明已有 serde/chrono 依赖，src/main.rs 与 bootstrap/app.rs 哈希保持不变；check/test 与真实 /api/orders HTTP、正常退出通过。这是新增模块/第三方业务依赖使用证明，不是完整 CRUD。
+
+根没有示例 build.rs/build-dependencies。模块自有 proto/generator.toml、generator.lock 在 /tmp 临时工具中 cargo run --offline --locked；generate.py --check 实际验证 generated/echo.rs 重生字节一致。生成类型通过 grpc feature 编译，不等于已注册本模块真实 gRPC 服务。
+
+最终 CI 双库命令均通过：每库 cargo test --workspace --features db-<backend> 为 278 passed/22 ignored，auth,db-<backend> 为 324 passed/25 ignored；另显式 cargo test -p openrust --features auth,queue,view,encryption,db-<backend> --test example_auth_flows，各 2 passed/0 ignored。MySQL 使用具备隔离建库权限的测试管理员，未改服务配置。
+
+Rust 1.97.0 的 cargo check --workspace --all-targets --all-features 通过，SQLite/queue consumer 实际 run、gRPC consumer locked check 通过；stable 下八个 consumers locked test/metadata 全通过，metadata 均独立单成员/默认成员。cache/communication/SQLite/queue/gRPC 实际 run 通过，gRPC 15 项与四类 RPC、realtime 真实 Redis 跨进程 1 项通过。SQLite 仍仅是自定义 driver consumer，不等于完整官方支持。
+
+最终 README 更新后重新执行默认/full workspace fmt/Clippy/tests/docs、deny/no-default，全部通过，计数仍为 263/22 与 486/32；根裸 run/HTTP/退出再次通过。额外干净生成 gRPC 应用 check/test 通过（无业务测试，因此仅证明模板/Proto 编译，不代替真实 RPC）；生成项目锁独立解析，未修改源码根锁。模块 proto --locked 离线重生字节再次一致。代码独立审查的 proto 锁定/教程导入修复已落实；不同模型 gpt-6-sol 最终静态源码复审无 blocker/should-fix，未参与CI编辑的代理独立复核也无 blocker/should-fix，限定提交收口中。
+
+最终确认无 Cargo/rustc/server 进程后，对独占 /tmp/openrust-r1-root-target 先 cargo clean --dry-run 再 cargo clean，实际回收 44051 files/14.1 GiB，磁盘剩余 118 GiB（约13%）。本任务在软限时也只于安全阶段清理该独占目录；未知归属根 target 与预存 consumer 缓存不清。/tmp 生成项目和日志保留作本轮证据。后继未挂载 app/example/extensions.rs 与未审 R2 contract 是独立 WIP，不计本次已验证功能。
+
+以上仅为 ADR-073 过渡路径的 R1-S 结构子交付。最终 modules/example 目录迁移依 ADR-074/R2-M；统一 Provider、完整 CRUD、全能力示例、供应商实发及完整集群尚未交付或不在本子步骤范围，不能转记为这些目标通过。
+
+## R1 ADR-072 历史验收事实
+
+以下是 14c143f 及其前置布局的实际记录，保留原命令和目录以追溯当时证据；它们不是当前可直接运行的路径或本次 ADR-073 验收。
+
 按 [ADR-072](../decisions/adr-072-framework-and-application-projects.md)，根 openrust/src 是框架库，examples/demo 是根 workspace 成员，共用根 Cargo.lock，无嵌套 workspace。根 default-members=["examples/demo"]，根与 demo 目录无参数 cargo run 默认 server；全部原 tests/server 迁入 examples/demo/tests/server。CLI 模板是唯一骨架来源；本轮迁移实现与适用验收已完成。
 
 本轮同一 workspace 已实际通过：cargo fmt --all --check，默认/all-features workspace all-target Clippy，默认/all-features workspace test，默认及 warnings-denied all-features Rustdoc，cargo deny check。默认 361 passed / 26 ignored；all-features 481 passed / 32 ignored。另显式 cargo test -p openrust --lib 为 146 passed / 0 ignored。根锁图仅把原 application 本地节点变为 demo，注册表 name/version/checksum 集合完全不变。

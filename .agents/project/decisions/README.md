@@ -95,4 +95,8 @@
 
 - [ADR-071：应用职责目录与独立框架库](adr-071-application-framework-layout.md)：Superseded；原根应用布局由 ADR-072 替代；保留旧验收事实。
 
-- [ADR-072：同仓框架与应用 workspace](adr-072-framework-and-application-projects.md)：Accepted；根框架库与 demo 位于同一 workspace，共用根锁文件，根默认启动 demo；R1 迁移及适用门禁已通过。
+- [ADR-072：同仓框架与应用 workspace](adr-072-framework-and-application-projects.md)：Superseded；旧 demo 成员布局与已通过门禁作为历史输入，由 ADR-073 替代。
+
+- [ADR-073：根应用与唯一综合示例模块](adr-073-root-application-and-example-module.md)：Partially Superseded；根结构继续有效，app/example 目标位置由 ADR-074 替代。
+
+- [ADR-074：Laravel 与 laravel-modules 的统一框架及模块目录](adr-074-laravel-modules-directory.md)：Accepted；业务模块统一 modules/、唯一 modules/example，同一 Provider/Container；迁移与能力待验收。

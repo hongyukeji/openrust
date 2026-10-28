@@ -1,14 +1,28 @@
-# OpenRust 框架库
+# OpenRust — Laravel + laravel-modules 的 Rust 实现
 
-> 面向约定优于配置、内置常用能力的 Rust 应用框架。创建项目并运行一条命令，即可开始编写业务代码。
+> Laravel + laravel-modules = OpenRust。以 Rust 语言 1:1 实现 Laravel 的框架能力与 laravel-modules 的模块化开发机制。
 
-**目标：用 Rust 语言实现 Laravel 框架，与其机制、概念、默认行为、生命周期、工作流和扩展方式高度吻合。状态：重构进行中，尚未完成框架等价验收。** 本仓库对应 laravel/framework，根 openrust library 的实现位于 src/；应用骨架对应 laravel/laravel，由 CLI 唯一模板生成。聚合回归应用位于同一 workspace 内的 examples/demo；工具保留独立 package，全部禁用发布。现有能力在目录迁移中保留，新的 Laravel 式语义按阶段实现和验收。
+OpenRust 面向熟悉 Laravel 的开发者：目标是让开发者沿用 Laravel 官方文档中的概念和操作流程，用 Rust 编写应用。以固定版本的 Laravel 文档、源码和测试为实现基准，逐项对应服务容器、Service Provider、路由、数据库、认证、队列等能力；Goravel 作为跨语言实现参考。
+
+模块化是框架正式能力：以 [nWidart/laravel-modules](https://github.com/nWidart/laravel-modules) 为对应上游，通过统一的 Service Provider 与服务容器接入 `modules/<模块名>/` 中的业务代码、路由、配置、迁移和资源。模块创建、注册、管理与测试纳入实施范围；`modules/example/` 是完整 CRUD、框架调用及扩展方式的唯一综合参考。以上为实现目标，当前模块能力与验收缺口按实施计划逐项记录。
+
+**当前状态：全面重构进行中，尚未完成 Laravel 1:1 等价验收。** 每项能力须经过实现、行为测试、综合示例和适用的真实服务验收；已实现代码、目标能力及未验收项分别记录，详见[实施计划](.agents/project/plans/laravel-rebuild.md)。
+
+1:1 指功能、可观察行为和使用流程的对应。保留 Rust 类型、所有权、trait、async 和 Cargo；必要语言适配须说明具体约束、用户可见差异与验证证据。用户明确选定的工程约定和框架增强单独记录，不能用目录相似、名称对应或编译成功代替行为等价，也不承诺直接执行 PHP 源码。
+
+本仓库同时维护框架与应用入口，统一在 `main` 开发。根目录采用 Laravel 职责布局；`src/lib.rs` 提供框架库，`src/main.rs` 提供唯一默认 server。`modules/example/` 是目标唯一综合示例业务模块，目标包含完整 CRUD、框架能力使用及公开扩展参考，示例专用代码和资源保留在模块内。
+
+## 当前实现与目标结构
+
+最终业务目录为 `modules/<模块名>/`，唯一综合示例为 `modules/example/`；根 `app/` 保留通用应用级职责。根目录继续保留 Laravel 的 `bootstrap/`、`config/`、`database/`、`public/`、`resources/`、`routes/`、`storage/` 和 `tests/`，并保留 Rust 的 `src/`、`tools/` 和 Cargo。框架与应用同仓、同 workspace、只在 main 开发。
+
+**当前代码仍在 `app/example/`，尚未完成向 modules/ 的迁移。** 下文运行命令和源码链接指向当前实现；统一 Provider、模块管理、完整 CRUD 与全部能力示例仍在实施，不能将现有 Plugin 注册视为已完成 laravel-modules 等价。目标与边界见 [ADR-074](.agents/project/decisions/adr-074-laravel-modules-directory.md)。
 
 ## 设计目标
 
 缓存使用 [`openrust::cache`](src/cache/README.md) 的统一 API，标准生成应用通过 `cache-redis` 使用 Redis；memory/file 与自定义 driver 均需显式选择。开发期 `openrust dev` 会复用或启动本地 Compose Redis。
 
-- **约定清晰，不依赖魔法。** 目录、命名、路由、迁移和配置键以 Laravel 为参照，并以 Rust 类型表达依赖。当前内核保留显式 Plugin/AppBuilder；Container、ServiceProvider 和 Facade 的统一 contract 按后继阶段交付。
+- **约定清晰，不依赖魔法。** 目录、命名、路由、迁移和配置行为按 Laravel 对应契约实现，并以 Rust 类型表达依赖。当前内核保留显式 Plugin/AppBuilder；Container、ServiceProvider 和 Facade 的统一 contract 按后继阶段交付。
 - **每项能力都有明确入口。** 例如，输入校验使用 `Validated<T>`，授权使用 `Policy`，后台任务使用 `Job`。
 - **常用能力开箱可用，驱动可替换。** v1 计划提供数据库队列、Redis 缓存、本地存储、SMTP 邮件和可扩展短信（含 Twilio 适配器），并支持显式选择 memory/file 缓存及可选的 S3 兼容存储。框架计划支持单机和集群部署；驱动通过 Cargo feature 与配置选择。
 - **生成代码就是普通代码。** `openrust generate` 生成的内容均为可读、可编辑、可测试的 Rust 代码。
@@ -16,7 +30,38 @@
 
 OpenRust 基于 `tokio`、`axum`、`tower` 和 `SeaORM` 构建，采用明确的 Rust 类型与常规项目结构。
 
-## 创建与运行独立应用
+## 从根目录运行
+
+```bash
+cargo run
+# 可选覆盖监听端口
+APP_SERVER_PORT=4000 cargo run
+```
+
+根 `default-members = ["."]`、`default-run = "server"`，默认启动唯一 server。`app/` 放业务模块，`bootstrap/app.rs` 装配应用，`routes/` 注册路由；`config/`、`database/`、`public/`、`resources/`、`storage/` 和 `tests/` 都在根目录。
+
+当前过渡示例 [`app/example`](app/example/README.md) 是普通业务模块，展示如何通过公开 `openrust::...` API 接入业务；最终新业务统一位于 `modules/<业务>/`，由根 `app/mod.rs`、bootstrap 和 routes 显式接入。它没有独立应用 manifest、启动入口或完整子应用骨架，也不需要额外 example feature。数据库、授权、队列等通过已有 Cargo feature 和根应用配置启用真实服务，缺必需依赖明确失败。
+
+默认基础应用无外部服务依赖，`/health` 与 `/ready` 提供探针。源码与验收布局迁移中，新门禁尚未完成；已实现范围与后续能力以当前代码及计划为准。
+
+```bash
+cargo test -p openrust
+cargo test --workspace
+```
+
+公开扩展及拓扑验收见 [consumers](tests/consumers/README.md)，完整门禁见 [贡献说明](CONTRIBUTING.md)。
+
+## 编写业务与扩展
+
+真实参考链是 `src/main.rs` → `bootstrap::Server` → `app::register` → `ExamplePlugin` → 模块 `routes::register` → `/api/example` handler；根 routes 只处理通用框架路由。当前过渡实现使用 `app/` 声明模块，目标新业务放在 `modules/<业务>/`。目前可修改 `app/mod.rs` 的业务声明与应用注册清单，保持 `src/` 核心不因业务改变；先在 `app/mod.rs` 声明，再用公开 `Routes` 定义模块路由，通过现有 Plugin 在应用注册清单挂载，最后运行根 `cargo run` 请求验证。完整代码与操作见 [模块开发示例](app/example/README.md#新建自己的业务模块)。
+
+综合示例的硬交付包括完整实体 CRUD，以及当前所有已实现公开能力的实际使用和 Plugin/driver 扩展参考；目标业务边界为 modules/，模块之外保留框架通用结构和代码；示例专有迁移/种子/资源/协议/生成脚本及测试 fixture 留模块内，根只提供通用结构和公开挂载，不因示例保留 build.rs 或 build 依赖。当前正在补齐，基础常量路由不是 CRUD，文档或其他 consumer 的代码不代表模块已覆盖；实际代码、接入条件与测试缺口见 [能力覆盖表](app/example/README.md#当前能力覆盖与缺口)。
+
+业务可以使用或新增第三方包，声明位置是根应用清单；普通 Rust 业务模块没有独立 Cargo 依赖边界，当前 lib/server 共享解析影响。已有 `serde`/`serde_json` 的实际导入、workspace 继承、新包位置和锁图检查见 [业务依赖教程](app/example/README.md#使用业务自己的第三方依赖)。
+
+## 生成用户应用
+
+CLI 保留用户应用生成功能，模板唯一维护于 [CLI](tools/cli/README.md)。例如在临时目录验证：
 
 ```bash
 cargo run -p cli -- new /tmp/my-application
@@ -26,21 +71,11 @@ cargo test
 cargo run
 ```
 
-生成应用拥有自己的名称、workspace 与 Cargo.lock；本地 openrust/tool 路径明确解析，框架源码需保持可达。唯一骨架来源是 [CLI 模板与生成器](tools/cli/README.md)，不修改源 workspace。标准生成应用默认使用 Redis，启动前配置可用服务或显式选择其他 cache store。
-
-框架和聚合应用位于同一仓库、同一 Cargo workspace，共用根 Cargo.lock；根 `default-members = ["examples/demo"]`。根 src/lib.rs 与领域模块提供框架库。聚合应用见 [examples/demo](examples/demo/README.md)，完整能力演示见 [examples/example](examples/example/README.md)，公开扩展见 [consumers](tests/consumers/README.md)。
-
-```bash
-cargo test --workspace
-cargo test -p openrust
-cargo run
-```
-
-demo 只有一个默认 server bin，根目录与 demo 目录均使用无参数 cargo run。根 workspace 通过 `default-members = ["examples/demo"]` 支持无参数 cargo run。demo 使用静态公开首页且默认不依赖外部服务，配置/认证/数据库/队列门禁按 feature 显式开启。贡献与验收规则见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+生成应用可使用自己的名称、workspace 和 Cargo.lock，本地框架/tool 依赖须保持可达；不修改本仓 workspace，也不要求维护额外源码仓库。标准生成应用默认使用 Redis，运行前准备服务或显式选择其他 cache store。
 
 业务 JSON API 根路径为 `/api`，所有子路由统一以 `/api/` 开头并使用 JSON API 响应封装；`/health`、`/ready` 和可选 `/metrics` 保留为运维端点。详细约定见 [HTTP 指南](src/http/README.md)。
 
-应用默认从当前工作目录的 `config/` 读取配置。`APP_SERVER_PORT=4000 cargo run` 或 `PORT=4000 cargo run` 可覆盖监听端口；若两者同时设置，`APP_SERVER_PORT` 优先。应用可通过 `Application::config_namespace()` 选择如 `SHOP_` 的变量前缀。框架代码位于根 openrust package，能力模块位于 `src/audit.rs`、`src/config/`、`src/core/`、`src/db/`、`src/http/`、`src/i18n.rs`、`src/mail/`、`src/sms.rs`，以及按 feature 启用的 auth、encryption、signing、queue 和 schedule。每个应用的 TOML/YAML 配置保存在其根目录的 `config/` 中；examples/demo 聚合宿主用于框架开发与集成验收。
+应用默认从当前工作目录的 `config/` 读取配置。`APP_SERVER_PORT=4000 cargo run` 或 `PORT=4000 cargo run` 可覆盖监听端口；若两者同时设置，`APP_SERVER_PORT` 优先。应用可通过 `Application::config_namespace()` 选择如 `SHOP_` 的变量前缀。框架代码位于根 openrust package，能力模块位于 `src/audit.rs`、`src/config/`、`src/core/`、`src/db/`、`src/http/`、`src/i18n.rs`、`src/mail/`、`src/sms.rs`，以及按 feature 启用的 auth、encryption、signing、queue 和 schedule。每个应用的 TOML/YAML 配置保存在其根目录的 `config/` 中；根唯一 server 同时承担综合示例与集成验收。
 
 网站静态文件位于应用的公开目录，默认是工作目录下的 `public/`，目录中的文件按相对 URL 路径提供。生成项目默认启用 `view` feature 并用 `views/index.html` 渲染 `/`；`public/` 仍用于 CSS、图片等静态资源。`[server].public_dir` 可更换静态目录；`[server].root_target` 可设为 `view:index.html`、`file:/index.html`、`forward:/api` 或 `redirect:https://example.com/`。环境变量 `APP_SERVER_PUBLIC_DIR` 和 `APP_SERVER_ROOT_TARGET` 覆盖 TOML；`/api/*` 保留 JSON API，`/ws/*` 用于 WebSocket。视图配置与 API 示例见[视图指南](src/view/README.md)。
 应用数据加密通过可选的 `encryption` feature 启用。注册 `openrust::security::EncryptionPlugin`，在 `[security.encryption]` 下配置 32 字节密钥环，并使用 `openrust key generate` 生成本地密钥材料。当前密钥用于加密新值；受控轮换期间，历史密钥用于解密旧值。密钥应保存在版本控制之外。
@@ -57,7 +92,7 @@ demo 只有一个默认 server bin，根目录与 demo 目录均使用无参数 
 
 `queue` feature 为 PostgreSQL 和 MySQL 提供持久化数据库任务派发、有界 worker 并发和由数据库协调的调度。将 `QueueMigration` 注册到应用迁移器，并在 `DatabasePlugin` 后安装 `QueuePlugin`；使用 `register_job` 显式注册处理器。可通过 `schedule_interval`、`schedule_daily_at` 或 `schedule_cron` 注册任务。cron 使用五字段语法，默认时区为 `UTC`，也可指定 IANA 时区；春季不存在的本地时间跳过，秋季重复的本地分钟只派发一次。默认只派发当前分钟匹配项；`MissedRunPolicy::CatchUp { max_slots }` 可设置每次扫描最多补跑 1 到 100 项，后续 tick 继续处理剩余积压。表达式或时区变化会开启新的计划版本，不追溯补发该版本启用前的历史触发。使用集群部署时，各 scheduler 节点必须运行相同构建产物，以保持内置 IANA 时区数据一致。job 派发和时段记录在同一数据库事务提交，两个 scheduler 节点对同一时段只创建一个 job；任务本身仍至少执行一次，外部副作用须保持幂等。`schedule run --once` 扫描一次，`schedule run` 持续运行，`schedule list` 显示已注册项。`Queue::dispatch_unique` 根据队列范围内的键防止任务重叠重复，并返回活动任务 ID；任务完成或移入 `failed_jobs` 后释放该键。`dispatch_chain` 按顺序执行已注册任务，`dispatch_batch` 限制每组任务的并发数。每组是一个持久化父任务；重试可能再次执行已成功子任务的副作用，因此子任务处理器必须保持幂等。每组最多 128 项，批次并发数为 1 到 64。若任务创建需与业务数据共同提交或回滚，请在 `Db` 事务中派发。当前 worker 支持重试、失败任务保留与手动重试、进度、协作取消、单次尝试超时，以及进程故障后的租约恢复。事件支持有序进程内监听器和显式队列监听器；完整集群验收仍待完成。
 
-可选 `queue-redis` feature 提供 Redis job driver，默认仍为数据库队列。设置 `QUEUE_DRIVER=redis` 与 `redis_namespace` 即可启用；Redis 队列与缓存共用 `REDIS_HOST`、`REDIS_USERNAME`、`REDIS_PASSWORD`、`REDIS_PORT`、`REDIS_DB` 连接项，无需单独配置队列 URL。缺少 feature、配置错误或 Redis 不可达都会失败，不会切换为数据库或内存 driver。Redis-only `QueuePlugin` 无需注册 `DatabasePlugin`，但当前数据库事务型 scheduler 与 Redis 派发无法原子提交，因此启用 Redis 时不能注册 schedule。Redis 支持普通/延迟/唯一派发、lease、进度、退避重试和失败任务人工重试；事务派发与任务组明确不支持。语义为至少一次，handler 必须幂等；Redis 磁盘持久性和故障切换取决于运维配置，不承诺 exactly-once 或故障切换零丢失。详见 [`examples/example/`](examples/example/README.md)。
+可选 `queue-redis` feature 提供 Redis job driver，默认仍为数据库队列。设置 `QUEUE_DRIVER=redis` 与 `redis_namespace` 即可启用；Redis 队列与缓存共用 `REDIS_HOST`、`REDIS_USERNAME`、`REDIS_PASSWORD`、`REDIS_PORT`、`REDIS_DB` 连接项，无需单独配置队列 URL。缺少 feature、配置错误或 Redis 不可达都会失败，不会切换为数据库或内存 driver。Redis-only `QueuePlugin` 无需注册 `DatabasePlugin`，但当前数据库事务型 scheduler 与 Redis 派发无法原子提交，因此启用 Redis 时不能注册 schedule。Redis 支持普通/延迟/唯一派发、lease、进度、退避重试和失败任务人工重试；事务派发与任务组明确不支持。语义为至少一次，handler 必须幂等；Redis 磁盘持久性和故障切换取决于运维配置，不承诺 exactly-once 或故障切换零丢失。详见 [`app/example/`](app/example/README.md)。
 外部 driver 可通过 `JobRegistry` 复用 typed Job 执行，并用 `JobContext::with_progress_reporter` 声明自己的进度存储；独立的 [`QueueDriver` 示例](tests/consumers/queue-custom-driver/README.md)展示派发、执行和不支持事务时的显式错误。
 
 邮件、短信也支持应用实现自定义 driver，并由应用自己的 `Plugin` 注册标准 `Mailer` / `SmsSender` 服务；请看[独立通信 driver consumer](tests/consumers/communication-drivers/README.md)。

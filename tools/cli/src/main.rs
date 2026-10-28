@@ -649,6 +649,7 @@ fn populate_project_with_mfa(
             "bootstrap/app.rs",
             app_source(crate_name, database, auth, encryption, auth_mfa),
         ),
+        ("app/mod.rs", "//! 应用模块注册清单。\n\npub(crate) fn register(_app: &mut openrust::AppBuilder) {}\n".to_owned()),
         ("routes/web.rs", routes_source(auth, auth_mfa)),
         ("routes/console.rs", "//! 应用调度。\n".to_owned()),
         ("database/seeders.rs", seed_source(database)),
@@ -2349,17 +2350,12 @@ mod tests {
         fs::write(root.join("src/lib.rs"), "").expect("创建框架库");
         fs::write(
             root.join("Cargo.toml"),
-            "[package]\nname = \"openrust\"\nversion = \"0.0.0\"\nedition = \"2024\"\npublish = false\n\n[workspace]\nresolver = \"3\"\n# 保留工作区专有配置与成员说明。\ncustom-marker = \"keep-me\"\nexclude = [\"source-only\"]\nmembers = [\"examples/demo\", \"tools/cli\", \"tools/macros\", \"tools/testing\", \"tools/performance\"]\ndefault-members = [\"examples/demo\"]\n\n[workspace.package]\nversion = \"0.0.0\"\nedition = \"2024\"\nlicense = \"MIT OR Apache-2.0\"\n\n[workspace.dependencies]\nopenrust = { path = \".\" }\ncli = { path = \"tools/cli\" }\nmacros = { path = \"tools/macros\" }\ntesting = { path = \"tools/testing\" }\n",
+            "[package]\nname = \"openrust\"\nversion = \"0.0.0\"\nedition = \"2024\"\npublish = false\n\n[workspace]\nresolver = \"3\"\n# 保留工作区专有配置与成员说明。\ncustom-marker = \"keep-me\"\nexclude = [\"source-only\"]\nmembers = [\"tools/cli\", \"tools/macros\", \"tools/testing\", \"tools/performance\"]\ndefault-members = [\".\"]\n\n[workspace.package]\nversion = \"0.0.0\"\nedition = \"2024\"\nlicense = \"MIT OR Apache-2.0\"\n\n[workspace.dependencies]\nopenrust = { path = \".\" }\ncli = { path = \"tools/cli\" }\nmacros = { path = \"tools/macros\" }\ntesting = { path = \"tools/testing\" }\n",
         )
         .expect("create framework workspace manifest");
-        let demo = root.join("examples/demo");
-        fs::create_dir_all(demo.join("src")).expect("创建默认应用目录");
-        fs::write(demo.join("src/main.rs"), "fn main() {} ").expect("默认应用入口");
-        fs::write(
-            demo.join("Cargo.toml"),
-            "[package]\nname = \"demo\"\nversion = \"0.0.0\"\nedition = \"2024\"\n",
-        )
-        .expect("默认应用配置");
+        fs::write(root.join("src/main.rs"), "fn main() {} ").expect("默认应用入口");
+        fs::create_dir_all(root.join("bootstrap")).expect("创建应用装配目录");
+        fs::write(root.join("bootstrap/app.rs"), "").expect("应用标识文件");
         for (name, path, target) in [
             ("cli", "tools/cli", "src/main.rs"),
             ("macros", "tools/macros", "src/lib.rs"),
@@ -2682,7 +2678,7 @@ mod tests {
             assert!(manifest.contains("serde_json"));
             let http_test = fs::read_to_string(project.join("tests/auth_flows.rs"))
                 .expect("read generated auth HTTP integration test");
-            assert!(http_test.contains("app::Blog::build(&mut builder)"));
+            assert!(http_test.contains("bootstrap::Blog::build(&mut builder)"));
             assert!(http_test.contains("into_make_service_with_connect_info"));
             assert!(http_test.contains("/api/auth/password-reset/confirm"));
             assert!(!http_test.contains("{{type_name}}"));
@@ -3172,19 +3168,16 @@ mod tests {
     }
 
     #[test]
-    fn workspace_root_commands_select_the_unique_default_application() {
+    fn workspace_root_commands_select_the_root_application() {
         let root =
             std::env::temp_dir().join(format!("openrust-cli-default-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).expect("创建临时目录");
         create_framework_fixture(&root);
-        let demo = root.join("examples/demo");
-        fs::create_dir_all(demo.join("bootstrap")).expect("创建应用装配目录");
-        fs::write(demo.join("bootstrap/app.rs"), "").expect("应用标识文件");
         let workspace = framework_workspace(&root).expect("源码 workspace metadata");
         let (directory, package) = application_directory(&workspace, &root).expect("默认应用");
-        assert_eq!(directory, demo.canonicalize().expect("应用路径"));
-        assert_eq!(package, "demo");
+        assert_eq!(directory, root.canonicalize().expect("应用路径"));
+        assert_eq!(package, "openrust");
         fs::remove_dir_all(root).expect("清理临时目录");
     }
 
@@ -3212,7 +3205,7 @@ mod tests {
             let manifest = fs::read_to_string(app.join("Cargo.toml")).expect("读取应用配置");
             assert!(manifest.contains("[workspace]"));
             assert!(manifest.contains("database/migrations"));
-            assert!(!manifest.contains("examples/demo"));
+            assert!(!manifest.contains("app/example"));
             assert!(!manifest.contains("source-only"));
             let metadata = framework_workspace(&app).expect("独立应用 metadata");
             assert_eq!(

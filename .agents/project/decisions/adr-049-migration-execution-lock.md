@@ -23,7 +23,7 @@
 - PostgreSQL 18 与 MySQL 8.4 真实隔离库验证两个独立进程的并发首次迁移只有一个执行者、第二个在锁释放后读取最新状态；另验证等待超时、owner 强制退出后的锁释放与再迁移恢复、具名数据库隔离、`down/status` 路径和表名 resolver。
 - 默认/all-features workspace tests、fmt、clippy、warnings-denied Rustdoc、no-default-features check 与 `cargo deny check` 通过。
 
-实现与测试入口见 [`src/db/migration_lock.rs`](../../../src/db/migration_lock.rs) 和 [`examples/demo/tests/server/database/migration.rs`](../../../examples/demo/tests/server/database/migration.rs)。
+实现与测试入口见 [`src/db/migration_lock.rs`](../../../src/db/migration_lock.rs) 和 [`tests/server/database/migration.rs`](../../../tests/server/database/migration.rs)。
 
 ## 非目标
 

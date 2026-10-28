@@ -1,15 +1,17 @@
 # 全面重构执行任务
 
+> 当前代码与目标：源码仍有 `app/example/` 迁移 WIP；最终业务位置为 `modules/<模块名>/`，唯一示例为 `modules/example/`。目录和模块能力尚未完成验收，按 [ADR-074](../decisions/adr-074-laravel-modules-directory.md) 推进，不能将目标路径当作已实现。
+
 > 受众：执行本次重构的 AI Agent
 > 更新：2026-10-28
 > 用途：用户明确要求的可复制执行任务说明；不保存聊天恢复日志。范围唯一来源是全面重构计划，状态唯一来源是 todo.md。
 
-请在 OpenRust 仓库执行 `.agents/project/plans/laravel-rebuild.md`，按 ADR-070 将框架全面重构为 Laravel 式 Rust 应用框架。
+请在 OpenRust 仓库执行 `.agents/project/plans/laravel-rebuild.md`，按 ADR-070 落实正式定位 Laravel + laravel-modules = OpenRust：固定基线的功能与可观察语义逐项 Rust 1:1 实现。
 
 ## 已获授权
 
-- 产品目标是用 Rust 忠实实现 Laravel，并长期跟进框架功能与行为更新；默认保持其目录、概念、命名、默认值、工作流和扩展方式。必要 Rust 适配与版本差异依总计划[长期上游跟进](laravel-rebuild.md#长期上游跟进)记录和验收，不自行降低为仅部分概念相似的框架。
-- Laravel 是能力、概念、默认流程和开发体验的首要参照，Goravel 是跨语言落地参照。允许目录、架构、公共 API、默认值和实现推倒重来，无旧接口或历史数据兼容义务。
+- 产品目标是固定Laravel框架与laravel-modules模块化能力的Rust 1:1实现，并长期跟进；逐项覆盖功能、可观察语义/默认值/错误安全边界、register→boot和扩展/CLI/生成/测试/部署；默认保持其目录、概念、命名、默认值、工作流和扩展方式。必要 Rust 适配与版本差异依总计划[长期上游跟进](laravel-rebuild.md#长期上游跟进)记录和验收，不自行降低为仅部分概念相似的框架。
+- Laravel固定文档/源码/测试是行为验收标准，laravel-modules独立来源但同内核，Goravel只作实现参考；不是目录或命名相似即完成。必要Rust差异与用户约定按总计划分类，不以困难将适用核心标不适用。Laravel 是能力、概念、默认流程和开发体验的固定标准，Goravel 是跨语言落地参照。允许目录、架构、公共 API、默认值和实现推倒重来，无旧接口或历史数据兼容义务。
 - 保留并融合已有优秀机制，R0 记录对应 Laravel 职责与回归证据。统一返回格式明确纳入 Response / API Resource 与异常渲染，提供便捷接入和公开定制，R3 定稿默认值；不得因上游无相同内置能力而删除，也不强制包装所有协议响应或改成 HTTP 200。
 - Rust 类型、所有权、trait、async、Cargo 的便利性必须保留。不得用动态字典、全局可变单例、隐式阻塞 I/O 或 PHP 解释器模拟来追求外形一致。
 - 旧 ADR/规范中与新方向冲突的约束按 ADR-070 替代；当前代码是已实现事实，不能用“旧规定不允许”拒绝本次重构。普通设计决策自主完成并记录，不重复询问是否允许重写。
@@ -18,9 +20,9 @@
 ## 开始和推进
 
 1. 读取 AGENTS.md、`.agents/project/README.md`、context.md、todo.md、plan.md、ADR-070 和全面重构计划；核对 Git HEAD/status、worktree、进程/其他代理、已完成提交和最近验收。
-2. 根据 todo.md 领取当前功能簇。首次从 R0 开始，固定 Laravel/Goravel 版本和源码 commit，逐章建立能力/子行为/现有资产/差异/验收矩阵；随后直接进入 R1，不把完成计划当作完成重构。
-3. 按 R0–R16 的依赖顺序连续推进；一次一个主功能簇，内部可分派不冲突的子任务。每簇执行 Spec → Implement → Verify → Commit，写明公共 contract、生命周期、事务、错误与资源边界。
-4. 框架工程对应 laravel/framework：根 openrust library/src 与 examples/demo 同一 Cargo workspace，根 default-members=["examples/demo"]；应用骨架对应 laravel/laravel：CLI 模板唯一来源，独立 app/bootstrap/config/database/routes/resources/public/storage/tests，原聚合应用迁入 examples/demo。按 ADR-072 重新验收。允许 Rust 合理适配，不能只搬目录而保留不一致的使用流程。
+2. 根据todo.md领取当前可执行子簇；已完成基线不重做。模块包正式矩阵尚待逐项细化，不把Laravel原749行改成模块包已盘点。基线盘点须固定 Laravel/Goravel 版本和源码 commit，逐章建立能力/子行为/现有资产/差异/验收矩阵；随后直接进入 R1，不把完成计划当作完成重构。
+3. 当前先R1-S结构门禁/限定提交，再R2基础Container/Provider/配置/TestApp，再R2-M模块最小闭环/目录迁移，再R1-E真实CRUD/当前能力示例贯通；结构不等于R1整体已完成，GET信息响应不是CRUD。R2基础不等待完整R1-E，R1-E不等待所有未来框架能力，防止循环。其后按R0–R16依赖连续推进；一次一个主功能簇，内部可分派不冲突的子任务。每簇执行 Spec → Implement → Verify → Commit，写明公共 contract、生命周期、事务、错误与资源边界。
+4. 根采用 Laravel 应用职责：app/bootstrap/config/database/public/resources/routes/storage/tests；同 package openrust 提供框架 src/lib.rs 与默认 server 薄 src/main.rs，default-members=["."]、default-run="server"。唯一 modules/example 作为普通业务模块由根 app/mod.rs、bootstrap 与 routes 装配，不是独立应用/package/bin，不新增 example feature；保护有效代码和测试后删除原双应用与根 examples。业务集中在 modules/；其余目录均为框架通用结构和代码；示例专有迁移/种子/模板/proto/生成脚本与测试 fixture 留模块内，根仅通用公开挂载，不因示例保留 build.rs/build 依赖或样例特判。CLI 模板仍提供用户应用生成功能，只在 /tmp 验证。按 ADR-074 重新验收，目录迁移不能替代框架等价证明。
 5. 完成交付矩阵的全部适用机制：内核/Provider/Container/Facade、HTTP/FormRequest/Resource、ORM/关系/Factory、认证授权、缓存/存储、视图/国际化/通信、事件/队列/调度、网络/广播、观测、Artisan 式 CLI、测试与生成器、生产集群、V2 和已纳入的生态可选包。子行为、排期和证据以总计划为准，不私自缩小范围。
 6. 已有实现可复用、适配或重写；复用必须通过新 contract 测试。删除失效代码、旧别名和重复内核，迁移全部调用方、模板、示例、CI 与文档，不长期并存两套框架。
 
@@ -31,12 +33,14 @@
 - 当前及以后直接在本仓库 main 开发和本地提交，不创建额外源码仓库、开发分支或隔离 worktree。同一功能簇内，主控明确划分互不重叠的文件所有权后可并行实现；存在依赖的任务按顺序推进。Cargo manifests/lock、大规模迁移、共享文档与最终提交由集成负责人协调，同一共享文件不得并发写入；构建 target、端口和服务资源预先分配，清理前确认无其他任务占用。worker 不递归派发、不擅改整体 contract、不推送。高风险代码由不同模型或 Provider 独立审查。
 - 按当前工具的异步任务规则汇报启动和完成；不虚报后台任务已运行，不把计划中的验证写成已执行。
 
+每项闭环必须是固定上游源码/测试→Rust公开API/配置→等价行为测试→modules/example实际代码→文档→适用真实服务证据；用户约定、增强、必要Rust差异与未闭合缺口独立记录。无法等价不声称严格1:1，商业/闭源运营、AI产品、真实付款和对外动作不因本定位扩大。
+
 ## 必须实际验证
 
 - 每个代码簇执行适用 fmt、workspace clippy/test/doc、cargo deny、feature/MSRV 门禁；失败先修复。生成项目执行 check/test 和真实启动/HTTP 流程。
 - PostgreSQL 18/MySQL 8.4 LTS 双库；SQLite 单机支持按阶段纳入。真实复制验收延迟/追平/强制主库/故障恢复，不能用两个独立数据库替代。
 - 真实 Redis、S3、SMTP、HTTP/WebSocket/SSE/gRPC、Collector；各数据库分别验收负载均衡、两个 API、多 worker/scheduler 和共享状态/文件/广播/恢复。外部 SMS/支付等仅用授权目标和凭据。
-- 根 workspace 与 demo 目录普通 `cargo run` 和真实 HTTP 启动实际成功；额外 --bin/--package 或命令别名不能替代。
+- 根目录普通 `cargo run` 和真实 HTTP 启动实际成功；额外 --bin/--package 或命令别名不能替代。
 - 验证单机部署、完整集群、资源上限、性能、干净环境黄金路径与 Laravel 使用者任务对照；没有真人走查时注明 Agent 证据。
 
 ## 持续交付

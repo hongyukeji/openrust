@@ -2,11 +2,11 @@
 
 > 基线：`c63d7e8`，2026-10-28；仅盘点，原验证不等于新 contract 验收。
 
-框架实现共 110 个源码文件、tests 下 75 个文件；下列文件迁移时必须保留行为覆盖。复用/适配后的能力均须重新验证。
+框架实现共 110 个源码文件、tests 下 75 个文件；下列文件迁移时必须保留行为覆盖。当前目标按 ADR-073 指向根通用框架结构与普通 app/example 模块；示例专属迁移/资源/协议/测试已归模块，新布局完整门禁仍待执行；基线原路径仅为历史来源，不表示目录仍存在。复用/适配后的能力均须重新验证。
 
 ## 源码与测试资产
 
-| 基线原路径 | 当前路径 | 选择与归属 |
+| 基线原路径 | 当前目标或责任归属 | 选择与归属 |
 | --- | --- | --- |
 | `src/audit/README.md` | `src/audit/README.md` | 适配；R1 移框架，后继语义按章节矩阵 |
 | `src/audit/testing.rs` | `src/audit/testing.rs` | 适配；R1 移框架，后继语义按章节矩阵 |
@@ -95,7 +95,7 @@
 | `src/mail/README.md` | `src/mail/README.md` | 适配；R1 移框架，后继语义按章节矩阵 |
 | `src/mail/mod.rs` | `src/mail/mod.rs` | 适配；R1 移框架，后继语义按章节矩阵 |
 | `src/mail/template.rs` | `src/mail/template.rs` | 适配；R1 移框架，后继语义按章节矩阵 |
-| `src/main.rs` | `examples/demo/src/main.rs` | 适配；R1 移框架，后继语义按章节矩阵 |
+| `src/main.rs` | `src/main.rs` | 迁入根应用职责或普通业务模块；保留并重新验证有效行为 |
 | `src/notifications.rs` | `src/notifications.rs` | 适配；R1 移框架，后继语义按章节矩阵 |
 | `src/queue/redis.rs` | `src/queue/redis.rs` | 适配；R1 移框架，后继语义按章节矩阵 |
 | `src/queue.rs` | `src/queue.rs` | 适配；R1 移框架，后继语义按章节矩阵 |
@@ -157,34 +157,34 @@
 | `tests/http/view.rs` | `tests/http/view.rs` | 保留回归/consumer，按框架与应用职责迁移 |
 | `tests/queue/driver_contract.rs` | `tests/queue/driver_contract.rs` | 保留回归/consumer，按框架与应用职责迁移 |
 | `tests/queue/redis_driver.rs` | `tests/queue/redis_driver.rs` | 保留回归/consumer，按框架与应用职责迁移 |
-| `tests/server/auth/database.rs` | `examples/demo/tests/server/auth/database.rs` | 保留回归/consumer，按框架与应用职责迁移 |
-| `tests/server/auth/mfa.rs` | `examples/demo/tests/server/auth/mfa.rs` | 保留回归/consumer，按框架与应用职责迁移 |
-| `tests/server/auth/oidc.rs` | `examples/demo/tests/server/auth/oidc.rs` | 保留回归/consumer，按框架与应用职责迁移 |
-| `tests/server/auth/oidc_keycloak.rs` | `examples/demo/tests/server/auth/oidc_keycloak.rs` | 保留回归/consumer，按框架与应用职责迁移 |
-| `tests/server/auth/query_authorization.rs` | `examples/demo/tests/server/auth/query_authorization.rs` | 保留回归/consumer，按框架与应用职责迁移 |
-| `tests/server/auth/routes.rs` | `examples/demo/tests/server/auth/routes.rs` | 保留回归/consumer，按框架与应用职责迁移 |
-| `tests/server/auth/runtime.rs` | `examples/demo/tests/server/auth/runtime.rs` | 保留回归/consumer，按框架与应用职责迁移 |
-| `tests/server/data_exchange.rs` | `examples/demo/tests/server/data_exchange.rs` | 保留回归/consumer，按框架与应用职责迁移 |
-| `tests/server/data_exchange_tasks.rs` | `examples/demo/tests/server/data_exchange_tasks.rs` | 保留回归/consumer，按框架与应用职责迁移 |
-| `tests/server/database/connection.rs` | `examples/demo/tests/server/database/connection.rs` | 保留回归/consumer，按框架与应用职责迁移 |
-| `tests/server/database/coordination.rs` | `examples/demo/tests/server/database/coordination.rs` | 保留回归/consumer，按框架与应用职责迁移 |
-| `tests/server/database/migration.rs` | `examples/demo/tests/server/database/migration.rs` | 保留回归/consumer，按框架与应用职责迁移 |
-| `tests/server/fixtures/keycloak/openrust-realm.json` | `examples/demo/tests/server/fixtures/keycloak/openrust-realm.json` | 保留回归/consumer，按框架与应用职责迁移 |
-| `tests/server/grpc.rs` | `examples/demo/tests/server/grpc.rs` | 保留回归/consumer，按框架与应用职责迁移 |
-| `tests/server/http/client.rs` | `examples/demo/tests/server/http/client.rs` | 保留回归/consumer，按框架与应用职责迁移 |
-| `tests/server/i18n/runtime.rs` | `examples/demo/tests/server/i18n/runtime.rs` | 保留回归/consumer，按框架与应用职责迁移 |
-| `tests/server/mail/templates.rs` | `examples/demo/tests/server/mail/templates.rs` | 保留回归/consumer，按框架与应用职责迁移 |
-| `tests/server/queue/crash_recovery.rs` | `examples/demo/tests/server/queue/crash_recovery.rs` | 保留回归/consumer，按框架与应用职责迁移 |
-| `tests/server/queue/notifications.rs` | `examples/demo/tests/server/queue/notifications.rs` | 保留回归/consumer，按框架与应用职责迁移 |
-| `tests/server/queue/redis.rs` | `examples/demo/tests/server/queue/redis.rs` | 保留回归/consumer，按框架与应用职责迁移 |
-| `tests/server/queue/worker.rs` | `examples/demo/tests/server/queue/worker.rs` | 保留回归/consumer，按框架与应用职责迁移 |
-| `tests/server/realtime.rs` | `examples/demo/tests/server/realtime.rs` | 保留回归/consumer，按框架与应用职责迁移 |
-| `tests/server/schedule/calendar.rs` | `examples/demo/tests/server/schedule/calendar.rs` | 保留回归/consumer，按框架与应用职责迁移 |
-| `tests/server/schedule/coordination.rs` | `examples/demo/tests/server/schedule/coordination.rs` | 保留回归/consumer，按框架与应用职责迁移 |
-| `tests/server/server/aggregate.rs` | `examples/demo/tests/server/server/aggregate.rs` | 保留回归/consumer，按框架与应用职责迁移 |
-| `tests/server/storage/driver_contract.rs` | `examples/demo/tests/server/storage/driver_contract.rs` | 保留回归/consumer，按框架与应用职责迁移 |
-| `tests/server/storage/http.rs` | `examples/demo/tests/server/storage/http.rs` | 保留回归/consumer，按框架与应用职责迁移 |
-| `tests/server/storage/s3.rs` | `examples/demo/tests/server/storage/s3.rs` | 保留回归/consumer，按框架与应用职责迁移 |
+| `tests/server/auth/database.rs` | `tests/server/auth/database.rs` | 保留回归/consumer，按框架与应用职责迁移 |
+| `tests/server/auth/mfa.rs` | `tests/server/auth/mfa.rs` | 保留回归/consumer，按框架与应用职责迁移 |
+| `tests/server/auth/oidc.rs` | `tests/server/auth/oidc.rs` | 保留回归/consumer，按框架与应用职责迁移 |
+| `tests/server/auth/oidc_keycloak.rs` | `tests/server/auth/oidc_keycloak.rs` | 保留回归/consumer，按框架与应用职责迁移 |
+| `tests/server/auth/query_authorization.rs` | `tests/server/auth/query_authorization.rs` | 保留回归/consumer，按框架与应用职责迁移 |
+| `tests/server/auth/routes.rs` | `tests/server/auth/routes.rs` | 保留回归/consumer，按框架与应用职责迁移 |
+| `tests/server/auth/runtime.rs` | `tests/server/auth/runtime.rs` | 保留回归/consumer，按框架与应用职责迁移 |
+| `tests/server/data_exchange.rs` | `tests/server/data_exchange.rs` | 保留回归/consumer，按框架与应用职责迁移 |
+| `tests/server/data_exchange_tasks.rs` | `tests/server/data_exchange_tasks.rs` | 保留回归/consumer，按框架与应用职责迁移 |
+| `tests/server/database/connection.rs` | `tests/server/database/connection.rs` | 保留回归/consumer，按框架与应用职责迁移 |
+| `tests/server/database/coordination.rs` | `tests/server/database/coordination.rs` | 保留回归/consumer，按框架与应用职责迁移 |
+| `tests/server/database/migration.rs` | `tests/server/database/migration.rs` | 保留回归/consumer，按框架与应用职责迁移 |
+| `tests/server/fixtures/keycloak/openrust-realm.json` | `tests/server/fixtures/keycloak/openrust-realm.json` | 保留回归/consumer，按框架与应用职责迁移 |
+| `tests/server/grpc.rs` | `tests/server/grpc.rs` | 保留回归/consumer，按框架与应用职责迁移 |
+| `tests/server/http/client.rs` | `tests/server/http/client.rs` | 保留回归/consumer，按框架与应用职责迁移 |
+| `tests/server/i18n/runtime.rs` | `tests/server/i18n/runtime.rs` | 保留回归/consumer，按框架与应用职责迁移 |
+| `tests/server/mail/templates.rs` | `tests/server/mail/templates.rs` | 保留回归/consumer，按框架与应用职责迁移 |
+| `tests/server/queue/crash_recovery.rs` | `tests/server/queue/crash_recovery.rs` | 保留回归/consumer，按框架与应用职责迁移 |
+| `tests/server/queue/notifications.rs` | `tests/server/queue/notifications.rs` | 保留回归/consumer，按框架与应用职责迁移 |
+| `tests/server/queue/redis.rs` | `tests/server/queue/redis.rs` | 保留回归/consumer，按框架与应用职责迁移 |
+| `tests/server/queue/worker.rs` | `tests/server/queue/worker.rs` | 保留回归/consumer，按框架与应用职责迁移 |
+| `tests/server/realtime.rs` | `tests/server/realtime.rs` | 保留回归/consumer，按框架与应用职责迁移 |
+| `tests/server/schedule/calendar.rs` | `tests/server/schedule/calendar.rs` | 保留回归/consumer，按框架与应用职责迁移 |
+| `tests/server/schedule/coordination.rs` | `tests/server/schedule/coordination.rs` | 保留回归/consumer，按框架与应用职责迁移 |
+| `tests/server/server/aggregate.rs` | `tests/server/server/aggregate.rs` | 保留回归/consumer，按框架与应用职责迁移 |
+| `tests/server/storage/driver_contract.rs` | `tests/server/storage/driver_contract.rs` | 保留回归/consumer，按框架与应用职责迁移 |
+| `tests/server/storage/http.rs` | `tests/server/storage/http.rs` | 保留回归/consumer，按框架与应用职责迁移 |
+| `tests/server/storage/s3.rs` | `tests/server/storage/s3.rs` | 保留回归/consumer，按框架与应用职责迁移 |
 | `tools/README.md` | `tools/README.md` | 保留独立编译边界；R1 改路径/模板 |
 | `tools/cli/Cargo.toml` | `tools/cli/Cargo.toml` | 保留独立编译边界；R1 改路径/模板 |
 | `tools/cli/README.md` | `tools/cli/README.md` | 保留独立编译边界；R1 改路径/模板 |
@@ -211,52 +211,52 @@
 | `tools/testing/README.md` | `tools/testing/README.md` | 保留独立编译边界；R1 改路径/模板 |
 | `tools/testing/src/lib.rs` | `tools/testing/src/lib.rs` | 保留独立编译边界；R1 改路径/模板 |
 | `tools/testing/tests/database.rs` | `tools/testing/tests/database.rs` | 保留独立编译边界；R1 改路径/模板 |
-| `apps/README.md` | `examples/demo/app/README.md` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/.env.example` | `examples/example/.env.example` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/.gitignore` | `examples/example/.gitignore` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/AGENTS.md` | `examples/example/AGENTS.md` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/Cargo.toml` | `examples/example/Cargo.toml` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/README.md` | `examples/example/README.md` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/build.rs` | `examples/example/build.rs` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/config/api.toml` | `examples/example/config/api.toml` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/config/app.toml` | `examples/example/config/app.toml` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/config/auth.toml` | `examples/example/config/auth.toml` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/config/cache.toml` | `examples/example/config/cache.toml` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/config/database.toml` | `examples/example/config/database.toml` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/config/grpc.toml` | `examples/example/config/grpc.toml` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/config/i18n.toml` | `examples/example/config/i18n.toml` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/config/mail.toml` | `examples/example/config/mail.toml` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/config/security.toml` | `examples/example/config/security.toml` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/config/server.toml` | `examples/example/config/server.toml` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/config/session.toml` | `examples/example/config/session.toml` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/config/sms.toml` | `examples/example/config/sms.toml` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/config/view.toml` | `examples/example/config/view.toml` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/migration/Cargo.toml` | `examples/example/database/migrations/Cargo.toml` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/migration/src/lib.rs` | `examples/example/database/migrations/src/lib.rs` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/proto/echo.proto` | `examples/example/proto/echo.proto` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/public/index.html` | `examples/example/public/index.html` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/src/app.rs` | `examples/example/bootstrap/app.rs` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/src/controllers/mod.rs` | `examples/example/app/http/controllers/mod.rs` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/src/events/mod.rs` | `examples/example/app/events/mod.rs` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/src/grpc.rs` | `examples/example/app/grpc.rs` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/src/jobs/example_heartbeat.rs` | `examples/example/app/jobs/example_heartbeat.rs` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/src/jobs/mod.rs` | `examples/example/app/jobs/mod.rs` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/src/mailers/mod.rs` | `examples/example/app/mail/mod.rs` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/src/main.rs` | `examples/example/src/main.rs` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/src/middleware/mod.rs` | `examples/example/app/http/middleware/mod.rs` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/src/models/_entities/.gitkeep` | `examples/example/app/models/_entities/.gitkeep` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/src/models/mod.rs` | `examples/example/app/models/mod.rs` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/src/policies/mod.rs` | `examples/example/app/policies/mod.rs` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/src/routes.rs` | `examples/example/routes/web.rs` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/src/schedule.rs` | `examples/example/routes/console.rs` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/src/seed.rs` | `examples/example/database/seeders.rs` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/src/services/mod.rs` | `examples/example/app/services/mod.rs` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/tests/auth_flows.rs` | `examples/example/tests/auth_flows.rs` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/views/index.html` | `examples/example/resources/views/index.html` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/views/layouts/app.html` | `examples/example/resources/views/layouts/app.html` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/views/pages/about.html` | `examples/example/resources/views/pages/about.html` | 重写应用职责目录；保留综合示例能力 |
-| `apps/example/views/partials/footer.html` | `examples/example/resources/views/partials/footer.html` | 重写应用职责目录；保留综合示例能力 |
-| `apps/mod.rs` | `examples/demo/bootstrap/app.rs` | 重写应用职责目录；保留综合示例能力 |
+| `apps/README.md` | `app/README.md` | 迁入根应用职责或普通业务模块；保留并重新验证有效行为 |
+| `apps/example/.env.example` | `.env.example` | 迁入根应用职责或普通业务模块；保留并重新验证有效行为 |
+| `apps/example/.gitignore` | `.gitignore` | 迁入根应用职责或普通业务模块；保留并重新验证有效行为 |
+| `apps/example/AGENTS.md` | `AGENTS.md` | 移除独立子应用指南，遵循根协作契约与模块 README |
+| `apps/example/Cargo.toml` | `Cargo.toml` | 迁入根应用职责或普通业务模块；保留并重新验证有效行为 |
+| `apps/example/README.md` | `app/example/README.md` | 重写应用职责目录；保留综合示例能力 |
+| `apps/example/build.rs` | `app/example/proto/generate.py` | 模块专属实现/资源，通过公开入口挂载；本布局完整门禁另行验证 |
+| `apps/example/config/api.toml` | `config/api.toml` | 迁入根应用职责或普通业务模块；保留并重新验证有效行为 |
+| `apps/example/config/app.toml` | `config/app.toml` | 迁入根应用职责或普通业务模块；保留并重新验证有效行为 |
+| `apps/example/config/auth.toml` | `config/auth.toml` | 迁入根应用职责或普通业务模块；保留并重新验证有效行为 |
+| `apps/example/config/cache.toml` | `config/cache.toml` | 迁入根应用职责或普通业务模块；保留并重新验证有效行为 |
+| `apps/example/config/database.toml` | `config/database.toml` | 迁入根应用职责或普通业务模块；保留并重新验证有效行为 |
+| `apps/example/config/grpc.toml` | `config/grpc.toml` | 迁入根应用职责或普通业务模块；保留并重新验证有效行为 |
+| `apps/example/config/i18n.toml` | `config/i18n.toml` | 迁入根应用职责或普通业务模块；保留并重新验证有效行为 |
+| `apps/example/config/mail.toml` | `config/mail.toml` | 迁入根应用职责或普通业务模块；保留并重新验证有效行为 |
+| `apps/example/config/security.toml` | `config/security.toml` | 迁入根应用职责或普通业务模块；保留并重新验证有效行为 |
+| `apps/example/config/server.toml` | `config/server.toml` | 迁入根应用职责或普通业务模块；保留并重新验证有效行为 |
+| `apps/example/config/session.toml` | `config/session.toml` | 迁入根应用职责或普通业务模块；保留并重新验证有效行为 |
+| `apps/example/config/sms.toml` | `config/sms.toml` | 迁入根应用职责或普通业务模块；保留并重新验证有效行为 |
+| `apps/example/config/view.toml` | `config/view.toml` | 迁入根应用职责或普通业务模块；保留并重新验证有效行为 |
+| `apps/example/migration/Cargo.toml` | `app/example/database/migrations/mod.rs` | 模块专属实现/资源，通过公开入口挂载；本布局完整门禁另行验证 |
+| `apps/example/migration/src/lib.rs` | `app/example/database/migrations/mod.rs` | 模块专属实现/资源，通过公开入口挂载；本布局完整门禁另行验证 |
+| `apps/example/proto/echo.proto` | `app/example/proto/echo.proto` | 模块专属实现/资源，通过公开入口挂载；本布局完整门禁另行验证 |
+| `apps/example/public/index.html` | `public/index.html` | 迁入根应用职责或普通业务模块；保留并重新验证有效行为 |
+| `apps/example/src/app.rs` | `app/example/providers/example.rs` | 模块专属实现/资源，通过公开入口挂载；本布局完整门禁另行验证 |
+| `apps/example/src/controllers/mod.rs` | — | 原空占位文件不保留；业务与公开扩展按唯一 app/example 实际代码覆盖，不将占位计为能力 |
+| `apps/example/src/events/mod.rs` | — | 原空占位文件不保留；业务与公开扩展按唯一 app/example 实际代码覆盖，不将占位计为能力 |
+| `apps/example/src/grpc.rs` | `app/example/grpc.rs` | 迁入根应用职责或普通业务模块；保留并重新验证有效行为 |
+| `apps/example/src/jobs/example_heartbeat.rs` | `app/example/jobs/example_heartbeat.rs` | 迁入根应用职责或普通业务模块；保留并重新验证有效行为 |
+| `apps/example/src/jobs/mod.rs` | `app/example/jobs/mod.rs` | 迁入根应用职责或普通业务模块；保留并重新验证有效行为 |
+| `apps/example/src/mailers/mod.rs` | — | 原空占位文件不保留；业务与公开扩展按唯一 app/example 实际代码覆盖，不将占位计为能力 |
+| `apps/example/src/main.rs` | `src/main.rs` | 迁入根应用职责或普通业务模块；保留并重新验证有效行为 |
+| `apps/example/src/middleware/mod.rs` | — | 原空占位文件不保留；业务与公开扩展按唯一 app/example 实际代码覆盖，不将占位计为能力 |
+| `apps/example/src/models/_entities/.gitkeep` | — | 原空占位文件不保留；业务与公开扩展按唯一 app/example 实际代码覆盖，不将占位计为能力 |
+| `apps/example/src/models/mod.rs` | — | 原空占位文件不保留；业务与公开扩展按唯一 app/example 实际代码覆盖，不将占位计为能力 |
+| `apps/example/src/policies/mod.rs` | — | 原空占位文件不保留；业务与公开扩展按唯一 app/example 实际代码覆盖，不将占位计为能力 |
+| `apps/example/src/routes.rs` | `app/example/routes/mod.rs` | 模块专属实现/资源，通过公开入口挂载；本布局完整门禁另行验证 |
+| `apps/example/src/schedule.rs` | `app/example/jobs/mod.rs` | 迁入根应用职责或普通业务模块；保留并重新验证有效行为 |
+| `apps/example/src/seed.rs` | `app/example/database/seeders/mod.rs` | 模块专属实现/资源，通过公开入口挂载；本布局完整门禁另行验证 |
+| `apps/example/src/services/mod.rs` | — | 原空占位文件不保留；业务与公开扩展按唯一 app/example 实际代码覆盖，不将占位计为能力 |
+| `apps/example/tests/auth_flows.rs` | `app/example/tests/auth_flows.rs` | 模块专属实现/资源，通过公开入口挂载；本布局完整门禁另行验证 |
+| `apps/example/views/index.html` | `app/example/resources/views/index.html` | 模块专属实现/资源，通过公开入口挂载；本布局完整门禁另行验证 |
+| `apps/example/views/layouts/app.html` | `app/example/resources/views/layouts/app.html` | 模块专属实现/资源，通过公开入口挂载；本布局完整门禁另行验证 |
+| `apps/example/views/pages/about.html` | `app/example/resources/views/pages/about.html` | 模块专属实现/资源，通过公开入口挂载；本布局完整门禁另行验证 |
+| `apps/example/views/partials/footer.html` | `app/example/resources/views/partials/footer.html` | 模块专属实现/资源，通过公开入口挂载；本布局完整门禁另行验证 |
+| `apps/mod.rs` | `app/mod.rs` | 迁入根应用职责或普通业务模块；保留并重新验证有效行为 |
 
 ## 已有证据与缺口
 
@@ -329,31 +329,31 @@
 | `tests/http/view.rs` | `root_view_is_html_and_escapes_context`, `view_root_requires_plugin_and_existing_template`, `renderer_loads_named_views`, `development_reload_reads_updated_template`, `template_symlink_cannot_escape_template_directory` |
 | `tests/queue/driver_contract.rs` | `public_registry_executes_typed_jobs_with_custom_context_behavior`, `registry_execute_is_an_explicit_awaited_in_process_path`, `progress_without_driver_reporter_fails_explicitly`, `public_context_rejects_invalid_attempt_metadata`, `legacy_custom_driver_rejects_nonempty_execution_metadata` |
 | `tests/queue/redis_driver.rs` | `redis_queue_fails_closed_for_bad_namespace_or_unavailable_service`, `redis_queue_shares_atomic_claims_uniqueness_progress_and_retry`, `redis_queue_recovers_a_task_after_its_worker_process_is_killed` |
-| `examples/demo/tests/server/auth/database.rs` | `signed_link_revocation_is_shared_by_database_instances`, `auth_migration_and_shared_revocation_work_on_the_configured_database`, `auth_migrations_use_default_empty_prefix_and_full_name_mapping`, `audit_and_permission_change_share_a_transaction_on_the_configured_database` |
-| `examples/demo/tests/server/auth/mfa.rs` | `mfa_lifecycle_is_shared_secure_and_reachable_over_real_tcp`
-| `examples/demo/tests/server/auth/oidc.rs` | `external_identity_flows_enforce_browser_binding_single_use_and_explicit_linking`
-| `examples/demo/tests/server/auth/oidc_keycloak.rs` | `keycloak_two_client_sso_and_backchannel_logout_tokens_are_validated`, `keycloak_api_node_process` |
-| `examples/demo/tests/server/auth/query_authorization.rs` | `query_scope_filters_mutations_and_relations_on_real_database`, `tenant_scope_is_trusted_and_shared_between_real_api_nodes` |
-| `examples/demo/tests/server/auth/routes.rs` | `facade_application_authentication_coexists_with_dependency_injection`, `facade_application_authenticates_jwt_without_session_plugin` |
-| `examples/demo/tests/server/auth/runtime.rs` | `jwt_authentication_uses_the_configured_key_ring_without_session_middleware`, `current_user_and_injected_service_share_the_route_request`, `cookie_authentication_uses_the_shared_session_and_preserves_csrf_checks`, `redis_sessions_are_shared_between_apps_and_revoke_across_instances`, `optional_identity_is_anonymous_only_when_selected_credentials_are_absent`, `default_database_authenticator_requires_database_at_startup`, `auth_plugin_rejects_invalid_password_capacity_during_startup`, `duplicate_auth_plugin_is_rejected` |
-| `examples/demo/tests/server/data_exchange.rs` | `server_feature_exposes_bounded_csv_import_api`
-| `examples/demo/tests/server/data_exchange_tasks.rs` | `import_batches_are_atomic_idempotent_and_export_is_streamed`
-| `examples/demo/tests/server/database/connection.rs` | `plugin_opens_pool_and_executes_a_query`, `runtime_database_readiness_fails_and_recovers_through_a_proxy`, `transaction_commits_success_and_rolls_back_callback_errors`, `transaction_events_rollback_before_commit_and_ignore_after_commit_errors`, `supported_backends_skip_rows_locked_by_another_transaction` |
-| `examples/demo/tests/server/database/coordination.rs` | `f4c_swr_uses_shared_locks_across_apps_and_redis_connections`
-| `examples/demo/tests/server/database/migration.rs` | `migration_command_applies_repeats_reports_and_rolls_back`, `migration_commands_serialize_timeout_and_recover_after_process_exit`, `child_migration_process_runs_migrations`, `named_database_instances_keep_migrations_and_transactions_isolated` |
-| `examples/demo/tests/server/grpc.rs` | `plugin_registers_service_and_serves_a_bound_tcp_listener`, `plugin_rejects_duplicate_services_by_name`, `plugin_rejects_health_drain_grace_that_exhausts_shutdown_deadline`, `server_host_composes_http_and_grpc_under_one_lifecycle`, `server_requires_an_explicit_service_registration`, `plaintext_server_requires_an_explicit_development_or_proxy_opt_in`, `grpc_serve_signal_path_drains_on_sigterm`, `grpc_sigterm_child` |
-| `examples/demo/tests/server/http/client.rs` | `aggregated_server_can_use_outbound_http_client`, `restricted_client_allows_declared_local_target_and_does_not_follow_redirects`, `named_dependencies_bound_waiters_without_exhausting_each_other`, `optional_circuit_breaker_opens_and_recovers_after_half_open_probe`, `cancelling_a_queued_dependency_request_releases_its_queue_slot`, `dependency_permit_covers_streaming_response_and_queue_wait_budget` |
-| `examples/demo/tests/server/i18n/runtime.rs` | `aggregate_server_selects_plural_forms_per_request_locale`, `aggregate_server_localizes_errors_and_scopes_concurrent_requests`, `aggregate_server_exposes_request_locale_and_explicit_override`, `validator_rule_messages_localize_without_changing_code_or_field_path`, `untranslated_application_error_keeps_its_safe_message`, `app_catalog_can_override_builtin_messages_with_parameters` |
-| `examples/demo/tests/server/mail/templates.rs` | `server_application_can_render_and_build_localized_multipart_mail`
-| `examples/demo/tests/server/queue/crash_recovery.rs` | `tenant_metadata_survives_a_separate_worker_process_and_retry`, `stale_worker_token_cannot_acknowledge_a_reclaimed_job`, `child_queue_worker_drains_on_sigterm`, `process_crash_releases_job_after_lease_expiry`, `child_worker_holds_crash_probe`, `child_worker_processes_tenant_retry_probe` |
-| `examples/demo/tests/server/queue/notifications.rs` | `notification_channels_share_transaction_but_run_as_independent_jobs`, `queued_notification_is_accepted_by_configured_smtp_sink` |
-| `examples/demo/tests/server/queue/redis.rs` | `queue_plugin_selects_redis_without_a_database_plugin`, `redis_queue_rejects_database_transactional_schedules_at_build` |
-| `examples/demo/tests/server/realtime.rs` | `http_auth_origin_and_sse_headers_are_enforced`
-| `examples/demo/tests/server/schedule/calendar.rs` | `cron_plan_revisions_are_separate_and_shared_ticks_dispatch_once`, `child_calendar_scheduler_ticks_due_slot`, `cron_dst_gap_and_fold_slots_are_persisted_correctly`, `cron_catch_up_is_bounded_per_tick_and_continues_backlog` |
-| `examples/demo/tests/server/schedule/coordination.rs` | `independent_scheduler_processes_dispatch_one_job_per_slot`, `child_scheduler_dispatches_due_slot`, `child_scheduler_stops_on_sigterm`, `child_scheduler_exits_after_committing_slot` |
-| `examples/demo/tests/server/server/aggregate.rs` | `mailer_plugin_is_registered_by_the_assembled_server`, `cache_plugin_uses_the_configured_shared_redis_store`, `health_has_request_id`, `serve_process_exits_successfully_after_sigterm`, `metrics_scrape_is_served_over_tcp_only_when_explicitly_enabled`, `api_root_reports_server_name_and_version`, `root_serves_the_default_public_index`, `resource_macro_registers_controller_actions`, `database_plugin_is_available_through_the_facade`, `config_show_runs_and_redacts_secrets`, `default_config_loads_from_package_directory`, `unknown_route_returns_envelope` |
-| `examples/demo/tests/server/storage/driver_contract.rs` | `consumer_registers_custom_named_disks_without_private_framework_access`
-| `examples/demo/tests/server/storage/http.rs` | `assembled_server_streams_upload_and_download_over_tcp_with_authorization`
-| `examples/demo/tests/server/storage/s3.rs` | `s3_streams_multipart_cancellation_and_exact_version_presigned_reads`
+| `tests/server/auth/database.rs` | `signed_link_revocation_is_shared_by_database_instances`, `auth_migration_and_shared_revocation_work_on_the_configured_database`, `auth_migrations_use_default_empty_prefix_and_full_name_mapping`, `audit_and_permission_change_share_a_transaction_on_the_configured_database` |
+| `tests/server/auth/mfa.rs` | `mfa_lifecycle_is_shared_secure_and_reachable_over_real_tcp`
+| `tests/server/auth/oidc.rs` | `external_identity_flows_enforce_browser_binding_single_use_and_explicit_linking`
+| `tests/server/auth/oidc_keycloak.rs` | `keycloak_two_client_sso_and_backchannel_logout_tokens_are_validated`, `keycloak_api_node_process` |
+| `tests/server/auth/query_authorization.rs` | `query_scope_filters_mutations_and_relations_on_real_database`, `tenant_scope_is_trusted_and_shared_between_real_api_nodes` |
+| `tests/server/auth/routes.rs` | `facade_application_authentication_coexists_with_dependency_injection`, `facade_application_authenticates_jwt_without_session_plugin` |
+| `tests/server/auth/runtime.rs` | `jwt_authentication_uses_the_configured_key_ring_without_session_middleware`, `current_user_and_injected_service_share_the_route_request`, `cookie_authentication_uses_the_shared_session_and_preserves_csrf_checks`, `redis_sessions_are_shared_between_apps_and_revoke_across_instances`, `optional_identity_is_anonymous_only_when_selected_credentials_are_absent`, `default_database_authenticator_requires_database_at_startup`, `auth_plugin_rejects_invalid_password_capacity_during_startup`, `duplicate_auth_plugin_is_rejected` |
+| `tests/server/data_exchange.rs` | `server_feature_exposes_bounded_csv_import_api`
+| `tests/server/data_exchange_tasks.rs` | `import_batches_are_atomic_idempotent_and_export_is_streamed`
+| `tests/server/database/connection.rs` | `plugin_opens_pool_and_executes_a_query`, `runtime_database_readiness_fails_and_recovers_through_a_proxy`, `transaction_commits_success_and_rolls_back_callback_errors`, `transaction_events_rollback_before_commit_and_ignore_after_commit_errors`, `supported_backends_skip_rows_locked_by_another_transaction` |
+| `tests/server/database/coordination.rs` | `f4c_swr_uses_shared_locks_across_apps_and_redis_connections`
+| `tests/server/database/migration.rs` | `migration_command_applies_repeats_reports_and_rolls_back`, `migration_commands_serialize_timeout_and_recover_after_process_exit`, `child_migration_process_runs_migrations`, `named_database_instances_keep_migrations_and_transactions_isolated` |
+| `tests/server/grpc.rs` | `plugin_registers_service_and_serves_a_bound_tcp_listener`, `plugin_rejects_duplicate_services_by_name`, `plugin_rejects_health_drain_grace_that_exhausts_shutdown_deadline`, `server_host_composes_http_and_grpc_under_one_lifecycle`, `server_requires_an_explicit_service_registration`, `plaintext_server_requires_an_explicit_development_or_proxy_opt_in`, `grpc_serve_signal_path_drains_on_sigterm`, `grpc_sigterm_child` |
+| `tests/server/http/client.rs` | `aggregated_server_can_use_outbound_http_client`, `restricted_client_allows_declared_local_target_and_does_not_follow_redirects`, `named_dependencies_bound_waiters_without_exhausting_each_other`, `optional_circuit_breaker_opens_and_recovers_after_half_open_probe`, `cancelling_a_queued_dependency_request_releases_its_queue_slot`, `dependency_permit_covers_streaming_response_and_queue_wait_budget` |
+| `tests/server/i18n/runtime.rs` | `aggregate_server_selects_plural_forms_per_request_locale`, `aggregate_server_localizes_errors_and_scopes_concurrent_requests`, `aggregate_server_exposes_request_locale_and_explicit_override`, `validator_rule_messages_localize_without_changing_code_or_field_path`, `untranslated_application_error_keeps_its_safe_message`, `app_catalog_can_override_builtin_messages_with_parameters` |
+| `tests/server/mail/templates.rs` | `server_application_can_render_and_build_localized_multipart_mail`
+| `tests/server/queue/crash_recovery.rs` | `tenant_metadata_survives_a_separate_worker_process_and_retry`, `stale_worker_token_cannot_acknowledge_a_reclaimed_job`, `child_queue_worker_drains_on_sigterm`, `process_crash_releases_job_after_lease_expiry`, `child_worker_holds_crash_probe`, `child_worker_processes_tenant_retry_probe` |
+| `tests/server/queue/notifications.rs` | `notification_channels_share_transaction_but_run_as_independent_jobs`, `queued_notification_is_accepted_by_configured_smtp_sink` |
+| `tests/server/queue/redis.rs` | `queue_plugin_selects_redis_without_a_database_plugin`, `redis_queue_rejects_database_transactional_schedules_at_build` |
+| `tests/server/realtime.rs` | `http_auth_origin_and_sse_headers_are_enforced`
+| `tests/server/schedule/calendar.rs` | `cron_plan_revisions_are_separate_and_shared_ticks_dispatch_once`, `child_calendar_scheduler_ticks_due_slot`, `cron_dst_gap_and_fold_slots_are_persisted_correctly`, `cron_catch_up_is_bounded_per_tick_and_continues_backlog` |
+| `tests/server/schedule/coordination.rs` | `independent_scheduler_processes_dispatch_one_job_per_slot`, `child_scheduler_dispatches_due_slot`, `child_scheduler_stops_on_sigterm`, `child_scheduler_exits_after_committing_slot` |
+| `tests/server/server/aggregate.rs` | `mailer_plugin_is_registered_by_the_assembled_server`, `cache_plugin_uses_the_configured_shared_redis_store`, `health_has_request_id`, `serve_process_exits_successfully_after_sigterm`, `metrics_scrape_is_served_over_tcp_only_when_explicitly_enabled`, `api_root_reports_server_name_and_version`, `root_serves_the_default_public_index`, `resource_macro_registers_controller_actions`, `database_plugin_is_available_through_the_facade`, `config_show_runs_and_redacts_secrets`, `default_config_loads_from_package_directory`, `unknown_route_returns_envelope` |
+| `tests/server/storage/driver_contract.rs` | `consumer_registers_custom_named_disks_without_private_framework_access`
+| `tests/server/storage/http.rs` | `assembled_server_streams_upload_and_download_over_tcp_with_authorization`
+| `tests/server/storage/s3.rs` | `s3_streams_multipart_cancellation_and_exact_version_presigned_reads`
 | `tools/testing/tests/database.rs` | `each_test_database_has_its_own_migrated_schema_and_rows`
-| `examples/example/tests/auth_flows.rs` | `generated_auth_routes_run_over_http_with_isolated_database_and_fake_mail`
+| `app/example/tests/auth_flows.rs` | `generated_auth_routes_run_over_http_with_isolated_database_and_fake_mail`
