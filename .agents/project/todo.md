@@ -59,10 +59,10 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 11. 根默认 cargo run 与 HTTP、唯一综合示例行为、三类生成应用 check/test/HTTP 须重新验证，缺外部条件明确保留。
 12. 结构门禁/审查通过可限定本地提交并结束R1-S；R1整体及R1-E真实CRUD/当前能力示例不关闭，下一主簇进入R2基础再回来补齐，不推送/发布/tag。
 
-## 扩展示例草稿恢复
+## 扩展示例后续接入
 
-- 缓存/通信扩展示例草稿保存在本地 Git stash 对象 `66d6319c7eb3d43ddffb01a3e443ed0c27741147`，原路径 `app/example/extensions.rs`，已核对字节一致并移出工作区。不要 pop/apply 整个 stash 或直接提交未验收草稿；通过 `git show 66d6319c7eb3d43ddffb01a3e443ed0c27741147^3:app/example/extensions.rs` 读取。
-- 归 R2-M/R1-E：Provider 与模块契约稳定后，由示例负责人取回所需实现，改为 Laravel 对应公开扩展，在 `modules/example/` 内挂载、配置并完成真实行为验证后提交；代码与测试按有效需求取舍，不将草稿存在当作能力完成。验收并提交前保留此 stash。
+- `app/example/extensions.rs` 已作为参考源码纳入版本管理；尚未声明模块、接入或完成 Cargo 验收，不能计作已交付扩展能力。后续直接从仓库源码改造，无需恢复 stash。
+- 归 R2-M/R1-E：统一 Provider 与模块契约稳定后，由示例负责人改写所需实现，在 `modules/example/` 内挂载、配置并验证后提交；旧 Plugin 示例不作为目标接口，代码与测试按有效需求取舍。
 
 ## 综合示例完成边界
 

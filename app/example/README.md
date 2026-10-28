@@ -81,6 +81,7 @@ R2 目标是统一 Container 与 ServiceProvider：register 阶段只绑定容�
 | database/migrations/mod.rs、database/seeders/mod.rs | 模块业务迁移与种子 |
 | resources/views/ | 业务模板 |
 | jobs/ | 当前心跳任务和调度插件 |
+| extensions.rs | 缓存/通信公开扩展参考源码；尚未声明模块或验收，后续按统一 Provider 契约接入 |
 | tests/auth_flows.rs、tests/registration.rs | 同一根 Server 认证流程、模块注册与路由边界测试 |
 | proto/、generated/、grpc.rs | 实际协议输入、显式生成脚本与已生成类型；完整 RPC 服务示例仍待补 |
 
