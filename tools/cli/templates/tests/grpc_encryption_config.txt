@@ -1,0 +1,4 @@
+    std::fs::write(
+        config_dir.join("encryption.toml"),
+        "[security.encryption]\nactive_key_id = 'test'\n\n[security.encryption.keys]\ntest = 'KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio='\n",
+    )?;

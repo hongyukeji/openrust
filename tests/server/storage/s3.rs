@@ -52,6 +52,7 @@ async fn s3_streams_multipart_cancellation_and_exact_version_presigned_reads() -
         )
         .await?;
     assert!(first.metadata.version.is_some());
+    assert_eq!(first.metadata.size, u64::try_from(b"first version".len())?);
     let first_version = first.metadata.version.clone().ok_or_else(|| {
         Error::custom(
             "s3_version_missing",

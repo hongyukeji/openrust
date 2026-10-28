@@ -2396,6 +2396,7 @@ dependencies = [
  "macros",
  "prost",
  "redis",
+ "rustls",
  "sea-orm",
  "sea-orm-migration",
  "serde",

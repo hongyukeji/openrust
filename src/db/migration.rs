@@ -41,10 +41,32 @@ impl MigratorTrait for FrameworkMigrator {
             migrations.push(Box::new(crate::signing::SignedLinkRevocationMigration));
             migrations
         };
+        #[cfg(feature = "auth-mfa")]
+        let migrations = {
+            let mut migrations = migrations;
+            migrations.push(Box::new(crate::auth::AuthMfaMigration));
+            migrations
+        };
+        #[cfg(feature = "auth-oidc")]
+        let migrations = {
+            let mut migrations = migrations;
+            migrations.extend([
+                Box::new(crate::auth::AuthExternalIdentityMigration)
+                    as Box<dyn sea_orm_migration::MigrationTrait>,
+                Box::new(crate::auth::AuthExternalSessionMigration),
+            ]);
+            migrations
+        };
         #[cfg(feature = "queue")]
         let migrations = {
             let mut migrations = migrations;
             migrations.push(Box::new(crate::queue::QueueMigration));
+            migrations
+        };
+        #[cfg(feature = "data-exchange-tasks")]
+        let migrations = {
+            let mut migrations = migrations;
+            migrations.push(Box::new(crate::db::CoordinationMigration));
             migrations
         };
         migrations

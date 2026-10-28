@@ -1,3 +1,15 @@
 {
-  "heartbeat": "Heartbeat completed"
+  "heartbeat": "Heartbeat completed",
+  "welcome_subject": "Welcome",
+  "welcome_body": "Welcome to OpenRust.",
+  "reading_count": {
+    "plural": {
+      "argument": "count",
+      "forms": {
+        "one": "{count} article read",
+        "other": "{count} articles read"
+      }
+    }
+  },
+  "reading_as_of": "As of {date}"
 }

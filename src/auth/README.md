@@ -11,7 +11,7 @@ OpenRust 的认证与授权能力。
 ## 当前能力
 
 - `AuthServiceProvider::new()` 会注册数据库认证器和共享 refresh token 服务。该 Provider 依赖 `DatabaseServiceProvider`、PostgreSQL 或 MySQL，以及 `AuthMigration` 创建的表；使用 refresh token 时还需要 `AuthRefreshTokenMigration`。
-- `SessionServiceProvider::new()` 会安装共享数据库 Session middleware。请先装配提供 `Db` 的 Provider，再注册 `SessionServiceProvider`；自定义 store 可实现 `tower_sessions::SessionStore`，并传给 `SessionServiceProvider::with_store`。
+- `SessionServiceProvider::new()` 会安装共享数据库 Session middleware。请先装配提供 `Db` 的 Provider，再注册 `SessionServiceProvider`；自定义 store 可实现 `tower_sessions::SessionStore`，并传给 `SessionServiceProvider::with_store`。自定义 Cookie 名使用 `SessionConfig.cookie_name` 或 `SessionServiceProvider::with_cookie_config`；标准 Provider 的 middleware 与 `AuthLayer` 读取同一启动快照，重复同名 Cookie 会被拒绝。直接替换整个 Session Provider 的额外扩展路径尚无公开 Cookie 配置绑定契约，不能据此宣称自定义 Provider 自动兼容认证层。
 - 需要 Redis 共享 Session 时，为 `openrust` 启用 `session-redis` feature，并使用 `RedisSessionStore::connect(redis_url, namespace)` 后传入 `SessionServiceProvider::with_store`。数据库 store 仍是默认路径；Redis 连接失败或操作失败会返回错误。所有共享应用副本必须使用同一 namespace，不同应用应使用不同 namespace。
 - 如果 `DatabaseServiceProvider` 已先注册 `Db`，`AuthServiceProvider` 会注册 `RefreshTokens`。它生成高熵不透明凭据，只持久化 SHA-256 摘要，以原子方式轮换，在检测到重放时撤销整个 token family，并支持按账户整体撤销。调用方提供 family 的初始过期时间；轮换不会延长该时间。
 - `openrust new --db postgres|mysql --auth` 会生成 JWT/Auth/AuthFlows Provider、认证迁移、JWT 保护的 `/api/me`、数据库支持的 PAT 保护 `/api/me/pat`，以及注册、邮箱验证、登录、刷新、登出、密码重置路由和 `[auth.jwt]` 配置。签名密钥必须通过 `APP_AUTH_JWT_KEYS_LOCAL` 提供，不能写入生成的配置。

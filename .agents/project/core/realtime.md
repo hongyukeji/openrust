@@ -4,7 +4,7 @@
 
 Realtime::connect 建立有界本地连接；send_to_user 按用户与频道将 JSON 推送到本机连接并发布到配置的共享 transport；revoke_user 关闭本机连接并通知其他节点。公开 RealtimeTransport 可供外部实现替换共享路由。Redis envelope 含 app/namespace topic、节点 ID、用户 ID、频道、消息与过期时刻；同 namespace 节点同属一个消息可见性信任边界。
 
-跨节点发布错误向调用方返回，不本地降级。本机队列先于共享发布处理，因此共享发布失败时，本机连接可能已收到消息而调用仍报错；调用方重试须按可能重复的外部副作用处理。Pub/Sub 只提供在线 best-effort 扇出，无持久回放、远端确认或 exactly-once。入站用户/频道只由可信应用端点解析。SSE 带心跳并关闭连接，不支持 Last-Event-ID；WebSocket 仅处理关闭和协议心跳帧。连接过期、显式撤销及 server shutdown 都会回收会话。
+跨节点发布错误向调用方返回，不本地降级。本机队列先于共享发布处理，因此共享发布失败时，本机连接可能已收到消息而调用仍报错；调用方重试须按可能重复的外部副作用处理。Pub/Sub 只提供在线 best-effort 扇出，无持久回放、远端确认或 exactly-once。入站用户/频道只由可信应用端点解析。SSE 带心跳并关闭连接，不支持 Last-Event-ID；WebSocket 仅处理关闭和协议心跳帧。连接过期、显式撤销及 server shutdown 会回收会话；WebSocket 发送受同一截止、停机信号和单次 5 秒预算约束，退出时最多等待 100 毫秒尝试发送 Close 帧。真双进程 Redis consumer 对撤销断言收到 Close，模块 JWT/Session 双库真实 TCP 回归覆盖到期与停机；慢读客户端的真实 TCP 写饱和仍是限定测试边界。
 
 启用 `metrics` feature 后记录本地在途连接数、容量拒绝数和成功发送数；指标不带用户、频道、节点或消息字段。应用自行创建的裸连接及自定义 transport 不纳入框架计数。
 

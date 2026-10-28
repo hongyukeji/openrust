@@ -20,6 +20,59 @@ impl openrust::core::ServiceProvider for FrameworkRoutes {
     }
 }
 
+#[cfg(all(
+    feature = "auth-oidc",
+    any(feature = "db-postgres", feature = "db-mysql")
+))]
+struct LateOidcOverlay;
+
+#[cfg(all(
+    feature = "auth-oidc",
+    any(feature = "db-postgres", feature = "db-mysql")
+))]
+impl openrust::core::ServiceProvider for LateOidcOverlay {
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut openrust::core::BootContext<'_>,
+    ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.overlay(
+                "example",
+                serde_json::json!({"oidc": {
+                    "issuer": "http://127.0.0.1:18761/realms/openrust",
+                    "client_id": "test-client",
+                    "client_secret": null,
+                    "redirect_uri": "http://127.0.0.1:3000/api/example/oidc/callback",
+                    "allow_loopback": true
+                }}),
+            )
+        })
+    }
+}
+
+#[cfg(all(
+    feature = "auth-oidc",
+    any(feature = "db-postgres", feature = "db-mysql")
+))]
+#[tokio::test]
+async fn oidc_overlay_after_module_routes_fails_before_ready()
+-> Result<(), Box<dyn std::error::Error>> {
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(openrust::db::DatabaseServiceProvider)
+        .provider(super::providers::ExampleServiceProvider::new(
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")),
+        ))
+        .provider(LateOidcOverlay);
+    let error = builder
+        .start(production_sources(false))
+        .await
+        .err()
+        .ok_or("late OIDC overlay unexpectedly became ready")?;
+    assert_eq!(error.code(), "example_oidc_config_changed_after_routes");
+    Ok(())
+}
+
 #[tokio::test]
 async fn module_registration_controls_only_its_business_routes()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -28,6 +81,7 @@ async fn module_registration_controls_only_its_business_routes()
         builder
             .provider(HttpServiceProvider)
             .provider(openrust::db::DatabaseServiceProvider)
+            .provider(openrust::cache::CacheServiceProvider::new())
             .provider(FrameworkRoutes);
         let manifest = openrust::core::ModuleManifest::new().module(super::descriptor(
             false,
@@ -40,6 +94,11 @@ async fn module_registration_controls_only_its_business_routes()
         });
         let sources = figment::Figment::from(figment::providers::Serialized::defaults(
             openrust::config::FrameworkConfig::default(),
+        ))
+        .merge(figment::providers::Serialized::defaults(
+            serde_json::json!({
+                "cache": {"default_store": "default", "stores": {"default": {"driver": "memory"}}}
+            }),
         ));
         let app = openrust::App::from_provider_runtime(builder.start(sources).await?)?;
         assert_eq!(
@@ -133,6 +192,18 @@ async fn production_testapp_replaces_business_dependency_without_changing_routes
     translated.assert_status(StatusCode::OK)?;
     let translated: serde_json::Value = translated.json()?;
     assert_eq!(translated["data"]["message"], "Heartbeat completed");
+    assert_eq!(translated["data"]["locale"], "en");
+    assert!(translated["data"]["number"].as_str().is_some());
+    let chinese = production
+        .request(
+            Request::get("/api/example/heartbeat-label")
+                .header("Accept-Language", "zh-CN")
+                .body(Body::empty())?,
+        )
+        .await?;
+    let chinese: serde_json::Value = chinese.json()?;
+    assert_eq!(chinese["data"]["locale"], "zh-CN");
+    assert_eq!(chinese["data"]["message"], "心跳任务已完成");
     production
         .shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
         .await?;
@@ -190,29 +261,19 @@ async fn production_testapp_renders_module_namespaced_view()
 }
 
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
-#[tokio::test]
-async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
--> Result<(), Box<dyn std::error::Error>> {
-    use openrust::database::sea_orm::{ConnectionTrait, Statement};
-    use openrust::database::sea_orm_migration::{MigrationTrait, MigratorTrait};
-    use openrust::testing::{TestApp, TestDatabase};
-    use std::time::Duration;
+struct EmptyMigrator;
 
-    struct EmptyMigrator;
-    #[openrust::database::sea_orm_migration::async_trait::async_trait]
-    impl MigratorTrait for EmptyMigrator {
-        fn migrations() -> Vec<Box<dyn MigrationTrait>> {
-            Vec::new()
-        }
+#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+#[openrust::database::sea_orm_migration::async_trait::async_trait]
+impl openrust::database::sea_orm_migration::MigratorTrait for EmptyMigrator {
+    fn migrations() -> Vec<Box<dyn openrust::database::sea_orm_migration::MigrationTrait>> {
+        Vec::new()
     }
+}
 
-    let Ok(admin_url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
-        eprintln!("skipping module migration test: OPENRUST_TEST_DATABASE_URL is unset");
-        return Ok(());
-    };
-    let database = TestDatabase::create::<EmptyMigrator>(&admin_url).await?;
-    let sources = || {
-        production_sources(false).merge(figment::providers::Serialized::defaults(
+#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+fn module_migration_sources(database: &openrust::testing::TestDatabase) -> figment::Figment {
+    production_sources(false).merge(figment::providers::Serialized::defaults(
             serde_json::json!({
                 "database": {"url": database.url()},
                 "auth": {"jwt": {
@@ -225,17 +286,55 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
                 }}
             }),
         ))
+}
+
+#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+#[tokio::test]
+#[allow(clippy::too_many_lines)] // 同一隔离库验证启用、迁移与禁用后历史留存。
+async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
+-> Result<(), Box<dyn std::error::Error>> {
+    use openrust::database::sea_orm::{ConnectionTrait, Statement};
+    use openrust::testing::{TestApp, TestDatabase};
+    use std::time::Duration;
+
+    let Ok(admin_url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+        eprintln!("skipping module migration test: OPENRUST_TEST_DATABASE_URL is unset");
+        return Ok(());
     };
+    let database = TestDatabase::create::<EmptyMigrator>(&admin_url).await?;
+    let sources = || module_migration_sources(&database);
     let mut enabled = TestApp::<crate::bootstrap::Server>::builder(sources())
         .build()
         .await?;
     enabled.app()?.run_command("migrate", Vec::new()).await?;
     let connection = database.connection()?;
-    let statement = Statement::from_string(
+    let table = |name| {
+        Statement::from_string(
+            connection.get_database_backend(),
+            format!("SELECT id FROM {name} LIMIT 1"),
+        )
+    };
+    let statement = table("example_heartbeats");
+    let articles = table("example_articles");
+    let article_events = table("example_article_events");
+    let attachment_cleanup = Statement::from_string(
         connection.get_database_backend(),
-        "SELECT id FROM example_heartbeats LIMIT 1".to_owned(),
+        "SELECT article_id FROM example_attachment_cleanup LIMIT 1".to_owned(),
+    );
+    let article_imports = Statement::from_string(
+        connection.get_database_backend(),
+        "SELECT import_id FROM example_article_imports LIMIT 1".to_owned(),
+    );
+    let private_notes = Statement::from_string(
+        connection.get_database_backend(),
+        "SELECT private_note_ciphertext FROM example_articles LIMIT 1".to_owned(),
     );
     connection.query_one_raw(statement.clone()).await?;
+    connection.query_one_raw(articles.clone()).await?;
+    connection.query_one_raw(article_events.clone()).await?;
+    connection.query_one_raw(private_notes.clone()).await?;
+    connection.query_one_raw(attachment_cleanup.clone()).await?;
+    connection.query_one_raw(article_imports.clone()).await?;
     let shared_history = Statement::from_string(
         connection.get_database_backend(),
         "SELECT version FROM openrust_migrations".to_owned(),
@@ -248,7 +347,17 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
         .app()?
         .run_command("migrate", vec!["down".to_owned(), "1".to_owned()])
         .await?;
-    assert!(connection.query_one_raw(statement.clone()).await.is_err());
+    connection.query_one_raw(statement.clone()).await?;
+    connection.query_one_raw(articles.clone()).await?;
+    connection.query_one_raw(article_events.clone()).await?;
+    connection.query_one_raw(private_notes.clone()).await?;
+    connection.query_one_raw(attachment_cleanup.clone()).await?;
+    assert!(
+        connection
+            .query_one_raw(article_imports.clone())
+            .await
+            .is_err()
+    );
     assert_eq!(
         connection
             .query_all_raw(shared_history.clone())
@@ -262,6 +371,11 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
         .run_command("migrate", vec!["up".to_owned(), "1".to_owned()])
         .await?;
     connection.query_one_raw(statement.clone()).await?;
+    connection.query_one_raw(articles.clone()).await?;
+    connection.query_one_raw(article_events.clone()).await?;
+    connection.query_one_raw(private_notes.clone()).await?;
+    connection.query_one_raw(attachment_cleanup.clone()).await?;
+    connection.query_one_raw(article_imports.clone()).await?;
     assert_eq!(
         connection.query_all_raw(shared_history).await?.len(),
         before_down
@@ -275,6 +389,11 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
     let mut disabled = disabled.build().await?;
     disabled.app()?.run_command("migrate", Vec::new()).await?;
     connection.query_one_raw(statement).await?;
+    connection.query_one_raw(articles).await?;
+    connection.query_one_raw(article_events).await?;
+    connection.query_one_raw(private_notes).await?;
+    connection.query_one_raw(attachment_cleanup).await?;
+    connection.query_one_raw(article_imports).await?;
     disabled
         .shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
         .await?;

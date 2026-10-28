@@ -85,7 +85,7 @@ fn migrations() -> Vec<Box<dyn MigrationTrait>> {
 
 ## 跨实例租约与请求幂等
 
-需要数据库共享锁或显式请求幂等时，将 `CoordinationMigration` 加入应用 migrator；迁移不会由服务隐式执行。`SharedLocks` 以数据库时钟保存 owner token、过期时间和 fencing generation。竞争者在租约到期前得到 `Busy`；到期后可接管，旧 lease 不能续约或释放新 owner。保护同一数据库的业务写入时，须在业务事务内调用 `assert_current_in_transaction`；TTL 不能阻止暂停的旧进程继续执行任意外部副作用。
+需要数据库共享锁或显式请求幂等时，将 `CoordinationMigration` 加入应用 migrator；迁移不会由服务隐式执行。标准应用启用 `data-exchange-tasks` 时，`FrameworkMigrator` 已包含此迁移供任务式导出对象锁使用；自定义 migrator 仍须显式纳入。`SharedLocks` 以数据库时钟保存 owner token、过期时间和 fencing generation。竞争者在租约到期前得到 `Busy`；到期后可接管，旧 lease 不能续约或释放新 owner。保护同一数据库的业务写入时，须在业务事务内调用 `assert_current_in_transaction`；TTL 不能阻止暂停的旧进程继续执行任意外部副作用。
 
 `RequestIdempotency` 必须由变更接口显式调用。应用提供稳定的调用者 scope、幂等 key 和规范化请求指纹；同一有效 key 会返回处理中、指纹冲突或已完成 JSON 响应。首次领取后，将业务写入和 `complete_in_transaction` 放在同一个 `Db::transaction`；事务失败时结果快照与业务写入一起回滚，lease 到期后可再次领取。响应仅支持有上限的 JSON body，不保存 header、二进制或流式内容；授权重验、敏感字段过滤与指纹规范化由应用负责。外部副作用不具备数据库原子性，应结合供应商幂等键或事务队列。
 

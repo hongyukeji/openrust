@@ -1,8 +1,8 @@
 # testing
 
 > 受众：AI Agent
-> 更新：2026-10-27
-> 摘要：测试工具 crate 当前实现边界。
+> 更新：2026-10-29
+> 摘要：测试工具 crate 与根公开测试宿主当前实现边界。
 
 ## 当前实现
 
@@ -11,12 +11,13 @@
 - 隔离 URL 保留原 URL 凭据与查询参数，只替换 database path。管理用户必须有 CREATE/DROP DATABASE 权限。
 - `close().await` 关闭连接并等待数据库删除；guard 在 Tokio runtime 内 drop 时安排 best-effort 清理。
 - `Debug` 遮蔽 database URL。
+- `openrust::testing::{TestApp, TestAppBuilder, TestResponse}` 由根框架公开；TestApp 使用生产 Application/Provider/Router 构建路径，支持 Provider 移除、全 register 后 typed 覆盖、重建、有界 oneshot 请求和 HTTP 状态/header/JSON 断言。它不替代真实 TCP、浏览器或多进程验收。
 - 独立 `testing` package 位于 `tools/testing/`，保持 `testing::TestDatabase` 应用入口；实现由根 `openrust::testing` 提供。
 - 隔离保证仅覆盖已实现的 PostgreSQL 与 MySQL；其他 SeaORM backend 需要独立隔离策略，不因 `Db::initialize()` 可接入而推断兼容。
 
 ## 后续边界
 
-`TestApp` 与 HTTP response assertions 是 M6 待实现项，按 [ADR-023](../decisions/adr-023-loco-application-experience-evaluation.md) 复用应用 finalize、公开 router、Tower oneshot 与本 crate 数据库隔离工具。Factory 与 fake driver assertions 仅随具体能力 contract 逐项补齐，不属于当前已交付 surface。
+Factory/model factory states 仍是 [R6](../plans/laravel-rebuild.md#5-按依赖实施) 待实现能力；不把 SeaORM Entity 或 TestDatabase 冒充 Laravel Factory。Fake driver assertions 随具体能力的公开 contract 实现，当前应使用模块 TestApp 显式安装捕获 driver 并拒绝 production。
 
 ## 验证
 

@@ -2680,9 +2680,12 @@ mod tests {
     async fn redis_store_roundtrips_ttl_on_live_service() -> Result<()> {
         let dsn = std::env::var("OPENRUST_TEST_REDIS_URL")
             .unwrap_or_else(|_| "redis://127.0.0.1:6379/".to_owned());
+        let mut nonce = [0_u8; 16];
+        getrandom::fill(&mut nonce).map_err(Error::internal)?;
+        let namespace_id = format!("{:032x}", u128::from_le_bytes(nonce));
         let config = CacheDriverConfig {
             store_name: "integration".into(),
-            namespace: format!("test:{}", std::process::id()),
+            namespace: format!("test:{namespace_id}"),
             options: [("dsn".to_owned(), serde_json::Value::String(dsn.clone()))].into(),
         };
         let backend = RedisDriver.build(&config).await?;
@@ -2698,7 +2701,7 @@ mod tests {
 
         let config = CacheDriverConfig {
             store_name: "integration".into(),
-            namespace: format!("cross-client:{}", std::process::id()),
+            namespace: format!("cross-client:{namespace_id}"),
             options: [("dsn".to_owned(), serde_json::Value::String(dsn))].into(),
         };
         let first_backend = RedisDriver.build(&config).await?;
@@ -2718,11 +2721,11 @@ mod tests {
                 .await
                 .is_err()
         );
-        let tenant_key = format!("tenant-profile:{}", std::process::id());
+        let tenant_key = "tenant-profile";
         crate::tenant::TenantContext::scope(
             crate::tenant::TenantId::new("redis-tenant-a")?,
             async {
-                first_store.set(&tenant_key, &"A", None).await?;
+                first_store.set(tenant_key, &"A", None).await?;
                 Ok::<_, Error>(())
             },
         )
@@ -2730,8 +2733,8 @@ mod tests {
         crate::tenant::TenantContext::scope(
             crate::tenant::TenantId::new("redis-tenant-b")?,
             async {
-                assert_eq!(second.get::<String>(&tenant_key).await?, None);
-                second.set(&tenant_key, &"B", None).await?;
+                assert_eq!(second.get::<String>(tenant_key).await?, None);
+                second.set(tenant_key, &"B", None).await?;
                 second.invalidate_tags(&["accounts"]).await?;
                 Ok::<_, Error>(())
             },
@@ -2740,8 +2743,16 @@ mod tests {
         crate::tenant::TenantContext::scope(
             crate::tenant::TenantId::new("redis-tenant-a")?,
             async {
-                assert_eq!(second.get::<String>(&tenant_key).await?, Some("A".into()));
-                second.remove(&tenant_key).await?;
+                assert_eq!(second.get::<String>(tenant_key).await?, Some("A".into()));
+                second.remove(tenant_key).await?;
+                Ok::<_, Error>(())
+            },
+        )
+        .await??;
+        crate::tenant::TenantContext::scope(
+            crate::tenant::TenantId::new("redis-tenant-b")?,
+            async {
+                second.remove(tenant_key).await?;
                 Ok::<_, Error>(())
             },
         )

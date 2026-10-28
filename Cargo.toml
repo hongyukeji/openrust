@@ -38,9 +38,10 @@ cli = { path = "tools/cli", version = "0.0.0" }
 macros = { path = "tools/macros", version = "0.0.0" }
 testing = { path = "tools/testing", version = "0.0.0" }
 
-tokio = { version = "1.54", features = ["rt-multi-thread", "macros", "signal", "net", "time", "io-util", "fs", "sync"] }
+tokio = { version = "1.54", features = ["rt-multi-thread", "macros", "signal", "net", "time", "io-util", "fs", "sync", "process"] }
 tokio-stream = { version = "0.1", features = ["net"] }
 tonic = { version = "~0.14.6", default-features = false, features = ["codegen", "router", "transport", "tls-ring"] }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
 tonic-prost = "~0.14.6"
 tonic-prost-build = "~0.14.6"
 tonic-health = "~0.14.6"
@@ -198,6 +199,7 @@ quick-xml = { workspace = true, optional = true }
 tempfile = { workspace = true, optional = true }
 tokio-stream = { workspace = true, optional = true }
 tonic = { workspace = true, optional = true }
+rustls = { workspace = true, optional = true }
 tonic-prost = { workspace = true, optional = true }
 tonic-health = { workspace = true, optional = true }
 tonic-reflection = { workspace = true, optional = true }
@@ -213,6 +215,7 @@ tracing-opentelemetry = { workspace = true, optional = true }
 
 [dev-dependencies]
 figment = { workspace = true, features = ["test"] }
+tokio-tungstenite = "0.29"
 serde_json.workspace = true
 tower-sessions = { workspace = true, features = ["memory-store"] }
 tokio-stream.workspace = true
@@ -265,8 +268,8 @@ sms-twilio = ["http-client", "dep:base64"]
 encryption = ["dep:aes-gcm-siv", "dep:base64", "dep:zeroize"]
 test-util = []
 data-exchange = ["dep:csv", "dep:calamine", "dep:rust_xlsxwriter", "dep:zip", "dep:quick-xml"]
-data-exchange-tasks = ["data-exchange", "queue", "dep:tempfile"]
-grpc = ["dep:tonic", "dep:tonic-prost", "dep:prost", "dep:tokio-stream", "dep:tonic-health", "dep:tonic-reflection", "dep:http-body-util"]
+data-exchange-tasks = ["data-exchange", "queue", "dep:tempfile", "dep:uuid"]
+grpc = ["dep:tonic", "dep:tonic-prost", "dep:prost", "dep:tokio-stream", "dep:tonic-health", "dep:tonic-reflection", "dep:http-body-util", "dep:rustls"]
 metrics = ["dep:metrics", "dep:metrics-exporter-prometheus"]
 otel = ["dep:opentelemetry", "dep:opentelemetry_sdk", "dep:opentelemetry-otlp", "dep:tracing-opentelemetry"]
 realtime = ["auth", "axum/ws", "dep:uuid"]
@@ -276,6 +279,7 @@ session-redis = ["auth", "dep:redis"]
 storage-local = ["dep:opendal"]
 storage-s3 = [
     "storage-local",
+    "dep:uuid",
     "opendal/services-s3",
     "opendal/http-transport-reqwest",
     "opendal/executors-tokio",

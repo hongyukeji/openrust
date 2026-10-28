@@ -2,6 +2,8 @@
 
 #[cfg(feature = "view")]
 pub(crate) mod about;
-#[cfg(feature = "auth")]
+#[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
+pub(crate) mod article;
+#[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
 pub(crate) mod credentials;
 pub(crate) mod example;

@@ -369,7 +369,7 @@ impl Db {
     ///
     /// # Errors
     ///
-    /// 连接池尚未初始化、事务开始或提交失败，或回调/提交前监听器返回错误时，返回内部错误。
+    /// 连接池、开始、提交或回滚失败时返回内部错误；回滚成功后保留回调或提交前监听器的原始错误。
     pub async fn transaction<T, F>(&self, callback: F) -> Result<T>
     where
         T: Send,
@@ -381,7 +381,7 @@ impl Db {
             Ok(value) => value,
             Err(error) => {
                 transaction.rollback().await.map_err(Error::internal)?;
-                return Err(Error::internal(error));
+                return Err(error);
             }
         };
         if let Some(events) = &events
@@ -390,7 +390,7 @@ impl Db {
                 .await
         {
             transaction.rollback().await.map_err(Error::internal)?;
-            return Err(Error::internal(error));
+            return Err(error);
         }
         transaction.commit().await.map_err(Error::internal)?;
         if let Some(events) = self.events.get()

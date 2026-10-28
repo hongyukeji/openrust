@@ -1,13 +1,21 @@
 //! 仅属于 `example` 模块的业务数据库迁移。
 
 use openrust::database::sea_orm_migration::prelude::*;
-
 pub(crate) struct Migrator;
 
 #[openrust::database::sea_orm_migration::async_trait::async_trait]
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
-        vec![Box::new(CreateExampleHeartbeats)]
+        vec![
+            Box::new(CreateExampleHeartbeats),
+            Box::new(CreateExampleArticles),
+            Box::new(CreateExampleArticleEvents),
+            Box::new(AddExampleArticlePrivateNotes),
+            Box::new(CreateExampleAttachmentCleanup),
+            Box::new(CreateExampleArticleImports),
+            Box::new(CreateExampleOidcBindIntents),
+            Box::new(CreateExampleTenantRecords),
+        ]
     }
 }
 
@@ -50,4 +58,470 @@ impl MigrationTrait for CreateExampleHeartbeats {
 enum ExampleHeartbeats {
     Table,
     Id,
+}
+
+struct CreateExampleArticles;
+
+impl MigrationName for CreateExampleArticles {
+    fn name(&self) -> &'static str {
+        "m20261028_000002_example_articles"
+    }
+}
+
+#[openrust::database::sea_orm_migration::async_trait::async_trait]
+impl MigrationTrait for CreateExampleArticles {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .create_table(
+                Table::create()
+                    .table(ExampleArticles::Table)
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(ExampleArticles::Id)
+                            .big_integer()
+                            .not_null()
+                            .auto_increment()
+                            .primary_key(),
+                    )
+                    .col(
+                        ColumnDef::new(ExampleArticles::OwnerId)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(ExampleArticles::Title)
+                            .string_len(160)
+                            .not_null(),
+                    )
+                    .col(ColumnDef::new(ExampleArticles::Body).text().not_null())
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .name("idx_example_articles_owner_id")
+                    .table(ExampleArticles::Table)
+                    .col(ExampleArticles::OwnerId)
+                    .col(ExampleArticles::Id)
+                    .to_owned(),
+            )
+            .await
+    }
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .drop_table(Table::drop().table(ExampleArticles::Table).to_owned())
+            .await
+    }
+}
+
+#[derive(Iden)]
+enum ExampleArticles {
+    Table,
+    Id,
+    OwnerId,
+    Title,
+    Body,
+    PrivateNoteCiphertext,
+}
+
+struct CreateExampleArticleEvents;
+
+impl MigrationName for CreateExampleArticleEvents {
+    fn name(&self) -> &'static str {
+        "m20261028_000003_example_article_events"
+    }
+}
+
+#[openrust::database::sea_orm_migration::async_trait::async_trait]
+impl MigrationTrait for CreateExampleArticleEvents {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .create_table(
+                Table::create()
+                    .table(ExampleArticleEvents::Table)
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(ExampleArticleEvents::Id)
+                            .big_integer()
+                            .not_null()
+                            .auto_increment()
+                            .primary_key(),
+                    )
+                    .col(
+                        ColumnDef::new(ExampleArticleEvents::OwnerId)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(ExampleArticleEvents::ArticleId)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(ExampleArticleEvents::Action)
+                            .string_len(16)
+                            .not_null(),
+                    )
+                    .to_owned(),
+            )
+            .await
+    }
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .drop_table(Table::drop().table(ExampleArticleEvents::Table).to_owned())
+            .await
+    }
+}
+
+#[derive(Iden)]
+enum ExampleArticleEvents {
+    Table,
+    Id,
+    OwnerId,
+    ArticleId,
+    Action,
+}
+
+struct AddExampleArticlePrivateNotes;
+
+impl MigrationName for AddExampleArticlePrivateNotes {
+    fn name(&self) -> &'static str {
+        "m20261028_000004_example_article_private_notes"
+    }
+}
+
+#[openrust::database::sea_orm_migration::async_trait::async_trait]
+impl MigrationTrait for AddExampleArticlePrivateNotes {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .alter_table(
+                Table::alter()
+                    .table(ExampleArticles::Table)
+                    .add_column(
+                        ColumnDef::new(ExampleArticles::PrivateNoteCiphertext)
+                            .text()
+                            .null(),
+                    )
+                    .to_owned(),
+            )
+            .await
+    }
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .alter_table(
+                Table::alter()
+                    .table(ExampleArticles::Table)
+                    .drop_column(ExampleArticles::PrivateNoteCiphertext)
+                    .to_owned(),
+            )
+            .await
+    }
+}
+
+struct CreateExampleAttachmentCleanup;
+
+impl MigrationName for CreateExampleAttachmentCleanup {
+    fn name(&self) -> &'static str {
+        "m20261028_000005_example_attachment_cleanup"
+    }
+}
+
+#[openrust::database::sea_orm_migration::async_trait::async_trait]
+impl MigrationTrait for CreateExampleAttachmentCleanup {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .create_table(
+                Table::create()
+                    .table(ExampleAttachmentCleanup::Table)
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(ExampleAttachmentCleanup::ArticleId)
+                            .big_integer()
+                            .not_null()
+                            .primary_key(),
+                    )
+                    .col(
+                        ColumnDef::new(ExampleAttachmentCleanup::OwnerId)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(ExampleAttachmentCleanup::TenantId)
+                            .string_len(128)
+                            .null(),
+                    )
+                    .to_owned(),
+            )
+            .await
+    }
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .drop_table(
+                Table::drop()
+                    .table(ExampleAttachmentCleanup::Table)
+                    .to_owned(),
+            )
+            .await
+    }
+}
+
+#[derive(Iden)]
+enum ExampleAttachmentCleanup {
+    Table,
+    ArticleId,
+    OwnerId,
+    TenantId,
+}
+
+struct CreateExampleArticleImports;
+
+impl MigrationName for CreateExampleArticleImports {
+    fn name(&self) -> &'static str {
+        "m20261028_000006_example_article_imports"
+    }
+}
+
+#[openrust::database::sea_orm_migration::async_trait::async_trait]
+impl MigrationTrait for CreateExampleArticleImports {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .create_table(
+                Table::create()
+                    .table(ExampleArticleImports::Table)
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(ExampleArticleImports::ImportId)
+                            .string_len(36)
+                            .not_null()
+                            .primary_key(),
+                    )
+                    .col(
+                        ColumnDef::new(ExampleArticleImports::OwnerId)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(ExampleArticleImports::SourceKey)
+                            .text()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(ExampleArticleImports::Format)
+                            .string_len(4)
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(ExampleArticleImports::State)
+                            .string_len(16)
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(ExampleArticleImports::ErrorCode)
+                            .string_len(64)
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(ExampleArticleImports::CreatedAtMs)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(ExampleArticleImports::TerminalAtMs)
+                            .big_integer()
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(ExampleArticleImports::SourceRemoved)
+                            .boolean()
+                            .not_null()
+                            .default(false),
+                    )
+                    .to_owned(),
+            )
+            .await
+    }
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .drop_table(Table::drop().table(ExampleArticleImports::Table).to_owned())
+            .await
+    }
+}
+
+#[derive(Iden)]
+enum ExampleArticleImports {
+    Table,
+    ImportId,
+    OwnerId,
+    SourceKey,
+    Format,
+    State,
+    ErrorCode,
+    CreatedAtMs,
+    TerminalAtMs,
+    SourceRemoved,
+}
+
+struct CreateExampleOidcBindIntents;
+
+impl MigrationName for CreateExampleOidcBindIntents {
+    fn name(&self) -> &'static str {
+        "m20261028_000007_example_oidc_bind_intents"
+    }
+}
+
+#[openrust::database::sea_orm_migration::async_trait::async_trait]
+impl MigrationTrait for CreateExampleOidcBindIntents {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .create_table(
+                Table::create()
+                    .table(ExampleOidcBindIntents::Table)
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(ExampleOidcBindIntents::StateHash)
+                            .string_len(64)
+                            .not_null()
+                            .primary_key(),
+                    )
+                    .col(
+                        ColumnDef::new(ExampleOidcBindIntents::OwnerId)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(ExampleOidcBindIntents::BrowserBindingHash)
+                            .string_len(64)
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(ExampleOidcBindIntents::ExpiresAtMs)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(ExampleOidcBindIntents::Phase)
+                            .string_len(16)
+                            .not_null(),
+                    )
+                    .to_owned(),
+            )
+            .await
+    }
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .drop_table(
+                Table::drop()
+                    .table(ExampleOidcBindIntents::Table)
+                    .to_owned(),
+            )
+            .await
+    }
+}
+
+#[derive(Iden)]
+enum ExampleOidcBindIntents {
+    Table,
+    StateHash,
+    OwnerId,
+    BrowserBindingHash,
+    ExpiresAtMs,
+    Phase,
+}
+
+struct CreateExampleTenantRecords;
+
+impl MigrationName for CreateExampleTenantRecords {
+    fn name(&self) -> &'static str {
+        "m20261029_000008_example_tenant_records"
+    }
+}
+
+#[openrust::database::sea_orm_migration::async_trait::async_trait]
+impl MigrationTrait for CreateExampleTenantRecords {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .create_table(
+                Table::create()
+                    .table(ExampleTenantMemberships::Table)
+                    .col(
+                        ColumnDef::new(ExampleTenantMemberships::TenantId)
+                            .string_len(128)
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(ExampleTenantMemberships::UserId)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .primary_key(
+                        Index::create()
+                            .col(ExampleTenantMemberships::TenantId)
+                            .col(ExampleTenantMemberships::UserId),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_table(
+                Table::create()
+                    .table(ExampleTenantRecords::Table)
+                    .col(
+                        ColumnDef::new(ExampleTenantRecords::TenantId)
+                            .string_len(128)
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(ExampleTenantRecords::OwnerId)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(ExampleTenantRecords::Value)
+                            .string_len(512)
+                            .not_null(),
+                    )
+                    .primary_key(
+                        Index::create()
+                            .col(ExampleTenantRecords::TenantId)
+                            .col(ExampleTenantRecords::OwnerId),
+                    )
+                    .to_owned(),
+            )
+            .await
+    }
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .drop_table(Table::drop().table(ExampleTenantRecords::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(
+                Table::drop()
+                    .table(ExampleTenantMemberships::Table)
+                    .to_owned(),
+            )
+            .await
+    }
+}
+
+#[derive(Iden)]
+enum ExampleTenantMemberships {
+    Table,
+    TenantId,
+    UserId,
+}
+
+#[derive(Iden)]
+enum ExampleTenantRecords {
+    Table,
+    TenantId,
+    OwnerId,
+    Value,
 }

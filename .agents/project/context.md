@@ -1,17 +1,17 @@
 # 项目上下文
 
-> 当前代码与目标：旧 `app/example/` 过渡结构已迁至 `modules/example/`；R2-M 模块清单、资源与统一迁移已有真实验收。完整模块管理与 CRUD 尚未完成，按 [ADR-074](decisions/adr-074-laravel-modules-directory.md) 推进。
+> 当前代码与目标：旧 `app/example/` 过渡结构已迁至 `modules/example/`；R2-M 模块清单、资源与统一迁移已有真实验收。R1-E Article CRUD 与当前公开能力示例已通过已有适用门禁。附件上传使用 App 受管任务和 tenant scope；请求体 EOF/deadline 以共享原子状态仲裁，deadline 获胜后不会进入 storage 发布，EOF 获胜后事务锁保持到存储收敛。PG18/MySQL8.4 附件全量各 15/15、真实 MinIO 成功 CopyObject 延迟响应竞态各 1/1。`storage_publication_uncertain` 远端迟到完成、强杀与 shutdown deadline 仍不保证无孤儿。真实 Keycloak 下 `AlwaysOk` OIDC 确认成功/失败双库 HTTP 用例各 1/1；Collector PG 使用隔离活跃 sink 后 delivery/unavailable 各 1/1，严格断言与共享服务保持不变。R1-E 的指定真实服务证据、独立审查与资源清理已收敛；当前仅待限定本地提交；完整模块管理和 Laravel 1:1 范围继续按 [ADR-074](decisions/adr-074-laravel-modules-directory.md) 与活跃队列推进。
 
 > 受众：AI Agent
-> 更新：2026-10-28
-> 摘要：正式目标为 Laravel + laravel-modules 的 Rust 1:1 实现。计划与授权已记录，R0 已固定上游与资产，R1 正按根 Laravel 应用与唯一综合示例 contract 纠偏，新布局尚未验收；原 v1 专项证据作为复用/重写基线。
+> 更新：2026-10-29
+> 摘要：正式目标为 Laravel + laravel-modules 的 Rust 1:1 实现。计划与授权已记录，R0 已固定上游与资产，R1 按根 Laravel 应用与唯一综合示例 contract 推进；R1-E 既有源码/生成应用门禁已通过；附件 EOF/deadline 原子仲裁回归和本地附件全模块 PG/MySQL 各 15/15；真实 MinIO CopyObject 延迟响应竞态 PG/MySQL 各 1/1，uncertain 后远端迟到完成边界未保证；Collector PostgreSQL 独立 sink 两路径均 1/1；OIDC AlwaysOk 真实 Keycloak 双库负例与成功夹证各 1/1；最终审查和资源清理完成，当前仅待限定本地提交；原 v1 专项证据作为复用/重写基线。
 
 ## 当前状态
 
 | 项 | 当前事实与目标 |
 | --- | --- |
 | 当前代码基线 | 规划开始 HEAD 为 `7f964b8`；根 openrust 同 package 的框架 lib 与默认 server 已装配；应用职责回根，当前示例位于 modules/example，按编译清单和运行激活状态接入；tools 与 consumers 保留；版本和依赖以 Cargo.toml 为准 |
-| 当前阶段 | [全面重构计划](plans/laravel-rebuild.md) 已记录；R1-S、R2-A/A2/A3、R2-B统一Provider、R2-C入口scope、R2-D TestApp 与 R2-M 模块闭环各子簇已通过适用门禁；后继 R1-E 真实CRUD/当前能力示例尚未完成，唯一队列见 [todo.md](todo.md) |
+| 当前阶段 | [全面重构计划](plans/laravel-rebuild.md) 已记录；R1-S、R2-A/A2/A3、R2-B统一Provider、R2-C入口scope、R2-D TestApp 与 R2-M 模块闭环各子簇已通过适用门禁；R1-E 既有 CRUD/示例、生成项目门禁已通过；当前附件 EOF/deadline 原子仲裁回归与 PG/MySQL 全模块各 15/15；真实 MinIO 成功 CopyObject 暂缓响应期间的删除竞争在双库各 1/1。`storage_publication_uncertain` 后远端迟到完成、强杀与 shutdown deadline 仍不保证无孤儿。整组默认/全特性工作区门禁通过；新增真实 Keycloak `AlwaysOk` 错误密码/已消费 state/成功夹证 PG/MySQL 各 1/1。Collector PostgreSQL 使用任务专属 sink 和匹配 run ID 后 delivery/unavailable 各 1/1，旧共享 Collector 未改；独立审查与资源清理完成，当前待限定本地提交；唯一队列见 [todo.md](todo.md) |
 | 目标授权 | [ADR-070](decisions/adr-070-laravel-first-rebuild.md)：Laravel固定基线为1:1行为标准，laravel-modules为正式模块化范围，Goravel仅跨语言实现参考；允许全面重写，无历史兼容义务 |
 | 当前完成边界 | 原认证/数据/队列/缓存/存储/实时/gRPC/视图等有专项证据；完整生产/集群/最低版本仍有缺口，新目标不能继承为已验收 |
 | 协作 | 已定 contract 优先 gpt-6.1-sol 子智能体；主控负责设计/协调；所有 Agent 直接 main，非重叠文件可并行实现；共享 manifest/lock/迁移/文档/提交由集成负责人串行协调，target/服务资源预先分配，审查并行只读；高风险改码不同模型或 Provider 审查；不推送 |

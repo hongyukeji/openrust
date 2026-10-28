@@ -494,29 +494,55 @@ impl RealtimeSession {
                     if changed.is_err() || *self.close.borrow() { break; }
                 }
                 _ = heartbeat.tick() => {
-                    if socket.send(WsMessage::Ping(Vec::new().into())).await.is_err() { break; }
+                    if !send_until_boundary(&mut self.close, self.expires_at, socket.send(WsMessage::Ping(Vec::new().into()))).await { break; }
                 }
                 queued = self.receiver.recv() => {
                     let Some(queued) = queued else { break };
-                    if socket.send(WsMessage::Text(queued.message.payload.into())).await.is_err() { break; }
+                    if !send_until_boundary(&mut self.close, self.expires_at, socket.send(WsMessage::Text(queued.message.payload.into()))).await { break; }
                 }
                 incoming = socket.recv() => {
                     match incoming {
                         Some(Ok(WsMessage::Close(_)) | Err(_)) | None => break,
                         Some(Ok(WsMessage::Ping(payload))) => {
-                            if socket.send(WsMessage::Pong(payload)).await.is_err() { break; }
+                            if !send_until_boundary(&mut self.close, self.expires_at, socket.send(WsMessage::Pong(payload))).await { break; }
                         }
                         Some(Ok(WsMessage::Pong(_))) => {}
                         Some(Ok(WsMessage::Text(_) | WsMessage::Binary(_))) => {
-                            let _ = socket.send(WsMessage::Close(None)).await;
+                            let _ = send_until_boundary(&mut self.close, self.expires_at, socket.send(WsMessage::Close(None))).await;
                             break;
                         }
                     }
                 }
             }
         }
-        let _ = socket.send(WsMessage::Close(None)).await;
+        let _ = tokio::time::timeout(
+            Duration::from_millis(100),
+            socket.send(WsMessage::Close(None)),
+        )
+        .await;
         self.realtime.remove_connection(&self.id).await;
+    }
+}
+
+async fn send_until_boundary<F, E>(
+    close: &mut watch::Receiver<bool>,
+    expires_at: tokio::time::Instant,
+    send: F,
+) -> bool
+where
+    F: std::future::Future<Output = std::result::Result<(), E>>,
+{
+    if *close.borrow() || tokio::time::Instant::now() >= expires_at {
+        return false;
+    }
+    tokio::select! {
+        biased;
+        () = tokio::time::sleep_until(expires_at) => false,
+        changed = close.changed() => {
+            let _ = changed;
+            false
+        }
+        result = tokio::time::timeout(Duration::from_secs(5), send) => matches!(result, Ok(Ok(()))),
     }
 }
 
@@ -812,14 +838,15 @@ impl RealtimeTransport for RedisRealtimeTransport {
 
 #[cfg(test)]
 mod tests {
-    use super::{Realtime, RealtimeConfig, RealtimeInner};
+    use super::{Realtime, RealtimeConfig, RealtimeInner, send_until_boundary};
     use crate::auth::CurrentUser;
+    use crate::core::{Error, Result};
     use std::{
         collections::HashMap,
         sync::atomic::AtomicUsize,
         time::{Duration, SystemTime},
     };
-    use tokio::sync::{Mutex, Semaphore};
+    use tokio::sync::{Mutex, Semaphore, watch};
 
     fn service(config: RealtimeConfig) -> Realtime {
         Realtime(std::sync::Arc::new(RealtimeInner {
@@ -837,6 +864,53 @@ mod tests {
 
     fn authorized_until() -> SystemTime {
         SystemTime::now() + Duration::from_secs(30)
+    }
+
+    #[tokio::test]
+    async fn stalled_websocket_send_yields_to_shutdown_and_jwt_expiry() -> Result<()> {
+        let (sender, mut receiver) = watch::channel(false);
+        let stopped = tokio::spawn(async move {
+            send_until_boundary(
+                &mut receiver,
+                tokio::time::Instant::now() + Duration::from_secs(10),
+                std::future::pending::<std::result::Result<(), ()>>(),
+            )
+            .await
+        });
+        tokio::task::yield_now().await;
+        sender.send_replace(true);
+        let stopped = tokio::time::timeout(Duration::from_secs(1), stopped)
+            .await
+            .map_err(Error::internal)?
+            .map_err(Error::internal)?;
+        assert!(!stopped);
+
+        let (_, mut receiver) = watch::channel(false);
+        assert!(
+            !send_until_boundary(
+                &mut receiver,
+                tokio::time::Instant::now() + Duration::from_millis(10),
+                std::future::pending::<std::result::Result<(), ()>>(),
+            )
+            .await
+        );
+
+        let (sender, mut receiver) = watch::channel(false);
+        let _keep_sender = sender;
+        let started = tokio::time::Instant::now();
+        let result = tokio::time::timeout(
+            Duration::from_secs(6),
+            send_until_boundary(
+                &mut receiver,
+                started + Duration::from_secs(10),
+                std::future::pending::<std::result::Result<(), ()>>(),
+            ),
+        )
+        .await
+        .map_err(Error::internal)?;
+        assert!(!result);
+        assert!(started.elapsed() >= Duration::from_secs(5));
+        Ok(())
     }
 
     #[tokio::test]

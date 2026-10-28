@@ -6,6 +6,8 @@ mod modules;
 #[path = "../routes/web.rs"]
 mod routes;
 
+use bootstrap::OpenRustGeneratedApplication as GeneratedApplication;
+
 use figment::{
     Figment,
     providers::{Format, Serialized, Toml},
@@ -25,7 +27,7 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
     .merge(Toml::string(
         "[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
     ));
-    let mut app = TestApp::<bootstrap::OpenRustGeneratedApplication>::builder(source)
+    let mut app = TestApp::<GeneratedApplication>::builder(source)
         .build()
         .await?;
     let request = Request::builder().uri("/api").body(Body::empty())?;

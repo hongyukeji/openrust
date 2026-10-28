@@ -648,7 +648,7 @@ fn populate_project_with_mfa(
         ("src/main.rs", main_source(crate_name, database, grpc)),
         (
             "bootstrap/app.rs",
-            app_source(crate_name, database, auth, encryption, auth_mfa),
+            app_source(crate_name, database, auth, encryption, auth_mfa, grpc),
         ),
         (
             "app/mod.rs",
@@ -701,7 +701,7 @@ fn populate_project_with_mfa(
     if auth {
         files.push((
             "tests/auth_flows.rs",
-            auth_test_template(crate_name, encryption, auth_mfa),
+            auth_test_template(crate_name, encryption, auth_mfa, grpc),
         ));
     }
     if let Some(database) = database {
@@ -731,8 +731,12 @@ fn populate_project_with_mfa(
             ),
             (
                 "app/grpc.rs",
-                "//! 应用的 gRPC Protobuf 类型。\n\npub mod echo {\n    tonic::include_proto!(\"{{package}}.v1\");\n}\n"
+                include_str!("../templates/app/grpc.rs")
                     .replace("{{package}}", &proto_package),
+            ),
+            (
+                "tests/grpc_flows.rs",
+                grpc_test_template(name, database, auth, encryption),
             ),
         ]);
     }
@@ -747,7 +751,7 @@ fn populate_project_with_mfa(
     Ok(())
 }
 
-fn auth_test_template(crate_name: &str, encryption: bool, auth_mfa: bool) -> String {
+fn auth_test_template(crate_name: &str, encryption: bool, auth_mfa: bool, grpc: bool) -> String {
     let encryption_config = if encryption {
         "\\n[security.encryption]\\nactive_key_id = \\\"test\\\"\\n\\n[security.encryption.keys]\\ntest = \\\"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=\\\""
     } else {
@@ -755,13 +759,64 @@ fn auth_test_template(crate_name: &str, encryption: bool, auth_mfa: bool) -> Str
     };
     let mut template = include_str!("../templates/tests/auth_flows.rs")
         .replace("OpenRustGeneratedApplication", crate_name)
-        .replace("{{encryption_config}}", encryption_config);
+        .replace("{{encryption_config}}", encryption_config)
+        .replace(
+            "{{grpc_module}}",
+            if grpc {
+                "#[path = \"../app/grpc.rs\"]\nmod grpc;\n"
+            } else {
+                ""
+            },
+        );
     if auth_mfa {
-        template = template.replace("{{login_credentials_suffix}}", "[\"credentials\"]");
+        template = template
+            .replace("{{login_credentials_suffix}}", "[\"credentials\"]")
+            .replace(
+                "{{mfa_flow}}",
+                "    run_bounded_mfa_flow(address, mail).await?;\n",
+            );
+        template.push('\n');
+        template.push_str(include_str!("../templates/tests/auth_mfa_flow.rs"));
     } else {
-        template = template.replace("{{login_credentials_suffix}}", "");
+        template = template
+            .replace("{{login_credentials_suffix}}", "")
+            .replace("{{mfa_flow}}", "");
     }
     template
+}
+
+fn grpc_test_template(
+    name: &str,
+    database: Option<DatabaseBackend>,
+    auth: bool,
+    encryption: bool,
+) -> String {
+    let database_setup = if database.is_some() {
+        include_str!("../templates/tests/grpc_database_setup.txt")
+    } else {
+        ""
+    };
+    let database_cleanup = if database.is_some() {
+        "    let database_result: TestResult = database.close().await.map_err(Into::into);\n"
+    } else {
+        "    let database_result: TestResult = Ok(());\n"
+    };
+    let auth_config = if auth {
+        include_str!("../templates/tests/grpc_auth_config.txt")
+    } else {
+        ""
+    };
+    let encryption_config = if encryption {
+        include_str!("../templates/tests/grpc_encryption_config.txt")
+    } else {
+        ""
+    };
+    include_str!("../templates/tests/grpc_flows.rs")
+        .replace("{{binary_name}}", name)
+        .replace("{{database_setup}}", database_setup)
+        .replace("{{database_cleanup}}", database_cleanup)
+        .replace("{{auth_config}}", auth_config)
+        .replace("{{encryption_config}}", encryption_config)
 }
 
 #[allow(
@@ -821,13 +876,25 @@ fn cargo_manifest(
     manifest.push_str("\n[dev-dependencies]\nfigment = { version = \"0.10\", features = [\"toml\"] }\nserde_json = \"1\"\n");
     if auth {
         manifest.push_str("base64 = \"0.22\"\n");
+    }
+    if grpc {
+        manifest.push_str("tokio = { version = \"1\", features = [\"io-util\", \"macros\", \"net\", \"process\", \"rt-multi-thread\", \"time\"] }\n");
+    } else if auth {
         manifest.push_str("tokio = { version = \"1\", features = [\"io-util\", \"macros\", \"net\", \"rt-multi-thread\"] }\n");
     } else {
         manifest.push_str(
             "tokio = { version = \"1\", features = [\"macros\", \"rt-multi-thread\"] }\n",
         );
     }
-    if auth && let Some(database) = database {
+    if auth_mfa {
+        manifest.push_str("hmac = \"0.13\"\nsha1 = \"0.11\"\nurl = \"2.5\"\n");
+    }
+    if grpc {
+        manifest.push_str("rcgen = \"0.14.10\"\ntempfile = \"3.27\"\n");
+    }
+    if (auth || grpc)
+        && let Some(database) = database
+    {
         let _ = FmtWrite::write_fmt(
             &mut manifest,
             format_args!(
@@ -844,19 +911,24 @@ fn cargo_manifest(
     manifest
 }
 
+#[allow(
+    clippy::fn_params_excessive_bools,
+    reason = "feature flags map directly to the public generator options"
+)]
 fn app_source(
     crate_name: &str,
     database: Option<DatabaseBackend>,
     auth: bool,
     encryption: bool,
     auth_mfa: bool,
+    grpc: bool,
 ) -> String {
     let providers = if database.is_some() {
         let mut providers = String::from(
             "\n        providers.push(Box::new(openrust::db::DatabaseServiceProvider));",
         );
         if auth {
-            providers.push_str("\n        providers.push(Box::new(openrust::auth::JwtServiceProvider));\n        providers.push(Box::new(openrust::auth::AuthServiceProvider::new()));\n        providers.push(Box::new(openrust::audit::AuditServiceProvider::database()));\n        providers.push(Box::new(openrust::signing::SignedLinksServiceProvider::new().with_database_revocations_from_app()));");
+            providers.push_str("\n        providers.push(Box::new(openrust::auth::JwtServiceProvider));\n        providers.push(Box::new(openrust::auth::AuthServiceProvider::new()));\n        providers.push(Box::new(openrust::audit::AuditServiceProvider::database()));\n        providers.push(Box::new(\n            openrust::signing::SignedLinksServiceProvider::new()\n                .with_database_revocations_from_app(),\n        ));");
         }
         if encryption {
             providers.push_str("\n        providers.push(Box::new(openrust::security::EncryptionServiceProvider));");
@@ -869,7 +941,7 @@ fn app_source(
         if auth {
             providers.push_str("\n        providers.push(Box::new(openrust::auth::AuthFlowsServiceProvider::new()));");
         }
-        providers.push_str("\n        providers.push(Box::new(openrust::db::MigrationServiceProvider::<openrust_migration::Migrator>::new()));\n        providers.push(Box::new(openrust::db::SeedServiceProvider::new(crate::seed::run)));");
+        providers.push_str("\n        providers.push(Box::new(openrust::db::MigrationServiceProvider::<\n            openrust_migration::Migrator,\n        >::new()));\n        providers.push(Box::new(openrust::db::SeedServiceProvider::new(\n            crate::seed::run,\n        )));");
         providers
     } else {
         String::new()
@@ -879,10 +951,16 @@ fn app_source(
     } else {
         ""
     };
+    let grpc_providers = if grpc {
+        "\n        providers.push(Box::new(openrust::grpc::GrpcServiceProvider::new()));\n        providers.push(Box::new(crate::grpc::EchoServiceProvider));\n        providers.push(Box::new(openrust::runtime::HttpGrpcServiceProvider));"
+    } else {
+        ""
+    };
     include_str!("../templates/src/app.rs")
         .replace("{{type_name}}", crate_name)
         .replace("{{database_providers}}", &providers)
         .replace("{{encryption_provider}}", encryption_provider)
+        .replace("{{grpc_providers}}", grpc_providers)
 }
 
 fn routes_source(auth: bool, auth_mfa: bool) -> String {
@@ -901,8 +979,8 @@ fn routes_source(auth: bool, auth_mfa: bool) -> String {
         (
             "    routes\n        .get(\"/api/me\", current_user)\n        .layer(openrust::auth::AuthLayer::required(\n            openrust::auth::AuthMode::Jwt,\n        ))\n        .post(\"/api/auth/register\", auth_register)\n        .post(\n            \"/api/auth/request-email-verification\",\n            auth_request_email_verification,\n        )\n        .post(\"/api/auth/verify-email\", auth_verify_email)\n        .post(\"/api/auth/login\", auth_login)\n        .post(\"/api/auth/refresh\", auth_refresh)\n        .post(\"/api/auth/logout\", auth_logout)\n        .post(\"/api/auth/password-reset\", auth_request_password_reset)\n        .post(\"/api/auth/password-reset/confirm\", auth_reset_password)\n        .get(\"/api\", root)\n        .merge(Routes::new().get(\"/api/me/pat\", current_user).layer(\n            openrust::auth::AuthLayer::required(openrust::auth::AuthMode::PersonalAccessToken),\n        ))".to_owned(),
             include_str!("../templates/src/auth_routes.rs")
-                .replace("{{login_handler}}", &login_handler)
-                .replace("{{mfa_handler}}", &mfa_handler),
+                .replace("{{login_handler}}", login_handler.trim_end())
+                .replace("{{mfa_handler}}", mfa_handler.trim_end()),
         )
     } else {
         ("    routes.get(\"/api\", root)".to_owned(), String::new())
@@ -914,17 +992,17 @@ fn routes_source(auth: bool, auth_mfa: bool) -> String {
         )
         .replace(
             ".get(\"/api\", root)",
-            ".get(\"/api\", root)\n        .merge(Routes::new()\n            .post(\"/api/auth/mfa/enrollment\", auth_mfa_enrollment)\n            .post(\"/api/auth/mfa/enrollment/confirm\", auth_mfa_enrollment_confirm)\n            .post(\"/api/auth/mfa/disable\", auth_mfa_disable)\n            .post(\"/api/auth/mfa/recovery-codes\", auth_mfa_recovery_codes)\n            .layer(openrust::auth::AuthLayer::required(openrust::auth::AuthMode::Jwt)))",
+            ".get(\"/api\", root)\n        .merge(\n            Routes::new()\n                .post(\"/api/auth/mfa/enrollment\", auth_mfa_enrollment)\n                .post(\n                    \"/api/auth/mfa/enrollment/confirm\",\n                    auth_mfa_enrollment_confirm,\n                )\n                .post(\"/api/auth/mfa/disable\", auth_mfa_disable)\n                .post(\"/api/auth/mfa/recovery-codes\", auth_mfa_recovery_codes)\n                .layer(openrust::auth::AuthLayer::required(\n                    openrust::auth::AuthMode::Jwt,\n                )),\n        )",
         )
     } else {
         registration
     };
     source = source.replace("{{routes}}", &registration);
-    source.replace("{{auth_handler}}", &handler)
+    source.replace("{{auth_handler}}", handler.trim_end())
 }
 
 fn standard_login_handler() -> String {
-    "async fn auth_login(\n    Inject(flows): Inject<AuthFlows>,\n    client_ip: ClientIp,\n    Json(input): Json<EmailPasswordInput>,\n) -> openrust::Result<Json<CredentialsResponse>> {\n    Ok(credentials_response(\n        flows.login(&input.email, &input.password, &client_ip.ip().to_string()).await?,\n    ))\n}\n"
+    "async fn auth_login(\n    Inject(flows): Inject<AuthFlows>,\n    client_ip: ClientIp,\n    Json(input): Json<EmailPasswordInput>,\n) -> openrust::Result<Json<CredentialsResponse>> {\n    Ok(credentials_response(\n        flows\n            .login(&input.email, &input.password, &client_ip.ip().to_string())\n            .await?,\n    ))\n}"
         .to_owned()
 }
 
@@ -932,8 +1010,13 @@ fn mfa_login_handler() -> String {
     r#"#[derive(serde::Serialize)]
 #[serde(tag = "status", rename_all = "snake_case")]
 enum AuthLoginResponse {
-    Authenticated { credentials: CredentialsResponse },
-    MfaRequired { challenge: String, expires_at: String },
+    Authenticated {
+        credentials: CredentialsResponse,
+    },
+    MfaRequired {
+        challenge: String,
+        expires_at: String,
+    },
 }
 
 fn auth_no_store(
@@ -952,21 +1035,29 @@ async fn auth_login(
     client_ip: ClientIp,
     Json(input): Json<EmailPasswordInput>,
 ) -> openrust::Result<openrust::http::axum::response::Response> {
-    match flows.begin_login(&input.email, &input.password, &client_ip.ip().to_string()).await? {
-        openrust::auth::LoginAttempt::Authenticated(credentials) => Ok(auth_no_store(Json(
-            AuthLoginResponse::Authenticated { credentials: credentials_response(credentials).0 },
-        ))),
-        openrust::auth::LoginAttempt::MfaRequired(challenge) => Ok(auth_no_store(Json(
-            AuthLoginResponse::MfaRequired {
+    match flows
+        .begin_login(&input.email, &input.password, &client_ip.ip().to_string())
+        .await?
+    {
+        openrust::auth::LoginAttempt::Authenticated(credentials) => {
+            Ok(auth_no_store(Json(AuthLoginResponse::Authenticated {
+                credentials: credentials_response(credentials).0,
+            })))
+        }
+        openrust::auth::LoginAttempt::MfaRequired(challenge) => {
+            Ok(auth_no_store(Json(AuthLoginResponse::MfaRequired {
                 challenge: challenge.expose().to_owned(),
                 expires_at: challenge.expires_at().to_rfc3339(),
-            },
-        ))),
+            })))
+        }
     }
 }
 
 #[derive(serde::Deserialize)]
-struct MfaChallengeInput { challenge: String, code: String }
+struct MfaChallengeInput {
+    challenge: String,
+    code: String,
+}
 
 async fn auth_mfa_login(
     Inject(flows): Inject<AuthFlows>,
@@ -974,28 +1065,43 @@ async fn auth_mfa_login(
     Json(input): Json<MfaChallengeInput>,
 ) -> openrust::Result<openrust::http::axum::response::Response> {
     Ok(auth_no_store(credentials_response(
-        flows.complete_mfa_login(&input.challenge, &input.code, &client_ip.ip().to_string()).await?,
+        flows
+            .complete_mfa_login(&input.challenge, &input.code, &client_ip.ip().to_string())
+            .await?,
     )))
-}
-"#
+}"#
     .to_owned()
 }
 
 fn mfa_management_handlers() -> String {
     r#"#[derive(serde::Deserialize)]
-struct MfaEnrollmentInput { email: String, password: String }
+struct MfaEnrollmentInput {
+    email: String,
+    password: String,
+}
 
 #[derive(serde::Deserialize)]
-struct MfaCodeInput { code: String }
+struct MfaCodeInput {
+    code: String,
+}
 
 #[derive(serde::Deserialize)]
-struct MfaFactorInput { email: String, password: String, code: String }
+struct MfaFactorInput {
+    email: String,
+    password: String,
+    code: String,
+}
 
 #[derive(serde::Serialize)]
-struct MfaEnrollmentResponse { provisioning_uri: String, expires_at: String }
+struct MfaEnrollmentResponse {
+    provisioning_uri: String,
+    expires_at: String,
+}
 
 #[derive(serde::Serialize)]
-struct MfaRecoveryCodesResponse { recovery_codes: Vec<String> }
+struct MfaRecoveryCodesResponse {
+    recovery_codes: Vec<String>,
+}
 
 async fn auth_mfa_enrollment(
     user: openrust::auth::CurrentUser,
@@ -1003,10 +1109,15 @@ async fn auth_mfa_enrollment(
     client_ip: ClientIp,
     Json(input): Json<MfaEnrollmentInput>,
 ) -> openrust::Result<openrust::http::axum::response::Response> {
-    let enrollment = flows.begin_totp_enrollment(
-        user.id(), &input.email, &input.password, env!("CARGO_PKG_NAME"),
-        &client_ip.ip().to_string(),
-    ).await?;
+    let enrollment = flows
+        .begin_totp_enrollment(
+            user.id(),
+            &input.email,
+            &input.password,
+            env!("CARGO_PKG_NAME"),
+            &client_ip.ip().to_string(),
+        )
+        .await?;
     Ok(auth_no_store(Json(MfaEnrollmentResponse {
         provisioning_uri: enrollment.provisioning_uri().to_owned(),
         expires_at: enrollment.expires_at().to_rfc3339(),
@@ -1019,10 +1130,12 @@ async fn auth_mfa_enrollment_confirm(
     client_ip: ClientIp,
     Json(input): Json<MfaCodeInput>,
 ) -> openrust::Result<openrust::http::axum::response::Response> {
-    let codes = flows.confirm_totp_enrollment(
-        user.id(), &input.code, &client_ip.ip().to_string(),
-    ).await?;
-    Ok(auth_no_store(Json(MfaRecoveryCodesResponse { recovery_codes: codes.expose().to_vec() })))
+    let codes = flows
+        .confirm_totp_enrollment(user.id(), &input.code, &client_ip.ip().to_string())
+        .await?;
+    Ok(auth_no_store(Json(MfaRecoveryCodesResponse {
+        recovery_codes: codes.expose().to_vec(),
+    })))
 }
 
 async fn auth_mfa_disable(
@@ -1031,10 +1144,18 @@ async fn auth_mfa_disable(
     client_ip: ClientIp,
     Json(input): Json<MfaFactorInput>,
 ) -> openrust::Result<Json<std::collections::BTreeMap<&'static str, &'static str>>> {
-    flows.disable_mfa(
-        user.id(), &input.email, &input.password, &input.code, &client_ip.ip().to_string(),
-    ).await?;
-    Ok(Json(std::collections::BTreeMap::from([("status", "disabled")])) )
+    flows
+        .disable_mfa(
+            user.id(),
+            &input.email,
+            &input.password,
+            &input.code,
+            &client_ip.ip().to_string(),
+        )
+        .await?;
+    Ok(Json(std::collections::BTreeMap::from([(
+        "status", "disabled",
+    )])))
 }
 
 async fn auth_mfa_recovery_codes(
@@ -1043,12 +1164,19 @@ async fn auth_mfa_recovery_codes(
     client_ip: ClientIp,
     Json(input): Json<MfaFactorInput>,
 ) -> openrust::Result<openrust::http::axum::response::Response> {
-    let codes = flows.regenerate_mfa_recovery_codes(
-        user.id(), &input.email, &input.password, &input.code, &client_ip.ip().to_string(),
-    ).await?;
-    Ok(auth_no_store(Json(MfaRecoveryCodesResponse { recovery_codes: codes.expose().to_vec() })))
-}
-"#
+    let codes = flows
+        .regenerate_mfa_recovery_codes(
+            user.id(),
+            &input.email,
+            &input.password,
+            &input.code,
+            &client_ip.ip().to_string(),
+        )
+        .await?;
+    Ok(auth_no_store(Json(MfaRecoveryCodesResponse {
+        recovery_codes: codes.expose().to_vec(),
+    })))
+}"#
     .to_owned()
 }
 
@@ -1059,20 +1187,17 @@ fn main_source(crate_name: &str, database: Option<DatabaseBackend>, grpc: bool) 
         ""
     };
     let grpc_module = if grpc {
-        "#[path = \"../app/grpc.rs\"]\nmod grpc;"
+        "#[path = \"../app/grpc.rs\"]\nmod grpc;\n"
     } else {
         ""
     };
-    let mut source = include_str!("../templates/src/main.rs")
+    let source = include_str!("../templates/src/main.rs")
         .replace("{{type_name}}", crate_name)
         .replace("{{grpc_module}}", grpc_module);
-    if !grpc {
-        source = source.replace("\n\nfn main", "\nfn main");
-    }
     if database_module.is_empty() {
-        source.replace("{{database_module}}\n", "")
+        source.replace("{{database_module}}", "")
     } else {
-        source.replace("{{database_module}}", database_module)
+        source.replace("{{database_module}}", &format!("{database_module}\n"))
     }
 }
 
@@ -2468,6 +2593,12 @@ mod tests {
         assert!(project.join("build.rs").is_file());
         assert!(project.join("proto/echo.proto").is_file());
         assert!(project.join("app/grpc.rs").is_file());
+        assert!(project.join("tests/grpc_flows.rs").is_file());
+        let app = fs::read_to_string(project.join("bootstrap/app.rs"))
+            .expect("read generated application providers");
+        assert!(app.contains("GrpcServiceProvider::new()"));
+        assert!(app.contains("EchoServiceProvider"));
+        assert!(app.contains("HttpGrpcServiceProvider"));
         let proto =
             fs::read_to_string(project.join("proto/echo.proto")).expect("read generated Protobuf");
         assert!(proto.contains("package grpc_demo.v1;"));
@@ -2539,7 +2670,8 @@ mod tests {
     fn assert_module_layout(project: &Path) {
         let app_test = fs::read_to_string(project.join("tests/test_app.rs"))
             .expect("read generated TestApp test");
-        assert!(app_test.contains("TestApp::<bootstrap::Blog>"));
+        assert!(app_test.contains("use bootstrap::Blog as GeneratedApplication;"));
+        assert!(app_test.contains("TestApp::<GeneratedApplication>"));
         assert!(app_test.contains(r#".uri("/health")"#));
         assert!(app_test.contains("app.shutdown("));
         assert!(!app_test.contains("OpenRustGeneratedApplication"));
@@ -2564,7 +2696,10 @@ mod tests {
         let application = fs::read_to_string(project.join("bootstrap/app.rs"))
             .expect("read generated application");
         assert!(application.contains("fn modules("));
-        assert!(application.contains("crate::modules::manifest(config.modules_root.as_deref()"));
+        assert!(application.contains("crate::modules::manifest("));
+        assert!(application.contains("config"));
+        assert!(application.contains(".modules_root"));
+        assert!(application.contains(".as_deref()"));
         let main = fs::read_to_string(project.join("src/main.rs"))
             .expect("read generated application entry");
         assert!(main.contains("../modules/mod.rs"));
@@ -2739,7 +2874,8 @@ mod tests {
             let http_test = fs::read_to_string(project.join("tests/auth_flows.rs"))
                 .expect("read generated auth HTTP integration test");
             assert!(http_test.contains("ProviderBuilder::for_application::<"));
-            assert!(http_test.contains("bootstrap::Blog,"));
+            assert!(http_test.contains("use bootstrap::Blog as GeneratedApplication;"));
+            assert!(http_test.contains("for_application::<GeneratedApplication>"));
             assert!(http_test.contains("../modules/mod.rs"));
             assert_eq!(
                 fs::read_to_string(project.join("modules_statuses.json"))

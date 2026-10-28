@@ -14,8 +14,8 @@
 | HTTP | `axum` 0.8 + `tower` + `tower-http` | 路由、提取器、中间件；`tower-http` 启用 `fs` 提供静态目录/文件服务，`cors`、`compression-gzip`、`compression-br` 支持跨域与压缩，另有 request-id、trace、timeout、catch-panic；门面直接依赖并导出 `tower::ServiceExt` 供单依赖应用测试路由 |
 | 限流 | `openrust::core::RateLimiter` + `openrust::database::DatabaseRateLimitStore` | 已实现固定窗口服务与双库共享 store，AuthFlows 与通用 HTTP RateLimitLayer/key 策略已接入；gRPC 适配待实现，不额外依赖 governor |
 | 会话 | `tower-sessions` 0.15；可选 Redis adapter 复用 `redis` 1.8.0 | 默认使用 SeaORM 数据库 store；`session-redis` feature 提供显式 `RedisSessionStore`，通过 `SessionPlugin::with_store` 选择；Redis 键与 TTL 语义见 ADR-017 |
-| gRPC | 可选 `grpc` feature 使用 `tonic` / `tonic-prost` / `tonic-health` / `tonic-reflection` `~0.14.6`（当前 lock 解析为 0.14.7）、`prost` 0.14、`http-body-util` 0.1；应用代码生成用 `tonic-prost-build` `~0.14.6` | 显式启用 tonic `tls-ring` Rustls provider；运行时依赖 MSRV 1.88，低于 workspace 1.97。默认构建不链接运行时或要求 `protoc`；生成应用使用 `protoc-bin-vendored` 3.3，不执行全局安装。rcgen 仅供独立 gRPC 示例生成临时测试证书。G2a TLS/mTLS、G2b JWT/PAT/Policy/Status、G2c 健康/reflection/调用预算/资源/有界停机、G3a HTTP/RPC 联合生命周期、G3b proto/trace 兼容及 G3c 双节点 HTTP/2 路由已完成对应验收；真实 L7 验收固定 Envoy 1.40.1。完整集群留在 M6，不自研 RPC 栈，见 ADR-040 |
-| 实时通信 | 可选 `realtime` 启用 Axum WebSocket 与在线 SSE；`realtime-redis` 复用 `redis` 1.8.0 Pub/Sub 跨节点路由 | 本地无 Redis 的 transport 是显式选择；跨节点没有静默本地回退。独立验收宿主 `tests/consumers/realtime/` 使用 `tokio-tungstenite` 0.29、`reqwest` 0.13、`futures-util` 与 `bytes` 做真实双进程 TCP/WebSocket/SSE 及停机验收；Redis 8 服务为验收依赖 |
+| gRPC | 可选 `grpc` feature 使用 `tonic` / `tonic-prost` / `tonic-health` / `tonic-reflection` `~0.14.6`（当前 lock 解析为 0.14.7）、`prost` 0.14、`http-body-util` 0.1；应用代码生成用 `tonic-prost-build` `~0.14.6` | 显式启用 tonic `tls-ring`，并直接声明 `rustls` 0.23 ring 后端以在其他 TLS feature 同时启用时选定进程级 CryptoProvider，避免自动选择歧义；运行时依赖 MSRV 1.88，低于 workspace 1.97。默认构建不链接运行时或要求 `protoc`；生成应用使用 `protoc-bin-vendored` 3.3，不执行全局安装。rcgen 仅供独立 gRPC 示例生成临时测试证书。G2a TLS/mTLS、G2b JWT/PAT/Policy/Status、G2c 健康/reflection/调用预算/资源/有界停机、G3a HTTP/RPC 联合生命周期、G3b proto/trace 兼容及 G3c 双节点 HTTP/2 路由已完成对应验收；真实 L7 验收固定 Envoy 1.40.1。完整集群留在 M6，不自研 RPC 栈，见 ADR-040 |
+| 实时通信 | 可选 `realtime` 启用 Axum WebSocket 与在线 SSE；`realtime-redis` 复用 `redis` 1.8.0 Pub/Sub 跨节点路由 | 本地无 Redis 的 transport 是显式选择；跨节点没有静默本地回退。主包 dev-dependency 与独立验收宿主 `tests/consumers/realtime/` 使用 `tokio-tungstenite` 0.29 做真实 WebSocket 回归；独立宿主另用 `reqwest` 0.13、`futures-util` 与 `bytes` 做双进程 TCP/WebSocket/SSE 及停机验收；Redis 8 服务为验收依赖 |
 | OpenAPI | 规划 `utoipa` + `utoipa-axum`，尚未引入 | 类型 schema、统一响应文档与非生产 `/docs` 均待实现 |
 | 出站 HTTP | `reqwest` 0.13（Rustls）、`ipnet` 2.11、`httpdate` 1.x | `http-client` 可选 feature；共享连接池、JSON/query/form/multipart/stream、显式超时；默认禁重定向和代理继承；`HttpClient::restricted` 可选执行目标主机/端口、DNS 全结果及公网地址策略，内网例外由主机 + CIDR + 端口显式登记；命名依赖隔离及可选进程内熔断复用此客户端 |
 | 外部 OIDC 客户端 | `oauth2` 5.0（禁用 crate 默认 feature）+ 现有 `jsonwebtoken` 11.1（aws-lc-rs） | 可选 `auth-oidc` feature 依赖 `auth`、`http-client`、`encryption`；授权码/PKCE/令牌交换由 oauth2 提供，OIDC Discovery/JWKS 与 ID Token 必需声明校验由框架 glue 完成并通过受限命名 `DependencyClient` 出站；避免引入 `openidconnect` 的受影响 `rsa` 依赖，见 ADR-053 |
@@ -57,7 +57,7 @@
 | 邮件 / 短信 | `lettre` 0.11 + log/fake；`mail-smtp` 启用 Tokio/Rustls STARTTLS，仅本机 loopback 可显式关闭；`sms-twilio` 复用 `http-client` 与 `base64` | 本机 Mailpit SMTP 实收已有验收记录；真实 Twilio 投递待授权账号和目标，log/fake 不能代替送达证据 |
 | 模板 | MiniJinja `~2.24.0` 关闭默认 feature；邮件使用 `mail-templates` 编译期模板，服务端页面使用可选 `view` feature 及其 `loader` 能力 | 邮件继续使用受信任编译期资源；视图使用应用根目录 loader、严格变量、HTML 自动转义、燃料上限和可选开发重载；不读取网络或用户上传模板 |
 | 通用数据交换 | 可选 `data-exchange` 使用 `csv` 1.4、`calamine` 0.37、`rust_xlsxwriter` 0.101、`zip` 9.x 与 `quick-xml` 0.42 | CSV 逐记录处理；XLSX 读取使用 cell streaming，写入启用 constant-memory；限制 ZIP 展开、shared strings 数量和表格行列/单元格。CSV 为 MIT OR Unlicense；其余依赖 MIT 或 MIT OR Apache-2.0；组件 MSRV 1.73/1.88，均低于 workspace 1.97；压缩、加密等非必要 zip feature 关闭 |
-| 数据交换任务临时文件 | 可选 `data-exchange-tasks` 使用 `tempfile` 3.27，并复用 Queue、Storage、Db 事务与 RequestIdempotency | 输入/输出暂存使用操作系统临时目录的自动回收文件；仅显式启用，不把临时路径暴露为应用存储契约 |
+| 数据交换任务临时文件与导入标识 | 可选 `data-exchange-tasks` 使用 `tempfile` 3.27 和现有 `uuid` 1.x，并复用 Queue、Storage、Db 事务与 RequestIdempotency | 输入/输出暂存使用操作系统临时目录的自动回收文件；UUIDv7 用于服务端生成导入标识，仅显式启用该任务能力 |
 
 ## 工具链
 
@@ -65,6 +65,7 @@
 | --- | --- |
 | CLI 解析 | 已用 `clap`（derive） |
 | 模板渲染（生成器） | CLI 继续使用内置模板文件与 Rust 字符串生成；应用页面和邮件 renderer 分别由 `view` 与 `mail-templates` feature 提供 |
+| 生成应用验收专用依赖 | gRPC 生成测试使用现有 `rcgen` 0.14.10、`tempfile` 3.27 和 Tokio process/net/io/time；MFA 生成测试使用与框架同主版本的 `hmac` 0.13、`sha1` 0.11、`url` 2.5。仅写入显式选择 `--grpc` / `--auth-mfa` 后的生成项目 dev-dependencies；测试用临时 CA、真实二进制联合监听和测试端 RFC 6238 验证器，不添加生产认证算法或全局证书配置。 |
 | 文件监听（`openrust dev`） | 尚未实现；当前仅以 development 环境启动应用，`watchexec` 是规划选型 |
 | 快照测试 | 已用 `insta` |
 | TOML 配置编辑 | CLI 使用 `toml_edit` 在整套源码 workspace 中合并应用成员，并保留根 `Cargo.toml` 的其余内容与注释；不引入额外 manifest 重写器 |

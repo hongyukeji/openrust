@@ -1,0 +1,8 @@
+    std::fs::write(
+        config_dir.join("auth.toml"),
+        "[auth.jwt]\nissuer = 'http://openrust.test'\naudience = 'generated-grpc-tests'\nactive_key_id = 'test'\n\n[auth.jwt.keys]\ntest = 'KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio='\n",
+    )?;
+    std::fs::write(
+        config_dir.join("security.toml"),
+        "[security.signed_links]\nissuer = 'http://openrust.test'\nactive_key_id = 'test'\n\n[security.signed_links.keys]\ntest = 'JCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQ='\n",
+    )?;

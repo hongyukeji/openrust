@@ -1,7 +1,7 @@
 # cli
 
 > 受众：AI Agent
-> 更新：2026-10-26
+> 更新：2026-10-29
 > 摘要：源码内 `openrust` 命令提供中文帮助、项目生成、开发启动与运行期命令代理；生成项目遵循根 workspace 和简体中文说明规范。
 
 ## 当前实现
@@ -19,7 +19,8 @@
 - `tests/application.rs` 通过读取生成的 `Cargo.toml` 并与 `CARGO_PKG_NAME` 比较验证包名，避免不同项目名长度改变 rustfmt 排版；PG18 与 MySQL 8.4 的新生成认证项目格式、check 与 HTTP 集成测试均通过。
 - 数据库模板以稳定 `openrust_migration` dependency alias 引用独立 migration package，生成应用名长短不会改变 `app.rs` 格式。
 - `openrust new` 支持 `--http-client`、`--sms-twilio`、`--encryption` 可选项，可与 `--db` / `--auth` 组合；`openrust key generate` 生成 32-byte OS 随机密钥并输出 Base64，不写配置文件。
-- `openrust new --grpc` 生成可选 gRPC 应用：转发 `grpc` feature，创建应用自有 `proto/echo.proto`、vendored-protoc `build.rs`、typed proto module 和 `[grpc] listen_addr` 配置；默认模板不增加 gRPC 依赖或代码生成。
+- `openrust new --grpc` 生成可选 gRPC 应用：转发 `grpc` feature，创建应用自有 `proto/echo.proto`、vendored-protoc `build.rs`、typed proto module 和 `[grpc] listen_addr` 配置，并安装 Echo、`GrpcServiceProvider` 与 `HttpGrpcServiceProvider`。默认入口仍是 HTTP `serve`；配置 TLS 证书/私钥后可显式运行 `serve all`，以同一应用在两个端口提供 HTTP 与 typed Echo。默认模板不增加 gRPC 依赖或代码生成。
+- `--auth-mfa` 生成应用在认证 HTTP 测试内实际启用因子，验证登录仅返回挑战、恢复码一次性使用、轮换与 refresh 撤销。`--grpc` 生成测试启动生成的二进制，验证 TLS 信任/拒绝、HTTP/Echo 与信号停机；普通、双库认证/MFA、纯 gRPC 及双库认证/MFA+gRPC 十变体的格式、check 和适用真实测试见 [R1-E 验收记录](../memory/testing.md#r1-e-业务示例定向验收证据整簇进行中)。
 - 生成源码采用内置模板文件与 Rust 字符串拼装，当前未使用 MiniJinja；生成器包含 Model、Migration、Mailer、Policy 和 Job。UUID 主键默认关闭，启用时应用和 migration package 均添加可选 `db-uuid` feature。
 
 ## 后续边界

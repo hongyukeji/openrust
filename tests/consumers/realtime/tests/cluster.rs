@@ -69,8 +69,7 @@ async fn two_real_api_processes_route_websocket_and_sse_through_redis() -> TestR
         .send()
         .await?;
     assert!(revoke_response.status().is_success());
-    let closed = timeout(Duration::from_secs(5), websocket.next()).await?;
-    assert!(closed.is_none() || matches!(closed, Some(Ok(Message::Close(_)))));
+    timeout(Duration::from_secs(5), wait_websocket_close(&mut websocket)).await??;
 
     let mut shutdown_socket =
         connect_async(websocket_request(port_a, "user-73", "http://localhost")?)
@@ -155,8 +154,11 @@ async fn wait_websocket_close(
 ) -> TestResult {
     loop {
         match socket.next().await {
-            Some(Ok(Message::Close(_))) | None | Some(Err(_)) => return Ok(()),
-            Some(Ok(_)) => {}
+            Some(Ok(Message::Close(_))) => return Ok(()),
+            Some(Ok(Message::Ping(_) | Message::Pong(_))) => {}
+            Some(Ok(_)) => return Err("WebSocket received a data frame before closing".into()),
+            Some(Err(error)) => return Err(error.into()),
+            None => return Err("WebSocket ended without a Close frame".into()),
         }
     }
 }

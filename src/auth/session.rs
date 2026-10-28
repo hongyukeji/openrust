@@ -1,6 +1,9 @@
 //! 基于共享数据库的 HTTP Session。
 
-use std::sync::Arc;
+use std::{
+    sync::Arc,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 use crate::config::ConfigError;
 use crate::config::SessionConfig;
@@ -361,6 +364,55 @@ impl SessionStoreHandle {
             )
         })
     }
+
+    /// 读取已经认证的 Session 在共享 store 中持久保存的截止时间，不续期。
+    ///
+    /// 调用方须先通过 `AuthLayer` 验证账户；此处再比较请求快照和持久记录的账户 ID，
+    /// 在记录不存在、已过期或 store 不可用时拒绝，不给长连接延长有效期。
+    pub async fn authorized_until(
+        &self,
+        session: &tower_sessions::Session,
+        user_id: i64,
+    ) -> Result<SystemTime> {
+        if session
+            .get::<i64>(crate::auth::database::AUTH_USER_ID_KEY)
+            .await
+            .map_err(|_| Error::Unauthorized)?
+            != Some(user_id)
+        {
+            return Err(Error::Unauthorized);
+        }
+        let id = session.id().ok_or(Error::Unauthorized)?;
+        let record = self
+            .0
+            .load(&id)
+            .await
+            .map_err(|_| {
+                Error::custom_with_status(
+                    axum::http::StatusCode::SERVICE_UNAVAILABLE,
+                    "session_store_unavailable",
+                    "shared Session storage is unavailable",
+                )
+            })?
+            .ok_or(Error::Unauthorized)?;
+        if record
+            .data
+            .get(crate::auth::database::AUTH_USER_ID_KEY)
+            .and_then(serde_json::Value::as_i64)
+            != Some(user_id)
+        {
+            return Err(Error::Unauthorized);
+        }
+        if record.expiry_date <= time::OffsetDateTime::now_utc() {
+            return Err(Error::Unauthorized);
+        }
+        let seconds =
+            u64::try_from(record.expiry_date.unix_timestamp()).map_err(|_| Error::Unauthorized)?;
+        let nanos = record.expiry_date.nanosecond();
+        UNIX_EPOCH
+            .checked_add(Duration::new(seconds, nanos))
+            .ok_or(Error::Unauthorized)
+    }
 }
 
 /// 在统一容器中装配共享 Session store 和 Cookie 中间件。
@@ -368,6 +420,9 @@ pub struct SessionServiceProvider {
     config: Option<SessionConfig>,
     storage: SessionStorage,
 }
+
+#[derive(Clone)]
+pub(crate) struct SessionSettings(pub(crate) SessionConfig);
 
 impl SessionServiceProvider {
     /// 使用数据库 store 和配置仓储中的 Cookie 设置。
@@ -413,6 +468,18 @@ impl crate::core::ServiceProvider for SessionServiceProvider {
             ]),
             |config: &SessionConfig| config.validate().map(|_| ()),
         )?;
+        let explicit_config = self.config.clone();
+        app.singleton::<SessionSettings, _>(move |resolver| {
+            let explicit_config = explicit_config.clone();
+            Box::pin(async move {
+                let config = match explicit_config {
+                    Some(config) => config,
+                    None => resolver.section::<SessionConfig>("session")?,
+                };
+                config.validate()?;
+                Ok(Arc::new(SessionSettings(config)))
+            })
+        });
         let custom = match &self.storage {
             SessionStorage::Custom(store) => Some(Arc::clone(store)),
             SessionStorage::Database => None,
@@ -442,10 +509,7 @@ impl crate::core::ServiceProvider for SessionServiceProvider {
 
     fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            let config = match &self.config {
-                Some(config) => config.clone(),
-                None => app.section::<SessionConfig>("session")?,
-            };
+            let config = app.resolve::<SessionSettings>().await?.0.clone();
             let same_site = config.validate()?;
             let store = app.resolve::<SessionStoreHandle>().await?;
             app.http_layer(
@@ -579,6 +643,24 @@ mod provider_tests {
         builder.provider(OverrideStore);
         let runtime = builder.start(Figment::new()).await?;
         runtime.container().resolve::<SessionStoreHandle>().await?;
+        runtime
+            .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
+            .await
+    }
+
+    #[tokio::test]
+    async fn explicit_cookie_name_is_the_same_snapshot_used_by_authentication() -> Result<()> {
+        let config = SessionConfig {
+            cookie_name: "custom_session".into(),
+            ..SessionConfig::default()
+        };
+        let mut builder = ProviderBuilder::new();
+        builder.provider(
+            SessionServiceProvider::with_store(MemoryStore::default()).with_cookie_config(config),
+        );
+        let runtime = builder.start(Figment::new()).await?;
+        let settings = runtime.container().resolve::<SessionSettings>().await?;
+        assert_eq!(settings.0.cookie_name, "custom_session");
         runtime
             .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
             .await

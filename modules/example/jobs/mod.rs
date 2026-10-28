@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
+pub(crate) mod article_index;
 pub mod example_heartbeat;
 
 use openrust::core::{BootContext, BoxFuture, RegisterContext, Result, ServiceProvider};
@@ -41,6 +42,7 @@ impl ServiceProvider for JobsServiceProvider {
         Box::pin(async move {
             let contributions = app.resolve::<QueueContributions>().await?;
             contributions.register_job::<example_heartbeat::ExampleHeartbeatJob>()?;
+            contributions.register_job::<article_index::ArticleIndexJob>()?;
             contributions.schedule_interval(
                 "example-heartbeat",
                 "example",

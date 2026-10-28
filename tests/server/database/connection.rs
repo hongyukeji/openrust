@@ -498,6 +498,32 @@ async fn transaction_commits_success_and_rolls_back_callback_errors()
         })
         .await;
     assert!(rolled_back.is_err());
+    let table_for_business_error = table.clone();
+    let preserved = database
+        .transaction(|transaction| {
+            Box::pin(async move {
+                transaction
+                    .execute_unprepared(&format!(
+                        "INSERT INTO {table_for_business_error} (id) VALUES (3)"
+                    ))
+                    .await
+                    .map_err(Error::internal)?;
+                Err::<(), _>(Error::custom_with_status(
+                    openrust::http::axum::http::StatusCode::CONFLICT,
+                    "business_rejected",
+                    "business rule rejected",
+                ))
+            })
+        })
+        .await;
+    let preserved = preserved
+        .err()
+        .ok_or("business error unexpectedly accepted")?;
+    assert_eq!(preserved.code(), "business_rejected");
+    assert_eq!(
+        preserved.status(),
+        openrust::http::axum::http::StatusCode::CONFLICT
+    );
 
     let count = connection
         .query_one_raw(Statement::from_string(
@@ -515,6 +541,7 @@ async fn transaction_commits_success_and_rolls_back_callback_errors()
 }
 
 #[tokio::test]
+#[allow(clippy::too_many_lines)] // 同一隔离事务覆盖回调、提交前与提交后错误顺序。
 async fn transaction_events_rollback_before_commit_and_ignore_after_commit_errors()
 -> Result<(), Box<dyn std::error::Error>> {
     use std::sync::{
@@ -584,7 +611,10 @@ async fn transaction_events_rollback_before_commit_and_ignore_after_commit_error
             })
         })
         .await;
-    assert!(rejected.is_err());
+    assert_eq!(
+        rejected.err().map(|error| error.code().to_owned()),
+        Some("commit_rejected".into())
+    );
     assert_eq!(
         after_calls.load(Ordering::SeqCst),
         0,

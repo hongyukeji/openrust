@@ -14,7 +14,11 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Added
 
-- R2-M 新增编译期 `ModuleDescriptor`、运行时 `ModuleManifest`/文件激活快照、模块配置与资源路径加载、命名空间视图和翻译，以及按全局名称/批次执行的统一迁移历史。根应用与生成项目从运行根读取模块状态；示例业务完整移至 `modules/example/`。管理写命令、完整发布流程与真实 CRUD 仍属后继。
+- R1-E 在唯一 `modules/example` 中加入有所有者约束的 Article CRUD，并以实际业务路径展示租户、附件、缓存、队列、认证、实时通信、数据交换、国际化与观测等当前公开能力；具体真实服务范围和仍未关闭的边界见示例 README 与验收记录。
+
+- `openrust new --grpc` 生成 typed Echo 服务与 Provider，并提供应用二进制 `serve all` 的 HTTP + TLS gRPC 联合运行测试。`--auth-mfa` 生成的 HTTP 验收现覆盖真实 TOTP 挑战、恢复码一次性与撤销；与 gRPC、认证、数据库组合时也生成可运行测试配置。
+
+- R2-M 新增编译期 `ModuleDescriptor`、运行时 `ModuleManifest`/文件激活快照、模块配置与资源路径加载、命名空间视图和翻译，以及按全局名称/批次执行的统一迁移历史。根应用与生成项目从运行根读取模块状态；示例业务完整移至 `modules/example/`。管理写命令与完整发布流程仍属后继。
 
 - R2-D 新增与生产共用 Provider/Router 启动路径的 `TestApp<A>`、可重放的 Provider 移除与注册后绑定覆盖、有界请求和安全响应断言；完整 `reset` 先关闭旧应用再重建。普通及认证项目生成模板包含对应测试，综合示例验证业务服务替换和路由移除。
 

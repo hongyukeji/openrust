@@ -1,10 +1,10 @@
 # 活跃待办
 
-> 当前代码与目标：业务示例已迁至 `modules/example/` 并经模块清单接入；完整模块管理和真实 CRUD 仍未完成，按 [ADR-074](decisions/adr-074-laravel-modules-directory.md) 继续推进。
+> 当前代码与目标：业务示例已迁至 `modules/example/` 并经模块清单接入；R1-E 既有 CRUD/能力门禁已通过；附件新增期限回归和全量 PG/MySQL 本地回归均通过 15/15；真实 MinIO CopyObject 成功但响应暂缓时，PostgreSQL/MySQL 删除竞争均通过 1/1；deadline/EOF 已用原子状态仲裁，远端结果不确定后的迟到发布仍属未保证边界。OIDC 确认页已完成真实 Chromium/mock 分支验收，真实 Keycloak/双库 `AlwaysOk` 错误密码、已消费 state 与成功夹证各 1/1 已通过；Collector PostgreSQL 使用独立 sink 后 delivery/unavailable 各 1/1 通过且保留 16 MiB 限制。最终审查与资源清理已完成，当前待限定本地提交；完整模块管理和 Laravel 1:1 范围按 [ADR-074](decisions/adr-074-laravel-modules-directory.md) 继续推进。
 
 > 受众：AI Agent
-> 更新：2026-10-28
-> 摘要：Laravel + laravel-modules 的 Rust 1:1 实现唯一活跃队列；R0旧基线已记录，模块包逐项盘点待补；R1-S与R2-A至R2-M各已交付对应子簇，后继 R1-E 真实 CRUD/能力示例未完成。
+> 更新：2026-10-29
+> 摘要：Laravel + laravel-modules 的 Rust 1:1 实现唯一活跃队列；R0旧基线已记录，模块包逐项盘点待补；R1-S与R2-A至R2-M各已交付对应子簇，R1-E 正在补真实故障边界、审查与最终提交；MinIO 双库延迟响应竞争已实际通过；远端结果不确定后的迟到发布边界保留。
 
 ## 领取规则
 
@@ -14,7 +14,7 @@
 
 用户再次明确按 Laravel + laravel-modules 的完整 Rust 实现从零设计、重写核心；旧 API、目录和实现不构成兼容约束。新内核以固定上游行为为依据，不继续堆叠旧 Plugin 装配；旧源码仅作事实与回归输入，由对应功能簇替换后通过 git rm 清除失效实现。此授权不删除他人 WIP、共享服务、数据或原始测试证据，也不要求重造成熟密码学和数据库驱动。
 
-R2-M 模块闭环的源码与适用门禁已通过，随本簇限定本地提交收口；下一个可领取功能簇为 R1-E 真实 CRUD 与当前能力示例。全部工作留在 main；共享 Cargo 清单、锁文件、验证服务和提交串行协调；子代理不得递归派发。
+R2-M 模块闭环已在 main 提交；当前唯一主功能簇为 R1-E 真实 CRUD 与当前能力示例。全部工作留在 main；共享 Cargo 清单、锁文件、验证服务和提交串行协调；子代理不得递归派发。
 
 ## 当前可领取
 
@@ -23,7 +23,7 @@ R2-M 模块闭环的源码与适用门禁已通过，随本簇限定本地提交
 | R1-S 根结构与普通模块挂载 | 已完成结构子交付34dfb5e | 根Laravel职责、同package lib/server、资源内聚、模块公开挂载；按范围实际门禁与独立审查通过后可限定提交，仅结构子交付 |
 | R2 基础：Container/Provider/模块配置/TestApp | R2-A/A2/A3、R2-B、R2-C、R2-D、R2-M 各子簇已验收 | 全体register后boot、统一Container与typed配置、最小TestApp及模块闭环；先形成真实CRUD/扩展接入的稳定API，不依赖完整R1-E |
 | R2-M 模块最小闭环与目录迁移 | 真实服务与生成项目已验收，本簇提交 | modules/ 声明注册、模块配置/资源/统一迁移、依赖与冲突错误；示例迁至 modules/example，真实HTTP及双库验证；完整管理命令归R13 |
-| R1-E 真实CRUD与当前能力示例 | 下一可领取；未交付 | 真实实体列表/详情/新增/更新/删除，校验/分页/404/授权/事务；PG18/MySQL8.4真实HTTP闭环；当前公开能力实际业务/扩展/测试逐项覆盖，GET基础信息响应不算CRUD |
+| R1-E 真实CRUD与当前能力示例 | in_progress | 真实实体列表/详情/新增/更新/删除，校验/分页/404/授权/事务；PG18/MySQL8.4真实HTTP闭环；当前公开能力实际业务/扩展/测试逐项覆盖，GET基础信息响应不算CRUD |
 | R2 后继内核与测试底座 | 待R2基础，按依赖分簇 | scope/Facade/DI/停机与模块依赖/顺序等完整对应；每簇同步modules/example，不建双内核；不把全部R2能力塞入首批 |
 | 模块包固定范围细化 | 待逐项盘点 | 对正式laravel-modules固定源码/文档的导航、源码与测试拆行为矩阵，分类必要Rust差异/用户约定/缺口；不把目录规范或显式Plugin等同完整模块管理 |
 
@@ -160,3 +160,32 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 6. 将唯一现有示例完整迁至 `modules/example/`，根只保留通用编译声明/清单；示例真实 HTTP、TestApp 替换/移除、数据库迁移及资源经公开模块入口执行。
 7. 验收模块排序/依赖/配置时序与冲突/失败、临时第二模块无需改框架 src、禁用后的真实 HTTP，以及 PostgreSQL 18/MySQL 8.4、生成应用和适用全门禁。
 8. 模块状态写入、管理命令、生成、发布与完整 B 矩阵归 R13/后继，不把静态 Rust 编译声明称为 PHP 源码热发现。
+
+## 当前 R1-E Spec：真实业务 CRUD 与公开能力示例
+
+状态：in_progress；复用唯一 `modules/example`、现有 Provider/Db/Auth/HTTP 能力，不新增框架业务内核。
+
+1. 新增有所有者的 Article 业务实体、模块迁移及 SeaORM model；仅在数据库和认证能力就绪时挂载 `/api/example/articles`。
+2. 通过公开 `CurrentUser`、`AuthLayer`、`Validated`/`Json`、`Db` 和 `Routes` 实现列表、详情、新增、更新、删除，业务数据仍只属于 `modules/example`。
+3. 请求验证标题/正文和有界页码、每页数量；查询和写入按当前账户所有者约束，别人的记录按未找到处理，写操作走主库事务。
+4. 返回真实持久化模型的资源 DTO；列表提供稳定排序、分页总数，详情/新增/更新/删除和错误响应保持现有 API envelope 语义。
+5. PostgreSQL 18/MySQL 8.4 分别用隔离库和真实 TCP HTTP 覆盖完整 CRUD、无效输入、跨账户访问、分页、删除后 404 与事务失败不留部分状态。
+6. 盘点当前已实现公开能力在示例的实际调用/扩展覆盖；缺项按非重叠文件分组补齐并逐项验收，不用仅有 consumer、文档或基础 GET 冒充模块示例。
+7. 同步示例 README、根/项目事实、必要模板与变更日志；fmt、默认/全特性 workspace、Rustdoc、deny、MSRV/no-default、真实服务及生成项目按受影响范围验证后限定本地提交。
+8. 此簇不把 SeaORM 业务 model 称为完整 Eloquent 等价，也不领取未来 R3–R16 尚未实现的框架能力。
+
+当前子闭环与验收入口（整簇仍 `in_progress`；当前源码的整组门禁和定向真实证据见 `memory/testing.md`，当前剩余限定本地提交）：
+
+- Article CRUD、事务事件/通知/审计/签名/加密、附件持久清理意图、同步及异步 CSV/XLSX、命名 Redis 缓存、Session/MFA、OIDC、SSE/WebSocket、业务 telemetry 已接示例；真实双库定向已分项执行，能力边界以 `modules/example/README.md` 表为准。
+- S3 既有暂存→完整校验→copy 发布和双库/版本化验收已通过；真实 MinIO 代理确认 CopyObject 成功后暂缓 SDK 响应，PostgreSQL 18/MySQL 8.4 各 1/1 验证上传任务继续持锁、DELETE 等发布收敛并清理最终 key 与 staging。请求体 EOF 与 45 秒 deadline 由共享原子状态仲裁：deadline 获胜则延迟 EOF 只能产生流错误，不会进入发布；EOF 获胜则存储收敛前保留行锁。App shutdown deadline、进程强杀、永久网络停滞，以及 CopyObject 已发送后返回 `storage_publication_uncertain` 而远端迟到成功，仍不保证 DB/S3 原子提交或无孤儿。
+- 显式 `db seed` 的幂等/碰撞/不可登录隔离账号，以及数据库与 Redis 两种文章索引 worker 的真实失败、退避、终态、公开重试已双库验证；默认/全特性整组门禁与文档证据已归档。
+- 出站 HTTP 超时/取消、Cache tag/SWR 生产路由、tenant 成员鉴权→查询/缓存/本地及 S3 存储/持久队列/附件清理、浏览器原生 Session WebSocket、OIDC MFA/logout/真实签名 backchannel、视图发布 TCP、i18n 复数/日期、gRPC 双端口 TLS 组合、业务 Scheduler 时钟→队列→worker 均有定向真实证据；默认/全特性 workspace、适用 consumer 与十种生成项目已按当前源码执行，精确命令、忽略项及初轮失败见 testing。
+- Collector PostgreSQL runner 已确认读取活跃日志并检查增长；共享 `evidence-pg-final.log` 达 36 MiB 时不放宽 16 MiB 断言，改用隔离 Collector sink `/tmp/openrust-r1e-collector/evidence-pg-isolated.log`。delivery 与 unavailable 各 1/1，匹配 trace/metric、业务提交/不可用 warning 和无私密 sentinel；共享 Collector 与原日志未改。
+
+### 当前 S3 copy 竞争修复 Spec
+
+- 预期：请求体 deadline 不能与正常 EOF 并发放行已过期的 S3 发布；CopyObject 已进入真实远端但响应尚未交回时，文章删除必须等待发布收敛后再清理目标。
+- 实现：共享 `AtomicU8` 通过 CAS 仲裁 pending→EOF 与 pending→deadline；deadline 先获胜时迟到 EOF 被转成流错误，storage 不会进入 copy；EOF 先获胜时请求体期限不再释放事务，App 受管上传持锁等 storage 结果。
+- 验收：真实 MinIO 代理把签名 CopyObject 转发至 MinIO，检查 HTTP 200 与 `CopyObjectResult` 后才暂缓成功响应；读取真实 final key 内容，确认 HTTP waiter 超时、并发 DELETE 仍阻塞，放行后检查 DELETE 完成、final key 不存在和 staging 已清。PostgreSQL 18/MySQL 8.4 各 1/1。
+- 附加验收：原子仲裁单测 3/3；PostgreSQL/MySQL `attachment_flows::` 各 15/15。
+- 边界：`storage_publication_uncertain`、远端迟到成功、App 关闭期限与进程强杀未被本用例解决，不声称 DB 与对象存储原子或绝无孤儿；隔离代理控制时序，不替代真实 MinIO。

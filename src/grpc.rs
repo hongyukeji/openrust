@@ -1198,6 +1198,7 @@ fn status_from_error(error: &Error) -> Status {
 }
 
 fn server_tls_config(config: &GrpcServerTlsConfig) -> Result<ServerTlsConfig> {
+    ensure_tls_crypto_provider();
     let certificate = read_pem(&config.certificate_file, "grpc.tls.certificate_file")?;
     let private_key = read_pem(&config.private_key_file, "grpc.tls.private_key_file")?;
     let identity = Identity::from_pem(certificate, private_key);
@@ -1217,6 +1218,7 @@ fn client_tls_config(
     name: &str,
     config: &GrpcClientTlsConfig,
 ) -> Result<tonic::transport::ClientTlsConfig> {
+    ensure_tls_crypto_provider();
     let ca = read_pem(
         &config.ca_certificate_file,
         &format!("grpc.clients.{name}.tls.ca_certificate_file"),
@@ -1242,6 +1244,14 @@ fn client_tls_config(
         tls = tls.domain_name(domain.clone());
     }
     Ok(tls)
+}
+
+fn ensure_tls_crypto_provider() {
+    // 其他启用的 HTTP/存储 feature 可能同时带入两个 rustls crypto 后端。
+    // gRPC 明确选择其 tls-ring 后端；已有进程级选择则沿用。
+    if rustls::crypto::CryptoProvider::get_default().is_none() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    }
 }
 
 fn read_pem(path: &Path, key: &str) -> Result<Vec<u8>> {

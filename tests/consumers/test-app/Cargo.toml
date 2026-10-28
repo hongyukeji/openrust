@@ -8,6 +8,9 @@ publish = false
 
 [workspace]
 
+[features]
+session = ["openrust/auth"]
+
 [dependencies]
 openrust = { path = "../../..", version = "0.0.0", default-features = false }
 figment = { version = "0.10", features = ["toml"] }

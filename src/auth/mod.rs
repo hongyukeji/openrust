@@ -530,7 +530,22 @@ async fn authenticate(
     request: Request,
     next: Next,
 ) -> Response {
-    let selected = match select_credential(config.mode, request.headers(), request.method()) {
+    let cookie_name = if matches!(config.mode, AuthMode::Session | AuthMode::SessionOrToken)
+        && state.container().contains::<session::SessionSettings>()
+    {
+        match resolve_request_service::<session::SessionSettings>(&state, None).await {
+            Ok(settings) => settings.0.cookie_name.clone(),
+            Err(error) => return error.into_response(),
+        }
+    } else {
+        "openrust_session".to_owned()
+    };
+    let selected = match select_credential_named(
+        config.mode,
+        request.headers(),
+        request.method(),
+        &cookie_name,
+    ) {
         Ok(selected) => selected,
         Err(error) => return error.into_response(),
     };
@@ -615,13 +630,23 @@ async fn authenticate(
     next.run(request).await
 }
 
+#[cfg(test)]
 fn select_credential<'a>(
     mode: AuthMode,
     headers: &'a HeaderMap,
     method: &'a Method,
 ) -> Result<Option<(AuthSource, &'a str, Option<&'a str>)>> {
+    select_credential_named(mode, headers, method, "openrust_session")
+}
+
+fn select_credential_named<'a>(
+    mode: AuthMode,
+    headers: &'a HeaderMap,
+    method: &'a Method,
+    cookie_name: &str,
+) -> Result<Option<(AuthSource, &'a str, Option<&'a str>)>> {
     let session = if matches!(mode, AuthMode::Session | AuthMode::SessionOrToken) {
-        session_cookie(headers)?
+        session_cookie(headers, cookie_name)?
     } else {
         None
     };
@@ -683,7 +708,7 @@ fn is_safe_method(method: &Method) -> bool {
         || method == Method::TRACE
 }
 
-fn session_cookie(headers: &HeaderMap) -> Result<Option<&str>> {
+fn session_cookie<'a>(headers: &'a HeaderMap, cookie_name: &str) -> Result<Option<&'a str>> {
     let mut found = None;
     for value in headers.get_all(header::COOKIE) {
         let value = value.to_str().map_err(|_| Error::Unauthorized)?;
@@ -691,7 +716,7 @@ fn session_cookie(headers: &HeaderMap) -> Result<Option<&str>> {
             let Some((name, cookie_value)) = part.trim().split_once('=') else {
                 continue;
             };
-            if name == "openrust_session" {
+            if name == cookie_name {
                 if found.is_some() {
                     return Err(ambiguous_credentials());
                 }
@@ -1040,7 +1065,7 @@ mod provider_tests {
 mod tests {
     use axum::http::{HeaderValue, Method, header};
 
-    use super::{AuthMode, AuthSource, select_credential};
+    use super::{AuthMode, AuthSource, select_credential, select_credential_named};
 
     fn code(error: crate::core::Error) -> String {
         match error {
@@ -1142,6 +1167,32 @@ mod tests {
         );
         assert_eq!(
             error_code(select_credential(AuthMode::Session, &headers, &Method::GET)),
+            "ambiguous_credentials"
+        );
+    }
+
+    #[test]
+    fn configured_cookie_name_is_selected_and_duplicates_are_rejected() {
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert(
+            header::COOKIE,
+            HeaderValue::from_static("openrust_session=other; custom_session=chosen"),
+        );
+        assert!(matches!(
+            select_credential_named(AuthMode::Session, &headers, &Method::GET, "custom_session"),
+            Ok(Some((AuthSource::Session, "chosen", None)))
+        ));
+        headers.append(
+            header::COOKIE,
+            HeaderValue::from_static("custom_session=duplicate"),
+        );
+        assert_eq!(
+            error_code(select_credential_named(
+                AuthMode::Session,
+                &headers,
+                &Method::GET,
+                "custom_session",
+            )),
             "ambiguous_credentials"
         );
     }

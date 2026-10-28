@@ -76,6 +76,9 @@ impl Application for Server {
                 providers.push(Box::new(openrust::auth::AuthServiceProvider::new()));
                 providers.push(Box::new(openrust::audit::AuditServiceProvider::database()));
                 providers.push(Box::new(openrust::auth::AuthFlowsServiceProvider::new()));
+                providers.push(Box::new(openrust::auth::SessionServiceProvider::new()));
+                #[cfg(feature = "auth-mfa")]
+                providers.push(Box::new(openrust::auth::MfaServiceProvider));
             }
             #[cfg(feature = "signing")]
             providers.push(Box::new(
@@ -86,6 +89,9 @@ impl Application for Server {
             {
                 let queue = openrust::queue::QueueServiceProvider::new();
                 providers.push(Box::new(queue));
+                providers.push(Box::new(
+                    openrust::notifications::NotificationsServiceProvider,
+                ));
             }
         }
         providers.push(Box::new(FrameworkRoutesProvider));

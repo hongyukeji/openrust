@@ -29,6 +29,33 @@ use tower::ServiceExt;
 
 static SEED_RUNS: AtomicUsize = AtomicUsize::new(0);
 
+#[cfg(feature = "auth-oidc")]
+#[tokio::test]
+async fn framework_oidc_migrations_roundtrip_on_isolated_database()
+-> Result<(), Box<dyn std::error::Error>> {
+    let Ok(url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+        eprintln!("skipping framework OIDC migrations: OPENRUST_TEST_DATABASE_URL is unset");
+        return Ok(());
+    };
+    let database = TestDatabase::create::<openrust::db::FrameworkMigrator>(&url).await?;
+    let connection = database.connection()?;
+    DatabaseTableNames::default()
+        .scope(async {
+            openrust::db::FrameworkMigrator::down(&connection, None).await?;
+            openrust::db::FrameworkMigrator::up(&connection, None).await
+        })
+        .await?;
+    let backend = connection.get_database_backend();
+    let table = DatabaseTableNames::default().quote("external_identity_requests", backend)?;
+    let sql = format!("SELECT 1 FROM {table} LIMIT 1");
+    connection
+        .query_one_raw(Statement::from_string(backend, sql))
+        .await?;
+    drop(connection);
+    database.close().await?;
+    Ok(())
+}
+
 struct CustomConnectionProvider {
     lock_url: Option<String>,
 }

@@ -1254,6 +1254,11 @@ mod opendal_driver {
                         .disable_config_load(),
                 )
                 .map_err(map_opendal_error)?;
+                if !operator.info().capability().copy {
+                    return Err(unsupported_storage_capability(
+                        "atomic S3 publication by copy",
+                    ));
+                }
                 if !operator.info().capability().presign_read {
                     return Err(unsupported_storage_capability("presigned read"));
                 }
@@ -1396,7 +1401,7 @@ mod opendal_driver {
         path: String,
         content_type: Option<String>,
         mut body: StorageStream,
-        mut cancellation: UploadCancellation,
+        cancellation: &mut UploadCancellation,
     ) -> Result<StorageMetadata> {
         let options = opendal::options::WriteOptions {
             content_type,
@@ -1446,6 +1451,78 @@ mod opendal_driver {
         }
     }
 
+    #[cfg(feature = "storage-s3")]
+    async fn cleanup_s3_staging(operator: &Operator, path: &str) {
+        // 清理不影响已发布对象的成功结果；故障时由存储运维回收保留前缀。
+        for _ in 0..3 {
+            if matches!(
+                tokio::time::timeout(Duration::from_secs(2), operator.delete(path)).await,
+                Ok(Ok(()))
+            ) {
+                return;
+            }
+        }
+        tracing::warn!(
+            code = "storage_staging_cleanup_failed",
+            "S3 暂存对象清理失败，需回收保留前缀中的滞留对象"
+        );
+    }
+
+    #[cfg(feature = "storage-s3")]
+    async fn write_s3_object(
+        operator: Operator,
+        path: String,
+        content_type: Option<String>,
+        body: StorageStream,
+        mut cancellation: UploadCancellation,
+    ) -> Result<StorageMetadata> {
+        // 保留目录不能通过 StoragePath 构造；随机 key 不包含业务或租户标识。
+        let staging = format!(".openrust-staging/{}", uuid::Uuid::now_v7());
+        let staged = write_object(
+            operator.clone(),
+            staging.clone(),
+            content_type,
+            body,
+            &mut cancellation,
+        )
+        .await;
+        if let Err(error) = staged {
+            cleanup_s3_staging(&operator, &staging).await;
+            return Err(error);
+        }
+        let source = match operator.stat(&staging).await {
+            Ok(metadata) => metadata_from_opendal(metadata),
+            Err(error) => {
+                cleanup_s3_staging(&operator, &staging).await;
+                return Err(map_opendal_error(error));
+            }
+        };
+        // EOF 与 finish 已完成，关闭 staging 仍不是 final key 的发布边界。
+        // copy 开始后不再观察取消，也绝不补偿删除 final，避免误删并发合法发布。
+        let result = if cancellation.receiver.try_recv().is_ok() {
+            Err(Error::custom(
+                "storage_upload_cancelled",
+                "upload was cancelled before publication",
+            ))
+        } else {
+            operator
+                .copy(&staging, &path)
+                .await
+                .map(|metadata| {
+                    let mut published = metadata_from_opendal(metadata);
+                    published.size = source.size;
+                    published.content_type = source.content_type;
+                    published
+                })
+                .map_err(|_| Error::custom(
+                    "storage_publication_uncertain",
+                    "S3 发布请求失败，远端可能已提交完整对象；请读取目标确认结果，禁止补偿删除目标",
+                ))
+        };
+        cleanup_s3_staging(&operator, &staging).await;
+        result
+    }
+
     #[async_trait]
     impl StorageBackend for OpenDalBackend {
         async fn put(
@@ -1458,8 +1535,15 @@ mod opendal_driver {
             let operator = self.operator.clone();
             let path = path.as_str().to_owned();
             let content_type = content_type.map(str::to_owned);
+            #[cfg(feature = "storage-s3")]
+            let s3 = self.staging_path.is_none();
             tokio::spawn(async move {
-                write_object(operator, path, content_type, body, cancellation).await
+                #[cfg(feature = "storage-s3")]
+                if s3 {
+                    return write_s3_object(operator, path, content_type, body, cancellation).await;
+                }
+                let mut cancellation = cancellation;
+                write_object(operator, path, content_type, body, &mut cancellation).await
             })
             .await
             .map_err(|_| {

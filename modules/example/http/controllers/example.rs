@@ -12,13 +12,20 @@ pub(crate) async fn show(Inject(message): Inject<ExampleMessage>) -> Json<Exampl
 }
 
 pub(crate) async fn heartbeat_label(
+    locale: openrust::i18n::RequestLocale,
     Inject(i18n): Inject<openrust::i18n::I18n>,
 ) -> openrust::Result<Json<serde_json::Value>> {
-    let locale = openrust::i18n::Locale::new("en")?;
-    let message = i18n.translate(
-        &locale,
+    let message = locale.translate(
+        &i18n,
         "example::heartbeat",
         &std::collections::BTreeMap::default(),
     );
-    Ok(Json(serde_json::json!({ "message": message })))
+    let number = i18n
+        .format_number(locale.locale(), "12345.67")
+        .map_err(openrust::Error::internal)?;
+    Ok(Json(serde_json::json!({
+        "locale": locale.as_str(),
+        "message": message,
+        "number": number,
+    })))
 }

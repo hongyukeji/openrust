@@ -102,6 +102,14 @@ impl JwtTokens {
 
     /// 验证 access token 并返回通过身份验证的框架账户 ID。
     pub fn verify_access_token(&self, token: &str) -> Result<i64> {
+        self.verify_access_token_with_expiry(token)
+            .map(|(user_id, _)| user_id)
+    }
+
+    /// 验证 access token，并返回账户 ID 与签名声明中的失效时刻。
+    ///
+    /// 实时连接应使用这个截止时间，避免自行猜测凭据的剩余有效期。
+    pub fn verify_access_token_with_expiry(&self, token: &str) -> Result<(i64, SystemTime)> {
         let header = decode_header(token).map_err(|_| Error::Unauthorized)?;
         if header.alg != Algorithm::HS256 || header.typ.as_deref() != Some(ACCESS_TOKEN_TYPE) {
             return Err(Error::Unauthorized);
@@ -133,7 +141,10 @@ impl JwtTokens {
         if user_id <= 0 || user_id.to_string() != claims.sub {
             return Err(Error::Unauthorized);
         }
-        Ok(user_id)
+        let expires_at = UNIX_EPOCH
+            .checked_add(std::time::Duration::from_secs(claims.exp))
+            .ok_or(Error::Unauthorized)?;
+        Ok((user_id, expires_at))
     }
 }
 
@@ -436,6 +447,12 @@ mod tests {
             .issue_access_token(73)
             .expect("access token is signed");
         assert_eq!(tokens.verify_access_token(&token).unwrap_or_default(), 73);
+        let (user_id, expires_at) = tokens
+            .verify_access_token_with_expiry(&token)
+            .expect("signed token exposes its verified expiry");
+        assert_eq!(user_id, 73);
+        assert!(expires_at > std::time::SystemTime::now());
+        assert!(expires_at <= std::time::SystemTime::now() + std::time::Duration::from_secs(3_600));
         assert!(tokens.issue_access_token(0).is_err());
     }
 

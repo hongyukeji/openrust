@@ -1,15 +1,17 @@
 //! 验证生成的认证路由端到端行为。
 
-#[path = "../bootstrap/app.rs"]
-mod bootstrap;
-#[path = "../modules/mod.rs"]
-mod modules;
 #[path = "../app/mod.rs"]
 mod app;
+#[path = "../bootstrap/app.rs"]
+mod bootstrap;
+{{grpc_module}}#[path = "../modules/mod.rs"]
+mod modules;
 #[path = "../routes/web.rs"]
 mod routes;
 #[path = "../database/seeders.rs"]
 mod seed;
+
+use bootstrap::OpenRustGeneratedApplication as GeneratedApplication;
 
 use std::error::Error as StdError;
 use std::net::SocketAddr;
@@ -27,7 +29,7 @@ use openrust::tokio::net::{TcpListener, TcpStream};
 use openrust::tokio::sync::oneshot;
 use testing::TestDatabase;
 
-type TestResult = std::result::Result<(), Box<dyn StdError>>;
+type TestResult<T = ()> = std::result::Result<T, Box<dyn StdError>>;
 
 #[derive(Clone, Default)]
 struct CaptureMailer {
@@ -99,11 +101,13 @@ async fn generated_auth_routes_run_over_http_with_isolated_database_and_fake_mai
         key,
         link_key
     );
-    let figment = Figment::from(Serialized::defaults(openrust::config::FrameworkConfig::default()))
-        .merge(Toml::string(&config));
-    let mut builder = openrust::core::ProviderBuilder::for_application::<
-        bootstrap::OpenRustGeneratedApplication,
-    >(&bootstrap::Configuration::default());
+    let figment = Figment::from(Serialized::defaults(
+        openrust::config::FrameworkConfig::default(),
+    ))
+    .merge(Toml::string(&config));
+    let mut builder = openrust::core::ProviderBuilder::for_application::<GeneratedApplication>(
+        &bootstrap::Configuration::default(),
+    );
     let captured_mail = CaptureMailer::default();
     builder.provider(CaptureMailerProvider(captured_mail.clone()));
     let runtime = builder.start(figment).await?;
@@ -112,7 +116,7 @@ async fn generated_auth_routes_run_over_http_with_isolated_database_and_fake_mai
     let address = listener.local_addr()?;
     let router = openrust::http::build_router(&app)?;
     let (shutdown, shutdown_signal) = oneshot::channel();
-    let server = openrust::tokio::spawn(async move {
+    let mut server = openrust::tokio::spawn(async move {
         openrust::http::axum::serve(
             listener,
             router.into_make_service_with_connect_info::<SocketAddr>(),
@@ -123,12 +127,35 @@ async fn generated_auth_routes_run_over_http_with_isolated_database_and_fake_mai
         .await
     });
 
-    let result = run_auth_flow(address, &captured_mail, &app).await;
+    let result = bounded_auth_business(run_auth_flow(address, &captured_mail, &app)).await;
     let _ = shutdown.send(());
-    server.await??;
+    let server_result: TestResult = match openrust::tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        &mut server,
+    )
+    .await
+    {
+        Ok(Ok(result)) => result.map_err(Into::into),
+        Ok(Err(error)) => Err(error.into()),
+        Err(error) => {
+            server.abort();
+            let _ = openrust::tokio::time::timeout(std::time::Duration::from_secs(1), &mut server)
+                .await;
+            Err(error.into())
+        }
+    };
+    let app_result = app
+        .shutdown(openrust::tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+        .await;
     drop(app);
-    database.close().await?;
-    result
+    let database_result =
+        openrust::tokio::time::timeout(std::time::Duration::from_secs(10), database.close()).await;
+    // 先完成所有回收；清理错误不能覆盖原始业务验收失败。
+    result?;
+    server_result?;
+    app_result?;
+    database_result??;
+    Ok(())
 }
 
 async fn run_auth_flow(
@@ -200,7 +227,8 @@ async fn run_auth_flow(
     assert_eq!(current_user.body["data"]["user_id"], user_id);
     let personal_access_token = app
         .state()
-        .resolve::<openrust::auth::PersonalAccessTokens>().await?
+        .resolve::<openrust::auth::PersonalAccessTokens>()
+        .await?
         .issue(
             user_id,
             "generated-http-test",
@@ -317,7 +345,7 @@ async fn run_auth_flow(
     assert_eq!(rate_limited.status, StatusCode::OK);
     assert_eq!(rate_limited.body["success"], false);
     assert_eq!(rate_limited.body["code"], "rate_limited");
-    Ok(())
+{{mfa_flow}}    Ok(())
 }
 
 struct HttpResponse {
@@ -409,24 +437,73 @@ async fn generated_test_app_overrides_mailer_for_registration() -> TestResult {
     };
     let database = TestDatabase::create::<openrust_migration::Migrator>(&admin_url).await?;
     let key = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, [0x42_u8; 32]);
-    let link_key = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, [0x24_u8; 32]);
-    let config = format!("[database]\nurl = {:?}\n[cache.stores.default]\ndriver = 'memory'\n[auth.jwt]\nissuer = 'http://openrust.test'\naudience = 'generated-auth-tests'\nactive_key_id = 'test'\n[auth.jwt.keys]\ntest = {:?}\n[security.signed_links]\nissuer = 'http://openrust.test'\nactive_key_id = 'test-link'\n[security.signed_links.keys]\ntest-link = {:?}\n{{encryption_config}}\n[view]\ndirectory = 'resources/views'\n", database.url(), key, link_key);
-    let source = Figment::from(Serialized::defaults(openrust::config::FrameworkConfig::default())).merge(Toml::string(&config));
+    let link_key =
+        base64::Engine::encode(&base64::engine::general_purpose::STANDARD, [0x24_u8; 32]);
+    let config = format!(
+        "[database]\nurl = {:?}\n[cache.stores.default]\ndriver = 'memory'\n[auth.jwt]\nissuer = 'http://openrust.test'\naudience = 'generated-auth-tests'\nactive_key_id = 'test'\n[auth.jwt.keys]\ntest = {:?}\n[security.signed_links]\nissuer = 'http://openrust.test'\nactive_key_id = 'test-link'\n[security.signed_links.keys]\ntest-link = {:?}\n{{encryption_config}}\n[view]\ndirectory = 'resources/views'\n",
+        database.url(),
+        key,
+        link_key
+    );
+    let source = Figment::from(Serialized::defaults(
+        openrust::config::FrameworkConfig::default(),
+    ))
+    .merge(Toml::string(&config));
     let mail = CaptureMailer::default();
     let captured = mail.clone();
-    let mut builder = openrust::testing::TestApp::<bootstrap::OpenRustGeneratedApplication>::builder(source);
+    let mut builder = openrust::testing::TestApp::<GeneratedApplication>::builder(source);
     builder.configure_after_register(move |bindings| {
         bindings.instance(Arc::new(Mailer::new(captured.clone())));
         Ok(())
     });
     let mut app = builder.build().await?;
-    let payload = serde_json::json!({"email": "testapp@example.test", "password": "initial-password"});
-    let request = Request::builder().method("POST").uri("/api/auth/register").header("content-type", "application/json")
-        .extension(openrust::http::axum::extract::ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 12345))))
-        .body(Body::from(serde_json::to_vec(&payload)?))?;
-    app.request(request).await?.assert_status(StatusCode::OK)?;
-    assert_eq!(mail.latest_code()?.len(), 6);
-    app.shutdown(openrust::tokio::time::Instant::now() + std::time::Duration::from_secs(5)).await?;
-    database.close().await?;
+    let result = bounded_auth_business(async {
+        let payload =
+            serde_json::json!({"email": "testapp@example.test", "password": "initial-password"});
+        let request = Request::builder()
+            .method("POST")
+            .uri("/api/auth/register")
+            .header("content-type", "application/json")
+            .extension(openrust::http::axum::extract::ConnectInfo(
+                SocketAddr::from(([127, 0, 0, 1], 12345)),
+            ))
+            .body(Body::from(serde_json::to_vec(&payload)?))?;
+        app.request(request).await?.assert_status(StatusCode::OK)?;
+        assert_eq!(mail.latest_code()?.len(), 6);
+        Ok(())
+    })
+    .await;
+    let app_result = app
+        .shutdown(openrust::tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+        .await;
+    drop(app);
+    let database_result =
+        openrust::tokio::time::timeout(std::time::Duration::from_secs(10), database.close()).await;
+    result?;
+    app_result?;
+    database_result??;
     Ok(())
+}
+
+/// 捕获每次 poll 中的业务 panic；取消和超时先释放借用，再由调用方统一回收资源。
+async fn bounded_auth_business(
+    future: impl std::future::Future<Output = TestResult>,
+) -> TestResult {
+    let mut future = std::pin::pin!(future);
+    let caught = std::future::poll_fn(|context| {
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            future.as_mut().poll(context)
+        })) {
+            Ok(result) => result,
+            Err(payload) => {
+                let message = payload
+                    .downcast_ref::<String>()
+                    .map(String::as_str)
+                    .or_else(|| payload.downcast_ref::<&str>().copied())
+                    .unwrap_or("业务验收 panic（非字符串 payload）");
+                std::task::Poll::Ready(Err(std::io::Error::other(message.to_owned()).into()))
+            }
+        }
+    });
+    openrust::tokio::time::timeout(std::time::Duration::from_secs(120), caught).await?
 }

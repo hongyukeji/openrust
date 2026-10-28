@@ -1,6 +1,6 @@
-use std::sync::Arc;
 use openrust::core::{BootContext, BoxFuture, RegisterContext, ServiceProvider};
 use openrust::prelude::*;
+use std::sync::Arc;
 
 use crate::routes;
 
@@ -15,7 +15,10 @@ impl ServiceProvider for ReadinessProvider {
 struct RoutesProvider;
 impl ServiceProvider for RoutesProvider {
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
-        Box::pin(async move { app.routes(routes::register)?; Ok(()) })
+        Box::pin(async move {
+            app.routes(routes::register)?;
+            Ok(())
+        })
     }
 }
 
@@ -40,12 +43,17 @@ impl Application for {{type_name}} {
             Box::new(openrust::cache::CacheServiceProvider::new()),
             Box::new(openrust::mail::MailerServiceProvider),
             Box::new(openrust::sms::SmsServiceProvider),
-        ];{{database_providers}}{{encryption_provider}}
+        ];{{database_providers}}{{encryption_provider}}{{grpc_providers}}
         providers.push(Box::new(RoutesProvider));
         providers
     }
 
     fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
-        crate::modules::manifest(config.modules_root.as_deref().unwrap_or(std::path::Path::new(".")))
+        crate::modules::manifest(
+            config
+                .modules_root
+                .as_deref()
+                .unwrap_or(std::path::Path::new(".")),
+        )
     }
 }
