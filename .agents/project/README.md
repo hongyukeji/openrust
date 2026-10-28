@@ -24,7 +24,7 @@
 | `style.md` | 文档写作、文件命名和清理规范 |
 | [decisions/README.md](decisions/README.md) | ADR 唯一编号、有效决定与替代关系索引 |
 | `memory/testing.md` / `memory/verification.md` | 当前可复验测试命令和验收边界 |
-| `scripts/` | 提交脚本 |
+| `scripts/` | 提交脚本与持续开发守护工具 |
 | [`../skills/`](../skills/README.md) | 专项工作流；按任务读取 |
 
 代码落地后按框架模块或保留工具 package 在 core/ 维护当前事实。根 openrust package 同时提供 src/lib.rs 框架库与 src/main.rs 默认 server；Laravel 应用职责目录直接位于根，当前 app/example 仍为迁移中的代码；最终唯一综合示例为 modules/example，由统一模块入口装配。最终布局、迁移和验收边界见 [ADR-074](decisions/adr-074-laravel-modules-directory.md)。CLI 模板与生成器保留用户应用生成功能，不要求另建长期源码仓库。

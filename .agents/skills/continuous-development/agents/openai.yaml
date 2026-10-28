@@ -1,0 +1,6 @@
+interface:
+  display_name: "持续开发守护"
+  short_description: "自动启用整计划守护，恢复异常与遗漏接续，并在完成或停止时清理进程"
+  default_prompt: "使用 $continuous-development 持续推进当前获准计划直到完成，自动管理守护并保留人工停止控制。"
+policy:
+  allow_implicit_invocation: true
