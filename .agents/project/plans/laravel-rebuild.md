@@ -265,7 +265,7 @@ R0–R16 是依赖路线，`todo.md` 只维护当前可领取项。旧观测审�
 
 MQTT并非常规Web/API项目的必需能力，默认关闭；需要它的项目应能按统一约定快速启用，无需修改框架核心。不使用的项目不承担MQTT专属编译/链接和运行开销，Cargo锁图与版本解析的实际边界如下。
 
-此为Laravel包/扩展机制下的通用增强，不称Laravel原生MQTT对应项；不与集群自动发现、调度或缓存强行串联，不改变当前任务顺序。
+此为Laravel包/扩展机制下的通用增强，不称Laravel原生MQTT对应项。设计依据为官方[包开发](https://laravel.com/docs/13.x/packages)、[Service Provider](https://laravel.com/docs/13.x/providers)及既有容器/配置机制；此前聊天中的组件、API、feature名称和部署建议仅为候选，不作为强制实现约束。实施Spec应独立评估必要性和职责边界，保留按需可选与依赖隔离，不为体现风格堆叠抽象；不与集群自动发现、调度或缓存强行串联，不改变当前任务顺序。
 
 - Laravel风格是开发体验验收项：从配置连接、容器解析、发布/订阅、消息处理、替换驱动到fake/断言的完整示例，须能沿用Laravel既有概念与操作习惯，仅在Rust类型/所有权/async必要处适配并说明。提供符合职责的简洁链式API，不机械复制PHP语法；普通业务不应自行驱动第三方eventloop或手写连接重试。实现前以实际使用示例审查接口，不能仅加同名Provider/Facade就算达标。
 - 统一ServiceProvider/Container、配置仓储与.env、默认及命名连接、Manager与公开Contract；外部驱动可公开注册替换，不改src核心。Facade与DI（如提供）共用同一Manager，不建立第二容器或业务事件系统；服务端认证/主题授权通过既有公开机制扩展。
