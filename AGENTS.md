@@ -10,7 +10,7 @@
 
 1:1 以逐项功能与可观察语义、默认值、错误/安全边界、Container/Provider 生命周期、扩展契约和 CLI/生成/测试/部署流程为验收；Laravel 使用者可按官方章节完成对应操作，仅 Rust 语法、类型、所有权、async 等确有必要时适配。不是 PHP 运行环境或字节兼容。每项须具备上游源码/测试→Rust API/配置→等价行为测试→modules/example→文档→真实服务证据；名称近似、旧测试或目录相似不算完成。适用核心能力不得因难度、个人偏好或“Rust 惯用”被划为不适用。差异按[对应与分类规则](.agents/project/plans/laravel-rebuild.md#逐项对应与差异分类)公开记录，无法等价保留缺口，不虚报严格 1:1 已达成。
 
-保留并融合本框架已有优秀设计，例如统一返回格式，放入 Laravel 对应职责与公开扩展位置；这是已授权的通用增强，不限于语言适配。不得因上游没有相同内置能力就删除；具体边界见 [ADR-070](.agents/project/decisions/adr-070-laravel-first-rebuild.md#用户意图与验收原则)。
+已有优秀能力也必须通过 Laravel 对应机制实现，例如统一返回格式使用 Response / API Resource 与异常渲染的公开扩展。保留能力价值，不保留违背目标的旧 API 或独立体系；仅移动目录、套 Provider 或改名不算融合。这些是已授权的通用增强，不限于语言适配，不得因上游没有相同内置能力就删除；具体边界见 [ADR-070](.agents/project/decisions/adr-070-laravel-first-rebuild.md#用户意图与验收原则)。
 
 [ADR-070](.agents/project/decisions/adr-070-laravel-first-rebuild.md) 与 [全面重构计划](.agents/project/plans/laravel-rebuild.md) 是当前目标：Laravel 优先、参考 Goravel，允许全面重写目录/API/默认值/实现，无历史兼容义务，保留 Rust 语言与工具优势。旧规定不能阻止已批准的重构；已实现事实和真实验收记录仍须保留。工程质量、WIP 保护和 §5 对外授权边界继续适用。当前任务与后续顺序只在 `todo.md` 领取。
 
