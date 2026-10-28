@@ -93,6 +93,11 @@ pub struct AppState {
 }
 
 impl AppState {
+    pub(crate) fn begin_close(&self) {
+        self.inner.services.seal_root();
+        self.inner.provider_resources.seal();
+    }
+
     /// 取得本应用唯一的服务容器句柄。
     pub fn container(&self) -> &Container {
         &self.inner.services
@@ -118,6 +123,9 @@ impl AppState {
 
     /// 返回已注册的 `T` 类型服务；若未注册则返回包含缺失类型名称的错误。
     pub fn try_get<T: Send + Sync + 'static>(&self) -> Result<Arc<T>> {
+        if self.inner.services.is_terminated() {
+            return Err(Error::custom("container_closed", "容器已关闭"));
+        }
         if let Some(service) = self.get() {
             return Ok(service);
         }
@@ -167,6 +175,11 @@ pub struct App {
 }
 
 impl App {
+    /// 同步封闭新解析和资源登记；异步回收仍须调用 `shutdown`。
+    pub(crate) fn begin_close(&self) {
+        self.state.begin_close();
+    }
+
     /// 在共同期限内取消并回收应用受管资源；关闭后不能再次解析服务。
     pub async fn shutdown(&self, deadline: tokio::time::Instant) -> Result<()> {
         self.state.shutdown_resources(deadline).await
@@ -807,7 +820,7 @@ mod tests {
                 .await
                 .err()
                 .map(|error| error.code().to_owned()),
-            Some("scope_closed".to_owned())
+            Some("container_closed".to_owned())
         );
         assert_eq!(
             app.state()

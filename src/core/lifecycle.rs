@@ -180,13 +180,7 @@ impl BackgroundTaskHandle {
 pub async fn bootstrap<A: Application>() -> Result<App> {
     let loader = bootstrap_config_loader(A::config_namespace())?;
     let app_config: A::Config = loader.load()?;
-    let providers = A::providers(&app_config);
-    let mut builder = ProviderBuilder::new();
-    builder.app_config::<A::Config>();
-    builder.provider(CoreCommandsProvider);
-    for provider in providers {
-        builder.boxed_provider(provider);
-    }
+    let builder = ProviderBuilder::for_application::<A>(&app_config);
     let runtime = builder.start(loader.figment()?).await?;
     if let Err(error) = runtime.container().resolve::<A::Config>().await {
         if let Err(cleanup_error) = runtime
@@ -204,6 +198,21 @@ pub async fn bootstrap<A: Application>() -> Result<App> {
     init_tracing(&app.config().log);
     tracing::debug!(env = %app.config().app.env, config_source = loader.config_dir_source(), "provider configuration loaded");
     Ok(app)
+}
+
+impl ProviderBuilder {
+    /// 使用与生产引导相同的命令、应用配置绑定和 Provider 清单创建启动器。
+    ///
+    /// 测试可在调用 [`Self::start`] 前移除 Provider 或覆盖服务绑定。
+    pub fn for_application<A: Application>(config: &A::Config) -> Self {
+        let mut builder = Self::new();
+        builder.app_config::<A::Config>();
+        builder.provider(CoreCommandsProvider);
+        for provider in A::providers(config) {
+            builder.boxed_provider(provider);
+        }
+        builder
+    }
 }
 
 fn bootstrap_config_loader(namespace: &str) -> Result<ConfigLoader> {

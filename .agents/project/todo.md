@@ -4,7 +4,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-28
-> 摘要：Laravel + laravel-modules 的 Rust 1:1 实现唯一活跃队列；R0旧基线已记录，模块包逐项盘点待补；R1-S已提交，R2-B统一Provider及R2-C入口scope已通过各自门禁，R1整体/真实CRUD仍未完成。
+> 摘要：Laravel + laravel-modules 的 Rust 1:1 实现唯一活跃队列；R0旧基线已记录，模块包逐项盘点待补；R1-S、R2-B统一Provider、R2-C入口scope及R2-D TestApp已通过各自门禁，R1整体/真实CRUD仍未完成。
 
 ## 领取规则
 
@@ -14,14 +14,14 @@
 
 用户再次明确按 Laravel + laravel-modules 的完整 Rust 实现从零设计、重写核心；旧 API、目录和实现不构成兼容约束。新内核以固定上游行为为依据，不继续堆叠旧 Plugin 装配；旧源码仅作事实与回归输入，由对应功能簇替换后通过 git rm 清除失效实现。此授权不删除他人 WIP、共享服务、数据或原始测试证据，也不要求重造成熟密码学和数据库驱动。
 
-当前一个主功能簇为 R2 基础。R1-S及R2-A/A2/A3已提交，R2-B 统一 Provider 与 R2-C 入口 scope 已通过各自门禁；后续依次处理 R2-D TestApp 与 R2-M 模块闭环。全部工作留在 main；共享 Cargo 清单、锁文件、验证服务和提交串行协调；子代理不得递归派发。
+当前一个主功能簇为 R2 基础，R2-D TestApp 子簇已实现并验收；后继依赖为 R2-M 模块闭环，尚未将其标为完成。R1-S及R2-A/A2/A3、R2-B、R2-C 已提交；全部工作留在 main；共享 Cargo 清单、锁文件、验证服务和提交串行协调；子代理不得递归派发。
 
 ## 当前可领取
 
 | 功能簇 | 状态 | 交付与验收 |
 | --- | --- | --- |
 | R1-S 根结构与普通模块挂载 | 已完成结构子交付34dfb5e | 根Laravel职责、同package lib/server、资源内聚、模块公开挂载；按范围实际门禁与独立审查通过后可限定提交，仅结构子交付 |
-| R2 基础：Container/Provider/模块配置/TestApp | in_progress：R2-A/A2/A3、R2-B、R2-C 已实现验收，续 R2-D/M | 全体register后boot、统一Container与typed配置、最小TestApp及模块闭环；先形成真实CRUD/扩展接入的稳定API，不依赖完整R1-E |
+| R2 基础：Container/Provider/模块配置/TestApp | in_progress：R2-A/A2/A3、R2-B、R2-C、R2-D 已实现验收，续 R2-M | 全体register后boot、统一Container与typed配置、最小TestApp及模块闭环；先形成真实CRUD/扩展接入的稳定API，不依赖完整R1-E |
 | R2-M 模块最小闭环与目录迁移 | 待R2基础 | modules/ 声明注册、模块配置/资源/迁移、依赖与冲突错误；迁移现有示例到 modules/example，验证注册/未注册与真实HTTP；完整管理命令归R13 |
 | R1-E 真实CRUD与当前能力示例 | 待R2基础与R2-M；未交付 | 真实实体列表/详情/新增/更新/删除，校验/分页/404/授权/事务；PG18/MySQL8.4真实HTTP闭环；当前公开能力实际业务/扩展/测试逐项覆盖，GET基础信息响应不算CRUD |
 | R2 后继内核与测试底座 | 待R2基础，按依赖分簇 | scope/Facade/DI/停机与模块依赖/顺序等完整对应；每簇同步modules/example，不建双内核；不把全部R2能力塞入首批 |
@@ -134,3 +134,16 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 7. 受管回调逆序且仅一次；入口 future 取消后由 App 持有的子资源关闭队列接管，App.shutdown 等待并聚合失败，不以 `Drop` 冒充异步关闭。
 8. 用真实 HTTP stream/drop、连续 console 命令、queue 成败/超时/取消/重试与 scheduler 多次触发验证隔离和清理；适用 PostgreSQL 18/MySQL 8.4、生成项目及完整门禁后限定提交。
 9. 本簇只处理入口生命周期；R2-D TestApp、R2-M 模块目录及 R1-E CRUD 不计入完成，保留既有 Figment/第三方 driver 差异。
+
+## 当前 R2-D Spec：TestApp 最小路径
+
+状态：生产与测试共用 Provider 构建路径、示例和生成应用已接入；默认/全特性、真实双库与 Redis 回归及 MSRV 门禁见 [R2-D 测试证据](memory/testing.md#r2-d-testapp-验收证据)。本簇完成后继续 R2-M，不把 TestApp 当模块系统或 CRUD 已交付。all-features workspace 一次 fixture 启动 `internal_error` 的原因仍未证实，保留日志及安全阶段诊断。
+
+1. 复用生产 `Application::providers` 清单、CoreCommands、应用配置绑定及唯一 `ProviderBuilder::start`；测试显式传 Figment，不修改全局环境或工作目录。
+2. 在清单排序前允许按具体 ProviderId 移除；仍执行依赖检查，被移除模块不得注册、启动或贡献路由。
+3. 全体 `register` 完成后、容器封口前执行一次类型化绑定覆盖，支持 instance/singleton/scoped；任意 `boot` 都看到最终绑定，不建第二服务表。
+4. `TestApp` 持有真实 App 与 Router，`request` 走生产 build_router/oneshot；响应正文有字节上限和截止时间，断言错误不回显敏感值。
+5. 流式响应可由调用方持有并显式 Drop；App 关闭等待请求 scope 清理，失败向测试传播；重置先关闭旧 App 再重建，不能仅 reset 根 scope。
+6. 验收 fake Mailer/业务接口在 boot 与真实 HTTP 可见、同进程两个 App 隔离、模块移除 404/health 保留、取消与资源回收、status/header/JSON 断言。
+7. 同步当前示例、公开 consumer、CLI 生成应用和用户文档；默认/全特性门禁、适用双库真实测试、MSRV/no-default/deny 与限定提交后关闭本簇。
+8. 本簇只提供测试宿主与覆盖/移除契约；R2-M 目录和 R1-E CRUD 仍未交付。

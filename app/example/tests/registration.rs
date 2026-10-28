@@ -60,3 +60,77 @@ async fn module_registration_controls_only_its_business_routes()
     }
     Ok(())
 }
+
+fn production_sources(semantic: bool) -> figment::Figment {
+    let mut framework = openrust::config::FrameworkConfig::default();
+    if semantic {
+        framework.api.http_status = openrust::config::HttpStatusMode::Semantic;
+    }
+    figment::Figment::from(figment::providers::Serialized::defaults(framework))
+        .merge(figment::providers::Serialized::defaults(serde_json::json!({
+            "app": {"env": "test"},
+            "cache": {"default_store": "default", "stores": {"default": {"driver": "memory"}}},
+            "security": {"encryption": {"active_key_id": "test", "keys": {"test": "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}}
+        })))
+}
+
+#[tokio::test]
+async fn production_testapp_replaces_business_dependency_without_changing_routes()
+-> Result<(), Box<dyn std::error::Error>> {
+    use super::services::ExampleMessage;
+    use openrust::testing::TestApp;
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    let mut production = TestApp::<crate::bootstrap::Server>::builder(production_sources(false))
+        .build()
+        .await?;
+    let mut fixture = TestApp::<crate::bootstrap::Server>::builder(production_sources(false));
+    fixture.configure_after_register(|bindings| {
+        bindings.instance(Arc::new(ExampleMessage::new(
+            "A test-owned business message",
+        )));
+        Ok(())
+    });
+    let mut replaced = fixture.build().await?;
+    for (app, expected) in [
+        (&production, "Hello from app/example"),
+        (&replaced, "A test-owned business message"),
+    ] {
+        let response = app
+            .request(Request::get("/api/example").body(Body::empty())?)
+            .await?;
+        response.assert_status(StatusCode::OK)?;
+        let json: serde_json::Value = response.json()?;
+        assert_eq!(json["data"]["message"], expected);
+        assert!(json["data"]["served_at"].as_str().is_some());
+    }
+    production
+        .shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    replaced
+        .shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn production_testapp_can_remove_only_the_business_provider()
+-> Result<(), Box<dyn std::error::Error>> {
+    use openrust::core::ProviderId;
+    use openrust::testing::TestApp;
+    use std::time::Duration;
+
+    let mut fixture = TestApp::<crate::bootstrap::Server>::builder(production_sources(true));
+    fixture.remove_provider(ProviderId::of::<super::providers::ExampleServiceProvider>());
+    let mut app = fixture.build().await?;
+    app.request(Request::get("/api/example").body(Body::empty())?)
+        .await?
+        .assert_status(StatusCode::NOT_FOUND)?;
+    app.request(Request::get("/health").body(Body::empty())?)
+        .await?
+        .assert_status(StatusCode::OK)?;
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    Ok(())
+}

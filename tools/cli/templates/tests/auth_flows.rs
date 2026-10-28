@@ -398,3 +398,35 @@ async fn request(
         body: serde_json::from_str(body)?,
     })
 }
+
+/// TestApp 使用相同 Provider 清单，覆盖 Mailer 后验证真实认证路由。
+#[tokio::test]
+async fn generated_test_app_overrides_mailer_for_registration() -> TestResult {
+    use openrust::http::axum::{body::Body, http::Request};
+    let Ok(admin_url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+        eprintln!("skipping generated TestApp auth: OPENRUST_TEST_DATABASE_URL is unset");
+        return Ok(());
+    };
+    let database = TestDatabase::create::<openrust_migration::Migrator>(&admin_url).await?;
+    let key = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, [0x42_u8; 32]);
+    let link_key = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, [0x24_u8; 32]);
+    let config = format!("[database]\nurl = {:?}\n[cache.stores.default]\ndriver = 'memory'\n[auth.jwt]\nissuer = 'http://openrust.test'\naudience = 'generated-auth-tests'\nactive_key_id = 'test'\n[auth.jwt.keys]\ntest = {:?}\n[security.signed_links]\nissuer = 'http://openrust.test'\nactive_key_id = 'test-link'\n[security.signed_links.keys]\ntest-link = {:?}\n{{encryption_config}}\n[view]\ndirectory = 'resources/views'\n", database.url(), key, link_key);
+    let source = Figment::from(Serialized::defaults(openrust::config::FrameworkConfig::default())).merge(Toml::string(&config));
+    let mail = CaptureMailer::default();
+    let captured = mail.clone();
+    let mut builder = openrust::testing::TestApp::<bootstrap::OpenRustGeneratedApplication>::builder(source);
+    builder.configure_after_register(move |bindings| {
+        bindings.instance(Arc::new(Mailer::new(captured.clone())));
+        Ok(())
+    });
+    let mut app = builder.build().await?;
+    let payload = serde_json::json!({"email": "testapp@example.test", "password": "initial-password"});
+    let request = Request::builder().method("POST").uri("/api/auth/register").header("content-type", "application/json")
+        .extension(openrust::http::axum::extract::ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 12345))))
+        .body(Body::from(serde_json::to_vec(&payload)?))?;
+    app.request(request).await?.assert_status(StatusCode::OK)?;
+    assert_eq!(mail.latest_code()?.len(), 6);
+    app.shutdown(openrust::tokio::time::Instant::now() + std::time::Duration::from_secs(5)).await?;
+    database.close().await?;
+    Ok(())
+}

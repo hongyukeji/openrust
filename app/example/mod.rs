@@ -12,6 +12,7 @@ mod http;
 pub(crate) mod jobs;
 pub(crate) mod providers;
 mod routes;
+mod services;
 #[cfg(test)]
 #[path = "tests/registration.rs"]
 mod tests;

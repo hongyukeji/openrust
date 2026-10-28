@@ -679,6 +679,13 @@ fn populate_project_with_mfa(
         runtime_config.push_str("\n[grpc]\nlisten_addr = \"127.0.0.1:50051\"\n");
     }
     let domain_files = domain_config_files(&runtime_config)?;
+    if database.is_none() && !encryption && !grpc {
+        files.push((
+            "tests/test_app.rs",
+            include_str!("../templates/tests/test_app.rs")
+                .replace("OpenRustGeneratedApplication", crate_name),
+        ));
+    }
     if auth {
         files.push((
             "tests/auth_flows.rs",
@@ -799,16 +806,25 @@ fn cargo_manifest(
         manifest = manifest.replace("openrust = { workspace = true }", &dependency);
     }
     if auth {
-        manifest.push_str("serde = { version = \"1\", features = [\"derive\"] }\n\n[dev-dependencies]\nbase64 = \"0.22\"\nfigment = { version = \"0.10\", features = [\"toml\"] }\nserde_json = \"1\"\ntokio = { version = \"1\", features = [\"io-util\", \"macros\", \"net\", \"rt-multi-thread\"] }\n");
-        if let Some(database) = database {
-            let _ = FmtWrite::write_fmt(
-                &mut manifest,
-                format_args!(
-                    "testing = {{ workspace = true, features = [\"{}\"] }}\n",
-                    database.feature()
-                ),
-            );
-        }
+        manifest.push_str("serde = { version = \"1\", features = [\"derive\"] }\n");
+    }
+    manifest.push_str("\n[dev-dependencies]\nfigment = { version = \"0.10\", features = [\"toml\"] }\nserde_json = \"1\"\n");
+    if auth {
+        manifest.push_str("base64 = \"0.22\"\n");
+        manifest.push_str("tokio = { version = \"1\", features = [\"io-util\", \"macros\", \"net\", \"rt-multi-thread\"] }\n");
+    } else {
+        manifest.push_str(
+            "tokio = { version = \"1\", features = [\"macros\", \"rt-multi-thread\"] }\n",
+        );
+    }
+    if auth && let Some(database) = database {
+        let _ = FmtWrite::write_fmt(
+            &mut manifest,
+            format_args!(
+                "testing = {{ workspace = true, features = [\"{}\"] }}\n",
+                database.feature()
+            ),
+        );
     }
     if grpc {
         manifest.push_str(
@@ -2534,6 +2550,12 @@ mod tests {
         ] {
             assert!(project.join(path).is_file(), "missing generated {path}");
         }
+        let app_test = fs::read_to_string(project.join("tests/test_app.rs"))
+            .expect("read generated TestApp test");
+        assert!(app_test.contains("TestApp::<bootstrap::Blog>"));
+        assert!(app_test.contains(r#".uri("/health")"#));
+        assert!(app_test.contains("app.shutdown("));
+        assert!(!app_test.contains("OpenRustGeneratedApplication"));
         assert!(!project.join("config/default.toml").exists());
         assert!(!project.join("config/development.toml").exists());
         let snapshot = [

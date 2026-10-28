@@ -4,7 +4,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-28
-> 摘要：执行 Laravel + laravel-modules 的 Rust 1:1 实现；R0 上游和逐章资产基线已记录，R1-S 已提交34dfb5e，R2-A/A2/A3 已验收。R2-B 统一 Provider 内核与 R2-C 入口 scope 已通过各自门禁，随后 R2-D TestApp、R2-M 模块闭环、R1-E 真实 CRUD/当前能力示例；R1 整体未完成。
+> 摘要：执行 Laravel + laravel-modules 的 Rust 1:1 实现；R0 上游和逐章资产基线已记录，R1-S 已提交34dfb5e，R2-A/A2/A3 已验收。R2-B 统一 Provider、R2-C 入口 scope 与 R2-D TestApp 已通过各自门禁，随后 R2-M 模块闭环、R1-E 真实 CRUD/当前能力示例；R1 整体未完成。
 
 ## 当前里程碑
 
@@ -22,7 +22,7 @@
 8. R14 底座完整通过再做 R15 V2：Vue Admin、uni-app App、PC 只规划。独立 AI模型平台仍未获启动授权。
 9. WIP、他人资源、依赖安全、真实证据及对外授权边界继续有效。常规问题自主决策并记录；外部缺口继续独立工作，不能虚报完成。
 
-当前交付依赖是 R1-S结构/挂载 → R2基础Container/Provider/配置/TestApp → R2-M模块契约/目录迁移 → R1-E真实CRUD与当前能力演示；R2后继和各领域逐簇实现并同步示例。结构已提交不等于R1整体/严格1:1完成，GET基础响应不等于真实业务CRUD。
+当前交付依赖是 R1-S结构/挂载 → R2基础Container/Provider/配置/TestApp（A–D 已验收）→ R2-M模块契约/目录迁移 → R1-E真实CRUD与当前能力演示；R2后继和各领域逐簇实现并同步示例。R2-D 测试应用由生产 Provider/Router 同路径构建，但不代表模块管理已完成；结构已提交不等于R1整体/严格1:1完成，GET基础响应不等于真实业务CRUD。
 
 ## 路由
 

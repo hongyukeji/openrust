@@ -4,6 +4,8 @@
 
 真实 TCP HTTP stream/SSE 断连、连续命令与取消、真实 PostgreSQL 18/MySQL 8.4 队列和调度、Redis 8 attempt、公开 custom driver、双库生成项目及根实际 HTTP 均已执行；命令与测试结果见 [testing](testing.md#r2-c-入口-scope-与受管清理验收证据)。调度 trigger 的精确 scoped ID 由真实数据库事务加公开 custom driver 观测，后续 job attempt 由真实数据库队列消费验证；两个入口的证据组合不冒称同一 driver 路径。自定义 driver 必须在确认/重试前显式 await `JobAttempt::shutdown`；外层 future abort 的 Drop 仅请求受管回收，进程强杀依赖租约接管。R2-D TestApp、R2-M 模块目录、R1-E CRUD 以及完整 Laravel 逐项等价不在本簇完成范围。
 
+R2-D 的生产与测试同清单启动、全 register 后覆盖、Provider 移除、完整 reset、进程内请求有界断言，以及关闭后的重新解析拒绝已由核心、`app/example`、公开 consumer 和 CLI 实际生成项目验证；普通生成应用 1/1，PostgreSQL 18/MySQL 8.4 的认证产物各真实 2/2，详见 [R2-D 测试证据](testing.md#r2-d-testapp-验收证据)。共享关闭状态机变更后另重跑双库队列/调度与 Redis，分别 3+7、3+7、3 项，零忽略。TestApp 的进程内 Router 请求不计真实 TCP；旧服务 `Arc` 的调用方所有权、运行时退出后的异步清理、R2-M 与 CRUD 仍属明确边界。all-features workspace 一次 `internal_error` 已保留首轮与复跑日志，根因尚未证实，不把推测当结论。
+
 ## 主分支整合核对
 
 2026-10-28 按用户明确授权整合 `9b6268e` / `eeba3e1` 与 main 原有三笔设计提交；冲突仅在 plan/progress/todo，保留最新设计要求及 R0/R1 实际进度。与 eeba3e1 对比，源码、manifest、lock、模板、脚本、CI 和测试内容一致，额外变化仅为项目文档/协作规则。R1 代码门禁使用该提交的实际执行记录，本次整合不宣称重新执行构建或双库验收。

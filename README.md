@@ -73,6 +73,8 @@ cargo run
 
 生成应用可使用自己的名称、workspace 和 Cargo.lock，本地框架/tool 依赖须保持可达；不修改本仓 workspace，也不要求维护额外源码仓库。标准生成应用默认使用 Redis，运行前准备服务或显式选择其他 cache store。
 
+未启用数据库、加密或 gRPC 的普通生成项目包含使用 [`TestApp`](src/core/README.md#测试应用) 的进程内 HTTP 测试；启用数据库认证后另生成隔离数据库的真实 TCP 认证测试与可替换 Mailer 的 `TestApp` 请求。其他生成选项当前不自动生成通用 `TestApp` 测试，应用仍可自行使用该公开 API 并显式提供所需配置。测试以同一 `Application` Provider 清单启动，不修改全局环境；进程内请求不替代真实服务验收。综合示例还演示业务依赖替换、两应用隔离和移除业务 Provider 后保留健康路由，见 [示例测试](app/example/tests/registration.rs)。默认 API 错误状态为 `always_ok` envelope，需要断言实际 HTTP 404 时应在测试配置中选 `semantic`。
+
 业务 JSON API 根路径为 `/api`，所有子路由统一以 `/api/` 开头并使用 JSON API 响应封装；`/health`、`/ready` 和可选 `/metrics` 保留为运维端点。详细约定见 [HTTP 指南](src/http/README.md)。
 
 应用默认从当前工作目录的 `config/` 读取配置。`APP_SERVER_PORT=4000 cargo run` 或 `PORT=4000 cargo run` 可覆盖监听端口；若两者同时设置，`APP_SERVER_PORT` 优先。应用可通过 `Application::config_namespace()` 选择如 `SHOP_` 的变量前缀。框架代码位于根 openrust package，能力模块位于 `src/audit.rs`、`src/config/`、`src/core/`、`src/db/`、`src/http/`、`src/i18n.rs`、`src/mail/`、`src/sms.rs`，以及按 feature 启用的 auth、encryption、signing、queue 和 schedule。每个应用的 TOML/YAML 配置保存在其根目录的 `config/` 中；根唯一 server 同时承担综合示例与集成验收。

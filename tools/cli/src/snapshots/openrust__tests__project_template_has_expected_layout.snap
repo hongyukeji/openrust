@@ -13,6 +13,11 @@ license.workspace = true
 [dependencies]
 openrust = { workspace = true, features = ["cache-redis", "view"] }
 
+[dev-dependencies]
+figment = { version = "0.10", features = ["toml"] }
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
 --- .gitignore ---
 /target/
 /storage/

@@ -23,6 +23,7 @@ type Extensions = HashMap<TypeId, Box<dyn Any + Send + Sync>>;
 type Required = Box<dyn Fn(&Container) -> BoxFuture<'_, Result<()>> + Send + Sync>;
 type Finalizer = Box<dyn FnOnce() -> BoxFuture<'static, Result<()>> + Send>;
 type AppConfigRegistration = Box<dyn FnOnce(&mut ContainerBuilder, ConfigRepository) + Send>;
+type BindingOverride = Box<dyn FnOnce(&mut ContainerBuilder) -> Result<()> + Send>;
 
 /// Provider 的具体 Rust 类型身份；错误消息只公开类型名。
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -275,6 +276,7 @@ impl ProviderRuntime {
 pub struct ProviderBuilder {
     providers: Vec<Box<dyn ServiceProvider>>,
     app_config: Option<AppConfigRegistration>,
+    binding_overrides: Vec<BindingOverride>,
 }
 
 fn ordered_providers(
@@ -377,6 +379,23 @@ impl ProviderBuilder {
         self
     }
 
+    /// 在启动前从清单移除具体 Provider 类型；依赖关系随后重新校验。
+    pub fn remove_provider(&mut self, id: ProviderId) -> &mut Self {
+        self.providers.retain(|provider| provider.id() != id);
+        self
+    }
+
+    /// 全体 Provider 注册后、容器封口前覆盖类型化服务绑定。
+    ///
+    /// 测试 fake 使用与生产相同的容器和启动顺序；回调只运行一次，不能解析服务。
+    pub fn configure_after_register<F>(&mut self, configure: F) -> &mut Self
+    where
+        F: FnOnce(&mut ContainerBuilder) -> Result<()> + Send + 'static,
+    {
+        self.binding_overrides.push(Box::new(configure));
+        self
+    }
+
     /// 在同一容器中登记应用自身配置，首次解析读取 boot 后最终视图。
     pub fn app_config<T: DeserializeOwned + Send + Sync + 'static>(&mut self) -> &mut Self {
         self.app_config = Some(Box::new(|bindings, config| {
@@ -410,6 +429,9 @@ impl ProviderBuilder {
                 required: &mut required,
                 owner: provider.id(),
             })?;
+        }
+        for configure in self.binding_overrides {
+            configure(&mut bindings)?;
         }
         let resources = StartupResources::new();
         bindings.context(config.clone(), resources.owner()?.registrar());
@@ -562,6 +584,59 @@ mod tests {
         runtime
             .shutdown(Instant::now() + Duration::from_secs(1))
             .await?;
+        Ok(())
+    }
+
+    struct OverrideObserved(Arc<AtomicUsize>);
+
+    impl ServiceProvider for OverrideObserved {
+        fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
+            app.instance(Arc::new(String::from("production")));
+            app.require::<String>();
+            Ok(())
+        }
+
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                assert_eq!(&*app.resolve::<String>().await?, "fake");
+                self.0.fetch_add(1, Ordering::SeqCst);
+                Ok(())
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn post_register_override_is_visible_to_boot_and_required_resolution() -> Result<()> {
+        let boots = Arc::new(AtomicUsize::new(0));
+        let mut builder = ProviderBuilder::new();
+        builder.provider(OverrideObserved(Arc::clone(&boots)));
+        builder.configure_after_register(|bindings| {
+            assert!(bindings.contains::<String>());
+            bindings.instance(Arc::new(String::from("fake")));
+            Ok(())
+        });
+        let runtime = builder.start(Figment::new()).await?;
+        assert_eq!(boots.load(Ordering::SeqCst), 1);
+        assert_eq!(&*runtime.container().resolve::<String>().await?, "fake");
+        runtime
+            .shutdown(Instant::now() + Duration::from_secs(1))
+            .await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn removed_provider_does_not_register_and_dependency_is_rechecked() -> Result<()> {
+        let order = Arc::new(Mutex::new(Vec::new()));
+        let mut builder = ProviderBuilder::new();
+        builder.provider(Base(Arc::clone(&order)));
+        builder.provider(Overlay(Arc::clone(&order)));
+        builder.remove_provider(ProviderId::of::<Base>());
+        let error =
+            builder.start(Figment::new()).await.err().ok_or_else(|| {
+                Error::custom("expected_provider_error", "移除依赖后必须拒绝启动")
+            })?;
+        assert_eq!(error.code(), "provider_dependency_missing");
+        assert!(order.lock().unwrap().is_empty());
         Ok(())
     }
 

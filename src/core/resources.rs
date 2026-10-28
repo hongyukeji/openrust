@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::future::Future;
 use std::panic::AssertUnwindSafe;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, Weak};
 
 use futures_util::FutureExt as _;
@@ -57,6 +57,7 @@ impl Outcome {
 struct Inner {
     // None 表示已封口；取出的用户闭包只能在锁外调用或销毁。
     callbacks: Mutex<Option<Vec<Cleanup>>>,
+    sealed: AtomicBool,
     tasks: BackgroundTasks,
     outcome: OnceLock<Outcome>,
     finished: Notify,
@@ -74,7 +75,7 @@ struct Completion {
 
 struct ChildEntry {
     owner: Arc<ResourceOwner>,
-    close: Box<dyn FnOnce() + Send>,
+    close: Option<Box<dyn FnOnce() + Send>>,
     requested: Option<Instant>,
     started: bool,
 }
@@ -123,6 +124,34 @@ impl ResourceOwner {
     /// 立即通知受管任务合作取消；实际 join 与回调仍由 shutdown 负责。
     pub(crate) fn cancel_tasks(&self) {
         self.inner.tasks.cancel();
+    }
+
+    pub(crate) fn record_close_failure(&self) {
+        self.inner.child_failures.fetch_add(1, Ordering::AcqRel);
+    }
+
+    /// 同步封闭新登记和全部子 scope，异步 join/回调仍由 shutdown 完成。
+    pub(crate) fn seal(&self) {
+        let callbacks = lock(&self.inner.callbacks);
+        self.inner.sealed.store(true, Ordering::Release);
+        let children: Vec<_> = {
+            let mut children = lock(&self.inner.children);
+            children
+                .entries
+                .values_mut()
+                .map(|child| (Arc::clone(&child.owner), child.close.take()))
+                .collect()
+        };
+        drop(callbacks);
+        self.inner.tasks.cancel();
+        for (owner, close) in children {
+            if let Some(close) = close
+                && std::panic::catch_unwind(AssertUnwindSafe(close)).is_err()
+            {
+                self.record_close_failure();
+            }
+            owner.seal();
+        }
     }
     fn shutdown_child(child: Arc<Self>, deadline: Instant) -> BoxFuture<'static, Result<()>> {
         Box::pin(async move { child.shutdown(deadline).await })
@@ -177,8 +206,10 @@ impl ResourceOwner {
             let mut close_failures = 0;
             let children: Vec<_> = children
                 .into_iter()
-                .map(|child| {
-                    if std::panic::catch_unwind(AssertUnwindSafe(child.close)).is_err() {
+                .map(|mut child| {
+                    if let Some(close) = child.close.take()
+                        && std::panic::catch_unwind(AssertUnwindSafe(close)).is_err()
+                    {
                         close_failures += 1;
                     }
                     child.owner
@@ -272,7 +303,7 @@ impl ResourceRegistrar {
     pub(crate) fn request_child_cleanup(&self, id: u64, deadline: Instant) -> Result<()> {
         let inner = self.inner.upgrade().ok_or_else(resources_closed)?;
         let callbacks = lock(&inner.callbacks);
-        if callbacks.is_none() {
+        if callbacks.is_none() || inner.sealed.load(Ordering::Acquire) {
             // 父 shutdown 已接管全部仍跟踪的子 scope。
             return Ok(());
         }
@@ -370,7 +401,7 @@ impl ResourceRegistrar {
     ) -> Result<u64> {
         let inner = self.inner.upgrade().ok_or_else(resources_closed)?;
         let callbacks = lock(&inner.callbacks);
-        if callbacks.is_none() {
+        if callbacks.is_none() || inner.sealed.load(Ordering::Acquire) {
             return Err(resources_closed());
         }
         let id = inner.next_child.fetch_add(1, Ordering::Relaxed);
@@ -386,7 +417,7 @@ impl ResourceRegistrar {
             id,
             ChildEntry {
                 owner: child,
-                close: Box::new(close),
+                close: Some(Box::new(close)),
                 requested: None,
                 started: false,
             },
@@ -407,7 +438,7 @@ impl ResourceRegistrar {
     /// 返回同一资源所有者的后台任务句柄，供内置缓存刷新任务使用。
     pub(crate) fn background_handle(&self) -> Result<BackgroundTaskHandle> {
         let inner = self.inner.upgrade().ok_or_else(resources_closed)?;
-        if lock(&inner.callbacks).is_none() {
+        if lock(&inner.callbacks).is_none() || inner.sealed.load(Ordering::Acquire) {
             return Err(resources_closed());
         }
         Ok(inner.tasks.handle())
@@ -420,7 +451,10 @@ impl ResourceRegistrar {
     {
         let inner = self.inner.upgrade().ok_or_else(resources_closed)?;
         let mut callbacks = lock(&inner.callbacks);
-        let callbacks = callbacks.as_mut().ok_or_else(resources_closed)?;
+        let callbacks = callbacks
+            .as_mut()
+            .filter(|_| !inner.sealed.load(Ordering::Acquire))
+            .ok_or_else(resources_closed)?;
         callbacks.push(Box::new(cleanup));
         Ok(())
     }
@@ -435,7 +469,7 @@ impl ResourceRegistrar {
         tokio::runtime::Handle::try_current()
             .map_err(|_| Error::custom("resource_runtime_missing", "受管任务需要 Tokio 运行时"))?;
         let callbacks = lock(&inner.callbacks);
-        if callbacks.is_none() {
+        if callbacks.is_none() || inner.sealed.load(Ordering::Acquire) {
             return Err(resources_closed());
         }
         inner.tasks.handle().spawn(task)

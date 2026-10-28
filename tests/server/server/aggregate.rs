@@ -2,6 +2,7 @@
 
 #[path = "../../../bootstrap/app.rs"]
 mod apps;
+use apps as bootstrap;
 
 #[path = "../../../app/mod.rs"]
 mod app;
@@ -223,7 +224,9 @@ impl MacroPosts {
 
 async fn router() -> Result<openrust::http::axum::Router, openrust::Error> {
     let app = test_server().await?;
-    build_router(&app)
+    build_router(&app).inspect_err(|error| {
+        eprintln!("server fixture router stage failed: {}", error.code());
+    })
 }
 
 async fn test_server() -> Result<openrust::App, openrust::Error> {
@@ -231,7 +234,9 @@ async fn test_server() -> Result<openrust::App, openrust::Error> {
         concat!(env!("CARGO_MANIFEST_DIR"), "/config"),
         config::Environment::Development,
     );
-    let figment = loader.figment()?;
+    let figment = loader.figment().inspect_err(|_| {
+        eprintln!("server fixture config loader stage failed");
+    })?;
     #[cfg(feature = "cache-redis")]
     let figment = figment.merge(figment::providers::Toml::string(
         "[cache]\ndefault_store = 'default'\n[cache.stores.default]\ndriver = 'redis'\nnamespace = 'server-test'\ndsn = 'redis://127.0.0.1:6379/'\n",
@@ -251,7 +256,12 @@ async fn test_server() -> Result<openrust::App, openrust::Error> {
     for provider in apps::Server::providers(&application_config) {
         builder.boxed_provider(provider);
     }
-    openrust::App::from_provider_runtime(builder.start(figment).await?)
+    let runtime = builder.start(figment).await.inspect_err(|error| {
+        eprintln!("server fixture provider stage failed: {}", error.code());
+    })?;
+    openrust::App::from_provider_runtime(runtime).inspect_err(|error| {
+        eprintln!("server fixture app stage failed: {}", error.code());
+    })
 }
 
 #[test]

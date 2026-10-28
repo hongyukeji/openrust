@@ -437,8 +437,19 @@ impl Container {
         self.inner.bindings.contains_key(&TypeId::of::<T>())
     }
 
+    pub(crate) fn is_terminated(&self) -> bool {
+        lock(&self.inner.state).terminated
+    }
+
     /// 同步读取已登记实例；未构造的 factory 不会在这里执行。
     pub fn get_instance<T: ?Sized + Send + Sync + 'static>(&self) -> Option<Arc<T>> {
+        if lock(&self.inner.state).terminated {
+            return None;
+        }
+        self.instance_binding::<T>()
+    }
+
+    fn instance_binding<T: ?Sized + Send + Sync + 'static>(&self) -> Option<Arc<T>> {
         self.inner
             .bindings
             .get(&TypeId::of::<T>())
@@ -453,7 +464,7 @@ impl Container {
         if state.terminated {
             return None;
         }
-        if let Some(value) = self.get_instance::<T>() {
+        if let Some(value) = self.instance_binding::<T>() {
             return Some(value);
         }
         let binding = self.inner.bindings.get(&TypeId::of::<T>())?;
@@ -489,6 +500,9 @@ impl Container {
     pub async fn resolve<T: ?Sized + Send + Sync + 'static>(&self) -> Result<Arc<T>> {
         let (scope, closed, resources) = {
             let state = lock(&self.inner.state);
+            if state.terminated {
+                return Err(container_error("container_closed", "容器已关闭"));
+            }
             (
                 state.root_scope,
                 Arc::clone(&state.root_closed),
@@ -523,6 +537,9 @@ impl Container {
         drop(removed);
         resources.shutdown(deadline).await?;
         let mut state = lock(&self.inner.state);
+        if state.terminated {
+            return Err(container_error("container_closed", "容器已关闭"));
+        }
         state.root_scope = state.id()?;
         state.root_closed = Arc::new(ScopeStatus::default());
         state.root_resources = Arc::new(ResourceOwner::new());
@@ -534,6 +551,16 @@ impl Container {
         let _reset = tokio::time::timeout_at(deadline, self.inner.reset.lock())
             .await
             .map_err(|_| container_error("scope_shutdown_timeout", "等待根生命周期关闭超过期限"))?;
+        self.seal_root();
+        let resources = {
+            let state = lock(&self.inner.state);
+            Arc::clone(&state.root_resources)
+        };
+        resources.shutdown(deadline).await
+    }
+
+    /// 同步封闭根与当前子生命周期，供 Drop 在无运行时的场景拒绝新解析。
+    pub(crate) fn seal_root(&self) {
         let (closed, resources, removed) = {
             let mut state = lock(&self.inner.state);
             state.terminated = true;
@@ -548,8 +575,10 @@ impl Container {
         for attempt in &removed {
             attempt.changed.notify_waiters();
         }
-        drop(removed);
-        resources.shutdown(deadline).await
+        if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| drop(removed))).is_err() {
+            resources.record_close_failure();
+        }
+        resources.seal();
     }
 
     /// 创建独立生命周期，不继承根或其他 scope 的 scoped 实例。
@@ -821,10 +850,15 @@ impl Resolver {
     }
 
     fn container(&self) -> Result<Container> {
-        self.container
+        let container = self
+            .container
             .upgrade()
             .map(|inner| Container { inner })
-            .ok_or_else(|| container_error("container_closed", "容器已释放"))
+            .ok_or_else(|| container_error("container_closed", "容器已释放"))?;
+        if container.is_terminated() {
+            return Err(container_error("container_closed", "容器已关闭"));
+        }
+        Ok(container)
     }
 
     /// 解析具体类型或 `dyn Trait`；缺失、环和构造失败返回错误。
@@ -1062,6 +1096,36 @@ mod tests {
             .get_ready::<String>()
             .ok_or_else(|| Error::custom("ready_service_missing", "已解析单例不可同步读取"))?;
         assert!(Arc::ptr_eq(&resolved, &ready));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn sealed_container_does_not_reissue_registered_instance() -> Result<()> {
+        let mut builder = ContainerBuilder::new();
+        builder.instance(Arc::new(7usize));
+        let container = builder.build();
+        let held = container
+            .get_instance::<usize>()
+            .ok_or_else(|| Error::custom("registered_instance_missing", "已登记实例缺失"))?;
+        container.seal_root();
+        assert_eq!(*held, 7);
+        assert!(container.get_instance::<usize>().is_none());
+        assert!(container.get_ready::<usize>().is_none());
+        assert_eq!(
+            container
+                .resolve::<usize>()
+                .await
+                .err()
+                .map(|error| error.code().to_owned()),
+            Some("container_closed".to_owned())
+        );
+        assert_eq!(
+            container.scope().err().map(|error| error.code().to_owned()),
+            Some("container_closed".to_owned())
+        );
+        container
+            .shutdown_root(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await?;
         Ok(())
     }
 

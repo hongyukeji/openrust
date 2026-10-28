@@ -12,7 +12,7 @@
 
 根 [`src/main.rs`](../../src/main.rs) 静态声明 app、bootstrap 和通用 routes，然后运行 `bootstrap::Server`。[`bootstrap/app.rs`](../../bootstrap/app.rs) 在 Provider 清单中注册 [`ExampleServiceProvider`](providers/example.rs)。模块在 `boot` 内通过 `BootContext::routes` 贡献 [`routes::register`](routes/mod.rs)；应用清单按已启用服务注册迁移、种子和任务。根 [`routes/web.rs`](../../routes/web.rs) 只保留框架通用路由，不硬编码业务 handler。
 
-模块 `GET /api/example` 由 `show` 返回 `Json<ExampleInfo>`，其中 `message` 是示例文字，`served_at` 直接调用第三方 `chrono::Utc::now()`；类型通过 serde 序列化，经过框架 HTTP 处理链。
+模块 `GET /api/example` 由 `show` 返回 `Json<ExampleInfo>`，其中 `message` 来自 Provider 登记并经 `Inject<ExampleMessage>` 注入的业务依赖，`served_at` 直接调用第三方 `chrono::Utc::now()`；类型通过 serde 序列化，经过框架 HTTP 处理链。
 从仓库根启动，在另一终端请求默认端口：
 
 ```bash
@@ -48,12 +48,13 @@ async fn index() -> Json<Vec<&'static str>> { Json(vec!["first-order"]) }
 
 ## 模块里各类代码写在哪里
 
-以下位置已存在，按实际职责拆分；没有业务实现的 models/services 等目录不预建：
+以下位置已存在，按实际职责拆分；没有业务实现的 models 等目录不预建：
 
 | 实际位置 | 写什么 |
 | --- | --- |
 | mod.rs | 模块声明，保持薄入口 |
-| providers/example.rs | 通过 ServiceProvider 贡献业务路由 |
+| providers/example.rs | register 登记业务依赖，boot 贡献业务路由 |
+| services/message.rs | 实际供控制器调用、测试可替换的问候内容 |
 | routes/api.rs、routes/web.rs | API/页面路由组合，调用 controller |
 | http/controllers/example.rs、auth.rs、jobs.rs、pages.rs | 实际请求处理 |
 | http/requests/auth.rs | 当前认证输入 DTO；完整业务校验仍待 CRUD 补齐 |
@@ -66,6 +67,40 @@ async fn index() -> Json<Vec<&'static str>> { Json(vec!["first-order"]) }
 | proto/、generated/、grpc.rs | 实际协议输入、显式生成脚本与已生成类型；完整 RPC 服务示例仍待补 |
 
 新增完整 CRUD 的实体放 models，校验/资源分别放 http/requests 与 http/resources；只有确需业务编排时再加 services。events/listeners/notifications 按实际能力落地，不提前堆空层；它们是后续约定，不代表当前代码已覆盖。
+
+## 用 TestApp 测试自己的模块
+
+[`tests/registration.rs`](tests/registration.rs) 直接使用根生产 `crate::bootstrap::Server`，复用相同 `Application::providers`，没有测试专用 Application 或第二容器。业务调用链是 [`ExampleServiceProvider::register`](providers/example.rs) → [`ExampleMessage`](services/message.rs) → [`show` 的 Inject](http/controllers/example.rs)。替换绑定不会改路由或控制器。
+
+测试中的 `production_sources` 显式使用测试环境、内存缓存和测试加密密钥，不读取或修改进程环境，也不要求 Redis；这是测试夹具选择，生产缓存默认没有回退。使用公开 API 替换业务依赖的实际写法如下，完整可执行函数见同一测试文件：
+
+```rust
+use openrust::testing::TestApp;
+use std::sync::Arc;
+use super::services::ExampleMessage;
+
+let mut fixture = TestApp::<crate::bootstrap::Server>::builder(production_sources(false));
+fixture.configure_after_register(|bindings| {
+    bindings.instance(Arc::new(ExampleMessage::new("A test-owned business message")));
+    Ok(())
+});
+let mut app = fixture.build().await?;
+let response = app.request(Request::get("/api/example").body(Body::empty())?).await?;
+response.assert_status(StatusCode::OK)?;
+let json: serde_json::Value = response.json()?;
+assert_eq!(json["data"]["message"], "A test-owned business message");
+app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5)).await?;
+```
+
+替换在全体 Provider register 完成后、容器封口前生效。示例同时创建未替换与替换后的两个应用，检查内容互不污染；每个应用都显式 `shutdown` 等待框架拥有的异步资源关闭。完整 reset 会关闭再重建应用；闭包故意共享的外部 `Arc` 不会自动清空。
+
+第二项测试用 `remove_provider(ProviderId::of::<ExampleServiceProvider>())` 移除业务 Provider，确认 `/api/example` 不存在而 `/health` 保留。它显式使用 `production_sources(true)` 的 Semantic 模式断言 HTTP 404；默认 AlwaysOk 模式仍返回 HTTP 200，并以响应正文 `code = "not_found"` 表示缺失，原注册测试保留该断言。测试不修改框架默认响应策略。
+
+```bash
+cargo test -p openrust --bin server production_testapp_
+```
+
+这些请求经生产 Router 和 scope 的 Tower oneshot 执行，属于进程内行为测试，不是 TCP 网络证据。默认响应收集限制为 1 MiB/5 秒，可用 `request_with_limits` 指定；流式响应使用 `raw_response`，由调用方消费或丢弃 body。上述新增测试的实际通过情况以本簇验收记录为准，代码存在不代表已执行。
 
 ## 使用业务自己的第三方依赖
 
@@ -162,7 +197,7 @@ cargo deny check
 | gRPC 与 HTTP/gRPC 组合 | `grpc.rs`、`proto/echo.proto` 仅保留类型构建 | 模块 proto/generate.py 显式生成 generated/echo.rs；根无示例构建脚本/依赖 | 目前没有本模块完整服务实现/注册与请求闭环，不能称 gRPC 示例已完成 |
 | CSV/XLSX 与任务式数据交换 | 待补业务映射、授权、导入/导出/任务引用 | data-exchange 等现有 feature、根配置与存储 | 本模块业务和失败/边界测试待补 |
 | 校验、分页与公开资源宏 | 待补完整实体的校验与分页/资源代码 | 公开 Validate/资源接口，复用业务 CRUD | 默认响应路由不足以证明，待 CRUD 同步覆盖 |
-| 测试工具、替换与公开扩展 | 模块 tests/auth_flows.rs 使用 TestDatabase、捕获邮件 driver | 模块测试与通用根验收挂载、隔离数据库 | 不代表未来 TestApp/Factory 已实现；其余模块演示/断言待补 |
+| 测试工具、替换与公开扩展 | tests/registration.rs 使用 TestApp、生产 Server、业务依赖替换与 Provider 移除；tests/auth_flows.rs 使用 TestDatabase、捕获邮件 driver | 模块测试与通用根验收挂载、隔离数据库；TestApp 请求为生产 Router 的进程内调用 | 最小 TestApp 用法已接入示例，实际执行结果见测试基线；Factory 及其余模块测试演示仍待补 |
 | 观测、就绪与故障行为 | 本模块业务观测/过载链待补 | 根 probes/metrics/otel 按现有配置启用 | 框架观测和服务测试独立保留，综合示例实际请求证据待补 |
 
 此表随当前源码更新，未列入的公开能力也须对照根 `src/lib.rs`、Cargo features 与项目 core 事实继续盘点。尚未实现的 Laravel 能力留在框架计划；每个后继功能簇同步实际框架 API、综合业务代码、通用根挂载、模块专属资源与测试，不能把目录迁移当作全框架等价。
