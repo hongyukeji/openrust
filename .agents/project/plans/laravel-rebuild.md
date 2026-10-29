@@ -320,7 +320,7 @@ MQTT作为按需引入的可选扩展，不表述为框架内置后默认禁用�
 
 ### 阶段二 R7/R11：可选 API 正文加密
 
-按[API正文加密与Vue对接计划](api-payload-encryption.md)收敛Provider/config/Contract/中间件，复用唯一Request/Resource/异常链；HTTPS与认证授权仍为基础，JWE成熟组件待互操作选型，独立密钥与防重放、响应接收方/错误/资源边界先Spec。Vue仅提供独立请求封装示例，不启动V2或预置HTTP路由。R14补真实浏览器、双库、多节点及轮换验收；当前仅规划，不打断在途HTTP。
+按[API正文加密与Vue对接计划](api-payload-encryption.md)收敛Provider/config/Contract/中间件，复用唯一Request/Resource/异常链；正文加密支持HTTP/HTTPS，认证授权仍独立生效，生产建议TLS；浏览器安全上下文/混合内容限制及可信密钥分发单独验收，JWE成熟组件待互操作选型，独立密钥与防重放、响应接收方/错误/资源边界先Spec。Vue仅提供独立请求封装示例，不启动V2或预置HTTP路由。R14补真实浏览器、双库、多节点及轮换验收；当前仅规划，不打断在途HTTP。
 
 ## 6. 功能簇 contract 模板
 
