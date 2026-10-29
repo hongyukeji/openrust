@@ -126,4 +126,6 @@
 
 ## 简约性自查
 
-保留现有仓储、Provider、队列、调度、权限审计和后台资源所有权；不引入新平台或新依赖。采用Laravel config加Spatie型typed分组Settings理念，V1必交DB管理底层，宿主按需启用，V2表单复用同一API。本轮只决定行为和边界，候选API/表字段/轮询默认数值须在相应实现Spec中以真实用例收敛。内部 revision/CAS/快照是满足用户持久性与并发要求的必要机制，公开日常配置体验保持 Laravel 风格，不让管理员或业务开发者拼装协调协议。
+开发者黄金路径沿用熟悉职责：Config/config领域配置与Provider注册 → 同仓储typed读取；代码注册Job → Queue按connection/queue派发或after_commit → 显式worker；Schedule任务 → frequency/timezone/onOneServer/withoutOverlapping → 显式runner。公开Rust方法只为类型、所有权、Result和async作必要适配，不机械仿PHP、不造新术语或平行Settings客户端；实际生产调用链和行为等价必须验证，不能只改名字。
+
+DB动态业务设置是同Provider/Repository生命周期的授权增强：开发者短接入代码声明typed分组/schema/defaults，管理员简单表单保存调用统一公开服务，内部封装revision/CAS/快照/轮询，V1交底层、V2复用。生成器和唯一modules/example须证明接入少、流程直观且行为正确。保留现有队列、调度、权限审计和后台资源所有权，不引入新平台或新依赖；候选API/表字段/默认数值以真实场景Spec收敛，安全与持久化要求完整保留。
