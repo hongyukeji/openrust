@@ -25,6 +25,7 @@ import guard_questions as questions
 
 ROOT = Path.cwd().resolve()
 CHECK_INTERVAL = 120
+QUOTA_WAIT_TIMEOUT = 3600
 TAIL_BYTES = 512 * 1024
 SCRIPT = Path(__file__).resolve()
 DELAYS = (60, 180, 600)
@@ -75,7 +76,7 @@ def summary(runtime):
     supervisor = json.loads((runtime / 'supervisor.json').read_text(encoding='utf-8')) if (runtime / 'supervisor.json').exists() else None
     alive = supervisor_alive(supervisor, runtime)
     fresh = time.time() - state.get('checked_at', 0) <= CHECK_INTERVAL * 3
-    terminal = state.get('status') in ('complete', 'paused', 'stopped', 'parent_lost')
+    terminal = state.get('status') in ('complete', 'paused', 'stopped', 'parent_lost', 'quota_wait_expired')
     state.update(agent=config.get('agent', runtime.name), thread=config.get('thread'),
                  label=config.get('label', '持续开发任务'), goal_id=config.get('goal_id'),
                  lock_held=held, supervisor=supervisor, supervisor_alive=alive,
@@ -599,6 +600,20 @@ def login_revision():
         return None
 
 
+def update_quota_wait(state, status, reason, now):
+    """连续额度等待不因账号切换或进程重启重计，实际恢复后才结束。"""
+    if status == 'sent' or reason == 'percentage_resumed' or (status == 'working' and state.get('task_running')):
+        state.pop('quota_wait_started_at', None)
+    elif (status == 'quota_wait' or reason in ('question_quota_wait', 'budget_limited')
+          or reason.startswith('usage_budget_')):
+        state.setdefault('quota_wait_started_at', now)
+
+
+def quota_wait_expired(state, now):
+    started = state.get('quota_wait_started_at')
+    return isinstance(started, (int, float)) and now - started >= QUOTA_WAIT_TIMEOUT
+
+
 def budget_wait_deadline(pause, response, now):
     """长期耗尽退避到六小时；正式reset更近时提前复核。"""
     attempts = min(pause.get('wait_attempts', 0) + 1, 8)
@@ -870,9 +885,10 @@ def worker(runtime, parent_pid):
             'cooldown': 'recovery_cooldown', 'backoff': 'recovery_backoff',
             'quota_wait': 'quota_check_pending', 'needs_attention': 'hard_boundary',
         }.get(status, status))
+        update_quota_wait(state, status, state['reason'], time.time())
         state['next_recovery_at'] = (state.get('quota_check_at') if status == 'quota_wait' else
                                      state.get('retry_at') if status in ('backoff', 'cooldown') else None)
-        state['next_check_at'] = None if status in ('complete', 'paused', 'stopped', 'parent_lost') else time.time() + CHECK_INTERVAL
+        state['next_check_at'] = None if status in ('complete', 'paused', 'stopped', 'parent_lost', 'quota_wait_expired') else time.time() + CHECK_INTERVAL
         atomic(path, state)
         publish_registry(runtime)
         if changed:
@@ -893,6 +909,28 @@ def worker(runtime, parent_pid):
             record('parent_lost')
             return
         try:
+            if quota_wait_expired(state, time.time()):
+                # 探测失败也能退出；超时清理不依赖客户端或数据库可用。
+                running = False
+                try:
+                    current = goal(config)
+                    if current and current['id'] == config['goal_id'] and current['status'] == 'complete':
+                        record('complete')
+                        return
+                    running = (current and current['id'] == config['goal_id']
+                               and current['status'] != 'paused' and binding_valid(config)
+                               and inspect(config['agent']).get('Status') == 'running')
+                except Exception:
+                    pass
+                if running:
+                    state.pop('quota_wait_started_at', None)
+                else:
+                    # 只退出守护，不改Goal、不终止业务、不删除防重记录。
+                    (runtime / 'disabled').touch()
+                    state['quota_wait_expired_at'] = time.time()
+                    record('quota_wait_expired')
+                    notify('额度等待已达一小时，守护已退出；重新要求继续开发可启动。')
+                    return
             terminal = goal(config)
             if terminal and terminal['id'] == config['goal_id'] and terminal['status'] == 'complete':
                 record('complete')
@@ -1384,6 +1422,11 @@ def main():
             if prior_config.get('goal_id') != config['goal_id']:
                 atomic(runtime / 'state.json', {})
             pending_state = json.loads((runtime / 'state.json').read_text(encoding='utf-8')) if (runtime / 'state.json').exists() else {}
+            if pending_state.pop('quota_wait_expired_at', None) is not None:
+                pending_state.pop('quota_wait_started_at', None)
+                pause = pending_state.get('percentage_pause') or {}
+                if pause.get('resume_status') == 'waiting':
+                    pause['next_quota_at'] = 0
             apply_task_policy(pending_state, config)
             pending_state.update(status='starting', checked_at=time.time(), updated_at=datetime.now().astimezone().isoformat())
             atomic(runtime / 'state.json', pending_state)

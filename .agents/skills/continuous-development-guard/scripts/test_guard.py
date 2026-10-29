@@ -647,6 +647,59 @@ class QuotaCycles(unittest.TestCase):
     def refresh(self, now=2001):
         recovery.refresh_usage_cycles(self.runtime, self.config, self.response, now)
 
+    def test_quota_wait_clock_survives_switch_restart_and_failures(self):
+        state = {}
+        recovery.update_quota_wait(state, 'quota_wait', 'account_budget_sleep', 100)
+        self.assertFalse(recovery.quota_wait_expired(state, 3699))
+        state = json.loads(json.dumps(state))
+        for status, reason in (('quota_wait', 'account_budget_wait'),
+                               ('cooldown', 'OSError'), ('starting', 'starting')):
+            recovery.update_quota_wait(state, status, reason, 3600)
+        self.assertEqual(state['quota_wait_started_at'], 100)
+        self.assertTrue(recovery.quota_wait_expired(state, 3700))
+        recovery.update_quota_wait(state, 'quota_wait', 'percentage_resumed', 3701)
+        self.assertNotIn('quota_wait_started_at', state)
+        recovery.update_quota_wait(state, 'needs_attention', 'question_quota_wait', 4000)
+        self.assertEqual(state['quota_wait_started_at'], 4000)
+        state['task_running'] = True
+        recovery.update_quota_wait(state, 'working', 'task_running', 4100)
+        self.assertNotIn('quota_wait_started_at', state)
+
+    def test_expired_paused_worker_exits_without_rpc_or_business_stop(self):
+        config = self.config
+        current = {'id': 'goal', 'status': 'paused'}
+        (self.runtime / 'config.json').write_text(json.dumps(config))
+        (self.runtime / 'state.json').write_text(json.dumps({
+            'quota_wait_started_at': 1, 'dispatch_key': 'keep-unknown',
+            'percentage_pause': {'goal': current, 'resume_status': 'waiting'}}))
+        with patch.object(recovery.os, 'getppid', return_value=42), \
+             patch.object(recovery.time, 'time', return_value=3601), \
+             patch.object(recovery, 'goal', return_value=current), \
+             patch.object(recovery, 'rpc') as rpc, patch.object(recovery, 'run_json') as run, \
+             patch.object(recovery, 'notify', return_value=False):
+            recovery.worker(self.runtime, 42)
+        state = json.loads((self.runtime / 'state.json').read_text())
+        self.assertEqual(state['status'], 'quota_wait_expired')
+        self.assertIsNone(state['next_check_at'])
+        self.assertEqual(state['dispatch_key'], 'keep-unknown')
+        self.assertTrue((self.runtime / 'disabled').exists())
+        rpc.assert_not_called(); run.assert_not_called()
+
+    def test_expiry_does_not_depend_on_goal_or_client_availability(self):
+        (self.runtime / 'config.json').write_text(json.dumps(self.config))
+        for failure in ('goal', 'inspect'):
+            with self.subTest(failure=failure):
+                (self.runtime / 'disabled').unlink(missing_ok=True)
+                (self.runtime / 'state.json').write_text(json.dumps({'quota_wait_started_at': 1}))
+                with patch.object(recovery.os, 'getppid', return_value=42), \
+                     patch.object(recovery.time, 'time', return_value=3601), \
+                     patch.object(recovery, 'goal', **({'side_effect': OSError('unavailable')} if failure == 'goal' else {'return_value': {'id': 'goal', 'status': 'active'}})), \
+                     patch.object(recovery, 'binding_valid', return_value=True), \
+                     patch.object(recovery, 'inspect', side_effect=OSError('unavailable')), \
+                     patch.object(recovery, 'notify', return_value=False):
+                    recovery.worker(self.runtime, 42)
+                self.assertEqual(json.loads((self.runtime / 'state.json').read_text())['status'], 'quota_wait_expired')
+
     def test_initial_zero_window_joins_only_after_formal_new_cycle(self):
         original = quota_snapshot('5600', 100)
         self.config['usage_budget'] = recovery.initialize_usage_budget(original, 100)
@@ -1135,6 +1188,31 @@ else:
         with log.open('ab') as output:
             output.write(b'x' * (recovery.TAIL_BYTES * 3))
         self.wait_for(lambda: log.stat().st_size <= recovery.TAIL_BYTES * 2)
+        self.call('stop')
+
+    def test_quota_timeout_reaps_processes_and_explicit_start_reopens_wait(self):
+        self.call('start'); self.call('stop')
+        state_path = self.runtime / 'state.json'
+        state = json.loads(state_path.read_text())
+        (self.root / 'main-stopped').touch()
+        state.update(quota_wait_started_at=time.time() - 3601, dispatch_key='preserve')
+        state_path.write_text(json.dumps(state))
+        self.call('start')
+        self.wait_for(lambda: json.loads(state_path.read_text()).get('status') == 'quota_wait_expired')
+        self.wait_for(lambda: not (self.runtime / 'supervisor.json').exists())
+        self.assertFalse((self.runtime / 'worker.json').exists())
+        self.assertFalse((self.runtime / 'pid').exists())
+        status = json.loads(self.call('status').stdout)
+        self.assertEqual(status['status'], 'quota_wait_expired')
+        self.assertFalse(status['guard_alive'])
+        before = json.loads((self.runtime / 'config.json').read_text())['usage_budget']
+        self.call('start')
+        self.wait_for(lambda: (self.runtime / 'worker.json').exists())
+        state = json.loads(state_path.read_text())
+        self.assertNotIn('quota_wait_started_at', state)
+        self.assertNotIn('quota_wait_expired_at', state)
+        self.assertEqual(state['dispatch_key'], 'preserve')
+        self.assertEqual(json.loads((self.runtime / 'config.json').read_text())['usage_budget'], before)
         self.call('stop')
 
     def test_completed_goal_automatically_cleans_guard(self):
