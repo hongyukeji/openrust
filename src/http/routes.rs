@@ -29,6 +29,7 @@ type GroupMiddleware = Box<dyn FnOnce(Routes) -> Routes + Send + Sync>;
 #[derive(Default)]
 pub struct RouteGroup {
     prefix: String,
+    name_prefix: String,
     middleware: Vec<GroupMiddleware>,
 }
 
@@ -48,6 +49,13 @@ impl RouteGroup {
         } else {
             format!("/{trimmed}")
         };
+        self
+    }
+
+    /// 为组内路由名增加 Laravel 式原样前缀，例如 `admin.`。
+    #[must_use]
+    pub fn name_prefix(mut self, prefix: impl Into<String>) -> Self {
+        self.name_prefix = prefix.into();
         self
     }
 
@@ -88,13 +96,16 @@ impl RouteGroup {
 ///
 /// fn register(routes: Routes) -> Routes {
 ///     routes.group(openrust::http::RouteGroup::new().prefix("/api"), |api| {
-///         api.get("/posts", index).get("/posts/{id}", show)
+///         api.get("/posts", index).name("posts.index").get("/posts/{id}", show)
 ///     })
 /// }
 /// ```
 #[derive(Default)]
 pub struct Routes {
     router: Router<AppState>,
+    last_route: Option<(String, String)>,
+    route_names: Vec<(String, String)>,
+    route_name_errors: Vec<String>,
 }
 
 impl Routes {
@@ -107,6 +118,19 @@ impl Routes {
     #[must_use]
     pub fn route(mut self, path: &str, method_router: MethodRouter<AppState>) -> Self {
         self.router = self.router.route(path, method_router);
+        self.last_route = Some((path.to_owned(), String::new()));
+        self
+    }
+
+    /// 为最近注册的路由指定唯一名称，供 [`crate::http::RouteUrlGenerator`] 生成 URL。
+    #[must_use]
+    pub fn name(mut self, name: impl Into<String>) -> Self {
+        let name = name.into();
+        if let Some((path, prefix)) = self.last_route.take() {
+            self.route_names.push((format!("{prefix}{name}"), path));
+        } else {
+            self.route_name_errors.push(name);
+        }
         self
     }
 
@@ -198,12 +222,24 @@ impl Routes {
     #[must_use]
     pub fn group(mut self, group: RouteGroup, f: impl FnOnce(Routes) -> Routes) -> Self {
         let prefix = group.prefix.clone();
-        let inner = group.apply(f(Routes::new())).router;
+        let name_prefix = group.name_prefix.clone();
+        let mut inner = group.apply(f(Routes::new()));
+        for (name, path) in &mut inner.route_names {
+            *name = format!("{name_prefix}{name}");
+            *path = join_route_path(&prefix, path);
+        }
+        if let Some((path, pending_name_prefix)) = &mut inner.last_route {
+            *path = join_route_path(&prefix, path);
+            *pending_name_prefix = format!("{name_prefix}{pending_name_prefix}");
+        }
         self.router = if prefix.is_empty() || prefix == "/" {
-            self.router.merge(inner)
+            self.router.merge(inner.router)
         } else {
-            self.router.nest(&prefix, inner)
+            self.router.nest(&prefix, inner.router)
         };
+        self.route_names.extend(inner.route_names);
+        self.route_name_errors.extend(inner.route_name_errors);
+        self.last_route = inner.last_route;
         self
     }
 
@@ -211,6 +247,9 @@ impl Routes {
     #[must_use]
     pub fn merge(mut self, other: Routes) -> Self {
         self.router = self.router.merge(other.router);
+        self.route_names.extend(other.route_names);
+        self.route_name_errors.extend(other.route_name_errors);
+        self.last_route = other.last_route;
         self
     }
 
@@ -232,4 +271,36 @@ impl Routes {
     pub fn into_router(self) -> Router<AppState> {
         self.router
     }
+
+    pub(crate) fn into_parts(self) -> (Router<AppState>, Vec<(String, String)>, Vec<String>) {
+        (self.router, self.route_names, self.route_name_errors)
+    }
+}
+
+fn join_route_path(prefix: &str, path: &str) -> String {
+    let prefix = prefix.trim_matches('/');
+    if path == "//" {
+        return if prefix.is_empty() {
+            "//".to_owned()
+        } else {
+            format!("/{prefix}//")
+        };
+    }
+    let trailing_slash = path.ends_with('/');
+    let path = path.strip_prefix('/').unwrap_or(path);
+    let path = if trailing_slash {
+        path.strip_suffix('/').unwrap_or(path)
+    } else {
+        path
+    };
+    let mut joined = match (prefix.is_empty(), path.is_empty()) {
+        (true, true) => "/".to_owned(),
+        (true, false) => format!("/{path}"),
+        (false, true) => format!("/{prefix}"),
+        (false, false) => format!("/{prefix}/{path}"),
+    };
+    if trailing_slash && joined != "/" {
+        joined.push('/');
+    }
+    joined
 }

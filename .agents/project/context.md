@@ -1,10 +1,10 @@
 # 项目上下文
 
-> 当前代码与目标：旧 `app/example/` 过渡结构已迁至 `modules/example/`；R2-M 模块清单、资源与统一迁移已有真实验收。R1-E Article CRUD 与当前公开能力示例已通过适用门禁，并以 bc3fa01 限定提交；附件上传 EOF/deadline 原子仲裁、PG18/MySQL8.4 各 15/15 及真实 MinIO 延迟响应竞争各 1/1 已验收。`storage_publication_uncertain` 远端迟到完成、强杀与 shutdown deadline 仍不保证无孤儿。真实 Keycloak OIDC `AlwaysOk` 成功/失败双库 HTTP 用例各 1/1；Collector PG 隔离 sink delivery/unavailable 各 1/1，严格断言与共享服务保持不变。独立审查、资源清理与工作区提交已完成；R2-N 模块硬依赖图和确定性启动顺序已由 48be854 提交；R3-A Laravel 语义 HTTP 状态默认与 R3-B RouteGroup 路由组均已验收，后者真实 PG18/MySQL8.4 tenant HTTP、生成应用及工作区门禁记录见 [testing](memory/testing.md#r3-b-laravel-路由组前缀与-middleware)。当前继续 R3 HTTP/Web。完整模块管理和 Laravel 1:1 范围继续按 [ADR-074](decisions/adr-074-laravel-modules-directory.md) 与活跃队列推进。
+> 当前代码与目标：旧 `app/example/` 过渡结构已迁至 `modules/example/`；R2-M 模块清单、资源与统一迁移已有真实验收。R1-E Article CRUD 与当前公开能力示例已通过适用门禁，并以 bc3fa01 限定提交；附件上传 EOF/deadline 原子仲裁、PG18/MySQL8.4 各 15/15 及真实 MinIO 延迟响应竞争各 1/1 已验收。`storage_publication_uncertain` 远端迟到完成、强杀与 shutdown deadline 仍不保证无孤儿。真实 Keycloak OIDC `AlwaysOk` 成功/失败双库 HTTP 用例各 1/1；Collector PG 隔离 sink delivery/unavailable 各 1/1，严格断言与共享服务保持不变。R2-N 模块硬依赖图和确定性启动顺序已由 48be854 提交；R3-A/B/C 语义 HTTP 状态、RouteGroup、命名路由与具名 URL 均已验收，R3-C 限定提交前状态见 [testing](memory/testing.md#r3-c-laravel-命名路由与具名-url-生成)。当前按 todo 继续 R3 HTTP/Web。完整模块管理和 Laravel 1:1 范围继续按 [ADR-074](decisions/adr-074-laravel-modules-directory.md) 与活跃队列推进。
 
 > 受众：AI Agent
 > 更新：2026-10-29
-> 摘要：正式目标为 Laravel + laravel-modules 的 Rust 1:1 实现。R1-E 综合示例及适用门禁已由 bc3fa01 本地提交；附件 EOF/deadline 与真实 MinIO 双库竞争、Collector PostgreSQL delivery/unavailable、Keycloak OIDC AlwaysOk 双库证据均已完成；uncertain 后远端迟到完成边界未保证。R2-N 模块硬依赖图、真实 PG18/MySQL8.4 HTTP、生成应用、根默认 TCP 入口及源码门禁已验收；R3-A HTTP 状态默认已按 ADR-076 验收，继续 R3 HTTP/Web。
+> 摘要：正式目标为 Laravel + laravel-modules 的 Rust 1:1 实现。R1-E 综合示例及适用门禁已由 bc3fa01 本地提交；附件 EOF/deadline 与真实 MinIO 双库竞争、Collector PostgreSQL delivery/unavailable、Keycloak OIDC AlwaysOk 双库证据均已完成；uncertain 后远端迟到完成边界未保证。R2-N 已验收并提交 48be854；R3-A/B/C 已完成适用门禁，R3-C 命名路由与具名 URL 等待限定本地提交，之后继续 R3 middleware 与 HTTP/Web 行为矩阵。
 
 ## 当前状态
 

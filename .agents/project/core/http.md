@@ -14,7 +14,7 @@
 | --- | --- |
 | `provider` | `HttpServiceProvider` 在 register 登记 server schema，在 boot 贡献 `serve`、`/health` 与 `/ready`；启用 `metrics` feature 并配置 `[server].metrics_endpoint_enabled` 后注册 `/metrics`。应用 Provider 在 `BootContext::routes` 贡献业务路由；`build_router(&App) -> Result<Router>` 向请求扩展注入最终 `AppState` 与请求 `Scope`，供 Inject/Auth/RateLimit 使用；经应用路由组合发现的 Axum 冲突转换为 `http_route_registration_failed` 启动错误，直接调用底层 Axum API 不在转换范围 |
 | `site` | `[server].public_dir` 默认 `public`，`tower-http::ServeDir` 将站点目录映射至 URL 根；`root_target` 支持 `file:`、`forward:`、`redirect:`，以及启用 `view` feature 并注册 `ViewServiceProvider` 后的 `view:`。视图首页在 router 构建时验证模板；`/api/*` 和 `/ws/*` 未匹配请求保留框架 JSON 404，不回落到静态文件 |
-| `routes` | `Routes`：`route` / `get` / `post` / `put` / `patch` / `delete` / `resource` / `resource_with` / `group(RouteGroup, f)` / `nest(prefix, f)` / `merge` / `layer` / `into_router`；`RouteGroup` 可组合路径前缀并按声明顺序将 Tower middleware 限定到组内；`nest("")` 或 `"/"` 走 merge |
+| `routes` | `Routes`：`route` / `get` / `post` / `put` / `patch` / `delete` / `name` / `resource` / `resource_with` / `group(RouteGroup, f)` / `nest(prefix, f)` / `merge` / `layer` / `into_router`；`RouteGroup` 可组合路径前缀、原样组合 `name_prefix` 并按声明顺序将 Tower middleware 限定到组内；`nest("")` 或 `"/"` 走 merge；`RouteUrlGenerator` 从 `app.url` 生成具名绝对 URL，不采信请求 Host |
 | `resource` | `Resource` 显式登记动作；`#[openrust::resource]` 从 controller inherent impl 的动作关联函数生成实现；`only` 连续调用取交集、`except` 裁剪；路径去尾斜杠后注册集合与成员，`update` 同时映射 PUT / PATCH |
 | `response` | `Created<T>` → 默认 201（显式 `always_ok` 时为 200），`with_location` 返回 `Result<Located<T>>`（非法值 → 500 包装）；`NoContent` → 200 成功包装并省略 `data`；无载荷的错误包装也省略 `data`，已有载荷保持原样；直接提取 `PageParams` 默认 1/20，并校验页数、每页 1..=100 与 offset 不超过 `i64::MAX`；`Paginated<T>` 输出 `data` 与 `meta` |
 | `extract` | `Inject<T>`（从 `AppState` 取服务，缺失 → 500 包装）；OpenRust `Json<T>` / `Path<T>` / `Query<T>`（解析失败 → 400/415/422/413 包装），`Validated<Json<T>>` / `Validated<Query<T>>`（先解析，规则失败 → 422，嵌套路径 `a.b[0].c`） |
@@ -41,7 +41,7 @@ CORS 预检（`OPTIONS` 且带 `Access-Control-Request-Method`）保持 tower-ht
 
 ## 验证
 
-`cargo test -p openrust --test http_router --test http_resource`：`tests/http/router.rs` 用 `oneshot` 覆盖 health 统一包装及请求 ID、`Inject` 命中与缺失、`Validated` 的 422 / 400 / 200、panic → 500、压缩协商、CORS 响应与配置错误；`tests/http/resource.rs` 覆盖路由动作、裁剪、嵌套、响应状态与分页错误/结构。启用 `view` 时另运行 `cargo test -p openrust --features view --test http_view`。
+`cargo test -p openrust --test http_router --test http_resource`：`tests/http/router.rs` 用 `oneshot` 覆盖 health 统一包装及请求 ID、`Inject` 命中与缺失、`Validated` 的 422 / 400 / 200、panic → 500、压缩协商、CORS 响应与配置错误；`tests/http/resource.rs` 覆盖路由动作、裁剪、嵌套、响应状态与分页错误/结构。具名路由定向回归覆盖组名前缀、URL 参数、重复名、空/通配路径拒绝和尾斜杠；R3-C 全量证据见 [testing](../memory/testing.md#r3-c-laravel-命名路由与具名-url-生成)。启用 `view` 时另运行 `cargo test -p openrust --features view --test http_view`。
 
 ## 出站 HTTP 客户端
 

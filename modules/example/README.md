@@ -6,6 +6,8 @@
 
 **综合示例已贯通当前已实现的公开框架能力。** 文章 HTTP CRUD、事务事件、审计、缓存、存储、账户安全及协议调用均有业务代码和分组验证；tenant 路由通过 `RouteGroup` 演示共享路径前缀与组级认证/授权 middleware。这不表示全部 Laravel 能力已完成。
 
+`GET /api/example/route-url` 展示命名路由：`GET /api/example` 注册为 `example.index`，处理器从请求提取 `RouteUrlGenerator` 并生成该名称对应的绝对 URL。
+
 模块扩展目标参考用户指定的第三方 [nWidart/laravel-modules](https://github.com/nWidart/laravel-modules)；当前依据为 [v13 文档](https://laravelmodules.com/docs/13/getting-started/introduction)，读取日期 2026-10-28，未宣称源码 revision 已对齐。借鉴自有路由/API、controller/model/resource、迁移、测试与 provider 装配；它不是 Laravel 核心，不扩张 Laravel 主基线，也不表示本框架已全量实现该包。按本项目约定采用 modules/<模块>、snake_case 和编译期静态注册。修改 modules/mod.rs 的编译声明和 Application::modules 注册清单是正常业务接入；为某个业务修改 src/ 核心或加入全局样例特判不属于接入方式。优先复用现有 ServiceProvider/Routes；Rust 模块编译期声明，无运行时源码扫描。
 
 ## 从真实调用链开始

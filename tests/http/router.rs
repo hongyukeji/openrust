@@ -14,8 +14,8 @@ use openrust::core::{RateLimitBucket, RateLimitFuture, RateLimitStore, RateLimit
 use openrust::http::RateLimitLayer;
 use openrust::http::axum;
 use openrust::http::{
-    Created, HttpServiceProvider, Inject, NoContent, PageParams, Paginated, RouteGroup, Validated,
-    build_router,
+    Created, HttpServiceProvider, Inject, NoContent, PageParams, Paginated, RouteGroup,
+    RouteUrlGenerator, Validated, build_router,
 };
 use openrust::http::{Json, Path, Query};
 
@@ -482,6 +482,35 @@ async fn grouped_route() -> &'static str {
     "grouped"
 }
 
+async fn generated_named_url(urls: RouteUrlGenerator) -> openrust::Result<Json<String>> {
+    let parameters = std::collections::BTreeMap::from([
+        ("id".to_owned(), "a b/c".to_owned()),
+        ("page".to_owned(), "2".to_owned()),
+        ("filter".to_owned(), "tea & cake".to_owned()),
+    ]);
+    urls.route("admin.users.show", &parameters).map(Json)
+}
+
+async fn generated_named_url_missing_parameter(
+    urls: RouteUrlGenerator,
+) -> openrust::Result<Json<String>> {
+    urls.route("admin.users.show", &std::collections::BTreeMap::new())
+        .map(Json)
+}
+
+async fn generated_outside_group_name(urls: RouteUrlGenerator) -> openrust::Result<Json<String>> {
+    urls.route(
+        "admin.management.outside",
+        &std::collections::BTreeMap::new(),
+    )
+    .map(Json)
+}
+
+async fn generated_trailing_slash_url(urls: RouteUrlGenerator) -> openrust::Result<Json<String>> {
+    urls.route("posts.trailing", &std::collections::BTreeMap::new())
+        .map(Json)
+}
+
 async fn grouped_order(Extension(order): Extension<Vec<&'static str>>) -> Json<Vec<&'static str>> {
     Json(order)
 }
@@ -621,6 +650,224 @@ async fn duplicate_routes_across_groups_fail_during_router_build() -> TestResult
         .err()
         .ok_or("duplicate route did not fail during router build")?;
     assert_eq!(error.code(), "http_route_registration_failed");
+    Ok(())
+}
+
+#[tokio::test]
+async fn named_route_urls_use_group_prefix_parameters_and_configured_host() -> TestResult {
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        serde_json::json!({
+            "app": {"url": "https://app.example.test/root"},
+            "api": {"http_status": "semantic"}
+        }),
+    ));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(TestRoutes::new(|routes| {
+            routes
+                .group(
+                    RouteGroup::new().prefix("api/").name_prefix("admin."),
+                    |api| {
+                        api.group(RouteGroup::new().name_prefix("users."), |users| {
+                            users.get("/users/{id}", generated_named_url).name("show")
+                        })
+                        .get("/missing", generated_named_url_missing_parameter)
+                    },
+                )
+                .group(
+                    RouteGroup::new().prefix("/root").name_prefix("admin."),
+                    |root| {
+                        root.group(
+                            RouteGroup::new().prefix("/api").name_prefix("management."),
+                            |api| api.get("/outside-name", generated_outside_group_name),
+                        )
+                    },
+                )
+                .name("outside")
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let router = build_router(&app)?;
+
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/users/1")
+                .header(header::HOST, "attacker.example")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        json_body(response).await["data"],
+        "https://app.example.test/root/api/users/a%20b%2Fc?filter=tea+%26+cake&page=2"
+    );
+
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/root/api/outside-name")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        json_body(response).await["data"],
+        "https://app.example.test/root/root/api/outside-name"
+    );
+
+    let response = router
+        .oneshot(Request::builder().uri("/api/missing").body(Body::empty())?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(
+        json_body(response).await["code"],
+        "http_route_parameter_missing"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn named_url_preserves_trailing_slash_and_targets_a_real_route() -> TestResult {
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(TestRoutes::new(|routes| {
+            routes
+                .get("/generate-trailing", generated_trailing_slash_url)
+                .get("/api/posts/", grouped_route)
+                .name("posts.trailing")
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let router = build_router(&app)?;
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/generate-trailing")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    let generated = json_body(response).await["data"]
+        .as_str()
+        .ok_or("generated URL was not a string")?
+        .to_owned();
+    let path = ::url::Url::parse(&generated)?.path().to_owned();
+    assert_eq!(path, "/api/posts/");
+    let response = router
+        .oneshot(Request::builder().uri(path).body(Body::empty())?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    Ok(())
+}
+
+#[tokio::test]
+async fn duplicate_named_routes_fail_during_router_build() -> TestResult {
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(TestRoutes::new(|routes| {
+            routes
+                .get("/first", grouped_route)
+                .name("shared")
+                .get("/second", grouped_route)
+                .name("shared")
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let error = build_router(&app)
+        .err()
+        .ok_or("duplicate route names unexpectedly built")?;
+    assert_eq!(error.code(), "http_route_name_duplicate");
+    Ok(())
+}
+
+#[tokio::test]
+async fn named_wildcard_routes_fail_during_router_build() -> TestResult {
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(TestRoutes::new(|routes| {
+            routes
+                .get("/files/{*rest}", grouped_route)
+                .name("files.show")
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let error = build_router(&app)
+        .err()
+        .ok_or("named wildcard route unexpectedly built")?;
+    assert_eq!(error.code(), "http_route_pattern_unsupported");
+    Ok(())
+}
+
+#[tokio::test]
+async fn named_routes_with_empty_segments_fail_during_router_build() -> TestResult {
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(TestRoutes::new(|routes| {
+            routes.group(RouteGroup::new().prefix("/api"), |api| {
+                api.get("/files//", grouped_route).name("files.latest")
+            })
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let error = build_router(&app)
+        .err()
+        .ok_or("named route with empty path segment unexpectedly built")?;
+    assert_eq!(error.code(), "http_route_pattern_unsupported");
+    Ok(())
+}
+
+#[tokio::test]
+async fn named_group_root_with_repeated_slashes_fails_during_router_build() -> TestResult {
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(TestRoutes::new(|routes| {
+            routes.group(RouteGroup::new().prefix("/api"), |api| {
+                api.get("//", grouped_route).name("api.double-root")
+            })
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let error = build_router(&app)
+        .err()
+        .ok_or("named route with repeated root slashes unexpectedly built")?;
+    assert_eq!(error.code(), "http_route_pattern_unsupported");
     Ok(())
 }
 

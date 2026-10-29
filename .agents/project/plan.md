@@ -1,10 +1,10 @@
 # 当前计划
 
-> 当前代码与目标：R1-E 综合示例与适用验收已由 bc3fa01 限定提交；附件、真实 MinIO 双库、Keycloak OIDC 双库和 Collector PostgreSQL 证据已通过，独立审查与任务资源清理完成。`storage_publication_uncertain` 后远端迟到完成、进程强杀与关闭超时仍是明确边界。R2-N 模块硬依赖、PG18/MySQL8.4 HTTP、生成应用、根默认 TCP 入口与适用门禁已由 48be854 提交；R3-A 语义 HTTP 默认和 R3-B 路由组已完成适用验收，继续 R3 HTTP/Web 后续行为。完整模块管理仍属后继，按 [ADR-074](decisions/adr-074-laravel-modules-directory.md) 推进。
+> 当前代码与目标：R1-E 综合示例与适用验收已由 bc3fa01 限定提交；附件、真实 MinIO 双库、Keycloak OIDC 双库和 Collector PostgreSQL 证据已通过。R2-N 模块硬依赖、双库 HTTP、生成应用、根默认 TCP 入口已由 48be854 提交；R3-A/B/C 语义 HTTP 默认、RouteGroup、命名路由与 URL 生成已完成适用门禁，R3-C 限定本地提交待收口。下一步沿 todo 推进 middleware alias/group 与其他 R3 行为；完整模块管理仍按 [ADR-074](decisions/adr-074-laravel-modules-directory.md) 推进。
 
 > 受众：AI Agent
 > 更新：2026-10-29
-> 摘要：执行 Laravel + laravel-modules 的 Rust 1:1 实现；R0 上游和逐章资产基线已记录，R1-S、R2-A/A2/A3、R2-B/C/D/M/N及R1-E真实CRUD/当前能力示例已按簇完成适用验收，R1-E 提交 bc3fa01；R3-A Laravel 语义 HTTP 状态默认与 R3-B 路由组已按范围验收。继续 R3 HTTP/Web 与模块行为矩阵，R0–R16 全体及严格 1:1 仍未完成。
+> 摘要：执行 Laravel + laravel-modules 的 Rust 1:1 实现；R0 上游和逐章资产基线已记录，R1-S、R2-A/A2/A3、R2-B/C/D/M/N及R1-E真实CRUD/当前能力示例已按簇完成适用验收；R3-A/B/C 已按范围完成适用门禁，当前等待 R3-C 限定提交后继续 R3 HTTP/Web 与模块行为矩阵。R0–R16 全体及严格 1:1 仍未完成。
 
 ## 当前里程碑
 

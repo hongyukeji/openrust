@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-29
-> 摘要：R0 已固定上游；R1-S、R2-A/A2/A3、R2-B/C/D/M/N 已按子簇完成适用门禁；R1-E 综合示例与真实 CRUD 已以 bc3fa01 提交。R2-N 真实双库模块 HTTP、生成项目和根默认入口已验收并提交 48be854；R3-A HTTP semantic 默认及 R3-B RouteGroup 已通过适用验收，完整 Laravel/laravel-modules 行为矩阵继续推进。
+> 摘要：R0 已固定上游；R1-S、R2-A/A2/A3、R2-B/C/D/M/N 已按子簇完成适用门禁；R1-E 综合示例与真实 CRUD 已以 bc3fa01 提交。R2-N 真实双库模块 HTTP、生成项目和根默认入口已验收并提交 48be854；R3-A HTTP semantic 默认、R3-B RouteGroup 与 R3-C 命名路由/URL 生成已完成适用验收，完整 Laravel/laravel-modules 行为矩阵继续推进。
 
 当前根 openrust 同 package 提供框架 lib 和唯一默认 server，应用职责回根；modules/example 是普通业务模块，经生产 `Application::modules` 编译清单与 FileModuleActivator 状态接入。根无示例 build.rs 或构建依赖；protobuf 工具和锁仍在模块内。
 
@@ -35,3 +35,5 @@ R1-E（已验收并提交 bc3fa01）：`modules/example` 已接真实 Article CR
 R3-A：已按 ADR-076 将 `semantic` 作为框架、配置、请求错误 fallback 与生成应用默认，`always_ok` 仅显式配置启用。默认/显式状态、统一 JSON envelope、request ID、validation 422、创建 201、路由与服务错误、middleware I18n 解析早退均有测试；普通与双库认证生成项目实际运行，根默认 TCP 入口验证 404/health 200/正常 SIGINT。默认/all-features Clippy、测试、warnings-denied Rustdoc、no-default、deny、MSRV1.97 通过；并行 all-features 首次出现的两项运行时错误单项通过且串行全量复验通过，具体边界与命令见 [testing](memory/testing.md#r3-a-laravel-语义-http-状态默认与统一-json-响应)。独立复审 blocker 已修复，最终只读复审无 blocker/should-fix。R3 后续路由、Request、FormRequest、Resource、Session/CSRF 仍未交付。
 
 R3-B：公开 `RouteGroup` builder 与 `Routes::group` 已接入，支持嵌套前缀、组级 Tower middleware 和稳定路由冲突错误；`nest` 复用同一前缀归一逻辑。`modules/example` tenant API 已迁移且认证/成员校验顺序保留。定向 HTTP、Rustdoc、真实 PostgreSQL 18/MySQL 8.4 tenant HTTP、带嵌套分组的 CLI 生成项目 TestApp、default/all-features workspace 门禁、deny、MSRV/no-default 均通过；独立只读复审无 blocker/should-fix。完整命令、计数和证据边界见 [testing](memory/testing.md#r3-b-laravel-路由组前缀与-middleware)。R3-B 只关闭此路由组子簇，命名路由、middleware alias/group、domain、model binding、fallback、signed URL 与 C04 Request/Response 仍未交付。
+
+R3-C：`Routes::name` 注册具名路由；嵌套 `RouteGroup::name_prefix` 按 Laravel 原样字符串组合，处理器提取 `RouteUrlGenerator` 以 `app.url` 为可信绝对 URL 来源，参数按单段编码、额外 query 按字典序输出。缺失名称/参数返回 500；重复名、通配及空路径段在 router build 阶段拒绝，尾斜杠生成后经真实路由访问保持一致。模块综合示例与生成应用均通过。默认/all-features workspace Clippy/tests/Rustdoc、deny、no-default、MSRV1.97及独立只读复审通过；限定本地提交待收口。详细命令和证据见 [R3-C testing](memory/testing.md#r3-c-laravel-命名路由与具名-url-生成)。下一个按队列处理 R3-D middleware alias/group。

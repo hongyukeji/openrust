@@ -23,9 +23,9 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 | R1-S 根结构与普通模块挂载 | 已完成结构子交付34dfb5e | 根Laravel职责、同package lib/server、资源内聚、模块公开挂载；按范围实际门禁与独立审查通过后可限定提交，仅结构子交付 |
 | R2 基础：Container/Provider/模块配置/TestApp | R2-A/A2/A3、R2-B、R2-C、R2-D、R2-M 各子簇已验收 | 全体register后boot、统一Container与typed配置、最小TestApp及模块闭环；先形成真实CRUD/扩展接入的稳定API，不依赖完整R1-E |
 | R2-M 模块最小闭环与目录迁移 | 真实服务与生成项目已验收，本簇提交 | modules/ 声明注册、模块配置/资源/统一迁移、依赖与冲突错误；示例迁至 modules/example，真实HTTP及双库验证；完整管理命令归R13 |
-| R1-E 真实CRUD与当前能力示例 | 已完成 bc3fa01 | 真实 Article CRUD；当前公开能力进入唯一模块示例；PostgreSQL 18/MySQL 8.4、生成项目、真实服务与整组门禁已验收，已限定本地提交 |
+| R1-E 真实CRUD与当前能力示例 | 已验收并提交 bc3fa01 | 真实 Article CRUD；当前公开能力进入唯一模块示例；PostgreSQL 18/MySQL 8.4、生成项目、真实服务与整组门禁已验收。Collector PostgreSQL 隔离 sink delivery/unavailable 已复验通过，详见 testing |
 | R2 后继内核与测试底座 | R2-N 模块依赖图与顺序已完成 | `.requires` 硬依赖、稳定拓扑顺序、register/boot 一致；真实 PostgreSQL/MySQL HTTP、生成项目、根无参数 TCP、工作区门禁均有本簇证据 |
-| R3 HTTP 与 Web | R3-A、R3-B 已验收；C03 后续待领取 | `RouteGroup` 已提供可嵌套路径前缀与组级 Tower middleware，并由 modules/example 使用；命名 URL、middleware alias/group、domain、model binding、fallback、签名 URL和 C04 Request/Response 继续排队 |
+| R3 HTTP 与 Web | R3-A、R3-B、R3-C 已完成适用验收；下一项 R3-D middleware alias/group 待领取 | `RouteGroup`、命名路由和具名 URL 生成已交付；domain routing 与 C04 Request/Response 继续排队 |
 | 模块包固定范围细化 | 待逐项盘点 | 对正式laravel-modules固定源码/文档的导航、源码与测试拆行为矩阵，分类必要Rust差异/用户约定/缺口；不把目录规范或显式Plugin等同完整模块管理 |
 
 ## 后继路由
@@ -164,7 +164,7 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 
 ## 当前 R1-E Spec：真实业务 CRUD 与公开能力示例
 
-状态：in_progress；复用唯一 `modules/example`、现有 Provider/Db/Auth/HTTP 能力，不新增框架业务内核。
+状态：已验收并提交 `bc3fa01`；本节保留该簇规格与边界。复用唯一 `modules/example`、现有 Provider/Db/Auth/HTTP 能力，不新增框架业务内核。
 
 1. 新增有所有者的 Article 业务实体、模块迁移及 SeaORM model；仅在数据库和认证能力就绪时挂载 `/api/example/articles`。
 2. 通过公开 `CurrentUser`、`AuthLayer`、`Validated`/`Json`、`Db` 和 `Routes` 实现列表、详情、新增、更新、删除，业务数据仍只属于 `modules/example`。
@@ -175,7 +175,7 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 7. 同步示例 README、根/项目事实、必要模板与变更日志；fmt、默认/全特性 workspace、Rustdoc、deny、MSRV/no-default、真实服务及生成项目按受影响范围验证后限定本地提交。
 8. 此簇不把 SeaORM 业务 model 称为完整 Eloquent 等价，也不领取未来 R3–R16 尚未实现的框架能力。
 
-当前子闭环与验收入口（整簇仍 `in_progress`；当前源码的整组门禁和定向真实证据见 `memory/testing.md`，当前剩余限定本地提交）：
+验收入口与结果见 `memory/testing.md`；该簇已限定本地提交，外部系统边界仍作为产品限制记录：
 
 - Article CRUD、事务事件/通知/审计/签名/加密、附件持久清理意图、同步及异步 CSV/XLSX、命名 Redis 缓存、Session/MFA、OIDC、SSE/WebSocket、业务 telemetry 已接示例；真实双库定向已分项执行，能力边界以 `modules/example/README.md` 表为准。
 - S3 既有暂存→完整校验→copy 发布和双库/版本化验收已通过；真实 MinIO 代理确认 CopyObject 成功后暂缓 SDK 响应，PostgreSQL 18/MySQL 8.4 各 1/1 验证上传任务继续持锁、DELETE 等发布收敛并清理最终 key 与 staging。请求体 EOF 与 45 秒 deadline 由共享原子状态仲裁：deadline 获胜则延迟 EOF 只能产生流错误，不会进入发布；EOF 获胜则存储收敛前保留行锁。App shutdown deadline、进程强杀、永久网络停滞，以及 CopyObject 已发送后返回 `storage_publication_uncertain` 而远端迟到成功，仍不保证 DB/S3 原子提交或无孤儿。
@@ -212,3 +212,14 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 3. 创建成功保留 201，空成功仍按现有类型返回 200；not found、method not allowed、validation、rate limit、overload、timeout 与 5xx 返回语义状态。request ID、机器码、字段错误、脱敏和 JSON 结构保持原契约；HTML、文件、流、SSE、gRPC 保留各自协议。
 4. 同步 CLI 生成模板/.env、综合示例、用户文档和 CHANGELOG；修正把 `always_ok` 当隐式默认的测试断言，覆盖省略配置时的 HTTP 行为及显式 override。
 5. 生成普通/认证应用并执行 check/test/HTTP；检查根实际 HTTP 入口，执行默认/全特性 workspace 门禁、deny、MSRV/no-default。双库仅对实际依赖数据库的改变路径验收，不以旧记录代替本簇行为测试。
+
+## 当前 R3-C Spec：命名路由与具名 URL 生成
+
+状态：已完成适用验收并待限定提交。对齐 Laravel 13 `Named Routes` 与 `URLs for Named Routes`；名字唯一、可跨路径调整使用，并支持路径参数和额外 query 参数。来源：[Laravel Routing](https://laravel.com/framework/docs/13.x/routing)、[Laravel URL Generation](https://laravel.com/framework/docs/13.x/urls)。
+
+1. 在 `Routes` 注册 API 上提供紧邻路由定义的 `.name("users.show")`，记录所属 HTTP route 与完整嵌套 prefix；group 可增加 Laravel 式 name prefix，并按 Laravel 原样字符串拼接（例如 `admin.` + `users.` + `show` → `admin.users.show`）。
+2. 重复名称和不受支持的路由模式（通配符、空路径段）在 router build 阶段报错；未知名称、缺失参数和无法安全编码的值返回稳定框架错误并按 Laravel URL generation exception 映射为 500，不 panic、不静默替换。
+3. 提供公开 `RouteUrlGenerator` 从名字生成绝对 URL；host/scheme 以 `app.url` 为来源，不信任请求 Host。必需 route 参数进行单段百分号编码，其余参数成为有序 query；仅支持必需 `{parameter}` 段，不声称可选参数、通配参数或模型绑定已完成。具名路径仅剥离单层首尾 `/`；空段保留并于启动时报错。
+4. 生成器由生产 `build_router`/应用 HTTP 请求路径公开供 handler 使用，并可在 `modules/example` 的链接/响应代码演示；生成应用应可用同一 API。
+5. 黑盒测试覆盖 path 更换不影响名字调用、嵌套 name prefix 与 path prefix、参数编码/缺失、额外 query、绝对 base URL、安全 Host 边界、重复名称启动失败；更新 HTTP Rustdoc、用户 README、core/http 与完整测试记录。
+6. 按 §6.3 执行 fmt、默认/all-features workspace clippy/test/doc、deny、MSRV/no-default、生成项目 check/test 与真实 HTTP。路由变更不依赖数据库，不为无关路径重复双库验收。

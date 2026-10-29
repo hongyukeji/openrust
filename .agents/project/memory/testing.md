@@ -602,3 +602,13 @@ R3-A 按 ADR-076 将 `HttpStatusMode::Semantic` 设为框架、配置、无请�
 生成项目：`/tmp/openrust-r3a-generated-20261029/{plain,postgres,mysql}`。普通、PostgreSQL 认证、MySQL 认证项目均通过格式和 workspace all-target offline check；普通生成项目的测试通过，PG18/MySQL8.4 生成认证应用真实 HTTP 测试各 2/2（包含默认语义状态）。同批较早验证已实际启动仓库根无参数 `cargo run`：TCP `/api/r3a-missing-route` 返回 HTTP 404 `not_found` envelope，`/health` 返回 200，SIGINT 后 exit 0。生成构建使用独立 `/tmp/openrust-r3a-generated-target`，不替代根真实服务测试。
 
 独立只读复审发现并促使修复 I18n 早退响应上下文缺口，复审后未发现 blocker/should-fix；其文档 nit 已同步处理。PostgreSQL/MySQL 响应数据库状态的业务路径未改变，既有真实 DB 验收不被重标为本簇新证据。 两次全量验证结束且确认无本任务 Cargo/rustc/rustdoc/server 后，`cargo clean --dry-run` 显示根 target 32646 文件/19.8 GiB，独立生成 target 9245 文件/4.1 GiB；分别清理后两处均归零，磁盘可用空间由 99 GiB 增至 121 GiB。
+
+## R3-C Laravel 命名路由与具名 URL 生成
+
+`Routes::name` 将名称绑定到紧邻注册的路由；嵌套 `RouteGroup::name_prefix` 按 Laravel 行为原样拼接，测试覆盖两层 name/path prefix 以及组调用结束后在外层 `.name(...)`。`RouteUrlGenerator` 以 `app.url` 生成绝对链接，不受请求 `Host` 影响；path 参数按单段编码，剩余项按 BTreeMap 顺序编码为 query。未知名称、缺失参数等生成错误采用 HTTP 500。重复名称、通配符和空路径段（含嵌套组的 `/files//`、`//`）在 router build 时返回错误；末尾 `/` 被保留，生成 URL 后实际请求目标 route 得到 200。
+
+定向 `cargo test --test http_router -- --test-threads=1`：最终 59 passed、0 failed、0 ignored。默认和串行全特性 `CARGO_INCREMENTAL=0 cargo test --workspace --quiet` / `CARGO_INCREMENTAL=0 RUST_TEST_THREADS=1 cargo test --workspace --all-features --quiet` 均 exit 0；各测试组无失败，显式 ignored 仍按 ignored 处理。默认与 all-features workspace Clippy（all targets、warnings denied）、Rustdoc（warnings denied）、no-default-features all-target check、Rust 1.97 all-features workspace check 与 `cargo deny check` 均通过。deny 保留既有 duplicate base64/winnow 与未匹配 MPL allowance 警告；advisories/bans/licenses/sources 均通过。
+
+生成项目 `/tmp/openrust-r3c-generated` 经 `cargo check --tests`，并执行生成 TestApp 的 `generated_application_serves_api_and_health` 1/1；在生成应用的 handler 中调用 `RouteUrlGenerator`，返回 `http://localhost:3000/api`。该项目依赖当前本地源码路径，生成目标与 CLI 工作目录均在 `/tmp`；不构成发布版本兼容证据。PostgreSQL/MySQL 不属于纯路由 URL 行为，本簇不重复数据库验收。
+
+gpt-6.1-terra 独立只读复审最终未发现 blocker/should-fix；审查范围包括组外嵌套命名、原样 name prefix、尾斜杠、通配/空段拒绝和 HTTP 500 错误语义。R3-C 限定本地提交前状态记录于 2026-10-29。

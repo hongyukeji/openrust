@@ -10,7 +10,10 @@ use controllers::auth::{
 use openrust::prelude::*;
 
 pub(super) fn register(routes: Routes, capabilities: &RouteCapabilities) -> Routes {
-    let routes = routes.get("/api/example", controllers::example::show);
+    let routes = routes
+        .get("/api/example", controllers::example::show)
+        .name("example.index")
+        .get("/api/example/route-url", controllers::example::route_url);
     let routes = if capabilities.i18n {
         routes
             .get(

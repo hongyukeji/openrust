@@ -237,6 +237,7 @@ pub(crate) struct HttpPluginInstalled;
 /// 不在此错误转换范围内。
 pub fn build_router(app: &App) -> Result<Router> {
     validate_trusted_proxy_ranges(&app.config().server.trusted_proxy_ranges)?;
+    let mut route_urls = None;
     let mut stateful = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let mut routes = Routes::new();
         if let Some(registry) = app.extension::<RouteRegistry>() {
@@ -244,8 +245,19 @@ pub fn build_router(app: &App) -> Result<Router> {
                 routes = builder(routes);
             }
         }
-        let app_router = routes
-            .into_router()
+        let (collected_router, named_routes, route_name_errors) = routes.into_parts();
+        if !route_name_errors.is_empty() {
+            return Err(Error::custom(
+                "http_route_name_without_route",
+                "a route name was assigned before a route was registered",
+            ));
+        }
+        route_urls = Some(if named_routes.is_empty() {
+            crate::http::RouteUrlGenerator::empty()
+        } else {
+            crate::http::RouteUrlGenerator::new(&app.config().app.url, named_routes)?
+        });
+        let app_router = collected_router
             .fallback(crate::http::site::fallback)
             .method_not_allowed_fallback(|| async {
                 Error::custom_with_status(
@@ -270,10 +282,28 @@ pub fn build_router(app: &App) -> Result<Router> {
         }
     }
     let app_router = middleware::apply(stateful, &app.config().server, &app.config().api)?;
+    let app_router = app_router.layer(axum::middleware::from_fn_with_state(
+        route_urls.ok_or_else(|| {
+            Error::custom(
+                "http_route_url_unavailable",
+                "route URL table was not initialized",
+            )
+        })?,
+        expose_route_urls,
+    ));
     Ok(app_router.layer(axum::middleware::from_fn_with_state(
         app.state().clone(),
         expose_app_state,
     )))
+}
+
+async fn expose_route_urls(
+    State(urls): State<crate::http::RouteUrlGenerator>,
+    mut request: Request,
+    next: Next,
+) -> Response {
+    request.extensions_mut().insert(urls);
+    next.run(request).await
 }
 
 async fn expose_app_state(

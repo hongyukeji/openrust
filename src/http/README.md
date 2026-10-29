@@ -63,7 +63,28 @@ fn routes(routes: Routes) -> Routes {
 }
 ```
 
-字符串形式的 middleware alias/group、路由命名、domain 与 URL 生成仍按 C03 后续子簇交付；本 API 直接接受 Rust Tower layer。
+字符串形式的 middleware alias/group 与 domain routing 仍按 C03 后续子簇交付；本 API 直接接受 Rust Tower layer。
+
+路由可以在定义后立即通过 `.name(...)` 命名；组的 `name_prefix` 会与内层名称按原样拼接，因此分隔符应由应用提供，例如 `admin.`。处理器提取 `RouteUrlGenerator` 后，可按名称生成绝对 URL。必需路径参数占用一个路径段，其值会编码为单段；多余参数进入按字典序排列的 query。host/scheme 来自 `app.url` 配置，不读取请求的 `Host`：
+
+```rust,ignore
+use std::collections::BTreeMap;
+use openrust::http::{Json, RouteGroup, RouteUrlGenerator, Routes};
+
+async fn show_user(urls: RouteUrlGenerator) -> openrust::Result<Json<String>> {
+    let params = BTreeMap::from([("id".to_owned(), "42".to_owned())]);
+    urls.route("admin.users.show", &params).map(Json)
+}
+
+fn routes(routes: Routes) -> Routes {
+    routes.group(
+        RouteGroup::new().prefix("/api").name_prefix("admin."),
+        |api| api.get("/users/{id}", show_user).name("users.show"),
+    )
+}
+```
+
+重复路由名、非法名称、通配符及包含空段的具名路径会在 router 构建时失败。缺少命名路由或必需参数会返回稳定错误并映射为 HTTP 500，符合 Laravel URL 生成异常的服务端错误语义；未命名路由不受 URL 模板限制。
 
 ```rust
 use std::sync::Arc;
