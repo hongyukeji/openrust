@@ -719,7 +719,9 @@ def _monitor_percentage_pause(runtime, state, config, current, now):
                    and config['usage_budget']['windows'][name]['participating']
                    and not config['usage_budget']['windows'][name].get('awaiting_available')
                    for name, reset in pause['windows'].items())
-    if status != 'usage_budget_available' or causes or not advanced or (not pause['windows'] and not account_changed) or quota_delay(
+    # 未触及百分比保留线的账号恢复无需换号/换周期；已登记触线窗口仍须重置。
+    if status != 'usage_budget_available' or causes or not advanced or (
+            not pause['windows'] and not account_changed and not pause.get('account_recovery')) or quota_delay(
             response, now, config.get('allow_existing_credits', False), config['usage_budget']):
         future = [] if pause.get('account_recovery') else [float(config['usage_budget']['windows'][name]['resets_at']) + 30
                   for name in pause['windows']

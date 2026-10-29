@@ -746,7 +746,7 @@ class QuotaCycles(unittest.TestCase):
         self.refresh()
         self.assertEqual(self.config['usage_budget'], before)
 
-    def monitor_case(self, *, credit='5600', user_changed=False, goal_changed=False, extra_window=False, new_used=0, send_unknown=False, pause_on_quota=None, primary_cause_only=False, credit_on_quota=None, future_wait=False, new_account=False):
+    def monitor_case(self, *, credit='5600', user_changed=False, goal_changed=False, extra_window=False, new_used=0, send_unknown=False, pause_on_quota=None, primary_cause_only=False, credit_on_quota=None, future_wait=False, new_account=False, same_account_recovery=False):
         self.response = quota_snapshot('5600', 50)
         self.config['usage_budget'] = recovery.initialize_usage_budget(self.response, 100)
         if extra_window:
@@ -760,11 +760,12 @@ class QuotaCycles(unittest.TestCase):
             windows = {'primary': windows['primary']}
         state = {'percentage_pause': {'goal': current, 'controls': controls, 'windows': windows,
                                      'resume_status': 'waiting', 'next_quota_at': 3100 if future_wait else 0}}
-        if new_account:
+        if new_account or same_account_recovery:
             self.config['auto_account_recovery'] = True
             state['percentage_pause'].update(account_recovery=True, account_id=self.response['accountId'], windows={})
-            self.response['accountId'] = 'second-account'
-        self.response['rateLimits']['primary'].update(usedPercent=new_used, resetsAt=4000)
+            if new_account:
+                self.response['accountId'] = 'second-account'
+        self.response['rateLimits']['primary'].update(usedPercent=new_used, resetsAt=2000 if same_account_recovery else 4000)
         self.response['rateLimits']['credits']['balance'] = credit
         if extra_window:
             self.response['rateLimits']['secondary']['usedPercent'] = 90
@@ -802,6 +803,28 @@ class QuotaCycles(unittest.TestCase):
                 self.assertEqual(recovery.monitor_percentage_pause(self.runtime, state, self.config, current, 2002),
                                  'percentage_pause_not_owned')
             return outcome, calls, send.call_count, state
+
+    def test_same_account_available_quota_resumes_without_cycle_or_account_change(self):
+        outcome, calls, sends, state = self.monitor_case(same_account_recovery=True, new_used=50)
+        self.assertEqual(outcome, 'percentage_resumed')
+        self.assertEqual(sends, 1)
+        self.assertEqual(calls.count('thread/goal/set'), 1)
+        self.assertEqual(state['percentage_pause']['resume_status'], 'sent')
+        self.assertEqual(self.config['usage_budget']['windows']['primary']['baseline_remaining'], '50')
+        self.assertEqual(self.config['usage_budget']['windows']['primary']['resets_at'], '2000')
+
+    def test_same_account_recovery_preserves_budget_manual_and_unknown_send_boundaries(self):
+        for options in ({'new_used': 90}, {'credit': '1120'}, {'user_changed': True},
+                        {'goal_changed': True}, {'future_wait': True}):
+            with self.subTest(options=options):
+                outcome, calls, sends, state = self.monitor_case(same_account_recovery=True, **options)
+                self.assertNotEqual(outcome, 'percentage_resumed')
+                self.assertNotIn('thread/goal/set', calls)
+                self.assertEqual(sends, 0)
+        outcome, calls, sends, state = self.monitor_case(same_account_recovery=True, new_used=50, send_unknown=True)
+        self.assertEqual(outcome, 'send_unknown')
+        self.assertEqual(sends, 1)
+        self.assertEqual(state['percentage_pause']['resume_status'], 'sending')
 
     def test_long_quota_sleep_has_no_client_calls_and_login_change_wakes_it(self):
         current = {'id': 'goal', 'status': 'paused'}
