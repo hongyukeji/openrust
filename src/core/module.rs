@@ -13,6 +13,7 @@ pub struct ModuleDescriptor {
     pub(crate) name: &'static str,
     pub(crate) root: PathBuf,
     pub(crate) priority: i32,
+    pub(crate) requirements: Vec<String>,
     pub(crate) providers: Vec<Box<dyn ServiceProvider>>,
 }
 
@@ -23,8 +24,16 @@ impl ModuleDescriptor {
             name,
             root: root.into(),
             priority,
+            requirements: Vec::new(),
             providers: Vec::new(),
         }
+    }
+
+    /// 声明另一个已编译且必须启用的模块；依赖模块先于当前模块启动。
+    #[must_use]
+    pub fn requires(mut self, module: impl Into<String>) -> Self {
+        self.requirements.push(module.into());
+        self
     }
 
     /// 添加本模块的 Provider，保留声明顺序。
@@ -220,32 +229,8 @@ impl ModuleManifest {
                 .iter()
                 .any(|disabled| disabled.eq_ignore_ascii_case(name))
         });
-        let mut identities: HashMap<String, (usize, String)> = HashMap::new();
-        let modules = self.modules;
-        for (index, module) in modules.iter().enumerate() {
-            if !valid_identity(module.name) {
-                return Err(Error::custom(
-                    "module_name_invalid",
-                    "模块身份只允许 ASCII 字母、数字、连字符与下划线",
-                ));
-            }
-            let normalized = module.name.to_ascii_lowercase();
-            if let Some((previous_index, previous_source)) =
-                identities.insert(normalized, (index, safe_source(&module.root)))
-            {
-                return Err(Error::custom(
-                    "module_identity_conflict",
-                    format!(
-                        "模块身份 {} 冲突：编译项 {} ({}) 与 {} ({})",
-                        module.name,
-                        previous_index,
-                        previous_source,
-                        index,
-                        safe_source(&module.root)
-                    ),
-                ));
-            }
-        }
+        let mut modules = self.modules;
+        validate_module_identities(&modules)?;
         let selected_names = enabled
             .iter()
             .map(|name| {
@@ -254,12 +239,14 @@ impl ModuleManifest {
                     .ok_or_else(|| Error::custom("module_not_compiled", "启用模块没有编译入口"))
             })
             .collect::<Result<HashSet<_>>>()?;
-        let mut selected: Vec<_> = modules
-            .into_iter()
-            .filter(|module| selected_names.contains(module.name))
+        let selected_module_indexes: Vec<_> = modules
+            .iter()
+            .enumerate()
+            .filter_map(|(index, module)| selected_names.contains(module.name).then_some(index))
             .collect();
         let mut roots = HashMap::new();
-        for module in &mut selected {
+        for index in &selected_module_indexes {
+            let module = &mut modules[*index];
             module.root = module
                 .root
                 .canonicalize()
@@ -274,9 +261,120 @@ impl ModuleManifest {
                 ));
             }
         }
-        selected.sort_by_key(|module| module.priority);
-        Ok(selected)
+
+        order_selected_modules(modules, &selected_module_indexes)
     }
+}
+
+fn validate_module_identities(modules: &[ModuleDescriptor]) -> Result<()> {
+    let mut identities: HashMap<String, (usize, String)> = HashMap::new();
+    for (index, module) in modules.iter().enumerate() {
+        if !valid_identity(module.name) {
+            return Err(Error::custom(
+                "module_name_invalid",
+                "模块身份只允许 ASCII 字母、数字、连字符与下划线",
+            ));
+        }
+        let normalized = module.name.to_ascii_lowercase();
+        if let Some((previous_index, previous_source)) =
+            identities.insert(normalized, (index, safe_source(&module.root)))
+        {
+            return Err(Error::custom(
+                "module_identity_conflict",
+                format!(
+                    "模块身份 {} 冲突：编译项 {} ({}) 与 {} ({})",
+                    module.name,
+                    previous_index,
+                    previous_source,
+                    index,
+                    safe_source(&module.root)
+                ),
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn order_selected_modules(
+    modules: Vec<ModuleDescriptor>,
+    selected_module_indexes: &[usize],
+) -> Result<Vec<ModuleDescriptor>> {
+    let selected_indexes: HashMap<_, _> = selected_module_indexes
+        .iter()
+        .enumerate()
+        .map(|(index, module_index)| (modules[*module_index].name.to_ascii_lowercase(), index))
+        .collect();
+    let mut dependencies = vec![Vec::new(); selected_module_indexes.len()];
+    for (index, module_index) in selected_module_indexes.iter().enumerate() {
+        let module = &modules[*module_index];
+        let mut seen = HashSet::new();
+        for required in &module.requirements {
+            if !valid_dependency_reference(required) {
+                return Err(Error::custom(
+                    "module_dependency_invalid",
+                    format!("模块 {} 声明了无效依赖名称", module.name),
+                ));
+            }
+            let dependency = find_module(&modules, required).ok_or_else(|| {
+                Error::custom(
+                    "module_dependency_not_compiled",
+                    format!("模块 {} 依赖未编译模块 {required}", module.name),
+                )
+            })?;
+            if dependency.name.eq_ignore_ascii_case(module.name) {
+                return Err(Error::custom(
+                    "module_dependency_self",
+                    format!("模块 {} 不能依赖自身", module.name),
+                ));
+            }
+            let normalized = dependency.name.to_ascii_lowercase();
+            if !seen.insert(normalized.clone()) {
+                return Err(Error::custom(
+                    "module_dependency_duplicate",
+                    format!("模块 {} 重复声明依赖 {}", module.name, dependency.name),
+                ));
+            }
+            let Some(dependency_index) = selected_indexes.get(&normalized).copied() else {
+                return Err(Error::custom(
+                    "module_dependency_not_enabled",
+                    format!("模块 {} 依赖未启用模块 {}", module.name, dependency.name),
+                ));
+            };
+            dependencies[index].push(dependency_index);
+        }
+    }
+
+    let mut ordered_indexes = Vec::with_capacity(selected_module_indexes.len());
+    let mut emitted = HashSet::new();
+    while ordered_indexes.len() < selected_module_indexes.len() {
+        let next = (0..selected_module_indexes.len())
+            .filter(|index| !emitted.contains(index))
+            .filter(|index| dependencies[*index].iter().all(|dep| emitted.contains(dep)))
+            .min_by_key(|index| (modules[selected_module_indexes[*index]].priority, *index));
+        let Some(next) = next else {
+            let cycle = (0..selected_module_indexes.len())
+                .filter(|index| !emitted.contains(index))
+                .map(|index| modules[selected_module_indexes[index]].name)
+                .collect::<Vec<_>>()
+                .join(", ");
+            return Err(Error::custom(
+                "module_dependency_cycle",
+                format!("模块依赖存在循环或被循环阻塞：{cycle}"),
+            ));
+        };
+        emitted.insert(next);
+        ordered_indexes.push(next);
+    }
+
+    let mut modules: Vec<_> = modules.into_iter().map(Some).collect();
+    ordered_indexes
+        .into_iter()
+        .map(|index| {
+            modules[selected_module_indexes[index]]
+                .take()
+                .ok_or_else(|| Error::custom("module_order_invalid", "模块启动顺序无效"))
+        })
+        .collect()
 }
 
 fn valid_name(name: &str) -> bool {
@@ -297,6 +395,14 @@ fn valid_identity(name: &str) -> bool {
         && name
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+}
+
+fn valid_dependency_reference(name: &str) -> bool {
+    let first = name.trim_start_matches(['-', '_', ' ']).as_bytes().first();
+    first.is_some_and(u8::is_ascii_alphabetic)
+        && name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b' '))
 }
 
 fn studly(name: &str) -> String {
@@ -646,6 +752,124 @@ mod tests {
         let detail = error.to_string();
         assert!(detail.contains("first") && detail.contains("second"));
         assert!(!detail.contains(&temporary.path().display().to_string()));
+        Ok(())
+    }
+
+    #[test]
+    fn dependencies_override_priority_and_keep_ready_modules_stable() -> Result<()> {
+        let temporary = tempfile::tempdir().map_err(Error::internal)?;
+        let consumer = directory(temporary.path(), "consumer")?;
+        let producer = directory(temporary.path(), "producer")?;
+        let alpha = directory(temporary.path(), "alpha")?;
+        let beta = directory(temporary.path(), "beta")?;
+        let modules = ModuleManifest::new()
+            .module(ModuleDescriptor::new("consumer", consumer, -100).requires("producer"))
+            .module(ModuleDescriptor::new("producer", producer, 100))
+            .module(ModuleDescriptor::new("alpha", alpha, 0))
+            .module(ModuleDescriptor::new("beta", beta, 0))
+            .enable("consumer")
+            .enable("producer")
+            .enable("alpha")
+            .enable("beta")
+            .prepare()?;
+        let names = modules
+            .iter()
+            .map(ModuleDescriptor::name)
+            .collect::<Vec<_>>();
+        assert_eq!(names, ["alpha", "beta", "producer", "consumer"]);
+        Ok(())
+    }
+
+    #[test]
+    fn dependency_names_follow_existing_studly_lookup() -> Result<()> {
+        let temporary = tempfile::tempdir().map_err(Error::internal)?;
+        let consumer = directory(temporary.path(), "consumer")?;
+        let producer = directory(temporary.path(), "producer")?;
+        let modules = ModuleManifest::new()
+            .module(ModuleDescriptor::new("consumer", consumer, 0).requires("foo bar"))
+            .module(ModuleDescriptor::new("FooBar", producer, 0))
+            .enable("consumer")
+            .enable("FooBar")
+            .prepare()?;
+        assert_eq!(
+            modules
+                .iter()
+                .map(ModuleDescriptor::name)
+                .collect::<Vec<_>>(),
+            ["FooBar", "consumer"]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn dependencies_reject_invalid_missing_disabled_duplicate_self_and_cycles() -> Result<()> {
+        let temporary = tempfile::tempdir().map_err(Error::internal)?;
+        let root = |name| directory(temporary.path(), name);
+        let error_code = |result: Result<Vec<ModuleDescriptor>>| {
+            result.err().map(|error| error.code().to_owned())
+        };
+
+        let invalid = ModuleManifest::new()
+            .module(ModuleDescriptor::new("invalid", root("invalid")?, 0).requires("bad/name"))
+            .enable("invalid");
+        assert_eq!(
+            error_code(invalid.prepare()).as_deref(),
+            Some("module_dependency_invalid")
+        );
+
+        let missing = ModuleManifest::new()
+            .module(
+                ModuleDescriptor::new("missing-user", root("missing-user")?, 0).requires("absent"),
+            )
+            .enable("missing-user");
+        assert_eq!(
+            error_code(missing.prepare()).as_deref(),
+            Some("module_dependency_not_compiled")
+        );
+
+        let disabled = ModuleManifest::new()
+            .module(
+                ModuleDescriptor::new("disabled-user", root("disabled-user")?, 0)
+                    .requires("disabled"),
+            )
+            .module(ModuleDescriptor::new("disabled", root("disabled")?, 0))
+            .enable("disabled-user");
+        assert_eq!(
+            error_code(disabled.prepare()).as_deref(),
+            Some("module_dependency_not_enabled")
+        );
+
+        let duplicate = ModuleManifest::new()
+            .module(
+                ModuleDescriptor::new("duplicate-user", root("duplicate-user")?, 0)
+                    .requires("base")
+                    .requires("BASE"),
+            )
+            .module(ModuleDescriptor::new("base", root("base")?, 0))
+            .enable("duplicate-user")
+            .enable("base");
+        assert_eq!(
+            error_code(duplicate.prepare()).as_deref(),
+            Some("module_dependency_duplicate")
+        );
+
+        let self_dependency = ModuleManifest::new()
+            .module(ModuleDescriptor::new("self", root("self")?, 0).requires("SELF"))
+            .enable("self");
+        assert_eq!(
+            error_code(self_dependency.prepare()).as_deref(),
+            Some("module_dependency_self")
+        );
+
+        let cycle = ModuleManifest::new()
+            .module(ModuleDescriptor::new("cycle-a", root("cycle-a")?, 0).requires("cycle-b"))
+            .module(ModuleDescriptor::new("cycle-b", root("cycle-b")?, 0).requires("cycle-a"))
+            .enable("cycle-a")
+            .enable("cycle-b");
+        assert_eq!(
+            error_code(cycle.prepare()).as_deref(),
+            Some("module_dependency_cycle")
+        );
         Ok(())
     }
 

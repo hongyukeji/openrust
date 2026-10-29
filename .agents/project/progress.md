@@ -2,13 +2,15 @@
 
 > 受众：AI Agent
 > 更新：2026-10-29
-> 摘要：R0 已固定上游；R1-S、R2-A/A2/A3、R2-B/C/D/M 已按子簇完成适用门禁；R1-E 综合示例与真实 CRUD 已以 bc3fa01 提交。R2 后继内核和完整 Laravel/laravel-modules 行为矩阵继续推进。
+> 摘要：R0 已固定上游；R1-S、R2-A/A2/A3、R2-B/C/D/M/N 已按子簇完成适用门禁；R1-E 综合示例与真实 CRUD 已以 bc3fa01 提交。R2-N 真实双库模块 HTTP、生成项目和根默认入口已验收；下一簇进入 R3 HTTP/Web，完整 Laravel/laravel-modules 行为矩阵继续推进。
 
 当前根 openrust 同 package 提供框架 lib 和唯一默认 server，应用职责回根；modules/example 是普通业务模块，经生产 `Application::modules` 编译清单与 FileModuleActivator 状态接入。根无示例 build.rs 或构建依赖；protobuf 工具和锁仍在模块内。
 
 结构子步骤已实际通过 fmt、默认/full Clippy/tests/docs、deny、no-default；默认 263/22、full 486/32（passed/ignored）。根裸 cargo run 的健康/API/公开 HTML/业务响应与正常退出、根 CLI 转发、PG18.6/MySQL8.4.13 各 12 targets/48 项及 testing 1 项、三类生成项目、最小 orders 模块仅改应用清单的真实 HTTP 闭环通过。CI 双库六组、MSRV1.97、八个独立 consumer 与额外 gRPC 生成项目均通过；不同模型最终源码复审无 blocker/should-fix，独立 CI 复核无 blocker/should-fix，已本地提交34dfb5e；最新事实见 [testing](memory/testing.md#r1-当前工程边界与验收入口)。
 
 R1-E 真实 CRUD/当前公开能力示例已按适用范围验收并以 bc3fa01 提交，附件 deadline/EOF 竞态修复经独立复审和真实 MinIO 双库场景验证；限定的跨系统故障边界仍记录在 [testing](memory/testing.md#r1-e-审查修复与追加验收2026-10-29)。这只关闭当前综合示例子簇，不代表 Laravel/laravel-modules 全行为矩阵完成。后继按 [待办](todo.md) 领取。
+
+R2-N 模块依赖顺序已按 [ADR-075](decisions/adr-075-module-dependency-order.md) 实现并验收：依赖声明与稳定拓扑排序进入 `ModuleManifest`，`ProviderBuilder` 的 register/boot 同序；缺失、未启用、无效、重复、自依赖与循环均有稳定错误码。真实 PostgreSQL 18/MySQL 8.4 隔离数据库 HTTP、生成应用 `.requires` API check/test、根默认 `cargo run` 的 TCP `/health` 与 `/api/example`、workspace 默认/全特性门禁、MSRV/no-default、Rustdoc、deny 均通过。详细命令和证据见 [R2-N 测试记录](memory/testing.md#r2-n-模块硬依赖与确定性启动顺序)。完整模块管理仍属于后继；Laravel 总体范围继续未完成。
 
 目录目标为 `modules/<模块名>/` 与唯一 `modules/example/`，见 [ADR-074](decisions/adr-074-laravel-modules-directory.md)。R2-M 当前实现与真实验收单独记录；完整管理命令、发布流程和 CRUD 未交付。计划修订与文档检查不能代替这些代码验收。
 

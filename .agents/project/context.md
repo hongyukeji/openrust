@@ -4,14 +4,14 @@
 
 > 受众：AI Agent
 > 更新：2026-10-29
-> 摘要：正式目标为 Laravel + laravel-modules 的 Rust 1:1 实现。R1-E 综合示例及适用门禁已由 bc3fa01 本地提交；附件 EOF/deadline 与真实 MinIO 双库竞争、Collector PostgreSQL delivery/unavailable、Keycloak OIDC AlwaysOk 双库证据均已完成；uncertain 后远端迟到完成边界未保证。R1-E 独立审查与资源清理完成；当前进入 R2-N 模块依赖图及确定性启动顺序，原 v1 专项证据作为复用/重写基线。
+> 摘要：正式目标为 Laravel + laravel-modules 的 Rust 1:1 实现。R1-E 综合示例及适用门禁已由 bc3fa01 本地提交；附件 EOF/deadline 与真实 MinIO 双库竞争、Collector PostgreSQL delivery/unavailable、Keycloak OIDC AlwaysOk 双库证据均已完成；uncertain 后远端迟到完成边界未保证。R2-N 模块硬依赖图、真实 PG18/MySQL8.4 HTTP、生成应用、根默认 TCP 入口及源码门禁已验收；下一主簇进入 R3 HTTP/Web。
 
 ## 当前状态
 
 | 项 | 当前事实与目标 |
 | --- | --- |
 | 当前代码基线 | 规划开始 HEAD 为 `7f964b8`；根 openrust 同 package 的框架 lib 与默认 server 已装配；应用职责回根，当前示例位于 modules/example，按编译清单和运行激活状态接入；tools 与 consumers 保留；版本和依赖以 Cargo.toml 为准 |
-| 当前阶段 | [全面重构计划](plans/laravel-rebuild.md) 已记录；R1-S、R2-A/A2/A3、R2-B统一Provider、R2-C入口scope、R2-D TestApp、R2-M模块闭环与R1-E综合示例各子簇按范围完成；R1-E 提交 bc3fa01。附件/MinIO 双库、OIDC Keycloak 双库、Collector PostgreSQL、生成应用及整组工作区门禁已通过；`storage_publication_uncertain` 后远端迟到完成、强杀与 shutdown deadline 仍不保证无孤儿。独立审查与资源清理完成；当前 R2-N 实现模块硬依赖图和确定性启动顺序，唯一队列见 [todo.md](todo.md) |
+| 当前阶段 | [全面重构计划](plans/laravel-rebuild.md) 已记录；R1-S、R2-A/A2/A3、R2-B统一Provider、R2-C入口scope、R2-D TestApp、R2-M模块闭环、R2-N模块依赖顺序与R1-E综合示例各子簇按范围完成；R1-E 提交 bc3fa01。R2-N 的 PG18/MySQL8.4 模块 HTTP、生成应用、根默认 TCP 入口及工作区门禁已通过。`storage_publication_uncertain` 后远端迟到完成、强杀与 shutdown deadline 仍不保证无孤儿；唯一队列转入 R3 HTTP/Web，见 [todo.md](todo.md) |
 | 目标授权 | [ADR-070](decisions/adr-070-laravel-first-rebuild.md)：Laravel固定基线为1:1行为标准，laravel-modules为正式模块化范围，Goravel仅跨语言实现参考；允许全面重写，无历史兼容义务 |
 | 当前完成边界 | 原认证/数据/队列/缓存/存储/实时/gRPC/视图等有专项证据；完整生产/集群/最低版本仍有缺口，新目标不能继承为已验收 |
 | 协作 | 已定 contract 优先 gpt-6.1-sol 子智能体；主控负责设计/协调；所有 Agent 直接 main，非重叠文件可并行实现；共享 manifest/lock/迁移/文档/提交由集成负责人串行协调，target/服务资源预先分配，审查并行只读；高风险改码不同模型或 Provider 审查；不推送 |

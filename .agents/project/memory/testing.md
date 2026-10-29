@@ -4,6 +4,16 @@
 > 更新：2026-10-28
 > 摘要：当前目录迁移与原专项测试入口，分开记录真实服务和未验收边界。
 
+## R2-N 模块硬依赖与确定性启动顺序
+
+`ModuleDescriptor::requires` 将已编译模块之间的硬依赖放入 `ModuleManifest`；依赖必须同批启用，不自动改写状态文件。依赖边优先于 `priority`，当前就绪模块再按 priority 升序与声明顺序稳定选择；模块 Provider 的 register/boot 使用同一拓扑顺序。缺失、未启用、无效名、重复、自依赖与环的稳定错误码有单测覆盖；Studly 查找保留既有空格别名语义。Provider 集成测试反向声明依赖并制造 priority 冲突，确认生产者 register/boot 都先于消费者（1/1）；模块单测 9/9。
+
+双库模块 HTTP 使用现有真实 PostgreSQL 18 与 MySQL 8.4 服务，以及 `TestDatabase` 创建的隔离数据库。生产 `modules/example` 为生产者；测试临时 `orders` 消费模块声明 `.requires("example")` 且 priority 更早。命令 `cargo test -p openrust --features db-<backend> --bin server dependent_business_module_serves_http_with_real_database -- --nocapture` 每库通过 1/1；测试连接真实服务、执行 `SELECT 1`，再通过 in-process Router HTTP 对 `/api/example`、`/api/orders` 各得 200。独立复审发现正常路径未关闭隔离库，现已在应用优雅关闭后显式执行 `database.close().await`；错误提前返回仍由 `TestDatabase::drop` 在 Tokio runtime 内尽力安排删除。该 HTTP 证据不是 TCP 网络测试，也不改变正式唯一综合示例中只有 `modules/example` 的约定。根无参数 `cargo run` 另通过真实 TCP `/health` 与 `/api/example` 200；`modules_statuses.json` 中 example 启用，SIGINT 后进程以 0 退出。
+
+CLI 生成的普通项目 `/tmp/openrust-r2n-generated-20261029`：`cargo fmt --all --check`、`cargo check --workspace --all-targets --offline`、`cargo test --workspace --offline` 通过；生成应用 API/health 测试与新增公开 `ModuleDescriptor::requires` 调用测试共 2/2。根仓库 `cargo fmt --all --check`、默认/all-features workspace all-target Clippy（`-D warnings`）、默认/all-features workspace tests、warnings-denied 双 Rustdoc、`cargo check --workspace --all-targets --no-default-features`、Rust 1.97 `check --workspace --all-targets --all-features` 与 `check -p openrust --no-default-features`、`cargo deny check` 均退出 0。核心库默认 297 项、all-features 489 项通过；全特性核心另有 2 ignored；外部服务 ignored 用例不计验收。cargo-deny 的 advisories/bans/licenses/sources 通过，保留原有 duplicate base64/winnow 与未匹配 MPL allowance 警告。
+
+Spec、ADR-075、core/模块/CLI 文档与唯一队列已同步。该簇不改数据库读写契约，真实 DB HTTP 用来验证模块启动与应用装配；完整 Laravel/laravel-modules、模块管理命令、生产集群仍未完成。
+
 ## R2-A3 缓存发布与锁外唤醒
 
 安全自定义Wake在Notify同步回调中重新解析已发布singleton保存的Resolver，旧代码确定性返回service_cycle（红测）；修复后缓存工厂先结束active frame并移除已结束出边，再发布结果与通知，完成slot不再创建等待边。取消也经相同顺序清理。scope/root reset锁内仅提交关闭状态和缓存结果，所有通知与用户值释放在锁外执行，避免Waker同步重入State/outcome死锁。

@@ -870,6 +870,96 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn module_dependency_orders_provider_register_and_boot() -> Result<()> {
+        struct Producer(Arc<Mutex<Vec<&'static str>>>);
+        struct Consumer(Arc<Mutex<Vec<&'static str>>>);
+
+        impl ServiceProvider for Producer {
+            fn register(&self, _app: &mut RegisterContext<'_>) -> Result<()> {
+                self.0
+                    .lock()
+                    .map_err(|_| Error::custom("test_event_lock", "测试事件锁已中毒"))?
+                    .push("producer.register");
+                Ok(())
+            }
+
+            fn boot<'a>(&'a self, _app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+                let events = Arc::clone(&self.0);
+                Box::pin(async move {
+                    events
+                        .lock()
+                        .map_err(|_| Error::custom("test_event_lock", "测试事件锁已中毒"))?
+                        .push("producer.boot");
+                    Ok(())
+                })
+            }
+        }
+
+        impl ServiceProvider for Consumer {
+            fn register(&self, _app: &mut RegisterContext<'_>) -> Result<()> {
+                self.0
+                    .lock()
+                    .map_err(|_| Error::custom("test_event_lock", "测试事件锁已中毒"))?
+                    .push("consumer.register");
+                Ok(())
+            }
+
+            fn boot<'a>(&'a self, _app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+                let events = Arc::clone(&self.0);
+                Box::pin(async move {
+                    events
+                        .lock()
+                        .map_err(|_| Error::custom("test_event_lock", "测试事件锁已中毒"))?
+                        .push("consumer.boot");
+                    Ok(())
+                })
+            }
+        }
+
+        let temporary = tempfile::tempdir().map_err(Error::internal)?;
+        let producer_root = temporary.path().join("producer");
+        let consumer_root = temporary.path().join("consumer");
+        std::fs::create_dir(&producer_root).map_err(Error::internal)?;
+        std::fs::create_dir(&consumer_root).map_err(Error::internal)?;
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let mut builder = ProviderBuilder::new();
+        builder.module_manifest(
+            ModuleManifest::new()
+                .module(
+                    ModuleDescriptor::new("consumer", &consumer_root, -100)
+                        .requires("producer")
+                        .provider(Consumer(Arc::clone(&events))),
+                )
+                .module(
+                    ModuleDescriptor::new("producer", &producer_root, 100)
+                        .provider(Producer(Arc::clone(&events))),
+                )
+                .enable("consumer")
+                .enable("producer"),
+        );
+
+        let runtime = builder.start(Figment::new()).await?;
+        let observed = {
+            let events = events
+                .lock()
+                .map_err(|_| Error::custom("test_event_lock", "测试事件锁已中毒"))?;
+            events.clone()
+        };
+        assert_eq!(
+            observed,
+            vec![
+                "producer.register",
+                "consumer.register",
+                "producer.boot",
+                "consumer.boot"
+            ]
+        );
+        runtime
+            .shutdown(Instant::now() + Duration::from_secs(1))
+            .await
+    }
+
+    #[tokio::test]
     async fn provider_runtime_powers_production_app_router() -> Result<()> {
         use tower::ServiceExt as _;
 

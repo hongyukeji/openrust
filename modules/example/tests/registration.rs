@@ -233,6 +233,103 @@ async fn production_testapp_can_disable_only_the_business_module()
     Ok(())
 }
 
+#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+struct OrdersConsumerProvider;
+
+#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+impl openrust::core::ServiceProvider for OrdersConsumerProvider {
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut openrust::core::BootContext<'_>,
+    ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.resolve::<super::services::ExampleMessage>().await?;
+            app.routes(|routes| routes.get("/api/orders", orders_index))?;
+            Ok(())
+        })
+    }
+}
+
+#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+async fn orders_index(
+    openrust::http::Inject(message): openrust::http::Inject<super::services::ExampleMessage>,
+) -> openrust::http::Json<serde_json::Value> {
+    openrust::http::Json(serde_json::json!({"producer": message.text()}))
+}
+
+#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+#[tokio::test]
+async fn dependent_business_module_serves_http_with_real_database()
+-> Result<(), Box<dyn std::error::Error>> {
+    use openrust::core::{ModuleDescriptor, ModuleManifest, ProviderBuilder};
+    use openrust::db::sea_orm::{ConnectionTrait, Statement};
+    use openrust::testing::TestDatabase;
+    use std::path::PathBuf;
+    use std::time::Duration;
+
+    let Ok(admin_url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+        eprintln!("skipping dependent module HTTP test: OPENRUST_TEST_DATABASE_URL is unset");
+        return Ok(());
+    };
+    let database = TestDatabase::create::<EmptyMigrator>(&admin_url).await?;
+    let consumer_root = tempfile::tempdir()?;
+    let application_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let sources = production_sources(false).merge(figment::providers::Serialized::defaults(
+        serde_json::json!({"database": {"url": database.url()}}),
+    ));
+
+    let mut builder = ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(openrust::db::DatabaseServiceProvider)
+        .provider(openrust::cache::CacheServiceProvider::new())
+        .module_manifest(
+            ModuleManifest::new()
+                .module(super::descriptor(false, application_root))
+                .module(
+                    ModuleDescriptor::new("orders", consumer_root.path(), -100)
+                        .requires("example")
+                        .provider(OrdersConsumerProvider),
+                )
+                .enable("orders")
+                .enable("example"),
+        );
+    let runtime = builder.start(sources).await?;
+    let app = openrust::core::App::from_provider_runtime(runtime)?;
+    let database_handle = app.state().resolve::<openrust::Db>().await?;
+    let connection = database_handle.primary_connection()?;
+    connection
+        .query_one_raw(Statement::from_string(
+            connection.get_database_backend(),
+            "SELECT 1".to_owned(),
+        ))
+        .await?
+        .ok_or("real database did not return SELECT 1")?;
+
+    let router = openrust::http::build_router(&app)?;
+    for (path, expected) in [
+        ("/api/example", "Hello from modules/example"),
+        ("/api/orders", "Hello from modules/example"),
+    ] {
+        let response = router
+            .clone()
+            .oneshot(Request::get(path).body(Body::empty())?)
+            .await?;
+        assert_eq!(response.status(), StatusCode::OK, "{path}");
+        let body = to_bytes(response.into_body(), usize::MAX).await?;
+        let json: serde_json::Value = serde_json::from_slice(&body)?;
+        if path == "/api/example" {
+            assert_eq!(json["data"]["message"], expected);
+        } else {
+            assert_eq!(json["data"]["producer"], expected);
+        }
+    }
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    database.close().await?;
+    Ok(())
+}
+
 #[cfg(feature = "view")]
 #[tokio::test]
 async fn production_testapp_renders_module_namespaced_view()

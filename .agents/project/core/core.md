@@ -1,8 +1,8 @@
 # `openrust::core`
 
 > 受众：AI Agent
-> 更新：2026-10-28
-> 摘要：应用内核当前事实。
+> 更新：2026-10-29
+> 摘要：应用内核当前事实；模块清单支持硬依赖和确定性拓扑启动。
 
 ## 边界
 
@@ -15,6 +15,7 @@
 | `app` | `Application { type Config; fn config_namespace(); fn providers(&Config) }`，默认命名空间 `APP_`；`App` 提供 `state`、`config`、`figment`、`commands`、`extension`、`run_command`、显式 `shutdown`；`AppState` 的 `resolve` 异步构造工厂，`get` 仅同步读取已就绪实例。每次命令建立独立 scope，正常返回显式等待清理，调用 future 取消时关闭 guard 交由 App 受管回收；命令可复用同一 App，顶层 CLI 退出时关闭资源。section 解码错误保留安全键路径，不回显值 |
 | `container` | 生产唯一 `ContainerBuilder`/`Container`/`Resolver`/`Scope`：bind/singleton/scoped/instance、dyn 接口、单次构造、环检测、取消和根 reset。HTTP 请求 scope 贯穿 Inject/Auth/RateLimit/响应 body 轮询；命令、Job attempt 与 scheduler trigger 各用独立 scope。`Scope::run` 仅在当前 future 安装同容器 task-local，`Scope::spawn` 在同 scope/显式 ExecutionMetadata 下构造并执行受管任务；普通 `tokio::spawn` 不继承。关闭 App 封闭根生命周期并等待受管清理 |
 | `provider` | `ProviderBuilder` 先完成所有 `ServiceProvider::register`，合并基础配置，顺序执行 `boot`，最后校验配置和贡献并解析 required 服务；Provider 依赖、同类型去重与 boot 顺序明确。资源由 `ResourceOwner` 管理，启动失败或取消后在存活 Tokio runtime 内有界回收；旧 Plugin 启动循环已删除 |
+| `module` | `ModuleDescriptor::requires` 声明已编译模块间硬依赖；启用模块的依赖必须同时编译、启用，重复/自身/循环依赖拒绝。依赖拓扑优先于升序 `priority`，相同优先级保持应用编译清单顺序；模块 Provider register/boot 共享该结果，不自动改写运行启用状态 |
 | `command` | `Command { name, about, accepts_args, run }`；额外参数默认拒绝；内置 `help`、`config show`（密钥遮蔽） |
 | `config` | `src/config/` 已有 app/api/auth/cache/database/logger/mailer/server/signing/sms，queue 与 security 随对应 feature 开启；单一 `ConfigLoader` 合并类型默认值 → 应用根 `config/*.toml` 领域文件（按文件名排序）→ 应用工作目录 `.env` → 进程环境变量；不再加载 `default.toml` 与环境名 TOML。默认 `APP_`；Laravel 风格 `DB_*` / `REDIS_*` 分项连接变量、直接 URL 简写、`APP_NAME` / `APP_URL` 均映射到领域配置，应用命名空间变量优先；`FrameworkConfig { app, server, api, log, i18n }`，其他能力通过独立 section 读取；数据库、认证、邮件旧模块路径由 re-export 保持；`NoConfig`、`load_dotenv`、`redact_secrets` |
 | `error` | `Error` 枚举（`BadRequest` / `Unauthorized` / `Forbidden` / `NotFound` / `Conflict` / `Validation` / `ValidationDetail` / `RateLimited` / `RateLimitedWithRetryAfter` / `Config` / `Custom` / `Internal` / `ServiceInitialization`），`status()` / `code()` / `to_api_response()`；`validation_with_detail` 用于 JSON 结构错误，`custom_with_status` 承载 405/408/413/415 等稳定码，`IntoResponse` 输出 `application/json`；`ApiResponse<T>`、请求作用域 `ResponseContext`、`ValidationErrors` |

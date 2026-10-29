@@ -108,6 +108,16 @@ async fn index() -> Json<Vec<&'static str>> { Json(vec!["first-order"]) }
 
 在根 `modules/mod.rs` 声明 `pub(crate) mod orders;`，并在应用 `Application::modules` 中将 `modules::orders::descriptor(root)` 加入 `ModuleManifest::from_file(root.join("modules_statuses.json")).module(...)`；状态 JSON 设为 `{"orders":true}` 才启用。编译声明与运行时启用分开，只有已声明且启用的模块进入唯一 Provider 清单。部署时从应用根启动，或显式提供同一 `modules_root`；编译机路径不参与运行时查找。
 
+若 `orders` 在启动时必须读取 `shared` 模块注册的服务，两个模块都要编译声明并启用，消费者用 `requires` 表达硬依赖：
+
+```rust
+ModuleManifest::from_file(root.join("modules_statuses.json"))
+    .module(modules::shared::descriptor(root))
+    .module(modules::orders::descriptor(root).requires("shared"));
+```
+
+依赖模块先于消费者完成 Provider 注册与 boot；该关系优先于 `priority`，可启动模块之间仍按升序 priority 和清单声明顺序稳定排序。未编译、未启用、自依赖、重复依赖和循环会使应用构建失败，框架不会自动改写启用状态。Cargo 管理 crate/features 依赖，`requires` 只处理应用模块间的运行装配依赖。
+
 业务路由留在业务模块，静态列表只说明注册，不代替完整 CRUD。register 阶段绑定服务，所有 Provider 注册后依序 boot；第三方依赖仍由 Cargo 解析。禁用只影响后续应用启动，不对已运行进程热卸载；更完整的生成、发布和模块管理命令仍待后继实现。
 
 ## 模块里各类代码写在哪里
@@ -234,7 +244,9 @@ cargo deny check
 | 示例协议与生成脚本 | modules/example 内实际需要的协议/脚本；根不因示例增加 build.rs 或 build 依赖 |
 | 示例专属测试与 fixture | 模块内；根 tests 可保留通用验收并通过公开 API 挂载模块 |
 
-示例实际迁移/种子在 database/migrations/mod.rs 与 database/seeders/mod.rs，模板在 resources/views，语言资源在 lang/，测试在 tests/ 下；这些均位于本模块内。协议输入为 proto/echo.proto，显式生成脚本为 proto/generate.py，工具清单与锁固定在 proto/generator.toml 和 proto/generator.lock，已生成类型为 generated/echo.rs；脚本在 /tmp 临时目录执行 cargo run --offline --locked，根没有为示例保留 build.rs/build 依赖。当前源码的默认/全特性 workspace、双库业务、生成项目及独立 consumer 门禁已执行，逐项结果见 [R1-E 验收记录](../../.agents/project/memory/testing.md#r1-e-业务示例定向验收证据整簇进行中)；当前待独立代码审查、资源收尾与本地提交。
+示例实际迁移/种子在 database/migrations/mod.rs 与 database/seeders/mod.rs，模板在 resources/views，语言资源在 lang/，测试在 tests/ 下；这些均位于本模块内。协议输入为 proto/echo.proto，显式生成脚本为 proto/generate.py，工具清单与锁固定在 proto/generator.toml 和 proto/generator.lock，已生成类型为 generated/echo.rs；脚本在 /tmp 临时目录执行 cargo run --offline --locked，根没有为示例保留 build.rs/build 依赖。当前源码的默认/全特性 workspace、双库业务、生成项目及独立 consumer 门禁已执行并于 R1-E 提交 `bc3fa01`；各项真实证据见 [R1-E 验收记录](../../.agents/project/memory/testing.md#r1-e-业务示例定向验收证据整簇进行中)。
+
+模块之间的硬依赖在应用清单通过 `ModuleDescriptor::requires("shared")` 声明。依赖模块必须同时编译并启用，否则应用构建会报错；依赖图决定必须先启动的模块，`priority` 只用于当前可启动模块之间排序。框架不会自动更改 `modules_statuses.json`，不会因启用业务模块而静默启用其依赖；本契约不提供包版本求解或热加载。
 数据库、认证、队列等按现有 Cargo feature 和根配置启用。根应用检查显式数据库声明后装配数据库基础设施；没有声明表示未启用数据库业务，配置已声明但依赖不可用时必须报错，不回退到内存或空实现。模板通过 `view` 与应用显式视图目录启用；模块 Provider 在 boot 登记 `example::` 命名空间，优先读取 `resources/views/vendor/example` 的发布副本，缺失时回退模块 `resources/views`。`APP_VIEW_DIRECTORY=modules/example/resources/views` 仍可作为应用基础目录，但模块命名模板无需依赖该值；Protobuf 已生成类型按 `grpc` 编译，修改 proto 后显式运行 `python3 modules/example/proto/generate.py`，通过 `python3 modules/example/proto/generate.py --check` 比较重生字节；启用 feature 本身不等于已注册服务或实际监听端口。
 
 ## 当前能力覆盖与缺口

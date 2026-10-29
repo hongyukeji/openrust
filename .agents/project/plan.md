@@ -1,10 +1,10 @@
 # 当前计划
 
-> 当前代码与目标：R1-E 综合示例与适用验收已由 bc3fa01 限定提交；附件、真实 MinIO 双库、Keycloak OIDC 双库和 Collector PostgreSQL 证据已通过，独立审查与任务资源清理完成。`storage_publication_uncertain` 后远端迟到完成、进程强杀与关闭超时仍是明确边界。下一子簇按当前依赖进入 R2-N 模块硬依赖图与确定性启动顺序；完整模块管理仍属后继，按 [ADR-074](decisions/adr-074-laravel-modules-directory.md) 推进。
+> 当前代码与目标：R1-E 综合示例与适用验收已由 bc3fa01 限定提交；附件、真实 MinIO 双库、Keycloak OIDC 双库和 Collector PostgreSQL 证据已通过，独立审查与任务资源清理完成。`storage_publication_uncertain` 后远端迟到完成、进程强杀与关闭超时仍是明确边界。R2-N 模块硬依赖、PG18/MySQL8.4 HTTP、生成应用、根默认 TCP 入口与适用门禁已验收；下一子簇进入 R3 HTTP/Web。完整模块管理仍属后继，按 [ADR-074](decisions/adr-074-laravel-modules-directory.md) 推进。
 
 > 受众：AI Agent
 > 更新：2026-10-29
-> 摘要：执行 Laravel + laravel-modules 的 Rust 1:1 实现；R0 上游和逐章资产基线已记录，R1-S、R2-A/A2/A3、R2-B/C/D/M及R1-E真实CRUD/当前能力示例已按簇完成适用验收，R1-E 提交 bc3fa01。继续 R2 后继内核与模块行为矩阵，R0–R16 全体及严格 1:1 仍未完成。
+> 摘要：执行 Laravel + laravel-modules 的 Rust 1:1 实现；R0 上游和逐章资产基线已记录，R1-S、R2-A/A2/A3、R2-B/C/D/M/N及R1-E真实CRUD/当前能力示例已按簇完成适用验收，R1-E 提交 bc3fa01。继续 R3 HTTP/Web 与模块行为矩阵，R0–R16 全体及严格 1:1 仍未完成。
 
 ## 当前里程碑
 
@@ -22,7 +22,7 @@
 8. R14 底座完整通过再做 R15 V2：Vue Admin、uni-app App、PC 只规划。独立 AI模型平台仍未获启动授权。
 9. WIP、他人资源、依赖安全、真实证据及对外授权边界继续有效。常规问题自主决策并记录；外部缺口继续独立工作，不能虚报完成。
 
-当前交付依赖是 R1-S结构/挂载 → R2基础Container/Provider/配置/TestApp（A–D 已验收）→ R2-M模块契约/目录迁移 → R1-E真实CRUD与当前能力演示（已由 bc3fa01 提交）；R2后继和各领域逐簇实现并同步示例。R2-D 测试应用由生产 Provider/Router 同路径构建，但不代表模块管理已完成；R1-E 的 Article、租户、附件、通信、观测等生产路径、默认/全特性 workspace、独立 consumer 与生成应用门禁详见 [testing.md](memory/testing.md#r1-e-业务示例定向验收证据整簇进行中)。当前首个 R2 后继子簇为模块硬依赖与启动顺序：硬依赖拓扑优先于原 priority，ready 节点按 priority/声明顺序稳定选择；真实模块示例和双库 HTTP/生成应用仍需验收。模块完整管理与 Laravel 严格 1:1 范围继续保留。
+当前交付依赖是 R1-S结构/挂载 → R2基础Container/Provider/配置/TestApp（A–D 已验收）→ R2-M模块契约/目录迁移 → R1-E真实CRUD与当前能力演示（已由 bc3fa01 提交）→ R2-N模块硬依赖与启动顺序（本簇已验收）→ R3–R16逐簇实现并同步示例。R2-D 测试应用由生产 Provider/Router 同路径构建，但不代表完整模块管理已完成；R1-E 的 Article、租户、附件、通信、观测等生产路径与 R2-N 证据分别记录于 [testing.md](memory/testing.md)。模块完整管理与 Laravel 严格 1:1 范围继续保留。
 
 ## 路由
 
