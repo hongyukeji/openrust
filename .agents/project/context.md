@@ -1,6 +1,6 @@
 # 项目上下文
 
-> 当前代码与目标：旧 `app/example/` 过渡结构已迁至 `modules/example/`；R2-M 模块清单、资源与统一迁移已有真实验收。R1-E Article CRUD 与当前公开能力示例已通过适用门禁，并以 bc3fa01 限定提交；附件上传 EOF/deadline 原子仲裁、PG18/MySQL8.4 各 15/15 及真实 MinIO 延迟响应竞争各 1/1 已验收。`storage_publication_uncertain` 远端迟到完成、强杀与 shutdown deadline 仍不保证无孤儿。真实 Keycloak OIDC `AlwaysOk` 成功/失败双库 HTTP 用例各 1/1；Collector PG 隔离 sink delivery/unavailable 各 1/1，严格断言与共享服务保持不变。独立审查、资源清理与工作区提交已完成；R2-N 模块硬依赖图和确定性启动顺序已由 48be854 提交；R3-A 已将 JSON HTTP 状态默认改为 Laravel 语义模式，显式 always_ok 保留，验收记录见 [testing](memory/testing.md#r3-a-laravel-语义-http-状态默认与统一-json-响应)。当前继续 R3 HTTP/Web。完整模块管理和 Laravel 1:1 范围继续按 [ADR-074](decisions/adr-074-laravel-modules-directory.md) 与活跃队列推进。
+> 当前代码与目标：旧 `app/example/` 过渡结构已迁至 `modules/example/`；R2-M 模块清单、资源与统一迁移已有真实验收。R1-E Article CRUD 与当前公开能力示例已通过适用门禁，并以 bc3fa01 限定提交；附件上传 EOF/deadline 原子仲裁、PG18/MySQL8.4 各 15/15 及真实 MinIO 延迟响应竞争各 1/1 已验收。`storage_publication_uncertain` 远端迟到完成、强杀与 shutdown deadline 仍不保证无孤儿。真实 Keycloak OIDC `AlwaysOk` 成功/失败双库 HTTP 用例各 1/1；Collector PG 隔离 sink delivery/unavailable 各 1/1，严格断言与共享服务保持不变。独立审查、资源清理与工作区提交已完成；R2-N 模块硬依赖图和确定性启动顺序已由 48be854 提交；R3-A Laravel 语义 HTTP 状态默认与 R3-B RouteGroup 路由组均已验收，后者真实 PG18/MySQL8.4 tenant HTTP、生成应用及工作区门禁记录见 [testing](memory/testing.md#r3-b-laravel-路由组前缀与-middleware)。当前继续 R3 HTTP/Web。完整模块管理和 Laravel 1:1 范围继续按 [ADR-074](decisions/adr-074-laravel-modules-directory.md) 与活跃队列推进。
 
 > 受众：AI Agent
 > 更新：2026-10-29
@@ -11,7 +11,7 @@
 | 项 | 当前事实与目标 |
 | --- | --- |
 | 当前代码基线 | 规划开始 HEAD 为 `7f964b8`；根 openrust 同 package 的框架 lib 与默认 server 已装配；应用职责回根，当前示例位于 modules/example，按编译清单和运行激活状态接入；tools 与 consumers 保留；版本和依赖以 Cargo.toml 为准 |
-| 当前阶段 | [全面重构计划](plans/laravel-rebuild.md) 已记录；R1-S、R2-A/A2/A3、R2-B统一Provider、R2-C入口scope、R2-D TestApp、R2-M模块闭环、R2-N模块依赖顺序与R1-E综合示例各子簇按范围完成；R1-E 提交 bc3fa01。R2-N 的 PG18/MySQL8.4 模块 HTTP、生成应用、根默认 TCP 入口及工作区门禁已通过并提交 48be854；R3-A HTTP semantic 默认已通过适用验收。`storage_publication_uncertain` 后远端迟到完成、强杀与 shutdown deadline 仍不保证无孤儿；唯一队列转入 R3 HTTP/Web，见 [todo.md](todo.md) |
+| 当前阶段 | [全面重构计划](plans/laravel-rebuild.md) 已记录；R1-S、R2-A/A2/A3、R2-B统一Provider、R2-C入口scope、R2-D TestApp、R2-M模块闭环、R2-N模块依赖顺序与R1-E综合示例各子簇按范围完成；R1-E 提交 bc3fa01。R2-N 的 PG18/MySQL8.4 模块 HTTP、生成应用、根默认 TCP 入口及工作区门禁已通过并提交 48be854；R3-A semantic 状态默认与 R3-B RouteGroup 已通过适用验收。`storage_publication_uncertain` 后远端迟到完成、强杀与 shutdown deadline 仍不保证无孤儿；唯一队列继续 R3 HTTP/Web，见 [todo.md](todo.md) |
 | 目标授权 | [ADR-070](decisions/adr-070-laravel-first-rebuild.md)：Laravel固定基线为1:1行为标准，laravel-modules为正式模块化范围，Goravel仅跨语言实现参考；允许全面重写，无历史兼容义务 |
 | 当前完成边界 | 原认证/数据/队列/缓存/存储/实时/gRPC/视图等有专项证据；完整生产/集群/最低版本仍有缺口，新目标不能继承为已验收 |
 | 协作 | 已定 contract 优先 gpt-6.1-sol 子智能体；主控负责设计/协调；所有 Agent 直接 main，非重叠文件可并行实现；共享 manifest/lock/迁移/文档/提交由集成负责人串行协调，target/服务资源预先分配，审查并行只读；高风险改码不同模型或 Provider 审查；不推送 |

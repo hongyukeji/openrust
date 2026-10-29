@@ -5,7 +5,7 @@ OpenRust 框架基于 `axum` 和 `tower` 构建的 HTTP 层。
 - [`HttpServiceProvider`]：在 `register` 登记 HTTP 配置与能力，在 `boot` 贡献 `serve` 命令、默认 middleware 栈、`/health` 和 `/ready`。
 - `BootContext::routes`：应用 Provider 在 `boot` 阶段添加路由。
 - `BootContext::http_layer`：在所有路由外层注册共享 Tower 请求上下文，并置于路由级 layer 之外。
-- [`Routes`]：基于 `axum::Router` 的轻量路由约定，提供 `get` / `post` / …、`nest(prefix, …)`、`merge`、`layer`。
+- [`Routes`]：基于 `axum::Router` 的路由约定，提供 `get` / `post` / …、`group`、`nest`、`merge`、`layer`；[`RouteGroup`] 支持可嵌套路径前缀与组级 Tower middleware。middleware 按声明顺序进入请求，组外路由不受影响。
 - [`Resource`] 与 [`ResourceActions`]：只注册实际存在的 controller action；`Routes::resource` 将 `list` / `create` 映射到集合路由，将 `get` / `update` / `delete` 映射到 `{id}`。`resource_with` 可通过 `only` 或 `except` 过滤 action。
 - [`Created<T>`] 与 [`NoContent`]：成功响应封装；前者可选携带 `Location`（semantic 模式为 201），后者返回省略 `data` 的成功包装（HTTP 200）。
 - [`PageParams`] 与 [`Paginated<T>`]：校验 `page` / `per_page` 查询参数，并返回含数组 `data` 和分页 `meta` 的 API 封装。
@@ -44,6 +44,26 @@ fn routes(routes: Routes) -> Routes {
 ```
 
 每个后续 route layer 都会包裹先前的 layer。在此示例中，`AuthLayer` 位于最外层并先执行，之后限流 layer 读取经过验证的账户身份。只有应用了该 layer 的路由会受限；除非显式包裹，health 与 fallback 路由不受影响。自定义 key 函数应返回有界、稳定且不含秘密的身份值。
+
+Laravel 的 `Route::prefix(...)->middleware(...)->group(...)` 可用 `RouteGroup` 表达。嵌套组组合路径前缀，middleware 只覆盖组内路由，调用顺序与请求进入顺序相同：
+
+```rust,ignore
+use openrust::auth::{AuthLayer, AuthMode};
+use openrust::http::{RouteGroup, Routes};
+
+fn routes(routes: Routes) -> Routes {
+    routes.group(
+        RouteGroup::new()
+            .prefix("/api")
+            .middleware(AuthLayer::required(AuthMode::Jwt)),
+        |api| api.group(RouteGroup::new().prefix("/v1"), |v1| {
+            v1.get("/profile", profile)
+        }),
+    )
+}
+```
+
+字符串形式的 middleware alias/group、路由命名、domain 与 URL 生成仍按 C03 后续子簇交付；本 API 直接接受 Rust Tower layer。
 
 ```rust
 use std::sync::Arc;

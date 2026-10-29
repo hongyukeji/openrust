@@ -2,7 +2,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-29
-> 摘要：R0 已固定上游；R1-S、R2-A/A2/A3、R2-B/C/D/M/N 已按子簇完成适用门禁；R1-E 综合示例与真实 CRUD 已以 bc3fa01 提交。R2-N 真实双库模块 HTTP、生成项目和根默认入口已验收并提交 48be854；R3-A HTTP semantic 默认已验收，继续 R3 HTTP/Web，完整 Laravel/laravel-modules 行为矩阵继续推进。
+> 摘要：R0 已固定上游；R1-S、R2-A/A2/A3、R2-B/C/D/M/N 已按子簇完成适用门禁；R1-E 综合示例与真实 CRUD 已以 bc3fa01 提交。R2-N 真实双库模块 HTTP、生成项目和根默认入口已验收并提交 48be854；R3-A HTTP semantic 默认及 R3-B RouteGroup 已通过适用验收，完整 Laravel/laravel-modules 行为矩阵继续推进。
 
 当前根 openrust 同 package 提供框架 lib 和唯一默认 server，应用职责回根；modules/example 是普通业务模块，经生产 `Application::modules` 编译清单与 FileModuleActivator 状态接入。根无示例 build.rs 或构建依赖；protobuf 工具和锁仍在模块内。
 
@@ -33,3 +33,5 @@ R2-M：编译期 `ModuleDescriptor` 与运行时 FileModuleActivator 快照进�
 R1-E（已验收并提交 bc3fa01）：`modules/example` 已接真实 Article CRUD、模块业务服务与当前公开能力的实际调用；PG18/MySQL8.4 的 Article、tenant/MinIO/Redis、队列与 Scheduler、OIDC/浏览器 WebSocket 等有定向证据。Collector PostgreSQL 活跃日志路径已校正，隔离 sink delivery/unavailable 各 1/1；16 MiB 与隐私检查保留，共享 Collector 未改。CLI 生成器重生十种变体，生成源码格式、基础/认证/MFA真实 HTTP、gRPC TLS Echo/HTTP/停机均实际验收，测试 0 ignored；CLI 20/20。默认/全特性 workspace Clippy/tests/Rustdoc、deny、no-default 与 MSRV 适用门禁均通过；默认测试 454 passed/23 ignored，全特性 990 passed/90 ignored。附件 AtomicU8 仲裁 deadline 与 EOF；PG18/MySQL8.4 全模块附件各 15/15，期限释放锁用例与真实 MinIO CopyObject 延迟响应删除竞态各按双库 1/1。独立复审确认并发 blocker 已消除；真实 Keycloak `AlwaysOk` 错误密码、已消费 state 与成功夹证 PG/MySQL 各 1/1；gRPC TLS 错误标识验证成功 RPC 前后、错误 hostname 与网络故障负例；浏览器拒绝事件结合真实 TCP 精确状态测试分别验证，未声称浏览器暴露状态码。远端结果不确定后的迟到发布、App 关闭期限和进程强杀仍不保证跨系统原子性/无孤儿。提交后任务专属 root 与临时 Cargo targets 均已清理。下一簇为 R2-N 模块硬依赖图与确定性启动顺序，具体契约见 [todo](todo.md#当前-r2-n-spec模块硬依赖图与确定性启动顺序)；R1-E 完成不代表 Laravel/laravel-modules 全体完成。
 
 R3-A：已按 ADR-076 将 `semantic` 作为框架、配置、请求错误 fallback 与生成应用默认，`always_ok` 仅显式配置启用。默认/显式状态、统一 JSON envelope、request ID、validation 422、创建 201、路由与服务错误、middleware I18n 解析早退均有测试；普通与双库认证生成项目实际运行，根默认 TCP 入口验证 404/health 200/正常 SIGINT。默认/all-features Clippy、测试、warnings-denied Rustdoc、no-default、deny、MSRV1.97 通过；并行 all-features 首次出现的两项运行时错误单项通过且串行全量复验通过，具体边界与命令见 [testing](memory/testing.md#r3-a-laravel-语义-http-状态默认与统一-json-响应)。独立复审 blocker 已修复，最终只读复审无 blocker/should-fix。R3 后续路由、Request、FormRequest、Resource、Session/CSRF 仍未交付。
+
+R3-B：公开 `RouteGroup` builder 与 `Routes::group` 已接入，支持嵌套前缀、组级 Tower middleware 和稳定路由冲突错误；`nest` 复用同一前缀归一逻辑。`modules/example` tenant API 已迁移且认证/成员校验顺序保留。定向 HTTP、Rustdoc、真实 PostgreSQL 18/MySQL 8.4 tenant HTTP、带嵌套分组的 CLI 生成项目 TestApp、default/all-features workspace 门禁、deny、MSRV/no-default 均通过；独立只读复审无 blocker/should-fix。完整命令、计数和证据边界见 [testing](memory/testing.md#r3-b-laravel-路由组前缀与-middleware)。R3-B 只关闭此路由组子簇，命名路由、middleware alias/group、domain、model binding、fallback、signed URL 与 C04 Request/Response 仍未交付。

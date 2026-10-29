@@ -12,6 +12,70 @@ use tower::{Layer, Service};
 
 use crate::http::resource::{Resource, ResourceActions};
 
+type GroupMiddleware = Box<dyn FnOnce(Routes) -> Routes + Send + Sync>;
+
+/// 一组路由共享的 Laravel 式路径前缀与 middleware。
+///
+/// 组可嵌套；内层组会继承外层前缀与 middleware。Tower middleware 以声明顺序执行请求。
+///
+/// ```
+/// use openrust::http::{RouteGroup, Routes};
+///
+/// async fn index() -> &'static str { "posts" }
+/// let routes = Routes::new().group(RouteGroup::new().prefix("/api"), |api| {
+///     api.get("/posts", index)
+/// });
+/// ```
+#[derive(Default)]
+pub struct RouteGroup {
+    prefix: String,
+    middleware: Vec<GroupMiddleware>,
+}
+
+impl RouteGroup {
+    /// 创建没有前缀或 middleware 的路由组。
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// 设置组路径前缀；嵌套组会与父组路径组合。
+    #[must_use]
+    pub fn prefix(mut self, prefix: impl Into<String>) -> Self {
+        let prefix = prefix.into();
+        let trimmed = prefix.trim_matches('/');
+        self.prefix = if trimmed.is_empty() {
+            String::new()
+        } else {
+            format!("/{trimmed}")
+        };
+        self
+    }
+
+    /// 将 Tower middleware 应用于组内所有路由。
+    ///
+    /// 多个 middleware 按调用顺序进入请求；响应按相反顺序返回。
+    #[must_use]
+    pub fn middleware<L>(mut self, layer: L) -> Self
+    where
+        L: Layer<Route> + Clone + Send + Sync + 'static,
+        L::Service: Service<Request> + Clone + Send + Sync + 'static,
+        <L::Service as Service<Request>>::Response: IntoResponse + 'static,
+        <L::Service as Service<Request>>::Error: Into<Infallible> + 'static,
+        <L::Service as Service<Request>>::Future: Send + 'static,
+    {
+        self.middleware
+            .push(Box::new(move |routes| routes.layer(layer)));
+        self
+    }
+
+    fn apply(self, mut routes: Routes) -> Routes {
+        for middleware in self.middleware.into_iter().rev() {
+            routes = middleware(routes);
+        }
+        routes
+    }
+}
+
 /// 收集应用路由；服务器启动时会将其转换为 [`axum::Router`]。
 ///
 /// 每个方法都会消费并返回 `Self`，使路由表可按从上到下的顺序阅读：
@@ -23,7 +87,9 @@ use crate::http::resource::{Resource, ResourceActions};
 /// async fn show() -> &'static str { "post" }
 ///
 /// fn register(routes: Routes) -> Routes {
-///     routes.nest("/api", |api| api.get("/posts", index).get("/posts/{id}", show))
+///     routes.group(openrust::http::RouteGroup::new().prefix("/api"), |api| {
+///         api.get("/posts", index).get("/posts/{id}", show)
+///     })
 /// }
 /// ```
 #[derive(Default)]
@@ -124,12 +190,19 @@ impl Routes {
 
     /// 将 `f` 构建的路由嵌套在 `prefix` 下。空前缀或 `/` 会改为合并路由。
     #[must_use]
-    pub fn nest(mut self, prefix: &str, f: impl FnOnce(Routes) -> Routes) -> Self {
-        let inner = f(Routes::new()).router;
+    pub fn nest(self, prefix: &str, f: impl FnOnce(Routes) -> Routes) -> Self {
+        self.group(RouteGroup::new().prefix(prefix), f)
+    }
+
+    /// 以共享属性注册一组嵌套路由。
+    #[must_use]
+    pub fn group(mut self, group: RouteGroup, f: impl FnOnce(Routes) -> Routes) -> Self {
+        let prefix = group.prefix.clone();
+        let inner = group.apply(f(Routes::new())).router;
         self.router = if prefix.is_empty() || prefix == "/" {
             self.router.merge(inner)
         } else {
-            self.router.nest(prefix, inner)
+            self.router.nest(&prefix, inner)
         };
         self
     }

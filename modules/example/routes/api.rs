@@ -66,22 +66,27 @@ fn tenant_routes(routes: Routes) -> Routes {
     use controllers::tenant;
     use openrust::auth::{AuthLayer, AuthMode};
 
-    routes.nest("/api/example/tenant", |api| {
-        let api = api
-            .get("/record", tenant::show)
-            .put("/record", tenant::update);
-        #[cfg(feature = "queue")]
-        let api = api.post("/record/rebuild", tenant::dispatch);
-        #[cfg(any(feature = "storage-local", feature = "storage-s3"))]
-        let api = api
-            .get("/record/file", tenant::read_file)
-            .put("/record/file", tenant::write_file);
-        api.layer(tenant::trusted_layer().layer())
-            .layer(openrust::http::axum::middleware::from_fn(
+    routes.group(
+        RouteGroup::new()
+            .prefix("/api/example/tenant")
+            .middleware(AuthLayer::required(AuthMode::Jwt))
+            .middleware(openrust::http::axum::middleware::from_fn(
                 tenant::verify_membership,
             ))
-            .layer(AuthLayer::required(AuthMode::Jwt))
-    })
+            .middleware(tenant::trusted_layer().layer()),
+        |api| {
+            let api = api
+                .get("/record", tenant::show)
+                .put("/record", tenant::update);
+            #[cfg(feature = "queue")]
+            let api = api.post("/record/rebuild", tenant::dispatch);
+            #[cfg(any(feature = "storage-local", feature = "storage-s3"))]
+            let api = api
+                .get("/record/file", tenant::read_file)
+                .put("/record/file", tenant::write_file);
+            api
+        },
+    )
 }
 
 #[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]

@@ -14,7 +14,8 @@ use openrust::core::{RateLimitBucket, RateLimitFuture, RateLimitStore, RateLimit
 use openrust::http::RateLimitLayer;
 use openrust::http::axum;
 use openrust::http::{
-    Created, HttpServiceProvider, Inject, NoContent, PageParams, Paginated, Validated, build_router,
+    Created, HttpServiceProvider, Inject, NoContent, PageParams, Paginated, RouteGroup, Validated,
+    build_router,
 };
 use openrust::http::{Json, Path, Query};
 
@@ -475,6 +476,152 @@ async fn search(Query(id): Query<RawPost>) -> Json<String> {
 }
 async fn own_not_found() -> openrust::Error {
     openrust::Error::NotFound("my resource is absent".into())
+}
+
+async fn grouped_route() -> &'static str {
+    "grouped"
+}
+
+async fn grouped_order(Extension(order): Extension<Vec<&'static str>>) -> Json<Vec<&'static str>> {
+    Json(order)
+}
+
+async fn mark_route_group(request: Request, next: Next) -> Response {
+    let mut response = next.run(request).await;
+    response
+        .headers_mut()
+        .insert("x-route-group", axum::http::HeaderValue::from_static("api"));
+    response
+}
+
+async fn mark_first_group_middleware(mut request: Request, next: Next) -> Response {
+    request.extensions_mut().insert(true);
+    next.run(request).await
+}
+
+async fn observe_first_group_middleware(request: Request, next: Next) -> Response {
+    let first_middleware_ran = request.extensions().get::<bool>().copied().unwrap_or(false);
+    let mut response = next.run(request).await;
+    response.headers_mut().insert(
+        "x-middleware-order",
+        axum::http::HeaderValue::from_static(if first_middleware_ran {
+            "declared"
+        } else {
+            "reversed"
+        }),
+    );
+    response
+}
+
+async fn record_group_middleware(
+    axum::extract::State(label): axum::extract::State<&'static str>,
+    mut request: Request,
+    next: Next,
+) -> Response {
+    if let Some(order) = request.extensions_mut().get_mut::<Vec<&'static str>>() {
+        order.push(label);
+    } else {
+        request.extensions_mut().insert(vec![label]);
+    }
+    next.run(request).await
+}
+
+#[tokio::test]
+async fn nested_route_groups_combine_prefixes_and_scope_middleware() -> TestResult {
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(TestRoutes::new(|routes| {
+            routes
+                .group(
+                    RouteGroup::new()
+                        .prefix("api/")
+                        .middleware(axum::middleware::from_fn(mark_route_group))
+                        .middleware(axum::middleware::from_fn(mark_first_group_middleware))
+                        .middleware(axum::middleware::from_fn(observe_first_group_middleware))
+                        .middleware(axum::middleware::from_fn_with_state(
+                            "outer-first",
+                            record_group_middleware,
+                        ))
+                        .middleware(axum::middleware::from_fn_with_state(
+                            "outer-second",
+                            record_group_middleware,
+                        )),
+                    |api| {
+                        api.group(
+                            RouteGroup::new().prefix("/v1/").middleware(
+                                axum::middleware::from_fn_with_state(
+                                    "inner",
+                                    record_group_middleware,
+                                ),
+                            ),
+                            |v1| v1.get("/grouped", grouped_order),
+                        )
+                    },
+                )
+                .get("/outside-group", grouped_route)
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+
+    let response = build_router(&app)?
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/grouped")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers()["x-route-group"], "api");
+    assert_eq!(response.headers()["x-middleware-order"], "declared");
+    assert_eq!(
+        json_body(response).await["data"],
+        serde_json::json!(["outer-first", "outer-second", "inner"])
+    );
+
+    let response = build_router(&app)?
+        .oneshot(
+            Request::builder()
+                .uri("/outside-group")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(!response.headers().contains_key("x-route-group"));
+    Ok(())
+}
+
+#[tokio::test]
+async fn duplicate_routes_across_groups_fail_during_router_build() -> TestResult {
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(TestRoutes::new(|routes| {
+            routes
+                .group(RouteGroup::new().prefix("api"), |api| {
+                    api.get("/duplicate", grouped_route)
+                })
+                .group(RouteGroup::new().prefix("/api/"), |api| {
+                    api.get("/duplicate", grouped_route)
+                })
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let error = build_router(&app)
+        .err()
+        .ok_or("duplicate route did not fail during router build")?;
+    assert_eq!(error.code(), "http_route_registration_failed");
+    Ok(())
 }
 
 async fn created() -> openrust::Result<openrust::http::Located<Json<u64>>> {

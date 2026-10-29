@@ -4,6 +4,16 @@
 > 更新：2026-10-28
 > 摘要：当前目录迁移与原专项测试入口，分开记录真实服务和未验收边界。
 
+## R3-B Laravel 路由组前缀与 middleware
+
+`RouteGroup` 与 `Routes::group` 覆盖嵌套前缀拼接、前缀首尾斜杠归一化、组级 Tower middleware 的范围和声明执行顺序、跨组重复路由启动错误。定向 `http_router` 两项回归及 `cargo test --doc`（15 passed、21 ignored）通过；ignored doctest 不作为验收证据。`modules/example` tenant 路由已改用公开 RouteGroup，原 JWT→membership→trusted layer 请求顺序保持。
+
+真实 PostgreSQL 18 与 MySQL 8.4 各通过生产 `example_auth_flows` 的 tenant HTTP 用例 1/1；这证明组路由在真实双库业务流程中接入，不代表两个服务互相复制。CLI 生成项目加入嵌套路由组后，offline all-target check、test 及生成项目 TestApp HTTP 1/1 通过。真实 TCP 入口由同一根 `server`/Router 生产组合路径承载，生成项目用例通过 TestApp；本簇未声称新增独立 TCP 网络证据。
+
+源码门禁通过：`cargo fmt --all --check`、`git diff --check`、默认与 all-features workspace Clippy（all-targets，`-D warnings`）、默认与 all-features workspace tests、默认与 all-features warnings-denied Rustdoc、`cargo deny check`、`cargo check --workspace --no-default-features --all-targets`、Rust 1.97 all-target/all-features check。默认及全特性测试中 ignored 项不折算为实际服务验收。独立静态复审无 blocker/should-fix；复审不替代上述运行结果。
+
+本簇未新增依赖或改数据库契约。C03 的命名 URL、middleware alias/group、domain、model binding、fallback、signed URL，以及 C04 Request/Response 均仍在队列；完整 Laravel HTTP/Web 行为矩阵未完成。
+
 ## R2-N 模块硬依赖与确定性启动顺序
 
 `ModuleDescriptor::requires` 将已编译模块之间的硬依赖放入 `ModuleManifest`；依赖必须同批启用，不自动改写状态文件。依赖边优先于 `priority`，当前就绪模块再按 priority 升序与声明顺序稳定选择；模块 Provider 的 register/boot 使用同一拓扑顺序。缺失、未启用、无效名、重复、自依赖与环的稳定错误码有单测覆盖；Studly 查找保留既有空格别名语义。Provider 集成测试反向声明依赖并制造 priority 冲突，确认生产者 register/boot 都先于消费者（1/1）；模块单测 9/9。

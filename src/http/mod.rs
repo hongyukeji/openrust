@@ -34,6 +34,6 @@ pub use plugin::{HttpServiceProvider, RouteRegistry, build_router};
 pub use rate_limit::{RateLimitKey, RateLimitLayer};
 pub use resource::{Action, Resource, ResourceActions};
 pub use response::{Created, Located, NoContent, PageParams, Paginated};
-pub use routes::Routes;
+pub use routes::{RouteGroup, Routes};
 pub use serve::{ServeCommand, serve};
 pub use sort::{SortDirection, SortField, SortParams};
