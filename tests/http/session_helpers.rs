@@ -213,10 +213,10 @@ async fn handler_is_the_same_arc_and_external_revocation_still_rejects_managed_u
 -> Result<()> {
     let store: Arc<dyn SessionStore> = Arc::new(MemorySessionStore::default());
     let session = Session::new(None, store.clone(), None)?;
-    assert!(Arc::ptr_eq(&store, &session.handler()));
+    assert!(Arc::ptr_eq(&store, &session.handler()?));
     session.start().await?;
     session.put("counter", 2)?.save().await?;
-    session.handler().delete(&session.id()?).await?;
+    session.handler()?.delete(&session.id()?).await?;
     assert!(session.save().await.is_err());
     let before = session.all()?;
     assert!(session.increment("counter").is_err());

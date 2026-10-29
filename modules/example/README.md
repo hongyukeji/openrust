@@ -65,6 +65,10 @@ POST 接收如 `{"action":"put","value":"blue"}` 的 JSON。示例仅操作 `exa
 
 [`tests/session_flows.rs`](tests/session_flows.rs) 展示正式模块路由的偏好、flash 与 Store 便捷方法生命周期，测试显式使用 memory；`tests/auth_flows.rs` 在配置数据库的根宿主通过真实 TCP 验证同一 Cookie 下的跨请求保存。它们不替代集群验收。
 
+`extensions` 是受信任服务端选择的扩展示例：只重申当前合法 ID、生成随机 ID，并把实际 handler 赋回自身验证同绑定不变；正文不能指定任意 ID 或后端。返回值仅含身份是否改变、同 Arc 与请求依赖的布尔结果，不包含凭据。`probe` 只接受 `one`/`two`，通过现 Cookie 队列写入示例探针，不属于认证数据。
+
+[`providers/session.rs`](providers/session.rs) 给出调用方显式安装的请求驱动与 Provider。默认模块不会安装它或覆盖宿主已有 store；示例 fixture 明确选择 memory 或当前公开 Db，委托底层原子 load/write/delete，不另建 Session 属性。hook 在每请求实例中读取解密 Cookie 快照并排回执 Cookie；两组 Cookie 的交错请求验证不串 scope。真实 TCP fixture 另启同根 Application、显式选择同数据库连接的请求驱动，主认证 App 保持默认数据库 driver。此方案不具备通用 Container factory 装饰能力，不冒称可以保留并装饰任意既有 factory；Cookie Session 内置双 Cookie driver 仍属后继。
+
 ## 从真实调用链开始
 
 根 [`src/main.rs`](../../src/main.rs) 声明应用宿主和已编译模块，然后运行 `bootstrap::Server`。[`bootstrap/app.rs`](../../bootstrap/app.rs) 的 `Application::modules` 返回模块清单，加入 [`descriptor`](mod.rs)；根 [`modules_statuses.json`](../../modules_statuses.json) 的 `example: true` 决定本次启动启用。descriptor 将 [`ExampleServiceProvider`](providers/example.rs)、自定义缓存 driver、以及适用数据库能力的任务/迁移/种子、文章事件和欢迎业务 Provider 纳入同一 register/boot 生命周期；禁用模块不会登记这些 Provider。默认模块根为进程工作目录，可由显式配置 `modules_root` 指定部署根；状态、配置、语言、视图和发布资源均从同一根解析。根 [`routes/web.rs`](../../routes/web.rs) 只保留框架通用路由，不硬编码业务 handler。

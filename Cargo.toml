@@ -503,3 +503,8 @@ required-features = ["session"]
 name = "http_session_helpers"
 path = "tests/http/session_helpers.rs"
 required-features = ["session"]
+
+[[test]]
+name = "http_session_extensions"
+path = "tests/http/session_extensions.rs"
+required-features = ["session"]

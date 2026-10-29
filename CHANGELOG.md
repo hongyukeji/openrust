@@ -26,6 +26,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Added
 
+- Session 新增可信 ID/驱动选择、来源与写入意图管理及请求内 driver 绑定；公开 `SessionRequestContext` 与默认请求 hook。`handler()` 改为返回 `Result`，同步外部实现与示例；显式转移、目标碰撞、撤销和失败 Cookie 清理分别定义，完整内置 Cookie driver 保留后继。
+
 - Session 新增 `remember`、`push`、`increment/decrement` 及显式步长、`remove`，复用同一属性和预算校验；`set_name` 接入真实出站 Cookie，`handler` 提供当前驱动引用。唯一模块和生成应用展示跨请求业务调用；PHP 数值差分与错误处理边界单独记录，完整 Session 扩展生命周期继续后继实现。
 
 - 新增 Laravel 式 Cookie 读取、值工厂、请求隔离队列与响应组合；受保护模式复用现有密钥环，保留原始头的严格认证检查。唯一模块及生成应用展示 Cookie 往返，显式明文模式不提供加密保护。

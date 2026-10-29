@@ -134,15 +134,7 @@ async fn generated_auth_routes_run_over_http_with_isolated_database_and_fake_mai
     let upstream_listener = TcpListener::bind("127.0.0.1:0").await?;
     #[cfg(feature = "http-client")]
     let upstream_origin = format!("http://{}/", upstream_listener.local_addr()?);
-    let key = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, [0x42_u8; 32]);
-    let link_key =
-        base64::Engine::encode(&base64::engine::general_purpose::STANDARD, [0x24_u8; 32]);
-    let config = format!(
-        "[database]\nurl = {:?}\n\n[cache]\ndefault_store = \"default\"\n\n[cache.stores.default]\ndriver = \"memory\"\n\n[server]\ntrusted_proxy_ranges = [\"127.0.0.1/32\"]\n\n[auth.jwt]\nissuer = \"http://openrust.test\"\naudience = \"generated-auth-tests\"\nactive_key_id = \"test\"\n\n[auth.jwt.keys]\ntest = {:?}\n\n[security.signed_links]\nissuer = \"http://openrust.test\"\nactive_key_id = \"test-link\"\n\n[security.signed_links.keys]\ntest-link = {:?}\n\n\n[security.encryption]\nactive_key_id = \"test\"\n\n[security.encryption.keys]\ntest = \"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=\"\n\n[view]\ndirectory = \"modules/example/resources/views\"\n\n[mail]\ndriver = \"log\"\n\n[sms]\ndriver = \"log\"\n",
-        database.url(),
-        key,
-        link_key
-    );
+    let config = auth_fixture_config(database.url());
     let mut framework = openrust::config::FrameworkConfig::default();
     framework.api.http_status = openrust::config::HttpStatusMode::Semantic;
     let figment = Figment::from(Serialized::defaults(framework))
@@ -160,6 +152,7 @@ async fn generated_auth_routes_run_over_http_with_isolated_database_and_fake_mai
     builder.provider(CaptureMailerProvider(captured_mail.clone()));
     let captured_sms = CaptureSms::default();
     builder.provider(CaptureSmsProvider(captured_sms.clone()));
+    let extension_source = figment.clone();
     let app = openrust::core::App::from_provider_runtime(builder.start(figment).await?)?;
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let address = listener.local_addr()?;
@@ -215,6 +208,7 @@ async fn generated_auth_routes_run_over_http_with_isolated_database_and_fake_mai
     });
 
     let result = run_auth_flow(address, &captured_mail, &captured_sms, &app).await;
+    let extension_result = run_request_driver_fixture(extension_source).await;
     let _ = shutdown.send(());
     server.await??;
     #[cfg(feature = "http-client")]
@@ -226,7 +220,8 @@ async fn generated_auth_routes_run_over_http_with_isolated_database_and_fake_mai
         .await?;
     drop(app);
     database.close().await?;
-    result
+    result?;
+    extension_result
 }
 
 // 正式宿主/模块经真实 TCP 使用默认数据库 Session；Cookie 原值仅内存往返。
@@ -472,6 +467,21 @@ async fn run_session_flow(address: SocketAddr) -> TestResult {
         serde_json::json!(["alpha", "beta"])
     );
     assert_eq!(missing_after_remove["data"]["count"], 0);
+    let extension_response = client
+        .post(&endpoint)
+        .header(
+            reqwest::header::COOKIE,
+            cookie.as_deref().ok_or("Session Cookie missing")?,
+        )
+        .json(&serde_json::json!({"action":"extensions"}))
+        .send()
+        .await?;
+    assert_eq!(extension_response.status(), StatusCode::OK);
+    let extension_body: serde_json::Value = extension_response.json().await?;
+    assert_eq!(
+        extension_body["data"]["extension"],
+        serde_json::json!({"id_changed":true,"same_handler":true,"needs_request":false})
+    );
     let isolated = client.get(endpoint).send().await?;
     assert_eq!(isolated.status(), StatusCode::OK);
     let isolated: serde_json::Value = isolated.json().await?;
@@ -1441,4 +1451,239 @@ async fn request_with_options(
         #[cfg(feature = "encryption")]
         headers: headers.to_ascii_lowercase(),
     })
+}
+
+// 调用方显式选择请求驱动的独立根宿主 fixture；主认证 App 的原 DB driver 不变。
+async fn run_request_driver_fixture(source: Figment) -> TestResult {
+    let config = source.extract::<bootstrap::Configuration>()?;
+    let mut builder =
+        openrust::core::ProviderBuilder::for_application::<bootstrap::Server>(&config);
+    builder
+        .provider(modules::example::providers::session::ExampleSessionDriverProvider::database());
+    let app = openrust::App::from_provider_runtime(builder.start(source).await?)?;
+    let listener = TcpListener::bind("127.0.0.1:0").await?;
+    let address = listener.local_addr()?;
+    let router = openrust::http::build_router(&app)?;
+    let (shutdown, signal) = oneshot::channel();
+    let mut server = openrust::tokio::spawn(async move {
+        openrust::http::axum::serve(
+            listener,
+            router.into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .with_graceful_shutdown(async {
+            let _ = signal.await;
+        })
+        .await
+    });
+    let outcome = run_request_driver_probes(address).await;
+    let _ = shutdown.send(());
+    let stopped: TestResult = match openrust::tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        &mut server,
+    )
+    .await
+    {
+        Ok(Ok(completion)) => completion.map_err(Into::into),
+        Ok(Err(error)) => Err(error.into()),
+        Err(error) => {
+            server.abort();
+            let _ = server.await;
+            Err(error.into())
+        }
+    };
+    let app_stopped = app
+        .shutdown(openrust::tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+        .await;
+    outcome?;
+    stopped?;
+    app_stopped?;
+    Ok(())
+}
+
+async fn run_request_driver_probes(address: SocketAddr) -> TestResult {
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()?;
+    let endpoint = format!("http://{address}/api/example/session");
+    let mut first = Vec::<(String, String)>::new();
+    let mut second = Vec::<(String, String)>::new();
+    for (cookies, marker, initial) in [(&mut first, "one", 1), (&mut second, "two", 2)] {
+        let memo = format!("memo-{marker}");
+        for (action, value, expected_memo, count) in [
+            ("put", serde_json::json!(marker), None, None),
+            (
+                "memo_seed",
+                serde_json::json!(memo),
+                Some(memo.as_str()),
+                None,
+            ),
+            (
+                if initial == 1 {
+                    "increment"
+                } else {
+                    "increment_by"
+                },
+                serde_json::Value::Null,
+                Some(memo.as_str()),
+                Some(initial),
+            ),
+        ] {
+            let body = request_driver_step(
+                &client,
+                &endpoint,
+                cookies,
+                Some(serde_json::json!({"action":action,"value":value})),
+            )
+            .await?;
+            if body != driver_expected(marker, expected_memo, count, Some(action), None) {
+                return Err("请求驱动初始持久状态不匹配".into());
+            }
+        }
+    }
+    for round in 0..3 {
+        for (cookies, marker, count) in [(&mut first, "one", 1), (&mut second, "two", 2)] {
+            let body = request_driver_step(
+                &client,
+                &endpoint,
+                cookies,
+                Some(serde_json::json!({"action":"probe","value":marker})),
+            )
+            .await?;
+            if body
+                != driver_expected(
+                    marker,
+                    Some(&format!("memo-{marker}")),
+                    Some(count),
+                    Some("probe"),
+                    (round == 2).then_some(marker),
+                )
+            {
+                return Err("请求驱动 Cookie 回执或跨请求归属不匹配".into());
+            }
+        }
+    }
+    for (cookies, marker, count) in [(&mut first, "one", 2), (&mut second, "two", 3)] {
+        let body = request_driver_step(
+            &client,
+            &endpoint,
+            cookies,
+            Some(serde_json::json!({"action":"increment"})),
+        )
+        .await?;
+        if body
+            != driver_expected(
+                marker,
+                Some(&format!("memo-{marker}")),
+                Some(count),
+                Some("increment"),
+                None,
+            )
+        {
+            return Err("请求驱动更新状态不匹配".into());
+        }
+    }
+    for (cookies, marker, count) in [(&mut first, "one", 2), (&mut second, "two", 3)] {
+        let body = request_driver_step(&client, &endpoint, cookies, None).await?;
+        if body
+            != driver_expected(
+                marker,
+                Some(&format!("memo-{marker}")),
+                Some(count),
+                None,
+                None,
+            )
+        {
+            return Err("请求驱动更新后读取归属不匹配".into());
+        }
+    }
+    Ok(())
+}
+
+fn driver_expected(
+    marker: &str,
+    memo: Option<&str>,
+    count: Option<i64>,
+    action: Option<&str>,
+    reply: Option<&str>,
+) -> serde_json::Value {
+    let mut data = serde_json::json!({"preference":marker,"notice":null,"memo":memo,"list":null,"count":count,
+        "has":{"preference":true,"notice":false},"exists":{"preference":true,"notice":false}});
+    if let Some(action) = action {
+        data["action"] = serde_json::json!(action);
+    }
+    if action == Some("probe") {
+        data["extension"] = serde_json::json!({"needs_request":true,"reply":reply});
+    }
+    serde_json::json!({"success":true,"code":"ok","message":"ok","data":data})
+}
+
+async fn request_driver_step(
+    client: &reqwest::Client,
+    endpoint: &str,
+    cookies: &mut Vec<(String, String)>,
+    payload: Option<serde_json::Value>,
+) -> std::result::Result<serde_json::Value, Box<dyn StdError>> {
+    let incoming = cookies
+        .iter()
+        .map(|(_, pair)| pair.as_str())
+        .collect::<Vec<_>>()
+        .join("; ");
+    let request = if let Some(payload) = payload {
+        client.post(endpoint).json(&payload)
+    } else {
+        client.get(endpoint)
+    };
+    let response = request
+        .header(reqwest::header::COOKIE, incoming)
+        .send()
+        .await?;
+    if response.status() != StatusCode::OK {
+        return Err("请求驱动 HTTP 状态不是 200".into());
+    }
+    for header in response.headers().get_all(reqwest::header::SET_COOKIE) {
+        let pair = header
+            .to_str()?
+            .split(';')
+            .next()
+            .ok_or("Cookie 首段缺失")?;
+        let (name, _) = pair.split_once('=').ok_or("Cookie 首段无效")?;
+        if ![
+            "openrust_session",
+            "example_session_probe",
+            "example_session_probe_reply",
+        ]
+        .contains(&name)
+        {
+            continue;
+        }
+        if let Some(existing) = cookies.iter_mut().find(|(key, _)| key == name) {
+            pair.clone_into(&mut existing.1);
+        } else {
+            cookies.push((name.to_owned(), pair.to_owned()));
+        }
+    }
+    bounded_extension_json(response).await
+}
+
+async fn bounded_extension_json(
+    mut response: reqwest::Response,
+) -> std::result::Result<serde_json::Value, Box<dyn StdError>> {
+    let mut body = Vec::new();
+    while let Some(chunk) = response.chunk().await? {
+        if body.len() + chunk.len() > 4096 {
+            return Err("扩展 fixture 响应超过 4 KiB".into());
+        }
+        body.extend_from_slice(&chunk);
+    }
+    Ok(serde_json::from_slice(&body)?)
+}
+
+fn auth_fixture_config(database_url: &str) -> String {
+    let key = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, [0x42_u8; 32]);
+    let link_key =
+        base64::Engine::encode(&base64::engine::general_purpose::STANDARD, [0x24_u8; 32]);
+    format!(
+        "[database]\nurl = {database_url:?}\n\n[cache]\ndefault_store = \"default\"\n\n[cache.stores.default]\ndriver = \"memory\"\n\n[server]\ntrusted_proxy_ranges = [\"127.0.0.1/32\"]\n\n[auth.jwt]\nissuer = \"http://openrust.test\"\naudience = \"generated-auth-tests\"\nactive_key_id = \"test\"\n\n[auth.jwt.keys]\ntest = {key:?}\n\n[security.signed_links]\nissuer = \"http://openrust.test\"\nactive_key_id = \"test-link\"\n\n[security.signed_links.keys]\ntest-link = {link_key:?}\n\n\n[security.encryption]\nactive_key_id = \"test\"\n\n[security.encryption.keys]\ntest = \"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=\"\n\n[view]\ndirectory = \"modules/example/resources/views\"\n\n[mail]\ndriver = \"log\"\n\n[sms]\ndriver = \"log\"\n"
+    )
 }

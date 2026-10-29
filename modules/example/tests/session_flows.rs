@@ -94,8 +94,8 @@ fn success(response: &TestResponse, data: &Value) -> TestResult {
         .assert_json(&json!({"success":true,"code":"ok","message":"ok","data":data}))?;
     Ok(())
 }
-async fn request(
-    app: &TestApp<SessionApplication>,
+async fn request<A: Application>(
+    app: &TestApp<A>,
     payload: Option<Value>,
     cookie: Option<&str>,
 ) -> TestResult<TestResponse> {
@@ -465,4 +465,168 @@ async fn module_session_utf8_budget_invalid_values_and_namespace_are_bounded() -
     outcome?;
     shutdown?;
     Ok(())
+}
+
+struct RequestDriverApplication;
+impl Application for RequestDriverApplication {
+    type Config = <SessionApplication as Application>::Config;
+    fn config_namespace() -> &'static str {
+        SessionApplication::config_namespace()
+    }
+    fn providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+        let mut providers = SessionApplication::providers(config);
+        providers.push(Box::new(
+            crate::modules::example::providers::session::ExampleSessionDriverProvider::memory(),
+        ));
+        providers
+    }
+    fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
+        SessionApplication::modules(config)
+    }
+}
+
+fn merge_probe_cookies(response: &TestResponse, cookies: &mut Vec<(String, String)>) -> TestResult {
+    for header in response.headers().get_all(header::SET_COOKIE) {
+        let pair = header
+            .to_str()?
+            .split(';')
+            .next()
+            .ok_or("Cookie 首段缺失")?;
+        let (name, _) = pair.split_once('=').ok_or("Cookie 首段无效")?;
+        if ![
+            COOKIE_NAME,
+            "example_session_probe",
+            "example_session_probe_reply",
+        ]
+        .contains(&name)
+        {
+            continue;
+        }
+        if let Some(existing) = cookies.iter_mut().find(|(key, _)| key == name) {
+            pair.clone_into(&mut existing.1);
+        } else {
+            cookies.push((name.to_owned(), pair.to_owned()));
+        }
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn explicit_request_driver_consumes_cookie_and_keeps_two_request_queues_isolated()
+-> TestResult {
+    let mut app = TestApp::<RequestDriverApplication>::builder(sources())
+        .build()
+        .await?;
+    let outcome: TestResult = async {
+        let mut first = Vec::new();
+        let mut second = Vec::new();
+        for (cookies, marker, initial) in [(&mut first, "one", 1), (&mut second, "two", 2)] {
+            let memo = format!("memo-{marker}");
+            for (action, value, expected_memo, count) in [
+                ("put", json!(marker), None, None),
+                ("memo_seed", json!(memo), Some(memo.as_str()), None),
+                (
+                    if initial == 1 {
+                        "increment"
+                    } else {
+                        "increment_by"
+                    },
+                    Value::Null,
+                    Some(memo.as_str()),
+                    Some(initial),
+                ),
+            ] {
+                let incoming = probe_cookie_header(cookies);
+                let response = request(
+                    &app,
+                    Some(json!({"action":action,"value":value})),
+                    Some(&incoming),
+                )
+                .await?;
+                success(
+                    &response,
+                    &probe_business_data(marker, expected_memo, count, Some(action)),
+                )?;
+                merge_probe_cookies(&response, cookies)?;
+            }
+        }
+        for round in 0..3 {
+            for (cookies, marker, count) in [(&mut first, "one", 1), (&mut second, "two", 2)] {
+                let incoming = probe_cookie_header(cookies);
+                let response = request(
+                    &app,
+                    Some(json!({"action":"probe","value":marker})),
+                    Some(&incoming),
+                )
+                .await?;
+                let mut expected = probe_business_data(
+                    marker,
+                    Some(&format!("memo-{marker}")),
+                    Some(count),
+                    Some("probe"),
+                );
+                expected["extension"] =
+                    json!({"needs_request":true,"reply":(round == 2).then_some(marker)});
+                success(&response, &expected)?;
+                merge_probe_cookies(&response, cookies)?;
+            }
+        }
+        for (cookies, marker, count) in [(&mut first, "one", 2), (&mut second, "two", 3)] {
+            let incoming = probe_cookie_header(cookies);
+            let response =
+                request(&app, Some(json!({"action":"increment"})), Some(&incoming)).await?;
+            success(
+                &response,
+                &probe_business_data(
+                    marker,
+                    Some(&format!("memo-{marker}")),
+                    Some(count),
+                    Some("increment"),
+                ),
+            )?;
+            merge_probe_cookies(&response, cookies)?;
+        }
+        for (cookies, marker, count) in [(&first, "one", 2), (&second, "two", 3)] {
+            let response = request(&app, None, Some(&probe_cookie_header(cookies))).await?;
+            success(
+                &response,
+                &probe_business_data(marker, Some(&format!("memo-{marker}")), Some(count), None),
+            )?;
+        }
+        let response = request(
+            &app,
+            Some(json!({"action":"extensions"})),
+            Some(&probe_cookie_header(&first)),
+        )
+        .await?;
+        let mut expected =
+            probe_business_data("one", Some("memo-one"), Some(2), Some("extensions"));
+        expected["extension"] = json!({"id_changed":true,"same_handler":true,"needs_request":true});
+        success(&response, &expected)?;
+        Ok(())
+    }
+    .await;
+    let shutdown = app.shutdown(tokio::time::Instant::now() + TIMEOUT).await;
+    outcome?;
+    shutdown?;
+    Ok(())
+}
+
+fn probe_cookie_header(cookies: &[(String, String)]) -> String {
+    cookies
+        .iter()
+        .map(|(_, pair)| pair.as_str())
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+fn probe_business_data(
+    marker: &str,
+    memo: Option<&str>,
+    count: Option<i64>,
+    action: Option<&str>,
+) -> Value {
+    let mut expected = data(Some(marker), None, action);
+    expected["memo"] = json!(memo);
+    expected["count"] = json!(count);
+    expected
 }

@@ -36,6 +36,8 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 
 - 阶段一R2公共声明/覆盖/错误契约→R13包发现与生成工具：[Provider编译期发现Spec](plans/laravel-rebuild.md#r2r13-provider-编译期发现-spec)（L044.02/模块M016），复用R2-M/N清单、拓扑和register→boot；仅规划未实现，不抢占当前HTTP。
 
+- 阶段一R2容器完整Binding后继（矩阵L012.02）：D3接线实证现API只有后注册覆盖，缺保留任意原factory的Laravel extend。按固定上游补通用公开装饰、生命周期/已解析singleton/多次顺序/错误与资源归属，贯通显式custom Session driver、模块及生成应用；D3已知Db/Memory fixture不关闭此项，不新建专属装饰内核，不抢占当前HTTP。
+
 - 阶段二R11 MQTT按[总计划可选扩展契约](plans/laravel-rebuild.md#r11-明确待办mqtt-可选服务端与客户端)排期：client/Broker按需独立引入，沿既有Provider加载，client操作/订阅CLI/Broker CLI才产生网络副作用；仅规划，不抢占当前HTTP簇。
 
 R1-S → R2基础 → R2-M模块闭环 → R1-E当前CRUD/能力贯通；R2后继及R3 HTTP → R4 数据 → R5 Model → R6 Factory/SQLite → R7 安全 → R8 Cache/Storage → R9 视图/通信 → R10 异步/事务 → R11 网络/组合 → R12 搜索/特性/观测 → R13 开发体验 ；阶段一核心门禁后，R16官方框架扩展及工具自身界面按各自前置在阶段二分批领取，最终证据汇入R14；原R15版本阶段取消，业务后台/App转为可选模块并暂不开发，官方工具自身UI随包阶段二交付，待用户明确开工。每个后继能力同簇补示例；R1-E不等待未来全框架完成，R2基础不等待完整示例，消除循环依赖。阶段内部按总计划拆可验证提交。
@@ -325,9 +327,22 @@ C04-D1的统一Session/flash与请求生命周期已完成适用验收并由d471
 
 D2验收：修后12项门禁、根真实PG/MySQL完整模块HTTP各54、三类新生成应用4/2/2及独立审查通过；根target有效产物已清理、五旧consumer不变，限定提交见Git。PHP44条差分路径不是完整Laravel启动；不关闭整个L025。
 
-## 当前 C04-D3：Session扩展生命周期（待领取）
+## C04-D3：Session扩展生命周期（限定子范围已验收）
+
+Spec已按ADR-082 D3收敛，进入实现：
+- 补齐适用的ID/handler替换与请求注入能力，不复制Session内核，不绕过撤销安全增强。
+- 对照固定Laravel Store、Manager与CookieSessionHandler及测试，先核实实际生产调用链和公开扩展入口。
+- 明确start前/后、busy/closed/revoked、替换失败与取消，以及旧驱动资源引用的所有权语义。
+- root收敛ADR与Rust公开API，互不重叠实现/测试交给现有代理，manifest与构建仍由单一集成人负责。
+- 验收贯通外部driver、唯一模块、生成应用、真实双库HTTP和匹配workspace门禁；行为差异公开保留。
 
 先审计固定Store的setId/setHandler与CookieSessionHandler请求注入生产路径，对照现有撤销、busy/closed、Provider装配与自定义驱动契约，写Spec后实现安全等价API。不得用D2只读handler逃生口替代驱动替换，也不得删除适用上游能力。统一状态机、唯一modules/example与生成调用、公开consumer、双库真实HTTP及匹配门禁随簇交付；Old Input/CSRF等按既有后继依赖保留。
+
+D3验收：最终12项门禁通过，默认668/全特性1328 passed（29/102 ignored不算实服务）；根真实双库完整target各55、三类新生成4/2/2及独立审查通过。root target已清、五旧consumer不变，限定提交以Git为准；本簇不实现完整内置Cookie driver或通用Container extend，不关闭整个L025。
+
+## 当前 C04-D4：内置Cookie Session driver（待领取）
+
+沿D3每请求driver绑定实现固定CookieSessionHandler完整双Cookie：配置名ID Cookie与ID名data/expires Cookie，解密后的输入视图、过期边界、队列写入/删除、取消与安全属性；唯一模块/生成/真实HTTP及适用门禁验收。D3自定义请求hook不关闭此项，也不以Cookie-only driver替代已验收数据库/Redis驱动。
 
 ## 完整实现后的发布仓库整理（后置，未启动）
 

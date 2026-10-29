@@ -2,13 +2,16 @@
 
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::{
+    collections::HashSet,
+    sync::{Arc, Mutex, MutexGuard},
+};
 use time::{Duration, OffsetDateTime};
 use tokio::sync::Mutex as AsyncMutex;
 
 use super::{
-    DEFAULT_MAX_BYTES, SessionId, SessionRecord, SessionStore, SessionWriteMode,
-    SessionWriteOutcome,
+    DEFAULT_MAX_BYTES, SessionId, SessionRecord, SessionRequestContext, SessionStore,
+    SessionWriteMode, SessionWriteOutcome,
 };
 use super::{
     attributes::Attributes,
@@ -42,10 +45,50 @@ impl Expiry {
     }
 }
 
-#[allow(
-    clippy::struct_excessive_bools,
-    reason = "启动、持久存在、I/O占用、撤销和关闭是可并存的独立生命周期状态"
-)]
+#[derive(Clone)]
+struct Driver {
+    identity: Arc<dyn SessionStore>,
+    actual: Arc<dyn SessionStore>,
+    needs_request: bool,
+    bound: bool,
+}
+impl Driver {
+    fn new(store: Arc<dyn SessionStore>) -> Self {
+        let needs_request = store.needs_request();
+        Self {
+            identity: store.clone(),
+            actual: store,
+            needs_request,
+            bound: !needs_request,
+        }
+    }
+    fn ready(&self) -> Result<Arc<dyn SessionStore>> {
+        if !self.bound {
+            return Err(extension_error(
+                "session_request_unbound",
+                "Session handler requires a request",
+            ));
+        }
+        Ok(self.actual.clone())
+    }
+}
+#[derive(Clone)]
+struct Binding {
+    id: SessionId,
+    driver: Driver,
+}
+impl Binding {
+    fn matches(&self, id: &SessionId, driver: &Driver) -> bool {
+        self.id == *id && Arc::ptr_eq(&self.driver.identity, &driver.identity)
+    }
+}
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CreateIntent {
+    SystemRandom,
+    Explicit,
+}
+
+#[allow(clippy::struct_excessive_bools, reason = "独立生命周期标记可并存")]
 struct State {
     id: SessionId,
     name: String,
@@ -56,11 +99,14 @@ struct State {
     busy: bool,
     revoked: bool,
     closed: bool,
+    driver: Driver,
+    origin: Option<Binding>,
+    intent: CreateIntent,
+    destroyed: HashSet<SessionId>,
 }
 struct Inner {
     state: Mutex<State>,
     io: AsyncMutex<()>,
-    store: Arc<dyn SessionStore>,
     max_bytes: usize,
 }
 
@@ -125,6 +171,7 @@ impl Session {
             Some(id) => id,
             None => SessionId::generate()?,
         };
+        let driver = Driver::new(store);
         Ok(Self {
             inner: Arc::new(Inner {
                 state: Mutex::new(State {
@@ -137,9 +184,12 @@ impl Session {
                     busy: false,
                     revoked: false,
                     closed: false,
+                    driver,
+                    origin: None,
+                    intent: CreateIntent::SystemRandom,
+                    destroyed: HashSet::new(),
                 }),
                 io: AsyncMutex::new(()),
-                store,
                 max_bytes,
             }),
         })
@@ -184,6 +234,23 @@ impl Session {
             _gate: gate,
         })
     }
+    fn try_operation(&self) -> Result<Operation<'_>> {
+        let gate = self.inner.io.try_lock().map_err(|_| {
+            extension_error(
+                "session_operation_in_progress",
+                "Session I/O is in progress",
+            )
+        })?;
+        {
+            let mut state = self.lock()?;
+            state.ensure_mutable()?;
+            state.busy = true;
+        }
+        Ok(Operation {
+            inner: &self.inner,
+            _gate: gate,
+        })
+    }
 
     /// 当前ID在start/save前已可见；调用方不得写日志。
     pub fn id(&self) -> Result<SessionId> {
@@ -214,12 +281,89 @@ impl Session {
         state.name = name;
         Ok(self)
     }
-    /// 返回当前实际驱动的同一 Arc，供可信应用公开扩展。
-    ///
-    /// 直接操作驱动不参与此句柄的属性、忙碌和撤销状态机，也不提供托管操作的原子性。
-    #[must_use]
-    pub fn handler(&self) -> Arc<dyn SessionStore> {
-        self.inner.store.clone()
+    /// 即时替换 ID；非法或缺失输入生成随机 ID，不加载目标或清除属性。
+    pub fn set_id(&self, id: Option<&str>) -> Result<&Self> {
+        self.lock()?.ensure_mutable()?;
+        let (id, intent) = match id.and_then(|id| SessionId::parse(id).ok()) {
+            Some(id) => (id, CreateIntent::Explicit),
+            None => (SessionId::generate()?, CreateIntent::SystemRandom),
+        };
+        let mut state = self.lock()?;
+        state.ensure_mutable()?;
+        if state.destroyed.contains(&id) {
+            return Err(write_conflict());
+        }
+        if state.id != id {
+            state.id = id;
+            state.intent = intent;
+            state.restore_proof();
+        } else if intent == CreateIntent::Explicit {
+            state.intent = CreateIntent::Explicit;
+        }
+        Ok(self)
+    }
+
+    /// 替换并返回配置驱动；保留属性和 started，不自动注入请求。
+    pub fn set_handler(&self, handler: Arc<dyn SessionStore>) -> Result<Arc<dyn SessionStore>> {
+        {
+            let state = self.lock()?;
+            state.ensure_mutable()?;
+            if Arc::ptr_eq(&state.driver.identity, &handler)
+                || Arc::ptr_eq(&state.driver.actual, &handler)
+            {
+                return Ok(handler);
+            }
+        }
+        // 用户驱动代码和旧 Arc 的最终释放均不在属性锁内。
+        let driver = Driver::new(handler.clone());
+        let old = {
+            let mut state = self.lock()?;
+            state.ensure_mutable()?;
+            let old = std::mem::replace(&mut state.driver, driver);
+            state.intent = CreateIntent::Explicit;
+            state.restore_proof();
+            old
+        };
+        drop(old);
+        Ok(handler)
+    }
+
+    /// 返回当前实际 I/O 驱动；直接调用不具有受管理状态机的保证。
+    pub fn handler(&self) -> Result<Arc<dyn SessionStore>> {
+        Ok(self.lock()?.driver.actual.clone())
+    }
+
+    /// 当前配置驱动是否需要请求上下文。
+    pub fn handler_needs_request(&self) -> Result<bool> {
+        Ok(self.lock()?.driver.needs_request)
+    }
+
+    /// 在 I/O 门控下创建请求内实例；普通驱动不调用绑定回调。
+    #[allow(
+        clippy::unused_async,
+        clippy::unused_async_trait_impl,
+        reason = "公开绑定生命周期使用异步接口，但忙碌时必须立即拒绝而不能等待"
+    )]
+    pub async fn set_request_on_handler(&self, context: SessionRequestContext) -> Result<&Self> {
+        let _operation = self.try_operation()?;
+        let driver = self.lock()?.driver.clone();
+        if !driver.needs_request {
+            return Ok(self);
+        }
+        let actual = driver.identity.bind_request(context)?.ok_or_else(|| {
+            extension_error(
+                "session_request_binding_invalid",
+                "Session handler did not bind the request",
+            )
+        })?;
+        let old = {
+            let mut state = self.lock()?;
+            let old = std::mem::replace(&mut state.driver.actual, actual);
+            state.driver.bound = true;
+            old
+        };
+        drop(old);
+        Ok(self)
     }
 
     /// 完整属性；返回有序PHP数组表示的独立值。
@@ -401,71 +545,78 @@ impl Session {
         self.lock()?.expiry.unwrap_or(Expiry::OnSessionEnd).date()
     }
 
-    /// 立即读取store，与已有内存属性顶层合并；已有持久键覆盖同名内存键。
+    /// 立即读取当前绑定，与已有属性合并；待保存的跨绑定转移禁止混读目标。
     pub async fn start(&self) -> Result<bool> {
         let _operation = self.operation().await?;
-        let (id, expiry) = {
+        let (id, expiry, driver, existing) = {
             let state = self.lock()?;
+            if state.pending_transfer() {
+                return Err(extension_error(
+                    "session_rebind_pending",
+                    "Save the explicit Session transfer before starting",
+                ));
+            }
             (
                 state.id.clone(),
                 state.expiry.unwrap_or(Expiry::OnSessionEnd).date()?,
+                state.driver.clone(),
+                state.existing,
             )
         };
-        let record = self
-            .inner
-            .store
-            .load(&id, self.inner.max_bytes, expiry)
-            .await?;
-        let mut state = self.lock()?;
-        let mut attributes = state.attributes.clone();
-        let existing;
-        let mut budget_expiry = expiry;
-        if let Some(record) = record {
-            if record.id != id {
-                return Err(invalid_record());
-            }
-            record.encode(self.inner.max_bytes)?;
-            if record.expiry_date > OffsetDateTime::now_utc() {
-                budget_expiry = record.expiry_date;
-                attributes =
-                    Attributes::new(super::merge_attributes(attributes.all(), record.data)?)?;
-                existing = true;
-            } else if state.existing {
+        let store = driver.ready()?;
+        let record = store.load(&id, self.inner.max_bytes, expiry).await?;
+        let old_origin = {
+            let mut state = self.lock()?;
+            let mut attributes = state.attributes.clone();
+            let mut found = false;
+            let mut budget_expiry = expiry;
+            if let Some(record) = record {
+                if record.id != id {
+                    return Err(invalid_record());
+                }
+                record.encode(self.inner.max_bytes)?;
+                if record.expiry_date > OffsetDateTime::now_utc() {
+                    budget_expiry = record.expiry_date;
+                    attributes =
+                        Attributes::new(super::merge_attributes(attributes.all(), record.data)?)?;
+                    found = true;
+                } else if existing {
+                    state.revoked = true;
+                    return Err(write_conflict());
+                }
+            } else if existing {
                 state.revoked = true;
                 return Err(write_conflict());
-            } else {
-                existing = false;
             }
-        } else if state.existing {
-            // 重复start不能把已撤销的旧认证bag变成一个可Insert的新记录。
-            state.revoked = true;
-            return Err(write_conflict());
-        } else {
-            existing = false;
-        }
-        if attributes
-            .get("_token")?
-            .is_none_or(|value| value.is_null())
-        {
-            attributes.put("_token", Value::String(random_token()?))?;
-        }
-        SessionRecord {
-            id: state.id.clone(),
-            data: attributes.all(),
-            expiry_date: budget_expiry,
-        }
-        .encode(self.inner.max_bytes)?;
-        state.attributes = attributes;
-        state.existing = existing;
-        state.started = true;
+            if attributes
+                .get("_token")?
+                .is_none_or(|value| value.is_null())
+            {
+                attributes.put("_token", Value::String(random_token()?))?;
+            }
+            SessionRecord {
+                id: id.clone(),
+                data: attributes.all(),
+                expiry_date: budget_expiry,
+            }
+            .encode(self.inner.max_bytes)?;
+            state.attributes = attributes;
+            state.existing = found;
+            state.started = true;
+            let origin = found.then_some(Binding { id, driver });
+            std::mem::replace(&mut state.origin, origin)
+        };
+        drop(old_origin);
         Ok(true)
     }
 
-    /// 每次调用都先老化flash再持久化；未修改/5xx也不跳过。
+    /// 老化 flash 后保存；显式目标碰撞不覆盖、不换成其他随机 ID。
     pub async fn save(&self) -> Result<()> {
         let _operation = self.operation().await?;
-        let (mut record, mode) = {
+        let (mut record, mode, driver, origin, intent) = {
             let mut state = self.lock()?;
+            let driver = state.driver.clone();
+            driver.ready()?;
             let mut candidate = state.attributes.clone();
             candidate.age()?;
             let record = SessionRecord {
@@ -474,8 +625,12 @@ impl Session {
                 expiry_date: state.expiry.unwrap_or(Expiry::OnSessionEnd).date()?,
             };
             record.encode(self.inner.max_bytes)?;
-            // 资源检查通过才发布age；真正write失败仍保留与源相同的已老化状态。
             state.attributes = candidate;
+            let origin = state
+                .origin
+                .as_ref()
+                .filter(|origin| state.pending_transfer() && !state.destroyed.contains(&origin.id))
+                .cloned();
             (
                 record,
                 if state.existing {
@@ -483,30 +638,67 @@ impl Session {
                 } else {
                     SessionWriteMode::Insert
                 },
+                driver,
+                origin,
+                state.intent,
             )
         };
+        let store = driver.ready()?;
+        if let Some(origin) = origin {
+            let source = origin.driver.ready()?;
+            let record = source
+                .load(&origin.id, self.inner.max_bytes, record.expiry_date)
+                .await?;
+            let live = match record {
+                Some(record) => {
+                    if record.id != origin.id {
+                        return Err(invalid_record());
+                    }
+                    record.encode(self.inner.max_bytes)?;
+                    record.expiry_date > OffsetDateTime::now_utc()
+                }
+                None => false,
+            };
+            if !live {
+                self.lock()?.revoked = true;
+                return Err(write_conflict());
+            }
+        }
+        // source 检查与目标写入不构成跨后端事务；显式复制不承诺线性撤销。
         for attempt in 0..3 {
             record.encode(self.inner.max_bytes)?;
-            match self
-                .inner
-                .store
-                .write(&record, mode, self.inner.max_bytes)
-                .await?
-            {
+            match store.write(&record, mode, self.inner.max_bytes).await? {
                 SessionWriteOutcome::Written => {
-                    let mut state = self.lock()?;
-                    state.existing = true;
-                    state.started = false;
+                    let old = {
+                        let mut state = self.lock()?;
+                        state.existing = true;
+                        state.started = false;
+                        state.intent = CreateIntent::SystemRandom;
+                        state.origin.replace(Binding {
+                            id: record.id.clone(),
+                            driver: driver.clone(),
+                        })
+                    };
+                    drop(old);
                     return Ok(());
                 }
                 SessionWriteOutcome::Conflict
-                    if mode == SessionWriteMode::Insert && attempt < 2 =>
+                    if mode == SessionWriteMode::Insert
+                        && intent == CreateIntent::SystemRandom
+                        && attempt < 2 =>
                 {
-                    record.id = SessionId::generate()?;
-                    self.lock()?.id = record.id.clone();
+                    let id = SessionId::generate()?;
+                    let mut state = self.lock()?;
+                    if state.destroyed.contains(&id) {
+                        return Err(write_conflict());
+                    }
+                    state.id = id.clone();
+                    record.id = id;
                 }
                 SessionWriteOutcome::Missing | SessionWriteOutcome::Conflict => {
-                    self.lock()?.revoked = true;
+                    if mode == SessionWriteMode::Update || intent == CreateIntent::SystemRandom {
+                        self.lock()?.revoked = true;
+                    }
                     return Err(write_conflict());
                 }
             }
@@ -517,8 +709,20 @@ impl Session {
     async fn change_id(&self, destroy: bool, regenerate: bool, flush: bool) -> Result<bool> {
         let _operation = self.operation().await?;
         let id = SessionId::generate()?;
-        let (old_id, candidate) = {
+        let (old_id, candidate, driver) = {
             let state = self.lock()?;
+            if destroy && state.pending_transfer() {
+                return Err(extension_error(
+                    "session_rebind_pending",
+                    "Save the explicit Session transfer before destroying",
+                ));
+            }
+            if destroy && !state.destroyed.contains(&state.id) && state.destroyed.len() >= 1024 {
+                return Err(limit_error());
+            }
+            if state.destroyed.contains(&id) {
+                return Err(write_conflict());
+            }
             let mut candidate = state.attributes.clone();
             if flush {
                 candidate.flush()?;
@@ -532,16 +736,26 @@ impl Session {
                 expiry_date: state.expiry.unwrap_or(Expiry::OnSessionEnd).date()?,
             }
             .encode(self.inner.max_bytes)?;
-            (state.id.clone(), candidate)
+            (state.id.clone(), candidate, state.driver.clone())
         };
         // 候选全部验证后才删除持久记录；IO失败本身不承诺回滚外部副作用。
+        let store = driver.ready()?;
         if destroy {
-            self.inner.store.delete(&old_id).await?;
+            store.delete(&old_id).await?;
         }
-        let mut state = self.lock()?;
-        state.id = id;
-        state.attributes = candidate;
-        state.existing = false;
+        let old_origin = {
+            let mut state = self.lock()?;
+            if destroy {
+                state.destroyed.insert(old_id);
+            }
+            state.id = id;
+            state.attributes = candidate;
+            state.existing = false;
+            state.intent = CreateIntent::SystemRandom;
+            // invalidate 已清空全部来源属性；tombstone 仍禁止回到销毁的 ID。
+            if flush { state.origin.take() } else { None }
+        };
+        drop(old_origin);
         Ok(true)
     }
     /// 只迁移ID；destroy控制是否立即撤销旧记录。
@@ -565,6 +779,17 @@ impl Session {
 }
 
 impl State {
+    fn restore_proof(&mut self) {
+        self.existing = self
+            .origin
+            .as_ref()
+            .is_some_and(|origin| origin.matches(&self.id, &self.driver));
+    }
+    fn pending_transfer(&self) -> bool {
+        self.origin
+            .as_ref()
+            .is_some_and(|origin| !origin.matches(&self.id, &self.driver))
+    }
     fn ensure_mutable(&self) -> Result<()> {
         if self.revoked {
             return Err(write_conflict());
@@ -603,6 +828,10 @@ fn write_conflict() -> Error {
         "session_store_write_conflict",
         "Session could not be saved after concurrent revocation",
     )
+}
+
+fn extension_error(code: &'static str, message: &'static str) -> Error {
+    Error::custom_with_status(http::StatusCode::INTERNAL_SERVER_ERROR, code, message)
 }
 
 #[cfg(test)]

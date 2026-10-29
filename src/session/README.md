@@ -85,7 +85,7 @@ max_bytes = 20971520
 | `path` / `domain` | `/` / `None`；`domain=None` 不发送 Domain，使用浏览器的 host-only Cookie。 |
 | `secure` | `None`：按可信请求传输推导；`Some(true/false)` 是显式设置。 |
 | `http_only` / `same_site` | `true` / `Some("lax")`；`same_site=None` 明确省略属性，省略配置键则仍使用默认 Lax。 |
-| `lifetime` | 120 分钟，无活动期限；每次保存更新截止，必须为正且可安全换算。 |
+| `lifetime` | 120 分钟非活动超时；每次保存更新截止，必须为正且可安全换算。 |
 | `expire_on_close` | `false`；设为 true 时发送浏览器会话 Cookie，持久记录仍受 `lifetime` 限制。 |
 | `partitioned` | `false`；启用时发送 Partitioned 标记，应用还需正确设置 Secure 并满足浏览器要求。 |
 | `max_bytes` | 完整持久记录默认 20 MiB，包含属性与记录元数据；只能调低，不能超过硬上限。 |
@@ -170,7 +170,48 @@ let previous_discount = session.remove("cart.discount")?;
 
 `session.set_name("checkout_session")?` 改变本请求实际输出的Cookie名称，不改变ID、不自动删除旧名Cookie；本请求启动时仍按原配置读取Cookie。名称受Cookie验证约束，非法名称不会改变原状态。通常应在应用 `session.cookie` 配置中选择稳定名称。
 
-`session.handler()` 返回当前实际 `Arc<dyn SessionStore>`，供可信应用实现driver扩展；它不是另一份store。直接调用driver属于逃生口，不参与托管Session的属性、busy/closed/revoked状态机，也不提供跨操作原子保证；实现者仍须遵守driver自身的Insert/Update与资源契约。动态替换ID或handler的完整安全生命周期尚未交付，不能通过手工写旧属性绕过认证撤销。
+`session.handler()?` 返回当前实际 `Arc<dyn SessionStore>`，供可信应用实现 driver 扩展；它不是另一份 store。返回 `Result` 用于传播状态锁错误。直接调用 driver 属于逃生口，不参与托管 Session 的属性、busy/closed/revoked 状态机，也不提供跨操作原子保证；实现者仍须遵守 driver 自身的 Insert/Update 与资源契约。
+
+### 显式选择 ID 与驱动
+
+`set_id`、`set_handler` 是可信应用的显式操作，保持当前属性与 `started` 状态，不自动加载目标记录。不要把客户端任意参数直接传给这些方法。
+
+```rust
+use openrust::session::Session;
+
+fn keep_current_binding(session: &Session) -> openrust::Result<()> {
+    let id = session.id()?;
+    session.set_id(Some(id.as_str()))?;
+    let handler = session.handler()?;
+    session.set_handler(handler)?;
+    Ok(())
+}
+```
+
+`set_id(Some(id))` 接受大小写敏感的40位 ASCII 字母数字；非法值或 `None` 生成随机 ID。与 Laravel 一样，换 ID 不会自行删除旧记录，也不再生 token；需要登录态迁移时优先使用 `regenerate` / `invalidate` 等明确生命周期方法。初始未加载时 `set_id` 后 `start` 会读取所选记录；已有来源且正在转移到不同目标时再次 `start` 返回 `session_rebind_pending`，避免混合两份认证属性。
+
+`set_handler(Arc<dyn SessionStore>)` 返回传入的 Arc；只有传入新后端时，它才成为配置驱动。框架分别记录逻辑后端与请求内 I/O 实例；传回当前配置 Arc 或当前实际 Arc 均为同绑定操作，保留来源证明，不把请求实例提升为长期配置。返回的请求实例不得跨请求保存。
+
+显式转移保存保留属性，目标只能 `Insert`：已有目标返回 `session_store_write_conflict`，不会覆盖目标或悄悄改成随机 ID。成功后下一次保存使用 `Update`；保存前切回原绑定也恢复原 `Update`。显式重申当前合法 ID 同样保留指定意图，只有系统生成 ID 才允许有限随机碰撞重试。目标碰撞不会永久撤销句柄，可修正目标后再试；已经观测到源记录被删除或过期则拒绝并撤销当前句柄。
+
+跨驱动保存前的源记录检查是尽力检查，检查与创建目标之间仍有并发窗口，不保证跨后端原子撤销或事务转移。这种可信显式复制，与被动使用旧 Cookie 时同绑定 `Update` 的防复活保证不同。不要把历史属性快照作为未来请求的授权依据。
+
+`migrate(true)` / `regenerate(true)` / `invalidate()` 在待转移时、删除任何记录前返回 `session_rebind_pending`；切回原来源或完成授权保存后再执行。成功销毁的 ID 在同一句柄生命周期内禁止回退，最多记录1024个，超过上限在删除前拒绝。所有 setter 与请求 hook 拒绝 busy/closed/revoked，失败不发布部分状态。
+
+### 请求内驱动绑定
+
+普通 `SessionStore` 不需要请求。需要 Cookie 输入或响应 Cookie 队列的 driver 可以覆盖以下默认方法：
+
+| 方法 | 契约 |
+| --- | --- |
+| `needs_request()` | 默认 `false`，普通驱动不会收到绑定回调。 |
+| `bind_request(context)` | 默认 `Ok(None)`；需要请求的驱动必须返回 `Some(Arc<dyn SessionStore>)`，表示同一逻辑后端的本请求实例。 |
+
+`SessionRequestContext::new(cookies, jar)` 校验 Cookie 快照的树和64 KiB预算；`cookie(name)`按精确名称读取，支持 PHP 根数组的数字键，不展开点路径；`cookie_jar()`返回同一请求的公开 `CookieJar`。上下文 Debug 脱敏，不持有 body、Session 或 Scope。驱动不得把上下文或可变请求保存到应用级单例。
+
+请求中间件在 `start` 前自动调用 `set_request_on_handler(context).await`。手动构造的 Session 需要自己完成绑定；需请求但未绑定时 I/O 返回 `session_request_unbound`，绑定返回 `None` 则为 `session_request_binding_invalid`。`handler_needs_request()?` 用于查询能力；显式更换配置驱动后须重新绑定需要请求的驱动。hook 在状态锁外执行且忙碌时立即拒绝，不排队等待；绑定不改变逻辑后端或清除已有来源证明。
+
+受管理 HTTP 的绑定/加载失败会清除本请求排队 Cookie 并返回原错误；取消不后台补保存。自定义驱动的已发生外部副作用不能由框架自动回滚。请求绑定接口不代表内置 Cookie Session driver 已交付：双 Cookie、过期、加密视图与删除语义仍待完整实现验收。
 
 ## flash 的保存时序
 

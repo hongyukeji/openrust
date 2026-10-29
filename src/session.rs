@@ -7,6 +7,7 @@ mod middleware;
 mod migration;
 mod name;
 mod provider;
+mod request;
 mod state;
 mod store;
 
@@ -22,6 +23,7 @@ pub use store::{
 #[cfg(feature = "auth")]
 pub(crate) use provider::SessionSettings;
 pub use provider::{SessionServiceProvider, SessionStoreHandle};
+pub use request::SessionRequestContext;
 pub use state::{Expiry, Session};
 
 fn merge_attributes(

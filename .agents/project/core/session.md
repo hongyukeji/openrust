@@ -19,6 +19,13 @@
 - 最小 session-only helpers 9项、HTTP 5项与独立自定义驱动 consumer check/test（具名测试1项）实际通过，均退出0、源码无漂移；模块显式 session 定向3项通过、43项过滤。唯一模块与生成模板已接入业务调用，修后12项门禁、根真实双库HTTP各54项、三类新生成应用4/2/2及资源收尾已完成；不据此关闭整个 Session。
 - PHP 缓存运行时实际输出22条裸表达式与22条固定官方 HandleExceptions 方法路径，来源及限制见 `tests/http/fixtures/laravel-session-d2/`；不代表完整 Laravel Store/Container/logger 启动。详细日志及失败修正记录见[testing](../memory/testing.md)。`set_id/set_handler` 与请求注入的安全生命周期仍待后继实现。
 
+## D3 扩展生命周期（限定子范围已验收）
+
+- `set_id`与`set_handler`即时选择目标、保留bag/started；`handler`改为Result传播锁错误。逻辑driver、请求I/O实例与已加载来源分开记录，显式目标Insert碰撞拒绝、成功后Update；普通同绑定不回退Insert。已观测源撤销拒绝，跨driver检查不提供原子撤销。
+- 迁移销毁留本请求有界tombstone；pending跨绑定start及destroy拒绝，不能混入目标认证键或误删未拥有目标。只有系统随机ID允许有限重试，显式重申当前ID也保留指定意图。
+- `SessionRequestContext`提供有界Cookie快照和同请求CookieJar，普通driver不绑定，需请求driver返回本请求I/O实例；hook忙碌立即拒绝，middleware在start前注入。不能把上下文存在应用级单例；内置双Cookie Session driver另列D4，尚未实现。
+- 首稿最低check/Clippy和修后旧10+9+5回归通过；独立审查随后发现四项问题并已交核心修复。最终公开定向36项、模块非空隔离4项与不同模型增量复审已过；最终快照12项门禁全部通过（默认668/全特性1328 passed，忽略29/102不算实服务）。最终外部consumer check/test及真实双库完整模块target各55项已通过（含显式driver非空TCP隔离链）；三类新生成应用4/2/2及资源收尾亦已完成；完整内置Cookie driver与容器extend仍按后继交付，证据见[testing](../memory/testing.md)。
+
 ## 当前证据与缺口
 
 - Session-only定向基础测试18项通过（0失败/0忽略，390过滤，含名称推导）；公开生命周期测试10项通过，包含认证记录删除后重复 start/save 拒绝；进程内正式Router HTTP测试4项通过（均0失败/0忽略/0过滤），覆盖5xx/未修改保存、取消和缺失装配。它们是对应源码快照的定向证据，不能替代修改后重验、workspace 门禁或真实数据库运行。

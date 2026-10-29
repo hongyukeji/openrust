@@ -30,7 +30,7 @@
 
 当前交付依赖是 R1-S结构/挂载 → R2基础Container/Provider/配置/TestApp（A–D 已验收）→ R2-M模块契约/目录迁移 → R1-E真实CRUD与当前能力演示（已由 bc3fa01 提交）→ R2-N模块硬依赖与启动顺序（本簇已验收）→ R3–R16逐簇实现并同步示例。R2-D 测试应用由生产 Provider/Router 同路径构建，但不代表完整模块管理已完成；R1-E 的 Article、租户、附件、通信、观测等生产路径与 R2-N 证据分别记录于 [testing.md](memory/testing.md)。模块完整管理与 Laravel 严格 1:1 范围继续保留。
 
-C04-A/B1/B2/C与C04-D1均按各自子簇验收。D1以唯一公开Session领域替换旧tower运行时，最终默认668/29ignored、全特性1300/102ignored，双库完整模块HTTP各53、Auth各8、浏览器各4、模块OIDC各8、真实Keycloak主流程各1、三类生成与Session真实TLS均有实际证据；忽略项和PHP候选不冒充完成。根网络/完整12项门禁通过，限定提交见Git；资源收尾见testing。C04-D2基础Store公开API已通过helpers9/HTTP5、独立consumer、模块定向3项、修后12项门禁、根真实双库各54和三类生成4/2/2及资源收尾；下一领取Store扩展生命周期审计与实现，具体缺口见唯一todo；完整Session/CSRF/Web栈与C04仍开放。
+C04-A/B1/B2/C与C04-D1均按各自子簇验收。D1以唯一公开Session领域替换旧tower运行时，最终默认668/29ignored、全特性1300/102ignored，双库完整模块HTTP各53、Auth各8、浏览器各4、模块OIDC各8、真实Keycloak主流程各1、三类生成与Session真实TLS均有实际证据；忽略项和PHP候选不冒充完成。根网络/完整12项门禁通过，限定提交见Git；资源收尾见testing。C04-D2基础Store公开API已通过helpers9/HTTP5、独立consumer、模块定向3项、修后12项门禁、根真实双库各54和三类生成4/2/2及资源收尾；D2提交3cabae2；D3扩展生命周期亦已通过最终12项门禁、真实双库各55、生成4/2/2及资源收尾；下一从唯一todo领取D4完整Cookie driver；完整Session/CSRF/Web栈与C04仍开放。
 
 ## 路由
 

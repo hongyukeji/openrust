@@ -57,8 +57,8 @@ mod tests {
         let expiry = Some(Expiry::OnInactivity(Duration::hours(1)));
         let first = Session::new(None, store.clone(), expiry)?;
         let erased: Arc<dyn SessionStore> = store.clone();
-        assert!(Arc::ptr_eq(&erased, &first.handler()));
-        first.handler().delete(&first.id()?).await?;
+        assert!(Arc::ptr_eq(&erased, &first.handler()?));
+        first.handler()?.delete(&first.id()?).await?;
         let id = first.id()?;
         assert_eq!(id.as_str().len(), 40);
         assert!(id.as_str().bytes().all(|byte| byte.is_ascii_alphanumeric()));

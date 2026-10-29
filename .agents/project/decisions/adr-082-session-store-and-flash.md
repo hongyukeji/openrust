@@ -75,6 +75,27 @@ DB键继续SHA256，但输入改为原始40 ASCII字节（大小写敏感），�
 
 验收链为固定Store/HandleExceptions源码→明确标记的PHP8.5.0运算与错误处理探针→Rust方法/重入/预算/异常→唯一modules/example与生成helper→真实双库持久HTTP及外部driver；适用workspace门禁在本簇改码后实际执行。
 
+## D3：扩展生命周期（契约与验收边界）
+
+- 固定Store.php:701–714的setId只更换ID，合法值为40位ASCII字母数字，非法/null生成随机值；不读取目标记录或清除现有属性。setHandler:854–857只替换并返回驱动，不隐式start。
+- 固定StartSession.php:144–149先从配置Cookie名选择ID；130–136向需要的handler注入请求，再start。普通handler不需要请求，Store.php:864–879仅识别CookieSessionHandler。
+- 固定CookieSessionHandler.php:87–129从以ID为名的第二枚Cookie读带expires的data，写入/删除经本请求Cookie队列；注入不能是假回调，也不能把可变请求保存在应用级单例store。
+- 当前Rust的Inner.store为不可变Arc，State.existing仅绑定当前ID与原驱动；直接改指针或无条件清existing不足以定义后续受管理写入。
+- 保留setter的受信任扩展语义与现有属性，明确目标记录归属、busy/closed/revoked、失败与取消；普通被动撤销保护和开发者显式转移不是同一保证。不以两次load声称跨驱动原子撤销。
+- 选定公开API：`set_id(Option<&str>)->Result<&Self>`、`set_handler(Arc<dyn SessionStore>)->Result<Arc<dyn SessionStore>>`返回传入的Arc；只有新后端才成为配置驱动，当前配置/请求实例Arc回传均为no-op且请求实例不得长期保存；`handler()->Result<Arc<dyn SessionStore>>`返回当前实际I/O驱动，改为Result以传播锁错误。`handler_needs_request()->Result<bool>`与async `set_request_on_handler(SessionRequestContext)->Result<&Self>`补齐请求绑定。
+- State保留逻辑后端身份、实际请求实例、原已持久Binding和写入意图。setter立即可见，bag/started不变；同绑定不清证明，连续未保存替换保留原origin，切回origin恢复Update。显式新目标只Insert，碰撞报错且不随机改指定ID、不永久标revoked；仅系统生成ID可按现上限随机重试。成功start/save更新实际origin，后续按Update保存。
+- 同ID且显式传入合法当前ID时，未持久的SystemRandomCreate升级为ExplicitCreate，不能因同值提前返回而随机改写选择。set_handler传回当前配置Arc或当前请求实例Arc均为同逻辑后端no-op、保留证明，不把请求实例提升为长期配置；这是逻辑身份与请求实例分离的Rust适配。
+- 显式转移前对未主动销毁origin作有界活性检查，已观测missing/expired则拒绝并标revoked；这不是跨驱动原子撤销。显式目标选择与migrate的可信复制语义，不等于被动同绑定持久化。存在已加载origin的pending跨绑定start拒绝，避免源/目标认证属性混合；未加载的初始setId→start正常加载。
+- 已加载origin且pending跨绑定时，migrate(true)/regenerate(true)/invalidate在任何delete前以session_rebind_pending拒绝，不删除未拥有目标或擅改origin；切回origin或完成授权保存后再执行。此安全增强与上游直接删除当前handler目标的行为分别记录。
+- migrate(true)/invalidate成功删除旧ID后留下本请求tombstone，最多1024个；容量在delete前检查，已销毁ID跨store也保守禁止回退，作为公开安全增强。主动销毁origin不因其预期缺失而阻止本次授权迁移。setter/hook拒绝busy/closed/revoked；驱动回调和旧Arc最后释放不持属性锁，I/O取消只释放门控，不承诺撤回外部效果。
+- `SessionRequestContext`拥有有界Cookie快照和本请求CookieJar，不持Request/body/Session/Scope，Debug脱敏；公开`new(Value,CookieJar)->Result<Self>`、`cookie(&str)->Option<Value>`（与公开RequestInfo的object/array数字键精确名称读取一致，不展开点路径）、`cookie_jar()->&CookieJar`。复用既有Cookie/Data资源限额，不让外部driver依赖私有构造。
+- SessionStore新增默认`needs_request()->bool=false`与`bind_request(context)->Result<Option<Arc<dyn SessionStore>>>=Ok(None)`；普通driver不调用bind，hook忙碌时即时拒绝而不排队等待；需请求的driver必须返回本请求实例且保持同一逻辑backend。注入仅改实际I/O Arc，不清existing/provenance；显式set_handler才改变逻辑身份，需请求且未绑定时拒绝I/O。第三方返回同backend是公开driver契约，框架不能反射证明任意实现。
+- middleware在start前完成请求绑定；真实HTTP自定义driver必须实际消费Cookie并经本请求队列输出，证明两个请求不串scope及替换后重新绑定。内置Cookie driver双Cookie、加密视图、expires/write/destroy等完整行为列紧邻D4，D3 hook不冒称其通过。
+- 示例扩展由模块自有wrapper和显式fixture Application/Provider选择已知Db/Memory底层并经公开接口装配，正常宿主默认driver不被模块自动覆盖；不冒称可装饰任意已有容器factory。未交付的通用Container extend仍按既有矩阵后继，D3不另造专属注册内核。
+- 本簇已完成适用验收；沿source→API→公开consumer/唯一模块/生成→双库真实HTTP→适用完整门禁交付，不新增跨库分布式事务或第二套Session内核。
+
+D3限定子范围已通过最终12项门禁、根真实双库完整target各55项、三类新生成应用4/2/2及不同模型审查；资源收尾已完成，证据见[testing](../memory/testing.md)。完整Cookie driver与Container extend仍保留对应后继，不关闭整个Session/Web范围。
+
 ## 配置与后继边界
 
 现SessionConfig默认secure=true、ttl_secs=两周未被C04-C称为Laravel默认。本簇整改lifetime为120分钟、nullable secure供实际TLS推导、expire_on_close=false、http_only=true、same_site=lax、partitioned=false并保Cookie最终配置优先级；cookie名派生app.name与SESSION_*环境映射须按固定源同步，不默保旧值冒称完成。数据库默认后端复用现已注册Db；不暗连用户数据库。

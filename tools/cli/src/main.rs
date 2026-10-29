@@ -896,7 +896,7 @@ fn cargo_manifest(
         manifest = manifest.replace("openrust = { workspace = true }", &dependency);
     }
     manifest.push_str("serde = { version = \"1\", features = [\"derive\"] }\n");
-    manifest.push_str("\n[dev-dependencies]\nfigment = { version = \"0.10\", features = [\"toml\"] }\nserde_json = \"1\"\n");
+    manifest.push_str("\n[dev-dependencies]\nfigment = { version = \"0.10\", features = [\"toml\"] }\nserde_json = \"1\"\ntime = \"0.3\"\n");
     if auth {
         manifest.push_str("base64 = \"0.22\"\n");
     }

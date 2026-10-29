@@ -1,7 +1,7 @@
 //! 生成应用经正式 Session Provider 与请求作用域验证跨请求生命周期。
 use figment::Figment;
 use openrust::config::SessionConfig;
-use openrust::core::{Application, BootContext, BoxFuture, ServiceProvider};
+use openrust::core::{Application, BootContext, BoxFuture, RegisterContext, ServiceProvider};
 use openrust::http::axum::{
     body::Body,
     http::{
@@ -9,11 +9,17 @@ use openrust::http::axum::{
         header::{COOKIE, SET_COOKIE},
     },
 };
-use openrust::http::{Json, RequestInfo, Routes};
-use openrust::session::{MemorySessionStore, Session, SessionServiceProvider};
+use openrust::http::{CookieJar, CookieOptions, Json, RequestInfo, Routes};
+use openrust::session::{
+    DatabaseSessionStore, MemorySessionStore, Session, SessionId, SessionRecord,
+    SessionRequestContext, SessionServiceProvider, SessionStore, SessionStoreHandle,
+    SessionWriteMode, SessionWriteOutcome,
+};
 use openrust::testing::{TestApp, TestResponse};
 use serde_json::{Value, json};
+use std::sync::Arc;
 use std::time::Duration;
+use time::OffsetDateTime;
 
 const PREFIX: &str = "/__framework_contract/request-session";
 const NOTICE: &str = "contract.request_session.notice";
@@ -29,6 +35,26 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 
 struct SessionRoutes;
 impl ServiceProvider for SessionRoutes {
+    fn register(&self, app: &mut RegisterContext<'_>) -> openrust::Result<()> {
+        // fixture 已明确选择 plain array 或 auth database；不是装饰任意已有 factory。
+        app.singleton::<SessionStoreHandle, _>(|resolver| {
+            Box::pin(async move {
+                let config = resolver.section::<SessionConfig>("session")?;
+                let backend: Arc<dyn SessionStore> = match config.driver.as_deref() {
+                    Some("array") => Arc::new(MemorySessionStore::default()),
+                    Some("database") => Arc::new(DatabaseSessionStore::new(
+                        (*resolver.resolve::<openrust::db::Db>().await?).clone(),
+                    )),
+                    _ => return Err(mismatch()),
+                };
+                Ok(Arc::new(SessionStoreHandle::new(ContractRequestDriver {
+                    backend,
+                    context: None,
+                })))
+            })
+        });
+        Ok(())
+    }
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
             app.routes(|routes: Routes| {
@@ -37,6 +63,9 @@ impl ServiceProvider for SessionRoutes {
                     .get(&format!("{PREFIX}/inspect"), inspect)
                     .get(&format!("{PREFIX}/advance"), advance)
                     .get(&format!("{PREFIX}/remove"), remove)
+                    .get(&format!("{PREFIX}/seed-one"), seed_one)
+                    .get(&format!("{PREFIX}/seed-two"), seed_two)
+                    .get(&format!("{PREFIX}/probe"), probe)
             })?;
             Ok(())
         })
@@ -72,6 +101,13 @@ impl<A: Application, const EXISTING: bool> Application for SessionApplication<A,
 }
 
 async fn set(session: Session, info: RequestInfo) -> openrust::Result<Json<Value>> {
+    let before = session.id()?;
+    session.set_id(Some(before.as_str()))?;
+    let actual = session.handler()?;
+    ensure(Arc::ptr_eq(&actual, &session.set_handler(actual.clone())?))?;
+    ensure(session.handler_needs_request()?)?;
+    session.set_id(None)?;
+    ensure(session.id()? != before)?;
     session
         .put(PREFERENCE, "preserved")?
         .put(NULL, Value::Null)?
@@ -118,7 +154,7 @@ fn snapshot(session: &Session, info: &RequestInfo) -> openrust::Result<Value> {
 
 /// 在正式生成应用内验证 Session；不是网络或存储 driver 的替代验收。
 ///
-/// `existing_session=true` 保留应用原有 Session Provider/数据库；false 仅为没有
+/// `existing_session=true` 保留认证 Provider 并显式选择同 Db 委托驱动；false 仅为没有
 /// Session 的 plain 应用追加显式内存 driver。此参数不表示 Cookie 是否加密，
 /// 响应不返回 ID/token，ID 仅在处理器内比较句柄；Set-Cookie 首段只逐字传入
 /// 后续请求，不解密也不打印。
@@ -273,6 +309,7 @@ async fn verify<A: Application, const EXISTING: bool>(source: Figment) -> openru
             &isolated,
             expected(&name, false, None, None, None, None, None, None),
         )?;
+        verify_request_driver(&app, &name).await?;
         Ok(())
     }
     .await;
@@ -339,4 +376,147 @@ fn mismatch() -> openrust::Error {
         "test_session_contract_mismatch",
         "生成应用 Session 契约不匹配",
     )
+}
+
+const PROBE: &str = "contract_session_probe";
+const REPLY: &str = "contract_session_reply";
+struct ContractRequestDriver {
+    backend: Arc<dyn SessionStore>,
+    context: Option<SessionRequestContext>,
+}
+impl SessionStore for ContractRequestDriver {
+    fn needs_request(&self) -> bool {
+        true
+    }
+    fn bind_request(
+        &self,
+        context: SessionRequestContext,
+    ) -> openrust::Result<Option<Arc<dyn SessionStore>>> {
+        Ok(Some(Arc::new(Self {
+            backend: self.backend.clone(),
+            context: Some(context),
+        })))
+    }
+    fn load<'a>(
+        &'a self,
+        id: &'a SessionId,
+        max: usize,
+        expiry: OffsetDateTime,
+    ) -> BoxFuture<'a, openrust::Result<Option<SessionRecord>>> {
+        Box::pin(async move {
+            let value = self.backend.load(id, max, expiry).await?;
+            self.acknowledge()?;
+            Ok(value)
+        })
+    }
+    fn write<'a>(
+        &'a self,
+        record: &'a SessionRecord,
+        mode: SessionWriteMode,
+        max: usize,
+    ) -> BoxFuture<'a, openrust::Result<SessionWriteOutcome>> {
+        Box::pin(async move {
+            let value = self.backend.write(record, mode, max).await?;
+            self.acknowledge()?;
+            Ok(value)
+        })
+    }
+    fn delete<'a>(&'a self, id: &'a SessionId) -> BoxFuture<'a, openrust::Result<()>> {
+        self.backend.delete(id)
+    }
+}
+impl ContractRequestDriver {
+    fn acknowledge(&self) -> openrust::Result<()> {
+        let Some(context) = &self.context else {
+            return Ok(());
+        };
+        let value = match context.cookie(PROBE) {
+            Some(Value::String(value)) if matches!(value.as_str(), "one" | "two") => value,
+            _ => return Ok(()),
+        };
+        let jar = context.cookie_jar();
+        jar.queue(
+            jar.factory()
+                .make(REPLY, value, 0, CookieOptions::default())?,
+        )
+    }
+}
+async fn seed_one(session: Session, jar: CookieJar) -> openrust::Result<Json<Value>> {
+    seed(&session, &jar, "one")
+}
+async fn seed_two(session: Session, jar: CookieJar) -> openrust::Result<Json<Value>> {
+    seed(&session, &jar, "two")
+}
+fn seed(session: &Session, jar: &CookieJar, value: &str) -> openrust::Result<Json<Value>> {
+    ensure(session.handler_needs_request()?)?;
+    jar.queue(
+        jar.factory()
+            .make(PROBE, value, 0, CookieOptions::default())?,
+    )?;
+    Ok(Json(json!({"seeded":true})))
+}
+async fn probe(session: Session, info: RequestInfo) -> openrust::Result<Json<Value>> {
+    Ok(Json(
+        json!({"needs_request":session.handler_needs_request()?, "reply":info.cookie(REPLY)}),
+    ))
+}
+async fn verify_request_driver<A: Application, const EXISTING: bool>(
+    app: &TestApp<SessionApplication<A, EXISTING>>,
+    name: &str,
+) -> openrust::Result<()> {
+    let mut first = Vec::<(String, String)>::new();
+    let mut second = Vec::<(String, String)>::new();
+    for (cookies, action) in [(&mut first, "seed-one"), (&mut second, "seed-two")] {
+        let response = app
+            .request_with_limits(request(action, None)?, BODY_LIMIT, REQUEST_TIMEOUT)
+            .await?;
+        check_response(&response, json!({"seeded":true}))?;
+        merge_probe_cookies(&response, name, cookies)?;
+    }
+    for round in 0..2 {
+        for (cookies, value) in [(&mut first, "one"), (&mut second, "two")] {
+            let incoming = cookies
+                .iter()
+                .map(|(_, pair)| pair.as_str())
+                .collect::<Vec<_>>()
+                .join("; ");
+            let response = app
+                .request_with_limits(
+                    request("probe", Some(&incoming))?,
+                    BODY_LIMIT,
+                    REQUEST_TIMEOUT,
+                )
+                .await?;
+            check_response(
+                &response,
+                json!({"needs_request":true,"reply":(round == 1).then_some(value)}),
+            )?;
+            merge_probe_cookies(&response, name, cookies)?;
+        }
+    }
+    Ok(())
+}
+fn merge_probe_cookies(
+    response: &TestResponse,
+    name: &str,
+    cookies: &mut Vec<(String, String)>,
+) -> openrust::Result<()> {
+    for header in response.headers().get_all(SET_COOKIE) {
+        let pair = header
+            .to_str()
+            .map_err(|_| mismatch())?
+            .split(';')
+            .next()
+            .ok_or_else(mismatch)?;
+        let (key, _) = pair.split_once('=').ok_or_else(mismatch)?;
+        if ![name, PROBE, REPLY].contains(&key) {
+            continue;
+        }
+        if let Some(existing) = cookies.iter_mut().find(|(name, _)| name == key) {
+            existing.1 = pair.to_owned();
+        } else {
+            cookies.push((key.to_owned(), pair.to_owned()));
+        }
+    }
+    Ok(())
 }

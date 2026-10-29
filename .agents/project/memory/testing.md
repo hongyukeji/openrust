@@ -4,6 +4,32 @@
 > 更新：2026-10-29
 > 摘要：当前目录迁移与原专项测试入口，分开记录真实服务和未验收边界。
 
+## C04-D3 Session扩展生命周期（限定子范围已验收）
+
+契约见[ADR-082 D3](../decisions/adr-082-session-store-and-flash.md#d3扩展生命周期契约与验收边界)。D2的3cabae2不继承为D3通过；完整Cookie driver另列紧邻D4。
+
+| 范围 | 实际结果 | 证据与边界 |
+| --- | --- | --- |
+| 最低公开行为回归 | 第四轮extensions12/旧session10/helpers9/HTTP5共36项全通过，0 failed/ignored/filtered，退出0、源码无漂移 | `/tmp/openrust-c04d3-fourth-extensions.result.json`；含数字Cookie精确名、hook busy、pending destroy、bind/start失败不发Cookie且保原500/code/脱敏message。该轮guard包含server实际依赖模块 |
+| 外部自定义驱动consumer | 独立manifest check/test退出0，旧unit1+新hook集成1，共2 passed，无失败/忽略/过滤、源码无漂移 | `/tmp/openrust-c04d3-first-consumer-{check,test}.result.json`；对应快照，不代替后续middleware变更或完整门禁 |
+| 最终外部consumer | 最终源码check/test均退出0、源码无漂移，旧unit1+新hook1均通过 | `/tmp/openrust-c04d3-final-consumer-{check,test}.result.json`；与早期快照单独记录 |
+| 唯一模块定向 | 非空双client补测后4具名通过，43 filtered、0 failed/ignored，退出0、源码无漂移 | `/tmp/openrust-c04d3-second-module-session.result.json`；包含explicit_request_driver_consumes_cookie_and_keeps_two_request_queues_isolated。不同preference/memo/count跨3轮、分别更新后GET，不能以Cookie回执单独代替持久化证据；真实双库TCP待执行 |
+| CLI模板快照 | 首轮旧snapshot失败；精确核对更新后定向1 passed、19 filtered、退出0、源码无漂移 | `/tmp/openrust-c04d3-second-cli-snapshot.result.json`；不同模型将19段完整拆分，只有Cargo新增time0.3 devdep和已审helper全文变化，其余17段和assertion_line不变 |
+| 独立审查 | 核心首稿4项问题修复后增量审查无新blocker/should-fix；middleware失败队列清理、模块/模板及非空持久补测闭环 | state c6655564…/request bada08c1…及middleware 30de372b…曾冻结审查；后续state仅lint修饰/helper位置移动。README返回传入Arc（仅新后端赋配置）措辞已纠正；实际request实例不得长期保存 |
+| 暂停all-Clippy期间的独立门禁 | 默认tests 668/29 ignored、全特性tests 1328/102 ignored，均0 failed；双docs、no-default/session-only同样退出0、源码无漂移 | `/tmp/openrust-c04d-d3-independent1-<stage>.result.json`；六项对应未改format函数的冻结快照，MSRV等后继在途；ignored不算真实服务通过 |
+| PostgreSQL/MySQL根真实HTTP | 两侧各55 passed、0 failed/ignored/filtered/skipped，exit0/accepted、源码无漂移；两个required具名命中 | `/tmp/openrust-c04d3-root-{pg,mysql}.{safe.log,result.json}`；主Auth流程内实际执行显式Db wrapper双client非空TCP链，原默认Db链独立保留；邮件fake不计真实供应商。两侧精确锚库已DROP并核不存在；生成应用仍待完成 |
+| D3全新plain生成应用 | fmt/check/test通过，4具名测试、0 failed/ignored/filtered/skipped，源码与生成lock稳定 | `/tmp/openrust-c04d1-generated-d3-plain-verify-plain.result.json`与`/tmp/openrust-c04d3-generated-plain.driver.log`；复用安全脚本前缀不代表旧结果，Session helper按实际TestApp/Router证据记录，不冒称TCP；认证双库产物仍待完成 |
+| 三类最终新生成应用 | plain4/认证PG2/MySQL2均通过fmt/check/test，0 failed/ignored/filtered/skipped，源码与生成lock稳定 | `/tmp/openrust-c04d1-generated-d3-<kind>-verify-<kind>.result.json`及`/tmp/openrust-c04d3-generated-<kind>.driver.log`；Session helper为TestApp Router，认证主流程及根显式fixture另有真实TCP；两侧精确锚库已删并核不存在 |
+| 资源收尾 | 根target有效产物0，释放20,480,098,304字节，五旧consumer逐项不变；剩2.486656GiB，磁盘空闲12.835766% | `/tmp/openrust-c04d3-final-clean.log`；实际独占锁/占用核查，保留Cargo锁inode，未改共享服务；仅保留/tmp有界证据/生成源码与既有PHP缓存 |
+| 最终修后快照 | final4完整12项均退出0、源码无漂移、日志SHA逐项核对一致；tests默认668/29 ignored、全特性1328/102 ignored，均0 failed | `/tmp/openrust-c04d-d3-final4-<stage>.result.json`；含fmt、双Clippy(-D warnings)、双tests/docs、no-default/session-only、MSRV1.97.0、deny、server构建；all-Clippy为用户批准单次，暂停原因已解除 |
+| 完整门禁 | final1 fmt/default Clippy通过，all Clippy退出101；final2叶lint修后final3全特性Clippy仍退出101，仅新提取测试配置函数uninlined_format_args；前三轮错误分别已定位，按AGENTS §5暂停后用户已明确选择修正后定向重验；待当前独立构建终态后仅内联format命名参数、核配置字节不变，保持-D warnings单次重验，其他独立证据保留；尚无完整通过结论 | `/tmp/openrust-c04d-d3-final{1,2}-<stage>.result.json`；保留-D warnings，不假加await、不改运行语义。真实双库/新生成/资源收尾仍待验收 |
+
+修正与失败证据：旧Session首轮8 passed/2 failed，修复系统随机Insert重试耗尽永久拒绝及invalidate已flush/destroy后的合法start（保tombstone），修后旧24通过。新补测第二轮因Result类型和模块半稿Db别名编译退出101；第三轮旧session10与新extensions11通过、1失败，fixture Error::custom默认400却断言500，改显式500后保留原严格断言；第四轮36通过。日志`/tmp/openrust-c04d3-{first,second,third}-<stage>.log`保留。模块首条过滤器仅3旧测试/44过滤，不计新D3场景通过。首稿独立发现pending误删目标、同ID显式意图、hook busy排队、数字Cookie读取四项均已修；模块空属性fixture缺口以非空双client链修正。final1新增工具链unused_async_trait_impl与items_after_test_module由局部有原因allow和helper位置移动修正，未降低全局门禁。
+
+用户批准后，仅将auth_fixture_config三参数改命名捕获，最终文件SHA3ff24648…；根独立将占位符反向规范化，完整format字面量逐字等于3cabae2中的原始配置，未改配置字节。待独立1 runner自然终态后才改，未漂移其快照；最终新快照12项final4已启动，获准的单次all-Clippy已实际通过，不把独立1旧快照冒称最终tests。
+
+本簇已完成上述最终适用验收，限定提交以Git为准。D4完整内置Cookie driver、Container extend与完整Session/Web后继仍开放，不能由本簇关闭L025全项。
+
 ## C04-D2 Store公开API（限定子范围已验收）
 
 契约见[ADR-082 D2](../decisions/adr-082-session-store-and-flash.md#d2基础store方法与公开扩展契约与验收边界)。D1已由d47162d提交，其完整验收不继承为D2通过。

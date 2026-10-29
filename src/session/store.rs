@@ -156,6 +156,21 @@ impl SessionRecord {
 /// `max_bytes`要求load在解码或复制完整载荷前限制读取；框架仍会验证返回记录。
 /// 实现不得将Update的Missing自动改成插入。错误不得包含凭据或原始属性。
 pub trait SessionStore: Send + Sync + 'static {
+    /// 是否必须先绑定本请求上下文才可执行 I/O。
+    fn needs_request(&self) -> bool {
+        false
+    }
+
+    /// 创建同一逻辑后端的请求内实例；不得修改单例或跨请求保存上下文。
+    ///
+    /// 需要请求的实现必须返回 Some；普通驱动不会被框架调用此方法。
+    fn bind_request(
+        &self,
+        _context: super::SessionRequestContext,
+    ) -> Result<Option<std::sync::Arc<dyn SessionStore>>> {
+        Ok(None)
+    }
+
     /// 有界加载ID的记录。驱动可返回过期记录供运行时区分“存在但已过期”。
     fn load<'a>(
         &'a self,

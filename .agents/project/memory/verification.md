@@ -1,5 +1,11 @@
 # 验收口径
 
+## C04-D3 Session扩展生命周期（限定子范围已验收）
+
+公开ID/driver选择、逻辑后端与请求实例/来源证明、显式Insert意图、销毁tombstone及请求hook已接入同一Session内核；新36项定向、模块4项及不同模型修后复审已通过。用户批准第三次Clippy失败后的单次重验，最终final4完整12项全部实际退出0且源码无漂移；默认668/29 ignored、全特性1328/102 ignored。最终源码外部consumer check/test另已通过（旧unit1+新扩展1）。根真实双库完整target各55项、三类新生成应用4/2/2及资源收尾另已通过，限定提交以Git为准。详细证据和初轮失败见[testing](testing.md#c04-d3-session扩展生命周期限定子范围已验收)。
+
+显式可信转移不承诺跨后端原子撤销；目标碰撞不改随机ID或覆盖别人的记录，pending destroy拒绝误删未拥有目标。模块只通过显式fixture Provider选择已知Db/Memory，默认不覆盖宿主custom/Redis，也不冒称通用Container extend已实现。请求hook已由双库真实TCP显式fixture证明，完整内置双Cookie Session driver保留D4，不能由本簇hook通过关闭整个L025。
+
 ## C04-D2 Session Store公开方法（限定子范围已验收）
 
 本簇扩展唯一Session状态机与属性预算，新增remember/push/数值增减/remove、出站名称修改和同后端handler公开入口，不另造会话内核。修后12项workspace/feature/MSRV/docs/deny门禁已实际通过；根PG18/MySQL8.4完整模块HTTP各54项均通过且无忽略/过滤/跳过，两侧精确自有锚库已删除并查询确认不存在。三类全新生成应用fmt/check/test通过（plain4、认证PG2/MySQL2），最终资源收尾已核根target有效产物0、五旧consumer不变；本簇限定提交以Git为准。具体日志与初轮失败修正见[testing](testing.md#c04-d2-store公开api限定子范围已验收)。

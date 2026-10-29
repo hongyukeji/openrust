@@ -1,6 +1,6 @@
 //! 保存发生于响应头发出前；取消只关闭本请求句柄，不后台保存。
 use super::{
-    Expiry, Session, SessionId, SessionStore,
+    Expiry, Session, SessionId, SessionRequestContext, SessionStore,
     provider::{SessionSettings, SessionSlot, missing},
 };
 use crate::{
@@ -45,7 +45,13 @@ pub(crate) async fn handle(
     let result = prepare(&layer, &mut request).await;
     let session = match result {
         Ok(session) => session,
-        Err(error) => return error.into_response(),
+        Err(error) => {
+            // 请求驱动绑定或加载失败时，不发送它此前排入的 Cookie。
+            if let Some(jar) = request.extensions().get::<crate::http::CookieJar>() {
+                let _ = jar.flush_queued_cookies();
+            }
+            return error.into_response();
+        }
     };
     let _close = Close(Some(session.clone()));
     let secure = match crate::http::transport::is_secure(&request) {
@@ -125,6 +131,16 @@ async fn prepare(layer: &SessionLayer, request: &mut Request) -> Result<Session>
         .map_err(|_| missing())?;
     request.extensions_mut().insert(session.clone());
     let mut close = Close(Some(session.clone()));
+    if session.handler_needs_request()? {
+        let jar = request
+            .extensions()
+            .get::<crate::http::CookieJar>()
+            .cloned()
+            .ok_or_else(missing)?;
+        session
+            .set_request_on_handler(SessionRequestContext::new(parsed.value, jar)?)
+            .await?;
+    }
     session.start().await?;
     close.0 = None;
     Ok(session)
