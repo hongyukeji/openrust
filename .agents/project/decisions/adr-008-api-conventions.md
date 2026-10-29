@@ -2,7 +2,7 @@
 
 > 替代范围见 [ADR-070](adr-070-laravel-first-rebuild.md#替代范围)；本文旧目录/命名/默认值不阻止全面重写。代码是否已迁移以当前实现和 todo.md 为准。
 
-> 重构目标：统一返回格式能力保留，但实现和使用方式必须遵循 Laravel，通过 HTTP Response / API Resource 与异常渲染的公开扩展接入同一内核；旧 API 或独立执行机制可重写，不能仅迁目录或套外壳。下文旧的全局强制包装与默认 `always_ok` 不作为新目标，R3 重新验收具体 contract；当前代码行为尚未因此改变。
+> 当前实现：统一返回格式已按 Laravel Response / API Resource 与异常渲染职责保留。HTTP 状态默认值和当前行为以 [ADR-076](adr-076-laravel-http-status-default.md) 为准：默认 `semantic`，`always_ok` 仅显式启用。以下关于默认 `always_ok` 的旧决策作为历史记录保留，不再描述当前代码。
 
 - 状态：Partially Superseded（目标设计由 ADR-070 重新开放；未替代的行为/验收事实保留）
 - 日期：2026-10-25（后续修订：响应改为统一包装结构、无载荷时省略 `data`，并补充响应时间戳）
@@ -135,7 +135,7 @@ API 格式是框架对外的契约，生成器、文档和所有用户项目都�
 | `request_id` | 仅错误响应 | 与响应头 `x-request-id` 相同；成功响应可从响应头读取 |
 
 - 包装由框架统一完成。handler 照常返回 `Json(T)`、`Paginated<T>`、`Created<T>`、`NoContent` 或 `Err(Error)`，不需要手写包装结构。JSON 响应（包括 `/health`）都使用此结构；非 JSON 内容（文件、流、HTML）不包装。CORS 预检响应（`OPTIONS` 且带 `Access-Control-Request-Method`）是协议例外，只返回响应头，成功和拒绝时都保留 tower-http 的空正文。
-- 配置项 `[api] http_status`：
+- 历史决策（已由 ADR-076 替代）：配置项 `[api] http_status`：
   - `"always_ok"`（默认）：所有包装响应的 HTTP 状态码都是 200，客户端只依赖正文。
   - `"semantic"`：正文结构不变，同时按 §4 的表格设置 HTTP 状态码，适合接入网关、监控或开放给第三方的 API。
 - 不采用 RFC 9457 problem+json 的理由：开发者希望所有接口使用同一种结构，客户端不依赖 HTTP 状态码；这也是 Spring Boot、Gin、ThinkPHP 等跨语言项目常见的 `Result<T>` 约定。需要标准 HTTP 语义时，切换到 `semantic` 即可。

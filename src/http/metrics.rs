@@ -136,7 +136,7 @@ mod tests {
             )
             .await
             .map_err(crate::core::Error::internal)?;
-        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
         assert_eq!(
             response
                 .headers()

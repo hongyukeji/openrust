@@ -14,9 +14,9 @@ pub struct ApiConfig {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum HttpStatusMode {
-    /// 始终返回 HTTP 200，并在响应正文中提供业务响应码。
-    #[default]
+    /// 始终返回 HTTP 200，并在响应正文中提供业务响应码；仅在应用显式选择时使用。
     AlwaysOk,
     /// 保留语义 HTTP 状态码，同时返回响应正文。
+    #[default]
     Semantic,
 }

@@ -190,8 +190,7 @@ fn mfa_success(response: &HttpResponse) {
 }
 
 fn mfa_unauthorized(response: &HttpResponse) {
-    // 生成项目使用 AlwaysOk envelope；稳定机器码独立于传输状态。
-    assert_eq!(response.status, StatusCode::OK);
+    assert_eq!(response.status, StatusCode::UNAUTHORIZED);
     assert_eq!(response.body["success"], false);
     assert_eq!(response.body["code"], "unauthorized");
 }

@@ -73,7 +73,7 @@ cargo run
 
 生成应用可使用自己的名称、workspace 和 Cargo.lock，本地框架/tool 依赖须保持可达；不修改本仓 workspace，也不要求维护额外源码仓库。标准生成应用默认使用 Redis，运行前准备服务或显式选择其他 cache store。
 
-未启用数据库、加密或 gRPC 的普通生成项目包含使用 [`TestApp`](src/core/README.md#测试应用) 的进程内 HTTP 测试；启用数据库认证后另生成隔离数据库的真实 TCP 认证测试与可替换 Mailer 的 `TestApp` 请求。其他生成选项当前不自动生成通用 `TestApp` 测试，应用仍可自行使用该公开 API 并显式提供所需配置。测试以同一 `Application` Provider 清单启动，不修改全局环境；进程内请求不替代真实服务验收。综合示例还演示业务依赖替换、两应用隔离和移除业务 Provider 后保留健康路由，见 [示例测试](modules/example/tests/registration.rs)。默认 API 错误状态为 `always_ok` envelope，需要断言实际 HTTP 404 时应在测试配置中选 `semantic`。
+未启用数据库、加密或 gRPC 的普通生成项目包含使用 [`TestApp`](src/core/README.md#测试应用) 的进程内 HTTP 测试；启用数据库认证后另生成隔离数据库的真实 TCP 认证测试与可替换 Mailer 的 `TestApp` 请求。其他生成选项当前不自动生成通用 `TestApp` 测试，应用仍可自行使用该公开 API 并显式提供所需配置。测试以同一 `Application` Provider 清单启动，不修改全局环境；进程内请求不替代真实服务验收。综合示例还演示业务依赖替换、两应用隔离和移除业务 Provider 后保留健康路由，见 [示例测试](modules/example/tests/registration.rs)。API 默认保留语义 HTTP 状态；只有显式配置 `always_ok` 才将 JSON 响应映射为 HTTP 200。
 
 业务 JSON API 根路径为 `/api`，所有子路由统一以 `/api/` 开头并使用 JSON API 响应封装；`/health`、`/ready` 和可选 `/metrics` 保留为运维端点。详细约定见 [HTTP 指南](src/http/README.md)。
 

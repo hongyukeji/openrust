@@ -257,7 +257,7 @@ mod tests {
             Ok(response) => response,
             Err(never) => match never {},
         };
-        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
         let body = to_bytes(response.into_body(), usize::MAX)
             .await
             .map_err(crate::Error::internal)?;

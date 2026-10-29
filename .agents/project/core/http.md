@@ -6,7 +6,7 @@
 
 ## 边界
 
-基于 `axum` 0.8 + `tower-http`。提供路由约定、提取器、默认中间件、`/health` 与 `serve`；core 已提供 `RateLimiter`，DatabaseServiceProvider 提供双库共享 store，AuthFlows 与显式 `RateLimitLayer` 已复用它。OpenAPI schema 与 `/docs` 尚未实现。
+基于 `axum` 0.8 + `tower-http`。提供路由约定、提取器、默认中间件、`/health` 与 `serve`；`[api].http_status` 默认 `semantic`，统一 JSON envelope 保留 HTTP 状态，只有显式 `always_ok` 才映射为 200。core 已提供 `RateLimiter`，DatabaseServiceProvider 提供双库共享 store，AuthFlows 与显式 `RateLimitLayer` 已复用它。OpenAPI schema 与 `/docs` 尚未实现。
 
 ## 当前实现
 
@@ -16,7 +16,7 @@
 | `site` | `[server].public_dir` 默认 `public`，`tower-http::ServeDir` 将站点目录映射至 URL 根；`root_target` 支持 `file:`、`forward:`、`redirect:`，以及启用 `view` feature 并注册 `ViewServiceProvider` 后的 `view:`。视图首页在 router 构建时验证模板；`/api/*` 和 `/ws/*` 未匹配请求保留框架 JSON 404，不回落到静态文件 |
 | `routes` | `Routes`：`route` / `get` / `post` / `put` / `patch` / `delete` / `resource` / `resource_with` / `nest(prefix, f)` / `merge` / `layer` / `into_router`；`nest("")` 或 `"/"` 走 merge |
 | `resource` | `Resource` 显式登记动作；`#[openrust::resource]` 从 controller inherent impl 的动作关联函数生成实现；`only` 连续调用取交集、`except` 裁剪；路径去尾斜杠后注册集合与成员，`update` 同时映射 PUT / PATCH |
-| `response` | `Created<T>` → semantic 201 / 默认 200，`with_location` 返回 `Result<Located<T>>`（非法值 → 500 包装）；`NoContent` → 200 成功包装并省略 `data`；无载荷的错误包装也省略 `data`，已有载荷保持原样；直接提取 `PageParams` 默认 1/20，并校验页数、每页 1..=100 与 offset 不超过 `i64::MAX`；`Paginated<T>` 输出 `data` 与 `meta` |
+| `response` | `Created<T>` → 默认 201（显式 `always_ok` 时为 200），`with_location` 返回 `Result<Located<T>>`（非法值 → 500 包装）；`NoContent` → 200 成功包装并省略 `data`；无载荷的错误包装也省略 `data`，已有载荷保持原样；直接提取 `PageParams` 默认 1/20，并校验页数、每页 1..=100 与 offset 不超过 `i64::MAX`；`Paginated<T>` 输出 `data` 与 `meta` |
 | `extract` | `Inject<T>`（从 `AppState` 取服务，缺失 → 500 包装）；OpenRust `Json<T>` / `Path<T>` / `Query<T>`（解析失败 → 400/415/422/413 包装），`Validated<Json<T>>` / `Validated<Query<T>>`（先解析，规则失败 → 422，嵌套路径 `a.b[0].c`） |
 | `middleware` | `apply(router, &ServerConfig) -> Result<Router>`：请求 ID → 传播 → `TraceLayer` span（不记录 URI、请求 ID 或 traceparent）→ 可选 CORS → 超时 408 包装 → 可选 gzip/br 压缩 → `CatchPanic` → 500 包装；启用 `metrics` feature 时记录固定方法/状态类别、耗时和在途请求数；404 fallback、405 fallback（保留 `Allow`）、413 包装；启用 CORS 时在组层前逐项校验配置；响应上下文同时建立 request ID/locale/deadline/cancellation 的 `ExecutionContext`，非法 request ID 移除后由 middleware 生成新值 |
 | `rate_limit` | `RateLimitLayer` 显式包裹路由并调用 AppState 中注册的 `RateLimiter`；key 支持可信客户端 IP、（启用 auth 时）已验证用户/匿名回退及自定义策略；store 错误关闭，429 沿用统一错误与 `Retry-After`。未包裹路由、health/fallback 不自动限流 |

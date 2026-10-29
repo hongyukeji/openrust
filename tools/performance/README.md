@@ -34,7 +34,7 @@ python3 tools/performance/scripts/http_load.py \
   --requests 300000 --concurrency 64 --rounds 3
 ```
 
-`--header` 可重复指定请求头，`--method` / `--body` 可用于业务请求。结果只描述目标路径、机器、并发和服务配置；客户端与服务同机时，客户端 CPU 可能成为瓶颈。脚本不会自动采集服务进程 CPU/RSS；应按实际 server 可执行文件 PID 定时执行 `ps -o %cpu=,rss=`，并记录采样间隔。验证 JSON API 的 503/429 时需设置 `[api].http_status = "semantic"`；默认 `always_ok` 按框架契约以 HTTP 200 返回 JSON 错误码。过载验收应使用独立轮次和较小的服务并发上限，核对拒绝状态、对应 metrics、在途资源回落及恢复请求，不把被拒请求算作成功吞吐。
+`--header` 可重复指定请求头，`--method` / `--body` 可用于业务请求。结果只描述目标路径、机器、并发和服务配置；客户端与服务同机时，客户端 CPU 可能成为瓶颈。脚本不会自动采集服务进程 CPU/RSS；应按实际 server 可执行文件 PID 定时执行 `ps -o %cpu=,rss=`，并记录采样间隔。默认语义状态会将 JSON API 的 503/429 返回为对应 HTTP 状态；只有显式配置 `[api].http_status = "always_ok"` 时才映射为 HTTP 200。过载验收应使用独立轮次和较小的服务并发上限，核对拒绝状态、对应 metrics、在途资源回落及恢复请求，不把被拒请求算作成功吞吐。
 
 2026-10-27 的开发机专项样本：macOS 27.0.1、arm64、16 核、64 GiB；release 根 `server`、`metrics` feature、只请求 `GET /api` 88 字节 JSON、连接复用、64 并发，ApacheBench 连续三轮共 900,000 请求、零失败，吞吐为 146,633–148,285 req/s，p95/p99 均为 1 ms。压力期间服务 RSS 峰值约 33 MiB，`ps` 采样 CPU 峰值 593%（约 6 核）；结束后在途指标为 0、恢复请求 200。此端点不访问数据库，结果是本机轻量 HTTP 下界，不代表认证、数据库业务、跨机网络或生产性能。
 

@@ -1,10 +1,10 @@
 # 活跃待办
 
-> 当前代码与目标：业务示例已迁至 `modules/example/` 并经模块清单接入；R1-E CRUD/能力门禁已由 bc3fa01 提交；附件 PG/MySQL 全量各 15/15，真实 MinIO CopyObject 延迟响应时的双库删除竞争各 1/1；deadline/EOF 原子仲裁后，远端结果不确定的迟到发布仍属未保证边界。OIDC 确认页已完成 Chromium/mock 分支验收，真实 Keycloak/双库 `AlwaysOk` 错误密码、已消费 state 与成功夹证各 1/1；Collector PostgreSQL 隔离 sink 的 delivery/unavailable 各 1/1 且保留 16 MiB 限制。R2-N 模块硬依赖图、双库 HTTP、生成应用与适用源码门禁已完成；下一个主簇进入 R3 HTTP/Web，完整模块管理和 Laravel 1:1 范围按 [ADR-074](decisions/adr-074-laravel-modules-directory.md) 继续推进。
+> 当前代码与目标：业务示例已迁至 `modules/example/` 并经模块清单接入；R1-E CRUD/能力门禁已由 bc3fa01 提交；附件 PG/MySQL 全量各 15/15，真实 MinIO CopyObject 延迟响应时的双库删除竞争各 1/1；deadline/EOF 原子仲裁后，远端结果不确定的迟到发布仍属未保证边界。OIDC 确认页已完成 Chromium/mock 分支验收，真实 Keycloak/双库 `AlwaysOk` 错误密码、已消费 state 与成功夹证各 1/1；Collector PostgreSQL 隔离 sink 的 delivery/unavailable 各 1/1 且保留 16 MiB 限制。R2-N 模块硬依赖图、双库 HTTP、生成应用与适用源码门禁已由 48be854 提交；R3-A 语义 HTTP 状态默认与统一响应已验收，当前继续 R3 HTTP/Web。
 
 > 受众：AI Agent
 > 更新：2026-10-29
-> 摘要：Laravel + laravel-modules 的 Rust 1:1 实现唯一活跃队列；R0旧基线已记录，模块包逐项盘点待补；R1-S、R2-A至R2-N及 R1-E 真实 CRUD/当前公开能力示例已分别交付；R1-E 提交 bc3fa01，附件与 Collector/OIDC 等真实服务验收、独立审查及任务资源清理完成。R2-N 已实现模块硬依赖与稳定 Provider 顺序，双库 HTTP、生成应用、源码门禁、根默认 TCP 入口均验收；下一主簇进入 R3 HTTP/Web。远端结果不确定后的迟到发布边界保留。
+> 摘要：Laravel + laravel-modules 的 Rust 1:1 实现唯一活跃队列；R0旧基线已记录，模块包逐项盘点待补；R1-S、R2-A至R2-N及 R1-E 真实 CRUD/当前公开能力示例已分别交付；R1-E 提交 bc3fa01。R2-N 由 48be854 提交；R3-A 语义 HTTP 状态默认已按子簇交付，继续 R3 HTTP/Web 路由、请求、资源与异常行为矩阵。远端结果不确定后的迟到发布边界保留。
 
 ## 领取规则
 
@@ -14,7 +14,7 @@
 
 用户再次明确按 Laravel + laravel-modules 的完整 Rust 实现从零设计、重写核心；旧 API、目录和实现不构成兼容约束。新内核以固定上游行为为依据，不继续堆叠旧 Plugin 装配；旧源码仅作事实与回归输入，由对应功能簇替换后通过 git rm 清除失效实现。此授权不删除他人 WIP、共享服务、数据或原始测试证据，也不要求重造成熟密码学和数据库驱动。
 
-R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main 限定提交；当前唯一主功能簇转入 R3 HTTP/Web。全部工作留在 main；共享 Cargo 清单、锁文件、验证服务和提交串行协调；子代理不得递归派发。
+R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main 限定提交；当前唯一主功能簇转入 R3 HTTP/Web 后继。全部工作留在 main；共享 Cargo 清单、锁文件、验证服务和提交串行协调；子代理不得递归派发。
 
 ## 当前可领取
 
@@ -25,7 +25,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 | R2-M 模块最小闭环与目录迁移 | 真实服务与生成项目已验收，本簇提交 | modules/ 声明注册、模块配置/资源/统一迁移、依赖与冲突错误；示例迁至 modules/example，真实HTTP及双库验证；完整管理命令归R13 |
 | R1-E 真实CRUD与当前能力示例 | 已完成 bc3fa01 | 真实 Article CRUD；当前公开能力进入唯一模块示例；PostgreSQL 18/MySQL 8.4、生成项目、真实服务与整组门禁已验收，已限定本地提交 |
 | R2 后继内核与测试底座 | R2-N 模块依赖图与顺序已完成 | `.requires` 硬依赖、稳定拓扑顺序、register/boot 一致；真实 PostgreSQL/MySQL HTTP、生成项目、根无参数 TCP、工作区门禁均有本簇证据 |
-| R3 HTTP 与 Web | 下一主簇 | 依赖 R2；按 Laravel Request/Response、路由/控制器、FormRequest、Resource、middleware、Session/CSRF 与异常行为矩阵逐项拆簇；每簇更新 `modules/example` 并做真实 HTTP 验收 |
+| R3 HTTP 与 Web | R3-A 已验收；后续路由/请求子簇待 Spec | R3-A 默认 semantic、显式 always_ok、错误早退 request ID、统一 envelope、生成模板和文档已按 ADR-076 及 testing 记录验证；继续按 C03/C04 拆分，不能把 HTTP 状态契约等同 R3 完成 |
 | 模块包固定范围细化 | 待逐项盘点 | 对正式laravel-modules固定源码/文档的导航、源码与测试拆行为矩阵，分类必要Rust差异/用户约定/缺口；不把目录规范或显式Plugin等同完整模块管理 |
 
 ## 后继路由
@@ -202,3 +202,13 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 5. `ProviderBuilder` 使用准备后的顺序注册并 boot 模块 Provider；综合示例补一个消费者模块依赖生产者 Provider 的启动场景，证明依赖顺序可观察且不要求修改框架代码。
 6. 用模块单元/启动集成测试覆盖反向声明顺序、priority 冲突、依赖禁用/未编译、重复/自依赖、环与确定性排序；执行源码门禁、双库模块 HTTP/生成应用及真实根入口验收，再限定本地提交。
 7. 不提供版本约束、自动依赖安装或“启用即递归改状态”；这些涉及 Cargo 编译/管理命令的能力按模块矩阵与 R13 单独验收。
+
+## 当前 R3-A Spec：语义 HTTP 状态默认与统一 JSON 响应
+
+状态：已完成并待本地限定提交。R2-N 已由 `48be854` 限定提交；本簇仅收敛 Laravel Response/Validation 对应的 HTTP 状态默认及现有统一 JSON envelope，不领取 FormRequest、Session/CSRF、Resource 新能力。
+
+1. 固定依据为 Laravel 13.39.0 与文档 commit `960eedf0911155ad16326ade49c0ea5d18eda0b8`；响应使用真实 HTTP 状态，validation JSON 使用 422。保持 OpenRust 自有 envelope 增强与 ADR-008 状态映射。
+2. `semantic` 成为 ApiConfig、框架错误 fallback、根默认配置与生成项目默认值；框架错误遵循同一请求策略。`always_ok` 仅在应用显式配置时覆盖状态。
+3. 创建成功保留 201，空成功仍按现有类型返回 200；not found、method not allowed、validation、rate limit、overload、timeout 与 5xx 返回语义状态。request ID、机器码、字段错误、脱敏和 JSON 结构保持原契约；HTML、文件、流、SSE、gRPC 保留各自协议。
+4. 同步 CLI 生成模板/.env、综合示例、用户文档和 CHANGELOG；修正把 `always_ok` 当隐式默认的测试断言，覆盖省略配置时的 HTTP 行为及显式 override。
+5. 生成普通/认证应用并执行 check/test/HTTP；检查根实际 HTTP 入口，执行默认/全特性 workspace 门禁、deny、MSRV/no-default。双库仅对实际依赖数据库的改变路径验收，不以旧记录代替本簇行为测试。

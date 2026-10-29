@@ -58,7 +58,7 @@ curl --noproxy '*' http://127.0.0.1:3000/health
 
 编译并配置 `auth-mfa` 时，`/api/example/account` 展示既有 `AuthFlows` 的 Session 偏好、同源登录与 CSRF 保护，以及 JWT 账户的 TOTP 启用、恢复码轮换和停用。管理操作重新验证密码；启用 MFA 后旧 Session 逐请求拒绝，登录必须完成一次性挑战。旧 access JWT 不会因此自动全局撤销，不能把此示例当作立即登出的保证。账户路由的成功与错误响应均由外层设置 `Cache-Control: no-store`；测试 Session cookie 名称来自同一 Provider 配置。
 
-配置 `example.oidc` 且编译 `auth-oidc` 后，模块才挂载 `/api/example/oidc`。Provider 在启动时完成受限目标的 discovery，并要求同容器中的 `Db`、`AuthFlows` 与 `Encryptor` 可用；模块路由登记之后再覆盖 OIDC 配置会在 Ready 前拒绝。登录回调验证浏览器绑定 cookie、state 与授权码，不按相同邮箱自动合并账户。JWT 原生客户端可显式 bind/unbind；浏览器绑定从已认证 Session 的 `/bind/authorize` 发起，以同源 CSRF 和短时意图绑定账户与浏览器，回调仅准备一次性确认，再由 `/bind/confirm` 复验密码。确认页只在 HTTP 成功且统一响应 envelope 的 `success` 为真、`data.status` 为 `bound` 时显示成功；默认 `AlwaysOk` 下错误密码或已消费 state 虽返回 HTTP 200，仍显示失败。显式运行 `browser_confirmation_reports_success_and_failures_from_actual_page` 会启动 Chromium 执行生产 HTML/JavaScript，覆盖成功、业务失败、HTTP 错误和非法 JSON；本地 mock 只验页面判断，不替代真实 Keycloak/数据库验收。意图终态保留 tombstone，以免旧 state 在过期后绕回普通登录或重新绑定；这会持续占用数据库行，当前没有自动压缩，运维需监控表容量，不能按本地 10 分钟 TTL 直接删终态。浏览器测试使用真实 Keycloak 授权网络和随机端口的真实 RP HTTP，但测试夹具截取 IdP 固定回调地址并转交相同路径；不宣称完整浏览器自动导航已验收。
+配置 `example.oidc` 且编译 `auth-oidc` 后，模块才挂载 `/api/example/oidc`。Provider 在启动时完成受限目标的 discovery，并要求同容器中的 `Db`、`AuthFlows` 与 `Encryptor` 可用；模块路由登记之后再覆盖 OIDC 配置会在 Ready 前拒绝。登录回调验证浏览器绑定 cookie、state 与授权码，不按相同邮箱自动合并账户。JWT 原生客户端可显式 bind/unbind；浏览器绑定从已认证 Session 的 `/bind/authorize` 发起，以同源 CSRF 和短时意图绑定账户与浏览器，回调仅准备一次性确认，再由 `/bind/confirm` 复验密码。确认页只在 HTTP 成功且统一响应 envelope 的 `success` 为真、`data.status` 为 `bound` 时显示成功；测试显式 `AlwaysOk` 模式下，错误密码或已消费 state 虽返回 HTTP 200，仍显示失败。显式运行 `browser_confirmation_reports_success_and_failures_from_actual_page` 会启动 Chromium 执行生产 HTML/JavaScript，覆盖成功、业务失败、HTTP 错误和非法 JSON；本地 mock 只验页面判断，不替代真实 Keycloak/数据库验收。意图终态保留 tombstone，以免旧 state 在过期后绕回普通登录或重新绑定；这会持续占用数据库行，当前没有自动压缩，运维需监控表容量，不能按本地 10 分钟 TTL 直接删终态。浏览器测试使用真实 Keycloak 授权网络和随机端口的真实 RP HTTP，但测试夹具截取 IdP 固定回调地址并转交相同路径；不宣称完整浏览器自动导航已验收。
 
 登录回调经 `ExternalIdentityFlows::complete_with_handle` 返回外部登录关联 handle；启用 MFA 的账户只能得到挑战，不能先拿 token。一次性挑战完成后，refresh 家族沿既有接口关联；`/session/attach` 只允许把**已登录的同账户 Session**关联到该 handle，并重新验证密码、Origin 和 CSRF，不是 OIDC 直接创建 Session 的替代实现。`POST /logout` 先撤销本地关联 refresh/Session，再返回固定 IdP end-session URL；同 callback 的 state-only 分支消费退出 state，不循环重定向。公开 `/backchannel` 只接受框架验证通过的签名 logout token，按 issuer、audience、sid/sub 和 jti 处理撤销与重放；不能用未验证的请求字段选择账户。`tests/oidc_lifecycle_flows.rs` 在真实 Keycloak 与双库 RP TCP 中覆盖 MFA 门、一次性挑战、关联退出、真实签名 backchannel/重放、有效签名 wrong-audience 拒绝及伪签名无副作用。自包含旧 access JWT 仍可能有效至 TTL；本地 logout 不等于所有 IdP 会话均已退出，也不保证已建 WebSocket 即时断开。
 
@@ -170,7 +170,7 @@ app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5)).aw
 
 替换在全体 Provider register 完成后、容器封口前生效。示例同时创建未替换与替换后的两个应用，检查内容互不污染；每个应用都显式 `shutdown` 等待框架拥有的异步资源关闭。完整 reset 会关闭再重建应用；闭包故意共享的外部 `Arc` 不会自动清空。
 
-第二项测试用 `remove_module("example")` 从本次启动清单移除业务模块，确认 `/api/example` 不存在而 `/health` 保留。它显式使用 `production_sources(true)` 的 Semantic 模式断言 HTTP 404；默认 AlwaysOk 模式仍返回 HTTP 200，并以响应正文 `code = "not_found"` 表示缺失，原注册测试保留该断言。测试不修改框架默认响应策略。
+第二项测试用 `remove_module("example")` 从本次启动清单移除业务模块，确认 `/api/example` 不存在而 `/health` 保留。默认语义状态直接返回 HTTP 404，响应正文 `code = "not_found"`；另有显式 `always_ok` 模式回归保护可选覆盖。
 
 ```bash
 cargo test -p openrust --bin server production_testapp_

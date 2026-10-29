@@ -280,7 +280,7 @@ fn response_context() -> ResponseContext {
         .try_with(Clone::clone)
         .unwrap_or(ResponseContext {
             request_id: "-".to_owned(),
-            http_status: HttpStatusMode::AlwaysOk,
+            http_status: HttpStatusMode::Semantic,
         })
 }
 
@@ -455,6 +455,12 @@ impl<T: Serialize> IntoResponse for ApiResponse<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unscoped_error_uses_semantic_http_status_by_default() {
+        let response = Error::NotFound("missing".to_owned()).into_response();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
 
     #[test]
     fn expected_http_overload_rejections_do_not_emit_error_logs() {

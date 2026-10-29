@@ -126,14 +126,20 @@ async fn module_registration_controls_only_its_business_routes()
         let response = router
             .oneshot(Request::get("/api/example").body(Body::empty())?)
             .await?;
-        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.status(),
+            if registered {
+                StatusCode::OK
+            } else {
+                StatusCode::NOT_FOUND
+            }
+        );
         let body = to_bytes(response.into_body(), usize::MAX).await?;
         let response: serde_json::Value = serde_json::from_slice(&body)?;
         assert_eq!(response["success"], registered);
         if registered {
             assert_eq!(response["data"]["message"], "Hello from modules/example");
         } else {
-            // 默认 AlwaysOk envelope 保持 HTTP 200，机器码仍明确没有此业务路由。
             assert_eq!(response["code"], "not_found");
         }
         app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))

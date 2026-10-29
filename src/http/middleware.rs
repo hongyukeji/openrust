@@ -134,7 +134,16 @@ async fn response_context(
         if state.container().contains::<I18n>() {
             match state.resolve::<I18n>().await {
                 Ok(service) => Some(service),
-                Err(error) => return error.into_response(),
+                Err(error) => {
+                    return with_response_context(
+                        ResponseContext {
+                            request_id,
+                            http_status: settings.api.http_status,
+                        },
+                        async move { error.into_response() },
+                    )
+                    .await;
+                }
             }
         } else {
             None

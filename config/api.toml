@@ -1,2 +1,2 @@
 [api]
-http_status = "always_ok"
+http_status = "semantic"

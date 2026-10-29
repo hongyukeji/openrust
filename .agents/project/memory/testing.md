@@ -582,3 +582,13 @@ EOF/deadline 并发仲裁经独立只读复审确认 blocker 已消除：共享 
 Collector PostgreSQL path 已明确读 `evidence-pg-final.log` 且检查 sink mtime/size 活跃增长；该共享日志达 36 MiB，未放宽测试 16 MiB 完整文件限制。使用单独 Collector 与 `/tmp/openrust-r1e-collector/evidence-pg-isolated.log` 复验 delivery/unavailable 各 1/1，日志 `/tmp/openrust-r1e-collector-pg-corrected-{delivery,unavailable}.log`；匹配 trace/metric、业务提交/不可达 warning 和无私密 sentinel 均由用例断言，共享 Collector 未改。
 
 独立复审核实 EOF/deadline blocker 与 OIDC confirmation success 判定已修复。真实 Keycloak 双库确认用例已完成；`storage_publication_uncertain` 后远端迟到成功、App shutdown deadline 和进程强杀仍不保证跨系统原子性或无孤儿，R1-E 保持 in_progress。
+
+## R3-A Laravel 语义 HTTP 状态默认与统一 JSON 响应
+
+R3-A 按 ADR-076 将 `HttpStatusMode::Semantic` 设为框架、配置、无请求上下文错误 fallback 与生成应用默认；`always_ok` 保留显式覆盖。默认 HTTP 行为测试覆盖创建 201、404、405、415、422、429、500，显式覆盖覆盖成功、异常、fallback、提取错误和 timeout 的 HTTP 200。另测试故障 I18n Provider 的早退分支：`semantic` 返回 500、`always_ok` 返回 200，响应头和正文 request ID 均与输入 ID 一致。metrics 未启用路由现按语义返回 404；原先把 200 当默认值的断言已改正。ADR-008 已明确旧 always_ok 默认是历史决策，索引登记 ADR-076。
+
+源码门禁：`cargo fmt --all --check`、`git diff --check`、默认与 all-features workspace all-target Clippy（warnings denied）、默认 workspace tests、串行 all-features workspace tests、默认与 all-features workspace Rustdoc（`RUSTDOCFLAGS='-D warnings'`）、workspace no-default all-target check、`cargo deny check`、Rust 1.97 all-features workspace check 和 Rust 1.97 `openrust --no-default-features` 均通过。默认 workspace 测试中核心库 298/298；all-features 串行 workspace 所有组汇总 1,011 passed/0 failed/93 ignored。两次默认并行度 all-features 全量运行分别在视图失败场景和模块禁用 TestApp 场景报告了 `internal_error`；两个用例各自单独重跑通过，完整 `RUST_TEST_THREADS=1` all-features workspace 复跑通过。未把 ignored 用例计作通过；该并行运行异常保留为证据，后续若复现再定位。
+
+生成项目：`/tmp/openrust-r3a-generated-20261029/{plain,postgres,mysql}`。普通、PostgreSQL 认证、MySQL 认证项目均通过格式和 workspace all-target offline check；普通生成项目的测试通过，PG18/MySQL8.4 生成认证应用真实 HTTP 测试各 2/2（包含默认语义状态）。同批较早验证已实际启动仓库根无参数 `cargo run`：TCP `/api/r3a-missing-route` 返回 HTTP 404 `not_found` envelope，`/health` 返回 200，SIGINT 后 exit 0。生成构建使用独立 `/tmp/openrust-r3a-generated-target`，不替代根真实服务测试。
+
+独立只读复审发现并促使修复 I18n 早退响应上下文缺口，复审后未发现 blocker/should-fix；其文档 nit 已同步处理。PostgreSQL/MySQL 响应数据库状态的业务路径未改变，既有真实 DB 验收不被重标为本簇新证据。

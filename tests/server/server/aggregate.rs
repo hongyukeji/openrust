@@ -668,7 +668,7 @@ fn default_config_loads_from_package_directory() -> TestResult {
     let framework = loader.load_framework()?;
     assert_eq!(framework.app.name, "openrust");
     assert_eq!(framework.server.port, 3000);
-    assert_eq!(framework.api.http_status, config::HttpStatusMode::AlwaysOk);
+    assert_eq!(framework.api.http_status, config::HttpStatusMode::Semantic);
     assert!(framework.server.compression.enabled);
     assert!(!framework.server.cors.enabled);
     Ok(())
@@ -681,7 +681,7 @@ fn unknown_route_returns_envelope() -> TestResult {
             .await?
             .oneshot(Request::get("/nope").body(Body::empty())?)
             .await?;
-        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
         assert_eq!(response.headers()["content-type"], "application/json");
         assert!(response.headers().contains_key("x-request-id"));
         let request_id = response.headers()["x-request-id"].to_str()?.to_owned();

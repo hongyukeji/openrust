@@ -996,13 +996,33 @@ mod tests {
     fn api_http_status_defaults_overrides_and_rejects_invalid_value() {
         let _environment_guard = crate::lock_test_env();
         figment::Jail::expect_with(|jail| {
+            jail.create_dir("default_config")?;
+            jail.create_file("default_config/api.toml", "[api]")?;
             jail.create_dir("config")?;
-            jail.create_file("config/api.toml", "[api]\nhttp_status = \"semantic\"")?;
+            jail.create_file("config/api.toml", "[api]\nhttp_status = \"always_ok\"")?;
+            let default_loader = ConfigLoader::new("default_config", Environment::Test);
+            assert_eq!(
+                default_loader
+                    .load_framework()
+                    .map_err(|e| figment::Error::from(e.to_string()))?
+                    .api
+                    .http_status,
+                HttpStatusMode::Semantic
+            );
             let loader = ConfigLoader::new("config", Environment::Test);
             assert_eq!(
                 FrameworkConfig::default().api.http_status,
+                HttpStatusMode::Semantic
+            );
+            assert_eq!(
+                loader
+                    .load_framework()
+                    .map_err(|e| figment::Error::from(e.to_string()))?
+                    .api
+                    .http_status,
                 HttpStatusMode::AlwaysOk
             );
+            jail.set_env("APP_API_HTTP_STATUS", "semantic");
             assert_eq!(
                 loader
                     .load_framework()
@@ -1010,15 +1030,6 @@ mod tests {
                     .api
                     .http_status,
                 HttpStatusMode::Semantic
-            );
-            jail.set_env("APP_API_HTTP_STATUS", "always_ok");
-            assert_eq!(
-                loader
-                    .load_framework()
-                    .map_err(|e| figment::Error::from(e.to_string()))?
-                    .api
-                    .http_status,
-                HttpStatusMode::AlwaysOk
             );
             jail.set_env("APP_API_HTTP_STATUS", "invalid");
             let error = loader

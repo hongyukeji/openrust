@@ -163,8 +163,8 @@ async fn aggregate_server_localizes_errors_and_scopes_concurrent_requests() -> T
     let (english_response, chinese_response) = tokio::join!(english, chinese);
     let english_response = english_response?;
     let chinese_response = chinese_response?;
-    assert_eq!(english_response.status(), StatusCode::OK);
-    assert_eq!(chinese_response.status(), StatusCode::OK);
+    assert_eq!(english_response.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(chinese_response.status(), StatusCode::UNAUTHORIZED);
     let english_body = to_bytes(english_response.into_body(), usize::MAX).await?;
     let chinese_body = to_bytes(chinese_response.into_body(), usize::MAX).await?;
     let english_json: serde_json::Value = serde_json::from_slice(&english_body)?;

@@ -430,7 +430,7 @@ async fn total_pages_cover_zero_exact_and_partial_pages() -> TestResult {
 fn created_location_is_set_and_invalid_value_is_safe() -> TestResult {
     let response =
         Created::with_location("/api/posts/42", Json(json!({"id": 42})))?.into_response();
-    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.status(), StatusCode::CREATED);
     assert_eq!(response.headers()[header::LOCATION], "/api/posts/42");
     let invalid = Created::with_location("/api/posts/\n", Json(json!({"id": 42})));
     assert!(invalid.is_err());
@@ -438,7 +438,7 @@ fn created_location_is_set_and_invalid_value_is_safe() -> TestResult {
         .err()
         .map(IntoResponse::into_response)
         .ok_or("expected error")?;
-    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
     assert_eq!(response.headers()[header::CONTENT_TYPE], "application/json");
     Ok(())
 }

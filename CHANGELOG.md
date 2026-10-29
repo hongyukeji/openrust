@@ -4,6 +4,10 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ## [Unreleased]
 
+### Changed
+
+- API/framework JSON 默认使用语义 HTTP 状态（如创建 201、校验失败 422、资源缺失 404）；`always_ok` 仅在配置中显式选择时启用，统一 envelope 与机器码保持不变。
+
 ### Fixed
 
 - 修复容器缓存完成通知早于构造帧结束的误报循环，以及生命周期关闭通知持锁时的同步 Waker 重入死锁。

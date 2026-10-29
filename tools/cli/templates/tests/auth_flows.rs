@@ -340,9 +340,7 @@ async fn run_auth_flow(
         }),
     )
     .await?;
-    // 生成的 API 项目默认使用 AlwaysOk envelope mode；错误会在 JSON 中保留稳定机器码，
-    // 同时 HTTP 传输状态仍为 200。
-    assert_eq!(rate_limited.status, StatusCode::OK);
+    assert_eq!(rate_limited.status, StatusCode::TOO_MANY_REQUESTS);
     assert_eq!(rate_limited.body["success"], false);
     assert_eq!(rate_limited.body["code"], "rate_limited");
 {{mfa_flow}}    Ok(())

@@ -95,7 +95,7 @@ ModuleManifest::from_file(root.join("modules_statuses.json"))
 
 源码声明、注册清单与状态文件属于应用配置，无需修改框架 `src/` 或依赖清单。默认状态文件和模块资源路径相对于运行工作目录，与默认 `config/` 加载规则一致。请从部署应用根启动；`cargo --manifest-path` 本身不会替应用切换运行工作目录，从其他目录执行时不能假定它读取项目根。TestApp 的显式 Figment 不会改变这一资源根约定，也不修改全局 cwd/env。生成应用已有 `Configuration.modules_root` 可设置绝对运行根；`Application::modules(config)` 将其同时传入状态文件与所有模块 descriptor；`APP_CONFIG_DIR` 只覆盖配置目录，不会自动替模块选择资源根。缺少文件或键表示关闭；`false`、字符串 `"true"`、数字等非 JSON `true` 值也关闭。损坏 JSON 会使启动失败，框架不会覆盖原文件；可读状态变更在下次应用构建才生效，当前实例不热卸载。此处没有新增状态管理写命令。
 
-启动后请求 `/api/orders`；默认 AlwaysOk 成功 envelope 的 `data.module` 为 `"orders"`。在生成的普通应用 `tests/test_app.rs` 中，可沿用已有 `TestApp<bootstrap::应用类型>` 和显式测试来源，对该路径调用 `request` 后 `assert_json`，再显式 `shutdown`。`TestAppBuilder::remove_module("orders")` 只移除本次测试应用的模块；默认 AlwaysOk 的缺失路由仍是 HTTP 200、正文 `code="not_found"`，显式 Semantic 模式才断言 HTTP 404。
+启动后请求 `/api/orders`；默认语义状态成功 envelope 的 `data.module` 为 `"orders"`。在生成的普通应用 `tests/test_app.rs` 中，可沿用已有 `TestApp<bootstrap::应用类型>` 和显式测试来源，对该路径调用 `request` 后 `assert_json`，再显式 `shutdown`。`TestAppBuilder::remove_module("orders")` 只移除本次测试应用的模块；默认缺失路由返回 HTTP 404 和正文 `code="not_found"`；只有显式设置 `always_ok` 才返回 HTTP 200。
 
 ```bash
 cargo check

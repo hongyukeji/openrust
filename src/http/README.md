@@ -231,4 +231,4 @@ let response = client
     .await?;
 ```
 
-`[api] http_status = "always_ok"` 是默认值：所有框架 JSON 封装都返回 HTTP 200。`semantic` 沿用 ADR-008 的状态码表。middleware 会将选定模式和 request ID 保存在请求级 task context 中，使成功响应、提取错误、fallback、timeout 和 panic 响应遵循同一策略。JSON `/health` 响应也使用相同封装；文件、流和 HTML 等非 JSON 响应保持原始格式。
+`[api] http_status` 默认是 `"semantic"`：框架 JSON 封装按 ADR-008 保留创建、校验、未找到、限流及服务故障等 HTTP 状态，同时保持统一 envelope。仅显式设置 `"always_ok"` 时才将这些 JSON 状态映射为 HTTP 200。middleware 会将选定模式和 request ID 保存在请求级 task context 中，使成功响应、提取错误、fallback、timeout 和 panic 响应遵循同一策略。JSON `/health` 响应也使用相同封装；文件、流和 HTML 等非 JSON 响应保持原始格式。

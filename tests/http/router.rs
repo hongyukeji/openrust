@@ -581,7 +581,7 @@ async fn app_builder_http_layer_wraps_routes() -> TestResult {
     let response = build_router(&app)?
         .oneshot(Request::get("/plain-error").body(Body::empty())?)
         .await?;
-    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
     let json = json_body(response).await;
     assert_eq!(json["success"], false);
     assert_eq!(json["code"], "internal_error");
@@ -1491,7 +1491,9 @@ async fn missing_json_field_is_422_with_field_error() -> TestResult {
 
 #[tokio::test]
 async fn always_ok_wraps_success_errors_and_fallbacks_with_matching_request_id() -> TestResult {
-    let router = router_with_exact_config(FrameworkConfig::default()).await?;
+    let mut config = FrameworkConfig::default();
+    config.api.http_status = openrust::config::HttpStatusMode::AlwaysOk;
+    let router = router_with_exact_config(config).await?;
     for (method, uri, expected_code) in [
         ("GET", "/api/page", "ok"),
         ("POST", "/api/created", "ok"),
@@ -1616,6 +1618,7 @@ async fn semantic_keeps_created_error_and_rate_limit_statuses() -> TestResult {
 async fn always_ok_maps_extractor_errors_and_timeout_to_envelopes() -> TestResult {
     let mut config = FrameworkConfig::default();
     config.server.request_timeout_secs = 1;
+    config.api.http_status = openrust::config::HttpStatusMode::AlwaysOk;
     let router = router_with_exact_config(config).await?;
     let cases = [
         (
@@ -1653,6 +1656,120 @@ async fn always_ok_maps_extractor_errors_and_timeout_to_envelopes() -> TestResul
         assert_eq!(body["request_id"], request_id, "{code}");
         assert_eq!(body["code"], code);
         assert_eq!(body["success"], false);
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn default_status_mode_uses_semantic_http_codes() -> TestResult {
+    assert_eq!(
+        FrameworkConfig::default().api.http_status,
+        openrust::config::HttpStatusMode::Semantic
+    );
+    let router = router_with_exact_config(FrameworkConfig::default()).await?;
+    for (method, uri, expected_status, expected_code) in [
+        ("POST", "/api/created", StatusCode::CREATED, "ok"),
+        ("GET", "/nope", StatusCode::NOT_FOUND, "not_found"),
+        (
+            "POST",
+            "/api/greet",
+            StatusCode::METHOD_NOT_ALLOWED,
+            "method_not_allowed",
+        ),
+        (
+            "GET",
+            "/api/boom",
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "internal_error",
+        ),
+        (
+            "GET",
+            "/api/limited",
+            StatusCode::TOO_MANY_REQUESTS,
+            "rate_limited",
+        ),
+        (
+            "POST",
+            "/api/raw",
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            "unsupported_media_type",
+        ),
+    ] {
+        let response = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(method)
+                    .uri(uri)
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(response.status(), expected_status, "{uri}");
+        let body = json_body(response).await;
+        assert_eq!(body["success"], expected_status.is_success(), "{uri}");
+        assert_eq!(body["code"], expected_code, "{uri}");
+    }
+    let validation = router
+        .oneshot(
+            Request::post("/api/raw")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"pages":1}"#))?,
+        )
+        .await?;
+    assert_eq!(validation.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    let body = json_body(validation).await;
+    assert_eq!(body["success"], false);
+    assert_eq!(body["code"], "validation_failed");
+    assert!(body["errors"]["title"].is_array());
+    Ok(())
+}
+
+struct FailingI18nProvider;
+impl openrust::core::ServiceProvider for FailingI18nProvider {
+    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
+        app.scoped::<openrust::i18n::I18n, _>(|_| {
+            Box::pin(async {
+                Err(openrust::Error::internal(std::io::Error::other(
+                    "i18n service unavailable",
+                )))
+            })
+        });
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn i18n_resolution_errors_keep_request_status_mode_and_id() -> TestResult {
+    for (mode, expected_status) in [
+        (
+            openrust::config::HttpStatusMode::Semantic,
+            StatusCode::INTERNAL_SERVER_ERROR,
+        ),
+        (openrust::config::HttpStatusMode::AlwaysOk, StatusCode::OK),
+    ] {
+        let mut config = FrameworkConfig::default();
+        config.api.http_status = mode;
+        let sources = figment::Figment::from(figment::providers::Serialized::defaults(config))
+            .merge(figment::Figment::new());
+        let mut builder = openrust::core::ProviderBuilder::new();
+        builder
+            .provider(HttpServiceProvider)
+            .provider(FailingI18nProvider);
+        let app = openrust::App::from_provider_runtime(builder.start(sources).await?)?;
+        let response = build_router(&app)?
+            .oneshot(
+                Request::get("/unreachable")
+                    .header("x-request-id", "i18n-resolution-failure")
+                    .body(Body::empty())?,
+            )
+            .await?;
+
+        assert_eq!(response.status(), expected_status);
+        let request_id = response.headers()["x-request-id"].to_str()?.to_owned();
+        assert_eq!(request_id, "i18n-resolution-failure");
+        let body = json_body(response).await;
+        assert_eq!(body["request_id"], request_id);
+        assert_eq!(body["code"], "service_initialization_failed");
     }
     Ok(())
 }
