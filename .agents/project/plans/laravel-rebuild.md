@@ -318,6 +318,10 @@ MQTT作为按需引入的可选扩展，不表述为框架内置后默认禁用�
 
 第三方体验参照：[php-mqtt/laravel-client](https://github.com/php-mqtt/laravel-client/tree/e010c8d66d7684152df250b25f66a75646b3b325)（2026-10-29读取固定commit）：package discovery、config/mqtt-client.php、默认/命名connections、Facade connection/publish及显式subscribe loop；它是client包，不内置Broker。仅参考Laravel扩展体验，不引入PHP依赖，不把其组件API直接复制成Rust。Broker独立进程职责可类比Laravel实时服务的运行方式，并非Laravel官方MQTT规范；协议与成熟Rust组件的真实能力仍须实施前Spec。
 
+### 阶段二 R7/R11：可选 API 正文加密
+
+按[API正文加密与Vue对接计划](api-payload-encryption.md)收敛Provider/config/Contract/中间件，复用唯一Request/Resource/异常链；HTTPS与认证授权仍为基础，JWE成熟组件待互操作选型，独立密钥与防重放、响应接收方/错误/资源边界先Spec。Vue仅提供独立请求封装示例，不启动V2或预置HTTP路由。R14补真实浏览器、双库、多节点及轮换验收；当前仅规划，不打断在途HTTP。
+
 ## 6. 功能簇 contract 模板
 
 每簇创建/更新领域 ADR 或 Spec，至少包含：
