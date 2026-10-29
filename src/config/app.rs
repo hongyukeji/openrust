@@ -92,6 +92,8 @@ pub struct AppConfig {
     pub env: Environment,
     /// 用于构造绝对链接的公开基础 URL。
     pub url: String,
+    /// 日期便捷读取的应用默认时区；不修改进程全局时区。
+    pub timezone: String,
 }
 
 impl Default for AppConfig {
@@ -100,6 +102,17 @@ impl Default for AppConfig {
             name: "OpenRust".to_owned(),
             env: Environment::Development,
             url: "http://localhost:3000".to_owned(),
+            timezone: "UTC".to_owned(),
         }
+    }
+}
+
+impl AppConfig {
+    pub(crate) fn resolved_timezone(
+        &self,
+    ) -> Result<crate::support::ResolvedTimezone, ConfigError> {
+        crate::support::ResolvedTimezone::parse(&self.timezone).map_err(|_| {
+            ConfigError::Invalid("app.timezone: 时区名称无效（源值未公开）".to_owned())
+        })
     }
 }

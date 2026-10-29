@@ -321,6 +321,24 @@ pub fn build_router(app: &App) -> Result<Router> {
             stateful = build_layer(stateful);
         }
     }
+    let calendar = app
+        .extension::<crate::support::CalendarContext>()
+        .cloned()
+        .map_or_else(
+            || {
+                app.config().app.resolved_timezone().map(|zone| {
+                    crate::support::CalendarContext::new(
+                        zone,
+                        Arc::new(crate::support::SystemClock),
+                    )
+                })
+            },
+            Ok,
+        )?;
+    let stateful = stateful.layer(axum::middleware::from_fn_with_state(
+        calendar,
+        expose_calendar_context,
+    ));
     let app_router = middleware::apply(stateful, &app.config().server, &app.config().api)?;
     let app_router = app_router.layer(axum::middleware::from_fn_with_state(
         route_urls.ok_or_else(|| {
@@ -446,4 +464,19 @@ mod tests {
         let result = providers.start(sources).await;
         assert!(result.is_err());
     }
+}
+
+async fn expose_calendar_context(
+    State(context): State<crate::support::CalendarContext>,
+    mut request: Request,
+    next: Next,
+) -> Response {
+    if request
+        .extensions()
+        .get::<crate::support::CalendarContext>()
+        .is_none()
+    {
+        request.extensions_mut().insert(context);
+    }
+    next.run(request).await
 }

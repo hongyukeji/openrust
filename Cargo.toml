@@ -148,7 +148,7 @@ argon2 = { workspace = true, optional = true }
 async-trait.workspace = true
 base64 = { workspace = true, optional = true }
 chrono.workspace = true
-chrono-tz = { workspace = true, optional = true }
+chrono-tz = { workspace = true }
 cron-parser = { workspace = true, optional = true }
 icu_datetime.workspace = true
 icu_decimal.workspace = true
@@ -255,7 +255,7 @@ auth = [
     "dep:tower-sessions",
     "signing",
 ]
-queue = ["dep:chrono-tz", "dep:cron-parser"]
+queue = ["dep:cron-parser"]
 queue-redis = ["queue", "dep:redis"]
 signing = ["dep:base64", "dep:jsonwebtoken"]
 mail-smtp = ["lettre/smtp-transport", "lettre/tokio1-rustls-tls"]

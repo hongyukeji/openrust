@@ -484,6 +484,7 @@ fn flat_environment_path(key: &str) -> String {
         "PORT" => "server.port".to_owned(),
         "NAME" => "app.name".to_owned(),
         "URL" => "app.url".to_owned(),
+        "TIMEZONE" => "app.timezone".to_owned(),
         "SERVER_CORS_ENABLED" => "server.cors.enabled".to_owned(),
         "SERVER_CORS_ALLOWED_ORIGINS" => "server.cors.allowed_origins".to_owned(),
         "AUTH_JWT_KEYS_LOCAL" => "auth.jwt.keys.local".to_owned(),
@@ -1134,6 +1135,15 @@ mod tests {
             jail.set_env("APP_DATABASE_URL", "postgres://custom/database");
             jail.set_env("APP_PORT", "4200");
             jail.set_env("APP_LOG_LEVEL", "debug");
+            jail.set_env("APP_TIMEZONE", "Asia/Shanghai");
+            assert_eq!(
+                loader
+                    .load_framework()
+                    .map_err(|error| figment::Error::from(error.to_string()))?
+                    .app
+                    .timezone,
+                "Asia/Shanghai"
+            );
             let database: serde_json::Value = loader
                 .figment()
                 .map_err(|error| figment::Error::from(error.to_string()))?

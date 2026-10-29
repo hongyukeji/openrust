@@ -1,0 +1,831 @@
+{
+  "evidence": "Real Laravel original trait + Carbon3.8.4 minimum sample / PHP8.5.0 -n, NO setTestNow (explicit reset), UTC; wallclock bounds observed for deterministic injected non-mock comparison.",
+  "cases": [
+    {
+      "id": "production.unix",
+      "kind": "date",
+      "input": "1577896225",
+      "options": {
+        "format": "U"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 16:30:25.000000",
+          "timezone": "+00:00",
+          "offset_seconds": 0,
+          "epoch": "1577896225.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": [],
+      "observed_before": {
+        "datetime": "2026-10-29 07:20:08.527182",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527182",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      },
+      "observed_after": {
+        "datetime": "2026-10-29 07:20:08.527194",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527194",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      }
+    },
+    {
+      "id": "production.partial",
+      "kind": "date",
+      "input": "02-03",
+      "options": {
+        "format": "m-d"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2026-02-03 07:20:08.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1770103208.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": [],
+      "observed_before": {
+        "datetime": "2026-10-29 07:20:08.527199",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527199",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      },
+      "observed_after": {
+        "datetime": "2026-10-29 07:20:08.527206",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527206",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      }
+    },
+    {
+      "id": "production.date_format",
+      "kind": "date",
+      "input": "2020-01-01",
+      "options": {
+        "format": "Y-m-d"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 07:20:08.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577863208.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": [],
+      "observed_before": {
+        "datetime": "2026-10-29 07:20:08.527210",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527210",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      },
+      "observed_after": {
+        "datetime": "2026-10-29 07:20:08.527215",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527215",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      }
+    },
+    {
+      "id": "production.time_format",
+      "kind": "date",
+      "input": "12:34",
+      "options": {
+        "format": "H:i"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2026-10-29 12:34:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1793277240.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": [],
+      "observed_before": {
+        "datetime": "2026-10-29 07:20:08.527219",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527219",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      },
+      "observed_after": {
+        "datetime": "2026-10-29 07:20:08.527223",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527223",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      }
+    },
+    {
+      "id": "production.time_format_seconds",
+      "kind": "date",
+      "input": "12:34:56",
+      "options": {
+        "format": "H:i:s"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2026-10-29 12:34:56.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1793277296.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": [],
+      "observed_before": {
+        "datetime": "2026-10-29 07:20:08.527227",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527227",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      },
+      "observed_after": {
+        "datetime": "2026-10-29 07:20:08.527232",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527232",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      }
+    },
+    {
+      "id": "production.month_day",
+      "kind": "date",
+      "input": "Feb 3",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2026-02-03 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1770076800.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": [],
+      "observed_before": {
+        "datetime": "2026-10-29 07:20:08.527236",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527236",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      },
+      "observed_after": {
+        "datetime": "2026-10-29 07:20:08.527241",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527241",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      }
+    },
+    {
+      "id": "production.month_day_zone",
+      "kind": "date",
+      "input": "Feb 3 16:30:25+0100",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2026-02-03 16:30:25.000000",
+          "timezone": "+01:00",
+          "offset_seconds": 3600,
+          "epoch": "1770132625.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": [],
+      "observed_before": {
+        "datetime": "2026-10-29 07:20:08.527245",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527245",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      },
+      "observed_after": {
+        "datetime": "2026-10-29 07:20:08.527250",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527250",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      }
+    },
+    {
+      "id": "production.compact_time",
+      "kind": "date",
+      "input": "1630",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2026-10-29 16:30:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1793291400.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": [],
+      "observed_before": {
+        "datetime": "2026-10-29 07:20:08.527254",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527254",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      },
+      "observed_after": {
+        "datetime": "2026-10-29 07:20:08.527258",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527258",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      }
+    },
+    {
+      "id": "production.time_only",
+      "kind": "date",
+      "input": "16:30:25",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2026-10-29 16:30:25.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1793291425.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": [],
+      "observed_before": {
+        "datetime": "2026-10-29 07:20:08.527262",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527262",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      },
+      "observed_after": {
+        "datetime": "2026-10-29 07:20:08.527266",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527266",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      }
+    },
+    {
+      "id": "production.absolute",
+      "kind": "date",
+      "input": "2020-01-01 16:30:25",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 16:30:25.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577896225.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": [],
+      "observed_before": {
+        "datetime": "2026-10-29 07:20:08.527270",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527270",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      },
+      "observed_after": {
+        "datetime": "2026-10-29 07:20:08.527275",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527275",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      }
+    },
+    {
+      "id": "production.absolute_zone",
+      "kind": "date",
+      "input": "2020-01-01 16:30:25+0100",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 16:30:25.000000",
+          "timezone": "+01:00",
+          "offset_seconds": 3600,
+          "epoch": "1577892625.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": [],
+      "observed_before": {
+        "datetime": "2026-10-29 07:20:08.527278",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527278",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      },
+      "observed_after": {
+        "datetime": "2026-10-29 07:20:08.527283",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527283",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      }
+    },
+    {
+      "id": "production.date_only",
+      "kind": "date",
+      "input": "2020-01-01",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577836800.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": [],
+      "observed_before": {
+        "datetime": "2026-10-29 07:20:08.527286",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527286",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      },
+      "observed_after": {
+        "datetime": "2026-10-29 07:20:08.527291",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527291",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      }
+    },
+    {
+      "id": "production.now",
+      "kind": "date",
+      "input": "now",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2026-10-29 07:20:08.527296",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1793258408.527296",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": [],
+      "observed_before": {
+        "datetime": "2026-10-29 07:20:08.527295",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527295",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      },
+      "observed_after": {
+        "datetime": "2026-10-29 07:20:08.527299",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527299",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      }
+    },
+    {
+      "id": "production.tomorrow",
+      "kind": "date",
+      "input": "tomorrow",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2026-10-30 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1793318400.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": [],
+      "observed_before": {
+        "datetime": "2026-10-29 07:20:08.527302",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527302",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      },
+      "observed_after": {
+        "datetime": "2026-10-29 07:20:08.527307",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527307",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      }
+    },
+    {
+      "id": "production.relative",
+      "kind": "date",
+      "input": "+1 month -2 days",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2026-11-27 07:20:08.527312",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1795764008.527312",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": [],
+      "observed_before": {
+        "datetime": "2026-10-29 07:20:08.527310",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527310",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      },
+      "observed_after": {
+        "datetime": "2026-10-29 07:20:08.527315",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527315",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      }
+    },
+    {
+      "id": "production.bang",
+      "kind": "date",
+      "input": "02-03",
+      "options": {
+        "format": "!m-d"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "1970-02-03 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "2851200.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": [],
+      "observed_before": {
+        "datetime": "2026-10-29 07:20:08.527319",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527319",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      },
+      "observed_after": {
+        "datetime": "2026-10-29 07:20:08.527324",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527324",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      }
+    },
+    {
+      "id": "production.pipe",
+      "kind": "date",
+      "input": "02-03",
+      "options": {
+        "format": "m-d|"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "1970-02-03 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "2851200.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": [],
+      "observed_before": {
+        "datetime": "2026-10-29 07:20:08.527327",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527327",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      },
+      "observed_after": {
+        "datetime": "2026-10-29 07:20:08.527332",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527332",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      }
+    },
+    {
+      "id": "production.meridian",
+      "kind": "date",
+      "input": "PM 03:45",
+      "options": {
+        "format": "A h:i"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2026-10-29 15:45:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1793288700.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": [],
+      "observed_before": {
+        "datetime": "2026-10-29 07:20:08.527336",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527336",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      },
+      "observed_after": {
+        "datetime": "2026-10-29 07:20:08.527342",
+        "timezone": "UTC",
+        "offset_seconds": 0,
+        "epoch": "1793258408.527342",
+        "last_errors": {
+          "warning_count": 0,
+          "warnings": [],
+          "error_count": 0,
+          "errors": []
+        }
+      }
+    }
+  ]
+}

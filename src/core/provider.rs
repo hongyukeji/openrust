@@ -488,6 +488,7 @@ impl ProviderBuilder {
                 .snapshot()
                 .extract()
                 .map_err(|error| Error::Config(ConfigError::from(error)))?;
+            framework.app.resolved_timezone()?;
             for resolve in required {
                 resolve(&container).await?;
             }

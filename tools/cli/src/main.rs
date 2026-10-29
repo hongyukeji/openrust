@@ -605,6 +605,7 @@ fn populate_project_with_mfa(
         "storage/logs",
         "storage/framework",
         "tests",
+        "tests/support",
     ] {
         fs::create_dir_all(project_dir.join(directory))?;
     }
@@ -696,6 +697,12 @@ fn populate_project_with_mfa(
             "tests/test_app.rs",
             include_str!("../templates/tests/test_app.rs")
                 .replace("OpenRustGeneratedApplication", crate_name),
+        ));
+    }
+    if (database.is_none() && !encryption && !grpc) || auth {
+        files.push((
+            "tests/support/request_input.rs",
+            include_str!("../templates/tests/support/request_input.rs").to_owned(),
         ));
     }
     if auth {
@@ -2729,6 +2736,8 @@ mod tests {
             "config/cache.toml",
             "config/server.toml",
             "config/i18n.toml",
+            "tests/test_app.rs",
+            "tests/support/request_input.rs",
             "AGENTS.md",
         ] {
             assert!(project.join(path).is_file(), "missing generated {path}");
@@ -2748,6 +2757,8 @@ mod tests {
             "modules/mod.rs",
             "modules_statuses.json",
             "routes/web.rs",
+            "tests/test_app.rs",
+            "tests/support/request_input.rs",
             "AGENTS.md",
         ]
         .into_iter()
@@ -2877,6 +2888,10 @@ mod tests {
             assert!(http_test.contains("use bootstrap::Blog as GeneratedApplication;"));
             assert!(http_test.contains("for_application::<GeneratedApplication>"));
             assert!(http_test.contains("../modules/mod.rs"));
+            assert!(project.join("tests/support/request_input.rs").is_file());
+            assert!(
+                http_test.contains("request_input::assert_request_input::<GeneratedApplication>")
+            );
             assert_eq!(
                 fs::read_to_string(project.join("modules_statuses.json"))
                     .expect("read generated auth module statuses"),

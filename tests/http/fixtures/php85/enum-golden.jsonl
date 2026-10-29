@@ -1,0 +1,48 @@
+{"id":"empty_array","enum":"TextChoice","error_class":"TypeError","message":"TextChoice::tryFrom(): Argument #1 ($value) must be of type string|int, array given","warnings":[]}
+{"id":"empty_array","enum":"NumberChoice","error_class":"TypeError","message":"NumberChoice::tryFrom(): Argument #1 ($value) must be of type int, array given","warnings":[]}
+{"id":"nonempty_array","enum":"TextChoice","error_class":"TypeError","message":"TextChoice::tryFrom(): Argument #1 ($value) must be of type string|int, array given","warnings":[]}
+{"id":"nonempty_array","enum":"NumberChoice","error_class":"TypeError","message":"NumberChoice::tryFrom(): Argument #1 ($value) must be of type int, array given","warnings":[]}
+{"id":"object","enum":"TextChoice","error_class":"TypeError","message":"TextChoice::tryFrom(): Argument #1 ($value) must be of type string|int, stdClass given","warnings":[]}
+{"id":"object","enum":"NumberChoice","error_class":"TypeError","message":"NumberChoice::tryFrom(): Argument #1 ($value) must be of type int, stdClass given","warnings":[]}
+{"id":"stringable","enum":"TextChoice","case":"Email","warnings":[]}
+{"id":"stringable","enum":"NumberChoice","error_class":"TypeError","message":"NumberChoice::tryFrom(): Argument #1 ($value) must be of type int, class@anonymous given","warnings":[]}
+{"id":"nonnumeric","enum":"TextChoice","case":"Email","warnings":[]}
+{"id":"nonnumeric","enum":"NumberChoice","error_class":"TypeError","message":"NumberChoice::tryFrom(): Argument #1 ($value) must be of type int, string given","warnings":[]}
+{"id":"numeric_string","enum":"TextChoice","case":"One","warnings":[]}
+{"id":"numeric_string","enum":"NumberChoice","case":"One","warnings":[]}
+{"id":"zero_string","enum":"TextChoice","case":null,"warnings":[]}
+{"id":"zero_string","enum":"NumberChoice","case":"Zero","warnings":[]}
+{"id":"prefix_string","enum":"TextChoice","case":null,"warnings":[]}
+{"id":"prefix_string","enum":"NumberChoice","error_class":"TypeError","message":"NumberChoice::tryFrom(): Argument #1 ($value) must be of type int, string given","warnings":[]}
+{"id":"spaced_numeric","enum":"TextChoice","case":null,"warnings":[]}
+{"id":"spaced_numeric","enum":"NumberChoice","case":"One","warnings":[]}
+{"id":"decimal_string","enum":"TextChoice","case":null,"warnings":[]}
+{"id":"decimal_string","enum":"NumberChoice","case":"One","warnings":[{"severity":8192,"message":"Implicit conversion from float-string \"1.5\" to int loses precision"}]}
+{"id":"exponent_string","enum":"TextChoice","case":null,"warnings":[]}
+{"id":"exponent_string","enum":"NumberChoice","case":"One","warnings":[]}
+{"id":"leading_zero","enum":"TextChoice","case":null,"warnings":[]}
+{"id":"leading_zero","enum":"NumberChoice","case":"One","warnings":[]}
+{"id":"empty_string","enum":"TextChoice","case":"Empty","warnings":[]}
+{"id":"empty_string","enum":"NumberChoice","error_class":"TypeError","message":"NumberChoice::tryFrom(): Argument #1 ($value) must be of type int, string given","warnings":[]}
+{"id":"int_zero","enum":"TextChoice","case":null,"warnings":[]}
+{"id":"int_zero","enum":"NumberChoice","case":"Zero","warnings":[]}
+{"id":"int_one","enum":"TextChoice","case":"One","warnings":[]}
+{"id":"int_one","enum":"NumberChoice","case":"One","warnings":[]}
+{"id":"int_two","enum":"TextChoice","case":null,"warnings":[]}
+{"id":"int_two","enum":"NumberChoice","case":"Two","warnings":[]}
+{"id":"float_one","enum":"TextChoice","case":"One","warnings":[]}
+{"id":"float_one","enum":"NumberChoice","case":"One","warnings":[]}
+{"id":"float_fraction","enum":"TextChoice","case":"One","warnings":[{"severity":8192,"message":"Implicit conversion from float 1.5 to int loses precision"}]}
+{"id":"float_fraction","enum":"NumberChoice","case":"One","warnings":[{"severity":8192,"message":"Implicit conversion from float 1.5 to int loses precision"}]}
+{"id":"negative_fraction","enum":"TextChoice","case":null,"warnings":[{"severity":8192,"message":"Implicit conversion from float -0.5 to int loses precision"}]}
+{"id":"negative_fraction","enum":"NumberChoice","case":"Zero","warnings":[{"severity":8192,"message":"Implicit conversion from float -0.5 to int loses precision"}]}
+{"id":"null","enum":"TextChoice","case":null,"warnings":[{"severity":8192,"message":"TextChoice::tryFrom(): Passing null to parameter #1 ($value) of type string|int is deprecated"}]}
+{"id":"null","enum":"NumberChoice","case":"Zero","warnings":[{"severity":8192,"message":"NumberChoice::tryFrom(): Passing null to parameter #1 ($value) of type string|int is deprecated"}]}
+{"id":"false","enum":"TextChoice","case":null,"warnings":[]}
+{"id":"false","enum":"NumberChoice","case":"Zero","warnings":[]}
+{"id":"true","enum":"TextChoice","case":"One","warnings":[]}
+{"id":"true","enum":"NumberChoice","case":"One","warnings":[]}
+{"id":"infinity","enum":"TextChoice","case":null,"warnings":[]}
+{"id":"infinity","enum":"NumberChoice","error_class":"TypeError","message":"NumberChoice::tryFrom(): Argument #1 ($value) must be of type int, float given","warnings":[]}
+{"id":"nan","enum":"TextChoice","case":null,"warnings":[{"severity":2,"message":"unexpected NAN value was coerced to string"}]}
+{"id":"nan","enum":"NumberChoice","error_class":"TypeError","message":"NumberChoice::tryFrom(): Argument #1 ($value) must be of type int, float given","warnings":[]}

@@ -110,7 +110,7 @@ impl openrust::support::BackedEnum for InputPublication {
 fn typed_input(request: &Request) -> openrust::Result<serde_json::Value> {
     let profile = request.fluent("typed.profile")?;
     let items = request.collect("typed.items")?;
-    let note = request.when_filled("typed.note", |value| Ok(value))?;
+    let note = request.when_filled("typed.note", Ok)?;
     let published_at = request
         .date("typed.published_at")?
         .map(|date| date.to_iso8601_string())

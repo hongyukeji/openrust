@@ -1,14 +1,15 @@
 use openrust::prelude::*;
+use openrust::{core::AppState, http::axum::extract::State};
 
 pub fn register(routes: Routes) -> Routes {
 {{routes}}
         .fallback(not_found)
 }
 {{auth_handler}}
-async fn root() -> Json<std::collections::BTreeMap<&'static str, &'static str>> {
+async fn root(State(state): State<AppState>) -> Json<std::collections::BTreeMap<&'static str, String>> {
     Json(std::collections::BTreeMap::from([(
         "name",
-        env!("CARGO_PKG_NAME"),
+        state.config().app.name.clone(),
     )]))
 }
 

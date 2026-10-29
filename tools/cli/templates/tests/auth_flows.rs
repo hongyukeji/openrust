@@ -6,6 +6,8 @@ mod app;
 mod bootstrap;
 {{grpc_module}}#[path = "../modules/mod.rs"]
 mod modules;
+#[path = "support/request_input.rs"]
+mod request_input;
 #[path = "../routes/web.rs"]
 mod routes;
 #[path = "../database/seeders.rs"]
@@ -464,6 +466,7 @@ async fn generated_test_app_overrides_mailer_for_registration() -> TestResult {
     .merge(Toml::string(&config));
     let mail = CaptureMailer::default();
     let captured = mail.clone();
+    let input_source = source.clone();
     let mut builder = openrust::testing::TestApp::<GeneratedApplication>::builder(source);
     builder.configure_after_register(move |bindings| {
         bindings.instance(Arc::new(Mailer::new(captured.clone())));
@@ -471,6 +474,7 @@ async fn generated_test_app_overrides_mailer_for_registration() -> TestResult {
     });
     let mut app = builder.build().await?;
     let result = bounded_auth_business(async {
+        request_input::assert_request_input::<GeneratedApplication>(input_source).await?;
         let payload =
             serde_json::json!({"email": "testapp@example.test", "password": "initial-password"});
         let request = Request::builder()

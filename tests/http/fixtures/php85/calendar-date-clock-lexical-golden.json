@@ -1,0 +1,302 @@
+{
+    "runtime": "real fixed Laravel trait/Carbon3.8.4/PHP8.5 -n",
+    "clock": "2020-06-15 16:30:25.123456 UTC",
+    "cases": [
+        {
+            "id": "clocklexical.0",
+            "kind": "date",
+            "input": "Feb",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-02-15 16:30:25.123456",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1581784225.123456",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "clocklexical.1",
+            "kind": "date",
+            "input": "9999",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "9999-06-15 16:30:25.123456",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "253385080225.123456",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "clocklexical.2",
+            "kind": "date",
+            "input": "16:30 2021",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2021-06-15 16:30:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1623774600.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "clocklexical.3",
+            "kind": "date",
+            "input": "Feb 3 16:30+0100",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-02-03 16:30:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1580747400.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "clocklexical.4",
+            "kind": "date",
+            "input": "16:30+0100",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-06-15 16:30:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1592238600.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "clocklexical.5",
+            "kind": "date",
+            "input": "January 2020",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-01 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1577836800.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "clocklexical.6",
+            "kind": "date",
+            "input": "1e3",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "1970-01-01 00:00:04.000000",
+                    "timezone": "+00:00",
+                    "offset_seconds": 0,
+                    "epoch": "4.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "clocklexical.7",
+            "kind": "date",
+            "input": "1e-3",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "1970-01-01 00:00:04.000000",
+                    "timezone": "+00:00",
+                    "offset_seconds": 0,
+                    "epoch": "4.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "clocklexical.8",
+            "kind": "date",
+            "input": "@",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "1970-01-01 00:00:00.000000",
+                    "timezone": "+00:00",
+                    "offset_seconds": 0,
+                    "epoch": "0.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "clocklexical.9",
+            "kind": "date",
+            "input": "@abc",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "1970-01-01 00:00:00.000000",
+                    "timezone": "+00:00",
+                    "offset_seconds": 0,
+                    "epoch": "0.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "clocklexical.10",
+            "kind": "date",
+            "input": "@-1 -2",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "1969-12-31 23:59:57.000000",
+                    "timezone": "+00:00",
+                    "offset_seconds": 0,
+                    "epoch": "-3.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "clocklexical.11",
+            "kind": "date",
+            "input": "@0.1 0.2",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "1970-01-01 00:00:00.300000",
+                    "timezone": "+00:00",
+                    "offset_seconds": 0,
+                    "epoch": "0.300000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "clocklexical.12",
+            "kind": "date",
+            "input": "2020-01-01 @0",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "1970-01-01 00:00:00.000000",
+                    "timezone": "+00:00",
+                    "offset_seconds": 0,
+                    "epoch": "0.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "clocklexical.13",
+            "kind": "date",
+            "input": "2020-01-01 @0 @1",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "-0001-11-30 00:00:00.000000",
+                    "timezone": "+00:00",
+                    "offset_seconds": 0,
+                    "epoch": "-62169984000.000000",
+                    "last_errors": {
+                        "warning_count": 1,
+                        "warnings": {
+                            "14": "Double timezone specification"
+                        },
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        }
+    ]
+}

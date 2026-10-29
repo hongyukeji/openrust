@@ -1,0 +1,2502 @@
+{
+  "runtime": {
+    "php": "8.5.0",
+    "bits": 64,
+    "ini": false,
+    "date": true,
+    "json": true,
+    "filter": true,
+    "precision": "14",
+    "timezone": "UTC",
+    "clock": "2020-01-01 16:30:25.123456 UTC"
+  },
+  "evidence": "Real Laravel fixed InteractsWithData trait in minimal CalendarData direct-key fixture, Date facade alias to real Carbon 3.8.4. Not full Laravel Request/DI or PHP DateTime-only proxy.",
+  "carbon": "3.8.4 declared minimum comparison sample, not Laravel resolved/locked baseline",
+  "cases": [
+    {
+      "id": "upstream.date.null",
+      "kind": "date",
+      "input": null,
+      "options": [],
+      "outcome": {
+        "ok": null
+      },
+      "warnings": []
+    },
+    {
+      "id": "upstream.date.missing",
+      "kind": "date",
+      "input": "__MISSING__",
+      "options": [],
+      "outcome": {
+        "ok": null
+      },
+      "warnings": []
+    },
+    {
+      "id": "upstream.date.datetime",
+      "kind": "date",
+      "input": "20-01-01 16:30:25",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 16:30:25.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577896225.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "upstream.date.unix",
+      "kind": "date",
+      "input": "1577896225",
+      "options": {
+        "format": "U"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 16:30:25.123456",
+          "timezone": "+00:00",
+          "offset_seconds": 0,
+          "epoch": "1577896225.123456",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "upstream.date.santiago",
+      "kind": "date",
+      "input": "20-01-01 13:30:25",
+      "options": {
+        "timezone": "America/Santiago"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 13:30:25.000000",
+          "timezone": "America/Santiago",
+          "offset_seconds": -10800,
+          "epoch": "1577896225.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "upstream.date.date_only",
+      "kind": "date",
+      "input": "2020-01-01",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577836800.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "upstream.date.time_only",
+      "kind": "date",
+      "input": "16:30:25",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 16:30:25.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577896225.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "upstream.date.invalid",
+      "kind": "date",
+      "input": "invalid",
+      "options": [],
+      "outcome": {
+        "error": {
+          "class": "Carbon\\Exceptions\\InvalidFormatException",
+          "message": "Could not parse 'invalid': Failed to parse time string (invalid) at position 0 (i): The timezone could not be found in the database"
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "upstream.date.invalid_format",
+      "kind": "date",
+      "input": "20-01-01 16:30:25",
+      "options": {
+        "format": "invalid_format"
+      },
+      "outcome": {
+        "error": {
+          "class": "Carbon\\Exceptions\\InvalidFormatException",
+          "message": "Unexpected data found.\nUnexpected data found.\nA meridian could not be found\nNot enough data available to satisfy format"
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.empty",
+      "kind": "date",
+      "input": "",
+      "options": [],
+      "outcome": {
+        "ok": null
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.blank",
+      "kind": "date",
+      "input": " \t\r\n\u0000",
+      "options": [],
+      "outcome": {
+        "ok": null
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.false",
+      "kind": "date",
+      "input": false,
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "1970-01-01 00:00:00.000000",
+          "timezone": "+00:00",
+          "offset_seconds": 0,
+          "epoch": "0.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.true",
+      "kind": "date",
+      "input": true,
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "1970-01-01 00:00:01.000000",
+          "timezone": "+00:00",
+          "offset_seconds": 0,
+          "epoch": "1.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.numeric_zero",
+      "kind": "date",
+      "input": 0,
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "1970-01-01 00:00:00.000000",
+          "timezone": "+00:00",
+          "offset_seconds": 0,
+          "epoch": "0.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.numeric_seconds",
+      "kind": "date",
+      "input": 1577896225,
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 16:30:25.000000",
+          "timezone": "+00:00",
+          "offset_seconds": 0,
+          "epoch": "1577896225.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.float_seconds",
+      "kind": "date",
+      "input": 1577896225.25,
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 16:30:25.250000",
+          "timezone": "+00:00",
+          "offset_seconds": 0,
+          "epoch": "1577896225.250000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.array",
+      "kind": "date",
+      "input": [],
+      "options": [],
+      "outcome": {
+        "error": {
+          "class": "TypeError",
+          "message": "Carbon\\Carbon::parse(): Argument #1 ($time) must be of type DateTimeInterface|Carbon\\WeekDay|Carbon\\Month|string|int|float|null, array given, called in /private/tmp/openrust-c04b2-upstream/InteractsWithData.php on line 344"
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.now",
+      "kind": "date",
+      "input": "now",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 16:30:25.123456",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577896225.123456",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.tomorrow",
+      "kind": "date",
+      "input": "tomorrow",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-02 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577923200.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.next_monday",
+      "kind": "date",
+      "input": "next Monday",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-06 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1578268800.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.relative",
+      "kind": "date",
+      "input": "+1 month -2 days",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-30 16:30:25.123456",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580401825.123456",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.relative_last_day",
+      "kind": "date",
+      "input": "last day of next month",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-29 16:30:25.123456",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1582993825.123456",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.relative_week",
+      "kind": "date",
+      "input": "Monday next week",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-06 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1578268800.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.text_date",
+      "kind": "date",
+      "input": "January 1st, 2020",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577836800.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.overflow_day",
+      "kind": "date",
+      "input": "2020-02-30",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-03-01 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1583020800.000000",
+          "last_errors": {
+            "warning_count": 1,
+            "warnings": {
+              "11": "The parsed date was invalid"
+            },
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.overflow_time",
+      "kind": "date",
+      "input": "2020-01-01 24:00:00",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-02 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577923200.000000",
+          "last_errors": {
+            "warning_count": 1,
+            "warnings": {
+              "20": "The parsed time was invalid"
+            },
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.leap_second",
+      "kind": "date",
+      "input": "2020-01-01 23:59:60",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-02 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577923200.000000",
+          "last_errors": {
+            "warning_count": 1,
+            "warnings": {
+              "20": "The parsed time was invalid"
+            },
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.invalid_month",
+      "kind": "date",
+      "input": "2020-13-01",
+      "options": [],
+      "outcome": {
+        "error": {
+          "class": "Carbon\\Exceptions\\InvalidFormatException",
+          "message": "Could not parse '2020-13-01': Failed to parse time string (2020-13-01) at position 6 (3): Unexpected character"
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.two_digit_69",
+      "kind": "date",
+      "input": "69-01-01",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2069-01-01 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "3124224000.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.two_digit_70",
+      "kind": "date",
+      "input": "70-01-01",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "1970-01-01 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "0.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.format_partial",
+      "kind": "date",
+      "input": "02-03",
+      "options": {
+        "format": "m-d"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 16:30:25.123456",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580747425.123456",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.format_bang",
+      "kind": "date",
+      "input": "02-03",
+      "options": {
+        "format": "!m-d"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "1970-02-03 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "2851200.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.format_pipe",
+      "kind": "date",
+      "input": "02-03",
+      "options": {
+        "format": "m-d|"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "1970-02-03 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "2851200.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.format_time",
+      "kind": "date",
+      "input": "12:34",
+      "options": {
+        "format": "H:i"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 12:34:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577882040.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.format_time_bang",
+      "kind": "date",
+      "input": "12:34",
+      "options": {
+        "format": "!H:i"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "1970-01-01 12:34:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "45240.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.format_time_pipe",
+      "kind": "date",
+      "input": "12:34",
+      "options": {
+        "format": "H:i|"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "1970-01-01 12:34:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "45240.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.format_bang_mid",
+      "kind": "date",
+      "input": "2024-02-03",
+      "options": {
+        "format": "Y-!m-d"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "1970-02-03 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "2851200.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.format_pipe_mid",
+      "kind": "date",
+      "input": "2024-02-03",
+      "options": {
+        "format": "Y-|m-d"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2024-02-03 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1706918400.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.format_overflow",
+      "kind": "date",
+      "input": "2020-02-30",
+      "options": {
+        "format": "!Y-m-d"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2020-03-01 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1583020800.000000",
+          "last_errors": {
+            "warning_count": 1,
+            "warnings": {
+              "10": "The parsed date was invalid"
+            },
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.format_u_timezone",
+      "kind": "date",
+      "input": "1577896225",
+      "options": {
+        "format": "U",
+        "timezone": "America/Santiago"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 16:30:25.123456",
+          "timezone": "+00:00",
+          "offset_seconds": 0,
+          "epoch": "1577896225.123456",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.format_rfc_c",
+      "kind": "date",
+      "input": "2020-01-01T16:30:25+00:00",
+      "options": {
+        "format": "c"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 16:30:25.000000",
+          "timezone": "+00:00",
+          "offset_seconds": 0,
+          "epoch": "1577896225.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.format_meridiem",
+      "kind": "date",
+      "input": "PM 03:45",
+      "options": {
+        "format": "A h:i"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 15:45:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577893500.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.format_trailing",
+      "kind": "date",
+      "input": "2020-01-01junk",
+      "options": {
+        "format": "!Y-m-d"
+      },
+      "outcome": {
+        "error": {
+          "class": "Carbon\\Exceptions\\InvalidFormatException",
+          "message": "Trailing data"
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.format_trailing_plus",
+      "kind": "date",
+      "input": "2020-01-01junk",
+      "options": {
+        "format": "!Y-m-d+"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577836800.000000",
+          "last_errors": {
+            "warning_count": 1,
+            "warnings": {
+              "10": "Trailing data"
+            },
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.format_timezone",
+      "kind": "date",
+      "input": "2020-01-01 13:30:25 America/Santiago",
+      "options": {
+        "format": "Y-m-d H:i:s e"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 13:30:25.000000",
+          "timezone": "America/Santiago",
+          "offset_seconds": -10800,
+          "epoch": "1577896225.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.timezone_override",
+      "kind": "date",
+      "input": "2020-01-01T16:30:25+02:00",
+      "options": {
+        "timezone": "America/Santiago"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 16:30:25.000000",
+          "timezone": "+02:00",
+          "offset_seconds": 7200,
+          "epoch": "1577889025.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.iana_dst_gap",
+      "kind": "date",
+      "input": "2024-03-10 02:30:00",
+      "options": {
+        "timezone": "America/New_York"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2024-03-10 03:30:00.000000",
+          "timezone": "America/New_York",
+          "offset_seconds": -14400,
+          "epoch": "1710055800.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.iana_dst_fold",
+      "kind": "date",
+      "input": "2024-11-03 01:30:00",
+      "options": {
+        "timezone": "America/New_York"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2024-11-03 01:30:00.000000",
+          "timezone": "America/New_York",
+          "offset_seconds": -14400,
+          "epoch": "1730611800.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.invalid_timezone",
+      "kind": "date",
+      "input": "2020-01-01",
+      "options": {
+        "timezone": "Not/AZone"
+      },
+      "outcome": {
+        "error": {
+          "class": "Carbon\\Exceptions\\InvalidTimeZoneException",
+          "message": "Unknown or bad timezone (Not/AZone)"
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.fixed_timezone",
+      "kind": "date",
+      "input": "2020-01-01",
+      "options": {
+        "timezone": "+05:30"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 00:00:00.000000",
+          "timezone": "+05:30",
+          "offset_seconds": 19800,
+          "epoch": "1577817000.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.leap_year",
+      "kind": "date",
+      "input": "2000-02-29",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2000-02-29 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "951782400.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.pre_epoch",
+      "kind": "date",
+      "input": "1900-01-01",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "1900-01-01 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "-2208988800.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.large_year",
+      "kind": "date",
+      "input": "+1000000-01-01",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "1000000-01-01 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "31494784780800.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.format_large_year",
+      "kind": "date",
+      "input": "+1000000-01-01",
+      "options": {
+        "format": "!X-m-d"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "1000000-01-01 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "31494784780800.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.numeric_string",
+      "kind": "date",
+      "input": "1577896225",
+      "options": [],
+      "outcome": {
+        "error": {
+          "class": "Carbon\\Exceptions\\InvalidFormatException",
+          "message": "Could not parse '1577896225': Failed to parse time string (1577896225) at position 8 (2): Unexpected character"
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.timestamp_string",
+      "kind": "date",
+      "input": "@1577896225.25",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 16:30:25.250000",
+          "timezone": "+00:00",
+          "offset_seconds": 0,
+          "epoch": "1577896225.250000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.format_nul",
+      "kind": "date",
+      "input": "2020-01-01\u0000",
+      "options": {
+        "format": "Y-m-d"
+      },
+      "outcome": {
+        "error": {
+          "class": "ValueError",
+          "message": "DateTime::createFromFormat(): Argument #2 ($datetime) must not contain any null bytes"
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.parse_nul",
+      "kind": "date",
+      "input": "2020-01-01\u0000",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577836800.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.missing_invalid_options",
+      "kind": "date",
+      "input": "__MISSING__",
+      "options": {
+        "format": "invalid",
+        "timezone": "Not/AZone"
+      },
+      "outcome": {
+        "ok": null
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.empty_invalid_options",
+      "kind": "date",
+      "input": "",
+      "options": {
+        "format": "invalid",
+        "timezone": "Not/AZone"
+      },
+      "outcome": {
+        "ok": null
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.iana_santiago_gap",
+      "kind": "date",
+      "input": "2024-09-08 00:30:00",
+      "options": {
+        "timezone": "America/Santiago"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2024-09-08 01:30:00.000000",
+          "timezone": "America/Santiago",
+          "offset_seconds": -10800,
+          "epoch": "1725769800.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.timezone_est",
+      "kind": "date",
+      "input": "2020-01-01",
+      "options": {
+        "timezone": "EST"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 00:00:00.000000",
+          "timezone": "EST",
+          "offset_seconds": -18000,
+          "epoch": "1577854800.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.timezone_number",
+      "kind": "date",
+      "input": "2020-01-01",
+      "options": {
+        "timezone": 3
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 00:00:00.000000",
+          "timezone": "+03:00",
+          "offset_seconds": 10800,
+          "epoch": "1577826000.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.week_day",
+      "kind": "date",
+      "input": "2020-W01-3",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577836800.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.ordinal_day",
+      "kind": "date",
+      "input": "2020-001",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577836800.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.american_date",
+      "kind": "date",
+      "input": "01/02/2020",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-02 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577923200.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.pointed_date",
+      "kind": "date",
+      "input": "01.02.2020",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-01 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580515200.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.compact_date",
+      "kind": "date",
+      "input": "20200102",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-02 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577923200.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.month_no_year",
+      "kind": "date",
+      "input": "Feb 3",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 16:30:25.123456",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580747425.123456",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.relative_weekdays",
+      "kind": "date",
+      "input": "+2 weekdays",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-03 16:30:25.123456",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1578069025.123456",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.relative_ago",
+      "kind": "date",
+      "input": "2 days ago",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2019-12-30 16:30:25.123456",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577723425.123456",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.relative_ordinal",
+      "kind": "date",
+      "input": "second Tuesday of next month",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-11 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1581379200.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.noon",
+      "kind": "date",
+      "input": "noon",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 12:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577880000.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.midnight",
+      "kind": "date",
+      "input": "midnight",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577836800.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "date.relative_month_overflow",
+      "kind": "date",
+      "input": "2020-01-31 +1 month",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-03-02 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1583107200.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "format.day_unpadded",
+      "kind": "date",
+      "input": "3",
+      "options": {
+        "format": "!j"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "1970-01-03 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "172800.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "format.day_padded",
+      "kind": "date",
+      "input": "03",
+      "options": {
+        "format": "!d"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "1970-01-03 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "172800.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "format.day_year",
+      "kind": "date",
+      "input": "2020 60",
+      "options": {
+        "format": "!Y z"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2020-03-01 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1583020800.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "format.day_suffix",
+      "kind": "date",
+      "input": "3rd",
+      "options": {
+        "format": "!jS"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "1970-01-03 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "172800.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "format.hour_12",
+      "kind": "date",
+      "input": "3pm",
+      "options": {
+        "format": "!ga"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "1970-01-01 15:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "54000.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "format.hour_12_padded",
+      "kind": "date",
+      "input": "03PM",
+      "options": {
+        "format": "!hA"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "1970-01-01 15:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "54000.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "format.hour_24",
+      "kind": "date",
+      "input": "3",
+      "options": {
+        "format": "!G"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "1970-01-01 03:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "10800.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "format.hour_24_padded",
+      "kind": "date",
+      "input": "03",
+      "options": {
+        "format": "!H"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "1970-01-01 03:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "10800.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "format.microsecond",
+      "kind": "date",
+      "input": "123",
+      "options": {
+        "format": "!u"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "1970-01-01 00:00:00.123000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "0.123000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "format.millisecond",
+      "kind": "date",
+      "input": "123",
+      "options": {
+        "format": "!v"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "1970-01-01 00:00:00.123000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "0.123000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "format.minute",
+      "kind": "date",
+      "input": "34",
+      "options": {
+        "format": "!i"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "1970-01-01 00:34:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "2040.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "format.second",
+      "kind": "date",
+      "input": "56",
+      "options": {
+        "format": "!s"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "1970-01-01 00:00:56.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "56.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "format.month_unpadded",
+      "kind": "date",
+      "input": "2",
+      "options": {
+        "format": "!n"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "1970-02-01 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "2678400.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "format.month_padded",
+      "kind": "date",
+      "input": "02",
+      "options": {
+        "format": "!m"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "1970-02-01 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "2678400.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "format.random_char",
+      "kind": "date",
+      "input": "2020X02X03",
+      "options": {
+        "format": "!Y?m?d"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580688000.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "format.separator",
+      "kind": "date",
+      "input": "2020/02/03",
+      "options": {
+        "format": "!Y#m#d"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580688000.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "format.skip",
+      "kind": "date",
+      "input": "2020junk-02-03",
+      "options": {
+        "format": "!Y*-m-d"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580688000.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "format.literal",
+      "kind": "date",
+      "input": "2020Y02M03D",
+      "options": {
+        "format": "!Y\\Ym\\Md\\D"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580688000.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "format.text_day_short",
+      "kind": "date",
+      "input": "Mon 2020-01-01",
+      "options": {
+        "format": "!D Y-m-d"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-06 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1578268800.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "format.text_day_full",
+      "kind": "date",
+      "input": "Monday 2020-01-01",
+      "options": {
+        "format": "!l Y-m-d"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-06 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1578268800.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "format.text_month_short",
+      "kind": "date",
+      "input": "Feb 3 2020",
+      "options": {
+        "format": "!M j Y"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580688000.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "format.text_month_full",
+      "kind": "date",
+      "input": "February 3 2020",
+      "options": {
+        "format": "!F j Y"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580688000.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "format.timezone_p",
+      "kind": "date",
+      "input": "2020-01-01 Z",
+      "options": {
+        "format": "!Y-m-d p"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 00:00:00.000000",
+          "timezone": "Z",
+          "offset_seconds": 0,
+          "epoch": "1577836800.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "format.timezone_P",
+      "kind": "date",
+      "input": "2020-01-01 +05:30",
+      "options": {
+        "format": "!Y-m-d P"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 00:00:00.000000",
+          "timezone": "+05:30",
+          "offset_seconds": 19800,
+          "epoch": "1577817000.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "format.timezone_O",
+      "kind": "date",
+      "input": "2020-01-01 +0530",
+      "options": {
+        "format": "!Y-m-d O"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 00:00:00.000000",
+          "timezone": "+05:30",
+          "offset_seconds": 19800,
+          "epoch": "1577817000.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "format.timezone_T",
+      "kind": "date",
+      "input": "2020-01-01 EST",
+      "options": {
+        "format": "!Y-m-d T"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 00:00:00.000000",
+          "timezone": "EST",
+          "offset_seconds": -18000,
+          "epoch": "1577854800.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "format.year_2",
+      "kind": "date",
+      "input": "69",
+      "options": {
+        "format": "!y"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2069-01-01 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "3124224000.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "format.expanded_x",
+      "kind": "date",
+      "input": "+10000",
+      "options": {
+        "format": "!x"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "10000-01-01 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "253402300800.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "format.unrecognized_literal",
+      "kind": "date",
+      "input": "2020-W",
+      "options": {
+        "format": "!Y-\\W"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577836800.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "parse.pg_text",
+      "kind": "date",
+      "input": "Jan-02-2020",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-02 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577923200.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "parse.pg_reverse",
+      "kind": "date",
+      "input": "2020-Jan-02",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-02 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577923200.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "parse.exif",
+      "kind": "date",
+      "input": "2020:01:02 16:30:25",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-02 16:30:25.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577982625.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "parse.xmlrpc",
+      "kind": "date",
+      "input": "20200102T163025",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-02 16:30:25.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577982625.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "parse.clf",
+      "kind": "date",
+      "input": "02/Jan/2020:16:30:25 +0000",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-02 16:30:25.000000",
+          "timezone": "+00:00",
+          "offset_seconds": 0,
+          "epoch": "1577982625.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "parse.roman",
+      "kind": "date",
+      "input": "02 II 2020",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-02 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580601600.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "parse.rfc2822",
+      "kind": "date",
+      "input": "Thu, 02 Jan 2020 16:30:25 +0000",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-02 16:30:25.000000",
+          "timezone": "+00:00",
+          "offset_seconds": 0,
+          "epoch": "1577982625.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "parse.am_pm",
+      "kind": "date",
+      "input": "3:45 p.m.",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 15:45:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577893500.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "parse.time_compact",
+      "kind": "date",
+      "input": "163025",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 16:30:25.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577896225.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "parse.front",
+      "kind": "date",
+      "input": "front of 5",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 04:45:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577853900.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "parse.back",
+      "kind": "date",
+      "input": "back of 5",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 05:15:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577855700.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "parse.relative_fortnight",
+      "kind": "date",
+      "input": "a fortnight",
+      "options": [],
+      "outcome": {
+        "error": {
+          "class": "Carbon\\Exceptions\\InvalidFormatException",
+          "message": "Could not parse 'a fortnight': Failed to parse time string (a fortnight) at position 8 (g): Double timezone specification"
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "parse.relative_text",
+      "kind": "date",
+      "input": "third day",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-04 16:30:25.123456",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1578155425.123456",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "parse.relative_first_day",
+      "kind": "date",
+      "input": "first day of next month",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-01 16:30:25.123456",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580574625.123456",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "parse.double_date",
+      "kind": "date",
+      "input": "2020-01-01 2020-01-02",
+      "options": [],
+      "outcome": {
+        "error": {
+          "class": "Carbon\\Exceptions\\InvalidFormatException",
+          "message": "Could not parse '2020-01-01 2020-01-02': Failed to parse time string (2020-01-01 2020-01-02) at position 11 (2): Double date specification"
+        }
+      },
+      "warnings": []
+    }
+  ],
+  "source_note": "Only date cases from fixed Laravel trait + Carbon 3.8.4 declared minimum sample / PHP8.5.0, not Laravel resolved lock or full PHPUnit run."
+}

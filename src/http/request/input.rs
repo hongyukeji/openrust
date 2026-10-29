@@ -27,6 +27,7 @@ const MAX_QUERY_BYTES: usize = 16 * 1024;
 #[derive(Clone)]
 pub struct Request {
     info: RequestInfo,
+    calendar: crate::support::CalendarContext,
     raw: Bytes,
     query: Value,
     json: Value,
@@ -57,6 +58,11 @@ impl<S: Send + Sync> FromRequest<S> for Request {
     async fn from_request(request: axum::extract::Request, state: &S) -> Result<Self> {
         let (mut parts, body) = request.into_parts();
         let info = RequestInfo::from_request_parts(&mut parts, state).await?;
+        let calendar = parts
+            .extensions
+            .get::<crate::support::CalendarContext>()
+            .cloned()
+            .unwrap_or_default();
         let policy = policy(&parts);
         let query = parse_query(parts.uri.query(), &policy)?;
         let is_json = info.is_json()?;
@@ -108,6 +114,7 @@ impl<S: Send + Sync> FromRequest<S> for Request {
         value::validate_limits(&all)?;
         Ok(Self {
             info,
+            calendar,
             raw,
             query,
             json,
@@ -119,6 +126,34 @@ impl<S: Send + Sync> FromRequest<S> for Request {
     }
 }
 impl Request {
+    crate::support::typed::typed_methods!(all);
+    crate::support::typed::bag_methods!(all);
+    /// `has` 的同义入口；null 算存在。
+    pub fn exists(&self, keys: &[&str]) -> bool {
+        self.has(keys)
+    }
+    /// 从一个值创建独立属性对象；null 与缺失采用空属性。
+    pub fn fluent(&self, key: &str) -> Result<crate::support::Fluent> {
+        self.fluent_or(key, Value::Array(Vec::new()))
+    }
+    /// null 或缺失时采用默认属性，与其他 scalar helper 的 missing-only 默认不同。
+    pub fn fluent_or(&self, key: &str, default: Value) -> Result<crate::support::Fluent> {
+        let value = match self.input(key)? {
+            None | Some(Value::Null) => default,
+            Some(value) => value,
+        };
+        Ok(crate::support::Fluent::from_value(value)?.with_calendar(self.calendar.clone()))
+    }
+    /// 从全部输入创建独立属性对象。
+    pub fn fluent_all(&self) -> Result<crate::support::Fluent> {
+        Ok(crate::support::Fluent::from_value(self.all())?.with_calendar(self.calendar.clone()))
+    }
+    /// 从选定路径创建独立属性对象。
+    pub fn fluent_only(&self, keys: &[&str]) -> Result<crate::support::Fluent> {
+        Ok(crate::support::Fluent::from_value(self.only(keys)?)?
+            .with_calendar(self.calendar.clone()))
+    }
+
     /// 返回无需消费正文的元信息视图。
     pub const fn info(&self) -> &RequestInfo {
         &self.info
@@ -304,19 +339,9 @@ impl Request {
     }
 }
 fn checked_get(bag: &Value, key: &str) -> Result<Option<Value>> {
-    if key.len() > 20 * 1024 * 1024 || key.split('.').take(65).count() > 64 {
-        return Err(Error::custom_with_status(
-            StatusCode::PAYLOAD_TOO_LARGE,
-            "input_limits_exceeded",
-            "input path exceeds inspection limit",
-        ));
-    }
-    let result = value::get(bag, key);
-    if let Some(value) = &result {
-        value::validate_limits(value)?;
-    }
-    Ok(result)
+    crate::support::data::checked_get(bag, key)
 }
+
 fn direct(bag: &Value, key: &str) -> Option<Value> {
     match bag {
         Value::Object(values) => values.get(key),
@@ -408,4 +433,303 @@ fn json_limit_error() -> Error {
         "input_limits_exceeded",
         "JSON input exceeds inspection limit",
     )
+}
+
+impl Request {
+    /// 按 `has` 条件执行回调；主回调的 PHP 假值继续同一请求，默认分支直接返回。
+    pub fn when_has<R: super::InputTruthy>(
+        &self,
+        key: &str,
+        callback: impl FnOnce(Value) -> Result<R>,
+    ) -> Result<super::InputOutcome<'_, R>> {
+        let value = self.input(key)?.unwrap_or(Value::Null);
+        if self.has(&[key]) {
+            let result = callback(value)?;
+            if super::InputTruthy::is_truthy(&result) {
+                return Ok(super::InputOutcome::Value(result));
+            }
+            return Ok(super::InputOutcome::Request(self));
+        }
+        Ok(super::InputOutcome::Request(self))
+    }
+    /// 按 `has` 条件执行回调；主回调的 PHP 假值继续同一请求，默认分支直接返回。
+    pub fn when_has_or_else<R: super::InputTruthy, D>(
+        &self,
+        key: &str,
+        callback: impl FnOnce(Value) -> Result<R>,
+        default: impl FnOnce() -> Result<D>,
+    ) -> Result<super::InputOutcome<'_, R, D>> {
+        let value = self.input(key)?.unwrap_or(Value::Null);
+        if self.has(&[key]) {
+            let result = callback(value)?;
+            if super::InputTruthy::is_truthy(&result) {
+                return Ok(super::InputOutcome::Value(result));
+            }
+            return Ok(super::InputOutcome::Request(self));
+        }
+        Ok(super::InputOutcome::Default(default()?))
+    }
+    /// 按 `has` 条件执行回调；主回调的 PHP 假值继续同一请求，默认分支直接返回。
+    pub fn when_has_mut<R: super::InputTruthy>(
+        &mut self,
+        key: &str,
+        callback: impl FnOnce(Value, &mut Self) -> Result<R>,
+    ) -> Result<super::InputOutcomeMut<'_, R>> {
+        let value = self.input(key)?.unwrap_or(Value::Null);
+        if self.has(&[key]) {
+            let result = callback(value, self)?;
+            if super::InputTruthy::is_truthy(&result) {
+                return Ok(super::InputOutcomeMut::Value(result));
+            }
+            return Ok(super::InputOutcomeMut::Request(self));
+        }
+        Ok(super::InputOutcomeMut::Request(self))
+    }
+    /// 按 `has` 条件执行回调；主回调的 PHP 假值继续同一请求，默认分支直接返回。
+    pub fn when_has_mut_or_else<R: super::InputTruthy, D>(
+        &mut self,
+        key: &str,
+        callback: impl FnOnce(Value, &mut Self) -> Result<R>,
+        default: impl FnOnce(&mut Self) -> Result<D>,
+    ) -> Result<super::InputOutcomeMut<'_, R, D>> {
+        let value = self.input(key)?.unwrap_or(Value::Null);
+        if self.has(&[key]) {
+            let result = callback(value, self)?;
+            if super::InputTruthy::is_truthy(&result) {
+                return Ok(super::InputOutcomeMut::Value(result));
+            }
+            return Ok(super::InputOutcomeMut::Request(self));
+        }
+        Ok(super::InputOutcomeMut::Default(default(self)?))
+    }
+    /// 按 `filled` 条件执行回调；主回调的 PHP 假值继续同一请求，默认分支直接返回。
+    pub fn when_filled<R: super::InputTruthy>(
+        &self,
+        key: &str,
+        callback: impl FnOnce(Value) -> Result<R>,
+    ) -> Result<super::InputOutcome<'_, R>> {
+        let value = self.input(key)?.unwrap_or(Value::Null);
+        if self.filled(&[key]) {
+            let result = callback(value)?;
+            if super::InputTruthy::is_truthy(&result) {
+                return Ok(super::InputOutcome::Value(result));
+            }
+            return Ok(super::InputOutcome::Request(self));
+        }
+        Ok(super::InputOutcome::Request(self))
+    }
+    /// 按 `filled` 条件执行回调；主回调的 PHP 假值继续同一请求，默认分支直接返回。
+    pub fn when_filled_or_else<R: super::InputTruthy, D>(
+        &self,
+        key: &str,
+        callback: impl FnOnce(Value) -> Result<R>,
+        default: impl FnOnce() -> Result<D>,
+    ) -> Result<super::InputOutcome<'_, R, D>> {
+        let value = self.input(key)?.unwrap_or(Value::Null);
+        if self.filled(&[key]) {
+            let result = callback(value)?;
+            if super::InputTruthy::is_truthy(&result) {
+                return Ok(super::InputOutcome::Value(result));
+            }
+            return Ok(super::InputOutcome::Request(self));
+        }
+        Ok(super::InputOutcome::Default(default()?))
+    }
+    /// 按 `filled` 条件执行回调；主回调的 PHP 假值继续同一请求，默认分支直接返回。
+    pub fn when_filled_mut<R: super::InputTruthy>(
+        &mut self,
+        key: &str,
+        callback: impl FnOnce(Value, &mut Self) -> Result<R>,
+    ) -> Result<super::InputOutcomeMut<'_, R>> {
+        let value = self.input(key)?.unwrap_or(Value::Null);
+        if self.filled(&[key]) {
+            let result = callback(value, self)?;
+            if super::InputTruthy::is_truthy(&result) {
+                return Ok(super::InputOutcomeMut::Value(result));
+            }
+            return Ok(super::InputOutcomeMut::Request(self));
+        }
+        Ok(super::InputOutcomeMut::Request(self))
+    }
+    /// 按 `filled` 条件执行回调；主回调的 PHP 假值继续同一请求，默认分支直接返回。
+    pub fn when_filled_mut_or_else<R: super::InputTruthy, D>(
+        &mut self,
+        key: &str,
+        callback: impl FnOnce(Value, &mut Self) -> Result<R>,
+        default: impl FnOnce(&mut Self) -> Result<D>,
+    ) -> Result<super::InputOutcomeMut<'_, R, D>> {
+        let value = self.input(key)?.unwrap_or(Value::Null);
+        if self.filled(&[key]) {
+            let result = callback(value, self)?;
+            if super::InputTruthy::is_truthy(&result) {
+                return Ok(super::InputOutcomeMut::Value(result));
+            }
+            return Ok(super::InputOutcomeMut::Request(self));
+        }
+        Ok(super::InputOutcomeMut::Default(default(self)?))
+    }
+    /// 按 `missing` 条件执行回调；主回调的 PHP 假值继续同一请求，默认分支直接返回。
+    pub fn when_missing<R: super::InputTruthy>(
+        &self,
+        key: &str,
+        callback: impl FnOnce(Value) -> Result<R>,
+    ) -> Result<super::InputOutcome<'_, R>> {
+        let value = self.input(key)?.unwrap_or(Value::Null);
+        if self.missing(&[key]) {
+            let result = callback(value)?;
+            if super::InputTruthy::is_truthy(&result) {
+                return Ok(super::InputOutcome::Value(result));
+            }
+            return Ok(super::InputOutcome::Request(self));
+        }
+        Ok(super::InputOutcome::Request(self))
+    }
+    /// 按 `missing` 条件执行回调；主回调的 PHP 假值继续同一请求，默认分支直接返回。
+    pub fn when_missing_or_else<R: super::InputTruthy, D>(
+        &self,
+        key: &str,
+        callback: impl FnOnce(Value) -> Result<R>,
+        default: impl FnOnce() -> Result<D>,
+    ) -> Result<super::InputOutcome<'_, R, D>> {
+        let value = self.input(key)?.unwrap_or(Value::Null);
+        if self.missing(&[key]) {
+            let result = callback(value)?;
+            if super::InputTruthy::is_truthy(&result) {
+                return Ok(super::InputOutcome::Value(result));
+            }
+            return Ok(super::InputOutcome::Request(self));
+        }
+        Ok(super::InputOutcome::Default(default()?))
+    }
+    /// 按 `missing` 条件执行回调；主回调的 PHP 假值继续同一请求，默认分支直接返回。
+    pub fn when_missing_mut<R: super::InputTruthy>(
+        &mut self,
+        key: &str,
+        callback: impl FnOnce(Value, &mut Self) -> Result<R>,
+    ) -> Result<super::InputOutcomeMut<'_, R>> {
+        let value = self.input(key)?.unwrap_or(Value::Null);
+        if self.missing(&[key]) {
+            let result = callback(value, self)?;
+            if super::InputTruthy::is_truthy(&result) {
+                return Ok(super::InputOutcomeMut::Value(result));
+            }
+            return Ok(super::InputOutcomeMut::Request(self));
+        }
+        Ok(super::InputOutcomeMut::Request(self))
+    }
+    /// 按 `missing` 条件执行回调；主回调的 PHP 假值继续同一请求，默认分支直接返回。
+    pub fn when_missing_mut_or_else<R: super::InputTruthy, D>(
+        &mut self,
+        key: &str,
+        callback: impl FnOnce(Value, &mut Self) -> Result<R>,
+        default: impl FnOnce(&mut Self) -> Result<D>,
+    ) -> Result<super::InputOutcomeMut<'_, R, D>> {
+        let value = self.input(key)?.unwrap_or(Value::Null);
+        if self.missing(&[key]) {
+            let result = callback(value, self)?;
+            if super::InputTruthy::is_truthy(&result) {
+                return Ok(super::InputOutcomeMut::Value(result));
+            }
+            return Ok(super::InputOutcomeMut::Request(self));
+        }
+        Ok(super::InputOutcomeMut::Default(default(self)?))
+    }
+}
+
+impl Request {
+    /// 仅合法枚举 case 执行主回调；类型错误不进入默认分支。
+    pub fn when_enum<E: crate::support::BackedEnum, R: super::InputTruthy>(
+        &self,
+        key: &str,
+        callback: impl FnOnce(E) -> Result<R>,
+    ) -> Result<super::InputOutcome<'_, R>> {
+        if let Some(value) = self.r#enum::<E>(key)? {
+            let result = callback(value)?;
+            if super::InputTruthy::is_truthy(&result) {
+                return Ok(super::InputOutcome::Value(result));
+            }
+            return Ok(super::InputOutcome::Request(self));
+        }
+        Ok(super::InputOutcome::Request(self))
+    }
+    /// 仅合法枚举 case 执行主回调；类型错误不进入默认分支。
+    pub fn when_enum_or_else<E: crate::support::BackedEnum, R: super::InputTruthy, D>(
+        &self,
+        key: &str,
+        callback: impl FnOnce(E) -> Result<R>,
+        default: impl FnOnce() -> Result<D>,
+    ) -> Result<super::InputOutcome<'_, R, D>> {
+        if let Some(value) = self.r#enum::<E>(key)? {
+            let result = callback(value)?;
+            if super::InputTruthy::is_truthy(&result) {
+                return Ok(super::InputOutcome::Value(result));
+            }
+            return Ok(super::InputOutcome::Request(self));
+        }
+        Ok(super::InputOutcome::Default(default()?))
+    }
+    /// 仅合法枚举 case 执行主回调；类型错误不进入默认分支。
+    pub fn when_enum_mut<E: crate::support::BackedEnum, R: super::InputTruthy>(
+        &mut self,
+        key: &str,
+        callback: impl FnOnce(E, &mut Self) -> Result<R>,
+    ) -> Result<super::InputOutcomeMut<'_, R>> {
+        if let Some(value) = self.r#enum::<E>(key)? {
+            let result = callback(value, self)?;
+            if super::InputTruthy::is_truthy(&result) {
+                return Ok(super::InputOutcomeMut::Value(result));
+            }
+            return Ok(super::InputOutcomeMut::Request(self));
+        }
+        Ok(super::InputOutcomeMut::Request(self))
+    }
+    /// 仅合法枚举 case 执行主回调；类型错误不进入默认分支。
+    pub fn when_enum_mut_or_else<E: crate::support::BackedEnum, R: super::InputTruthy, D>(
+        &mut self,
+        key: &str,
+        callback: impl FnOnce(E, &mut Self) -> Result<R>,
+        default: impl FnOnce(&mut Self) -> Result<D>,
+    ) -> Result<super::InputOutcomeMut<'_, R, D>> {
+        if let Some(value) = self.r#enum::<E>(key)? {
+            let result = callback(value, self)?;
+            if super::InputTruthy::is_truthy(&result) {
+                return Ok(super::InputOutcomeMut::Value(result));
+            }
+            return Ok(super::InputOutcomeMut::Request(self));
+        }
+        Ok(super::InputOutcomeMut::Default(default(self)?))
+    }
+}
+
+impl Request {
+    /// 按应用时区和当前时钟宽松读取日期，空值返回 None。
+    pub fn date(&self, key: &str) -> Result<Option<crate::support::InputDate>> {
+        self.date_with(key, crate::support::DateOptions::default())
+    }
+    /// 使用 PHP 格式和可选显式时区读取；每次调用读取当前时钟而非提取时冻结。
+    pub fn date_with(
+        &self,
+        key: &str,
+        options: crate::support::DateOptions<'_>,
+    ) -> Result<Option<crate::support::InputDate>> {
+        let value = self.input(key)?.unwrap_or(Value::Null);
+        crate::support::calendar::parse_date(&value, options, &self.calendar)
+    }
+}
+
+impl Request {
+    /// 按 Carbon 区间语义保留原始年月日及有符号子分量。
+    pub fn interval(&self, key: &str) -> Result<Option<crate::support::InputInterval>> {
+        let value = self.input(key)?;
+        crate::support::calendar::parse_interval(value.as_ref(), None)
+    }
+    /// 指定 Carbon Unit 名称；不接受 human 表达式的单位缩写。
+    pub fn interval_with_unit(
+        &self,
+        key: &str,
+        unit: impl AsRef<str>,
+    ) -> Result<Option<crate::support::InputInterval>> {
+        let value = self.input(key)?;
+        crate::support::calendar::parse_interval(value.as_ref(), Some(unit.as_ref()))
+    }
 }

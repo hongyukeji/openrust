@@ -6,9 +6,9 @@
 
 ## Laravel 1:1 功能与进度概览
 
-> 更新：2026-10-29；已提交事实截至 `99f2337`，另观察到C04-B2未提交实现（不计已验收）。本页是唯一概览入口，详细行为/差异以矩阵为准，执行队列仅在[todo](todo.md)。
+> 更新：2026-10-29；C04-B2本轮适用验收已完成，本簇限定本地提交见Git；不将子簇完成外推整能力。本页是唯一概览入口，详细行为/差异以矩阵为准，执行队列仅在[todo](todo.md)。
 
-**总体仍未完成严格1:1。** 已验收的是明确子范围，不是整项能力全完成。R1-S、R2-A/A2/A3/B/C/D/M/N、R1-E及R3-A–F保留各簇证据；旧专项实现也须重新对应固定Laravel生产行为。C04-B1 `8846a6a`已交付，B2开发中；APP_PORT `591142f`只关闭端口配置子项，分页`4573234`仅整改计划，ADR-080仅规划。
+**总体仍未完成严格1:1。** 已验收的是明确子范围，不是整项能力全完成。R1-S、R2-A/A2/A3/B/C/D/M/N、R1-E及R3-A–F保留各簇证据；旧专项实现也须重新对应固定Laravel生产行为。C04-B1 `8846a6a`已交付，B2类型便捷方法按子簇验收；APP_PORT `591142f`只关闭端口配置子项，分页`4573234`仅整改计划，ADR-080仅规划。
 
 图例：✅ **已验收子范围**（只限边界列）；🟡 **开发中**（未收口）；🔵 **已有实现待1:1对齐**；📝 **仅规划**；⬜ **待开发**；⛔ **阻塞**（须写具体原因）。同一行以主状态概括，已验收基础不会把整体涂成✅；阻塞只是具体交付受限，不隐去其他可做部分。
 
@@ -22,7 +22,7 @@
 | Container / Provider / Facade | 统一DI、register→boot、作用域与扩展 | ✅ 已验收子范围 | R2-A/A2/A3、B/C/D已验收，唯一生产Container/Provider、入口scope/TestApp | 阶段一Provider编译期发现仅规划，现显式descriptor不是包发现；完整Facade/Container/扩展对应待闭合 | L012–L014/L035；R2；[core](core/core.md)/[facade](core/facade.md) |
 | Configuration | env/领域配置、typed读取/校验与包配置合并 | ✅ 已验收子范围 | R2来源失败/Provider配置；APP_PORT 591142f映射与生成/启动已验收 | 完整L005及缓存/来源/扩展逐项对齐；DB业务设置见增强表 | L005；R2；[core](core/core.md)/[todo](todo.md) |
 | Routing / Middleware / URL | 路由组/域/命名URL/绑定/中间件默认与错误 | ✅ 已验收子范围 | R3-A–F按簇交付；F 163bb49域路由；已知差异公开 | 模型绑定等剩余C03行为及默认差异不能由A–F整体外推 | L015/L016/L024；R3；[http](core/http.md)/[todo](todo.md) |
-| Request | 输入来源、typed便捷方法与生命周期 | 🟡 开发中 | C04-A 08be69d、B1 8846a6a已验收；B2存在未提交实现/定向证据 | B2完整验证/提交未收口；Cookies/Old Input等仍开放 | L019；R3 C04；[证据](memory/testing.md)/[todo](todo.md) |
+| Request | 输入来源、typed便捷方法与生命周期 | 🟡 开发中 | C04-A 08be69d、B1 8846a6a与B2类型便捷方法各自已验收 | Cookies/Old Input、Session/FormRequest等完整C04范围仍开放 | L019；R3 C04；[证据](memory/testing.md)/[todo](todo.md) |
 | Response / API Resource / 异常 | 原生响应、资源序列化/条件字段、错误渲染 | 🔵 已有实现待1:1对齐 | 类型化响应/envelope与语义状态子簇已交付 | 完整Resource集合/分页/条件字段和redirect/stream逐项对应 | L018/L020/L027/L068/L069；R3/R5；[http](core/http.md) |
 | Pagination | Query/Model paginate、simple/cursor、链接与Resource | 🔵 已有实现待1:1对齐 | 现PageParams/手动controller分页；4573234仅登记整改 | 默认15/page解析、直接JSON与Resource links/meta、查询/模型入口及边界 | L059/L068.04；R3→R4/R5；[Spec](todo.md#c04c05-分页整改-spec已授权按依赖领取代码未改) |
 | Validation / FormRequest | 验证规则、授权、错误与文件验证 | 🔵 已有实现待1:1对齐 | Validate/Validated与模块输入校验有实现和测试 | 完整FormRequest授权/规则/错误默认与文件行为 | L026/L019；R3/R7；[http](core/http.md)/[todo](todo.md) |
@@ -76,6 +76,8 @@
 以下记录限定各自交付范围；不能跨簇累计成完整框架已验收，当前领取与未提交实现以todo/源码和上方概览为准。
 
 C04-B1统一请求输入已完成适用验收，限定提交见Git：定向/独审、相应源码快照的workspace门禁、根默认cargo run真实TCP、生成consumer与PG/MySQL生成认证应用均通过；根具名认证双库各1通过/46 filtered。账号/缓存fixture缺Host及新迁移排序问题已修复，原安全与回滚断言保留；根完整PG/MySQL组均47通过/零失败、忽略或筛选，账号MFA与完整缓存模块的双库专项亦通过。最新workspace全部门禁通过；框架完整范围仍按唯一队列推进。临时探针及隔离数据库已清理，外部示例/守护WIP保留；证据见[testing](memory/testing.md#c04-b1-统一请求输入)。
+
+C04-B2类型便捷方法已通过适用门禁：公开Request/Fluent、唯一模块、生成项目与真实TCP均接同一输入内核；默认workspace645/全特性1211项、根PG/MySQL各47项、普通与双库认证生成应用、新工具TCP六案通过，fmt/Clippy/docs/feature/MSRV/deny及不同模型复审完成。日期source分支与代表矩阵、类型表示/资源限制、ignored与非供应商发送边界见[testing](memory/testing.md#c04-b2-类型便捷方法)；完整C04及全Carbon工具箱未据此关闭。本簇限定本地提交见Git，后继仅从todo领取。
 
 C04-A RequestInfo/内容协商及存储staging并发回收修复已完成适用验收：默认523/29、全特性1082/99（passed/ignored），fmt/Clippy/Rustdoc/no-default/MSRV1.97/deny、生成consumer2/2和根默认入口真实TCP均通过；不同模型独审通过。仅完成无正文请求检查与协商，不代表完整C04。 原三轮构建NotFound、可控red/green及非原子base复核边界见 [testing](memory/testing.md#c04-a-请求检查与内容协商)。
 

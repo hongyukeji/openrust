@@ -37,7 +37,9 @@ pub use domain::DomainParams;
 pub use extract::{Inject, Json, Path, Query, Validated};
 pub use plugin::{HttpServiceProvider, RouteRegistry, build_router};
 pub use rate_limit::{RateLimitKey, RateLimitLayer};
-pub use request::{InputNormalization, Request, RequestInfo};
+pub use request::{
+    InputNormalization, InputOutcome, InputOutcomeMut, InputTruthy, Request, RequestInfo, Truthy,
+};
 pub use resource::{Action, Resource, ResourceActions};
 pub use response::{Created, Located, NoContent, PageParams, Paginated};
 pub use routes::{RouteGroup, Routes};

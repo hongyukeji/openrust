@@ -54,6 +54,49 @@ JSON 类型优先，包括 GET/HEAD；其他 GET/HEAD 取 query，其他方法�
 
 multipart 在显式选择 `Request` 时只保存有界原文，本簇不提供其文本/文件bag合并；需要现有流式上传时使用对应公开上传接口。Cookie/Session、old input/flash、FormRequest及完整文件语义按各自能力交付，不因增加此提取器而自动具备。
 
+### 类型便捷读取
+
+`string` / `str` 返回 `support::Stringable`；`integer`、`float`、`boolean` 按 Laravel 的宽松转换读取当前输入。显式默认使用 `*_or`，仅缺失字段采用默认值，null仍参与转换；这些方法不替代DTO与业务校验。例如 `integer("quantity")?` 可将 `"2items"` 转为2，要求整个字段为合法整数时应使用校验或严格反序列化。`boolean`识别true、1及大小写不敏感的true/on/yes字符串，不能用“字符串非空”代替。
+
+`array(key)` / `collect(key)` / `fluent(key)`读取指定值；对应`*_all()`读取全部输入，`*_only(keys)`读取选定路径。`Collection`保留PHP整数/字符串键与稀疏性，`values()`才显式重编号；`Fluent`是独立属性快照，修改快照不修改原请求。`fluent_or`对null和缺失都采用默认属性，与标量方法的默认规则不同。
+
+`when_has`、`when_filled`、`when_missing`的主回调返回false、0、空字符串、字符串`"0"`、空数组或null时，结果分支保留原请求；`*_or_else`的默认回调结果直接保留。Rust用`InputOutcome`显式区分请求、主回调结果和默认结果，`and_then`仅继续请求分支。需同时修改请求时选择`*_mut`，避免捕获已借用的请求；框架对象即使为空也按PHP对象视为真，不等同于空数组。
+
+业务枚举实现`support::BackedEnum`，指定`Backing = String`或`i64`并提供`try_from_backing`。`r#enum::<E>(key)`与`enum_value::<E>(key)`共用转换，合法但未知的backing返回None，`enum_or`和惰性的`enum_or_else`提供默认值；不合法容器类型返回安全输入错误。`enums::<E>(key)`过滤不存在的case，保留原键、顺序和重复值；此集合路径另要求`Serialize`以校验有界输出，单值枚举读取不要求序列化。`when_enum`按转换成功的case决定是否调用主回调。
+
+`clamp`使用`support::InputNumber`区分整数和浮点数，按Laravel的`min(max(value, min), max)`选取结果；反转边界不会触发Rust panic。它要求完整数字输入，不能套用`integer`的数字前缀规则；非数字输入采用默认值，再执行相同边界运算。业务校验应独立约束范围、非有限数及响应序列化要求。
+
+可在业务 handler 中直接读取；严格业务规则仍交给校验层。下例只返回明确选择的字段：
+
+```rust
+use openrust::http::{Json, Request};
+
+async fn preview(request: Request) -> openrust::Result<Json<serde_json::Value>> {
+    let title = request.string("title")?.trim();
+    let quantity = request.integer_or("quantity", 1)?;
+    let subscribed = request.boolean("subscribed")?;
+    let items = request.collect("items")?.to_value()?;
+    Ok(Json(serde_json::json!({
+        "title": title,
+        "quantity": quantity,
+        "subscribed": subscribed,
+        "items": items,
+    })))
+}
+```
+
+完整业务接线见唯一示例的 [Controller](../../modules/example/http/controllers/example.rs) 与 [路由](../../modules/example/routes/api.rs)；集合、枚举、条件分支及日期读取沿同一 `Request` 入口，不需要新建输入仓储。
+
+### 日期与时间间隔
+
+`date(key)`返回`Result<Option<InputDate>>`，`date_with(key, DateOptions { format, timezone })`支持显式PHP日期格式与时区，格式不是chrono的`%`语法。`app.timezone`默认为UTC，可用`APP_TIMEZONE`覆盖；非法应用时区在启动时拒绝。输入文本自带时区时按PHP规则覆盖选项。`InputDate`保留epoch、微秒与时区身份，`timestamp()`、`timezone()`和`format("Y-m-d H:i:sP")`可供业务使用；需要chrono对象时显式调用可失败的`try_chrono()`，转换失败不代表底层日期不存在。
+
+请求通过现有extensions接收`CalendarContext`；测试可注入`FixedClock`，业务也可实现`CalendarClock`。FixedClock明确采用Carbon的test-now语义；自定义clock默认采用生产规则，需mock语义时显式覆盖`is_test_clock()`，不能将两种模式的缺项、时区和微秒行为混同。每次date调用读取一次clock，同一次调用使用同一基准；`Request`生成的`Fluent`继承该上下文，独立构造的Fluent默认UTC和系统时钟。不要通过修改进程全局TZ或静态测试时钟影响其他请求。
+
+`interval(key)`保留年月日时分秒及带符号微秒，`interval_with_unit(key, IntervalUnit::Hour)`或字符串`"hour"`按显式单位读取。表达式里的`"90 minutes"`仍保留90分钟，不自动改成1小时30分钟；年月不折算为固定秒数。显式单位名称与表达式缩写是不同规则，例如`"m"`可出现在表达式中，不能作为显式单位参数。缺失或空值返回None，非法表达式返回安全输入错误；仍未覆盖的相对区间语法以`input_interval_unsupported`明确拒绝，不静默返回None。
+
+日历解析另限制源字符串与显式参数合计20MiB；默认日期解析的语义操作、区间词项分别限制每次最多1024项操作，超限返回413。区间预算同样覆盖无空格的compact表达式；这些预算与值树展开键预算分别执行。错误不回显原始日期、格式或时区内容。完整PHP/Carbon语法对应仍按[ADR-079](../../.agents/project/decisions/adr-079-request-input.md)推进，当前公开方法不表示整个Carbon工具箱已经交付。
+
 `/health` 是进程存活探针；`/ready` 要求 listener 正在接收流量且所有依赖探针成功，否则返回 503。DatabaseServiceProvider 检查每个已配置连接池，CacheServiceProvider 对已解析 store 执行只读读取探针；应用 Provider 也可通过 `Readiness::register_probe` 注册最多 64 个稳定命名的异步探针。每轮最多并发 16 个探针、总时限 2 秒且全局仅允许一轮并发检查；错误详情不返回给请求方，服务端只记录稳定错误码和探针名。探针须只读且有界。该 HTTP 端点不代表 gRPC health、实时连接或任意外部依赖的状态。收到 SIGINT/SIGTERM 后，服务器先将自身标为 not-ready 并停止接受连接，再按 `[server].shutdown_timeout_secs` 等待在途请求；到期会合作取消请求、强制终止剩余 server task 并以 `http_shutdown_timeout` 失败退出。请求取消会丢弃本地 handler future，不能撤销已提交的数据库或外部副作用。
 
 启用 `metrics` Cargo feature 后，HTTP 请求会记录请求数、耗时和在途数；指标标签只包含固定的 HTTP 方法类别和状态类别，不包含路径、请求标识、用户信息或错误内容。`/metrics` 默认不注册。仅当 `[server].metrics_endpoint_enabled = true` 时才开放 Prometheus scrape 端点；生产部署应通过监听网络、反向代理或防火墙限制采集访问，不要将端点公开给普通客户端。日志中的 HTTP 请求 span 只记录方法，不记录完整 URI、查询参数、request ID 或 `traceparent`。

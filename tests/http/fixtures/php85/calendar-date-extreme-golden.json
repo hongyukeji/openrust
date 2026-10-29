@@ -1,0 +1,36 @@
+[
+  {
+    "input": "-9223372036854775808",
+    "format": "!U",
+    "ok": {
+      "U": "-9223372036854775808",
+      "calendar": "-292277022657-01-27 08:29:52.000000",
+      "iso_week": "-292277022657-01-27 7 -292277022657-04"
+    }
+  },
+  {
+    "input": "9223372036854775807",
+    "format": "!U",
+    "ok": {
+      "U": "9223372036854775807",
+      "calendar": "292277026596-12-04 15:30:07.000000",
+      "iso_week": "292277026596-12-04 7 292277026596-48"
+    }
+  },
+  {
+    "input": "-9223372036854775809",
+    "format": "!U",
+    "error": {
+      "class": "Carbon\\Exceptions\\InvalidFormatException",
+      "message": "Number out of range"
+    }
+  },
+  {
+    "input": "9223372036854775808",
+    "format": "!U",
+    "error": {
+      "class": "Carbon\\Exceptions\\InvalidFormatException",
+      "message": "Number out of range"
+    }
+  }
+]

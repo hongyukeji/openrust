@@ -28,7 +28,7 @@
 
 当前交付依赖是 R1-S结构/挂载 → R2基础Container/Provider/配置/TestApp（A–D 已验收）→ R2-M模块契约/目录迁移 → R1-E真实CRUD与当前能力演示（已由 bc3fa01 提交）→ R2-N模块硬依赖与启动顺序（本簇已验收）→ R3–R16逐簇实现并同步示例。R2-D 测试应用由生产 Provider/Router 同路径构建，但不代表完整模块管理已完成；R1-E 的 Article、租户、附件、通信、观测等生产路径与 R2-N 证据分别记录于 [testing.md](memory/testing.md)。模块完整管理与 Laravel 严格 1:1 范围继续保留。
 
-当前C04-B1已完成适用验收，限定提交见Git：根真实TCP、生成consumer及生成认证应用双库已获相应证据；账号/缓存fixture缺Host与新迁移编号问题已按获准方案修正，根完整PG/MySQL各47项通过；最新workspace全部门禁通过，后继从todo领取C04-B2，其他完整C04范围继续保留。详见[todo](todo.md)与[testing](memory/testing.md#c04-b1-统一请求输入)。
+当前C04-B1已完成适用验收，限定提交见Git：根真实TCP、生成consumer及生成认证应用双库已获相应证据；账号/缓存fixture缺Host与新迁移编号问题已按获准方案修正，根完整PG/MySQL各47项通过；最新workspace全部门禁通过，C04-B2类型便捷方法亦通过本轮完整适用门禁（默认645/全特性1211、根双库各47、生成应用与真实TCP），后继从todo领取C04余项，其他完整C04范围继续保留。详见[todo](todo.md)与[testing](memory/testing.md#c04-b1-统一请求输入)。
 
 ## 路由
 

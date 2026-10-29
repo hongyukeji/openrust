@@ -1,0 +1,369 @@
+{
+    "evidence": "fixed originalLaraveltrait + Carbon3.8.4/PHP8.5 -n, fixed Jan1 test-now; invalid-UTF8 exception-message bytes substituted for JSON only",
+    "cases": [
+        {
+            "id": "byteguard.0",
+            "kind": "date",
+            "input": "now.",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-01 16:30:25.123456",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1577896225.123456",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "byteguard.1",
+            "kind": "date",
+            "input": "Mon.",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-06 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1578268800.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "byteguard.2",
+            "kind": "date",
+            "input": ".",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-01 16:30:25.123456",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1577896225.123456",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "byteguard.3",
+            "kind": "date",
+            "input": ",",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-01 16:30:25.123456",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1577896225.123456",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "byteguard.4",
+            "kind": "date",
+            "input": "now..now",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-01 16:30:25.123456",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1577896225.123456",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "byteguard.5",
+            "kind": "date",
+            "input": "16:30:25.",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-01 16:30:25.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1577896225.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "byteguard.6",
+            "kind": "date",
+            "input": "2020-01-01\u2003",
+            "options": [],
+            "outcome": {
+                "error": {
+                    "class": "Carbon\\Exceptions\\InvalidFormatException",
+                    "message": "Could not parse '2020-01-01\u2003': Failed to parse time string (2020-01-01\u2003) at position 10 (\ufffd): Unexpected character"
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "byteguard.7",
+            "kind": "date",
+            "input": "2020-01-01\u00a0",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-01 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1577836800.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "byteguard.8",
+            "kind": "date",
+            "input": "2020-01-01\r16:30",
+            "options": [],
+            "outcome": {
+                "error": {
+                    "class": "Carbon\\Exceptions\\InvalidFormatException",
+                    "message": "Could not parse '2020-01-01\r16:30': Failed to parse time string (2020-01-01\r16:30) at position 10 (\r): Unexpected character"
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "byteguard.9",
+            "kind": "date",
+            "input": "2020-01-01\n16:30",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-01 16:30:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1577896200.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "byteguard.10",
+            "kind": "date",
+            "input": "\u00e9",
+            "options": {
+                "format": "!?"
+            },
+            "outcome": {
+                "error": {
+                    "class": "Carbon\\Exceptions\\InvalidFormatException",
+                    "message": "Trailing data"
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "byteguard.11",
+            "kind": "date",
+            "input": "\u00e9",
+            "options": {
+                "format": "!??"
+            },
+            "outcome": {
+                "ok": {
+                    "datetime": "1970-01-01 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "0.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "byteguard.12",
+            "kind": "date",
+            "input": "\ud83d\ude00",
+            "options": {
+                "format": "!????"
+            },
+            "outcome": {
+                "ok": {
+                    "datetime": "1970-01-01 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "0.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "byteguard.13",
+            "kind": "date",
+            "input": "\u00e92020",
+            "options": {
+                "format": "!??Y"
+            },
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-01 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1577836800.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "byteguard.14",
+            "kind": "date",
+            "input": "\u00e9-2020",
+            "options": {
+                "format": "!?*-Y"
+            },
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-01 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1577836800.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "byteguard.15",
+            "kind": "date",
+            "input": "front of 12am",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-01 11:45:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1577879100.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "byteguard.16",
+            "kind": "date",
+            "input": "front of 12pm",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-01 23:45:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1577922300.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "byteguard.17",
+            "kind": "date",
+            "input": "back of 24pm",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-02 12:15:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1577967300.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        }
+    ]
+}

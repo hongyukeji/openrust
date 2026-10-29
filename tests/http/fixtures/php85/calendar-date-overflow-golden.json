@@ -1,0 +1,77 @@
+{
+    "evidence": "fixed Laravel original trait + Carbon3.8.4 minimum sample / PHP8.5.0 -n, fixed Jan1 UTC mock",
+    "cases": [
+        {
+            "id": "overflow.0",
+            "kind": "date",
+            "input": "@170141183460469231731687303715884105727.9999995",
+            "options": [],
+            "outcome": {
+                "error": {
+                    "class": "Carbon\\Exceptions\\InvalidFormatException",
+                    "message": "Could not parse '@170141183460469231731687303715884105727.9999995': Unexpected data found.\nTrailing data"
+                }
+            },
+            "warnings": [
+                {
+                    "severity": 2,
+                    "message": "The float-string \"170141183460469231731687303715884105727\" is not representable as an int, cast occurred"
+                }
+            ]
+        },
+        {
+            "id": "overflow.1",
+            "kind": "date",
+            "input": "@-170141183460469231731687303715884105727.9999995",
+            "options": [],
+            "outcome": {
+                "error": {
+                    "class": "Carbon\\Exceptions\\InvalidFormatException",
+                    "message": "Could not parse '@-170141183460469231731687303715884105727.9999995': Unexpected data found.\nTrailing data"
+                }
+            },
+            "warnings": [
+                {
+                    "severity": 2,
+                    "message": "The float-string \"170141183460469231731687303715884105727\" is not representable as an int, cast occurred"
+                }
+            ]
+        },
+        {
+            "id": "overflow.2",
+            "kind": "date",
+            "input": "170141183460469231731687303715884105727.9999995",
+            "options": [],
+            "outcome": {
+                "error": {
+                    "class": "Carbon\\Exceptions\\InvalidFormatException",
+                    "message": "Could not parse '170141183460469231731687303715884105727.9999995': Unexpected data found.\nTrailing data"
+                }
+            },
+            "warnings": [
+                {
+                    "severity": 2,
+                    "message": "The float-string \"170141183460469231731687303715884105727\" is not representable as an int, cast occurred"
+                }
+            ]
+        },
+        {
+            "id": "overflow.3",
+            "kind": "date",
+            "input": "-170141183460469231731687303715884105727.9999995",
+            "options": [],
+            "outcome": {
+                "error": {
+                    "class": "Carbon\\Exceptions\\InvalidFormatException",
+                    "message": "Could not parse '-170141183460469231731687303715884105727.9999995': Unexpected data found.\nTrailing data"
+                }
+            },
+            "warnings": [
+                {
+                    "severity": 2,
+                    "message": "The float-string \"170141183460469231731687303715884105727\" is not representable as an int, cast occurred"
+                }
+            ]
+        }
+    ]
+}

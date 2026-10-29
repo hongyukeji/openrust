@@ -1,0 +1,307 @@
+[
+  {
+    "id": "control.space.number.before",
+    "kind": "json",
+    "raw": "\" 12\""
+  },
+  {
+    "id": "control.space.number.after",
+    "kind": "json",
+    "raw": "\"12 \""
+  },
+  {
+    "id": "control.space.bool.before",
+    "kind": "json",
+    "raw": "\" true\""
+  },
+  {
+    "id": "control.space.bool.after",
+    "kind": "json",
+    "raw": "\"true \""
+  },
+  {
+    "id": "control.space.boolone.before",
+    "kind": "json",
+    "raw": "\" 1\""
+  },
+  {
+    "id": "control.space.boolone.after",
+    "kind": "json",
+    "raw": "\"1 \""
+  },
+  {
+    "id": "control.tab.number.before",
+    "kind": "json",
+    "raw": "\"\\t12\""
+  },
+  {
+    "id": "control.tab.number.after",
+    "kind": "json",
+    "raw": "\"12\\t\""
+  },
+  {
+    "id": "control.tab.bool.before",
+    "kind": "json",
+    "raw": "\"\\ttrue\""
+  },
+  {
+    "id": "control.tab.bool.after",
+    "kind": "json",
+    "raw": "\"true\\t\""
+  },
+  {
+    "id": "control.tab.boolone.before",
+    "kind": "json",
+    "raw": "\"\\t1\""
+  },
+  {
+    "id": "control.tab.boolone.after",
+    "kind": "json",
+    "raw": "\"1\\t\""
+  },
+  {
+    "id": "control.lf.number.before",
+    "kind": "json",
+    "raw": "\"\\n12\""
+  },
+  {
+    "id": "control.lf.number.after",
+    "kind": "json",
+    "raw": "\"12\\n\""
+  },
+  {
+    "id": "control.lf.bool.before",
+    "kind": "json",
+    "raw": "\"\\ntrue\""
+  },
+  {
+    "id": "control.lf.bool.after",
+    "kind": "json",
+    "raw": "\"true\\n\""
+  },
+  {
+    "id": "control.lf.boolone.before",
+    "kind": "json",
+    "raw": "\"\\n1\""
+  },
+  {
+    "id": "control.lf.boolone.after",
+    "kind": "json",
+    "raw": "\"1\\n\""
+  },
+  {
+    "id": "control.cr.number.before",
+    "kind": "json",
+    "raw": "\"\\r12\""
+  },
+  {
+    "id": "control.cr.number.after",
+    "kind": "json",
+    "raw": "\"12\\r\""
+  },
+  {
+    "id": "control.cr.bool.before",
+    "kind": "json",
+    "raw": "\"\\rtrue\""
+  },
+  {
+    "id": "control.cr.bool.after",
+    "kind": "json",
+    "raw": "\"true\\r\""
+  },
+  {
+    "id": "control.cr.boolone.before",
+    "kind": "json",
+    "raw": "\"\\r1\""
+  },
+  {
+    "id": "control.cr.boolone.after",
+    "kind": "json",
+    "raw": "\"1\\r\""
+  },
+  {
+    "id": "control.vt.number.before",
+    "kind": "json",
+    "raw": "\"\\u000b12\""
+  },
+  {
+    "id": "control.vt.number.after",
+    "kind": "json",
+    "raw": "\"12\\u000b\""
+  },
+  {
+    "id": "control.vt.bool.before",
+    "kind": "json",
+    "raw": "\"\\u000btrue\""
+  },
+  {
+    "id": "control.vt.bool.after",
+    "kind": "json",
+    "raw": "\"true\\u000b\""
+  },
+  {
+    "id": "control.vt.boolone.before",
+    "kind": "json",
+    "raw": "\"\\u000b1\""
+  },
+  {
+    "id": "control.vt.boolone.after",
+    "kind": "json",
+    "raw": "\"1\\u000b\""
+  },
+  {
+    "id": "control.ff.number.before",
+    "kind": "json",
+    "raw": "\"\\f12\""
+  },
+  {
+    "id": "control.ff.number.after",
+    "kind": "json",
+    "raw": "\"12\\f\""
+  },
+  {
+    "id": "control.ff.bool.before",
+    "kind": "json",
+    "raw": "\"\\ftrue\""
+  },
+  {
+    "id": "control.ff.bool.after",
+    "kind": "json",
+    "raw": "\"true\\f\""
+  },
+  {
+    "id": "control.ff.boolone.before",
+    "kind": "json",
+    "raw": "\"\\f1\""
+  },
+  {
+    "id": "control.ff.boolone.after",
+    "kind": "json",
+    "raw": "\"1\\f\""
+  },
+  {
+    "id": "control.nul.number.before",
+    "kind": "json",
+    "raw": "\"\\u000012\""
+  },
+  {
+    "id": "control.nul.number.after",
+    "kind": "json",
+    "raw": "\"12\\u0000\""
+  },
+  {
+    "id": "control.nul.bool.before",
+    "kind": "json",
+    "raw": "\"\\u0000true\""
+  },
+  {
+    "id": "control.nul.bool.after",
+    "kind": "json",
+    "raw": "\"true\\u0000\""
+  },
+  {
+    "id": "control.nul.boolone.before",
+    "kind": "json",
+    "raw": "\"\\u00001\""
+  },
+  {
+    "id": "control.nul.boolone.after",
+    "kind": "json",
+    "raw": "\"1\\u0000\""
+  },
+  {
+    "id": "control.nbsp.number.before",
+    "kind": "json",
+    "raw": "\" 12\""
+  },
+  {
+    "id": "control.nbsp.number.after",
+    "kind": "json",
+    "raw": "\"12 \""
+  },
+  {
+    "id": "control.nbsp.bool.before",
+    "kind": "json",
+    "raw": "\" true\""
+  },
+  {
+    "id": "control.nbsp.bool.after",
+    "kind": "json",
+    "raw": "\"true \""
+  },
+  {
+    "id": "control.nbsp.boolone.before",
+    "kind": "json",
+    "raw": "\" 1\""
+  },
+  {
+    "id": "control.nbsp.boolone.after",
+    "kind": "json",
+    "raw": "\"1 \""
+  },
+  {
+    "id": "control.zwsp.number.before",
+    "kind": "json",
+    "raw": "\"​12\""
+  },
+  {
+    "id": "control.zwsp.number.after",
+    "kind": "json",
+    "raw": "\"12​\""
+  },
+  {
+    "id": "control.zwsp.bool.before",
+    "kind": "json",
+    "raw": "\"​true\""
+  },
+  {
+    "id": "control.zwsp.bool.after",
+    "kind": "json",
+    "raw": "\"true​\""
+  },
+  {
+    "id": "control.zwsp.boolone.before",
+    "kind": "json",
+    "raw": "\"​1\""
+  },
+  {
+    "id": "control.zwsp.boolone.after",
+    "kind": "json",
+    "raw": "\"1​\""
+  },
+  {
+    "id": "control.bom.number.before",
+    "kind": "json",
+    "raw": "\"﻿12\""
+  },
+  {
+    "id": "control.bom.number.after",
+    "kind": "json",
+    "raw": "\"12﻿\""
+  },
+  {
+    "id": "control.bom.bool.before",
+    "kind": "json",
+    "raw": "\"﻿true\""
+  },
+  {
+    "id": "control.bom.bool.after",
+    "kind": "json",
+    "raw": "\"true﻿\""
+  },
+  {
+    "id": "control.bom.boolone.before",
+    "kind": "json",
+    "raw": "\"﻿1\""
+  },
+  {
+    "id": "control.bom.boolone.after",
+    "kind": "json",
+    "raw": "\"1﻿\""
+  },
+  {
+    "id": "control.nul.internal",
+    "kind": "json",
+    "raw": "\"1\\u0000later\""
+  }
+]

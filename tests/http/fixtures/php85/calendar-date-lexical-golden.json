@@ -1,0 +1,878 @@
+{
+    "runtime": "PHP8.5.0 -n; original fixed Laravel trait; Carbon3.8.4 minimum sample; fixed UTC test-now",
+    "cases": [
+        {
+            "id": "lexical.0",
+            "kind": "date",
+            "input": "Feb",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-02-01 16:30:25.123456",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1580574625.123456",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.1",
+            "kind": "date",
+            "input": "February",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-02-01 16:30:25.123456",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1580574625.123456",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.2",
+            "kind": "date",
+            "input": "Feb 2020",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-02-01 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1580515200.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.3",
+            "kind": "date",
+            "input": "3..--Feb..--2020",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-02-03 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1580688000.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.4",
+            "kind": "date",
+            "input": "2020..--Feb",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-02-01 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1580515200.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.5",
+            "kind": "date",
+            "input": "Feb..--2020",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-02-01 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1580515200.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.6",
+            "kind": "date",
+            "input": "Feb3,2020",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-02-03 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1580688000.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.7",
+            "kind": "date",
+            "input": "3Feb",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-02-03 16:30:25.123456",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1580747425.123456",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.8",
+            "kind": "date",
+            "input": "3Feb20",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-02-03 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1580688000.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.9",
+            "kind": "date",
+            "input": "3Feb2",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2002-02-03 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1012694400.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.10",
+            "kind": "date",
+            "input": "3Feb020",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-02-03 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1580688000.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.11",
+            "kind": "date",
+            "input": "2-3-4",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2002-03-04 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1015200000.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.12",
+            "kind": "date",
+            "input": "02/03/4",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2004-02-03 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1075766400.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.13",
+            "kind": "date",
+            "input": "02/03/20",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-02-03 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1580688000.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.14",
+            "kind": "date",
+            "input": "2-3-020",
+            "options": [],
+            "outcome": {
+                "error": {
+                    "class": "Carbon\\Exceptions\\InvalidFormatException",
+                    "message": "Could not parse '2-3-020': Failed to parse time string (2-3-020) at position 6 (0): Unexpected character"
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.15",
+            "kind": "date",
+            "input": "9999",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "9999-01-01 16:30:25.123456",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "253370824225.123456",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.16",
+            "kind": "date",
+            "input": "16:30 2020",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-01 16:30:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1577896200.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.17",
+            "kind": "date",
+            "input": "16:30 1630",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "1630-01-01 16:30:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "-10729265400.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.18",
+            "kind": "date",
+            "input": "1630 2020",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-01 16:30:00.123456",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1577896200.123456",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.19",
+            "kind": "date",
+            "input": "1630 2020 1234",
+            "options": [],
+            "outcome": {
+                "error": {
+                    "class": "Carbon\\Exceptions\\InvalidFormatException",
+                    "message": "Could not parse '1630 2020 1234': Failed to parse time string (1630 2020 1234) at position 10 (1): Double time specification"
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.20",
+            "kind": "date",
+            "input": "2020-01-01 1630 2021",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2021-01-01 16:30:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1609518600.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.21",
+            "kind": "date",
+            "input": "16:30 back of 5",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-01 05:15:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1577855700.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.22",
+            "kind": "date",
+            "input": "back of 5 16:30",
+            "options": [],
+            "outcome": {
+                "error": {
+                    "class": "Carbon\\Exceptions\\InvalidFormatException",
+                    "message": "Could not parse 'back of 5 16:30': Failed to parse time string (back of 5 16:30) at position 10 (1): Double time specification"
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.23",
+            "kind": "date",
+            "input": "16:30 front of 5",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-01 04:45:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1577853900.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.24",
+            "kind": "date",
+            "input": "16:30 noon",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-01 12:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1577880000.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.25",
+            "kind": "date",
+            "input": "4:3pm",
+            "options": [],
+            "outcome": {
+                "error": {
+                    "class": "Carbon\\Exceptions\\InvalidFormatException",
+                    "message": "Could not parse '4:3pm': Failed to parse time string (4:3pm) at position 3 (p): The timezone could not be found in the database"
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.26",
+            "kind": "date",
+            "input": "4:30:2pm",
+            "options": [],
+            "outcome": {
+                "error": {
+                    "class": "Carbon\\Exceptions\\InvalidFormatException",
+                    "message": "Could not parse '4:30:2pm': Failed to parse time string (4:30:2pm) at position 6 (p): The timezone could not be found in the database"
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.27",
+            "kind": "date",
+            "input": "t4:3:2",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-01 04:03:02.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1577851382.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.28",
+            "kind": "date",
+            "input": "4.30:25.1234567",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-01 04:30:25.123456",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1577853025.123456",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.29",
+            "kind": "date",
+            "input": "16:30:25.123456789",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-01 16:30:25.123456",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1577896225.123456",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.30",
+            "kind": "date",
+            "input": "2020-1-2T4:3:2",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-02 04:03:02.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1577937782.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.31",
+            "kind": "date",
+            "input": "3rdFebruary2020",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-02-03 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1580688000.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.32",
+            "kind": "date",
+            "input": "3zzFebruary2020",
+            "options": [],
+            "outcome": {
+                "error": {
+                    "class": "Carbon\\Exceptions\\InvalidFormatException",
+                    "message": "Could not parse '3zzFebruary2020': Failed to parse time string (3zzFebruary2020) at position 0 (3): Unexpected character"
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.33",
+            "kind": "date",
+            "input": "Monday of January",
+            "options": [],
+            "outcome": {
+                "error": {
+                    "class": "Carbon\\Exceptions\\InvalidFormatException",
+                    "message": "Could not parse 'Monday of January': Failed to parse time string (Monday of January) at position 7 (o): The timezone could not be found in the database"
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.34",
+            "kind": "date",
+            "input": "first weekdays",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-02 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1577923200.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.35",
+            "kind": "date",
+            "input": "weekday",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-06 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1578268800.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.36",
+            "kind": "date",
+            "input": "weekdays",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-06 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1578268800.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.37",
+            "kind": "date",
+            "input": "+2days",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-03 16:30:25.123456",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1578069025.123456",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.38",
+            "kind": "date",
+            "input": "nextday",
+            "options": [],
+            "outcome": {
+                "error": {
+                    "class": "Carbon\\Exceptions\\InvalidFormatException",
+                    "message": "Could not parse 'nextday': Failed to parse time string (nextday) at position 0 (n): The timezone could not be found in the database"
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.39",
+            "kind": "date",
+            "input": "firstday of next month",
+            "options": [],
+            "outcome": {
+                "error": {
+                    "class": "Carbon\\Exceptions\\InvalidFormatException",
+                    "message": "Could not parse 'firstday of next month': Failed to parse time string (firstday of next month) at position 0 (f): The timezone could not be found in the database"
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.40",
+            "kind": "date",
+            "input": "2020-01-01 @0",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "1970-01-01 00:00:00.000000",
+                    "timezone": "+00:00",
+                    "offset_seconds": 0,
+                    "epoch": "0.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.41",
+            "kind": "date",
+            "input": "@0 +2 days",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "1970-01-01 00:00:02.000000",
+                    "timezone": "+00:00",
+                    "offset_seconds": 0,
+                    "epoch": "2.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.42",
+            "kind": "date",
+            "input": "+2 days @0",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "1970-01-03 00:00:00.000000",
+                    "timezone": "+00:00",
+                    "offset_seconds": 0,
+                    "epoch": "172800.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.43",
+            "kind": "date",
+            "input": "16:30:25+0100",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-01 16:30:25.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1577896225.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "lexical.44",
+            "kind": "date",
+            "input": "Feb 3 16:30:25+0100",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-02-03 16:30:25.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1580747425.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        }
+    ]
+}

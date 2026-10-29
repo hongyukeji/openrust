@@ -25,6 +25,8 @@
 - `--auth-mfa` 生成应用在认证 HTTP 测试内实际启用因子，验证登录仅返回挑战、恢复码一次性使用、轮换与 refresh 撤销。`--grpc` 生成测试启动生成的二进制，验证 TLS 信任/拒绝、HTTP/Echo 与信号停机；普通、双库认证/MFA、纯 gRPC 及双库认证/MFA+gRPC 十变体的格式、check 和适用真实测试见 [R1-E 验收记录](../memory/testing.md#r1-e-业务示例定向验收证据整簇进行中)。
 - 生成源码采用内置模板文件与 Rust 字符串拼装，当前未使用 MiniJinja；生成器包含 Model、Migration、Mailer、Policy 和 Job。UUID 主键默认关闭，启用时应用和 migration package 均添加可选 `db-uuid` feature。
 
+- C04-B2在生成的`tests/support/request_input.rs`共用公开Request/Fluent测试入口；普通`test_app`与认证`auth_flows`均调用，认证路径复用真实隔离DB配置和原清理流程。模板根路由从最终应用配置读取`app.name`，不以包名替代；`app.timezone`默认UTC。本簇最终普通与双库生成认证项目均实际通过check/tests，共用helper获独立复审；证据见testing，未以历史快照代替。
+
 ## 后续边界
 
 - controller/scaffold/command 等生成器、只读 `doctor`、诊断和开发编排属于 M6 待补项。具体顺序以 [v1 计划](../plans/gen1-plan.md) 与活跃待办为准。

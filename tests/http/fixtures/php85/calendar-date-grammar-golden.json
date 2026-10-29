@@ -1,0 +1,1686 @@
+{
+  "runtime": "PHP8.5.0 -n + Carbon3.8.4 minimum sample, real original Laravel trait; not resolved lock",
+  "clock": "2020-01-01T16:30:25.123456Z",
+  "cases": [
+    {
+      "id": "grammar.timetiny12",
+      "kind": "date",
+      "input": "4pm",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 16:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577894400.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.timeshort12",
+      "kind": "date",
+      "input": "4.30pm",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 16:30:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577896200.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.timelong12",
+      "kind": "date",
+      "input": "4.30.25pm",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 16:30:25.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577896225.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.timetiny24",
+      "kind": "date",
+      "input": "t4",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 04:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577851200.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.timeshort24",
+      "kind": "date",
+      "input": "t4.30",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 04:30:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577853000.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.timelong24",
+      "kind": "date",
+      "input": "t4.30.25",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 04:30:25.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577853025.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.iso8601long",
+      "kind": "date",
+      "input": "t16.30.25.123456",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 16:30:25.123456",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577896225.123456",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.iso8601normtz",
+      "kind": "date",
+      "input": "t16.30.25UTC",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 16:30:25.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577896225.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.gnunocolon",
+      "kind": "date",
+      "input": "1630",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 16:30:00.123456",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577896200.123456",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.gnunocolon_clock",
+      "kind": "date",
+      "input": "2020",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 20:20:00.123456",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577910000.123456",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.iso8601nocolon",
+      "kind": "date",
+      "input": "163025",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 16:30:25.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577896225.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.americanshort",
+      "kind": "date",
+      "input": "2/3",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 16:30:25.123456",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580747425.123456",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.american",
+      "kind": "date",
+      "input": "2/3/2020",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580688000.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.iso8601dateslash",
+      "kind": "date",
+      "input": "2020/02/03/",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580688000.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.dateslash",
+      "kind": "date",
+      "input": "2020/2/3",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580688000.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.iso8601date4",
+      "kind": "date",
+      "input": "2020-02-03",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580688000.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.iso8601date2",
+      "kind": "date",
+      "input": "20-02-03",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580688000.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.iso8601datex",
+      "kind": "date",
+      "input": "+1000000-02-03",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "1000000-02-03 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "31494787632000.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.gnudateshorter",
+      "kind": "date",
+      "input": "2020-2",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-01 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580515200.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.gnudateshort",
+      "kind": "date",
+      "input": "2020-2-3",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580688000.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.pointeddate4",
+      "kind": "date",
+      "input": "3\t2.2020",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580688000.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.pointeddate2",
+      "kind": "date",
+      "input": "3.2.20",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 03:02:20.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577847740.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.datefull",
+      "kind": "date",
+      "input": "3-Feb-2020",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580688000.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.datefull_nosep",
+      "kind": "date",
+      "input": "3February2020",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580688000.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.datenoday",
+      "kind": "date",
+      "input": "Feb-2020",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-01 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580515200.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.datenodayrev",
+      "kind": "date",
+      "input": "2020-Feb",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-01 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580515200.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.datetextual",
+      "kind": "date",
+      "input": "February-3,2020",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580688000.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.datenoyear",
+      "kind": "date",
+      "input": "Feb-3",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 16:30:25.123456",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580747425.123456",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.datenoyearrev",
+      "kind": "date",
+      "input": "3-Feb",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 16:30:25.123456",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580747425.123456",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.datenocolon",
+      "kind": "date",
+      "input": "20200203",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580688000.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.soap",
+      "kind": "date",
+      "input": "2020-02-03T16:30:25.123456+01:00",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 16:30:25.123456",
+          "timezone": "+01:00",
+          "offset_seconds": 3600,
+          "epoch": "1580743825.123456",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.xmlrpc",
+      "kind": "date",
+      "input": "20200203T16:30:25",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 16:30:25.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580747425.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.xmlrpcnocolon",
+      "kind": "date",
+      "input": "20200203t163025",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 16:30:25.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580747425.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.wddx",
+      "kind": "date",
+      "input": "2020-2-3T4:5:6",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 04:05:06.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580702706.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.pgydotd",
+      "kind": "date",
+      "input": "2020.034",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "1970-01-01 00:33:40.034000",
+          "timezone": "+00:00",
+          "offset_seconds": 0,
+          "epoch": "2020.034000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.pgtextshort",
+      "kind": "date",
+      "input": "Feb-03-2020",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580688000.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.pgtextreverse",
+      "kind": "date",
+      "input": "2020-Feb-03",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580688000.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.mssqltime",
+      "kind": "date",
+      "input": "4:30:25:123PM",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 16:30:25.123000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577896225.123000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.isoweekday",
+      "kind": "date",
+      "input": "2020W013",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577836800.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.isoweek",
+      "kind": "date",
+      "input": "2020W01",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2019-12-30 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577664000.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.exif",
+      "kind": "date",
+      "input": "2020:02:03 16:30:25",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 16:30:25.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580747425.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.firstdayof",
+      "kind": "date",
+      "input": "first day of February 2020",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-01 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580515200.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.lastdayof",
+      "kind": "date",
+      "input": "last day of February 2020",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-29 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1582934400.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.backof",
+      "kind": "date",
+      "input": "back of 7pm",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 19:15:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577906100.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.frontof",
+      "kind": "date",
+      "input": "front of 7pm",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 18:45:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577904300.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.clf",
+      "kind": "date",
+      "input": "03/Feb/2020:16:30:25 +0100",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 16:30:25.000000",
+          "timezone": "+01:00",
+          "offset_seconds": 3600,
+          "epoch": "1580743825.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.timestamp",
+      "kind": "date",
+      "input": "@1577896225",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 16:30:25.000000",
+          "timezone": "+00:00",
+          "offset_seconds": 0,
+          "epoch": "1577896225.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.timestampms",
+      "kind": "date",
+      "input": "@-0.25",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "1969-12-31 23:59:59.750000",
+          "timezone": "+00:00",
+          "offset_seconds": 0,
+          "epoch": "-1.750000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.dateshortwithtimeshort12",
+      "kind": "date",
+      "input": "Feb 3 4:30pm",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 16:30:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580747400.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.dateshortwithtimelong12",
+      "kind": "date",
+      "input": "Feb 3 4:30:25pm",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 16:30:25.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580747425.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.dateshortwithtimeshort",
+      "kind": "date",
+      "input": "Feb 3 16:30",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 16:30:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580747400.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.dateshortwithtimelong",
+      "kind": "date",
+      "input": "Feb 3 16:30:25",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 16:30:25.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580747425.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.dateshortwithtimelongtz",
+      "kind": "date",
+      "input": "Feb 3 16:30:25+0100",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 16:30:25.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580747425.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.relative",
+      "kind": "date",
+      "input": "+2 months -3 days",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-27 16:30:25.123456",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1582821025.123456",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.relativetext",
+      "kind": "date",
+      "input": "third day",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-04 16:30:25.123456",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1578155425.123456",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.relativetextweek",
+      "kind": "date",
+      "input": "next week",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-06 16:30:25.123456",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1578328225.123456",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.relativetextweek_this",
+      "kind": "date",
+      "input": "this week",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2019-12-30 16:30:25.123456",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577723425.123456",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.relativetextweek_previous",
+      "kind": "date",
+      "input": "previous week",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2019-12-23 16:30:25.123456",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577118625.123456",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.weekdayof",
+      "kind": "date",
+      "input": "second Tuesday of next month",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-11 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1581379200.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.weekdayof_no_next",
+      "kind": "date",
+      "input": "last Monday of January 2020",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-27 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580083200.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.weekdayof_mix",
+      "kind": "date",
+      "input": "first day of next month +2 days",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-01 16:30:25.123456",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580574625.123456",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.reltextunit_fortnight",
+      "kind": "date",
+      "input": "+1 fortnight",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-15 16:30:25.123456",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1579105825.123456",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.reltextunit_msec",
+      "kind": "date",
+      "input": "+2 milliseconds",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 16:30:25.125456",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577896225.125456",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.reltextunit_usec",
+      "kind": "date",
+      "input": "+2 microseconds",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 16:30:25.123458",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577896225.123458",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.reltextnumber_sixth",
+      "kind": "date",
+      "input": "sixth day",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-07 16:30:25.123456",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1578414625.123456",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.relnumber_spaces",
+      "kind": "date",
+      "input": "+ 2 days",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-03 16:30:25.123456",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1578069025.123456",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.relnumber_multi_sign",
+      "kind": "date",
+      "input": "--2 days",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-03 16:30:25.123456",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1578069025.123456",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.relative_weekday",
+      "kind": "date",
+      "input": "+2 weekdays",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-03 16:30:25.123456",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1578069025.123456",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.relative_weekday_negative",
+      "kind": "date",
+      "input": "-2 weekdays",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2019-12-30 16:30:25.123456",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577723425.123456",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.relative_weekend",
+      "kind": "date",
+      "input": "2020-01-04 +5 weekdays",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-10 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1578614400.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.relative_weekend_negative",
+      "kind": "date",
+      "input": "2020-01-05 -5 weekdays",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2019-12-30 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577664000.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.relative_order",
+      "kind": "date",
+      "input": "2020-01-31 +1 month -1 day",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-03-01 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1583020800.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.relative_ago",
+      "kind": "date",
+      "input": "2 months 3 days ago",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2019-10-29 16:30:25.123456",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1572366625.123456",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.space_nbsp",
+      "kind": "date",
+      "input": "2020-02-03 16:30:25",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 16:30:25.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580747425.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.space_nnbsp",
+      "kind": "date",
+      "input": "2020-02-03 16:30:25",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 16:30:25.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580747425.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.monthroman",
+      "kind": "date",
+      "input": "3 II 2020",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-02-03 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1580688000.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.meridian_periods",
+      "kind": "date",
+      "input": "4:30 p.m.",
+      "options": [],
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 16:30:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577896200.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.format.unknown_literal",
+      "kind": "date",
+      "input": "2020-W",
+      "options": {
+        "format": "!Y-W"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2020-01-01 00:00:00.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1577836800.000000",
+          "last_errors": {
+            "warning_count": 0,
+            "warnings": [],
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.format.range_overflow",
+      "kind": "date",
+      "input": "2020-99-99 99:99:99",
+      "options": {
+        "format": "!Y-m-d H:i:s"
+      },
+      "outcome": {
+        "ok": {
+          "datetime": "2028-06-11 04:40:39.000000",
+          "timezone": "UTC",
+          "offset_seconds": 0,
+          "epoch": "1844311239.000000",
+          "last_errors": {
+            "warning_count": 2,
+            "warnings": {
+              "19": "The parsed date was invalid"
+            },
+            "error_count": 0,
+            "errors": []
+          }
+        }
+      },
+      "warnings": []
+    },
+    {
+      "id": "grammar.format.z_order",
+      "kind": "date",
+      "input": "001 2020",
+      "options": {
+        "format": "z Y"
+      },
+      "outcome": {
+        "error": {
+          "class": "Carbon\\Exceptions\\InvalidFormatException",
+          "message": "A 'day of year' can only come after a year has been found"
+        }
+      },
+      "warnings": []
+    }
+  ]
+}

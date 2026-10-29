@@ -1,5 +1,5 @@
 //! 统一输入来源、规范化、严格类型及资源边界的公开行为回归。
-#![allow(clippy::expect_used)] // 测试构造失败直接中止当前用例。
+#![allow(clippy::expect_used, clippy::panic)] // 测试构造失败直接中止当前用例。
 
 use axum::{
     Router,
@@ -862,5 +862,806 @@ async fn typed_json_lexical_resources_reject_large_entry_and_expanded_path_count
             .await
             .expect("response");
         assert_eq!(response.status(), status);
+    }
+}
+
+/// 检出便利转换误走严格 serde、显式 null 被默认值覆盖或别名不一致。
+#[tokio::test]
+async fn typed_scalar_helpers_preserve_php_casts_defaults_and_aliases() {
+    let request=inspect("POST","/","application/json",r#"{"mixed":"1ab","null":null,"empty":[],"nonempty":[1],"yes":" YES ","number":"1e3","password":"  secret  "}"#).await;
+    assert_eq!(request.integer("mixed").expect("cast"), 1);
+    assert_eq!(request.integer_or("missing", 37).expect("default"), 37);
+    assert_eq!(request.integer_or("null", 37).expect("null"), 0);
+    assert_eq!(request.integer("empty").expect("empty"), 0);
+    assert_eq!(request.integer("nonempty").expect("array"), 1);
+    assert_eq!(request.float("number").expect("float"), 1000.0);
+    assert!(request.boolean("yes").expect("boolean"));
+    assert!(request.boolean_or("missing", true).expect("default"));
+    assert!(!request.boolean_or("null", true).expect("null"));
+    assert_eq!(
+        request.string_or("null", "fallback").expect("null").value(),
+        ""
+    );
+    assert_eq!(
+        request.str_or("missing", 123).expect("default").value(),
+        "123"
+    );
+    assert_eq!(
+        request.string("password").expect("string").trim().value(),
+        "secret"
+    );
+    assert!(request.exists(&["null", "mixed"]));
+    assert_eq!(
+        request
+            .integer(&"x.".repeat(65))
+            .expect_err("path limit")
+            .status(),
+        StatusCode::PAYLOAD_TOO_LARGE
+    );
+}
+
+/// 检出 keyed/all/only 三种数组读取混淆，以及集合过滤暗中重排稀疏键。
+#[tokio::test]
+async fn typed_arrays_and_collections_preserve_php_keys() {
+    let request = inspect(
+        "POST",
+        "/",
+        "application/json",
+        r#"{"roles":["reader","discard","writer"],"email":"one@example.test","null":null}"#,
+    )
+    .await;
+    assert_eq!(
+        request.array("email").expect("array"),
+        json!(["one@example.test"])
+    );
+    assert_eq!(request.array("null").expect("null"), json!([]));
+    assert_eq!(request.array("missing").expect("missing"), json!([]));
+    assert_eq!(
+        request.array_only(&["email", "missing"]).expect("subset"),
+        json!({"email":"one@example.test"})
+    );
+    assert_eq!(request.array_all(), request.all());
+    let filtered = request
+        .collect("roles")
+        .expect("collect")
+        .filter(|value, _| value != "discard")
+        .expect("filter");
+    assert_eq!(filtered.get(2_i64), Some(&json!("writer")));
+    assert_eq!(
+        filtered.to_value().expect("value"),
+        json!({"0":"reader","2":"writer"})
+    );
+    assert_eq!(
+        filtered
+            .values()
+            .expect("values")
+            .to_value()
+            .expect("value"),
+        json!(["reader", "writer"])
+    );
+    assert!(request.collect("missing").expect("collect").is_empty());
+    assert_eq!(
+        request
+            .collect_only(&["email"])
+            .expect("subset")
+            .to_value()
+            .expect("value"),
+        json!({"email":"one@example.test"})
+    );
+}
+
+/// 检出 Fluent 对标量误包装、null 默认以及同一读取内核的 dot/直接键差异。
+#[tokio::test]
+async fn fluent_snapshots_use_same_typed_kernel_without_mutating_request() {
+    let request=inspect("POST","/","application/json",r#"{"profile":{"age":"2_000","name":"Alice"},"scalar":"text","null":null,"profile.age":"direct"}"#).await;
+    assert!(request.fluent("scalar").expect("scalar").is_empty());
+    assert!(request.fluent("null").expect("null").is_empty());
+    assert_eq!(
+        request
+            .fluent_or("null", json!({"fallback":1}))
+            .expect("default")
+            .integer("fallback")
+            .expect("read"),
+        1
+    );
+    let mut profile = request.fluent("profile").expect("profile");
+    assert_eq!(profile.integer("age").expect("integer"), 2);
+    profile.set("age", json!(9)).expect("set");
+    assert_eq!(
+        request.input("profile.age").expect("input"),
+        Some(json!("2_000"))
+    );
+    let all = request.fluent_all().expect("all");
+    assert_eq!(all.get("profile.age").expect("dot"), Some(json!("2_000")));
+    assert_eq!(all.value("profile.age"), Some(&json!("direct")));
+    assert!(!format!("{all:?}").contains("Alice"));
+}
+
+/// 检出集合映射绕过有界数组引擎或跨类型映射丢失键。
+#[test]
+fn support_collection_maps_remain_bounded() {
+    let collection =
+        openrust::support::Collection::from_value(json!({"left":1,"2":2})).expect("collection");
+    let mapped = collection
+        .clone()
+        .map(|value, _| value.as_i64().expect("integer") + 1)
+        .expect("map");
+    assert_eq!(mapped.to_value().expect("value"), json!({"left":2,"2":3}));
+    let error = collection
+        .map(|_, _| vec![Value::Null; 1025])
+        .expect_err("map bounds");
+    assert_eq!(error.status(), StatusCode::PAYLOAD_TOO_LARGE);
+}
+
+#[tokio::test]
+async fn conditional_callbacks_preserve_php_fallback_and_lazy_default() {
+    use openrust::http::{InputOutcome, InputTruthy};
+    use openrust::support::{Collection, Fluent, Stringable};
+    use std::cell::Cell;
+    let request = inspect(
+        "POST",
+        "/",
+        "application/json",
+        r#"{"zero":0,"no":false,"null":null,"empty":[],"text":"yes"}"#,
+    )
+    .await;
+    for value in [
+        json!(false),
+        json!(0),
+        json!(0.0),
+        json!(""),
+        json!("0"),
+        json!([]),
+        Value::Null,
+    ] {
+        assert!(matches!(
+            request.when_has("zero", |_| Ok(value)).expect("callback"),
+            InputOutcome::Request(_)
+        ));
+    }
+    assert_eq!(
+        request
+            .when_has("null", |value| {
+                assert!(value.is_null());
+                Ok(7)
+            })
+            .expect("null present")
+            .into_value(),
+        Some(7)
+    );
+    assert_eq!(
+        request
+            .when_filled("no", |_| Ok(9))
+            .expect("bool filled")
+            .into_value(),
+        Some(9)
+    );
+    assert_eq!(
+        request
+            .when_filled("empty", |_| Ok(9))
+            .expect("array filled")
+            .into_value(),
+        Some(9)
+    );
+    let called = Cell::new(false);
+    let result = request
+        .when_has_or_else(
+            "absent",
+            |_| Ok(1),
+            || {
+                called.set(true);
+                Ok(false)
+            },
+        )
+        .expect("default");
+    assert_eq!(result.into_default(), Some(false));
+    assert!(called.get());
+    let result = request
+        .when_has_or_else(
+            "text",
+            |_| Ok("0"),
+            || -> openrust::Result<bool> { panic!("default must stay lazy") },
+        )
+        .expect("lazy");
+    assert!(result.into_request().is_some());
+    assert_eq!(
+        request
+            .when_missing("absent", |value| {
+                assert!(value.is_null());
+                Ok("missing")
+            })
+            .expect("missing")
+            .into_value(),
+        Some("missing")
+    );
+    let chained = request
+        .when_has("absent", |_| Ok(2))
+        .expect("continue")
+        .and_then(|same| same.when_has("zero", |_| Ok(3)))
+        .expect("chain");
+    assert_eq!(chained.into_value(), Some(3));
+    assert!(Stringable::from("").is_truthy());
+    assert!(Collection::<Value>::default().is_truthy());
+    assert!(Fluent::default().is_truthy());
+    let error = request
+        .when_has("text", |_| {
+            Err::<i32, _>(openrust::Error::custom("callback_failed", "失败"))
+        })
+        .err()
+        .expect("error");
+    assert_eq!(error.code(), "callback_failed");
+}
+
+#[tokio::test]
+async fn conditional_mut_callbacks_modify_same_bag_and_short_circuit() {
+    use openrust::http::InputOutcomeMut;
+    let mut request = inspect("POST", "/", "application/json", r#"{"count":1}"#).await;
+    let result = request
+        .when_has_mut("count", |value, same| {
+            assert_eq!(value, json!(1));
+            same.merge(json!({"count":2}))?;
+            Ok(false)
+        })
+        .expect("mut callback");
+    let same = result.into_request().expect("false continues same request");
+    assert_eq!(same.integer("count").expect("integer"), 2);
+    let result = same
+        .when_missing_mut_or_else(
+            "count",
+            |_, _| Ok(3),
+            |same| {
+                same.merge(json!({"default_called":true}))?;
+                Ok(None::<i32>)
+            },
+        )
+        .expect("mut default");
+    assert!(matches!(result, InputOutcomeMut::Default(None)));
+    assert!(request.boolean("default_called").expect("default mutation"));
+    let result = request
+        .when_has_mut("count", |_, _| Ok(5))
+        .expect("value")
+        .and_then(|_| panic!("value must short circuit"))
+        .expect("short circuit");
+    assert_eq!(result.into_value(), Some(5));
+}
+
+#[derive(Debug, PartialEq, Eq, serde::Serialize)]
+enum NumberChoice {
+    Zero,
+    One,
+    Two,
+}
+impl openrust::support::BackedEnum for NumberChoice {
+    type Backing = i64;
+    fn try_from_backing(value: i64) -> Option<Self> {
+        match value {
+            0 => Some(Self::Zero),
+            1 => Some(Self::One),
+            2 => Some(Self::Two),
+            _ => None,
+        }
+    }
+}
+#[derive(Debug, PartialEq, Eq)]
+enum TextChoice {
+    One,
+    Empty,
+}
+impl openrust::support::BackedEnum for TextChoice {
+    type Backing = String;
+    fn try_from_backing(value: String) -> Option<Self> {
+        match value.as_str() {
+            "1" => Some(Self::One),
+            "" => Some(Self::Empty),
+            _ => None,
+        }
+    }
+}
+#[tokio::test]
+async fn backed_enums_use_weak_union_rules_and_preserve_filtered_keys() {
+    use NumberChoice::{One, Two, Zero};
+    use openrust::http::InputOutcome;
+    let mut request = inspect("POST", "/", "application/json", r#"{"float":1.5,"no":false,"null":null,"prefix":"1ab","decimal":"1.5","blank":" ","items":[1,9,2,1],"array":[]}"#).await;
+    assert_eq!(
+        request.r#enum::<NumberChoice>("float").expect("enum"),
+        Some(One)
+    );
+    assert_eq!(
+        request
+            .enum_value::<TextChoice>("float")
+            .expect("enum alias"),
+        Some(TextChoice::One)
+    );
+    assert_eq!(
+        request.r#enum::<NumberChoice>("no").expect("bool"),
+        Some(Zero)
+    );
+    assert_eq!(
+        request.r#enum::<TextChoice>("no").expect("union bool"),
+        None
+    );
+    assert_eq!(
+        request.r#enum::<NumberChoice>("null").expect("unfilled"),
+        None
+    );
+    assert_eq!(request.enum_or("blank", Two).expect("default"), Two);
+    assert_eq!(
+        request
+            .r#enum::<NumberChoice>("decimal")
+            .expect("numeric full"),
+        Some(One)
+    );
+    assert_eq!(
+        request
+            .r#enum::<NumberChoice>("prefix")
+            .expect_err("type error")
+            .code(),
+        "input_enum_type_invalid"
+    );
+    assert!(request.r#enum::<NumberChoice>("array").is_err());
+    let cases = request
+        .enums::<NumberChoice>("items")
+        .expect("enum collection");
+    assert_eq!(
+        cases
+            .all()
+            .iter()
+            .map(|(key, value)| (key.to_string(), value))
+            .collect::<Vec<_>>(),
+        vec![
+            ("0".to_owned(), &One),
+            ("2".to_owned(), &Two),
+            ("3".to_owned(), &One)
+        ]
+    );
+    assert!(matches!(
+        request
+            .when_enum("float", |value: NumberChoice| {
+                assert_eq!(value, One);
+                Ok(0)
+            })
+            .expect("false callback"),
+        InputOutcome::Request(_)
+    ));
+    assert_eq!(
+        request
+            .when_enum_or_else("blank", |_: NumberChoice| Ok(1), || Ok(false))
+            .expect("default")
+            .into_default(),
+        Some(false)
+    );
+    request
+        .when_enum_mut("float", |value: NumberChoice, same| {
+            assert_eq!(value, One);
+            same.merge(json!({"changed":true}))?;
+            Ok(())
+        })
+        .expect("mut enum")
+        .into_request()
+        .expect("continue");
+    assert!(request.boolean("changed").expect("same bag"));
+}
+#[tokio::test]
+async fn clamp_uses_full_numeric_checks_and_parameter_type_order() {
+    use openrust::support::InputNumber::{Float, Integer};
+    let request = inspect(
+        "POST",
+        "/",
+        "application/json",
+        r#"{"inside":1.0,"high":3.0,"prefix":"2ab","numeric":" 2e0 ","no":true}"#,
+    )
+    .await;
+    assert_eq!(
+        request
+            .clamp("inside", Integer(1), Integer(3))
+            .expect("clamp"),
+        Float(1.0)
+    );
+    assert_eq!(
+        request
+            .clamp("high", Integer(1), Integer(3))
+            .expect("clamp"),
+        Integer(3)
+    );
+    assert_eq!(
+        request
+            .clamp_or("prefix", Integer(0), Integer(3), Integer(2))
+            .expect("full numeric"),
+        Integer(2)
+    );
+    assert_eq!(
+        request
+            .clamp("numeric", Integer(0), Integer(3))
+            .expect("exponent"),
+        Float(2.0)
+    );
+    assert_eq!(
+        request
+            .clamp("no", Integer(0), Integer(3))
+            .expect("bool not numeric"),
+        Integer(0)
+    );
+    assert_eq!(
+        request
+            .clamp("inside", Integer(3), Integer(1))
+            .expect("reversed"),
+        Integer(1)
+    );
+    assert_eq!(
+        Float(f64::NAN).clamp(Float(f64::NEG_INFINITY), Float(f64::INFINITY)),
+        Float(f64::NEG_INFINITY)
+    );
+}
+
+/// 检出外部日期字符串在小数进位或中间 i128 极值处溢出 panic，而非安全返回错误。
+#[tokio::test]
+async fn date_timestamp_carry_extremes_return_safe_errors_through_public_readers() {
+    let cases = [
+        "@170141183460469231731687303715884105727.9999995",
+        "@-170141183460469231731687303715884105727.9999995",
+        "@-170141183460469231731687303715884105728.9999995",
+        "170141183460469231731687303715884105727.9999995",
+        "-170141183460469231731687303715884105727.9999995",
+        "-170141183460469231731687303715884105728.9999995",
+    ];
+    for source in cases {
+        let raw = serde_json::to_string(&json!({"when": source})).expect("fixture body");
+        let request = inspect("POST", "/", "application/json", &raw).await;
+        let fluent = request.fluent_all().expect("same bounded bag");
+        for result in [request.date("when"), fluent.date("when")] {
+            let error = result.expect_err("unrepresentable epoch must fail without panicking");
+            assert_eq!(error.code(), "input_date_invalid");
+            assert_eq!(error.status(), StatusCode::BAD_REQUEST);
+            assert!(!error.to_string().contains(source));
+        }
+        assert_eq!(request.content().as_ref(), raw.as_bytes());
+        assert_eq!(
+            request.input("when").expect("unchanged input"),
+            Some(json!(source))
+        );
+    }
+}
+
+#[tokio::test]
+async fn dates_read_clock_per_call_and_keep_explicit_timezone() {
+    use openrust::support::{
+        CalendarClock, CalendarContext, CalendarInstant, DateOptions, ResolvedTimezone,
+        TimezoneInput,
+    };
+    use std::sync::{
+        Arc,
+        atomic::{AtomicI64, Ordering},
+    };
+    struct CountingClock(AtomicI64);
+    impl CalendarClock for CountingClock {
+        fn is_test_clock(&self) -> bool {
+            true
+        }
+        fn now(&self) -> openrust::Result<CalendarInstant> {
+            CalendarInstant::new(self.0.fetch_add(1, Ordering::SeqCst), 0)
+        }
+    }
+    let clock = Arc::new(CountingClock(AtomicI64::new(946_684_800)));
+    let mut wire = Wire::post("/")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            r#"{"current":"now","absolute":"2000-01-01 00:00:00"}"#,
+        ))
+        .expect("wire");
+    wire.extensions_mut()
+        .insert(CalendarContext::new(ResolvedTimezone::utc(), clock.clone()));
+    let request = Request::from_request(wire, &()).await.expect("request");
+    assert_eq!(clock.0.load(Ordering::SeqCst), 946_684_800);
+    assert_eq!(
+        request
+            .date("current")
+            .expect("first")
+            .expect("date")
+            .timestamp(),
+        946_684_800
+    );
+    assert_eq!(
+        request
+            .date("current")
+            .expect("second")
+            .expect("date")
+            .timestamp(),
+        946_684_801
+    );
+    assert_eq!(clock.0.load(Ordering::SeqCst), 946_684_802);
+    let fluent = request.fluent_all().expect("fluent context");
+    assert_eq!(
+        fluent
+            .date("current")
+            .expect("fluent date")
+            .expect("date")
+            .timestamp(),
+        946_684_802
+    );
+    assert_eq!(clock.0.load(Ordering::SeqCst), 946_684_803);
+    let date = request
+        .date_with(
+            "absolute",
+            DateOptions {
+                format: None,
+                timezone: Some(TimezoneInput::Name("Asia/Shanghai")),
+            },
+        )
+        .expect("explicit zone")
+        .expect("date");
+    assert_eq!(date.timestamp(), 946_656_000);
+    assert_eq!(date.timezone().name(), "Asia/Shanghai");
+}
+
+struct CalendarRoutes {
+    override_clock: bool,
+}
+impl openrust::core::ServiceProvider for CalendarRoutes {
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut openrust::core::BootContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            // 后继 Provider 覆盖，证明默认 context 读取最终配置。
+            app.overlay("app", json!({"timezone":"Europe/Paris"}))?;
+            app.routes(|routes| routes.get("/calendar", calendar_handler))?;
+            if self.override_clock {
+                let context = openrust::support::CalendarContext::new(
+                    openrust::support::ResolvedTimezone::utc(),
+                    std::sync::Arc::new(openrust::support::FixedClock::new(
+                        openrust::support::CalendarInstant::new(946_684_800, 0)?,
+                    )),
+                );
+                app.http_layer(axum::Extension(context))?;
+            }
+            Ok(())
+        })
+    }
+}
+async fn calendar_handler(request: Request) -> openrust::Result<Json<Value>> {
+    let date = request.date("when")?.expect("fixture date");
+    Ok(Json(
+        json!({"timestamp":date.timestamp(),"zone":date.timezone().name()}),
+    ))
+}
+#[tokio::test]
+async fn calendar_router_uses_final_timezone_and_respects_application_extension()
+-> Result<(), Box<dyn std::error::Error>> {
+    for override_clock in [false, true] {
+        let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+            openrust::config::FrameworkConfig::default(),
+        ));
+        let mut builder = openrust::core::ProviderBuilder::new();
+        builder
+            .provider(openrust::http::HttpServiceProvider)
+            .provider(CalendarRoutes { override_clock });
+        let app = openrust::App::from_provider_runtime(builder.start(sources).await?)?;
+        let response = openrust::http::build_router(&app)?
+            .oneshot(
+                Wire::get("/calendar?when=2000-01-01%2000%3A00%3A00")
+                    .header("host", "localhost")
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        let body: Value =
+            serde_json::from_slice(&axum::body::to_bytes(response.into_body(), 4096).await?)?;
+        let data = &body["data"];
+        assert_eq!(
+            data["zone"],
+            if override_clock {
+                "UTC"
+            } else {
+                "Europe/Paris"
+            }
+        );
+        assert_eq!(
+            data["timestamp"],
+            if override_clock {
+                946_684_800
+            } else {
+                946_681_200
+            }
+        );
+        app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+            .await?;
+    }
+    Ok(())
+}
+#[tokio::test]
+async fn invalid_app_timezone_fails_startup_without_exposing_original_value() {
+    let mut config = openrust::config::FrameworkConfig::default();
+    assert_eq!(config.app.timezone, "UTC");
+    config.app.timezone = "private-invalid-zone-sentinel".to_owned();
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder.provider(openrust::http::HttpServiceProvider);
+    let result = builder
+        .start(figment::Figment::from(
+            figment::providers::Serialized::defaults(config),
+        ))
+        .await;
+    let error = result.err().expect("startup must reject invalid zone");
+    assert!(error.to_string().contains("app.timezone"));
+    assert!(!error.to_string().contains("sentinel"));
+}
+
+#[tokio::test]
+async fn scalar_helpers_match_actual_php_control_character_cases_without_normalization() {
+    use base64::{Engine, engine::general_purpose::STANDARD};
+    let cases: Vec<Value> =
+        serde_json::from_str(include_str!("fixtures/php85/scalar-control-cases.json"))
+            .expect("synthetic cases");
+    let golden: Vec<Value> = include_str!("fixtures/php85/scalar-control-golden.jsonl")
+        .lines()
+        .map(|line| serde_json::from_str(line).expect("golden"))
+        .collect();
+    assert_eq!(cases.len(), 61);
+    assert_eq!(cases.len(), golden.len());
+    let values = cases
+        .iter()
+        .enumerate()
+        .map(|(i, case)| {
+            (
+                format!("case_{i}"),
+                serde_json::from_str::<Value>(case["raw"].as_str().expect("raw JSON string"))
+                    .expect("actual control string"),
+            )
+        })
+        .collect::<serde_json::Map<_, _>>();
+    let mut wire = Wire::post("/")
+        .header("content-type", "application/json")
+        .body(Body::from(serde_json::to_vec(&values).expect("body")))
+        .expect("wire");
+    wire.extensions_mut().insert(InputNormalization::disabled());
+    let request = Request::from_request(wire, &()).await.expect("request");
+    for (i, (case, expected)) in cases.iter().zip(&golden).enumerate() {
+        let key = format!("case_{i}");
+        assert_eq!(case["id"], expected["id"]);
+        assert_eq!(
+            STANDARD.encode(request.string(&key).expect("string").value()),
+            expected["string"]["base64"],
+            "{}",
+            case["id"]
+        );
+        assert_eq!(
+            request.integer(&key).expect("integer").to_string(),
+            expected["integer"]["decimal"],
+            "{}",
+            case["id"]
+        );
+        assert_eq!(
+            format!("{:016x}", request.float(&key).expect("float").to_bits()),
+            expected["float"]["bits"],
+            "{}",
+            case["id"]
+        );
+        assert_eq!(
+            request.boolean(&key).expect("boolean"),
+            expected["boolean"]["value"],
+            "{}",
+            case["id"]
+        );
+    }
+}
+
+#[tokio::test]
+async fn intervals_keep_components_and_distinguish_absence_invalid_units_and_work_limits() {
+    use openrust::support::IntervalUnit;
+    let mut request = inspect(
+        "POST",
+        "/",
+        "application/json",
+        r#"{"duration":"90 minutes","number":90,"numeric_text":"90","fraction":1.5,"blank":" "}"#,
+    )
+    .await;
+    let interval = request
+        .interval("duration")
+        .expect("interval")
+        .expect("duration");
+    assert_eq!(
+        (interval.hours, interval.minutes, interval.total_days()),
+        (0, 90, None)
+    );
+    assert_eq!(request.interval("number").expect("nonstring make"), None);
+    assert_eq!(
+        request
+            .interval("numeric_text")
+            .expect_err("numeric string invalid")
+            .code(),
+        "input_interval_invalid"
+    );
+    assert_eq!(
+        request
+            .interval_with_unit("missing", "invalid")
+            .expect("absence before unit"),
+        None
+    );
+    assert_eq!(
+        request
+            .interval_with_unit("blank", "invalid")
+            .expect("empty before unit"),
+        None
+    );
+    assert_eq!(
+        request
+            .interval_with_unit("fraction", IntervalUnit::Hour)
+            .expect("enum unit")
+            .expect("interval")
+            .minutes,
+        30
+    );
+    assert_eq!(
+        request
+            .interval_with_unit("number", "m")
+            .expect_err("human alias is not Unit")
+            .code(),
+        "input_interval_unit_invalid"
+    );
+    assert_eq!(
+        request
+            .fluent_all()
+            .expect("fluent")
+            .interval("duration")
+            .expect("same parser"),
+        Some(interval)
+    );
+    request
+        .merge(json!({"large":"1".repeat(20*1024*1024)}))
+        .expect("programmatic value");
+    let error = request
+        .interval_with_unit("large", "minute")
+        .expect_err("independent source plus unit budget");
+    assert_eq!(error.status(), StatusCode::PAYLOAD_TOO_LARGE);
+    assert_eq!(error.code(), "input_limits_exceeded");
+}
+
+#[tokio::test]
+async fn interval_of_grammar_and_shared_term_budget_reject_without_mutating_bags() {
+    let mut request = inspect(
+        "POST",
+        "/",
+        "application/json",
+        r#"{"valid":"second Tuesday of next month"}"#,
+    )
+    .await;
+    for text in ["of 2 days", "of of 2 days", "1 day of 2 days"] {
+        request.merge(json!({"value":text})).expect("fixture");
+        let previous = request.all();
+        assert_eq!(
+            request.interval("value").expect_err("invalid of").code(),
+            "input_interval_invalid"
+        );
+        assert_eq!(
+            request
+                .fluent_all()
+                .expect("fluent")
+                .interval("value")
+                .expect_err("same grammar")
+                .code(),
+            "input_interval_invalid"
+        );
+        assert_eq!(request.all(), previous);
+    }
+    assert_eq!(
+        request
+            .interval("valid")
+            .expect("ordinal weekday of")
+            .expect("interval")
+            .days,
+        7
+    );
+    for term in ["0d", "0 days ", "tomorrow "] {
+        request
+            .merge(json!({"value":term.repeat(1024)}))
+            .expect("within source budget");
+        assert!(request.interval("value").is_ok());
+        request
+            .merge(json!({"value":term.repeat(1025)}))
+            .expect("source valid but parser terms bounded");
+        let previous = request.all();
+        let error = request.interval("value").expect_err("term budget");
+        assert_eq!(error.code(), "input_limits_exceeded");
+        assert_eq!(error.status(), StatusCode::PAYLOAD_TOO_LARGE);
+        assert_eq!(request.all(), previous);
     }
 }

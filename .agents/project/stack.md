@@ -24,7 +24,8 @@
 | 国际化 | `openrust::i18n`、`serde_json` 与 ICU4X `icu_datetime`/`icu_decimal`/`icu_locale`/`icu_plurals` 2.3.x | 同一 catalog 支持字符串插值、CLDR plural/select；编译数据用于 locale 数字与公历日期格式化。仅启用所需组件；数据随二进制构建，不使用运行时网络。日期时区转换由调用方显式完成；最终二进制尺寸增量纳入 M6 构建基线测量 |
 | 配置 | `figment` | 已采用；错误信息含键名（测试覆盖） |
 | 日志 / 追踪 / metrics | `tracing` + `tracing-subscriber`；可选 `metrics` feature 使用 `metrics` 0.24.6 + `metrics-exporter-prometheus` 0.18.3；可选 `otel` feature 使用 OpenTelemetry SDK 0.33.1 与 OTLP HTTP exporter | `/metrics` 仅在配置开启后注册；HTTP 指标标签为固定方法与状态类别。HTTP、gRPC 和 worker 复用已校验的 `traceparent`；配置 OTLP endpoint 后由 SDK 后台线程导出 spans，使用同步 HTTP client 适配其执行模型。真实 Collector 已验证 HTTP 与 HTTP→gRPC trace 导出；性能和完整 workspace 最终门禁仍在 M5 验收中 |
-| 时间 | `chrono` + `chrono-tz` 0.10.4（IANA tzdb），队列 cron 使用 | SeaORM 兼容；`queue` feature 启用静态 IANA 时区表，构建/产物增加相应数据；集群节点须运行相同构建产物 |
+| 时间 | `chrono` + `chrono-tz` 0.10.4（编译数据标识 IANA 2025b），日期输入与队列 cron 使用 | C04-B2将既有chrono-tz改为普通依赖，不新增crate，使请求日期不依赖queue feature；构建/产物包含静态时区数据，集群节点须运行相同构建产物。chrono-tz生成表在2099年后采用固定尾偏移，不能单独证明PHP未来时区等价；日历POSIX尾规则正在实现，尚未验收。PHP参考运行器tzdb标识2025.2与Rust数据标识分列记录，行为仍须实际差分 |
+| 日期解析来源 | 固定 PHP 8.5.0 timelib、Carbon 3.8.4 与 PHP `math.c` 的 Rust 实现 | 不增加 PHP 运行时或 Cargo 依赖；timelib/Carbon 为 MIT，移植的 `number_format` HALF_UP 分支保留 PHP License 3.01 及版权。固定源码 SHA、再生成和边界见 [SOURCES](../../src/support/calendar/date/SOURCES.md)，完整授权原文随日期源码保留；Cargo deny 不代替这些非 crate 来源的许可记录。行为验收仍按 C04-B2，不以来源记录声明完整日期等价 |
 | cron 解析 | `cron-parser` 0.12（`queue` feature） | 只接受五字段表达式；可复用解析结果计算日历触发，DST gap 跳过且 fold 的两个绝对时刻有序返回，框架以本地 wall-slot 唯一键折叠重复分钟 |
 | ID | 已提供可选 UUIDv7，详见下表 `db-uuid` | 默认整数 ID；生成选项为 `--uuid-id`，不使用不存在的 `--uuid` |
 

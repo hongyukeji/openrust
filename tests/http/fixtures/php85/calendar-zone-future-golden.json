@@ -1,0 +1,309 @@
+{
+  "note": "Actual Carbon3.8.4 minimum comparison sample / PHP8.5.0 -n timezone identity and offsets; not a Laravel resolved dependency lock. chrono source-derived comparisons removed; expected values are real PHP only.",
+  "chrono_tz_version": "0.10.4",
+  "source_path": "/Users/Home/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/chrono-tz-0.10.4/src/prebuilt/timezones.rs",
+  "source_sha256": "7d91787728ab990bf57334e3f9502d3ba0f744bd431608732f3fa48176b4ca72",
+  "php_tzdb": "2025.2",
+  "cases": [
+    {
+      "zone": "America/New_York",
+      "input": "2101-01-15 12:00:00",
+      "php": {
+        "civil": "+2101-01-15 12:00:00",
+        "epoch": 4135251600,
+        "offset": -18000,
+        "abbr": "EST"
+      }
+    },
+    {
+      "zone": "America/New_York",
+      "input": "2101-07-15 12:00:00",
+      "php": {
+        "civil": "+2101-07-15 12:00:00",
+        "epoch": 4150886400,
+        "offset": -14400,
+        "abbr": "EDT"
+      }
+    },
+    {
+      "zone": "America/New_York",
+      "input": "3000-01-15 12:00:00",
+      "php": {
+        "civil": "+3000-01-15 12:00:00",
+        "epoch": 32504950800,
+        "offset": -18000,
+        "abbr": "EST"
+      }
+    },
+    {
+      "zone": "America/New_York",
+      "input": "3000-07-15 12:00:00",
+      "php": {
+        "civil": "+3000-07-15 12:00:00",
+        "epoch": 32520585600,
+        "offset": -14400,
+        "abbr": "EDT"
+      }
+    },
+    {
+      "zone": "America/New_York",
+      "input": "+1000000-01-15 12:00:00",
+      "php": {
+        "civil": "+1000000-01-15 12:00:00",
+        "epoch": 31494786051600,
+        "offset": -18000,
+        "abbr": "EST"
+      }
+    },
+    {
+      "zone": "America/New_York",
+      "input": "+1000000-07-15 12:00:00",
+      "php": {
+        "civil": "+1000000-07-15 12:00:00",
+        "epoch": 31494801772800,
+        "offset": -14400,
+        "abbr": "EDT"
+      }
+    },
+    {
+      "zone": "America/New_York",
+      "input": "1800-01-15 12:00:00",
+      "php": {
+        "civil": "+1800-01-15 12:00:00",
+        "epoch": -5363391838,
+        "offset": -17762,
+        "abbr": "LMT"
+      }
+    },
+    {
+      "zone": "America/New_York",
+      "input": "1800-07-15 12:00:00",
+      "php": {
+        "civil": "+1800-07-15 12:00:00",
+        "epoch": -5347753438,
+        "offset": -17762,
+        "abbr": "LMT"
+      }
+    },
+    {
+      "zone": "America/New_York",
+      "input": "-0001-01-15 12:00:00",
+      "php": {
+        "civil": "-0001-01-15 12:00:00",
+        "epoch": -62197484638,
+        "offset": -17762,
+        "abbr": "LMT"
+      }
+    },
+    {
+      "zone": "America/New_York",
+      "input": "-0001-07-15 12:00:00",
+      "php": {
+        "civil": "-0001-07-15 12:00:00",
+        "epoch": -62181846238,
+        "offset": -17762,
+        "abbr": "LMT"
+      }
+    },
+    {
+      "zone": "Europe/Berlin",
+      "input": "2101-01-15 12:00:00",
+      "php": {
+        "civil": "+2101-01-15 12:00:00",
+        "epoch": 4135230000,
+        "offset": 3600,
+        "abbr": "CET"
+      }
+    },
+    {
+      "zone": "Europe/Berlin",
+      "input": "2101-07-15 12:00:00",
+      "php": {
+        "civil": "+2101-07-15 12:00:00",
+        "epoch": 4150864800,
+        "offset": 7200,
+        "abbr": "CEST"
+      }
+    },
+    {
+      "zone": "Europe/Berlin",
+      "input": "3000-01-15 12:00:00",
+      "php": {
+        "civil": "+3000-01-15 12:00:00",
+        "epoch": 32504929200,
+        "offset": 3600,
+        "abbr": "CET"
+      }
+    },
+    {
+      "zone": "Europe/Berlin",
+      "input": "3000-07-15 12:00:00",
+      "php": {
+        "civil": "+3000-07-15 12:00:00",
+        "epoch": 32520564000,
+        "offset": 7200,
+        "abbr": "CEST"
+      }
+    },
+    {
+      "zone": "Europe/Berlin",
+      "input": "+1000000-01-15 12:00:00",
+      "php": {
+        "civil": "+1000000-01-15 12:00:00",
+        "epoch": 31494786030000,
+        "offset": 3600,
+        "abbr": "CET"
+      }
+    },
+    {
+      "zone": "Europe/Berlin",
+      "input": "+1000000-07-15 12:00:00",
+      "php": {
+        "civil": "+1000000-07-15 12:00:00",
+        "epoch": 31494801751200,
+        "offset": 7200,
+        "abbr": "CEST"
+      }
+    },
+    {
+      "zone": "Europe/Berlin",
+      "input": "1800-01-15 12:00:00",
+      "php": {
+        "civil": "+1800-01-15 12:00:00",
+        "epoch": -5363412808,
+        "offset": 3208,
+        "abbr": "LMT"
+      }
+    },
+    {
+      "zone": "Europe/Berlin",
+      "input": "1800-07-15 12:00:00",
+      "php": {
+        "civil": "+1800-07-15 12:00:00",
+        "epoch": -5347774408,
+        "offset": 3208,
+        "abbr": "LMT"
+      }
+    },
+    {
+      "zone": "Europe/Berlin",
+      "input": "-0001-01-15 12:00:00",
+      "php": {
+        "civil": "-0001-01-15 12:00:00",
+        "epoch": -62197505608,
+        "offset": 3208,
+        "abbr": "LMT"
+      }
+    },
+    {
+      "zone": "Europe/Berlin",
+      "input": "-0001-07-15 12:00:00",
+      "php": {
+        "civil": "-0001-07-15 12:00:00",
+        "epoch": -62181867208,
+        "offset": 3208,
+        "abbr": "LMT"
+      }
+    },
+    {
+      "zone": "Australia/Sydney",
+      "input": "2101-01-15 12:00:00",
+      "php": {
+        "civil": "+2101-01-15 12:00:00",
+        "epoch": 4135194000,
+        "offset": 39600,
+        "abbr": "AEDT"
+      }
+    },
+    {
+      "zone": "Australia/Sydney",
+      "input": "2101-07-15 12:00:00",
+      "php": {
+        "civil": "+2101-07-15 12:00:00",
+        "epoch": 4150836000,
+        "offset": 36000,
+        "abbr": "AEST"
+      }
+    },
+    {
+      "zone": "Australia/Sydney",
+      "input": "3000-01-15 12:00:00",
+      "php": {
+        "civil": "+3000-01-15 12:00:00",
+        "epoch": 32504893200,
+        "offset": 39600,
+        "abbr": "AEDT"
+      }
+    },
+    {
+      "zone": "Australia/Sydney",
+      "input": "3000-07-15 12:00:00",
+      "php": {
+        "civil": "+3000-07-15 12:00:00",
+        "epoch": 32520535200,
+        "offset": 36000,
+        "abbr": "AEST"
+      }
+    },
+    {
+      "zone": "Australia/Sydney",
+      "input": "+1000000-01-15 12:00:00",
+      "php": {
+        "civil": "+1000000-01-15 12:00:00",
+        "epoch": 31494785994000,
+        "offset": 39600,
+        "abbr": "AEDT"
+      }
+    },
+    {
+      "zone": "Australia/Sydney",
+      "input": "+1000000-07-15 12:00:00",
+      "php": {
+        "civil": "+1000000-07-15 12:00:00",
+        "epoch": 31494801722400,
+        "offset": 36000,
+        "abbr": "AEST"
+      }
+    },
+    {
+      "zone": "Australia/Sydney",
+      "input": "1800-01-15 12:00:00",
+      "php": {
+        "civil": "+1800-01-15 12:00:00",
+        "epoch": -5363445892,
+        "offset": 36292,
+        "abbr": "LMT"
+      }
+    },
+    {
+      "zone": "Australia/Sydney",
+      "input": "1800-07-15 12:00:00",
+      "php": {
+        "civil": "+1800-07-15 12:00:00",
+        "epoch": -5347807492,
+        "offset": 36292,
+        "abbr": "LMT"
+      }
+    },
+    {
+      "zone": "Australia/Sydney",
+      "input": "-0001-01-15 12:00:00",
+      "php": {
+        "civil": "-0001-01-15 12:00:00",
+        "epoch": -62197538692,
+        "offset": 36292,
+        "abbr": "LMT"
+      }
+    },
+    {
+      "zone": "Australia/Sydney",
+      "input": "-0001-07-15 12:00:00",
+      "php": {
+        "civil": "-0001-07-15 12:00:00",
+        "epoch": -62181900292,
+        "offset": 36292,
+        "abbr": "LMT"
+      }
+    }
+  ]
+}

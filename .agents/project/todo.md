@@ -25,7 +25,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 | R2-M 模块最小闭环与目录迁移 | 真实服务与生成项目已验收，本簇提交 | modules/ 声明注册、模块配置/资源/统一迁移、依赖与冲突错误；示例迁至 modules/example，真实HTTP及双库验证；完整管理命令归R13 |
 | R1-E 真实CRUD与当前能力示例 | 已验收并提交 bc3fa01 | 真实 Article CRUD；当前公开能力进入唯一模块示例；PostgreSQL 18/MySQL 8.4、生成项目、真实服务与整组门禁已验收。Collector PostgreSQL 隔离 sink delivery/unavailable 已复验通过，详见 testing |
 | R2 后继内核与测试底座 | R2-N 模块依赖图与顺序已完成 | `.requires` 硬依赖、稳定拓扑顺序、register/boot 一致；真实 PostgreSQL/MySQL HTTP、生成项目、根无参数 TCP、工作区门禁均有本簇证据 |
-| R3 HTTP 与 Web | R3-F 已提交163bb49；C04-A 已提交08be69d；C04-B1输入基础已验收；C04-B2类型便捷方法待领取 | 按ADR-078实现无正文请求检查与固定上游协商；C03其余及完整C04范围继续保留 |
+| R3 HTTP 与 Web | R3-F 已提交163bb49；C04-A 已提交08be69d；C04-B1输入基础已验收；C04-B2类型便捷方法已通过适用验收；后继C04 Spec待领取 | 按ADR-078实现无正文请求检查与固定上游协商；C03其余及完整C04范围继续保留 |
 | 模块包固定范围细化 | 待逐项盘点 | 对正式laravel-modules固定源码/文档的导航、源码与测试拆行为矩阵，分类必要Rust差异/用户约定/缺口；不把目录规范或显式Plugin等同完整模块管理 |
 
 ## 后继路由
@@ -301,14 +301,14 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 5. 高价值验收：缺省/非法/零负页与超界页、空集last_page=1及边界链接、末页/越末页、参数/fragment/自定pageName与同请求多分页器、直接Paginator JSON和Resource links/meta避免二次包装；simple无总数查询、cursor稳定排序/唯一性/前后游标及非法游标边界逐条按固定源码测试落实，不能假造全部422或隐式消费per_page。
 6. 逐项对照固定[tests/Pagination](https://github.com/laravel/framework/tree/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/tests/Pagination)的LengthAwarePaginatorTest/PaginatorTest/CursorPaginatorTest及[ResourceTest](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/tests/Integration/Http/ResourceTest.php)，形成source/tests→RustAPI→真实controller/唯一modules/example→生成器/生成项目与README/config/tests→适用PG18/MySQL8.4的证据；授权代码整改待领取，本轮仅文档审计，无新代码或服务验收。
 
-## 当前 C04-B：输入基础收口与类型便捷方法
+## 后继 C04：Cookie/Session 与 Request/Response 余项（待领取）
 
-状态：固定源码审计已交接；[ADR-079](decisions/adr-079-request-input.md)已定，C04-B1输入基础与规范化已交接，定向input19/request10/router87、config24/内部19/模块3及Clippy通过，限定独审无明确blocker/should-fix；default/all workspace已通过；运行验收采用阶段实际编译依赖的源码哈希守卫，保留外部WIP；无关测试fixture变化不阻塞生产TCP，相关源变化暂停对应阶段；继续双库/真实网络/生成项目，根TCP/consumer/生成认证应用双库均通过相应证据；账号/缓存fixture缺Host及获准新迁移编号修正后，根完整PG/MySQL各47项均通过，零失败/忽略/筛选；最新workspace全部适用门禁通过，B1限定提交见Git；typed便捷方法等C04-B2与其他完整范围保持未完成。
+C04-A/B1/B2的公开检查、输入基础与类型便捷方法已按各自范围验收，证据见[testing](memory/testing.md#c04-b2-类型便捷方法)，不重复实现。完整C04仍开放；下一簇先按固定L019/L020及现有Session/加密/响应实现，收敛Cookie读取与响应生命周期的可独立闭环，5–15行Spec后实现。
 
-1. C04-A 已按 ADR-078 完成公开请求检查/协商，适用 workspace、生成应用、真实 TCP 与独审通过，证据见 [testing](memory/testing.md#c04-a-请求检查与内容协商)。本簇限定本地提交见 Git，不重复实现。
-2. C04-B1按ADR-079收口输入来源/优先级、存在性、筛选修改、默认规范化与正文单次所有权，详见测试记录；不重复实现。后继C04-B2先审计固定Laravel的string/integer/float/boolean/date/enum/collection及条件回调等typed便捷方法，列明确切公开API、Rust必要适配和错误边界。
-3. C04-B2按Spec→Implement→Verify→Commit补公共API、唯一模块、公开consumer、生成应用与真实HTTP，不重建平行输入仓储；B1内容不重复实现。
-4. Cookie/Session、redirect/flash、CSRF、FormRequest授权验证、文件及L020响应完整范围保留；不以首个 RequestInfo 簇替代完整C04。
+1. 审计既有cookie/session、redirect/flash、CSRF、FormRequest授权验证、上传文件与Response扩展的真实生产路径和公开契约，先选依赖已满足的最小完整功能簇，不重建平行Session、加密或Hook内核。
+2. 明确Laravel默认、错误/授权、请求与响应所有权、公开扩展和Rust适配；现统一返回沿Response/异常职责保留，不能只换名或包装旧调用。
+3. 同步唯一modules/example、生成应用、用户文档、稳定L019/L020矩阵及适用真实HTTP/双库验收；完成Spec→Implement→Verify→Commit后再领取后继。
+4. Old Input/flash、CSRF、FormRequest、文件及完整Response范围继续保留；分页按既有C04/C05→R4/R5依赖，不先复制controller业务胶水。
 
 ## 完整实现后的发布仓库整理（后置，未启动）
 

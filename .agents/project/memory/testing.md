@@ -4,15 +4,16 @@
 > 更新：2026-10-28
 > 摘要：当前目录迁移与原专项测试入口，分开记录真实服务和未验收边界。
 
-## C04-B2 类型便捷方法（进行中）
+## C04-B2 类型便捷方法
 
-- 状态：实现中，未提交、未通过本簇完整门禁。支持内核与公开Request已有标量、保键Collection/Fluent、BackedEnum、clamp和条件结果分支；日历解析、上下文与配置仍在接入，完整语法不得凭有限样本关闭。
-- 公开HTTP定向：input 27、request 10、router 87通过。唯一模块既有`production_input_*`三项通过（23 filtered），包含typed白名单、宽松转换、枚举稀疏键、集合、Fluent与主回调假值回自身。日志`/tmp/openrust-c04b2-enum-conditional-public-first.log`、`/tmp/openrust-c04b2-foundation-module-first.log`；filtered项不算本次执行。
-- 真实PHP 8.5.0参考：标量617项中613项实际serde值路径、3项非有限内核转换和1项JSON溢出解码差异分别验证；enum 48项中42项bag路径、4项非有限私有转换及2项不可表示的PHP对象证据分列，后者不当作Rust输入通过。clamp授权修复读取器后单次重验：304可表达数值按类型与浮点位逐项匹配，2项非法default由Rust静态InputNumber参数拒绝，不计运行时case；数字字符串边界通过读取器显式转换，记录参数适配。日志`/tmp/openrust-c04b2-scalar-golden-third.log`、`/tmp/openrust-c04b2-clamp-authorized-once.log`。
-- 定向Clippy第四轮已成功，日志`/tmp/openrust-c04b2-foundation-clippy-fourth.log`；在暂停通知到达前按此前独立验证指令执行结束。用户随后已明确授权修正后重验。该结果早于日历接入，不证明后续快照通过。
-- 日历首轮接入定向证据：interval 8项通过（含240项PHP合成参考矩阵）；date修正6项差异后按用户授权单次重验，119项参考矩阵通过；当前公开input 30、request 10、router 87通过；APP_TIMEZONE配置定向1项通过。覆盖每次date读取clock、Fluent继承clock、最终Provider overlay时区、应用context覆盖与非法时区启动错误。日志分别为`/tmp/openrust-c04b2-interval-first-compile.log`、`/tmp/openrust-c04b2-date-authorized-once.log`、`/tmp/openrust-c04b2-calendar-public-first.log`、`/tmp/openrust-c04b2-timezone-config-first.log`。其余filtered项未执行；POSIX未来尾规则和完整语法仍在改动，此证据不证明后续源码或完整日历通过。
-- CLI独立依赖图不含框架crate，可在日期实现窗口单独验证。共用`tests/support/request_input.rs`已接普通与认证模板，真实DB配置由认证测试传入，原认证断言及清理保留；CLI 20项通过，日志`/tmp/openrust-c04b2-cli-shared-helper-tests-third.log`。新增测试支持目录与快照修复均限定对应改动；这仅证明CLI生成行为，不证明生成应用编译、HTTP或双库通过。三类生成应用源码正在准备，后续实际check/test仍待执行。
-- 尚欠：完整date/interval语法及真实golden、公开consumer/生成项目、当前源码完整门禁、真实HTTP、适用双库、不同模型独审与资源收尾。PHP合成参考不替代真实Rust生产调用链或完整Laravel Request/DI验收。
+- 已通过本簇适用门禁，限定公开Request/Fluent的标量、Stringable、保键Collection、枚举、clamp、条件分支、日期/区间和上下文；不代表完整Carbon工具箱或完整C04。contract与Rust适配见[ADR-079](../decisions/adr-079-request-input.md)，固定源/许可证/再生成见[SOURCES](../../../src/support/calendar/date/SOURCES.md)。
+- 最终冻结快照：`/tmp/openrust-c04b2-final2-*.result.json`共20阶段，全部actual_exit=0、source_changed=[]；driver `/tmp/openrust-c04b2-final2-driver.log`。fmt、default/all-features workspace all-target Clippy（`-D warnings`）、默认/全特性Rustdoc（`-D warnings`）、no-default all-target check、Rust 1.97 all-feature all-target check、cargo deny通过。默认workspace tests 645 passed/29 ignored；全特性1211 passed/99 ignored，均0 failed；default的29项均为Rustdoc示例；all的99项为35个Rustdoc示例与64个显式外部服务验收（20项在三target重复、Mailpit2、Keycloak1、S3版本1）。ignored与未显式提供外部条件的测试不算真实服务证据，分类记录`/tmp/openrust-c04b2-final2-ignored.json`。
+- 根真实PG18/MySQL8.4：完整`example_auth_flows`各47 passed，0 ignored/filtered/skipped；普通生成项目check/tests 2项通过；PG/MySQL生成认证项目各2具名测试通过，含同库配置的共用B2公开helper，0 ignored/skipped。四个本轮独占数据库anchor均已DROP，原认证与清理断言保留。邮件采用测试驱动，不将其记作真实供应商发送。
+- 真实TCP：根默认`cargo run`，仓内`verify-request-input.py` SHA `028e50883fa8f069d7637dcf304a679e971b9cce4844163ef38410279dc62fea`；6/6（正常/default-null 200，枚举/日期/区间错误400，区间词项超限413），健康200、工具exit0、服务优雅退出0，外层45秒有界。新证据使用final2独立路径，未覆盖第一次运行记录。
+- 定向：日期22、公开HTTP34/10/87、模块输入3项（23 filtered）通过。标量617项分为613 serde输入、3私有非有限内核、1 PHP/serde JSON溢出表示差异；enum48分为42 bag、4私有非有限、2不可表示PHP对象；clamp306中304运行时tag/bit匹配，2非法默认参数由Rust静态拒绝。61实际控制字符另验。完整分类与固定PHP8.5/Carbon3.8.4来源保留在fixture；Carbon为声明最低样本，不冒称Laravel lock版本。
+- 日期参考包含原119、grammar80、composition30、lexical43、六月clock15、生产无mock18、极值4、named-zone30、全部598 POSIX footer，以及byte18/format19+6输出、remaining53和overflow4。53项保留input_type并分别断言name/e/P/O/offset，17错误逐项检查HTTP状态与机器码。实际PHP异常文本的非法UTF-8只在证据异常字段替换，不修改输入或成功结果。
+- 不同模型审查闭合：非有限JSON输出、S后缀false acceptance、i128小数进位panic、错误断言任意Err假绿均已修复并回归；公开Request/Fluent六字符串边界断言400与bag不变。源覆盖审查对既有五类固定分支均找到对应路径，未发现新增缺失production反例；组合样本不是全体字符串形式证明。TCP marker同时检查原始字节与解码值，离线转义泄漏拒绝/正常错误接受通过，最终新工具已真实重验。
+- 资源收尾已完成：确认无构建/server后持artifact互斥锁，短Cargo探针实际阻塞并join、clean dry-run后仅清根可再生产物，保锁inode；根allocated 19,947,913,216→0 bytes，旧五consumer合计2.487GiB逐项不变，磁盘free回升至12.782%。源码、证据、临时PHP工具链及共享服务保留，日志`/tmp/openrust-c04b2-final-clean-root-artifacts.log`；本簇限定本地提交见Git。其余Cookie/Session/FormRequest/Response及完整支持工具箱按唯一todo后继，不因本簇通过而关闭。
 
 ## 应用端口环境配置
 

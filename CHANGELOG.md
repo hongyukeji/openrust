@@ -24,6 +24,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Added
 
+- `Request` 新增 Laravel 式标量、字符串、集合、枚举、clamp 与条件读取；共用有界输入内核，`Fluent` 继承请求日历上下文。日期和区间使用 PHP 格式与语义，应用时区通过 `app.timezone` / `APP_TIMEZONE` 配置，可注入请求级时钟；唯一模块与生成应用提供公开 API 使用示例。
+
 - 新增统一正文所有者 `Request`，提供 Laravel 式输入来源合并、dot/通配读取、存在性、筛选与输入修改；`Json` / `Query` 共享默认 trim/null 转换，公开 `InputNormalization` 支持路由或请求覆盖，原始正文保持不变。
 
 - 新增只读 `RequestInfo` 提取器：检查路径、方法、严格 Host、头与 bearer，并按固定 Laravel/Symfony 行为执行内容协商；与 `Json<T>` 共存，限制元信息大小且 Debug 隐藏敏感内容。唯一模块示例展示 HTML/JSON 协商与正文读取。

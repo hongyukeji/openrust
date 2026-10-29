@@ -1,0 +1,95 @@
+{
+  "archive_sha256": "39cb6e4acd679b574d3d3276f148213e935fc25f90403eb84fb1b836a806ef1e",
+  "php_binary_sha256": "e5209dd1828f795683660d6a915ebe9beaca2c931bff2f79e116dfc5f142b704",
+  "capabilities": {
+    "version": "8.5.0",
+    "int_size": 8,
+    "precision": "14",
+    "ini_loaded": false,
+    "filter": true,
+    "json": true,
+    "date": true
+  },
+  "records": [
+    {
+      "stage": "version",
+      "command": [
+        "/tmp/openrust-c04b2-php-runtime/source/php-8.5.0/sapi/cli/php",
+        "-n",
+        "-v"
+      ],
+      "exit": 0,
+      "stdout_path": "/tmp/openrust-c04b2-php-runtime/logs/version.log",
+      "stdout_sha256": "ceeaa9cd57407101a2790121d739563da3e1e49f87a60e012259d5a4167d1e0c",
+      "stderr_bytes": 0
+    },
+    {
+      "stage": "capabilities",
+      "command": [
+        "/tmp/openrust-c04b2-php-runtime/source/php-8.5.0/sapi/cli/php",
+        "-n",
+        "-r",
+        "echo json_encode([\"version\"=>PHP_VERSION,\"int_size\"=>PHP_INT_SIZE,\"precision\"=>ini_get(\"precision\"),\"ini_loaded\"=>php_ini_loaded_file(),\"filter\"=>extension_loaded(\"filter\"),\"json\"=>extension_loaded(\"json\"),\"date\"=>extension_loaded(\"date\")], JSON_THROW_ON_ERROR),\"\\n\";"
+      ],
+      "exit": 0,
+      "stdout_path": "/tmp/openrust-c04b2-php-runtime/logs/capabilities.log",
+      "stdout_sha256": "3b78fc59bc8bf69402744ae04281585a150af0db6b243039e4252641cb38ca54",
+      "stderr_bytes": 0
+    },
+    {
+      "stage": "scalar-golden",
+      "command": [
+        "/tmp/openrust-c04b2-php-runtime/source/php-8.5.0/sapi/cli/php",
+        "-n",
+        "/tmp/openrust-c04b2-php-runtime/golden.php",
+        "/tmp/openrust-c04b2-php-runtime/scalar-cases.json"
+      ],
+      "exit": 0,
+      "stdout_path": "/tmp/openrust-c04b2-php-runtime/scalar-golden.jsonl",
+      "stdout_sha256": "478179eab0ef1dfe1bd658b96b32f5791cbedfe2d5566ffebb4b65c8011570a5",
+      "stderr_bytes": 0
+    },
+    {
+      "stage": "enum-golden",
+      "command": [
+        "/tmp/openrust-c04b2-php-runtime/source/php-8.5.0/sapi/cli/php",
+        "-n",
+        "/tmp/openrust-c04b2-php-runtime/enum-golden.php"
+      ],
+      "exit": 0,
+      "stdout_path": "/tmp/openrust-c04b2-php-runtime/enum-golden.jsonl",
+      "stdout_sha256": "17876a22de2a28b0720d08857fd223e57c99c220c27e36048bbff0ebcd10eb7d",
+      "stderr_bytes": 0
+    },
+    {
+      "stage": "enum-minimal",
+      "command": [
+        "/tmp/openrust-c04b2-php-runtime/source/php-8.5.0/sapi/cli/php",
+        "-n",
+        "/tmp/openrust-c04b2-php-runtime/enum-minimal.php"
+      ],
+      "exit": 0,
+      "stdout_path": "/tmp/openrust-c04b2-php-runtime/enum-minimal.jsonl",
+      "stdout_sha256": "8f4a3d1166a6ba6b5ca5810b5a74036a35e606f1b8c97be5c010b239e73b1dd1",
+      "stderr_bytes": 0
+    }
+  ],
+  "scalar_cases": 617,
+  "enum_cases": 48,
+  "make_install": false,
+  "scope": "Real PHP reference corpus; Rust comparison separates serde-compatible bags, private nonfinite conversions, JSON decoding differences and static argument constraints",
+  "source": "https://www.php.net/distributions/php-8.5.0.tar.xz",
+  "fixtures": {
+    "enum-golden.php": "3d01b93fddcddf90fa29b0bb1b5b3c299ab5ec9ea015b6a9cd1ef071c339b23b",
+    "scalar-cases.json": "9cb3f24a3c3265138a912eb755b307b2a17ac784fbd423c2541b2dbe274c0fc2",
+    "scalar-golden.jsonl": "478179eab0ef1dfe1bd658b96b32f5791cbedfe2d5566ffebb4b65c8011570a5",
+    "enum-golden.jsonl": "17876a22de2a28b0720d08857fd223e57c99c220c27e36048bbff0ebcd10eb7d",
+    "clamp-golden.php": "e9d5967fc8e37e4f5df215f4364073477160447e8b799e03db93bac312e47828",
+    "clamp-golden.jsonl": "df8802d51c5b60a125f292ef29802c9ddf27b6e18b7835c6aa5e3feacd75d58c",
+    "scalar-golden.php": "3116e4673993ded92bca9af87e025c351bb81212ee139127047bc6c1b55d8b21",
+    "scalar-control-cases.json": "ef8900b75aa22906ddc093d78db87289ea2545bebea02bdb3287ce2d339548ec",
+    "scalar-control-golden.jsonl": "6d46fe116749d0df5f36cfd4ad911c9f6fe7dc5813bf26ef2c9c632a5bd076af"
+  },
+  "clamp_cases": 306,
+  "actual_control_cases": 61
+}

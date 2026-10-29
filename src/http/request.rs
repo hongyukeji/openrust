@@ -1,5 +1,6 @@
-//! 不读取正文的请求元信息与 Laravel 风格内容协商。
+//! 有界请求输入、独立元信息与 Laravel 风格内容协商。
 
+mod conditional;
 mod deserialize;
 mod form;
 mod input;
@@ -11,6 +12,7 @@ pub(crate) fn deserialize_query<T: serde::de::DeserializeOwned>(
 ) -> crate::Result<T> {
     deserialize::query(value)
 }
+pub use conditional::{InputOutcome, InputOutcomeMut, InputTruthy, Truthy};
 pub use input::Request;
 pub(crate) fn parse_query(
     raw: Option<&str>,

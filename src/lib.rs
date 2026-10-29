@@ -37,6 +37,7 @@ pub mod security;
 pub mod signing;
 pub mod sms;
 pub mod storage;
+pub mod support;
 pub mod tenant;
 pub mod testing;
 pub mod validation;
@@ -100,9 +101,9 @@ pub mod prelude {
     pub use crate::http::axum::http::StatusCode;
     pub use crate::http::axum::response::IntoResponse;
     pub use crate::http::{
-        Action, Created, DomainParams, Inject, InputNormalization, Json, NoContent, PageParams,
-        Paginated, Path, Query, Request, RequestInfo, Resource, ResourceActions, RouteGroup,
-        RouteUrlGenerator, Routes, Validated,
+        Action, Created, DomainParams, Inject, InputNormalization, InputOutcome, InputOutcomeMut,
+        InputTruthy, Json, NoContent, PageParams, Paginated, Path, Query, Request, RequestInfo,
+        Resource, ResourceActions, RouteGroup, RouteUrlGenerator, Routes, Truthy, Validated,
     };
     pub use crate::i18n::{
         DateFormatStyle, DateTimeFormatStyle, I18n, I18nConfig, I18nFormatError, Locale,
@@ -130,6 +131,9 @@ pub mod prelude {
     };
     pub use crate::sms::{SmsContent, SmsDriver, SmsMessage, SmsReceipt, SmsSender};
     pub use crate::storage::{Storage, StorageDisk, StoragePath};
+    pub use crate::support::{
+        ArrayKey, BackedEnum, Collection, EnumBacking, Fluent, InputNumber, Stringable,
+    };
     pub use crate::tenant::{TenantContext, TenantId, TenantLayer};
     pub use crate::validation::{Validate, validate};
     pub use crate::{

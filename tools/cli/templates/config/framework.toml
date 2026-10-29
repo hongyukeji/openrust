@@ -1,6 +1,7 @@
 [app]
 name = "{{name}}"
 url = "http://localhost:3000"
+timezone = "UTC"
 
 [server]
 host = "127.0.0.1"

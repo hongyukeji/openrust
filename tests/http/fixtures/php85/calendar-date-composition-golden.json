@@ -1,0 +1,599 @@
+{
+    "evidence": "Real Laravel fixed trait + Carbon3.8.4 minimum sample / PHP8.5.0 -n, mock2020-01-01T16:30:25.123456Z",
+    "cases": [
+        {
+            "id": "composition.time_before_date",
+            "kind": "date",
+            "input": "16:30:25 2020-01-02",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-02 16:30:25.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1577982625.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "composition.time_before_text_date",
+            "kind": "date",
+            "input": "4:30pm 3 Feb 2020",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-02-03 16:30:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1580747400.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "composition.zone_before_date",
+            "kind": "date",
+            "input": "America/New_York 2020-01-02 16:30:25",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-02 16:30:25.000000",
+                    "timezone": "America/New_York",
+                    "offset_seconds": -18000,
+                    "epoch": "1578000625.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "composition.zone_after_date_before_time",
+            "kind": "date",
+            "input": "2020-01-02 America/New_York 16:30:25",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-02 16:30:25.000000",
+                    "timezone": "America/New_York",
+                    "offset_seconds": -18000,
+                    "epoch": "1578000625.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "composition.relative_before_date",
+            "kind": "date",
+            "input": "+2 days 2020-01-02",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-04 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1578096000.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "composition.relative_after_date",
+            "kind": "date",
+            "input": "2020-01-02 +2 days",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-04 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1578096000.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "composition.relative_around_date",
+            "kind": "date",
+            "input": "+1 month 2020-01-31 -1 day",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-03-01 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1583020800.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "composition.relative_between_date_time",
+            "kind": "date",
+            "input": "2020-01-02 +2 days 16:30:25",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-04 16:30:25.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1578155425.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "composition.tomorrow_before_date",
+            "kind": "date",
+            "input": "tomorrow 2020-01-02",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-03 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1578009600.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "composition.tomorrow_then_time",
+            "kind": "date",
+            "input": "tomorrow 14:30",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-02 14:30:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1577975400.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "composition.time_then_tomorrow",
+            "kind": "date",
+            "input": "14:30 tomorrow",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-02 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1577923200.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "composition.today_then_month",
+            "kind": "date",
+            "input": "today +1 month",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-02-01 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1580515200.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "composition.tomorrow_then_noon",
+            "kind": "date",
+            "input": "tomorrow noon",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-02 12:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1577966400.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "composition.noon_then_time",
+            "kind": "date",
+            "input": "noon 14:30",
+            "options": [],
+            "outcome": {
+                "error": {
+                    "class": "Carbon\\Exceptions\\InvalidFormatException",
+                    "message": "Could not parse 'noon 14:30': Failed to parse time string (noon 14:30) at position 5 (1): Double time specification"
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "composition.weekday_before_date",
+            "kind": "date",
+            "input": "Friday 2020-01-01",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-03 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1578009600.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "composition.weekday_after_date",
+            "kind": "date",
+            "input": "2020-01-01 Friday",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-03 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1578009600.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "composition.double_weekday",
+            "kind": "date",
+            "input": "Monday Tuesday",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-07 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1578355200.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "composition.double_date",
+            "kind": "date",
+            "input": "2020-01-01 2020-01-02",
+            "options": [],
+            "outcome": {
+                "error": {
+                    "class": "Carbon\\Exceptions\\InvalidFormatException",
+                    "message": "Could not parse '2020-01-01 2020-01-02': Failed to parse time string (2020-01-01 2020-01-02) at position 11 (2): Double date specification"
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "composition.double_time",
+            "kind": "date",
+            "input": "14:30 15:30",
+            "options": [],
+            "outcome": {
+                "error": {
+                    "class": "Carbon\\Exceptions\\InvalidFormatException",
+                    "message": "Could not parse '14:30 15:30': Failed to parse time string (14:30 15:30) at position 6 (1): Double time specification"
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "composition.double_zone_same",
+            "kind": "date",
+            "input": "2020-01-01 UTC UTC",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-01 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1577836800.000000",
+                    "last_errors": {
+                        "warning_count": 1,
+                        "warnings": {
+                            "15": "Double timezone specification"
+                        },
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "composition.double_zone_different",
+            "kind": "date",
+            "input": "2020-01-01 UTC PST",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-01 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1577836800.000000",
+                    "last_errors": {
+                        "warning_count": 1,
+                        "warnings": {
+                            "15": "Double timezone specification"
+                        },
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "composition.triple_zone",
+            "kind": "date",
+            "input": "2020-01-01 UTC PST EST",
+            "options": [],
+            "outcome": {
+                "error": {
+                    "class": "Carbon\\Exceptions\\InvalidFormatException",
+                    "message": "Could not parse '2020-01-01 UTC PST EST': Failed to parse time string (2020-01-01 UTC PST EST) at position 19 (E): Double timezone specification"
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "composition.inline_parenthesis_zone",
+            "kind": "date",
+            "input": "2020-01-01 16:30:25 (EST)",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-01 16:30:25.000000",
+                    "timezone": "EST",
+                    "offset_seconds": -18000,
+                    "epoch": "1577914225.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "composition.gmt_offset",
+            "kind": "date",
+            "input": "2020-01-01 16:30:25 GMT+0130",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-01 16:30:25.000000",
+                    "timezone": "+01:30",
+                    "offset_seconds": 5400,
+                    "epoch": "1577890825.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "composition.numeric_offset_prefix",
+            "kind": "date",
+            "input": "+0130 2020-01-01 16:30:25",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-01 16:30:25.000000",
+                    "timezone": "+01:30",
+                    "offset_seconds": 5400,
+                    "epoch": "1577890825.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "composition.relative_mixed_weekday",
+            "kind": "date",
+            "input": "next month Monday",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-02-06 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1580947200.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "composition.lastday_plusday",
+            "kind": "date",
+            "input": "last day of this month +1 day",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-01-31 16:30:25.123456",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1580488225.123456",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "composition.invalid_noise",
+            "kind": "date",
+            "input": "2020-01-01 randomnoise 16:30",
+            "options": [],
+            "outcome": {
+                "error": {
+                    "class": "Carbon\\Exceptions\\InvalidFormatException",
+                    "message": "Could not parse '2020-01-01 randomnoise 16:30': Failed to parse time string (2020-01-01 randomnoise 16:30) at position 11 (r): The timezone could not be found in the database"
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "composition.ordinal_embedded",
+            "kind": "date",
+            "input": "2020-01-01 second Tuesday of next month",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-02-11 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1581379200.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        },
+        {
+            "id": "composition.ordinal_before_absolute",
+            "kind": "date",
+            "input": "second Tuesday of next month 2020-01-01",
+            "options": [],
+            "outcome": {
+                "ok": {
+                    "datetime": "2020-02-11 00:00:00.000000",
+                    "timezone": "UTC",
+                    "offset_seconds": 0,
+                    "epoch": "1581379200.000000",
+                    "last_errors": {
+                        "warning_count": 0,
+                        "warnings": [],
+                        "error_count": 0,
+                        "errors": []
+                    }
+                }
+            },
+            "warnings": []
+        }
+    ]
+}

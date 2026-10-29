@@ -3,6 +3,8 @@
 mod bootstrap;
 #[path = "../modules/mod.rs"]
 mod modules;
+#[path = "support/request_input.rs"]
+mod request_input;
 #[path = "../routes/web.rs"]
 mod routes;
 
@@ -25,7 +27,7 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
         openrust::config::FrameworkConfig::default(),
     ))
     .merge(Toml::string(
-        "[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
+        "[app]\nname = 'configured-application'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
     ));
     let mut app = TestApp::<GeneratedApplication>::builder(source)
         .build()
@@ -38,17 +40,27 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
             "success": true,
             "code": "ok",
             "message": "ok",
-            "data": {"name": env!("CARGO_PKG_NAME")}
+            "data": {"name": "configured-application"}
         }))?;
     let health = Request::builder().uri("/health").body(Body::empty())?;
     app.request(health).await?.assert_status(StatusCode::OK)?;
-    let missing = Request::builder()
-        .uri("/api/missing")
-        .body(Body::empty())?;
+    let missing = Request::builder().uri("/api/missing").body(Body::empty())?;
     let fallback = app.request(missing).await?;
     fallback.assert_status(StatusCode::NOT_FOUND)?;
     assert_eq!(fallback.body(), "未找到路由：/api/missing".as_bytes());
     app.shutdown(openrust::tokio::time::Instant::now() + Duration::from_secs(5))
         .await?;
     Ok(())
+}
+
+#[tokio::test]
+async fn generated_application_exposes_request_input_to_business_provider()
+-> Result<(), Box<dyn std::error::Error>> {
+    let source = Figment::from(Serialized::defaults(
+        openrust::config::FrameworkConfig::default(),
+    ))
+    .merge(Toml::string(
+        "[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
+    ));
+    request_input::assert_request_input::<GeneratedApplication>(source).await
 }
