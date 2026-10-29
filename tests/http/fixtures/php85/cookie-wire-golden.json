@@ -1,0 +1,266 @@
+{
+  "evidence": "PHP 8.5.0 -n built-in HTTP SAPI, raw socket Cookie headers, actual $_COOKIE",
+  "cases": [
+    {
+      "id": "plain",
+      "cookie_headers_latin1": [
+        "plain=value"
+      ],
+      "status": 200,
+      "result": {
+        "plain": "value"
+      }
+    },
+    {
+      "id": "duplicate_plain_first",
+      "cookie_headers_latin1": [
+        "dup=first; dup=second"
+      ],
+      "status": 200,
+      "result": {
+        "dup": "first"
+      }
+    },
+    {
+      "id": "duplicate_headers",
+      "cookie_headers_latin1": [
+        "duph=first",
+        "duph=second"
+      ],
+      "status": 200,
+      "result": {
+        "duph": "first, duph=second"
+      }
+    },
+    {
+      "id": "duplicate_nested",
+      "cookie_headers_latin1": [
+        "nest[key]=first; nest[key]=second"
+      ],
+      "status": 200,
+      "result": {
+        "nest": {
+          "key": "second"
+        }
+      }
+    },
+    {
+      "id": "scalar_then_array",
+      "cookie_headers_latin1": [
+        "mix=scalar; mix[key]=array"
+      ],
+      "status": 200,
+      "result": {
+        "mix": {
+          "key": "array"
+        }
+      }
+    },
+    {
+      "id": "array_then_scalar",
+      "cookie_headers_latin1": [
+        "mix[key]=array; mix=scalar"
+      ],
+      "status": 200,
+      "result": {
+        "mix": {
+          "key": "array"
+        }
+      }
+    },
+    {
+      "id": "append",
+      "cookie_headers_latin1": [
+        "list[]=one; list[]=two"
+      ],
+      "status": 200,
+      "result": {
+        "list": [
+          "one",
+          "two"
+        ]
+      }
+    },
+    {
+      "id": "negative_index",
+      "cookie_headers_latin1": [
+        "idx[-1]=negative; idx[0]=zero"
+      ],
+      "status": 200,
+      "result": {
+        "idx": {
+          "-1": "negative",
+          "0": "zero"
+        }
+      }
+    },
+    {
+      "id": "dot_and_space",
+      "cookie_headers_latin1": [
+        "a.b=dot; a b=space"
+      ],
+      "status": 200,
+      "result": {
+        "a_b": "dot"
+      }
+    },
+    {
+      "id": "name_not_url_decoded",
+      "cookie_headers_latin1": [
+        "a%2Eb=encoded; a.b=dot"
+      ],
+      "status": 200,
+      "result": {
+        "a%2Eb": "encoded",
+        "a_b": "dot"
+      }
+    },
+    {
+      "id": "value_plus",
+      "cookie_headers_latin1": [
+        "plus=a+b; encoded=a%2Bb; space=a%20b"
+      ],
+      "status": 200,
+      "result": {
+        "plus": "a+b",
+        "encoded": "a+b",
+        "space": "a b"
+      }
+    },
+    {
+      "id": "value_nul",
+      "cookie_headers_latin1": [
+        "nul=ab%00cd"
+      ],
+      "status": 200,
+      "result": {
+        "nul": "ab\u0000cd"
+      }
+    },
+    {
+      "id": "value_invalid_utf8",
+      "cookie_headers_latin1": [
+        "binary=%FF"
+      ],
+      "status": 200,
+      "result": {
+        "type": "binary_tree",
+        "json_error": "Malformed UTF-8 characters, possibly incorrectly encoded",
+        "cookies": {
+          "type": "array",
+          "children": [
+            {
+              "key_type": "string",
+              "key": "binary",
+              "value": {
+                "type": "bytes",
+                "base64": "/w=="
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "malformed_unclosed",
+      "cookie_headers_latin1": [
+        "broken[key=value"
+      ],
+      "status": 200,
+      "result": {
+        "broken_key": "value"
+      }
+    },
+    {
+      "id": "malformed_suffix",
+      "cookie_headers_latin1": [
+        "broken[key]tail=value"
+      ],
+      "status": 200,
+      "result": {
+        "broken": {
+          "key": "value"
+        }
+      }
+    },
+    {
+      "id": "malformed_closing",
+      "cookie_headers_latin1": [
+        "broken]key=value"
+      ],
+      "status": 200,
+      "result": {
+        "broken]key": "value"
+      }
+    },
+    {
+      "id": "host_secure_prefix",
+      "cookie_headers_latin1": [
+        "__Host-id=host; __Secure-id=secure"
+      ],
+      "status": 200,
+      "result": {
+        "__Host-id": "host",
+        "__Secure-id": "secure"
+      }
+    },
+    {
+      "id": "bare_empty_equals",
+      "cookie_headers_latin1": [
+        "bare; empty=; equals=a=b"
+      ],
+      "status": 200,
+      "result": {
+        "bare": "",
+        "empty": "",
+        "equals": "a=b"
+      }
+    },
+    {
+      "id": "leading_whitespace",
+      "cookie_headers_latin1": [
+        "  spaced=value;\t tabbed=other"
+      ],
+      "status": 200,
+      "result": {
+        "spaced": "value",
+        "tabbed": "other"
+      }
+    },
+    {
+      "id": "case_sensitive",
+      "cookie_headers_latin1": [
+        "Case=upper; case=lower"
+      ],
+      "status": 200,
+      "result": {
+        "Case": "upper",
+        "case": "lower"
+      }
+    },
+    {
+      "id": "nested_two_levels",
+      "cookie_headers_latin1": [
+        "root[nested][item]=value"
+      ],
+      "status": 200,
+      "result": {
+        "root": {
+          "nested": {
+            "item": "value"
+          }
+        }
+      }
+    },
+    {
+      "id": "literal_percent_name",
+      "cookie_headers_latin1": [
+        "percent%25name=value"
+      ],
+      "status": 200,
+      "result": {
+        "percent%25name": "value"
+      }
+    }
+  ]
+}

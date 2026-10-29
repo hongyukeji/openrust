@@ -54,6 +54,7 @@ axum-core = "0.5"
 tower = "0.5"
 tower-http = { version = "0.7", features = ["trace", "request-id", "timeout", "catch-panic", "util", "cors", "compression-gzip", "compression-br", "fs"] }
 tower-sessions = { version = "0.15", default-features = false, features = ["axum-core"] }
+cookie = { version = "0.18.2", features = ["percent-encode"] }
 jsonwebtoken = { version = "11.1", default-features = false, features = ["aws_lc_rs", "use_pem"] }
 argon2 = "0.6"
 aes-gcm-siv = { version = "0.12.1", default-features = false, features = ["aes", "alloc", "zeroize"] }
@@ -160,6 +161,7 @@ futures-util.workspace = true
 getrandom.workspace = true
 uuid = { workspace = true, optional = true }
 http.workspace = true
+cookie.workspace = true
 httpdate = { workspace = true, optional = true }
 ipnet = { workspace = true, optional = true }
 jsonwebtoken = { workspace = true, optional = true }
@@ -305,6 +307,10 @@ required-features = ["queue-redis"]
 [[test]]
 name = "http_resource"
 path = "tests/http/resource.rs"
+
+[[test]]
+name = "http_cookie"
+path = "tests/http/cookie.rs"
 
 [[test]]
 name = "http_input"

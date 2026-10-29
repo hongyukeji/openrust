@@ -704,6 +704,10 @@ fn populate_project_with_mfa(
             "tests/support/request_input.rs",
             include_str!("../templates/tests/support/request_input.rs").to_owned(),
         ));
+        files.push((
+            "tests/support/request_cookie.rs",
+            include_str!("../templates/tests/support/request_cookie.rs").to_owned(),
+        ));
     }
     if auth {
         files.push((
@@ -967,6 +971,11 @@ fn app_source(
         .replace("{{type_name}}", crate_name)
         .replace("{{database_providers}}", &providers)
         .replace("{{encryption_provider}}", encryption_provider)
+        .replace("{{cookie_provider}}", if encryption {
+            "\n        providers.push(Box::new(openrust::http::CookieServiceProvider::new()));"
+        } else {
+            "\n        // 当前 API 宿主显式使用未加密 Cookie；这不是 Laravel web 默认组。\n        providers.push(Box::new(openrust::http::CookieServiceProvider::plain()));"
+        })
         .replace("{{grpc_providers}}", grpc_providers)
 }
 
@@ -1005,6 +1014,12 @@ fn routes_source(auth: bool, auth_mfa: bool) -> String {
         registration
     };
     source = source.replace("{{routes}}", &registration);
+    if !auth {
+        source = source.replace(
+            "routes.get(\"/api\", root)\n        .fallback(not_found)",
+            "routes.get(\"/api\", root).fallback(not_found)",
+        );
+    }
     source.replace("{{auth_handler}}", handler.trim_end())
 }
 
@@ -2735,9 +2750,11 @@ mod tests {
             "config/app.toml",
             "config/cache.toml",
             "config/server.toml",
+            "config/session.toml",
             "config/i18n.toml",
             "tests/test_app.rs",
             "tests/support/request_input.rs",
+            "tests/support/request_cookie.rs",
             "AGENTS.md",
         ] {
             assert!(project.join(path).is_file(), "missing generated {path}");
@@ -2751,6 +2768,7 @@ mod tests {
             "config/app.toml",
             "config/cache.toml",
             "config/server.toml",
+            "config/session.toml",
             "config/i18n.toml",
             "src/main.rs",
             "bootstrap/app.rs",
@@ -2759,6 +2777,7 @@ mod tests {
             "routes/web.rs",
             "tests/test_app.rs",
             "tests/support/request_input.rs",
+            "tests/support/request_cookie.rs",
             "AGENTS.md",
         ]
         .into_iter()

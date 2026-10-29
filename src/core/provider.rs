@@ -90,6 +90,10 @@ impl RegisterContext<'_> {
         self.config.source_has_section(key).map_err(Error::from)
     }
 
+    pub(crate) fn config_repository(&self) -> ConfigRepository {
+        self.config.clone()
+    }
+
     /// 每次解析构造新实例。
     pub fn bind<T, F>(&mut self, factory: F)
     where

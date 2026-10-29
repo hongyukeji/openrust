@@ -51,6 +51,12 @@ pub(crate) fn validate_trusted_proxy_ranges(ranges: &[String]) -> Result<()> {
     parse_ranges(ranges).map(|_| ())
 }
 
+pub(crate) fn trusts_peer(peer: IpAddr, ranges: &[String]) -> Result<bool> {
+    Ok(parse_ranges(ranges)?
+        .iter()
+        .any(|range| range.contains(peer)))
+}
+
 fn resolve_client_ip(peer: IpAddr, headers: &HeaderMap, trusted: &[IpRange]) -> Result<IpAddr> {
     if !trusted.iter().any(|range| range.contains(peer)) {
         return Ok(peer);

@@ -46,7 +46,7 @@ async fn framework_info(
 }
 
 type RouteBuilder = Box<dyn Fn(Routes) -> Routes + Send + Sync>;
-type RouterLayerBuilder = Box<dyn Fn(Router) -> Router + Send + Sync>;
+type RouterLayerBuilder = Box<dyn Fn(Router) -> Result<Router> + Send + Sync>;
 
 #[derive(Default)]
 struct RouterLayerRegistry {
@@ -129,9 +129,25 @@ impl BootContext<'_> {
         <L::Service as Service<Request>>::Future:
             Future<Output = Result<Response, Infallible>> + Send + 'static,
     {
+        self.http_layer_factory(move || Ok(layer.clone()))
+    }
+
+    // 延迟到最终 Router 装配读取领域配置；沿同一层注册表传播错误。
+    pub(crate) fn http_layer_factory<L, F>(&mut self, factory: F) -> Result<&mut Self>
+    where
+        F: Fn() -> Result<L> + Send + Sync + 'static,
+        L: Layer<Route> + Clone + Send + Sync + 'static,
+        L::Service: Service<Request, Response = Response, Error = Infallible>
+            + Clone
+            + Send
+            + Sync
+            + 'static,
+        <L::Service as Service<Request>>::Future:
+            Future<Output = Result<Response, Infallible>> + Send + 'static,
+    {
         self.extension_mut::<RouterLayerRegistry>()?
             .builders
-            .push(Box::new(move |router| router.layer(layer.clone())));
+            .push(Box::new(move |router| Ok(router.layer(factory()?))));
         Ok(self)
     }
 }
@@ -318,8 +334,12 @@ pub fn build_router(app: &App) -> Result<Router> {
     })??;
     if let Some(layers) = app.extension::<RouterLayerRegistry>() {
         for build_layer in &layers.builders {
-            stateful = build_layer(stateful);
+            stateful = build_layer(stateful)?;
         }
+    }
+    // 固定优先级使 Cookie 解密始终先于 Session，与 Provider 声明顺序无关。
+    if let Some(runtime) = app.extension::<crate::http::cookie::CookieRuntime>() {
+        stateful = crate::http::cookie::middleware::apply(stateful, runtime);
     }
     let calendar = app
         .extension::<crate::support::CalendarContext>()

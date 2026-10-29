@@ -1,6 +1,6 @@
 # 活跃待办
 
-> 当前代码与目标：业务示例已迁至 `modules/example/` 并经模块清单接入；R1-E CRUD/能力门禁已由 bc3fa01 提交；附件 PG/MySQL 全量各 15/15，真实 MinIO CopyObject 延迟响应时的双库删除竞争各 1/1；deadline/EOF 原子仲裁后，远端结果不确定的迟到发布仍属未保证边界。OIDC 确认页已完成 Chromium/mock 分支验收，真实 Keycloak/双库 `AlwaysOk` 错误密码、已消费 state 与成功夹证各 1/1；Collector PostgreSQL 隔离 sink 的 delivery/unavailable 各 1/1 且保留 16 MiB 限制，runner 路径和 fixture run ID 已修正。R2-N 已由 48be854 提交；R3-A/B/C/D/E/F 已按适用范围验收，后继为 C04 Request/Response。
+> 当前代码与目标：业务示例已迁至 `modules/example/` 并经模块清单接入；R1-E CRUD/能力门禁已由 bc3fa01 提交；附件 PG/MySQL 全量各 15/15，真实 MinIO CopyObject 延迟响应时的双库删除竞争各 1/1；deadline/EOF 原子仲裁后，远端结果不确定的迟到发布仍属未保证边界。OIDC 确认页已完成 Chromium/mock 分支验收，真实 Keycloak/双库 `AlwaysOk` 错误密码、已消费 state 与成功夹证各 1/1；Collector PostgreSQL 隔离 sink 的 delivery/unavailable 各 1/1 且保留 16 MiB 限制，runner 路径和 fixture run ID 已修正。R2-N 已由 48be854 提交；R3-A/B/C/D/E/F 已按适用范围验收，C04-A/B1/B2/C已按子簇验收，后继C04-D Session/flash与Web栈契约待领取。
 
 > 受众：AI Agent
 > 更新：2026-10-29
@@ -25,7 +25,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 | R2-M 模块最小闭环与目录迁移 | 真实服务与生成项目已验收，本簇提交 | modules/ 声明注册、模块配置/资源/统一迁移、依赖与冲突错误；示例迁至 modules/example，真实HTTP及双库验证；完整管理命令归R13 |
 | R1-E 真实CRUD与当前能力示例 | 已验收并提交 bc3fa01 | 真实 Article CRUD；当前公开能力进入唯一模块示例；PostgreSQL 18/MySQL 8.4、生成项目、真实服务与整组门禁已验收。Collector PostgreSQL 隔离 sink delivery/unavailable 已复验通过，详见 testing |
 | R2 后继内核与测试底座 | R2-N 模块依赖图与顺序已完成 | `.requires` 硬依赖、稳定拓扑顺序、register/boot 一致；真实 PostgreSQL/MySQL HTTP、生成项目、根无参数 TCP、工作区门禁均有本簇证据 |
-| R3 HTTP 与 Web | R3-F 已提交163bb49；C04-A 已提交08be69d；C04-B1输入基础已验收；C04-B2类型便捷方法已通过适用验收；后继C04 Spec待领取 | 按ADR-078实现无正文请求检查与固定上游协商；C03其余及完整C04范围继续保留 |
+| R3 HTTP 与 Web | R3-F 已提交163bb49；C04-A 已提交08be69d；C04-B1输入基础已验收；C04-B2类型便捷方法已通过适用验收；C04-C Cookie/响应子簇已验收；后继C04-D待领取 | 按ADR-078实现无正文请求检查与固定上游协商；C03其余及完整C04范围继续保留 |
 | 模块包固定范围细化 | 待逐项盘点 | 对正式laravel-modules固定源码/文档的导航、源码与测试拆行为矩阵，分类必要Rust差异/用户约定/缺口；不把目录规范或显式Plugin等同完整模块管理 |
 
 ## 后继路由
@@ -301,11 +301,22 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 5. 高价值验收：缺省/非法/零负页与超界页、空集last_page=1及边界链接、末页/越末页、参数/fragment/自定pageName与同请求多分页器、直接Paginator JSON和Resource links/meta避免二次包装；simple无总数查询、cursor稳定排序/唯一性/前后游标及非法游标边界逐条按固定源码测试落实，不能假造全部422或隐式消费per_page。
 6. 逐项对照固定[tests/Pagination](https://github.com/laravel/framework/tree/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/tests/Pagination)的LengthAwarePaginatorTest/PaginatorTest/CursorPaginatorTest及[ResourceTest](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/tests/Integration/Http/ResourceTest.php)，形成source/tests→RustAPI→真实controller/唯一modules/example→生成器/生成项目与README/config/tests→适用PG18/MySQL8.4的证据；授权代码整改待领取，本轮仅文档审计，无新代码或服务验收。
 
-## 后继 C04：Cookie/Session 与 Request/Response 余项（待领取）
+## C04-C：Cookie/响应契约（已验收）
 
-C04-A/B1/B2的公开检查、输入基础与类型便捷方法已按各自范围验收，证据见[testing](memory/testing.md#c04-b2-类型便捷方法)，不重复实现。完整C04仍开放；下一簇先按固定L019/L020及现有Session/加密/响应实现，收敛Cookie读取与响应生命周期的可独立闭环，5–15行Spec后实现。
+C04-A/B1/B2的公开检查、输入基础与类型便捷方法已按各自范围验收，证据见[testing](memory/testing.md#c04-b2-类型便捷方法)，不重复实现。完整C04仍开放；本簇按[ADR-081](decisions/adr-081-request-response-cookies.md)实现Cookie读取/队列/加密与响应生命周期闭环，值工厂、队列与核心接线分非重叠文件并行；C04-B2已限定提交`0a92900`，不重复实现。
 
-1. 审计既有cookie/session、redirect/flash、CSRF、FormRequest授权验证、上传文件与Response扩展的真实生产路径和公开契约，先选依赖已满足的最小完整功能簇，不重建平行Session、加密或Hook内核。
+1. 本簇闭环限定Cookie读取、创建、请求队列与加密往返；不扩为完整Session/flash/CSRF/FormRequest重写。固定依据为Laravel `d52c3b3129e4c8e213c97cdc68f94b0b7d27f181` 的InteractsWithInput、CookieJar、EncryptCookies及AddQueuedCookiesToResponse。
+2. 不可变factory默认可共享，可变queue必须请求隔离；同名同path替换、不同path并存，返回阶段先附加queued再加密，取消/超时drop释放，不能留到下一请求。
+3. RequestInfo与Request使用同一cookie视图，缺失/解密后null走default，空串仍存在；cookie独立于普通输入trim/null。真实wire解析、数组与名称绑定先核固定源，不直接套输入bracket parser。
+4. 复用既有加密/key ring及Session middleware，入站旧key可读、出站当前key、篡改失败视null、except可公开配置；框架原生密文格式与PHP格式的必要适配在实现前记录，不能另造加密内核或静默跳过保护。
+5. 明确外层cookie处理与现Session/auth读header的顺序及原始wire逃生口；响应组合沿原Response/Json/envelope入口，Cookie属性和错误/资源边界与固定源对应。
+6. 验收覆盖并发请求队列隔离、相同name不同path、直接/queued输出、forget、重命名篡改、旧key轮换与超限；唯一模块、plain/auth生成项目、真实TCP及现Session/认证双库完整回归随簇交付。
+
+本簇验收：最终workspace默认668/全特性1241 passed，根双库各48、生成plain3/认证双库各2、真实TLS与适用门禁通过；产物已清理，本簇限定提交见Git。完整Session/flash/CSRF/FormRequest不由此关闭，见[证据](memory/testing.md)。
+
+## 后继 C04-D：Session/flash与Web栈契约（待领取）
+
+1. C04-C限定提交后领取；先审计固定Laravel Session/StartSession、Request session/old input与现Auth Session运行时，复用现Container/Provider/请求scope和共享store，收敛首个可独立验收子簇，不重造平行会话内核。
 2. 明确Laravel默认、错误/授权、请求与响应所有权、公开扩展和Rust适配；现统一返回沿Response/异常职责保留，不能只换名或包装旧调用。
 3. 同步唯一modules/example、生成应用、用户文档、稳定L019/L020矩阵及适用真实HTTP/双库验收；完成Spec→Implement→Verify→Commit后再领取后继。
 4. Old Input/flash、CSRF、FormRequest、文件及完整Response范围继续保留；分页按既有C04/C05→R4/R5依赖，不先复制controller业务胶水。

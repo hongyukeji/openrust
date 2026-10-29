@@ -24,6 +24,8 @@ pub(super) fn register(routes: Routes, capabilities: &RouteCapabilities) -> Rout
         )
         .post("/api/example/input", controllers::example::input)
         .name("example.input")
+        .get("/api/example/cookie", controllers::cookie::show)
+        .post("/api/example/cookie", controllers::cookie::store)
         .group(
             RouteGroup::new().middleware(openrust::http::InputNormalization::disabled()),
             |routes| {

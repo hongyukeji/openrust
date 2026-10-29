@@ -43,7 +43,7 @@ impl Application for {{type_name}} {
             Box::new(openrust::cache::CacheServiceProvider::new()),
             Box::new(openrust::mail::MailerServiceProvider),
             Box::new(openrust::sms::SmsServiceProvider),
-        ];{{database_providers}}{{encryption_provider}}{{grpc_providers}}
+        ];{{database_providers}}{{encryption_provider}}{{cookie_provider}}{{grpc_providers}}
         providers.push(Box::new(RoutesProvider));
         providers
     }

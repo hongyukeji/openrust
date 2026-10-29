@@ -6,6 +6,7 @@ pub(crate) mod authority;
 #[cfg(feature = "http-client")]
 pub mod client;
 pub mod client_ip;
+pub mod cookie;
 pub mod domain;
 pub mod extract;
 pub mod health;
@@ -21,6 +22,7 @@ pub mod routes;
 pub mod serve;
 pub(crate) mod site;
 pub mod sort;
+pub mod transport;
 pub mod url;
 
 pub use crate::i18n::RequestLocale;
@@ -33,6 +35,10 @@ pub use client::{
     IdempotentHttpRequest, MultipartForm, RetryPolicy, TransportResponse,
 };
 pub use client_ip::ClientIp;
+pub use cookie::{
+    Cookie, CookieFactory, CookieJar, CookieOptions, CookieResponse, CookieResponseExt,
+    CookieServiceProvider, SameSite,
+};
 pub use domain::DomainParams;
 pub use extract::{Inject, Json, Path, Query, Validated};
 pub use plugin::{HttpServiceProvider, RouteRegistry, build_router};
@@ -45,4 +51,5 @@ pub use response::{Created, Located, NoContent, PageParams, Paginated};
 pub use routes::{RouteGroup, Routes};
 pub use serve::{ServeCommand, serve};
 pub use sort::{SortDirection, SortField, SortParams};
+pub use transport::RequestSecurity;
 pub use url::RouteUrlGenerator;

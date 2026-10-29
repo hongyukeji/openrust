@@ -1,0 +1,456 @@
+//! Cookie 快照、直接名称读取与既有响应组合的公开回归。
+#![allow(clippy::expect_used)] // 测试 fixture 失败直接结束当前用例。
+use axum::{
+    body::Body,
+    extract::{FromRequest, FromRequestParts},
+    http::{Request as Wire, StatusCode},
+    response::IntoResponse,
+};
+use openrust::http::{CookieFactory, CookieOptions, CookieResponseExt, Json, Request, RequestInfo};
+use serde_json::json;
+
+#[tokio::test]
+async fn metadata_and_bodyowner_share_direct_cookie_semantics() {
+    let wire = || {
+        Wire::builder()
+            .method("POST")
+            .uri("/")
+            .header(
+                "cookie",
+                "a.b=dot; a_b=second; empty=; tree[x]=nested; 0=numeric",
+            )
+            .header("content-type", "application/json")
+            .body(Body::from("{\"body\":true}"))
+            .expect("wire")
+    };
+    let (mut parts, _) = wire().into_parts();
+    let info = RequestInfo::from_request_parts(&mut parts, &())
+        .await
+        .expect("info");
+    assert_eq!(info.cookie("a_b"), Some(json!("dot")));
+    assert_eq!(info.cookie("a.b"), None);
+    assert_eq!(info.cookie("tree"), Some(json!({"x":"nested"})));
+    assert_eq!(info.cookie("tree.x"), None);
+    assert!(info.has_cookie("empty"));
+    assert_eq!(
+        info.cookie_or("missing", json!("default")),
+        json!("default")
+    );
+    let request = Request::from_request(wire(), &()).await.expect("request");
+    assert_eq!(request.cookies(), info.cookies());
+    assert_eq!(request.input("body").expect("input"), Some(json!(true)));
+    let (mut parts, _) = Wire::builder()
+        .header("cookie", "0=zero; 1=one")
+        .body(Body::empty())
+        .expect("numeric wire")
+        .into_parts();
+    let numeric = RequestInfo::from_request_parts(&mut parts, &())
+        .await
+        .expect("numeric info");
+    assert_eq!(numeric.cookie("0"), Some(json!("zero")));
+    assert_eq!(numeric.cookie("00"), None);
+}
+
+#[test]
+fn response_cookie_composition_preserves_envelope_and_unencoded_value() {
+    let factory = CookieFactory::default();
+    let cookie = factory
+        .make("preference", "semi;plus+雪", 5, CookieOptions::default())
+        .expect("cookie");
+    let response = Json(json!({"ok":true}))
+        .with_cookie(cookie)
+        .expect("response")
+        .into_response();
+    assert_eq!(response.status(), StatusCode::OK);
+    let header = response.headers()["set-cookie"].to_str().expect("header");
+    assert!(header.starts_with("preference=semi%3Bplus%2B%E9%9B%AA;"));
+    assert!(header.contains("httponly"));
+    assert!(header.contains("samesite=lax"));
+}
+
+struct CookieRoutes;
+impl openrust::core::ServiceProvider for CookieRoutes {
+    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
+        app.instance(std::sync::Arc::new(tokio::sync::Notify::new()));
+        Ok(())
+    }
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut openrust::core::BootContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.routes(|routes| {
+                routes
+                    .get("/queue/{value}", scoped_queue)
+                    .get("/inspect", empty_queue)
+                    .get("/cancel", cancel_queue)
+                    .get("/security", security_cookies)
+            })?;
+            Ok(())
+        })
+    }
+}
+async fn scoped_queue(
+    jar: openrust::http::CookieJar,
+    openrust::http::Inject(other): openrust::http::Inject<openrust::http::CookieJar>,
+    axum::extract::Path(value): axum::extract::Path<String>,
+) -> openrust::Result<Json<serde_json::Value>> {
+    jar.queue(
+        jar.factory()
+            .make("scoped", value, 0, CookieOptions::default())?,
+    )?;
+    Ok(Json(
+        json!({"same_scope":other.has_queued("scoped", None)?}),
+    ))
+}
+async fn empty_queue(jar: openrust::http::CookieJar) -> openrust::Result<Json<serde_json::Value>> {
+    Ok(Json(json!({"empty":jar.get_queued_cookies()?.is_empty()})))
+}
+async fn cancel_queue(
+    jar: openrust::http::CookieJar,
+    openrust::http::Inject(ready): openrust::http::Inject<tokio::sync::Notify>,
+) -> openrust::Result<()> {
+    jar.queue(
+        jar.factory()
+            .make("cancelled", "never_send", 0, CookieOptions::default())?,
+    )?;
+    ready.notify_one();
+    std::future::pending().await
+}
+async fn security_cookies(jar: openrust::http::CookieJar) -> openrust::Result<impl IntoResponse> {
+    let cookies = [
+        ("automatic", None),
+        ("forced", Some(true)),
+        ("disabled", Some(false)),
+    ]
+    .into_iter()
+    .map(|(name, secure)| {
+        jar.factory().make(
+            name,
+            "value",
+            0,
+            CookieOptions {
+                secure,
+                ..CookieOptions::default()
+            },
+        )
+    })
+    .collect::<openrust::Result<Vec<_>>>()?;
+    Json(json!({"ok":true})).with_cookies(cookies)
+}
+async fn cookie_app(
+    provider: openrust::http::CookieServiceProvider,
+) -> openrust::Result<openrust::App> {
+    let mut config = openrust::config::FrameworkConfig::default();
+    config.api.http_status = openrust::config::HttpStatusMode::Semantic;
+    config.server.trusted_proxy_ranges = vec!["127.0.0.1/32".to_owned()];
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(openrust::http::HttpServiceProvider)
+        .provider(provider)
+        .provider(CookieRoutes);
+    openrust::App::from_provider_runtime(
+        builder
+            .start(figment::Figment::from(
+                figment::providers::Serialized::defaults(config),
+            ))
+            .await?,
+    )
+}
+#[tokio::test]
+async fn request_scope_shares_jar_but_concurrent_and_cancelled_requests_are_isolated()
+-> openrust::Result<()> {
+    use openrust::ServiceExt;
+    let app = cookie_app(openrust::http::CookieServiceProvider::plain()).await?;
+    let router = openrust::http::build_router(&app)?;
+    let send = |path: &str| {
+        Wire::builder()
+            .uri(path)
+            .header("host", "localhost")
+            .body(Body::empty())
+            .expect("wire")
+    };
+    let (one, two) = tokio::join!(
+        router.clone().oneshot(send("/queue/one")),
+        router.clone().oneshot(send("/queue/two"))
+    );
+    for (response, value) in [(one.expect("one"), "one"), (two.expect("two"), "two")] {
+        assert!(
+            response.headers()["set-cookie"]
+                .to_str()
+                .expect("cookie")
+                .starts_with(&format!("scoped={value};"))
+        );
+        let body = axum::body::to_bytes(response.into_body(), 4096)
+            .await
+            .map_err(openrust::Error::internal)?;
+        let value: serde_json::Value =
+            serde_json::from_slice(&body).map_err(openrust::Error::internal)?;
+        assert_eq!(value["data"]["same_scope"], true);
+    }
+    let ready = app
+        .state()
+        .container()
+        .resolve::<tokio::sync::Notify>()
+        .await?;
+    let cancelled = tokio::spawn(router.clone().oneshot(send("/cancel")));
+    tokio::time::timeout(std::time::Duration::from_secs(2), ready.notified())
+        .await
+        .map_err(openrust::Error::internal)?;
+    cancelled.abort();
+    assert!(cancelled.await.expect_err("cancelled").is_cancelled());
+    let response = router.oneshot(send("/inspect")).await.expect("inspect");
+    assert!(!response.headers().contains_key("set-cookie"));
+    let body = axum::body::to_bytes(response.into_body(), 4096)
+        .await
+        .map_err(openrust::Error::internal)?;
+    let value: serde_json::Value =
+        serde_json::from_slice(&body).map_err(openrust::Error::internal)?;
+    assert_eq!(value["data"]["empty"], true);
+    app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(2))
+        .await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn protected_provider_never_implicitly_downgrades_to_plain() {
+    assert!(
+        cookie_app(openrust::http::CookieServiceProvider::new())
+            .await
+            .is_err()
+    );
+}
+
+#[tokio::test]
+async fn origin_form_secure_defaults_use_trusted_transport_and_preserve_explicit_options()
+-> openrust::Result<()> {
+    use axum::extract::connect_info::ConnectInfo;
+    use openrust::ServiceExt;
+    use std::net::SocketAddr;
+    let app = cookie_app(openrust::http::CookieServiceProvider::plain()).await?;
+    let router = openrust::http::build_router(&app)?;
+    for (peer, proto, explicit, expected) in [
+        ("127.0.0.1:80", "https", None, true),
+        ("192.0.2.1:80", "https", None, false),
+        ("127.0.0.1:80", "ssl", None, true),
+        ("127.0.0.1:80", " HTTPS , http", None, true),
+        ("127.0.0.1:80", "http, https", None, false),
+        ("127.0.0.1:80", "on", None, true),
+        ("127.0.0.1:80", "1", None, true),
+        ("127.0.0.1:80", "unknown", None, false),
+        ("192.0.2.1:80", "http", Some(true), true),
+        ("127.0.0.1:80", "https", Some(false), false),
+    ] {
+        let mut request = Wire::builder()
+            .uri("/security")
+            .header("host", "localhost")
+            .header("x-forwarded-proto", proto)
+            .body(Body::empty())
+            .expect("wire");
+        request
+            .extensions_mut()
+            .insert(ConnectInfo(peer.parse::<SocketAddr>().expect("peer")));
+        if let Some(secure) = explicit {
+            request
+                .extensions_mut()
+                .insert(openrust::http::RequestSecurity::new(secure));
+        }
+        let response = router.clone().oneshot(request).await.expect("response");
+        assert_eq!(response.status(), StatusCode::OK);
+        for (name, expected) in [
+            ("automatic", expected),
+            ("forced", true),
+            ("disabled", false),
+        ] {
+            let wire = response
+                .headers()
+                .get_all("set-cookie")
+                .iter()
+                .find(|header| header.as_bytes().starts_with(format!("{name}=").as_bytes()))
+                .expect("cookie")
+                .to_str()
+                .expect("header");
+            assert_eq!(
+                wire.split(';')
+                    .any(|part| part.trim().eq_ignore_ascii_case("secure")),
+                expected,
+                "{name} peer={peer} proto={proto}"
+            );
+        }
+    }
+    let mut request = Wire::builder()
+        .uri("/security")
+        .header("host", "localhost")
+        .header("x-forwarded-proto", "https")
+        .header("x-forwarded-proto", "http")
+        .body(Body::empty())
+        .expect("ambiguous wire");
+    request.extensions_mut().insert(ConnectInfo(
+        "127.0.0.1:80".parse::<SocketAddr>().expect("peer"),
+    ));
+    let response = router.oneshot(request).await.expect("response");
+    assert_eq!(response.status(), StatusCode::OK);
+    let automatic = response
+        .headers()
+        .get_all("set-cookie")
+        .iter()
+        .find(|header| header.as_bytes().starts_with(b"automatic="))
+        .expect("automatic");
+    assert!(automatic.to_str().expect("header").contains("; secure"));
+    // 客户端提供 absolute-form https 不能代替原生连接的 TLS 属性。
+    let response = openrust::http::build_router(&app)?
+        .oneshot(
+            Wire::builder()
+                .uri("https://localhost/security")
+                .header("host", "localhost")
+                .body(Body::empty())
+                .expect("absolute wire"),
+        )
+        .await
+        .expect("response");
+    let automatic = response
+        .headers()
+        .get_all("set-cookie")
+        .iter()
+        .find(|header| header.as_bytes().starts_with(b"automatic="))
+        .expect("automatic");
+    assert!(!automatic.to_str().expect("header").contains("; secure"));
+    app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(2))
+        .await?;
+    Ok(())
+}
+
+struct LateSessionDefaults;
+impl openrust::core::ServiceProvider for LateSessionDefaults {
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut openrust::core::BootContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.overlay("session", json!({"path":"/late", "domain":"example.test", "secure":false, "same_site":"strict"}))?;
+            Ok(())
+        })
+    }
+}
+#[tokio::test]
+async fn factory_uses_final_session_section_without_auth_and_explicit_factory_wins()
+-> openrust::Result<()> {
+    for explicit in [false, true] {
+        let mut factory = CookieFactory::default();
+        factory.set_default_path_and_domain(
+            "/explicit".to_owned(),
+            None,
+            Some(true),
+            Some(openrust::http::SameSite::Lax),
+        )?;
+        let provider = if explicit {
+            openrust::http::CookieServiceProvider::plain().with_factory(factory)
+        } else {
+            openrust::http::CookieServiceProvider::plain()
+        };
+        let mut builder = openrust::core::ProviderBuilder::new();
+        builder.provider(provider).provider(LateSessionDefaults);
+        let runtime = builder.start(figment::Figment::new()).await?;
+        let factory = runtime.container().resolve::<CookieFactory>().await?;
+        let cookie = factory.make("example", "value", 0, CookieOptions::default())?;
+        assert_eq!(cookie.path(), if explicit { "/explicit" } else { "/late" });
+        assert_eq!(
+            cookie.domain(),
+            if explicit { None } else { Some("example.test") }
+        );
+        assert_eq!(cookie.secure(), Some(explicit));
+        assert_eq!(
+            cookie.same_site(),
+            Some(if explicit {
+                openrust::http::SameSite::Lax
+            } else {
+                openrust::http::SameSite::Strict
+            })
+        );
+        runtime
+            .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(2))
+            .await?;
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn existing_session_section_preserves_null_or_missing_same_site_without_auth_provider()
+-> openrust::Result<()> {
+    for (section, expected) in [
+        (None, Some(openrust::http::SameSite::Lax)),
+        (Some(json!({})), None),
+        (Some(json!({"same_site":null})), None),
+        (
+            Some(json!({"same_site":"strict"})),
+            Some(openrust::http::SameSite::Strict),
+        ),
+    ] {
+        let source = match section {
+            Some(section) => figment::Figment::new().merge(("session", section)),
+            None => figment::Figment::new(),
+        };
+        let mut builder = openrust::core::ProviderBuilder::new();
+        builder.provider(openrust::http::CookieServiceProvider::plain());
+        let runtime = builder.start(source).await?;
+        let factory = runtime.container().resolve::<CookieFactory>().await?;
+        assert_eq!(
+            factory
+                .make("example", "value", 0, CookieOptions::default())?
+                .same_site(),
+            expected
+        );
+        runtime
+            .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(2))
+            .await?;
+    }
+    Ok(())
+}
+
+#[test]
+fn empty_and_absent_domains_share_response_identity_and_preserve_path_name_order()
+-> openrust::Result<()> {
+    let factory = CookieFactory::default();
+    let mut empty_domain = CookieFactory::default();
+    empty_domain.set_default_path_and_domain(
+        "/".to_owned(),
+        Some(String::new()),
+        None,
+        Some(openrust::http::SameSite::Lax),
+    )?;
+    let response = Json(json!({"ok":true}))
+        .with_cookies([
+            factory.make("first", "original", 0, CookieOptions::default())?,
+            factory.make(
+                "other_path",
+                "value",
+                0,
+                CookieOptions {
+                    path: Some("/other".to_owned()),
+                    ..CookieOptions::default()
+                },
+            )?,
+            empty_domain.make("second", "value", 0, CookieOptions::default())?,
+            empty_domain.make("first", "replacement", 0, CookieOptions::default())?,
+        ])?
+        .with_cookie(openrust::http::Cookie::from_header(
+            "first=from-header; path=/; domain=",
+        )?)?
+        .into_response();
+    let headers = response
+        .headers()
+        .get_all("set-cookie")
+        .iter()
+        .map(|header| std::str::from_utf8(header.as_bytes()).map_err(openrust::Error::internal))
+        .collect::<openrust::Result<Vec<_>>>()?;
+    assert_eq!(headers.len(), 3);
+    for (header, prefix) in
+        headers
+            .iter()
+            .zip(["first=from-header;", "second=value;", "other_path=value;"])
+    {
+        assert!(header.starts_with(prefix));
+        assert!(!header.contains("domain="));
+    }
+    Ok(())
+}

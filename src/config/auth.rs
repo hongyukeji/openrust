@@ -90,6 +90,10 @@ impl Default for PasswordConfig {
 pub struct SessionConfig {
     /// Cookie 名称。默认值为 `openrust_session`。
     pub cookie_name: String,
+    /// Cookie 路径，默认 `/`。
+    pub path: String,
+    /// Cookie 域；默认不指定，使用当前主机。
+    pub domain: Option<String>,
     /// 浏览器是否仅通过 HTTPS 发送 cookie。默认值为 `true`。
     pub secure: bool,
     /// JavaScript 是否无法读取该 cookie（`HttpOnly`）。默认值为 `true`。
@@ -104,6 +108,8 @@ impl Default for SessionConfig {
     fn default() -> Self {
         Self {
             cookie_name: "openrust_session".to_owned(),
+            path: "/".to_owned(),
+            domain: None,
             secure: true,
             http_only: true,
             same_site: "lax".to_owned(),
@@ -117,6 +123,8 @@ impl std::fmt::Debug for SessionConfig {
         formatter
             .debug_struct("SessionConfig")
             .field("cookie_name", &self.cookie_name)
+            .field("path", &self.path)
+            .field("domain", &self.domain)
             .field("secure", &self.secure)
             .field("http_only", &self.http_only)
             .field("same_site", &self.same_site)

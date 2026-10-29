@@ -36,6 +36,18 @@ curl -X POST 'http://127.0.0.1:3000/api/example/input?title=query&fallback=query
 
 本簇没有解析 multipart 文本或文件、Cookie/Session 和 FormRequest。原生 `openrust::http::axum` 的 Request/Json/Query 是独立逃生口，保持 Axum 自身语义，不执行这里的受管理输入规范化。现有 `POST /api/example/request-body` 则继续展示框架 typed `Json<T>` 与只读 `RequestInfo` 的组合。
 
+## Cookie 偏好与响应组合
+
+[`controllers/cookie.rs`](http/controllers/cookie.rs) 与 [`tests/cookie_flows.rs`](tests/cookie_flows.rs) 展示业务如何使用框架 Cookie 能力。路由在模块自己的 [`routes/api.rs`](routes/api.rs) 定义，不修改框架源码：
+
+- `GET /api/example/cookie` 用 `RequestInfo::cookie` / `has_cookie` 仅读取 `example_preference`，不返回其他 Cookie 或原始头。
+- `POST /api/example/cookie` 接收 JSON `{"action":"queue","value":"dark"}`，通过注入的请求级 `CookieJar` 创建并排队；队列在响应阶段写出。
+- 将 `action` 改为 `direct`，通过 `CookieResponseExt::with_cookie` 组合现有 JSON 响应；改为 `forget`，按相同 `/api/example` 路径发送到期删除标记。
+
+浏览器随后向匹配路径回送 Cookie。测试将实际 `Set-Cookie` 的首个 name/value 对原样作为后续 `Cookie` 请求头，不假定 wire 值为明文，也不在业务中解密。Cookie 不经过普通输入的 trim/null 转换；读取使用直接键，数组叶子的解释由框架 wire 解析器负责。
+
+宿主必须登记 `CookieServiceProvider`；默认构造要求现有 Encryptor，提供受保护 Cookie 与历史密钥解密。显式 `plain()` 仅提供无加密路径，不保护 Cookie 的机密性或完整性。当前 API 宿主按编译能力明确选择模式，不能把 plain 模式当成完整 Laravel 默认 Web 栈。普通业务依赖同一个请求级 Jar，无需再登记一套 Provider。Session、flash、CSRF 等仍按各自能力与配置使用，不因这个偏好示例而全部完成。
+
 ## 从真实调用链开始
 
 根 [`src/main.rs`](../../src/main.rs) 声明应用宿主和已编译模块，然后运行 `bootstrap::Server`。[`bootstrap/app.rs`](../../bootstrap/app.rs) 的 `Application::modules` 返回模块清单，加入 [`descriptor`](mod.rs)；根 [`modules_statuses.json`](../../modules_statuses.json) 的 `example: true` 决定本次启动启用。descriptor 将 [`ExampleServiceProvider`](providers/example.rs)、自定义缓存 driver、以及适用数据库能力的任务/迁移/种子、文章事件和欢迎业务 Provider 纳入同一 register/boot 生命周期；禁用模块不会登记这些 Provider。默认模块根为进程工作目录，可由显式配置 `modules_root` 指定部署根；状态、配置、语言、视图和发布资源均从同一根解析。根 [`routes/web.rs`](../../routes/web.rs) 只保留框架通用路由，不硬编码业务 handler。

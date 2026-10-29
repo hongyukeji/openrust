@@ -94,6 +94,11 @@ impl Application for Server {
                 ));
             }
         }
+        #[cfg(feature = "encryption")]
+        providers.push(Box::new(openrust::http::CookieServiceProvider::new()));
+        // 当前 API 宿主无 encryption 时明确选择明文，不代表 Laravel web 默认组。
+        #[cfg(not(feature = "encryption"))]
+        providers.push(Box::new(openrust::http::CookieServiceProvider::plain()));
         providers.push(Box::new(FrameworkRoutesProvider));
         providers
     }

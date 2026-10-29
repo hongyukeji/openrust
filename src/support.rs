@@ -7,6 +7,7 @@ pub(crate) mod data;
 mod finite;
 mod fluent;
 mod number;
+pub(crate) mod php_variables;
 pub(crate) mod scalars;
 pub(crate) mod stringable;
 pub(crate) mod typed;

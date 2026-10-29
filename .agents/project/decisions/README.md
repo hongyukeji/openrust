@@ -34,6 +34,7 @@
 | [077 Laravel 式域路由](adr-077-domain-routing.md) | Accepted | `RouteGroup::domain`、单标签参数、domain-first、Host 安全与具名 URL；R3-F 已提交163bb49 |
 | [078 请求检查与内容协商](adr-078-request-inspection.md) | Accepted | RequestInfo 不消费body，复用authority与类型化提取器；固定Laravel/Symfony协商行为和有界headers |
 | [079 统一请求输入](adr-079-request-input.md) | Accepted | body-owning Request复用输入bags；Json/Query共享规范化和有界解析，原文保留 |
+| [081 请求Cookie与响应队列](adr-081-request-response-cookies.md) | Accepted（C04-C 子簇已验收） | 请求隔离queue、wire与bag分层、复用现Session/Encryptor；名称绑定与响应加密顺序 |
 | [009 可扩展驱动](adr-009-extensible-capability-drivers.md) | Accepted | 统一入口、公开扩展、后端能力与真实验收 |
 | [010 Seed](adr-010-database-seeding.md) | Partially Superseded | 目标约束按 ADR-070 重开；应用提供 seed 函数，不做平行 ORM 工厂 |
 | [016 中性命名空间](adr-016-neutral-application-namespaces.md) | Partially Superseded | 目标约束按 ADR-070 重开；默认 APP_、tb_ 与可定制解析，替代 006 的旧品牌前缀 |

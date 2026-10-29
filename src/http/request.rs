@@ -64,6 +64,7 @@ pub struct RequestInfo {
     uri: Uri,
     headers: HeaderMap,
     acceptable: Vec<String>,
+    cookies: serde_json::Value,
 }
 
 impl fmt::Debug for RequestInfo {
@@ -82,19 +83,59 @@ impl<S: Send + Sync> FromRequestParts<S> for RequestInfo {
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self> {
         validate_header_size(&parts.headers)?;
         let acceptable = parse_accept(&parts.headers)?;
+        let parsed = match parts.extensions.get::<super::cookie::ParsedCookies>() {
+            Some(parsed) => parsed.clone(),
+            None => super::cookie::parse_headers(&parts.headers)?,
+        };
+        let mut headers = parts.headers.clone();
+        if let Some(original) = parts.extensions.get::<super::cookie::OriginalCookies>() {
+            headers.remove(http::header::COOKIE);
+            for value in &original.headers {
+                headers.append(http::header::COOKIE, value.clone());
+            }
+        }
         Ok(Self {
             method: parts.method.clone(),
             uri: parts
                 .extensions
                 .get::<OriginalUri>()
                 .map_or_else(|| parts.uri.clone(), |original| original.0.clone()),
-            headers: parts.headers.clone(),
+            headers,
             acceptable,
+            cookies: parsed.value,
         })
     }
 }
 
 impl RequestInfo {
+    /// 按完整名称读取 Cookie；名称中的点不作为路径。
+    pub fn cookie(&self, name: &str) -> Option<serde_json::Value> {
+        let value = match &self.cookies {
+            serde_json::Value::Array(values) => name
+                .parse::<usize>()
+                .ok()
+                .filter(|index| index.to_string() == name)
+                .and_then(|index| values.get(index)),
+            value => value.get(name),
+        };
+        value.filter(|value| !value.is_null()).cloned()
+    }
+
+    /// 缺失或解密失败为 null 时返回默认值。
+    pub fn cookie_or(&self, name: &str, default: serde_json::Value) -> serde_json::Value {
+        self.cookie(name).unwrap_or(default)
+    }
+
+    /// 返回 Cookie 输入树的独立快照。
+    pub fn cookies(&self) -> serde_json::Value {
+        self.cookies.clone()
+    }
+
+    /// 判断 Cookie 是否存在且非 null；空字符串仍存在。
+    pub fn has_cookie(&self, name: &str) -> bool {
+        self.cookie(name).is_some()
+    }
+
     /// 返回不含首尾斜线且未经百分号解码的路径；根路径返回 `/`。
     pub fn path(&self) -> &str {
         let path = self.uri.path().trim_matches('/');

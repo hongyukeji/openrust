@@ -6,7 +6,9 @@ pub fn register(routes: Routes) -> Routes {
         .fallback(not_found)
 }
 {{auth_handler}}
-async fn root(State(state): State<AppState>) -> Json<std::collections::BTreeMap<&'static str, String>> {
+async fn root(
+    State(state): State<AppState>,
+) -> Json<std::collections::BTreeMap<&'static str, String>> {
     Json(std::collections::BTreeMap::from([(
         "name",
         state.config().app.name.clone(),

@@ -38,7 +38,23 @@ async fn store(
 
 用 `accepts(&["application/json"])` 检查 MIME，用 `prefers(&["html", "json"])` 取得原候选格式，用 `format("html")` 取得默认格式名；`wants_json()` 与 `expects_json()` 分别检查首选 Accept 及 AJAX/PJAX 语义。协商保留固定 Laravel/Symfony 的质量排序、通配符、参数与 q=0 行为，不能将它当成授权或凭据验证。缺少或为空的 Accept 使 `accepts` 为真、`prefers` 为 None；应用明确选择默认表示。协商不会自动改写已有异常策略，返回不同表示的 handler 应设置 `Vary: Accept`。完整调用见 [唯一业务示例](../../modules/example/README.md)。
 
-检查快照限制 headers 总计 64 KiB/128 个值、Accept 16 KiB/128 项，超限拒绝且不截断。`Debug` 不输出头、凭据或 URI/query；显式读取后的日志脱敏仍由调用方负责。这些 helper 不等同于完整 Laravel Request：输入修改、Cookie/Session、用户解析、FormRequest、flash 与文件能力按各自公开接口交付。
+检查快照限制 headers 总计 64 KiB/128 个值、Accept 16 KiB/128 项，超限拒绝且不截断。`Debug` 不输出头、凭据或 URI/query；显式读取后的日志脱敏仍由调用方负责。这些 helper 不等同于完整 Laravel Request：输入修改、Cookie、Session、用户解析、FormRequest、flash 与文件能力按各自公开接口使用或交付，不由检查快照隐式提供。
+
+## Cookie 读取、队列与响应
+
+宿主通过 `CookieServiceProvider` 登记能力，业务从同一请求作用域提取 `CookieJar`。`RequestInfo` 与唯一正文提取器 `Request` 共用 Cookie 视图：`cookie(name)` 读取直接键，`cookie_or(name, default)` 在缺失或解密后 null 时采用默认值；`cookies()` 读取整个快照，`has_cookie(name)` 对空串仍为真。它们不使用普通输入的 dot 查找或 trim/null 转换。业务应只选取所需 Cookie，不把整个快照或原始头回传给客户端。
+
+`jar.factory().make(name, value, minutes, options)` 创建值对象；0 分钟为会话 Cookie，`forever` 为 400 天。`jar.queue(cookie)` 在本请求响应阶段发送，`jar.expire(name, options)` 排队删除标记；删除必须使用原有 path/domain。队列按 name/path 标识，修改相同位置不改变顺序；domain 不参与队列标识。不同请求的队列互不共享。
+
+`CookieResponseExt::with_cookie` / `with_cookies` 将 Cookie 对象附加到既有 `Json`、统一响应或其他响应；`without_cookie_named` 通过明确传入的工厂创建删除标记。业务仍使用现有响应与异常策略，不需要另一套正文协议。实际调用及路由见[唯一模块 Cookie Controller](../../modules/example/http/controllers/cookie.rs)。
+
+`CookieServiceProvider::new()` 要求 `encryption` feature 与已登记的 `Encryptor`，缺失时启动失败。入站使用现密钥环解密，出站使用当前密钥；完整 Cookie 叶名参与受认证载荷，不能将其他名称的密文移作本名。解密失败使该根 Cookie 为 null，已认证但叶名不符仅使该叶为 null。`except` 按各阶段实际名称精确匹配：入站为 wire 解析后的根键，出站为 Cookie 对象的字面名称。普通无括号名称可双向排除；例如排除 `prefs` 不会阻止出站 `prefs[color]` 加密，回送后解析出的 `prefs` 根却会跳过解密。不要把根名配置当成出站名称前缀规则；业务宜使用一致的普通名称。显式 `plain()` 不提供机密性或完整性保护，不能当成 Laravel 默认受保护 Web 栈；没有自动降级。
+
+工厂默认 path `/`、httpOnly=true、SameSite=Lax，domain 与 secure 未指定。有 Session 配置时读取最终共享配置；`with_cookie_config` 在对应 Provider boot 时覆盖，后续显式 overlay 按原 Provider 顺序生效，`with_factory` 仅覆盖 Cookie 工厂。最终配置冻结后才装配 Session 层，避免原生 Session 与 Cookie 工厂使用不同快照。当前 Session 自身默认 secure=true，不能据此声称所有 Session 默认已与上游完成对齐。
+
+secure 未指定时，原生 TLS 宿主可注入 `RequestSecurity`；代理部署仅接受现有可信代理配置匹配的 peer 所发首个 `X-Forwarded-Proto` 值的首个逗号 token，`https/on/ssl/1` 表示安全传输。客户端自行构造的 HTTPS URI 不证明 TLS，非可信来源的转发头不生效；显式 secure=false 保持覆盖。应用无需另建代理信任配置。
+
+受管理 Router 保留原始 Cookie 头供严格认证重复检查，给 Session 与 Cookie 读取提供同一解密视图；`RequestInfo::header` 仍是原始 wire 逃生口。原生 Axum Router 或未安装 Provider 的入口不自动具有这些保护。wire 解析保留 PHP SAPI 的 raw URL decode 与重复键规则，不等同于表单 `parse_str`；非法 UTF-8 返回 400，输入树及响应预算超限返回 413，非法应用参数返回 500，均不回显值。响应先排队再加密，失败不输出部分 Cookie，也不回退明文。
 
 ## 统一请求输入
 
@@ -52,7 +68,7 @@ JSON 类型优先，包括 GET/HEAD；其他 GET/HEAD 取 query，其他方法�
 
 正文按 Axum 受限读取，默认2MiB，可由应用显式 `DefaultBodyLimit` 调整；query限制16KiB，URL编码输入最多1024个原始非空字段对，值树最多1024 entries/64层，完整展开键累计20MiB。超限明确拒绝，不截断；非法UTF-8的form/query报400，不用替代字符改写。动态 `Request` 保留 Laravel 畸形JSON为空bag、scalar转数组的语义；typed `Json<T>` 继续严格返回语法400、媒体415和类型422。规范化 typed JSON 仅改写值字符串，保留原始数字词法以支持 Rust `u128` / `i128`，并使用有界额外缓冲。动态 `Request` bags 使用标准 `serde_json::Value` 数值表示；需要保持128位整数精度时选择 typed `Json<T>`，不要先经动态Value往返。
 
-multipart 在显式选择 `Request` 时只保存有界原文，本簇不提供其文本/文件bag合并；需要现有流式上传时使用对应公开上传接口。Cookie/Session、old input/flash、FormRequest及完整文件语义按各自能力交付，不因增加此提取器而自动具备。
+multipart 在显式选择 `Request` 时只保存有界原文，本簇不提供其文本/文件bag合并；需要现有流式上传时使用对应公开上传接口。Cookie 通过独立接口读取；Session、old input/flash、FormRequest及完整文件语义按各自能力交付，不因增加此提取器而自动具备。
 
 ### 类型便捷读取
 

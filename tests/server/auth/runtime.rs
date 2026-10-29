@@ -685,3 +685,193 @@ impl openrust::core::ServiceProvider for JwtSettings {
         app.merge_defaults("auth.jwt", self.0.clone())
     }
 }
+
+#[cfg(feature = "encryption")]
+async fn protected_cookie_app() -> Result<openrust::App> {
+    let mut framework = FrameworkConfig::default();
+    framework.api.http_status = openrust::config::HttpStatusMode::Semantic;
+    let source = figment::Figment::from(figment::providers::Serialized::defaults(framework))
+        .merge(("security", serde_json::json!({"encryption":{"active_key_id":"cookie_test","keys":{"cookie_test":base64::engine::general_purpose::STANDARD.encode([42u8;32])}}})));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(AuthServiceProvider::with_authenticator(FakeAuthenticator))
+        .provider(
+            SessionServiceProvider::with_store(MemoryStore::default()).with_cookie_config(
+                SessionConfig {
+                    secure: false,
+                    ..SessionConfig::default()
+                },
+            ),
+        )
+        .provider(openrust::security::EncryptionServiceProvider)
+        .provider(openrust::http::CookieServiceProvider::new())
+        .provider(TestInstance(std::sync::Arc::new(Marker("injected"))))
+        .provider(TestRoutes::new(|routes| {
+            current_routes(routes)
+                .get("/cookie-snapshot", protected_cookie_snapshot)
+                .get("/cookie-overflow", oversized_cookie_response)
+                .get("/cookie-overflow-attributes", oversized_cookie_attributes)
+        }));
+    openrust::App::from_provider_runtime(builder.start(source).await?)
+}
+#[cfg(feature = "encryption")]
+async fn oversized_cookie_response(
+    jar: openrust::http::CookieJar,
+) -> Result<impl axum::response::IntoResponse> {
+    use openrust::http::CookieResponseExt;
+    Json(serde_json::json!({"ok":true})).with_cookie(jar.factory().make(
+        "oversized",
+        "x".repeat(60_000),
+        0,
+        openrust::http::CookieOptions::default(),
+    )?)
+}
+
+#[cfg(feature = "encryption")]
+async fn oversized_cookie_attributes(
+    jar: openrust::http::CookieJar,
+) -> Result<impl axum::response::IntoResponse> {
+    use openrust::http::CookieResponseExt;
+    Json(serde_json::json!({"ok":true})).with_cookie(jar.factory().make(
+        "oversized",
+        "x".repeat(40_000),
+        0,
+        openrust::http::CookieOptions {
+            path: Some(format!("/{}", "p".repeat(20_000))),
+            ..openrust::http::CookieOptions::default()
+        },
+    )?)
+}
+
+#[cfg(feature = "encryption")]
+async fn protected_cookie_snapshot(
+    info: openrust::http::RequestInfo,
+    session: Session,
+) -> Result<Json<serde_json::Value>> {
+    let id = session.id().map(|id| id.to_string());
+    Ok(Json(serde_json::json!({
+        "same_plaintext": info.cookie("openrust_session") == id.map(serde_json::Value::String),
+        "original_wire": info.header("cookie")?.is_some_and(|header| header.starts_with("openrust_session=or1."))
+    })))
+}
+#[cfg(feature = "encryption")]
+#[tokio::test]
+async fn encrypted_session_reuses_tower_view_and_rejects_original_wire_duplicates() -> TestResult {
+    let app = protected_cookie_app().await?;
+    let result: TestResult = async {
+        let router = build_router(&app)?;
+        let created = router
+            .clone()
+            .oneshot(
+                Request::get("/session")
+                    .header("host", "localhost")
+                    .body(Body::empty())?,
+            )
+            .await?;
+        let cookie = created
+            .headers()
+            .get("set-cookie")
+            .ok_or("Session Cookie missing")?
+            .to_str()?
+            .split(';')
+            .next()
+            .ok_or("Cookie pair missing")?
+            .to_owned();
+        assert!(cookie.starts_with("openrust_session=or1.cookie_test."));
+        let response = router
+            .clone()
+            .oneshot(
+                Request::get("/current")
+                    .header("host", "localhost")
+                    .header("cookie", &cookie)
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(payload(response).await?["data"], "42:injected:false:false");
+        let response = router
+            .clone()
+            .oneshot(
+                Request::get("/cookie-snapshot")
+                    .header("host", "localhost")
+                    .header("cookie", &cookie)
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(
+            payload(response).await?["data"],
+            serde_json::json!({"same_plaintext":true,"original_wire":true})
+        );
+        for duplicate in [
+            "openrust_session=invalid",
+            "openrust.session=invalid",
+            "openrust_session[x]=invalid",
+        ] {
+            let response = router
+                .clone()
+                .oneshot(
+                    Request::get("/current")
+                        .header("host", "localhost")
+                        .header("cookie", &cookie)
+                        .header("cookie", duplicate)
+                        .body(Body::empty())?,
+                )
+                .await?;
+            assert_eq!(payload(response).await?["code"], "ambiguous_credentials");
+        }
+        let response = router
+            .clone()
+            .oneshot(
+                Request::post("/current")
+                    .header("host", "localhost")
+                    .header("cookie", &cookie)
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(payload(response).await?["code"], "forbidden");
+        let response = router
+            .oneshot(
+                Request::post("/current")
+                    .header("host", "localhost")
+                    .header("cookie", &cookie)
+                    .header("x-csrf-token", "csrf-secret")
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(payload(response).await?["data"], "42:injected:false:false");
+        Ok(())
+    }
+    .await;
+    app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(2))
+        .await?;
+    result
+}
+
+#[cfg(feature = "encryption")]
+#[tokio::test]
+async fn encrypted_cookie_expansion_fails_without_plaintext_response() -> TestResult {
+    let app = protected_cookie_app().await?;
+    let result: TestResult = async {
+        for path in ["/cookie-overflow", "/cookie-overflow-attributes"] {
+            let response = build_router(&app)?
+                .oneshot(
+                    Request::get(path)
+                        .header("host", "localhost")
+                        .body(Body::empty())?,
+                )
+                .await?;
+            assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE, "{path}");
+            assert!(!response.headers().contains_key("set-cookie"));
+            assert_eq!(
+                payload(response).await?["code"],
+                "input_cookie_limits_exceeded",
+                "{path}"
+            );
+        }
+        Ok(())
+    }
+    .await;
+    app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(2))
+        .await?;
+    result
+}

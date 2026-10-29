@@ -1,0 +1,14 @@
+{
+  "php_version": "8.5.0",
+  "php_source_archive": "https://www.php.net/distributions/php-8.5.0.tar.xz",
+  "php_source_archive_sha256": "39cb6e4acd679b574d3d3276f148213e935fc25f90403eb84fb1b836a806ef1e",
+  "php_binary_sha256": "e5209dd1828f795683660d6a915ebe9beaca2c931bff2f79e116dfc5f142b704",
+  "router_sha256": "306c8ecdff4a689b475a1af536c6bb5cebd733e9a3e1996cc02cbd4a604ec45f",
+  "generator_sha256": "38dd1ebadd77416694f24df8175e07df5e056803756b7cdf918c29801e4812f9",
+  "fixture_sha256": "8cfa3f571ad976f0035b3f34b6a39a3da78c32f471b29346749a00fc964865ed",
+  "transport": "localhost built-in PHP HTTP server, raw socket requests with Cookie headers; not parse_str",
+  "binary_boundary": "invalid UTF-8 makes json_encode($_COOKIE) fail; router then emits typed base64 leaf bytes",
+  "cases": 22,
+  "invalid_utf8_cases": 1,
+  "max_input_vars_note": "PHP max_input_vars=1000 may truncate; Rust cookie budgets reject rather than truncate and need separate tests"
+}

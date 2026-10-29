@@ -30,6 +30,21 @@ impl SessionConfig {
         {
             return Err(invalid_session_config("cookie_name must be a valid token"));
         }
+        if self.path.len() > 64 * 1024
+            || self
+                .domain
+                .as_ref()
+                .is_some_and(|domain| domain.len() > 64 * 1024)
+            || self
+                .path
+                .bytes()
+                .chain(self.domain.iter().flat_map(|domain| domain.bytes()))
+                .any(|byte| byte <= 0x1f || byte == 0x7f || byte == b';')
+        {
+            return Err(invalid_session_config(
+                "path/domain must be bounded Cookie attributes",
+            ));
+        }
         if self.ttl_secs == 0 || self.ttl_secs > i64::MAX as u64 {
             return Err(invalid_session_config(
                 "ttl_secs must be positive and bounded",
@@ -461,6 +476,8 @@ impl crate::core::ServiceProvider for SessionServiceProvider {
             SessionConfig::default(),
             S::object([
                 ("cookie_name", S::String),
+                ("path", S::String),
+                ("domain", S::String.nullable()),
                 ("secure", S::Boolean),
                 ("http_only", S::Boolean),
                 ("same_site", S::String),
@@ -468,18 +485,14 @@ impl crate::core::ServiceProvider for SessionServiceProvider {
             ]),
             |config: &SessionConfig| config.validate().map(|_| ()),
         )?;
-        let explicit_config = self.config.clone();
-        app.singleton::<SessionSettings, _>(move |resolver| {
-            let explicit_config = explicit_config.clone();
+        app.singleton::<SessionSettings, _>(|resolver| {
             Box::pin(async move {
-                let config = match explicit_config {
-                    Some(config) => config,
-                    None => resolver.section::<SessionConfig>("session")?,
-                };
+                let config = resolver.section::<SessionConfig>("session")?;
                 config.validate()?;
                 Ok(Arc::new(SessionSettings(config)))
             })
         });
+        app.require::<SessionSettings>();
         let custom = match &self.storage {
             SessionStorage::Custom(store) => Some(Arc::clone(store)),
             SessionStorage::Database => None,
@@ -509,12 +522,21 @@ impl crate::core::ServiceProvider for SessionServiceProvider {
 
     fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            let config = app.resolve::<SessionSettings>().await?.0.clone();
-            let same_site = config.validate()?;
+            // 显式 Session 配置也进入同一仓储，CookieFactory 不保留另一套默认值。
+            if let Some(config) = &self.config {
+                app.overlay(
+                    "session",
+                    serde_json::to_value(config).map_err(Error::internal)?,
+                )?;
+            }
             let store = app.resolve::<SessionStoreHandle>().await?;
-            app.http_layer(
-                SessionManagerLayer::new(SharedSessionStore(Arc::clone(&store.0)))
+            let repository = app.config_repository();
+            app.http_layer_factory(move || {
+                let config: SessionConfig = repository.section("session")?;
+                let same_site = config.validate()?;
+                let layer = SessionManagerLayer::new(SharedSessionStore(Arc::clone(&store.0)))
                     .with_name(config.cookie_name)
+                    .with_path(config.path)
                     .with_secure(config.secure)
                     .with_http_only(config.http_only)
                     .with_same_site(same_site)
@@ -522,8 +544,13 @@ impl crate::core::ServiceProvider for SessionServiceProvider {
                         i64::try_from(config.ttl_secs).map_err(|_| {
                             invalid_session_config("ttl_secs exceeds supported duration")
                         })?,
-                    ))),
-            )?;
+                    )));
+                Ok(if let Some(domain) = config.domain {
+                    layer.with_domain(domain)
+                } else {
+                    layer
+                })
+            })?;
             Ok(())
         })
     }
@@ -678,5 +705,211 @@ mod provider_tests {
         invalid.provider(InvalidOverlay);
         assert!(invalid.start(Figment::new()).await.is_err());
         assert!(closed.load(std::sync::atomic::Ordering::SeqCst));
+    }
+
+    struct CookieRoundtripRoutes(bool);
+    impl ServiceProvider for CookieRoundtripRoutes {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                if self.0 {
+                    app.overlay("session", serde_json::json!({"cookie_name":"late_session", "path":"/late", "domain":"late.test", "secure":true, "same_site":"none"}))?;
+                }
+                app.routes(|routes| routes.get("/session-cookie", create_cookie_session))?;
+                Ok(())
+            })
+        }
+    }
+    async fn create_cookie_session(
+        session: tower_sessions::Session,
+        jar: crate::http::CookieJar,
+    ) -> Result<impl axum::response::IntoResponse> {
+        use crate::http::CookieResponseExt;
+        session
+            .insert("marker", true)
+            .await
+            .map_err(Error::internal)?;
+        crate::http::Json(serde_json::json!({"ok":true})).with_cookie(jar.factory().make(
+            "factory_marker",
+            "value",
+            0,
+            crate::http::CookieOptions::default(),
+        )?)
+    }
+
+    #[tokio::test]
+    async fn final_session_attributes_and_factory_share_explicit_and_late_overlays() -> Result<()> {
+        use tower::ServiceExt;
+        for (explicit, late, cookie_only) in [
+            (false, false, false),
+            (true, false, false),
+            (true, true, false),
+            (true, true, true),
+        ] {
+            let mut cookies = crate::http::CookieServiceProvider::plain();
+            if cookie_only {
+                let mut factory = crate::http::CookieFactory::default();
+                factory.set_default_path_and_domain(
+                    "/cookie-only".into(),
+                    Some("cookie.test".into()),
+                    Some(false),
+                    Some(crate::http::SameSite::Lax),
+                )?;
+                cookies = cookies.with_factory(factory);
+            }
+            let mut sessions = SessionServiceProvider::with_store(MemoryStore::default());
+            if explicit {
+                sessions = sessions.with_cookie_config(SessionConfig {
+                    cookie_name: "explicit_session".into(),
+                    path: "/explicit".into(),
+                    domain: Some("explicit.test".into()),
+                    secure: false,
+                    same_site: "strict".into(),
+                    ..SessionConfig::default()
+                });
+            }
+            let mut builder = ProviderBuilder::new();
+            builder
+                .provider(crate::http::HttpServiceProvider)
+                .provider(cookies)
+                .provider(sessions)
+                .provider(CookieRoundtripRoutes(late));
+            let source = Figment::new().merge(("session", serde_json::json!({"cookie_name":"file_session", "path":"/file", "domain":"file.test", "secure":true, "same_site":"lax"})));
+            let app = crate::App::from_provider_runtime(builder.start(source).await?)?;
+            let response = crate::http::build_router(&app)?
+                .oneshot(
+                    axum::http::Request::builder()
+                        .uri("/session-cookie")
+                        .header("host", "localhost")
+                        .body(axum::body::Body::empty())
+                        .map_err(Error::internal)?,
+                )
+                .await
+                .map_err(Error::internal)?;
+            let (name, path, domain, secure, same_site) = if late {
+                ("late_session", "/late", "late.test", true, "none")
+            } else if explicit {
+                (
+                    "explicit_session",
+                    "/explicit",
+                    "explicit.test",
+                    false,
+                    "strict",
+                )
+            } else {
+                ("file_session", "/file", "file.test", true, "lax")
+            };
+            assert_eq!(
+                app.state()
+                    .container()
+                    .resolve::<SessionSettings>()
+                    .await?
+                    .0
+                    .cookie_name,
+                name
+            );
+            for (cookie_name, path, domain, secure, same_site) in [
+                (name, path, domain, secure, same_site),
+                if cookie_only {
+                    (
+                        "factory_marker",
+                        "/cookie-only",
+                        "cookie.test",
+                        false,
+                        "lax",
+                    )
+                } else {
+                    ("factory_marker", path, domain, secure, same_site)
+                },
+            ] {
+                assert_cookie_attributes(
+                    &response,
+                    (cookie_name, path, domain, secure, same_site),
+                )?;
+            }
+            drop(response);
+            app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(2))
+                .await?;
+        }
+        Ok(())
+    }
+    fn assert_cookie_attributes(
+        response: &axum::response::Response,
+        (cookie_name, path, domain, secure, same_site): (&str, &str, &str, bool, &str),
+    ) -> Result<()> {
+        let header = response
+            .headers()
+            .get_all(http::header::SET_COOKIE)
+            .iter()
+            .find(|header| {
+                header
+                    .as_bytes()
+                    .starts_with(format!("{cookie_name}=").as_bytes())
+            })
+            .ok_or_else(|| Error::custom("test_cookie_missing", "预期响应 Cookie"))?;
+        let header = std::str::from_utf8(header.as_bytes())
+            .map_err(Error::internal)?
+            .to_ascii_lowercase();
+        assert!(header.contains(&format!("path={path}")));
+        assert!(header.contains(&format!("domain={domain}")));
+        assert!(header.contains(&format!("samesite={same_site}")));
+        assert_eq!(
+            header.split(';').any(|part| part.trim() == "secure"),
+            secure
+        );
+        Ok(())
+    }
+    #[tokio::test]
+    async fn registered_session_defaults_are_visible_to_factory_without_source_section()
+    -> Result<()> {
+        use tower::ServiceExt;
+        let mut builder = ProviderBuilder::new();
+        builder
+            .provider(crate::http::HttpServiceProvider)
+            .provider(crate::http::CookieServiceProvider::plain())
+            .provider(SessionServiceProvider::with_store(MemoryStore::default()))
+            .provider(CookieRoundtripRoutes(false));
+        let app = crate::App::from_provider_runtime(builder.start(Figment::new()).await?)?;
+        let cookie = app
+            .state()
+            .container()
+            .resolve::<crate::http::CookieFactory>()
+            .await?
+            .make(
+                "factory_marker",
+                "value",
+                0,
+                crate::http::CookieOptions::default(),
+            )?;
+        assert_eq!(cookie.secure(), Some(true));
+        assert_eq!(cookie.path(), "/");
+        assert_eq!(cookie.domain(), None);
+        let response = crate::http::build_router(&app)?
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/session-cookie")
+                    .header("host", "localhost")
+                    .body(axum::body::Body::empty())
+                    .map_err(Error::internal)?,
+            )
+            .await
+            .map_err(Error::internal)?;
+        for name in ["openrust_session", "factory_marker"] {
+            let header = response
+                .headers()
+                .get_all(http::header::SET_COOKIE)
+                .iter()
+                .find(|header| header.as_bytes().starts_with(format!("{name}=").as_bytes()))
+                .ok_or_else(|| Error::custom("test_cookie_missing", "预期 Cookie"))?;
+            let header = std::str::from_utf8(header.as_bytes()).map_err(Error::internal)?;
+            assert!(
+                header
+                    .split(';')
+                    .any(|part| part.trim().eq_ignore_ascii_case("secure"))
+            );
+        }
+        drop(response);
+        app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(2))
+            .await?;
+        Ok(())
     }
 }

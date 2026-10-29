@@ -3136,6 +3136,7 @@ dependencies = [
  "calamine",
  "chrono",
  "chrono-tz",
+ "cookie",
  "cron-parser",
  "csv",
  "dotenvy",

@@ -524,22 +524,51 @@ async fn resolve_request_service<T: Send + Sync + 'static>(
     }
 }
 
+async fn configured_session_cookie_name(state: &AppState, mode: AuthMode) -> Result<String> {
+    if matches!(mode, AuthMode::Session | AuthMode::SessionOrToken)
+        && state.container().contains::<session::SessionSettings>()
+    {
+        Ok(
+            resolve_request_service::<session::SessionSettings>(state, None)
+                .await?
+                .0
+                .cookie_name
+                .clone(),
+        )
+    } else {
+        Ok("openrust_session".to_owned())
+    }
+}
+
+fn original_cookie_is_ambiguous(request: &Request, mode: AuthMode, name: &str) -> bool {
+    // 解密后的唯一视图不能掩盖原始 wire 中重复的认证凭据。
+    matches!(mode, AuthMode::Session | AuthMode::SessionOrToken)
+        && request
+            .extensions()
+            .get::<crate::http::cookie::OriginalCookies>()
+            .is_some_and(|original| {
+                original
+                    .root_names
+                    .iter()
+                    .filter(|root| root.as_str() == name)
+                    .count()
+                    > 1
+            })
+}
+
 async fn authenticate(
     State(config): State<AuthLayerConfig>,
     Extension(state): Extension<AppState>,
     request: Request,
     next: Next,
 ) -> Response {
-    let cookie_name = if matches!(config.mode, AuthMode::Session | AuthMode::SessionOrToken)
-        && state.container().contains::<session::SessionSettings>()
-    {
-        match resolve_request_service::<session::SessionSettings>(&state, None).await {
-            Ok(settings) => settings.0.cookie_name.clone(),
-            Err(error) => return error.into_response(),
-        }
-    } else {
-        "openrust_session".to_owned()
+    let cookie_name = match configured_session_cookie_name(&state, config.mode).await {
+        Ok(name) => name,
+        Err(error) => return error.into_response(),
     };
+    if original_cookie_is_ambiguous(&request, config.mode, &cookie_name) {
+        return ambiguous_credentials().into_response();
+    }
     let selected = match select_credential_named(
         config.mode,
         request.headers(),

@@ -1,8 +1,40 @@
 # 测试基线
 
 > 受众：AI Agent
-> 更新：2026-10-28
+> 更新：2026-10-29
 > 摘要：当前目录迁移与原专项测试入口，分开记录真实服务和未验收边界。
+
+## C04-C Cookie/响应（已验收）
+
+契约见[ADR-081](../decisions/adr-081-request-response-cookies.md)。以下均为本簇实际证据，按范围记录，不沿用B2门禁；早期定向记录不替代最终快照；空domain修后根双库已按final独立证据重验。
+
+| 范围 | 当前证据 | 限制与入口 |
+| --- | --- | --- |
+| 首次构建与Cookie内核 | check exit0；默认13/13、加密15/15；B1 form回归7/7 | `/tmp/openrust-c04c-{core-check-first,cookie-unit-second,cookie-encrypted-first,form-regression-first}.log`；早期定向快照，不代替完整门禁 |
+| 公开输入与唯一模块 | Cookie4、input34、request10、模块Cookie1（26 filtered）通过 | `/tmp/openrust-c04c-public-{first,scope-first}.log`、`module-first.log`；后续可信传输/factory公开6项亦通过，见`transport-factory-first.log`（均同前缀） |
+| 最终Session配置 | 延迟装配后5/5，含无显式区段默认；受保护Session另1/1（7 filtered） | `/tmp/openrust-c04c-session-{final-config-second,protected-first}.log`；保原始header与严格重复凭据。source_has_section候选经配置发布链复核撤回，未据此改生产 |
+| SameSite null/缺键 | 独立Cookie路径1/1（6 filtered） | `/tmp/openrust-c04c-session-samesite-null.log`；未注册Session schema，不能外推现SessionConfig字符串schema已支持null |
+| 加密膨胀预算 | 显式Semantic下两个case均精确HTTP413、原机器码且无Set-Cookie，定向1/1；不同模型审查关闭测试假绿 | `/tmp/openrust-c04c-cookie-expansion-semantic.log`；60KiB值、40KiB值+20KiB path；公开非法参数仍500。原`cookie-expansion-{red,green,final}.log`保留失败与补断言前证据，不将AlwaysOk旧fixture说成HTTP413 |
+| CLI布局 | 首次全组19/20；限定更新快照后layout定向1/1（19 filtered） | `/tmp/openrust-c04c-cli-{first,layout-second}.log`；新增helper正文/session.path覆盖，不等于全组20项已重验 |
+| 默认workspace Clippy | all-targets第三轮exit0，`-D warnings` | `/tmp/openrust-c04c-final-clippy-default-third.log`；首两轮lint日志保留，全特性门禁待验 |
+| 最终部分workspace门禁 | fmt、默认/全特性all-targets Clippy与默认server build实际exit0，source_changed均空 | `/tmp/openrust-c04c-final-{fmt,clippy-default,clippy-all,server-build}.result.json`；默认tests首轮因runner注APP_ENV=test失败101；仅修runner环境后完整668 passed/29 ignored、0 failed/filtered，actual_exit0/sourceguard空（`/tmp/openrust-c04c-final2-tests-default.result.json`）。忽略项与未提供外部条件的早返回不算真实服务证据，旧失败保留，不以exact单测代替全组 |
+| 最终tests/docs/无默认feature | default 668/29ignored、all-features1241/99ignored，均0 failed/filtered；默认与全特性docs、no-default check均actual_exit0/sourceguard空 | `/tmp/openrust-c04c-final2-{tests-default,tests-all,docs-default,docs-all,no-default}.result.json`；ignored与未提供外部条件早返回均不算真实服务，分类待核；阶段资源约21.415GiB/free10.787% |
+| 最终MSRV/依赖审计 | Rust1.97全特性all-targets check及cargo deny均actual_exit0/sourceguard空 | `/tmp/openrust-c04c-final2-{msrv,deny}.result.json`；最终10项矩阵均实际通过，target22.108GiB/free10.713%，正在修后根双库完整重验 |
+| 根PostgreSQL 18/MySQL 8.4 | 空domain修后final完整example_auth_flows各48/48；0 failed/ignored/filtered/skipped，3named含Session安全与模块Cookie；两个UUID anchor均drop，sourceguard空 | `/tmp/openrust-c04c-root-{pg,mysql}-final.safe.log`及`/tmp/openrust-c04c-generated-root-final-root-{pg,mysql}.result.json`；旧first日志保留，不替代本行final证据 |
+| 真实CLI生成 | 当前CLI实际build，plain/auth-PG/auth-MySQL全新生成，helper/owned空dotenv检查通过，sourceguard空 | `/tmp/openrust-c04c-generated-prepare-first.safe.log`；仅prepare；生成plain首轮fmt失败（`/tmp/openrust-c04c-generated-plain-fmt-red.log`），正在修模板源及owned生成文件，不代表check/test或HTTP通过 |
+| plain生成项目 | 修后fmt/check exit0、完整3/3，0 failed/ignored/filtered/skipped，API+health/Input/Cookie具名均中，sourceguard空 | `/tmp/openrust-c04c-generated-plain-third.safe.log`；模板源头与owned生成文件格式同步，前两轮fmt红日志保留；阶段后target11.484GiB/free11.845% |
+| PostgreSQL认证生成项目 | fmt/check exit0、完整2/2，0 failed/ignored/filtered/skipped；主认证用例调用同库Input/Cookie helper；anchor已drop、sourceguard空 | `/tmp/openrust-c04c-generated-pg-first.safe.log`；阶段后target13.288GiB/free11.660%，使用测试Mailer，不算真实供应商发送 |
+| MySQL认证生成项目 | fmt/check exit0、完整2/2，0 failed/ignored/filtered/skipped；同库Input/Cookie helper通过；anchor已drop、sourceguard空 | `/tmp/openrust-c04c-generated-mysql-first.safe.log`；阶段后target14.069GiB/free11.585%，测试Mailer不作真实供应商发送证据 |
+| 真实TLS与默认入口 | 修后tool exit0；TLS1.3显式证书信任/hostname校验；trusted HTTPS Secure+opaque往返、untrusted转发HTTPS不Secure、trusted HTTP不Secure，完整envelope/属性均通过 | `/tmp/openrust-c04c-real-tls-second.log`；`/tmp/openrust-c04c-tls-backends-fyx268pf/launch-result.json`、`/tmp/openrust-c04c-tls-backends-fyx268pf-cases.json`；两个默认cargo run后端均0退出、cleanup空、sourceguard空、旧consumer不变；仅Cookie传输证据，不算集群验收 |
+| TLS工具与启动器 | 超时/回收离线回归及不同模型静态复核通过 | 工具SHA `02f89c887a4bd5d8c044f63f4410eadc24614a807b3e2c4c5b5171b709780a93`；启动器修后SHA `ade1ce934c170987681d78f84bbd3916f25d7e39cb00bc43009ecc5eea5fdd41`；DB/.env隔离、模块根层级、listener归属、子代回收和总期限已修，真实TLS首轮tool参数检查exit2，未运行case（输出路径不符工具白名单）；后端listener归属已证、均已清理、sourceguard空，见`/tmp/openrust-c04c-real-tls-first.log`与`/tmp/openrust-c04c-tls-backends-gpskbhne/launch-result.json`。输出路径修复后真实重验已通过，见上一行；首红不覆盖 |
+
+PHP8.5真实SAPI参考采集22个原始HTTP请求，均200：20个可表达单header、1个非法UTF-8 typed-base64、1个多header transport适配分列。fixture SHA `8cfa3f571ad976f0035b3f34b6a39a3da78c32f471b29346749a00fc964865ed`；来源与生成器见`tests/http/fixtures/php85/cookie-*`，owned PHP服务已关闭。采集本身不等于Rust差分通过，`parse_str`不能代替wire解析。
+
+独审收口：公开工厂或`Domain=`解析产生None/空域，两者wire均无Domain，响应Option域比较会重复Set-Cookie；固定Symfony将null域归为空键。两处响应identity已最小修复为null域归空键，公开None/空串/Domain=覆盖及不同名/路径排序回归实际1/1通过（7 filtered，`/tmp/openrust-c04c-domain-identity-first.log`），不同模型窄审关闭发现；最终完整门禁与修后双库已通过。生成helper及生产接线的不同模型审查已有相应证据，但不替代实际运行；except文档已按入站root/出站literal阶段匹配校准。
+
+最终证据索引`/tmp/openrust-c04c-evidence-index.json`保留22份结构结果（包含失败历史）及TLS/ignored引用，最终通过集合按索引gate_selection选取，443个当前源码hash核对无漂移。默认29 ignored均Rustdoc；all99条为35 Rustdoc、60外部集成执行条目和4父验收专用子进程helper，去重59=35文档+22外部集成+2helper，20个模块用例重复编入3个target产生40重复条目。独立逐项分类`/tmp/openrust-c04c-final-ignored.json`（SHA `af0a211ee8df9da2aacf077b3895c58317d6ec87002008cec613c58686c9d33b`），未提供外部条件的早返回不计真实服务。cargo deny四域通过，既有27 duplicate/1 license-not-encountered警告未放宽策略。
+
+资源收尾：持已验证artifact flock，真实Cargo探针确认阻塞后SIGTERM+join，cargo clean dry-run复核35056文件/19.4GiB；确认无其他使用者后清根可再生产物并保锁inode。根allocated 21,123,330,048→0 bytes，五旧consumer逐项不变；总target2.486656GiB，free118.426498GiB/12.784183%，无后继构建/server。日志`/tmp/openrust-c04c-final-clean-root-artifacts.log`与dry-run证据，源码/生成项目及PHP工具链暂留作诊断复跑证据，不删除共享或归属不明资源。本簇限定提交见Git；完整Session/flash/CSRF/FormRequest及完整C04仍开放。
 
 ## C04-B2 类型便捷方法
 

@@ -30,6 +30,7 @@ pub(crate) mod article_transfer;
 pub(crate) mod attachments;
 #[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
 pub(crate) mod auth;
+pub(crate) mod cookie;
 pub(crate) mod example;
 #[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
 pub(crate) mod example_record;

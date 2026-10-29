@@ -3,6 +3,8 @@
 mod bootstrap;
 #[path = "../modules/mod.rs"]
 mod modules;
+#[path = "support/request_cookie.rs"]
+mod request_cookie;
 #[path = "support/request_input.rs"]
 mod request_input;
 #[path = "../routes/web.rs"]
@@ -63,4 +65,16 @@ async fn generated_application_exposes_request_input_to_business_provider()
         "[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
     ));
     request_input::assert_request_input::<GeneratedApplication>(source).await
+}
+
+#[tokio::test]
+async fn generated_application_exposes_cookie_contract() -> Result<(), Box<dyn std::error::Error>> {
+    let source = Figment::from(Serialized::defaults(
+        openrust::config::FrameworkConfig::default(),
+    ))
+    .merge(Toml::string(
+        "[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
+    ));
+    request_cookie::assert_request_cookie::<GeneratedApplication>(source).await?;
+    Ok(())
 }

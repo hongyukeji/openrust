@@ -101,9 +101,11 @@ pub mod prelude {
     pub use crate::http::axum::http::StatusCode;
     pub use crate::http::axum::response::IntoResponse;
     pub use crate::http::{
-        Action, Created, DomainParams, Inject, InputNormalization, InputOutcome, InputOutcomeMut,
-        InputTruthy, Json, NoContent, PageParams, Paginated, Path, Query, Request, RequestInfo,
-        Resource, ResourceActions, RouteGroup, RouteUrlGenerator, Routes, Truthy, Validated,
+        Action, Cookie, CookieFactory, CookieJar, CookieOptions, CookieResponseExt,
+        CookieServiceProvider, Created, DomainParams, Inject, InputNormalization, InputOutcome,
+        InputOutcomeMut, InputTruthy, Json, NoContent, PageParams, Paginated, Path, Query, Request,
+        RequestInfo, Resource, ResourceActions, RouteGroup, RouteUrlGenerator, Routes, Truthy,
+        Validated,
     };
     pub use crate::i18n::{
         DateFormatStyle, DateTimeFormatStyle, I18n, I18nConfig, I18nFormatError, Locale,
