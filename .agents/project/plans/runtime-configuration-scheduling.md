@@ -1,9 +1,9 @@
 # 运行时配置、数据库队列与动态调度
 
-> 状态：V1底层设计/排期保留，未实现/未真实验收；所有V2/UI叙述均受[冻结闸门](v2-admin-platform.md#冻结与开工闸门)约束，须用户明确开工，R14不自动授权。
+> 状态：V1底层设计/排期保留，未实现/未真实验收；所有可选快速开发模块/UI叙述均受[冻结闸门](optional-rapid-development-modules.md#开发与使用边界)约束，须用户明确开工，R14不自动授权。
 > 依据：[ADR-080](../decisions/adr-080-runtime-configuration-scheduling.md)、[Laravel 固定基线](laravel-rebuild-baseline.md)、[唯一队列](../todo.md)。
 
-本计划遵[两阶段框架主线](laravel-rebuild.md#两阶段框架主线)：核心Config/Queue/Scheduler及安全/事务/每任务策略仍属阶段一；DB管理员业务设置与动态计划是阶段二通用增强，技术职责继续复用R2/R10。“V1必须”涵盖同V1两阶段，不取消本增强、不自动启动V2表单；已实现资产保留，必要核心依赖继续。
+本计划遵[两阶段框架主线](laravel-rebuild.md#两阶段框架主线)：核心Config/Queue/Scheduler及安全/事务/每任务策略仍属阶段一；DB管理员业务设置与动态计划是阶段二通用增强，技术职责继续复用R2/R10。“V1必须”涵盖同V1两阶段，不取消本增强、不自动启动可选快速开发模块表单；已实现资产保留，必要核心依赖继续。
 
 ## Spec 与 Laravel 体验
 
@@ -12,10 +12,10 @@
 3. 数据库是运行时配置、管理员计划和默认队列任务的权威存储；Redis 通知和缓存可丢，不影响持久恢复。
 4. 类型/范围/跨字段校验、权限、版本 CAS、审计和完整快照发布均由框架封装；不能以简洁为由省掉安全与一致性。
 5. 任务实现由 Rust 代码注册；管理员只配置已注册任务的允许字段，动态计划进入同一 Scheduler/Queue，不启动第二调度服务。
-6. 开发者注册typed分组/schema/defaults，管理员经未来后台编辑保存，不写Rust或.env；V1交付权限保护API与Laravel风格CLI，V2表单消费同一服务。具体公共命名、配置格式和默认范围在实现前 Spec 收敛，不在计划中预造 API。
+6. 开发者注册typed分组/schema/defaults，管理员经未来后台编辑保存，不写Rust或.env；V1交付权限保护API与Laravel风格CLI，可选快速开发模块表单消费同一服务。具体公共命名、配置格式和默认范围在实现前 Spec 收敛，不在计划中预造 API。
 7. 当前 HTTP 功能簇照常闭环；随后按 R2 契约 → R10 实现 → R14 真实验收排期，不立即实现或更改部署值。
 
-此处配置、Queue、Scheduler及动态计划的“管理API”统一指现有领域的Rust公开服务方法/必要traits，不是固定HTTP endpoint。框架不自动注册admin/settings路由，不预置URL、响应格式或权限标识；宿主在自定义路由/controller显式传入认证/授权上下文，经既有Gate/Policy调用同一服务。schema验证、脱敏返回与审计在服务内封装，不能暴露无鉴权管理入口。modules/example仅在自己的模块routes/controller示范；V2后台和显式注册的CLI复用同一服务，CLI也不得绕过授权，不新增SDK或控制面。任务代码注册、派发/事务、计划启停变更、失败重试/查询按现Job/Queue/Scheduler/Provider职责扩展，不另造API家族或预设后台数据模型。Laravel式worker/schedule runner仍由CLI显式运行，CLI不是HTTP路由；serve不暗中启动全部worker，框架不为示例业务加特判。
+此处配置、Queue、Scheduler及动态计划的“管理API”统一指现有领域的Rust公开服务方法/必要traits，不是固定HTTP endpoint。框架不自动注册admin/settings路由，不预置URL、响应格式或权限标识；宿主在自定义路由/controller显式传入认证/授权上下文，经既有Gate/Policy调用同一服务。schema验证、脱敏返回与审计在服务内封装，不能暴露无鉴权管理入口。modules/example仅在自己的模块routes/controller示范；可选快速开发模块后台和显式注册的CLI复用同一服务，CLI也不得绕过授权，不新增SDK或控制面。任务代码注册、派发/事务、计划启停变更、失败重试/查询按现Job/Queue/Scheduler/Provider职责扩展，不另造API家族或预设后台数据模型。Laravel式worker/schedule runner仍由CLI显式运行，CLI不是HTTP路由；serve不暗中启动全部worker，框架不为示例业务加特判。
 
 ## 当前仓库事实与缺口
 
@@ -38,7 +38,7 @@
 | Laravel framework `d52c3b3129e4c8e213c97cdc68f94b0b7d27f181` | [Config Repository](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Config/Repository.php)、[DatabaseQueue](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Queue/DatabaseQueue.php)、[Queue::enqueueUsing](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Queue/Queue.php)、[Schedule](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Console/Scheduling/Schedule.php)、[Event](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Console/Scheduling/Event.php) | 沿用配置读取、job/connection/queue、after_commit 和独立调度策略职责；用 Rust typed/async 与公开 Provider 扩展。DB 跨节点热更新和管理员动态计划是授权增强，不宣称 Laravel 核心原生提供 |
 | Goravel framework `a554ced468cada50a269780692a0491e5f9e3a11` | [config/application.go](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/config/application.go)、[queue/driver_database.go](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/queue/driver_database.go)、[schedule/application.go](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/schedule/application.go)、[schedule/event.go](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/schedule/event.go) | 参考领域注册/命名连接和调度职责；不复制 Go callback/全局 Facade，也不照搬其该快照数据库领取对 cache 锁的依赖或替换现有 SQL fencing；框架默认队列仍 DB |
 | Spatie laravel-settings `3b152ac9dc7dc6755d09fea3f796e0e790c55778` | [配置默认DB repository](https://github.com/spatie/laravel-settings/blob/3b152ac9dc7dc6755d09fea3f796e0e790c55778/config/settings.php)、[typed Settings/save/refresh/encrypted](https://github.com/spatie/laravel-settings/blob/3b152ac9dc7dc6755d09fea3f796e0e790c55778/src/Settings.php) | 采用typed分组业务设置、DB持久化与字段加密理念，经现Repository/Provider公开扩展；不引入PHP依赖、不另造配置系统。Rust常驻多节点的CAS/期限/原子快照由内部补齐，不假设该包提供本项目全部保证 |
-| [Filament官方Settings插件](https://filamentphp.com/plugins/filament-spatie-settings)（页面2026-10-29读取） | 后台表单直接读写Settings，区分canAccess/canEdit | V2只消费V1受权管理服务；能编辑不等于能读取secret，secret默认不回显。仅体验参考，不采用其PHP UI、不改变既定Vue/uni-app路线 |
+| [Filament官方Settings插件](https://filamentphp.com/plugins/filament-spatie-settings)（页面2026-10-29读取） | 后台表单直接读写Settings，区分canAccess/canEdit | 可选快速开发模块只消费V1受权管理服务；能编辑不等于能读取secret，secret默认不回显。仅体验参考，不采用其PHP UI、不改变既定Vue/uni-app路线 |
 | RuoYi-Vue `13db1fcef36bee9ce45d2d636a1d4e8f5ed5bbc3` | [SysConfigServiceImpl](https://github.com/yangzongzhuan/RuoYi-Vue/blob/13db1fcef36bee9ce45d2d636a1d4e8f5ed5bbc3/ruoyi-system/src/main/java/com/ruoyi/system/service/impl/SysConfigServiceImpl.java) 的DB写后缓存更新与启动加载 | 仅证明DB加缓存的常见职责划分，不足以证明原子多节点快照/CAS；不照搬其Java/Redis缓存客户端或缺少的保证 |
 | Laravel同一固定commit [MailManager](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Mail/MailManager.php)、[Goravel配置说明](https://www.goravel.dev/getting-started/configuration.html)（页面2026-10-29读取） | MailManager缓存已解析mailer并提供purge；Goravel说明.env/config/Get/Add | config set/Add不等于DB持久化，也不自动更换在用mailer。保留Laravel领域Manager职责，业务driver显式构建新实例再切换，不靠改配置对象伪造生效 |
 | OpenSpring 本地只读、干净 HEAD `d04eaa02995e95221ae5deef440afe8529495345` | `openspring-core/openspring-core-config/src/main/java/com/openspring/core/config/` 下 `RuntimeConfigWriter.java`、`provider/DatabaseConfigRepository.java`、`binding/DynamicConfigRegistry.java`、`refresh/ConfigRefreshManager.java`；`openspring-starters/openspring-starter-system/src/main/java/com/openspring/starter/system/config/` 下 `service/impl/SysConfigServiceImpl.java`、`support/ConfigDatabaseConfigRepository.java`；`openspring-core/openspring-core-scheduler/src/main/java/com/openspring/core/scheduler/provider/DbSchedulerTaskDispatcher.java` | 参考批量候选校验、DB revision 快照、提交后通知和已注册任务分发；不搬 Java 代理/注解/反射、Spring 事务线程绑定或 db-scheduler 库。其本地源码可用 `git -C /Users/Home/Codes/Java/openspring show <commit>:<path>` 复核；不改该仓库 |
@@ -60,7 +60,7 @@
 
 ## 管理员业务设置与驱动激活
 
-- 最短体验是开发者在现Provider中登记typed分组/schema/defaults，管理员在后台修改邮件from、SMS模板/通道、支付sandbox账号、storage bucket/endpoint等允许字段后保存；V1先提供供后台调用的受权管理服务/API、校验错误和CLI，V2才绘制表单。管理员不修改.env、不编写任务/驱动代码；支付本轮只规划配置底座与现有/公开driver对接，不新增支付产品业务。
+- 最短体验是开发者在现Provider中登记typed分组/schema/defaults，管理员在后台修改邮件from、SMS模板/通道、支付sandbox账号、storage bucket/endpoint等允许字段后保存；V1先提供供后台调用的受权管理服务/API、校验错误和CLI，可选快速开发模块才绘制表单。管理员不修改.env、不编写任务/驱动代码；支付本轮只规划配置底座与现有/公开driver对接，不新增支付产品业务。
 - 区分配置读取、编辑、secret替换/清除等权限，默认secret不返回明文，脱敏占位不能被保存成新secret。DB持久值使用现Encryptor及密钥轮换机制加密，绑定应用/分组/字段上下文；APP_KEY/实际加密keyring部署密钥留在DB之外，迁移须保留必要旧解密key。现Encryptor已有keyring接口，不据此虚称APP_KEY已是其现有映射。日志、错误、审计不含secret；审计只记录安全字段名/版本/操作者等。密钥丢失显错，不静默覆盖或返回默认。
 - 字段声明区分可直接发布值、需要重建driver的业务设置、仅重启生效项。代码只开放已实现安全刷新能力的driver/连接，限制endpoint协议/主机/出站目标、超时及参数范围，复用现安全校验防SSRF；管理员可填URL不等于任意内网访问或任意插件代码。具体secret/热字段白名单逐driver Spec确定。
 - 保存事务首先产生DB期望版本；响应必须区分“DB已保存”和各节点“已应用/应用失败/待重启”。支持刷新时，节点按完整候选配置在锁外构建并校验新driver实例，成功后对该分组配置与资源代次一起原子激活，后续新操作使用新有效版本；不得先发布配置再让旧客户端继续冒充生效。跨组需要一起生效的值须同一验证/激活单元，不保证所有节点瞬时同步切换。
@@ -105,9 +105,9 @@
 | R2 配置运行时契约 | 先做 Laravel 简约 API/配置格式与安全白名单 Spec/ADR、消费者读取及生命周期；持久实现依赖 R4 DB/事务、R7权限审计；不阻塞当前 HTTP | 仅规划 |
 | R2 配置持久实现（阶段二增强，V1必交） | typed分组DB业务设置/secret加密、权限保护管理API/CLI、候选/CAS/审计、完整发布与driver受控激活、通知+轮询、期限/故障；复用R4/R7、业务driver及适用R8，DB单独可运行 | 未实现 |
 | R10 队列/调度 | 阶段一核心事务/每任务策略按R4–R9依赖；阶段二动态目录/管理员计划/运行参数管理复用R2持久基础与同一内核，不把核心整体后移 | 未实现 |
-| R13 开发体验 | CLI/生成器/README/config/测试随各功能簇交付，R13补齐，不把管理能力全推给V2 | 未实现 |
+| R13 开发体验 | CLI/生成器/README/config/测试随各功能簇交付，R13补齐，不把管理能力全推给可选快速开发模块 | 未实现 |
 | R14 故障/迁移门禁 | 双库真实多API/worker/scheduler、Redis通知中断、滚动升级/恢复和安全边界 | 未验收 |
-| R15 V2 | [冻结](v2-admin-platform.md#冻结与开工闸门)，仅保留表单复用V1管理API的未来设计，用户明确开工后再安排 | 冻结 |
+| R15 原版本阶段已取消 | [冻结](optional-rapid-development-modules.md#开发与使用边界)，仅保留表单复用V1管理API的未来设计，用户明确开工后再安排 | 冻结 |
 
 每簇同批更新唯一 `modules/example` 业务调用、模块私有迁移/种子、根通用装配、生成应用、README/config 及公开测试；不把业务表放框架核心。不添加平行 ConfigManager、第二总线、控制面、DSL、自动发现集群或独立后台服务。最少必要配置、明确默认、少量公开操作；内部一致性元数据不强迫普通开发者手工传递。
 
@@ -130,4 +130,4 @@
 
 开发者黄金路径沿用熟悉职责：Config/config领域配置与Provider注册 → 同仓储typed读取；代码注册Job → Queue按connection/queue派发或after_commit → 显式worker；Schedule任务 → frequency/timezone/onOneServer/withoutOverlapping → 显式runner。公开Rust方法只为类型、所有权、Result和async作必要适配，不机械仿PHP、不造新术语或平行Settings客户端；实际生产调用链和行为等价必须验证，不能只改名字。
 
-DB动态业务设置是同Provider/Repository生命周期的授权增强：开发者短接入代码声明typed分组/schema/defaults，管理员简单表单保存调用统一公开服务，内部封装revision/CAS/快照/轮询，V1交底层、V2复用。生成器和唯一modules/example须证明接入少、流程直观且行为正确。保留现有队列、调度、权限审计和后台资源所有权，不引入新平台或新依赖；候选API/表字段/默认数值以真实场景Spec收敛，安全与持久化要求完整保留。
+DB动态业务设置是同Provider/Repository生命周期的授权增强：开发者短接入代码声明typed分组/schema/defaults，管理员简单表单保存调用统一公开服务，内部封装revision/CAS/快照/轮询，V1交底层、可选快速开发模块复用。生成器和唯一modules/example须证明接入少、流程直观且行为正确。保留现有队列、调度、权限审计和后台资源所有权，不引入新平台或新依赖；候选API/表字段/默认数值以真实场景Spec收敛，安全与持久化要求完整保留。

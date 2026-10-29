@@ -5,7 +5,7 @@ description: 规划、实现或验证 OpenRust 配套 uni-app App 的页面、�
 
 # uni-app 移动端开发
 
-项目自编技能，参考 DCloud 官方文档；不是 DCloud 官方发布的技能。范围与启动顺序见 [V2 计划](../../project/plans/v2-admin-platform.md)，本技能不授权提前创建 App 或开发 PC 客户端。
+项目自编技能，参考 DCloud 官方文档；不是 DCloud 官方发布的技能。范围与启动顺序见 [可选快速开发模块](../../project/plans/optional-rapid-development-modules.md)，本技能不授权提前创建 App 或开发 PC 客户端。
 
 ## 先确认运行目标
 

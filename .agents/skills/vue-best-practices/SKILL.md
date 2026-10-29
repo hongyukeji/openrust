@@ -16,7 +16,7 @@ metadata:
 
 ## 沿用现有工程
 
-以 [V2 计划](../../project/plans/v2-admin-platform.md)、应用 manifest、lockfile 和现有组件库为准。新 Web 组件优先 Composition API、TypeScript 与 `script setup`，不为局部修复批量转换旧组件。具体版本、包管理器与命令从实际工程读取。
+以 [可选快速开发模块](../../project/plans/optional-rapid-development-modules.md)、应用 manifest、lockfile 和现有组件库为准。新 Web 组件优先 Composition API、TypeScript 与 `script setup`，不为局部修复批量转换旧组件。具体版本、包管理器与命令从实际工程读取。
 
 Admin 的菜单、布局、表单、表格与主题先复用选定后台骨架，不再建同义封装。接口错误、分页、权限和认证适配 OpenRust 公共契约，不让模板 mock 接口反向决定后端模型。
 

@@ -55,7 +55,7 @@
 
 | 能力 | 状态 | 已有边界与下一步 |
 | --- | --- | --- |
-| DB动态业务设置 / 管理员动态计划 | 📝 仅规划 | [ADR-080](decisions/adr-080-runtime-configuration-scheduling.md)及[唯一计划](plans/runtime-configuration-scheduling.md)；阶段二V1必交增强（不移动核心Config/Queue/Scheduler），宿主启用可选，尚无新实现/验收；V2表单后置 |
+| DB动态业务设置 / 管理员动态计划 | 📝 仅规划 | [ADR-080](decisions/adr-080-runtime-configuration-scheduling.md)及[唯一计划](plans/runtime-configuration-scheduling.md)；阶段二V1必交增强（不移动核心Config/Queue/Scheduler），宿主启用可选，尚无新实现/验收；可选快速开发模块表单后置 |
 | 统一返回格式 / 业务观测增强 | 🔵 已有实现待1:1对齐 | 保留价值，须经Response/Resource/异常与公开扩展融合；分页独立协议整改仍未完成，不宣称上游原生默认 |
 | SMS具体渠道 | 🔵 已有实现待1:1对齐 | 作为Notification/驱动扩展；Twilio adapter与fake/log资产不代表真实短信投递，实发缺授权账号/凭据/目标；[mail](core/mail.md) |
 | gRPC | 🔵 已有实现待1:1对齐 | 可选协议扩展、生成与真实TCP专项见[grpc](core/grpc.md)；不是Laravel核心原生gRPC；完整集群/生命周期仍须R11/R14验收 |
@@ -63,13 +63,13 @@
 
 ### 如何读取与维护
 
-- [两阶段框架主线](plans/laravel-rebuild.md#两阶段框架主线)：阶段一Laravel+正式modules基线（含Provider包发现），阶段二已纳入非核心通用增强，均属框架main/V1路线；不是冻结V2。表按可证范围显示状态，不因阶段重排抹掉既有实现，也不把阶段一完成说成全部框架交付。
+- [两阶段框架主线](plans/laravel-rebuild.md#两阶段框架主线)：阶段一Laravel+正式modules基线（含Provider包发现），阶段二已纳入非核心通用增强，均属框架main/V1路线；不是未启动可选快速开发模块。表按可证范围显示状态，不因阶段重排抹掉既有实现，也不把阶段一完成说成全部框架交付。
 - 本表按本次审阅划分 **26个Laravel能力族**：✅子范围4、🟡开发中1、🔵待对齐20、⬜待开发1；另列modules一个✅子范围。它们是概览行计数，粒度不等、不是权重或完成百分比，也不包含增强表。
 - 749个Laravel二级节与35个模块导航入口不是同一计数单位；详细矩阵的旧“待验收”不能解释为代码0%，已有代码/测试数量也不能推出1:1完成率。**逐项严格验收暂无可靠已闭合分子，不提供总体百分比。**
 - 总控每次功能簇本地commit后就地更新受影响行的状态、可证范围、缺口、commit/证据，并同步详细矩阵；只有新增实际交付/验收才升级状态，WIP与定向测试不能提前变✅。调整分组时重算上述概览行数，不按测试数充进度。
 - 每次框架开发进度汇报附最新能力状态表，汇报前按当前代码/提交/验收复核；表格格式、适用范围与“1:1 的 Laravel 框架 Rust 版”表述统一遵循[汇报规范](style.md#开发进度汇报)，普通问答不强制附表。
 - overview只摘要；矩阵维护详细源码/测试对应及差异，core/testing保存可复验证据，todo是唯一可领取队列，不在此复制任务或建立第二计划。未验收的整项不得因已交付子簇关闭。
-- [V2/C32/R15冻结](plans/v2-admin-platform.md#冻结与开工闸门)，R14完成不授权开工；未来分支另定，当前main仅框架，非UI扩展可独立推进。AI产品仍未启动，均不计V1框架核心1:1进度。当前不为展示表格切换或中断在途HTTP功能簇。精选扩展的接入/范围与独立验收遵循[生态边界](plans/laravel-rebuild.md#生态边界)，不抵扣核心缺口。
+- [可选快速开发模块/C32/R15冻结](plans/optional-rapid-development-modules.md#开发与使用边界)，R14完成不授权开工；未来分支另定，当前main仅框架，非UI扩展可独立推进。AI产品仍未启动，均不计V1框架核心1:1进度。当前不为展示表格切换或中断在途HTTP功能簇。精选扩展的接入/范围与独立验收遵循[生态边界](plans/laravel-rebuild.md#生态边界)，不抵扣核心缺口。
 
 ## 子簇验证边界
 
@@ -77,7 +77,7 @@
 
 C04-B1统一请求输入已完成适用验收，限定提交见Git：定向/独审、相应源码快照的workspace门禁、根默认cargo run真实TCP、生成consumer与PG/MySQL生成认证应用均通过；根具名认证双库各1通过/46 filtered。账号/缓存fixture缺Host及新迁移排序问题已修复，原安全与回滚断言保留；根完整PG/MySQL组均47通过/零失败、忽略或筛选，账号MFA与完整缓存模块的双库专项亦通过。最新workspace全部门禁通过；框架完整范围仍按唯一队列推进。临时探针及隔离数据库已清理，外部示例/守护WIP保留；证据见[testing](memory/testing.md#c04-b1-统一请求输入)。
 
-C04-C已完成Cookie读取、请求队列、值工厂/响应组合和复用现加密内核的保护；最终配置/可信HTTPS、原始重复凭据与空domain覆盖已回归。最终workspace默认668/全特性1241 passed、29/99 ignored，根PG18/MySQL8.4各48、生成plain3/认证双库各2及真实TLS通过；fmt/Clippy/docs/no-default/MSRV/deny和不同模型审查完成。根target已清空、五旧consumer未改，真实证据与未提供外部条件边界见[testing](memory/testing.md)。本簇限定提交见Git，后继Session/flash/CSRF等继续唯一todo；V2保持冻结。
+C04-C已完成Cookie读取、请求队列、值工厂/响应组合和复用现加密内核的保护；最终配置/可信HTTPS、原始重复凭据与空domain覆盖已回归。最终workspace默认668/全特性1241 passed、29/99 ignored，根PG18/MySQL8.4各48、生成plain3/认证双库各2及真实TLS通过；fmt/Clippy/docs/no-default/MSRV/deny和不同模型审查完成。根target已清空、五旧consumer未改，真实证据与未提供外部条件边界见[testing](memory/testing.md)。本簇限定提交见Git，后继Session/flash/CSRF等继续唯一todo；可选快速开发模块暂不开发。
 
 C04-B2类型便捷方法已通过适用门禁：公开Request/Fluent、唯一模块、生成项目与真实TCP均接同一输入内核；默认workspace645/全特性1211项、根PG/MySQL各47项、普通与双库认证生成应用、新工具TCP六案通过，fmt/Clippy/docs/feature/MSRV/deny及不同模型复审完成。日期source分支与代表矩阵、类型表示/资源限制、ignored与非供应商发送边界见[testing](memory/testing.md#c04-b2-类型便捷方法)；完整C04及全Carbon工具箱未据此关闭。本簇限定本地提交见Git，后继仅从todo领取。
 

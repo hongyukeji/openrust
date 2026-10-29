@@ -122,7 +122,7 @@ Passkeys、独立 OAuth 授权服务器、更多数据库/MQ、搜索、运行�
 
 ### v2 附加参考
 
-v2 保持 Loco、Laravel、Goravel、OpenSpring、若依、芋道的原顺序，在通用层之上评估后台套件；若依与芋道的证据只用于本阶段，不作为 v1 设计依据。具体交付与候选见 [v2 计划](v2-admin-platform.md)。
+v2 保持 Loco、Laravel、Goravel、OpenSpring、若依、芋道的原顺序，在通用层之上评估后台套件；若依与芋道的证据只用于本阶段，不作为 v1 设计依据。具体交付与候选见 [可选快速开发模块](optional-rapid-development-modules.md)。
 
 | 附加参考与一手依据 | v2 参考边界 |
 | --- | --- |

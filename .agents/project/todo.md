@@ -30,15 +30,15 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 
 ## 后继路由
 
-- **宏观主线**：[两阶段框架主线](plans/laravel-rebuild.md#两阶段框架主线)；先验阶段一Laravel+modules核心基线，再做已纳入阶段二通用增强，均是框架main而非产品V2。R0–R16仅技术分解；现增强保留复用，不搬走核心Config/Queue/Scheduler/安全，当前B2不变，发布整理须两阶段既定范围验收。
+- **宏观主线**：[两阶段框架主线](plans/laravel-rebuild.md#两阶段框架主线)；先验阶段一Laravel+modules核心基线，再做已纳入阶段二通用增强，均是框架main而非产品可选快速开发模块。R0–R16仅技术分解；现增强保留复用，不搬走核心Config/Queue/Scheduler/安全，当前B2不变，发布整理须两阶段既定范围验收。
 
-- **冻结闸门**：[C32/R15 V2](plans/v2-admin-platform.md#冻结与开工闸门)须用户明确开工；R14通过或持续Goal“全部完成”不能自动进入。当前main只推进框架/唯一示例，V1管理Rust方法与queue/scheduler底座继续；不清理既有WIP/UI/模板，不建分支或默认合并V2。R16非UI扩展不因冻结阻塞。
+- **可选模块边界**：原V2版本阶段取消，后台/App需求转入[可选快速开发模块](plans/optional-rapid-development-modules.md#开发与使用边界)，暂不开发，待用户明确开工。R14、两个框架阶段或持续Goal“全部完成”不能自动启动；main只推进框架/唯一示例，不清理现有WIP，不预建分支或默认合并。框架配置管理、Queue/Scheduler及非UI扩展继续。
 
 - 阶段一R2公共声明/覆盖/错误契约→R13包发现与生成工具：[Provider编译期发现Spec](plans/laravel-rebuild.md#r2r13-provider-编译期发现-spec)（L044.02/模块M016），复用R2-M/N清单、拓扑和register→boot；仅规划未实现，不抢占当前HTTP。
 
 - 阶段二R11 MQTT按[总计划可选扩展契约](plans/laravel-rebuild.md#r11-明确待办mqtt-可选服务端与客户端)排期：client/Broker按需独立引入，沿既有Provider加载，client操作/订阅CLI/Broker CLI才产生网络副作用；仅规划，不抢占当前HTTP簇。
 
-R1-S → R2基础 → R2-M模块闭环 → R1-E当前CRUD/能力贯通；R2后继及R3 HTTP → R4 数据 → R5 Model → R6 Factory/SQLite → R7 安全 → R8 Cache/Storage → R9 视图/通信 → R10 异步/事务 → R11 网络/组合 → R12 搜索/特性/观测 → R13 开发体验 → R14 底座门禁 → R16已纳入非UI框架扩展；R15 V2及依赖UI部分冻结，待用户明确开工。每个后继能力同簇补示例；R1-E不等待未来全框架完成，R2基础不等待完整示例，消除循环依赖。阶段内部按总计划拆可验证提交。
+R1-S → R2基础 → R2-M模块闭环 → R1-E当前CRUD/能力贯通；R2后继及R3 HTTP → R4 数据 → R5 Model → R6 Factory/SQLite → R7 安全 → R8 Cache/Storage → R9 视图/通信 → R10 异步/事务 → R11 网络/组合 → R12 搜索/特性/观测 → R13 开发体验 → R14 底座门禁 → R16已纳入非UI框架扩展；原R15版本阶段取消，相关UI转为可选模块并暂不开发，待用户明确开工。每个后继能力同簇补示例；R1-E不等待未来全框架完成，R2基础不等待完整示例，消除循环依赖。阶段内部按总计划拆可验证提交。
 
 ## 必须带入新矩阵的现有缺口
 
@@ -47,7 +47,7 @@ R1-S → R2基础 → R2-M模块闭环 → R1-E当前CRUD/能力贯通；R2后�
 - 原 DX1–DX8、F9/F10：默认 cargo run 与 Cargo 正常兼容设计、TestApp/assertions、factory、命令/生成/stubs、只读 doctor、dev 编排、文档和更新体验 → R1/R2/R6/R13。
 - 双库负载均衡、多 API/worker/scheduler、共享状态/文件/实时、滚动升级/依赖故障、最低版本与性能 → R14。
 - [SQLite 完整支持](plans/v1-sqlite-backend.md) → R6 及各能力适用验收；不能只接通连接。
-- [V2 后台/App](plans/v2-admin-platform.md) → R15；PC 仅规划；独立 AI 产品未启动。
+- [可选快速开发模块 后台/App](plans/optional-rapid-development-modules.md) → R15；PC 仅规划；独立 AI 产品未启动。
 
 ## 外部条件与证据缺口
 
@@ -100,7 +100,7 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 - R2：V1必须交付Laravel简洁typed分组DB业务设置与权限保护管理API/CLI（宿主启用可选）；开发者注册字段、管理员后台保存，白名单/权限/完整校验/CAS审计/快照/通知轮询/故障期限封装内部，持久实现依赖R4事务、R7权限审计及适用R8，基础设施启动项不热换；邮件/SMS/支付/存储业务secret加密、driver受控激活或pending_restart，区分DB保存/节点应用。
 - R10：复用Job注册/connection/queue与同一Scheduler；先明确after_commit/同事务及onOneServer/withoutOverlapping，再实现DB动态计划/版本审计/目标队列/允许策略、变更竞争与worker并发。具体公开API与schema先Spec；默认DB队列、Redis显式可选。
 - R14：PG18/MySQL8.4真实多节点、Redis通知中断补偿、DB故障/权限/CAS、任务重试崩溃及仅应用+DB迁移恢复；各簇同步modules/example、生成项目、README/config/测试，未验收不关闭。
-- R15才做V2管理界面；V1先交付Rust公开管理服务/必要traits与Gate/Policy接入，由宿主自定路由/controller显式传认证授权上下文；框架不预置HTTP endpoint，CLI显式复用同服务不绕授权，不引入配置平台、第二总线或平行调度器。
+- R15才做可选快速开发模块管理界面；V1先交付Rust公开管理服务/必要traits与Gate/Policy接入，由宿主自定路由/controller显式传认证授权上下文；框架不预置HTTP endpoint，CLI显式复用同服务不绕授权，不引入配置平台、第二总线或平行调度器。
 
 ## 当前确定的待修风险
 
@@ -327,4 +327,4 @@ C04-A/B1/B2的公开检查、输入基础与类型便捷方法已按各自范围
 
 ## 阶段二：API 正文加密扩展（仅规划）
 
-按[API正文加密与Vue对接计划](plans/api-payload-encryption.md)，R7安全contract→R11复用现HTTP中间件/SSE事件/WS消息链→R14真实浏览器/双库/多节点及流重连/背压验收；交付全站API组与局部策略、可直接引用的Vue适配和Apifox支持范围内的脚本/示例，不启动V2。标准协议、响应密钥、认证绑定、防重放、轮换/错误/重试边界先Spec，未验收不声称API加密已提供；不抢占当前功能簇。
+按[API正文加密与Vue对接计划](plans/api-payload-encryption.md)，R7安全contract→R11复用现HTTP中间件/SSE事件/WS消息链→R14真实浏览器/双库/多节点及流重连/背压验收；交付全站API组与局部策略、可直接引用的Vue适配和Apifox支持范围内的脚本/示例，不启动可选快速开发模块。标准协议、响应密钥、认证绑定、防重放、轮换/错误/重试边界先Spec，未验收不声称API加密已提供；不抢占当前功能簇。

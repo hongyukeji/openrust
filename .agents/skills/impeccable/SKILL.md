@@ -1,6 +1,6 @@
 ---
 name: impeccable
-description: 设计、评审或打磨 OpenRust 应用的后台与移动界面，处理信息层级、布局、主题、文案和异常状态。适用于明确的 UI 任务，不用于后端实现或决定是否启动 V2。
+description: 设计、评审或打磨 OpenRust 应用的后台与移动界面，处理信息层级、布局、主题、文案和异常状态。适用于明确的 UI 任务，不用于后端实现或决定可选模块是否开工。
 license: Apache-2.0; see LICENSE
 metadata:
   upstream: https://github.com/pbakaus/impeccable
@@ -15,7 +15,7 @@ metadata:
 
 ## 先定位任务
 
-从当前页面、组件、设计 token 与 [V2 计划](../../project/plans/v2-admin-platform.md) 确认用户、主要操作、设备和状态。沿用根 `AGENTS.md`；产品事实维护在现有项目文档，设计事实放对应应用文档，不另建根目录 PRODUCT.md/DESIGN.md。
+从当前页面、组件、设计 token 与 [可选快速开发模块](../../project/plans/optional-rapid-development-modules.md) 确认用户、主要操作、设备和状态。沿用根 `AGENTS.md`；产品事实维护在现有项目文档，设计事实放对应应用文档，不另建根目录 PRODUCT.md/DESIGN.md。
 
 - 新页面：先确定主任务、信息层级、导航与失败恢复，再实现视觉。
 - 改进现有界面：先看实际渲染与完整操作路径，保持已定身份和行为；局部打磨不隐含全站换肤。
