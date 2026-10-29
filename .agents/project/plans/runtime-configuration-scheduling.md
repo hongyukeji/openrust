@@ -3,6 +3,8 @@
 > 状态：V1底层设计/排期保留，未实现/未真实验收；所有V2/UI叙述均受[冻结闸门](v2-admin-platform.md#冻结与开工闸门)约束，须用户明确开工，R14不自动授权。
 > 依据：[ADR-080](../decisions/adr-080-runtime-configuration-scheduling.md)、[Laravel 固定基线](laravel-rebuild-baseline.md)、[唯一队列](../todo.md)。
 
+本计划遵[两阶段框架主线](laravel-rebuild.md#两阶段框架主线)：核心Config/Queue/Scheduler及安全/事务/每任务策略仍属阶段一；DB管理员业务设置与动态计划是阶段二通用增强，技术职责继续复用R2/R10。“V1必须”涵盖同V1两阶段，不取消本增强、不自动启动V2表单；已实现资产保留，必要核心依赖继续。
+
 ## Spec 与 Laravel 体验
 
 1. `.env` 作为启动来源，`config/` 保存领域配置，继续使用同一 `ConfigRepository`、类型化读取与 `ServiceProvider`；普通开发者不操作 revision/snapshot 客户端。
@@ -101,8 +103,8 @@
 | 功能簇 | 依赖与最小交付 | 状态 |
 | --- | --- | --- |
 | R2 配置运行时契约 | 先做 Laravel 简约 API/配置格式与安全白名单 Spec/ADR、消费者读取及生命周期；持久实现依赖 R4 DB/事务、R7权限审计；不阻塞当前 HTTP | 仅规划 |
-| R2 配置持久实现（V1必交） | typed分组DB业务设置/secret加密、权限保护管理API/CLI、候选/CAS/审计、完整发布与driver受控激活、通知+轮询、期限/故障；复用R4/R7、业务driver及适用R8，DB单独可运行 | 未实现 |
-| R10 队列/调度 | R2契约与持久基础、R4–R9适用依赖后，先事务与每任务策略，再动态目录/计划/并发/状态；同一内核 | 未实现 |
+| R2 配置持久实现（阶段二增强，V1必交） | typed分组DB业务设置/secret加密、权限保护管理API/CLI、候选/CAS/审计、完整发布与driver受控激活、通知+轮询、期限/故障；复用R4/R7、业务driver及适用R8，DB单独可运行 | 未实现 |
+| R10 队列/调度 | 阶段一核心事务/每任务策略按R4–R9依赖；阶段二动态目录/管理员计划/运行参数管理复用R2持久基础与同一内核，不把核心整体后移 | 未实现 |
 | R13 开发体验 | CLI/生成器/README/config/测试随各功能簇交付，R13补齐，不把管理能力全推给V2 | 未实现 |
 | R14 故障/迁移门禁 | 双库真实多API/worker/scheduler、Redis通知中断、滚动升级/恢复和安全边界 | 未验收 |
 | R15 V2 | [冻结](v2-admin-platform.md#冻结与开工闸门)，仅保留表单复用V1管理API的未来设计，用户明确开工后再安排 | 冻结 |

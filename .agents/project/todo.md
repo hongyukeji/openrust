@@ -30,11 +30,13 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 
 ## 后继路由
 
+- **宏观主线**：[两阶段框架主线](plans/laravel-rebuild.md#两阶段框架主线)；先验阶段一Laravel+modules核心基线，再做已纳入阶段二通用增强，均是框架main而非产品V2。R0–R16仅技术分解；现增强保留复用，不搬走核心Config/Queue/Scheduler/安全，当前B2不变，发布整理须两阶段既定范围验收。
+
 - **冻结闸门**：[C32/R15 V2](plans/v2-admin-platform.md#冻结与开工闸门)须用户明确开工；R14通过或持续Goal“全部完成”不能自动进入。当前main只推进框架/唯一示例，V1管理Rust方法与queue/scheduler底座继续；不清理既有WIP/UI/模板，不建分支或默认合并V2。R16非UI扩展不因冻结阻塞。
 
-- R2公共声明/覆盖/错误契约→R13包发现与生成工具：[Provider编译期发现Spec](plans/laravel-rebuild.md#r2r13-provider-编译期发现-spec)（L044.02/模块M016），复用R2-M/N清单、拓扑和register→boot；仅规划未实现，不抢占当前HTTP。
+- 阶段一R2公共声明/覆盖/错误契约→R13包发现与生成工具：[Provider编译期发现Spec](plans/laravel-rebuild.md#r2r13-provider-编译期发现-spec)（L044.02/模块M016），复用R2-M/N清单、拓扑和register→boot；仅规划未实现，不抢占当前HTTP。
 
-- R11 MQTT按[总计划可选扩展契约](plans/laravel-rebuild.md#r11-明确待办mqtt-可选服务端与客户端)排期：client/Broker按需独立引入，沿既有Provider加载，client操作/订阅CLI/Broker CLI才产生网络副作用；仅规划，不抢占当前HTTP簇。
+- 阶段二R11 MQTT按[总计划可选扩展契约](plans/laravel-rebuild.md#r11-明确待办mqtt-可选服务端与客户端)排期：client/Broker按需独立引入，沿既有Provider加载，client操作/订阅CLI/Broker CLI才产生网络副作用；仅规划，不抢占当前HTTP簇。
 
 R1-S → R2基础 → R2-M模块闭环 → R1-E当前CRUD/能力贯通；R2后继及R3 HTTP → R4 数据 → R5 Model → R6 Factory/SQLite → R7 安全 → R8 Cache/Storage → R9 视图/通信 → R10 异步/事务 → R11 网络/组合 → R12 搜索/特性/观测 → R13 开发体验 → R14 底座门禁 → R16已纳入非UI框架扩展；R15 V2及依赖UI部分冻结，待用户明确开工。每个后继能力同簇补示例；R1-E不等待未来全框架完成，R2基础不等待完整示例，消除循环依赖。阶段内部按总计划拆可验证提交。
 

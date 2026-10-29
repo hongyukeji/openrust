@@ -19,7 +19,7 @@
 | 能力族 | 1:1目标 | 主状态 | 当前可证边界 | 待补关键项 | 稳定章节 / 阶段 / 证据 |
 | --- | --- | --- | --- | --- | --- |
 | 启动、应用布局 | Laravel应用职责/生命周期与开箱运行 | ✅ 已验收子范围 | R1-S 34dfb5e、R1-E bc3fa01：根lib/server、唯一模块与真实CRUD | 完整安装/升级/部署流程仍须逐项对照 | L004/L007/L010/L011；R1/R13/R14；[证据](memory/testing.md) |
-| Container / Provider / Facade | 统一DI、register→boot、作用域与扩展 | ✅ 已验收子范围 | R2-A/A2/A3、B/C/D已验收，唯一生产Container/Provider、入口scope/TestApp | Provider编译期发现仅规划，现显式descriptor不是包发现；完整Facade/Container/扩展对应待闭合 | L012–L014/L035；R2；[core](core/core.md)/[facade](core/facade.md) |
+| Container / Provider / Facade | 统一DI、register→boot、作用域与扩展 | ✅ 已验收子范围 | R2-A/A2/A3、B/C/D已验收，唯一生产Container/Provider、入口scope/TestApp | 阶段一Provider编译期发现仅规划，现显式descriptor不是包发现；完整Facade/Container/扩展对应待闭合 | L012–L014/L035；R2；[core](core/core.md)/[facade](core/facade.md) |
 | Configuration | env/领域配置、typed读取/校验与包配置合并 | ✅ 已验收子范围 | R2来源失败/Provider配置；APP_PORT 591142f映射与生成/启动已验收 | 完整L005及缓存/来源/扩展逐项对齐；DB业务设置见增强表 | L005；R2；[core](core/core.md)/[todo](todo.md) |
 | Routing / Middleware / URL | 路由组/域/命名URL/绑定/中间件默认与错误 | ✅ 已验收子范围 | R3-A–F按簇交付；F 163bb49域路由；已知差异公开 | 模型绑定等剩余C03行为及默认差异不能由A–F整体外推 | L015/L016/L024；R3；[http](core/http.md)/[todo](todo.md) |
 | Request | 输入来源、typed便捷方法与生命周期 | 🟡 开发中 | C04-A 08be69d、B1 8846a6a已验收；B2存在未提交实现/定向证据 | B2完整验证/提交未收口；Cookies/Old Input等仍开放 | L019；R3 C04；[证据](memory/testing.md)/[todo](todo.md) |
@@ -55,14 +55,15 @@
 
 | 能力 | 状态 | 已有边界与下一步 |
 | --- | --- | --- |
-| DB动态业务设置 / 管理员动态计划 | 📝 仅规划 | [ADR-080](decisions/adr-080-runtime-configuration-scheduling.md)及[唯一计划](plans/runtime-configuration-scheduling.md)；V1必交底层，宿主启用可选，尚无新实现/验收；V2表单后置 |
+| DB动态业务设置 / 管理员动态计划 | 📝 仅规划 | [ADR-080](decisions/adr-080-runtime-configuration-scheduling.md)及[唯一计划](plans/runtime-configuration-scheduling.md)；阶段二V1必交增强（不移动核心Config/Queue/Scheduler），宿主启用可选，尚无新实现/验收；V2表单后置 |
 | 统一返回格式 / 业务观测增强 | 🔵 已有实现待1:1对齐 | 保留价值，须经Response/Resource/异常与公开扩展融合；分页独立协议整改仍未完成，不宣称上游原生默认 |
 | SMS具体渠道 | 🔵 已有实现待1:1对齐 | 作为Notification/驱动扩展；Twilio adapter与fake/log资产不代表真实短信投递，实发缺授权账号/凭据/目标；[mail](core/mail.md) |
 | gRPC | 🔵 已有实现待1:1对齐 | 可选协议扩展、生成与真实TCP专项见[grpc](core/grpc.md)；不是Laravel核心原生gRPC；完整集群/生命周期仍须R11/R14验收 |
-| MQTT Broker / Client | 📝 仅规划 | [总计划R11](plans/laravel-rebuild.md#r11-明确待办mqtt-可选服务端与客户端)；client/Broker按需独立引入；既有Provider加载不暗启连接，client lazy调用/订阅CLI/Broker CLI显式运行；未实现/未真实验收 |
+| MQTT Broker / Client | 📝 仅规划 | [总计划R11](plans/laravel-rebuild.md#r11-明确待办mqtt-可选服务端与客户端)；阶段二client/Broker按需独立引入；既有Provider加载不暗启连接，client lazy调用/订阅CLI/Broker CLI显式运行；未实现/未真实验收 |
 
 ### 如何读取与维护
 
+- [两阶段框架主线](plans/laravel-rebuild.md#两阶段框架主线)：阶段一Laravel+正式modules基线（含Provider包发现），阶段二已纳入非核心通用增强，均属框架main/V1路线；不是冻结V2。表按可证范围显示状态，不因阶段重排抹掉既有实现，也不把阶段一完成说成全部框架交付。
 - 本表按本次审阅划分 **26个Laravel能力族**：✅子范围4、🟡开发中1、🔵待对齐20、⬜待开发1；另列modules一个✅子范围。它们是概览行计数，粒度不等、不是权重或完成百分比，也不包含增强表。
 - 749个Laravel二级节与35个模块导航入口不是同一计数单位；详细矩阵的旧“待验收”不能解释为代码0%，已有代码/测试数量也不能推出1:1完成率。**逐项严格验收暂无可靠已闭合分子，不提供总体百分比。**
 - 总控每次功能簇本地commit后就地更新受影响行的状态、可证范围、缺口、commit/证据，并同步详细矩阵；只有新增实际交付/验收才升级状态，WIP与定向测试不能提前变✅。调整分组时重算上述概览行数，不按测试数充进度。
