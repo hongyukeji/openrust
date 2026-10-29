@@ -305,3 +305,7 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 2. C04-B1按ADR-079收口输入来源/优先级、存在性、筛选修改、默认规范化与正文单次所有权，详见测试记录；不重复实现。后继C04-B2先审计固定Laravel的string/integer/float/boolean/date/enum/collection及条件回调等typed便捷方法，列明确切公开API、Rust必要适配和错误边界。
 3. C04-B2按Spec→Implement→Verify→Commit补公共API、唯一模块、公开consumer、生成应用与真实HTTP，不重建平行输入仓储；B1内容不重复实现。
 4. Cookie/Session、redirect/flash、CSRF、FormRequest授权验证、文件及L020响应完整范围保留；不以首个 RequestInfo 簇替代完整C04。
+
+## 完整实现后的发布仓库整理（后置，未启动）
+
+完成1:1 Laravel及laravel-modules的既定交付范围和最终门禁后，按[发布仓库整理计划](plans/release-repository-consolidation.md)领取：冻结/备份验收快照→文档与ADR合并去重→按最终功能簇重组本地历史→最终树与完整门禁复验→核对远程状态和授权后推送。不得抢占当前开发、不提前改写历史、不隐藏有效限制或丢失来源归属。
