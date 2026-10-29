@@ -451,6 +451,31 @@ def refresh_usage_cycles(runtime, config, response, now):
         return
 
 
+def refresh_account_budget(runtime, config, response, now):
+    """只读取用户已切换的账号；逐账号保留预算，切回不能补满保留线。"""
+    original = config.get('usage_budget') or {}
+    account = response.get('accountId')
+    limits = response.get('rateLimits') or {}
+    if (not isinstance(account, str) or not account or account == original.get('account_id')
+            or limits.get('limitId') != original.get('limit_id')):
+        return False
+    try:
+        candidate = initialize_usage_budget(response, now)
+        # 不把登录失败、缺字段或硬限制当作可用的新账号。
+        if quota_delay(response, now, config.get('allow_existing_credits', False), candidate):
+            return False
+    except (ValueError, TypeError):
+        return False
+    history = dict(config.get('account_budgets') or {})
+    key = lambda budget: json.dumps([budget['account_id'], budget['limit_id']])
+    history[key(original)] = original
+    candidate = history.get(key(candidate), candidate)
+    config.update(usage_budget=candidate, account_budgets=history)
+    atomic(runtime / 'config.json', config)
+    refresh_usage_cycles(runtime, config, response, now)
+    return True
+
+
 def percentage_budget_breaches(response, budget):
     """仅返回百分比保留线；credits触线同时发生时不授予自动恢复资格。"""
     try:
@@ -564,9 +589,33 @@ def percentage_pause_controls(config):
             'control': turn.get('goal_control'), 'turn_key': turn.get('key'), 'turn_kind': turn.get('kind')}
 
 
+def login_revision():
+    """只看现有登录文件元数据，不读取或保存凭据。"""
+    path = Path(os.environ.get('CODEX_HOME', str(Path.home() / '.codex'))) / 'auth.json'
+    try:
+        info = path.stat()
+        return [info.st_mtime_ns, info.st_size, info.st_ino]
+    except OSError:
+        return None
+
+
+def budget_wait_deadline(pause, response, now):
+    """长期耗尽退避到六小时；正式reset更近时提前复核。"""
+    attempts = min(pause.get('wait_attempts', 0) + 1, 8)
+    pause['wait_attempts'] = attempts
+    delay = min(21600, 300 * 2 ** (attempts - 1))
+    windows = (response.get('rateLimits') or {})
+    resets = [w.get('resetsAt') for k in ('primary', 'secondary')
+              if isinstance(w := windows.get(k), dict)]
+    future = [r + 30 - now for r in resets if type(r) is int and r > now]
+    if future:
+        delay = min(delay, min(future))
+    return now + max(300, delay)
+
+
 def owned_percentage_pause(runtime, state, config, before, windows):
     """正式暂停已确认后才登记自动恢复所有权；不伪造用户暂停来源。"""
-    if (not before or not windows
+    if (not before or (not windows and not config.get('auto_account_recovery'))
             or (state.get('percentage_pause') or {}).get('resume_status') in ('activating', 'sending')):
         return False
     try:
@@ -577,8 +626,10 @@ def owned_percentage_pause(runtime, state, config, before, windows):
                 or not current or current['id'] != config['goal_id'] or current['status'] != 'paused'):
             return False
         state['percentage_pause'] = {'goal': current, 'controls': after, 'windows': windows,
-                                     'resume_status': 'waiting', 'next_quota_at': max(time.time() + 300,
-                                         min(float(reset) + 30 for reset in windows.values()))}
+                                     'resume_status': 'waiting', 'account_id': config.get('usage_budget', {}).get('account_id'),
+                                     'account_recovery': config.get('auto_account_recovery', False), 'login_revision': login_revision(),
+                                     'next_quota_at': (time.time() + 300 if config.get('auto_account_recovery') else
+                                         max(time.time() + 300, min(float(reset) + 30 for reset in windows.values())))}
         atomic(runtime / 'state.json', state)
         return True
     except Exception:
@@ -586,12 +637,35 @@ def owned_percentage_pause(runtime, state, config, before, windows):
 
 
 def monitor_percentage_pause(runtime, state, config, current, now):
+    """认证或客户端故障同样休眠退避；未知激活和发送不重试。"""
+    try:
+        return _monitor_percentage_pause(runtime, state, config, current, now)
+    except Exception as error:
+        pause = state.get('percentage_pause') or {}
+        if (not pause.get('account_recovery') or pause.get('resume_status') != 'waiting'
+                or pause.get('goal') != current):
+            raise
+        pause.update(next_quota_at=budget_wait_deadline(pause, {}, now),
+                     last_error_kind=type(error).__name__)
+        atomic(runtime / 'state.json', state)
+        return 'account_budget_unavailable'
+
+
+def _monitor_percentage_pause(runtime, state, config, current, now):
     """同一自动百分比暂停低频等正式周期；只恢复一次，未知发送不重试。"""
     pause = state.get('percentage_pause') or {}
     if pause.get('resume_status') != 'waiting' or pause.get('goal') != current:
         return 'percentage_pause_not_owned'
     if (runtime / 'disabled').exists() or not binding_valid(config):
         return 'percentage_pause_not_owned'
+    if pause.get('account_recovery'):
+        revision = login_revision()
+        if revision is not None and revision != pause.get('login_revision'):
+            pause.update(login_revision=revision, next_quota_at=0, wait_attempts=0)
+            atomic(runtime / 'state.json', state)
+        # 长期等待只读本地Goal/停止标记和登录元数据，不启动Paseo或Codex进程。
+        if now < pause.get('next_quota_at', 0):
+            return 'account_budget_sleep'
     controls = percentage_pause_controls(config)
     if controls != pause.get('controls'):
         pause['resume_status'] = 'cancelled'
@@ -600,34 +674,44 @@ def monitor_percentage_pause(runtime, state, config, current, now):
     if now < pause.get('next_quota_at', 0):
         return 'percentage_reset_wait'
     response = rpc('account/rateLimits/read', {})
+    if pause.get('account_recovery'):
+        refresh_account_budget(runtime, config, response, now)
     refresh_usage_cycles(runtime, config, response, now)
     apply_task_policy(state, config)
     status = usage_budget_status(response, config['usage_budget'])
     if status == 'usage_budget_unknown':
-        pause['next_quota_at'] = now + 300
+        pause['next_quota_at'] = (budget_wait_deadline(pause, response, now)
+                                      if pause.get('account_recovery') else now + 300)
         atomic(runtime / 'state.json', state)
         return 'percentage_reset_wait'
+    account_changed = (pause.get('account_recovery') and
+                       config['usage_budget']['account_id'] != pause.get('account_id'))
     causes = percentage_budget_breaches(response, config['usage_budget'])
     credits = config['usage_budget']['credits']
     balance = budget_decimal(response.get('rateLimits', {}).get('credits', {}).get('balance'))
     if (status == 'usage_budget_credits_changed'
             or credits['participating'] and balance <= budget_decimal(credits['reserve'])):
+        if pause.get('account_recovery'):
+            pause['next_quota_at'] = budget_wait_deadline(pause, response, now)
+            atomic(runtime / 'state.json', state)
+            return 'account_budget_wait'
         pause['resume_status'] = 'credit_reserve_or_state'
         atomic(runtime / 'state.json', state)
         return 'percentage_pause_credit_boundary'
     for name, reset in causes.items():
         pause['windows'].setdefault(name, reset)
-    advanced = all(config['usage_budget']['windows'][name]['resets_at'] != reset
+    advanced = account_changed or all(config['usage_budget']['windows'][name]['resets_at'] != reset
                    and config['usage_budget']['windows'][name]['participating']
                    and not config['usage_budget']['windows'][name].get('awaiting_available')
                    for name, reset in pause['windows'].items())
-    if status != 'usage_budget_available' or causes or not advanced or quota_delay(
+    if status != 'usage_budget_available' or causes or not advanced or (not pause['windows'] and not account_changed) or quota_delay(
             response, now, config.get('allow_existing_credits', False), config['usage_budget']):
-        future = [float(config['usage_budget']['windows'][name]['resets_at']) + 30
+        future = [] if pause.get('account_recovery') else [float(config['usage_budget']['windows'][name]['resets_at']) + 30
                   for name in pause['windows']
                   if (float(config['usage_budget']['windows'][name]['resets_at']) > now
                       and not config['usage_budget']['windows'][name].get('awaiting_available'))]
-        pause['next_quota_at'] = max(now + 300, min(future) if future else now + 300)
+        pause['next_quota_at'] = (budget_wait_deadline(pause, response, now) if pause.get('account_recovery') else
+                                  max(now + 300, min(future) if future else now + 300))
         atomic(runtime / 'state.json', state)
         return 'percentage_reset_wait'
     with (runtime / 'control.lock').open('a') as control:
@@ -646,9 +730,14 @@ def monitor_percentage_pause(runtime, state, config, current, now):
             except ValueError:
                 credit_hit = False
             if fresh_status == 'usage_budget_credits_changed' or credit_hit:
+                if pause.get('account_recovery'):
+                    pause['next_quota_at'] = budget_wait_deadline(pause, response, now)
+                    atomic(runtime / 'state.json', state)
+                    return 'account_budget_wait'
                 pause['resume_status'] = 'credit_reserve_or_state'; atomic(runtime / 'state.json', state)
                 return 'percentage_pause_credit_boundary'
-            pause['next_quota_at'] = now + 300; atomic(runtime / 'state.json', state)
+            pause['next_quota_at'] = (budget_wait_deadline(pause, response, now)
+                                      if pause.get('account_recovery') else now + 300); atomic(runtime / 'state.json', state)
             return 'percentage_reset_wait'
         if (goal(config) != current or not binding_valid(config) or (runtime / 'disabled').exists()
                 or percentage_pause_controls(config) != controls or bound_goal(config).get('status') != 'paused'):
@@ -739,7 +828,7 @@ def notify(reason):
 def sleep_until(runtime, seconds):
     end = time.monotonic() + seconds
     while time.monotonic() < end and not (runtime / 'disabled').exists():
-        time.sleep(min(1, max(0, end - time.monotonic())))
+        time.sleep(min(5, max(0, end - time.monotonic())))
 
 
 def binding_valid(config):
@@ -828,6 +917,8 @@ def worker(runtime, parent_pid):
             current = terminal
             if config.get('usage_budget') is not None:
                 response = rpc('account/rateLimits/read', {})
+                if config.get('auto_account_recovery'):
+                    refresh_account_budget(runtime, config, response, time.time())
                 refresh_usage_cycles(runtime, config, response, time.time())
                 apply_task_policy(state, config)
                 floor = usage_budget_status(response, config['usage_budget'])
@@ -837,7 +928,7 @@ def worker(runtime, parent_pid):
                     windows = (percentage_budget_breaches(response, config['usage_budget'])
                                if floor == 'usage_budget_reached' and not unknown_resume else {})
                     before = None
-                    if windows:
+                    if windows or config.get('auto_account_recovery'):
                         try:
                             before = percentage_pause_controls(config)
                         except Exception:
@@ -1076,7 +1167,7 @@ def supervise(runtime, lock_fd):
                         log.seek(0)
                         log.write(tail)
                         log.truncate()
-                time.sleep(1)
+                time.sleep(5)
             terminate_child(process)
             code = process.returncode
             process = None
@@ -1258,6 +1349,8 @@ def main():
             same_goal = prior_config.get('goal_id') == config['goal_id']
             config['allow_existing_credits'] = (args.allow_existing_credits if args.allow_existing_credits is not None
                                                 else prior_config.get('allow_existing_credits', False) if same_goal else False)
+            config['auto_account_recovery'] = True
+            config['account_budgets'] = prior_config.get('account_budgets', {}) if same_goal else {}
             config['usage_budget'] = (prior_config.get('usage_budget') if same_goal else None)
             if config['usage_budget'] is None:
                 config['usage_budget'] = initialize_usage_budget(rpc('account/rateLimits/read', {}), time.time())

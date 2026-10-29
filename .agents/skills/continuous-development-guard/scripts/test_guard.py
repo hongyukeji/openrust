@@ -693,7 +693,7 @@ class QuotaCycles(unittest.TestCase):
         self.refresh()
         self.assertEqual(self.config['usage_budget'], before)
 
-    def monitor_case(self, *, credit='5600', user_changed=False, goal_changed=False, extra_window=False, new_used=0, send_unknown=False, pause_on_quota=None, primary_cause_only=False, credit_on_quota=None, future_wait=False):
+    def monitor_case(self, *, credit='5600', user_changed=False, goal_changed=False, extra_window=False, new_used=0, send_unknown=False, pause_on_quota=None, primary_cause_only=False, credit_on_quota=None, future_wait=False, new_account=False):
         self.response = quota_snapshot('5600', 50)
         self.config['usage_budget'] = recovery.initialize_usage_budget(self.response, 100)
         if extra_window:
@@ -707,10 +707,16 @@ class QuotaCycles(unittest.TestCase):
             windows = {'primary': windows['primary']}
         state = {'percentage_pause': {'goal': current, 'controls': controls, 'windows': windows,
                                      'resume_status': 'waiting', 'next_quota_at': 3100 if future_wait else 0}}
+        if new_account:
+            self.config['auto_account_recovery'] = True
+            state['percentage_pause'].update(account_recovery=True, account_id=self.response['accountId'], windows={})
+            self.response['accountId'] = 'second-account'
         self.response['rateLimits']['primary'].update(usedPercent=new_used, resetsAt=4000)
         self.response['rateLimits']['credits']['balance'] = credit
         if extra_window:
             self.response['rateLimits']['secondary']['usedPercent'] = 90
+        if new_account and extra_window:
+            self.response['rateLimits']['secondary'] = None
         fresh_controls = dict(controls, last_user_at=2) if user_changed else controls
         if goal_changed:
             current = dict(current, updated_at_ms=124)
@@ -743,6 +749,115 @@ class QuotaCycles(unittest.TestCase):
                 self.assertEqual(recovery.monitor_percentage_pause(self.runtime, state, self.config, current, 2002),
                                  'percentage_pause_not_owned')
             return outcome, calls, send.call_count, state
+
+    def test_long_quota_sleep_has_no_client_calls_and_login_change_wakes_it(self):
+        current = {'id': 'goal', 'status': 'paused'}
+        pause = {'goal': current, 'resume_status': 'waiting', 'account_recovery': True,
+                 'login_revision': [1, 2, 3], 'next_quota_at': 999999, 'controls': {}}
+        state = {'percentage_pause': pause}
+        with patch.object(recovery, 'binding_valid', return_value=True), \
+             patch.object(recovery, 'login_revision', return_value=[1, 2, 3]), \
+             patch.object(recovery, 'percentage_pause_controls') as controls, patch.object(recovery, 'rpc') as rpc:
+            self.assertEqual(recovery.monitor_percentage_pause(self.runtime, state, self.config, current, 100),
+                             'account_budget_sleep')
+            controls.assert_not_called(); rpc.assert_not_called()
+        with patch.object(recovery, 'binding_valid', return_value=True), \
+             patch.object(recovery, 'login_revision', return_value=[2, 2, 3]), \
+             patch.object(recovery, 'percentage_pause_controls', return_value={}), \
+             patch.object(recovery, 'rpc', return_value={}) as rpc:
+            recovery.monitor_percentage_pause(self.runtime, state, self.config, current, 200)
+            rpc.assert_called_once_with('account/rateLimits/read', {})
+        self.assertEqual(pause['login_revision'], [2, 2, 3])
+
+    def test_client_failure_enters_sleep_without_repeating_until_deadline(self):
+        current = {'id': 'goal', 'status': 'paused'}
+        pause = {'goal': current, 'resume_status': 'waiting', 'account_recovery': True,
+                 'login_revision': [1, 2, 3], 'next_quota_at': 0, 'controls': {}}
+        state = {'percentage_pause': pause}
+        for fail_controls in (True, False):
+            with self.subTest(fail_controls=fail_controls):
+                pause.update(next_quota_at=0, wait_attempts=0)
+                with patch.object(recovery, 'binding_valid', return_value=True), \
+                     patch.object(recovery, 'login_revision', return_value=[1, 2, 3]), \
+                     patch.object(recovery, 'percentage_pause_controls', **({'side_effect': OSError('offline')} if fail_controls else {'return_value': {}})) as controls, \
+                     patch.object(recovery, 'rpc', side_effect=OSError('offline')) as rpc:
+                    self.assertEqual(recovery.monitor_percentage_pause(self.runtime, state, self.config, current, 100),
+                                     'account_budget_unavailable')
+                    self.assertEqual(pause['next_quota_at'], 400)
+                    self.assertEqual(recovery.monitor_percentage_pause(self.runtime, state, self.config, current, 220),
+                                     'account_budget_sleep')
+                    self.assertEqual(controls.call_count, 1)
+                    self.assertEqual(rpc.call_count, 0 if fail_controls else 1)
+                    recovery.monitor_percentage_pause(self.runtime, state, self.config, current, 400)
+                    self.assertEqual(pause['next_quota_at'], 1000)
+
+    def test_exhausted_accounts_back_off_and_honour_near_reset(self):
+        pause = {}; response = quota_snapshot('0', 100)
+        response['rateLimits']['primary']['resetsAt'] = 600000
+        delays = [recovery.budget_wait_deadline(pause, response, 100) - 100 for _ in range(10)]
+        self.assertEqual(delays[:3], [300, 600, 1200])
+        self.assertEqual(delays[-1], 21600)
+        response['rateLimits']['primary'].update(resetsAt=700, usedPercent=80)
+        self.assertEqual(recovery.budget_wait_deadline(pause, response, 100), 730)
+
+    def test_new_single_window_account_can_resume_old_dual_window_pause(self):
+        outcome, calls, sends, state = self.monitor_case(new_account=True, credit='0', extra_window=True)
+        self.assertEqual(outcome, 'percentage_resumed')
+        self.assertEqual(sends, 1)
+
+    def test_new_account_recovers_owned_credit_pause_once(self):
+        outcome, calls, sends, state = self.monitor_case(new_account=True, credit='0')
+        self.assertEqual(outcome, 'percentage_resumed')
+        self.assertEqual(sends, 1)
+        self.assertEqual(calls.count('thread/goal/set'), 1)
+        self.assertEqual(self.config['usage_budget']['account_id'], 'second-account')
+        self.assertEqual(self.config['usage_budget']['windows']['primary']['reserve'], '20.0')
+        self.assertEqual(state['percentage_pause']['resume_status'], 'sent')
+
+    def test_new_account_cannot_override_manual_pause_or_unknown_send(self):
+        for options in ({'user_changed': True}, {'goal_changed': True}, {'send_unknown': True}):
+            with self.subTest(options=options):
+                outcome, calls, sends, state = self.monitor_case(new_account=True, credit='0', **options)
+                self.assertNotEqual(outcome, 'percentage_resumed')
+                self.assertLessEqual(sends, 1 if options.get('send_unknown') else 0)
+
+    def test_account_switch_back_keeps_reserve_and_rejects_invalid_quota(self):
+        original = json.loads(json.dumps(self.config['usage_budget']))
+        changed = quota_snapshot('0', 0); changed['accountId'] = 'second-account'
+        for field, value in (('ordinaryUsageAllowed', False), ('accountId', None)):
+            invalid = dict(changed, **{field: value})
+            self.assertFalse(recovery.refresh_account_budget(self.runtime, self.config, invalid, 200))
+            self.assertEqual(self.config['usage_budget'], original)
+        self.assertTrue(recovery.refresh_account_budget(self.runtime, self.config, changed, 200))
+        second = json.loads(json.dumps(self.config['usage_budget']))
+        old = quota_snapshot('1120', 50)
+        self.assertTrue(recovery.refresh_account_budget(self.runtime, self.config, old, 300))
+        self.assertEqual(self.config['usage_budget'], original)
+        self.assertEqual(recovery.usage_budget_status(old, self.config['usage_budget']), 'usage_budget_reached')
+        self.assertTrue(recovery.refresh_account_budget(self.runtime, self.config, changed, 400))
+        self.assertEqual(self.config['usage_budget'], second)
+        persisted = json.loads((self.runtime / 'config.json').read_text())
+        self.assertEqual(persisted['usage_budget'], second)
+        self.assertEqual(len(persisted['account_budgets']), 2)
+
+    def test_credit_pause_has_ownership_and_keeps_account_monitoring(self):
+        self.config['auto_account_recovery'] = True
+        current = {'id': 'goal', 'status': 'paused', 'updated_at_ms': 123}
+        controls = {'last_user_at': 'stamp', 'user_key': 'u', 'control': None}
+        state = {}
+        with patch.object(recovery, 'percentage_pause_controls', return_value=controls), \
+             patch.object(recovery, 'goal', return_value=current):
+            self.assertTrue(recovery.owned_percentage_pause(self.runtime, state, self.config, controls, {}))
+        state['percentage_pause']['next_quota_at'] = 0
+        exhausted = quota_snapshot('1120', 50)
+        with patch.object(recovery, 'binding_valid', return_value=True), \
+             patch.object(recovery, 'percentage_pause_controls', return_value=controls), \
+             patch.object(recovery, 'rpc', return_value=exhausted), patch.object(recovery, 'run_json') as send:
+            result = recovery.monitor_percentage_pause(self.runtime, state, self.config, current, 200)
+        self.assertEqual(result, 'account_budget_wait')
+        self.assertEqual(state['percentage_pause']['resume_status'], 'waiting')
+        self.assertEqual(state['percentage_pause']['next_quota_at'], 500)
+        send.assert_not_called()
 
     def test_only_owned_percentage_pause_resumes_once_after_reset(self):
         outcome, calls, sends, state = self.monitor_case()
