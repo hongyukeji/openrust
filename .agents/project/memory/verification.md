@@ -67,6 +67,10 @@ R2-M 的编译/启用分离、模块 Provider 配置时点、命名空间资源�
 | 有限任务链/批次 | 双库任务顺序、停止/继续、并发上限、事务回滚与进度测试已有记录 | 单个持久 parent job；重试可重跑全部子任务，不提供逐子任务独立 checkpoint |
 | Scheduler | 两库独立进程同 slot 竞争、提交后异常退出去重、once 和 SIGTERM；UTC interval/daily 边界 | 触发去重不是副作用 exactly-once；不是生产负载/完整集群验收 |
 
+## R3-F 域路由
+
+公开 domain group、独立域参数、命名域 URL 与原请求候选分派已通过定向路由87项、生产模块和生成应用专项、根无参数入口真实TCP及适用workspace/feature/MSRV门禁；独立不同模型复审无 blocker/should-fix。命令、计数、失败原因和清理证据见 [R3-F testing](testing.md#r3-f-laravel-domain-routing)。ASCII/punycode标签、域与路径参数同名拒绝、同域Axum重复路由报错及参数化fallback scope拒绝是公开限定，不据此关闭完整Laravel路由/R3矩阵。
+
 ## 尚未关闭的门禁
 
 - 目录收尾通过 5-package/265-test-list 对比、workspace 门禁、双库 server 集成、生成项目及实际 hello TCP HTTP smoke；当时保留 `apps/server` 有明确评估证据，现按 ADR-062 迁入根 package。ADR-039 源码交付已另行通过干净副本和双库验收。以上不等同于 v1 集群或性能门禁。

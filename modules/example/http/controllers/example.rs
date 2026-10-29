@@ -3,7 +3,13 @@
 use super::super::resources::example::ExampleInfo;
 use crate::modules::example::services::ExampleMessage;
 use openrust::http::RouteUrlGenerator;
-use openrust::http::{Inject, Json};
+use openrust::http::{DomainParams, Inject, Json, Path};
+use serde::Deserialize;
+
+#[derive(Deserialize)]
+pub(crate) struct ExampleDomainParams {
+    account: String,
+}
 
 pub(crate) async fn show(Inject(message): Inject<ExampleMessage>) -> Json<ExampleInfo> {
     Json(ExampleInfo {
@@ -17,6 +23,23 @@ pub(crate) async fn route_url(
 ) -> openrust::Result<Json<serde_json::Value>> {
     let target = urls.route("example.index", &std::collections::BTreeMap::new())?;
     Ok(Json(serde_json::json!({"url": target})))
+}
+
+pub(crate) async fn domain_route(
+    DomainParams(domain): DomainParams<ExampleDomainParams>,
+    Path(id): Path<String>,
+    urls: RouteUrlGenerator,
+) -> openrust::Result<Json<serde_json::Value>> {
+    let parameters = std::collections::BTreeMap::from([
+        ("account".to_owned(), domain.account.clone()),
+        ("id".to_owned(), id.clone()),
+    ]);
+    let url = urls.route("example.domain.orders.show", &parameters)?;
+    Ok(Json(serde_json::json!({
+        "account": domain.account,
+        "id": id,
+        "url": url,
+    })))
 }
 
 pub(crate) async fn middleware() -> Json<&'static str> {

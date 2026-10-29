@@ -4,18 +4,22 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use crate::core::{Error, Result};
+use crate::http::domain::DomainPattern;
+use crate::http::routes::NamedRouteDefinition;
 use axum::extract::FromRequestParts;
 use axum::http::{StatusCode, request::Parts};
 
 #[derive(Clone)]
 struct NamedRoute {
     path: String,
+    domain: Option<String>,
 }
 
 /// 根据 Laravel 式命名路由生成绝对 URL。
 ///
-/// 在 HTTP handler 中可直接提取。命名路由参数按路径段编码；未用于路径的参数成为 query 参数。
-/// 绝对 URL 的 host 和 scheme 来自 `app.url`，不采信当前请求的 `Host`。
+/// 在 HTTP handler 中可直接提取。域参数按单个 DNS 标签校验，路径参数按路径段编码；
+/// 未用于域或路径的参数成为 query 参数。scheme 和端口来自 `app.url`；
+/// host 使用已登记的域模板，无域模板时来自 `app.url`，不采信当前请求的 `Host`。
 #[derive(Clone)]
 pub struct RouteUrlGenerator {
     inner: Arc<RouteUrlInner>,
@@ -36,7 +40,7 @@ impl RouteUrlGenerator {
         }
     }
 
-    pub(crate) fn new(base_url: &str, routes: Vec<(String, String)>) -> Result<Self> {
+    pub(crate) fn new(base_url: &str, routes: Vec<NamedRouteDefinition>) -> Result<Self> {
         let base_url = ::url::Url::parse(base_url).map_err(|_| {
             Error::custom("url_base_invalid", "app.url must be an absolute HTTP URL")
         })?;
@@ -54,15 +58,38 @@ impl RouteUrlGenerator {
         }
 
         let mut named = BTreeMap::new();
-        for (name, path) in routes {
+        for NamedRouteDefinition { name, path, domain } in routes {
             if name.trim().is_empty() || name.chars().any(char::is_whitespace) {
                 return Err(Error::custom(
                     "http_route_name_invalid",
                     "route names must be non-empty and contain no whitespace",
                 ));
             }
+            if let Some(pattern) = &domain {
+                let pattern = DomainPattern::parse(pattern)?;
+                for label in pattern.as_str().split('.') {
+                    if let Some(parameter) = label
+                        .strip_prefix('{')
+                        .and_then(|part| part.strip_suffix('}'))
+                        && path
+                            .split('/')
+                            .any(|segment| route_parameter(segment) == Some(parameter))
+                    {
+                        return Err(Error::custom(
+                            "http_route_parameter_duplicate",
+                            "domain and path parameter names must differ",
+                        ));
+                    }
+                }
+            }
             if named
-                .insert(name.clone(), NamedRoute { path: path.clone() })
+                .insert(
+                    name.clone(),
+                    NamedRoute {
+                        path: path.clone(),
+                        domain,
+                    },
+                )
                 .is_some()
             {
                 return Err(Error::custom(
@@ -102,7 +129,7 @@ impl RouteUrlGenerator {
         })
     }
 
-    /// 按名称生成 URL；缺失的路径参数报错，额外参数按字典序加入 query。
+    /// 按名称生成 URL；缺失的域或路径参数报错，额外参数按字典序加入 query。
     pub fn route(&self, name: &str, parameters: &BTreeMap<String, String>) -> Result<String> {
         let route = self.inner.routes.get(name).ok_or_else(|| {
             generation_error(
@@ -118,6 +145,44 @@ impl RouteUrlGenerator {
                 "app.url is unavailable for named routes",
             )
         })?;
+        if let Some(domain) = &route.domain {
+            let mut generated = Vec::new();
+            for label in domain.split('.') {
+                if let Some(parameter) = label
+                    .strip_prefix('{')
+                    .and_then(|part| part.strip_suffix('}'))
+                {
+                    let value = remaining.remove(parameter).ok_or_else(|| {
+                        generation_error(
+                            "http_route_parameter_missing",
+                            format!("required route parameter `{parameter}` is missing"),
+                        )
+                    })?;
+                    if !valid_domain_label(&value) {
+                        return Err(generation_error(
+                            "http_route_parameter_invalid",
+                            format!("domain route parameter `{parameter}` must be one DNS label"),
+                        ));
+                    }
+                    generated.push(value.to_ascii_lowercase());
+                } else {
+                    generated.push(label.to_owned());
+                }
+            }
+            let host = generated.join(".");
+            if DomainPattern::parse(&host).is_err() {
+                return Err(generation_error(
+                    "http_route_parameter_invalid",
+                    "domain route parameter is not a valid DNS label",
+                ));
+            }
+            url.set_host(Some(&host)).map_err(|_| {
+                generation_error(
+                    "http_route_parameter_invalid",
+                    "domain route host is invalid",
+                )
+            })?;
+        }
         let mut path_segments = url.path_segments_mut().map_err(|()| {
             Error::custom(
                 "url_base_invalid",
@@ -199,4 +264,21 @@ fn route_parameter(segment: &str) -> Option<&str> {
             .chars()
             .any(|c| matches!(c, '{' | '}' | '?' | '*')))
     .then_some(parameter)
+}
+
+fn valid_domain_label(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 63
+        && value.is_ascii()
+        && value
+            .as_bytes()
+            .first()
+            .is_some_and(u8::is_ascii_alphanumeric)
+        && value
+            .as_bytes()
+            .last()
+            .is_some_and(u8::is_ascii_alphanumeric)
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
 }

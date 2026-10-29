@@ -14,8 +14,8 @@ use openrust::core::{RateLimitBucket, RateLimitFuture, RateLimitStore, RateLimit
 use openrust::http::RateLimitLayer;
 use openrust::http::axum;
 use openrust::http::{
-    Created, HttpServiceProvider, Inject, NoContent, PageParams, Paginated, RouteGroup,
-    RouteUrlGenerator, Routes, Validated, build_router,
+    Created, DomainParams, HttpServiceProvider, Inject, NoContent, PageParams, Paginated,
+    RouteGroup, RouteUrlGenerator, Routes, Validated, build_router,
 };
 use openrust::http::{Json, Path, Query};
 
@@ -27,6 +27,1196 @@ use tower::ServiceExt;
 use validator::Validate;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
+
+#[derive(Deserialize)]
+struct DomainTenant {
+    account: String,
+}
+
+async fn domain_order(
+    DomainParams(tenant): DomainParams<DomainTenant>,
+    Path(id): Path<String>,
+    request: Request,
+) -> String {
+    let uri = request.uri().to_string();
+    let header = request
+        .headers()
+        .get("x-domain-proof")
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("missing")
+        .to_owned();
+    let body = to_bytes(request.into_body(), 4096)
+        .await
+        .unwrap_or_default();
+    format!(
+        "{}:{id}:{uri}:{header}:{}",
+        tenant.account,
+        String::from_utf8_lossy(&body)
+    )
+}
+
+async fn root_order(request: Request) -> String {
+    let uri = request.uri().to_string();
+    let body = to_bytes(request.into_body(), 4096)
+        .await
+        .unwrap_or_default();
+    format!("root:{uri}:{}", String::from_utf8_lossy(&body))
+}
+
+async fn terminal_domain_not_found() -> StatusCode {
+    StatusCode::NOT_FOUND
+}
+
+async fn domain_fallback_marker() -> &'static str {
+    "domain fallback"
+}
+async fn root_fallback_marker() -> &'static str {
+    "root fallback"
+}
+async fn first_domain_marker() -> &'static str {
+    "first domain"
+}
+async fn second_domain_marker() -> &'static str {
+    "second domain"
+}
+
+async fn merged_named_url(urls: RouteUrlGenerator) -> openrust::Result<Json<String>> {
+    let parameters = std::collections::BTreeMap::from([
+        ("account".into(), "Acme".into()),
+        ("id".into(), "42".into()),
+    ]);
+    Ok(Json(urls.route("merged.show", &parameters)?))
+}
+
+async fn merged_explicit_named_url(urls: RouteUrlGenerator) -> openrust::Result<Json<String>> {
+    Ok(Json(urls.route(
+        "explicit.named",
+        &std::collections::BTreeMap::new(),
+    )?))
+}
+
+async fn domain_named_url(urls: RouteUrlGenerator) -> openrust::Result<Json<String>> {
+    let parameters = std::collections::BTreeMap::from([
+        ("account".into(), "Acme".into()),
+        ("id".into(), "a b/c".into()),
+        ("page".into(), "2".into()),
+    ]);
+    Ok(Json(urls.route("orders.show", &parameters)?))
+}
+
+async fn domain_named_url_invalid(urls: RouteUrlGenerator) -> openrust::Result<Json<String>> {
+    let parameters = std::collections::BTreeMap::from([
+        ("account".into(), "a.b".into()),
+        ("id".into(), "1".into()),
+    ]);
+    Ok(Json(urls.route("orders.show", &parameters)?))
+}
+
+async fn domain_test_router() -> Result<axum::Router, Box<dyn std::error::Error>> {
+    let mut config = FrameworkConfig::default();
+    config.app.url = "https://app.example.test:8443/base".into();
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(config));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(TestRoutes::new(|routes| {
+            routes
+                .post("/orders/{id}", root_order)
+                .get("/named-domain", domain_named_url)
+                .get("/named-domain-invalid", domain_named_url_invalid)
+                .fallback(fallback_echo)
+                .group(
+                    RouteGroup::new().domain("{account}.example.test"),
+                    |domain| {
+                        domain
+                            .get("/orders/{id}", domain_order)
+                            .name("orders.show")
+                            .get("/terminal", terminal_domain_not_found)
+                            .fallback(fallback_echo)
+                    },
+                )
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    Ok(build_router(&app)?)
+}
+
+#[tokio::test]
+async fn domain_routes_precede_root_and_keep_body_for_method_fallback() -> TestResult {
+    let router = domain_test_router().await?;
+    let response = router
+        .clone()
+        .oneshot(
+            Request::get("/orders/7?q=1")
+                .header(header::HOST, "ACME.example.test:8443")
+                .header("x-domain-proof", "preserved")
+                .body(Body::from("get body"))?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        to_bytes(response.into_body(), 4096).await?,
+        "acme:7:/orders/7?q=1:preserved:get body"
+    );
+
+    let response = router
+        .clone()
+        .oneshot(
+            Request::post("/orders/7?q=2")
+                .header(header::HOST, "acme.example.test")
+                .body(Body::from("post body"))?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        to_bytes(response.into_body(), 4096).await?,
+        "root:/orders/7?q=2:post body"
+    );
+
+    let streamed = Body::from_stream(futures_util::stream::iter([
+        Ok::<_, std::io::Error>(bytes::Bytes::from_static(b"stream ")),
+        Ok(bytes::Bytes::from_static(b"body")),
+    ]));
+    let response = router
+        .clone()
+        .oneshot(
+            Request::post("/orders/8?stream=1")
+                .header(header::HOST, "acme.example.test")
+                .body(streamed)?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        to_bytes(response.into_body(), 4096).await?,
+        "root:/orders/8?stream=1:stream body"
+    );
+
+    let response = router
+        .clone()
+        .oneshot(
+            Request::put("/orders/7")
+                .header(header::HOST, "acme.example.test")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED);
+    let allow = response
+        .headers()
+        .get(header::ALLOW)
+        .ok_or("missing Allow")?
+        .to_str()?;
+    assert!(allow.contains("GET") && allow.contains("POST"), "{allow}");
+
+    let terminal = router
+        .clone()
+        .oneshot(
+            Request::get("/terminal")
+                .header(header::HOST, "acme.example.test")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(terminal.status(), StatusCode::NOT_FOUND);
+    let missing = router
+        .clone()
+        .oneshot(
+            Request::get("/unknown")
+                .header(header::HOST, "acme.example.test")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(missing.status(), StatusCode::OK);
+    assert_eq!(
+        to_bytes(missing.into_body(), 4096).await?,
+        "/unknown|missing|"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn domain_group_middleware_runs_only_for_matched_handler() -> TestResult {
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ));
+    let calls = Arc::new(AtomicUsize::new(0));
+    let counter = Arc::clone(&calls);
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(TestRoutes::new(move |routes| {
+            let counter = Arc::clone(&counter);
+            routes.post("/shared", root_order).group(
+                RouteGroup::new()
+                    .domain("{account}.example.test")
+                    .middleware(axum::middleware::from_fn(
+                        move |request: Request, next: Next| {
+                            let counter = Arc::clone(&counter);
+                            async move {
+                                counter.fetch_add(1, Ordering::SeqCst);
+                                next.run(request).await
+                            }
+                        },
+                    )),
+                |domain| domain.get("/shared", grouped_route),
+            )
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let router = build_router(&app)?;
+    let response = router
+        .clone()
+        .oneshot(
+            Request::post("/shared")
+                .header(header::HOST, "a.example.test")
+                .body(Body::from("payload"))?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    let response = router
+        .oneshot(
+            Request::get("/shared")
+                .header(header::HOST, "a.example.test")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    Ok(())
+}
+
+#[tokio::test]
+async fn scoped_domain_fallback_waits_for_normal_routes_and_only_owns_its_host_and_path()
+-> TestResult {
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(TestRoutes::new(|routes| {
+            routes
+                .get("/api/known", grouped_route)
+                .fallback(root_fallback_marker)
+                .group(
+                    RouteGroup::new().domain("a.example.test").prefix("/api"),
+                    |domain| domain.fallback(domain_fallback_marker),
+                )
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let router = build_router(&app)?;
+    for (host, path, expected) in [
+        ("a.example.test", "/api/known", "grouped"),
+        ("a.example.test", "/api/missing", "domain fallback"),
+        ("a.example.test", "/outside", "root fallback"),
+        ("b.example.test", "/api/missing", "root fallback"),
+    ] {
+        let response = router
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .header(header::HOST, host)
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(response.status(), StatusCode::OK, "{host}{path}");
+        assert_eq!(
+            to_bytes(response.into_body(), 4096).await?,
+            expected,
+            "{host}{path}"
+        );
+    }
+    let method = router
+        .oneshot(
+            Request::post("/api/known")
+                .header(header::HOST, "a.example.test")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(method.status(), StatusCode::METHOD_NOT_ALLOWED);
+    Ok(())
+}
+
+#[tokio::test]
+async fn domain_authority_and_named_url_are_checked() -> TestResult {
+    let router = domain_test_router().await?;
+    for host in [
+        "bad.example.test, evil.test",
+        "acme.example.test:99999",
+        "acme.example.test:",
+        "acme.example.test:abc",
+        "bad_name.example.test",
+        "user@acme.example.test",
+    ] {
+        let response = router
+            .clone()
+            .oneshot(
+                Request::get("/orders/1")
+                    .header(header::HOST, host)
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{host}");
+    }
+    let response = router
+        .clone()
+        .oneshot(
+            Request::get("/orders/1")
+                .header(header::HOST, "acme.example.test")
+                .header(header::HOST, "other.example.test")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let response = router
+        .clone()
+        .oneshot(
+            Request::get("http://[::1]/unknown")
+                .header(header::HOST, "[0:0:0:0:0:0:0:1]")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_ne!(response.status(), StatusCode::BAD_REQUEST);
+    let response = router
+        .clone()
+        .oneshot(
+            Request::get("http://acme.example.test/orders/1")
+                .header(header::HOST, "other.example.test")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let response = router
+        .oneshot(
+            Request::get("/named-domain")
+                .header(header::HOST, "attacker.example.test")
+                .header("x-forwarded-host", "evil.test")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        json_body(response).await["data"],
+        "https://acme.example.test:8443/base/orders/a%20b%2Fc?page=2"
+    );
+    let invalid = domain_test_router()
+        .await?
+        .oneshot(
+            Request::get("/named-domain-invalid")
+                .header(header::HOST, "attacker.example.test")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(invalid.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(
+        json_body(invalid).await["code"],
+        "http_route_parameter_invalid"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn interleaved_same_pattern_routes_do_not_jump_ahead_of_overlapping_domain() -> TestResult {
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(TestRoutes::new(|routes| {
+            routes
+                .group(
+                    RouteGroup::new().domain("{account}.example.test"),
+                    |first| first.get("/before", first_domain_marker),
+                )
+                .group(RouteGroup::new().domain("foo.{region}.test"), |middle| {
+                    middle.get("/overlap", second_domain_marker)
+                })
+                .group(RouteGroup::new().domain("{account}.example.test"), |last| {
+                    last.get("/overlap", first_domain_marker)
+                })
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let router = build_router(&app)?;
+    let response = router
+        .clone()
+        .oneshot(
+            Request::get("/overlap")
+                .header(header::HOST, "foo.example.test")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(to_bytes(response.into_body(), 4096).await?, "second domain");
+    let response = router
+        .oneshot(
+            Request::get("/overlap")
+                .header(header::HOST, "bar.example.test")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(to_bytes(response.into_body(), 4096).await?, "first domain");
+    Ok(())
+}
+
+#[tokio::test]
+async fn nested_interleaved_domain_routes_keep_each_declaration_position() -> TestResult {
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(TestRoutes::new(|routes| {
+            routes.group(
+                RouteGroup::new().domain("{account}.example.test"),
+                |outer| {
+                    outer
+                        .get("/before", first_domain_marker)
+                        .group(RouteGroup::new().domain("foo.{region}.test"), |middle| {
+                            middle.get("/overlap", second_domain_marker)
+                        })
+                        .get("/overlap", first_domain_marker)
+                },
+            )
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let router = build_router(&app)?;
+    let response = router
+        .clone()
+        .oneshot(
+            Request::get("/overlap")
+                .header(header::HOST, "foo.example.test")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(to_bytes(response.into_body(), 4096).await?, "second domain");
+    let response = router
+        .oneshot(
+            Request::get("/overlap")
+                .header(header::HOST, "bar.example.test")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(to_bytes(response.into_body(), 4096).await?, "first domain");
+    Ok(())
+}
+
+#[tokio::test]
+async fn disjoint_same_pattern_buckets_still_reject_duplicate_method_route() -> TestResult {
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(TestRoutes::new(|routes| {
+            routes
+                .group(
+                    RouteGroup::new().domain("{account}.example.test"),
+                    |first| first.get("/duplicate", first_domain_marker),
+                )
+                .group(RouteGroup::new().domain("foo.{region}.test"), |middle| {
+                    middle.get("/other", second_domain_marker)
+                })
+                .group(RouteGroup::new().domain("{account}.example.test"), |last| {
+                    last.get("/duplicate", second_domain_marker)
+                })
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let error = build_router(&app)
+        .err()
+        .ok_or("duplicate domain route unexpectedly built")?;
+    assert_eq!(error.code(), "http_route_registration_failed");
+    Ok(())
+}
+
+#[tokio::test]
+async fn independent_route_tables_keep_merge_declaration_order() -> TestResult {
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(TestRoutes::new(|routes| {
+            let first = Routes::new().get("/unrelated", grouped_route).group(
+                RouteGroup::new().domain("{account}.example.test"),
+                |domain| domain.get("/overlap", first_domain_marker),
+            );
+            let second = Routes::new()
+                .group(RouteGroup::new().domain("foo.{region}.test"), |domain| {
+                    domain.get("/overlap", second_domain_marker)
+                });
+            routes.merge(first).merge(second)
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let router = build_router(&app)?;
+    let response = router
+        .oneshot(
+            Request::get("/overlap")
+                .header(header::HOST, "foo.example.test")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(to_bytes(response.into_body(), 4096).await?, "first domain");
+    Ok(())
+}
+
+#[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "同一生产路由表需验证合并域、独立域、fallback、具名 URL 与 middleware"
+)]
+async fn merged_root_routes_bind_to_current_domain_and_keep_nested_contracts() -> TestResult {
+    let mut config = FrameworkConfig::default();
+    config.app.url = "https://app.example.test:8443/base".into();
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(config));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(TestRoutes::new(|routes| {
+            routes.group(
+                RouteGroup::new()
+                    .domain("{account}.example.test")
+                    .prefix("/api"),
+                |domain| {
+                    domain
+                        .get("/direct", first_domain_marker)
+                        .merge(
+                            Routes::new()
+                                .get("/merged/{id}", domain_order)
+                                .name("merged.show")
+                                .layer(axum::middleware::from_fn(
+                                    |request: Request, next: Next| async move {
+                                        let mut response = next.run(request).await;
+                                        response.headers_mut().insert(
+                                            "x-merged-middleware",
+                                            axum::http::HeaderValue::from_static("applied"),
+                                        );
+                                        response
+                                    },
+                                ))
+                                .group(
+                                    RouteGroup::new().domain("special.example.test"),
+                                    |explicit| {
+                                        explicit
+                                            .get("/explicit", second_domain_marker)
+                                            .get("/overlap", second_domain_marker)
+                                    },
+                                )
+                                .get("/overlap", first_domain_marker)
+                                .group(
+                                    RouteGroup::new().domain("special.example.test"),
+                                    |explicit| explicit.get("/named", second_domain_marker),
+                                )
+                                .fallback(domain_fallback_marker),
+                        )
+                        .name("explicit.named")
+                        .get("/merged-url", merged_named_url)
+                        .get("/explicit-url", merged_explicit_named_url)
+                },
+            )
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let router = build_router(&app)?;
+    for (host, path, expected) in [
+        ("acme.example.test", "/api/direct", "first domain"),
+        (
+            "acme.example.test",
+            "/api/merged/42",
+            "acme:42:/merged/42:missing:",
+        ),
+        ("special.example.test", "/api/explicit", "second domain"),
+        ("special.example.test", "/api/overlap", "second domain"),
+        ("acme.example.test", "/api/missing", "domain fallback"),
+    ] {
+        let response = router
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .header(header::HOST, host)
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(response.status(), StatusCode::OK, "{host}{path}");
+        if path == "/api/merged/42" {
+            assert_eq!(response.headers()["x-merged-middleware"], "applied");
+        }
+        assert_eq!(to_bytes(response.into_body(), 4096).await?, expected);
+    }
+    let generated = router
+        .clone()
+        .oneshot(
+            Request::get("/api/merged-url")
+                .header(header::HOST, "acme.example.test")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(generated.status(), StatusCode::OK);
+    assert_eq!(
+        json_body(generated).await["data"],
+        "https://acme.example.test:8443/base/api/merged/42"
+    );
+    let explicit_url = router
+        .clone()
+        .oneshot(
+            Request::get("/api/explicit-url")
+                .header(header::HOST, "acme.example.test")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(explicit_url.status(), StatusCode::OK);
+    assert_eq!(
+        json_body(explicit_url).await["data"],
+        "https://special.example.test:8443/base/api/named"
+    );
+    let other_host = router
+        .oneshot(
+            Request::get("/api/merged/42")
+                .header(header::HOST, "unrelated.test")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(other_host.status(), StatusCode::NOT_FOUND);
+    Ok(())
+}
+
+#[tokio::test]
+async fn merged_root_paths_cannot_reuse_domain_parameter_even_through_prefix() -> TestResult {
+    for (prefix, path) in [("/api", "/{tenant}"), ("/{tenant}", "/x")] {
+        let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+            FrameworkConfig::default(),
+        ));
+        let mut builder = openrust::core::ProviderBuilder::new();
+        builder
+            .provider(HttpServiceProvider)
+            .provider(TestRoutes::new(move |routes| {
+                routes.group(
+                    RouteGroup::new()
+                        .domain("{tenant}.example.test")
+                        .prefix(prefix),
+                    |domain| domain.merge(Routes::new().get(path, first_domain_marker)),
+                )
+            }));
+        let app = builder
+            .start(sources)
+            .await
+            .and_then(openrust::App::from_provider_runtime)?;
+        let error = build_router(&app)
+            .err()
+            .ok_or("colliding merged domain route unexpectedly built")?;
+        assert_eq!(error.code(), "http_route_parameter_duplicate", "{prefix}");
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn overlapping_domain_fallbacks_follow_declaration_order_through_merge_and_groups()
+-> TestResult {
+    for (merged, broad_first) in [(true, true), (true, false), (false, true), (false, false)] {
+        let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+            FrameworkConfig::default(),
+        ));
+        let mut builder = openrust::core::ProviderBuilder::new();
+        builder
+            .provider(HttpServiceProvider)
+            .provider(TestRoutes::new(move |routes| {
+                routes.group(
+                    RouteGroup::new()
+                        .domain("{account}.example.test")
+                        .prefix("/api"),
+                    |domain| {
+                        let explicit = |routes: Routes| {
+                            routes.group(
+                                RouteGroup::new()
+                                    .domain("foo.{region}.test")
+                                    .prefix("/nested"),
+                                |nested| nested.fallback(second_domain_marker),
+                            )
+                        };
+                        match (merged, broad_first) {
+                            (true, true) => {
+                                domain.merge(explicit(Routes::new().fallback(first_domain_marker)))
+                            }
+                            (true, false) => {
+                                domain.merge(explicit(Routes::new()).fallback(first_domain_marker))
+                            }
+                            (false, true) => explicit(domain.fallback(first_domain_marker)),
+                            (false, false) => explicit(domain).fallback(first_domain_marker),
+                        }
+                    },
+                )
+            }));
+        let app = builder
+            .start(sources)
+            .await
+            .and_then(openrust::App::from_provider_runtime)?;
+        let router = build_router(&app)?;
+        let overlap = router
+            .clone()
+            .oneshot(
+                Request::get("/api/nested/missing")
+                    .header(header::HOST, "foo.example.test")
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(overlap.status(), StatusCode::OK);
+        assert_eq!(
+            to_bytes(overlap.into_body(), 4096).await?,
+            if broad_first {
+                "first domain"
+            } else {
+                "second domain"
+            },
+            "merged={merged}, broad_first={broad_first}"
+        );
+        let broad_only = router
+            .clone()
+            .oneshot(
+                Request::get("/api/nested/missing")
+                    .header(header::HOST, "bar.example.test")
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(broad_only.status(), StatusCode::OK);
+        assert_eq!(
+            to_bytes(broad_only.into_body(), 4096).await?,
+            "first domain"
+        );
+        let explicit_only = router
+            .clone()
+            .oneshot(
+                Request::get("/api/nested/missing")
+                    .header(header::HOST, "foo.other.test")
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(explicit_only.status(), StatusCode::OK);
+        assert_eq!(
+            to_bytes(explicit_only.into_body(), 4096).await?,
+            "second domain"
+        );
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn same_domain_fallbacks_choose_deepest_scope_in_either_registration_order() -> TestResult {
+    for root_first in [true, false] {
+        let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+            FrameworkConfig::default(),
+        ));
+        let mut builder = openrust::core::ProviderBuilder::new();
+        builder
+            .provider(HttpServiceProvider)
+            .provider(TestRoutes::new(move |routes| {
+                routes.group(RouteGroup::new().domain("a.example.test"), |domain| {
+                    let nested = |routes: Routes| {
+                        routes.group(RouteGroup::new().prefix("/api"), |api| {
+                            api.fallback(first_domain_marker)
+                                .group(RouteGroup::new().prefix("/v2"), |v2| {
+                                    v2.fallback(second_domain_marker)
+                                })
+                        })
+                    };
+                    if root_first {
+                        nested(domain.fallback(root_fallback_marker))
+                    } else {
+                        nested(domain).fallback(root_fallback_marker)
+                    }
+                })
+            }));
+        let app = builder
+            .start(sources)
+            .await
+            .and_then(openrust::App::from_provider_runtime)?;
+        let router = build_router(&app)?;
+        for (path, expected) in [
+            ("/api/v2/missing", "second domain"),
+            ("/api/missing", "first domain"),
+            ("/outside", "root fallback"),
+        ] {
+            let response = router
+                .clone()
+                .oneshot(
+                    Request::get(path)
+                        .header(header::HOST, "a.example.test")
+                        .body(Body::empty())?,
+                )
+                .await?;
+            assert_eq!(response.status(), StatusCode::OK, "{path}");
+            assert_eq!(
+                to_bytes(response.into_body(), 4096).await?,
+                expected,
+                "root_first={root_first}, path={path}"
+            );
+        }
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn unrestricted_fallbacks_choose_deepest_scope_in_either_registration_order() -> TestResult {
+    for root_first in [true, false] {
+        let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+            FrameworkConfig::default(),
+        ));
+        let mut builder = openrust::core::ProviderBuilder::new();
+        builder
+            .provider(HttpServiceProvider)
+            .provider(TestRoutes::new(move |routes| {
+                let nested = |routes: Routes| {
+                    routes.group(RouteGroup::new().prefix("/api"), |api| {
+                        api.fallback(first_domain_marker)
+                            .group(RouteGroup::new().prefix("/v2"), |v2| {
+                                v2.fallback(second_domain_marker)
+                            })
+                    })
+                };
+                if root_first {
+                    nested(routes.fallback(root_fallback_marker))
+                } else {
+                    nested(routes).fallback(root_fallback_marker)
+                }
+            }));
+        let app = builder
+            .start(sources)
+            .await
+            .and_then(openrust::App::from_provider_runtime)?;
+        let router = build_router(&app)?;
+        for (path, expected) in [
+            ("/api/v2/missing", "second domain"),
+            ("/api/missing", "first domain"),
+            ("/outside", "root fallback"),
+        ] {
+            let response = router
+                .clone()
+                .oneshot(Request::get(path).body(Body::empty())?)
+                .await?;
+            assert_eq!(response.status(), StatusCode::OK, "{path}");
+            assert_eq!(
+                to_bytes(response.into_body(), 4096).await?,
+                expected,
+                "root_first={root_first}, path={path}"
+            );
+        }
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn enclosing_parameter_or_wildcard_prefix_rejects_explicit_domain_fallback() -> TestResult {
+    for (outer, inner) in [
+        ("/{id}", ""),
+        ("/*rest", ""),
+        ("/outer", "/{id}"),
+        ("/outer", "/*rest"),
+    ] {
+        let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+            FrameworkConfig::default(),
+        ));
+        let mut builder = openrust::core::ProviderBuilder::new();
+        builder
+            .provider(HttpServiceProvider)
+            .provider(TestRoutes::new(move |routes| {
+                routes.group(RouteGroup::new().prefix(outer), |enclosing| {
+                    enclosing.group(RouteGroup::new().prefix(inner), |middle| {
+                        middle.group(RouteGroup::new().domain("a.example.test"), |domain| {
+                            domain.fallback(domain_fallback_marker)
+                        })
+                    })
+                })
+            }));
+        let app = builder
+            .start(sources)
+            .await
+            .and_then(openrust::App::from_provider_runtime)?;
+        let error = build_router(&app)
+            .err()
+            .ok_or("parameterized explicit-domain fallback unexpectedly built")?;
+        assert_eq!(
+            error.code(),
+            "http_fallback_scope_unsupported",
+            "outer={outer}, inner={inner}"
+        );
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn unnamed_domain_routes_reject_domain_and_path_parameter_collisions() -> TestResult {
+    for prefix in ["", "/{tenant}"] {
+        let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+            FrameworkConfig::default(),
+        ));
+        let mut builder = openrust::core::ProviderBuilder::new();
+        builder
+            .provider(HttpServiceProvider)
+            .provider(TestRoutes::new(move |routes| {
+                routes.group(
+                    RouteGroup::new()
+                        .domain("{tenant}.example.test")
+                        .prefix(prefix),
+                    |domain| {
+                        domain.get(
+                            if prefix.is_empty() { "/{tenant}" } else { "/x" },
+                            grouped_route,
+                        )
+                    },
+                )
+            }));
+        let app = builder
+            .start(sources)
+            .await
+            .and_then(openrust::App::from_provider_runtime)?;
+        let error = build_router(&app)
+            .err()
+            .ok_or("colliding unnamed domain route unexpectedly built")?;
+        assert_eq!(error.code(), "http_route_parameter_duplicate", "{prefix}");
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn absolute_uri_authority_survives_site_root_forward_to_domain_route() -> TestResult {
+    let mut config = FrameworkConfig::default();
+    config.server.root_target = "forward:/forwarded".to_owned();
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(config));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder.provider(HttpServiceProvider).provider(TestRoutes::new(|routes| {
+        routes.group(RouteGroup::new().domain("{account}.example.test"), |domain| {
+            domain.get("/forwarded", |DomainParams(tenant): DomainParams<DomainTenant>, request: Request| async move {
+                format!("{}:{}", tenant.account, request.uri())
+            })
+        })
+    }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let router = build_router(&app)?;
+    let response = router
+        .oneshot(Request::get("http://acme.example.test/?q=1").body(Body::empty())?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        to_bytes(response.into_body(), 4096).await?,
+        "acme:http://acme.example.test/forwarded?q=1"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn domain_registration_rejects_invalid_and_duplicate_parameter_contracts() -> TestResult {
+    for (pattern, path, named, expected) in [
+        (
+            "pre-{account}.example.test",
+            "/x",
+            false,
+            "http_domain_pattern_invalid",
+        ),
+        (
+            "{id}.example.test",
+            "/x/{id}",
+            true,
+            "http_route_parameter_duplicate",
+        ),
+    ] {
+        let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+            FrameworkConfig::default(),
+        ));
+        let mut builder = openrust::core::ProviderBuilder::new();
+        builder
+            .provider(HttpServiceProvider)
+            .provider(TestRoutes::new(move |routes| {
+                routes.group(RouteGroup::new().domain(pattern), |domain| {
+                    let domain = domain.get(path, grouped_route);
+                    if named {
+                        domain.name("duplicate")
+                    } else {
+                        domain
+                    }
+                })
+            }));
+        let app = builder
+            .start(sources)
+            .await
+            .and_then(openrust::App::from_provider_runtime)?;
+        let error = build_router(&app)
+            .err()
+            .ok_or("invalid domain route unexpectedly built")?;
+        assert_eq!(error.code(), expected);
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn overlapping_domain_patterns_follow_registration_order_and_nested_groups_override()
+-> TestResult {
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(TestRoutes::new(|routes| {
+            routes
+                .group(
+                    RouteGroup::new().domain("{account}.example.test"),
+                    |outer| {
+                        outer
+                            .get("/overlap", first_domain_marker)
+                            .group(RouteGroup::new().prefix("/nested"), |inherited| {
+                                inherited.get("/inherited", first_domain_marker)
+                            })
+                            .group(
+                                RouteGroup::new().domain("override.example.test"),
+                                |override_domain| {
+                                    override_domain.get("/target", second_domain_marker)
+                                },
+                            )
+                    },
+                )
+                .group(RouteGroup::new().domain("foo.{region}.test"), |second| {
+                    second.get("/overlap", second_domain_marker)
+                })
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let router = build_router(&app)?;
+    for (host, path, expected) in [
+        ("foo.example.test", "/overlap", "first domain"),
+        ("a.example.test", "/nested/inherited", "first domain"),
+        ("override.example.test", "/target", "second domain"),
+    ] {
+        let response = router
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .header(header::HOST, host)
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(response.status(), StatusCode::OK, "{host}{path}");
+        assert_eq!(to_bytes(response.into_body(), 4096).await?, expected);
+    }
+    let override_wrong_host = router
+        .oneshot(
+            Request::get("/target")
+                .header(header::HOST, "a.example.test")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(json_body(override_wrong_host).await["code"], "not_found");
+    Ok(())
+}
+
+#[tokio::test]
+async fn domain_and_root_dispatch_work_over_real_tcp() -> TestResult {
+    let router = domain_test_router().await?;
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+    let address = listener.local_addr()?;
+    let server = tokio::spawn(async move { axum::serve(listener, router).await });
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_secs(5))
+        .build()?;
+    let result = async {
+        let url = format!("http://{address}/orders/9?tcp=1");
+        let get = client
+            .get(&url)
+            .header(header::HOST, "ACME.example.test")
+            .send()
+            .await?;
+        assert_eq!(get.status(), StatusCode::OK);
+        assert_eq!(get.text().await?, "acme:9:/orders/9?tcp=1:missing:");
+        let post = client
+            .post(&url)
+            .header(header::HOST, "acme.example.test")
+            .body("tcp body")
+            .send()
+            .await?;
+        assert_eq!(post.status(), StatusCode::OK);
+        assert_eq!(post.text().await?, "root:/orders/9?tcp=1:tcp body");
+        Ok::<_, Box<dyn std::error::Error>>(())
+    }
+    .await;
+    server.abort();
+    let _ = server.await;
+    result
+}
+
+#[tokio::test]
+async fn domain_root_route_takes_priority_over_default_site_root_target() -> TestResult {
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(TestRoutes::new(|routes| {
+            routes.group(RouteGroup::new().domain("a.example.test"), |domain| {
+                domain.get("/", first_domain_marker)
+            })
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let router = build_router(&app)?;
+    let response = router
+        .clone()
+        .oneshot(
+            Request::get("/")
+                .header(header::HOST, "a.example.test")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(to_bytes(response.into_body(), 4096).await?, "first domain");
+    let site = router
+        .oneshot(
+            Request::get("/")
+                .header(header::HOST, "b.example.test")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(site.status(), StatusCode::OK);
+    assert!(
+        to_bytes(site.into_body(), 4096)
+            .await?
+            .starts_with(b"<!doctype html>")
+    );
+    Ok(())
+}
 static REQUEST_CANCELLED: AtomicBool = AtomicBool::new(false);
 
 struct ScopeProbe(Arc<Mutex<Option<Arc<Scope>>>>);

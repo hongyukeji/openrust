@@ -4,6 +4,8 @@
 > 更新：2026-10-29
 > 摘要：R0 已固定上游；R1-S、R2-A/A2/A3、R2-B/C/D/M/N、R1-E 与 R3-A/B/C/D 均已按子簇完成适用门禁；R3-D 真实 HTTP、生成应用和安全复审证据见 `memory/testing.md`。完整 Laravel/laravel-modules 行为矩阵继续推进。
 
+R3-F 已实现 `RouteGroup::domain`、独立 `DomainParams<T>`、域具名 URL 与保留原请求的候选分派。独立复审发现的声明顺序、merge、forward authority、域与路径参数冲突、fallback scope 优先级及非法嵌套 scope 均已修正；最终只读复审无 blocker/should-fix，定向 HTTP router 87/87。默认/全特性 workspace Clippy/tests/Rustdoc、no-default、MSRV1.97、deny、生成应用和生产模块专项均通过，根无参数入口真实 TCP 域响应/错误 Host/health 与 SIGTERM exit0 已验收。根/生成 target 分别回收28.4/2.8GiB，仓库target归零、磁盘可用120GiB；本簇限定提交见Git，后继C04。已知域模式及fallback前缀差异见ADR-077，不宣称完整R3已完成。
+
 当前根 openrust 同 package 提供框架 lib 和唯一默认 server，应用职责回根；modules/example 是普通业务模块，经生产 `Application::modules` 编译清单与 FileModuleActivator 状态接入。根无示例 build.rs 或构建依赖；protobuf 工具和锁仍在模块内。
 
 结构子步骤已实际通过 fmt、默认/full Clippy/tests/docs、deny、no-default；默认 263/22、full 486/32（passed/ignored）。根裸 cargo run 的健康/API/公开 HTML/业务响应与正常退出、根 CLI 转发、PG18.6/MySQL8.4.13 各 12 targets/48 项及 testing 1 项、三类生成项目、最小 orders 模块仅改应用清单的真实 HTTP 闭环通过。CI 双库六组、MSRV1.97、八个独立 consumer 与额外 gRPC 生成项目均通过；不同模型最终源码复审无 blocker/should-fix，独立 CI 复核无 blocker/should-fix，已本地提交34dfb5e；最新事实见 [testing](memory/testing.md#r1-当前工程边界与验收入口)。

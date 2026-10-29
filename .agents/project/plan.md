@@ -1,6 +1,6 @@
 # 当前计划
 
-> 当前代码与目标：R1-E、R2-N、R3-A/B/C/D/E 均已按范围验收并提交（R3-E：dab80d4）。下一步继续 todo 中的 R3 HTTP/Web 行为与模块行为矩阵；完整模块管理仍按 [ADR-074](decisions/adr-074-laravel-modules-directory.md) 推进。
+> 当前代码与目标：R1-E、R2-N、R3-A/B/C/D/E/F 均已按范围交付（R3-E：dab80d4；R3-F 本簇限定提交见 Git）。R3-F 已完成独立复审、适用门禁、生成应用、根真实 TCP 与资源收尾；随后继续 todo 中的 C04 Request/Response。完整模块管理仍按 [ADR-074](decisions/adr-074-laravel-modules-directory.md) 推进。
 
 > 受众：AI Agent
 > 更新：2026-10-29

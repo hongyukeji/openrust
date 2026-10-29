@@ -634,3 +634,21 @@ CLI 生成应用 `/tmp/openrust-r3d-generated-20261029` 使用本地框架路径
 生成项目 `/tmp/openrust-r3e-generated-final-20261029` 由 CLI 产出；使用独立 `/tmp/openrust-r3e-generated-target` 执行 `cargo test --manifest-path ... --offline`，生成 `TestApp` HTTP 用例 1/1 通过。根项目用无参数 `cargo run --offline` 实际监听 `127.0.0.1:3000`；Python `http.client` 直连 TCP 验证 `GET /pages/not-found` 404 且带 `x-example-middleware: named-group`，`GET /api/example/middleware` 200 且同 middleware header，`GET /api/not-found` 默认 JSON 404，`GET /index.html` 200 静态 HTML，`HEAD /index.html` 200 空 body；SIGINT 后进程 exit 0。一次默认 Python urllib 请求受本机代理环境返回 502，改为不读取代理变量的 `http.client` 原始 TCP 请求后成功；不将代理响应算作应用证据。本簇不改变数据行为，双库门禁不适用。
 
 功能簇收尾检查无活跃 Cargo/rustc/rustdoc/server 进程；`cargo clean --dry-run` 确认根 `target/` 为 26,687 文件 / 12.1 GiB，实际 `cargo clean` 回收同量；任务专属生成 target 为 2,860 文件 / 1.5 GiB，单独清理回收同量。两个本簇临时生成源码目录已移除；磁盘可用从 107 GiB 回升至 120 GiB。未清理其他 consumer target 或共享服务数据。
+
+## R3-F Laravel domain routing
+
+`RouteGroup::domain`、`DomainParams<T>` 和具名域 URL 已接入公开 HTTP API、prelude 与唯一模块示例。候选分派只识别内部 miss，保留原请求 body/metadata，业务 404/405 不会重复执行；方法候选全部 miss 后合并 `Allow`。声明顺序覆盖交错域模式、独立路由表 merge 与域组中合并普通路由；fallback 在同模式内按静态 scope 深度优先，不同重叠模式按首次 fallback 声明顺序。独立 gpt-6.1-terra 只读复审发现的顺序、单标签参数、forward authority、未命名路径参数冲突、嵌套 scope 与根 fallback 问题均已有回归，最终复核无 blocker/should-fix。最终定向 HTTP router 为 87/87（`/tmp/openrust-r3f-root-fallback-router.log`），包含真实 TCP 域与普通路由分派。
+
+当前已完成的最终门禁：`cargo fmt --all --check`、默认/全特性 workspace all-target Clippy（`-D warnings`）、`cargo test --workspace` 与 `RUST_TEST_THREADS=1 cargo test --workspace --all-features`；日志分别位于 `/tmp/openrust-r3f-final-{fmt,clippy-default,clippy-all,test-default,test-all}.log`。默认 26 组 502 passed/28 ignored，全特性 43 组 1052 passed/98 ignored，均无失败；ignored 不作为服务验收。初轮 workspace 暴露 bootstrap、模块与 server aggregate 的正常 oneshot/TestApp 请求未提供 Host，已在这些 fixture 显式加入 `Host: localhost`，保持框架缺失/畸形 authority 返回 400 的断言。
+
+新增生产模块 TestApp 用例 `production_module_domain_route_binds_host_path_and_named_url` 另行 1/1 通过，日志 `/tmp/openrust-r3f-final-example-domain.log`；验证 `Acme.example.test` 捕获为 `acme`、路径百分号解码、URL 不采信 `X-Forwarded-Host`、配置端口保留及错误 Host 404。域参数仅路由输入，不作为已认证租户。数据库行为未改变，不新增无关双库验收。
+
+最终源码（包括新增测试与文档）default/all-features Clippy 和 warnings-denied Rustdoc 均重新退出 0，日志 `/tmp/openrust-r3f-final-{clippy-default-last,clippy-all-last,doc-default-last,doc-all-last}.log`；文档中未标为代码的 `TestApp` 曾触发 Clippy，修正后复验通过。`cargo check --workspace --all-targets --no-default-features`、`cargo +1.97.0 check --workspace --all-features --all-targets` 通过，日志 `...-check-no-default.log` 与 `...-msrv-all.log`。本轮 `cargo deny check` 的 advisories/bans/licenses/sources 通过，保留既有重复依赖和未命中 MPL allowance 警告；该次检查后清单与锁文件未变。
+
+CLI 生成应用 `/tmp/openrust-r3f-generated` 使用当前本地框架依赖；在生成的应用路由中登记 domain group 并用 `DomainParams<T>` 提取参数，生成 TestApp 同时验证 API/health/fallback/domain。`cargo fmt --all --check`、`cargo check --tests`、`cargo test` 均通过，HTTP 测试 1/1、0 ignored，日志 `/tmp/openrust-r3f-final-generated-{fmt,check,test}.log`。这是本地生成 consumer 行为证据，不宣称发布包兼容。
+
+根宿主由根无参数 `cargo run --quiet` 使用任务专属 `/tmp` 配置和独立端口启动，直连 loopback HTTP 验证域接口 200、account=acme、id=42、具名 URL 域及端口正确、不匹配 Host `other.invalid` 为 404、`/health` 为 200；SIGTERM 后 exit 0。脚本 `/tmp/openrust-r3f-root-tcp.py`，结果 `/tmp/openrust-r3f-final-root-tcp.log`，运行日志 `...-root-tcp-attempt4.log`。前两次 readiness 检查误经本机代理；改为禁用代理的直接 HTTP 后进入业务断言。第三次脚本使用了实际匹配 `{account}.example.test` 的 `wrong.example.test`，200 正确，修正负例为不匹配域后通过；未改框架或放宽超时、状态断言。
+
+收尾确认无 Cargo/rustc/rustdoc/server 进程；根和生成 target 均为非 symlink、Git 忽略且未跟踪的本簇产物，由 Cargo 自身构建锁协调 `cargo clean --dry-run` 后执行 `cargo clean`。根回收71,767文件/28.4GiB，生成目标回收8,469文件/2.8GiB（`/tmp/openrust-r3f-final-clean-{root,generated}.log`）；结束时仓库target总量0，磁盘可用120GiB/926GiB。其他consumer、共享服务及守护任务改动未清理或夹带。
+
+成功后的临时生成源码已核无其他WIP/worktree后移除；手工添加的consumer路由与测试逐字节保全到 `/tmp/openrust-r3f-generated-routes-web.txt`、`/tmp/openrust-r3f-generated-test-app.txt`，验收日志、根TCP脚本与运行日志目录继续保留。

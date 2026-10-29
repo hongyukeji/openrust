@@ -26,7 +26,7 @@ use crate::http::client_ip::validate_trusted_proxy_ranges;
 use crate::http::health;
 use crate::http::middleware;
 pub use crate::http::routes::Routes;
-use crate::http::routes::{MiddlewareLayerBuilder, MiddlewareRegistry};
+use crate::http::routes::{MiddlewareLayerBuilder, MiddlewareRegistry, assemble};
 use crate::http::serve::ServeCommand;
 
 /// 注册根宿主的框架信息 API `GET /api`。
@@ -285,45 +285,28 @@ pub fn build_router(app: &App) -> Result<Router> {
                 routes = builder(routes);
             }
         }
-        let (
-            collected_router,
-            named_routes,
-            route_name_errors,
-            middleware_errors,
-            route_errors,
-            has_root_fallback,
-            _fallback_scopes,
-        ) = routes.into_parts();
-        if !route_name_errors.is_empty() {
+        let mut parts = routes.into_parts();
+        if !parts.name_errors.is_empty() {
             return Err(Error::custom(
                 "http_route_name_without_route",
                 "a route name was assigned before a route was registered",
             ));
         }
-        if let Some(error) = middleware_errors.into_iter().next() {
-            return Err(error);
+        if !parts.middleware_errors.is_empty() {
+            return Err(parts.middleware_errors.remove(0));
         }
-        if let Some(error) = route_errors.into_iter().next() {
-            return Err(error);
+        if !parts.route_errors.is_empty() {
+            return Err(parts.route_errors.remove(0));
         }
-        route_urls = Some(if named_routes.is_empty() {
+        route_urls = Some(if parts.names.is_empty() {
             crate::http::RouteUrlGenerator::empty()
         } else {
-            crate::http::RouteUrlGenerator::new(&app.config().app.url, named_routes)?
+            crate::http::RouteUrlGenerator::new(
+                &app.config().app.url,
+                std::mem::take(&mut parts.names),
+            )?
         });
-        let app_router = if has_root_fallback {
-            collected_router
-        } else {
-            collected_router.fallback(crate::http::site::fallback)
-        }
-        .method_not_allowed_fallback(|| async {
-            Error::custom_with_status(
-                StatusCode::METHOD_NOT_ALLOWED,
-                "method_not_allowed",
-                "method not allowed",
-            )
-        })
-        .with_state(app.state().clone());
+        let app_router = assemble(parts).with_state(app.state().clone());
         crate::http::site::mount(app_router, &app.config().server, app.state().clone())
     }))
     .map_err(|_| {

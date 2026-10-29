@@ -18,6 +18,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Added
 
+- HTTP 路由支持 `RouteGroup::domain` 与 `DomainParams<T>`：域路由按声明顺序在普通路由前匹配，具名域 URL 由登记模板、单标签参数和 `app.url` scheme/port 生成；畸形 authority 失败关闭，转发 Host 不受信任，业务 404/405 不触发二次派发。
+
 - HTTP 路由支持 `.name(...)`、按原样组合的组名 `name_prefix` 与 `RouteUrlGenerator`；路由参数安全编码，额外参数生成有序 query，URL 来源固定为 `app.url`。
 
 - Provider 可登记可复用的 HTTP middleware alias 与递归 group，路由及嵌套组可按名称选择应用；未知名称、重名与 group 循环显式报错，无应用注册表时 `Routes::into_router()` 也会失败关闭。

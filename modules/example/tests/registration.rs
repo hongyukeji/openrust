@@ -119,12 +119,20 @@ async fn module_registration_controls_only_its_business_routes()
         for path in ["/health", "/api"] {
             let response = router
                 .clone()
-                .oneshot(Request::get(path).body(Body::empty())?)
+                .oneshot(
+                    Request::get(path)
+                        .header("host", "localhost")
+                        .body(Body::empty())?,
+                )
                 .await?;
             assert_eq!(response.status(), StatusCode::OK);
         }
         let response = router
-            .oneshot(Request::get("/api/example").body(Body::empty())?)
+            .oneshot(
+                Request::get("/api/example")
+                    .header("host", "localhost")
+                    .body(Body::empty())?,
+            )
             .await?;
         assert_eq!(
             response.status(),
@@ -185,7 +193,11 @@ async fn production_testapp_replaces_business_dependency_without_changing_routes
         (&replaced, "A test-owned business message"),
     ] {
         let response = app
-            .request(Request::get("/api/example").body(Body::empty())?)
+            .request(
+                Request::get("/api/example")
+                    .header("host", "localhost")
+                    .body(Body::empty())?,
+            )
             .await?;
         response.assert_status(StatusCode::OK)?;
         let json: serde_json::Value = response.json()?;
@@ -193,7 +205,11 @@ async fn production_testapp_replaces_business_dependency_without_changing_routes
         assert!(json["data"]["served_at"].as_str().is_some());
     }
     let translated = production
-        .request(Request::get("/api/example/heartbeat-label").body(Body::empty())?)
+        .request(
+            Request::get("/api/example/heartbeat-label")
+                .header("host", "localhost")
+                .body(Body::empty())?,
+        )
         .await?;
     translated.assert_status(StatusCode::OK)?;
     let translated: serde_json::Value = translated.json()?;
@@ -204,6 +220,7 @@ async fn production_testapp_replaces_business_dependency_without_changing_routes
         .request(
             Request::get("/api/example/heartbeat-label")
                 .header("Accept-Language", "zh-CN")
+                .header("host", "localhost")
                 .body(Body::empty())?,
         )
         .await?;
@@ -220,6 +237,43 @@ async fn production_testapp_replaces_business_dependency_without_changing_routes
 }
 
 #[tokio::test]
+async fn production_module_domain_route_binds_host_path_and_named_url()
+-> Result<(), Box<dyn std::error::Error>> {
+    use openrust::testing::TestApp;
+
+    let mut app = TestApp::<crate::bootstrap::Server>::builder(production_sources(false))
+        .build()
+        .await?;
+    let response = app
+        .request(
+            Request::get("/api/example/domain/orders/a%20b")
+                .header("host", "Acme.example.test")
+                .header("x-forwarded-host", "evil.test")
+                .body(Body::empty())?,
+        )
+        .await?;
+    response.assert_status(StatusCode::OK)?;
+    let json: serde_json::Value = response.json()?;
+    assert_eq!(json["data"]["account"], "acme");
+    assert_eq!(json["data"]["id"], "a b");
+    assert_eq!(
+        json["data"]["url"],
+        "http://acme.example.test:3000/api/example/domain/orders/a%20b"
+    );
+    let wrong_host = app
+        .request(
+            Request::get("/api/example/domain/orders/a%20b")
+                .header("host", "unrelated.test")
+                .body(Body::empty())?,
+        )
+        .await?;
+    wrong_host.assert_status(StatusCode::NOT_FOUND)?;
+    app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+        .await?;
+    Ok(())
+}
+
+#[tokio::test]
 async fn production_testapp_can_disable_only_the_business_module()
 -> Result<(), Box<dyn std::error::Error>> {
     use openrust::testing::TestApp;
@@ -228,12 +282,20 @@ async fn production_testapp_can_disable_only_the_business_module()
     let mut fixture = TestApp::<crate::bootstrap::Server>::builder(production_sources(true));
     fixture.remove_module("example");
     let mut app = fixture.build().await?;
-    app.request(Request::get("/api/example").body(Body::empty())?)
-        .await?
-        .assert_status(StatusCode::NOT_FOUND)?;
-    app.request(Request::get("/health").body(Body::empty())?)
-        .await?
-        .assert_status(StatusCode::OK)?;
+    app.request(
+        Request::get("/api/example")
+            .header("host", "localhost")
+            .body(Body::empty())?,
+    )
+    .await?
+    .assert_status(StatusCode::NOT_FOUND)?;
+    app.request(
+        Request::get("/health")
+            .header("host", "localhost")
+            .body(Body::empty())?,
+    )
+    .await?
+    .assert_status(StatusCode::OK)?;
     app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
         .await?;
     Ok(())
@@ -319,7 +381,11 @@ async fn dependent_business_module_serves_http_with_real_database()
     ] {
         let response = router
             .clone()
-            .oneshot(Request::get(path).body(Body::empty())?)
+            .oneshot(
+                Request::get(path)
+                    .header("host", "localhost")
+                    .body(Body::empty())?,
+            )
             .await?;
         assert_eq!(response.status(), StatusCode::OK, "{path}");
         let body = to_bytes(response.into_body(), usize::MAX).await?;
@@ -353,7 +419,11 @@ async fn production_testapp_renders_module_namespaced_view()
         .build()
         .await?;
     let response = app
-        .request(Request::get("/pages/about").body(Body::empty())?)
+        .request(
+            Request::get("/pages/about")
+                .header("host", "localhost")
+                .body(Body::empty())?,
+        )
         .await?;
     response.assert_status(StatusCode::OK)?;
     let html = std::str::from_utf8(response.body())?;

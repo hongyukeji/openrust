@@ -25,6 +25,7 @@
 | [007 聚合宿主](adr-007-aggregate-server-entry.md) | Partially Superseded | 目标约束按 ADR-070 重开；集成验收职责有效；宿主迁入根 package 由 062 更新 |
 | [008 HTTP API](adr-008-api-conventions.md) | Partially Superseded | 目标约束按 ADR-070 重开；响应、状态模式、错误与协议例外 |
 | [076 Laravel 语义 HTTP 状态默认值](adr-076-laravel-http-status-default.md) | Accepted | JSON API 默认保留真实状态码；`always_ok` 只作为显式覆盖，统一 envelope 与 request ID 一致 |
+| [077 Laravel 式域路由](adr-077-domain-routing.md) | Accepted（实现验收中） | `RouteGroup::domain`、单标签参数、domain-first、Host 安全与具名 URL；实现事实以 R3-F 验收记录为准 |
 | [009 可扩展驱动](adr-009-extensible-capability-drivers.md) | Accepted | 统一入口、公开扩展、后端能力与真实验收 |
 | [010 Seed](adr-010-database-seeding.md) | Partially Superseded | 目标约束按 ADR-070 重开；应用提供 seed 函数，不做平行 ORM 工厂 |
 | [016 中性命名空间](adr-016-neutral-application-namespaces.md) | Partially Superseded | 目标约束按 ADR-070 重开；默认 APP_、tb_ 与可定制解析，替代 006 的旧品牌前缀 |

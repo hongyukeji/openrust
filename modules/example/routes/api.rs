@@ -15,6 +15,17 @@ pub(super) fn register(routes: Routes, capabilities: &RouteCapabilities) -> Rout
         .name("example.index")
         .get("/api/example/route-url", controllers::example::route_url)
         .group(
+            RouteGroup::new()
+                .domain("{account}.example.test")
+                .prefix("/api/example/domain")
+                .name_prefix("example.domain."),
+            |routes| {
+                routes
+                    .get("/orders/{id}", controllers::example::domain_route)
+                    .name("orders.show")
+            },
+        )
+        .group(
             RouteGroup::new().middleware_group("example.response"),
             |routes| routes.get("/api/example/middleware", controllers::example::middleware),
         );

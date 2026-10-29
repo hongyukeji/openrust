@@ -5,6 +5,7 @@
 #[cfg(feature = "http-client")]
 pub mod client;
 pub mod client_ip;
+pub mod domain;
 pub mod extract;
 pub mod health;
 #[cfg(feature = "metrics")]
@@ -30,6 +31,7 @@ pub use client::{
     IdempotentHttpRequest, MultipartForm, RetryPolicy, TransportResponse,
 };
 pub use client_ip::ClientIp;
+pub use domain::DomainParams;
 pub use extract::{Inject, Json, Path, Query, Validated};
 pub use plugin::{HttpServiceProvider, RouteRegistry, build_router};
 pub use rate_limit::{RateLimitKey, RateLimitLayer};

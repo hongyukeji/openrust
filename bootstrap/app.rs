@@ -129,6 +129,7 @@ mod tests {
             .oneshot(
                 openrust::http::axum::http::Request::builder()
                     .uri("/api")
+                    .header("host", "localhost")
                     .body(openrust::http::axum::body::Body::empty())
                     .map_err(openrust::Error::internal)?,
             )
@@ -176,6 +177,7 @@ mod tests {
         let response = app
             .request(
                 Request::get("/api/example")
+                    .header("host", "localhost")
                     .body(Body::empty())
                     .map_err(openrust::Error::internal)?,
             )

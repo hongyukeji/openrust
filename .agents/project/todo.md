@@ -1,6 +1,6 @@
 # 活跃待办
 
-> 当前代码与目标：业务示例已迁至 `modules/example/` 并经模块清单接入；R1-E CRUD/能力门禁已由 bc3fa01 提交；附件 PG/MySQL 全量各 15/15，真实 MinIO CopyObject 延迟响应时的双库删除竞争各 1/1；deadline/EOF 原子仲裁后，远端结果不确定的迟到发布仍属未保证边界。OIDC 确认页已完成 Chromium/mock 分支验收，真实 Keycloak/双库 `AlwaysOk` 错误密码、已消费 state 与成功夹证各 1/1；Collector PostgreSQL 隔离 sink 的 delivery/unavailable 各 1/1 且保留 16 MiB 限制。R2-N 已由 48be854 提交；R3-A/B/C/D 已按适用范围验收，继续 R3 HTTP/Web 与模块行为矩阵。
+> 当前代码与目标：业务示例已迁至 `modules/example/` 并经模块清单接入；R1-E CRUD/能力门禁已由 bc3fa01 提交；附件 PG/MySQL 全量各 15/15，真实 MinIO CopyObject 延迟响应时的双库删除竞争各 1/1；deadline/EOF 原子仲裁后，远端结果不确定的迟到发布仍属未保证边界。OIDC 确认页已完成 Chromium/mock 分支验收，真实 Keycloak/双库 `AlwaysOk` 错误密码、已消费 state 与成功夹证各 1/1；Collector PostgreSQL 隔离 sink 的 delivery/unavailable 各 1/1 且保留 16 MiB 限制，runner 路径和 fixture run ID 已修正。R2-N 已由 48be854 提交；R3-A/B/C/D/E/F 已按适用范围验收，后继为 C04 Request/Response。
 
 > 受众：AI Agent
 > 更新：2026-10-29
@@ -25,7 +25,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 | R2-M 模块最小闭环与目录迁移 | 真实服务与生成项目已验收，本簇提交 | modules/ 声明注册、模块配置/资源/统一迁移、依赖与冲突错误；示例迁至 modules/example，真实HTTP及双库验证；完整管理命令归R13 |
 | R1-E 真实CRUD与当前能力示例 | 已验收并提交 bc3fa01 | 真实 Article CRUD；当前公开能力进入唯一模块示例；PostgreSQL 18/MySQL 8.4、生成项目、真实服务与整组门禁已验收。Collector PostgreSQL 隔离 sink delivery/unavailable 已复验通过，详见 testing |
 | R2 后继内核与测试底座 | R2-N 模块依赖图与顺序已完成 | `.requires` 硬依赖、稳定拓扑顺序、register/boot 一致；真实 PostgreSQL/MySQL HTTP、生成项目、根无参数 TCP、工作区门禁均有本簇证据 |
-| R3 HTTP 与 Web | R3-E fallback routes 已验收并提交 `dab80d4` | `RouteGroup`、命名路由/URL、middleware alias/group 与 fallback 已交付；后续继续 domain routing 与 C04 Request/Response |
+| R3 HTTP 与 Web | R3-F domain routing 已完成适用验收与收尾，本簇限定提交 | `RouteGroup`、命名路由/URL、middleware alias/group、fallback 与 domain routing 已交付；下一项 C04 Request/Response，C03 其余行为仍依矩阵保留 |
 | 模块包固定范围细化 | 待逐项盘点 | 对正式laravel-modules固定源码/文档的导航、源码与测试拆行为矩阵，分类必要Rust差异/用户约定/缺口；不把目录规范或显式Plugin等同完整模块管理 |
 
 ## 后继路由
@@ -249,3 +249,21 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 状态：已实现、验收并由 `dab80d4` 限定提交；真实 HTTP、生成项目及适用 workspace 门禁已记录。参数化/通配符 fallback scope 的 Axum 限制保留为明确缺口，不宣称完全 Laravel 等价。
 
 上游依据：[Laravel 13 Routing — Fallback Routes](https://laravel.com/framework/docs/13.x/routing#fallback-routes)。
+
+## 当前 R3-F Spec：Laravel domain/subdomain routing
+
+状态：实现、独立复审、整组门禁、生成应用、根真实 TCP 与资源收尾均已完成，本簇限定提交见 Git（领域 contract 见 [ADR-077](decisions/adr-077-domain-routing.md)）。依据 Laravel 13.39.0 固定源码与 Routing 文档的 `Route::domain(...)->group(...)` 和 domain-first 匹配；仅使用有效请求 authority，不信任代理转发 Host。后继领取 C04 Request/Response，不将本簇完成外推为全部 routing 或 R3 完成。
+
+1. 在 `RouteGroup` 增加 `domain(pattern)`，嵌套组继承域约束；支持精确域和完整标签占位符（如 `{account}.example.com`），拒绝空标签、部分标签占位、端口、路径、非法/重复参数以及同一规范化 domain pattern 的路由冲突，错误在 router build 稳定返回。
+   子组未声明 domain 时继承父组；显式声明新 domain 时覆盖父约束，不拼接两个域模板。
+2. 对每个请求严格解析唯一有效的 `Host`/URI authority，拒绝多值、逗号、非法端口、畸形 authority 与互相冲突的 authority；大小写规范化、去端口后按当前 HTTP method 优先查找匹配域路由，找不到才进入不限定域的普通路由。域路由 host 命中但 path/method 未命中时必须继续检查后继域和普通路由；仅当当前 method 均无匹配、但某路由 path 对其他 method 有效时才产生 405。业务 handler 主动返回 404 不能触发二次路由。
+3. 提供公开 `DomainParams<T>` extractor，使用 serde 将已验证 host pattern 捕获的完整标签参数反序列化为类型化值；未命中域路由或格式错误时稳定失败。域参数与 Axum `Path<T>` 分离，避免更改路径参数语义。
+4. 命名 domain route 的 `RouteUrlGenerator` 使用登记的域模板，以同一参数表同时替换 domain/path 参数；域名只接受单个 ASCII DNS 标签（含预先编码的 punycode），不做 Unicode IDNA 转换；缺参、非法标签和重复名称 fail closed。非 domain 路由仍以 `app.url` 的 host/scheme 为准；绝不以当前请求 Host 或未验证 `X-Forwarded-Host` 构造绝对 URL。
+5. 明确 `Host` 只参与用户显式配置的路由分派，不自动改变 `app.url`、租户身份或可信代理判定。若需 `Forwarded`/`X-Forwarded-Host`，必须新增受可信 peer 约束的独立契约，不在此簇默认采信。
+6. 黑盒测试覆盖 domain-first 与注册顺序无关、精确/占位子域、大小写/端口、重叠 pattern 声明顺序、域 host 命中 path 缺失后落普通路由、域 GET/根 POST 同路径、方法回退/405、域 fallback 不抢普通路由、handler 自身 404、非法/缺失/重复 Host 与参数、Host 注入不能影响 URL 生成、named URL 域与路径参数编码；请求 body/header/query 在分派中完整保留。生成项目与 `modules/example` 展示多租户域路由，但 host 参数不得替代租户认证授权。
+7. 用户 fallback 在全部普通 domain/unrestricted route 候选之后才运行；域组 fallback 按 domain pattern 选择。业务 handler 404/405 必须是终端响应，不得回落。GET/HEAD 静态资源检查保持当前 public 路径策略，并测试域路由交互。
+8. 领域 ADR 已建立并固化 dispatch 与安全边界；实现后更新 HTTP Rustdoc/README、示例、core/http、`todo/plan/progress/context`、CHANGELOG 和 testing；执行 §6.3 适用门禁、生成项目与真实 TCP HTTP 验收。数据库不变时不虚构双库要求。
+
+实现决策与差异：域 pattern 支持 DNS ASCII label 和每标签一个 `{parameter}`，兼容 ASCII punycode，不做 Unicode IDNA 转换，不支持 IP literal 或末尾点；捕获值须为单个合法 label。域与路径参数同名启动报错。不同 pattern 同时匹配时按域注册顺序；同一规范域内 Axum 重复路由稳定失败，记录为与 Laravel 后注册覆盖行为的显式差异。方法/路径 miss 必须保持请求 body 不被候选路由消费，并接着检查普通路由；不得靠业务 404 状态猜测未匹配。
+
+上游依据：[Laravel 13 Routing — Subdomain Routing](https://laravel.com/framework/docs/13.x/routing#subdomain-routing)；固定源码匹配规则确认 domain routes 在 unrestricted routes 之前处理，与注册先后无关。

@@ -268,7 +268,11 @@ fn health_has_request_id() -> TestResult {
     openrust::tokio::runtime::Runtime::new()?.block_on(async {
         let response = router()
             .await?
-            .oneshot(Request::get("/health").body(Body::empty())?)
+            .oneshot(
+                Request::get("/health")
+                    .header("host", "localhost")
+                    .body(Body::empty())?,
+            )
             .await?;
         assert_eq!(response.status(), StatusCode::OK);
         assert!(response.headers().contains_key("x-request-id"));
@@ -447,7 +451,11 @@ fn api_root_reports_server_name_and_version() -> TestResult {
     openrust::tokio::runtime::Runtime::new()?.block_on(async {
         let response = router()
             .await?
-            .oneshot(Request::get("/api").body(Body::empty())?)
+            .oneshot(
+                Request::get("/api")
+                    .header("host", "localhost")
+                    .body(Body::empty())?,
+            )
             .await?;
         assert_eq!(response.status(), StatusCode::OK);
         let body = to_bytes(response.into_body(), usize::MAX).await?;
@@ -468,7 +476,11 @@ fn example_business_route_is_mounted_through_the_root_application() -> TestResul
         let router = router().await?;
         let response = router
             .clone()
-            .oneshot(Request::get("/api/example").body(Body::empty())?)
+            .oneshot(
+                Request::get("/api/example")
+                    .header("host", "localhost")
+                    .body(Body::empty())?,
+            )
             .await?;
         assert_eq!(response.status(), StatusCode::OK);
         let body = to_bytes(response.into_body(), usize::MAX).await?;
@@ -477,7 +489,11 @@ fn example_business_route_is_mounted_through_the_root_application() -> TestResul
 
         let response = router
             .clone()
-            .oneshot(Request::get("/api/example/route-url").body(Body::empty())?)
+            .oneshot(
+                Request::get("/api/example/route-url")
+                    .header("host", "localhost")
+                    .body(Body::empty())?,
+            )
             .await?;
         assert_eq!(response.status(), StatusCode::OK);
         let body = to_bytes(response.into_body(), usize::MAX).await?;
@@ -485,7 +501,11 @@ fn example_business_route_is_mounted_through_the_root_application() -> TestResul
         assert_eq!(json["data"]["url"], "http://localhost:3000/api/example");
 
         let response = router
-            .oneshot(Request::get("/api/example/middleware").body(Body::empty())?)
+            .oneshot(
+                Request::get("/api/example/middleware")
+                    .header("host", "localhost")
+                    .body(Body::empty())?,
+            )
             .await?;
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(response.headers()["x-example-middleware"], "named-group");
@@ -530,7 +550,11 @@ fn root_serves_the_default_public_index() -> TestResult {
     openrust::tokio::runtime::Runtime::new()?.block_on(async {
         let response = router()
             .await?
-            .oneshot(Request::get("/").body(Body::empty())?)
+            .oneshot(
+                Request::get("/")
+                    .header("host", "localhost")
+                    .body(Body::empty())?,
+            )
             .await?;
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
@@ -695,7 +719,11 @@ fn unknown_route_returns_envelope() -> TestResult {
     openrust::tokio::runtime::Runtime::new()?.block_on(async {
         let response = router()
             .await?
-            .oneshot(Request::get("/nope").body(Body::empty())?)
+            .oneshot(
+                Request::get("/nope")
+                    .header("host", "localhost")
+                    .body(Body::empty())?,
+            )
             .await?;
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
         assert_eq!(response.headers()["content-type"], "application/json");

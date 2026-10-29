@@ -115,6 +115,38 @@ fn routes(routes: Routes) -> Routes {
 
 重复路由名、非法名称、通配符及包含空段的具名路径会在 router 构建时失败。缺少命名路由或必需参数会返回稳定错误并映射为 HTTP 500，符合 Laravel URL 生成异常的服务端错误语义；未命名路由不受 URL 模板限制。
 
+`RouteGroup::domain` 可为路由组指定完整域名模式。域模式先于不限定域的路由匹配，与注册顺序无关；同一请求可用 `DomainParams<T>` 读取域标签参数，路径参数仍由 `Path<T>` 单独提取。嵌套组继承父域，显式声明的新域会覆盖父域。域参数只用于路由分派，不能替代租户认证或授权。域名 URL 从登记模板和显式参数生成，scheme/port 仍取自 `app.url`；不会采信当前 `Host` 或 `X-Forwarded-Host`。域名仅支持 ASCII DNS 标签与预先编码的 punycode，不执行 Unicode IDNA 转换，不支持 IP literal 和尾点；域参数必须是单个标签。
+
+```rust,ignore
+use openrust::http::{DomainParams, Json, Path, RouteGroup, RouteUrlGenerator, Routes};
+use serde::Deserialize;
+
+#[derive(Deserialize)]
+struct TenantDomain { account: String }
+
+async fn tenant_order(
+    DomainParams(tenant): DomainParams<TenantDomain>,
+    Path(order_id): Path<u64>,
+    urls: RouteUrlGenerator,
+) -> openrust::Result<Json<String>> {
+    let url = urls.route("tenant.orders.show", &std::collections::BTreeMap::from([
+        ("account".to_owned(), tenant.account),
+        ("id".to_owned(), order_id.to_string()),
+    ]))?;
+    Ok(Json(url))
+}
+
+fn routes(routes: Routes) -> Routes {
+    routes.group(RouteGroup::new().domain("{account}.example.test").name_prefix("tenant."), |tenant| {
+        tenant.get("/orders/{id}", tenant_order).name("orders.show")
+    })
+}
+```
+
+域分派要求唯一、有效的 `Host`/URI authority；冲突或畸形 authority 失败关闭。端口不参与匹配，转发头不参与 authority 选择。请求 path/method 在域路由中未匹配时会继续检查后续匹配域及普通路由；只有框架私有的 miss 标记会继续分派，业务 handler 返回的 404/405 保持终端行为。所有候选都未命中后才处理用户 fallback、站点根目标与静态文件。
+
+同一域模式内（以及不限定域的路由中），fallback 优先选择更具体的静态路径 scope，例如 `/api/v2`、`/api`、`/`，不受这几个 scope 的注册顺序影响。不同且重叠的域模式按首次 fallback 声明顺序选择。站点 `root_target` 仅在业务路由与 fallback 都未命中时处理 `/`，因此域根路由可以正常响应。使用 `TestApp` 或直接 `oneshot` 测试含域路由的应用时，请显式提供 `Host` 或绝对 URI authority，模拟合法 HTTP 请求。
+
 ```rust
 use std::sync::Arc;
 use openrust::http::{Inject, Json, Routes, Validated};

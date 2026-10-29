@@ -8,6 +8,8 @@
 
 `GET /api/example/route-url` 展示命名路由：`GET /api/example` 注册为 `example.index`，处理器从请求提取 `RouteUrlGenerator` 并生成该名称对应的绝对 URL。
 
+`GET http://acme.example.test/api/example/domain/orders/42` 展示 Laravel 式 domain group：在 `RouteGroup::domain("{account}.example.test")` 声明域参数，handler 用 `DomainParams<T>` 与 `Path<T>` 分别读取域和路径参数，再通过具名路由生成 URL。域名仅用于路由分派，不作为租户认证或授权依据；测试环境需用 `Host: acme.example.test` 请求。
+
 `GET /api/example/middleware` 展示模块 Provider 如何通过 `BootContext::middleware_alias` 登记自有 Tower middleware、通过 `middleware_group` 组合，再由模块路由选择应用；集成测试验证只有该路由返回 `x-example-middleware: named-group`。
 
 `GET /pages/about` 是可选页面路由；`/pages/*` 未命中页面时由同一 `RouteGroup` 的 `fallback` 返回页面 404，并继承 `example.response` middleware。其他路径仍使用框架 fallback；若 public 目录中存在对应静态资源，GET/HEAD 会先返回文件。应用也可以在生成项目 `routes/web.rs` 中直接参考 `Routes::fallback` 的写法。
@@ -167,7 +169,7 @@ fixture.configure_after_register(|bindings| {
     Ok(())
 });
 let mut app = fixture.build().await?;
-let response = app.request(Request::get("/api/example").body(Body::empty())?).await?;
+let response = app.request(Request::get("/api/example").header("host", "localhost").body(Body::empty())?).await?;
 response.assert_status(StatusCode::OK)?;
 let json: serde_json::Value = response.json()?;
 assert_eq!(json["data"]["message"], "A test-owned business message");

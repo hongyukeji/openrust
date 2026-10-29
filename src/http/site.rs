@@ -146,8 +146,6 @@ fn invalid_config(key: &str, reason: &str) -> Error {
 }
 
 pub(crate) fn mount(router: Router, config: &ServerConfig, state: AppState) -> Result<Router> {
-    #[cfg(not(feature = "view"))]
-    drop(state);
     validate_config(&config.public_dir, &config.root_target)?;
     let target = parse_target(&config.root_target)?;
     #[cfg(feature = "view")]
@@ -177,9 +175,12 @@ pub(crate) fn mount(router: Router, config: &ServerConfig, state: AppState) -> R
         let public_dir = public_dir.clone();
         #[cfg(feature = "view")]
         let views = views.clone();
-        #[cfg(feature = "view")]
         let state = state.clone();
         async move {
+            let mut response = router.clone().oneshot(request).await?;
+            let Some(request) = crate::http::routes::take_unmatched(&mut response) else {
+                return Ok(response);
+            };
             if request.uri().path() == "/"
                 && matches!(*request.method(), Method::GET | Method::HEAD)
             {
@@ -200,7 +201,11 @@ pub(crate) fn mount(router: Router, config: &ServerConfig, state: AppState) -> R
                             Ok(request) => request,
                             Err(error) => return Ok(error.into_response()),
                         };
-                        return router.oneshot(request).await;
+                        let mut forwarded = router.oneshot(request).await?;
+                        return Ok(match crate::http::routes::take_unmatched(&mut forwarded) {
+                            Some(request) => fallback_response(state, request).await,
+                            None => forwarded,
+                        });
                     }
                     RootTarget::Redirect(target) => {
                         return Ok(Redirect::temporary(&target).into_response());
@@ -228,7 +233,7 @@ pub(crate) fn mount(router: Router, config: &ServerConfig, state: AppState) -> R
                     }
                 }
             }
-            router.oneshot(request).await
+            Ok(fallback(State(state), request).await)
         }
     });
     Ok(Router::new().fallback_service(service))
@@ -237,7 +242,15 @@ pub(crate) fn mount(router: Router, config: &ServerConfig, state: AppState) -> R
 fn rewrite_uri(mut request: Request, target: &str) -> Result<Request> {
     let query = request.uri().query().map(|query| format!("?{query}"));
     let path_and_query = format!("{target}{}", query.unwrap_or_default());
-    match Uri::builder().path_and_query(path_and_query).build() {
+    let mut parts = request.uri().clone().into_parts();
+    parts.path_and_query = Some(path_and_query.parse().map_err(|_| {
+        Error::custom_with_status(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "invalid_root_target",
+            "configured root route target is invalid",
+        )
+    })?);
+    match Uri::from_parts(parts) {
         Ok(uri) => {
             *request.uri_mut() = uri;
             Ok(request)
