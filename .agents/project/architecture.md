@@ -10,6 +10,10 @@
 
 以下 Workspace 段记录已迁移的 `modules/example/` 与当前 R2-M 模块内核；完整 laravel-modules 能力仍按矩阵继续验收。
 
+## 运行时配置与调度目标边界
+
+[ADR-080](decisions/adr-080-runtime-configuration-scheduling.md) 与 [运行时配置与动态调度计划](plans/runtime-configuration-scheduling.md)记录尚未实现的V1必交底层（宿主启用可选）：`.env`/config/ConfigRepository/Provider唯一配置体系，安全白名单DB值原子发布；同一Queue/Scheduler承载代码注册任务与DB管理员计划。DB权威、通知加轮询、默认DB队列及明确事务/迁移边界；Redis仅通知缓存可丢，显式Redis队列仍须迁其自身数据。基础设施凭据/部署密钥/feature/路由/任务代码/监听不热换；业务渠道secret经加密和支持driver受控重建，否则pending_restart；V2表单消费V1同一受权API，配置保存不冒充节点已应用；普通开发者沿用Laravel类型读取，不使用新配置平台。现有进程内版本、freeze和静态schedule贡献不是该能力完成证据。
+
 ## Workspace 与职责
 
 当前目录按 [ADR-074](decisions/adr-074-laravel-modules-directory.md) 实施。框架与应用位于同一仓库 main；根 package 为 openrust，同时提供 src/lib.rs 框架库与薄 src/main.rs 默认 server。根 default-members=["."]、default-run="server"，无参数 cargo run 启动唯一应用。

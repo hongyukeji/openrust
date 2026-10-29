@@ -247,6 +247,10 @@ R1-S → R2基础 → R2-M模块闭环 → R1-E的CRUD/当前能力贯通是当�
 
 R0–R16 是依赖路线，`todo.md` 只维护当前可领取项。旧观测审查、TestApp、复制验收、最低版本、供应商实发和集群缺口逐项关联，不得因重构重置为“无需验证”。
 
+### R2/R10 明确目标：运行时配置与数据库动态计划
+
+[专门计划](runtime-configuration-scheduling.md) 与 [ADR-080](../decisions/adr-080-runtime-configuration-scheduling.md) 收敛用户授权目标：沿Laravel `.env`/config/Repository/Provider保持简洁读取，V1必交typed分组DB设置/受权管理API（宿主启用可选）封装白名单校验/权限/CAS审计/整快照/通知+轮询；默认DB队列与代码注册任务，动态计划复用同一Scheduler，基础设施部署项不热换，业务渠道secret加密、支持driver受控激活，否则pending_restart，DB保存/节点应用状态分开。R2契约/持久基础依赖R4/R7及适用R8，R10完成事务/策略与管理，R14验真实多节点/故障/迁移，R15才做UI。仅规划，不改变当前HTTP领取顺序；现有静态配置、内存贡献和旧测试不能算此目标完成。
+
 ### R10 明确待办：每任务调度执行策略
 
 用户已明确要求 V1 提供 Laravel `onOneServer()` 对应的每任务可选链式配置；当前所有数据库调度统一按时段去重只是已有事实，不能算本项完成。此项归 R10，不改变当前功能簇顺序。
