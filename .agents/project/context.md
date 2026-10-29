@@ -18,7 +18,7 @@
 
 ## 固定约束
 
-- 当前及以后全部开发仅在本仓库 `main` 进行并创建本地提交，不新建源码仓库、开发分支或隔离 worktree；子代理遵守同一目录、明确文件所有权、共享文件串行协调和 WIP 保护规则。
+- 当前框架开发仅在本仓库 `main` 进行并创建本地提交，不新建源码仓库、开发分支或隔离 worktree；子代理遵守同一目录、明确文件所有权、共享文件串行协调和 WIP 保护规则。
 
 - 正式定位为 Laravel + laravel-modules = OpenRust，以固定基线1:1实现功能与可观察语义，持续跟进其框架功能与行为演进；Laravel的目录、概念、默认值、错误/安全边界、Container/Provider register→boot与开发/CLI/生成/测试/部署流程是验收标准。逐项上游源码/测试→Rust API/配置→等价测试→modules/example→文档→真实服务证据，未等价/未实测保留缺口。版本基线、差异矩阵与必要 Rust 适配遵循[长期上游跟进](plans/laravel-rebuild.md#长期上游跟进)。
 - 已有优秀机制保留并融合进 Laravel 对应职责；统一返回格式明确归 HTTP Response / API Resource 与异常渲染，提供便捷接入与公开定制，避免重复内核和协议破坏。规则见[融合计划](plans/laravel-rebuild.md#已有优秀机制的融合)。
@@ -46,7 +46,7 @@
 
 ## 版本与外部边界
 
-- 新底座 R14 完整通过后进入 [V2 后台](plans/v2-admin-platform.md)：Rust 服务端、Vue Admin（pure-admin 精简国际化版 + Element Plus）、uni-app App；PC 仅规划。
+- [V2 后台冻结](plans/v2-admin-platform.md#冻结与开工闸门)：R14通过只满足技术前置，须用户明确开工才重新安排，未来分支/交付组织届时决定；当前main继续框架与唯一示例，不自动开发Admin/App。
 - [AI模型平台](plans/ai-model-platform.md) 仍为独立产品，本次不启动；Laravel 生态中的 AI 开发辅助不自动授权该产品。
 - 发布、推送、tag、修改凭据/系统配置、项目外持久写操作不从重构授权推断。所有阶段仅创建限定范围的本地 commit。
 
