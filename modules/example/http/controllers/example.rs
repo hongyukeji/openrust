@@ -8,7 +8,7 @@ use openrust::http::axum::{
     response::{Html, IntoResponse, Response},
 };
 use openrust::http::{DomainParams, Inject, Json, Path, Request, RequestInfo};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize)]
 pub(crate) struct ExampleDomainParams {
@@ -88,6 +88,78 @@ struct InputQuery {
     label: Option<String>,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "snake_case")]
+enum InputPublication {
+    Draft,
+    Published,
+}
+
+impl openrust::support::BackedEnum for InputPublication {
+    type Backing = String;
+
+    fn try_from_backing(value: Self::Backing) -> Option<Self> {
+        match value.as_str() {
+            "draft" => Some(Self::Draft),
+            "published" => Some(Self::Published),
+            _ => None,
+        }
+    }
+}
+
+fn typed_input(request: &Request) -> openrust::Result<serde_json::Value> {
+    let profile = request.fluent("typed.profile")?;
+    let items = request.collect("typed.items")?;
+    let note = request.when_filled("typed.note", |value| Ok(value))?;
+    let published_at = request
+        .date("typed.published_at")?
+        .map(|date| date.to_iso8601_string())
+        .transpose()?;
+    let calendar_date = request
+        .date_with(
+            "typed.calendar_date",
+            openrust::support::DateOptions {
+                format: Some("!Y-m-d"),
+                timezone: Some(openrust::support::TimezoneInput::Name("UTC")),
+            },
+        )?
+        .map(|date| date.to_iso8601_string())
+        .transpose()?;
+    let duration = request.interval("typed.duration")?.map(|interval| {
+        serde_json::json!({
+            "years": interval.years,
+            "months": interval.months,
+            "days": interval.days,
+            "hours": interval.hours,
+            "minutes": interval.minutes,
+            "seconds": interval.seconds,
+            "microseconds": interval.microseconds,
+            "invert": interval.invert,
+            "total_days": interval.total_days(),
+        })
+    });
+    let delay_minutes = request
+        .interval_with_unit("typed.delay", openrust::support::IntervalUnit::Minute)?
+        .map(|interval| interval.minutes);
+    Ok(serde_json::json!({
+        "title": request.string("typed.title")?.trim(),
+        "quantity": request.integer("typed.quantity")?,
+        "amount": request.float("typed.amount")?,
+        "subscribed": request.boolean("typed.subscribed")?,
+        "bounded_quantity": request.clamp("typed.quantity", 1_i64.into(), 10_i64.into())?,
+        "publication": request.enum_value::<InputPublication>("typed.publication")?,
+        "publications": request.enums::<InputPublication>("typed.publications")?,
+        "items": items.to_value()?,
+        "selected": request.array_only(&["typed.title", "typed.quantity"])?,
+        "profile_display_name": profile.string("display_name")?,
+        "note_produced_value": note.into_value().is_some(),
+        "published_at": published_at,
+        "calendar_date": calendar_date,
+        "duration": duration,
+        "delay_minutes": delay_minutes,
+    }))
+}
+
 /// 由唯一正文提取器读取动态输入；响应只展示业务白名单与凭据处理布尔值。
 pub(crate) async fn input(mut request: Request) -> openrust::Result<Json<serde_json::Value>> {
     let original = request.content().clone();
@@ -95,6 +167,7 @@ pub(crate) async fn input(mut request: Request) -> openrust::Result<Json<serde_j
     let title = request.input("title")?;
     let profile_name = request.input("profile.name")?;
     let selected = request.only(&["title", "profile.name", "items", "php_keys"])?;
+    let typed = typed_input(&request)?;
     let checks = serde_json::json!({
         "has_nullable": request.has(&["nullable"]),
         "nullable_filled": request.filled(&["nullable"]),
@@ -118,6 +191,7 @@ pub(crate) async fn input(mut request: Request) -> openrust::Result<Json<serde_j
     Ok(Json(serde_json::json!({
         "method": request.info().method().as_str(),
         "selected": selected,
+        "typed": typed,
         "title": title,
         "profile_name": profile_name,
         "checks": checks,

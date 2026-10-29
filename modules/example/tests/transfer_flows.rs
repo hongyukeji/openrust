@@ -804,7 +804,7 @@ async fn import_reconcile_recovers_missing_cleanup_job_and_exhausted_deferrals()
     };
     let db = fixture.app.app()?.state().resolve::<Db>().await?;
     let import_id = uuid::Uuid::now_v7().to_string();
-    let source_key = format!("articles/1/imports/{import_id}/source");
+    let source_key = format!("example/articles/1/imports/{import_id}/source");
     let source = fixture.directory.path().join(&source_key);
     std::fs::create_dir_all(source.parent().ok_or("source has no parent")?)?;
     std::fs::write(&source, b"title,body\nValid title,Valid body\n")?;
@@ -840,7 +840,7 @@ async fn import_reconcile_recovers_missing_cleanup_job_and_exhausted_deferrals()
         article_import::ActiveModel {
             import_id: Set(id.clone()),
             owner_id: Set(1),
-            source_key: Set(format!("articles/1/imports/{id}/source")),
+            source_key: Set(format!("example/articles/1/imports/{id}/source")),
             format: Set("csv".into()),
             state: Set("open".into()),
             error_code: Set(None),

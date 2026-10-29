@@ -242,7 +242,7 @@ async fn run_auth_flow(
     assert_eq!(root.body["data"]["name"], "openrust");
     let queued = post(
         address,
-        "/api/jobs/example-heartbeat",
+        "/api/example/jobs/heartbeat",
         serde_json::json!({}),
     )
     .await?;
@@ -252,7 +252,7 @@ async fn run_auth_flow(
     let email = format!("user-{}@example.test", std::process::id());
     let registered = post_with_forwarded_for(
         address,
-        "/api/auth/register",
+        "/api/example/auth/register",
         serde_json::json!({
             "email": email,
             "password": "initial-password"
@@ -267,7 +267,7 @@ async fn run_auth_flow(
     let verification_code = mail.latest_code()?;
     let unverified_login = post(
         address,
-        "/api/auth/login",
+        "/api/example/auth/login",
         serde_json::json!({
             "email": email,
             "password": "initial-password"
@@ -279,7 +279,7 @@ async fn run_auth_flow(
 
     let verified = post(
         address,
-        "/api/auth/verify-email",
+        "/api/example/auth/verify-email",
         serde_json::json!({
             "email": email,
             "code": verification_code
@@ -291,7 +291,7 @@ async fn run_auth_flow(
 
     let login = post(
         address,
-        "/api/auth/login",
+        "/api/example/auth/login",
         serde_json::json!({
             "email": email,
             "password": "initial-password"
@@ -309,7 +309,7 @@ async fn run_auth_flow(
     let refresh_token = login_data["refresh_token"]
         .as_str()
         .ok_or("login omitted refresh token")?;
-    let current_user = get(address, "/api/me", access_token).await?;
+    let current_user = get(address, "/api/example/me", access_token).await?;
     assert_eq!(current_user.body["data"]["user_id"], user_id);
     let personal_access_token = app
         .state()
@@ -322,7 +322,12 @@ async fn run_auth_flow(
             None,
         )
         .await?;
-    let pat_user = get(address, "/api/me/pat", personal_access_token.expose()).await?;
+    let pat_user = get(
+        address,
+        "/api/example/me/pat",
+        personal_access_token.expose(),
+    )
+    .await?;
     assert_eq!(pat_user.body["success"], true);
     assert_eq!(pat_user.body["data"]["user_id"], user_id);
     run_article_flow(address, mail, access_token, user_id, &email, app).await?;
@@ -331,7 +336,7 @@ async fn run_auth_flow(
 
     let refreshed = post(
         address,
-        "/api/auth/refresh",
+        "/api/example/auth/refresh",
         serde_json::json!({
             "refresh_token": refresh_token
         }),
@@ -341,7 +346,7 @@ async fn run_auth_flow(
     assert_ne!(refreshed.body["data"]["refresh_token"], refresh_token);
     let replay = post(
         address,
-        "/api/auth/refresh",
+        "/api/example/auth/refresh",
         serde_json::json!({
             "refresh_token": refresh_token
         }),
@@ -352,7 +357,7 @@ async fn run_auth_flow(
 
     let reset_requested = post(
         address,
-        "/api/auth/password-reset",
+        "/api/example/auth/password-reset",
         serde_json::json!({
             "email": email
         }),
@@ -362,7 +367,7 @@ async fn run_auth_flow(
     let reset_code = mail.latest_code()?;
     let reset = post(
         address,
-        "/api/auth/password-reset/confirm",
+        "/api/example/auth/password-reset/confirm",
         serde_json::json!({
             "email": email,
             "code": reset_code,
@@ -376,7 +381,7 @@ async fn run_auth_flow(
     // 使用独立可信来源验证去空白后的密码不匹配，保留后续既有限流预算。
     let trimmed_login = post_with_forwarded_for(
         address,
-        "/api/auth/login",
+        "/api/example/auth/login",
         serde_json::json!({
             "email": email,
             "password": "replacement-password"
@@ -390,7 +395,7 @@ async fn run_auth_flow(
 
     let login = post(
         address,
-        "/api/auth/login",
+        "/api/example/auth/login",
         serde_json::json!({
             "email": email,
             "password": "  replacement-password  "
@@ -403,7 +408,7 @@ async fn run_auth_flow(
         .ok_or("login omitted refresh token")?;
     let logout = post(
         address,
-        "/api/auth/logout",
+        "/api/example/auth/logout",
         serde_json::json!({
             "refresh_token": refresh_token
         }),
@@ -413,7 +418,7 @@ async fn run_auth_flow(
     assert_eq!(logout.body["data"]["status"], "logged_out");
     let revoked = post(
         address,
-        "/api/auth/refresh",
+        "/api/example/auth/refresh",
         serde_json::json!({
             "refresh_token": refresh_token
         }),
@@ -425,7 +430,7 @@ async fn run_auth_flow(
     for _ in 0..2 {
         let additional_login = post(
             address,
-            "/api/auth/login",
+            "/api/example/auth/login",
             serde_json::json!({
                 "email": email,
                 "password": "  replacement-password  "
@@ -437,7 +442,7 @@ async fn run_auth_flow(
     }
     let rate_limited = post(
         address,
-        "/api/auth/login",
+        "/api/example/auth/login",
         serde_json::json!({
             "email": email,
             "password": "  replacement-password  "
@@ -612,7 +617,7 @@ async fn run_article_flow(
     let other_email = format!("article-other-{}@example.test", std::process::id());
     let registered = post(
         address,
-        "/api/auth/register",
+        "/api/example/auth/register",
         serde_json::json!({"email": other_email, "password": "other-password"}),
     )
     .await?;
@@ -620,14 +625,14 @@ async fn run_article_flow(
     let code = mail.latest_code()?;
     let verified = post(
         address,
-        "/api/auth/verify-email",
+        "/api/example/auth/verify-email",
         serde_json::json!({"email": other_email, "code": code}),
     )
     .await?;
     assert_eq!(verified.body["success"], true);
     let login = post(
         address,
-        "/api/auth/login",
+        "/api/example/auth/login",
         serde_json::json!({"email": other_email, "password": "other-password"}),
     )
     .await?;

@@ -81,7 +81,7 @@ pub(super) fn register(routes: Routes, capabilities: &RouteCapabilities) -> Rout
     #[cfg(feature = "queue")]
     let routes = if capabilities.database {
         routes.post(
-            "/api/jobs/example-heartbeat",
+            "/api/example/jobs/heartbeat",
             controllers::jobs::enqueue_example_heartbeat,
         )
     } else {
@@ -238,7 +238,9 @@ fn article_routes(routes: Routes, summary_enabled: bool) -> Routes {
     use controllers::article;
 
     let routes = routes.nest("/api/example", |api| {
-        let api = api.resource::<article::Articles>("/articles");
+        let api = api
+            .resource::<article::Articles>("/articles")
+            .resource::<controllers::example_record::ExampleRecords>("/records");
         #[cfg(feature = "queue")]
         let api = api
             .get(
@@ -363,7 +365,7 @@ fn article_routes(routes: Routes, summary_enabled: bool) -> Routes {
 
 #[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
 fn auth_routes(routes: Routes) -> Routes {
-    routes.nest("/api", |api| {
+    routes.nest("/api/example", |api| {
         api.get("/me", current_user)
             .layer(openrust::auth::AuthLayer::required(
                 openrust::auth::AuthMode::Jwt,

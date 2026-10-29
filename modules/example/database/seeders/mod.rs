@@ -6,7 +6,7 @@ use openrust::{Db, Result};
 mod articles;
 #[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
 #[cfg(test)]
-pub(crate) use articles::{SEED_ARTICLE_IDS, SEED_EMAIL};
+pub(crate) use articles::SEED_ARTICLE_IDS;
 
 /// 在主库单事务填充隔离示例数据；重复执行不覆盖已有内容。
 pub async fn run(database: Db) -> Result<()> {

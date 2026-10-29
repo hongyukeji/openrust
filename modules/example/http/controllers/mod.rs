@@ -31,6 +31,8 @@ pub(crate) mod attachments;
 #[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
 pub(crate) mod auth;
 pub(crate) mod example;
+#[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
+pub(crate) mod example_record;
 #[cfg(feature = "queue")]
 pub(crate) mod jobs;
 pub(crate) mod localization;

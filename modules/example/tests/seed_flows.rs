@@ -1,7 +1,7 @@
 //! 生产种子命令的显式执行、主库原子性与非覆盖幂等；真实双库由运行环境提供。
 #![cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
 
-use super::database::seeders::{SEED_ARTICLE_IDS, SEED_EMAIL};
+use super::database::seeders::SEED_ARTICLE_IDS;
 use super::models::article;
 use figment::{Figment, providers::Serialized};
 use openrust::Db;
@@ -51,24 +51,20 @@ impl Fixture {
     async fn seed(&self) -> openrust::Result<()> {
         self.app.app()?.run_command("db", vec!["seed".into()]).await
     }
-    async fn seed_owner_exists(&self) -> TestResult<bool> {
+    async fn user_count(&self) -> TestResult<i64> {
         let db = self.app.app()?.state().resolve::<Db>().await?;
         let backend = db.backend()?;
         let users = db.quoted_table_name("users")?;
-        let placeholder = if backend == openrust::db::sea_orm::DbBackend::Postgres {
-            "$1"
-        } else {
-            "?"
-        };
-        Ok(db
+        let row = db
             .connection()?
             .query_one_raw(Statement::from_sql_and_values(
                 backend,
-                format!("SELECT id FROM {users} WHERE email = {placeholder}"),
-                [SEED_EMAIL.into()],
+                format!("SELECT COUNT(*) AS count FROM {users}"),
+                [],
             ))
             .await?
-            .is_some())
+            .ok_or("user count query returned no row")?;
+        Ok(row.try_get("", "count")?)
     }
     async fn close(mut self) -> TestResult {
         self.app
@@ -92,7 +88,7 @@ async fn explicit_seed_command_is_idempotent_preserves_edits_and_never_creates_l
         0,
         "bootstrap must not seed"
     );
-    assert!(!fixture.seed_owner_exists().await?);
+    let users_before = fixture.user_count().await?;
     fixture.seed().await?;
     assert_eq!(article::Entity::find().count(&connection).await?, 2);
     let first = article::Entity::find_by_id(SEED_ARTICLE_IDS[0])
@@ -100,7 +96,7 @@ async fn explicit_seed_command_is_idempotent_preserves_edits_and_never_creates_l
         .await?
         .ok_or("seed article missing")?;
     let owner = first.owner_id;
-    assert!(owner > 0);
+    assert_eq!(owner, -7_300_001);
     let mut edited = first.into_active_model();
     edited.body = Set("由开发者修改的正文，重新执行种子不得覆盖".into());
     edited.update(&connection).await?;
@@ -115,12 +111,7 @@ async fn explicit_seed_command_is_idempotent_preserves_edits_and_never_creates_l
         .ok_or("edited seed missing")?;
     assert_eq!(edited.body, "由开发者修改的正文，重新执行种子不得覆盖");
     assert_eq!(edited.owner_id, owner);
-    let auth = fixture.app.app()?.state().resolve::<AuthFlows>().await?;
-    let denied = auth
-        .login(SEED_EMAIL, "!openrust-example-seed-disabled", "seed-test")
-        .await;
-    assert!(matches!(denied, Err(openrust::Error::Unauthorized)));
-    drop(auth);
+    assert_eq!(fixture.user_count().await?, users_before);
     drop(connection);
     drop(db);
     fixture.close().await
@@ -150,8 +141,8 @@ async fn seed_id_collision_rolls_back_new_identity_without_overwriting_user_arti
         .ok_or("seed collision accepted")?;
     assert_eq!(error.code(), "example_seed_conflict");
     assert!(
-        !fixture.seed_owner_exists().await?,
-        "identity must roll back with articles"
+        fixture.user_count().await? == 0,
+        "example seeding must not create framework auth users"
     );
     assert!(
         article::Entity::find_by_id(SEED_ARTICLE_IDS[0])
@@ -171,31 +162,30 @@ async fn seed_id_collision_rolls_back_new_identity_without_overwriting_user_arti
 }
 
 #[tokio::test]
-async fn seed_reserved_email_collision_preserves_the_existing_account() -> TestResult {
+async fn seed_does_not_reserve_or_modify_framework_auth_accounts() -> TestResult {
     let Some(fixture) = Fixture::create().await? else {
         return Ok(());
     };
     let auth = fixture.app.app()?.state().resolve::<AuthFlows>().await?;
     let password = "an explicit test-only account password";
     let code = auth
-        .register(SEED_EMAIL, password, "seed-collision")
+        .register("example-seed@seed.invalid", password, "seed-collision")
         .await?
         .ok_or("verification code missing")?;
     assert!(
-        auth.verify_email(SEED_EMAIL, code.code(), "seed-collision")
+        auth.verify_email("example-seed@seed.invalid", code.code(), "seed-collision")
             .await?
     );
-    let original = auth.login(SEED_EMAIL, password, "seed-collision").await?;
-    let error = fixture
-        .seed()
-        .await
-        .err()
-        .ok_or("reserved email collision accepted")?;
-    assert_eq!(error.code(), "example_seed_conflict");
-    let retained = auth.login(SEED_EMAIL, password, "seed-collision").await?;
+    let original = auth
+        .login("example-seed@seed.invalid", password, "seed-collision")
+        .await?;
+    fixture.seed().await?;
+    let retained = auth
+        .login("example-seed@seed.invalid", password, "seed-collision")
+        .await?;
     assert_eq!(retained.user_id(), original.user_id());
     let db = fixture.app.app()?.state().resolve::<Db>().await?;
-    assert_eq!(article::Entity::find().count(&db.connection()?).await?, 0);
+    assert_eq!(article::Entity::find().count(&db.connection()?).await?, 2);
     drop(db);
     drop(auth);
     fixture.close().await

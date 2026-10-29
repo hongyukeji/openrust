@@ -18,6 +18,8 @@ pub(crate) mod article_transfer;
 pub(crate) mod attachments;
 #[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
 pub(crate) mod auth;
+#[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
+pub(crate) mod example_record;
 #[cfg(all(
     feature = "auth-oidc",
     any(feature = "db-postgres", feature = "db-mysql")

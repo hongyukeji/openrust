@@ -155,7 +155,9 @@ impl ArticleAttachments {
         if article_id <= 0 {
             return Err(not_found());
         }
-        StoragePath::new(format!("articles/{owner_id}/{article_id}/attachment.txt"))
+        StoragePath::new(format!(
+            "example/articles/{owner_id}/{article_id}/attachment.txt"
+        ))
     }
 
     /// 与文章删除写在同一数据库事务内；不会在提交前碰对象存储。

@@ -94,9 +94,10 @@ impl Fixture {
         format!("/api/example/articles/{}/attachment", self.article_id)
     }
     fn object(&self) -> std::path::PathBuf {
-        self.directory
-            .path()
-            .join(format!("articles/1/{}/attachment.txt", self.article_id))
+        self.directory.path().join(format!(
+            "example/articles/1/{}/attachment.txt",
+            self.article_id
+        ))
     }
     async fn close(mut self) -> TestResult {
         self.app
@@ -231,7 +232,10 @@ async fn detached_upload_preserves_tenant_storage_scope() -> TestResult {
         .resolve::<ArticleAttachments>()
         .await?;
     let storage = fixture.app.app()?.state().resolve::<Storage>().await?;
-    let path = StoragePath::new(format!("articles/1/{}/attachment.txt", fixture.article_id))?;
+    let path = StoragePath::new(format!(
+        "example/articles/1/{}/attachment.txt",
+        fixture.article_id
+    ))?;
     let tenant = TenantId::new("attachment-upload-tenant")?;
     TenantContext::scope(tenant.clone(), async {
         attachments
@@ -635,7 +639,7 @@ async fn cleanup_uses_persisted_tenant_and_rejects_ambient_tenant() -> TestResul
     let storage = fixture.app.app()?.state().resolve::<Storage>().await?;
     let connection = db.primary_connection()?;
     let id = fixture.article_id;
-    let path = StoragePath::new(format!("articles/1/{id}/attachment.txt"))?;
+    let path = StoragePath::new(format!("example/articles/1/{id}/attachment.txt"))?;
     let disk = storage.default_disk().await?;
     let tenant_a = TenantId::new("attachment-tenant-a")?;
     let tenant_b = TenantId::new("attachment-tenant-b")?;

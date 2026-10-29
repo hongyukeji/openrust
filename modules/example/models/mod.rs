@@ -6,5 +6,6 @@ pub(crate) mod article_event;
 pub(crate) mod article_import;
 #[cfg(feature = "storage-local")]
 pub(crate) mod attachment_cleanup;
+pub(crate) mod example_record;
 pub(crate) mod tenant_membership;
 pub(crate) mod tenant_record;

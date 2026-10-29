@@ -7,3 +7,5 @@ pub(crate) mod article;
 #[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
 pub(crate) mod credentials;
 pub(crate) mod example;
+#[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
+pub(crate) mod example_record;

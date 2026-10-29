@@ -569,7 +569,7 @@ async fn production_testapp_renders_module_namespaced_view()
         .await?;
     let response = app
         .request(
-            Request::get("/pages/about")
+            Request::get("/example/pages/about")
                 .header("host", "localhost")
                 .body(Body::empty())?,
         )
@@ -639,6 +639,8 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
     let statement = table("example_heartbeats");
     let articles = table("example_articles");
     let article_events = table("example_article_events");
+    let showcase_categories = table("example_record_categories");
+    let showcase_records = table("example_records");
     let attachment_cleanup = Statement::from_string(
         connection.get_database_backend(),
         "SELECT article_id FROM example_attachment_cleanup LIMIT 1".to_owned(),
@@ -657,6 +659,10 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
     connection.query_one_raw(private_notes.clone()).await?;
     connection.query_one_raw(attachment_cleanup.clone()).await?;
     connection.query_one_raw(article_imports.clone()).await?;
+    connection
+        .query_one_raw(showcase_categories.clone())
+        .await?;
+    connection.query_one_raw(showcase_records.clone()).await?;
     let shared_history = Statement::from_string(
         connection.get_database_backend(),
         "SELECT version FROM openrust_migrations".to_owned(),
@@ -674,9 +680,16 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
     connection.query_one_raw(article_events.clone()).await?;
     connection.query_one_raw(private_notes.clone()).await?;
     connection.query_one_raw(attachment_cleanup.clone()).await?;
+    connection.query_one_raw(article_imports.clone()).await?;
     assert!(
         connection
-            .query_one_raw(article_imports.clone())
+            .query_one_raw(showcase_records.clone())
+            .await
+            .is_err()
+    );
+    assert!(
+        connection
+            .query_one_raw(showcase_categories.clone())
             .await
             .is_err()
     );
@@ -698,6 +711,10 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
     connection.query_one_raw(private_notes.clone()).await?;
     connection.query_one_raw(attachment_cleanup.clone()).await?;
     connection.query_one_raw(article_imports.clone()).await?;
+    connection
+        .query_one_raw(showcase_categories.clone())
+        .await?;
+    connection.query_one_raw(showcase_records.clone()).await?;
     assert_eq!(
         connection.query_all_raw(shared_history).await?.len(),
         before_down
@@ -716,6 +733,8 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
     connection.query_one_raw(private_notes).await?;
     connection.query_one_raw(attachment_cleanup).await?;
     connection.query_one_raw(article_imports).await?;
+    connection.query_one_raw(showcase_categories).await?;
+    connection.query_one_raw(showcase_records).await?;
     disabled
         .shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
         .await?;
@@ -735,7 +754,14 @@ async fn production_input_normalizes_json_and_preserves_source_and_raw_content()
     let body = serde_json::json!({
         "title": "  body title  ", "profile": {"name": "  Alice  "}, "nullable": "  ",
         "password": "  private-sentinel  ", "user": {"password": "  nested-sentinel  "},
-        "password_confirmation": ""
+        "password_confirmation": "",
+        "typed": {
+            "title":"  demo  ", "quantity":"12", "amount":"1.25x", "subscribed":"YES",
+            "publication":"published", "publications":{"2":"draft","5":"unknown","9":"published"},
+            "items":{"2":"a","5":"b"}, "profile":{"display_name":" Alice "}, "note":"0",
+            "published_at":"2020-01-01T16:30:25+00:00", "calendar_date":"2020-01-02",
+            "duration":"90 minutes", "delay":75
+        }
     })
     .to_string();
     let response = app
@@ -754,6 +780,18 @@ async fn production_input_normalizes_json_and_preserves_source_and_raw_content()
     assert_eq!(
         data["selected"],
         serde_json::json!({"title": "body title", "profile": {"name": "Alice"}})
+    );
+    assert_eq!(
+        data["typed"],
+        serde_json::json!({
+            "title":"demo", "quantity":12, "amount":1.25, "subscribed":true,
+            "bounded_quantity":10, "publication":"published", "publications":{"2":"draft","9":"published"},
+            "items":{"2":"a","5":"b"}, "selected":{"typed":{"title":"demo","quantity":"12"}},
+            "profile_display_name":"Alice", "note_produced_value":false,
+            "published_at":"2020-01-01T16:30:25+00:00", "calendar_date":"2020-01-02T00:00:00+00:00",
+            "duration":{"years":0,"months":0,"days":0,"hours":0,"minutes":90,"seconds":0,"microseconds":0,"invert":false,"total_days":null},
+            "delay_minutes":75
+        })
     );
     assert_eq!(data["title"], "body title");
     assert_eq!(data["profile_name"], "Alice");

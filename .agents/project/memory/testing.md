@@ -4,6 +4,16 @@
 > 更新：2026-10-28
 > 摘要：当前目录迁移与原专项测试入口，分开记录真实服务和未验收边界。
 
+## C04-B2 类型便捷方法（进行中）
+
+- 状态：实现中，未提交、未通过本簇完整门禁。支持内核与公开Request已有标量、保键Collection/Fluent、BackedEnum、clamp和条件结果分支；日历解析、上下文与配置仍在接入，完整语法不得凭有限样本关闭。
+- 公开HTTP定向：input 27、request 10、router 87通过。唯一模块既有`production_input_*`三项通过（23 filtered），包含typed白名单、宽松转换、枚举稀疏键、集合、Fluent与主回调假值回自身。日志`/tmp/openrust-c04b2-enum-conditional-public-first.log`、`/tmp/openrust-c04b2-foundation-module-first.log`；filtered项不算本次执行。
+- 真实PHP 8.5.0参考：标量617项中613项实际serde值路径、3项非有限内核转换和1项JSON溢出解码差异分别验证；enum 48项中42项bag路径、4项非有限私有转换及2项不可表示的PHP对象证据分列，后者不当作Rust输入通过。clamp授权修复读取器后单次重验：304可表达数值按类型与浮点位逐项匹配，2项非法default由Rust静态InputNumber参数拒绝，不计运行时case；数字字符串边界通过读取器显式转换，记录参数适配。日志`/tmp/openrust-c04b2-scalar-golden-third.log`、`/tmp/openrust-c04b2-clamp-authorized-once.log`。
+- 定向Clippy第四轮已成功，日志`/tmp/openrust-c04b2-foundation-clippy-fourth.log`；在暂停通知到达前按此前独立验证指令执行结束。用户随后已明确授权修正后重验。该结果早于日历接入，不证明后续快照通过。
+- 日历首轮接入定向证据：interval 8项通过（含240项PHP合成参考矩阵）；date修正6项差异后按用户授权单次重验，119项参考矩阵通过；当前公开input 30、request 10、router 87通过；APP_TIMEZONE配置定向1项通过。覆盖每次date读取clock、Fluent继承clock、最终Provider overlay时区、应用context覆盖与非法时区启动错误。日志分别为`/tmp/openrust-c04b2-interval-first-compile.log`、`/tmp/openrust-c04b2-date-authorized-once.log`、`/tmp/openrust-c04b2-calendar-public-first.log`、`/tmp/openrust-c04b2-timezone-config-first.log`。其余filtered项未执行；POSIX未来尾规则和完整语法仍在改动，此证据不证明后续源码或完整日历通过。
+- CLI独立依赖图不含框架crate，可在日期实现窗口单独验证。共用`tests/support/request_input.rs`已接普通与认证模板，真实DB配置由认证测试传入，原认证断言及清理保留；CLI 20项通过，日志`/tmp/openrust-c04b2-cli-shared-helper-tests-third.log`。新增测试支持目录与快照修复均限定对应改动；这仅证明CLI生成行为，不证明生成应用编译、HTTP或双库通过。三类生成应用源码正在准备，后续实际check/test仍待执行。
+- 尚欠：完整date/interval语法及真实golden、公开consumer/生成项目、当前源码完整门禁、真实HTTP、适用双库、不同模型独审与资源收尾。PHP合成参考不替代真实Rust生产调用链或完整Laravel Request/DI验收。
+
 ## 应用端口环境配置
 
 应用端口统一使用 `APP_PORT`，自定义命名空间使用 `SHOP_PORT`，内部仍为 `server.port`；全局 `PORT` 是低优先级回退，旧端口键不再覆盖配置。配置回归 24 项、生命周期 8 项通过，覆盖命名空间隔离、进程端口覆盖与 `.env` 中 `APP_URL="http://localhost:${APP_PORT}"` 展开。
@@ -674,6 +684,11 @@ RequestInfo 的 parts-only 快照、严格 authority 复用、文本头/bearer�
 首轮示例测试fixture误以为helper(false)选择AlwaysOk，已局部显式配置，保持框架Semantic默认。修复前全特性三轮在不同fixture出现internal_error；第三轮安全诊断确认build阶段IO NotFound/errno2，并非HTTP500响应。失败分别保全 `/tmp/openrust-c04a-final-tests-all-{first,second,third}-failure.log`；旧用例定向及aggregate可通过不能证明偶发故障已定位。用户按§5批准限定修复后，以取得DirEntry再删除run目录的可控回归证明原实现失败（`...-storage-red.log`）、修后通过（`...-storage-green.log`）。清理仅在条目NotFound且base当前可读时容错，base消失/非目录、权限和其他IO仍失败；补确定性base负例和build/drop交错压力回归。storage12/HTTP TCP1/Request10/aggregate117定向均通过，日志 `/tmp/openrust-c04a-final-storage-base-gates.log` 及分项。最终不同模型复审无剩余blocker/should-fix。根目录复核非原子，仍要求storage root系统用户独占写；不保证并发目录替换。三轮旧失败未捕获具体文件调用点，不声称每轮已逐一确认同一调用点。临时探针已移除，快照保全 `/tmp/openrust-c04a-registration-diagnostic-preserved.rs`。
 
 最终测试后触资源软停（31.343GiB target、磁盘9.801%空闲），核实本簇独占、无占用、ignored/未跟踪/非symlink后仅回收根incremental，空闲恢复11.05%，续跑余下门禁无跳过。独立生成target先经Cargo锁协调回收2.1GiB，日志保留；功能簇末尾核无构建/server占用后由Cargo锁协调完整清理根target，dry-run和实际回收56,621文件/23.5GiB，日志 `/tmp/openrust-c04a-storage-fixed-clean{,-dry-run}.log`。根及独立生成target均不存在；五个原有consumer target共2.486656GiB不属于本簇，保留未动。磁盘最终119.475739GiB空闲（12.897449%），精确资源 `/tmp/openrust-c04a-storage-fixed-clean-resources.json`；生成源码、验收脚本、日志与诊断快照保留作为证据。
+
+## `modules/example` 资源命名隔离与字段类型 CRUD
+
+`modules/example/tests/example_record_flows.rs` 使用隔离数据库和生产 `TestApp`，覆盖 `/api/example/records` 登录保护、五种资源动作、分页、字段 round-trip 与 owner 隔离；请求检查确保示例认证、任务和视图不占用 `/api/auth`、`/api/me`、`/api/jobs/*`、`/pages/*`。PostgreSQL 18 与 MySQL 8.4 的定向真实集成均为 1/1，包含 string/text/integer/big_integer/boolean/UTC datetime/JSON/references、nullable 值及外键。`cargo fmt --all --check`、`git diff --check`、workspace 默认 Clippy、`cargo test --workspace` 和 `cargo doc --workspace --no-deps` 均通过；服务 URL 未写入日志。
+
 
 ## C04-B1 统一请求输入
 

@@ -841,7 +841,7 @@ mod tasks {
         if id.to_string() != import_id {
             return Err(invalid("example_transfer_import_invalid", "导入标识无效"));
         }
-        StoragePath::new(format!("articles/{owner_id}/imports/{id}/source"))
+        StoragePath::new(format!("example/articles/{owner_id}/imports/{id}/source"))
     }
     fn import_options(
         owner_id: i64,
@@ -970,7 +970,9 @@ mod tasks {
             ArticleFormat::Csv => "csv",
             ArticleFormat::Xlsx => "xlsx",
         };
-        StoragePath::new(format!("articles/{owner_id}/exports/articles.{extension}"))
+        StoragePath::new(format!(
+            "example/articles/{owner_id}/exports/articles.{extension}"
+        ))
     }
     pub(crate) async fn dispatch(
         queue: &Queue,

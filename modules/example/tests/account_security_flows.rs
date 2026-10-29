@@ -442,7 +442,7 @@ async fn mfa_requires_reauthentication_challenge_and_once_only_recovery_codes() 
         .await?
         .assert_status(StatusCode::UNAUTHORIZED)?;
     // 原密码登录 API 也必须 fail-closed，不能从旧入口获得完整凭据。
-    let legacy = Request::post("/api/auth/login")
+    let legacy = Request::post("/api/example/auth/login")
         .header("host", "example.test")
         .extension(ConnectInfo(std::net::SocketAddr::from((
             [127, 0, 0, 50],

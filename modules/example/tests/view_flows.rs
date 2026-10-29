@@ -130,7 +130,7 @@ impl Fixture {
     async fn page(&self) -> TestResult<Page> {
         let mut response = self
             .client
-            .get(format!("{}/pages/about", self.origin))
+            .get(format!("{}/example/pages/about", self.origin))
             .send()
             .await?;
         let status = response.status();

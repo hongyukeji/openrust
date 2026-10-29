@@ -1,6 +1,6 @@
 # 综合业务示例
 
-> 当前源码位于 `modules/example/`，通过统一模块清单与 ServiceProvider 接入；真实 Article CRUD、当前已实现公开能力的业务调用与适用双库验收已由 R1-E 提交 `bc3fa01`。
+> 当前源码位于 `modules/example/`，通过统一模块清单与 ServiceProvider 接入；隔离的 example_* 表 CRUD、当前已实现公开能力的业务调用与适用双库验收已由 R1-E 提交 `bc3fa01`。
 
 `modules/example` 是根应用挂载的普通业务模块，供开发者学习如何在 `modules/<业务>/` 调用框架公开 API，以及通过公开 Provider/driver 契约扩展框架。框架、应用宿主和业务模块都在本仓 `main` 开发；这里没有独立 package、bin、启动模式或 example feature，也不复制完整应用骨架。
 
@@ -14,7 +14,7 @@
 
 `GET /api/example/middleware` 展示模块 Provider 如何通过 `BootContext::middleware_alias` 登记自有 Tower middleware、通过 `middleware_group` 组合，再由模块路由选择应用；集成测试验证只有该路由返回 `x-example-middleware: named-group`。
 
-`GET /pages/about` 是可选页面路由；`/pages/*` 未命中页面时由同一 `RouteGroup` 的 `fallback` 返回页面 404，并继承 `example.response` middleware。其他路径仍使用框架 fallback；若 public 目录中存在对应静态资源，GET/HEAD 会先返回文件。应用也可以在生成项目 `routes/web.rs` 中直接参考 `Routes::fallback` 的写法。
+`GET /example/pages/about` 是可选页面路由；`/example/pages/*` 未命中页面时由同一 `RouteGroup` 的 `fallback` 返回页面 404，并继承 `example.response` middleware。其他路径仍使用框架 fallback；若 public 目录中存在对应静态资源，GET/HEAD 会先返回文件。应用也可以在生成项目 `routes/web.rs` 中直接参考 `Routes::fallback` 的写法。
 
 模块扩展目标参考用户指定的第三方 [nWidart/laravel-modules](https://github.com/nWidart/laravel-modules)；当前依据为 [v13 文档](https://laravelmodules.com/docs/13/getting-started/introduction)，读取日期 2026-10-28，未宣称源码 revision 已对齐。借鉴自有路由/API、controller/model/resource、迁移、测试与 provider 装配；它不是 Laravel 核心，不扩张 Laravel 主基线，也不表示本框架已全量实现该包。按本项目约定采用 modules/<模块>、snake_case 和编译期静态注册。修改 modules/mod.rs 的编译声明和 Application::modules 注册清单是正常业务接入；为某个业务修改 src/ 核心或加入全局样例特判不属于接入方式。优先复用现有 ServiceProvider/Routes；Rust 模块编译期声明，无运行时源码扫描。
 
@@ -56,6 +56,12 @@ curl --noproxy '*' http://127.0.0.1:3000/health
 
 默认基础示例不要求数据库或 Redis；端口与公开目录见根 [`config/server.toml`](../../config/server.toml)。文章及欢迎路由仅在配置数据库并编译认证能力后出现；无数据库启动不表示文章业务可用。
 
+## 隔离的字段类型示例
+
+`/api/example/records` 提供独立的列表、详情、创建、更新、删除接口，所有查询按当前登录用户隔离。它只操作 `example_records` 与 `example_record_categories`，不使用通用 `records`、`categories` 或开发者业务表。记录字段覆盖本仓生成器当前支持的可移植类型：`name`（string）、`description`（text）、`priority`（integer/i32）、`view_count`（big_integer/i64）、`enabled`（boolean）、`published_at`（nullable date_time/UTC）、`metadata`（nullable JSON）及 `category_id`（nullable references）。外键目标 `example_record_categories` 也属于示例命名空间。
+
+示例 API 接受完整 JSON：`{"name":"样例","description":"说明","priority":1,"view_count":0,"enabled":true,"published_at":null,"metadata":{"source":"demo"},"category_id":null}`。该接口用于查看类型映射与 CRUD 写法；不会自动种入类别数据。综合示例的 API 路由统一置于 `/api/example/*`，网页置于 `/example/pages/*`，示例对象存储 key 统一以 `example/` 开头，避免覆盖应用自己的路由与对象路径。
+
 ## 文章与欢迎业务
 
 数据库启用且编译 `auth` 时，`/api/example/articles` 使用公开 `ResourceActions` 注册列表、详情、创建、更新和删除。处理器用 `Validated` 校验标题与正文，页码限定 1–1,000,000、每页 1–100；列表通过公开 `Paginated` 返回 `data` 和 `meta`。`CurrentUser` 与 `QueryRule` 将读取限制为本人文章，更新和删除 SQL 同时筛选文章 ID 与 owner ID。缺失或他人文章均返回 `not_found`，写入在主库事务中完成。
@@ -66,7 +72,7 @@ curl --noproxy '*' http://127.0.0.1:3000/health
 
 编译 `encryption` 时，所有者可通过 `PUT/GET /api/example/articles/{id}/private-note` 保存和读取私密备注。主库只保存 `Encryptor` 密文；认证上下文固定绑定 owner ID 与文章 ID，列表和公开文章资源均不包含备注或密文。私密备注输入最多 10,000 字符，越权与不存在返回 404；响应明确设置 `Cache-Control: private, no-store` 与 `nosniff`。双库真实 HTTP 回归还验证密文不能在另一文章上下文解密。密钥需由应用安全配置，测试密钥不适用于生产。
 
-编译 `storage-local` 时，所有者可通过 `PUT/GET/DELETE /api/example/articles/{id}/attachment` 上传、下载和删除一份 UTF-8 文本附件。服务端构造 owner/文章专属对象 key，拒绝客户端文件名和其他 MIME；流大小 1 MiB、分块 16 KiB，逐块校验 UTF-8 与控制字符。下载强制固定文件名、`nosniff` 与 `private, no-store`。上传与文章删除使用同一文章行锁串行化；文章删除在数据库事务中写入持久清理意图，提交后才删除对象。上传在 App 资源所有者中受管运行并保留启动时的租户作用域；15 秒 HTTP 等待截止后发布任务继续收尾，文章删除需等该任务完成。45 秒期限约束请求体读取至 EOF；EOF 与期限由共享原子状态仲裁：期限先获胜时，流不能以正常 EOF 交给 storage，因此不会进入对象发布；EOF 先获胜时，发布任务继续持有数据库锁直到存储调用收敛，不因 HTTP 等待超时释放事务。真实 MinIO 代理暂停签名 CopyObject、确认其已向 MinIO 返回成功状态后，PostgreSQL 18 与 MySQL 8.4 各自的竞态回归验证 DELETE 等待复制完成，并在删除后确认最终 key 不存在且 staging 已清理。请求体挂起的 deadline/锁释放回归在 PostgreSQL/MySQL 也各通过 1/1。App shutdown 到达自身 deadline 后仍可能中止任务；进程被强杀、MinIO 永久无响应、网络请求永不收敛，或 CopyObject 已发送后返回 `storage_publication_uncertain` 且远端稍后完成时，不保证数据库与对象存储原子提交或自动消除孤儿。已提交文章删除的清理意图可由 `example attachments reconcile` 幂等重试；重用文章 ID 时，遗留意图会阻止新附件上传并拒绝清理，避免误删新对象。此机制不等于病毒或敏感信息扫描。本地附件回归使用生产 Router 的 `TestApp` 与真实 PostgreSQL/MySQL；S3 回归另外使用隔离 MinIO bucket，包含两独立 App 的真实 TCP 分块上传、下载与越权拒绝、挂起新对象不可见、挂起覆盖保留旧对象、复制在途时删除等待并清理、取消及持久清理意图恢复。S3 路径目前仍需同时编译 `storage-local` 与 `storage-s3`，并显式把默认 disk 配成 S3；发布与运维边界见 [存储说明](../../src/storage/README.md)。
+编译 `storage-local` 时，所有者可通过 `PUT/GET/DELETE /api/example/articles/{id}/attachment` 上传、下载和删除一份 UTF-8 文本附件。服务端构造 `example/` 前缀下 owner/文章专属对象 key，拒绝客户端文件名和其他 MIME；流大小 1 MiB、分块 16 KiB，逐块校验 UTF-8 与控制字符。下载强制固定文件名、`nosniff` 与 `private, no-store`。上传与文章删除使用同一文章行锁串行化；文章删除在数据库事务中写入持久清理意图，提交后才删除对象。上传在 App 资源所有者中受管运行并保留启动时的租户作用域；15 秒 HTTP 等待截止后发布任务继续收尾，文章删除需等该任务完成。45 秒期限约束请求体读取至 EOF；EOF 与期限由共享原子状态仲裁：期限先获胜时，流不能以正常 EOF 交给 storage，因此不会进入对象发布；EOF 先获胜时，发布任务继续持有数据库锁直到存储调用收敛，不因 HTTP 等待超时释放事务。真实 MinIO 代理暂停签名 CopyObject、确认其已向 MinIO 返回成功状态后，PostgreSQL 18 与 MySQL 8.4 各自的竞态回归验证 DELETE 等待复制完成，并在删除后确认最终 key 不存在且 staging 已清理。请求体挂起的 deadline/锁释放回归在 PostgreSQL/MySQL 也各通过 1/1。App shutdown 到达自身 deadline 后仍可能中止任务；进程被强杀、MinIO 永久无响应、网络请求永不收敛，或 CopyObject 已发送后返回 `storage_publication_uncertain` 且远端稍后完成时，不保证数据库与对象存储原子提交或自动消除孤儿。已提交文章删除的清理意图可由 `example attachments reconcile` 幂等重试；重用文章 ID 时，遗留意图会阻止新附件上传并拒绝清理，避免误删新对象。此机制不等于病毒或敏感信息扫描。本地附件回归使用生产 Router 的 `TestApp` 与真实 PostgreSQL/MySQL；S3 回归另外使用隔离 MinIO bucket，包含两独立 App 的真实 TCP 分块上传、下载与越权拒绝、挂起新对象不可见、挂起覆盖保留旧对象、复制在途时删除等待并清理、取消及持久清理意图恢复。S3 路径目前仍需同时编译 `storage-local` 与 `storage-s3`，并显式把默认 disk 配成 S3；发布与运维边界见 [存储说明](../../src/storage/README.md)。
 
 编译 `data-exchange` 时，认证用户可通过 `POST /api/example/articles/import?format=csv|xlsx` 导入、`GET /api/example/articles/export?format=csv|xlsx` 导出自己的文章。输入最多 1 MiB、100 行，先完成有界解析，再逐行调用同一 `ArticleWriter`；合法行各自提交，报告只给行号、白名单字段和稳定错误码，前序成功行不会因后续坏行回滚。导出只含 `title`、`body`，最多 100 行、2 MiB，不含 owner、私密备注或密文；CSV 公式前缀按框架策略转义，不能承诺逐字导入往返。编译 `data-exchange-tasks` 和 `storage-local` 时，还可通过 `POST /api/example/articles/export-jobs` 排队导出，并经 `GET /api/example/articles/export-jobs/{job_id}/{attempt}` 按当前账户读取本地私有对象；框架清理任务在保留期后删除对象。标准应用迁移包含此能力所需共享锁表。
 
@@ -102,8 +108,8 @@ curl --noproxy '*' http://127.0.0.1:3000/health
 
 - **默认 Redis 的 tag/SWR**：`GET /api/example/articles/{id}/cached-title/swr` 在主库 owner 授权后使用 `Cache::default_store`、tag 和 `get_stale_while_revalidate`；新鲜期 30 秒、陈旧期 120 秒，文章索引 job 在提交后消费并失效对应 tag。显式默认 Redis 的双库回归已覆盖该业务，不静默回退到 memory。它与 `example-prefix` named driver 是两个示例；两者都不是授权来源，队列未消费时允许旧派生值。
 - **本地化预览**：`GET /api/example/reading-summary` 的 [`http/controllers/localization.rs`](http/controllers/localization.rs) 通过 `RequestLocale`、模块消息的 CLDR 复数及 `I18n::format_date/format_datetime` 返回阅读摘要预览；输入为受限 count、RFC3339 at 和 `utc`/`utc+08:00` 固定偏移，不伪装为真实阅读统计或 IANA/DST 时区实现。真实 TCP 测试覆盖英中差异、复数、长日期与跨日边界。
-- **视图发布**：`GET /pages/about` 调用 `Views::render("example::pages/about.html", ...)`。生产模块优先使用 `resources/views/vendor/example` 发布副本，缺失时回退模块模板；[`tests/view_flows.rs`](tests/view_flows.rs) 经真实 TCP 验证源模板、发布覆盖、回退、转义和错误边界。
-- **显式种子与重试**：`database/seeders` 实现公开 Seeder，由 `db seed` 或测试显式调用，boot 不写库。种子使用固定负 ID 命名空间、不可登录身份和碰撞 fail-closed；重复执行保留用户后续编辑。`tests/queue_retry_flows.rs` 使用真实数据库/Redis worker 展示失败退避、恢复、终态与公开重试，不以直接调用 Job 冒充 worker。
+- **视图发布**：`GET /example/pages/about` 调用 `Views::render("example::pages/about.html", ...)`。生产模块优先使用 `resources/views/vendor/example` 发布副本，缺失时回退模块模板；[`tests/view_flows.rs`](tests/view_flows.rs) 经真实 TCP 验证源模板、发布覆盖、回退、转义和错误边界。
+- **显式种子与重试**：`database/seeders` 实现公开 Seeder，由 `db seed` 或测试显式调用，boot 不写库。种子使用固定负 ID 命名空间、负数 owner ID 和碰撞 fail-closed；不在框架 `users` 表创建种子账户；重复执行保留用户后续编辑。`tests/queue_retry_flows.rs` 使用真实数据库/Redis worker 展示失败退避、恢复、终态与公开重试，不以直接调用 Job 冒充 worker。
 - **gRPC TLS 与组合监听**：[`grpc.rs`](grpc.rs) 的 Echo 与 HTTP 读取同一个 `ExampleMessage`。[`tests/grpc_tls_flows.rs`](tests/grpc_tls_flows.rs) 使用同一生产 App 的公开组合函数启两个 listener/两个端口，真实客户端验证 CA、hostname、HTTP/Echo 响应和有界联合停机。不是同端口复用、根 `serve all` 自动装配或完整 R11 验收。
 - **业务观测与真实出口**：[`services/telemetry.rs`](services/telemetry.rs) 的 `observe` 只记录固定操作/结果；[`tests/collector_flows.rs`](tests/collector_flows.rs) 由独立子进程连接受控 Collector，traces 走 OTLP/HTTP，metrics 由 Collector 抓取 Prometheus。PostgreSQL 18 与 MySQL 8.4 的 delivery/unavailable 均已通过真实 Collector 验收；PG 使用任务专属 Collector、独立活跃 sink 与唯一 run ID，保持全文件 16 MiB 上限及私密哨兵断言。详细证据见项目测试记录。不称 OTLP metrics，也不称入站 W3C parent 已接入。无商业出口授权时不向供应商发送。
 

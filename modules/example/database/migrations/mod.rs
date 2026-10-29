@@ -15,8 +15,154 @@ impl MigratorTrait for Migrator {
             Box::new(CreateExampleArticleImports),
             Box::new(CreateExampleOidcBindIntents),
             Box::new(CreateExampleTenantRecords),
+            Box::new(CreateExampleRecordShowcase),
         ]
     }
+}
+
+/// 独立的字段类型示例表，不与文章、用户等框架业务实体共用。
+struct CreateExampleRecordShowcase;
+
+impl MigrationName for CreateExampleRecordShowcase {
+    fn name(&self) -> &'static str {
+        "m20261029_000009_example_record_showcase"
+    }
+}
+
+#[openrust::database::sea_orm_migration::async_trait::async_trait]
+impl MigrationTrait for CreateExampleRecordShowcase {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .create_table(
+                Table::create()
+                    .table(ExampleRecordCategories::Table)
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(ExampleRecordCategories::Id)
+                            .big_integer()
+                            .not_null()
+                            .auto_increment()
+                            .primary_key(),
+                    )
+                    .col(
+                        ColumnDef::new(ExampleRecordCategories::Name)
+                            .string_len(100)
+                            .not_null(),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
+                    .table(ExampleRecords::Table)
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(ExampleRecords::Id)
+                            .big_integer()
+                            .not_null()
+                            .auto_increment()
+                            .primary_key(),
+                    )
+                    .col(
+                        ColumnDef::new(ExampleRecords::OwnerId)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(ExampleRecords::Name)
+                            .string_len(160)
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(ExampleRecords::Description)
+                            .text()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(ExampleRecords::Priority)
+                            .integer()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(ExampleRecords::ViewCount)
+                            .big_integer()
+                            .not_null(),
+                    )
+                    .col(ColumnDef::new(ExampleRecords::Enabled).boolean().not_null())
+                    .col(
+                        ColumnDef::new(ExampleRecords::PublishedAt)
+                            .timestamp_with_time_zone()
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(ExampleRecords::Metadata)
+                            .json_binary()
+                            .null(),
+                    )
+                    .col(
+                        ColumnDef::new(ExampleRecords::CategoryId)
+                            .big_integer()
+                            .null(),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_example_records_category_id")
+                            .from(ExampleRecords::Table, ExampleRecords::CategoryId)
+                            .to(ExampleRecordCategories::Table, ExampleRecordCategories::Id)
+                            .on_delete(ForeignKeyAction::SetNull),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_index(
+                Index::create()
+                    .name("idx_example_records_owner_id")
+                    .table(ExampleRecords::Table)
+                    .col(ExampleRecords::OwnerId)
+                    .col(ExampleRecords::Id)
+                    .to_owned(),
+            )
+            .await
+    }
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .drop_table(Table::drop().table(ExampleRecords::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(
+                Table::drop()
+                    .table(ExampleRecordCategories::Table)
+                    .to_owned(),
+            )
+            .await
+    }
+}
+
+#[derive(Iden)]
+enum ExampleRecordCategories {
+    Table,
+    Id,
+    Name,
+}
+
+#[derive(Iden)]
+enum ExampleRecords {
+    Table,
+    Id,
+    OwnerId,
+    Name,
+    Description,
+    Priority,
+    ViewCount,
+    Enabled,
+    PublishedAt,
+    Metadata,
+    CategoryId,
 }
 
 struct CreateExampleHeartbeats;

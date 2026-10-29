@@ -54,6 +54,13 @@ mod collector_flows;
 pub(crate) mod database;
 #[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
 mod events;
+#[cfg(all(
+    test,
+    feature = "auth",
+    any(feature = "db-postgres", feature = "db-mysql")
+))]
+#[path = "tests/example_record_flows.rs"]
+mod example_record_flows;
 #[cfg(test)]
 #[path = "tests/extension_flows.rs"]
 mod extension_flows;

@@ -129,7 +129,7 @@ impl Fixture {
         format!("/api/example/articles/{}/attachment", self.id)
     }
     pub(super) fn object(&self) -> Result<StoragePath> {
-        StoragePath::new(format!("articles/1/{}/attachment.txt", self.id))
+        StoragePath::new(format!("example/articles/1/{}/attachment.txt", self.id))
     }
     async fn assert_missing(&self) -> TestResult {
         let storage = self.b.app()?.state().resolve::<Storage>().await?;

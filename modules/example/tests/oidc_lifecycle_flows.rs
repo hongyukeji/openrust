@@ -138,7 +138,7 @@ async fn logout(node: &BrowserNode, token: &str, handle: &str) -> TestResult<ser
 async fn assert_refresh_denied(node: &BrowserNode, refresh: &str) -> TestResult {
     let response = post(
         node,
-        "/api/auth/refresh",
+        "/api/example/auth/refresh",
         None,
         &serde_json::json!({"refresh_token":refresh}),
     )
@@ -544,7 +544,7 @@ async fn signed_backchannel_endpoint_rejects_forged_signature_without_revoking_t
     // 先证明目标 refresh 家族有效；旋转仍属于同一个已关联的外部登录家族。
     let before = post(
         &node,
-        "/api/auth/refresh",
+        "/api/example/auth/refresh",
         None,
         &serde_json::json!({"refresh_token":refresh}),
     )
@@ -596,7 +596,7 @@ async fn signed_backchannel_endpoint_rejects_forged_signature_without_revoking_t
     assert_eq!(session_status(&node, &attached).await?, StatusCode::OK);
     let refreshed = post(
         &node,
-        "/api/auth/refresh",
+        "/api/example/auth/refresh",
         None,
         &serde_json::json!({"refresh_token":refresh}),
     )
@@ -768,7 +768,7 @@ async fn real_idp_signed_backchannel_revokes_only_associated_credentials_and_rep
         let independent = node.existing_session(email).await?;
         let independent_login = post(
             &node,
-            "/api/auth/login",
+            "/api/example/auth/login",
             None,
             &serde_json::json!({"email":email,"password":LOCAL_PASSWORD}),
         )
@@ -818,7 +818,7 @@ async fn real_idp_signed_backchannel_revokes_only_associated_credentials_and_rep
         assert_eq!(session_status(&node, &independent).await?, StatusCode::OK);
         let unrelated = post(
             &node,
-            "/api/auth/refresh",
+            "/api/example/auth/refresh",
             None,
             &serde_json::json!({"refresh_token":independent_refresh}),
         )
@@ -1007,7 +1007,7 @@ async fn real_secondary_signature_with_wrong_audience_cannot_revoke_primary_cred
         assert_eq!(session_status(&node, &attached).await?, StatusCode::OK);
         let before = post(
             &node,
-            "/api/auth/refresh",
+            "/api/example/auth/refresh",
             None,
             &serde_json::json!({"refresh_token":refresh}),
         )
@@ -1042,7 +1042,7 @@ async fn real_secondary_signature_with_wrong_audience_cannot_revoke_primary_cred
         assert_eq!(session_status(&node, &attached).await?, StatusCode::OK);
         let after = post(
             &node,
-            "/api/auth/refresh",
+            "/api/example/auth/refresh",
             None,
             &serde_json::json!({"refresh_token":refresh}),
         )

@@ -8,7 +8,7 @@ pub(super) fn register(
     let _ = view_enabled;
     routes.group(
         openrust::http::RouteGroup::new()
-            .prefix("/pages")
+            .prefix("/example/pages")
             .middleware_group("example.response"),
         |pages| {
             #[cfg(feature = "view")]
