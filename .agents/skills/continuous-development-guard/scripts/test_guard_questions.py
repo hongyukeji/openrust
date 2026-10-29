@@ -68,6 +68,26 @@ class Questions(unittest.TestCase):
         self.assertEqual(self.classifier.call_args.args[0]['question_model'], 'gpt-6.1-sol')
         self.assertEqual(questions.MODEL, 'gpt-6-sol')
 
+    def test_dynamic_budget_blocks_classification_and_submission_at_twenty_percent(self):
+        response = {'accountId': 'account', 'ordinaryUsageAllowed': False, 'rateLimits': {
+            'limitId': 'codex', 'primary': {'usedPercent': 100, 'resetsAt': 2000, 'windowDurationMins': 60},
+            'spendControlReached': False, 'credits': {'hasCredits': True, 'unlimited': False, 'balance': '5600'}}}
+        self.config.update(allow_existing_credits=True, usage_budget=guard.initialize_usage_budget(response, 10))
+        self.api.quota_delay = guard.quota_delay
+        self.api.rpc.return_value = response
+        response['rateLimits']['credits']['balance'] = '1120'
+        self.assertEqual(self.step(10), 'question_quota_wait')
+        self.classifier.assert_not_called()
+        response['rateLimits']['credits']['balance'] = '1120.01'
+        self.assertEqual(self.step(11), 'question_wait')
+        self.classifier.assert_called_once()
+        response['rateLimits']['credits']['balance'] = '1120'
+        self.assertEqual(self.step(130), 'question_quota_wait')
+        self.api.answer_question.assert_not_called()
+        response['rateLimits']['credits']['balance'] = '1120.01'
+        self.assertEqual(self.step(131), 'question_answered')
+        self.classifier.assert_called_once()
+
     def test_timeout_selects_second_option_without_recommended_label(self):
         self.assertEqual(self.step(10), 'question_wait')
         self.step(129)

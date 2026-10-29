@@ -297,7 +297,7 @@ def step(runtime, state, config, agent, current, turn, guard, classifier=classif
             if request['name'].endswith('_async') and not async_owned(request, config, guard, agent.get('QuestionOrigins')):
                 # 原始item暂时未出现在有界历史页不消耗一次模型判断，可后续同版本复核。
                 row['status'] = 'cancelled'; save(); continue
-            if guard.quota_delay(guard.rpc('account/rateLimits/read', {}), now, config.get('allow_existing_credits', False), config.get('minimum_existing_credits')):
+            if guard.quota_delay(guard.rpc('account/rateLimits/read', {}), now, config.get('allow_existing_credits', False), config.get('usage_budget')):
                 return 'question_quota_wait'
             evaluation['status'] = row['status'] = 'classifying'
             save()
@@ -358,7 +358,7 @@ def step(runtime, state, config, agent, current, turn, guard, classifier=classif
                 row['status'] = 'cancelled'; save(); continue
             if request['name'].endswith('_async') and not async_owned(request, config, guard, latest.get('QuestionOrigins')):
                 row['status'] = 'cancelled'; save(); continue
-            if guard.quota_delay(guard.rpc('account/rateLimits/read', {}), time.time(), config.get('allow_existing_credits', False), config.get('minimum_existing_credits')):
+            if guard.quota_delay(guard.rpc('account/rateLimits/read', {}), time.time(), config.get('allow_existing_credits', False), config.get('usage_budget')):
                 return 'question_quota_wait'
             if ((runtime / 'disabled').exists() or guard.goal(config) != current
                     or not guard.binding_valid(config)

@@ -352,22 +352,103 @@ def decision(agent, current_goal, turn, config, now):
     return 'working'
 
 
-def credit_floor_status(response, minimum_existing_credits=None):
-    """余额底线独立于普通窗口；未知余额绝不推定通过。"""
-    if minimum_existing_credits is None:
+def budget_decimal(value):
+    """正式额度数值必须有限且非负，不能将未知或NaN当余额。"""
+    try:
+        result = Decimal(str(value))
+    except (InvalidOperation, ValueError) as error:
+        raise ValueError('未知额度数值') from error
+    if not result.is_finite() or result < 0:
+        raise ValueError('额度数值必须有限且非负')
+    return result
+
+
+def initialize_usage_budget(response, now):
+    """首次正式启用取真实基准；已耗尽窗口记录但不参与本任务预算。"""
+    try:
+        limits = response['rateLimits']
+        account = response['accountId']
+        limit_id = limits['limitId']
+        if not isinstance(account, str) or not account or not isinstance(limit_id, str) or not limit_id:
+            raise ValueError('额度身份未知')
+        if not isinstance(response.get('ordinaryUsageAllowed'), bool):
+            raise ValueError('普通额度状态未知')
+        windows = {}
+        for name in ('primary', 'secondary'):
+            window = limits.get(name)
+            if window is None:
+                continue
+            used = budget_decimal(window['usedPercent'])
+            if used > 100:
+                raise ValueError('窗口百分比不在0至100')
+            remaining = Decimal(100) - used
+            reset = budget_decimal(window['resetsAt'])
+            duration = budget_decimal(window['windowDurationMins'])
+            if duration <= 0:
+                raise ValueError('窗口时长未知')
+            windows[name] = {'baseline_remaining': str(remaining), 'reserve': str(remaining * Decimal('0.2')),
+                             'participating': remaining > 0, 'resets_at': str(reset), 'duration_mins': str(duration)}
+        if not windows:
+            raise ValueError('正式窗口未知')
+        credits = limits['credits']
+        if not isinstance(credits.get('hasCredits'), bool) or not isinstance(credits.get('unlimited'), bool):
+            raise ValueError('credits状态未知')
+        balance = budget_decimal(credits['balance'])
+        return {'version': 1, 'baseline_at': now, 'account_id': account, 'limit_id': limit_id,
+                'fraction': '0.8', 'windows': windows,
+                'credits': {'baseline_remaining': str(balance), 'reserve': str(balance * Decimal('0.2')),
+                            'participating': balance > 0 and credits['hasCredits'],
+                            'has_credits': credits['hasCredits'], 'unlimited': credits['unlimited']}}
+    except (KeyError, TypeError, InvalidOperation) as error:
+        raise ValueError('正式额度基准不完整') from error
+
+
+def usage_budget_status(response, budget=None):
+    """各参与项独立保留20%；重置/身份变化不自动补满本任务预算。"""
+    if budget is None:
         return None
     try:
-        floor = Decimal(str(minimum_existing_credits))
-        credits = response['rateLimits']['credits']
-        balance = Decimal(str(credits['balance']))
-        if not floor.is_finite() or floor < 0 or not balance.is_finite() or balance < 0:
-            return 'credit_balance_unknown'
-    except (InvalidOperation, ValueError, KeyError, TypeError):
-        return 'credit_balance_unknown'
-    return 'credit_floor_reached' if balance <= floor else 'credit_floor_available'
+        limits = response['rateLimits']
+        if (budget['version'] != 1 or budget['fraction'] != '0.8'
+                or response['accountId'] != budget['account_id'] or limits['limitId'] != budget['limit_id']):
+            return 'usage_budget_unknown'
+        if {k for k in ('primary', 'secondary') if limits.get(k) is not None} != set(budget['windows']):
+            return 'usage_budget_unknown'
+        participating = 0
+        for name, item in budget['windows'].items():
+            if not item['participating']:
+                continue
+            participating += 1
+            window = limits[name]
+            if (budget_decimal(window['resetsAt']) != budget_decimal(item['resets_at'])
+                    or budget_decimal(window['windowDurationMins']) != budget_decimal(item['duration_mins'])):
+                return 'usage_budget_window_changed'
+            used = budget_decimal(window['usedPercent'])
+            if used > 100:
+                return 'usage_budget_unknown'
+            remaining = Decimal(100) - used
+            if remaining > budget_decimal(item['baseline_remaining']):
+                return 'usage_budget_window_changed'
+            if remaining <= budget_decimal(item['reserve']):
+                return 'usage_budget_reached'
+        item = budget['credits']
+        credits = limits['credits']
+        balance = budget_decimal(credits['balance'])
+        if (not isinstance(credits.get('hasCredits'), bool) or not isinstance(credits.get('unlimited'), bool)):
+            return 'usage_budget_unknown'
+        if (balance > budget_decimal(item['baseline_remaining'])
+                or credits['hasCredits'] != item['has_credits'] or credits['unlimited'] != item['unlimited']):
+            return 'usage_budget_credits_changed'
+        if item['participating']:
+            participating += 1
+            if balance <= budget_decimal(item['reserve']):
+                return 'usage_budget_reached'
+        return 'usage_budget_available' if participating else 'usage_budget_reached'
+    except (KeyError, TypeError, ValueError, InvalidOperation):
+        return 'usage_budget_unknown'
 
 
-def pause_at_credit_floor(runtime, config):
+def pause_at_usage_budget(runtime, config):
     """只暂停已确认的本Goal；替换目标、人工暂停与停止标记始终优先。"""
     with (runtime / 'control.lock').open('a') as control:
         platform.lock_file(control)
@@ -388,9 +469,9 @@ def pause_at_credit_floor(runtime, config):
         return True
 
 
-def quota_delay(response, now, allow_existing_credits=False, minimum_existing_credits=None):
+def quota_delay(response, now, allow_existing_credits=False, usage_budget=None):
     """默认只用普通窗口；当前任务明确获准后才消费已有余额，绝不购买。"""
-    if credit_floor_status(response, minimum_existing_credits) not in (None, 'credit_floor_available'):
+    if usage_budget_status(response, usage_budget) not in (None, 'usage_budget_available'):
         return 300
     if not isinstance(response, dict) or not isinstance(response.get('rateLimits'), dict):
         return 300
@@ -460,8 +541,8 @@ def binding_valid(config):
 def apply_task_policy(state, config):
     """策略变化只失效额度等待；保留退避、发送与问答幂等记录。"""
     policy = {'allow_existing_credits': config.get('allow_existing_credits') is True,
-              'minimum_existing_credits': config.get('minimum_existing_credits')}
-    previous = {'allow_existing_credits': False, 'minimum_existing_credits': None}
+              'usage_budget': config.get('usage_budget')}
+    previous = {'allow_existing_credits': False, 'usage_budget': None}
     previous.update(state.get('quota_policy') or {})
     if policy != previous:
         state.pop('quota_check_at', None)
@@ -518,20 +599,20 @@ def worker(runtime, parent_pid):
                 sleep_until(runtime, CHECK_INTERVAL)
                 continue
             current = terminal
-            if config.get('minimum_existing_credits') is not None:
-                floor = credit_floor_status(rpc('account/rateLimits/read', {}), config['minimum_existing_credits'])
-                state['credit_floor_checked_at'] = time.time()
-                if floor == 'credit_floor_reached':
-                    record('needs_attention', reason=floor, credit_floor_paused=True)
-                    if pause_at_credit_floor(runtime, config):
-                        record('paused', reason=floor, credit_floor_paused=True)
+            if config.get('usage_budget') is not None:
+                floor = usage_budget_status(rpc('account/rateLimits/read', {}), config['usage_budget'])
+                state['usage_budget_checked_at'] = time.time()
+                if floor in ('usage_budget_reached', 'usage_budget_window_changed', 'usage_budget_credits_changed'):
+                    record('needs_attention', reason=floor, usage_budget_paused=True)
+                    if pause_at_usage_budget(runtime, config):
+                        record('paused', reason=floor, usage_budget_paused=True)
                         return
                     record('needs_attention', reason=floor)
                     sleep_until(runtime, CHECK_INTERVAL)
                     continue
-                if floor == 'credit_floor_available' and current and current.get('status') == 'active':
-                    state.pop('credit_floor_paused', None)
-                if floor != 'credit_floor_available':
+                if floor == 'usage_budget_available' and current and current.get('status') == 'active':
+                    state.pop('usage_budget_paused', None)
+                if floor != 'usage_budget_available':
                     record('needs_attention', reason=floor)
                     sleep_until(runtime, CHECK_INTERVAL)
                     continue
@@ -589,7 +670,7 @@ def worker(runtime, parent_pid):
                 record('quota_wait')
                 sleep_until(runtime, CHECK_INTERVAL)
                 continue
-            delay = quota_delay(rpc('account/rateLimits/read', {}), time.time(), config.get('allow_existing_credits', False), config.get('minimum_existing_credits'))
+            delay = quota_delay(rpc('account/rateLimits/read', {}), time.time(), config.get('allow_existing_credits', False), config.get('usage_budget'))
             if delay:
                 state['check_failures'] = 0
                 record('quota_wait', quota_check_at=time.time() + delay)
@@ -606,9 +687,9 @@ def worker(runtime, parent_pid):
                 fresh = decision(inspect(config['agent']), current, current_turn, config, time.time())
                 if fresh != action or not current_turn or current_turn['key'] != key:
                     continue
-                if config.get('minimum_existing_credits') is not None and quota_delay(
+                if config.get('usage_budget') is not None and quota_delay(
                         rpc('account/rateLimits/read', {}), time.time(),
-                        config.get('allow_existing_credits', False), config.get('minimum_existing_credits')):
+                        config.get('allow_existing_credits', False), config.get('usage_budget')):
                     continue
                 latest_goal = bound_goal(config)
                 if latest_goal.get('status') in ('paused', 'complete', 'budgetLimited'):
@@ -627,9 +708,9 @@ def worker(runtime, parent_pid):
                         continue
                 if (runtime / 'disabled').exists():
                     continue
-                if config.get('minimum_existing_credits') is not None and quota_delay(
+                if config.get('usage_budget') is not None and quota_delay(
                         rpc('account/rateLimits/read', {}), time.time(),
-                        config.get('allow_existing_credits', False), config.get('minimum_existing_credits')):
+                        config.get('allow_existing_credits', False), config.get('usage_budget')):
                     continue
                 attempts += 1
                 record('dispatching', dispatch_key=key, dispatch_at=time.time())
@@ -816,17 +897,9 @@ def main():
     parser.add_argument('--parent-pid', type=int)
     parser.add_argument('--allow-existing-credits', action=argparse.BooleanOptionalAction, default=None,
                         help='仅当前任务经用户明确授权消费已有credits，不购买或充值；默认关闭')
-    parser.add_argument('--minimum-existing-credits', help='当前任务已有credits余额底线；小于等于时暂停，未知时等待')
     parser.add_argument('--question-model', help='仅当前任务的无工具问答分类模型，须来自现有catalog')
     parser.add_argument('--stop-task', action='store_true', help='同时暂停Goal并中断主控，须用户明确停止')
     args = parser.parse_args()
-    if args.minimum_existing_credits is not None:
-        try:
-            floor = Decimal(args.minimum_existing_credits)
-            if not floor.is_finite() or floor < 0:
-                raise ValueError('余额底线须为非负有限数')
-        except (InvalidOperation, ValueError) as error:
-            parser.error(str(error))
     requested_at = time.time()
     if args.command.startswith('_'):
         if not args.runtime or not args.runtime.resolve().is_relative_to(ROOT / '.agents/project/guards'):
@@ -928,8 +1001,10 @@ def main():
             same_goal = prior_config.get('goal_id') == config['goal_id']
             config['allow_existing_credits'] = (args.allow_existing_credits if args.allow_existing_credits is not None
                                                 else prior_config.get('allow_existing_credits', False) if same_goal else False)
-            config['minimum_existing_credits'] = (args.minimum_existing_credits if args.minimum_existing_credits is not None
-                                                  else prior_config.get('minimum_existing_credits') if same_goal else None)
+            config['usage_budget'] = (prior_config.get('usage_budget') if same_goal else None)
+            if config['usage_budget'] is None:
+                config['usage_budget'] = initialize_usage_budget(rpc('account/rateLimits/read', {}), time.time())
+            config.pop('minimum_existing_credits', None)
             config['question_model'] = (args.question_model or
                                         (prior_config.get('question_model') if same_goal else None) or questions.MODEL)
             atomic(runtime / 'config.json', config)
@@ -939,13 +1014,14 @@ def main():
             if not current_goal or current_goal['id'] != config['goal_id']:
                 raise SystemExit('原Goal已变化，未启动守护')
             if current_goal['status'] == 'paused':
-                saved_state = json.loads((runtime / 'state.json').read_text(encoding='utf-8')) if (runtime / 'state.json').exists() else {}
-                if saved_state.get('credit_floor_paused') or saved_state.get('reason') == 'credit_floor_reached':
-                    raise SystemExit('余额底线已暂停原Goal；守护重启不会自动恢复，请用户明确恢复原Goal后再启动')
-                if config.get('minimum_existing_credits') is not None and credit_floor_status(
-                        rpc('account/rateLimits/read', {}), config['minimum_existing_credits']) != 'credit_floor_available':
-                    raise SystemExit('余额低于或等于底线或未知，不恢复暂停目标')
                 remote = bound_goal(config)
+                saved_state = json.loads((runtime / 'state.json').read_text(encoding='utf-8')) if (runtime / 'state.json').exists() else {}
+                if (saved_state.get('usage_budget_paused') or saved_state.get('credit_floor_paused')
+                        or saved_state.get('reason') in ('usage_budget_reached', 'credit_floor_reached')):
+                    raise SystemExit('任务用量预算已暂停原Goal；守护重启不会自动恢复，请用户明确恢复原Goal后再启动')
+                if config.get('usage_budget') is not None and usage_budget_status(
+                        rpc('account/rateLimits/read', {}), config['usage_budget']) != 'usage_budget_available':
+                    raise SystemExit('任务用量预算已触发或未知，不恢复暂停目标')
                 if remote.get('status') != 'paused':
                     raise SystemExit('暂停Goal状态不一致，未恢复任务')
                 rpc('thread/goal/set', {'threadId': config['thread'], 'status': 'active'})

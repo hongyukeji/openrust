@@ -20,6 +20,18 @@ recovery = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(recovery)
 
 
+def quota_snapshot(balance='15000', used=100, secondary=None):
+    """隔离的正式额度形态，用于验证预算，不连接商业模型。"""
+    return {'accountId': 'account', 'ordinaryUsageAllowed': used < 100,
+            'rateLimits': {'limitId': 'codex', 'primary': {'usedPercent': used, 'resetsAt': 2000,
+            'windowDurationMins': 10080}, 'secondary': secondary, 'spendControlReached': False,
+            'credits': {'hasCredits': True, 'unlimited': False, 'balance': balance}}}
+
+
+def example_budget():
+    return recovery.initialize_usage_budget(quota_snapshot(), 100)
+
+
 class Decisions(unittest.TestCase):
     def setUp(self):
         self.agent = {'Status': 'idle', 'Cwd': str(recovery.ROOT)}
@@ -315,18 +327,64 @@ class Decisions(unittest.TestCase):
         turn = dict(self.turn, payload={'error': {'message': '401 unauthorized'}})
         self.assertEqual(self.decide(turn=turn), 'needs_attention')
 
-    def test_credit_floor_precedes_ordinary_window_and_uses_exact_decimal(self):
-        response = {'ordinaryUsageAllowed': True, 'rateLimits': {
-            'primary': {'usedPercent': 1}, 'spendControlReached': False,
-            'credits': {'hasCredits': True, 'unlimited': False, 'balance': '3000.01'}}}
-        self.assertEqual(recovery.quota_delay(response, 100, True, '3000'), 0)
+    def test_usage_budget_records_remaining_and_excludes_exhausted_windows(self):
+        response = quota_snapshot('5600', 50, {'usedPercent': 100, 'resetsAt': 3000, 'windowDurationMins': 60})
+        budget = recovery.initialize_usage_budget(response, 123)
+        self.assertEqual(budget['baseline_at'], 123)
+        self.assertEqual(budget['windows']['primary']['baseline_remaining'], '50')
+        self.assertEqual(budget['windows']['primary']['reserve'], '10.0')
+        self.assertFalse(budget['windows']['secondary']['participating'])
+        self.assertEqual(budget['credits']['reserve'], '1120.0')
+        response['rateLimits']['primary']['usedPercent'] = 90
+        self.assertEqual(recovery.usage_budget_status(response, budget), 'usage_budget_reached')
+
+    def test_usage_budget_credits_use_exact_threshold_and_do_not_depend_on_ordinary_window(self):
+        budget = example_budget()
+        response = quota_snapshot('3000.01')
+        self.assertEqual(recovery.quota_delay(response, 100, True, budget), 0)
         for balance in ('2999.99', '3000', None, 'NaN', 'Infinity', 'unknown'):
             response['rateLimits']['credits']['balance'] = balance
-            self.assertGreater(recovery.quota_delay(response, 100, True, '3000'), 0)
-        self.assertEqual(recovery.quota_delay(response, 100), 0)  # 默认其他任务不受底线影响。
-        self.assertEqual(recovery.credit_floor_status({}, '3000'), 'credit_balance_unknown')
+            response['ordinaryUsageAllowed'] = True
+            response['rateLimits']['primary']['usedPercent'] = 1
+            self.assertGreater(recovery.quota_delay(response, 100, True, budget), 0)
+        self.assertEqual(recovery.quota_delay(response, 100), 0)
+        self.assertEqual(recovery.usage_budget_status({}, budget), 'usage_budget_unknown')
 
-    def test_credit_floor_pause_never_interrupts_replacement_goal(self):
+    def test_usage_budget_multiple_windows_reset_or_identity_never_rebaseline(self):
+        response = quota_snapshot('5600', 40, {'usedPercent': 20, 'resetsAt': 3000, 'windowDurationMins': 60})
+        budget = recovery.initialize_usage_budget(response, 123)
+        response['rateLimits']['secondary']['usedPercent'] = 84
+        self.assertEqual(recovery.usage_budget_status(response, budget), 'usage_budget_reached')
+        response['rateLimits']['secondary']['usedPercent'] = 20
+        response['rateLimits']['primary']['resetsAt'] += 1
+        self.assertEqual(recovery.usage_budget_status(response, budget), 'usage_budget_window_changed')
+        response = quota_snapshot('5600', 40, {'usedPercent': 20, 'resetsAt': 3000, 'windowDurationMins': 60})
+        response['accountId'] = 'other'
+        self.assertEqual(recovery.usage_budget_status(response, budget), 'usage_budget_unknown')
+        response['accountId'] = 'account'; response['rateLimits']['credits']['balance'] = '5601'
+        self.assertEqual(recovery.usage_budget_status(response, budget), 'usage_budget_credits_changed')
+
+    def test_unfunded_credits_cannot_be_added_and_unlimited_cannot_flip(self):
+        response = quota_snapshot('0', 50)
+        response['rateLimits']['credits']['hasCredits'] = False
+        budget = recovery.initialize_usage_budget(response, 123)
+        self.assertFalse(budget['credits']['participating'])
+        response['rateLimits']['credits'].update(balance='10', hasCredits=True)
+        self.assertEqual(recovery.usage_budget_status(response, budget), 'usage_budget_credits_changed')
+        self.assertGreater(recovery.quota_delay(response, 100, True, budget), 0)
+        response = quota_snapshot('15000')
+        budget = recovery.initialize_usage_budget(response, 123)
+        response['rateLimits']['credits']['unlimited'] = True
+        self.assertEqual(recovery.usage_budget_status(response, budget), 'usage_budget_credits_changed')
+        response['rateLimits']['credits']['unlimited'] = None
+        self.assertEqual(recovery.usage_budget_status(response, budget), 'usage_budget_unknown')
+
+    def test_usage_budget_rejects_unknown_initial_snapshot(self):
+        for value in ({}, quota_snapshot('NaN'), quota_snapshot(None), quota_snapshot('5600', 101)):
+            with self.assertRaises(ValueError):
+                recovery.initialize_usage_budget(value, 100)
+
+    def test_usage_budget_pause_never_interrupts_replacement_goal(self):
         config = {'goal_id': 'owned', 'agent': 'agent', 'thread': 'thread'}
         for replacement in (False, True):
             with self.subTest(replacement=replacement), tempfile.TemporaryDirectory() as folder:
@@ -336,7 +394,7 @@ class Decisions(unittest.TestCase):
                      patch.object(recovery, 'goal', side_effect=[current, after]), \
                      patch.object(recovery, 'bound_goal', return_value={'status': 'paused'}), \
                      patch.object(recovery, 'rpc') as rpc, patch.object(recovery, 'run_json') as run:
-                    self.assertEqual(recovery.pause_at_credit_floor(Path(folder), config), not replacement)
+                    self.assertEqual(recovery.pause_at_usage_budget(Path(folder), config), not replacement)
                     rpc.assert_called_once_with('thread/goal/set', {'threadId': 'thread', 'status': 'paused'})
                     self.assertEqual(run.call_count, 0 if replacement else 1)
 
@@ -344,7 +402,7 @@ class Decisions(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             runtime = Path(folder)
             config = {'goal_id': 'owned', 'agent': 'agent', 'thread': 'thread',
-                      'rollout': 'rollout', 'minimum_existing_credits': '3000'}
+                      'rollout': 'rollout', 'usage_budget': example_budget()}
             (runtime / 'config.json').write_text(json.dumps(config))
             with patch.object(recovery.os, 'getppid', return_value=42), \
                  patch.object(recovery, 'goal', return_value={'id': 'owned', 'status': 'active'}), \
@@ -352,17 +410,17 @@ class Decisions(unittest.TestCase):
                  patch.object(recovery, 'inspect', return_value={'Status': 'running'}), \
                  patch.object(recovery, 'timeline', side_effect=RuntimeError('日志不可读')), \
                  patch.object(recovery, 'controlled_turn', return_value=None), \
-                 patch.object(recovery, 'rpc', return_value={'rateLimits': {'credits': {'balance': '2999.99'}}}), \
-                 patch.object(recovery, 'pause_at_credit_floor', return_value=True) as stop, \
+                 patch.object(recovery, 'rpc', return_value=quota_snapshot('2999.99')), \
+                 patch.object(recovery, 'pause_at_usage_budget', return_value=True) as stop, \
                  patch.object(recovery.questions, 'step') as question, patch.object(recovery, 'notify', return_value=False):
                 recovery.worker(runtime, 42)
                 stop.assert_called_once_with(runtime, config)
                 question.assert_not_called()
-                self.assertEqual(json.loads((runtime / 'state.json').read_text())['reason'], 'credit_floor_reached')
+                self.assertEqual(json.loads((runtime / 'state.json').read_text())['reason'], 'usage_budget_reached')
                 stop.side_effect = RuntimeError('暂停协议往返失败')
                 with patch.object(recovery, 'sleep_until', side_effect=lambda *_: (runtime / 'disabled').touch()):
                     recovery.worker(runtime, 42)
-                self.assertTrue(json.loads((runtime / 'state.json').read_text())['credit_floor_paused'])
+                self.assertTrue(json.loads((runtime / 'state.json').read_text())['usage_budget_paused'])
 
     def test_existing_credits_require_task_authorization_and_formal_eligibility(self):
         response = {'ordinaryUsageAllowed': False, 'rateLimits': {
@@ -626,6 +684,8 @@ else:
   if method=='thread/goal/get':
    with sqlite3.connect(root/'codex/goals_1.sqlite') as db:row=db.execute('SELECT goal_id,status,created_at_ms,objective FROM thread_goals').fetchone()
    result={'goal':{'threadId':os.environ['CODEX_THREAD_ID'],'status':row[1],'createdAt':row[2]//1000,'objective':row[3]}}
+  if method=='account/rateLimits/read':
+   result={'accountId':'account','ordinaryUsageAllowed':True,'rateLimits':{'limitId':'codex','primary':{'usedPercent':1,'resetsAt':2000,'windowDurationMins':60},'credits':{'hasCredits':True,'unlimited':False,'balance':(root/'balance').read_text() if (root/'balance').exists() else '15000'},'spendControlReached':False}}
   if method=='thread/goal/set':
    with sqlite3.connect(root/'codex/goals_1.sqlite') as db:db.execute('UPDATE thread_goals SET status=?',(request['params']['status'],))
   print(json.dumps({'id':request['id'],'result':result}),flush=True)
@@ -693,14 +753,17 @@ else:
     def test_plain_guard_restart_preserves_backoff_and_uncertain_dispatch(self):
         self.call('start')
         self.call('stop')
+        original_budget = json.loads((self.runtime / 'config.json').read_text())['usage_budget']
         state_path = self.runtime / 'state.json'
         state = json.loads(state_path.read_text())
         state.update(attempts=2, retry_at=time.time() + 3600, pending_key='original', dispatch_key='uncertain',
                      quota_check_at=time.time() + 86400, questions={'q': {'status': 'sending'}},
                      goal_control={'status': 'blocked', 'key': 'original-control'})
         state_path.write_text(json.dumps(state))
-        self.call('start', '--allow-existing-credits', '--question-model', 'gpt-6.1-sol', '--minimum-existing-credits', '3000')
+        self.call('start', '--allow-existing-credits', '--question-model', 'gpt-6.1-sol')
         self.call('stop')
+        saved_budget = json.loads((self.runtime / 'config.json').read_text())['usage_budget']
+        self.assertEqual(saved_budget, original_budget)
         after = json.loads(state_path.read_text())
         for key in ('attempts', 'retry_at', 'pending_key', 'dispatch_key', 'questions'):
             self.assertEqual(after[key], state[key])
@@ -710,7 +773,20 @@ else:
         config = json.loads((self.runtime / 'config.json').read_text())
         self.assertTrue(config['allow_existing_credits'])
         self.assertEqual(config['question_model'], 'gpt-6.1-sol')
-        self.assertEqual(config['minimum_existing_credits'], '3000')
+        self.assertEqual(config['usage_budget'], saved_budget)
+
+    def test_only_a_new_goal_creates_a_new_budget_baseline(self):
+        self.call('start'); self.call('stop')
+        before = json.loads((self.runtime / 'config.json').read_text())['usage_budget']
+        (self.root / 'balance').write_text('8000')
+        with sqlite3.connect(self.home / 'goals_1.sqlite') as db:
+            db.execute("UPDATE thread_goals SET goal_id='new-goal'")
+        self.call('start'); self.call('stop')
+        config = json.loads((self.runtime / 'config.json').read_text())
+        self.assertEqual(config['goal_id'], 'new-goal')
+        self.assertEqual(config['usage_budget']['credits']['baseline_remaining'], '8000')
+        self.assertEqual(config['usage_budget']['credits']['reserve'], '1600.0')
+        self.assertNotEqual(config['usage_budget']['baseline_at'], before['baseline_at'])
 
     def test_supervisor_bounds_long_running_log(self):
         self.call('start')
@@ -796,25 +872,29 @@ class PlatformBoundaries(unittest.TestCase):
             root = Path(folder)
             agent = '11111111-1111-4111-8111-111111111111'
             config = {'agent': agent, 'thread': 't', 'goal_id': 'old'}
+            runtime = root / '.agents/project/guards' / agent
+            runtime.mkdir(parents=True)
+            (runtime / 'config.json').write_text(json.dumps(dict(config, usage_budget=example_budget())))
             with patch.object(recovery, 'ROOT', root), patch.object(sys, 'argv', ['guard.py', 'start', '--agent', agent]), patch.object(recovery.platform, 'command'), patch.object(recovery, 'config_for', return_value=config), patch.object(recovery, 'goal', return_value={'id': 'old', 'status': 'paused'}), patch.object(recovery, 'bound_goal', side_effect=[{'status': 'paused'}, ValueError('replaced')]), patch.object(recovery, 'rpc') as remote:
                 with self.assertRaises(ValueError): recovery.main()
                 remote.assert_not_called()
 
-    def test_plain_restart_never_reactivates_credit_floor_pause(self):
+    def test_plain_restart_never_reactivates_usage_budget_pause(self):
         for marker, balance in ((True, '6000'), (False, '3000'), (False, None)):
             with self.subTest(marker=marker, balance=balance), tempfile.TemporaryDirectory() as folder:
                 root = Path(folder)
                 agent = '11111111-1111-4111-8111-111111111111'
                 runtime = root / '.agents/project/guards' / agent
                 runtime.mkdir(parents=True)
-                (runtime / 'state.json').write_text(json.dumps({'reason': 'stopped', 'credit_floor_paused': marker}))
+                (runtime / 'state.json').write_text(json.dumps({'reason': 'stopped', 'usage_budget_paused': marker}))
                 config = {'agent': agent, 'thread': 't', 'goal_id': 'old'}
+                (runtime / 'config.json').write_text(json.dumps(dict(config, usage_budget=example_budget())))
                 with patch.object(recovery, 'ROOT', root), \
-                     patch.object(sys, 'argv', ['guard.py', 'start', '--agent', agent, '--minimum-existing-credits', '3000']), \
+                     patch.object(sys, 'argv', ['guard.py', 'start', '--agent', agent]), \
                      patch.object(recovery.platform, 'command'), patch.object(recovery, 'config_for', return_value=config), \
                      patch.object(recovery, 'goal', return_value={'id': 'old', 'status': 'paused'}), \
                      patch.object(recovery, 'bound_goal', return_value={'status': 'paused'}), \
-                     patch.object(recovery, 'rpc', return_value={'rateLimits': {'credits': {'balance': balance}}}) as remote:
+                     patch.object(recovery, 'rpc', return_value=quota_snapshot(balance)) as remote:
                     with self.assertRaises(SystemExit):
                         recovery.main()
                     self.assertFalse(any(c.args[0] == 'thread/goal/set' for c in remote.call_args_list))
