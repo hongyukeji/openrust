@@ -315,6 +315,55 @@ class Decisions(unittest.TestCase):
         turn = dict(self.turn, payload={'error': {'message': '401 unauthorized'}})
         self.assertEqual(self.decide(turn=turn), 'needs_attention')
 
+    def test_credit_floor_precedes_ordinary_window_and_uses_exact_decimal(self):
+        response = {'ordinaryUsageAllowed': True, 'rateLimits': {
+            'primary': {'usedPercent': 1}, 'spendControlReached': False,
+            'credits': {'hasCredits': True, 'unlimited': False, 'balance': '3000.01'}}}
+        self.assertEqual(recovery.quota_delay(response, 100, True, '3000'), 0)
+        for balance in ('2999.99', '3000', None, 'NaN', 'Infinity', 'unknown'):
+            response['rateLimits']['credits']['balance'] = balance
+            self.assertGreater(recovery.quota_delay(response, 100, True, '3000'), 0)
+        self.assertEqual(recovery.quota_delay(response, 100), 0)  # 默认其他任务不受底线影响。
+        self.assertEqual(recovery.credit_floor_status({}, '3000'), 'credit_balance_unknown')
+
+    def test_credit_floor_pause_never_interrupts_replacement_goal(self):
+        config = {'goal_id': 'owned', 'agent': 'agent', 'thread': 'thread'}
+        for replacement in (False, True):
+            with self.subTest(replacement=replacement), tempfile.TemporaryDirectory() as folder:
+                current = {'id': 'owned', 'status': 'active'}
+                after = {'id': 'replacement' if replacement else 'owned', 'status': 'paused'}
+                with patch.object(recovery, 'binding_valid', return_value=True), \
+                     patch.object(recovery, 'goal', side_effect=[current, after]), \
+                     patch.object(recovery, 'bound_goal', return_value={'status': 'paused'}), \
+                     patch.object(recovery, 'rpc') as rpc, patch.object(recovery, 'run_json') as run:
+                    self.assertEqual(recovery.pause_at_credit_floor(Path(folder), config), not replacement)
+                    rpc.assert_called_once_with('thread/goal/set', {'threadId': 'thread', 'status': 'paused'})
+                    self.assertEqual(run.call_count, 0 if replacement else 1)
+
+    def test_running_worker_checks_floor_and_stops_before_questions_or_recovery(self):
+        with tempfile.TemporaryDirectory() as folder:
+            runtime = Path(folder)
+            config = {'goal_id': 'owned', 'agent': 'agent', 'thread': 'thread',
+                      'rollout': 'rollout', 'minimum_existing_credits': '3000'}
+            (runtime / 'config.json').write_text(json.dumps(config))
+            with patch.object(recovery.os, 'getppid', return_value=42), \
+                 patch.object(recovery, 'goal', return_value={'id': 'owned', 'status': 'active'}), \
+                 patch.object(recovery, 'binding_valid', return_value=True), \
+                 patch.object(recovery, 'inspect', return_value={'Status': 'running'}), \
+                 patch.object(recovery, 'timeline', side_effect=RuntimeError('日志不可读')), \
+                 patch.object(recovery, 'controlled_turn', return_value=None), \
+                 patch.object(recovery, 'rpc', return_value={'rateLimits': {'credits': {'balance': '2999.99'}}}), \
+                 patch.object(recovery, 'pause_at_credit_floor', return_value=True) as stop, \
+                 patch.object(recovery.questions, 'step') as question, patch.object(recovery, 'notify', return_value=False):
+                recovery.worker(runtime, 42)
+                stop.assert_called_once_with(runtime, config)
+                question.assert_not_called()
+                self.assertEqual(json.loads((runtime / 'state.json').read_text())['reason'], 'credit_floor_reached')
+                stop.side_effect = RuntimeError('暂停协议往返失败')
+                with patch.object(recovery, 'sleep_until', side_effect=lambda *_: (runtime / 'disabled').touch()):
+                    recovery.worker(runtime, 42)
+                self.assertTrue(json.loads((runtime / 'state.json').read_text())['credit_floor_paused'])
+
     def test_existing_credits_require_task_authorization_and_formal_eligibility(self):
         response = {'ordinaryUsageAllowed': False, 'rateLimits': {
             'primary': {'usedPercent': 100, 'resetsAt': 1000},
@@ -650,7 +699,7 @@ else:
                      quota_check_at=time.time() + 86400, questions={'q': {'status': 'sending'}},
                      goal_control={'status': 'blocked', 'key': 'original-control'})
         state_path.write_text(json.dumps(state))
-        self.call('start', '--allow-existing-credits', '--question-model', 'gpt-6.1-sol')
+        self.call('start', '--allow-existing-credits', '--question-model', 'gpt-6.1-sol', '--minimum-existing-credits', '3000')
         self.call('stop')
         after = json.loads(state_path.read_text())
         for key in ('attempts', 'retry_at', 'pending_key', 'dispatch_key', 'questions'):
@@ -661,6 +710,7 @@ else:
         config = json.loads((self.runtime / 'config.json').read_text())
         self.assertTrue(config['allow_existing_credits'])
         self.assertEqual(config['question_model'], 'gpt-6.1-sol')
+        self.assertEqual(config['minimum_existing_credits'], '3000')
 
     def test_supervisor_bounds_long_running_log(self):
         self.call('start')
@@ -749,6 +799,25 @@ class PlatformBoundaries(unittest.TestCase):
             with patch.object(recovery, 'ROOT', root), patch.object(sys, 'argv', ['guard.py', 'start', '--agent', agent]), patch.object(recovery.platform, 'command'), patch.object(recovery, 'config_for', return_value=config), patch.object(recovery, 'goal', return_value={'id': 'old', 'status': 'paused'}), patch.object(recovery, 'bound_goal', side_effect=[{'status': 'paused'}, ValueError('replaced')]), patch.object(recovery, 'rpc') as remote:
                 with self.assertRaises(ValueError): recovery.main()
                 remote.assert_not_called()
+
+    def test_plain_restart_never_reactivates_credit_floor_pause(self):
+        for marker, balance in ((True, '6000'), (False, '3000'), (False, None)):
+            with self.subTest(marker=marker, balance=balance), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                agent = '11111111-1111-4111-8111-111111111111'
+                runtime = root / '.agents/project/guards' / agent
+                runtime.mkdir(parents=True)
+                (runtime / 'state.json').write_text(json.dumps({'reason': 'stopped', 'credit_floor_paused': marker}))
+                config = {'agent': agent, 'thread': 't', 'goal_id': 'old'}
+                with patch.object(recovery, 'ROOT', root), \
+                     patch.object(sys, 'argv', ['guard.py', 'start', '--agent', agent, '--minimum-existing-credits', '3000']), \
+                     patch.object(recovery.platform, 'command'), patch.object(recovery, 'config_for', return_value=config), \
+                     patch.object(recovery, 'goal', return_value={'id': 'old', 'status': 'paused'}), \
+                     patch.object(recovery, 'bound_goal', return_value={'status': 'paused'}), \
+                     patch.object(recovery, 'rpc', return_value={'rateLimits': {'credits': {'balance': balance}}}) as remote:
+                    with self.assertRaises(SystemExit):
+                        recovery.main()
+                    self.assertFalse(any(c.args[0] == 'thread/goal/set' for c in remote.call_args_list))
 
     def test_missing_dependency_does_not_create_runtime(self):
         with tempfile.TemporaryDirectory() as folder:

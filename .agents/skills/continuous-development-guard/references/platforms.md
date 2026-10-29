@@ -58,3 +58,7 @@ Windows 的 `.cmd` / `.bat` 只通过同目录已有 npm package 的唯一 `bin`
 `start --allow-existing-credits` 仅在用户明确允许当前任务消费已有 credits 后使用；默认关闭，`--no-allow-existing-credits` 撤销，同一 Goal 重启保留。修改已运行守护政策须先普通 `stop` 再带选项 `start`；不使用 `--stop-task`，不停止业务主控。`already_running` 仅表示原实例已存在，不更新政策。运行配置的 `allow_existing_credits` 不改变付款、账户或模型设置。普通窗口与 credits 资格分别检查：官方快照须含有效窗口、明确普通用量布尔状态、`credits.hasCredits=true`、有效有限正余额（Decimal）或 `unlimited=true`、`spendControlReached=false`，且限制类型只接受空值或 `rate_limit_reached`。消费控制、未知或其他硬限制不会被余额覆盖。策略变化使旧 `quota_check_at` 失效，下一次需要额度时立即正式复核；退避与发送/问答幂等不变。
 
 问答分类和答案提交使用同一任务额度政策。`--question-model` 仅保存当前任务的分类模型；使用现有 bundled catalog，缺少确切模型即等待。默认仍为 `gpt-6-sol`，`gpt-6.1-sol` 的无工具/无仓库上下文已由真实 CLI 向本地拒绝服务的请求验证，不消费商业额度。此探测不证明商业账户额度可用。
+
+用户指定余额底线时，`start --minimum-existing-credits 3000` 写入当前任务 `minimum_existing_credits="3000"`；未配置的其他任务不受影响，同Goal重启保留。这里是排他底线：Decimal余额 `3000.01` 允许、`3000` 与 `2999.99` 停止，未知/NaN不放行；普通窗口资格也不能绕过底线。每120秒控制轮询对运行中主控也读取正式余额；低于或等于底线时在控制锁内重新核实绑定和原Goal，正式暂停原Goal后再次核实身份才中断其主控，记录 `credit_floor_reached`，不自动恢复。人工暂停、完成和被替换Goal不被改写。恢复发送前及问答分类/提交前再次正式检查。余额未知时保守不发起新调用，并保持本地监测。
+
+检查间隔和在途请求可能让余额跨过底线；本守护不能封锁其他线程、子代理或账户其他客户端的消费，不承诺账户精确锁在3000，也不为控制额度而终止无关Agent、变更模型/账户、购买或充值。
