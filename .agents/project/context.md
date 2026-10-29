@@ -1,10 +1,10 @@
 # 项目上下文
 
-> 当前代码与目标：旧 `app/example/` 过渡结构已迁至 `modules/example/`；R2-M 模块闭环与 R1-E 当前综合示例均已有真实验收及提交。R2-N 模块硬依赖图和确定性启动顺序已由 48be854 提交；R3-A/B/C/D 已按范围验收并提交。R3-E Laravel fallback 的代码、真实 HTTP、生成项目与适用门禁已通过，正在限定提交；完整模块管理和 Laravel 1:1 范围仍按 [ADR-074](decisions/adr-074-laravel-modules-directory.md) 与活跃队列推进。
+> 当前代码与目标：旧 `app/example/` 过渡结构已迁至 `modules/example/`；R2-M 模块闭环与 R1-E 当前综合示例均已有真实验收及提交。R2-N 模块硬依赖图和确定性启动顺序已由 48be854 提交；R3-A/B/C/D 已按范围验收并提交；R3-E fallback 已验收并由 dab80d4 提交。完整模块管理和 Laravel 1:1 范围仍按 [ADR-074](decisions/adr-074-laravel-modules-directory.md) 与活跃队列推进。
 
 > 受众：AI Agent
 > 更新：2026-10-29
-> 摘要：正式目标为 Laravel + laravel-modules 的 Rust 1:1 实现。R1-E、R2-N 与 R3-A/B/C/D 已按适用范围提交并保留验收证据；R3-E Laravel fallback 已通过实现与适用验收，待限定提交。R3 HTTP/Web 和完整 Laravel/laravel-modules 能力矩阵仍未完成。
+> 摘要：正式目标为 Laravel + laravel-modules 的 Rust 1:1 实现。R1-E、R2-N 与 R3-A/B/C/D/E 已按适用范围提交并保留验收证据。R3 HTTP/Web 和完整 Laravel/laravel-modules 能力矩阵仍未完成。
 
 ## 当前状态
 

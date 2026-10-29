@@ -25,7 +25,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 | R2-M 模块最小闭环与目录迁移 | 真实服务与生成项目已验收，本簇提交 | modules/ 声明注册、模块配置/资源/统一迁移、依赖与冲突错误；示例迁至 modules/example，真实HTTP及双库验证；完整管理命令归R13 |
 | R1-E 真实CRUD与当前能力示例 | 已验收并提交 bc3fa01 | 真实 Article CRUD；当前公开能力进入唯一模块示例；PostgreSQL 18/MySQL 8.4、生成项目、真实服务与整组门禁已验收。Collector PostgreSQL 隔离 sink delivery/unavailable 已复验通过，详见 testing |
 | R2 后继内核与测试底座 | R2-N 模块依赖图与顺序已完成 | `.requires` 硬依赖、稳定拓扑顺序、register/boot 一致；真实 PostgreSQL/MySQL HTTP、生成项目、根无参数 TCP、工作区门禁均有本簇证据 |
-| R3 HTTP 与 Web | R3-E fallback routes 进行中 | `RouteGroup`、命名路由/URL 与 middleware alias/group 已交付；当前补齐 Laravel fallback，后续继续 domain routing 与 C04 Request/Response |
+| R3 HTTP 与 Web | R3-E fallback routes 已验收并提交 `dab80d4` | `RouteGroup`、命名路由/URL、middleware alias/group 与 fallback 已交付；后续继续 domain routing 与 C04 Request/Response |
 | 模块包固定范围细化 | 待逐项盘点 | 对正式laravel-modules固定源码/文档的导航、源码与测试拆行为矩阵，分类必要Rust差异/用户约定/缺口；不把目录规范或显式Plugin等同完整模块管理 |
 
 ## 后继路由
@@ -246,6 +246,6 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 6. 补公开 Rustdoc/HTTP README、示例说明、core/http、CHANGELOG、context/plan/progress、testing；生成项目能通过 TestApp fallback 行为测试。
 7. 执行 §6.3 workspace fmt、default/all-features clippy/tests/docs、deny、MSRV/no-default、生成项目 check/test 与真实 HTTP；不改数据库行为，不虚构双库门禁。
 
-状态：实现、真实 HTTP、生成项目及当前源码适用门禁均已通过；待最终文档/链接/diff 复核、资源收尾与 R3-E 限定本地提交后关闭。
+状态：已实现、验收并由 `dab80d4` 限定提交；真实 HTTP、生成项目及适用 workspace 门禁已记录。参数化/通配符 fallback scope 的 Axum 限制保留为明确缺口，不宣称完全 Laravel 等价。
 
 上游依据：[Laravel 13 Routing — Fallback Routes](https://laravel.com/framework/docs/13.x/routing#fallback-routes)。
