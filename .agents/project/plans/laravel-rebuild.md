@@ -73,6 +73,10 @@ laravel-modules正式范围单独固定v13.2.0/commit `59714840708a2aece19e81076
 
 ### 生态边界
 
+目标分两层：先落实“1:1 的 Laravel 框架 Rust 版”及正式laravel-modules全量基线，再在同一Laravel机制上集成精选优秀扩展。核心缺口不能靠扩展豁免；既定R0/R16范围继续按依赖实施，不表示无限吸收全部生态或立即开发所有候选。
+
+增强优先复用成熟Rust组件，经现Provider/Container、config/.env、driver/公开Contract与CLI按需接入，可替换、可供外部扩展且不要求改src；避免专属依赖进入不使用它的默认编译路径。PHP扩展借鉴机制/语义，不直接运行或机械搬API。选型先核对维护、许可证、安全、性能/平台/依赖成本与既有职责/真实行为，在既有授权边界内自主完成Spec和证据，不增重复审批。每扩展明确scope、依赖、生命周期与独立验收状态；发现/加载本身不暗起网络/worker，HTTP路由由宿主定义。Provider发现是现内核的接入基础，不另造插件内核；V1/V2及AI产品未启动边界保持，扩展交付不虚标核心1:1完成。
+
 | 层级 | 处理 |
 | --- | --- |
 | Laravel 框架核心、Goravel 通用基础 | 全面映射；适用机制进入必交矩阵，Rust 等价实现必须有体验与行为证据 |
@@ -160,13 +164,15 @@ CLI 模板与生成器保持唯一维护来源；生成用户应用是框架功�
 
 ### 3.2 内核和语言适配
 
+用户的Laravel功能、可观察语义与开发体验是需求约束；具体Rust实现建议视为候选。Agent依据编译/链接、类型/所有权、async生命周期和依赖成本验证，必要时直接纠正候选并给出等价方案、理由与验收，不机械采纳、不擅自缩范围或用“Rust惯用”豁免核心。一般实现选择自主推进，真正目标变化或授权边界按AGENTS处理；此原则不扩张既定生态范围。
+
 R2 配置补强以现有 Figment/ConfigLoader 和 section<T> 为唯一来源，吸收已经完成的 Goravel 定向审计：补齐领域配置、中文说明、env 映射和安全占位；保留具名数据库/缓存能力。Provider 在最终读取前声明模块 defaults/schema/validator，定义命名空间、覆盖优先级、动态 driver options、命名 map 合并和数组替换。显式配置目录不存在/不可读不能静默跳过；未知键按已注册 section 检查，不能误拒合法动态键；错误给安全字段路径，不回显密码/DSN。当前默认运行值不因审计而改变，Redis 默认和禁止静默本地回退保持。审计是输入，设计草稿和代码验收分别记录。
 
 | Laravel 心智模型 | OpenRust 目标与边界 |
 | --- | --- |
 | Container、ServiceProvider | 类型化注册/解析；singleton、scoped、transient；register仅容器绑定、所有provider完成register后boot装配routes/events/resources；缺失和环依赖启动失败。现有Plugin不视为已等价，R2统一时同步ExampleServiceProvider与应用provider清单，不建双内核，Cargo依赖隔离不由运行时provider保证。HTTP、job、console 都有明确 scope；禁止持锁 await 和跨请求状态泄漏 |
 | Facade、依赖注入 | 熟悉的能力入口与可测试替换；底层为容器绑定的类型化 handle，可显式注入。若提供上下文便捷入口，须定义无 scope 错误、spawn 传播与并发隔离，不能依赖不可替换全局单例 |
-| 自动装配、发现 | 显式 provider 列表、derive 或构建期可检查注册；保留静态可检查性和编译错误，不引入 PHP 反射解释器 |
+| 自动装配、发现 | 扩展声明→当前启用依赖/feature/target过滤→确定性生成注册清单→现Provider流水线；dont-discover/显式覆盖与冲突诊断，R2契约/R13工具；当前显式清单不等于包发现，可靠Rust适配待Spec |
 | Eloquent | 熟悉模型/关系/查询/事件/工厂语义，typed builder + derive/trait + 成熟数据库组件；数据库 I/O 显式 async，禁止属性读取隐式网络调用 |
 | fluent API | 返回类型表达链式状态和错误，使用 snake_case；不用字符串万能字典抹掉类型信息。集合优先 Iterator/Vec，公共包装需有业务价值 |
 | HTTP/异常 | `Result` 和类型化响应；语义 HTTP 状态默认；在 Response / Resource / 异常渲染中融合统一返回格式增强；分页、redirect、view、stream 各自正确，不强制所有响应套统一 200 包装 |
@@ -175,6 +181,20 @@ R2 配置补强以现有 Figment/ConfigLoader 和 section<T> 为唯一来源，�
 | 配置与缓存 | 领域配置、`.env` 和类型化校验；运行时配置读取一致，环境优先级与敏感值脱敏明确。优化命令适应编译型语言，不能照搬无效 PHP 缓存操作 |
 
 现有 Plugin 与新 Provider 必须收敛为一套装配内核；现有事件/事务扩展纳入统一语义，禁止保留第二套等价生命周期。底层 Axum/Tower/Tokio、SeaORM/SeaQuery 等先按契约评估，满足目标就复用；不能为“全面重写”自行重造密码算法、HTTP 协议或数据库驱动。
+
+### R2/R13 Provider 编译期发现 Spec
+
+状态：用户授权方向，仅规划；R2先定公开声明/覆盖/错误契约，R13依赖现R2-M/N实现生成与包开发工具，不抢占在途HTTP。本项对应L044.02与模块M016，不新增平行计划/发现系统。
+
+1. 当前[`bootstrap/app.rs`](../../../bootstrap/app.rs)显式把example descriptor加入ModuleManifest；[`module.rs`](../../../src/core/module.rs)只选已编译描述、校验激活/依赖并稳定拓扑排序，[`ProviderBuilder`](../../../src/core/provider.rs)合并并走register→boot。FileModuleActivator读取启用状态不等于包发现；现生成模板仍产显式清单，尚无任意依赖Provider自动发现能力。
+2. 目标链路：扩展公开声明Provider入口 → 宿主实际启用的直接依赖/本地模块，按当前target cfg/feature与构建目标过滤 → 确定性生成可编译Rust注册清单 → 复用现ModuleManifest/拓扑排序与唯一register→boot流水线。传递依赖不能凭锁图自动提升为宿主可引用入口，dev/build依赖与host/target必须区分；不运行目标二进制来发现类型。
+3. 提供Laravel dont-discover式单包/全局opt-out、显式接入/覆盖和来源诊断；身份/别名、覆盖优先级、未声明/缺失/重复/循环错误的格式先Spec。只允许明确覆盖，不以不确定顺序取最后一个；复用现冲突与依赖校验，构建或bootstrap错误fail-fast，不悄悄忽略。安装声明良好扩展→统一工具/构建生成→正常启动，少样板；不兼容包给可诊断显式清单路径，不承诺任意包全自动反射。
+4. Cargo.lock存在、已下载、workspace成员存在不代表当前feature/target启用或链接。Cargo metadata能描述依赖/rename/features/target条件，不能反射Rust类型或单凭整workspace联合图保证候选正确。声明如何暴露合法可引用的公开入口、符号引用/链接保留、确定顺序和增量重建均须可证；inventory类方案也不能省略这些问题。具体宏/生成工具/build-script组合在实施Spec择可靠最小方案，不承诺某build.rs可随意扫描cargo registry并发现所有包。
+5. 只发现当前构建已选择的扩展，不下载新依赖、不runtime目录扫描/dlopen、不热加载代码；不建立第二Container/Provider注册中心。生成输入变化须触发增量重建，输出可复现；交叉编译区分host工具与target清单，支持平台范围实测后声明。包发现与业务模块资源/启停分别映射来源，共享同清单和生命周期而非混同上游行为。
+6. CLI list/doctor复用既有命令体系展示候选来源、启用/排除原因、覆盖与最终顺序，不做新管理平台。发现/加载Provider只遵现生命周期，不自动启动MQTT client/Broker/worker；这些角色仍由相应调用/显式CLI运行，既有基础服务启动校验不被发现机制绕过。
+7. 验收围绕真实缺陷：workspace/path/registry声明扩展在当前target/feature下恰当出现；rename/禁用/optout/显式覆盖及缺失/循环/冲突可诊断；清单/依赖/配置变化增量更新且稳定顺序；公开模块/生成项目cargo check/test与真实启动不改框架核心，证明已注册服务可解析、未选扩展无角色副作用。cross-compile/跨平台分别核对可支持边界，不以host通过代替target证据。新增源码/依赖前按仓库登记和门禁，不复制测试列表冒充实现。
+
+来源与取舍：固定Laravel[Package Discovery/dont-discover](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/packages.md#package-discovery)与[PackageManifest](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/PackageManifest.php)提供声明与排除体验；Rust静态类型/链接约束决定在编译期生成可引用清单，不能照搬PHP类字符串加载。2026-10-29核对Cargo官方[metadata](https://doc.rust-lang.org/cargo/commands/cargo-metadata.html)、[build scripts](https://doc.rust-lang.org/cargo/reference/build-scripts.html)、[features](https://doc.rust-lang.org/cargo/reference/features.html)：元数据、host构建脚本和条件编译各有边界；实现选型、公开协议和具体默认值仍待开发前Spec，本轮未运行Cargo或证明自动发现已实现。
 
 ## 4. 能力交付矩阵
 

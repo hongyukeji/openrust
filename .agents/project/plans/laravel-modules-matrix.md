@@ -42,7 +42,7 @@ R2交共享Provider/Container、配置注册和模块依赖/贡献基础；R13�
 | M013 | [Routing](https://laravelmodules.com/docs/13/basic-usage/routing) | R2公开挂载→R3 HTTP→R13生成 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
 | M014 | [Controllers](https://laravelmodules.com/docs/13/basic-usage/controllers) | R2公开挂载→R3 HTTP→R13生成 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
 | M015 | [Views](https://laravelmodules.com/docs/13/basic-usage/views) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
-| M016 | [Service Providers](https://laravelmodules.com/docs/13/basic-usage/service-providers) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
+| M016 | [Service Providers](https://laravelmodules.com/docs/13/basic-usage/service-providers) | R2共享Provider/声明契约；R13生成发现工具（复用R2-M/N） | 显式descriptor/拓扑已有基础；[编译期发现Spec](laravel-rebuild.md#r2r13-provider-编译期发现-spec)复用同清单，不将包发现与模块资源启停混同来源 | 基础子范围已验收；发现生成未实现/未验收 |
 | M017 | [Middleware](https://laravelmodules.com/docs/13/basic-usage/middleware) | R2公开挂载→R3 HTTP→R13生成 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
 | M018 | [Artisan Commands](https://laravelmodules.com/docs/13/advanced/artisan-commands) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
 | M019 | [Facade Methods](https://laravelmodules.com/docs/13/advanced/facade-methods) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |

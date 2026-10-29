@@ -19,7 +19,7 @@
 | 能力族 | 1:1目标 | 主状态 | 当前可证边界 | 待补关键项 | 稳定章节 / 阶段 / 证据 |
 | --- | --- | --- | --- | --- | --- |
 | 启动、应用布局 | Laravel应用职责/生命周期与开箱运行 | ✅ 已验收子范围 | R1-S 34dfb5e、R1-E bc3fa01：根lib/server、唯一模块与真实CRUD | 完整安装/升级/部署流程仍须逐项对照 | L004/L007/L010/L011；R1/R13/R14；[证据](memory/testing.md) |
-| Container / Provider / Facade | 统一DI、register→boot、作用域与扩展 | ✅ 已验收子范围 | R2-A/A2/A3、B/C/D已验收，唯一生产Container/Provider、入口scope/TestApp | 完整Facade/Container对应与第三方扩展矩阵仍待闭合 | L012–L014/L035；R2；[core](core/core.md)/[facade](core/facade.md) |
+| Container / Provider / Facade | 统一DI、register→boot、作用域与扩展 | ✅ 已验收子范围 | R2-A/A2/A3、B/C/D已验收，唯一生产Container/Provider、入口scope/TestApp | Provider编译期发现仅规划，现显式descriptor不是包发现；完整Facade/Container/扩展对应待闭合 | L012–L014/L035；R2；[core](core/core.md)/[facade](core/facade.md) |
 | Configuration | env/领域配置、typed读取/校验与包配置合并 | ✅ 已验收子范围 | R2来源失败/Provider配置；APP_PORT 591142f映射与生成/启动已验收 | 完整L005及缓存/来源/扩展逐项对齐；DB业务设置见增强表 | L005；R2；[core](core/core.md)/[todo](todo.md) |
 | Routing / Middleware / URL | 路由组/域/命名URL/绑定/中间件默认与错误 | ✅ 已验收子范围 | R3-A–F按簇交付；F 163bb49域路由；已知差异公开 | 模型绑定等剩余C03行为及默认差异不能由A–F整体外推 | L015/L016/L024；R3；[http](core/http.md)/[todo](todo.md) |
 | Request | 输入来源、typed便捷方法与生命周期 | 🟡 开发中 | C04-A 08be69d、B1 8846a6a已验收；B2存在未提交实现/定向证据 | B2完整验证/提交未收口；Cookies/Old Input等仍开放 | L019；R3 C04；[证据](memory/testing.md)/[todo](todo.md) |
@@ -49,7 +49,7 @@
 
 | 能力族 | 1:1目标 | 主状态 | 当前可证边界 | 待补关键项 | 稳定章节 / 阶段 / 证据 |
 | --- | --- | --- | --- | --- | --- |
-| laravel-modules | v13模块注册/资源/依赖、启停/生成与完整管理 | ✅ 已验收子范围 | R2-M/N：唯一modules/example、编译清单/激活、资源挂载、稳定依赖顺序；48be854等子簇 | 完整模块命令/发布/生成与其余子行为未完成；目录相似不是全包等价 | [M001–M035](plans/laravel-modules-matrix.md)；R2/R13；[todo](todo.md)/[core](core/core.md) |
+| laravel-modules | v13模块注册/资源/依赖、启停/生成与完整管理 | ✅ 已验收子范围 | R2-M/N：唯一modules/example、编译清单/激活、资源挂载、稳定依赖顺序；48be854等子簇 | 编译期发现/生成清单仅规划；完整模块命令/发布与其余子行为未完成，目录相似不是全包等价 | [M001–M035](plans/laravel-modules-matrix.md)；R2/R13；[todo](todo.md)/[core](core/core.md) |
 
 ### 授权增强与可选扩展（不冒称Laravel核心内置）
 
@@ -68,7 +68,7 @@
 - 总控每次功能簇本地commit后就地更新受影响行的状态、可证范围、缺口、commit/证据，并同步详细矩阵；只有新增实际交付/验收才升级状态，WIP与定向测试不能提前变✅。调整分组时重算上述概览行数，不按测试数充进度。
 - 每次框架开发进度汇报附最新能力状态表，汇报前按当前代码/提交/验收复核；表格格式、适用范围与“1:1 的 Laravel 框架 Rust 版”表述统一遵循[汇报规范](style.md#开发进度汇报)，普通问答不强制附表。
 - overview只摘要；矩阵维护详细源码/测试对应及差异，core/testing保存可复验证据，todo是唯一可领取队列，不在此复制任务或建立第二计划。未验收的整项不得因已交付子簇关闭。
-- V2 Vue Admin/uni-app按R14后既定路线，PC仅规划；AI产品未获启动授权，均不计V1框架核心1:1进度。当前不为展示表格切换或中断在途HTTP功能簇。
+- V2 Vue Admin/uni-app按R14后既定路线，PC仅规划；AI产品未获启动授权，均不计V1框架核心1:1进度。当前不为展示表格切换或中断在途HTTP功能簇。精选扩展的接入/范围与独立验收遵循[生态边界](plans/laravel-rebuild.md#生态边界)，不抵扣核心缺口。
 
 ## 子簇验证边界
 
