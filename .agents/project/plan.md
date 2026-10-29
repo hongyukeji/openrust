@@ -1,6 +1,6 @@
 # 当前计划
 
-> 当前代码与目标：R1-E 综合示例与适用验收已由 bc3fa01 限定提交；附件、真实 MinIO 双库、Keycloak OIDC 双库和 Collector PostgreSQL 证据已通过。R2-N 模块硬依赖、双库 HTTP、生成应用、根默认 TCP 入口已由 48be854 提交；R3-A/B/C 语义 HTTP 默认、RouteGroup、命名路由与 URL 生成已完成适用门禁，R3-C 限定本地提交待收口。下一步沿 todo 推进 middleware alias/group 与其他 R3 行为；完整模块管理仍按 [ADR-074](decisions/adr-074-laravel-modules-directory.md) 推进。
+> 当前代码与目标：R1-E 综合示例与适用验收已由 bc3fa01 提交；附件、真实 MinIO 双库、Keycloak OIDC 双库和 Collector PostgreSQL 证据已通过。R2-N 模块硬依赖、双库 HTTP、生成应用、根默认 TCP 入口已由 48be854 提交；R3-A/B/C 语义 HTTP 默认、RouteGroup、命名路由与 URL 生成已完成适用门禁，R3-C 已由 801ca4e 提交。下一步沿 todo 推进 middleware alias/group 与其他 R3 行为；完整模块管理仍按 [ADR-074](decisions/adr-074-laravel-modules-directory.md) 推进。
 
 > 受众：AI Agent
 > 更新：2026-10-29

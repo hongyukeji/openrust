@@ -4,7 +4,7 @@
 
 > 受众：AI Agent
 > 更新：2026-10-29
-> 摘要：正式目标为 Laravel + laravel-modules 的 Rust 1:1 实现。R1-E 综合示例及适用门禁已由 bc3fa01 本地提交；附件 EOF/deadline 与真实 MinIO 双库竞争、Collector PostgreSQL delivery/unavailable、Keycloak OIDC AlwaysOk 双库证据均已完成；uncertain 后远端迟到完成边界未保证。R2-N 已验收并提交 48be854；R3-A/B/C 已完成适用门禁，R3-C 命名路由与具名 URL 等待限定本地提交，之后继续 R3 middleware 与 HTTP/Web 行为矩阵。
+> 摘要：正式目标为 Laravel + laravel-modules 的 Rust 1:1 实现。R1-E 综合示例及适用门禁已由 bc3fa01 本地提交；附件 EOF/deadline 与真实 MinIO 双库竞争、Collector PostgreSQL delivery/unavailable、Keycloak OIDC AlwaysOk 双库证据均已完成；uncertain 后远端迟到完成边界未保证。R2-N 已验收并提交 48be854；R3-A/B/C 已完成适用门禁，R3-C 命名路由与具名 URL 已由 801ca4e 提交，之后继续 R3 middleware 与 HTTP/Web 行为矩阵。
 
 ## 当前状态
 
