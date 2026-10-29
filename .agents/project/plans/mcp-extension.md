@@ -1,13 +1,13 @@
 # MCP 可选扩展计划
 
-> 状态：需求评估与排期；未实现、未验收，本轮不领取开发。
+> 状态：已获官方生态全量开发授权，阶段二按依赖领取；未实现、未验收，不抢占当前核心簇。
 > 定位：阶段二R11/R16的Laravel官方MCP可选包对应实现（L072），不是框架默认内置，不启动 AI模型平台或可选快速开发模块。
 
 ## 范围决策
 
 按固定Laravel官方MCP包的源码/文档/测试逐项对应L072.01–14，包含Server、Tools、Prompts、Resources/Templates、Apps、metadata/icons、认证授权、Client及测试。Server可先按依赖交付，但命名Client、连接/鉴权、分页/调用工具、prompts/resources等既定范围不能降为仅AI SDK最小需要或待未来需求；SDK调用共用同一Client。框架本身不要求先接入LLM。
 
-Laravel官方包负责开发体验和可观察语义对标，成熟Rust协议组件负责协议实现；固定协议revision与官方包行为、Rust SDK能力共同核对。当前只进行计划校准，按唯一todo和真实前置分簇领取，不抢占当前核心工作，也不启动AI模型平台。
+Laravel官方包负责开发体验和可观察语义对标，成熟Rust协议组件负责协议实现；固定协议revision与官方包行为、Rust SDK能力共同核对。当前已纳入全量开发队列，按唯一todo和真实前置分簇领取，不抢占当前核心工作，也不启动AI模型平台。
 
 当前在 src/、modules/、tools/cli/ 和根 Cargo.toml 未发现原生 MCP 或 rmcp；Tokio/Axum、Container/Provider 和模块装配只是集成基础，不代表协议已支持。AI模型平台 OR-21/P7 是独立产品需求，不能替代本通用扩展的验收，也不构成本产品开工授权。
 

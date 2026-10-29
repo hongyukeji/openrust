@@ -25,43 +25,43 @@ R2交共享Provider/Container、配置注册和模块依赖/贡献基础；R13�
 
 当前只有 **35 个文档导航入口**，不是35个已闭合功能，也不能与Laravel矩阵的749个二级节相加伪称同一粒度完整盘点。稳定 M-ID 留作追溯，后续按章节/源码/测试细分行为与证据；导航行保持入口级状态；下文子行为单独记录本批取证进展，均未据此宣称 Rust 已实现。
 
-| ID | 实际官方入口 | 依赖与实施归属 | 对应/差异/证据 | 状态 |
-| --- | --- | --- | --- | --- |
-| M001 | [Introduction](https://laravelmodules.com/docs/13/getting-started/introduction) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
-| M002 | [Requirements](https://laravelmodules.com/docs/13/getting-started/requirements) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
-| M003 | [ChangeLog](https://laravelmodules.com/docs/13/getting-started/changelog) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
-| M004 | [Upgrade](https://laravelmodules.com/docs/13/getting-started/upgrade) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
-| M005 | [Installation and Setup](https://laravelmodules.com/docs/13/getting-started/installation-and-setup) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
-| M006 | [Lumen](https://laravelmodules.com/docs/13/getting-started/lumen) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
-| M007 | [Questions and Issues](https://laravelmodules.com/docs/13/getting-started/questions-and-issues) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
-| M008 | [Configuration](https://laravelmodules.com/docs/13/basic-usage/configuration) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
-| M009 | [Compiling Assets](https://laravelmodules.com/docs/13/basic-usage/compiling-assets) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
-| M010 | [Creating a Module](https://laravelmodules.com/docs/13/basic-usage/creating-a-module) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
-| M011 | [Custom Namespaces](https://laravelmodules.com/docs/13/basic-usage/custom-namespaces) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
-| M012 | [Helpers](https://laravelmodules.com/docs/13/basic-usage/helpers) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
-| M013 | [Routing](https://laravelmodules.com/docs/13/basic-usage/routing) | R2公开挂载→R3 HTTP→R13生成 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
-| M014 | [Controllers](https://laravelmodules.com/docs/13/basic-usage/controllers) | R2公开挂载→R3 HTTP→R13生成 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
-| M015 | [Views](https://laravelmodules.com/docs/13/basic-usage/views) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
-| M016 | [Service Providers](https://laravelmodules.com/docs/13/basic-usage/service-providers) | R2共享Provider/声明契约；R13生成发现工具（复用R2-M/N） | 显式descriptor/拓扑已有基础；[编译期发现Spec](laravel-rebuild.md#r2r13-provider-编译期发现-spec)复用同清单，不将包发现与模块资源启停混同来源 | 基础子范围已验收；发现生成未实现/未验收 |
-| M017 | [Middleware](https://laravelmodules.com/docs/13/basic-usage/middleware) | R2公开挂载→R3 HTTP→R13生成 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
-| M018 | [Artisan Commands](https://laravelmodules.com/docs/13/advanced/artisan-commands) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
-| M019 | [Facade Methods](https://laravelmodules.com/docs/13/advanced/facade-methods) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
-| M020 | [Console Commands](https://laravelmodules.com/docs/13/advanced/module-console-commands) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
-| M021 | [Module Methods](https://laravelmodules.com/docs/13/advanced/module-methods) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
-| M022 | [Module Resources](https://laravelmodules.com/docs/13/advanced/module-resources) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
-| M023 | [Languages and Translations](https://laravelmodules.com/docs/13/advanced/languages) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
-| M024 | [Tests](https://laravelmodules.com/docs/13/advanced/tests) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
-| M025 | [Publishing Modules](https://laravelmodules.com/docs/13/advanced/publishing-modules) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
-| M026 | [Registering Module Events](https://laravelmodules.com/docs/13/advanced/registering-module-events) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
-| M027 | [Migrations](https://laravelmodules.com/docs/13/database/migrations) | R2注册契约→R4/R5/R6领域→R13模块命令 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
-| M028 | [Models](https://laravelmodules.com/docs/13/database/models) | R2注册契约→R4/R5/R6领域→R13模块命令 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
-| M029 | [Seeders and Factories](https://laravelmodules.com/docs/13/database/seeders-and-factories) | R2注册契约→R4/R5/R6领域→R13模块命令 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
-| M030 | [Resources](https://laravelmodules.com/docs/13/resources/resources) | 先核对固定源码/已纳入生态依赖；R9/R13/R15对应职责 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
-| M031 | [Inertia](https://laravelmodules.com/docs/13/resources/inertia) | 先核对固定源码/已纳入生态依赖；R9/R13/R15对应职责 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
-| M032 | [Custom Module Generator](https://laravelmodules.com/docs/13/resources/custom-module-generator) | 先核对固定源码/已纳入生态依赖；R9/R13/R15对应职责 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
-| M033 | [Livewire](https://laravelmodules.com/docs/13/resources/livewire) | 先核对固定源码/已纳入生态依赖；R9/R13/R15对应职责 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
-| M034 | [Spatie Laravel Permission](https://laravelmodules.com/docs/13/resources/spatie-laravel-permission) | 先核对固定源码/已纳入生态依赖；R9/R13/R15对应职责 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
-| M035 | [Module Generator](https://laravelmodules.com/docs/13/resources/laravel-module-generator) | 先核对固定源码/已纳入生态依赖；R9/R13/R15对应职责 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 待盘点/待实现/待验收 |
+| ID | 实际官方入口 | 依赖与实施归属 | 对应/差异/证据 | 交付阶段 | 状态 |
+| --- | --- | --- | --- | --- | --- |
+| M001 | [Introduction](https://laravelmodules.com/docs/13/getting-started/introduction) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 一：模块内核/命令 | 待盘点/待实现/待验收 |
+| M002 | [Requirements](https://laravelmodules.com/docs/13/getting-started/requirements) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 一：模块内核/命令 | 待盘点/待实现/待验收 |
+| M003 | [ChangeLog](https://laravelmodules.com/docs/13/getting-started/changelog) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 一：模块内核/命令 | 待盘点/待实现/待验收 |
+| M004 | [Upgrade](https://laravelmodules.com/docs/13/getting-started/upgrade) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 一：模块内核/命令 | 待盘点/待实现/待验收 |
+| M005 | [Installation and Setup](https://laravelmodules.com/docs/13/getting-started/installation-and-setup) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 一：模块内核/命令 | 待盘点/待实现/待验收 |
+| M006 | [Lumen](https://laravelmodules.com/docs/13/getting-started/lumen) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 一：模块内核/命令 | 待盘点/待实现/待验收 |
+| M007 | [Questions and Issues](https://laravelmodules.com/docs/13/getting-started/questions-and-issues) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 一：模块内核/命令 | 待盘点/待实现/待验收 |
+| M008 | [Configuration](https://laravelmodules.com/docs/13/basic-usage/configuration) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 一：模块内核/命令 | 待盘点/待实现/待验收 |
+| M009 | [Compiling Assets](https://laravelmodules.com/docs/13/basic-usage/compiling-assets) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 一：模块内核/命令 | 待盘点/待实现/待验收 |
+| M010 | [Creating a Module](https://laravelmodules.com/docs/13/basic-usage/creating-a-module) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 一：模块内核/命令 | 待盘点/待实现/待验收 |
+| M011 | [Custom Namespaces](https://laravelmodules.com/docs/13/basic-usage/custom-namespaces) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 一：模块内核/命令 | 待盘点/待实现/待验收 |
+| M012 | [Helpers](https://laravelmodules.com/docs/13/basic-usage/helpers) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 一：模块内核/命令 | 待盘点/待实现/待验收 |
+| M013 | [Routing](https://laravelmodules.com/docs/13/basic-usage/routing) | R2公开挂载→R3 HTTP→R13生成 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 一：模块内核/命令 | 待盘点/待实现/待验收 |
+| M014 | [Controllers](https://laravelmodules.com/docs/13/basic-usage/controllers) | R2公开挂载→R3 HTTP→R13生成 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 一：模块内核/命令 | 待盘点/待实现/待验收 |
+| M015 | [Views](https://laravelmodules.com/docs/13/basic-usage/views) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 一：模块内核/命令 | 待盘点/待实现/待验收 |
+| M016 | [Service Providers](https://laravelmodules.com/docs/13/basic-usage/service-providers) | R2共享Provider/声明契约；R13生成发现工具（复用R2-M/N） | 显式descriptor/拓扑已有基础；[编译期发现Spec](laravel-rebuild.md#r2r13-provider-编译期发现-spec)复用同清单，不将包发现与模块资源启停混同来源 | 一：模块内核/命令 | 基础子范围已验收；发现生成未实现/未验收 |
+| M017 | [Middleware](https://laravelmodules.com/docs/13/basic-usage/middleware) | R2公开挂载→R3 HTTP→R13生成 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 一：模块内核/命令 | 待盘点/待实现/待验收 |
+| M018 | [Artisan Commands](https://laravelmodules.com/docs/13/advanced/artisan-commands) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 一：模块内核/命令 | 待盘点/待实现/待验收 |
+| M019 | [Facade Methods](https://laravelmodules.com/docs/13/advanced/facade-methods) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 一：模块内核/命令 | 待盘点/待实现/待验收 |
+| M020 | [Console Commands](https://laravelmodules.com/docs/13/advanced/module-console-commands) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 一：模块内核/命令 | 待盘点/待实现/待验收 |
+| M021 | [Module Methods](https://laravelmodules.com/docs/13/advanced/module-methods) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 一：模块内核/命令 | 待盘点/待实现/待验收 |
+| M022 | [Module Resources](https://laravelmodules.com/docs/13/advanced/module-resources) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 一：模块内核/命令 | 待盘点/待实现/待验收 |
+| M023 | [Languages and Translations](https://laravelmodules.com/docs/13/advanced/languages) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 一：模块内核/命令 | 待盘点/待实现/待验收 |
+| M024 | [Tests](https://laravelmodules.com/docs/13/advanced/tests) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 一：模块内核/命令 | 待盘点/待实现/待验收 |
+| M025 | [Publishing Modules](https://laravelmodules.com/docs/13/advanced/publishing-modules) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 一：模块内核/命令 | 待盘点/待实现/待验收 |
+| M026 | [Registering Module Events](https://laravelmodules.com/docs/13/advanced/registering-module-events) | R2模块契约；R13完整开发/管理体验 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 一：模块内核/命令 | 待盘点/待实现/待验收 |
+| M027 | [Migrations](https://laravelmodules.com/docs/13/database/migrations) | R2注册契约→R4/R5/R6领域→R13模块命令 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 一：模块内核/命令 | 待盘点/待实现/待验收 |
+| M028 | [Models](https://laravelmodules.com/docs/13/database/models) | R2注册契约→R4/R5/R6领域→R13模块命令 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 一：模块内核/命令 | 待盘点/待实现/待验收 |
+| M029 | [Seeders and Factories](https://laravelmodules.com/docs/13/database/seeders-and-factories) | R2注册契约→R4/R5/R6领域→R13模块命令 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 一：模块内核/命令 | 待盘点/待实现/待验收 |
+| M030 | [Resources](https://laravelmodules.com/docs/13/resources/resources) | 先核对固定源码/已纳入生态依赖；R9/R13及对应生态包职责，不依赖业务后台 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 一：通用生成；二：生态集成 | 待盘点/待实现/待验收 |
+| M031 | [Inertia](https://laravelmodules.com/docs/13/resources/inertia) | 先核对固定源码/已纳入生态依赖；R9/R13及对应生态包职责，不依赖业务后台 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 二：随已纳入生态依赖 | 待盘点/待实现/待验收 |
+| M032 | [Custom Module Generator](https://laravelmodules.com/docs/13/resources/custom-module-generator) | 先核对固定源码/已纳入生态依赖；R9/R13及对应生态包职责，不依赖业务后台 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 一：模块内核/命令 | 待盘点/待实现/待验收 |
+| M033 | [Livewire](https://laravelmodules.com/docs/13/resources/livewire) | 先核对固定源码/已纳入生态依赖；R9/R13及对应生态包职责，不依赖业务后台 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 二：随已纳入生态依赖 | 待盘点/待实现/待验收 |
+| M034 | [Spatie Laravel Permission](https://laravelmodules.com/docs/13/resources/spatie-laravel-permission) | 先核对固定源码/已纳入生态依赖；R9/R13及对应生态包职责，不依赖业务后台 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 二：随已纳入生态依赖 | 待盘点/待实现/待验收 |
+| M035 | [Module Generator](https://laravelmodules.com/docs/13/resources/laravel-module-generator) | 先核对固定源码/已纳入生态依赖；R9/R13及对应生态包职责，不依赖业务后台 | 待逐项源码/测试映射；未据目录或Plugin判完成 | 一：通用生成；二：生态集成 | 待盘点/待实现/待验收 |
 
 原 app/example 已迁至 modules/example，编译描述、文件状态、Provider、模块配置/资源及统一迁移的 R2-M 实现与真实证据见 [当前测试记录](../memory/testing.md#r2-m-模块清单资源与统一迁移验收证据)。基础 GET 仍不等于真实 CRUD；管理写命令、发布流程与其余模块矩阵继续按逐项证据验收，不批量改成完成。
 
