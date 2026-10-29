@@ -22,6 +22,16 @@ pub(super) fn register(routes: Routes, capabilities: &RouteCapabilities) -> Rout
             "/api/example/request-body",
             controllers::example::request_body,
         )
+        .post("/api/example/input", controllers::example::input)
+        .name("example.input")
+        .group(
+            RouteGroup::new().middleware(openrust::http::InputNormalization::disabled()),
+            |routes| {
+                routes
+                    .post("/api/example/input-raw", controllers::example::input_raw)
+                    .name("example.input-raw")
+            },
+        )
         .group(
             RouteGroup::new()
                 .domain("{account}.example.test")

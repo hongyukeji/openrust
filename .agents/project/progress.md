@@ -4,6 +4,8 @@
 > 更新：2026-10-29
 > 摘要：R0 已固定上游；R1-S、R2-A/A2/A3、R2-B/C/D/M/N、R1-E 与 R3-A/B/C/D 均已按子簇完成适用门禁；R3-D 真实 HTTP、生成应用和安全复审证据见 `memory/testing.md`。完整 Laravel/laravel-modules 行为矩阵继续推进。
 
+C04-B1统一请求输入已完成适用验收，限定提交见Git：定向/独审、相应源码快照的workspace门禁、根默认cargo run真实TCP、生成consumer与PG/MySQL生成认证应用均通过；根具名认证双库各1通过/46 filtered。账号/缓存fixture缺Host及新迁移排序问题已修复，原安全与回滚断言保留；根完整PG/MySQL组均47通过/零失败、忽略或筛选，账号MFA与完整缓存模块的双库专项亦通过。最新workspace全部门禁通过；框架完整范围仍按唯一队列推进。临时探针及隔离数据库已清理，外部示例/守护WIP保留；证据见[testing](memory/testing.md#c04-b1-统一请求输入)。
+
 C04-A RequestInfo/内容协商及存储staging并发回收修复已完成适用验收：默认523/29、全特性1082/99（passed/ignored），fmt/Clippy/Rustdoc/no-default/MSRV1.97/deny、生成consumer2/2和根默认入口真实TCP均通过；不同模型独审通过。仅完成无正文请求检查与协商，不代表完整C04。 原三轮构建NotFound、可控red/green及非原子base复核边界见 [testing](memory/testing.md#c04-a-请求检查与内容协商)。
 
 R3-F 已实现 `RouteGroup::domain`、独立 `DomainParams<T>`、域具名 URL 与保留原请求的候选分派。独立复审发现的声明顺序、merge、forward authority、域与路径参数冲突、fallback scope 优先级及非法嵌套 scope 均已修正；最终只读复审无 blocker/should-fix，定向 HTTP router 87/87。默认/全特性 workspace Clippy/tests/Rustdoc、no-default、MSRV1.97、deny、生成应用和生产模块专项均通过，根无参数入口真实 TCP 域响应/错误 Host/health 与 SIGTERM exit0 已验收。根/生成 target 分别回收28.4/2.8GiB，仓库target归零、磁盘可用120GiB；本簇限定提交见Git，后继C04。已知域模式及fallback前缀差异见ADR-077，不宣称完整R3已完成。

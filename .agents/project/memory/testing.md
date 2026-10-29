@@ -674,3 +674,46 @@ RequestInfo 的 parts-only 快照、严格 authority 复用、文本头/bearer�
 首轮示例测试fixture误以为helper(false)选择AlwaysOk，已局部显式配置，保持框架Semantic默认。修复前全特性三轮在不同fixture出现internal_error；第三轮安全诊断确认build阶段IO NotFound/errno2，并非HTTP500响应。失败分别保全 `/tmp/openrust-c04a-final-tests-all-{first,second,third}-failure.log`；旧用例定向及aggregate可通过不能证明偶发故障已定位。用户按§5批准限定修复后，以取得DirEntry再删除run目录的可控回归证明原实现失败（`...-storage-red.log`）、修后通过（`...-storage-green.log`）。清理仅在条目NotFound且base当前可读时容错，base消失/非目录、权限和其他IO仍失败；补确定性base负例和build/drop交错压力回归。storage12/HTTP TCP1/Request10/aggregate117定向均通过，日志 `/tmp/openrust-c04a-final-storage-base-gates.log` 及分项。最终不同模型复审无剩余blocker/should-fix。根目录复核非原子，仍要求storage root系统用户独占写；不保证并发目录替换。三轮旧失败未捕获具体文件调用点，不声称每轮已逐一确认同一调用点。临时探针已移除，快照保全 `/tmp/openrust-c04a-registration-diagnostic-preserved.rs`。
 
 最终测试后触资源软停（31.343GiB target、磁盘9.801%空闲），核实本簇独占、无占用、ignored/未跟踪/非symlink后仅回收根incremental，空闲恢复11.05%，续跑余下门禁无跳过。独立生成target先经Cargo锁协调回收2.1GiB，日志保留；功能簇末尾核无构建/server占用后由Cargo锁协调完整清理根target，dry-run和实际回收56,621文件/23.5GiB，日志 `/tmp/openrust-c04a-storage-fixed-clean{,-dry-run}.log`。根及独立生成target均不存在；五个原有consumer target共2.486656GiB不属于本簇，保留未动。磁盘最终119.475739GiB空闲（12.897449%），精确资源 `/tmp/openrust-c04a-storage-fixed-clean-resources.json`；生成源码、验收脚本、日志与诊断快照保留作为证据。
+
+## C04-B1 统一请求输入
+
+状态：B1 实现与下述验收已有实际证据；最新源码的全部适用门禁已通过，最终资源收尾完成，限定本地提交见Git。不得据此宣称已完成全部 C04、Laravel Request 或严格 1:1。契约见 [ADR-079](../decisions/adr-079-request-input.md)。
+
+范围为唯一正文所有者 `Request` 的 query/json/form bags、顶层左并集、dot/数字/读取通配、存在性、筛选和修改，以及受管理 `Request`/`Json`/`Query` 的 trim/null 规范化和公开策略覆盖。原始正文不重编码；query 16KiB、原始非空 URL 字段对及容器 entry 各1024、子级最大64层、展开完整 dot key 累计20MiB，超限不截断并安全拒绝。typed JSON 保留数字词法，动态 Value 不保证128位整数精度。multipart 仅在显式选择 Request 时保存有界原文，不解析文本/文件 bag；B2 string/integer/date/enum 等便捷方法、Cookie/Session、Old Input/flash、FormRequest 与完整文件/响应语义仍保留未完成范围。
+
+### 已取得的验收证据
+
+| 验收范围 | 实际结果与证据 |
+| --- | --- |
+| 最终定向 | input19、request10、router87、config24、内部值树/form/词法19、唯一模块 production_input3，全部零 ignored；定向 Clippy 通过。日志 `/tmp/openrust-c04b-tests-final.log`、`/tmp/openrust-c04b-config-final.log`、`/tmp/openrust-c04b-unit-final.log`、`/tmp/openrust-c04b-example-final.log`、`/tmp/openrust-c04b-clippy-final.log`，命令/退出/资源记录 `/tmp/openrust-c04b-directed-gates.log`。不同模型限定复审无明确 blocker/should-fix。 |
+| 最新 workspace | 迁移编号修正后默认570通过/29 ignored、全特性1136通过/99 ignored，均 exit0；fmt、默认及全特性 workspace/all-target Clippy `-D warnings` 通过，阶段源码哈希无变化。日志 `/tmp/openrust-c04b-final-migration-fixed-tests-default.log`、`/tmp/openrust-c04b-final-migration-fixed-tests-all.log`、`/tmp/openrust-c04b-final-migration-fixed-fmt-check.log`、`/tmp/openrust-c04b-final-migration-fixed-clippy-default.log`、`/tmp/openrust-c04b-final-migration-fixed-clippy-all.log`；驱动记录 `/tmp/openrust-c04b-final-migration-fixed-gates.log`。ignored 不充当真实服务证据。 |
+| 根完整认证 target 双库 | PostgreSQL18/MySQL8.4 的 `example_auth_flows` 各47通过、零失败/ignored/filtered，具名认证用例逐名 ok、Cargo exit0；各阶段源码哈希无变化，owned anchor 删除。日志 `/tmp/openrust-c04b-final-auth-root-complete-migration-fixed.log`、`/tmp/openrust-c04b-auth-root-migration-fixed-driver.log`。 |
+| 真实 CLI 认证生成应用双库 | 每库实际 new、fmt、check、完整 tests exit0，各2通过、零失败/ignored/filtered；`generated_auth_routes_run_over_http_with_isolated_database_and_fake_mail` 与 `generated_test_app_overrides_mailer_for_registration` 均执行，覆盖 password 重置字段、首尾空白密码登录与去空白版本拒绝。邮件为显式 fake mail，不宣称供应商发送。两端 owned anchor 删除，阶段源码哈希无变化。日志 `/tmp/openrust-c04b-final-auth-generated.log`、`/tmp/openrust-c04b-auth-generated-driver.log`。 |
+| 根真实 TCP | 根默认无参数 `cargo run`，health200；JSON/query优先级、PHP form键、原文保留、typed JSON规范化、独立路由禁用策略通过；超过16KiB query实际返回413/`input_limits_exceeded`，进程优雅退出0。证据 `/tmp/openrust-c04b-root-tcp.log`、`/tmp/openrust-c04b-runtime-scoped.log`，记录 launch_mode=`root_cargo_run_default`。 |
+| 普通生成 consumer | 实际 CLI 生成后 fmt、check及test通过，consumer2项通过/0 ignored；阶段源码哈希无变化。证据 `/tmp/openrust-c04b-runtime-consumer-fixed.log`。 |
+
+较早源码快照曾完成 default/all Rustdoc `-D warnings`、no-default workspace/all-target check、Rust1.97.0 all-feature/all-target check 和 cargo deny，见 `/tmp/openrust-c04b-independent-gates.log` 及 `/tmp/openrust-c04b-final-docs-default.log`、`/tmp/openrust-c04b-final-docs-all.log`、`/tmp/openrust-c04b-final-check-no-default.log`、`/tmp/openrust-c04b-final-check-msrv.log`、`/tmp/openrust-c04b-final-deny.log`。这些不能替代最后源码的复验。最新五项组已全部退出0：default/all-features Rustdoc（`-D warnings`）、no-default workspace/all-target check、Rust1.97.0 all-features/all-target check及`cargo deny check`；各阶段完整源码哈希均无变化。驱动记录`/tmp/openrust-c04b-final-migration-fixed-remaining.log`，分项日志`/tmp/openrust-c04b-final-migration-fixed-{docs-default,docs-all,check-no-default,check-msrv,deny}.log`。结束时targets4.070GiB、磁盘可用117.367GiB/12.670%，随后持同一已验证锁清空root编译产物（1660744→0KiB），保留锁inode及父目录，5consumer逐项不变；总targets2.486656GiB、可用118.897743GiB/12.835054%，前后无构建进程。证据`/tmp/openrust-c04b-final-clean-root-artifacts.log`，源码与生成应用及/tmp日志均保留。
+
+### 已纠正的失败与适配边界
+
+- 初次 query 测试构造超过 `http::Uri` 自身上限而 panic，尚未进入框架入口，不能计为413。原始日志被后续定向日志覆盖，未保留独立红日志。现限额16KiB已由有效 URI 的真实 TCP 413证明；初轮 lint/并行 ABI 编译错误也仅是集成修复，不算行为验收。
+- form/value 独审修正路径分段前有界、POST/query原始NUL差异、`%00`后续字段及空根数组。整簇复审发现并修正 reset字段 `new_password` 被trim、`has([])`、typed Query嵌套数据枚举和typed JSON大整数精度问题。大整数与枚举红证据为 `/tmp/openrust-c04b-wide-red.log`、`/tmp/openrust-c04b-enum-red.log`。
+- 全局 `arbitrary_precision` 虽使精度回归变绿，却破坏应用侧 JSON Value→Figment Serialized 来源，见 `/tmp/openrust-c04b-figment-bridge-red.log`。配置桥无法恢复进入框架前已变形的来源，方案弃用；实验独占 diff 保全 `/tmp/openrust-c04b-config-bridge-preserved.patch` 后精确移除。最终采用值字符串 token 局部重写并保留数字词法，没有开启全局 feature 或修改配置仓储。未知字段 `1e400` 曾出现原生200/受管理400，红日志 `/tmp/openrust-c04b-ignored-number-red.log`；修为 IgnoredAny 语法校验、有界词法扫描、最后由目标类型解析。1024/1025 entry与展开key资源测试初次因引号多转义而输入非法JSON，见 `/tmp/openrust-c04b-lexical-fixture-failure.log`；修正fixture后实际通过。
+- 并发 APP_PORT 配置变更使首次 default workspace 出现 lib320通过/1失败，原日志 `/tmp/openrust-c04b-final-tests-default-app-port-first-failure.log`；由原owner修fixture后精确回归通过 `/tmp/openrust-c04b-final-lifecycle-corrected.log`。该配置/CLI修改不属于B1。
+- localization 旧重复 `count` 负例期待400、实际200；文档/控制器没有独立拒重复契约。按PHP后值覆盖改成严格校验count=2、翻译及响应字段的真实TCP正例，其他越界/日期/时区/缺参负例保留。红 `/tmp/openrust-c04b-final-tests-default-localization-red.log`，绿 `/tmp/openrust-c04b-localization-green.log`（3/3）。早期全特性1133/99仅对应当时快照，最新1136/99见上表。
+- 普通生成consumer首次test因生产路由使用serde_json而清单仅有dev-dependency报E0433；check --tests成功不能替代bin构建。红 `/tmp/openrust-c04b-generated-missing-runtime-dependency-red.log`。仅修本任务临时consumer及prepare脚本的直接依赖，框架/模板未改；随后check/test与2项consumer通过。
+- 初次双库脚本捕获具名认证ok但Cargo exit101，原统计仅识别ok summary造成0/0，原始输出未保留，不能事后伪造失败细节，见 `/tmp/openrust-c04b-auth-pg-first-incomplete-diagnostics-red.log`。安全parser补充失败summary/名称/位置后，PG整组实际41通过/6失败，定位account_security:193、cache:296、registration:677；nocapture交错导致其余失败名不完整，不推断，见 `/tmp/openrust-c04b-final-auth-pg-diagnostic.log`。中途双库具名各1通过/46 filtered只证明该用例（`/tmp/openrust-c04b-final-auth-root-exact.log`），不充当整组通过。
+- cache/account连续三次同类失败曾按§5停止；探针、原hash/diff与anchor均回收。原响应探针为 `/tmp/openrust-c04b-cache-response-probe.log`、`/tmp/openrust-c04b-account-response-probe.log`，safe parser合成5例为 `/tmp/openrust-c04b-safe-parser-synthetic.log`；用户获准的一次cache诊断仍400且title缺失（`/tmp/openrust-c04b-cache-authorized-once.log`）。随后账号根因实验确认进程内相对URI无Host返回400/`http_domain_authority_invalid`，补Host即403/no-store，见 `/tmp/openrust-c04b-account-rootcause-red.log`。旧safe码白名单遮住已有错误码，不能将 unlisted_or_absent 当作框架无code。仅修fixture Host，不改安全边界、不放宽断言；PG/MySQL session各1、MFA相邻各2通过（`/tmp/openrust-c04b-account-host-green.log`），缓存模块各6通过/41 filtered（`/tmp/openrust-c04b-cache-host-green.log`、`/tmp/openrust-c04b-cache-host-mysql-green.log`）。
+- 后续PG整组46通过/1失败，仍是迁移fixture（`/tmp/openrust-c04b-final-auth-root-complete-host-fixed.log`）。框架按迁移名称排序，不能根据注册Vec末尾判断down1；新showcase编号000001早于tenant000008，用户按§5明确授权改未提交新迁移编号000009。保留showcase两表down/up、旧表及history严格断言，不改排序契约或已有数据库。修后完整双库各47通过见上表。外部record局部3lint与迁移fixture适配只为当前集成门禁，不归B1提交；最新fmt曾发现fixture布局未格式化，原证据 `/tmp/openrust-c04b-final-migration-fixed-fmt-registration-first-failure.log`，随后fmt通过。
+
+### 资源与并发源码守卫
+
+运行阶段按实际编译依赖校验源码哈希；曾因新增外部record迁移触发exit92而在启动CLI/TCP前停止，见 `/tmp/openrust-c04b-runtime-gates.log`，不把旧快照结果冒充外部WIP验收。后续阶段重新建立快照；fixture-only变化与生产产物依赖分别审计。
+
+两次中途恢复均先取得`target/debug/.cargo-lock`的flock，用本任务短offline check证明Cargo确实阻塞于artifact-directory锁，仅终止/join自己的探针并核对无其他构建/服务使用者，再清可再生incremental；不碰deps/build/consumer target或他人WIP。首次21.153275→13.803791GiB，实际释放7.352875GiB、可用11.391436%，证据 `/tmp/openrust-c04b-clean-incremental.log`；再次释放1.616997GiB、可用10.666409%，证据 `/tmp/openrust-c04b-clean-incremental-auth-soft.log`。
+
+最新workspace后仓内所有target共31.807236GiB、可用90.010311GiB/9.716645%，触软线暂停扩展。按同一锁与探针协议先dry-run再清本任务根target产物，保留锁inode及consumer缓存；根target归零，仓内所有target余2.486656GiB，可用118.955631GiB/12.841303%，无后续使用者。证据 `/tmp/openrust-c04b-clear-root-dry-run.log`、`/tmp/openrust-c04b-clear-root-artifacts.log`。五项剩余门禁随后会再生成产物，以上只是恢复时点，不是最终收尾。
+
+### 提交与证据边界
+
+仅提交B1内核/公开API及输入测试、模块input演示、密码字段/空白密码回归与模板、PHP重复query契约测试、account/cache Host fixture及ADR/对应文档。外部record实现、迁移/种子、URL/对象key命名空间改动及guard WIP不夹带；混合文件必须按patch暂存，工作树保留原owner内容。record迁移fixture适配完整备份与精确patch位于 `/tmp/openrust-c04b-record-migration-fixture-eqpfjafm`，record纯lint备份位于 `/tmp/openrust-c04b-record-lint-3r_c2szd`。上述迁移编号授权与真实47项验收是当前工作区集成证据，不代表B1限定commit包含record代码。外部record测试记录小节另行逐字保全，本草稿不纳入其内容。

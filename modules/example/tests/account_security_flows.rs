@@ -124,6 +124,8 @@ fn request(
     let mut builder = Request::builder()
         .method(method)
         .uri(format!("{BASE}{path}"))
+        // TestApp 的相对 URI 不会自动补浏览器 Host；域路由须先验证 authority。
+        .header("host", "example.test")
         .extension(ConnectInfo(std::net::SocketAddr::from((
             [127, 0, 0, peer],
             45678,
@@ -441,6 +443,7 @@ async fn mfa_requires_reauthentication_challenge_and_once_only_recovery_codes() 
         .assert_status(StatusCode::UNAUTHORIZED)?;
     // 原密码登录 API 也必须 fail-closed，不能从旧入口获得完整凭据。
     let legacy = Request::post("/api/auth/login")
+        .header("host", "example.test")
         .extension(ConnectInfo(std::net::SocketAddr::from((
             [127, 0, 0, 50],
             45678,

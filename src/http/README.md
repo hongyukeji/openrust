@@ -40,6 +40,20 @@ async fn store(
 
 检查快照限制 headers 总计 64 KiB/128 个值、Accept 16 KiB/128 项，超限拒绝且不截断。`Debug` 不输出头、凭据或 URI/query；显式读取后的日志脱敏仍由调用方负责。这些 helper 不等同于完整 Laravel Request：输入修改、Cookie/Session、用户解析、FormRequest、flash 与文件能力按各自公开接口交付。
 
+## 统一请求输入
+
+`openrust::http::Request` 是唯一正文所有者，复用 `RequestInfo` 的检查方法并提供 `input` / `json` / `query` / `post`、`all` / `keys`、存在性、筛选和修改。它与 `Json<T>` 不在同一 handler 中并列；需要 DTO 时使用 `deserialize_json::<T>()`、`deserialize_query::<T>()` 或 `deserialize_input::<T>()`。只需检查 headers 且继续用 `Json<T>` 时仍选 `RequestInfo`。`content()` 返回有界的原始字节，输入修改不会重写原文；不要把原文或密码写入日志。
+
+JSON 类型优先，包括 GET/HEAD；其他 GET/HEAD 取 query，其他方法取 form。`all` / `input` 采用 source 与 query 的顶层左并集，body 的 null 或完整对象会遮住同名 query 值。`input("profile.name")?` / `json("profile.name")?` 支持 dot 与读取通配；`query("profile.name")` / `post(...)` 只取直接键。读取结果为 Option，资源超限另由 Result 返回；`has(&["name"])` 包括 null，`filled(&["name"])` 对空白/null 为假、对 false/0/空数组为真。
+
+`only` / `except` 返回筛选值；`merge` 按 dot 写入（星号是字面键），`merge_if_missing` 按合并后可见输入判断，`replace` 只换当前 source，query fallback 仍可出现。修改失败不保留部分结果，也不会再次 trim。PHP form/query bracket 数组、重复覆盖、数字/稀疏混合键和规范键均由同一解析器处理；稀疏数组保留原索引，必要时表示为 JSON object。
+
+受管理的 `Request`、`Json<T>`、`Query<T>` 及 `Validated` 默认先去首尾不可见字符，再将空字符串转 null。默认 trim 排除仅完整键 `current_password`、`password`、`password_confirmation`，嵌套 `user.password` 仍处理；密码空串也转 null。用 `InputNormalization::disabled()` 作为选定路由组的 Tower Layer 可关闭两项转换，也可用 builder 独立配置或向请求 extensions 插入策略来条件跳过。原生 Axum 提取器不受这套策略管理。
+
+正文按 Axum 受限读取，默认2MiB，可由应用显式 `DefaultBodyLimit` 调整；query限制16KiB，URL编码输入最多1024个原始非空字段对，值树最多1024 entries/64层，完整展开键累计20MiB。超限明确拒绝，不截断；非法UTF-8的form/query报400，不用替代字符改写。动态 `Request` 保留 Laravel 畸形JSON为空bag、scalar转数组的语义；typed `Json<T>` 继续严格返回语法400、媒体415和类型422。规范化 typed JSON 仅改写值字符串，保留原始数字词法以支持 Rust `u128` / `i128`，并使用有界额外缓冲。动态 `Request` bags 使用标准 `serde_json::Value` 数值表示；需要保持128位整数精度时选择 typed `Json<T>`，不要先经动态Value往返。
+
+multipart 在显式选择 `Request` 时只保存有界原文，本簇不提供其文本/文件bag合并；需要现有流式上传时使用对应公开上传接口。Cookie/Session、old input/flash、FormRequest及完整文件语义按各自能力交付，不因增加此提取器而自动具备。
+
 `/health` 是进程存活探针；`/ready` 要求 listener 正在接收流量且所有依赖探针成功，否则返回 503。DatabaseServiceProvider 检查每个已配置连接池，CacheServiceProvider 对已解析 store 执行只读读取探针；应用 Provider 也可通过 `Readiness::register_probe` 注册最多 64 个稳定命名的异步探针。每轮最多并发 16 个探针、总时限 2 秒且全局仅允许一轮并发检查；错误详情不返回给请求方，服务端只记录稳定错误码和探针名。探针须只读且有界。该 HTTP 端点不代表 gRPC health、实时连接或任意外部依赖的状态。收到 SIGINT/SIGTERM 后，服务器先将自身标为 not-ready 并停止接受连接，再按 `[server].shutdown_timeout_secs` 等待在途请求；到期会合作取消请求、强制终止剩余 server task 并以 `http_shutdown_timeout` 失败退出。请求取消会丢弃本地 handler future，不能撤销已提交的数据库或外部副作用。
 
 启用 `metrics` Cargo feature 后，HTTP 请求会记录请求数、耗时和在途数；指标标签只包含固定的 HTTP 方法类别和状态类别，不包含路径、请求标识、用户信息或错误内容。`/metrics` 默认不注册。仅当 `[server].metrics_endpoint_enabled = true` 时才开放 Prometheus scrape 端点；生产部署应通过监听网络、反向代理或防火墙限制采集访问，不要将端点公开给普通客户端。日志中的 HTTP 请求 span 只记录方法，不记录完整 URI、查询参数、request ID 或 `traceparent`。

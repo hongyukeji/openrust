@@ -25,7 +25,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 | R2-M 模块最小闭环与目录迁移 | 真实服务与生成项目已验收，本簇提交 | modules/ 声明注册、模块配置/资源/统一迁移、依赖与冲突错误；示例迁至 modules/example，真实HTTP及双库验证；完整管理命令归R13 |
 | R1-E 真实CRUD与当前能力示例 | 已验收并提交 bc3fa01 | 真实 Article CRUD；当前公开能力进入唯一模块示例；PostgreSQL 18/MySQL 8.4、生成项目、真实服务与整组门禁已验收。Collector PostgreSQL 隔离 sink delivery/unavailable 已复验通过，详见 testing |
 | R2 后继内核与测试底座 | R2-N 模块依赖图与顺序已完成 | `.requires` 硬依赖、稳定拓扑顺序、register/boot 一致；真实 PostgreSQL/MySQL HTTP、生成项目、根无参数 TCP、工作区门禁均有本簇证据 |
-| R3 HTTP 与 Web | R3-F 已提交163bb49；C04-A 适用验收完成，后继C04-B契约校准 | 按ADR-078实现无正文请求检查与固定上游协商；C03其余及完整C04范围继续保留 |
+| R3 HTTP 与 Web | R3-F 已提交163bb49；C04-A 已提交08be69d；C04-B1输入基础已验收；C04-B2类型便捷方法待领取 | 按ADR-078实现无正文请求检查与固定上游协商；C03其余及完整C04范围继续保留 |
 | 模块包固定范围细化 | 待逐项盘点 | 对正式laravel-modules固定源码/文档的导航、源码与测试拆行为矩阵，分类必要Rust差异/用户约定/缺口；不把目录规范或显式Plugin等同完整模块管理 |
 
 ## 后继路由
@@ -284,9 +284,11 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 4. 保留后续 Cookie/Session、redirect/flash、CSRF、FormRequest 授权/验证、文件验证和 Response 扩展的完整范围，不能用首个子簇代替完整C04验收。
 5. 每个落地子簇同步唯一模块业务调用、生成应用与真实HTTP；行为证据、适用门禁和资源收尾完成后限定本地提交，当前契约校准不计代码交付。
 
-## 当前 C04 后继：请求输入与响应契约
+## 当前 C04-B：输入基础收口与类型便捷方法
+
+状态：固定源码审计已交接；[ADR-079](decisions/adr-079-request-input.md)已定，C04-B1输入基础与规范化已交接，定向input19/request10/router87、config24/内部19/模块3及Clippy通过，限定独审无明确blocker/should-fix；default/all workspace已通过；运行验收采用阶段实际编译依赖的源码哈希守卫，保留外部WIP；无关测试fixture变化不阻塞生产TCP，相关源变化暂停对应阶段；继续双库/真实网络/生成项目，根TCP/consumer/生成认证应用双库均通过相应证据；账号/缓存fixture缺Host及获准新迁移编号修正后，根完整PG/MySQL各47项均通过，零失败/忽略/筛选；最新workspace全部适用门禁通过，B1限定提交见Git；typed便捷方法等C04-B2与其他完整范围保持未完成。
 
 1. C04-A 已按 ADR-078 完成公开请求检查/协商，适用 workspace、生成应用、真实 TCP 与独审通过，证据见 [testing](memory/testing.md#c04-a-请求检查与内容协商)。本簇限定本地提交见 Git，不重复实现。
-2. 后继先审计固定 Laravel Request 的输入来源/优先级、query/body、类型读取、存在性、筛选和输入修改，与现有 Json/Query/Validated/上传入口逐项对应；依据 Rust 单次正文所有权收敛 C04-B contract。
-3. 继续实现前记录公开 API、错误和资源边界、与 typed 提取器组合方式及必要差异，补唯一模块、公开 consumer、生成应用与真实 HTTP。
+2. C04-B1按ADR-079收口输入来源/优先级、存在性、筛选修改、默认规范化与正文单次所有权，详见测试记录；不重复实现。后继C04-B2先审计固定Laravel的string/integer/float/boolean/date/enum/collection及条件回调等typed便捷方法，列明确切公开API、Rust必要适配和错误边界。
+3. C04-B2按Spec→Implement→Verify→Commit补公共API、唯一模块、公开consumer、生成应用与真实HTTP，不重建平行输入仓储；B1内容不重复实现。
 4. Cookie/Session、redirect/flash、CSRF、FormRequest授权验证、文件及L020响应完整范围保留；不以首个 RequestInfo 簇替代完整C04。

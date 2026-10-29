@@ -7,7 +7,7 @@ use openrust::http::axum::{
     http::{HeaderValue, StatusCode, header},
     response::{Html, IntoResponse, Response},
 };
-use openrust::http::{DomainParams, Inject, Json, Path, RequestInfo};
+use openrust::http::{DomainParams, Inject, Json, Path, Request, RequestInfo};
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -79,6 +79,73 @@ pub(crate) async fn request_body(
         "method": request.method().as_str(),
         "is_json": request.is_json()?,
         "title": input.title,
+    })))
+}
+
+#[derive(Deserialize)]
+struct InputQuery {
+    page: Option<u32>,
+    label: Option<String>,
+}
+
+/// 由唯一正文提取器读取动态输入；响应只展示业务白名单与凭据处理布尔值。
+pub(crate) async fn input(mut request: Request) -> openrust::Result<Json<serde_json::Value>> {
+    let original = request.content().clone();
+    let query: InputQuery = request.deserialize_query()?;
+    let title = request.input("title")?;
+    let profile_name = request.input("profile.name")?;
+    let selected = request.only(&["title", "profile.name", "items", "php_keys"])?;
+    let checks = serde_json::json!({
+        "has_nullable": request.has(&["nullable"]),
+        "nullable_filled": request.filled(&["nullable"]),
+        "has_any": request.has_any(&["missing", "title"]),
+        "missing": request.missing(&["missing"]),
+        "is_not_filled": request.is_not_filled(&["nullable"]),
+        "any_filled": request.any_filled(&["nullable", "title"]),
+        "password_has_outer_spaces": outer_spaces(request.input("password")?.as_ref()),
+        "nested_password_has_outer_spaces": outer_spaces(request.input("user.password")?.as_ref()),
+        "empty_password_is_null": request.input("password_confirmation")? == Some(serde_json::Value::Null),
+    });
+    let query_title = request.query("title");
+    let form_title = request.post("title");
+    let json_title = request.json("title")?;
+    let excluded_title = request.except(&["title"])?.get("title").is_none();
+    let source_has_title = request.all().get("title").is_some();
+    request.merge(serde_json::json!({"title": "  revised  ", "profile.role": "reader"}))?;
+    request.merge_if_missing(serde_json::json!({"title": "ignored", "generated": "fallback"}))?;
+    let merged = request.only(&["title", "profile.role", "generated"])?;
+    request.replace(serde_json::json!({"title": "replacement"}))?;
+    Ok(Json(serde_json::json!({
+        "method": request.info().method().as_str(),
+        "selected": selected,
+        "title": title,
+        "profile_name": profile_name,
+        "checks": checks,
+        "query_title": query_title,
+        "query_page": query.page,
+        "query_label": query.label,
+        "form_title": form_title,
+        "json_title": json_title,
+        "excluded_title": excluded_title,
+        "source_has_title": source_has_title,
+        "merged": merged,
+        "replaced_title": request.input("title")?,
+        "query_fallback": request.input("fallback")?,
+        "content_bytes": original.len(),
+        "content_preserved": request.content() == &original,
+    })))
+}
+
+fn outer_spaces(value: Option<&serde_json::Value>) -> bool {
+    value
+        .and_then(serde_json::Value::as_str)
+        .is_some_and(|text| text.starts_with(' ') && text.ends_with(' '))
+}
+
+pub(crate) async fn input_raw(request: Request) -> openrust::Result<Json<serde_json::Value>> {
+    Ok(Json(serde_json::json!({
+        "title": request.input("title")?,
+        "nullable": request.input("nullable")?,
     })))
 }
 

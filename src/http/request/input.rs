@@ -1,0 +1,411 @@
+//! 统一的请求 bags、正文所有权和受管理提取器管线。
+
+use super::{InputNormalization, RequestInfo, deserialize, form, value};
+use crate::core::{Error, Result, ValidationErrors};
+use axum::extract::{FromRequest, FromRequestParts};
+use axum::http::{Method, StatusCode, request::Parts};
+use bytes::Bytes;
+use serde::de::DeserializeOwned;
+use serde_json::Value;
+use std::{fmt, ops::Deref};
+
+const MAX_QUERY_BYTES: usize = 16 * 1024;
+
+/// 有界保留正文、统一读取和修改请求输入的唯一正文提取器。
+///
+/// 默认先 trim，再将空字符串转为 null；原始 [`Self::content`] 始终不变。
+/// 与 Json 不能同时拥有正文，可改用 `deserialize_*`。动态 JSON 的畸形文本返回空 bag，
+/// 标量按 PHP 数组转换；typed Json 仍严格拒绝语法和类型错误。multipart 此处只保存原文，
+/// 文本/文件合并留待后继能力；原生 Axum 上传入口继续支持流式读取。
+///
+/// ```
+/// use openrust::http::{Request, Json};
+/// async fn show(request: Request) -> openrust::Result<Json<serde_json::Value>> {
+///     Ok(Json(request.only(&["profile.name"])?))
+/// }
+/// ```
+#[derive(Clone)]
+pub struct Request {
+    info: RequestInfo,
+    raw: Bytes,
+    query: Value,
+    json: Value,
+    json_limited: bool,
+    form: Value,
+    source: Source,
+    all: Value,
+}
+#[derive(Clone, Copy)]
+enum Source {
+    Query,
+    Json,
+    Form,
+}
+impl fmt::Debug for Request {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.debug_struct("Request").finish_non_exhaustive()
+    }
+}
+impl Deref for Request {
+    type Target = RequestInfo;
+    fn deref(&self) -> &RequestInfo {
+        &self.info
+    }
+}
+impl<S: Send + Sync> FromRequest<S> for Request {
+    type Rejection = Error;
+    async fn from_request(request: axum::extract::Request, state: &S) -> Result<Self> {
+        let (mut parts, body) = request.into_parts();
+        let info = RequestInfo::from_request_parts(&mut parts, state).await?;
+        let policy = policy(&parts);
+        let query = parse_query(parts.uri.query(), &policy)?;
+        let is_json = info.is_json()?;
+        let is_query = matches!(parts.method, Method::GET | Method::HEAD);
+        let is_form = info.header("content-type")?.is_some_and(|content| {
+            content.split(';').next().is_some_and(|mime| {
+                mime.trim()
+                    .eq_ignore_ascii_case("application/x-www-form-urlencoded")
+            })
+        });
+        let raw = Bytes::from_request(axum::extract::Request::from_parts(parts, body), state)
+            .await
+            .map_err(|error| body_error(&error))?;
+        let depth = json_depth(&raw);
+        let decoded = if depth.is_ok() {
+            serde_json::from_slice::<Value>(&raw).unwrap_or(Value::Null)
+        } else {
+            Value::Null
+        };
+        let json_limited = depth.is_err() || value::validate_limits(&decoded).is_err();
+        if is_json && json_limited {
+            return Err(json_limit_error());
+        }
+        let mut json = if json_limited {
+            Value::Array(Vec::new())
+        } else {
+            value::cast_json(decoded)
+        };
+        let mut form = if is_form && !is_query {
+            form::parse_form(std::str::from_utf8(&raw).map_err(|_| encoding_error())?)?
+        } else {
+            Value::Array(Vec::new())
+        };
+        let source = if is_json {
+            policy.apply(&mut json);
+            Source::Json
+        } else if is_query {
+            Source::Query
+        } else {
+            policy.apply(&mut form);
+            Source::Form
+        };
+        let selected = match source {
+            Source::Query => &query,
+            Source::Json => &json,
+            Source::Form => &form,
+        };
+        let all = value::union(selected, &query);
+        value::validate_limits(&all)?;
+        Ok(Self {
+            info,
+            raw,
+            query,
+            json,
+            json_limited,
+            form,
+            source,
+            all,
+        })
+    }
+}
+impl Request {
+    /// 返回无需消费正文的元信息视图。
+    pub const fn info(&self) -> &RequestInfo {
+        &self.info
+    }
+    /// 返回未被规范化或输入修改重编码的原始正文。
+    pub const fn content(&self) -> &Bytes {
+        &self.raw
+    }
+    /// 返回当前输入 source 与 query 的顶层左并集。
+    pub fn all(&self) -> Value {
+        self.all.clone()
+    }
+    /// 返回合并输入的顶层键，保留 PHP 数组顺序。
+    pub fn keys(&self) -> Vec<String> {
+        match &self.all {
+            Value::Object(values) => values.keys().cloned().collect(),
+            Value::Array(values) => (0..values.len()).map(|index| index.to_string()).collect(),
+            _ => Vec::new(),
+        }
+    }
+    /// 按 dot path、数字索引或读取通配符取合并输入。
+    pub fn input(&self, key: &str) -> Result<Option<Value>> {
+        checked_get(&self.all, key)
+    }
+    /// 按 dot path 或读取通配符取 JSON bag；显式 null 保持存在。
+    pub fn json(&self, key: &str) -> Result<Option<Value>> {
+        if self.json_limited {
+            return Err(json_limit_error());
+        }
+        checked_get(&self.json, key)
+    }
+    /// 从 query bag 取直接键；显式 null 与缺失均返回 None。
+    pub fn query(&self, key: &str) -> Option<Value> {
+        direct(&self.query, key)
+    }
+    /// 从 form bag 取直接键；JSON 不被当成 form，显式 null 返回 None。
+    pub fn post(&self, key: &str) -> Option<Value> {
+        direct(&self.form, key)
+    }
+    /// 判断全部键存在；null 算存在，星号按字面键处理。
+    pub fn has(&self, keys: &[&str]) -> bool {
+        keys.iter().all(|key| value::has(&self.all, key))
+    }
+    /// 判断至少一个键存在。
+    pub fn has_any(&self, keys: &[&str]) -> bool {
+        keys.iter().any(|key| value::has(&self.all, key))
+    }
+    /// 判断给定键并非全部存在。
+    pub fn missing(&self, keys: &[&str]) -> bool {
+        !self.has(keys)
+    }
+    /// 判断全部键非空字符串或 null；false、0、空数组均算 filled。
+    pub fn filled(&self, keys: &[&str]) -> bool {
+        keys.iter().all(|key| !self.empty_string(key))
+    }
+    /// 判断全部键为空字符串、null 或缺失。
+    pub fn is_not_filled(&self, keys: &[&str]) -> bool {
+        keys.iter().all(|key| self.empty_string(key))
+    }
+    /// 判断至少一个键 filled。
+    pub fn any_filled(&self, keys: &[&str]) -> bool {
+        keys.iter().any(|key| !self.empty_string(key))
+    }
+    /// 保留选定路径；写入路径中的星号为字面键，结果仍遵守资源限额。
+    pub fn only(&self, keys: &[&str]) -> Result<Value> {
+        let mut result = Value::Array(Vec::new());
+        for key in keys {
+            if let Some(child) = self.input(key)? {
+                value::set(&mut result, key, child)?;
+            }
+        }
+        value::validate_limits(&result)?;
+        Ok(result)
+    }
+    /// 排除选定路径；数组删除不重新编号。
+    pub fn except(&self, keys: &[&str]) -> Result<Value> {
+        let mut result = self.all();
+        for key in keys {
+            value::forget(&mut result, key)?;
+        }
+        value::validate_limits(&result)?;
+        Ok(result)
+    }
+    /// 按 dot path 合并到当前 source；修改不重复规范化，失败保持原请求不变。
+    pub fn merge(&mut self, input: Value) -> Result<&mut Self> {
+        self.merge_values(input, false)
+    }
+    /// 仅合并在当前 source 加 query 中缺失的键，null 不被覆盖。
+    pub fn merge_if_missing(&mut self, input: Value) -> Result<&mut Self> {
+        self.merge_values(input, true)
+    }
+    /// 替换当前 source，query fallback 继续保留；失败不修改请求。
+    pub fn replace(&mut self, input: Value) -> Result<&mut Self> {
+        value::validate_limits(&input)?;
+        let input = value::cast_json(input);
+        self.install(input)?;
+        Ok(self)
+    }
+    /// 从 JSON bag 严格反序列化；不同于 query，不隐式转换字符串数字。
+    pub fn deserialize_json<T: DeserializeOwned>(&self) -> Result<T> {
+        if self.json_limited {
+            return Err(json_limit_error());
+        }
+        serde_json::from_value(self.json.clone()).map_err(|_| {
+            Error::validation_with_detail(
+                "JSON input has an incompatible type",
+                ValidationErrors::new(),
+            )
+        })
+    }
+    /// 从 query bag 反序列化，保留字符串到数值/布尔及 Option 的转换。
+    pub fn deserialize_query<T: DeserializeOwned>(&self) -> Result<T> {
+        deserialize::query(self.query.clone())
+    }
+    /// 从合并输入反序列化；JSON source 严格类型，其他 source 支持表单数值转换。
+    pub fn deserialize_input<T: DeserializeOwned>(&self) -> Result<T> {
+        if matches!(self.source, Source::Json) {
+            serde_json::from_value(self.all()).map_err(|_| {
+                Error::validation_with_detail(
+                    "JSON input has an incompatible type",
+                    ValidationErrors::new(),
+                )
+            })
+        } else {
+            deserialize::query(self.all())
+        }
+    }
+    fn empty_string(&self, key: &str) -> bool {
+        match value::get(&self.all, key) {
+            None | Some(Value::Null) => true,
+            Some(Value::String(value)) => value
+                .trim_matches([' ', '\n', '\r', '\t', '\u{b}', '\0'])
+                .is_empty(),
+            _ => false,
+        }
+    }
+    fn source(&self) -> &Value {
+        match self.source {
+            Source::Query => &self.query,
+            Source::Json => &self.json,
+            Source::Form => &self.form,
+        }
+    }
+    fn merge_values(&mut self, input: Value, missing_only: bool) -> Result<&mut Self> {
+        value::validate_limits(&input)?;
+        let mut candidate = self.source().clone();
+        let entries = match value::cast_json(input) {
+            Value::Object(map) => map,
+            Value::Array(values) => values
+                .into_iter()
+                .enumerate()
+                .map(|(i, v)| (i.to_string(), v))
+                .collect(),
+            _ => serde_json::Map::new(),
+        };
+        for (key, child) in entries {
+            if !missing_only || !value::has(&self.all, &key) {
+                value::set(&mut candidate, &key, child)?;
+            }
+        }
+        self.install(candidate)?;
+        Ok(self)
+    }
+    fn install(&mut self, candidate: Value) -> Result<()> {
+        value::validate_limits(&candidate)?;
+        let query = if matches!(self.source, Source::Query) {
+            &candidate
+        } else {
+            &self.query
+        };
+        let all = value::union(&candidate, query);
+        value::validate_limits(&all)?;
+        match self.source {
+            Source::Query => self.query = candidate,
+            Source::Json => {
+                self.json = candidate;
+                self.json_limited = false;
+            }
+            Source::Form => self.form = candidate,
+        }
+        self.all = all;
+        Ok(())
+    }
+}
+fn checked_get(bag: &Value, key: &str) -> Result<Option<Value>> {
+    if key.len() > 20 * 1024 * 1024 || key.split('.').take(65).count() > 64 {
+        return Err(Error::custom_with_status(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "input_limits_exceeded",
+            "input path exceeds inspection limit",
+        ));
+    }
+    let result = value::get(bag, key);
+    if let Some(value) = &result {
+        value::validate_limits(value)?;
+    }
+    Ok(result)
+}
+fn direct(bag: &Value, key: &str) -> Option<Value> {
+    match bag {
+        Value::Object(values) => values.get(key),
+        Value::Array(values) => key
+            .parse::<usize>()
+            .ok()
+            .filter(|index| index.to_string() == key)
+            .and_then(|index| values.get(index)),
+        _ => None,
+    }
+    .filter(|value| !value.is_null())
+    .cloned()
+}
+pub(super) fn policy(parts: &Parts) -> InputNormalization {
+    parts
+        .extensions
+        .get::<InputNormalization>()
+        .cloned()
+        .unwrap_or_default()
+}
+pub(super) fn parse_query(raw: Option<&str>, policy: &InputNormalization) -> Result<Value> {
+    let raw = raw.unwrap_or_default();
+    if raw.len() > MAX_QUERY_BYTES {
+        return Err(Error::custom_with_status(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "input_limits_exceeded",
+            "query input exceeds inspection limit",
+        ));
+    }
+    let mut bag = form::parse_query(raw)?;
+    policy.apply(&mut bag);
+    value::validate_limits(&bag)?;
+    Ok(bag)
+}
+fn encoding_error() -> Error {
+    Error::custom_with_status(
+        StatusCode::BAD_REQUEST,
+        "input_encoding_invalid",
+        "input encoding is not UTF-8",
+    )
+}
+pub(super) fn body_error(error: &axum::extract::rejection::BytesRejection) -> Error {
+    if error.status() == StatusCode::PAYLOAD_TOO_LARGE {
+        Error::custom_with_status(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "payload_too_large",
+            "request body exceeds configured limit",
+        )
+    } else {
+        Error::BadRequest("request body could not be read".into())
+    }
+}
+
+// 只计结构括号，跳过字符串和转义；先于 serde 默认递归限制识别资源超限。
+pub(super) fn json_depth(raw: &[u8]) -> Result<()> {
+    let mut depth = 0_usize;
+    let mut quoted = false;
+    let mut escaped = false;
+    for byte in raw {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        if quoted {
+            match byte {
+                b'\\' => escaped = true,
+                b'"' => quoted = false,
+                _ => {}
+            }
+        } else {
+            match byte {
+                b'"' => quoted = true,
+                b'[' | b'{' => {
+                    depth += 1;
+                    if depth > 65 {
+                        return Err(json_limit_error());
+                    }
+                }
+                b']' | b'}' => depth = depth.saturating_sub(1),
+                _ => {}
+            }
+        }
+    }
+    Ok(())
+}
+fn json_limit_error() -> Error {
+    Error::custom_with_status(
+        StatusCode::PAYLOAD_TOO_LARGE,
+        "input_limits_exceeded",
+        "JSON input exceeds inspection limit",
+    )
+}

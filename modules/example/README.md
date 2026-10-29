@@ -18,6 +18,24 @@
 
 模块扩展目标参考用户指定的第三方 [nWidart/laravel-modules](https://github.com/nWidart/laravel-modules)；当前依据为 [v13 文档](https://laravelmodules.com/docs/13/getting-started/introduction)，读取日期 2026-10-28，未宣称源码 revision 已对齐。借鉴自有路由/API、controller/model/resource、迁移、测试与 provider 装配；它不是 Laravel 核心，不扩张 Laravel 主基线，也不表示本框架已全量实现该包。按本项目约定采用 modules/<模块>、snake_case 和编译期静态注册。修改 modules/mod.rs 的编译声明和 Application::modules 注册清单是正常业务接入；为某个业务修改 src/ 核心或加入全局样例特判不属于接入方式。优先复用现有 ServiceProvider/Routes；Rust 模块编译期声明，无运行时源码扫描。
 
+## 统一请求输入与路由规范化
+
+`POST /api/example/input` 在 [`controllers/example.rs`](http/controllers/example.rs) 使用公开 `openrust::http::Request` 作为唯一读取正文的提取器。`request.info()` 提供方法和路径等元信息；不要在同一个 handler 中再并列 `Json<T>` 或原生 Request 消费正文。需要类型化数据时可调用 `deserialize_json`、`deserialize_query` 或 `deserialize_input`，示例用 `deserialize_query::<InputQuery>()` 把 `page=7` 转成 `Option<u32>` 并读取已去空白的 `label`。 `deserialize_json` 会经过动态 `serde_json::Value`；需要精确保留128位整数时直接使用 typed `Json<T>`，详见[HTTP 输入说明](../../src/http/README.md#统一请求输入)。
+
+JSON 请求优先采用 JSON bag，表单请求采用 form bag，再与 query 做顶层左并集；正文中的显式 `null` 也遮住同名 query，不深合并嵌套对象。`input("profile.name")` 可读 dot 路径，`query("title")`、`post("title")` 只取直接键。处理器用 `only` 选择标题、姓名及演示数组，用 `except` 演示排除标题；`has` 计入 `null`，`filled` 对 `null` 为假。`merge` 可按 dot 写入，`merge_if_missing` 保留已有字段，`replace` 只替换当前输入 source 并保留 query fallback。代码分别记录修改后的少量业务字段；这些修改不会再次执行规范化。响应不回传密码或原始正文，只返回密码处理的布尔结果、原文长度与修改后原文是否保留。
+
+```bash
+curl -X POST 'http://127.0.0.1:3000/api/example/input?title=query&fallback=query-only&page=7' \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"  body  ","profile":{"name":"  Alice  "},"nullable":""}'
+```
+
+默认先递归去首尾空白，再将空字符串转 `null`；仅完整顶层键 `current_password`、`password`、`password_confirmation` 排除 trim，嵌套 `user.password` 仍 trim，空密码仍可转 `null`。表单 `items[]=a&items[]=b` 形成连续数组；稀疏数字、负数与 `00` 等混合键保留为对象，删除数字项不会重编号。
+
+[`routes/api.rs`](routes/api.rs) 用独立 `RouteGroup` 的 `.middleware(InputNormalization::disabled())` 为具名路由 `example.input-raw`（`POST /api/example/input-raw`）关闭两项转换，演示空白标题和空字符串原样保留；其他路由继续使用默认策略。应用可以在自己的组配置 `InputNormalization::default().trim_strings(true).convert_empty_strings_to_null(true).except_trim(["signature", "profile.token*"])`，或按请求向 extensions 插入策略进行条件覆盖。策略是公开 Tower Layer，不需要更改框架内核。
+
+本簇没有解析 multipart 文本或文件、Cookie/Session 和 FormRequest。原生 `openrust::http::axum` 的 Request/Json/Query 是独立逃生口，保持 Axum 自身语义，不执行这里的受管理输入规范化。现有 `POST /api/example/request-body` 则继续展示框架 typed `Json<T>` 与只读 `RequestInfo` 的组合。
+
 ## 从真实调用链开始
 
 根 [`src/main.rs`](../../src/main.rs) 声明应用宿主和已编译模块，然后运行 `bootstrap::Server`。[`bootstrap/app.rs`](../../bootstrap/app.rs) 的 `Application::modules` 返回模块清单，加入 [`descriptor`](mod.rs)；根 [`modules_statuses.json`](../../modules_statuses.json) 的 `example: true` 决定本次启动启用。descriptor 将 [`ExampleServiceProvider`](providers/example.rs)、自定义缓存 driver、以及适用数据库能力的任务/迁移/种子、文章事件和欢迎业务 Provider 纳入同一 register/boot 生命周期；禁用模块不会登记这些 Provider。默认模块根为进程工作目录，可由显式配置 `modules_root` 指定部署根；状态、配置、语言、视图和发布资源均从同一根解析。根 [`routes/web.rs`](../../routes/web.rs) 只保留框架通用路由，不硬编码业务 handler。

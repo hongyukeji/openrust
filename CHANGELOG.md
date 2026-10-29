@@ -8,6 +8,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 - 应用端口环境键统一为 `APP_PORT`（自定义命名空间如 `SHOP_PORT`），映射至内部 `server.port`；`.env` 与生成应用使用 `APP_URL="http://localhost:${APP_PORT}"`，旧端口别名不再读取。
 
+- 认证示例及生成应用的密码重置确认字段改为 Laravel 式 `password`，保留密码首尾空白，与登录使用相同规范化规则。
+
 - API/framework JSON 默认使用语义 HTTP 状态（如创建 201、校验失败 422、资源缺失 404）；`always_ok` 仅在配置中显式选择时启用，统一 envelope 与机器码保持不变。
 
 ### Fixed
@@ -21,6 +23,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 - 在 API 响应中保留类型化 `PageMeta`；明确 CORS 预检响应正文为空，同时普通跨域错误仍使用统一包装。
 
 ### Added
+
+- 新增统一正文所有者 `Request`，提供 Laravel 式输入来源合并、dot/通配读取、存在性、筛选与输入修改；`Json` / `Query` 共享默认 trim/null 转换，公开 `InputNormalization` 支持路由或请求覆盖，原始正文保持不变。
 
 - 新增只读 `RequestInfo` 提取器：检查路径、方法、严格 Host、头与 bearer，并按固定 Laravel/Symfony 行为执行内容协商；与 `Json<T>` 共存，限制元信息大小且 Debug 隐藏敏感内容。唯一模块示例展示 HTML/JSON 协商与正文读取。
 

@@ -277,19 +277,34 @@ async fn run_auth_flow(
         serde_json::json!({
             "email": email,
             "code": reset_code,
-            "new_password": "replacement-password"
+            "password": "  replacement-password  "
         }),
     )
     .await?;
     assert_eq!(reset.body["success"], true);
     assert_eq!(reset.body["data"]["status"], "password_reset");
 
-    let login = post(
+    // 使用独立可信来源验证去空白后的密码不匹配，保留后续既有限流预算。
+    let trimmed_login = post_with_forwarded_for(
         address,
         "/api/auth/login",
         serde_json::json!({
             "email": email,
             "password": "replacement-password"
+        }),
+        "203.0.113.79",
+    )
+    .await?;
+    assert_eq!(trimmed_login.status, StatusCode::UNAUTHORIZED);
+    assert_eq!(trimmed_login.body["success"], false);
+    assert_eq!(trimmed_login.body["code"], "unauthorized");
+
+    let login = post(
+        address,
+        "/api/auth/login",
+        serde_json::json!({
+            "email": email,
+            "password": "  replacement-password  "
         }),
     )
     .await?;
@@ -324,7 +339,7 @@ async fn run_auth_flow(
             "/api/auth/login",
             serde_json::json!({
                 "email": email,
-                "password": "replacement-password"
+                "password": "  replacement-password  "
             }),
         )
         .await?;
@@ -336,7 +351,7 @@ async fn run_auth_flow(
         "/api/auth/login",
         serde_json::json!({
             "email": email,
-            "password": "replacement-password"
+            "password": "  replacement-password  "
         }),
     )
     .await?;

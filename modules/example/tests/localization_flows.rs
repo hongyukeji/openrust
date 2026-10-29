@@ -177,7 +177,6 @@ async fn reading_summary_rejects_unbounded_or_ambiguous_input_over_tcp() -> Test
             ],
             vec![("count", "1"), ("at", AT), ("zone", "Asia/Shanghai")],
             vec![("count", "1"), ("at", AT)],
-            vec![("count", "1"), ("at", AT), ("zone", "utc"), ("count", "2")],
             vec![
                 ("count", "1"),
                 ("at", AT),
@@ -191,6 +190,33 @@ async fn reading_summary_rejects_unbounded_or_ambiguous_input_over_tcp() -> Test
             assert!(!text.contains("not-a-date-sentinel"));
             assert!(!text.contains("invalid-input-sentinel"));
         }
+        Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
+    }
+    .await;
+    let cleanup = f.close().await;
+    result?;
+    cleanup
+}
+
+/// PHP query 参数后值覆盖前值，业务校验使用最终解析值。
+#[tokio::test]
+async fn reading_summary_uses_last_duplicate_query_value_over_tcp() -> TestResult {
+    let f = Fixture::create().await?;
+    let result = async {
+        let response = f
+            .response(
+                Some("en"),
+                &[("count", "1"), ("at", AT), ("zone", "utc"), ("count", "2")],
+            )
+            .await?;
+        assert_eq!(response.status().as_u16(), 200);
+        let body: Value = response.json().await?;
+        assert_eq!(body["success"], true);
+        assert_eq!(body["data"]["count"], 2);
+        assert_eq!(body["data"]["reading"], "2 articles read");
+        assert_eq!(body["data"]["locale"], "en");
+        assert_eq!(body["data"]["preview"], true);
+        assert_eq!(body["data"]["time_zone"], "utc");
         Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
     }
     .await;

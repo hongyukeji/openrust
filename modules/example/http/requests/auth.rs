@@ -26,5 +26,5 @@ pub(crate) struct RefreshInput {
 pub(crate) struct PasswordResetInput {
     pub(crate) email: String,
     pub(crate) code: String,
-    pub(crate) new_password: String,
+    pub(crate) password: String,
 }

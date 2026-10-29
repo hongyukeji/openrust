@@ -722,3 +722,134 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
     database.close().await?;
     Ok(())
 }
+
+#[tokio::test]
+async fn production_input_normalizes_json_and_preserves_source_and_raw_content()
+-> Result<(), Box<dyn std::error::Error>> {
+    use openrust::testing::TestApp;
+    use std::time::Duration;
+
+    let mut app = TestApp::<crate::bootstrap::Server>::builder(production_sources(false))
+        .build()
+        .await?;
+    let body = serde_json::json!({
+        "title": "  body title  ", "profile": {"name": "  Alice  "}, "nullable": "  ",
+        "password": "  private-sentinel  ", "user": {"password": "  nested-sentinel  "},
+        "password_confirmation": ""
+    })
+    .to_string();
+    let response = app
+        .request(
+            Request::post(
+                "/api/example/input?title=query&nullable=from-query&fallback=%20query-only%20&page=7&label=%20query%20",
+            )
+            .header("host", "localhost")
+            .header("content-type", "application/json")
+            .body(Body::from(body.clone()))?,
+        )
+        .await?;
+    response.assert_status(StatusCode::OK)?;
+    let json: serde_json::Value = serde_json::from_slice(response.body())?;
+    let data = &json["data"];
+    assert_eq!(
+        data["selected"],
+        serde_json::json!({"title": "body title", "profile": {"name": "Alice"}})
+    );
+    assert_eq!(data["title"], "body title");
+    assert_eq!(data["profile_name"], "Alice");
+    assert_eq!(data["query_title"], "query");
+    assert_eq!(data["json_title"], "body title");
+    assert!(data["form_title"].is_null());
+    assert_eq!(data["query_page"], 7);
+    assert_eq!(data["query_label"], "query");
+    assert_eq!(
+        data["checks"],
+        serde_json::json!({
+            "has_nullable": true, "nullable_filled": false, "has_any": true, "missing": true,
+            "is_not_filled": true, "any_filled": true, "password_has_outer_spaces": true,
+            "nested_password_has_outer_spaces": false, "empty_password_is_null": true
+        })
+    );
+    assert_eq!(data["excluded_title"], true);
+    assert_eq!(data["source_has_title"], true);
+    assert_eq!(
+        data["merged"],
+        serde_json::json!({"title": "  revised  ", "profile": {"role": "reader"}, "generated": "fallback"})
+    );
+    assert_eq!(data["replaced_title"], "replacement");
+    assert_eq!(data["query_fallback"], "query-only");
+    assert_eq!(data["content_bytes"], body.len());
+    assert_eq!(data["content_preserved"], true);
+    assert!(!std::str::from_utf8(response.body())?.contains("sentinel"));
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn production_input_parses_php_form_arrays_and_mixed_keys()
+-> Result<(), Box<dyn std::error::Error>> {
+    use openrust::testing::TestApp;
+    use std::time::Duration;
+
+    let mut app = TestApp::<crate::bootstrap::Server>::builder(production_sources(false))
+        .build()
+        .await?;
+    let response = app.request(
+        Request::post("/api/example/input?title=query&fallback=still-query")
+            .header("host", "localhost")
+            .header("content-type", "application/x-www-form-urlencoded")
+            .body(Body::from("title=%20form%20&profile[name]=%20Bob%20&items[]=%20first%20&items[]=second&php_keys[-1]=negative&php_keys[00]=leading&php_keys[2]=sparse&nullable="))?
+    ).await?;
+    response.assert_status(StatusCode::OK)?;
+    let json: serde_json::Value = serde_json::from_slice(response.body())?;
+    assert_eq!(
+        json["data"]["selected"],
+        serde_json::json!({
+            "title": "form", "profile": {"name": "Bob"}, "items": ["first", "second"],
+            "php_keys": {"-1": "negative", "00": "leading", "2": "sparse"}
+        })
+    );
+    assert_eq!(json["data"]["form_title"], "form");
+    assert_eq!(json["data"]["query_title"], "query");
+    assert_eq!(json["data"]["checks"]["has_nullable"], true);
+    assert_eq!(json["data"]["checks"]["nullable_filled"], false);
+    assert_eq!(json["data"]["query_fallback"], "still-query");
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn production_input_raw_policy_is_scoped_and_typed_json_keeps_default_normalization()
+-> Result<(), Box<dyn std::error::Error>> {
+    use openrust::testing::TestApp;
+    use std::time::Duration;
+
+    let mut app = TestApp::<crate::bootstrap::Server>::builder(production_sources(false))
+        .build()
+        .await?;
+    for (path, expected) in [
+        ("/api/example/input-raw", "  title  "),
+        ("/api/example/request-body", "title"),
+        ("/api/example/input-raw", "  title  "),
+    ] {
+        let response = app
+            .request(
+                Request::post(path)
+                    .header("host", "localhost")
+                    .header("content-type", "application/json")
+                    .body(Body::from(r#"{"title":"  title  ","nullable":""}"#))?,
+            )
+            .await?;
+        response.assert_status(StatusCode::OK)?;
+        let json: serde_json::Value = serde_json::from_slice(response.body())?;
+        assert_eq!(json["data"]["title"], expected);
+        if path.ends_with("input-raw") {
+            assert_eq!(json["data"]["nullable"], "");
+        }
+    }
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    Ok(())
+}

@@ -1,5 +1,35 @@
 //! 不读取正文的请求元信息与 Laravel 风格内容协商。
 
+mod deserialize;
+mod form;
+mod input;
+mod normalize;
+mod value;
+
+pub(crate) fn deserialize_query<T: serde::de::DeserializeOwned>(
+    value: serde_json::Value,
+) -> crate::Result<T> {
+    deserialize::query(value)
+}
+pub use input::Request;
+pub(crate) fn parse_query(
+    raw: Option<&str>,
+    policy: &InputNormalization,
+) -> crate::Result<serde_json::Value> {
+    input::parse_query(raw, policy)
+}
+pub(crate) fn policy(parts: &http::request::Parts) -> InputNormalization {
+    input::policy(parts)
+}
+pub use normalize::InputNormalization;
+
+pub(crate) fn validate_json_depth(raw: &[u8]) -> crate::Result<()> {
+    input::json_depth(raw)
+}
+pub(crate) fn body_error(error: &axum::extract::rejection::BytesRejection) -> crate::Error {
+    input::body_error(error)
+}
+
 use std::collections::BTreeMap;
 use std::fmt;
 

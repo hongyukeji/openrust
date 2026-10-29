@@ -1,5 +1,9 @@
 # 验收口径
 
+## C04-B1 输入基础与规范化
+
+ADR-079的body-owning Request、query/json/form bags、PHP键与优先级、读取修改、默认trim/null及公开策略已通过定向/不同模型限定复审；最新workspace默认570/29、全特性1136/99（passed/ignored），完整PG/MySQL target各47通过且零ignored/filtered，真实生成认证应用各2通过，普通consumer2通过，根默认cargo run真实TCP通过。fmt/default+all Clippy/Rustdoc/no-default/MSRV1.97/deny均实际通过；ignore不替代服务证据。Host缺失fixture与迁移排序失败的red/green、原始日志丢失缺口、fake mail及外部WIP范围见[testing](testing.md#c04-b1-统一请求输入)。只关闭B1范围，B2便捷方法、Old Input、Cookies、FormRequest与完整文件语义保留。
+
 ## R2-C 四类入口 scope 的证据边界
 
 真实 TCP HTTP stream/SSE 断连、连续命令与取消、真实 PostgreSQL 18/MySQL 8.4 队列和调度、Redis 8 attempt、公开 custom driver、双库生成项目及根实际 HTTP 均已执行；命令与测试结果见 [testing](testing.md#r2-c-入口-scope-与受管清理验收证据)。调度 trigger 的精确 scoped ID 由真实数据库事务加公开 custom driver 观测，后续 job attempt 由真实数据库队列消费验证；两个入口的证据组合不冒称同一 driver 路径。自定义 driver 必须在确认/重试前显式 await `JobAttempt::shutdown`；外层 future abort 的 Drop 仅请求受管回收，进程强杀依赖租约接管。R2-D TestApp、R2-M 模块目录、R1-E CRUD 以及完整 Laravel 逐项等价不在本簇完成范围。

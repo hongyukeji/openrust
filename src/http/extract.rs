@@ -8,7 +8,7 @@ use crate::core::{ApiResponse, AppState, Error, Result, ValidationErrors};
 use crate::validation::{Validate, validate};
 use axum::extract::rejection::JsonRejection;
 use axum::extract::{FromRef, FromRequest, FromRequestParts, Request};
-use axum::extract::{Json as AxumJson, Path as AxumPath, Query as AxumQuery};
+use axum::extract::{Json as AxumJson, Path as AxumPath};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use http::request::Parts;
@@ -26,7 +26,25 @@ where
     type Rejection = Error;
 
     async fn from_request(req: Request, state: &S) -> Result<Self> {
-        AxumJson::<T>::from_request(req, state)
+        let (parts, body) = req.into_parts();
+        let policy = super::request::policy(&parts);
+        let _ = super::request::parse_query(parts.uri.query(), &policy)?;
+        // 固定小正文仅复用 Axum 的 MIME 判定，保留 415 优先且不消费真实正文。
+        let mut probe = Request::from_parts(parts.clone(), axum::body::Body::from("null"));
+        axum::extract::DefaultBodyLimit::disable().apply(&mut probe);
+        let _ = AxumJson::<serde::de::IgnoredAny>::from_request(probe, state)
+            .await
+            .map_err(json_error)?;
+        let raw = bytes::Bytes::from_request(Request::from_parts(parts.clone(), body), state)
+            .await
+            .map_err(|error| super::request::body_error(&error))?;
+        super::request::validate_json_depth(&raw)?;
+        let _ = AxumJson::<serde::de::IgnoredAny>::from_bytes(&raw).map_err(json_error)?;
+        // 有界额外 buffer 只重写字符串值，数字/键/重复字段维持原始词法。
+        let encoded = policy.rewrite_json(&raw)?;
+        let mut request = Request::from_parts(parts, axum::body::Body::from(encoded));
+        axum::extract::DefaultBodyLimit::disable().apply(&mut request);
+        AxumJson::<T>::from_request(request, state)
             .await
             .map(|AxumJson(value)| Self(value))
             .map_err(json_error)
@@ -97,11 +115,13 @@ where
 {
     type Rejection = Error;
 
+    // Query 的 parts-only 解析无需等待 IO，签名遵循 Axum 契约。
+    #[allow(clippy::unused_async_trait_impl)]
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self> {
-        AxumQuery::<T>::from_request_parts(parts, state)
-            .await
-            .map(|AxumQuery(value)| Self(value))
-            .map_err(|rejection| Error::BadRequest(rejection.body_text()))
+        let _ = state;
+        let policy = super::request::policy(parts);
+        let value = super::request::parse_query(parts.uri.query(), &policy)?;
+        super::request::deserialize_query(value).map(Self)
     }
 }
 

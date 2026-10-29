@@ -31,7 +31,7 @@ struct RefreshInput {
 struct PasswordResetInput {
     email: String,
     code: String,
-    new_password: String,
+    password: String,
 }
 
 #[derive(serde::Serialize)]
@@ -193,7 +193,7 @@ async fn auth_reset_password(
         .reset_password(
             &input.email,
             &input.code,
-            &input.new_password,
+            &input.password,
             &client_ip.ip().to_string(),
         )
         .await?

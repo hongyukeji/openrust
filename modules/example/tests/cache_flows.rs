@@ -128,6 +128,8 @@ fn request(
     let mut request = Request::builder()
         .method(method)
         .uri(path)
+        // 进程内相对 URI 须显式携带 Host，才能通过域路由 authority 校验。
+        .header("host", "example.test")
         .header("content-type", "application/json");
     if let Some(token) = token {
         request = request.header("authorization", format!("Bearer {token}"));
