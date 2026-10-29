@@ -634,6 +634,231 @@ class Decisions(unittest.TestCase):
             self.assertEqual(failures[-1]['check_after'] - failures[-1]['checked_at'], 1800)
 
 
+class QuotaCycles(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
+        self.runtime = Path(self.temp.name)
+        self.response = quota_snapshot('5600', 50)
+        self.config = {'goal_id': 'goal', 'agent': 'agent', 'thread': 'thread', 'rollout': 'rollout',
+                       'allow_existing_credits': True,
+                       'usage_budget': recovery.initialize_usage_budget(self.response, 100)}
+        self.credits = dict(self.config['usage_budget']['credits'])
+
+    def refresh(self, now=2001):
+        recovery.refresh_usage_cycles(self.runtime, self.config, self.response, now)
+
+    def test_initial_zero_window_joins_only_after_formal_new_cycle(self):
+        original = quota_snapshot('5600', 100)
+        self.config['usage_budget'] = recovery.initialize_usage_budget(original, 100)
+        self.response['rateLimits']['primary']['usedPercent'] = 0
+        self.refresh()
+        self.assertFalse(self.config['usage_budget']['windows']['primary']['participating'])
+        self.response['rateLimits']['primary']['resetsAt'] = 4000
+        self.refresh()
+        window = self.config['usage_budget']['windows']['primary']
+        self.assertTrue(window['participating'])
+        self.assertEqual(window['baseline_remaining'], '100')
+        self.assertEqual(window['reserve'], '20.0')
+        self.assertEqual(window['cycle_observed_at'], 2001)
+        self.assertEqual(self.config['usage_budget']['credits'], self.credits)
+        saved = json.loads((self.runtime / 'config.json').read_text())
+        self.assertEqual(saved['usage_budget'], self.config['usage_budget'])
+        self.refresh(2100)
+        self.assertEqual(self.config['usage_budget']['windows']['primary'], window)
+
+    def test_first_available_observation_after_confirmed_reset_sets_baseline(self):
+        self.response['rateLimits']['primary'].update(resetsAt=4000, usedPercent=100)
+        self.refresh()
+        self.assertTrue(self.config['usage_budget']['windows']['primary']['awaiting_available'])
+        self.response['rateLimits']['primary']['usedPercent'] = 10
+        self.refresh(2010)
+        window = self.config['usage_budget']['windows']['primary']
+        self.assertEqual(window['baseline_remaining'], '90')
+        self.assertEqual(window['reserve'], '18.0')
+        self.assertEqual(window['cycle_observed_at'], 2010)
+
+    def test_early_or_unknown_reset_duration_or_credit_never_rebases(self):
+        before = json.loads(json.dumps(self.config['usage_budget']))
+        self.response['rateLimits']['primary']['resetsAt'] = 4000
+        self.refresh(1999)
+        self.assertEqual(self.config['usage_budget'], before)
+        self.response['rateLimits']['primary']['resetsAt'] = None
+        self.refresh()
+        self.assertEqual(self.config['usage_budget'], before)
+        self.response['rateLimits']['primary'].update(resetsAt=4000, windowDurationMins=60)
+        self.refresh()
+        self.assertEqual(self.config['usage_budget'], before)
+        self.response['rateLimits']['primary']['windowDurationMins'] = 10080
+        self.response['rateLimits']['credits']['balance'] = None
+        self.refresh()
+        self.assertEqual(self.config['usage_budget'], before)
+
+    def monitor_case(self, *, credit='5600', user_changed=False, goal_changed=False, extra_window=False, new_used=0, send_unknown=False, pause_on_quota=None, primary_cause_only=False, credit_on_quota=None, future_wait=False):
+        self.response = quota_snapshot('5600', 50)
+        self.config['usage_budget'] = recovery.initialize_usage_budget(self.response, 100)
+        if extra_window:
+            self.response['rateLimits']['secondary'] = {'usedPercent': 50, 'resetsAt': 3000, 'windowDurationMins': 60}
+            self.config['usage_budget'] = recovery.initialize_usage_budget(self.response, 100)
+        current = {'id': 'goal', 'status': 'paused', 'updated_at_ms': 123}
+        holder = {'goal': dict(current)}
+        controls = {'last_user_at': 1, 'user_key': 'u', 'control': None, 'turn_key': 'stopped', 'turn_kind': 'turn_aborted'}
+        windows = {name: item['resets_at'] for name, item in self.config['usage_budget']['windows'].items()}
+        if primary_cause_only:
+            windows = {'primary': windows['primary']}
+        state = {'percentage_pause': {'goal': current, 'controls': controls, 'windows': windows,
+                                     'resume_status': 'waiting', 'next_quota_at': 3100 if future_wait else 0}}
+        self.response['rateLimits']['primary'].update(usedPercent=new_used, resetsAt=4000)
+        self.response['rateLimits']['credits']['balance'] = credit
+        if extra_window:
+            self.response['rateLimits']['secondary']['usedPercent'] = 90
+        fresh_controls = dict(controls, last_user_at=2) if user_changed else controls
+        if goal_changed:
+            current = dict(current, updated_at_ms=124)
+        calls = []
+        def remote(method, params):
+            calls.append(method)
+            if method == 'account/rateLimits/read':
+                if credit_on_quota == calls.count('account/rateLimits/read'):
+                    self.response['rateLimits']['credits']['balance'] = '1120'
+                if pause_on_quota == calls.count('account/rateLimits/read'):
+                    holder['goal'] = dict(holder['goal'], status='paused', updated_at_ms=999)
+                return self.response
+            if method == 'thread/goal/set': holder['goal'] = dict(holder['goal'], status=params['status'], updated_at_ms=125)
+            return {}
+        with patch.object(recovery, 'binding_valid', return_value=True), \
+             patch.object(recovery, 'percentage_pause_controls', return_value=fresh_controls), \
+             patch.object(recovery, 'goal', side_effect=lambda _: holder['goal']), \
+             patch.object(recovery, 'bound_goal', side_effect=lambda _: {'status': holder['goal']['status']}), \
+             patch.object(recovery, 'rpc', side_effect=remote), patch.object(recovery, 'run_json') as send, \
+             patch.object(recovery.time, 'time', return_value=2001):
+            if send_unknown:
+                send.side_effect = RuntimeError('发送结果未知')
+            try:
+                outcome = recovery.monitor_percentage_pause(self.runtime, state, self.config, current, 2001)
+            except RuntimeError:
+                outcome = 'send_unknown'
+                self.assertEqual(recovery.monitor_percentage_pause(self.runtime, state, self.config, current, 2002),
+                                 'percentage_pause_not_owned')
+            if outcome == 'percentage_resumed':
+                self.assertEqual(recovery.monitor_percentage_pause(self.runtime, state, self.config, current, 2002),
+                                 'percentage_pause_not_owned')
+            return outcome, calls, send.call_count, state
+
+    def test_only_owned_percentage_pause_resumes_once_after_reset(self):
+        outcome, calls, sends, state = self.monitor_case()
+        self.assertEqual(outcome, 'percentage_resumed')
+        self.assertEqual(sends, 1)
+        self.assertEqual(calls.count('thread/goal/set'), 1)
+        self.assertEqual(state['percentage_pause']['resume_status'], 'sent')
+        self.assertEqual(self.config['usage_budget']['credits'], self.credits)
+
+    def test_manual_user_or_goal_change_and_credit_reserve_never_resume(self):
+        for options in ({'user_changed': True}, {'goal_changed': True}, {'credit': '1120'}):
+            with self.subTest(options=options):
+                outcome, calls, sends, state = self.monitor_case(**options)
+                self.assertNotEqual(outcome, 'percentage_resumed')
+                self.assertEqual(sends, 0)
+                self.assertNotIn('thread/goal/set', calls)
+
+    def test_confirmed_reset_still_exhausted_cannot_resume_on_credits(self):
+        outcome, calls, sends, state = self.monitor_case(new_used=100)
+        self.assertEqual(outcome, 'percentage_reset_wait')
+        self.assertEqual(sends, 0)
+        self.assertNotIn('thread/goal/set', calls)
+        self.assertTrue(self.config['usage_budget']['windows']['primary']['awaiting_available'])
+        self.assertEqual(state['percentage_pause']['next_quota_at'], 2301)
+
+    def test_send_result_unknown_is_never_retried(self):
+        outcome, calls, sends, state = self.monitor_case(send_unknown=True)
+        self.assertEqual(outcome, 'send_unknown')
+        self.assertEqual(sends, 1)
+        self.assertEqual(state['percentage_pause']['resume_status'], 'sending')
+
+    def test_manual_pause_during_either_quota_rpc_is_not_overwritten_or_sent(self):
+        for number in (2, 3):
+            with self.subTest(quota_rpc=number):
+                outcome, calls, sends, state = self.monitor_case(pause_on_quota=number)
+                self.assertNotEqual(outcome, 'percentage_resumed')
+                self.assertEqual(sends, 0)
+                if number == 2:
+                    self.assertNotIn('thread/goal/set', calls)
+                else:
+                    self.assertEqual(calls.count('thread/goal/set'), 1)
+                    self.assertEqual(outcome, 'percentage_resume_unconfirmed')
+
+    def test_newly_depleted_other_window_joins_reset_wait(self):
+        outcome, calls, sends, state = self.monitor_case(extra_window=True, primary_cause_only=True)
+        self.assertEqual(outcome, 'percentage_reset_wait')
+        self.assertIn('secondary', state['percentage_pause']['windows'])
+        self.assertEqual(sends, 0)
+
+    def test_credit_reserve_hit_during_fresh_quota_check_latches_hard_boundary(self):
+        outcome, calls, sends, state = self.monitor_case(credit_on_quota=2)
+        self.assertEqual(outcome, 'percentage_pause_credit_boundary')
+        self.assertEqual(state['percentage_pause']['resume_status'], 'credit_reserve_or_state')
+        self.assertNotIn('thread/goal/set', calls)
+        self.assertEqual(sends, 0)
+
+    def test_wait_deadline_uses_local_controls_without_querying_quota_or_model(self):
+        outcome, calls, sends, state = self.monitor_case(future_wait=True)
+        self.assertEqual(outcome, 'percentage_reset_wait')
+        self.assertEqual(calls, [])
+        self.assertEqual(sends, 0)
+
+    def test_generic_recovery_cannot_bypass_unknown_percentage_resume(self):
+        (self.runtime / 'config.json').write_text(json.dumps(self.config))
+        (self.runtime / 'state.json').write_text(json.dumps({'percentage_pause': {'resume_status': 'sending'}}))
+        turn = {'kind': 'task_complete', 'key': 'old', 'payload': {'completed_at': 0}, 'tools': 1}
+        with patch.object(recovery.os, 'getppid', return_value=42), \
+             patch.object(recovery, 'goal', return_value={'id': 'goal', 'status': 'active'}), \
+             patch.object(recovery, 'binding_valid', return_value=True), \
+             patch.object(recovery, 'inspect', return_value={'Status': 'idle'}), \
+             patch.object(recovery, 'timeline', return_value=turn), \
+             patch.object(recovery, 'controlled_turn', return_value=turn), \
+             patch.object(recovery, 'rpc', return_value=self.response), \
+             patch.object(recovery, 'notify', return_value=False), \
+             patch.object(recovery, 'sleep_until', side_effect=lambda *_: (self.runtime / 'disabled').touch()), \
+             patch.object(recovery.questions, 'step') as question, patch.object(recovery, 'run_json') as send:
+            recovery.worker(self.runtime, 42)
+            question.assert_not_called(); send.assert_not_called()
+            saved = json.loads((self.runtime / 'state.json').read_text())
+            self.assertEqual(saved['percentage_pause']['resume_status'], 'sending')
+
+    def test_new_percentage_breach_cannot_replace_unknown_resume_intent(self):
+        for phase in ('sending', 'activating'):
+            with self.subTest(phase=phase), tempfile.TemporaryDirectory() as folder:
+                runtime = Path(folder)
+                (runtime / 'config.json').write_text(json.dumps(self.config))
+                (runtime / 'state.json').write_text(json.dumps({'percentage_pause': {'resume_status': phase}}))
+                self.response['rateLimits']['primary']['usedPercent'] = 90
+                with patch.object(recovery.os, 'getppid', return_value=42), \
+                     patch.object(recovery, 'goal', return_value={'id': 'goal', 'status': 'active'}), \
+                     patch.object(recovery, 'binding_valid', return_value=True), \
+                     patch.object(recovery, 'rpc', return_value=self.response), \
+                     patch.object(recovery, 'notify', return_value=False), \
+                     patch.object(recovery, 'pause_at_usage_budget', return_value=True) as stop, \
+                     patch.object(recovery, 'owned_percentage_pause') as own, \
+                     patch.object(recovery, 'run_json') as send:
+                    recovery.worker(runtime, 42)
+                    stop.assert_called_once(); own.assert_not_called(); send.assert_not_called()
+                    saved = json.loads((runtime / 'state.json').read_text())
+                    self.assertEqual(saved['percentage_pause']['resume_status'], phase)
+
+    def test_missing_official_user_watermark_cannot_own_auto_pause(self):
+        agent = {'Id': 'agent', 'PendingPermissions': [], 'QuestionBinding': {
+            'id': 'agent', 'thread': 'thread', 'lastUserMessageAt': None}}
+        with patch.object(recovery, 'inspect', return_value=agent), \
+             patch.object(recovery, 'timeline', return_value={'key': 't', 'user_context': None}):
+            self.assertIsNone(recovery.percentage_pause_controls(self.config))
+
+    def test_one_window_reset_cannot_release_other_window_reserve(self):
+        outcome, calls, sends, state = self.monitor_case(extra_window=True)
+        self.assertEqual(outcome, 'percentage_reset_wait')
+        self.assertNotIn('thread/goal/set', calls)
+        self.assertEqual(sends, 0)
+        self.assertGreaterEqual(state['percentage_pause']['next_quota_at'], 2301)
+
+
 class Lifecycle(unittest.TestCase):
     """在临时副本与假CLI中执行真实start/stop/监督进程，不接触开发总控。"""
     def setUp(self):

@@ -387,7 +387,8 @@ def initialize_usage_budget(response, now):
             if duration <= 0:
                 raise ValueError('窗口时长未知')
             windows[name] = {'baseline_remaining': str(remaining), 'reserve': str(remaining * Decimal('0.2')),
-                             'participating': remaining > 0, 'resets_at': str(reset), 'duration_mins': str(duration)}
+                             'participating': remaining > 0, 'resets_at': str(reset), 'duration_mins': str(duration),
+                             'cycle_observed_at': now}
         if not windows:
             raise ValueError('正式窗口未知')
         credits = limits['credits']
@@ -401,6 +402,71 @@ def initialize_usage_budget(response, now):
                             'has_credits': credits['hasCredits'], 'unlimited': credits['unlimited']}}
     except (KeyError, TypeError, InvalidOperation) as error:
         raise ValueError('正式额度基准不完整') from error
+
+
+def refresh_usage_cycles(runtime, config, response, now):
+    """只按正式reset证据推进各窗口周期；守护重启和数值上涨不是重置。"""
+    original = config.get('usage_budget')
+    if original is None:
+        return
+    proposed = json.loads(json.dumps(original))
+    try:
+        limits = response['rateLimits']
+        if response['accountId'] != original['account_id'] or limits['limitId'] != original['limit_id']:
+            return
+        changed = False
+        for name, item in proposed['windows'].items():
+            window = limits[name]
+            new_reset = window['resetsAt']
+            duration = window['windowDurationMins']
+            # schema明确允许null；只有完整、同类型官方周期身份才可推进。
+            if type(new_reset) is not int or type(duration) is not int:
+                return
+            old_reset = budget_decimal(item['resets_at'])
+            if budget_decimal(duration) != budget_decimal(item['duration_mins']):
+                return
+            used = budget_decimal(window['usedPercent'])
+            if used > 100:
+                return
+            if budget_decimal(new_reset) == old_reset:
+                if item.get('awaiting_available') and item.get('previous_resets_at') and used < 100:
+                    remaining = Decimal(100) - used
+                    item.update(baseline_remaining=str(remaining), reserve=str(remaining * Decimal('0.2')),
+                                participating=True, cycle_observed_at=now, awaiting_available=False)
+                    changed = True
+                continue
+            if not (old_reset <= Decimal(str(now)) < new_reset and new_reset > old_reset):
+                return
+            remaining = Decimal(100) - used
+            item.update(baseline_remaining=str(remaining), reserve=str(remaining * Decimal('0.2')),
+                        participating=remaining > 0, previous_resets_at=str(old_reset),
+                        resets_at=str(new_reset), cycle_observed_at=now, awaiting_available=remaining == 0)
+            changed = True
+        # 余额或状态未知不能借窗口reset建立可消费基准。
+        status = usage_budget_status(response, proposed)
+        if changed and status not in ('usage_budget_unknown', 'usage_budget_window_changed', 'usage_budget_credits_changed'):
+            config['usage_budget'] = proposed
+            atomic(runtime / 'config.json', config)
+    except (KeyError, TypeError, ValueError, InvalidOperation):
+        return
+
+
+def percentage_budget_breaches(response, budget):
+    """仅返回百分比保留线；credits触线同时发生时不授予自动恢复资格。"""
+    try:
+        credits = budget['credits']
+        current_credits = response['rateLimits']['credits']
+        balance = budget_decimal(current_credits['balance'])
+        if (current_credits['hasCredits'] != credits['has_credits']
+                or current_credits['unlimited'] != credits['unlimited']
+                or balance > budget_decimal(credits['baseline_remaining'])
+                or (credits['participating'] and balance <= budget_decimal(credits['reserve']))):
+            return {}
+        return {name: item['resets_at'] for name, item in budget['windows'].items()
+                if item['participating'] and Decimal(100) - budget_decimal(
+                    response['rateLimits'][name]['usedPercent']) <= budget_decimal(item['reserve'])}
+    except (KeyError, TypeError, ValueError, InvalidOperation):
+        return {}
 
 
 def usage_budget_status(response, budget=None):
@@ -467,6 +533,154 @@ def pause_at_usage_budget(runtime, config):
             return False
         run_json(['paseo', 'stop', config['agent'], '--json'])
         return True
+
+
+def percentage_pause_controls(config):
+    """原任务用户/控制快照；缺可靠证据不授予自动恢复资格。"""
+    agent = inspect(config['agent'])
+    if agent.get('Archived') or agent.get('PendingPermissions'):
+        return None
+    if agent.get('QuestionBinding') is None:
+        questions.enrich_snapshot(agent, globals())
+    binding = agent.get('QuestionBinding') or {}
+    if binding.get('id') != config['agent'] or binding.get('thread') != config['thread']:
+        return None
+    stamp = binding.get('lastUserMessageAt')
+    if not isinstance(stamp, str) or not stamp:
+        return None
+    try:
+        if datetime.fromisoformat(stamp.replace('Z', '+00:00')).tzinfo is None:
+            return None
+    except ValueError:
+        return None
+    turn = timeline(config['rollout'])
+    error = json.dumps((turn or {}).get('payload', {}).get('error')).lower()
+    if (not turn or turn.get('semantic_blocked')
+            or any(token in error for token in ('unauthorized', 'authentication', 'permission denied', '401', '403'))
+            or (turn.get('goal_control') or {}).get('status') in ('paused', 'blocked', 'complete')):
+        return None
+    return {'last_user_at': binding.get('lastUserMessageAt'),
+            'user_key': (turn.get('user_context') or {}).get('key'),
+            'control': turn.get('goal_control'), 'turn_key': turn.get('key'), 'turn_kind': turn.get('kind')}
+
+
+def owned_percentage_pause(runtime, state, config, before, windows):
+    """正式暂停已确认后才登记自动恢复所有权；不伪造用户暂停来源。"""
+    if (not before or not windows
+            or (state.get('percentage_pause') or {}).get('resume_status') in ('activating', 'sending')):
+        return False
+    try:
+        after = percentage_pause_controls(config)
+        current = goal(config)
+        stable = ('last_user_at', 'user_key', 'control')
+        if (not after or any(before.get(k) != after.get(k) for k in stable)
+                or not current or current['id'] != config['goal_id'] or current['status'] != 'paused'):
+            return False
+        state['percentage_pause'] = {'goal': current, 'controls': after, 'windows': windows,
+                                     'resume_status': 'waiting', 'next_quota_at': max(time.time() + 300,
+                                         min(float(reset) + 30 for reset in windows.values()))}
+        atomic(runtime / 'state.json', state)
+        return True
+    except Exception:
+        return False
+
+
+def monitor_percentage_pause(runtime, state, config, current, now):
+    """同一自动百分比暂停低频等正式周期；只恢复一次，未知发送不重试。"""
+    pause = state.get('percentage_pause') or {}
+    if pause.get('resume_status') != 'waiting' or pause.get('goal') != current:
+        return 'percentage_pause_not_owned'
+    if (runtime / 'disabled').exists() or not binding_valid(config):
+        return 'percentage_pause_not_owned'
+    controls = percentage_pause_controls(config)
+    if controls != pause.get('controls'):
+        pause['resume_status'] = 'cancelled'
+        atomic(runtime / 'state.json', state)
+        return 'percentage_pause_controls_changed'
+    if now < pause.get('next_quota_at', 0):
+        return 'percentage_reset_wait'
+    response = rpc('account/rateLimits/read', {})
+    refresh_usage_cycles(runtime, config, response, now)
+    apply_task_policy(state, config)
+    status = usage_budget_status(response, config['usage_budget'])
+    if status == 'usage_budget_unknown':
+        pause['next_quota_at'] = now + 300
+        atomic(runtime / 'state.json', state)
+        return 'percentage_reset_wait'
+    causes = percentage_budget_breaches(response, config['usage_budget'])
+    credits = config['usage_budget']['credits']
+    balance = budget_decimal(response.get('rateLimits', {}).get('credits', {}).get('balance'))
+    if (status == 'usage_budget_credits_changed'
+            or credits['participating'] and balance <= budget_decimal(credits['reserve'])):
+        pause['resume_status'] = 'credit_reserve_or_state'
+        atomic(runtime / 'state.json', state)
+        return 'percentage_pause_credit_boundary'
+    for name, reset in causes.items():
+        pause['windows'].setdefault(name, reset)
+    advanced = all(config['usage_budget']['windows'][name]['resets_at'] != reset
+                   and config['usage_budget']['windows'][name]['participating']
+                   and not config['usage_budget']['windows'][name].get('awaiting_available')
+                   for name, reset in pause['windows'].items())
+    if status != 'usage_budget_available' or causes or not advanced or quota_delay(
+            response, now, config.get('allow_existing_credits', False), config['usage_budget']):
+        future = [float(config['usage_budget']['windows'][name]['resets_at']) + 30
+                  for name in pause['windows']
+                  if (float(config['usage_budget']['windows'][name]['resets_at']) > now
+                      and not config['usage_budget']['windows'][name].get('awaiting_available'))]
+        pause['next_quota_at'] = max(now + 300, min(future) if future else now + 300)
+        atomic(runtime / 'state.json', state)
+        return 'percentage_reset_wait'
+    with (runtime / 'control.lock').open('a') as control:
+        platform.lock_file(control)
+        if ((runtime / 'disabled').exists() or not binding_valid(config) or goal(config) != current
+                or percentage_pause_controls(config) != controls or bound_goal(config).get('status') != 'paused'):
+            pause['resume_status'] = 'cancelled'; atomic(runtime / 'state.json', state)
+            return 'percentage_pause_controls_changed'
+        fresh = rpc('account/rateLimits/read', {})
+        if quota_delay(fresh, time.time(), config.get('allow_existing_credits', False), config['usage_budget']):
+            fresh_status = usage_budget_status(fresh, config['usage_budget'])
+            fresh_credit = fresh.get('rateLimits', {}).get('credits', {})
+            try:
+                credit_hit = (credits['participating'] and budget_decimal(fresh_credit.get('balance'))
+                              <= budget_decimal(credits['reserve']))
+            except ValueError:
+                credit_hit = False
+            if fresh_status == 'usage_budget_credits_changed' or credit_hit:
+                pause['resume_status'] = 'credit_reserve_or_state'; atomic(runtime / 'state.json', state)
+                return 'percentage_pause_credit_boundary'
+            pause['next_quota_at'] = now + 300; atomic(runtime / 'state.json', state)
+            return 'percentage_reset_wait'
+        if (goal(config) != current or not binding_valid(config) or (runtime / 'disabled').exists()
+                or percentage_pause_controls(config) != controls or bound_goal(config).get('status') != 'paused'):
+            pause['resume_status'] = 'cancelled'; atomic(runtime / 'state.json', state)
+            return 'percentage_pause_controls_changed'
+        # 意图先落盘，Goal激活或继续消息结果未知时不重试。
+        pause['resume_status'] = 'activating'; atomic(runtime / 'state.json', state)
+        rpc('thread/goal/set', {'threadId': config['thread'], 'status': 'active'})
+        if (bound_goal(config).get('status') != 'active' or not binding_valid(config)
+                or (runtime / 'disabled').exists() or percentage_pause_controls(config) != controls):
+            return 'percentage_resume_unconfirmed'
+        active_goal = goal(config)
+        fresh = rpc('account/rateLimits/read', {})
+        if (goal(config) != active_goal or not binding_valid(config)
+                or (runtime / 'disabled').exists() or percentage_pause_controls(config) != controls):
+            return 'percentage_resume_unconfirmed'
+        if quota_delay(fresh, time.time(), config.get('allow_existing_credits', False), config['usage_budget']):
+            # 不发新模型调用；恢复过程中额度变化，重新暂停本Goal。
+            pause['resume_status'] = 'quota_changed'; atomic(runtime / 'state.json', state)
+            bound_goal(config)
+            rpc('thread/goal/set', {'threadId': config['thread'], 'status': 'paused'})
+            return 'percentage_resume_quota_changed'
+        if (bound_goal(config).get('status') != 'active' or goal(config) != active_goal
+                or not binding_valid(config) or (runtime / 'disabled').exists()
+                or percentage_pause_controls(config) != controls):
+            return 'percentage_resume_unconfirmed'
+        pause['resume_status'] = 'sending'; atomic(runtime / 'state.json', state)
+        run_json(['paseo', 'send', config['agent'], PROMPT, '--no-wait', '--json'])
+        pause['resume_status'] = 'sent'
+        state['usage_budget_paused'] = False
+        atomic(runtime / 'state.json', state)
+        return 'percentage_resumed'
 
 
 def quota_delay(response, now, allow_existing_credits=False, usage_budget=None):
@@ -591,8 +805,21 @@ def worker(runtime, parent_pid):
             return
         try:
             terminal = goal(config)
-            if terminal and terminal['id'] == config['goal_id'] and terminal['status'] in ('complete', 'paused'):
-                record(terminal['status'])
+            if terminal and terminal['id'] == config['goal_id'] and terminal['status'] == 'complete':
+                record('complete')
+                return
+            if terminal and terminal['id'] == config['goal_id'] and terminal['status'] == 'paused':
+                if (state.get('percentage_pause') or {}).get('resume_status') == 'waiting':
+                    outcome = monitor_percentage_pause(runtime, state, config, terminal, time.time())
+                    if outcome in ('percentage_pause_not_owned', 'percentage_pause_controls_changed',
+                                   'percentage_pause_credit_boundary'):
+                        record('paused', reason=outcome)
+                        return
+                    record('quota_wait', reason=outcome,
+                           quota_check_at=(state.get('percentage_pause') or {}).get('next_quota_at', 0))
+                    sleep_until(runtime, CHECK_INTERVAL)
+                    continue
+                record('paused')
                 return
             if not binding_valid(config):
                 record('needs_attention', reason='task_binding_changed')
@@ -600,11 +827,30 @@ def worker(runtime, parent_pid):
                 continue
             current = terminal
             if config.get('usage_budget') is not None:
-                floor = usage_budget_status(rpc('account/rateLimits/read', {}), config['usage_budget'])
+                response = rpc('account/rateLimits/read', {})
+                refresh_usage_cycles(runtime, config, response, time.time())
+                apply_task_policy(state, config)
+                floor = usage_budget_status(response, config['usage_budget'])
                 state['usage_budget_checked_at'] = time.time()
                 if floor in ('usage_budget_reached', 'usage_budget_window_changed', 'usage_budget_credits_changed'):
+                    unknown_resume = (state.get('percentage_pause') or {}).get('resume_status') in ('activating', 'sending')
+                    windows = (percentage_budget_breaches(response, config['usage_budget'])
+                               if floor == 'usage_budget_reached' and not unknown_resume else {})
+                    before = None
+                    if windows:
+                        try:
+                            before = percentage_pause_controls(config)
+                        except Exception:
+                            pass
+                    if (not windows or not before) and state.get('percentage_pause') and not unknown_resume:
+                        state['percentage_pause']['resume_status'] = 'superseded_boundary'
                     record('needs_attention', reason=floor, usage_budget_paused=True)
                     if pause_at_usage_budget(runtime, config):
+                        if not unknown_resume and owned_percentage_pause(runtime, state, config, before, windows):
+                            record('quota_wait', reason='percentage_reset_wait', usage_budget_paused=True,
+                                   quota_check_at=state['percentage_pause']['next_quota_at'])
+                            sleep_until(runtime, CHECK_INTERVAL)
+                            continue
                         record('paused', reason=floor, usage_budget_paused=True)
                         return
                     record('needs_attention', reason=floor)
@@ -621,6 +867,17 @@ def worker(runtime, parent_pid):
             current = goal(config)
             turn = timeline(config['rollout'])
             turn = controlled_turn(state, turn, current, config)
+            resumed = state.get('percentage_pause') or {}
+            if resumed.get('resume_status') in ('activating', 'sending'):
+                record('needs_attention', reason='percentage_resume_unconfirmed')
+                sleep_until(runtime, CHECK_INTERVAL)
+                continue
+            if (resumed.get('resume_status') == 'sent' and turn
+                    and turn.get('key') == (resumed.get('controls') or {}).get('turn_key')):
+                record('working' if agent.get('Status') == 'running' else 'needs_attention',
+                       reason='awaiting_percentage_resume_turn')
+                sleep_until(runtime, CHECK_INTERVAL)
+                continue
             action = decision(agent, current, turn, config, time.time())
             if action in ('complete', 'paused', 'stopped'):
                 record(action)
@@ -1004,6 +1261,9 @@ def main():
             config['usage_budget'] = (prior_config.get('usage_budget') if same_goal else None)
             if config['usage_budget'] is None:
                 config['usage_budget'] = initialize_usage_budget(rpc('account/rateLimits/read', {}), time.time())
+            # 旧版窗口基准与全局baseline_at来自同次正式快照；迁移只补已知观测时间，不重算额度。
+            for window in config['usage_budget']['windows'].values():
+                window.setdefault('cycle_observed_at', config['usage_budget']['baseline_at'])
             config.pop('minimum_existing_credits', None)
             config['question_model'] = (args.question_model or
                                         (prior_config.get('question_model') if same_goal else None) or questions.MODEL)
@@ -1016,15 +1276,17 @@ def main():
             if current_goal['status'] == 'paused':
                 remote = bound_goal(config)
                 saved_state = json.loads((runtime / 'state.json').read_text(encoding='utf-8')) if (runtime / 'state.json').exists() else {}
-                if (saved_state.get('usage_budget_paused') or saved_state.get('credit_floor_paused')
+                monitoring_percentage = (saved_state.get('percentage_pause') or {}).get('resume_status') == 'waiting'
+                if not monitoring_percentage and (saved_state.get('usage_budget_paused') or saved_state.get('credit_floor_paused')
                         or saved_state.get('reason') in ('usage_budget_reached', 'credit_floor_reached')):
                     raise SystemExit('任务用量预算已暂停原Goal；守护重启不会自动恢复，请用户明确恢复原Goal后再启动')
-                if config.get('usage_budget') is not None and usage_budget_status(
+                if not monitoring_percentage and config.get('usage_budget') is not None and usage_budget_status(
                         rpc('account/rateLimits/read', {}), config['usage_budget']) != 'usage_budget_available':
                     raise SystemExit('任务用量预算已触发或未知，不恢复暂停目标')
                 if remote.get('status') != 'paused':
                     raise SystemExit('暂停Goal状态不一致，未恢复任务')
-                rpc('thread/goal/set', {'threadId': config['thread'], 'status': 'active'})
+                if not monitoring_percentage:
+                    rpc('thread/goal/set', {'threadId': config['thread'], 'status': 'active'})
             # 同一Goal重启保留退避、语义阻塞及不明确发送记录，只有新目标才重置。
             if prior_config.get('goal_id') != config['goal_id']:
                 atomic(runtime / 'state.json', {})

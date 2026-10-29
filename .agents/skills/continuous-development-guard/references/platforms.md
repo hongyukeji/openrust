@@ -61,10 +61,18 @@ Windows 的 `.cmd` / `.bat` 只通过同目录已有 npm package 的唯一 `bin`
 
 ## 动态80%任务预算
 
-正式 `start` 首次为当前Goal取 `account/rateLimits/read` 快照，保存 `usage_budget.version=1`、`baseline_at`、accountId、rateLimits.limitId和每个primary/secondary窗口的reset/时长绑定。剩余百分比是 `100-usedPercent`，不是usedPercent本身。所有窗口分别记录：如启动剩余50%，任务最多用40个百分点，剩余10%即暂停；启动已耗尽的窗口记录为不参与，该任务之后也不自动加入它。credits按首次真实余额保存，例如5600的保留线为1120。每项独立使用Decimal计算，任一参与项剩余小于等于初值20%就触发 `usage_budget_reached`。没有任何可用参与项也不得开始消费。普通窗口可用不能绕过参与credits的保留线，credits可用也不能绕过参与百分比窗口的保留线。
+正式 `start` 首次为当前Goal取 `account/rateLimits/read` 快照，保存 `usage_budget.version=1`、`baseline_at`、accountId、rateLimits.limitId和每个primary/secondary窗口的reset/时长绑定。剩余百分比是 `100-usedPercent`，不是usedPercent本身。所有窗口分别记录：如启动剩余50%，任务最多用40个百分点，剩余10%即暂停；启动已耗尽窗口暂不参与，仅在有正式新周期证据且首次观测可用后参与。credits按首次真实余额保存，例如5600的保留线为1120。每项独立使用Decimal计算，任一参与项剩余小于等于初值20%就触发 `usage_budget_reached`。没有任何可用参与项也不得开始消费。普通窗口可用不能绕过参与credits的保留线，credits可用也不能绕过参与百分比窗口的保留线。
 
-同Goal的普通stop/start、worker/宿主中断恢复及模型/问答策略调整均保留完整基准，不重算。仅明确的新Goal才能取新基准；已有守护首次采用新政策时取正式启用当时的真实值并写baseline_at，绝不伪造原任务历史启动值。固定余额CLI/配置不再使用。参与窗口reset或时长变化、剩余高于初始值、credits余额高于初始值或hasCredits/unlimited状态变化（即使初始credits未参与）时保守暂停，记录window_changed/credits_changed；account/limit身份或窗口集合变化、缺失/NaN/非法数值及未建立基准时均不放行新调用。不会按新窗口或充值值补满任务可消费量。此保守重置策略可能要求用户判断新的任务范围，守护不自动创建新Goal或刷新基准。
+同Goal的普通stop/start、worker/宿主中断恢复及模型/问答策略调整均保留已存基准，不能以重启侵蚀保留线。credits任务基准仅明确的新Goal才能新建；百分比窗口只按下述正式周期推进。已有守护首次采用预算政策时取正式启用当时真实值并写baseline_at，绝不伪造历史值。旧窗口原先与全局baseline_at来自同一正式快照，升级仅补这个已知周期观测时间，不重算初值。固定余额CLI/配置不再使用。credits余额高于初始值或hasCredits/unlimited状态变化（即使初始credits未参与）、身份/集合变化、缺失/NaN/非法数值都不能借百分比reset放行；credits基准和reserve始终不变。
 
-每120秒控制轮询先于日志读取对运行中主控正式检查；触发时先保存 `usage_budget_paused` 意图，再在控制锁内核实原绑定和Goal，正式暂停原Goal后再次核实才中断其主控。协议失败和普通stop保留标记，重启不自动激活已由预算暂停的Goal。人工暂停、完成与替换目标优先。恢复前及问答分类/提交前同样按原基准正式复核，未知时保持本地监测并拒绝新付费调用。基准/策略变化只失效旧quota_check_at，发送、退避与问答账本不清除。
+### 官方窗口周期与自动恢复
 
-检查间隔和在途请求可能让余额跨过保留线；本守护不能封锁其他线程、子代理或账户其他客户端的消费，不承诺精确锁住账户剩余额度，也不为控制额度而终止无关Agent、切换模型/账户、购买或充值。外部消费及不可观察的充值/计量调整也不能被解释为本任务的精确账单。
+已安装Codex CLI `0.159.3` 的正式 `app-server generate-json-schema --experimental` 中，`GetAccountRateLimitsResponse` 的 `RateLimitWindow` 定义 `usedPercent:int32`（必需）、`resetsAt:int64|null`、`windowDurationMins:int64|null`。协议没有额外不可变cycle ID，因此仅在同account/limit/primary或secondary名称及窗口时长不变、旧resetsAt已到、新resetsAt严格更晚且仍在未来时认定新周期。数值上涨、重启或仅到预计时间都不构成证据；null/未知、不完整及提前变化不建立新基准。每窗口持久保存resets_at、previous_resets_at、cycle_observed_at、baseline_remaining和reserve。
+
+初始remaining=0仅暂不参与。官方新周期已确认但仍100%已用时记awaiting_available，以至少300秒间隔等待首次正式available观测，再据当时真实remaining建立该周期80%预算；未恢复前不能用credits绕过原百分比暂停。多个窗口各自推进，一个reset不能解除另一个未reset或新耗尽窗口的保留线。新周期不改credits初始基准，Provider自动扣百分比或credits，守护不控制或承诺消耗优先级。
+
+每120秒控制轮询先于日志读取正式检查运行中主控。任一保留线触发时先存usage_budget_paused意图，再在控制锁内核实原Goal/绑定后暂停、中断。仅纯百分比触线、无pending审批/认证/真实blocked，且能取得带时区的正式lastUserMessageAt及稳定控制快照时，才保存percentage_pause所有权；暂停后的完整Goal版本和用户/turn控制水位也必须核实。守护保留原进程做本地120秒人工控制检查，正式额度只在最近致停reset后30秒或必要的最短300秒间隔低频复核，不新建后台或模型轮次。自动暂停状态可跨守护重启继续监测，start本身不直接激活Goal。
+
+只有全部致停窗口已推进且建立available基准、所有窗口与credits保留线和官方资格通过、Goal完整版本/绑定/正式用户水位未变、无人工停止/新审批/硬边界时才自动恢复原Goal并精确发送一次原目标继续。激活/发送意图先持久化；结果未知或网络往返期间的人工暂停不重试、不覆盖。用户暂停、目标/控制变化、credits触线会撤销自动恢复资格；百分比reset不能清除它们。协议没有CAS，最后核对与动作之间仍有不可消除的竞态，缺可靠来源或水位只保守等待。实际reset未发生前，模拟回归证明的是控制规则，不能冒充账户已真实重置。
+
+检查间隔和在途请求可能让余额跨过保留线；本守护不能封锁其他线程、子代理或账户其他客户端的消费，不承诺精确锁住账户剩余额度，也不为控制额度而终止无关Agent、切换模型/账户、购买或充值。外部消费及不可观察的充值/计量调整不能被解释为本任务精确账单。
