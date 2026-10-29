@@ -9,7 +9,7 @@
 //! 2. `<config-dir>/*.toml` 中按文件名排序的领域配置（跳过旧环境文件名）
 //! 3. Laravel 风格的 `DB_*` / `REDIS_*` 分项连接设置
 //! 4. 本地 `.env` 与进程变量中的应用配置；默认以 `APP_` 为前缀，使用单下划线扁平键
-//!    （`APP_SERVER_PORT=4000` → `server.port`；`APP_NAME` → `app.name`）
+//!    （`APP_PORT=4000` → `server.port`；`APP_NAME` → `app.name`）
 //!
 //! 若进程未设置环境，bootstrap 只会从 `.env` 读取 `APP_ENV` 以选择运行环境。
 //! 所有环境都可从应用工作目录的 `.env` 加载变量；已有进程变量的优先级高于 `.env` 中的值。
@@ -414,7 +414,12 @@ impl ConfigLoader {
         );
         let figment = figment.merge(
             Env::prefixed(&self.namespace)
-                .filter(|key| key != "ENV" && key != "CONFIG_DIR" && !key.as_str().contains("__"))
+                .filter(|key| {
+                    key != "ENV"
+                        && key != "CONFIG_DIR"
+                        && key != "SERVER_PORT"
+                        && !key.as_str().contains("__")
+                })
                 .map(|key| flat_environment_path(key.as_str()).into())
                 .split("."),
         );
@@ -476,6 +481,7 @@ impl ConfigLoader {
 
 fn flat_environment_path(key: &str) -> String {
     match key {
+        "PORT" => "server.port".to_owned(),
         "NAME" => "app.name".to_owned(),
         "URL" => "app.url".to_owned(),
         "SERVER_CORS_ENABLED" => "server.cors.enabled".to_owned(),
@@ -1115,8 +1121,18 @@ mod tests {
                 4100
             );
 
+            jail.set_env("APP_SERVER_PORT", "4999");
+            assert_eq!(
+                loader
+                    .load_framework()
+                    .map_err(|error| figment::Error::from(error.to_string()))?
+                    .server
+                    .port,
+                4100
+            );
+
             jail.set_env("APP_DATABASE_URL", "postgres://custom/database");
-            jail.set_env("APP_SERVER_PORT", "4200");
+            jail.set_env("APP_PORT", "4200");
             jail.set_env("APP_LOG_LEVEL", "debug");
             let database: serde_json::Value = loader
                 .figment()
@@ -1249,8 +1265,8 @@ mod tests {
     fn custom_namespace_selects_config_dir_and_values_without_mixing_defaults() {
         let _environment_guard = crate::lock_test_env();
         figment::Jail::expect_with(|jail| {
-            jail.set_env("APP_SERVER_PORT", "4001");
-            jail.set_env("SHOP_SERVER_PORT", "4002");
+            jail.set_env("APP_PORT", "4001");
+            jail.set_env("SHOP_PORT", "4002");
             jail.set_env("SHOP_ENV", "test");
             jail.set_env("SHOP_CONFIG_DIR", "shop-config");
             jail.create_dir("shop-config")?;
@@ -1273,13 +1289,10 @@ mod tests {
         let _environment_guard = crate::lock_test_env();
         figment::Jail::expect_with(|jail| {
             jail.set_env("SHOP_ENV", "");
-            jail.set_env("SHOP_SERVER_PORT", "");
-            jail.set_env("APP_SERVER_PORT", "");
+            jail.set_env("SHOP_PORT", "");
+            jail.set_env("APP_PORT", "");
             jail.clear_env();
-            jail.create_file(
-                ".env",
-                "SHOP_ENV=test\nSHOP_SERVER_PORT=4999\nAPP_SERVER_PORT=4111\n",
-            )?;
+            jail.create_file(".env", "SHOP_ENV=test\nSHOP_PORT=4999\nAPP_PORT=4111\n")?;
             let env = dotenv_environment("SHOP_")
                 .map_err(|error| figment::Error::from(error.to_string()))?;
             assert_eq!(env, Environment::Test);

@@ -198,7 +198,7 @@ fn free_port() -> std::io::Result<u16> {
 fn start_node(port: u16, redis_url: &str) -> std::io::Result<Child> {
     Command::new(env!("CARGO_BIN_EXE_realtime-node"))
         .env("APP_SERVER_HOST", "127.0.0.1")
-        .env("APP_SERVER_PORT", port.to_string())
+        .env("APP_PORT", port.to_string())
         .env("APP_APP_NAME", "realtime-e2e")
         .env("OPENRUST_REALTIME_REDIS_URL", redis_url)
         .stdout(Stdio::null())
@@ -212,6 +212,7 @@ async fn wait_for_node(client: &Client, port: u16) -> TestResult {
         loop {
             if client
                 .get(format!("http://127.0.0.1:{port}/health"))
+                .bearer_auth("user-73")
                 .send()
                 .await
                 .is_ok_and(|response| response.status().is_success())

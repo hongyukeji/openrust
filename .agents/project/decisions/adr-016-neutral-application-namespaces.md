@@ -8,12 +8,14 @@
 
 ## 决策
 
+现行端口键已按统一命名校准为 `APP_PORT` / `<命名空间>PORT`，内部仍映射 `server.port`；不保留旧环境别名。
+
 应用部署配置默认使用 `APP_` 命名空间，数据库表默认使用 `tb_` 前缀；两者均可由应用显式定制，不强制开发者在业务部署资产中使用框架品牌。
 
 ### 环境变量
 
-- 默认 `APP_ENV`、`APP_CONFIG_DIR`，应用字段使用单下划线扁平名称，例如 `APP_SERVER_PORT`、`APP_DATABASE_URL`、`APP_LOG_LEVEL`；常用能力仍采用领域变量，如 `DB_CONNECTION`、`REDIS_DB`、`QUEUE_DRIVER`、`MAIL_DRIVER`。字段路径由框架显式映射，不要求开发者编码 TOML 层级。
-- 应用可在配置加载前通过显式启动参数/构建 API 指定命名空间，例如 `SHOP_`，对应 `SHOP_ENV`、`SHOP_CONFIG_DIR`、`SHOP_SERVER_PORT`。不能依赖尚未加载的 TOML 或 `.env` 动态决定读取自己的命名空间。
+- 默认 `APP_ENV`、`APP_CONFIG_DIR`，应用字段使用单下划线扁平名称，例如 `APP_PORT`、`APP_DATABASE_URL`、`APP_LOG_LEVEL`；常用能力仍采用领域变量，如 `DB_CONNECTION`、`REDIS_DB`、`QUEUE_DRIVER`、`MAIL_DRIVER`。字段路径由框架显式映射，不要求开发者编码 TOML 层级。
+- 应用可在配置加载前通过显式启动参数/构建 API 指定命名空间，例如 `SHOP_`，对应 `SHOP_ENV`、`SHOP_CONFIG_DIR`、`SHOP_PORT`。不能依赖尚未加载的 TOML 或 `.env` 动态决定读取自己的命名空间。
 - 命名空间默认 `APP_`，定制值必须有效且非空，启动时校验。一个应用只读取选定命名空间，不自动混读 APP_/SHOP_/OPENRUST_，也不回退 RAILS_ENV/NODE_ENV 等变量。
 - `PORT` 作为通用监听端口简写保留；数据库、Redis、队列、邮件、短信和国际化使用领域前缀环境变量。单下划线应用变量按固定字段表映射，不再解析双下划线层级写法；不提供 `DATABASE_URL` / `REDIS_URL` 通用环境别名。TOML 仍使用自然的区段与字段层级。
 - 配置分层为 crate 类型默认值 → 根 `config/*.toml` 按文件名排序的领域配置 → `.env` → 进程环境变量。运行时 TOML 使用 `app.toml`、`database.toml`、`cache.toml` 等领域文件，不按环境命名；环境差异通过 `.env` 或部署环境变量设置。环境仍为 development/test/production，缺省 development。

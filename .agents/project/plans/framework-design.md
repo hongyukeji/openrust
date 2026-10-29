@@ -183,7 +183,7 @@ apps/<app>/
 ## 配置
 
 - 唯一 ConfigLoader 合并类型默认值、根 `config/*.toml` 领域文件、应用工作目录 `.env`、进程环境；环境值和秘密放 `.env` 或进程环境，进程变量优先，文件格式错误时启动失败且不回显内容。
-- 默认命名空间 `APP_`，启动前可定制；应用自身配置使用 `APP_ENV`、`APP_CONFIG_DIR` 和单下划线扁平名称，例如 `APP_SERVER_PORT`、`APP_LOG_LEVEL`。数据库、Redis、队列、邮件、短信与国际化常用配置采用 `DB_*`、`REDIS_*`、`QUEUE_*`、`MAIL_*`、`SMS_*`、`I18N_*` 领域变量，具体映射见 [ADR-016](../decisions/adr-016-neutral-application-namespaces.md)。不提供 `DATABASE_URL` / `REDIS_URL` 通用环境别名。
+- 默认命名空间 `APP_`，启动前可定制；应用自身配置使用 `APP_ENV`、`APP_CONFIG_DIR` 和单下划线扁平名称，例如 `APP_PORT`、`APP_LOG_LEVEL`。数据库、Redis、队列、邮件、短信与国际化常用配置采用 `DB_*`、`REDIS_*`、`QUEUE_*`、`MAIL_*`、`SMS_*`、`I18N_*` 领域变量，具体映射见 [ADR-016](../decisions/adr-016-neutral-application-namespaces.md)。不提供 `DATABASE_URL` / `REDIS_URL` 通用环境别名。
 - 框架 Rust 配置类型集中在 `src/config/`，能力 plugin 通过 `section` 提取类型；业务通过 `Application::Config` 定义应用配置。旧类型路径用 re-export 保持必要兼容，不复制配置 loader。
 - 启动验证完整配置键和错误来源；敏感值始终脱敏。`config show` 只读展示，`.env.example` 不含可用凭据。详见 [ADR-030](../decisions/adr-030-modular-configuration.md)。
 

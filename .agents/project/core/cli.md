@@ -6,6 +6,8 @@
 
 ## 当前实现
 
+- 应用端口使用 `APP_PORT`（自定义命名空间对应 `<前缀>PORT`），生成 `.env.example` 在 `APP_URL="http://localhost:${APP_PORT}"` 前声明 `APP_PORT=3000`；内部配置字段仍为 `server.port`。
+
 - `openrust new <目标目录>` 从源码 workspace 创建独立应用，支持相对/绝对目标，不修改源 workspace；应用拥有自己的 Cargo.lock，本地 framework/tool 路径明确解析。
 - `dev`/`serve` 通过 metadata 找到含 bootstrap/app.rs 的当前应用，再从其目录运行普通 cargo run；dev 设置 APP_ENV=development，复用/准备缓存服务，不提供 watch。
 

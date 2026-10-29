@@ -6,6 +6,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Changed
 
+- 应用端口环境键统一为 `APP_PORT`（自定义命名空间如 `SHOP_PORT`），映射至内部 `server.port`；`.env` 与生成应用使用 `APP_URL="http://localhost:${APP_PORT}"`，旧端口别名不再读取。
+
 - API/framework JSON 默认使用语义 HTTP 状态（如创建 201、校验失败 422、资源缺失 404）；`always_ok` 仅在配置中显式选择时启用，统一 envelope 与机器码保持不变。
 
 ### Fixed

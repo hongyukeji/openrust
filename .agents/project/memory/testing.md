@@ -4,6 +4,14 @@
 > 更新：2026-10-28
 > 摘要：当前目录迁移与原专项测试入口，分开记录真实服务和未验收边界。
 
+## 应用端口环境配置
+
+应用端口统一使用 `APP_PORT`，自定义命名空间使用 `SHOP_PORT`，内部仍为 `server.port`；全局 `PORT` 是低优先级回退，旧端口键不再覆盖配置。配置回归 24 项、生命周期 8 项通过，覆盖命名空间隔离、进程端口覆盖与 `.env` 中 `APP_URL="http://localhost:${APP_PORT}"` 展开。
+
+默认 workspace tests 共 570 passed、29 ignored；fmt、workspace all-target Clippy（`-D warnings`）、warnings-denied Rustdoc 与 cargo deny 均通过。实际生成应用的 check/test（HTTP 1/1）、配置读取（进程端口与 URL 均为 4107）、真实 TCP health/API 200 与 SIGINT 0 通过；realtime consumer 双进程 Redis 集群用例 1/1 通过，健康探针使用既有认证主体。首次 workspace 的 localization 重复查询断言失败由其所属功能簇修正后重跑通过；本簇未改该测试或数据库迁移。
+
+日志位于 `/tmp/openrust-app-port-verify.8yXhhA/`。本簇独占 target 已先 dry-run 再清理；并发会话占用的根 target 保留。本项不增加数据库行为，不将默认测试或生成模板编译记作真实 PostgreSQL/MySQL 验收。
+
 ## R3-B Laravel 路由组前缀与 middleware
 
 `RouteGroup` 与 `Routes::group` 覆盖嵌套前缀拼接、前缀首尾斜杠归一化、组级 Tower middleware 的范围和声明执行顺序、跨组重复路由启动错误。定向 `http_router` 两项回归及 `cargo test --doc`（15 passed、21 ignored）通过；ignored doctest 不作为验收证据。`modules/example` tenant 路由已改用公开 RouteGroup，原 JWT→membership→trusted layer 请求顺序保持。
@@ -509,7 +517,7 @@ CLI 分别实际 `new /tmp/openrust-r2d-generated-pg-20261028 --db postgres --au
 
 `cargo fmt --all --check`、默认与 all-features `cargo clippy --workspace --all-targets --offline -- -D warnings`、默认与 all-features `cargo test --workspace --offline --quiet`、默认及 all-features `RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps --offline --quiet`、`cargo deny check`、`cargo check -p openrust --no-default-features --offline --quiet` 均 exit 0。最终默认与 all-features 测试日志分别为 `/tmp/openrust-r2d-final-test-default.log`、`/tmp/openrust-r2d-final-test-all.log`；汇总各测试结果组，默认 428 passed、23 ignored、0 failed，all-features 719 passed、33 ignored、0 failed，其中 all-features 库测试 463 passed、2 ignored。Rust 1.97.0 的 `cargo +1.97.0 check --workspace --all-targets --all-features --offline --quiet` 及 `cargo +1.97.0 check -p openrust --no-default-features --offline --quiet` 均 exit 0；这两个是 check 门禁，不当成 MSRV 完整测试。`cargo deny` advisories/bans/licenses/sources 均通过，保留既有 duplicate crate 与未匹配 MPL allowance 警告。默认 workspace 的无环境集成用例和 doctest ignored 项不计通过。all-features workspace 首轮在 `--test server` 的 `example_business_route_is_mounted_through_the_root_application` 返回安全码 `internal_error`，单项精确复跑 1/1、server 整组 25/25、全 workspace 复跑 exit 0（首轮 `/tmp/openrust-r2d-allfeatures-workspace-test.log`、复跑 `/tmp/openrust-r2d-allfeatures-workspace-test-rerun.log`）；原因尚未证实，测试辅助启动/构建路径已增加仅失败时输出阶段与安全错误码的诊断，修改后全 workspace 再次 exit 0，不删除断言或序列化并发。
 
-生产默认入口使用显式隔离随机端口 `APP_SERVER_PORT=<port> cargo run --offline --quiet`，本机探针禁用环境 HTTP 代理直连，`/health`、`/api`、`/api/example` 与 `/` 均 HTTP 200；对进程发送 SIGINT 后命令 exit 0，日志 `/tmp/openrust-r2d-root-default-run-success.log`。首两次仅测试脚本分别误用 `APP_SERVER__PORT` 与继承本机 HTTP 代理，第三次四路 HTTP 成功但脚本假设 Cargo 必有子 PID，未正确发 SIGINT；这些探针错误不记作框架启动失败，日志分别保留于 `/tmp/openrust-r2d-root-default-run.log`、`-fixed.log`、`-direct.log`。最终版本没有修改系统代理、数据库或 Redis 服务配置。
+生产默认入口使用显式隔离随机端口 `APP_SERVER_PORT=<port> cargo run --offline --quiet`（该历史验证使用旧键，当前统一为 `APP_PORT`），本机探针禁用环境 HTTP 代理直连，`/health`、`/api`、`/api/example` 与 `/` 均 HTTP 200；对进程发送 SIGINT 后命令 exit 0，日志 `/tmp/openrust-r2d-root-default-run-success.log`。首两次仅测试脚本分别误用 `APP_SERVER__PORT` 与继承本机 HTTP 代理，第三次四路 HTTP 成功但脚本假设 Cargo 必有子 PID，未正确发 SIGINT；这些探针错误不记作框架启动失败，日志分别保留于 `/tmp/openrust-r2d-root-default-run.log`、`-fixed.log`、`-direct.log`。最终版本没有修改系统代理、数据库或 Redis 服务配置。
 
 确认本簇构建已结束后，`CARGO_TARGET_DIR=/tmp/openrust-r2d-target cargo clean --dry-run` 列出 33,772 个任务专用产物、约 17.0 GiB；随后对同一 target 执行 `cargo clean` 完成清理。本仓共享 `target/` 和其他会话的工作目录未清理，验收日志保留于 `/tmp`。
 
