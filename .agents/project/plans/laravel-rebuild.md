@@ -318,6 +318,10 @@ MQTT作为按需引入的可选扩展，不表述为框架内置后默认禁用�
 
 第三方体验参照：[php-mqtt/laravel-client](https://github.com/php-mqtt/laravel-client/tree/e010c8d66d7684152df250b25f66a75646b3b325)（2026-10-29读取固定commit）：package discovery、config/mqtt-client.php、默认/命名connections、Facade connection/publish及显式subscribe loop；它是client包，不内置Broker。仅参考Laravel扩展体验，不引入PHP依赖，不把其组件API直接复制成Rust。Broker独立进程职责可类比Laravel实时服务的运行方式，并非Laravel官方MQTT规范；协议与成熟Rust组件的真实能力仍须实施前Spec。
 
+### 阶段二：本地 AI 可选扩展
+
+按[本地AI能力扩展](local-ai-extension.md)规划词库过滤、文本/图片审核及机器翻译；Provider/config、公开driver与现Queue/Cache/Storage组合，普通CPU可行性、模型质量和资源/总成本先实测。按需选择依赖和模型，不纳入默认构建，不自动外发数据；与i18n、MCP和独立AI模型平台明确分工。LAI-0至LAI-4在阶段二按前置成熟后进入唯一todo，本次只规划、不抢占当前核心簇，不启动可选后台或AI产品。
+
 ### 阶段二 R11：MCP 可选扩展评估
 
 按[MCP扩展计划](mcp-extension.md)优先评估Server，Client待实际需求；复用官方SDK和Provider/容器/模块及HTTP挂载，协议不套业务JSON。协议/SDK/客户端基线、安全与可选依赖先Spec，再按依赖进入唯一todo；当前只排期，不打断C04-D1，不启动AI模型平台。
