@@ -5,7 +5,7 @@
 
 ## 范围决策
 
-优先规划 MCP Server，让业务模块向 AI 客户端公开 tools、resources、prompts；框架本身不要求接入 LLM。Client 暂保留为后续评估方向，没有实际调用场景前不扩成双角色平台。用户已授权评估和制定计划，具体实现仍须按唯一 todo 队列领取，不抢占 C04-D1。
+优先规划 MCP Server，让业务模块向 AI 客户端公开 tools、resources、prompts；框架本身不要求接入 LLM。通用Client不扩成独立平台；[AI SDK可选扩展](ai-capabilities.md)对标官方MCP工具调用时，按该项真实需要补最小Client能力和互操作验收，不能因Server优先而跳过SDK已纳入行为。其他Client用途仍待实际需求。用户已授权评估和制定计划，具体实现仍须按唯一 todo 队列领取，不抢占 C04-D1。
 
 当前在 src/、modules/、tools/cli/ 和根 Cargo.toml 未发现原生 MCP 或 rmcp；Tokio/Axum、Container/Provider 和模块装配只是集成基础，不代表协议已支持。AI模型平台 OR-21/P7 是独立产品需求，不能替代本通用扩展的验收，也不构成本产品开工授权。
 
