@@ -591,4 +591,4 @@ R3-A 按 ADR-076 将 `HttpStatusMode::Semantic` 设为框架、配置、无请�
 
 生成项目：`/tmp/openrust-r3a-generated-20261029/{plain,postgres,mysql}`。普通、PostgreSQL 认证、MySQL 认证项目均通过格式和 workspace all-target offline check；普通生成项目的测试通过，PG18/MySQL8.4 生成认证应用真实 HTTP 测试各 2/2（包含默认语义状态）。同批较早验证已实际启动仓库根无参数 `cargo run`：TCP `/api/r3a-missing-route` 返回 HTTP 404 `not_found` envelope，`/health` 返回 200，SIGINT 后 exit 0。生成构建使用独立 `/tmp/openrust-r3a-generated-target`，不替代根真实服务测试。
 
-独立只读复审发现并促使修复 I18n 早退响应上下文缺口，复审后未发现 blocker/should-fix；其文档 nit 已同步处理。PostgreSQL/MySQL 响应数据库状态的业务路径未改变，既有真实 DB 验收不被重标为本簇新证据。
+独立只读复审发现并促使修复 I18n 早退响应上下文缺口，复审后未发现 blocker/should-fix；其文档 nit 已同步处理。PostgreSQL/MySQL 响应数据库状态的业务路径未改变，既有真实 DB 验收不被重标为本簇新证据。 两次全量验证结束且确认无本任务 Cargo/rustc/rustdoc/server 后，`cargo clean --dry-run` 显示根 target 32646 文件/19.8 GiB，独立生成 target 9245 文件/4.1 GiB；分别清理后两处均归零，磁盘可用空间由 99 GiB 增至 121 GiB。
