@@ -3,6 +3,8 @@
 use openrust::Result;
 use openrust::core::{BootContext, BoxFuture, ModuleConfigFiles, RegisterContext, ServiceProvider};
 use std::sync::Arc;
+#[cfg(feature = "session")]
+use std::sync::atomic::{AtomicBool, Ordering};
 
 #[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
 use crate::modules::example::services::article_write::ArticleWriter;
@@ -31,6 +33,25 @@ fn register_example_middleware(app: &mut BootContext<'_>) -> Result<()> {
     )?;
     app.middleware_group("example.response", ["example.response-marker"])?;
     Ok(())
+}
+
+#[cfg(feature = "session")]
+fn session_capability(app: &mut BootContext<'_>) -> Arc<AtomicBool> {
+    let enabled = Arc::new(AtomicBool::new(false));
+    let final_enabled = Arc::clone(&enabled);
+    let store_bound = app.is_bound::<openrust::session::SessionStoreHandle>()
+        && app.is_bound::<openrust::session::Session>();
+    let repository = app.config_repository();
+    app.validate_at_finalize(move || {
+        Box::pin(async move {
+            if store_bound {
+                let config: openrust::config::SessionConfig = repository.section("session")?;
+                final_enabled.store(config.driver.is_some(), Ordering::Release);
+            }
+            Ok(())
+        })
+    });
+    enabled
 }
 
 impl ServiceProvider for ExampleServiceProvider {
@@ -164,14 +185,15 @@ impl ServiceProvider for ExampleServiceProvider {
             #[cfg(not(feature = "view"))]
             let view_enabled = false;
             let i18n_enabled = app.is_bound::<openrust::i18n::I18n>();
-            let summary_origin = app
-                .section::<ExampleConfig>("example")?
-                .article_summary_origin;
+            let example_config = app.section::<ExampleConfig>("example")?;
+            let summary_origin = example_config.article_summary_origin;
+            #[cfg(feature = "session")]
+            let session_enabled = session_capability(app);
             #[cfg(all(
                 feature = "auth-oidc",
                 any(feature = "db-postgres", feature = "db-mysql")
             ))]
-            let oidc_config = app.section::<ExampleConfig>("example")?.oidc;
+            let oidc_config = example_config.oidc;
             #[cfg(all(
                 feature = "auth-oidc",
                 any(feature = "db-postgres", feature = "db-mysql")
@@ -202,6 +224,8 @@ impl ServiceProvider for ExampleServiceProvider {
                     routes,
                     &crate::modules::example::routes::RouteCapabilities {
                         database: database_enabled,
+                        #[cfg(feature = "session")]
+                        session: session_enabled.load(Ordering::Acquire),
                         view: view_enabled,
                         i18n: i18n_enabled,
                         summary_origin: summary_origin.clone(),

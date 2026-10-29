@@ -14,13 +14,13 @@ use openrust::auth::{
 use openrust::http::axum::body::{Body, to_bytes};
 use openrust::http::axum::http::{Request, StatusCode};
 use openrust::http::{HttpServiceProvider, Inject, Json, Routes, build_router};
+use openrust::session::MemorySessionStore as MemoryStore;
+#[cfg(feature = "session-redis")]
+use openrust::session::SessionStore as _;
+#[cfg(feature = "session-redis")]
+use openrust::session::{SessionId as Id, SessionRecord as Record};
 use openrust::{BoxFuture, Error, Result, config::FrameworkConfig};
 use tower::ServiceExt;
-use tower_sessions::MemoryStore;
-#[cfg(feature = "session-redis")]
-use tower_sessions::session::{Id, Record};
-#[cfg(feature = "session-redis")]
-use tower_sessions::session_store::SessionStore as _;
 
 type TestResult = Result<(), Box<dyn StdError>>;
 
@@ -38,12 +38,10 @@ impl Authenticator for FakeAuthenticator {
                         return Err(Error::Unauthorized);
                     };
                     let user_id = session
-                        .get::<i64>("test.user_id")
-                        .await
+                        .get_typed::<i64>("test.user_id")
                         .map_err(Error::internal)?;
                     let csrf_hash = session
-                        .get::<String>("test.csrf_hash")
-                        .await
+                        .get_typed::<String>("test.csrf_hash")
                         .map_err(Error::internal)?;
                     if user_id.is_none() {
                         return Err(Error::Unauthorized);
@@ -138,30 +136,26 @@ async fn jwt_authentication_uses_the_configured_key_ring_without_session_middlew
 
 async fn create_test_session(session: Session) -> Result<openrust::http::Json<&'static str>> {
     session
-        .insert("test.user_id", 42_i64)
-        .await
+        .put("test.user_id", 42_i64)
         .map_err(Error::internal)?;
     session
-        .insert("test.csrf_hash", "csrf-secret")
-        .await
+        .put("test.csrf_hash", "csrf-secret")
         .map_err(Error::internal)?;
     Ok(openrust::http::Json("created"))
 }
 
 async fn delete_test_session(session: Session) -> Result<openrust::http::Json<&'static str>> {
-    session.flush().await.map_err(Error::internal)?;
+    session.flush().map_err(Error::internal)?;
     Ok(openrust::http::Json("deleted"))
 }
 
 async fn rotate_test_session(session: Session) -> Result<openrust::http::Json<&'static str>> {
-    session.cycle_id().await.map_err(Error::internal)?;
+    session.migrate(true).await.map_err(Error::internal)?;
     session
-        .insert("test.user_id", 42_i64)
-        .await
+        .put("test.user_id", 42_i64)
         .map_err(Error::internal)?;
     session
-        .insert("test.csrf_hash", "csrf-secret")
-        .await
+        .put("test.csrf_hash", "csrf-secret")
         .map_err(Error::internal)?;
     Ok(openrust::http::Json("rotated"))
 }
@@ -188,8 +182,9 @@ async fn build_redis_session_app(store: RedisSessionStore) -> Result<openrust::A
         .provider(AuthServiceProvider::with_authenticator(FakeAuthenticator))
         .provider(
             SessionServiceProvider::with_store(store).with_cookie_config(SessionConfig {
-                secure: false,
-                ttl_secs: 30,
+                secure: Some(false),
+                lifetime: 1,
+                cookie: Some("openrust_session".into()),
                 ..SessionConfig::default()
             }),
         )
@@ -223,7 +218,8 @@ async fn build_app(
         .provider(
             SessionServiceProvider::with_store(MemoryStore::default()).with_cookie_config(
                 SessionConfig {
-                    secure: false,
+                    secure: Some(false),
+                    cookie: Some("openrust_session".into()),
                     ..SessionConfig::default()
                 },
             ),
@@ -360,14 +356,19 @@ async fn verify_redis_session_http(
         .split_once('=')
         .ok_or("Redis Session cookie had no value")?
         .1;
-    let session_id: tower_sessions::session::Id = cookie_value.parse()?;
+    let session_id: openrust::session::SessionId = cookie_value.parse()?;
     let loaded_record = store_b
-        .load(&session_id)
+        .load(
+            &session_id,
+            openrust::session::DEFAULT_MAX_BYTES,
+            time::OffsetDateTime::now_utc() + time::Duration::minutes(120),
+        )
         .await?
         .ok_or("Redis Session record was not shared")?;
-    assert!(loaded_record.data.contains_key("test.user_id"));
-    let session = Session::new(Some(session_id), std::sync::Arc::new(store_b.clone()), None);
-    assert_eq!(session.get::<i64>("test.user_id").await?, Some(42));
+    assert_eq!(loaded_record.data["test"]["user_id"], serde_json::json!(42));
+    let session = Session::new(Some(session_id), std::sync::Arc::new(store_b.clone()), None)?;
+    session.start().await?;
+    assert_eq!(session.get_typed::<i64>("test.user_id")?, Some(42));
 
     let shared = router_b
         .clone()
@@ -475,8 +476,17 @@ async fn rotate_redis_session(
         .split_once('=')
         .ok_or("old Session cookie had no value")?
         .1
-        .parse::<tower_sessions::session::Id>()?;
-    assert!(store.load(&old_id).await?.is_none());
+        .parse::<openrust::session::SessionId>()?;
+    assert!(
+        store
+            .load(
+                &old_id,
+                openrust::session::DEFAULT_MAX_BYTES,
+                time::OffsetDateTime::now_utc() + time::Duration::minutes(120)
+            )
+            .await?
+            .is_none()
+    );
     Ok(rotated_cookie)
 }
 
@@ -484,6 +494,10 @@ async fn rotate_redis_session(
 async fn verify_redis_session_store_lifecycle(
     dsn: &str,
 ) -> Result<(RedisSessionStore, RedisSessionStore), Box<dyn StdError>> {
+    use openrust::session::{
+        DEFAULT_MAX_BYTES as MAX_BYTES, SessionWriteMode as Mode, SessionWriteOutcome as Outcome,
+    };
+    let empty_expiry = time::OffsetDateTime::now_utc() + time::Duration::minutes(120);
     let store_a = RedisSessionStore::connect(dsn, "auth-runtime").await?;
     assert!(!format!("{store_a:?}").contains(dsn));
     let store_b = RedisSessionStore::connect(dsn, "auth-runtime").await?;
@@ -504,29 +518,68 @@ async fn verify_redis_session_store_lifecycle(
     };
     assert!(!unavailable.to_string().contains(&unavailable_url));
 
-    let mut record = Record {
-        id: Id::default(),
-        data: std::collections::HashMap::new(),
+    let record = Record {
+        id: Id::generate()?,
+        data: serde_json::json!([]),
         expiry_date: time::OffsetDateTime::now_utc() + time::Duration::seconds(30),
     };
-    store_a.create(&mut record).await?;
-    assert!(store_b.load(&record.id).await?.is_some());
-    assert!(isolated_store.load(&record.id).await?.is_none());
-    let mut duplicate = record.clone();
-    assert!(store_b.create(&mut duplicate).await.is_err());
+    assert_eq!(
+        store_a.write(&record, Mode::Insert, MAX_BYTES).await?,
+        Outcome::Written
+    );
+    assert!(
+        store_b
+            .load(&record.id, MAX_BYTES, empty_expiry)
+            .await?
+            .is_some()
+    );
+    assert!(
+        isolated_store
+            .load(&record.id, MAX_BYTES, empty_expiry)
+            .await?
+            .is_none()
+    );
+    let duplicate = record.clone();
+    assert_eq!(
+        store_b.write(&duplicate, Mode::Insert, MAX_BYTES).await?,
+        Outcome::Conflict
+    );
     store_a.delete(&record.id).await?;
-    store_b.save(&record).await?;
-    assert!(store_b.load(&record.id).await?.is_none());
+    assert_eq!(
+        store_b.write(&record, Mode::Update, MAX_BYTES).await?,
+        Outcome::Missing
+    );
+    assert!(
+        store_b
+            .load(&record.id, MAX_BYTES, empty_expiry)
+            .await?
+            .is_none()
+    );
 
-    let mut expiring_record = Record {
-        id: Id::default(),
-        data: std::collections::HashMap::new(),
+    let expiring_record = Record {
+        id: Id::generate()?,
+        data: serde_json::json!([]),
         expiry_date: time::OffsetDateTime::now_utc() + time::Duration::milliseconds(80),
     };
-    store_a.create(&mut expiring_record).await?;
-    assert!(store_b.load(&expiring_record.id).await?.is_some());
+    assert_eq!(
+        store_a
+            .write(&expiring_record, Mode::Insert, MAX_BYTES)
+            .await?,
+        Outcome::Written
+    );
+    assert!(
+        store_b
+            .load(&expiring_record.id, MAX_BYTES, empty_expiry)
+            .await?
+            .is_some()
+    );
     tokio::time::sleep(std::time::Duration::from_millis(150)).await;
-    assert!(store_b.load(&expiring_record.id).await?.is_none());
+    assert!(
+        store_b
+            .load(&expiring_record.id, MAX_BYTES, empty_expiry)
+            .await?
+            .is_none()
+    );
     Ok((store_a, store_b))
 }
 
@@ -699,7 +752,8 @@ async fn protected_cookie_app() -> Result<openrust::App> {
         .provider(
             SessionServiceProvider::with_store(MemoryStore::default()).with_cookie_config(
                 SessionConfig {
-                    secure: false,
+                    secure: Some(false),
+                    cookie: Some("openrust_session".into()),
                     ..SessionConfig::default()
                 },
             ),
@@ -751,13 +805,14 @@ async fn protected_cookie_snapshot(
 ) -> Result<Json<serde_json::Value>> {
     let id = session.id().map(|id| id.to_string());
     Ok(Json(serde_json::json!({
-        "same_plaintext": info.cookie("openrust_session") == id.map(serde_json::Value::String),
+        "same_plaintext": info.cookie("openrust_session") == id.ok().map(serde_json::Value::String),
         "original_wire": info.header("cookie")?.is_some_and(|header| header.starts_with("openrust_session=or1."))
     })))
 }
 #[cfg(feature = "encryption")]
 #[tokio::test]
-async fn encrypted_session_reuses_tower_view_and_rejects_original_wire_duplicates() -> TestResult {
+async fn encrypted_session_reuses_managed_cookie_view_and_rejects_original_wire_duplicates()
+-> TestResult {
     let app = protected_cookie_app().await?;
     let result: TestResult = async {
         let router = build_router(&app)?;

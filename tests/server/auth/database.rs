@@ -1,7 +1,7 @@
 //! 验证 PostgreSQL 和 MySQL 上共享账户与凭据状态的集成行为。
 #![cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
 
-use std::{collections::HashMap, error::Error as StdError, sync::Arc};
+use std::{error::Error as StdError, sync::Arc};
 
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
@@ -28,6 +28,8 @@ use openrust::events::EventsServiceProvider;
 use openrust::http::axum::body::{Body, to_bytes};
 use openrust::http::axum::http::{Request, StatusCode};
 use openrust::http::{HttpServiceProvider, Inject, Json, Routes, build_router};
+use openrust::session::SessionStore;
+use openrust::session::{SessionId as Id, SessionRecord as Record};
 use openrust::signing::{
     DatabaseSignedLinkRevocationStore, SignedLinkRevocationMigration, SignedLinkRevocationStore,
     SignedLinks, SignedLinksConfig, SignedLinksServiceProvider,
@@ -37,8 +39,6 @@ use openrust::{App, Result, config::FrameworkConfig};
 use sha2::{Digest, Sha256};
 use time::Duration;
 use tower::ServiceExt;
-use tower_sessions::SessionStore;
-use tower_sessions::session::{Id, Record};
 
 type TestResult = Result<(), Box<dyn StdError>>;
 
@@ -72,18 +72,16 @@ async fn current_user(user: CurrentUser, Inject(_marker): Inject<Marker>) -> Res
 
 async fn create_session(session: Session) -> Result<Json<&'static str>> {
     session
-        .insert("openrust.auth.user_id", 1_i64)
-        .await
+        .put("openrust.auth.user_id", 1_i64)
         .map_err(openrust::Error::internal)?;
     session
-        .insert("openrust.auth.csrf_hash", hex_sha256("csrf-secret"))
-        .await
+        .put("openrust.auth.csrf_hash", hex_sha256("csrf-secret"))
         .map_err(openrust::Error::internal)?;
     Ok(Json("created"))
 }
 
 async fn logout(session: Session) -> Result<Json<&'static str>> {
-    session.flush().await.map_err(openrust::Error::internal)?;
+    session.flush().map_err(openrust::Error::internal)?;
     Ok(Json("logged out"))
 }
 
@@ -270,27 +268,91 @@ async fn auth_migration_and_shared_revocation_work_on_the_configured_database() 
     let session_db = Db::with_table_names(table_names);
     session_db.initialize(connection.clone())?;
     let session_store = DatabaseSessionStore::new(session_db.clone());
-    let mut collision_record = Record {
-        id: Id::default(),
-        data: HashMap::default(),
+    let collision_record = Record {
+        id: Id::generate()?,
+        data: serde_json::json!({}),
         expiry_date: time::OffsetDateTime::now_utc() + Duration::minutes(5),
     };
-    session_store.create(&mut collision_record).await?;
-    assert!(session_store.create(&mut collision_record).await.is_err());
     assert_eq!(
-        session_store.load(&collision_record.id).await?.as_ref(),
-        Some(&collision_record)
+        session_store
+            .write(
+                &collision_record,
+                openrust::session::SessionWriteMode::Insert,
+                openrust::session::DEFAULT_MAX_BYTES
+            )
+            .await?,
+        openrust::session::SessionWriteOutcome::Written
+    );
+    assert_eq!(
+        session_store
+            .write(
+                &collision_record,
+                openrust::session::SessionWriteMode::Insert,
+                openrust::session::DEFAULT_MAX_BYTES
+            )
+            .await?,
+        openrust::session::SessionWriteOutcome::Conflict
+    );
+    let loaded = session_store
+        .load(
+            &collision_record.id,
+            openrust::session::DEFAULT_MAX_BYTES,
+            collision_record.expiry_date,
+        )
+        .await?
+        .ok_or("Inserted Session missing")?;
+    assert_eq!(loaded.id, collision_record.id);
+    assert_eq!(loaded.data, collision_record.data);
+    assert_eq!(
+        loaded.expiry_date.unix_timestamp_nanos(),
+        collision_record.expiry_date.unix_timestamp_nanos() / 1000 * 1000
     );
     session_store.delete(&collision_record.id).await?;
-    session_store.save(&collision_record).await?;
-    assert!(session_store.load(&collision_record.id).await?.is_none());
-    let mut expired_record = Record {
-        id: Id::default(),
-        data: HashMap::default(),
+    assert_eq!(
+        session_store
+            .write(
+                &collision_record,
+                openrust::session::SessionWriteMode::Update,
+                openrust::session::DEFAULT_MAX_BYTES
+            )
+            .await?,
+        openrust::session::SessionWriteOutcome::Missing
+    );
+    assert!(
+        session_store
+            .load(
+                &collision_record.id,
+                openrust::session::DEFAULT_MAX_BYTES,
+                time::OffsetDateTime::now_utc() + time::Duration::minutes(120)
+            )
+            .await?
+            .is_none()
+    );
+    let expired_record = Record {
+        id: Id::generate()?,
+        data: serde_json::json!({}),
         expiry_date: time::OffsetDateTime::now_utc() - Duration::minutes(1),
     };
-    session_store.create(&mut expired_record).await?;
-    assert!(session_store.load(&expired_record.id).await?.is_none());
+    assert_eq!(
+        session_store
+            .write(
+                &expired_record,
+                openrust::session::SessionWriteMode::Insert,
+                openrust::session::DEFAULT_MAX_BYTES
+            )
+            .await?,
+        openrust::session::SessionWriteOutcome::Written
+    );
+    assert!(
+        session_store
+            .load(
+                &expired_record.id,
+                openrust::session::DEFAULT_MAX_BYTES,
+                time::OffsetDateTime::now_utc() + time::Duration::minutes(120)
+            )
+            .await?
+            .is_none()
+    );
     let user_sql = match backend {
         openrust::database::DbBackend::Postgres | openrust::database::DbBackend::MySql => {
             "INSERT INTO mapped_accounts (email, password_hash, created_at, updated_at) VALUES ('user@example.test', 'unused', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
@@ -637,9 +699,11 @@ async fn auth_migration_and_shared_revocation_work_on_the_configured_database() 
         .get("set-cookie")
         .ok_or("Session middleware did not set a cookie")?
         .to_str()?;
-    assert!(set_cookie.contains("HttpOnly"));
-    assert!(set_cookie.contains("Secure"));
-    assert!(set_cookie.contains("SameSite=Lax"));
+    let model = openrust::http::Cookie::from_header(set_cookie)?;
+    assert_eq!(model.name(), "openrust_session");
+    assert!(model.http_only());
+    assert_eq!(model.secure(), Some(false));
+    assert_eq!(model.same_site(), Some(openrust::http::SameSite::Lax));
     let session_cookie = set_cookie
         .split(';')
         .next()
@@ -889,15 +953,15 @@ async fn auth_flows_run_registration_login_refresh_reset_and_logout_on_the_confi
     );
 
     let session_store = Arc::new(DatabaseSessionStore::new(db.clone()));
-    let session = Session::new(None, session_store.clone(), None);
-    session.insert("app.preference", "compact").await?;
+    let session = Session::new(None, session_store.clone(), None)?;
+    session.start().await?;
+    session.put("app.preference", "compact")?;
     session.save().await?;
-    let old_session_id = session
-        .id()
-        .ok_or("Session middleware did not assign an initial ID")?;
-    let stale_request = Session::new(Some(old_session_id), session_store.clone(), None);
+    let old_session_id = session.id()?;
+    let stale_request = Session::new(Some(old_session_id.clone()), session_store.clone(), None)?;
+    stale_request.start().await?;
     assert_eq!(
-        stale_request.get::<String>("app.preference").await?,
+        stale_request.get_typed::<String>("app.preference")?,
         Some("compact".to_owned())
     );
     assert!(
@@ -911,8 +975,8 @@ async fn auth_flows_run_registration_login_refresh_reset_and_logout_on_the_confi
             .await
             .is_err()
     );
-    assert_eq!(session.id(), Some(old_session_id));
-    assert!(session.get::<i64>("openrust.auth.user_id").await?.is_none());
+    assert_eq!(session.id()?, old_session_id);
+    assert!(session.get_typed::<i64>("openrust.auth.user_id")?.is_none());
 
     let session_credentials = flows
         .login_session(
@@ -925,23 +989,29 @@ async fn auth_flows_run_registration_login_refresh_reset_and_logout_on_the_confi
     assert_eq!(session_credentials.user_id(), 1);
     assert!(!session_credentials.csrf_token().contains('='));
     assert!(!format!("{session_credentials:?}").contains(session_credentials.csrf_token()));
-    assert!(session.id().is_none());
+    assert_ne!(session.id()?, old_session_id);
     session.save().await?;
-    let logged_in_session_id = session
-        .id()
-        .ok_or("Session middleware did not persist rotated login ID")?;
+    let logged_in_session_id = session.id()?;
     assert_ne!(logged_in_session_id, old_session_id);
     let csrf_hash = session
-        .get::<String>("openrust.auth.csrf_hash")
-        .await?
+        .get_typed::<String>("openrust.auth.csrf_hash")?
         .ok_or("CSRF digest was not stored in the session")?;
     assert_eq!(csrf_hash, hex_sha256(session_credentials.csrf_token()));
     assert_ne!(csrf_hash, session_credentials.csrf_token());
     assert_eq!(
-        session.get::<String>("app.preference").await?,
+        session.get_typed::<String>("app.preference")?,
         Some("compact".to_owned())
     );
-    assert!(session_store.load(&old_session_id).await?.is_none());
+    assert!(
+        session_store
+            .load(
+                &old_session_id,
+                openrust::session::DEFAULT_MAX_BYTES,
+                time::OffsetDateTime::now_utc() + time::Duration::minutes(120)
+            )
+            .await?
+            .is_none()
+    );
 
     let session_cookie = format!("openrust_session={logged_in_session_id}");
     read_response(
@@ -981,32 +1051,47 @@ async fn auth_flows_run_registration_login_refresh_reset_and_logout_on_the_confi
     )
     .await?;
 
-    stale_request.insert("app.stale", true).await?;
-    stale_request.save().await?;
-    assert!(session_store.load(&old_session_id).await?.is_none());
-    assert_eq!(session.get::<i64>("openrust.auth.user_id").await?, Some(1));
+    stale_request.put("app.stale", true)?;
+    assert!(stale_request.save().await.is_err());
+    assert!(
+        session_store
+            .load(
+                &old_session_id,
+                openrust::session::DEFAULT_MAX_BYTES,
+                time::OffsetDateTime::now_utc() + time::Duration::minutes(120)
+            )
+            .await?
+            .is_none()
+    );
+    assert_eq!(session.get_typed::<i64>("openrust.auth.user_id")?, Some(1));
 
     flows
         .logout_session("session-logout-source", &session)
         .await?;
-    assert!(session.id().is_none());
+    assert_ne!(session.id()?, old_session_id);
     session.save().await?;
-    let anonymous_session_id = session
-        .id()
-        .ok_or("logout Session ID was not reissued for retained app data")?;
+    let anonymous_session_id = session.id()?;
     assert_ne!(anonymous_session_id, logged_in_session_id);
-    assert!(session.get::<i64>("openrust.auth.user_id").await?.is_none());
+    assert!(session.get_typed::<i64>("openrust.auth.user_id")?.is_none());
     assert!(
         session
-            .get::<String>("openrust.auth.csrf_hash")
-            .await?
+            .get_typed::<String>("openrust.auth.csrf_hash")?
             .is_none()
     );
     assert_eq!(
-        session.get::<String>("app.preference").await?,
+        session.get_typed::<String>("app.preference")?,
         Some("compact".to_owned())
     );
-    assert!(session_store.load(&logged_in_session_id).await?.is_none());
+    assert!(
+        session_store
+            .load(
+                &logged_in_session_id,
+                openrust::session::DEFAULT_MAX_BYTES,
+                time::OffsetDateTime::now_utc() + time::Duration::minutes(120)
+            )
+            .await?
+            .is_none()
+    );
     let revoked_session = session_router
         .clone()
         .oneshot(

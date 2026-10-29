@@ -33,6 +33,8 @@ pub mod runtime;
 pub mod schedule;
 #[cfg(feature = "encryption")]
 pub mod security;
+#[cfg(feature = "session")]
+pub mod session;
 #[cfg(feature = "signing")]
 pub mod signing;
 pub mod sms;

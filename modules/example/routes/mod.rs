@@ -8,6 +8,8 @@ pub(crate) use api::response_marker_middleware;
 #[allow(clippy::struct_excessive_bools)] // 编译能力独立决定示例路由是否可挂载。
 pub(crate) struct RouteCapabilities {
     pub(crate) database: bool,
+    #[cfg(feature = "session")]
+    pub(crate) session: bool,
     pub(crate) view: bool,
     pub(crate) i18n: bool,
     pub(crate) summary_origin: Option<String>,

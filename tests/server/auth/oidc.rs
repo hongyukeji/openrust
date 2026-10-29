@@ -19,6 +19,7 @@ use hmac::{Hmac, Mac, digest::KeyInit};
 #[cfg(feature = "auth-mfa")]
 use openrust::auth::MfaServiceProvider;
 use openrust::config::FrameworkConfig;
+use openrust::session::SessionStore as _;
 use openrust::testing::TestDatabase;
 use openrust::{
     Error, Result,
@@ -44,13 +45,12 @@ use openrust::{
 #[cfg(feature = "auth-mfa")]
 use sha1::Sha1;
 use sha2::Digest as _;
-use tower_sessions::session_store::SessionStore as _;
 
 type TestResult<T = ()> = std::result::Result<T, Box<dyn StdError>>;
 
 #[derive(Clone)]
 struct FailDeleteOnceStore {
-    inner: Arc<dyn tower_sessions::session_store::SessionStore>,
+    inner: Arc<dyn openrust::session::SessionStore>,
     fail_next_delete: Arc<AtomicBool>,
 }
 
@@ -60,39 +60,39 @@ impl std::fmt::Debug for FailDeleteOnceStore {
     }
 }
 
-#[async_trait::async_trait]
-impl tower_sessions::session_store::SessionStore for FailDeleteOnceStore {
-    async fn create(
-        &self,
-        session_record: &mut tower_sessions::session::Record,
-    ) -> tower_sessions::session_store::Result<()> {
-        self.inner.create(session_record).await
+impl openrust::session::SessionStore for FailDeleteOnceStore {
+    fn write<'a>(
+        &'a self,
+        record: &'a openrust::session::SessionRecord,
+        mode: openrust::session::SessionWriteMode,
+        max_bytes: usize,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<openrust::session::SessionWriteOutcome>>
+    {
+        self.inner.write(record, mode, max_bytes)
     }
-
-    async fn save(
-        &self,
-        session_record: &tower_sessions::session::Record,
-    ) -> tower_sessions::session_store::Result<()> {
-        self.inner.save(session_record).await
+    fn load<'a>(
+        &'a self,
+        id: &'a openrust::session::SessionId,
+        max_bytes: usize,
+        empty_expiry: time::OffsetDateTime,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<Option<openrust::session::SessionRecord>>>
+    {
+        self.inner.load(id, max_bytes, empty_expiry)
     }
-
-    async fn load(
-        &self,
-        session_id: &tower_sessions::session::Id,
-    ) -> tower_sessions::session_store::Result<Option<tower_sessions::session::Record>> {
-        self.inner.load(session_id).await
-    }
-
-    async fn delete(
-        &self,
-        session_id: &tower_sessions::session::Id,
-    ) -> tower_sessions::session_store::Result<()> {
-        if self.fail_next_delete.swap(false, Ordering::SeqCst) {
-            return Err(tower_sessions::session_store::Error::Backend(
-                "injected one-time Session delete failure".into(),
-            ));
-        }
-        self.inner.delete(session_id).await
+    fn delete<'a>(
+        &'a self,
+        id: &'a openrust::session::SessionId,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            if self.fail_next_delete.swap(false, Ordering::SeqCst) {
+                return Err(openrust::Error::custom_with_status(
+                    http::StatusCode::INTERNAL_SERVER_ERROR,
+                    "session_store_unavailable",
+                    "injected one-time Session delete failure",
+                ));
+            }
+            self.inner.delete(id).await
+        })
     }
 }
 
@@ -388,16 +388,26 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
         association.try_get::<String>("", "subject_hash")?,
         format!("{:x}", sha2::Sha256::digest("sub-1"))
     );
-    let memory_store = tower_sessions::MemoryStore::default();
+    let memory_store = openrust::session::MemorySessionStore::default();
     let session_store = SessionStoreHandle::new(memory_store.clone());
-    let session = Session::new(None, Arc::new(memory_store.clone()), None);
-    session.insert("openrust.auth.user_id", user_id).await?;
+    let session = Session::new(None, Arc::new(memory_store.clone()), None)?;
+    session.start().await?;
+    session.put("openrust.auth.user_id", user_id)?;
     session.save().await?;
-    let first_session_id = session.id().ok_or("Session ID was not assigned")?;
+    let first_session_id = session.id()?;
     external
         .attach_session(user_id, &association_handle, &session)
         .await?;
-    assert!(memory_store.load(&first_session_id).await?.is_some());
+    assert!(
+        memory_store
+            .load(
+                &first_session_id,
+                openrust::session::DEFAULT_MAX_BYTES,
+                time::OffsetDateTime::now_utc() + time::Duration::minutes(120)
+            )
+            .await?
+            .is_some()
+    );
     assert!(
         external
             .begin_logout(
@@ -431,7 +441,16 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
             .any(|(key, value)| key == "client_id" && value == "openrust-test-client")
     );
     assert!(refresh.rotate(&refresh_token).await.is_err());
-    assert!(memory_store.load(&first_session_id).await?.is_none());
+    assert!(
+        memory_store
+            .load(
+                &first_session_id,
+                openrust::session::DEFAULT_MAX_BYTES,
+                time::OffsetDateTime::now_utc() + time::Duration::minutes(120)
+            )
+            .await?
+            .is_none()
+    );
     assert_eq!(
         external
             .complete_logout("test-idp", logout.state())
@@ -445,7 +464,16 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
             .await
             .is_err()
     );
-    assert!(memory_store.load(&first_session_id).await?.is_none());
+    assert!(
+        memory_store
+            .load(
+                &first_session_id,
+                openrust::session::DEFAULT_MAX_BYTES,
+                time::OffsetDateTime::now_utc() + time::Duration::minutes(120)
+            )
+            .await?
+            .is_none()
+    );
 
     provider.set_identity(
         "second-login",
@@ -476,12 +504,11 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
         }
     };
     let second_refresh = second_credentials.refresh_token().expose().to_owned();
-    let second_session = Session::new(None, Arc::new(memory_store.clone()), None);
-    second_session
-        .insert("openrust.auth.user_id", user_id)
-        .await?;
+    let second_session = Session::new(None, Arc::new(memory_store.clone()), None)?;
+    second_session.start().await?;
+    second_session.put("openrust.auth.user_id", user_id)?;
     second_session.save().await?;
-    let second_session_id = second_session.id().ok_or("Session ID was not assigned")?;
+    let second_session_id = second_session.id()?;
     external
         .attach_session(user_id, &second_handle, &second_session)
         .await?;
@@ -538,7 +565,16 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
         BackchannelLogoutOutcome::Processed(1)
     );
     assert!(refresh.rotate(&second_refresh).await.is_err());
-    assert!(memory_store.load(&second_session_id).await?.is_none());
+    assert!(
+        memory_store
+            .load(
+                &second_session_id,
+                openrust::session::DEFAULT_MAX_BYTES,
+                time::OffsetDateTime::now_utc() + time::Duration::minutes(120)
+            )
+            .await?
+            .is_none()
+    );
     #[cfg(feature = "auth-mfa")]
     assert_eq!(
         count_rows(&connection, &db, "auth_mfa_challenges").await?,
@@ -656,7 +692,7 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
         }
     };
     #[cfg(feature = "session-redis")]
-    let retry_store: Arc<dyn tower_sessions::session_store::SessionStore> =
+    let retry_store: Arc<dyn openrust::session::SessionStore> =
         if let Ok(redis_url) = std::env::var("OPENRUST_TEST_SESSION_REDIS_URL") {
             Arc::new(
                 openrust::auth::RedisSessionStore::connect(
@@ -670,25 +706,31 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
                 "shared-session retry acceptance requires OPENRUST_TEST_SESSION_REDIS_URL".into(),
             );
         } else {
-            Arc::new(tower_sessions::MemoryStore::default())
+            Arc::new(openrust::session::MemorySessionStore::default())
         };
     #[cfg(not(feature = "session-redis"))]
-    let retry_store: Arc<dyn tower_sessions::session_store::SessionStore> =
-        Arc::new(tower_sessions::MemoryStore::default());
+    let retry_store: Arc<dyn openrust::session::SessionStore> =
+        Arc::new(openrust::session::MemorySessionStore::default());
     let retry_store_wrapper = FailDeleteOnceStore {
         inner: Arc::clone(&retry_store),
         fail_next_delete: Arc::new(AtomicBool::new(true)),
     };
     let retry_session_store = SessionStoreHandle::new(retry_store_wrapper.clone());
-    let retry_session = Session::new(None, Arc::new(retry_store_wrapper), None);
-    retry_session
-        .insert("openrust.auth.user_id", retry_user_id)
-        .await?;
+    let retry_session = Session::new(None, Arc::new(retry_store_wrapper), None)?;
+    retry_session.start().await?;
+    retry_session.put("openrust.auth.user_id", retry_user_id)?;
     retry_session.save().await?;
-    let retry_session_id = retry_session
-        .id()
-        .ok_or("Retry Session ID was not assigned")?;
-    assert!(retry_store.load(&retry_session_id).await?.is_some());
+    let retry_session_id = retry_session.id()?;
+    assert!(
+        retry_store
+            .load(
+                &retry_session_id,
+                openrust::session::DEFAULT_MAX_BYTES,
+                time::OffsetDateTime::now_utc() + time::Duration::minutes(120)
+            )
+            .await?
+            .is_some()
+    );
     external
         .attach_session(retry_user_id, &retry_handle, &retry_session)
         .await
@@ -704,7 +746,16 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
             .await
             .is_err()
     );
-    assert!(retry_store.load(&retry_session_id).await?.is_some());
+    assert!(
+        retry_store
+            .load(
+                &retry_session_id,
+                openrust::session::DEFAULT_MAX_BYTES,
+                time::OffsetDateTime::now_utc() + time::Duration::minutes(120)
+            )
+            .await?
+            .is_some()
+    );
     let retried_logout = external
         .begin_logout(
             retry_user_id,
@@ -715,7 +766,16 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
         .await
         .map_err(|error| format!("RP cleanup retry logout failed: {error:?}"))?;
     assert!(retried_logout.is_none());
-    assert!(retry_store.load(&retry_session_id).await?.is_none());
+    assert!(
+        retry_store
+            .load(
+                &retry_session_id,
+                openrust::session::DEFAULT_MAX_BYTES,
+                time::OffsetDateTime::now_utc() + time::Duration::minutes(120)
+            )
+            .await?
+            .is_none()
+    );
     assert_eq!(provider.authentication_calls.load(Ordering::SeqCst), 6);
     assert_eq!(
         count_rows(&connection, &db, "external_identities").await?,
@@ -911,16 +971,13 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
     };
     let local_only_user = local_only_credentials.user_id();
     let local_only_refresh = local_only_credentials.refresh_token().expose().to_owned();
-    let local_only_store = tower_sessions::MemoryStore::default();
+    let local_only_store = openrust::session::MemorySessionStore::default();
     let local_only_sessions = SessionStoreHandle::new(local_only_store.clone());
-    let local_only_session = Session::new(None, Arc::new(local_only_store.clone()), None);
-    local_only_session
-        .insert("openrust.auth.user_id", local_only_user)
-        .await?;
+    let local_only_session = Session::new(None, Arc::new(local_only_store.clone()), None)?;
+    local_only_session.start().await?;
+    local_only_session.put("openrust.auth.user_id", local_only_user)?;
     local_only_session.save().await?;
-    let local_only_session_id = local_only_session
-        .id()
-        .ok_or("local-only logout Session was not assigned")?;
+    let local_only_session_id = local_only_session.id()?;
     external
         .attach_session(local_only_user, &local_only_handle, &local_only_session)
         .await?;
@@ -941,7 +998,11 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
     assert!(refresh.rotate(&local_only_refresh).await.is_err());
     assert!(
         local_only_store
-            .load(&local_only_session_id)
+            .load(
+                &local_only_session_id,
+                openrust::session::DEFAULT_MAX_BYTES,
+                time::OffsetDateTime::now_utc() + time::Duration::minutes(120)
+            )
             .await?
             .is_none()
     );
@@ -1128,12 +1189,13 @@ async fn verify_external_mfa_completion(
         .ok_or("MFA OIDC association disappeared after completion")?
         .try_get("", "refresh_family_id")?;
     assert!(associated_family.is_some_and(|value| !value.is_empty()));
-    let session_store = tower_sessions::MemoryStore::default();
+    let session_store = openrust::session::MemorySessionStore::default();
     let sessions = SessionStoreHandle::new(session_store.clone());
-    let session = Session::new(None, Arc::new(session_store.clone()), None);
-    session.insert("openrust.auth.user_id", user_id).await?;
+    let session = Session::new(None, Arc::new(session_store.clone()), None)?;
+    session.start().await?;
+    session.put("openrust.auth.user_id", user_id)?;
     session.save().await?;
-    let session_id = session.id().ok_or("MFA OIDC Session was not assigned")?;
+    let session_id = session.id()?;
     external
         .attach_session(user_id, &handle, &session)
         .await
@@ -1150,7 +1212,16 @@ async fn verify_external_mfa_completion(
         .map_err(|error| format!("MFA test logout failed: {error:?}"))?
         .ok_or("MFA OIDC logout endpoint was not available")?;
     assert!(refresh.rotate(&refresh_token).await.is_err());
-    assert!(session_store.load(&session_id).await?.is_none());
+    assert!(
+        session_store
+            .load(
+                &session_id,
+                openrust::session::DEFAULT_MAX_BYTES,
+                time::OffsetDateTime::now_utc() + time::Duration::minutes(120)
+            )
+            .await?
+            .is_none()
+    );
     assert!(
         external
             .complete_logout("test-idp", redirect.state())

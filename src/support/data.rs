@@ -346,6 +346,20 @@ pub(crate) fn only(bag: &Value, keys: &[&str]) -> crate::Result<Value> {
     Ok(result)
 }
 
+/// Session `start` 的 `array_replace`；完整顶层键覆盖，不展开 dot 或重排旧键。
+#[cfg(feature = "session")]
+pub(crate) fn replace_root(current: Value, incoming: Value) -> crate::Result<Value> {
+    validate_limits(&current)?;
+    validate_limits(&incoming)?;
+    let mut values = entries(current);
+    for (key, value) in entries(incoming) {
+        values.insert(key, value);
+    }
+    let result = packed(values);
+    validate_limits(&result)?;
+    Ok(result)
+}
+
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,

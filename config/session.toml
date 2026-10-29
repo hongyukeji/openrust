@@ -1,9 +1,13 @@
 [session]
+# Cookie名称缺省按最终app.name推导；Secure缺省由可信传输信息决定。
+driver = "database"
 path = "/"
-secure = true
 http_only = true
 same_site = "lax"
-ttl_secs = 1209600
+lifetime = 120
+expire_on_close = false
+partitioned = false
+max_bytes = 20971520
 
 # 可选的独立数据库实例不会继承 [database] 配置：
 # [database.instances.analytics]

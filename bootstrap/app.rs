@@ -70,13 +70,14 @@ impl Application for Server {
             providers.push(Box::new(openrust::db::MigrationServiceProvider::<
                 openrust::db::FrameworkMigrator,
             >::new()));
+            #[cfg(feature = "session")]
+            providers.push(Box::new(openrust::session::SessionServiceProvider::new()));
             #[cfg(feature = "auth")]
             {
                 providers.push(Box::new(openrust::auth::JwtServiceProvider));
                 providers.push(Box::new(openrust::auth::AuthServiceProvider::new()));
                 providers.push(Box::new(openrust::audit::AuditServiceProvider::database()));
                 providers.push(Box::new(openrust::auth::AuthFlowsServiceProvider::new()));
-                providers.push(Box::new(openrust::auth::SessionServiceProvider::new()));
                 #[cfg(feature = "auth-mfa")]
                 providers.push(Box::new(openrust::auth::MfaServiceProvider));
             }
@@ -110,6 +111,10 @@ impl Application for Server {
         )
     }
 }
+
+#[cfg(all(test, feature = "session"))]
+#[path = "../tests/server/session/host_without_database.rs"]
+mod host_without_database;
 
 #[cfg(test)]
 mod tests {

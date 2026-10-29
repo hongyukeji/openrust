@@ -3,7 +3,7 @@
 > 重构状态：本文件记录当前依赖资产；[全面重构计划](plans/laravel-rebuild.md) 可按功能簇重新选型，新增/替换后同步这里。计划不等于依赖已安装或新后端已验收。
 
 > 受众：AI Agent
-> 更新：2026-10-26
+> 更新：2026-10-29
 > 摘要：当前依赖与 v1 规划选型分列。已声明版本以各 `Cargo.toml` 为准，实际解析版本以 `Cargo.lock` 为准；下表标为“待实现 / 待引入”的库、feature 和命令均不是当前可用入口。
 
 ## 运行时与 HTTP
@@ -13,8 +13,8 @@
 | 异步运行时 | `tokio` 1.x | 唯一运行时；启用 `io-util` 支持 HTTP 验收与异步 I/O、`fs` 支持本地缓存异步文件操作 |
 | HTTP | `axum` 0.8 + `tower` + `tower-http` | 路由、提取器、中间件；`tower-http` 启用 `fs` 提供静态目录/文件服务，`cors`、`compression-gzip`、`compression-br` 支持跨域与压缩，另有 request-id、trace、timeout、catch-panic；门面直接依赖并导出 `tower::ServiceExt` 供单依赖应用测试路由 |
 | 限流 | `openrust::core::RateLimiter` + `openrust::database::DatabaseRateLimitStore` | 已实现固定窗口服务与双库共享 store，AuthFlows 与通用 HTTP RateLimitLayer/key 策略已接入；gRPC 适配待实现，不额外依赖 governor |
-| Cookie | C04-C选用现锁中的 `cookie` 0.18.2作为直接HTTP依赖 | 独立于可选auth/tower-sessions使用Cookie值与time类型，避免HTTP反向依赖auth；请求队列/wire解析及加密接线按ADR-081实现中，尚未验收。加密复用现Encryptor，不新增密码算法或PHP运行时依赖 |
-| 会话 | `tower-sessions` 0.15；可选 Redis adapter 复用 `redis` 1.8.0 | 默认使用 SeaORM 数据库 store；`session-redis` feature 提供显式 `RedisSessionStore`，通过 `SessionPlugin::with_store` 选择；Redis 键与 TTL 语义见 ADR-017 |
+| Cookie | C04-C选用现锁中的 `cookie` 0.18.2作为直接HTTP依赖 | 独立于可选auth/session使用Cookie值与time类型，避免HTTP反向依赖auth；请求队列/wire解析及加密接线已按ADR-081完成C04-C子范围验收，完整Session/Web栈继续按后继执行。加密复用现Encryptor，不新增密码算法或PHP运行时依赖 |
+| 会话 | 唯一 `openrust::session`；复用现 `time`、`getrandom`、SeaORM 与可选 `redis` | 已移除tower-sessions；独立session feature，auth依赖session，session-redis不依赖auth。默认数据库、显式array/custom store，通过SessionServiceProvider装配；40位ID/属性flash与受管理请求生命周期见ADR-082。完整driver/Web生态未全交付 |
 | gRPC | 可选 `grpc` feature 使用 `tonic` / `tonic-prost` / `tonic-health` / `tonic-reflection` `~0.14.6`（当前 lock 解析为 0.14.7）、`prost` 0.14、`http-body-util` 0.1；应用代码生成用 `tonic-prost-build` `~0.14.6` | 显式启用 tonic `tls-ring`，并直接声明 `rustls` 0.23 ring 后端以在其他 TLS feature 同时启用时选定进程级 CryptoProvider，避免自动选择歧义；运行时依赖 MSRV 1.88，低于 workspace 1.97。默认构建不链接运行时或要求 `protoc`；生成应用使用 `protoc-bin-vendored` 3.3，不执行全局安装。rcgen 仅供独立 gRPC 示例生成临时测试证书。G2a TLS/mTLS、G2b JWT/PAT/Policy/Status、G2c 健康/reflection/调用预算/资源/有界停机、G3a HTTP/RPC 联合生命周期、G3b proto/trace 兼容及 G3c 双节点 HTTP/2 路由已完成对应验收；真实 L7 验收固定 Envoy 1.40.1。完整集群留在 M6，不自研 RPC 栈，见 ADR-040 |
 | 实时通信 | 可选 `realtime` 启用 Axum WebSocket 与在线 SSE；`realtime-redis` 复用 `redis` 1.8.0 Pub/Sub 跨节点路由 | 本地无 Redis 的 transport 是显式选择；跨节点没有静默本地回退。主包 dev-dependency 与独立验收宿主 `tests/consumers/realtime/` 使用 `tokio-tungstenite` 0.29 做真实 WebSocket 回归；独立宿主另用 `reqwest` 0.13、`futures-util` 与 `bytes` 做双进程 TCP/WebSocket/SSE 及停机验收；Redis 8 服务为验收依赖 |
 | OpenAPI | 规划 `utoipa` + `utoipa-axum`，尚未引入 | 类型 schema、统一响应文档与非生产 `/docs` 均待实现 |
@@ -29,6 +29,8 @@
 | 日期解析来源 | 固定 PHP 8.5.0 timelib、Carbon 3.8.4 与 PHP `math.c` 的 Rust 实现 | 不增加 PHP 运行时或 Cargo 依赖；timelib/Carbon 为 MIT，移植的 `number_format` HALF_UP 分支保留 PHP License 3.01 及版权。固定源码 SHA、再生成和边界见 [SOURCES](../../src/support/calendar/date/SOURCES.md)，完整授权原文随日期源码保留；Cargo deny 不代替这些非 crate 来源的许可记录。行为验收仍按 C04-B2，不以来源记录声明完整日期等价 |
 | cron 解析 | `cron-parser` 0.12（`queue` feature） | 只接受五字段表达式；可复用解析结果计算日历触发，DST gap 跳过且 fold 的两个绝对时刻有序返回，框架以本地 wall-slot 唯一键折叠重复分钟 |
 | ID | 已提供可选 UUIDv7，详见下表 `db-uuid` | 默认整数 ID；生成选项为 `--uuid-id`，不使用不存在的 `--uuid` |
+
+Session默认Cookie名的内部转写数据固定参考 `voku/portable-ascii` 2.0.2（commit `16c17671a804bb92602822113dd91fbc8a35d2af`），仅纳入默认英文路径可达的1468项映射，不新增Rust或PHP运行时依赖。Laravel仅声明兼容版本范围，不能把此参考固定值称为其已锁定解析版。映射、再生来源与完整许可位于 `src/session/name/` 及 `name.rs`；23项PHP名称参考结果与Rust名称测试按各自范围核验，C04-D1适用集成门禁已通过；这不等于完整PHP Session oracle。
 
 ## 数据
 
@@ -46,7 +48,7 @@
 | TOTP | `hmac` 0.13 + `sha1` 0.11 + `subtle` 2.6（均仅由 `auth-mfa` 启用） | 按 RFC 6238 实现 HMAC-SHA1 动态截断与常量时间码比较；锁文件中已有对应版本，新增直接依赖用于显式协议实现与 RFC 已知向量测试；seed 继续由现有 `Encryptor` 加密 |
 | 应用数据加密 | `aes-gcm-siv` 0.12.1（AES-256-GCM-SIV / RFC 8452）、`getrandom` 0.3、`base64` 0.22、`zeroize` 1.9.1 | `encryption` feature 固定 32-byte key、随机 nonce、认证 envelope 与 key ID 轮换；显式启用 AEAD crate 的 `zeroize` feature；不复用 JWT 签名密钥 |
 | 签名链接 | 既有 `jsonwebtoken` 11.1、`base64` 0.22、`getrandom` 0.3、`sha2` 0.10 | 可选 `signing` feature 固定 HS256 和用途专属 key ring；逐条撤销用 PostgreSQL/MySQL 共享存储；未新增依赖 |
-| JWT、锁与幂等 owner randomness | `base64` 0.22 + 必需依赖 `getrandom` 0.3 | 操作系统 CSPRNG 生成 JWT jti、refresh credential、共享锁与请求幂等 owner token；共享锁令该依赖不再按认证/队列/加密 feature 可选 |
+| JWT、锁与幂等 owner randomness | `base64` 0.22 + 必需依赖 `getrandom` 0.3 | 操作系统 CSPRNG 生成 JWT jti、refresh credential、共享锁、请求幂等 owner token及Session ID；共享锁令该依赖不再按认证/队列/加密 feature 可选。启用std错误集成；Session随机错误仍转安全内部I/O错误，独立consumer不依赖根dev feature统一 |
 
 ## 异步能力与 driver
 

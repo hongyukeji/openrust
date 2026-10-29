@@ -7,6 +7,8 @@ mod modules;
 mod request_cookie;
 #[path = "support/request_input.rs"]
 mod request_input;
+#[path = "support/request_session.rs"]
+mod request_session;
 #[path = "../routes/web.rs"]
 mod routes;
 
@@ -75,6 +77,19 @@ async fn generated_application_exposes_cookie_contract() -> Result<(), Box<dyn s
     .merge(Toml::string(
         "[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
     ));
-    request_cookie::assert_request_cookie::<GeneratedApplication>(source).await?;
+    request_cookie::assert_request_cookie::<GeneratedApplication>(source, false).await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn generated_application_exposes_session_lifecycle() -> Result<(), Box<dyn std::error::Error>>
+{
+    let source = Figment::from(Serialized::defaults(
+        openrust::config::FrameworkConfig::default(),
+    ))
+    .merge(Toml::string(
+        "[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
+    ));
+    request_session::assert_request_session::<GeneratedApplication>(source, false).await?;
     Ok(())
 }

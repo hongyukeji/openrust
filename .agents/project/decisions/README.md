@@ -35,6 +35,7 @@
 | [078 请求检查与内容协商](adr-078-request-inspection.md) | Accepted | RequestInfo 不消费body，复用authority与类型化提取器；固定Laravel/Symfony协商行为和有界headers |
 | [079 统一请求输入](adr-079-request-input.md) | Accepted | body-owning Request复用输入bags；Json/Query共享规范化和有界解析，原文保留 |
 | [081 请求Cookie与响应队列](adr-081-request-response-cookies.md) | Accepted（C04-C 子簇已验收） | 请求隔离queue、wire与bag分层、复用现Session/Encryptor；名称绑定与响应加密顺序 |
+| [082 统一Session状态与flash生命周期](adr-082-session-store-and-flash.md) | Accepted（C04-D1限定子范围已验收） | 唯一Session/公开store、40位ID与属性/flash、请求保存生命周期；保留防复活安全增强，完整Web栈仍开放 |
 | [009 可扩展驱动](adr-009-extensible-capability-drivers.md) | Accepted | 统一入口、公开扩展、后端能力与真实验收 |
 | [010 Seed](adr-010-database-seeding.md) | Partially Superseded | 目标约束按 ADR-070 重开；应用提供 seed 函数，不做平行 ORM 工厂 |
 | [016 中性命名空间](adr-016-neutral-application-namespaces.md) | Partially Superseded | 目标约束按 ADR-070 重开；默认 APP_、tb_ 与可定制解析，替代 006 的旧品牌前缀 |

@@ -53,3 +53,6 @@ pub(crate) mod realtime;
 pub(crate) mod tenant;
 #[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
 pub(crate) mod welcome;
+
+#[cfg(feature = "session")]
+pub(crate) mod session;

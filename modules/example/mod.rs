@@ -302,3 +302,7 @@ pub(crate) fn descriptor(
     let _ = uses_database;
     descriptor
 }
+
+#[cfg(all(test, feature = "session"))]
+#[path = "tests/session_flows.rs"]
+mod session_flows;

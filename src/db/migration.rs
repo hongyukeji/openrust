@@ -24,6 +24,12 @@ impl MigratorTrait for FrameworkMigrator {
             Box::new(crate::audit::DatabaseAuditMigration),
             Box::new(crate::audit::DatabaseAuditTenantMigration),
         ];
+        #[cfg(all(feature = "session", not(feature = "auth")))]
+        let migrations = {
+            let mut migrations = migrations;
+            migrations.push(Box::new(crate::session::SessionMigration));
+            migrations
+        };
         #[cfg(feature = "auth")]
         let migrations = {
             let mut migrations = migrations;

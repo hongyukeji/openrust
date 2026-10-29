@@ -28,7 +28,7 @@
 
 当前交付依赖是 R1-S结构/挂载 → R2基础Container/Provider/配置/TestApp（A–D 已验收）→ R2-M模块契约/目录迁移 → R1-E真实CRUD与当前能力演示（已由 bc3fa01 提交）→ R2-N模块硬依赖与启动顺序（本簇已验收）→ R3–R16逐簇实现并同步示例。R2-D 测试应用由生产 Provider/Router 同路径构建，但不代表完整模块管理已完成；R1-E 的 Article、租户、附件、通信、观测等生产路径与 R2-N 证据分别记录于 [testing.md](memory/testing.md)。模块完整管理与 Laravel 严格 1:1 范围继续保留。
 
-C04-A/B1/B2与C04-C均按各自子簇验收；C04-C按ADR-081完成Cookie/响应闭环，最终默认668/全特性1241、根双库各48、生成plain3/认证双库各2、真实TLS及适用fmt/Clippy/docs/feature/MSRV/deny通过，产物已清理，本簇限定提交见Git。后继从todo领取C04-D Session/flash与Web栈契约；完整C04仍开放。详细范围与历史证据见[todo](todo.md)及[testing](memory/testing.md)。
+C04-A/B1/B2/C与C04-D1均按各自子簇验收。D1以唯一公开Session领域替换旧tower运行时，最终默认668/29ignored、全特性1300/102ignored，双库完整模块HTTP各53、Auth各8、浏览器各4、模块OIDC各8、真实Keycloak主流程各1、三类生成与Session真实TLS均有实际证据；忽略项和PHP候选不冒充完成。根网络/完整12项门禁通过，限定提交见Git；资源收尾见testing。下一从唯一todo领取C04-D2 Store公开API补齐；完整Session/CSRF/Web栈与C04仍开放。
 
 ## 路由
 

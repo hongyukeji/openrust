@@ -94,8 +94,7 @@ pub(crate) async fn session_logout(
 const DENSITY_KEY: &str = "example.account.density";
 pub(crate) async fn preference(_user: CurrentUser, session: Session) -> Result<Response> {
     let density = session
-        .get::<Density>(DENSITY_KEY)
-        .await
+        .get_typed::<Density>(DENSITY_KEY)
         .map_err(Error::internal)?
         .unwrap_or_default();
     Ok(private(serde_json::json!({"density":density})))
@@ -106,8 +105,7 @@ pub(crate) async fn set_preference(
     Json(input): Json<PreferenceInput>,
 ) -> Result<Response> {
     session
-        .insert(DENSITY_KEY, input.density)
-        .await
+        .put(DENSITY_KEY, input.density)
         .map_err(Error::internal)?;
     Ok(private(serde_json::json!({"density":input.density})))
 }

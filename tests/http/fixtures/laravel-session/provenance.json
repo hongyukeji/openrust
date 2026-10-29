@@ -1,0 +1,767 @@
+{
+  "format_version": 1,
+  "evidence_status": "source_candidate",
+  "oracle_executed": false,
+  "original_candidate": {
+    "filename": "openrust-c04d-session-fixture-cases.json",
+    "sha256": "e942edef437416bc696a97fa3ec08ec1150f8776f4da329a4238d9e732082a09",
+    "case_count": 38,
+    "original_evidence_status": "source_candidate",
+    "original_oracle_executed": false
+  },
+  "original_source_manifest": {
+    "filename": "source-manifest.json",
+    "sha256": "af65021e2e31bcc5e241c195d5bbad022dcbff5426d8c105229292d2ab927bba"
+  },
+  "persisted_files_sha256": {
+    "source-cases.json": "25054a1e68715d13400f23b1be7df7be81b280ba089fa1ee54d8b67d7c2f626b",
+    "source-manifest.json": "cb8fd4453a7873a855827e1de61f3e733191d648a6004e20ceedfb63ef241137"
+  },
+  "migration_changes": [
+    "Task-local absolute runtime/source-manifest paths replaced by relative files and descriptive runtime provenance.",
+    "All 38 original case IDs, operations, expected returns/attributes and fixed source locations preserved without semantic edits.",
+    "Fixed official source URLs/refs/SHA256 and failed retrievals retained; no upstream PHP source text copied.",
+    "Static Rust assertion mapping is not a candidate runner, PHP oracle execution or Rust test result."
+  ],
+  "cargo_boundary": {
+    "php_required": false,
+    "task_temp_paths_required": false,
+    "candidate_json_runner_registered": false,
+    "note": "These files are persistent provenance/candidate data. Default Cargo does not require a task-local PHP executable or source cache."
+  },
+  "coverage_status_definitions": {
+    "related_behavior_assertions": "Relevant explicit assertions located by reading current Rust source, not exact candidate replay or a claimed runtime result.",
+    "partial_assertions": "Only part of the branch/sequence is asserted; retain remaining edge for direct verification.",
+    "not_mapped": "No direct assertion mapping identified; pending verification."
+  },
+  "coverage_counts": {
+    "partial_assertions": 13,
+    "related_behavior_assertions": 25,
+    "not_mapped": 0
+  },
+  "rust_source_snapshots": {
+    "tests/http/session.rs": "bd9034ff59c3e8f4906711d14f49ce0eda2578c303fee9a28ecf081c5f8b131d",
+    "src/session/attributes.rs": "45374771b519d59a88a865592103621e35e5aace4a077237e6de5c6a2e4263b0",
+    "tests/http/session_http.rs": "b48f541b0ae931550d4a01b3cd80dfeef1d7d5e7239a97df5043e55e0931bbc1",
+    "tests/http/session_source_cases.rs": "009cd7db9aca0e4670f13de478d0d55f2f33d08410e67eec16530184d45d213f"
+  },
+  "case_mappings": [
+    {
+      "case_id": "get_missing_uses_default",
+      "status": "partial_assertions",
+      "rust_tests": [
+        {
+          "file": "tests/http/session.rs",
+          "test": "expiry_variants_and_typed_reading_use_public_contracts",
+          "line_at_snapshot": 433,
+          "qualified_test": "expiry_variants_and_typed_reading_use_public_contracts",
+          "cargo_target": "http_session"
+        }
+      ],
+      "notes": "Missing typed/lazy values are tested; exact get_or(missing, fallback) is not replayed.",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": false
+    },
+    {
+      "case_id": "get_null_does_not_use_default",
+      "status": "related_behavior_assertions",
+      "rust_tests": [
+        {
+          "file": "tests/http/session.rs",
+          "test": "expiry_variants_and_typed_reading_use_public_contracts",
+          "line_at_snapshot": 433,
+          "qualified_test": "expiry_variants_and_typed_reading_use_public_contracts",
+          "cargo_target": "http_session"
+        }
+      ],
+      "notes": "Stored null explicitly bypasses get_or fallback; PHP calls this get(key, default).",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": false
+    },
+    {
+      "case_id": "get_falsy_values_stay_distinct",
+      "status": "partial_assertions",
+      "rust_tests": [
+        {
+          "file": "src/session/attributes.rs",
+          "test": "null_falsy_multi_key_and_empty_presence_are_distinct",
+          "line_at_snapshot": 556,
+          "qualified_test": "session::attributes::tests::null_falsy_multi_key_and_empty_presence_are_distinct",
+          "cargo_target": "openrust --lib"
+        }
+      ],
+      "notes": "Falsy presence is checked; the exact three get return values are not separately replayed.",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": false
+    },
+    {
+      "case_id": "get_default_is_lazy_only_for_missing",
+      "status": "partial_assertions",
+      "rust_tests": [
+        {
+          "file": "tests/http/session.rs",
+          "test": "expiry_variants_and_typed_reading_use_public_contracts",
+          "line_at_snapshot": 433,
+          "qualified_test": "expiry_variants_and_typed_reading_use_public_contracts",
+          "cargo_target": "http_session"
+        }
+      ],
+      "notes": "Missing callback reentrancy is checked; existing-key callback-not-called counter is not asserted.",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": false
+    },
+    {
+      "case_id": "get_literal_dot_precedes_nested",
+      "status": "related_behavior_assertions",
+      "rust_tests": [
+        {
+          "file": "src/session/attributes.rs",
+          "test": "literal_dot_null_and_wildcard_match_arr_get",
+          "line_at_snapshot": 485,
+          "qualified_test": "session::attributes::tests::literal_dot_null_and_wildcard_match_arr_get",
+          "cargo_target": "openrust --lib"
+        }
+      ],
+      "notes": "Complete literal dot key takes precedence over nested path.",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": false
+    },
+    {
+      "case_id": "put_dot_does_not_replace_existing_literal_key",
+      "status": "related_behavior_assertions",
+      "rust_tests": [
+        {
+          "file": "src/session/attributes.rs",
+          "test": "literal_dot_null_and_wildcard_match_arr_get",
+          "line_at_snapshot": 485,
+          "qualified_test": "session::attributes::tests::literal_dot_null_and_wildcard_match_arr_get",
+          "cargo_target": "openrust --lib"
+        }
+      ],
+      "notes": "Dot write does not replace the existing literal key.",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": false
+    },
+    {
+      "case_id": "forget_literal_dot_then_nested_is_visible",
+      "status": "partial_assertions",
+      "rust_tests": [
+        {
+          "file": "src/session/attributes.rs",
+          "test": "only_is_top_level_and_except_uses_literal_then_dot_in_original_order",
+          "line_at_snapshot": 573,
+          "qualified_test": "session::attributes::tests::only_is_top_level_and_except_uses_literal_then_dot_in_original_order",
+          "cargo_target": "openrust --lib"
+        }
+      ],
+      "notes": "except snapshot asserts literal removal and nested sibling preservation, not exact mutating forget-then-get.",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": false
+    },
+    {
+      "case_id": "pull_literal_dot_then_nested_is_visible",
+      "status": "related_behavior_assertions",
+      "rust_tests": [
+        {
+          "file": "src/session/attributes.rs",
+          "test": "literal_dot_null_and_wildcard_match_arr_get",
+          "line_at_snapshot": 485,
+          "qualified_test": "session::attributes::tests::literal_dot_null_and_wildcard_match_arr_get",
+          "cargo_target": "openrust --lib"
+        }
+      ],
+      "notes": "Pull literal key exposes nested value.",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": false
+    },
+    {
+      "case_id": "put_replaces_scalar_intermediate",
+      "status": "partial_assertions",
+      "rust_tests": [
+        {
+          "file": "src/session/attributes.rs",
+          "test": "writes_preserve_values_and_bulk_is_atomic",
+          "line_at_snapshot": 594,
+          "qualified_test": "session::attributes::tests::writes_preserve_values_and_bulk_is_atomic",
+          "cargo_target": "openrust --lib"
+        }
+      ],
+      "notes": "Related writes exist; exact scalar intermediate replacement is not independently asserted.",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": false
+    },
+    {
+      "case_id": "put_replaces_null_intermediate",
+      "status": "partial_assertions",
+      "rust_tests": [
+        {
+          "file": "src/session/attributes.rs",
+          "test": "writes_preserve_values_and_bulk_is_atomic",
+          "line_at_snapshot": 594,
+          "qualified_test": "session::attributes::tests::writes_preserve_values_and_bulk_is_atomic",
+          "cargo_target": "openrust --lib"
+        }
+      ],
+      "notes": "Null/path writes exist; resulting child is later overwritten before an independent assertion.",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": false
+    },
+    {
+      "case_id": "put_bulk_obeys_given_order",
+      "status": "related_behavior_assertions",
+      "rust_tests": [
+        {
+          "file": "src/session/attributes.rs",
+          "test": "writes_preserve_values_and_bulk_is_atomic",
+          "line_at_snapshot": 594,
+          "qualified_test": "session::attributes::tests::writes_preserve_values_and_bulk_is_atomic",
+          "cargo_target": "openrust --lib"
+        }
+      ],
+      "notes": "Ordered path/parent bulk writes have an explicit final-value assertion.",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": false
+    },
+    {
+      "case_id": "get_star_is_literal_not_wildcard",
+      "status": "related_behavior_assertions",
+      "rust_tests": [
+        {
+          "file": "src/session/attributes.rs",
+          "test": "literal_dot_null_and_wildcard_match_arr_get",
+          "line_at_snapshot": 485,
+          "qualified_test": "session::attributes::tests::literal_dot_null_and_wildcard_match_arr_get",
+          "cargo_target": "openrust --lib"
+        }
+      ],
+      "notes": "Star and brace-like path elements remain literal.",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": false
+    },
+    {
+      "case_id": "has_vs_exists_null",
+      "status": "related_behavior_assertions",
+      "rust_tests": [
+        {
+          "file": "src/session/attributes.rs",
+          "test": "null_falsy_multi_key_and_empty_presence_are_distinct",
+          "line_at_snapshot": 556,
+          "qualified_test": "session::attributes::tests::null_falsy_multi_key_and_empty_presence_are_distinct",
+          "cargo_target": "openrust --lib"
+        }
+      ],
+      "notes": "Null presence differs between has and exists.",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": false
+    },
+    {
+      "case_id": "has_falsy_is_true",
+      "status": "related_behavior_assertions",
+      "rust_tests": [
+        {
+          "file": "src/session/attributes.rs",
+          "test": "null_falsy_multi_key_and_empty_presence_are_distinct",
+          "line_at_snapshot": 556,
+          "qualified_test": "session::attributes::tests::null_falsy_multi_key_and_empty_presence_are_distinct",
+          "cargo_target": "openrust --lib"
+        }
+      ],
+      "notes": "False, zero and empty string remain present.",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": false
+    },
+    {
+      "case_id": "has_and_exists_multi_key_all_semantics",
+      "status": "related_behavior_assertions",
+      "rust_tests": [
+        {
+          "file": "src/session/attributes.rs",
+          "test": "null_falsy_multi_key_and_empty_presence_are_distinct",
+          "line_at_snapshot": 556,
+          "qualified_test": "session::attributes::tests::null_falsy_multi_key_and_empty_presence_are_distinct",
+          "cargo_target": "openrust --lib"
+        }
+      ],
+      "notes": "All-key presence and missing member are checked.",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": false
+    },
+    {
+      "case_id": "has_and_exists_empty_keys_vacuously_true",
+      "status": "related_behavior_assertions",
+      "rust_tests": [
+        {
+          "file": "src/session/attributes.rs",
+          "test": "null_falsy_multi_key_and_empty_presence_are_distinct",
+          "line_at_snapshot": 556,
+          "qualified_test": "session::attributes::tests::null_falsy_multi_key_and_empty_presence_are_distinct",
+          "cargo_target": "openrust --lib"
+        }
+      ],
+      "notes": "Empty has/exists list is true.",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": false
+    },
+    {
+      "case_id": "nested_exists_includes_null",
+      "status": "partial_assertions",
+      "rust_tests": [
+        {
+          "file": "src/session/attributes.rs",
+          "test": "null_falsy_multi_key_and_empty_presence_are_distinct",
+          "line_at_snapshot": 556,
+          "qualified_test": "session::attributes::tests::null_falsy_multi_key_and_empty_presence_are_distinct",
+          "cargo_target": "openrust --lib"
+        }
+      ],
+      "notes": "Root null presence is checked, not the exact nested null sequence.",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": false
+    },
+    {
+      "case_id": "pull_present_null_then_missing_default",
+      "status": "partial_assertions",
+      "rust_tests": [
+        {
+          "file": "src/session/attributes.rs",
+          "test": "null_falsy_multi_key_and_empty_presence_are_distinct",
+          "line_at_snapshot": 556,
+          "qualified_test": "session::attributes::tests::null_falsy_multi_key_and_empty_presence_are_distinct",
+          "cargo_target": "openrust --lib"
+        }
+      ],
+      "notes": "Some(Null) then None is checked; PHP missing fallback corresponds to Rust pull_or, not pull.",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": false
+    },
+    {
+      "case_id": "pull_missing_does_not_insert_default",
+      "status": "partial_assertions",
+      "rust_tests": [
+        {
+          "file": "src/session/attributes.rs",
+          "test": "null_falsy_multi_key_and_empty_presence_are_distinct",
+          "line_at_snapshot": 556,
+          "qualified_test": "session::attributes::tests::null_falsy_multi_key_and_empty_presence_are_distinct",
+          "cargo_target": "openrust --lib"
+        }
+      ],
+      "notes": "Missing pull result is checked; exact default-return plus absence-after-call sequence is not replayed.",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": false
+    },
+    {
+      "case_id": "forget_many_preserves_unselected_siblings",
+      "status": "partial_assertions",
+      "rust_tests": [
+        {
+          "file": "src/session/attributes.rs",
+          "test": "only_is_top_level_and_except_uses_literal_then_dot_in_original_order",
+          "line_at_snapshot": 573,
+          "qualified_test": "session::attributes::tests::only_is_top_level_and_except_uses_literal_then_dot_in_original_order",
+          "cargo_target": "openrust --lib"
+        }
+      ],
+      "notes": "Related snapshot sibling retention is checked, not exact multi-key forget.",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": false
+    },
+    {
+      "case_id": "forget_empty_list_is_noop",
+      "status": "related_behavior_assertions",
+      "rust_tests": [
+        {
+          "file": "tests/http/session_source_cases.rs",
+          "test": "forget_empty_list_keeps_attributes_and_persists",
+          "line_at_snapshot": 115,
+          "qualified_test": "forget_empty_list_keeps_attributes_and_persists",
+          "cargo_target": "http_session_source_cases"
+        }
+      ],
+      "notes": "直接公开Session回归已补齐；Rust函数在最终workspace测试中通过，但不表示PHP oracle已执行或38项候选全量差分。",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": true
+    },
+    {
+      "case_id": "forget_missing_nested_keeps_scalar_parent",
+      "status": "related_behavior_assertions",
+      "rust_tests": [
+        {
+          "file": "tests/http/session_source_cases.rs",
+          "test": "forget_missing_nested_key_keeps_scalar_parent_and_persists",
+          "line_at_snapshot": 133,
+          "qualified_test": "forget_missing_nested_key_keeps_scalar_parent_and_persists",
+          "cargo_target": "http_session_source_cases"
+        }
+      ],
+      "notes": "直接公开Session回归已补齐；Rust函数在最终workspace测试中通过，但不表示PHP oracle已执行或38项候选全量差分。",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": true
+    },
+    {
+      "case_id": "flash_available_now_and_next_request_then_expires",
+      "status": "related_behavior_assertions",
+      "rust_tests": [
+        {
+          "file": "tests/http/session.rs",
+          "test": "flash_crosses_exactly_one_next_request_and_now_expires_on_save",
+          "line_at_snapshot": 214,
+          "qualified_test": "flash_crosses_exactly_one_next_request_and_now_expires_on_save",
+          "cargo_target": "http_session"
+        }
+      ],
+      "notes": "Public three-handle lifecycle checks flash now/next and disappearance.",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": false
+    },
+    {
+      "case_id": "now_deleted_at_first_save",
+      "status": "related_behavior_assertions",
+      "rust_tests": [
+        {
+          "file": "tests/http/session.rs",
+          "test": "flash_crosses_exactly_one_next_request_and_now_expires_on_save",
+          "line_at_snapshot": 214,
+          "qualified_test": "flash_crosses_exactly_one_next_request_and_now_expires_on_save",
+          "cargo_target": "http_session"
+        }
+      ],
+      "notes": "Public save/next request checks now disappears.",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": false
+    },
+    {
+      "case_id": "reflash_extends_old_one_more_request",
+      "status": "partial_assertions",
+      "rust_tests": [
+        {
+          "file": "src/session/attributes.rs",
+          "test": "diff_and_unique_preserve_sparse_indices_and_flash_duplicates",
+          "line_at_snapshot": 673,
+          "qualified_test": "session::attributes::tests::diff_and_unique_preserve_sparse_indices_and_flash_duplicates",
+          "cargo_target": "openrust --lib"
+        }
+      ],
+      "notes": "Old/new merge is checked; complete reflash multi-request sequence is not replayed.",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": false
+    },
+    {
+      "case_id": "now_then_reflash_survives_save",
+      "status": "related_behavior_assertions",
+      "rust_tests": [
+        {
+          "file": "src/session/attributes.rs",
+          "test": "reflash_promotes_now_and_keep_empty_is_not_reflash",
+          "line_at_snapshot": 653,
+          "qualified_test": "session::attributes::tests::reflash_promotes_now_and_keep_empty_is_not_reflash",
+          "cargo_target": "openrust --lib"
+        }
+      ],
+      "notes": "now plus reflash survives internal age.",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": false
+    },
+    {
+      "case_id": "keep_selected_old_preserves_sparse_metadata_indices",
+      "status": "related_behavior_assertions",
+      "rust_tests": [
+        {
+          "file": "src/session/attributes.rs",
+          "test": "diff_and_unique_preserve_sparse_indices_and_flash_duplicates",
+          "line_at_snapshot": 673,
+          "qualified_test": "session::attributes::tests::diff_and_unique_preserve_sparse_indices_and_flash_duplicates",
+          "cargo_target": "openrust --lib"
+        }
+      ],
+      "notes": "keep preserves sparse old metadata and selected values across age.",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": false
+    },
+    {
+      "case_id": "keep_can_mark_normal_value_as_flash",
+      "status": "related_behavior_assertions",
+      "rust_tests": [
+        {
+          "file": "src/session/attributes.rs",
+          "test": "reflash_promotes_now_and_keep_empty_is_not_reflash",
+          "line_at_snapshot": 653,
+          "qualified_test": "session::attributes::tests::reflash_promotes_now_and_keep_empty_is_not_reflash",
+          "cargo_target": "openrust --lib"
+        }
+      ],
+      "notes": "keep can age an ordinary value as flash.",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": false
+    },
+    {
+      "case_id": "keep_missing_does_not_create_value",
+      "status": "related_behavior_assertions",
+      "rust_tests": [
+        {
+          "file": "src/session/attributes.rs",
+          "test": "reflash_promotes_now_and_keep_empty_is_not_reflash",
+          "line_at_snapshot": 653,
+          "qualified_test": "session::attributes::tests::reflash_promotes_now_and_keep_empty_is_not_reflash",
+          "cargo_target": "openrust --lib"
+        }
+      ],
+      "notes": "keep does not create the missing attribute.",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": false
+    },
+    {
+      "case_id": "keep_no_arguments_is_not_reflash",
+      "status": "related_behavior_assertions",
+      "rust_tests": [
+        {
+          "file": "src/session/attributes.rs",
+          "test": "reflash_promotes_now_and_keep_empty_is_not_reflash",
+          "line_at_snapshot": 653,
+          "qualified_test": "session::attributes::tests::reflash_promotes_now_and_keep_empty_is_not_reflash",
+          "cargo_target": "openrust --lib"
+        }
+      ],
+      "notes": "Empty keep does not extend old flash.",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": false
+    },
+    {
+      "case_id": "flash_then_now_deletes_same_key_at_save",
+      "status": "related_behavior_assertions",
+      "rust_tests": [
+        {
+          "file": "src/session/attributes.rs",
+          "test": "flash_now_order_and_explicit_repeated_aging_are_observable",
+          "line_at_snapshot": 635,
+          "qualified_test": "session::attributes::tests::flash_now_order_and_explicit_repeated_aging_are_observable",
+          "cargo_target": "openrust --lib"
+        }
+      ],
+      "notes": "flash then now removes the shared key at age.",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": false
+    },
+    {
+      "case_id": "now_then_flash_keeps_same_key_for_next_request",
+      "status": "related_behavior_assertions",
+      "rust_tests": [
+        {
+          "file": "src/session/attributes.rs",
+          "test": "flash_now_order_and_explicit_repeated_aging_are_observable",
+          "line_at_snapshot": 635,
+          "qualified_test": "session::attributes::tests::flash_now_order_and_explicit_repeated_aging_are_observable",
+          "cargo_target": "openrust --lib"
+        }
+      ],
+      "notes": "now then flash retains shared key for the next age.",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": false
+    },
+    {
+      "case_id": "flash_duplicate_push_is_not_implicitly_deduplicated",
+      "status": "related_behavior_assertions",
+      "rust_tests": [
+        {
+          "file": "src/session/attributes.rs",
+          "test": "diff_and_unique_preserve_sparse_indices_and_flash_duplicates",
+          "line_at_snapshot": 673,
+          "qualified_test": "session::attributes::tests::diff_and_unique_preserve_sparse_indices_and_flash_duplicates",
+          "cargo_target": "openrust --lib"
+        }
+      ],
+      "notes": "Repeated flash push preserves duplicate tracking entries.",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": false
+    },
+    {
+      "case_id": "reflash_merge_unique_preserves_sparse_indices",
+      "status": "related_behavior_assertions",
+      "rust_tests": [
+        {
+          "file": "src/session/attributes.rs",
+          "test": "diff_and_unique_preserve_sparse_indices_and_flash_duplicates",
+          "line_at_snapshot": 673,
+          "qualified_test": "session::attributes::tests::diff_and_unique_preserve_sparse_indices_and_flash_duplicates",
+          "cargo_target": "openrust --lib"
+        }
+      ],
+      "notes": "array_unique-like merge retains first values and sparse integer keys.",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": false
+    },
+    {
+      "case_id": "explicit_age_then_save_ages_twice",
+      "status": "partial_assertions",
+      "rust_tests": [
+        {
+          "file": "src/session/attributes.rs",
+          "test": "flash_now_order_and_explicit_repeated_aging_are_observable",
+          "line_at_snapshot": 635,
+          "qualified_test": "session::attributes::tests::flash_now_order_and_explicit_repeated_aging_are_observable",
+          "cargo_target": "openrust --lib"
+        }
+      ],
+      "notes": "Repeated internal age is related; PHP age_flash_data plus Store save is not replayed, and age is not a public Rust Session method.",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": false
+    },
+    {
+      "case_id": "two_explicit_saves_advance_flash_twice_in_same_store",
+      "status": "related_behavior_assertions",
+      "rust_tests": [
+        {
+          "file": "tests/http/session.rs",
+          "test": "each_explicit_save_ages_flash_including_a_second_save_in_one_request",
+          "line_at_snapshot": 239,
+          "qualified_test": "each_explicit_save_ages_flash_including_a_second_save_in_one_request",
+          "cargo_target": "http_session"
+        }
+      ],
+      "notes": "Two public save calls explicitly advance flash twice.",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": false
+    },
+    {
+      "case_id": "unchanged_session_still_writes_each_explicit_save",
+      "status": "partial_assertions",
+      "rust_tests": [
+        {
+          "file": "tests/http/session_http.rs",
+          "test": "public_extractors_share_one_handle_and_unchanged_requests_still_age_flash",
+          "line_at_snapshot": 274,
+          "qualified_test": "public_extractors_share_one_handle_and_unchanged_requests_still_age_flash",
+          "cargo_target": "http_session_http"
+        }
+      ],
+      "notes": "Read-only HTTP requests increment writes; exact repeated identical token-only payload candidate is not replayed.",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": false
+    },
+    {
+      "case_id": "forget_flash_value_does_not_implicitly_clear_tracking",
+      "status": "related_behavior_assertions",
+      "rust_tests": [
+        {
+          "file": "tests/http/session_source_cases.rs",
+          "test": "forget_flash_value_keeps_tracking_through_save_and_next_request",
+          "line_at_snapshot": 151,
+          "qualified_test": "forget_flash_value_keeps_tracking_through_save_and_next_request",
+          "cargo_target": "http_session_source_cases"
+        }
+      ],
+      "notes": "直接公开Session回归已补齐；Rust函数在最终workspace测试中通过，但不表示PHP oracle已执行或38项候选全量差分。",
+      "exact_candidate_sequence_replayed": false,
+      "php_oracle_executed": false,
+      "rust_test_execution_claimed": true
+    }
+  ],
+  "representation_and_scope_notes": [
+    {
+      "topic": "Default/null API",
+      "classification": "Rust API adaptation",
+      "note": "PHP get(key, default) maps to Rust get_or/get_or_else. get/pull return Option<Value> so stored null differs from missing. Candidate operation names remain PHP source names."
+    },
+    {
+      "topic": "Flash age visibility",
+      "classification": "Visibility adaptation",
+      "note": "PHP age_flash_data candidates describe source operations. Rust age is internal Attributes logic; public save performs aging. No public Rust age API is implied."
+    },
+    {
+      "topic": "PHP hidden next-free index",
+      "classification": "JSON/serde representation adaptation",
+      "operations": [
+        "initial _flash.new=[a,b]",
+        "forget(_flash.new.1)",
+        "flash(x,1)"
+      ],
+      "php_hidden_index_result": {
+        "0": "a",
+        "2": "x"
+      },
+      "rust_visible_json_result": [
+        "a",
+        "x"
+      ],
+      "reference": "../../../../.agents/project/decisions/adr-082-session-store-and-flash.md",
+      "rust_regression": {
+        "file": "src/session/attributes.rs",
+        "test": "manually_trimmed_flash_metadata_uses_visible_json_next_index"
+      },
+      "note": "Approved representation difference is recorded separately; original source candidates are not rewritten to hide it."
+    },
+    {
+      "topic": "Safety/resource and service scope",
+      "classification": "Additional Rust contract",
+      "note": "Key/tree/whole-record bounds and revocation/Insert-Update behavior have separate tests. These candidates do not prove every boundary, real database/Redis behavior or complete Web stack parity."
+    }
+  ],
+  "static_validation": {
+    "json_parsed": true,
+    "source_hashes_verified": 14,
+    "source_location_ranges_verified": true,
+    "mapped_test_names_found": true,
+    "php_store_executed": false,
+    "cargo_executed": false,
+    "cargo_executed_note": "cargo_executed=false仅描述最初静态资料迁移；后补三测试实际执行见supplemental_rust_execution，不外推其余候选。"
+  },
+  "remaining": [
+    "Run a real fixed Laravel Store oracle only when a faithful PHP runtime and required official dependencies are available; recorded probes lacked native ctype_alnum and SessionHandlerInterface.",
+    "Add direct assertions/replay for partial_assertions edges. Existing source assertions are not proof that the original 38 candidates were executed.",
+    "Finite candidate sequences do not establish equivalence for all PHP values, drivers, serialization modes or the full Laravel Web stack."
+  ],
+  "path_conventions": {
+    "source_manifest_and_provenance": "relative to this fixture directory",
+    "rust_source_snapshots_and_rust_tests": "relative to repository root",
+    "fixed_source_locations": "relative to the fixed Laravel repository ref",
+    "representation_reference": "relative to this fixture directory"
+  },
+  "supplemental_rust_execution": {
+    "tests": [
+      "forget_empty_list_keeps_attributes_and_persists",
+      "forget_missing_nested_key_keeps_scalar_parent_and_persists",
+      "forget_flash_value_keeps_tracking_through_save_and_next_request"
+    ],
+    "evidence": "最终C04-D1 workspace all-features测试，入口见.agents/project/memory/testing.md",
+    "source_sha256": "009cd7db9aca0e4670f13de478d0d55f2f33d08410e67eec16530184d45d213f",
+    "php_oracle_executed": false,
+    "all_38_candidates_replayed": false
+  }
+}

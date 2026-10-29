@@ -41,6 +41,7 @@ pub mod realtime;
 #[cfg(feature = "encryption")]
 pub mod security;
 pub mod server;
+pub mod session;
 pub mod signing;
 pub mod sms;
 pub mod storage;
@@ -49,7 +50,7 @@ pub mod view;
 
 pub use api::{ApiConfig, HttpStatusMode};
 pub use app::{AppConfig, Environment};
-pub use auth::{JwtConfig, PasswordConfig, SessionConfig};
+pub use auth::{JwtConfig, PasswordConfig};
 pub use cache::{CacheConfig, CacheSingleflightConfig, CacheStoreConfig, CacheSwrConfig};
 pub use database::{DatabaseConfig, DatabaseInstanceConfig};
 #[cfg(feature = "grpc")]
@@ -63,6 +64,7 @@ pub use realtime::RealtimeConfig;
 #[cfg(feature = "encryption")]
 pub use security::EncryptionConfig;
 pub use server::{CompressionConfig, CorsConfig, ServerConfig};
+pub use session::SessionConfig;
 pub use signing::SignedLinksConfig;
 pub use sms::SmsConfig;
 pub use storage::{StorageConfig, StorageDiskConfig};
@@ -346,6 +348,10 @@ impl ConfigLoader {
     }
 
     /// 构建分层 [`Figment`]；显式目录或已发现文件无效时立即失败。
+    #[allow(
+        clippy::too_many_lines,
+        reason = "顺序列出文件、通用别名与命名空间环境层，避免隐藏配置优先级"
+    )]
     pub fn figment(&self) -> Result<Figment, ConfigError> {
         // 领域配置文件相互独立，按文件名稳定合并；环境差异由 .env 与进程变量表达。
         let mut figment = Figment::from(Serialized::defaults(FrameworkConfig::default()));
@@ -369,60 +375,88 @@ impl ConfigLoader {
                 "queue": { "redis_url": redis_url }
             })));
         }
-        let figment = figment.merge(
-            Env::prefixed("")
-                .only(&[
-                    "PORT",
-                    "DB_TABLE_PREFIX",
-                    "REDIS_DEFAULT_STORE",
-                    "QUEUE_DRIVER",
-                    "MAIL_DRIVER",
-                    "MAIL_SMTP_HOST",
-                    "MAIL_SMTP_PORT",
-                    "MAIL_SMTP_STARTTLS",
-                    "MAIL_SMTP_USERNAME",
-                    "MAIL_SMTP_PASSWORD",
-                    "SMS_ACCOUNT_SID",
-                    "SMS_API_KEY_SID",
-                    "SMS_API_KEY_SECRET",
-                    "SMS_FROM",
-                    "SMS_MESSAGING_SERVICE_SID",
-                    "SMS_DRIVER",
-                    "I18N_DEFAULT_LOCALE",
-                ])
-                .map(|key| match key.as_str() {
-                    "PORT" => "server.port".into(),
-                    "DB_TABLE_PREFIX" => "database.table_prefix".into(),
-                    "REDIS_DEFAULT_STORE" => "cache.default_store".into(),
-                    "QUEUE_DRIVER" => "queue.driver".into(),
-                    "MAIL_DRIVER" => "mail.driver".into(),
-                    "MAIL_SMTP_HOST" => "mail.smtp_host".into(),
-                    "MAIL_SMTP_PORT" => "mail.smtp_port".into(),
-                    "MAIL_SMTP_STARTTLS" => "mail.smtp_starttls".into(),
-                    "MAIL_SMTP_USERNAME" => "mail.smtp_username".into(),
-                    "MAIL_SMTP_PASSWORD" => "mail.smtp_password".into(),
-                    "SMS_DRIVER" => "sms.driver".into(),
-                    "SMS_ACCOUNT_SID" => "sms.account_sid".into(),
-                    "SMS_API_KEY_SID" => "sms.api_key_sid".into(),
-                    "SMS_API_KEY_SECRET" => "sms.api_key_secret".into(),
-                    "SMS_FROM" => "sms.from".into(),
-                    "SMS_MESSAGING_SERVICE_SID" => "sms.messaging_service_sid".into(),
-                    "I18N_DEFAULT_LOCALE" => "i18n.default_locale".into(),
-                    _ => key.into(),
-                })
-                .split("."),
-        );
-        let figment = figment.merge(
-            Env::prefixed(&self.namespace)
-                .filter(|key| {
-                    key != "ENV"
-                        && key != "CONFIG_DIR"
-                        && key != "SERVER_PORT"
-                        && !key.as_str().contains("__")
-                })
-                .map(|key| flat_environment_path(key.as_str()).into())
-                .split("."),
-        );
+        let figment = figment
+            .merge(
+                Env::prefixed("")
+                    .only(&[
+                        "PORT",
+                        "DB_TABLE_PREFIX",
+                        "REDIS_DEFAULT_STORE",
+                        "QUEUE_DRIVER",
+                        "MAIL_DRIVER",
+                        "MAIL_SMTP_HOST",
+                        "MAIL_SMTP_PORT",
+                        "MAIL_SMTP_STARTTLS",
+                        "MAIL_SMTP_USERNAME",
+                        "MAIL_SMTP_PASSWORD",
+                        "SMS_ACCOUNT_SID",
+                        "SMS_API_KEY_SID",
+                        "SMS_API_KEY_SECRET",
+                        "SMS_FROM",
+                        "SMS_MESSAGING_SERVICE_SID",
+                        "SMS_DRIVER",
+                        "I18N_DEFAULT_LOCALE",
+                        "SESSION_DRIVER",
+                        "SESSION_COOKIE",
+                        "SESSION_LIFETIME",
+                        "SESSION_EXPIRE_ON_CLOSE",
+                        "SESSION_PATH",
+                        "SESSION_DOMAIN",
+                        "SESSION_SECURE_COOKIE",
+                        "SESSION_HTTP_ONLY",
+                        "SESSION_SAME_SITE",
+                        "SESSION_PARTITIONED_COOKIE",
+                    ])
+                    .map(|key| match key.as_str() {
+                        "PORT" => "server.port".into(),
+                        "DB_TABLE_PREFIX" => "database.table_prefix".into(),
+                        "REDIS_DEFAULT_STORE" => "cache.default_store".into(),
+                        "QUEUE_DRIVER" => "queue.driver".into(),
+                        "MAIL_DRIVER" => "mail.driver".into(),
+                        "MAIL_SMTP_HOST" => "mail.smtp_host".into(),
+                        "MAIL_SMTP_PORT" => "mail.smtp_port".into(),
+                        "MAIL_SMTP_STARTTLS" => "mail.smtp_starttls".into(),
+                        "MAIL_SMTP_USERNAME" => "mail.smtp_username".into(),
+                        "MAIL_SMTP_PASSWORD" => "mail.smtp_password".into(),
+                        "SMS_DRIVER" => "sms.driver".into(),
+                        "SMS_ACCOUNT_SID" => "sms.account_sid".into(),
+                        "SMS_API_KEY_SID" => "sms.api_key_sid".into(),
+                        "SMS_API_KEY_SECRET" => "sms.api_key_secret".into(),
+                        "SMS_FROM" => "sms.from".into(),
+                        "SMS_MESSAGING_SERVICE_SID" => "sms.messaging_service_sid".into(),
+                        "I18N_DEFAULT_LOCALE" => "i18n.default_locale".into(),
+                        "SESSION_DRIVER" => "session.driver".into(),
+                        "SESSION_COOKIE" => "session.cookie".into(),
+                        "SESSION_LIFETIME" => "session.lifetime".into(),
+                        "SESSION_EXPIRE_ON_CLOSE" => "session.expire_on_close".into(),
+                        "SESSION_PATH" => "session.path".into(),
+                        "SESSION_DOMAIN" => "session.domain".into(),
+                        "SESSION_SECURE_COOKIE" => "session.secure".into(),
+                        "SESSION_HTTP_ONLY" => "session.http_only".into(),
+                        "SESSION_SAME_SITE" => "session.same_site".into(),
+                        "SESSION_PARTITIONED_COOKIE" => "session.partitioned".into(),
+
+                        _ => key.into(),
+                    })
+                    .split("."),
+            )
+            .merge(Serialized::defaults(session_environment_nulls("", true)));
+        let figment = figment
+            .merge(
+                Env::prefixed(&self.namespace)
+                    .filter(|key| {
+                        key != "ENV"
+                            && key != "CONFIG_DIR"
+                            && key != "SERVER_PORT"
+                            && !key.as_str().contains("__")
+                    })
+                    .map(|key| flat_environment_path(key.as_str()).into())
+                    .split("."),
+            )
+            .merge(Serialized::defaults(session_environment_nulls(
+                &self.namespace,
+                false,
+            )));
         // 仅确认来源有效，不在此提前提取尚未注册的领域配置类型。
         let _: figment::value::Value = figment.extract()?;
         Ok(figment)
@@ -476,6 +510,37 @@ impl ConfigLoader {
         let mut config: FrameworkConfig = self.load()?;
         config.app.env = self.env;
         Ok(config)
+    }
+}
+
+// Laravel env 将未加引号的 null/(null) 视为 null；Figment 默认仍把它当字符串。
+// 只修正本簇声明的 nullable Session 字段，且保留每层环境源的通常优先级。
+fn session_environment_nulls(namespace: &str, conventional: bool) -> serde_json::Value {
+    let mut fields = serde_json::Map::new();
+    for (suffix, field) in [
+        ("DRIVER", "driver"),
+        ("COOKIE", "cookie"),
+        ("DOMAIN", "domain"),
+        (
+            if conventional {
+                "SECURE_COOKIE"
+            } else {
+                "SECURE"
+            },
+            "secure",
+        ),
+        ("SAME_SITE", "same_site"),
+    ] {
+        if std::env::var(format!("{namespace}SESSION_{suffix}")).is_ok_and(|value| {
+            value.eq_ignore_ascii_case("null") || value.eq_ignore_ascii_case("(null)")
+        }) {
+            fields.insert(field.into(), serde_json::Value::Null);
+        }
+    }
+    if fields.is_empty() {
+        serde_json::json!({})
+    } else {
+        serde_json::json!({"session":fields})
     }
 }
 
@@ -829,7 +894,7 @@ mod tests {
         {
             let _: Option<crate::auth::JwtConfig> = None::<auth::JwtConfig>;
             let _: Option<crate::auth::PasswordConfig> = None::<auth::PasswordConfig>;
-            let _: Option<crate::auth::SessionConfig> = None::<auth::SessionConfig>;
+            let _: Option<crate::auth::SessionConfig> = None::<SessionConfig>;
         }
         #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
         {

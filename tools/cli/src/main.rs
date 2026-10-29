@@ -708,6 +708,10 @@ fn populate_project_with_mfa(
             "tests/support/request_cookie.rs",
             include_str!("../templates/tests/support/request_cookie.rs").to_owned(),
         ));
+        files.push((
+            "tests/support/request_session.rs",
+            include_str!("../templates/tests/support/request_session.rs").to_owned(),
+        ));
     }
     if auth {
         files.push((
@@ -771,6 +775,14 @@ fn auth_test_template(crate_name: &str, encryption: bool, auth_mfa: bool, grpc: 
     let mut template = include_str!("../templates/tests/auth_flows.rs")
         .replace("OpenRustGeneratedApplication", crate_name)
         .replace("{{encryption_config}}", encryption_config)
+        .replace(
+            "{{session_protection_assertion}}",
+            if encryption {
+                "    assert!(registered.session_cookie_is_protected);"
+            } else {
+                "    assert!(!registered.session_cookie_is_protected);"
+            },
+        )
         .replace(
             "{{grpc_module}}",
             if grpc {
@@ -847,7 +859,7 @@ fn cargo_manifest(
 ) -> String {
     let mut manifest = include_str!("../templates/Cargo.toml").replace("{{name}}", name);
     {
-        let mut features = vec!["cache-redis", "view"];
+        let mut features = vec!["cache-redis", "view", "session"];
         if let Some(database) = database {
             features.push(database.feature());
         }
@@ -939,7 +951,7 @@ fn app_source(
             "\n        providers.push(Box::new(openrust::db::DatabaseServiceProvider));",
         );
         if auth {
-            providers.push_str("\n        providers.push(Box::new(openrust::auth::JwtServiceProvider));\n        providers.push(Box::new(openrust::auth::AuthServiceProvider::new()));\n        providers.push(Box::new(openrust::audit::AuditServiceProvider::database()));\n        providers.push(Box::new(\n            openrust::signing::SignedLinksServiceProvider::new()\n                .with_database_revocations_from_app(),\n        ));");
+            providers.push_str("\n        providers.push(Box::new(openrust::session::SessionServiceProvider::new()));\n        providers.push(Box::new(openrust::auth::JwtServiceProvider));\n        providers.push(Box::new(openrust::auth::AuthServiceProvider::new()));\n        providers.push(Box::new(openrust::audit::AuditServiceProvider::database()));\n        providers.push(Box::new(\n            openrust::signing::SignedLinksServiceProvider::new()\n                .with_database_revocations_from_app(),\n        ));");
         }
         if encryption {
             providers.push_str("\n        providers.push(Box::new(openrust::security::EncryptionServiceProvider));");
@@ -2755,6 +2767,7 @@ mod tests {
             "tests/test_app.rs",
             "tests/support/request_input.rs",
             "tests/support/request_cookie.rs",
+            "tests/support/request_session.rs",
             "AGENTS.md",
         ] {
             assert!(project.join(path).is_file(), "missing generated {path}");
@@ -2778,6 +2791,7 @@ mod tests {
             "tests/test_app.rs",
             "tests/support/request_input.rs",
             "tests/support/request_cookie.rs",
+            "tests/support/request_session.rs",
             "AGENTS.md",
         ]
         .into_iter()

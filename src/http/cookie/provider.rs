@@ -83,6 +83,12 @@ impl ServiceProvider for CookieServiceProvider {
     }
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
+            if self.factory.is_none() {
+                let repository = app.config_repository();
+                app.validate_at_finalize(move || {
+                    Box::pin(async move { factory_from_repository(&repository).map(|_| ()) })
+                });
+            }
             let protection = if self.plain {
                 Protection::Plain
             } else {
@@ -124,28 +130,18 @@ fn factory_from_repository(
     let mut factory = CookieFactory::default();
     if repository.source_has_section("session")? {
         let config: Defaults = repository.section("session")?;
-        let same_site = match config
-            .same_site
-            .as_deref()
-            .unwrap_or_default()
-            .to_ascii_lowercase()
-            .as_str()
-        {
-            "lax" => Some(super::SameSite::Lax),
-            "strict" => Some(super::SameSite::Strict),
-            "none" => Some(super::SameSite::None),
-            "" => None,
-            _ => {
-                return Err(crate::Error::custom(
-                    "cookie_parameters_invalid",
-                    "session.same_site 必须为有效 Cookie 策略",
-                ));
-            }
+        let defaults = crate::config::SessionConfig {
+            path: config.path.unwrap_or_else(|| "/".to_owned()),
+            domain: config.domain,
+            secure: config.secure,
+            same_site: config.same_site,
+            ..crate::config::SessionConfig::default()
         };
+        let same_site = defaults.validate_cookie_defaults()?;
         factory.set_default_path_and_domain(
-            config.path.unwrap_or_else(|| "/".to_owned()),
-            config.domain,
-            config.secure,
+            defaults.path,
+            defaults.domain,
+            defaults.secure,
             same_site,
         )?;
     }

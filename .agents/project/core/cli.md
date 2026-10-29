@@ -6,6 +6,8 @@
 
 ## 当前实现
 
+- C04-D1生成模板接入公开Session契约：认证项目装配正式数据库SessionProvider，plain测试才显式追加memory；请求共享句柄、flash/now/null与opaque Cookie往返由生成的request_session/request_cookie helper验证。Session表通过AuthMigration纳入，不能再重复注册独立SessionMigration；本簇最终重验结果见[testing](../memory/testing.md)。
+
 - 应用端口使用 `APP_PORT`（自定义命名空间对应 `<前缀>PORT`），生成 `.env.example` 在 `APP_URL="http://localhost:${APP_PORT}"` 前声明 `APP_PORT=3000`；内部配置字段仍为 `server.port`。
 
 - `openrust new <目标目录>` 从源码 workspace 创建独立应用，支持相对/绝对目标，不修改源 workspace；应用拥有自己的 Cargo.lock，本地 framework/tool 路径明确解析。

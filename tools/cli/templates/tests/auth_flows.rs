@@ -10,6 +10,8 @@ mod modules;
 mod request_cookie;
 #[path = "support/request_input.rs"]
 mod request_input;
+#[path = "support/request_session.rs"]
+mod request_session;
 #[path = "../routes/web.rs"]
 mod routes;
 #[path = "../database/seeders.rs"]
@@ -181,6 +183,9 @@ async fn run_auth_flow(
     assert_eq!(registered.status, StatusCode::OK);
     assert_eq!(registered.body["success"], true);
     assert_eq!(registered.body["data"]["status"], "accepted");
+    assert_eq!(registered.set_cookie_count, 1);
+    // 不记录 Cookie 原文；保护模式须改变40字节会话ID的wire表示，往返另有正式helper覆盖。
+{{session_protection_assertion}}
 
     let verification_code = mail.latest_code()?;
     let unverified_login = post(
@@ -368,6 +373,8 @@ async fn run_auth_flow(
 struct HttpResponse {
     status: StatusCode,
     body: serde_json::Value,
+    set_cookie_count: usize,
+    session_cookie_is_protected: bool,
 }
 
 async fn post(
@@ -438,9 +445,27 @@ async fn request(
         .and_then(|line| line.split_ascii_whitespace().nth(1))
         .ok_or("HTTP response omitted status")?
         .parse::<u16>()?;
+    let set_cookies = headers
+        .lines()
+        .filter_map(|line| {
+            let (name, value) = line.split_once(':')?;
+            name.eq_ignore_ascii_case("set-cookie")
+                .then_some(value.trim())
+        })
+        .collect::<Vec<_>>();
+    let session_cookie_is_protected = set_cookies
+        .first()
+        .and_then(|wire| {
+            wire.split(';').next()?.split_once('=').map(|(_, value)| {
+                value.len() != 40 || !value.bytes().all(|byte| byte.is_ascii_alphanumeric())
+            })
+        })
+        .unwrap_or(false);
     Ok(HttpResponse {
         status: StatusCode::from_u16(status)?,
         body: serde_json::from_str(body)?,
+        set_cookie_count: set_cookies.len(),
+        session_cookie_is_protected,
     })
 }
 
@@ -477,7 +502,9 @@ async fn generated_test_app_overrides_mailer_for_registration() -> TestResult {
     let mut app = builder.build().await?;
     let result = bounded_auth_business(async {
         request_input::assert_request_input::<GeneratedApplication>(input_source.clone()).await?;
-        request_cookie::assert_request_cookie::<GeneratedApplication>(input_source).await?;
+        request_cookie::assert_request_cookie::<GeneratedApplication>(input_source.clone(), true)
+            .await?;
+        request_session::assert_request_session::<GeneratedApplication>(input_source, true).await?;
         let payload =
             serde_json::json!({"email": "testapp@example.test", "password": "initial-password"});
         let request = Request::builder()

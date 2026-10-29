@@ -50,7 +50,7 @@ impl Fixture {
             "cache":{"default_store":"default","stores":{"default":{"driver":"memory"}}},
             "auth":{"jwt":{"issuer":ORIGIN,"audience":"account-tests","active_key_id":"test","keys":{"test":key}}},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":ORIGIN,"active_key_id":"test","keys":{"test":key}}},
-            "session":{"secure":false,"cookie_name":"example_account_session","same_site":"strict"}
+            "session":{"secure":false,"cookie":"example_account_session","same_site":"strict"}
         })));
         let app = TestApp::<crate::bootstrap::Server>::builder(source)
             .build()

@@ -1643,14 +1643,13 @@ impl ExternalIdentityFlows {
 
         if user_id <= 0
             || session
-                .get::<i64>(AUTH_USER_ID_KEY)
-                .await
+                .get_typed::<i64>(AUTH_USER_ID_KEY)
                 .map_err(Error::internal)?
                 != Some(user_id)
         {
             return Err(Error::Unauthorized);
         }
-        let id = session.id().ok_or(Error::Unauthorized)?.to_string();
+        let id = session.id()?.to_string();
         let handle_hash = digest(handle.expose());
         let encrypted = self
             .encryptor

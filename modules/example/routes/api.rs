@@ -49,6 +49,14 @@ pub(super) fn register(routes: Routes, capabilities: &RouteCapabilities) -> Rout
             RouteGroup::new().middleware_group("example.response"),
             |routes| routes.get("/api/example/middleware", controllers::example::middleware),
         );
+    #[cfg(feature = "session")]
+    let routes = if capabilities.session {
+        routes
+            .get("/api/example/session", controllers::session::show)
+            .post("/api/example/session", controllers::session::store)
+    } else {
+        routes
+    };
     let routes = if capabilities.i18n {
         routes
             .get(

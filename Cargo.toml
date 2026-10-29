@@ -53,13 +53,12 @@ axum = { version = "0.8", features = ["macros"] }
 axum-core = "0.5"
 tower = "0.5"
 tower-http = { version = "0.7", features = ["trace", "request-id", "timeout", "catch-panic", "util", "cors", "compression-gzip", "compression-br", "fs"] }
-tower-sessions = { version = "0.15", default-features = false, features = ["axum-core"] }
 cookie = { version = "0.18.2", features = ["percent-encode"] }
 jsonwebtoken = { version = "11.1", default-features = false, features = ["aws_lc_rs", "use_pem"] }
 argon2 = "0.6"
 aes-gcm-siv = { version = "0.12.1", default-features = false, features = ["aes", "alloc", "zeroize"] }
 base64 = "0.22"
-getrandom = "0.3"
+getrandom = { version = "0.3", features = ["std"] }
 http = "1.5"
 http-body = "1"
 http-body-util = "0.1"
@@ -186,7 +185,6 @@ time = { workspace = true, optional = true }
 tokio.workspace = true
 tower.workspace = true
 tower-http.workspace = true
-tower-sessions = { workspace = true, optional = true }
 toml.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
@@ -219,7 +217,6 @@ tracing-opentelemetry = { workspace = true, optional = true }
 figment = { workspace = true, features = ["test"] }
 tokio-tungstenite = "0.29"
 serde_json.workspace = true
-tower-sessions = { workspace = true, features = ["memory-store"] }
 tokio-stream.workspace = true
 
 axum.workspace = true
@@ -248,13 +245,14 @@ default = ["cache-redis"]
 db-postgres = ["sea-orm/sqlx-postgres", "sea-orm-migration/sqlx-postgres"]
 db-mysql = ["sea-orm/sqlx-mysql", "sea-orm-migration/sqlx-mysql", "dep:sqlx", "sqlx/mysql"]
 db-uuid = ["dep:uuid", "sea-orm/with-uuid", "sea-orm-migration/with-uuid"]
+session = ["dep:time"]
 auth = [
+    "session",
     "dep:argon2",
     "dep:base64",
     "dep:jsonwebtoken",
     "dep:subtle",
     "dep:time",
-    "dep:tower-sessions",
     "signing",
 ]
 queue = ["dep:cron-parser"]
@@ -277,7 +275,7 @@ otel = ["dep:opentelemetry", "dep:opentelemetry_sdk", "dep:opentelemetry-otlp", 
 realtime = ["auth", "axum/ws", "dep:uuid"]
 realtime-redis = ["realtime", "dep:redis"]
 cache-redis = ["dep:redis"]
-session-redis = ["auth", "dep:redis"]
+session-redis = ["session", "dep:redis"]
 storage-local = ["dep:opendal"]
 storage-s3 = [
     "storage-local",
@@ -465,3 +463,38 @@ opt-level = 0
 [profile.dev.package."*"]
 # 依赖以 O2 编译一次后缓存，显著缩短开发期增量构建。
 opt-level = 2
+
+[[test]]
+name = "http_session"
+path = "tests/http/session.rs"
+required-features = ["session"]
+
+[[test]]
+name = "http_session_store"
+path = "tests/http/session_store.rs"
+required-features = ["session", "auth"]
+
+[[test]]
+name = "http_session_http"
+path = "tests/http/session_http.rs"
+required-features = ["session"]
+
+[[test]]
+name = "http_session_redis_store"
+path = "tests/http/session_redis_store.rs"
+required-features = ["session-redis"]
+
+[[test]]
+name = "http_session_config"
+path = "tests/http/session_config.rs"
+required-features = ["session"]
+
+[[test]]
+name = "http_session_source_cases"
+path = "tests/http/session_source_cases.rs"
+required-features = ["session"]
+
+[[test]]
+name = "http_session_env"
+path = "tests/http/session_env.rs"
+required-features = ["session"]

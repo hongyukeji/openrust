@@ -34,8 +34,7 @@ impl DatabaseAuthenticator {
             .session()
             .ok_or_else(|| Error::internal(MissingSession))?;
         let user_id = session
-            .get::<i64>(AUTH_USER_ID_KEY)
-            .await
+            .get_typed::<i64>(AUTH_USER_ID_KEY)
             .map_err(Error::internal)?
             .ok_or(Error::Unauthorized)?;
         let sql = match backend {
@@ -60,8 +59,7 @@ impl DatabaseAuthenticator {
                 .csrf_token()
                 .ok_or_else(|| Error::Forbidden("invalid CSRF token".into()))?;
             let stored = session
-                .get::<String>(AUTH_CSRF_HASH_KEY)
-                .await
+                .get_typed::<String>(AUTH_CSRF_HASH_KEY)
                 .map_err(Error::internal)?;
             let Some(stored) = stored else {
                 return Err(Error::Forbidden("invalid CSRF token".into()));

@@ -5,6 +5,8 @@ pub mod calendar;
 mod collection;
 pub(crate) mod data;
 mod finite;
+#[cfg(feature = "session")]
+pub(crate) use finite::Finite;
 mod fluent;
 mod number;
 pub(crate) mod php_variables;

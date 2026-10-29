@@ -141,6 +141,13 @@ impl Cookie {
         self.expires
     }
 
+    /// 返回设置Partitioned标记的Cookie，保留其余属性。
+    #[must_use]
+    pub fn with_partitioned(mut self, partitioned: bool) -> Self {
+        self.partitioned = partitioned;
+        self
+    }
+
     /// 复制 Cookie 并替换值，保留全部属性；非法应用参数返回安全 500 错误。
     pub fn with_value(&self, value: String) -> crate::Result<Self> {
         self.replace_value(value, invalid)

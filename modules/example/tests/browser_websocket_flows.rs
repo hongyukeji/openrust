@@ -63,6 +63,59 @@ struct Fixture {
     password: String,
     _storage: tempfile::TempDir,
 }
+// 测试专属 driver 只收紧正式数据库记录截止，保留原生浏览器秒级到期场景。
+#[derive(Clone)]
+struct ShortSessionStore {
+    inner: openrust::session::DatabaseSessionStore,
+    ttl: time::Duration,
+}
+impl openrust::session::SessionStore for ShortSessionStore {
+    fn load<'a>(
+        &'a self,
+        id: &'a openrust::session::SessionId,
+        max_bytes: usize,
+        empty_expiry: time::OffsetDateTime,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<Option<openrust::session::SessionRecord>>>
+    {
+        openrust::session::SessionStore::load(&self.inner, id, max_bytes, empty_expiry)
+    }
+    fn write<'a>(
+        &'a self,
+        record: &'a openrust::session::SessionRecord,
+        mode: openrust::session::SessionWriteMode,
+        max_bytes: usize,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<openrust::session::SessionWriteOutcome>>
+    {
+        Box::pin(async move {
+            let mut record = record.clone();
+            record.expiry_date = record
+                .expiry_date
+                .min(time::OffsetDateTime::now_utc() + self.ttl);
+            if mode == openrust::session::SessionWriteMode::Update {
+                let Some(existing) = openrust::session::SessionStore::load(
+                    &self.inner,
+                    &record.id,
+                    max_bytes,
+                    record.expiry_date,
+                )
+                .await?
+                else {
+                    return Ok(openrust::session::SessionWriteOutcome::Missing);
+                };
+                // 握手也会保存 Session；短期 fixture 不允许该保存延后原授权截止。
+                record.expiry_date = record.expiry_date.min(existing.expiry_date);
+            }
+            openrust::session::SessionStore::write(&self.inner, &record, mode, max_bytes).await
+        })
+    }
+    fn delete<'a>(
+        &'a self,
+        id: &'a openrust::session::SessionId,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        openrust::session::SessionStore::delete(&self.inner, id)
+    }
+}
+
 impl Fixture {
     async fn create(ttl: u64) -> TestResult<Self> {
         Self::create_with_listener(ttl, None).await
@@ -103,12 +156,26 @@ impl Fixture {
             "storage":{"default_disk":"local","disks":{"local":{"driver":"fs","root":storage.path()}}},
             "auth":{"jwt":{"issuer":origin,"audience":"browser-socket","active_key_id":"test","keys":{"test":key}}},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":origin,"active_key_id":"test","keys":{"test":key}}},
-            "session":{"cookie_name":COOKIE,"secure":false,"http_only":true,"same_site":"strict","ttl_secs":ttl},
+            "session":{"cookie":COOKIE,"secure":false,"http_only":true,"same_site":"strict"},
             "realtime":{"max_connections":1,"max_message_bytes":256,"heartbeat_interval_secs":1,"allowed_origins":[origin]}
         })));
-        let app = TestApp::<crate::bootstrap::Server>::builder(sources)
-            .build()
-            .await?;
+        let ttl = time::Duration::seconds(i64::try_from(ttl)?);
+        let mut builder = TestApp::<crate::bootstrap::Server>::builder(sources);
+        builder.configure_after_register(move |bindings| {
+            bindings.singleton::<openrust::session::SessionStoreHandle, _>(move |resolver| {
+                Box::pin(async move {
+                    let db = resolver.resolve::<Db>().await?;
+                    Ok(std::sync::Arc::new(
+                        openrust::session::SessionStoreHandle::new(ShortSessionStore {
+                            inner: openrust::session::DatabaseSessionStore::new((*db).clone()),
+                            ttl,
+                        }),
+                    ))
+                })
+            });
+            Ok(())
+        });
+        let app = builder.build().await?;
         let flows = app.app()?.state().resolve::<AuthFlows>().await?;
         let mut owner_id = None;
         for (index, email) in [owner_email.as_str(), other_email.as_str()]
@@ -382,6 +449,18 @@ async fn browser_socket_closes_at_persisted_session_expiry() -> TestResult {
         let deadline: SystemTime = expiry.into();
         tokio::time::sleep(Duration::from_secs(2)).await;
         let mut socket = f.connect().await?;
+        let row = connection
+            .query_one_raw(Statement::from_string(
+                connection.get_database_backend(),
+                format!("SELECT expires_at FROM {table} ORDER BY expires_at DESC LIMIT 1"),
+            ))
+            .await?
+            .ok_or("persisted Session missing after handshake")?;
+        let after: chrono::DateTime<chrono::Utc> = row.try_get("", "expires_at")?;
+        assert!(
+            after <= expiry,
+            "WebSocket handshake extended fixture Session expiry"
+        );
         let remaining = deadline.duration_since(SystemTime::now())? + Duration::from_millis(500);
         tokio::time::timeout(remaining, closed(&mut socket)).await??;
         if let Ok(remaining) = deadline.duration_since(SystemTime::now()) {

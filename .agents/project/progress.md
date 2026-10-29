@@ -31,7 +31,7 @@
 | Eloquent / 关系 / Cast / 集合 | Model CRUD、关系、scope、事件、序列化 | 🔵 已有实现待1:1对齐 | 模块持久模型/真实CRUD与扩展资产存在 | SeaORM Entity不等于Eloquent；关系/批量/属性等完整R5待做 | L064–L069；R5；[db](core/db.md)/[todo](todo.md) |
 | Factories / SQLite | 工厂states/关系fixtures及轻量后端等价行为 | ⬜ 待开发 | 已有seeder/TestDatabase不能当Laravel Factory或SQLite完成 | R5之后R6实现工厂/SQLite，并逐后端行为验收 | L061/L070/L078；R6；[计划](plans/laravel-rebuild.md)/[todo](todo.md) |
 | Authentication / Authorization / OIDC | guard/provider、用户流程、Gate/Policy与外部身份 | 🔵 已有实现待1:1对齐 | JWT/PAT/Policy/RBAC、认证/MFA/OIDC双库与生成专项 | R7多guard/默认与完整上游行为；供应商证据分别标明 | L051–L053/L056/L083/L090/L098/L100；R7；[auth](core/auth.md) |
-| Session / CSRF / 限流 | 共享会话、请求伪造防护与限流 | 🔵 已有实现待1:1对齐 | 可选Session及共享limiter等实现资产 | 完整Session/CSRF默认与错误、安全跨节点验收 | L017/L025/L047；R3/R7/R14；[auth](core/auth.md)/[http](core/http.md) |
+| Session / CSRF / 限流 | 共享会话、请求伪造防护与限流 | 🟡 开发中 | C04-D1统一Session/flash子簇适用验收通过：根双库HTTP各53、Auth各8、浏览器各4、OIDC各8、生成三类与真实Session TLS；限定提交见Git | Store其余公开API进入D2；完整Session/CSRF默认、其余driver及安全跨节点仍开放 | L017/L025/L047；R3/R7/R14；[session](core/session.md)/[testing](memory/testing.md)/[todo](todo.md) |
 | Encryption / Hash / 安全 | 应用加密、轮换、签名及安全边界 | 🔵 已有实现待1:1对齐 | Encryptor/keyring、密码hash、签名链接等有专项 | 按上游职责核对默认/用途/错误；DB业务secret激活见增强 | L054/L055/L024；R7；[security](core/security.md)/[signing](core/signing.md) |
 | Cache / 原子锁 | 默认/具名store、TTL/共享锁与失败语义 | 🔵 已有实现待1:1对齐 | 统一store/Redis/DB及共享锁实现和专项证据 | Laravel Cache全方法/默认/锁与生产故障完整对应 | L031；R8/R14；[cache](core/cache.md) |
 | Storage / Filesystem | 默认/具名disk、私有对象与文件操作 | 🔵 已有实现待1:1对齐 | 本地/S3、受控staging、MinIO与双库业务证据 | 完整Filesystem对应、迟到发布不确定性/孤儿边界仍公开 | L037；R8/R14；[storage](core/storage.md) |
@@ -64,7 +64,7 @@
 ### 如何读取与维护
 
 - [两阶段框架主线](plans/laravel-rebuild.md#两阶段框架主线)：阶段一Laravel+正式modules基线（含Provider包发现），阶段二已纳入非核心通用增强，均属框架main/V1路线；不是未启动可选快速开发模块。表按可证范围显示状态，不因阶段重排抹掉既有实现，也不把阶段一完成说成全部框架交付。
-- 本表按本次审阅划分 **26个Laravel能力族**：✅子范围4、🟡开发中1、🔵待对齐20、⬜待开发1；另列modules一个✅子范围。它们是概览行计数，粒度不等、不是权重或完成百分比，也不包含增强表。
+- 本表按本次审阅划分 **26个Laravel能力族**：✅子范围4、🟡开发中2、🔵待对齐19、⬜待开发1；另列modules一个✅子范围。它们是概览行计数，粒度不等、不是权重或完成百分比，也不包含增强表。
 - 749个Laravel二级节与35个模块导航入口不是同一计数单位；详细矩阵的旧“待验收”不能解释为代码0%，已有代码/测试数量也不能推出1:1完成率。**逐项严格验收暂无可靠已闭合分子，不提供总体百分比。**
 - 总控每次功能簇本地commit后就地更新受影响行的状态、可证范围、缺口、commit/证据，并同步详细矩阵；只有新增实际交付/验收才升级状态，WIP与定向测试不能提前变✅。调整分组时重算上述概览行数，不按测试数充进度。
 - 每次框架开发进度汇报附最新能力状态表，汇报前按当前代码/提交/验收复核；表格格式、适用范围与“1:1 的 Laravel 框架 Rust 版”表述统一遵循[汇报规范](style.md#开发进度汇报)，普通问答不强制附表。

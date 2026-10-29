@@ -1,0 +1,93 @@
+//! 示例偏好与一次性提示通过公开 Session API 保存。
+
+use openrust::http::axum::http::StatusCode;
+use openrust::http::{Json, Request};
+use openrust::session::Session;
+use openrust::{Error, Result};
+use serde_json::{Value, json};
+
+const PREFERENCE: &str = "example.session.preference";
+const NOTICE: &str = "example.session.notice";
+const MAX_VALUE_BYTES: usize = 256;
+
+/// 仅读取示例自己的偏好与提示，不暴露会话身份或其他业务属性。
+pub(crate) async fn show(session: Session) -> Result<Json<Value>> {
+    Ok(Json(snapshot(&session)?))
+}
+
+/// 用固定操作维护有限偏好及提示；正文不能指定任意 Session 键。
+pub(crate) async fn store(session: Session, request: Request) -> Result<Json<Value>> {
+    let Some(Value::String(action)) = request.input("action")? else {
+        return Err(action_invalid());
+    };
+    match action.as_str() {
+        "put" => {
+            session.put(PREFERENCE, input_value(&request)?)?;
+        }
+        "forget" => {
+            session.forget(&[PREFERENCE])?;
+        }
+        "flash" => {
+            session.flash(NOTICE, input_value(&request)?)?;
+        }
+        "now" => {
+            session.now(NOTICE, input_value(&request)?)?;
+        }
+        "keep" => {
+            // reflash 会延长所有业务的提示；此处只保留示例自己的提示。
+            session.keep(&[NOTICE])?;
+        }
+        _ => return Err(action_invalid()),
+    }
+    let mut data = snapshot(&session)?;
+    data["action"] = Value::String(action);
+    Ok(Json(data))
+}
+
+fn input_value(request: &Request) -> Result<String> {
+    match request.input("value")? {
+        Some(Value::String(value)) if value.len() <= MAX_VALUE_BYTES => Ok(value),
+        _ => Err(Error::custom_with_status(
+            StatusCode::BAD_REQUEST,
+            "example_session_value_invalid",
+            "示例 Session 值必须是不超过 256 UTF-8 字节的字符串",
+        )),
+    }
+}
+
+fn snapshot(session: &Session) -> Result<Value> {
+    Ok(json!({
+        "preference": owned_value(session, PREFERENCE)?,
+        "notice": owned_value(session, NOTICE)?,
+        "has": {
+            "preference": session.has(&[PREFERENCE])?,
+            "notice": session.has(&[NOTICE])?,
+        },
+        "exists": {
+            "preference": session.exists(&[PREFERENCE])?,
+            "notice": session.exists(&[NOTICE])?,
+        },
+    }))
+}
+
+fn owned_value(session: &Session, key: &str) -> Result<Option<Value>> {
+    match session.get(key)? {
+        value @ (None | Some(Value::Null)) => Ok(value),
+        Some(Value::String(value)) if value.len() <= MAX_VALUE_BYTES => {
+            Ok(Some(Value::String(value)))
+        }
+        _ => Err(Error::custom_with_status(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "example_session_state_invalid",
+            "示例 Session 偏好状态无效",
+        )),
+    }
+}
+
+fn action_invalid() -> Error {
+    Error::custom_with_status(
+        StatusCode::BAD_REQUEST,
+        "example_session_action_invalid",
+        "无效的示例 Session 操作",
+    )
+}

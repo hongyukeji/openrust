@@ -4,6 +4,46 @@
 > 更新：2026-10-29
 > 摘要：当前目录迁移与原专项测试入口，分开记录真实服务和未验收边界。
 
+## C04-D1 Session Store/flash（限定子范围已验收）
+
+契约见[ADR-082](../decisions/adr-082-session-store-and-flash.md)，当前实现见[Session](../core/session.md)。以下定向结果仅证明各自源码快照，不代替后续修改后的最终门禁；本簇限定提交以Git为准。
+
+| 范围 | 实际证据 | 边界与入口 |
+| --- | --- | --- |
+| Session-only基础 | 18 passed、0 failed/ignored、390 filtered | `/tmp/openrust-c04d-session-provider-first.log`；含名称推导，不是完整workspace |
+| 公开生命周期 | 10 passed、0 failed/ignored/filtered | `/tmp/openrust-c04d-session-public-first.log`；包含删除认证记录后的重复start拒绝 |
+| 进程内正式Router | 4 passed、0 failed/ignored/filtered | `/tmp/openrust-c04d-session-http-first.log`；未修改/5xx保存、取消、错误与装配；不是TCP，后续超时修正待最终重验 |
+| 完整记录预算回归 | 4 passed、0 failed/ignored、408 filtered | `/tmp/openrust-c04d-session-whole-budget-paths-first.log`；启动合并/token、pull/expiry、迁移和flash老化的原子边界 |
+| 真实数据库Store | PG18/MySQL8.4各1 passed、0 failed/ignored/filtered；源码无漂移、各自UUID隔离锚库已核不存在 | `/tmp/openrust-c04d-store-pg-run-second.log`、`/tmp/openrust-c04d-store-mysql-run-first.log`；命名fixture `database_session_atomic_writes_precision_and_revocation`，包括文本/NUL/预算/授权截止，不代表完整Auth或模块HTTP |
+| 真实Redis Store | Redis8.10.2命名fixture 1 passed、0 failed/ignored/filtered；源码无漂移 | `/tmp/openrust-c04d-redis-store-run-first.log`；`redis_session_shared_atomic_writes_ttl_namespace_and_limits`，仅自有随机命名空间与ID；不算完整Auth Redis或集群 |
+| 模块与认证定向 | 模块2 passed（27 filtered）；Auth runtime 9 passed（0 filtered），均0 failed/ignored | `/tmp/openrust-c04d-module-session-first.log`、`/tmp/openrust-c04d-auth-runtime-second.log`；模块显式memory，非真实持久化HTTP |
+| PostgreSQL完整Auth target | 修后完整8 passed、0 failed/ignored/filtered，exit0；3个required named通过、源码无漂移、隔离锚库已核清理 | `/tmp/openrust-c04d-auth-db-pg-second.log`；公开Cookie结构断言后整target通过。首轮7 passed/1 failed及旧HttpOnly子串、Secure默认差异保留于`auth-db-pg-first.log`（同前缀）；不等于唯一模块HTTP或完整集群 |
+| MySQL完整Auth target | 完整8 passed、0 failed/ignored/filtered，exit0；3个required named通过、源码无漂移、隔离锚库已核清理 | `/tmp/openrust-c04d-auth-db-mysql-first.log`；实际MySQL8.4认证/撤销/迁移target，不替代模块HTTP、Redis或集群 |
+| Redis完整Auth runtime | 10 passed、0 failed/ignored/filtered；跨实例共享与撤销required named通过、源码无漂移 | `/tmp/openrust-c04d-auth-redis-first.log`；Redis8.10.2，非负载均衡集群总验收 |
+| 正式宿主与模块Session | 无默认feature、session+db-postgres、无auth组合定向4 passed、0 failed/ignored、29 filtered | `/tmp/openrust-c04d-host-module-session-second.log`；含无DB正式宿主404、DB配置Provider清单恰一份、原2模块memory生命周期；不等于无auth真实DB连接验收。首轮测试误用Container.is_bound编译失败，已改公开contains |
+| 外部custom store consumer | 独立package check exit0；公开driver行为test 1 passed、0 failed/ignored/filtered，doc0 | `/tmp/openrust-c04d-consumer-check-second.log`、`/tmp/openrust-c04d-consumer-test-first.log`；无默认feature仅session。首轮getrandom错误类型不实现StdError的feature独立性编译缺陷已修，未新增依赖；不等于真实外部服务 |
+| 当前workspace默认tests | 668 passed、29 ignored、0 failed/filtered；actual_exit0、source_changed为空 | `/tmp/openrust-c04d-final9-tests-default.result.json`及同名log；忽略项不是实服务验收。final9全特性缺退出结果未计通过；final10实际重验1300 passed/102 ignored、0 failed/filtered，actual_exit0/source_changed为空，见`/tmp/openrust-c04d-final10-tests-all.result.json` |
+| 真实CLI生成项目 | plain4/4、认证PG2/2、认证MySQL2/2，均0 failed/ignored/filtered；各fmt/check exit0，source_guard_changed为空 | `/tmp/openrust-c04d1-generated-d1-{plain-second-verify-plain,pg-second-verify-pg,mysql-first-verify-mysql}.{jsonl,result.json}`；三个新项目的正式生成测试，不替代根TCP/TLS；先前失败日志保留 |
+| final10其余门禁（精度/回调修复前快照） | docs默认/全特性、no-default、session-only、MSRV、deny及server build均actual_exit0、source_changed为空 | `/tmp/openrust-c04d-final10-{docs-default,docs-all,no-default,session-only,msrv,deny,server-build}.result.json`；随后审查发现MySQL秒精度expiry谓词缺陷并修为CURRENT_TIMESTAMP(6)，Keycloak仓内fixture回调对齐现有client。两处修改后的专项及适用门禁尚待重验，不继承此行成功关闭修复 |
+| 过期精度修复双库Store | MySQL8.4/PG18各1 passed、0 failed/ignored/filtered，exit0、源码无漂移、隔离锚库已核清理 | `/tmp/openrust-c04d-store-{mysql,pg}-subsecond.log`；MySQL使用CURRENT_TIMESTAMP(6)，真实DB微秒时钟样本限定同秒，有限重试；最终独立复审及其余修后门禁尚待完成 |
+| 根PG完整模块HTTP首轮 | 52 passed、1 failed，源码无漂移、隔离锚库已清理 | `/tmp/openrust-c04d-root-pg-first.safe.log`；新增正式TCP Session生命周期所在主测试已通过，account_security旧fixture配置键失败。修复旧cookie_name/ttl_secs使用处后须整组重验，不记完整target通过；浏览器15秒到期断言不能删除或放宽 |
+| 根PG完整模块HTTP修后 | 53/53 passed，0 failed/ignored/filtered/skipped，exit0、源码无漂移 | `/tmp/openrust-c04d-root-pg-second.safe.log`；含正式TCP数据库Session生命周期与账户安全，原首轮失败保留。浏览器专属短TTL wrapper修后仍需独立真实专项，不以本target替代 |
+| 根MySQL完整模块HTTP | 53/53 passed，0 failed/ignored/filtered/skipped，exit0、源码无漂移、隔离锚库已清理 | `/tmp/openrust-c04d-root-mysql-first.safe.log`；正式TCP数据库Session与完整既有target；浏览器原生短TTL边界及Keycloak仍另验 |
+| 真实Keycloak PostgreSQL | 主流程1 passed、子进程helper1 ignored，0 failed/filtered/skipped，exit0、源码无漂移、隔离锚库已清理 | `/tmp/openrust-c04d-keycloak-pg-third.log`；helper由主流程显式启动，ignored不另算通过。修仓内回调对齐现client，未改IdP；前两轮失败保留；MySQL对应主流程1 passed/helper1 ignored亦已通过（0 failed/filtered/skipped、exit0、源码无漂移、锚库核清），见`/tmp/openrust-c04d-keycloak-mysql-first.log` |
+| PostgreSQL浏览器专项首轮 | Cargo exit0、4 passed/0 failed/ignored，101 filtered；runner accepted=false | `/tmp/openrust-c04d-browser-pg-first.safe.log`；原生浏览器输出打断test状态行，required named提取失败。不得用总数替代具名证据；仅修runner输出模式后重验，业务断言不变 |
+| PostgreSQL浏览器具名重验 | accepted=true，4 passed、0 failed/ignored/skipped，101 filtered，exit0、源码无漂移、隔离锚库已清理 | `/tmp/openrust-c04d-browser-pg-second.safe.log`；全部四项显式运行，含原生Chromium与持久截止。show-output成功列表曾被误列failed_names，进程失败计数仍0；统计器修正单独离线提取，不冒称新实跑 |
+| MySQL浏览器专项 | accepted=true，4 passed、0 failed/ignored/skipped，101 filtered，exit0、failed_names为空、源码无漂移、隔离锚库已清理 | `/tmp/openrust-c04d-browser-mysql-first.safe.log`；PG统计修正见`/tmp/openrust-c04d-browser-pg-second.corrected.json`，标new_cargo_execution=false且带原safe日志SHA，原raw流未留存，不冒称重提取原Cargo全文 |
+| 模块OIDC PostgreSQL首轮 | 2 passed/6 failed、97 filtered，exit101，无skip | `/tmp/openrust-c04d-module-oidc-pg-first.safe.log`；HTTP400根因定位中，属于模块mock业务流程，非已通过真实Keycloak主流程。实际target8项，runner原预期7也需纠正；不得放宽错误/安全断言 |
+| 模块OIDC PostgreSQL修后完整 | accepted=true，8 passed、97 filtered，0 failed/ignored/skipped，exit0、源码无漂移、隔离锚库已清理 | `/tmp/openrust-c04d-module-oidc-pg-final.safe.log`；缺Host及3处Cookie大小写属性子串已仅在fixture修为合法Host/结构化精确属性断言，真实TCP定向后完整重验；未改生产Cookie绑定。MySQL对应完整8 passed、97 filtered、0 failed/ignored/skipped亦accepted通过，源码无漂移、锚库核清，见`/tmp/openrust-c04d-module-oidc-mysql-final.safe.log` |
+| OIDC原始重复凭据修复定向PG | accepted=true，1 passed、104 filtered、0 failed/ignored/skipped，exit0，隔离锚库已清理 | `/tmp/openrust-c04d-module-oidc-pg-duplicate-green.safe.log`；四种原wire重复排列拒绝后原单Cookie继续成功及重放拒绝。controller通过RequestInfo检查原头数量，再读解密值；不同模型静态复核通过；修后完整PG/MySQL各8 passed、97 filtered、0 failed/ignored/skipped均accepted，源码无漂移、全部锚库核清，见`/tmp/openrust-c04d-module-oidc-{pg,mysql}-security-final.safe.log` |
+| 新Session真实TLS | accepted=true；真实PG、正式SessionMigration、session/db-postgres/encryption无auth根server，secure=None；TLS1.3显式证书信任和hostname校验 | `/tmp/openrust-c04d-session-tls-first.safe.log`及`/tmp/openrust-c04d-session-tls-final.result.json`；HTTPS Secure/HttpOnly/Lax与opaque往返、HTTP及不可信HTTPS转发非Secure均通过，两后端exit0/代理回收/精确锚库drop并核不存在、源码无漂移/无凭据持久化；不替代无DB默认入口与修后完整门禁 |
+| final12修后完整门禁 | fmt、默认/全特性Clippy、默认668/29 ignored及全特性1300/102 ignored tests、默认/全特性docs、no-default/session-only均actual_exit0、source_changed为空 | `/tmp/openrust-c04d-final12-{fmt,clippy-default,clippy-all,tests-default,tests-all,docs-default,docs-all,no-default,session-only}.result.json`；MSRV/deny/server-build随后亦actual_exit0、source_changed为空，完整12stage均通过；默认入口另见下行。ignored不是实服务证据 |
+| 默认cargo run真实TLS/无DB入口 | tool_exit0、两个backend退出码均0、graceful_shutdown_verified、源码无漂移 | `/tmp/openrust-c04d-default-tls-final.log`及`/tmp/openrust-c04d-default-tls-final.result.json`；复用工具目录名不等于沿用旧结果，本轮实际运行；无DB的Session示例404/not_found，不静默memory，旧5consumer目录不变 |
+| 修后生成项目最终复验 | plain4、PG2、MySQL2均accepted，fmt/check/test exit0，0 failed/ignored/filtered/skipped，source_guard_changed为空 | `/tmp/openrust-c04d-generated-{plain,pg,mysql}-final.safe.log`；最后一轮使用最终源码，双库精确锚库已drop并核不存在 |
+| 资源收尾 | root target有效产物0，仅保Cargo锁inode；释放24,564,617,216字节，五旧consumer逐项字节不变，剩2.486656GiB，磁盘空闲12.864122% | `/tmp/openrust-c04d-final-clean.log`、`/tmp/openrust-c04d-temp-clean.log`；已核无Cargo/rustc/rustdoc/server；仅清3自有生成应用和本轮2 TLS临时目录，详细证据已复制平面JSON；自有pyc已移除，不改全局配置 |
+
+最终配置定向8项已实际通过（0 failed/ignored/filtered，`/tmp/openrust-c04d-session-config-second.log`），包括无效中间值被后置配置修复、严格最终错误字段、typed传输和禁用driver不解析Db。首轮仅fixture引用受feature限制的database别名而编译失败（`/tmp/openrust-c04d-session-config-first.log`），改公开db路径后重验，未给target增加数据库依赖；完整workspace fmt/Clippy/tests/docs/deny、适用feature/MSRV、生成plain及认证双库项目、正式宿主TCP/TLS、模块完整双库HTTP及适用OIDC链均已按上表限定范围通过。旧tower运行时及C04-C证据不自动证明新Session接管。完整Session/CSRF、Store其余公开API与跨节点保证仍按唯一todo和矩阵交付。
+
 ## C04-C Cookie/响应（已验收）
 
 契约见[ADR-081](../decisions/adr-081-request-response-cookies.md)。以下均为本簇实际证据，按范围记录，不沿用B2门禁；早期定向记录不替代最终快照；空domain修后根双库已按final独立证据重验。

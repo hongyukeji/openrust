@@ -21,6 +21,10 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use hmac::{Hmac, Mac, digest::KeyInit};
 use openrust::auth::{ExternalIdentityProvider, OidcProvider, VerifiedLogoutToken};
 use openrust::http::{DependencyPolicy, HttpClient, HttpClientConfig, HttpTargetPolicy};
+#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+use openrust::session::SessionStore as _;
+#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+use openrust::session::{MemorySessionStore as MemoryStore, SessionRecord as Record};
 #[cfg(feature = "auth-mfa")]
 use sha1::Sha1;
 use sha2::{Digest, Sha256};
@@ -29,10 +33,6 @@ use tokio::{
     sync::{Mutex, mpsc},
     task::JoinHandle,
 };
-#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
-use tower_sessions::session_store::SessionStore as _;
-#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
-use tower_sessions::{MemoryStore, session::Record};
 
 type TestResult = std::result::Result<(), Box<dyn StdError>>;
 type CapturedLogout = (String, Option<&'static str>, Option<String>);
@@ -40,7 +40,7 @@ type LogoutConfirmation = (url::Url, Vec<(String, String)>);
 
 const CLIENT_ID: &str = "openrust-rp";
 const CLIENT_SECRET: &str = "openrust-test-client-secret";
-const REDIRECT_URI: &str = "http://127.0.0.1:3000/callback";
+const REDIRECT_URI: &str = "http://127.0.0.1:3000/api/example/oidc/callback";
 const TEST_USERNAME: &str = "openrust-test-user";
 const TEST_PASSWORD: &str = "openrust-test-password";
 const SECOND_CLIENT_ID: &str = "openrust-rp-secondary";
@@ -696,7 +696,9 @@ async fn keycloak_two_client_sso_and_backchannel_logout_tokens_are_validated() -
                             primary
                                 .session_id
                                 .as_ref()
-                                .ok_or("primary app Session was not created")?
+                                .ok_or("primary app Session was not created")?,
+                            openrust::session::DEFAULT_MAX_BYTES,
+                            time::OffsetDateTime::now_utc() + time::Duration::minutes(120)
                         )
                         .await?
                         .is_none()
@@ -708,7 +710,9 @@ async fn keycloak_two_client_sso_and_backchannel_logout_tokens_are_validated() -
                             secondary
                                 .session_id
                                 .as_ref()
-                                .ok_or("secondary app Session was not created")?
+                                .ok_or("secondary app Session was not created")?,
+                            openrust::session::DEFAULT_MAX_BYTES,
+                            time::OffsetDateTime::now_utc() + time::Duration::minutes(120)
                         )
                         .await?
                         .is_none()
@@ -1234,43 +1238,40 @@ impl std::fmt::Debug for TestSessionStore {
 }
 
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
-#[async_trait::async_trait]
-impl tower_sessions::session_store::SessionStore for TestSessionStore {
-    async fn create(&self, record: &mut Record) -> tower_sessions::session_store::Result<()> {
+impl openrust::session::SessionStore for TestSessionStore {
+    fn write<'a>(
+        &'a self,
+        record: &'a Record,
+        mode: openrust::session::SessionWriteMode,
+        max_bytes: usize,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<openrust::session::SessionWriteOutcome>>
+    {
         match self {
-            Self::Memory(store) => store.create(record).await,
+            Self::Memory(store) => store.write(record, mode, max_bytes),
             #[cfg(feature = "session-redis")]
-            Self::Redis(store) => store.create(record).await,
+            Self::Redis(store) => store.write(record, mode, max_bytes),
         }
     }
-
-    async fn save(&self, record: &Record) -> tower_sessions::session_store::Result<()> {
+    fn load<'a>(
+        &'a self,
+        id: &'a openrust::session::SessionId,
+        max_bytes: usize,
+        empty_expiry: time::OffsetDateTime,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<Option<Record>>> {
         match self {
-            Self::Memory(store) => store.save(record).await,
+            Self::Memory(store) => store.load(id, max_bytes, empty_expiry),
             #[cfg(feature = "session-redis")]
-            Self::Redis(store) => store.save(record).await,
+            Self::Redis(store) => store.load(id, max_bytes, empty_expiry),
         }
     }
-
-    async fn load(
-        &self,
-        session_id: &tower_sessions::session::Id,
-    ) -> tower_sessions::session_store::Result<Option<Record>> {
+    fn delete<'a>(
+        &'a self,
+        id: &'a openrust::session::SessionId,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
         match self {
-            Self::Memory(store) => store.load(session_id).await,
+            Self::Memory(store) => store.delete(id),
             #[cfg(feature = "session-redis")]
-            Self::Redis(store) => store.load(session_id).await,
-        }
-    }
-
-    async fn delete(
-        &self,
-        session_id: &tower_sessions::session::Id,
-    ) -> tower_sessions::session_store::Result<()> {
-        match self {
-            Self::Memory(store) => store.delete(session_id).await,
-            #[cfg(feature = "session-redis")]
-            Self::Redis(store) => store.delete(session_id).await,
+            Self::Redis(store) => store.delete(id),
         }
     }
 }
@@ -1302,9 +1303,9 @@ fn test_session_namespace(prefix: &str) -> String {
 }
 
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
-fn callback_node(state: LoginCallbackState) -> Router {
+fn callback_node(state: LoginCallbackState, callback_path: &str) -> Router {
     let routes = Router::new()
-        .route("/callback", get(node_login_callback))
+        .route(callback_path, get(node_login_callback))
         .route("/probe", get(probe_login_outcome))
         .route("/session-probe", get(probe_shared_session))
         .route("/refresh-probe", post(probe_revoked_refresh))
@@ -1363,7 +1364,15 @@ async fn probe_shared_session(
     let Ok(session_id) = query.session_id.parse() else {
         return StatusCode::BAD_REQUEST;
     };
-    match state.session_store.load(&session_id).await {
+    match state
+        .session_store
+        .load(
+            &session_id,
+            openrust::session::DEFAULT_MAX_BYTES,
+            time::OffsetDateTime::now_utc() + time::Duration::minutes(120),
+        )
+        .await
+    {
         Ok(Some(_)) => StatusCode::NO_CONTENT,
         Ok(None) => StatusCode::NOT_FOUND,
         Err(_) => StatusCode::SERVICE_UNAVAILABLE,
@@ -1646,7 +1655,7 @@ async fn serve_keycloak_api_node(
         logout_callback: Arc::new(Mutex::new(None)),
         node_id: node_id.to_owned(),
     };
-    let application = callback_node(state.clone());
+    let application = callback_node(state.clone(), url::Url::parse(redirect_uri)?.path());
     let listener = TcpListener::bind(format!("127.0.0.1:{port}")).await?;
     axum::serve(listener, application).await?;
     Ok(())
@@ -1735,7 +1744,7 @@ async fn forward_to_api_node(
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 struct LoginCallbackOutcome {
     user_id: i64,
-    session_id: tower_sessions::session::Id,
+    session_id: openrust::session::SessionId,
     access_token: String,
     refresh_token: String,
     handle: openrust::auth::ExternalLoginHandle,
@@ -1754,7 +1763,7 @@ struct LogoutApp {
     connection: openrust::database::Db,
     state: LogoutAppState,
     session_store: TestSessionStore,
-    session_id: Option<tower_sessions::session::Id>,
+    session_id: Option<openrust::session::SessionId>,
     jwt: openrust::auth::JwtTokens,
     access_token: Option<String>,
     refresh: openrust::auth::RefreshTokens,
@@ -1993,8 +2002,14 @@ async fn complete_logout_app_login(
             logout_callback: app.logout_callback.clone(),
             node_id: node_id.to_owned(),
         };
-        let node_a_app = callback_node(node_state("api-a"));
-        let node_b_app = callback_node(node_state("api-b"));
+        let node_a_app = callback_node(
+            node_state("api-a"),
+            url::Url::parse(&app.redirect_uri)?.path(),
+        );
+        let node_b_app = callback_node(
+            node_state("api-b"),
+            url::Url::parse(&app.redirect_uri)?.path(),
+        );
         app.callback_servers.extend([
             tokio::spawn(async move {
                 let _ = axum::serve(node_a, node_a_app).await;
@@ -2668,7 +2683,9 @@ async fn complete_rp_logout(
             .load(
                 app.session_id
                     .as_ref()
-                    .ok_or("application Session is missing")?
+                    .ok_or("application Session is missing")?,
+                openrust::session::DEFAULT_MAX_BYTES,
+                time::OffsetDateTime::now_utc() + time::Duration::minutes(120)
             )
             .await?
             .is_none(),
@@ -2765,27 +2782,35 @@ async fn process_login_callback(
     let credentials = match attempt {
         LoginAttempt::Authenticated(credentials) => credentials,
         LoginAttempt::MfaRequired(challenge) => {
-            let session = Session::new(None, Arc::new(state.session_store.clone()), None);
-            session.set_expiry(Some(tower_sessions::Expiry::OnInactivity(
-                time::Duration::minutes(5),
-            )));
+            let Ok(session) = Session::new(None, Arc::new(state.session_store.clone()), None)
+            else {
+                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+            };
+            if session.start().await.is_err() {
+                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+            }
             if session
-                .insert("openrust.auth.mfa.user_id", challenge.user_id())
-                .await
+                .set_expiry(Some(openrust::session::Expiry::OnInactivity(
+                    time::Duration::minutes(5),
+                )))
+                .is_err()
+            {
+                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+            }
+            if session
+                .put("openrust.auth.mfa.user_id", challenge.user_id())
                 .is_err()
                 || session
-                    .insert("openrust.auth.mfa.challenge", challenge.expose())
-                    .await
+                    .put("openrust.auth.mfa.challenge", challenge.expose())
                     .is_err()
                 || session
-                    .insert("openrust.auth.mfa.external_handle", handle.expose())
-                    .await
+                    .put("openrust.auth.mfa.external_handle", handle.expose())
                     .is_err()
                 || session.save().await.is_err()
             {
                 return StatusCode::INTERNAL_SERVER_ERROR.into_response();
             }
-            let Some(session_id) = session.id() else {
+            let Ok(session_id) = session.id() else {
                 return StatusCode::INTERNAL_SERVER_ERROR.into_response();
             };
             return response_with_session_cookie(StatusCode::ACCEPTED, &session_id);
@@ -2796,19 +2821,24 @@ async fn process_login_callback(
     let user_id = credentials.user_id();
     let access_token = credentials.access_token().to_owned();
     let refresh_token = credentials.refresh_token().expose().to_owned();
-    let session = Session::new(None, Arc::new(state.session_store.clone()), None);
-    session.set_expiry(Some(tower_sessions::Expiry::OnInactivity(
-        time::Duration::minutes(5),
-    )));
+    let Ok(session) = Session::new(None, Arc::new(state.session_store.clone()), None) else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+    if session.start().await.is_err() {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    }
     if session
-        .insert("openrust.auth.user_id", user_id)
-        .await
+        .set_expiry(Some(openrust::session::Expiry::OnInactivity(
+            time::Duration::minutes(5),
+        )))
         .is_err()
-        || session.save().await.is_err()
     {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
-    let Some(session_id) = session.id() else {
+    if session.put("openrust.auth.user_id", user_id).is_err() || session.save().await.is_err() {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    }
+    let Ok(session_id) = session.id() else {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     };
     if state
@@ -2825,7 +2855,7 @@ async fn process_login_callback(
     }
     *outcome = Some(LoginCallbackOutcome {
         user_id,
-        session_id,
+        session_id: session_id.clone(),
         access_token,
         refresh_token,
         handle,
@@ -2836,7 +2866,7 @@ async fn process_login_callback(
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 fn response_with_session_cookie(
     status: StatusCode,
-    session_id: &tower_sessions::session::Id,
+    session_id: &openrust::session::SessionId,
 ) -> Response {
     let Ok(cookie) = HeaderValue::from_str(&format!(
         "openrust_session={session_id}; Path=/; HttpOnly; SameSite=Lax"
@@ -2886,25 +2916,27 @@ async fn process_mfa_callback(
     }) else {
         return StatusCode::UNAUTHORIZED.into_response();
     };
-    let session = Session::new(
+    let Ok(session) = Session::new(
         Some(session_id),
         Arc::new(state.session_store.clone()),
         None,
-    );
+    ) else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+    if session.start().await.is_err() {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    }
     let (Some(pending_user_id), Some(challenge), Some(exposed_handle)) = (
         session
-            .get::<i64>("openrust.auth.mfa.user_id")
-            .await
+            .get_typed::<i64>("openrust.auth.mfa.user_id")
             .ok()
             .flatten(),
         session
-            .get::<String>("openrust.auth.mfa.challenge")
-            .await
+            .get_typed::<String>("openrust.auth.mfa.challenge")
             .ok()
             .flatten(),
         session
-            .get::<String>("openrust.auth.mfa.external_handle")
-            .await
+            .get_typed::<String>("openrust.auth.mfa.external_handle")
             .ok()
             .flatten(),
     ) else {
@@ -2927,33 +2959,28 @@ async fn process_mfa_callback(
     }
     let access_token = credentials.access_token().to_owned();
     let refresh_token = credentials.refresh_token().expose().to_owned();
-    if session.cycle_id().await.is_err() {
+    if session.migrate(true).await.is_err() {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
-    session.set_expiry(Some(tower_sessions::Expiry::OnInactivity(
-        time::Duration::minutes(5),
-    )));
     if session
-        .remove::<i64>("openrust.auth.mfa.user_id")
-        .await
+        .set_expiry(Some(openrust::session::Expiry::OnInactivity(
+            time::Duration::minutes(5),
+        )))
         .is_err()
+    {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    }
+    if session.forget(&["openrust.auth.mfa.user_id"]).is_err()
+        || session.forget(&["openrust.auth.mfa.challenge"]).is_err()
         || session
-            .remove::<String>("openrust.auth.mfa.challenge")
-            .await
+            .forget(&["openrust.auth.mfa.external_handle"])
             .is_err()
-        || session
-            .remove::<String>("openrust.auth.mfa.external_handle")
-            .await
-            .is_err()
-        || session
-            .insert("openrust.auth.user_id", user_id)
-            .await
-            .is_err()
+        || session.put("openrust.auth.user_id", user_id).is_err()
         || session.save().await.is_err()
     {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
-    let Some(session_id) = session.id() else {
+    let Ok(session_id) = session.id() else {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     };
     if state
@@ -2970,7 +2997,7 @@ async fn process_mfa_callback(
     }
     *outcome = Some(LoginCallbackOutcome {
         user_id,
-        session_id,
+        session_id: session_id.clone(),
         access_token,
         refresh_token,
         handle,

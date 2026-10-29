@@ -9,7 +9,7 @@ use openrust::http::axum::{
     http::{HeaderMap, HeaderValue, header},
     response::{IntoResponse, Redirect, Response},
 };
-use openrust::http::{ClientIp, Inject, Json, Query, Validated};
+use openrust::http::{ClientIp, Inject, Json, Query, RequestInfo, Validated};
 use openrust::{Error, Result};
 fn private(mut response: Response) -> Response {
     response
@@ -24,23 +24,35 @@ fn private(mut response: Response) -> Response {
     );
     response
 }
-fn cookie(headers: &HeaderMap, state: &str) -> Result<String> {
+fn cookie(request: &RequestInfo, state: &str) -> Result<String> {
     let name = ExternalIdentityAuthorization::cookie_name_for_callback(state)?;
-    let mut found = None;
-    for value in headers.get_all(header::COOKIE) {
+    let mut count = 0;
+    // 解密后的 HeaderMap 可规范化同名值；拒绝重复必须核原始 wire，值经公开解密视图读取。
+    for value in request.headers().get_all(header::COOKIE) {
         for part in value.to_str().map_err(|_| Error::Unauthorized)?.split(';') {
-            if let Some((key, value)) = part.trim().split_once('=')
-                && key == name
+            if part
+                .trim()
+                .split_once('=')
+                .is_some_and(|(key, _)| key == name)
             {
-                if found.is_some() || value.is_empty() || value.len() > 256 {
-                    return Err(Error::Unauthorized);
-                }
-                found = Some(value.to_owned());
+                count += 1;
             }
         }
     }
-    found.ok_or(Error::Unauthorized)
+    if count != 1 {
+        return Err(Error::Unauthorized);
+    }
+    request
+        .cookie(&name)
+        .and_then(|value| {
+            value
+                .as_str()
+                .filter(|value| !value.is_empty() && value.len() <= 256)
+                .map(str::to_owned)
+        })
+        .ok_or(Error::Unauthorized)
 }
+
 fn finished(state: &str, result: Result<Response>) -> Response {
     let mut response = private(match result {
         Ok(response) => response,
@@ -84,7 +96,7 @@ enum LoginResponse {
 }
 pub(crate) async fn callback(
     Inject(account): Inject<OidcAccount>,
-    headers: HeaderMap,
+    request: RequestInfo,
     source: ClientIp,
     Query(input): Query<CallbackQuery>,
     session: Session,
@@ -93,7 +105,7 @@ pub(crate) async fn callback(
         return finished(&input.state, Err(Error::Unauthorized));
     }
     match account.is_browser_bind(&input.state).await {
-        Ok(true) => return browser_callback(&account, &headers, &input, &session).await,
+        Ok(true) => return browser_callback(&account, &request, &input, &session).await,
         Ok(false) => {}
         Err(error) => return finished(&input.state, Err(error)),
     }
@@ -111,7 +123,7 @@ pub(crate) async fn callback(
         if input.state.is_empty() || input.state.len() > 256 || input.error.is_some() {
             return Err(Error::Unauthorized);
         }
-        let binding = cookie(&headers, &input.state)?;
+        let binding = cookie(&request, &input.state)?;
         let code = input
             .code
             .as_deref()
@@ -155,7 +167,7 @@ pub(crate) async fn linked(
 pub(crate) async fn bind(
     user: CurrentUser,
     Inject(account): Inject<OidcAccount>,
-    headers: HeaderMap,
+    request: RequestInfo,
     source: ClientIp,
     Validated(Json(input)): Validated<Json<BindInput>>,
 ) -> Response {
@@ -164,7 +176,7 @@ pub(crate) async fn bind(
         if account.is_browser_bind(&state).await? {
             return Err(Error::Unauthorized);
         }
-        let binding = cookie(&headers, &state)?;
+        let binding = cookie(&request, &state)?;
         account
             .bind(user.id(), input, &binding, &source.ip().to_string())
             .await?;
@@ -223,17 +235,14 @@ pub(crate) async fn browser_bind_authorize(
         .find_map(|(key, value)| (key == "state").then(|| value.into_owned()))
         .ok_or(Error::Unauthorized)?;
     // 单个 Session 最多保留一个意图；密码与 code 不进入 Session 或意图表。
-    session
-        .insert(
-            PENDING_BIND_KEY,
-            PendingBind {
-                state_hash: crate::modules::example::services::oidc::state_hash(&state),
-                owner: user.id(),
-                csrf: csrf.into(),
-            },
-        )
-        .await
-        .map_err(Error::internal)?;
+    session.put(
+        PENDING_BIND_KEY,
+        PendingBind {
+            state_hash: crate::modules::example::services::oidc::state_hash(&state),
+            owner: user.id(),
+            csrf: csrf.into(),
+        },
+    )?;
     let mut response = private(
         Json(serde_json::json!({"authorization_url":authorization.url().as_str()})).into_response(),
     );
@@ -248,20 +257,18 @@ pub(crate) async fn browser_bind_authorize(
 }
 async fn browser_callback(
     account: &OidcAccount,
-    headers: &HeaderMap,
+    request: &RequestInfo,
     input: &CallbackQuery,
     session: &Session,
 ) -> Response {
     let result = async {
         let pending = session
-            .get::<PendingBind>(PENDING_BIND_KEY)
-            .await
-            .map_err(Error::internal)?
+            .get_typed::<PendingBind>(PENDING_BIND_KEY)?
             .ok_or(Error::Unauthorized)?;
         if pending.state_hash != crate::modules::example::services::oidc::state_hash(&input.state) {
             return Err(Error::Unauthorized);
         }
-        let binding = cookie(headers, &input.state)?;
+        let binding = cookie(request, &input.state)?;
         // 错误回调同样消耗本模块意图，但不会调用登录 complete。
         if input.error.is_some()
             || input
@@ -278,10 +285,7 @@ async fn browser_callback(
                     "consumed",
                 )
                 .await?;
-            session
-                .remove::<PendingBind>(PENDING_BIND_KEY)
-                .await
-                .map_err(Error::internal)?;
+            session.forget(&[PENDING_BIND_KEY])?;
             return Err(Error::Unauthorized);
         }
         let code = input
@@ -306,6 +310,7 @@ pub(crate) async fn browser_bind_confirm(
     Inject(account): Inject<OidcAccount>,
     session: Session,
     headers: HeaderMap,
+    request: RequestInfo,
     source: ClientIp,
     Validated(Json(input)): Validated<Json<BindInput>>,
 ) -> Response {
@@ -313,23 +318,18 @@ pub(crate) async fn browser_bind_confirm(
     let result = async {
         account.require_browser_origin(&headers)?;
         let pending = session
-            .get::<PendingBind>(PENDING_BIND_KEY)
-            .await
-            .map_err(Error::internal)?
+            .get_typed::<PendingBind>(PENDING_BIND_KEY)?
             .ok_or(Error::Unauthorized)?;
         if pending.owner != user.id()
             || pending.state_hash != crate::modules::example::services::oidc::state_hash(&state)
         {
             return Err(Error::Unauthorized);
         }
-        let binding = cookie(&headers, &state)?;
+        let binding = cookie(&request, &state)?;
         account
             .transition_browser_bind(user.id(), &state, &binding, "ready", "consumed")
             .await?;
-        session
-            .remove::<PendingBind>(PENDING_BIND_KEY)
-            .await
-            .map_err(Error::internal)?;
+        session.forget(&[PENDING_BIND_KEY])?;
         account
             .bind(user.id(), input, &binding, &source.ip().to_string())
             .await?;

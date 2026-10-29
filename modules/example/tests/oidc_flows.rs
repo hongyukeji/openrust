@@ -179,7 +179,7 @@ impl Fixture {
             "cache":{"default_store":"default","stores":{"default":{"driver":"memory"}}},
             "auth":{"jwt":{"issuer":"http://example.test","audience":"oidc-example","active_key_id":"test","keys":{"test":key}}},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":"http://example.test","active_key_id":"test","keys":{"test":key}}},
-            "session":{"secure":false,"cookie_name":"example_oidc_session","same_site":"lax"},
+            "session":{"secure":false,"cookie":"example_oidc_session","same_site":"lax"},
             "example":{"oidc":{"issuer":idp.config.issuer,"client_id":idp.config.client_id,"client_secret":idp.config.client_secret,"redirect_uri":idp.config.redirect_uri,"allow_loopback":true}}
         })));
         let app = TestApp::<crate::bootstrap::Server>::builder(source)
@@ -222,7 +222,13 @@ impl Fixture {
             .get_all("set-cookie")
             .iter()
             .filter_map(|v| v.to_str().ok())
-            .find(|v| v.contains("HttpOnly") && v.contains("Secure") && v.contains("SameSite=Lax"))
+            .find(|v| {
+                openrust::http::Cookie::from_header(v).is_ok_and(|cookie| {
+                    cookie.http_only()
+                        && cookie.secure() == Some(true)
+                        && cookie.same_site() == Some(openrust::http::SameSite::Lax)
+                })
+            })
             .ok_or("secure OIDC binding cookie missing")?;
         Ok((
             url,
@@ -260,6 +266,7 @@ fn request(
     let mut builder = Request::builder()
         .method(method)
         .uri(format!("{BASE}{path}"))
+        .header("host", "localhost")
         .extension(ConnectInfo(std::net::SocketAddr::from((
             [127, 0, 0, 1],
             45678,
@@ -293,7 +300,9 @@ fn cleared(response: &TestResponse) -> TestResult {
             .get_all("set-cookie")
             .iter()
             .filter_map(|v| v.to_str().ok())
-            .any(|v| v.contains("Max-Age=0") && v.contains("HttpOnly") && v.contains("Secure"))
+            .any(|v| v.contains("Max-Age=0")
+                && openrust::http::Cookie::from_header(v)
+                    .is_ok_and(|cookie| cookie.http_only() && cookie.secure() == Some(true)))
     );
     Ok(())
 }
@@ -513,7 +522,32 @@ async fn keycloak_module_login_cookie_state_and_replay_are_validated() -> TestRe
         .into());
     }
     cleared(&missing)?;
-    // 缺少浏览器绑定不得消费合法 state；携带原绑定完成同一个真实授权码。
+    let (name, _) = cookie
+        .split_once('=')
+        .ok_or("binding cookie pair malformed")?;
+    let invalid = format!("{name}=invalid-duplicate");
+    for (multiple_headers, invalid_first) in
+        [(false, false), (false, true), (true, false), (true, true)]
+    {
+        let (first, second) = if invalid_first {
+            (&invalid, &cookie)
+        } else {
+            (&cookie, &invalid)
+        };
+        let mut duplicate = request("GET", &callback_path(&state, &code), None, None, None)?;
+        if multiple_headers {
+            duplicate.headers_mut().append("cookie", first.parse()?);
+            duplicate.headers_mut().append("cookie", second.parse()?);
+        } else {
+            duplicate
+                .headers_mut()
+                .insert("cookie", format!("{first}; {second}").parse()?);
+        }
+        let rejected = fixture.app.request(duplicate).await?;
+        rejected.assert_status(StatusCode::UNAUTHORIZED)?;
+        cleared(&rejected)?;
+    }
+    // 缺少或重复浏览器绑定不得消费合法 state；携带原绑定完成同一个真实授权码。
     let response = fixture
         .app
         .request(request(
@@ -888,9 +922,11 @@ impl BrowserNode {
             .iter()
             .filter_map(|value| value.to_str().ok())
             .find(|value| {
-                value.contains("HttpOnly")
-                    && value.contains("SameSite=Lax")
-                    && value.contains("Secure")
+                openrust::http::Cookie::from_header(value).is_ok_and(|cookie| {
+                    cookie.http_only()
+                        && cookie.secure() == Some(true)
+                        && cookie.same_site() == Some(openrust::http::SameSite::Lax)
+                })
             })
             .and_then(|value| value.split(';').next())
             .ok_or("OIDC binding cookie missing")?

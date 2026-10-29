@@ -229,6 +229,102 @@ async fn generated_auth_routes_run_over_http_with_isolated_database_and_fake_mai
     result
 }
 
+// 正式宿主/模块经真实 TCP 使用默认数据库 Session；Cookie 原值仅内存往返。
+async fn run_session_flow(address: SocketAddr) -> TestResult {
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()?;
+    let endpoint = format!("http://{address}/api/example/session");
+    let mut cookie = None;
+    for (action, value, preference, notice) in [
+        (None, serde_json::Value::Null, None, None),
+        (
+            Some("put"),
+            serde_json::json!("persisted"),
+            Some("persisted"),
+            None,
+        ),
+        (None, serde_json::Value::Null, Some("persisted"), None),
+        (
+            Some("flash"),
+            serde_json::json!("once"),
+            Some("persisted"),
+            Some("once"),
+        ),
+        (
+            Some("keep"),
+            serde_json::Value::Null,
+            Some("persisted"),
+            Some("once"),
+        ),
+        (
+            None,
+            serde_json::Value::Null,
+            Some("persisted"),
+            Some("once"),
+        ),
+        (None, serde_json::Value::Null, Some("persisted"), None),
+        (
+            Some("now"),
+            serde_json::json!("current"),
+            Some("persisted"),
+            Some("current"),
+        ),
+        (None, serde_json::Value::Null, Some("persisted"), None),
+        (Some("forget"), serde_json::Value::Null, None, None),
+    ] {
+        let mut request = if let Some(action) = action {
+            client
+                .post(&endpoint)
+                .json(&serde_json::json!({"action":action,"value":value}))
+        } else {
+            client.get(&endpoint)
+        };
+        if let Some(value) = &cookie {
+            request = request.header(reqwest::header::COOKIE, value);
+        }
+        let response = request.send().await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        let cookies = response
+            .headers()
+            .get_all(reqwest::header::SET_COOKIE)
+            .iter()
+            .map(|value| value.to_str())
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut selected = cookies
+            .iter()
+            .filter(|value| value.starts_with("openrust_session="));
+        let header = selected.next().ok_or("Session Cookie missing")?;
+        assert!(selected.next().is_none());
+        let model = openrust::http::Cookie::from_header(header)?;
+        assert!(model.http_only());
+        assert_eq!(model.path(), "/");
+        cookie = Some(
+            header
+                .split(';')
+                .next()
+                .ok_or("Session Cookie pair missing")?
+                .to_owned(),
+        );
+        let body: serde_json::Value = response.json().await?;
+        let mut data = serde_json::json!({"preference":preference,"notice":notice,
+            "has":{"preference":preference.is_some(),"notice":notice.is_some()},
+            "exists":{"preference":preference.is_some(),"notice":notice.is_some()}});
+        if let Some(action) = action {
+            data["action"] = serde_json::json!(action);
+        }
+        assert_eq!(
+            body,
+            serde_json::json!({"success":true,"code":"ok","message":"ok","data":data})
+        );
+    }
+    let isolated: serde_json::Value = client.get(endpoint).send().await?.json().await?;
+    assert_eq!(isolated["data"]["preference"], serde_json::Value::Null);
+    assert_eq!(isolated["data"]["notice"], serde_json::Value::Null);
+    Ok(())
+}
+
 #[allow(clippy::too_many_lines)]
 async fn run_auth_flow(
     address: SocketAddr,
@@ -236,6 +332,7 @@ async fn run_auth_flow(
     sms: &CaptureSms,
     app: &openrust::App,
 ) -> TestResult {
+    run_session_flow(address).await?;
     let root = request(address, "GET", "/api", None, None, None).await?;
     assert_eq!(root.status, StatusCode::OK);
     assert_eq!(root.body["success"], true);

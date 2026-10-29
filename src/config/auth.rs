@@ -84,55 +84,6 @@ impl Default for PasswordConfig {
     }
 }
 
-/// 共享 Cookie Session middleware 的设置。
-#[derive(Clone, Deserialize, Serialize)]
-#[serde(default)]
-pub struct SessionConfig {
-    /// Cookie 名称。默认值为 `openrust_session`。
-    pub cookie_name: String,
-    /// Cookie 路径，默认 `/`。
-    pub path: String,
-    /// Cookie 域；默认不指定，使用当前主机。
-    pub domain: Option<String>,
-    /// 浏览器是否仅通过 HTTPS 发送 cookie。默认值为 `true`。
-    pub secure: bool,
-    /// JavaScript 是否无法读取该 cookie（`HttpOnly`）。默认值为 `true`。
-    pub http_only: bool,
-    /// `SameSite` 策略：`strict`、`lax` 或 `none`。默认值为 `lax`。
-    pub same_site: String,
-    /// 无活动有效期（秒）。默认值为两周。
-    pub ttl_secs: u64,
-}
-
-impl Default for SessionConfig {
-    fn default() -> Self {
-        Self {
-            cookie_name: "openrust_session".to_owned(),
-            path: "/".to_owned(),
-            domain: None,
-            secure: true,
-            http_only: true,
-            same_site: "lax".to_owned(),
-            ttl_secs: 1_209_600,
-        }
-    }
-}
-
-impl std::fmt::Debug for SessionConfig {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter
-            .debug_struct("SessionConfig")
-            .field("cookie_name", &self.cookie_name)
-            .field("path", &self.path)
-            .field("domain", &self.domain)
-            .field("secure", &self.secure)
-            .field("http_only", &self.http_only)
-            .field("same_site", &self.same_site)
-            .field("ttl_secs", &self.ttl_secs)
-            .finish()
-    }
-}
-
 fn default_access_ttl() -> u64 {
     900
 }

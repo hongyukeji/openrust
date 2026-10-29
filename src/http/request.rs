@@ -65,6 +65,8 @@ pub struct RequestInfo {
     headers: HeaderMap,
     acceptable: Vec<String>,
     cookies: serde_json::Value,
+    #[cfg(feature = "session")]
+    session: Option<crate::session::Session>,
 }
 
 impl fmt::Debug for RequestInfo {
@@ -103,11 +105,31 @@ impl<S: Send + Sync> FromRequestParts<S> for RequestInfo {
             headers,
             acceptable,
             cookies: parsed.value,
+            #[cfg(feature = "session")]
+            session: parts.extensions.get::<crate::session::Session>().cloned(),
         })
     }
 }
 
 impl RequestInfo {
+    /// 是否安装本请求的Session句柄，不隐式创建会话。
+    #[cfg(feature = "session")]
+    pub fn has_session(&self) -> bool {
+        self.session.is_some()
+    }
+
+    /// 取得同一请求的Session；未装配Provider时安全失败。
+    #[cfg(feature = "session")]
+    pub fn session(&self) -> Result<crate::session::Session> {
+        self.session.clone().ok_or_else(|| {
+            Error::custom_with_status(
+                http::StatusCode::INTERNAL_SERVER_ERROR,
+                "session_layer_missing",
+                "Request未装配Session",
+            )
+        })
+    }
+
     /// 按完整名称读取 Cookie；名称中的点不作为路径。
     pub fn cookie(&self, name: &str) -> Option<serde_json::Value> {
         let value = match &self.cookies {

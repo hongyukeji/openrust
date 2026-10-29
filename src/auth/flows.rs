@@ -862,8 +862,7 @@ impl AuthFlows {
     /// 其他由应用持有的 Session 值会保留。路由应先要求 `AuthMode::Session`，再调用此方法。
     pub async fn logout_session(&self, request_source: &str, session: &Session) -> Result<()> {
         let user_id = session
-            .get::<i64>(AUTH_USER_ID_KEY)
-            .await
+            .get_typed::<i64>(AUTH_USER_ID_KEY)
             .map_err(Error::internal)?
             .ok_or(Error::Unauthorized)?;
         self.limit("logout_session", request_source, &user_id.to_string())
@@ -1366,14 +1365,14 @@ async fn bind_session(session: &Session, user_id: i64) -> Result<SessionCredenti
     let csrf_token = URL_SAFE_NO_PAD.encode(random);
     let csrf_hash = digest(&csrf_token);
 
-    session.cycle_id().await.map_err(Error::internal)?;
-    remove_auth_values(session).await?;
-    if let Err(error) = session.insert(AUTH_CSRF_HASH_KEY, csrf_hash).await {
-        let _ = remove_auth_values(session).await;
+    session.migrate(true).await?;
+    remove_auth_values(session)?;
+    if let Err(error) = session.put(AUTH_CSRF_HASH_KEY, csrf_hash) {
+        let _ = remove_auth_values(session);
         return Err(Error::internal(error));
     }
-    if let Err(error) = session.insert(AUTH_USER_ID_KEY, user_id).await {
-        let _ = remove_auth_values(session).await;
+    if let Err(error) = session.put(AUTH_USER_ID_KEY, user_id) {
+        let _ = remove_auth_values(session);
         return Err(Error::internal(error));
     }
 
@@ -1383,21 +1382,14 @@ async fn bind_session(session: &Session, user_id: i64) -> Result<SessionCredenti
     })
 }
 
-async fn remove_auth_values(session: &Session) -> Result<()> {
-    session
-        .remove_value(AUTH_USER_ID_KEY)
-        .await
-        .map_err(Error::internal)?;
-    session
-        .remove_value(AUTH_CSRF_HASH_KEY)
-        .await
-        .map_err(Error::internal)?;
+fn remove_auth_values(session: &Session) -> Result<()> {
+    session.forget(&[AUTH_USER_ID_KEY, AUTH_CSRF_HASH_KEY])?;
     Ok(())
 }
 
 async fn clear_session(session: &Session) -> Result<()> {
-    remove_auth_values(session).await?;
-    session.cycle_id().await.map_err(Error::internal)
+    remove_auth_values(session)?;
+    session.migrate(true).await.map(|_| ())
 }
 
 fn digest(value: &str) -> String {
@@ -1422,7 +1414,7 @@ fn unsupported_backend() -> Error {
 mod tests {
     use std::sync::Arc;
 
-    use tower_sessions::{MemoryStore, Session, SessionStore};
+    use crate::session::{MemorySessionStore as MemoryStore, Session, SessionStore};
 
     use super::{AUTH_CSRF_HASH_KEY, AUTH_USER_ID_KEY, bind_session, clear_session, digest};
 
@@ -1430,56 +1422,58 @@ mod tests {
     async fn session_login_rotates_id_preserves_app_data_and_redacts_csrf()
     -> std::result::Result<(), Box<dyn std::error::Error>> {
         let store = Arc::new(MemoryStore::default());
-        let session = Session::new(None, store.clone(), None);
-        session.insert("app.preference", "compact").await?;
+        let session = Session::new(None, store.clone(), None)?;
+        session.start().await?;
+        session.put("app.preference", "compact")?;
         session.save().await?;
-        let old_id = session.id().ok_or_else(|| {
-            crate::Error::internal(std::io::Error::other("session ID missing after save"))
-        })?;
+        let old_id = session.id()?;
         let credentials = bind_session(&session, 42).await?;
         let csrf_token = credentials.csrf_token().to_owned();
         assert_eq!(credentials.user_id(), 42);
         assert!(!format!("{credentials:?}").contains(&csrf_token));
-        assert!(session.id().is_none());
+        assert_ne!(session.id()?, old_id);
         session.save().await?;
-        let new_id = session.id().ok_or_else(|| {
-            crate::Error::internal(std::io::Error::other(
-                "rotated session ID missing after save",
-            ))
-        })?;
+        let new_id = session.id()?;
         assert_ne!(new_id, old_id);
-        assert_eq!(session.get::<i64>(AUTH_USER_ID_KEY).await?, Some(42));
+        assert_eq!(session.get_typed::<i64>(AUTH_USER_ID_KEY)?, Some(42));
         let csrf_hash = session
-            .get::<String>(AUTH_CSRF_HASH_KEY)
-            .await?
+            .get_typed::<String>(AUTH_CSRF_HASH_KEY)?
             .ok_or_else(|| crate::Error::internal(std::io::Error::other("CSRF hash missing")))?;
         assert_eq!(csrf_hash, digest(&csrf_token));
         assert_ne!(csrf_hash, csrf_token);
         assert_eq!(
-            session.get::<String>("app.preference").await?,
+            session.get_typed::<String>("app.preference")?,
             Some("compact".to_owned())
         );
 
         assert!(
             store
-                .load(&old_id)
+                .load(
+                    &old_id,
+                    crate::session::DEFAULT_MAX_BYTES,
+                    session.expiry_date()?
+                )
                 .await
                 .map_err(crate::Error::internal)?
                 .is_none()
         );
 
         clear_session(&session).await?;
-        assert!(session.id().is_none());
+        assert_ne!(session.id()?, new_id);
         session.save().await?;
-        assert!(session.get::<i64>(AUTH_USER_ID_KEY).await?.is_none());
-        assert!(session.get::<String>(AUTH_CSRF_HASH_KEY).await?.is_none());
+        assert!(session.get_typed::<i64>(AUTH_USER_ID_KEY)?.is_none());
+        assert!(session.get_typed::<String>(AUTH_CSRF_HASH_KEY)?.is_none());
         assert_eq!(
-            session.get::<String>("app.preference").await?,
+            session.get_typed::<String>("app.preference")?,
             Some("compact".to_owned())
         );
         assert!(
             store
-                .load(&new_id)
+                .load(
+                    &new_id,
+                    crate::session::DEFAULT_MAX_BYTES,
+                    session.expiry_date()?
+                )
                 .await
                 .map_err(crate::Error::internal)?
                 .is_none()

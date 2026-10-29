@@ -89,13 +89,13 @@ pub(crate) fn resolve_auth_sql(db: &crate::db::Db, sql: &str) -> Result<String> 
 }
 pub use crate::config::PasswordConfig;
 pub use crate::config::SessionConfig;
+pub use crate::session::Session;
 pub use password::{EncodedPasswordHash, Passwords};
 pub use pat::{IssuedPersonalAccessToken, PersonalAccessTokenInfo, PersonalAccessTokens};
 pub use refresh::{IssuedRefreshToken, RefreshRotation, RefreshTokens};
 #[cfg(feature = "session-redis")]
 pub use session::RedisSessionStore;
 pub use session::{DatabaseSessionStore, SessionServiceProvider, SessionStoreHandle};
-pub use tower_sessions::Session;
 pub use verification::{
     DatabaseVerificationCodeStore, IssuedVerificationCode, VerificationChallenge,
     VerificationCodeFuture, VerificationCodePolicy, VerificationCodeStore, VerificationCodes,
@@ -531,7 +531,6 @@ async fn configured_session_cookie_name(state: &AppState, mode: AuthMode) -> Res
         Ok(
             resolve_request_service::<session::SessionSettings>(state, None)
                 .await?
-                .0
                 .cookie_name
                 .clone(),
         )
@@ -600,7 +599,7 @@ async fn authenticate(
             let Some(session) = request.extensions().get::<Session>().cloned() else {
                 return Error::internal(MissingSessionLayer).into_response();
             };
-            if session.id().map(|id| id.to_string()).as_deref() != Some(value) {
+            if session.id().map(|id| id.to_string()).ok().as_deref() != Some(value) {
                 return Error::Unauthorized.into_response();
             }
             Some(session)

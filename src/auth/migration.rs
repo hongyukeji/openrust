@@ -34,14 +34,6 @@ enum TbUsers {
 }
 
 #[derive(DeriveIden)]
-enum TbSessions {
-    IdHash,
-    Data,
-    ExpiresAt,
-    CreatedAt,
-}
-
-#[derive(DeriveIden)]
 enum TbPersonalAccessTokens {
     Id,
     UserId,
@@ -177,6 +169,7 @@ enum TbAuthRolePermissions {
 /// 创建由框架管理的账户、通用 Session 和个人令牌表。
 ///
 /// 应用应将此 migration 加入现有 SeaORM migrator。业务用户列仍由应用管理，并通过稳定的 `tb_users.id` 关联。
+/// 已包含SessionMigration的表；自定义Migrator不得再同时登记独立SessionMigration。
 pub struct AuthMigration;
 
 /// 创建 refresh token 家族的追加式 schema migration。
@@ -730,7 +723,6 @@ impl MigrationTrait for AuthMigration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         let backend = manager.get_database_backend();
         let users_table = migration_table("users", backend)?;
-        let sessions_table = migration_table("sessions", backend)?;
         let pat_table = migration_table("personal_access_tokens", backend)?;
         manager
             .create_table(
@@ -763,23 +755,7 @@ impl MigrationTrait for AuthMigration {
                     .to_owned(),
             )
             .await?;
-        manager
-            .create_table(
-                Table::create()
-                    .table(sessions_table)
-                    .if_not_exists()
-                    .col(
-                        ColumnDef::new(TbSessions::IdHash)
-                            .string_len(64)
-                            .not_null()
-                            .primary_key(),
-                    )
-                    .col(dialect::json(TbSessions::Data, backend)?)
-                    .col(dialect::timestamp_utc(TbSessions::ExpiresAt, backend)?)
-                    .col(dialect::timestamp_utc(TbSessions::CreatedAt, backend)?)
-                    .to_owned(),
-            )
-            .await?;
+        crate::session::SessionMigration.up(manager).await?;
         manager
             .create_table(
                 Table::create()
@@ -857,14 +833,11 @@ impl MigrationTrait for AuthMigration {
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         let backend = manager.get_database_backend();
         let pat_table = migration_table("personal_access_tokens", backend)?;
-        let sessions_table = migration_table("sessions", backend)?;
         let users_table = migration_table("users", backend)?;
         manager
             .drop_table(Table::drop().table(pat_table).if_exists().to_owned())
             .await?;
-        manager
-            .drop_table(Table::drop().table(sessions_table).if_exists().to_owned())
-            .await?;
+        crate::session::SessionMigration.down(manager).await?;
         manager
             .drop_table(Table::drop().table(users_table).if_exists().to_owned())
             .await

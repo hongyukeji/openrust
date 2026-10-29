@@ -1,0 +1,178 @@
+{
+  "format_version": 1,
+  "upstream_refs": {
+    "framework": "d52c3b3129e4c8e213c97cdc68f94b0b7d27f181",
+    "docs": "960eedf0911155ad16326ade49c0ea5d18eda0b8"
+  },
+  "original_manifest_sha256": "af65021e2e31bcc5e241c195d5bbad022dcbff5426d8c105229292d2ab927bba",
+  "content_included": false,
+  "verification_scope": "SHA256 and byte lengths checked against already cached fixed official sources. No upstream PHP source text included. Failed retrievals are not source evidence.",
+  "sources": [
+    {
+      "repo": "framework",
+      "ref": "d52c3b3129e4c8e213c97cdc68f94b0b7d27f181",
+      "file": "src/Illuminate/Session/Store.php",
+      "sha256": "61cf31f4f63716bb1331d9d46c8b92750f47532f69aa9176b08130baabceebb8",
+      "bytes": 19252,
+      "url": "https://raw.githubusercontent.com/laravel/framework/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Session/Store.php",
+      "verified_bytes": 19252,
+      "retrieval_status": "verified_existing_cache",
+      "id": "framework:src/Illuminate/Session/Store.php"
+    },
+    {
+      "repo": "framework",
+      "ref": "d52c3b3129e4c8e213c97cdc68f94b0b7d27f181",
+      "file": "src/Illuminate/Contracts/Session/Session.php",
+      "sha256": "9369f38a80fd6f415aa4f83fdb767f1cf51e6205ec6ecafe025534daa25e8ff6",
+      "bytes": 4099,
+      "url": "https://raw.githubusercontent.com/laravel/framework/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Contracts/Session/Session.php",
+      "verified_bytes": 4099,
+      "retrieval_status": "verified_existing_cache",
+      "id": "framework:src/Illuminate/Contracts/Session/Session.php"
+    },
+    {
+      "repo": "framework",
+      "ref": "d52c3b3129e4c8e213c97cdc68f94b0b7d27f181",
+      "file": "src/Illuminate/Session/SessionManager.php",
+      "sha256": "c3ba1ccb3558fd5473545bd1a397d40805e07331e6f11695840e1407e5a79ad4",
+      "bytes": 7431,
+      "url": "https://raw.githubusercontent.com/laravel/framework/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Session/SessionManager.php",
+      "verified_bytes": 7431,
+      "retrieval_status": "verified_existing_cache",
+      "id": "framework:src/Illuminate/Session/SessionManager.php"
+    },
+    {
+      "repo": "framework",
+      "ref": "d52c3b3129e4c8e213c97cdc68f94b0b7d27f181",
+      "file": "src/Illuminate/Session/SessionServiceProvider.php",
+      "sha256": "aaebe0aabf4faf6c7049cb706f321f27808e454d4b9ca404cbdb9e562f9d6b39",
+      "bytes": 1489,
+      "url": "https://raw.githubusercontent.com/laravel/framework/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Session/SessionServiceProvider.php",
+      "verified_bytes": 1489,
+      "retrieval_status": "verified_existing_cache",
+      "id": "framework:src/Illuminate/Session/SessionServiceProvider.php"
+    },
+    {
+      "repo": "framework",
+      "ref": "d52c3b3129e4c8e213c97cdc68f94b0b7d27f181",
+      "file": "src/Illuminate/Http/Request.php",
+      "sha256": "d790c1dd0576f96aefd748cfcad05ec7fb271e828557e77c47bf83c3231abe25",
+      "bytes": 20519,
+      "url": "https://raw.githubusercontent.com/laravel/framework/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Http/Request.php",
+      "verified_bytes": 20519,
+      "retrieval_status": "verified_existing_cache",
+      "id": "framework:src/Illuminate/Http/Request.php"
+    },
+    {
+      "repo": "framework",
+      "ref": "d52c3b3129e4c8e213c97cdc68f94b0b7d27f181",
+      "file": "src/Illuminate/Http/Concerns/InteractsWithFlashData.php",
+      "sha256": "f1e1cfc096426ec1002825015f43b034aadbb1787391bb1077fb1a7adc3c486d",
+      "bytes": 1532,
+      "url": "https://raw.githubusercontent.com/laravel/framework/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Http/Concerns/InteractsWithFlashData.php",
+      "verified_bytes": 1532,
+      "retrieval_status": "verified_existing_cache",
+      "id": "framework:src/Illuminate/Http/Concerns/InteractsWithFlashData.php"
+    },
+    {
+      "repo": "framework",
+      "ref": "d52c3b3129e4c8e213c97cdc68f94b0b7d27f181",
+      "file": "tests/Session/SessionStoreTest.php",
+      "sha256": "b85c9dfff06437c13c3383bf711ddaf0e05146281f78e5a87c91a596ca0cba50",
+      "bytes": 28787,
+      "url": "https://raw.githubusercontent.com/laravel/framework/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/tests/Session/SessionStoreTest.php",
+      "verified_bytes": 28787,
+      "retrieval_status": "verified_existing_cache",
+      "id": "framework:tests/Session/SessionStoreTest.php"
+    },
+    {
+      "file": "tests/Session/Middleware/StartSessionTest.php",
+      "error_class": "HTTPError",
+      "repo": "framework",
+      "ref": "d52c3b3129e4c8e213c97cdc68f94b0b7d27f181",
+      "url": "https://raw.githubusercontent.com/laravel/framework/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/tests/Session/Middleware/StartSessionTest.php",
+      "retrieval_status": "failed_in_original_audit",
+      "id": "framework:tests/Session/Middleware/StartSessionTest.php"
+    },
+    {
+      "repo": "docs",
+      "ref": "960eedf0911155ad16326ade49c0ea5d18eda0b8",
+      "file": "session.md",
+      "sha256": "b5ec5c557dbc5510bdafa3b5033f7edd06653713049d9aa1cf461784f24bebd0",
+      "bytes": 18111,
+      "url": "https://raw.githubusercontent.com/laravel/docs/960eedf0911155ad16326ade49c0ea5d18eda0b8/session.md",
+      "verified_bytes": 18111,
+      "retrieval_status": "verified_existing_cache",
+      "id": "docs:session.md"
+    },
+    {
+      "repo": "framework",
+      "ref": "d52c3b3129e4c8e213c97cdc68f94b0b7d27f181",
+      "file": "config/session.php",
+      "sha256": "12ec2d64eaffa4a9378a7f0d49f4ffd117f798b6b60a6efd3be067e4b01f1f95",
+      "url": "https://raw.githubusercontent.com/laravel/framework/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/config/session.php",
+      "verified_bytes": 7849,
+      "retrieval_status": "verified_existing_cache",
+      "id": "framework:config/session.php"
+    },
+    {
+      "repo": "framework",
+      "ref": "d52c3b3129e4c8e213c97cdc68f94b0b7d27f181",
+      "file": "src/Illuminate/Collections/Arr.php",
+      "sha256": "b38b741bc8f59a4c86effe818056136cfe0bf6bb3b28fbbb3cbb989fb3b77c98",
+      "url": "https://raw.githubusercontent.com/laravel/framework/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Collections/Arr.php",
+      "verified_bytes": 36539,
+      "retrieval_status": "verified_existing_cache",
+      "id": "framework:src/Illuminate/Collections/Arr.php"
+    },
+    {
+      "repo": "framework",
+      "ref": "d52c3b3129e4c8e213c97cdc68f94b0b7d27f181",
+      "file": "src/Illuminate/Routing/Pipeline.php",
+      "sha256": "766de2c81e882c5403b2a7d1954600b91b99e3e60f84709bf37cb5145db53ee7",
+      "url": "https://raw.githubusercontent.com/laravel/framework/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Routing/Pipeline.php",
+      "verified_bytes": 1523,
+      "retrieval_status": "verified_existing_cache",
+      "id": "framework:src/Illuminate/Routing/Pipeline.php"
+    },
+    {
+      "repo": "framework",
+      "ref": "d52c3b3129e4c8e213c97cdc68f94b0b7d27f181",
+      "file": "src/Illuminate/Http/RedirectResponse.php",
+      "sha256": "7648b4fa2d59e586463b008d1e0d6e9bc4e67eb427316fa042c7d1e721e53a66",
+      "url": "https://raw.githubusercontent.com/laravel/framework/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Http/RedirectResponse.php",
+      "verified_bytes": 6692,
+      "retrieval_status": "verified_existing_cache",
+      "id": "framework:src/Illuminate/Http/RedirectResponse.php"
+    },
+    {
+      "file": "tests/Session/Middleware/StartSessionMiddlewareTest.php",
+      "error_class": "HTTPError",
+      "repo": "framework",
+      "ref": "d52c3b3129e4c8e213c97cdc68f94b0b7d27f181",
+      "url": "https://raw.githubusercontent.com/laravel/framework/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/tests/Session/Middleware/StartSessionMiddlewareTest.php",
+      "retrieval_status": "failed_in_original_audit",
+      "id": "framework:tests/Session/Middleware/StartSessionMiddlewareTest.php"
+    },
+    {
+      "repo": "framework",
+      "ref": "d52c3b3129e4c8e213c97cdc68f94b0b7d27f181",
+      "file": "src/Illuminate/Support/Str.php",
+      "sha256": "83666b88194ae8a1359b9cd18e967c9e5f583b5d34421b078786382b24e9aa17",
+      "url": "https://raw.githubusercontent.com/laravel/framework/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Support/Str.php",
+      "verified_bytes": 71740,
+      "retrieval_status": "verified_existing_cache",
+      "id": "framework:src/Illuminate/Support/Str.php"
+    },
+    {
+      "repo": "framework",
+      "ref": "d52c3b3129e4c8e213c97cdc68f94b0b7d27f181",
+      "file": "LICENSE.md",
+      "sha256": "7b4f9149597fbae2ce689bc9317d1869e17f1b3fa5f01c289998c108f8c37cf7",
+      "url": "https://raw.githubusercontent.com/laravel/framework/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/LICENSE.md",
+      "verified_bytes": 1075,
+      "retrieval_status": "verified_existing_cache",
+      "id": "framework:LICENSE.md"
+    }
+  ]
+}

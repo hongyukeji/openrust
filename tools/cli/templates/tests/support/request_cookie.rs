@@ -1,10 +1,12 @@
 //! 生成应用经正式 Provider、请求读取与响应中间件验证 Cookie 契约。
 use figment::Figment;
+use openrust::config::SessionConfig;
 use openrust::core::{Application, BootContext, BoxFuture, ServiceProvider};
 use openrust::http::axum::{
+    Extension,
     body::Body,
     http::{
-        Request, StatusCode,
+        HeaderValue, Request, StatusCode,
         header::{COOKIE, SET_COOKIE},
     },
     response::IntoResponse,
@@ -12,6 +14,7 @@ use openrust::http::axum::{
 use openrust::http::{
     Cookie, CookieJar, CookieOptions, CookieResponseExt, Json, RequestInfo, Routes, SameSite,
 };
+use openrust::session::Session;
 use openrust::testing::{TestApp, TestResponse};
 use serde_json::{Value, json};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -66,12 +69,23 @@ fn options() -> CookieOptions {
     }
 }
 
-async fn set_cookies(jar: CookieJar) -> openrust::Result<impl IntoResponse> {
+async fn set_cookies(
+    jar: CookieJar,
+    session: Option<Extension<Session>>,
+) -> openrust::Result<impl IntoResponse> {
     let factory = jar.factory();
     jar.queue(factory.make(NAMES[0], VALUES[0], 5, options())?)?;
-    Json(json!({"queued": true, "direct": true, "many": true}))
+    let mut response = Json(json!({"queued": true, "direct": true, "many": true}))
         .with_cookie(factory.make(NAMES[1], VALUES[1], 5, options())?)?
-        .with_cookies([factory.make(NAMES[2], VALUES[2], 5, options())?])
+        .with_cookies([factory.make(NAMES[2], VALUES[2], 5, options())?])?
+        .into_response();
+    if let Some(Extension(session)) = session {
+        response.headers_mut().insert(
+            "x-contract-session-name",
+            HeaderValue::from_str(&session.name()?).map_err(openrust::Error::internal)?,
+        );
+    }
+    Ok(response)
 }
 
 async fn inspect_cookies(info: RequestInfo) -> Json<Value> {
@@ -93,7 +107,10 @@ async fn forget_cookies(jar: CookieJar) -> openrust::Result<impl IntoResponse> {
 }
 
 /// 在生成应用自身的正式 Provider 和中间件链路验证 Cookie；不替代真实 TCP 验收。
-pub async fn assert_request_cookie<A: Application>(source: Figment) -> openrust::Result<()> {
+pub async fn assert_request_cookie<A: Application>(
+    source: Figment,
+    expect_session: bool,
+) -> openrust::Result<()> {
     let mut app = TestApp::<CookieApplication<A>>::builder(source)
         .build()
         .await?;
@@ -103,28 +120,59 @@ pub async fn assert_request_cookie<A: Application>(source: Figment) -> openrust:
             &response,
             json!({"queued": true, "direct": true, "many": true}),
         )?;
-        let cookie_header = check_cookie_headers(&response, false)?.join("; ");
+        let session_name = session_name(&response, expect_session)?;
+        let session_config = if expect_session {
+            Some(
+                app.app()?
+                    .section::<SessionConfig>("session")
+                    .map_err(openrust::Error::internal)?,
+            )
+        } else {
+            None
+        };
+        let mut pairs = check_cookie_headers(
+            &response,
+            false,
+            session_name.as_deref().zip(session_config.as_ref()),
+        )?;
+        let cookie_header = pairs.join("; ");
 
         let response = app
             .request(request("inspect", Some(&cookie_header))?)
             .await?;
         check_response(&response, inspection(true))?;
-        ensure_no_queued_cookie(&response)?;
+        if let Some(pair) = check_session_only(
+            &response,
+            session_name.as_deref().zip(session_config.as_ref()),
+        )? {
+            *pairs.get_mut(NAMES.len()).ok_or_else(mismatch)? = pair;
+        }
+        let cookie_header = pairs.join("; ");
 
         // 不携带上次 Cookie 的请求既无读取值，也不能收到上次请求的队列。
         let response = app.request(request("inspect", None)?).await?;
         check_response(&response, inspection(false))?;
-        ensure_no_queued_cookie(&response)?;
+        check_session_only(
+            &response,
+            session_name.as_deref().zip(session_config.as_ref()),
+        )?;
 
         let response = app
             .request(request("forget", Some(&cookie_header))?)
             .await?;
         check_response(&response, json!({"forgotten": true}))?;
-        check_cookie_headers(&response, true)?;
+        check_cookie_headers(
+            &response,
+            true,
+            session_name.as_deref().zip(session_config.as_ref()),
+        )?;
 
         let response = app.request(request("inspect", None)?).await?;
         check_response(&response, inspection(false))?;
-        ensure_no_queued_cookie(&response)?;
+        check_session_only(
+            &response,
+            session_name.as_deref().zip(session_config.as_ref()),
+        )?;
         Ok(())
     }
     .await;
@@ -160,7 +208,22 @@ fn check_response(response: &TestResponse, data: Value) -> openrust::Result<()> 
     Ok(())
 }
 
-fn check_cookie_headers(response: &TestResponse, deletion: bool) -> openrust::Result<Vec<String>> {
+fn session_name(response: &TestResponse, expected: bool) -> openrust::Result<Option<String>> {
+    let mut values = response.headers().get_all("x-contract-session-name").iter();
+    let name = values
+        .next()
+        .map(|value| value.to_str().map(str::to_owned))
+        .transpose()
+        .map_err(|_| mismatch())?;
+    ensure(values.next().is_none() && name.is_some() == expected)?;
+    Ok(name)
+}
+
+fn check_cookie_headers(
+    response: &TestResponse,
+    deletion: bool,
+    session: Option<(&str, &SessionConfig)>,
+) -> openrust::Result<Vec<String>> {
     let mut pairs = Vec::new();
     let now = i64::try_from(
         SystemTime::now()
@@ -204,18 +267,94 @@ fn check_cookie_headers(response: &TestResponse, deletion: bool) -> openrust::Re
         // 第一段逐字保留，既不解密 or1，也不假设当前应用采用明文保护模式。
         pairs.push(pair.to_owned());
     }
+    let mut total = 0;
+    let mut session_count = 0;
+    for value in response.headers().get_all(SET_COOKIE) {
+        total += 1;
+        let header = value.to_str().map_err(|_| mismatch())?;
+        let pair = header.split(';').next().ok_or_else(mismatch)?;
+        let (name, value) = pair.split_once('=').ok_or_else(mismatch)?;
+        if NAMES.contains(&name) {
+            continue;
+        }
+        let (expected_name, config) = session.ok_or_else(mismatch)?;
+        ensure(name == expected_name && !value.is_empty())?;
+        check_session_cookie(header, expected_name, config)?;
+        pairs.push(pair.to_owned());
+        session_count += 1;
+    }
+    ensure(session_count == usize::from(session.is_some()))?;
+    ensure(total == NAMES.len() + session_count)?;
     Ok(pairs)
 }
 
-fn ensure_no_queued_cookie(response: &TestResponse) -> openrust::Result<()> {
+fn check_session_only(
+    response: &TestResponse,
+    session: Option<(&str, &SessionConfig)>,
+) -> openrust::Result<Option<String>> {
+    let mut count = 0;
+    let mut pair = None;
     for header in response.headers().get_all(SET_COOKIE) {
         let header = header.to_str().map_err(|_| mismatch())?;
-        let name = header
+        let first = header.split(';').next().ok_or_else(mismatch)?;
+        let (name, value) = first.split_once('=').ok_or_else(mismatch)?;
+        let (expected_name, config) = session.ok_or_else(mismatch)?;
+        ensure(name == expected_name && !value.is_empty())?;
+        check_session_cookie(header, expected_name, config)?;
+        pair = Some(first.to_owned());
+        count += 1;
+    }
+    ensure(count == usize::from(session.is_some()))?;
+    Ok(pair)
+}
+
+fn check_session_cookie(header: &str, name: &str, config: &SessionConfig) -> openrust::Result<()> {
+    let model = Cookie::from_header(header)?;
+    ensure(model.name() == name && model.path() == config.path)?;
+    if let Some(explicit) = config.cookie.as_deref() {
+        ensure(name == explicit)?;
+    }
+    let domain = config
+        .domain
+        .as_deref()
+        .filter(|value| !value.is_empty() && *value != "0");
+    ensure(model.domain() == domain)?;
+    // TestApp 发送普通本机 HTTP；未设置 Secure 时可信传输默认值为 false。
+    ensure(model.secure() == Some(config.secure.unwrap_or(false)))?;
+    ensure(model.http_only() == config.http_only)?;
+    let same_site = match config
+        .same_site
+        .as_deref()
+        .map(str::to_ascii_lowercase)
+        .as_deref()
+    {
+        None => None,
+        Some("lax") => Some(SameSite::Lax),
+        Some("strict") => Some(SameSite::Strict),
+        Some("none") => Some(SameSite::None),
+        _ => return Err(mismatch()),
+    };
+    ensure(model.same_site() == same_site)?;
+    let attributes = header.to_ascii_lowercase();
+    ensure(
+        attributes
             .split(';')
-            .next()
-            .and_then(|pair| pair.split_once('='))
-            .map(|(name, _)| name);
-        ensure(name.is_none_or(|name| !NAMES.contains(&name)))?;
+            .any(|part| part.trim() == "partitioned")
+            == config.partitioned,
+    )?;
+    let max_age = header.split(';').skip(1).find_map(|attribute| {
+        let (key, value) = attribute.trim().split_once('=')?;
+        key.eq_ignore_ascii_case("max-age").then_some(value)
+    });
+    if config.expire_on_close {
+        ensure(model.expires().is_none() && max_age.is_none())?;
+    } else {
+        let age = max_age
+            .ok_or_else(mismatch)?
+            .parse::<i64>()
+            .map_err(|_| mismatch())?;
+        let lifetime = i64::try_from(config.lifetime).map_err(|_| mismatch())?;
+        ensure(model.expires().is_some() && age > 0 && age <= lifetime.saturating_mul(60))?;
     }
     Ok(())
 }

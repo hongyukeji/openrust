@@ -1,0 +1,3415 @@
+{
+  "format_version": 1,
+  "evidence_status": "source_candidate",
+  "oracle_executed": false,
+  "fixed_framework": "d52c3b3129e4c8e213c97cdc68f94b0b7d27f181",
+  "fixed_docs": "960eedf0911155ad16326ade49c0ea5d18eda0b8",
+  "source_manifest": "source-manifest.json",
+  "runtime_probe": {
+    "php_version": "8.5.0",
+    "with_n": {
+      "executed": true,
+      "ctype_alnum": false,
+      "SessionHandlerInterface": false,
+      "random_bytes": true
+    },
+    "without_n": {
+      "executed": true,
+      "ctype_alnum": false,
+      "SessionHandlerInterface": false
+    },
+    "blocked_reason": "缺原生SessionHandlerInterface与ctype_alnum；Laravel Collection/Macroable等源码依赖也未齐全。未构造stub、未Reflection绕constructor、未安装/重建PHP。",
+    "runtime_description": "Existing task-local PHP 8.5.0 CLI, not bundled or required by Cargo.",
+    "scope": "Recorded capability probes only, not a Laravel Store oracle; not repeated during persistence."
+  },
+  "representation": {
+    "attribute_bags": "JSON object represents PHP session string-key attribute map; object key order is not asserted; _token seeded to deterministic40ASCIIalnum before start.",
+    "array_values": "PHP contiguous integer arrays encode as JSON arrays; sparse integer arrays encode as JSON objects with decimal string keys. Empty PHP arrays encode as [].",
+    "returns": "expected_return null is a real stored null return, distinct from missing default. Mutator return unspecified unless recorded; no Rust public signatures are implied.",
+    "setup": "Construct real Store with valid_id and handler record serialized from handler_record_attributes; first explicit start loads it and retains seeded nonnull _token.",
+    "next_request": "Create a new Store with same ID and handler persisted record, then start; no aging outside explicit save or age_flash_data.",
+    "save": "Invoke the real Store.save, whose ageFlashData runs on every call; expect.written_attributes is logical decoded handler write payload, not PHP wire bytes."
+  },
+  "case_count": 38,
+  "cases": [
+    {
+      "id": "get_missing_uses_default",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "get",
+          "args": [
+            "missing",
+            "fallback"
+          ],
+          "expected_return": "fallback"
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            333,
+            336
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            497,
+            524
+          ]
+        }
+      ]
+    },
+    {
+      "id": "get_null_does_not_use_default",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+          "nil": null
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "get",
+          "args": [
+            "nil",
+            "fallback"
+          ],
+          "expected_return": null
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        "nil": null
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            333,
+            336
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            497,
+            524
+          ]
+        }
+      ]
+    },
+    {
+      "id": "get_falsy_values_stay_distinct",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+          "f": false,
+          "zero": 0,
+          "empty": ""
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "get",
+          "args": [
+            "f",
+            "fallback"
+          ],
+          "expected_return": false
+        },
+        {
+          "op": "get",
+          "args": [
+            "zero",
+            "fallback"
+          ],
+          "expected_return": 0
+        },
+        {
+          "op": "get",
+          "args": [
+            "empty",
+            "fallback"
+          ],
+          "expected_return": ""
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        "f": false,
+        "zero": 0,
+        "empty": ""
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            333,
+            336
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            497,
+            524
+          ]
+        }
+      ]
+    },
+    {
+      "id": "get_default_is_lazy_only_for_missing",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+          "nil": null
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "get_with_default_probe",
+          "args": [
+            "nil",
+            "fallback"
+          ],
+          "expected_return": null,
+          "expect": {
+            "default_calls_total": 0
+          }
+        },
+        {
+          "op": "get_with_default_probe",
+          "args": [
+            "absent",
+            "fallback"
+          ],
+          "expected_return": "fallback",
+          "expect": {
+            "default_calls_total": 1
+          }
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        "nil": null
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            333,
+            336
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            497,
+            524
+          ]
+        }
+      ],
+      "note": "default_probe是后续真实harness闭包计数器，不是替代Store实现；此处未执行。"
+    },
+    {
+      "id": "get_literal_dot_precedes_nested",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+          "a.b": "literal",
+          "a": {
+            "b": "nested"
+          }
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "get",
+          "args": [
+            "a.b",
+            "fallback"
+          ],
+          "expected_return": "literal"
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        "a.b": "literal",
+        "a": {
+          "b": "nested"
+        }
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            333,
+            336
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            497,
+            524
+          ]
+        }
+      ]
+    },
+    {
+      "id": "put_dot_does_not_replace_existing_literal_key",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+          "a.b": "literal",
+          "a": {
+            "b": "old"
+          }
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "put",
+          "args": [
+            "a.b",
+            "new"
+          ]
+        },
+        {
+          "op": "get",
+          "args": [
+            "a.b"
+          ],
+          "expected_return": "literal"
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        "a.b": "literal",
+        "a": {
+          "b": "new"
+        }
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            393,
+            403
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            1028,
+            1055
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            333,
+            336
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            497,
+            524
+          ]
+        }
+      ]
+    },
+    {
+      "id": "forget_literal_dot_then_nested_is_visible",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+          "a.b": "literal",
+          "a": {
+            "b": "nested"
+          }
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "forget",
+          "args": [
+            "a.b"
+          ]
+        },
+        {
+          "op": "get",
+          "args": [
+            "a.b"
+          ],
+          "expected_return": "nested"
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        "a": {
+          "b": "nested"
+        }
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            585,
+            588
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            426,
+            459
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            333,
+            336
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            497,
+            524
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pull_literal_dot_then_nested_is_visible",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+          "a.b": "literal",
+          "a": {
+            "b": "nested"
+          }
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "pull",
+          "args": [
+            "a.b",
+            "fallback"
+          ],
+          "expected_return": "literal"
+        },
+        {
+          "op": "get",
+          "args": [
+            "a.b"
+          ],
+          "expected_return": "nested"
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        "a": {
+          "b": "nested"
+        }
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            345,
+            348
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            951,
+            957
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            333,
+            336
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            497,
+            524
+          ]
+        }
+      ]
+    },
+    {
+      "id": "put_replaces_scalar_intermediate",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+          "a": "scalar"
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "put",
+          "args": [
+            "a.b",
+            7
+          ]
+        },
+        {
+          "op": "get",
+          "args": [
+            "a.b"
+          ],
+          "expected_return": 7
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        "a": {
+          "b": 7
+        }
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            393,
+            403
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            1028,
+            1055
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            333,
+            336
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            497,
+            524
+          ]
+        }
+      ]
+    },
+    {
+      "id": "put_replaces_null_intermediate",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+          "a": null
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "put",
+          "args": [
+            "a.b",
+            0
+          ]
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        "a": {
+          "b": 0
+        }
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            393,
+            403
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            1028,
+            1055
+          ]
+        }
+      ]
+    },
+    {
+      "id": "put_bulk_obeys_given_order",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "put_many",
+          "args": [
+            {
+              "a": 1,
+              "a.b": 2,
+              "raw": "  x  "
+            }
+          ]
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        "a": {
+          "b": 2
+        },
+        "raw": "  x  "
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            393,
+            403
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            1028,
+            1055
+          ]
+        }
+      ],
+      "note": "put_many对象按列出的插入顺序处理；Request trim不参与Session写入。"
+    },
+    {
+      "id": "get_star_is_literal_not_wildcard",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+          "items": {
+            "*": "literal",
+            "one": "ordinary"
+          }
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "get",
+          "args": [
+            "items.*"
+          ],
+          "expected_return": "literal"
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        "items": {
+          "*": "literal",
+          "one": "ordinary"
+        }
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            333,
+            336
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            497,
+            524
+          ]
+        }
+      ]
+    },
+    {
+      "id": "has_vs_exists_null",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+          "nil": null
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "has",
+          "args": [
+            "nil"
+          ],
+          "expected_return": false
+        },
+        {
+          "op": "exists",
+          "args": [
+            "nil"
+          ],
+          "expected_return": true
+        },
+        {
+          "op": "has",
+          "args": [
+            "missing"
+          ],
+          "expected_return": false
+        },
+        {
+          "op": "exists",
+          "args": [
+            "missing"
+          ],
+          "expected_return": false
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        "nil": null
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            306,
+            311
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            506,
+            519
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            280,
+            287
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            537,
+            550
+          ]
+        }
+      ]
+    },
+    {
+      "id": "has_falsy_is_true",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+          "f": false,
+          "zero": 0,
+          "empty": ""
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "has",
+          "args": [
+            [
+              "f",
+              "zero",
+              "empty"
+            ]
+          ],
+          "expected_return": true
+        },
+        {
+          "op": "exists",
+          "args": [
+            [
+              "f",
+              "zero",
+              "empty"
+            ]
+          ],
+          "expected_return": true
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        "f": false,
+        "zero": 0,
+        "empty": ""
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            306,
+            311
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            506,
+            519
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            280,
+            287
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            537,
+            550
+          ]
+        }
+      ]
+    },
+    {
+      "id": "has_and_exists_multi_key_all_semantics",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+          "one": 1,
+          "nil": null
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "has",
+          "args": [
+            [
+              "one",
+              "nil"
+            ]
+          ],
+          "expected_return": false
+        },
+        {
+          "op": "exists",
+          "args": [
+            [
+              "one",
+              "nil"
+            ]
+          ],
+          "expected_return": true
+        },
+        {
+          "op": "exists",
+          "args": [
+            [
+              "one",
+              "missing"
+            ]
+          ],
+          "expected_return": false
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        "one": 1,
+        "nil": null
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            306,
+            311
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            506,
+            519
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            280,
+            287
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            537,
+            550
+          ]
+        }
+      ]
+    },
+    {
+      "id": "has_and_exists_empty_keys_vacuously_true",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "has",
+          "args": [
+            []
+          ],
+          "expected_return": true
+        },
+        {
+          "op": "exists",
+          "args": [
+            []
+          ],
+          "expected_return": true
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            306,
+            311
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            506,
+            519
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            280,
+            287
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            537,
+            550
+          ]
+        }
+      ]
+    },
+    {
+      "id": "nested_exists_includes_null",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+          "a": {
+            "b": null
+          }
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "exists",
+          "args": [
+            "a.b"
+          ],
+          "expected_return": true
+        },
+        {
+          "op": "has",
+          "args": [
+            "a.b"
+          ],
+          "expected_return": false
+        },
+        {
+          "op": "exists",
+          "args": [
+            "a.c"
+          ],
+          "expected_return": false
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        "a": {
+          "b": null
+        }
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            306,
+            311
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            506,
+            519
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            280,
+            287
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            537,
+            550
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pull_present_null_then_missing_default",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+          "nil": null
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "pull",
+          "args": [
+            "nil",
+            "fallback"
+          ],
+          "expected_return": null
+        },
+        {
+          "op": "pull",
+          "args": [
+            "nil",
+            "fallback"
+          ],
+          "expected_return": "fallback"
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            345,
+            348
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            951,
+            957
+          ]
+        }
+      ]
+    },
+    {
+      "id": "pull_missing_does_not_insert_default",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "pull",
+          "args": [
+            "missing",
+            "fallback"
+          ],
+          "expected_return": "fallback"
+        },
+        {
+          "op": "exists",
+          "args": [
+            "missing"
+          ],
+          "expected_return": false
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            345,
+            348
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            951,
+            957
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            280,
+            287
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            537,
+            550
+          ]
+        }
+      ]
+    },
+    {
+      "id": "forget_many_preserves_unselected_siblings",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+          "one": 1,
+          "a": {
+            "b": 2,
+            "c": 3
+          }
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "forget",
+          "args": [
+            [
+              "one",
+              "a.b",
+              "absent"
+            ]
+          ]
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        "a": {
+          "c": 3
+        }
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            585,
+            588
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            426,
+            459
+          ]
+        }
+      ]
+    },
+    {
+      "id": "forget_empty_list_is_noop",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+          "one": 1
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "forget",
+          "args": [
+            []
+          ]
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        "one": 1
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            585,
+            588
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            426,
+            459
+          ]
+        }
+      ]
+    },
+    {
+      "id": "forget_missing_nested_keeps_scalar_parent",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+          "a": "scalar"
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "forget",
+          "args": [
+            "a.b"
+          ]
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        "a": "scalar"
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            585,
+            588
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            426,
+            459
+          ]
+        }
+      ]
+    },
+    {
+      "id": "flash_available_now_and_next_request_then_expires",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "flash",
+          "args": [
+            "status",
+            "ok"
+          ]
+        },
+        {
+          "op": "get",
+          "args": [
+            "status"
+          ],
+          "expected_return": "ok"
+        },
+        {
+          "op": "save",
+          "args": [],
+          "expect": {
+            "write_calls_total": 1,
+            "written_attributes": {
+              "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+              "status": "ok",
+              "_flash": {
+                "new": [],
+                "old": [
+                  "status"
+                ]
+              }
+            },
+            "started": false
+          }
+        },
+        {
+          "op": "next_request",
+          "args": [],
+          "expect": {
+            "read_calls_total": 2,
+            "started": true
+          }
+        },
+        {
+          "op": "get",
+          "args": [
+            "status"
+          ],
+          "expected_return": "ok"
+        },
+        {
+          "op": "save",
+          "args": [],
+          "expect": {
+            "write_calls_total": 2,
+            "written_attributes": {
+              "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+              "_flash": {
+                "new": [],
+                "old": []
+              }
+            },
+            "started": false
+          }
+        },
+        {
+          "op": "next_request",
+          "args": [],
+          "expect": {
+            "read_calls_total": 3,
+            "started": true
+          }
+        },
+        {
+          "op": "get",
+          "args": [
+            "status",
+            "missing"
+          ],
+          "expected_return": "missing"
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        "_flash": {
+          "new": [],
+          "old": []
+        }
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            471,
+            481
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            246,
+            268
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            333,
+            336
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            497,
+            524
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            181,
+            192
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            152,
+            182
+          ]
+        }
+      ]
+    },
+    {
+      "id": "now_deleted_at_first_save",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "now",
+          "args": [
+            "status",
+            "ok"
+          ]
+        },
+        {
+          "op": "get",
+          "args": [
+            "status"
+          ],
+          "expected_return": "ok"
+        },
+        {
+          "op": "save",
+          "args": [],
+          "expect": {
+            "written_attributes": {
+              "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+              "_flash": {
+                "old": [],
+                "new": []
+              }
+            },
+            "write_calls_total": 1
+          }
+        },
+        {
+          "op": "next_request",
+          "args": []
+        },
+        {
+          "op": "get",
+          "args": [
+            "status",
+            "missing"
+          ],
+          "expected_return": "missing"
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        "_flash": {
+          "old": [],
+          "new": []
+        }
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            489,
+            496
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            270,
+            284
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            181,
+            192
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            152,
+            182
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            333,
+            336
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            497,
+            524
+          ]
+        }
+      ]
+    },
+    {
+      "id": "reflash_extends_old_one_more_request",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+          "status": "ok",
+          "_flash": {
+            "old": [
+              "status"
+            ],
+            "new": []
+          }
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "reflash",
+          "args": []
+        },
+        {
+          "op": "save",
+          "args": [],
+          "expect": {
+            "written_attributes": {
+              "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+              "status": "ok",
+              "_flash": {
+                "old": [
+                  "status"
+                ],
+                "new": []
+              }
+            }
+          }
+        },
+        {
+          "op": "next_request",
+          "args": []
+        },
+        {
+          "op": "get",
+          "args": [
+            "status"
+          ],
+          "expected_return": "ok"
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        "status": "ok",
+        "_flash": {
+          "old": [
+            "status"
+          ],
+          "new": []
+        }
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            503,
+            508
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            301,
+            318
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            181,
+            192
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            152,
+            182
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            333,
+            336
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            497,
+            524
+          ]
+        }
+      ]
+    },
+    {
+      "id": "now_then_reflash_survives_save",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "now",
+          "args": [
+            "status",
+            "ok"
+          ]
+        },
+        {
+          "op": "reflash",
+          "args": []
+        },
+        {
+          "op": "save",
+          "args": [],
+          "expect": {
+            "written_attributes": {
+              "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+              "status": "ok",
+              "_flash": {
+                "old": [
+                  "status"
+                ],
+                "new": []
+              }
+            }
+          }
+        },
+        {
+          "op": "next_request",
+          "args": []
+        },
+        {
+          "op": "get",
+          "args": [
+            "status"
+          ],
+          "expected_return": "ok"
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        "status": "ok",
+        "_flash": {
+          "old": [
+            "status"
+          ],
+          "new": []
+        }
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            489,
+            496
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            270,
+            284
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            503,
+            508
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            301,
+            318
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            181,
+            192
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            152,
+            182
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            333,
+            336
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            497,
+            524
+          ]
+        }
+      ]
+    },
+    {
+      "id": "keep_selected_old_preserves_sparse_metadata_indices",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+          "keep": "yes",
+          "drop": "no",
+          "_flash": {
+            "old": [
+              "keep",
+              "drop"
+            ],
+            "new": []
+          }
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "keep",
+          "args": [
+            [
+              "keep"
+            ]
+          ]
+        },
+        {
+          "op": "get",
+          "args": [
+            "_flash.old"
+          ],
+          "expected_return": {
+            "1": "drop"
+          }
+        },
+        {
+          "op": "get",
+          "args": [
+            "_flash.new"
+          ],
+          "expected_return": [
+            "keep"
+          ]
+        },
+        {
+          "op": "save",
+          "args": [],
+          "expect": {
+            "written_attributes": {
+              "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+              "keep": "yes",
+              "_flash": {
+                "old": [
+                  "keep"
+                ],
+                "new": []
+              }
+            }
+          }
+        },
+        {
+          "op": "next_request",
+          "args": []
+        },
+        {
+          "op": "get",
+          "args": [
+            "keep"
+          ],
+          "expected_return": "yes"
+        },
+        {
+          "op": "get",
+          "args": [
+            "drop",
+            "missing"
+          ],
+          "expected_return": "missing"
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        "keep": "yes",
+        "_flash": {
+          "old": [
+            "keep"
+          ],
+          "new": []
+        }
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            516,
+            545
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            286,
+            299
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            181,
+            192
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            152,
+            182
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            333,
+            336
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            497,
+            524
+          ]
+        }
+      ],
+      "note": "PHP array_diff不重编号；旧列表去掉index0后保留index1，fixture用JSON object表示该稀疏PHP数组。"
+    },
+    {
+      "id": "keep_can_mark_normal_value_as_flash",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+          "ordinary": "value"
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "keep",
+          "args": [
+            [
+              "ordinary"
+            ]
+          ]
+        },
+        {
+          "op": "save",
+          "args": []
+        },
+        {
+          "op": "next_request",
+          "args": []
+        },
+        {
+          "op": "get",
+          "args": [
+            "ordinary"
+          ],
+          "expected_return": "value"
+        },
+        {
+          "op": "save",
+          "args": []
+        },
+        {
+          "op": "next_request",
+          "args": []
+        },
+        {
+          "op": "get",
+          "args": [
+            "ordinary",
+            "missing"
+          ],
+          "expected_return": "missing"
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        "_flash": {
+          "new": [],
+          "old": []
+        }
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            516,
+            545
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            286,
+            299
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            181,
+            192
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            152,
+            182
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            333,
+            336
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            497,
+            524
+          ]
+        }
+      ]
+    },
+    {
+      "id": "keep_missing_does_not_create_value",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "keep",
+          "args": [
+            [
+              "absent"
+            ]
+          ]
+        },
+        {
+          "op": "get",
+          "args": [
+            "absent",
+            "missing"
+          ],
+          "expected_return": "missing"
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        "_flash": {
+          "new": [
+            "absent"
+          ],
+          "old": []
+        }
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            516,
+            545
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            286,
+            299
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            333,
+            336
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            497,
+            524
+          ]
+        }
+      ]
+    },
+    {
+      "id": "keep_no_arguments_is_not_reflash",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+          "status": "ok",
+          "_flash": {
+            "old": [
+              "status"
+            ],
+            "new": []
+          }
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "keep",
+          "args": []
+        },
+        {
+          "op": "save",
+          "args": []
+        },
+        {
+          "op": "next_request",
+          "args": []
+        },
+        {
+          "op": "get",
+          "args": [
+            "status",
+            "missing"
+          ],
+          "expected_return": "missing"
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        "_flash": {
+          "old": [],
+          "new": []
+        }
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            516,
+            545
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            286,
+            299
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            181,
+            192
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            152,
+            182
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            333,
+            336
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            497,
+            524
+          ]
+        }
+      ]
+    },
+    {
+      "id": "flash_then_now_deletes_same_key_at_save",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "flash",
+          "args": [
+            "x",
+            "first"
+          ]
+        },
+        {
+          "op": "now",
+          "args": [
+            "x",
+            "second"
+          ]
+        },
+        {
+          "op": "get",
+          "args": [
+            "x"
+          ],
+          "expected_return": "second"
+        },
+        {
+          "op": "save",
+          "args": []
+        },
+        {
+          "op": "next_request",
+          "args": []
+        },
+        {
+          "op": "get",
+          "args": [
+            "x",
+            "missing"
+          ],
+          "expected_return": "missing"
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        "_flash": {
+          "new": [],
+          "old": [
+            "x"
+          ]
+        }
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            471,
+            481
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            246,
+            268
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            489,
+            496
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            270,
+            284
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            181,
+            192
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            152,
+            182
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            333,
+            336
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            497,
+            524
+          ]
+        }
+      ]
+    },
+    {
+      "id": "now_then_flash_keeps_same_key_for_next_request",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "now",
+          "args": [
+            "x",
+            "first"
+          ]
+        },
+        {
+          "op": "flash",
+          "args": [
+            "x",
+            "second"
+          ]
+        },
+        {
+          "op": "save",
+          "args": []
+        },
+        {
+          "op": "next_request",
+          "args": []
+        },
+        {
+          "op": "get",
+          "args": [
+            "x"
+          ],
+          "expected_return": "second"
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        "x": "second",
+        "_flash": {
+          "old": [
+            "x"
+          ],
+          "new": []
+        }
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            489,
+            496
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            270,
+            284
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            471,
+            481
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            246,
+            268
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            181,
+            192
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            152,
+            182
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            333,
+            336
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            497,
+            524
+          ]
+        }
+      ]
+    },
+    {
+      "id": "flash_duplicate_push_is_not_implicitly_deduplicated",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "flash",
+          "args": [
+            "x",
+            1
+          ]
+        },
+        {
+          "op": "flash",
+          "args": [
+            "x",
+            2
+          ]
+        },
+        {
+          "op": "get",
+          "args": [
+            "_flash.new"
+          ],
+          "expected_return": [
+            "x",
+            "x"
+          ]
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        "x": 2,
+        "_flash": {
+          "new": [
+            "x",
+            "x"
+          ],
+          "old": []
+        }
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            471,
+            481
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            246,
+            268
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            333,
+            336
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            497,
+            524
+          ]
+        }
+      ]
+    },
+    {
+      "id": "reflash_merge_unique_preserves_sparse_indices",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+          "a": 1,
+          "b": 2,
+          "_flash": {
+            "new": [
+              "a"
+            ],
+            "old": [
+              "a",
+              "b"
+            ]
+          }
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "reflash",
+          "args": []
+        },
+        {
+          "op": "get",
+          "args": [
+            "_flash.new"
+          ],
+          "expected_return": {
+            "0": "a",
+            "2": "b"
+          }
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        "a": 1,
+        "b": 2,
+        "_flash": {
+          "new": {
+            "0": "a",
+            "2": "b"
+          },
+          "old": []
+        }
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            503,
+            508
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            301,
+            318
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            516,
+            545
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            286,
+            299
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            333,
+            336
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            497,
+            524
+          ]
+        }
+      ],
+      "note": "array_merge后array_unique保留原整数key，不是values()重编号。"
+    },
+    {
+      "id": "explicit_age_then_save_ages_twice",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "flash",
+          "args": [
+            "x",
+            "value"
+          ]
+        },
+        {
+          "op": "age_flash_data",
+          "args": []
+        },
+        {
+          "op": "get",
+          "args": [
+            "x"
+          ],
+          "expected_return": "value"
+        },
+        {
+          "op": "save",
+          "args": [],
+          "expect": {
+            "written_attributes": {
+              "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+              "_flash": {
+                "new": [],
+                "old": []
+              }
+            }
+          }
+        },
+        {
+          "op": "get",
+          "args": [
+            "x",
+            "missing"
+          ],
+          "expected_return": "missing"
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        "_flash": {
+          "new": [],
+          "old": []
+        }
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            471,
+            481
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            246,
+            268
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            233,
+            240
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            181,
+            192
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            152,
+            182
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            333,
+            336
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            497,
+            524
+          ]
+        }
+      ]
+    },
+    {
+      "id": "two_explicit_saves_advance_flash_twice_in_same_store",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "flash",
+          "args": [
+            "x",
+            "value"
+          ]
+        },
+        {
+          "op": "save",
+          "args": [],
+          "expect": {
+            "write_calls_total": 1,
+            "started": false,
+            "written_attributes": {
+              "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+              "x": "value",
+              "_flash": {
+                "new": [],
+                "old": [
+                  "x"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "op": "save",
+          "args": [],
+          "expect": {
+            "write_calls_total": 2,
+            "started": false,
+            "written_attributes": {
+              "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+              "_flash": {
+                "new": [],
+                "old": []
+              }
+            }
+          }
+        },
+        {
+          "op": "get",
+          "args": [
+            "x",
+            "missing"
+          ],
+          "expected_return": "missing"
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        "_flash": {
+          "new": [],
+          "old": []
+        }
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            471,
+            481
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            246,
+            268
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            181,
+            192
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            152,
+            182
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            333,
+            336
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            497,
+            524
+          ]
+        }
+      ],
+      "note": "save无started/dirty保护；显式save和middleware自己的save若都调用，源语义确实推进两次，不能静默去重显式操作。"
+    },
+    {
+      "id": "unchanged_session_still_writes_each_explicit_save",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+          "stable": 7
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "save",
+          "args": [],
+          "expect": {
+            "write_calls_total": 1,
+            "started": false,
+            "written_attributes": {
+              "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+              "stable": 7,
+              "_flash": {
+                "old": [],
+                "new": []
+              }
+            }
+          }
+        },
+        {
+          "op": "save",
+          "args": [],
+          "expect": {
+            "write_calls_total": 2,
+            "started": false,
+            "written_attributes": {
+              "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+              "stable": 7,
+              "_flash": {
+                "old": [],
+                "new": []
+              }
+            }
+          }
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        "stable": 7,
+        "_flash": {
+          "old": [],
+          "new": []
+        }
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            181,
+            192
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            152,
+            182
+          ]
+        }
+      ]
+    },
+    {
+      "id": "forget_flash_value_does_not_implicitly_clear_tracking",
+      "evidence_status": "source_candidate",
+      "setup": {
+        "handler_record_attributes": {
+          "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+        },
+        "valid_id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      },
+      "operations": [
+        {
+          "op": "start",
+          "args": [],
+          "expected_return": true
+        },
+        {
+          "op": "flash",
+          "args": [
+            "x",
+            "value"
+          ]
+        },
+        {
+          "op": "forget",
+          "args": [
+            "x"
+          ]
+        },
+        {
+          "op": "get",
+          "args": [
+            "_flash.new"
+          ],
+          "expected_return": [
+            "x"
+          ]
+        },
+        {
+          "op": "save",
+          "args": []
+        },
+        {
+          "op": "next_request",
+          "args": []
+        },
+        {
+          "op": "exists",
+          "args": [
+            "x"
+          ],
+          "expected_return": false
+        }
+      ],
+      "expected_final_attributes": {
+        "_token": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT",
+        "_flash": {
+          "new": [],
+          "old": [
+            "x"
+          ]
+        }
+      },
+      "fixed_source_locations": [
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            98,
+            139
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            471,
+            481
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            246,
+            268
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            585,
+            588
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            426,
+            459
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            181,
+            192
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            152,
+            182
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            333,
+            336
+          ]
+        },
+        {
+          "file": "src/Illuminate/Collections/Arr.php",
+          "lines": [
+            497,
+            524
+          ]
+        },
+        {
+          "file": "src/Illuminate/Session/Store.php",
+          "lines": [
+            280,
+            287
+          ]
+        },
+        {
+          "file": "tests/Session/SessionStoreTest.php",
+          "lines": [
+            537,
+            550
+          ]
+        }
+      ]
+    }
+  ],
+  "source_sha256": {
+    "src/Illuminate/Session/Store.php": "61cf31f4f63716bb1331d9d46c8b92750f47532f69aa9176b08130baabceebb8",
+    "src/Illuminate/Collections/Arr.php": "b38b741bc8f59a4c86effe818056136cfe0bf6bb3b28fbbb3cbb989fb3b77c98",
+    "tests/Session/SessionStoreTest.php": "b85c9dfff06437c13c3383bf711ddaf0e05146281f78e5a87c91a596ca0cba50"
+  },
+  "limitations": [
+    "这些期望由固定生产源码及其测试推导，尚非真实PHP Store oracle输出；不得标为red/green或实际执行golden。",
+    "未覆盖全部Session driver、PHP对象序列化、Session ID随机过程、CSRF完整Web行为；本组只供已指定纯属性/flash叶子验收候选。",
+    "Rust JSON/serde表示如果选择不同稀疏元数据编码，须root明确适配合同，不能把重编号或duplicate消除当作源码已等价。"
+  ],
+  "provenance": "provenance.json"
+}

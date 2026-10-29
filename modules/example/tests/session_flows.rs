@@ -1,0 +1,290 @@
+//! 正式模块 Session 路由的内存 driver 消费与生命周期回归；不替代双库或 TCP 验收。
+#![cfg(feature = "session")]
+
+use std::time::Duration;
+
+use figment::{Figment, providers::Serialized};
+use openrust::core::{Application, ServiceProvider};
+use openrust::http::axum::{
+    body::Body,
+    http::{Request, StatusCode, header},
+};
+use openrust::http::{Cookie, SameSite};
+use openrust::session::{MemorySessionStore, SessionServiceProvider};
+use openrust::testing::{TestApp, TestResponse};
+use serde_json::{Value, json};
+
+type TestResult<T = ()> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
+const PATH: &str = "/api/example/session";
+const COOKIE_NAME: &str = "example_module_session";
+const TIMEOUT: Duration = Duration::from_secs(5);
+
+struct SessionApplication;
+impl Application for SessionApplication {
+    type Config = <crate::bootstrap::Server as Application>::Config;
+    fn config_namespace() -> &'static str {
+        crate::bootstrap::Server::config_namespace()
+    }
+    fn providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+        let mut providers = crate::bootstrap::Server::providers(config);
+        // 本 fixture 仅从下方固定源构造，没有数据库源；Server 因此不登记认证 Session。
+        // 不改变宿主 Cookie Provider 的加密/明文选择，也不替换正式生产 driver。
+        providers.push(Box::new(
+            SessionServiceProvider::with_store(MemorySessionStore::default()).with_cookie_config(
+                openrust::config::SessionConfig {
+                    driver: Some("array".into()),
+                    cookie: Some(COOKIE_NAME.into()),
+                    secure: Some(false),
+                    ..openrust::config::SessionConfig::default()
+                },
+            ),
+        ));
+        providers
+    }
+    fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
+        crate::bootstrap::Server::modules(config)
+    }
+}
+
+fn sources() -> Figment {
+    let mut config = openrust::config::FrameworkConfig::default();
+    config.api.http_status = openrust::config::HttpStatusMode::Semantic;
+    Figment::from(Serialized::defaults(config)).merge(Serialized::defaults(json!({
+        "app":{"env":"test"},
+        "cache":{"default_store":"default","stores":{"default":{"driver":"memory"}}},
+        "security":{"encryption":{"active_key_id":"test","keys":{"test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}}
+    })))
+}
+fn ensure(condition: bool) -> TestResult {
+    if condition {
+        Ok(())
+    } else {
+        Err("module Session contract mismatch".into())
+    }
+}
+fn data(preference: Option<&str>, notice: Option<&str>, action: Option<&str>) -> Value {
+    let mut result = json!({"preference":preference,"notice":notice,
+        "has":{"preference":preference.is_some(),"notice":notice.is_some()},
+        "exists":{"preference":preference.is_some(),"notice":notice.is_some()}});
+    if let Some(action) = action {
+        result["action"] = json!(action);
+    }
+    result
+}
+fn success(response: &TestResponse, data: &Value) -> TestResult {
+    response
+        .assert_status(StatusCode::OK)?
+        .assert_json(&json!({"success":true,"code":"ok","message":"ok","data":data}))?;
+    Ok(())
+}
+async fn request(
+    app: &TestApp<SessionApplication>,
+    payload: Option<Value>,
+    cookie: Option<&str>,
+) -> TestResult<TestResponse> {
+    let mut builder = if payload.is_some() {
+        Request::post(PATH).header(header::CONTENT_TYPE, "application/json")
+    } else {
+        Request::get(PATH)
+    };
+    builder = builder.header("host", "localhost");
+    if let Some(cookie) = cookie {
+        builder = builder.header(header::COOKIE, cookie);
+    }
+    let body = payload
+        .map(|value| serde_json::to_vec(&value))
+        .transpose()?
+        .unwrap_or_default();
+    Ok(app
+        .request_with_limits(builder.body(Body::from(body))?, 4096, TIMEOUT)
+        .await?)
+}
+fn cookie_pair(response: &TestResponse) -> TestResult<String> {
+    let mut selected = None;
+    for header in response.headers().get_all(header::SET_COOKIE) {
+        let text = header.to_str()?;
+        let pair = text
+            .split(';')
+            .next()
+            .ok_or("Session Cookie pair missing")?;
+        let (name, value) = pair.split_once('=').ok_or("Set-Cookie pair malformed")?;
+        if name == COOKIE_NAME {
+            ensure(selected.is_none() && !value.is_empty())?;
+            let model = Cookie::from_header(text)?;
+            ensure(model.path() == "/" && model.http_only() && model.secure() == Some(false))?;
+            ensure(model.same_site() == Some(SameSite::Lax))?;
+            selected = Some(pair.to_owned());
+        }
+    }
+    // 首段逐字回送，不解密、不打印，也不把显式 plain 模式称为受保护 Cookie。
+    selected.ok_or_else(|| "Session Set-Cookie missing".into())
+}
+async fn step(
+    app: &TestApp<SessionApplication>,
+    cookie: &mut String,
+    action: Option<&str>,
+    value: Value,
+    expected: Value,
+) -> TestResult {
+    let payload = action.map(|action| json!({"action":action,"value":value}));
+    let response = request(app, payload, Some(cookie)).await?;
+    success(&response, &expected)?;
+    *cookie = cookie_pair(&response)?;
+    Ok(())
+}
+async fn invalid(
+    app: &TestApp<SessionApplication>,
+    cookie: &mut String,
+    payload: Value,
+    code: &str,
+) -> TestResult {
+    let response = request(app, Some(payload), Some(cookie)).await?;
+    response.assert_status(StatusCode::BAD_REQUEST)?;
+    let body: Value = response.json()?;
+    ensure(body.as_object().is_some_and(|body| body.len() == 5))?;
+    ensure(body["success"] == false && body["code"] == code)?;
+    let message = match code {
+        "example_session_action_invalid" => "无效的示例 Session 操作",
+        _ => "示例 Session 值必须是不超过 256 UTF-8 字节的字符串",
+    };
+    ensure(body["message"] == message)?;
+    ensure(
+        body["timestamp"]
+            .as_str()
+            .is_some_and(|value| chrono::DateTime::parse_from_rfc3339(value).is_ok()),
+    )?;
+    ensure(body["request_id"].as_str().is_some_and(|value| {
+        !value.is_empty()
+            && response
+                .headers()
+                .get("x-request-id")
+                .and_then(|header| header.to_str().ok())
+                == Some(value)
+    }))?;
+    *cookie = cookie_pair(&response)?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn module_session_preferences_flash_keep_and_request_isolation() -> TestResult {
+    let mut app = TestApp::<SessionApplication>::builder(sources())
+        .build()
+        .await?;
+    let outcome: TestResult = async {
+        let initial = request(&app, None, None).await?;
+        success(&initial, &data(None, None, None))?;
+        let mut cookie = cookie_pair(&initial)?;
+        // 正式 Request 会 trim；这是输入规范化，不是 Session bag 自行改写字符串。
+        let pref = Some("blue+green;warm");
+        for (action, value, preference, notice) in [
+            (Some("put"), json!("  blue+green;warm  "), pref, None),
+            (None, Value::Null, pref, None),
+            (Some("flash"), json!("once"), pref, Some("once")),
+            (None, Value::Null, pref, Some("once")),
+            (None, Value::Null, pref, None),
+            (Some("flash"), json!("next"), pref, Some("next")),
+            (Some("keep"), Value::Null, pref, Some("next")),
+            (None, Value::Null, pref, Some("next")),
+            (None, Value::Null, pref, None),
+            (Some("now"), json!("current"), pref, Some("current")),
+            (None, Value::Null, pref, None),
+            (Some("forget"), Value::Null, None, None),
+            (None, Value::Null, None, None),
+        ] {
+            step(
+                &app,
+                &mut cookie,
+                action,
+                value,
+                data(preference, notice, action),
+            )
+            .await?;
+        }
+        let isolated = request(&app, None, None).await?;
+        success(&isolated, &data(None, None, None))?;
+        cookie_pair(&isolated)?;
+        Ok(())
+    }
+    .await;
+    let shutdown = app.shutdown(tokio::time::Instant::now() + TIMEOUT).await;
+    outcome?;
+    shutdown?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn module_session_utf8_budget_invalid_values_and_namespace_are_bounded() -> TestResult {
+    let mut app = TestApp::<SessionApplication>::builder(sources())
+        .build()
+        .await?;
+    let outcome: TestResult = async {
+        let initial = request(&app, None, None).await?;
+        success(&initial, &data(None, None, None))?;
+        let mut cookie = cookie_pair(&initial)?;
+        let exact = format!("{}a", "界".repeat(85));
+        ensure(exact.len() == 256)?;
+        step(
+            &app,
+            &mut cookie,
+            Some("put"),
+            json!(exact),
+            data(Some(&exact), None, Some("put")),
+        )
+        .await?;
+        for payload in [
+            json!({"action":"put","value":format!("{exact}b")}),
+            json!({"action":"put","value":"   "}),
+            json!({"action":"put","value":17}),
+            json!({"action":"flash","value":false}),
+        ] {
+            invalid(&app, &mut cookie, payload, "example_session_value_invalid").await?;
+            step(
+                &app,
+                &mut cookie,
+                None,
+                Value::Null,
+                data(Some(&exact), None, None),
+            )
+            .await?;
+        }
+        invalid(
+            &app,
+            &mut cookie,
+            json!({"action":"reflash","value":"not echoed"}),
+            "example_session_action_invalid",
+        )
+        .await?;
+        invalid(
+            &app,
+            &mut cookie,
+            json!({"action":"openrust.auth.user_id","value":"not echoed"}),
+            "example_session_action_invalid",
+        )
+        .await?;
+        // 正文里的 key 不能将固定偏好操作转成任意 Session 写入。
+        let written = request(
+            &app,
+            Some(json!({"action":"put","key":"openrust.auth.user_id","value":"own preference"})),
+            Some(&cookie),
+        )
+        .await?;
+        success(&written, &data(Some("own preference"), None, Some("put")))?;
+        cookie = cookie_pair(&written)?;
+        let isolated = request(&app, None, None).await?;
+        success(&isolated, &data(None, None, None))?;
+        step(
+            &app,
+            &mut cookie,
+            None,
+            Value::Null,
+            data(Some("own preference"), None, None),
+        )
+        .await?;
+        Ok(())
+    }
+    .await;
+    let shutdown = app.shutdown(tokio::time::Instant::now() + TIMEOUT).await;
+    outcome?;
+    shutdown?;
+    Ok(())
+}
