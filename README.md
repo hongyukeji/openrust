@@ -1,6 +1,6 @@
-# OpenRust — Laravel + laravel-modules 的 Rust 实现
+# OpenRust — Laravel + Laravel Modules 的 Rust 实现
 
-> Laravel + laravel-modules = OpenRust。以 Rust 语言 1:1 实现 Laravel 的框架能力与 laravel-modules 的模块化开发机制。
+> Laravel + Laravel Modules = OpenRust。以 Rust 语言 1:1 实现 Laravel 的框架能力与 Laravel Modules 的模块化开发机制。
 
 OpenRust 面向熟悉 Laravel 的开发者：目标是让开发者沿用 Laravel 官方文档中的概念和操作流程，用 Rust 编写应用。以固定版本的 Laravel 文档、源码和测试为实现基准，逐项对应服务容器、Service Provider、路由、数据库、认证、队列等能力；Goravel 作为跨语言实现参考。
 

@@ -1,7 +1,7 @@
 [package]
 name = "openrust"
 publish = false
-description = "OpenRust：以 Rust 实现 Laravel 框架与 laravel-modules 模块化开发机制（重构进行中）。"
+description = "OpenRust：Laravel + Laravel Modules 的 Rust 实现，延续熟悉的框架与模块化开发体验（重构进行中）。"
 readme = "README.md"
 autobins = false
 default-run = "server"
