@@ -50,6 +50,13 @@ mod cache_flows;
 ))]
 #[path = "tests/collector_flows.rs"]
 mod collector_flows;
+#[cfg(all(
+    test,
+    feature = "auth",
+    any(feature = "db-postgres", feature = "db-mysql")
+))]
+#[path = "tests/cookie_auth_flows.rs"]
+mod cookie_auth_flows;
 #[cfg(test)]
 #[path = "tests/cookie_flows.rs"]
 mod cookie_flows;

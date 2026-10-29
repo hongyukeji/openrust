@@ -16,6 +16,7 @@ use http::request::Parts;
 use tower::{Layer, Service};
 
 mod database;
+pub(crate) use database::AUTH_USER_ID_KEY;
 mod flows;
 mod jwt;
 #[cfg(feature = "auth-mfa")]
@@ -599,6 +600,9 @@ async fn authenticate(
             let Some(session) = request.extensions().get::<Session>().cloned() else {
                 return Error::internal(MissingSessionLayer).into_response();
             };
+            if let Err(error) = session.require_authenticated_storage() {
+                return error.into_response();
+            }
             if session.id().map(|id| id.to_string()).ok().as_deref() != Some(value) {
                 return Error::Unauthorized.into_response();
             }

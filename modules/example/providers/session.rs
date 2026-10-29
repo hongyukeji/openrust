@@ -45,6 +45,12 @@ impl ExampleSessionDriver {
     }
 }
 impl SessionStore for ExampleSessionDriver {
+    fn supports_session_authentication(&self, cookie_name: &str) -> bool {
+        self.backend.supports_session_authentication(cookie_name)
+    }
+    fn guarantees(&self) -> openrust::session::SessionStoreGuarantees {
+        self.backend.guarantees()
+    }
     fn needs_request(&self) -> bool {
         true
     }
@@ -52,8 +58,15 @@ impl SessionStore for ExampleSessionDriver {
         &self,
         context: SessionRequestContext,
     ) -> Result<Option<Arc<dyn SessionStore>>> {
+        let backend = if self.backend.needs_request() {
+            self.backend.bind_request(context.clone())?.ok_or_else(|| {
+                openrust::Error::custom("example_session_binding_invalid", "示例底层驱动未绑定请求")
+            })?
+        } else {
+            self.backend.clone()
+        };
         Ok(Some(Arc::new(Self {
-            backend: self.backend.clone(),
+            backend,
             request: Some(context),
         })))
     }
@@ -119,4 +132,16 @@ impl ServiceProvider for ExampleSessionDriverProvider {
         });
         Ok(())
     }
+}
+
+/// 显式 Cookie fixture 配置；调用方安装到独立 Application，不覆盖默认宿主。
+pub fn cookie_session_provider() -> openrust::session::SessionServiceProvider {
+    openrust::session::SessionServiceProvider::new().with_cookie_config(
+        openrust::config::SessionConfig {
+            driver: Some("cookie".into()),
+            cookie: Some("example_module_session".into()),
+            secure: Some(false),
+            ..Default::default()
+        },
+    )
 }

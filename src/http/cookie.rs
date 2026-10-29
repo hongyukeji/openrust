@@ -8,6 +8,8 @@ mod response;
 mod value;
 
 pub use ::cookie::SameSite;
+#[cfg(feature = "session")]
+pub(crate) use crypto::CookieProtection;
 pub(crate) use provider::CookieRuntime;
 pub use provider::CookieServiceProvider;
 pub use queue::CookieJar;
@@ -15,6 +17,21 @@ pub use response::{CookieResponse, CookieResponseExt};
 pub use value::{Cookie, CookieFactory, CookieOptions};
 
 pub(crate) use parse::{OriginalCookies, ParsedCookies, parse_headers};
+
+// Cookie/Session 机制失败不能成为可缓存的敏感响应；不继承旧正文或出站 Cookie。
+pub(crate) fn private_error_response(error: crate::Error) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    let mut response = error.into_response();
+    response.headers_mut().insert(
+        http::header::CACHE_CONTROL,
+        http::HeaderValue::from_static("no-store"),
+    );
+    response.headers_mut().insert(
+        http::header::PRAGMA,
+        http::HeaderValue::from_static("no-cache"),
+    );
+    response
+}
 
 pub(crate) fn cookie_limits_error() -> crate::Error {
     crate::Error::custom_with_status(

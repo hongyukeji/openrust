@@ -13,6 +13,15 @@ use crate::{Error, Result, core::BoxFuture};
 /// 默认整个持久记录（含身份绑定与属性）的字节上限。
 pub const DEFAULT_MAX_BYTES: usize = crate::config::SessionConfig::MAX_BYTES;
 
+/// 驱动能够兑现的存储保证；不是部署拓扑或跨节点共享声明。
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum SessionStoreGuarantees {
+    /// 当前后端的条件写入与删除；内存驱动仍仅限当前实例。
+    ServerSide,
+    /// 浏览器快照与本请求观察；旧副本可重放，响应接收顺序决定最终 Cookie。
+    ClientSideSnapshot,
+}
+
 /// 写入是否允许创建新记录。
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum SessionWriteMode {
@@ -156,6 +165,18 @@ impl SessionRecord {
 /// `max_bytes`要求load在解码或复制完整载荷前限制读取；框架仍会验证返回记录。
 /// 实现不得将Update的Missing自动改成插入。错误不得包含凭据或原始属性。
 pub trait SessionStore: Send + Sync + 'static {
+    /// 当前后端提供的保证；请求绑定前后必须一致。
+    fn guarantees(&self) -> SessionStoreGuarantees {
+        SessionStoreGuarantees::ServerSide
+    }
+
+    /// 是否能保证 Session 身份属性的完整性；服务器后端默认可以，客户端快照默认拒绝。
+    ///
+    /// 第三方客户端驱动返回 true 时，必须自行验证完整性；此声明不替代验证或服务器撤销。
+    fn supports_session_authentication(&self, _cookie_name: &str) -> bool {
+        self.guarantees() == SessionStoreGuarantees::ServerSide
+    }
+
     /// 是否必须先绑定本请求上下文才可执行 I/O。
     fn needs_request(&self) -> bool {
         false
@@ -179,7 +200,7 @@ pub trait SessionStore: Send + Sync + 'static {
         empty_expiry: OffsetDateTime,
     ) -> BoxFuture<'a, Result<Option<SessionRecord>>>;
 
-    /// 根据模式原子写入，并返回碰撞或撤销信息。
+    /// `ServerSide` 按模式原子写入；`ClientSideSnapshot` 仅检查本请求观察。
     fn write<'a>(
         &'a self,
         record: &'a SessionRecord,
@@ -187,7 +208,7 @@ pub trait SessionStore: Send + Sync + 'static {
         max_bytes: usize,
     ) -> BoxFuture<'a, Result<SessionWriteOutcome>>;
 
-    /// 撤销指定ID；重复删除成功，不得因此重建记录。
+    /// 删除指定 ID；`ServerSide` 撤销后不得重建，快照驱动仅忘记当前响应 Cookie。
     fn delete<'a>(&'a self, id: &'a SessionId) -> BoxFuture<'a, Result<()>>;
 }
 
@@ -241,7 +262,7 @@ impl Write for LimitedWriter {
 }
 
 // 先于Serde的递归限制；资源错误不能被当成损坏JSON的匿名fallback。
-fn guard_json_depth(bytes: &[u8]) -> Result<()> {
+pub(super) fn guard_json_depth(bytes: &[u8]) -> Result<()> {
     let mut depth = 0_usize;
     let mut quoted = false;
     let mut escaped = false;
@@ -272,6 +293,20 @@ fn guard_json_depth(bytes: &[u8]) -> Result<()> {
     Ok(())
 }
 
+pub(super) fn json_bytes(value: &impl Serialize, maximum: usize) -> Result<Vec<u8>> {
+    let mut writer = LimitedWriter {
+        data: Vec::new(),
+        maximum,
+        exceeded: false,
+    };
+    let result = serde_json::to_writer(&mut writer, value);
+    if writer.exceeded {
+        return Err(limit_error());
+    }
+    result.map_err(|_| invalid_record())?;
+    Ok(writer.data)
+}
+
 pub(super) fn value_from<T: Serialize>(value: &T, maximum: usize) -> Result<Value> {
     let mut writer = LimitedWriter {
         data: Vec::new(),
@@ -295,9 +330,81 @@ pub(super) fn value_from<T: Serialize>(value: &T, maximum: usize) -> Result<Valu
     Ok(value)
 }
 
+/// 请求所需的服务器撤销保证不可由浏览器快照兑现。
+pub(super) fn unsupported_guarantee() -> Error {
+    Error::custom_with_status(
+        http::StatusCode::INTERNAL_SERVER_ERROR,
+        "session_store_guarantee_unsupported",
+        "Session 驱动无法提供服务器端撤销保证",
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct SnapshotDeclaration;
+    impl SessionStore for SnapshotDeclaration {
+        fn guarantees(&self) -> SessionStoreGuarantees {
+            SessionStoreGuarantees::ClientSideSnapshot
+        }
+        fn load<'a>(
+            &'a self,
+            _id: &'a SessionId,
+            _max: usize,
+            _expiry: OffsetDateTime,
+        ) -> BoxFuture<'a, Result<Option<SessionRecord>>> {
+            Box::pin(async { Err(unavailable()) })
+        }
+        fn write<'a>(
+            &'a self,
+            _record: &'a SessionRecord,
+            _mode: SessionWriteMode,
+            _max: usize,
+        ) -> BoxFuture<'a, Result<SessionWriteOutcome>> {
+            Box::pin(async { Err(unavailable()) })
+        }
+        fn delete<'a>(&'a self, _id: &'a SessionId) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async { Err(unavailable()) })
+        }
+    }
+    struct SelfVerifiedDeclaration;
+    impl SessionStore for SelfVerifiedDeclaration {
+        fn guarantees(&self) -> SessionStoreGuarantees {
+            SessionStoreGuarantees::ClientSideSnapshot
+        }
+        // 只核对受信任实现的公开声明边界，不将该声明探针当成已实现的客户端驱动。
+        fn supports_session_authentication(&self, _name: &str) -> bool {
+            true
+        }
+        fn load<'a>(
+            &'a self,
+            _id: &'a SessionId,
+            _max: usize,
+            _expiry: OffsetDateTime,
+        ) -> BoxFuture<'a, Result<Option<SessionRecord>>> {
+            Box::pin(async { Err(unavailable()) })
+        }
+        fn write<'a>(
+            &'a self,
+            _record: &'a SessionRecord,
+            _mode: SessionWriteMode,
+            _max: usize,
+        ) -> BoxFuture<'a, Result<SessionWriteOutcome>> {
+            Box::pin(async { Err(unavailable()) })
+        }
+        fn delete<'a>(&'a self, _id: &'a SessionId) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async { Err(unavailable()) })
+        }
+    }
+    #[test]
+    fn client_snapshot_authentication_defaults_to_refusal_and_requires_a_trusted_declaration() {
+        assert!(!SnapshotDeclaration.supports_session_authentication("session"));
+        assert!(SelfVerifiedDeclaration.supports_session_authentication("session"));
+        assert!(
+            super::super::MemorySessionStore::default().supports_session_authentication("session")
+        );
+    }
 
     #[test]
     fn records_bind_case_sensitive_hash_and_limit_before_json_decode() -> Result<()> {

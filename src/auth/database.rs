@@ -33,6 +33,7 @@ impl DatabaseAuthenticator {
         let session = credential
             .session()
             .ok_or_else(|| Error::internal(MissingSession))?;
+        session.require_authenticated_storage()?;
         let user_id = session
             .get_typed::<i64>(AUTH_USER_ID_KEY)
             .map_err(Error::internal)?

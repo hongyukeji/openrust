@@ -6,6 +6,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Changed
 
+- 正式宿主与生成应用按数据库来源或显式非数据库 Session driver 装配唯一 Provider；数据库应用无需启用 Auth 才能使用 Session。默认 database 驱动且无数据库时不暗用内存，显式 Cookie driver 可在无数据库宿主运行。
+
 - Session 统一到公开 `openrust::session`，认证与业务共享请求状态和 store；属性同步操作、持久化异步执行。默认数据库、120 分钟 lifetime，Cookie 名从最终 `app.name` 推导，Secure 未指定时依可信传输决定；取消请求不后台保存。自定义 driver 使用公开 `SessionStore`，不再依赖旧 tower Session 接口。
 
 - 应用端口环境键统一为 `APP_PORT`（自定义命名空间如 `SHOP_PORT`），映射至内部 `server.port`；`.env` 与生成应用使用 `APP_URL="http://localhost:${APP_PORT}"`，旧端口别名不再读取。
@@ -15,6 +17,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 - API/framework JSON 默认使用语义 HTTP 状态（如创建 201、校验失败 422、资源缺失 404）；`always_ok` 仅在配置中显式选择时启用，统一 envelope 与机器码保持不变。
 
 ### Fixed
+
+- Cookie Session 认证校验真实受管理 Cookie 保护事实；plain、身份 Cookie 或合法数据 ID 被排除保护时拒绝认证，并在最终保存时防止更换名称/handler 降级保护。Cookie/Session 机制自身的失败响应统一禁止缓存，不泄出被替换响应的 Cookie 或正文。
 
 - 本地存储回收 staging 时允许其他应用实例关闭并删除已列举的 run 目录；权限和其他 I/O 错误继续阻止初始化。
 
@@ -26,7 +30,9 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Added
 
-- Session 新增可信 ID/驱动选择、来源与写入意图管理及请求内 driver 绑定；公开 `SessionRequestContext` 与默认请求 hook。`handler()` 改为返回 `Result`，同步外部实现与示例；显式转移、目标碰撞、撤销和失败 Cookie 清理分别定义，完整内置 Cookie driver 保留后继。
+- 新增公开 `CookieSessionStore` 与配置 `driver="cookie"`，复用请求绑定、Cookie 队列和密钥环实现双 Cookie；公开存储保证分类及认证完整性能力。客户端快照仅提供本请求与当前浏览器删除，不能承诺全局撤销；秒精度、异常弱类型及浏览器容量边界明确记录，唯一模块与生成应用提供使用参考。
+
+- Session 新增可信 ID/驱动选择、来源与写入意图管理及请求内 driver 绑定；公开 `SessionRequestContext` 与默认请求 hook。`handler()` 改为返回 `Result`，同步外部实现与示例；显式转移、目标碰撞、撤销和失败 Cookie 清理分别定义，内置 Cookie driver 与客户端快照边界见本次新增能力。
 
 - Session 新增 `remember`、`push`、`increment/decrement` 及显式步长、`remove`，复用同一属性和预算校验；`set_name` 接入真实出站 Cookie，`handler` 提供当前驱动引用。唯一模块和生成应用展示跨请求业务调用；PHP 数值差分与错误处理边界单独记录，完整 Session 扩展生命周期继续后继实现。
 

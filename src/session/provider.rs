@@ -1,6 +1,9 @@
 //! 唯一Session状态的Provider、最终配置和请求层。
 
-use super::{DatabaseSessionStore, MemorySessionStore, Session, SessionStore};
+use super::{
+    CookieSessionStore, DatabaseSessionStore, MemorySessionStore, Session, SessionStore,
+    SessionStoreGuarantees,
+};
 use crate::{
     Error, Result,
     config::SessionConfig,
@@ -21,8 +24,15 @@ impl SessionStoreHandle {
     pub fn new(store: impl SessionStore + 'static) -> Self {
         Self(Arc::new(store))
     }
-    /// 删除指定会话；不向日志输出凭据。
+    /// 后端的保证分类；不读取请求内数据。
+    pub fn guarantees(&self) -> SessionStoreGuarantees {
+        self.0.guarantees()
+    }
+    /// 删除指定会话；浏览器快照不能提供跨请求撤销，明确返回错误。
     pub async fn delete(&self, id: &str) -> Result<()> {
+        if self.guarantees() != SessionStoreGuarantees::ServerSide {
+            return Err(super::store::unsupported_guarantee());
+        }
         self.0.delete(&super::SessionId::parse(id)?).await
     }
 }
@@ -150,6 +160,10 @@ impl ServiceProvider for SessionServiceProvider {
                             (*resolver.resolve::<crate::db::Db>().await?).clone(),
                         )),
                         Some("array") => Arc::new(MemorySessionStore::default()),
+                        Some("cookie") => Arc::new(CookieSessionStore::new(
+                            settings.config.lifetime,
+                            settings.config.expire_on_close,
+                        )?),
                         _ => {
                             return Err(Error::custom(
                                 "session_config_invalid",
@@ -211,11 +225,9 @@ impl ServiceProvider for SessionServiceProvider {
                 Box::pin(async move {
                     let settings = SessionSettings::read(&repository)?;
                     if !custom_store
-                        && settings
-                            .config
-                            .driver
-                            .as_deref()
-                            .is_some_and(|driver| !matches!(driver, "database" | "array"))
+                        && settings.config.driver.as_deref().is_some_and(|driver| {
+                            !matches!(driver, "database" | "array" | "cookie")
+                        })
                     {
                         return Err(Error::Config(crate::config::ConfigError::Invalid(
                             "session.driver: 需要公开 with_store 实现".into(),

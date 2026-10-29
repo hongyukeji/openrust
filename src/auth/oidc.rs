@@ -1641,6 +1641,7 @@ impl ExternalIdentityFlows {
     ) -> Result<()> {
         use crate::auth::database::AUTH_USER_ID_KEY;
 
+        session.require_authenticated_storage()?;
         if user_id <= 0
             || session
                 .get_typed::<i64>(AUTH_USER_ID_KEY)

@@ -763,5 +763,66 @@
     "source_sha256": "009cd7db9aca0e4670f13de478d0d55f2f33d08410e67eec16530184d45d213f",
     "php_oracle_executed": false,
     "all_38_candidates_replayed": false
+  },
+  "cookie_driver_source_audit": {
+    "status": "canonical_cookie_driver_subscope_verified_abnormal_php_coercions_open",
+    "sources": [
+      {
+        "path": "src/Illuminate/Session/CookieSessionHandler.php",
+        "ref": "d52c3b3129e4c8e213c97cdc68f94b0b7d27f181",
+        "url": "https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Session/CookieSessionHandler.php",
+        "sha256": "fb4c6fe371bda398abcf62f30128021382357fb8ee7f16c88469c571c1ec4102"
+      },
+      {
+        "path": "src/Illuminate/Session/SessionManager.php",
+        "ref": "d52c3b3129e4c8e213c97cdc68f94b0b7d27f181",
+        "url": "https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Session/SessionManager.php",
+        "sha256": "c3ba1ccb3558fd5473545bd1a397d40805e07331e6f11695840e1407e5a79ad4"
+      },
+      {
+        "path": "src/Illuminate/Session/Middleware/StartSession.php",
+        "ref": "d52c3b3129e4c8e213c97cdc68f94b0b7d27f181",
+        "url": "https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Session/Middleware/StartSession.php",
+        "sha256": "c259cd8954a107a080e4787caec3babc7c6fc710a9ba3e0310533c2662199ac7"
+      },
+      {
+        "path": "tests/Integration/Session/CookieSessionHandlerTest.php",
+        "ref": "d52c3b3129e4c8e213c97cdc68f94b0b7d27f181",
+        "url": "https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/tests/Integration/Session/CookieSessionHandlerTest.php",
+        "sha256": "a9a1cbcf0055314d7c8dddcf7495b2d50c346f9ed211fefc48c3bd041da8cdd8"
+      }
+    ],
+    "official_tests_scope": [
+      "expire_on_close: both ID and data cookies have session lifetime",
+      "secure: both cookies inherit HTTP/HTTPS request transport"
+    ],
+    "read_expression_probe": {
+      "php_version": "8.5.0",
+      "binary_sha256": "e5209dd1828f795683660d6a915ebe9beaca2c931bff2f79e116dfc5f142b704",
+      "scope": "Copied read expression only; not the official handler class, Laravel request bootstrap or a full oracle execution.",
+      "full_oracle_executed": false
+    },
+    "canonical_write": {
+      "data": "serialized string; PHP serialization bytes are not a Rust wire-compatibility requirement",
+      "expires": "integer Unix seconds",
+      "inclusive_expiry": true
+    },
+    "known_open_difference": "Rust strictly rejects noninteger expires and nonstring/missing data in live payloads. PHP accepts some weak conversions and comparisons. Canonical write/read tests cannot close those abnormal-input parity gaps.",
+    "rust_test_execution_claimed": true,
+    "rust_execution_scope": {
+      "evidence": ".agents/project/memory/testing.md#c04-d4-内置cookie-session-driver限定子范围已验收",
+      "workspace_default_passed": 668,
+      "workspace_all_features_passed": 1367,
+      "real_database_encrypted_module_passed_per_backend": 62,
+      "real_database_plain_negative_passed_per_backend": 1,
+      "generated_tests_passed": {
+        "plain": 5,
+        "postgresql": 2,
+        "mysql": 2
+      },
+      "repository_browser_checks_passed": 4,
+      "full_php_oracle_executed": false,
+      "abnormal_php_coercion_parity_complete": false
+    }
   }
 }

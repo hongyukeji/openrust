@@ -52,15 +52,50 @@ let provider = SessionServiceProvider::with_store(MemorySessionStore::default())
 
 也可将最终配置的 `driver` 明确设为 `array`。内存 store 不共享到其他进程，进程重启后状态丢失；单实例最多保留 1024 条记录，容量不足会报错，不悄悄逐出仍有效的会话。
 
+### 客户端 Cookie driver
+
+将宿主最终配置中的 driver 显式设为 `cookie`，继续使用同一个 `SessionServiceProvider` 与 `CookieServiceProvider`：
+
+```toml
+[session]
+driver = "cookie"
+lifetime = 120
+expire_on_close = false
+```
+
+本仓正式宿主与生成应用会根据显式非数据库 driver 安装唯一 Session Provider，数据库应用无需额外启用 Auth 才能使用 Session。默认 database 驱动且未配置数据库时仍不安装该层，不暗降级到 memory；未知显式 driver 会在最终配置校验报错。
+
+此模式不需要 Session 数据表；应用其他数据库功能仍按自己的 Provider 装配。外部 driver 组合也可使用公开的 `CookieSessionStore::new(lifetime_minutes, expire_on_close)`。构造器验证正数分钟与时间范围，不在构造时保存请求。自定义包装 driver 必须委托 `guarantees()` 与 `supports_session_authentication(cookie_name)`，并保持请求绑定前后的保证分类一致。
+
+浏览器保存两枚 Cookie：配置名 Cookie 保存会话 ID，以 ID 为名称的 Cookie 保存属性字符串和整数秒截止。默认 Cookie Provider 加密并校验两枚 Cookie，历史密钥仍可解密；业务通过普通 Session API 使用，不接触 wire 内容。显式 plain 模式没有机密性或防篡改能力，不能用来保护认证状态。数据 Cookie 采用 CookieFactory 默认的 `HttpOnly=true`、`Partitioned=false`；ID Cookie 单独采用 `session.http_only`、`session.partitioned`，两者的路径、域、安全传输与 SameSite 沿宿主统一默认值。
+
+`expire_on_close=true` 使两枚 Cookie 都成为浏览器会话 Cookie，内含截止仍有效。截止所在整秒可读，下一秒失效；此 driver 的显式 `set_expiry` 同样按秒表示，相比纳秒期限可能延长不足一秒。Rust 使用 JSON 表示属性，不与 PHP serialize 字节互通。
+
+Session 认证另需完整性保证。框架只信任实际 Cookie 中间件提供的保护事实，配置中放入密钥或编译 `encryption` 本身不等于 Cookie 已受保护。plain 模式、ID 名被 `except` 排除，或任一合法 40 位数据 Cookie 名被排除时，Cookie driver 不支持 Session 认证；拒绝任一合法数据 ID 排除是为了防止 ID 轮换后改变安全保证。当前 `except` 按精确名称匹配，`*` 不代表通配符。
+
+上述组合仍可用于明确的非认证 Cookie 业务，但登录、登出和实际 Session 认证入口会返回 500 `session_cookie_protection_required`。登录/登出在限流与密码验证等副作用前检查；认证属性保存时也按最终 handler 和 Cookie 名称复核，不能通过 `set_name` 或 `set_handler` 降级保护。JWT 独立认证不会仅因编译了 Cookie driver 就被拒绝。无加密构建应使用服务器端 Session 后端；要使用 Cookie Session 认证，则需启用加密并装配受保护 Cookie Provider。
+
+Cookie/Session 机制自身失败（包括请求准备、保存、Cookie 生成、保护或头部预算失败）响应统一带 `Cache-Control: no-store` 和 `Pragma: no-cache`。替换错误响应不会携带原业务正文、Cookie 或内容长度；此规则不改变普通成功响应的缓存策略。
+
+Cookie driver 是**客户端快照**：登出和迁移仅删除当前浏览器的旧数据 Cookie。复制的旧 Cookie 在内含期限前仍可重放，并发响应由浏览器最后接收者决定；它不能提供服务器全局撤销、跨客户端原子 Update 或全局 ID 碰撞检测。普通当前请求登录、登出使用绑定 Session；无请求的 `SessionStoreHandle::delete` 与要求服务器持续撤销保证的 `authorized_until` 返回 `session_store_guarantee_unsupported`，不会假报远程注销成功。
+
+仍须遵守统一 Cookie 队列、完整头部与 Session 记录预算；64 KiB 的框架头部上限不表示浏览器允许同样大小的 Cookie。浏览器通常有约 4 KiB 的单 Cookie 限制，加密也会增大 wire 值，较大属性应选择数据库或 Redis。框架不在超限时悄悄改存其他 driver。
+
+异常数据的策略也有边界：坏 JSON、非对象根、缺失/null 的截止或已过期值视为未命中；非整数截止及未过期对象中的缺失/null/非字符串 data 以 `session_cookie_payload_invalid` 拒绝。PHP 的部分弱类型比较/返回转换与此不同，不能将正常格式的往返当作这些异常语义已严格等价。driver 只读取入站快照及自身已成功排队的输出；其他代码预排同名同路径 Cookie 会使写入显式冲突，不能静默覆盖。自身写入后的队列载荷以摘要核对，若被其他代码替换则拒绝读取/续写；排队删除则按未命中处理。
+
 公开扩展入口是 `SessionStore`，通过 `SessionServiceProvider::with_store(store)` 安装，优先于配置中的 driver 选择。实现者需要遵守[存储契约](store.rs)：
 
 | 方法 | 要求 |
 | --- | --- |
 | `load(id, max_bytes, empty_expiry)` | 在复制或解码完整载荷前限制字节；返回指定身份的记录。`empty_expiry` 供损坏载荷的空属性回退使用。 |
-| `write(record, mode, max_bytes)` | 原子区分 `Insert` 与 `Update`；返回 `Written`、`Conflict` 或 `Missing`。 |
+| `guarantees()` | 默认 `ServerSide`，声明当前后端的条件写入/删除；客户端快照须返回 `ClientSideSnapshot`，不得假报全局撤销。 |
+| `supports_session_authentication(cookie_name)` | 默认仅服务器后端返回 true。客户端快照必须明确提供自己的来源与完整性验证；仅声明一个 driver 名称不构成保证。 |
+| `write(record, mode, max_bytes)` | 服务器后端原子区分 `Insert` 与 `Update`；客户端快照仅检查本请求可观测状态。返回 `Written`、`Conflict` 或 `Missing`。 |
 | `delete(id)` | 重复删除成功；不能因此重建记录。 |
 
-自定义实现不得把 `Update` 的 `Missing` 改为插入。错误不得包含原始属性、ID 或服务凭据。框架仍会校验自定义 store 返回的身份、属性和整体记录上限。可选 Redis 实现需要 `session-redis` 并通过公开 `RedisSessionStore::connect` 和 `with_store` 明确安装；仅写一个 driver 名称不会自动建立服务连接。
+公开 `SessionRequestContext::new` 构造的 Cookie 快照不附带受管理中间件的可信保护事实，不能用它伪装内置 Cookie 认证请求。第三方客户端 driver 若返回认证支持，须自行负责验证载荷完整性，并在请求绑定与包装中保留该保证。
+
+自定义实现不得把 `Update` 的 `Missing` 改为插入。`ServerSide` 不自动表示多节点共享；例如内存后端仍只属于本进程。错误不得包含原始属性、ID 或服务凭据。框架仍会校验自定义 store 返回的身份、属性和整体记录上限。可选 Redis 实现需要 `session-redis` 并通过公开 `RedisSessionStore::connect` 和 `with_store` 明确安装；仅写一个 driver 名称不会自动建立服务连接。
 
 ## 最终配置与 Cookie
 

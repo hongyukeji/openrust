@@ -4,7 +4,7 @@
 
 ## 源码与公开边界
 
-- `src/session.rs` 导出 `Session`、`Expiry`、`SessionId`、`SessionRecord`、`SessionStore`、写入模式/结果以及数据库、显式内存和可选 Redis store；`session` feature 与 `session-redis` 的实际依赖以 Cargo.toml 为准。
+- `src/session.rs` 导出 `Session`、`Expiry`、`SessionId`、`SessionRecord`、`SessionStore`、写入模式/结果、`SessionStoreGuarantees`以及数据库、显式内存、Cookie客户端快照和可选 Redis store；`session` feature 与 `session-redis` 的实际依赖以 Cargo.toml 为准。
 - `Session` 在同请求内共享状态。属性方法同步返回 Result，真正 store I/O 的 start/save/migrate/regenerate/invalidate 为 async；同步锁不跨 await。I/O 期间修改明确拒绝，取消释放 busy，不后台补保存，也不承诺撤销已发生的外部写入。
 - ID 为大小写敏感的40位 ASCII 字母数字，构造即有；有效外部 ID 未命中记录时保留。启动补缺失或 null 的 token，非 null 的假值保留。ID/记录 Debug 脱敏；显式字符串与序列化仍可能暴露凭据，不能写入日志。
 - 属性读取采用完整字面键优先的 Arr 语义，缺失与 null 分开。flash/now/reflash/keep 使用同一属性树，每次 save 推进老化。JSON 表示不能保留 PHP 数组删除尾项后的隐藏 next-free 历史，具体差异见 ADR。
@@ -23,8 +23,15 @@
 
 - `set_id`与`set_handler`即时选择目标、保留bag/started；`handler`改为Result传播锁错误。逻辑driver、请求I/O实例与已加载来源分开记录，显式目标Insert碰撞拒绝、成功后Update；普通同绑定不回退Insert。已观测源撤销拒绝，跨driver检查不提供原子撤销。
 - 迁移销毁留本请求有界tombstone；pending跨绑定start及destroy拒绝，不能混入目标认证键或误删未拥有目标。只有系统随机ID允许有限重试，显式重申当前ID也保留指定意图。
-- `SessionRequestContext`提供有界Cookie快照和同请求CookieJar，普通driver不绑定，需请求driver返回本请求I/O实例；hook忙碌立即拒绝，middleware在start前注入。不能把上下文存在应用级单例；内置双Cookie Session driver另列D4，尚未实现。
+- `SessionRequestContext`提供有界Cookie快照和同请求CookieJar，普通driver不绑定，需请求driver返回本请求I/O实例；hook忙碌立即拒绝，middleware在start前注入。不能把上下文存在应用级单例；内置双Cookie Session driver的实现与验收独立列于D4。
 - 首稿最低check/Clippy和修后旧10+9+5回归通过；独立审查随后发现四项问题并已交核心修复。最终公开定向36项、模块非空隔离4项与不同模型增量复审已过；最终快照12项门禁全部通过（默认668/全特性1328 passed，忽略29/102不算实服务）。最终外部consumer check/test及真实双库完整模块target各55项已通过（含显式driver非空TCP隔离链）；三类新生成应用4/2/2及资源收尾亦已完成；完整内置Cookie driver与容器extend仍按后继交付，证据见[testing](../memory/testing.md)。
+
+## D4 Cookie driver（限定子范围已验收）
+
+- 固定`CookieSessionHandler`、`SessionManager`、`StartSession`及官方Cookie driver集成测试已审计；四份源码哈希与限定PHP表达式探针的边界见[来源记录](../../../tests/http/fixtures/laravel-session/provenance.json)。该来源核对不等于完整PHP oracle；本簇Rust实际证据另列。
+- 契约采用双Cookie、请求绑定、统一Cookie保护和秒级包含截止；公开`ServerSide`/`ClientSideSnapshot`区分后端条件写入与客户端快照。PHP异常弱类型比较的严格差异、浏览器实际容量和不可全局撤销边界见[ADR-082](../decisions/adr-082-session-store-and-flash.md#d4实现契约与明确差异)。
+- D4内置Cookie driver限定子范围已验收：final3完整12门禁通过（默认668/全特性1367 passed，29/102 ignored不算实服务），根真实双库加密各62/无加密安全负例各1、新生成plain5/双库认证各2、真实TLS代理链与仓内Chromium HTTP脚本4项及不同模型审查通过；root target清零、五旧consumer不变。本簇不关闭PHP异常弱类型、全局撤销或完整Session/Web能力，详细证据见testing。请求内保存后读取解析同请求队列的完整数据，以载荷摘要防止写后外部覆盖，不能以元数据合成空属性记录。
+
 
 ## 当前证据与缺口
 

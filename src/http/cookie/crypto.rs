@@ -8,6 +8,14 @@ pub(crate) enum Protection {
     Encrypted(crate::security::Encryptor),
 }
 
+// 由真实 Cookie 层建立的保护事实；不包含密钥或请求对象。
+#[cfg(feature = "session")]
+#[derive(Clone)]
+pub(crate) struct CookieProtection {
+    pub(crate) encrypted: bool,
+    pub(crate) except: Vec<String>,
+}
+
 #[cfg(feature = "encryption")]
 const COOKIE_DOMAIN: &[u8] = b"openrust:http-cookie:or1:v1";
 #[cfg(feature = "encryption")]
@@ -20,6 +28,19 @@ struct Payload {
 }
 
 impl Protection {
+    #[cfg(feature = "session")]
+    pub(super) fn authenticity(&self, except: &[String]) -> CookieProtection {
+        let encrypted = match self {
+            Self::Plain => false,
+            #[cfg(feature = "encryption")]
+            Self::Encrypted(_) => true,
+        };
+        CookieProtection {
+            encrypted,
+            except: except.to_vec(),
+        }
+    }
+
     pub(super) fn decrypt(&self, root: &mut Value, except: &[String]) {
         match self {
             Self::Plain => {

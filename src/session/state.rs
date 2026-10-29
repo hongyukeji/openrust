@@ -62,6 +62,17 @@ impl Driver {
             bound: !needs_request,
         }
     }
+    #[cfg(feature = "auth")]
+    fn require_authenticated(&self, name: &str) -> Result<()> {
+        if !self.ready()?.supports_session_authentication(name) {
+            return Err(extension_error(
+                "session_cookie_protection_required",
+                "Session 认证需要经过完整性验证的 Cookie 存储",
+            ));
+        }
+        Ok(())
+    }
+
     fn ready(&self) -> Result<Arc<dyn SessionStore>> {
         if !self.bound {
             return Err(extension_error(
@@ -333,6 +344,16 @@ impl Session {
         Ok(self.lock()?.driver.actual.clone())
     }
 
+    #[cfg(feature = "auth")]
+    pub(crate) fn require_authenticated_storage(&self) -> Result<()> {
+        let (driver, name) = {
+            let state = self.lock()?;
+            state.ensure_mutable()?;
+            (state.driver.clone(), state.name.clone())
+        };
+        driver.require_authenticated(&name)
+    }
+
     /// 当前配置驱动是否需要请求上下文。
     pub fn handler_needs_request(&self) -> Result<bool> {
         Ok(self.lock()?.driver.needs_request)
@@ -356,6 +377,12 @@ impl Session {
                 "Session handler did not bind the request",
             )
         })?;
+        if actual.guarantees() != driver.identity.guarantees() {
+            return Err(extension_error(
+                "session_request_binding_invalid",
+                "Session 请求绑定改变了存储保证",
+            ));
+        }
         let old = {
             let mut state = self.lock()?;
             let old = std::mem::replace(&mut state.driver.actual, actual);
@@ -643,6 +670,13 @@ impl Session {
                 state.intent,
             )
         };
+        #[cfg(feature = "auth")]
+        if crate::support::data::get(&record.data, crate::auth::AUTH_USER_ID_KEY)
+            .is_some_and(|value| !value.is_null())
+        {
+            let name = self.lock()?.name.clone();
+            driver.require_authenticated(&name)?;
+        }
         let store = driver.ready()?;
         if let Some(origin) = origin {
             let source = origin.driver.ready()?;

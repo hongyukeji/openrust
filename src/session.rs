@@ -2,6 +2,7 @@
 
 mod attributes;
 mod backend;
+mod cookie;
 mod id;
 mod middleware;
 mod migration;
@@ -14,10 +15,12 @@ mod store;
 #[cfg(feature = "session-redis")]
 pub use backend::RedisSessionStore;
 pub use backend::{DatabaseSessionStore, MemorySessionStore};
+pub use cookie::CookieSessionStore;
 pub use id::SessionId;
 pub use migration::SessionMigration;
 pub use store::{
-    DEFAULT_MAX_BYTES, SessionRecord, SessionStore, SessionWriteMode, SessionWriteOutcome,
+    DEFAULT_MAX_BYTES, SessionRecord, SessionStore, SessionStoreGuarantees, SessionWriteMode,
+    SessionWriteOutcome,
 };
 
 #[cfg(feature = "auth")]

@@ -951,7 +951,7 @@ fn app_source(
             "\n        providers.push(Box::new(openrust::db::DatabaseServiceProvider));",
         );
         if auth {
-            providers.push_str("\n        providers.push(Box::new(openrust::session::SessionServiceProvider::new()));\n        providers.push(Box::new(openrust::auth::JwtServiceProvider));\n        providers.push(Box::new(openrust::auth::AuthServiceProvider::new()));\n        providers.push(Box::new(openrust::audit::AuditServiceProvider::database()));\n        providers.push(Box::new(\n            openrust::signing::SignedLinksServiceProvider::new()\n                .with_database_revocations_from_app(),\n        ));");
+            providers.push_str("\n        providers.push(Box::new(openrust::auth::JwtServiceProvider));\n        providers.push(Box::new(openrust::auth::AuthServiceProvider::new()));\n        providers.push(Box::new(openrust::audit::AuditServiceProvider::database()));\n        providers.push(Box::new(\n            openrust::signing::SignedLinksServiceProvider::new()\n                .with_database_revocations_from_app(),\n        ));");
         }
         if encryption {
             providers.push_str("\n        providers.push(Box::new(openrust::security::EncryptionServiceProvider));");

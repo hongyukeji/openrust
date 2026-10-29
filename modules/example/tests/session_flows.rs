@@ -630,3 +630,110 @@ fn probe_business_data(
     expected["count"] = json!(count);
     expected
 }
+
+struct CookieSessionApplication;
+impl Application for CookieSessionApplication {
+    type Config = <SessionApplication as Application>::Config;
+    fn config_namespace() -> &'static str {
+        SessionApplication::config_namespace()
+    }
+    fn providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+        let mut providers = crate::bootstrap::Server::providers(config);
+        providers.push(Box::new(
+            crate::modules::example::providers::session::cookie_session_provider(),
+        ));
+        providers
+    }
+    fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
+        SessionApplication::modules(config)
+    }
+}
+fn merge_cookie_driver_cookies(
+    response: &TestResponse,
+    cookies: &mut Vec<(String, String)>,
+) -> TestResult {
+    for header in response.headers().get_all(header::SET_COOKIE) {
+        let pair = header
+            .to_str()?
+            .split(';')
+            .next()
+            .ok_or("Cookie 首段缺失")?;
+        let (key, value) = pair.split_once('=').ok_or("Cookie 首段无效")?;
+        if key != COOKIE_NAME && openrust::session::SessionId::parse(key).is_err() {
+            continue;
+        }
+        if value.is_empty() {
+            cookies.retain(|(name, _)| name != key);
+        } else if let Some(existing) = cookies.iter_mut().find(|(name, _)| name == key) {
+            pair.clone_into(&mut existing.1);
+        } else {
+            cookies.push((key.to_owned(), pair.to_owned()));
+        }
+    }
+    Ok(())
+}
+#[tokio::test]
+async fn builtin_cookie_session_is_explicit_and_preserves_two_clients_business_state() -> TestResult
+{
+    let mut app = TestApp::<CookieSessionApplication>::builder(sources())
+        .build()
+        .await?;
+    let outcome: TestResult = async {
+        let mut first = Vec::new();
+        let mut second = Vec::new();
+        for (cookies, marker, count) in [(&mut first, "one", 1), (&mut second, "two", 2)] {
+            let memo = format!("memo-{marker}");
+            for (action, value, current_memo, current_count) in [
+                ("put", json!(marker), None, None),
+                ("memo_seed", json!(memo), Some(memo.as_str()), None),
+                (
+                    if count == 1 {
+                        "increment"
+                    } else {
+                        "increment_by"
+                    },
+                    Value::Null,
+                    Some(memo.as_str()),
+                    Some(count),
+                ),
+            ] {
+                let response = request(
+                    &app,
+                    Some(json!({"action":action,"value":value})),
+                    Some(&probe_cookie_header(cookies)),
+                )
+                .await?;
+                success(
+                    &response,
+                    &probe_business_data(marker, current_memo, current_count, Some(action)),
+                )?;
+                merge_cookie_driver_cookies(&response, cookies)?;
+            }
+        }
+        for (cookies, marker, count) in [(&first, "one", 1), (&second, "two", 2)] {
+            let response = request(&app, None, Some(&probe_cookie_header(cookies))).await?;
+            success(
+                &response,
+                &probe_business_data(marker, Some(&format!("memo-{marker}")), Some(count), None),
+            )?;
+        }
+        // 旧 Cookie 快照在受信任服务端显式换 ID 后仍可重放；不称为远端撤销。
+        let replay = probe_cookie_header(&first);
+        let moved = request(&app, Some(json!({"action":"extensions"})), Some(&replay)).await?;
+        let mut expected =
+            probe_business_data("one", Some("memo-one"), Some(1), Some("extensions"));
+        expected["extension"] = json!({"id_changed":true,"same_handler":true,"needs_request":true});
+        success(&moved, &expected)?;
+        let replayed = request(&app, None, Some(&replay)).await?;
+        success(
+            &replayed,
+            &probe_business_data("one", Some("memo-one"), Some(1), None),
+        )?;
+        Ok(())
+    }
+    .await;
+    let shutdown = app.shutdown(tokio::time::Instant::now() + TIMEOUT).await;
+    outcome?;
+    shutdown?;
+    Ok(())
+}

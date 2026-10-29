@@ -508,3 +508,8 @@ required-features = ["session"]
 name = "http_session_extensions"
 path = "tests/http/session_extensions.rs"
 required-features = ["session"]
+
+[[test]]
+name = "http_session_cookie_driver"
+path = "tests/http/session_cookie_driver.rs"
+required-features = ["session"]

@@ -93,3 +93,15 @@ async fn generated_application_exposes_session_lifecycle() -> Result<(), Box<dyn
     request_session::assert_request_session::<GeneratedApplication>(source, false).await?;
     Ok(())
 }
+
+#[tokio::test]
+async fn generated_original_host_supports_explicit_cookie_session_without_database()
+-> Result<(), Box<dyn std::error::Error>> {
+    let source = Figment::from(Serialized::defaults(
+        openrust::config::FrameworkConfig::default(),
+    ))
+    .merge(Toml::string(
+        "[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
+    ));
+    request_session::assert_original_host_cookie_session::<GeneratedApplication>(source).await
+}

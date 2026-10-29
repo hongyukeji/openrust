@@ -50,7 +50,7 @@ curl -X POST 'http://127.0.0.1:3000/api/example/input?title=query&fallback=query
 
 ## Session 偏好与一次性提示
 
-[`controllers/session.rs`](http/controllers/session.rs) 在模块自己的 [`routes/api.rs`](routes/api.rs) 注册 `GET /api/example/session` 与 `POST /api/example/session`。启用 `session` 编译能力、宿主登记 `SessionServiceProvider` 且最终驱动未禁用时，模块才挂载这两条路由；handler 直接提取公开 `Session`。根宿主配置数据库后会装配通用 Session，无需额外启用认证；无数据库且未安装 Session 时不挂载路由，不静默使用 memory。与 `RequestInfo::session()` 取得的句柄共享同一请求状态，无需业务再建 store 或修改框架源码。存储与 Cookie 配置由宿主统一管理，默认数据库驱动；测试显式选择 memory，不代表数据库不可用时自动回退。装配、迁移及自定义 driver 见 [Session 使用说明](../../src/session/README.md)。
+[`controllers/session.rs`](http/controllers/session.rs) 在模块自己的 [`routes/api.rs`](routes/api.rs) 注册 `GET /api/example/session` 与 `POST /api/example/session`。启用 `session` 编译能力、宿主登记 `SessionServiceProvider` 且最终驱动未禁用时，模块才挂载这两条路由；handler 直接提取公开 `Session`。根宿主配置数据库，或显式选择 cookie、array 等非数据库驱动时，会装配唯一的通用 Session，无需额外启用认证。默认 database 驱动且无数据库时不挂载路由，不静默使用 memory；未知显式驱动由框架最终配置校验拒绝。与 `RequestInfo::session()` 取得的句柄共享同一请求状态，无需业务再建 store 或修改框架源码。存储与 Cookie 配置由宿主统一管理，默认数据库驱动；测试显式选择 memory，不代表数据库不可用时自动回退。装配、迁移及自定义 driver 见 [Session 使用说明](../../src/session/README.md)。
 
 POST 接收如 `{"action":"put","value":"blue"}` 的 JSON。示例仅操作 `example.session.preference`、`example.session.notice`、`example.session.memo`、`example.session.list`、`example.session.count`，不允许正文指定任意 Session 键，也不返回会话 ID、token 或认证属性：
 
@@ -63,11 +63,39 @@ POST 接收如 `{"action":"put","value":"blue"}` 的 JSON。示例仅操作 `exa
 
 正文先经过框架输入规范化，再交给业务校验；这里要求值为不超过256 UTF-8字节的字符串，因此全空白转换为 null 后会被拒绝。这不表示 Session 的 `put` 自动 trim 或将空字符串转 null。响应保存和 Cookie 往返由框架处理，客户端应保留实际 Cookie，不能假定其 wire 值为明文。
 
-[`tests/session_flows.rs`](tests/session_flows.rs) 展示正式模块路由的偏好、flash 与 Store 便捷方法生命周期，测试显式使用 memory；`tests/auth_flows.rs` 在配置数据库的根宿主通过真实 TCP 验证同一 Cookie 下的跨请求保存。它们不替代集群验收。
+[`tests/session_flows.rs`](tests/session_flows.rs) 展示正式模块路由的偏好、flash 与 Store 便捷方法生命周期，分别显式选择 memory 和 Cookie 驱动；`tests/auth_flows.rs` 在配置数据库的根宿主通过真实 TCP 验证数据库 Session 的跨请求保存。它们不替代集群验收。
 
 `extensions` 是受信任服务端选择的扩展示例：只重申当前合法 ID、生成随机 ID，并把实际 handler 赋回自身验证同绑定不变；正文不能指定任意 ID 或后端。返回值仅含身份是否改变、同 Arc 与请求依赖的布尔结果，不包含凭据。`probe` 只接受 `one`/`two`，通过现 Cookie 队列写入示例探针，不属于认证数据。
 
-[`providers/session.rs`](providers/session.rs) 给出调用方显式安装的请求驱动与 Provider。默认模块不会安装它或覆盖宿主已有 store；示例 fixture 明确选择 memory 或当前公开 Db，委托底层原子 load/write/delete，不另建 Session 属性。hook 在每请求实例中读取解密 Cookie 快照并排回执 Cookie；两组 Cookie 的交错请求验证不串 scope。真实 TCP fixture 另启同根 Application、显式选择同数据库连接的请求驱动，主认证 App 保持默认数据库 driver。此方案不具备通用 Container factory 装饰能力，不冒称可以保留并装饰任意既有 factory；Cookie Session 内置双 Cookie driver 仍属后继。
+[`providers/session.rs`](providers/session.rs) 给出调用方显式安装的请求驱动与 Provider。默认模块不会安装它或覆盖宿主已有 store；示例 fixture 明确选择 memory 或当前公开 Db，委托底层原子 load/write/delete，不另建 Session 属性。hook 在每请求实例中读取解密 Cookie 快照并排回执 Cookie；两组 Cookie 的交错请求验证不串 scope。真实 TCP fixture 另启同根 Application、显式选择同数据库连接的请求驱动，主认证 App 保持默认数据库 driver。包装器将存储保证、认证支持能力及请求绑定委托给实际底层驱动；不能只委托读写而把客户端快照误报为服务器存储。此方案不具备通用 Container factory 装饰能力，不冒称可以保留并装饰任意既有 factory。
+
+### 不使用数据库的 Cookie Session
+
+在宿主 `config/session.toml` 显式选择下列驱动即可复用同一业务控制器，不修改模块或框架源码：
+
+```toml
+[session]
+driver = "cookie"
+lifetime = 120
+expire_on_close = false
+```
+
+正式宿主与生成应用按配置装配 Session Provider。客户端须保留完整双 Cookie：一枚保存 ID，另一枚以 ID 为名称保存数据。不能只取配置名 Cookie 再请求；也不要在业务中自行解密或构造属性载荷。框架处理 Cookie 保护、历史密钥、请求内保存和响应队列。
+
+此模式没有服务器 Session 记录，旧 Cookie 副本在嵌入期限前仍可重放；当前浏览器登出不等于全局撤销。认证必须启用加密并使用受保护 Cookie Provider；plain 或 Session Cookie 被排除保护时，认证入口会安全拒绝，普通匿名偏好业务仍可使用。需要服务器撤销保证的长连接授权和远程会话删除不能用它冒充数据库驱动。
+
+[`tests/cookie_auth_flows.rs`](tests/cookie_auth_flows.rs) 参考现账户 Session 登录、受保护偏好读取/更新与登出，并包含 plain、ID 排除及数据 ID 排除的伪造拒绝场景；用户账户仍存真实数据库，Cookie driver 仅替代 Session 存储。它没有把 JWT 专用的 `/me` 路由改为 Cookie 认证，也不以测试准备服务替代 HTTP 登录。
+
+[`tests/browser_cookie_session.py`](tests/browser_cookie_session.py) 可用已有 Playwright/Chromium 复跑浏览器自动保存、回送双 Cookie、双上下文隔离及 HttpOnly 边界。先启动显式 Cookie driver、已配置加密的宿主，再把下例 URL 与 Cookie 名改为实际配置；结果使用新的 `/tmp` 专用目录，旧结果不会覆盖：
+
+```bash
+python3 -B modules/example/tests/browser_cookie_session.py \
+  --url http://localhost:3000/api/example/session \
+  --cookie-name your_session_cookie \
+  --result-directory /tmp/session-cookie-browser-check
+```
+
+脚本只接受本机 loopback HTTP，不安装浏览器、不使用用户 profile 或修改证书信任；其结果不代表浏览器 TLS 验收。业务字段保持小于浏览器实际 Cookie 容量，较大 Session 应选择服务器后端。Cookie/Session 机制自身的错误响应禁止缓存，不携带被替换的业务正文或 Cookie。
 
 ## 从真实调用链开始
 

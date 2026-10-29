@@ -50,13 +50,13 @@ pub(crate) async fn handle(
             if let Some(jar) = request.extensions().get::<crate::http::CookieJar>() {
                 let _ = jar.flush_queued_cookies();
             }
-            return error.into_response();
+            return crate::http::cookie::private_error_response(error);
         }
     };
     let _close = Close(Some(session.clone()));
     let secure = match crate::http::transport::is_secure(&request) {
         Ok(value) => value,
-        Err(error) => return error.into_response(),
+        Err(error) => return crate::http::cookie::private_error_response(error),
     };
     let jar = request
         .extensions()
@@ -98,7 +98,7 @@ pub(crate) async fn handle(
             if let Some(jar) = jar {
                 let _ = jar.flush_queued_cookies();
             }
-            error.into_response()
+            crate::http::cookie::private_error_response(error)
         }
     }
 }
@@ -138,7 +138,14 @@ async fn prepare(layer: &SessionLayer, request: &mut Request) -> Result<Session>
             .cloned()
             .ok_or_else(missing)?;
         session
-            .set_request_on_handler(SessionRequestContext::new(parsed.value, jar)?)
+            .set_request_on_handler(SessionRequestContext::from_request(
+                parsed.value,
+                jar,
+                request
+                    .extensions()
+                    .get::<crate::http::cookie::CookieProtection>()
+                    .cloned(),
+            )?)
             .await?;
     }
     session.start().await?;

@@ -94,9 +94,17 @@ impl Application for LateDriverApp {
     type Config = LateDriverConfig;
     fn providers(config: &Self::Config) -> Vec<Box<dyn openrust::core::ServiceProvider>> {
         let mut providers = Server::providers(&config.server);
-        providers.push(Box::new(SessionServiceProvider::with_store(
+        let session = Box::new(SessionServiceProvider::with_store(
             openrust::session::MemorySessionStore::default(),
-        )));
+        ));
+        if let Some(index) = providers
+            .iter()
+            .position(|provider| provider.id() == ProviderId::of::<SessionServiceProvider>())
+        {
+            providers[index] = session;
+        } else {
+            providers.push(session);
+        }
         providers
     }
     fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
@@ -184,6 +192,104 @@ async fn late_driver_overlay_controls_actual_example_session_route() -> Result<(
         let shutdown = app.shutdown(tokio::time::Instant::now() + TIMEOUT).await;
         outcome?;
         shutdown?;
+    }
+    Ok(())
+}
+
+#[test]
+fn explicit_non_database_driver_registers_once_without_database() -> Result<()> {
+    for driver in [Some("cookie"), Some("array"), Some("unknown"), None] {
+        let config: super::Configuration =
+            serde_json::from_value(json!({"session":{"driver":driver}}))
+                .map_err(Error::internal)?;
+        let count = Server::providers(&config)
+            .iter()
+            .filter(|provider| provider.id() == ProviderId::of::<SessionServiceProvider>())
+            .count();
+        assert_eq!(count, usize::from(driver.is_some()));
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn explicit_cookie_without_database_uses_original_host_provider_and_persists_both_cookies()
+-> Result<()> {
+    let root = tempfile::tempdir().map_err(Error::internal)?;
+    for directory in ["config", "lang", "resources/views"] {
+        std::fs::create_dir_all(root.path().join("modules/example").join(directory))
+            .map_err(Error::internal)?;
+    }
+    std::fs::write(
+        root.path().join("modules_statuses.json"),
+        r#"{"example":true}"#,
+    )
+    .map_err(Error::internal)?;
+    let mut config = FrameworkConfig::default();
+    config.api.http_status = HttpStatusMode::Semantic;
+    let source = Figment::from(Serialized::defaults(config)).merge(Serialized::defaults(json!({
+        "modules_root":root.path(), "app":{"env":"test"},
+        "session":{"driver":"cookie","cookie":"host_cookie_session","secure":false},
+        "cache":{"default_store":"default","stores":{"default":{"driver":"memory"}}},
+        "security":{"encryption":{"active_key_id":"test","keys":{"test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}}
+    })));
+    let mut app = TestApp::<Server>::builder(source).build().await?;
+    let outcome = cookie_host_roundtrip(&mut app).await;
+    let stopped = app.shutdown(tokio::time::Instant::now() + TIMEOUT).await;
+    outcome?;
+    stopped
+}
+async fn cookie_host_roundtrip(app: &mut TestApp<Server>) -> Result<()> {
+    let response = app
+        .request_with_limits(
+            Request::post("/api/example/session")
+                .header("host", "localhost")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"action":"put","value":"host-persisted"}"#))
+                .map_err(Error::internal)?,
+            4096,
+            TIMEOUT,
+        )
+        .await?;
+    response.assert_status(StatusCode::OK)?;
+    let pairs = response
+        .headers()
+        .get_all("set-cookie")
+        .iter()
+        .map(|header| {
+            header.to_str().map_err(Error::internal).and_then(|text| {
+                text.split(';')
+                    .next()
+                    .map(str::to_owned)
+                    .ok_or_else(|| Error::custom("test_cookie_missing", "缺少Cookie首段"))
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    assert!(
+        pairs
+            .iter()
+            .any(|pair| pair.starts_with("host_cookie_session="))
+    );
+    assert!(pairs.iter().any(|pair| {
+        pair.split_once('=')
+            .is_some_and(|(name, _)| openrust::session::SessionId::parse(name).is_ok())
+    }));
+    for _ in 0..2 {
+        let loaded = app
+            .request_with_limits(
+                Request::get("/api/example/session")
+                    .header("host", "localhost")
+                    .header("cookie", pairs.join("; "))
+                    .body(Body::empty())
+                    .map_err(Error::internal)?,
+                4096,
+                TIMEOUT,
+            )
+            .await?;
+        loaded.assert_status(StatusCode::OK)?;
+        let body: serde_json::Value = loaded.json()?;
+        assert_eq!(body["success"], true);
+        assert_eq!(body["code"], "ok");
+        assert_eq!(body["data"]["preference"], "host-persisted");
     }
     Ok(())
 }

@@ -9,6 +9,8 @@ use std::sync::Arc;
 #[serde(default)]
 pub(crate) struct Configuration {
     database: openrust::config::DatabaseConfig,
+    #[cfg(feature = "session")]
+    session: openrust::config::SessionConfig,
     modules_root: Option<std::path::PathBuf>,
 }
 
@@ -23,6 +25,16 @@ impl Configuration {
         self.database.url.is_some()
             || !self.database.instances.is_empty()
             || !self.database.read_replicas.is_empty()
+    }
+
+    #[cfg(feature = "session")]
+    fn uses_session(&self) -> bool {
+        self.uses_database()
+            || self
+                .session
+                .driver
+                .as_deref()
+                .is_some_and(|driver| driver != "database")
     }
 }
 
@@ -70,8 +82,12 @@ impl Application for Server {
             providers.push(Box::new(openrust::db::MigrationServiceProvider::<
                 openrust::db::FrameworkMigrator,
             >::new()));
-            #[cfg(feature = "session")]
+        }
+        #[cfg(feature = "session")]
+        if config.uses_session() {
             providers.push(Box::new(openrust::session::SessionServiceProvider::new()));
+        }
+        if config.uses_database() {
             #[cfg(feature = "auth")]
             {
                 providers.push(Box::new(openrust::auth::JwtServiceProvider));

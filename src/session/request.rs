@@ -11,6 +11,7 @@ use std::io::{self, Write};
 pub struct SessionRequestContext {
     cookies: Value,
     jar: CookieJar,
+    protection: Option<crate::http::cookie::CookieProtection>,
 }
 
 impl std::fmt::Debug for SessionRequestContext {
@@ -30,7 +31,31 @@ impl SessionRequestContext {
         crate::support::data::validate_limits(&cookies)?;
         serde_json::to_writer(&mut CookieBudget(0), &cookies)
             .map_err(|_| super::store::limit_error())?;
-        Ok(Self { cookies, jar })
+        Ok(Self {
+            cookies,
+            jar,
+            protection: None,
+        })
+    }
+
+    pub(crate) fn from_request(
+        cookies: Value,
+        jar: CookieJar,
+        protection: Option<crate::http::cookie::CookieProtection>,
+    ) -> Result<Self> {
+        let mut context = Self::new(cookies, jar)?;
+        context.protection = protection;
+        Ok(context)
+    }
+
+    pub(super) fn protects_session(&self, cookie_name: &str) -> bool {
+        self.protection.as_ref().is_some_and(|protection| {
+            protection.encrypted
+                && !protection
+                    .except
+                    .iter()
+                    .any(|name| name == cookie_name || super::SessionId::parse(name).is_ok())
+        })
     }
 
     /// 精确名称读取入站 Cookie；不展开点路径。
@@ -63,6 +88,36 @@ impl Write for CookieBudget {
         Ok(bytes.len())
     }
     fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn public_context_has_no_authentication_proof_and_exact_exceptions_are_conservative()
+    -> Result<()> {
+        let name = "session_id";
+        let jar = CookieJar::new(crate::http::CookieFactory::default());
+        assert!(
+            !SessionRequestContext::new(serde_json::json!({}), jar.clone())?.protects_session(name)
+        );
+        for (encrypted, except, expected) in [
+            (false, vec![], false),
+            (true, vec![name.to_owned()], false),
+            (true, vec!["A".repeat(40)], false),
+            (true, vec!["*".to_owned()], true),
+            (true, vec![], true),
+        ] {
+            let context = SessionRequestContext::from_request(
+                serde_json::json!({}),
+                jar.clone(),
+                Some(crate::http::cookie::CookieProtection { encrypted, except }),
+            )?;
+            assert_eq!(context.protects_session(name), expected);
+        }
         Ok(())
     }
 }

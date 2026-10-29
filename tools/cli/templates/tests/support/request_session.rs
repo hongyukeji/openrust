@@ -11,8 +11,8 @@ use openrust::http::axum::{
 };
 use openrust::http::{CookieJar, CookieOptions, Json, RequestInfo, Routes};
 use openrust::session::{
-    DatabaseSessionStore, MemorySessionStore, Session, SessionId, SessionRecord,
-    SessionRequestContext, SessionServiceProvider, SessionStore, SessionStoreHandle,
+    CookieSessionStore, DatabaseSessionStore, MemorySessionStore, Session, SessionId,
+    SessionRecord, SessionRequestContext, SessionServiceProvider, SessionStore, SessionStoreHandle,
     SessionWriteMode, SessionWriteOutcome,
 };
 use openrust::testing::{TestApp, TestResponse};
@@ -42,6 +42,10 @@ impl ServiceProvider for SessionRoutes {
                 let config = resolver.section::<SessionConfig>("session")?;
                 let backend: Arc<dyn SessionStore> = match config.driver.as_deref() {
                     Some("array") => Arc::new(MemorySessionStore::default()),
+                    Some("cookie") => Arc::new(CookieSessionStore::new(
+                        config.lifetime,
+                        config.expire_on_close,
+                    )?),
                     Some("database") => Arc::new(DatabaseSessionStore::new(
                         (*resolver.resolve::<openrust::db::Db>().await?).clone(),
                     )),
@@ -80,7 +84,11 @@ impl<A: Application, const EXISTING: bool> Application for SessionApplication<A,
     }
     fn providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
         let mut providers = A::providers(config);
-        if !EXISTING {
+        if !EXISTING
+            && !providers.iter().any(|provider| {
+                provider.id() == openrust::core::ProviderId::of::<SessionServiceProvider>()
+            })
+        {
             // plain 没有正式 Session 时才显式安装内存 driver；Cookie Provider 完整保留。
             providers.push(Box::new(
                 SessionServiceProvider::with_store(MemorySessionStore::default())
@@ -162,10 +170,44 @@ pub async fn assert_request_session<A: Application>(
     source: Figment,
     existing_session: bool,
 ) -> openrust::Result<()> {
+    let cookie_source = source.clone();
     if existing_session {
-        verify::<A, true>(source).await
+        verify::<A, true>(source).await?;
     } else {
-        verify::<A, false>(source).await
+        verify::<A, false>(source).await?;
+    }
+    // 独立应用显式选择 Cookie driver；不改变原宿主/Auth 的数据库配置或 driver。
+    verify::<CookieSessionApplication<A>, true>(cookie_source).await
+}
+
+struct CookieSessionApplication<A>(std::marker::PhantomData<fn() -> A>);
+impl<A: Application> Application for CookieSessionApplication<A> {
+    type Config = A::Config;
+    fn config_namespace() -> &'static str {
+        A::config_namespace()
+    }
+    fn providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+        let mut providers = A::providers(config);
+        let cookie: Box<dyn ServiceProvider> = Box::new(
+            SessionServiceProvider::new().with_cookie_config(SessionConfig {
+                driver: Some("cookie".into()),
+                cookie: Some("contract_cookie_session".into()),
+                secure: Some(false),
+                ..Default::default()
+            }),
+        );
+        // 替换原位置，保留 Auth 等 Provider 对 Session 先注册的依赖顺序。
+        if let Some(index) = providers.iter().position(|provider| {
+            provider.id() == openrust::core::ProviderId::of::<SessionServiceProvider>()
+        }) {
+            providers[index] = cookie;
+        } else {
+            providers.push(cookie);
+        }
+        providers
+    }
+    fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
+        A::modules(config)
     }
 }
 
@@ -357,17 +399,23 @@ fn check_response(response: &TestResponse, data: Value) -> openrust::Result<()> 
 }
 fn cookie_pair(response: &TestResponse, name: &str) -> openrust::Result<String> {
     let mut selected = None;
+    let mut data = Vec::new();
     for value in response.headers().get_all(SET_COOKIE) {
-        let value = value.to_str().map_err(|_| mismatch())?;
-        let pair = value.split(';').next().ok_or_else(mismatch)?;
+        let text = value.to_str().map_err(|_| mismatch())?;
+        let pair = text.split(';').next().ok_or_else(mismatch)?;
         let (key, value) = pair.split_once('=').ok_or_else(mismatch)?;
         if key == name {
             ensure(selected.is_none() && !value.is_empty())?;
             selected = Some(pair.to_owned());
+        } else if SessionId::parse(key).is_ok() && !value.is_empty() {
+            data.push(pair.to_owned());
         }
     }
-    selected.ok_or_else(mismatch)
+    let mut pairs = vec![selected.ok_or_else(mismatch)?];
+    pairs.extend(data);
+    Ok(pairs.join("; "))
 }
+
 fn ensure(condition: bool) -> openrust::Result<()> {
     if condition { Ok(()) } else { Err(mismatch()) }
 }
@@ -385,6 +433,12 @@ struct ContractRequestDriver {
     context: Option<SessionRequestContext>,
 }
 impl SessionStore for ContractRequestDriver {
+    fn supports_session_authentication(&self, cookie_name: &str) -> bool {
+        self.backend.supports_session_authentication(cookie_name)
+    }
+    fn guarantees(&self) -> openrust::session::SessionStoreGuarantees {
+        self.backend.guarantees()
+    }
     fn needs_request(&self) -> bool {
         true
     }
@@ -392,8 +446,15 @@ impl SessionStore for ContractRequestDriver {
         &self,
         context: SessionRequestContext,
     ) -> openrust::Result<Option<Arc<dyn SessionStore>>> {
+        let backend = if self.backend.needs_request() {
+            self.backend
+                .bind_request(context.clone())?
+                .ok_or_else(mismatch)?
+        } else {
+            self.backend.clone()
+        };
         Ok(Some(Arc::new(Self {
-            backend: self.backend.clone(),
+            backend,
             context: Some(context),
         })))
     }
@@ -509,7 +570,7 @@ fn merge_probe_cookies(
             .next()
             .ok_or_else(mismatch)?;
         let (key, _) = pair.split_once('=').ok_or_else(mismatch)?;
-        if ![name, PROBE, REPLY].contains(&key) {
+        if ![name, PROBE, REPLY].contains(&key) && SessionId::parse(key).is_err() {
             continue;
         }
         if let Some(existing) = cookies.iter_mut().find(|(name, _)| name == key) {
@@ -518,5 +579,97 @@ fn merge_probe_cookies(
             cookies.push((key.to_owned(), pair.to_owned()));
         }
     }
+    Ok(())
+}
+
+// 只追加路由，不注册或覆盖 Session，防止 fixture 掩盖生成宿主漏装 Provider。
+struct OriginalHostRoutes;
+impl ServiceProvider for OriginalHostRoutes {
+    fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.routes(|routes| {
+                routes
+                    .get("/__original-session/write", original_write)
+                    .get("/__original-session/read", original_read)
+            })?;
+            Ok(())
+        })
+    }
+}
+async fn original_write(session: Session) -> openrust::Result<Json<Value>> {
+    session.put("contract.original_host", "persisted")?;
+    original_read(session).await
+}
+async fn original_read(session: Session) -> openrust::Result<Json<Value>> {
+    Ok(Json(
+        json!({"value":session.get("contract.original_host")?,"snapshot":session.handler()?.guarantees()==openrust::session::SessionStoreGuarantees::ClientSideSnapshot}),
+    ))
+}
+struct OriginalHost<A>(std::marker::PhantomData<fn() -> A>);
+impl<A: Application> Application for OriginalHost<A> {
+    type Config = A::Config;
+    fn config_namespace() -> &'static str {
+        A::config_namespace()
+    }
+    fn providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+        let mut providers = A::providers(config);
+        assert_eq!(
+            providers
+                .iter()
+                .filter(|provider| provider.id()
+                    == openrust::core::ProviderId::of::<SessionServiceProvider>())
+                .count(),
+            1
+        );
+        providers.push(Box::new(OriginalHostRoutes));
+        providers
+    }
+    fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
+        A::modules(config)
+    }
+}
+pub async fn assert_original_host_cookie_session<A: Application>(
+    source: Figment,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let source = source.merge(figment::providers::Serialized::defaults(
+        json!({"session":{"driver":"cookie","cookie":"original_host_session","secure":false}}),
+    ));
+    let mut app = TestApp::<OriginalHost<A>>::builder(source).build().await?;
+    let outcome: openrust::Result<()> = async {
+        let response = app
+            .request_with_limits(
+                Request::get("/__original-session/write")
+                    .header("host", "localhost")
+                    .body(Body::empty())
+                    .map_err(openrust::Error::internal)?,
+                BODY_LIMIT,
+                REQUEST_TIMEOUT,
+            )
+            .await?;
+        check_response(&response, json!({"value":"persisted","snapshot":true}))?;
+        let pairs = cookie_pair(&response, "original_host_session")?;
+        ensure(pairs.split("; ").count() == 2)?;
+        for _ in 0..2 {
+            let response = app
+                .request_with_limits(
+                    Request::get("/__original-session/read")
+                        .header("host", "localhost")
+                        .header(COOKIE, &pairs)
+                        .body(Body::empty())
+                        .map_err(openrust::Error::internal)?,
+                    BODY_LIMIT,
+                    REQUEST_TIMEOUT,
+                )
+                .await?;
+            check_response(&response, json!({"value":"persisted","snapshot":true}))?;
+        }
+        Ok(())
+    }
+    .await;
+    let stopped = app
+        .shutdown(tokio::time::Instant::now() + REQUEST_TIMEOUT)
+        .await;
+    outcome?;
+    stopped?;
     Ok(())
 }

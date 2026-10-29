@@ -4,6 +4,42 @@
 > 更新：2026-10-29
 > 摘要：当前目录迁移与原专项测试入口，分开记录真实服务和未验收边界。
 
+## C04-D4 内置Cookie Session driver（限定子范围已验收）
+
+契约见[ADR-082 D4](../decisions/adr-082-session-store-and-flash.md#d4实现契约与明确差异)。以下均为本簇实际运行；忽略项不算真实服务，代理TLS不算Rust原生TLS或集群。本簇完成限定子范围，不关闭整个Session或已公开差异。
+
+| 范围 | 实际结果 | 证据与边界 |
+| --- | --- | --- |
+| 最终完整12项门禁 | final3全部actual_exit=0、source_changed为空、日志SHA经根核对；默认668 passed/29 ignored，全特性1367 passed/102 ignored | `/tmp/openrust-c04d-d4-final3-<stage>.result.json`；fmt、默认/全特性严格Clippy/tests/docs、no-default、session-only、MSRV1.97、deny及server build。涵最终认证模板9ff0d16与仓内浏览器脚本7531ee4；final2同计数旧快照保留，不混用 |
+| 当前公开行为与consumer | session-only五target共43 passed；auth,encryption完整Cookie target9 passed；独立consumer3 passed，各退出0、无失败/忽略/过滤/源码漂移，根核日志SHA | `/tmp/openrust-c04d4-current-cookie-{public,all}.result.json`及`/tmp/openrust-c04d4-current-consumer-test.result.json`；公开wrapper实际调用driver，不是网络或浏览器证据 |
+| 核心安全定向 | Auth34 passed/438 filtered；摘要修后Cookie3 passed/412 filtered，均退出0、无失败/忽略/源码漂移，根核日志SHA | `/tmp/openrust-c04d4-protection2-auth-unit.result.json`及`/tmp/openrust-c04d4-proof-cookie-unit.result.json`；真实绑定handler、保护降级拒绝、预排队列隔离、写后覆盖拒绝/恢复/forget |
+| 敏感错误缓存红绿 | 原精确用例0 passed/1 failed、exit101；修后同一用例1 passed/0 failed、exit0，各8 filtered、源码无漂移，根核日志SHA | `/tmp/openrust-c04d4-{red,green}-cookie-cache.result.json`；原实现缺no-store，修后Cookie/Session自身错误不继承旧正文/Cookie/长度，保原错误与脱敏语义；不倒推PG首失败动态归因 |
+| 根双库无加密安全负例 | PG18/MySQL8.4各accepted=true、exit0、严格具名1 passed、0 failed/ignored/skipped、71 filtered、源码无漂移；两锚库清理已核absent | `/tmp/openrust-c04d4-root-plain4-{pg,mysql}.result.json`及safe.log；匿名业务200，登录与伪造read/write均500、正确code/no-store/消息脱敏。PG为用户获准的读取器修后单次重验，旧accepted=false不回填 |
+| 根双库完整加密模块 | 两库各accepted=true、exit0、62 passed、0 failed/ignored/filtered/skipped、源码无漂移；锚库均清理并核absent | `/tmp/openrust-c04d4-root2-{pg,mysql}.result.json`及safe.log；含受保护Auth、plain/ID排除/数据ID排除四具名场景及既有链，MODE3通过真实Cookie层签发合法ID，不放宽严格拒绝断言 |
+| 正式原宿主接线 | 5 passed、45 filtered、0 failed/ignored，exit0、源码无漂移、根核日志SHA | `/tmp/openrust-c04d4-exact-host-session.result.json`；默认无DB404、原Provider显式Cookie非空双Cookie往返、late overlay，不由测试helper假装安装Provider |
+| CLI快照 | 精确1 passed/19 filtered、0 failed/ignored、exit0、源码无漂移 | `/tmp/openrust-c04d4-second-cli-snapshot.result.json`；旧snapshot差异完整核对后限定更新，.snap.new移除；后改认证模板由最终workspace与新生成项目另验 |
+| 三类全新生成应用 | plain5/PG2/MySQL2，实际fmt/check及test均通过，无失败/忽略/过滤/跳过、源码无漂移；双库锚库清理并核absent | `/tmp/openrust-c04d1-generated-d4-fresh-verify-plain.result.json`、`/tmp/openrust-c04d1-generated-d4-fresh2-verify-{pg,mysql}.result.json`与`/tmp/openrust-c04d4-generated-plain.safe.log`、`/tmp/openrust-c04d4-generated2-{pg,mysql}.safe.log`；D1为复用脚本路径，确为本簇新应用；测试Mailer不算供应商发送 |
+| 真实TLS网络首轮 | accepted=true、源码无漂移、cleanup_errors空、三服务均exit0 | `/tmp/openrust-c04d4-cookie-network-1qea_dos/result.json`；显式CA/hostname验证TLS1.3终止代理链、Secure/不可信forwarded、旧key读/当前key写，不是原生TLS listener或集群 |
+| 最终网络与浏览器联跑 | accepted=true、源码无漂移、cleanup_errors空、三后端退出码均0；根实际执行仓内浏览器CLI后发完成信号，原network句柄终态0 | `/tmp/openrust-c04d4-cookie-network-d8opmsxc/result.json`与`/tmp/openrust-c04d4-cookie-network2.safe.log`；最终源码再次建真实HTTP/TLS窗口，浏览器结果独立列下行，不用原首轮代替 |
+| 真实HTTP浏览器 | 仓内CLI实际exit0、4/4检查accepted=true，Chromium153.0.8010.12，无手动Cookie注入，浏览器与上下文有界关闭 | `/tmp/openrust-c04d4-browser-repository-final/result.json`；脚本`modules/example/tests/browser_cookie_session.py` SHA7531ee453ce998b0b733b2c5b34491857ee7954355ccc7c550060120ea83ce7e；自动双Cookie往返、两context三轮非空隔离/新page、opaque小载荷、HttpOnly/JS隐藏SetCookie。首次独立stdin探针`browser-ves4_s9c`也通过，但不替代仓内CLI实跑；浏览器仅HTTP，不声称浏览器TLS |
+| 不同模型独立审查 | 读取顺序、队列覆盖、Auth保护和宿主/生成器接线缺陷均修正后复审通过，最终认证模板两行窄审通过 | gpt-6-sol只读审查不代替实跑。对应最终模板SHA9ff0d16f57703ee2dcc8aea8457505b5879278f99fe5a6738ab7b7d02b9bfb67；源码哈希及各阶段guard在各结果中保留 |
+
+资源收尾：`/tmp/openrust-c04d4-final-clean.safe.log`，锁/probe/lsof确认无其他使用者后清本簇root可再生产物并保锁inode；root target 24,429,355,008→0 bytes，五旧consumer逐项不变，总target2.486656GiB，磁盘剩余118.751392GiB/12.819255%，post_users为空。最终验收交接时489文件sourceguard与磁盘逐SHA一致；guard释放后仅更新来源JSON的验收状态/证据元数据与Agent文档，未修改运行源码/断言/模板，无遗留Cargo/rustc/rustdoc/server或本任务runner；handoff `/tmp/openrust-c04d4-final-handoff.json` SHA81701c22e912610f756592aed6eb1b96b7d1deee4da81d537771d78b40c204a5。只清自有可再生产物，保留生成源码、失败和通过证据。
+
+公开测试首轮实际退出101、源码无漂移，根已核日志SHA：旧Session 10 passed，新Cookie 5 passed/2 failed，后续target因Cargo提前退出尚未执行。证据`/tmp/openrust-c04d4-initial-cookie-public.result.json`。两项fixture错误分别是直接解析`Cookie::from_header`保留的百分编码值，以及将Symfony删除wire错误断为None/空串；修正须经公开读取解码，并严格核对同名、Max-Age=0及过去Expires，不放宽原删除/载荷意图。该轮不能称公开测试全通过。
+
+独立模块审查发现Cookie Auth保护配置阻断：`auth`不蕴含`encryption`，宿主无该feature时选择plain Cookie，客户端快照的身份属性不能因此被信任。实现已在实际Session认证入口与最终save加入可信保护校验，18文件独立审查及修后核心定向通过；普通plain Cookie业务不等于可信认证，不能仅在fixture加cfg隐藏生产组合。修复、伪造负例与受保护真实双库正例通过前，Cookie Auth保持未验收。
+
+Auth保护首轮定向因新增测试把owned Option<Value>误写为引用而编译失败，原断言值保持修正后第二轮通过。无加密PG首次runner选择了required-features包含encryption的旧target，Cargo退出101且0项测试；该次不是安全负例通过，精确隔离锚库已清并核不存在。证据`/tmp/openrust-c04d4-root-plain-pg.result.json`，后续改用公开server集成target真实重验，不修改manifest放宽门禁。
+
+plain3-PG修后真实命令退出0，具名负例实际1 passed、0 failed/ignored、69 filtered、无skip/源码漂移；匿名put/read为200，login与伪造read/write均500、session_cookie_protection_required、no-store且消息脱敏，精确隔离锚库已清并核不存在。但nocapture诊断打断测试具名结果行，读取器named_passed为空，`/tmp/openrust-c04d4-root-plain3-pg.result.json`仍accepted=false，不伪补通过。按§5暂停后，用户已明确批准修读取器并离线验证后单次精确重验；修正读取器7个离线样本及不同模型静审已通过，总源码冻结后获准的plain4-PG单次重验已实际通过，具名/拒绝/清理证据如上；旧plain3 accepted=false保留，不回填旧记录。其他适用验收仍按范围实际执行。
+
+完整加密PG首轮61 passed/1 failed（无skip、源码无漂移），唯一data-ID-except场景把仍需加密的ID也按明文发送，被Cookie层先拒为401，未到目标保护校验；正例/plain/ID-except已具名通过，整组仍accepted=false。精确锚库已清并核不存在。MODE3夹具现用专属测试路由经真实Cookie层签发合法ID，仅篡改被排除保护的数据Cookie；保严格500/code/CSRF/no-store，不接受401放宽。fixture修后独立增量审查及root2完整加密双库各62项均已通过；最初失败记录保持原accepted=false，不改写。
+
+认证生成PG首轮实际fmt/check通过、认证测试1 passed/1 failed，严格Cookie计数断言失败；隔离锚库已核absent、源码无漂移。模板夹具用无数据库的默认配置构建Provider，而实际figment随后才给隔离数据库，导致漏装Session。修复仅从同一figment提取`bootstrap::Configuration`并传给`ProviderBuilder::for_application`，原Cookie、HTTP、数据库与清理断言不变；不同模型窄审通过（模板SHA `9ff0d16f57703ee2dcc8aea8457505b5879278f99fe5a6738ab7b7d02b9bfb67`）。旧失败证据保留，修后已由CLI重新生成PG/MySQL应用并完成实跑，不手补生成物，不以静态审查替代实跑。
+
+四份固定官方源码哈希见[来源记录](../../../tests/http/fixtures/laravel-session/provenance.json)。PHP读取表达式探针不是完整官方类或Laravel请求链oracle；异常弱类型差异保持开放。客户端Cookie重放/无全局撤销、秒精度与浏览器容量边界分别记录，不声称整个Session能力完成。
+
 ## C04-D3 Session扩展生命周期（限定子范围已验收）
 
 契约见[ADR-082 D3](../decisions/adr-082-session-store-and-flash.md#d3扩展生命周期契约与验收边界)。D2的3cabae2不继承为D3通过；完整Cookie driver另列紧邻D4。

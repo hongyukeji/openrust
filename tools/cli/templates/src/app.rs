@@ -26,6 +26,8 @@ impl ServiceProvider for RoutesProvider {
 #[derive(Default, serde::Deserialize)]
 #[serde(default)]
 pub struct Configuration {
+    pub database: openrust::config::DatabaseConfig,
+    pub session: openrust::config::SessionConfig,
     pub modules_root: Option<std::path::PathBuf>,
 }
 
@@ -34,7 +36,7 @@ pub struct {{type_name}};
 impl Application for {{type_name}} {
     type Config = Configuration;
 
-    fn providers(_config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+    fn providers(config: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
         let mut providers: Vec<Box<dyn ServiceProvider>> = vec![
             Box::new(openrust::http::HttpServiceProvider),
             Box::new(ReadinessProvider),
@@ -44,6 +46,18 @@ impl Application for {{type_name}} {
             Box::new(openrust::mail::MailerServiceProvider),
             Box::new(openrust::sms::SmsServiceProvider),
         ];{{database_providers}}{{encryption_provider}}{{cookie_provider}}{{grpc_providers}}
+        let has_database = config.database.url.is_some()
+            || !config.database.instances.is_empty()
+            || !config.database.read_replicas.is_empty();
+        if has_database
+            || config
+                .session
+                .driver
+                .as_deref()
+                .is_some_and(|driver| driver != "database")
+        {
+            providers.push(Box::new(openrust::session::SessionServiceProvider::new()));
+        }
         providers.push(Box::new(RoutesProvider));
         providers
     }

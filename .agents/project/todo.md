@@ -338,11 +338,26 @@ Spec已按ADR-082 D3收敛，进入实现：
 
 先审计固定Store的setId/setHandler与CookieSessionHandler请求注入生产路径，对照现有撤销、busy/closed、Provider装配与自定义驱动契约，写Spec后实现安全等价API。不得用D2只读handler逃生口替代驱动替换，也不得删除适用上游能力。统一状态机、唯一modules/example与生成调用、公开consumer、双库真实HTTP及匹配门禁随簇交付；Old Input/CSRF等按既有后继依赖保留。
 
-D3验收：最终12项门禁通过，默认668/全特性1328 passed（29/102 ignored不算实服务）；根真实双库完整target各55、三类新生成4/2/2及独立审查通过。root target已清、五旧consumer不变，限定提交以Git为准；本簇不实现完整内置Cookie driver或通用Container extend，不关闭整个L025。
+D3验收（be98e3f）：最终12项门禁通过，默认668/全特性1328 passed（29/102 ignored不算实服务）；根真实双库完整target各55、三类新生成4/2/2及独立审查通过。root target已清、五旧consumer不变，限定提交以Git为准；本簇不实现完整内置Cookie driver或通用Container extend，不关闭整个L025。
 
-## 当前 C04-D4：内置Cookie Session driver（待领取）
+## C04-D4：内置Cookie Session driver（限定子范围已验收）
+
+Spec已按[ADR-082 D4](decisions/adr-082-session-store-and-flash.md#d4实现契约与明确差异)实现并完成适用验收；正常格式对应、PHP异常弱类型差异与客户端保证分别记录：
+- 以固定CookieSessionHandler/SessionManager/StartSession及测试为依据，补齐真实双Cookie读写/过期/删除，不用请求hook替代完整driver。
+- 复用D3请求实例、Cookie解密视图/队列与同一Session状态；不引入单例可变请求、第二bag或额外服务器存储冒充Laravel默认Cookie driver。
+- 先核实stateless客户端存储与现Insert/Update、撤销和Auth契约的能力边界；不能虚称跨客户端原子撤销，必要适配按来源分类。
+- 定义配置选择、数据与头部预算、错误/取消、密钥轮换及当前原子状态机的交互，再划分非重叠实现/测试任务。
+- 唯一模块/生成调用、真实HTTP与浏览器适用证据、双库既有行为回归和匹配完整门禁随簇交付；来源行为未等价的缺口保持开放。
+- 正式宿主与生成模板必须按显式非数据库driver接入唯一Session Provider；保默认database无数据库不挂Session的边界。新增原Application providers直通回归，禁止仅测试helper装store掩盖漏接线；实际无DB Cookie网络验收不得借假数据库绕过。
+- 独立审查发现Cookie Auth无加密/保护排除组合可伪造身份，纳入本簇阻断修复：以真实中间件保护事实、driver公开认证能力与实际Auth入口校验闭环；受保护双库正例及plain/排除保护伪造负例未过前不关闭，不能仅cfg隐藏生产风险。
 
 沿D3每请求driver绑定实现固定CookieSessionHandler完整双Cookie：配置名ID Cookie与ID名data/expires Cookie，解密后的输入视图、过期边界、队列写入/删除、取消与安全属性；唯一模块/生成/真实HTTP及适用门禁验收。D3自定义请求hook不关闭此项，也不以Cookie-only driver替代已验收数据库/Redis驱动。
+
+D4验收：D4内置Cookie driver限定子范围已验收：final3完整12门禁通过（默认668/全特性1367 passed，29/102 ignored不算实服务），根真实双库加密各62/无加密安全负例各1、新生成plain5/双库认证各2、真实TLS代理链与仓内Chromium HTTP脚本4项及不同模型审查通过；root target清零、五旧consumer不变。本簇不关闭PHP异常弱类型、全局撤销或完整Session/Web能力，详细证据见testing。
+
+## 后继 C04-D5：StartSession GC lottery与公开driver回收
+
+D4限定提交后领取；默认lottery对照固定上游[2,100]，start后、业务前对实际请求绑定driver调用公开GC；同一Session内核，无第二存储。Spec须先收敛持久绝对expiry与上游last_activity期限的安全差异，不能误删仍获授权的显式长Expiry或声称已有expiry load替代未访问记录GC。数据库/Memory实际清扫，Cookie/Redis按上游noop；失败/取消/原子防复活、唯一模块/consumer/新生成、双库/Redis与匹配门禁同簇验收。previous URL/route、真实Precognition、Old Input/CSRF、blocking及Session cache继续保留，不能用本簇关闭整个L025。
 
 ## 完整实现后的发布仓库整理（后置，未启动）
 

@@ -847,6 +847,7 @@ impl AuthFlows {
         request_source: &str,
         session: &Session,
     ) -> Result<SessionCredentials> {
+        session.require_authenticated_storage()?;
         let user_id = self
             .authenticate_password(email, password, request_source)
             .await?;
@@ -861,6 +862,7 @@ impl AuthFlows {
     ///
     /// 其他由应用持有的 Session 值会保留。路由应先要求 `AuthMode::Session`，再调用此方法。
     pub async fn logout_session(&self, request_source: &str, session: &Session) -> Result<()> {
+        session.require_authenticated_storage()?;
         let user_id = session
             .get_typed::<i64>(AUTH_USER_ID_KEY)
             .map_err(Error::internal)?
@@ -1360,6 +1362,7 @@ fn external_identity_link_required() -> Error {
 }
 
 async fn bind_session(session: &Session, user_id: i64) -> Result<SessionCredentials> {
+    session.require_authenticated_storage()?;
     let mut random = [0_u8; 32];
     getrandom::fill(&mut random).map_err(Error::internal)?;
     let csrf_token = URL_SAFE_NO_PAD.encode(random);

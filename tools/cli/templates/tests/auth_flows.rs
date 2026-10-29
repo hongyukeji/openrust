@@ -111,8 +111,9 @@ async fn generated_auth_routes_run_over_http_with_isolated_database_and_fake_mai
         openrust::config::FrameworkConfig::default(),
     ))
     .merge(Toml::string(&config));
+    let application_config = figment.extract::<bootstrap::Configuration>()?;
     let mut builder = openrust::core::ProviderBuilder::for_application::<GeneratedApplication>(
-        &bootstrap::Configuration::default(),
+        &application_config,
     );
     let captured_mail = CaptureMailer::default();
     builder.provider(CaptureMailerProvider(captured_mail.clone()));

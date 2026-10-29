@@ -96,6 +96,29 @@ DB键继续SHA256，但输入改为原始40 ASCII字节（大小写敏感），�
 
 D3限定子范围已通过最终12项门禁、根真实双库完整target各55项、三类新生成应用4/2/2及不同模型审查；资源收尾已完成，证据见[testing](../memory/testing.md)。完整Cookie driver与Container extend仍保留对应后继，不关闭整个Session/Web范围。
 
+## D4：内置Cookie driver（契约已定，实现中）
+
+- 固定SessionManager用lifetime/expire_on_close构造CookieSessionHandler；配置名Cookie保存ID，第二枚以该ID为名的Cookie保存JSON data/expires。输入取Cookie层解密视图，输出经同请求队列再由外层保护，不新增并行Cookie内核。
+- CookieSessionHandler.read仅在有效JSON数组且expires已设、currentTime() <= expires时读取data；expiry包含整秒边界。write嵌入当前秒加lifetime秒数，expire_on_close只改变浏览器Cookie有效期为会话，不取消嵌入期限。异常字段已按固定源码和限定PHP读取表达式探针审计；正常写入格式的对应与异常弱类型差异分别验收，不把所有异常无条件空会话冒称等价。
+- 数据Cookie沿CookieJar默认HttpOnly=true、Partitioned=false；ID Cookie则按Session配置传http_only/partitioned。path/domain/secure/same_site共用最终CookieFactory/可信传输，两个Cookie不能简单复制所有Options。固定上游Integration/Session/CookieSessionHandlerTest验证expire_on_close与请求Secure继承。
+- Cookie driver没有服务器共享记录，旧受保护双Cookie副本可在嵌入期限内重放；delete只排当前响应forget，Insert/Update不能发现另一客户端的撤销或全局碰撞。必须公开客户端快照保证，不暗加DB/Redis，也不降低默认服务器driver原子Update/Missing契约。
+- 普通Auth登录/当前请求登出须沿bound Session实际工作；现Auth authorized_until读取singleton handler、OIDC远程delete后标session_deleted_at的路径必须明确能力边界并安全失败，不能返回假成功或声称跨客户端撤销。公开保证分类与接线见下述契约；这些入口未验收前不关闭相应行为。
+- 复用D3逻辑后端/请求实例、取消和tombstone；写入预算、秒边界、双客户端重放限制、加密与历史密钥、真实HTTP/浏览器及生成/双库回归随簇验收，不把D3 hook证据当完整driver通过。
+
+### D4实现契约与明确差异
+
+- 公开`SessionStoreGuarantees::{ServerSide, ClientSideSnapshot}`，`SessionStore::guarantees`默认前者。ServerSide仅表示当前后端的条件写入/删除契约，不代表Memory跨节点共享；Cookie声明客户端快照，本请求观察不能外推全局冲突或撤销。
+- `CookieSessionStore::new(lifetime_minutes: u64, expire_on_close: bool)`返回`Result`，校验正分钟与秒数/日期溢出。Provider以`driver="cookie"`选择，复用统一请求绑定；无请求时安全错误，不暗存全局Request。
+- 正常第二Cookie为`{data: JSON属性序列化字符串, expires: 整数秒}`。Rust属性表示使用serde JSON，不承诺PHP serialize字节兼容。写入截止为当前秒加lifetime与record截止秒的较小值；读取转换为checked的下一秒排他截止，包含上游到期整秒。显式`set_expiry`在此driver采用秒精度，可能较纳秒期限延长不足一秒，此项为公开精度适配。
+- 坏JSON、非object根、缺失/null的expires或已过期值按miss处理；非整数expires、有效未过期对象中缺失/null/非字符串data以`session_cookie_payload_invalid`安全错误拒绝。整数溢出也拒绝。PHP可接受浮点或字符串expires以及部分data弱转换；严格类型错误是安全增强差异，尚不具备这些异常输入的严格1:1等价证据，不将正常双Cookie通过扩大为全部异常语义完成。
+- 请求实例只维护有界ID/截止/已排载荷SHA-256摘要及Written或Deleted元数据（至多1024），不另存属性bag；写入与删除先校验/准备，Cookie队列成功后才提交元数据。仅本driver已成功写入的ID，后续读取才解析相同名称/路径的已排队完整输出；其他ID始终读取入站快照，不能把任意预排响应Cookie当入站。自身已排载荷读取/续写核对摘要，外部覆盖安全拒绝，外部forget视miss；不把摘要当属性缓存。外部预排同名同路径数据值使写入返回Conflict，预排forget使写入返回Missing，属于防覆盖的安全增强。取消不后台补写，外部已发生副作用不能声称回滚。
+- 沿既有单头64KiB、队列128项及最终保护后预算，不新增全局4KiB硬限制。真实浏览器通常有约4KiB单Cookie实践边界；大于浏览器限制的成功HTTP头构造不代表浏览器可存，浏览器验收使用小payload并单列限制。
+- 普通绑定请求的Auth登录/登出沿现Session轮换；无请求远程`SessionStoreHandle.delete`对客户端快照返回`session_store_guarantee_unsupported`，不能标记远程删除成功。需要持续服务器撤销保证的`authorized_until`对Cookie同样明确拒绝，服务器驱动读取实际绑定handler；不因编译Auth feature就拒绝全部Cookie装配。
+- Session认证需要独立的完整性保证：`SessionStore::supports_session_authentication(cookie_name)`默认仅ServerSide为true，ClientSideSnapshot为false；第三方显式声明支持时须自行验证载荷来源与完整性。内置Cookie请求实例只接受真实Cookie中间件的私有Encrypted保护事实，公开`SessionRequestContext::new`不能凭原始快照制造此事实。ID名称或任一合法40位数据ID被精确except排除时不支持认证；拒绝任一合法数据ID排除是轮换安全的保守约束。当前except是精确字面量，不将`*`误当glob。
+- Auth实际选择Session凭据、默认DB认证直接入口及登录/登出限流或密码验证等副作用之前检查此保证；认证属性的最终save按实际handler及当前名称再次检查，防set_name/set_handler在入口后降级保护，普通非认证属性不因此禁止既有转移；失败返回中文脱敏的500 `session_cookie_protection_required`。JWT独立路径不受影响，普通显式plain Cookie业务仍允许，不以编译auth feature全局拒绝Cookie，也不谎称所有不安全组合启动即失败。真实Cookie Auth正例必须走受保护wire，plain与保护排除的伪造负例须被拒绝；未验收前该安全子项保持开放。
+- Cookie/Session机制自身失败响应统一设置`Cache-Control: no-store`与`Pragma: no-cache`，覆盖请求准备、保存/ID Cookie生成及外层Cookie保护/预算失败的响应替换。复用内部响应helper，不按示例路径特判，不复制被替换响应的Set-Cookie、Content-Length或正文，普通成功响应不加此策略。确定性Router回归与真实账户负例分别验收，不把静态缺口冒称某次服务失败的动态根因。
+- 核心实现、叶测试/模块/生成调用与不同模型只读审查分离；Cargo、清单/锁、服务及构建资源由单一集成人协调。当前仅contract固定，全部实现与验收仍开放。
+
 ## 配置与后继边界
 
 现SessionConfig默认secure=true、ttl_secs=两周未被C04-C称为Laravel默认。本簇整改lifetime为120分钟、nullable secure供实际TLS推导、expire_on_close=false、http_only=true、same_site=lax、partitioned=false并保Cookie最终配置优先级；cookie名派生app.name与SESSION_*环境映射须按固定源同步，不默保旧值冒称完成。数据库默认后端复用现已注册Db；不暗连用户数据库。

@@ -1,5 +1,14 @@
 # 验收口径
 
+
+## C04-D4 Cookie Session（限定子范围已验收）
+
+内置Cookie driver经唯一Session状态机、请求绑定与统一Cookie保护接入正式宿主/生成器，采用配置名ID Cookie和ID名数据Cookie。客户端快照不可承诺全局撤销或跨客户端原子更新；实际认证及最终保存检查真实中间件保护事实，plain普通业务与可信身份分开。固定PHP异常弱类型差异仍开放，不能据正常格式通过宣称完整严格1:1。
+
+当前实际证据：final3完整12门禁均exit0且sourceguard为空（默认668/29 ignored，全特性1367/102 ignored）；根PG18/MySQL8.4完整加密模块各62项及无加密安全负例各1项通过，均无失败/忽略/跳过，精确隔离库已核不存在。修后CLI新生成plain5/PG2/MySQL2及fmt/check通过；原严格Cookie断言保留，测试Mailer不算真实供应商发送。真实TLS终止代理链和首次独立HTTP Chromium各自通过，不能将代理当Rust原生TLS listener或集群证据。
+
+最终认证模板快照的完整12项门禁已通过；仓库浏览器CLI实际exit0、4/4检查通过。最终HTTP/TLS窗口三服务均正常退出，源码无漂移。持锁及使用者核对后root target清零，释放24,429,355,008 bytes，五旧consumer逐项不变、剩余磁盘12.819255%，无遗留构建或服务；限定本地提交以Git为准。逐快照日志、失败修正及边界见[testing](testing.md#c04-d4-内置cookie-session-driver限定子范围已验收)。完整GC、previous URL、Precognition、Old Input/CSRF、blocking、Session cache及其余driver仍按后继推进。
+
 ## C04-D3 Session扩展生命周期（限定子范围已验收）
 
 公开ID/driver选择、逻辑后端与请求实例/来源证明、显式Insert意图、销毁tombstone及请求hook已接入同一Session内核；新36项定向、模块4项及不同模型修后复审已通过。用户批准第三次Clippy失败后的单次重验，最终final4完整12项全部实际退出0且源码无漂移；默认668/29 ignored、全特性1328/102 ignored。最终源码外部consumer check/test另已通过（旧unit1+新扩展1）。根真实双库完整target各55项、三类新生成应用4/2/2及资源收尾另已通过，限定提交以Git为准。详细证据和初轮失败见[testing](testing.md#c04-d3-session扩展生命周期限定子范围已验收)。

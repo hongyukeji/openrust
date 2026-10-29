@@ -3,7 +3,7 @@ use super::{CookieJar, crypto::Protection, provider::CookieRuntime};
 use axum::{
     extract::{FromRequestParts, Request, State},
     middleware::Next,
-    response::{IntoResponse, Response},
+    response::Response,
 };
 use http::{HeaderValue, header::COOKIE, request::Parts};
 use serde_json::Value;
@@ -38,12 +38,12 @@ pub(crate) fn apply(router: axum::Router, runtime: &CookieRuntime) -> axum::Rout
 async fn handle(State(layer): State<CookieLayer>, mut request: Request, next: Next) -> Response {
     let secure = match crate::http::transport::is_secure(&request) {
         Ok(secure) => secure,
-        Err(error) => return error.into_response(),
+        Err(error) => return super::private_error_response(error),
     };
     let result = prepare(&layer, &mut request).await;
     let jar = match result {
         Ok(jar) => jar,
-        Err(error) => return error.into_response(),
+        Err(error) => return super::private_error_response(error),
     };
     let context = request
         .extensions()
@@ -64,7 +64,7 @@ async fn handle(State(layer): State<CookieLayer>, mut request: Request, next: Ne
     })();
     match result {
         Ok(()) => response,
-        Err(error) => error.into_response(),
+        Err(error) => super::private_error_response(error),
     }
 }
 
@@ -84,6 +84,10 @@ async fn prepare(layer: &CookieLayer, request: &mut Request) -> crate::Result<Co
             HeaderValue::from_str(&header).map_err(crate::Error::internal)?,
         );
     }
+    #[cfg(feature = "session")]
+    request
+        .extensions_mut()
+        .insert(layer.protection.authenticity(&layer.except));
     request.extensions_mut().insert(parsed.original.clone());
     request.extensions_mut().insert(parsed);
     let scope = request
