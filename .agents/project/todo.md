@@ -284,6 +284,15 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 4. 保留后续 Cookie/Session、redirect/flash、CSRF、FormRequest 授权/验证、文件验证和 Response 扩展的完整范围，不能用首个子簇代替完整C04验收。
 5. 每个落地子簇同步唯一模块业务调用、生成应用与真实HTTP；行为证据、适用门禁和资源收尾完成后限定本地提交，当前契约校准不计代码交付。
 
+## C04/C05 分页整改 Spec（已授权，按依赖领取；代码未改）
+
+1. 不抢占当前在途HTTP簇；分页解析/Response契约归R3 C04，API Resource归C05（C03资源路由不能替代Resource），查询/模型分页分别依赖R4 C07与R5 C08/C09；对应现矩阵[L059.02/.03/.05/.06、L068.04](plans/laravel-rebuild-matrix-2.md)。实现拆可验收子簇，不另建分页计划或先堆抽象。
+2. 当前事实：`src/http/response.rs`的PageParams默认page=1/per_page=20，直接提取限制per_page=1..100并把非法值变为校验错误；Paginated只返回page/per_page/total/total_pages元数据。`modules/example/http/requests/{article,example_record}.rs`重复分页字段/校验；article controller仍手算page-1并拼PageParams，example_record controller直接操作SeaORM paginator的count/fetch_page并再包装。旧CRUD/统一meta通过不等于Laravel分页等价。
+3. 固定依据为[Laravel pagination文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/pagination.md)与framework `d52c3b3129e4c8e213c97cdc68f94b0b7d27f181`：[Model](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Database/Eloquent/Model.php)/QueryBuilder默认15；[PaginationState](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Pagination/PaginationState.php)解析page、非法页回1；[LengthAwarePaginator](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Pagination/LengthAwarePaginator.php)与[PaginatedResourceResponse](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Http/Resources/Json/PaginatedResourceResponse.php)分别对标直接JSON与Resource links/meta；不能仅20改15、字段换名就关闭整改。
+4. 黄金路径须是框架查询/模型调用paginate(n)并自动解析当前page、返回分页对象；simplePaginate/cursorPaginate按既有矩阵后续补齐，不让普通controller复制偏移/count/包装。per_page query不是Laravel默认自动消费，应用需要时显式校验并传入；现1..100、page上限/溢出保护、invalid422须分清应用策略/安全增强/Rust数值限制，不冒称上游默认。统一返回价值经Response/Resource公开扩展融合，不建独立分页协议，原生响应可用。
+5. 高价值验收：缺省/非法/零负页与超界页、空集last_page=1及边界链接、末页/越末页、参数/fragment/自定pageName与同请求多分页器、直接Paginator JSON和Resource links/meta避免二次包装；simple无总数查询、cursor稳定排序/唯一性/前后游标及非法游标边界逐条按固定源码测试落实，不能假造全部422或隐式消费per_page。
+6. 逐项对照固定[tests/Pagination](https://github.com/laravel/framework/tree/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/tests/Pagination)的LengthAwarePaginatorTest/PaginatorTest/CursorPaginatorTest及[ResourceTest](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/tests/Integration/Http/ResourceTest.php)，形成source/tests→RustAPI→真实controller/唯一modules/example→生成器/生成项目与README/config/tests→适用PG18/MySQL8.4的证据；授权代码整改待领取，本轮仅文档审计，无新代码或服务验收。
+
 ## 当前 C04-B：输入基础收口与类型便捷方法
 
 状态：固定源码审计已交接；[ADR-079](decisions/adr-079-request-input.md)已定，C04-B1输入基础与规范化已交接，定向input19/request10/router87、config24/内部19/模块3及Clippy通过，限定独审无明确blocker/should-fix；default/all workspace已通过；运行验收采用阶段实际编译依赖的源码哈希守卫，保留外部WIP；无关测试fixture变化不阻塞生产TCP，相关源变化暂停对应阶段；继续双库/真实网络/生成项目，根TCP/consumer/生成认证应用双库均通过相应证据；账号/缓存fixture缺Host及获准新迁移编号修正后，根完整PG/MySQL各47项均通过，零失败/忽略/筛选；最新workspace全部适用门禁通过，B1限定提交见Git；typed便捷方法等C04-B2与其他完整范围保持未完成。

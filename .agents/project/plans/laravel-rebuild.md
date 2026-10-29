@@ -186,11 +186,11 @@ R2 配置补强以现有 Figment/ConfigLoader 和 section<T> 为唯一来源，�
 | C02 | 容器绑定/别名/生命周期/依赖诊断、Provider、Facade/显式 DI、包扩展与配置资源发布 | R2 |
 | C03 | web/api 路由组、middleware alias/group、命名/URL、资源路由、模型绑定、domain/prefix、fallback、签名 URL | R3 |
 | C04 | Request/Response、Cookie/Session、redirect/flash、CSRF/CORS、可信代理、FormRequest 验证授权、文件验证 | R3/R7 |
-| C05 | Controller `index/create/store/show/edit/update/destroy`、API resource 子集、资源序列化、条件字段/关系、分页；融合可定制统一返回格式，无载荷省略 data、避免重复包装 | R3/R5 |
+| C05 | Controller `index/create/store/show/edit/update/destroy`、API resource 子集、资源序列化、条件字段/关系、分页（L068.04：Resource links/meta与直接Paginator JSON分别对标；C04解析→R4查询→R5模型分簇整改，非仅改名/默认数）；融合可定制统一返回格式，无载荷省略 data、避免重复包装 | R3/R5 |
 | C06 | 错误报告与渲染、内容协商、日志 channels、结构化上下文、脱敏、可观测请求 ID | R3/R12 |
-| C07 | 默认/named 数据库、查询 builder、参数绑定、事务/savepoint/重试、锁、提交前后、读写分离/粘主与逃生口 | R4 |
+| C07 | 默认/named 数据库、查询 builder、参数绑定、事务/savepoint/重试、锁、提交前后、读写分离/粘主与逃生口；L059查询paginate/simplePaginate/cursorPaginate及page解析/URL契约，取代controller手算offset/count | R4 |
 | C08 | Model CRUD、属性/类型转换、hidden/visible、fillable/guarded、timestamps、主键、软删、scope、模型事件/observer | R5 |
-| C09 | 一对一/多/多对多、pivot、多态关系、预加载/聚合、N+1 检查、有界 chunk/lazy/cursor、分页、tenant/query policy | R5 |
+| C09 | 一对一/多/多对多、pivot、多态关系、预加载/聚合、N+1 检查、有界 chunk/lazy/cursor、分页（模型默认/按需pageName、稳定cursor和Resource衔接，见L059/L068及todo整改Spec）、tenant/query policy | R5 |
 | C10 | Schema/migration、锁/批次/rollback/status、seed、factory states/relations/固定随机种子、隔离测试库 | R4–R6 |
 | C11 | PostgreSQL 18/MySQL 8.4 LTS 全能力；SQLite 单机完整支持；最低版本与其他驱动按独立矩阵 | R4/R6/R14 |
 | C12 | web/SPA/API guard/provider、注册登录退出、邮箱验证、重置密码、PAT/JWT、refresh 轮换撤销、MFA/OIDC/SSO | R7 |
