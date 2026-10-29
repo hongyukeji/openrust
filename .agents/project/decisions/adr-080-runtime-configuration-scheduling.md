@@ -23,7 +23,7 @@
 8. 常规恢复迁移应用构建/必要部署配置与一致DB备份，即恢复管理员配置/计划及DBjobs；Redis缓存通知可丢。显式Redis queue的任务由Redis自身持久化/备份/迁移承担，不能包含在DB恢复承诺中。滚动升级须明确schema/任务版本兼容及旧节点隔离，不能只比较版本数字接受不兼容快照。
 9. V1必须实现typed分组DB设置与权限保护管理API/CLI，开发者注册schema/defaults、管理员保存，不要求其写Rust/.env；V2后台表单复用同一API，区分DB已保存与节点应用状态，不伪报全节点瞬时成功。公共方法名、配置格式、表字段及允许范围先以最短使用场景Spec收敛，不预造通用DSL/控制面/第二总线/新daemon或全资源热换机制。
 
-“管理API”仅指Rust公开服务方法/必要traits及Gate/Policy授权接入，不是框架HTTP endpoint。框架不自动注册admin/settings路由，不固定URL/响应/权限标识；开发者在自定controller/路由显式传入认证授权上下文调用服务，复用schema校验、脱敏和审计。modules/example在模块自己的routes/controller演示，V2与显式注册CLI复用同一服务且不绕授权，不暴露无鉴权入口。
+配置、Queue、Scheduler和动态计划的“管理API”统一指现领域Rust公开服务方法/必要traits及Gate/Policy授权接入，不是框架HTTP endpoint。框架不自动注册admin/settings路由，不固定URL/响应/权限标识；开发者在自定controller/路由显式传入认证授权上下文调用服务，复用schema校验、脱敏和审计。modules/example在模块自己的routes/controller演示，V2与显式注册CLI复用同一服务且不绕授权，不暴露无鉴权入口。Job代码注册、派发/事务、计划启停修改、重试/查询沿现Job/Queue/Scheduler/Provider扩展，不另造API家族或固定后台模型；worker/schedule runner由CLI显式运行，serve不暗启worker，CLI不是HTTP路由，框架不含示例业务特判。
 
 ## 业务设置与secret
 

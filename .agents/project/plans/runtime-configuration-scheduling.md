@@ -13,7 +13,7 @@
 6. 开发者注册typed分组/schema/defaults，管理员经未来后台编辑保存，不写Rust或.env；V1交付权限保护API与Laravel风格CLI，V2表单消费同一服务。具体公共命名、配置格式和默认范围在实现前 Spec 收敛，不在计划中预造 API。
 7. 当前 HTTP 功能簇照常闭环；随后按 R2 契约 → R10 实现 → R14 真实验收排期，不立即实现或更改部署值。
 
-此处“管理API”指Rust公开管理服务方法/必要traits，不是固定HTTP endpoint。框架不自动注册admin/settings路由，不预置URL、响应格式或权限标识；宿主在自定义路由/controller显式传入认证/授权上下文，经既有Gate/Policy调用同一服务。schema验证、脱敏返回与审计在服务内封装，不能暴露无鉴权管理入口。modules/example仅在自己的模块routes/controller示范；V2后台和显式注册的CLI复用同一服务，CLI也不得绕过授权，不新增SDK或控制面。
+此处配置、Queue、Scheduler及动态计划的“管理API”统一指现有领域的Rust公开服务方法/必要traits，不是固定HTTP endpoint。框架不自动注册admin/settings路由，不预置URL、响应格式或权限标识；宿主在自定义路由/controller显式传入认证/授权上下文，经既有Gate/Policy调用同一服务。schema验证、脱敏返回与审计在服务内封装，不能暴露无鉴权管理入口。modules/example仅在自己的模块routes/controller示范；V2后台和显式注册的CLI复用同一服务，CLI也不得绕过授权，不新增SDK或控制面。任务代码注册、派发/事务、计划启停变更、失败重试/查询按现Job/Queue/Scheduler/Provider职责扩展，不另造API家族或预设后台数据模型。Laravel式worker/schedule runner仍由CLI显式运行，CLI不是HTTP路由；serve不暗中启动全部worker，框架不为示例业务加特判。
 
 ## 当前仓库事实与缺口
 
