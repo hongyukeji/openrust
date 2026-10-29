@@ -4,6 +4,75 @@
 > 更新：2026-10-29
 > 摘要：R0 已固定上游；R1-S、R2-A/A2/A3、R2-B/C/D/M/N、R1-E 与 R3-A/B/C/D 均已按子簇完成适用门禁；R3-D 真实 HTTP、生成应用和安全复审证据见 `memory/testing.md`。完整 Laravel/laravel-modules 行为矩阵继续推进。
 
+## Laravel 1:1 功能与进度概览
+
+> 更新：2026-10-29；已提交事实截至 `99f2337`，另观察到C04-B2未提交实现（不计已验收）。本页是唯一概览入口，详细行为/差异以矩阵为准，执行队列仅在[todo](todo.md)。
+
+**总体仍未完成严格1:1。** 已验收的是明确子范围，不是整项能力全完成。R1-S、R2-A/A2/A3/B/C/D/M/N、R1-E及R3-A–F保留各簇证据；旧专项实现也须重新对应固定Laravel生产行为。C04-B1 `8846a6a`已交付，B2开发中；APP_PORT `591142f`只关闭端口配置子项，分页`4573234`仅整改计划，ADR-080仅规划。
+
+图例：✅ **已验收子范围**（只限边界列）；🟡 **开发中**（未收口）；🔵 **已有实现待1:1对齐**；📝 **仅规划**；⬜ **待开发**；⛔ **阻塞**（须写具体原因）。同一行以主状态概括，已验收基础不会把整体涂成✅；阻塞只是具体交付受限，不隐去其他可做部分。
+
+固定来源与细项：[R0基线](plans/laravel-rebuild-baseline.md)；[L001–L034](plans/laravel-rebuild-matrix-1.md)、[L035–L068](plans/laravel-rebuild-matrix-2.md)、[L069–L102](plans/laravel-rebuild-matrix-3.md)。表内L编号可在对应矩阵定位，最终验收仍须上游源码/测试→Rust公开API→生产调用→唯一模块/生成项目/文档→适用真实服务。
+
+### Laravel 能力族
+
+| 能力族 | 1:1目标 | 主状态 | 当前可证边界 | 待补关键项 | 稳定章节 / 阶段 / 证据 |
+| --- | --- | --- | --- | --- | --- |
+| 启动、应用布局 | Laravel应用职责/生命周期与开箱运行 | ✅ 已验收子范围 | R1-S 34dfb5e、R1-E bc3fa01：根lib/server、唯一模块与真实CRUD | 完整安装/升级/部署流程仍须逐项对照 | L004/L007/L010/L011；R1/R13/R14；[证据](memory/testing.md) |
+| Container / Provider / Facade | 统一DI、register→boot、作用域与扩展 | ✅ 已验收子范围 | R2-A/A2/A3、B/C/D已验收，唯一生产Container/Provider、入口scope/TestApp | 完整Facade/Container对应与第三方扩展矩阵仍待闭合 | L012–L014/L035；R2；[core](core/core.md)/[facade](core/facade.md) |
+| Configuration | env/领域配置、typed读取/校验与包配置合并 | ✅ 已验收子范围 | R2来源失败/Provider配置；APP_PORT 591142f映射与生成/启动已验收 | 完整L005及缓存/来源/扩展逐项对齐；DB业务设置见增强表 | L005；R2；[core](core/core.md)/[todo](todo.md) |
+| Routing / Middleware / URL | 路由组/域/命名URL/绑定/中间件默认与错误 | ✅ 已验收子范围 | R3-A–F按簇交付；F 163bb49域路由；已知差异公开 | 模型绑定等剩余C03行为及默认差异不能由A–F整体外推 | L015/L016/L024；R3；[http](core/http.md)/[todo](todo.md) |
+| Request | 输入来源、typed便捷方法与生命周期 | 🟡 开发中 | C04-A 08be69d、B1 8846a6a已验收；B2存在未提交实现/定向证据 | B2完整验证/提交未收口；Cookies/Old Input等仍开放 | L019；R3 C04；[证据](memory/testing.md)/[todo](todo.md) |
+| Response / API Resource / 异常 | 原生响应、资源序列化/条件字段、错误渲染 | 🔵 已有实现待1:1对齐 | 类型化响应/envelope与语义状态子簇已交付 | 完整Resource集合/分页/条件字段和redirect/stream逐项对应 | L018/L020/L027/L068/L069；R3/R5；[http](core/http.md) |
+| Pagination | Query/Model paginate、simple/cursor、链接与Resource | 🔵 已有实现待1:1对齐 | 现PageParams/手动controller分页；4573234仅登记整改 | 默认15/page解析、直接JSON与Resource links/meta、查询/模型入口及边界 | L059/L068.04；R3→R4/R5；[Spec](todo.md#c04c05-分页整改-spec已授权按依赖领取代码未改) |
+| Validation / FormRequest | 验证规则、授权、错误与文件验证 | 🔵 已有实现待1:1对齐 | Validate/Validated与模块输入校验有实现和测试 | 完整FormRequest授权/规则/错误默认与文件行为 | L026/L019；R3/R7；[http](core/http.md)/[todo](todo.md) |
+| DB / 事务 / Migrations | 连接、事务/savepoint、Schema与迁移生命周期 | 🔵 已有实现待1:1对齐 | SeaORM双库、迁移锁/表名、事务/读写路由专项证据 | R4 Laravel公开数据库/Schema完整契约及故障边界 | L057/L060/L062；R4；[db](core/db.md) |
+| Query Builder | Laravel式组合查询、锁/聚合/chunk与分页 | 🔵 已有实现待1:1对齐 | 有查询/tenant policy和原生SeaORM资产 | 完整Laravel查询API/默认/错误；自动分页与生产调用整改 | L058/L059；R4；[db](core/db.md)/[todo](todo.md) |
+| Eloquent / 关系 / Cast / 集合 | Model CRUD、关系、scope、事件、序列化 | 🔵 已有实现待1:1对齐 | 模块持久模型/真实CRUD与扩展资产存在 | SeaORM Entity不等于Eloquent；关系/批量/属性等完整R5待做 | L064–L069；R5；[db](core/db.md)/[todo](todo.md) |
+| Factories / SQLite | 工厂states/关系fixtures及轻量后端等价行为 | ⬜ 待开发 | 已有seeder/TestDatabase不能当Laravel Factory或SQLite完成 | R5之后R6实现工厂/SQLite，并逐后端行为验收 | L061/L070/L078；R6；[计划](plans/laravel-rebuild.md)/[todo](todo.md) |
+| Authentication / Authorization / OIDC | guard/provider、用户流程、Gate/Policy与外部身份 | 🔵 已有实现待1:1对齐 | JWT/PAT/Policy/RBAC、认证/MFA/OIDC双库与生成专项 | R7多guard/默认与完整上游行为；供应商证据分别标明 | L051–L053/L056/L083/L090/L098/L100；R7；[auth](core/auth.md) |
+| Session / CSRF / 限流 | 共享会话、请求伪造防护与限流 | 🔵 已有实现待1:1对齐 | 可选Session及共享limiter等实现资产 | 完整Session/CSRF默认与错误、安全跨节点验收 | L017/L025/L047；R3/R7/R14；[auth](core/auth.md)/[http](core/http.md) |
+| Encryption / Hash / 安全 | 应用加密、轮换、签名及安全边界 | 🔵 已有实现待1:1对齐 | Encryptor/keyring、密码hash、签名链接等有专项 | 按上游职责核对默认/用途/错误；DB业务secret激活见增强 | L054/L055/L024；R7；[security](core/security.md)/[signing](core/signing.md) |
+| Cache / 原子锁 | 默认/具名store、TTL/共享锁与失败语义 | 🔵 已有实现待1:1对齐 | 统一store/Redis/DB及共享锁实现和专项证据 | Laravel Cache全方法/默认/锁与生产故障完整对应 | L031；R8/R14；[cache](core/cache.md) |
+| Storage / Filesystem | 默认/具名disk、私有对象与文件操作 | 🔵 已有实现待1:1对齐 | 本地/S3、受控staging、MinIO与双库业务证据 | 完整Filesystem对应、迟到发布不确定性/孤儿边界仍公开 | L037；R8/R14；[storage](core/storage.md) |
+| Views / 模板 / Assets | view与模板扩展、资产开发/生成体验 | 🔵 已有实现待1:1对齐 | 服务端模板和根公开HTML已有实际应用 | Blade职责等价、组件/布局/资产完整流程；非PHP字节兼容 | L008/L021–L023；R9/R13；[view](core/view.md) |
+| Localization | locale/fallback、翻译格式与作用域 | 🔵 已有实现待1:1对齐 | 请求/job locale与国际化模块/真实流程资产 | 完整Laravel本地化语义与资源生成/错误边界 | L041；R9；[i18n](core/i18n.md) |
+| Mail / Notifications | Mailable/通知渠道、同步/排队与模板 | 🔵 已有实现待1:1对齐 | SMTP/log/fake、Mailpit与队列通知专项；SMS见增强 | 完整Mailable/Notification公开契约和适用渠道真实验收 | L042/L043；R9/R10；[mail](core/mail.md)/[queue](core/queue.md) |
+| Queue / Bus | 代码Job/connection/queue、事务/重试/编排 | 🔵 已有实现待1:1对齐 | DB默认/Redis可选、lease/token/worker/chain/batch已有专项 | R10 after_commit/outbox等完整对应；新动态管理未实现 | L046；R10/R14；[queue](core/queue.md)/[todo](todo.md) |
+| Scheduling | frequency/timezone、单服务器/不重叠、runner | 🔵 已有实现待1:1对齐 | DB slot+job事务、cron/IANA/DST/补跑已有双库专项 | 每任务onOneServer/withoutOverlapping默认与策略；DB动态计划未实现 | L050；R10/R14；[schedule](core/schedule.md)/[todo](todo.md) |
+| Events / Broadcasting / WS | 事件/listener、排队监听与跨节点广播 | 🔵 已有实现待1:1对齐 | 进程事件、queued listener、WS/SSE和Redis跨进程专项 | 完整Laravel广播/授权/事件契约与故障拓扑 | L030/L036/L096；R10/R11/R14；[events](core/events.md)/[realtime](core/realtime.md) |
+| HTTP Client / Process / Context | 出站请求/进程、并发与上下文边界 | 🔵 已有实现待1:1对齐 | 可选出站HTTP与ExecutionContext已有实现 | 完整Client/Process API、fake、取消/资源与上下游故障 | L033/L034/L039/L045；R11；[http](core/http.md)/[core](core/core.md) |
+| Search / Flags / Observability | 搜索/特性与日志/观测的官方职责 | 🔵 已有实现待1:1对齐 | metrics/OTel/日志和Collector专项资产 | 搜索/feature flags未由观测实现替代；完整R12及Driver验收 | L028/L048/L091/L095/L099/L101；R12；[计划](plans/laravel-rebuild.md)/[证据](memory/testing.md) |
+| Artisan / Testing / 部署 | CLI生成、fake/assertion、测试与集群运维流程 | 🔵 已有实现待1:1对齐 | CLI new/dev/generate、TestApp/真实生成/双库和根启动子范围已验收 | 完整命令/生成/测试公开体验与R14部署、最低版本/性能门禁 | L029/L074–L079/L010；R13/R14；[cli](core/cli.md)/[test](core/test.md)/[todo](todo.md) |
+
+### laravel-modules（独立来源）
+
+| 能力族 | 1:1目标 | 主状态 | 当前可证边界 | 待补关键项 | 稳定章节 / 阶段 / 证据 |
+| --- | --- | --- | --- | --- | --- |
+| laravel-modules | v13模块注册/资源/依赖、启停/生成与完整管理 | ✅ 已验收子范围 | R2-M/N：唯一modules/example、编译清单/激活、资源挂载、稳定依赖顺序；48be854等子簇 | 完整模块命令/发布/生成与其余子行为未完成；目录相似不是全包等价 | [M001–M035](plans/laravel-modules-matrix.md)；R2/R13；[todo](todo.md)/[core](core/core.md) |
+
+### 授权增强与可选扩展（不冒称Laravel核心内置）
+
+| 能力 | 状态 | 已有边界与下一步 |
+| --- | --- | --- |
+| DB动态业务设置 / 管理员动态计划 | 📝 仅规划 | [ADR-080](decisions/adr-080-runtime-configuration-scheduling.md)及[唯一计划](plans/runtime-configuration-scheduling.md)；V1必交底层，宿主启用可选，尚无新实现/验收；V2表单后置 |
+| 统一返回格式 / 业务观测增强 | 🔵 已有实现待1:1对齐 | 保留价值，须经Response/Resource/异常与公开扩展融合；分页独立协议整改仍未完成，不宣称上游原生默认 |
+| SMS具体渠道 | 🔵 已有实现待1:1对齐 | 作为Notification/驱动扩展；Twilio adapter与fake/log资产不代表真实短信投递，实发缺授权账号/凭据/目标；[mail](core/mail.md) |
+| gRPC | 🔵 已有实现待1:1对齐 | 可选协议扩展、生成与真实TCP专项见[grpc](core/grpc.md)；不是Laravel核心原生gRPC；完整集群/生命周期仍须R11/R14验收 |
+| MQTT Broker / Client | 📝 仅规划 | [总计划R11](plans/laravel-rebuild.md#r11-明确待办mqtt-可选服务端与客户端)；默认关闭、独立角色与驱动，未实现/未真实验收 |
+
+### 如何读取与维护
+
+- 本表按本次审阅划分 **26个Laravel能力族**：✅子范围4、🟡开发中1、🔵待对齐20、⬜待开发1；另列modules一个✅子范围。它们是概览行计数，粒度不等、不是权重或完成百分比，也不包含增强表。
+- 749个Laravel二级节与35个模块导航入口不是同一计数单位；详细矩阵的旧“待验收”不能解释为代码0%，已有代码/测试数量也不能推出1:1完成率。**逐项严格验收暂无可靠已闭合分子，不提供总体百分比。**
+- 总控每次功能簇本地commit后就地更新受影响行的状态、可证范围、缺口、commit/证据，并同步详细矩阵；只有新增实际交付/验收才升级状态，WIP与定向测试不能提前变✅。调整分组时重算上述概览行数，不按测试数充进度。
+- overview只摘要；矩阵维护详细源码/测试对应及差异，core/testing保存可复验证据，todo是唯一可领取队列，不在此复制任务或建立第二计划。未验收的整项不得因已交付子簇关闭。
+- V2 Vue Admin/uni-app按R14后既定路线，PC仅规划；AI产品未获启动授权，均不计V1框架核心1:1进度。当前不为展示表格切换或中断在途HTTP功能簇。
+
+## 子簇验证边界
+
+以下记录限定各自交付范围；不能跨簇累计成完整框架已验收，当前领取与未提交实现以todo/源码和上方概览为准。
+
 C04-B1统一请求输入已完成适用验收，限定提交见Git：定向/独审、相应源码快照的workspace门禁、根默认cargo run真实TCP、生成consumer与PG/MySQL生成认证应用均通过；根具名认证双库各1通过/46 filtered。账号/缓存fixture缺Host及新迁移排序问题已修复，原安全与回滚断言保留；根完整PG/MySQL组均47通过/零失败、忽略或筛选，账号MFA与完整缓存模块的双库专项亦通过。最新workspace全部门禁通过；框架完整范围仍按唯一队列推进。临时探针及隔离数据库已清理，外部示例/守护WIP保留；证据见[testing](memory/testing.md#c04-b1-统一请求输入)。
 
 C04-A RequestInfo/内容协商及存储staging并发回收修复已完成适用验收：默认523/29、全特性1082/99（passed/ignored），fmt/Clippy/Rustdoc/no-default/MSRV1.97/deny、生成consumer2/2和根默认入口真实TCP均通过；不同模型独审通过。仅完成无正文请求检查与协商，不代表完整C04。 原三轮构建NotFound、可控red/green及非原子base复核边界见 [testing](memory/testing.md#c04-a-请求检查与内容协商)。

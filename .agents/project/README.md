@@ -16,7 +16,7 @@
 | `context.md` | 当前版本、阶段、协作模式和关键约束 |
 | `todo.md` | 唯一活跃任务队列，只放未完成且可领取的功能簇 |
 | `plan.md` | 当前里程碑、优先级、crate 路由和验证入口 |
-| `progress.md` | 当前交付与验证摘要，不保存逐日流水 |
+| [progress.md](progress.md#laravel-11-功能与进度概览) | Laravel/laravel-modules 1:1概览、固定状态标记与证据入口；不虚报整体百分比 |
 | `roadmap.md` | v1 之后的版本方向 |
 | `plans/` | 框架版本计划与设计方案，以及独立排期的可选领域套件与完整应用规划；仅框架活跃任务进入 `todo.md` |
 | [`plans/ai-model-platform.md`](plans/ai-model-platform.md) | AI模型平台唯一计划：完整范围、内含网关源码、工程验收及同仓 main 的模块/目录隔离；用户明确要求开发后才启动 |
