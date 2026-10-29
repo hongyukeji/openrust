@@ -215,7 +215,7 @@ R2 配置补强以现有 Figment/ConfigLoader 和 section<T> 为唯一来源，�
 | C31 | 单机部署、服务复用、dev/watch 编排、Compose、迁移发布、备份恢复、构建成本、性能/故障/集群 | R14 |
 | C32 | V2 Rust Admin + Vue/pure-admin + uni-app，PC 仅设计；运维视图与业务权限均通过公开 API | R15 |
 | C33 | 官方生态可选包的逐项等价能力、独立应用接入和实际验收；领域模型不进核心 | R16 |
-| C34 | MQTT服务端/Broker与客户端按需引入扩展；Laravel式Provider/配置/Manager/Contract，未选择依赖/feature不编译专属依赖，注册角色并配置后才有运行副作用，按角色验收 | R11/R14 |
+| C34 | MQTT服务端/Broker与客户端按需引入扩展；Laravel式Provider/配置/Manager/Contract，未选择依赖/feature不编译专属依赖；既有Provider加载不暗启网络，client操作/订阅CLI/Broker CLI按角色显式运行 | R11/R14 |
 
 ## 5. 按依赖实施
 
@@ -269,15 +269,18 @@ R0–R16 是依赖路线，`todo.md` 只维护当前可领取项。旧观测审�
 
 MQTT作为按需引入的可选扩展，不表述为框架内置后默认禁用。宿主未选择相应Cargo依赖/feature，就不编译MQTT专属第三方依赖、不注册Provider、不建立连接或监听；需要时沿统一约定引入，无需改框架核心。Rust是否编译依赖由Cargo选择决定，不是简单地“不写use就不编译”。Cargo锁图与版本解析边界如下。
 
-此为Laravel包/扩展机制下的通用增强，不称Laravel原生MQTT对应项。设计依据为官方[包开发](https://laravel.com/docs/13.x/packages)、[Service Provider](https://laravel.com/docs/13.x/providers)及既有容器/配置机制；此前聊天中的组件、API、feature名称和部署建议仅为候选，不作为强制实现约束。实施Spec应独立评估必要性和职责边界，保留按需可选与依赖隔离，不为体现风格堆叠抽象；不与集群自动发现、调度或缓存强行串联，不改变当前任务顺序。
+此为Laravel包/扩展机制下的通用增强，不称Laravel原生MQTT对应项。设计依据为官方[包开发](https://laravel.com/docs/13.x/packages)、[Service Provider](https://laravel.com/docs/13.x/providers)及既有容器/配置机制；Laravel package discovery可加载Provider，register只做容器绑定，不把服务加载等同启动socket；沿现获准加载机制实现，不为MQTT另造发现系统，也不强制多余手动注册。此前聊天中的组件、API、feature名称和部署建议仅为候选，不作为强制实现约束。实施Spec应独立评估必要性和职责边界，保留按需可选与依赖隔离，不为体现风格堆叠抽象；不与集群自动发现、调度或缓存强行串联，不改变当前任务顺序。
 
 - Laravel风格是开发体验验收项：从配置连接、容器解析、发布/订阅、消息处理、替换驱动到fake/断言的完整示例，须能沿用Laravel既有概念与操作习惯，仅在Rust类型/所有权/async必要处适配并说明。提供符合职责的简洁链式API，不机械复制PHP语法；普通业务不应自行驱动第三方eventloop或手写连接重试。实现前以实际使用示例审查接口，不能仅加同名Provider/Facade就算达标。
-- 统一ServiceProvider/Container、配置仓储与.env、默认及命名连接、Manager与公开Contract；外部驱动可公开注册替换，不改src核心。Facade与DI（如提供）共用同一Manager，不建立第二容器或业务事件系统；服务端认证/主题授权通过既有公开机制扩展。
-- 复用成熟组件，客户端首选评估rumqttc；Broker评估rumqttd/RMQTT等实际嵌入与部署边界。协议版本、QoS、会话/遗嘱/保留消息、TLS及资源/持久性边界须逐项核实；未支持不虚报。实施时才在stack.md登记选定版本、许可证、MSRV、维护情况及构建成本，不在本轮增加Cargo依赖。
+- 统一ServiceProvider/Container、config领域配置与.env、默认/命名connection、Manager与公开driver/client Contract；client publish/subscribe及lazy connection公开API在实施Spec收敛，Facade与DI如提供则共用同一服务。普通client默认连接外部Broker，不要求运行自带Broker；已授权Broker保持独立可选服务角色，不与client绑一起。外部driver公开替换，服务端认证/主题授权复用既有机制，不改src核心或建立第二事件体系。
+- 复用成熟组件，客户端首选评估rumqttc；Broker评估rumqttd/RMQTT等实际嵌入与部署边界。协议版本、QoS、会话/遗嘱/保留消息、TLS及资源/持久性边界须逐项核实；未支持不虚报。实施时才在stack.md登记选定版本、许可证、MSRV、维护情况及构建成本，不在本轮增加Cargo依赖。固定选定源码/许可证，QoS是协议投递保证，不称业务副作用exactly-once；不自造MQTT协议轮子。
 - 打包采用Cargo feature或同仓可选扩展package，在实施Spec依实际依赖边界确定，不现在硬拆包，不新建独立发布仓库。若采用feature，候选`mqtt-client`/`mqtt-server`不进入default；专属依赖以`optional = true`/`dep:`等机制按需关联并控制第三方default-features。仅client不编译Broker专属依赖，反之亦然（共享依赖除外）；HTTP入口不传递选择MQTT，不以.env开关代替编译隔离，workspace feature合并/all-features仍可能明确引入依赖。
 - 可选依赖仍可能进入共用Cargo.lock及版本解析，不能承诺锁图/版本约束完全无影响；验收关注未启用角色的专属依赖不进入默认编译/链接及原生构建脚本。若实际解析冲突无法隔离，先记录证据再评估最小独立可选集成包，不为假设拆大量crate。依据：[Cargo features](https://doc.rust-lang.org/cargo/reference/features.html)、[dependency resolution](https://doc.rust-lang.org/cargo/reference/resolver.html)。
-- 选择并编译扩展还须宿主显式注册相应client/Broker角色Provider并提供合法配置，才连接/监听；任意use或进程启动不能隐式拉起Broker，不额外要求一个运行时enabled=false开关作为使用的必经条件。按需复用现Queue/Event及受管任务/取消/关闭，不自动起worker或用于节点发现，不以集群/缓存/调度为由暗启MQTT；长驻入口不阻塞boot。错误显式传播，连接/消息/重试与背压有界，凭据脱敏，发布入队/Broker确认/业务完成分别定义。
-- 门禁覆盖未选择依赖/feature、编译扩展但未注册Provider、client-only、Broker-only、双角色与无default feature；检查cargo tree/build/Rustdoc/生成应用，未选择不编译专属依赖，未注册不连接/监听，示例不反向引入。真实Broker/独立客户端验证收发、认证/ACL、声明的协议与QoS、重连/会话、背压和有界关闭；modules/example通过公开Provider/driver/client服务接入，不凭组件名称或编译通过宣称协议已验收。
+- 编译后Provider沿既有获准机制加载（可发现或显式清单），加载仅绑定/校验，不自动连接/监听。client按调用lazy连接；subscribe常驻由独立CLI拥有loop与取消/优雅shutdown，Broker由独立显式CLI启动监听，不由serve或任意use暗启。无需额外必须enabled开关；按需复用现Queue/Event/受管生命周期，不替代DB队列、不自动做集群发现或拉起worker。配置/网络错误传播，背压/连接/重试有界、凭据脱敏，发布入队/Broker确认/业务完成分别定义。
+- 门禁覆盖未选择依赖/feature、编译并加载Provider但未调用client/启动角色CLI、client-only、Broker-only、双角色与无default feature；检查cargo tree/build/Rustdoc/生成应用，未选择不编译专属依赖，加载不连接/监听，示例不反向引入。真实Broker/独立客户端验证收发、认证/ACL、声明的协议与QoS、重连/会话、背压和有界关闭；modules/example通过公开Provider/driver/client服务接入，不凭组件名称或编译通过宣称协议已验收。
+
+
+第三方体验参照：[php-mqtt/laravel-client](https://github.com/php-mqtt/laravel-client/tree/e010c8d66d7684152df250b25f66a75646b3b325)（2026-10-29读取固定commit）：package discovery、config/mqtt-client.php、默认/命名connections、Facade connection/publish及显式subscribe loop；它是client包，不内置Broker。仅参考Laravel扩展体验，不引入PHP依赖，不把其组件API直接复制成Rust。Broker独立进程职责可类比Laravel实时服务的运行方式，并非Laravel官方MQTT规范；协议与成熟Rust组件的真实能力仍须实施前Spec。
 
 ## 6. 功能簇 contract 模板
 
