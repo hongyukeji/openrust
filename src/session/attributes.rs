@@ -128,6 +128,20 @@ impl Attributes {
         })
     }
 
+    /// PHP 数组追加；null/false 可转为空数组，其他标量拒绝。
+    pub(crate) fn push(&mut self, key: &str, value: Value) -> Result<()> {
+        check_keys(&[key])?;
+        self.change(|candidate| push(candidate, key, value))
+    }
+
+    /// 按 PHP 数值或数组加法计算并写入；失败保持原属性。
+    pub(crate) fn increment(&mut self, key: &str, amount: &Value) -> Result<Value> {
+        let previous = self.get(key)?.unwrap_or_else(|| Value::from(0));
+        let value = scalars::add(&previous, amount).ok_or_else(invalid)?;
+        self.put(key, value.clone())?;
+        Ok(value)
+    }
+
     /// 删除完整字面键或 dot 路径；缺失键不报错。
     pub(crate) fn forget(&mut self, keys: &[&str]) -> Result<()> {
         check_keys(keys)?;

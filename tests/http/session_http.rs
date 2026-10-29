@@ -386,3 +386,104 @@ async fn missing_provider_has_no_implicit_memory_and_session_access_fails_safely
     .await;
     finish(&app, outcome).await
 }
+
+struct RenameSessionRoutes;
+impl ServiceProvider for RenameSessionRoutes {
+    fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.routes(|routes| routes.get("/session-d2/rename", rename_session))?;
+            Ok(())
+        })
+    }
+}
+async fn rename_session(session: Session, Inject(control): Inject<Control>) -> Result<Json<Value>> {
+    *control.leaked.lock().map_err(|_| invalid())? = Some(session.clone());
+    let previous = session
+        .get("rename_count")?
+        .and_then(|value| value.as_i64())
+        .unwrap_or(0);
+    session
+        .set_name("renamed_session")?
+        .put("rename_count", previous + 1)?;
+    Ok(Json(json!({"previous":previous,"name":session.name()?})))
+}
+
+#[tokio::test]
+async fn set_name_changes_real_response_cookie_but_inbound_still_uses_configuration() -> Result<()>
+{
+    let mut config = FrameworkConfig::default();
+    config.api.http_status = HttpStatusMode::Semantic;
+    let control = Arc::new(Control::default());
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(CookieServiceProvider::plain())
+        .provider(
+            SessionServiceProvider::with_store(Probe::default()).with_cookie_config(
+                SessionConfig {
+                    driver: Some("array".into()),
+                    cookie: Some("original_session".into()),
+                    secure: Some(false),
+                    ..SessionConfig::default()
+                },
+            ),
+        )
+        .provider(TestRoutes(control.clone()))
+        .provider(RenameSessionRoutes);
+    let app = App::from_provider_runtime(
+        builder
+            .start(figment::Figment::from(
+                figment::providers::Serialized::defaults(config),
+            ))
+            .await?,
+    )?;
+    let outcome = async {
+        let router = build_router(&app)?;
+        let first = send(router.clone(), "/session-d2/rename", None).await?;
+        success(&first, &json!({"previous":0,"name":"renamed_session"}))?;
+        {
+            let guard = control.leaked.lock().map_err(|_| invalid())?;
+            let leaked = guard.as_ref().ok_or_else(invalid)?;
+            let called = AtomicUsize::new(0);
+            check(
+                leaked
+                    .remember("closed_missing", || {
+                        called.fetch_add(1, Ordering::SeqCst);
+                        Ok(1)
+                    })
+                    .is_err(),
+            )?;
+            check(called.load(Ordering::SeqCst) == 0)?;
+            check(leaked.increment("counter").is_err())?;
+            check(leaked.push("list", 1).is_err())?;
+            check(leaked.remove("counter").is_err())?;
+            check(leaked.set_name("closed_name").is_err())?;
+        }
+        let headers = first
+            .headers
+            .get_all("set-cookie")
+            .iter()
+            .map(|value| value.to_str().map_err(Error::internal))
+            .collect::<Result<Vec<_>>>()?;
+        check(headers.len() == 1)?;
+        check(headers[0].starts_with("renamed_session="))?;
+        let pair = headers[0].split(';').next().ok_or_else(invalid)?;
+        let id = pair.strip_prefix("renamed_session=").ok_or_else(invalid)?;
+        let configured = format!("original_session={id}");
+        let second = send(router.clone(), "/session-d2/rename", Some(&configured)).await?;
+        success(&second, &json!({"previous":1,"name":"renamed_session"}))?;
+        check(second.headers.get_all("set-cookie").iter().all(|header| {
+            header.to_str().is_ok_and(|value| {
+                value.starts_with("renamed_session=") && !value.contains("Max-Age=0")
+            })
+        }))?;
+        let renamed_only = send(router, "/session-d2/rename", Some(pair)).await?;
+        success(
+            &renamed_only,
+            &json!({"previous":0,"name":"renamed_session"}),
+        )?;
+        Ok(())
+    }
+    .await;
+    finish(&app, outcome).await
+}

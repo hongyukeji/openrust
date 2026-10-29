@@ -50,6 +50,96 @@ pub(crate) fn float(value: &Value) -> f64 {
     }
 }
 
+/// PHP 加法；类型错误、默认错误处理器会升级的警告和非有限结果均拒绝。
+///
+/// 此处不复用 `(int)` 的饱和转换：整数溢出必须提升为 double。
+#[cfg(feature = "session")]
+#[allow(clippy::cast_precision_loss, reason = "PHP 整数溢出按 double 计算")]
+pub(crate) fn add(left: &Value, right: &Value) -> Option<Value> {
+    let left_array = left.is_array() || left.is_object();
+    let right_array = right.is_array() || right.is_object();
+    if left_array || right_array {
+        return (left_array && right_array).then(|| super::data::union(left, right));
+    }
+    let left = ArithmeticNumber::parse(left)?;
+    let right = ArithmeticNumber::parse(right)?;
+    match (left, right) {
+        (ArithmeticNumber::Integer(left), ArithmeticNumber::Integer(right)) => left
+            .checked_add(right)
+            .map(Value::from)
+            .or_else(|| finite_number(left as f64 + right as f64)),
+        (left, right) => finite_number(left.double() + right.double()),
+    }
+}
+
+/// PHP `amount * -1` 的数值阶段；保留 MIN 整数先提升为 double 的顺序。
+#[cfg(feature = "session")]
+#[allow(clippy::cast_precision_loss, reason = "PHP MIN 整数取负提升为 double")]
+pub(crate) fn negate(value: &Value) -> Option<Value> {
+    match ArithmeticNumber::parse(value)? {
+        ArithmeticNumber::Integer(value) => value
+            .checked_neg()
+            .map(Value::from)
+            .or_else(|| finite_number(-(value as f64))),
+        ArithmeticNumber::Double(value) => finite_number(-value),
+    }
+}
+
+#[cfg(feature = "session")]
+#[derive(Clone, Copy)]
+enum ArithmeticNumber {
+    Integer(i64),
+    Double(f64),
+}
+
+#[cfg(feature = "session")]
+impl ArithmeticNumber {
+    fn parse(value: &Value) -> Option<Self> {
+        match value {
+            Value::Null | Value::Bool(false) => Some(Self::Integer(0)),
+            Value::Bool(true) => Some(Self::Integer(1)),
+            Value::Number(number) => number.as_i64().map(Self::Integer).or_else(|| {
+                number
+                    .as_f64()
+                    .filter(|value| value.is_finite())
+                    .map(Self::Double)
+            }),
+            Value::String(text) => {
+                let text = text.trim_matches([' ', '\t', '\n', '\r', '\u{b}', '\u{c}']);
+                let prefix = numeric_prefix(text)?;
+                // 尾部非空白虽能被裸 PHP 转数值，但 E_WARNING 在 Laravel 默认链中抛异常。
+                if prefix.len() != text.len() {
+                    return None;
+                }
+                prefix.parse::<i64>().map(Self::Integer).ok().or_else(|| {
+                    prefix
+                        .parse::<f64>()
+                        .ok()
+                        .filter(|value| value.is_finite())
+                        .map(Self::Double)
+                })
+            }
+            Value::Array(_) | Value::Object(_) => None,
+        }
+    }
+
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "PHP 运算将超出整数运算范围的值提升为 IEEE754 double"
+    )]
+    fn double(self) -> f64 {
+        match self {
+            Self::Integer(value) => value as f64,
+            Self::Double(value) => value,
+        }
+    }
+}
+
+#[cfg(feature = "session")]
+fn finite_number(value: f64) -> Option<Value> {
+    serde_json::Number::from_f64(value).map(Value::Number)
+}
+
 /// `FILTER_VALIDATE_BOOLEAN` 转换；大小写不敏感，容器不按非空真值判断。
 pub(crate) fn boolean(value: &Value) -> bool {
     match value {

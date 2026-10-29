@@ -183,7 +183,7 @@ fn remove(target: &mut Value, key: &str) {
     *target = packed(values);
 }
 
-/// 仅供输入 bag：PHP 顶层左并集，显式 null 遮住 query，不递归合并。
+/// PHP 顶层数组左并集；用于输入 bag 与 Session 数组加法，不递归合并。
 pub(crate) fn union(source: &Value, query: &Value) -> Value {
     let mut result = entries(source.clone());
     for (key, value) in entries(query.clone()) {

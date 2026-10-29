@@ -147,6 +147,31 @@ fn inspect(session: &Session) -> openrust::Result<()> {
 
 这里不展开 `*` 通配符。属性使用 JSON/serde 表示；`all()` 和读出的值是独立快照，空属性根表示为 `[]`。参数或树超限时，批量变更保持原子性。不要直接管理框架 `_flash` 元数据：手动删除尾项后再追加按当前可见整数键计算，不保存 PHP 数组隐藏的 next-free 历史；普通 flash 与稀疏删除语义见[差异说明](../../.agents/project/decisions/adr-082-session-store-and-flash.md)。
 
+## 便捷读写与计数
+
+```rust
+// 已有非 null 值直接返回；缺失或 null 才调用回调并写回。
+let subtotal = session.remember("cart.subtotal", || Ok(120))?;
+session.push("cart.items", "book")?;
+let quantity = session.increment("cart.quantity")?;
+let adjusted = session.decrement_by("cart.quantity", 2)?;
+let previous_discount = session.remove("cart.discount")?;
+```
+
+`remember` 保留已有 `false`、`0` 和空字符串。回调返回 null 后，下次仍会计算。回调及序列化时不持状态锁，可以调用同一 Session；回调写入其他键会保留，最终计算值覆盖目标键。回调或序列化失败不撤销其自身已经发生的副作用；这不是跨请求的原子锁或分布式“只计算一次”。
+
+`push` 对缺失、null、false 从空数组追加；字符串、整数等非法目标报错，原属性不变。关联数组、稀疏整数键沿同一PHP数组表示规则追加，不复制另一套集合。`remove` 返回被删除的原值；Rust用 `None` 表示缺失、`Some(Value::Null)` 表示已有null，与现 `get` / `pull` 一致，PHP上游二者均返回null。
+
+`increment` / `decrement` 默认步长1，`increment_by` / `decrement_by` 接收显式amount并返回、保存结果。数值字符串、null与布尔值按固定上游运算，整数溢出提升为有限浮点；减法保留先对amount乘以-1的顺序。非法类型或Laravel默认会升级成异常的数值警告返回错误，不悄悄把尾垃圾字符串当作数字；非有限数不能由JSON存储，返回错误且不发布部分属性。数组加数组沿PHP左并集，不是数字求和。业务仍应验证允许的输入类型与计数范围。
+
+每次托管写入都检查当前生命周期及完整记录预算后一次发布，保持关闭、忙碌和撤销约束；不能用这些便捷方法恢复已删除的旧认证Session。
+
+### 名称与后端扩展
+
+`session.set_name("checkout_session")?` 改变本请求实际输出的Cookie名称，不改变ID、不自动删除旧名Cookie；本请求启动时仍按原配置读取Cookie。名称受Cookie验证约束，非法名称不会改变原状态。通常应在应用 `session.cookie` 配置中选择稳定名称。
+
+`session.handler()` 返回当前实际 `Arc<dyn SessionStore>`，供可信应用实现driver扩展；它不是另一份store。直接调用driver属于逃生口，不参与托管Session的属性、busy/closed/revoked状态机，也不提供跨操作原子保证；实现者仍须遵守driver自身的Insert/Update与资源契约。动态替换ID或handler的完整安全生命周期尚未交付，不能通过手工写旧属性绕过认证撤销。
+
 ## flash 的保存时序
 
 | 请求 | 操作与可读结果 |

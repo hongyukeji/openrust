@@ -74,7 +74,7 @@ pub(crate) async fn handle(
         };
         let cookie = factory
             .make(
-                layer.settings.cookie_name.clone(),
+                session.name()?,
                 session.id()?.to_string(),
                 minutes,
                 CookieOptions {

@@ -4,6 +4,27 @@
 > 更新：2026-10-29
 > 摘要：当前目录迁移与原专项测试入口，分开记录真实服务和未验收边界。
 
+## C04-D2 Store公开API（限定子范围已验收）
+
+契约见[ADR-082 D2](../decisions/adr-082-session-store-and-flash.md#d2基础store方法与公开扩展契约与验收边界)。D1已由d47162d提交，其完整验收不继承为D2通过。
+
+| 范围 | 实际结果 | 证据与边界 |
+| --- | --- | --- |
+| 最小session-only | lib check退出0；helpers 9、HTTP 5均通过，0 failed/ignored/filtered | `/tmp/openrust-c04d2-second-{check-session,tests-session}.result.json`；源码无漂移，非完整服务验收 |
+| 外部自定义驱动consumer | 独立manifest check/test退出0，具名测试1 passed | `/tmp/openrust-c04d2-first-consumer-{check,test}.result.json`；源码无漂移，不代表完整driver注册替换生命周期 |
+| 唯一模块定向 | 显式session feature下3 passed、43 filtered、0 failed/ignored，退出0 | `/tmp/openrust-c04d2-second-module-session.result.json`；含256/257 UTF-8字节与列表8/9边界，真实双库TCP尚待执行 |
+| 修后最终workspace门禁 | final3 fmt、默认/全特性Clippy（-D warnings）、默认tests 668/29 ignored、全特性tests 1313/102 ignored、默认/全特性docs、no-default/session-only、MSRV1.97.0、cargo deny及server构建均退出0 | `/tmp/openrust-c04d-d2-final3-<stage>.result.json`；12项源码无漂移且日志SHA逐项核对一致；忽略项不计真实服务通过 |
+| 根PostgreSQL/MySQL真实模块HTTP | 两侧完整target各54 passed、0 failed/ignored/filtered/skipped，exit0、accepted=true、源码无漂移 | `/tmp/openrust-c04d2-root-{pg,mysql}.{safe.log,result.json}`；包含D2跨请求持久调用，邮件fake不计供应商验收；两侧精确自有锚库已DROP并查询核不存在，生成项目仍待完成 |
+| 三类全新生成应用 | plain 4、认证PG 2、认证MySQL 2具名测试通过，均0 failed/ignored/filtered/skipped；fmt/check/test退出0 | `/tmp/openrust-c04d1-generated-d2-{plain,pg,mysql}-verify-<kind>.result.json`与`/tmp/openrust-c04d2-generated-<kind>.driver.log`；脚本前缀复用不代表旧结果，源码/生成lock稳定，两侧精确锚库已删除并核不存在 |
+| 资源收尾 | 根target有效产物0，释放20,610,981,888字节，五旧consumer逐项不变；剩余2.486656GiB，空闲12.847956% | `/tmp/openrust-c04d2-final-clean.log`；实际独占锁、无其他占用，保留Cargo锁inode；不清理其他任务源码或PHP参考缓存 |
+| 独立审查与文档 | 不同模型核心、边界测试、文档及模板快照核对无新问题；10个变更Markdown的435个本地路径无缺失 | 快照完整模板段与当前模板逐字一致，仅分段空行；其余差异只有assertion_line。未包含完整锚点检查，不替代运行验收 |
+
+PHP8.5.0缓存实际执行44条结果，22条裸表达式与22条真实固定官方HandleExceptions方法路径分开，持久数据及版本/源哈希见`tests/http/fixtures/laravel-session-d2/{oracle.php,golden.json,provenance.json}`。leading-numeric在裸表达式可返回值并warning，官方handler路径真实抛ErrorException；false追加执行无LogManager的deprecation早退路径。以上不是完整Store/Container/logger启动或全Laravel oracle；未验证真实logger输出。Rust不支持非有限JSON、完整PHP对象类别及隐藏next-free历史等限制保留。
+
+失败与修正证据保留：helpers首轮8 passed/1 failed，测试误把可百分号编码的newline名称当非法，修为公开CookieFactory先确认非法样本，未收紧生产规则；模块首条默认feature仅0 tests/40 filtered，不计行为通过；final1全特性Clippy因新增测试浮点字面量无数字分隔符而退出101；final2 fmt需换行、默认tests因CLI模板快照未同步而失败（CLI 19 passed/1 failed）。对应`/tmp/openrust-c04d2-first-{tests-session,module-session}.log`与`/tmp/openrust-c04d-d2-final{1,2}-<stage>.log`保留。数值和安全断言未放宽，快照按实际模板核对更新后由final3重验。
+
+本簇基础方法与示例/模板已完成上述适用验收，限定提交以Git为准。完整Session和ID/handler替换生命周期仍按唯一todo推进。
+
 ## C04-D1 Session Store/flash（限定子范围已验收）
 
 契约见[ADR-082](../decisions/adr-082-session-store-and-flash.md)，当前实现见[Session](../core/session.md)。以下定向结果仅证明各自源码快照，不代替后续修改后的最终门禁；本簇限定提交以Git为准。

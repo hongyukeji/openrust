@@ -64,10 +64,27 @@ fn ensure(condition: bool) -> TestResult {
 }
 fn data(preference: Option<&str>, notice: Option<&str>, action: Option<&str>) -> Value {
     let mut result = json!({"preference":preference,"notice":notice,
+        "memo":null,"list":null,"count":null,
         "has":{"preference":preference.is_some(),"notice":notice.is_some()},
         "exists":{"preference":preference.is_some(),"notice":notice.is_some()}});
     if let Some(action) = action {
         result["action"] = json!(action);
+    }
+    result
+}
+fn helper_data(
+    action: Option<&str>,
+    memo: Option<&str>,
+    list: Option<&[&str]>,
+    count: Option<i64>,
+    removed: Option<&str>,
+) -> Value {
+    let mut result = data(None, None, action);
+    result["memo"] = json!(memo);
+    result["list"] = json!(list);
+    result["count"] = json!(count);
+    if let Some(removed) = removed {
+        result["removed"] = json!(removed);
     }
     result
 }
@@ -145,6 +162,7 @@ async fn invalid(
     ensure(body["success"] == false && body["code"] == code)?;
     let message = match code {
         "example_session_action_invalid" => "无效的示例 Session 操作",
+        "example_session_list_full" => "示例 Session 列表已满",
         _ => "示例 Session 值必须是不超过 256 UTF-8 字节的字符串",
     };
     ensure(body["message"] == message)?;
@@ -213,6 +231,115 @@ async fn module_session_preferences_flash_keep_and_request_isolation() -> TestRe
 }
 
 #[tokio::test]
+#[allow(clippy::too_many_lines)] // 固定业务键的跨请求状态序列保持在同一 Cookie 与 fixture 中。
+async fn module_session_store_helpers_use_fixed_business_keys_across_requests() -> TestResult {
+    let mut app = TestApp::<SessionApplication>::builder(sources())
+        .build()
+        .await?;
+    let outcome: TestResult = async {
+        let initial = request(&app, None, None).await?;
+        success(&initial, &helper_data(None, None, None, None, None))?;
+        let mut cookie = cookie_pair(&initial)?;
+        for (action, value, memo, list, count, removed) in [
+            ("remember", Value::Null, Some("computed"), None, None, None),
+            ("memo_null", Value::Null, None, None, None, None),
+            ("remember", Value::Null, Some("computed"), None, None, None),
+            (
+                "memo_seed",
+                json!("seeded"),
+                Some("seeded"),
+                None,
+                None,
+                None,
+            ),
+            ("remember", Value::Null, Some("seeded"), None, None, None),
+            (
+                "push",
+                json!("alpha"),
+                Some("seeded"),
+                Some(&["alpha"][..]),
+                None,
+                None,
+            ),
+            (
+                "push",
+                json!("beta"),
+                Some("seeded"),
+                Some(&["alpha", "beta"][..]),
+                None,
+                None,
+            ),
+            (
+                "increment",
+                Value::Null,
+                Some("seeded"),
+                Some(&["alpha", "beta"][..]),
+                Some(1),
+                None,
+            ),
+            (
+                "increment_by",
+                Value::Null,
+                Some("seeded"),
+                Some(&["alpha", "beta"][..]),
+                Some(3),
+                None,
+            ),
+            (
+                "decrement",
+                Value::Null,
+                Some("seeded"),
+                Some(&["alpha", "beta"][..]),
+                Some(2),
+                None,
+            ),
+            (
+                "decrement_by",
+                Value::Null,
+                Some("seeded"),
+                Some(&["alpha", "beta"][..]),
+                Some(0),
+                None,
+            ),
+            (
+                "remove",
+                Value::Null,
+                None,
+                Some(&["alpha", "beta"][..]),
+                Some(0),
+                Some("seeded"),
+            ),
+        ] {
+            step(
+                &app,
+                &mut cookie,
+                Some(action),
+                value,
+                helper_data(Some(action), memo, list, count, removed),
+            )
+            .await?;
+        }
+        step(
+            &app,
+            &mut cookie,
+            None,
+            Value::Null,
+            helper_data(None, None, Some(&["alpha", "beta"]), Some(0), None),
+        )
+        .await?;
+        let isolated = request(&app, None, None).await?;
+        success(&isolated, &helper_data(None, None, None, None, None))?;
+        Ok(())
+    }
+    .await;
+    let shutdown = app.shutdown(tokio::time::Instant::now() + TIMEOUT).await;
+    outcome?;
+    shutdown?;
+    Ok(())
+}
+
+#[tokio::test]
+#[allow(clippy::too_many_lines)] // 同一 Cookie 验证业务字节/列表上限及失败后全快照不变。
 async fn module_session_utf8_budget_invalid_values_and_namespace_are_bounded() -> TestResult {
     let mut app = TestApp::<SessionApplication>::builder(sources())
         .build()
@@ -280,6 +407,57 @@ async fn module_session_utf8_budget_invalid_values_and_namespace_are_bounded() -
             data(Some("own preference"), None, None),
         )
         .await?;
+        let mut expected = data(Some("own preference"), None, Some("memo_seed"));
+        expected["memo"] = json!(exact);
+        step(
+            &app,
+            &mut cookie,
+            Some("memo_seed"),
+            json!(exact),
+            expected.clone(),
+        )
+        .await?;
+        expected
+            .as_object_mut()
+            .ok_or("Session 响应必须是对象")?
+            .remove("action");
+        for action in ["memo_seed", "push"] {
+            invalid(
+                &app,
+                &mut cookie,
+                json!({"action":action,"value":format!("{exact}b")}),
+                "example_session_value_invalid",
+            )
+            .await?;
+            step(&app, &mut cookie, None, Value::Null, expected.clone()).await?;
+        }
+        // 八项限制属于示例业务；每一项仍通过同一 256 字节输入边界。
+        let mut items = Vec::new();
+        for _ in 0..8 {
+            items.push(exact.clone());
+            expected["list"] = json!(items);
+            expected["action"] = json!("push");
+            step(
+                &app,
+                &mut cookie,
+                Some("push"),
+                json!(exact),
+                expected.clone(),
+            )
+            .await?;
+        }
+        expected
+            .as_object_mut()
+            .ok_or("Session 响应必须是对象")?
+            .remove("action");
+        invalid(
+            &app,
+            &mut cookie,
+            json!({"action":"push","value":"ninth"}),
+            "example_session_list_full",
+        )
+        .await?;
+        step(&app, &mut cookie, None, Value::Null, expected).await?;
         Ok(())
     }
     .await;

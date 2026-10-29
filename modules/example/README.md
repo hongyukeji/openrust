@@ -52,15 +52,18 @@ curl -X POST 'http://127.0.0.1:3000/api/example/input?title=query&fallback=query
 
 [`controllers/session.rs`](http/controllers/session.rs) 在模块自己的 [`routes/api.rs`](routes/api.rs) 注册 `GET /api/example/session` 与 `POST /api/example/session`。启用 `session` 编译能力、宿主登记 `SessionServiceProvider` 且最终驱动未禁用时，模块才挂载这两条路由；handler 直接提取公开 `Session`。根宿主配置数据库后会装配通用 Session，无需额外启用认证；无数据库且未安装 Session 时不挂载路由，不静默使用 memory。与 `RequestInfo::session()` 取得的句柄共享同一请求状态，无需业务再建 store 或修改框架源码。存储与 Cookie 配置由宿主统一管理，默认数据库驱动；测试显式选择 memory，不代表数据库不可用时自动回退。装配、迁移及自定义 driver 见 [Session 使用说明](../../src/session/README.md)。
 
-POST 接收如 `{"action":"put","value":"blue"}` 的 JSON。示例仅操作 `example.session.preference` 和 `example.session.notice`，不允许正文指定任意 Session 键，也不返回会话 ID、token 或认证属性：
+POST 接收如 `{"action":"put","value":"blue"}` 的 JSON。示例仅操作 `example.session.preference`、`example.session.notice`、`example.session.memo`、`example.session.list`、`example.session.count`，不允许正文指定任意 Session 键，也不返回会话 ID、token 或认证属性：
 
 - `put` / `forget` 保存或删除偏好；GET 查看当前示例字段。
 - `flash` 创建下一请求可读的一次性提示；`now` 仅供当前请求使用。提示在保存时老化。
 - `keep` 仅延长示例自己的提示，不调用可能影响其他业务提示的全局 `reflash`。
+- `memo_null` 把示例 memo 置为 null，`remember` 对缺失或 null 计算固定的 `computed`，对已有非 null 值保留原值；`memo_seed` 接受有界字符串以展示命中。
+- `push` 将有界字符串追加到示例列表；示例业务最多保留 8 项。`increment` / `decrement` 使用默认步长，`increment_by` / `decrement_by` 使用示例固定步长 2；这些限制只是业务输入范围，不是框架 Store 默认值。
+- `remove` 返回本次移除的 memo 值，之后的 GET 仅显示固定业务字段中的 memo 已缺失。
 
 正文先经过框架输入规范化，再交给业务校验；这里要求值为不超过256 UTF-8字节的字符串，因此全空白转换为 null 后会被拒绝。这不表示 Session 的 `put` 自动 trim 或将空字符串转 null。响应保存和 Cookie 往返由框架处理，客户端应保留实际 Cookie，不能假定其 wire 值为明文。
 
-[`tests/session_flows.rs`](tests/session_flows.rs) 展示正式模块路由的偏好隔离和 flash 生命周期，测试显式使用 memory；它不替代真实数据库、认证链或集群验收。
+[`tests/session_flows.rs`](tests/session_flows.rs) 展示正式模块路由的偏好、flash 与 Store 便捷方法生命周期，测试显式使用 memory；`tests/auth_flows.rs` 在配置数据库的根宿主通过真实 TCP 验证同一 Cookie 下的跨请求保存。它们不替代集群验收。
 
 ## 从真实调用链开始
 

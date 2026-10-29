@@ -11,6 +11,14 @@
 - 已加载记录仅允许原子 Update；记录删除、过期或重复 start 发现撤销时拒绝以旧认证数据重建。该策略是保留的 OpenRust 安全增强，不冒称 Laravel 缓存 Session 默认 PUT 语义。普通同 ID 并发仍可能最后写入覆盖，不提供默认分布式锁。
 - 持久键与 envelope 以原始 ID 字节的 SHA-256 绑定，不额外持久化原始 ID。受管理读取/编码有大小与深度边界；自定义 driver 须遵守公开契约，框架仍校验返回记录。数据库独立到期列是授权截止上界。
 
+## D2 Store 公开 API（限定子范围已验收）
+
+- `remember` 仅缺失或 null 时计算；回调和序列化不持状态锁，可重入，最终写入以最新状态重新校验完整记录预算。回调自身副作用不回滚，不提供跨请求原子计算。
+- `push` 对缺失/null/false 从空数组追加，复用同一属性树；`remove` 复用 pull，Rust 的 `None` 与 `Some(Null)` 区分缺失/null。`increment/decrement` 默认步长1，`increment_by/decrement_by` 显式步长，复用 PHP 数值前缀解析和数组合并工具；警告升级错误与不可表示非有限 JSON 不发布新属性。
+- `set_name` 发布前经公开 CookieFactory 编码与 Header 校验，真实出站中间件读取新名称；入站仍按配置名，不自动清除旧 Cookie 或改变 ID。`handler` 返回同一实际驱动 Arc，直接驱动调用属于受管理状态机之外的逃生口。
+- 最小 session-only helpers 9项、HTTP 5项与独立自定义驱动 consumer check/test（具名测试1项）实际通过，均退出0、源码无漂移；模块显式 session 定向3项通过、43项过滤。唯一模块与生成模板已接入业务调用，修后12项门禁、根真实双库HTTP各54项、三类新生成应用4/2/2及资源收尾已完成；不据此关闭整个 Session。
+- PHP 缓存运行时实际输出22条裸表达式与22条固定官方 HandleExceptions 方法路径，来源及限制见 `tests/http/fixtures/laravel-session-d2/`；不代表完整 Laravel Store/Container/logger 启动。详细日志及失败修正记录见[testing](../memory/testing.md)。`set_id/set_handler` 与请求注入的安全生命周期仍待后继实现。
+
 ## 当前证据与缺口
 
 - Session-only定向基础测试18项通过（0失败/0忽略，390过滤，含名称推导）；公开生命周期测试10项通过，包含认证记录删除后重复 start/save 拒绝；进程内正式Router HTTP测试4项通过（均0失败/0忽略/0过滤），覆盖5xx/未修改保存、取消和缺失装配。它们是对应源码快照的定向证据，不能替代修改后重验、workspace 门禁或真实数据库运行。

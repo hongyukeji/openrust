@@ -21,6 +21,9 @@ const NOW: &str = "contract.request_session.now";
 const NULL: &str = "contract.request_session.null";
 const SHARED: &str = "contract.request_session.shared";
 const PREFERENCE: &str = "contract.request_session.preference";
+const MEMO: &str = "contract.request_session.memo";
+const LIST: &str = "contract.request_session.list";
+const COUNT: &str = "contract.request_session.count";
 const BODY_LIMIT: usize = 4096;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -32,6 +35,8 @@ impl ServiceProvider for SessionRoutes {
                 routes
                     .get(&format!("{PREFIX}/set"), set)
                     .get(&format!("{PREFIX}/inspect"), inspect)
+                    .get(&format!("{PREFIX}/advance"), advance)
+                    .get(&format!("{PREFIX}/remove"), remove)
             })?;
             Ok(())
         })
@@ -73,10 +78,28 @@ async fn set(session: Session, info: RequestInfo) -> openrust::Result<Json<Value
         .flash(NOTICE, "next")?
         .now(NOW, "current")?;
     info.session()?.put(SHARED, "same request")?;
+    session.put(MEMO, Value::Null)?;
+    session.remember(MEMO, || Ok("computed"))?;
+    session.push(LIST, "first")?;
+    session.increment(COUNT)?;
     Ok(Json(snapshot(&session, &info)?))
 }
 async fn inspect(session: Session, info: RequestInfo) -> openrust::Result<Json<Value>> {
     Ok(Json(snapshot(&session, &info)?))
+}
+async fn advance(session: Session, info: RequestInfo) -> openrust::Result<Json<Value>> {
+    session.remember(MEMO, || Ok("unexpected"))?;
+    session.push(LIST, "second")?;
+    session.increment_by(COUNT, 2)?;
+    session.decrement(COUNT)?;
+    session.decrement_by(COUNT, 2)?;
+    Ok(Json(snapshot(&session, &info)?))
+}
+async fn remove(session: Session, info: RequestInfo) -> openrust::Result<Json<Value>> {
+    let removed = session.remove(MEMO)?;
+    let mut data = snapshot(&session, &info)?;
+    data["removed"] = json!(removed);
+    Ok(Json(data))
 }
 fn snapshot(session: &Session, info: &RequestInfo) -> openrust::Result<Value> {
     Ok(json!({
@@ -87,6 +110,9 @@ fn snapshot(session: &Session, info: &RequestInfo) -> openrust::Result<Value> {
         "preference": session.get(PREFERENCE)?,
         "notice": session.get(NOTICE)?,
         "now": session.get(NOW)?,
+        "memo": session.get(MEMO)?,
+        "list": session.get(LIST)?,
+        "count": session.get(COUNT)?,
     }))
 }
 
@@ -107,6 +133,7 @@ pub async fn assert_request_session<A: Application>(
     }
 }
 
+#[allow(clippy::too_many_lines)] // 生成应用的正式 Provider、Cookie 往返和关闭必须留在同一生命周期。
 async fn verify<A: Application, const EXISTING: bool>(source: Figment) -> openrust::Result<()> {
     let mut app = TestApp::<SessionApplication<A, EXISTING>>::builder(source)
         .build()
@@ -120,7 +147,19 @@ async fn verify<A: Application, const EXISTING: bool>(source: Figment) -> openru
             .ok_or_else(mismatch)?
             .to_owned();
         ensure(!name.is_empty() && name.len() <= 64 * 1024)?;
-        check_response(&first, expected(&name, true, Some("next"), Some("current")))?;
+        check_response(
+            &first,
+            expected(
+                &name,
+                true,
+                Some("next"),
+                Some("current"),
+                Some("computed"),
+                Some(&["first"]),
+                Some(1),
+                None,
+            ),
+        )?;
         let first_cookie = cookie_pair(&first, &name)?;
         let second = app
             .request_with_limits(
@@ -129,7 +168,19 @@ async fn verify<A: Application, const EXISTING: bool>(source: Figment) -> openru
                 REQUEST_TIMEOUT,
             )
             .await?;
-        check_response(&second, expected(&name, true, Some("next"), None))?;
+        check_response(
+            &second,
+            expected(
+                &name,
+                true,
+                Some("next"),
+                None,
+                Some("computed"),
+                Some(&["first"]),
+                Some(1),
+                None,
+            ),
+        )?;
         // 每次都从真实响应取得下一次 Cookie，不假定保护后的字节保持不变。
         let second_cookie = cookie_pair(&second, &name)?;
         let third = app
@@ -139,12 +190,89 @@ async fn verify<A: Application, const EXISTING: bool>(source: Figment) -> openru
                 REQUEST_TIMEOUT,
             )
             .await?;
-        check_response(&third, expected(&name, true, None, None))?;
-        cookie_pair(&third, &name)?;
+        check_response(
+            &third,
+            expected(
+                &name,
+                true,
+                None,
+                None,
+                Some("computed"),
+                Some(&["first"]),
+                Some(1),
+                None,
+            ),
+        )?;
+        let third_cookie = cookie_pair(&third, &name)?;
+        let advanced = app
+            .request_with_limits(
+                request("advance", Some(&third_cookie))?,
+                BODY_LIMIT,
+                REQUEST_TIMEOUT,
+            )
+            .await?;
+        check_response(
+            &advanced,
+            expected(
+                &name,
+                true,
+                None,
+                None,
+                Some("computed"),
+                Some(&["first", "second"]),
+                Some(0),
+                None,
+            ),
+        )?;
+        let advanced_cookie = cookie_pair(&advanced, &name)?;
+        let removed = app
+            .request_with_limits(
+                request("remove", Some(&advanced_cookie))?,
+                BODY_LIMIT,
+                REQUEST_TIMEOUT,
+            )
+            .await?;
+        check_response(
+            &removed,
+            expected(
+                &name,
+                true,
+                None,
+                None,
+                None,
+                Some(&["first", "second"]),
+                Some(0),
+                Some("computed"),
+            ),
+        )?;
+        let removed_cookie = cookie_pair(&removed, &name)?;
+        let after_remove = app
+            .request_with_limits(
+                request("inspect", Some(&removed_cookie))?,
+                BODY_LIMIT,
+                REQUEST_TIMEOUT,
+            )
+            .await?;
+        check_response(
+            &after_remove,
+            expected(
+                &name,
+                true,
+                None,
+                None,
+                None,
+                Some(&["first", "second"]),
+                Some(0),
+                None,
+            ),
+        )?;
         let isolated = app
             .request_with_limits(request("inspect", None)?, BODY_LIMIT, REQUEST_TIMEOUT)
             .await?;
-        check_response(&isolated, expected(&name, false, None, None))?;
+        check_response(
+            &isolated,
+            expected(&name, false, None, None, None, None, None, None),
+        )?;
         Ok(())
     }
     .await;
@@ -156,9 +284,24 @@ async fn verify<A: Application, const EXISTING: bool>(source: Figment) -> openru
     Ok(())
 }
 
-fn expected(name: &str, persisted: bool, notice: Option<&str>, now: Option<&str>) -> Value {
-    json!({"cookie_name":name, "same_handle":true, "shared_value":persisted,
-        "stored_null":persisted, "preference":persisted.then_some("preserved"), "notice":notice, "now":now})
+#[allow(clippy::too_many_arguments)] // 逐项列出固定响应字段，避免测试遗漏原有 Session 与新增 Store 值。
+fn expected(
+    name: &str,
+    persisted: bool,
+    notice: Option<&str>,
+    now: Option<&str>,
+    memo: Option<&str>,
+    list: Option<&[&str]>,
+    count: Option<i64>,
+    removed: Option<&str>,
+) -> Value {
+    let mut value = json!({"cookie_name":name, "same_handle":true, "shared_value":persisted,
+        "stored_null":persisted, "preference":persisted.then_some("preserved"), "notice":notice, "now":now,
+        "memo":memo,"list":list,"count":count});
+    if let Some(removed) = removed {
+        value["removed"] = json!(removed);
+    }
+    value
 }
 fn request(action: &str, cookies: Option<&str>) -> openrust::Result<Request<Body>> {
     let mut request = Request::get(format!("{PREFIX}/{action}")).header("host", "localhost");

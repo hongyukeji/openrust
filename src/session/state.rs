@@ -155,10 +155,14 @@ impl Session {
         })
     }
     fn mutate(&self, apply: impl FnOnce(&mut Attributes) -> Result<()>) -> Result<&Self> {
+        self.mutate_value(apply)?;
+        Ok(self)
+    }
+    fn mutate_value<T>(&self, apply: impl FnOnce(&mut Attributes) -> Result<T>) -> Result<T> {
         let mut state = self.lock()?;
         state.ensure_mutable()?;
         let mut candidate = state.attributes.clone();
-        apply(&mut candidate)?;
+        let value = apply(&mut candidate)?;
         SessionRecord {
             id: state.id.clone(),
             data: candidate.all(),
@@ -166,7 +170,7 @@ impl Session {
         }
         .encode(self.inner.max_bytes)?;
         state.attributes = candidate;
-        Ok(self)
+        Ok(value)
     }
     async fn operation(&self) -> Result<Operation<'_>> {
         let gate = self.inner.io.lock().await;
@@ -193,6 +197,31 @@ impl Session {
     pub fn is_started(&self) -> Result<bool> {
         Ok(self.lock()?.started)
     }
+    /// 改变本请求的出站 Cookie 名称；不会自动清除旧名 Cookie 或改变 ID。
+    pub fn set_name(&self, name: impl Into<String>) -> Result<&Self> {
+        self.lock()?.ensure_mutable()?;
+        let name = name.into();
+        crate::http::CookieFactory::default()
+            .make(
+                name.clone(),
+                self.id()?.to_string(),
+                0,
+                crate::http::CookieOptions::default(),
+            )?
+            .to_header(false)?;
+        let mut state = self.lock()?;
+        state.ensure_mutable()?;
+        state.name = name;
+        Ok(self)
+    }
+    /// 返回当前实际驱动的同一 Arc，供可信应用公开扩展。
+    ///
+    /// 直接操作驱动不参与此句柄的属性、忙碌和撤销状态机，也不提供托管操作的原子性。
+    #[must_use]
+    pub fn handler(&self) -> Arc<dyn SessionStore> {
+        self.inner.store.clone()
+    }
+
     /// 完整属性；返回有序PHP数组表示的独立值。
     pub fn all(&self) -> Result<Value> {
         Ok(self.lock()?.attributes.all())
@@ -209,6 +238,24 @@ impl Session {
     pub fn get_or_else(&self, key: &str, default: impl FnOnce() -> Value) -> Result<Value> {
         Ok(self.get(key)?.unwrap_or_else(default))
     }
+    /// 非 null 原值直接返回；缺失/null 才计算并存储回调结果。
+    ///
+    /// 回调及序列化不持状态锁，允许重入；其自身副作用不回滚。最终写入重新检查
+    /// 当前状态与完整记录预算，不承诺跨请求的分布式原子计算。
+    pub fn remember<T: Serialize>(
+        &self,
+        key: &str,
+        callback: impl FnOnce() -> Result<T>,
+    ) -> Result<Value> {
+        if let Some(value) = self.get(key)?.filter(|value| !value.is_null()) {
+            return Ok(value);
+        }
+        self.lock()?.ensure_mutable()?;
+        let value = super::store::value_from(&callback()?, self.inner.max_bytes)?;
+        self.mutate(|attributes| attributes.put(key, value.clone()))?;
+        Ok(value)
+    }
+
     /// 显式Rust类型读取；不替换Laravel get的Value/null语义。
     pub fn get_typed<T: DeserializeOwned>(&self, key: &str) -> Result<Option<T>> {
         self.get(key)?
@@ -259,19 +306,45 @@ impl Session {
     }
     /// 读取并删除；null与缺失仍可区分。
     pub fn pull(&self, key: &str) -> Result<Option<Value>> {
-        let mut state = self.lock()?;
-        state.ensure_mutable()?;
-        let mut candidate = state.attributes.clone();
-        let value = candidate.pull(key)?;
-        SessionRecord {
-            id: state.id.clone(),
-            data: candidate.all(),
-            expiry_date: state.expiry.unwrap_or(Expiry::OnSessionEnd).date()?,
-        }
-        .encode(self.inner.max_bytes)?;
-        state.attributes = candidate;
-        Ok(value)
+        self.mutate_value(|attributes| attributes.pull(key))
     }
+    /// Laravel remove 同样读取并删除；None 表示缺失，Some(Null) 保留已存 null。
+    pub fn remove(&self, key: &str) -> Result<Option<Value>> {
+        self.pull(key)
+    }
+
+    /// 追加 PHP 数组值；缺失、null 或 false 从空数组开始。
+    pub fn push<T: Serialize>(&self, key: &str, value: T) -> Result<&Self> {
+        let value = super::store::value_from(&value, self.inner.max_bytes)?;
+        self.mutate(|attributes| attributes.push(key, value))
+    }
+
+    /// 默认加一，返回并存储结果；缺失从整数零开始。
+    pub fn increment(&self, key: &str) -> Result<Value> {
+        self.increment_by(key, 1)
+    }
+    /// 按 PHP 加法增加给定值；错误或不可表示的非有限结果不改写属性。
+    pub fn increment_by<T: Serialize>(&self, key: &str, amount: T) -> Result<Value> {
+        let amount = super::store::value_from(&amount, self.inner.max_bytes)?;
+        self.mutate_value(|attributes| attributes.increment(key, &amount))
+    }
+    /// 默认减一，返回并存储结果。
+    pub fn decrement(&self, key: &str) -> Result<Value> {
+        self.decrement_by(key, 1)
+    }
+    /// 先按 PHP 计算 amount * -1 再相加；不以饱和整数转换代替运算。
+    pub fn decrement_by<T: Serialize>(&self, key: &str, amount: T) -> Result<Value> {
+        let amount = super::store::value_from(&amount, self.inner.max_bytes)?;
+        let amount = crate::support::scalars::negate(&amount).ok_or_else(|| {
+            Error::custom_with_status(
+                http::StatusCode::INTERNAL_SERVER_ERROR,
+                "session_data_invalid",
+                "Session 数值运算失败",
+            )
+        })?;
+        self.mutate_value(|attributes| attributes.increment(key, &amount))
+    }
+
     /// 读取并删除，只有缺失才使用默认。
     pub fn pull_or(&self, key: &str, default: Value) -> Result<Value> {
         Ok(self.pull(key)?.unwrap_or(default))

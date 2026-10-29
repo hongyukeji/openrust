@@ -1,0 +1,576 @@
+{
+    "php_version": "8.5.0",
+    "cases": [
+        {
+            "case": "null",
+            "mode": "expression",
+            "op": "increment",
+            "initial": null,
+            "amount": 1,
+            "outcome": "value",
+            "type": "int",
+            "value": 1,
+            "events": []
+        },
+        {
+            "case": "null",
+            "mode": "official_handle_error",
+            "op": "increment",
+            "initial": null,
+            "amount": 1,
+            "outcome": "value",
+            "type": "int",
+            "value": 1,
+            "events": []
+        },
+        {
+            "case": "false",
+            "mode": "expression",
+            "op": "increment",
+            "initial": false,
+            "amount": 1,
+            "outcome": "value",
+            "type": "int",
+            "value": 1,
+            "events": []
+        },
+        {
+            "case": "false",
+            "mode": "official_handle_error",
+            "op": "increment",
+            "initial": false,
+            "amount": 1,
+            "outcome": "value",
+            "type": "int",
+            "value": 1,
+            "events": []
+        },
+        {
+            "case": "true",
+            "mode": "expression",
+            "op": "increment",
+            "initial": true,
+            "amount": 1,
+            "outcome": "value",
+            "type": "int",
+            "value": 2,
+            "events": []
+        },
+        {
+            "case": "true",
+            "mode": "official_handle_error",
+            "op": "increment",
+            "initial": true,
+            "amount": 1,
+            "outcome": "value",
+            "type": "int",
+            "value": 2,
+            "events": []
+        },
+        {
+            "case": "numeric",
+            "mode": "expression",
+            "op": "increment",
+            "initial": "42",
+            "amount": 1,
+            "outcome": "value",
+            "type": "int",
+            "value": 43,
+            "events": []
+        },
+        {
+            "case": "numeric",
+            "mode": "official_handle_error",
+            "op": "increment",
+            "initial": "42",
+            "amount": 1,
+            "outcome": "value",
+            "type": "int",
+            "value": 43,
+            "events": []
+        },
+        {
+            "case": "space_decimal",
+            "mode": "expression",
+            "op": "increment",
+            "initial": " 2.5 ",
+            "amount": 1,
+            "outcome": "value",
+            "type": "float",
+            "value": 3.5,
+            "events": []
+        },
+        {
+            "case": "space_decimal",
+            "mode": "official_handle_error",
+            "op": "increment",
+            "initial": " 2.5 ",
+            "amount": 1,
+            "outcome": "value",
+            "type": "float",
+            "value": 3.5,
+            "events": []
+        },
+        {
+            "case": "scientific",
+            "mode": "expression",
+            "op": "increment",
+            "initial": "1e3",
+            "amount": 1,
+            "outcome": "value",
+            "type": "float",
+            "value": 1001,
+            "events": []
+        },
+        {
+            "case": "scientific",
+            "mode": "official_handle_error",
+            "op": "increment",
+            "initial": "1e3",
+            "amount": 1,
+            "outcome": "value",
+            "type": "float",
+            "value": 1001,
+            "events": []
+        },
+        {
+            "case": "leading_warning",
+            "mode": "expression",
+            "op": "increment",
+            "initial": "42tail",
+            "amount": 1,
+            "outcome": "value",
+            "type": "int",
+            "value": 43,
+            "events": [
+                {
+                    "level": 2,
+                    "message": "A non-numeric value encountered"
+                }
+            ]
+        },
+        {
+            "case": "leading_warning",
+            "mode": "official_handle_error",
+            "op": "increment",
+            "initial": "42tail",
+            "amount": 1,
+            "outcome": "error",
+            "type": "ErrorException",
+            "events": [
+                {
+                    "level": 2,
+                    "message": "A non-numeric value encountered"
+                }
+            ]
+        },
+        {
+            "case": "empty",
+            "mode": "expression",
+            "op": "increment",
+            "initial": "",
+            "amount": 1,
+            "outcome": "error",
+            "type": "TypeError",
+            "events": []
+        },
+        {
+            "case": "empty",
+            "mode": "official_handle_error",
+            "op": "increment",
+            "initial": "",
+            "amount": 1,
+            "outcome": "error",
+            "type": "TypeError",
+            "events": []
+        },
+        {
+            "case": "nonnumeric",
+            "mode": "expression",
+            "op": "increment",
+            "initial": "tail",
+            "amount": 1,
+            "outcome": "error",
+            "type": "TypeError",
+            "events": []
+        },
+        {
+            "case": "nonnumeric",
+            "mode": "official_handle_error",
+            "op": "increment",
+            "initial": "tail",
+            "amount": 1,
+            "outcome": "error",
+            "type": "TypeError",
+            "events": []
+        },
+        {
+            "case": "array_scalar",
+            "mode": "expression",
+            "op": "increment",
+            "initial": [
+                1
+            ],
+            "amount": 1,
+            "outcome": "error",
+            "type": "TypeError",
+            "events": []
+        },
+        {
+            "case": "array_scalar",
+            "mode": "official_handle_error",
+            "op": "increment",
+            "initial": [
+                1
+            ],
+            "amount": 1,
+            "outcome": "error",
+            "type": "TypeError",
+            "events": []
+        },
+        {
+            "case": "int_overflow",
+            "mode": "expression",
+            "op": "increment",
+            "initial": 9223372036854775807,
+            "amount": 1,
+            "outcome": "value",
+            "type": "float",
+            "value": 9.223372036854776e+18,
+            "events": []
+        },
+        {
+            "case": "int_overflow",
+            "mode": "official_handle_error",
+            "op": "increment",
+            "initial": 9223372036854775807,
+            "amount": 1,
+            "outcome": "value",
+            "type": "float",
+            "value": 9.223372036854776e+18,
+            "events": []
+        },
+        {
+            "case": "min_decrement",
+            "mode": "expression",
+            "op": "decrement",
+            "initial": -9223372036854775808,
+            "amount": -9223372036854775808,
+            "outcome": "value",
+            "type": "float",
+            "value": 0,
+            "events": []
+        },
+        {
+            "case": "min_decrement",
+            "mode": "official_handle_error",
+            "op": "decrement",
+            "initial": -9223372036854775808,
+            "amount": -9223372036854775808,
+            "outcome": "value",
+            "type": "float",
+            "value": 0,
+            "events": []
+        },
+        {
+            "case": "finite_overflow",
+            "mode": "expression",
+            "op": "increment",
+            "initial": 1.7976931348623157e+308,
+            "amount": 1.7976931348623157e+308,
+            "outcome": "nonfinite",
+            "type": "float",
+            "value": "INF",
+            "events": []
+        },
+        {
+            "case": "finite_overflow",
+            "mode": "official_handle_error",
+            "op": "increment",
+            "initial": 1.7976931348623157e+308,
+            "amount": 1.7976931348623157e+308,
+            "outcome": "nonfinite",
+            "type": "float",
+            "value": "INF",
+            "events": []
+        },
+        {
+            "case": "left_union",
+            "mode": "expression",
+            "op": "increment",
+            "initial": {
+                "a": 1,
+                "2": "left"
+            },
+            "amount": {
+                "a": 9,
+                "2": "right",
+                "b": 2
+            },
+            "outcome": "value",
+            "type": "array",
+            "value": {
+                "a": 1,
+                "2": "left",
+                "b": 2
+            },
+            "events": []
+        },
+        {
+            "case": "left_union",
+            "mode": "official_handle_error",
+            "op": "increment",
+            "initial": {
+                "a": 1,
+                "2": "left"
+            },
+            "amount": {
+                "a": 9,
+                "2": "right",
+                "b": 2
+            },
+            "outcome": "value",
+            "type": "array",
+            "value": {
+                "a": 1,
+                "2": "left",
+                "b": 2
+            },
+            "events": []
+        },
+        {
+            "case": "array_decrement",
+            "mode": "expression",
+            "op": "decrement",
+            "initial": {
+                "a": 1
+            },
+            "amount": {
+                "c": 3
+            },
+            "outcome": "error",
+            "type": "TypeError",
+            "events": []
+        },
+        {
+            "case": "array_decrement",
+            "mode": "official_handle_error",
+            "op": "decrement",
+            "initial": {
+                "a": 1
+            },
+            "amount": {
+                "c": 3
+            },
+            "outcome": "error",
+            "type": "TypeError",
+            "events": []
+        },
+        {
+            "case": "push_null",
+            "mode": "expression",
+            "op": "push",
+            "initial": null,
+            "amount": "new",
+            "outcome": "value",
+            "type": "array",
+            "value": [
+                "new"
+            ],
+            "events": []
+        },
+        {
+            "case": "push_null",
+            "mode": "official_handle_error",
+            "op": "push",
+            "initial": null,
+            "amount": "new",
+            "outcome": "value",
+            "type": "array",
+            "value": [
+                "new"
+            ],
+            "events": []
+        },
+        {
+            "case": "push_false",
+            "mode": "expression",
+            "op": "push",
+            "initial": false,
+            "amount": "new",
+            "outcome": "value",
+            "type": "array",
+            "value": [
+                "new"
+            ],
+            "events": [
+                {
+                    "level": 8192,
+                    "message": "Automatic conversion of false to array is deprecated"
+                }
+            ]
+        },
+        {
+            "case": "push_false",
+            "mode": "official_handle_error",
+            "op": "push",
+            "initial": false,
+            "amount": "new",
+            "outcome": "value",
+            "type": "array",
+            "value": [
+                "new"
+            ],
+            "events": [
+                {
+                    "level": 8192,
+                    "message": "Automatic conversion of false to array is deprecated"
+                }
+            ]
+        },
+        {
+            "case": "push_sparse",
+            "mode": "expression",
+            "op": "push",
+            "initial": {
+                "2": "two",
+                "5": "five"
+            },
+            "amount": "new",
+            "outcome": "value",
+            "type": "array",
+            "value": {
+                "2": "two",
+                "5": "five",
+                "6": "new"
+            },
+            "events": []
+        },
+        {
+            "case": "push_sparse",
+            "mode": "official_handle_error",
+            "op": "push",
+            "initial": {
+                "2": "two",
+                "5": "five"
+            },
+            "amount": "new",
+            "outcome": "value",
+            "type": "array",
+            "value": {
+                "2": "two",
+                "5": "five",
+                "6": "new"
+            },
+            "events": []
+        },
+        {
+            "case": "push_negative",
+            "mode": "expression",
+            "op": "push",
+            "initial": {
+                "-5": "a",
+                "-2": "b"
+            },
+            "amount": "new",
+            "outcome": "value",
+            "type": "array",
+            "value": {
+                "-5": "a",
+                "-2": "b",
+                "-1": "new"
+            },
+            "events": []
+        },
+        {
+            "case": "push_negative",
+            "mode": "official_handle_error",
+            "op": "push",
+            "initial": {
+                "-5": "a",
+                "-2": "b"
+            },
+            "amount": "new",
+            "outcome": "value",
+            "type": "array",
+            "value": {
+                "-5": "a",
+                "-2": "b",
+                "-1": "new"
+            },
+            "events": []
+        },
+        {
+            "case": "push_assoc",
+            "mode": "expression",
+            "op": "push",
+            "initial": {
+                "label": "old"
+            },
+            "amount": "new",
+            "outcome": "value",
+            "type": "array",
+            "value": {
+                "label": "old",
+                "0": "new"
+            },
+            "events": []
+        },
+        {
+            "case": "push_assoc",
+            "mode": "official_handle_error",
+            "op": "push",
+            "initial": {
+                "label": "old"
+            },
+            "amount": "new",
+            "outcome": "value",
+            "type": "array",
+            "value": {
+                "label": "old",
+                "0": "new"
+            },
+            "events": []
+        },
+        {
+            "case": "push_string",
+            "mode": "expression",
+            "op": "push",
+            "initial": "abc",
+            "amount": "new",
+            "outcome": "error",
+            "type": "Error",
+            "events": []
+        },
+        {
+            "case": "push_string",
+            "mode": "official_handle_error",
+            "op": "push",
+            "initial": "abc",
+            "amount": "new",
+            "outcome": "error",
+            "type": "Error",
+            "events": []
+        },
+        {
+            "case": "push_int",
+            "mode": "expression",
+            "op": "push",
+            "initial": 3,
+            "amount": "new",
+            "outcome": "error",
+            "type": "Error",
+            "events": []
+        },
+        {
+            "case": "push_int",
+            "mode": "official_handle_error",
+            "op": "push",
+            "initial": 3,
+            "amount": "new",
+            "outcome": "error",
+            "type": "Error",
+            "events": []
+        }
+    ]
+}

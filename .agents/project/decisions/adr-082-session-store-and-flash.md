@@ -61,6 +61,20 @@ DB键继续SHA256，但输入改为原始40 ASCII字节（大小写敏感），�
 
 坏序列化与store不可用区分：受管理payload超限413 `session_limits_exceeded`；持久身份/envelope不一致安全500 `session_store_data_invalid`；IO失败安全500 `session_store_unavailable`，不回显ID/数据/连接信息。损坏JSON语法沿源为空array匿名状态；有效JSON但envelope字段缺/版本/摘要不符安全500；不能把后端异常吞成空bag。custom store的max_bytes是公开驱动契约，框架无法强制其内部的分配前限制；返回后仍校验record ID/expiry/序列化大小和深度。
 
+## D2：基础Store方法与公开扩展（契约与验收边界）
+
+- `remember<T: Serialize>(key, FnOnce() -> Result<T>) -> Result<Value>`：非null命中直接返回；缺失/null才计算并写回，false/0/空串保留。回调及序列化不持锁，允许同句柄重入；最终写入覆盖同键、保留回调写入其他键。已发生的回调/序列化副作用不回滚，不承诺跨请求或分布式原子remember。
+- `push<T: Serialize>(key, value) -> Result<&Self>` 复用现Attributes追加；缺失/null/false可追加，其他非数组类型失败。JSON对象按现PHP关联数组表示，追加整数键与稀疏规则复用同内核；已公开的隐藏next-free历史差异仍适用。
+- `increment/decrement(key) -> Result<Value>` 默认amount=1；`increment_by/decrement_by<T: Serialize>(key, amount) -> Result<Value>` 对应上游动态amount。复用scalars数值词法和data左并集，整数溢出转有限double，decrement先amount乘-1再相加；数组加数组为左并集，混合非法类型失败。
+- 采用固定Laravel HandleExceptions错误边界：leading-numeric尾垃圾产生的E_WARNING视错误且不写入；false追加的deprecation不升级异常。裸PHP表达式探针不等于完整框架oracle，分别记录来源与执行方式。不新建PHP式全局警告系统；非有限JSON结果返回错误、原值不变，此表示限制不冒称PHP存储INF等价。
+- `remove(key) -> Result<Option<Value>>` 复用pull；Rust的None/Some(Null)保留现公开缺失区分，而上游PHP二者均返回null，按必要类型适配记录。
+- 属性操作基于最新状态克隆、校验完整record预算后一次发布；发布前重验busy/closed/revoked。remember缺失路径先预检可变性，回调后仍需复检；操作本身失败不发布部分变更。
+- `set_name(name) -> Result<&Self>` 复用CookieFactory校验和状态门控，响应中间件必须用Session.name实际输出。请求启动仍按原配置读取Cookie；改名不换ID、不自动删除旧Cookie。
+- `handler() -> Arc<dyn SessionStore>` 返回同一后端引用，属于公开driver逃生口；直接调用driver不具有受管理Session的状态机与跨操作保证，不返回另一store或新bag。
+- `set_id`、`set_handler`、CookieSessionHandler式请求注入等运行期安全生命周期仍是具体未交付项；不能新增绕existing/revoked约束的无保护setter，也不能按Rust惯用将适用上游能力删除。D2基础方法通过不关闭完整L025。
+
+验收链为固定Store/HandleExceptions源码→明确标记的PHP8.5.0运算与错误处理探针→Rust方法/重入/预算/异常→唯一modules/example与生成helper→真实双库持久HTTP及外部driver；适用workspace门禁在本簇改码后实际执行。
+
 ## 配置与后继边界
 
 现SessionConfig默认secure=true、ttl_secs=两周未被C04-C称为Laravel默认。本簇整改lifetime为120分钟、nullable secure供实际TLS推导、expire_on_close=false、http_only=true、same_site=lax、partitioned=false并保Cookie最终配置优先级；cookie名派生app.name与SESSION_*环境映射须按固定源同步，不默保旧值冒称完成。数据库默认后端复用现已注册Db；不暗连用户数据库。
@@ -82,3 +96,5 @@ Session属性使用JSON值表示；业务手动删除flash元数据尾项后追�
 属性方法同步返回Result，真正store I/O为async；同请求std状态锁不跨await。I/O持有RAII busy标记及快照，同步变更在busy期间安全拒绝，取消只释放busy而不补偿已发出的外部write、不后台保存。默认cookie名称按最终app.name经固定portable-ascii 2.0.2 en轮序及slug推导，加_session；显式cookie字段优先。字符串各阶段20MiB是配置资源增强；父层统一验证最终Cookie/header预算。
 
 RequestInfo::session返回克隆的同Arc Session句柄（非属性副本），便于持有或移入async；缺装配统一安全500 session_layer_missing。
+
+D2基础方法子范围已通过当前12项门禁、真实双库模块HTTP各54项、生成plain4/认证双库各2项与不同模型审查，证据见[testing](../memory/testing.md)。这不关闭上述ID/handler替换生命周期及完整Session范围。

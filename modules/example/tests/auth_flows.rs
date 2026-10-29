@@ -230,6 +230,7 @@ async fn generated_auth_routes_run_over_http_with_isolated_database_and_fake_mai
 }
 
 // 正式宿主/模块经真实 TCP 使用默认数据库 Session；Cookie 原值仅内存往返。
+#[allow(clippy::too_many_lines)] // 同一数据库 Cookie 跨请求序列需保持连续，才能验证 remove 与后续缺失。
 async fn run_session_flow(address: SocketAddr) -> TestResult {
     let client = reqwest::Client::builder()
         .no_proxy()
@@ -309,6 +310,7 @@ async fn run_session_flow(address: SocketAddr) -> TestResult {
         );
         let body: serde_json::Value = response.json().await?;
         let mut data = serde_json::json!({"preference":preference,"notice":notice,
+            "memo":null,"list":null,"count":null,
             "has":{"preference":preference.is_some(),"notice":notice.is_some()},
             "exists":{"preference":preference.is_some(),"notice":notice.is_some()}});
         if let Some(action) = action {
@@ -319,9 +321,169 @@ async fn run_session_flow(address: SocketAddr) -> TestResult {
             serde_json::json!({"success":true,"code":"ok","message":"ok","data":data})
         );
     }
-    let isolated: serde_json::Value = client.get(endpoint).send().await?.json().await?;
-    assert_eq!(isolated["data"]["preference"], serde_json::Value::Null);
-    assert_eq!(isolated["data"]["notice"], serde_json::Value::Null);
+    // 正式根宿主的默认数据库 Session 在同一 Cookie 下跨 TCP 请求保存 D2 字段。
+    for (action, value, memo, list, count, removed) in [
+        (
+            "remember",
+            serde_json::Value::Null,
+            Some("computed"),
+            None,
+            None,
+            None,
+        ),
+        ("memo_null", serde_json::Value::Null, None, None, None, None),
+        (
+            "remember",
+            serde_json::Value::Null,
+            Some("computed"),
+            None,
+            None,
+            None,
+        ),
+        (
+            "memo_seed",
+            serde_json::json!("seeded"),
+            Some("seeded"),
+            None,
+            None,
+            None,
+        ),
+        (
+            "remember",
+            serde_json::Value::Null,
+            Some("seeded"),
+            None,
+            None,
+            None,
+        ),
+        (
+            "push",
+            serde_json::json!("alpha"),
+            Some("seeded"),
+            Some(&["alpha"][..]),
+            None,
+            None,
+        ),
+        (
+            "push",
+            serde_json::json!("beta"),
+            Some("seeded"),
+            Some(&["alpha", "beta"][..]),
+            None,
+            None,
+        ),
+        (
+            "increment",
+            serde_json::Value::Null,
+            Some("seeded"),
+            Some(&["alpha", "beta"][..]),
+            Some(1),
+            None,
+        ),
+        (
+            "increment_by",
+            serde_json::Value::Null,
+            Some("seeded"),
+            Some(&["alpha", "beta"][..]),
+            Some(3),
+            None,
+        ),
+        (
+            "decrement",
+            serde_json::Value::Null,
+            Some("seeded"),
+            Some(&["alpha", "beta"][..]),
+            Some(2),
+            None,
+        ),
+        (
+            "decrement_by",
+            serde_json::Value::Null,
+            Some("seeded"),
+            Some(&["alpha", "beta"][..]),
+            Some(0),
+            None,
+        ),
+        (
+            "remove",
+            serde_json::Value::Null,
+            None,
+            Some(&["alpha", "beta"][..]),
+            Some(0),
+            Some("seeded"),
+        ),
+    ] {
+        let response = client
+            .post(&endpoint)
+            .header(
+                reqwest::header::COOKIE,
+                cookie.as_deref().ok_or("Session Cookie missing")?,
+            )
+            .json(&serde_json::json!({"action":action,"value":value}))
+            .send()
+            .await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        let mut selected = response
+            .headers()
+            .get_all(reqwest::header::SET_COOKIE)
+            .iter()
+            .filter_map(|value| value.to_str().ok())
+            .filter(|value| value.starts_with("openrust_session="));
+        let header = selected.next().ok_or("Session Cookie missing")?;
+        assert!(selected.next().is_none());
+        let model = openrust::http::Cookie::from_header(header)?;
+        assert!(model.http_only() && model.path() == "/");
+        cookie = Some(
+            header
+                .split(';')
+                .next()
+                .ok_or("Session Cookie pair missing")?
+                .to_owned(),
+        );
+        let body: serde_json::Value = response.json().await?;
+        let mut data = serde_json::json!({"preference":null,"notice":null,
+            "memo":memo,"list":list,"count":count,
+            "has":{"preference":false,"notice":false},
+            "exists":{"preference":false,"notice":false},"action":action});
+        if let Some(removed) = removed {
+            data["removed"] = serde_json::json!(removed);
+        }
+        assert_eq!(
+            body,
+            serde_json::json!({"success":true,"code":"ok","message":"ok","data":data})
+        );
+    }
+    let missing_after_remove: serde_json::Value = client
+        .get(&endpoint)
+        .header(
+            reqwest::header::COOKIE,
+            cookie.as_deref().ok_or("Session Cookie missing")?,
+        )
+        .send()
+        .await?
+        .json()
+        .await?;
+    assert_eq!(
+        missing_after_remove["data"]["memo"],
+        serde_json::Value::Null
+    );
+    assert_eq!(
+        missing_after_remove["data"]["list"],
+        serde_json::json!(["alpha", "beta"])
+    );
+    assert_eq!(missing_after_remove["data"]["count"], 0);
+    let isolated = client.get(endpoint).send().await?;
+    assert_eq!(isolated.status(), StatusCode::OK);
+    let isolated: serde_json::Value = isolated.json().await?;
+    assert_eq!(
+        isolated,
+        serde_json::json!({
+            "success":true,"code":"ok","message":"ok",
+            "data":{"preference":null,"notice":null,"memo":null,"list":null,"count":null,
+                "has":{"preference":false,"notice":false},
+                "exists":{"preference":false,"notice":false}}
+        })
+    );
     Ok(())
 }
 

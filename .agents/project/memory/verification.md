@@ -1,5 +1,11 @@
 # 验收口径
 
+## C04-D2 Session Store公开方法（限定子范围已验收）
+
+本簇扩展唯一Session状态机与属性预算，新增remember/push/数值增减/remove、出站名称修改和同后端handler公开入口，不另造会话内核。修后12项workspace/feature/MSRV/docs/deny门禁已实际通过；根PG18/MySQL8.4完整模块HTTP各54项均通过且无忽略/过滤/跳过，两侧精确自有锚库已删除并查询确认不存在。三类全新生成应用fmt/check/test通过（plain4、认证PG2/MySQL2），最终资源收尾已核根target有效产物0、五旧consumer不变；本簇限定提交以Git为准。具体日志与初轮失败修正见[testing](testing.md#c04-d2-store公开api限定子范围已验收)。
+
+PHP差分仅22条表达式加22条固定官方异常处理路径，不等于完整Laravel Store/应用启动；JSON非有限数/对象类别/数组隐藏索引差异保留。handler是原驱动的逃生口，不继承托管状态机；set_name不改变入站配置、不自动清除旧名Cookie。set_id/set_handler安全生命周期、请求注入、Old Input、CSRF、blocking/GC/Session cache及其他driver仍待后继，不能由本簇基础方法关闭整个L025。
+
 ## C04-B1 输入基础与规范化
 
 ADR-079的body-owning Request、query/json/form bags、PHP键与优先级、读取修改、默认trim/null及公开策略已通过定向/不同模型限定复审；最新workspace默认570/29、全特性1136/99（passed/ignored），完整PG/MySQL target各47通过且零ignored/filtered，真实生成认证应用各2通过，普通consumer2通过，根默认cargo run真实TCP通过。fmt/default+all Clippy/Rustdoc/no-default/MSRV1.97/deny均实际通过；ignore不替代服务证据。Host缺失fixture与迁移排序失败的red/green、原始日志丢失缺口、fake mail及外部WIP范围见[testing](testing.md#c04-b1-统一请求输入)。只关闭B1范围，B2便捷方法、Old Input、Cookies、FormRequest与完整文件语义保留。

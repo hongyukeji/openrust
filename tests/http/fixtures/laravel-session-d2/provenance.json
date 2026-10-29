@@ -1,0 +1,29 @@
+{
+  "format_version": 1,
+  "case_origin": "OpenRust自造case；不是上游测试复制或完整Laravel启动",
+  "framework_ref": "d52c3b3129e4c8e213c97cdc68f94b0b7d27f181",
+  "store_source_sha256": "61cf31f4f63716bb1331d9d46c8b92750f47532f69aa9176b08130baabceebb8",
+  "store_instantiated": false,
+  "php_version": "8.5.0",
+  "php_binary_sha256": "e5209dd1828f795683660d6a915ebe9beaca2c931bff2f79e116dfc5f142b704",
+  "handler_source_url": "https://raw.githubusercontent.com/laravel/framework/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php",
+  "handler_source_sha256": "dad8c51973a06c8a636ab744aafd7f06721fec08afa6255019c81ffafea04524",
+  "execution": [
+    "expression:裸PHP表达式，收集warning/deprecation并继续",
+    "official_handle_error:真实官方class文件中handleError方法，E_ALL；E_WARNING真实抛ErrorException；deprecation实际走shouldIgnoreDeprecationErrors无LogManager分支"
+  ],
+  "limitations": [
+    "没有启动Laravel应用/Store/Container/logger，不将表达式称为Store oracle",
+    "E_DEPRECATED未验证真实app logger；本探针真实执行官方无logger早退分支",
+    "非finite无法表示JSON，Rust拒绝且不写；不是PHP INF存储等价",
+    "JSON对象代表PHP关联数组，不代表stdClass；不保存删除后隐藏next-free历史"
+  ],
+  "cargo_boundary": {
+    "requires_php": false,
+    "requires_tmp": false
+  },
+  "files_sha256": {
+    "oracle.php": "f0c8735a947894834c1676bd2afafc5cf76b12f1892b2ba99b3a53b8d8bc172c",
+    "golden.json": "17dc1ae58bfef9d03b4ad6066ce954c9c1ed5750b58b6c05ef37128246d607ef"
+  }
+}

@@ -25,7 +25,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 | R2-M 模块最小闭环与目录迁移 | 真实服务与生成项目已验收，本簇提交 | modules/ 声明注册、模块配置/资源/统一迁移、依赖与冲突错误；示例迁至 modules/example，真实HTTP及双库验证；完整管理命令归R13 |
 | R1-E 真实CRUD与当前能力示例 | 已验收并提交 bc3fa01 | 真实 Article CRUD；当前公开能力进入唯一模块示例；PostgreSQL 18/MySQL 8.4、生成项目、真实服务与整组门禁已验收。Collector PostgreSQL 隔离 sink delivery/unavailable 已复验通过，详见 testing |
 | R2 后继内核与测试底座 | R2-N 模块依赖图与顺序已完成 | `.requires` 硬依赖、稳定拓扑顺序、register/boot 一致；真实 PostgreSQL/MySQL HTTP、生成项目、根无参数 TCP、工作区门禁均有本簇证据 |
-| R3 HTTP 与 Web | R3-F 已提交163bb49；C04-A 已提交08be69d；C04-B1输入基础已验收；C04-B2类型便捷方法已通过适用验收；C04-C Cookie/响应子簇已验收；C04-D1子簇适用验收通过；C04-D2公开Store API补齐待领取 | 按ADR-078实现无正文请求检查与固定上游协商；C03其余及完整C04范围继续保留 |
+| R3 HTTP 与 Web | R3-F 已提交163bb49；C04-A 已提交08be69d；C04-B1输入基础已验收；C04-B2类型便捷方法已通过适用验收；C04-C Cookie/响应子簇已验收；C04-D1子簇适用验收通过；C04-D2基础Store API子范围已验收，扩展生命周期后继 | 按ADR-078实现无正文请求检查与固定上游协商；C03其余及完整C04范围继续保留 |
 | 模块包固定范围细化 | 待逐项盘点 | 对正式laravel-modules固定源码/文档的导航、源码与测试拆行为矩阵，分类必要Rust差异/用户约定/缺口；不把目录规范或显式Plugin等同完整模块管理 |
 
 ## 后继路由
@@ -314,14 +314,20 @@ C04-A/B1/B2的公开检查、输入基础与类型便捷方法已按各自范围
 
 本簇验收：最终workspace默认668/全特性1241 passed，根双库各48、生成plain3/认证双库各2、真实TLS与适用门禁通过；产物已清理，本簇限定提交见Git。完整Session/flash/CSRF/FormRequest不由此关闭，见[证据](memory/testing.md)。
 
-## 当前 C04-D2：Session Store公开API补齐（待领取）
+## C04-D2：Session Store基础公开API（限定子范围已验收）
 
-C04-D1的统一Session/flash与请求生命周期已完成适用验收；限定提交以Git为准，真实证据见[testing](memory/testing.md)。这只关闭该子范围，完整L025与Web栈保持开放。
+C04-D1的统一Session/flash与请求生命周期已完成适用验收并由d47162d限定提交，真实证据见[testing](memory/testing.md)。这只关闭该子范围，完整L025与Web栈保持开放。
 
-1. 固定源的remember/push/increment/decrement/remove，以及name/ID/handler扩展语义逐项审计，起草本簇Spec后实现；沿唯一Session状态和公开store，不新增绕撤销的平行bag或无保护setter。
+1. [D2契约](decisions/adr-082-session-store-and-flash.md#d2基础store方法与公开扩展契约与验收边界)已实现并通过适用验收：remember/push/increment/decrement/remove、真实Cookie出口set_name与同后端handler；沿唯一Session状态/属性/数值工具。set_id/set_handler及请求注入的安全生命周期仍为具体后继缺口，不用无保护setter冒充对应。
 2. 数值运算须实际PHP差分，错误/null/不存在/溢出等行为按固定上游与必要Rust约束分类；不能以编译或改名替代等价行为。
 3. 新API必须在modules/example真实调用/公开扩展示范，更新根装配、生成项目、文档与稳定矩阵，执行适用workspace、双库、生成及真实HTTP门禁后限定提交。
 4. 后继Old Input/redirect错误bag、CSRF、Session blocking/GC/previous URL、其余driver、FormRequest、文件与完整Response继续保留，不用基础flash关闭全能力。分页沿既有C04/C05→R4/R5依赖。
+
+D2验收：修后12项门禁、根真实PG/MySQL完整模块HTTP各54、三类新生成应用4/2/2及独立审查通过；根target有效产物已清理、五旧consumer不变，限定提交见Git。PHP44条差分路径不是完整Laravel启动；不关闭整个L025。
+
+## 当前 C04-D3：Session扩展生命周期（待领取）
+
+先审计固定Store的setId/setHandler与CookieSessionHandler请求注入生产路径，对照现有撤销、busy/closed、Provider装配与自定义驱动契约，写Spec后实现安全等价API。不得用D2只读handler逃生口替代驱动替换，也不得删除适用上游能力。统一状态机、唯一modules/example与生成调用、公开consumer、双库真实HTTP及匹配门禁随簇交付；Old Input/CSRF等按既有后继依赖保留。
 
 ## 完整实现后的发布仓库整理（后置，未启动）
 
