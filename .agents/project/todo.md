@@ -333,7 +333,7 @@ C04-D1的统一Session/flash与请求生命周期已完成适用验收；限定�
 
 ## 阶段二：Laravel 官方 AI SDK 可选扩展（已授权开发，待前置）
 
-依[AI SDK扩展计划](plans/ai-capabilities.md)实施，不能继续视为仅规划；当前C04-D1先闭环，阶段一核心与对应Provider/config/HTTP/安全契约具备后领取AI-0。队列/上传及MCP工具子项各按实际依赖推进，不等待独立AI模型平台或可选后台。
+依[AI SDK扩展计划](plans/ai-capabilities.md)实施，不能继续视为仅规划；当前核心簇按唯一队列继续，阶段一核心与对应Provider/config/HTTP/安全契约具备后领取AI-0。队列/上传及MCP工具子项各按实际依赖推进，不等待独立AI模型平台或可选后台。
 
 1. AI-0固定Laravel官方AI SDK源码/文档/测试基线，建立全部适用能力对应矩阵与Rust必要适配Spec；官方为唯一主要标准，Prism只补充成熟体验，不引入冲突或第二SDK。
 2. AI-1至AI-4依次实现统一SDK与在线驱动、官方适用能力及审核/翻译示例、自建模型服务HTTP接入、生成项目/文档/真实provider及2核4GB和4核8GB部署验收；按功能子簇Spec→Implement→Verify→Commit，不只做同名接口。

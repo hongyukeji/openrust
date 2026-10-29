@@ -51,25 +51,26 @@
 | --- | --- | --- | --- | --- | --- |
 | laravel-modules | v13模块注册/资源/依赖、启停/生成与完整管理 | ✅ 已验收子范围 | R2-M/N：唯一modules/example、编译清单/激活、资源挂载、稳定依赖顺序；48be854等子簇 | 编译期发现/生成清单仅规划；完整模块命令/发布与其余子行为未完成，目录相似不是全包等价 | [M001–M035](plans/laravel-modules-matrix.md)；R2/R13；[todo](todo.md)/[core](core/core.md) |
 
-### 授权增强与可选扩展（不冒称Laravel核心内置）
+### 官方生态与授权增强（不冒称Laravel核心内置）
 
 | 能力 | 状态 | 已有边界与下一步 |
 | --- | --- | --- |
-| DB动态业务设置 / 管理员动态计划 | 📝 仅规划 | [ADR-080](decisions/adr-080-runtime-configuration-scheduling.md)及[唯一计划](plans/runtime-configuration-scheduling.md)；阶段二V1必交增强（不移动核心Config/Queue/Scheduler），宿主启用可选，尚无新实现/验收；可选快速开发模块表单后置 |
+| 官方可选包与配套工具 | ⬜ 已授权待开发 | [全量范围与分期](plans/laravel-official-coverage.md#全量交付授权与两阶段)已登记749条Laravel行为与35个模块入口；AI SDK/MCP/Boost、官方认证/计费/搜索/实时包及工具UI、前端配套等须逐包冻结源码/测试与可执行Spec，登记不等于实现或验收 |
+| DB动态业务设置 / 管理员动态计划 | ⬜ 已授权待开发 | [ADR-080](decisions/adr-080-runtime-configuration-scheduling.md)及[唯一计划](plans/runtime-configuration-scheduling.md)；阶段二V1必交增强（不移动核心Config/Queue/Scheduler），宿主启用可选，尚无新实现/验收；可选快速开发模块表单后置 |
 | 统一返回格式 / 业务观测增强 | 🔵 已有实现待1:1对齐 | 保留价值，须经Response/Resource/异常与公开扩展融合；分页独立协议整改仍未完成，不宣称上游原生默认 |
 | SMS具体渠道 | 🔵 已有实现待1:1对齐 | 作为Notification/驱动扩展；Twilio adapter与fake/log资产不代表真实短信投递，实发缺授权账号/凭据/目标；[mail](core/mail.md) |
 | gRPC | 🔵 已有实现待1:1对齐 | 可选协议扩展、生成与真实TCP专项见[grpc](core/grpc.md)；不是Laravel核心原生gRPC；完整集群/生命周期仍须R11/R14验收 |
-| MQTT Broker / Client | 📝 仅规划 | [总计划R11](plans/laravel-rebuild.md#r11-明确待办mqtt-可选服务端与客户端)；阶段二client/Broker按需独立引入；既有Provider加载不暗启连接，client lazy调用/订阅CLI/Broker CLI显式运行；未实现/未真实验收 |
+| MQTT Broker / Client | ⬜ 已授权待开发 | [总计划R11](plans/laravel-rebuild.md#r11-明确待办mqtt-可选服务端与客户端)；阶段二client/Broker按需独立引入；既有Provider加载不暗启连接，client lazy调用/订阅CLI/Broker CLI显式运行；未实现/未真实验收 |
 
 ### 如何读取与维护
 
-- [两阶段框架主线](plans/laravel-rebuild.md#两阶段框架主线)：阶段一Laravel+正式modules基线（含Provider包发现），阶段二已纳入非核心通用增强，均属框架main/V1路线；不是未启动可选快速开发模块。表按可证范围显示状态，不因阶段重排抹掉既有实现，也不把阶段一完成说成全部框架交付。
+- [两阶段框架主线](plans/laravel-rebuild.md#两阶段框架主线)：阶段一Laravel+正式modules基线（含Provider包发现），阶段二交付官方可选生态及已授权通用增强，均属框架main/V1路线；不是未启动可选快速开发模块。表按可证范围显示状态，不因阶段重排抹掉既有实现，也不把阶段一完成说成全部框架交付。
 - 本表按本次审阅划分 **26个Laravel能力族**：✅子范围4、🟡开发中2、🔵待对齐19、⬜待开发1；另列modules一个✅子范围。它们是概览行计数，粒度不等、不是权重或完成百分比，也不包含增强表。
 - 749个Laravel二级节与35个模块导航入口不是同一计数单位；详细矩阵的旧“待验收”不能解释为代码0%，已有代码/测试数量也不能推出1:1完成率。**逐项严格验收暂无可靠已闭合分子，不提供总体百分比。**
 - 总控每次功能簇本地commit后就地更新受影响行的状态、可证范围、缺口、commit/证据，并同步详细矩阵；只有新增实际交付/验收才升级状态，WIP与定向测试不能提前变✅。调整分组时重算上述概览行数，不按测试数充进度。
 - 每次框架开发进度汇报附最新能力状态表，汇报前按当前代码/提交/验收复核；表格格式、适用范围与“1:1 的 Laravel 框架 Rust 版”表述统一遵循[汇报规范](style.md#开发进度汇报)，普通问答不强制附表。
 - overview只摘要；矩阵维护详细源码/测试对应及差异，core/testing保存可复验证据，todo是唯一可领取队列，不在此复制任务或建立第二计划。未验收的整项不得因已交付子簇关闭。
-- [可选快速开发模块/C32/R15冻结](plans/optional-rapid-development-modules.md#开发与使用边界)，R14完成不授权开工；未来分支另定，当前main仅框架，非UI扩展可独立推进。AI产品仍未启动，均不计V1框架核心1:1进度。当前不为展示表格切换或中断在途HTTP功能簇。精选扩展的接入/范围与独立验收遵循[生态边界](plans/laravel-rebuild.md#生态边界)，不抵扣核心缺口。
+- [可选快速开发模块/C32/R15冻结](plans/optional-rapid-development-modules.md#开发与使用边界)，R14完成不授权开工；未来分支另定，当前main维护框架及官方可选工具（含自身UI），按依赖推进。AI产品仍未启动，均不计V1框架核心1:1进度。当前不为展示表格切换或中断在途HTTP功能簇。精选扩展的接入/范围与独立验收遵循[生态边界](plans/laravel-rebuild.md#生态边界)，不抵扣核心缺口。
 
 ## 子簇验证边界
 
