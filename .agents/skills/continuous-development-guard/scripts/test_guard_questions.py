@@ -106,8 +106,11 @@ class Questions(unittest.TestCase):
                 else:
                     self.api.binding_valid.return_value = False
                 self.step(120)
-                self.api.answer_question.assert_not_called()
-                self.assertEqual(self.classifier.call_count, 1)
+                if change == 'version':
+                    self.api.answer_question.assert_called_once()
+                else:
+                    self.api.answer_question.assert_not_called()
+                self.assertEqual(self.classifier.call_count, 2 if change == 'request' else 1)
 
     def test_sending_intent_is_durable_and_unknown_result_never_retried(self):
         self.step(0)
@@ -278,13 +281,125 @@ class Questions(unittest.TestCase):
         self.assertEqual(self.api.answer_question.call_count, 2)
         self.assertTrue(all(r['status'] == 'answered' for r in self.state['questions'].values()))
 
+    def test_old_async_request_uses_bound_original_record_outside_recent_history(self):
+        self.agent['PendingPermissions'] = [request(True)]
+        self.agent['QuestionOrigins'] = {'permission-item': {'type': 'agentMessage', 'id': 'item',
+            'delivery': 'async', 'questions': [{'title': '纯函数单元测试如何组织？', 'options': ['一个大文件', '按模块分组']}]}}
+        self.step(0)
+        self.assertEqual(self.step(120), 'question_answered')
+        self.assertNotIn('thread/items/list', [c.args[0] for c in self.api.rpc.call_args_list])
+        self.classifier.assert_called_once()
+        self.api.answer_question.assert_called_once()
+
+    def test_present_but_malformed_origin_never_uses_legacy_history_fallback(self):
+        for origin in ([], 'invalid', 42, {'permission-item': None}):
+            with self.subTest(origin=origin):
+                self.setUp()
+                self.agent['PendingPermissions'] = [request(True)]
+                self.agent['QuestionOrigins'] = origin
+                self.step(0); self.step(120)
+                self.api.rpc.assert_not_called()
+                self.classifier.assert_not_called()
+                self.api.answer_question.assert_not_called()
+
+    def test_current_sdk_missing_origin_never_falls_back_to_stale_history_item(self):
+        self.agent['PendingPermissions'] = [request(True)]
+        self.agent['QuestionOrigins'] = {}
+        self.api.rpc.return_value = {'data': [{'item': {'type': 'agentMessage', 'id': 'item',
+            'delivery': 'async', 'questions': [{'title': '纯函数单元测试如何组织？', 'options': ['一个大文件', '按模块分组']}]}}]}
+        self.step(0); self.step(120)
+        self.api.rpc.assert_not_called()
+        self.classifier.assert_not_called()
+        self.api.answer_question.assert_not_called()
+
+    def test_original_async_item_hash_mismatch_is_not_accepted_from_bound_record(self):
+        self.agent['PendingPermissions'] = [request(True)]
+        self.agent['QuestionOrigins'] = {'permission-item': {'type': 'agentMessage', 'id': 'item',
+            'delivery': 'async', 'questions': [{'title': 'different question', 'options': ['A', 'B']}]}}
+        self.step(0); self.step(120)
+        self.api.answer_question.assert_not_called()
+        self.classifier.assert_not_called()
+
+    def test_old_cancelled_or_rejected_is_rejudged_once_under_fixture_authorization(self):
+        for legacy in ('cancelled', 'rejected'):
+            with self.subTest(legacy=legacy):
+                self.setUp()
+                req = self.agent['PendingPermissions'][0]
+                self.state['questions'] = {'permission-item': {
+                    'status': legacy, 'version': 'old-policy', 'first_seen': 0,
+                    'scope': {'permission-item': questions.digest(req)}}}
+                self.step(120)
+                self.api.answer_question.assert_called_once()
+                self.step(240)
+                self.classifier.assert_called_once()
+                self.api.answer_question.assert_called_once()
+
+    def test_context_churn_reuses_same_request_evaluation_until_exact_fresh_snapshot(self):
+        self.step(0)
+        for n in range(1, 6):
+            self.turn = dict(self.turn, key='progress-' + str(n))
+            self.current = dict(self.current, updated_at_ms=n + 1)
+            self.agent['QuestionBinding'] = dict(self.agent['QuestionBinding'], activeTurn={'turnId': 'turn-' + str(n)})
+            self.step(n * 10)
+        self.assertEqual(self.step(120), 'question_answered')
+        self.classifier.assert_called_once()
+        self.api.answer_question.assert_called_once()
+
+    def test_cancelled_during_fresh_inspect_can_retry_cached_answer_without_reclassifying(self):
+        self.step(0)
+        self.api.inspect.side_effect = lambda _: dict(self.agent, QuestionBinding={**self.agent['QuestionBinding'], 'activeTurn': {'turnId': 'racing'}})
+        self.step(120)
+        self.api.answer_question.assert_not_called()
+        self.assertEqual(self.state['questions']['permission-item']['status'], 'cancelled')
+        self.api.inspect.side_effect = lambda _: self.agent
+        self.assertEqual(self.step(240), 'question_answered')
+        self.classifier.assert_called_once()
+
+    def test_legacy_send_intents_and_unknown_or_answered_are_never_replayed(self):
+        for status in ('unknown', 'sending', 'answered', 'cancelled'):
+            with self.subTest(status=status):
+                self.setUp()
+                self.state['questions'] = {'permission-item': {'status': status, 'send_at': 1,
+                    'version': 'old', 'first_seen': 0}}
+                self.step(120); self.step(240)
+                self.api.answer_question.assert_not_called()
+                self.classifier.assert_not_called()
+
+    def test_genuinely_rejected_new_version_is_not_repeated_each_poll(self):
+        self.classifier.return_value.update(ordinary=False, choices=[])
+        self.step(0); self.step(120); self.step(240)
+        self.classifier.assert_called_once()
+        self.api.answer_question.assert_not_called()
+        self.agent['QuestionBinding'] = dict(self.agent['QuestionBinding'], lastUserMessageAt='new-explicit-user-authorization')
+        self.classifier.return_value.update(ordinary=True, choices=[0])
+        self.assertEqual(self.step(360), 'question_answered')
+        self.assertEqual(self.classifier.call_count, 2)
+
+    def test_new_user_event_without_sdk_timestamp_requires_one_new_semantic_decision(self):
+        self.step(0)
+        self.turn = dict(self.turn, user_context={'key': 'explicit-pause-request', 'message': '先不要继续修复'})
+        self.classifier.return_value.update(ordinary=False, choices=[])
+        self.step(120); self.step(240)
+        self.api.answer_question.assert_not_called()
+        self.assertEqual(self.classifier.call_count, 2)
+
+    def test_semantic_version_count_is_bounded_without_active_turn_token_amplification(self):
+        self.classifier.return_value.update(ordinary=False, choices=[])
+        for n in range(questions.MAX_EVALUATIONS + 3):
+            self.agent['QuestionBinding'] = dict(self.agent['QuestionBinding'], lastUserMessageAt=str(n))
+            self.step(n * 120)
+        self.assertEqual(self.classifier.call_count, questions.MAX_EVALUATIONS)
+        self.api.answer_question.assert_not_called()
+
     def test_new_block_control_version_invalidates_previous_waiting_classification(self):
         self.blocked_setup()
         self.step(0)
         self.state['goal_control'] = {'status': 'blocked', 'key': 'new-external-control'}
+        self.classifier.return_value.update(ordinary=False, choices=[], awaiting_question=False)
         self.step(120)
         self.api.answer_question.assert_not_called()
-        self.assertEqual(self.state['questions']['permission-item']['status'], 'cancelled')
+        self.assertEqual(self.state['questions']['permission-item']['status'], 'rejected')
+        self.assertEqual(self.classifier.call_count, 2)
 
     def test_sync_answer_does_not_mask_new_user_timestamp_before_rollout(self):
         self.blocked_setup()
@@ -351,8 +466,12 @@ class Questions(unittest.TestCase):
                 self.step(0)
                 self.agent['QuestionBinding'][key] = changed
                 self.step(120)
-                self.api.answer_question.assert_not_called()
-                self.classifier.assert_called_once()
+                if key == 'thread':
+                    self.api.answer_question.assert_not_called()
+                    self.classifier.assert_called_once()
+                else:
+                    self.api.answer_question.assert_called_once()
+                    self.assertEqual(self.classifier.call_count, 2 if key == 'lastUserMessageAt' else 1)
 
     def test_quota_change_after_classification_does_not_submit(self):
         self.step(0)

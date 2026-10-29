@@ -39,9 +39,16 @@ const { isDeepStrictEqual } = require('node:util');
       console.log(JSON.stringify({ answered: pending.id }));
       return;
     }
+    const questionOrigins = {};
+    for (const record of a.persistence?.metadata?.asyncQuestions ?? []) {
+      const item = record.item;
+      if (record.resolution === undefined && item?.type === 'agentMessage' && item.delivery === 'async'
+          && (a.pendingPermissions ?? []).some(p => p.id === 'permission-' + item.id))
+        questionOrigins['permission-' + item.id] = item;
+    }
     console.log(JSON.stringify({ id: a.id, provider: a.provider, cwd: a.cwd,
       thread: session, archivedAt: a.archivedAt, status: a.status,
       activeTurn: a.activeTurn ?? null, lastUserMessageAt: a.lastUserMessageAt ?? null,
-      pendingPermissions: a.pendingPermissions ?? [] }));
+      pendingPermissions: a.pendingPermissions ?? [], questionOrigins }));
   } finally { await client.close(); }
 })().catch(() => { console.error('Paseo question snapshot unavailable'); process.exitCode = 1; });
