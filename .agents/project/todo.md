@@ -327,4 +327,4 @@ C04-A/B1/B2的公开检查、输入基础与类型便捷方法已按各自范围
 
 ## 阶段二：API 正文加密扩展（仅规划）
 
-按[API正文加密与Vue对接计划](plans/api-payload-encryption.md)，R7安全contract→R11基于现HTTP的可选中间件→R14真实浏览器/双库/多节点验收；Vue仅提供TypeScript互操作示例，不启动V2。标准协议、响应密钥、认证绑定、防重放、轮换/错误/重试边界先Spec，未验收不声称API加密已提供；不抢占当前功能簇。
+按[API正文加密与Vue对接计划](plans/api-payload-encryption.md)，R7安全contract→R11复用现HTTP中间件/SSE事件/WS消息链→R14真实浏览器/双库/多节点及流重连/背压验收；交付全站API组与局部策略、可直接引用的Vue适配和Apifox支持范围内的脚本/示例，不启动V2。标准协议、响应密钥、认证绑定、防重放、轮换/错误/重试边界先Spec，未验收不声称API加密已提供；不抢占当前功能簇。
