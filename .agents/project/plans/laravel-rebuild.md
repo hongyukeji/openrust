@@ -215,7 +215,7 @@ R2 配置补强以现有 Figment/ConfigLoader 和 section<T> 为唯一来源，�
 | C31 | 单机部署、服务复用、dev/watch 编排、Compose、迁移发布、备份恢复、构建成本、性能/故障/集群 | R14 |
 | C32 | V2 Rust Admin + Vue/pure-admin + uni-app，PC 仅设计；运维视图与业务权限均通过公开 API | R15 |
 | C33 | 官方生态可选包的逐项等价能力、独立应用接入和实际验收；领域模型不进核心 | R16 |
-| C34 | MQTT独立可选服务端/Broker与客户端；Laravel式Provider/配置/Manager/Contract，默认编译和运行关闭，按角色隔离依赖与真实协议验收 | R11/R14 |
+| C34 | MQTT服务端/Broker与客户端按需引入扩展；Laravel式Provider/配置/Manager/Contract，未选择依赖/feature不编译专属依赖，注册角色并配置后才有运行副作用，按角色验收 | R11/R14 |
 
 ## 5. 按依赖实施
 
@@ -267,17 +267,17 @@ R0–R16 是依赖路线，`todo.md` 只维护当前可领取项。旧观测审�
 
 用户已授权将两种角色纳入V1：服务端作为Broker接受外部客户端，客户端连接外部Broker；两者可独立启用、同时使用或均不使用。
 
-MQTT并非常规Web/API项目的必需能力，默认关闭；需要它的项目应能按统一约定快速启用，无需修改框架核心。不使用的项目不承担MQTT专属编译/链接和运行开销，Cargo锁图与版本解析的实际边界如下。
+MQTT作为按需引入的可选扩展，不表述为框架内置后默认禁用。宿主未选择相应Cargo依赖/feature，就不编译MQTT专属第三方依赖、不注册Provider、不建立连接或监听；需要时沿统一约定引入，无需改框架核心。Rust是否编译依赖由Cargo选择决定，不是简单地“不写use就不编译”。Cargo锁图与版本解析边界如下。
 
 此为Laravel包/扩展机制下的通用增强，不称Laravel原生MQTT对应项。设计依据为官方[包开发](https://laravel.com/docs/13.x/packages)、[Service Provider](https://laravel.com/docs/13.x/providers)及既有容器/配置机制；此前聊天中的组件、API、feature名称和部署建议仅为候选，不作为强制实现约束。实施Spec应独立评估必要性和职责边界，保留按需可选与依赖隔离，不为体现风格堆叠抽象；不与集群自动发现、调度或缓存强行串联，不改变当前任务顺序。
 
 - Laravel风格是开发体验验收项：从配置连接、容器解析、发布/订阅、消息处理、替换驱动到fake/断言的完整示例，须能沿用Laravel既有概念与操作习惯，仅在Rust类型/所有权/async必要处适配并说明。提供符合职责的简洁链式API，不机械复制PHP语法；普通业务不应自行驱动第三方eventloop或手写连接重试。实现前以实际使用示例审查接口，不能仅加同名Provider/Facade就算达标。
 - 统一ServiceProvider/Container、配置仓储与.env、默认及命名连接、Manager与公开Contract；外部驱动可公开注册替换，不改src核心。Facade与DI（如提供）共用同一Manager，不建立第二容器或业务事件系统；服务端认证/主题授权通过既有公开机制扩展。
 - 复用成熟组件，客户端首选评估rumqttc；Broker评估rumqttd/RMQTT等实际嵌入与部署边界。协议版本、QoS、会话/遗嘱/保留消息、TLS及资源/持久性边界须逐项核实；未支持不虚报。实施时才在stack.md登记选定版本、许可证、MSRV、维护情况及构建成本，不在本轮增加Cargo依赖。
-- 候选feature名为`mqtt-client`与`mqtt-server`，均不在default，独立依赖以`optional = true`和`dep:`显式关联，按需控制第三方default-features。HTTP默认入口不传递启用；仅客户端不编译Broker专属依赖，反之亦然（公共依赖复用除外）。不得以.env运行开关代替编译隔离；工作区feature合并及all-features构建仍会显式引入对应依赖。
+- 打包采用Cargo feature或同仓可选扩展package，在实施Spec依实际依赖边界确定，不现在硬拆包，不新建独立发布仓库。若采用feature，候选`mqtt-client`/`mqtt-server`不进入default；专属依赖以`optional = true`/`dep:`等机制按需关联并控制第三方default-features。仅client不编译Broker专属依赖，反之亦然（共享依赖除外）；HTTP入口不传递选择MQTT，不以.env开关代替编译隔离，workspace feature合并/all-features仍可能明确引入依赖。
 - 可选依赖仍可能进入共用Cargo.lock及版本解析，不能承诺锁图/版本约束完全无影响；验收关注未启用角色的专属依赖不进入默认编译/链接及原生构建脚本。若实际解析冲突无法隔离，先记录证据再评估最小独立可选集成包，不为假设拆大量crate。依据：[Cargo features](https://doc.rust-lang.org/cargo/reference/features.html)、[dependency resolution](https://doc.rust-lang.org/cargo/reference/resolver.html)。
-- 运行也显式启用：默认不开端口、不连接Broker、不启动消费循环或自动部署服务；复用现有受管任务/取消/关闭，长驻入口不阻塞Provider boot。配置错误和连接失败明确传播，限队列/连接/消息/重试与背压，消息内容及凭据脱敏；发布入队、Broker确认和业务处理完成分别定义。
-- 门禁覆盖默认关闭、client-only、server-only、两者同时启用与无默认feature；检查cargo tree/build/Rustdoc/生成应用及默认运行无MQTT副作用。真实Broker/独立客户端验证收发、认证/ACL、声明的协议与QoS、重连/会话、并发背压和有界关闭；modules/example展示公开接入并有fake/真实行为证据，MQTT默认关闭时示例不反向启用依赖。
+- 选择并编译扩展还须宿主显式注册相应client/Broker角色Provider并提供合法配置，才连接/监听；任意use或进程启动不能隐式拉起Broker，不额外要求一个运行时enabled=false开关作为使用的必经条件。按需复用现Queue/Event及受管任务/取消/关闭，不自动起worker或用于节点发现，不以集群/缓存/调度为由暗启MQTT；长驻入口不阻塞boot。错误显式传播，连接/消息/重试与背压有界，凭据脱敏，发布入队/Broker确认/业务完成分别定义。
+- 门禁覆盖未选择依赖/feature、编译扩展但未注册Provider、client-only、Broker-only、双角色与无default feature；检查cargo tree/build/Rustdoc/生成应用，未选择不编译专属依赖，未注册不连接/监听，示例不反向引入。真实Broker/独立客户端验证收发、认证/ACL、声明的协议与QoS、重连/会话、背压和有界关闭；modules/example通过公开Provider/driver/client服务接入，不凭组件名称或编译通过宣称协议已验收。
 
 ## 6. 功能簇 contract 模板
 

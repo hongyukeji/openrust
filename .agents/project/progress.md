@@ -59,7 +59,7 @@
 | 统一返回格式 / 业务观测增强 | 🔵 已有实现待1:1对齐 | 保留价值，须经Response/Resource/异常与公开扩展融合；分页独立协议整改仍未完成，不宣称上游原生默认 |
 | SMS具体渠道 | 🔵 已有实现待1:1对齐 | 作为Notification/驱动扩展；Twilio adapter与fake/log资产不代表真实短信投递，实发缺授权账号/凭据/目标；[mail](core/mail.md) |
 | gRPC | 🔵 已有实现待1:1对齐 | 可选协议扩展、生成与真实TCP专项见[grpc](core/grpc.md)；不是Laravel核心原生gRPC；完整集群/生命周期仍须R11/R14验收 |
-| MQTT Broker / Client | 📝 仅规划 | [总计划R11](plans/laravel-rebuild.md#r11-明确待办mqtt-可选服务端与客户端)；默认关闭、独立角色与驱动，未实现/未真实验收 |
+| MQTT Broker / Client | 📝 仅规划 | [总计划R11](plans/laravel-rebuild.md#r11-明确待办mqtt-可选服务端与客户端)；按需引入client/Broker扩展，未选择不编译MQTT专属依赖、不连接/监听；引入后显式注册Provider并配置，未实现/未真实验收 |
 
 ### 如何读取与维护
 
