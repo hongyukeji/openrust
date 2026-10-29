@@ -251,11 +251,21 @@ fn rewrite_uri(mut request: Request, target: &str) -> Result<Request> {
 }
 
 pub(crate) async fn fallback(State(state): State<AppState>, request: Request) -> Response {
+    fallback_response(state, request).await
+}
+
+pub(crate) async fn fallback_response(state: AppState, request: Request) -> Response {
     let path = request.uri().path();
     if is_reserved_path(path) {
         return Error::NotFound("route not found".into()).into_response();
     }
 
+    try_static_file(state, request)
+        .await
+        .unwrap_or_else(|| Error::NotFound("route not found".into()).into_response())
+}
+
+pub(crate) async fn try_static_file(state: AppState, request: Request) -> Option<Response> {
     let service =
         ServeDir::new(&state.config().server.public_dir).append_index_html_on_directories(true);
     match service.oneshot(request).await {
@@ -265,9 +275,9 @@ pub(crate) async fn fallback(State(state): State<AppState>, request: Request) ->
                 StatusCode::NOT_FOUND | StatusCode::METHOD_NOT_ALLOWED
             ) =>
         {
-            Error::NotFound("route not found".into()).into_response()
+            None
         }
-        Ok(response) => response.map(Body::new),
+        Ok(response) => Some(response.map(Body::new)),
         Err(never) => match never {},
     }
 }

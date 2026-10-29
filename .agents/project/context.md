@@ -1,17 +1,17 @@
 # 项目上下文
 
-> 当前代码与目标：旧 `app/example/` 过渡结构已迁至 `modules/example/`；R2-M 模块闭环与 R1-E 当前综合示例均已有真实验收及提交。R2-N 模块硬依赖图和确定性启动顺序已由 48be854 提交；R3-A/B/C 已按范围完成并提交。R3-D middleware alias/group 已通过行为、生成应用、真实 HTTP、全 workspace 门禁和独立安全复审，限定提交完成后按 todo 领取后继。完整模块管理和 Laravel 1:1 范围继续按 [ADR-074](decisions/adr-074-laravel-modules-directory.md) 与活跃队列推进。
+> 当前代码与目标：旧 `app/example/` 过渡结构已迁至 `modules/example/`；R2-M 模块闭环与 R1-E 当前综合示例均已有真实验收及提交。R2-N 模块硬依赖图和确定性启动顺序已由 48be854 提交；R3-A/B/C/D 已按范围验收并提交。R3-E Laravel fallback 的代码、真实 HTTP、生成项目与适用门禁已通过，正在限定提交；完整模块管理和 Laravel 1:1 范围仍按 [ADR-074](decisions/adr-074-laravel-modules-directory.md) 与活跃队列推进。
 
 > 受众：AI Agent
 > 更新：2026-10-29
-> 摘要：正式目标为 Laravel + laravel-modules 的 Rust 1:1 实现。R1-E、R2-N 与 R3-A/B/C 已按适用范围提交并保留真实服务及失败边界证据；R3-D middleware alias/group 已验证并限定提交。R3 HTTP/Web 和完整 Laravel/laravel-modules 能力矩阵仍未完成。
+> 摘要：正式目标为 Laravel + laravel-modules 的 Rust 1:1 实现。R1-E、R2-N 与 R3-A/B/C/D 已按适用范围提交并保留验收证据；R3-E Laravel fallback 已通过实现与适用验收，待限定提交。R3 HTTP/Web 和完整 Laravel/laravel-modules 能力矩阵仍未完成。
 
 ## 当前状态
 
 | 项 | 当前事实与目标 |
 | --- | --- |
 | 当前代码基线 | 规划开始 HEAD 为 `7f964b8`；根 openrust 同 package 的框架 lib 与默认 server 已装配；应用职责回根，当前示例位于 modules/example，按编译清单和运行激活状态接入；tools 与 consumers 保留；版本和依赖以 Cargo.toml 为准 |
-| 当前阶段 | [全面重构计划](plans/laravel-rebuild.md) 已记录；R1-S、R2-A/A2/A3、R2-B统一Provider、R2-C入口scope、R2-D TestApp、R2-M模块闭环、R2-N模块依赖顺序与R1-E综合示例各子簇按范围完成；R1-E 提交 bc3fa01。R2-N 的 PG18/MySQL8.4 模块 HTTP、生成应用、根默认 TCP 入口及工作区门禁已通过并提交 48be854；R3-A semantic 状态默认与 R3-B RouteGroup 已通过适用验收。`storage_publication_uncertain` 后远端迟到完成、强杀与 shutdown deadline 仍不保证无孤儿；唯一队列继续 R3 HTTP/Web，见 [todo.md](todo.md) |
+| 当前阶段 | [全面重构计划](plans/laravel-rebuild.md) 已记录；R1-S、R2-A/A2/A3、R2-B统一Provider、R2-C入口scope、R2-D TestApp、R2-M模块闭环、R2-N模块依赖顺序与R1-E综合示例各子簇按范围完成；R1-E 提交 bc3fa01。R3-A/B/C/D 已提交；R3-E fallback 已通过源码门禁、生成项目与根实际 TCP HTTP，正做限定提交收尾。`storage_publication_uncertain` 后远端迟到完成、强杀与 shutdown deadline 仍不保证无孤儿；后继按唯一队列继续 R3 HTTP/Web，见 [todo.md](todo.md) |
 | 目标授权 | [ADR-070](decisions/adr-070-laravel-first-rebuild.md)：Laravel固定基线为1:1行为标准，laravel-modules为正式模块化范围，Goravel仅跨语言实现参考；允许全面重写，无历史兼容义务 |
 | 当前完成边界 | 原认证/数据/队列/缓存/存储/实时/gRPC/视图等有专项证据；完整生产/集群/最低版本仍有缺口，新目标不能继承为已验收 |
 | 协作 | 已定 contract 优先 gpt-6.1-sol 子智能体；主控负责设计/协调；所有 Agent 直接 main，非重叠文件可并行实现；共享 manifest/lock/迁移/文档/提交由集成负责人串行协调，target/服务资源预先分配，审查并行只读；高风险改码不同模型或 Provider 审查；不推送 |

@@ -1,10 +1,10 @@
 # 当前计划
 
-> 当前代码与目标：R1-E、R2-N、R3-A/B/C/D 均已按范围验收并提交；真实服务证据和外部故障边界记录在 `memory/testing.md`。下一步按唯一队列继续 R3 HTTP/Web 行为与模块行为矩阵；完整模块管理仍按 [ADR-074](decisions/adr-074-laravel-modules-directory.md) 推进。
+> 当前代码与目标：R1-E、R2-N、R3-A/B/C/D 均已按范围验收并提交；R3-E Laravel fallback 已通过源码、生成应用与根实际 HTTP 验收，当前收尾限定提交。下一步继续 todo 中的 R3 HTTP/Web 行为与模块行为矩阵；完整模块管理仍按 [ADR-074](decisions/adr-074-laravel-modules-directory.md) 推进。
 
 > 受众：AI Agent
 > 更新：2026-10-29
-> 摘要：执行 Laravel + laravel-modules 的 Rust 1:1 实现；R0 上游和逐章资产基线已记录，R1-S、R2-A/A2/A3、R2-B/C/D/M/N、R1-E 与 R3-A/B/C/D 已按簇完成适用验收；继续 R3 HTTP/Web 与模块行为矩阵。R0–R16 全体及严格 1:1 仍未完成。
+> 摘要：执行 Laravel + laravel-modules 的 Rust 1:1 实现；R0 上游和逐章资产基线已记录，R1-S、R2-A/A2/A3、R2-B/C/D/M/N、R1-E 与 R3-A/B/C/D 已按簇完成适用验收；R3-E fallback 已完成验证、待提交，之后继续 R3 HTTP/Web 与模块行为矩阵。R0–R16 全体及严格 1:1 仍未完成。
 
 ## 当前里程碑
 

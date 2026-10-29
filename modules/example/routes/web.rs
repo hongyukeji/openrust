@@ -4,16 +4,32 @@ pub(super) fn register(
     routes: openrust::http::Routes,
     view_enabled: bool,
 ) -> openrust::http::Routes {
-    #[cfg(feature = "view")]
-    let routes = if view_enabled {
-        routes.get(
-            "/pages/about",
-            crate::modules::example::http::controllers::pages::about_page,
-        )
-    } else {
-        routes
-    };
     #[cfg(not(feature = "view"))]
     let _ = view_enabled;
-    routes
+    routes.group(
+        openrust::http::RouteGroup::new()
+            .prefix("/pages")
+            .middleware_group("example.response"),
+        |pages| {
+            #[cfg(feature = "view")]
+            let pages = if view_enabled {
+                pages.get(
+                    "/about",
+                    crate::modules::example::http::controllers::pages::about_page,
+                )
+            } else {
+                pages
+            };
+            pages.fallback(pages_not_found)
+        },
+    )
+}
+
+async fn pages_not_found(
+    request: openrust::http::axum::extract::Request,
+) -> impl openrust::http::axum::response::IntoResponse {
+    (
+        openrust::http::axum::http::StatusCode::NOT_FOUND,
+        format!("示例页面不存在：{}", request.uri().path()),
+    )
 }

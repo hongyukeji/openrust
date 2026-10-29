@@ -15,7 +15,7 @@ use openrust::http::RateLimitLayer;
 use openrust::http::axum;
 use openrust::http::{
     Created, HttpServiceProvider, Inject, NoContent, PageParams, Paginated, RouteGroup,
-    RouteUrlGenerator, Validated, build_router,
+    RouteUrlGenerator, Routes, Validated, build_router,
 };
 use openrust::http::{Json, Path, Query};
 
@@ -1525,6 +1525,248 @@ async fn public_site_serves_index_and_maps_files_from_configured_directory() -> 
         .await?;
     assert_eq!(asset.status(), StatusCode::OK);
     assert_eq!(to_bytes(asset.into_body(), usize::MAX).await?, "site asset");
+    Ok(())
+}
+
+async fn fallback_echo(request: Request) -> String {
+    let uri = request.uri().to_string();
+    let marker = request
+        .headers()
+        .get("x-fallback-marker")
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("missing")
+        .to_owned();
+    let body = to_bytes(request.into_body(), 1024).await.map_or_else(
+        |_| "unreadable".to_owned(),
+        |body| String::from_utf8_lossy(&body).into_owned(),
+    );
+    format!("{uri}|{marker}|{body}")
+}
+
+#[tokio::test]
+async fn fallback_runs_only_for_unmatched_requests_after_static_lookup() -> TestResult {
+    let directory = tempfile::tempdir()?;
+    std::fs::write(directory.path().join("asset.txt"), "static asset")?;
+    std::fs::create_dir_all(directory.path().join("api"))?;
+    std::fs::create_dir_all(directory.path().join("ws"))?;
+    std::fs::write(directory.path().join("api/existing.txt"), "api static")?;
+    std::fs::write(directory.path().join("ws/socket.txt"), "ws static")?;
+    let mut config = FrameworkConfig::default();
+    config.server.public_dir = directory.path().to_owned();
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(config));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(TestRoutes::new(|routes| {
+            routes.get("/known", grouped_route).fallback(fallback_echo)
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let router = build_router(&app)?;
+
+    let known = router
+        .clone()
+        .oneshot(Request::get("/known").body(Body::empty())?)
+        .await?;
+    assert_eq!(known.status(), StatusCode::OK);
+    assert_eq!(to_bytes(known.into_body(), usize::MAX).await?, "grouped");
+
+    let method_mismatch = router
+        .clone()
+        .oneshot(Request::post("/known").body(Body::empty())?)
+        .await?;
+    assert_eq!(method_mismatch.status(), StatusCode::METHOD_NOT_ALLOWED);
+
+    let static_asset = router
+        .clone()
+        .oneshot(Request::get("/asset.txt").body(Body::empty())?)
+        .await?;
+    assert_eq!(static_asset.status(), StatusCode::OK);
+    assert_eq!(
+        to_bytes(static_asset.into_body(), usize::MAX).await?,
+        "static asset"
+    );
+
+    for (path, expected) in [
+        ("/api/existing.txt", "api static"),
+        ("/ws/socket.txt", "ws static"),
+    ] {
+        let response = router
+            .clone()
+            .oneshot(Request::get(path).body(Body::empty())?)
+            .await?;
+        assert_eq!(response.status(), StatusCode::OK, "{path}");
+        assert_eq!(to_bytes(response.into_body(), usize::MAX).await?, expected);
+    }
+
+    let static_head = router
+        .clone()
+        .oneshot(Request::head("/asset.txt").body(Body::empty())?)
+        .await?;
+    assert_eq!(static_head.status(), StatusCode::OK);
+    assert!(
+        to_bytes(static_head.into_body(), usize::MAX)
+            .await?
+            .is_empty()
+    );
+
+    let fallback = router
+        .oneshot(
+            Request::post("/api/not-found?source=client")
+                .header("x-fallback-marker", "preserved")
+                .body(Body::from("fallback body"))?,
+        )
+        .await?;
+    assert_eq!(fallback.status(), StatusCode::OK);
+    assert_eq!(
+        to_bytes(fallback.into_body(), usize::MAX).await?,
+        "/api/not-found?source=client|preserved|fallback body"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn grouped_fallback_is_prefix_scoped_and_uses_group_middleware() -> TestResult {
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(TestRoutes::new(|routes| {
+            routes.group(
+                RouteGroup::new()
+                    .prefix("/pages")
+                    .middleware(axum::middleware::from_fn(mark_route_group)),
+                |pages| pages.fallback(fallback_echo),
+            )
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let router = build_router(&app)?;
+
+    let grouped = router
+        .clone()
+        .oneshot(Request::get("/pages/missing").body(Body::empty())?)
+        .await?;
+    assert_eq!(grouped.status(), StatusCode::OK);
+    assert_eq!(grouped.headers()["x-route-group"], "api");
+    assert_eq!(
+        to_bytes(grouped.into_body(), usize::MAX).await?,
+        "/pages/missing|missing|"
+    );
+
+    let outside = router
+        .clone()
+        .oneshot(Request::get("/outside").body(Body::empty())?)
+        .await?;
+    assert_eq!(outside.status(), StatusCode::NOT_FOUND);
+    assert!(!outside.headers().contains_key("x-route-group"));
+
+    let api_missing = router
+        .oneshot(Request::get("/api/not-found").body(Body::empty())?)
+        .await?;
+    assert_eq!(api_missing.status(), StatusCode::NOT_FOUND);
+    assert_eq!(
+        api_missing.headers()[header::CONTENT_TYPE],
+        "application/json"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn explicit_fallback_runs_when_api_status_mode_maps_missing_to_ok() -> TestResult {
+    let mut config = FrameworkConfig::default();
+    config.api.http_status = openrust::config::HttpStatusMode::AlwaysOk;
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(config));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(TestRoutes::new(|routes| routes.fallback(fallback_echo)));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let router = build_router(&app)?;
+
+    for path in ["/missing", "/api/missing"] {
+        let response = router
+            .clone()
+            .oneshot(Request::get(path).body(Body::empty())?)
+            .await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            to_bytes(response.into_body(), usize::MAX).await?,
+            format!("{path}|missing|")
+        );
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn duplicate_fallbacks_fail_router_build_without_panicking() -> TestResult {
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(TestRoutes::new(|routes| {
+            routes
+                .fallback(fallback_echo)
+                .merge(openrust::http::Routes::new().fallback(fallback_echo))
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let Err(error) = build_router(&app) else {
+        return Err(std::io::Error::other("duplicate fallback must be rejected").into());
+    };
+    assert_eq!(error.code(), "http_fallback_duplicate");
+
+    let duplicate_groups = Routes::new()
+        .group(RouteGroup::new().prefix("/pages"), |routes| {
+            routes.fallback(fallback_echo)
+        })
+        .group(RouteGroup::new().prefix("/pages"), |routes| {
+            routes.fallback(fallback_echo)
+        });
+    let Err(error) = duplicate_groups.into_router() else {
+        return Err(std::io::Error::other("duplicate group fallback must be rejected").into());
+    };
+    assert_eq!(error.code(), "http_fallback_duplicate");
+
+    let parameter_group = Routes::new().group(RouteGroup::new().prefix("/{id}"), |routes| {
+        routes.fallback(fallback_echo)
+    });
+    let Err(error) = parameter_group.into_router() else {
+        return Err(std::io::Error::other("parameterized fallback scope must be rejected").into());
+    };
+    assert_eq!(error.code(), "http_fallback_scope_unsupported");
+
+    let merged_groups = Routes::new().merge(
+        Routes::new()
+            .group(RouteGroup::new().prefix("/pages"), |routes| {
+                routes.fallback(fallback_echo)
+            })
+            .group(RouteGroup::new().prefix("/other"), |routes| {
+                routes.fallback(fallback_echo)
+            }),
+    );
+    let Err(error) = merged_groups
+        .group(RouteGroup::new().prefix("/pages"), |routes| {
+            routes.fallback(fallback_echo)
+        })
+        .into_router()
+    else {
+        return Err(std::io::Error::other("merged duplicate fallback must be rejected").into());
+    };
+    assert_eq!(error.code(), "http_fallback_duplicate");
     Ok(())
 }
 

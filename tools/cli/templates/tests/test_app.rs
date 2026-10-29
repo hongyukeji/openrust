@@ -42,6 +42,12 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
         }))?;
     let health = Request::builder().uri("/health").body(Body::empty())?;
     app.request(health).await?.assert_status(StatusCode::OK)?;
+    let missing = Request::builder()
+        .uri("/api/missing")
+        .body(Body::empty())?;
+    let fallback = app.request(missing).await?;
+    fallback.assert_status(StatusCode::NOT_FOUND)?;
+    assert_eq!(fallback.body(), "未找到路由：/api/missing".as_bytes());
     app.shutdown(openrust::tokio::time::Instant::now() + Duration::from_secs(5))
         .await?;
     Ok(())

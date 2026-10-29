@@ -5,7 +5,7 @@ OpenRust 框架基于 `axum` 和 `tower` 构建的 HTTP 层。
 - [`HttpServiceProvider`]：在 `register` 登记 HTTP 配置与能力，在 `boot` 贡献 `serve` 命令、默认 middleware 栈、`/health` 和 `/ready`。
 - `BootContext::routes`：应用 Provider 在 `boot` 阶段添加路由。
 - `BootContext::http_layer`：在所有路由外层注册共享 Tower 请求上下文，并置于路由级 layer 之外。
-- [`Routes`]：基于 `axum::Router` 的路由约定，提供 `get` / `post` / …、`group`、`nest`、`merge`、`layer`；[`RouteGroup`] 支持可嵌套路径前缀与组级 Tower middleware。middleware 按声明顺序进入请求，组外路由不受影响。
+- [`Routes`]：基于 `axum::Router` 的路由约定，提供 `get` / `post` / …、`group`、`nest`、`merge`、`layer` 与 `fallback`；[`RouteGroup`] 支持可嵌套路径前缀与组级 Tower middleware。middleware 按声明顺序进入请求，组外路由不受影响。
 - [`Resource`] 与 [`ResourceActions`]：只注册实际存在的 controller action；`Routes::resource` 将 `list` / `create` 映射到集合路由，将 `get` / `update` / `delete` 映射到 `{id}`。`resource_with` 可通过 `only` 或 `except` 过滤 action。
 - [`Created<T>`] 与 [`NoContent`]：成功响应封装；前者可选携带 `Location`（semantic 模式为 201），后者返回省略 `data` 的成功包装（HTTP 200）。
 - [`PageParams`] 与 [`Paginated<T>`]：校验 `page` / `per_page` 查询参数，并返回含数组 `data` 和分页 `meta` 的 API 封装。
@@ -76,6 +76,23 @@ app.routes(|routes| {
 ```
 
 Middleware 定义在应用内共享，是否应用由各路由或路由组显式选择。当前 OpenRust 路由按 Provider 贡献，没有 Laravel `web` / `api` 文件约定的自动分组，因此由路由明确选择命名 group。
+
+`Routes::fallback(handler)` 用于处理没有匹配路由的请求；`RouteGroup` 内的 fallback 仅覆盖组前缀，并遵循组 middleware。已匹配路径上的错误 HTTP 方法仍返回 405。同一静态完整 scope 的多个 fallback 会在构建时返回 `http_fallback_duplicate`。带路由参数或通配符的组前缀暂不支持 fallback，构建时优先返回 `http_fallback_scope_unsupported`，避免 Axum catch-all 冲突。GET/HEAD 未匹配请求先检查 `public/` 静态资源，命中时返回文件；没有静态资源才执行业务 handler。fallback handler 会收到完整原始 URI、请求头和 body。默认没有业务 fallback 时，`/api/*`、`/ws/*` 继续返回框架 404；应用显式配置 fallback 后可以接管这些路径，包括优先返回对应静态文件。
+
+```rust,ignore
+use openrust::http::{RouteGroup, Routes};
+
+async fn page_not_found(request: openrust::http::axum::extract::Request) -> impl openrust::http::axum::response::IntoResponse {
+    (openrust::http::axum::http::StatusCode::NOT_FOUND,
+     format!("页面不存在：{}", request.uri().path()))
+}
+
+fn routes(routes: Routes) -> Routes {
+    routes.group(RouteGroup::new().prefix("/pages"), |pages| {
+        pages.get("/about", about).fallback(page_not_found)
+    })
+}
+```
 
 路由可以在定义后立即通过 `.name(...)` 命名；组的 `name_prefix` 会与内层名称按原样拼接，因此分隔符应由应用提供，例如 `admin.`。处理器提取 `RouteUrlGenerator` 后，可按名称生成绝对 URL。必需路径参数占用一个路径段，其值会编码为单段；多余参数进入按字典序排列的 query。host/scheme 来自 `app.url` 配置，不读取请求的 `Host`：
 

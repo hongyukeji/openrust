@@ -6,8 +6,10 @@ use std::sync::Arc;
 
 use crate::core::AppState;
 use axum::Router;
-use axum::extract::Request;
+use axum::body::Body;
+use axum::extract::{Request, State};
 use axum::handler::Handler;
+use axum::http::Method;
 use axum::response::IntoResponse;
 use axum::routing::{self, MethodRouter, Route};
 use tower::{Layer, Service};
@@ -22,6 +24,9 @@ type RouteParts = (
     Vec<(String, String)>,
     Vec<String>,
     Vec<crate::core::Error>,
+    Vec<crate::core::Error>,
+    bool,
+    Vec<String>,
 );
 
 /// 应用启动时登记、路由构建时读取的命名 middleware 定义。
@@ -229,6 +234,9 @@ pub struct Routes {
     route_name_errors: Vec<String>,
     middleware_registry: Option<Arc<MiddlewareRegistry>>,
     middleware_errors: Vec<crate::core::Error>,
+    route_errors: Vec<crate::core::Error>,
+    fallback_registered: bool,
+    fallback_prefixes: Vec<String>,
 }
 
 impl Routes {
@@ -368,14 +376,41 @@ impl Routes {
             *path = join_route_path(&prefix, path);
             *pending_name_prefix = format!("{name_prefix}{pending_name_prefix}");
         }
-        self.router = if prefix.is_empty() || prefix == "/" {
-            self.router.merge(inner.router)
+        let inner_fallback_prefixes: Vec<_> = inner
+            .fallback_prefixes
+            .iter()
+            .map(|nested| fallback_scope_key(&join_route_path(&prefix, nested)))
+            .collect();
+        let duplicate_fallback = inner_fallback_prefixes
+            .iter()
+            .any(|nested| self.fallback_prefixes.contains(nested));
+        if duplicate_fallback {
+            self.route_errors.push(crate::core::Error::custom(
+                "http_fallback_duplicate",
+                "only one fallback route can be registered for the same route scope",
+            ));
+        } else if inner_fallback_prefixes.iter().any(|path| {
+            path.split('/')
+                .any(|segment| segment == "{}" || segment == "*")
+        }) {
+            self.route_errors.push(crate::core::Error::custom(
+                "http_fallback_scope_unsupported",
+                "fallback routes cannot use parameterized or wildcard group prefixes",
+            ));
+            self.fallback_prefixes.extend(inner_fallback_prefixes);
         } else {
-            self.router.nest(&prefix, inner.router)
-        };
+            self.fallback_registered |= inner_fallback_prefixes.iter().any(|path| path == "/");
+            self.fallback_prefixes.extend(inner_fallback_prefixes);
+            self.router = if prefix.is_empty() || prefix == "/" {
+                self.router.merge(inner.router)
+            } else {
+                self.router.nest(&prefix, inner.router)
+            };
+        }
         self.route_names.extend(inner.route_names);
         self.route_name_errors.extend(inner.route_name_errors);
         self.middleware_errors.extend(inner.middleware_errors);
+        self.route_errors.extend(inner.route_errors);
         self.last_route = inner.last_route;
         self
     }
@@ -383,11 +418,74 @@ impl Routes {
     /// 在同一层级合并另一张路由表。
     #[must_use]
     pub fn merge(mut self, other: Routes) -> Self {
-        self.router = self.router.merge(other.router);
+        if other
+            .fallback_prefixes
+            .iter()
+            .any(|prefix| self.fallback_prefixes.contains(prefix))
+        {
+            self.route_errors.push(crate::core::Error::custom(
+                "http_fallback_duplicate",
+                "only one fallback route can be registered for the same route scope",
+            ));
+        } else {
+            self.fallback_registered |= other.fallback_registered;
+            self.fallback_prefixes
+                .extend(other.fallback_prefixes.clone());
+            self.router = self.router.merge(other.router);
+        }
         self.route_names.extend(other.route_names);
         self.route_name_errors.extend(other.route_name_errors);
         self.middleware_errors.extend(other.middleware_errors);
+        self.route_errors.extend(other.route_errors);
         self.last_route = other.last_route;
+        self
+    }
+
+    /// 注册未匹配路由时执行的 fallback handler。
+    ///
+    /// GET/HEAD 请求先尝试读取 `public` 目录中的静态资源，再调用 handler；其他方法直接调用 handler。
+    /// 若用于 `RouteGroup` 内，fallback 只覆盖该组前缀，并遵循组的 middleware。已匹配路径上的
+    /// 方法不匹配仍由框架返回 405。每个同层 router 只能注册一个 fallback；带路由参数或通配符的组前缀
+    /// 暂不支持 fallback，构建时返回 `http_fallback_scope_unsupported`。
+    #[must_use]
+    pub fn fallback<H, T>(mut self, handler: H) -> Self
+    where
+        H: Handler<T, AppState> + Clone,
+        T: 'static,
+    {
+        if self.fallback_registered {
+            self.route_errors.push(crate::core::Error::custom(
+                "http_fallback_duplicate",
+                "only one fallback route can be registered for the same route scope",
+            ));
+            return self;
+        }
+        self.fallback_registered = true;
+        self.fallback_prefixes.push("/".to_owned());
+        self.router =
+            self.router
+                .fallback(move |State(state): State<AppState>, mut request: Request| {
+                    let handler = handler.clone();
+                    async move {
+                        if let Some(original_uri) = request
+                            .extensions()
+                            .get::<axum::extract::OriginalUri>()
+                            .map(|original_uri| original_uri.0.clone())
+                        {
+                            *request.uri_mut() = original_uri;
+                        }
+                        if matches!(*request.method(), Method::GET | Method::HEAD) {
+                            let static_request = static_request(&request);
+                            if let Some(response) =
+                                crate::http::site::try_static_file(state.clone(), static_request)
+                                    .await
+                            {
+                                return response;
+                            }
+                        }
+                        handler.call(request, state).await.into_response()
+                    }
+                });
         self
     }
 
@@ -429,12 +527,16 @@ impl Routes {
     ///
     /// 若命名 middleware 缺少应用注册表或路由名称不完整，则返回对应配置错误。
     pub fn into_router(self) -> crate::core::Result<Router<AppState>> {
-        let (router, _, route_name_errors, middleware_errors) = self.into_parts();
+        let (router, _, route_name_errors, middleware_errors, route_errors, _, _) =
+            self.into_parts();
         if !route_name_errors.is_empty() {
             return Err(crate::core::Error::custom(
                 "http_route_name_without_route",
                 "a route name was assigned before a route was registered",
             ));
+        }
+        if let Some(error) = route_errors.into_iter().next() {
+            return Err(error);
         }
         if let Some(error) = middleware_errors.into_iter().next() {
             return Err(error);
@@ -448,8 +550,20 @@ impl Routes {
             self.route_names,
             self.route_name_errors,
             self.middleware_errors,
+            self.route_errors,
+            self.fallback_registered,
+            self.fallback_prefixes,
         )
     }
+}
+
+fn static_request(request: &Request) -> Request {
+    let mut static_request = Request::new(Body::empty());
+    *static_request.method_mut() = request.method().clone();
+    *static_request.uri_mut() = request.uri().clone();
+    *static_request.version_mut() = request.version();
+    *static_request.headers_mut() = request.headers().clone();
+    static_request
 }
 
 fn apply_named_middleware(
@@ -501,4 +615,19 @@ fn join_route_path(prefix: &str, path: &str) -> String {
         joined.push('/');
     }
     joined
+}
+
+fn fallback_scope_key(path: &str) -> String {
+    path.split('/')
+        .map(|segment| {
+            if segment.starts_with('{') && segment.ends_with('}') {
+                "{}"
+            } else if segment.starts_with('*') {
+                "*"
+            } else {
+                segment
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("/")
 }

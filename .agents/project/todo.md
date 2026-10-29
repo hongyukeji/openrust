@@ -25,7 +25,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 | R2-M 模块最小闭环与目录迁移 | 真实服务与生成项目已验收，本簇提交 | modules/ 声明注册、模块配置/资源/统一迁移、依赖与冲突错误；示例迁至 modules/example，真实HTTP及双库验证；完整管理命令归R13 |
 | R1-E 真实CRUD与当前能力示例 | 已验收并提交 bc3fa01 | 真实 Article CRUD；当前公开能力进入唯一模块示例；PostgreSQL 18/MySQL 8.4、生成项目、真实服务与整组门禁已验收。Collector PostgreSQL 隔离 sink delivery/unavailable 已复验通过，详见 testing |
 | R2 后继内核与测试底座 | R2-N 模块依赖图与顺序已完成 | `.requires` 硬依赖、稳定拓扑顺序、register/boot 一致；真实 PostgreSQL/MySQL HTTP、生成项目、根无参数 TCP、工作区门禁均有本簇证据 |
-| R3 HTTP 与 Web | R3-D middleware alias/group 已完成并提交 | `RouteGroup`、命名路由/URL 与 middleware alias/group 已交付；domain routing 与 C04 Request/Response 继续排队 |
+| R3 HTTP 与 Web | R3-E fallback routes 进行中 | `RouteGroup`、命名路由/URL 与 middleware alias/group 已交付；当前补齐 Laravel fallback，后续继续 domain routing 与 C04 Request/Response |
 | 模块包固定范围细化 | 待逐项盘点 | 对正式laravel-modules固定源码/文档的导航、源码与测试拆行为矩阵，分类必要Rust差异/用户约定/缺口；不把目录规范或显式Plugin等同完整模块管理 |
 
 ## 后继路由
@@ -235,3 +235,17 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 5. 更新框架 HTTP README/Rustdoc、示例文档、core/http、CHANGELOG、context/plan/progress、testing；执行默认/all-features workspace Clippy/tests/docs、fmt、deny、MSRV/no-default、生成项目检查与实际 HTTP，无数据库路径改变时不虚构双库必要性。无注册表引用会 fail closed，`Routes::into_router()` 检查路由/middleware错误；全功能已按以上要求验证。
 
 上游依据：[Laravel Middleware](https://laravel.com/framework/docs/13.x/middleware#middleware-groups)、[Middleware Aliases](https://laravel.com/framework/docs/13.x/middleware#middleware-aliases)。
+
+## 当前 R3-E Spec：Laravel fallback routes
+
+1. `Routes::fallback(handler)` 注册应用级未匹配请求处理器；它只处理没有匹配路由的请求，既有路径上的方法不匹配仍返回 405。
+2. `RouteGroup` 可限定 fallback 的静态路径前缀与 middleware；同一完整 scope 不接受多个 fallback，启动/公开 router 构建须返回稳定错误，不 panic 或静默覆盖。Axum 对参数化/通配符前缀 fallback 会产生 catch-all 冲突，当前返回稳定 `http_fallback_scope_unsupported` 并在文档公开边界。
+3. 若请求为 GET/HEAD 且没有业务路由匹配，先尝试现有 public 目录的静态资源服务；资源命中保持原响应，缺失后才进入业务 fallback。自定义 fallback 允许应用明确接管 `/api/*` 与 `/ws/*` 未匹配请求；未登记时继续保持框架 JSON 404。
+4. 静态检查使用独立空 body 请求，仅用于 ServeDir；原始请求、headers、query、body 必须完整交给 fallback handler。非 GET/HEAD 不尝试静态资源。
+5. `modules/example` 提供一个网页 fallback，实际 HTTP 验证命中自定义响应、middleware、正常路由优先、405、静态资源优先和默认 API 404；不覆盖或替代框架默认 fallback。
+6. 补公开 Rustdoc/HTTP README、示例说明、core/http、CHANGELOG、context/plan/progress、testing；生成项目能通过 TestApp fallback 行为测试。
+7. 执行 §6.3 workspace fmt、default/all-features clippy/tests/docs、deny、MSRV/no-default、生成项目 check/test 与真实 HTTP；不改数据库行为，不虚构双库门禁。
+
+状态：实现、真实 HTTP、生成项目及当前源码适用门禁均已通过；待最终文档/链接/diff 复核、资源收尾与 R3-E 限定本地提交后关闭。
+
+上游依据：[Laravel 13 Routing — Fallback Routes](https://laravel.com/framework/docs/13.x/routing#fallback-routes)。

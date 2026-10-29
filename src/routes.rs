@@ -285,8 +285,15 @@ pub fn build_router(app: &App) -> Result<Router> {
                 routes = builder(routes);
             }
         }
-        let (collected_router, named_routes, route_name_errors, middleware_errors) =
-            routes.into_parts();
+        let (
+            collected_router,
+            named_routes,
+            route_name_errors,
+            middleware_errors,
+            route_errors,
+            has_root_fallback,
+            _fallback_scopes,
+        ) = routes.into_parts();
         if !route_name_errors.is_empty() {
             return Err(Error::custom(
                 "http_route_name_without_route",
@@ -296,21 +303,27 @@ pub fn build_router(app: &App) -> Result<Router> {
         if let Some(error) = middleware_errors.into_iter().next() {
             return Err(error);
         }
+        if let Some(error) = route_errors.into_iter().next() {
+            return Err(error);
+        }
         route_urls = Some(if named_routes.is_empty() {
             crate::http::RouteUrlGenerator::empty()
         } else {
             crate::http::RouteUrlGenerator::new(&app.config().app.url, named_routes)?
         });
-        let app_router = collected_router
-            .fallback(crate::http::site::fallback)
-            .method_not_allowed_fallback(|| async {
-                Error::custom_with_status(
-                    StatusCode::METHOD_NOT_ALLOWED,
-                    "method_not_allowed",
-                    "method not allowed",
-                )
-            })
-            .with_state(app.state().clone());
+        let app_router = if has_root_fallback {
+            collected_router
+        } else {
+            collected_router.fallback(crate::http::site::fallback)
+        }
+        .method_not_allowed_fallback(|| async {
+            Error::custom_with_status(
+                StatusCode::METHOD_NOT_ALLOWED,
+                "method_not_allowed",
+                "method not allowed",
+            )
+        })
+        .with_state(app.state().clone());
         crate::http::site::mount(app_router, &app.config().server, app.state().clone())
     }))
     .map_err(|_| {
