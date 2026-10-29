@@ -2,6 +2,7 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+pub(crate) mod authority;
 #[cfg(feature = "http-client")]
 pub mod client;
 pub mod client_ip;
@@ -13,6 +14,7 @@ pub mod metrics;
 pub mod middleware;
 pub mod plugin;
 pub mod rate_limit;
+pub mod request;
 pub mod resource;
 pub mod response;
 pub mod routes;
@@ -35,6 +37,7 @@ pub use domain::DomainParams;
 pub use extract::{Inject, Json, Path, Query, Validated};
 pub use plugin::{HttpServiceProvider, RouteRegistry, build_router};
 pub use rate_limit::{RateLimitKey, RateLimitLayer};
+pub use request::RequestInfo;
 pub use resource::{Action, Resource, ResourceActions};
 pub use response::{Created, Located, NoContent, PageParams, Paginated};
 pub use routes::{RouteGroup, Routes};

@@ -101,7 +101,7 @@ pub mod prelude {
     pub use crate::http::axum::response::IntoResponse;
     pub use crate::http::{
         Action, Created, DomainParams, Inject, Json, NoContent, PageParams, Paginated, Path, Query,
-        Resource, ResourceActions, RouteGroup, RouteUrlGenerator, Routes, Validated,
+        RequestInfo, Resource, ResourceActions, RouteGroup, RouteUrlGenerator, Routes, Validated,
     };
     pub use crate::i18n::{
         DateFormatStyle, DateTimeFormatStyle, I18n, I18nConfig, I18nFormatError, Locale,

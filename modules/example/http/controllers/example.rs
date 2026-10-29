@@ -3,7 +3,11 @@
 use super::super::resources::example::ExampleInfo;
 use crate::modules::example::services::ExampleMessage;
 use openrust::http::RouteUrlGenerator;
-use openrust::http::{DomainParams, Inject, Json, Path};
+use openrust::http::axum::{
+    http::{HeaderValue, StatusCode, header},
+    response::{Html, IntoResponse, Response},
+};
+use openrust::http::{DomainParams, Inject, Json, Path, RequestInfo};
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -16,6 +20,66 @@ pub(crate) async fn show(Inject(message): Inject<ExampleMessage>) -> Json<Exampl
         message: message.text().to_owned(),
         served_at: chrono::Utc::now(),
     })
+}
+
+fn escape_html(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#39;")
+}
+
+pub(crate) async fn representation(
+    request: RequestInfo,
+    Inject(message): Inject<ExampleMessage>,
+) -> Response {
+    // 空 Accept 与缺失 Accept 均由此业务入口明确选择 HTML。
+    let preferred = if request.acceptable_content_types().is_empty() {
+        Some("html")
+    } else {
+        request.prefers(&["html", "json"])
+    };
+    let mut response = match preferred {
+        Some("html") => Html(format!(
+            "<!doctype html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\"><title>示例消息</title></head><body><p>{}</p></body></html>",
+            escape_html(message.text())
+        ))
+        .into_response(),
+        Some("json") => Json(ExampleInfo {
+            message: message.text().to_owned(),
+            served_at: chrono::Utc::now(),
+        })
+        .into_response(),
+        _ => openrust::Error::custom_with_status(
+            StatusCode::NOT_ACCEPTABLE,
+            "not_acceptable",
+            "不支持请求的表示格式",
+        )
+        .into_response(),
+    };
+    response
+        .headers_mut()
+        .insert(header::VARY, HeaderValue::from_static("Accept"));
+    response
+}
+
+#[derive(Deserialize)]
+pub(crate) struct RequestBodyInput {
+    title: String,
+}
+
+pub(crate) async fn request_body(
+    request: RequestInfo,
+    Json(input): Json<RequestBodyInput>,
+) -> openrust::Result<Json<serde_json::Value>> {
+    Ok(Json(serde_json::json!({
+        "path": request.path(),
+        "method": request.method().as_str(),
+        "is_json": request.is_json()?,
+        "title": input.title,
+    })))
 }
 
 pub(crate) async fn route_url(

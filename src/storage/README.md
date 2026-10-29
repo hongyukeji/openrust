@@ -70,3 +70,6 @@ let stored = disk
 内置 S3 driver 将通过检查的完整内容先写到当前 disk root 下的私有 `.openrust-staging/` 随机 key，完成写入、EOF 检查与关闭后，才以同 bucket copy 发布到目标 key。copy 开始是提交边界：此后调用方取消或远端响应丢失，完整目标对象仍可能已发布；`storage_publication_uncertain` 要求调用方读取目标状态核对，不能盲目补偿删除目标。正常失败和取消会有界尝试清理暂存对象，清理失败记安全告警；进程强杀或远端持续不可用时不保证同步清理。运维应只针对各 disk root 内的 `.openrust-staging/` 设置短期对象过期与未完成 multipart 回收；版本化 bucket 还需处理该暂存前缀的旧版本和删除标记，不能把同一规则施加到业务目标前缀。
 
 `presign_read` 只为当前对象的确切版本生成短期只读 URL。bucket 未启用版本控制、对象没有 version ID 或 backend 不支持版本化 presign 时会 fail-closed。此 URL 是到期前可转发的 bearer 凭据，不能通过 `SignedLinks` 撤销；local disk 不提供 provider presign，需要应用自行建立授权 route。框架不提供 presigned write URL。
+
+
+本地 disk 的 staging 回收允许其他实例在扫描后正常关闭并删除自身 run 目录。仅该条目已消失且 staging 根目录当前可读时忽略 NotFound；根目录丢失、非目录、权限或其他 I/O 错误仍阻止初始化。根目录检查不是原子身份校验，不能抵御并发替换；storage root 仍须由当前应用系统用户独占写入。

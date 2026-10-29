@@ -307,6 +307,10 @@ name = "http_resource"
 path = "tests/http/resource.rs"
 
 [[test]]
+name = "http_request"
+path = "tests/http/request.rs"
+
+[[test]]
 name = "http_router"
 path = "tests/http/router.rs"
 

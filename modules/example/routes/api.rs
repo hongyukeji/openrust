@@ -14,6 +14,14 @@ pub(super) fn register(routes: Routes, capabilities: &RouteCapabilities) -> Rout
         .get("/api/example", controllers::example::show)
         .name("example.index")
         .get("/api/example/route-url", controllers::example::route_url)
+        .get(
+            "/api/example/representation",
+            controllers::example::representation,
+        )
+        .post(
+            "/api/example/request-body",
+            controllers::example::request_body,
+        )
         .group(
             RouteGroup::new()
                 .domain("{account}.example.test")

@@ -8,6 +8,8 @@
 
 `GET /api/example/route-url` 展示命名路由：`GET /api/example` 注册为 `example.index`，处理器从请求提取 `RouteUrlGenerator` 并生成该名称对应的绝对 URL。
 
+`GET /api/example/representation` 使用公开 `RequestInfo` 按 Laravel Request 的内容协商方式调用 `prefers(&["html", "json"])`，将同一个 `ExampleMessage` 服务消息返回为转义后的 HTML 或统一封装 JSON，并发送 `Vary: Accept`。缺少或传入空 `Accept` 时应用明确选择 HTML；存在但无法匹配两种格式时返回 `not_acceptable` 错误。HTTP 状态遵循应用配置：`Semantic` 为 406，`AlwaysOk` 为 200 并在统一响应中保留错误码。`POST /api/example/request-body` 将只读 `RequestInfo` 放在 `Json<T>` 前提取，返回方法、路径、JSON 类型判断与输入标题，证明前者不读取或占用请求正文；正文仍由唯一的 `Json<T>` 提取器读取。这里仅演示 C04-A 的请求检查和协商，不代表完整 Laravel Request、表单、Session 或响应能力已经完成。
+
 `GET http://acme.example.test/api/example/domain/orders/42` 展示 Laravel 式 domain group：在 `RouteGroup::domain("{account}.example.test")` 声明域参数，handler 用 `DomainParams<T>` 与 `Path<T>` 分别读取域和路径参数，再通过具名路由生成 URL。域名仅用于路由分派，不作为租户认证或授权依据；测试环境需用 `Host: acme.example.test` 请求。
 
 `GET /api/example/middleware` 展示模块 Provider 如何通过 `BootContext::middleware_alias` 登记自有 Tower middleware、通过 `middleware_group` 组合，再由模块路由选择应用；集成测试验证只有该路由返回 `x-example-middleware: named-group`。

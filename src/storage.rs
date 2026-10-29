@@ -1299,24 +1299,68 @@ mod opendal_driver {
             .checked_sub(Duration::from_hours(24))
             .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
         for entry in entries {
-            let entry = entry.map_err(Error::internal)?;
-            let path = entry.path();
-            let name = entry.file_name();
-            if !name.to_string_lossy().starts_with("run-")
-                || !entry.file_type().map_err(Error::internal)?.is_dir()
-            {
-                continue;
-            }
-            let modified = entry
-                .metadata()
-                .and_then(|metadata| metadata.modified())
-                .map_err(Error::internal)?;
-            let stale = modified < cutoff;
-            if stale {
-                std::fs::remove_dir_all(path).map_err(Error::internal)?;
-            }
+            cleanup_staging_entry(base, &entry.map_err(Error::internal)?, cutoff)?;
         }
         Ok(())
+    }
+
+    fn cleanup_staging_entry(
+        base: &std::path::Path,
+        entry: &std::fs::DirEntry,
+        cutoff: std::time::SystemTime,
+    ) -> Result<()> {
+        let path = entry.path();
+        let name = entry.file_name();
+        if !name.to_string_lossy().starts_with("run-") {
+            return Ok(());
+        }
+        let Some(file_type) = staging_entry_or_missing(base, entry.file_type())? else {
+            return Ok(());
+        };
+        if !file_type.is_dir() {
+            return Ok(());
+        }
+        let Some(metadata) = staging_entry_or_missing(base, entry.metadata())? else {
+            return Ok(());
+        };
+        let modified = metadata.modified().map_err(Error::internal)?;
+        if modified < cutoff {
+            let _ = staging_entry_or_missing(base, std::fs::remove_dir_all(path))?;
+        }
+        Ok(())
+    }
+
+    // 另一后端的 Drop 可在列举后移除自身目录；仅条目消失表示已清理。
+    // 权限、IO 故障及 staging 根目录的读取错误仍阻止后端初始化。
+    fn staging_entry_or_missing<T>(
+        base: &std::path::Path,
+        result: std::io::Result<T>,
+    ) -> Result<Option<T>> {
+        match result {
+            Ok(value) => Ok(Some(value)),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                // 非原子复核仅确认扫描根目录此刻仍可访问；不承诺抵御目录替换。
+                let _ = std::fs::read_dir(base).map_err(Error::internal)?;
+                Ok(None)
+            }
+            Err(error) => Err(Error::internal(error)),
+        }
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn staging_entry_disappearing_after_enumeration_is_already_clean() -> Result<()> {
+        let base = tempfile::tempdir().map_err(Error::internal)?;
+        let run = base.path().join("run-owned");
+        std::fs::create_dir(&run).map_err(Error::internal)?;
+        let entry = std::fs::read_dir(base.path())
+            .map_err(Error::internal)?
+            .next()
+            .ok_or_else(|| Error::internal(std::io::Error::other("missing fixture entry")))?
+            .map_err(Error::internal)?;
+        // 模拟另一后端在 read_dir 已列举、读取 metadata 前完成 Drop。
+        std::fs::remove_dir(&run).map_err(Error::internal)?;
+        cleanup_staging_entry(base.path(), &entry, std::time::SystemTime::now())
     }
 
     fn create_staging_directory(base: &std::path::Path) -> Result<PathBuf> {
@@ -1393,6 +1437,94 @@ mod opendal_driver {
         }
         drop(backends);
         std::fs::remove_dir_all(root).map_err(Error::internal)?;
+        Ok(())
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn staging_base_disappearing_after_enumeration_remains_a_failure() -> Result<()> {
+        let root = tempfile::tempdir().map_err(Error::internal)?;
+        let base = root.path().join("staging");
+        std::fs::create_dir_all(base.join("run-owned")).map_err(Error::internal)?;
+        let entry = std::fs::read_dir(&base)
+            .map_err(Error::internal)?
+            .next()
+            .ok_or_else(|| Error::internal(std::io::Error::other("missing fixture entry")))?
+            .map_err(Error::internal)?;
+        std::fs::remove_dir_all(&base).map_err(Error::internal)?;
+        assert!(cleanup_staging_entry(&base, &entry, std::time::SystemTime::now()).is_err());
+        std::fs::write(&base, b"not a directory").map_err(Error::internal)?;
+        assert!(
+            staging_entry_or_missing::<()>(
+                &base,
+                Err(std::io::Error::from(std::io::ErrorKind::NotFound)),
+            )
+            .is_err()
+        );
+        Ok(())
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn staging_cleanup_preserves_non_missing_errors_and_missing_base_failure() -> Result<()> {
+        let base = tempfile::tempdir().map_err(Error::internal)?;
+        let error = staging_entry_or_missing::<()>(
+            base.path(),
+            Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied)),
+        )
+        .err()
+        .ok_or_else(|| Error::internal(std::io::Error::other("permission failure was ignored")))?;
+        assert!(
+            std::error::Error::source(&error)
+                .and_then(|source| source.downcast_ref::<std::io::Error>())
+                .is_some_and(|source| source.kind() == std::io::ErrorKind::PermissionDenied)
+        );
+        assert!(
+            staging_entry_or_missing::<()>(
+                base.path(),
+                Err(std::io::Error::from(std::io::ErrorKind::NotFound,))
+            )?
+            .is_none()
+        );
+        assert!(cleanup_stale_staging(&base.path().join("missing-base")).is_err());
+        Ok(())
+    }
+
+    #[cfg(test)]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+    async fn concurrent_filesystem_driver_builds_and_drops_share_staging_root() -> Result<()> {
+        let root = tempfile::tempdir().map_err(Error::internal)?;
+        let config = Arc::new(StorageDriverConfig {
+            disk_name: "local".to_owned(),
+            options: std::collections::BTreeMap::from([(
+                "root".to_owned(),
+                serde_json::Value::String(root.path().to_string_lossy().into_owned()),
+            )]),
+        });
+        let barrier = Arc::new(tokio::sync::Barrier::new(16));
+        let mut tasks = Vec::new();
+        for _ in 0..16 {
+            let config = Arc::clone(&config);
+            let barrier = Arc::clone(&barrier);
+            tasks.push(tokio::spawn(async move {
+                barrier.wait().await;
+                for _ in 0..16 {
+                    let backend = FsDriver.build(&config).await?;
+                    tokio::task::yield_now().await;
+                    drop(backend);
+                }
+                Ok::<_, Error>(())
+            }));
+        }
+        for task in tasks {
+            task.await.map_err(Error::internal)??;
+        }
+        assert_eq!(
+            std::fs::read_dir(root.path().join(".openrust-staging"))
+                .map_err(Error::internal)?
+                .count(),
+            0
+        );
         Ok(())
     }
 

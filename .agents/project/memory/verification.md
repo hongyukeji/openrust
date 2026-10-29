@@ -88,3 +88,8 @@ R2-M 的编译/启用分离、模块 Provider 配置时点、命名空间资源�
 每簇报告源码/WIP/本地提交状态、真实执行命令及退出结果、使用的服务与隔离范围、跳过/缺失项。历史记录只作为已有证据，变更影响对应行为时重新运行；无需为文档改动重复全量构建。
 
 无数据库 URL 的 test skip、all-features 编译、fake transport、单机多 App、各自独立数据库的两个进程，都不能代替所声称的真实共享/多节点路径。目录收尾前 CI 的服务作业未包含 queue feature；本簇已在工作区补入，仍须验证实际执行后才可报告 M4 双库 CI 覆盖完整。
+
+
+## C04-A 请求检查与内容协商
+
+C04-A RequestInfo/内容协商及存储staging并发回收修复已完成适用验收：默认523/29、全特性1082/99（passed/ignored），fmt/Clippy/Rustdoc/no-default/MSRV1.97/deny、生成consumer2/2和根默认入口真实TCP均通过；不同模型独审通过。仅完成无正文请求检查与协商，不代表完整C04。 headers/Accept有界、正文单次所有权、严格Host及敏感Debug均有公开测试；模块和生成应用均使用同一公开API。修复前全特性三轮构建IO NotFound日志与可控red/green保留，修后完整测试默认并发通过。staging仅在base当前可读时忽略已枚举条目NotFound，其他IO失败；非原子复核不抵御并发目录替换。精确命令、ignored分类与资源收尾见 [testing](testing.md#c04-a-请求检查与内容协商)。

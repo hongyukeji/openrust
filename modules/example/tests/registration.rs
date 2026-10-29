@@ -170,6 +170,155 @@ fn production_sources(semantic: bool) -> figment::Figment {
 }
 
 #[tokio::test]
+async fn production_request_representation_negotiates_html_json_and_rejection()
+-> Result<(), Box<dyn std::error::Error>> {
+    use openrust::testing::TestApp;
+    use std::time::Duration;
+
+    let sources = production_sources(false).merge(figment::providers::Serialized::defaults(
+        serde_json::json!({"api": {"http_status": "always_ok"}}),
+    ));
+    let mut app = TestApp::<crate::bootstrap::Server>::builder(sources)
+        .build()
+        .await?;
+    for (accept, status, content_type) in [
+        (None, StatusCode::OK, "text/html"),
+        (Some(""), StatusCode::OK, "text/html"),
+        (Some("text/html"), StatusCode::OK, "text/html"),
+        (Some("application/json"), StatusCode::OK, "application/json"),
+        (
+            Some("text/html;q=0.2, application/json;q=0.9"),
+            StatusCode::OK,
+            "application/json",
+        ),
+        (
+            Some("text/html;q=0.9, application/json;q=0.2"),
+            StatusCode::OK,
+            "text/html",
+        ),
+        (Some("text/plain"), StatusCode::OK, "application/json"),
+    ] {
+        let mut request = Request::get("/api/example/representation").header("host", "localhost");
+        if let Some(accept) = accept {
+            request = request.header("accept", accept);
+        }
+        let response = app.request(request.body(Body::empty())?).await?;
+        assert_eq!(
+            response.status(),
+            status,
+            "Accept {accept:?}; actual HTTP status: {}",
+            response.status()
+        );
+        assert_eq!(response.headers()["vary"], "Accept");
+        assert!(
+            response.headers()["content-type"]
+                .to_str()?
+                .starts_with(content_type),
+            "Accept {accept:?}"
+        );
+        if content_type == "text/html" {
+            let html = std::str::from_utf8(response.body())?;
+            assert!(html.contains("Hello from modules/example"));
+        } else {
+            let json: serde_json::Value = serde_json::from_slice(response.body())?;
+            if accept == Some("text/plain") {
+                assert_eq!(json["code"], "not_acceptable");
+            } else {
+                assert_eq!(json["data"]["message"], "Hello from modules/example");
+            }
+        }
+    }
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn production_request_representation_uses_semantic_406_when_configured()
+-> Result<(), Box<dyn std::error::Error>> {
+    use openrust::testing::TestApp;
+    use std::time::Duration;
+
+    let mut app = TestApp::<crate::bootstrap::Server>::builder(production_sources(true))
+        .build()
+        .await?;
+    let response = app
+        .request(
+            Request::get("/api/example/representation")
+                .header("host", "localhost")
+                .header("accept", "text/plain")
+                .body(Body::empty())?,
+        )
+        .await?;
+    response.assert_status(StatusCode::NOT_ACCEPTABLE)?;
+    assert_eq!(response.headers()["vary"], "Accept");
+    let json: serde_json::Value = serde_json::from_slice(response.body())?;
+    assert_eq!(json["code"], "not_acceptable");
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn production_request_info_leaves_json_body_for_typed_extractor()
+-> Result<(), Box<dyn std::error::Error>> {
+    use openrust::testing::TestApp;
+    use std::time::Duration;
+
+    let mut app = TestApp::<crate::bootstrap::Server>::builder(production_sources(false))
+        .build()
+        .await?;
+    let response = app
+        .request(
+            Request::post("/api/example/request-body")
+                .header("host", "localhost")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"title":"完整 JSON 正文 <>&"}"#))?,
+        )
+        .await?;
+    response.assert_status(StatusCode::OK)?;
+    let json: serde_json::Value = serde_json::from_slice(response.body())?;
+    assert_eq!(json["data"]["path"], "api/example/request-body");
+    assert_eq!(json["data"]["method"], "POST");
+    assert_eq!(json["data"]["is_json"], true);
+    assert_eq!(json["data"]["title"], "完整 JSON 正文 <>&");
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn production_html_representation_escapes_business_message()
+-> Result<(), Box<dyn std::error::Error>> {
+    use openrust::testing::TestApp;
+    use std::{sync::Arc, time::Duration};
+
+    let mut builder = TestApp::<crate::bootstrap::Server>::builder(production_sources(false));
+    builder.configure_after_register(|bindings| {
+        bindings.instance(Arc::new(super::services::ExampleMessage::new(
+            "<script>alert('x' & \"y\")</script>",
+        )));
+        Ok(())
+    });
+    let mut app = builder.build().await?;
+    let response = app
+        .request(
+            Request::get("/api/example/representation")
+                .header("host", "localhost")
+                .header("accept", "text/html")
+                .body(Body::empty())?,
+        )
+        .await?;
+    response.assert_status(StatusCode::OK)?;
+    let html = std::str::from_utf8(response.body())?;
+    assert!(html.contains("&lt;script&gt;alert(&#39;x&#39; &amp; &quot;y&quot;)&lt;/script&gt;"));
+    assert!(!html.contains("<script>"));
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    Ok(())
+}
+
+#[tokio::test]
 async fn production_testapp_replaces_business_dependency_without_changing_routes()
 -> Result<(), Box<dyn std::error::Error>> {
     use super::services::ExampleMessage;

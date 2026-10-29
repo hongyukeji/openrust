@@ -20,6 +20,26 @@ OpenRust 框架基于 `axum` 和 `tower` 构建的 HTTP 层。
 - [`RateLimitLayer`]：通过已注册的共享 `RateLimiter` 对选定路由限流。IP key 遵循 `ClientIp` 的可信代理规则；认证用户 key 需要外层 `AuthLayer`；自定义 key 函数可取得请求及策略 scope。
 - [`middleware::apply`]：依次应用 request ID、tracing span、CORS、timeout、gzip/br 压缩和 panic 捕获。`build_router` 会在路由 layer 执行前将最终 `AppState` 注入请求扩展，使能力 middleware 能使用应用注册表。启用的 CORS 配置无效时，会在开始监听前返回配置错误。
 
+## 请求检查与内容协商
+
+`RequestInfo` 是不消费正文的只读请求提取器，可放在 `Json<T>` 等唯一正文提取器前面。`path()` 返回去首尾斜线的原始路径（根路径为 `/`），`method()` / `is_method()` 检查方法；`header()`、`bearer_token()` 返回 `Result<Option<&str>>`，非法文本头为稳定的 400 错误。`headers()` 保留只读二进制头访问。`host()` 与域路由共用严格 authority 校验，不采信转发 Host；客户端 IP 继续使用 `ClientIp`。
+
+```rust,ignore
+async fn store(
+    request: openrust::http::RequestInfo,
+    openrust::http::Json(input): openrust::http::Json<serde_json::Value>,
+) -> openrust::Result<openrust::http::Json<serde_json::Value>> {
+    let is_json = request.is_json()?;
+    Ok(openrust::http::Json(serde_json::json!({
+        "path": request.path(), "is_json": is_json, "input": input,
+    })))
+}
+```
+
+用 `accepts(&["application/json"])` 检查 MIME，用 `prefers(&["html", "json"])` 取得原候选格式，用 `format("html")` 取得默认格式名；`wants_json()` 与 `expects_json()` 分别检查首选 Accept 及 AJAX/PJAX 语义。协商保留固定 Laravel/Symfony 的质量排序、通配符、参数与 q=0 行为，不能将它当成授权或凭据验证。缺少或为空的 Accept 使 `accepts` 为真、`prefers` 为 None；应用明确选择默认表示。协商不会自动改写已有异常策略，返回不同表示的 handler 应设置 `Vary: Accept`。完整调用见 [唯一业务示例](../../modules/example/README.md)。
+
+检查快照限制 headers 总计 64 KiB/128 个值、Accept 16 KiB/128 项，超限拒绝且不截断。`Debug` 不输出头、凭据或 URI/query；显式读取后的日志脱敏仍由调用方负责。这些 helper 不等同于完整 Laravel Request：输入修改、Cookie/Session、用户解析、FormRequest、flash 与文件能力按各自公开接口交付。
+
 `/health` 是进程存活探针；`/ready` 要求 listener 正在接收流量且所有依赖探针成功，否则返回 503。DatabaseServiceProvider 检查每个已配置连接池，CacheServiceProvider 对已解析 store 执行只读读取探针；应用 Provider 也可通过 `Readiness::register_probe` 注册最多 64 个稳定命名的异步探针。每轮最多并发 16 个探针、总时限 2 秒且全局仅允许一轮并发检查；错误详情不返回给请求方，服务端只记录稳定错误码和探针名。探针须只读且有界。该 HTTP 端点不代表 gRPC health、实时连接或任意外部依赖的状态。收到 SIGINT/SIGTERM 后，服务器先将自身标为 not-ready 并停止接受连接，再按 `[server].shutdown_timeout_secs` 等待在途请求；到期会合作取消请求、强制终止剩余 server task 并以 `http_shutdown_timeout` 失败退出。请求取消会丢弃本地 handler future，不能撤销已提交的数据库或外部副作用。
 
 启用 `metrics` Cargo feature 后，HTTP 请求会记录请求数、耗时和在途数；指标标签只包含固定的 HTTP 方法类别和状态类别，不包含路径、请求标识、用户信息或错误内容。`/metrics` 默认不注册。仅当 `[server].metrics_endpoint_enabled = true` 时才开放 Prometheus scrape 端点；生产部署应通过监听网络、反向代理或防火墙限制采集访问，不要将端点公开给普通客户端。日志中的 HTTP 请求 span 只记录方法，不记录完整 URI、查询参数、request ID 或 `traceparent`。

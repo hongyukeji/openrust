@@ -652,3 +652,17 @@ CLI 生成应用 `/tmp/openrust-r3f-generated` 使用当前本地框架依赖；
 收尾确认无 Cargo/rustc/rustdoc/server 进程；根和生成 target 均为非 symlink、Git 忽略且未跟踪的本簇产物，由 Cargo 自身构建锁协调 `cargo clean --dry-run` 后执行 `cargo clean`。根回收71,767文件/28.4GiB，生成目标回收8,469文件/2.8GiB（`/tmp/openrust-r3f-final-clean-{root,generated}.log`）；结束时仓库target总量0，磁盘可用120GiB/926GiB。其他consumer、共享服务及守护任务改动未清理或夹带。
 
 成功后的临时生成源码已核无其他WIP/worktree后移除；手工添加的consumer路由与测试逐字节保全到 `/tmp/openrust-r3f-generated-routes-web.txt`、`/tmp/openrust-r3f-generated-test-app.txt`，验收日志、根TCP脚本与运行日志目录继续保留。
+
+## C04-A 请求检查与内容协商
+
+RequestInfo 的 parts-only 快照、严格 authority 复用、文本头/bearer、固定 Laravel 13.39/Symfony 8 内容协商已接入公开 API/prelude、唯一模块和生成应用。定向 Request10/10、router87/87，模块 Request3/3及HTML转义1/1，均0 ignored。独立不同模型审查修复 UTF-8、flag参数规范值、q数值前缀、多后缀匹配和正负零排序；限定最终复审无 blocker/should-fix。完整 Request/Response、输入修改、Session/FormRequest 等仍留后继范围。
+
+最终修后源码实际执行 `cargo fmt --all --check`、默认及全特性 `cargo clippy --workspace --all-targets [--all-features] -- -D warnings`、`cargo test --workspace [--all-features]`、warnings-denied `cargo doc --workspace --no-deps [--all-features]`、`cargo check --workspace --no-default-features --all-targets`、`cargo +1.97.0 check --workspace --all-features --all-targets` 和 `cargo deny check` 全部exit0。默认27组523 passed/29 ignored；全特性44组1082 passed/99 ignored，零失败，保持默认测试并发。99 ignored为64个既有外部服务/子进程用例和35个doctest，不计服务验收。deny四类检查通过，保留既有warning。日志 `/tmp/openrust-c04a-storage-fixed-{fmt-check,clippy-default,clippy-all,tests-default,tests-all,docs-default,docs-all,check-no-default,check-msrv,deny}.log`，阶段命令/退出/资源见 `...-gates.log`。
+
+根无参数 `cargo run --quiet` 在任务专属临时配置及独立端口直连TCP，验证缺/空Accept、HTML/JSON、双向q、vendor JSON七种响应均200，不匹配text/plain为406，各分支核对Vary、Content-Type及正文；POST保留完整UTF-8正文、路径、方法与布尔is_json，health200，SIGTERM exit0。修后预构建和网络复验均exit0，脚本 `/tmp/openrust-c04a-root-tcp.py`、结果 `/tmp/openrust-c04a-root-tcp.log`、日志 `/tmp/openrust-c04a-storage-fixed-{server-build,root-tcp}.log`。隔离HTTP验收显式memory store不代表生产Redis回退。模块进程内测试另覆盖显式AlwaysOk与Semantic的200/406，不手改业务错误状态。
+
+真实CLI创建 `/tmp/openrust-c04a-generated`，核验当前框架path依赖后追加RequestInfo公开consumer，保留原bootstrap/API/health/fallback。产物fmt、check --tests、cargo test全部通过，consumer2/2涵盖正文共存、合法UTF-8首头、非法文本错误、方法/路径/Host与协商。首轮日志 `/tmp/openrust-c04a-final-generated-{prepare,fmt,check,test}.log`；修后复用根target串行check/test亦通过，日志 `/tmp/openrust-c04a-storage-fixed-generated-{check,test}.log`。生成脚本 `/tmp/openrust-c04a-generated-prepare.py`；不宣称发布包兼容。
+
+首轮示例测试fixture误以为helper(false)选择AlwaysOk，已局部显式配置，保持框架Semantic默认。修复前全特性三轮在不同fixture出现internal_error；第三轮安全诊断确认build阶段IO NotFound/errno2，并非HTTP500响应。失败分别保全 `/tmp/openrust-c04a-final-tests-all-{first,second,third}-failure.log`；旧用例定向及aggregate可通过不能证明偶发故障已定位。用户按§5批准限定修复后，以取得DirEntry再删除run目录的可控回归证明原实现失败（`...-storage-red.log`）、修后通过（`...-storage-green.log`）。清理仅在条目NotFound且base当前可读时容错，base消失/非目录、权限和其他IO仍失败；补确定性base负例和build/drop交错压力回归。storage12/HTTP TCP1/Request10/aggregate117定向均通过，日志 `/tmp/openrust-c04a-final-storage-base-gates.log` 及分项。最终不同模型复审无剩余blocker/should-fix。根目录复核非原子，仍要求storage root系统用户独占写；不保证并发目录替换。三轮旧失败未捕获具体文件调用点，不声称每轮已逐一确认同一调用点。临时探针已移除，快照保全 `/tmp/openrust-c04a-registration-diagnostic-preserved.rs`。
+
+最终测试后触资源软停（31.343GiB target、磁盘9.801%空闲），核实本簇独占、无占用、ignored/未跟踪/非symlink后仅回收根incremental，空闲恢复11.05%，续跑余下门禁无跳过。独立生成target先经Cargo锁协调回收2.1GiB，日志保留；功能簇末尾核无构建/server占用后由Cargo锁协调完整清理根target，dry-run和实际回收56,621文件/23.5GiB，日志 `/tmp/openrust-c04a-storage-fixed-clean{,-dry-run}.log`。根及独立生成target均不存在；五个原有consumer target共2.486656GiB不属于本簇，保留未动。磁盘最终119.475739GiB空闲（12.897449%），精确资源 `/tmp/openrust-c04a-storage-fixed-clean-resources.json`；生成源码、验收脚本、日志与诊断快照保留作为证据。
