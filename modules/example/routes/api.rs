@@ -13,7 +13,11 @@ pub(super) fn register(routes: Routes, capabilities: &RouteCapabilities) -> Rout
     let routes = routes
         .get("/api/example", controllers::example::show)
         .name("example.index")
-        .get("/api/example/route-url", controllers::example::route_url);
+        .get("/api/example/route-url", controllers::example::route_url)
+        .group(
+            RouteGroup::new().middleware_group("example.response"),
+            |routes| routes.get("/api/example/middleware", controllers::example::middleware),
+        );
     let routes = if capabilities.i18n {
         routes
             .get(
@@ -62,6 +66,18 @@ pub(super) fn register(routes: Routes, capabilities: &RouteCapabilities) -> Rout
     )))]
     let _ = capabilities.database;
     routes
+}
+
+pub(crate) async fn response_marker_middleware(
+    request: openrust::http::axum::extract::Request,
+    next: openrust::http::axum::middleware::Next,
+) -> openrust::http::axum::response::Response {
+    let mut response = next.run(request).await;
+    response.headers_mut().insert(
+        "x-example-middleware",
+        openrust::http::axum::http::HeaderValue::from_static("named-group"),
+    );
+    response
 }
 
 #[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]

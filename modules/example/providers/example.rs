@@ -22,6 +22,17 @@ impl ExampleServiceProvider {
     }
 }
 
+fn register_example_middleware(app: &mut BootContext<'_>) -> Result<()> {
+    app.middleware_alias(
+        "example.response-marker",
+        openrust::http::axum::middleware::from_fn(
+            crate::modules::example::routes::response_marker_middleware,
+        ),
+    )?;
+    app.middleware_group("example.response", ["example.response-marker"])?;
+    Ok(())
+}
+
 impl ServiceProvider for ExampleServiceProvider {
     fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
         app.config_section(
@@ -108,6 +119,7 @@ impl ServiceProvider for ExampleServiceProvider {
 
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
+            register_example_middleware(app)?;
             let root = self.root.join("modules/example");
             let files = ModuleConfigFiles::new("example", root.clone())?;
             files.overlay(app)?;

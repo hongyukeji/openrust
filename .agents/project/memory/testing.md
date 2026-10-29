@@ -612,3 +612,15 @@ R3-A 按 ADR-076 将 `HttpStatusMode::Semantic` 设为框架、配置、无请�
 生成项目 `/tmp/openrust-r3c-generated` 经 `cargo check --tests`，并执行生成 TestApp 的 `generated_application_serves_api_and_health` 1/1；在生成应用的 handler 中调用 `RouteUrlGenerator`，返回 `http://localhost:3000/api`。该项目依赖当前本地源码路径，生成目标与 CLI 工作目录均在 `/tmp`；不构成发布版本兼容证据。PostgreSQL/MySQL 不属于纯路由 URL 行为，本簇不重复数据库验收。
 
 gpt-6.1-terra 独立只读复审最终未发现 blocker/should-fix；审查范围包括组外嵌套命名、原样 name prefix、尾斜杠、通配/空段拒绝和 HTTP 500 错误语义。R3-C 由 `801ca4e` 限定本地提交于 2026-10-29。
+
+## R3-D Laravel middleware alias 与 group
+
+`BootContext::middleware_alias` 将 Tower Layer 登记为应用级名称；`middleware_group` 可按声明顺序组合 alias/其他 group。`RouteGroup` 与 `Routes` 按名称应用；路由级调用只包裹调用时已登记的路由，之后添加的路由不继承。路由组只覆盖组内路由。没有应用 middleware registry 的独立 `Routes` 无法解析命名引用，调用会保留稳定错误，`Routes::into_router()` 返回 `Result` 并检查该错误；嵌套 group/merge 同样传播错误，不会静默生成无保护路由。
+
+行为回归：`tests/http/router.rs` 定向 `named_middleware_aliases_and_nested_groups_keep_declaration_order` 与 `named_middleware_without_registry_fails_closed_on_all_route_paths` 均通过；分别覆盖声明顺序、嵌套 group、Route-level alias 前后作用范围、无 registry 的直用/嵌套/组级引用，以及 fail-closed。既有重复、无效、未知和循环定义测试通过。独立 gpt-6.1-terra 只读复审先发现 pending middleware 扩大/丢失和 `into_router` 静默绕过；修复后复审通过，无 blocker/should-fix。
+
+源代码整组门禁在最新修复后均 exit 0：`cargo fmt --all --check`；`CARGO_INCREMENTAL=0 cargo test --workspace --quiet`；`CARGO_INCREMENTAL=0 RUST_TEST_THREADS=1 cargo test --workspace --all-features --quiet`（核心 all-feature 490 passed、2 ignored，其他测试组均 0 failed；忽略项未计通过）；默认与 all-features workspace all-target Clippy（`-D warnings`）；默认与 all-features workspace Rustdoc；`cargo check --workspace --all-targets --no-default-features`；`cargo +1.97.0 check --workspace --all-targets --all-features`；`cargo deny check`。deny 的 advisories/bans/licenses/sources 均通过，保留仓库既有重复 base64/block-buffer/winnow 与未匹配 MPL allowance 警告。
+
+CLI 生成应用 `/tmp/openrust-r3d-generated-20261029` 使用本地框架路径依赖并在 `modules/example` 模式下登记 alias/group；独立目标 `/tmp/openrust-r3d-generated-target` 执行 `cargo check --tests --offline` 与 TestApp 用例 `generated_application_serves_api_and_health` 1/1 通过。根应用以无参数 `cargo run --offline` 实际监听 `127.0.0.1:3000`：带 `--noproxy '*'` 的真实 HTTP `GET /api/example/middleware` 返回 200、`x-example-middleware: named-group` 和预期 JSON；`GET /api/example` 返回 200 且没有该响应头；SIGINT 后正常退出。该纯 HTTP 路由簇不更改数据库行为，双库验收不适用。
+
+验证时 `cargo clean --dry-run` 显示根 `target/` 39,531 文件 / 19.2 GiB，独立生成目标 5,711 文件 / 2.1 GiB；所在磁盘可用 101 GiB（总容量 926 GiB）。确认无本簇 Cargo/rustc/rustdoc/server 进程后，根 target 回收 19.2 GiB，生成目标回收 2.1 GiB，CLI 临时生成应用源码也从 `/tmp` 移除；结束时根与独立生成 target 均为 0，磁盘可用 121 GiB。仓库内五个公开 consumer 的独立 target（db-custom-sqlite、query-authorization、data-exchange、realtime、queue-custom-driver）归属其他验收，未清理。真实 HTTP 响应文件保留在 `/tmp/openrust-r3d-live-*-final.*`。R3-D 由本地限定提交记录，其他 R3/模块能力仍待实施。

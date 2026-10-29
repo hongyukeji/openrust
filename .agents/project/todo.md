@@ -1,6 +1,6 @@
 # 活跃待办
 
-> 当前代码与目标：业务示例已迁至 `modules/example/` 并经模块清单接入；R1-E CRUD/能力门禁已由 bc3fa01 提交；附件 PG/MySQL 全量各 15/15，真实 MinIO CopyObject 延迟响应时的双库删除竞争各 1/1；deadline/EOF 原子仲裁后，远端结果不确定的迟到发布仍属未保证边界。OIDC 确认页已完成 Chromium/mock 分支验收，真实 Keycloak/双库 `AlwaysOk` 错误密码、已消费 state 与成功夹证各 1/1；Collector PostgreSQL 隔离 sink 的 delivery/unavailable 各 1/1 且保留 16 MiB 限制。R2-N 模块硬依赖图、双库 HTTP、生成应用与适用源码门禁已由 48be854 提交；R3-A 语义 HTTP 状态默认与统一响应已验收，当前继续 R3 HTTP/Web。
+> 当前代码与目标：业务示例已迁至 `modules/example/` 并经模块清单接入；R1-E CRUD/能力门禁已由 bc3fa01 提交；附件 PG/MySQL 全量各 15/15，真实 MinIO CopyObject 延迟响应时的双库删除竞争各 1/1；deadline/EOF 原子仲裁后，远端结果不确定的迟到发布仍属未保证边界。OIDC 确认页已完成 Chromium/mock 分支验收，真实 Keycloak/双库 `AlwaysOk` 错误密码、已消费 state 与成功夹证各 1/1；Collector PostgreSQL 隔离 sink 的 delivery/unavailable 各 1/1 且保留 16 MiB 限制。R2-N 已由 48be854 提交；R3-A/B/C/D 已按适用范围验收，继续 R3 HTTP/Web 与模块行为矩阵。
 
 > 受众：AI Agent
 > 更新：2026-10-29
@@ -25,7 +25,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 | R2-M 模块最小闭环与目录迁移 | 真实服务与生成项目已验收，本簇提交 | modules/ 声明注册、模块配置/资源/统一迁移、依赖与冲突错误；示例迁至 modules/example，真实HTTP及双库验证；完整管理命令归R13 |
 | R1-E 真实CRUD与当前能力示例 | 已验收并提交 bc3fa01 | 真实 Article CRUD；当前公开能力进入唯一模块示例；PostgreSQL 18/MySQL 8.4、生成项目、真实服务与整组门禁已验收。Collector PostgreSQL 隔离 sink delivery/unavailable 已复验通过，详见 testing |
 | R2 后继内核与测试底座 | R2-N 模块依赖图与顺序已完成 | `.requires` 硬依赖、稳定拓扑顺序、register/boot 一致；真实 PostgreSQL/MySQL HTTP、生成项目、根无参数 TCP、工作区门禁均有本簇证据 |
-| R3 HTTP 与 Web | R3-A、R3-B、R3-C 已完成适用验收；下一项 R3-D middleware alias/group 待领取 | `RouteGroup`、命名路由和具名 URL 生成已交付；domain routing 与 C04 Request/Response 继续排队 |
+| R3 HTTP 与 Web | R3-D middleware alias/group 已完成并提交 | `RouteGroup`、命名路由/URL 与 middleware alias/group 已交付；domain routing 与 C04 Request/Response 继续排队 |
 | 模块包固定范围细化 | 待逐项盘点 | 对正式laravel-modules固定源码/文档的导航、源码与测试拆行为矩阵，分类必要Rust差异/用户约定/缺口；不把目录规范或显式Plugin等同完整模块管理 |
 
 ## 后继路由
@@ -223,3 +223,15 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 4. 生成器由生产 `build_router`/应用 HTTP 请求路径公开供 handler 使用，并可在 `modules/example` 的链接/响应代码演示；生成应用应可用同一 API。
 5. 黑盒测试覆盖 path 更换不影响名字调用、嵌套 name prefix 与 path prefix、参数编码/缺失、额外 query、绝对 base URL、安全 Host 边界、重复名称启动失败；更新 HTTP Rustdoc、用户 README、core/http 与完整测试记录。
 6. 按 §6.3 执行 fmt、默认/all-features workspace clippy/test/doc、deny、MSRV/no-default、生成项目 check/test 与真实 HTTP。路由变更不依赖数据库，不为无关路径重复双库验收。
+
+## 当前 R3-D Spec：Laravel middleware alias 与 group
+
+状态：已完成并限定本地提交。依据 Laravel 13 Middleware：应用在启动时注册 middleware alias 与 named groups，路由/路由组按名称引用；group 成员按声明顺序展开。OpenRust 使用 Provider boot API 注册，通过类型安全的 Tower `Layer` 闭包保留 Rust 扩展方式。
+
+1. `BootContext` 提供 middleware alias/group 注册入口；重复、无效名称与 alias/group 同名冲突返回稳定启动错误。定义可以由不同 Provider 声明，所有注册完成后统一用于 router 构建。
+2. `RouteGroup` 与 `Routes` 提供 named middleware 使用入口；group 可嵌套，名称递归展开，按声明顺序执行且响应逆序；现有直接 Tower Layer API 保留。
+3. 未知引用、循环 group 与空 group 在 `build_router` 前明确失败，不 panic、不静默忽略；middleware 不会应用于用户未选择的路由，也不改变框架内建全局 stack。
+4. 在 `modules/example` 通过自定义 middleware alias/group 展示“业务 Provider 登记、业务路由引用”，至少一个真实 HTTP 断言证明只命中目标路由及顺序；生成项目可编译并通过 TestApp 行为测试。
+5. 更新框架 HTTP README/Rustdoc、示例文档、core/http、CHANGELOG、context/plan/progress、testing；执行默认/all-features workspace Clippy/tests/docs、fmt、deny、MSRV/no-default、生成项目检查与实际 HTTP，无数据库路径改变时不虚构双库必要性。无注册表引用会 fail closed，`Routes::into_router()` 检查路由/middleware错误；全功能已按以上要求验证。
+
+上游依据：[Laravel Middleware](https://laravel.com/framework/docs/13.x/middleware#middleware-groups)、[Middleware Aliases](https://laravel.com/framework/docs/13.x/middleware#middleware-aliases)。

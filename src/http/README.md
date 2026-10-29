@@ -63,7 +63,19 @@ fn routes(routes: Routes) -> Routes {
 }
 ```
 
-字符串形式的 middleware alias/group 与 domain routing 仍按 C03 后续子簇交付；本 API 直接接受 Rust Tower layer。
+Provider boot 可用 `BootContext::middleware_alias` 登记一个 Tower `Layer` 的短名称，再用 `middleware_group` 将别名或其他组按声明顺序组合。应用 Provider 贡献的路由组通过 `middleware_alias` / `middleware_group` 引用；也可在带应用注册表的 `Routes` 上引用，以作用于此前登记的路由。没有应用注册表的独立 `Routes` 使用命名 middleware 会在 `into_router()` 返回错误，绝不静默生成未受保护路由。名称重复、格式无效、引用缺失和 group 循环均会使启动或 router 构建明确失败。直接 `.middleware(layer)` / `.layer(layer)` 仍可用于一次性组合：
+
+```rust,ignore
+app.middleware_alias("tenant", tenant_layer)?;
+app.middleware_group("private-api", ["auth", "tenant"])?;
+app.routes(|routes| {
+    routes.group(RouteGroup::new().middleware_group("private-api"), |api| {
+        api.get("/api/private", private_index)
+    })
+})?;
+```
+
+Middleware 定义在应用内共享，是否应用由各路由或路由组显式选择。当前 OpenRust 路由按 Provider 贡献，没有 Laravel `web` / `api` 文件约定的自动分组，因此由路由明确选择命名 group。
 
 路由可以在定义后立即通过 `.name(...)` 命名；组的 `name_prefix` 会与内层名称按原样拼接，因此分隔符应由应用提供，例如 `admin.`。处理器提取 `RouteUrlGenerator` 后，可按名称生成绝对 URL。必需路径参数占用一个路径段，其值会编码为单段；多余参数进入按字典序排列的 query。host/scheme 来自 `app.url` 配置，不读取请求的 `Host`：
 

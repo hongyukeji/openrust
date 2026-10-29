@@ -476,12 +476,19 @@ fn example_business_route_is_mounted_through_the_root_application() -> TestResul
         assert_eq!(json["data"]["message"], "Hello from modules/example");
 
         let response = router
+            .clone()
             .oneshot(Request::get("/api/example/route-url").body(Body::empty())?)
             .await?;
         assert_eq!(response.status(), StatusCode::OK);
         let body = to_bytes(response.into_body(), usize::MAX).await?;
         let json: serde_json::Value = serde_json::from_slice(&body)?;
         assert_eq!(json["data"]["url"], "http://localhost:3000/api/example");
+
+        let response = router
+            .oneshot(Request::get("/api/example/middleware").body(Body::empty())?)
+            .await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.headers()["x-example-middleware"], "named-group");
         Ok(())
     })
 }

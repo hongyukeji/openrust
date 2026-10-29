@@ -19,6 +19,10 @@ pub(crate) async fn route_url(
     Ok(Json(serde_json::json!({"url": target})))
 }
 
+pub(crate) async fn middleware() -> Json<&'static str> {
+    Json("module middleware alias and group")
+}
+
 pub(crate) async fn heartbeat_label(
     locale: openrust::i18n::RequestLocale,
     Inject(i18n): Inject<openrust::i18n::I18n>,

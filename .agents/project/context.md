@@ -1,10 +1,10 @@
 # 项目上下文
 
-> 当前代码与目标：旧 `app/example/` 过渡结构已迁至 `modules/example/`；R2-M 模块清单、资源与统一迁移已有真实验收。R1-E Article CRUD 与当前公开能力示例已通过适用门禁，并以 bc3fa01 限定提交；附件上传 EOF/deadline 原子仲裁、PG18/MySQL8.4 各 15/15 及真实 MinIO 延迟响应竞争各 1/1 已验收。`storage_publication_uncertain` 远端迟到完成、强杀与 shutdown deadline 仍不保证无孤儿。真实 Keycloak OIDC `AlwaysOk` 成功/失败双库 HTTP 用例各 1/1；Collector PG 隔离 sink delivery/unavailable 各 1/1，严格断言与共享服务保持不变。R2-N 模块硬依赖图和确定性启动顺序已由 48be854 提交；R3-A/B/C 语义 HTTP 状态、RouteGroup、命名路由与具名 URL 均已验收，R3-C 限定提交前状态见 [testing](memory/testing.md#r3-c-laravel-命名路由与具名-url-生成)。当前按 todo 继续 R3 HTTP/Web。完整模块管理和 Laravel 1:1 范围继续按 [ADR-074](decisions/adr-074-laravel-modules-directory.md) 与活跃队列推进。
+> 当前代码与目标：旧 `app/example/` 过渡结构已迁至 `modules/example/`；R2-M 模块闭环与 R1-E 当前综合示例均已有真实验收及提交。R2-N 模块硬依赖图和确定性启动顺序已由 48be854 提交；R3-A/B/C 已按范围完成并提交。R3-D middleware alias/group 已通过行为、生成应用、真实 HTTP、全 workspace 门禁和独立安全复审，限定提交完成后按 todo 领取后继。完整模块管理和 Laravel 1:1 范围继续按 [ADR-074](decisions/adr-074-laravel-modules-directory.md) 与活跃队列推进。
 
 > 受众：AI Agent
 > 更新：2026-10-29
-> 摘要：正式目标为 Laravel + laravel-modules 的 Rust 1:1 实现。R1-E 综合示例及适用门禁已由 bc3fa01 本地提交；附件 EOF/deadline 与真实 MinIO 双库竞争、Collector PostgreSQL delivery/unavailable、Keycloak OIDC AlwaysOk 双库证据均已完成；uncertain 后远端迟到完成边界未保证。R2-N 已验收并提交 48be854；R3-A/B/C 已完成适用门禁，R3-C 命名路由与具名 URL 已由 801ca4e 提交，之后继续 R3 middleware 与 HTTP/Web 行为矩阵。
+> 摘要：正式目标为 Laravel + laravel-modules 的 Rust 1:1 实现。R1-E、R2-N 与 R3-A/B/C 已按适用范围提交并保留真实服务及失败边界证据；R3-D middleware alias/group 已验证并限定提交。R3 HTTP/Web 和完整 Laravel/laravel-modules 能力矩阵仍未完成。
 
 ## 当前状态
 

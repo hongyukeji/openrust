@@ -515,6 +515,10 @@ async fn grouped_order(Extension(order): Extension<Vec<&'static str>>) -> Json<V
     Json(order)
 }
 
+async fn grouped_outside() -> Json<Vec<&'static str>> {
+    Json(Vec::new())
+}
+
 async fn mark_route_group(request: Request, next: Next) -> Response {
     let mut response = next.run(request).await;
     response
@@ -623,6 +627,244 @@ async fn nested_route_groups_combine_prefixes_and_scope_middleware() -> TestResu
     assert_eq!(response.status(), StatusCode::OK);
     assert!(!response.headers().contains_key("x-route-group"));
     Ok(())
+}
+
+struct NamedMiddlewareProvider;
+
+impl openrust::core::ServiceProvider for NamedMiddlewareProvider {
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut openrust::core::BootContext<'_>,
+    ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.middleware_alias(
+                "first",
+                axum::middleware::from_fn_with_state("first", record_group_middleware),
+            )?;
+            app.middleware_alias(
+                "second",
+                axum::middleware::from_fn_with_state("second", record_group_middleware),
+            )?;
+            app.middleware_group("composed", ["first", "second"])?;
+            app.middleware_group("nested", ["composed", "first"])?;
+            Ok(())
+        })
+    }
+}
+
+#[tokio::test]
+async fn named_middleware_aliases_and_nested_groups_keep_declaration_order() -> TestResult {
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(NamedMiddlewareProvider)
+        .provider(TestRoutes::new(|routes| {
+            routes
+                .get("/route-scope/private", grouped_order)
+                .middleware_alias("second")
+                .get("/route-scope/public", grouped_outside)
+                .group(
+                    RouteGroup::new()
+                        .prefix("/private")
+                        .middleware_group("nested"),
+                    |private| private.get("/named", grouped_order),
+                )
+                .group(
+                    RouteGroup::new()
+                        .prefix("/alias")
+                        .middleware_alias("second"),
+                    |private| private.get("/named", grouped_order),
+                )
+                .get("/outside", grouped_outside)
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let router = build_router(&app)?;
+
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/private/named")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        json_body(response).await["data"],
+        serde_json::json!(["first", "second", "first"])
+    );
+
+    let response = router
+        .clone()
+        .oneshot(Request::builder().uri("/alias/named").body(Body::empty())?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        json_body(response).await["data"],
+        serde_json::json!(["second"])
+    );
+
+    let response = router
+        .clone()
+        .oneshot(Request::builder().uri("/outside").body(Body::empty())?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(json_body(response).await["data"], serde_json::json!([]));
+
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/route-scope/private")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        json_body(response).await["data"],
+        serde_json::json!(["second"])
+    );
+
+    let response = router
+        .oneshot(
+            Request::builder()
+                .uri("/route-scope/public")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(json_body(response).await["data"], serde_json::json!([]));
+    Ok(())
+}
+
+struct DuplicateMiddlewareProvider;
+
+impl openrust::core::ServiceProvider for DuplicateMiddlewareProvider {
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut openrust::core::BootContext<'_>,
+    ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.middleware_alias("shared", axum::middleware::from_fn(mark_route_group))?;
+            app.middleware_group("shared", ["shared"])?;
+            Ok(())
+        })
+    }
+}
+
+#[tokio::test]
+async fn duplicate_middleware_names_fail_provider_boot() -> TestResult {
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(DuplicateMiddlewareProvider);
+    let error = builder
+        .start(figment::Figment::from(
+            figment::providers::Serialized::defaults(FrameworkConfig::default()),
+        ))
+        .await
+        .err()
+        .ok_or("duplicate middleware name unexpectedly started")?;
+    assert_eq!(error.code(), "http_middleware_name_duplicate");
+    Ok(())
+}
+
+#[tokio::test]
+async fn unknown_or_cyclic_named_middleware_fails_router_build() -> TestResult {
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(TestRoutes::new(|routes| {
+            routes.group(RouteGroup::new().middleware_alias("missing"), |group| {
+                group.get("/unknown-middleware", grouped_order)
+            })
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let error = build_router(&app)
+        .err()
+        .ok_or("unknown named middleware unexpectedly built")?;
+    assert_eq!(error.code(), "http_middleware_name_unknown");
+
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(CyclicMiddlewareProvider)
+        .provider(TestRoutes::new(|routes| {
+            routes.group(RouteGroup::new().middleware_group("first"), |group| {
+                group.get("/cyclic-middleware", grouped_order)
+            })
+        }));
+    let app = builder
+        .start(figment::Figment::from(
+            figment::providers::Serialized::defaults(FrameworkConfig::default()),
+        ))
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let error = build_router(&app)
+        .err()
+        .ok_or("cyclic named middleware unexpectedly built")?;
+    assert_eq!(error.code(), "http_middleware_group_cycle");
+    Ok(())
+}
+
+#[test]
+fn named_middleware_without_registry_fails_closed_on_all_route_paths() -> TestResult {
+    let direct = openrust::http::Routes::new()
+        .get("/private", grouped_order)
+        .middleware_alias("auth")
+        .get("/public", grouped_outside)
+        .into_router()
+        .err()
+        .ok_or("named middleware without an application registry was silently ignored")?;
+    assert_eq!(direct.code(), "http_middleware_registry_unavailable");
+
+    let nested = openrust::http::Routes::new()
+        .group(RouteGroup::new(), |routes| {
+            routes
+                .get("/private", grouped_order)
+                .middleware_group("auth")
+        })
+        .into_router()
+        .err()
+        .ok_or("nested named middleware without a registry was silently ignored")?;
+    assert_eq!(nested.code(), "http_middleware_registry_unavailable");
+
+    let group = openrust::http::Routes::new()
+        .group(RouteGroup::new().middleware_alias("auth"), |routes| {
+            routes.get("/private", grouped_order)
+        })
+        .into_router()
+        .err()
+        .ok_or("group middleware without a registry was silently ignored")?;
+    assert_eq!(group.code(), "http_middleware_registry_unavailable");
+    Ok(())
+}
+
+struct CyclicMiddlewareProvider;
+
+impl openrust::core::ServiceProvider for CyclicMiddlewareProvider {
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut openrust::core::BootContext<'_>,
+    ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.middleware_group("first", ["second"])?;
+            app.middleware_group("second", ["first"])?;
+            Ok(())
+        })
+    }
 }
 
 #[tokio::test]

@@ -26,6 +26,7 @@ use crate::http::client_ip::validate_trusted_proxy_ranges;
 use crate::http::health;
 use crate::http::middleware;
 pub use crate::http::routes::Routes;
+use crate::http::routes::{MiddlewareLayerBuilder, MiddlewareRegistry};
 use crate::http::serve::ServeCommand;
 
 /// 注册根宿主的框架信息 API `GET /api`。
@@ -56,6 +57,7 @@ struct RouterLayerRegistry {
 #[derive(Default)]
 pub struct RouteRegistry {
     builders: Vec<RouteBuilder>,
+    middleware: MiddlewareRegistry,
 }
 
 impl RouteRegistry {
@@ -79,6 +81,39 @@ impl BootContext<'_> {
         self.extension_mut::<RouteRegistry>()?
             .builders
             .push(Box::new(builder));
+        Ok(self)
+    }
+
+    /// 在 Provider boot 阶段登记 middleware alias，供应用路由按名称引用。
+    pub fn middleware_alias<L>(&mut self, name: impl Into<String>, layer: L) -> Result<&mut Self>
+    where
+        L: Layer<Route> + Clone + Send + Sync + 'static,
+        L::Service: Service<Request> + Clone + Send + Sync + 'static,
+        <L::Service as Service<Request>>::Response: IntoResponse + 'static,
+        <L::Service as Service<Request>>::Error: Into<Infallible> + 'static,
+        <L::Service as Service<Request>>::Future: Send + 'static,
+    {
+        let builder: MiddlewareLayerBuilder = Arc::new(move |routes| routes.layer(layer.clone()));
+        self.extension_mut::<RouteRegistry>()?
+            .middleware
+            .alias(name.into(), builder)?;
+        Ok(self)
+    }
+
+    /// 在 Provider boot 阶段登记由 alias 或其他 group 组成的 middleware group。
+    pub fn middleware_group<I, S>(
+        &mut self,
+        name: impl Into<String>,
+        members: I,
+    ) -> Result<&mut Self>
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        let members = members.into_iter().map(Into::into).collect();
+        self.extension_mut::<RouteRegistry>()?
+            .middleware
+            .group(name.into(), members)?;
         Ok(self)
     }
 
@@ -239,18 +274,27 @@ pub fn build_router(app: &App) -> Result<Router> {
     validate_trusted_proxy_ranges(&app.config().server.trusted_proxy_ranges)?;
     let mut route_urls = None;
     let mut stateful = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let mut routes = Routes::new();
+        let middleware_registry = app
+            .extension::<RouteRegistry>()
+            .map(|registry| registry.middleware.clone())
+            .unwrap_or_default();
+        middleware_registry.validate()?;
+        let mut routes = Routes::with_middleware_registry(Arc::new(middleware_registry));
         if let Some(registry) = app.extension::<RouteRegistry>() {
             for builder in &registry.builders {
                 routes = builder(routes);
             }
         }
-        let (collected_router, named_routes, route_name_errors) = routes.into_parts();
+        let (collected_router, named_routes, route_name_errors, middleware_errors) =
+            routes.into_parts();
         if !route_name_errors.is_empty() {
             return Err(Error::custom(
                 "http_route_name_without_route",
                 "a route name was assigned before a route was registered",
             ));
+        }
+        if let Some(error) = middleware_errors.into_iter().next() {
+            return Err(error);
         }
         route_urls = Some(if named_routes.is_empty() {
             crate::http::RouteUrlGenerator::empty()
