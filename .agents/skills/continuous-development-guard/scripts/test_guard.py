@@ -1696,22 +1696,29 @@ class FullBudgetOnce(unittest.TestCase):
         self.assertEqual([p for m, p in calls if m == 'thread/goal/set'], [{'threadId': 't', 'status': 'active'}])
         with self.assertRaises(ValueError): recovery.resume_budget_pause(self.runtime, self.config, state)
 
-    def run_resume_cli(self, has_grant):
+    def run_resume_cli(self, has_grant, same_human=False):
         root = Path(self.temp.name)
         self.config.update(agent='6b56ea51-0bb7-44a7-8547-7073f8f2c7e4',
                            thread='01a175a5-d24c-71f0-86d7-ae693a28931d')
         self.runtime = root / '.agents/project/guards' / self.config['agent']
         self.runtime.mkdir(parents=True)
+        if same_human:
+            self.controls.update(last_user_at='2026-10-30T15:04:39.850Z', user_key='2026-10-30T17:10:30.105Z')
         if has_grant:
             self.grant()
         (self.runtime / 'config.json').write_text(json.dumps(self.config))
         state = self.state()
         state['percentage_pause']['resume_status'] = 'cancelled'
+        if same_human:
+            state['percentage_pause']['controls'].update(
+                last_user_at='2026-10-30T15:04:39.850Z', user_key='2026-10-30T16:29:38.580Z')
         (self.runtime / 'state.json').write_text(json.dumps(state))
         grant_path = self.runtime / 'full-budget-once.json'
         before = grant_path.read_bytes() if grant_path.exists() else None
         # 新协调消息改变水位，恢复应沿用原grant，不重新授予。
-        self.controls.update(last_user_at='2026-10-31T13:00:00Z', user_key='2026-10-31T13:00:00Z')
+        self.controls.update(
+            last_user_at='2026-10-30T15:04:39.850Z' if same_human else '2026-10-31T13:00:00Z',
+            user_key='2026-10-30T17:16:38.684Z' if same_human else '2026-10-31T13:00:00Z')
         def rpc(method, params):
             if method == 'thread/goal/set':
                 self.current['status'] = params['status']
@@ -1746,6 +1753,35 @@ class FullBudgetOnce(unittest.TestCase):
 
     def test_public_resume_reuses_existing_grant_after_new_user_message(self):
         self.run_resume_cli(has_grant=True)
+
+    def test_public_resume_same_human_uses_actual_grant_and_coordination_watermarks(self):
+        self.run_resume_cli(has_grant=True, same_human=True)
+
+    def test_same_human_requires_current_valid_grant_between_pause_and_coordination(self):
+        self.controls.update(last_user_at='2026-10-30T15:04:39.850Z', user_key='2026-10-30T17:10:30.105Z')
+        self.grant()
+        path, original = recovery.grant_document(self.config)
+        self.controls['user_key'] = '2026-10-30T17:16:38.684Z'
+        for kind in ('old_grant', 'future_grant', 'unknown_grant', 'other_human', 'ended', 'identity', 'stale_user', 'manual'):
+            document = json.loads(json.dumps(original))
+            grant = document['grants'][document['active']]
+            if kind == 'old_grant': grant['authorization']['user_key'] = '2026-10-30T16:29:38.580Z'
+            if kind == 'future_grant': grant['authorization']['user_key'] = '2026-10-30T17:20:00Z'
+            if kind == 'unknown_grant': grant['authorization']['user_key'] = None
+            if kind == 'other_human': grant['authorization']['last_user_at'] = '2026-10-30T14:00:00Z'
+            if kind == 'ended': grant['status'] = 'ended'; document['active'] = None
+            if kind == 'identity': grant['goal_id'] = 'other'
+            path.write_text(json.dumps(document))
+            state = self.state()
+            state['percentage_pause'].update(resume_status='cancelled', controls={
+                'last_user_at': '2026-10-30T15:04:39.850Z', 'user_key': '2026-10-30T16:29:38.580Z'})
+            controls = dict(self.controls)
+            if kind == 'stale_user': controls['user_key'] = '2026-10-30T16:29:38.580Z'
+            if kind == 'manual': state.pop('usage_budget_paused')
+            with self.subTest(kind=kind), patch.object(recovery, 'percentage_pause_controls', return_value=controls), \
+                 patch.object(recovery, 'rpc') as rpc:
+                with self.assertRaises(ValueError): recovery.resume_budget_pause(self.runtime, self.config, state)
+                rpc.assert_not_called()
 
     def test_public_resume_without_grant_refuses_without_goal_write(self):
         self.run_resume_cli(has_grant=False)

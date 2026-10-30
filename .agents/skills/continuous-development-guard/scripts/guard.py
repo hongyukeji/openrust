@@ -674,12 +674,22 @@ def resume_budget_pause(runtime, config, state, requested_at=None):
     if not controls:
         raise ValueError('存在权限、未知输入或用户暂停边界，拒绝恢复')
     old = pause.get('controls') or {}
-    # cancelled只撤销自动恢复资格；显式恢复仍须保留原预算暂停证据及严格更新的授权。
-    for key in ('last_user_at', 'user_key'):
-        before = completed_at({'key': old.get(key), 'payload': {}})
-        after = completed_at({'key': controls.get(key), 'payload': {}})
-        if before is None or after is None or after <= before:
-            raise ValueError('没有新的明确恢复授权水位')
+    # 协调消息只推进rollout水位；人类水位不变时必须沿用已验证的本次授权。
+    human_before = completed_at({'key': old.get('last_user_at'), 'payload': {}})
+    human_after = completed_at({'key': controls.get('last_user_at'), 'payload': {}})
+    user_before = completed_at({'key': old.get('user_key'), 'payload': {}})
+    user_after = completed_at({'key': controls.get('user_key'), 'payload': {}})
+    if (None in (human_before, human_after, user_before, user_after)
+            or human_after < human_before or user_after <= user_before):
+        raise ValueError('没有新的明确恢复授权水位')
+    if human_after == human_before:
+        grant = (effective_usage_budget(config) or {}).get('_full_budget_once') or {}
+        authorization = grant.get('authorization') or {}
+        granted_human = completed_at({'key': authorization.get('last_user_at'), 'payload': {}})
+        granted_user = completed_at({'key': authorization.get('user_key'), 'payload': {}})
+        if (granted_human != human_after or granted_user is None
+                or not user_before < granted_user <= user_after):
+            raise ValueError('同人类水位缺少有效的本次恢复授权')
     response = rpc('account/rateLimits/read', {})
     if quota_delay(response, time.time(), config.get('allow_existing_credits', False), effective_usage_budget(config)):
         raise ValueError('实际额度不可用或未知，不恢复原Goal')
