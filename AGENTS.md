@@ -102,7 +102,7 @@ Agent 不替代开发者做方向决策、发布判断和对外动作；开发�
 
 ## 6. 工作循环
 
-每个功能簇采用 **Spec → Implement → Verify → Commit**。
+每个功能簇采用 **Spec → Implement → Verify → Commit**。默认先完成代码与配套测试代码，再在功能簇提交前集中执行验证，不逐小改动反复测试；分支交付与main组合门禁分层，具体见[集中验证](.agents/project/conventions.md#功能簇提交前集中验证)。验证未通过不得提交或报完成。
 
 ### 6.1 Spec
 
@@ -131,13 +131,14 @@ Laravel 对应能力须按[纠偏规则](.agents/project/plans/laravel-rebuild.m
 
 | 改动范围 | 验证 |
 | --- | --- |
-| 任意 crate 源码 | `cargo fmt --all --check`、`cargo clippy --workspace --all-targets -- -D warnings`、`cargo test --workspace`、`cargo doc --workspace --no-deps` |
+| main功能簇/集成的crate源码 | 提交前集中执行`cargo fmt --all --check`、`cargo clippy --workspace --all-targets -- -D warnings`、`cargo test --workspace`、`cargo doc --workspace --no-deps`；其余适用门禁不变 |
+| 独立任务分支源码 | 提交前执行本簇fmt/Clippy、单元/契约与受影响consumer、必要真实服务/生成验证；完整main组合门禁在集成提交前执行，不当作分支已通过 |
 | `openrust::db` / `openrust::queue` / `openrust::auth` 等数据相关模块 | 另在 PostgreSQL 与 MySQL 各跑集成测试 |
 | 模板与生成器 | 生成项目后 `cargo check` + `cargo test` |
 | 文档 / skill-only | `git diff --check` + 链接检查 + `rg` 旧引用扫描，不跑全量构建 |
 
 3. 框架是底层通用机制，每个公共行为都应有测试；新建测试文件前必须能一句话说清它能发现哪个缺陷。测试失败先自行修复。
-4. 整组验证结束后按 [构建产物与临时资源](.agents/project/conventions.md#构建产物与临时资源) 检查并清理本任务产物；每个功能簇结束后默认完整清理本仓库 Cargo target。共享目录被占用时延后清理并说明，不中断其他构建。
+4. 功能簇结束后按 [构建产物与临时资源](.agents/project/conventions.md#构建产物与临时资源) 检查总空间并回收一次性临时资源；正常阈值内允许受控缓存跨簇复用，不再每簇强制cargo clean。触及阈值或工作区退役时按归属和锁安全清理，不中断其他构建。
 
 ### 6.4 Commit
 

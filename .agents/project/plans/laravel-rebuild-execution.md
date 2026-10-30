@@ -37,8 +37,10 @@
 
 ## 必须实际验证
 
+按[功能簇提交前集中验证](../conventions.md#功能簇提交前集中验证)：先完成代码和配套测试代码，再冻结运行输入集中验收。实现中不逐小改动跑测试/Clippy矩阵；分支定向验收、main集成完整门禁，均验证后才本地提交。有效未受影响证据可复用，不因无关计划文档变化重跑Rust测试。
+
 - 每簇开工、审查和提交前执行总计划[纠偏规则](laravel-rebuild.md#执行偏离的纠正)：追踪实际生产入口、默认值、示例与生成器，以可区分旧、新行为的证据验收。发现偏离先纠正再继续依赖该设计的开发；未就绪项进入唯一 todo，不能只改名包装旧实现后报告目标完成。
-- 每个代码簇执行适用 fmt、workspace clippy/test/doc、cargo deny、feature/MSRV 门禁；失败先修复。生成项目执行 check/test 和真实启动/HTTP 流程。
+- main功能簇/集成提交前集中执行适用fmt、workspace clippy/test/doc、cargo deny、feature/MSRV门禁；独立分支按集中验证规则执行限定门禁。失败修复后按真实影响重验，不机械从头反复运行全部矩阵；生成项目仍须check/test和真实启动/HTTP。
 - PostgreSQL 18/MySQL 8.4 LTS 双库；SQLite 单机支持按阶段纳入。真实复制验收延迟/追平/强制主库/故障恢复，不能用两个独立数据库替代。
 - 真实 Redis、S3、SMTP、HTTP/WebSocket/SSE/gRPC、Collector；各数据库分别验收负载均衡、两个 API、多 worker/scheduler 和共享状态/文件/广播/恢复。外部 SMS/支付等仅用授权目标和凭据。
 - 根目录普通 `cargo run` 和真实 HTTP 启动实际成功；额外 --bin/--package 或命令别名不能替代。

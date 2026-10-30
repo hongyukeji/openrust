@@ -19,13 +19,13 @@ description: 按已定 contract 实现 OpenRust 功能簇，适用于框架模�
 - 配置、错误和扩展机制沿用当前模块与 `conventions.md`；先检查已有类型和公开导出，不另建同义 API 或平行 Hooks 系统。
 - driver 实现现有公开 trait，允许外部包接入；不要把某个内置后端的实现细节写入公共契约。feature 名称从当前 manifest 读取，避免照搬假想名称。
 - 修改公共行为时同步模块调用方、当前可运行应用集成、模板、示例、测试、用户文档及 changelog；只更新实际受影响的文件。
-- 按已定行为逐项实现并验证；测试先行的细节见 [tdd](../tdd/SKILL.md)。单元 fake 只用于其能覆盖的层次。
+- 先完成本簇源码、测试代码、调用方与文档，再在提交前集中执行验证；实现期间不逐小改动反复跑测试/Clippy/整组门禁，不默认测试先行。确有类型/API阻断时只做最小必要编译诊断；用户明确要求TDD时才按 [tdd](../tdd/SKILL.md) 执行。单元 fake 只用于其能覆盖的层次。
 
 ## 验证与收口
 
 从 `AGENTS.md`、`.agents/project/conventions.md` 和 `.agents/project/memory/testing.md` 读取当前门禁与可执行命令，不在技能内维护另一份版本矩阵。
 
-- 源码变更执行 workspace fmt、clippy、tests、docs 与 cargo deny；按当前测试入口补齐必要 feature，默认 feature 的成功不能证明可选模块已测。
+- 提交前按`conventions.md`集中验证：分支执行本簇定向与适用真实集成门禁；main功能簇/集成执行workspace fmt、clippy、tests、docs与cargo deny及必要feature/MSRV。默认feature成功不能证明可选模块已测；分支定向通过不冒充main全量验收。
 - 数据能力在 PostgreSQL 和 MySQL 各执行适用集成测试。复制、租约恢复、多实例与网络行为必须用对应真实拓扑验收；`oneshot` 只证明进程内 HTTP 行为。
 - 模板或生成器变更先生成项目，再实际执行其 `cargo check` 和 `cargo test`；有服务依赖时检查相关测试确实执行，不能将跳过当通过。
 - 复用已授权服务并隔离测试数据；缺少凭据或服务时继续独立工作，明确未验收项。只有满足当前功能簇完成条件才标记完成。
