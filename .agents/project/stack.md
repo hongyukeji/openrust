@@ -39,7 +39,7 @@ Session默认Cookie名的内部转写数据固定参考 `voku/portable-ascii` 2.
 | ORM / 迁移 | `sea-orm` 2.0.4 + `sea-orm-migration` 2.0.4 | 采用 M0 双库迁移 spike 验证的版本；tokio Rustls 默认运行时，OpenRust 官方连接驱动按 `db-postgres` / `db-mysql` feature 开启。外部自定义插件可通过同版本 SeaORM 依赖的 feature 统一选择其他 backend；SQLite 通用 `Db` 与应用自有迁移示例见 `tests/consumers/db-custom-sqlite/`，不代表 OpenRust 框架迁移、认证/队列或方言的完整支持 |
 | 数据库 URL | `url` 2.5 | `testing` 替换隔离数据库名时保留连接凭据和查询参数 |
 | SQLx 支持 | `sqlx` 0.9 | MySQL driver 强制 TLS（Rustls）；不启用存在安全公告的 RSA 非 TLS 认证路径；`db.sqlx()` 尚未实现，若提供需先定义公开 API、feature 与连接生命周期 |
-| 数据库 | 暂定最低支持：PostgreSQL 14+、MySQL 8.0+；日常开发/Compose：PostgreSQL 18、MySQL 8.4 LTS；常规 CI：PostgreSQL 18、MySQL 8.4 | 运行时版本检查按暂定最低版本执行；PostgreSQL/MySQL 最低版本的完整兼容性仍须在 v1 发布验收中复核，不把单项历史测试等同于整套框架支持。仅在主版本跨度大或兼容风险显著时专项测试，不为每次日常 CI 追测所有版本。PostgreSQL 官方按主版本提供五年支持，不称 LTS |
+| 数据库 | 暂定最低支持：PostgreSQL 14+、MySQL 8.0+；日常开发/常规CI真实验证默认MySQL8.4 LTS；Compose保留PostgreSQL18/MySQL8.4可用服务 | 日常不每簇重复PG全套；PG/其他后端专属SQL/驱动/迁移/锁风险按影响定向。发布前全部承诺后端及适用版本完整验收。运行时版本检查按暂定最低版本执行；PostgreSQL/MySQL 最低版本的完整兼容性仍须在 v1 发布验收中复核，不把单项历史测试等同于整套框架支持。仅在主版本跨度大或兼容风险显著时专项测试，不为每次日常 CI 追测所有版本。PostgreSQL 官方按主版本提供五年支持，不称 LTS |
 | UUIDv7 主键 | `uuid` 1.x（`v7`, `serde`），通过 `db-uuid` feature 同步启用 SeaORM/SeaQuery UUID codec | 仅在模型生成显式使用 `--uuid-id` 时启用；默认仍为自增整数。UUIDv7 由生成实体的 SeaORM `before_save` 在应用进程生成 |
 | Redis | 暂定最低支持：Redis 6.2+；日常开发/Compose：Redis 8；当前真实服务验收使用 Redis 8.10.2 | 缓存与可选 Session adapter 已通过 Redis 8.10.2；Redis 6.2 最低版本及最终集群兼容仍需发布前专项验收 |
 | 密码哈希 | `argon2` 0.6（Argon2id / PHC） | RustCrypto 实现；随机 salt；参数有界可配置；哈希与验证移入 Tokio blocking pool |
@@ -81,7 +81,7 @@ Session默认Cookie名的内部转写数据固定参考 `voku/portable-ascii` 2.
 | 语义化版本检查 | M6 对已有源码版本做 API 兼容性检查；使用 `cargo-semver-checks` 时明确源码 baseline，不以 crates.io 已发布包为前提 |
 | 变更日志 | `git-cliff` 为规划工具 |
 | 文档站 | M6 规划 `mdbook`；当前尚无 mdBook 用户文档站 |
-| CI | GitHub Actions；PostgreSQL 与 MySQL 以 service 容器提供 |
+| CI | GitHub Actions；常规MySQL8.4 service集成，手动release-backends包含PG18子矩阵；后端专属风险另按影响定向，CI子矩阵不等于完整发布验收 |
 
 ## 版本政策
 

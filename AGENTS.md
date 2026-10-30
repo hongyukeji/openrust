@@ -133,7 +133,7 @@ Laravel 对应能力须按[纠偏规则](.agents/project/plans/laravel-rebuild.m
 | --- | --- |
 | main功能簇/集成的crate源码 | 提交前集中执行`cargo fmt --all --check`、`cargo clippy --workspace --all-targets -- -D warnings`、`cargo test --workspace`、`cargo doc --workspace --no-deps`；其余适用门禁不变 |
 | 独立任务分支源码 | 提交前执行本簇fmt/Clippy、单元/契约与受影响consumer、必要真实服务/生成验证；完整main组合门禁在集成提交前执行，不当作分支已通过 |
-| `openrust::db` / `openrust::queue` / `openrust::auth` 等数据相关模块 | 另在 PostgreSQL 与 MySQL 各跑集成测试 |
+| `openrust::db` / `openrust::queue` / `openrust::auth` 等数据相关模块 | 日常默认真实MySQL8.4；PostgreSQL或其他后端专属SQL/驱动/迁移/锁风险按实际影响定向验证；发布前全部承诺后端及版本完整适用验收，见[当前政策](.agents/project/memory/testing.md#当前数据库运行政策) |
 | 模板与生成器 | 生成项目后 `cargo check` + `cargo test` |
 | 文档 / skill-only | `git diff --check` + 链接检查 + `rg` 旧引用扫描，不跑全量构建 |
 

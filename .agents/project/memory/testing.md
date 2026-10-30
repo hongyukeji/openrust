@@ -1,5 +1,13 @@
 # 测试基线
 
+## 当前数据库运行政策
+
+- 日常功能簇、main组合及数据库型生成项目默认真实MySQL8.4；普通无数据库生成、真实HTTP和其余适用门禁保持。PG18/MySQL8.4服务与支持范围不删减，编译/features不算真实后端验收。
+- PostgreSQL/其他后端专属SQL、驱动、故障，或明确方言/迁移/锁差异风险，按实际影响当场执行必要定向，不机械重复全套双库。
+- 发布前统一执行全部已实现/承诺支持后端（含PG/MySQL及SQLite等对应范围）、版本和迁移/事务/数据安全/队列/集群/生成项目矩阵；最低版本和跨主版本风险按发布规则。未实现、未执行或失败项保留发布待验/阻塞，日常MySQL通过只支持日常范围提交。
+- 已运行PG命令自然结束并完成自有资源清理；未开始的常规PG阶段不再安排，不停删共享PG服务、测试或feature。历史双库证据原样保留，以下历史记录不自动成为新发布范围通过。
+- CI常规数据库job为MySQL；手动`database_scope=release-backends`保留原PG18集成子矩阵，不代表完整发布已验收。后端专属例外按具体风险定向执行并留证；发布积压以[todo](../todo.md#发布前全后端兼容性验收)为准。
+
 ## C04-D10-A 错误包（限定子范围已验收）
 
 固定 Laravel framework `d52c3b3129e4c8e213c97cdc68f94b0b7d27f181`：MessageBag/ViewErrorBag 及公开 contract、Collection 保键/预算与同实例派发，已接唯一模块和普通生成应用。构造消息采用 String；递归合并派生 `MessageValue::Nested`，格式错误以 Laravel HandleExceptions 模式对应，裸 PHP 警告后继续的差异单列。完整 RedirectResponse、Session `errors` 与请求局部视图共享仍开放。

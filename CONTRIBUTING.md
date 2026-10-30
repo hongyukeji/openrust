@@ -15,7 +15,7 @@ cargo doc --workspace --no-deps
 cargo deny check
 ```
 
-框架库与默认 server 同属根 openrust package，根默认成员为 ["."]；根 cargo test 覆盖该 package，完整门禁使用 --workspace 纳入工具，框架定向测试可用 -p openrust --lib。五项主要门禁是 `fmt`、`clippy`、`test`、`doc` 和 `deny`；`cargo check` 用于快速检查构建。数据相关变更还必须按照 [.agents/project/memory/testing.md](.agents/project/memory/testing.md) 执行 PostgreSQL 和 MySQL 集成测试。
+框架库与默认 server 同属根 openrust package，根默认成员为 ["."]；根 cargo test 覆盖该 package，完整门禁使用 --workspace 纳入工具，框架定向测试可用 -p openrust --lib。五项主要门禁是 `fmt`、`clippy`、`test`、`doc` 和 `deny`；`cargo check` 用于快速检查构建。数据相关变更还必须按照 [.agents/project/memory/testing.md](.agents/project/memory/testing.md) 日常默认执行真实MySQL8.4集成测试；PostgreSQL/其他后端专属变更或方言、迁移、锁风险当场定向验证。发布前统一验证全部承诺支持后端、版本及适用生成/集群/数据安全矩阵；日常单库通过不代表全后端兼容已验收。
 
 ## 构建空间管理
 
