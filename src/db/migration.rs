@@ -216,6 +216,11 @@ struct MigrationCommand {
     catalog: Arc<MigrationCatalog>,
 }
 
+#[cfg(feature = "auth-mfa")]
+pub(crate) fn framework_migration_command_id() -> std::any::TypeId {
+    std::any::TypeId::of::<MigrationCommand>()
+}
+
 impl Command for MigrationCommand {
     fn name(&self) -> &'static str {
         "migrate"

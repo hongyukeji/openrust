@@ -94,6 +94,7 @@ match (result, cleanup) {
 - [`ProviderBuilder`] / [`ServiceProvider`] / [`App`] / [`AppState`]：框架、应用模块和第三方 package 使用同一扩展点与容器。`register` 声明绑定和配置区段，`boot` 贡献路由、命令及 middleware。依赖可在所有注册完成后解析；配置覆盖在最终校验前仍可提交。`App::run_command` 允许同一应用依次执行命令；顶层 CLI 在命令结束后调用 `App::shutdown`，HTTP `serve` 在退出时合作取消、限时回收受管资源。
 - [`ModuleManifest`](module.rs) 在编译期声明模块描述，启动时从只读状态源取得启用快照；启用的模块 Provider 展平进入同一注册与顺序 boot 生命周期。`ModuleDescriptor::requires` 声明已编译模块的硬依赖；依赖必须同时启用，循环/缺失/禁用依赖启动失败。依赖拓扑优先于 `priority`，相同优先级按清单声明顺序稳定排序，模块 provider 的 register 与 boot 使用同一顺序；不会自动更改状态文件。`ModuleConfigFiles::overlay` 由模块 Provider 在实际配置时点调用，逐文件写入共享配置仓储。文件状态仅 JSON `true` 启用，缺文件/键不启用，坏 JSON 拒绝；禁用不热卸载、不删除迁移历史。默认模块运行根是进程工作目录，应用可显式传入部署根；编译时 `CARGO_MANIFEST_DIR` 不决定运行时资源位置。模块资源、语言、视图和迁移示例见 [`modules/example`](../../modules/example/README.md)。
 - [`Command`]：应用二进制对外提供的运行时命令（`serve`、`migrate`、`queue work` 等）。命令默认拒绝额外参数；接受参数的命令须实现 `accepts_args`。
+- 控制台入口在引导前确定命令名，Provider 可通过 `BootContext::console_command()` 与 `is_console_command()` 读取本次候选命令。普通 `bootstrap()`、直接 `ProviderBuilder` 与 `TestApp` 均无该上下文。框架按最终匹配的命令实例执行启动前检查；候选名本身不授权跳过校验。内部迁移入口允许空库先执行官方迁移，再由后续正常应用启动校验所需表。
 - [`Error`] / [`Result`] / [`ApiResponse<T>`] / [`PageMeta`]：统一错误类型、JSON 响应封装和类型化分页元数据。
 - [`ExecutionContext`] / [`ExecutionMetadata`] / [`Cancellation`]：单次 HTTP、命令或 Job 尝试的 task-local 关联信息、时间预算和合作取消；task-local 不自动传播至 `tokio::spawn`。
 - [`RateLimiter`] / [`RateLimitStore`]：固定窗口配额服务契约。存储故障向上传播；超限请求返回 429 和 `Retry-After`；每种实现都需说明共享范围与原子性边界。

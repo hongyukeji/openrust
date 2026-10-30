@@ -1,6 +1,6 @@
 //! 应用二进制公开的运行时命令。
 
-use std::fmt::Write as _;
+use std::{any::Any, fmt::Write as _};
 
 use crate::core::app::App;
 use crate::core::error::Result;
@@ -10,7 +10,7 @@ use crate::core::plugin::BoxFuture;
 ///
 /// Provider 在 `boot` 阶段注册命令；HTTP 模块提供 `serve`，数据库模块提供 `migrate` 等。
 /// 嵌套命令使用空格分隔单词，例如 `queue work`、`db seed`。
-pub trait Command: Send + Sync + 'static {
+pub trait Command: Any + Send + Sync + 'static {
     /// 在命令行中输入的命令名称。
     fn name(&self) -> &'static str;
 

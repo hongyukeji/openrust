@@ -26,13 +26,23 @@
 
 分页 `meta` 使用 `Option<PageMeta>`，`with_meta` 直接保留强类型值。
 
+### 控制台迁移与启动校验（D10-B 限定子范围已验收，待提交）
+
+顶层 CLI 在引导前持有候选命令及参数；`BootContext::console_command` / `is_console_command` 只描述候选首词，不能证明最终命令身份。设置上下文的入口限制在框架内部，普通 `bootstrap`、公开 Builder 与 TestApp 保持原严格启动校验。
+
+MFA 在候选为迁移时仍解析服务与配置，仅登记延后 schema 检查；派发复用现有最长命令匹配，以实际框架 `MigrationCommand` 类型决定是否免于运行态五表预查。其他实际命令（包括同首词多词自定义命令及后续 `serve`）先执行检查；迁移按原 up/down/status/命名数据库语义返回，不附加会破坏合法回滚的五表后置条件。内部一次性 CLI 保留关闭与 telemetry 收尾，不对外返回可复用免检应用。
+
+固定 Laravel Console Kernel 先持有 InputInterface 再 bootstrap 的流程是对应依据；Rust 用明确候选上下文与最终命令类型绑定保护既有启动检查，非全局 argv/env 开关。真实 MySQL 8.4 私有库已验证空库 status、up 1、down 1、命名库 status、全量 up，以及删自有 MFA 表后普通 serve 缺表拒绝；库已精确清理。原迁移失败历史/重启恢复测试本轮没有实际数据库连接，不在上述证据内。见[限定验收](../memory/testing.md#c04-d10-b-请求绑定重定向与-session-错误包限定子范围已验收待提交)。
+
 ## 公共 Support 错误包
 
 `openrust::support` 的 `MessageBag`、`ViewErrorBag` 不依赖 Session 或应用容器；核心装配不持有请求错误。`MessageBagContract` 与 `MessageProvider` 为公开扩展契约，命名包以原对象借用派发；`ViewErrorBag` 的默认代理只读取 `default`，缺失包是临时空值，不插入共享状态。
 
 消息构造接受 String；`Collection`/`ArrayKey` 保留顺序与稀疏键。`MessageValue::Nested` 表达递归合并派生数组；外层 merge 重编号整数键，内层按固定 PHP 实际规则保留原稀疏键并追加。`add` 的数值字符串宽松去重与构造/unique 的字符串去重分别实现。嵌套值的非默认格式错误对应 Laravel `HandleExceptions` 将警告转异常的路径，裸 PHP 的警告后继续行为另列参考，不能混称相同。
 
-`MessageValue` 序列化先转为具体值类型，避免递归叠加泛型有限数值检查器；通用 Collection 的非有限数拦截和整树预算仍保留。受控写入先校验候选完整树再发布，失败不替换原值或自定义包实例。用户入口见根 README 的消息包章节；Session `errors` 编码、请求绑定重定向和请求局部视图共享仍按 todo 后继实施。
+`MessageValue` 序列化先转为具体值类型，避免递归叠加泛型有限数值检查器；通用 Collection 的非有限数拦截和整树预算仍保留。受控写入先校验候选完整树再发布，失败不替换原值或自定义包实例。用户入口见根 README 的消息包章节。D10-B 已把 Session `errors` 接入公开 codec 和请求绑定重定向并通过限定验收；请求局部视图自动共享仍按 todo 后继实施。
+
+自定义包使用原 `MessageBagContract` 与 `MessageProvider`，不新设平行错误体系。Session Provider 发布默认 `ErrorBagCodecs`，内置 `MessageBag` 无需注册；可信业务 Provider 可通过 `RegisterContext::extend::<ErrorBagCodecs, _>` 装饰既有绑定，再以稳定 type ID、版本及编码/解码函数登记自定义包。编码和恢复回调在 Session 属性锁外运行；失败、未知版本或预算超限不能部分替换已存错误。固定 Laravel Store 对照中，PHP 序列化保留自定义对象，JSON 保存后恢复为基础消息包；Rust 为持久化自定义行为使用显式类型化 codec，非 PHP 字节格式兼容。
 
 限定验收入口见[testing](../memory/testing.md#c04-d10-a-错误包限定子范围已验收)；不据此关闭完整校验器、重定向或视图错误共享。
 

@@ -102,6 +102,7 @@ struct Installed;
 pub struct SessionServiceProvider {
     config: Option<SessionConfig>,
     store: Option<Arc<dyn SessionStore>>,
+    error_bag_codecs: Arc<super::ErrorBagCodecs>,
 }
 impl Default for SessionServiceProvider {
     fn default() -> Self {
@@ -114,6 +115,7 @@ impl SessionServiceProvider {
         Self {
             config: None,
             store: None,
+            error_bag_codecs: Arc::new(super::ErrorBagCodecs::new()),
         }
     }
     /// 安装应用公开实现的store，优先于配置driver。
@@ -121,7 +123,14 @@ impl SessionServiceProvider {
         Self {
             config: None,
             store: Some(Arc::new(store)),
+            error_bag_codecs: Arc::new(super::ErrorBagCodecs::new()),
         }
+    }
+    /// 装配已登记的错误包 codec；注册后不可在请求期变更。
+    #[must_use]
+    pub fn with_error_bag_codecs(mut self, codecs: super::ErrorBagCodecs) -> Self {
+        self.error_bag_codecs = Arc::new(codecs);
+        self
     }
     /// 在本Provider boot时覆盖唯一session区段；更晚overlay仍按通常顺序生效。
     #[must_use]
@@ -133,6 +142,7 @@ impl SessionServiceProvider {
 impl ServiceProvider for SessionServiceProvider {
     fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
         use crate::config::repository::SectionSchema as S;
+        app.instance(Arc::clone(&self.error_bag_codecs));
         app.config_section(
             "session",
             SessionConfig::default(),
@@ -198,11 +208,13 @@ impl ServiceProvider for SessionServiceProvider {
             let ready = ready.clone();
             Box::pin(async move {
                 let settings = resolver.resolve::<SessionSettings>().await?;
+                let error_bag_codecs = resolver.resolve::<super::ErrorBagCodecs>().await?;
                 let layer = if settings.config.driver.is_some() {
                     let store = resolver.resolve::<SessionStoreHandle>().await?;
                     Some(super::middleware::SessionLayer {
                         settings: (*settings).clone(),
                         store: store.0.clone(),
+                        error_bag_codecs,
                     })
                 } else {
                     None

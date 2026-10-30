@@ -762,7 +762,19 @@ impl crate::core::ServiceProvider for MfaServiceProvider {
     }
 
     fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
-        Box::pin(async move { app.resolve::<MfaService>().await?.check_schema().await })
+        Box::pin(async move {
+            let service = app.resolve::<MfaService>().await?;
+            if app.is_console_command("migrate") {
+                return app.defer_boot_check_for_command(
+                    crate::db::migration::framework_migration_command_id(),
+                    move || {
+                        let service = std::sync::Arc::clone(&service);
+                        Box::pin(async move { service.check_schema().await })
+                    },
+                );
+            }
+            service.check_schema().await
+        })
     }
 }
 
@@ -1232,5 +1244,10 @@ mod provider_tests {
         let mut builder = ProviderBuilder::new();
         builder.provider(MfaServiceProvider);
         assert!(builder.start(figment::Figment::new()).await.is_err());
+        let mut migration = ProviderBuilder::new();
+        migration
+            .console_command("migrate")
+            .provider(MfaServiceProvider);
+        assert!(migration.start(figment::Figment::new()).await.is_err());
     }
 }

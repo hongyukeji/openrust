@@ -178,9 +178,23 @@ impl BackgroundTaskHandle {
 
 /// 从当前工作目录的配置引导启动 `A`。
 pub async fn bootstrap<A: Application>() -> Result<App> {
+    bootstrap_with_command::<A>(None).await
+}
+
+/// 为实际指定的控制台命令引导启动 `A`，并向 Provider 暴露命令名称。
+///
+/// 调用方须在启动成功后用相同名称执行 [`App::run_command`]。
+pub(crate) async fn bootstrap_for_command<A: Application>(name: &str) -> Result<App> {
+    bootstrap_with_command::<A>(Some(name)).await
+}
+
+async fn bootstrap_with_command<A: Application>(name: Option<&str>) -> Result<App> {
     let loader = bootstrap_config_loader(A::config_namespace())?;
     let app_config: A::Config = loader.load()?;
-    let builder = ProviderBuilder::for_application::<A>(&app_config);
+    let mut builder = ProviderBuilder::for_application::<A>(&app_config);
+    if let Some(name) = name {
+        builder.console_command(name);
+    }
     let runtime = builder.start(loader.figment()?).await?;
     if let Err(error) = runtime.container().resolve::<A::Config>().await {
         if let Err(cleanup_error) = runtime

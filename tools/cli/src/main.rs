@@ -716,6 +716,10 @@ fn populate_project_with_mfa(
             "tests/support/request_session.rs",
             include_str!("../templates/tests/support/request_session.rs").to_owned(),
         ));
+        files.push((
+            "tests/support/request_redirect.rs",
+            include_str!("../templates/tests/support/request_redirect.rs").to_owned(),
+        ));
     }
     if auth {
         files.push((
@@ -2773,6 +2777,7 @@ mod tests {
             "tests/support/message_bags.rs",
             "tests/support/request_cookie.rs",
             "tests/support/request_session.rs",
+            "tests/support/request_redirect.rs",
             "AGENTS.md",
         ] {
             assert!(project.join(path).is_file(), "missing generated {path}");
@@ -2798,6 +2803,7 @@ mod tests {
             "tests/support/message_bags.rs",
             "tests/support/request_cookie.rs",
             "tests/support/request_session.rs",
+            "tests/support/request_redirect.rs",
             "AGENTS.md",
         ]
         .into_iter()

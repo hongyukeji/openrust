@@ -167,6 +167,19 @@ impl ServiceProvider for ExampleServiceProvider {
         app.extend::<ExampleMessage, _>(|original, _resolver| {
             Box::pin(async move { Ok(Arc::new(original.with_binding_extension())) })
         });
+        #[cfg(feature = "session")]
+        app.extend::<openrust::session::ErrorBagCodecs, _>(|original, _resolver| {
+            Box::pin(async move {
+                let mut codecs = (*original).clone();
+                codecs.register::<crate::modules::example::services::draft_errors::DraftErrors>(
+                    "example.draft-review",
+                    1,
+                    crate::modules::example::services::draft_errors::encode,
+                    crate::modules::example::services::draft_errors::decode,
+                )?;
+                Ok(Arc::new(codecs))
+            })
+        });
         #[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
         app.singleton::<ArticleWriter, _>(|resolver| {
             Box::pin(async move {

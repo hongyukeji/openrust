@@ -78,7 +78,17 @@ fn business_errors() -> openrust::Result<String> {
 
 `ViewErrorBag` 按名称保存实现 `MessageBagContract` 的包。`count`、`any` 和 `default_*` 代理只读取 `default` 包；读取缺失包返回临时空包，不隐式插入。业务自定义包通过公开契约接入，已存包的借用与修改保留原实例。
 
-完整调用参考位于[唯一示例模块](modules/example/README.md)的 `POST /api/example/message-bag`。此处介绍纯错误包 API；Session 自动错误共享、验证失败重定向与视图注入按后续功能簇交付，不能据此假定已自动启用。
+纯错误包调用参考位于[唯一示例模块](modules/example/README.md)的 `POST /api/example/message-bag`。Session 的命名错误包须由应用显式闪存和读取；视图自动共享与验证失败重定向仍属后继范围。
+
+## 请求绑定重定向与错误闪存
+
+业务 handler 可从 `RequestInfo` 创建 `Redirector::from_info(&info)`，调用 `to` 或 `back` 得到默认 302 的 `RedirectResponse`，再用 Axum 的 `IntoResponse` 返回。响应包含 `Location`、HTML 正文和 `text/html; charset=utf-8`；无 Session 的普通重定向也可使用。`back` 按有效 `Referer`、Session 前次 URL、有效 fallback、请求根依次选择目标。目标和状态验证失败返回 `Result` 错误，不把无效 `Location` 写入响应。
+
+需要闪存当前请求输入时，handler 接收公开 `openrust::http::Request`，以 `Redirector::from_request(&request)` 建立响应，再调用 `with_input`、`only_input` 或 `except_input`。这些方法读取同一请求的规范化输入；手动闪存**不会默认排除密码或令牌**，应用应按业务规则显式排除。文件输入未并入此输入仓储；不应把上传文件视为可闪存值。未安装 Session 时闪存返回错误，普通重定向本身仍可返回。
+
+在启用 Session 的应用中，`with_errors(RedirectErrors::Text/Entries/Provider, name)` 将命名错误包闪存到下一请求；下一请求可由 `RequestInfo::session()?.read_errors()?` 读取，`RequestInfo::old_all()?` 读取旧输入。内置 `MessageBag` 无需登记 codec；自定义 `MessageBagContract` 须在 Provider 装配阶段通过 `ErrorBagCodecs::register` 登记稳定标识、版本、编码和解码函数，可用 `RegisterContext::extend::<ErrorBagCodecs, _>` 扩展现有绑定。实现示例见[唯一模块的草稿路由](modules/example/http/controllers/draft_redirect.rs)与[Provider 扩展](modules/example/providers/example.rs)。本请求编码失败、错误格式不合法或 Session 容量超限会返回错误并保留此前状态；自定义 codec 在 Session 状态锁外运行。Rust 的类型化持久格式用于跨请求恢复自定义行为：固定 Laravel Store 的 PHP 序列化保留对象类型，JSON 序列化恢复为基础消息包，此处不承诺 PHP 字节兼容。
+
+本节公开调用链已通过默认/全特性集中门禁、无 Session 与 MySQL8.4 真实 HTTP，以及普通生成应用验证；MySQL 生成认证回归不替代 Session 验收，PostgreSQL 留发布矩阵。`ShareErrorsFromSession`、异常处理器的 `dontFlash` 与自动验证失败重定向仍待后继功能簇。
 
 ## 生成用户应用
 

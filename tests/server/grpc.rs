@@ -281,7 +281,11 @@ async fn wait_for_combined_readiness(
         biased;
         result = &mut *task => {
             eprintln!("联合服务在就绪前退出：http={http_address} grpc={grpc_address}");
-            result??;
+            let outcome = result?;
+            if let Err(error) = &outcome {
+                eprintln!("联合服务启动错误：{error}");
+            }
+            outcome?;
             return Err("combined service exited before readiness".into());
         }
         ready = tokio::time::timeout(Duration::from_secs(5), async {

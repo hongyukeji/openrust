@@ -79,4 +79,12 @@ CORS 预检（`OPTIONS` 且带 `Access-Control-Request-Method`）保持 tower-ht
 
 ## C04-D10-A 错误包接入
 
-纯错误包由公开 `openrust::support` 提供，唯一模块 POST `/api/example/message-bag` 经正式路由调用；受管理HTTP不默认注入共享错误状态。公开消费、生成及真实TCP限定验收见[testing](../memory/testing.md#c04-d10-a-错误包限定子范围已验收)。请求绑定RedirectResponse、Session `errors` 和请求局部视图共享留给后继，当前不冒称自动验证重定向完成。
+纯错误包由公开 `openrust::support` 提供，唯一模块 POST `/api/example/message-bag` 经正式路由调用；受管理HTTP不默认注入共享错误状态。公开消费、生成及真实TCP限定验收见[testing](../memory/testing.md#c04-d10-a-错误包限定子范围已验收)。这份 D10-A 证据不证明下面 D10-B 的新行为。
+
+## C04-D10-B 请求绑定重定向（限定子范围已验收，待提交）
+
+`Redirector::from_info(&RequestInfo)` 借用请求来源并构建普通 `to/back` 响应；`Redirector::from_request(&Request)` 另可读取同一规范化输入。`RedirectResponse` 经 `IntoResponse` 输出目标 `Location`、HTML 正文和文本类型，默认 302；允许状态、目标与 HTTP 头失败通过 `Result` 传播。`back` 按有效 Referer、Session previous、有效 fallback、请求根选择；目标解析不使用响应状态推断路由命中。普通重定向不依赖 Session；需要闪存时 `with_input/only_input/except_input` 以及 `with_errors` 使用当前 Session，缺 Session 返回错误。
+
+`with_errors` 支持 `RedirectErrors::Text/Entries/Provider`，将命名包写入 Session `errors`，下一请求经 `RequestInfo::session()?.read_errors()?` 读取；同一请求的旧输入使用 `old_all/old`。手动输入闪存不应用异常处理器 `dontFlash`，敏感字段由业务显式排除；文件输入未并入规范化输入 bag。Session codec 在属性锁外执行，写入候选须通过类型、格式与单次预算校验后才发布；自定义类型通过 Provider 的公开 `ErrorBagCodecs` 扩展登记，内置包无需配置。唯一模块的 `draft_redirect` 路由与 `draft_errors` 服务展示业务调用和跨请求恢复，生成测试在 CLI 模板中提供同类公开消费。
+
+本簇当前源码通过严格默认/全特性门禁、无Session真实TCP、MySQL8.4私有库TCP与缺MFA表启动拒绝；普通生成应用7项含重定向公开helper，MySQL生成2项仅认证回归，PG常规验收保留发布矩阵。证据与旧失败见[限定验收](../memory/testing.md#c04-d10-b-请求绑定重定向与-session-错误包限定子范围已验收待提交)。不据此关闭完整 Redirector、`ShareErrorsFromSession`、异常 `dontFlash` 或验证失败自动重定向；后继 C 继续请求局部视图共享。

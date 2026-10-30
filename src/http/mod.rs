@@ -16,6 +16,7 @@ pub mod middleware;
 pub mod plugin;
 pub mod precognition;
 pub mod rate_limit;
+pub mod redirect;
 pub mod request;
 pub mod resource;
 pub mod response;
@@ -47,6 +48,9 @@ pub use extract::{Inject, Json, Path, Query, Validated};
 pub use plugin::{HttpServiceProvider, RouteRegistry, build_router};
 pub use precognition::handle_precognitive_requests;
 pub use rate_limit::{RateLimitKey, RateLimitLayer};
+#[cfg(feature = "session")]
+pub use redirect::RedirectErrors;
+pub use redirect::{RedirectResponse, Redirector};
 pub use request::{
     InputNormalization, InputOutcome, InputOutcomeMut, InputTruthy, Request, RequestInfo, Truthy,
 };

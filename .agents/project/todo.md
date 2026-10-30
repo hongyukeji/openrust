@@ -393,17 +393,15 @@ D7真实Route/Resolver与受管理方法声明已通过限定验收：final3完�
 - main target保留复用；旧QX五生成包、本轮plain/PG生成包及四个本簇已完成测试可执行文件已精确退役，源码/锁/索引/当前二进制及共享库哨兵未变。日志明确Cargo关联test_app/auth_flows产物；不清整target，不碰归属不足的历史缓存。
 - D9 My生成项目已验收，源码/锁/证据保留；如后继需要空间，先核精确package dry-run与占用后再回收其专属再生产物，不为纯Agent文档变化重跑矩阵。
 
-## C04-D10-B：请求绑定重定向与 Session 错误包（Spec 待领取）
+## C04-D10-B：请求绑定重定向与 Session 错误包（限定子范围验收通过，待提交）
 
-D10-A纯MessageBag/ViewErrorBag已完成代码、唯一模块、生成模板、独审及适用验收，限定提交以Git为准；证据与差异见[testing](memory/testing.md#c04-d10-a-错误包限定子范围已验收)。不重做该基础，不将其扩大为自动错误共享/完整Redirector。
+D10-A纯 `MessageBag`/`ViewErrorBag` 已由本地提交 `27c006a` 完成；B 的公开 `Redirector`/`RedirectResponse`、请求绑定闪存与 `ErrorBagCodecs` 类型化持久恢复已接唯一模块和生成普通应用。内置包无需登记；自定义编解码在 Session 锁外执行，命名错误包更新与 flash 在一次受控写入中原子发布。普通重定向默认302且无需Session，手动输入闪存不默认过滤密码。完整证据与限制见[testing](memory/testing.md#c04-d10-b-请求绑定重定向与-session-错误包限定子范围已验收待提交)，不要据此关闭完整Redirector/Session/Validation。
 
-下一步由root收敛B持久快照和公开Response contract，再复用现核心执行者按Spec→Implement→Verify→Commit；C请求局部视图共享随后。所有写入继续单仓main、文件单一owner，构建/索引/服务统一调度。已核固定上游previous使用PHP truthy，包含空串和字符串`0`；withErrors保留其他命名包并替换同名，持久快照必须保留format/稀疏键/派生nested，跨请求不保留原对象身份，失败边界公开。
+空库迁移启动缺陷同簇修复：仅内部CLI传候选命令；最终最长匹配后只对框架 `MigrationCommand` 实际类型免去MFA运行态五表预查，其他命令、普通bootstrap/TestApp及默认 `serve` 仍严格。迁移保留原 up/down/status/命名库参数与锁/SQL，不加会破坏合法回滚的后置五表检查，不宣称支持 fresh/reset。MySQL8.4私有库已实证空库 status→up1→down1→命名库status→全量up→TCP及缺MFA表默认serve拒绝，并精确DROP/核不存在；真实失败迁移历史/重启恢复测试本轮未给连接变量，继续保留后继MySQL/R14定向缺口。
 
-1. 复用D10-A已交付的公开错误包；现ValidationErrors的BTreeMap转换不能冒称保留插入顺序。Session错误包采用可验证类型表示，旧错误类型重建空包；同一请求更新不同bag须一次mutate_value原子读改写及预算校验，禁止get后分离flash丢更新。
-2. RedirectResponse默认302，普通redirect无Session仍可构造；只有flash写入需Session。请求URL生成须核scheme/Host/代理信任与Location header边界；previous顺序为PHP真值Referer→Session previous→真值fallback→请求根URL（含空串与字符串`0`边界），不直接用app.url路由生成器替代请求源。
-3. 输入快照只从Request唯一仓储取得，明确取快照时点；手动with_input不套异常dontFlash。异常Handler的自动校验失败分支、errorBag/redirectTo/JSON及其余away/signed/action/guest/intended按对应矩阵继续，不因基础重定向关闭。
-4. ShareErrorsFromSession必须实际接入请求局部渲染入口，定义空默认bag与显式context优先级，禁止把请求错误写入共享Views环境。唯一模块/根视图/生成应用需覆盖真实调用与并发双客户端隔离。
-5. 每次flash预算原子，多次链式调用不是整体事务；自动验证组合若要共同回滚须一次批量变更。上传文件未合并输入bag仍属明确缺口，不按字段名伪过滤；CSRF/FormRequest依本簇后继推进。
+最终当前源码严格默认/全特性Clippy、workspace测试（789/31 ignored、1546/105 ignored）、docs/feature/MSRV与受影响定向通过；根无Session TCP2项、MySQL TCP5项、普通生成7项及MySQL生成认证2项通过，PG常规验收按[数据库政策](memory/testing.md#当前数据库运行政策)留发布矩阵。生成MySQL两项不执行新Session helper；早期gRPC偶发失败根因未证修复，最终全组通过仅说明本轮结果。验收索引 `/tmp/openrust-c04d10b-console-migrate-final-handoff.json` 与 `/tmp/openrust-c04d10b-bfinalcandidate3-acceptance-index.json`，详见 testing。代码、模板、用户文档与Agent事实收齐后由root独审及限定本地提交；当前不推送，不为Agent文档变化重跑Rust门禁。
+
+后继依赖顺序：B提交后先领取下方已授权“高价值测试精简与入口整合”小试点，再进入C请求局部 `ShareErrorsFromSession` 视图共享；共享数据须按请求隔离，显式context覆盖优先。完整Redirector的其他方法、自动验证失败重定向/`dontFlash`、文件输入合并、CSRF/FormRequest仍为独立开放项，不用B基础能力替代其验收。
 
 ## 高价值测试精简与入口整合（已授权，待 D10-B 验收提交）
 
@@ -413,7 +411,6 @@ D10-A纯MessageBag/ViewErrorBag已完成代码、唯一模块、生成模板、�
 2. Implement：基础完整矩阵留unit/contract；唯一模块留公开接线，generated留真实编译运行，TCP/DB留协议/后端独有风险。按领域聚合较少入口但保留子文件组织；环境变量、feature、服务及特殊harness隔离须保留，禁止串行整套/放宽断言掩盖冲突。新增测试须说明独有缺陷和现有缺口。
 3. Verify：逐项核Cargo/module/feature/模板快照/consumer与唯一示例同步，关键负例、并发/取消/崩溃/安全与数据一致性回归仍具名实际执行，必要双库/真实服务不减。适用集中门禁按[分层与整合规范](conventions.md#测试分层与入口整合)执行，保留原验收与上游矩阵。
 4. Commit与效果：受控删除走`git rm`，本地限定提交；记录前后文件/用例/target数量、同工具链/feature/缓存条件下实测编译/链接/执行耗时、删并理由与保留隔离点。不按数量冒充功能完成，不承诺未测倍数；无法比较单独链接耗时时明确缺证。
-
 
 ## 发布前全后端兼容性验收
 

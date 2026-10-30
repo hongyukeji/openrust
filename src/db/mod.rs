@@ -21,7 +21,7 @@ tokio::task_local! {
 mod batch;
 mod coordination;
 pub mod dialect;
-mod migration;
+pub(crate) mod migration;
 mod migration_lock;
 mod rate_limit;
 mod seed;

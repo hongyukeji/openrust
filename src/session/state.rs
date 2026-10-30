@@ -119,6 +119,7 @@ struct Inner {
     state: Mutex<State>,
     io: AsyncMutex<()>,
     max_bytes: usize,
+    error_bag_codecs: Arc<super::ErrorBagCodecs>,
 }
 
 /// 同一请求所有提取器与鉴权共享的Session句柄。
@@ -175,6 +176,24 @@ impl Session {
         max_bytes: usize,
         name: String,
     ) -> Result<Self> {
+        Self::with_options_and_codecs(
+            id,
+            store,
+            expiry,
+            max_bytes,
+            name,
+            Arc::new(super::ErrorBagCodecs::new()),
+        )
+    }
+
+    pub(crate) fn with_options_and_codecs(
+        id: Option<SessionId>,
+        store: Arc<dyn SessionStore>,
+        expiry: Option<Expiry>,
+        max_bytes: usize,
+        name: String,
+        error_bag_codecs: Arc<super::ErrorBagCodecs>,
+    ) -> Result<Self> {
         if max_bytes == 0 || max_bytes > DEFAULT_MAX_BYTES {
             return Err(limit_error());
         }
@@ -202,6 +221,7 @@ impl Session {
                 }),
                 io: AsyncMutex::new(()),
                 max_bytes,
+                error_bag_codecs,
             }),
         })
     }
@@ -400,6 +420,31 @@ impl Session {
     /// `Arr::get` 读取；存在 null 返回 `Some(Null)`，星号不展开。
     pub fn get(&self, key: &str) -> Result<Option<Value>> {
         self.lock()?.attributes.get(key)
+    }
+    /// 锁外恢复已登记的命名错误包；旧非错误包类型视作空包。
+    pub fn read_errors(&self) -> Result<crate::support::ViewErrorBag> {
+        let raw = self.get("errors")?;
+        self.inner.error_bag_codecs.decode_view(raw)
+    }
+
+    /// 把一个命名错误包原子写入 `errors` 并标记为下一请求可读。
+    ///
+    /// 自定义 codec 的编码在 Session 状态锁外执行；其他包的原始 payload 原样保留。
+    pub fn flash_errors(
+        &self,
+        name: impl Into<crate::support::ArrayKey>,
+        bag: &dyn crate::support::MessageBagContract,
+    ) -> Result<&Self> {
+        let encoded = self.inner.error_bag_codecs.encode_bag(bag)?;
+        let name = name.into();
+        self.mutate(|attributes| {
+            let existing = attributes.get("errors")?;
+            let next = self
+                .inner
+                .error_bag_codecs
+                .put_encoded(existing, &name, &encoded)?;
+            attributes.flash("errors", next)
+        })
     }
     /// 读取上一请求的输入；无键时返回整个 bag，缺失 bag 为 `[]`。
     ///

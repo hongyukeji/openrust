@@ -4,7 +4,7 @@ use super::{ArrayKey, Collection, InputNumber};
 use crate::Result;
 use serde::Serialize;
 use serde_json::Value;
-use std::fmt;
+use std::{any::Any, fmt};
 
 /// 单个字段的构造输入；`Arrayable` 保留调用方提供的键。
 #[derive(Clone, Debug)]
@@ -143,7 +143,7 @@ impl MessageJsonOptions {
 }
 
 /// 可供自定义消息包实现的公开契约。
-pub trait MessageBagContract: Send + Sync {
+pub trait MessageBagContract: Any + Send + Sync {
     /// 按原顺序读取键。
     fn keys(&self) -> Vec<ArrayKey>;
     /// 原始消息集合。
@@ -254,6 +254,16 @@ impl MessageBag {
             messages: Collection::default(),
             format: ":message".into(),
         }
+    }
+    /// 从已验证的持久化条目恢复原始键、嵌套消息和格式，不重新去重。
+    #[cfg(feature = "session")]
+    pub(crate) fn try_from_raw(
+        messages: Collection<Collection<MessageValue>>,
+        format: String,
+    ) -> Result<Self> {
+        let _ = messages.to_value()?;
+        super::data::validate_limits(&Value::String(format.clone()))?;
+        Ok(Self { messages, format })
     }
     /// 按每字段输入建立消息包。
     pub fn try_from_messages(

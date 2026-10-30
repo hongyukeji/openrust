@@ -9,6 +9,8 @@ mod modules;
 mod request_cookie;
 #[path = "support/request_input.rs"]
 mod request_input;
+#[path = "support/request_redirect.rs"]
+mod request_redirect;
 #[path = "support/request_session.rs"]
 mod request_session;
 #[path = "../routes/web.rs"]
@@ -81,6 +83,18 @@ async fn generated_application_consumes_message_bags_through_business_provider()
         "[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
     ));
     message_bags::assert_message_bags::<GeneratedApplication>(source).await
+}
+
+#[tokio::test]
+async fn generated_application_redirects_and_restores_named_errors()
+-> Result<(), Box<dyn std::error::Error>> {
+    let source = Figment::from(Serialized::defaults(
+        openrust::config::FrameworkConfig::default(),
+    ))
+    .merge(Toml::string(
+        "[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
+    ));
+    request_redirect::assert_request_redirect::<GeneratedApplication>(source).await
 }
 
 #[tokio::test]

@@ -18,6 +18,7 @@ use std::sync::Arc;
 pub(crate) struct SessionLayer {
     pub(crate) settings: SessionSettings,
     pub(crate) store: Arc<dyn SessionStore>,
+    pub(crate) error_bag_codecs: Arc<super::ErrorBagCodecs>,
 }
 struct Close(Option<Session>, Option<crate::http::CookieJar>);
 impl Drop for Close {
@@ -141,7 +142,7 @@ async fn prepare(layer: &SessionLayer, request: &mut Request) -> Result<Session>
         .get(&layer.settings.cookie_name)
         .and_then(serde_json::Value::as_str)
         .and_then(|value| SessionId::parse(value).ok());
-    let session = Session::with_options(
+    let session = Session::with_options_and_codecs(
         id,
         layer.store.clone(),
         Some(Expiry::OnInactivity(time::Duration::seconds(
@@ -149,6 +150,7 @@ async fn prepare(layer: &SessionLayer, request: &mut Request) -> Result<Session>
         ))),
         layer.settings.config.max_bytes,
         layer.settings.cookie_name.clone(),
+        Arc::clone(&layer.error_bag_codecs),
     )?;
     let scope = request
         .extensions()

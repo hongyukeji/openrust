@@ -16,7 +16,7 @@
 
 ## 执行校准
 
-C04-D9旧输入限定子范围已完成main组合验收：默认750/31 ignored、全特性1491/105 ignored，公开consumer、根双库各72+old-input1/所有权PG3-My2、真实TCP六场景、fresh生成5/2/2及适用工具门禁均有[证据](memory/testing.md#c04-d9-main-组合限定子范围验收通过)。R2-Q/X与守护补丁已在main收口，相关旧任务工作区已安全退役。当前C04-D10-A纯MessageBag/ViewErrorBag已实现，定向Support31、唯一模块、CLI快照、默认784/31 ignored及全特性1526/105 ignored测试与严格Clippy通过；真实TCP五场景及生成6/2/2均已实际通过，限定本地提交以Git为准；不能据此关闭完整重定向/视图错误共享。固定参考路径与最新源码区分见context；后继按唯一todo推进，不重做已完成子范围。
+C04-D9旧输入限定子范围已完成main组合验收，[证据](memory/testing.md#c04-d9-main-组合限定子范围验收通过)保留；R2-Q/X与守护补丁已在main收口。C04-D10-A纯MessageBag/ViewErrorBag已由`27c006a`限定提交。当前C04-D10-B请求绑定重定向、Session命名错误包及空库迁移启动修复已通过当前源码门禁、无Session与MySQL8.4真实TCP、普通生成7项及MySQL生成认证2项，待root独审与限定本地提交；证据和未覆盖边界见[testing](memory/testing.md#c04-d10-b-请求绑定重定向与-session-错误包限定子范围已验收待提交)。提交后先领取[todo中的测试精简小试点](todo.md#高价值测试精简与入口整合已授权待-d10-b-验收提交)，再进入D10-C请求局部视图共享；完整Redirector、Validation/CSRF及发布全后端矩阵仍开放。固定参考路径与最新源码区分见context。
 
 当前验证节奏：先完成代码与配套测试代码，功能簇稳定后在提交前集中验收；分支限定验证、main完整组合门禁。实现期不反复跑测试/Clippy矩阵，无关计划文档不使代码证据失效；按[集中验证](conventions.md#功能簇提交前集中验证)调度。正常空间阈值内受控缓存可跨簇复用，50/100 GB（十进制）及磁盘10%/5%政策不变；不再每簇强制清空target。
 

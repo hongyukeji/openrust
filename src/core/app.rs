@@ -279,6 +279,13 @@ impl App {
                     format!("unknown command `{input}`; {hint}"),
                 )
             })?;
+        if let Some(checks) = self.extension::<super::provider::DeferredBootChecks>() {
+            for check in &checks.0 {
+                if command.type_id() != check.permitted_command {
+                    (check.validate)().await?;
+                }
+            }
+        }
         let consumed = command.name().split_whitespace().count() - 1;
         let remaining: Vec<String> = args.into_iter().skip(consumed).collect();
         if !command.accepts_args()
@@ -580,6 +587,118 @@ mod tests {
         assert_eq!(
             error.as_ref().map(ToString::to_string).as_deref(),
             Some("unknown command `nope`; run `help` to list commands")
+        );
+        Ok(())
+    }
+
+    struct AllowedMigration(Arc<AtomicUsize>);
+    struct ShadowMigration(Arc<AtomicUsize>);
+    struct CheckedServe(Arc<AtomicUsize>);
+
+    impl Command for AllowedMigration {
+        fn name(&self) -> &'static str {
+            "migrate"
+        }
+        fn about(&self) -> &'static str {
+            "Allowed migration"
+        }
+        fn accepts_args(&self) -> bool {
+            true
+        }
+        fn run<'a>(&'a self, _: &'a App, _: Vec<String>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                self.0.fetch_add(1, Ordering::SeqCst);
+                Ok(())
+            })
+        }
+    }
+    impl Command for ShadowMigration {
+        fn name(&self) -> &'static str {
+            "migrate custom"
+        }
+        fn about(&self) -> &'static str {
+            "Shadow migration"
+        }
+        fn run<'a>(&'a self, _: &'a App, _: Vec<String>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                self.0.fetch_add(1, Ordering::SeqCst);
+                Ok(())
+            })
+        }
+    }
+    impl Command for CheckedServe {
+        fn name(&self) -> &'static str {
+            "serve"
+        }
+        fn about(&self) -> &'static str {
+            "Serve"
+        }
+        fn run<'a>(&'a self, _: &'a App, _: Vec<String>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                self.0.fetch_add(1, Ordering::SeqCst);
+                Ok(())
+            })
+        }
+    }
+
+    struct DeferredCommandProbe {
+        checks: Arc<AtomicUsize>,
+        runs: Arc<AtomicUsize>,
+    }
+    impl ServiceProvider for DeferredCommandProbe {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                assert_eq!(app.console_command(), Some("migrate"));
+                app.command(AllowedMigration(Arc::clone(&self.runs)));
+                app.command(ShadowMigration(Arc::clone(&self.runs)));
+                app.command(CheckedServe(Arc::clone(&self.runs)));
+                let checks = Arc::clone(&self.checks);
+                app.defer_boot_check_for_command(
+                    std::any::TypeId::of::<AllowedMigration>(),
+                    move || {
+                        let checks = Arc::clone(&checks);
+                        Box::pin(async move {
+                            checks.fetch_add(1, Ordering::SeqCst);
+                            Err(Error::custom("missing_schema", "schema is missing"))
+                        })
+                    },
+                )
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn deferred_boot_check_follows_selected_command_identity_and_reused_app() -> Result<()> {
+        let checks = Arc::new(AtomicUsize::new(0));
+        let runs = Arc::new(AtomicUsize::new(0));
+        let mut builder = ProviderBuilder::new();
+        builder
+            .console_command("migrate")
+            .provider(DeferredCommandProbe {
+                checks: Arc::clone(&checks),
+                runs: Arc::clone(&runs),
+            });
+        let source = Figment::from(Serialized::defaults(FrameworkConfig::default()));
+        let app = App::from_provider_runtime(builder.start(source).await?)?;
+        app.run_command("migrate", Vec::new()).await?;
+        assert_eq!(runs.load(Ordering::SeqCst), 1);
+        assert_eq!(checks.load(Ordering::SeqCst), 0);
+        for (name, args) in [
+            ("migrate", vec!["custom".to_owned()]),
+            ("serve", Vec::new()),
+        ] {
+            let error = app.run_command(name, args).await.err();
+            assert_eq!(error.as_ref().map(Error::code), Some("missing_schema"));
+        }
+        assert_eq!(runs.load(Ordering::SeqCst), 1);
+        assert_eq!(checks.load(Ordering::SeqCst), 2);
+        assert_eq!(
+            app.run_command("unknown", Vec::new())
+                .await
+                .err()
+                .as_ref()
+                .map(Error::code),
+            Some("unknown_command")
         );
         Ok(())
     }

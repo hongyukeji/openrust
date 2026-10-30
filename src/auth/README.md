@@ -11,6 +11,7 @@ OpenRust 的认证与授权能力。
 ## 当前能力
 
 - `AuthServiceProvider::new()` 会注册数据库认证器和共享 refresh token 服务。该 Provider 依赖 `DatabaseServiceProvider`、PostgreSQL 或 MySQL，以及 `AuthMigration` 创建的表；使用 refresh token 时还需要 `AuthRefreshTokenMigration`。
+- 启用 MFA 时，普通应用启动在 Provider boot 阶段检查 MFA 与审计表，缺表即失败。框架自带 `migrate` 控制台命令可先在空库运行官方迁移；仅实际派发到该命令时延后 MFA 的表预查，其他命令、HTTP 启动和测试应用仍严格校验。迁移的 up/down/状态及参数错误保持原有语义。
 - `SessionServiceProvider::new()` 安装唯一的通用 Session middleware，默认使用应用现有 `Db` 的 PostgreSQL/MySQL store；先装配 `DatabaseServiceProvider`。认证与业务通过 `openrust::session::Session` 共享同一请求句柄及 store，不再安装第二套 Session。自定义 store 实现公开 `openrust::session::SessionStore`，通过 `SessionServiceProvider::with_store` 安装；`driver = "array"` 或显式内存 store 才使用进程内存储，数据库故障不会静默降级。`SessionConfig.cookie` 可指定名称，未指定时从最终 `app.name` 推导；`path`、`domain`、`secure`、`http_only`、`same_site`、`lifetime`、`expire_on_close`、`partitioned` 和 `max_bytes` 均来自最终 `session` 配置。`with_cookie_config` 在自身 boot 阶段覆盖文件和环境来源；更晚 Provider 的显式 overlay 仍按顺序生效。安装 `CookieServiceProvider` 后，Session 读取解密后的 Cookie 视图，`RequestInfo` 仍保留原始 wire 头，认证层继续拒绝原始重复凭据。自定义 Provider 的额外装配边界和完整 API 见 [Session 使用指南](../session/README.md)。
 - 需要 Redis 共享 Session 时，为 `openrust` 启用 `session-redis` feature，并使用 `RedisSessionStore::connect(redis_url, namespace)` 后传入 `SessionServiceProvider::with_store`。数据库 store 仍是默认路径；Redis 连接失败或操作失败会返回错误。所有共享应用副本必须使用同一 namespace，不同应用应使用不同 namespace。
 - 如果 `DatabaseServiceProvider` 已先注册 `Db`，`AuthServiceProvider` 会注册 `RefreshTokens`。它生成高熵不透明凭据，只持久化 SHA-256 摘要，以原子方式轮换，在检测到重放时撤销整个 token family，并支持按账户整体撤销。调用方提供 family 的初始过期时间；轮换不会延长该时间。

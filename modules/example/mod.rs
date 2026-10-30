@@ -142,6 +142,9 @@ mod realtime_cluster;
 ))]
 #[path = "tests/realtime_flows.rs"]
 mod realtime_flows;
+#[cfg(all(test, feature = "session"))]
+#[path = "tests/redirect_flows.rs"]
+mod redirect_flows;
 mod routes;
 #[cfg(all(
     test,

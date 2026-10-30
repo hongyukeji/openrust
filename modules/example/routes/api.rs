@@ -31,7 +31,7 @@ pub(super) fn register(
             "/api/example/request-body",
             controllers::example::request_body,
         );
-    let routes = message_bag_routes(routes)
+    let routes = draft_redirect_routes(message_bag_routes(routes))
         .post("/api/example/input", controllers::example::input)
         .name("example.input")
         .get("/api/example/cookie", controllers::cookie::show)
@@ -60,11 +60,7 @@ pub(super) fn register(
             |routes| routes.get("/api/example/middleware", controllers::example::middleware),
         );
     #[cfg(feature = "session")]
-    let routes = if capabilities.session {
-        session_routes(routes)
-    } else {
-        routes
-    };
+    let routes = draft_session_routes(routes, capabilities.session);
     let routes = if capabilities.i18n {
         routes
             .get(
@@ -122,9 +118,35 @@ fn message_bag_routes(routes: Routes) -> Routes {
     )
 }
 
+fn draft_redirect_routes(routes: Routes) -> Routes {
+    routes
+        .get(
+            "/api/example/draft/plain",
+            controllers::draft_redirect::plain,
+        )
+        .get("/api/example/draft/back", controllers::draft_redirect::back)
+}
+
+#[cfg(feature = "session")]
+fn draft_session_routes(routes: Routes, session_enabled: bool) -> Routes {
+    let routes = routes.post(
+        "/api/example/draft/submit",
+        controllers::draft_redirect::submit,
+    );
+    if session_enabled {
+        session_routes(routes)
+    } else {
+        routes
+    }
+}
+
 #[cfg(feature = "session")]
 fn session_routes(routes: Routes) -> Routes {
     routes
+        .get(
+            "/api/example/draft/review",
+            controllers::draft_redirect::review,
+        )
         .get("/api/example/session", controllers::session::show)
         .post("/api/example/session", controllers::session::store)
         .get(

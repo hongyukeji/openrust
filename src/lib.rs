@@ -162,13 +162,14 @@ pub fn run<A: Application>() -> ExitCode {
         Err(error) => return fail(&format!("cannot start tokio runtime: {error}")),
     };
     runtime.block_on(async {
-        let app = match lifecycle::bootstrap::<A>().await {
+        let mut args = std::env::args().skip(1);
+        let name = args.next().unwrap_or_else(|| "serve".to_owned());
+        let command_args = args.collect();
+        let app = match lifecycle::bootstrap_for_command::<A>(&name).await {
             Ok(app) => app,
             Err(error) => return fail(&format!("bootstrap failed: {error}")),
         };
-        let mut args = std::env::args().skip(1);
-        let name = args.next().unwrap_or_else(|| "serve".to_owned());
-        let result = app.run_command(&name, args.collect()).await;
+        let result = app.run_command(&name, command_args).await;
         let shutdown = app
             .shutdown(
                 tokio::time::Instant::now()

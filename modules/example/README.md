@@ -358,12 +358,19 @@ cargo deny check
 
 ## 当前能力覆盖与缺口
 
+### 草稿重定向与一次性表单状态
+
+`GET /api/example/draft/plain` 与 `/back` 展示从当前 `RequestInfo` 生成普通 302；前者不需要 Session。`POST /api/example/draft/submit` 使用真实 `Request`，正文 `mode` 可选 `all`、`only`、`except`、`errors`、`custom`。前三种分别调用 `RedirectResponse::with_input`、`only_input`、`except_input`，将当前规范化输入闪存至下一次请求；业务使用 `only`/`except` 决定哪些字段可以带回表单。`errors` 将默认标题错误与 `other` 命名错误一起写入 Session，`custom` 使用模块自己的 `DraftErrors` 和公开 `MessageProvider`/`ErrorBagCodecs` 扩展恢复业务化的首条消息。Session 已启用时，`GET /api/example/draft/review` 显式读取旧输入与错误包；再次请求后 flash 老化。未启用 Session 时普通重定向可用，提交路由的 flash 明确失败。
+
+codec 在模块 `ExampleServiceProvider::register` 中通过 `RegisterContext.extend` 追加到 Session Provider 的注册表，保持已有登记。`DraftErrors` 的类型、编解码与业务规则均位于本模块。示例仅覆盖手动重定向；自动校验失败重定向和请求局部视图共享仍由后继能力验收。
+
 “代码存在”仅说明当前可见实现，不能替代本布局 check/test、真实请求与外部服务验收。根基础设施装配、文档链接或 consumer 测试也不自动算作 `modules/example` 的业务代码覆盖。
 
 | 能力 | 本模块实际代码/公开扩展 | 根接入与条件 | 测试/当前缺口 |
 | --- | --- | --- | --- |
 | 完整业务实体 CRUD | `models/article.rs`、Article 控制器与 `ResourceActions` 覆盖列表、详情、创建、更新、删除 | 模块文章/事件迁移；`auth` 与数据库启用时挂载 | PG18/MySQL8.4 真实 HTTP 已覆盖两用户/匿名、校验/分页/404/越权、事务回滚；当前源码整组门禁已执行，本簇仍待独立审查和提交 |
 | HTTP 路由与 JSON 响应 | `routes/api.rs`、Article `ResourceActions`、统一错误 envelope、业务限流与安全响应头 | ExampleServiceProvider 公开贡献模块 routes，包含 `/api/example` | 根 server、双库真实 HTTP CRUD 与各业务路由定向通过；当前源码默认/全特性整组门禁已执行 |
+| 草稿重定向与 Session 错误包 | `http/controllers/draft_redirect.rs` 通过公开 `Redirector` 实现普通跳转、输入 flash 与命名错误；`services/draft_errors.rs` 实现自定义错误包及 codec | 模块 Provider 用公开容器扩展追加 codec；有 Session 时挂载审核页 | 模块 TestApp、默认/全特性集中门禁及 MySQL8.4 真实 HTTP 通过，覆盖两客户端、flash 老化与自定义恢复；普通生成应用7项通过，PG留发布矩阵；请求局部视图共享仍待验收 |
 | 配置、应用生命周期、命令 | 模块类型配置与 boot 时 overlay；显式 `example attachments reconcile`、`example imports reconcile` 维护命令 | 根 bootstrap、config、唯一 server 与模块 Provider | TestApp 启停及配置边界已测；命令的生产运行/退出组合仍需最终门禁 |
 | 数据库、迁移、种子、事务、查询 | Article 实体、owner 约束查询与主库事务；模块事件监听器同事务写入；显式种子命令创建不可登录隔离身份与两篇固定负 ID 文章 | 模块 database/migrations 与 database/seeders，descriptor 经公开 Provider 挂载；对应 db feature 与真实服务 | 双库 HTTP/迁移及真实 PG/MySQL `db seed` 各3项通过；boot 不写种子、并发重复幂等、碰撞整笔回滚、编辑保留 |
 | JWT/PAT、Session、MFA 与 OIDC | 认证 HTTP、账户 Session/CSRF/MFA、OIDC 登录及浏览器/原生绑定调用公开 AuthFlows/ExternalIdentityFlows | 对应 auth feature、数据库迁移、Session/加密及可信 IdP 配置 | 账户与绑定回归及真实 Keycloak lifecycle 双库各5项定向通过，含 MFA/关联撤销/签名 backchannel；浏览器完整自动导航仍待验，旧 JWT 不提供即时全撤销 |

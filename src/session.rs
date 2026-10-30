@@ -3,6 +3,7 @@
 mod attributes;
 mod backend;
 mod cookie;
+mod error_bag;
 mod id;
 mod middleware;
 mod migration;
@@ -16,6 +17,7 @@ mod store;
 pub use backend::RedisSessionStore;
 pub use backend::{DatabaseSessionStore, MemorySessionStore};
 pub use cookie::CookieSessionStore;
+pub use error_bag::ErrorBagCodecs;
 pub use id::SessionId;
 pub use migration::{SessionGcMigration, SessionMigration};
 pub use store::{

@@ -25,6 +25,15 @@ type Required = Box<dyn Fn(&Container) -> BoxFuture<'_, Result<()>> + Send + Syn
 type Finalizer = Box<dyn FnOnce() -> BoxFuture<'static, Result<()>> + Send>;
 type AppConfigRegistration = Box<dyn FnOnce(&mut ContainerBuilder, ConfigRepository) + Send>;
 type BindingOverride = Box<dyn FnOnce(&mut ContainerBuilder) -> Result<()> + Send>;
+type DeferredBootValidator = Box<dyn Fn() -> BoxFuture<'static, Result<()>> + Send + Sync>;
+
+pub(crate) struct DeferredBootCheck {
+    pub(crate) permitted_command: TypeId,
+    pub(crate) validate: DeferredBootValidator,
+}
+
+#[derive(Default)]
+pub(crate) struct DeferredBootChecks(pub(crate) Vec<DeferredBootCheck>);
 
 /// Provider 的具体 Rust 类型身份；错误消息只公开类型名。
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -188,6 +197,7 @@ impl RegisterContext<'_> {
 
 /// Provider 启动阶段的解析、模块覆盖和领域贡献入口。
 pub struct BootContext<'a> {
+    console_command: Option<&'a str>,
     container: &'a Container,
     config: &'a mut ConfigRepository,
     resources: ResourceRegistrar,
@@ -198,6 +208,35 @@ pub struct BootContext<'a> {
 }
 
 impl BootContext<'_> {
+    /// 返回本次启动显式指定的控制台命令；普通应用引导与测试默认为 `None`。
+    pub fn console_command(&self) -> Option<&str> {
+        self.console_command
+    }
+
+    /// 判断引导前的候选命令名是否匹配；实际派发命令尚未完成匹配。
+    pub fn is_console_command(&self, name: &str) -> bool {
+        self.console_command == Some(name)
+    }
+
+    /// 在候选迁移引导中保留严格检查，供实际命令派发前执行。
+    #[cfg(any(feature = "auth-mfa", test))]
+    pub(crate) fn defer_boot_check_for_command<F>(
+        &mut self,
+        permitted_command: TypeId,
+        validate: F,
+    ) -> Result<()>
+    where
+        F: Fn() -> BoxFuture<'static, Result<()>> + Send + Sync + 'static,
+    {
+        self.extension_mut::<DeferredBootChecks>()?
+            .0
+            .push(DeferredBootCheck {
+                permitted_command,
+                validate: Box::new(validate),
+            });
+        Ok(())
+    }
+
     /// 在全部 boot 和配置覆盖结束后，要求根服务成功解析。
     pub fn require<T: ?Sized + Send + Sync + 'static>(&mut self) {
         self.required.push(Box::new(|container| {
@@ -324,6 +363,7 @@ impl ProviderRuntime {
 /// 静态 Provider 清单与唯一启动引擎。
 #[derive(Default)]
 pub struct ProviderBuilder {
+    console_command: Option<String>,
     providers: Vec<Box<dyn ServiceProvider>>,
     modules: ModuleManifest,
     removed: HashSet<ProviderId>,
@@ -419,6 +459,14 @@ impl ProviderBuilder {
         Self::default()
     }
 
+    /// 指定本次启动实际要执行的控制台命令；普通引导默认无命令上下文。
+    ///
+    /// 调用方须用同一名称随后执行 [`crate::core::App::run_command`]。
+    pub(crate) fn console_command(&mut self, name: impl Into<String>) -> &mut Self {
+        self.console_command = Some(name.into());
+        self
+    }
+
     /// 添加 Provider；同具体类型重复登记保留第一项。
     pub fn provider(&mut self, provider: impl ServiceProvider) -> &mut Self {
         self.providers.push(Box::new(provider));
@@ -480,6 +528,7 @@ impl ProviderBuilder {
 
     /// 完成全体 register、基础配置、顺序 boot 与最终根解析。
     pub async fn start(self, sources: Figment) -> Result<ProviderRuntime> {
+        let console_command = self.console_command;
         let mut providers = self.providers;
         Self::append_modules(self.modules, &self.removed, &mut providers)?;
         let providers = ordered_providers(providers)?;
@@ -512,6 +561,7 @@ impl ProviderBuilder {
             for provider in &providers {
                 provider
                     .boot(&mut BootContext {
+                        console_command: console_command.as_deref(),
                         container: &container,
                         config: &mut config,
                         resources: resources.owner()?.registrar(),
@@ -608,6 +658,53 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     use crate::core::{ModuleConfigFiles, ModuleDescriptor, ModuleManifest};
+
+    type ConsoleObservation = (Option<String>, bool);
+    type ConsoleObservations = Arc<Mutex<Vec<ConsoleObservation>>>;
+
+    struct ConsoleProbe(ConsoleObservations);
+
+    impl ServiceProvider for ConsoleProbe {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                self.0.lock().unwrap().push((
+                    app.console_command().map(str::to_owned),
+                    app.is_console_command("migrate"),
+                ));
+                Ok(())
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn console_command_is_explicit_and_default_start_has_no_command() -> Result<()> {
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        for name in [None, Some("migrate"), Some("serve"), Some("migrate custom")] {
+            let mut builder = ProviderBuilder::new();
+            if let Some(name) = name {
+                builder.console_command(name);
+            }
+            builder.provider(ConsoleProbe(Arc::clone(&seen)));
+            let source = Figment::from(figment::providers::Serialized::defaults(
+                FrameworkConfig::default(),
+            ));
+            builder
+                .start(source)
+                .await?
+                .shutdown(Instant::now() + Duration::from_secs(1))
+                .await?;
+        }
+        assert_eq!(
+            *seen.lock().unwrap(),
+            [
+                (None, false),
+                (Some("migrate".to_owned()), true),
+                (Some("serve".to_owned()), false),
+                (Some("migrate custom".to_owned()), false),
+            ]
+        );
+        Ok(())
+    }
 
     struct Base(Arc<Mutex<Vec<&'static str>>>);
     struct Overlay(Arc<Mutex<Vec<&'static str>>>);
