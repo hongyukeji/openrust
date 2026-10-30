@@ -357,6 +357,7 @@ async fn generated_application_consumes_message_bags_through_business_provider()
     message_bags::assert_message_bags::<GeneratedApplication>(source).await
 }
 
+/// 复用公开 helper 验证命名跳转、草稿确认回跳、HTTPS Location 与错误闪存。
 #[tokio::test]
 async fn generated_application_redirects_to_named_route_and_restores_errors()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -2314,6 +2315,10 @@ impl ServiceProvider for RedirectRoutes {
             app.routes(|routes: Routes| {
                 routes
                     .get(&format!("{PREFIX}/plain"), plain)
+                    .get(&format!("{PREFIX}/secure"), secure)
+                    .get(&format!("{PREFIX}/preview"), preview)
+                    .get(&format!("{PREFIX}/confirm"), confirmation)
+                    .post(&format!("{PREFIX}/confirm"), confirm)
                     .post(&format!("{PREFIX}/submit"), submit)
                     .get(&format!("{PREFIX}/review"), review)
                     .name("generated.draft.review")
@@ -2355,6 +2360,31 @@ impl<A: Application> Application for RedirectApplication<A> {
 
 async fn plain(info: RequestInfo) -> openrust::Result<Response> {
     Ok(Redirector::from_info(&info).to("/api")?.into_response())
+}
+async fn secure(info: RequestInfo) -> openrust::Result<Response> {
+    Ok(Redirector::from_info(&info).secure("/api")?.into_response())
+}
+const PREVIEW_CONFIRMED: &str = "generated.draft.preview_confirmed";
+
+// 仅为非敏感草稿预览记录确认；不创建用户身份或替代 Auth/Policy。
+async fn preview(info: RequestInfo) -> openrust::Result<Response> {
+    if info.session()?.get(PREVIEW_CONFIRMED)? == Some(Value::Bool(true)) {
+        return Ok(Json(json!({"draft":"生成草稿","preview_confirmed":true})).into_response());
+    }
+    Ok(Redirector::from_info(&info)
+        .guest(&format!("{PREFIX}/confirm"))?
+        .into_response())
+}
+async fn confirmation(info: RequestInfo) -> openrust::Result<Json<Value>> {
+    Ok(Json(
+        json!({"intended":Redirector::from_info(&info).get_intended_url()?}),
+    ))
+}
+async fn confirm(request: InputRequest) -> openrust::Result<Response> {
+    request.info().session()?.put(PREVIEW_CONFIRMED, true)?;
+    Ok(Redirector::from_request(&request)
+        .intended()?
+        .into_response())
 }
 async fn submit(request: InputRequest) -> openrust::Result<Response> {
     let mut redirect =
@@ -2482,7 +2512,9 @@ async fn get<A: Application>(
     path: &str,
     cookie: Option<&str>,
 ) -> Result<TestResponse, Box<dyn std::error::Error>> {
-    let mut request = Request::get(path).header("host", "localhost");
+    let mut request = Request::get(path)
+        .header("host", "localhost")
+        .header(header::ACCEPT, "text/html");
     if let Some(cookie) = cookie {
         request = request.header(header::COOKIE, cookie);
     }
@@ -2496,7 +2528,96 @@ fn data(response: &TestResponse) -> Result<Value, Box<dyn std::error::Error>> {
     Ok(body["data"].clone())
 }
 
-/// 经生成应用 Provider、命名路由、Request 和 Session Cookie 验证重定向与一次性错误包。
+fn assert_redirect(
+    response: &TestResponse,
+    target: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    response.assert_status(StatusCode::FOUND)?;
+    assert_eq!(
+        response
+            .headers()
+            .get(header::LOCATION)
+            .ok_or("Location 缺失")?
+            .to_str()?,
+        target
+    );
+    Ok(())
+}
+async fn post_confirmation<A: Application>(
+    app: &TestApp<A>,
+    cookie: &str,
+) -> Result<TestResponse, Box<dyn std::error::Error>> {
+    Ok(app
+        .request_with_limits(
+            Request::post(format!("{PREFIX}/confirm"))
+                .header("host", "localhost")
+                .header(header::ACCEPT, "text/html")
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(header::COOKIE, cookie)
+                .body(Body::from("{}"))?,
+            4096,
+            TIMEOUT,
+        )
+        .await?)
+}
+async fn assert_navigation<A: Application>(
+    app: &TestApp<A>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // 仅读取 HTTPS Location，不请求不存在的 TLS 监听器。
+    assert_redirect(
+        &get(app, &format!("{PREFIX}/secure"), None).await?,
+        "https://localhost/api",
+    )?;
+    let paths = [
+        format!("{PREFIX}/preview?section=summary"),
+        format!("{PREFIX}/preview?section=history"),
+    ];
+    let first = get(app, &paths[0], None).await?;
+    let second = get(app, &paths[1], None).await?;
+    let confirmation_url = format!("http://localhost{PREFIX}/confirm");
+    assert_redirect(&first, &confirmation_url)?;
+    assert_redirect(&second, &confirmation_url)?;
+    let mut cookies = [cookie_pair(&first)?, cookie_pair(&second)?];
+    assert_ne!(cookies[0], cookies[1]);
+    for _ in 0..2 {
+        for (cookie, path) in cookies.iter_mut().zip(&paths) {
+            let response = get(app, &format!("{PREFIX}/confirm"), Some(cookie)).await?;
+            assert_eq!(
+                data(&response)?["intended"],
+                format!("http://localhost{path}")
+            );
+            *cookie = cookie_pair(&response)?;
+        }
+    }
+    for (index, path) in paths.iter().enumerate() {
+        let response = post_confirmation(app, &cookies[index]).await?;
+        assert_redirect(&response, &format!("http://localhost{path}"))?;
+        cookies[index] = cookie_pair(&response)?;
+        let preview = get(app, path, Some(&cookies[index])).await?;
+        assert_eq!(
+            data(&preview)?,
+            json!({"draft":"生成草稿","preview_confirmed":true})
+        );
+        cookies[index] = cookie_pair(&preview)?;
+        let empty = get(app, &format!("{PREFIX}/confirm"), Some(&cookies[index])).await?;
+        assert_eq!(data(&empty)?["intended"], Value::Null);
+        cookies[index] = cookie_pair(&empty)?;
+        let repeated = post_confirmation(app, &cookies[index]).await?;
+        assert_redirect(&repeated, "http://localhost")?;
+        cookies[index] = cookie_pair(&repeated)?;
+        if index == 0 {
+            let waiting = get(app, &format!("{PREFIX}/confirm"), Some(&cookies[1])).await?;
+            assert_eq!(
+                data(&waiting)?["intended"],
+                format!("http://localhost{}", paths[1])
+            );
+            cookies[1] = cookie_pair(&waiting)?;
+        }
+    }
+    Ok(())
+}
+
+/// 经生成应用 Provider、命名路由与 Session Cookie 验证导航回跳、闪存及错误包。
 pub async fn assert_request_redirect<A: Application>(
     source: Figment,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -2518,6 +2639,7 @@ pub async fn assert_request_redirect<A: Application>(
             "http://localhost/api"
         );
         assert!(std::str::from_utf8(plain.body())?.contains("<!DOCTYPE html>"));
+        assert_navigation(&app).await?;
         let first = get(&app, &format!("{PREFIX}/review"), None).await?;
         let cookie = cookie_pair(&first)?;
         let body = json!({"title":"  Ada  ","token":"private"});
@@ -2527,6 +2649,7 @@ pub async fn assert_request_redirect<A: Application>(
                     .header("host", "localhost")
                     .header(header::COOKIE, cookie)
                     .header(header::CONTENT_TYPE, "application/json")
+                    .header(header::ACCEPT, "application/json")
                     .body(Body::from(serde_json::to_vec(&body)?))?,
                 4096,
                 TIMEOUT,
@@ -2569,6 +2692,7 @@ pub async fn assert_request_redirect<A: Application>(
                     .header("host", "localhost")
                     .header(header::COOKIE, cookie)
                     .header(header::CONTENT_TYPE, "application/json")
+                    .header(header::ACCEPT, "application/json")
                     .body(Body::from(serde_json::to_vec(&body)?))?,
                 4096,
                 TIMEOUT,

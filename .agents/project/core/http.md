@@ -96,3 +96,12 @@ CORS 预检（`OPTIONS` 且带 `Access-Control-Request-Method`）保持 tower-ht
 `RequestInfo` 从请求 extensions 捕获可选 `RouteUrlGenerator` clone，共享同应用既有Arc，不复制索引、不引入全局当前请求；后续替换extensions不改变已捕获快照。调用方沿用 `Redirector::from_info/from_request`，返回值保留原请求借用，继续组合 `with_input/only_input/except_input/with_errors`；普通命名重定向无Session亦可用，闪存仍要求Session。缺生成器沿用 `http_route_url_unavailable`，未知名与缺必需参数沿用 `http_named_route_not_found`、`http_route_parameter_missing`，不改既有错误状态。
 
 URL继续使用 `app.url` 与登记域模式，不采信请求Host；参数仍限 `BTreeMap<String, String>`、必需域/路径段和编码后的额外query。PHP mixed/model/enum参数、可选参数与missingNamedRouteResolver未等价实现；action、guest/intended、signed及完整Redirector/L020.02仍开放，无新依赖或ADR。唯一模块与CLI模板已接真实调用，v2定向、双严格Clippy、main11项、最终构建、fresh普通7项、MySQL8.4.13认证2项及公开helper1项、无Session/MySQL真实TCP均已通过限定验收；提交见Git，见[当前验收](../memory/testing.md#c04-d10-d-命名路由重定向当前验收中未提交)。
+
+
+## C04-D10-E scheme 与 intended（限定子范围已验收，提交见Git）
+
+沿请求绑定的 `Redirector` 增加 `to_with_scheme`、`secure/secure_with`；协议选项仅影响相对目标，合法绝对或特殊 URL 原样保留，不修改请求快照或配置，不表示启动 HTTPS listener。Session feature 提供 `guest/guest_with`、`intended/intended_or/intended_with` 与原值 `get_intended_url/set_intended_url`，沿现 Session 普通属性而非 flash 保存意图。
+
+固定上游的生产顺序为 guest 先保存再构造响应，intended 先 pull 再转换与构造，失败不撤销既有保存或消费。GET、真实路由、非 `expects_json` 使用完整请求 URL，其余使用 previous；Session truthy previous 保留 JSON 原值，Referer/fallback 经 URL 生成，back 直接响应 previous，不再二次绝对化。缺失使用默认值，显式 null/false/零与空值保持各自语义；数组/对象在消费后返回错误。JSON 对象对应关联数组，不宣称支持任意 PHP Stringable 对象。
+
+唯一模块与生成 helper 已真实接入并验收：定向10/main11、新server/CLI构建、fresh普通7、MySQL8.4.13认证2及额外公开helper1、无Session/MySQL真实TCP4/9场景通过。独立源码/最小修复/验收驱动复审均无剩余问题，Clippy首轮与生成根URL fixture旧失败保留；最后仅模板+快照字面量修复，按固定输入证明复用不受影响运行门禁，新CLI和fresh生成实际重验。资源收尾已完成，限定提交见Git，不关闭完整Redirector/L020.02；[当前证据](../memory/testing.md#c04-d10-e-scheme-与-guestintended验收中未提交)。

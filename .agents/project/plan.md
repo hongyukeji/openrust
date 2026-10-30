@@ -16,6 +16,8 @@
 
 ## 执行校准
 
+C04-D10-E scheme/secure与guest/intended已通过适用集中门禁、fresh生成/MySQL及真实TCP4/9，资源收尾完成，限定提交见Git；D10-D为018b778。下一候选C04-D10-F refresh/away须从[todo](todo.md)领取，action/signed前置与完整Redirector、发布全后端矩阵继续开放，不以薄封装替代缺失底层契约。
+
 C04-D9旧输入限定子范围已完成main组合验收，[证据](memory/testing.md#c04-d9-main-组合限定子范围验收通过)保留；R2-Q/X与守护补丁已在main收口。C04-D10-A纯MessageBag/ViewErrorBag已由`27c006a`限定提交。C04-D10-B请求绑定重定向、Session命名错误包及空库迁移启动修复已通过当前源码门禁、无Session与MySQL8.4真实TCP、普通生成7项及MySQL生成认证2项，已由 `a2befef` 限定提交；证据和未覆盖边界见[testing](memory/testing.md#c04-d10-b-请求绑定重定向与-session-错误包限定子范围已验收)。[测试入口整合小试点](memory/testing.md#session-测试入口整合小试点限定验收通过)已通过适用验收并由 `4023e05` 限定提交：三个纯 Session 测试 target 聚为一个，26 项与独立环境/服务入口保留；联合 gRPC 测试的预绑定 listener 修复及旧配置入口也经真实测试；C04-D10-C请求局部视图错误共享、Session对象身份及模板参数桥接已按限定子范围验收并提交 `784045c`；根目标/fallback、内部forward与HEAD站点边界修复已通过不同模型审查及当前输入门禁、fresh生成与真实TCP。默认workspace798/31 ignored、全特性1571/105 ignored，严格双Clippy/docs、features/deny/MSRV、新server/CLI、普通生成7项、MySQL认证2项与独立公开consumer1项通过；无Session/MySQL8.4.13真实TCP通过并清理自有库/端口。ignored不计真实服务，完整Redirector、Validation/CSRF、HTTP/Session及PG/全部后端发布矩阵仍开放。[最终测试记录](memory/testing.md#c04-d10-c-请求局部视图错误共享验收中未提交)。C04-D10-D命名路由重定向限定子范围已验收，提交见Git：`route/route_with` 复用同应用URL生成器及既有响应/闪存链；v2定向、双严格Clippy及main11项通过，默认workspace802 passed/32 ignored、全特性1576 passed/106 ignored。最终server/CLI、fresh普通7项、MySQL8.4.13认证2项及独立公开helper1项通过；无Session/MySQL真实TCP分别3/4个场景通过，正常停止并释放监听、清理敏感文件及自有数据库。ignored不算真实服务；完整Redirector及L020.02仍开放。见[当前验收](memory/testing.md#c04-d10-d-命名路由重定向当前验收中未提交)。固定参考路径与最新源码区分见context。
 
 当前验证节奏：先完成代码与配套测试代码，功能簇稳定后在提交前集中验收；分支限定验证、main完整组合门禁。实现期不反复跑测试/Clippy矩阵，无关计划文档不使代码证据失效；按[集中验证](conventions.md#功能簇提交前集中验证)调度。正常空间阈值内受控缓存可跨簇复用，50/100 GB（十进制）及磁盘10%/5%政策不变；不再每簇强制清空target。

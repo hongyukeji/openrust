@@ -1097,3 +1097,17 @@ RequestInfo 的 parts-only 快照、严格 authority 复用、文本头/bearer�
 ### 提交与证据边界
 
 仅提交B1内核/公开API及输入测试、模块input演示、密码字段/空白密码回归与模板、PHP重复query契约测试、account/cache Host fixture及ADR/对应文档。外部record实现、迁移/种子、URL/对象key命名空间改动及guard WIP不夹带；混合文件必须按patch暂存，工作树保留原owner内容。record迁移fixture适配完整备份与精确patch位于 `/tmp/openrust-c04b-record-migration-fixture-eqpfjafm`，record纯lint备份位于 `/tmp/openrust-c04b-record-lint-3r_c2szd`。上述迁移编号授权与真实47项验收是当前工作区集成证据，不代表B1限定commit包含record代码。外部record测试记录小节另行逐字保全，本草稿不纳入其内容。
+
+
+<a id="c04-d10-e-scheme-与-guestintended验收中未提交"></a>
+## C04-D10-E scheme 与 guest/intended（限定子范围已验收）
+
+最终索引 `/tmp/openrust-c04d10e-verification-v4/FINAL-HANDOFF.json`，SHA256 `771e8e18b8526b4080ad71ac363ab19ebb443ee46daa97edc8ac586ba0005437`；status为 `verified_limited_C04_D10_E`，执行句柄已全部收齐。最终freeze SHA `8dd1ba1dcff13e4af84aae8baf96b2e22ebbdf6bb4b1c455e8cd6460d553f0f3`，主控已核577项源码、16项辅助输入和综合索引所链证据哈希无漂移。
+
+- v3定向10阶段通过：fmt/diff、模块5、CLI快照1、默认/全特性严格Clippy、Session/无Session重定向lib15/6、完整router110/108。main11阶段通过：默认workspace804 passed/33 ignored、全特性1589 passed/107 ignored、双严格Rustdoc、4种feature、cargo deny、Rust1.97两项MSRV；所有实际0/source_changed=false，ignored不算真实服务。最终server/CLI构建通过。
+- v4仅修模板与snapshot的根URL精确期望，同一字面量去尾slash；冻结577项只有这2项变化，运行源码/manifest/lock/核心模块测试均不变。独审核定受限runtime-input-reuse映射后，复用v3运行门禁和单一server回执；CLI重新实际snapshot/build，fresh普通生成fmt/check/test7通过，MySQL8.4.13生成认证2与额外单锚库公开helper1通过，生成源码与锁稳定。
+- 最终真实TCP无Session4/MySQL9场景通过：secure仅核https Location不跟随或冒称TLS listener；guest两Cookie意图独立、两次普通GET不老化、真实确认回跳、消费一次与固定回退、既有错误包/flash老化均核验。MySQL自有锚库和网络库已created/dropped，进程正常stop0、非强杀、端口释放及敏感文件删除为true。
+- 首轮严格Clippy101（doc标识/unused_self）及v3生成6pass/1fail（fixture根URL多尾slash）原回执保留；修复不降断言。核心源码、v3最小借用修复、驱动与v4字面量/输入复用均经不同模型独审，无剩余问题；静态审查不代替上述执行。
+- 3个自有生成package精确clean实际0，未清根target；清理前后源码/锁/serverCLI/框架与8461个非自有依赖哨兵不变，无Cargo/锁占用。登记缓存37,204,033,536→36,765,954,048字节，磁盘空闲107,083,919,360字节（总994,662,584,320），低于50GB软线并高于10%空闲。
+
+固定PHP方法参考39案及previous边界12案见 `/tmp/openrust-c04d10e-url-values.provenance.json`、`/tmp/openrust-c04d10e-previous-values.provenance.json`；后者替代request/root/response构造边界，不是完整PHP HTTP/Symfony验收。JSON关联数组/任意Stringable对象差异明确；完整Redirector、action/signed/混合URL参数、HTTP/Session及PG/全部后端发布矩阵继续开放。限定本地提交见Git。

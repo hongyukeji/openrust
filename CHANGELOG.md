@@ -6,6 +6,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Changed
 
+- 请求绑定重定向增加显式协议选择与 `secure`，并提供 Session `guest`/`intended` 及意图读取/设置入口；意图使用普通 Session 属性，先保存或先消费再构造响应。唯一模块与生成 helper 展示非敏感草稿确认回跳、双 Cookie 隔离与一次消费，保留既有输入及错误闪存流程；HTTPS Location 不代表监听器已启用 TLS，完整 Redirector 仍保留后继缺口。
+
 - 请求绑定的 `Redirector` 新增 `route` 与 `route_with`，复用现有命名路由 URL 生成器，默认返回 302，也可指定状态与响应头；保留输入和命名错误包闪存链。唯一业务示例展示无 Session 的命名跳转和审核页错误闪存，生成应用测试同步接入命名路由；完整 Redirector 与自动校验失败重定向仍属后继范围。
 
 - 视图增加 `Views::render_for_request` 与请求私有错误包；Session 启动后、handler 前恢复，根首页和普通请求使用同一入口。显式数据（含 null）覆盖共享错误，自定义消息包保留模板方法派发；无 Session 使用独立空包。请求共享对象与 Session 保存关联，整包替换后断开旧关联，缺失回退对象不写回 Session。模板支持多键、列表与关联字典值、标量多参数及可空格式参数。

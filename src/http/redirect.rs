@@ -2,6 +2,8 @@
 
 use std::collections::BTreeMap;
 
+use serde_json::Value;
+
 use axum::{
     http::{HeaderMap, HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
@@ -73,12 +75,45 @@ impl<'r> Redirector<'r> {
         &self,
         target: &str,
         status: StatusCode,
-        mut headers: HeaderMap,
+        headers: HeaderMap,
+    ) -> Result<RedirectResponse<'r>> {
+        self.to_with_scheme(target, status, headers, None)
+    }
+
+    /// 显式选择相对目标的协议；合法绝对或特殊 URL 保留原值。
+    ///
+    /// `None` 沿当前请求协议，`Some(true/false)` 分别使用 HTTPS/HTTP。
+    /// 该选项不修改请求快照、应用配置或命名路由生成器。
+    pub fn to_with_scheme(
+        &self,
+        target: &str,
+        status: StatusCode,
+        headers: HeaderMap,
+        secure: Option<bool>,
     ) -> Result<RedirectResponse<'r>> {
         if !matches!(status.as_u16(), 201 | 301 | 302 | 303 | 307 | 308) {
             return Err(Error::custom("redirect_status_invalid", "重定向状态码无效"));
         }
-        let location = absolute_target(self.info, target)?;
+        let location = absolute_target(self.info, target, secure)?;
+        Self::create_response(
+            location,
+            status,
+            headers,
+            #[cfg(feature = "session")]
+            self.info,
+            #[cfg(feature = "session")]
+            self.request,
+        )
+    }
+
+    // 与上游createRedirect一样直接消费目标，back不再经过URL生成器二次绝对化。
+    fn create_response(
+        location: String,
+        status: StatusCode,
+        mut headers: HeaderMap,
+        #[cfg(feature = "session")] info: &'r RequestInfo,
+        #[cfg(feature = "session")] request: Option<&'r Request>,
+    ) -> Result<RedirectResponse<'r>> {
         let header_value = HeaderValue::from_str(&location)
             .map_err(|_| Error::custom("redirect_location_invalid", "Location 头值无效"))?;
         headers.insert(header::LOCATION, header_value);
@@ -94,9 +129,9 @@ impl<'r> Redirector<'r> {
         }
         Ok(RedirectResponse {
             #[cfg(feature = "session")]
-            info: self.info,
+            info,
             #[cfg(feature = "session")]
-            request: self.request,
+            request,
             #[cfg(not(feature = "session"))]
             request_lifetime: std::marker::PhantomData,
             status,
@@ -105,37 +140,149 @@ impl<'r> Redirector<'r> {
         })
     }
 
+    /// 对相对目标选择 HTTPS，以默认302及空自定义头建立响应。
+    pub fn secure(&self, target: &str) -> Result<RedirectResponse<'r>> {
+        self.secure_with(target, StatusCode::FOUND, HeaderMap::new())
+    }
+
+    /// 对相对目标选择 HTTPS，保留显式状态与自定义头。
+    pub fn secure_with(
+        &self,
+        target: &str,
+        status: StatusCode,
+        headers: HeaderMap,
+    ) -> Result<RedirectResponse<'r>> {
+        self.to_with_scheme(target, status, headers, Some(true))
+    }
+
     /// 按 Referer、Session previous、fallback、请求根的顺序寻找目标。
+    ///
+    /// Session中的相对previous保持相对目标；不再次通过`to`绝对化。
     pub fn back(&self, fallback: Option<&str>) -> Result<RedirectResponse<'r>> {
+        let previous = self.previous_value(fallback)?;
+        if previous.is_array() || previous.is_object() {
+            return Err(Error::custom(
+                "redirect_previous_url_invalid",
+                "Session previous URL 类型无效",
+            ));
+        }
+        Self::create_response(
+            crate::support::scalars::string(&previous),
+            StatusCode::FOUND,
+            HeaderMap::new(),
+            #[cfg(feature = "session")]
+            self.info,
+            #[cfg(feature = "session")]
+            self.request,
+        )
+    }
+
+    // previous只有Referer/fallback经过to；Session真值保持类型，供guest原样保存。
+    fn previous_value(&self, fallback: Option<&str>) -> Result<Value> {
         let referrer = self.info.header("referer")?;
         if let Some(value) = referrer.filter(|value| php_truthy(value)) {
-            return self.to(value);
+            return absolute_target(self.info, value, None).map(Value::String);
         }
         #[cfg(feature = "session")]
         if self.info.has_session()
             && let Some(value) = self.info.session()?.previous_url()?
+            && !php_false_json(&value)
         {
-            if let Some(url) = value.as_str() {
-                if php_truthy(url) {
-                    return self.to(url);
-                }
-            } else if matches!(value, serde_json::Value::Bool(true))
-                || value
-                    .as_number()
-                    .is_some_and(|number| number.as_f64() != Some(0.0))
-            {
-                return self.to(&crate::support::scalars::string(&value));
-            } else if !php_false_json(&value) {
-                return Err(Error::custom(
-                    "redirect_previous_url_invalid",
-                    "Session previous URL 类型无效",
-                ));
-            }
+            return Ok(value);
         }
-        if let Some(value) = fallback.filter(|value| php_truthy(value)) {
-            return self.to(value);
+        absolute_target(
+            self.info,
+            fallback.filter(|value| php_truthy(value)).unwrap_or(""),
+            None,
+        )
+        .map(Value::String)
+    }
+
+    /// 保存当前可返回地址，再以默认302跳转；意图地址是普通Session属性。
+    #[cfg(feature = "session")]
+    pub fn guest(&self, target: &str) -> Result<RedirectResponse<'r>> {
+        self.guest_with(target, StatusCode::FOUND, HeaderMap::new(), None)
+    }
+
+    /// 先保存意图地址，再校验目标响应；后续响应失败不撤销已完成的保存。
+    #[cfg(feature = "session")]
+    pub fn guest_with(
+        &self,
+        target: &str,
+        status: StatusCode,
+        headers: HeaderMap,
+        secure: Option<bool>,
+    ) -> Result<RedirectResponse<'r>> {
+        let intended = if self.info.is_method("GET")
+            && self.info.route()?.is_some()
+            && !self.info.expects_json()?
+        {
+            Value::String(self.info.full_url()?)
+        } else {
+            self.previous_value(None)?
+        };
+        if !php_false_json(&intended) {
+            self.set_intended_url(intended)?;
         }
-        self.to("")
+        self.to_with_scheme(target, status, headers, secure)
+    }
+
+    /// 消费一次意图地址；只有属性缺失才回退到 `/`。
+    #[cfg(feature = "session")]
+    pub fn intended(&self) -> Result<RedirectResponse<'r>> {
+        self.intended_or("/")
+    }
+
+    /// 消费一次意图地址，只有缺失才使用给定JSON默认值。
+    #[cfg(feature = "session")]
+    pub fn intended_or(
+        &self,
+        default: impl Into<serde_json::Value>,
+    ) -> Result<RedirectResponse<'r>> {
+        self.intended_with(default, StatusCode::FOUND, HeaderMap::new(), None)
+    }
+
+    /// 先消费再转换目标并建立响应；转换或响应失败也不恢复已消费的值。
+    ///
+    /// null/false变为空目标，true变为`1`，数值沿现有PHP标量转换；
+    /// 数组/对象返回错误，区别于属性缺失时才使用的默认值。
+    #[cfg(feature = "session")]
+    pub fn intended_with(
+        &self,
+        default: impl Into<serde_json::Value>,
+        status: StatusCode,
+        headers: HeaderMap,
+        secure: Option<bool>,
+    ) -> Result<RedirectResponse<'r>> {
+        let value = self
+            .info
+            .session()?
+            .pull_or("url.intended", default.into())?;
+        if value.is_array() || value.is_object() {
+            return Err(Error::custom(
+                "redirect_intended_url_invalid",
+                "Session intended URL 必须是标量或null",
+            ));
+        }
+        self.to_with_scheme(
+            &crate::support::scalars::string(&value),
+            status,
+            headers,
+            secure,
+        )
+    }
+
+    /// 原样读取意图地址；缺失与显式null保持可区分。
+    #[cfg(feature = "session")]
+    pub fn get_intended_url(&self) -> Result<Option<serde_json::Value>> {
+        self.info.session()?.get("url.intended")
+    }
+
+    /// 存储普通Session属性，不提前验证URL；返回自身供继续组合。
+    #[cfg(feature = "session")]
+    pub fn set_intended_url(&self, value: impl Into<serde_json::Value>) -> Result<&Self> {
+        self.info.session()?.put("url.intended", value.into())?;
+        Ok(self)
     }
 }
 
@@ -271,10 +418,7 @@ fn php_false_json(value: &serde_json::Value) -> bool {
     }
 }
 
-fn absolute_target(info: &RequestInfo, target: &str) -> Result<String> {
-    if target.is_empty() {
-        return info.root();
-    }
+fn absolute_target(info: &RequestInfo, target: &str, secure: Option<bool>) -> Result<String> {
     if target.starts_with('#')
         || target.starts_with("//")
         || target.starts_with("http://")
@@ -286,7 +430,14 @@ fn absolute_target(info: &RequestInfo, target: &str) -> Result<String> {
     {
         return Ok(target.to_owned());
     }
-    let root = info.root()?;
+    let root = match secure {
+        None => info.root()?,
+        Some(secure) => format!(
+            "{}://{}",
+            if secure { "https" } else { "http" },
+            info.http_host()?
+        ),
+    };
     let (path, query) = target
         .split_once('?')
         .map_or((target, None), |(path, query)| (path, Some(query)));
@@ -369,6 +520,520 @@ mod tests {
                 domain: None,
             }],
         )
+    }
+
+    #[tokio::test]
+    async fn explicit_scheme_changes_only_relative_redirects_and_keeps_headers() -> Result<()> {
+        let info = info(None).await?;
+        let redirect = Redirector::from_info(&info);
+        for target in ["", "/done?x=1", "relative/path"] {
+            let expected = redirect.to(target)?.target_url().replace("http:", "https:");
+            assert_eq!(redirect.secure(target)?.target_url(), expected);
+            assert_eq!(
+                redirect
+                    .to_with_scheme(target, StatusCode::FOUND, HeaderMap::new(), Some(false))?
+                    .target_url(),
+                redirect.to(target)?.target_url()
+            );
+        }
+        for target in [
+            "http://external.test/x",
+            "https://external.test/x",
+            "//cdn.test/x",
+            "#anchor",
+            "mailto:a@example.test",
+            "ftp://files.test/x",
+        ] {
+            assert_eq!(redirect.secure(target)?.target_url(), target);
+        }
+        let mut headers = HeaderMap::new();
+        headers.insert("x-scheme-proof", HeaderValue::from_static("kept"));
+        let response = redirect
+            .secure_with("/done", StatusCode::TEMPORARY_REDIRECT, headers)?
+            .into_response();
+        assert_eq!(response.status(), StatusCode::TEMPORARY_REDIRECT);
+        assert_eq!(response.headers()["x-scheme-proof"], "kept");
+        assert_eq!(
+            response.headers()[header::LOCATION],
+            "https://example.test/done"
+        );
+        let (mut parts, _) = HttpRequest::get("/")
+            .header("host", "example.test:443")
+            .body(Body::empty())
+            .expect("request")
+            .into_parts();
+        parts
+            .extensions
+            .insert(super::super::transport::RequestSecurity::new(true));
+        let tls = RequestInfo::from_request_parts(&mut parts, &()).await?;
+        let tls_redirect = Redirector::from_info(&tls);
+        assert_eq!(
+            tls_redirect.to("/done")?.target_url(),
+            "https://example.test/done"
+        );
+        assert_eq!(
+            tls_redirect
+                .to_with_scheme("/done", StatusCode::FOUND, HeaderMap::new(), Some(false))?
+                .target_url(),
+            "http://example.test/done"
+        );
+        assert_eq!(tls.scheme()?, "https");
+        assert_eq!(info.scheme()?, "http");
+        assert_eq!(
+            redirect.to("/done")?.target_url(),
+            "http://example.test/done"
+        );
+        Ok(())
+    }
+
+    #[cfg(feature = "session")]
+    fn intent_session() -> Result<crate::session::Session> {
+        crate::session::Session::new(
+            None,
+            std::sync::Arc::new(crate::session::MemorySessionStore::default()),
+            None,
+        )
+    }
+
+    #[cfg(feature = "session")]
+    async fn intent_info(
+        session: &crate::session::Session,
+        method: &str,
+        matched: bool,
+        headers: &[(&str, &str)],
+    ) -> Result<RequestInfo> {
+        let mut incoming = HttpRequest::builder()
+            .method(method)
+            .uri("/protected?b=two&a=one")
+            .header("host", "example.test");
+        for (name, value) in headers {
+            incoming = incoming.header(*name, *value);
+        }
+        let (mut parts, _) = incoming.body(Body::empty()).expect("request").into_parts();
+        parts.extensions.insert(session.clone());
+        let info = RequestInfo::from_request_parts(&mut parts, &()).await?;
+        if matched {
+            info.set_route_resolver(std::sync::Arc::new(|| {
+                Ok(Some(super::super::Route::new(
+                    None,
+                    "protected",
+                    None,
+                    vec!["GET".into()],
+                    vec![],
+                )))
+            }))?;
+        }
+        Ok(info)
+    }
+
+    #[cfg(feature = "session")]
+    #[tokio::test]
+    async fn guest_selects_real_route_html_get_and_previous_for_other_requests() -> Result<()> {
+        // 匿名真实Route也记录full URL；HEAD、JSON、AJAX及无Route必须走previous。
+        type GuestCase = (
+            &'static str,
+            bool,
+            &'static [(&'static str, &'static str)],
+            bool,
+        );
+        let cases: &[GuestCase] = &[
+            ("GET", true, &[], true),
+            ("GET", false, &[], false),
+            ("HEAD", true, &[], false),
+            ("POST", true, &[], false),
+            ("GET", true, &[("accept", "application/json")], false),
+            (
+                "GET",
+                true,
+                &[("x-requested-with", "XMLHttpRequest")],
+                false,
+            ),
+            (
+                "GET",
+                true,
+                &[("x-requested-with", "XMLHttpRequest"), ("x-pjax", "true")],
+                true,
+            ),
+            (
+                "GET",
+                true,
+                &[
+                    ("x-requested-with", "XMLHttpRequest"),
+                    ("accept", "text/html"),
+                ],
+                true,
+            ),
+        ];
+        for (method, matched, headers, use_current) in cases {
+            let session = intent_session()?;
+            session.set_previous_url("/previous")?;
+            let info = intent_info(&session, method, *matched, headers).await?;
+            let redirect = Redirector::from_info(&info);
+            assert_eq!(
+                redirect.guest("/login")?.target_url(),
+                "http://example.test/login"
+            );
+            let expected = if *use_current {
+                info.full_url()?
+            } else {
+                "/previous".into()
+            };
+            assert_eq!(
+                redirect.get_intended_url()?,
+                Some(serde_json::json!(expected)),
+                "{method} {headers:?}"
+            );
+        }
+        let session = intent_session()?;
+        session.set_previous_url("/session-previous")?;
+        let info = intent_info(
+            &session,
+            "POST",
+            false,
+            &[("referer", "https://outside.test/return")],
+        )
+        .await?;
+        let redirect = Redirector::from_info(&info);
+        redirect.guest("/login")?;
+        assert_eq!(
+            redirect.get_intended_url()?,
+            Some(serde_json::json!("https://outside.test/return"))
+        );
+        assert_eq!(
+            redirect.back(None)?.target_url(),
+            "https://outside.test/return"
+        );
+        let empty = intent_session()?;
+        let info = intent_info(&empty, "HEAD", false, &[("referer", "0")]).await?;
+        Redirector::from_info(&info).guest("/login")?;
+        assert_eq!(
+            empty.get("url.intended")?,
+            Some(serde_json::json!("http://example.test"))
+        );
+        Ok(())
+    }
+
+    #[cfg(feature = "session")]
+    #[tokio::test]
+    async fn guest_preserves_raw_previous_until_intended_uses_new_host_and_scheme() -> Result<()> {
+        for (value, suffix) in [
+            (serde_json::json!("/draft"), Some("/draft")),
+            (serde_json::json!(9), Some("/9")),
+            (serde_json::json!(true), Some("/1")),
+            (serde_json::json!(["draft"]), None),
+            (serde_json::json!({"route":"/draft"}), None),
+        ] {
+            let session = intent_session()?;
+            session.put("_previous.url", value.clone())?;
+            let first = intent_info(&session, "POST", false, &[]).await?;
+            let redirect = Redirector::from_info(&first);
+            assert_eq!(
+                redirect.guest("/login")?.target_url(),
+                "http://example.test/login"
+            );
+            assert_eq!(redirect.get_intended_url()?, Some(value.clone()));
+            // back直接建立响应：Session相对值/标量不先绝对化，数组在响应边界拒绝。
+            if suffix.is_some() {
+                let response = redirect.back(None)?.into_response();
+                assert_eq!(
+                    response.headers()[header::LOCATION]
+                        .to_str()
+                        .map_err(Error::internal)?,
+                    crate::support::scalars::string(&value)
+                );
+            } else {
+                assert_eq!(
+                    redirect.back(None).err().expect("array response").code(),
+                    "redirect_previous_url_invalid"
+                );
+            }
+            let (mut parts, _) = HttpRequest::get("/complete")
+                .header("host", "next.example.test:8443")
+                .body(Body::empty())
+                .expect("request")
+                .into_parts();
+            parts.extensions.insert(session.clone());
+            let next = RequestInfo::from_request_parts(&mut parts, &()).await?;
+            let next_redirect = Redirector::from_info(&next);
+            let result = next_redirect.intended_with(
+                "/fallback",
+                StatusCode::FOUND,
+                HeaderMap::new(),
+                Some(true),
+            );
+            if let Some(suffix) = suffix {
+                assert_eq!(
+                    result?.target_url(),
+                    format!("https://next.example.test:8443{suffix}")
+                );
+            } else {
+                assert_eq!(
+                    result.err().expect("array after pull").code(),
+                    "redirect_intended_url_invalid"
+                );
+            }
+            assert_eq!(next_redirect.get_intended_url()?, None);
+            assert_eq!(
+                next_redirect.intended_or("/fallback")?.target_url(),
+                "http://next.example.test:8443/fallback"
+            );
+        }
+        Ok(())
+    }
+
+    #[cfg(feature = "session")]
+    #[tokio::test]
+    async fn previous_empty_php_arrays_and_false_scalars_use_root_fallback() -> Result<()> {
+        // JSON对象在Session模型中承载PHP关联数组，空对象与空序列均为假值。
+        for value in [
+            serde_json::json!([]),
+            serde_json::json!({}),
+            serde_json::Value::Null,
+            serde_json::json!(false),
+            serde_json::json!(0),
+            serde_json::json!("0"),
+            serde_json::json!(""),
+        ] {
+            let session = intent_session()?;
+            session.put("_previous.url", value)?;
+            let info = intent_info(&session, "HEAD", true, &[]).await?;
+            let redirect = Redirector::from_info(&info);
+            redirect.guest("/login")?;
+            assert_eq!(
+                redirect.get_intended_url()?,
+                Some(serde_json::json!("http://example.test"))
+            );
+            assert_eq!(redirect.back(None)?.target_url(), "http://example.test");
+            assert_eq!(
+                redirect.back(Some("/fallback"))?.target_url(),
+                "http://example.test/fallback"
+            );
+        }
+        Ok(())
+    }
+
+    #[cfg(feature = "session")]
+    #[tokio::test]
+    async fn intended_preserves_raw_scalars_defaults_and_consumes_invalid_values() -> Result<()> {
+        let session = intent_session()?;
+        let info = intent_info(&session, "GET", false, &[]).await?;
+        let redirect = Redirector::from_info(&info);
+        assert_eq!(redirect.intended()?.target_url(), "http://example.test");
+        assert_eq!(
+            redirect.intended_or("/fallback")?.target_url(),
+            "http://example.test/fallback"
+        );
+        for (value, suffix) in [
+            (serde_json::Value::Null, ""),
+            (serde_json::json!(false), ""),
+            (serde_json::json!(0), "/0"),
+            (serde_json::json!(""), ""),
+            (serde_json::json!(true), "/1"),
+            (serde_json::json!(1.25), "/1.25"),
+            (
+                serde_json::json!("https://external.test/return"),
+                "external",
+            ),
+        ] {
+            redirect.set_intended_url(value.clone())?;
+            assert_eq!(redirect.get_intended_url()?, Some(value.clone()));
+            let expected = if suffix == "external" {
+                "https://external.test/return".into()
+            } else {
+                format!("http://example.test{suffix}")
+            };
+            assert_eq!(redirect.intended_or("/fallback")?.target_url(), expected);
+            assert_eq!(redirect.get_intended_url()?, None);
+            assert_eq!(redirect.intended_or(value)?.target_url(), expected);
+        }
+        for value in [serde_json::json!([]), serde_json::json!({"x":1})] {
+            redirect.set_intended_url(value)?;
+            assert_eq!(
+                redirect.intended().err().expect("invalid scalar").code(),
+                "redirect_intended_url_invalid"
+            );
+            assert_eq!(redirect.get_intended_url()?, None);
+        }
+        redirect.set_intended_url("/once")?;
+        let mut headers = HeaderMap::new();
+        headers.insert("x-intent-proof", HeaderValue::from_static("kept"));
+        let response = redirect
+            .intended_with("/fallback", StatusCode::SEE_OTHER, headers, Some(true))?
+            .into_response();
+        assert_eq!(
+            response.headers()[header::LOCATION],
+            "https://example.test/once"
+        );
+        assert_eq!(response.headers()["x-intent-proof"], "kept");
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        assert_eq!(
+            redirect.intended_or("/fallback")?.target_url(),
+            "http://example.test/fallback"
+        );
+        Ok(())
+    }
+
+    #[cfg(feature = "session")]
+    #[tokio::test]
+    async fn intended_order_keeps_writes_and_consumption_after_response_failure() -> Result<()> {
+        let session = intent_session()?;
+        let info = intent_info(&session, "GET", true, &[]).await?;
+        let redirect = Redirector::from_info(&info);
+        assert_eq!(
+            redirect
+                .guest_with("/login", StatusCode::OK, HeaderMap::new(), None)
+                .err()
+                .expect("bad status")
+                .code(),
+            "redirect_status_invalid"
+        );
+        assert_eq!(
+            redirect.get_intended_url()?,
+            Some(serde_json::json!(info.full_url()?))
+        );
+        assert_eq!(
+            redirect
+                .intended_with("/fallback", StatusCode::OK, HeaderMap::new(), None)
+                .err()
+                .expect("bad status")
+                .code(),
+            "redirect_status_invalid"
+        );
+        assert_eq!(redirect.get_intended_url()?, None);
+        redirect.set_intended_url("/bad\r\nX-Test: bad")?;
+        assert_eq!(
+            redirect.intended().err().expect("bad header").code(),
+            "redirect_location_invalid"
+        );
+        assert_eq!(redirect.get_intended_url()?, None);
+        assert_eq!(
+            redirect
+                .guest("/bad\r\nX-Test: bad")
+                .err()
+                .expect("bad header")
+                .code(),
+            "redirect_location_invalid"
+        );
+        assert_eq!(
+            redirect.get_intended_url()?,
+            Some(serde_json::json!(info.full_url()?))
+        );
+        Ok(())
+    }
+
+    #[cfg(feature = "session")]
+    #[tokio::test]
+    async fn intended_plain_attribute_survives_flash_aging_and_keeps_flash_chain() -> Result<()> {
+        let store = std::sync::Arc::new(crate::session::MemorySessionStore::default());
+        let session = crate::session::Session::new(None, store.clone(), None)?;
+        session.start().await?;
+        session.flash("notice", "once")?;
+        let mut incoming = HttpRequest::post("/form")
+            .header("host", "example.test")
+            .header("content-type", "application/json")
+            .body(Body::from(r#"{"title":"draft"}"#))
+            .expect("request");
+        incoming.extensions_mut().insert(session.clone());
+        let request = Request::from_request(incoming, &()).await?;
+        let redirector = Redirector::from_request(&request);
+        redirector.set_intended_url("/protected")?;
+        redirector
+            .guest("/login")?
+            .with_input()?
+            .with_errors(RedirectErrors::Text("invalid"), "default")?;
+        assert_eq!(
+            session.get_old_input(Some("title"))?,
+            Some(serde_json::json!("draft"))
+        );
+        assert_eq!(session.read_errors()?.count(), 1);
+        // guest取previous根，随后setter覆盖；两次保存老化后普通意图属性仍在。
+        redirector.set_intended_url("/protected")?;
+        session.save().await?;
+        let next = crate::session::Session::new(Some(session.id()?), store.clone(), None)?;
+        next.start().await?;
+        assert_eq!(next.get("notice")?, Some(serde_json::json!("once")));
+        next.save().await?;
+        let last = crate::session::Session::new(Some(next.id()?), store, None)?;
+        last.start().await?;
+        assert_eq!(last.get("notice")?, None);
+        let info = intent_info(&last, "GET", false, &[]).await?;
+        let redirect = Redirector::from_info(&info);
+        assert_eq!(
+            redirect.intended()?.target_url(),
+            "http://example.test/protected"
+        );
+        assert_eq!(redirect.intended()?.target_url(), "http://example.test");
+        Ok(())
+    }
+
+    #[cfg(feature = "session")]
+    #[tokio::test]
+    async fn intent_session_missing_closed_and_budget_errors_keep_atomic_state() -> Result<()> {
+        let info = info(None).await?;
+        let redirect = Redirector::from_info(&info);
+        for error in [
+            redirect.guest("/login").err(),
+            redirect.intended().err(),
+            redirect.get_intended_url().err(),
+            redirect.set_intended_url("/x").err(),
+        ] {
+            assert_eq!(
+                error.expect("missing Session").code(),
+                "session_layer_missing"
+            );
+        }
+        assert!(redirect.secure("/login").is_ok());
+        let session = crate::session::Session::with_options(
+            None,
+            std::sync::Arc::new(crate::session::MemorySessionStore::default()),
+            None,
+            512,
+            "session".into(),
+        )?;
+        let info = intent_info(&session, "GET", true, &[]).await?;
+        let redirect = Redirector::from_info(&info);
+        redirect.set_intended_url("/original")?;
+        let before = session.all()?;
+        assert_eq!(
+            redirect
+                .set_intended_url("x".repeat(1024))
+                .err()
+                .expect("budget")
+                .code(),
+            "session_limits_exceeded"
+        );
+        assert_eq!(session.all()?, before);
+        let (mut parts, _) = HttpRequest::get(format!("/protected?token={}", "x".repeat(1024)))
+            .header("host", "example.test")
+            .body(Body::empty())
+            .expect("request")
+            .into_parts();
+        parts.extensions.insert(session.clone());
+        let long_info = RequestInfo::from_request_parts(&mut parts, &()).await?;
+        long_info.set_route_resolver(info.get_route_resolver()?)?;
+        assert_eq!(
+            Redirector::from_info(&long_info)
+                .guest_with("/login", StatusCode::OK, HeaderMap::new(), None)
+                .err()
+                .expect("budget before response validation")
+                .code(),
+            "session_limits_exceeded"
+        );
+        assert_eq!(session.all()?, before);
+        session.close();
+        assert_eq!(
+            redirect.intended().err().expect("closed").code(),
+            "session_closed"
+        );
+        assert_eq!(
+            redirect.guest("/login").err().expect("closed").code(),
+            "session_closed"
+        );
+        assert_eq!(
+            redirect.get_intended_url()?,
+            Some(serde_json::json!("/original"))
+        );
+        Ok(())
     }
 
     #[tokio::test]

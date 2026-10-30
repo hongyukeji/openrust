@@ -366,7 +366,13 @@ cargo deny check
 
 `errors` 将默认标题错误与 `other` 命名错误一起写入 Session，`custom` 使用模块自己的 `DraftErrors` 和公开 `MessageProvider`/`ErrorBagCodecs` 扩展恢复业务化的首条消息。页面在原 `errors.any()` 流程内使用公开 `errors.hasAny(["title", "summary"])` 查询多个表单字段，有任一默认包字段错误才显示重新提交提示；自定义 `DraftErrors` 的实际 `title` 键与 `has` 行为仍参与查询，`other` 命名摘要错误照常独立展示。Session 已启用时，`GET /api/example/draft/review` 显式读取旧输入与错误包；`GET /example/pages/about` 通过同一请求的公开视图入口展示这些错误，缺失字段显示空字符串。再次请求后 flash 老化，多字段提示随错误一起消失；现有双客户端用例同时核对初始空包、两种错误包的提示和老化后的隐藏。未启用 Session 时普通与首页命名重定向可用；提交的 `only` 模式仍在写入 flash 时报 `session_layer_missing`，指向未挂载审核页的命名跳转则按未知路由报错。
 
-codec 在模块 `ExampleServiceProvider::register` 中通过 `RegisterContext.extend` 追加到 Session Provider 的注册表，保持已有登记。`DraftErrors` 的类型、编解码与业务规则均位于本模块。命名参数当前使用 `BTreeMap<String, String>`；默认状态为 302，自定义状态及响应头使用 `route_with`。示例仅覆盖手动普通、返回与命名路由重定向；action/guest/intended/signed 与自动校验失败重定向仍由后继能力验收。请求局部视图使用同一请求的 `RequestInfo` 与公开 `Views::render_for_request` 入口。
+`GET /api/example/draft/secure` 对相对首页目标调用公开 `secure`，返回 `https://` 的 Location；示例只验证重定向响应，不跟随请求或宣称当前 HTTP 监听器已启用 TLS。显式状态、头与协议选择可使用 `secure_with` 或 `to_with_scheme`。
+
+草稿预览使用真实 Session 展示确认后的导航回跳：以 `Accept: text/html` 访问 `GET /api/example/draft/preview?section=summary`，未确认时通过 `guest` 跳至固定 `/api/example/draft/confirm`；框架把本次真实 GET 路由的完整 URL 写入普通 `url.intended`。确认页使用 `get_intended_url` 仅读取，连续刷新不会像 flash 一样老化。`POST /api/example/draft/confirm` 只记录本模块的非敏感预览确认状态，再调用 `intended_or("/api/example/draft/review")` 一次消费地址；返回原预览后展示草稿内容，不再次跳确认页。再次提交确认时使用固定审核页回退。请求正文不接受任意跳转 URL，两份 Cookie 的意图互相隔离。
+
+此草稿步骤不登录账户、不授予权限，也不替代既有真实 Session 登录、CSRF 或 CRUD Policy。当前账户登录仍使用原凭据/Origin/Session 流程及 JSON 响应。`guest` 只有 GET、已匹配真实路由且非 `expects_json` 时保存当前完整 URL，其他请求使用 previous；`intended` 的缺失默认是 `/`，显式默认使用 `intended_or`。生成应用的公开测试 helper 保持同一入口，验证 HTTPS Location、双 Cookie 的普通意图持久性、一次消费与默认 `/` 回退，并继续执行原输入、命名错误及视图 flash 老化。
+
+codec 在模块 `ExampleServiceProvider::register` 中通过 `RegisterContext.extend` 追加到 Session Provider 的注册表，保持已有登记。`DraftErrors` 的类型、编解码与业务规则均位于本模块。命名参数当前使用 `BTreeMap<String, String>`；默认状态为 302，自定义状态及响应头使用 `route_with`。示例覆盖手动普通、返回、命名、scheme 与 Session 导航回跳；action/signed、URL 参数的其余扩展与自动校验失败重定向仍由后继能力验收。请求局部视图使用同一请求的 `RequestInfo` 与公开 `Views::render_for_request` 入口。
 
 “代码存在”仅说明当前可见实现，不能替代本布局 check/test、真实请求与外部服务验收。根基础设施装配、文档链接或 consumer 测试也不自动算作 `modules/example` 的业务代码覆盖。
 

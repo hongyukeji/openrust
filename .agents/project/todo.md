@@ -393,12 +393,9 @@ D7真实Route/Resolver与受管理方法声明已通过限定验收：final3完�
 - main target保留复用；旧QX五生成包、本轮plain/PG生成包及四个本簇已完成测试可执行文件已精确退役，源码/锁/索引/当前二进制及共享库哨兵未变。日志明确Cargo关联test_app/auth_flows产物；不清整target，不碰归属不足的历史缓存。
 - D9 My生成项目已验收，源码/锁/证据保留；如后继需要空间，先核精确package dry-run与占用后再回收其专属再生产物，不为纯Agent文档变化重跑矩阵。
 
-## C04-D10-E 重定向 scheme 与 guest/intended（待 Spec）
+## C04-D10-F refresh/away（待领取，前置E已验收）
 
-- 前置：D10-D命名重定向限定子范围已验收，实际实现提交见Git与[证据](memory/testing.md#c04-d10-d-命名路由重定向当前验收中未提交)。不重复实现 route/route_with。
-- 先按固定上游收敛现 `to/to_with` 的可选 secure scheme 行为，再提供 guest/intended 及 intended URL 读取/设置的 Rust 对应入口；复用 RequestInfo 方法/真实路由/内容协商与既有 Session 普通属性/pull，不另建当前请求或登录状态仓储。
-- 规格须保留 GET+真实路由+非expectsJson 判定、普通而非flash的 url.intended、先保存/先消费后构造响应的顺序，以及缺失默认与显式null/false/0/空值的差别。secure参数、动态值转换及失败需固定源码/实际参考证明，不默默忽略或提前缩小。
-- 只读依赖审计 `/tmp/openrust-c04d10-next-guest-intended-readonly-spec.md`；尚未领取实现。公共API由本簇Spec自主收敛，唯一模块、生成应用、MySQL与真实TCP随簇交付；action、signed、URL参数其余能力及完整L020.02仍开放。
+只读来源 `/tmp/openrust-c04d10e-next-readonly-spec.md`：固定 `Redirector.php:57–59,124–126` 与对应测试112–130。候选通过既有请求path与共享响应构造补refresh（不保留query）/away（目标原样，不经过URL生成）及状态/头选项，公开借用/闪存链不变。领取前核Symfony响应构造的空目标/状态/头失败责任，不以“不校验URL”放宽头安全；同簇唯一模块、模板、真实生成/MySQL/TCP与集中门禁随交付。当前不实施、不改变E冻结；action先补同一生产路由动作身份与索引，signed先补URL query HMAC生成/验证，现JWT SignedLinks不能冒充。完整L020.02与C04仍开放。
 
 ## 发布前全后端兼容性验收
 

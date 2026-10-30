@@ -93,6 +93,7 @@ async fn generated_application_consumes_message_bags_through_business_provider()
     message_bags::assert_message_bags::<GeneratedApplication>(source).await
 }
 
+/// 复用公开 helper 验证命名跳转、草稿确认回跳、HTTPS Location 与错误闪存。
 #[tokio::test]
 async fn generated_application_redirects_to_named_route_and_restores_errors()
 -> Result<(), Box<dyn std::error::Error>> {

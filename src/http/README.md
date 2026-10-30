@@ -296,7 +296,34 @@ async fn redirect_to_user(info: RequestInfo) -> openrust::Result<Response> {
 
 需要闪存输入时使用 `Redirector::from_request(&request)`；命名跳转返回同一个 `RedirectResponse`，可继续调用 `with_input`、`only_input`、`except_input` 和 `with_errors`，仍借用原请求与 Session。名称或必需参数错误沿用生成器现有错误与 HTTP 500；在应用 HTTP router 之外未捕获生成器时返回 `http_route_url_unavailable`，不会创建全局路由表或静默回退普通路径。
 
-命名重定向沿用现有 `BTreeMap<String, String>`、必需域/路径参数和 query 编码规则；域名模板及 `app.url` 的来源规则不受请求 Host 影响。这是已支持参数形态的接线，不代表 PHP 混合参数、模型/枚举绑定、可选参数或 `missingNamedRouteResolver` 已完成；action、guest/intended 与 signed 重定向仍属后继范围。
+命名重定向沿用现有 `BTreeMap<String, String>`、必需域/路径参数和 query 编码规则；域名模板及 `app.url` 的来源规则不受请求 Host 影响。这是已支持参数形态的接线，不代表 PHP 混合参数、模型/枚举绑定、可选参数或 `missingNamedRouteResolver` 已完成；action 与 signed 重定向仍属后继范围。
+
+
+### 重定向协议与一次返回意图
+
+`Redirector::to_with_scheme(target, status, headers, secure)` 为相对目标或空目标选择协议：`None` 沿当前请求，`Some(true)` 使用 HTTPS，`Some(false)` 使用 HTTP。`secure(target)` 等价于默认302、空自定义头及 `Some(true)`；`secure_with(target, status, headers)` 接受显式状态和头。合法绝对 URL、`//`、锚点及既有特殊 URL 不被强制改写，`secure("http://external.test/path")` 仍保留 HTTP。该选项不改变请求快照、`app.url` 或命名路由生成器；既有 `to/to_with/route` 保留原默认协议和响应规则。`back` 按固定上游直接用previous建立响应：Session相对字符串保持相对Location，数值/true转为字符串；Referer和fallback仍生成URL。此前把Session previous无条件绝对化的偏差已纠正，HTML/头规则仍复用同一响应构造器。
+
+启用 `session` feature 后，`guest(target)` 默认302、空头、不覆盖协议；`guest_with(target, status, headers, secure)` 提供完整选项。它仅在 **`GET`、存在真实匹配 `Route`（含匿名路由）且 `expects_json` 为false** 时记录当前完整URL及规范化query；HEAD、非GET、无Route或 `expects_json` 为true的请求取 Referer→Session previous→请求根。Referer和fallback经过URL生成，Session previous的真值则原样保留类型及相对形态，直到后续 `intended` 才按当时请求的Host/协议生成目标。AJAX/PJAX仍沿现内容协商结果判断。非空序列/JSON对象也先原样保存，后续消费时才报目标类型错误；Session JSON对象对应PHP关联数组，因此空对象/空序列与null、false、0、`"0"`、空串都按PHP数组/标量假值落根fallback，不代表支持任意PHP对象。意图存于普通Session `url.intended`，不是flash，不因下一请求老化而消失；先保存再建立响应，后续目标或状态错误不撤销保存。
+
+`intended()` 只在属性缺失时使用 `/`；`intended_or(default)` 接受可转为JSON的默认值，`intended_with(default, status, headers, secure)` 另收响应选项。它先从Session取出并删除，再转换目标、校验响应，转换或响应失败也不恢复已消费值。显式null/false/空串转为空目标，0转为 `/0`，true转为 `/1`，均不使用缺失默认；数值沿现PHP标量转换。数组/对象返回 `redirect_intended_url_invalid`，对应上游URL字符串操作的类型失败；Rust不模拟PHP的null弃用警告，也不支持JSON之外的可字符串化对象。
+
+`get_intended_url() -> Result<Option<Value>>` 原样读取，`None` 是缺失、`Some(Value::Null)` 是已存null；`set_intended_url(value)` 沿Session普通put并返回自身，不预先验证URL。缺Session、关闭或资源预算错误沿现Session传播，无静默内存回退；预算失败保留原属性。示例中的业务应在完成认证或审核后调用 `intended`：
+
+```rust,ignore
+use openrust::http::{Redirector, RequestInfo};
+
+async fn require_login(info: RequestInfo) -> openrust::Result<axum::response::Response> {
+    use axum::response::IntoResponse;
+    Ok(Redirector::from_info(&info).guest("/login")?.into_response())
+}
+
+async fn login_completed(info: RequestInfo) -> openrust::Result<axum::response::Response> {
+    use axum::response::IntoResponse;
+    Ok(Redirector::from_info(&info).intended_or("/dashboard")?.into_response())
+}
+```
+
+返回值仍是借用原请求的 `RedirectResponse`；通过 `from_request` 创建后可继续组合 `with_input/only_input/except_input/with_errors`。返回目标沿既有URL规则，可为外部URL，不自动施加同源限制；应用需要限制来源时应在其业务规则中明确验证。这些入口不代表验证失败自动重定向、`dontFlash`、action、signed或完整Redirector已全部提供。
 
 `RouteGroup::domain` 可为路由组指定完整域名模式。域模式先于不限定域的路由匹配，与注册顺序无关；同一请求可用 `DomainParams<T>` 读取域标签参数，路径参数仍由 `Path<T>` 单独提取。嵌套组继承父域，显式声明的新域会覆盖父域。域参数只用于路由分派，不能替代租户认证或授权。域名 URL 从登记模板和显式参数生成，scheme/port 仍取自 `app.url`；不会采信当前 `Host` 或 `X-Forwarded-Host`。域名仅支持 ASCII DNS 标签与预先编码的 punycode，不执行 Unicode IDNA 转换，不支持 IP literal 和尾点；域参数必须是单个标签。
 

@@ -2276,6 +2276,139 @@ async fn duplicate_routes_across_groups_dispatch_to_last_registration() -> TestR
     Ok(())
 }
 
+async fn secure_redirect_response(info: openrust::http::RequestInfo) -> openrust::Result<Response> {
+    Ok(openrust::http::Redirector::from_info(&info)
+        .secure("/login?source=protected")?
+        .into_response())
+}
+
+#[cfg(feature = "session")]
+async fn guest_redirect_response(info: openrust::http::RequestInfo) -> openrust::Result<Response> {
+    // 通过受管理Router的匿名Route验证，而非测试手工声明的命中事实。
+    assert!(info.route()?.is_some());
+    assert_eq!(info.route_name()?, None);
+    Ok(openrust::http::Redirector::from_info(&info)
+        .guest("/login")?
+        .into_response())
+}
+
+#[cfg(feature = "session")]
+async fn intended_redirect_response(
+    info: openrust::http::RequestInfo,
+) -> openrust::Result<Response> {
+    Ok(openrust::http::Redirector::from_info(&info)
+        .intended_or("/fallback")?
+        .into_response())
+}
+
+async fn intent_redirect_router() -> Result<axum::Router, Box<dyn std::error::Error>> {
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(TestRoutes::new(|routes| {
+            let routes = routes.get("/secure", secure_redirect_response);
+            #[cfg(feature = "session")]
+            let routes = routes
+                .get("/protected", guest_redirect_response)
+                .get("/complete", intended_redirect_response);
+            routes
+        }));
+    let app = builder
+        .start(figment::Figment::from(
+            figment::providers::Serialized::defaults(FrameworkConfig::default()),
+        ))
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    Ok(build_router(&app)?)
+}
+
+#[tokio::test]
+async fn secure_redirect_public_route_works_without_session_provider() -> TestResult {
+    let router = intent_redirect_router().await?;
+    let response = router
+        .clone()
+        .oneshot(
+            Request::get("/secure")
+                .header(header::HOST, "example.test")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::FOUND);
+    assert_eq!(
+        response.headers()[header::LOCATION],
+        "https://example.test/login?source=protected"
+    );
+    assert_eq!(
+        response.headers()[header::CONTENT_TYPE],
+        "text/html; charset=utf-8"
+    );
+    #[cfg(feature = "session")]
+    {
+        let response = router
+            .oneshot(
+                Request::get("/protected")
+                    .header(header::HOST, "example.test")
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        let body = to_bytes(response.into_body(), 16384).await?;
+        let json: serde_json::Value = serde_json::from_slice(&body)?;
+        assert_eq!(json["code"], "session_layer_missing");
+    }
+    Ok(())
+}
+
+#[cfg(feature = "session")]
+#[tokio::test]
+async fn guest_anonymous_route_and_intended_use_same_request_session_once() -> TestResult {
+    // 此层只证明公开提取/真实匿名Route接线；持久Cookie与多客户端由唯一模块验收。
+    let session = openrust::session::Session::new(
+        None,
+        Arc::new(openrust::session::MemorySessionStore::default()),
+        None,
+    )?;
+    let router = intent_redirect_router()
+        .await?
+        .layer(Extension(session.clone()));
+    let response = router
+        .clone()
+        .oneshot(
+            Request::get("/protected?next=two&first=one")
+                .header(header::HOST, "example.test")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::FOUND);
+    assert_eq!(
+        response.headers()[header::LOCATION],
+        "http://example.test/login"
+    );
+    assert_eq!(
+        session.get("url.intended")?,
+        Some(serde_json::json!(
+            "http://example.test/protected?first=one&next=two"
+        ))
+    );
+    for expected in [
+        "http://example.test/protected?first=one&next=two",
+        "http://example.test/fallback",
+    ] {
+        let response = router
+            .clone()
+            .oneshot(
+                Request::get("/complete")
+                    .header(header::HOST, "example.test")
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(response.status(), StatusCode::FOUND);
+        assert_eq!(response.headers()[header::LOCATION], expected);
+        assert_eq!(session.get("url.intended")?, None);
+    }
+    Ok(())
+}
+
 async fn named_redirect_response(
     info: openrust::http::RequestInfo,
     Path(mode): Path<String>,

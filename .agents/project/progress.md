@@ -6,7 +6,7 @@
 
 ## 当前功能簇
 
-✅ C04-D10-D命名路由重定向限定子范围已验收，提交见Git：`route/route_with` 复用同应用URL生成器及既有响应/闪存链；v2定向、双严格Clippy及main11项通过，默认workspace802 passed/32 ignored、全特性1576 passed/106 ignored。最终server/CLI、fresh普通7项、MySQL8.4.13认证2项及独立公开helper1项通过；无Session/MySQL真实TCP分别3/4个场景通过，正常停止并释放监听、清理敏感文件及自有数据库。ignored不算真实服务；完整Redirector及L020.02仍开放。见[当前验收](memory/testing.md#c04-d10-d-命名路由重定向当前验收中未提交)。
+🟡 C04-D10-E scheme/secure与guest/intended的适用行为验收已通过，资源收尾已完成，限定提交见Git：定向10/main11、新构建、fresh普通7/MySQL认证2+公开helper1、无Session/MySQL真实TCP4/9场景通过；previous原值与先保存/先消费顺序已修复，唯一模块真实确认回跳不替代认证授权。完整Redirector/L020.02仍开放，见[本簇证据](memory/testing.md#c04-d10-e-scheme-与-guestintended验收中未提交)。
 
 C04-D10-A公共错误包限定子范围已提交 `27c006a`。[证据及限制](memory/testing.md#c04-d10-a-错误包限定子范围已验收)。C04-D10-B请求绑定重定向、Session命名错误包与空库迁移启动修复已通过当前源码门禁、无Session及MySQL8.4真实TCP、普通生成7项/MySQL认证生成2项，已由 `a2befef` 限定提交；纯 Session 测试入口整合限定试点已验收并由 `4023e05` 提交：48→46 入口，26 项全保留；gRPC 联合监听测试的端口所有权空窗已修并通过定向/全特性门禁；PG与全部后端发布矩阵及完整Redirector/Validation仍开放。[B证据及限制](memory/testing.md#c04-d10-b-请求绑定重定向与-session-错误包限定子范围已验收)。
 
@@ -33,7 +33,7 @@ C04-D8 previous与显式Precognition限定子范围已完成适用验收：稳�
 | Configuration | env/领域配置、typed读取/校验与包配置合并 | ✅ 已验收子范围 | R2来源失败/Provider配置；APP_PORT 591142f映射与生成/启动已验收 | R2-Q原始/批量读取与可信错误路径已完成main组合验收；完整L005及缓存/来源/扩展逐项对齐；DB业务设置见增强表 | L005；R2；[core](core/core.md)/[todo](todo.md) |
 | Routing / Middleware / URL | 路由组/域/命名URL/绑定/中间件默认与错误 | ✅ 已验收子范围 | R3-A–F按簇交付；F 163bb49域路由；D7请求匹配/方法声明与fallback纠偏已限定验收 | 模型绑定等剩余C03行为及默认差异不能由A–F整体外推 | L015/L016/L024；R3；[http](core/http.md)/[todo](todo.md) |
 | Request | 输入来源、typed便捷方法与生命周期 | 🟡 开发中 | C04-A/B1/B2/C及D6/D7/D9各子范围已验收；D10-B真实Request借用的输入闪存与重定向已限定验收并提交 `a2befef`；D10-D捕获同应用URL生成器的请求快照已限定验收，提交见Git | 文件输入并入bag、完整Session/CSRF/FormRequest仍开放 | L019；R3 C04；[B证据](memory/testing.md#c04-d10-b-请求绑定重定向与-session-错误包限定子范围已验收)/[todo](todo.md) |
-| Response / API Resource / 异常 | 原生响应、资源序列化/条件字段、错误渲染 | 🔵 已有实现待1:1对齐 | 类型化响应/envelope与语义状态已交付；D10-B普通与请求绑定重定向已限定验收并提交 `a2befef`；D10-D命名重定向已通过main/生成/MySQL及真实TCP限定验收，提交见Git | 完整Resource、命名重定向混合/可选参数缺口、action/guest/intended/signed、missing resolver、stream及异常自动重定向仍待 | L018/L020/L027/L068/L069；R3/R5；[http](core/http.md) |
+| Response / API Resource / 异常 | 原生响应、资源序列化/条件字段、错误渲染 | 🔵 已有实现待1:1对齐 | 类型化响应/envelope与语义状态已交付；D10-B普通与请求绑定重定向已限定验收并提交 `a2befef`；D10-D命名重定向已提交018b778；D10-E scheme/guest/intended通过当前适用验收，限定提交见Git | 完整Resource、命名重定向混合/可选参数缺口、action/signed、missing resolver、stream及异常自动重定向仍待 | L018/L020/L027/L068/L069；R3/R5；[http](core/http.md) |
 | Pagination | Query/Model paginate、simple/cursor、链接与Resource | 🔵 已有实现待1:1对齐 | 现PageParams/手动controller分页；4573234仅登记整改 | 默认15/page解析、直接JSON与Resource links/meta、查询/模型入口及边界 | L059/L068.04；R3→R4/R5；[Spec](todo.md#c04c05-分页整改-spec已授权按依赖领取代码未改) |
 | Validation / FormRequest | 验证规则、授权、错误与文件验证 | 🔵 已有实现待1:1对齐 | Validate/Validated与模块输入校验已有测试；D10-A消息包已提交，D10-B手动命名错误包闪存已提交；D10-C请求错误视图共享限定验收通过，已提交 `784045c` | 自动验证失败重定向、`dontFlash`、完整FormRequest授权/规则/文件行为 | L026/L019；R3/R7；[http](core/http.md)/[todo](todo.md) |
 | DB / 事务 / Migrations | 连接、事务/savepoint、Schema与迁移生命周期 | 🔵 已有实现待1:1对齐 | SeaORM双库等专项资产；D10-B MySQL8.4空库迁移与MFA启动顺序限定验收通过、待提交 | 失败迁移恢复本轮未实跑；R4完整公开契约与发布全后端边界仍待 | L057/L060/L062；R4；[core](core/core.md)/[todo](todo.md) |

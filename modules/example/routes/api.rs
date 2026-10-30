@@ -126,6 +126,10 @@ fn draft_redirect_routes(routes: Routes) -> Routes {
         )
         .get("/api/example/draft/back", controllers::draft_redirect::back)
         .get(
+            "/api/example/draft/secure",
+            controllers::draft_redirect::secure,
+        )
+        .get(
             "/api/example/draft/named",
             controllers::draft_redirect::named,
         )
@@ -152,6 +156,18 @@ fn session_routes(routes: Routes) -> Routes {
             controllers::draft_redirect::review,
         )
         .name("example.draft.review")
+        .get(
+            "/api/example/draft/preview",
+            controllers::draft_redirect::preview,
+        )
+        .get(
+            "/api/example/draft/confirm",
+            controllers::draft_redirect::confirmation,
+        )
+        .post(
+            "/api/example/draft/confirm",
+            controllers::draft_redirect::confirm,
+        )
         .get("/api/example/session", controllers::session::show)
         .post("/api/example/session", controllers::session::store)
         .get(

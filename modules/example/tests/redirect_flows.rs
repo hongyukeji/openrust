@@ -62,7 +62,9 @@ async fn get<A: Application>(
     cookie: Option<&str>,
     referer: Option<&str>,
 ) -> TestResult<TestResponse> {
-    let mut request = Request::get(path).header("host", "localhost");
+    let mut request = Request::get(path)
+        .header("host", "localhost")
+        .header(header::ACCEPT, "text/html");
     if let Some(cookie) = cookie {
         request = request.header(header::COOKIE, cookie);
     }
@@ -81,7 +83,8 @@ async fn submit<A: Application>(
 ) -> TestResult<TestResponse> {
     let mut request = Request::post("/api/example/draft/submit")
         .header("host", "localhost")
-        .header(header::CONTENT_TYPE, "application/json");
+        .header(header::CONTENT_TYPE, "application/json")
+        .header(header::ACCEPT, "application/json");
     if let Some(cookie) = cookie {
         request = request.header(header::COOKIE, cookie);
     }
@@ -314,6 +317,16 @@ async fn plain_and_named_redirect_work_without_session_and_flash_reports_failure
             &get(&app, "/api/example/draft/named", None, None).await?,
             "/api/example",
         )?;
+        let secure = get(&app, "/api/example/draft/secure", None, None).await?;
+        secure.assert_status(StatusCode::FOUND)?;
+        assert_eq!(
+            secure
+                .headers()
+                .get(header::LOCATION)
+                .ok_or("Location missing")?
+                .to_str()?,
+            "https://localhost/api/example"
+        );
         let back = get(
             &app,
             "/api/example/draft/back",
@@ -326,6 +339,82 @@ async fn plain_and_named_redirect_work_without_session_and_flash_reports_failure
         failed.assert_status(StatusCode::INTERNAL_SERVER_ERROR)?;
         let body: Value = failed.json()?;
         assert_eq!(body["code"], "session_layer_missing");
+        Ok(())
+    }
+    .await;
+    app.shutdown(tokio::time::Instant::now() + TIMEOUT).await?;
+    result
+}
+
+async fn confirm<A: Application>(app: &TestApp<A>, cookie: &str) -> TestResult<TestResponse> {
+    Ok(app
+        .request_with_limits(
+            Request::post("/api/example/draft/confirm")
+                .header("host", "localhost")
+                .header(header::ACCEPT, "text/html")
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(header::COOKIE, cookie)
+                .body(Body::from("{}"))?,
+            4096,
+            TIMEOUT,
+        )
+        .await?)
+}
+
+#[tokio::test]
+async fn draft_guest_intended_survives_refresh_and_is_consumed_per_cookie() -> TestResult {
+    let mut app = TestApp::<DraftApplication>::builder(sources())
+        .build()
+        .await?;
+    let result = async {
+        let paths = [
+            "/api/example/draft/preview?section=summary",
+            "/api/example/draft/preview?section=history",
+        ];
+        let a = get(&app, paths[0], None, None).await?;
+        let b = get(&app, paths[1], None, None).await?;
+        redirect(&a, "/api/example/draft/confirm")?;
+        redirect(&b, "/api/example/draft/confirm")?;
+        let mut cookies = [cookie_pair(&a)?, cookie_pair(&b)?];
+        assert_ne!(cookies[0], cookies[1]);
+        // 两次普通 GET 后仍保留意图；若误用 flash，第二次读取会丢失。
+        for _ in 0..2 {
+            for (cookie, path) in cookies.iter_mut().zip(paths) {
+                let page = get(&app, "/api/example/draft/confirm", Some(cookie), None).await?;
+                assert_eq!(state(&page)?["intended"], format!("http://localhost{path}"));
+                *cookie = cookie_pair(&page)?;
+            }
+        }
+        for (index, path) in paths.into_iter().enumerate() {
+            let response = confirm(&app, &cookies[index]).await?;
+            redirect(&response, path)?;
+            cookies[index] = cookie_pair(&response)?;
+            let preview = get(&app, path, Some(&cookies[index]), None).await?;
+            assert_eq!(state(&preview)?["draft"], "示例草稿");
+            assert_eq!(state(&preview)?["preview_confirmed"], true);
+            cookies[index] = cookie_pair(&preview)?;
+            let page = get(
+                &app,
+                "/api/example/draft/confirm",
+                Some(&cookies[index]),
+                None,
+            )
+            .await?;
+            assert_eq!(state(&page)?["intended"], Value::Null);
+            cookies[index] = cookie_pair(&page)?;
+            let repeated = confirm(&app, &cookies[index]).await?;
+            redirect(&repeated, "/api/example/draft/review")?;
+            cookies[index] = cookie_pair(&repeated)?;
+            if index == 0 {
+                let waiting =
+                    get(&app, "/api/example/draft/confirm", Some(&cookies[1]), None).await?;
+                assert_eq!(
+                    state(&waiting)?["intended"],
+                    format!("http://localhost{}", paths[1])
+                );
+                cookies[1] = cookie_pair(&waiting)?;
+            }
+        }
         Ok(())
     }
     .await;
