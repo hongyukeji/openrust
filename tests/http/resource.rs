@@ -143,19 +143,101 @@ async fn trailing_slash_resource_path_uses_one_collection_and_member_base() -> T
     Ok(())
 }
 
+// 捕获根子路径被装配成 /posts/，以及 group/nest/merge 后 CRUD 与公开 Route URI 漂移。
 #[tokio::test]
 async fn empty_and_slash_resource_paths_work_inside_groups() -> TestResult {
     for path in ["", "/"] {
-        let router =
-            router(move |routes| routes.nest("/posts", |group| group.resource::<Posts>(path)))
-                .await?;
-        for (request_path, expected) in [("/posts", "list"), ("/posts/42", "get:42")] {
-            let response = send(router.clone(), Method::GET, request_path).await?;
-            assert_eq!(response.status(), StatusCode::OK, "{path}: {request_path}");
-            assert_eq!(body(response).await?, expected.as_bytes());
+        for mount in ["nest", "group", "merge"] {
+            let router = router(move |routes| {
+                let routes = match mount {
+                    "group" => routes.group(
+                        openrust::http::RouteGroup::new().prefix("/posts"),
+                        |group| group.resource::<Posts>(path),
+                    ),
+                    "merge" => routes.nest("/posts", |group| {
+                        group.merge(Routes::new().resource::<Posts>(path))
+                    }),
+                    _ => routes.nest("/posts", |group| group.resource::<Posts>(path)),
+                };
+                routes.layer(axum::middleware::from_fn(resource_route_metadata))
+            })
+            .await?;
+            for (method, request_path, expected, uri, id) in [
+                (Method::GET, "/posts", "list", "posts", None),
+                (Method::HEAD, "/posts", "", "posts", None),
+                (Method::POST, "/posts", "create", "posts", None),
+                (Method::GET, "/posts/42", "get:42", "posts/{id}", Some("42")),
+                (
+                    Method::PUT,
+                    "/posts/42",
+                    "update:42",
+                    "posts/{id}",
+                    Some("42"),
+                ),
+                (
+                    Method::PATCH,
+                    "/posts/42",
+                    "update:42",
+                    "posts/{id}",
+                    Some("42"),
+                ),
+                (
+                    Method::DELETE,
+                    "/posts/42",
+                    "delete:42",
+                    "posts/{id}",
+                    Some("42"),
+                ),
+            ] {
+                let response = send(router.clone(), method, request_path).await?;
+                assert_eq!(
+                    response.status(),
+                    StatusCode::OK,
+                    "{mount}/{path}: {request_path}"
+                );
+                assert_eq!(response.headers()["x-resource-uri"], uri);
+                assert_eq!(
+                    response
+                        .headers()
+                        .get("x-resource-id")
+                        .and_then(|value| value.to_str().ok()),
+                    id
+                );
+                assert_eq!(body(response).await?, expected.as_bytes());
+            }
         }
     }
     Ok(())
+}
+
+async fn resource_route_metadata(
+    info: openrust::http::RequestInfo,
+    request: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> openrust::Result<Response> {
+    let route = info.route()?.ok_or_else(|| {
+        openrust::Error::custom("test_resource_route_missing", "资源路由缺少真实匹配快照")
+    })?;
+    assert_eq!(route.name(), None);
+    assert!(
+        route
+            .methods()
+            .iter()
+            .any(|method| method == request.method().as_str())
+    );
+    let uri = axum::http::HeaderValue::from_str(route.uri()).map_err(openrust::Error::internal)?;
+    let id = info
+        .route_parameter("id")?
+        .and_then(|value| value.as_str().map(str::to_owned));
+    let mut response = next.run(request).await;
+    response.headers_mut().insert("x-resource-uri", uri);
+    if let Some(id) = id {
+        response.headers_mut().insert(
+            "x-resource-id",
+            axum::http::HeaderValue::from_str(&id).map_err(openrust::Error::internal)?,
+        );
+    }
+    Ok(response)
 }
 
 #[tokio::test]

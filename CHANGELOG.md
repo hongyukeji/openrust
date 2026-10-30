@@ -6,6 +6,10 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Changed
 
+- `Routes::route` 改为接收公开 `http::routing` 的受管理方法声明；同路径按方法合并与后注册覆盖，保留各处理器的路由身份和中间件。原生 Axum 路由仍作为显式逃生口，不自动承诺受管理请求 Route 上下文。
+
+- 显式 fallback 按 Laravel 使用 GET/HEAD；普通当前方法优先，fallback 参与备用方法与自动 OPTIONS 判断。域名与路径可使用同名参数，绑定时路径值优先；单个模式内部重复参数仍拒绝。
+
 - 正式宿主与生成应用按数据库来源或显式非数据库 Session driver 装配唯一 Provider；数据库应用无需启用 Auth 才能使用 Session。默认 database 驱动且无数据库时不暗用内存，显式 Cookie driver 可在无数据库宿主运行。
 
 - Session 统一到公开 `openrust::session`，认证与业务共享请求状态和 store；属性同步操作、持久化异步执行。默认数据库、120 分钟 lifetime，Cookie 名从最终 `app.name` 推导，Secure 未指定时依可信传输决定；取消请求不后台保存。自定义 driver 使用公开 `SessionStore`，不再依赖旧 tower Session 接口。
@@ -29,6 +33,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 - 在 API 响应中保留类型化 `PageMeta`；明确 CORS 预检响应正文为空，同时普通跨域错误仍使用统一包装。
 
 ### Added
+
+- 请求公开真实匹配的 `Route`、路由名称、参数/default 与名称通配匹配，并提供可信应用可替换的 `RouteResolver`。上下文共享于同一请求，覆盖路由中间件与外层下游返回后的读取；不从响应状态、请求头或具名 URL 生成器推断命中。
 
 - 请求新增 Laravel 风格 URL、路径分段/匹配与预取检查；`full_url`规范原始查询串，增删参数读取当前query bag，保留端口和可信传输边界。唯一模块和生成应用演示普通GET、JSON GET及POST来源差异；非法UTF-8与URL资源超限显式报错。
 

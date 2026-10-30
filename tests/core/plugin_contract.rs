@@ -242,33 +242,39 @@ async fn invalid_provider_config_reports_key_without_echoing_value() {
         "configuration error leaked its value: {error}"
     );
 }
-async fn duplicate_route() -> &'static str {
-    "duplicate"
+async fn first_duplicate_route() -> &'static str {
+    "first provider route"
+}
+async fn last_duplicate_route() -> &'static str {
+    "last provider route"
 }
 struct RepeatedRoutes;
 impl ServiceProvider for RepeatedRoutes {
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            app.routes(|routes| routes.get("/duplicate", duplicate_route))?;
-            app.routes(|routes| routes.get("/duplicate", duplicate_route))?;
+            app.routes(|routes| routes.get("/duplicate", first_duplicate_route))?;
+            app.routes(|routes| routes.get("/duplicate", last_duplicate_route))?;
             Ok(())
         })
     }
 }
+// 捕获 Provider 分次注册相同路由时错误拒绝装配、panic 或仍执行旧 handler 的回归。
 #[tokio::test]
-async fn duplicate_provider_routes_return_startup_error_instead_of_panicking() -> Result<()> {
+async fn duplicate_provider_routes_dispatch_to_last_registration_without_panicking()
+-> std::result::Result<(), Box<dyn std::error::Error>> {
     let mut builder = ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(RepeatedRoutes);
     let app = start(builder, Figment::new()).await?;
-    let error = build_router(&app).err().ok_or_else(|| {
-        Error::custom(
-            "test_expected_error",
-            "duplicate routes unexpectedly succeeded",
-        )
-    })?;
-    assert_eq!(error.code(), "http_route_registration_failed");
+    let response = build_router(&app)?
+        .oneshot(axum::http::Request::get("/duplicate").body(axum::body::Body::empty())?)
+        .await?;
+    assert_eq!(response.status(), axum::http::StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), 1024)
+        .await
+        .map_err(Error::internal)?;
+    assert_eq!(body, "last provider route");
     Ok(())
 }
 struct MarkCommand(bool);

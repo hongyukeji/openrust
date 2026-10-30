@@ -1,12 +1,16 @@
 # 当前交付与验证
 
 > 受众：AI Agent
-> 更新：2026-10-29
+> 更新：2026-10-30
 > 摘要：R0 已固定上游；R1-S、R2-A/A2/A3、R2-B/C/D/M/N、R1-E 与 R3-A/B/C/D 均已按子簇完成适用门禁；R3-D 真实 HTTP、生成应用和安全复审证据见 `memory/testing.md`。完整 Laravel/laravel-modules 行为矩阵继续推进。
+
+## 当前功能簇
+
+D7真实Route/Resolver与受管理方法声明已通过限定验收：final3完整12门禁、默认695/29 ignored、全特性1403/103 ignored、根PG18/MySQL8.4各64、fresh5/2/2、真实TCP7及不同模型复审；忽略项不算真实服务。根target清零，五旧consumer不变，限定提交以Git为准；完整Routing/Request与previous/Precognition仍开放。[证据与限制](memory/testing.md#c04-d7-真实路由上下文限定子范围已验收)。下一簇按唯一todo领取。
 
 ## Laravel 1:1 功能与进度概览
 
-> 更新：2026-10-29；C04-B2本轮适用验收已完成，本簇限定本地提交见Git；不将子簇完成外推整能力。本页是唯一概览入口，详细行为/差异以矩阵为准，执行队列仅在[todo](todo.md)。
+> 更新：2026-10-30；C04-B2本轮适用验收已完成，本簇限定本地提交见Git；不将子簇完成外推整能力。本页是唯一概览入口，详细行为/差异以矩阵为准，执行队列仅在[todo](todo.md)。
 
 **总体仍未完成严格1:1。** 已验收的是明确子范围，不是整项能力全完成。R1-S、R2-A/A2/A3/B/C/D/M/N、R1-E及R3-A–F保留各簇证据；旧专项实现也须重新对应固定Laravel生产行为。C04-B1 `8846a6a`已交付，B2类型便捷方法按子簇验收；APP_PORT `591142f`只关闭端口配置子项，分页`4573234`仅整改计划，ADR-080仅规划。
 
@@ -21,8 +25,8 @@
 | 启动、应用布局 | Laravel应用职责/生命周期与开箱运行 | ✅ 已验收子范围 | R1-S 34dfb5e、R1-E bc3fa01：根lib/server、唯一模块与真实CRUD | 完整安装/升级/部署流程仍须逐项对照 | L004/L007/L010/L011；R1/R13/R14；[证据](memory/testing.md) |
 | Container / Provider / Facade | 统一DI、register→boot、作用域与扩展 | ✅ 已验收子范围 | R2-A/A2/A3、B/C/D已验收，唯一生产Container/Provider、入口scope/TestApp | 阶段一Provider编译期发现仅规划，现显式descriptor不是包发现；完整Facade/Container/扩展对应待闭合 | L012–L014/L035；R2；[core](core/core.md)/[facade](core/facade.md) |
 | Configuration | env/领域配置、typed读取/校验与包配置合并 | ✅ 已验收子范围 | R2来源失败/Provider配置；APP_PORT 591142f映射与生成/启动已验收 | 完整L005及缓存/来源/扩展逐项对齐；DB业务设置见增强表 | L005；R2；[core](core/core.md)/[todo](todo.md) |
-| Routing / Middleware / URL | 路由组/域/命名URL/绑定/中间件默认与错误 | ✅ 已验收子范围 | R3-A–F按簇交付；F 163bb49域路由；已知差异公开 | 模型绑定等剩余C03行为及默认差异不能由A–F整体外推 | L015/L016/L024；R3；[http](core/http.md)/[todo](todo.md) |
-| Request | 输入来源、typed便捷方法与生命周期 | 🟡 开发中 | C04-A 08be69d、B1 8846a6a、B2 0a92900与C04-C Cookie子簇各自已验收；C04-C提交见Git | Cookie仅已交付读取/队列/加密与响应闭环；D6 URL家族已按限定范围验收（12门禁、双库各63、fresh5/2/2、真实网络10场景与PHP对照）；Old Input、完整Session/CSRF/FormRequest等仍开放 | L019；R3 C04；[证据](memory/testing.md)/[todo](todo.md) |
+| Routing / Middleware / URL | 路由组/域/命名URL/绑定/中间件默认与错误 | ✅ 已验收子范围 | R3-A–F按簇交付；F 163bb49域路由；D7请求匹配/方法声明与fallback纠偏已限定验收 | 模型绑定等剩余C03行为及默认差异不能由A–F整体外推 | L015/L016/L024；R3；[http](core/http.md)/[todo](todo.md) |
+| Request | 输入来源、typed便捷方法与生命周期 | 🟡 开发中 | C04-A 08be69d、B1 8846a6a、B2 0a92900与C04-C Cookie子簇各自已验收；C04-C提交见Git | Cookie仅已交付读取/队列/加密与响应闭环；D6 URL家族已按限定范围验收（12门禁、双库各63、fresh5/2/2、真实网络10场景与PHP对照）；D7按ADR-083完成限定验收（12门禁、双库各64、fresh5/2/2、TCP7）；Old Input、完整Session/CSRF/FormRequest等仍开放 | L019；R3 C04；[证据](memory/testing.md)/[todo](todo.md) |
 | Response / API Resource / 异常 | 原生响应、资源序列化/条件字段、错误渲染 | 🔵 已有实现待1:1对齐 | 类型化响应/envelope与语义状态子簇已交付 | 完整Resource集合/分页/条件字段和redirect/stream逐项对应 | L018/L020/L027/L068/L069；R3/R5；[http](core/http.md) |
 | Pagination | Query/Model paginate、simple/cursor、链接与Resource | 🔵 已有实现待1:1对齐 | 现PageParams/手动controller分页；4573234仅登记整改 | 默认15/page解析、直接JSON与Resource links/meta、查询/模型入口及边界 | L059/L068.04；R3→R4/R5；[Spec](todo.md#c04c05-分页整改-spec已授权按依赖领取代码未改) |
 | Validation / FormRequest | 验证规则、授权、错误与文件验证 | 🔵 已有实现待1:1对齐 | Validate/Validated与模块输入校验有实现和测试 | 完整FormRequest授权/规则/错误默认与文件行为 | L026/L019；R3/R7；[http](core/http.md)/[todo](todo.md) |

@@ -5,7 +5,7 @@ OpenRust 框架基于 `axum` 和 `tower` 构建的 HTTP 层。
 - [`HttpServiceProvider`]：在 `register` 登记 HTTP 配置与能力，在 `boot` 贡献 `serve` 命令、默认 middleware 栈、`/health` 和 `/ready`。
 - `BootContext::routes`：应用 Provider 在 `boot` 阶段添加路由。
 - `BootContext::http_layer`：在所有路由外层注册共享 Tower 请求上下文，并置于路由级 layer 之外。
-- [`Routes`]：基于 `axum::Router` 的路由约定，提供 `get` / `post` / …、`group`、`nest`、`merge`、`layer` 与 `fallback`；[`RouteGroup`] 支持可嵌套路径前缀与组级 Tower middleware。middleware 按声明顺序进入请求，组外路由不受影响。
+- [`Routes`]：基于 `axum::Router` 的路由约定，提供 `get` / `post` / …、`group`、`nest`、`merge`、`layer` 与 `fallback`；`route(path, RouteMethods)` 接受 `routing::{get, post, put, patch, delete, head, options, query, on, any}` 受管理方法声明，可链式追加不同方法。`on` 校验并规范化 HTTP 方法字符串，`any` 仅包含 Laravel 固定的 GET、HEAD、POST、PUT、PATCH、DELETE、OPTIONS、QUERY。[`RouteGroup`] 支持可嵌套路径前缀与组级 Tower middleware。middleware 按声明顺序进入请求，组外路由不受影响。
 - [`Resource`] 与 [`ResourceActions`]：只注册实际存在的 controller action；`Routes::resource` 将 `list` / `create` 映射到集合路由，将 `get` / `update` / `delete` 映射到 `{id}`。`resource_with` 可通过 `only` 或 `except` 过滤 action。
 - [`Created<T>`] 与 [`NoContent`]：成功响应封装；前者可选携带 `Location`（semantic 模式为 201），后者返回省略 `data` 的成功包装（HTTP 200）。
 - [`PageParams`] 与 [`Paginated<T>`]：校验 `page` / `per_page` 查询参数，并返回含数组 `data` 和分页 `meta` 的 API 封装。
@@ -65,7 +65,13 @@ async fn address(request: Request) -> openrust::Result<Json<serde_json::Value>> 
 
 `root()`返回协议和主机；`http_host()`保留非默认端口，`port()`返回显式或协议默认端口。实际安全状态沿`RequestSecurity`或可信peer/proto链确定，未信任转发头不生效；代理Host/Port/Prefix的完整支持尚未交付。`decoded_path()`百分号解码但保留加号，`segments()`解码后分段，`segment(1)`从第一段起；非法UTF-8显式报错。`is`和`full_url_is`采用区分大小写的星号模式。`prefetch`仅识别对应头值完整等于prefetch。
 
-查询原文限制16KiB/1024字段，编码和完整URL限制128KiB；模式最多128项、合计16KiB，超限显式413。完整路由命中、previous URL和Precognition仍在后继范围，不能据这些地址方法推断已实现。
+查询原文限制16KiB/1024字段，编码和完整URL限制128KiB；模式最多128项、合计16KiB，超限显式413。`previous URL` 和 `Precognition` 仍在后继范围。
+
+### 当前路由上下文
+
+`RequestInfo` 与受管理的 `Request` 可读取 `route()`、`route_name()`、`route_is(&[...])`、`route_parameter(name)` 和 `route_parameter_or(name, default)`；均返回 `Result`。无实际匹配时，`route_is` 为 `false`，其余路由读取为 `None`；无路由时也不采用参数默认值。公开 `Route` 是当前请求的 owned 快照，包含可空名称、去首斜线的声明 URI、可空域模板、方法列表和按绑定顺序保存的 `serde_json::Value` 参数。域与路径同名时路径值覆盖，具名模式中的 `*` 匹配完整字符串任意部分。当前参数是已解码路径与域标签值，模型、枚举与显式 binder 仍需后继能力。
+
+框架只在真实受管理路由命中后发布上下文：全局 middleware 调用下游前可见 `None`，下游返回后可见命中；路由 middleware 短路或业务主动返回错误仍保留命中。内置404/405和静态文件没有业务 Route；显式 GET/HEAD fallback 实际执行时有 Route，静态资源仍先处理。当前方法没有普通路由时，GET/HEAD 可进入 fallback；OPTIONS 有可用 alternate 时合成状态200、空正文、`Allow` 及真实 OPTIONS Route。`RequestInfo::get_route_resolver` / `set_route_resolver` 允许可信应用为本请求包装或替换同步解析器。原生 Axum `Router`/`MethodRouter` 可单独使用，但不会自动生成完整受管理路由上下文。
 
 ## Cookie 读取、队列与响应
 
@@ -197,7 +203,7 @@ app.routes(|routes| {
 
 Middleware 定义在应用内共享，是否应用由各路由或路由组显式选择。当前 OpenRust 路由按 Provider 贡献，没有 Laravel `web` / `api` 文件约定的自动分组，因此由路由明确选择命名 group。
 
-`Routes::fallback(handler)` 用于处理没有匹配路由的请求；`RouteGroup` 内的 fallback 仅覆盖组前缀，并遵循组 middleware。已匹配路径上的错误 HTTP 方法仍返回 405。同一静态完整 scope 的多个 fallback 会在构建时返回 `http_fallback_duplicate`。带路由参数或通配符的组前缀暂不支持 fallback，构建时优先返回 `http_fallback_scope_unsupported`，避免 Axum catch-all 冲突。GET/HEAD 未匹配请求先检查 `public/` 静态资源，命中时返回文件；没有静态资源才执行业务 handler。fallback handler 会收到完整原始 URI、请求头和 body。默认没有业务 fallback 时，`/api/*`、`/ws/*` 继续返回框架 404；应用显式配置 fallback 后可以接管这些路径，包括优先返回对应静态文件。
+`Routes::fallback(handler)` 注册 GET/HEAD 显式 fallback；`RouteGroup` 内的 fallback 仅覆盖组前缀，并遵循组 middleware。同方法普通路由优先，GET/HEAD 在没有普通路由命中时仍可执行 fallback，即使同路径存在其他方法。其他方法可得 405；OPTIONS 有 alternate 时合成真实 OPTIONS Route。同一静态完整 scope 的多个 fallback 会在构建时返回 `http_fallback_duplicate`。带路由参数或通配符的组前缀暂不支持 fallback，构建时优先返回 `http_fallback_scope_unsupported`。GET/HEAD 未匹配请求先检查 `public/` 静态资源，命中时返回文件；没有静态资源才执行业务 handler。fallback handler 会收到完整原始 URI、请求头和 body。默认没有业务 fallback 时，`/api/*`、`/ws/*` 继续返回框架 404；应用显式配置 fallback 后可以接管这些路径，包括优先返回对应静态文件。
 
 ```rust,ignore
 use openrust::http::{RouteGroup, Routes};
@@ -320,7 +326,7 @@ fn routes(routes: Routes) -> Routes {
 }
 ```
 
-注册集合路由和 `{id}` 成员路由前，Resource path 会去掉尾部斜杠；`nest("/posts", …)` 中的空路径会响应 `/posts` 和 `/posts/{id}`。多次调用 `only` 会保留 action 列表的交集。经 `BootContext::routes` 组装时，重复路由（包括相同路径位置上的成员参数名不是 `id`）会由 `build_router` 转为 `http_route_registration_failed` 启动错误；直接使用 Axum 构建 API 时仍由调用方处理路由冲突。
+注册集合路由和 `{id}` 成员路由前，Resource path 会去掉尾部斜杠；`nest("/posts", …)` 中的空路径会响应 `/posts` 和 `/posts/{id}`。多次调用 `only` 会保留 action 列表的交集。同一完整域、URI 与 HTTP 方法的后注册受管理声明覆盖先注册声明；不兼容的 Axum 路径模式冲突仍由 `build_router` 转为 `http_route_registration_failed` 启动错误。
 
 `PageParams` 默认为 `page=1&per_page=20`；直接提取时接受 `page >= 1`、`1 <= per_page <= 100`，且 offset 不得超过 `i64::MAX`。无效值会返回包含字段级 `errors` 的 `validation_failed` API 封装。`Query<PageParams>` 只负责反序列化，不会校验这些边界。`offset()` 从 0 开始，`limit()` 返回页大小。`Paginated::new(items, params, total)` 使用类型化 `PageMeta` 输出 `{"success": true, "code": "ok", "message": "ok", "data": [...], "meta": {"page": 1, "per_page": 20, "total": 57, "total_pages": 3}}`。
 

@@ -14,7 +14,7 @@ pub(super) fn register(routes: Routes, capabilities: &RouteCapabilities) -> Rout
         .get("/api/example", controllers::example::show)
         .name("example.index")
         .get("/api/example/route-url", controllers::example::route_url);
-    let routes = request_url_routes(routes)
+    let routes = route_context_routes(request_url_routes(routes))
         .get(
             "/api/example/representation",
             controllers::example::representation,
@@ -106,6 +106,26 @@ pub(super) fn register(routes: Routes, capabilities: &RouteCapabilities) -> Rout
     )))]
     let _ = capabilities.database;
     routes
+}
+
+fn route_context_routes(routes: Routes) -> Routes {
+    routes.group(
+        RouteGroup::new()
+            .prefix("/api/example/route-context")
+            .middleware(openrust::http::axum::middleware::from_fn(
+                controllers::example::route_context_middleware,
+            )),
+        |routes| {
+            routes
+                .route(
+                    "/named/{id}",
+                    openrust::http::routing::get(controllers::example::route_context)
+                        .post(controllers::example::route_context),
+                )
+                .name("example.route-context.show")
+                .get("/anonymous/{id}", controllers::example::route_context)
+        },
+    )
 }
 
 fn request_url_routes(routes: Routes) -> Routes {

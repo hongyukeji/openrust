@@ -126,6 +126,40 @@ impl<S: Send + Sync> FromRequest<S> for Request {
     }
 }
 impl Request {
+    /// 取得当前实际匹配的路由。
+    pub fn route(&self) -> Result<Option<crate::http::Route>> {
+        self.info.route()
+    }
+
+    /// 取得当前路由名称。
+    pub fn route_name(&self) -> Result<Option<String>> {
+        self.info.route_name()
+    }
+
+    /// 判断当前路由名是否匹配任一模式。
+    pub fn route_is(&self, patterns: &[&str]) -> Result<bool> {
+        self.info.route_is(patterns)
+    }
+
+    /// 取得当前路由参数。
+    pub fn route_parameter(&self, name: &str) -> Result<Option<Value>> {
+        self.info.route_parameter(name)
+    }
+
+    /// 有路由但缺参数时返回默认值。
+    pub fn route_parameter_or(&self, name: &str, default: Value) -> Result<Option<Value>> {
+        self.info.route_parameter_or(name, default)
+    }
+
+    /// 取得当前路由解析器。
+    pub fn get_route_resolver(&self) -> Result<crate::http::RouteResolver> {
+        self.info.get_route_resolver()
+    }
+
+    /// 设置当前路由解析器。
+    pub fn set_route_resolver(&self, resolver: crate::http::RouteResolver) -> Result<()> {
+        self.info.set_route_resolver(resolver)
+    }
     /// 按当前 query bag 与新增顶层参数构造完整地址；不读取正文参数。
     pub fn full_url_with_query(&self, additional: &Value) -> Result<String> {
         let query = super::url_query::with_query(&self.query, additional)?;

@@ -369,16 +369,18 @@ D5 Spec：
 
 D5验收：D5请求级GC lottery/公开driver回收与追加expiry索引迁移限定子范围已验收：final4完整12门禁通过（默认668/29 ignored、全特性1374/103 ignored），根真实双库各62、Store/GC各2、Redis Store1/Auth10、新生成plain5/双库认证各2、独立审查及资源收尾通过；忽略项不算实服务，不关闭完整Session；root target已清、五旧consumer不变，限定提交见Git。后继先审Request完整URL/路由匹配上下文与previous URL/Precognition真实前置，按现C04依赖收敛下一Spec，不跳过剩余行为。
 
-## 后继 C04-D7：真实路由匹配上下文（待领取）
+## C04-D7：真实路由匹配上下文（限定验收完成）
 
-前置D6请求URL家族已完成限定验收，来源/差异/证据移入ADR-078与core/testing。本项先读取固定Laravel Router/Request/StartSession源码和真实测试，再收敛公开route上下文API，不凭名称生成器、URI或用户header反推已命中Route。
+D7真实Route/Resolver与受管理方法声明已通过限定验收：final3完整12门禁、默认695/29 ignored、全特性1403/103 ignored、根PG18/MySQL8.4各64、fresh5/2/2、真实TCP7及不同模型复审；忽略项不算真实服务。根target清零，五旧consumer不变，限定提交以Git为准；完整Routing/Request与previous/Precognition仍开放。公开Route/参数/resolver、受管理方法与fallback/OPTIONS按[ADR-083](decisions/adr-083-matched-route-context.md)交付；[最终证据](memory/testing.md#c04-d7-真实路由上下文限定子范围已验收)保留失败修复、用户重验判断、真实服务及清理边界。
 
-- 真实最终选中的route及可空name须能供handler和外层中间件下游返回后读取，请求间隔离；域候选miss、forward、嵌套与方法不匹配不产生伪命中。
-- 明确显式fallback路由、框架静态文件和内置404/405的区别，按固定上游验收；既有named URL registry只负责出站生成，不冒充匹配元数据。
-- 复用现Routes/Provider/Request/执行scope，公开访问与routeIs行为及错误边界先Spec；不另建路由内核、不让业务可伪造受管理状态。
-- 唯一模块、生成应用、公开调用测试、真实TCP/适用双库及完整门禁同簇交付，之后限定本地提交。
-- 后继previous：仅真实GET route且非ajax/prefetch/已确认Precognition时，在下游后写fullUrl及可空route name，不按响应状态过滤。Precognition须真实middleware/验证/分发/响应，不凭header跳保存；Old Input/CSRF/FormRequest仍依队列推进。
-- 已知测试质量事项：gRPC聚合测试临时bind后释放可能竞争，且就绪轮询掩盖启动任务错误；本次仅原5秒单例/整套复验通过，未确认首次根因。按适用gRPC/运行时测试簇补fail-fast诊断，不延长期限或隐藏失败。
+## 后继 C04-D8：Session previous 与 Precognition（待领取）
+
+D7限定提交后，按固定Laravel StartSession、Request与HandlePrecognitiveRequests及测试起草Spec，再实现previous URL/name和真实Precognition生命周期；不得仅凭客户端header跳过保存，不用状态码代替真实Route，不重做D7。
+
+- previous只在真实GET route、非ajax/prefetch/已确认Precognition后于下游返回保存fullUrl及可空name，不按响应状态过滤；HEAD不保存。
+- 沿唯一Session/Request/Provider/middleware与验证机制，先审计已支持范围及FormRequest/验证依赖，不建第二解析器或Hooks内核。
+- 唯一模块、生成应用、实际HTTP/双库、默认/全特性门禁、错误/取消/持久化失败与资源收尾同簇交付；完整Old Input/CSRF/FormRequest后继继续开放。
+- gRPC聚合测试临时端口释放竞争及就绪轮询诊断留既有运行时质量项；D7未修改其超时或假称解决根因。
 
 ## 完整实现后的发布仓库整理（后置，未启动）
 

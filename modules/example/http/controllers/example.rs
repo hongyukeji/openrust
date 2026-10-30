@@ -318,3 +318,53 @@ pub(crate) async fn request_url(mut request: Request) -> openrust::Result<Json<s
         "replaced_full_url": request.full_url()?,
     })))
 }
+
+/// 读取真正匹配的路由；查询与正文不能覆盖路径参数。
+pub(crate) async fn route_context(
+    request: RequestInfo,
+) -> openrust::Result<Json<serde_json::Value>> {
+    let route = request.route()?.ok_or_else(|| {
+        openrust::Error::custom("example_route_missing", "业务处理器缺少路由上下文")
+    })?;
+    if request.route_parameter("id")? == Some(serde_json::json!("missing")) {
+        return Err(openrust::Error::NotFound("示例记录不存在".into()));
+    }
+    Ok(Json(serde_json::json!({
+        "name": request.route_name()?,
+        "is_example": request.route_is(&["unrelated.*", "example.route-context.*"])?,
+        "uri": route.uri(),
+        "methods": route.methods(),
+        "id": request.route_parameter("id")?,
+        "absent": request.route_parameter("absent")?,
+        "default": request.route_parameter_or("absent", serde_json::json!("public-default"))?,
+        "parameters": route.parameters(),
+    })))
+}
+
+/// 在业务 middleware 前后读取同一个请求的匹配快照，短路也保留命中。
+pub(crate) async fn route_context_middleware(
+    info: RequestInfo,
+    request: openrust::http::axum::extract::Request,
+    next: openrust::http::axum::middleware::Next,
+) -> openrust::Result<Response> {
+    let before = info.route_name()?;
+    let mut response = if info.route_parameter("id")? == Some(serde_json::json!("blocked")) {
+        openrust::Error::custom_with_status(
+            StatusCode::FORBIDDEN,
+            "example_route_blocked",
+            "示例业务 middleware 拒绝请求",
+        )
+        .into_response()
+    } else {
+        next.run(request).await
+    };
+    for (key, value) in [
+        ("x-example-route-before", before),
+        ("x-example-route-after", info.route_name()?),
+    ] {
+        if let Some(value) = value.and_then(|value| HeaderValue::from_str(&value).ok()) {
+            response.headers_mut().insert(key, value);
+        }
+    }
+    Ok(response)
+}

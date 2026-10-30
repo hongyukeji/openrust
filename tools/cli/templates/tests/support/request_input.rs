@@ -31,8 +31,11 @@ impl ServiceProvider for InputRoutesProvider {
             app.routes(|routes: Routes| {
                 routes
                     .post("/test/request-input", inspect_input)
-                    .get("/test/request-url", inspect_url)
-                    .post("/test/request-url", inspect_url)
+                    .route(
+                        "/test/request-url",
+                        openrust::http::routing::get(inspect_url).post(inspect_url),
+                    )
+                    .name("test.request-url")
             })?;
             Ok(())
         })
@@ -118,11 +121,19 @@ async fn inspect_input(request: InputRequest) -> openrust::Result<Json<serde_jso
 // 捕获生成应用消费公开 URL API 时 query bag 与原始 URI 混淆的回归。
 async fn inspect_url(mut request: InputRequest) -> openrust::Result<Json<serde_json::Value>> {
     let full_url = request.full_url()?;
+    let route = request.route()?.ok_or_else(|| {
+        openrust::Error::custom("generated_route_missing", "生成应用未发布匹配路由")
+    })?;
     request.merge(serde_json::json!({"page": 3}))?;
     let merged = request.full_url_with_query(&serde_json::json!({"view": "compact"}))?;
     let without = request.full_url_without_query(&["label"])?;
     request.replace(serde_json::json!({"page": 4}))?;
     Ok(Json(serde_json::json!({
+        "route_name": request.route_name()?,
+        "route_is": request.route_is(&["other.*", "test.*"])?,
+        "route_uri": route.uri(), "route_methods": route.methods(),
+        "route_missing": request.route_parameter("missing")?,
+        "route_default": request.route_parameter_or("missing", serde_json::json!("fallback"))?,
         "root": request.root()?, "url": request.url()?, "full_url": full_url,
         "after": request.full_url()?, "scheme": request.scheme()?,
         "http_host": request.http_host()?, "port": request.port()?,
@@ -221,6 +232,15 @@ pub async fn assert_request_input<A: Application>(
             let json: serde_json::Value = serde_json::from_slice(response.body())?;
             let data = &json["data"];
             let base = "http://example.test:8080/test/request-url";
+            assert_eq!(data["route_name"], "test.request-url");
+            assert_eq!(data["route_is"], true);
+            assert_eq!(data["route_uri"], "test/request-url");
+            assert_eq!(
+                data["route_methods"],
+                serde_json::json!(["GET", "HEAD", "POST"])
+            );
+            assert_eq!(data["route_missing"], serde_json::Value::Null);
+            assert_eq!(data["route_default"], "fallback");
             assert_eq!(data["root"], "http://example.test:8080");
             assert_eq!(data["url"], base);
             assert_eq!(data["full_url"], format!("{base}?label=public&page=1"));

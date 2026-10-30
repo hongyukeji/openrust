@@ -1,8 +1,8 @@
 //! 根据显式注册的控制器操作生成约定式资源路由。
 
 use crate::core::AppState;
+use crate::http::routing::{self, RouteMethods};
 use axum::handler::Handler;
-use axum::routing::{self, MethodRouter};
 
 use crate::http::routes::Routes;
 
@@ -26,11 +26,11 @@ pub enum Action {
 /// `only` 和 `except` 用于筛选已注册处理器，结果不受注册顺序影响。
 #[derive(Default)]
 pub struct ResourceActions {
-    list: Option<MethodRouter<AppState>>,
-    get: Option<MethodRouter<AppState>>,
-    create: Option<MethodRouter<AppState>>,
-    update: Option<MethodRouter<AppState>>,
-    delete: Option<MethodRouter<AppState>>,
+    list: Option<RouteMethods>,
+    get: Option<RouteMethods>,
+    create: Option<RouteMethods>,
+    update: Option<RouteMethods>,
+    delete: Option<RouteMethods>,
     only: Option<Vec<Action>>,
     excluded: Vec<Action>,
 }
@@ -145,11 +145,11 @@ impl ResourceActions {
         let collection = [self.list, self.create]
             .into_iter()
             .flatten()
-            .reduce(MethodRouter::merge);
+            .reduce(RouteMethods::merge);
         let member = [self.get, self.update, self.delete]
             .into_iter()
             .flatten()
-            .reduce(MethodRouter::merge);
+            .reduce(RouteMethods::merge);
         if let Some(router) = collection {
             routes = routes.route(collection_path, router);
         }

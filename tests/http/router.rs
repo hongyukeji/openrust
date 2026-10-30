@@ -518,7 +518,7 @@ async fn nested_interleaved_domain_routes_keep_each_declaration_position() -> Te
 }
 
 #[tokio::test]
-async fn disjoint_same_pattern_buckets_still_reject_duplicate_method_route() -> TestResult {
+async fn disjoint_same_pattern_buckets_use_last_duplicate_method_route() -> TestResult {
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
     ));
@@ -542,10 +542,16 @@ async fn disjoint_same_pattern_buckets_still_reject_duplicate_method_route() -> 
         .start(sources)
         .await
         .and_then(openrust::App::from_provider_runtime)?;
-    let error = build_router(&app)
-        .err()
-        .ok_or("duplicate domain route unexpectedly built")?;
-    assert_eq!(error.code(), "http_route_registration_failed");
+    let router = build_router(&app)?;
+    let response = router
+        .oneshot(
+            Request::get("/duplicate")
+                .header(header::HOST, "acme.example.test")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(to_bytes(response.into_body(), 4096).await?, "second domain");
     Ok(())
 }
 
@@ -630,11 +636,14 @@ async fn merged_root_routes_bind_to_current_domain_and_keep_nested_contracts() -
                                 .get("/overlap", first_domain_marker)
                                 .group(
                                     RouteGroup::new().domain("special.example.test"),
-                                    |explicit| explicit.get("/named", second_domain_marker),
+                                    |explicit| {
+                                        explicit
+                                            .get("/named", second_domain_marker)
+                                            .name("explicit.named")
+                                    },
                                 )
                                 .fallback(domain_fallback_marker),
                         )
-                        .name("explicit.named")
                         .get("/merged-url", merged_named_url)
                         .get("/explicit-url", merged_explicit_named_url)
                 },
@@ -708,7 +717,7 @@ async fn merged_root_routes_bind_to_current_domain_and_keep_nested_contracts() -
 }
 
 #[tokio::test]
-async fn merged_root_paths_cannot_reuse_domain_parameter_even_through_prefix() -> TestResult {
+async fn merged_root_paths_override_same_named_domain_parameter_through_prefix() -> TestResult {
     for (prefix, path) in [("/api", "/{tenant}"), ("/{tenant}", "/x")] {
         let sources = figment::Figment::from(figment::providers::Serialized::defaults(
             FrameworkConfig::default(),
@@ -721,17 +730,32 @@ async fn merged_root_paths_cannot_reuse_domain_parameter_even_through_prefix() -
                     RouteGroup::new()
                         .domain("{tenant}.example.test")
                         .prefix(prefix),
-                    |domain| domain.merge(Routes::new().get(path, first_domain_marker)),
+                    |domain| domain.merge(Routes::new().get(path, route_tenant_collision)),
                 )
             }));
         let app = builder
             .start(sources)
             .await
             .and_then(openrust::App::from_provider_runtime)?;
-        let error = build_router(&app)
-            .err()
-            .ok_or("colliding merged domain route unexpectedly built")?;
-        assert_eq!(error.code(), "http_route_parameter_duplicate", "{prefix}");
+        let router = build_router(&app)?;
+        let response = router
+            .oneshot(
+                Request::get(if prefix == "/api" {
+                    "/api/path"
+                } else {
+                    "/path/x"
+                })
+                .header(header::HOST, "host.example.test")
+                .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        let json = json_body(response).await;
+        assert_eq!(json["data"]["tenant"], "path");
+        assert_eq!(
+            json["data"]["parameters"],
+            serde_json::json!([["tenant", "path"]])
+        );
     }
     Ok(())
 }
@@ -970,7 +994,7 @@ async fn enclosing_parameter_or_wildcard_prefix_rejects_explicit_domain_fallback
 }
 
 #[tokio::test]
-async fn unnamed_domain_routes_reject_domain_and_path_parameter_collisions() -> TestResult {
+async fn unnamed_domain_routes_prefer_path_parameter_over_same_named_domain() -> TestResult {
     for prefix in ["", "/{tenant}"] {
         let sources = figment::Figment::from(figment::providers::Serialized::defaults(
             FrameworkConfig::default(),
@@ -986,7 +1010,7 @@ async fn unnamed_domain_routes_reject_domain_and_path_parameter_collisions() -> 
                     |domain| {
                         domain.get(
                             if prefix.is_empty() { "/{tenant}" } else { "/x" },
-                            grouped_route,
+                            route_tenant_collision,
                         )
                     },
                 )
@@ -995,10 +1019,25 @@ async fn unnamed_domain_routes_reject_domain_and_path_parameter_collisions() -> 
             .start(sources)
             .await
             .and_then(openrust::App::from_provider_runtime)?;
-        let error = build_router(&app)
-            .err()
-            .ok_or("colliding unnamed domain route unexpectedly built")?;
-        assert_eq!(error.code(), "http_route_parameter_duplicate", "{prefix}");
+        let router = build_router(&app)?;
+        let response = router
+            .oneshot(
+                Request::get(if prefix.is_empty() {
+                    "/path"
+                } else {
+                    "/path/x"
+                })
+                .header(header::HOST, "host.example.test")
+                .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        let json = json_body(response).await;
+        assert_eq!(json["data"]["tenant"], "path");
+        assert_eq!(
+            json["data"]["parameters"],
+            serde_json::json!([["tenant", "path"]])
+        );
     }
     Ok(())
 }
@@ -2058,7 +2097,7 @@ impl openrust::core::ServiceProvider for CyclicMiddlewareProvider {
 }
 
 #[tokio::test]
-async fn duplicate_routes_across_groups_fail_during_router_build() -> TestResult {
+async fn duplicate_routes_across_groups_dispatch_to_last_registration() -> TestResult {
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(
         FrameworkConfig::default(),
     ));
@@ -2068,20 +2107,22 @@ async fn duplicate_routes_across_groups_fail_during_router_build() -> TestResult
         .provider(TestRoutes::new(|routes| {
             routes
                 .group(RouteGroup::new().prefix("api"), |api| {
-                    api.get("/duplicate", grouped_route)
+                    api.get("/duplicate", first_domain_marker)
                 })
                 .group(RouteGroup::new().prefix("/api/"), |api| {
-                    api.get("/duplicate", grouped_route)
+                    api.get("/duplicate", second_domain_marker)
                 })
         }));
     let app = builder
         .start(sources)
         .await
         .and_then(openrust::App::from_provider_runtime)?;
-    let error = build_router(&app)
-        .err()
-        .ok_or("duplicate route did not fail during router build")?;
-    assert_eq!(error.code(), "http_route_registration_failed");
+    let router = build_router(&app)?;
+    let response = router
+        .oneshot(Request::get("/api/duplicate").body(Body::empty())?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(to_bytes(response.into_body(), 4096).await?, "second domain");
     Ok(())
 }
 
@@ -2748,7 +2789,10 @@ async fn fallback_runs_only_for_unmatched_requests_after_static_lookup() -> Test
     builder
         .provider(HttpServiceProvider)
         .provider(TestRoutes::new(|routes| {
-            routes.get("/known", grouped_route).fallback(fallback_echo)
+            routes
+                .get("/known", grouped_route)
+                .post("/post-only", root_order)
+                .fallback(fallback_echo)
         }));
     let app = builder
         .start(sources)
@@ -2769,42 +2813,45 @@ async fn fallback_runs_only_for_unmatched_requests_after_static_lookup() -> Test
         .await?;
     assert_eq!(method_mismatch.status(), StatusCode::METHOD_NOT_ALLOWED);
 
-    let static_asset = router
+    assert_fallback_static_resources(router.clone()).await?;
+
+    // 当前 GET 没有普通路由时先尝试 GET fallback，再判断 POST alternate。
+    let post_path_get = router
         .clone()
-        .oneshot(Request::get("/asset.txt").body(Body::empty())?)
+        .oneshot(Request::get("/post-only").body(Body::empty())?)
         .await?;
-    assert_eq!(static_asset.status(), StatusCode::OK);
+    assert_eq!(post_path_get.status(), StatusCode::OK);
     assert_eq!(
-        to_bytes(static_asset.into_body(), usize::MAX).await?,
-        "static asset"
+        to_bytes(post_path_get.into_body(), usize::MAX).await?,
+        "/post-only|missing|"
     );
 
-    for (path, expected) in [
-        ("/api/existing.txt", "api static"),
-        ("/ws/socket.txt", "ws static"),
-    ] {
-        let response = router
-            .clone()
-            .oneshot(Request::get(path).body(Body::empty())?)
-            .await?;
-        assert_eq!(response.status(), StatusCode::OK, "{path}");
-        assert_eq!(to_bytes(response.into_body(), usize::MAX).await?, expected);
-    }
-
-    let static_head = router
+    let fallback_options = router
         .clone()
-        .oneshot(Request::head("/asset.txt").body(Body::empty())?)
+        .oneshot(
+            Request::builder()
+                .method("OPTIONS")
+                .uri("/api/not-found")
+                .body(Body::empty())?,
+        )
         .await?;
-    assert_eq!(static_head.status(), StatusCode::OK);
+    assert_eq!(fallback_options.status(), StatusCode::OK);
+    assert_eq!(fallback_options.headers()[header::ALLOW], "GET,HEAD");
     assert!(
-        to_bytes(static_head.into_body(), usize::MAX)
+        to_bytes(fallback_options.into_body(), usize::MAX)
             .await?
             .is_empty()
     );
 
+    let unknown_post = router
+        .clone()
+        .oneshot(Request::post("/api/not-found").body(Body::empty())?)
+        .await?;
+    assert_eq!(unknown_post.status(), StatusCode::METHOD_NOT_ALLOWED);
+
     let fallback = router
         .oneshot(
-            Request::post("/api/not-found?source=client")
+            Request::get("/api/not-found?source=client")
                 .header("x-fallback-marker", "preserved")
                 .body(Body::from("fallback body"))?,
         )
@@ -4264,4 +4311,1343 @@ async fn real_tcp_concurrent_requests_isolate_scope_and_plain_spawn_identity() -
     }
     assert_eq!(left["plain_id"], right["plain_id"]);
     server.finish().await
+}
+
+async fn managed_method_probe(
+    request: openrust::http::RequestInfo,
+) -> openrust::Result<Json<serde_json::Value>> {
+    let route = request
+        .route()?
+        .ok_or_else(|| openrust::Error::custom("test_route_missing", "受管理处理器没有匹配路由"))?;
+    Ok(Json(serde_json::json!({
+        "name": request.route_name()?, "uri": route.uri(), "methods": route.methods(),
+        "fallback": request.route_parameter("fallbackPlaceholder")?,
+        "fallback_default": request.route_parameter_or("fallbackPlaceholder", serde_json::json!("fallback"))?,
+    })))
+}
+
+async fn managed_method_marker(
+    info: openrust::http::RequestInfo,
+    request: Request,
+    next: Next,
+) -> openrust::Result<Response> {
+    let name = info.route_name()?;
+    let mut response = next.run(request).await;
+    if let Some(value) = name.and_then(|name| axum::http::HeaderValue::from_str(&name).ok()) {
+        response.headers_mut().insert("x-managed-route", value);
+    }
+    Ok(response)
+}
+
+// 捕获 QUERY/自定义方法被标准方法过滤、any 错收 TRACE/CONNECT，以及 HEAD 或路由 middleware 无真实命中。
+#[tokio::test]
+async fn managed_methods_publish_context_for_query_any_custom_and_chains() -> TestResult {
+    use openrust::http::routing;
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(TestRoutes::new(|routes| {
+            routes.group(
+                RouteGroup::new().middleware(axum::middleware::from_fn(managed_method_marker)),
+                |routes| {
+                    routes
+                        .route("/query", routing::query(managed_method_probe))
+                        .name("managed.query")
+                        .route("/any", routing::any(managed_method_probe))
+                        .name("managed.any")
+                        .route(
+                            "/custom",
+                            routing::on(&["PURGE", "QUERY"], managed_method_probe),
+                        )
+                        .name("managed.custom")
+                        .route(
+                            "/chain",
+                            routing::get(managed_method_probe).post(managed_method_probe),
+                        )
+                        .name("managed.chain")
+                },
+            )
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let router = build_router(&app)?;
+    for (path, name, methods) in [
+        ("/query", "managed.query", vec!["QUERY"]),
+        ("/custom", "managed.custom", vec!["PURGE", "QUERY"]),
+        ("/chain", "managed.chain", vec!["GET", "HEAD", "POST"]),
+        (
+            "/any",
+            "managed.any",
+            vec![
+                "GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "QUERY",
+            ],
+        ),
+    ] {
+        for method in &methods {
+            let response = router
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method(*method)
+                        .uri(path)
+                        .body(Body::empty())?,
+                )
+                .await?;
+            assert_eq!(response.status(), StatusCode::OK, "{method} {path}");
+            assert_eq!(response.headers()["x-managed-route"], name);
+            if *method == "HEAD" {
+                assert!(to_bytes(response.into_body(), usize::MAX).await?.is_empty());
+            } else {
+                let json = json_body(response).await;
+                assert_eq!(json["data"]["name"], name);
+                assert_eq!(json["data"]["uri"], &path[1..]);
+                let actual = json["data"]["methods"].as_array().ok_or("缺少方法快照")?;
+                assert_eq!(actual.len(), methods.len());
+                for expected in &methods {
+                    assert!(actual.iter().any(|value| value.as_str() == Some(*expected)));
+                }
+            }
+        }
+    }
+    for method in ["TRACE", "CONNECT", "PURGE"] {
+        let response = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(method)
+                    .uri("/any")
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(
+            response.status(),
+            StatusCode::METHOD_NOT_ALLOWED,
+            "{method}"
+        );
+        assert!(!response.headers().contains_key("x-managed-route"));
+    }
+    Ok(())
+}
+
+async fn route_tenant_collision(
+    request: openrust::http::RequestInfo,
+) -> openrust::Result<Json<serde_json::Value>> {
+    let route = request
+        .route()?
+        .ok_or_else(|| openrust::Error::custom("test_route_missing", "缺少匹配路由"))?;
+    Ok(Json(
+        serde_json::json!({"tenant": request.route_parameter("tenant")?, "parameters": route.parameters()}),
+    ))
+}
+
+// 捕获路由名称模式误用正则、大小写折叠、多星重叠消费或按字节破坏 Unicode 的缺陷。
+#[test]
+fn route_named_matches_literal_case_sensitive_unicode_and_nonoverlapping_wildcards() {
+    use openrust::http::Route;
+    for (name, patterns, expected) in [
+        (Some("admin.users.show"), vec!["admin.users.show"], true),
+        (Some("admin.users.show"), vec!["Admin.users.show"], false),
+        (Some("admin.users.show"), vec![""], false),
+        (Some("admin.users.show"), vec![], false),
+        (
+            Some("admin.users.show"),
+            vec!["missing", "admin.*.show"],
+            true,
+        ),
+        (Some("admin.users.show"), vec!["admin.**.*"], true),
+        (Some("abc"), vec!["ab*bc"], false),
+        (Some("abc"), vec!["a*b*c"], true),
+        (Some("abc"), vec!["a*c*b"], false),
+        (Some("aba"), vec!["aba*aba"], false),
+        (Some(""), vec![""], true),
+        (Some(""), vec!["*"], true),
+        (None, vec!["*", ""], false),
+        (Some("文章.查看.甲"), vec!["文章.*.甲"], true),
+        (Some("文章.查看.甲"), vec!["文章.*.乙"], false),
+        (Some("a.[b]+(c)?^$\\d"), vec!["a.[b]+(c)?^$\\d"], true),
+        (Some("a.bbbc"), vec!["a.[b]+(c)?"], false),
+        (Some("a.[b]+(c)?"), vec!["a.*(c)?"], true),
+    ] {
+        let route = Route::new(
+            name.map(str::to_owned),
+            "/",
+            None,
+            vec!["GET".into()],
+            vec![],
+        );
+        assert_eq!(
+            route.named(&patterns),
+            expected,
+            "name={name:?}, patterns={patterns:?}"
+        );
+    }
+}
+
+// 捕获公开 resolver setter 不共享 clone、错误/None 被吞掉、默认值伪造未匹配 Route，以及跨请求共享状态。
+#[tokio::test]
+async fn request_info_route_resolver_supports_trusted_overrides_clones_errors_and_isolation()
+-> TestResult {
+    use openrust::http::RequestInfo;
+    let retained = Arc::new(Mutex::new(Vec::<RequestInfo>::new()));
+    let captures = Arc::clone(&retained);
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(TestRoutes::new(move |routes| {
+            let captures = Arc::clone(&captures);
+            routes
+                .get("/resolver/{id}", move |info: RequestInfo| {
+                    let captures = Arc::clone(&captures);
+                    async move { exercise_trusted_route_resolver(&info, &captures) }
+                })
+                .name("resolver.original")
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let router = build_router(&app)?;
+    for id in ["first", "second"] {
+        let response = router
+            .clone()
+            .oneshot(Request::get(format!("/resolver/{id}")).body(Body::empty())?)
+            .await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(json_body(response).await["data"], id);
+    }
+    let requests = retained
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    assert_eq!(requests.len(), 2);
+    assert_eq!(requests[0].route_name()?, Some("trusted.first".into()));
+    assert_eq!(requests[1].route_name()?, Some("trusted.second".into()));
+    assert_eq!(
+        requests[0].route_parameter("id")?,
+        Some(serde_json::json!("first"))
+    );
+    assert_eq!(
+        requests[1].route_parameter("id")?,
+        Some(serde_json::json!("second"))
+    );
+    Ok(())
+}
+
+#[derive(Clone)]
+struct RouteObservation {
+    before: Option<openrust::http::Route>,
+    before_default: Option<serde_json::Value>,
+    after: Option<openrust::http::Route>,
+}
+
+type RouteObservations = Arc<Mutex<Vec<RouteObservation>>>;
+
+struct GlobalRouteObserver(RouteObservations);
+
+impl openrust::core::ServiceProvider for GlobalRouteObserver {
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut openrust::core::BootContext<'_>,
+    ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
+        let observations = Arc::clone(&self.0);
+        Box::pin(async move {
+            app.http_layer(axum::middleware::from_fn_with_state(
+                observations,
+                observe_global_route,
+            ))?;
+            Ok(())
+        })
+    }
+}
+
+async fn observe_global_route(
+    axum::extract::State(observations): axum::extract::State<RouteObservations>,
+    info: openrust::http::RequestInfo,
+    request: Request,
+    next: Next,
+) -> openrust::Result<Response> {
+    let before = info.route()?;
+    let before_default = info.route_parameter_or("absent", serde_json::json!("fallback"))?;
+    let response = next.run(request).await;
+    let after = info.route()?;
+    observations
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .push(RouteObservation {
+            before,
+            before_default,
+            after,
+        });
+    Ok(response)
+}
+
+fn observed_route(observations: &RouteObservations) -> Option<openrust::http::Route> {
+    let mut observations = observations
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    assert_eq!(
+        observations.len(),
+        1,
+        "每次请求只经过一次公开全局 middleware"
+    );
+    let observation = observations.remove(0);
+    assert_eq!(observation.before, None);
+    assert_eq!(observation.before_default, None);
+    observation.after
+}
+
+async fn reject_matched_route(
+    info: openrust::http::RequestInfo,
+    _request: Request,
+    _next: Next,
+) -> openrust::Result<Response> {
+    assert!(
+        info.route()?.is_some(),
+        "路由 middleware 执行前必须发布匹配"
+    );
+    Ok(StatusCode::FORBIDDEN.into_response())
+}
+
+// 捕获用状态码清除真实命中、全局前过早发布，或路由短路没有向外层发布上下文的缺陷。
+#[tokio::test]
+async fn global_route_context_is_empty_before_and_preserves_business_errors_and_short_circuits()
+-> TestResult {
+    let observations = RouteObservations::default();
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ));
+    let handler_calls = Arc::new(AtomicUsize::new(0));
+    let middleware_calls = Arc::new(AtomicUsize::new(0));
+    let capture_handler = Arc::clone(&handler_calls);
+    let capture_middleware = Arc::clone(&middleware_calls);
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(GlobalRouteObserver(Arc::clone(&observations)))
+        .provider(TestRoutes::new(move |routes| {
+            global_context_routes(
+                routes,
+                Arc::clone(&capture_handler),
+                Arc::clone(&capture_middleware),
+            )
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let router = build_router(&app)?;
+    for status in [404, 405, 500] {
+        let response = router
+            .clone()
+            .oneshot(Request::get(format!("/business/{status}")).body(Body::empty())?)
+            .await?;
+        assert_eq!(response.status().as_u16(), status);
+        let route = observed_route(&observations).ok_or("业务错误丢失路由")?;
+        assert_eq!(route.name(), Some("business.error"));
+        assert_eq!(
+            route.parameter("status"),
+            Some(&serde_json::json!(status.to_string()))
+        );
+    }
+    let response = router
+        .clone()
+        .oneshot(Request::get("/blocked").body(Body::empty())?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    assert_eq!(
+        observed_route(&observations).ok_or("短路丢失路由")?.name(),
+        Some("business.blocked")
+    );
+    let response = router
+        .clone()
+        .oneshot(Request::get("/unknown").body(Body::empty())?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    assert_eq!(observed_route(&observations), None);
+    let response = router
+        .clone()
+        .oneshot(Request::post("/business/404").body(Body::empty())?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED);
+    assert_eq!(observed_route(&observations), None);
+    // 外置原生 layer 先于框架入口提取 Info，也必须插入并复用同一个请求 slot。
+    let external_observations = RouteObservations::default();
+    let router = router.layer(axum::middleware::from_fn_with_state(
+        Arc::clone(&external_observations),
+        observe_global_route,
+    ));
+    let response = router
+        .clone()
+        .oneshot(Request::get("/business/404").body(Body::empty())?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    let outer =
+        observed_route(&external_observations).ok_or("外置 middleware 的快照没有共享实际匹配")?;
+    let inner = observed_route(&observations).ok_or("框架全局 middleware 丢失匹配")?;
+    assert_eq!(outer, inner);
+    assert_eq!(outer.name(), Some("business.error"));
+    assert_eq!(outer.parameter("status"), Some(&serde_json::json!("404")));
+    assert_invalid_utf8_without_business_side_effects(
+        router,
+        external_observations,
+        observations,
+        handler_calls,
+        middleware_calls,
+    )
+    .await?;
+    Ok(())
+}
+
+async fn mark_get_declaration(request: Request, next: Next) -> Response {
+    let mut response = next.run(request).await;
+    response
+        .headers_mut()
+        .insert("x-declaration", axum::http::HeaderValue::from_static("get"));
+    response
+}
+
+async fn mark_post_declaration(request: Request, next: Next) -> Response {
+    let mut response = next.run(request).await;
+    response.headers_mut().insert(
+        "x-declaration",
+        axum::http::HeaderValue::from_static("post"),
+    );
+    response
+}
+
+async fn mark_head_declaration(request: Request, next: Next) -> Response {
+    let mut response = next.run(request).await;
+    response.headers_mut().insert(
+        "x-declaration",
+        axum::http::HeaderValue::from_static("head"),
+    );
+    response
+}
+
+// 捕获同 URI 聚合时跨方法串用 name/middleware、GET 覆盖失效，或显式 HEAD 不服从注册顺序的缺陷。
+#[tokio::test]
+async fn separate_method_declarations_keep_group_merge_metadata_and_head_registration_order()
+-> TestResult {
+    for head_first in [true, false] {
+        let observations = RouteObservations::default();
+        let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+            FrameworkConfig::default(),
+        ));
+        let mut builder = openrust::core::ProviderBuilder::new();
+        builder
+            .provider(HttpServiceProvider)
+            .provider(GlobalRouteObserver(Arc::clone(&observations)))
+            .provider(TestRoutes::new(move |routes| {
+                register_separate_method_declarations(routes, head_first)
+            }));
+        let app = builder
+            .start(sources)
+            .await
+            .and_then(openrust::App::from_provider_runtime)?;
+        let router = build_router(&app)?;
+        for (method, path, name, marker, methods) in [
+            ("GET", "/shared", "methods.get", "get", vec!["GET", "HEAD"]),
+            ("POST", "/shared", "methods.post", "post", vec!["POST"]),
+            (
+                "GET",
+                "/overridden",
+                "methods.latest",
+                "get",
+                vec!["GET", "HEAD"],
+            ),
+            (
+                "GET",
+                "/head",
+                "methods.head-get",
+                "get",
+                vec!["GET", "HEAD"],
+            ),
+            (
+                "HEAD",
+                "/head",
+                if head_first {
+                    "methods.head-get"
+                } else {
+                    "methods.head"
+                },
+                if head_first { "get" } else { "head" },
+                if head_first {
+                    vec!["GET", "HEAD"]
+                } else {
+                    vec!["HEAD"]
+                },
+            ),
+        ] {
+            let response = router
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method(method)
+                        .uri(path)
+                        .body(Body::empty())?,
+                )
+                .await?;
+            assert_eq!(response.status(), StatusCode::OK, "{method}{path}");
+            assert_eq!(response.headers()["x-declaration"], marker);
+            let route = observed_route(&observations).ok_or("缺少独立方法匹配")?;
+            assert_eq!(route.name(), Some(name));
+            assert_eq!(route.methods(), methods.as_slice());
+            if method == "HEAD" {
+                assert!(to_bytes(response.into_body(), usize::MAX).await?.is_empty());
+            } else {
+                assert_eq!(json_body(response).await["data"]["name"], name);
+            }
+        }
+    }
+    Ok(())
+}
+
+// 捕获自动 OPTIONS 缺少真实快照、custom 污染 Allow、域 fallback 越界及静态资源伪记业务 Route。
+#[tokio::test]
+async fn options_context_fallback_parameters_and_domain_scopes_follow_actual_dispatch() -> TestResult
+{
+    for root_fallback in [false, true] {
+        let observations = RouteObservations::default();
+        let directory = tempfile::tempdir()?;
+        std::fs::write(directory.path().join("asset.txt"), "static asset")?;
+        let mut config = FrameworkConfig::default();
+        config.server.public_dir = directory.path().to_owned();
+        let sources = figment::Figment::from(figment::providers::Serialized::defaults(config));
+        let mut builder = openrust::core::ProviderBuilder::new();
+        builder
+            .provider(HttpServiceProvider)
+            .provider(GlobalRouteObserver(Arc::clone(&observations)))
+            .provider(TestRoutes::new(move |routes| {
+                register_options_fallback_routes(routes, root_fallback)
+            }));
+        let app = builder
+            .start(sources)
+            .await
+            .and_then(openrust::App::from_provider_runtime)?;
+        let router = build_router(&app)?;
+        assert_automatic_options_context(router.clone(), Arc::clone(&observations), root_fallback)
+            .await?;
+        assert_similar_prefix_is_outside_domain_fallback(
+            router.clone(),
+            Arc::clone(&observations),
+            root_fallback,
+        )
+        .await?;
+        assert_domain_method_misses_and_merged_metadata(
+            router.clone(),
+            Arc::clone(&observations),
+            root_fallback,
+        )
+        .await?;
+        assert_nonempty_scoped_fallback_parameters(router.clone(), Arc::clone(&observations))
+            .await?;
+        assert_empty_fallback_parameters(router.clone(), Arc::clone(&observations), root_fallback)
+            .await?;
+        assert_exact_domain_fallback_parameters(router.clone(), Arc::clone(&observations)).await?;
+        assert_root_fallback_and_static_boundaries(
+            router.clone(),
+            Arc::clone(&observations),
+            root_fallback,
+        )
+        .await?;
+    }
+    Ok(())
+}
+
+// 捕获内部 forward 保留入口候选、域候选 miss 未回滚，或最终参数/domain 泄入下一请求的缺陷。
+#[tokio::test]
+async fn global_context_tracks_forward_target_and_discards_domain_candidate_misses() -> TestResult {
+    let observations = RouteObservations::default();
+    let mut config = FrameworkConfig::default();
+    config.server.root_target = "forward:/api/target/99".into();
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(config));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(GlobalRouteObserver(Arc::clone(&observations)))
+        .provider(TestRoutes::new(|routes| {
+            routes
+                .get("/api/target/{id}", managed_method_probe)
+                .name("forward.target")
+                .group(
+                    RouteGroup::new().domain("{account}.example.test"),
+                    |routes| {
+                        routes
+                            .post("/api/target/{id}", managed_method_probe)
+                            .name("domain.post")
+                            .get("/domain/{id}", managed_method_probe)
+                            .name("domain.get")
+                    },
+                )
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let router = build_router(&app)?;
+    for path in ["/", "/api/target/42"] {
+        let response = router
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .header(header::HOST, "acme.example.test")
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        let route = observed_route(&observations).ok_or("forward 或候选 miss 后没有最终路由")?;
+        assert_eq!(route.name(), Some("forward.target"));
+        assert_eq!(route.uri(), "api/target/{id}");
+        assert_eq!(route.domain(), None);
+        assert_eq!(
+            route.parameters(),
+            &[(
+                "id".to_owned(),
+                serde_json::json!(if path == "/" { "99" } else { "42" })
+            )]
+        );
+    }
+    let response = router
+        .clone()
+        .oneshot(
+            Request::get("/domain/7")
+                .header(header::HOST, "acme.example.test")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        observed_route(&observations)
+            .ok_or("域路由没有命中")?
+            .domain(),
+        Some("{account}.example.test")
+    );
+    for (method, path, host, expected) in [
+        (
+            "GET",
+            "/not-matched",
+            "acme.example.test",
+            StatusCode::NOT_FOUND,
+        ),
+        ("GET", "/domain/7", "other.invalid", StatusCode::NOT_FOUND),
+        (
+            "POST",
+            "/domain/7",
+            "acme.example.test",
+            StatusCode::METHOD_NOT_ALLOWED,
+        ),
+    ] {
+        let response = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(method)
+                    .uri(path)
+                    .header(header::HOST, host)
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(response.status(), expected);
+        assert_eq!(observed_route(&observations), None);
+    }
+    Ok(())
+}
+
+async fn assert_fallback_static_resources(router: axum::Router) -> TestResult {
+    let static_asset = router
+        .clone()
+        .oneshot(Request::get("/asset.txt").body(Body::empty())?)
+        .await?;
+    assert_eq!(static_asset.status(), StatusCode::OK);
+    assert_eq!(
+        to_bytes(static_asset.into_body(), usize::MAX).await?,
+        "static asset"
+    );
+
+    for (path, expected) in [
+        ("/api/existing.txt", "api static"),
+        ("/ws/socket.txt", "ws static"),
+    ] {
+        let response = router
+            .clone()
+            .oneshot(Request::get(path).body(Body::empty())?)
+            .await?;
+        assert_eq!(response.status(), StatusCode::OK, "{path}");
+        assert_eq!(to_bytes(response.into_body(), usize::MAX).await?, expected);
+    }
+
+    let static_head = router
+        .clone()
+        .oneshot(Request::head("/asset.txt").body(Body::empty())?)
+        .await?;
+    assert_eq!(static_head.status(), StatusCode::OK);
+    assert!(
+        to_bytes(static_head.into_body(), usize::MAX)
+            .await?
+            .is_empty()
+    );
+    Ok(())
+}
+
+fn assert_trusted_resolver_failure<T>(result: openrust::Result<T>) -> openrust::Result<()> {
+    match result {
+        Err(error) => assert_eq!(error.code(), "test_resolver_failed"),
+        Ok(_) => {
+            return Err(openrust::Error::custom(
+                "test_resolver_unexpected_success",
+                "resolver 失败未传播",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn exercise_trusted_route_resolver(
+    info: &openrust::http::RequestInfo,
+    captures: &Arc<Mutex<Vec<openrust::http::RequestInfo>>>,
+) -> openrust::Result<Json<serde_json::Value>> {
+    use openrust::http::{Route, RouteResolver};
+    // 每个请求从真实匹配开始，即使上一请求的 clone 仍被测试保留。
+    assert_eq!(info.route_name()?, Some("resolver.original".into()));
+    let id = info
+        .route_parameter("id")?
+        .ok_or_else(|| openrust::Error::custom("test_id_missing", "缺少路径参数"))?;
+    let original = info
+        .route()?
+        .ok_or_else(|| openrust::Error::custom("test_route_missing", "缺少真实匹配"))?;
+    let original_resolver = info.get_route_resolver()?;
+    assert_eq!(original_resolver()?, Some(original.clone()));
+    let clone = info.clone();
+    let trusted = Route::new(
+        Some(format!("trusted.{}", id.as_str().unwrap_or_default())),
+        "trusted/{id}",
+        Some("trusted.example.test".into()),
+        vec!["PURGE".into()],
+        vec![
+            ("id".into(), id.clone()),
+            ("null".into(), serde_json::Value::Null),
+        ],
+    );
+    let custom: RouteResolver = Arc::new({
+        let trusted = trusted.clone();
+        move || Ok(Some(trusted.clone()))
+    });
+    info.set_route_resolver(custom)?;
+    assert_eq!(clone.route()?, Some(trusted.clone()));
+    assert!(clone.route_is(&["missing.*", "trusted.*"])?);
+    assert_eq!(clone.get_route_resolver()?()?, Some(trusted.clone()));
+    assert_eq!(
+        clone.route_parameter_or("missing", serde_json::json!("fallback"))?,
+        Some(serde_json::json!("fallback"))
+    );
+    assert_eq!(
+        clone.route_parameter_or("null", serde_json::json!("fallback"))?,
+        Some(serde_json::Value::Null)
+    );
+    assert_eq!(
+        clone.route_parameter_or("id", serde_json::json!("fallback"))?,
+        Some(id.clone())
+    );
+    // 构造器与 owned 快照不因后续 setter 被改写。
+    assert_eq!(trusted.domain(), Some("trusted.example.test"));
+    assert_eq!(trusted.methods(), &["PURGE".to_owned()]);
+    assert_eq!(original.name(), Some("resolver.original"));
+    clone.set_route_resolver(Arc::new(|| Ok(None)))?;
+    assert_eq!(info.route()?, None);
+    assert_eq!(info.route_name()?, None);
+    assert!(!info.route_is(&["*"])?);
+    assert_eq!(info.route_parameter("id")?, None);
+    assert_eq!(
+        info.route_parameter_or("missing", serde_json::json!("fallback"))?,
+        None
+    );
+    assert_eq!(info.get_route_resolver()?()?, None);
+    info.set_route_resolver(Arc::new(|| {
+        Err(openrust::Error::custom(
+            "test_resolver_failed",
+            "可信应用 resolver 失败",
+        ))
+    }))?;
+    assert_trusted_resolver_failure(clone.route())?;
+    assert_trusted_resolver_failure(clone.route_name())?;
+    assert_trusted_resolver_failure(clone.route_is(&["*"]))?;
+    assert_trusted_resolver_failure(
+        clone.route_parameter_or("missing", serde_json::json!("fallback")),
+    )?;
+    assert_trusted_resolver_failure(clone.get_route_resolver()?())?;
+    // get 后 set 回原闭包仍读取真实命中，不在内部递归调用当前 resolver。
+    clone.set_route_resolver(original_resolver)?;
+    assert_eq!(info.route()?, Some(original));
+    info.set_route_resolver(Arc::new(move || Ok(Some(trusted.clone()))))?;
+    captures
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .push(clone);
+    Ok::<_, openrust::Error>(Json(id))
+}
+
+fn global_context_routes(
+    routes: Routes,
+    handler_calls: Arc<AtomicUsize>,
+    middleware_calls: Arc<AtomicUsize>,
+) -> Routes {
+    routes
+        .get("/business/{status}", |Path(status): Path<u16>| async move {
+            StatusCode::from_u16(status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
+        })
+        .name("business.error")
+        .group(
+            RouteGroup::new().middleware(axum::middleware::from_fn(
+                move |request: Request, next: Next| {
+                    middleware_calls.fetch_add(1, Ordering::SeqCst);
+                    async move { next.run(request).await }
+                },
+            )),
+            move |routes| {
+                routes
+                    .get("/item/{id}", move || {
+                        let handler_calls = Arc::clone(&handler_calls);
+                        async move {
+                            handler_calls.fetch_add(1, Ordering::SeqCst);
+                            "without Path extractor"
+                        }
+                    })
+                    .name("business.item")
+            },
+        )
+        .group(
+            RouteGroup::new().middleware(axum::middleware::from_fn(reject_matched_route)),
+            |routes| {
+                routes
+                    .get("/blocked", managed_method_probe)
+                    .name("business.blocked")
+            },
+        )
+}
+
+fn register_separate_method_declarations(routes: Routes, head_first: bool) -> Routes {
+    let routes = routes
+        .group(
+            RouteGroup::new().middleware(axum::middleware::from_fn(mark_get_declaration)),
+            |routes| {
+                routes
+                    .get("/shared", managed_method_probe)
+                    .name("methods.get")
+            },
+        )
+        .merge(
+            Routes::new()
+                .post("/shared", managed_method_probe)
+                .name("methods.post")
+                .layer(axum::middleware::from_fn(mark_post_declaration)),
+        )
+        .get("/overridden", first_domain_marker)
+        .name("methods.old")
+        .group(
+            RouteGroup::new().middleware(axum::middleware::from_fn(mark_get_declaration)),
+            |routes| {
+                routes
+                    .get("/overridden", managed_method_probe)
+                    .name("methods.latest")
+            },
+        );
+    let head = |routes: Routes| {
+        routes.group(
+            RouteGroup::new().middleware(axum::middleware::from_fn(mark_head_declaration)),
+            |routes| {
+                routes
+                    .head("/head", managed_method_probe)
+                    .name("methods.head")
+            },
+        )
+    };
+    let get = |routes: Routes| {
+        routes.group(
+            RouteGroup::new().middleware(axum::middleware::from_fn(mark_get_declaration)),
+            |routes| {
+                routes
+                    .get("/head", managed_method_probe)
+                    .name("methods.head-get")
+            },
+        )
+    };
+    if head_first {
+        get(head(routes))
+    } else {
+        head(get(routes))
+    }
+}
+
+fn register_options_fallback_routes(routes: Routes, root_fallback: bool) -> Routes {
+    let routes = routes
+        .get("/known/{id}", managed_method_probe)
+        .name("options.known")
+        .query("/query", managed_method_probe)
+        .name("options.query")
+        .on("/custom", &["PURGE"], managed_method_probe)
+        .name("options.custom")
+        .group(RouteGroup::new().prefix("/fallback"), |routes| {
+            routes
+                .fallback(managed_method_probe)
+                .name("prefixed.fallback")
+        })
+        .group(
+            RouteGroup::new()
+                .prefix("/short")
+                .middleware(axum::middleware::from_fn(reject_matched_route)),
+            |routes| routes.fallback(managed_method_probe).name("short.fallback"),
+        )
+        .group(
+            RouteGroup::new()
+                .prefix("/tenant")
+                .domain("{account}.example.test"),
+            |routes| {
+                routes
+                    .merge(
+                        Routes::new()
+                            .get("/merged/{id}", managed_method_probe)
+                            .name("domain.merged"),
+                    )
+                    .fallback(managed_method_probe)
+            },
+        );
+    if root_fallback {
+        routes.fallback(managed_method_probe).name("root.fallback")
+    } else {
+        routes
+    }
+}
+
+fn automatic_options_cases(
+    root_fallback: bool,
+) -> [(&'static str, &'static str, Option<&'static str>); 7] {
+    [
+        ("/known/42", "localhost", Some("GET,HEAD")),
+        (
+            "/query",
+            "localhost",
+            Some(if root_fallback {
+                "GET,HEAD,QUERY"
+            } else {
+                "QUERY"
+            }),
+        ),
+        (
+            "/custom",
+            "localhost",
+            if root_fallback {
+                Some("GET,HEAD")
+            } else {
+                None
+            },
+        ),
+        (
+            "/missing",
+            "localhost",
+            if root_fallback {
+                Some("GET,HEAD")
+            } else {
+                None
+            },
+        ),
+        ("/tenant/missing", "acme.example.test", Some("GET,HEAD")),
+        (
+            "/outside",
+            "acme.example.test",
+            if root_fallback {
+                Some("GET,HEAD")
+            } else {
+                None
+            },
+        ),
+        (
+            "/tenant/missing",
+            "other.invalid",
+            if root_fallback {
+                Some("GET,HEAD")
+            } else {
+                None
+            },
+        ),
+    ]
+}
+
+async fn assert_automatic_options_context(
+    router: axum::Router,
+    observations: RouteObservations,
+    root_fallback: bool,
+) -> TestResult {
+    for (path, host, allow) in automatic_options_cases(root_fallback) {
+        let response = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("OPTIONS")
+                    .uri(path)
+                    .header(header::HOST, host)
+                    .body(Body::empty())?,
+            )
+            .await?;
+        let route = observed_route(&observations);
+        if let Some(allow) = allow {
+            assert_eq!(response.status(), StatusCode::OK, "{host}{path}");
+            assert_eq!(response.headers()[header::ALLOW], allow);
+            assert!(to_bytes(response.into_body(), usize::MAX).await?.is_empty());
+            let route = route.ok_or("自动 OPTIONS 没有真实匹配")?;
+            assert_eq!(route.name(), None);
+            assert_eq!(route.methods(), &["OPTIONS".to_owned()]);
+            assert_eq!(route.uri(), path.trim_start_matches('/'));
+            assert_eq!(route.parameters(), &[] as &[(String, serde_json::Value)]);
+        } else {
+            assert_eq!(response.status(), StatusCode::NOT_FOUND, "{host}{path}");
+            assert!(!response.headers().contains_key(header::ALLOW));
+            assert_eq!(route, None);
+        }
+    }
+    Ok(())
+}
+
+async fn assert_similar_prefix_is_outside_domain_fallback(
+    router: axum::Router,
+    observations: RouteObservations,
+    root_fallback: bool,
+) -> TestResult {
+    // 相似前缀不是域 fallback 的 scope；只有显式根 fallback 能提供 alternate。
+    for method in ["GET", "OPTIONS", "POST"] {
+        let response = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(method)
+                    .uri("/tenantish")
+                    .header(header::HOST, "acme.example.test")
+                    .body(Body::empty())?,
+            )
+            .await?;
+        let route = observed_route(&observations);
+        if !root_fallback {
+            assert_eq!(
+                response.status(),
+                StatusCode::NOT_FOUND,
+                "{method} /tenantish"
+            );
+            assert!(!response.headers().contains_key(header::ALLOW));
+            assert_eq!(route, None);
+        } else if method == "POST" {
+            assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED);
+            assert_eq!(response.headers()[header::ALLOW], "GET,HEAD");
+            assert_eq!(route, None);
+        } else {
+            assert_eq!(response.status(), StatusCode::OK);
+            let route = route.ok_or("根 fallback 或合成 OPTIONS 缺少匹配")?;
+            assert_eq!(route.domain(), None);
+            if method == "OPTIONS" {
+                assert_eq!(response.headers()[header::ALLOW], "GET,HEAD");
+                assert_eq!(route.name(), None);
+                assert_eq!(route.methods(), &["OPTIONS".to_owned()]);
+                assert!(to_bytes(response.into_body(), usize::MAX).await?.is_empty());
+            } else {
+                assert_eq!(route.name(), Some("root.fallback"));
+                assert_eq!(route.uri(), "{fallbackPlaceholder}");
+                assert_eq!(
+                    route.parameter("fallbackPlaceholder"),
+                    Some(&serde_json::json!("tenantish"))
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn assert_domain_method_misses_and_merged_metadata(
+    router: axum::Router,
+    observations: RouteObservations,
+    root_fallback: bool,
+) -> TestResult {
+    for (host, path) in [
+        ("acme.example.test", "/outside"),
+        ("other.invalid", "/tenant/missing"),
+    ] {
+        let response = router
+            .clone()
+            .oneshot(
+                Request::put(path)
+                    .header(header::HOST, host)
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(
+            response.status(),
+            if root_fallback {
+                StatusCode::METHOD_NOT_ALLOWED
+            } else {
+                StatusCode::NOT_FOUND
+            }
+        );
+        assert_eq!(observed_route(&observations), None);
+    }
+    let response = router
+        .clone()
+        .oneshot(
+            Request::get("/tenant/merged/42")
+                .header(header::HOST, "acme.example.test")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    let route = observed_route(&observations).ok_or("域 merge 没有路由")?;
+    assert_eq!(route.domain(), Some("{account}.example.test"));
+    assert_eq!(route.uri(), "tenant/merged/{id}");
+    assert_eq!(route.name(), Some("domain.merged"));
+    assert_eq!(
+        route.parameters(),
+        &[
+            ("account".to_owned(), serde_json::json!("acme")),
+            ("id".to_owned(), serde_json::json!("42"))
+        ]
+    );
+    Ok(())
+}
+
+async fn assert_nonempty_scoped_fallback_parameters(
+    router: axum::Router,
+    observations: RouteObservations,
+) -> TestResult {
+    for (path, host, name, uri, domain, capture) in [
+        (
+            "/fallback/missing/a%20b%2Fc?fallbackPlaceholder=query",
+            "localhost",
+            Some("prefixed.fallback"),
+            "fallback/{fallbackPlaceholder}",
+            None,
+            "missing/a b/c",
+        ),
+        (
+            "/tenant/missing/a%20b%2Fc?fallbackPlaceholder=query",
+            "acme.example.test",
+            None,
+            "tenant/{fallbackPlaceholder}",
+            Some("{account}.example.test"),
+            "missing/a b/c",
+        ),
+    ] {
+        let response = router
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .header(header::HOST, host)
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        let route = observed_route(&observations).ok_or("显式 fallback 没有真实匹配")?;
+        assert_eq!(route.name(), name);
+        assert_eq!(route.uri(), uri);
+        assert_eq!(route.domain(), domain);
+        assert_eq!(route.methods(), &["GET".to_owned(), "HEAD".to_owned()]);
+        assert_eq!(
+            route.parameter("fallbackPlaceholder"),
+            Some(&serde_json::json!(capture))
+        );
+        if domain.is_some() {
+            assert_eq!(route.parameter("account"), Some(&serde_json::json!("acme")));
+        }
+    }
+    Ok(())
+}
+
+async fn assert_empty_fallback_parameters(
+    router: axum::Router,
+    observations: RouteObservations,
+    root_fallback: bool,
+) -> TestResult {
+    // Laravel binder 过滤空字符串捕获；查询中的同名值不能补入路由参数。
+    let mut empty_fallbacks = vec![(
+        "/fallback?fallbackPlaceholder=query",
+        "prefixed.fallback",
+        "fallback/{fallbackPlaceholder}",
+    )];
+    if root_fallback {
+        empty_fallbacks.push((
+            "/?fallbackPlaceholder=query",
+            "root.fallback",
+            "{fallbackPlaceholder}",
+        ));
+    }
+    for (path, name, uri) in empty_fallbacks {
+        let response = router
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .header(header::HOST, "localhost")
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        let route = observed_route(&observations).ok_or("空捕获 fallback 没有真实匹配")?;
+        assert_eq!(route.name(), Some(name));
+        assert_eq!(route.uri(), uri);
+        assert_eq!(route.parameter("fallbackPlaceholder"), None);
+        assert!(
+            route
+                .parameters()
+                .iter()
+                .all(|(key, _)| key != "fallbackPlaceholder")
+        );
+        assert_eq!(
+            route.parameter_or("fallbackPlaceholder", serde_json::json!("fallback")),
+            serde_json::json!("fallback")
+        );
+        let body = json_body(response).await;
+        assert_eq!(body["data"]["fallback"], serde_json::Value::Null);
+        assert_eq!(body["data"]["fallback_default"], "fallback");
+    }
+    Ok(())
+}
+
+async fn assert_exact_domain_fallback_parameters(
+    router: axum::Router,
+    observations: RouteObservations,
+) -> TestResult {
+    // 精确域组前缀也命中本组 fallback；空路径捕获过滤后不得从 query 补值。
+    let response = router
+        .clone()
+        .oneshot(
+            Request::get("/tenant?fallbackPlaceholder=query")
+                .header(header::HOST, "acme.example.test")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    let route = observed_route(&observations).ok_or("精确域前缀未命中 fallback")?;
+    assert_eq!(route.name(), None);
+    assert_eq!(route.uri(), "tenant/{fallbackPlaceholder}");
+    assert_eq!(route.domain(), Some("{account}.example.test"));
+    assert_eq!(route.methods(), &["GET".to_owned(), "HEAD".to_owned()]);
+    assert_eq!(
+        route.parameters(),
+        &[("account".to_owned(), serde_json::json!("acme"))]
+    );
+    assert_eq!(route.parameter("fallbackPlaceholder"), None);
+    assert_eq!(
+        route.parameter_or("fallbackPlaceholder", serde_json::json!("fallback")),
+        serde_json::json!("fallback")
+    );
+    let body = json_body(response).await;
+    assert_eq!(body["data"]["fallback"], serde_json::Value::Null);
+    assert_eq!(body["data"]["fallback_default"], "fallback");
+    Ok(())
+}
+
+async fn assert_root_fallback_and_static_boundaries(
+    router: axum::Router,
+    observations: RouteObservations,
+    root_fallback: bool,
+) -> TestResult {
+    if root_fallback {
+        let response = router
+            .clone()
+            .oneshot(
+                Request::get("/missing/a%20b%2Fc?fallbackPlaceholder=query")
+                    .header(header::HOST, "localhost")
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        let route = observed_route(&observations).ok_or("根 fallback 没有匹配")?;
+        assert_eq!(route.uri(), "{fallbackPlaceholder}");
+        assert_eq!(route.name(), Some("root.fallback"));
+        assert_eq!(route.domain(), None);
+        assert_eq!(route.methods(), &["GET".to_owned(), "HEAD".to_owned()]);
+        assert_eq!(
+            route.parameter("fallbackPlaceholder"),
+            Some(&serde_json::json!("missing/a b/c"))
+        );
+    }
+    let response = router
+        .clone()
+        .oneshot(
+            Request::get("/short/missing")
+                .header(header::HOST, "localhost")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    let route = observed_route(&observations).ok_or("fallback 短路没有保留路由")?;
+    assert_eq!(route.name(), Some("short.fallback"));
+    assert_eq!(
+        route.parameter("fallbackPlaceholder"),
+        Some(&serde_json::json!("missing"))
+    );
+    let response = router
+        .clone()
+        .oneshot(
+            Request::get("/asset.txt")
+                .header(header::HOST, "localhost")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        to_bytes(response.into_body(), usize::MAX).await?,
+        "static asset"
+    );
+    assert_eq!(observed_route(&observations), None);
+    // 框架参数解码拒绝非法 UTF-8，不将失败的 fallback 发布为业务匹配。
+    let response = router
+        .oneshot(
+            Request::get("/fallback/%FF")
+                .header(header::HOST, "localhost")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(observed_route(&observations), None);
+    Ok(())
+}
+
+async fn assert_invalid_utf8_without_business_side_effects(
+    router: axum::Router,
+    external_observations: RouteObservations,
+    observations: RouteObservations,
+    handler_calls: Arc<AtomicUsize>,
+    middleware_calls: Arc<AtomicUsize>,
+) -> TestResult {
+    // 即使 handler 不提取 Path，也必须在任何业务副作用之前拒绝非法 UTF-8。
+    let response = router
+        .clone()
+        .oneshot(Request::get("/item/%FF").body(Body::empty())?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(observed_route(&external_observations), None);
+    assert_eq!(observed_route(&observations), None);
+    assert_eq!(handler_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(middleware_calls.load(Ordering::SeqCst), 0);
+    // 有效请求证明计数器确实接在同一路由的 handler/middleware。
+    let response = router
+        .oneshot(Request::get("/item/valid").body(Body::empty())?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(handler_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(middleware_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        observed_route(&external_observations)
+            .ok_or("有效参数没有路由")?
+            .name(),
+        Some("business.item")
+    );
+    assert_eq!(
+        observed_route(&observations)
+            .ok_or("有效参数没有内部路由")?
+            .parameter("id"),
+        Some(&serde_json::json!("valid"))
+    );
+    Ok(())
 }

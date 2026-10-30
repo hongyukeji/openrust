@@ -1086,3 +1086,85 @@ async fn production_request_url_uses_original_uri_and_current_query_bag()
         .await?;
     Ok(())
 }
+
+// 捕获模块装配丢失路由名、参数被输入覆盖，以及业务错误或 middleware 短路抹去匹配上下文。
+#[tokio::test]
+async fn production_route_context_keeps_matched_identity_across_business_boundaries()
+-> Result<(), Box<dyn std::error::Error>> {
+    use openrust::testing::TestApp;
+    use std::time::Duration;
+    let mut app = TestApp::<crate::bootstrap::Server>::builder(production_sources(false))
+        .build()
+        .await?;
+    for (kind, named) in [("named", true), ("anonymous", false)] {
+        let response = app
+            .request(
+                Request::get(format!(
+                    "/api/example/route-context/{kind}/42?id=query&absent=query"
+                ))
+                .header("host", "localhost")
+                .header("x-route-name", "forged")
+                .body(Body::empty())?,
+            )
+            .await?;
+        response.assert_status(StatusCode::OK)?;
+        let json: serde_json::Value = serde_json::from_slice(response.body())?;
+        let data = &json["data"];
+        assert_eq!(
+            data["name"],
+            if named {
+                serde_json::json!("example.route-context.show")
+            } else {
+                serde_json::Value::Null
+            }
+        );
+        assert_eq!(data["is_example"], named);
+        assert_eq!(
+            data["uri"],
+            format!("api/example/route-context/{kind}/{{id}}")
+        );
+        assert_eq!(data["id"], "42");
+        assert_eq!(data["absent"], serde_json::Value::Null);
+        assert_eq!(data["default"], "public-default");
+        assert_eq!(data["parameters"], serde_json::json!([["id", "42"]]));
+        assert_eq!(
+            data["methods"],
+            if named {
+                serde_json::json!(["GET", "HEAD", "POST"])
+            } else {
+                serde_json::json!(["GET", "HEAD"])
+            }
+        );
+    }
+    for (id, status) in [
+        ("missing", StatusCode::NOT_FOUND),
+        ("blocked", StatusCode::FORBIDDEN),
+    ] {
+        let response = app
+            .request(
+                Request::get(format!("/api/example/route-context/named/{id}"))
+                    .header("host", "localhost")
+                    .body(Body::empty())?,
+            )
+            .await?;
+        response.assert_status(status)?;
+        for header in ["x-example-route-before", "x-example-route-after"] {
+            assert_eq!(response.headers()[header], "example.route-context.show");
+        }
+    }
+    let response = app
+        .request(
+            Request::post("/api/example/route-context/named/43?id=query")
+                .header("host", "localhost")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"id":"body","absent":"body"}"#))?,
+        )
+        .await?;
+    response.assert_status(StatusCode::OK)?;
+    let json: serde_json::Value = serde_json::from_slice(response.body())?;
+    assert_eq!(json["data"]["id"], "43");
+    assert_eq!(json["data"]["default"], "public-default");
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    Ok(())
+}

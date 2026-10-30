@@ -401,3 +401,13 @@ cargo deny check
 [`tests/tools/verify-request-url.py`](tests/tools/verify-request-url.py)以`--binary`、`--binary-sha256`和必需的`--source-snapshot`运行；快照为构建前采集的Git tracked/untracked相对路径到SHA256的JSON对象，构建及运行前后都须一致。工具从仓库根运行，或显式传`--root`；只启动两个任务隔离的临时配置后端，复用框架公开模块装配，不操作应用数据库。
 
 工具验证实际TCP和显式CA/hostname TLS代理链、可信/不可信proxy、三种query来源与错误/隐私边界。TLS由工具持有的代理终止，不能代替Rust原生TLS适配器验收；未监听端口在不同平台可拒绝或超时，报告记录实际类别。父supervisor控制执行和清理预算，结束后回收自身后端/线程与临时私钥、配置，只保留脱敏结果；失败结果不会标记accepted。
+
+### 请求的路由上下文
+
+`GET` / `POST /api/example/route-context/named/{id}` 由公开 `http::routing::get(...).post(...)` 受管理声明注册，路由名为 `example.route-context.show`；`GET /api/example/route-context/anonymous/{id}` 是匿名路由。响应展示 `RequestInfo::route()` 的最终 URI、方法、路径参数、`route_name()`、`route_is()` 和缺参数默认值。查询或 JSON 正文中的 `id` 不覆盖路径参数，匿名路由的名称为空。所有第一方受管理 `Routes::route` 调用须传 `http::routing` 的 `RouteMethods`；原生 Axum Router 是独立逃生口，不提供此匹配上下文契约。
+
+将 `{id}` 换为 `missing` 可触发业务 404，换为 `blocked` 可触发路由 middleware 的 403 短路；具名响应仍带 `x-example-route-before` / `x-example-route-after`，证明上下文在路由 middleware 之前发布并跨错误保留。参数当前是 JSON 字符串值，不表示模型或枚举绑定已经实现。出站 `RouteUrlGenerator` 继续负责生成链接，不提供当前请求的命中事实。
+
+[`tests/tools/verify-route-context.py`](tests/tools/verify-route-context.py)接收与 D6 工具相同的 `--binary`、`--binary-sha256`、`--source-snapshot` 和可选 `--root`。它复用 D6 的配置隔离、来源快照、资源门限、有界请求、进程组守护和任务专有清理，真实启动一个加载唯一模块的 server，检查具名/匿名、参数/default、输入伪造、业务 404、middleware 403、HEAD 与方法 miss。PG/MySQL feature 的二进制分别运行，但工具不连接数据库，不能据此声称数据库或 TLS 等价验收；临时目录沿用共享 supervisor 的 D6 前缀。
+
+D7 工具使用有界原始 TCP 读取 HEAD 响应直到 EOF，完整解析响应头并确认没有额外正文，且路由 before/after 两个标记均正确；方法 miss 只证明路由 middleware 未执行，不据此推断私有共享 slot。来源快照与二进制 SHA256 分别证明检查对象未变化，二者本身不能证明该二进制由该快照构建；验收须附记录构建命令、来源快照摘要及产物摘要的实际构建记录，将构建与后续网络结果关联。

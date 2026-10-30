@@ -4,6 +4,27 @@
 > 更新：2026-10-30
 > 摘要：当前目录迁移与原专项测试入口，分开记录真实服务和未验收边界。
 
+## C04-D7 真实路由上下文（限定子范围已验收）
+
+按ADR-083交付受管理RouteMethods、真实Route/参数/名称通配与可信应用Resolver；全局前后、路由中间件/短路、错误、domain候选、group/nest/merge/forward、GET/HEAD/QUERY/custom/any、OPTIONS/fallback/静态与请求隔离均有真实生产回归。完整Routing、可选参数/声明defaults/约束/模型与枚举绑定、previous/Precognition不由本簇关闭。
+
+| 最终证据 | 实际结果 |
+| --- | --- |
+| `/tmp/openrust-c04d7-full-final3-*.result.json` | 12/12实际退出0、来源无漂移：fmt、双workspace all-targets Clippy `-D warnings`、双workspace tests、双Rustdoc `-D warnings`、no-default、Session-only、MSRV1.97、deny、server-build。默认695 passed/29 ignored，全特性1403/103；各8个required具名通过。ignored不证明真实服务 |
+| `/tmp/openrust-c04d6-url-network-jch137z7/result.json` | D7真实TCP7场景含具名/匿名、参数/default、query/body伪造、业务404、路由403、原始HEAD至EOF零正文及前后标记、PUT无路由middleware；accepted、正常exit0、未强杀、清理无错误。沿D6监管器目录前缀，不沿用D6通过结果；非TLS/DB证明，PUT slot为空由其他回归证明 |
+| `/tmp/openrust-c04d7-final3-root-{pg,mysql}-driver.log` | PostgreSQL18/MySQL8.4根模块各64个具名通过，0失败/ignored/filtered/skip，含真实路由上下文；两库precreate_absent、DROP及isolation_check verified_absent完整保留 |
+| `/tmp/openrust-c04d7-final3-evidence-index.json` | SHA256 `7122f6fc90d9314176ae4b412462e68c70ae8761e837937a03433a3b6ab27d85`；20结果、105artifacts、40快照、4生成JSONL和8完整driver均独立核对；739受控文件同一freeze |
+| 索引中的final3新生成应用结果及JSONL | 三个新项目实际fmt/check/test，strict具名5/2/2、无忽略/过滤/skip；请求helper与模板相同，双库创建前/清理后不存在；不是旧preflight3目录复用 |
+| `/tmp/openrust-c04d7-final-cleanup-seal.json` | SHA256 `ad638a0554e35eceba1eb288ab8471d12ffd2522680a2d21fd5041c6681169eb`；根allocated 24,731,361,280 bytes→0；probe与6份任务临时生成目录已核身份/哈希/无.git/无符号链接/无占用后移除；5旧consumer全树hash和大小不变（2,670,026,752 bytes），磁盘可用17.724%，无后台构建 |
+
+网络执行二进制SHA256 `cda383afd3d86fe43c7a2918b4da62b2ceeaa047345f54db186877fbdcced115`，构建before快照摘要`5e90878aa4fa950305e971c91c0d10cd677a54d2786d2f05b0871b60144fa1f1`；网络执行期间不变，随后其他feature构建合法覆盖target/debug/server，索引分开记录，不假称磁盘当前二进制仍相同。清理后不重建，保留全部证据。
+
+实际资源清理区分：先执行字面`cargo clean --dry-run`；在Cargo兼容锁下清根产物，再实际执行字面`cargo clean`移除剩余2文件/352 bytes。不会将25GiB清理量全部归于最后一条命令。6份生成目录的清单为交接时当前快照，结合prepare拒已存在路径、真实创建/验证记录及owner交接确认，无持久创建时全树manifest的事实保持；旧consumer、D6目录、旧B2 PHP runtime与105份证据未动。
+
+失败与修复事实保留：§5三次路由整组失败后，用户明确选择修复精确前缀分派后重验；approved1精确1/1、路由94/94通过。普通路径非法UTF8、fallback空捕获和scope尾斜线已修；final1资源根子路径404回归最小修复后资源16/16/路由94/94通过；final2旧Provider重复路由错误断言改成真实HTTP后注册覆盖，测试返回错误类型编译问题亦修正。final3完整通过。默认Clippy前两轮11项和2项测试lint已修，第三轮严格通过，没有删除业务断言、降低`-D warnings`或跳过目标。
+
+旧部分验收保留在`/tmp/openrust-c04d7-preflight3-independent-evidence-index-v2.json`（`99141a96b89c3df6544e4cf45abab4ff21736d668b51a1db1fae314a18971fda`）；只证明当时源码且根清理尾stdout缺失，不代替final3。最终final3已完整封存根清理检查，旧证据缺口没有通过补造成功行消除。不同模型源码与实证复审均无blocker/should-fix。最终收尾仅改项目文档，不改已验收运行源码；限定本地提交以Git为准，不push/tag/release。
+
 ## C04-D6 Request URL（限定子范围已验收）
 
 公开API与差异见[ADR-078](../decisions/adr-078-request-inspection.md#c04-d6请求地址与查询串契约)。本簇覆盖Info的请求origin、URL、解码路径/分段/星号匹配/prefetch，以及唯一Request当前query增删；原始OriginalUri与GET/HEAD当前输入分开，JSON输入优先于HTTP方法。未关闭真实路由命中、previous、Precognition、TrustProxies完整转发Host/Port/Prefix。

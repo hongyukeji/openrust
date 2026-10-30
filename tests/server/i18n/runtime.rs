@@ -7,7 +7,7 @@ use openrust::config::FrameworkConfig;
 use openrust::http::axum::body::{Body, to_bytes};
 use openrust::http::axum::http::{Request, StatusCode};
 use openrust::http::axum::response::{IntoResponse, Response};
-use openrust::http::axum::routing::get;
+use openrust::http::routing::get;
 use openrust::http::{
     HttpServiceProvider, Inject, Json, RequestLocale, Routes, Validated, build_router,
 };

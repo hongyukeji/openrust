@@ -4,6 +4,10 @@
 - 日期：2026-10-29
 - 上游：Laravel v13.39.0 `RouteCollection` / `AbstractRouteCollection` 与 Laravel 13.x Routing 文档
 
+## D7纠偏范围（限定子范围已验收）
+
+[ADR-083](adr-083-matched-route-context.md)替代本ADR第3/5/8项中与固定上游冲突的方法miss/fallback、域与路径同名拒绝规则，并补真实请求Route与候选共享状态回滚。跨host/path同名可编译且路径值优先；单个host或path内部重复参数仍拒绝。原R3-F验收记录保留为当时实现事实；D7新契约已按限定范围重验，完整Routing的其余差异仍以矩阵和唯一todo为准。
+
 ## 背景
 
 Laravel 路由可通过 `Route::domain('{account}.example.com')->group(...)` 将域名约束、URI 参数、middleware 和命名 URL 放在同一组。v13.39.0 的 route collection 对当前 method 先检查 domain routes，再检查 unrestricted routes；调用者无需把 domain route 声明在普通路由之前。当前 OpenRust 仅按 URI path/method 组装 Axum Router，具名 URL 只存 path，没有域参数或 authority 校验。

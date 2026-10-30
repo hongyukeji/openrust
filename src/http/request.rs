@@ -68,6 +68,7 @@ pub struct RequestInfo {
     headers: HeaderMap,
     acceptable: Vec<String>,
     cookies: serde_json::Value,
+    route: super::route::RouteSlot,
     #[cfg(feature = "session")]
     session: Option<crate::session::Session>,
 }
@@ -99,6 +100,15 @@ impl<S: Send + Sync> FromRequestParts<S> for RequestInfo {
                 headers.append(http::header::COOKIE, value.clone());
             }
         }
+        let route = parts
+            .extensions
+            .get::<super::route::RouteSlot>()
+            .cloned()
+            .unwrap_or_else(|| {
+                let slot = super::route::RouteSlot::default();
+                parts.extensions.insert(slot.clone());
+                slot
+            });
         Ok(Self {
             secure: super::transport::is_secure_parts(&parts.headers, &parts.extensions)
                 .map_err(std::sync::Arc::new),
@@ -110,6 +120,7 @@ impl<S: Send + Sync> FromRequestParts<S> for RequestInfo {
             headers,
             acceptable,
             cookies: parsed.value,
+            route,
             #[cfg(feature = "session")]
             session: parts.extensions.get::<crate::session::Session>().cloned(),
         })
@@ -117,6 +128,48 @@ impl<S: Send + Sync> FromRequestParts<S> for RequestInfo {
 }
 
 impl RequestInfo {
+    /// 取得当前实际匹配的路由；无业务命中返回 `None`。
+    pub fn route(&self) -> Result<Option<super::Route>> {
+        self.route.route()
+    }
+
+    /// 取得当前路由名称；匿名路由或无路由返回 `None`。
+    pub fn route_name(&self) -> Result<Option<String>> {
+        Ok(self
+            .route()?
+            .and_then(|route| route.name().map(str::to_owned)))
+    }
+
+    /// 判断当前路由名是否匹配任一 Laravel 通配符模式。
+    pub fn route_is(&self, patterns: &[&str]) -> Result<bool> {
+        Ok(self.route()?.is_some_and(|route| route.named(patterns)))
+    }
+
+    /// 取得当前路由的已绑定参数。
+    pub fn route_parameter(&self, name: &str) -> Result<Option<serde_json::Value>> {
+        Ok(self
+            .route()?
+            .and_then(|route| route.parameter(name).cloned()))
+    }
+
+    /// 有路由但缺少参数时返回默认值；无路由仍返回 `None`。
+    pub fn route_parameter_or(
+        &self,
+        name: &str,
+        default: serde_json::Value,
+    ) -> Result<Option<serde_json::Value>> {
+        Ok(self.route()?.map(|route| route.parameter_or(name, default)))
+    }
+
+    /// 取得当前路由解析器，可由可信应用包装或替换。
+    pub fn get_route_resolver(&self) -> Result<super::RouteResolver> {
+        self.route.resolver()
+    }
+
+    /// 为当前请求设置可信应用的路由解析器。
+    pub fn set_route_resolver(&self, resolver: super::RouteResolver) -> Result<()> {
+        self.route.set_resolver(resolver)
+    }
     /// 是否安装本请求的Session句柄，不隐式创建会话。
     #[cfg(feature = "session")]
     pub fn has_session(&self) -> bool {

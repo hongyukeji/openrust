@@ -24,6 +24,18 @@ pub(crate) fn set_domain_params(extensions: &mut Extensions, values: BTreeMap<St
     extensions.insert(DomainParamValues(values));
 }
 
+pub(crate) fn route_params(extensions: &Extensions) -> Vec<(String, String)> {
+    extensions
+        .get::<DomainParamValues>()
+        .map_or_else(Vec::new, |values| {
+            values
+                .0
+                .iter()
+                .map(|(key, value)| (key.clone(), value.clone()))
+                .collect()
+        })
+}
+
 impl<S, T> FromRequestParts<S> for DomainParams<T>
 where
     S: Send + Sync,

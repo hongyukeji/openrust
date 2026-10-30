@@ -1,7 +1,7 @@
 # `openrust::http`
 
 > 受众：AI Agent
-> 更新：2026-10-29
+> 更新：2026-10-30
 > 摘要：HTTP 层当前事实。
 
 Session请求层已接入统一领域；D1限定验收范围、真实网络/双库证据和完整后继缺口见 [Session当前事实](session.md) 与 [ADR-082](../decisions/adr-082-session-store-and-flash.md)。旧HTTP/Cookie子簇不自动证明整个Web栈完成。
@@ -10,13 +10,18 @@ Session请求层已接入统一领域；D1限定验收范围、真实网络/双�
 
 基于 `axum` 0.8 + `tower-http`。提供路由约定、提取器、默认中间件、`/health` 与 `serve`；`[api].http_status` 默认 `semantic`，统一 JSON envelope 保留 HTTP 状态，只有显式 `always_ok` 才映射为 200。core 已提供 `RateLimiter`，DatabaseServiceProvider 提供双库共享 store，AuthFlows 与显式 `RateLimitLayer` 已复用它。OpenAPI schema 与 `/docs` 尚未实现。
 
+## D7验收边界
+
+真实请求Route/Resolver与受管理`RouteMethods`已按[ADR-083](../decisions/adr-083-matched-route-context.md)完成限定验收；D7真实Route/Resolver与受管理方法声明已通过限定验收：final3完整12门禁、默认695/29 ignored、全特性1403/103 ignored、根PG18/MySQL8.4各64、fresh5/2/2、真实TCP7及不同模型复审；忽略项不算真实服务。根target清零，五旧consumer不变，限定提交以Git为准；完整Routing/Request与previous/Precognition仍开放。[证据](../memory/testing.md#c04-d7-真实路由上下文限定子范围已验收)。旧R3-E/F中与新契约冲突的任意方法fallback、方法miss优先于fallback和域/path同名拒绝已纠正，旧验收记录只保留历史事实。
+
 ## 当前实现
 
 | 模块 | 内容 |
 | --- | --- |
 | `provider` | `HttpServiceProvider` 在 register 登记 server schema，在 boot 贡献 `serve`、`/health` 与 `/ready`；启用 `metrics` feature 并配置 `[server].metrics_endpoint_enabled` 后注册 `/metrics`。应用 Provider 在 `BootContext::routes` 贡献业务路由；`build_router(&App) -> Result<Router>` 向请求扩展注入最终 `AppState` 与请求 `Scope`，供 Inject/Auth/RateLimit 使用；经应用路由组合发现的 Axum 冲突转换为 `http_route_registration_failed` 启动错误，直接调用底层 Axum API 不在转换范围 |
 | `site` | `[server].public_dir` 默认 `public`，`tower-http::ServeDir` 将站点目录映射至 URL 根；`root_target` 支持 `file:`、`forward:`、`redirect:`，以及启用 `view` feature 并注册 `ViewServiceProvider` 后的 `view:`。视图首页在 router 构建时验证模板；默认 `/api/*` 和 `/ws/*` 未匹配请求保留框架 JSON 404，不回落到静态文件；应用显式注册 fallback 后可接管这些未匹配路径，GET/HEAD 先尝试静态资源 |
-| `routes` | `Routes`：`route` / `get` / `post` / `put` / `patch` / `delete` / `name` / `resource` / `resource_with` / `fallback` / `group(RouteGroup, f)` / `nest(prefix, f)` / `merge` / `layer` / `middleware_alias` / `middleware_group`；每层 router 仅允许一个 fallback，重复注册稳定报错；组内 fallback 限定组前缀并继承组 middleware，保留完整 `OriginalUri`。GET/HEAD 未匹配请求先尝试静态资源，miss 后将原请求完整传给 handler；方法不匹配仍 405。`RouteGroup::domain` 支持继承/覆盖及 domain-first 候选，内部 miss 保留原请求与 body；`DomainParams<T>` 独立提取 DNS 标签，业务 404/405 不会触发二次派发。Host/URI authority 冲突失败关闭，忽略转发 Host。域 URL 使用登记模式与单标签参数，scheme/port 来源为 `app.url`。`BootContext` 可登记可复用 Tower middleware alias 与递归 group，`RouteGroup` 和 `Routes` 按名称引用，未定义/重名/循环显式报错；没有应用注册表时引用会在公开 `Routes::into_router() -> Result<_>` 或 `build_router` 失败，不静默忽略；直接 Tower Layer 入口保留。`RouteGroup` 可组合路径前缀、原样组合 `name_prefix` 并按声明顺序限定 middleware；`nest("")` 或 `"/"` 走 merge；`RouteUrlGenerator` 从 `app.url` 生成具名绝对 URL，不采信请求 Host |
+| `routes` | `Routes`：`route(RouteMethods)` / `get` / `post` / `put` / `patch` / `delete` / `head` / `options` / `query` / `on` / `any` / `name` / `resource` / `resource_with` / `fallback` / `group(RouteGroup, f)` / `nest(prefix, f)` / `merge` / `layer` / `middleware_alias` / `middleware_group`；每层 router 仅允许一个 fallback，重复注册稳定报错；组内 fallback 限定组前缀并继承组 middleware，保留完整 `OriginalUri`。GET/HEAD 未匹配请求先尝试静态资源，miss 后将原请求完整传给 handler；显式fallback仅GET/HEAD且参与alternate判断，OPTIONS有候选时合成200、Allow及真实Route，其余方法按候选返回405。D7限定子范围已验收。`RouteGroup::domain` 支持继承/覆盖及 domain-first 候选，内部 miss 保留原请求与 body；`DomainParams<T>` 独立提取 DNS 标签，业务 404/405 不会触发二次派发。Host/URI authority 冲突失败关闭，忽略转发 Host。域 URL 使用登记模式与单标签参数，scheme/port 来源为 `app.url`。`BootContext` 可登记可复用 Tower middleware alias 与递归 group，`RouteGroup` 和 `Routes` 按名称引用，未定义/重名/循环显式报错；没有应用注册表时引用会在公开 `Routes::into_router() -> Result<_>` 或 `build_router` 失败，不静默忽略；直接 Tower Layer 入口保留。`RouteGroup` 可组合路径前缀、原样组合 `name_prefix` 并按声明顺序限定 middleware；`nest("")` 或 `"/"` 走 merge；`RouteUrlGenerator` 从 `app.url` 生成具名绝对 URL，不采信请求 Host |
+| `route` / `routing` | D7公开`Route` owned快照、`RouteResolver`与`RouteMethods`；`RequestInfo`和`Request`读取真实名称、参数/default与名称通配。默认slot逐请求共享，应用resolver可替换；内置404/405/静态直出无业务Route，业务错误和route middleware短路保留。受管理方法包括QUERY、自定义方法及固定Laravel八种any；原生Axum入口不自动提供上述保证。D7限定子范围已通过完整门禁；可选参数、声明defaults/约束及模型/枚举绑定仍开放 |
 | `resource` | `Resource` 显式登记动作；`#[openrust::resource]` 从 controller inherent impl 的动作关联函数生成实现；`only` 连续调用取交集、`except` 裁剪；路径去尾斜杠后注册集合与成员，`update` 同时映射 PUT / PATCH |
 | `response` | `Created<T>` → 默认 201（显式 `always_ok` 时为 200），`with_location` 返回 `Result<Located<T>>`（非法值 → 500 包装）；`NoContent` → 200 成功包装并省略 `data`；无载荷的错误包装也省略 `data`，已有载荷保持原样；直接提取 `PageParams` 默认 1/20，并校验页数、每页 1..=100 与 offset 不超过 `i64::MAX`；`Paginated<T>` 输出 `data` 与 `meta` |
 | `request` | `RequestInfo` 是 parts-only 快照，使用 OriginalUri 路径并与 Json 正文提取共存；host 复用域路由 authority，header/bearer 文本解码失败返回稳定错误，Debug 不暴露 URI/头。协商按 ADR-078 固定 Laravel 13.39/Symfony 8 的参数规范、质量排序、格式别名与匹配方向；headers 64KiB/128值、Accept 16KiB/128项超限拒绝。完整输入/Session/FormRequest 不由此簇覆盖 |

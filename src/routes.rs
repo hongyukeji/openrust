@@ -395,6 +395,15 @@ async fn expose_app_state(
     };
     let mut close_on_cancel = ScopeCloseGuard(Some(Arc::clone(&scope)));
     request.extensions_mut().insert(state);
+    if request
+        .extensions()
+        .get::<crate::http::route::RouteSlot>()
+        .is_none()
+    {
+        request
+            .extensions_mut()
+            .insert(crate::http::route::RouteSlot::default());
+    }
     request.extensions_mut().insert(Arc::clone(&scope));
     let response = scope.run(next.run(request)).await.map(|body| {
         Body::new(ScopeBody {
