@@ -541,6 +541,37 @@ class Questions(unittest.TestCase):
         self.assertEqual(self.classifier.call_count, questions.MAX_EVALUATIONS)
         self.api.answer_question.assert_not_called()
 
+    def test_semantic_limit_expires_and_rechecks_latest_authorization_once(self):
+        self.classifier.return_value.update(ordinary=False, choices=[])
+        for n in range(questions.MAX_EVALUATIONS + 1):
+            self.agent['QuestionBinding']['lastUserMessageAt'] = str(n)
+            self.step(n * 120)
+        row = self.state['questions']['permission-item']
+        self.assertEqual(row['reason'], 'semantic_rate_limit')
+        self.assertEqual(row['evaluation_retry_at'], questions.EVALUATION_WINDOW)
+        self.step(questions.EVALUATION_WINDOW - 1)
+        self.assertEqual(self.classifier.call_count, questions.MAX_EVALUATIONS)
+        self.classifier.return_value.update(ordinary=True, choices=[1])
+        self.assertEqual(self.step(questions.EVALUATION_WINDOW), 'question_answered')
+        self.assertEqual(self.classifier.call_count, questions.MAX_EVALUATIONS + 1)
+        self.assertLessEqual(len(row['evaluations']), questions.MAX_EVALUATIONS)
+        self.step(questions.EVALUATION_WINDOW + 120)
+        self.api.answer_question.assert_called_once()
+
+    def test_legacy_full_cache_rechecks_new_context_without_resetting_send_intents(self):
+        self.classifier.return_value.update(ordinary=False, choices=[], reason='external_authorization')
+        for n in range(questions.MAX_EVALUATIONS):
+            self.agent['QuestionBinding']['lastUserMessageAt'] = str(n)
+            self.step(n * 120)
+        row = self.state['questions']['permission-item']
+        for evaluation in row['evaluations'].values():
+            evaluation.pop('classified_at', None)
+        self.agent['QuestionBinding']['lastUserMessageAt'] = 'latest'
+        self.step(600); self.step(720)
+        self.assertEqual(self.classifier.call_count, questions.MAX_EVALUATIONS + 1)
+        self.assertEqual(row['reason'], 'external_authorization')
+        self.api.answer_question.assert_not_called()
+
     def test_new_block_control_version_invalidates_previous_waiting_classification(self):
         self.blocked_setup()
         self.step(0)

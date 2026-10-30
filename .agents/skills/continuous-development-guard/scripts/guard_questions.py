@@ -14,6 +14,7 @@ WAIT_SECONDS = 60
 MAX_INPUT = 16000
 MAX_RECORDS = 64
 MAX_EVALUATIONS = 4
+EVALUATION_WINDOW = 3600
 POLICY_REVISION = 'ordinary-coordination-policy-v2'
 FLAGS = ('shell_tool', 'apps', 'code_mode_host', 'code_mode', 'browser_use',
          'computer_use', 'view_image', 'image_generation', 'goals', 'hooks',
@@ -335,7 +336,16 @@ def step(runtime, state, config, agent, current, turn, guard, classifier=classif
         evaluations = row.setdefault('evaluations', {})
         if version not in evaluations:
             if len(evaluations) >= MAX_EVALUATIONS:
-                row.update(status='evaluation_capacity_wait', reason='semantic_version_limit'); save(); continue
+                # 限制滚动调用频率而非请求终身次数；旧账本保留发送意图，不永久锁死新授权。
+                recent = [e['classified_at'] for e in evaluations.values()
+                          if e.get('classified_at') is not None and now < e['classified_at'] + EVALUATION_WINDOW]
+                if len(recent) >= MAX_EVALUATIONS:
+                    row.update(status='evaluation_capacity_wait', reason='semantic_rate_limit',
+                               evaluation_retry_at=min(recent) + EVALUATION_WINDOW)
+                    save(); continue
+                oldest = min(evaluations, key=lambda key: evaluations[key].get('classified_at', float('-inf')))
+                del evaluations[oldest]
+            row.pop('evaluation_retry_at', None)
             evaluations[version] = {'status': 'observed'}
         evaluation = evaluations[version]
         old_hash = row.get('request_hash') or row.get('scope', {}).get(rid)
@@ -356,6 +366,7 @@ def step(runtime, state, config, agent, current, turn, guard, classifier=classif
             if guard.quota_delay(guard.rpc('account/rateLimits/read', {}), now, config.get('allow_existing_credits', False), config.get('usage_budget')):
                 return 'question_quota_wait'
             evaluation['status'] = row['status'] = 'classifying'
+            evaluation['classified_at'] = now
             save()
             try:
                 result = classifier({'question_model': config.get('question_model', MODEL), 'goal': current.get('objective', ''), 'questions': qs,
