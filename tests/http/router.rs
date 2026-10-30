@@ -3183,6 +3183,484 @@ async fn root_target_supports_internal_forward_and_redirect() -> TestResult {
 }
 
 #[tokio::test]
+async fn site_root_target_precedes_static_index_and_user_fallback() -> TestResult {
+    let directory = tempfile::tempdir()?;
+    std::fs::write(
+        directory.path().join("index.html"),
+        "unselected static index",
+    )?;
+    std::fs::write(directory.path().join("chosen.html"), "chosen file")?;
+    std::fs::write(directory.path().join("asset.txt"), "static asset")?;
+    for (target, expected) in [
+        ("file:/chosen.html", "chosen file"),
+        ("forward:/forwarded", "root:/forwarded?source=client:"),
+        ("forward:/missing", "domain fallback"),
+        ("forward:/asset.txt", "static asset"),
+        ("forward:/", "unselected static index"),
+        ("redirect:/destination", ""),
+    ] {
+        let mut config = FrameworkConfig::default();
+        config.server.public_dir = directory.path().to_owned();
+        config.server.root_target = target.into();
+        let sources = figment::Figment::from(figment::providers::Serialized::defaults(config));
+        let mut builder = openrust::core::ProviderBuilder::new();
+        builder
+            .provider(HttpServiceProvider)
+            .provider(TestRoutes::new(|routes| {
+                routes
+                    .get("/forwarded", root_order)
+                    .get("/known", grouped_route)
+                    .fallback(root_fallback_marker)
+                    .group(RouteGroup::new().domain("a.example.test"), |domain| {
+                        domain.fallback(domain_fallback_marker)
+                    })
+            }));
+        let app = builder
+            .start(sources)
+            .await
+            .and_then(openrust::App::from_provider_runtime)?;
+        let router = build_router(&app)?;
+        assert_site_root_target(router, target, expected).await?;
+    }
+    Ok(())
+}
+
+async fn assert_site_root_target(router: axum::Router, target: &str, expected: &str) -> TestResult {
+    for method in ["GET", "HEAD"] {
+        let response = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(method)
+                    .uri("/?source=client")
+                    .header(header::HOST, "a.example.test")
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(
+            response.status(),
+            if target.starts_with("redirect:") {
+                StatusCode::TEMPORARY_REDIRECT
+            } else {
+                StatusCode::OK
+            }
+        );
+        assert!(response.headers().contains_key("x-request-id"));
+        if target.starts_with("redirect:") {
+            assert_eq!(response.headers()[header::LOCATION], "/destination");
+        }
+        if !target.starts_with("redirect:") {
+            assert_eq!(
+                response.headers()[header::CONTENT_LENGTH],
+                expected.len().to_string()
+            );
+        }
+        assert_eq!(
+            to_bytes(response.into_body(), 4096).await?,
+            if method == "HEAD" { "" } else { expected },
+            "{target} {method}"
+        );
+    }
+    for (path, host, expected) in [
+        ("/asset.txt", "a.example.test", "static asset"),
+        ("/missing", "a.example.test", "domain fallback"),
+        ("/missing", "b.example.test", "root fallback"),
+    ] {
+        let response = router
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .header(header::HOST, host)
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(to_bytes(response.into_body(), 4096).await?, expected);
+    }
+    let response = router
+        .oneshot(
+            Request::post("/known")
+                .header(header::HOST, "a.example.test")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED);
+    Ok(())
+}
+
+#[cfg(feature = "view")]
+#[tokio::test]
+async fn site_root_view_uses_runtime_name_before_static_and_fallback() -> TestResult {
+    let directory = tempfile::tempdir()?;
+    let public = directory.path().join("public");
+    let views = directory.path().join("views");
+    std::fs::create_dir(&public)?;
+    std::fs::create_dir(&views)?;
+    std::fs::write(public.join("index.html"), "unselected static index")?;
+    std::fs::write(
+        views.join("index.html"),
+        "{{ app_name }}|{{ errors.count() }}",
+    )?;
+    for explicit_root in [false, true] {
+        let mut config = FrameworkConfig::default();
+        config.app.name = "configured-application & runtime".into();
+        config.server.public_dir = public.clone();
+        config.server.root_target = "view:index.html".into();
+        let sources = figment::Figment::from(figment::providers::Serialized::defaults(config))
+            .merge(figment::providers::Serialized::defaults(
+                serde_json::json!({
+                    "view":{"directory":views,"auto_reload":false}
+                }),
+            ));
+        let mut builder = openrust::core::ProviderBuilder::new();
+        builder
+            .provider(HttpServiceProvider)
+            .provider(openrust::view::ViewServiceProvider)
+            .provider(TestRoutes::new(move |routes| {
+                let routes = routes.fallback(root_fallback_marker).group(
+                    RouteGroup::new().domain("a.example.test"),
+                    |domain| {
+                        domain
+                            .get("/", first_domain_marker)
+                            .fallback(domain_fallback_marker)
+                    },
+                );
+                if explicit_root {
+                    routes.get("/", second_domain_marker)
+                } else {
+                    routes
+                }
+            }));
+        let app = builder
+            .start(sources)
+            .await
+            .and_then(openrust::App::from_provider_runtime)?;
+        let router = build_router(&app)?;
+        for (host, expected) in [
+            ("a.example.test", "first domain"),
+            (
+                "b.example.test",
+                if explicit_root {
+                    "second domain"
+                } else {
+                    "configured-application &amp; runtime|0"
+                },
+            ),
+        ] {
+            for method in ["GET", "HEAD"] {
+                let response = router
+                    .clone()
+                    .oneshot(
+                        Request::builder()
+                            .method(method)
+                            .uri("/")
+                            .header(header::HOST, host)
+                            .body(Body::empty())?,
+                    )
+                    .await?;
+                assert_eq!(response.status(), StatusCode::OK);
+                assert_root_representation_headers(
+                    &response,
+                    expected,
+                    host == "b.example.test" && !explicit_root,
+                );
+                assert_eq!(
+                    to_bytes(response.into_body(), 4096).await?,
+                    if method == "HEAD" { "" } else { expected },
+                    "{host} {method}"
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+#[cfg(feature = "view")]
+fn assert_root_representation_headers(response: &Response, expected: &str, html: bool) {
+    let content_type = if html {
+        "text/html; charset=utf-8"
+    } else {
+        "text/plain; charset=utf-8"
+    };
+    assert_eq!(response.headers()[header::CONTENT_TYPE], content_type);
+    // HTTP 不要求长度头必有；一旦提供则须描述 GET 表示，而不是空 HEAD body。
+    if let Some(length) = response.headers().get(header::CONTENT_LENGTH) {
+        assert_eq!(length.as_bytes(), expected.len().to_string().as_bytes());
+    }
+}
+
+#[tokio::test]
+async fn site_root_method_miss_keeps_fallback_and_allow() -> TestResult {
+    let directory = tempfile::tempdir()?;
+    for has_fallback in [false, true] {
+        let mut config = FrameworkConfig::default();
+        config.server.public_dir = directory.path().to_owned();
+        config.server.root_target = "redirect:/unused".into();
+        let sources = figment::Figment::from(figment::providers::Serialized::defaults(config));
+        let mut builder = openrust::core::ProviderBuilder::new();
+        builder
+            .provider(HttpServiceProvider)
+            .provider(TestRoutes::new(move |routes| {
+                let routes = routes.post("/", root_order);
+                if has_fallback {
+                    routes.fallback(root_fallback_marker)
+                } else {
+                    routes
+                }
+            }));
+        let app = builder
+            .start(sources)
+            .await
+            .and_then(openrust::App::from_provider_runtime)?;
+        let router = build_router(&app)?;
+        for method in ["GET", "HEAD", "PUT", "OPTIONS"] {
+            let response = router
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method(method)
+                        .uri("/")
+                        .body(Body::empty())?,
+                )
+                .await?;
+            assert!(!response.headers().contains_key(header::LOCATION));
+            let expected = if method == "OPTIONS" || (has_fallback && method != "PUT") {
+                StatusCode::OK
+            } else {
+                StatusCode::METHOD_NOT_ALLOWED
+            };
+            assert_eq!(response.status(), expected, "{has_fallback} {method}");
+            if method == "OPTIONS" || expected == StatusCode::METHOD_NOT_ALLOWED {
+                let allow = response.headers()[header::ALLOW].to_str()?;
+                assert!(allow.split(',').any(|value| value.trim() == "POST"));
+                assert_eq!(
+                    allow.split(',').any(|value| value.trim() == "GET"),
+                    has_fallback
+                );
+            }
+            if method == "HEAD" || method == "OPTIONS" {
+                assert!(to_bytes(response.into_body(), 4096).await?.is_empty());
+            } else if has_fallback && method == "GET" {
+                assert_eq!(to_bytes(response.into_body(), 4096).await?, "root fallback");
+            }
+        }
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn site_root_forward_fallback_preserves_external_url_and_route_capture() -> TestResult {
+    let directory = tempfile::tempdir()?;
+    let mut config = FrameworkConfig::default();
+    config.server.public_dir = directory.path().to_owned();
+    config.server.root_target = "forward:/nested/missing".into();
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(config));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(TestRoutes::new(|routes| {
+            routes.group(
+                RouteGroup::new().domain("a.example.test").prefix("/nested"),
+                |domain| {
+                    domain.fallback(
+                        |info: openrust::http::RequestInfo, request: Request| async move {
+                            let captured = info
+                                .route()?
+                                .and_then(|route| {
+                                    route
+                                        .parameter("fallbackPlaceholder")
+                                        .and_then(serde_json::Value::as_str)
+                                        .map(str::to_owned)
+                                })
+                                .unwrap_or_default();
+                            Ok::<_, openrust::Error>(format!(
+                                "{}|{}|{captured}",
+                                request.uri(),
+                                info.full_url()?
+                            ))
+                        },
+                    )
+                },
+            )
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let response = build_router(&app)?
+        .oneshot(Request::get("http://a.example.test/?q=client").body(Body::empty())?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        to_bytes(response.into_body(), 4096).await?,
+        "http://a.example.test/nested/missing?q=client|http://a.example.test/?q=client|missing"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn site_head_responses_keep_explicit_status_headers_and_errors() -> TestResult {
+    let directory = tempfile::tempdir()?;
+    let mut config = FrameworkConfig::default();
+    config.server.public_dir = directory.path().to_owned();
+    config.server.root_target = "file:/missing.html".into();
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(config));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(TestRoutes::new(|routes| {
+            routes.head("/head-only", || async {
+                (
+                    StatusCode::ACCEPTED,
+                    [("x-head-proof", "preserved"), ("content-length", "777")],
+                    "HEAD-specific body",
+                )
+            })
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let router = build_router(&app)?;
+    let explicit = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("HEAD")
+                .uri("/head-only")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(explicit.status(), StatusCode::ACCEPTED);
+    assert_eq!(explicit.headers()["x-head-proof"], "preserved");
+    assert_eq!(explicit.headers()[header::CONTENT_LENGTH], "777");
+    assert!(to_bytes(explicit.into_body(), 4096).await?.is_empty());
+    let get = router
+        .clone()
+        .oneshot(Request::get("/").body(Body::empty())?)
+        .await?;
+    let head = router
+        .oneshot(
+            Request::builder()
+                .method("HEAD")
+                .uri("/")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(get.status(), StatusCode::NOT_FOUND);
+    assert_eq!(head.status(), get.status());
+    assert_eq!(
+        head.headers()[header::CONTENT_TYPE],
+        get.headers()[header::CONTENT_TYPE]
+    );
+    assert_eq!(
+        head.headers().get(header::CACHE_CONTROL),
+        get.headers().get(header::CACHE_CONTROL)
+    );
+    assert_eq!(json_body(get).await["code"], "not_found");
+    assert!(to_bytes(head.into_body(), 4096).await?.is_empty());
+    Ok(())
+}
+
+#[tokio::test]
+async fn site_default_index_keeps_static_then_user_fallback() -> TestResult {
+    for has_index in [false, true] {
+        let directory = tempfile::tempdir()?;
+        if has_index {
+            std::fs::write(directory.path().join("index.html"), "default static index")?;
+        }
+        let mut config = FrameworkConfig::default();
+        config.server.public_dir = directory.path().to_owned();
+        let sources = figment::Figment::from(figment::providers::Serialized::defaults(config));
+        let mut builder = openrust::core::ProviderBuilder::new();
+        builder
+            .provider(HttpServiceProvider)
+            .provider(TestRoutes::new(|routes| {
+                routes.fallback(root_fallback_marker)
+            }));
+        let app = builder
+            .start(sources)
+            .await
+            .and_then(openrust::App::from_provider_runtime)?;
+        let router = build_router(&app)?;
+        for method in ["GET", "HEAD"] {
+            let response = router
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method(method)
+                        .uri("/")
+                        .body(Body::empty())?,
+                )
+                .await?;
+            assert_eq!(response.status(), StatusCode::OK);
+            let expected = if method == "HEAD" {
+                ""
+            } else if has_index {
+                "default static index"
+            } else {
+                "root fallback"
+            };
+            assert_eq!(to_bytes(response.into_body(), 4096).await?, expected);
+        }
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn standalone_root_fallback_ignores_site_target() -> TestResult {
+    let directory = tempfile::tempdir()?;
+    let mut config = FrameworkConfig::default();
+    config.server.public_dir = directory.path().to_owned();
+    config.server.root_target = "redirect:/unused".into();
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(config));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder.provider(HttpServiceProvider);
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let router = Routes::new()
+        .fallback(root_fallback_marker)
+        .into_router()?
+        .with_state(app.state().clone());
+    let response = router
+        .oneshot(Request::get("/").body(Body::empty())?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(!response.headers().contains_key(header::LOCATION));
+    assert_eq!(to_bytes(response.into_body(), 4096).await?, "root fallback");
+    Ok(())
+}
+
+#[tokio::test]
+async fn site_root_handler_error_status_is_terminal() -> TestResult {
+    for status in [StatusCode::NOT_FOUND, StatusCode::METHOD_NOT_ALLOWED] {
+        let mut config = FrameworkConfig::default();
+        config.server.root_target = "redirect:/unused".into();
+        let sources = figment::Figment::from(figment::providers::Serialized::defaults(config));
+        let mut builder = openrust::core::ProviderBuilder::new();
+        builder
+            .provider(HttpServiceProvider)
+            .provider(TestRoutes::new(move |routes| {
+                routes
+                    .get("/", move || async move { status })
+                    .fallback(root_fallback_marker)
+            }));
+        let app = builder
+            .start(sources)
+            .await
+            .and_then(openrust::App::from_provider_runtime)?;
+        let response = build_router(&app)?
+            .oneshot(Request::get("/").body(Body::empty())?)
+            .await?;
+        assert_eq!(response.status(), status);
+        assert!(!response.headers().contains_key(header::LOCATION));
+    }
+    Ok(())
+}
+
+#[tokio::test]
 async fn invalid_root_target_is_rejected_during_router_build() -> TestResult {
     let mut config = FrameworkConfig::default();
     config.server.root_target = "redirect:javascript:alert(1)".to_owned();

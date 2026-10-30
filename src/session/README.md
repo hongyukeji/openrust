@@ -6,6 +6,8 @@ Session 为同一请求提供共享属性与 flash，并在响应发送前持久
 
 编译 `session` feature，并在应用 Provider 清单中登记 `SessionServiceProvider`。启用 `auth` 已包含 `session` 编译能力，但仍需要应用明确装配 Provider。认证入口与通用 Session 共用同一 Provider、句柄和存储，不能再登记第二套 Session Provider。
 
+同时启用 `view` 时，Session middleware 会在 `start` 成功后、进入处理器前恢复 `errors` 为当前请求的视图共享对象；损坏的已识别错误包会拒绝请求。处理器可用 `RequestInfo::put_view_error_bag` 修改本请求可见的命名包；已有 Session 错误对象的修改同步到 Session，但不延长原 flash 寿命；`Session::flash_errors` 显式闪存错误，已有 flash 可通过 `keep`/`reflash` 延续。整个 `errors` 属性被替换后，视图原对象保留但与 Session 断开；缺失时的空回退对象不会写回。没有 Session Provider 时，视图只得到本请求的独立空包。`Session::read_errors()` 返回独立读取快照；请求共享修改使用 `RequestInfo::put_view_error_bag`。
+
 默认 driver 是 `database`。它使用应用已有 `Db` 和逻辑 `sessions` 表，不另建连接池。选择 PostgreSQL 或 MySQL 时启用对应的 `db-postgres` / `db-mysql`，登记 `DatabaseServiceProvider`，配置数据库并运行迁移。下面是已经配置加密密钥的宿主的 Provider 片段；`EncryptionServiceProvider` 需要 `encryption` feature：
 
 ```rust

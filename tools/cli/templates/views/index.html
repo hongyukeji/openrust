@@ -3,14 +3,16 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{name}}</title>
+    <title>{{ app_name }}</title>
     <link rel="stylesheet" href="/assets/site.css">
   </head>
   <body>
     <main>
-      <h1>{{name}}</h1>
+      <h1>{{ app_name }}</h1>
       <p>应用首页模板位于 <code>views/index.html</code>。静态资源放在 <code>public/</code>。</p>
       <p><a href="/api">查看 API</a></p>
+      <p id="default-error">{{ errors.first("title") }}</p>
+      <p id="other-error">{{ errors.getBag("other").first() }}</p>
     </main>
   </body>
 </html>

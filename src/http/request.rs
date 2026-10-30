@@ -72,6 +72,8 @@ pub struct RequestInfo {
     precognition: super::precognition::PrecognitionState,
     #[cfg(feature = "session")]
     session: Option<crate::session::Session>,
+    #[cfg(feature = "view")]
+    view_errors: std::sync::Arc<crate::view::RequestViewErrors>,
 }
 
 impl fmt::Debug for RequestInfo {
@@ -111,6 +113,17 @@ impl<S: Send + Sync> FromRequestParts<S> for RequestInfo {
                 slot
             });
         let precognition = super::precognition::ensure_state(&mut parts.extensions);
+        #[cfg(feature = "view")]
+        let view_errors = if let Some(errors) = parts
+            .extensions
+            .get::<std::sync::Arc<crate::view::RequestViewErrors>>()
+        {
+            std::sync::Arc::clone(errors)
+        } else {
+            let errors = std::sync::Arc::new(crate::view::RequestViewErrors::empty());
+            parts.extensions.insert(std::sync::Arc::clone(&errors));
+            errors
+        };
         Ok(Self {
             secure: super::transport::is_secure_parts(&parts.headers, &parts.extensions)
                 .map_err(std::sync::Arc::new),
@@ -126,11 +139,31 @@ impl<S: Send + Sync> FromRequestParts<S> for RequestInfo {
             precognition,
             #[cfg(feature = "session")]
             session: parts.extensions.get::<crate::session::Session>().cloned(),
+            #[cfg(feature = "view")]
+            view_errors,
         })
     }
 }
 
 impl RequestInfo {
+    /// 在当前请求共享的错误包中添加或替换命名包，随后渲染立即可见。
+    ///
+    /// 已存在于 Session 的对象会同步修改，但不延长原 flash 寿命；显式
+    /// `Session::flash_errors` 才标记下次请求可读。缺失回退只影响本请求，
+    /// Session 整包替换后旧对象保持独立。重入或并发访问时返回错误。
+    #[cfg(feature = "view")]
+    pub fn put_view_error_bag(
+        &self,
+        name: impl Into<crate::support::ArrayKey>,
+        bag: Box<dyn crate::support::MessageBagContract>,
+    ) -> Result<()> {
+        self.view_errors.put(name, bag)
+    }
+
+    #[cfg(feature = "view")]
+    pub(crate) fn view_errors(&self) -> std::sync::Arc<crate::view::RequestViewErrors> {
+        std::sync::Arc::clone(&self.view_errors)
+    }
     /// 请求头首值严格等于 `true` 时表示尝试 Precognition；这不等于已确认。
     pub fn is_attempting_precognition(&self) -> Result<bool> {
         Ok(self.header("precognition")? == Some("true"))

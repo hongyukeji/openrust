@@ -35,7 +35,7 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
         openrust::config::FrameworkConfig::default(),
     ))
     .merge(Toml::string(
-        "[app]\nname = 'configured-application'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
+        "[app]\nname = 'configured-application'\n[server]\nroot_target = 'view:index.html'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
     ));
     let mut app = TestApp::<GeneratedApplication>::builder(source)
         .build()
@@ -52,6 +52,14 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
         }))?;
     let health = Request::builder().uri("/health").body(Body::empty())?;
     app.request(health).await?.assert_status(StatusCode::OK)?;
+    let page = app
+        .request(Request::builder().uri("/").body(Body::empty())?)
+        .await?;
+    page.assert_status(StatusCode::OK)?;
+    let html = std::str::from_utf8(page.body())?;
+    assert!(html.contains("configured-application"));
+    assert!(html.contains("<p id=\"default-error\"></p>"));
+    assert!(html.contains("<p id=\"other-error\"></p>"));
     let missing = Request::builder().uri("/api/missing").body(Body::empty())?;
     let fallback = app.request(missing).await?;
     fallback.assert_status(StatusCode::NOT_FOUND)?;

@@ -11,7 +11,9 @@ OpenRust 框架基于 `axum` 和 `tower` 构建的 HTTP 层。
 - [`PageParams`] 与 [`Paginated<T>`]：校验 `page` / `per_page` 查询参数，并返回含数组 `data` 和分页 `meta` 的 API 封装。
 - 统一响应使用 `ApiResponse<T>`；错误响应额外包含 `request_id` 和 RFC 3339 UTC 字符串 `timestamp`（毫秒精度），成功响应不重复包含诊断字段。
 - JSON 业务 API 统一挂在 `/api` 下，包括根 API `GET /api` 与其子路径 `/api/*`；使用框架 `Json`、`ApiResponse` 等响应类型时，成功和错误都遵循统一 JSON 包装。`/health`、`/ready` 与可选 `/metrics` 是独立运维端点，不属于业务 API。
-- 公开站点由 `[server].public_dir` 指定，默认是应用工作目录下的 `public/`；其他文件从站点根按 URL 路径提供。`[server].root_target` 默认 `file:/index.html`，也支持 `forward:/path`、`redirect:/path` / `redirect:https://host/path`，以及启用 `view` feature 并注册 `ViewServiceProvider` 后的 `view:index.html`。视图模板放在 `[view].directory`（默认 `views/`），静态资源仍放在 `public/`。`APP_SERVER_PUBLIC_DIR` 和 `APP_SERVER_ROOT_TARGET` 可在 `.env` 或进程环境覆盖 TOML；进程环境优先。生产部署不得将包含 `.env` 的应用根目录设为静态公开目录。API 与 `/ws/*` 的未匹配路径保留框架 404 响应，不回落到静态文件。
+- 公开站点由 `[server].public_dir` 指定，默认是应用工作目录下的 `public/`；其他文件从站点根按 URL 路径提供。根 GET/HEAD 在普通业务路由路径均未命中后，先执行自定义 `[server].root_target`，再考虑用户 fallback；即使 `public/index.html` 存在，也不会覆盖自定义根目标。默认值 `file:/index.html` 保留静态首页模式：存在文件时返回文件，缺失时允许用户根 fallback 接管；显式配置相同值也使用此模式。`[server].root_target` 默认 `file:/index.html`，也支持 `forward:/path`、`redirect:/path` / `redirect:https://host/path`，以及启用 `view` feature 并注册 `ViewServiceProvider` 后的 `view:index.html`。视图模板放在 `[view].directory`（默认 `views/`），静态资源仍放在 `public/`。`APP_SERVER_PUBLIC_DIR` 和 `APP_SERVER_ROOT_TARGET` 可在 `.env` 或进程环境覆盖 TOML；进程环境优先。生产部署不得将包含 `.env` 的应用根目录设为静态公开目录。API 与 `/ws/*` 的未匹配路径保留框架 404 响应，不回落到静态文件。
+
+站点响应边界会在业务或站点处理完成后清空 HEAD 正文，保留状态、全部响应头和扩展；原正文直接 drop，不读取流，也不推断或补入 Content-Length。GET 响应不变。此保证覆盖经过站点 service 的响应；站点外层 middleware 自行短路构造的响应不在此边界内。
 - [`SortParams`]：只按显式字段白名单解析 ADR-008 定义的逗号分隔排序语法；应用将字段名映射为固定 ORM 列。
 - [`Json<T>`]、[`Path<T>`] 与 [`Query<T>`]：兼容 axum 的 extractors，并将拒绝结果包装为 API 响应。`Json<T>` 还实现了 `IntoResponse`。
 - [`Validated`]：普通请求在强类型 `Json<T>` / `Query<T>` 解析后执行公开字段规则；已确认的 Precognition 可在构造完整 DTO 前只验证所选字段。
@@ -23,6 +25,8 @@ OpenRust 框架基于 `axum` 和 `tower` 构建的 HTTP 层。
 ## 请求检查与内容协商
 
 `RequestInfo` 是不消费正文的只读请求提取器，可放在 `Json<T>` 等唯一正文提取器前面。`path()` 返回去首尾斜线的原始路径（根路径为 `/`），`method()` / `is_method()` 检查方法；`header()`、`bearer_token()` 返回 `Result<Option<&str>>`，非法文本头为稳定的 400 错误。`headers()` 保留只读二进制头访问。`host()` 与域路由共用严格 authority 校验，不采信转发 Host；客户端 IP 继续使用 `ClientIp`。
+
+启用 `view` 时，`Views::render_for_request(name, &RequestInfo, &context)` 使用本请求的 `errors` 对象；`RequestInfo::put_view_error_bag` 可在处理器中添加或替换命名包，后续渲染可见。Session Provider 若存在，会在 handler 前恢复错误包；未安装时为空包。该对象不存放在全局视图环境。
 
 ```rust,ignore
 async fn store(
@@ -238,7 +242,7 @@ Provider 可用 `middleware_priority([...])` 设置路由别名优先级，或 `
 
 Middleware 定义在应用内共享，是否应用由各路由或路由组显式选择。当前 OpenRust 路由按 Provider 贡献，没有 Laravel `web` / `api` 文件约定的自动分组，因此由路由明确选择命名 group。
 
-`Routes::fallback(handler)` 注册 GET/HEAD 显式 fallback；`RouteGroup` 内的 fallback 仅覆盖组前缀，并遵循组 middleware。同方法普通路由优先，GET/HEAD 在没有普通路由命中时仍可执行 fallback，即使同路径存在其他方法。其他方法可得 405；OPTIONS 有 alternate 时合成真实 OPTIONS Route。同一静态完整 scope 的多个 fallback 会在构建时返回 `http_fallback_duplicate`。带路由参数或通配符的组前缀暂不支持 fallback，构建时优先返回 `http_fallback_scope_unsupported`。GET/HEAD 未匹配请求先检查 `public/` 静态资源，命中时返回文件；没有静态资源才执行业务 handler。fallback handler 会收到完整原始 URI、请求头和 body。默认没有业务 fallback 时，`/api/*`、`/ws/*` 继续返回框架 404；应用显式配置 fallback 后可以接管这些路径，包括优先返回对应静态文件。
+`Routes::fallback(handler)` 注册 GET/HEAD 显式 fallback；`RouteGroup` 内的 fallback 仅覆盖组前缀，并遵循组 middleware。同方法普通路由优先，GET/HEAD 在没有普通路由命中时仍可执行 fallback，即使同路径存在其他方法。其他方法可得 405；OPTIONS 有 alternate 时合成真实 OPTIONS Route。同一静态完整 scope 的多个 fallback 会在构建时返回 `http_fallback_duplicate`。带路由参数或通配符的组前缀暂不支持 fallback，构建时优先返回 `http_fallback_scope_unsupported`。除交给自定义 `server.root_target` 的未匹配根 GET/HEAD 外，未匹配请求先检查 `public/` 静态资源，命中时返回文件；没有静态资源才执行业务 handler。fallback handler 会收到完整原始 URI、请求头和 body。默认没有业务 fallback 时，`/api/*`、`/ws/*` 继续返回框架 404；应用显式配置 fallback 后可以接管这些路径，包括优先返回对应静态文件。
 
 ```rust,ignore
 use openrust::http::{RouteGroup, Routes};
@@ -304,9 +308,9 @@ fn routes(routes: Routes) -> Routes {
 }
 ```
 
-域分派要求唯一、有效的 `Host`/URI authority；冲突或畸形 authority 失败关闭。端口不参与匹配，转发头不参与 authority 选择。请求 path/method 在域路由中未匹配时会继续检查后续匹配域及普通路由；只有框架私有的 miss 标记会继续分派，业务 handler 返回的 404/405 保持终端行为。所有候选都未命中后才处理用户 fallback、站点根目标与静态文件。
+域分派要求唯一、有效的 `Host`/URI authority；冲突或畸形 authority 失败关闭。端口不参与匹配，转发头不参与 authority 选择。请求 path/method 在域路由中未匹配时会继续检查后续匹配域及普通路由；只有框架私有的 miss 标记会继续分派，业务 handler 返回的 404/405 保持终端行为。所有业务候选都未命中后，根 GET/HEAD 先执行自定义站点根目标；其他请求继续按用户 fallback 与静态文件规则处理。
 
-同一域模式内（以及不限定域的路由中），fallback 优先选择更具体的静态路径 scope，例如 `/api/v2`、`/api`、`/`，不受这几个 scope 的注册顺序影响。不同且重叠的域模式按首次 fallback 声明顺序选择。站点 `root_target` 仅在业务路由与 fallback 都未命中时处理 `/`，因此域根路由可以正常响应。使用 `TestApp` 或直接 `oneshot` 测试含域路由的应用时，请显式提供 `Host` 或绝对 URI authority，模拟合法 HTTP 请求。
+同一域模式内（以及不限定域的路由中），fallback 优先选择更具体的静态路径 scope，例如 `/api/v2`、`/api`、`/`，不受这几个 scope 的注册顺序影响。不同且重叠的域模式按首次 fallback 声明顺序选择。自定义站点 `root_target` 在业务路由均未命中时优先处理根 GET/HEAD，因此显式域根路由与普通根路由仍先于站点目标；用户 fallback 不会吞掉自定义根目标。内部 forward 的目的路径缺失时仍按目的路径查静态资源或 fallback，不会重新执行根目标；fallback 路由参数使用目的路径，`RequestInfo` 仍保留外部原始 URL 与查询。若根路径已有其他方法的业务路由，GET/HEAD 仍遵循原有方法 miss 规则：有适用 fallback 时可由其接管，否则返回 405 与 Allow；站点目标不接管该方法 miss。业务 handler 自身返回的 404/405 也是终态。使用 `TestApp` 或直接 `oneshot` 测试含域路由的应用时，请显式提供 `Host` 或绝对 URI authority，模拟合法 HTTP 请求。
 
 ```rust
 use std::sync::Arc;

@@ -46,6 +46,7 @@ impl ServiceProvider for RedirectRoutes {
                     .get(&format!("{PREFIX}/plain"), plain)
                     .post(&format!("{PREFIX}/submit"), submit)
                     .get(&format!("{PREFIX}/review"), review)
+                    .get(&format!("{PREFIX}/view"), view)
             })?;
             Ok(())
         })
@@ -101,6 +102,13 @@ async fn review(info: RequestInfo) -> openrust::Result<Json<Value>> {
         "other_present": errors.has_bag("other"),
         "other_message": errors.get_bag("other").as_bag().first(None, None)?,
     })))
+}
+
+async fn view(
+    info: RequestInfo,
+    openrust::prelude::Inject(views): openrust::prelude::Inject<openrust::view::Views>,
+) -> openrust::Result<openrust::http::axum::response::Html<String>> {
+    views.render_for_request("index.html", &info, &json!({"app_name":"Generated"}))
 }
 
 struct GeneratedErrors {
@@ -279,6 +287,33 @@ pub async fn assert_request_redirect<A: Application>(
                 "other_present":false,"other_message":""
             })
         );
+        let cookie = cookie_pair(&aged)?;
+        let response = app
+            .request_with_limits(
+                Request::post(format!("{PREFIX}/submit"))
+                    .header("host", "localhost")
+                    .header(header::COOKIE, cookie)
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(serde_json::to_vec(&body)?))?,
+                4096,
+                TIMEOUT,
+            )
+            .await?;
+        response.assert_status(StatusCode::FOUND)?;
+        let cookie = cookie_pair(&response)?;
+        let rendered = get(&app, &format!("{PREFIX}/view"), Some(&cookie)).await?;
+        rendered.assert_status(StatusCode::OK)?;
+        let html = std::str::from_utf8(rendered.body())?;
+        assert!(html.contains("<title>Generated</title>"));
+        assert!(html.contains("<h1>Generated</h1>"));
+        assert!(html.contains("生成项目：请检查标题"));
+        assert!(html.contains("摘要缺失"));
+        let cookie = cookie_pair(&rendered)?;
+        let aged_view = get(&app, &format!("{PREFIX}/view"), Some(&cookie)).await?;
+        aged_view.assert_status(StatusCode::OK)?;
+        let aged_html = std::str::from_utf8(aged_view.body())?;
+        assert!(!aged_html.contains("生成项目：请检查标题"));
+        assert!(!aged_html.contains("摘要缺失"));
         Ok(())
     }
     .await;

@@ -99,10 +99,7 @@ pub(crate) async fn dispatch_managed(
             }
         }
         if metadata.fallback {
-            let original = request
-                .extensions()
-                .get::<axum::extract::OriginalUri>()
-                .map_or_else(|| request.uri(), |uri| &uri.0);
+            let original = crate::http::site::routing_uri(&request);
             let prefix = metadata
                 .path
                 .strip_suffix("/{fallbackPlaceholder}")
@@ -1150,7 +1147,8 @@ impl Routes {
 
     /// 注册未匹配路由时执行的 fallback handler。
     ///
-    /// GET/HEAD 请求先尝试读取 `public` 目录中的静态资源，再调用 handler。
+    /// GET/HEAD 请求在业务路由与根路径的自定义 `server.root_target` 之后，先尝试读取 `public`
+    /// 目录中的静态资源，再调用 handler。
     /// 若用于 `RouteGroup` 内，fallback 只覆盖该组前缀，并遵循组的 middleware。
     /// 同方法普通路由优先；GET/HEAD 可接管其他方法路径的 miss。每个同层 router 只能注册一个 fallback；带路由参数或通配符的组前缀
     /// 暂不支持 fallback，构建时返回 `http_fallback_scope_unsupported`。
@@ -1201,13 +1199,8 @@ impl Routes {
                     if !matches!(*request.method(), Method::GET | Method::HEAD) {
                         return missed(request, InternalMiss::Method);
                     }
-                    if let Some(original_uri) = request
-                        .extensions()
-                        .get::<axum::extract::OriginalUri>()
-                        .map(|original_uri| original_uri.0.clone())
-                    {
-                        *request.uri_mut() = original_uri;
-                    }
+                    let routing_uri = crate::http::site::routing_uri(&request).clone();
+                    *request.uri_mut() = routing_uri;
                     if matches!(*request.method(), Method::GET | Method::HEAD) {
                         let static_request = static_request(&request);
                         if let Some(response) =
@@ -1487,7 +1480,7 @@ struct MissSlot(Arc<Mutex<Option<Request>>>);
 #[derive(Clone)]
 struct UnmatchedRequest(Arc<Mutex<Option<Request>>>);
 
-/// 仅供站点层在全部业务路由和用户 fallback 确认未匹配后取回原请求。
+/// 供站点层取回业务未匹配的根请求，或全部用户 fallback 均未匹配的其他请求。
 pub(crate) fn take_unmatched(response: &mut Response) -> Option<Request> {
     response
         .extensions_mut()
@@ -1496,6 +1489,14 @@ pub(crate) fn take_unmatched(response: &mut Response) -> Option<Request> {
         .lock()
         .ok()?
         .take()
+}
+
+fn unmatched(request: Request) -> Response {
+    let slot = UnmatchedRequest(Arc::new(Mutex::new(Some(request))));
+    let mut response = Response::new(Body::empty());
+    *response.status_mut() = StatusCode::NOT_FOUND;
+    response.extensions_mut().insert(slot);
+    response
 }
 
 fn missed(mut request: Request, kind: InternalMiss) -> Response {
@@ -1680,6 +1681,22 @@ pub(crate) fn assemble(parts: RouteParts) -> Router<AppState> {
                     }
                     Err(response) => return response,
                 }
+                let root_target = pending
+                    .extensions_mut()
+                    .remove::<crate::http::site::PendingRootTarget>()
+                    .is_some();
+                // 方法 miss 保留既有 GET/HEAD fallback 与 Allow/405 规则。
+                if root_target
+                    && !method_miss
+                    && snapshot.uri.path() == "/"
+                    && matches!(snapshot.method, Method::GET | Method::HEAD)
+                {
+                    snapshot.restore(&mut pending);
+                    pending
+                        .extensions_mut()
+                        .remove::<crate::http::site::PendingRootTarget>();
+                    return unmatched(pending);
+                }
                 let fallback_possible = !matched_domains.is_empty()
                     || root_fallbacks
                         .iter()
@@ -1782,11 +1799,7 @@ pub(crate) fn assemble(parts: RouteParts) -> Router<AppState> {
                     }
                     return response;
                 }
-                let slot = UnmatchedRequest(Arc::new(Mutex::new(Some(pending))));
-                let mut response = Response::new(Body::empty());
-                *response.status_mut() = StatusCode::NOT_FOUND;
-                response.extensions_mut().insert(slot);
-                response
+                unmatched(pending)
             }
         })
         .layer(axum::middleware::from_fn(

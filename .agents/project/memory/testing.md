@@ -8,6 +8,25 @@
 - 已运行PG命令自然结束并完成自有资源清理；未开始的常规PG阶段不再安排，不停删共享PG服务、测试或feature。历史双库证据原样保留，以下历史记录不自动成为新发布范围通过。
 - CI常规数据库job为MySQL；手动`database_scope=release-backends`保留原PG18集成子矩阵，不代表完整发布已验收。后端专属例外按具体风险定向执行并留证；发布积压以[todo](../todo.md#发布前全后端兼容性验收)为准。
 
+## C04-D10-C 请求局部视图错误共享（验收中，未提交）
+
+**当前限定子范围已验收，待提交。** 本标题保留既有链接锚点；不表示行为仍待验。范围为请求私有errors、已存Session共享对象身份/替换/老化、模板参数桥接与显式context覆盖，以及fresh生成暴露的根目标/fallback、内部forward和HEAD站点出口。HEAD只置空/drop正文，保留status/headers/extensions，不poll流、不推断或补Content-Length；不覆盖站点外层middleware短路。不关闭完整Redirector、Validator/FormRequest/CSRF、HTTP/Session或发布全后端矩阵。
+
+最终当前输入索引 `/tmp/openrust-c04d10c-public-only-v9/final-current-input-verification.json`，SHA256 `3204fc2fa9d0ff2e238e88d0b294c39410d5c47f5a8cbcb0af6a29973403a66e`；原v9集中索引 `/tmp/openrust-c04d10c-verification-v9/v9-resource-handoff.json`。共同freeze SHA `74597b3b6b9943257bc64311a211f481e09a365ecc53aeacad9386015e29679f`，各命令/日志/源锁/二进制/清理回执由索引逐项绑定。最终源码site SHA `a7eb531a6602f57237a1a4192efc3321f13a21f082c287c2c1617e1311e0ca6e`、router SHA `a0805bbf3aa43ddd55fee5c957033799892f1936e52c86169d7d45f97ab55712`。
+
+| 范围 | 实际通过与边界 |
+| --- | --- |
+| 固定上游/公开行为 | 固定framework `d52c3b3129e4c8e213c97cdc68f94b0b7d27f181` 的六案Session/ViewErrorBag身份参考 `/tmp/openrust-c04d10c-php-identity-oracle.final.output.jsonl`；模板参数差分 `/tmp/openrust-c04d10c-php-arguments-correspondence.md`。Store/View对象证据不冒称完整PHP HTTP bootstrap；Rust类型/资源边界差异仍公开 |
+| 定向/main | v9实际router106、view-only6、view-session HTTP7；HEADlib2、模块4、CLI快照1按v8等价提取证明限定复用，纯errors对象10按未变输入复用。默认workspace798 passed/31 ignored、全特性1571 passed/105 ignored；fmt、双严格Clippy/Rustdoc、4组feature check、deny、Rust1.97 all/session检查及新build实际通过。ignored不计真实服务 |
+| fresh生成 | 普通fmt/check/test7项通过，覆盖运行时configured-application首页名称与两个空错误段；公开helper以显式上下文Generated精确断言title/h1、错误展示与老化；MySQL8.4.13模板fmt/check与认证2项通过。MySQL模板默认auth测试不调用新helper，因此另以独立公开consumer真实编译执行未改生成helper1项，actual0、0 ignored、无source drift |
+| 独立public续作 | `/tmp/openrust-c04d10c-public-only-v9/runs/d10c-v9-public2/result.json` accepted=true，test71.606秒、含driver77.590秒。新fixture仅通过公开迁移初始化driver唯一owned anchor；不调用另建随机库的TestDatabase，timeout/panic亦由finally精确DROP并确认不存在。manifest SHA `568fc0142b9965b22631ab53252d46738cdac1996f6738168feb3688fd240a4b`；13项mock与401节点/feature/edge可复算摘要支撑驱动独审，不能代替真实测试。与先前auth2是两次独立隔离验证 |
+| 最终真实TCP | `/tmp/openrust-c04d10c-network-v9/no-session-p7gtkos_/result.json` 与 `mysql-tgdpylg1/result.json` accepted=true、worker0、无timeout。无Session独立空包；MySQL默认/命名/custom错误、两Cookie隔离与flash独立老化；RootContext公开值HTML转义另验，不冒称网络用户错误消息注入转义。MySQL8.4.13同TCP迁移0，自有库DROP并核不存在；两服务正常退出、监听端口释放、敏感文件删除 |
+| 构建/审查 | server SHA `359d07984f0a80f194c2be756d3a2d26038e87592f802155a423b50e0fcf89a4`，CLI SHA `45cd9d49e480efa5f72f95052a28761343dd6ba2d411f9ec0aa5f79e46745cae`。最终源码和驱动独审包括 `/tmp/openrust-c04d10c-root-views-extract-independent-review.md`、`/tmp/openrust-c04d10c-public-only-independent-review.md`；静态审不代替行为通过 |
+
+历史v1–v8源码、freeze、实际失败/通过回执保留原目录；v3生成首页、v4–v7路由/fixture/HEAD失败及v8 Clippy失败只证明各旧输入，未覆写或作为最终通过。v9原MySQL整体回执因resource gate仍accepted=false，旧public-test未Popen；新public2独立续作成功，不回填旧结果。v9认证target退役的 `clean_actual_exit=null` 证据限制保留，不伪造0。资源50/100GB、磁盘10/5%未放宽；3GB为同feature/configuration完整target实测支撑的经验增长估值，不是上界。最终验收时登记37.489GB、diskfree106.536GB仅该时点与已登记路径，不代表全机缓存覆盖；自有一次性consumer缓存已在无symlink/进程/句柄/锁占用确认后正常cargo clean，actual0，精确回收1,293,717,504B；源码/锁/回执/freeze/main二进制哨兵不变，回执 `/tmp/openrust-c04d10c-consumer-v9-cache-retired.json`。main与未知缓存保留。
+
+本轮收口仅Agent状态/矩阵文档，无运行源码、模板、manifest/lock或环境命令变化；按已绑定输入复用上述有效证据，不重跑Cargo。实际本地提交事实待总控补记，不虚拟提交hash。
+
 ## Session 测试入口整合小试点（限定验收通过）
 
 基线 `a2befef`：三个纯 `session` feature 入口 `http_session`、`http_session_helpers`、`http_session_source_cases` 聚为 `http_session` 一个显式 target（48→46），三个源文件与全部 26 个具名用例、断言、fixture 均未删除。实际 `--list` 映射 26 项，定向 26/26；默认 workspace 789 passed/31 ignored、全特性 1546 passed/105 ignored，均 0 failed/filtered；全特性 gRPC 全组 8/8。严格 Clippy 默认/全特性、默认/全特性 `-D warnings` Rustdoc、Rust 1.97 全特性 all-target check、fmt/diff 均通过。各阶段命令、时长、源码/锁及有界日志见最终索引 `/tmp/openrust-session-test-pilot-verification-final.json`；独审结论见 `/tmp/openrust-session-test-pilot-grpc-fix-review.md`。资源有归属清理回执 `/tmp/openrust-session-test-pilot-resource-clean.json`；最终总量见索引。不具备相同缓存条件的前测，不能用本轮耗时推断加速倍数。

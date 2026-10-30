@@ -1,11 +1,16 @@
 #![doc = include_str!("view/README.md")]
 
-use std::collections::HashMap;
+mod errors;
+#[cfg(feature = "session")]
+pub(crate) use errors::PreparedPersistence;
+pub(crate) use errors::RequestViewErrors;
+
+use std::collections::{BTreeMap, HashMap};
 use std::path::{Component, Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
 use axum::response::Html;
-use minijinja::{AutoEscape, Environment, ErrorKind, UndefinedBehavior, Value};
+use minijinja::{AutoEscape, Environment, ErrorKind, UndefinedBehavior, Value, value::ValueKind};
 use serde::Serialize;
 
 use crate::config::ViewConfig;
@@ -206,6 +211,44 @@ impl Views {
     /// 模板名相对于 `[view].directory`，例如 `pages/home.html`；路径不得包含绝对路径、
     /// `.` 或 `..` 组件。HTML 文件自动转义，模板语法和渲染错误会转换为框架内部错误。
     pub fn render<T: Serialize>(&self, name: &str, context: &T) -> Result<Html<String>> {
+        self.render_value(name, Value::from_serialize(context))
+    }
+
+    /// 使用本请求在 Session 启动后取得的错误包渲染模板。
+    ///
+    /// `context` 必须是 map 或 struct；显式 `errors` 键优先于请求共享值。
+    /// Session 未启用时共享值为空包。模板方法会调用原消息包契约，保留自定义实现。
+    pub fn render_for_request<T: Serialize>(
+        &self,
+        name: &str,
+        request: &crate::http::RequestInfo,
+        context: &T,
+    ) -> Result<Html<String>> {
+        let explicit = Value::from_serialize(context);
+        if explicit.kind() != ValueKind::Map {
+            return Err(Error::custom(
+                "view_context_invalid",
+                "视图上下文必须是映射或结构体",
+            ));
+        }
+        let mut merged = BTreeMap::from([(
+            "errors".to_owned(),
+            Value::from_object(errors::ViewErrors::new(request.view_errors())),
+        )]);
+        for key in explicit.try_iter().map_err(Error::internal)? {
+            let Some(key_name) = key.as_str() else {
+                return Err(Error::custom(
+                    "view_context_invalid",
+                    "视图上下文键必须是字符串",
+                ));
+            };
+            let value = explicit.get_item(&key).map_err(Error::internal)?;
+            merged.insert(key_name.to_owned(), value);
+        }
+        self.render_value(name, Value::from_iter(merged))
+    }
+
+    fn render_value(&self, name: &str, value: Value) -> Result<Html<String>> {
         validate_template_name(name)?;
         if self.auto_reload {
             let mut environment = self.environment.write().map_err(|_| {
@@ -218,7 +261,6 @@ impl Views {
             .read()
             .map_err(|_| Error::custom("view_renderer_unavailable", "view renderer unavailable"))?;
         let template = environment.get_template(name).map_err(Error::internal)?;
-        let value = Value::from_serialize(context);
         let rendered = template.render(value).map_err(Error::internal)?;
         Ok(Html(rendered))
     }

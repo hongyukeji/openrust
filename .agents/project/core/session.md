@@ -18,6 +18,14 @@
 
 main默认750/31 ignored、全特性1491/105 ignored、公开consumer、根双库各72+old-input1、真实TCP六场景与fresh生成5/2/2已按适用范围验收；[证据](../memory/testing.md#c04-d9-main-组合限定子范围验收通过)不关闭完整HTTP/Session、RedirectResponse或CSRF/FormRequest。
 
+## D10 错误包与请求视图共享（限定子范围已验收，待提交）
+
+`flash_errors` 沿原 Session 属性/flash 状态机保存具版本 envelope，命名自定义包经公开 codec 锁外编码/恢复；`read_errors` 返回独立读取快照。请求middleware在start之后、handler之前恢复视图共享对象，恢复失败按原错误传播并保持私有响应不可缓存，不静默降为空对象。
+
+已有关联对象经 `RequestInfo::put_view_error_bag` 更新命名包时同步持久候选，但不自动延长flash；整包属性替换（含同值替换）断开旧对象关联。缺失fallback修改不写Session；save老化/start加载/invalidate依原属性变化回收关联。回调不持状态锁，重入快速报错；完整记录/对象预算都成功后原子发布，资源关闭仍沿原Session生命周期。视图需要请求入口，不能将用户对象保存在单例Views。
+
+固定Laravel六案身份参考、共享对象/参数回归与HTTP接线已有证据；v9 MySQL8.4.13生成模板认证2项实际通过且隔离库已DROP。D10-C独立公开consumer1项与最终no-session/MySQL8.4.13 TCP已通过，自有库/端口/敏感文件清理完成；旧输入TCP按批次保留，本簇限定子范围已验收待提交，见[当前测试记录](../memory/testing.md#c04-d10-c-请求局部视图错误共享验收中未提交)。不据此关闭CSRF、验证器或整个Session/Web栈。
+
 ## 源码与公开边界
 
 R2-X新增 `SessionStoreHandle::store()`，供可信Provider装饰器保留原factory及原store实例；独立Session consumer验证受管理Cookie往返与装饰层计数。直接调用该逃生口绕过请求Session状态、容量和handle层删除检查，不能用于不可信业务输入。main组合与双库回归证据见[testing](../memory/testing.md#r2-qx-main-组合验收通过)。

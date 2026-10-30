@@ -15,6 +15,10 @@ impl BagHandle {
     pub fn new(bag: Box<dyn MessageBagContract>) -> Self {
         Self(bag)
     }
+    #[cfg(feature = "view")]
+    pub(crate) fn into_bag(self) -> Box<dyn MessageBagContract> {
+        self.0
+    }
     /// 借用原契约实例。
     pub fn as_bag(&self) -> &dyn MessageBagContract {
         self.0.as_ref()
@@ -75,6 +79,10 @@ pub struct ViewErrorBag {
     bags: Collection<BagHandle>,
 }
 impl ViewErrorBag {
+    #[cfg(feature = "view")]
+    pub(crate) fn into_bags(self) -> Collection<BagHandle> {
+        self.bags
+    }
     /// 建立空命名包集合。
     pub fn new() -> Self {
         Self::default()

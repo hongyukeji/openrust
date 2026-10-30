@@ -52,14 +52,16 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>blog</title>
+    <title>{{ app_name }}</title>
     <link rel="stylesheet" href="/assets/site.css">
   </head>
   <body>
     <main>
-      <h1>blog</h1>
+      <h1>{{ app_name }}</h1>
       <p>应用首页模板位于 <code>views/index.html</code>。静态资源放在 <code>public/</code>。</p>
       <p><a href="/api">查看 API</a></p>
+      <p id="default-error">{{ errors.first("title") }}</p>
+      <p id="other-error">{{ errors.getBag("other").first() }}</p>
     </main>
   </body>
 </html>
@@ -297,7 +299,7 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
         openrust::config::FrameworkConfig::default(),
     ))
     .merge(Toml::string(
-        "[app]\nname = 'configured-application'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
+        "[app]\nname = 'configured-application'\n[server]\nroot_target = 'view:index.html'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
     ));
     let mut app = TestApp::<GeneratedApplication>::builder(source)
         .build()
@@ -314,6 +316,14 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
         }))?;
     let health = Request::builder().uri("/health").body(Body::empty())?;
     app.request(health).await?.assert_status(StatusCode::OK)?;
+    let page = app
+        .request(Request::builder().uri("/").body(Body::empty())?)
+        .await?;
+    page.assert_status(StatusCode::OK)?;
+    let html = std::str::from_utf8(page.body())?;
+    assert!(html.contains("configured-application"));
+    assert!(html.contains("<p id=\"default-error\"></p>"));
+    assert!(html.contains("<p id=\"other-error\"></p>"));
     let missing = Request::builder().uri("/api/missing").body(Body::empty())?;
     let fallback = app.request(missing).await?;
     fallback.assert_status(StatusCode::NOT_FOUND)?;
@@ -2306,6 +2316,7 @@ impl ServiceProvider for RedirectRoutes {
                     .get(&format!("{PREFIX}/plain"), plain)
                     .post(&format!("{PREFIX}/submit"), submit)
                     .get(&format!("{PREFIX}/review"), review)
+                    .get(&format!("{PREFIX}/view"), view)
             })?;
             Ok(())
         })
@@ -2361,6 +2372,13 @@ async fn review(info: RequestInfo) -> openrust::Result<Json<Value>> {
         "other_present": errors.has_bag("other"),
         "other_message": errors.get_bag("other").as_bag().first(None, None)?,
     })))
+}
+
+async fn view(
+    info: RequestInfo,
+    openrust::prelude::Inject(views): openrust::prelude::Inject<openrust::view::Views>,
+) -> openrust::Result<openrust::http::axum::response::Html<String>> {
+    views.render_for_request("index.html", &info, &json!({"app_name":"Generated"}))
 }
 
 struct GeneratedErrors {
@@ -2539,6 +2557,33 @@ pub async fn assert_request_redirect<A: Application>(
                 "other_present":false,"other_message":""
             })
         );
+        let cookie = cookie_pair(&aged)?;
+        let response = app
+            .request_with_limits(
+                Request::post(format!("{PREFIX}/submit"))
+                    .header("host", "localhost")
+                    .header(header::COOKIE, cookie)
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(serde_json::to_vec(&body)?))?,
+                4096,
+                TIMEOUT,
+            )
+            .await?;
+        response.assert_status(StatusCode::FOUND)?;
+        let cookie = cookie_pair(&response)?;
+        let rendered = get(&app, &format!("{PREFIX}/view"), Some(&cookie)).await?;
+        rendered.assert_status(StatusCode::OK)?;
+        let html = std::str::from_utf8(rendered.body())?;
+        assert!(html.contains("<title>Generated</title>"));
+        assert!(html.contains("<h1>Generated</h1>"));
+        assert!(html.contains("生成项目：请检查标题"));
+        assert!(html.contains("摘要缺失"));
+        let cookie = cookie_pair(&rendered)?;
+        let aged_view = get(&app, &format!("{PREFIX}/view"), Some(&cookie)).await?;
+        aged_view.assert_status(StatusCode::OK)?;
+        let aged_html = std::str::from_utf8(aged_view.body())?;
+        assert!(!aged_html.contains("生成项目：请检查标题"));
+        assert!(!aged_html.contains("摘要缺失"));
         Ok(())
     }
     .await;

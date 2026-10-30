@@ -624,6 +624,10 @@ async fn production_testapp_renders_module_namespaced_view()
     response.assert_status(StatusCode::OK)?;
     let html = std::str::from_utf8(response.body())?;
     assert!(html.contains("关于示例应用"));
+    assert!(html.contains("标题：</p>"));
+    assert!(html.contains("摘要：</p>"));
+    assert!(html.contains("不存在的字段：</p>"));
+    assert!(!html.contains("<ul>"));
     app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
         .await?;
     Ok(())

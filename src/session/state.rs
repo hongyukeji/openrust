@@ -93,6 +93,14 @@ impl Binding {
         self.id == *id && Arc::ptr_eq(&self.driver.identity, &driver.identity)
     }
 }
+struct PreparedSave {
+    record: SessionRecord,
+    mode: SessionWriteMode,
+    driver: Driver,
+    origin: Option<Binding>,
+    intent: CreateIntent,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum CreateIntent {
     SystemRandom,
@@ -104,6 +112,12 @@ struct State {
     id: SessionId,
     name: String,
     attributes: Attributes,
+    #[cfg(feature = "view")]
+    view_errors: Option<Arc<crate::view::RequestViewErrors>>,
+    #[cfg(feature = "view")]
+    errors_epoch: Arc<()>,
+    #[cfg(feature = "view")]
+    errors_restoring: bool,
     expiry: Option<Expiry>,
     started: bool,
     existing: bool,
@@ -120,6 +134,17 @@ struct Inner {
     io: AsyncMutex<()>,
     max_bytes: usize,
     error_bag_codecs: Arc<super::ErrorBagCodecs>,
+}
+
+#[cfg(feature = "view")]
+struct RestoringErrors<'a>(&'a Inner);
+#[cfg(feature = "view")]
+impl Drop for RestoringErrors<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut state) = self.0.state.lock() {
+            state.errors_restoring = false;
+        }
+    }
 }
 
 /// 同一请求所有提取器与鉴权共享的Session句柄。
@@ -208,6 +233,12 @@ impl Session {
                     id,
                     name,
                     attributes: Attributes::new(Value::Array(Vec::new()))?,
+                    #[cfg(feature = "view")]
+                    view_errors: None,
+                    #[cfg(feature = "view")]
+                    errors_epoch: Arc::new(()),
+                    #[cfg(feature = "view")]
+                    errors_restoring: false,
                     expiry,
                     started: false,
                     existing: false,
@@ -240,6 +271,13 @@ impl Session {
         Ok(self)
     }
     fn mutate_value<T>(&self, apply: impl FnOnce(&mut Attributes) -> Result<T>) -> Result<T> {
+        self.mutate_errors(false, apply)
+    }
+    fn mutate_errors<T>(
+        &self,
+        replace_errors: bool,
+        apply: impl FnOnce(&mut Attributes) -> Result<T>,
+    ) -> Result<T> {
         let mut state = self.lock()?;
         state.ensure_mutable()?;
         let mut candidate = state.attributes.clone();
@@ -250,7 +288,14 @@ impl Session {
             expiry_date: state.expiry.unwrap_or(Expiry::OnSessionEnd).date()?,
         }
         .encode(self.inner.max_bytes)?;
+        #[cfg(feature = "view")]
+        let retired = state.retire_view_errors(&candidate, replace_errors)?;
+        #[cfg(not(feature = "view"))]
+        let _ = replace_errors;
         state.attributes = candidate;
+        drop(state);
+        #[cfg(feature = "view")]
+        drop(retired);
         Ok(value)
     }
     async fn operation(&self) -> Result<Operation<'_>> {
@@ -421,10 +466,125 @@ impl Session {
     pub fn get(&self, key: &str) -> Result<Option<Value>> {
         self.lock()?.attributes.get(key)
     }
-    /// 锁外恢复已登记的命名错误包；旧非错误包类型视作空包。
+    /// 锁外恢复已登记的命名错误包并返回独立读取快照；旧非错误包类型视作空包。
+    ///
+    /// 请求内共享修改使用 `RequestInfo::put_view_error_bag`；此返回值的修改不会写回 Session。
     pub fn read_errors(&self) -> Result<crate::support::ViewErrorBag> {
         let raw = self.get("errors")?;
         self.inner.error_bag_codecs.decode_view(raw)
+    }
+
+    #[cfg(feature = "view")]
+    pub(crate) fn shared_view_errors(&self) -> Result<Arc<crate::view::RequestViewErrors>> {
+        let (raw, epoch) = {
+            let mut state = self.lock()?;
+            if let Some(shared) = &state.view_errors {
+                return Ok(Arc::clone(shared));
+            }
+            if state.errors_restoring {
+                return Err(extension_error("view_errors_busy", "本请求错误包正在恢复"));
+            }
+            let raw = state.attributes.get("errors")?;
+            state.errors_restoring = true;
+            (raw, Arc::clone(&state.errors_epoch))
+        };
+        let _restoring = RestoringErrors(&self.inner);
+        let existing = raw
+            .as_ref()
+            .map(|raw| self.inner.error_bag_codecs.validate_envelope(raw))
+            .transpose()?
+            .unwrap_or(false);
+        let restored = self.inner.error_bag_codecs.decode_view(raw)?;
+        if !existing {
+            return Ok(Arc::new(crate::view::RequestViewErrors::from_bag(restored)));
+        }
+        let weak = Arc::downgrade(&self.inner);
+        let shared = Arc::new(
+            crate::view::RequestViewErrors::from_bag(restored).with_persistence(
+                move |source, name, bag, flash| {
+                    let Some(inner) = weak.upgrade() else {
+                        return Ok(Box::new(|| Ok(())));
+                    };
+                    Session { inner }.prepare_view_error_update(source.identity(), name, bag, flash)
+                },
+            ),
+        );
+        let mut state = self.lock()?;
+        if !Arc::ptr_eq(&epoch, &state.errors_epoch) {
+            return Err(extension_error(
+                "session_errors_changed",
+                "错误包恢复期间 Session errors 已被替换",
+            ));
+        }
+        if let Some(current) = &state.view_errors {
+            return Ok(Arc::clone(current));
+        }
+        state.view_errors = Some(Arc::clone(&shared));
+        Ok(shared)
+    }
+
+    #[cfg(feature = "view")]
+    fn prepare_view_error_update(
+        &self,
+        identity: Arc<()>,
+        name: &crate::support::ArrayKey,
+        bag: &dyn crate::support::MessageBagContract,
+        flash: bool,
+    ) -> Result<crate::view::PreparedPersistence> {
+        let attached = self
+            .lock()?
+            .view_errors
+            .as_ref()
+            .is_some_and(|current| Arc::ptr_eq(&current.identity(), &identity));
+        if !attached {
+            if flash {
+                return Err(extension_error(
+                    "session_errors_changed",
+                    "闪存写入期间 Session errors 已被替换",
+                ));
+            }
+            return Ok(Box::new(|| Ok(())));
+        }
+        // 用户 codec 可读取 Session 或尝试重新进入错误包；编码不持有任一状态锁。
+        let encoded = self.inner.error_bag_codecs.encode_bag(bag)?;
+        let name = name.clone();
+        let session = self.clone();
+        Ok(Box::new(move || {
+            let mut state = session.lock()?;
+            if !state
+                .view_errors
+                .as_ref()
+                .is_some_and(|current| Arc::ptr_eq(&current.identity(), &identity))
+            {
+                if flash {
+                    return Err(extension_error(
+                        "session_errors_changed",
+                        "闪存写入期间 Session errors 已被替换",
+                    ));
+                }
+                return Ok(());
+            }
+            state.ensure_mutable()?;
+            let next = session.inner.error_bag_codecs.put_encoded(
+                state.attributes.get("errors")?,
+                &name,
+                &encoded,
+            )?;
+            let mut candidate = state.attributes.clone();
+            if flash {
+                candidate.flash("errors", next)?;
+            } else {
+                candidate.put("errors", next)?;
+            }
+            SessionRecord {
+                id: state.id.clone(),
+                data: candidate.all(),
+                expiry_date: state.expiry.unwrap_or(Expiry::OnSessionEnd).date()?,
+            }
+            .encode(session.inner.max_bytes)?;
+            state.attributes = candidate;
+            Ok(())
+        }))
     }
 
     /// 把一个命名错误包原子写入 `errors` 并标记为下一请求可读。
@@ -437,6 +597,15 @@ impl Session {
     ) -> Result<&Self> {
         let encoded = self.inner.error_bag_codecs.encode_bag(bag)?;
         let name = name.into();
+        #[cfg(feature = "view")]
+        {
+            let shared = self.lock()?.view_errors.clone();
+            if let Some(shared) = shared {
+                let restored = self.inner.error_bag_codecs.decode_bag(&encoded)?;
+                shared.put_with_flash(name, restored, true)?;
+                return Ok(self);
+            }
+        }
         self.mutate(|attributes| {
             let existing = attributes.get("errors")?;
             let next = self
@@ -553,11 +722,16 @@ impl Session {
     /// 写入点路径；保持空白/空串，拒绝非有限数及越限值。
     pub fn put<T: Serialize>(&self, key: &str, value: T) -> Result<&Self> {
         let value = super::store::value_from(&value, self.inner.max_bytes)?;
-        self.mutate(|attributes| attributes.put(key, value))
+        self.mutate_errors(key == "errors", |attributes| attributes.put(key, value))?;
+        Ok(self)
     }
     /// 按调用顺序批量dot写入，整个操作原子完成。
     pub fn put_many(&self, values: &[(String, Value)]) -> Result<&Self> {
-        self.mutate(|attributes| attributes.put_many(values))
+        self.mutate_errors(
+            values.iter().any(|(key, _)| key == "errors"),
+            |attributes| attributes.put_many(values),
+        )?;
+        Ok(self)
     }
     /// 固定Store的replace是put合并，不清除其他属性。
     pub fn replace(&self, values: &[(String, Value)]) -> Result<&Self> {
@@ -619,7 +793,8 @@ impl Session {
     /// 标记下一请求仍可读取的flash值。
     pub fn flash<T: Serialize>(&self, key: &str, value: T) -> Result<&Self> {
         let value = super::store::value_from(&value, self.inner.max_bytes)?;
-        self.mutate(|attributes| attributes.flash(key, value))
+        self.mutate_errors(key == "errors", |attributes| attributes.flash(key, value))?;
+        Ok(self)
     }
     /// 将数组或对象作为下一请求的旧输入；状态和记录预算失败时原子回滚。
     pub fn flash_input(&self, value: Value) -> Result<&Self> {
@@ -628,7 +803,8 @@ impl Session {
     /// 仅当前保存前可见；本次save会删除，reflash可显式延长。
     pub fn now<T: Serialize>(&self, key: &str, value: T) -> Result<&Self> {
         let value = super::store::value_from(&value, self.inner.max_bytes)?;
-        self.mutate(|attributes| attributes.now(key, value))
+        self.mutate_errors(key == "errors", |attributes| attributes.now(key, value))?;
+        Ok(self)
     }
     /// 将old flash延长一请求。
     pub fn reflash(&self) -> Result<&Self> {
@@ -694,10 +870,14 @@ impl Session {
         };
         let store = driver.ready()?;
         let record = store.load(&id, self.inner.max_bytes, expiry).await?;
+        #[cfg(feature = "view")]
+        let retired_errors;
         let old_origin = {
             let mut state = self.lock()?;
             let mut attributes = state.attributes.clone();
             let mut found = false;
+            #[cfg(feature = "view")]
+            let mut loaded_errors = false;
             let mut budget_expiry = expiry;
             if let Some(record) = record {
                 if record.id != id {
@@ -706,6 +886,10 @@ impl Session {
                 record.encode(self.inner.max_bytes)?;
                 if record.expiry_date > OffsetDateTime::now_utc() {
                     budget_expiry = record.expiry_date;
+                    #[cfg(feature = "view")]
+                    {
+                        loaded_errors = crate::support::data::get(&record.data, "errors").is_some();
+                    }
                     attributes =
                         Attributes::new(super::merge_attributes(attributes.all(), record.data)?)?;
                     found = true;
@@ -729,6 +913,10 @@ impl Session {
                 expiry_date: budget_expiry,
             }
             .encode(self.inner.max_bytes)?;
+            #[cfg(feature = "view")]
+            {
+                retired_errors = state.retire_view_errors(&attributes, loaded_errors)?;
+            }
             state.attributes = attributes;
             state.existing = found;
             state.started = true;
@@ -736,13 +924,15 @@ impl Session {
             std::mem::replace(&mut state.origin, origin)
         };
         drop(old_origin);
+        #[cfg(feature = "view")]
+        drop(retired_errors);
         Ok(true)
     }
 
-    /// 老化 flash 后保存；显式目标碰撞不覆盖、不换成其他随机 ID。
-    pub async fn save(&self) -> Result<()> {
-        let _operation = self.operation().await?;
-        let (mut record, mode, driver, origin, intent) = {
+    fn prepare_save(&self) -> Result<PreparedSave> {
+        #[cfg(feature = "view")]
+        let retired_errors;
+        let prepared = {
             let mut state = self.lock()?;
             let driver = state.driver.clone();
             driver.ready()?;
@@ -754,24 +944,43 @@ impl Session {
                 expiry_date: state.expiry.unwrap_or(Expiry::OnSessionEnd).date()?,
             };
             record.encode(self.inner.max_bytes)?;
+            #[cfg(feature = "view")]
+            {
+                retired_errors = state.retire_view_errors(&candidate, false)?;
+            }
             state.attributes = candidate;
             let origin = state
                 .origin
                 .as_ref()
                 .filter(|origin| state.pending_transfer() && !state.destroyed.contains(&origin.id))
                 .cloned();
-            (
+            PreparedSave {
                 record,
-                if state.existing {
+                mode: if state.existing {
                     SessionWriteMode::Update
                 } else {
                     SessionWriteMode::Insert
                 },
                 driver,
                 origin,
-                state.intent,
-            )
+                intent: state.intent,
+            }
         };
+        #[cfg(feature = "view")]
+        drop(retired_errors);
+        Ok(prepared)
+    }
+
+    /// 老化 flash 后保存；显式目标碰撞不覆盖、不换成其他随机 ID。
+    pub async fn save(&self) -> Result<()> {
+        let _operation = self.operation().await?;
+        let PreparedSave {
+            mut record,
+            mode,
+            driver,
+            origin,
+            intent,
+        } = self.prepare_save()?;
         #[cfg(feature = "auth")]
         if crate::support::data::get(&record.data, crate::auth::AUTH_USER_ID_KEY)
             .is_some_and(|value| !value.is_null())
@@ -879,12 +1088,18 @@ impl Session {
         if destroy {
             store.delete(&old_id).await?;
         }
+        #[cfg(feature = "view")]
+        let retired_errors;
         let old_origin = {
             let mut state = self.lock()?;
             if destroy {
                 state.destroyed.insert(old_id);
             }
             state.id = id;
+            #[cfg(feature = "view")]
+            {
+                retired_errors = state.retire_view_errors(&candidate, flush)?;
+            }
             state.attributes = candidate;
             state.existing = false;
             state.intent = CreateIntent::SystemRandom;
@@ -892,6 +1107,8 @@ impl Session {
             if flush { state.origin.take() } else { None }
         };
         drop(old_origin);
+        #[cfg(feature = "view")]
+        drop(retired_errors);
         Ok(true)
     }
     /// 只迁移ID；destroy控制是否立即撤销旧记录。
@@ -915,6 +1132,20 @@ impl Session {
 }
 
 impl State {
+    #[cfg(feature = "view")]
+    fn retire_view_errors(
+        &mut self,
+        candidate: &Attributes,
+        force: bool,
+    ) -> Result<Option<Arc<crate::view::RequestViewErrors>>> {
+        if force || self.attributes.get("errors")? != candidate.get("errors")? {
+            self.errors_epoch = Arc::new(());
+            Ok(self.view_errors.take())
+        } else {
+            Ok(None)
+        }
+    }
+
     fn restore_proof(&mut self) {
         self.existing = self
             .origin

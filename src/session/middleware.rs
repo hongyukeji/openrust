@@ -194,6 +194,10 @@ async fn prepare(layer: &SessionLayer, request: &mut Request) -> Result<Session>
             .collect_garbage(layer.settings.config.lifetime_seconds()?)
             .await?;
     }
+    #[cfg(feature = "view")]
+    request
+        .extensions_mut()
+        .insert(session.shared_view_errors()?);
     close.0 = None;
     close.1 = None;
     Ok(session)

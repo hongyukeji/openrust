@@ -393,11 +393,11 @@ D7真实Route/Resolver与受管理方法声明已通过限定验收：final3完�
 - main target保留复用；旧QX五生成包、本轮plain/PG生成包及四个本簇已完成测试可执行文件已精确退役，源码/锁/索引/当前二进制及共享库哨兵未变。日志明确Cargo关联test_app/auth_flows产物；不清整target，不碰归属不足的历史缓存。
 - D9 My生成项目已验收，源码/锁/证据保留；如后继需要空间，先核精确package dry-run与占用后再回收其专属再生产物，不为纯Agent文档变化重跑矩阵。
 
-## 高价值测试精简与入口整合（限定试点已验收，待 root 提交）
+## C04-D10-C 请求局部视图错误共享（已验收待提交）
 
-本次仅合并纯 `session` feature 的三个 Cargo 测试入口为 `http_session`：显式 target 48→46，原三个源文件、全部 26 个具名用例和断言保留；`session_env` 子进程、真实数据库/Redis、HTTP、模块及生成项目入口维持隔离。[实测索引与失败保留](memory/testing.md#session-测试入口整合小试点限定验收通过)记录 `--list`、26 项定向、默认/全特性 workspace、gRPC 端口所有权修复、双 Rustdoc、Rust 1.97 与独立 consumer。原全特性 Address already in use 与首轮 Clippy 失败回执保留；不能据最终通过推定历史偶发问题全部同因。
-
-现有唯一模块 TLS 联合监听及原配置绑定 consumer 已实测；根 gRPC 预绑定 listener 新入口和普通配置入口共用监督生命周期。未执行新的数据库/Redis/生成项目服务验收；D10-B 的真实服务证据按输入影响保留，不冒充本簇新执行。编译/测试时间仅记录本轮观察值，没有相同工具链、feature、缓存条件的受控前测，不宣称加速倍数。完成限定提交后再按缺陷价值审计后续测试入口，**不把全量测试精简标为完成**；D10-C 请求局部视图共享仍未开工。
+- 已交付：请求局部共享errors、Session已存对象身份与整包替换/flash老化、锁外codec及重入/预算原子边界、显式context覆盖与模板参数桥接；唯一模块/生成helper已接公开入口。fresh生成暴露的根目标/fallback、内部forward和HEAD站点出口已修复并验收；站点外层middleware短路不在HEAD保证内。
+- 当前输入的定向、main适用门禁、新server/CLI、fresh普通7项、真实MySQL8.4.13生成认证2项与独立公开consumer1项、no-session/MySQL真实TCP均通过，独审收口，自有库/端口/敏感配置清理通过。限定提交尚未创建；[最终证据与失败保留](memory/testing.md#c04-d10-c-请求局部视图错误共享验收中未提交)。PG/全部后端发布矩阵及完整HTTP/Session、Redirector/Validation仍开放。
+- 下一候选：请求绑定命名重定向，复用 `RouteUrlGenerator::route` 与 `Redirector::to_with`；只读Spec `/tmp/openrust-c04d10-next-readonly-spec.md`，未领取新实现。action/guest/intended与完整L020.02仍开放。
 
 ## 发布前全后端兼容性验收
 

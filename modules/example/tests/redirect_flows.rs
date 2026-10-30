@@ -46,8 +46,14 @@ fn sources() -> Figment {
         .merge(Serialized::defaults(json!({
             "app":{"env":"test"},
             "cache":{"default_store":"default","stores":{"default":{"driver":"memory"}}},
+            "view":{"directory":std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("modules/example/resources/views"),"auto_reload":false},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}}
         })))
+}
+
+#[cfg(feature = "view")]
+async fn about<A: Application>(app: &TestApp<A>, cookie: Option<&str>) -> TestResult<TestResponse> {
+    get(app, "/example/pages/about", cookie, None).await
 }
 
 async fn get<A: Application>(
@@ -217,6 +223,75 @@ async fn draft_redirect_retains_named_errors_and_restores_custom_behavior() -> T
         let aged = state(&get(&app, "/api/example/draft/review", Some(&cookie), None).await?)?;
         assert_eq!(aged["default"]["present"], false);
         assert_eq!(aged["other"]["present"], false);
+        Ok(())
+    }
+    .await;
+    app.shutdown(tokio::time::Instant::now() + TIMEOUT).await?;
+    result
+}
+
+#[cfg(feature = "view")]
+#[tokio::test]
+async fn draft_errors_render_per_request_for_two_clients_and_age() -> TestResult {
+    let mut app = TestApp::<DraftApplication>::builder(sources())
+        .build()
+        .await?;
+    let result = async {
+        let initial_a = about(&app, None).await?;
+        let initial_b = about(&app, None).await?;
+        let mut a_cookie = cookie_pair(&initial_a)?;
+        let mut b_cookie = cookie_pair(&initial_b)?;
+        for initial in [&initial_a, &initial_b] {
+            initial.assert_status(StatusCode::OK)?;
+            let html = std::str::from_utf8(initial.body())?;
+            assert!(html.contains("标题：</p>"));
+            assert!(html.contains("摘要：</p>"));
+            assert!(html.contains("不存在的字段：</p>"));
+            assert!(!html.contains("id=\"draft-field-errors\""));
+            assert!(!html.contains("<ul>"));
+        }
+
+        let a = submit(&app, Some(&a_cookie), json!({"mode":"errors","title":""})).await?;
+        redirect(&a, "/api/example/draft/review")?;
+        a_cookie = cookie_pair(&a)?;
+        let b = submit(&app, Some(&b_cookie), json!({"mode":"custom"})).await?;
+        redirect(&b, "/api/example/draft/review")?;
+        b_cookie = cookie_pair(&b)?;
+
+        let (a, b) = tokio::join!(about(&app, Some(&a_cookie)), about(&app, Some(&b_cookie)));
+        let a = a?;
+        let b = b?;
+        a.assert_status(StatusCode::OK)?;
+        b.assert_status(StatusCode::OK)?;
+        let a_html = std::str::from_utf8(a.body())?;
+        let b_html = std::str::from_utf8(b.body())?;
+        assert!(a_html.contains("标题：标题不能为空"));
+        assert!(a_html.contains("摘要：摘要需要补充"));
+        assert!(a_html.contains("<li>摘要需要补充</li>"));
+        assert!(!a_html.contains("草稿审核：请联系编辑"));
+        assert!(b_html.contains("标题：草稿审核：请联系编辑"));
+        assert!(b_html.contains("摘要：摘要需要补充"));
+        assert!(b_html.contains("<li>摘要需要补充</li>"));
+        assert!(!b_html.contains("标题不能为空"));
+        for html in [a_html, b_html] {
+            assert!(html.contains(
+                "<p id=\"draft-field-errors\">标题或摘要存在审核问题，请修正后重新提交。</p>"
+            ));
+        }
+        a_cookie = cookie_pair(&a)?;
+        b_cookie = cookie_pair(&b)?;
+        let (aged_a, aged_b) =
+            tokio::join!(about(&app, Some(&a_cookie)), about(&app, Some(&b_cookie)));
+        for aged in [aged_a?, aged_b?] {
+            aged.assert_status(StatusCode::OK)?;
+            let html = std::str::from_utf8(aged.body())?;
+            assert!(html.contains("标题：</p>"));
+            assert!(html.contains("摘要：</p>"));
+            assert!(!html.contains("标题不能为空"));
+            assert!(!html.contains("草稿审核：请联系编辑"));
+            assert!(!html.contains("id=\"draft-field-errors\""));
+            assert!(!html.contains("<ul>"));
+        }
         Ok(())
     }
     .await;

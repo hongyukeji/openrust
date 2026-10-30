@@ -6,13 +6,17 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Changed
 
+- 视图增加 `Views::render_for_request` 与请求私有错误包；Session 启动后、handler 前恢复，根首页和普通请求使用同一入口。显式数据（含 null）覆盖共享错误，自定义消息包保留模板方法派发；无 Session 使用独立空包。请求共享对象与 Session 保存关联，整包替换后断开旧关联，缺失回退对象不写回 Session。模板支持多键、列表与关联字典值、标量多参数及可空格式参数。
+
+- 首页模板读取运行时 `app.name`；自定义根目标在业务路径未匹配时优先于用户 fallback 和静态首页，默认 `file:/index.html` 保留静态首页与 fallback 组合。内部 forward 按目的 URI 分派，保留外部原始 URL。站点响应出口清空 HEAD 正文并保留状态、头与扩展，不推断 Content-Length；站点外层 middleware 短路响应不在此保证内。
+
 - 将三个纯 Session 测试入口聚为一个，保留原源文件与 26 个用例；修复 gRPC 联合生命周期测试释放随机端口后重绑的竞争窗口。新增可接收两个已绑定 listener 的嵌入式联合运行入口，原 `serve all` 配置绑定方式不变。
 
-- 新增公开 `MessageBag`、`ViewErrorBag` 与消息包扩展契约：保序/稀疏键、字段与通配查询、格式化、命名包及 JSON 选项；递归合并通过 `MessageValue` 保留派生数组。纯消息包无需 Session，自定义命名包保留对象身份并派发契约方法。自动视图错误共享和验证失败重定向继续按后继实现。
+- 新增公开 `MessageBag`、`ViewErrorBag` 与消息包扩展契约：保序/稀疏键、字段与通配查询、格式化、命名包及 JSON 选项；递归合并通过 `MessageValue` 保留派生数组。纯消息包无需 Session，自定义命名包保留对象身份并派发契约方法。请求局部视图共享通过 `Views::render_for_request` 提供；自动验证失败重定向仍属后继范围。
 
 - Session与Request增加旧输入读写：`flash_input/get_old_input/get_old_input_or/has_old_input`、`Request::flash/flash_only/flash_except/flush`和`RequestInfo::old/old_or/old_all`。复用已有flash老化和单次写入预算回滚，保留缺失/null/默认、字面键优先dot及空筛选语义。手动闪存不默认剔除密码，应用须显式排除敏感字段；文件输入合并仍属后继范围。
 
-- D10-B 公开 `Redirector::from_info/from_request`、`RedirectResponse` 与 `RedirectErrors`，普通重定向携带 `Location` 和 HTML 正文；请求绑定方法显式闪存规范化输入和命名错误包。Session 的 `ErrorBagCodecs` 支持 Provider 扩展并跨请求恢复自定义错误包，编码/解码在属性锁外运行，失败和预算超限不发布半成品。内置包无需登记；自动视图共享、异常 `dontFlash` 与验证失败重定向仍待后继。
+- D10-B 公开 `Redirector::from_info/from_request`、`RedirectResponse` 与 `RedirectErrors`，普通重定向携带 `Location` 和 HTML 正文；请求绑定方法显式闪存规范化输入和命名错误包。Session 的 `ErrorBagCodecs` 支持 Provider 扩展并跨请求恢复自定义错误包，编码/解码在属性锁外运行，失败和预算超限不发布半成品。内置包无需登记；请求局部视图共享见本节视图入口，异常 `dontFlash` 与自动验证失败重定向仍属后继范围。
 
 - 修复空库执行框架 `migrate` 时 MFA 表预查阻断启动：仅实际匹配的框架迁移命令免去运行态五表预查，其他命令、普通启动和 `serve` 仍严格校验；不改变迁移参数、回滚或失败清理语义。
 
