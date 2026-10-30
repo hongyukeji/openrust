@@ -369,6 +369,17 @@ D5 Spec：
 
 D5验收：D5请求级GC lottery/公开driver回收与追加expiry索引迁移限定子范围已验收：final4完整12门禁通过（默认668/29 ignored、全特性1374/103 ignored），根真实双库各62、Store/GC各2、Redis Store1/Auth10、新生成plain5/双库认证各2、独立审查及资源收尾通过；忽略项不算实服务，不关闭完整Session；root target已清、五旧consumer不变，限定提交见Git。后继先审Request完整URL/路由匹配上下文与previous URL/Precognition真实前置，按现C04依赖收敛下一Spec，不跳过剩余行为。
 
+## 后继 C04-D7：真实路由匹配上下文（待领取）
+
+前置D6请求URL家族已完成限定验收，来源/差异/证据移入ADR-078与core/testing。本项先读取固定Laravel Router/Request/StartSession源码和真实测试，再收敛公开route上下文API，不凭名称生成器、URI或用户header反推已命中Route。
+
+- 真实最终选中的route及可空name须能供handler和外层中间件下游返回后读取，请求间隔离；域候选miss、forward、嵌套与方法不匹配不产生伪命中。
+- 明确显式fallback路由、框架静态文件和内置404/405的区别，按固定上游验收；既有named URL registry只负责出站生成，不冒充匹配元数据。
+- 复用现Routes/Provider/Request/执行scope，公开访问与routeIs行为及错误边界先Spec；不另建路由内核、不让业务可伪造受管理状态。
+- 唯一模块、生成应用、公开调用测试、真实TCP/适用双库及完整门禁同簇交付，之后限定本地提交。
+- 后继previous：仅真实GET route且非ajax/prefetch/已确认Precognition时，在下游后写fullUrl及可空route name，不按响应状态过滤。Precognition须真实middleware/验证/分发/响应，不凭header跳保存；Old Input/CSRF/FormRequest仍依队列推进。
+- 已知测试质量事项：gRPC聚合测试临时bind后释放可能竞争，且就绪轮询掩盖启动任务错误；本次仅原5秒单例/整套复验通过，未确认首次根因。按适用gRPC/运行时测试簇补fail-fast诊断，不延长期限或隐藏失败。
+
 ## 完整实现后的发布仓库整理（后置，未启动）
 
 完成1:1 Laravel及laravel-modules的既定交付范围和最终门禁后，按[发布仓库整理计划](plans/release-repository-consolidation.md)领取：冻结/备份验收快照→文档与ADR合并去重→按最终功能簇重组本地历史→最终树与完整门禁复验→核对远程状态和授权后推送。不得抢占当前开发、不提前改写历史、不隐藏有效限制或丢失来源归属。

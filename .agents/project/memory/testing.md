@@ -1,8 +1,37 @@
 # 测试基线
 
 > 受众：AI Agent
-> 更新：2026-10-29
+> 更新：2026-10-30
 > 摘要：当前目录迁移与原专项测试入口，分开记录真实服务和未验收边界。
+
+## C04-D6 Request URL（限定子范围已验收）
+
+公开API与差异见[ADR-078](../decisions/adr-078-request-inspection.md#c04-d6请求地址与查询串契约)。本簇覆盖Info的请求origin、URL、解码路径/分段/星号匹配/prefetch，以及唯一Request当前query增删；原始OriginalUri与GET/HEAD当前输入分开，JSON输入优先于HTTP方法。未关闭真实路由命中、previous、Precognition、TrustProxies完整转发Host/Port/Prefix。
+
+| 证据 | 实际结果与范围 |
+| --- | --- |
+| `/tmp/openrust-c04d6-full-final2-{fmt,clippy-default,clippy-all}.result.json` | fmt、默认/全特性workspace all-targets Clippy严格`-D warnings`通过 |
+| `/tmp/openrust-c04d6-full-services1-tests-default.result.json` | workspace默认686 passed/29 ignored，0 failed；ignored不算真实服务 |
+| `/tmp/openrust-c04d6-full-grpc-recheck1-tests-all.result.json` | workspace全特性1393 passed/103 ignored，0 failed；整套包含新增PHP对照及唯一模块URL用例 |
+| `/tmp/openrust-c04d6-full-depwait1-{docs-default,docs-all,no-default,session-only,msrv,deny}.result.json` | 默认/全特性Rustdoc `-D warnings`、无默认feature、Session-only、MSRV1.97及cargo deny通过 |
+| `/tmp/openrust-c04d6-full-networkfix1-server-build.result.json` | 当前server成功构建，全Git tracked/untracked构建前后快照相同；binary SHA与真实网络使用一致 |
+| `/tmp/openrust-c04d6-url-network-sz4l6j00/result.json` | accepted=true，10场景全通过，source_changed=[]、binary_unchanged=true、两个后端exit0/forced=false、cleanup_errors=[]；显式CA/hostname TLS1.3，仅证明Python代理终止TLS，经受信peer/proto接入Rust |
+| `/tmp/openrust-c04d6-root-first-{pg,mysql}.result.json`及safe.log | PostgreSQL18/MySQL8.4各63 passed；精确9个required名含URL用例，0 failed/ignored/filtered/skipped；锚库创建前不存在，最终drop后再次不存在 |
+| `/tmp/openrust-c04d6-generated-fresh1-verify-{plain,pg,mysql}.result.json` | 三个全新生成项目实际fmt/check/test；strict具名5/2/2，0 failed/ignored/filtered/skipped、exact guard=true，双库锚库均最终不存在 |
+| `/tmp/openrust-c04d6-final-handoff.json` | SHA256 `ec2deccceb981e0a1a085fd13965c13b525d90ad5a797a4239eeb0d29cb5ef60`；500文件guard及结果/日志哈希交接，独立审查无blocker/should-fix |
+
+实际新生成目录为`/tmp/openrust-c04d6-generated-{plain,auth-postgres,auth-mysql}`，不是旧D1/D5项目；三份request_input helper均与当前模板逐字节一致（SHA256 `43074067dcb7161c26b03937114afe2fe0f1ad1d662559956d57d4e7fae91ff9`），真实调用普通GET、JSON GET与JSON POST三类URL变更断言。两线Symfony固定源码与真实PHP8.5各198 canonical+7操作参考，Rust逐ID全对照；非法UTF-8两项单列400适配，raw NUL仅私有helper，不冒充HTTP wire允许。复跑源码与来源在[fixture](../../../tests/http/fixtures/laravel-request-url/README.md)。
+
+失败与纠正保留边界：
+
+- 首次模块失败因fixture给GET统一加JSON头；按固定Laravel优先JSON来源，拆三case而非改框架或放宽普通GET page3/replace4断言。
+- 真实PHP golden首次揭露fixed-020嵌套Cookie前缀过滤偏差；撤销UrlQuery模式、复用原Input变量树，php_variables.rs对HEAD无diff，两份golden期望未变。修后29项Request定向与完整workspace均通过。
+- 库Clippy首次文档/切片lint、完整all-targets测试断言/路由长度lint均已修并按原严格门禁通过；没有跳过测试或CI。
+- Redis服务短时消失使默认CLI真实复用测试失败；在既有共享服务恢复后原断言通过，未由本任务新建或重配置容器。
+- 全特性首次gRPC readiness在5秒期限失败；精确单例原期限通过后整套1393通过。不宣称根因已修；源码可触发的临时端口释放竞争/启动任务错误被就绪轮询掩盖仍需后继诊断整改。
+- 网络首轮仅到业务ready后，独占bind未listen负例在macOS产生TimeoutError；两次真实5.003秒探针确认后，仅明确接受拒绝或超时、保意外连通必失败，并记录类别。最终实录TimeoutError约5.001秒，不冒称精确ECONNREFUSED。TLS/业务断言均未削弱。
+
+12门禁各次actual_exit=0/source_changed=[]；早期门禁后唯一运行文件变化为已审网络负例平台修复，Rust/模板/golden未变，最终serverbuild与network使用新完整快照。验收后仅文档收口另执行diff/链接检查，不冒称重跑Cargo。资源收尾：锁兼容probe与dry-run通过，锁内回收root target 20,511,793,152 bytes；随后实际执行`cargo clean --dry-run`及`cargo clean`均exit0（`/tmp/openrust-c04d6-cargo-clean-cli.result.json`），root target最终0。五个旧consumer缓存文件树hash/bytes保持不变，总target约2.486656GiB；本任务三fresh目录与新PHP源码树已按精确owner清理，旧B2 PHP runtime、旧D5目录、所有D6证据及三共享容器均保留；无构建/服务遗留。最后CLI清理检查磁盘余量约17.774%。批量清理日志`/tmp/openrust-c04d6-final-clean.log`与临时资源结果`/tmp/openrust-c04d6-temp-clean.result.json`实际通过，不把“计划清理”当完成。
 
 ## C04-D5 GC lottery（限定子范围已验收）
 

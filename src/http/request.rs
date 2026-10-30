@@ -5,6 +5,8 @@ mod deserialize;
 mod form;
 mod input;
 mod normalize;
+mod url;
+mod url_query;
 mod value;
 
 pub(crate) fn deserialize_query<T: serde::de::DeserializeOwned>(
@@ -60,6 +62,7 @@ const MAX_ACCEPT_ITEMS: usize = 128;
 /// ```
 #[derive(Clone)]
 pub struct RequestInfo {
+    secure: std::result::Result<bool, std::sync::Arc<Error>>,
     method: Method,
     uri: Uri,
     headers: HeaderMap,
@@ -97,6 +100,8 @@ impl<S: Send + Sync> FromRequestParts<S> for RequestInfo {
             }
         }
         Ok(Self {
+            secure: super::transport::is_secure_parts(&parts.headers, &parts.extensions)
+                .map_err(std::sync::Arc::new),
             method: parts.method.clone(),
             uri: parts
                 .extensions

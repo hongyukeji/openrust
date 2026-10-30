@@ -25,3 +25,18 @@
 - [Laravel InteractsWithContentTypes v13.39.0](https://github.com/laravel/framework/blob/v13.39.0/src/Illuminate/Http/Concerns/InteractsWithContentTypes.php)
 - [Laravel InteractsWithInput v13.39.0](https://github.com/laravel/framework/blob/v13.39.0/src/Illuminate/Http/Concerns/InteractsWithInput.php)
 - [Symfony AcceptHeader v8.0.0](https://github.com/symfony/http-foundation/blob/v8.0.0/AcceptHeader.php)、[AcceptHeaderItem](https://github.com/symfony/http-foundation/blob/v8.0.0/AcceptHeaderItem.php)、[Request](https://github.com/symfony/http-foundation/blob/v8.0.0/Request.php)
+
+
+## C04-D6：请求地址与查询串契约
+
+D6限定子范围已通过实际验收；不关闭完整Request或Session范围。公开`RequestInfo`的`scheme`、`port`、`http_host`、`root`、`url`、`full_url`、`decoded_path`、`segments`、`segment`、`is`、`full_url_is`与`prefetch`；受管理`Request`经Deref复用。`full_url_with_query`、`full_url_without_query`属于拥有唯一当前query bag的`Request`，不在只读Info上伪造可变输入。
+
+- `full_url`以`OriginalUri`原始查询串作HeaderUtils规范化：保顶层点/空格、同键后覆盖、仅顶层按PHP常规键比较排序，再RFC3986编码。with/without从已规范输入bag取值，GET/HEAD的merge/replace可见；正文输入不混入query。增参使用顶层array_merge与数字键重排，删参精确顶层键优先、再按点路径删除；不建第二持久bag。
+- 传输安全在Parts阶段按既有`RequestSecurity`/可信peer与proto规则保存快照。绝对URI的https不是TLS证明，未信任转发头不生效。authority沿现严格Host/URI一致性校验并保留端口；没有Host和URI authority不凭app.url或localhost补值。可信代理Host/Port/Prefix的完整对应仍属后继TrustProxies，不能用当前仅proto规则冒称完成。
+- `decoded_path`按raw百分号解码，`+`不变；segments解码后拆斜线、仅滤空段、索引从1开始，Rust用Option表达越界/缺省。非法UTF-8显式400而非有损替换，此为Rust字符串表示适配。原始`uri`继续提供未解码访问。
+- query原文16KiB/1024字段与既有树限额继续生效；编码/完整URL上限128KiB，超限413；星号匹配最多128模式、合计16KiB，不引入正则回溯。以上是常驻进程资源边界适配，超出不声称与PHP无限制helper字节等价。
+- prefetch仅在三个对应头任一首值与prefetch ASCII不敏感全值相等时成立。真实matched Route、Session previous及已确认Precognition均为后继；不从URL/命名生成器/用户header反推。
+
+来源：固定[Laravel Request](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Http/Request.php)及其HttpRequestTest。该framework仅声明HttpFoundation `^7.4.0 || ^8.0.0`，未提供已解析依赖锁；独立固定[Symfony 7.4.0](https://github.com/symfony/http-foundation/blob/769c1720b68e964b13b58529c17d4a385c62167b/Request.php)与[8.0.0](https://github.com/symfony/http-foundation/blob/19f925ff62437970e56fcdf793aa93607622d8be/Request.php)，相关query/URI方法与实际测试文本核对一致。源码审计不等于执行过PHP测试。
+
+D6实现复用原Input变量注册树：真实PHP参考证明根hex保护后嵌套Cookie前缀过滤仍生效，不保留额外UrlQuery模式。两线真实PHP差分、唯一模块/生成应用、完整门禁及真实双库/网络限定证据见[testing](../memory/testing.md#c04-d6-request-url限定子范围已验收)。

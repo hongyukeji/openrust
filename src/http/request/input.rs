@@ -126,6 +126,36 @@ impl<S: Send + Sync> FromRequest<S> for Request {
     }
 }
 impl Request {
+    /// 按当前 query bag 与新增顶层参数构造完整地址；不读取正文参数。
+    pub fn full_url_with_query(&self, additional: &Value) -> Result<String> {
+        let query = super::url_query::with_query(&self.query, additional)?;
+        let has_current = match &self.query {
+            Value::Array(values) => !values.is_empty(),
+            Value::Object(values) => !values.is_empty(),
+            _ => false,
+        };
+        let base = if has_current {
+            self.info.url()?
+        } else {
+            self.info.full_url()?
+        };
+        super::url::bounded_url(format!("{base}{}{query}", self.info.query_separator()))
+    }
+
+    /// 从当前 query bag 删除精确键或点路径后构造完整地址。
+    pub fn full_url_without_query(&self, keys: &[&str]) -> Result<String> {
+        let (query, has_remaining) = super::url_query::without_query(&self.query, keys)?;
+        if has_remaining {
+            super::url::bounded_url(format!(
+                "{}{}{query}",
+                self.info.url()?,
+                self.info.query_separator()
+            ))
+        } else {
+            self.info.url()
+        }
+    }
+
     crate::support::typed::typed_methods!(all);
     crate::support::typed::bag_methods!(all);
     /// `has` 的同义入口；null 算存在。

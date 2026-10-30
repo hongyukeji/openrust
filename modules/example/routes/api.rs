@@ -13,7 +13,8 @@ pub(super) fn register(routes: Routes, capabilities: &RouteCapabilities) -> Rout
     let routes = routes
         .get("/api/example", controllers::example::show)
         .name("example.index")
-        .get("/api/example/route-url", controllers::example::route_url)
+        .get("/api/example/route-url", controllers::example::route_url);
+    let routes = request_url_routes(routes)
         .get(
             "/api/example/representation",
             controllers::example::representation,
@@ -105,6 +106,18 @@ pub(super) fn register(routes: Routes, capabilities: &RouteCapabilities) -> Rout
     )))]
     let _ = capabilities.database;
     routes
+}
+
+fn request_url_routes(routes: Routes) -> Routes {
+    routes
+        .get(
+            "/api/example/request-url",
+            controllers::example::request_url,
+        )
+        .post(
+            "/api/example/request-url",
+            controllers::example::request_url,
+        )
 }
 
 pub(crate) async fn response_marker_middleware(

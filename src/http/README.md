@@ -40,6 +40,33 @@ async fn store(
 
 检查快照限制 headers 总计 64 KiB/128 个值、Accept 16 KiB/128 项，超限拒绝且不截断。`Debug` 不输出头、凭据或 URI/query；显式读取后的日志脱敏仍由调用方负责。这些 helper 不等同于完整 Laravel Request：输入修改、Cookie、Session、用户解析、FormRequest、flash 与文件能力按各自公开接口使用或交付，不由检查快照隐式提供。
 
+
+### 请求地址
+
+`RequestInfo`读取请求地址，`RouteUrlGenerator`按已登记路由和`app.url`生成出站链接，两者用途不同。地址方法返回`Result`，不从应用配置补造缺失的请求Host，也不将绝对URI的`https`视为实际TLS。
+
+```rust,no_run
+use openrust::http::{Json, Request};
+
+async fn address(request: Request) -> openrust::Result<Json<serde_json::Value>> {
+    Ok(Json(serde_json::json!({
+        "url": request.url()?,
+        "full_url": request.full_url()?,
+        "next_page": request.full_url_with_query(&serde_json::json!({"page": 2}))?,
+        "without_page": request.full_url_without_query(&["page"])?,
+        "segments": request.segments()?,
+        "first": request.segment(1)?,
+        "matches": request.is(&["api/*"])?
+    })))
+}
+```
+
+`full_url()`按原始查询串规范化：顶层键排序，空格编码为`%20`，数组使用显式索引；`full_url_with_query`和`full_url_without_query`使用当前query输入，反映GET/HEAD的`merge`或`replace`，不混入POST正文。增参为顶层覆盖而非深合并；删参先匹配完整顶层键，再处理点路径。固定Laravel在当前query bag为空时以原始`fullUrl`为基础追加问号；因此GET `replace({})`清空输入但原URI仍有query时，增参保留上游可能出现第二个问号的行为。若需完全替换原请求地址，应由应用明确构造目标URL。地址可能含业务敏感参数，应用应按用途选择返回字段，不将完整URL写入公开日志。
+
+`root()`返回协议和主机；`http_host()`保留非默认端口，`port()`返回显式或协议默认端口。实际安全状态沿`RequestSecurity`或可信peer/proto链确定，未信任转发头不生效；代理Host/Port/Prefix的完整支持尚未交付。`decoded_path()`百分号解码但保留加号，`segments()`解码后分段，`segment(1)`从第一段起；非法UTF-8显式报错。`is`和`full_url_is`采用区分大小写的星号模式。`prefetch`仅识别对应头值完整等于prefetch。
+
+查询原文限制16KiB/1024字段，编码和完整URL限制128KiB；模式最多128项、合计16KiB，超限显式413。完整路由命中、previous URL和Precognition仍在后继范围，不能据这些地址方法推断已实现。
+
 ## Cookie 读取、队列与响应
 
 宿主通过 `CookieServiceProvider` 登记能力，业务从同一请求作用域提取 `CookieJar`。`RequestInfo` 与唯一正文提取器 `Request` 共用 Cookie 视图：`cookie(name)` 读取直接键，`cookie_or(name, default)` 在缺失或解密后 null 时采用默认值；`cookies()` 读取整个快照，`has_cookie(name)` 对空串仍为真。它们不使用普通输入的 dot 查找或 trim/null 转换。业务应只选取所需 Cookie，不把整个快照或原始头回传给客户端。

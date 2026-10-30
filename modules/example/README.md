@@ -388,3 +388,16 @@ cargo deny check
 编写业务时使用公开 `Routes`、`Inject`、`AuthFlows`、`Queue` 等入口；当前可参考 `JobsServiceProvider` 的 Provider 注册、`PrefixCacheServiceProvider` 的 driver 扩展与 `WelcomeService` 的标准通信调用。进程内 named 缓存不是跨节点共享缓存；捕获通信仅通过测试显式安装并拒绝 production。
 
 自定义 driver 应实现框架已公开的 trait，通过应用 ServiceProvider 装配，不能修改框架核心来识别某个业务模块。其他 [公开 consumer](../../tests/consumers/README.md) 可辅助理解边界，但不能替代本模块的覆盖交付。
+
+### 入站请求地址
+
+`GET /api/example/request-url?label=public&page=1` 与同地址的 POST 经普通模块路由调用 `Request` 的 `root/url/full_url`、`scheme/http_host/port`、`decoded_path/segments/segment`、`is/full_url_is`、`prefetch` 及查询增删方法。演示仅接受无查询或上述固定公开查询，其它查询返回 400；不回显 Cookie、Authorization 或正文。
+
+`address` 展示原请求；`merged` 和 `replaced_with_query` 展示当前输入修改后的查询投影。非 JSON GET 的 `merge/replace` 修改当前 query bag，因此影响 `full_url_with_query/full_url_without_query`；`full_url` 始终来自原始 URI。输入来源优先判断 JSON：带 JSON Content-Type 的 GET 与 POST 均修改 JSON 正文输入，不混入地址查询。`/api/example/route-url` 则展示按命名路由生成出站链接，与读取当前入站请求地址分属不同职责。进程内测试不代表真实 TCP/TLS 已验收。
+
+
+### 真实请求地址验收工具
+
+[`tests/tools/verify-request-url.py`](tests/tools/verify-request-url.py)以`--binary`、`--binary-sha256`和必需的`--source-snapshot`运行；快照为构建前采集的Git tracked/untracked相对路径到SHA256的JSON对象，构建及运行前后都须一致。工具从仓库根运行，或显式传`--root`；只启动两个任务隔离的临时配置后端，复用框架公开模块装配，不操作应用数据库。
+
+工具验证实际TCP和显式CA/hostname TLS代理链、可信/不可信proxy、三种query来源与错误/隐私边界。TLS由工具持有的代理终止，不能代替Rust原生TLS适配器验收；未监听端口在不同平台可拒绝或超时，报告记录实际类别。父supervisor控制执行和清理预算，结束后回收自身后端/线程与临时私钥、配置，只保留脱敏结果；失败结果不会标记accepted。

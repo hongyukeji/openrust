@@ -21,14 +21,21 @@ impl RequestSecurity {
 }
 
 pub(crate) fn is_secure(request: &Request) -> Result<bool> {
-    if let Some(security) = request.extensions().get::<RequestSecurity>() {
+    is_secure_parts(request.headers(), request.extensions())
+}
+
+pub(crate) fn is_secure_parts(
+    headers: &axum::http::HeaderMap,
+    extensions: &axum::http::Extensions,
+) -> Result<bool> {
+    if let Some(security) = extensions.get::<RequestSecurity>() {
         return Ok(security.is_secure());
     }
-    let peer = request.extensions().get::<ConnectInfo<SocketAddr>>();
-    let state = request.extensions().get::<crate::core::AppState>();
+    let peer = extensions.get::<ConnectInfo<SocketAddr>>();
+    let state = extensions.get::<crate::core::AppState>();
     if let (Some(peer), Some(state)) = (peer, state)
         && super::client_ip::trusts_peer(peer.0.ip(), &state.config().server.trusted_proxy_ranges)?
-        && let Some(value) = request.headers().get("x-forwarded-proto")
+        && let Some(value) = headers.get("x-forwarded-proto")
     {
         // 与 HeaderBag 首物理值、可信值列表首 token 的语义一致。
         let value = std::str::from_utf8(value.as_bytes()).unwrap_or_default();

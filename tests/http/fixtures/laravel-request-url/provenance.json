@@ -1,0 +1,111 @@
+{
+  "kind": "real_php85_fixed_symfony_query_reference",
+  "scope": "真实HeaderUtils::parseQuery、PHP ksort/http_build_query及固定Laravel Arr::query/except；未执行完整Laravel应用或官方PHPUnit套件",
+  "sources": [
+    {
+      "local_path": "v7.4.0/HeaderUtils.php",
+      "repo": "symfony/http-foundation",
+      "ref": "769c1720b68e964b13b58529c17d4a385c62167b",
+      "tag": "v7.4.0",
+      "upstream_path": "HeaderUtils.php",
+      "url": "https://raw.githubusercontent.com/symfony/http-foundation/769c1720b68e964b13b58529c17d4a385c62167b/HeaderUtils.php",
+      "sha256": "9ec34bd37f6427dfde9c0849ac561fa9df8bc959caf09010b20caacca167ed39"
+    },
+    {
+      "local_path": "v8.0.0/HeaderUtils.php",
+      "repo": "symfony/http-foundation",
+      "ref": "19f925ff62437970e56fcdf793aa93607622d8be",
+      "tag": "v8.0.0",
+      "upstream_path": "HeaderUtils.php",
+      "url": "https://raw.githubusercontent.com/symfony/http-foundation/19f925ff62437970e56fcdf793aa93607622d8be/HeaderUtils.php",
+      "sha256": "9ec34bd37f6427dfde9c0849ac561fa9df8bc959caf09010b20caacca167ed39"
+    },
+    {
+      "local_path": "framework/Arr.php",
+      "repo": "laravel/framework",
+      "ref": "d52c3b3129e4c8e213c97cdc68f94b0b7d27f181",
+      "upstream_path": "src/Illuminate/Collections/Arr.php",
+      "url": "https://raw.githubusercontent.com/laravel/framework/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Collections/Arr.php",
+      "sha256": "b38b741bc8f59a4c86effe818056136cfe0bf6bb3b28fbbb3cbb989fb3b77c98"
+    },
+    {
+      "local_path": "framework/Macroable.php",
+      "repo": "laravel/framework",
+      "ref": "d52c3b3129e4c8e213c97cdc68f94b0b7d27f181",
+      "upstream_path": "src/Illuminate/Macroable/Traits/Macroable.php",
+      "url": "https://raw.githubusercontent.com/laravel/framework/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Macroable/Traits/Macroable.php",
+      "sha256": "6dd85b1e28b55ebeee678f9ca423dfb8375e1342bc42d8658da6321bdf97b3c0"
+    }
+  ],
+  "php_runtime": {
+    "version": "8.5.0",
+    "fixed_commit": "685e99655ae97c667950f7f7d176985958718f56",
+    "binary_sha256": "e5209dd1828f795683660d6a915ebe9beaca2c931bff2f79e116dfc5f142b704",
+    "binary_origin": "复用此前已核构建的本机arm64 CLI；本次实际执行并重新生成新golden，不复用旧golden",
+    "official_release_metadata": "https://www.php.net/releases/index.php?json&version=8.5.0",
+    "archive_url": "https://www.php.net/distributions/php-8.5.0.tar.xz",
+    "archive_sha256": "39cb6e4acd679b574d3d3276f148213e935fc25f90403eb84fb1b836a806ef1e",
+    "release_source_crosscheck": [
+      {
+        "path": "ext/standard/array.c",
+        "sha256": "ce2fad0812fb9b5b305b14b87e8230b8a9a189361ee88330b32d5ad83394d5a1",
+        "matches_fixed_commit": true
+      },
+      {
+        "path": "Zend/zend_operators.c",
+        "sha256": "4496a070740235b47852caf0ccdffa6bd900095e0bf735d685ee041d4421cdf6",
+        "matches_fixed_commit": true
+      },
+      {
+        "path": "Zend/zend_sort.c",
+        "sha256": "97b82e65fd73a1e0e5ca62ab90b0ab1c5f4ef39663c477fda8432af8567c1730",
+        "matches_fixed_commit": true
+      },
+      {
+        "path": "main/php_variables.c",
+        "sha256": "a908a293b9b3f4638d14684a93399ebe648fc1472fd89a8df077bdaa059faf4c",
+        "matches_fixed_commit": true,
+        "url": "https://raw.githubusercontent.com/php/php-src/685e99655ae97c667950f7f7d176985958718f56/main/php_variables.c",
+        "relevant_lines": "95-105,261-265,304-308"
+      }
+    ]
+  },
+  "environment": {
+    "precision": "14",
+    "max_input_vars": "4096",
+    "max_input_nesting_level": "64",
+    "php_ini": "-n",
+    "note": "4096仅为覆盖1024字段的参考生成环境，不能声称PHP默认值已等价"
+  },
+  "expected_counts": {
+    "canonical_per_line": 198,
+    "operations_per_line": 7,
+    "utf8_adaptation_per_line": 2
+  },
+  "differences": [
+    {
+      "case_ids": [
+        "invalid-utf8-value",
+        "invalid-utf8-key"
+      ],
+      "kind": "Rust UTF-8表示适配",
+      "rust_expected": "HTTP400 input_encoding_invalid",
+      "php_expected": "PHP字节串可保留非法UTF-8并编码为%FF；不能计入字节等价通过"
+    }
+  ],
+  "raw_nul_scope": "原始NUL仅直接调用canonical私有helper的函数级参考；HTTP URI拒绝该字符，此fixture不声称wire接受NUL",
+  "rust_limits": {
+    "raw_query_bytes": 16384,
+    "fields": 1024,
+    "encoded_output_bytes": 131072,
+    "input_tree": "复用现data树深度、字段和展开键限制；超限413为公开资源适配"
+  },
+  "generation": "python3 generate.py --php /path/to/php85 --source-dir /tmp/task-owned-url-sources --output-dir /tmp/task-owned-url-output [--php-sha256 trusted-cli-sha256]",
+  "generation_artifacts": {
+    "generate.py": "6a82c81bdcd1dec1b683cf53fdc54ea372dad5138f5fc5c64dc4999e0083c563",
+    "reference.php": "7add3c701bc163be5b9575bf0169f7e4ba4078a776ab3a956dcd5fd5af782eef",
+    "cases.json": "d47aaecb022ad9cace514dbc96cac187529a73b70ca0c12f559921b7f0095e1b",
+    "golden-v7.4.0.json": "d5008ae1381300023b76ed7a4ad811f222d3c8fb1b827a8f86428645589111b2",
+    "golden-v8.0.0.json": "e1e5776c6f682ad072c70264e7e146fa743278b7aedd9d948d8d950e958e77cc"
+  }
+}

@@ -7,6 +7,13 @@ pub(crate) fn authority(
     headers: &axum::http::HeaderMap,
     uri: &axum::http::Uri,
 ) -> crate::core::Result<String> {
+    authority_with_port(headers, uri).map(|(host, _)| host)
+}
+
+pub(crate) fn authority_with_port(
+    headers: &axum::http::HeaderMap,
+    uri: &axum::http::Uri,
+) -> crate::core::Result<(String, Option<u16>)> {
     use std::str::FromStr;
     let mut hosts = headers.get_all(HOST).iter();
     let header = hosts.next();
@@ -69,8 +76,7 @@ pub(crate) fn authority(
     {
         return Err(authority_error());
     }
-    let _ = port;
-    Ok(host)
+    Ok((host, port))
 }
 
 fn authority_error() -> crate::core::Error {

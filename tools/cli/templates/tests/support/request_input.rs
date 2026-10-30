@@ -28,7 +28,12 @@ struct InputRoutesProvider;
 impl ServiceProvider for InputRoutesProvider {
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
-            app.routes(|routes: Routes| routes.post("/test/request-input", inspect_input))?;
+            app.routes(|routes: Routes| {
+                routes
+                    .post("/test/request-input", inspect_input)
+                    .get("/test/request-url", inspect_url)
+                    .post("/test/request-url", inspect_url)
+            })?;
             Ok(())
         })
     }
@@ -110,6 +115,25 @@ async fn inspect_input(request: InputRequest) -> openrust::Result<Json<serde_jso
     })))
 }
 
+// 捕获生成应用消费公开 URL API 时 query bag 与原始 URI 混淆的回归。
+async fn inspect_url(mut request: InputRequest) -> openrust::Result<Json<serde_json::Value>> {
+    let full_url = request.full_url()?;
+    request.merge(serde_json::json!({"page": 3}))?;
+    let merged = request.full_url_with_query(&serde_json::json!({"view": "compact"}))?;
+    let without = request.full_url_without_query(&["label"])?;
+    request.replace(serde_json::json!({"page": 4}))?;
+    Ok(Json(serde_json::json!({
+        "root": request.root()?, "url": request.url()?, "full_url": full_url,
+        "after": request.full_url()?, "scheme": request.scheme()?,
+        "http_host": request.http_host()?, "port": request.port()?,
+        "decoded_path": request.decoded_path()?, "segments": request.segments()?,
+        "segment": request.segment(2)?, "zero": request.segment(0)?,
+        "is": request.is(&["test/*"])?, "full_url_is": request.full_url_is(&["*/test/request-url*"])?,
+        "prefetch": request.prefetch()?, "merged": merged, "without": without,
+        "replaced": request.full_url_with_query(&serde_json::json!({"view": "compact"}))?,
+    })))
+}
+
 /// 通过生成应用自身的 Provider 清单发送进程内请求，不代表 TCP 验收。
 pub async fn assert_request_input<A: Application>(
     source: Figment,
@@ -172,6 +196,58 @@ pub async fn assert_request_input<A: Application>(
                 }
                 }
             }))?;
+        for (method, json_source) in [
+            (Method::GET, false),
+            (Method::GET, true),
+            (Method::POST, true),
+        ] {
+            let mutates_query = method == Method::GET && !json_source;
+            let mut builder = Request::builder()
+                .method(method)
+                .uri("/test/request-url?page=1&label=public")
+                .header("host", "example.test:8080")
+                .header("purpose", "prefetch");
+            if json_source {
+                builder = builder.header(CONTENT_TYPE, "application/json");
+            }
+            let response = app
+                .request(builder.body(if json_source {
+                    Body::from(r#"{"secret":"body-only"}"#)
+                } else {
+                    Body::empty()
+                })?)
+                .await?;
+            response.assert_status(StatusCode::OK)?;
+            let json: serde_json::Value = serde_json::from_slice(response.body())?;
+            let data = &json["data"];
+            let base = "http://example.test:8080/test/request-url";
+            assert_eq!(data["root"], "http://example.test:8080");
+            assert_eq!(data["url"], base);
+            assert_eq!(data["full_url"], format!("{base}?label=public&page=1"));
+            assert_eq!(data["after"], data["full_url"]);
+            assert_eq!(data["scheme"], "http");
+            assert_eq!(data["http_host"], "example.test:8080");
+            assert_eq!(data["port"], 8080);
+            assert_eq!(data["decoded_path"], "test/request-url");
+            assert_eq!(data["segments"], serde_json::json!(["test", "request-url"]));
+            assert_eq!(data["segment"], "request-url");
+            assert_eq!(data["zero"], serde_json::Value::Null);
+            assert_eq!(data["is"], true);
+            assert_eq!(data["full_url_is"], true);
+            assert_eq!(data["prefetch"], true);
+            let page = if mutates_query { 3 } else { 1 };
+            assert_eq!(
+                data["merged"],
+                format!("{base}?page={page}&label=public&view=compact")
+            );
+            assert_eq!(data["without"], format!("{base}?page={page}"));
+            let replaced = if mutates_query {
+                format!("{base}?page=4&view=compact")
+            } else {
+                format!("{base}?page=1&label=public&view=compact")
+            };
+            assert_eq!(data["replaced"], replaced);
+        }
         Ok(())
     }
     .await;

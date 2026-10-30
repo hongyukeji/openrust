@@ -1,6 +1,12 @@
 # 验收口径
 
 
+## C04-D6 Request URL（限定子范围已验收）
+
+D6请求URL限定子范围已验收：12项门禁通过（默认686/29 ignored、全特性1393/103 ignored），根PG18/MySQL8.4各63、fresh普通5/双库认证各2、真实TCP/TLS终止代理10场景及不同模型独立审查通过；两线真实PHP8.5差分逐案通过，不关闭可信Host/Port/Prefix、真实路由匹配、previous或完整Session。具名PHP对照涵盖两Symfony线各198+7参考；非法UTF-8/raw NUL/128KiB等必要表示与资源适配公开。实际公开API、唯一模块、全新生成项目和真实TCP/可信与不可信TLS代理证据闭环；代理终止TLS不算原生Rust TLS。
+
+12门禁组合、两库各63、fresh5/2/2与网络10场景的结果/日志SHA及当前源已由不同模型只读核验。首次gRPC就绪失败仅经原期限单例及完整整套复验通过，不宣称已修其潜在端口竞争或错误掩盖。失败/修复、精确来源及资源收尾见[testing](testing.md#c04-d6-request-url限定子范围已验收)。root target实际清零、三fresh目录/任务PHP新源码已清、五旧consumer与共享服务保持不变；cargo clean的dry-run及正式命令均实际exit0。当前只完成URL子范围，不关闭完整C04。
+
 ## C04-D5 GC lottery（限定子范围已验收）
 
 公开GC/默认`[2,100]`抽签在start成功后、业务前使用实际绑定driver；数据库/Memory按持久绝对expiry清扫并保Update防复活，Cookie/Redis为noop/TTL。追加`SessionGcMigration`支持旧表索引升级及独立回滚。当前lifetime回溯/Array等时刻相对Laravel的安全增强差异仍公开，不声称完整Session严格等价。

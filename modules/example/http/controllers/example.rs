@@ -269,3 +269,52 @@ pub(crate) async fn heartbeat_label(
         "number": number,
     })))
 }
+
+/// 展示入站请求地址；只接受固定公开查询，避免回显调用方的敏感查询。
+pub(crate) async fn request_url(mut request: Request) -> openrust::Result<Json<serde_json::Value>> {
+    let full_url = request.full_url()?;
+    if full_url
+        .split_once('?')
+        .is_some_and(|(_, query)| query != "label=public&page=1")
+    {
+        return Err(openrust::Error::custom_with_status(
+            StatusCode::BAD_REQUEST,
+            "example_url_query",
+            "此演示仅接受固定公开查询 label=public&page=1",
+        ));
+    }
+    let original_with_query = request.full_url_with_query(&serde_json::json!({"page": 2}))?;
+    let original_without_query = request.full_url_without_query(&["page"])?;
+    let address = serde_json::json!({
+        "root": request.root()?,
+        "url": request.url()?,
+        "full_url": full_url,
+        "scheme": request.scheme()?,
+        "http_host": request.http_host()?,
+        "port": request.port()?,
+        "path": request.path(),
+        "decoded_path": request.decoded_path()?,
+        "segments": request.segments()?,
+        "first_segment": request.segment(1)?,
+        "zero_segment": request.segment(0)?,
+        "missing_segment": request.segment(99)?,
+        "is_example": request.is(&["api/example/*"])?,
+        "full_url_is_example": request.full_url_is(&["*/api/example/request-url*"])?,
+        "prefetch": request.prefetch()?,
+        "with_query": original_with_query,
+        "without_query": original_without_query,
+    });
+    request.merge(serde_json::json!({"page": 3}))?;
+    let merged = serde_json::json!({
+        "full_url": request.full_url()?,
+        "with_query": request.full_url_with_query(&serde_json::json!({"view": "compact"}))?,
+        "without_query": request.full_url_without_query(&["label"])?,
+    });
+    request.replace(serde_json::json!({"page": 4}))?;
+    Ok(Json(serde_json::json!({
+        "address": address,
+        "merged": merged,
+        "replaced_with_query": request.full_url_with_query(&serde_json::json!({"view": "compact"}))?,
+        "replaced_full_url": request.full_url()?,
+    })))
+}

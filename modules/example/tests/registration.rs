@@ -995,3 +995,94 @@ async fn production_input_raw_policy_is_scoped_and_typed_json_keeps_default_norm
         .await?;
     Ok(())
 }
+
+// 捕获原始 URI 被 GET 输入修改覆盖、POST 正文泄入查询以及敏感查询被回显的回归。
+#[tokio::test]
+async fn production_request_url_uses_original_uri_and_current_query_bag()
+-> Result<(), Box<dyn std::error::Error>> {
+    use openrust::testing::TestApp;
+    use std::time::Duration;
+    let mut app = TestApp::<crate::bootstrap::Server>::builder(production_sources(false))
+        .build()
+        .await?;
+    let base = "http://localhost:8080/api/example/request-url";
+    let original = format!("{base}?label=public&page=1");
+    for (method, json_source) in [("GET", false), ("GET", true), ("POST", true)] {
+        let mut builder = Request::builder()
+            .method(method)
+            .uri("/api/example/request-url?page=1&label=public")
+            .header("host", "localhost:8080")
+            .header("purpose", "prefetch")
+            .header("authorization", "Bearer never-echo")
+            .header("cookie", "private=never-echo");
+        if json_source {
+            builder = builder.header("content-type", "application/json");
+        }
+        let response = app
+            .request(builder.body(if json_source {
+                Body::from(r#"{"secret":"never-echo"}"#)
+            } else {
+                Body::empty()
+            })?)
+            .await?;
+        let mutates_query = method == "GET" && !json_source;
+        response.assert_status(StatusCode::OK)?;
+        let json: serde_json::Value = serde_json::from_slice(response.body())?;
+        let data = &json["data"];
+        assert_eq!(data["address"]["root"], "http://localhost:8080");
+        assert_eq!(data["address"]["url"], base);
+        assert_eq!(data["address"]["full_url"], original);
+        assert_eq!(data["address"]["scheme"], "http");
+        assert_eq!(data["address"]["http_host"], "localhost:8080");
+        assert_eq!(data["address"]["port"], 8080);
+        assert_eq!(data["address"]["decoded_path"], "api/example/request-url");
+        assert_eq!(
+            data["address"]["segments"],
+            serde_json::json!(["api", "example", "request-url"])
+        );
+        assert_eq!(data["address"]["first_segment"], "api");
+        assert_eq!(data["address"]["zero_segment"], serde_json::Value::Null);
+        assert_eq!(data["address"]["missing_segment"], serde_json::Value::Null);
+        assert_eq!(data["address"]["is_example"], true);
+        assert_eq!(data["address"]["full_url_is_example"], true);
+        assert_eq!(data["address"]["prefetch"], true);
+        assert_eq!(
+            data["address"]["with_query"],
+            format!("{base}?page=2&label=public")
+        );
+        assert_eq!(
+            data["address"]["without_query"],
+            format!("{base}?label=public")
+        );
+        assert_eq!(data["merged"]["full_url"], original);
+        assert_eq!(data["replaced_full_url"], original);
+        let page = if mutates_query { 3 } else { 1 };
+        assert_eq!(
+            data["merged"]["with_query"],
+            format!("{base}?page={page}&label=public&view=compact")
+        );
+        assert_eq!(
+            data["merged"]["without_query"],
+            format!("{base}?page={page}")
+        );
+        let replacement = if mutates_query {
+            format!("{base}?page=4&view=compact")
+        } else {
+            format!("{base}?page=1&label=public&view=compact")
+        };
+        assert_eq!(data["replaced_with_query"], replacement);
+        assert!(!String::from_utf8_lossy(response.body()).contains("never-echo"));
+    }
+    let response = app
+        .request(
+            Request::get("/api/example/request-url?token=never-echo")
+                .header("host", "localhost")
+                .body(Body::empty())?,
+        )
+        .await?;
+    response.assert_status(StatusCode::BAD_REQUEST)?;
+    assert!(!String::from_utf8_lossy(response.body()).contains("never-echo"));
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    Ok(())
+}

@@ -1,0 +1,33 @@
+{
+  "php_version": "8.5.0",
+  "php_binary_sha256": "e5209dd1828f795683660d6a915ebe9beaca2c931bff2f79e116dfc5f142b704",
+  "cases_sha256": "d47aaecb022ad9cace514dbc96cac187529a73b70ca0c12f559921b7f0095e1b",
+  "reference_script_sha256": "7add3c701bc163be5b9575bf0169f7e4ba4078a776ab3a956dcd5fd5af782eef",
+  "generator_script_sha256": "6a82c81bdcd1dec1b683cf53fdc54ea372dad5138f5fc5c64dc4999e0083c563",
+  "canonical_per_line": 198,
+  "operations_per_line": 7,
+  "symfony_results_equal": true,
+  "warning_count": 0,
+  "runtime_metadata": [
+    {
+      "php_version": "8.5.0",
+      "php_version_id": 80500,
+      "precision": "14",
+      "max_input_vars": "4096",
+      "max_input_nesting_level": "64",
+      "symfony_tag": "v7.4.0"
+    },
+    {
+      "php_version": "8.5.0",
+      "php_version_id": 80500,
+      "precision": "14",
+      "max_input_vars": "4096",
+      "max_input_nesting_level": "64",
+      "symfony_tag": "v8.0.0"
+    }
+  ],
+  "output_sha256": {
+    "v7.4.0": "d5008ae1381300023b76ed7a4ad811f222d3c8fb1b827a8f86428645589111b2",
+    "v8.0.0": "e1e5776c6f682ad072c70264e7e146fa743278b7aedd9d948d8d950e958e77cc"
+  }
+}
