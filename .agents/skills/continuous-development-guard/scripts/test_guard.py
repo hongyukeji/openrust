@@ -1673,7 +1673,8 @@ class FullBudgetOnce(unittest.TestCase):
         return {'usage_budget_paused': True, 'questions': {'q': {'status': 'unknown'}},
                 'dispatch_key': 'uncertain', 'attempts': 2,
                 'percentage_pause': {'goal': dict(self.current), 'resume_status': 'waiting',
-                                     'controls': dict(self.controls, last_user_at='old')}}
+                                     'controls': dict(self.controls, last_user_at='2026-10-31T11:00:00Z',
+                                                      user_key='2026-10-31T11:00:00Z')}}
 
     def test_explicit_resume_uses_original_goal_protocol_and_keeps_idempotency(self):
         self.grant()
@@ -1694,6 +1695,44 @@ class FullBudgetOnce(unittest.TestCase):
         self.assertEqual(state['attempts'], 2)
         self.assertEqual([p for m, p in calls if m == 'thread/goal/set'], [{'threadId': 't', 'status': 'active'}])
         with self.assertRaises(ValueError): recovery.resume_budget_pause(self.runtime, self.config, state)
+
+    def test_cancelled_auto_recovery_accepts_only_explicit_new_authorization(self):
+        self.grant()
+        state = self.state()
+        state.update(status='stopped', reason='stopped')
+        state['percentage_pause']['resume_status'] = 'cancelled'
+        def rpc(method, params):
+            if method == 'thread/goal/set':
+                self.current['status'] = params['status']
+                return {}
+            return self.response
+        with patch.object(recovery, 'percentage_pause_controls', return_value=self.controls), \
+             patch.object(recovery, 'rpc', side_effect=rpc), \
+             patch.object(recovery, 'timeline', return_value={}):
+            recovery.resume_budget_pause(self.runtime, self.config, state)
+        self.assertEqual(self.current['status'], 'active')
+        self.assertEqual(state['percentage_pause']['resume_status'], 'explicitly_resumed')
+        self.assertEqual(state['questions'], {'q': {'status': 'unknown'}})
+        self.assertEqual(self.config['usage_budget'], self.before['usage_budget'])
+
+    def test_cancelled_recovery_rejects_stale_manual_or_changed_goal(self):
+        self.grant()
+        for kind in ('older', 'same', 'unknown_watermark', 'manual', 'goal', 'manual_repause'):
+            state = self.state()
+            state['percentage_pause']['resume_status'] = 'cancelled'
+            controls = dict(self.controls)
+            if kind == 'older': controls['last_user_at'] = '2026-10-31T10:00:00Z'
+            if kind == 'same': controls = dict(state['percentage_pause']['controls'])
+            if kind == 'unknown_watermark': controls['user_key'] = None
+            if kind == 'manual': state.pop('usage_budget_paused')
+            if kind == 'goal': state['percentage_pause']['goal']['objective'] = 'other'
+            if kind == 'manual_repause': state['percentage_pause']['goal']['updated_at_ms'] -= 1
+            with self.subTest(kind=kind), patch.object(recovery, 'percentage_pause_controls', return_value=controls), \
+                 patch.object(recovery, 'rpc') as rpc:
+                with self.assertRaises(ValueError):
+                    recovery.resume_budget_pause(self.runtime, self.config, state)
+                rpc.assert_not_called()
+                self.assertEqual(state['percentage_pause']['resume_status'], 'cancelled')
 
     def test_manual_pause_changed_goal_permissions_or_same_authorization_cannot_resume(self):
         self.grant()

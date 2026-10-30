@@ -661,7 +661,7 @@ def resume_budget_pause(runtime, config, state, requested_at=None):
         return disabled.exists() and disabled.stat().st_mtime >= requested_at
     pause = state.get('percentage_pause') or {}
     current = goal(config)
-    if (concurrent_stop() or pause.get('resume_status') != 'waiting' or pause.get('goal') != current
+    if (concurrent_stop() or pause.get('resume_status') not in ('waiting', 'cancelled') or pause.get('goal') != current
             or not current or current.get('status') != 'paused' or not state.get('usage_budget_paused')):
         raise ValueError('非已核实的守护预算暂停，拒绝恢复')
     # bound_goal还核验正式协议status/objective/createdAt与本地原Goal。
@@ -674,8 +674,12 @@ def resume_budget_pause(runtime, config, state, requested_at=None):
     if not controls:
         raise ValueError('存在权限、未知输入或用户暂停边界，拒绝恢复')
     old = pause.get('controls') or {}
-    if controls.get('last_user_at') == old.get('last_user_at'):
-        raise ValueError('没有新的明确恢复授权水位')
+    # cancelled只撤销自动恢复资格；显式恢复仍须保留原预算暂停证据及严格更新的授权。
+    for key in ('last_user_at', 'user_key'):
+        before = completed_at({'key': old.get(key), 'payload': {}})
+        after = completed_at({'key': controls.get(key), 'payload': {}})
+        if before is None or after is None or after <= before:
+            raise ValueError('没有新的明确恢复授权水位')
     response = rpc('account/rateLimits/read', {})
     if quota_delay(response, time.time(), config.get('allow_existing_credits', False), effective_usage_budget(config)):
         raise ValueError('实际额度不可用或未知，不恢复原Goal')
