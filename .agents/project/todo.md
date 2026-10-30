@@ -8,13 +8,13 @@
 
 ## 领取规则
 
-先核对 Git/WIP、代理/进程、[执行校准](plan.md#执行校准) 与 [ADR-070](decisions/adr-070-laravel-first-rebuild.md)。每次一个主功能簇，完成 Spec → Implement → Verify → Commit 后再领取后继簇。整体依赖见 [R0–R16](plans/laravel-rebuild.md#5-按依赖实施)，不按旧 M5/M6 顺序执行。
+先核对 Git/WIP、代理/进程、[执行校准](plan.md#执行校准) 与 [ADR-070](decisions/adr-070-laravel-first-rebuild.md)。按总控依赖图领取；契约明确、前置满足的独立功能簇可在本地任务分支/worktree并行，各自完成 Spec → Implement → Verify → Commit，main集成与组合门禁串行。整体依赖见 [R0–R16](plans/laravel-rebuild.md#5-按依赖实施)，不按旧 M5/M6 顺序执行。
 
 ## 从零重建与并行执行授权
 
 用户再次明确按 Laravel + laravel-modules 的完整 Rust 实现从零设计、重写核心；旧 API、目录和实现不构成兼容约束。新内核以固定上游行为为依据，不继续堆叠旧 Plugin 装配；旧源码仅作事实与回归输入，由对应功能簇替换后通过 git rm 清除失效实现。此授权不删除他人 WIP、共享服务、数据或原始测试证据，也不要求重造成熟密码学和数据库驱动。
 
-R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main 限定提交；当前唯一主功能簇转入 R3 HTTP/Web 后继。全部工作留在 main；共享 Cargo 清单、锁文件、验证服务和提交串行协调；子代理不得递归派发。
+R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main 限定提交；当前在途主线为R3 HTTP/Web后继，现有WIP由原负责人闭环；总控可从唯一队列另选前置已满足的独立簇，在本地分支/worktree并行。共享Cargo清单、锁文件、验证服务和main集成串行协调；各任务登记负责人/依赖/分支/目录/验收/清理状态，细则见[并行开发与集成](conventions.md#并行开发与集成)；子代理不得递归派发。
 
 ## 当前可领取
 
@@ -32,7 +32,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 
 - **宏观主线**：[两阶段框架主线](plans/laravel-rebuild.md#两阶段框架主线)；先验阶段一Laravel+modules核心基线，再做已纳入阶段二通用增强，均是框架main而非产品可选快速开发模块。R0–R16仅技术分解；现增强保留复用，不搬走核心Config/Queue/Scheduler/安全，当前B2不变，发布整理须两阶段既定范围验收。
 
-- **可选模块边界**：原V2版本阶段取消，后台/App需求转入[可选快速开发模块](plans/optional-rapid-development-modules.md#开发与使用边界)，暂不开发，待用户明确开工。R14、两个框架阶段或持续Goal“全部完成”不能自动启动；main只推进框架/唯一示例，不清理现有WIP，不预建分支或默认合并。框架配置管理、Queue/Scheduler及官方扩展继续；官方工具自身界面属于对应可选包，不受业务后台冻结限制。
+- **可选模块边界**：原V2版本阶段取消，后台/App需求转入[可选快速开发模块](plans/optional-rapid-development-modules.md#开发与使用边界)，暂不开发，待用户明确开工。R14、两个框架阶段或持续Goal“全部完成”不能自动启动；main只推进框架/唯一示例，不清理现有WIP，不为暂不开发业务模块预建分支或默认合并；已授权框架任务分支按并行规范执行。框架配置管理、Queue/Scheduler及官方扩展继续；官方工具自身界面属于对应可选包，不受业务后台冻结限制。
 
 - 阶段一R2公共声明/覆盖/错误契约→R13包发现与生成工具：[Provider编译期发现Spec](plans/laravel-rebuild.md#r2r13-provider-编译期发现-spec)（L044.02/模块M016），复用R2-M/N清单、拓扑和register→boot；仅规划未实现，不抢占当前HTTP。
 
@@ -57,7 +57,7 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 
 ## 当前 R1-S 结构子簇 Spec
 
-1. 框架与应用只在本仓 main 开发；根 package 为 openrust，src/lib.rs 提供框架，薄 src/main.rs 提供默认 server。
+1. 框架与应用保持同仓、main集成；独立任务可由总控分配本地分支/worktree；根 package 为 openrust，src/lib.rs 提供框架，薄 src/main.rs 提供默认 server。
 2. default-members=["."]、default-run="server"；根无参数 cargo run 启动唯一应用，不需要选择 package/bin。
 3. app/bootstrap/config/database/public/resources/routes/storage/tests 直接位于根，根工作目录自然加载配置和资源。
 4. 当前结构子簇保全 app/example 代码和测试；最终唯一示例为 modules/example，随 R2-M 模块契约迁移并由根 server 统一装配，不再次独立做一轮仅改名的搬迁。
@@ -404,8 +404,8 @@ D7限定提交后，按固定Laravel StartSession、Request与HandlePrecognitive
 以[官方全量交付规则](plans/laravel-official-coverage.md#全量交付授权与两阶段)和带阶段列的749条Laravel矩阵/35个模块入口为范围，不再将官方可选包留作无期限候选。完全按照固定官方概念、默认、配置、生命周期、扩展与开发流程，仅Rust必要差异举证适配；代码/示例/生成应用/文档/真实验收闭环前不能关闭行为。
 
 1. **范围与基线闭合**：在各簇领取前固定对应官方包独立版本/源码/文档/测试，核对所有子行为、前端/命令/错误及可观察默认；旧资产按新contract重验。SDK、MCP、Boost等不能仅列名字，Wayfinder/Stream、Echo/Vite、Passkeys/通知渠道与开发工具也要给明确对应。维护内部工具/商业平台/语言工具差异按规则分类，不静默删适用功能。
-2. **阶段一**：继续当前唯一核心簇，按既定R2–R13依赖完成Laravel核心与模块内核/生成管理/资源命令；官方可选包或生态集成不反向阻塞阶段一门禁，核心必需配置、HTTP、数据库/ORM、安全、缓存/存储、队列/调度等不挪走。M031/M033/M034等依赖生态的集成在阶段二闭环，保留范围和ID。
+2. **阶段一**：保全当前在途核心簇，独立簇可按冻结contract与既定R2–R13依赖并行，完成Laravel核心与模块内核/生成管理/资源命令；官方可选包或生态集成不反向阻塞阶段一门禁，核心必需配置、HTTP、数据库/ORM、安全、缓存/存储、队列/调度等不挪走。M031/M033/M034等依赖生态的集成在阶段二闭环，保留范围和ID。
 3. **阶段二A：官方基础包与体验**：共享前置成熟后，按包实现Fortify/Sanctum/Socialite/Passport、Folio/Head/Precognition、Octane对应及额外数据库driver；先Spec默认/安全/扩展与实际生产链路，模块生态集成、官方starter-kit及JS配套同步对应，不新增第二示例。
 4. **阶段二B：数据、异步、观测与工具**：按DB/Model/Queue/HTTP前置对应Scout/Pennant、Cashier Stripe/Paddle、Reverb/Echo、Horizon/Pulse/Telescope及Dusk/Envoy/Prompts/Pail/Tinker/Pint/Sail/Valet/Homestead等适用体验，Wayfinder/Stream和编辑器/分析元数据依赖随相应簇完成。Horizon/观测工具自身必要UI与鉴权随包交付，按需引入不默认公开；这不授权组织/菜单等业务后台或App。
-5. **阶段二C：AI与已授权增强**：AI-0至AI-4、官方MCP Server/Client、Boost按真实前置组合，SDK不能改成另一套机制；MQTT、gRPC、DB动态设置及既定增强继续。AI-5内嵌推理后置评测，不因全量SDK强制模型运行环境。A/B/C是职责批次，可按真实依赖交错，不把列表顺序变成循环前置，不额外启动并行主功能簇。
+5. **阶段二C：AI与已授权增强**：AI-0至AI-4、官方MCP Server/Client、Boost按真实前置组合，SDK不能改成另一套机制；MQTT、gRPC、DB动态设置及既定增强继续。AI-5内嵌推理后置评测，不因全量SDK强制模型运行环境。A/B/C是职责批次，可按真实依赖交错，不把列表顺序变成循环前置，独立簇可由总控按依赖图批准并行，main集成与最终验收串行。
 6. **最终收口**：每个官方包逐项行为、公开扩展、唯一模块、生成项目与真实服务/浏览器/协议证据均齐备，Rust差异/外部条件缺口公开；两阶段/C33证据汇入R14，不能只关闭核心便称完全体。若缺账号/许可/服务继续独立项，禁止fake冒充实测；不推送/发布、不改写历史，业务后台与AI产品仍未授权。

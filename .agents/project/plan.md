@@ -21,8 +21,8 @@
 1. 当前代码的根 lib/server 和旧 app/example 过渡结构由 R1-S 以34dfb5e收口；R2-M 已将业务代码迁入 modules/example，根模块边界依 ADR-074。模块清单、运行激活、资源与统一迁移的真实验收见本轮 testing；完整模块管理和 R1-E CRUD 不因目录迁移自动完成。
 2. 正式定位 Laravel + laravel-modules = OpenRust，以固定上游源码/测试和文档逐项1:1实现功能/可观察语义、默认/错误安全边界、Container/Provider与开发流程，并持续跟进；模块化不是只有示例目录规范。目录、概念、命名、默认行为和扩展流程以 Laravel 为准；Goravel 为实现参考。Rust必要适配、用户约定和授权增强须按[差异分类](plans/laravel-rebuild.md#逐项对应与差异分类)记录原行为/限制/选定行为/证据，未等价保持缺口；版本基线和后继更新见[长期上游跟进](plans/laravel-rebuild.md#长期上游跟进)。既有目录和 API 可以重写，无历史兼容义务。
 3. 旧 ADR 中的已实现行为和验收记录作为迁移输入；统一返回格式等优秀机制须融合进 Laravel 对应职责，不能为追求上游外形而删除。新方向不自动使旧记录变成新代码已通过。冲突约束依 ADR-070 替代，功能簇落地时同步领域 ADR/事实。
-4. 原 M5/M6、DX/F/G 顺序让位于 R0–R16；未完成生产、集群、SQLite、供应商条件等映射到新矩阵，不丢弃。只一个主功能簇 in_progress，内部允许隔离子任务。
-5. 对已定 contract 的实现/测试优先 gpt-6.1-sol；主控定跨模块接口，高风险改码不同模型或 Provider 审查。所有 worker 直接在 main，明确非重叠文件可并行；manifest/lock/迁移/共享文档/提交由集成负责人串行协调，构建 target 与服务资源预先分配；不创建额外源码仓库、开发分支或隔离 worktree，不递归派发、不推送。
+4. 原 M5/M6、DX/F/G 顺序让位于 R0–R16；未完成生产、集群、SQLite、供应商条件等映射到新矩阵，不丢弃。总控可按依赖图批准独立功能簇并行 in_progress，main集成与最终门禁串行。
+5. 对已定 contract 的实现/测试优先 gpt-6.1-sol；主控定跨模块接口，高风险改码不同模型或 Provider 审查。worker可在总控分配的本地任务分支/worktree并行，前置和contract须明确；manifest/lock/迁移/共享文档与main集成由负责人串行协调，构建target/服务预先分配。按[并行开发与集成](conventions.md#并行开发与集成)验收、合入并清理，不覆盖main WIP，不创建额外源码仓库、不递归派发、不推送。
 6. 根无参数 cargo run、唯一综合示例、生成应用和真实 HTTP 是验收项；根 package 同时包含框架库和默认 server。
 7. 日常 PostgreSQL 18/MySQL 8.4 LTS/Redis 8；真实复制、多实例、网络和供应商证据按总计划。最低版本、SQLite、完整集群分别验证。
 8. [R15/C32 可选快速开发模块暂不开发](plans/optional-rapid-development-modules.md#开发与使用边界)，R14通过仅技术前置；须用户明确开工，当前框架main与官方可选包（含工具自身UI）按依赖继续。独立 AI模型平台仍未获启动授权。

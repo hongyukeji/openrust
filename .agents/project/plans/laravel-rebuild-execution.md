@@ -21,7 +21,7 @@
 
 1. 读取 AGENTS.md、`.agents/project/README.md`、context.md、todo.md、plan.md、ADR-070 和全面重构计划；核对 Git HEAD/status、worktree、进程/其他代理、已完成提交和最近验收。
 2. 根据todo.md领取当前可执行子簇；已完成基线不重做。模块包正式矩阵尚待逐项细化，不把Laravel原749行改成模块包已盘点。基线盘点须固定 Laravel/Goravel 版本和源码 commit，逐章建立能力/子行为/现有资产/差异/验收矩阵；随后直接进入 R1，不把完成计划当作完成重构。
-3. 当前先R1-S结构门禁/限定提交，再R2基础Container/Provider/配置/TestApp，再R2-M模块最小闭环/目录迁移，再R1-E真实CRUD/当前能力示例贯通；结构不等于R1整体已完成，GET信息响应不是CRUD。R2基础不等待完整R1-E，R1-E不等待所有未来框架能力，防止循环。其后按R0–R16依赖连续推进；一次一个主功能簇，内部可分派不冲突的子任务。每簇执行 Spec → Implement → Verify → Commit，写明公共 contract、生命周期、事务、错误与资源边界。
+3. 当前先R1-S结构门禁/限定提交，再R2基础Container/Provider/配置/TestApp，再R2-M模块最小闭环/目录迁移，再R1-E真实CRUD/当前能力示例贯通；结构不等于R1整体已完成，GET信息响应不是CRUD。R2基础不等待完整R1-E，R1-E不等待所有未来框架能力，防止循环。其后按R0–R16依赖连续推进；总控按依赖图批准前置满足、契约稳定的独立功能簇在本地任务分支/worktree并行，main集成与组合门禁串行。每簇执行 Spec → Implement → Verify → Commit，写明公共 contract、生命周期、事务、错误与资源边界。
 4. 根采用 Laravel 应用职责：app/bootstrap/config/database/public/resources/routes/storage/tests；同 package openrust 提供框架 src/lib.rs 与默认 server 薄 src/main.rs，default-members=["."]、default-run="server"。唯一 modules/example 作为普通业务模块由根 app/mod.rs、bootstrap 与 routes 装配，不是独立应用/package/bin，不新增 example feature；保护有效代码和测试后删除原双应用与根 examples。业务集中在 modules/；其余目录均为框架通用结构和代码；示例专有迁移/种子/模板/proto/生成脚本与测试 fixture 留模块内，根仅通用公开挂载，不因示例保留 build.rs/build 依赖或样例特判。CLI 模板仍提供用户应用生成功能，只在 /tmp 验证。按 ADR-074 重新验收，目录迁移不能替代框架等价证明。
 5. 完成交付矩阵的全部适用机制：内核/Provider/Container/Facade、HTTP/FormRequest/Resource、ORM/关系/Factory、认证授权、缓存/存储、视图/国际化/通信、事件/队列/调度、网络/广播、观测、Artisan 式 CLI、测试与生成器、生产集群、V2 和已纳入的生态可选包。子行为、排期和证据以总计划为准，不私自缩小范围。
 6. 已有实现可复用、适配或重写；复用必须通过新 contract 测试。删除失效代码、旧别名和重复内核，迁移全部调用方、模板、示例、CI 与文档，不长期并存两套框架。
@@ -30,7 +30,7 @@
 
 - 已定 contract 的实现和测试优先派给 `gpt-6.1-sol` 子智能体；普通任务使用适中推理，提供最小必要上下文和明确路径，节约 token。
 - 按环境支持使用本地主控做轻量编排；指定模型不可用时如实说明并选成本合适的可用模型。不要仅凭风险词升级到最贵模型。
-- 当前及以后直接在本仓库 main 开发和本地提交，不创建额外源码仓库、开发分支或隔离 worktree。同一功能簇内，主控明确划分互不重叠的文件所有权后可并行实现；存在依赖的任务按顺序推进。Cargo manifests/lock、大规模迁移、共享文档与最终提交由集成负责人协调，同一共享文件不得并发写入；构建 target、端口和服务资源预先分配，清理前确认无其他任务占用。worker 不递归派发、不擅改整体 contract、不推送。高风险代码由不同模型或 Provider 独立审查。
+- 当前同仓main为集成主线；总控可创建本地任务分支/临时worktree并行独立功能簇，不创建额外源码仓库。按[并行开发与集成](../conventions.md#并行开发与集成)明确前置、contract与文件归属；依赖未满足者只审计，不抢跑实现。Cargo manifests/lock、大规模迁移、共享文档与最终提交由集成负责人协调，同一共享文件不得并发写入；构建 target、端口和服务资源预先分配，清理前确认无其他任务占用。worker 不递归派发、不擅改整体 contract、不推送。高风险代码由不同模型或 Provider 独立审查。
 - 按当前工具的异步任务规则汇报启动和完成；不虚报后台任务已运行，不把计划中的验证写成已执行。
 
 每项闭环必须是固定上游源码/测试→Rust公开API/配置→等价行为测试→modules/example实际代码→文档→适用真实服务证据；用户约定、增强、必要Rust差异与未闭合缺口独立记录。无法等价不声称严格1:1，商业/闭源运营、AI产品、真实付款和对外动作不因本定位扩大。
