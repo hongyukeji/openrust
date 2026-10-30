@@ -59,15 +59,32 @@ impl ExampleConfig {
     }
 }
 
-pub(crate) struct ExampleMessage(String);
+pub(crate) struct ExampleMessage {
+    text: String,
+    binding_extension: Option<&'static str>,
+}
 
 impl ExampleMessage {
     pub(crate) fn new(message: impl Into<String>) -> Self {
-        Self(message.into())
+        Self {
+            text: message.into(),
+            binding_extension: None,
+        }
     }
 
     pub(crate) fn text(&self) -> &str {
-        &self.0
+        &self.text
+    }
+
+    pub(crate) fn with_binding_extension(&self) -> Self {
+        Self {
+            text: self.text.clone(),
+            binding_extension: Some("module-provider"),
+        }
+    }
+
+    pub(crate) fn binding_extension(&self) -> Option<&'static str> {
+        self.binding_extension
     }
 }
 

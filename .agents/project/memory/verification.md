@@ -1,5 +1,9 @@
 # 验收口径
 
+## R2-Q/X 当前组合核验
+
+代码输入4153d5b的默认/全特性workspace、Clippy、Rustdoc、deny、feature/MSRV、公开consumer、main真实双库/TCP和五类fresh生成应用已按范围通过；封存索引与具体限制见[testing](testing.md#r2-qx-main-组合验收通过)。root逐份核25个构建门禁记录及7个服务/生成stage、plan、TCP子记录的SHA、实际数量与清理状态。D8端口未直接观测、ignored不算服务、完整配置/Container/Session/发现仍开放。
+
 
 ## C04-D6 Request URL（限定子范围已验收）
 

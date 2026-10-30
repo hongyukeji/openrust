@@ -44,6 +44,52 @@ fn register_example_middleware(app: &mut BootContext<'_>) -> Result<()> {
     Ok(())
 }
 
+async fn register_binding_extension_route(app: &mut BootContext<'_>) -> Result<()> {
+    let boot_message = app.resolve::<ExampleMessage>().await?;
+    app.routes(move |routes| {
+        let boot_message = Arc::clone(&boot_message);
+        routes.get(
+            "/api/example/container-extension",
+            move |openrust::http::Inject(message): openrust::http::Inject<ExampleMessage>| {
+                let boot_message = Arc::clone(&boot_message);
+                async move {
+                    openrust::http::Json(serde_json::json!({
+                        "message": message.text(),
+                        "binding_extension": message.binding_extension(),
+                        "same_boot_instance": Arc::ptr_eq(&message, &boot_message),
+                    }))
+                }
+            },
+        )
+    })?;
+    Ok(())
+}
+
+async fn overlay_example_config_and_register_resources(
+    app: &mut BootContext<'_>,
+    application_root: &std::path::Path,
+) -> Result<()> {
+    let root = application_root.join("modules/example");
+    let files = ModuleConfigFiles::new("example", root.clone())?;
+    files.overlay(app)?;
+    if app.is_bound::<openrust::i18n::I18n>() {
+        let source = root.join("lang");
+        let published = application_root.join("resources/lang/vendor/example");
+        app.resolve::<openrust::i18n::I18n>()
+            .await?
+            .add_namespace("example", source, published)?;
+    }
+    #[cfg(feature = "view")]
+    if app.is_bound::<openrust::view::Views>() {
+        let source = files.resource("resources/views")?;
+        let published = application_root.join("resources/views/vendor/example");
+        app.resolve::<openrust::view::Views>()
+            .await?
+            .add_namespace("example", source, published)?;
+    }
+    Ok(())
+}
+
 #[cfg(feature = "session")]
 fn session_capability(app: &mut BootContext<'_>) -> Arc<AtomicBool> {
     let enabled = Arc::new(AtomicBool::new(false));
@@ -118,6 +164,9 @@ impl ServiceProvider for ExampleServiceProvider {
                 Ok(Arc::new(ExampleMessage::new(config.greeting)))
             })
         });
+        app.extend::<ExampleMessage, _>(|original, _resolver| {
+            Box::pin(async move { Ok(Arc::new(original.with_binding_extension())) })
+        });
         #[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
         app.singleton::<ArticleWriter, _>(|resolver| {
             Box::pin(async move {
@@ -147,27 +196,11 @@ impl ServiceProvider for ExampleServiceProvider {
         Ok(())
     }
 
+    #[allow(clippy::too_many_lines, reason = "模块 boot 同时装配业务资源和路由")]
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             register_example_middleware(app)?;
-            let root = self.root.join("modules/example");
-            let files = ModuleConfigFiles::new("example", root.clone())?;
-            files.overlay(app)?;
-            if app.is_bound::<openrust::i18n::I18n>() {
-                let source = root.join("lang");
-                let published = self.root.join("resources/lang/vendor/example");
-                app.resolve::<openrust::i18n::I18n>()
-                    .await?
-                    .add_namespace("example", source, published)?;
-            }
-            #[cfg(feature = "view")]
-            if app.is_bound::<openrust::view::Views>() {
-                let source = files.resource("resources/views")?;
-                let published = self.root.join("resources/views/vendor/example");
-                app.resolve::<openrust::view::Views>()
-                    .await?
-                    .add_namespace("example", source, published)?;
-            }
+            overlay_example_config_and_register_resources(app, &self.root).await?;
             let config = app.section::<openrust::config::DatabaseConfig>("database")?;
             let database_enabled = config.url.is_some()
                 || !config.instances.is_empty()
@@ -228,6 +261,8 @@ impl ServiceProvider for ExampleServiceProvider {
                 any(feature = "db-postgres", feature = "db-mysql")
             ))]
             let oidc_enabled = oidc_config.is_some();
+            register_binding_extension_route(app).await?;
+            let config_reading_repository = app.config_repository();
             app.routes(move |routes| {
                 crate::modules::example::routes::register(
                     routes,
@@ -244,9 +279,13 @@ impl ServiceProvider for ExampleServiceProvider {
                         ))]
                         oidc: oidc_enabled,
                     },
+                    config_reading_repository.clone(),
                 )
             })?;
             Ok(())
         })
     }
 }
+
+#[cfg(test)]
+mod extension_tests;

@@ -6,7 +6,7 @@
 
 ## 当前功能簇
 
-C04-D8 previous与显式Precognition限定子范围已完成适用验收：稳定主线门禁、全特性1439 passed/104 ignored、Rust1.97 check、真实PG18/MySQL8.4各67项模块HTTP及各1项previous、所有权PG3/My2、新生成应用5/2/2、真实TCP6项与最终CLI快照1项均有证据。默认workspace以709项有效结果与修后20项doctest按影响复用，非虚报原失败命令exit0。完整Old Input/CSRF/FormRequest、规则集与整个HTTP/Session继续开放。 [证据与限制](memory/testing.md#c04-d8-previous-与-precognition限定子范围已验收)。下一主线为Session old input的Spec；并行R2-X/Q按各自门禁继续，不因D8完成视为已集成。
+C04-D8 previous与显式Precognition限定子范围已完成适用验收：稳定主线门禁、全特性1439 passed/104 ignored、Rust1.97 check、真实PG18/MySQL8.4各67项模块HTTP及各1项previous、所有权PG3/My2、新生成应用5/2/2、真实TCP6项与最终CLI快照1项均有证据。默认workspace以709项有效结果与修后20项doctest按影响复用，非虚报原失败命令exit0。完整Old Input/CSRF/FormRequest、规则集与整个HTTP/Session继续开放。 [证据与限制](memory/testing.md#c04-d8-previous-与-precognition限定子范围已验收)。Session old input已在任务分支以36f48ec完成限定验收，尚未main集成。R2-X d299ca4与R2-Q 850e1a4已获用户main集成授权，已完成main组合真实验收，本地集成提交见Git与[testing](memory/testing.md#r2-qx-main-组合验收通过)；不以此关闭完整配置/Container。
 
 ## Laravel 1:1 功能与进度概览
 
@@ -23,8 +23,8 @@ C04-D8 previous与显式Precognition限定子范围已完成适用验收：稳�
 | 能力族 | 1:1目标 | 主状态 | 当前可证边界 | 待补关键项 | 稳定章节 / 阶段 / 证据 |
 | --- | --- | --- | --- | --- | --- |
 | 启动、应用布局 | Laravel应用职责/生命周期与开箱运行 | ✅ 已验收子范围 | R1-S 34dfb5e、R1-E bc3fa01：根lib/server、唯一模块与真实CRUD | 完整安装/升级/部署流程仍须逐项对照 | L004/L007/L010/L011；R1/R13/R14；[证据](memory/testing.md) |
-| Container / Provider / Facade | 统一DI、register→boot、作用域与扩展 | ✅ 已验收子范围 | R2-A/A2/A3、B/C/D已验收，唯一生产Container/Provider、入口scope/TestApp | 阶段一Provider编译期发现仅规划，现显式descriptor不是包发现；完整Facade/Container/扩展对应待闭合 | L012–L014/L035；R2；[core](core/core.md)/[facade](core/facade.md) |
-| Configuration | env/领域配置、typed读取/校验与包配置合并 | ✅ 已验收子范围 | R2来源失败/Provider配置；APP_PORT 591142f映射与生成/启动已验收 | 完整L005及缓存/来源/扩展逐项对齐；DB业务设置见增强表 | L005；R2；[core](core/core.md)/[todo](todo.md) |
+| Container / Provider / Facade | 统一DI、register→boot、作用域与扩展 | ✅ 已验收子范围 | R2-A/A2/A3、B/C/D已验收，唯一生产Container/Provider、入口scope/TestApp | R2-X保留原factory的extend及公开Session装饰器已完成main组合验收；阶段一Provider编译期发现仅规划，现显式descriptor不是包发现；完整Facade/Container/扩展对应待闭合 | L012–L014/L035；R2；[core](core/core.md)/[facade](core/facade.md) |
+| Configuration | env/领域配置、typed读取/校验与包配置合并 | ✅ 已验收子范围 | R2来源失败/Provider配置；APP_PORT 591142f映射与生成/启动已验收 | R2-Q原始/批量读取与可信错误路径已完成main组合验收；完整L005及缓存/来源/扩展逐项对齐；DB业务设置见增强表 | L005；R2；[core](core/core.md)/[todo](todo.md) |
 | Routing / Middleware / URL | 路由组/域/命名URL/绑定/中间件默认与错误 | ✅ 已验收子范围 | R3-A–F按簇交付；F 163bb49域路由；D7请求匹配/方法声明与fallback纠偏已限定验收 | 模型绑定等剩余C03行为及默认差异不能由A–F整体外推 | L015/L016/L024；R3；[http](core/http.md)/[todo](todo.md) |
 | Request | 输入来源、typed便捷方法与生命周期 | 🟡 开发中 | C04-A 08be69d、B1 8846a6a、B2 0a92900与C04-C Cookie子簇各自已验收；C04-C提交见Git | Cookie仅已交付读取/队列/加密与响应闭环；D6 URL家族已按限定范围验收（12门禁、双库各63、fresh5/2/2、真实网络10场景与PHP对照）；D7按ADR-083完成限定验收（12门禁、双库各64、fresh5/2/2、TCP7）；Old Input、完整Session/CSRF/FormRequest等仍开放 | L019；R3 C04；[证据](memory/testing.md)/[todo](todo.md) |
 | Response / API Resource / 异常 | 原生响应、资源序列化/条件字段、错误渲染 | 🔵 已有实现待1:1对齐 | 类型化响应/envelope与语义状态子簇已交付 | 完整Resource集合/分页/条件字段和redirect/stream逐项对应 | L018/L020/L027/L068/L069；R3/R5；[http](core/http.md) |

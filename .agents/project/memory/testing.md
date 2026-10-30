@@ -1,5 +1,24 @@
 # 测试基线
 
+## R2-Q/X main 组合（验收通过）
+
+限定范围：ConfigRepository原始/批量读取和可信诊断路径、Container保留原factory的extend与公开Session装饰器。源提交Q `850e1a4`、X `d299ca4`；实际代码验收树 `4153d5b783aebd70dbf89f1af16a1f2bd208d01a`。不关闭完整配置/Container/Session、Provider发现或集群。
+
+| 证据 | 实际结果与边界 |
+| --- | --- |
+| `/tmp/openrust-r2qx-main-verify/build-stage-handoff.json` | SHA256 `006e27d41a8332b197f391c3049e8aafb7604607081221766e6e4ee23e5711b7`；25份实际执行记录逐一核exit/日志/前后树及根锁。默认workspace750 passed/31 ignored，全特性1482/105 ignored；两档严格Clippy/Rustdoc、deny、no-default、Session-only、Rust1.97全特性/minimal通过。ignored不算真实服务 |
+| `fmt-final-schema-any.json`（同目录） | 最终fixture修改后fmt check实际exit0，前后树4153d5b。配置33、extend24、示例2、公开Q consumer3/X consumer2及Session组3、既有Container32/Provider10、D8 Auth10/Session HTTP14/helper11均有实际结果 |
+| `/tmp/openrust-r2qx-main-main-live3-acceptance-index.json` | SHA256 `98ff4ca0c0bd2a1bf02394b7fe8a56eb8296ff9e19f21d6135dbbe1002e7c9e2`；7个双库/生成stage、3个plan与TCP父/子证据已逐一核SHA。运行源码快照 `a2d056b49374ad40fd8e87010b495288be1e1b9c2015f5682a23b55648474be2`，所有结果source_changed为空 |
+| 根真实PG18/MySQL8.4 | main-live1两库各完整模块/认证目标70 passed、0 failed/ignored/filtered，另previous1/Q1/X2具名通过；两库均预建不存在→本次CREATE→DROP→确认不存在。定向filter数分别67/67/66，如实保留；不把未调用的外部供应商当完成 |
+| 真实TCP | main-live2 Q/X两项与D8六项精确场景通过；Q/X正常退出、敏感配置清除与lsof端口释放已核。现有D8 worker未报告端口，明确 `not_observed_by_existing_D8_worker`，不冒称该段直接端口观测；不代表TLS或集群 |
+| fresh生成项目 | main-live3 q/x/plain/PG/My分别6/6/5/2/2 passed，0 failed/ignored/filtered；各项目绑定CLI、源码、manifest和lock，PG/My专属库清理后确认不存在。Q/X仅在fixture安装后显式fmt并冻结baseline，再严格check；原始plain/PG/My模板只fmt check，未自动格式化掩盖模板问题 |
+| 实际构建来源 | 最终handoff `/tmp/openrust-r2qx-main-build/build-handoff.json` SHA256 `e3012c4776d16cd6e35e0dce8b7d52fce6c54615dc6bccb564221f84b5d41272`。server-post-db实际all-features build exit0，server SHA `a472a9b19a2717a9670fb9fb171059f17d3cf76f39b5e61e58bbe66cca05fa47`；CLI实际build SHA `8394f62256dcb3ec2fe26a999b36415ef7d420a597a6c0a8827b87021aff396e`。607文件及日志/binary均核验；双库测试覆盖server后先重build才TCP，未借旧副产物绑定 |
+| 独立审查 | terra对组合Provider/路由、错误脱敏、fixture、执行器所有权/具名/lock/停机边界复审；相关问题修正。`plugin_contract`最终9/9通过，无schema只报可信父键，显式schema保留可信字段，均不泄漏秘密 |
+
+修前Clippy、旧consumer断言、首次schema fixture错误记录保留；main-live1 TCP runner误捕获正常SystemExit、main-live2 Q fixture未格式化两次失败也保留，不回填成功。后续仅改/tmp执行器并新prepare/fresh目录；未改变产品行为，不重跑无影响的已通过双库。数据库连接或CREATE结果不确定时仍可能留下锚库，绝不猜测所有权删除。
+
+验收后仅补Agent事实文档及CHANGELOG，代码/配置/模板/锁/受测README未改，按输入影响复用本轮证据。本地集成提交见Git。最终缓存48.162GB、磁盘空闲16.823%，无在途构建或服务；活跃缓存保留，生成专属再生产物先精确审查再回收，不清整target。
+
 ## C04-D8 previous 与 Precognition（限定子范围已验收）
 
 本簇实现见 [ADR-084](../decisions/adr-084-session-previous-and-precognition.md) 与 [HTTP](../core/http.md)、[Session](../core/session.md)。不关闭整个HTTP/Session、完整FormRequest或Laravel验证规则集。

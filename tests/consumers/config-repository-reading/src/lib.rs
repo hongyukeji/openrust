@@ -1,0 +1,55 @@
+//! 独立应用通过公开配置仓储读取业务配置。
+
+use openrust::config::{ConfigError, repository::ConfigRepository};
+use openrust::core::{BootContext, BoxFuture, ServiceProvider};
+use serde_json::{Value, json};
+
+/// 只向业务展示预先选定的名称；不接受客户端提供的配置路径。
+pub fn public_display_name(repository: &ConfigRepository) -> Result<String, ConfigError> {
+    let value = repository.get_or("app.name", json!("应用"))?;
+    value
+        .as_str()
+        .map(str::to_owned)
+        .ok_or_else(|| ConfigError::Invalid("app.name 必须是字符串".to_owned()))
+}
+
+/// 从同一快照取得固定业务配置，保留首次出现的顺序。
+pub fn public_fields(repository: &ConfigRepository) -> Result<Vec<(String, Value)>, ConfigError> {
+    repository
+        .get_many_with_defaults(&[("app.name", json!("应用")), ("app.locale", json!("zh_CN"))])
+}
+
+/// 生成应用可显式安装的公开 Provider fixture；最终校验读取全部 boot 覆盖后的配置。
+pub struct ReadingProvider;
+
+impl ServiceProvider for ReadingProvider {
+    fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            let repository = app.config_repository();
+            let request_repository = repository.clone();
+            app.routes(move |routes| {
+                routes.get("/api/config-reading", {
+                    let repository = request_repository.clone();
+                    move || {
+                        let repository = repository.clone();
+                        async move {
+                            let name = public_display_name(&repository)?;
+                            let locale = repository.get_or("app.locale", json!("zh_CN"))?;
+                            Ok::<_, openrust::Error>(openrust::http::Json(
+                                json!({"name": name, "locale": locale}),
+                            ))
+                        }
+                    }
+                })
+            })?;
+            app.validate_at_finalize(move || {
+                Box::pin(async move {
+                    let _ = public_display_name(&repository)?;
+                    let _ = public_fields(&repository)?;
+                    Ok(())
+                })
+            });
+            Ok(())
+        })
+    }
+}

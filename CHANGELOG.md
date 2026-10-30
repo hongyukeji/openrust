@@ -28,6 +28,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Fixed
 
+- 配置来源错误仅显示可信诊断路径：未声明 schema 时保留已知父键，已声明字段才显示字段路径，动态名称与不可信数组片段不回显；来源值继续脱敏。
+
 - 测试数据库仅在本次 CREATE 已成功后清理目标库；同名创建失败不再删除已有库。PostgreSQL 模板碰撞遵循同样的创建所有权边界；取消、连接中断或删除失败仍可能留下本次资源，不承诺必然回收。
 
 - Cookie Session 认证校验真实受管理 Cookie 保护事实；plain、身份 Cookie 或合法数据 ID 被排除保护时拒绝认证，并在最终保存时防止更换名称/handler 降级保护。Cookie/Session 机制自身的失败响应统一禁止缓存，不泄出被替换响应的 Cookie 或正文。
@@ -41,6 +43,10 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 - 在 API 响应中保留类型化 `PageMeta`；明确 CORS 预检响应正文为空，同时普通跨域错误仍使用统一包装。
 
 ### Added
+
+- 配置仓储新增 `get`、`get_or`、`has`、`get_many`、`get_many_with_defaults` 与 `all`；保留字面键优先、缺失与 null 的区别，批量读取固定同一快照。成功返回值可能含秘密，调用方须控制输出。
+
+- Container 新增异步 `extend`，按顺序装饰原 factory 或实例并沿用既有发布/作用域机制；可信 Provider 可通过 `SessionStoreHandle::store()` 保留原 store 实现装饰。唯一模块与独立 consumer 提供公开用法，逃生口不替代请求 Session 校验。
 
 - 请求公开真实匹配的 `Route`、路由名称、参数/default 与名称通配匹配，并提供可信应用可替换的 `RouteResolver`。上下文共享于同一请求，覆盖路由中间件与外层下游返回后的读取；不从响应状态、请求头或具名 URL 生成器推断命中。
 

@@ -10,7 +10,7 @@ use openrust::{
     },
     http::{HttpServiceProvider, Inject, axum, build_router},
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
@@ -22,7 +22,7 @@ struct Greeting(&'static str);
 struct ConsumerConfig {
     label: String,
 }
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 struct InvalidConfig {
     port: u16,
 }
@@ -224,7 +224,7 @@ impl ServiceProvider for InvalidConfigProvider {
     }
 }
 #[tokio::test]
-async fn invalid_provider_config_reports_key_without_echoing_value() {
+async fn invalid_unregistered_provider_config_reports_only_parent_without_echoing_value() {
     let secret = "must-not-appear-in-error";
     let mut builder = ProviderBuilder::new();
     builder.provider(InvalidConfigProvider);
@@ -234,7 +234,40 @@ async fn invalid_provider_config_reports_key_without_echoing_value() {
         .map(|error| error.to_string())
         .unwrap_or_default();
     assert!(
-        error.contains("consumer.port"),
+        error.contains("consumer: invalid type") && !error.contains("consumer.port"),
+        "configuration error was: {error}"
+    );
+    assert!(
+        !error.contains(secret),
+        "configuration error leaked its value: {error}"
+    );
+}
+struct RegisteredInvalidConfigProvider;
+impl ServiceProvider for RegisteredInvalidConfigProvider {
+    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
+        app.config_section(
+            "consumer",
+            InvalidConfig { port: 8080 },
+            openrust::config::repository::SectionSchema::object([(
+                "port",
+                openrust::config::repository::SectionSchema::Any,
+            )]),
+            |_| Ok(()),
+        )
+    }
+}
+#[tokio::test]
+async fn invalid_registered_provider_config_reports_declared_key_without_echoing_value() {
+    let secret = "must-not-appear-in-error";
+    let mut builder = ProviderBuilder::new();
+    builder.provider(RegisteredInvalidConfigProvider);
+    let error = start(builder, Figment::new().merge(("consumer.port", secret)))
+        .await
+        .err()
+        .map(|error| error.to_string())
+        .unwrap_or_default();
+    assert!(
+        error.contains("consumer.port: invalid type"),
         "configuration error was: {error}"
     );
     assert!(

@@ -9,10 +9,18 @@ use controllers::auth::{
 };
 use openrust::prelude::*;
 
-pub(super) fn register(routes: Routes, capabilities: &RouteCapabilities) -> Routes {
+pub(super) fn register(
+    routes: Routes,
+    capabilities: &RouteCapabilities,
+    repository: openrust::config::repository::ConfigRepository,
+) -> Routes {
     let routes = routes
         .get("/api/example", controllers::example::show)
         .name("example.index")
+        .get("/api/example/config-greeting", move || {
+            let repository = repository.clone();
+            async move { controllers::config_reading::show(&repository) }
+        })
         .get("/api/example/route-url", controllers::example::route_url);
     let routes = route_context_routes(request_url_routes(routes))
         .get(

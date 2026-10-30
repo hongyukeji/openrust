@@ -126,6 +126,29 @@ impl RegisterContext<'_> {
         self.bindings.instance(value);
     }
 
+    /// 保留原 factory 并登记装饰；显式 instance 的异步链在所有 register 后、boot 前执行。
+    pub fn extend<T, F>(&mut self, extender: F)
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Arc<T>, Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        self.bindings.extend::<T, F>(extender);
+    }
+
+    /// 登记新缓存发布后的通知；通知可解析同型服务。
+    pub fn rebinding<T, F>(&mut self, callback: F)
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Resolver, Arc<T>) -> BoxFuture<'static, Result<()>> + Send + Sync + 'static,
+    {
+        self.bindings.rebinding::<T, F>(callback);
+    }
+
+    /// 清除持久装饰链；不撤销显式 instance 的即时链。
+    pub fn forget_extenders<T: ?Sized + Send + Sync + 'static>(&mut self) {
+        self.bindings.forget_extenders::<T>();
+    }
+
     /// 声明启动完成前必须成功解析的服务根。
     pub fn require<T: ?Sized + Send + Sync + 'static>(&mut self) {
         self.required.push(Box::new(|container| {
@@ -198,6 +221,20 @@ impl BootContext<'_> {
     /// 解析已封口的服务绑定。
     pub async fn resolve<T: ?Sized + Send + Sync + 'static>(&mut self) -> Result<Arc<T>> {
         self.container.resolve::<T>().await
+    }
+
+    /// 等待当前缓存装饰成功后返回；失败不替换旧缓存。
+    pub async fn extend<T, F>(&mut self, extender: F) -> Result<()>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Arc<T>, Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        self.container.extend::<T, F>(extender).await
+    }
+
+    /// 清除未来构造的持久装饰链，不撤销当前缓存。
+    pub async fn forget_extenders<T: ?Sized + Send + Sync + 'static>(&mut self) -> Result<()> {
+        self.container.forget_extenders::<T>().await
     }
 
     /// 读取当前已发布配置视图。
@@ -471,6 +508,7 @@ impl ProviderBuilder {
         let mut commands = Vec::new();
         let mut finalizers = Vec::new();
         let result = async {
+            container.initialize_extensions().await?;
             for provider in &providers {
                 provider
                     .boot(&mut BootContext {

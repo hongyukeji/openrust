@@ -1,0 +1,28 @@
+[package]
+name = "container-extension-consumer"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[workspace]
+
+[dependencies]
+openrust = { path = "../../..", version = "0.0.0", default-features = false }
+tokio = { version = "1.54", features = ["macros", "rt-multi-thread"] }
+axum = { version = "0.8", features = ["macros"], optional = true }
+figment = { version = "0.10", optional = true }
+serde_json = { version = "1.0", optional = true }
+time = { version = "0.3", optional = true }
+
+[features]
+session = ["openrust/session", "dep:axum", "dep:figment", "dep:serde_json", "dep:time"]
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"

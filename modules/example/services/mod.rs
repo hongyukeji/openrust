@@ -16,6 +16,7 @@ pub(crate) mod article_write;
     any(feature = "db-postgres", feature = "db-mysql")
 ))]
 pub(crate) mod attachments;
+pub(crate) mod config_reading;
 mod message;
 #[cfg(all(
     feature = "auth-oidc",

@@ -6,6 +6,19 @@ OpenRust 框架的应用内核。
 
 `openrust::core::container` 提供 `ContainerBuilder`、`Container`、`Resolver` 与 `Scope`。`Resolver` 使用弱容器句柄，延迟解析时容器已释放则报告 `container_closed`，避免 singleton 保存解析器造成引用环。类型键支持 `dyn Trait`，`bind` 每次创建，`singleton` 同容器共享，`scoped` 同生命周期共享，`instance` 注册已有 `Arc`。同类型后注册覆盖前定义；定义经 `build` 封闭，不使用 PHP 反射构造。
 
+`RegisterContext::extend::<T, _>` 保留原 factory，再把异步装饰器依登记顺序作用于其结果；可在 `bind` 前登记，也可包装外部 `Arc<dyn Trait>`。装饰器接收旧 `Arc<T>` 与 `Resolver`，返回 `BoxFuture<'static, Result<Arc<T>>>`。同类型 factory 覆盖仍保留未解析服务的持久装饰链；`forget_extenders::<T>` 清除未来构造的持久链，不撤销已缓存服务。`rebinding::<T, _>` 在缓存更新后通知监听者。已缓存 singleton/instance 可通过 `Container::extend(...).await` 或 `BootContext::extend(...).await` 即时变换；变换失败保留旧缓存，通知失败则新值已发布。同步登记的显式 `instance` 装饰在所有 Provider `register` 后、任一 `boot` 前按登记顺序执行，直接使用 builder 时由首次异步 `resolve` 执行；待执行时同步 `get_ready` 不返回旧值。
+
+```rust,ignore
+app.extend::<dyn Driver, _>(|original, resolver| {
+    Box::pin(async move {
+        let dependency = resolver.resolve::<Dependency>().await?;
+        Ok(Arc::new(ObservedDriver::new(original, dependency)) as Arc<dyn Driver>)
+    })
+});
+```
+
+运行期 `Container::extend` 处理 singleton/instance 与根 scope 当前值，不主动替换其他活跃请求 scope 的缓存；请求内用 `Scope::extend` 只装饰该 scope 的 scoped/bind 服务，singleton 仍归应用。已返回调用方的旧 `Arc` 不会自动变成新值。此异步时点和多活跃 scope 是 Rust 适配；alias/contextual 等 Container 后继契约仍开放。唯一业务示例在 `modules/example/providers/example.rs` 装饰配置驱动的 `ExampleMessage`，`/api/example/container-extension` 展示原 greeting、装饰标记及 boot/HTTP 同一服务实例。CLI 新建应用只有空模块清单，不自动复制该业务模块；应用可按 Provider 模式注册自己的装饰器。
+
 根容器也有 scoped 生命周期，`forget_scoped_instances()` 清除旧代，下次解析重建；子 scope 独立。关闭/取消在途解析后可重新构造，不保留失败占位；同链与并发等待环返回类型链。singleton 捕获 scoped 被拒绝，这是长驻进程安全增强。错误 `Debug` 只输出 code/status，工厂原始错误保留在内部 source，不直接输出 HTTP。
 
 缓存工厂在成功、失败或取消时先结束构造帧并清除已结束的等待边，再发布结果；已完成服务不再创建等待关系。scope关闭和根reset的唤醒、用户值释放都在容器内部锁之外执行，允许Waker同步重入。

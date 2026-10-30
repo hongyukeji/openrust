@@ -23,6 +23,10 @@ pub(crate) struct RouteCapabilities {
 pub(crate) fn register(
     routes: openrust::http::Routes,
     capabilities: &RouteCapabilities,
+    repository: openrust::config::repository::ConfigRepository,
 ) -> openrust::http::Routes {
-    web::register(api::register(routes, capabilities), capabilities.view)
+    web::register(
+        api::register(routes, capabilities, repository),
+        capabilities.view,
+    )
 }

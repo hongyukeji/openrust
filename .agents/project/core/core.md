@@ -1,7 +1,7 @@
 # `openrust::core`
 
 > 受众：AI Agent
-> 更新：2026-10-29
+> 更新：2026-10-30
 > 摘要：应用内核当前事实；模块清单支持硬依赖和确定性拓扑启动。
 
 ## 边界
@@ -25,6 +25,14 @@
 | `lifecycle` | `bootstrap` / `init_tracing` / `shutdown_signal`；bootstrap 使用唯一 Provider 启动引擎。Scope 关闭先封闭解析并取消子任务，再由父 ResourceOwner 的单一持久清理 driver 排队执行有界 shutdown；最多 4096 个待清理子 scope，超过则返回 `scope_capacity_exceeded`，不丢弃已登记回调 |
 
 分页 `meta` 使用 `Option<PageMeta>`，`with_meta` 直接保留强类型值。
+
+## R2-Q/X 已验收子范围
+
+R2-Q 分支 `850e1a4` 与 R2-X 分支 `d299ca4` 已完成各自限定验收；main 已完成实际组合验收，含双库、TCP和五类fresh生成应用；本地集成提交见Git，证据见[testing](../memory/testing.md#r2-qx-main-组合验收通过)。不代表完整配置/Container/Facade已对应。
+
+- 配置读取复用唯一 `ConfigRepository`：`get` / `get_or` / `has` / `get_many` / `get_many_with_defaults` / `all`。完整字面键优先，缺失与显式 null 分开；批量读取固定同一快照。原始返回值可能含秘密，调用方负责控制输出。无 schema 的来源错误仅保留可信父键；有 schema 时仅保留声明路径，动态 Map 名和来源数组段不回显。见 [ADR-086](../decisions/adr-086-config-repository-reading.md)。
+- Container `extend` 复用现有工厂、作用域与发布流程，按顺序装饰原实例；示例 Provider 在首次解析前安装装饰器，并核 boot 与 HTTP 同一实例。可信 Session driver 装饰器通过 `SessionStoreHandle::store()` 取得原 store；该逃生口不能代替请求 Session 状态及其容量/删除检查。见 [ADR-085](../decisions/adr-085-container-binding-extension.md)。
+- `modules/example` 的固定配置键路由与 Container 装饰器是公开调用示范；任意 query 不扩张允许读取的配置键。完整配置修改/动态设置、Provider 自动发现及完整 Container 对应范围继续按唯一 todo 领取，不能因本子范围关闭。
 
 ## 约束
 

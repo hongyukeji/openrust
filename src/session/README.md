@@ -85,6 +85,8 @@ Cookie driver 是**客户端快照**：登出和迁移仅删除当前浏览器�
 
 公开扩展入口是 `SessionStore`，通过 `SessionServiceProvider::with_store(store)` 安装，优先于配置中的 driver 选择。实现者需要遵守[存储契约](store.rs)：
 
+受信应用 Provider 也可用 Container 的 `extend::<SessionStoreHandle, _>` 包装框架原有 store：装饰器从 `old.store()` 克隆原 `Arc<dyn SessionStore>`，再用委托型 wrapper 构造新句柄，不需要读取或重建原 factory。`store()` 是底层逃生口；直接执行其 I/O 会绕过受管理 Session 的状态与容量检查，也绕过 `SessionStoreHandle::delete` 对 `ServerSide` 保证的检查。调用者须自行承担并发、容量和撤销契约，不能将客户端快照称为可全局撤销。独立 consumer 的[公开接线测试](../../tests/consumers/container-extension/README.md#第三方-sessionstore-装饰)展示该路径。
+
 | 方法 | 要求 |
 | --- | --- |
 | `load(id, max_bytes, empty_expiry)` | 在复制或解码完整载荷前限制字节；返回指定身份的记录。`empty_expiry` 供损坏载荷的空属性回退使用。 |

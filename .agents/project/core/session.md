@@ -12,6 +12,8 @@
 
 ## 源码与公开边界
 
+R2-X新增 `SessionStoreHandle::store()`，供可信Provider装饰器保留原factory及原store实例；独立Session consumer验证受管理Cookie往返与装饰层计数。直接调用该逃生口绕过请求Session状态、容量和handle层删除检查，不能用于不可信业务输入。main组合与双库回归证据见[testing](../memory/testing.md#r2-qx-main-组合验收通过)。
+
 - `src/session.rs` 导出 `Session`、`Expiry`、`SessionId`、`SessionRecord`、`SessionStore`、写入模式/结果、`SessionStoreGuarantees`以及数据库、显式内存、Cookie客户端快照和可选 Redis store；`session` feature 与 `session-redis` 的实际依赖以 Cargo.toml 为准。
 - `Session` 在同请求内共享状态。属性方法同步返回 Result，真正 store I/O 的 start/save/migrate/regenerate/invalidate 为 async；同步锁不跨 await。I/O 期间修改明确拒绝，取消释放 busy，不后台补保存，也不承诺撤销已发生的外部写入。
 - ID 为大小写敏感的40位 ASCII 字母数字，构造即有；有效外部 ID 未命中记录时保留。启动补缺失或 null 的 token，非 null 的假值保留。ID/记录 Debug 脱敏；显式字符串与序列化仍可能暴露凭据，不能写入日志。
