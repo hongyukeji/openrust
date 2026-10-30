@@ -24,6 +24,15 @@ impl SessionStoreHandle {
     pub fn new(store: impl SessionStore + 'static) -> Self {
         Self(Arc::new(store))
     }
+    /// 克隆当前绑定的store trait句柄，供受信应用Provider装饰既有绑定。
+    ///
+    /// 这是底层逃生口：直接调用会绕过受管理Session的状态、容量检查，
+    /// 也会绕过本句柄`delete`的ServerSide保证检查。调用者须自行遵守
+    /// 并发、容量和撤销契约；客户端快照不能因此获得全局撤销能力。
+    /// 克隆不会复制或重建后端。
+    pub fn store(&self) -> Arc<dyn SessionStore> {
+        Arc::clone(&self.0)
+    }
     /// 后端的保证分类；不读取请求内数据。
     pub fn guarantees(&self) -> SessionStoreGuarantees {
         self.0.guarantees()
