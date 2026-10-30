@@ -189,8 +189,12 @@ def bound_goal(config):
         raise ValueError('原Goal或线程绑定已改变，拒绝操作新任务')
     remote = rpc('thread/goal/get', {'threadId': config['thread']}).get('goal')
     after = goal(config)
-    if before != after or not remote:
-        raise ValueError('核对期间Goal已变化，拒绝操作')
+    # 活跃任务的计量会更新时间戳；身份、目标与状态仍须前后完全一致。
+    if not after or any(before.get(key) != after.get(key)
+                        for key in ('id', 'status', 'created_at_ms', 'objective')):
+        raise ValueError('核对期间Goal身份、状态或目标已变化，拒绝操作')
+    if not remote:
+        raise ValueError('协议未返回原Goal，拒绝操作')
     if remote.get('id') is not None:
         matches = remote['id'] == config['goal_id']
     else:
@@ -198,8 +202,10 @@ def bound_goal(config):
                    and isinstance(before.get('created_at_ms'), int)
                    and remote.get('createdAt') == before['created_at_ms'] // 1000
                    and remote.get('objective') == before.get('objective'))
-    if not matches:
-        raise ValueError('协议与本地原Goal身份不一致，拒绝操作')
+    remote_status = {'usageLimited': 'usage_limited', 'budgetLimited': 'budget_limited'}.get(
+        remote.get('status'), remote.get('status'))
+    if not matches or remote_status != before.get('status'):
+        raise ValueError('协议与本地原Goal身份或状态不一致，拒绝操作')
     return remote
 
 
