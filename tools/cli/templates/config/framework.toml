@@ -60,6 +60,7 @@ path = "/"
 http_only = true
 same_site = "lax"
 lifetime = 120
+lottery = [2, 100]
 expire_on_close = false
 partitioned = false
 max_bytes = 20971520

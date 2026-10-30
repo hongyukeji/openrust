@@ -15,6 +15,9 @@ struct ExternalRequestDriver {
     context: Option<SessionRequestContext>,
 }
 impl SessionStore for ExternalRequestDriver {
+    fn gc(&self, lifetime_seconds: i64) -> BoxFuture<'_, Result<u64>> {
+        self.backend.gc(lifetime_seconds)
+    }
     fn needs_request(&self) -> bool {
         true
     }

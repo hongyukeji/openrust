@@ -192,6 +192,14 @@ pub trait SessionStore: Send + Sync + 'static {
         Ok(None)
     }
 
+    /// 回收持久截止已到的记录并返回删除数；默认由后端 TTL 或外部机制负责。
+    ///
+    /// `lifetime_seconds` 是最终请求配置；已有绝对截止不得据此缩短。取消不后台续跑，
+    /// 已提交的外部删除不回滚；该操作不提供请求锁或跨后端事务。
+    fn gc(&self, _lifetime_seconds: i64) -> BoxFuture<'_, Result<u64>> {
+        Box::pin(async { Ok(0) })
+    }
+
     /// 有界加载ID的记录。驱动可返回过期记录供运行时区分“存在但已过期”。
     fn load<'a>(
         &'a self,

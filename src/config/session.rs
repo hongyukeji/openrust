@@ -22,6 +22,8 @@ pub struct SessionConfig {
     pub same_site: Option<String>,
     /// 无活动有效期（分钟）。
     pub lifetime: u64,
+    /// 请求启动后触发垃圾回收的抽签比例，默认 `[2, 100]`。
+    pub lottery: [u32; 2],
     /// 浏览器关闭时移除Cookie，默认false；持久记录仍有lifetime截止。
     pub expire_on_close: bool,
     /// 是否发送Partitioned标记，默认false。
@@ -46,6 +48,9 @@ impl SessionConfig {
     #[cfg(feature = "session")]
     pub(crate) fn validate(&self) -> crate::Result<Option<cookie::SameSite>> {
         self.lifetime_seconds()?;
+        if self.lottery[1] == 0 || self.lottery[0] > self.lottery[1] {
+            return Err(invalid("lottery", &format!("{:?}", self.lottery)));
+        }
         if self.max_bytes == 0 || self.max_bytes > Self::MAX_BYTES {
             return Err(invalid("max_bytes", &self.max_bytes.to_string()));
         }
@@ -101,6 +106,7 @@ impl Default for SessionConfig {
             http_only: true,
             same_site: Some("lax".into()),
             lifetime: 120,
+            lottery: [2, 100],
             expire_on_close: false,
             partitioned: false,
             max_bytes: Self::MAX_BYTES,
@@ -119,6 +125,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("http_only", &self.http_only)
             .field("same_site", &self.same_site)
             .field("lifetime", &self.lifetime)
+            .field("lottery", &self.lottery)
             .field("expire_on_close", &self.expire_on_close)
             .field("partitioned", &self.partitioned)
             .field("max_bytes", &self.max_bytes)
@@ -129,4 +136,34 @@ fn invalid(key: &str, value: &str) -> crate::Error {
     crate::Error::Config(crate::config::ConfigError::Invalid(format!(
         "session.{key}: {value}"
     )))
+}
+
+#[cfg(all(test, feature = "session"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lottery_defaults_and_final_validation_keep_original_values() -> crate::Result<()> {
+        let mut config = SessionConfig::default();
+        assert_eq!(config.lottery, [2, 100]);
+        assert_eq!(
+            serde_json::to_value(&config).map_err(crate::Error::internal)?["lottery"],
+            serde_json::json!([2, 100])
+        );
+        for lottery in [[0, 1], [1, 1], [u32::MAX, u32::MAX]] {
+            config.lottery = lottery;
+            config.validate()?;
+        }
+        for lottery in [[0, 0], [3, 2]] {
+            config.lottery = lottery;
+            let error = config
+                .validate()
+                .err()
+                .ok_or_else(|| invalid("lottery", "预期拒绝无效比例"))?;
+            let message = error.to_string();
+            assert!(message.contains("session.lottery"));
+            assert!(message.contains(&format!("{lottery:?}")));
+        }
+        Ok(())
+    }
 }

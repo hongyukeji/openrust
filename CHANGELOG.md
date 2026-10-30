@@ -30,6 +30,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Added
 
+- Session 新增公开 driver `gc(lifetime_seconds)` 与请求级 `session.lottery`，默认 `[2,100]`，启动成功后、业务前对实际绑定驱动执行回收。数据库/内存清理已过绝对截止的记录，Cookie/Redis保留 no-op/TTL 职责；显式期限优先及取消不回滚已发生删除的边界明确记录。
+
 - 新增公开 `CookieSessionStore` 与配置 `driver="cookie"`，复用请求绑定、Cookie 队列和密钥环实现双 Cookie；公开存储保证分类及认证完整性能力。客户端快照仅提供本请求与当前浏览器删除，不能承诺全局撤销；秒精度、异常弱类型及浏览器容量边界明确记录，唯一模块与生成应用提供使用参考。
 
 - Session 新增可信 ID/驱动选择、来源与写入意图管理及请求内 driver 绑定；公开 `SessionRequestContext` 与默认请求 hook。`handler()` 改为返回 `Result`，同步外部实现与示例；显式转移、目标碰撞、撤销和失败 Cookie 清理分别定义，内置 Cookie driver 与客户端快照边界见本次新增能力。

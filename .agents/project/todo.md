@@ -355,9 +355,19 @@ Spec已按[ADR-082 D4](decisions/adr-082-session-store-and-flash.md#d4实现契�
 
 D4验收：D4内置Cookie driver限定子范围已验收：final3完整12门禁通过（默认668/全特性1367 passed，29/102 ignored不算实服务），根真实双库加密各62/无加密安全负例各1、新生成plain5/双库认证各2、真实TLS代理链与仓内Chromium HTTP脚本4项及不同模型审查通过；root target清零、五旧consumer不变。本簇不关闭PHP异常弱类型、全局撤销或完整Session/Web能力，详细证据见testing。
 
-## 后继 C04-D5：StartSession GC lottery与公开driver回收
+## C04-D5：StartSession GC lottery与公开driver回收（限定子范围已验收）
 
-D4限定提交后领取；默认lottery对照固定上游[2,100]，start后、业务前对实际请求绑定driver调用公开GC；同一Session内核，无第二存储。Spec须先收敛持久绝对expiry与上游last_activity期限的安全差异，不能误删仍获授权的显式长Expiry或声称已有expiry load替代未访问记录GC。数据库/Memory实际清扫，Cookie/Redis按上游noop；失败/取消/原子防复活、唯一模块/consumer/新生成、双库/Redis与匹配门禁同簇验收。previous URL/route、真实Precognition、Old Input/CSRF、blocking及Session cache继续保留，不能用本簇关闭整个L025。
+D4已由47cd7b8限定提交，工作区核对干净后领取；默认lottery对照固定上游[2,100]，start后、业务前对实际请求绑定driver调用公开GC；同一Session内核，无第二存储。Spec须先收敛持久绝对expiry与上游last_activity期限的安全差异，不能误删仍获授权的显式长Expiry或声称已有expiry load替代未访问记录GC。数据库/Memory实际清扫，Cookie/Redis按上游noop；失败/取消/原子防复活、唯一模块/consumer/新生成、双库/Redis与匹配门禁同簇验收。previous URL/route、真实Precognition、Old Input/CSRF、blocking及Session cache继续保留，不能用本簇关闭整个L025。
+
+D5 Spec：
+1. `SessionConfig.lottery: [u32; 2]` 默认`[2,100]`，最终配置校验分母非零且分子不大于分母；`[0,n]`禁用、`[n,n]`确定触发，其他比例无偏抽签，熵错误正常返回错误不panic。
+2. 唯一公开`SessionStore::gc(lifetime_seconds: i64) -> BoxFuture<Result<u64>>`默认返回0，返回实际删除数量；真实请求绑定实例在start成功后、业务前被调用，参数使用最终配置分钟转秒。
+3. 追加公开`SessionGcMigration`建立物理表名摘要隔离的expiry索引，统一Migrator在Auth/Session-only建表后各登记一次；保留原建表版本，自定义Migrator显式追加，新建/已有表升级及同名异列冲突在双库验收。数据库单条条件DELETE清扫`expires_at <=`数据库当前时间（MySQL微秒精度）；Memory在同一锁内按已有绝对expiry边界删除并计数。Cookie/Redis不扫描、返回0，第三方driver可覆盖。不得先查后无条件删或将GC结果当业务锁。
+4. 持久绝对expiry是既有授权上界，不以当前lifetime反推并缩短旧显式长截止或延长短截止；与Laravel按当前lifetime追溯last_activity及Array严格小于的差异明确按安全增强分类，正常固定lifetime对应过期回收，差异不隐藏。
+5. start失败不GC；GC错误阻止业务/保存并清出站Cookie，取消不后台续跑；已发生外部删除不回滚。复用Close及当前错误响应，不建立后台worker或第二Session内核。
+6. 覆盖0/全中、实际绑定驱动/参数、失败/取消、过期数量/活记录保留、续期竞争、防复活、资源边界及真实双库/Redis。唯一模块、公开consumer、原宿主生成项目、用户文档和匹配完整门禁同簇交付。
+
+D5验收：D5请求级GC lottery/公开driver回收与追加expiry索引迁移限定子范围已验收：final4完整12门禁通过（默认668/29 ignored、全特性1374/103 ignored），根真实双库各62、Store/GC各2、Redis Store1/Auth10、新生成plain5/双库认证各2、独立审查及资源收尾通过；忽略项不算实服务，不关闭完整Session；root target已清、五旧consumer不变，限定提交见Git。后继先审Request完整URL/路由匹配上下文与previous URL/Precognition真实前置，按现C04依赖收敛下一Spec，不跳过剩余行为。
 
 ## 完整实现后的发布仓库整理（后置，未启动）
 

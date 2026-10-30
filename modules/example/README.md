@@ -69,6 +69,12 @@ POST 接收如 `{"action":"put","value":"blue"}` 的 JSON。示例仅操作 `exa
 
 [`providers/session.rs`](providers/session.rs) 给出调用方显式安装的请求驱动与 Provider。默认模块不会安装它或覆盖宿主已有 store；示例 fixture 明确选择 memory 或当前公开 Db，委托底层原子 load/write/delete，不另建 Session 属性。hook 在每请求实例中读取解密 Cookie 快照并排回执 Cookie；两组 Cookie 的交错请求验证不串 scope。真实 TCP fixture 另启同根 Application、显式选择同数据库连接的请求驱动，主认证 App 保持默认数据库 driver。包装器将存储保证、认证支持能力及请求绑定委托给实际底层驱动；不能只委托读写而把客户端快照误报为服务器存储。此方案不具备通用 Container factory 装饰能力，不冒称可以保留并装饰任意既有 factory。
 
+### 请求级过期回收
+
+Session 在成功 start 后、业务 handler 前，按最终 `session.lottery` 抽签调用实际请求驱动的 `gc(lifetime秒)`；默认 `[2,100]`，`[0,1]` 不触发，`[1,1]` 必触发。数据库和 memory 回收持久期限已到的记录；Cookie 与 Redis 保持 no-op/TTL 职责。显式 expiry 是授权期限上界，改变请求 lifetime 不会据此误删仍有效记录；这与 Laravel 按 last_activity 和当前 lifetime 回溯的方式有公开差异。错误会阻止业务执行，取消不启动后台补偿，已经完成的删除不回滚。
+
+示例请求包装器转发真实底层 `gc`，仅显式安装它的 fixture 排出 `example_session_gc` 回执，内容是调用秒数和真实返回删除数，不包含 ID、属性或凭据；默认宿主不安装该包装器。模块的双客户端非空往返 fixture 使用全中 lottery 断言 GC 回执与业务隔离；实际数据库删除计数和竞争另由真实服务专项验证，不把回执当作数据库清扫证据。生成应用同样转发 GC 并使用最终配置，而不新增另一套清扫 driver。
+
 ### 不使用数据库的 Cookie Session
 
 在宿主 `config/session.toml` 显式选择下列驱动即可复用同一业务控制器，不修改模块或框架源码：

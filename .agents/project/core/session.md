@@ -33,6 +33,12 @@
 - D4内置Cookie driver限定子范围已验收：final3完整12门禁通过（默认668/全特性1367 passed，29/102 ignored不算实服务），根真实双库加密各62/无加密安全负例各1、新生成plain5/双库认证各2、真实TLS代理链与仓内Chromium HTTP脚本4项及不同模型审查通过；root target清零、五旧consumer不变。本簇不关闭PHP异常弱类型、全局撤销或完整Session/Web能力，详细证据见testing。请求内保存后读取解析同请求队列的完整数据，以载荷摘要防止写后外部覆盖，不能以元数据合成空属性记录。
 
 
+## D5 GC lottery（限定子范围已验收）
+
+- 当前Spec见[ADR-082 D5](../decisions/adr-082-session-store-and-flash.md#d5-gc-lottery与公开driver契约)：默认`[2,100]`，start成功后业务前调用实际请求绑定driver的公开GC，数据库/Memory清扫已过期记录，Cookie/Redis保noop/TTL职责。
+- 绝对expiry、配置变化/显式期限与Laravel last_activity及Array等时刻差异按安全增强公开；取消不后台续跑，已发生删除不回滚，不建立第二存储或分布式请求锁。
+- D5请求级GC lottery/公开driver回收与追加expiry索引迁移限定子范围已验收：final4完整12门禁通过（默认668/29 ignored、全特性1374/103 ignored），根真实双库各62、Store/GC各2、Redis Store1/Auth10、新生成plain5/双库认证各2、独立审查及资源收尾通过；忽略项不算实服务，不关闭完整Session。公开`SessionGcMigration`在默认统一Migrator建表后只登记一次，自定义Migrator显式追加。当前可复跑证据与必要差异见[testing](../memory/testing.md#c04-d5-gc-lottery限定子范围已验收)。
+
 ## 当前证据与缺口
 
 - Session-only定向基础测试18项通过（0失败/0忽略，390过滤，含名称推导）；公开生命周期测试10项通过，包含认证记录删除后重复 start/save 拒绝；进程内正式Router HTTP测试4项通过（均0失败/0忽略/0过滤），覆盖5xx/未修改保存、取消和缺失装配。它们是对应源码快照的定向证据，不能替代修改后重验、workspace 门禁或真实数据库运行。

@@ -1,6 +1,14 @@
 # 验收口径
 
 
+## C04-D5 GC lottery（限定子范围已验收）
+
+公开GC/默认`[2,100]`抽签在start成功后、业务前使用实际绑定driver；数据库/Memory按持久绝对expiry清扫并保Update防复活，Cookie/Redis为noop/TTL。追加`SessionGcMigration`支持旧表索引升级及独立回滚。当前lifetime回溯/Array等时刻相对Laravel的安全增强差异仍公开，不声称完整Session严格等价。
+
+final4完整12项门禁通过（默认668/29 ignored、全特性1374/103 ignored）；根PG18/MySQL8.4各62，真实Store/GC各2，Redis Store1/Auth10、新生成plain5/PG2/MySQL2均严格通过。真实TCP覆满中GC/解密回执及双client非空业务，索引升级/冲突/回滚与真实锁竞争单独实测；ignored不算实服务，Mailer仅测试路径，未增加TLS/浏览器或集群完成主张。
+
+独立审查修复加密回执与索引catalog误报；三次Clippy失败后按§5获用户判断，仅明确空Vec类型、保`-D warnings`后通过。489文件最终guard与磁盘一致，root target清零、五旧consumer不变，剩余磁盘12.806633%，无遗留构建/服务。具体失败、机械快照差异、外层时限及证据见[testing](testing.md#c04-d5-gc-lottery限定子范围已验收)。完整previous URL/Precognition/Old Input/CSRF/blocking/cache与其余driver仍开放，限定本地提交见Git。
+
 ## C04-D4 Cookie Session（限定子范围已验收）
 
 内置Cookie driver经唯一Session状态机、请求绑定与统一Cookie保护接入正式宿主/生成器，采用配置名ID Cookie和ID名数据Cookie。客户端快照不可承诺全局撤销或跨客户端原子更新；实际认证及最终保存检查真实中间件保护事实，plain普通业务与可信身份分开。固定PHP异常弱类型差异仍开放，不能据正常格式通过宣称完整严格1:1。

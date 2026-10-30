@@ -45,6 +45,22 @@ impl ExampleSessionDriver {
     }
 }
 impl SessionStore for ExampleSessionDriver {
+    fn gc(&self, lifetime_seconds: i64) -> BoxFuture<'_, Result<u64>> {
+        Box::pin(async move {
+            let deleted = self.backend.gc(lifetime_seconds).await?;
+            if let Some(context) = &self.request {
+                let jar = context.cookie_jar();
+                jar.queue(jar.factory().make(
+                    "example_session_gc",
+                    format!("{lifetime_seconds}:{deleted}"),
+                    0,
+                    CookieOptions::default(),
+                )?)?;
+            }
+            Ok(deleted)
+        })
+    }
+
     fn supports_session_authentication(&self, cookie_name: &str) -> bool {
         self.backend.supports_session_authentication(cookie_name)
     }

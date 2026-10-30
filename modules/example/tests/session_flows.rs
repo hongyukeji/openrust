@@ -32,6 +32,7 @@ impl Application for SessionApplication {
         providers.push(Box::new(
             SessionServiceProvider::with_store(MemorySessionStore::default()).with_cookie_config(
                 openrust::config::SessionConfig {
+                    lottery: [1, 1],
                     driver: Some("array".into()),
                     cookie: Some(COOKIE_NAME.into()),
                     secure: Some(false),
@@ -497,6 +498,7 @@ fn merge_probe_cookies(response: &TestResponse, cookies: &mut Vec<(String, Strin
             COOKIE_NAME,
             "example_session_probe",
             "example_session_probe_reply",
+            "example_session_gc",
         ]
         .contains(&name)
         {
@@ -555,7 +557,7 @@ async fn explicit_request_driver_consumes_cookie_and_keeps_two_request_queues_is
                 let incoming = probe_cookie_header(cookies);
                 let response = request(
                     &app,
-                    Some(json!({"action":"probe","value":marker})),
+                    Some(json!({"action":"gc_probe","value":marker})),
                     Some(&incoming),
                 )
                 .await?;
@@ -563,10 +565,10 @@ async fn explicit_request_driver_consumes_cookie_and_keeps_two_request_queues_is
                     marker,
                     Some(&format!("memo-{marker}")),
                     Some(count),
-                    Some("probe"),
+                    Some("gc_probe"),
                 );
                 expected["extension"] =
-                    json!({"needs_request":true,"reply":(round == 2).then_some(marker)});
+                    json!({"needs_request":true,"reply":(round == 2).then_some(marker),"gc":"7200:0"});
                 success(&response, &expected)?;
                 merge_probe_cookies(&response, cookies)?;
             }

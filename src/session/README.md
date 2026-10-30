@@ -291,3 +291,17 @@ fn keep_current_binding(session: &Session) -> openrust::Result<()> {
 [示例处理器](../../modules/example/http/controllers/session.rs) 与[模块 HTTP 回归](../../modules/example/tests/session_flows.rs) 使用 `/api/example/session` 的 GET/POST，仅读写示例自己的偏好和提示；支持固定 put/forget/flash/now/keep 操作，不接收任意 Session 键。公开 API 的边界分别见[生命周期测试](../../tests/http/session.rs)、[受管理 HTTP 测试](../../tests/http/session_http.rs)与[数据库存储测试](../../tests/http/session_store.rs)。这些入口对应不同验证层次，不能互相替代。
 
 这里提供 Session 属性、flash 与当前存储/请求生命周期，不代表完整 Laravel Web 组。完整 OldInput、通用 CSRF 中间件、redirect 自动闪存、Session 响应缓存策略、请求阻塞、定时 GC 与全部 Session driver 生态仍需各自能力接入。当前认证业务已有的 CSRF 与来源校验不等于通用 Web CSRF 中间件。记录到期不保证马上物理清除，也不应把内存 store 当作生产持久层。
+
+
+## 请求启动时回收过期记录
+
+`session.lottery = [2, 100]` 默认每次请求以 2% 概率回收。分母必须非零，分子不得大于分母；`[0, 100]` 禁用，`[1, 1]` 每次执行。抽签在 Session 成功启动后、业务前运行，调用本请求已绑定的实际驱动；传入最终 `lifetime` 的秒数。
+
+外部驱动可覆盖 `SessionStore::gc(&self, lifetime_seconds: i64) -> BoxFuture<'_, Result<u64>>`，返回实际删除数量，默认返回 0。数据库使用带截止索引的单条条件删除，Memory 在同一锁内移除已到期记录；Cookie 不清扫客户端副本，Redis 由服务端 TTL 回收。它们的默认 GC 返回 0，不承诺服务器撤销客户端快照。
+
+现有持久绝对截止仍是授权上界，GC 不用当前 lifetime 反推或缩短显式长截止。这与 Laravel 数据库按当前 lifetime 回溯 last_activity、Array 使用严格小于的边界不同，属于已分类的期限安全增强。GC 不是分布式请求锁：并发续期与回收仍依靠后端条件写入，已删除记录的旧 Update 不得复活。
+
+GC 错误阻止业务与保存，返回脱敏且禁止缓存的错误响应；取消关闭本请求句柄并清理本请求 Cookie 队列，不后台继续。已在外部后端完成的删除不回滚。
+
+
+截止索引使用独立 `SessionGcMigration` 升级版本；默认 `FrameworkMigrator` 在 Session 或 Auth 建表迁移后只登记一次。自定义迁移列表须在 `SessionMigration`（或已包含该表的 `AuthMigration`）后显式追加 `SessionGcMigration`。索引名按实际表名摘要生成，支持同 schema 不同表前缀；同名索引不会被忽略，外部异列定义应修正后再运行迁移。升级不改变原 Session 表迁移版本、不删除记录。

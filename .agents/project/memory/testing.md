@@ -4,6 +4,31 @@
 > 更新：2026-10-29
 > 摘要：当前目录迁移与原专项测试入口，分开记录真实服务和未验收边界。
 
+## C04-D5 GC lottery（限定子范围已验收）
+
+公开行为与固定源码SHA见[ADR-082 D5](../decisions/adr-082-session-store-and-flash.md#d5-gc-lottery与公开driver契约)。默认`[2,100]`在start后、业务前调用实际请求驱动的GC；DB/Memory按已持久绝对expiry清理，Cookie/Redis保持noop/TTL职责。与Laravel当前lifetime回溯last_activity、Array严格小于的安全差异仍公开，不以本簇关闭完整Session。
+
+| 范围 | 实际结果 | 证据与边界 |
+| --- | --- | --- |
+| 最终12项门禁 | final4全部actual_exit=0、source_changed为空，根逐项核日志SHA；默认668 passed/29 ignored，全特性1374 passed/103 ignored | `/tmp/openrust-c04d-d5-final4-<stage>.result.json`；fmt、默认/全特性严格Clippy/tests/docs、no-default、session-only、MSRV1.97、deny及server build。忽略和成功输出捕获不证明真实服务 |
+| 核心与公开测试 | Session-only库421；config8/extensions15/HTTP5共28，均0失败/忽略/过滤、exit0/sourceguard空 | `/tmp/openrust-c04d5-indexed-core-unit.result.json`、`/tmp/openrust-c04d5-first-gc-public.result.json`；含确定性抽签、实际bound420秒、顺序、错误/取消清队列；后续机械语法修复另由final4验证 |
+| 外部driver consumer | unit2/Cookie1/extensions1共4 passed，0失败/忽略/过滤、exit0/sourceguard空 | `/tmp/openrust-c04d5-first-consumer-test.result.json`；真实Memory GC委托/长Expiry保留/Update Missing及Cookie noop，不代替网络或数据库 |
+| CLI模板快照 | 精确1 passed、19 filtered、0失败/忽略、exit0/sourceguard空 | `/tmp/openrust-c04d5-second-cli-snapshot.result.json`；11hunk逐项核模板后更新。最终gc生命周期改写的单行同步随后由final4 workspace tests与新生成实际验证，不伪称旧快照为新实跑 |
+| 双库Store/GC专项 | PG18/MySQL8.4各严格具名2/2，accepted/exit0，无失败/忽略/过滤/跳过，sourceguard空；自有锚库均已核absent | `/tmp/openrust-c04d5-backend-{pg,mysql}.result.json`及safe.log；旧原子精度/撤销、新GC绝对期限/同秒微秒、旧表索引升级/同名异列冲突/down-up/存活数据、事务持锁续期竞争。stage外层3600秒、SQL/清理30秒；单个commit/close无额外独立deadline，不声称库API提供该超时 |
+| Redis8真实Store/Auth | Store严格具名1/1、Auth10/10，accepted/exit0，无失败/忽略/过滤/跳过，sourceguard空 | `/tmp/openrust-c04d5-redis-{store,auth}.safe.log`；gc返回0后跨连接读取，原TTL/撤销/防复活链保留；不扫描全库或改变共享服务，不代表集群 |
+| 根双库完整目标 | root3各62/62、八项required具名齐全，accepted/exit0，无失败/忽略/过滤/跳过，sourceguard空；锚库均已核absent | `/tmp/openrust-c04d5-root3-{pg,mysql}.result.json`及safe.log；原Auth真实TCP内含满中GC与解密回执/双client非空业务，另核精确索引down-up/完整迁移历史。测试Mailer不是供应商发送，组合进程不是集群 |
+| 三类全新生成项目 | plain5/PG2/MySQL2，实际fmt/check/test均通过，exact guard/无失败忽略过滤跳过/sourceguard空，双库锚库均核absent | `/tmp/openrust-c04d1-generated-d5-fresh-verify-{plain,pg,mysql}.result.json`及各jsonl；D1是复用脚本前缀，实际新D5项目。覆盖最终helper、原宿主接线与双库迁移；摘要内容相同不等于复用旧执行，项目目录与源快照另核 |
+| 独立审查与源码 | 不同模型审核心12文件、叶/真实backend/索引回滚/TCP夹具；发现的加密回执/索引catalog误报已修并复审。最终489文件guard及28个变更运行文件SHA与磁盘相符 | `/tmp/openrust-c04d5-final-handoff.json` SHA93f719830014a007153330e4f41f055eec0d6d479c7012691d0741f7d7202084；根另核33个artifact哈希。私有helper参数、生命周期/unit模式与类型化空Vec仅机械改写，final4与新生成使用最终快照 |
+
+资源收尾：`/tmp/openrust-c04d5-final-clean.log`。持已验证锁并核无其他使用者后，root可再生产物23,677,386,752→0 bytes，保锁inode；五旧consumer逐项不变，总target2.486656GiB，剩余118.634468GiB/12.806633%，post_users为空。根恢复时另查无Cargo/rustc/rustdoc/server，并实际du核root0及五旧consumer相符。生成源码与通过/失败证据保留，不清他人资源。本簇无新增依赖；限定提交见Git。
+
+失败与修正边界：
+- 独立审查发现raw Set-Cookie GC回执在加密宿主不可明文断言，改为下一请求的公开解密视图；保真实Cookie/GC委托、完整envelope和非空双client断言，不使用except/plain绕过。索引catalog收紧为有效、非部分、非唯一BTREE且恰好单列expires_at，避免复合索引假绿。
+- CLI首轮101/source_changed仅自有.snap.new；完整核11hunk后限定更新。根PG首轮编译E0308/0tests，registration两helper调用只补10处借用，根逆替换SHA回到独审版本。root2实际62passed但runner写错`registration`模块名而accepted=false；实际`mod tests`经test list与7个离线pump样本确认，仅修runner后root3双库严格通过。原`/tmp/openrust-c04d5-root{,2}-pg.result.json`保持false，不回填。
+- final1全特性Clippy报私有helper unused参数；final2报可省略生命周期/unit模式/空集合断言；final3改写`[]`后E0282，三轮均原exit101/sourceguard空记录保留。按§5暂停并获用户明确“明确类型后定向重验”，仅两处改`Vec::<String>::new()`，根逆替换SHA精确回到826deaf4…；`/tmp/openrust-c04d5-approved-clippy-all.result.json`单次获准重验实际0/sourceguard空，之后final4完整通过。未加allow或降低`-D warnings`。
+
+本簇新增的是请求级GC，不新增TLS/浏览器验收主张；真实TCP来自正式根应用fixture，D4 TLS/浏览器只保其原证据。previous URL/route、真实Precognition、Old Input/CSRF、blocking、Session cache与其余driver仍按依赖推进。
+
 ## C04-D4 内置Cookie Session driver（限定子范围已验收）
 
 契约见[ADR-082 D4](../decisions/adr-082-session-store-and-flash.md#d4实现契约与明确差异)。以下均为本簇实际运行；忽略项不算真实服务，代理TLS不算Rust原生TLS或集群。本簇完成限定子范围，不关闭整个Session或已公开差异。

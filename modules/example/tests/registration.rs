@@ -611,6 +611,51 @@ fn module_migration_sources(database: &openrust::testing::TestDatabase) -> figme
 }
 
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+async fn migration_versions(
+    connection: &openrust::db::DatabaseConnection,
+) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    use openrust::db::sea_orm::{ConnectionTrait, Statement};
+    connection
+        .query_all_raw(Statement::from_string(
+            connection.get_database_backend(),
+            "SELECT version FROM openrust_migrations ORDER BY version".to_owned(),
+        ))
+        .await?
+        .into_iter()
+        .map(|row| row.try_get("", "version").map_err(Into::into))
+        .collect()
+}
+#[cfg(all(
+    feature = "session",
+    any(feature = "db-postgres", feature = "db-mysql")
+))]
+async fn session_gc_indexes(
+    connection: &openrust::db::DatabaseConnection,
+    table: &str,
+) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    use openrust::db::sea_orm::{ConnectionTrait, DbBackend, Statement};
+    let sql = match connection.get_database_backend() {
+        DbBackend::Postgres => {
+            "SELECT i.relname AS name FROM pg_index x JOIN pg_class i ON i.oid=x.indexrelid JOIN pg_class t ON t.oid=x.indrelid JOIN pg_namespace n ON n.oid=t.relnamespace JOIN pg_am m ON m.oid=i.relam JOIN pg_attribute a ON a.attrelid=t.oid AND a.attnum=x.indkey[0] WHERE n.nspname=current_schema() AND t.relname=$1 AND left(i.relname,length('ix_sessions_expiry_'))='ix_sessions_expiry_' AND m.amname='btree' AND NOT x.indisunique AND x.indisvalid AND x.indisready AND x.indnatts=1 AND x.indnkeyatts=1 AND x.indpred IS NULL AND x.indexprs IS NULL AND a.attname='expires_at' ORDER BY i.relname"
+        }
+        DbBackend::MySql => {
+            "SELECT index_name AS name FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name=? AND LEFT(index_name,CHAR_LENGTH('ix_sessions_expiry_'))='ix_sessions_expiry_' GROUP BY index_name HAVING COUNT(*)=1 AND MIN(seq_in_index)=1 AND MAX(seq_in_index)=1 AND MIN(non_unique)=1 AND MAX(non_unique)=1 AND MIN(index_type)='BTREE' AND MAX(index_type)='BTREE' AND MAX(column_name)='expires_at' AND MAX(sub_part) IS NULL ORDER BY index_name"
+        }
+        _ => return Err("不支持的迁移测试数据库".into()),
+    };
+    connection
+        .query_all_raw(Statement::from_sql_and_values(
+            connection.get_database_backend(),
+            sql,
+            [table.into()],
+        ))
+        .await?
+        .into_iter()
+        .map(|row| row.try_get("", "name").map_err(Into::into))
+        .collect()
+}
+
+#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 #[tokio::test]
 #[allow(clippy::too_many_lines)] // 同一隔离库验证启用、迁移与禁用后历史留存。
 async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
@@ -667,10 +712,43 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
         connection.get_database_backend(),
         "SELECT version FROM openrust_migrations".to_owned(),
     );
-    let before_down = connection
-        .query_all_raw(shared_history.clone())
-        .await?
-        .len();
+    let before_history = migration_versions(&connection).await?;
+    let before_down = before_history.len();
+    #[cfg(feature = "session")]
+    let gc_indexes = {
+        use openrust::database::sea_orm_migration::MigrationName;
+        assert_eq!(
+            before_history.last().map(String::as_str),
+            Some(openrust::session::SessionGcMigration.name())
+        );
+        let db = enabled.app()?.state().resolve::<openrust::db::Db>().await?;
+        let indexes = session_gc_indexes(&connection, &db.table_name("sessions")?).await?;
+        assert_eq!(indexes.len(), 1);
+        enabled
+            .app()?
+            .run_command("migrate", vec!["down".to_owned(), "1".to_owned()])
+            .await?;
+        assert_eq!(
+            migration_versions(&connection).await?,
+            before_history[..before_down - 1]
+        );
+        assert_eq!(
+            session_gc_indexes(&connection, &db.table_name("sessions")?).await?,
+            Vec::<String>::new()
+        );
+        connection
+            .query_one_raw(showcase_categories.clone())
+            .await?;
+        connection.query_one_raw(showcase_records.clone()).await?;
+        connection.query_one_raw(statement.clone()).await?;
+        connection.query_one_raw(articles.clone()).await?;
+        connection.query_one_raw(article_events.clone()).await?;
+        connection.query_one_raw(private_notes.clone()).await?;
+        connection.query_one_raw(attachment_cleanup.clone()).await?;
+        connection.query_one_raw(article_imports.clone()).await?;
+        indexes
+    };
+    let business_history = migration_versions(&connection).await?;
     enabled
         .app()?
         .run_command("migrate", vec!["down".to_owned(), "1".to_owned()])
@@ -699,7 +777,11 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
             .await?
             .len()
             + 1,
-        before_down
+        business_history.len()
+    );
+    assert_eq!(
+        migration_versions(&connection).await?,
+        business_history[..business_history.len() - 1]
     );
     enabled
         .app()?
@@ -715,6 +797,28 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
         .query_one_raw(showcase_categories.clone())
         .await?;
     connection.query_one_raw(showcase_records.clone()).await?;
+    assert_eq!(migration_versions(&connection).await?, business_history);
+    #[cfg(feature = "session")]
+    {
+        let db = enabled.app()?.state().resolve::<openrust::db::Db>().await?;
+        assert_eq!(
+            session_gc_indexes(&connection, &db.table_name("sessions")?).await?,
+            Vec::<String>::new()
+        );
+        enabled
+            .app()?
+            .run_command("migrate", vec!["up".to_owned(), "1".to_owned()])
+            .await?;
+        assert_eq!(
+            session_gc_indexes(&connection, &db.table_name("sessions")?).await?,
+            gc_indexes
+        );
+        connection
+            .query_one_raw(showcase_categories.clone())
+            .await?;
+        connection.query_one_raw(showcase_records.clone()).await?;
+    }
+    assert_eq!(migration_versions(&connection).await?, before_history);
     assert_eq!(
         connection.query_all_raw(shared_history).await?.len(),
         before_down

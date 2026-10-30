@@ -17,6 +17,10 @@ pub struct ExternalSessionStore {
 }
 
 impl SessionStore for ExternalSessionStore {
+    fn gc(&self, lifetime_seconds: i64) -> BoxFuture<'_, Result<u64>> {
+        self.inner.gc(lifetime_seconds)
+    }
+
     fn load<'a>(
         &'a self,
         id: &'a SessionId,
@@ -103,6 +107,50 @@ mod tests {
                 )
                 .await?
                 .is_none()
+        );
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod garbage_collection {
+    use super::*;
+    use openrust::session::{DEFAULT_MAX_BYTES, SessionId};
+    use serde_json::json;
+    use time::Duration;
+
+    #[tokio::test]
+    async fn external_wrapper_forwards_gc_and_retains_explicit_live_expiry() -> Result<()> {
+        let store = ExternalSessionStore::default();
+        let live = SessionRecord {
+            id: SessionId::parse(&"L".repeat(40))?,
+            data: json!({"business":"preserved"}),
+            expiry_date: OffsetDateTime::now_utc() + Duration::hours(2),
+        };
+        store
+            .write(&live, SessionWriteMode::Insert, DEFAULT_MAX_BYTES)
+            .await?;
+        let short = SessionRecord {
+            id: SessionId::parse(&"E".repeat(40))?,
+            data: json!({"business":"expired"}),
+            expiry_date: OffsetDateTime::now_utc() + Duration::milliseconds(20),
+        };
+        store
+            .write(&short, SessionWriteMode::Insert, DEFAULT_MAX_BYTES)
+            .await?;
+        tokio::time::sleep(std::time::Duration::from_millis(30)).await;
+        assert_eq!(store.gc(1).await?, 1);
+        assert_eq!(store.gc(1).await?, 0);
+        let retained = store
+            .load(&live.id, DEFAULT_MAX_BYTES, live.expiry_date)
+            .await?
+            .ok_or_else(|| openrust::Error::custom("consumer_gc_live_missing", "活会话丢失"))?;
+        assert_eq!(retained.data, json!({"business":"preserved"}));
+        assert_eq!(
+            store
+                .write(&short, SessionWriteMode::Update, DEFAULT_MAX_BYTES)
+                .await?,
+            SessionWriteOutcome::Missing
         );
         Ok(())
     }

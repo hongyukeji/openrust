@@ -142,3 +142,27 @@ Session属性使用JSON值表示；业务手动删除flash元数据尾项后追�
 RequestInfo::session返回克隆的同Arc Session句柄（非属性副本），便于持有或移入async；缺装配统一安全500 session_layer_missing。
 
 D2基础方法子范围已通过当前12项门禁、真实双库模块HTTP各54项、生成plain4/认证双库各2项与不同模型审查，证据见[testing](../memory/testing.md)。这不关闭上述ID/handler替换生命周期及完整Session范围。
+
+## D5 GC lottery与公开driver契约
+
+固定Laravel `StartSession` 在start成功后、业务前以`config/session.php`默认`[2,100]`抽签，调用实际handler的`gc(lifetime秒)`。公开契约为`SessionStore::gc(i64) -> BoxFuture<Result<u64>>`，默认no-op返回0，保第三方覆盖与真实请求绑定；配置`lottery: [u32;2]`校验分母非零且分子不大于分母，无偏抽签、0与全中确定性执行。
+
+DB采用单条条件DELETE清理已持久化绝对expiry，Memory同锁移除已有期限到期记录并计数，Cookie和Redis与固定上游handler保持no-op/TTL职责。不引入第二存储或后台清扫进程。Laravel DB按last_activity与当前lifetime回溯、Array严格小于；本框架的持久绝对expiry与`<=`授权边界优先，避免配置改变/显式Expiry误删活会话，这是现有授权期限与防复活安全增强的必要差异，不能声称异常边界完全一致。缺少last_activity不能用expiry反推伪造上游行为。
+
+请求级GC使用expiry索引，追加公开`SessionGcMigration`，不修改已具名的旧建表迁移。默认统一Migrator在Session-only及Auth建表之后各登记一次，自定义Migrator显式追加；索引名来自实际物理表名摘要，防前缀/映射冲突并满足双库标识符长度。需真实验证新库及已有表追加路径，不假设跨库通用`CREATE INDEX IF NOT EXISTS`，同名异列不静默通过，升级不删除用户记录。
+
+GC失败走现有prepare错误清Cookie/no-store/关闭路径，业务不执行、不save；取消不后台继续，已完成外部DELETE不回滚。删除和续期竞争依靠数据库条件操作与既有Update防复活；不提供默认分布式请求锁。验收覆盖公开driver、确定性lottery、错误/取消、唯一模块与新生成、真实PG18/MySQL8.4及Redis；本簇限定子范围已通过final4与实际专项，证据及未等价边界见[testing](../memory/testing.md#c04-d5-gc-lottery限定子范围已验收)。
+
+固定来源：framework `d52c3b3129e4c8e213c97cdc68f94b0b7d27f181`的`Middleware/StartSession.php:109–129,169–189`、`config/session.php:117`、`DatabaseSessionHandler.php:299–301`及真实`tests/Integration/Session/DatabaseSessionHandlerTest.php:57–75`；`ArraySessionHandler.php:133–146`实际清扫，`CacheBasedSessionHandler.php:112–115`与`CookieSessionHandler.php:146–149`返回0。此前不存在的StartSession测试路径不充当有效官方测试证据。
+
+D5固定源码审计SHA256（均为上述framework ref，源码核对不等于执行官方PHP测试）：
+
+| 上游路径 | SHA256 |
+| --- | --- |
+| `src/Illuminate/Session/Middleware/StartSession.php` | `c259cd8954a107a080e4787caec3babc7c6fc710a9ba3e0310533c2662199ac7` |
+| `config/session.php` | `12ec2d64eaffa4a9378a7f0d49f4ffd117f798b6b60a6efd3be067e4b01f1f95` |
+| `src/Illuminate/Session/DatabaseSessionHandler.php` | `d8a2edbac91c7ab70e705c5d2ace67b5833fb58336d42c47d85a4d59e2116079` |
+| `tests/Integration/Session/DatabaseSessionHandlerTest.php` | `60f9219ae224271850523d80ce673b9f478f13207c5e896ada77a08a903a371c` |
+| `src/Illuminate/Session/ArraySessionHandler.php` | `e01d016e8470b0d196caa600bc72b1fe51e41be426c3f422cb38f4ba666ee62c` |
+| `src/Illuminate/Session/CacheBasedSessionHandler.php` | `f60a7447aeab6857526516514d096aadce05c2ea960c9f082c0802d0337f6308` |
+| `src/Illuminate/Session/CookieSessionHandler.php` | `fb4c6fe371bda398abcf62f30128021382357fb8ee7f16c88469c571c1ec4102` |

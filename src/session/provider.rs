@@ -136,6 +136,7 @@ impl ServiceProvider for SessionServiceProvider {
                 ("http_only", S::Boolean),
                 ("same_site", S::String.nullable()),
                 ("lifetime", S::Integer),
+                ("lottery", S::array(S::Integer)),
                 ("expire_on_close", S::Boolean),
                 ("partitioned", S::Boolean),
                 ("max_bytes", S::Integer),

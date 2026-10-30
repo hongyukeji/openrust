@@ -91,6 +91,7 @@ pub(crate) async fn store(
         }
         "extensions" => extension = Some(extension_snapshot(&session)?),
         "probe" => extension = Some(probe_snapshot(&session, &jar, &request)?),
+        "gc_probe" => extension = Some(gc_probe_snapshot(&session, &jar, &request)?),
         _ => return Err(action_invalid()),
     }
     let mut data = snapshot(&session)?;
@@ -211,4 +212,21 @@ fn probe_snapshot(session: &Session, jar: &CookieJar, request: &Request) -> Resu
         _ => None,
     };
     Ok(json!({"needs_request":session.handler_needs_request()?, "reply":reply}))
+}
+
+fn gc_probe_snapshot(session: &Session, jar: &CookieJar, request: &Request) -> Result<Value> {
+    let mut data = probe_snapshot(session, jar, request)?;
+    let receipt = match request.cookie("example_session_gc") {
+        Some(Value::String(value))
+            if value.len() <= 42
+                && value.split_once(':').is_some_and(|(seconds, deleted)| {
+                    seconds.parse::<i64>().is_ok() && deleted.parse::<u64>().is_ok()
+                }) =>
+        {
+            Some(value)
+        }
+        _ => None,
+    };
+    data["gc"] = json!(receipt);
+    Ok(data)
 }

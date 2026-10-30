@@ -103,5 +103,8 @@ async fn generated_original_host_supports_explicit_cookie_session_without_databa
     .merge(Toml::string(
         "[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
     ));
+    let source = source.merge(Serialized::defaults(
+        serde_json::json!({"session":{"lottery":[1,1]}}),
+    ));
     request_session::assert_original_host_cookie_session::<GeneratedApplication>(source).await
 }

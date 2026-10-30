@@ -93,6 +93,7 @@ impl<A: Application, const EXISTING: bool> Application for SessionApplication<A,
             providers.push(Box::new(
                 SessionServiceProvider::with_store(MemorySessionStore::default())
                     .with_cookie_config(SessionConfig {
+                        lottery: [1, 1],
                         driver: Some("array".into()),
                         cookie: Some("contract_session".into()),
                         secure: Some(false),
@@ -170,6 +171,9 @@ pub async fn assert_request_session<A: Application>(
     source: Figment,
     existing_session: bool,
 ) -> openrust::Result<()> {
+    let source = source.merge(figment::providers::Serialized::defaults(
+        json!({"session":{"lottery":[1,1]}}),
+    ));
     let cookie_source = source.clone();
     if existing_session {
         verify::<A, true>(source).await?;
@@ -190,6 +194,7 @@ impl<A: Application> Application for CookieSessionApplication<A> {
         let mut providers = A::providers(config);
         let cookie: Box<dyn ServiceProvider> = Box::new(
             SessionServiceProvider::new().with_cookie_config(SessionConfig {
+                lottery: [1, 1],
                 driver: Some("cookie".into()),
                 cookie: Some("contract_cookie_session".into()),
                 secure: Some(false),
@@ -433,6 +438,22 @@ struct ContractRequestDriver {
     context: Option<SessionRequestContext>,
 }
 impl SessionStore for ContractRequestDriver {
+    fn gc(&self, lifetime_seconds: i64) -> BoxFuture<'_, openrust::Result<u64>> {
+        Box::pin(async move {
+            let deleted = self.backend.gc(lifetime_seconds).await?;
+            if let Some(context) = &self.context {
+                let jar = context.cookie_jar();
+                jar.queue(jar.factory().make(
+                    "contract_session_gc",
+                    format!("{lifetime_seconds}:{deleted}"),
+                    0,
+                    CookieOptions::default(),
+                )?)?;
+            }
+            Ok(deleted)
+        })
+    }
+
     fn supports_session_authentication(&self, cookie_name: &str) -> bool {
         self.backend.supports_session_authentication(cookie_name)
     }
@@ -518,8 +539,18 @@ fn seed(session: &Session, jar: &CookieJar, value: &str) -> openrust::Result<Jso
 }
 async fn probe(session: Session, info: RequestInfo) -> openrust::Result<Json<Value>> {
     Ok(Json(
-        json!({"needs_request":session.handler_needs_request()?, "reply":info.cookie(REPLY)}),
+        json!({"needs_request":session.handler_needs_request()?, "reply":info.cookie(REPLY),"gc":gc_receipt_valid(info.cookie("contract_session_gc"))}),
     ))
+}
+fn gc_receipt_valid(value: Option<Value>) -> bool {
+    value
+        .and_then(|value| value.as_str().map(str::to_owned))
+        .filter(|value| value.len() <= 42)
+        .is_some_and(|value| {
+            value.split_once(':').is_some_and(|(seconds, deleted)| {
+                seconds == "7200" && deleted.parse::<u64>().is_ok()
+            })
+        })
 }
 async fn verify_request_driver<A: Application, const EXISTING: bool>(
     app: &TestApp<SessionApplication<A, EXISTING>>,
@@ -550,7 +581,7 @@ async fn verify_request_driver<A: Application, const EXISTING: bool>(
                 .await?;
             check_response(
                 &response,
-                json!({"needs_request":true,"reply":(round == 1).then_some(value)}),
+                json!({"needs_request":true,"reply":(round == 1).then_some(value),"gc":true}),
             )?;
             merge_probe_cookies(&response, name, cookies)?;
         }
@@ -570,7 +601,9 @@ fn merge_probe_cookies(
             .next()
             .ok_or_else(mismatch)?;
         let (key, _) = pair.split_once('=').ok_or_else(mismatch)?;
-        if ![name, PROBE, REPLY].contains(&key) && SessionId::parse(key).is_err() {
+        if ![name, PROBE, REPLY, "contract_session_gc"].contains(&key)
+            && SessionId::parse(key).is_err()
+        {
             continue;
         }
         if let Some(existing) = cookies.iter_mut().find(|(name, _)| name == key) {
@@ -632,7 +665,7 @@ pub async fn assert_original_host_cookie_session<A: Application>(
     source: Figment,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let source = source.merge(figment::providers::Serialized::defaults(
-        json!({"session":{"driver":"cookie","cookie":"original_host_session","secure":false}}),
+        json!({"session":{"driver":"cookie","cookie":"original_host_session","secure":false,"lottery":[1,1]}}),
     ));
     let mut app = TestApp::<OriginalHost<A>>::builder(source).build().await?;
     let outcome: openrust::Result<()> = async {

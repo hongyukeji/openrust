@@ -572,6 +572,12 @@ impl Session {
         self.lock()?.expiry.unwrap_or(Expiry::OnSessionEnd).date()
     }
 
+    pub(crate) async fn collect_garbage(&self, lifetime_seconds: i64) -> Result<u64> {
+        let _operation = self.operation().await?;
+        let driver = self.lock()?.driver.clone();
+        driver.ready()?.gc(lifetime_seconds).await
+    }
+
     /// 立即读取当前绑定，与已有属性合并；待保存的跨绑定转移禁止混读目标。
     pub async fn start(&self) -> Result<bool> {
         let _operation = self.operation().await?;

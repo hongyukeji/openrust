@@ -121,6 +121,8 @@ async fn shared_conflict_update_and_bounded_payload(fixture: &Fixture) -> Result
         SessionWriteOutcome::Written,
     )
     .await?;
+    ensure(io(fixture.first.gc(1)).await? == 0)?;
+    ensure(io(fixture.second.gc(i64::MAX)).await? == 0)?;
     let shared = required(&fixture.second, &original).await?;
     ensure(shared.id == original.id && shared.data == original.data)?;
     // Value 等值不足以发现对象键顺序丢失，另比较按插入顺序序列化后的字符串。

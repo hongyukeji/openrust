@@ -12,7 +12,7 @@ use std::error::Error as StdError;
 
 use chrono::{DateTime, Utc};
 use openrust::auth::AuthMigration;
-use openrust::database::sea_orm::{ConnectionTrait, DbBackend, Statement};
+use openrust::database::sea_orm::{ConnectionTrait, DbBackend, Statement, TransactionTrait};
 use openrust::database::sea_orm_migration::{MigratorTrait, prelude::*};
 use openrust::database::{DatabaseBackend, DatabaseTableNames, Db};
 use openrust::session::{
@@ -387,6 +387,306 @@ async fn database_session_atomic_writes_precision_and_revocation() -> TestResult
         .close()
         .await
         .map_err(|_| "Could not clean up the isolated Session integration database");
+    cleanup?;
+    outcome
+}
+
+async fn gc_indexes(db: &Db) -> TestResult<Vec<String>> {
+    let connection = db.connection()?;
+    let backend = connection.get_database_backend();
+    let sql = match backend {
+        DbBackend::Postgres => {
+            "SELECT i.relname AS name FROM pg_index x JOIN pg_class i ON i.oid=x.indexrelid JOIN pg_class t ON t.oid=x.indrelid JOIN pg_namespace n ON n.oid=t.relnamespace JOIN pg_am m ON m.oid=i.relam JOIN pg_attribute a ON a.attrelid=t.oid AND a.attnum=x.indkey[0] WHERE n.nspname=current_schema() AND t.relname=$1 AND left(i.relname,length('ix_sessions_expiry_'))='ix_sessions_expiry_' AND m.amname='btree' AND NOT x.indisunique AND x.indisvalid AND x.indisready AND x.indnatts=1 AND x.indnkeyatts=1 AND x.indpred IS NULL AND x.indexprs IS NULL AND a.attname='expires_at' ORDER BY i.relname"
+        }
+        DbBackend::MySql => {
+            "SELECT index_name AS name FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name=? AND LEFT(index_name,CHAR_LENGTH('ix_sessions_expiry_'))='ix_sessions_expiry_' GROUP BY index_name HAVING COUNT(*)=1 AND MIN(seq_in_index)=1 AND MAX(seq_in_index)=1 AND MIN(non_unique)=1 AND MAX(non_unique)=1 AND MIN(index_type)='BTREE' AND MAX(index_type)='BTREE' AND MAX(column_name)='expires_at' AND MAX(sub_part) IS NULL ORDER BY index_name"
+        }
+        _ => return Err("GC 测试需要 PostgreSQL/MySQL".into()),
+    };
+    let rows = connection
+        .query_all_raw(Statement::from_sql_and_values(
+            backend,
+            sql,
+            [db.table_name("sessions")?.into()],
+        ))
+        .await?;
+    rows.into_iter()
+        .map(|row| row.try_get("", "name").map_err(Into::into))
+        .collect()
+}
+
+async fn index_count(db: &Db) -> TestResult<usize> {
+    Ok(gc_indexes(db).await?.len())
+}
+
+async fn upgrade_gc_index(db: &Db, names: &DatabaseTableNames) -> TestResult {
+    check(index_count(db).await? == 0, "旧 Session 表不应已有 GC 索引")?;
+    let connection = db.connection()?;
+    let manager = SchemaManager::new(&connection);
+    names
+        .scope(openrust::session::SessionGcMigration.up(&manager))
+        .await?;
+    check(index_count(db).await? == 1, "GC 升级未建立唯一截止索引")?;
+    check(
+        names
+            .scope(openrust::session::SessionGcMigration.up(&manager))
+            .await
+            .is_err(),
+        "重复索引不应被静默接受",
+    )?;
+    let index = gc_indexes(db)
+        .await?
+        .into_iter()
+        .next()
+        .ok_or("缺少新建截止索引")?;
+    names
+        .scope(openrust::session::SessionGcMigration.down(&manager))
+        .await?;
+    check(index_count(db).await? == 0, "GC 回滚后截止索引仍在")?;
+    manager
+        .create_index(
+            Index::create()
+                .name(&index)
+                .table(openrust::database::sea_orm::sea_query::Alias::new(
+                    db.table_name("sessions")?,
+                ))
+                .col(openrust::database::sea_orm::sea_query::Alias::new(
+                    "created_at",
+                ))
+                .to_owned(),
+        )
+        .await?;
+    check(
+        names
+            .scope(openrust::session::SessionGcMigration.up(&manager))
+            .await
+            .is_err(),
+        "同名异列索引不应被静默接受",
+    )?;
+    check(index_count(db).await? == 0, "异列索引不能冒充 GC 索引")?;
+    names
+        .scope(openrust::session::SessionGcMigration.down(&manager))
+        .await?;
+    names
+        .scope(openrust::session::SessionGcMigration.up(&manager))
+        .await?;
+    check(index_count(db).await? == 1, "GC 截止索引未能恢复")
+}
+
+async fn gc_absolute_deadlines(db: &Db, store: &DatabaseSessionStore) -> TestResult {
+    let mut expired = record('g', "expired before gc")?;
+    expired.expiry_date = OffsetDateTime::now_utc() - Duration::hours(1);
+    write_is(
+        store,
+        &expired,
+        SessionWriteMode::Insert,
+        SessionWriteOutcome::Written,
+    )
+    .await?;
+    let mut short = record('h', "explicit short")?;
+    short.expiry_date = OffsetDateTime::now_utc() + Duration::minutes(5);
+    let mut long = record('i', "explicit long")?;
+    long.expiry_date = OffsetDateTime::now_utc() + Duration::days(2);
+    for record in [&short, &long] {
+        write_is(
+            store,
+            record,
+            SessionWriteMode::Insert,
+            SessionWriteOutcome::Written,
+        )
+        .await?;
+    }
+    check(store.gc(1).await? == 1, "GC 误删存活截止或遗漏过期记录")?;
+    check(
+        store.gc(i64::MAX).await? == 0,
+        "当前 lifetime 不应改变已有绝对截止",
+    )?;
+    for record in [&short, &long] {
+        let retained = loaded(store, record).await?;
+        check(
+            retained.data == record.data && retained.expiry_date > OffsetDateTime::now_utc(),
+            "GC 改变了存活记录",
+        )?;
+    }
+    expired.expiry_date = OffsetDateTime::now_utc() + Duration::days(3);
+    write_is(
+        store,
+        &expired,
+        SessionWriteMode::Update,
+        SessionWriteOutcome::Missing,
+    )
+    .await?;
+    // 后续同秒精度和锁竞争场景只操作本次隔离表，明确清掉此阶段自己的存活记录。
+    store.delete(&short.id).await?;
+    store.delete(&long.id).await?;
+    check(index_count(db).await? == 1, "GC 不应删除支撑索引")
+}
+
+async fn gc_subsecond_deadline(db: &Db, store: &DatabaseSessionStore) -> TestResult {
+    let connection = db.connection()?;
+    let backend = connection.get_database_backend();
+    let (clock, expired) = match backend {
+        DbBackend::Postgres => (
+            "SELECT CAST(EXTRACT(EPOCH FROM clock_timestamp()) * 1000000 AS BIGINT) AS micros",
+            "clock_timestamp() - INTERVAL '1 microsecond'",
+        ),
+        DbBackend::MySql => (
+            "SELECT CAST(UNIX_TIMESTAMP(CURRENT_TIMESTAMP(6)) * 1000000 AS SIGNED) AS micros",
+            "CURRENT_TIMESTAMP(6) - INTERVAL 1 MICROSECOND",
+        ),
+        _ => return Err("GC 测试需要 PostgreSQL/MySQL".into()),
+    };
+    let record = record('j', "same second gc")?;
+    for _ in 0..100 {
+        let before = connection
+            .query_one_raw(Statement::from_string(backend, clock))
+            .await?
+            .ok_or("GC 数据库时钟缺失")?
+            .try_get::<i64>("", "micros")?;
+        if !(200_000..500_000).contains(&before.rem_euclid(1_000_000)) {
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            continue;
+        }
+        store.delete(&record.id).await?;
+        write_is(
+            store,
+            &record,
+            SessionWriteMode::Insert,
+            SessionWriteOutcome::Written,
+        )
+        .await?;
+        connection
+            .execute_raw(Statement::from_string(
+                backend,
+                format!(
+                    "UPDATE {} SET expires_at={expired}",
+                    db.quoted_table_name("sessions")?
+                ),
+            ))
+            .await?;
+        let removed = store.gc(7200).await?;
+        let after = connection
+            .query_one_raw(Statement::from_string(backend, clock))
+            .await?
+            .ok_or("GC 数据库时钟缺失")?
+            .try_get::<i64>("", "micros")?;
+        if before / 1_000_000 == after / 1_000_000 {
+            return check(removed == 1, "GC 遗漏同秒内已过期记录");
+        }
+    }
+    Err("GC 在有限重试内未取得同秒样本".into())
+}
+
+async fn gc_concurrent_renewal(db: &Db, store: &DatabaseSessionStore) -> TestResult {
+    let mut old = record('k', "before renewal")?;
+    old.expiry_date = OffsetDateTime::now_utc() + Duration::seconds(2);
+    write_is(
+        store,
+        &old,
+        SessionWriteMode::Insert,
+        SessionWriteOutcome::Written,
+    )
+    .await?;
+    let mut renewed = old.clone();
+    renewed.data = json!({"renewed": true});
+    renewed.expiry_date = OffsetDateTime::now_utc() + Duration::days(2);
+    let connection = db.connection()?;
+    let backend = connection.get_database_backend();
+    let now = if backend == DbBackend::MySql {
+        "CURRENT_TIMESTAMP(6)"
+    } else {
+        "CURRENT_TIMESTAMP"
+    };
+    let expiry = DateTime::<Utc>::from_timestamp(
+        renewed.expiry_date.unix_timestamp(),
+        renewed.expiry_date.nanosecond(),
+    )
+    .ok_or("GC 续期期限无效")?;
+    let payload = String::from_utf8(renewed.encode(DEFAULT_MAX_BYTES)?)?;
+    let table = db.quoted_table_name("sessions")?;
+    let transaction = connection.begin().await?;
+    let sql = if backend == DbBackend::MySql {
+        format!("UPDATE {table} SET data=?,expires_at=? WHERE expires_at>{now}")
+    } else {
+        format!("UPDATE {table} SET data=$1,expires_at=$2 WHERE expires_at>{now}")
+    };
+    check(
+        transaction
+            .execute_raw(Statement::from_sql_and_values(
+                backend,
+                sql,
+                [payload.into(), expiry.into()],
+            ))
+            .await?
+            .rows_affected()
+            == 1,
+        "续期未取得存活记录",
+    )?;
+    let mut observed_expired = false;
+    for _ in 0..150 {
+        let cast = if backend == DbBackend::MySql {
+            "SIGNED"
+        } else {
+            "BIGINT"
+        };
+        let row = connection.query_one_raw(Statement::from_string(backend, format!("SELECT CAST(COUNT(*) AS {cast}) AS expired_count FROM {table} WHERE expires_at<={now}"))).await?.ok_or("GC 旧版本计数缺失")?;
+        if row.try_get::<i64>("", "expired_count")? == 1 {
+            observed_expired = true;
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
+    check(observed_expired, "GC 未观察到已过期的已提交版本")?;
+    let mut gc = store.gc(7200);
+    let early = tokio::time::timeout(std::time::Duration::from_millis(100), gc.as_mut())
+        .await
+        .ok();
+    let blocked = early.is_none();
+    let committed = transaction.commit().await;
+    let removed = match early {
+        Some(result) => result?,
+        None => tokio::time::timeout(std::time::Duration::from_secs(3), gc.as_mut()).await??,
+    };
+    committed?;
+    check(blocked && removed == 0, "GC 误删续期记录或未等待行锁")?;
+    check(
+        loaded(store, &renewed).await?.data == renewed.data,
+        "GC 丢失了已提交续期",
+    )
+}
+
+#[tokio::test]
+#[ignore = "需要真实 PostgreSQL/MySQL 与 OPENRUST_TEST_DATABASE_URL；执行 GC/索引升级与真实锁竞争"]
+async fn database_session_gc_absolute_expiry_index_upgrade_and_renewal_race() -> TestResult {
+    let url = std::env::var("OPENRUST_TEST_DATABASE_URL")
+        .map_err(|_| "GC 需要 OPENRUST_TEST_DATABASE_URL")?;
+    let names = DatabaseTableNames::new("session_gc_it_", std::collections::BTreeMap::new())?;
+    let database =
+        TestDatabase::create_with_table_names::<SessionMigrator>(&url, names.clone()).await?;
+    let outcome = async {
+        let db = Db::with_table_names(names.clone());
+        db.initialize(database.connection()?)?;
+        let store = DatabaseSessionStore::new(db.clone());
+        let retained = record('f', "old schema retained")?;
+        write_is(
+            &store,
+            &retained,
+            SessionWriteMode::Insert,
+            SessionWriteOutcome::Written,
+        )
+        .await?;
+        upgrade_gc_index(&db, &names).await?;
+        check(
+            loaded(&store, &retained).await?.data == retained.data,
+            "索引升级丢失既有 Session",
+        )?;
+        store.delete(&retained.id).await?;
+        gc_absolute_deadlines(&db, &store).await?;
+        gc_subsecond_deadline(&db, &store).await?;
+        gc_concurrent_renewal(&db, &store).await
+    }
+    .await;
+    let cleanup = database.close().await;
     cleanup?;
     outcome
 }

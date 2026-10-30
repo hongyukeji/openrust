@@ -41,6 +41,12 @@ impl MigratorTrait for FrameworkMigrator {
             ]);
             migrations
         };
+        #[cfg(feature = "session")]
+        let migrations = {
+            let mut migrations = migrations;
+            migrations.push(Box::new(crate::session::SessionGcMigration));
+            migrations
+        };
         #[cfg(feature = "signing")]
         let migrations = {
             let mut migrations = migrations;

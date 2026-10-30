@@ -1455,6 +1455,9 @@ async fn request_with_options(
 
 // 调用方显式选择请求驱动的独立根宿主 fixture；主认证 App 的原 DB driver 不变。
 async fn run_request_driver_fixture(source: Figment) -> TestResult {
+    let source = source.merge(Serialized::defaults(
+        serde_json::json!({"session":{"lottery":[1,1]}}),
+    ));
     let config = source.extract::<bootstrap::Configuration>()?;
     let mut builder =
         openrust::core::ProviderBuilder::for_application::<bootstrap::Server>(&config);
@@ -1547,18 +1550,10 @@ async fn run_request_driver_probes(address: SocketAddr) -> TestResult {
                 &client,
                 &endpoint,
                 cookies,
-                Some(serde_json::json!({"action":"probe","value":marker})),
+                Some(serde_json::json!({"action":"gc_probe","value":marker})),
             )
             .await?;
-            if body
-                != driver_expected(
-                    marker,
-                    Some(&format!("memo-{marker}")),
-                    Some(count),
-                    Some("probe"),
-                    (round == 2).then_some(marker),
-                )
-            {
+            if body != gc_driver_expected(&body, marker, count, (round == 2).then_some(marker))? {
                 return Err("请求驱动 Cookie 回执或跨请求归属不匹配".into());
             }
         }
@@ -1612,10 +1607,37 @@ fn driver_expected(
     if let Some(action) = action {
         data["action"] = serde_json::json!(action);
     }
-    if action == Some("probe") {
+    if matches!(action, Some("probe" | "gc_probe")) {
         data["extension"] = serde_json::json!({"needs_request":true,"reply":reply});
     }
     serde_json::json!({"success":true,"code":"ok","message":"ok","data":data})
+}
+
+fn gc_driver_expected(
+    body: &serde_json::Value,
+    marker: &str,
+    count: i64,
+    reply: Option<&str>,
+) -> std::result::Result<serde_json::Value, Box<dyn StdError>> {
+    let receipt = body
+        .pointer("/data/extension/gc")
+        .and_then(serde_json::Value::as_str)
+        .filter(|value| value.len() <= 42)
+        .filter(|value| {
+            value.split_once(':').is_some_and(|(seconds, deleted)| {
+                seconds == "7200" && deleted.parse::<u64>().is_ok()
+            })
+        })
+        .ok_or("TCP请求未收到有效解密GC回执")?;
+    let mut expected = driver_expected(
+        marker,
+        Some(&format!("memo-{marker}")),
+        Some(count),
+        Some("gc_probe"),
+        reply,
+    );
+    expected["data"]["extension"]["gc"] = serde_json::json!(receipt);
+    Ok(expected)
 }
 
 async fn request_driver_step(
@@ -1652,6 +1674,7 @@ async fn request_driver_step(
             "openrust_session",
             "example_session_probe",
             "example_session_probe_reply",
+            "example_session_gc",
         ]
         .contains(&name)
         {

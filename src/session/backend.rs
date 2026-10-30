@@ -37,6 +37,27 @@ impl DatabaseSessionStore {
 }
 
 impl SessionStore for DatabaseSessionStore {
+    fn gc(&self, _lifetime_seconds: i64) -> BoxFuture<'_, Result<u64>> {
+        Box::pin(async move {
+            let connection = self.db.connection().map_err(|_| unavailable())?;
+            let backend = connection.get_database_backend();
+            let table = self.db.quoted_table_name("sessions")?;
+            let now = match backend {
+                DbBackend::Postgres => "CURRENT_TIMESTAMP",
+                DbBackend::MySql => "CURRENT_TIMESTAMP(6)",
+                _ => return Err(unavailable()),
+            };
+            connection
+                .execute_raw(Statement::from_string(
+                    backend,
+                    format!("DELETE FROM {table} WHERE expires_at <= {now}"),
+                ))
+                .await
+                .map(|result| result.rows_affected())
+                .map_err(|_| unavailable())
+        })
+    }
+
     fn load<'a>(
         &'a self,
         id: &'a SessionId,
@@ -221,6 +242,16 @@ impl std::fmt::Debug for MemorySessionStore {
 }
 
 impl SessionStore for MemorySessionStore {
+    fn gc(&self, _lifetime_seconds: i64) -> BoxFuture<'_, Result<u64>> {
+        Box::pin(async move {
+            let mut records = self.records.lock().await;
+            let before = records.len();
+            let now = OffsetDateTime::now_utc();
+            records.retain(|_, record| record.expiry_date > now);
+            u64::try_from(before - records.len()).map_err(|_| limit_error())
+        })
+    }
+
     fn load<'a>(
         &'a self,
         id: &'a SessionId,
@@ -404,5 +435,54 @@ impl SessionStore for RedisSessionStore {
                 .map_err(|_| unavailable())?;
             Ok(())
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn memory_gc_counts_absolute_deadlines_and_prevents_update_resurrection() -> Result<()> {
+        let store = MemorySessionStore::default();
+        let now = OffsetDateTime::now_utc();
+        let mut records = Vec::new();
+        for expiry in [
+            now - time::Duration::seconds(1),
+            now,
+            now + time::Duration::days(3),
+        ] {
+            let record = SessionRecord {
+                id: SessionId::generate()?,
+                data: serde_json::json!({"kept": true}),
+                expiry_date: expiry,
+            };
+            assert_eq!(
+                store.write(&record, SessionWriteMode::Insert, 4096).await?,
+                SessionWriteOutcome::Written
+            );
+            records.push(record);
+        }
+        assert_eq!(store.gc(1).await?, 2);
+        assert_eq!(store.gc(i64::MAX).await?, 0);
+        for record in &records[..2] {
+            let renewed = SessionRecord {
+                expiry_date: now + time::Duration::days(4),
+                ..record.clone()
+            };
+            assert_eq!(
+                store
+                    .write(&renewed, SessionWriteMode::Update, 4096)
+                    .await?,
+                SessionWriteOutcome::Missing
+            );
+        }
+        assert!(
+            store
+                .load(&records[2].id, 4096, now + time::Duration::days(4))
+                .await?
+                .is_some()
+        );
+        Ok(())
     }
 }

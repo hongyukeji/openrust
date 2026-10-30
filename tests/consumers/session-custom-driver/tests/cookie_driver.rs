@@ -13,6 +13,10 @@ struct Delegating {
     inner: Arc<dyn SessionStore>,
 }
 impl SessionStore for Delegating {
+    fn gc(&self, lifetime_seconds: i64) -> BoxFuture<'_, Result<u64>> {
+        self.inner.gc(lifetime_seconds)
+    }
+
     fn supports_session_authentication(&self, cookie_name: &str) -> bool {
         self.inner.supports_session_authentication(cookie_name)
     }
@@ -63,6 +67,7 @@ async fn builtin_cookie_driver_is_consumable_and_wrappers_preserve_snapshot_guar
         SessionStoreGuarantees::ClientSideSnapshot
     );
     assert!(!driver.supports_session_authentication("consumer_session"));
+    assert_eq!(driver.gc(1).await?, 0);
     let queue = CookieJar::new(CookieFactory::default());
     let session = Session::new(None, driver, None)?;
     session

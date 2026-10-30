@@ -764,3 +764,275 @@ async fn binding_or_start_failure_discards_queued_cookies_and_preserves_original
     }
     Ok(())
 }
+
+#[derive(Default)]
+struct GcTrace {
+    events: Mutex<Vec<String>>,
+    jar: Mutex<Option<CookieJar>>,
+    entered: tokio::sync::Notify,
+    cancelled: AtomicUsize,
+}
+struct GcDriver {
+    trace: Arc<GcTrace>,
+    backend: Arc<MemorySessionStore>,
+    context: Option<SessionRequestContext>,
+    mode: u8,
+}
+impl SessionStore for GcDriver {
+    fn needs_request(&self) -> bool {
+        true
+    }
+    fn bind_request(
+        &self,
+        context: SessionRequestContext,
+    ) -> Result<Option<Arc<dyn SessionStore>>> {
+        *self.trace.jar.lock().map_err(|_| error())? = Some(context.cookie_jar().clone());
+        Ok(Some(Arc::new(Self {
+            trace: self.trace.clone(),
+            backend: self.backend.clone(),
+            context: Some(context),
+            mode: self.mode,
+        })))
+    }
+    fn gc(&self, lifetime: i64) -> BoxFuture<'_, Result<u64>> {
+        Box::pin(async move {
+            let context = self.context.as_ref().ok_or_else(error)?;
+            assert_eq!(context.cookie("gc_scope"), Some(json!("request")));
+            self.trace
+                .events
+                .lock()
+                .map_err(|_| error())?
+                .push(format!("gc:{lifetime}"));
+            let jar = context.cookie_jar();
+            jar.queue(
+                jar.factory()
+                    .make("gc_receipt", "private", 0, CookieOptions::default())?,
+            )?;
+            if self.mode == 1 {
+                return Err(Error::custom_with_status(
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    "session_gc_probe_failed",
+                    "不得泄露",
+                ));
+            }
+            if self.mode == 2 {
+                struct Cancelled<'a>(&'a AtomicUsize);
+                impl Drop for Cancelled<'_> {
+                    fn drop(&mut self) {
+                        self.0.fetch_add(1, Ordering::SeqCst);
+                    }
+                }
+                let _cancelled = Cancelled(&self.trace.cancelled);
+                self.trace.entered.notify_one();
+                std::future::pending::<()>().await;
+            }
+            self.backend.gc(lifetime).await
+        })
+    }
+    fn load<'a>(
+        &'a self,
+        id: &'a SessionId,
+        max: usize,
+        expiry: OffsetDateTime,
+    ) -> BoxFuture<'a, Result<Option<SessionRecord>>> {
+        Box::pin(async move {
+            self.trace
+                .events
+                .lock()
+                .map_err(|_| error())?
+                .push("load".into());
+            self.backend.load(id, max, expiry).await
+        })
+    }
+    fn write<'a>(
+        &'a self,
+        record: &'a SessionRecord,
+        mode: SessionWriteMode,
+        max: usize,
+    ) -> BoxFuture<'a, Result<SessionWriteOutcome>> {
+        Box::pin(async move {
+            self.trace
+                .events
+                .lock()
+                .map_err(|_| error())?
+                .push("write".into());
+            self.backend.write(record, mode, max).await
+        })
+    }
+    fn delete<'a>(&'a self, id: &'a SessionId) -> BoxFuture<'a, Result<()>> {
+        self.backend.delete(id)
+    }
+}
+struct GcRoutes(Arc<GcTrace>);
+impl openrust::core::ServiceProvider for GcRoutes {
+    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> Result<()> {
+        app.instance(self.0.clone());
+        Ok(())
+    }
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut openrust::core::BootContext<'_>,
+    ) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.routes(|routes| routes.get("/gc", gc_business))?;
+            Ok(())
+        })
+    }
+}
+async fn gc_business(
+    session: Session,
+    openrust::http::Inject(trace): openrust::http::Inject<GcTrace>,
+) -> Result<openrust::http::Json<Value>> {
+    assert!(session.is_started()?);
+    trace
+        .events
+        .lock()
+        .map_err(|_| error())?
+        .push("business".into());
+    session.put("business", "nonempty")?;
+    Ok(openrust::http::Json(
+        json!({"value":session.get("business")?}),
+    ))
+}
+async fn gc_app(lottery: [u32; 2], mode: u8) -> Result<(openrust::App, Arc<GcTrace>)> {
+    let trace = Arc::new(GcTrace::default());
+    let mut config = openrust::config::FrameworkConfig::default();
+    config.api.http_status = openrust::config::HttpStatusMode::Semantic;
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(openrust::http::HttpServiceProvider)
+        .provider(openrust::http::CookieServiceProvider::plain())
+        .provider(
+            openrust::session::SessionServiceProvider::with_store(GcDriver {
+                trace: trace.clone(),
+                backend: Arc::new(MemorySessionStore::default()),
+                context: None,
+                mode,
+            })
+            .with_cookie_config(openrust::config::SessionConfig {
+                lottery,
+                lifetime: 7,
+                secure: Some(false),
+                ..Default::default()
+            }),
+        )
+        .provider(GcRoutes(trace.clone()));
+    let runtime = builder
+        .start(figment::Figment::from(
+            figment::providers::Serialized::defaults(config),
+        ))
+        .await?;
+    Ok((openrust::App::from_provider_runtime(runtime)?, trace))
+}
+fn gc_request() -> Result<axum::http::Request<axum::body::Body>> {
+    axum::http::Request::get("/gc")
+        .header("host", "localhost")
+        .header("cookie", "gc_scope=request")
+        .body(axum::body::Body::empty())
+        .map_err(Error::internal)
+}
+#[tokio::test]
+async fn gc_lottery_zero_and_full_use_bound_driver_after_start_before_business() -> Result<()> {
+    use openrust::ServiceExt;
+    assert_eq!(Probe::default().gc(420).await?, 0);
+    for (lottery, expected) in [
+        ([0, 1], vec!["load", "business", "write"]),
+        ([1, 1], vec!["load", "gc:420", "business", "write"]),
+    ] {
+        let (app, trace) = gc_app(lottery, 0).await?;
+        let outcome: Result<()> = async {
+            let response = openrust::http::build_router(&app)?
+                .oneshot(gc_request()?)
+                .await
+                .map_err(Error::internal)?;
+            assert_eq!(response.status(), axum::http::StatusCode::OK);
+            let bytes = axum::body::to_bytes(response.into_body(), 4096)
+                .await
+                .map_err(Error::internal)?;
+            assert_eq!(
+                serde_json::from_slice::<Value>(&bytes).map_err(Error::internal)?["data"]["value"],
+                "nonempty"
+            );
+            assert_eq!(*trace.events.lock().map_err(|_| error())?, expected);
+            Ok(())
+        }
+        .await;
+        app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+            .await?;
+        outcome?;
+    }
+    Ok(())
+}
+#[tokio::test]
+async fn gc_error_discards_queued_cookie_and_never_enters_business_or_save() -> Result<()> {
+    use openrust::ServiceExt;
+    let (app, trace) = gc_app([1, 1], 1).await?;
+    let outcome: Result<()> = async {
+        let response = openrust::http::build_router(&app)?
+            .oneshot(gc_request()?)
+            .await
+            .map_err(Error::internal)?;
+        assert_eq!(
+            response.status(),
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        );
+        assert!(response.headers().get("set-cookie").is_none());
+        assert_eq!(
+            response
+                .headers()
+                .get("cache-control")
+                .and_then(|v| v.to_str().ok()),
+            Some("no-store")
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get("pragma")
+                .and_then(|v| v.to_str().ok()),
+            Some("no-cache")
+        );
+        let bytes = axum::body::to_bytes(response.into_body(), 4096)
+            .await
+            .map_err(Error::internal)?;
+        let body: Value = serde_json::from_slice(&bytes).map_err(Error::internal)?;
+        assert_eq!(body["code"], "session_gc_probe_failed");
+        assert_eq!(body["message"], "internal server error");
+        assert_eq!(
+            *trace.events.lock().map_err(|_| error())?,
+            vec!["load", "gc:420"]
+        );
+        Ok(())
+    }
+    .await;
+    app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+        .await?;
+    outcome
+}
+#[tokio::test]
+async fn cancelled_gc_drops_request_future_without_business_save_or_background_work() -> Result<()>
+{
+    use openrust::ServiceExt;
+    let (app, trace) = gc_app([1, 1], 2).await?;
+    let outcome: Result<()> = async {
+        let mut request = Box::pin(openrust::http::build_router(&app)?.oneshot(gc_request()?));
+        tokio::select! { ()=trace.entered.notified()=>{}, _=&mut request=>return Err(error()), ()=tokio::time::sleep(std::time::Duration::from_secs(5))=>return Err(error()) }
+        drop(request);
+        assert_eq!(trace.cancelled.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            *trace.events.lock().map_err(|_| error())?,
+            vec!["load", "gc:420"]
+        );
+        let queue = trace
+            .jar
+            .lock()
+            .map_err(|_| error())?
+            .clone()
+            .ok_or_else(error)?;
+        assert!(queue.queued("gc_receipt", None)?.is_none());
+        Ok(())
+    }
+    .await;
+    app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+        .await?;
+    outcome
+}
