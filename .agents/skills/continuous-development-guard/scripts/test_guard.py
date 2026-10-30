@@ -319,6 +319,40 @@ class Decisions(unittest.TestCase):
             with patch.object(recovery, 'rpc', return_value={'goal': dict(remote, createdAt=124)}):
                 with self.assertRaises(ValueError): recovery.bound_goal(config)
 
+    def test_bound_goal_allows_only_timestamp_drift_and_rejects_semantic_changes(self):
+        config = {'goal_id': 'g', 'thread': 't'}
+        local = dict(self.goal, created_at_ms=123456, objective='原始目标', updated_at_ms=1)
+        remote = {'threadId': 't', 'createdAt': 123, 'objective': '原始目标', 'status': local['status']}
+        for field, value in [('updated_at_ms', 2), ('id', 'replacement'),
+                             ('status', 'paused'), ('objective', '其他目标'), ('created_at_ms', 999999)]:
+            with self.subTest(field=field), patch.object(recovery, 'binding_valid', return_value=True), \
+                 patch.object(recovery, 'goal', side_effect=[local, dict(local, **{field: value})]), \
+                 patch.object(recovery, 'rpc', return_value={'goal': remote}):
+                if field == 'updated_at_ms':
+                    self.assertEqual(recovery.bound_goal(config), remote)
+                else:
+                    with self.assertRaises(ValueError): recovery.bound_goal(config)
+        for response in [None, dict(remote, status='paused'), dict(remote, threadId='other'),
+                         dict(remote, objective='其他目标'), dict(remote, createdAt=124)]:
+            with self.subTest(response=response), patch.object(recovery, 'binding_valid', return_value=True), \
+                 patch.object(recovery, 'goal', return_value=local), \
+                 patch.object(recovery, 'rpc', return_value={'goal': response}):
+                with self.assertRaises(ValueError): recovery.bound_goal(config)
+
+    def test_bound_goal_accepts_protocol_limited_status_spelling_only(self):
+        config = {'goal_id': 'g', 'thread': 't'}
+        for local_status, remote_status in [('usage_limited', 'usageLimited'), ('budget_limited', 'budgetLimited')]:
+            local = dict(self.goal, status=local_status, created_at_ms=123456, objective='原始目标')
+            remote = {'threadId': 't', 'createdAt': 123, 'objective': '原始目标', 'status': remote_status}
+            with self.subTest(status=local_status), patch.object(recovery, 'binding_valid', return_value=True), \
+                 patch.object(recovery, 'goal', return_value=local), \
+                 patch.object(recovery, 'rpc', return_value={'goal': remote}):
+                self.assertEqual(recovery.bound_goal(config), remote)
+            with patch.object(recovery, 'binding_valid', return_value=True), \
+                 patch.object(recovery, 'goal', return_value=local), \
+                 patch.object(recovery, 'rpc', return_value={'goal': dict(remote, status='active')}):
+                with self.assertRaises(ValueError): recovery.bound_goal(config)
+
     def test_stop_task_does_not_pause_or_interrupt_replacement_goal(self):
         with tempfile.TemporaryDirectory() as folder:
             project = Path(folder).resolve()

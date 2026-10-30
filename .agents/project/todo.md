@@ -384,11 +384,13 @@ ConfigRepository读取（源分支850e1a4）与Container extend（源分支d299c
 - 当前五个fresh生成应用均完成，源码/锁/日志保留。缓存48.162GB、磁盘16.823%为验收结束样本；下一构建前重测并估增长。专属再生产物先审精确Cargo dry-run，不能把共享test_app/auth_flows名称视为包独有或整target清空。
 - Provider编译期发现仍按既有Spec后继；不将当前显式模块清单当自动发现。
 
-## 持续开发守护补丁集成（已交付待main单独提交）
+## 持续开发守护资源退役（main补丁已集成验收）
 
-任务分支tasks/guard-question-refresh的1d0614e、97c6eff6f35e0f06cb69806846eaa5471ad6a029已通过限定测试和独立复审。净差异实际6文件：skill/平台说明、guard_questions及测试、guard.py及测试。当前从该worktree脚本运行，ROOT与runtime仍为main；已核guard_alive/supervisor_alive/heartbeat_fresh为true、working、原Goal不变、question_wait_reasons为空。守护占用该worktree，不得先删。
+源提交1d0614e、97c6eff6f35e0f06cb69806846eaa5471ad6a029的6个技能文件已单独集成main，本地提交见Git。main实跑87个守护测试（84通过、3原生Windows跳过）与51问答测试，独立审查及链接/diff通过。仅移除人为小时冷却并修活跃Goal更新时间误判，真实身份/状态/目标/权限/额度与问答防重边界保留。
 
-R2-Q/X提交释放main索引后，将这6文件净差异独立集成验证并本地提交；随后plain stop（不--stop-task）→main脚本start，保留Goal/预算/问答账本/question_model，核新进程与心跳后再安全退役该worktree。禁止重复start现有守护或改内部数据库。后续D9集成已获本次明确授权，不再弹同义问卷。
+- 按原agent/thread/Goal plain stop（不--stop-task）→main脚本start，核SCRIPT、PID/heartbeat、预算baseline、账本和question_model；不重复创建Goal或重置预算。
+- 记录位于guards忽略目录。正常退役前必须确认守护已不再使用task worktree且无WIP/占用；不先删活跃脚本目录。
+- 后继D9 36f48ec本次main集成已获用户明确授权，不再弹同义问卷。
 
 ### Paseo 项目归属核验
 

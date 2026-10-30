@@ -1,5 +1,9 @@
 # 测试基线
 
+## 持续开发守护问答与Goal绑定修复
+
+源提交1d0614e、97c6eff已单独集成，六个技能文件与独立审查分支一致；未混入框架或D9改码。main实际运行 `/tmp/openrust-guard-main-integrated-tests.log`：87项中84通过、3原生Windows跳过，149.755秒；`/tmp/openrust-guard-main-integrated-questions.log`：51项全通过，12.112秒，启用ResourceWarning错误。移除人为小时次数等待，保留四条有界缓存；仅允许同一Goal的updated_at_ms漂移，真实身份/状态/内容/创建时间或协议不一致仍拒绝，额度状态仅做精确拼写映射。不把POSIX模拟当Windows原生验收。热重载沿用原Goal/预算/问答账本，实际进程状态在guards忽略目录。
+
 ## R2-Q/X main 组合（验收通过）
 
 限定范围：ConfigRepository原始/批量读取和可信诊断路径、Container保留原factory的extend与公开Session装饰器。源提交Q `850e1a4`、X `d299ca4`；实际代码验收树 `4153d5b783aebd70dbf89f1af16a1f2bd208d01a`。不关闭完整配置/Container/Session、Provider发现或集群。
