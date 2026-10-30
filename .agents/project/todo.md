@@ -376,21 +376,10 @@ D5验收：D5请求级GC lottery/公开driver回收与追加expiry索引迁移�
 
 D7真实Route/Resolver与受管理方法声明已通过限定验收：final3完整12门禁、默认695/29 ignored、全特性1403/103 ignored、根PG18/MySQL8.4各64、fresh5/2/2、真实TCP7及不同模型复审；忽略项不算真实服务。根target清零，五旧consumer不变，限定提交以Git为准；完整Routing/Request与previous/Precognition仍开放。公开Route/参数/resolver、受管理方法与fallback/OPTIONS按[ADR-083](decisions/adr-083-matched-route-context.md)交付；[最终证据](memory/testing.md#c04-d7-真实路由上下文限定子范围已验收)保留失败修复、用户重验判断、真实服务及清理边界。
 
-## R2-Q/X 资源退役（main组合验收已通过）
+## 已交付任务的资源退役
 
-ConfigRepository读取（源分支850e1a4）与Container extend（源分支d299ca4）已完成main实际组合验收；本地集成提交见Git。代码输入树4153d5b；默认750/31 ignored、全特性1482/105 ignored、两档Clippy/文档、deny、feature/MSRV、公开consumer、双库、TCP和fresh生成均有封存证据，见[testing](memory/testing.md#r2-qx-main-组合验收通过)。仅关闭这两个限定子范围，不关闭完整L005/L012/Provider发现。
-
-- 确认两个源commit均为main祖先、worktree无WIP和占用后，正常退役tasks/r2-config-reading与tasks/r2-binding-extend工作区/分支；不force、不删除其他任务。
-- 当前五个fresh生成应用均完成，源码/锁/日志保留。缓存48.162GB、磁盘16.823%为验收结束样本；下一构建前重测并估增长。专属再生产物先审精确Cargo dry-run，不能把共享test_app/auth_flows名称视为包独有或整target清空。
-- Provider编译期发现仍按既有Spec后继；不将当前显式模块清单当自动发现。
-
-## 持续开发守护资源退役（main补丁已集成验收）
-
-源提交1d0614e、97c6eff6f35e0f06cb69806846eaa5471ad6a029的6个技能文件已单独集成main，本地提交见Git。main实跑87个守护测试（84通过、3原生Windows跳过）与51问答测试，独立审查及链接/diff通过。仅移除人为小时冷却并修活跃Goal更新时间误判，真实身份/状态/目标/权限/额度与问答防重边界保留。
-
-- 按原agent/thread/Goal plain stop（不--stop-task）→main脚本start，核SCRIPT、PID/heartbeat、预算baseline、账本和question_model；不重复创建Goal或重置预算。
-- 记录位于guards忽略目录。正常退役前必须确认守护已不再使用task worktree且无WIP/占用；不先删活跃脚本目录。
-- 后继D9 36f48ec本次main集成已获用户明确授权，不再弹同义问卷。
+- Q源提交850e1a4已在main，工作区干净；此前PID37197/37198/37249以其为cwd，须等自然释放并fresh lsof确认无占用后正常归档workspace、git worktree remove与branch -d，不杀共享进程。X与守护任务worktree已正常退役，main守护仍运行，不重复start或删除其账本。
+- D9源提交36f48ec已完成main组合验收，限定记录见[testing](memory/testing.md#c04-d9-main-组合限定子范围验收通过)；本地集成提交后核main包含该源提交、worktree无WIP/占用，再正常归档原任务执行者/workspace及移除其任务worktree/分支。新功能不得丢失该验收证据。
 
 ### Paseo 项目归属核验
 
@@ -400,25 +389,19 @@ ConfigRepository读取（源分支850e1a4）与Container extend（源分支d299c
 
 ### 当前构建缓存与回收
 
-- 全项目十进制50GB软/100GB硬，磁盘10%/5%保护；当前验收结束样本48.162GB、空闲16.823%，12个去重target。无在途Cargo或本次服务；后继先测总量及预计增长，不把100GB当可随意继续增长的余量。
-- main target `/Users/Home/Codes/Rust/openrust/target`保留复用。五个旧consumer及归属不足的历史target不动；所有外置target均计入预算，不能复制target规避统计。
-- Q/X旧专属target已交付后正常回收，源码/锁/commit未变；证据 `/tmp/openrust-retire-r2-owned-targets-{before,after}.json`。D9三生成包后续精确Cargo清理前后源码/锁/索引/server/CLI与3100共享框架哨兵一致，见 `/tmp/openrust-r2qx-d9-retire-after.json`；Cargo关联通用test_app/auth_flows产物不能冒称独有文件。
-- 本轮五个fresh生成应用已验收，源码/锁/日志保留；后继资源退役先审精确package dry-run与关联测试产物，再清已确认无需复用的再生产物，不清空根target。
-- 守护skill worktree当前被实际守护进程占用，不属于可删除的退役资源；待main独立提交并切回main脚本后再检查正常移除。
+- 全项目十进制50GB软/100GB硬与磁盘10%/5%保护；D9验收结束样本49.344GB、空闲约17.04%，12个去重target。下次构建前重测并按实际输入估增长，不把100GB当剩余可用量。
+- main target保留复用；旧QX五生成包、本轮plain/PG生成包及四个本簇已完成测试可执行文件已精确退役，源码/锁/索引/当前二进制及共享库哨兵未变。日志明确Cargo关联test_app/auth_flows产物；不清整target，不碰归属不足的历史缓存。
+- D9 My生成项目已验收，源码/锁/证据保留；如后继需要空间，先核精确package dry-run与占用后再回收其专属再生产物，不为纯Agent文档变化重跑矩阵。
 
-## C04-D9：Session old input（分支已验收提交，已授权后继main集成）
+## C04-D10：错误包与重定向输入（待领取Spec）
 
-| 登记项 | 当前事实与约束 |
-| --- | --- |
-| owner / 位置 | `9b3f7185-4d3a-44f9-8602-93aead4a13dc`（codex/gpt-6-sol）；OpenRust workspace `wks_1d38fe63f7562bfa`；base `27fa342` / `tasks/c04-d9-old-input`；实际worktree `/Users/Home/.paseo/worktrees/02joa2lr/tasks-c04-d9-old-input` |
-| Spec / 实现 | 沿唯一Session flash状态机/Request输入仓储实现flash_input/get_old_input/has_old_input与Request flash/flash_only/flash_except/flush/old；保留缺失/null/默认、bag内literal优先dot和原子预算。实现/唯一模块/生成helper及精确快照/文档15文件已落盘，不改manifest/lock。异常redirect敏感过滤与上传文件不冒称已对应 |
-| 独审 | terra未确认核心blocker；old input经过confirmed预检不老化与attempting普通保存/老化的模块/生成组合覆盖已补、复审解除should-fix，helper驱动名称注释nit已同步快照 |
-| 定向证据 | 模块1、Session helper2、取消恢复1、无Session1、CLI精确快照1实际通过；受影响openrust/CLI严格Clippy、fmt/diff通过。两次错误过滤运行0项明确不计通过 |
-| 完整门禁 | `/tmp/openrust-c04d9-gates/manifest.json`绑定15变更文件及3个Cargo输入；results.json已有fmt/diff/deny、默认与全feature严格Clippy exit0；默认workspace tests实际710 passed/30 ignored（忽略不算服务通过），source_changed[]，全feature tests实际1448 passed/104 ignored，source_changed[]；docs默认/全feature、no-default/session-only、MSRV1.97全feature/session-only也exit0，13门全部通过；实际allfeature server build exit0，root已核源码/log/runner/binary哈希一致。旧Clippy采集器du竞态证据incomplete已保留，修复后仅续未完成门，未重跑前四有效门 |
-| 真实服务准备 | d7_core的 `/tmp/openrust-c04d9-*` 双库/生成/TCP runner支持冻结独立worktree，无需先合入main。terra发现TCP六场景计数/handler声明/端口释放/build来源绑定问题，d7_core已修并生成reviewed4准备快照，七脚本语法/三个dry入口及离线正反解析通过；terra定点复审已解除四项问题；owner矩阵后在预算内执行真实all-features server build并记录进程exit/log/source/binary哈希，d7_core做既有服务只读身份/版本/连通性preflight和final prepare，root已核真实build-result exit0与完整源码等于冻结快照，已授权d7_core执行TCP→PG/My根验收→fresh生成prepare/check/test；两次TCP前置被/tmp规范路径与同源快照不同文件名误拒，均未启动服务/DB；仅/tmp校验器已修、离线负例通过且terra复审无反证，保留原构建/新计划同SHA内容严格绑定，final3后TCP实际accepted=true、六项true、真实退出0/端口61135释放、source/binary未变；结果 `/tmp/openrust-c04d6-url-network-faz0lt19/result.json` SHA e020c0b53acc857dbaee823fd41af5a94ad4b0e8e53d11ea7d2a050c0b293023。PG/My根runner均complete accepted=true/cleanup verified_absent/source_changed[]，各具名old-input1项实际通过；fresh生成plain5/PG2/My2及check/fmt均实际通过、无failed/ignored；final index `/tmp/openrust-c04d9-execution-final3-index.json` SHA cb90576487dbff9112ba670335d011251775a383232c782708b192a20a3b6f83，source-after-all等于冻结快照，core已明确释放窗口，预计新增≤4GB及总50/100GB/磁盘保护，窗口结束前main组合不Cargo。prepare记录accepted=false，不能冒称服务通过 |
-| 资源 / 下一步 | 复用main target且不改main源码，jobs1/debug0/incremental0；分支13门、真实build、PG18/My8.4、TCP和fresh生成应用均已闭环并释放窗口；后继main组合按实际影响独立验收，预算50/100GB及磁盘10%/5%，限定15路径已提交 `36f48ec`，commit validate通过、分支干净，最终748源码快照仍16c42ec...；尚未main集成；用户已明确决定本次36f48ec后继集成与验收，以当前R2-Q/X组合交付完成为前置，不再重复问卷、不等待旧pending冷却；保持main索引/MERGE_HEAD单一owner，串行集成并按真实影响重验。共享target现交R2 main组合owner，禁止D9再Cargo/清缓存 |
+前置D9旧输入已完成限定验收。root负责contract与文件归属；优先按MessageBag/ViewErrorBag→请求绑定RedirectResponse→请求局部视图共享收敛可交付子簇，保留完整公开方法对应，不用三个方法关闭整个错误包。已做固定上游只读审查，尚无本簇代码或验收。
 
-D8限定证据保留在[testing](memory/testing.md#c04-d8-previous-与-precognition限定子范围已验收)，不代替D9。后继候选先消费稳定old-input契约实现RedirectResponse输入/具名错误包，再按依赖收敛CSRF/FormRequest，当前不抢跑共享接口。
+1. MessageBag保留add去重/merge重复、wildcard、格式/顺序/计数、first/all/unique与默认bag代理；现ValidationErrors的BTreeMap转换不能冒称保留插入顺序。Session错误包采用可验证类型表示，旧错误类型重建空包；同一请求更新不同bag须一次mutate_value原子读改写及预算校验，禁止get后分离flash丢更新。
+2. RedirectResponse默认302，普通redirect无Session仍可构造；只有flash写入需Session。请求URL生成须核scheme/Host/代理信任与Location header边界；previous顺序为非空Referer→Session previous→有效fallback→请求根URL，不直接用app.url路由生成器替代请求源。
+3. 输入快照只从Request唯一仓储取得，明确取快照时点；手动with_input不套异常dontFlash。异常Handler的自动校验失败分支、errorBag/redirectTo/JSON及其余away/signed/action/guest/intended按对应矩阵继续，不因基础重定向关闭。
+4. ShareErrorsFromSession必须实际接入请求局部渲染入口，定义空默认bag与显式context优先级，禁止把请求错误写入共享Views环境。唯一模块/根视图/生成应用需覆盖真实调用与并发双客户端隔离。
+5. 每次flash预算原子，多次链式调用不是整体事务；自动验证组合若要共同回滚须一次批量变更。上传文件未合并输入bag仍属明确缺口，不按字段名伪过滤；CSRF/FormRequest依本簇后继推进。
 
 ## 完整实现后的发布仓库整理（后置，未启动）
 

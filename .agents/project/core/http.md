@@ -22,6 +22,12 @@ Session请求层已接入统一领域；D1限定验收范围、真实网络/双�
 
 当前稳定输入下 workspace 全特性1439 passed/104 ignored，fmt、默认/全特性严格Clippy、Rustdoc、feature检查与deny已通过；忽略或缺URL返回不算真实服务。根 PostgreSQL18/MySQL8.4已分别实际通过模块HTTP67项与 Session previous 精确1项；测试数据库清理所有权回归PG3/My2通过。Rust1.97全特性全目标check亦已通过；新生成应用普通5/双库各2项、真实TCP6项与最终CLI精确快照1项均已通过；仅关闭D8限定范围，不关闭完整HTTP能力。
 
+## D9 旧输入（限定子范围已验收）
+
+`Request::flash/flash_only/flash_except/flush`通过同一输入仓储调用Session；`RequestInfo::old/old_or/old_all`区分缺失/null/默认。无Session可读取空值或默认，写入报错；手动flash不默认剔除密码。单次预算原子、空筛选及预检保存边界见[Session](session.md#d9-旧输入限定子范围已验收)。
+
+唯一模块、生成helper、main门禁、真实双库和TCP已完成[限定验收](../memory/testing.md#c04-d9-main-组合限定子范围验收通过)。文件输入合并、RedirectResponse与CSRF/FormRequest仍开放。
+
 ## 当前实现
 
 | 模块 | 内容 |

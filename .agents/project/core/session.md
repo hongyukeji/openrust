@@ -10,6 +10,14 @@
 
 根PG18/MySQL8.4实际 Session previous 精确回归各1项已通过，并保留各67项模块HTTP证据。全特性workspace与不同模型静态审查已有结果；Rust1.97全特性全目标check已通过；新生成应用5/2/2、array单进程真实TCP6项已实际通过，不替代TLS或集群范围。具体队列见[todo](../todo.md)，不以基础Store已有验收代替完整Session/Web栈。
 
+## D9 旧输入（限定子范围已验收）
+
+`Session::flash_input(Value)`只接收对象或数组，将`_old_input`纳入原flash状态机；`get_old_input/get_old_input_or/has_old_input`先选择该bag，再以完整字面键优先dot读取。显式null与缺失分开，false/0保留；每次变更只有完整记录预算编码成功才发布，失败不改变属性或flash元数据。
+
+`Request::flash/flash_only/flash_except/flush`复用同一输入仓储与Session；空only保存`[]`、空except保存全输入，flush仅清旧输入bag。`RequestInfo::old/old_or/old_all`无Session时返回缺失、指定默认或空数组，写入则报`session_layer_missing`。手动flash默认不剔密码；唯一模块显式排除敏感字段。multipart文件尚未并入输入bag，不能据此称上传输入完整对应。confirmed预检不自动保存或老化，单纯attempting仍按普通请求保存。
+
+main默认750/31 ignored、全特性1491/105 ignored、公开consumer、根双库各72+old-input1、真实TCP六场景与fresh生成5/2/2已按适用范围验收；[证据](../memory/testing.md#c04-d9-main-组合限定子范围验收通过)不关闭完整HTTP/Session、RedirectResponse或CSRF/FormRequest。
+
 ## 源码与公开边界
 
 R2-X新增 `SessionStoreHandle::store()`，供可信Provider装饰器保留原factory及原store实例；独立Session consumer验证受管理Cookie往返与装饰层计数。直接调用该逃生口绕过请求Session状态、容量和handle层删除检查，不能用于不可信业务输入。main组合与双库回归证据见[testing](../memory/testing.md#r2-qx-main-组合验收通过)。
@@ -55,4 +63,4 @@ R2-X新增 `SessionStoreHandle::store()`，供可信Provider装饰器保留原fa
 - 公开 Store 真实PG18/MySQL8.4回归各通过1项命名fixture（0失败/0忽略/0过滤、sourceguard无漂移、两侧隔离锚库已核不存在），覆盖冲突/撤销、文本顺序/NUL/精确预算及授权截止上界；MySQL重复同记录更新也实际通过。这一专项不替代完整Auth/模块双库HTTP流程。
 - Redis8共享Store专项1项命名fixture已实际通过（无失败/忽略/过滤、源码无漂移），覆盖独立连接共享、命名空间隔离、真实TTL、防复活、顺序/NUL及预算。仅使用自有随机命名空间并清理自有ID；不是集群或完整Auth Redis链验收。
 - 当前统一实现的PG18/MySQL8.4完整Auth database target各8项及Redis8完整Auth runtime10项已实际通过，均无失败/忽略/过滤、源码无漂移；两侧数据库隔离锚库已核清理。配置最终覆盖8项、公开生命周期10项与进程内HTTP4项已定向重验通过。根PG18/MySQL8.4完整模块HTTP各53项及生成plain4/认证双库各2项另已实际通过。浏览器原生短TTL双库各4、Keycloak真实主流程各1、模块OIDC各8、新Session及默认入口TLS与最近修复后的完整12stage门禁均已实际通过；精确忽略项、候选映射与清理事实见testing，不继承旧tower证据。
-- 完整 Old Input、CSRF、redirect、GC、blocking、Session cache 与其余 driver 生态按后继矩阵交付；本文件不将基础状态机视为整个 Session 能力完成。
+- 旧输入Request/Session限定子范围已由D9验收；RedirectResponse、上传文件合并、CSRF、blocking、Session cache与其余driver生态按后继矩阵交付；本文件不将基础状态机视为整个 Session 能力完成。

@@ -1,5 +1,9 @@
 # 验收口径
 
+## C04-D9 当前组合核验
+
+旧输入限定子范围已通过main门禁、公开consumer、唯一模块、真实PG18/MySQL8.4、真实TCP六场景与fresh5/2/2，具体源/日志/数量/忽略及失败留存见[testing](testing.md#c04-d9-main-组合限定子范围验收通过)。root核总索引引用、结果/events及607输入；提交后仅Agent文档与CHANGELOG差异按实际影响复用，不把旧分支结果当main。上传输入、RedirectResponse、CSRF/FormRequest及整个HTTP/Session仍开放；TCP不证明TLS或集群，外部邮件仍为测试路径。
+
 ## R2-Q/X 当前组合核验
 
 代码输入4153d5b的默认/全特性workspace、Clippy、Rustdoc、deny、feature/MSRV、公开consumer、main真实双库/TCP和五类fresh生成应用已按范围通过；封存索引与具体限制见[testing](testing.md#r2-qx-main-组合验收通过)。root逐份核25个构建门禁记录及7个服务/生成stage、plan、TCP子记录的SHA、实际数量与清理状态。D8端口未直接观测、ignored不算服务、完整配置/Container/Session/发现仍开放。

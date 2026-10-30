@@ -1,5 +1,24 @@
 # 测试基线
 
+## C04-D9 main 组合（限定子范围验收通过）
+
+限定范围：Session旧输入与Request公开读写、唯一模块和生成helper；源提交36f48ec按用户授权集成。实际代码验收索引树`e9fd00b8dbb13d2af6f43389626fedb18ca22848`；607文件输入SHA256 `58bd5e81a5be10844ac869f71b9bbe77bbcdd69f58bc9d767a1f15962aad202d`。不关闭整个HTTP/Session、RedirectResponse、上传输入、CSRF或FormRequest。
+
+| 证据 | 实际结果与限制 |
+| --- | --- |
+| `/tmp/openrust-c04d9-main-verify/total-evidence-index.json` | SHA256 `33ed51dca142c9534517d11dc05a79a2fe25135abd5f9879e053f0dc4af2f964`；含实际命令/退出、结果/日志与来源绑定、失败留存、资源和索引交还。root另核三fresh结果/events/具名计数及最终来源，审计 `/tmp/openrust-c04d9-main-root-final-acceptance-audit.json` SHA `8f618ea5b494906543d9eba03f358e80891d5767b7eccf3b9a700bb7c9a40a73` |
+| main构建/测试门禁 | 默认workspace750 passed/31 ignored、30组、46.60秒；全特性1491 passed/105 ignored、57组、190.59秒，均0 failed/filtered。fmt、两档workspace all-targets Clippy `-D warnings`、双Rustdoc、deny、no-default/Session-only及Rust1.97两档check均exit0，源码/根锁/索引前后一致；ignored不算服务 |
+| 定向/公开调用 | Session old-input helpers2、无Session Request1、唯一模块old-input1、CLI精确快照1实际通过且非零项；公开自定义Session consumer4、Container Session装饰consumer3均0 failed/ignored；模块与生成helper覆盖confirmed不保存/老化及普通attempting路径 |
+| 根PostgreSQL18/MySQL8.4 | main3两库各业务目标72 passed、0 failed/ignored/filtered，old-input具名各1；所有权PG3/My2各精确1项。两库均预建不存在→CREATE成功→finally精确DROP→确认不存在；定向过滤数据实保留。PG result SHA `9d1d83c3127a1fa4ccd3ef11c3b934dc648407fa92b4025747b85c0a516868ae`，My `d84d680e19b2bf5ecd28c44bef0f5f78c7f250653be2e805ca4a74402e5aafd1` |
+| 实际构建来源 | 双库后真实server全特性build与CLI build分别26.46秒/0.86秒、exit0；handoff SHA `f28347ed3294f71da0bfef8f38d97888ae4f7f9f3030a04fdd8bac5bea716122`。server SHA `da59634c976900a33e3a5082e4767c6d3dc10bbb113bc46b51d7c1e54af6ef4f`，CLI `4bb672b8b8121bb29d56a2a94890d76782cff7859a6f52caeda4ba5a92a0373b`。未用双库测试覆盖产物或旧分支binary代替 |
+| 真实TCP | 修后命令exit0、worker0、六项全真、后端正常退出、端口62085释放、敏感临时文件清除，源码/binary不变。result SHA `86f159c2b134c927aa4fa14a5968f7091b1574abd5d2c767e43487440436633e`；命令退出来源在`tcp-fixed-command-exit.json`，必须同时核命令exit0与accepted。仅array单进程非TLS；handler计数由模块/生成测试补证，不冒称TCP观测了计数或集群 |
+| fresh生成应用 | gen2沿本次新CLI生成的plain/PG/My实际fmt check→首check生成并固定lock→锁定test，分别5/2/2 passed，0 failed/ignored/filtered；无自动fmt掩盖模板差异，双库生成锚库均清理确认不存在。三result SHA分别 `fa2bb4fa94bfd33162e37f5bb353bfe9359f9c8cb8a253f8ee9c9e1dace61060`、`5d017fd36c87bd718917736bce08003529b00562f10513f02253383cb864f97b`、`7bf5497a2fb8a9fb54f5830edf4f1bf32849d6c9ae71e0277e0bcc40cbc1811c` |
+| 独立审查 | terra对15个组合路径核12个源blob一致和3个自动组合文件；Q配置仓储、X扩展同实例、D8鉴权/previous/预检与D9路径保留。运行器来源、helper加载前SHA、预算/取消/退出、生成结果绑定修复亦有增量独审及离线正反；未以审查代实跑 |
+
+首次TCP六项通过后因worker尾部未定义executing而exit1，result accepted=false原样保留；仅/tmp脚本初始化修正后新plan重验。首次fresh plain在Cargo前因旧prepare路径白名单失败，completed为空；gen-only新plan精确绑定原成功prepare/result/source/CLI并重验，无业务断言放宽。一次清理命令manifest路径拼写错误亦保留，未删除文件。外部邮件仍为测试路径，不增加供应商发送完成主张。
+
+收口只补Agent事实文档与CHANGELOG；Rust/配置/模板/受测README及锁未变，按输入影响复用本轮证据。本地提交见Git。最终样本总缓存49.344GB、磁盘空闲约17.04%，无在途Cargo/rustc/rustdoc。精确回收旧QX五生成包、本轮plain/PG包及四个已完成测试可执行文件，源码/锁/索引/活跃server/CLI与共享框架库哨兵不变；Cargo关联通用测试产物有实际记录，不称仅包名文件。活跃根target保留，不清未知归属缓存。
+
 ## 持续开发守护问答与Goal绑定修复
 
 源提交1d0614e、97c6eff已单独集成，六个技能文件与独立审查分支一致；未混入框架或D9改码。main实际运行 `/tmp/openrust-guard-main-integrated-tests.log`：87项中84通过、3原生Windows跳过，149.755秒；`/tmp/openrust-guard-main-integrated-questions.log`：51项全通过，12.112秒，启用ResourceWarning错误。移除人为小时次数等待，保留四条有界缓存；仅允许同一Goal的updated_at_ms漂移，真实身份/状态/内容/创建时间或协议不一致仍拒绝，额度状态仅做精确拼写映射。不把POSIX模拟当Windows原生验收。热重载沿用原Goal/预算/问答账本，实际进程状态在guards忽略目录。

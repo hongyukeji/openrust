@@ -15,6 +15,89 @@ fn session() -> Result<Session> {
 }
 
 #[test]
+fn old_input_preserves_missing_null_literals_and_rejects_invalid_or_oversized_bags() -> Result<()> {
+    let session = session()?;
+    assert_eq!(session.get_old_input(None)?, Some(json!([])));
+    assert_eq!(session.get_old_input(Some("missing"))?, None);
+    assert!(!session.has_old_input(None)?);
+    session.flash_input(
+        json!({"a.b":"literal","a":{"b":false},"profile":{"name":"Ada"},"nil":null,"zero":0}),
+    )?;
+    assert_eq!(session.get_old_input(Some("a.b"))?, Some(json!("literal")));
+    assert_eq!(session.get_old_input(Some("a.b.c"))?, None);
+    assert_eq!(
+        session.get_old_input(Some("profile.name"))?,
+        Some(json!("Ada"))
+    );
+    assert_eq!(session.get_old_input(Some("nil"))?, Some(Value::Null));
+    assert_eq!(
+        session.get_old_input_or("nil", json!("fallback"))?,
+        Value::Null
+    );
+    assert_eq!(
+        session.get_old_input_or("missing", json!("fallback"))?,
+        json!("fallback")
+    );
+    assert!(session.has_old_input(None)?);
+    assert!(!session.has_old_input(Some("nil"))?);
+    assert!(session.has_old_input(Some("a.b"))?);
+    assert!(session.has_old_input(Some("zero"))?);
+    assert_eq!(session.get_old_input(Some("a.b"))?, Some(json!("literal")));
+    let before = session.all()?;
+    for invalid in [Value::Null, json!(false), json!(3), json!("text")] {
+        assert!(session.flash_input(invalid).is_err());
+        assert_eq!(session.all()?, before);
+    }
+    assert!(
+        session
+            .flash_input(json!({"large":"x".repeat(openrust::session::DEFAULT_MAX_BYTES + 1)}))
+            .is_err()
+    );
+    assert_eq!(session.all()?, before);
+    session.flash_input(json!([]))?;
+    assert_eq!(session.get_old_input(None)?, Some(json!([])));
+    assert!(!session.has_old_input(None)?);
+    session.put("_old_input", 3)?;
+    assert_eq!(
+        session
+            .get_old_input(None)
+            .err()
+            .map(|error| error.code().to_owned()),
+        Some("session_data_invalid".into())
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn old_input_ages_with_regular_flash_and_can_be_kept_or_reflashed() -> Result<()> {
+    let store: Arc<dyn SessionStore> = Arc::new(MemorySessionStore::default());
+    let first = Session::new(None, store.clone(), None)?;
+    first.start().await?;
+    first.flash_input(json!({"name":"first"}))?;
+    first.flash_input(json!({"name":"second"}))?;
+    let id = first.id()?;
+    first.save().await?;
+    let second = Session::new(Some(id.clone()), store.clone(), None)?;
+    second.start().await?;
+    assert_eq!(second.get_old_input(Some("name"))?, Some(json!("second")));
+    second.keep(&["_old_input"])?;
+    second.save().await?;
+    let third = Session::new(Some(id.clone()), store.clone(), None)?;
+    third.start().await?;
+    assert_eq!(third.get_old_input(Some("name"))?, Some(json!("second")));
+    third.reflash()?;
+    third.save().await?;
+    let fourth = Session::new(Some(id.clone()), store.clone(), None)?;
+    fourth.start().await?;
+    assert_eq!(fourth.get_old_input(Some("name"))?, Some(json!("second")));
+    fourth.save().await?;
+    let fifth = Session::new(Some(id), store, None)?;
+    fifth.start().await?;
+    assert_eq!(fifth.get_old_input(None)?, Some(json!([])));
+    Ok(())
+}
+
+#[test]
 fn previous_helpers_preserve_raw_null_dot_paths_and_public_attribute_interoperation() -> Result<()>
 {
     let session = session()?;

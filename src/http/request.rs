@@ -201,6 +201,33 @@ impl RequestInfo {
         })
     }
 
+    /// 从当前请求的 Session 读取上次提交的输入；未装配 Session 时视为缺失。
+    #[cfg(feature = "session")]
+    pub fn old(&self, key: &str) -> Result<Option<serde_json::Value>> {
+        self.session
+            .as_ref()
+            .map_or(Ok(None), |session| session.get_old_input(Some(key)))
+    }
+
+    /// 只有旧输入缺失时返回默认值；显式 null 不使用默认值。
+    #[cfg(feature = "session")]
+    pub fn old_or(&self, key: &str, default: serde_json::Value) -> Result<serde_json::Value> {
+        Ok(self.old(key)?.unwrap_or(default))
+    }
+
+    /// 返回整个旧输入 bag；未装配 Session 时返回空数组。
+    #[cfg(feature = "session")]
+    pub fn old_all(&self) -> Result<serde_json::Value> {
+        self.session.as_ref().map_or_else(
+            || Ok(serde_json::Value::Array(Vec::new())),
+            |session| {
+                Ok(session
+                    .get_old_input(None)?
+                    .unwrap_or_else(|| serde_json::Value::Array(Vec::new())))
+            },
+        )
+    }
+
     /// 按完整名称读取 Cookie；名称中的点不作为路径。
     pub fn cookie(&self, name: &str) -> Option<serde_json::Value> {
         let value = match &self.cookies {

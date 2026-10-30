@@ -19,6 +19,195 @@ const PATH: &str = "/api/example/session";
 const COOKIE_NAME: &str = "example_module_session";
 const TIMEOUT: Duration = Duration::from_secs(5);
 
+async fn old_input_request<A: Application>(
+    app: &TestApp<A>,
+    payload: Option<Value>,
+    cookie: Option<&str>,
+) -> TestResult<TestResponse> {
+    let mut builder = if payload.is_some() {
+        Request::post("/api/example/session/old-input")
+            .header(header::CONTENT_TYPE, "application/json")
+    } else {
+        Request::get("/api/example/session/old-input")
+    };
+    builder = builder.header("host", "localhost");
+    if let Some(cookie) = cookie {
+        builder = builder.header(header::COOKIE, cookie);
+    }
+    let body = payload
+        .map(|value| serde_json::to_vec(&value))
+        .transpose()?
+        .unwrap_or_default();
+    Ok(app
+        .request_with_limits(builder.body(Body::from(body))?, 4096, TIMEOUT)
+        .await?)
+}
+
+async fn old_input_post<A: Application>(
+    app: &TestApp<A>,
+    path: &str,
+    payload: Value,
+    cookie: &str,
+    attempting: bool,
+) -> TestResult<TestResponse> {
+    let mut builder = Request::post(path)
+        .header("host", "localhost")
+        .header(header::CONTENT_TYPE, "application/json")
+        .header(header::COOKIE, cookie);
+    if attempting {
+        builder = builder.header("precognition", "true");
+    }
+    Ok(app
+        .request_with_limits(
+            builder.body(Body::from(serde_json::to_vec(&payload)?))?,
+            4096,
+            TIMEOUT,
+        )
+        .await?)
+}
+
+async fn verify_old_input<A: Application>(app: &TestApp<A>) -> TestResult {
+    let cookie = verify_old_input_lifecycle(app).await?;
+    verify_old_input_selection(app, &cookie).await
+}
+
+async fn verify_old_input_lifecycle<A: Application>(app: &TestApp<A>) -> TestResult<String> {
+    let first = old_input_request(app, None, None).await?;
+    success(
+        &first,
+        &json!({"all":[],"name":null,"nickname":null,"missing_default":"fallback"}),
+    )?;
+    let cookie = cookie_pair(&first)?;
+    let posted = old_input_request(
+        app,
+        Some(json!({
+            "action":"flash","name":"  Ada  ","nickname":null,"password":"secret"
+        })),
+        Some(&cookie),
+    )
+    .await?;
+    success(
+        &posted,
+        &json!({
+            "all":{"name":"Ada","nickname":null},"name":"Ada","nickname":null,
+            "missing_default":"fallback"
+        }),
+    )?;
+    let cookie = cookie_pair(&posted)?;
+    let confirmed = old_input_post(
+        app,
+        "/api/example/session/old-input/preview",
+        json!({"action":"flash","name":"Preview"}),
+        &cookie,
+        true,
+    )
+    .await?;
+    check_previous_preview(&confirmed)?;
+    // 已确认预检只提取请求输入，不执行 handler 或保存 Session；原 Cookie 仍是下一普通请求的依据。
+    let next = old_input_request(app, None, Some(&cookie)).await?;
+    success(
+        &next,
+        &json!({
+            "all":{"name":"Ada","nickname":null},"name":"Ada","nickname":null,
+            "missing_default":"fallback"
+        }),
+    )?;
+    let cookie = cookie_pair(&next)?;
+    let attempted = old_input_post(
+        app,
+        "/api/example/session/old-input",
+        json!({"action":"flash","name":"Attempted"}),
+        &cookie,
+        true,
+    )
+    .await?;
+    success(
+        &attempted,
+        &json!({"all":{"name":"Attempted"},
+        "name":"Attempted","nickname":null,"missing_default":"fallback"}),
+    )?;
+    ensure(attempted.headers().get("precognition-success").is_none())?;
+    let cookie = cookie_pair(&attempted)?;
+    let attempted_next = old_input_request(app, None, Some(&cookie)).await?;
+    success(
+        &attempted_next,
+        &json!({"all":{"name":"Attempted"},
+        "name":"Attempted","nickname":null,"missing_default":"fallback"}),
+    )?;
+    let cookie = cookie_pair(&attempted_next)?;
+    let aged = old_input_request(app, None, Some(&cookie)).await?;
+    success(
+        &aged,
+        &json!({"all":[],"name":null,"nickname":null,"missing_default":"fallback"}),
+    )?;
+    let cookie = cookie_pair(&aged)?;
+    let isolated = old_input_request(app, None, None).await?;
+    success(
+        &isolated,
+        &json!({"all":[],"name":null,"nickname":null,"missing_default":"fallback"}),
+    )?;
+    Ok(cookie)
+}
+
+async fn verify_old_input_selection<A: Application>(app: &TestApp<A>, cookie: &str) -> TestResult {
+    let flushed = old_input_request(app, Some(json!({"action":"flush"})), Some(cookie)).await?;
+    success(
+        &flushed,
+        &json!({"all":[],"name":null,"nickname":null,"missing_default":"fallback"}),
+    )?;
+    let cookie = cookie_pair(&flushed)?;
+    let empty = old_input_request(app, None, Some(&cookie)).await?;
+    success(
+        &empty,
+        &json!({"all":[],"name":null,"nickname":null,"missing_default":"fallback"}),
+    )?;
+    let cookie = cookie_pair(&empty)?;
+    let only = old_input_request(
+        app,
+        Some(json!({"action":"only","name":"Grace","nickname":null,"extra":"ignored"})),
+        Some(&cookie),
+    )
+    .await?;
+    success(
+        &only,
+        &json!({"all":{"name":"Grace","nickname":null},
+        "name":"Grace","nickname":null,"missing_default":"fallback"}),
+    )?;
+    let cookie = cookie_pair(&only)?;
+    let empty_only = old_input_request(app, Some(json!({"action":"only"})), Some(&cookie)).await?;
+    success(
+        &empty_only,
+        &json!({"all":[],"name":null,"nickname":null,"missing_default":"fallback"}),
+    )?;
+    let cookie = cookie_pair(&empty_only)?;
+    let except_empty = old_input_request(
+        app,
+        Some(json!({"action":"except_empty","name":"Full"})),
+        Some(&cookie),
+    )
+    .await?;
+    success(
+        &except_empty,
+        &json!({"all":{"action":"except_empty","name":"Full"},
+        "name":"Full","nickname":null,"missing_default":"fallback"}),
+    )?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn module_old_input_uses_one_session_and_explicit_sensitive_field_exclusion() -> TestResult {
+    let mut app = TestApp::<SessionApplication>::builder(sources())
+        .build()
+        .await?;
+    let result = verify_old_input(&app).await;
+    let shutdown = app
+        .shutdown(openrust::tokio::time::Instant::now() + TIMEOUT)
+        .await;
+    result?;
+    shutdown?;
+    Ok(())
+}
+
 struct SessionApplication;
 impl Application for SessionApplication {
     type Config = <crate::bootstrap::Server as Application>::Config;
@@ -192,6 +381,42 @@ async fn module_database_previous_history_and_precognition_use_the_original_pers
             .shutdown(openrust::tokio::time::Instant::now() + TIMEOUT)
             .await;
         outcome?;
+        shutdown?;
+        Ok(())
+    }
+    .await;
+    let cleanup = database.close().await;
+    outcome?;
+    cleanup?;
+    Ok(())
+}
+
+#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+#[tokio::test]
+async fn module_database_old_input_survives_real_request_boundaries() -> TestResult {
+    let Ok(admin) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+        eprintln!("skipping module old input HTTP test: OPENRUST_TEST_DATABASE_URL is unset");
+        return Ok(());
+    };
+    let database =
+        openrust::testing::TestDatabase::create::<openrust::db::FrameworkMigrator>(&admin).await?;
+    let source = sources().merge(Serialized::defaults(json!({
+        "database":{"url":database.url()},
+        "session":{"driver":"database","cookie":COOKIE_NAME,"secure":false,"lottery":[1,1]},
+        "auth":{"jwt":{"issuer":"http://openrust.test","audience":"module-old-input",
+            "active_key_id":"test","keys":{"test":"QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI="}}},
+        "security":{"signed_links":{"issuer":"http://openrust.test","active_key_id":"test",
+            "keys":{"test":"Q0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0M="}}}
+    })));
+    let outcome: TestResult = async {
+        let mut app = TestApp::<crate::bootstrap::Server>::builder(source)
+            .build()
+            .await?;
+        let result = verify_old_input(&app).await;
+        let shutdown = app
+            .shutdown(openrust::tokio::time::Instant::now() + TIMEOUT)
+            .await;
+        result?;
         shutdown?;
         Ok(())
     }

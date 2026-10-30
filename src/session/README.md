@@ -292,7 +292,11 @@ fn keep_current_binding(session: &Session) -> openrust::Result<()> {
 
 [示例处理器](../../modules/example/http/controllers/session.rs) 与[模块 HTTP 回归](../../modules/example/tests/session_flows.rs) 使用 `/api/example/session` 的 GET/POST，仅读写示例自己的偏好和提示；支持固定 put/forget/flash/now/keep 操作，不接收任意 Session 键。公开 API 的边界分别见[生命周期测试](../../tests/http/session.rs)、[受管理 HTTP 测试](../../tests/http/session_http.rs)与[数据库存储测试](../../tests/http/session_store.rs)。这些入口对应不同验证层次，不能互相替代。
 
-这里提供 Session 属性、flash 与当前存储/请求生命周期，不代表完整 Laravel Web 组。完整 OldInput、通用 CSRF 中间件、redirect 自动闪存、Session 响应缓存策略、请求阻塞、定时 GC 与全部 Session driver 生态仍需各自能力接入。当前认证业务已有的 CSRF 与来源校验不等于通用 Web CSRF 中间件。记录到期不保证马上物理清除，也不应把内存 store 当作生产持久层。
+`Session::flash_input(Value)` 将对象或数组写入现有 `_old_input` flash；可用 `get_old_input(None)` 读取完整 bag（缺失为 `[]`），或用 `Some(key)` 在 bag 内按完整字面键优先、其次 dot 路径读取。`get_old_input_or` 仅在缺失时使用默认值，显式 null 保持原值；`has_old_input` 判断整 bag 非空或指定键非 null，false 与 0 均算有值。写入沿唯一 Session 状态机和记录预算，失败不发布部分 flash 元数据。
+
+只读 `RequestInfo::old` / `old_or` / `old_all` 使用同一请求 Session；没有 Session 时按缺失或空 bag 处理。拥有正文的 `Request::flash` / `flash_only` / `flash_except` 使用已经规范化的 `all` / `only` / `except` 快照，`Request::flush` 仅闪存空旧输入，不执行 `Session::flush`。默认 `flash` 不过滤密码；应用需显式 `flash_except(&["password"])`。当前输入不合并上传文件，不能把这里的旧输入称为完整文件输入。Precognition 跳过自动 Session 保存时，本请求的闪存不保证持久化。
+
+这里提供 Session 属性、flash、旧输入与当前存储/请求生命周期，不代表完整 Laravel Web 组。通用 CSRF 中间件、redirect 自动闪存与错误 bag、Session 响应缓存策略、请求阻塞及全部 Session driver 生态仍需各自能力接入。当前认证业务已有的 CSRF 与来源校验不等于通用 Web CSRF 中间件。记录到期不保证马上物理清除，也不应把内存 store 当作生产持久层。
 
 
 ## 请求启动时回收过期记录

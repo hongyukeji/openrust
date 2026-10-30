@@ -52,6 +52,8 @@ curl -X POST 'http://127.0.0.1:3000/api/example/input?title=query&fallback=query
 
 ## Session 偏好与一次性提示
 
+`GET /api/example/session/old-input` 读取上次请求闪存的输入；`POST` 接受 `{"action":"flash","name":"Ada","nickname":null,"password":"secret"}`，示例显式调用 `Request::flash_except(&["password", "action"])`，只保留非敏感的规范化输入。`action=only` 展示 `flash_only`，`action=flush` 仅清空旧输入，不删除整个 Session。显式 opt-in 的 `POST /api/example/session/old-input/preview` 带 `Precognition: true` 时只预检输入、返回 204，不执行闪存 handler，也不保存或老化当前 Session；普通路由上的同名请求头不会自动确认预检。读取保留显式 null 与缺失的区别；当前能力未合并上传文件，也未提供 redirect 自动闪存或通用错误 bag。
+
 [`controllers/session.rs`](http/controllers/session.rs) 在模块自己的 [`routes/api.rs`](routes/api.rs) 注册 `GET /api/example/session` 与 `POST /api/example/session`。启用 `session` 编译能力、宿主登记 `SessionServiceProvider` 且最终驱动未禁用时，模块才挂载这两条路由；handler 直接提取公开 `Session`。根宿主配置数据库，或显式选择 cookie、array 等非数据库驱动时，会装配唯一的通用 Session，无需额外启用认证。默认 database 驱动且无数据库时不挂载路由，不静默使用 memory；未知显式驱动由框架最终配置校验拒绝。与 `RequestInfo::session()` 取得的句柄共享同一请求状态，无需业务再建 store 或修改框架源码。存储与 Cookie 配置由宿主统一管理，默认数据库驱动；测试显式选择 memory，不代表数据库不可用时自动回退。装配、迁移及自定义 driver 见 [Session 使用说明](../../src/session/README.md)。
 
 POST 接收如 `{"action":"put","value":"blue"}` 的 JSON。示例仅操作 `example.session.preference`、`example.session.notice`、`example.session.memo`、`example.session.list`、`example.session.count`，不允许正文指定任意 Session 键，也不返回会话 ID、token 或认证属性：

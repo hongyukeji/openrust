@@ -73,6 +73,23 @@ impl Attributes {
         Ok(read(&self.0, key).cloned())
     }
 
+    /// 先定位顶层旧输入 bag，再在 bag 内按字面键优先读取。
+    pub(crate) fn old_input(&self, key: Option<&str>) -> Result<Option<Value>> {
+        let bag = self
+            .get("_old_input")?
+            .unwrap_or_else(|| Value::Array(Vec::new()));
+        if !bag.is_array() && !bag.is_object() {
+            return Err(invalid());
+        }
+        match key {
+            None => Ok(Some(bag)),
+            Some(key) => {
+                check_lookup_keys(&bag, &[key])?;
+                Ok(read(&bag, key).cloned())
+            }
+        }
+    }
+
     /// 所有键均存在；null 也存在，空列表为 true。
     pub(crate) fn exists(&self, keys: &[&str]) -> Result<bool> {
         check_lookup_keys(&self.0, keys)?;
@@ -169,6 +186,14 @@ impl Attributes {
             push(candidate, "_flash.new", Value::String(key.to_owned()))?;
             remove_old(candidate, &[Value::String(key.to_owned())])
         })
+    }
+
+    /// 旧输入只接受 PHP array 对应的 JSON 数组或对象；失败不改变 flash 元数据。
+    pub(crate) fn flash_input(&mut self, value: Value) -> Result<()> {
+        if !value.is_array() && !value.is_object() {
+            return Err(invalid());
+        }
+        self.flash("_old_input", value)
     }
 
     /// 仅在当前请求可读；下一次 age 删除。

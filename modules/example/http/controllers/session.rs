@@ -22,6 +22,28 @@ pub(crate) async fn show(session: Session) -> Result<Json<Value>> {
     Ok(Json(snapshot(&session)?))
 }
 
+/// 从同一请求的 Session 读取旧输入，保持显式 null 与缺失的区别。
+pub(crate) async fn old_input(info: RequestInfo) -> Result<Json<Value>> {
+    Ok(Json(json!({
+        "all": info.old_all()?,
+        "name": info.old("name")?,
+        "nickname": info.old("nickname")?,
+        "missing_default": info.old_or("missing", json!("fallback"))?,
+    })))
+}
+
+/// 示例明确排除密码，不把业务过滤策略冒充框架默认行为。
+pub(crate) async fn old_input_store(request: Request) -> Result<Json<Value>> {
+    match request.input("action")?.as_ref().and_then(Value::as_str) {
+        Some("flash") => request.flash_except(&["password", "action"])?,
+        Some("only") => request.flash_only(&["name", "nickname"])?,
+        Some("except_empty") => request.flash_except(&[])?,
+        Some("flush") => request.flush()?,
+        _ => return Err(action_invalid()),
+    }
+    old_input(request.info().clone()).await
+}
+
 /// 独立展示上一请求地址与可空名称，不改变偏好接口的既有响应协议。
 pub(crate) async fn previous(session: Session, info: RequestInfo) -> Result<Json<Value>> {
     Ok(Json(json!({

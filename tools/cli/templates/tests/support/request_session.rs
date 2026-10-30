@@ -39,10 +39,13 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 struct SessionRoutes;
 #[derive(Default)]
 struct PreviousCalls(AtomicUsize);
+#[derive(Default)]
+struct OldInputCalls(AtomicUsize);
 
 impl ServiceProvider for SessionRoutes {
     fn register(&self, app: &mut RegisterContext<'_>) -> openrust::Result<()> {
         app.instance(Arc::new(PreviousCalls::default()));
+        app.instance(Arc::new(OldInputCalls::default()));
         // fixture 已明确选择 plain array 或 auth database；不是装饰任意已有 factory。
         app.singleton::<SessionStoreHandle, _>(|resolver| {
             Box::pin(async move {
@@ -77,6 +80,9 @@ impl ServiceProvider for SessionRoutes {
                     .get(&format!("{PREFIX}/seed-one"), seed_one)
                     .get(&format!("{PREFIX}/seed-two"), seed_two)
                     .get(&format!("{PREFIX}/probe"), probe)
+                    .post(&format!("{PREFIX}/old-input"), save_old_input)
+                    .get(&format!("{PREFIX}/old-input"), read_old_input)
+                    .post(&format!("{PREFIX}/old-input/default"), save_all_old_input)
                     .get(&format!("{PREFIX}/previous/named"), previous_visit)
                     .name("contract.session.previous.named")
                     .get(&format!("{PREFIX}/previous/anonymous"), previous_visit)
@@ -86,6 +92,12 @@ impl ServiceProvider for SessionRoutes {
                             .prefix(format!("{PREFIX}/previous"))
                             .middleware_alias("precognitive"),
                         |routes| routes.get("/preview", previous_visit),
+                    )
+                    .group(
+                        RouteGroup::new()
+                            .prefix(format!("{PREFIX}/old-input"))
+                            .middleware_alias("precognitive"),
+                        |routes| routes.post("/preview", save_old_input),
                     )
             })?;
             Ok(())
@@ -184,6 +196,30 @@ async fn remove(session: Session, info: RequestInfo) -> openrust::Result<Json<Va
     let mut data = snapshot(&session, &info)?;
     data["removed"] = json!(removed);
     Ok(Json(data))
+}
+async fn save_old_input(
+    Inject(calls): Inject<OldInputCalls>,
+    request: openrust::http::Request,
+) -> openrust::Result<Json<Value>> {
+    calls.0.fetch_add(1, Ordering::SeqCst);
+    request.flash_except(&["password"])?;
+    read_old_input(request.info().clone(), Inject(calls)).await
+}
+async fn save_all_old_input(
+    Inject(calls): Inject<OldInputCalls>,
+    request: openrust::http::Request,
+) -> openrust::Result<Json<Value>> {
+    calls.0.fetch_add(1, Ordering::SeqCst);
+    request.flash()?;
+    read_old_input(request.info().clone(), Inject(calls)).await
+}
+async fn read_old_input(
+    info: RequestInfo,
+    Inject(calls): Inject<OldInputCalls>,
+) -> openrust::Result<Json<Value>> {
+    Ok(Json(json!({"all":info.old_all()?,"name":info.old("name")?,
+        "missing":info.old_or("missing", json!("fallback"))?,
+        "business_calls":calls.0.load(Ordering::SeqCst)})))
 }
 fn snapshot(session: &Session, info: &RequestInfo) -> openrust::Result<Value> {
     Ok(json!({
@@ -397,6 +433,7 @@ async fn verify<A: Application, const EXISTING: bool>(source: Figment) -> openru
         )?;
         verify_request_driver(&app, &name).await?;
         verify_previous(&app, &name).await?;
+        verify_old_input(&app, &name).await?;
         Ok(())
     }
     .await;
@@ -523,6 +560,127 @@ fn request(action: &str, cookies: Option<&str>) -> openrust::Result<Request<Body
     request
         .body(Body::empty())
         .map_err(openrust::Error::internal)
+}
+async fn verify_old_input<A: Application>(app: &TestApp<A>, name: &str) -> openrust::Result<()> {
+    let payload = json!({"name":"Generated","password":"secret"});
+    let sent = old_input_post(app, "old-input", &payload, None, false).await?;
+    check_response(
+        &sent,
+        json!({"all":{"name":"Generated"},"name":"Generated", "missing":"fallback",
+            "business_calls":1}),
+    )?;
+    let cookie = cookie_pair(&sent, name)?;
+    let confirmed = old_input_post(
+        app,
+        "old-input/preview",
+        &json!({"name":"Preview","password":"secret"}),
+        Some(&cookie),
+        true,
+    )
+    .await?;
+    confirmed.assert_status(StatusCode::NO_CONTENT)?;
+    ensure(confirmed.body().is_empty())?;
+    for header in ["precognition", "precognition-success"] {
+        ensure(
+            confirmed
+                .headers()
+                .get(header)
+                .and_then(|value| value.to_str().ok())
+                == Some("true"),
+        )?;
+    }
+    // 已确认预检不自动保存 Session；旧 Cookie 仍代表已持久的旧输入。
+    let loaded = app
+        .request_with_limits(
+            request("old-input", Some(&cookie))?,
+            BODY_LIMIT,
+            REQUEST_TIMEOUT,
+        )
+        .await?;
+    check_response(
+        &loaded,
+        json!({"all":{"name":"Generated"},"name":"Generated", "missing":"fallback",
+            "business_calls":1}),
+    )?;
+    let cookie = cookie_pair(&loaded, name)?;
+    let attempted = old_input_post(
+        app,
+        "old-input",
+        &json!({"name":"Attempted"}),
+        Some(&cookie),
+        true,
+    )
+    .await?;
+    check_response(
+        &attempted,
+        json!({"all":{"name":"Attempted"},"name":"Attempted",
+        "missing":"fallback","business_calls":2}),
+    )?;
+    ensure(attempted.headers().get("precognition-success").is_none())?;
+    let cookie = cookie_pair(&attempted, name)?;
+    let next = app
+        .request_with_limits(
+            request("old-input", Some(&cookie))?,
+            BODY_LIMIT,
+            REQUEST_TIMEOUT,
+        )
+        .await?;
+    check_response(
+        &next,
+        json!({"all":{"name":"Attempted"},"name":"Attempted",
+        "missing":"fallback","business_calls":2}),
+    )?;
+    let cookie = cookie_pair(&next, name)?;
+    let aged = app
+        .request_with_limits(
+            request("old-input", Some(&cookie))?,
+            BODY_LIMIT,
+            REQUEST_TIMEOUT,
+        )
+        .await?;
+    check_response(
+        &aged,
+        json!({"all":[],"name":null,"missing":"fallback","business_calls":2}),
+    )?;
+    let isolated = app
+        .request_with_limits(request("old-input", None)?, BODY_LIMIT, REQUEST_TIMEOUT)
+        .await?;
+    check_response(
+        &isolated,
+        json!({"all":[],"name":null,"missing":"fallback","business_calls":2}),
+    )?;
+    let default_flash = old_input_post(app, "old-input/default", &payload, None, false).await?;
+    check_response(
+        &default_flash,
+        json!({"all":{"name":"Generated","password":"secret"},
+            "name":"Generated","missing":"fallback","business_calls":3}),
+    )
+}
+async fn old_input_post<A: Application>(
+    app: &TestApp<A>,
+    action: &str,
+    payload: &Value,
+    cookie: Option<&str>,
+    attempting: bool,
+) -> openrust::Result<TestResponse> {
+    let mut wire = Request::post(format!("{PREFIX}/{action}"))
+        .header("host", "localhost")
+        .header("content-type", "application/json");
+    if let Some(cookie) = cookie {
+        wire = wire.header(COOKIE, cookie);
+    }
+    if attempting {
+        wire = wire.header("precognition", "true");
+    }
+    app.request_with_limits(
+        wire.body(Body::from(
+            serde_json::to_vec(payload).map_err(openrust::Error::internal)?,
+        ))
+        .map_err(openrust::Error::internal)?,
+        BODY_LIMIT,
+        REQUEST_TIMEOUT,
+    )
+    .await
 }
 fn check_response(response: &TestResponse, data: Value) -> openrust::Result<()> {
     response
