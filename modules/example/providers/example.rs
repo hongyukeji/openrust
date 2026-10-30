@@ -138,6 +138,7 @@ impl ServiceProvider for ExampleServiceProvider {
         Ok(())
     }
 
+    #[allow(clippy::too_many_lines, reason = "模块 boot 同时装配业务资源和路由")]
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             register_example_middleware(app)?;
@@ -219,6 +220,7 @@ impl ServiceProvider for ExampleServiceProvider {
                 any(feature = "db-postgres", feature = "db-mysql")
             ))]
             let oidc_enabled = oidc_config.is_some();
+            let config_reading_repository = app.config_repository();
             app.routes(move |routes| {
                 crate::modules::example::routes::register(
                     routes,
@@ -235,6 +237,7 @@ impl ServiceProvider for ExampleServiceProvider {
                         ))]
                         oidc: oidc_enabled,
                     },
+                    config_reading_repository.clone(),
                 )
             })?;
             Ok(())

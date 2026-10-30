@@ -111,11 +111,10 @@ impl SectionSchema {
                     return Err(invalid(path, "expected object"));
                 };
                 for (key, item) in object {
-                    let child = format!("{path}.{key}");
                     if let Some(schema) = fields.get(key) {
-                        schema.validate(item, &child)?;
+                        schema.validate(item, &format!("{path}.{key}"))?;
                     } else if !allow_unknown {
-                        return Err(invalid(&child, "unknown field"));
+                        return Err(invalid(path, "unknown field"));
                     }
                 }
                 true
@@ -124,8 +123,8 @@ impl SectionSchema {
                 let Some(object) = value.as_object() else {
                     return Err(invalid(path, "expected named map"));
                 };
-                for (key, item) in object {
-                    schema.validate(item, &format!("{path}.{key}"))?;
+                for item in object.values() {
+                    schema.validate(item, &format!("{path}.<entry>"))?;
                 }
                 true
             }
@@ -373,6 +372,68 @@ impl ConfigRepository {
             .map_err(|error| safe_source_error_with_schema(error, key, schema.as_ref()))
     }
 
+    /// 从当前快照读取原始值；缺失为 `None`，显式 null 为 `Some(Value::Null)`。
+    ///
+    /// 完整字面键优先于点路径；返回值可能包含秘密，输出前须脱敏。
+    pub fn get(&self, key: &str) -> std::result::Result<Option<Value>, ConfigError> {
+        Ok(read_value(&self.all()?, key).cloned())
+    }
+
+    /// 仅在键缺失时返回默认值；null、false、零及空值均保留。
+    pub fn get_or(&self, key: &str, default: Value) -> std::result::Result<Value, ConfigError> {
+        Ok(self.get(key)?.unwrap_or(default))
+    }
+
+    /// 判断完整字面键或点路径是否存在；显式 null 仍算存在。
+    pub fn has(&self, key: &str) -> std::result::Result<bool, ConfigError> {
+        Ok(read_value(&self.all()?, key).is_some())
+    }
+
+    /// 在同一快照批量读取；缺失为 null，保留首次键顺序，重复键取最后结果。
+    pub fn get_many(
+        &self,
+        keys: &[&str],
+    ) -> std::result::Result<Vec<(String, Value)>, ConfigError> {
+        let values = self.all()?;
+        let mut result = Vec::with_capacity(keys.len());
+        for key in keys {
+            insert_read(
+                &mut result,
+                key,
+                read_value(&values, key).cloned().unwrap_or(Value::Null),
+            );
+        }
+        Ok(result)
+    }
+
+    /// 在同一快照批量读取并按键提供默认值；显式 null 不使用默认值。
+    ///
+    /// 结果保留首次键顺序，重复键以后一次读取结果覆盖。
+    pub fn get_many_with_defaults(
+        &self,
+        keys: &[(&str, Value)],
+    ) -> std::result::Result<Vec<(String, Value)>, ConfigError> {
+        let values = self.all()?;
+        let mut result = Vec::with_capacity(keys.len());
+        for (key, default) in keys {
+            insert_read(
+                &mut result,
+                key,
+                read_value(&values, key).unwrap_or(default).clone(),
+            );
+        }
+        Ok(result)
+    }
+
+    /// 返回当前已发布的独立原始值快照；包含秘密，输出前须脱敏。
+    ///
+    /// 来源或反序列化失败时整体返回安全错误，不发布部分结果。
+    pub fn all(&self) -> std::result::Result<Value, ConfigError> {
+        self.snapshot()
+            .extract()
+            .map_err(|error| safe_source_error(error, "configuration"))
+    }
+
     /// 返回独立的来源快照；包含秘密值，调用方必须执行适用的输出脱敏。
     pub fn snapshot(&self) -> Figment {
         self.lock().figment.clone()
@@ -459,6 +520,41 @@ impl ConfigRepository {
         state.version = version;
         state.revision = state.revision.wrapping_add(1);
         Ok(())
+    }
+}
+
+// Laravel 只在整个输入 key 上优先查字面键；之后逐段遍历，不查剩余点串。
+fn read_value<'a>(values: &'a Value, key: &str) -> Option<&'a Value> {
+    if let Some(value) = read_entry(values, key) {
+        return Some(value);
+    }
+    let mut current = values;
+    for segment in key.split('.') {
+        current = read_entry(current, segment)?;
+    }
+    Some(current)
+}
+
+fn read_entry<'a>(value: &'a Value, key: &str) -> Option<&'a Value> {
+    match value {
+        Value::Object(items) => items.get(key),
+        Value::Array(items) => {
+            let index = key.parse::<usize>().ok()?;
+            if index.to_string() == key {
+                items.get(index)
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+fn insert_read(result: &mut Vec<(String, Value)>, key: &str, value: Value) {
+    if let Some((_, previous)) = result.iter_mut().find(|(existing, _)| existing == key) {
+        *previous = value;
+    } else {
+        result.push((key.to_owned(), value));
     }
 }
 
@@ -570,18 +666,53 @@ fn safe_source_error(source: figment::Error, key: &str) -> ConfigError {
     safe_source_error_with_schema(source, key, None)
 }
 
-fn schema_has_field(schema: &SectionSchema, field: &str) -> bool {
-    match schema {
-        SectionSchema::Object { fields, .. } => {
-            fields.contains_key(field)
-                || fields.values().any(|child| schema_has_field(child, field))
-        }
-        SectionSchema::Map(child)
-        | SectionSchema::Array(child)
-        | SectionSchema::Nullable(child)
-        | SectionSchema::Sensitive(child) => schema_has_field(child, field),
-        _ => false,
+fn safe_schema_path(
+    schema: &SectionSchema,
+    key: &str,
+    source_path: &[String],
+    missing: Option<&str>,
+) -> String {
+    let key_parts: Vec<&str> = key.split('.').collect();
+    let mut parts: Vec<&str> = source_path
+        .iter()
+        .flat_map(|part| part.split('.'))
+        .collect();
+    if parts.ends_with(&key_parts) && !parts.starts_with(&key_parts) {
+        parts.reverse();
     }
+    let relative = parts.strip_prefix(key_parts.as_slice()).unwrap_or(&parts);
+    let mut output = key.to_owned();
+    let mut node = schema;
+    for part in relative.iter().copied().chain(missing) {
+        while let SectionSchema::Nullable(inner) | SectionSchema::Sensitive(inner) = node {
+            node = inner;
+        }
+        match node {
+            SectionSchema::Object { fields, .. } => {
+                let Some(next) = fields.get(part) else { break };
+                output.push('.');
+                output.push_str(part);
+                node = next;
+            }
+            SectionSchema::Map(next) => {
+                output.push_str(".<entry>");
+                node = next;
+            }
+            SectionSchema::Array(next) => {
+                if part.is_empty()
+                    || !part.bytes().all(|byte| byte.is_ascii_digit())
+                    || part.parse::<usize>().is_err()
+                    || (part.starts_with('0') && part != "0")
+                {
+                    break;
+                }
+                output.push_str(".<index>");
+                node = next;
+            }
+            _ => break,
+        }
+    }
+    output
 }
 
 fn safe_source_error_with_schema(
@@ -593,34 +724,17 @@ fn safe_source_error_with_schema(
     let message = source
         .into_iter()
         .map(|error| {
-            let mut nested = error.path.join(".");
-            if nested.ends_with(&format!(".{key}")) {
-                nested = error
-                    .path
-                    .iter()
-                    .rev()
-                    .cloned()
-                    .collect::<Vec<_>>()
-                    .join(".");
-            }
-            let mut path = if nested.is_empty() {
-                key.to_owned()
-            } else if key.is_empty() || nested == key || nested.starts_with(&format!("{key}.")) {
-                nested
-            } else {
-                format!("{key}.{nested}")
+            // Figment 路径可来自配置源；数组段即使是数字也不能作为可信索引回显。
+            let missing = match &error.kind {
+                figment::error::Kind::MissingField(std::borrow::Cow::Borrowed(field)) => {
+                    Some(*field)
+                }
+                _ => None,
             };
-            if let figment::error::Kind::MissingField(std::borrow::Cow::Borrowed(field)) =
-                &error.kind
-                && schema.is_some_and(|schema| schema_has_field(schema, field))
-                && !field.is_empty()
-                && field
-                    .bytes()
-                    .all(|c| c.is_ascii_alphanumeric() || c == b'_')
-            {
-                path.push('.');
-                path.push_str(field);
-            }
+            let path = schema.map_or_else(
+                || key.to_owned(),
+                |schema| safe_schema_path(schema, key, &error.path, missing),
+            );
             let source = match error
                 .metadata
                 .as_ref()
@@ -1359,6 +1473,311 @@ mod tests {
                 ..defaults()
             }
         );
+        Ok(())
+    }
+    // 区分缺失与 null，并防止把假值、空键或字面点键交给 Figment 路径解释。
+    #[test]
+    fn raw_reading_preserves_null_false_empty_and_literal_key_priority() -> Result<()> {
+        let repository = ConfigRepository::new(Figment::from(Serialized::defaults(json!({
+            "null": null, "false": false, "zero": 0, "empty": "", "": "empty-key",
+            "a.b": "literal", "a": {"b": "nested", "b.c": "not-a-path"},
+            "items": [{"name": "first"}], "named": {"01": "named"}
+        }))));
+        assert_eq!(repository.get("missing")?, None);
+        assert!(!repository.has("missing")?);
+        for (key, expected) in [
+            ("null", Value::Null),
+            ("false", json!(false)),
+            ("zero", json!(0)),
+            ("empty", json!("")),
+        ] {
+            assert!(repository.has(key)?);
+            assert_eq!(repository.get(key)?, Some(expected.clone()));
+            assert_eq!(repository.get_or(key, json!("default"))?, expected);
+        }
+        assert_eq!(
+            repository.get_or("missing", json!("default"))?,
+            json!("default")
+        );
+        assert_eq!(repository.get("")?, Some(json!("empty-key")));
+        assert!(repository.has("")?);
+        assert_eq!(repository.get("a.b")?, Some(json!("literal")));
+        assert!(repository.has("a.b")?);
+        assert_eq!(repository.get("a.b.c")?, None);
+        assert!(!repository.has("a.b.c")?);
+        assert_eq!(repository.get("items.0.name")?, Some(json!("first")));
+        assert_eq!(repository.get("items.00.name")?, None);
+        assert_eq!(repository.get("items.+0.name")?, None);
+        assert_eq!(repository.get("named.01")?, Some(json!("named")));
+        assert_eq!(repository.get(".")?, None);
+        Ok(())
+    }
+
+    // 批量结果必须按首次出现顺序保留键，重复缺失键用最后一次默认值。
+    #[test]
+    fn raw_many_preserves_order_defaults_null_and_duplicate_semantics() -> Result<()> {
+        let repository = ConfigRepository::new(Figment::from(Serialized::defaults(
+            json!({"null": null, "value": false}),
+        )));
+        assert_eq!(
+            repository.get_many(&["value", "missing", "null", "value"])?,
+            vec![
+                ("value".into(), json!(false)),
+                ("missing".into(), Value::Null),
+                ("null".into(), Value::Null)
+            ]
+        );
+        assert_eq!(
+            repository.get_many_with_defaults(&[
+                ("missing", json!(1)),
+                ("null", json!(2)),
+                ("value", json!(3)),
+                ("missing", json!(4)),
+            ])?,
+            vec![
+                ("missing".into(), json!(4)),
+                ("null".into(), Value::Null),
+                ("value".into(), json!(false))
+            ]
+        );
+        assert!(repository.get_many(&[])?.is_empty());
+        assert!(repository.get_many_with_defaults(&[])?.is_empty());
+        Ok(())
+    }
+
+    // 原始值读取不得写回仓储或改变版本、默认值发布和 freeze 屏障。
+    #[test]
+    fn raw_snapshots_are_independent_and_reads_preserve_lifecycle() -> Result<()> {
+        let mut repository = registered(json!({}))?;
+        assert_eq!(repository.get("demo")?, None);
+        assert_eq!(repository.version(), 0);
+        repository.validate_base()?;
+        let version = repository.version();
+        let mut detached = repository.all()?;
+        detached["demo"]["name"] = json!("detached");
+        let before = repository.get("demo")?;
+        repository.overlay("demo", json!({"name": "new"}))?;
+        assert_eq!(repository.version(), version + 1);
+        assert_ne!(before, repository.get("demo")?);
+        assert_eq!(detached["demo"]["name"], json!("detached"));
+        repository.freeze()?;
+        let version = repository.version();
+        assert_eq!(repository.get("demo.name")?, Some(json!("new")));
+        assert!(repository.has("demo.name")?);
+        let _ = repository.get_many(&["demo", "missing"])?;
+        let _ = repository.get_many_with_defaults(&[("missing", json!(false))])?;
+        let _ = repository.all()?;
+        assert_eq!(repository.version(), version);
+        assert!(repository.overlay("demo", json!({"name": "late"})).is_err());
+        Ok(())
+    }
+
+    // 来源错误可能含任意秘密；任何原始读取都必须整体失败且不回传原文。
+    #[test]
+    fn raw_source_failure_is_redacted_and_never_returns_partial_results() {
+        struct FailedSource;
+        impl Provider for FailedSource {
+            fn metadata(&self) -> Metadata {
+                Metadata::named("secret-metadata-sentinel")
+            }
+            fn data(&self) -> std::result::Result<Map<Profile, Dict>, figment::Error> {
+                Err(figment::Error::from("secret-source-sentinel")
+                    .with_path("secret-path-sentinel"))
+            }
+        }
+        let repository = ConfigRepository::new(
+            Figment::from(Serialized::defaults(
+                json!({"valid": "secret-value-sentinel"}),
+            ))
+            .merge(FailedSource),
+        );
+        let errors = [
+            repository.all().err(),
+            repository.get("valid").err(),
+            repository
+                .get_or("missing", json!("secret-default-sentinel"))
+                .err(),
+            repository.has("missing").err(),
+            repository.get_many(&["valid", "missing"]).err(),
+            repository
+                .get_many_with_defaults(&[("valid", Value::Null)])
+                .err(),
+        ];
+        for error in errors {
+            assert!(error.is_some());
+            let display = error.as_ref().map(ToString::to_string).unwrap_or_default();
+            let debug = format!("{error:?}");
+            assert!(!display.contains("secret-"), "{display}");
+            assert!(!debug.contains("secret-"), "{debug}");
+        }
+        assert_eq!(repository.version(), 0);
+    }
+
+    #[test]
+    fn source_path_is_not_trusted_even_with_a_schema() {
+        let schema = SectionSchema::object([(
+            "child",
+            SectionSchema::object([("required", SectionSchema::String)]),
+        )]);
+        let error = safe_source_error_with_schema(
+            figment::Error::from("secret-source-sentinel")
+                .with_path("parent.child.secret-path-sentinel"),
+            "parent",
+            Some(&schema),
+        );
+        assert!(error.to_string().contains("parent.child:"));
+        assert!(!error.to_string().contains("secret-"));
+        assert!(!format!("{error:?}").contains("secret-"));
+    }
+
+    #[test]
+    fn schema_validation_never_reflects_unknown_or_dynamic_source_keys() {
+        let schema = SectionSchema::object([
+            ("known", SectionSchema::String),
+            (
+                "stores",
+                SectionSchema::map(SectionSchema::object([(
+                    "token",
+                    SectionSchema::String.sensitive(),
+                )])),
+            ),
+            (
+                "secrets",
+                SectionSchema::map(SectionSchema::String).sensitive(),
+            ),
+            (
+                "private",
+                SectionSchema::object([("known", SectionSchema::String)]).sensitive(),
+            ),
+        ]);
+        for value in [
+            json!({"secret-unknown-key-sentinel": true}),
+            json!({"stores": {"secret-map-key-sentinel": {"token": false}}}),
+            json!({"secrets": {"secret-sensitive-key-sentinel": false}}),
+            json!({"private": {"secret-sensitive-unknown-sentinel": false}}),
+        ] {
+            let error = schema.validate(&value, "parent").err();
+            assert!(error.is_some());
+            let display = error.as_ref().map(ToString::to_string).unwrap_or_default();
+            let debug = format!("{error:?}");
+            assert!(!display.contains("secret-"), "{display}");
+            assert!(!debug.contains("secret-"), "{debug}");
+        }
+        let error = schema
+            .validate(&json!({"stores": {"business": {"token": false}}}), "parent")
+            .err();
+        assert!(
+            error
+                .as_ref()
+                .is_some_and(|error| error.to_string().contains("parent.stores.<entry>.token"))
+        );
+    }
+
+    #[test]
+    fn typed_source_path_redacts_numeric_array_segments() {
+        let schema = SectionSchema::object([(
+            "items",
+            SectionSchema::array(SectionSchema::object([("name", SectionSchema::String)])),
+        )]);
+        for (path, expected) in [
+            ("parent.items.0.name", "parent.items.<index>.name"),
+            ("parent.items.123456789.name", "parent.items.<index>.name"),
+            ("parent.items.01.name", "parent.items"),
+            ("parent.items.secret-index-sentinel.name", "parent.items"),
+            ("parent.name", "parent"),
+        ] {
+            let error = safe_source_error_with_schema(
+                figment::Error::from("secret-value-sentinel").with_path(path),
+                "parent",
+                Some(&schema),
+            );
+            assert!(
+                error.to_string().starts_with(&format!("{expected}:")),
+                "{error}"
+            );
+            assert!(!error.to_string().contains("secret-"));
+            assert!(!format!("{error:?}").contains("secret-"));
+            assert!(!error.to_string().contains("123456789"));
+            assert!(!format!("{error:?}").contains("123456789"));
+        }
+        let map_schema = SectionSchema::object([(
+            "stores",
+            SectionSchema::map(SectionSchema::object([("token", SectionSchema::String)])),
+        )]);
+        let error = safe_source_error_with_schema(
+            figment::Error::from("secret-value-sentinel")
+                .with_path("parent.stores.secret-map-key-sentinel.token"),
+            "parent",
+            Some(&map_schema),
+        );
+        assert!(
+            error
+                .to_string()
+                .starts_with("parent.stores.<entry>.token:")
+        );
+        assert!(!format!("{error:?}").contains("secret-"));
+    }
+
+    // Serialized 来源在序列化失败时也不能泄露自定义错误或默认值。
+    #[test]
+    fn raw_serialization_failure_is_redacted() {
+        struct Reject;
+        impl Serialize for Reject {
+            fn serialize<S: serde::Serializer>(
+                &self,
+                _: S,
+            ) -> std::result::Result<S::Ok, S::Error> {
+                Err(serde::ser::Error::custom("secret-serializer-sentinel"))
+            }
+        }
+        let repository =
+            ConfigRepository::new(Figment::from(Serialized::default("broken", Reject)));
+        let result =
+            repository.get_many_with_defaults(&[("missing", json!("secret-default-sentinel"))]);
+        assert!(result.is_err());
+        assert!(!format!("{result:?}").contains("secret-"));
+        assert!(repository.all().is_err());
+    }
+
+    // 并发发布时批量读取的两个字段必须来自同一版本，不能逐键克隆快照。
+    #[test]
+    fn raw_many_reads_one_snapshot_during_concurrent_publication() -> Result<()> {
+        let mut repository = ConfigRepository::new(Figment::new());
+        repository.register_section(
+            TypeId::of::<Value>(),
+            "pair",
+            json!({"left": 0, "right": 0}),
+            SectionSchema::Any,
+            |_| Ok(()),
+        )?;
+        repository.validate_base()?;
+        let reader = repository.clone();
+        let barrier = Arc::new(std::sync::Barrier::new(2));
+        let writer_barrier = barrier.clone();
+        let writer = std::thread::spawn(move || -> Result<()> {
+            writer_barrier.wait();
+            for value in 1..=64 {
+                repository.overlay("pair", json!({"left": value, "right": value}))?;
+                std::thread::yield_now();
+            }
+            Ok(())
+        });
+        barrier.wait();
+        for _ in 0..64 {
+            let pair = reader.get_many(&["pair.left", "pair.right"])?;
+            assert_eq!(pair[0].1, pair[1].1);
+            let pair = reader.get_many_with_defaults(&[
+                ("pair.left", Value::Null),
+                ("pair.right", Value::Null),
+            ])?;
+            assert_eq!(pair[0].1, pair[1].1);
+            let all = reader.all()?;
+            assert_eq!(all["pair"]["left"], all["pair"]["right"]);
+            std::thread::yield_now();
+        }
+        writer
+            .join()
+            .map_err(|_| invalid("test", "writer failed"))??;
         Ok(())
     }
 }

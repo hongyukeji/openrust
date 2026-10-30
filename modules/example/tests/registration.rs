@@ -170,6 +170,53 @@ fn production_sources(semantic: bool) -> figment::Figment {
 }
 
 #[tokio::test]
+async fn production_config_greeting_reads_only_the_module_business_key()
+-> Result<(), Box<dyn std::error::Error>> {
+    use openrust::testing::TestApp;
+    use std::time::Duration;
+
+    let repository = openrust::config::repository::ConfigRepository::new(figment::Figment::from(
+        figment::providers::Serialized::defaults(serde_json::json!({
+            "example": {"greeting": "仓储中的业务问候"}
+        })),
+    ));
+    assert_eq!(
+        super::services::config_reading::greeting(&repository)?,
+        "仓储中的业务问候"
+    );
+    let missing = openrust::config::repository::ConfigRepository::new(figment::Figment::from(
+        figment::providers::Serialized::defaults(serde_json::json!({"other": true})),
+    ));
+    assert_eq!(
+        super::services::config_reading::greeting(&missing)?,
+        "示例问候语尚未配置"
+    );
+
+    let mut app = TestApp::<crate::bootstrap::Server>::builder(production_sources(false))
+        .build()
+        .await?;
+    let response = app
+        .request(
+            Request::get("/api/example/config-greeting?key=security.encryption.keys")
+                .header("host", "localhost")
+                .body(Body::empty())?,
+        )
+        .await?;
+    response.assert_status(StatusCode::OK)?;
+    let body: serde_json::Value = serde_json::from_slice(response.body())?;
+    assert_eq!(
+        body["data"],
+        serde_json::json!({
+            "greeting": "Hello from modules/example"
+        })
+    );
+    assert!(!String::from_utf8_lossy(response.body()).contains("KioqKioq"));
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    Ok(())
+}
+
+#[tokio::test]
 async fn production_request_representation_negotiates_html_json_and_rejection()
 -> Result<(), Box<dyn std::error::Error>> {
     use openrust::testing::TestApp;
