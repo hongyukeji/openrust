@@ -1,0 +1,6 @@
+{"case":"default","flags":0,"json":"{\"field\":[\"\\u6c49\\u5b57\\/a<b>&\\\"'\",\"12\",1]}"}
+{"case":"unicode_slashes","flags":320,"json":"{\"field\":[\"汉字/a<b>&\\\"'\",\"12\",1]}"}
+{"case":"hex","flags":15,"json":"{\"field\":[\"\\u6c49\\u5b57\\/a\\u003Cb\\u003E\\u0026\\u0022\\u0027\",\"12\",1]}"}
+{"case":"numeric","flags":32,"json":"{\"field\":[\"\\u6c49\\u5b57\\/a<b>&\\\"'\",12,1]}"}
+{"case":"fraction","flags":1024,"json":"{\"field\":[\"\\u6c49\\u5b57\\/a<b>&\\\"'\",\"12\",1.0]}"}
+{"case":"all","flags":1391,"json":"{\"field\":[\"汉字/a\\u003Cb\\u003E\\u0026\\u0022\\u0027\",12,1.0]}"}

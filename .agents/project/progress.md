@@ -6,6 +6,8 @@
 
 ## 当前功能簇
 
+C04-D10-A公共错误包限定子范围已验收：Support31、默认784/31 ignored、全特性1526/105 ignored、真实TCP五场景、fresh6/2/2及适用工具门禁通过；双库仅生成认证回归，不执行D10 helper。Session错误共享与RedirectResponse仍开放。[证据及限制](memory/testing.md#c04-d10-a-错误包限定子范围已验收)。
+
 C04-D8 previous与显式Precognition限定子范围已完成适用验收：稳定主线门禁、全特性1439 passed/104 ignored、Rust1.97 check、真实PG18/MySQL8.4各67项模块HTTP及各1项previous、所有权PG3/My2、新生成应用5/2/2、真实TCP6项与最终CLI快照1项均有证据。默认workspace以709项有效结果与修后20项doctest按影响复用，非虚报原失败命令exit0。完整Old Input/CSRF/FormRequest、规则集与整个HTTP/Session继续开放。 [证据与限制](memory/testing.md#c04-d8-previous-与-precognition限定子范围已验收)。C04-D9旧输入限定子范围已完成main组合验收：唯一模块与生成helper通过公开API运行，默认750/31 ignored、全特性1491/105 ignored，根双库各72+1、真实TCP六场景与fresh5/2/2具备[证据](memory/testing.md#c04-d9-main-组合限定子范围验收通过)；RedirectResponse、文件输入合并、CSRF/FormRequest仍开放。R2-X d299ca4与R2-Q 850e1a4已获用户main集成授权，已完成main组合真实验收，本地集成提交见Git与[testing](memory/testing.md#r2-qx-main-组合验收通过)；不以此关闭完整配置/Container。
 
 ## Laravel 1:1 功能与进度概览
@@ -29,7 +31,7 @@ C04-D8 previous与显式Precognition限定子范围已完成适用验收：稳�
 | Request | 输入来源、typed便捷方法与生命周期 | 🟡 开发中 | C04-A 08be69d、B1 8846a6a、B2 0a92900与C04-C Cookie子簇各自已验收；C04-C提交见Git | Cookie仅已交付读取/队列/加密与响应闭环；D6 URL家族已按限定范围验收（12门禁、双库各63、fresh5/2/2、真实网络10场景与PHP对照）；D7按ADR-083完成限定验收（12门禁、双库各64、fresh5/2/2、TCP7）；D9 Request flash/only/except/flush与RequestInfo old/default读取限定子范围已验收；文件输入、RedirectResponse、完整Session/CSRF/FormRequest仍开放 | L019；R3 C04；[证据](memory/testing.md)/[todo](todo.md) |
 | Response / API Resource / 异常 | 原生响应、资源序列化/条件字段、错误渲染 | 🔵 已有实现待1:1对齐 | 类型化响应/envelope与语义状态子簇已交付 | 完整Resource集合/分页/条件字段和redirect/stream逐项对应 | L018/L020/L027/L068/L069；R3/R5；[http](core/http.md) |
 | Pagination | Query/Model paginate、simple/cursor、链接与Resource | 🔵 已有实现待1:1对齐 | 现PageParams/手动controller分页；4573234仅登记整改 | 默认15/page解析、直接JSON与Resource links/meta、查询/模型入口及边界 | L059/L068.04；R3→R4/R5；[Spec](todo.md#c04c05-分页整改-spec已授权按依赖领取代码未改) |
-| Validation / FormRequest | 验证规则、授权、错误与文件验证 | 🔵 已有实现待1:1对齐 | Validate/Validated与模块输入校验有实现和测试 | 完整FormRequest授权/规则/错误默认与文件行为 | L026/L019；R3/R7；[http](core/http.md)/[todo](todo.md) |
+| Validation / FormRequest | 验证规则、授权、错误与文件验证 | 🔵 已有实现待1:1对齐 | Validate/Validated与模块输入校验有实现和测试；D10-A纯MessageBag/ViewErrorBag已按限定范围验收 | 完整FormRequest授权/规则/错误默认与文件行为 | L026/L019；R3/R7；[http](core/http.md)/[todo](todo.md) |
 | DB / 事务 / Migrations | 连接、事务/savepoint、Schema与迁移生命周期 | 🔵 已有实现待1:1对齐 | SeaORM双库、迁移锁/表名、事务/读写路由专项证据 | R4 Laravel公开数据库/Schema完整契约及故障边界 | L057/L060/L062；R4；[db](core/db.md) |
 | Query Builder | Laravel式组合查询、锁/聚合/chunk与分页 | 🔵 已有实现待1:1对齐 | 有查询/tenant policy和原生SeaORM资产 | 完整Laravel查询API/默认/错误；自动分页与生产调用整改 | L058/L059；R4；[db](core/db.md)/[todo](todo.md) |
 | Eloquent / 关系 / Cast / 集合 | Model CRUD、关系、scope、事件、序列化 | 🔵 已有实现待1:1对齐 | 模块持久模型/真实CRUD与扩展资产存在 | SeaORM Entity不等于Eloquent；关系/批量/属性等完整R5待做 | L064–L069；R5；[db](core/db.md)/[todo](todo.md) |

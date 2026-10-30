@@ -59,6 +59,27 @@ cargo test --workspace
 
 业务可以使用或新增第三方包，声明位置是根应用清单；普通 Rust 业务模块没有独立 Cargo 依赖边界，当前 lib/server 共享解析影响。已有 `serde`/`serde_json` 的实际导入、workspace 继承、新包位置和锁图检查见 [业务依赖教程](modules/example/README.md#使用业务自己的第三方依赖)。
 
+## 消息与命名错误包
+
+`openrust::support::MessageBag` 保存按字段排列的消息，提供 `add`、`merge`、`first`、`get`、`all`、`unique` 和 JSON 编码；纯消息包不依赖 Session。业务代码可直接调用公开 API：
+
+```rust
+use openrust::support::{MessageBag, MessageJsonOptions};
+
+fn business_errors() -> openrust::Result<String> {
+    let mut errors = MessageBag::new();
+    errors.add("email", "邮箱已被使用")?;
+    errors.add("title", "请填写标题")?;
+    errors.to_json(MessageJsonOptions::UNESCAPED_UNICODE)
+}
+```
+
+`add` 对数值字符串按上游宽松规则判断重复；构造去重和 `unique` 使用字符串规则，`merge` 保留重复。底层 `Collection` 保留插入顺序和稀疏键，因此 JSON 不总是连续数组。递归合并可能产生 `MessageValue::Nested`；原始读取与 JSON 保留该结构，无法按上游规则展平的形状通过 `Result` 返回错误。不要用 `all` 替代原始消息读取。
+
+`ViewErrorBag` 按名称保存实现 `MessageBagContract` 的包。`count`、`any` 和 `default_*` 代理只读取 `default` 包；读取缺失包返回临时空包，不隐式插入。业务自定义包通过公开契约接入，已存包的借用与修改保留原实例。
+
+完整调用参考位于[唯一示例模块](modules/example/README.md)的 `POST /api/example/message-bag`。此处介绍纯错误包 API；Session 自动错误共享、验证失败重定向与视图注入按后续功能簇交付，不能据此假定已自动启用。
+
 ## 生成用户应用
 
 CLI 保留用户应用生成功能，模板唯一维护于 [CLI](tools/cli/README.md)。例如在临时目录验证：

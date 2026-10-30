@@ -30,7 +30,8 @@ pub(super) fn register(
         .post(
             "/api/example/request-body",
             controllers::example::request_body,
-        )
+        );
+    let routes = message_bag_routes(routes)
         .post("/api/example/input", controllers::example::input)
         .name("example.input")
         .get("/api/example/cookie", controllers::cookie::show)
@@ -112,6 +113,13 @@ pub(super) fn register(
     )))]
     let _ = capabilities.database;
     routes
+}
+
+fn message_bag_routes(routes: Routes) -> Routes {
+    routes.post(
+        "/api/example/message-bag",
+        controllers::example::message_bag,
+    )
 }
 
 #[cfg(feature = "session")]

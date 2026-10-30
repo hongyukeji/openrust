@@ -8,6 +8,7 @@ use openrust::http::axum::{
     response::{Html, IntoResponse, Response},
 };
 use openrust::http::{DomainParams, Inject, Json, Path, Request, RequestInfo};
+use openrust::support::{MessageBag, MessageJsonOptions, MessageKeys, ViewErrorBag};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize)]
@@ -20,6 +21,76 @@ pub(crate) async fn show(Inject(message): Inject<ExampleMessage>) -> Json<Exampl
         message: message.text().to_owned(),
         served_at: chrono::Utc::now(),
     })
+}
+
+#[derive(Deserialize)]
+pub(crate) struct MessageBagInput {
+    title: Option<String>,
+    email: Option<String>,
+    record_id: Option<i64>,
+}
+
+/// 业务自行收集表单和更新错误；错误包不执行校验或重定向。
+pub(crate) async fn message_bag(
+    Json(input): Json<MessageBagInput>,
+) -> openrust::Result<Json<serde_json::Value>> {
+    let mut create = MessageBag::new();
+    if input
+        .title
+        .as_deref()
+        .is_none_or(|title| title.trim().is_empty())
+    {
+        create.add("title", "标题不能为空")?;
+        create.add("title", "标题不能为空")?;
+        let mut imported = MessageBag::new();
+        imported.add("title", "标题不能为空")?;
+        create.merge(imported.messages())?;
+    }
+    if input
+        .email
+        .as_deref()
+        .is_none_or(|email| !email.contains('@'))
+    {
+        create.add("email", "邮箱格式无效")?;
+    }
+
+    let mut update = MessageBag::new();
+    if input.record_id.is_none_or(|id| id <= 0) {
+        update.add("record_id", "记录编号必须为正数")?;
+    }
+    let mut errors = ViewErrorBag::new();
+    errors.put("default", Box::new(create))?;
+    errors.put("update", Box::new(update))?;
+
+    let default = errors.get_bag("default");
+    let default = default.as_bag();
+    let update = errors.get_bag("update");
+    let update = update.as_bag();
+    let missing = errors.get_bag("missing");
+    Ok(Json(serde_json::json!({
+        "default": {
+            "keys": default.keys().iter().map(ToString::to_string).collect::<Vec<_>>(),
+            "messages": default.messages(),
+            "first_title": default.first(Some("title"), None)?,
+            "first_missing": default.first(Some("missing"), None)?,
+            "all": default.all(None)?,
+            "unique": default.unique(None)?,
+            "formatted": default.all(Some(":key: :message"))?,
+            "format_zero": default.all(Some("0"))?,
+            "has_title": default.has(MessageKeys::Keys(vec!["title".into()]))?,
+            "has_empty_selection": default.has(MessageKeys::Keys(Vec::new()))?,
+            "json": default.to_json(MessageJsonOptions::UNESCAPED_UNICODE)?,
+        },
+        "update": {
+            "keys": update.keys().iter().map(ToString::to_string).collect::<Vec<_>>(),
+            "first_record_id": update.first(Some("record_id"), None)?,
+            "all": update.all(None)?,
+        },
+        "missing_bag": {
+            "stored": errors.has_bag("missing"),
+            "first_title": missing.as_bag().first(Some("title"), None)?,
+        },
+    })))
 }
 
 fn escape_html(value: &str) -> String {

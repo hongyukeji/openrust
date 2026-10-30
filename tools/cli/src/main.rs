@@ -705,6 +705,10 @@ fn populate_project_with_mfa(
             include_str!("../templates/tests/support/request_input.rs").to_owned(),
         ));
         files.push((
+            "tests/support/message_bags.rs",
+            include_str!("../templates/tests/support/message_bags.rs").to_owned(),
+        ));
+        files.push((
             "tests/support/request_cookie.rs",
             include_str!("../templates/tests/support/request_cookie.rs").to_owned(),
         ));
@@ -2766,6 +2770,7 @@ mod tests {
             "config/i18n.toml",
             "tests/test_app.rs",
             "tests/support/request_input.rs",
+            "tests/support/message_bags.rs",
             "tests/support/request_cookie.rs",
             "tests/support/request_session.rs",
             "AGENTS.md",
@@ -2790,6 +2795,7 @@ mod tests {
             "routes/web.rs",
             "tests/test_app.rs",
             "tests/support/request_input.rs",
+            "tests/support/message_bags.rs",
             "tests/support/request_cookie.rs",
             "tests/support/request_session.rs",
             "AGENTS.md",

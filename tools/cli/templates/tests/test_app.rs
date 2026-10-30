@@ -1,6 +1,8 @@
 //! 使用与生产相同的 Provider 清单测试应用 HTTP 路由。
 #[path = "../bootstrap/app.rs"]
 mod bootstrap;
+#[path = "support/message_bags.rs"]
+mod message_bags;
 #[path = "../modules/mod.rs"]
 mod modules;
 #[path = "support/request_cookie.rs"]
@@ -67,6 +69,18 @@ async fn generated_application_exposes_request_input_to_business_provider()
         "[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
     ));
     request_input::assert_request_input::<GeneratedApplication>(source).await
+}
+
+#[tokio::test]
+async fn generated_application_consumes_message_bags_through_business_provider()
+-> Result<(), Box<dyn std::error::Error>> {
+    let source = Figment::from(Serialized::defaults(
+        openrust::config::FrameworkConfig::default(),
+    ))
+    .merge(Toml::string(
+        "[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
+    ));
+    message_bags::assert_message_bags::<GeneratedApplication>(source).await
 }
 
 #[tokio::test]

@@ -1,0 +1,10 @@
+{"case":"empty_json","value":{"json":"[]","serialized":"[]","count":0}}
+{"case":"numeric_outer_keys","value":{"raw":{"2":["two"],"5":["five"]},"json":"{\"2\":[\"two\"],\"5\":[\"five\"]}","keys":[2,5]}}
+{"case":"constructor_unique_sparse","value":{"raw":{"a":{"0":"x","2":"y"}},"count":2,"all":["x","y"]}}
+{"case":"add_vs_merge","value":{"add":{"a":["x","y"]},"merge":{"a":["x","x","y","x"]},"merge_all":["x","x","y","x"]}}
+{"case":"first_wildcard_empty_first_group","value":{"get":{"a.one":[],"a.two":["x"]},"first":null,"has":true}}
+{"case":"format_empty_zero_fallback","value":{"format":"[:key] :message","empty":["[a] x"],"zero":["[a] x"],"explicit":["<x>"]}}
+{"case":"has_formatted_result","value":{"default":false,"format":":key","after":true,"first":"a"}}
+{"case":"unique_sparse_indices","value":{"all":["x","y","x","z"],"unique":{"0":"x","1":"y","3":"z"}}}
+{"case":"view_default_missing_literal","value":{"count_without_default":0,"any_without_default":false,"named_exists":true,"missing_exists_after_mutation":false,"missing_second_get":[],"literal_before_dot":{"a":["literal"]}}}
+{"case":"view_default_only_count","value":{"count":2,"any":true,"all_bags":["named","foo.bar","foo","default"]}}

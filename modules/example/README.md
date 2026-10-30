@@ -10,6 +10,8 @@
 
 `GET /api/example/route-url` 展示命名路由：`GET /api/example` 注册为 `example.index`，处理器从请求提取 `RouteUrlGenerator` 并生成该名称对应的绝对 URL。
 
+`POST /api/example/message-bag` 是不依赖数据库或 Session 的业务错误聚合示例。请求可传 `{"title":"","email":"bad","record_id":0}`；[`controllers/example.rs`](http/controllers/example.rs) 自行判断创建表单字段和更新记录编号，再用公开 `MessageBag` 收集错误。重复调用 `add` 不增加同键同文案，`merge` 保留导入的重复消息；`ViewErrorBag` 将创建错误放在 `default`、更新错误放在 `update`，读取不存在的包只得到临时空包。响应展示键顺序、`first`、`all`、`unique`、格式化和 `to_json`；缺失键的 `first` 返回空字符串，格式参数 `"0"` 沿用当前格式，空键选择在非空包上为真、空包上为假。[模块 HTTP 回归](tests/message_bag_flows.rs)直接请求这条正式路由。开发者在自己的 `modules/<模块名>/http/controllers/` 编写业务判断，在该模块 `routes/api.rs` 挂载处理器，只需调用 `openrust::support` 的公开接口；此例是错误消息聚合参考，不替代真实 Validator、FormRequest 或自动重定向。
+
 `GET /api/example/representation` 使用公开 `RequestInfo` 按 Laravel Request 的内容协商方式调用 `prefers(&["html", "json"])`，将同一个 `ExampleMessage` 服务消息返回为转义后的 HTML 或统一封装 JSON，并发送 `Vary: Accept`。缺少或传入空 `Accept` 时应用明确选择 HTML；存在但无法匹配两种格式时返回 `not_acceptable` 错误。HTTP 状态遵循应用配置：`Semantic` 为 406，`AlwaysOk` 为 200 并在统一响应中保留错误码。`POST /api/example/request-body` 将只读 `RequestInfo` 放在 `Json<T>` 前提取，返回方法、路径、JSON 类型判断与输入标题，证明前者不读取或占用请求正文；正文仍由唯一的 `Json<T>` 提取器读取。这里仅演示 C04-A 的请求检查和协商，不代表完整 Laravel Request、表单、Session 或响应能力已经完成。
 
 `GET http://acme.example.test/api/example/domain/orders/42` 展示 Laravel 式 domain group：在 `RouteGroup::domain("{account}.example.test")` 声明域参数，handler 用 `DomainParams<T>` 与 `Path<T>` 分别读取域和路径参数，再通过具名路由生成 URL。域名仅用于路由分派，不作为租户认证或授权依据；测试环境需用 `Host: acme.example.test` 请求。

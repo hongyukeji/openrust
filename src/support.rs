@@ -8,11 +8,13 @@ mod finite;
 #[cfg(feature = "session")]
 pub(crate) use finite::Finite;
 mod fluent;
+mod message_bag;
 mod number;
 pub(crate) mod php_variables;
 pub(crate) mod scalars;
 pub(crate) mod stringable;
 pub(crate) mod typed;
+mod view_error_bag;
 
 pub use backed_enum::{BackedEnum, EnumBacking};
 pub use calendar::{
@@ -21,5 +23,15 @@ pub use calendar::{
 };
 pub use collection::{ArrayKey, Collection};
 pub use fluent::Fluent;
+pub use message_bag::{
+    MessageBag, MessageBagContract, MessageInput, MessageJsonOptions, MessageKeys, MessageLookup,
+    MessageProvider, MessageValue,
+};
 pub use number::InputNumber;
+pub use view_error_bag::{BagHandle, BagRead, BagWrite, ViewErrorBag};
+
 pub use stringable::Stringable;
+
+#[cfg(test)]
+#[path = "../tests/support.rs"]
+mod support_contract_tests;

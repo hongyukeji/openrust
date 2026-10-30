@@ -90,6 +90,9 @@ pub(crate) mod jobs;
 #[cfg(test)]
 #[path = "tests/localization_flows.rs"]
 mod localization_flows;
+#[cfg(test)]
+#[path = "tests/message_bag_flows.rs"]
+mod message_bag_flows;
 #[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
 mod models;
 #[cfg(all(

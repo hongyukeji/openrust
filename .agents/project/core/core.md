@@ -26,6 +26,16 @@
 
 分页 `meta` 使用 `Option<PageMeta>`，`with_meta` 直接保留强类型值。
 
+## 公共 Support 错误包
+
+`openrust::support` 的 `MessageBag`、`ViewErrorBag` 不依赖 Session 或应用容器；核心装配不持有请求错误。`MessageBagContract` 与 `MessageProvider` 为公开扩展契约，命名包以原对象借用派发；`ViewErrorBag` 的默认代理只读取 `default`，缺失包是临时空值，不插入共享状态。
+
+消息构造接受 String；`Collection`/`ArrayKey` 保留顺序与稀疏键。`MessageValue::Nested` 表达递归合并派生数组；外层 merge 重编号整数键，内层按固定 PHP 实际规则保留原稀疏键并追加。`add` 的数值字符串宽松去重与构造/unique 的字符串去重分别实现。嵌套值的非默认格式错误对应 Laravel `HandleExceptions` 将警告转异常的路径，裸 PHP 的警告后继续行为另列参考，不能混称相同。
+
+`MessageValue` 序列化先转为具体值类型，避免递归叠加泛型有限数值检查器；通用 Collection 的非有限数拦截和整树预算仍保留。受控写入先校验候选完整树再发布，失败不替换原值或自定义包实例。用户入口见根 README 的消息包章节；Session `errors` 编码、请求绑定重定向和请求局部视图共享仍按 todo 后继实施。
+
+限定验收入口见[testing](../memory/testing.md#c04-d10-a-错误包限定子范围已验收)；不据此关闭完整校验器、重定向或视图错误共享。
+
 ## R2-Q/X 已验收子范围
 
 R2-Q 分支 `850e1a4` 与 R2-X 分支 `d299ca4` 已完成各自限定验收；main 已完成实际组合验收，含双库、TCP和五类fresh生成应用；本地集成提交见Git，证据见[testing](../memory/testing.md#r2-qx-main-组合验收通过)。不代表完整配置/Container/Facade已对应。

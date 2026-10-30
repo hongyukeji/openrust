@@ -1,0 +1,45 @@
+{"mode":"bare","case":"outer_sparse_merge.raw","result":{"value":[["a"],["b"]]}}
+{"mode":"bare","case":"outer_sparse_merge.json","result":{"value":"[[\"a\"],[\"b\"]]"}}
+{"mode":"bare","case":"outer_sparse_merge.get","result":{"value":[]}}
+{"mode":"bare","case":"outer_sparse_merge.all","result":{"value":["a","b"]}}
+{"mode":"bare","case":"outer_sparse_merge.count","result":{"value":2}}
+{"mode":"bare","case":"outer_sparse_merge_empty.raw","result":{"value":[["a"]]}}
+{"mode":"bare","case":"outer_sparse_merge_empty.json","result":{"value":"[[\"a\"]]"}}
+{"mode":"bare","case":"outer_sparse_merge_empty.get","result":{"value":[]}}
+{"mode":"bare","case":"outer_sparse_merge_empty.all","result":{"value":["a"]}}
+{"mode":"bare","case":"outer_sparse_merge_empty.count","result":{"value":1}}
+{"mode":"bare","case":"inner_sparse_merge.raw","result":{"value":{"field":{"2":"a","3":"b"}}}}
+{"mode":"bare","case":"inner_sparse_merge.json","result":{"value":"{\"field\":{\"2\":\"a\",\"3\":\"b\"}}"}}
+{"mode":"bare","case":"inner_sparse_merge.get","result":{"value":{"2":"a","3":"b"}}}
+{"mode":"bare","case":"inner_sparse_merge.all","result":{"value":["a","b"]}}
+{"mode":"bare","case":"inner_sparse_merge.count","result":{"value":2}}
+{"mode":"bare","case":"inner_sparse_merge_empty.raw","result":{"value":{"field":{"2":"a"}}}}
+{"mode":"bare","case":"inner_sparse_merge_empty.json","result":{"value":"{\"field\":{\"2\":\"a\"}}"}}
+{"mode":"bare","case":"inner_sparse_merge_empty.get","result":{"value":{"2":"a"}}}
+{"mode":"bare","case":"inner_sparse_merge_empty.all","result":{"value":["a"]}}
+{"mode":"bare","case":"inner_sparse_merge_empty.count","result":{"value":1}}
+{"mode":"bare","case":"empty_field_merge_empty.raw","result":{"value":{"field":[]}}}
+{"mode":"bare","case":"empty_field_merge_empty.json","result":{"value":"{\"field\":[]}"}}
+{"mode":"bare","case":"empty_field_merge_empty.get","result":{"value":[]}}
+{"mode":"bare","case":"empty_field_merge_empty.all","result":{"value":[]}}
+{"mode":"bare","case":"empty_field_merge_empty.count","result":{"value":0}}
+{"mode":"bare","case":"nested.default.get","result":{"value":{"label":["x","y"]}}}
+{"mode":"bare","case":"nested.default.first","result":{"value":"x"}}
+{"mode":"bare","case":"nested.default.all","result":{"exception":"ArgumentCountError","message":"array_push() does not accept unknown named parameters"}}
+{"mode":"bare","case":"nested.default.unique","result":{"exception":"ArgumentCountError","message":"array_push() does not accept unknown named parameters"}}
+{"mode":"bare","case":"nested.key_message.get","result":{"value":{"label":"field: Array"}}}
+{"mode":"bare","case":"nested.key_message.first","result":{"value":"field: Array"}}
+{"mode":"bare","case":"nested.key_message.all","result":{"exception":"ArgumentCountError","message":"array_push() does not accept unknown named parameters"}}
+{"mode":"bare","case":"nested.key_message.unique","result":{"exception":"ArgumentCountError","message":"array_push() does not accept unknown named parameters"}}
+{"mode":"bare","case":"nested.message_bang.get","result":{"value":{"label":"Array!"}}}
+{"mode":"bare","case":"nested.message_bang.first","result":{"value":"Array!"}}
+{"mode":"bare","case":"nested.message_bang.all","result":{"exception":"ArgumentCountError","message":"array_push() does not accept unknown named parameters"}}
+{"mode":"bare","case":"nested.message_bang.unique","result":{"exception":"ArgumentCountError","message":"array_push() does not accept unknown named parameters"}}
+{"mode":"bare","case":"nested.empty_fallback.get","result":{"value":{"label":"[field] Array"}}}
+{"mode":"bare","case":"nested.empty_fallback.first","result":{"value":"[field] Array"}}
+{"mode":"bare","case":"nested.empty_fallback.all","result":{"exception":"ArgumentCountError","message":"array_push() does not accept unknown named parameters"}}
+{"mode":"bare","case":"nested.empty_fallback.unique","result":{"exception":"ArgumentCountError","message":"array_push() does not accept unknown named parameters"}}
+{"mode":"bare","case":"nested.zero_fallback.get","result":{"value":{"label":"[field] Array"}}}
+{"mode":"bare","case":"nested.zero_fallback.first","result":{"value":"[field] Array"}}
+{"mode":"bare","case":"nested.zero_fallback.all","result":{"exception":"ArgumentCountError","message":"array_push() does not accept unknown named parameters"}}
+{"mode":"bare","case":"nested.zero_fallback.unique","result":{"exception":"ArgumentCountError","message":"array_push() does not accept unknown named parameters"}}

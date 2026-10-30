@@ -136,7 +136,9 @@ pub mod prelude {
     pub use crate::sms::{SmsContent, SmsDriver, SmsMessage, SmsReceipt, SmsSender};
     pub use crate::storage::{Storage, StorageDisk, StoragePath};
     pub use crate::support::{
-        ArrayKey, BackedEnum, Collection, EnumBacking, Fluent, InputNumber, Stringable,
+        ArrayKey, BackedEnum, Collection, EnumBacking, Fluent, InputNumber, MessageBag,
+        MessageBagContract, MessageInput, MessageJsonOptions, MessageKeys, MessageLookup,
+        MessageProvider, MessageValue, Stringable, ViewErrorBag,
     };
     pub use crate::tenant::{TenantContext, TenantId, TenantLayer};
     pub use crate::validation::{Field, InputContext, Rule, RuleError, Rules, Validate, validate};

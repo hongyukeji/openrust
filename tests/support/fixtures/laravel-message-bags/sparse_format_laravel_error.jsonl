@@ -1,0 +1,45 @@
+{"mode":"laravel_handle_error_method","case":"outer_sparse_merge.raw","result":{"value":[["a"],["b"]]}}
+{"mode":"laravel_handle_error_method","case":"outer_sparse_merge.json","result":{"value":"[[\"a\"],[\"b\"]]"}}
+{"mode":"laravel_handle_error_method","case":"outer_sparse_merge.get","result":{"value":[]}}
+{"mode":"laravel_handle_error_method","case":"outer_sparse_merge.all","result":{"value":["a","b"]}}
+{"mode":"laravel_handle_error_method","case":"outer_sparse_merge.count","result":{"value":2}}
+{"mode":"laravel_handle_error_method","case":"outer_sparse_merge_empty.raw","result":{"value":[["a"]]}}
+{"mode":"laravel_handle_error_method","case":"outer_sparse_merge_empty.json","result":{"value":"[[\"a\"]]"}}
+{"mode":"laravel_handle_error_method","case":"outer_sparse_merge_empty.get","result":{"value":[]}}
+{"mode":"laravel_handle_error_method","case":"outer_sparse_merge_empty.all","result":{"value":["a"]}}
+{"mode":"laravel_handle_error_method","case":"outer_sparse_merge_empty.count","result":{"value":1}}
+{"mode":"laravel_handle_error_method","case":"inner_sparse_merge.raw","result":{"value":{"field":{"2":"a","3":"b"}}}}
+{"mode":"laravel_handle_error_method","case":"inner_sparse_merge.json","result":{"value":"{\"field\":{\"2\":\"a\",\"3\":\"b\"}}"}}
+{"mode":"laravel_handle_error_method","case":"inner_sparse_merge.get","result":{"value":{"2":"a","3":"b"}}}
+{"mode":"laravel_handle_error_method","case":"inner_sparse_merge.all","result":{"value":["a","b"]}}
+{"mode":"laravel_handle_error_method","case":"inner_sparse_merge.count","result":{"value":2}}
+{"mode":"laravel_handle_error_method","case":"inner_sparse_merge_empty.raw","result":{"value":{"field":{"2":"a"}}}}
+{"mode":"laravel_handle_error_method","case":"inner_sparse_merge_empty.json","result":{"value":"{\"field\":{\"2\":\"a\"}}"}}
+{"mode":"laravel_handle_error_method","case":"inner_sparse_merge_empty.get","result":{"value":{"2":"a"}}}
+{"mode":"laravel_handle_error_method","case":"inner_sparse_merge_empty.all","result":{"value":["a"]}}
+{"mode":"laravel_handle_error_method","case":"inner_sparse_merge_empty.count","result":{"value":1}}
+{"mode":"laravel_handle_error_method","case":"empty_field_merge_empty.raw","result":{"value":{"field":[]}}}
+{"mode":"laravel_handle_error_method","case":"empty_field_merge_empty.json","result":{"value":"{\"field\":[]}"}}
+{"mode":"laravel_handle_error_method","case":"empty_field_merge_empty.get","result":{"value":[]}}
+{"mode":"laravel_handle_error_method","case":"empty_field_merge_empty.all","result":{"value":[]}}
+{"mode":"laravel_handle_error_method","case":"empty_field_merge_empty.count","result":{"value":0}}
+{"mode":"laravel_handle_error_method","case":"nested.default.get","result":{"value":{"label":["x","y"]}}}
+{"mode":"laravel_handle_error_method","case":"nested.default.first","result":{"value":"x"}}
+{"mode":"laravel_handle_error_method","case":"nested.default.all","result":{"exception":"ArgumentCountError","message":"array_push() does not accept unknown named parameters"}}
+{"mode":"laravel_handle_error_method","case":"nested.default.unique","result":{"exception":"ArgumentCountError","message":"array_push() does not accept unknown named parameters"}}
+{"mode":"laravel_handle_error_method","case":"nested.key_message.get","result":{"exception":"ErrorException","message":"Array to string conversion"}}
+{"mode":"laravel_handle_error_method","case":"nested.key_message.first","result":{"exception":"ErrorException","message":"Array to string conversion"}}
+{"mode":"laravel_handle_error_method","case":"nested.key_message.all","result":{"exception":"ErrorException","message":"Array to string conversion"}}
+{"mode":"laravel_handle_error_method","case":"nested.key_message.unique","result":{"exception":"ErrorException","message":"Array to string conversion"}}
+{"mode":"laravel_handle_error_method","case":"nested.message_bang.get","result":{"exception":"ErrorException","message":"Array to string conversion"}}
+{"mode":"laravel_handle_error_method","case":"nested.message_bang.first","result":{"exception":"ErrorException","message":"Array to string conversion"}}
+{"mode":"laravel_handle_error_method","case":"nested.message_bang.all","result":{"exception":"ErrorException","message":"Array to string conversion"}}
+{"mode":"laravel_handle_error_method","case":"nested.message_bang.unique","result":{"exception":"ErrorException","message":"Array to string conversion"}}
+{"mode":"laravel_handle_error_method","case":"nested.empty_fallback.get","result":{"exception":"ErrorException","message":"Array to string conversion"}}
+{"mode":"laravel_handle_error_method","case":"nested.empty_fallback.first","result":{"exception":"ErrorException","message":"Array to string conversion"}}
+{"mode":"laravel_handle_error_method","case":"nested.empty_fallback.all","result":{"exception":"ErrorException","message":"Array to string conversion"}}
+{"mode":"laravel_handle_error_method","case":"nested.empty_fallback.unique","result":{"exception":"ErrorException","message":"Array to string conversion"}}
+{"mode":"laravel_handle_error_method","case":"nested.zero_fallback.get","result":{"exception":"ErrorException","message":"Array to string conversion"}}
+{"mode":"laravel_handle_error_method","case":"nested.zero_fallback.first","result":{"exception":"ErrorException","message":"Array to string conversion"}}
+{"mode":"laravel_handle_error_method","case":"nested.zero_fallback.all","result":{"exception":"ErrorException","message":"Array to string conversion"}}
+{"mode":"laravel_handle_error_method","case":"nested.zero_fallback.unique","result":{"exception":"ErrorException","message":"Array to string conversion"}}

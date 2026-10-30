@@ -378,13 +378,13 @@ D7真实Route/Resolver与受管理方法声明已通过限定验收：final3完�
 
 ## 已交付任务的资源退役
 
-- Q源提交850e1a4已在main，工作区干净；此前PID37197/37198/37249以其为cwd，须等自然释放并fresh lsof确认无占用后正常归档workspace、git worktree remove与branch -d，不杀共享进程。X与守护任务worktree已正常退役，main守护仍运行，不重复start或删除其账本。
-- D9源提交36f48ec已完成main组合验收，限定记录见[testing](memory/testing.md#c04-d9-main-组合限定子范围验收通过)；本地集成提交后核main包含该源提交、worktree无WIP/占用，再正常归档原任务执行者/workspace及移除其任务worktree/分支。新功能不得丢失该验收证据。
+- Q源提交850e1a4已在main；已完成owner正式归档并自然释放其cwd占用，正确workspace归档、worktree remove与branch -d均正常成功。证据 `/tmp/openrust-r2q-worktree-retirement.json`（SHA256 `18192f5ba415e0c633c2dfc98203155fc2a172adc1d3539121ab46b7f423b13c`）。X、D9与守护任务亦已退役，当前Git worktree仅main；main守护继续运行，不重复start或删除其账本。
+- D9已以b056aa0集成；原执行者/workspace正式归档后自动移除worktree，tasks/c04-d9-old-input已正常branch -d。证据 `/tmp/openrust-c04d9-worktree-retirement.json`（SHA256 `2d33c1b17324d1ba1168e8670bd8684e8aa80dd9a479024c3dae55fbe92899eb`），main HEAD/WIP前后一致；不重复清理已退役路径。
 
 ### Paseo 项目归属核验
 
 - 误project `prj_204354f586a66a10` 已通过正式 `project delete` 清理，exit 0，仅返回旧workspace `wks_e760b2e9b88fbc4c`；旧workspace退出active列表，未宣称持久记录硬删除。
-- 正确OpenRust项目 `prj_34a40ee7b674b2b6` 的main `wks_0f0870e8d55cabf4` 与 `tasks/r2-config-reading` / `wks_80d85a0236797621` 保留；审查会话保留且自然idle。3文件SHA、WIP、branch、HEAD与Git common-dir前后逐字段相同，未删除worktree/分支或移动代码。
+- 正确OpenRust项目 `prj_34a40ee7b674b2b6` 的main `wks_0f0870e8d55cabf4` 保留；Q/D9交付后分别经正式归档安全退役任务workspace及本地worktree/分支。下方误项目清理快照仅证明当时保全，当前任务退役状态以上方新证据为准，不能把旧快照当现存workspace。
 - 保全证据 `/tmp/openrust-r2q-paseo-clean-verification.json`（SHA256 `f0cc2903bff30c60b3d66fe5129247bd20b4c8640ccd17fe4bd43e29bb3d077f`），含前后快照与正式返回摘要；后续任务仍须在正确项目下登记独立workspace，不把标题前缀称为真实嵌套分组。
 
 ### 当前构建缓存与回收
@@ -393,12 +393,14 @@ D7真实Route/Resolver与受管理方法声明已通过限定验收：final3完�
 - main target保留复用；旧QX五生成包、本轮plain/PG生成包及四个本簇已完成测试可执行文件已精确退役，源码/锁/索引/当前二进制及共享库哨兵未变。日志明确Cargo关联test_app/auth_flows产物；不清整target，不碰归属不足的历史缓存。
 - D9 My生成项目已验收，源码/锁/证据保留；如后继需要空间，先核精确package dry-run与占用后再回收其专属再生产物，不为纯Agent文档变化重跑矩阵。
 
-## C04-D10：错误包与重定向输入（待领取Spec）
+## C04-D10-B：请求绑定重定向与 Session 错误包（Spec 待领取）
 
-前置D9旧输入已完成限定验收。root负责contract与文件归属；优先按MessageBag/ViewErrorBag→请求绑定RedirectResponse→请求局部视图共享收敛可交付子簇，保留完整公开方法对应，不用三个方法关闭整个错误包。已做固定上游只读审查，尚无本簇代码或验收。
+D10-A纯MessageBag/ViewErrorBag已完成代码、唯一模块、生成模板、独审及适用验收，限定提交以Git为准；证据与差异见[testing](memory/testing.md#c04-d10-a-错误包限定子范围已验收)。不重做该基础，不将其扩大为自动错误共享/完整Redirector。
 
-1. MessageBag保留add去重/merge重复、wildcard、格式/顺序/计数、first/all/unique与默认bag代理；现ValidationErrors的BTreeMap转换不能冒称保留插入顺序。Session错误包采用可验证类型表示，旧错误类型重建空包；同一请求更新不同bag须一次mutate_value原子读改写及预算校验，禁止get后分离flash丢更新。
-2. RedirectResponse默认302，普通redirect无Session仍可构造；只有flash写入需Session。请求URL生成须核scheme/Host/代理信任与Location header边界；previous顺序为非空Referer→Session previous→有效fallback→请求根URL，不直接用app.url路由生成器替代请求源。
+下一步由root收敛B持久快照和公开Response contract，再复用现核心执行者按Spec→Implement→Verify→Commit；C请求局部视图共享随后。所有写入继续单仓main、文件单一owner，构建/索引/服务统一调度。已核固定上游previous使用PHP truthy，包含空串和字符串`0`；withErrors保留其他命名包并替换同名，持久快照必须保留format/稀疏键/派生nested，跨请求不保留原对象身份，失败边界公开。
+
+1. 复用D10-A已交付的公开错误包；现ValidationErrors的BTreeMap转换不能冒称保留插入顺序。Session错误包采用可验证类型表示，旧错误类型重建空包；同一请求更新不同bag须一次mutate_value原子读改写及预算校验，禁止get后分离flash丢更新。
+2. RedirectResponse默认302，普通redirect无Session仍可构造；只有flash写入需Session。请求URL生成须核scheme/Host/代理信任与Location header边界；previous顺序为PHP真值Referer→Session previous→真值fallback→请求根URL（含空串与字符串`0`边界），不直接用app.url路由生成器替代请求源。
 3. 输入快照只从Request唯一仓储取得，明确取快照时点；手动with_input不套异常dontFlash。异常Handler的自动校验失败分支、errorBag/redirectTo/JSON及其余away/signed/action/guest/intended按对应矩阵继续，不因基础重定向关闭。
 4. ShareErrorsFromSession必须实际接入请求局部渲染入口，定义空默认bag与显式context优先级，禁止把请求错误写入共享Views环境。唯一模块/根视图/生成应用需覆盖真实调用与并发双客户端隔离。
 5. 每次flash预算原子，多次链式调用不是整体事务；自动验证组合若要共同回滚须一次批量变更。上传文件未合并输入bag仍属明确缺口，不按字段名伪过滤；CSRF/FormRequest依本簇后继推进。

@@ -6,6 +6,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Changed
 
+- 新增公开 `MessageBag`、`ViewErrorBag` 与消息包扩展契约：保序/稀疏键、字段与通配查询、格式化、命名包及 JSON 选项；递归合并通过 `MessageValue` 保留派生数组。纯消息包无需 Session，自定义命名包保留对象身份并派发契约方法。Session 错误共享和验证失败重定向继续按后继实现。
+
 - Session与Request增加旧输入读写：`flash_input/get_old_input/get_old_input_or/has_old_input`、`Request::flash/flash_only/flash_except/flush`和`RequestInfo::old/old_or/old_all`。复用已有flash老化和单次写入预算回滚，保留缺失/null/默认、字面键优先dot及空筛选语义。手动闪存不默认剔除密码，应用须显式排除敏感字段；文件输入合并与RedirectResponse仍按后继实现。
 
 - 受管理 Handler 支持显式启用的 Precognition：按参数顺序提取与验证，成功预检返回空 204，不调用业务函数。字段筛选可提前结束；认证和授权须放在路由中间件或验证参数之前，原生 Axum 逃生入口不自动获得此保证。

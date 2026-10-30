@@ -1,0 +1,59 @@
+# 固定 Support 测试方法对应
+
+固定来源：Laravel framework `d52c3b3129e4c8e213c97cdc68f94b0b7d27f181` 的 `SupportMessageBagTest.php` 37 方法及 `SupportViewErrorBagTest.php` 16 方法。Rust 用行为聚合测试，以下逐方法定位到实际断言；额外 Rust 类型/预算与原始 PHP JSONL 参考测试见相邻源文件。
+
+| 上游测试方法 | Rust 行为测试 |
+| --- | --- |
+| `SupportMessageBagTest.php::testUniqueness` | `message_bag.rs::add_unique_add_if_and_merge_duplicates` |
+| `SupportMessageBagTest.php::testMessagesAreAdded` | `message_bag.rs::add_unique_add_if_and_merge_duplicates` |
+| `SupportMessageBagTest.php::testKeys` | `message_bag.rs::constructor_per_key_scalar_and_sparse_unique` |
+| `SupportMessageBagTest.php::testMessagesMayBeMerged` | `message_bag.rs::add_unique_add_if_and_merge_duplicates` |
+| `SupportMessageBagTest.php::testMessageBagsCanBeMerged` | `message_bag.rs::upstream_provider_arrayable_and_wildcard_group_matrix` |
+| `SupportMessageBagTest.php::testMessageBagsCanConvertToArrays` | `message_bag.rs::upstream_provider_arrayable_and_wildcard_group_matrix` |
+| `SupportMessageBagTest.php::testGetReturnsArrayOfMessagesByKey` | `message_bag.rs::add_unique_add_if_and_merge_duplicates` |
+| `SupportMessageBagTest.php::testGetReturnsArrayOfMessagesByImplicitKey` | `message_bag.rs::upstream_provider_arrayable_and_wildcard_group_matrix` |
+| `SupportMessageBagTest.php::testFirstReturnsSingleMessage` | `message_bag.rs::exact_wildcard_first_null_and_literal_priority` |
+| `SupportMessageBagTest.php::testFirstReturnsEmptyStringIfNoMessagesFound` | `message_bag.rs::exact_wildcard_first_null_and_literal_priority` |
+| `SupportMessageBagTest.php::testFirstReturnsSingleMessageFromDotKeys` | `message_bag.rs::upstream_provider_arrayable_and_wildcard_group_matrix` |
+| `SupportMessageBagTest.php::testHasIndicatesExistence` | `message_bag.rs::upstream_has_has_any_missing_key_variants` |
+| `SupportMessageBagTest.php::testMissingIndicatesNonExistence` | `message_bag.rs::upstream_has_has_any_missing_key_variants` |
+| `SupportMessageBagTest.php::testAddIf` | `message_bag.rs::add_unique_add_if_and_merge_duplicates` |
+| `SupportMessageBagTest.php::testForget` | `message_bag.rs::all_unique_sparse_indices_forget_and_presence` |
+| `SupportMessageBagTest.php::testHasWithKeyNull` | `message_bag.rs::upstream_has_has_any_missing_key_variants` |
+| `SupportMessageBagTest.php::testHasAnyIndicatesExistence` | `message_bag.rs::upstream_has_has_any_missing_key_variants` |
+| `SupportMessageBagTest.php::testHasAnyWithKeyNull` | `message_bag.rs::upstream_has_has_any_missing_key_variants` |
+| `SupportMessageBagTest.php::testHasIndicatesExistenceOfAllKeys` | `message_bag.rs::upstream_has_has_any_missing_key_variants` |
+| `SupportMessageBagTest.php::testHasIndicatesNoneExistence` | `message_bag.rs::upstream_has_has_any_missing_key_variants` |
+| `SupportMessageBagTest.php::testAllReturnsAllMessages` | `message_bag.rs::add_unique_add_if_and_merge_duplicates` |
+| `SupportMessageBagTest.php::testFormatIsRespected` | `message_bag.rs::formatting_controls_first_has_and_zero_fallback` |
+| `SupportMessageBagTest.php::testUnique` | `message_bag.rs::all_unique_sparse_indices_forget_and_presence` |
+| `SupportMessageBagTest.php::testMessageBagReturnsCorrectArray` | `message_bag.rs::constructor_per_key_scalar_and_sparse_unique` |
+| `SupportMessageBagTest.php::testMessageBagReturnsExpectedJson` | `message_bag.rs::fixed_php_reference_cases_are_named_and_used` |
+| `SupportMessageBagTest.php::testMessageBagReturnsExpectedPrettyJson` | `message_bag.rs::json_flags_numeric_unicode_slash_hex_and_force_object` |
+| `SupportMessageBagTest.php::testCountReturnsCorrectValue` | `message_bag.rs::add_unique_add_if_and_merge_duplicates` |
+| `SupportMessageBagTest.php::testCountable` | `message_bag.rs::add_unique_add_if_and_merge_duplicates` |
+| `SupportMessageBagTest.php::testConstructor` | `message_bag.rs::constructor_per_key_scalar_and_sparse_unique` |
+| `SupportMessageBagTest.php::testFirstFindsMessageForWildcardKey` | `message_bag.rs::upstream_provider_arrayable_and_wildcard_group_matrix` |
+| `SupportMessageBagTest.php::testIsEmptyTrue` | `message_bag.rs::empty_json_and_default_format` |
+| `SupportMessageBagTest.php::testIsEmptyFalse` | `message_bag.rs::add_unique_add_if_and_merge_duplicates` |
+| `SupportMessageBagTest.php::testIsNotEmptyTrue` | `message_bag.rs::add_unique_add_if_and_merge_duplicates` |
+| `SupportMessageBagTest.php::testIsNotEmptyFalse` | `message_bag.rs::empty_json_and_default_format` |
+| `SupportMessageBagTest.php::testToString` | `message_bag.rs::add_unique_add_if_and_merge_duplicates` |
+| `SupportMessageBagTest.php::testGetFormat` | `message_bag.rs::formatting_controls_first_has_and_zero_fallback` |
+| `SupportMessageBagTest.php::testConstructorUniquenessConsistency` | `message_bag.rs::constructor_and_add_agree_for_same_string_duplicates` |
+| `SupportViewErrorBagTest.php::testHasBagTrue` | `view_error_bag.rs::put_get_replace_and_custom_identity_mutation` |
+| `SupportViewErrorBagTest.php::testHasBagFalse` | `view_error_bag.rs::missing_bag_is_independent_and_not_inserted` |
+| `SupportViewErrorBagTest.php::testGet` | `view_error_bag.rs::put_get_replace_and_custom_identity_mutation` |
+| `SupportViewErrorBagTest.php::testGetBagWithNew` | `view_error_bag.rs::missing_bag_is_independent_and_not_inserted` |
+| `SupportViewErrorBagTest.php::testGetBags` | `view_error_bag.rs::named_bag_order_and_default_aliases_match_upstream` |
+| `SupportViewErrorBagTest.php::testPut` | `view_error_bag.rs::put_get_replace_and_custom_identity_mutation` |
+| `SupportViewErrorBagTest.php::testAnyTrue` | `view_error_bag.rs::only_default_controls_count_any_and_display` |
+| `SupportViewErrorBagTest.php::testAnyFalse` | `view_error_bag.rs::missing_bag_is_independent_and_not_inserted` |
+| `SupportViewErrorBagTest.php::testAnyFalseWithEmptyErrorBag` | `view_error_bag.rs::missing_bag_is_independent_and_not_inserted` |
+| `SupportViewErrorBagTest.php::testCount` | `view_error_bag.rs::only_default_controls_count_any_and_display` |
+| `SupportViewErrorBagTest.php::testCountWithNoMessagesInMessageBag` | `view_error_bag.rs::missing_bag_is_independent_and_not_inserted` |
+| `SupportViewErrorBagTest.php::testCountWithNoMessageBags` | `view_error_bag.rs::missing_bag_is_independent_and_not_inserted` |
+| `SupportViewErrorBagTest.php::testDynamicCallToDefaultMessageBag` | `view_error_bag.rs::default_proxies_use_stored_or_temporary` |
+| `SupportViewErrorBagTest.php::testDynamicallyGetBag` | `view_error_bag.rs::put_get_replace_and_custom_identity_mutation` |
+| `SupportViewErrorBagTest.php::testDynamicallyPutBag` | `view_error_bag.rs::put_get_replace_and_custom_identity_mutation` |
+| `SupportViewErrorBagTest.php::testToString` | `view_error_bag.rs::only_default_controls_count_any_and_display` |

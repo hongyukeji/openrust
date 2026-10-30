@@ -1,0 +1,31 @@
+{"case":"add_constructor_unique_0_00","value":{"constructor":{"field":["0","00"]},"add":{"field":["0"]},"unique":["0","00"]}}
+{"case":"add_constructor_unique_1_01","value":{"constructor":{"field":["1","01"]},"add":{"field":["1"]},"unique":["1","01"]}}
+{"case":"add_constructor_unique_1e2_100","value":{"constructor":{"field":["1e2","100"]},"add":{"field":["1e2"]},"unique":["1e2","100"]}}
+{"case":"merge_numeric_outer","value":{"raw":[["a"],["b"]],"json":"[[\"a\"],[\"b\"]]","get0":["a"],"get1":["b"],"all":["a","b"],"count":2}}
+{"case":"merge_string_outer","value":{"raw":{"value":{"field":["a","b"]}},"json":{"value":"{\"field\":[\"a\",\"b\"]}"},"get":{"value":["a","b"]},"all":{"value":["a","b"]},"count":{"value":2}}}
+{"case":"merge_inner_string_different","value":{"raw":{"value":{"field":{"old":"x","new":"y"}}},"json":{"value":"{\"field\":{\"old\":\"x\",\"new\":\"y\"}}"},"get":{"value":{"old":"x","new":"y"}},"all":{"exception":"ArgumentCountError","message":"array_push() does not accept unknown named parameters"},"count":{"value":2}}}
+{"case":"merge_inner_string_conflict","value":{"raw":{"value":{"field":{"label":["x","y"]}}},"json":{"value":"{\"field\":{\"label\":[\"x\",\"y\"]}}"},"get":{"value":{"label":["x","y"]}},"all":{"exception":"ArgumentCountError","message":"array_push() does not accept unknown named parameters"},"count":{"value":3}}}
+{"case":"json_1e1000_0","value":{"flags":0,"json":"{\"field\":[\"1e1000\"]}","last_error":"No error"}}
+{"case":"json_1e1000_numeric","value":{"flags":32,"json":"{\"field\":[\"1e1000\"]}","last_error":"No error"}}
+{"case":"json_1e1000_numeric_throw","value":{"flags":4194336,"json":"{\"field\":[\"1e1000\"]}","last_error":"No error"}}
+{"case":"json_1e1000_numeric_partial","value":{"flags":544,"json":"{\"field\":[\"1e1000\"]}","last_error":"No error"}}
+{"case":"json_1e1000_numeric_partial_throw","value":{"flags":4194848,"json":"{\"field\":[\"1e1000\"]}","last_error":"No error"}}
+{"case":"json_-1e1000_0","value":{"flags":0,"json":"{\"field\":[\"-1e1000\"]}","last_error":"No error"}}
+{"case":"json_-1e1000_numeric","value":{"flags":32,"json":"{\"field\":[\"-1e1000\"]}","last_error":"No error"}}
+{"case":"json_-1e1000_numeric_throw","value":{"flags":4194336,"json":"{\"field\":[\"-1e1000\"]}","last_error":"No error"}}
+{"case":"json_-1e1000_numeric_partial","value":{"flags":544,"json":"{\"field\":[\"-1e1000\"]}","last_error":"No error"}}
+{"case":"json_-1e1000_numeric_partial_throw","value":{"flags":4194848,"json":"{\"field\":[\"-1e1000\"]}","last_error":"No error"}}
+{"case":"json_1.0_0","value":{"flags":0,"json":"{\"field\":[\"1.0\"]}","last_error":"No error"}}
+{"case":"json_1.0_numeric","value":{"flags":32,"json":"{\"field\":[1]}","last_error":"No error"}}
+{"case":"json_1.0_numeric_throw","value":{"flags":4194336,"json":"{\"field\":[1]}","last_error":"No error"}}
+{"case":"json_1.0_numeric_partial","value":{"flags":544,"json":"{\"field\":[1]}","last_error":"No error"}}
+{"case":"json_1.0_numeric_partial_throw","value":{"flags":4194848,"json":"{\"field\":[1]}","last_error":"No error"}}
+{"case":"json_1e-1000_0","value":{"flags":0,"json":"{\"field\":[\"1e-1000\"]}","last_error":"No error"}}
+{"case":"json_1e-1000_numeric","value":{"flags":32,"json":"{\"field\":[0]}","last_error":"No error"}}
+{"case":"json_1e-1000_numeric_throw","value":{"flags":4194336,"json":"{\"field\":[0]}","last_error":"No error"}}
+{"case":"json_1e-1000_numeric_partial","value":{"flags":544,"json":"{\"field\":[0]}","last_error":"No error"}}
+{"case":"json_1e-1000_numeric_partial_throw","value":{"flags":4194848,"json":"{\"field\":[0]}","last_error":"No error"}}
+{"case":"unicode_line_0","value":{"flags":0,"json":"{\"field\":[\"before\\u2028middle\\u2029after\"]}","hex":"7b226669656c64223a5b226265666f72655c75323032386d6964646c655c75323032396166746572225d7d"}}
+{"case":"unicode_line_unicode","value":{"flags":256,"json":"{\"field\":[\"before\\u2028middle\\u2029after\"]}","hex":"7b226669656c64223a5b226265666f72655c75323032386d6964646c655c75323032396166746572225d7d"}}
+{"case":"unicode_line_line","value":{"flags":2048,"json":"{\"field\":[\"before\\u2028middle\\u2029after\"]}","hex":"7b226669656c64223a5b226265666f72655c75323032386d6964646c655c75323032396166746572225d7d"}}
+{"case":"unicode_line_unicode_line","value":{"flags":2304,"json":"{\"field\":[\"before\u2028middle\u2029after\"]}","hex":"7b226669656c64223a5b226265666f7265e280a86d6964646c65e280a96166746572225d7d"}}

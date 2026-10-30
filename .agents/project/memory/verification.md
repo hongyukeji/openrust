@@ -1,5 +1,9 @@
 # 验收口径
 
+## C04-D10-A 当前限定核验
+
+错误包基础已完成公开API、唯一模块、生成应用与真实TCP验收；默认784/31 ignored、全特性1526/105 ignored及适用工具门禁通过，fresh6/2/2覆盖边界与记录限制见[testing](testing.md#c04-d10-a-错误包限定子范围已验收)。独审未发现剩余blocker，失败修复和真实服务证据均保留。Session errors、RedirectResponse和视图注入不在本次完成范围。
+
 ## C04-D9 当前组合核验
 
 旧输入限定子范围已通过main门禁、公开consumer、唯一模块、真实PG18/MySQL8.4、真实TCP六场景与fresh5/2/2，具体源/日志/数量/忽略及失败留存见[testing](testing.md#c04-d9-main-组合限定子范围验收通过)。root核总索引引用、结果/events及607输入；提交后仅Agent文档与CHANGELOG差异按实际影响复用，不把旧分支结果当main。上传输入、RedirectResponse、CSRF/FormRequest及整个HTTP/Session仍开放；TCP不证明TLS或集群，外部邮件仍为测试路径。

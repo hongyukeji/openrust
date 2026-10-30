@@ -42,6 +42,14 @@ impl fmt::Display for ArrayKey {
         }
     }
 }
+impl ArrayKey {
+    fn normalized(self) -> Self {
+        match self {
+            Self::String(key) => Self::from(key),
+            key @ Self::Integer(_) => key,
+        }
+    }
+}
 
 /// 拥有所有权的有序集合；空集合也仍是一个对象，而非 PHP 假值数组。
 ///
@@ -69,12 +77,16 @@ impl<T> Collection<T> {
     }
     /// 按直接键读取；点号没有路径含义。
     pub fn get(&self, key: impl Into<ArrayKey>) -> Option<&T> {
-        let key = match key.into() {
-            ArrayKey::String(key) => ArrayKey::from(key),
-            key @ ArrayKey::Integer(_) => key,
-        };
+        let key = key.into().normalized();
         self.entries
             .iter()
+            .find_map(|(candidate, value)| (candidate == &key).then_some(value))
+    }
+    /// 按直接键可变借用；点号没有路径含义。
+    pub(crate) fn get_mut(&mut self, key: impl Into<ArrayKey>) -> Option<&mut T> {
+        let key = key.into().normalized();
+        self.entries
+            .iter_mut()
             .find_map(|(candidate, value)| (candidate == &key).then_some(value))
     }
     /// 借用按原顺序排列的键值迭代器。
@@ -91,6 +103,61 @@ impl<T> Collection<T> {
     }
 }
 impl<T: Serialize> Collection<T> {
+    /// 原位替换或末尾插入一个键；预算失败时保持原集合不变。
+    pub fn try_put(&mut self, key: impl Into<ArrayKey>, value: T) -> Result<()> {
+        let key = key.into().normalized();
+        let replacing = self
+            .entries
+            .iter()
+            .position(|(candidate, _)| candidate == &key);
+        let mut candidate =
+            Vec::with_capacity(self.entries.len() + usize::from(replacing.is_none()));
+        for (index, (existing_key, existing_value)) in self.entries.iter().enumerate() {
+            candidate.push((
+                existing_key.clone(),
+                if Some(index) == replacing {
+                    &value
+                } else {
+                    existing_value
+                },
+            ));
+        }
+        if replacing.is_none() {
+            candidate.push((key.clone(), &value));
+        }
+        let _ = Collection::try_from_entries(candidate)?;
+        if let Some(index) = replacing {
+            self.entries[index].1 = value;
+        } else {
+            self.entries.push((key, value));
+        }
+        Ok(())
+    }
+
+    /// 按 PHP 数组的下一整数键追加；预算失败保持原集合不变。
+    pub fn try_push(&mut self, value: T) -> Result<()> {
+        let next = self
+            .entries
+            .iter()
+            .filter_map(|(key, _)| match key {
+                ArrayKey::Integer(index) => Some(*index),
+                ArrayKey::String(_) => None,
+            })
+            .max()
+            .map_or(Some(0), |index| index.checked_add(1));
+        let index = next.ok_or_else(super::data::limit_error)?;
+        self.try_put(ArrayKey::Integer(index), value)
+    }
+
+    /// 删除直接键，不重排其余条目。
+    pub fn forget(&mut self, key: impl Into<ArrayKey>) -> Option<T> {
+        let key = key.into().normalized();
+        self.entries
+            .iter()
+            .position(|(candidate, _)| candidate == &key)
+            .map(|index| self.entries.remove(index).1)
+    }
+
     /// 从有序条目构造；重复键后值覆盖前值，错误不产生部分结果。
     ///
     /// 应用 Serialize 执行一次后校验展开树预算；不保证任意应用序列化器的分配预先受限。
@@ -98,10 +165,7 @@ impl<T: Serialize> Collection<T> {
     pub fn try_from_entries(entries: impl IntoIterator<Item = (ArrayKey, T)>) -> Result<Self> {
         let mut result = Self::default();
         for (key, value) in entries {
-            let key = match key {
-                ArrayKey::String(key) => ArrayKey::from(key),
-                key @ ArrayKey::Integer(_) => key,
-            };
+            let key = key.normalized();
             if let Some(index) = result
                 .entries
                 .iter()

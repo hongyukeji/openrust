@@ -1,5 +1,21 @@
 # 测试基线
 
+## C04-D10-A 错误包（限定子范围已验收）
+
+固定 Laravel framework `d52c3b3129e4c8e213c97cdc68f94b0b7d27f181`：MessageBag/ViewErrorBag 及公开 contract、Collection 保键/预算与同实例派发，已接唯一模块和普通生成应用。构造消息采用 String；递归合并派生 `MessageValue::Nested`，格式错误以 Laravel HandleExceptions 模式对应，裸 PHP 警告后继续的差异单列。完整 RedirectResponse、Session `errors` 与请求局部视图共享仍开放。
+
+- 定向 Support 31、模块 TestApp 1、CLI 精确快照 1；默认 workspace 784 passed/31 ignored，全特性1526 passed/105 ignored。忽略项不算真实服务。
+- fmt、默认/全特性 workspace all-targets Clippy `-D warnings`、默认/全特性 Rustdoc `-D warnings`、cargo deny、无默认 feature check、Rust1.97全特性与session-only check均实际通过；deny保留既有重复依赖诊断。
+- 真实单进程非TLS loopback TCP五场景通过，外层/worker退出0、服务正常退出、端口释放、敏感配置清理及源码/二进制不漂移均已核；不代表TLS或集群验收。
+- 全新生成 plain 的fmt/check/locked test通过，6个精确具名用例包含错误包/nested/数值编码；PostgreSQL18、MySQL8.4生成项目各2个认证回归通过，专属库CREATE成功后精确DROP并验证不存在。双库生成不执行D10 helper，不冒称新数据库行为。
+- 失败记录保留：泛型序列化递归、预算fixture超限、CLI快照和lint均已修复并重验。每条有效命令前后摘要一致；跨门禁不宣称具备未记录的逐文件密码学差分，已知纯CHANGELOG/Agent文档变化按影响复用。plain外层退出码为正式工具响应的事后记录，缺独立持久raw外层日志；底层fmt/check/test有实际exit与具名事件，PG/My外层日志另存。
+- 精确回收已验收一次性生成包，保留源码/锁/证据和活跃共享缓存；最终12个去重target合计48.866GB，磁盘15.833%，未清空根target。
+
+证据：`/tmp/openrust-c04d10-main2-final-handoff.json` SHA256 `9f01195b291ece7952c6c35b8668aa68c078b0d8bc38f9a2b30644f1c4201a41`，root逐一复核37个path/hash；独立归集 `/tmp/openrust-c04d10-tool-evidence-audit.json`，TCP root复核 `/tmp/openrust-c04d10-root-tcp-audit.json`。本簇测试/模板/生产代码均无后续未验修改；最终收口文档不触发无关Rust矩阵重跑。
+
+复跑：`cargo test --locked --lib support_contract_tests`，其余适用完整命令见同目录各门禁JSON。固定参考源码使用 `/Users/Home/Codes/Git/laravel-framework-baseline`，文档使用平级 `laravel-docs-baseline`；历史PHP输出与来源许可在 `tests/support/fixtures/laravel-message-bags/`，实际目录以源码为准。
+
+
 ## C04-D9 main 组合（限定子范围验收通过）
 
 限定范围：Session旧输入与Request公开读写、唯一模块和生成helper；源提交36f48ec按用户授权集成。实际代码验收索引树`e9fd00b8dbb13d2af6f43389626fedb18ca22848`；607文件输入SHA256 `58bd5e81a5be10844ac869f71b9bbe77bbcdd69f58bc9d767a1f15962aad202d`。不关闭整个HTTP/Session、RedirectResponse、上传输入、CSRF或FormRequest。
