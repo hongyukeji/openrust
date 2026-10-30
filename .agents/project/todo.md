@@ -393,12 +393,12 @@ D7真实Route/Resolver与受管理方法声明已通过限定验收：final3完�
 - main target保留复用；旧QX五生成包、本轮plain/PG生成包及四个本簇已完成测试可执行文件已精确退役，源码/锁/索引/当前二进制及共享库哨兵未变。日志明确Cargo关联test_app/auth_flows产物；不清整target，不碰归属不足的历史缓存。
 - D9 My生成项目已验收，源码/锁/证据保留；如后继需要空间，先核精确package dry-run与占用后再回收其专属再生产物，不为纯Agent文档变化重跑矩阵。
 
-## C04-D10-D 请求绑定命名路由重定向（in_progress）
+## C04-D10-E 重定向 scheme 与 guest/intended（待 Spec）
 
-- 前置：D10-C已验收并由 `784045c` 提交；本簇已获准实施，源码与文档按总控分工，尚无本簇测试通过宣称。
-- Spec：新增 `Redirector::route(name, &BTreeMap<String, String>)` 与 `route_with(name, params, status, headers)`，复用请求私有的既有 `RouteUrlGenerator` 与 `to_with`；默认302、空头，不另建全局路由索引。沿用并公开现有URL参数形态限制，未知名/缺参数及缺resolver沿既有错误；保持原请求/Session借用及输入、错误闪存链不变。
-- 验收：先完成核心/HTTP回归、唯一 `modules/example` 与CLI源模板/helper接线，再集中执行适用门禁、fresh生成项目、真实MySQL8.4与绑定最终binary的TCP验收；当前无实现完成或测试通过结论。
-- action/guest/intended/signed、URL生成器其余扩展及完整L020.02/Redirector、Validation/HTTP/Session和PG发布矩阵仍开放。
+- 前置：D10-D命名重定向限定子范围已验收，实际实现提交见Git与[证据](memory/testing.md#c04-d10-d-命名路由重定向当前验收中未提交)。不重复实现 route/route_with。
+- 先按固定上游收敛现 `to/to_with` 的可选 secure scheme 行为，再提供 guest/intended 及 intended URL 读取/设置的 Rust 对应入口；复用 RequestInfo 方法/真实路由/内容协商与既有 Session 普通属性/pull，不另建当前请求或登录状态仓储。
+- 规格须保留 GET+真实路由+非expectsJson 判定、普通而非flash的 url.intended、先保存/先消费后构造响应的顺序，以及缺失默认与显式null/false/0/空值的差别。secure参数、动态值转换及失败需固定源码/实际参考证明，不默默忽略或提前缩小。
+- 只读依赖审计 `/tmp/openrust-c04d10-next-guest-intended-readonly-spec.md`；尚未领取实现。公共API由本簇Spec自主收敛，唯一模块、生成应用、MySQL与真实TCP随簇交付；action、signed、URL参数其余能力及完整L020.02仍开放。
 
 ## 发布前全后端兼容性验收
 

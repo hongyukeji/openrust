@@ -1,5 +1,7 @@
 //! 草稿提交后返回审核页，展示当前请求的重定向和下一请求的一次性输入。
 
+use std::collections::BTreeMap;
+
 #[cfg(feature = "session")]
 use openrust::Error;
 use openrust::Result;
@@ -10,6 +12,13 @@ use openrust::http::{Redirector, RequestInfo};
 pub(crate) async fn plain(info: RequestInfo) -> Result<Response> {
     Ok(Redirector::from_info(&info)
         .to("/api/example")?
+        .into_response())
+}
+
+/// 按公开路由名返回示例首页，无需 Session。
+pub(crate) async fn named(info: RequestInfo) -> Result<Response> {
+    Ok(Redirector::from_info(&info)
+        .route("example.index", &BTreeMap::new())?
         .into_response())
 }
 
@@ -35,7 +44,12 @@ pub(crate) async fn submit(request: Request) -> Result<Response> {
         .as_ref()
         .and_then(Value::as_str)
         .ok_or_else(invalid_mode)?;
-    let mut redirect = Redirector::from_request(&request).to("/api/example/draft/review")?;
+    let redirector = Redirector::from_request(&request);
+    let mut redirect = if matches!(mode, "errors" | "custom") {
+        redirector.route("example.draft.review", &BTreeMap::new())?
+    } else {
+        redirector.to("/api/example/draft/review")?
+    };
     match mode {
         "all" => {
             redirect.with_input()?;

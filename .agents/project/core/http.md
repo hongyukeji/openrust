@@ -1,7 +1,7 @@
 # `openrust::http`
 
 > 受众：AI Agent
-> 更新：2026-10-30
+> 更新：2026-10-31
 > 摘要：HTTP 层当前事实。
 
 Session请求层已接入统一领域；D1限定验收范围、真实网络/双库证据和完整后继缺口见 [Session当前事实](session.md) 与 [ADR-082](../decisions/adr-082-session-store-and-flash.md)。旧HTTP/Cookie子簇不自动证明整个Web栈完成。
@@ -81,10 +81,18 @@ CORS 预检（`OPTIONS` 且带 `Access-Control-Request-Method`）保持 tower-ht
 
 纯错误包由公开 `openrust::support` 提供，唯一模块 POST `/api/example/message-bag` 经正式路由调用；受管理HTTP不默认注入共享错误状态。公开消费、生成及真实TCP限定验收见[testing](../memory/testing.md#c04-d10-a-错误包限定子范围已验收)。这份 D10-A 证据不证明下面 D10-B 的新行为。
 
-## C04-D10-B 请求绑定重定向（限定子范围已验收，待提交）
+## C04-D10-B 请求绑定重定向（限定子范围已验收，已提交a2befef）
 
 `Redirector::from_info(&RequestInfo)` 借用请求来源并构建普通 `to/back` 响应；`Redirector::from_request(&Request)` 另可读取同一规范化输入。`RedirectResponse` 经 `IntoResponse` 输出目标 `Location`、HTML 正文和文本类型，默认 302；允许状态、目标与 HTTP 头失败通过 `Result` 传播。`back` 按有效 Referer、Session previous、有效 fallback、请求根选择；目标解析不使用响应状态推断路由命中。普通重定向不依赖 Session；需要闪存时 `with_input/only_input/except_input` 以及 `with_errors` 使用当前 Session，缺 Session 返回错误。
 
 `with_errors` 支持 `RedirectErrors::Text/Entries/Provider`，将命名包写入 Session `errors`，下一请求经 `RequestInfo::session()?.read_errors()?` 读取；同一请求的旧输入使用 `old_all/old`。手动输入闪存不应用异常处理器 `dontFlash`，敏感字段由业务显式排除；文件输入未并入规范化输入 bag。Session codec 在属性锁外执行，写入候选须通过类型、格式与单次预算校验后才发布；自定义类型通过 Provider 的公开 `ErrorBagCodecs` 扩展登记，内置包无需配置。唯一模块的 `draft_redirect` 路由与 `draft_errors` 服务展示业务调用和跨请求恢复，生成测试在 CLI 模板中提供同类公开消费。
 
-本簇当前源码通过严格默认/全特性门禁、无Session真实TCP、MySQL8.4私有库TCP与缺MFA表启动拒绝；普通生成应用7项含重定向公开helper，MySQL生成2项仅认证回归，PG常规验收保留发布矩阵。证据与旧失败见[限定验收](../memory/testing.md#c04-d10-b-请求绑定重定向与-session-错误包限定子范围已验收)。不据此关闭完整 Redirector、`ShareErrorsFromSession`、异常 `dontFlash` 或验证失败自动重定向；后继 C 继续请求局部视图共享。
+本簇当前源码通过严格默认/全特性门禁、无Session真实TCP、MySQL8.4私有库TCP与缺MFA表启动拒绝；普通生成应用7项含重定向公开helper，MySQL生成2项仅认证回归，PG常规验收保留发布矩阵。证据与旧失败见[限定验收](../memory/testing.md#c04-d10-b-请求绑定重定向与-session-错误包限定子范围已验收)。不据此关闭完整 Redirector、异常 `dontFlash` 或验证失败自动重定向；D10-C请求局部视图共享已另行限定验收并提交 `784045c`，见[view](view.md)。
+
+## C04-D10-D 命名路由重定向（限定子范围已验收，提交见Git）
+
+固定 framework `d52c3b3129e4c8e213c97cdc68f94b0b7d27f181` 的 `Illuminate/Routing/Redirector.php:152–155`：`route` 调用 URL generator 的 `route` 后交给 `to`，默认状态302、头集合为空。Rust `Redirector::route(name: &str, parameters: &BTreeMap<String, String>)` 保留该顺序；`route_with(name, parameters, status, headers)` 提供显式状态与头，最终复用 `to_with` 的校验、Location/HTML规则。
+
+`RequestInfo` 从请求 extensions 捕获可选 `RouteUrlGenerator` clone，共享同应用既有Arc，不复制索引、不引入全局当前请求；后续替换extensions不改变已捕获快照。调用方沿用 `Redirector::from_info/from_request`，返回值保留原请求借用，继续组合 `with_input/only_input/except_input/with_errors`；普通命名重定向无Session亦可用，闪存仍要求Session。缺生成器沿用 `http_route_url_unavailable`，未知名与缺必需参数沿用 `http_named_route_not_found`、`http_route_parameter_missing`，不改既有错误状态。
+
+URL继续使用 `app.url` 与登记域模式，不采信请求Host；参数仍限 `BTreeMap<String, String>`、必需域/路径段和编码后的额外query。PHP mixed/model/enum参数、可选参数与missingNamedRouteResolver未等价实现；action、guest/intended、signed及完整Redirector/L020.02仍开放，无新依赖或ADR。唯一模块与CLI模板已接真实调用，v2定向、双严格Clippy、main11项、最终构建、fresh普通7项、MySQL8.4.13认证2项及公开helper1项、无Session/MySQL真实TCP均已通过限定验收；提交见Git，见[当前验收](../memory/testing.md#c04-d10-d-命名路由重定向当前验收中未提交)。

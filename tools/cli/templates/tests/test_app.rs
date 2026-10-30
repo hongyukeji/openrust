@@ -94,7 +94,7 @@ async fn generated_application_consumes_message_bags_through_business_provider()
 }
 
 #[tokio::test]
-async fn generated_application_redirects_and_restores_named_errors()
+async fn generated_application_redirects_to_named_route_and_restores_errors()
 -> Result<(), Box<dyn std::error::Error>> {
     let source = Figment::from(Serialized::defaults(
         openrust::config::FrameworkConfig::default(),

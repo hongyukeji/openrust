@@ -1,5 +1,7 @@
 //! 绑定当前请求 URL 与输入的 Laravel 风格重定向响应。
 
+use std::collections::BTreeMap;
+
 use axum::{
     http::{HeaderMap, HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
@@ -35,6 +37,30 @@ impl<'r> Redirector<'r> {
             #[cfg(feature = "session")]
             request: Some(request),
         }
+    }
+
+    /// 按当前应用的路由名称生成目标，以默认 302 和空自定义头建立响应。
+    ///
+    /// 参数形态沿用 `RouteUrlGenerator` 的字符串映射；缺少应用路由生成器、
+    /// 未知名称或缺少必需参数均沿原错误传播。普通命名重定向不要求 Session。
+    pub fn route(
+        &self,
+        name: &str,
+        parameters: &BTreeMap<String, String>,
+    ) -> Result<RedirectResponse<'r>> {
+        self.route_with(name, parameters, StatusCode::FOUND, HeaderMap::new())
+    }
+
+    /// 按名称、参数、状态与自定义头建立重定向，保留当前请求的闪存借用链。
+    pub fn route_with(
+        &self,
+        name: &str,
+        parameters: &BTreeMap<String, String>,
+        status: StatusCode,
+        headers: HeaderMap,
+    ) -> Result<RedirectResponse<'r>> {
+        let target = self.info.route_urls()?.route(name, parameters)?;
+        self.to_with(&target, status, headers)
     }
 
     /// 以默认 302 建立绝对目标响应。
@@ -332,6 +358,96 @@ mod tests {
         }
         let (mut parts, _) = request.body(Body::empty()).expect("request").into_parts();
         RequestInfo::from_request_parts(&mut parts, &()).await
+    }
+
+    fn named_urls(path: &str) -> Result<super::super::RouteUrlGenerator> {
+        super::super::RouteUrlGenerator::new(
+            "https://configured.example.test/base",
+            vec![super::super::routes::NamedRouteDefinition {
+                name: "done".into(),
+                path: path.into(),
+                domain: None,
+            }],
+        )
+    }
+
+    #[tokio::test]
+    async fn named_redirect_requires_captured_application_generator() -> Result<()> {
+        let info = info(None).await?;
+        let redirect = Redirector::from_info(&info);
+        let error = redirect
+            .route("done", &BTreeMap::new())
+            .err()
+            .expect("missing generator");
+        assert_eq!(error.code(), "http_route_url_unavailable");
+        assert_eq!(
+            redirect.to("/done")?.target_url(),
+            "http://example.test/done"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn named_redirect_keeps_request_snapshot_generator_after_extension_replacement()
+    -> Result<()> {
+        let (mut parts, _) = HttpRequest::get("/")
+            .body(Body::empty())
+            .expect("request")
+            .into_parts();
+        parts.extensions.insert(named_urls("/first")?);
+        let first = RequestInfo::from_request_parts(&mut parts, &()).await?;
+        let copied = first.clone();
+        parts.extensions.insert(named_urls("/second")?);
+        let second = RequestInfo::from_request_parts(&mut parts, &()).await?;
+        parts.extensions.remove::<super::super::RouteUrlGenerator>();
+        for (info, target) in [
+            (&first, "https://configured.example.test/base/first"),
+            (&copied, "https://configured.example.test/base/first"),
+            (&second, "https://configured.example.test/base/second"),
+        ] {
+            assert_eq!(
+                Redirector::from_info(info)
+                    .route("done", &BTreeMap::new())?
+                    .target_url(),
+                target
+            );
+        }
+        Ok(())
+    }
+
+    #[cfg(feature = "session")]
+    #[tokio::test]
+    async fn named_redirect_preserves_request_input_and_error_flash_borrows() -> Result<()> {
+        let session = crate::session::Session::new(
+            None,
+            std::sync::Arc::new(crate::session::MemorySessionStore::default()),
+            None,
+        )?;
+        let mut incoming = HttpRequest::post("/form")
+            .header("content-type", "application/json")
+            .body(Body::from(r#"{"title":"draft"}"#))
+            .expect("request");
+        incoming.extensions_mut().insert(session.clone());
+        incoming.extensions_mut().insert(named_urls("/done")?);
+        let request = Request::from_request(incoming, &()).await?;
+        let mut redirect = Redirector::from_request(&request).route("done", &BTreeMap::new())?;
+        redirect
+            .with_input()?
+            .with_errors(RedirectErrors::Text("invalid"), "default")?;
+        assert_eq!(
+            session.get_old_input(Some("title"))?,
+            Some(serde_json::json!("draft"))
+        );
+        assert_eq!(
+            session.read_errors()?.default_first(None, None)?,
+            Some("invalid".into())
+        );
+        assert_eq!(
+            redirect.target_url(),
+            "https://configured.example.test/base/done"
+        );
+        assert_eq!(redirect.into_response().status(), StatusCode::FOUND);
+        Ok(())
     }
 
     #[tokio::test]

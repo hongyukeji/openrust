@@ -69,6 +69,7 @@ pub struct RequestInfo {
     acceptable: Vec<String>,
     cookies: serde_json::Value,
     route: super::route::RouteSlot,
+    route_urls: Option<super::RouteUrlGenerator>,
     precognition: super::precognition::PrecognitionState,
     #[cfg(feature = "session")]
     session: Option<crate::session::Session>,
@@ -136,6 +137,7 @@ impl<S: Send + Sync> FromRequestParts<S> for RequestInfo {
             acceptable,
             cookies: parsed.value,
             route,
+            route_urls: parts.extensions.get::<super::RouteUrlGenerator>().cloned(),
             precognition,
             #[cfg(feature = "session")]
             session: parts.extensions.get::<crate::session::Session>().cloned(),
@@ -146,6 +148,12 @@ impl<S: Send + Sync> FromRequestParts<S> for RequestInfo {
 }
 
 impl RequestInfo {
+    pub(crate) fn route_urls(&self) -> Result<&super::RouteUrlGenerator> {
+        self.route_urls
+            .as_ref()
+            .ok_or_else(super::url::route_url_unavailable)
+    }
+
     /// 在当前请求共享的错误包中添加或替换命名包，随后渲染立即可见。
     ///
     /// 已存在于 Session 的对象会同步修改，但不延长原 flash 寿命；显式

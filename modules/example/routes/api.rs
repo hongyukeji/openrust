@@ -125,6 +125,10 @@ fn draft_redirect_routes(routes: Routes) -> Routes {
             controllers::draft_redirect::plain,
         )
         .get("/api/example/draft/back", controllers::draft_redirect::back)
+        .get(
+            "/api/example/draft/named",
+            controllers::draft_redirect::named,
+        )
 }
 
 #[cfg(feature = "session")]
@@ -147,6 +151,7 @@ fn session_routes(routes: Routes) -> Routes {
             "/api/example/draft/review",
             controllers::draft_redirect::review,
         )
+        .name("example.draft.review")
         .get("/api/example/session", controllers::session::show)
         .post("/api/example/session", controllers::session::store)
         .get(

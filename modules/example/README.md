@@ -360,9 +360,13 @@ cargo deny check
 
 ### 草稿重定向与一次性表单状态
 
-`GET /api/example/draft/plain` 与 `/back` 展示从当前 `RequestInfo` 生成普通 302；前者不需要 Session。`POST /api/example/draft/submit` 使用真实 `Request`，正文 `mode` 可选 `all`、`only`、`except`、`errors`、`custom`。前三种分别调用 `RedirectResponse::with_input`、`only_input`、`except_input`，将当前规范化输入闪存至下一次请求；业务使用 `only`/`except` 决定哪些字段可以带回表单。`errors` 将默认标题错误与 `other` 命名错误一起写入 Session，`custom` 使用模块自己的 `DraftErrors` 和公开 `MessageProvider`/`ErrorBagCodecs` 扩展恢复业务化的首条消息。页面在原 `errors.any()` 流程内使用公开 `errors.hasAny(["title", "summary"])` 查询多个表单字段，有任一默认包字段错误才显示重新提交提示；自定义 `DraftErrors` 的实际 `title` 键与 `has` 行为仍参与查询，`other` 命名摘要错误照常独立展示。Session 已启用时，`GET /api/example/draft/review` 显式读取旧输入与错误包；`GET /example/pages/about` 通过同一请求的公开视图入口展示这些错误，缺失字段显示空字符串。再次请求后 flash 老化，多字段提示随错误一起消失；现有双客户端用例同时核对初始空包、两种错误包的提示和老化后的隐藏。未启用 Session 时普通重定向可用，提交路由的 flash 明确失败。
+`GET /api/example/draft/plain` 与 `/back` 展示从当前 `RequestInfo` 生成普通 302；前者不需要 Session。`GET /api/example/draft/named` 使用 `Redirector::from_info(&info).route("example.index", &BTreeMap::new())` 按公开名称跳转至示例首页，同样无需 Session；目标 URL 由当前请求绑定的路由生成器决定。
 
-codec 在模块 `ExampleServiceProvider::register` 中通过 `RegisterContext.extend` 追加到 Session Provider 的注册表，保持已有登记。`DraftErrors` 的类型、编解码与业务规则均位于本模块。示例仅覆盖手动重定向；自动校验失败重定向仍由后继能力验收。请求局部视图使用同一请求的 `RequestInfo` 与公开 `Views::render_for_request` 入口。
+`POST /api/example/draft/submit` 使用真实 `Request`，正文 `mode` 可选 `all`、`only`、`except`、`errors`、`custom`。前三种分别调用 `RedirectResponse::with_input`、`only_input`、`except_input`，将当前规范化输入闪存至下一次请求；业务使用 `only`/`except` 决定哪些字段可以带回表单。`errors` 与 `custom` 通过 `Redirector::from_request(&request).route("example.draft.review", &BTreeMap::new())` 生成审核页跳转；`errors` 沿原响应闪存链仅保存标题输入与错误，`custom` 仅保存错误；审核页在模块路由中用 `.name("example.draft.review")` 登记；该审核页仅在启用 Session 时挂载。
+
+`errors` 将默认标题错误与 `other` 命名错误一起写入 Session，`custom` 使用模块自己的 `DraftErrors` 和公开 `MessageProvider`/`ErrorBagCodecs` 扩展恢复业务化的首条消息。页面在原 `errors.any()` 流程内使用公开 `errors.hasAny(["title", "summary"])` 查询多个表单字段，有任一默认包字段错误才显示重新提交提示；自定义 `DraftErrors` 的实际 `title` 键与 `has` 行为仍参与查询，`other` 命名摘要错误照常独立展示。Session 已启用时，`GET /api/example/draft/review` 显式读取旧输入与错误包；`GET /example/pages/about` 通过同一请求的公开视图入口展示这些错误，缺失字段显示空字符串。再次请求后 flash 老化，多字段提示随错误一起消失；现有双客户端用例同时核对初始空包、两种错误包的提示和老化后的隐藏。未启用 Session 时普通与首页命名重定向可用；提交的 `only` 模式仍在写入 flash 时报 `session_layer_missing`，指向未挂载审核页的命名跳转则按未知路由报错。
+
+codec 在模块 `ExampleServiceProvider::register` 中通过 `RegisterContext.extend` 追加到 Session Provider 的注册表，保持已有登记。`DraftErrors` 的类型、编解码与业务规则均位于本模块。命名参数当前使用 `BTreeMap<String, String>`；默认状态为 302，自定义状态及响应头使用 `route_with`。示例仅覆盖手动普通、返回与命名路由重定向；action/guest/intended/signed 与自动校验失败重定向仍由后继能力验收。请求局部视图使用同一请求的 `RequestInfo` 与公开 `Views::render_for_request` 入口。
 
 “代码存在”仅说明当前可见实现，不能替代本布局 check/test、真实请求与外部服务验收。根基础设施装配、文档链接或 consumer 测试也不自动算作 `modules/example` 的业务代码覆盖。
 

@@ -6,6 +6,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Changed
 
+- 请求绑定的 `Redirector` 新增 `route` 与 `route_with`，复用现有命名路由 URL 生成器，默认返回 302，也可指定状态与响应头；保留输入和命名错误包闪存链。唯一业务示例展示无 Session 的命名跳转和审核页错误闪存，生成应用测试同步接入命名路由；完整 Redirector 与自动校验失败重定向仍属后继范围。
+
 - 视图增加 `Views::render_for_request` 与请求私有错误包；Session 启动后、handler 前恢复，根首页和普通请求使用同一入口。显式数据（含 null）覆盖共享错误，自定义消息包保留模板方法派发；无 Session 使用独立空包。请求共享对象与 Session 保存关联，整包替换后断开旧关联，缺失回退对象不写回 Session。模板支持多键、列表与关联字典值、标量多参数及可空格式参数。
 
 - 首页模板读取运行时 `app.name`；自定义根目标在业务路径未匹配时优先于用户 fallback 和静态首页，默认 `file:/index.html` 保留静态首页与 fallback 组合。内部 forward 按目的 URI 分派，保留外部原始 URL。站点响应出口清空 HEAD 正文并保留状态、头与扩展，不推断 Content-Length；站点外层 middleware 短路响应不在此保证内。

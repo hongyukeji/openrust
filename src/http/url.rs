@@ -248,13 +248,21 @@ where
         parts: &mut Parts,
         _state: &S,
     ) -> impl std::future::Future<Output = Result<Self>> + Send {
-        std::future::ready(parts.extensions.get::<Self>().cloned().ok_or_else(|| {
-            Error::custom(
-                "http_route_url_unavailable",
-                "route URL generation is unavailable outside the application HTTP router",
-            )
-        }))
+        std::future::ready(
+            parts
+                .extensions
+                .get::<Self>()
+                .cloned()
+                .ok_or_else(route_url_unavailable),
+        )
     }
+}
+
+pub(crate) fn route_url_unavailable() -> Error {
+    Error::custom(
+        "http_route_url_unavailable",
+        "route URL generation is unavailable outside the application HTTP router",
+    )
 }
 
 fn route_parameter(segment: &str) -> Option<&str> {

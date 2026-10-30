@@ -2276,6 +2276,172 @@ async fn duplicate_routes_across_groups_dispatch_to_last_registration() -> TestR
     Ok(())
 }
 
+async fn named_redirect_response(
+    info: openrust::http::RequestInfo,
+    Path(mode): Path<String>,
+) -> openrust::Result<Response> {
+    #[cfg(feature = "session")]
+    assert!(
+        !info.has_session(),
+        "普通命名跳转fixture不能依赖Session Provider"
+    );
+    let redirect = openrust::http::Redirector::from_info(&info);
+    let parameters = std::collections::BTreeMap::from([
+        ("tenant".into(), "Acme".into()),
+        ("id".into(), "a b/c".into()),
+        ("filter".into(), "tea & cake".into()),
+        ("page".into(), "2".into()),
+    ]);
+    let response = match mode.as_str() {
+        "default" => redirect.route("catalog.index", &std::collections::BTreeMap::new())?,
+        "unknown" => redirect.route("not.registered", &parameters)?,
+        "missing" => redirect.route("catalog.show", &std::collections::BTreeMap::new())?,
+        "custom" | "invalid-status" => {
+            let mut headers = axum::http::HeaderMap::new();
+            headers.insert(
+                "x-named-proof",
+                "preserved".parse().map_err(openrust::Error::internal)?,
+            );
+            headers.insert(
+                header::CACHE_CONTROL,
+                "private, max-age=60"
+                    .parse()
+                    .map_err(openrust::Error::internal)?,
+            );
+            headers.insert(
+                header::LOCATION,
+                "https://ignored.example/"
+                    .parse()
+                    .map_err(openrust::Error::internal)?,
+            );
+            redirect.route_with(
+                "catalog.show",
+                &parameters,
+                if mode == "custom" {
+                    StatusCode::SEE_OTHER
+                } else {
+                    StatusCode::OK
+                },
+                headers,
+            )?
+        }
+        _ => redirect.route("catalog.show", &parameters)?,
+    };
+    Ok(response.into_response())
+}
+
+async fn named_redirect_router() -> Result<axum::Router, Box<dyn std::error::Error>> {
+    let mut config = FrameworkConfig::default();
+    config.app.url = "https://configured.example.test:8443/base".into();
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(config));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(TestRoutes::new(|routes| {
+            routes
+                .get("/jump/{mode}", named_redirect_response)
+                .get("/index", grouped_route)
+                .name("catalog.index")
+                .group(
+                    RouteGroup::new()
+                        .prefix("/catalog")
+                        .name_prefix("catalog.")
+                        .domain("{tenant}.example.test"),
+                    |catalog| catalog.get("/items/{id}", grouped_route).name("show"),
+                )
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    Ok(build_router(&app)?)
+}
+
+#[tokio::test]
+async fn named_redirects_use_application_generator_and_existing_response_contract() -> TestResult {
+    let router = named_redirect_router().await?;
+    let domain_target =
+        "https://acme.example.test:8443/base/catalog/items/a%20b%2Fc?filter=tea+%26+cake&page=2";
+    for (mode, status, target) in [
+        (
+            "default",
+            StatusCode::FOUND,
+            "https://configured.example.test:8443/base/index",
+        ),
+        ("domain", StatusCode::FOUND, domain_target),
+        ("custom", StatusCode::SEE_OTHER, domain_target),
+    ] {
+        let response = router
+            .clone()
+            .oneshot(
+                Request::get(format!("/jump/{mode}"))
+                    .header(header::HOST, "attacker.example")
+                    .header("x-forwarded-host", "another-attacker.example")
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(response.status(), status);
+        assert_eq!(response.headers()[header::LOCATION], target);
+        assert_eq!(
+            response.headers()[header::CONTENT_TYPE],
+            "text/html; charset=utf-8"
+        );
+        assert_eq!(
+            response.headers()[header::CACHE_CONTROL],
+            if mode == "custom" {
+                "private, max-age=60"
+            } else {
+                "no-cache, private"
+            }
+        );
+        if mode == "custom" {
+            assert_eq!(response.headers()["x-named-proof"], "preserved");
+        }
+        let body = to_bytes(response.into_body(), 16384).await?;
+        let html = std::str::from_utf8(&body)?;
+        assert!(html.contains(&target.replace('&', "&amp;")));
+        if mode != "default" {
+            assert!(!html.contains("cake&page=2"));
+        }
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn named_redirect_generation_failures_keep_existing_error_codes() -> TestResult {
+    let router = named_redirect_router().await?;
+    for (mode, status, code) in [
+        (
+            "unknown",
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "http_named_route_not_found",
+        ),
+        (
+            "missing",
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "http_route_parameter_missing",
+        ),
+        (
+            "invalid-status",
+            StatusCode::BAD_REQUEST,
+            "redirect_status_invalid",
+        ),
+    ] {
+        let response = router
+            .clone()
+            .oneshot(
+                Request::get(format!("/jump/{mode}"))
+                    .header(header::HOST, "attacker.example")
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(response.status(), status);
+        assert!(!response.headers().contains_key(header::LOCATION));
+        assert_eq!(json_body(response).await["code"], code);
+    }
+    Ok(())
+}
+
 #[tokio::test]
 async fn named_route_urls_use_group_prefix_parameters_and_configured_host() -> TestResult {
     let sources = figment::Figment::from(figment::providers::Serialized::defaults(

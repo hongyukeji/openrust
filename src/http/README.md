@@ -280,6 +280,24 @@ fn routes(routes: Routes) -> Routes {
 
 重复路由名、非法名称、通配符及包含空段的具名路径会在 router 构建时失败。缺少命名路由或必需参数会返回稳定错误并映射为 HTTP 500，符合 Laravel URL 生成异常的服务端错误语义；未命名路由不受 URL 模板限制。
 
+命名路由也可直接用于请求绑定重定向：`Redirector::from_info(&info).route(name, &parameters)` 以默认 302 和空自定义头建立响应；`route_with(name, &parameters, status, headers)` 接受显式状态与 `HeaderMap`。它从当前请求捕获同一应用的 `RouteUrlGenerator`，再复用普通重定向的 `to_with`、Location、HTML 转义和头规则，不依赖 Session：
+
+```rust,ignore
+use std::collections::BTreeMap;
+use openrust::http::{Redirector, RequestInfo};
+use openrust::http::axum::response::{IntoResponse, Response};
+
+async fn redirect_to_user(info: RequestInfo) -> openrust::Result<Response> {
+    let parameters = BTreeMap::from([("id".to_owned(), "42".to_owned())]);
+    let redirect = Redirector::from_info(&info).route("admin.users.show", &parameters)?;
+    Ok(redirect.into_response())
+}
+```
+
+需要闪存输入时使用 `Redirector::from_request(&request)`；命名跳转返回同一个 `RedirectResponse`，可继续调用 `with_input`、`only_input`、`except_input` 和 `with_errors`，仍借用原请求与 Session。名称或必需参数错误沿用生成器现有错误与 HTTP 500；在应用 HTTP router 之外未捕获生成器时返回 `http_route_url_unavailable`，不会创建全局路由表或静默回退普通路径。
+
+命名重定向沿用现有 `BTreeMap<String, String>`、必需域/路径参数和 query 编码规则；域名模板及 `app.url` 的来源规则不受请求 Host 影响。这是已支持参数形态的接线，不代表 PHP 混合参数、模型/枚举绑定、可选参数或 `missingNamedRouteResolver` 已完成；action、guest/intended 与 signed 重定向仍属后继范围。
+
 `RouteGroup::domain` 可为路由组指定完整域名模式。域模式先于不限定域的路由匹配，与注册顺序无关；同一请求可用 `DomainParams<T>` 读取域标签参数，路径参数仍由 `Path<T>` 单独提取。嵌套组继承父域，显式声明的新域会覆盖父域。域参数只用于路由分派，不能替代租户认证或授权。域名 URL 从登记模板和显式参数生成，scheme/port 仍取自 `app.url`；不会采信当前 `Host` 或 `X-Forwarded-Host`。域名仅支持 ASCII DNS 标签与预先编码的 punycode，不执行 Unicode IDNA 转换，不支持 IP literal 和尾点；域参数必须是单个标签。
 
 ```rust,ignore

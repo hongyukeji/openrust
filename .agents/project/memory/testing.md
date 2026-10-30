@@ -8,6 +8,17 @@
 - 已运行PG命令自然结束并完成自有资源清理；未开始的常规PG阶段不再安排，不停删共享PG服务、测试或feature。历史双库证据原样保留，以下历史记录不自动成为新发布范围通过。
 - CI常规数据库job为MySQL；手动`database_scope=release-backends`保留原PG18集成子矩阵，不代表完整发布已验收。后端专属例外按具体风险定向执行并留证；发布积压以[todo](../todo.md#发布前全后端兼容性验收)为准。
 
+<a id="c04-d10-d-命名路由重定向当前验收中未提交"></a>
+
+## C04-D10-D 命名路由重定向（限定子范围已验收，提交见Git）
+
+固定 framework `d52c3b3129e4c8e213c97cdc68f94b0b7d27f181` 的 `Redirector.php:152–155` 对应 `Redirector::route/route_with`：默认302/空头，经同应用生成器再进入既有 `to_with`；RequestInfo捕获共享Arc，现构造器及输入/错误闪存链不变。参数仍限字符串BTreeMap与必需段；action、guest/intended、signed、missing resolver及完整L020.02/Redirector未关闭，无新依赖或ADR。保留旧锚点供已有链接使用。
+
+- 最终证据索引 `/tmp/openrust-c04d10d-verification-v2/FINAL-HANDOFF.json`；v2 freeze SHA256 `b625c8ab433359b01b9cbfa6dbe7546f1a3be299c79f7ad7b7f18c36b1296841`，运行输入未漂移。fmt/diff、唯一模块4项、CLI精确快照1项、双严格Clippy与main11项均通过；workspace默认802 passed/0 failed/32 ignored、全特性1576 passed/0 failed/106 ignored，另含双Rustdoc、feature/deny/MSRV检查。总数按test summary聚合，不以named_passed代替；ignored不算真实服务。
+- 最终server/CLI构建通过；fresh普通生成7项、MySQL8.4.13认证2项及独立公开helper1项均通过、无ignored，源码/锁稳定。真实网络无Session为3个场景、MySQL为4个场景，均accepted=true，非独立进程测试数；server正常exit0，无forced/timeout，监听及敏感文件清理完成，MySQL自有库已删除。网络与生成回执均由最终索引绑定；最终索引SHA256 `7789f286420c2e850a85313135fa3a154f413f788292863a6f9c69172b16d64d`。三个本轮generated/consumer包仅按实际package精确clean，各退出0，回收437,678,080B，主二进制/框架依赖及源码锁回执未变；清后已登记缓存36.715GB。首包检查器宽前缀误将自有plain rmeta归入框架哨兵的异常原样保留，归属修正证明及真正保护项不变由索引绑定；不把原检查异常追写成功，不称全部缓存已清理。
+- v2定向目录 `/tmp/openrust-c04d10d-verification-v2/runs/d10d-v2-dir1/`；v1 lib7项、无Session2项、router2项仅按生产字节及输入影响等价限定复用，不称v2重跑。首轮模块1 passed/3 failed源于 `app.url=http://localhost:3000` 与旧请求Host `http://localhost` 的fixture预期不一致；v2修复显式fixture配置与README，生产默认及严格断言未改，原失败回执保留。不同模型v2 delta独审无blocker/should-fix/nit，原README问题已关闭。
+- 本次仅命名路由重定向限定子范围已验收，提交见Git；不外推完整HTTP/Session、验证失败自动重定向或发布全后端矩阵。
+
 <a id="c04-d10-c-请求局部视图错误共享验收中未提交"></a>
 
 ## C04-D10-C 请求局部视图错误共享（已验收，已提交784045c）

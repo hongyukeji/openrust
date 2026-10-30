@@ -44,7 +44,7 @@ impl Application for DraftApplication {
 fn sources() -> Figment {
     Figment::from(Serialized::defaults(openrust::config::FrameworkConfig::default()))
         .merge(Serialized::defaults(json!({
-            "app":{"env":"test"},
+            "app":{"env":"test","url":"http://localhost"},
             "cache":{"default_store":"default","stores":{"default":{"driver":"memory"}}},
             "view":{"directory":std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("modules/example/resources/views"),"auto_reload":false},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}}
@@ -194,7 +194,7 @@ async fn draft_redirect_flash_modes_and_two_clients_age_independently() -> TestR
 }
 
 #[tokio::test]
-async fn draft_redirect_retains_named_errors_and_restores_custom_behavior() -> TestResult {
+async fn draft_named_route_redirect_retains_flash_and_restores_custom_errors() -> TestResult {
     let mut app = TestApp::<DraftApplication>::builder(sources())
         .build()
         .await?;
@@ -221,6 +221,7 @@ async fn draft_redirect_retains_named_errors_and_restores_custom_behavior() -> T
         );
         cookie = cookie_pair(&response)?;
         let aged = state(&get(&app, "/api/example/draft/review", Some(&cookie), None).await?)?;
+        assert_eq!(aged["old"], json!([]));
         assert_eq!(aged["default"]["present"], false);
         assert_eq!(aged["other"]["present"], false);
         Ok(())
@@ -300,13 +301,17 @@ async fn draft_errors_render_per_request_for_two_clients_and_age() -> TestResult
 }
 
 #[tokio::test]
-async fn plain_redirect_works_without_session_and_flash_reports_failure() -> TestResult {
+async fn plain_and_named_redirect_work_without_session_and_flash_reports_failure() -> TestResult {
     let mut app = TestApp::<crate::bootstrap::Server>::builder(sources())
         .build()
         .await?;
     let result = async {
         redirect(
             &get(&app, "/api/example/draft/plain", None, None).await?,
+            "/api/example",
+        )?;
+        redirect(
+            &get(&app, "/api/example/draft/named", None, None).await?,
             "/api/example",
         )?;
         let back = get(

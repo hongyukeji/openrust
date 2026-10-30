@@ -17,7 +17,7 @@ use openrust::support::{
 };
 use openrust::testing::{TestApp, TestResponse};
 use serde_json::{Value, json};
-use std::{sync::Arc, time::Duration};
+use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 const PREFIX: &str = "/__framework_contract/redirect";
 const TIMEOUT: Duration = Duration::from_secs(5);
@@ -46,6 +46,7 @@ impl ServiceProvider for RedirectRoutes {
                     .get(&format!("{PREFIX}/plain"), plain)
                     .post(&format!("{PREFIX}/submit"), submit)
                     .get(&format!("{PREFIX}/review"), review)
+                    .name("generated.draft.review")
                     .get(&format!("{PREFIX}/view"), view)
             })?;
             Ok(())
@@ -86,7 +87,8 @@ async fn plain(info: RequestInfo) -> openrust::Result<Response> {
     Ok(Redirector::from_info(&info).to("/api")?.into_response())
 }
 async fn submit(request: InputRequest) -> openrust::Result<Response> {
-    let mut redirect = Redirector::from_request(&request).to(&format!("{PREFIX}/review"))?;
+    let mut redirect =
+        Redirector::from_request(&request).route("generated.draft.review", &BTreeMap::new())?;
     redirect.except_input(&["token"])?;
     redirect.with_errors(RedirectErrors::Text("摘要缺失"), "other")?;
     let errors = GeneratedErrors::new("请检查标题")?;
@@ -224,10 +226,13 @@ fn data(response: &TestResponse) -> Result<Value, Box<dyn std::error::Error>> {
     Ok(body["data"].clone())
 }
 
-/// 经真实生成应用 Provider、Request、Session Cookie 验证重定向与一次性错误包。
+/// 经生成应用 Provider、命名路由、Request 和 Session Cookie 验证重定向与一次性错误包。
 pub async fn assert_request_redirect<A: Application>(
     source: Figment,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let source = source.merge(figment::providers::Serialized::defaults(
+        json!({"app":{"url":"http://localhost"}}),
+    ));
     let mut app = TestApp::<RedirectApplication<A>>::builder(source)
         .build()
         .await?;
