@@ -1537,8 +1537,6 @@ def main():
     if ((args.use_full_budget_once or args.resume_budget_paused or args.end_full_budget_once)
             and args.command != 'start'):
         parser.error('一次性额度政策选项仅用于start')
-    if args.resume_budget_paused and not args.use_full_budget_once:
-        parser.error('预算暂停恢复须同时明确授予本次完整额度')
     if args.end_full_budget_once and (args.use_full_budget_once or args.resume_budget_paused):
         parser.error('撤销与授予/恢复不能同时使用')
     requested_at = time.time()
@@ -1652,6 +1650,9 @@ def main():
             config['full_budget_grant_file'] = str(runtime / 'full-budget-once.json')
             config['account_budgets'] = prior_config.get('account_budgets', {}) if same_goal else {}
             config['usage_budget'] = (prior_config.get('usage_budget') if same_goal else None)
+            if args.resume_budget_paused and not args.use_full_budget_once and not (
+                    effective_usage_budget(config) or {}).get('_full_budget_once'):
+                raise SystemExit('缺少同任务有效的一次性额度授权，不恢复预算暂停')
             if config['usage_budget'] is None:
                 config['usage_budget'] = initialize_usage_budget(rpc('account/rateLimits/read', {}), time.time())
             # 旧版窗口基准与全局baseline_at来自同次正式快照；迁移只补已知观测时间，不重算额度。

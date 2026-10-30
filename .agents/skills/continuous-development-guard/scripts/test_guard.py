@@ -1696,6 +1696,60 @@ class FullBudgetOnce(unittest.TestCase):
         self.assertEqual([p for m, p in calls if m == 'thread/goal/set'], [{'threadId': 't', 'status': 'active'}])
         with self.assertRaises(ValueError): recovery.resume_budget_pause(self.runtime, self.config, state)
 
+    def run_resume_cli(self, has_grant):
+        root = Path(self.temp.name)
+        self.config.update(agent='6b56ea51-0bb7-44a7-8547-7073f8f2c7e4',
+                           thread='01a175a5-d24c-71f0-86d7-ae693a28931d')
+        self.runtime = root / '.agents/project/guards' / self.config['agent']
+        self.runtime.mkdir(parents=True)
+        if has_grant:
+            self.grant()
+        (self.runtime / 'config.json').write_text(json.dumps(self.config))
+        state = self.state()
+        state['percentage_pause']['resume_status'] = 'cancelled'
+        (self.runtime / 'state.json').write_text(json.dumps(state))
+        grant_path = self.runtime / 'full-budget-once.json'
+        before = grant_path.read_bytes() if grant_path.exists() else None
+        # 新协调消息改变水位，恢复应沿用原grant，不重新授予。
+        self.controls.update(last_user_at='2026-10-31T13:00:00Z', user_key='2026-10-31T13:00:00Z')
+        def rpc(method, params):
+            if method == 'thread/goal/set':
+                self.current['status'] = params['status']
+                return {}
+            return self.response
+        def launch(*args, **kwargs):
+            (self.runtime / 'supervisor.json').write_text('{}')
+            return type('FakeProcess', (), {'pid': 123, 'poll': lambda _: None})()
+        argv = [str(SCRIPT), 'start', '--agent', self.config['agent'], '--thread', self.config['thread'],
+                '--resume-budget-paused', '--allow-existing-credits']
+        with patch.object(recovery, 'ROOT', root), patch.object(sys, 'argv', argv), \
+             patch.object(recovery.platform, 'command'), \
+             patch.object(recovery, 'config_for', side_effect=lambda _: dict(self.config)), \
+             patch.object(recovery, 'percentage_pause_controls', return_value=self.controls), \
+             patch.object(recovery, 'timeline', return_value={}), \
+             patch.object(recovery, 'rpc', side_effect=rpc) as calls, \
+             patch.object(recovery, 'authorize_full_budget') as authorize, \
+             patch.object(recovery.subprocess, 'Popen', side_effect=launch):
+            if has_grant:
+                recovery.main()
+                self.assertEqual(self.current['status'], 'active')
+                self.assertEqual(grant_path.read_bytes(), before)
+                saved = json.loads((self.runtime / 'state.json').read_text())
+                self.assertEqual(saved['percentage_pause']['resume_status'], 'explicitly_resumed')
+            else:
+                with self.assertRaisesRegex(SystemExit, '缺少同任务有效'):
+                    recovery.main()
+                self.assertEqual(self.current['status'], 'paused')
+                self.assertFalse(grant_path.exists())
+                self.assertFalse(any(c.args[0] == 'thread/goal/set' for c in calls.call_args_list))
+            authorize.assert_not_called()
+
+    def test_public_resume_reuses_existing_grant_after_new_user_message(self):
+        self.run_resume_cli(has_grant=True)
+
+    def test_public_resume_without_grant_refuses_without_goal_write(self):
+        self.run_resume_cli(has_grant=False)
+
     def test_cancelled_auto_recovery_accepts_only_explicit_new_authorization(self):
         self.grant()
         state = self.state()
