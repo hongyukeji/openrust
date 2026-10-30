@@ -138,6 +138,7 @@ cargo deny check
 - Paseo只使用当前仓库对应的既有OpenRust项目，不为任务目录/worktree注册独立项目。先从正式project列表核对项目ID与根路径，再用`paseo workspace create --project <现有项目ID> --isolation worktree ...`在该项目下创建隔离工作区；核对返回workspace/project/cwd与`git common-dir`确属当前仓库。Paseo管理的工作区路径以正式返回值为准，不强行套临时目录约定。
 - 项目管理目标为OpenRust下main与tasks任务分组同级，任务分支沿`tasks/<任务标识>`；tasks是显示组织，不是把不同分支的执行者放进一个共享checkout。若正式Paseo接口支持分组则使用，未核实支持时将同项目各独立workspace标题统一为`tasks/<任务标识>`，对话框注明实现/审查职责；名称前缀不冒称真正嵌套分组。不为显示层级新增项目、源码tasks目录或改Paseo内部数据库。
 - 独立Paseo执行对话框由总控统一创建、登记和收取结果；核对已安装CLI的`--help`后，使用`paseo run --workspace <该项目任务workspaceID> --provider codex --model gpt-6.1-sol --no-wait --json <任务说明>`，不要仅传`--cwd`而继承父workspace或自动注册新项目。创建后再次核对真实project/workspace/cwd绑定。明确单一子任务、文件范围、原总控ID/预算约束、禁止递归派发及独立完整Goal/重复守护；记录实际agent ID、分支/worktree和状态，轮询或等待不产生重复派发。完成后收取commit/证据，由总控集成；对话框无在途任务后正常归档（不硬删除），再按下文清理任务专属worktree/分支。总控暂停/预算停止时须协调停止其派发的执行任务，不让独立对话框脱离原任务预算继续消费。
+- 总控在worker交接、审查结论、门禁完成、槽位释放或阻塞变化时主动收取结果、更新唯一todo、安排后续验证/集成并填补ready任务，不等待用户催促。架构协调会话每次进度检查核对真实提交、执行者、资源与清理状态，发现偏离时给具体提醒；相同未变化状态不反复发消息，不为跟进新建高频模型轮询或重复Goal/守护。
 - 总控维护唯一todo依赖图，按本机资源与额度安排多个独立簇；每项登记负责人、冻结Spec/公共接口、前置、基线commit、分支/worktree、文件范围、构建/服务资源、验收、集成与清理状态。依赖未满足只做只读审计，不重复派发现有任务。
 - 在同一Git仓库创建本地任务分支（建议`tasks/<任务标识>`）与临时worktree；默认临时目录用`/tmp/openrust-worktrees/<任务标识>`，先确认路径未被占用。独立对话框或子代理均须绑定正确工作目录；不新建源码仓库、不默认给worker启动重复守护。
 - 若既有任务误登记为独立Paseo项目，先通知原owner并保全分支/WIP/会话/证据；有正式归属迁移接口时优先使用，否则由总控在交接点将已提交工作接到当前项目的正确workspace并验证新执行者绑定，再正常归档旧会话/工作区。不得直接project delete（可能连同workspace一起删除）或修改Paseo内部数据库强制改归属；旧项目登记未安全收尾时保持可见并报告。
