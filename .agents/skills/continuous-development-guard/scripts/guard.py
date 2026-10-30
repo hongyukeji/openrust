@@ -238,6 +238,13 @@ def explicit_goal_status(payload):
     return None
 
 
+def user_text_context(key, message):
+    """只缓存有界正文，完整摘要与长度防止裁剪后误认人工消息。"""
+    return {'key': key, 'message': message[-2000:] if isinstance(message, str) else None,
+            'text_fingerprint': {'digest': questions.digest(message), 'length': len(message)}
+            if isinstance(message, str) else None}
+
+
 def timeline(path):
     """只使用原线程生命周期；新输入和取消使旧恢复依据失效。"""
     global _TIMELINE_CACHE
@@ -270,11 +277,23 @@ def timeline(path):
                     semantic_blocked = explicit == 'blocked'
                     goal_control = {'status': explicit, 'key': row.get('timestamp'),
                                     'source': [str(path.resolve()), info.st_ino], 'offset': offset}
+            if (row.get('type') == 'response_item' and payload.get('type') == 'message'
+                    and payload.get('role') == 'user'):
+                # 正式问答steer也可能仅写response_item；精确保留答复，非文本输入不得冒充它。
+                parts = payload.get('content')
+                plain = (isinstance(parts, list) and bool(parts)
+                         and all(isinstance(p, dict) and p.get('type') == 'input_text'
+                                 and isinstance(p.get('text'), str) for p in parts))
+                message = ''.join(p['text'] for p in parts) if plain else None
+                user_context = user_text_context(row.get('timestamp'), message)
+                last = {'kind': 'user_message', 'key': row.get('timestamp'),
+                        'payload': {'type': 'user_message', 'message': message}, 'tools': tools}
             if row.get('type') != 'event_msg':
                 continue
             kind = payload.get('type')
             if kind == 'user_message':
-                user_context = {'key': row['timestamp'], 'message': str(payload.get('message', ''))[-2000:]}
+                attachments = payload.get('images') or payload.get('local_images') or payload.get('attachments')
+                user_context = user_text_context(row['timestamp'], None if attachments else payload.get('message'))
             if kind in ('task_started', 'task_complete', 'turn_aborted', 'user_message'):
                 if kind == 'task_started':
                     tools = 0

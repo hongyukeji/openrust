@@ -450,8 +450,10 @@ def step(runtime, state, config, agent, current, turn, guard, classifier=classif
                 row['batch_ids'] = [r['id'] for r in requests]
                 row['awaiting_question'] = all(r.get('awaiting_question') for r in delivery_rows)
             if request['name'].endswith('_async'):
-                row['response_prompt'] = ('Answers to your questions:\n\n' + '\n\n'.join(
-                    q['question'] + '\n' + wire_answer['answers'][q['header']] for q in qs))[-2000:]
+                prompt = 'Answers to your questions:\n\n' + '\n\n'.join(
+                    q['question'] + '\n' + wire_answer['answers'][q['header']] for q in qs)
+                row['response_prompt'] = prompt[-2000:]
+                row['response_fingerprint'] = {'digest': digest(prompt), 'length': len(prompt)}
             save()
             try:
                 guard.answer_question(config, request, delivery, answer_binding, latest['PendingPermissions'])
@@ -495,8 +497,11 @@ def resume_answered(runtime, state, row, config, original, turn, binding, guard)
     latest_user = (latest_turn or {}).get('user_context')
     original_user = turn.get('user_context')
     response_prompt = row.get('response_prompt')
-    answer_user = (isinstance(response_prompt, str) and bool(response_prompt)
-                   and (latest_user or {}).get('message') == response_prompt)
+    expected = row.get('response_fingerprint')
+    # 旧记录达到裁剪长度时无法证明完整性，不用尾部匹配解除阻塞。
+    if expected is None and isinstance(response_prompt, str) and 0 < len(response_prompt) < 2000:
+        expected = {'digest': digest(response_prompt), 'length': len(response_prompt)}
+    answer_user = expected is not None and (latest_user or {}).get('text_fingerprint') == expected
     control = state.get('goal_control') or {}
     original_control = turn.get('goal_control') or {}
     if (not latest_turn or latest_turn.get('kind') == 'turn_aborted'

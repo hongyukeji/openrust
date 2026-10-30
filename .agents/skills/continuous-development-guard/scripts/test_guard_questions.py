@@ -535,6 +535,40 @@ class Questions(unittest.TestCase):
         self.assertEqual(self.state['questions']['permission-item']['status'], 'rejected')
         self.assertEqual(self.classifier.call_count, 2)
 
+    def test_response_item_answer_restores_only_the_matching_blocked_goal(self):
+        for actual in ('exact', 'different', 'image', 'long_exact', 'long_prefixed', 'event_image'):
+            with self.subTest(actual=actual):
+                path = self.runtime / ('response-' + actual)
+                prompt = 'Answers to your questions:\n\n仅修正测试类型\n明确类型后定向重验（推荐）'
+                if actual.startswith('long_'):
+                    prompt += '甲' * 2100
+                text = '先暂停，等待我确认' if actual == 'different' else prompt
+                if actual == 'long_prefixed':
+                    text = '先暂停，等待我确认\n' + text
+                content = [{'type': 'input_text', 'text': text}]
+                if actual in ('image', 'event_image'):
+                    content.append({'type': 'input_image', 'image_url': 'data:image/png;base64,ignored'})
+                rows = [{'type': 'response_item', 'timestamp': 'answer',
+                         'payload': {'type': 'message', 'role': 'user', 'content': content}},
+                        {'type': 'event_msg', 'timestamp': 'turn', 'payload': {'type': 'task_started'}}]
+                if actual == 'event_image':
+                    rows.insert(1, {'type': 'event_msg', 'timestamp': 'answer-event',
+                                    'payload': {'type': 'user_message', 'message': prompt, 'images': ['image']}})
+                path.write_text('\n'.join(json.dumps(r) for r in rows))
+                self.blocked_setup()
+                self.api.timeline.side_effect = lambda _: guard.timeline(path)
+                self.agent['PendingPermissions'] = []
+                self.agent['QuestionBinding']['lastUserMessageAt'] = 'answer'
+                self.api.bound_goal.return_value = {'status': 'blocked'}
+                self.api.rpc.reset_mock()
+                row = {'status': 'answered', 'awaiting_question': True, 'response_prompt': prompt[-2000:]}
+                if actual.startswith('long_'):
+                    row['response_fingerprint'] = {'digest': questions.digest(prompt), 'length': len(prompt)}
+                questions.resume_answered(self.runtime, self.state, row, self.config, self.current,
+                                         self.turn, dict(self.agent['QuestionBinding'], lastUserMessageAt='before'), self.api)
+                sets = [c for c in self.api.rpc.call_args_list if c.args[0] == 'thread/goal/set']
+                self.assertEqual(len(sets), 1 if actual in ('exact', 'long_exact') else 0)
+
     def test_sync_answer_does_not_mask_new_user_timestamp_before_rollout(self):
         self.blocked_setup()
         self.turn['user_context'] = None
