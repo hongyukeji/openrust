@@ -405,6 +405,16 @@ D10-A纯MessageBag/ViewErrorBag已完成代码、唯一模块、生成模板、�
 4. ShareErrorsFromSession必须实际接入请求局部渲染入口，定义空默认bag与显式context优先级，禁止把请求错误写入共享Views环境。唯一模块/根视图/生成应用需覆盖真实调用与并发双客户端隔离。
 5. 每次flash预算原子，多次链式调用不是整体事务；自动验证组合若要共同回滚须一次批量变更。上传文件未合并输入bag仍属明确缺口，不按字段名伪过滤；CSRF/FormRequest依本簇后继推进。
 
+## 高价值测试精简与入口整合（已授权，待 D10-B 验收提交）
+
+总控负责排期、共享manifest/lock/索引与提交；d10b_module已交前置只读盘点`/tmp/openrust-test-value-pilot-candidates.md`（SHA`5f995d923e93822adfc90392b21fa7ee82e58e39e9a30c7a4c1c1900ecf82f1a`）：候选为同feature且无进程env/服务依赖的Session三个入口聚合，保全部子文件/具名用例；env子进程与真实DB/Redis隔离保留。MessageBag仅一条同输入空JSON断言候选，Provider/HTTP接线不能删。未改码/构建/删并，试点实施仍待B提交。先完成D10-B在途命令、真实服务/生成验收与限定提交，再于最近安全交接点领取本独立功能簇，先试点后按证据推进，不中途删排冻结测试，不新建Goal或清活跃缓存。后继C已做只读审计，不以此提前开工改码。
+
+1. Spec：复核实际Cargo target、`#[path]`与feature入口，按行为/输入/断言/失败原因列独有缺陷保护；优先核查MessageBag JSON/merge/format跨契约、模块和模板的重复候选，以及HTTP/Session纯行为入口，未经证实不删除。既有48显式target/10 Session系列与文件统计仅为待复核审计口径，不是删减配额或必要性证明。
+2. Implement：基础完整矩阵留unit/contract；唯一模块留公开接线，generated留真实编译运行，TCP/DB留协议/后端独有风险。按领域聚合较少入口但保留子文件组织；环境变量、feature、服务及特殊harness隔离须保留，禁止串行整套/放宽断言掩盖冲突。新增测试须说明独有缺陷和现有缺口。
+3. Verify：逐项核Cargo/module/feature/模板快照/consumer与唯一示例同步，关键负例、并发/取消/崩溃/安全与数据一致性回归仍具名实际执行，必要双库/真实服务不减。适用集中门禁按[分层与整合规范](conventions.md#测试分层与入口整合)执行，保留原验收与上游矩阵。
+4. Commit与效果：受控删除走`git rm`，本地限定提交；记录前后文件/用例/target数量、同工具链/feature/缓存条件下实测编译/链接/执行耗时、删并理由与保留隔离点。不按数量冒充功能完成，不承诺未测倍数；无法比较单独链接耗时时明确缺证。
+
+
 ## 发布前全后端兼容性验收
 
 日常功能簇与数据库型生成默认真实MySQL8.4；后端专属SQL/驱动/故障或明确方言/迁移/锁风险仍当场必要定向，规则见[当前数据库运行政策](memory/testing.md#当前数据库运行政策)。已在途PG自然结束清理，未开始的常规PG阶段转本节，不删除支持或历史证据。
