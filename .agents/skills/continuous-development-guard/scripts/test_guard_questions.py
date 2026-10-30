@@ -90,9 +90,9 @@ class Questions(unittest.TestCase):
 
     def test_timeout_selects_second_option_without_recommended_label(self):
         self.assertEqual(self.step(10), 'question_wait')
-        self.step(129)
+        self.step(69)
         self.api.answer_question.assert_not_called()
-        self.assertEqual(self.step(130), 'question_answered')
+        self.assertEqual(self.step(70), 'question_answered')
         config, req, answer, binding, pending = self.api.answer_question.call_args.args
         self.assertEqual(config['agent'], 'agent')
         self.assertEqual(req['id'], 'permission-item')
@@ -442,14 +442,14 @@ class Questions(unittest.TestCase):
         self.coordination_requests()
         self.step(0)
         self.state['questions']['permission-free']['first_seen'] = 20
-        self.assertEqual(self.step(120), 'question_wait')
+        self.assertEqual(self.step(79), 'question_wait')
         self.api.answer_question.assert_not_called()
         self.api.answer_question.side_effect = RuntimeError('transport result unknown')
-        self.assertEqual(self.step(140), 'question_unknown')
+        self.assertEqual(self.step(80), 'question_unknown')
         self.step(1000)
         self.api.answer_question.assert_called_once()
         self.assertEqual(self.classifier.call_count, 2)
-        self.assertTrue(all(r['status'] == 'unknown' and r.get('send_at') == 140
+        self.assertTrue(all(r['status'] == 'unknown' and r.get('send_at') == 80
                             for r in self.state['questions'].values()))
 
     def test_multiple_sync_requests_wait_without_inventing_a_batch_protocol(self):

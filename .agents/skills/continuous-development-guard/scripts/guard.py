@@ -1035,7 +1035,7 @@ def worker(runtime, parent_pid):
             question_status = questions.step(runtime, state, config, agent, current, turn, SimpleNamespace(**globals()))
             if question_status:
                 record('needs_attention', reason=question_status)
-                sleep_until(runtime, CHECK_INTERVAL)
+                sleep_until(runtime, min(CHECK_INTERVAL, questions.WAIT_SECONDS))
                 continue
             key = (turn or {}).get('key')
             if turn and turn['kind'] == 'task_complete' and not turn['payload'].get('error') and turn['tools'] and key != state.get('last_progress'):
