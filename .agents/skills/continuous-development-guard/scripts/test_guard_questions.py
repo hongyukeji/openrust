@@ -68,6 +68,22 @@ class Questions(unittest.TestCase):
         self.assertEqual(self.classifier.call_args.args[0]['question_model'], 'gpt-6.1-sol')
         self.assertEqual(questions.MODEL, 'gpt-6-sol')
 
+    def test_running_steered_turn_processes_pending_question_after_new_tool_activity(self):
+        self.turn.update(kind='user_message', post_user_activity=True,
+                         user_context={'key': 'steer', 'message': '其他独立任务继续，并记得清理误登记项目'})
+        self.agent['Status'] = 'running'
+        self.assertEqual(self.step(0), 'question_wait')
+        self.assertEqual(self.step(60), 'question_answered')
+        self.api.answer_question.assert_called_once()
+        self.classifier.assert_called_once()
+
+    def test_new_user_input_without_subsequent_activity_does_not_classify_or_answer(self):
+        self.turn.update(kind='user_message', post_user_activity=False)
+        self.assertIsNone(self.step(0))
+        self.assertIsNone(self.step(60))
+        self.classifier.assert_not_called()
+        self.api.answer_question.assert_not_called()
+
     def test_dynamic_budget_blocks_classification_and_submission_at_twenty_percent(self):
         response = {'accountId': 'account', 'ordinaryUsageAllowed': False, 'rateLimits': {
             'limitId': 'codex', 'primary': {'usedPercent': 100, 'resetsAt': 2000, 'windowDurationMins': 60},

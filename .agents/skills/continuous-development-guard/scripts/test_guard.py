@@ -110,6 +110,29 @@ class Decisions(unittest.TestCase):
         self.assertEqual(self.decide(goal=limited, turn=dict(self.turn, kind='user_message')), 'needs_attention')
         self.assertEqual(self.decide(goal=limited, turn=dict(self.turn, payload={'error': {'message': '401 unauthorized'}})), 'needs_attention')
 
+    def test_steer_activity_requires_a_tool_after_latest_user_input(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'rollout'
+            rows = [
+                {'type': 'event_msg', 'timestamp': 'start', 'payload': {'type': 'task_started'}},
+                {'type': 'response_item', 'timestamp': 'before', 'payload': {'type': 'function_call', 'name': 'exec'}},
+                {'type': 'response_item', 'timestamp': 'steer', 'payload': {'type': 'message', 'role': 'user',
+                    'content': [{'type': 'input_text', 'text': '继续并行处理'}]}},
+            ]
+            path.write_text('\n'.join(json.dumps(r) for r in rows))
+            self.assertFalse(recovery.timeline(path)['post_user_activity'])
+            rows.append({'type': 'response_item', 'timestamp': 'after',
+                         'payload': {'type': 'function_call', 'name': 'exec'}})
+            path.write_text('\n'.join(json.dumps(r) for r in rows))
+            turn = recovery.timeline(path)
+            self.assertTrue(turn['post_user_activity'])
+            self.assertEqual(turn['kind'], 'user_message')
+            self.assertEqual(self.decide(turn=turn), 'needs_attention')  # 不授权普通恢复派发。
+            rows.append({'type': 'event_msg', 'timestamp': 'new-user',
+                         'payload': {'type': 'user_message', 'message': '先暂停'}})
+            path.write_text('\n'.join(json.dumps(r) for r in rows))
+            self.assertFalse(recovery.timeline(path)['post_user_activity'])
+
     def test_explicit_goal_block_is_preserved_in_timeline_across_later_runner_error(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / 'rollout'

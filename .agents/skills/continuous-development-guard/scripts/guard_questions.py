@@ -262,6 +262,12 @@ def async_owned(request, config, guard, origins=None):
     return any(matches(entry.get('item', entry)) for entry in response.get('data', []))
 
 
+def question_turn_ready(turn):
+    """steer后须已有真实工具活动；普通新输入和取消不能触发自动答题。"""
+    return bool(turn and turn.get('kind') != 'turn_aborted' and
+                (turn.get('kind') != 'user_message' or turn.get('post_user_activity') is True))
+
+
 def step(runtime, state, config, agent, current, turn, guard, classifier=classify):
     """在既有worker中运行；所有写答案与stop共用control.lock。"""
     requests = agent.get('PendingPermissions') or []
@@ -276,7 +282,7 @@ def step(runtime, state, config, agent, current, turn, guard, classifier=classif
     now = time.time()
     save = lambda: guard.atomic(runtime / 'state.json', state)
     active = (current and current.get('id') == config['goal_id'] and current.get('status') in ('active', 'blocked')
-              and turn and turn.get('kind') not in ('turn_aborted', 'user_message')
+              and question_turn_ready(turn)
               and (state.get('goal_control') or {}).get('status') not in ('paused', 'complete')
               and not agent.get('Archived')
               and Path(agent.get('Cwd', '/')).resolve() == guard.ROOT
@@ -411,7 +417,7 @@ def step(runtime, state, config, agent, current, turn, guard, classifier=classif
             fresh_requests = fresh_agent.get('PendingPermissions') or []
             match = next((r for r in fresh_requests if r.get('id') == rid), None)
             if (fresh_goal != current or not fresh_turn or fresh_turn.get('key') != turn.get('key')
-                    or fresh_turn.get('kind') in ('user_message', 'turn_aborted')
+                    or not question_turn_ready(fresh_turn)
                     or fresh_turn.get('user_context') != turn.get('user_context')
                     or (state.get('goal_control') or {}).get('status') in ('paused', 'complete')
                     or digest(state.get('goal_control')) != row.get('control_version')

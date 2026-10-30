@@ -258,6 +258,7 @@ def timeline(path):
     semantic_blocked = False
     goal_control = None
     user_context = None
+    post_user_activity = False
     with path.open('rb') as source:
         size = source.seek(0, os.SEEK_END)
         source.seek(max(0, size - TAIL_BYTES))
@@ -272,6 +273,8 @@ def timeline(path):
             payload = row.get('payload', {})
             if row.get('type') == 'response_item' and payload.get('type') in ('function_call', 'custom_tool_call'):
                 tools += 1
+                if user_context is not None:
+                    post_user_activity = True
                 explicit = explicit_goal_status(payload)
                 if explicit is not None:
                     semantic_blocked = explicit == 'blocked'
@@ -286,6 +289,7 @@ def timeline(path):
                                  and isinstance(p.get('text'), str) for p in parts))
                 message = ''.join(p['text'] for p in parts) if plain else None
                 user_context = user_text_context(row.get('timestamp'), message)
+                post_user_activity = False
                 last = {'kind': 'user_message', 'key': row.get('timestamp'),
                         'payload': {'type': 'user_message', 'message': message}, 'tools': tools}
             if row.get('type') != 'event_msg':
@@ -294,6 +298,7 @@ def timeline(path):
             if kind == 'user_message':
                 attachments = payload.get('images') or payload.get('local_images') or payload.get('attachments')
                 user_context = user_text_context(row['timestamp'], None if attachments else payload.get('message'))
+                post_user_activity = False
             if kind in ('task_started', 'task_complete', 'turn_aborted', 'user_message'):
                 if kind == 'task_started':
                     tools = 0
@@ -302,6 +307,7 @@ def timeline(path):
         last['semantic_blocked'] = semantic_blocked
         last['goal_control'] = goal_control
         last['user_context'] = user_context
+        last['post_user_activity'] = post_user_activity
     _TIMELINE_CACHE = (identity, last)
     return last
 
