@@ -68,7 +68,7 @@ def resources(root):
             sizes[str(path)] = int(result.stdout.split()[0]) * 1024
     stat = os.statvfs(root)
     free, total = stat.f_bavail * stat.f_frsize, stat.f_blocks * stat.f_frsize
-    ensure(sum(sizes.values()) <= 80 * 1000**3 and free / total >= .10,
+    ensure(sum(sizes.values()) < 50 * 1000**3 and free / total >= .10,
            'resource_soft_limit')
     return {'target_bytes': sizes, 'disk_free_bytes': free, 'disk_free_fraction': free / total}
 
