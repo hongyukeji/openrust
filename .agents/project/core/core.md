@@ -32,7 +32,7 @@
 
 MFA 在候选为迁移时仍解析服务与配置，仅登记延后 schema 检查；派发复用现有最长命令匹配，以实际框架 `MigrationCommand` 类型决定是否免于运行态五表预查。其他实际命令（包括同首词多词自定义命令及后续 `serve`）先执行检查；迁移按原 up/down/status/命名数据库语义返回，不附加会破坏合法回滚的五表后置条件。内部一次性 CLI 保留关闭与 telemetry 收尾，不对外返回可复用免检应用。
 
-固定 Laravel Console Kernel 先持有 InputInterface 再 bootstrap 的流程是对应依据；Rust 用明确候选上下文与最终命令类型绑定保护既有启动检查，非全局 argv/env 开关。真实 MySQL 8.4 私有库已验证空库 status、up 1、down 1、命名库 status、全量 up，以及删自有 MFA 表后普通 serve 缺表拒绝；库已精确清理。原迁移失败历史/重启恢复测试本轮没有实际数据库连接，不在上述证据内。见[限定验收](../memory/testing.md#c04-d10-b-请求绑定重定向与-session-错误包限定子范围已验收待提交)。
+固定 Laravel Console Kernel 先持有 InputInterface 再 bootstrap 的流程是对应依据；Rust 用明确候选上下文与最终命令类型绑定保护既有启动检查，非全局 argv/env 开关。真实 MySQL 8.4 私有库已验证空库 status、up 1、down 1、命名库 status、全量 up，以及删自有 MFA 表后普通 serve 缺表拒绝；库已精确清理。原迁移失败历史/重启恢复测试本轮没有实际数据库连接，不在上述证据内。见[限定验收](../memory/testing.md#c04-d10-b-请求绑定重定向与-session-错误包限定子范围已验收)。
 
 ## 公共 Support 错误包
 

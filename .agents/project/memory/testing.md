@@ -8,9 +8,17 @@
 - 已运行PG命令自然结束并完成自有资源清理；未开始的常规PG阶段不再安排，不停删共享PG服务、测试或feature。历史双库证据原样保留，以下历史记录不自动成为新发布范围通过。
 - CI常规数据库job为MySQL；手动`database_scope=release-backends`保留原PG18集成子矩阵，不代表完整发布已验收。后端专属例外按具体风险定向执行并留证；发布积压以[todo](../todo.md#发布前全后端兼容性验收)为准。
 
-## C04-D10-B 请求绑定重定向与 Session 错误包（限定子范围已验收，待提交）
+## Session 测试入口整合小试点（限定验收通过）
 
-固定上游对应 `RedirectResponse`、`Redirector`、`MessageBag` 与 Session Store；Rust 公开 `Redirector::from_info/from_request`、`RedirectResponse`、`RedirectErrors`，普通重定向默认 302 且无需 Session。借用真实 `Request` 的 `with_input/only_input/except_input` 与 `with_errors` 将输入和命名包写入唯一 Session；`ErrorBagCodecs` 经 Provider 扩展，内置包零登记，自定义包跨请求按稳定类型与版本恢复。用户编解码在 Session 锁外，锁内仅验证候选并原子发布；手动闪存不自动过滤密码。请求局部视图共享、自动验证失败重定向、完整 Redirector、CSRF/FormRequest 与上传文件输入仍待后继。
+基线 `a2befef`：三个纯 `session` feature 入口 `http_session`、`http_session_helpers`、`http_session_source_cases` 聚为 `http_session` 一个显式 target（48→46），三个源文件与全部 26 个具名用例、断言、fixture 均未删除。实际 `--list` 映射 26 项，定向 26/26；默认 workspace 789 passed/31 ignored、全特性 1546 passed/105 ignored，均 0 failed/filtered；全特性 gRPC 全组 8/8。严格 Clippy 默认/全特性、默认/全特性 `-D warnings` Rustdoc、Rust 1.97 全特性 all-target check、fmt/diff 均通过。各阶段命令、时长、源码/锁及有界日志见最终索引 `/tmp/openrust-session-test-pilot-verification-final.json`；独审结论见 `/tmp/openrust-session-test-pilot-grpc-fix-review.md`。资源有归属清理回执 `/tmp/openrust-session-test-pilot-resource-clean.json`；最终总量见索引。不具备相同缓存条件的前测，不能用本轮耗时推断加速倍数。
+
+全特性首次运行在 `tests/server/grpc.rs` 的联合生命周期用例遇到端口占用；原 fixture 放开随机端口后再按数字重绑，存在所有权空窗。修复为两个已绑定 listener 直接移交共用 supervisor 的公开嵌入式入口，原配置绑定入口保留；新入口以传入地址为准，TLS 等配置仍生效。首轮全特性失败、首轮修后 Clippy `too_many_lines` 失败均保留；提取 HTTP ready/trace helper 后未删断言，最终 gRPC 8/8、全特性 workspace 1546/0，不能反推历史 D10-B 偶发失败的确切根因。唯一模块真实 TLS 联合监听用例在本轮全特性测试通过。独立 gRPC consumer 初次 `--locked` 因自身旧锁失败；离线同步其既有依赖闭包后，四个配置绑定联合生命周期用例 4/4 通过，根锁和依赖版本未变。旧失败回执及新 consumer 锁差异同见最终索引。
+
+`http_session_env` 的 `current_exe` 子进程与环境隔离、`http_session_store` 真实数据库 ignored 入口、`http_session_redis_store` 服务入口，以及 HTTP/配置/扩展/Cookie 用例仍保持独立。此试点未改变 Session 生产行为，未新增 Session 专属 DB/Redis/HTTP 或生成项目验收；gRPC 实网络验证仅限上述范围。D10-B 的既有服务结果只按输入影响复用。后续入口整合仍须逐项证明独有缺陷保护，不能按 target 数量删测试。
+
+## C04-D10-B 请求绑定重定向与 Session 错误包（限定子范围已验收）
+
+限定提交 `a2befef`。固定上游对应 `RedirectResponse`、`Redirector`、`MessageBag` 与 Session Store；Rust 公开 `Redirector::from_info/from_request`、`RedirectResponse`、`RedirectErrors`，普通重定向默认 302 且无需 Session。借用真实 `Request` 的 `with_input/only_input/except_input` 与 `with_errors` 将输入和命名包写入唯一 Session；`ErrorBagCodecs` 经 Provider 扩展，内置包零登记，自定义包跨请求按稳定类型与版本恢复。用户编解码在 Session 锁外，锁内仅验证候选并原子发布；手动闪存不自动过滤密码。请求局部视图共享、自动验证失败重定向、完整 Redirector、CSRF/FormRequest 与上传文件输入仍待后继。
 
 - 最终门禁索引 `/tmp/openrust-c04d10b-console-migrate-final-handoff.json` SHA256 `08ae0b6b87c2c7ed7c658c63386bdab8b7ca5cc8014f16a93bdf2ac1bc2539f6`；root 20项审计 `/tmp/openrust-c04d10b-root-final-gates-audit.json` SHA256 `f2219e88de055d93d740b7af6b446f64473855ed3662999394a77e395c5ee752`。最终严格 Clippy 默认/全特性、fmt/diff、默认/全特性 Rustdoc `-D warnings`、no-default/session-only 与 Rust 1.97 两组均 exit 0；workspace 默认 789 passed/31 ignored，全特性 1546 passed/105 ignored，均 0 failed。ignored 不算真实服务。`cargo deny check` 复用依赖与根锁未变的 原 B 回执 `/tmp/openrust-c04d10b-verify-batch2g/deny.json`：exit 0，SHA256 `e8663b39a05f14f972c7d7aeef87d66918e6f9d49d0d50f373f91887ce86a98d`；未冒称在最终源码重复执行。
 - 真实生产 server 构建结果 `/tmp/openrust-c04d10b-server-build-post-tests/build-result.json` SHA256 `2804eaaa530bbb1509c13eadc1df4d06e5f81d6ebfafaee0e48cc11c406dd6e4`，二进制 SHA256 `75073a2d6b3125f9734b4c70c5e063c4cfcfacb26f2b83d46e8394ab8a1e0c12`；791文件源码快照与服务前后一致。无 Session 两项真实 TCP 结果 `/tmp/openrust-c04d6-url-network-d10b-iqviivl4/result.json` SHA256 `37aea9be9af5e0d53821703e3ff0bf36f66a1e6dfac43cc9847bd79a19d3eba9`，accepted=true，服务正常停止、端口和敏感配置清理。

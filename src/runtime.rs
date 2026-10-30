@@ -50,6 +50,50 @@ pub async fn serve_http_and_grpc_until<F>(app: &App, shutdown: F) -> Result<()>
 where
     F: Future<Output = ()> + Send + 'static,
 {
+    let (router, grpc_server) = prepare_http_and_grpc(app).await?;
+    let http_listener = TcpListener::bind(app.config().server.bind_addr()).await?;
+    let grpc_listener = TcpListener::bind(grpc_server.listen_addr()).await?;
+    supervise_http_and_grpc(
+        app,
+        router,
+        grpc_server,
+        http_listener,
+        grpc_listener,
+        shutdown,
+    )
+    .await
+}
+
+/// 使用调用方已绑定的 HTTP 与 gRPC listener 运行同一联合服务生命周期。
+///
+/// 可使用端口 `0` 绑定后读取两个 listener 的实际地址；两个入口各占一个独立的
+/// TCP 监听地址。`server.bind_addr` 与 `grpc.listen_addr` 不用于绑定或校验传入的
+/// listener，实际监听范围仅由其 `local_addr` 决定；TLS 等其他安全与生命周期配置
+/// 仍照常生效。此入口消费两个 listener，保留正常的 Provider、路由、就绪、共同
+/// 停机与资源清理检查。若准备失败，两个 listener 随调用返回一并释放。普通配置绑定仍使用
+/// [`serve_http_and_grpc_until`]。
+pub async fn serve_http_and_grpc_with_listeners_until<F>(
+    app: &App,
+    http_listener: TcpListener,
+    grpc_listener: TcpListener,
+    shutdown: F,
+) -> Result<()>
+where
+    F: Future<Output = ()> + Send + 'static,
+{
+    let (router, grpc_server) = prepare_http_and_grpc(app).await?;
+    supervise_http_and_grpc(
+        app,
+        router,
+        grpc_server,
+        http_listener,
+        grpc_listener,
+        shutdown,
+    )
+    .await
+}
+
+async fn prepare_http_and_grpc(app: &App) -> Result<(axum::Router, GrpcServer)> {
     if !app
         .state()
         .container()
@@ -62,8 +106,20 @@ where
     }
     let router = build_router(app)?;
     let grpc_server = GrpcServer::from_app(app).await?;
-    let http_listener = TcpListener::bind(app.config().server.bind_addr()).await?;
-    let grpc_listener = TcpListener::bind(grpc_server.listen_addr()).await?;
+    Ok((router, grpc_server))
+}
+
+async fn supervise_http_and_grpc<F>(
+    app: &App,
+    router: axum::Router,
+    grpc_server: GrpcServer,
+    http_listener: TcpListener,
+    grpc_listener: TcpListener,
+    shutdown: F,
+) -> Result<()>
+where
+    F: Future<Output = ()> + Send + 'static,
+{
     let http_address = http_listener.local_addr()?;
     let grpc_address = grpc_listener.local_addr()?;
     let readiness = app.state().resolve::<Readiness>().await?;

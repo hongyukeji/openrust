@@ -393,24 +393,11 @@ D7真实Route/Resolver与受管理方法声明已通过限定验收：final3完�
 - main target保留复用；旧QX五生成包、本轮plain/PG生成包及四个本簇已完成测试可执行文件已精确退役，源码/锁/索引/当前二进制及共享库哨兵未变。日志明确Cargo关联test_app/auth_flows产物；不清整target，不碰归属不足的历史缓存。
 - D9 My生成项目已验收，源码/锁/证据保留；如后继需要空间，先核精确package dry-run与占用后再回收其专属再生产物，不为纯Agent文档变化重跑矩阵。
 
-## C04-D10-B：请求绑定重定向与 Session 错误包（限定子范围验收通过，待提交）
+## 高价值测试精简与入口整合（限定试点已验收，待 root 提交）
 
-D10-A纯 `MessageBag`/`ViewErrorBag` 已由本地提交 `27c006a` 完成；B 的公开 `Redirector`/`RedirectResponse`、请求绑定闪存与 `ErrorBagCodecs` 类型化持久恢复已接唯一模块和生成普通应用。内置包无需登记；自定义编解码在 Session 锁外执行，命名错误包更新与 flash 在一次受控写入中原子发布。普通重定向默认302且无需Session，手动输入闪存不默认过滤密码。完整证据与限制见[testing](memory/testing.md#c04-d10-b-请求绑定重定向与-session-错误包限定子范围已验收待提交)，不要据此关闭完整Redirector/Session/Validation。
+本次仅合并纯 `session` feature 的三个 Cargo 测试入口为 `http_session`：显式 target 48→46，原三个源文件、全部 26 个具名用例和断言保留；`session_env` 子进程、真实数据库/Redis、HTTP、模块及生成项目入口维持隔离。[实测索引与失败保留](memory/testing.md#session-测试入口整合小试点限定验收通过)记录 `--list`、26 项定向、默认/全特性 workspace、gRPC 端口所有权修复、双 Rustdoc、Rust 1.97 与独立 consumer。原全特性 Address already in use 与首轮 Clippy 失败回执保留；不能据最终通过推定历史偶发问题全部同因。
 
-空库迁移启动缺陷同簇修复：仅内部CLI传候选命令；最终最长匹配后只对框架 `MigrationCommand` 实际类型免去MFA运行态五表预查，其他命令、普通bootstrap/TestApp及默认 `serve` 仍严格。迁移保留原 up/down/status/命名库参数与锁/SQL，不加会破坏合法回滚的后置五表检查，不宣称支持 fresh/reset。MySQL8.4私有库已实证空库 status→up1→down1→命名库status→全量up→TCP及缺MFA表默认serve拒绝，并精确DROP/核不存在；真实失败迁移历史/重启恢复测试本轮未给连接变量，继续保留后继MySQL/R14定向缺口。
-
-最终当前源码严格默认/全特性Clippy、workspace测试（789/31 ignored、1546/105 ignored）、docs/feature/MSRV与受影响定向通过；根无Session TCP2项、MySQL TCP5项、普通生成7项及MySQL生成认证2项通过，PG常规验收按[数据库政策](memory/testing.md#当前数据库运行政策)留发布矩阵。生成MySQL两项不执行新Session helper；早期gRPC偶发失败根因未证修复，最终全组通过仅说明本轮结果。验收索引 `/tmp/openrust-c04d10b-console-migrate-final-handoff.json` 与 `/tmp/openrust-c04d10b-bfinalcandidate3-acceptance-index.json`，详见 testing。代码、模板、用户文档与Agent事实收齐后由root独审及限定本地提交；当前不推送，不为Agent文档变化重跑Rust门禁。
-
-后继依赖顺序：B提交后先领取下方已授权“高价值测试精简与入口整合”小试点，再进入C请求局部 `ShareErrorsFromSession` 视图共享；共享数据须按请求隔离，显式context覆盖优先。完整Redirector的其他方法、自动验证失败重定向/`dontFlash`、文件输入合并、CSRF/FormRequest仍为独立开放项，不用B基础能力替代其验收。
-
-## 高价值测试精简与入口整合（已授权，待 D10-B 验收提交）
-
-总控负责排期、共享manifest/lock/索引与提交；d10b_module已交前置只读盘点`/tmp/openrust-test-value-pilot-candidates.md`（SHA`5f995d923e93822adfc90392b21fa7ee82e58e39e9a30c7a4c1c1900ecf82f1a`）：候选为同feature且无进程env/服务依赖的Session三个入口聚合，保全部子文件/具名用例；env子进程与真实DB/Redis隔离保留。MessageBag仅一条同输入空JSON断言候选，Provider/HTTP接线不能删。未改码/构建/删并，试点实施仍待B提交。先完成D10-B在途命令、真实服务/生成验收与限定提交，再于最近安全交接点领取本独立功能簇，先试点后按证据推进，不中途删排冻结测试，不新建Goal或清活跃缓存。后继C已做只读审计，不以此提前开工改码。
-
-1. Spec：复核实际Cargo target、`#[path]`与feature入口，按行为/输入/断言/失败原因列独有缺陷保护；优先核查MessageBag JSON/merge/format跨契约、模块和模板的重复候选，以及HTTP/Session纯行为入口，未经证实不删除。既有48显式target/10 Session系列与文件统计仅为待复核审计口径，不是删减配额或必要性证明。
-2. Implement：基础完整矩阵留unit/contract；唯一模块留公开接线，generated留真实编译运行，TCP/DB留协议/后端独有风险。按领域聚合较少入口但保留子文件组织；环境变量、feature、服务及特殊harness隔离须保留，禁止串行整套/放宽断言掩盖冲突。新增测试须说明独有缺陷和现有缺口。
-3. Verify：逐项核Cargo/module/feature/模板快照/consumer与唯一示例同步，关键负例、并发/取消/崩溃/安全与数据一致性回归仍具名实际执行，必要双库/真实服务不减。适用集中门禁按[分层与整合规范](conventions.md#测试分层与入口整合)执行，保留原验收与上游矩阵。
-4. Commit与效果：受控删除走`git rm`，本地限定提交；记录前后文件/用例/target数量、同工具链/feature/缓存条件下实测编译/链接/执行耗时、删并理由与保留隔离点。不按数量冒充功能完成，不承诺未测倍数；无法比较单独链接耗时时明确缺证。
+现有唯一模块 TLS 联合监听及原配置绑定 consumer 已实测；根 gRPC 预绑定 listener 新入口和普通配置入口共用监督生命周期。未执行新的数据库/Redis/生成项目服务验收；D10-B 的真实服务证据按输入影响保留，不冒充本簇新执行。编译/测试时间仅记录本轮观察值，没有相同工具链、feature、缓存条件的受控前测，不宣称加速倍数。完成限定提交后再按缺陷价值审计后续测试入口，**不把全量测试精简标为完成**；D10-C 请求局部视图共享仍未开工。
 
 ## 发布前全后端兼容性验收
 

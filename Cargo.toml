@@ -490,18 +490,8 @@ path = "tests/http/session_config.rs"
 required-features = ["session"]
 
 [[test]]
-name = "http_session_source_cases"
-path = "tests/http/session_source_cases.rs"
-required-features = ["session"]
-
-[[test]]
 name = "http_session_env"
 path = "tests/http/session_env.rs"
-required-features = ["session"]
-
-[[test]]
-name = "http_session_helpers"
-path = "tests/http/session_helpers.rs"
 required-features = ["session"]
 
 [[test]]

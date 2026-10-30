@@ -6,6 +6,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Changed
 
+- 将三个纯 Session 测试入口聚为一个，保留原源文件与 26 个用例；修复 gRPC 联合生命周期测试释放随机端口后重绑的竞争窗口。新增可接收两个已绑定 listener 的嵌入式联合运行入口，原 `serve all` 配置绑定方式不变。
+
 - 新增公开 `MessageBag`、`ViewErrorBag` 与消息包扩展契约：保序/稀疏键、字段与通配查询、格式化、命名包及 JSON 选项；递归合并通过 `MessageValue` 保留派生数组。纯消息包无需 Session，自定义命名包保留对象身份并派发契约方法。自动视图错误共享和验证失败重定向继续按后继实现。
 
 - Session与Request增加旧输入读写：`flash_input/get_old_input/get_old_input_or/has_old_input`、`Request::flash/flash_only/flash_except/flush`和`RequestInfo::old/old_or/old_all`。复用已有flash老化和单次写入预算回滚，保留缺失/null/默认、字面键优先dot及空筛选语义。手动闪存不默认剔除密码，应用须显式排除敏感字段；文件输入合并仍属后继范围。

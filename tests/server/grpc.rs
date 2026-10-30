@@ -13,7 +13,7 @@ use openrust::{
     core::Readiness,
     grpc::{GrpcServer, GrpcServiceProvider, health_pb, tonic},
     http::HttpServiceProvider,
-    runtime::{HttpGrpcServiceProvider, serve_http_and_grpc_until},
+    runtime::{HttpGrpcServiceProvider, serve_http_and_grpc_with_listeners_until},
 };
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -155,12 +155,10 @@ async fn plugin_rejects_health_drain_grace_that_exhausts_shutdown_deadline()
 #[tokio::test]
 async fn server_host_composes_http_and_grpc_under_one_lifecycle()
 -> Result<(), Box<dyn std::error::Error>> {
-    let http_probe = TcpListener::bind("127.0.0.1:0").await?;
-    let http_address = http_probe.local_addr()?;
-    drop(http_probe);
-    let grpc_probe = TcpListener::bind("127.0.0.1:0").await?;
-    let grpc_address = grpc_probe.local_addr()?;
-    drop(grpc_probe);
+    let http_listener = TcpListener::bind("127.0.0.1:0").await?;
+    let http_address = http_listener.local_addr()?;
+    let grpc_listener = TcpListener::bind("127.0.0.1:0").await?;
+    let grpc_address = grpc_listener.local_addr()?;
 
     let mut config = FrameworkConfig::default();
     config.server.host = http_address.ip().to_string();
@@ -196,9 +194,14 @@ async fn server_host_composes_http_and_grpc_under_one_lifecycle()
     let (stop, signal) = oneshot::channel();
     let running_app = Arc::clone(&app);
     let mut task = tokio::spawn(async move {
-        serve_http_and_grpc_until(&running_app, async move {
-            let _ = signal.await;
-        })
+        serve_http_and_grpc_with_listeners_until(
+            &running_app,
+            http_listener,
+            grpc_listener,
+            async move {
+                let _ = signal.await;
+            },
+        )
         .await
     });
     let _abort_on_failure = AbortCombinedServerOnDrop(task.abort_handle());
@@ -212,6 +215,35 @@ async fn server_host_composes_http_and_grpc_under_one_lifecycle()
     )
     .await?;
 
+    assert_http_ready_and_trace(http_address).await?;
+
+    let channel = tonic::transport::Channel::from_shared(format!("http://{grpc_address}"))?
+        .connect()
+        .await?;
+    let mut health = health_pb::health_client::HealthClient::new(channel);
+    let health = health
+        .check(tonic::Request::new(health_pb::HealthCheckRequest {
+            service: "openrust.test.v1.Probe".to_owned(),
+        }))
+        .await?
+        .into_inner();
+    assert_eq!(
+        health.status,
+        health_pb::health_check_response::ServingStatus::Serving as i32
+    );
+
+    stop.send(())
+        .map_err(|()| "combined service exited before shutdown")?;
+    task.await??;
+    assert!(!readiness.is_ready());
+    assert!(TcpStream::connect(http_address).await.is_err());
+    assert!(TcpStream::connect(grpc_address).await.is_err());
+    Ok(())
+}
+
+async fn assert_http_ready_and_trace(
+    http_address: std::net::SocketAddr,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut http = TcpStream::connect(http_address).await?;
     http.write_all(
         format!("GET /ready HTTP/1.1\r\nHost: {http_address}\r\nConnection: close\r\n\r\n")
@@ -236,27 +268,6 @@ async fn server_host_composes_http_and_grpc_under_one_lifecycle()
     trace_request.read_to_end(&mut trace_response).await?;
     assert!(String::from_utf8(trace_response)?.contains(traceparent));
 
-    let channel = tonic::transport::Channel::from_shared(format!("http://{grpc_address}"))?
-        .connect()
-        .await?;
-    let mut health = health_pb::health_client::HealthClient::new(channel);
-    let health = health
-        .check(tonic::Request::new(health_pb::HealthCheckRequest {
-            service: "openrust.test.v1.Probe".to_owned(),
-        }))
-        .await?
-        .into_inner();
-    assert_eq!(
-        health.status,
-        health_pb::health_check_response::ServingStatus::Serving as i32
-    );
-
-    stop.send(())
-        .map_err(|()| "combined service exited before shutdown")?;
-    task.await??;
-    assert!(!readiness.is_ready());
-    assert!(TcpStream::connect(http_address).await.is_err());
-    assert!(TcpStream::connect(grpc_address).await.is_err());
     Ok(())
 }
 
