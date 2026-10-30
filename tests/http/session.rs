@@ -319,6 +319,12 @@ async fn cancelling_load_or_save_releases_busy_without_claiming_external_write_r
             error_code(handle.put("busy", true)),
             Some("session_operation_in_progress".into())
         );
+        let before = handle.all()?;
+        assert_eq!(
+            error_code(handle.flash_input(json!({"blocked":true}))),
+            Some("session_operation_in_progress".into())
+        );
+        assert_eq!(handle.all()?, before);
         task.abort();
         let cancelled = task.await.err().ok_or_else(|| {
             Error::custom(
@@ -329,6 +335,7 @@ async fn cancelling_load_or_save_releases_busy_without_claiming_external_write_r
         assert!(cancelled.is_cancelled());
         drop(release);
         handle.put("after_abort", "works")?;
+        handle.flash_input(json!({"after_abort":true}))?;
         assert_eq!(handle.get("after_abort")?, Some(json!("works")));
         // 此 Spy 在闸门之后才写内存；这里只证明 guard 回收，不推断外部 I/O 回滚。
         if write {

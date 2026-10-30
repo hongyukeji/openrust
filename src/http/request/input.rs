@@ -232,6 +232,35 @@ impl Request {
     pub const fn info(&self) -> &RequestInfo {
         &self.info
     }
+    /// 将当前规范化后的完整输入保存为下一请求的旧输入。
+    ///
+    /// 本簇未合并上传文件；默认不隐式过滤敏感字段，应用可调用 [`Self::flash_except`]。
+    #[cfg(feature = "session")]
+    pub fn flash(&self) -> Result<()> {
+        self.info.session()?.flash_input(self.all())?;
+        Ok(())
+    }
+
+    /// 只保存指定输入路径；空列表保存空数组。
+    #[cfg(feature = "session")]
+    pub fn flash_only(&self, keys: &[&str]) -> Result<()> {
+        self.info.session()?.flash_input(self.only(keys)?)?;
+        Ok(())
+    }
+
+    /// 排除指定输入路径后保存，适合应用显式去除密码等敏感字段。
+    #[cfg(feature = "session")]
+    pub fn flash_except(&self, keys: &[&str]) -> Result<()> {
+        self.info.session()?.flash_input(self.except(keys)?)?;
+        Ok(())
+    }
+
+    /// 清空旧输入 bag；等价于 `flash_input([])`，不会清除整个 Session。
+    #[cfg(feature = "session")]
+    pub fn flush(&self) -> Result<()> {
+        self.info.session()?.flash_input(Value::Array(Vec::new()))?;
+        Ok(())
+    }
     /// 返回未被规范化或输入修改重编码的原始正文。
     pub const fn content(&self) -> &Bytes {
         &self.raw

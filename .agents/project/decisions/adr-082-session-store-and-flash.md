@@ -2,7 +2,7 @@
 
 - 状态：Accepted，C04-D1限定子范围已实现并通过适用验收；完整Session范围仍开放。
 - 上游：Laravel 13.39.0 `d52c3b3129e4c8e213c97cdc68f94b0b7d27f181`。
-- 范围：L025.02 属性、ID/token、flash及现有driver公开扩展；不关闭完整 Session driver 生态、cache/blocking、Old Input、CSRF、redirect 或完整 web 默认组。
+- 范围：L025.02 属性、ID/token、flash及现有driver公开扩展；C04-D9 追加限定旧输入契约，不关闭完整 Session driver 生态、cache/blocking、CSRF、redirect 或完整 web 默认组。
 
 ## 决策与短 Spec
 
@@ -166,3 +166,11 @@ D5固定源码审计SHA256（均为上述framework ref，源码核对不等于�
 | `src/Illuminate/Session/ArraySessionHandler.php` | `e01d016e8470b0d196caa600bc72b1fe51e41be426c3f422cb38f4ba666ee62c` |
 | `src/Illuminate/Session/CacheBasedSessionHandler.php` | `f60a7447aeab6857526516514d096aadce05c2ea960c9f082c0802d0337f6308` |
 | `src/Illuminate/Session/CookieSessionHandler.php` | `fb4c6fe371bda398abcf62f30128021382357fb8ee7f16c88469c571c1ec4102` |
+
+## C04-D9 旧输入限定 Spec
+
+固定上游 `Store::flashInput/getOldInput/hasOldInput` 与 `Request::flash/flashOnly/flashExcept/flush/old` 对应同一 Session 状态机。公开 `Session::flash_input(Value)` 只接受数组或对象，使用既有 `flash("_old_input", ...)` 的原子状态、预算和年龄转换；读取先定位 `_old_input` 再在 bag 内 literal 优先、其次 dot，不拼接顶层路径，也不套 Request 的通配符规则。`None` 返回整 bag，缺失为 `[]`；指定键保留缺失和显式 null，默认值只在缺失时生效。整个 bag 非空或指定键非 null 才算有旧输入。若应用绕过 `flash_input` 直接将标量写入 `_old_input`，Rust 读取返回 `session_data_invalid`，避免将损坏 bag 冒充空输入；这是对 PHP 弱类型边界的明确适配。
+
+`RequestInfo` 只读方法借已有每请求 Session 句柄，无 Session 时返回缺失/空 bag，状态错误原样传播。拥有正文的 `Request` 从现有规范化的 `all/only/except` 闪存；`flush` 仅闪存空旧输入，不清 Session。默认 flash 不暗中过滤密码，示例应用明确使用 `flash_except`。本簇不解析上传文件，也不实现 redirect 错误 bag、CSRF、FormRequest 或自动闪存；已确认 Precognition 不自动保存 Session 的边界继续适用。
+
+验证需覆盖 null/default/false/0、字面点键、空选择、预算和状态错误、重复 flash 与年龄、唯一模块和生成应用的跨请求行为，以及适用双库与网络门禁。固定来源为 framework `d52c3b3129e4c8e213c97cdc68f94b0b7d27f181` 的 `Session/Store.php:356–373,553–556`、`Http/Request.php` 的 trait 引用及 `Http/Concerns/InteractsWithFlashData.php:16–67`；来源核对不等于本簇验收通过。

@@ -29,6 +29,19 @@ fn request(path: &str, accept: Option<&str>) -> Request<Body> {
     builder.body(Body::empty()).expect("request")
 }
 
+#[cfg(feature = "session")]
+#[test]
+fn old_input_without_session_is_missing_and_uses_default() {
+    let info = inspect(request("/", None)).expect("info");
+    assert_eq!(info.old_all().expect("old bag"), serde_json::json!([]));
+    assert_eq!(info.old("name").expect("old value"), None);
+    assert_eq!(
+        info.old_or("name", serde_json::json!("fallback"))
+            .expect("old default"),
+        serde_json::json!("fallback")
+    );
+}
+
 #[test]
 fn accept_order_canonical_params_duplicate_and_zero_quality() {
     let info = inspect(request("/", Some("text/html; q=0, application/json; note=\"a,b;c=d\";q=0.8, text/html;q=0.5, application/xml;q=0.8"))).expect("info");

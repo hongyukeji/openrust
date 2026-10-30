@@ -111,6 +111,14 @@ fn session_routes(routes: Routes) -> Routes {
     routes
         .get("/api/example/session", controllers::session::show)
         .post("/api/example/session", controllers::session::store)
+        .get(
+            "/api/example/session/old-input",
+            controllers::session::old_input,
+        )
+        .post(
+            "/api/example/session/old-input",
+            controllers::session::old_input_store,
+        )
         .post(
             "/api/example/session/previous",
             controllers::session::previous,
@@ -133,6 +141,12 @@ fn session_routes(routes: Routes) -> Routes {
                     .get("/preview", controllers::session::previous_visit)
                     .name("example.session.previous.preview")
             },
+        )
+        .group(
+            RouteGroup::new()
+                .prefix("/api/example/session/old-input")
+                .middleware_alias("precognitive"),
+            |routes| routes.post("/preview", controllers::session::old_input_store),
         )
 }
 

@@ -401,6 +401,29 @@ impl Session {
     pub fn get(&self, key: &str) -> Result<Option<Value>> {
         self.lock()?.attributes.get(key)
     }
+    /// 读取上一请求的输入；无键时返回整个 bag，缺失 bag 为 `[]`。
+    ///
+    /// 指定键时先读取 `_old_input`，再在该 bag 内按完整字面键优先、其次 dot 路径读取。
+    /// 缺失与显式 null 分别返回 `None` 和 `Some(Null)`。
+    pub fn get_old_input(&self, key: Option<&str>) -> Result<Option<Value>> {
+        self.lock()?.attributes.old_input(key)
+    }
+    /// 只有指定键缺失时才采用默认值；已有 null 保持 null。
+    pub fn get_old_input_or(&self, key: &str, default: Value) -> Result<Value> {
+        Ok(self.get_old_input(Some(key))?.unwrap_or(default))
+    }
+    /// 无键时判断旧输入 bag 是否非空；指定键时判断值是否非 null。
+    pub fn has_old_input(&self, key: Option<&str>) -> Result<bool> {
+        let value = self.get_old_input(key)?;
+        Ok(match key {
+            None => value.is_some_and(|value| match value {
+                Value::Array(values) => !values.is_empty(),
+                Value::Object(values) => !values.is_empty(),
+                _ => false,
+            }),
+            Some(_) => value.is_some_and(|value| !value.is_null()),
+        })
+    }
     /// 读取 `_previous.url` 原值；沿 [`Self::get`] 区分缺失与显式 null。
     ///
     /// Rust 返回原始 `Value`，不将公开 `put` 写入的非字符串值强制转换为 URL。
@@ -552,6 +575,10 @@ impl Session {
     pub fn flash<T: Serialize>(&self, key: &str, value: T) -> Result<&Self> {
         let value = super::store::value_from(&value, self.inner.max_bytes)?;
         self.mutate(|attributes| attributes.flash(key, value))
+    }
+    /// 将数组或对象作为下一请求的旧输入；状态和记录预算失败时原子回滚。
+    pub fn flash_input(&self, value: Value) -> Result<&Self> {
+        self.mutate(|attributes| attributes.flash_input(value))
     }
     /// 仅当前保存前可见；本次save会删除，reflash可显式延长。
     pub fn now<T: Serialize>(&self, key: &str, value: T) -> Result<&Self> {
