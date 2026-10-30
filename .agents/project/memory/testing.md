@@ -8,9 +8,11 @@
 - 已运行PG命令自然结束并完成自有资源清理；未开始的常规PG阶段不再安排，不停删共享PG服务、测试或feature。历史双库证据原样保留，以下历史记录不自动成为新发布范围通过。
 - CI常规数据库job为MySQL；手动`database_scope=release-backends`保留原PG18集成子矩阵，不代表完整发布已验收。后端专属例外按具体风险定向执行并留证；发布积压以[todo](../todo.md#发布前全后端兼容性验收)为准。
 
-## C04-D10-C 请求局部视图错误共享（验收中，未提交）
+<a id="c04-d10-c-请求局部视图错误共享验收中未提交"></a>
 
-**当前限定子范围已验收，待提交。** 本标题保留既有链接锚点；不表示行为仍待验。范围为请求私有errors、已存Session共享对象身份/替换/老化、模板参数桥接与显式context覆盖，以及fresh生成暴露的根目标/fallback、内部forward和HEAD站点出口。HEAD只置空/drop正文，保留status/headers/extensions，不poll流、不推断或补Content-Length；不覆盖站点外层middleware短路。不关闭完整Redirector、Validator/FormRequest/CSRF、HTTP/Session或发布全后端矩阵。
+## C04-D10-C 请求局部视图错误共享（已验收，已提交784045c）
+
+**当前限定子范围已验收，已由 `784045c` 本地提交。** 显式保留旧链接锚点，原验收/失败证据不变。范围为请求私有errors、已存Session共享对象身份/替换/老化、模板参数桥接与显式context覆盖，以及fresh生成暴露的根目标/fallback、内部forward和HEAD站点出口。HEAD只置空/drop正文，保留status/headers/extensions，不poll流、不推断或补Content-Length；不覆盖站点外层middleware短路。不关闭完整Redirector、Validator/FormRequest/CSRF、HTTP/Session或发布全后端矩阵。
 
 最终当前输入索引 `/tmp/openrust-c04d10c-public-only-v9/final-current-input-verification.json`，SHA256 `3204fc2fa9d0ff2e238e88d0b294c39410d5c47f5a8cbcb0af6a29973403a66e`；原v9集中索引 `/tmp/openrust-c04d10c-verification-v9/v9-resource-handoff.json`。共同freeze SHA `74597b3b6b9943257bc64311a211f481e09a365ecc53aeacad9386015e29679f`，各命令/日志/源锁/二进制/清理回执由索引逐项绑定。最终源码site SHA `a7eb531a6602f57237a1a4192efc3321f13a21f082c287c2c1617e1311e0ca6e`、router SHA `a0805bbf3aa43ddd55fee5c957033799892f1936e52c86169d7d45f97ab55712`。
 
@@ -21,11 +23,11 @@
 | fresh生成 | 普通fmt/check/test7项通过，覆盖运行时configured-application首页名称与两个空错误段；公开helper以显式上下文Generated精确断言title/h1、错误展示与老化；MySQL8.4.13模板fmt/check与认证2项通过。MySQL模板默认auth测试不调用新helper，因此另以独立公开consumer真实编译执行未改生成helper1项，actual0、0 ignored、无source drift |
 | 独立public续作 | `/tmp/openrust-c04d10c-public-only-v9/runs/d10c-v9-public2/result.json` accepted=true，test71.606秒、含driver77.590秒。新fixture仅通过公开迁移初始化driver唯一owned anchor；不调用另建随机库的TestDatabase，timeout/panic亦由finally精确DROP并确认不存在。manifest SHA `568fc0142b9965b22631ab53252d46738cdac1996f6738168feb3688fd240a4b`；13项mock与401节点/feature/edge可复算摘要支撑驱动独审，不能代替真实测试。与先前auth2是两次独立隔离验证 |
 | 最终真实TCP | `/tmp/openrust-c04d10c-network-v9/no-session-p7gtkos_/result.json` 与 `mysql-tgdpylg1/result.json` accepted=true、worker0、无timeout。无Session独立空包；MySQL默认/命名/custom错误、两Cookie隔离与flash独立老化；RootContext公开值HTML转义另验，不冒称网络用户错误消息注入转义。MySQL8.4.13同TCP迁移0，自有库DROP并核不存在；两服务正常退出、监听端口释放、敏感文件删除 |
-| 构建/审查 | server SHA `359d07984f0a80f194c2be756d3a2d26038e87592f802155a423b50e0fcf89a4`，CLI SHA `45cd9d49e480efa5f72f95052a28761343dd6ba2d411f9ec0aa5f79e46745cae`。最终源码和驱动独审包括 `/tmp/openrust-c04d10c-root-views-extract-independent-review.md`、`/tmp/openrust-c04d10c-public-only-independent-review.md`；静态审不代替行为通过 |
+| 构建/审查 | server SHA `359d07984f0a80f194c2be756d3a2d26038e87592f802155a423b50e0fcf89a4`，CLI SHA `45cd9d49e480efa5f72f95052a28761343dd6ba2d411f9ec0aa5f79e46745cae`。最终源码和驱动独审包括 `/tmp/openrust-c04d10c-root-views-extract-independent-review.md`、`/tmp/openrust-c04d10c-public-only-independent-review.md`；驱动独审两项should-fix（唯一owned anchor覆盖child终止清理、逐节点feature/依赖边可复算）均已修复并复审关闭，public2实际编译运行通过；静态审不代替行为通过 |
 
 历史v1–v8源码、freeze、实际失败/通过回执保留原目录；v3生成首页、v4–v7路由/fixture/HEAD失败及v8 Clippy失败只证明各旧输入，未覆写或作为最终通过。v9原MySQL整体回执因resource gate仍accepted=false，旧public-test未Popen；新public2独立续作成功，不回填旧结果。v9认证target退役的 `clean_actual_exit=null` 证据限制保留，不伪造0。资源50/100GB、磁盘10/5%未放宽；3GB为同feature/configuration完整target实测支撑的经验增长估值，不是上界。最终验收时登记37.489GB、diskfree106.536GB仅该时点与已登记路径，不代表全机缓存覆盖；自有一次性consumer缓存已在无symlink/进程/句柄/锁占用确认后正常cargo clean，actual0，精确回收1,293,717,504B；源码/锁/回执/freeze/main二进制哨兵不变，回执 `/tmp/openrust-c04d10c-consumer-v9-cache-retired.json`。main与未知缓存保留。
 
-本轮收口仅Agent状态/矩阵文档，无运行源码、模板、manifest/lock或环境命令变化；按已绑定输入复用上述有效证据，不重跑Cargo。实际本地提交事实待总控补记，不虚拟提交hash。
+本轮收口仅Agent状态/矩阵文档，无运行源码、模板、manifest/lock或环境命令变化；按已绑定输入复用上述有效证据，不重跑Cargo。D10-C源码与配套文档已由 `784045c` 本地提交；本次仅校准提交后的Agent状态，不改变验收输入。
 
 ## Session 测试入口整合小试点（限定验收通过）
 

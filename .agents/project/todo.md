@@ -393,11 +393,12 @@ D7真实Route/Resolver与受管理方法声明已通过限定验收：final3完�
 - main target保留复用；旧QX五生成包、本轮plain/PG生成包及四个本簇已完成测试可执行文件已精确退役，源码/锁/索引/当前二进制及共享库哨兵未变。日志明确Cargo关联test_app/auth_flows产物；不清整target，不碰归属不足的历史缓存。
 - D9 My生成项目已验收，源码/锁/证据保留；如后继需要空间，先核精确package dry-run与占用后再回收其专属再生产物，不为纯Agent文档变化重跑矩阵。
 
-## C04-D10-C 请求局部视图错误共享（已验收待提交）
+## C04-D10-D 请求绑定命名路由重定向（in_progress）
 
-- 已交付：请求局部共享errors、Session已存对象身份与整包替换/flash老化、锁外codec及重入/预算原子边界、显式context覆盖与模板参数桥接；唯一模块/生成helper已接公开入口。fresh生成暴露的根目标/fallback、内部forward和HEAD站点出口已修复并验收；站点外层middleware短路不在HEAD保证内。
-- 当前输入的定向、main适用门禁、新server/CLI、fresh普通7项、真实MySQL8.4.13生成认证2项与独立公开consumer1项、no-session/MySQL真实TCP均通过，独审收口，自有库/端口/敏感配置清理通过。限定提交尚未创建；[最终证据与失败保留](memory/testing.md#c04-d10-c-请求局部视图错误共享验收中未提交)。PG/全部后端发布矩阵及完整HTTP/Session、Redirector/Validation仍开放。
-- 下一候选：请求绑定命名重定向，复用 `RouteUrlGenerator::route` 与 `Redirector::to_with`；只读Spec `/tmp/openrust-c04d10-next-readonly-spec.md`，未领取新实现。action/guest/intended与完整L020.02仍开放。
+- 前置：D10-C已验收并由 `784045c` 提交；本簇已获准实施，源码与文档按总控分工，尚无本簇测试通过宣称。
+- Spec：新增 `Redirector::route(name, &BTreeMap<String, String>)` 与 `route_with(name, params, status, headers)`，复用请求私有的既有 `RouteUrlGenerator` 与 `to_with`；默认302、空头，不另建全局路由索引。沿用并公开现有URL参数形态限制，未知名/缺参数及缺resolver沿既有错误；保持原请求/Session借用及输入、错误闪存链不变。
+- 验收：先完成核心/HTTP回归、唯一 `modules/example` 与CLI源模板/helper接线，再集中执行适用门禁、fresh生成项目、真实MySQL8.4与绑定最终binary的TCP验收；当前无实现完成或测试通过结论。
+- action/guest/intended/signed、URL生成器其余扩展及完整L020.02/Redirector、Validation/HTTP/Session和PG发布矩阵仍开放。
 
 ## 发布前全后端兼容性验收
 
