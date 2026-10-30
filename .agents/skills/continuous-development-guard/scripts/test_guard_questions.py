@@ -104,6 +104,30 @@ class Questions(unittest.TestCase):
         self.assertEqual(self.step(131), 'question_answered')
         self.classifier.assert_called_once()
 
+    def test_valid_full_budget_grant_allows_ninety_percent_question_without_regrant(self):
+        response = {'accountId': 'account', 'ordinaryUsageAllowed': True, 'rateLimits': {
+            'limitId': 'codex', 'primary': {'usedPercent': 1, 'resetsAt': 2000, 'windowDurationMins': 60},
+            'spendControlReached': False, 'credits': {'hasCredits': False, 'unlimited': False, 'balance': '0'}}}
+        self.current['created_at_ms'] = 1000
+        self.config.update(usage_budget=guard.initialize_usage_budget(response, 10))
+        baseline = copy.deepcopy(self.config['usage_budget'])
+        controls = {'last_user_at': '2026-10-31T12:00:00Z', 'user_key': '2026-10-31T12:00:00Z'}
+        with patch.object(guard, 'goal', return_value=self.current), \
+             patch.object(guard, 'bound_goal', return_value=self.current), \
+             patch.object(guard, 'binding_valid', return_value=True):
+            guard.authorize_full_budget(self.runtime, self.config, self.current, controls, response)
+            path, _ = guard.grant_document(self.config)
+            before = path.read_bytes()
+            response['rateLimits']['primary']['usedPercent'] = 90
+            self.api.quota_delay = guard.quota_delay
+            self.api.rpc.return_value = response
+            self.assertEqual(self.step(10), 'question_wait')
+            self.assertEqual(self.step(130), 'question_answered')
+            self.assertEqual(path.read_bytes(), before)
+        self.classifier.assert_called_once()
+        self.api.answer_question.assert_called_once()
+        self.assertEqual(self.config['usage_budget'], baseline)
+
     def test_timeout_selects_second_option_without_recommended_label(self):
         self.assertEqual(self.step(10), 'question_wait')
         self.step(69)

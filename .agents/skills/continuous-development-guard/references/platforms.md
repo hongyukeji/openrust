@@ -101,9 +101,23 @@ Windows 的 `.cmd` / `.bat` 只通过同目录已有 npm package 的唯一 `bin`
 
 `start --use-full-budget-once` 只在用户明确授权当前完整任务使用本次全部可用额度时使用。公开开关本身代表操作人的明确授权，脚本不通过超时、旧问答或模型推断授权。`--allow-existing-credits` 是独立许可；缺少它时不消费credits。`--question-model`继续使用任务既有政策。
 
+主控须结合真实用户消息的肯定/否定/疑问/引用语气、额度指代及当前完整任务判断授权，再调用上述显式CLI；不是要求用户逐字复述固定口令。以下示例均须有明确的本次任务额度上下文：
+
+| 真实用户意图示例 | 主控映射 |
+| --- | --- |
+| 解除额度限制；不限制额度；本次不保留额度 | 单次取消本地20%保留线，使用既有`--use-full-budget-once` |
+| 额度用完为止；本次全部额度都可用；允许用满100% | 同上，仅使用当前任务正式可用额度 |
+| 继续；持续开发；全部处理好；尽快完成 | 无新完整额度授权，沿用默认80%或已有有效grant |
+| 不要解除限制；是否能不限制额度 | 否定/疑问不授权，不加开关 |
+| 讨论“额度用完为止”的含义；引用别人的“允许用满100%” | 讨论/引用不授权，不加开关 |
+
+主控不能从普通续作、问卷超时或其他任务许可推断本任务完整额度授权。新任务无明确授权保持默认80%；已有有效grant普通重载只沿用原授权，不重发、不重算。许可只覆盖本地reserve，不取消官方硬限，不授权付费、充值、切账号或跨周期复用；停止、完成和实际耗尽撤销规则不变。无模型Python守护只接受显式CLI政策，不实现自然语言关键词分类器。表驱动入口回归验证未传开关不会因控制文本产生grant；它不证明任意自然语言语义判断。
+
 正式快照中的agent/thread、原Goal的id/created_at_ms/objective、accountId/limitId及最新用户消息水位绑定一次性grant。`full-budget-once.json`独立保存有效覆盖与结束摘要；config只引用该文件。原`usage_budget.fraction=0.8`、baseline、窗口/credits reserve及account_budgets不因覆盖重算；覆盖期间不更新账号或周期基线。判定暂时允许使用保留部分，但官方included usage或已授权现有credits的资格、消费硬限及完整数值检查仍生效。credits最多采用授权快照中已有余额或已有无限额度，余额上涨不自动扩授权。
 
-热重载：先普通`stop`，再`start`。已有有效grant继续生效，`already_running`不改政策。新授予用`start --use-full-budget-once --allow-existing-credits`；暂停原Goal还须显式加`--resume-budget-paused`。恢复仅接受state中`usage_budget_paused=true`、`percentage_pause.resume_status=waiting`且完整Goal版本相同的守护自有暂停，并要求新的正式用户水位；缺失来源、人工暂停、在途激活/发送未知、权限等待均拒绝。通过正式`thread/goal/get`校验后，持久化activating再用`thread/goal/set`激活原Goal；确认active才标记完成，保留问答与发送幂等。新授权可解除其前的旧控制水位，授权之后的新控制不得清除。恢复入口本身不伪造答卷或发送继续消息，后续由原守护正常判定推进。
+有效grant统一用于主循环、暂停原因、暂停中的credits保留线及恢复检查。官方普通资格可用时，即使同窗口已用90%、credits已为0，也不再等待旧20%保留线或窗口推进；原周期绑定、完整正式资格及硬限制仍须通过。普通“继续”与无grant重载不升级政策，结束覆盖后沿用原保留线。窗口变化不套用本次覆盖；实际耗尽后暂停监测也不得刷新基线、等待新周期复用同次授权。
+
+热重载：先普通`stop`，再`start`。已有有效grant继续生效，`already_running`不改政策。新授予用`start --use-full-budget-once --allow-existing-credits`；暂停原Goal还须显式加`--resume-budget-paused`。恢复仅接受state中`usage_budget_paused=true`、`percentage_pause.resume_status=waiting`（或旧控制水位已取消自动恢复的`cancelled`）且完整Goal版本相同的守护自有暂停，并要求新的正式用户水位；缺失来源、人工暂停、在途激活/发送未知、权限等待均拒绝。通过正式`thread/goal/get`校验后，持久化activating再用`thread/goal/set`激活原Goal；确认active才标记完成，保留问答与发送幂等。新授权可解除其前的旧控制水位，授权之后的新控制不得清除。恢复入口本身不伪造答卷或发送继续消息，后续由原守护正常判定推进。
 
 `stop --stop-task`和`finish`结束grant；普通stop保留以便重载。正式窗口全部资格不可用且无获准可用credits时记actual_quota_exhausted，撤销覆盖并暂停原Goal，不自动等reset再用同次授权。额度未知或硬限继续保守等待，仍受既有一小时有界退出约束；账号或Goal身份变化撤销覆盖并保留硬边界。结束记录作为防重摘要保留，同一正式用户水位不能重复发放已结束grant。
 

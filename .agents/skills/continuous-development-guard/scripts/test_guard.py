@@ -1678,6 +1678,7 @@ class FullBudgetOnce(unittest.TestCase):
 
     def test_explicit_resume_uses_original_goal_protocol_and_keeps_idempotency(self):
         self.grant()
+        self.response['rateLimits']['primary']['usedPercent'] = 90
         state = self.state(); calls = []
         def rpc(method, params):
             calls.append((method, params))
@@ -1695,6 +1696,104 @@ class FullBudgetOnce(unittest.TestCase):
         self.assertEqual(state['attempts'], 2)
         self.assertEqual([p for m, p in calls if m == 'thread/goal/set'], [{'threadId': 't', 'status': 'active'}])
         with self.assertRaises(ValueError): recovery.resume_budget_pause(self.runtime, self.config, state)
+
+    def monitor_full_budget(self, response, *, controls_changed=False):
+        state = self.state()
+        state['percentage_pause'].update(controls=dict(self.controls), windows={'primary': '2000'},
+                                         next_quota_at=0, account_id='account', account_recovery=True)
+        calls = []
+        def remote(method, params):
+            calls.append(method)
+            if method == 'thread/goal/set':
+                self.current['status'] = params['status']
+                return {}
+            return response
+        controls = dict(self.controls, control='pause') if controls_changed else self.controls
+        with patch.object(recovery, 'percentage_pause_controls', return_value=controls), \
+             patch.object(recovery, 'rpc', side_effect=remote), \
+             patch.object(recovery, 'run_json') as send, \
+             patch.object(recovery, 'login_revision', return_value=None):
+            outcome = recovery.monitor_percentage_pause(self.runtime, state, self.config,
+                                                         dict(self.current), 1000)
+        return outcome, state, calls, send.call_count
+
+    def test_owned_pause_resumes_at_ninety_without_reset_or_credit_reserve(self):
+        # 原credits参与预算，已耗尽仍有普通资格；不能残留旧credits保留线。
+        self.response['rateLimits']['credits'].update(hasCredits=True, balance='10')
+        self.config['usage_budget'] = recovery.initialize_usage_budget(self.response, 100)
+        baseline = json.loads(json.dumps(self.config['usage_budget']))
+        self.grant()
+        path, _ = recovery.grant_document(self.config)
+        grant_bytes = path.read_bytes()
+        low = json.loads(json.dumps(self.response))
+        low['rateLimits']['primary']['usedPercent'] = 90
+        low['rateLimits']['credits'].update(hasCredits=False, balance='0')
+        outcome, state, calls, sends = self.monitor_full_budget(low)
+        self.assertEqual(outcome, 'percentage_resumed')
+        self.assertEqual(self.current['status'], 'active')
+        self.assertEqual(state['percentage_pause']['resume_status'], 'sent')
+        self.assertEqual(calls.count('thread/goal/set'), 1)
+        self.assertEqual(sends, 1)
+        self.assertEqual(path.read_bytes(), grant_bytes)
+        self.assertEqual(self.config['usage_budget'], baseline)
+        self.assertEqual(self.config['account_budgets'], self.before['account_budgets'])
+        self.assertEqual(state['questions'], {'q': {'status': 'unknown'}})
+        self.assertEqual(state['dispatch_key'], 'uncertain')
+
+    def test_owned_pause_default_and_ended_grant_do_not_upgrade_plain_continue(self):
+        low = json.loads(json.dumps(self.response))
+        low['rateLimits']['primary']['usedPercent'] = 90
+        for policy in ('default', 'ended'):
+            with self.subTest(policy=policy):
+                if policy == 'ended':
+                    self.grant()
+                    recovery.end_full_budget(self.config, 'explicit_revoke')
+                outcome, _, calls, sends = self.monitor_full_budget(low)
+                self.assertIn(outcome, ('percentage_reset_wait', 'account_budget_wait'))
+                self.assertNotIn('thread/goal/set', calls)
+                self.assertEqual(sends, 0)
+                self.assertNotIn('_full_budget_once', recovery.effective_usage_budget(self.config))
+
+    def test_owned_pause_changed_goal_never_refreshes_account_history(self):
+        self.grant()
+        before = json.loads(json.dumps(self.config))
+        self.current['objective'] = '不同目标'
+        with patch.object(recovery, 'refresh_account_budget') as account, \
+             patch.object(recovery, 'refresh_usage_cycles') as cycles:
+            outcome, _, calls, sends = self.monitor_full_budget(self.response)
+        self.assertEqual(outcome, 'percentage_pause_not_owned')
+        account.assert_not_called(); cycles.assert_not_called()
+        self.assertEqual(sends, 0)
+        self.assertNotIn('thread/goal/set', calls)
+        self.assertEqual(self.config, before)
+        self.assertEqual(recovery.full_budget_end_reason(self.config), 'goal_identity_changed')
+
+    def test_owned_pause_grant_never_resumes_unknown_hard_cycle_identity_or_manual(self):
+        self.grant()
+        for kind in ('unknown', 'hard', 'cycle', 'manual', 'account', 'exhausted'):
+            with self.subTest(kind=kind):
+                snapshot = json.loads(json.dumps(self.response))
+                snapshot['rateLimits']['primary']['usedPercent'] = 90
+                if kind == 'unknown': snapshot.pop('ordinaryUsageAllowed')
+                elif kind == 'hard': snapshot['rateLimits']['spendControlReached'] = True
+                elif kind == 'cycle': snapshot['rateLimits']['primary']['resetsAt'] = 4000
+                elif kind == 'account': snapshot['accountId'] = 'other'
+                elif kind == 'exhausted':
+                    # 独立的新明确授权；前一个账号变化已撤销。
+                    self.controls['user_key'] = '2026-10-31T12:02:00Z'
+                    self.grant()
+                    snapshot['ordinaryUsageAllowed'] = False
+                    snapshot['rateLimits']['primary']['usedPercent'] = 100
+                outcome, _, calls, sends = self.monitor_full_budget(snapshot, controls_changed=kind == 'manual')
+                self.assertNotEqual(outcome, 'percentage_resumed')
+                self.assertNotIn('thread/goal/set', calls)
+                self.assertEqual(sends, 0)
+        self.assertEqual(recovery.full_budget_end_reason(self.config), 'actual_quota_exhausted')
+        reset = json.loads(json.dumps(self.response))
+        reset['rateLimits']['primary']['resetsAt'] = 4000
+        outcome, _, calls, _ = self.monitor_full_budget(reset)
+        self.assertEqual(outcome, 'percentage_pause_not_owned')
+        self.assertNotIn('thread/goal/set', calls)
 
     def run_resume_cli(self, has_grant, same_human=False):
         root = Path(self.temp.name)
@@ -1750,6 +1849,54 @@ class FullBudgetOnce(unittest.TestCase):
                 self.assertFalse(grant_path.exists())
                 self.assertFalse(any(c.args[0] == 'thread/goal/set' for c in calls.call_args_list))
             authorize.assert_not_called()
+
+    def ordinary_cli(self, root, text, existing_grant=False):
+        self.current['status'] = 'active'
+        self.config.update(agent='6b56ea51-0bb7-44a7-8547-7073f8f2c7e4',
+                           thread='01a175a5-d24c-71f0-86d7-ae693a28931d')
+        runtime = root / '.agents/project/guards' / self.config['agent']
+        runtime.mkdir(parents=True)
+        if existing_grant:
+            recovery.authorize_full_budget(runtime, self.config, dict(self.current), self.controls, self.response)
+            (runtime / 'config.json').write_text(json.dumps(self.config))
+        grant = runtime / 'full-budget-once.json'
+        before = grant.read_bytes() if grant.exists() else None
+        def launch(*args, **kwargs):
+            (runtime / 'supervisor.json').write_text('{}')
+            return type('FakeProcess', (), {'pid': 123, 'poll': lambda _: None})()
+        argv = [str(SCRIPT), 'start', '--agent', self.config['agent'], '--thread', self.config['thread']]
+        with patch.object(recovery, 'ROOT', root), patch.object(sys, 'argv', argv), \
+             patch.object(recovery.platform, 'command'), \
+             patch.object(recovery, 'config_for', side_effect=lambda _: dict(self.config)), \
+             patch.object(recovery, 'timeline', return_value={'kind': 'user_message',
+                          'user_context': {'message': text}}), \
+             patch.object(recovery, 'rpc', return_value=self.response), \
+             patch.object(recovery, 'authorize_full_budget') as authorize, \
+             patch.object(recovery.subprocess, 'Popen', side_effect=launch):
+            recovery.main()
+        authorize.assert_not_called()
+        saved = json.loads((runtime / 'config.json').read_text())
+        self.assertEqual(saved['usage_budget']['fraction'], '0.8')
+        self.assertEqual(grant.read_bytes() if grant.exists() else None, before)
+        return saved
+
+    def test_public_cli_requires_explicit_flag_independent_of_control_text(self):
+        # 只验证公开入口不按文本授予；主控的任意自然语言理解不在此单元测试内。
+        cases = [('ordinary', '继续'), ('development', '持续开发'), ('complete', '全部处理好'),
+                 ('fast', '尽快完成'), ('negative', '不要解除限制'),
+                 ('question', '是否能不限制额度'), ('quote', '讨论“额度用完为止”的含义'),
+                 ('affirmative_without_mapping', '允许用满100%')]
+        for kind, text in cases:
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory:
+                saved = self.ordinary_cli(Path(directory), text)
+                self.assertFalse(Path(saved['full_budget_grant_file']).exists())
+                self.assertNotIn('_full_budget_once', recovery.effective_usage_budget(saved))
+
+    def test_public_ordinary_reload_preserves_grant_bytes_and_original_budget(self):
+        with tempfile.TemporaryDirectory() as directory:
+            saved = self.ordinary_cli(Path(directory), '继续把全部处理好', existing_grant=True)
+            self.assertEqual(saved['usage_budget'], self.before['usage_budget'])
+            self.assertIn('_full_budget_once', recovery.effective_usage_budget(saved))
 
     def test_public_resume_reuses_existing_grant_after_new_user_message(self):
         self.run_resume_cli(has_grant=True)
