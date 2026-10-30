@@ -136,6 +136,7 @@ cargo deny check
 
 - 不设人为固定的并行任务、对话框或分支数量上限；总控持续从唯一todo选取前置满足、contract明确且可隔离的任务，按实际空闲槽位扩展并行，不把当前两个任务当作配额。单个总控的子智能体槽位不足时，可由总控通过正式Paseo接口新建独立执行对话框，不把该父会话槽位上限当作整个项目的并行上限；服务商/宿主的真实并发限制、模型额度及CPU/内存/磁盘仍须遵守。优先复用或正常结束已完成代理，不终止有效在途任务。
 - Paseo只使用当前仓库对应的既有OpenRust项目，不为任务目录/worktree注册独立项目。先从正式project列表核对项目ID与根路径，再用`paseo workspace create --project <现有项目ID> --isolation worktree ...`在该项目下创建隔离工作区；核对返回workspace/project/cwd与`git common-dir`确属当前仓库。Paseo管理的工作区路径以正式返回值为准，不强行套临时目录约定。
+- 项目管理目标为OpenRust下main与tasks任务分组同级，任务分支沿`tasks/<任务标识>`；tasks是显示组织，不是把不同分支的执行者放进一个共享checkout。若正式Paseo接口支持分组则使用，未核实支持时将同项目各独立workspace标题统一为`tasks/<任务标识>`，对话框注明实现/审查职责；名称前缀不冒称真正嵌套分组。不为显示层级新增项目、源码tasks目录或改Paseo内部数据库。
 - 独立Paseo执行对话框由总控统一创建、登记和收取结果；核对已安装CLI的`--help`后，使用`paseo run --workspace <该项目任务workspaceID> --provider codex --model gpt-6.1-sol --no-wait --json <任务说明>`，不要仅传`--cwd`而继承父workspace或自动注册新项目。创建后再次核对真实project/workspace/cwd绑定。明确单一子任务、文件范围、原总控ID/预算约束、禁止递归派发及独立完整Goal/重复守护；记录实际agent ID、分支/worktree和状态，轮询或等待不产生重复派发。完成后收取commit/证据，由总控集成；对话框无在途任务后正常归档（不硬删除），再按下文清理任务专属worktree/分支。总控暂停/预算停止时须协调停止其派发的执行任务，不让独立对话框脱离原任务预算继续消费。
 - 总控维护唯一todo依赖图，按本机资源与额度安排多个独立簇；每项登记负责人、冻结Spec/公共接口、前置、基线commit、分支/worktree、文件范围、构建/服务资源、验收、集成与清理状态。依赖未满足只做只读审计，不重复派发现有任务。
 - 在同一Git仓库创建本地任务分支（建议`tasks/<任务标识>`）与临时worktree；默认临时目录用`/tmp/openrust-worktrees/<任务标识>`，先确认路径未被占用。独立对话框或子代理均须绑定正确工作目录；不新建源码仓库、不默认给worker启动重复守护。
