@@ -5,12 +5,12 @@ use super::{
 };
 use crate::{
     Result,
-    http::{CookieFactory, CookieOptions, CookieResponseExt},
+    http::{CookieFactory, CookieOptions, RequestInfo},
 };
 use axum::{
     extract::{FromRequestParts, Request, State},
     middleware::Next,
-    response::{IntoResponse, Response},
+    response::Response,
 };
 use std::sync::Arc;
 
@@ -56,54 +56,83 @@ pub(crate) async fn handle(
             return crate::http::cookie::private_error_response(error);
         }
     };
-    let _close = Close(Some(session.clone()), None);
-    let secure = match crate::http::transport::is_secure(&request) {
-        Ok(value) => value,
-        Err(error) => return crate::http::cookie::private_error_response(error),
-    };
     let jar = request
         .extensions()
         .get::<crate::http::CookieJar>()
         .cloned();
-    let response = next.run(request).await;
+    let mut close = Close(Some(session.clone()), jar);
     let result = async {
-        session.save().await?;
-        let config = &layer.settings.config;
-        let mut factory = CookieFactory::default();
-        factory.set_default_path_and_domain(
-            config.path.clone(),
-            config.domain.clone(),
-            config.secure.or(Some(secure)),
-            config.validate()?,
-        )?;
-        let minutes = if config.expire_on_close {
-            0
-        } else {
-            i64::try_from(config.lifetime).map_err(crate::Error::internal)?
-        };
-        let cookie = factory
-            .make(
-                session.name()?,
-                session.id()?.to_string(),
-                minutes,
-                CookieOptions {
-                    http_only: config.http_only,
-                    ..CookieOptions::default()
-                },
-            )?
-            .with_partitioned(config.partitioned);
-        response.with_cookie(cookie)
+        let secure = crate::http::transport::is_secure(&request)?;
+        let (mut parts, body) = request.into_parts();
+        // Route 与 Precognition 共享请求私有状态；不得在下游前猜测最终命中或确认。
+        let info = RequestInfo::from_request_parts(&mut parts, &()).await?;
+        let response = next.run(Request::from_parts(parts, body)).await;
+        complete(&layer, &session, &info, secure, response).await
     }
     .await;
     match result {
-        Ok(response) => response.into_response(),
-        Err(error) => {
-            if let Some(jar) = jar {
-                let _ = jar.flush_queued_cookies();
-            }
-            crate::http::cookie::private_error_response(error)
+        Ok(response) => {
+            close.1 = None;
+            response
         }
+        Err(error) => crate::http::cookie::private_error_response(error),
     }
+}
+
+async fn complete(
+    layer: &SessionLayer,
+    session: &Session,
+    info: &RequestInfo,
+    secure: bool,
+    mut response: Response,
+) -> Result<Response> {
+    if info.method() == http::Method::GET
+        && info.route()?.is_some()
+        && !info.ajax()?
+        && !info.prefetch()?
+        && !info.is_precognitive()
+    {
+        session.set_previous_url(&info.full_url()?)?;
+        // 上游写 URL 后再次调用公开 resolver；有状态 resolver 的第二次结果不能复用。
+        let route = info.route()?.ok_or_else(|| {
+            crate::Error::custom_with_status(
+                http::StatusCode::INTERNAL_SERVER_ERROR,
+                "session_previous_route_missing",
+                "记录上一请求名称时路由已不存在",
+            )
+        })?;
+        session.set_previous_route(route.name())?;
+    }
+    let config = &layer.settings.config;
+    let mut factory = CookieFactory::default();
+    factory.set_default_path_and_domain(
+        config.path.clone(),
+        config.domain.clone(),
+        config.secure.or(Some(secure)),
+        config.validate()?,
+    )?;
+    let minutes = if config.expire_on_close {
+        0
+    } else {
+        i64::try_from(config.lifetime).map_err(crate::Error::internal)?
+    };
+    let cookie = factory
+        .make(
+            session.name()?,
+            session.id()?.to_string(),
+            minutes,
+            CookieOptions {
+                http_only: config.http_only,
+                ..CookieOptions::default()
+            },
+        )?
+        .with_partitioned(config.partitioned);
+    crate::http::cookie::attach_response_cookies(&mut response, [cookie], false)?;
+    // 已确认的预检仍已执行 start/GC，并保留响应 Cookie；仅跳过自动持久化。
+    if !info.is_precognitive() {
+        session.save().await?;
+    }
+    Ok(response)
 }
 async fn prepare(layer: &SessionLayer, request: &mut Request) -> Result<Session> {
     let parsed = crate::http::cookie::parse_headers(request.headers())?;

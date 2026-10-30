@@ -18,6 +18,7 @@
 | ADR | 状态 | 当前归属与边界 |
 | --- | --- | --- |
 | [083 真实路由上下文与受管理方法声明](adr-083-matched-route-context.md) | Accepted（限定子范围已验收） | D7公开Route/参数/resolver、QUERY/受管理方法及fallback/OPTIONS纠偏；原生Axum逃生口边界明确；不关闭完整Routing/模型绑定 |
+| [084 Session previous 与请求级 Precognition](adr-084-session-previous-and-precognition.md) | 实现中，尚未验收 | D8真实Route后的previous保存、可信确认状态、受管理参数提取/分派与统一规则选择；完整FormRequest/URI对象/官方前端包仍开放 |
 
 ## 运行时配置与异步目标
 

@@ -375,14 +375,9 @@ D5验收：D5请求级GC lottery/公开driver回收与追加expiry索引迁移�
 
 D7真实Route/Resolver与受管理方法声明已通过限定验收：final3完整12门禁、默认695/29 ignored、全特性1403/103 ignored、根PG18/MySQL8.4各64、fresh5/2/2、真实TCP7及不同模型复审；忽略项不算真实服务。根target清零，五旧consumer不变，限定提交以Git为准；完整Routing/Request与previous/Precognition仍开放。公开Route/参数/resolver、受管理方法与fallback/OPTIONS按[ADR-083](decisions/adr-083-matched-route-context.md)交付；[最终证据](memory/testing.md#c04-d7-真实路由上下文限定子范围已验收)保留失败修复、用户重验判断、真实服务及清理边界。
 
-## 后继 C04-D8：Session previous 与 Precognition（待领取）
+## 后继 C04-D9：Session old input（待Spec）
 
-D7限定提交后，按固定Laravel StartSession、Request与HandlePrecognitiveRequests及测试起草Spec，再实现previous URL/name和真实Precognition生命周期；不得仅凭客户端header跳过保存，不用状态码代替真实Route，不重做D7。
-
-- previous只在真实GET route、非ajax/prefetch/已确认Precognition后于下游返回保存fullUrl及可空name，不按响应状态过滤；HEAD不保存。
-- 沿唯一Session/Request/Provider/middleware与验证机制，先审计已支持范围及FormRequest/验证依赖，不建第二解析器或Hooks内核。
-- 唯一模块、生成应用、实际HTTP/双库、默认/全特性门禁、错误/取消/持久化失败与资源收尾同簇交付；完整Old Input/CSRF/FormRequest后继继续开放。
-- gRPC聚合测试临时端口释放竞争及就绪轮询诊断留既有运行时质量项；D7未修改其超时或假称解决根因。
+D8已按限定范围验收，见[证据](memory/testing.md#c04-d8-previous-与-precognition限定子范围已验收)。下一主线先核固定Laravel Store的flashInput/getOldInput/hasOldInput与Request flash/old输入访问、测试和现有flash/request机制，再冻结最小公共contract并实施。保留Rust缺失/null/类型边界，默认敏感字段过滤须按上游职责对照，不将应用策略冒称默认；不另造Session或输入解析器。唯一模块、生成项目与双库/网络适用证据同簇交付。完整CSRF、FormRequest和规则集仍按后继依赖，不由D8关闭。
 
 ## 完整实现后的发布仓库整理（后置，未启动）
 

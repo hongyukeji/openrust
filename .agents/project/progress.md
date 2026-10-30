@@ -6,7 +6,7 @@
 
 ## 当前功能簇
 
-D7真实Route/Resolver与受管理方法声明已通过限定验收：final3完整12门禁、默认695/29 ignored、全特性1403/103 ignored、根PG18/MySQL8.4各64、fresh5/2/2、真实TCP7及不同模型复审；忽略项不算真实服务。根target清零，五旧consumer不变，限定提交以Git为准；完整Routing/Request与previous/Precognition仍开放。[证据与限制](memory/testing.md#c04-d7-真实路由上下文限定子范围已验收)。下一簇按唯一todo领取。
+C04-D8 previous与显式Precognition限定子范围已完成适用验收：稳定主线门禁、全特性1439 passed/104 ignored、Rust1.97 check、真实PG18/MySQL8.4各67项模块HTTP及各1项previous、所有权PG3/My2、新生成应用5/2/2、真实TCP6项与最终CLI快照1项均有证据。默认workspace以709项有效结果与修后20项doctest按影响复用，非虚报原失败命令exit0。完整Old Input/CSRF/FormRequest、规则集与整个HTTP/Session继续开放。 [证据与限制](memory/testing.md#c04-d8-previous-与-precognition限定子范围已验收)。下一主线为Session old input的Spec；并行R2-X/Q按各自门禁继续，不因D8完成视为已集成。
 
 ## Laravel 1:1 功能与进度概览
 

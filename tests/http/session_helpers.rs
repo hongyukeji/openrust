@@ -15,6 +15,71 @@ fn session() -> Result<Session> {
 }
 
 #[test]
+fn previous_helpers_preserve_raw_null_dot_paths_and_public_attribute_interoperation() -> Result<()>
+{
+    let session = session()?;
+    assert_eq!(session.previous_url()?, None);
+    assert_eq!(session.previous_route()?, None);
+    assert!(!session.has_previous_uri()?);
+    session
+        .put("business.keep", true)?
+        .put("_previous.other", "kept")?
+        .set_previous_url("https://example.test/posts?page=2")?
+        .set_previous_route(Some("posts.index"))?;
+    assert_eq!(
+        session.previous_url()?,
+        Some(json!("https://example.test/posts?page=2"))
+    );
+    assert_eq!(session.previous_route()?, Some(json!("posts.index")));
+    assert_eq!(session.get("_previous.url")?, session.previous_url()?);
+    assert_eq!(session.get("_previous.route")?, session.previous_route()?);
+    assert_eq!(
+        session.get("_previous")?,
+        Some(json!({
+            "other":"kept",
+            "url":"https://example.test/posts?page=2",
+            "route":"posts.index"
+        }))
+    );
+    session.set_previous_route(None)?;
+    assert_eq!(session.previous_route()?, Some(Value::Null));
+    assert!(session.exists(&["_previous.route"])?);
+    assert!(!session.has(&["_previous.route"])?);
+    session.put("_previous.route", json!({"raw":true}))?;
+    assert_eq!(session.previous_route()?, Some(json!({"raw":true})));
+    for value in [Value::Null, json!(false), json!(0), json!(""), json!([1])] {
+        session.put("_previous.url", value.clone())?;
+        assert_eq!(session.previous_url()?, Some(value.clone()));
+        assert_eq!(session.has_previous_uri()?, !value.is_null());
+    }
+    session.set_previous_url("")?.set_previous_route(Some(""))?;
+    assert_eq!(session.previous_url()?, Some(json!("")));
+    assert_eq!(session.previous_route()?, Some(json!("")));
+    assert!(session.has_previous_uri()?);
+    assert_eq!(session.get("_previous.other")?, Some(json!("kept")));
+    assert_eq!(session.get("business.keep")?, Some(json!(true)));
+    Ok(())
+}
+
+#[test]
+fn previous_setters_preserve_whole_record_budget_and_reject_mutation_atomically() -> Result<()> {
+    let session = session()?;
+    let half = "x".repeat(openrust::session::DEFAULT_MAX_BYTES / 2);
+    session
+        .put("padding", &half)?
+        .set_previous_url("/kept")?
+        .set_previous_route(Some("kept"))?;
+    let before = session.all()?;
+    assert!(session.set_previous_url(&half).is_err());
+    assert_eq!(session.all()?, before);
+    assert!(session.set_previous_route(Some(&half)).is_err());
+    assert_eq!(session.all()?, before);
+    assert_eq!(session.previous_url()?, Some(json!("/kept")));
+    assert_eq!(session.previous_route()?, Some(json!("kept")));
+    Ok(())
+}
+
+#[test]
 fn remember_distinguishes_null_and_false_and_preserves_reentrant_side_effects() -> Result<()> {
     let session = session()?;
     let calls = AtomicUsize::new(0);
@@ -266,7 +331,11 @@ impl SessionStore for PendingStore {
 #[tokio::test]
 async fn busy_helpers_reject_before_callbacks_and_cancellation_releases_gate() -> Result<()> {
     let session = Session::new(None, Arc::new(PendingStore), None)?;
-    session.put("counter", 1)?;
+    session
+        .put("counter", 1)?
+        .set_previous_url("/before")?
+        .set_previous_route(Some("before"))?;
+    let before = session.all()?;
     let mut start = Box::pin(session.start());
     assert!(
         tokio::time::timeout(std::time::Duration::from_millis(10), start.as_mut())
@@ -290,9 +359,24 @@ async fn busy_helpers_reject_before_callbacks_and_cancellation_releases_gate() -
     assert!(session.push("list", 1).is_err());
     assert!(session.remove("counter").is_err());
     assert!(session.set_name("new_name").is_err());
+    for result in [
+        session.set_previous_url("/blocked"),
+        session.set_previous_route(None),
+    ] {
+        assert_eq!(
+            result.err().map(|error| error.code().to_owned()),
+            Some("session_operation_in_progress".into())
+        );
+    }
     assert_eq!(session.get("counter")?, Some(json!(1)));
+    assert_eq!(session.all()?, before);
     drop(start);
     assert_eq!(session.increment("counter")?, json!(2));
+    session
+        .set_previous_url("/after")?
+        .set_previous_route(None)?;
+    assert_eq!(session.previous_url()?, Some(json!("/after")));
+    assert_eq!(session.previous_route()?, Some(Value::Null));
     Ok(())
 }
 

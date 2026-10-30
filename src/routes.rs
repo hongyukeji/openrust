@@ -117,6 +117,37 @@ impl BootContext<'_> {
         Ok(self)
     }
 
+    /// 设置路由命名 middleware 的优先级；不启用或自动挂载其中的 alias。
+    ///
+    /// 可先于 alias 登记；组展开后沿统一路由链排序，未列出的项保持相对顺序。
+    /// 全局 `http_layer` 与原生 Axum 逃生入口不属于此路由优先级表。
+    pub fn middleware_priority<I, S>(&mut self, names: I) -> Result<&mut Self>
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.extension_mut::<RouteRegistry>()?
+            .middleware
+            .priority(names.into_iter().map(Into::into).collect())?;
+        Ok(self)
+    }
+
+    /// 将一个 alias 放到路由优先级表首部；不改变全局 HTTP layer。
+    pub fn prepend_middleware_priority(&mut self, name: impl Into<String>) -> Result<&mut Self> {
+        self.extension_mut::<RouteRegistry>()?
+            .middleware
+            .prepend_priority(name.into())?;
+        Ok(self)
+    }
+
+    /// 将一个 alias 放到路由优先级表尾部；不改变全局 HTTP layer。
+    pub fn append_middleware_priority(&mut self, name: impl Into<String>) -> Result<&mut Self> {
+        self.extension_mut::<RouteRegistry>()?
+            .middleware
+            .append_priority(name.into())?;
+        Ok(self)
+    }
+
     /// 在 Provider boot 阶段贡献共享 HTTP layer。
     pub fn http_layer<L>(&mut self, layer: L) -> Result<&mut Self>
     where
@@ -290,10 +321,11 @@ pub fn build_router(app: &App) -> Result<Router> {
     validate_trusted_proxy_ranges(&app.config().server.trusted_proxy_ranges)?;
     let mut route_urls = None;
     let mut stateful = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let middleware_registry = app
+        let mut middleware_registry = app
             .extension::<RouteRegistry>()
             .map(|registry| registry.middleware.clone())
             .unwrap_or_default();
+        middleware_registry.install_framework_defaults()?;
         middleware_registry.validate()?;
         let mut routes = Routes::with_middleware_registry(Arc::new(middleware_registry));
         if let Some(registry) = app.extension::<RouteRegistry>() {

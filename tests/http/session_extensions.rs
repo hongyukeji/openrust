@@ -630,6 +630,14 @@ async fn completed_response_closes_setters_and_request_binding_on_retained_clone
             code(session.set_request_on_handler(context(json!({}))?).await).as_deref(),
             Some("session_closed")
         );
+        assert_eq!(
+            code(session.set_previous_url("/late")).as_deref(),
+            Some("session_closed")
+        );
+        assert_eq!(
+            code(session.set_previous_route(None)).as_deref(),
+            Some("session_closed")
+        );
         Ok(())
     }
     .await;

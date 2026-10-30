@@ -9,13 +9,14 @@ use std::sync::{
 
 use axum::{
     body::{Body, to_bytes},
-    http::{HeaderMap, Request as Wire, StatusCode},
+    http::{HeaderMap, Method, Request as Wire, StatusCode},
     response::{IntoResponse, Response},
 };
 use openrust::config::{FrameworkConfig, HttpStatusMode, SessionConfig};
 use openrust::http::{
     CookieJar, CookieOptions, CookieResponseExt, CookieServiceProvider, HttpServiceProvider,
-    Inject, Json, RequestInfo, build_router,
+    Inject, Json, Path, RequestInfo, Route, RouteGroup, Validated, build_router,
+    handle_precognitive_requests,
 };
 use openrust::session::{
     MemorySessionStore, Session, SessionId, SessionRecord, SessionServiceProvider, SessionStore,
@@ -27,21 +28,30 @@ use openrust::{
 };
 use serde_json::{Value, json};
 use time::OffsetDateTime;
-use tokio::sync::oneshot;
+use tokio::sync::{Notify, oneshot};
 
 #[derive(Clone, Default)]
 struct Probe {
     memory: MemorySessionStore,
     writes: Arc<AtomicUsize>,
     fail: Arc<AtomicBool>,
+    loads: Arc<AtomicUsize>,
+    collections: Arc<AtomicUsize>,
+    pending: Arc<AtomicBool>,
+    write_entered: Arc<Notify>,
 }
 impl SessionStore for Probe {
+    fn gc(&self, _: i64) -> BoxFuture<'_, Result<u64>> {
+        self.collections.fetch_add(1, Ordering::SeqCst);
+        Box::pin(async { Ok(0) })
+    }
     fn load<'a>(
         &'a self,
         id: &'a SessionId,
         maximum: usize,
         expiry: OffsetDateTime,
     ) -> BoxFuture<'a, Result<Option<SessionRecord>>> {
+        self.loads.fetch_add(1, Ordering::SeqCst);
         self.memory.load(id, maximum, expiry)
     }
     fn write<'a>(
@@ -52,6 +62,10 @@ impl SessionStore for Probe {
     ) -> BoxFuture<'a, Result<SessionWriteOutcome>> {
         Box::pin(async move {
             self.writes.fetch_add(1, Ordering::SeqCst);
+            if self.pending.load(Ordering::SeqCst) {
+                self.write_entered.notify_one();
+                return std::future::pending().await;
+            }
             if self.fail.load(Ordering::SeqCst) {
                 return Err(Error::custom_with_status(
                     StatusCode::INTERNAL_SERVER_ERROR,
@@ -71,6 +85,9 @@ impl SessionStore for Probe {
 struct Control {
     leaked: Mutex<Option<Session>>,
     entered: Mutex<Option<oneshot::Sender<()>>>,
+    jar: Mutex<Option<CookieJar>>,
+    business: AtomicUsize,
+    resolver_calls: AtomicUsize,
 }
 struct TestRoutes(Arc<Control>);
 impl ServiceProvider for TestRoutes {
@@ -90,6 +107,30 @@ impl ServiceProvider for TestRoutes {
                     .get("/session-test/unsaved", unsaved)
                     .get("/session-test/presence", presence)
                     .get("/session-test/require", require)
+                    .get("/history/named", history)
+                    .name("history.named")
+                    .get("/history/anonymous", history)
+                    .post("/history/read", history)
+                    .get("/history/business-error", handler_error)
+                    .name("history.error")
+                    .get("/history/resolver-error", resolver_error)
+                    .get("/history/no-route", no_route)
+                    .get("/history/resolver/{mode}", changing_resolver)
+                    .get("/history/invalid-cookie", invalid_cookie)
+                    .group(
+                        RouteGroup::new()
+                            .prefix("/history/confirmed")
+                            .middleware(axum::middleware::from_fn(handle_precognitive_requests)),
+                        |routes| {
+                            routes
+                                .get("/read", history)
+                                .post("/validate", history_validated)
+                                .group(
+                                    RouteGroup::new().middleware(axum::middleware::from_fn(deny)),
+                                    |routes| routes.get("/denied", history).name("history.denied"),
+                                )
+                        },
+                    )
             })?;
             Ok(())
         })
@@ -137,8 +178,14 @@ async fn cancel(session: Session, Inject(control): Inject<Control>) -> Result<Js
     }
     std::future::pending().await
 }
-async fn unsaved(session: Session, jar: CookieJar) -> Result<impl IntoResponse> {
+async fn unsaved(
+    session: Session,
+    jar: CookieJar,
+    Inject(control): Inject<Control>,
+) -> Result<impl IntoResponse> {
     session.put("test.unsaved", "private original body")?;
+    *control.leaked.lock().map_err(|_| invalid())? = Some(session.clone());
+    *control.jar.lock().map_err(|_| invalid())? = Some(jar.clone());
     jar.queue(
         jar.factory()
             .make("queued_test", "must not leave", 0, CookieOptions::default())?,
@@ -154,6 +201,117 @@ async fn presence(info: RequestInfo) -> Json<Value> {
 async fn require(info: RequestInfo) -> Result<Json<Value>> {
     info.session()?;
     Ok(Json(json!({"unreachable":true})))
+}
+
+async fn history(
+    session: Session,
+    info: RequestInfo,
+    Inject(control): Inject<Control>,
+) -> Result<Json<Value>> {
+    control.business.fetch_add(1, Ordering::SeqCst);
+    Ok(Json(json!({
+        "url": session.previous_url()?, "route": session.previous_route()?,
+        "route_exists": session.exists(&["_previous.route"])?,
+        "attempting": info.is_attempting_precognition()?, "confirmed": info.is_precognitive()
+    })))
+}
+
+#[derive(serde::Deserialize)]
+struct HistoryInput {
+    value: String,
+}
+
+impl openrust::validation::Validate for HistoryInput {
+    fn rules() -> openrust::validation::Rules {
+        use openrust::validation::{Rule, Rules};
+        Rules::new().field(
+            "value",
+            [
+                Rule::required(),
+                Rule::string(),
+                Rule::length(Some(3), None),
+            ],
+        )
+    }
+}
+
+async fn history_validated(
+    Inject(control): Inject<Control>,
+    Validated(Json(input)): Validated<Json<HistoryInput>>,
+) -> Json<String> {
+    control.business.fetch_add(1, Ordering::SeqCst);
+    Json(input.value)
+}
+
+async fn deny(_: axum::extract::Request, _: axum::middleware::Next) -> Response {
+    Error::custom_with_status(StatusCode::FORBIDDEN, "history_denied", "拒绝执行").into_response()
+}
+
+async fn resolver_error(info: RequestInfo) -> Result<Json<Value>> {
+    info.set_route_resolver(Arc::new(|| {
+        Err(Error::custom_with_status(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "history_resolver_failed",
+            "private resolver details",
+        ))
+    }))?;
+    Ok(Json(json!({"original":"must be replaced"})))
+}
+
+async fn no_route(info: RequestInfo, Inject(control): Inject<Control>) -> Result<Json<Value>> {
+    info.set_route_resolver(Arc::new(move || {
+        control.resolver_calls.fetch_add(1, Ordering::SeqCst);
+        Ok(None)
+    }))?;
+    Ok(Json(json!({"unmatched":true})))
+}
+
+async fn changing_resolver(
+    info: RequestInfo,
+    jar: CookieJar,
+    Inject(control): Inject<Control>,
+    Path(mode): Path<String>,
+) -> Result<Json<Value>> {
+    jar.queue(
+        jar.factory()
+            .make("resolver_receipt", "private", 0, CookieOptions::default())?,
+    )?;
+    *control.jar.lock().map_err(|_| invalid())? = Some(jar);
+    info.set_route_resolver(Arc::new(move || {
+        let call = control.resolver_calls.fetch_add(1, Ordering::SeqCst);
+        let name = if call == 0 {
+            "first.route"
+        } else {
+            match mode.as_str() {
+                "switch" => "second.route",
+                "none" => return Ok(None),
+                _ => {
+                    return Err(Error::custom_with_status(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "history_second_resolver_failed",
+                        "private resolver details",
+                    ));
+                }
+            }
+        };
+        Ok(Some(Route::new(
+            Some(name.into()),
+            "history/resolver/{mode}",
+            None,
+            vec!["GET".into(), "HEAD".into()],
+            Vec::new(),
+        )))
+    }))?;
+    Ok(Json(json!({"original":"must be replaced on failure"})))
+}
+
+async fn invalid_cookie() -> Response {
+    let mut response = Json(json!({"original":"must be replaced"})).into_response();
+    response.headers_mut().insert(
+        "set-cookie",
+        axum::http::HeaderValue::from_static("bad name=private"),
+    );
+    response
 }
 
 fn invalid() -> Error {
@@ -176,6 +334,7 @@ async fn app(enabled: bool, probe: Probe, control: Arc<Control>) -> Result<App> 
                 driver: Some("array".into()),
                 cookie: Some("test_session".into()),
                 secure: Some(false),
+                lottery: [1, 1],
                 ..SessionConfig::default()
             }),
         );
@@ -196,13 +355,32 @@ struct Reply {
     body: Value,
 }
 async fn send(router: axum::Router, path: &str, cookie: Option<&str>) -> Result<Reply> {
-    let mut wire = Wire::get(path).header("host", "localhost");
+    send_wire(router, Method::GET, path, cookie, &[], "").await
+}
+async fn send_wire(
+    router: axum::Router,
+    method: Method,
+    path: &str,
+    cookie: Option<&str>,
+    headers: &[(&str, &str)],
+    body: &str,
+) -> Result<Reply> {
+    let mut wire = Wire::builder()
+        .method(method)
+        .uri(path)
+        .header("host", "localhost");
     if let Some(cookie) = cookie {
         wire = wire.header("cookie", cookie);
     }
+    for (name, value) in headers {
+        wire = wire.header(*name, *value);
+    }
     tokio::time::timeout(std::time::Duration::from_secs(5), async {
         let response = router
-            .oneshot(wire.body(Body::empty()).map_err(Error::internal)?)
+            .oneshot(
+                wire.body(Body::from(body.to_owned()))
+                    .map_err(Error::internal)?,
+            )
             .await
             .map_err(Error::internal)?;
         reply(response).await
@@ -222,7 +400,11 @@ async fn reply(response: Response) -> Result<Reply> {
     let bytes = to_bytes(response.into_body(), 8192)
         .await
         .map_err(Error::internal)?;
-    let body = serde_json::from_slice(&bytes).map_err(Error::internal)?;
+    let body = if bytes.is_empty() {
+        Value::Null
+    } else {
+        serde_json::from_slice(&bytes).map_err(Error::internal)?
+    };
     Ok(Reply {
         status,
         headers,
@@ -268,6 +450,465 @@ async fn finish(app: &App, outcome: Result<()>) -> Result<()> {
     app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(2))
         .await?;
     outcome
+}
+
+async fn stored_attributes(probe: &Probe, cookie: &str) -> Result<Value> {
+    let id = SessionId::parse(cookie.strip_prefix("test_session=").ok_or_else(invalid)?)?;
+    let record = probe
+        .memory
+        .load(
+            &id,
+            openrust::session::DEFAULT_MAX_BYTES,
+            OffsetDateTime::now_utc() + time::Duration::hours(1),
+        )
+        .await?
+        .ok_or_else(invalid)?;
+    Ok(record.data)
+}
+
+async fn stored_history(probe: &Probe, cookie: &str) -> Result<Value> {
+    Ok(stored_attributes(probe, cookie)
+        .await?
+        .get("_previous")
+        .cloned()
+        .unwrap_or(Value::Null))
+}
+
+#[tokio::test]
+async fn previous_history_updates_after_dispatch_and_anonymous_routes_clear_the_old_name()
+-> Result<()> {
+    let probe = Probe::default();
+    let app = app(true, probe.clone(), Arc::new(Control::default())).await?;
+    let outcome = async {
+        let router = build_router(&app)?;
+        let first = send(router.clone(), "/history/named?b=2&a=1", None).await?;
+        assert_eq!(first.body["data"]["url"], Value::Null);
+        assert_eq!(first.body["data"]["route_exists"], false);
+        let cookie = cookie(&first)?;
+        let expected =
+            json!({"url":"http://localhost/history/named?a=1&b=2","route":"history.named"});
+        assert_eq!(stored_history(&probe, &cookie).await?, expected);
+        let second = send(router.clone(), "/history/anonymous", Some(&cookie)).await?;
+        assert_eq!(second.body["data"]["url"], expected["url"]);
+        assert_eq!(second.body["data"]["route"], "history.named");
+        assert_eq!(
+            stored_history(&probe, &cookie).await?,
+            json!({"url":"http://localhost/history/anonymous","route":null})
+        );
+        let read = send_wire(
+            router.clone(),
+            Method::POST,
+            "/history/read",
+            Some(&cookie),
+            &[],
+            "",
+        )
+        .await?;
+        assert_eq!(read.body["data"]["route"], Value::Null);
+        assert_eq!(read.body["data"]["route_exists"], true);
+        let isolated = send(router, "/history/named", None).await?;
+        assert_eq!(isolated.body["data"]["url"], Value::Null);
+        Ok(())
+    }
+    .await;
+    finish(&app, outcome).await
+}
+
+#[tokio::test]
+async fn business_errors_still_update_previous_but_head_ajax_prefetch_and_internal_misses_only_save()
+-> Result<()> {
+    let probe = Probe::default();
+    let app = app(true, probe.clone(), Arc::new(Control::default())).await?;
+    let outcome = async {
+        let router = build_router(&app)?;
+        let first = send(router.clone(), "/history/named", None).await?;
+        let cookie = cookie(&first)?;
+        for (path, status, name) in [
+            (
+                "/history/business-error",
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "history.error",
+            ),
+            (
+                "/history/confirmed/denied",
+                StatusCode::FORBIDDEN,
+                "history.denied",
+            ),
+        ] {
+            let response = send(router.clone(), path, Some(&cookie)).await?;
+            assert_eq!(response.status, status);
+            assert_eq!(
+                stored_history(&probe, &cookie).await?,
+                json!({"url":format!("http://localhost{path}"),"route":name})
+            );
+        }
+        let expected = stored_history(&probe, &cookie).await?;
+        for (method, path, headers, status) in [
+            (Method::HEAD, "/history/named", &[][..], StatusCode::OK),
+            (
+                Method::POST,
+                "/history/named",
+                &[][..],
+                StatusCode::METHOD_NOT_ALLOWED,
+            ),
+            (
+                Method::GET,
+                "/history/not-registered",
+                &[][..],
+                StatusCode::NOT_FOUND,
+            ),
+            (
+                Method::GET,
+                "/history/named",
+                &[("x-requested-with", "XMLHttpRequest")][..],
+                StatusCode::OK,
+            ),
+            (
+                Method::GET,
+                "/history/named",
+                &[("purpose", "prefetch")][..],
+                StatusCode::OK,
+            ),
+        ] {
+            let writes = probe.writes.load(Ordering::SeqCst);
+            let response =
+                send_wire(router.clone(), method, path, Some(&cookie), headers, "").await?;
+            assert_eq!(response.status, status);
+            assert_eq!(probe.writes.load(Ordering::SeqCst), writes + 1);
+            assert_eq!(stored_history(&probe, &cookie).await?, expected);
+        }
+        Ok(())
+    }
+    .await;
+    finish(&app, outcome).await
+}
+
+#[tokio::test]
+async fn attempting_header_without_middleware_does_not_skip_previous_or_save() -> Result<()> {
+    let probe = Probe::default();
+    let app = app(true, probe.clone(), Arc::new(Control::default())).await?;
+    let outcome = async {
+        let router = build_router(&app)?;
+        let first = send(router.clone(), "/history/named", None).await?;
+        let cookie = cookie(&first)?;
+        let writes = probe.writes.load(Ordering::SeqCst);
+        let response = send_wire(
+            router,
+            Method::GET,
+            "/history/named?attempt=1",
+            Some(&cookie),
+            &[("precognition", "true")],
+            "",
+        )
+        .await?;
+        assert_eq!(response.status, StatusCode::OK);
+        assert_eq!(response.body["data"]["attempting"], true);
+        assert_eq!(response.body["data"]["confirmed"], false);
+        assert_eq!(probe.writes.load(Ordering::SeqCst), writes + 1);
+        assert_eq!(
+            stored_history(&probe, &cookie).await?,
+            json!({"url":"http://localhost/history/named?attempt=1","route":"history.named"})
+        );
+        Ok(())
+    }
+    .await;
+    finish(&app, outcome).await
+}
+
+#[tokio::test]
+async fn confirmed_success_validation_failure_and_rejection_keep_start_gc_cookie_but_skip_save()
+-> Result<()> {
+    let probe = Probe::default();
+    let control = Arc::new(Control::default());
+    let app = app(true, probe.clone(), control.clone()).await?;
+    let outcome = async {
+        let router = build_router(&app)?;
+        let first = send(router.clone(), "/history/named", None).await?;
+        let cookie = cookie(&first)?;
+        let previous = stored_history(&probe, &cookie).await?;
+        let business = control.business.load(Ordering::SeqCst);
+        let writes = probe.writes.load(Ordering::SeqCst);
+        for (method, path, body, status, success) in [
+            (
+                Method::GET,
+                "/history/confirmed/read",
+                "",
+                StatusCode::NO_CONTENT,
+                true,
+            ),
+            (
+                Method::POST,
+                "/history/confirmed/validate",
+                r#"{"value":"x"}"#,
+                StatusCode::UNPROCESSABLE_ENTITY,
+                false,
+            ),
+            (
+                Method::GET,
+                "/history/confirmed/denied",
+                "",
+                StatusCode::FORBIDDEN,
+                false,
+            ),
+        ] {
+            let loads = probe.loads.load(Ordering::SeqCst);
+            let collections = probe.collections.load(Ordering::SeqCst);
+            let response = send_wire(
+                router.clone(),
+                method,
+                path,
+                Some(&cookie),
+                &[
+                    ("precognition", "true"),
+                    ("content-type", "application/json"),
+                ],
+                body,
+            )
+            .await?;
+            assert_eq!(response.status, status);
+            assert_eq!(
+                response
+                    .headers
+                    .get("precognition")
+                    .and_then(|value| value.to_str().ok()),
+                Some("true")
+            );
+            assert_eq!(
+                response.headers.contains_key("precognition-success"),
+                success
+            );
+            assert!(response.headers.contains_key("set-cookie"));
+            assert_eq!(probe.loads.load(Ordering::SeqCst), loads + 1);
+            assert_eq!(probe.collections.load(Ordering::SeqCst), collections + 1);
+            assert_eq!(probe.writes.load(Ordering::SeqCst), writes);
+            assert_eq!(control.business.load(Ordering::SeqCst), business);
+            assert_eq!(stored_history(&probe, &cookie).await?, previous);
+        }
+        Ok(())
+    }
+    .await;
+    finish(&app, outcome).await
+}
+
+#[tokio::test]
+async fn missing_route_short_circuits_header_checks_after_exactly_one_resolver_call() -> Result<()>
+{
+    let probe = Probe::default();
+    let control = Arc::new(Control::default());
+    let app = app(true, probe.clone(), control.clone()).await?;
+    let outcome = async {
+        let router = build_router(&app)?;
+        for (path, status) in [
+            ("/history/no-route", StatusCode::OK),
+            ("/history/not-registered", StatusCode::NOT_FOUND),
+        ] {
+            let request = Wire::get(path)
+                .header("host", "localhost")
+                .header(
+                    "x-requested-with",
+                    axum::http::HeaderValue::from_bytes(&[0xff]).map_err(Error::internal)?,
+                )
+                .header(
+                    "purpose",
+                    axum::http::HeaderValue::from_bytes(&[0xff]).map_err(Error::internal)?,
+                )
+                .body(Body::empty())
+                .map_err(Error::internal)?;
+            let response = router
+                .clone()
+                .oneshot(request)
+                .await
+                .map_err(Error::internal)?;
+            assert_eq!(response.status(), status);
+        }
+        assert_eq!(control.resolver_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(probe.writes.load(Ordering::SeqCst), 2);
+        Ok(())
+    }
+    .await;
+    finish(&app, outcome).await
+}
+
+#[tokio::test]
+async fn previous_route_name_uses_the_second_stateful_resolver_result() -> Result<()> {
+    let probe = Probe::default();
+    let control = Arc::new(Control::default());
+    let app = app(true, probe.clone(), control.clone()).await?;
+    let outcome = async {
+        let router = build_router(&app)?;
+        let first = send(router.clone(), "/history/named", None).await?;
+        let cookie = cookie(&first)?;
+        let response = send(router, "/history/resolver/switch", Some(&cookie)).await?;
+        assert_eq!(response.status, StatusCode::OK);
+        assert_eq!(control.resolver_calls.load(Ordering::SeqCst), 2);
+        assert_eq!(
+            stored_history(&probe, &cookie).await?,
+            json!({"url":"http://localhost/history/resolver/switch","route":"second.route"})
+        );
+        Ok(())
+    }
+    .await;
+    finish(&app, outcome).await
+}
+
+#[tokio::test]
+async fn second_resolver_error_or_missing_route_discards_cookies_and_prevents_save() -> Result<()> {
+    let probe = Probe::default();
+    let control = Arc::new(Control::default());
+    let app = app(true, probe.clone(), control.clone()).await?;
+    let outcome = async {
+        let router = build_router(&app)?;
+        let first = send(router.clone(), "/history/named", None).await?;
+        let cookie = cookie(&first)?;
+        let before = stored_attributes(&probe, &cookie).await?;
+        let writes = probe.writes.load(Ordering::SeqCst);
+        for (mode, code) in [
+            ("error", "history_second_resolver_failed"),
+            ("none", "session_previous_route_missing"),
+        ] {
+            control.resolver_calls.store(0, Ordering::SeqCst);
+            let response = send(
+                router.clone(),
+                &format!("/history/resolver/{mode}"),
+                Some(&cookie),
+            )
+            .await?;
+            failure(&response, code)?;
+            assert_eq!(control.resolver_calls.load(Ordering::SeqCst), 2);
+            assert!(!response.headers.contains_key("set-cookie"));
+            assert_eq!(
+                response
+                    .headers
+                    .get("cache-control")
+                    .and_then(|value| value.to_str().ok()),
+                Some("no-store")
+            );
+            assert!(!response.body.to_string().contains("private"));
+            assert!(!response.body.to_string().contains("must be replaced"));
+            assert_eq!(probe.writes.load(Ordering::SeqCst), writes);
+            assert_eq!(stored_attributes(&probe, &cookie).await?, before);
+            let jar = control
+                .jar
+                .lock()
+                .map_err(|_| invalid())?
+                .take()
+                .ok_or_else(invalid)?;
+            assert!(jar.queued("resolver_receipt", None)?.is_none());
+        }
+        Ok(())
+    }
+    .await;
+    finish(&app, outcome).await
+}
+
+#[tokio::test]
+async fn previous_resolver_url_cookie_and_persistence_failures_keep_original_records_private()
+-> Result<()> {
+    let probe = Probe::default();
+    let app = app(true, probe.clone(), Arc::new(Control::default())).await?;
+    let outcome = async {
+        let router = build_router(&app)?;
+        let first = send(router.clone(), "/history/named", None).await?;
+        let cookie = cookie(&first)?;
+        let before = stored_attributes(&probe, &cookie).await?;
+        let writes = probe.writes.load(Ordering::SeqCst);
+        for (path, code) in [
+            ("/history/resolver-error", "history_resolver_failed"),
+            ("/history/invalid-cookie", "cookie_parameters_invalid"),
+        ] {
+            let response = send(router.clone(), path, Some(&cookie)).await?;
+            failure(&response, code)?;
+            assert!(!response.headers.contains_key("set-cookie"));
+            assert!(!response.body.to_string().contains("private"));
+            assert!(!response.body.to_string().contains("must be replaced"));
+            assert_eq!(probe.writes.load(Ordering::SeqCst), writes);
+            assert_eq!(stored_attributes(&probe, &cookie).await?, before);
+        }
+        let excessive = format!("/history/named?{}", "x".repeat(16 * 1024 + 1));
+        let response = send(router.clone(), &excessive, Some(&cookie)).await?;
+        assert_eq!(response.status, StatusCode::PAYLOAD_TOO_LARGE);
+        assert_eq!(response.body["code"], "input_limits_exceeded");
+        assert!(!response.headers.contains_key("set-cookie"));
+        assert_eq!(probe.writes.load(Ordering::SeqCst), writes);
+        assert_eq!(stored_attributes(&probe, &cookie).await?, before);
+        probe.fail.store(true, Ordering::SeqCst);
+        let response = send(router, "/session-test/unsaved", Some(&cookie)).await?;
+        failure(&response, "session_test_save_failed")?;
+        assert!(!response.headers.contains_key("set-cookie"));
+        assert!(!response.body.to_string().contains("must be replaced"));
+        assert_eq!(probe.writes.load(Ordering::SeqCst), writes + 1);
+        assert_eq!(stored_attributes(&probe, &cookie).await?, before);
+        Ok(())
+    }
+    .await;
+    finish(&app, outcome).await
+}
+
+#[tokio::test]
+async fn cancelled_previous_save_closes_retained_state_and_clears_cookie_queue_without_background_io()
+-> Result<()> {
+    let probe = Probe::default();
+    let control = Arc::new(Control::default());
+    let app = app(true, probe.clone(), control.clone()).await?;
+    let outcome = async {
+        let router = build_router(&app)?;
+        let first = send(router.clone(), "/history/named", None).await?;
+        let cookie = cookie(&first)?;
+        let before = stored_attributes(&probe, &cookie).await?;
+        let writes = probe.writes.load(Ordering::SeqCst);
+        probe.pending.store(true, Ordering::SeqCst);
+        let task =
+            tokio::spawn(async move { send(router, "/session-test/unsaved", Some(&cookie)).await });
+        if tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            probe.write_entered.notified(),
+        )
+        .await
+        .is_err()
+        {
+            task.abort();
+            let _ = task.await;
+            return Err(invalid());
+        }
+        task.abort();
+        assert!(task.await.err().is_some_and(|error| error.is_cancelled()));
+        let session = control
+            .leaked
+            .lock()
+            .map_err(|_| invalid())?
+            .take()
+            .ok_or_else(invalid)?;
+        assert_eq!(
+            session
+                .set_previous_url("/late")
+                .err()
+                .map(|error| error.code().to_owned()),
+            Some("session_closed".into())
+        );
+        let jar = control
+            .jar
+            .lock()
+            .map_err(|_| invalid())?
+            .take()
+            .ok_or_else(invalid)?;
+        assert!(jar.queued("queued_test", None)?.is_none());
+        tokio::task::yield_now().await;
+        assert_eq!(probe.writes.load(Ordering::SeqCst), writes + 1);
+        let id = session.id()?;
+        let record = probe
+            .memory
+            .load(
+                &id,
+                openrust::session::DEFAULT_MAX_BYTES,
+                OffsetDateTime::now_utc() + time::Duration::hours(1),
+            )
+            .await?
+            .ok_or_else(invalid)?;
+        assert_eq!(record.data, before);
+        Ok(())
+    }
+    .await;
+    finish(&app, outcome).await
 }
 
 #[tokio::test]

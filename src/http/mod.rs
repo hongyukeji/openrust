@@ -14,6 +14,7 @@ pub mod health;
 pub mod metrics;
 pub mod middleware;
 pub mod plugin;
+pub mod precognition;
 pub mod rate_limit;
 pub mod request;
 pub mod resource;
@@ -44,6 +45,7 @@ pub use cookie::{
 pub use domain::DomainParams;
 pub use extract::{Inject, Json, Path, Query, Validated};
 pub use plugin::{HttpServiceProvider, RouteRegistry, build_router};
+pub use precognition::handle_precognitive_requests;
 pub use rate_limit::{RateLimitKey, RateLimitLayer};
 pub use request::{
     InputNormalization, InputOutcome, InputOutcomeMut, InputTruthy, Request, RequestInfo, Truthy,
@@ -52,7 +54,7 @@ pub use resource::{Action, Resource, ResourceActions};
 pub use response::{Created, Located, NoContent, PageParams, Paginated};
 pub use route::{Route, RouteResolver};
 pub use routes::{RouteGroup, Routes};
-pub use routing::RouteMethods;
+pub use routing::{ManagedHandler, RouteMethods};
 pub use serve::{ServeCommand, serve};
 pub use sort::{SortDirection, SortField, SortParams};
 pub use transport::RequestSecurity;

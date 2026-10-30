@@ -195,17 +195,21 @@ async fn server_host_composes_http_and_grpc_under_one_lifecycle()
     let readiness = app.state().resolve::<Readiness>().await?;
     let (stop, signal) = oneshot::channel();
     let running_app = Arc::clone(&app);
-    let task = tokio::spawn(async move {
+    let mut task = tokio::spawn(async move {
         serve_http_and_grpc_until(&running_app, async move {
             let _ = signal.await;
         })
         .await
     });
-    tokio::time::timeout(Duration::from_secs(5), async {
-        while !readiness.is_ready() {
-            tokio::task::yield_now().await;
-        }
-    })
+    let _abort_on_failure = AbortCombinedServerOnDrop(task.abort_handle());
+    let stop = wait_for_combined_readiness(
+        &mut task,
+        stop,
+        &readiness,
+        http_address,
+        grpc_address,
+        Duration::from_secs(app.config().server.shutdown_timeout_secs),
+    )
     .await?;
 
     let mut http = TcpStream::connect(http_address).await?;
@@ -254,6 +258,56 @@ async fn server_host_composes_http_and_grpc_under_one_lifecycle()
     assert!(TcpStream::connect(http_address).await.is_err());
     assert!(TcpStream::connect(grpc_address).await.is_err());
     Ok(())
+}
+
+// 断言 panic 或后续网络错误也不能把宿主任务留给其他并发测试。
+struct AbortCombinedServerOnDrop(tokio::task::AbortHandle);
+
+impl Drop for AbortCombinedServerOnDrop {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
+
+async fn wait_for_combined_readiness(
+    task: &mut tokio::task::JoinHandle<openrust::Result<()>>,
+    stop: oneshot::Sender<()>,
+    readiness: &Readiness,
+    http_address: std::net::SocketAddr,
+    grpc_address: std::net::SocketAddr,
+    shutdown_timeout: Duration,
+) -> Result<oneshot::Sender<()>, Box<dyn std::error::Error>> {
+    let ready = tokio::select! {
+        biased;
+        result = &mut *task => {
+            eprintln!("联合服务在就绪前退出：http={http_address} grpc={grpc_address}");
+            result??;
+            return Err("combined service exited before readiness".into());
+        }
+        ready = tokio::time::timeout(Duration::from_secs(5), async {
+            while !readiness.is_ready() {
+                tokio::task::yield_now().await;
+            }
+        }) => ready,
+    };
+    let Err(readiness_timeout) = ready else {
+        return Ok(stop);
+    };
+    eprintln!("联合服务就绪超过5秒：http={http_address} grpc={grpc_address}");
+    // 保持原就绪期限；先沿既有信号请求停机，再在宿主停机期限内 join。
+    // 任务若在此时报告启动错误或 panic，保留该实际错误，而非掩成就绪超时。
+    let _ = stop.send(());
+    if let Ok(result) = tokio::time::timeout(shutdown_timeout, &mut *task).await {
+        result??;
+    } else {
+        task.abort();
+        match task.await {
+            Ok(result) => result?,
+            Err(error) if error.is_cancelled() => {}
+            Err(error) => return Err(error.into()),
+        }
+    }
+    Err(readiness_timeout.into())
 }
 
 #[tokio::test]

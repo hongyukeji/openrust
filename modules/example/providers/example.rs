@@ -32,6 +32,15 @@ fn register_example_middleware(app: &mut BootContext<'_>) -> Result<()> {
         ),
     )?;
     app.middleware_group("example.response", ["example.response-marker"])?;
+    #[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
+    {
+        app.middleware_alias(
+            "example.article-auth",
+            openrust::auth::AuthLayer::required(openrust::auth::AuthMode::Jwt),
+        )?;
+        // 确认位必须在认证拒绝前设置，错误响应也保留预检协议头。
+        app.append_middleware_priority("example.article-auth")?;
+    }
     Ok(())
 }
 

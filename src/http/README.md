@@ -5,7 +5,7 @@ OpenRust 框架基于 `axum` 和 `tower` 构建的 HTTP 层。
 - [`HttpServiceProvider`]：在 `register` 登记 HTTP 配置与能力，在 `boot` 贡献 `serve` 命令、默认 middleware 栈、`/health` 和 `/ready`。
 - `BootContext::routes`：应用 Provider 在 `boot` 阶段添加路由。
 - `BootContext::http_layer`：在所有路由外层注册共享 Tower 请求上下文，并置于路由级 layer 之外。
-- [`Routes`]：基于 `axum::Router` 的路由约定，提供 `get` / `post` / …、`group`、`nest`、`merge`、`layer` 与 `fallback`；`route(path, RouteMethods)` 接受 `routing::{get, post, put, patch, delete, head, options, query, on, any}` 受管理方法声明，可链式追加不同方法。`on` 校验并规范化 HTTP 方法字符串，`any` 仅包含 Laravel 固定的 GET、HEAD、POST、PUT、PATCH、DELETE、OPTIONS、QUERY。[`RouteGroup`] 支持可嵌套路径前缀与组级 Tower middleware。middleware 按声明顺序进入请求，组外路由不受影响。
+- [`Routes`]：基于 `axum::Router` 的路由约定，提供 `get` / `post` / …、`group`、`nest`、`merge`、`layer` 与 `fallback`；`route(path, RouteMethods)` 接受 `routing::{get, post, put, patch, delete, head, options, query, on, any}` 受管理方法声明，可链式追加不同方法。`on` 校验并规范化 HTTP 方法字符串，`any` 仅包含 Laravel 固定的 GET、HEAD、POST、PUT、PATCH、DELETE、OPTIONS、QUERY。[`RouteGroup`] 支持可嵌套路径前缀与组级 Tower middleware。middleware 默认按声明顺序进入请求；命名项按公开优先级调整并去重，组外路由不受影响。
 - [`Resource`] 与 [`ResourceActions`]：只注册实际存在的 controller action；`Routes::resource` 将 `list` / `create` 映射到集合路由，将 `get` / `update` / `delete` 映射到 `{id}`。`resource_with` 可通过 `only` 或 `except` 过滤 action。
 - [`Created<T>`] 与 [`NoContent`]：成功响应封装；前者可选携带 `Location`（semantic 模式为 201），后者返回省略 `data` 的成功包装（HTTP 200）。
 - [`PageParams`] 与 [`Paginated<T>`]：校验 `page` / `per_page` 查询参数，并返回含数组 `data` 和分页 `meta` 的 API 封装。
@@ -14,7 +14,7 @@ OpenRust 框架基于 `axum` 和 `tower` 构建的 HTTP 层。
 - 公开站点由 `[server].public_dir` 指定，默认是应用工作目录下的 `public/`；其他文件从站点根按 URL 路径提供。`[server].root_target` 默认 `file:/index.html`，也支持 `forward:/path`、`redirect:/path` / `redirect:https://host/path`，以及启用 `view` feature 并注册 `ViewServiceProvider` 后的 `view:index.html`。视图模板放在 `[view].directory`（默认 `views/`），静态资源仍放在 `public/`。`APP_SERVER_PUBLIC_DIR` 和 `APP_SERVER_ROOT_TARGET` 可在 `.env` 或进程环境覆盖 TOML；进程环境优先。生产部署不得将包含 `.env` 的应用根目录设为静态公开目录。API 与 `/ws/*` 的未匹配路径保留框架 404 响应，不回落到静态文件。
 - [`SortParams`]：只按显式字段白名单解析 ADR-008 定义的逗号分隔排序语法；应用将字段名映射为固定 ORM 列。
 - [`Json<T>`]、[`Path<T>`] 与 [`Query<T>`]：兼容 axum 的 extractors，并将拒绝结果包装为 API 响应。`Json<T>` 还实现了 `IntoResponse`。
-- [`Validated`]：在 OpenRust 的 `Json<T>` 或 `Query<T>` extractor 成功后运行 `validator`。
+- [`Validated`]：普通请求在强类型 `Json<T>` / `Query<T>` 解析后执行公开字段规则；已确认的 Precognition 可在构造完整 DTO 前只验证所选字段。
 - [`Inject`]：提取由容器实例或异步工厂注册的服务。
 - [`ClientIp`]：默认解析 socket peer；只有来自已配置可信代理 IP/CIDR 的请求才接受 `X-Forwarded-For`。
 - [`RateLimitLayer`]：通过已注册的共享 `RateLimiter` 对选定路由限流。IP key 遵循 `ClientIp` 的可信代理规则；认证用户 key 需要外层 `AuthLayer`；自定义 key 函数可取得请求及策略 scope。
@@ -65,13 +65,46 @@ async fn address(request: Request) -> openrust::Result<Json<serde_json::Value>> 
 
 `root()`返回协议和主机；`http_host()`保留非默认端口，`port()`返回显式或协议默认端口。实际安全状态沿`RequestSecurity`或可信peer/proto链确定，未信任转发头不生效；代理Host/Port/Prefix的完整支持尚未交付。`decoded_path()`百分号解码但保留加号，`segments()`解码后分段，`segment(1)`从第一段起；非法UTF-8显式报错。`is`和`full_url_is`采用区分大小写的星号模式。`prefetch`仅识别对应头值完整等于prefetch。
 
-查询原文限制16KiB/1024字段，编码和完整URL限制128KiB；模式最多128项、合计16KiB，超限显式413。`previous URL` 和 `Precognition` 仍在后继范围。
+查询原文限制16KiB/1024字段，编码和完整URL限制128KiB；模式最多128项、合计16KiB，超限显式413。Session previous 与可选 Precognition 的接入方式见下节；完整 FormRequest、URI 对象及官方前端包不由 URL helper 隐式提供。
 
 ### 当前路由上下文
 
 `RequestInfo` 与受管理的 `Request` 可读取 `route()`、`route_name()`、`route_is(&[...])`、`route_parameter(name)` 和 `route_parameter_or(name, default)`；均返回 `Result`。无实际匹配时，`route_is` 为 `false`，其余路由读取为 `None`；无路由时也不采用参数默认值。公开 `Route` 是当前请求的 owned 快照，包含可空名称、去首斜线的声明 URI、可空域模板、方法列表和按绑定顺序保存的 `serde_json::Value` 参数。域与路径同名时路径值覆盖，具名模式中的 `*` 匹配完整字符串任意部分。当前参数是已解码路径与域标签值，模型、枚举与显式 binder 仍需后继能力。
 
 框架只在真实受管理路由命中后发布上下文：全局 middleware 调用下游前可见 `None`，下游返回后可见命中；路由 middleware 短路或业务主动返回错误仍保留命中。内置404/405和静态文件没有业务 Route；显式 GET/HEAD fallback 实际执行时有 Route，静态资源仍先处理。当前方法没有普通路由时，GET/HEAD 可进入 fallback；OPTIONS 有可用 alternate 时合成状态200、空正文、`Allow` 及真实 OPTIONS Route。`RequestInfo::get_route_resolver` / `set_route_resolver` 允许可信应用为本请求包装或替换同步解析器。原生 Axum `Router`/`MethodRouter` 可单独使用，但不会自动生成完整受管理路由上下文。
+
+## 字段规则与 Precognition
+
+输入类型实现 `validation::Validate::rules()`，以一份字段规则供普通请求、预检及跨协议 `validation::validate(value)` 共用。规则按声明顺序执行；自定义规则使用 `Rule::custom`，读取当前字段和原始输入，不需要修改框架源码。
+
+```rust,ignore
+use openrust::prelude::*;
+
+#[derive(serde::Deserialize)]
+struct CreatePost { title: String, body: String }
+
+impl Validate for CreatePost {
+    fn rules() -> Rules {
+        Rules::new()
+            .field("title", [Rule::required(), Rule::string(), Rule::min(3)])
+            .field("body", [Rule::required(), Rule::string()])
+    }
+}
+```
+
+普通处理器仍提取 `Validated<Json<CreatePost>>`。JSON 保留原有严格 DTO 类型约束，Query 保留已有字符串反序列化方式；规则本身的值语义与 DTO 能否构造是两层检查。serde 默认值在 DTO 构造时生效，规则读取原始规范化字段；未提供字段不会因 serde 默认值而自动视为已提供。`length` / `range` 保留原有应用规则原语，不代表完整 Laravel Validator 规则集。
+
+在 Provider 贡献的路由组上显式使用 `RouteGroup::new().middleware_alias("precognitive")`，即可启用内置可选中间件；登记能力不会默认启用全站预检。也可显式装配 `handle_precognitive_requests`。请求头 `Precognition: true` 仅表示尝试，`RequestInfo` / `Request` 的 `is_precognitive()` 读取由中间件确认的请求状态；未挂载时，同名头不会阻止业务执行或 Session 保存。
+
+确认后，受管理 Handler 按原 Axum 顺序解析参数，提取失败保留拒绝响应，全部成功返回空 204 与 `Precognition-Success: true`，不调用业务函数。存在 `Precognition-Validate-Only` 时，`Validated` 只执行筛选后的既有字段规则，成功即可提前结束，缺少未选必填字段不要求先构造完整 DTO。模式按逗号分隔且不去空白，`*` 匹配一个非空点分段；缺少该头与存在空值不同。未选规则不会执行，包括自定义回调。
+
+普通响应也追加 `Vary: Precognition`；确认响应另含 `Precognition: true`。中间件直接返回 204 不等于验证成功，不会据此补成功头。已执行的中间件、前置参数提取及选中校验的副作用不由预检回滚。认证与授权必须放在路由中间件，或放在 `Validated` 之前的参数提取器中：字段预检成功会提前返回 204，失败会返回字段错误，排在它之后的提取器都不会执行，不能承担该请求的访问控制。唯一模块将认证放在路由中间件，先完成认证再验证；不能仅因 Handler 签名含后置认证参数就声称预检已经授权。原生 Axum Router/Handler 逃生入口不自动获得受管理分派保证；自定义 Handler 通过公开 `ManagedHandler` 实现提取契约。
+
+### Session previous
+
+启用 Session 后，GET 真实路由下游返回才记录完整 URL 与可空路由名，不按响应状态过滤。处理器读取 `session.previous_url()` / `previous_route()` 时看到的是此前请求的值；下次同一会话请求才能看到本次记录。匿名路由写入显式 null，HEAD、ajax、prefetch 不更新 previous，但仍正常保存其他 Session 属性。
+
+已确认 Precognition 仍启动 Session、执行 GC 与处理响应 Cookie，只跳过自动 driver.save 和 previous 更新；这不禁止应用自行调用保存，也不承诺其他中间件无副作用。单纯发送头不会跳过保存。公开 previous helper 沿既有 `get` 保留 `Option<Value>` 的缺失/null 区分，setter 沿既有状态与预算检查；`has_previous_uri` 只检查非 null，不解析 URI 对象。业务参考[唯一模块 Session Controller](../../modules/example/http/controllers/session.rs)。
 
 ## Cookie 读取、队列与响应
 
@@ -201,6 +234,8 @@ app.routes(|routes| {
 })?;
 ```
 
+Provider 可用 `middleware_priority([...])` 设置路由别名优先级，或 `prepend_middleware_priority(name)` / `append_middleware_priority(name)` 调整表首/尾。组展开后沿统一路由链调整倒置的已列优先项，相同命名项只执行一次；未列项保持相对顺序。默认表包含 `precognitive`、`auth`、`throttle`、`auth.session`、`can`，不自动登记或启用未提供的认证等能力；显式空表可清空默认顺序。全局 `http_layer` 与原生逃生入口不参与此表。
+
 Middleware 定义在应用内共享，是否应用由各路由或路由组显式选择。当前 OpenRust 路由按 Provider 贡献，没有 Laravel `web` / `api` 文件约定的自动分组，因此由路由明确选择命名 group。
 
 `Routes::fallback(handler)` 注册 GET/HEAD 显式 fallback；`RouteGroup` 内的 fallback 仅覆盖组前缀，并遵循组 middleware。同方法普通路由优先，GET/HEAD 在没有普通路由命中时仍可执行 fallback，即使同路径存在其他方法。其他方法可得 405；OPTIONS 有 alternate 时合成真实 OPTIONS Route。同一静态完整 scope 的多个 fallback 会在构建时返回 `http_fallback_duplicate`。带路由参数或通配符的组前缀暂不支持 fallback，构建时优先返回 `http_fallback_scope_unsupported`。GET/HEAD 未匹配请求先检查 `public/` 静态资源，命中时返回文件；没有静态资源才执行业务 handler。fallback handler 会收到完整原始 URI、请求头和 body。默认没有业务 fallback 时，`/api/*`、`/ws/*` 继续返回框架 404；应用显式配置 fallback 后可以接管这些路径，包括优先返回对应静态文件。
@@ -278,10 +313,16 @@ use std::sync::Arc;
 use openrust::http::{Inject, Json, Routes, Validated};
 use openrust::core::{BootContext, BoxFuture, RegisterContext, Result, ServiceProvider};
 use serde::Deserialize;
-use validator::Validate;
+use openrust::validation::{Rule, Rules, Validate};
 
-#[derive(Deserialize, Validate)]
-struct CreatePost { #[validate(length(min = 1, max = 120))] title: String }
+#[derive(Deserialize)]
+struct CreatePost { title: String }
+
+impl Validate for CreatePost {
+    fn rules() -> Rules {
+        Rules::new().field("title", [Rule::length(Some(1), Some(120))])
+    }
+}
 
 struct Posts;
 

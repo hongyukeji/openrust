@@ -124,6 +124,7 @@ async fn jwt_authentication_uses_the_configured_key_ring_without_session_middlew
     let response = build_router(&app)?
         .oneshot(
             Request::get("/jwt")
+                .header("host", "localhost")
                 .header("authorization", format!("Bearer {token}"))
                 .body(Body::empty())?,
         )
@@ -250,6 +251,7 @@ async fn current_user_and_injected_service_share_the_route_request() -> TestResu
     let response = router
         .oneshot(
             Request::get("/current")
+                .header("host", "localhost")
                 .header("authorization", "Bearer pat-secret")
                 .body(Body::empty())?,
         )
@@ -270,7 +272,11 @@ async fn cookie_authentication_uses_the_shared_session_and_preserves_csrf_checks
     let router = build_router(&app)?;
     let created = router
         .clone()
-        .oneshot(Request::get("/session").body(Body::empty())?)
+        .oneshot(
+            Request::get("/session")
+                .header("host", "localhost")
+                .body(Body::empty())?,
+        )
         .await?;
     let set_cookie = created
         .headers()
@@ -286,6 +292,7 @@ async fn cookie_authentication_uses_the_shared_session_and_preserves_csrf_checks
         .clone()
         .oneshot(
             Request::get("/current")
+                .header("host", "localhost")
                 .header("cookie", cookie)
                 .body(Body::empty())?,
         )
@@ -301,6 +308,7 @@ async fn cookie_authentication_uses_the_shared_session_and_preserves_csrf_checks
         .clone()
         .oneshot(
             Request::post("/current")
+                .header("host", "localhost")
                 .header("cookie", cookie)
                 .body(Body::empty())?,
         )
@@ -310,6 +318,7 @@ async fn cookie_authentication_uses_the_shared_session_and_preserves_csrf_checks
     let accepted = router
         .oneshot(
             Request::post("/current")
+                .header("host", "localhost")
                 .header("cookie", cookie)
                 .header("x-csrf-token", "csrf-secret")
                 .body(Body::empty())?,
@@ -340,7 +349,11 @@ async fn verify_redis_session_http(
 ) -> TestResult {
     let created = router_a
         .clone()
-        .oneshot(Request::get("/session").body(Body::empty())?)
+        .oneshot(
+            Request::get("/session")
+                .header("host", "localhost")
+                .body(Body::empty())?,
+        )
         .await?;
     assert_eq!(created.status(), StatusCode::OK);
     let set_cookie = created
@@ -374,6 +387,7 @@ async fn verify_redis_session_http(
         .clone()
         .oneshot(
             Request::get("/current")
+                .header("host", "localhost")
                 .header("cookie", cookie)
                 .body(Body::empty())?,
         )
@@ -390,6 +404,7 @@ async fn verify_redis_session_http(
         .clone()
         .oneshot(
             Request::get("/current")
+                .header("host", "localhost")
                 .header("cookie", &rotated_cookie)
                 .body(Body::empty())?,
         )
@@ -411,6 +426,7 @@ async fn verify_redis_csrf_and_revocation(
         .clone()
         .oneshot(
             Request::post("/current")
+                .header("host", "localhost")
                 .header("cookie", &cookie)
                 .body(Body::empty())?,
         )
@@ -421,6 +437,7 @@ async fn verify_redis_csrf_and_revocation(
         .clone()
         .oneshot(
             Request::post("/current")
+                .header("host", "localhost")
                 .header("cookie", &cookie)
                 .header("x-csrf-token", "csrf-secret")
                 .body(Body::empty())?,
@@ -431,6 +448,7 @@ async fn verify_redis_csrf_and_revocation(
     let deleted = router_a
         .oneshot(
             Request::delete("/session")
+                .header("host", "localhost")
                 .header("cookie", &cookie)
                 .body(Body::empty())?,
         )
@@ -439,6 +457,7 @@ async fn verify_redis_csrf_and_revocation(
     let revoked = router_b
         .oneshot(
             Request::get("/current")
+                .header("host", "localhost")
                 .header("cookie", &cookie)
                 .body(Body::empty())?,
         )
@@ -457,6 +476,7 @@ async fn rotate_redis_session(
         .clone()
         .oneshot(
             Request::get("/rotate")
+                .header("host", "localhost")
                 .header("cookie", cookie)
                 .body(Body::empty())?,
         )
@@ -593,13 +613,18 @@ async fn optional_identity_is_anonymous_only_when_selected_credentials_are_absen
     let router = build_router(&app)?;
     let anonymous = router
         .clone()
-        .oneshot(Request::get("/optional").body(Body::empty())?)
+        .oneshot(
+            Request::get("/optional")
+                .header("host", "localhost")
+                .body(Body::empty())?,
+        )
         .await?;
     assert_eq!(payload(anonymous).await?["data"], serde_json::Value::Null);
 
     let malformed = router
         .oneshot(
             Request::get("/optional")
+                .header("host", "localhost")
                 .header("authorization", "Bearer  ")
                 .body(Body::empty())?,
         )
@@ -682,6 +707,7 @@ async fn duplicate_auth_provider_keeps_first_authenticator() -> TestResult {
     let response = build_router(&app)?
         .oneshot(
             Request::get("/current")
+                .header("host", "localhost")
                 .header("authorization", "Bearer pat-secret")
                 .body(Body::empty())?,
         )

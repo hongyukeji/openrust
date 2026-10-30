@@ -1,33 +1,30 @@
 //! 账户凭据只进入认证服务，不实现 Debug 或把秘密放入 URL。
 
-use openrust::validation::Validate;
+use openrust::validation::{Rule, Rules, Validate};
 
-#[derive(serde::Deserialize, Validate)]
+#[derive(serde::Deserialize, serde::Serialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct CredentialsInput {
-    #[validate(email, length(max = 320))]
     pub(crate) email: String,
-    #[validate(length(min = 1, max = 1024))]
+
     pub(crate) password: String,
 }
 #[cfg(feature = "auth-mfa")]
-#[derive(serde::Deserialize, Validate)]
+#[derive(serde::Deserialize, serde::Serialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct FactorInput {
-    #[validate(email, length(max = 320))]
     pub(crate) email: String,
-    #[validate(length(min = 1, max = 1024))]
+
     pub(crate) password: String,
-    #[validate(length(min = 6, max = 128))]
+
     pub(crate) code: String,
 }
 #[cfg(feature = "auth-mfa")]
-#[derive(serde::Deserialize, Validate)]
+#[derive(serde::Deserialize, serde::Serialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct ChallengeInput {
-    #[validate(length(min = 1, max = 512))]
     pub(crate) challenge: String,
-    #[validate(length(min = 6, max = 128))]
+
     pub(crate) code: String,
 }
 #[derive(Clone, Copy, Default, serde::Serialize, serde::Deserialize)]
@@ -41,4 +38,82 @@ pub(crate) enum Density {
 #[serde(deny_unknown_fields)]
 pub(crate) struct PreferenceInput {
     pub(crate) density: Density,
+}
+
+impl Validate for CredentialsInput {
+    fn rules() -> Rules {
+        Rules::new()
+            .field(
+                "email",
+                [
+                    Rule::required(),
+                    Rule::string(),
+                    Rule::email(),
+                    Rule::length(None, Some(320)),
+                ],
+            )
+            .field(
+                "password",
+                [
+                    Rule::required(),
+                    Rule::string(),
+                    Rule::length(Some(1), Some(1024)),
+                ],
+            )
+    }
+}
+
+#[cfg(feature = "auth-mfa")]
+impl Validate for FactorInput {
+    fn rules() -> Rules {
+        Rules::new()
+            .field(
+                "email",
+                [
+                    Rule::required(),
+                    Rule::string(),
+                    Rule::email(),
+                    Rule::length(None, Some(320)),
+                ],
+            )
+            .field(
+                "password",
+                [
+                    Rule::required(),
+                    Rule::string(),
+                    Rule::length(Some(1), Some(1024)),
+                ],
+            )
+            .field(
+                "code",
+                [
+                    Rule::required(),
+                    Rule::string(),
+                    Rule::length(Some(6), Some(128)),
+                ],
+            )
+    }
+}
+
+#[cfg(feature = "auth-mfa")]
+impl Validate for ChallengeInput {
+    fn rules() -> Rules {
+        Rules::new()
+            .field(
+                "challenge",
+                [
+                    Rule::required(),
+                    Rule::string(),
+                    Rule::length(Some(1), Some(512)),
+                ],
+            )
+            .field(
+                "code",
+                [
+                    Rule::required(),
+                    Rule::string(),
+                    Rule::length(Some(6), Some(128)),
+                ],
+            )
+    }
 }

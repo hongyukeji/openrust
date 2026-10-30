@@ -1,8 +1,7 @@
 //! 根据显式注册的控制器操作生成约定式资源路由。
 
 use crate::core::AppState;
-use crate::http::routing::{self, RouteMethods};
-use axum::handler::Handler;
+use crate::http::routing::{self, ManagedHandler, RouteMethods};
 
 use crate::http::routes::Routes;
 
@@ -45,7 +44,7 @@ impl ResourceActions {
     #[must_use]
     pub fn list<H, T>(mut self, handler: H) -> Self
     where
-        H: Handler<T, AppState>,
+        H: ManagedHandler<T, AppState>,
         T: 'static,
     {
         self.list = Some(routing::get(handler));
@@ -56,7 +55,7 @@ impl ResourceActions {
     #[must_use]
     pub fn get<H, T>(mut self, handler: H) -> Self
     where
-        H: Handler<T, AppState>,
+        H: ManagedHandler<T, AppState>,
         T: 'static,
     {
         self.get = Some(routing::get(handler));
@@ -67,7 +66,7 @@ impl ResourceActions {
     #[must_use]
     pub fn create<H, T>(mut self, handler: H) -> Self
     where
-        H: Handler<T, AppState>,
+        H: ManagedHandler<T, AppState>,
         T: 'static,
     {
         self.create = Some(routing::post(handler));
@@ -78,7 +77,7 @@ impl ResourceActions {
     #[must_use]
     pub fn update<H, T>(mut self, handler: H) -> Self
     where
-        H: Handler<T, AppState>,
+        H: ManagedHandler<T, AppState>,
         T: 'static,
     {
         self.update = Some(routing::put(handler.clone()).patch(handler));
@@ -89,7 +88,7 @@ impl ResourceActions {
     #[must_use]
     pub fn delete<H, T>(mut self, handler: H) -> Self
     where
-        H: Handler<T, AppState>,
+        H: ManagedHandler<T, AppState>,
         T: 'static,
     {
         self.delete = Some(routing::delete(handler));

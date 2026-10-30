@@ -8,7 +8,6 @@ use crate::core::AppState;
 use axum::Router;
 use axum::body::Body;
 use axum::extract::{FromRequestParts, Request, State};
-use axum::handler::Handler;
 use axum::http::{HeaderMap, Method, StatusCode, Uri, Version, header::ALLOW};
 use axum::response::{IntoResponse, Response};
 use axum::routing::Route;
@@ -18,7 +17,7 @@ use tower::{Layer, Service};
 use crate::http::authority::authority;
 use crate::http::domain::DomainPattern;
 use crate::http::resource::{Resource, ResourceActions};
-use crate::http::routing::{self, MethodEntry, RouteMethods};
+use crate::http::routing::{self, ManagedHandler, MethodEntry, RouteMethods};
 
 type ManagedPathKey = (Option<String>, String);
 type ManagedEntries = Arc<Mutex<Vec<MethodEntry>>>;
@@ -268,13 +267,76 @@ pub(crate) struct RouteParts {
 }
 
 /// 应用启动时登记、路由构建时读取的命名 middleware 定义。
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub(crate) struct MiddlewareRegistry {
     aliases: HashMap<String, MiddlewareLayerBuilder>,
     groups: HashMap<String, Vec<String>>,
+    priority: Vec<String>,
+}
+
+impl Default for MiddlewareRegistry {
+    fn default() -> Self {
+        Self {
+            aliases: HashMap::new(),
+            groups: HashMap::new(),
+            priority: ["precognitive", "auth", "throttle", "auth.session", "can"]
+                .into_iter()
+                .map(str::to_owned)
+                .collect(),
+        }
+    }
 }
 
 impl MiddlewareRegistry {
+    pub(crate) fn install_framework_defaults(&mut self) -> crate::core::Result<()> {
+        if !self.aliases.contains_key("precognitive") && !self.groups.contains_key("precognitive") {
+            self.alias(
+                "precognitive".to_owned(),
+                Arc::new(|routes| {
+                    routes.layer(axum::middleware::from_fn(
+                        super::precognition::handle_precognitive_requests,
+                    ))
+                }),
+            )?;
+        }
+        Ok(())
+    }
+    pub(crate) fn priority(&mut self, names: Vec<String>) -> crate::core::Result<()> {
+        if names.iter().any(|name| !valid_middleware_name(name)) {
+            return Err(crate::core::Error::custom(
+                "http_middleware_name_invalid",
+                "HTTP middleware names may contain only ASCII letters, digits, dots, underscores and hyphens",
+            ));
+        }
+        self.priority = names;
+        Ok(())
+    }
+
+    pub(crate) fn prepend_priority(&mut self, name: String) -> crate::core::Result<()> {
+        if !valid_middleware_name(&name) {
+            return Err(crate::core::Error::custom(
+                "http_middleware_name_invalid",
+                "HTTP middleware names may contain only ASCII letters, digits, dots, underscores and hyphens",
+            ));
+        }
+        if !self.priority.contains(&name) {
+            self.priority.insert(0, name);
+        }
+        Ok(())
+    }
+
+    pub(crate) fn append_priority(&mut self, name: String) -> crate::core::Result<()> {
+        if !valid_middleware_name(&name) {
+            return Err(crate::core::Error::custom(
+                "http_middleware_name_invalid",
+                "HTTP middleware names may contain only ASCII letters, digits, dots, underscores and hyphens",
+            ));
+        }
+        if !self.priority.contains(&name) {
+            self.priority.push(name);
+        }
+        Ok(())
+    }
     pub(crate) fn alias(
         &mut self,
         name: String,
@@ -323,9 +385,9 @@ impl MiddlewareRegistry {
         &self,
         name: &str,
         stack: &mut HashSet<String>,
-    ) -> crate::core::Result<Vec<MiddlewareLayerBuilder>> {
+    ) -> crate::core::Result<Vec<(String, MiddlewareLayerBuilder)>> {
         if let Some(alias) = self.aliases.get(name) {
-            return Ok(vec![Arc::clone(alias)]);
+            return Ok(vec![(name.to_owned(), Arc::clone(alias))]);
         }
         let Some(members) = self.groups.get(name) else {
             return Err(crate::core::Error::custom(
@@ -491,6 +553,7 @@ pub struct Routes {
     first_route_order: Option<u64>,
     route_name_errors: Vec<String>,
     middleware_registry: Option<Arc<MiddlewareRegistry>>,
+    active_middleware_name: Option<String>,
     middleware_errors: Vec<crate::core::Error>,
     route_errors: Vec<crate::core::Error>,
     fallback_registered: bool,
@@ -600,7 +663,7 @@ impl Routes {
     #[must_use]
     pub fn get<H, T>(self, path: &str, handler: H) -> Self
     where
-        H: Handler<T, AppState>,
+        H: ManagedHandler<T, AppState>,
         T: 'static,
     {
         self.route(path, routing::get(handler))
@@ -610,7 +673,7 @@ impl Routes {
     #[must_use]
     pub fn post<H, T>(self, path: &str, handler: H) -> Self
     where
-        H: Handler<T, AppState>,
+        H: ManagedHandler<T, AppState>,
         T: 'static,
     {
         self.route(path, routing::post(handler))
@@ -620,7 +683,7 @@ impl Routes {
     #[must_use]
     pub fn put<H, T>(self, path: &str, handler: H) -> Self
     where
-        H: Handler<T, AppState>,
+        H: ManagedHandler<T, AppState>,
         T: 'static,
     {
         self.route(path, routing::put(handler))
@@ -630,7 +693,7 @@ impl Routes {
     #[must_use]
     pub fn patch<H, T>(self, path: &str, handler: H) -> Self
     where
-        H: Handler<T, AppState>,
+        H: ManagedHandler<T, AppState>,
         T: 'static,
     {
         self.route(path, routing::patch(handler))
@@ -640,7 +703,7 @@ impl Routes {
     #[must_use]
     pub fn delete<H, T>(self, path: &str, handler: H) -> Self
     where
-        H: Handler<T, AppState>,
+        H: ManagedHandler<T, AppState>,
         T: 'static,
     {
         self.route(path, routing::delete(handler))
@@ -650,7 +713,7 @@ impl Routes {
     #[must_use]
     pub fn head<H, T>(self, path: &str, handler: H) -> Self
     where
-        H: Handler<T, AppState>,
+        H: ManagedHandler<T, AppState>,
         T: 'static,
     {
         self.route(path, routing::head(handler))
@@ -660,7 +723,7 @@ impl Routes {
     #[must_use]
     pub fn options<H, T>(self, path: &str, handler: H) -> Self
     where
-        H: Handler<T, AppState>,
+        H: ManagedHandler<T, AppState>,
         T: 'static,
     {
         self.route(path, routing::options(handler))
@@ -670,7 +733,7 @@ impl Routes {
     #[must_use]
     pub fn query<H, T>(self, path: &str, handler: H) -> Self
     where
-        H: Handler<T, AppState>,
+        H: ManagedHandler<T, AppState>,
         T: 'static,
     {
         self.route(path, routing::query(handler))
@@ -680,7 +743,7 @@ impl Routes {
     #[must_use]
     pub fn on<H, T>(self, path: &str, methods: &[&str], handler: H) -> Self
     where
-        H: Handler<T, AppState>,
+        H: ManagedHandler<T, AppState>,
         T: 'static,
     {
         self.route(path, routing::on(methods, handler))
@@ -690,7 +753,7 @@ impl Routes {
     #[must_use]
     pub fn any<H, T>(self, path: &str, handler: H) -> Self
     where
-        H: Handler<T, AppState>,
+        H: ManagedHandler<T, AppState>,
         T: 'static,
     {
         self.route(path, routing::any(handler))
@@ -1094,7 +1157,7 @@ impl Routes {
     #[must_use]
     pub fn fallback<H, T>(mut self, handler: H) -> Self
     where
-        H: Handler<T, AppState> + Clone,
+        H: ManagedHandler<T, AppState> + Clone,
         T: 'static,
     {
         if self.fallback_registered {
@@ -1205,10 +1268,18 @@ impl Routes {
         <L::Service as Service<Request>>::Future: Send + 'static,
     {
         for entries in self.managed_paths.values() {
-            routing::layer_entries(entries, layer.clone());
+            routing::layer_entries(
+                entries,
+                layer.clone(),
+                self.active_middleware_name.as_deref(),
+            );
         }
         for entries in &self.fallback_methods {
-            routing::layer_entries(entries, layer.clone());
+            routing::layer_entries(
+                entries,
+                layer.clone(),
+                self.active_middleware_name.as_deref(),
+            );
         }
         self
     }
@@ -1236,6 +1307,16 @@ impl Routes {
     }
 
     pub(crate) fn into_parts(mut self) -> RouteParts {
+        let priority = self
+            .middleware_registry
+            .as_deref()
+            .map_or(&[][..], |registry| registry.priority.as_slice());
+        for entries in self.managed_paths.values() {
+            routing::finalize_layers(entries, priority);
+        }
+        for entries in &self.fallback_methods {
+            routing::finalize_layers(entries, priority);
+        }
         let mut registrations = self.managed_order.clone();
         registrations.sort_by_key(|(_, _, order)| *order);
         let mut mounted = HashSet::new();
@@ -1319,8 +1400,10 @@ fn apply_named_middleware(
     };
     match registry.expand(name, &mut HashSet::new()) {
         Ok(builders) => {
-            for builder in builders.into_iter().rev() {
+            for (alias, builder) in builders.into_iter().rev() {
+                routes.active_middleware_name = Some(alias);
                 routes = builder(routes);
+                routes.active_middleware_name = None;
             }
         }
         Err(error) => routes.middleware_errors.push(error),

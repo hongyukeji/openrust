@@ -6,6 +6,12 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Changed
 
+- 受管理 Handler 支持显式启用的 Precognition：按参数顺序提取与验证，成功预检返回空 204，不调用业务函数。字段筛选可提前结束；认证和授权须放在路由中间件或验证参数之前，原生 Axum 逃生入口不自动获得此保证。
+
+- `Validated` 的 DTO 改为实现框架 `Validate::rules()`，由同一 `Rules` / `Rule` 执行器处理普通请求与选中字段预检；不再直接以 `validator` 的派生 trait 作为框架验证契约。完整规则集及 FormRequest 仍按后继范围推进。
+
+- Session 增加 previous URL/route helper；真实 GET 路由下游返回后记录当前请求，供后续请求读取，已确认预检跳过自动保存及 previous 更新，单纯客户端头不会改变保存行为。
+
 - `Routes::route` 改为接收公开 `http::routing` 的受管理方法声明；同路径按方法合并与后注册覆盖，保留各处理器的路由身份和中间件。原生 Axum 路由仍作为显式逃生口，不自动承诺受管理请求 Route 上下文。
 
 - 显式 fallback 按 Laravel 使用 GET/HEAD；普通当前方法优先，fallback 参与备用方法与自动 OPTIONS 判断。域名与路径可使用同名参数，绑定时路径值优先；单个模式内部重复参数仍拒绝。
@@ -21,6 +27,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 - API/framework JSON 默认使用语义 HTTP 状态（如创建 201、校验失败 422、资源缺失 404）；`always_ok` 仅在配置中显式选择时启用，统一 envelope 与机器码保持不变。
 
 ### Fixed
+
+- 测试数据库仅在本次 CREATE 已成功后清理目标库；同名创建失败不再删除已有库。PostgreSQL 模板碰撞遵循同样的创建所有权边界；取消、连接中断或删除失败仍可能留下本次资源，不承诺必然回收。
 
 - Cookie Session 认证校验真实受管理 Cookie 保护事实；plain、身份 Cookie 或合法数据 ID 被排除保护时拒绝认证，并在最终保存时防止更换名称/handler 降级保护。Cookie/Session 机制自身的失败响应统一禁止缓存，不泄出被替换响应的 Cookie 或正文。
 

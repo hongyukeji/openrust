@@ -19,12 +19,12 @@ use openrust::http::{
 };
 use openrust::http::{Json, Path, Query};
 
+use openrust::validation::{Rule, Rules, Validate};
 use serde::Deserialize;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tower::ServiceExt;
-use validator::Validate;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -1603,12 +1603,43 @@ fn is_utc_rfc3339(value: &serde_json::Value) -> bool {
 
 struct Greeting(&'static str);
 
-#[derive(Deserialize, Validate)]
+#[derive(Deserialize)]
 struct CreatePost {
-    #[validate(length(min = 3, message = "title must be at least 3 characters"))]
     title: String,
-    #[validate(range(min = 1))]
     pages: u32,
+}
+
+impl Validate for CreatePost {
+    fn rules() -> Rules {
+        Rules::new()
+            .field(
+                "title",
+                [
+                    Rule::required(),
+                    Rule::string(),
+                    Rule::custom(|field| {
+                        if field
+                            .value
+                            .and_then(serde_json::Value::as_str)
+                            .is_some_and(|value| value.chars().count() < 3)
+                        {
+                            return Err(validator::ValidationError::new("length").with_message(
+                                std::borrow::Cow::Borrowed("title must be at least 3 characters"),
+                            ));
+                        }
+                        Ok(())
+                    }),
+                ],
+            )
+            .field(
+                "pages",
+                [
+                    Rule::required(),
+                    Rule::integer(),
+                    Rule::range(Some(1), None),
+                ],
+            )
+    }
 }
 
 async fn greet(Inject(greeting): Inject<Greeting>) -> Json<&'static str> {
@@ -1616,6 +1647,7 @@ async fn greet(Inject(greeting): Inject<Greeting>) -> Json<&'static str> {
 }
 
 async fn create(Validated(Json(input)): Validated<Json<CreatePost>>) -> Json<String> {
+    let _ = input.pages;
     Json(input.title)
 }
 
@@ -1926,7 +1958,7 @@ async fn named_middleware_aliases_and_nested_groups_keep_declaration_order() -> 
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(
         json_body(response).await["data"],
-        serde_json::json!(["first", "second", "first"])
+        serde_json::json!(["first", "second"])
     );
 
     let response = router
@@ -1973,6 +2005,124 @@ async fn named_middleware_aliases_and_nested_groups_keep_declaration_order() -> 
 }
 
 struct DuplicateMiddlewareProvider;
+
+struct PriorityMiddlewareProvider;
+
+impl openrust::core::ServiceProvider for PriorityMiddlewareProvider {
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut openrust::core::BootContext<'_>,
+    ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.middleware_alias(
+                "first",
+                axum::middleware::from_fn_with_state("first", record_group_middleware),
+            )?;
+            app.middleware_alias(
+                "second",
+                axum::middleware::from_fn_with_state("second", record_group_middleware),
+            )?;
+            app.middleware_priority(["second"])?;
+            app.prepend_middleware_priority("first")?;
+            app.append_middleware_priority("third")?;
+            Ok(())
+        })
+    }
+}
+
+#[tokio::test]
+async fn provider_priority_sorts_named_route_layers_after_group_flattening() -> TestResult {
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(PriorityMiddlewareProvider)
+        .provider(TestRoutes::new(|routes| {
+            routes.group(RouteGroup::new().middleware_alias("second"), |outer| {
+                outer.group(
+                    RouteGroup::new()
+                        .middleware(axum::middleware::from_fn_with_state(
+                            "anonymous",
+                            record_group_middleware,
+                        ))
+                        .middleware_alias("first"),
+                    |inner| inner.get("/priority", grouped_order),
+                )
+            })
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let response = build_router(&app)?
+        .oneshot(Request::get("/priority").body(Body::empty())?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        json_body(response).await["data"],
+        serde_json::json!(["first", "second", "anonymous"])
+    );
+    Ok(())
+}
+
+struct RejectingAuthProvider;
+
+async fn reject_as_unauthorized(_request: Request, _next: Next) -> Response {
+    StatusCode::UNAUTHORIZED.into_response()
+}
+
+impl openrust::core::ServiceProvider for RejectingAuthProvider {
+    fn boot<'a>(
+        &'a self,
+        app: &'a mut openrust::core::BootContext<'_>,
+    ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.middleware_alias("auth", axum::middleware::from_fn(reject_as_unauthorized))?;
+            Ok(())
+        })
+    }
+}
+
+#[tokio::test]
+async fn default_precognitive_priority_runs_before_route_authorization() -> TestResult {
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(RejectingAuthProvider)
+        .provider(TestRoutes::new(|routes| {
+            routes.group(
+                RouteGroup::new()
+                    .middleware_alias("auth")
+                    .middleware_alias("precognitive"),
+                |routes| routes.get("/auth-before-handler", || async { "unreachable" }),
+            )
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let response = build_router(&app)?
+        .oneshot(
+            Request::get("/auth-before-handler")
+                .header("precognition", "true")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(response.headers()["precognition"], "true");
+    assert!(
+        response.headers()[header::VARY]
+            .to_str()?
+            .contains("Precognition")
+    );
+    assert!(!response.headers().contains_key("precognition-success"));
+    Ok(())
+}
 
 impl openrust::core::ServiceProvider for DuplicateMiddlewareProvider {
     fn boot<'a>(
@@ -3917,6 +4067,409 @@ where
             Ok(())
         })
     }
+}
+
+struct PrecognitionProbe;
+
+struct RejectAfterValidation;
+
+impl<S> axum::extract::FromRequestParts<S> for RejectAfterValidation
+where
+    S: Send + Sync,
+{
+    type Rejection = StatusCode;
+
+    fn from_request_parts(
+        parts: &mut axum::http::request::Parts,
+        _state: &S,
+    ) -> impl std::future::Future<Output = Result<Self, Self::Rejection>> + Send {
+        if let Some(calls) = parts.extensions.get::<Arc<AtomicUsize>>() {
+            calls.fetch_add(1, Ordering::SeqCst);
+        }
+        std::future::ready(Err(StatusCode::IM_A_TEAPOT))
+    }
+}
+
+impl<S> axum::extract::FromRequestParts<S> for PrecognitionProbe
+where
+    S: Send + Sync,
+{
+    type Rejection = StatusCode;
+
+    async fn from_request_parts(
+        parts: &mut axum::http::request::Parts,
+        state: &S,
+    ) -> Result<Self, Self::Rejection> {
+        let info = <openrust::http::RequestInfo as axum::extract::FromRequestParts<S>>::from_request_parts(parts, state)
+            .await
+            .map_err(|_| StatusCode::BAD_REQUEST)?;
+        if let Some(events) = parts.extensions.get::<Arc<Mutex<Vec<(bool, bool)>>>>()
+            && let Ok(mut events) = events.lock()
+        {
+            events.push((
+                info.is_attempting_precognition()
+                    .map_err(|_| StatusCode::BAD_REQUEST)?,
+                info.is_precognitive(),
+            ));
+        }
+        if parts.headers.contains_key("x-reject-before-body") {
+            return Err(StatusCode::IM_A_TEAPOT);
+        }
+        Ok(Self)
+    }
+}
+
+async fn add_existing_vary(request: Request, next: Next) -> Response {
+    let mut response = next.run(request).await;
+    response.headers_mut().append(
+        header::VARY,
+        axum::http::HeaderValue::from_static("Accept-Encoding"),
+    );
+    response
+}
+
+#[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "逐个真实请求断言确认、拒绝、无中间件与并发隔离的连续状态"
+)]
+async fn precognition_confirms_only_opted_in_routes_after_extraction() -> TestResult {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let routes_calls = Arc::clone(&calls);
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(
+        FrameworkConfig::default(),
+    ));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(TestRoutes::new(move |routes| {
+            let managed_calls = Arc::clone(&routes_calls);
+            let plain_calls = Arc::clone(&routes_calls);
+            routes
+                .group(
+                    RouteGroup::new()
+                        .middleware_alias("precognitive")
+                        .middleware(axum::middleware::from_fn(add_existing_vary)),
+                    move |routes| {
+                        let managed_calls = Arc::clone(&managed_calls);
+                        routes.post(
+                        "/precognitive",
+                        move |PrecognitionProbe, axum::Json(_): axum::Json<serde_json::Value>| {
+                            let calls = Arc::clone(&managed_calls);
+                            async move {
+                                calls.fetch_add(1, Ordering::SeqCst);
+                                "called"
+                            }
+                        },
+                    )
+                    },
+                )
+                .post(
+                    "/plain",
+                    move |PrecognitionProbe, axum::Json(_): axum::Json<serde_json::Value>| {
+                        let calls = Arc::clone(&plain_calls);
+                        async move {
+                            calls.fetch_add(1, Ordering::SeqCst);
+                            "called"
+                        }
+                    },
+                )
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let router = build_router(&app)?;
+    let events = Arc::new(Mutex::new(Vec::new()));
+
+    let mut request = Request::post("/precognitive")
+        .header("precognition", "true")
+        .header("content-type", "application/json")
+        .body(Body::from("{}"))?;
+    request.extensions_mut().insert(Arc::clone(&events));
+    let response = router.clone().oneshot(request).await?;
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+    assert_eq!(response.headers()["precognition"], "true");
+    assert_eq!(response.headers()["precognition-success"], "true");
+    assert!(
+        response.headers()[header::VARY]
+            .to_str()?
+            .contains("Accept-Encoding")
+    );
+    assert!(
+        response.headers()[header::VARY]
+            .to_str()?
+            .contains("Precognition")
+    );
+    assert!(to_bytes(response.into_body(), 1024).await?.is_empty());
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    assert_eq!(
+        *events
+            .lock()
+            .map_err(|_| std::io::Error::other("events poisoned"))?,
+        vec![(true, true)]
+    );
+
+    let mut request = Request::post("/precognitive")
+        .header("precognition", "true")
+        .header("x-reject-before-body", "yes")
+        .header("content-type", "application/json")
+        .body(Body::from("bad"))?;
+    request.extensions_mut().insert(Arc::clone(&events));
+    let response = router.clone().oneshot(request).await?;
+    assert_eq!(response.status(), StatusCode::IM_A_TEAPOT);
+    assert_eq!(response.headers()["precognition"], "true");
+    assert!(!response.headers().contains_key("precognition-success"));
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+
+    let request = Request::post("/precognitive")
+        .header("precognition", "true")
+        .header("content-type", "application/json")
+        .body(Body::from("bad"))?;
+    let response = router.clone().oneshot(request).await?;
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert!(!response.headers().contains_key("precognition-success"));
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+
+    let mut request = Request::post("/plain")
+        .header("precognition", "true")
+        .header("content-type", "application/json")
+        .body(Body::from("{}"))?;
+    request.extensions_mut().insert(Arc::clone(&events));
+    let response = router.clone().oneshot(request).await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(!response.headers().contains_key("precognition-success"));
+    assert!(!response.headers().contains_key("precognition"));
+    assert!(
+        !response
+            .headers()
+            .get_all(header::VARY)
+            .iter()
+            .filter_map(|value| value.to_str().ok())
+            .any(|value| value.contains("Precognition"))
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        events
+            .lock()
+            .map_err(|_| std::io::Error::other("events poisoned"))?
+            .last(),
+        Some(&(true, false))
+    );
+
+    let confirmed_events = Arc::new(Mutex::new(Vec::<(bool, bool)>::new()));
+    let ordinary_events = Arc::new(Mutex::new(Vec::<(bool, bool)>::new()));
+    let mut confirmed_request = Request::post("/precognitive")
+        .header("precognition", "true")
+        .header("content-type", "application/json")
+        .body(Body::from("{}"))?;
+    confirmed_request
+        .extensions_mut()
+        .insert(Arc::clone(&confirmed_events));
+    let mut ordinary_request = Request::post("/precognitive")
+        .header("content-type", "application/json")
+        .body(Body::from("{}"))?;
+    ordinary_request
+        .extensions_mut()
+        .insert(Arc::clone(&ordinary_events));
+    let (confirmed_response, ordinary_response) = tokio::join!(
+        router.clone().oneshot(confirmed_request),
+        router.clone().oneshot(ordinary_request),
+    );
+    assert_eq!(confirmed_response?.status(), StatusCode::NO_CONTENT);
+    assert_eq!(ordinary_response?.status(), StatusCode::OK);
+    assert_eq!(
+        *confirmed_events
+            .lock()
+            .map_err(|_| std::io::Error::other("events poisoned"))?,
+        vec![(true, true)]
+    );
+    assert_eq!(
+        *ordinary_events
+            .lock()
+            .map_err(|_| std::io::Error::other("events poisoned"))?,
+        vec![(false, false)]
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+
+    let request = Request::post("/precognitive")
+        .header("precognition", "TRUE")
+        .header("content-type", "application/json")
+        .body(Body::from("{}"))?;
+    let response = router.oneshot(request).await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(calls.load(Ordering::SeqCst), 3);
+    Ok(())
+}
+
+#[tokio::test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "同一受管理路由连续核对字段选择、完整验证与后续提取器短路"
+)]
+async fn validated_precognition_selects_json_and_stops_query_parts_extraction() -> TestResult {
+    let business_calls = Arc::new(AtomicUsize::new(0));
+    let route_calls = Arc::clone(&business_calls);
+    let mut config = FrameworkConfig::default();
+    config.api.http_status = openrust::config::HttpStatusMode::Semantic;
+    let sources = figment::Figment::from(figment::providers::Serialized::defaults(config));
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(TestRoutes::new(move |routes| {
+            let json_calls = Arc::clone(&route_calls);
+            let plain_calls = Arc::clone(&route_calls);
+            routes
+                .group(
+                    RouteGroup::new().middleware_alias("precognitive"),
+                    move |routes| {
+                        let json_calls = Arc::clone(&json_calls);
+                        routes
+                            .post(
+                                "/validated-json",
+                                move |Validated(Json(input)): Validated<Json<CreatePost>>| {
+                                    let calls = Arc::clone(&json_calls);
+                                    async move {
+                                        calls.fetch_add(1, Ordering::SeqCst);
+                                        Json(input.title)
+                                    }
+                                },
+                            )
+                            .get(
+                                "/validated-query",
+                                |Validated(Query(_input)): Validated<Query<CreatePost>>,
+                                 _later: RejectAfterValidation,
+                                 _request: Request| async move { "business" },
+                            )
+                    },
+                )
+                .post(
+                    "/plain-validated-json",
+                    move |Validated(Json(input)): Validated<Json<CreatePost>>| {
+                        let calls = Arc::clone(&plain_calls);
+                        async move {
+                            calls.fetch_add(1, Ordering::SeqCst);
+                            Json(input.title)
+                        }
+                    },
+                )
+                .get(
+                    "/plain-validated-query",
+                    |Validated(Query(input)): Validated<Query<CreatePost>>, _request: Request| async move {
+                        Json(input.title)
+                    },
+                )
+        }));
+    let app = builder
+        .start(sources)
+        .await
+        .and_then(openrust::App::from_provider_runtime)?;
+    let router = build_router(&app)?;
+
+    for (body, selected, expected_status, success) in [
+        (r#"{"title":"good"}"#, "title", StatusCode::NO_CONTENT, true),
+        (
+            r#"{"title":"no"}"#,
+            "title",
+            StatusCode::UNPROCESSABLE_ENTITY,
+            false,
+        ),
+        (r#"{"title":"good"}"#, "", StatusCode::NO_CONTENT, true),
+    ] {
+        let request = Request::post("/validated-json")
+            .header("precognition", "true")
+            .header("precognition-validate-only", selected)
+            .header("content-type", "application/json")
+            .body(Body::from(body))?;
+        let response = router.clone().oneshot(request).await?;
+        assert_eq!(response.status(), expected_status, "{body} / {selected}");
+        assert_eq!(response.headers()["precognition"], "true");
+        assert!(
+            response.headers()[header::VARY]
+                .to_str()?
+                .contains("Precognition")
+        );
+        assert_eq!(
+            response.headers().get("precognition-success").is_some(),
+            success
+        );
+        if success {
+            assert!(to_bytes(response.into_body(), 1024).await?.is_empty());
+        } else {
+            assert_eq!(json_body(response).await["code"], "validation_failed");
+        }
+    }
+    assert_eq!(business_calls.load(Ordering::SeqCst), 0);
+
+    let request = Request::post("/plain-validated-json")
+        .header("precognition", "true")
+        .header("precognition-validate-only", "title")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"title":"good"}"#))?;
+    let response = router.clone().oneshot(request).await?;
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    assert!(!response.headers().contains_key("precognition"));
+    assert!(!response.headers().contains_key("precognition-success"));
+    assert_eq!(business_calls.load(Ordering::SeqCst), 0);
+
+    let request = Request::post("/plain-validated-json")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"title":"good","pages":2}"#))?;
+    let response = router.clone().oneshot(request).await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(business_calls.load(Ordering::SeqCst), 1);
+
+    let response = router
+        .clone()
+        .oneshot(Request::get("/plain-validated-query?title=good&pages=2").body(Body::empty())?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(json_body(response).await["data"], "good");
+    let response = router
+        .clone()
+        .oneshot(Request::get("/plain-validated-query?title=no&pages=2").body(Body::empty())?)
+        .await?;
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(json_body(response).await["code"], "validation_failed");
+
+    let later_calls = Arc::new(AtomicUsize::new(0));
+    let mut request = Request::get("/validated-query?title=good")
+        .header("precognition", "true")
+        .header("precognition-validate-only", "title")
+        .body(Body::empty())?;
+    request.extensions_mut().insert(Arc::clone(&later_calls));
+    let response = router.clone().oneshot(request).await?;
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+    assert_eq!(response.headers()["precognition"], "true");
+    assert_eq!(response.headers()["precognition-success"], "true");
+    assert!(
+        response.headers()[header::VARY]
+            .to_str()?
+            .contains("Precognition")
+    );
+    assert!(to_bytes(response.into_body(), 1024).await?.is_empty());
+    assert_eq!(later_calls.load(Ordering::SeqCst), 0);
+
+    let mut request = Request::get("/validated-query?title=good&pages=2")
+        .header("precognition", "true")
+        .body(Body::empty())?;
+    request.extensions_mut().insert(Arc::clone(&later_calls));
+    let response = router.clone().oneshot(request).await?;
+    assert_eq!(response.status(), StatusCode::IM_A_TEAPOT);
+    assert_eq!(response.headers()["precognition"], "true");
+    assert!(!response.headers().contains_key("precognition-success"));
+    assert_eq!(later_calls.load(Ordering::SeqCst), 1);
+
+    let request = Request::get("/validated-query?title=no&pages=2")
+        .header("precognition", "true")
+        .header("precognition-validate-only", "title")
+        .body(Body::empty())?;
+    let response = router.oneshot(request).await?;
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(response.headers()["precognition"], "true");
+    assert!(!response.headers().contains_key("precognition-success"));
+    assert_eq!(later_calls.load(Ordering::SeqCst), 1);
+    Ok(())
 }
 
 type IdentityFactory = dyn Fn(

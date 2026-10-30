@@ -1,0 +1,213 @@
+{
+  "format_version": 1,
+  "framework_ref": "d52c3b3129e4c8e213c97cdc68f94b0b7d27f181",
+  "evidence_status": "source_audit_only",
+  "upstream_runtime_executed": false,
+  "rust_behavior_verified": false,
+  "note": "固定官方源码与测试的内容来源；摘要核对不等于PHP或Rust行为验收。Cargo不依赖本机临时缓存。",
+  "sources": [
+    {
+      "path": "src/Illuminate/Session/Middleware/StartSession.php",
+      "url": "https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Session/Middleware/StartSession.php",
+      "blob_sha1": "789ae26fffe85ad10c3047ff4d25cd8deb88e640",
+      "sha256": "c259cd8954a107a080e4787caec3babc7c6fc710a9ba3e0310533c2662199ac7",
+      "bytes": 9306
+    },
+    {
+      "path": "src/Illuminate/Session/Store.php",
+      "url": "https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Session/Store.php",
+      "blob_sha1": "6e1d6da785f58e23ab4c4ed28016f826318b0b79",
+      "sha256": "61cf31f4f63716bb1331d9d46c8b92750f47532f69aa9176b08130baabceebb8",
+      "bytes": 19252
+    },
+    {
+      "path": "src/Illuminate/Http/Request.php",
+      "url": "https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Http/Request.php",
+      "blob_sha1": "3a5c94df5c48a3611b15604ef86a5c1867f56d5c",
+      "sha256": "d790c1dd0576f96aefd748cfcad05ec7fb271e828557e77c47bf83c3231abe25",
+      "bytes": 20519
+    },
+    {
+      "path": "src/Illuminate/Http/Concerns/CanBePrecognitive.php",
+      "url": "https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Http/Concerns/CanBePrecognitive.php",
+      "blob_sha1": "a1a8254594d6d909552336389e2f2169c47a5c59",
+      "sha256": "2101e3beeaedb2395ab44547778ccd036de559eaa5a2c1e80095d48cfa5cf64f",
+      "bytes": 1680
+    },
+    {
+      "path": "src/Illuminate/Foundation/Http/Middleware/HandlePrecognitiveRequests.php",
+      "url": "https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Http/Middleware/HandlePrecognitiveRequests.php",
+      "blob_sha1": "19c26db628aa209263e1b607b90bd97b250aae5e",
+      "sha256": "a3d26ae0cc41f3e17a91cbf7eb801e53c517ce1227f00f9bdbfd727cfa702f28",
+      "bytes": 3397
+    },
+    {
+      "path": "src/Illuminate/Foundation/Precognition.php",
+      "url": "https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Precognition.php",
+      "blob_sha1": "679b35edb1a367a6b389b4df147f67cc766f8c82",
+      "sha256": "68705331d03218efed3fd3a07d92e0c4c7025ebc86b282f55288e0cb78deea2f",
+      "bytes": 574
+    },
+    {
+      "path": "src/Illuminate/Foundation/Routing/PrecognitionCallableDispatcher.php",
+      "url": "https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Routing/PrecognitionCallableDispatcher.php",
+      "blob_sha1": "66456a192d84fdfdd85734994c358af0267d2200",
+      "sha256": "74ba10c3466678828d3ab0a0261907f7d3353a12844898fe83467765d549cdf4",
+      "bytes": 551
+    },
+    {
+      "path": "src/Illuminate/Foundation/Routing/PrecognitionControllerDispatcher.php",
+      "url": "https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Routing/PrecognitionControllerDispatcher.php",
+      "blob_sha1": "b055d44f0f8918c5d822836fa550786332c58e45",
+      "sha256": "b3db5f4f054defe0e18a102a6499ab0442a4c890db1acac62ef97d81581e38c7",
+      "bytes": 1258
+    },
+    {
+      "path": "src/Illuminate/Foundation/Validation/ValidatesRequests.php",
+      "url": "https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Validation/ValidatesRequests.php",
+      "blob_sha1": "4d7aad2a65d1b8662f6312aead1c3b6a1412cf90",
+      "sha256": "5391357f42889fc14be04f2bea94ec88fea3e1d6ffce662f81859fd0708038b0",
+      "bytes": 2959
+    },
+    {
+      "path": "src/Illuminate/Foundation/Http/FormRequest.php",
+      "url": "https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Http/FormRequest.php",
+      "blob_sha1": "3dd27327ca8fd9d0d6a44080de461a5664c3778a",
+      "sha256": "053e502a92a5e599ef1769aa5f79887a0cdc75be8e9c4180b755899bc10377c8",
+      "bytes": 13800
+    },
+    {
+      "path": "src/Illuminate/Validation/ValidatesWhenResolvedTrait.php",
+      "url": "https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Validation/ValidatesWhenResolvedTrait.php",
+      "blob_sha1": "596585551d22dbb49b4b18ecdc282596a2b295dc",
+      "sha256": "b316bc93ae2979a859a378068b4b613d4908ff1ef8c24696ba36168c4ac28723",
+      "bytes": 2207
+    },
+    {
+      "path": "src/Illuminate/Validation/Validator.php",
+      "url": "https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Validation/Validator.php",
+      "blob_sha1": "f651c757192cbfeac06f825eb18fd0921348d15f",
+      "sha256": "82479db84f3e88d085f933b3ed2b6500ae99c0ae77347a58f21673057cfe9755",
+      "bytes": 47470
+    },
+    {
+      "path": "src/Illuminate/Foundation/Http/Kernel.php",
+      "url": "https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Http/Kernel.php",
+      "blob_sha1": "b2ce376f6615e253079eb1ede614c47545fdefc5",
+      "sha256": "f807ec6b1851030c4e5d4c3d83dc9021d8ac6b399d49f1300a068ea2f3c208ad",
+      "bytes": 18610
+    },
+    {
+      "path": "src/Illuminate/Foundation/Configuration/Middleware.php",
+      "url": "https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Configuration/Middleware.php",
+      "blob_sha1": "c4d90bb988509b9193d0e42d92838d235c63b79a",
+      "sha256": "c168fce389f0fe88ff85f89c10f6d50fed3d85da6f34efe03a68772ca8290b48",
+      "bytes": 22610
+    },
+    {
+      "path": "src/Illuminate/Routing/Router.php",
+      "url": "https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Routing/Router.php",
+      "blob_sha1": "8359d4d0f94a783f34f8372bb194aa6e4c04f0c5",
+      "sha256": "ed70964d38049e79b8b63b02664635751fbb23ef66761309abb3d6cad2b4bf9c",
+      "bytes": 41822
+    },
+    {
+      "path": "src/Illuminate/Foundation/Exceptions/Handler.php",
+      "url": "https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Exceptions/Handler.php",
+      "blob_sha1": "48d144815063132ce24010f2728066f26f16fbf7",
+      "sha256": "9165937843bdeaee31e4b057c9c915572981b597d38e8572bf1cf11a6ab243e3",
+      "bytes": 35376
+    },
+    {
+      "path": "tests/Http/HttpRequestTest.php",
+      "url": "https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/tests/Http/HttpRequestTest.php",
+      "blob_sha1": "147b2fb07f8810d3f3ea57c857da56164d7b9151",
+      "sha256": "cf69e482bb47f82690de8b0b4ccd519b48d7ab387a70f1517e3e5f303b28214a",
+      "bytes": 88116
+    },
+    {
+      "path": "tests/Integration/Routing/PrecognitionTest.php",
+      "url": "https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/tests/Integration/Routing/PrecognitionTest.php",
+      "blob_sha1": "353dbe81b197fc62ca998dba6fc4f44a3043d58d",
+      "sha256": "403b46cf8513a381be1444864852c2b176862af05b655a090051a1c85d41e4a8",
+      "bytes": 55984
+    },
+    {
+      "path": "tests/Integration/Session/SessionPersistenceTest.php",
+      "url": "https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/tests/Integration/Session/SessionPersistenceTest.php",
+      "blob_sha1": "8e78a1c68e2c1bf14bb5a014564bb87e3b3d7d9d",
+      "sha256": "4f937a84b87b1134f176a5ee231505f36da6cd3b60717cfcc039ca271a455ecc",
+      "bytes": 1407
+    },
+    {
+      "path": "tests/Foundation/FoundationFormRequestTest.php",
+      "url": "https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/tests/Foundation/FoundationFormRequestTest.php",
+      "blob_sha1": "6cda1aa758cb1d4512102d3d6f6967b6cacbffa9",
+      "sha256": "623c4845a4ff937db4a916022be5a202eda8156ba234deba911bf64bfc35033f",
+      "bytes": 36936
+    },
+    {
+      "path": "src/Illuminate/Foundation/helpers.php",
+      "url": "https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/helpers.php",
+      "blob_sha1": "37c099058e40a08d95c5471a22321356216a4ca1",
+      "sha256": "84a94be4f68fd0f749a87f05a7cb1b78ddc07c7d2121b56c6f05ff6ef80d34c6",
+      "bytes": 29821
+    },
+    {
+      "path": "src/Illuminate/Routing/Pipeline.php",
+      "url": "https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Routing/Pipeline.php",
+      "blob_sha1": "8ffa2a8bd638b645120216dbdd71ad5d02218245",
+      "sha256": "766de2c81e882c5403b2a7d1954600b91b99e3e60f84709bf37cb5145db53ee7",
+      "bytes": 1523
+    },
+    {
+      "path": "src/Illuminate/Foundation/Providers/FoundationServiceProvider.php",
+      "url": "https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Providers/FoundationServiceProvider.php",
+      "blob_sha1": "3a072be8b933950d108a1b3ff7114c0172a494b6",
+      "sha256": "3998bda507e5d54d9970a949eb316a521243517993216dc2436d7800bad424be",
+      "bytes": 9836
+    },
+    {
+      "path": "src/Illuminate/Foundation/Providers/FormRequestServiceProvider.php",
+      "url": "https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Foundation/Providers/FormRequestServiceProvider.php",
+      "blob_sha1": "d456ce0dd971a82d53809e589b65fa397a36106d",
+      "sha256": "94404a02b3001fd0f30f1317bb61d0f99b246d8a189fb2f58a2950f63627416e",
+      "bytes": 950
+    },
+    {
+      "path": "tests/Session/SessionStoreTest.php",
+      "url": "https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/tests/Session/SessionStoreTest.php",
+      "blob_sha1": "4bd513977c6ec133dc1d541f6d39a82a4298b6fc",
+      "sha256": "b85c9dfff06437c13c3383bf711ddaf0e05146281f78e5a87c91a596ca0cba50",
+      "bytes": 28787
+    },
+    {
+      "path": "src/Illuminate/Routing/ResolvesRouteDependencies.php",
+      "url": "https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Routing/ResolvesRouteDependencies.php",
+      "blob_sha1": "ee0da613c677b8f6096e63566c0386ea4c7f4e1b",
+      "sha256": "28ab5a163c46f9adefa241ee716ad12cfbf5a9ef91bdade0d29e9ce66b55799b",
+      "bytes": 3914
+    },
+    {
+      "path": "src/Illuminate/Validation/Concerns/ValidatesAttributes.php",
+      "url": "https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Validation/Concerns/ValidatesAttributes.php",
+      "blob_sha1": "89c5674984fa06428f482b5abc49d3a4a795d8f9",
+      "sha256": "182ba6d90fac0bf5f427b6632ddefb263ed6d68b850f8acb3055713d6932a4fd",
+      "bytes": 87190
+    },
+    {
+      "path": "src/Illuminate/Routing/SortedMiddleware.php",
+      "url": "https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Routing/SortedMiddleware.php",
+      "blob_sha1": "2fa2e3c5f06fdbaea17bbeac9a5fcada4e25464d",
+      "sha256": "bc0beaae21b1293f37c295c8805897cad3e873d423ec64ac8246832f2775c793",
+      "bytes": 3825
+    },
+    {
+      "path": "tests/Routing/RoutingSortedMiddlewareTest.php",
+      "url": "https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/tests/Routing/RoutingSortedMiddlewareTest.php",
+      "blob_sha1": "e302f127dc2ec4a0f376608d62450e4d839563ea",
+      "sha256": "1f61f1600b9507d7cd43d4a9ffae7c0d5a956d35444a0f3ef403adeb751843ab",
+      "bytes": 3449
+    }
+  ]
+}

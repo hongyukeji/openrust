@@ -69,6 +69,7 @@ pub struct RequestInfo {
     acceptable: Vec<String>,
     cookies: serde_json::Value,
     route: super::route::RouteSlot,
+    precognition: super::precognition::PrecognitionState,
     #[cfg(feature = "session")]
     session: Option<crate::session::Session>,
 }
@@ -109,6 +110,7 @@ impl<S: Send + Sync> FromRequestParts<S> for RequestInfo {
                 parts.extensions.insert(slot.clone());
                 slot
             });
+        let precognition = super::precognition::ensure_state(&mut parts.extensions);
         Ok(Self {
             secure: super::transport::is_secure_parts(&parts.headers, &parts.extensions)
                 .map_err(std::sync::Arc::new),
@@ -121,6 +123,7 @@ impl<S: Send + Sync> FromRequestParts<S> for RequestInfo {
             acceptable,
             cookies: parsed.value,
             route,
+            precognition,
             #[cfg(feature = "session")]
             session: parts.extensions.get::<crate::session::Session>().cloned(),
         })
@@ -128,6 +131,16 @@ impl<S: Send + Sync> FromRequestParts<S> for RequestInfo {
 }
 
 impl RequestInfo {
+    /// 请求头首值严格等于 `true` 时表示尝试 Precognition；这不等于已确认。
+    pub fn is_attempting_precognition(&self) -> Result<bool> {
+        Ok(self.header("precognition")? == Some("true"))
+    }
+
+    /// 仅当受信 Precognition middleware 确认本请求时返回 `true`。
+    pub fn is_precognitive(&self) -> bool {
+        self.precognition.is_confirmed()
+    }
+
     /// 取得当前实际匹配的路由；无业务命中返回 `None`。
     pub fn route(&self) -> Result<Option<super::Route>> {
         self.route.route()

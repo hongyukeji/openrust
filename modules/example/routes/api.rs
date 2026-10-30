@@ -52,9 +52,7 @@ pub(super) fn register(routes: Routes, capabilities: &RouteCapabilities) -> Rout
         );
     #[cfg(feature = "session")]
     let routes = if capabilities.session {
-        routes
-            .get("/api/example/session", controllers::session::show)
-            .post("/api/example/session", controllers::session::store)
+        session_routes(routes)
     } else {
         routes
     };
@@ -106,6 +104,36 @@ pub(super) fn register(routes: Routes, capabilities: &RouteCapabilities) -> Rout
     )))]
     let _ = capabilities.database;
     routes
+}
+
+#[cfg(feature = "session")]
+fn session_routes(routes: Routes) -> Routes {
+    routes
+        .get("/api/example/session", controllers::session::show)
+        .post("/api/example/session", controllers::session::store)
+        .post(
+            "/api/example/session/previous",
+            controllers::session::previous,
+        )
+        .get(
+            "/api/example/session/previous/named",
+            controllers::session::previous_visit,
+        )
+        .name("example.session.previous.named")
+        .get(
+            "/api/example/session/previous/anonymous",
+            controllers::session::previous_visit,
+        )
+        .group(
+            RouteGroup::new()
+                .prefix("/api/example/session/previous")
+                .middleware_alias("precognitive"),
+            |routes| {
+                routes
+                    .get("/preview", controllers::session::previous_visit)
+                    .name("example.session.previous.preview")
+            },
+        )
 }
 
 fn route_context_routes(routes: Routes) -> Routes {
@@ -280,9 +308,22 @@ async fn private_oidc_response(
 fn article_routes(routes: Routes, summary_enabled: bool) -> Routes {
     use controllers::article;
 
+    let routes = routes.group(
+        RouteGroup::new()
+            .prefix("/api/example")
+            .middleware_alias("precognitive")
+            .middleware_alias("example.article-auth"),
+        |routes| {
+            routes.resource_with::<article::Articles>("/articles", |actions| {
+                actions.only(&[openrust::http::Action::Create])
+            })
+        },
+    );
     let routes = routes.nest("/api/example", |api| {
         let api = api
-            .resource::<article::Articles>("/articles")
+            .resource_with::<article::Articles>("/articles", |actions| {
+                actions.except(&[openrust::http::Action::Create])
+            })
             .resource::<controllers::example_record::ExampleRecords>("/records");
         #[cfg(feature = "queue")]
         let api = api

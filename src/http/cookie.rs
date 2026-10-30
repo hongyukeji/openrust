@@ -13,6 +13,8 @@ pub(crate) use crypto::CookieProtection;
 pub(crate) use provider::CookieRuntime;
 pub use provider::CookieServiceProvider;
 pub use queue::CookieJar;
+#[cfg(feature = "session")]
+pub(crate) use response::attach as attach_response_cookies;
 pub use response::{CookieResponse, CookieResponseExt};
 pub use value::{Cookie, CookieFactory, CookieOptions};
 

@@ -9,7 +9,7 @@ use openrust::http::axum::{
         header::{COOKIE, SET_COOKIE},
     },
 };
-use openrust::http::{CookieJar, CookieOptions, Json, RequestInfo, Routes};
+use openrust::http::{CookieJar, CookieOptions, Inject, Json, RequestInfo, RouteGroup, Routes};
 use openrust::session::{
     CookieSessionStore, DatabaseSessionStore, MemorySessionStore, Session, SessionId,
     SessionRecord, SessionRequestContext, SessionServiceProvider, SessionStore, SessionStoreHandle,
@@ -17,7 +17,10 @@ use openrust::session::{
 };
 use openrust::testing::{TestApp, TestResponse};
 use serde_json::{Value, json};
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
 use std::time::Duration;
 use time::OffsetDateTime;
 
@@ -34,8 +37,12 @@ const BODY_LIMIT: usize = 4096;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 
 struct SessionRoutes;
+#[derive(Default)]
+struct PreviousCalls(AtomicUsize);
+
 impl ServiceProvider for SessionRoutes {
     fn register(&self, app: &mut RegisterContext<'_>) -> openrust::Result<()> {
+        app.instance(Arc::new(PreviousCalls::default()));
         // fixture 已明确选择 plain array 或 auth database；不是装饰任意已有 factory。
         app.singleton::<SessionStoreHandle, _>(|resolver| {
             Box::pin(async move {
@@ -70,6 +77,16 @@ impl ServiceProvider for SessionRoutes {
                     .get(&format!("{PREFIX}/seed-one"), seed_one)
                     .get(&format!("{PREFIX}/seed-two"), seed_two)
                     .get(&format!("{PREFIX}/probe"), probe)
+                    .get(&format!("{PREFIX}/previous/named"), previous_visit)
+                    .name("contract.session.previous.named")
+                    .get(&format!("{PREFIX}/previous/anonymous"), previous_visit)
+                    .post(&format!("{PREFIX}/previous/read"), previous_read)
+                    .group(
+                        RouteGroup::new()
+                            .prefix(format!("{PREFIX}/previous"))
+                            .middleware_alias("precognitive"),
+                        |routes| routes.get("/preview", previous_visit),
+                    )
             })?;
             Ok(())
         })
@@ -131,6 +148,28 @@ async fn set(session: Session, info: RequestInfo) -> openrust::Result<Json<Value
 }
 async fn inspect(session: Session, info: RequestInfo) -> openrust::Result<Json<Value>> {
     Ok(Json(snapshot(&session, &info)?))
+}
+
+async fn previous_visit(
+    session: Session,
+    info: RequestInfo,
+    Inject(calls): Inject<PreviousCalls>,
+) -> openrust::Result<Json<Value>> {
+    calls.0.fetch_add(1, Ordering::SeqCst);
+    previous_read(session, info, Inject(calls)).await
+}
+
+async fn previous_read(
+    session: Session,
+    info: RequestInfo,
+    Inject(calls): Inject<PreviousCalls>,
+) -> openrust::Result<Json<Value>> {
+    Ok(Json(json!({
+        "url":session.previous_url()?, "route":session.previous_route()?,
+        "route_exists":session.exists(&["_previous.route"])?,
+        "attempting":info.is_attempting_precognition()?, "confirmed":info.is_precognitive(),
+        "business_calls":calls.0.load(Ordering::SeqCst)
+    })))
 }
 async fn advance(session: Session, info: RequestInfo) -> openrust::Result<Json<Value>> {
     session.remember(MEMO, || Ok("unexpected"))?;
@@ -357,6 +396,7 @@ async fn verify<A: Application, const EXISTING: bool>(source: Figment) -> openru
             expected(&name, false, None, None, None, None, None, None),
         )?;
         verify_request_driver(&app, &name).await?;
+        verify_previous(&app, &name).await?;
         Ok(())
     }
     .await;
@@ -387,6 +427,94 @@ fn expected(
     }
     value
 }
+async fn previous_exchange<A: Application, const EXISTING: bool>(
+    app: &TestApp<SessionApplication<A, EXISTING>>,
+    action: &str,
+    name: &str,
+    cookies: &mut Vec<(String, String)>,
+    attempting: bool,
+) -> openrust::Result<TestResponse> {
+    let path = format!("{PREFIX}/previous/{action}");
+    let mut wire = if action == "read" {
+        Request::post(path)
+    } else {
+        Request::get(path)
+    };
+    wire = wire.header("host", "localhost");
+    if !cookies.is_empty() {
+        wire = wire.header(
+            COOKIE,
+            cookies
+                .iter()
+                .map(|(_, pair)| pair.as_str())
+                .collect::<Vec<_>>()
+                .join("; "),
+        );
+    }
+    if attempting {
+        wire = wire.header("precognition", "true");
+    }
+    let response = app
+        .request_with_limits(
+            wire.body(Body::empty())
+                .map_err(openrust::Error::internal)?,
+            BODY_LIMIT,
+            REQUEST_TIMEOUT,
+        )
+        .await?;
+    // confirmed 不执行 Cookie driver.save；未重发的数据 Cookie 仍须按浏览器语义保留。
+    merge_probe_cookies(&response, name, cookies)?;
+    Ok(response)
+}
+
+async fn verify_previous<A: Application, const EXISTING: bool>(
+    app: &TestApp<SessionApplication<A, EXISTING>>,
+    name: &str,
+) -> openrust::Result<()> {
+    let named_url = format!("http://localhost{PREFIX}/previous/named");
+    let anonymous_url = format!("http://localhost{PREFIX}/previous/anonymous");
+    let mut cookies = Vec::new();
+    for (action, url, route, calls, attempting) in [
+        ("named", None, None, 1, false),
+        (
+            "anonymous",
+            Some(named_url.as_str()),
+            Some("contract.session.previous.named"),
+            2,
+            false,
+        ),
+        ("read", Some(anonymous_url.as_str()), None, 2, false),
+        ("named", Some(anonymous_url.as_str()), None, 3, true),
+    ] {
+        let response = previous_exchange(app, action, name, &mut cookies, attempting).await?;
+        check_response(
+            &response,
+            json!({"url":url,"route":route,"route_exists":url.is_some(),
+            "attempting":attempting,"confirmed":false,"business_calls":calls}),
+        )?;
+    }
+    let confirmed = previous_exchange(app, "preview", name, &mut cookies, true).await?;
+    confirmed.assert_status(StatusCode::NO_CONTENT)?;
+    ensure(confirmed.body().is_empty())?;
+    for header in ["precognition", "precognition-success"] {
+        ensure(
+            confirmed
+                .headers()
+                .get(header)
+                .and_then(|value| value.to_str().ok())
+                == Some("true"),
+        )?;
+    }
+    let after = previous_exchange(app, "read", name, &mut cookies, false).await?;
+    // 此计数位于 Provider 的独立 AtomicUsize，不会被 skip-save 掩盖业务已执行。
+    check_response(
+        &after,
+        json!({"url":named_url,"route":"contract.session.previous.named","route_exists":true,
+        "attempting":false,"confirmed":false,"business_calls":3}),
+    )?;
+    Ok(())
+}
+
 fn request(action: &str, cookies: Option<&str>) -> openrust::Result<Request<Body>> {
     let mut request = Request::get(format!("{PREFIX}/{action}")).header("host", "localhost");
     if let Some(cookies) = cookies {

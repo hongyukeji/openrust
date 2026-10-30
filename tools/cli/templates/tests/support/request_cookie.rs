@@ -190,7 +190,9 @@ fn inspection(present: bool) -> Value {
 }
 
 fn request(action: &str, cookies: Option<&str>) -> openrust::Result<Request<Body>> {
-    let mut builder = Request::builder().uri(format!("{PREFIX}/{action}"));
+    let mut builder = Request::builder()
+        .uri(format!("{PREFIX}/{action}"))
+        .header("host", "localhost");
     if let Some(cookies) = cookies {
         builder = builder.header(COOKIE, cookies);
     }

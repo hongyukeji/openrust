@@ -12,9 +12,9 @@ use openrust::http::{
     HttpServiceProvider, Inject, Json, RequestLocale, Routes, Validated, build_router,
 };
 use openrust::i18n::{I18n, I18nConfig, I18nServiceProvider, Locale, MessageArgs, MessageCatalog};
+use openrust::validation::{Rule, Rules, Validate};
 use openrust::{Error, Result};
 use serde::Deserialize;
-use validator::Validate;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -40,10 +40,14 @@ async fn custom_error() -> Result<Json<&'static str>> {
     Err(Error::custom("quota_exceeded", "limit reached"))
 }
 
-#[derive(Deserialize, Validate)]
+#[derive(Deserialize, serde::Serialize)]
 struct ValidatedInput {
-    #[validate(email)]
     email: String,
+}
+impl Validate for ValidatedInput {
+    fn rules() -> Rules {
+        Rules::new().field("email", [Rule::required(), Rule::string(), Rule::email()])
+    }
 }
 
 async fn validated(Validated(Json(input)): Validated<Json<ValidatedInput>>) -> Json<String> {

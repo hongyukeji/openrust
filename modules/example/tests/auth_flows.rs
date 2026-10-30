@@ -8,6 +8,9 @@ mod modules;
 #[path = "../../../routes/web.rs"]
 mod routes;
 
+#[path = "precognition_flows.rs"]
+mod precognition_flows;
+
 use std::error::Error as StdError;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};

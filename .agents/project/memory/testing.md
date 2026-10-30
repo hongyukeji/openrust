@@ -1,5 +1,22 @@
 # 测试基线
 
+## C04-D8 previous 与 Precognition（限定子范围已验收）
+
+本簇实现见 [ADR-084](../decisions/adr-084-session-previous-and-precognition.md) 与 [HTTP](../core/http.md)、[Session](../core/session.md)。不关闭整个HTTP/Session、完整FormRequest或Laravel验证规则集。
+
+| 当前证据 | 实际范围与限制 |
+| --- | --- |
+| `/tmp/openrust-c04d8-evidence-index.json` | 最终索引SHA256 `c28e7a98fe8662c5d7ac42bbf51366dc77482fb745a1fe38db9e2a897319ce46`；主线门禁、双库、TCP、gen2及修后CLI快照引用均逐项核hash，pending为空 |
+| `full-main-final3b/3c/3d`各result、gRPC精确result | 稳定runtime快照`679ecddd4fc2628c73412036997d782e44a178ba89561abfd633e10d88a4299e`；fmt、默认/全特性严格Clippy、workspace全特性1439 passed/104 ignored、精确gRPC1项、两档Rustdoc、no-default/session-only、deny、server build均实际通过；ignored或缺URL返回不算实服务 |
+| 默认workspace与修后doctest | 原命令709 passed/1 README doctest failed/28 ignored，不能记单次默认门禁exit0；修后doctest20 passed/27 ignored，按实际输入和默认feature未覆盖DB/gRPC的影响分析复用其他已通过测试 |
+| `/tmp/openrust-c04d8-msrv-final1.result.json` | Rust1.97全特性全目标check实际exit0，运行6分09秒、源码无漂移；仅工具链check；一次性独立target已安全回收 |
+| `/tmp/openrust-c04d8-root-owned-final-owned1-index.json` | PG18/MySQL8.4各模块HTTP67项及server previous精确1项通过；清理所有权PG3/My2适用项各具名通过，无适用skip/ignored；exact过滤如实记录，整业务target0filtered。两个owned anchor均finally精确DROP并回查不存在 |
+| `/tmp/openrust-c04d8-tcp-final-net-session1-seal.json` | SHA256 `99bf56001a091abe50cdbb94c7cbcc9c6e8a806c1f3b0cc6d482acdb29d7a936`；启用session的明确构建SHA `2c4c1b014788f4c4fa5946628b160cd47d7097fb5d505456107d6e36f28df6e1`与原runtime快照绑定，真实TCP6/6通过。仅array单进程、非TLS/DB/集群；default feature未含session的首次失败不作通过 |
+| 新生成应用 | gen1双库Cookie fixture缺Host的失败及来源保留；仅补Host并审阅快照后，gen2三个全新目录与成功prepare/CLI SHA/应用源码快照绑定，普通5/PG2/My2项fmt/check/test均通过，适用无skip，两生成库finally回查不存在。最终Cookie改后CLI精确快照1项实际通过，结果 `/tmp/openrust-c04d8-cli-cookie-final.result.json`（SHA `c63226746f287480056f9463e6322cf979eedb655694b1fe26d349e9b5e0a67a`），不借用改动前旧结果 |
+
+Cookie模板与受控快照修复相对上述runtime快照只改这两个CLI生成输入；不改变框架Rust行为。生成验收必须用新CLI/全新应用及prepare来源绑定重新取得证据，其他真实双库和TCP结果按输入影响复用。测试建库失败清理只针对本次已成功CREATE的目标；取消、连接中断或DROP失败仍可能留下自有资源。
+
+
 > 受众：AI Agent
 > 更新：2026-10-30
 > 摘要：当前目录迁移与原专项测试入口，分开记录真实服务和未验收边界。

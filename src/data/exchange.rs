@@ -255,10 +255,15 @@ pub trait ImportRowValidator: Send + Sync + 'static {
     fn validate(&self, values: &Map<String, Value>) -> Vec<ImportFieldError>;
 }
 
-/// 使用已有 `Validate` derive 与 OpenRust 统一校验器构建 row validator。
+/// 使用 DTO 的公开字段规则与统一校验器构建 row validator。
 pub fn typed_validator<T>() -> impl ImportRowValidator
 where
-    T: serde::de::DeserializeOwned + crate::validation::Validate + Send + Sync + 'static,
+    T: serde::de::DeserializeOwned
+        + serde::Serialize
+        + crate::validation::Validate
+        + Send
+        + Sync
+        + 'static,
 {
     TypedValidator::<T>(PhantomData)
 }
@@ -267,7 +272,12 @@ struct TypedValidator<T>(PhantomData<T>);
 
 impl<T> ImportRowValidator for TypedValidator<T>
 where
-    T: serde::de::DeserializeOwned + crate::validation::Validate + Send + Sync + 'static,
+    T: serde::de::DeserializeOwned
+        + serde::Serialize
+        + crate::validation::Validate
+        + Send
+        + Sync
+        + 'static,
 {
     fn validate(&self, values: &Map<String, Value>) -> Vec<ImportFieldError> {
         let Ok(value) = serde_json::from_value::<T>(Value::Object(values.clone())) else {

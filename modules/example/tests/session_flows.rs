@@ -7,7 +7,7 @@ use figment::{Figment, providers::Serialized};
 use openrust::core::{Application, ServiceProvider};
 use openrust::http::axum::{
     body::Body,
-    http::{Request, StatusCode, header},
+    http::{Method, Request, StatusCode, header},
 };
 use openrust::http::{Cookie, SameSite};
 use openrust::session::{MemorySessionStore, SessionServiceProvider};
@@ -117,6 +117,177 @@ async fn request<A: Application>(
         .request_with_limits(builder.body(Body::from(body))?, 4096, TIMEOUT)
         .await?)
 }
+async fn previous_request<A: Application>(
+    app: &TestApp<A>,
+    path: &str,
+    method: Method,
+    cookie: Option<&str>,
+    attempting: bool,
+) -> TestResult<TestResponse> {
+    let mut builder = Request::builder()
+        .method(method)
+        .uri(path)
+        .header("host", "localhost");
+    if let Some(cookie) = cookie {
+        builder = builder.header(header::COOKIE, cookie);
+    }
+    if attempting {
+        builder = builder.header("precognition", "true");
+    }
+    Ok(app
+        .request_with_limits(builder.body(Body::empty())?, 4096, TIMEOUT)
+        .await?)
+}
+
+fn previous_data(
+    url: Option<&str>,
+    route: Option<&str>,
+    visits: Option<i64>,
+    attempting: bool,
+    route_exists: bool,
+) -> Value {
+    json!({"url":url,"route":route,"has_uri":url.is_some(),"route_exists":route_exists,
+        "visits":visits,"attempting":attempting,"confirmed":false})
+}
+
+#[tokio::test]
+async fn module_previous_named_anonymous_and_opt_in_precognition_preserve_request_history()
+-> TestResult {
+    let mut app = TestApp::<SessionApplication>::builder(sources())
+        .build()
+        .await?;
+    let outcome = verify_module_previous(&app).await;
+    let shutdown = app
+        .shutdown(openrust::tokio::time::Instant::now() + TIMEOUT)
+        .await;
+    outcome?;
+    shutdown?;
+    Ok(())
+}
+
+#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+#[tokio::test]
+async fn module_database_previous_history_and_precognition_use_the_original_persistent_host()
+-> TestResult {
+    let Ok(admin) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+        eprintln!("skipping module previous HTTP test: OPENRUST_TEST_DATABASE_URL is unset");
+        return Ok(());
+    };
+    let database =
+        openrust::testing::TestDatabase::create::<openrust::db::FrameworkMigrator>(&admin).await?;
+    let source = sources().merge(Serialized::defaults(json!({
+        "database":{"url":database.url()},
+        "session":{"driver":"database","cookie":COOKIE_NAME,"secure":false,"lottery":[1,1]},
+        "auth":{"jwt":{"issuer":"http://openrust.test","audience":"module-previous",
+            "active_key_id":"test","keys":{"test":"QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI="}}},
+        "security":{"signed_links":{"issuer":"http://openrust.test","active_key_id":"test",
+            "keys":{"test":"Q0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0NDQ0M="}}}
+    })));
+    let outcome: TestResult = async {
+        let mut app = TestApp::<crate::bootstrap::Server>::builder(source)
+            .build()
+            .await?;
+        let outcome = verify_module_previous(&app).await;
+        let shutdown = app
+            .shutdown(openrust::tokio::time::Instant::now() + TIMEOUT)
+            .await;
+        outcome?;
+        shutdown?;
+        Ok(())
+    }
+    .await;
+    let cleanup = database.close().await;
+    outcome?;
+    cleanup?;
+    Ok(())
+}
+
+async fn verify_module_previous<A: Application>(app: &TestApp<A>) -> TestResult {
+    let base = "/api/example/session/previous";
+    let named_url = "http://localhost/api/example/session/previous/named";
+    let anonymous_url = "http://localhost/api/example/session/previous/anonymous";
+    let first = previous_request(app, &format!("{base}/named"), Method::GET, None, false).await?;
+    success(&first, &previous_data(None, None, Some(1), false, false))?;
+    let mut cookie = cookie_pair(&first)?;
+    let second = previous_request(
+        app,
+        &format!("{base}/anonymous"),
+        Method::GET,
+        Some(&cookie),
+        false,
+    )
+    .await?;
+    success(
+        &second,
+        &previous_data(
+            Some(named_url),
+            Some("example.session.previous.named"),
+            Some(2),
+            false,
+            true,
+        ),
+    )?;
+    cookie = cookie_pair(&second)?;
+    let read = previous_request(app, base, Method::POST, Some(&cookie), false).await?;
+    success(
+        &read,
+        &previous_data(Some(anonymous_url), None, Some(2), false, true),
+    )?;
+    cookie = cookie_pair(&read)?;
+    let attempted = previous_request(
+        app,
+        &format!("{base}/named"),
+        Method::GET,
+        Some(&cookie),
+        true,
+    )
+    .await?;
+    success(
+        &attempted,
+        &previous_data(Some(anonymous_url), None, Some(3), true, true),
+    )?;
+    cookie = cookie_pair(&attempted)?;
+    let confirmed = previous_request(
+        app,
+        &format!("{base}/preview"),
+        Method::GET,
+        Some(&cookie),
+        true,
+    )
+    .await?;
+    check_previous_preview(&confirmed)?;
+    cookie = cookie_pair(&confirmed)?;
+    let after = previous_request(app, base, Method::POST, Some(&cookie), false).await?;
+    success(
+        &after,
+        &previous_data(
+            Some(named_url),
+            Some("example.session.previous.named"),
+            Some(3),
+            false,
+            true,
+        ),
+    )?;
+    let isolated = previous_request(app, base, Method::POST, None, false).await?;
+    success(&isolated, &previous_data(None, None, None, false, false))?;
+    Ok(())
+}
+
+fn check_previous_preview(response: &TestResponse) -> TestResult {
+    response.assert_status(StatusCode::NO_CONTENT)?;
+    assert_eq!(response.body(), &[] as &[u8]);
+    for name in ["precognition", "precognition-success"] {
+        assert_eq!(
+            response
+                .headers()
+                .get(name)
+                .and_then(|value| value.to_str().ok()),
+            Some("true")
+        );
+    }
+    Ok(())
+}
+
 fn cookie_pair(response: &TestResponse) -> TestResult<String> {
     let mut selected = None;
     for header in response.headers().get_all(header::SET_COOKIE) {

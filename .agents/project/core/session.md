@@ -2,6 +2,14 @@
 
 > C04-D1限定子范围已完成适用集成验收，提交以Git为准。契约见 [ADR-082](../decisions/adr-082-session-store-and-flash.md)，唯一执行队列见 [todo](../todo.md)。
 
+## D8 previous 与预检保存边界（限定子范围已验收）
+
+`previous_url` / `previous_route` 返回 `Result<Option<Value>>`，保留缺失和显式 null；setter 沿已有属性状态机。GET 在真实 Route 下游返回后记录 full URL 与可空名称，不按状态码过滤；HEAD、ajax、prefetch 和已确认的 Precognition 不更新。resolver 在记录名称时再次读取，保留可替换 resolver 的可观察调用边界。
+
+已确认的 Precognition 仍 start、执行GC、处理Cookie，仅跳过自动 driver.save 和 previous 更新；客户端同名头不足以跳存。Cookie 组装错误先于driver保存返回，失败路径保持no-store并清理请求队列；不能承诺外部副作用或应用主动save被回滚。授权提取顺序边界见 [HTTP当前事实](http.md)。
+
+根PG18/MySQL8.4实际 Session previous 精确回归各1项已通过，并保留各67项模块HTTP证据。全特性workspace与不同模型静态审查已有结果；Rust1.97全特性全目标check已通过；新生成应用5/2/2、array单进程真实TCP6项已实际通过，不替代TLS或集群范围。具体队列见[todo](../todo.md)，不以基础Store已有验收代替完整Session/Web栈。
+
 ## 源码与公开边界
 
 - `src/session.rs` 导出 `Session`、`Expiry`、`SessionId`、`SessionRecord`、`SessionStore`、写入模式/结果、`SessionStoreGuarantees`以及数据库、显式内存、Cookie客户端快照和可选 Redis store；`session` feature 与 `session-redis` 的实际依赖以 Cargo.toml 为准。

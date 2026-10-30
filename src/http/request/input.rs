@@ -126,6 +126,16 @@ impl<S: Send + Sync> FromRequest<S> for Request {
     }
 }
 impl Request {
+    /// 请求头严格等于 `Precognition: true` 时表示尝试；不代表已确认。
+    pub fn is_attempting_precognition(&self) -> Result<bool> {
+        self.info.is_attempting_precognition()
+    }
+
+    /// 由受信 middleware 确认后的当前请求状态。
+    pub fn is_precognitive(&self) -> bool {
+        self.info.is_precognitive()
+    }
+
     /// 取得当前实际匹配的路由。
     pub fn route(&self) -> Result<Option<crate::http::Route>> {
         self.info.route()

@@ -2,7 +2,7 @@
 
 use crate::modules::example::providers::session::{PROBE_COOKIE, REPLY_COOKIE};
 use openrust::http::axum::http::StatusCode;
-use openrust::http::{CookieJar, CookieOptions, Json, Request};
+use openrust::http::{CookieJar, CookieOptions, Json, Request, RequestInfo};
 use openrust::session::Session;
 use openrust::{Error, Result};
 use serde_json::{Value, json};
@@ -13,12 +13,30 @@ const NOTICE: &str = "example.session.notice";
 const MEMO: &str = "example.session.memo";
 const LIST: &str = "example.session.list";
 const COUNT: &str = "example.session.count";
+const PREVIOUS_VISITS: &str = "example.session.previous_visits";
 const MAX_VALUE_BYTES: usize = 256;
 const MAX_LIST_ITEMS: usize = 8;
 
 /// 仅读取示例自己的偏好与提示，不暴露会话身份或其他业务属性。
 pub(crate) async fn show(session: Session) -> Result<Json<Value>> {
     Ok(Json(snapshot(&session)?))
+}
+
+/// 独立展示上一请求地址与可空名称，不改变偏好接口的既有响应协议。
+pub(crate) async fn previous(session: Session, info: RequestInfo) -> Result<Json<Value>> {
+    Ok(Json(json!({
+        "url": session.previous_url()?, "route": session.previous_route()?,
+        "has_uri": session.has_previous_uri()?,
+        "route_exists": session.exists(&["_previous.route"])?,
+        "visits": session.get(PREVIOUS_VISITS)?,
+        "attempting": info.is_attempting_precognition()?, "confirmed": info.is_precognitive()
+    })))
+}
+
+/// 访问计数属于普通业务方法；启用 Precognition 的预检只解析参数而不执行此方法。
+pub(crate) async fn previous_visit(session: Session, info: RequestInfo) -> Result<Json<Value>> {
+    session.increment(PREVIOUS_VISITS)?;
+    previous(session, info).await
 }
 
 /// 用固定操作维护有限偏好及提示；正文不能指定任意 Session 键。

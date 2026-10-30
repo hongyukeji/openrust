@@ -401,6 +401,30 @@ impl Session {
     pub fn get(&self, key: &str) -> Result<Option<Value>> {
         self.lock()?.attributes.get(key)
     }
+    /// 读取 `_previous.url` 原值；沿 [`Self::get`] 区分缺失与显式 null。
+    ///
+    /// Rust 返回原始 `Value`，不将公开 `put` 写入的非字符串值强制转换为 URL。
+    pub fn previous_url(&self) -> Result<Option<Value>> {
+        self.get("_previous.url")
+    }
+    /// 写入上一请求 URL；沿 [`Self::put`] 保留空串并执行相同状态与预算检查。
+    pub fn set_previous_url(&self, url: &str) -> Result<&Self> {
+        self.put("_previous.url", url)
+    }
+    /// 读取 `_previous.route` 原值；缺失为 `None`，匿名路由显式 null 为 `Some(Null)`。
+    ///
+    /// 与 [`Self::previous_url`] 相同，保留原始 `Value`，不额外强制字符串类型。
+    pub fn previous_route(&self) -> Result<Option<Value>> {
+        self.get("_previous.route")
+    }
+    /// 写入上一请求路由名；Rust 的 `None` 对应持久属性中的显式 null，不删除键。
+    pub fn set_previous_route(&self, route: Option<&str>) -> Result<&Self> {
+        self.put("_previous.route", route)
+    }
+    /// 判断上一请求 URL 是否非 null；false、零和空串仍为有值，不解析或构造 URI。
+    pub fn has_previous_uri(&self) -> Result<bool> {
+        Ok(self.previous_url()?.is_some_and(|value| !value.is_null()))
+    }
     /// 只有缺失才返回默认值；已有null保持null。
     pub fn get_or(&self, key: &str, default: Value) -> Result<Value> {
         Ok(self.get(key)?.unwrap_or(default))

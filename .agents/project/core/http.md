@@ -14,6 +14,14 @@ Session请求层已接入统一领域；D1限定验收范围、真实网络/双�
 
 真实请求Route/Resolver与受管理`RouteMethods`已按[ADR-083](../decisions/adr-083-matched-route-context.md)完成限定验收；D7真实Route/Resolver与受管理方法声明已通过限定验收：final3完整12门禁、默认695/29 ignored、全特性1403/103 ignored、根PG18/MySQL8.4各64、fresh5/2/2、真实TCP7及不同模型复审；忽略项不算真实服务。根target清零，五旧consumer不变，限定提交以Git为准；完整Routing/Request与previous/Precognition仍开放。[证据](../memory/testing.md#c04-d7-真实路由上下文限定子范围已验收)。旧R3-E/F中与新契约冲突的任意方法fallback、方法miss优先于fallback和域/path同名拒绝已纠正，旧验收记录只保留历史事实。
 
+## D8 限定实现与验收边界
+
+依据 [ADR-084](../decisions/adr-084-session-previous-and-precognition.md)，`ManagedHandler` 在参数提取后处理确认的 Precognition 请求，成功返回空 204 和成功头，不调用业务函数；原生 Axum 逃生入口不自动提供此保证。内置 `precognitive` 别名需由路由显式启用，客户端头只表示尝试，不能自行确认预检。
+
+`Validated<Json<T>>` / `Validated<Query<T>>` 使用同一 `Validate::rules()`、`Rules` 与 `Rule` 执行器。`Validate-Only` 在原始输入上筛选既有规则，成功或失败都会提前结束；后置提取器不会执行。访问控制应放在路由 middleware 或 `Validated` 之前，唯一模块采用 middleware 路径；不能承诺任意签名中的后置鉴权都执行。完整 FormRequest、规则集与 CSRF 仍是后继范围。
+
+当前稳定输入下 workspace 全特性1439 passed/104 ignored，fmt、默认/全特性严格Clippy、Rustdoc、feature检查与deny已通过；忽略或缺URL返回不算真实服务。根 PostgreSQL18/MySQL8.4已分别实际通过模块HTTP67项与 Session previous 精确1项；测试数据库清理所有权回归PG3/My2通过。Rust1.97全特性全目标check亦已通过；新生成应用普通5/双库各2项、真实TCP6项与最终CLI精确快照1项均已通过；仅关闭D8限定范围，不关闭完整HTTP能力。
+
 ## 当前实现
 
 | 模块 | 内容 |
