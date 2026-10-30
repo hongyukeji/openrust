@@ -47,7 +47,7 @@ class Questions(unittest.TestCase):
                                           'lastUserMessageAt': None}}
         self.api = SimpleNamespace(ROOT=guard.ROOT, atomic=guard.atomic, platform=guard.platform,
                                    binding_valid=Mock(return_value=True),
-                                   quota_delay=Mock(return_value=0), rpc=Mock(return_value={}),
+                                   quota_delay=Mock(return_value=0), effective_usage_budget=guard.effective_usage_budget, rpc=Mock(return_value={}),
                                    goal=Mock(side_effect=lambda _: self.current),
                                    timeline=Mock(side_effect=lambda _: self.turn),
                                    controlled_turn=lambda state, turn, goal, config: turn,

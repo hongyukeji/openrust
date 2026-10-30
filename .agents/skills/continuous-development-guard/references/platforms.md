@@ -95,3 +95,16 @@ Windows 的 `.cmd` / `.bat` 只通过同目录已有 npm package 的唯一 `bin`
 - Spec：连续额度等待上限3600秒，按持久化quota_wait_started_at计时。账号切换、失败、worker/普通守护重启不重计；正式恢复派发成功或观察到业务运行后清除本轮计时。到期禁用并以quota_wait_expired正常退出，由监督finally回收监督/worker/PID；不操作业务Goal或代码，保留预算和问答/发送防重账本。用户重新要求继续开发，显式start才为超时记录开启新等待周期，不重置账号预算。
 - 每120秒检查到期；在途客户端受既有超时限制，监督最多另需一个5秒轮询回收，不承诺精确到秒。只允许期限内自动恢复；超过一小时不再等待3–5天，也不自动重启。沿用既有进程，不安装launchd、Windows任务或软件。监督轮询5秒，无模型token；宿主关机/监督被杀仍不保证自动启动。
 - 当前守护回归85项：82通过、3项原生Windows跳过；问答回归49项通过。覆盖同账号可用额度恢复一次、新账号恢复、切回保留线、双窗口切单窗口、手动控制/发送未知、退避/reset与登录唤醒。本机真实原Goal从守护额度暂停恢复active，正式继续提交后已观察到主控running与新task_started；预算和防重账本保留。隔离测试不冒充真实额度reset或Windows验收。
+
+
+## 一次性完整额度授权
+
+`start --use-full-budget-once` 只在用户明确授权当前完整任务使用本次全部可用额度时使用。公开开关本身代表操作人的明确授权，脚本不通过超时、旧问答或模型推断授权。`--allow-existing-credits` 是独立许可；缺少它时不消费credits。`--question-model`继续使用任务既有政策。
+
+正式快照中的agent/thread、原Goal的id/created_at_ms/objective、accountId/limitId及最新用户消息水位绑定一次性grant。`full-budget-once.json`独立保存有效覆盖与结束摘要；config只引用该文件。原`usage_budget.fraction=0.8`、baseline、窗口/credits reserve及account_budgets不因覆盖重算；覆盖期间不更新账号或周期基线。判定暂时允许使用保留部分，但官方included usage或已授权现有credits的资格、消费硬限及完整数值检查仍生效。credits最多采用授权快照中已有余额或已有无限额度，余额上涨不自动扩授权。
+
+热重载：先普通`stop`，再`start`。已有有效grant继续生效，`already_running`不改政策。新授予用`start --use-full-budget-once --allow-existing-credits`；暂停原Goal还须显式加`--resume-budget-paused`。恢复仅接受state中`usage_budget_paused=true`、`percentage_pause.resume_status=waiting`且完整Goal版本相同的守护自有暂停，并要求新的正式用户水位；缺失来源、人工暂停、在途激活/发送未知、权限等待均拒绝。通过正式`thread/goal/get`校验后，持久化activating再用`thread/goal/set`激活原Goal；确认active才标记完成，保留问答与发送幂等。新授权可解除其前的旧控制水位，授权之后的新控制不得清除。恢复入口本身不伪造答卷或发送继续消息，后续由原守护正常判定推进。
+
+`stop --stop-task`和`finish`结束grant；普通stop保留以便重载。正式窗口全部资格不可用且无获准可用credits时记actual_quota_exhausted，撤销覆盖并暂停原Goal，不自动等reset再用同次授权。额度未知或硬限继续保守等待，仍受既有一小时有界退出约束；账号或Goal身份变化撤销覆盖并保留硬边界。结束记录作为防重摘要保留，同一正式用户水位不能重复发放已结束grant。
+
+回滚默认政策：普通`stop`后运行`start --end-full-budget-once`。这只撤销grant，原80%基线和历史沿用；如原Goal已预算暂停，默认政策仍触线时不会恢复，不应通过清state、删grant文件或重建Goal绕过。若恢复RPC结果未知，activating记录保留并等待核实，不能重复start尝试。正式协议没有CAS，最后核对与外部客户端写入之间仍有既存竞态；隔离测试不等于真实账号额度或真实恢复验收。

@@ -2,6 +2,8 @@
 """持续开发守护：原目标接续、冷却、单实例监督和按任务停止；仅使用标准库。"""
 
 import argparse
+import copy
+import hashlib
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 import math
@@ -526,10 +528,193 @@ def percentage_budget_breaches(response, budget):
         return {}
 
 
+def grant_document(config):
+    """临时覆盖独立落盘，结束后保留授权摘要以阻止同次授权重放。"""
+    path = config.get('full_budget_grant_file')
+    if not path:
+        return None, {}
+    path = Path(path)
+    return path, json.loads(path.read_text(encoding='utf-8')) if path.exists() else {}
+
+
+def end_full_budget(config, reason):
+    """撤销有效覆盖；不触碰原基线、账号历史或问答账本。"""
+    path, document = grant_document(config)
+    key = document.get('active')
+    if path and key:
+        document['grants'][key].update(status='ended', ended_at=time.time(), reason=reason)
+        document['active'] = None
+        atomic(path, document)
+
+
+def full_budget_end_reason(config):
+    """查询最近一次覆盖的结束原因，实际耗尽后不自动跨周期复用授权。"""
+    _, document = grant_document(config)
+    grants = [g for g in document.get('grants', {}).values()
+              if all(g.get(k) == config.get(k) for k in ('agent', 'thread', 'goal_id'))]
+    if document.get('active') or not grants:
+        return None
+    return max(grants, key=lambda g: g['granted_at']).get('reason')
+
+
+def effective_usage_budget(config):
+    """只向本次判定附加授权，不更改持久化的80%预算。"""
+    budget = config.get('usage_budget')
+    path, document = grant_document(config)
+    grant = document.get('grants', {}).get(document.get('active'))
+    if not grant or grant.get('status') != 'active':
+        return budget
+    if any(grant.get(k) != config.get(k) for k in ('agent', 'thread', 'goal_id')):
+        end_full_budget(config, 'task_identity_changed')
+        return dict(budget or {}, _invalid_grant=True)
+    current = goal(config)
+    if not current or any(current.get(k) != grant.get('goal', {}).get(k)
+                          for k in ('id', 'created_at_ms', 'objective')):
+        end_full_budget(config, 'goal_identity_changed')
+        return dict(budget or {}, _invalid_grant=True)
+    if not budget or any(grant.get(k) != budget.get(k) for k in ('account_id', 'limit_id')):
+        end_full_budget(config, 'account_identity_changed')
+        return dict(budget or {}, _invalid_grant=True)
+    result = copy.deepcopy(budget)
+    result['_full_budget_once'] = dict(grant, path=str(path), allow_existing_credits=(
+        grant.get('allow_existing_credits') is True and config.get('allow_existing_credits') is True))
+    return result
+
+
+def full_budget_status(response, budget):
+    """100%仅覆盖本地保留线；正式资格、未知状态与硬限制继续生效。"""
+    grant = budget['_full_budget_once']
+    try:
+        limits = response['rateLimits']
+        if response['accountId'] != grant['account_id'] or limits['limitId'] != grant['limit_id']:
+            end_full_budget({'full_budget_grant_file': grant['path']}, 'account_identity_changed')
+            return 'usage_budget_unknown'
+        # 完整快照验证仍复用基线解析，但不保存或采用新的基线。
+        initialize_usage_budget(response, time.time())
+        if set(budget['windows']) != {k for k in ('primary', 'secondary') if limits.get(k) is not None}:
+            return 'usage_budget_unknown'
+        for name, item in budget['windows'].items():
+            if budget_decimal(limits[name]['windowDurationMins']) != budget_decimal(item['duration_mins']):
+                return 'usage_budget_unknown'
+            if budget_decimal(limits[name]['resetsAt']) != budget_decimal(item['resets_at']):
+                return 'usage_budget_window_changed'
+        credits = limits['credits']
+        balance = budget_decimal(credits['balance'])
+        if (balance > budget_decimal(grant['credits_balance'])
+                or credits['unlimited'] != grant['credits_unlimited']):
+            return 'usage_budget_credits_changed'
+        paid = (grant['allow_existing_credits'] and credits['hasCredits'] is True
+                and (balance > 0 or credits['unlimited'] is True))
+        # 不先应用本地reserve，复用官方included/已有credits资格与硬限判断。
+        delay = quota_delay(response, time.time(), paid)
+        exhausted = (any(budget_decimal(limits[k]['usedPercent']) >= 100 for k in budget['windows'])
+                     and response['ordinaryUsageAllowed'] is False and not paid)
+        if exhausted:
+            end_full_budget({'full_budget_grant_file': grant['path']}, 'actual_quota_exhausted')
+        return 'usage_budget_reached' if exhausted else ('usage_budget_unknown' if delay else 'usage_budget_available')
+    except (KeyError, TypeError, ValueError, InvalidOperation):
+        return 'usage_budget_unknown'
+
+
+def authorize_full_budget(runtime, config, current, controls, response):
+    """CLI显式授权绑定正式用户水位与原Goal；同次已结束授权不能再发放。"""
+    if not controls or not controls.get('last_user_at') or not controls.get('user_key'):
+        raise ValueError('缺少正式授权会话水位，不授予一次性额度')
+    bound_goal(config)
+    if goal(config) != current or not binding_valid(config):
+        raise ValueError('授权期间原Goal改变')
+    initialize_usage_budget(response, time.time())
+    budget = config['usage_budget']
+    if response['accountId'] != budget['account_id'] or response['rateLimits']['limitId'] != budget['limit_id']:
+        raise ValueError('额度账号与原预算不一致')
+    path = runtime / 'full-budget-once.json'
+    config['full_budget_grant_file'] = str(path)
+    _, document = grant_document(config)
+    # 水位来自正式快照，调用者不能靠更换任意token绕过单次限制。
+    authorization = {k: controls[k] for k in ('last_user_at', 'user_key')}
+    identity = {k: current[k] for k in ('id', 'created_at_ms', 'objective')}
+    key = hashlib.sha256(json.dumps([config['agent'], config['thread'], identity, authorization],
+                                   sort_keys=True).encode()).hexdigest()
+    previous = document.get('grants', {}).get(key)
+    if previous:
+        if previous.get('status') != 'active' or document.get('active') != key:
+            raise ValueError('本次授权已结束，不能重复使用')
+        return
+    if document.get('active'):
+        raise ValueError('已有有效的一次性授权，请普通重载沿用')
+    credits = response['rateLimits']['credits']
+    grant = dict(agent=config['agent'], thread=config['thread'], goal_id=config['goal_id'],
+                 goal=identity, authorization=authorization, account_id=budget['account_id'],
+                 limit_id=budget['limit_id'], status='active', granted_at=time.time(),
+                 allow_existing_credits=config.get('allow_existing_credits') is True,
+                 credits_balance=str(budget_decimal(credits['balance'])), credits_unlimited=credits['unlimited'])
+    document.setdefault('grants', {})[key] = grant
+    document['active'] = key
+    atomic(path, document)
+
+
+def resume_budget_pause(runtime, config, state, requested_at=None):
+    """新明确恢复授权只解除守护拥有的原预算暂停，未知操作不重试。"""
+    requested_at = time.time() if requested_at is None else requested_at
+    def concurrent_stop():
+        disabled = runtime / 'disabled'
+        return disabled.exists() and disabled.stat().st_mtime >= requested_at
+    pause = state.get('percentage_pause') or {}
+    current = goal(config)
+    if (concurrent_stop() or pause.get('resume_status') != 'waiting' or pause.get('goal') != current
+            or not current or current.get('status') != 'paused' or not state.get('usage_budget_paused')):
+        raise ValueError('非已核实的守护预算暂停，拒绝恢复')
+    # bound_goal还核验正式协议status/objective/createdAt与本地原Goal。
+    remote = bound_goal(config)
+    if (remote.get('objective') != current.get('objective')
+            or remote.get('createdAt') != current.get('created_at_ms', -1000) // 1000
+            or remote.get('status') != 'paused'):
+        raise ValueError('正式原Goal目标、创建时间或状态不匹配')
+    controls = percentage_pause_controls(config, allow_old_control=True)
+    if not controls:
+        raise ValueError('存在权限、未知输入或用户暂停边界，拒绝恢复')
+    old = pause.get('controls') or {}
+    if controls.get('last_user_at') == old.get('last_user_at'):
+        raise ValueError('没有新的明确恢复授权水位')
+    response = rpc('account/rateLimits/read', {})
+    if quota_delay(response, time.time(), config.get('allow_existing_credits', False), effective_usage_budget(config)):
+        raise ValueError('实际额度不可用或未知，不恢复原Goal')
+    if (concurrent_stop() or goal(config) != current or not binding_valid(config)
+            or percentage_pause_controls(config, allow_old_control=True) != controls
+            or bound_goal(config).get('status') != 'paused'):
+        raise ValueError('恢复前身份或授权水位变化')
+    pause['resume_status'] = 'activating'
+    atomic(runtime / 'state.json', state)
+    rpc('thread/goal/set', {'threadId': config['thread'], 'status': 'active'})
+    remote = bound_goal(config)
+    active = goal(config)
+    if (concurrent_stop() or not active
+            or any(active.get(k) != current.get(k) for k in ('id', 'created_at_ms', 'objective'))
+            or remote.get('status') != 'active' or remote.get('objective') != current.get('objective')
+            or remote.get('createdAt') != current.get('created_at_ms', -1000) // 1000
+            or not binding_valid(config)
+            or percentage_pause_controls(config, allow_old_control=True) != controls):
+        raise ValueError('正式恢复结果未确认，不重复操作')
+    # 只清已被明确新授权取代的旧控制；问答、发送和退避记录完全保留。
+    control = (timeline(config['rollout']) or {}).get('goal_control')
+    if control:
+        state['control_watermark'] = dict(control)
+    state.pop('goal_control', None)
+    state.pop('usage_budget_paused', None)
+    state.pop('quota_wait_started_at', None)
+    state.pop('quota_check_at', None)
+    pause['resume_status'] = 'explicitly_resumed'
+    atomic(runtime / 'state.json', state)
+
+
 def usage_budget_status(response, budget=None):
     """各参与项独立保留20%；重置/身份变化不自动补满本任务预算。"""
     if budget is None:
         return None
+    if budget.get('_invalid_grant'):
+        return 'usage_budget_unknown'
+    if budget.get('_full_budget_once'):
+        return full_budget_status(response, budget)
     try:
         limits = response['rateLimits']
         if (budget['version'] != 1 or budget['fraction'] != '0.8'
@@ -592,7 +777,7 @@ def pause_at_usage_budget(runtime, config):
         return True
 
 
-def percentage_pause_controls(config):
+def percentage_pause_controls(config, allow_old_control=False):
     """原任务用户/控制快照；缺可靠证据不授予自动恢复资格。"""
     agent = inspect(config['agent'])
     if agent.get('Archived') or agent.get('PendingPermissions'):
@@ -611,10 +796,18 @@ def percentage_pause_controls(config):
     except ValueError:
         return None
     turn = timeline(config['rollout'])
+    if allow_old_control and turn:
+        old_control = turn.get('goal_control')
+        user_key = (turn.get('user_context') or {}).get('key')
+        control_at = completed_at({'key': (old_control or {}).get('key'), 'payload': {}})
+        user_at = completed_at({'key': user_key, 'payload': {}})
+        if ((turn.get('semantic_blocked') and not old_control)
+                or old_control and (control_at is None or user_at is None or control_at >= user_at)):
+            return None
     error = json.dumps((turn or {}).get('payload', {}).get('error')).lower()
-    if (not turn or turn.get('semantic_blocked')
+    if (not turn or (turn.get('semantic_blocked') and not allow_old_control)
             or any(token in error for token in ('unauthorized', 'authentication', 'permission denied', '401', '403'))
-            or (turn.get('goal_control') or {}).get('status') in ('paused', 'blocked', 'complete')):
+            or (not allow_old_control and (turn.get('goal_control') or {}).get('status') in ('paused', 'blocked', 'complete'))):
         return None
     return {'last_user_at': binding.get('lastUserMessageAt'),
             'user_key': (turn.get('user_context') or {}).get('key'),
@@ -720,11 +913,12 @@ def _monitor_percentage_pause(runtime, state, config, current, now):
     if now < pause.get('next_quota_at', 0):
         return 'percentage_reset_wait'
     response = rpc('account/rateLimits/read', {})
-    if pause.get('account_recovery'):
-        refresh_account_budget(runtime, config, response, now)
-    refresh_usage_cycles(runtime, config, response, now)
+    if not effective_usage_budget(config).get('_full_budget_once'):
+        if pause.get('account_recovery'):
+            refresh_account_budget(runtime, config, response, now)
+        refresh_usage_cycles(runtime, config, response, now)
     apply_task_policy(state, config)
-    status = usage_budget_status(response, config['usage_budget'])
+    status = usage_budget_status(response, effective_usage_budget(config))
     if status == 'usage_budget_unknown':
         pause['next_quota_at'] = (budget_wait_deadline(pause, response, now)
                                       if pause.get('account_recovery') else now + 300)
@@ -753,7 +947,7 @@ def _monitor_percentage_pause(runtime, state, config, current, now):
     # 未触及百分比保留线的账号恢复无需换号/换周期；已登记触线窗口仍须重置。
     if status != 'usage_budget_available' or causes or not advanced or (
             not pause['windows'] and not account_changed and not pause.get('account_recovery')) or quota_delay(
-            response, now, config.get('allow_existing_credits', False), config['usage_budget']):
+            response, now, config.get('allow_existing_credits', False), effective_usage_budget(config)):
         future = [] if pause.get('account_recovery') else [float(config['usage_budget']['windows'][name]['resets_at']) + 30
                   for name in pause['windows']
                   if (float(config['usage_budget']['windows'][name]['resets_at']) > now
@@ -769,8 +963,8 @@ def _monitor_percentage_pause(runtime, state, config, current, now):
             pause['resume_status'] = 'cancelled'; atomic(runtime / 'state.json', state)
             return 'percentage_pause_controls_changed'
         fresh = rpc('account/rateLimits/read', {})
-        if quota_delay(fresh, time.time(), config.get('allow_existing_credits', False), config['usage_budget']):
-            fresh_status = usage_budget_status(fresh, config['usage_budget'])
+        if quota_delay(fresh, time.time(), config.get('allow_existing_credits', False), effective_usage_budget(config)):
+            fresh_status = usage_budget_status(fresh, effective_usage_budget(config))
             fresh_credit = fresh.get('rateLimits', {}).get('credits', {})
             try:
                 credit_hit = (credits['participating'] and budget_decimal(fresh_credit.get('balance'))
@@ -802,7 +996,7 @@ def _monitor_percentage_pause(runtime, state, config, current, now):
         if (goal(config) != active_goal or not binding_valid(config)
                 or (runtime / 'disabled').exists() or percentage_pause_controls(config) != controls):
             return 'percentage_resume_unconfirmed'
-        if quota_delay(fresh, time.time(), config.get('allow_existing_credits', False), config['usage_budget']):
+        if quota_delay(fresh, time.time(), config.get('allow_existing_credits', False), effective_usage_budget(config)):
             # 不发新模型调用；恢复过程中额度变化，重新暂停本Goal。
             pause['resume_status'] = 'quota_changed'; atomic(runtime / 'state.json', state)
             bound_goal(config)
@@ -892,7 +1086,7 @@ def binding_valid(config):
 def apply_task_policy(state, config):
     """策略变化只失效额度等待；保留退避、发送与问答幂等记录。"""
     policy = {'allow_existing_credits': config.get('allow_existing_credits') is True,
-              'usage_budget': config.get('usage_budget')}
+              'usage_budget': effective_usage_budget(config)}
     previous = {'allow_existing_credits': False, 'usage_budget': None}
     previous.update(state.get('quota_policy') or {})
     if policy != previous:
@@ -911,6 +1105,9 @@ def worker(runtime, parent_pid):
         changed = state.get('status') != status
         state.update(status=status, attempts=attempts, checked_at=time.time(),
                          updated_at=datetime.now().astimezone().isoformat(), **extra)
+        if (status in ('complete', 'paused', 'quota_wait_expired')
+                or status == 'stopped' and not (runtime / 'disabled').exists()):
+            end_full_budget(config, status)
         if status != 'working':
             state['task_running'] = False
         state['reason'] = extra.get('reason', {
@@ -988,11 +1185,16 @@ def worker(runtime, parent_pid):
             current = terminal
             if config.get('usage_budget') is not None:
                 response = rpc('account/rateLimits/read', {})
-                if config.get('auto_account_recovery'):
-                    refresh_account_budget(runtime, config, response, time.time())
-                refresh_usage_cycles(runtime, config, response, time.time())
+                if full_budget_end_reason(config) in ('account_identity_changed', 'task_identity_changed', 'goal_identity_changed'):
+                    record('needs_attention', reason='full_budget_identity_changed')
+                    sleep_until(runtime, CHECK_INTERVAL)
+                    continue
+                if not effective_usage_budget(config).get('_full_budget_once'):
+                    if config.get('auto_account_recovery'):
+                        refresh_account_budget(runtime, config, response, time.time())
+                    refresh_usage_cycles(runtime, config, response, time.time())
                 apply_task_policy(state, config)
-                floor = usage_budget_status(response, config['usage_budget'])
+                floor = usage_budget_status(response, effective_usage_budget(config))
                 state['usage_budget_checked_at'] = time.time()
                 if floor in ('usage_budget_reached', 'usage_budget_window_changed', 'usage_budget_credits_changed'):
                     unknown_resume = (state.get('percentage_pause') or {}).get('resume_status') in ('activating', 'sending')
@@ -1008,6 +1210,9 @@ def worker(runtime, parent_pid):
                         state['percentage_pause']['resume_status'] = 'superseded_boundary'
                     record('needs_attention', reason=floor, usage_budget_paused=True)
                     if pause_at_usage_budget(runtime, config):
+                        if full_budget_end_reason(config) == 'actual_quota_exhausted':
+                            record('paused', reason='actual_quota_exhausted')
+                            return
                         if not unknown_resume and owned_percentage_pause(runtime, state, config, before, windows):
                             record('quota_wait', reason='percentage_reset_wait', usage_budget_paused=True,
                                    quota_check_at=state['percentage_pause']['next_quota_at'])
@@ -1089,7 +1294,7 @@ def worker(runtime, parent_pid):
                 record('quota_wait')
                 sleep_until(runtime, CHECK_INTERVAL)
                 continue
-            delay = quota_delay(rpc('account/rateLimits/read', {}), time.time(), config.get('allow_existing_credits', False), config.get('usage_budget'))
+            delay = quota_delay(rpc('account/rateLimits/read', {}), time.time(), config.get('allow_existing_credits', False), effective_usage_budget(config))
             if delay:
                 state['check_failures'] = 0
                 record('quota_wait', quota_check_at=time.time() + delay)
@@ -1108,7 +1313,7 @@ def worker(runtime, parent_pid):
                     continue
                 if config.get('usage_budget') is not None and quota_delay(
                         rpc('account/rateLimits/read', {}), time.time(),
-                        config.get('allow_existing_credits', False), config.get('usage_budget')):
+                        config.get('allow_existing_credits', False), effective_usage_budget(config)):
                     continue
                 latest_goal = bound_goal(config)
                 if latest_goal.get('status') in ('paused', 'complete', 'budgetLimited'):
@@ -1129,7 +1334,7 @@ def worker(runtime, parent_pid):
                     continue
                 if config.get('usage_budget') is not None and quota_delay(
                         rpc('account/rateLimits/read', {}), time.time(),
-                        config.get('allow_existing_credits', False), config.get('usage_budget')):
+                        config.get('allow_existing_credits', False), effective_usage_budget(config)):
                     continue
                 attempts += 1
                 record('dispatching', dispatch_key=key, dispatch_at=time.time())
@@ -1316,9 +1521,22 @@ def main():
     parser.add_argument('--parent-pid', type=int)
     parser.add_argument('--allow-existing-credits', action=argparse.BooleanOptionalAction, default=None,
                         help='仅当前任务经用户明确授权消费已有credits，不购买或充值；默认关闭')
+    parser.add_argument('--use-full-budget-once', action='store_true',
+                        help='仅本次明确授权使用全部可用额度，不更改80%%基准')
+    parser.add_argument('--resume-budget-paused', action='store_true',
+                        help='新的明确授权恢复守护自身预算暂停的原Goal；不恢复人工暂停')
+    parser.add_argument('--end-full-budget-once', action='store_true',
+                        help='普通重载时撤销本次覆盖，恢复默认80%%政策')
     parser.add_argument('--question-model', help='仅当前任务的无工具问答分类模型，须来自现有catalog')
     parser.add_argument('--stop-task', action='store_true', help='同时暂停Goal并中断主控，须用户明确停止')
     args = parser.parse_args()
+    if ((args.use_full_budget_once or args.resume_budget_paused or args.end_full_budget_once)
+            and args.command != 'start'):
+        parser.error('一次性额度政策选项仅用于start')
+    if args.resume_budget_paused and not args.use_full_budget_once:
+        parser.error('预算暂停恢复须同时明确授予本次完整额度')
+    if args.end_full_budget_once and (args.use_full_budget_once or args.resume_budget_paused):
+        parser.error('撤销与授予/恢复不能同时使用')
     requested_at = time.time()
     if args.command.startswith('_'):
         if not args.runtime or not args.runtime.resolve().is_relative_to(ROOT / '.agents/project/guards'):
@@ -1375,6 +1593,9 @@ def main():
                 current = goal(config)
                 if config['goal_id'] != finish_goal_id or not current or current['id'] != finish_goal_id or current['status'] != 'complete':
                     raise SystemExit('目标已变化或未完成，保留当前守护')
+            if args.command == 'finish' or args.stop_task:
+                saved_config = json.loads((runtime / 'config.json').read_text(encoding='utf-8'))
+                end_full_budget(saved_config, 'complete' if args.command == 'finish' else 'user_stop')
             # start可能在本次stop等待控制锁时清过标记；获锁后重新确立停止优先。
             (runtime / 'disabled').touch()
             if args.stop_task:
@@ -1418,9 +1639,13 @@ def main():
             config = config_for(args)
             prior_config = json.loads((runtime / 'config.json').read_text(encoding='utf-8')) if (runtime / 'config.json').exists() else {}
             same_goal = prior_config.get('goal_id') == config['goal_id']
+            if args.resume_budget_paused and (not same_goal or any(
+                    prior_config.get(k) != config.get(k) for k in ('agent', 'thread'))):
+                raise SystemExit('原Goal或任务绑定已改变，不写入预算/授权，不恢复其他任务')
             config['allow_existing_credits'] = (args.allow_existing_credits if args.allow_existing_credits is not None
                                                 else prior_config.get('allow_existing_credits', False) if same_goal else False)
             config['auto_account_recovery'] = True
+            config['full_budget_grant_file'] = str(runtime / 'full-budget-once.json')
             config['account_budgets'] = prior_config.get('account_budgets', {}) if same_goal else {}
             config['usage_budget'] = (prior_config.get('usage_budget') if same_goal else None)
             if config['usage_budget'] is None:
@@ -1431,7 +1656,19 @@ def main():
             config.pop('minimum_existing_credits', None)
             config['question_model'] = (args.question_model or
                                         (prior_config.get('question_model') if same_goal else None) or questions.MODEL)
+            current_for_grant = goal(config)
+            if args.end_full_budget_once:
+                end_full_budget(config, 'explicit_revoke')
+            if args.use_full_budget_once:
+                if current_for_grant.get('status') == 'paused' and not args.resume_budget_paused:
+                    raise SystemExit('暂停Goal须显式使用--resume-budget-paused并核验预算暂停来源')
+                controls = percentage_pause_controls(config, allow_old_control=args.resume_budget_paused)
+                authorize_full_budget(runtime, config, current_for_grant, controls,
+                                      rpc('account/rateLimits/read', {}))
             atomic(runtime / 'config.json', config)
+            if args.resume_budget_paused:
+                saved = json.loads((runtime / 'state.json').read_text(encoding='utf-8'))
+                resume_budget_pause(runtime, config, saved, requested_at)
             # 用户明确重新授权start，才可清除之前停止标记并恢复暂停的原目标。
             (runtime / 'disabled').unlink(missing_ok=True)
             current_goal = goal(config)
@@ -1441,6 +1678,9 @@ def main():
                 remote = bound_goal(config)
                 saved_state = json.loads((runtime / 'state.json').read_text(encoding='utf-8')) if (runtime / 'state.json').exists() else {}
                 monitoring_percentage = (saved_state.get('percentage_pause') or {}).get('resume_status') == 'waiting'
+                if effective_usage_budget(config).get('_full_budget_once') and not monitoring_percentage:
+                    end_full_budget(config, 'user_pause')
+                    raise SystemExit('人工暂停优先；一次性覆盖已结束')
                 if not monitoring_percentage and (saved_state.get('usage_budget_paused') or saved_state.get('credit_floor_paused')
                         or saved_state.get('reason') in ('usage_budget_reached', 'credit_floor_reached')):
                     raise SystemExit('任务用量预算已暂停原Goal；守护重启不会自动恢复，请用户明确恢复原Goal后再启动')

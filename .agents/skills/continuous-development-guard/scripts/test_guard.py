@@ -1223,6 +1223,17 @@ else:
             self.assertEqual(db.execute('SELECT status FROM thread_goals').fetchone()[0], 'paused')
         self.assertGreater(first['pid'], 0)
 
+    def test_resume_replaced_goal_refuses_before_config_or_grant_write(self):
+        self.call('start')
+        self.call('stop')
+        previous = (self.runtime / 'config.json').read_text()
+        with sqlite3.connect(self.home / 'goals_1.sqlite') as db:
+            db.execute("UPDATE thread_goals SET goal_id='replacement',status='paused',objective='other'")
+        result = self.call('start', '--use-full-budget-once', '--resume-budget-paused', check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual((self.runtime / 'config.json').read_text(), previous)
+        self.assertFalse((self.runtime / 'full-budget-once.json').exists())
+
     def test_plain_guard_restart_preserves_backoff_and_uncertain_dispatch(self):
         self.call('start')
         self.call('stop')
@@ -1544,6 +1555,201 @@ class WindowsProcesses(unittest.TestCase):
         self.assertIsNotNone(identity)
         self.assertFalse(recovery.supervisor_alive({'pid': os.getpid(), 'created': identity + 1}, Path.cwd()))
         self.assertFalse(recovery.supervisor_alive({'pid': os.getpid()}, Path.cwd()))
+
+
+class FullBudgetOnce(unittest.TestCase):
+    """一次性额度授权不得重算历史、重放授权或解除其他来源的暂停。"""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.runtime = Path(self.temp.name)
+        self.current = {'id': 'g', 'status': 'paused', 'created_at_ms': 1000,
+                        'objective': '原完整目标', 'updated_at_ms': 1500}
+        self.response = quota_snapshot(balance='0', used=1)
+        self.response['rateLimits']['credits']['hasCredits'] = False
+        self.config = {'agent': 'a', 'thread': 't', 'goal_id': 'g', 'rollout': 'r',
+                       'usage_budget': recovery.initialize_usage_budget(self.response, 100),
+                       'account_budgets': {'previous': {'immutable': True}},
+                       'allow_existing_credits': True}
+        self.controls = {'last_user_at': '2026-10-31T12:00:00Z', 'user_key': '2026-10-31T12:00:00Z',
+                         'control': None, 'turn_key': 't', 'turn_kind': 'task_complete'}
+        self.before = json.loads(json.dumps(self.config))
+        self.goal_patch = patch.object(recovery, 'goal', side_effect=lambda c: dict(self.current))
+        self.bound_patch = patch.object(recovery, 'bound_goal', side_effect=lambda c: dict(
+            self.current, createdAt=self.current['created_at_ms'] // 1000))
+        self.valid_patch = patch.object(recovery, 'binding_valid', return_value=True)
+        self.goal_patch.start(); self.bound_patch.start(); self.valid_patch.start()
+        self.addCleanup(self.temp.cleanup)
+        self.addCleanup(self.goal_patch.stop); self.addCleanup(self.bound_patch.stop)
+        self.addCleanup(self.valid_patch.stop)
+
+    def grant(self, response=None):
+        recovery.authorize_full_budget(self.runtime, self.config, dict(self.current), self.controls,
+                                       response or self.response)
+
+    def status(self, response):
+        return recovery.usage_budget_status(response, recovery.effective_usage_budget(self.config))
+
+    def test_public_cli_help_renders_budget_policy_flags(self):
+        result = subprocess.run([sys.executable, '-B', str(SCRIPT), '--help'],
+                                capture_output=True, text=True, timeout=5, check=True)
+        for option in ('--use-full-budget-once', '--resume-budget-paused', '--end-full-budget-once'):
+            self.assertIn(option, result.stdout)
+        self.assertIn('80%', result.stdout)
+
+    def test_twenty_percent_reserve_is_overridden_without_history_change(self):
+        self.grant()
+        low = json.loads(json.dumps(self.response)); low['rateLimits']['primary']['usedPercent'] = 90
+        self.assertEqual(recovery.usage_budget_status(low, self.config['usage_budget']), 'usage_budget_reached')
+        self.assertEqual(self.status(low), 'usage_budget_available')
+        self.assertEqual(self.config['usage_budget'], self.before['usage_budget'])
+        self.assertEqual(self.config['account_budgets'], self.before['account_budgets'])
+        self.assertEqual(self.config['usage_budget']['fraction'], '0.8')
+
+    def test_actual_zero_consumes_authorization_and_cannot_replay(self):
+        self.grant()
+        zero = json.loads(json.dumps(self.response)); zero['ordinaryUsageAllowed'] = False
+        zero['rateLimits']['primary']['usedPercent'] = 100
+        self.assertEqual(self.status(zero), 'usage_budget_reached')
+        path, document = recovery.grant_document(self.config)
+        self.assertIsNone(document['active'])
+        self.assertEqual(next(iter(document['grants'].values()))['reason'], 'actual_quota_exhausted')
+        with self.assertRaisesRegex(ValueError, '不能重复使用'):
+            self.grant()
+        self.assertFalse(recovery.effective_usage_budget(self.config).get('_full_budget_once'))
+
+    def test_reload_preserves_active_grant_and_revoke_restores_default(self):
+        self.grant()
+        reloaded = json.loads(json.dumps(self.config))
+        self.assertIn('_full_budget_once', recovery.effective_usage_budget(reloaded))
+        self.grant()  # 同一仍有效授权幂等，不能重建基准。
+        recovery.end_full_budget(reloaded, 'explicit_revoke')
+        self.assertEqual(recovery.effective_usage_budget(self.config), self.before['usage_budget'])
+        with self.assertRaises(ValueError): self.grant()
+
+    def test_existing_credits_can_continue_at_zero_ordinary_then_end_at_zero_credits(self):
+        paid = json.loads(json.dumps(self.response))
+        paid['rateLimits']['credits'].update(hasCredits=True, balance='7')
+        self.grant(paid)
+        paid['rateLimits']['primary']['usedPercent'] = 100
+        paid['ordinaryUsageAllowed'] = False
+        self.assertEqual(self.status(paid), 'usage_budget_available')
+        self.config['allow_existing_credits'] = False
+        self.assertFalse(recovery.effective_usage_budget(self.config)['_full_budget_once']['allow_existing_credits'])
+        self.config['allow_existing_credits'] = True
+        paid['rateLimits']['credits'].update(hasCredits=False, balance='0')
+        self.assertEqual(self.status(paid), 'usage_budget_reached')
+        self.assertEqual(self.config['usage_budget']['credits'], self.before['usage_budget']['credits'])
+
+    def test_credits_require_separate_authorization_and_unknown_hard_limit_waits(self):
+        self.config['allow_existing_credits'] = False
+        paid = json.loads(json.dumps(self.response)); paid['rateLimits']['credits'].update(hasCredits=True, balance='7')
+        self.grant(paid)
+        paid['rateLimits']['primary']['usedPercent'] = 100; paid['ordinaryUsageAllowed'] = False
+        self.assertEqual(self.status(paid), 'usage_budget_reached')
+        # 一个新的独立授权快照；未知状态与消费硬限均不允许继续。
+        self.controls['user_key'] = '2026-10-31T12:01:00Z'
+        self.grant()
+        for change in ('unknown', 'hard'):
+            snapshot = json.loads(json.dumps(self.response))
+            if change == 'unknown': snapshot.pop('ordinaryUsageAllowed')
+            else: snapshot['rateLimits']['spendControlReached'] = True
+            self.assertEqual(self.status(snapshot), 'usage_budget_unknown')
+
+    def test_changed_identity_or_goal_retires_grant_without_mutating_history(self):
+        for kind in ('account', 'goal'):
+            with self.subTest(kind=kind):
+                self.controls['user_key'] = kind
+                self.grant()
+                response = json.loads(json.dumps(self.response))
+                if kind == 'account': response['accountId'] = 'other'
+                else: self.current['objective'] = '被替换'
+                self.assertEqual(self.status(response), 'usage_budget_unknown')
+                self.assertIsNone(recovery.grant_document(self.config)[1]['active'])
+                self.current['objective'] = '原完整目标'
+        self.assertEqual(self.config['usage_budget'], self.before['usage_budget'])
+
+    def state(self):
+        return {'usage_budget_paused': True, 'questions': {'q': {'status': 'unknown'}},
+                'dispatch_key': 'uncertain', 'attempts': 2,
+                'percentage_pause': {'goal': dict(self.current), 'resume_status': 'waiting',
+                                     'controls': dict(self.controls, last_user_at='old')}}
+
+    def test_explicit_resume_uses_original_goal_protocol_and_keeps_idempotency(self):
+        self.grant()
+        state = self.state(); calls = []
+        def rpc(method, params):
+            calls.append((method, params))
+            if method == 'thread/goal/set': self.current['status'] = params['status']; return {}
+            return self.response
+        with patch.object(recovery, 'percentage_pause_controls', return_value=self.controls), \
+             patch.object(recovery, 'rpc', side_effect=rpc), \
+             patch.object(recovery, 'timeline', return_value={'goal_control': {'status': 'blocked', 'key': 'old'}}):
+            recovery.resume_budget_pause(self.runtime, self.config, state)
+        self.assertEqual(self.current['id'], 'g')
+        self.assertEqual(self.current['status'], 'active')
+        self.assertEqual(state['percentage_pause']['resume_status'], 'explicitly_resumed')
+        self.assertEqual(state['questions'], {'q': {'status': 'unknown'}})
+        self.assertEqual(state['dispatch_key'], 'uncertain')
+        self.assertEqual(state['attempts'], 2)
+        self.assertEqual([p for m, p in calls if m == 'thread/goal/set'], [{'threadId': 't', 'status': 'active'}])
+        with self.assertRaises(ValueError): recovery.resume_budget_pause(self.runtime, self.config, state)
+
+    def test_manual_pause_changed_goal_permissions_or_same_authorization_cannot_resume(self):
+        self.grant()
+        for kind in ('manual', 'goal', 'permission', 'same_user', 'unknown_send'):
+            state = self.state()
+            controls = self.controls
+            if kind == 'manual': state.pop('usage_budget_paused')
+            if kind == 'goal': state['percentage_pause']['goal']['objective'] = 'other'
+            if kind == 'permission': controls = None
+            if kind == 'same_user': state['percentage_pause']['controls'] = self.controls
+            if kind == 'unknown_send': state['percentage_pause']['resume_status'] = 'activating'
+            with self.subTest(kind=kind), patch.object(recovery, 'percentage_pause_controls', return_value=controls), \
+                 patch.object(recovery, 'rpc') as rpc:
+                with self.assertRaises(ValueError): recovery.resume_budget_pause(self.runtime, self.config, state)
+                rpc.assert_not_called()
+
+    def test_worker_plain_stop_retains_grant_but_user_pause_clears_it(self):
+        self.current['status'] = 'active'
+        self.grant()
+        (self.runtime / 'config.json').write_text(json.dumps(self.config))
+        # plain stop的disabled标记终止worker，不代表用户停止完整任务。
+        (self.runtime / 'disabled').touch()
+        recovery.worker(self.runtime, os.getppid())
+        self.assertIsNotNone(recovery.grant_document(self.config)[1]['active'])
+        (self.runtime / 'disabled').unlink()
+        self.current['status'] = 'paused'
+        recovery.worker(self.runtime, os.getppid())
+        self.assertIsNone(recovery.grant_document(self.config)[1]['active'])
+
+    def test_official_goal_creation_or_objective_mismatch_refuses_resume(self):
+        self.grant()
+        with patch.object(recovery, 'bound_goal', return_value=dict(self.current, createdAt=99)), \
+             patch.object(recovery, 'rpc') as rpc:
+            with self.assertRaises(ValueError): recovery.resume_budget_pause(self.runtime, self.config, self.state())
+            rpc.assert_not_called()
+        state = self.state()
+        def change_during_activation(method, params):
+            if method == 'thread/goal/set':
+                self.current.update(status='active', objective='异步替换目标')
+                return {}
+            return self.response
+        with patch.object(recovery, 'percentage_pause_controls', return_value=self.controls), \
+             patch.object(recovery, 'rpc', side_effect=change_during_activation):
+            with self.assertRaises(ValueError):
+                recovery.resume_budget_pause(self.runtime, self.config, state)
+        self.assertEqual(state['percentage_pause']['resume_status'], 'activating')
+        self.assertNotIn('control_watermark', state)
+
+    def test_new_control_after_authorization_cannot_be_watermarked_away(self):
+        turn = {'semantic_blocked': True, 'goal_control': {'status': 'paused', 'key': '2026-10-31T12:01:00Z'},
+                'user_context': {'key': '2026-10-31T12:00:00Z'}, 'payload': {}}
+        agent = {'PendingPermissions': [], 'QuestionBinding': {'id': 'a', 'thread': 't',
+                 'lastUserMessageAt': '2026-10-31T12:00:00Z'}}
+        with patch.object(recovery, 'inspect', return_value=agent), patch.object(recovery, 'timeline', return_value=turn):
+            self.assertIsNone(recovery.percentage_pause_controls(self.config, allow_old_control=True))
+
 
 if __name__ == '__main__':
     unittest.main()
