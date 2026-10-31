@@ -34,7 +34,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 
 ## 后继路由
 
-- **高价值测试精简与入口整合（已授权，首轮T01已验收，后继按隔离与收益逐项领取）**：按[测试分层与入口整合](conventions.md#测试分层与入口整合)先做HTTP/Session小范围试点，核真实编译入口、独有缺陷保护、feature与全局状态/环境隔离，再合并纯行为入口或删确证重复断言；保留安全/一致性/取消并发/真实缺陷回归及真实后端层。只读owner `d10d_example_templates` 已交 `/tmp/openrust-test-entry-pilot-audit.md`：现8个显式Session target，推荐仅将extensions15例以私有模块纳既有http_session26例（预期41例/target8→7），保留全部函数与DB/Redis/环境子进程隔离；尚未实施/计时，不预报提速。实施由单一manifest owner在安全交接点领取，同条件记录文件/用例/target及编译链接执行时间，不按数量配额删或预报倍数，不机械每层复制底层矩阵。
+- **高价值测试精简与入口整合（已授权，T01已验收）**：T01已由 `b7afcfe` 提交，extensions15例纳入既有http_session26例、全部41项逐名保全，显式入口46→45、Session family8→7，环境子进程/DB/Redis等隔离入口保留。当前 `tests/http/session.rs` 已公开挂载私有扩展模块，不能再按旧只读审计重复实施；实际双feature、完整门禁及计时限制见[验收记录](memory/testing.md#t01-session纯行为测试入口整合限定试点已验收提交见git)，单样本未证明整体开发显著提速。后继只按[测试分层与入口整合](conventions.md#测试分层与入口整合)核独有缺陷、真实编译入口、feature及全局状态后领取；不按数量配额删、不预报倍数、不重排在途冻结测试。
 
 - **宏观主线**：[两阶段框架主线](plans/laravel-rebuild.md#两阶段框架主线)；先验阶段一Laravel+modules核心基线，再做已纳入阶段二通用增强，均是框架main而非产品可选快速开发模块。R0–R16仅技术分解；现增强保留复用，不搬走核心Config/Queue/Scheduler/安全，当前B2不变，发布整理须两阶段既定范围验收。
 
