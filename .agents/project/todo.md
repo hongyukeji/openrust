@@ -18,7 +18,11 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 
 ## 当前可领取
 
-当前执行优先级（额度收尾）：①四个已交付分支的同一main组合已完成限定验收；默认/全特性严格Clippy与workspace tests已通过（907/0/34 ignored、1698/0/108 ignored），双docs/MSRV、no-default、deny、生成项目、公开consumer与真实TCP的限定范围见[组合记录](memory/testing.md#r2-四簇-main-组合限定验收)。最终五父本地提交为 `e105dbfc58afc330b50e53b75f0b9e1424fa387a`；原分支按归属另行核对后退役；②S-DV/ST-V/R2-P既有范围收尾。Provider/Session/Storage未验收不强合，两guard worktree受保护。完整Config、签名URL复杂参数/代理、动态Settings和发布全后端矩阵仍开放。
+当前执行优先级（额度收尾）：①四个已交付分支的同一main组合已完成限定验收；默认/全特性严格Clippy与workspace tests已通过（907/0/34 ignored、1698/0/108 ignored），双docs/MSRV、no-default、deny、生成项目、公开consumer与真实TCP的限定范围见[组合记录](memory/testing.md#r2-四簇-main-组合限定验收)。最终五父本地提交为 `e105dbfc58afc330b50e53b75f0b9e1424fa387a`；四个来源提交已证明为main祖先，四个干净worktree和本地分支均按正常Git命令退役，对应Paseo workspace已正式归档；②S-DV/ST-V/R2-P既有范围收尾。Provider/Session/Storage未验收不强合，两guard worktree受保护。完整Config、签名URL复杂参数/代理、动态Settings和发布全后端矩阵仍开放。
+
+### 本轮组合产物回收（待资源owner执行）
+
+- 四簇main验收和本地合并已完成，资源owner `04cca925-e59f-42f1-800b-424e7b4cd1b8` 下一窗口核进程/锁及正式target清单后集中回收已完成簇的可再生产物，包含确认无占用的根共享target；保留源码/WIP、生成源码、原始验收证据与两guard工作区。收口前target实测55.76GB，磁盘可用138.57GB；本轮实际回收量待复核。其余执行者暂不构建，完成后下一现存收尾簇按需重建，不新增功能簇。
 
 ### 集中产物回收（已完成，保留原始日志缺口）
 
