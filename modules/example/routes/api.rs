@@ -120,6 +120,36 @@ fn message_bag_routes(routes: Routes) -> Routes {
 
 fn draft_redirect_routes(routes: Routes) -> Routes {
     routes
+        .group(
+            RouteGroup::new()
+                .prefix("/api/example/draft/actions")
+                .namespace("Example\\Draft"),
+            |drafts| {
+                drafts
+                    .get_action(
+                        "/{id}",
+                        "DraftController@show",
+                        controllers::draft_redirect::action_show,
+                    )
+                    .get_action(
+                        "/{id}/preview",
+                        "PreviewDraftController",
+                        controllers::draft_redirect::action_show,
+                    )
+            },
+        )
+        .get(
+            "/api/example/draft/action",
+            controllers::draft_redirect::action,
+        )
+        .get(
+            "/api/example/draft/action-preview",
+            controllers::draft_redirect::action_preview,
+        )
+        .post(
+            "/api/example/draft/action-submit",
+            controllers::draft_redirect::action_submit,
+        )
         .get(
             "/api/example/draft/plain",
             controllers::draft_redirect::plain,

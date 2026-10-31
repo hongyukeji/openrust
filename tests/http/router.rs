@@ -28,6 +28,9 @@ use tower::ServiceExt;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
+#[path = "router/action_redirect.rs"]
+mod action_redirect;
+
 #[derive(Deserialize)]
 struct DomainTenant {
     account: String,

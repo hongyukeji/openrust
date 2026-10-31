@@ -25,6 +25,7 @@ type ManagedEntries = Arc<Mutex<Vec<MethodEntry>>>;
 #[derive(Clone, Default)]
 pub(crate) struct MatchedRouteMetadata {
     name: Option<String>,
+    action: Option<String>,
     path: String,
     domain: Option<String>,
     methods: Vec<String>,
@@ -150,7 +151,7 @@ pub(crate) async fn dispatch_managed(
                 .into_response();
             }
         }
-        let route = crate::http::Route::new(
+        let mut route = crate::http::Route::new(
             metadata.name.clone(),
             if metadata.path == "/" {
                 "/".to_owned()
@@ -161,6 +162,9 @@ pub(crate) async fn dispatch_managed(
             metadata.methods.clone(),
             parameters,
         );
+        if let Some(action) = &metadata.action {
+            route = route.with_action(action.clone());
+        }
         (route, Request::from_parts(parts, body))
     };
     let (route, request) = route;
@@ -219,6 +223,12 @@ fn decode_route_capture(input: &str) -> Option<String> {
 type GroupMiddleware = Box<dyn FnOnce(Routes, Option<&MiddlewareRegistry>) -> Routes + Send + Sync>;
 
 pub(crate) type MiddlewareLayerBuilder = Arc<dyn Fn(Routes) -> Routes + Send + Sync>;
+pub(crate) struct ActionRouteDefinition {
+    pub(crate) action: String,
+    pub(crate) path: String,
+    pub(crate) domain: Option<String>,
+}
+
 pub(crate) struct NamedRouteDefinition {
     pub(crate) name: String,
     pub(crate) path: String,
@@ -258,6 +268,7 @@ pub(crate) struct RouteParts {
     fallbacks: Vec<FallbackEntry>,
     pub(crate) domains: Vec<DomainEntry>,
     pub(crate) names: Vec<NamedRouteDefinition>,
+    pub(crate) actions: Vec<ActionRouteDefinition>,
     pub(crate) name_errors: Vec<String>,
     pub(crate) middleware_errors: Vec<crate::core::Error>,
     pub(crate) route_errors: Vec<crate::core::Error>,
@@ -437,6 +448,7 @@ fn valid_middleware_name(name: &str) -> bool {
 pub struct RouteGroup {
     prefix: String,
     name_prefix: String,
+    namespace: Option<String>,
     domain: Option<String>,
     middleware: Vec<GroupMiddleware>,
 }
@@ -464,6 +476,15 @@ impl RouteGroup {
     #[must_use]
     pub fn name_prefix(mut self, prefix: impl Into<String>) -> Self {
         self.name_prefix = prefix.into();
+        self
+    }
+
+    /// 设置控制器动作的登记命名空间；相对嵌套空间追加，前导反斜线重置。
+    ///
+    /// 仅作用于字符串动作声明，二元组保持绝对身份；与路由名称前缀无关。
+    #[must_use]
+    pub fn namespace(mut self, namespace: impl Into<String>) -> Self {
+        self.namespace = Some(namespace.into());
         self
     }
 
@@ -543,6 +564,7 @@ pub struct Routes {
     managed_order: Vec<(Option<String>, String, u64)>,
     route_names: Vec<NamedRouteDefinition>,
     active_domain: Option<DomainPattern>,
+    active_namespace: Option<String>,
     domain_entries: Vec<DomainEntry>,
     root_entries: Vec<RootEntry>,
     fallback_entries: Vec<FallbackEntry>,
@@ -581,6 +603,7 @@ impl Routes {
         }
         let metadata = Arc::new(Mutex::new(MatchedRouteMetadata {
             name: None,
+            action: None,
             path: path.to_owned(),
             domain: self
                 .active_domain
@@ -664,6 +687,54 @@ impl Routes {
         T: 'static,
     {
         self.route(path, routing::get(handler))
+    }
+
+    /// 将动作身份与真实 GET/HEAD handler 同次登记。
+    #[must_use]
+    pub fn get_action<H, T>(
+        self,
+        path: &str,
+        action: impl Into<crate::http::RouteAction>,
+        handler: H,
+    ) -> Self
+    where
+        H: ManagedHandler<T, AppState>,
+        T: 'static,
+    {
+        self.on_action(path, &["GET"], action, handler)
+    }
+
+    /// 将动作身份与指定方法的真实 handler 同次登记；方法规则与 [`Self::on`] 相同。
+    #[must_use]
+    pub fn on_action<H, T>(
+        mut self,
+        path: &str,
+        methods: &[&str],
+        action: impl Into<crate::http::RouteAction>,
+        handler: H,
+    ) -> Self
+    where
+        H: ManagedHandler<T, AppState>,
+        T: 'static,
+    {
+        let action = match action.into().registered(self.active_namespace.as_deref()) {
+            Ok(action) => action,
+            Err(error) => {
+                self.route_errors.push(error);
+                return self;
+            }
+        };
+        self = self.on(path, methods, handler);
+        if let Some(metadata) = &self.last_metadata {
+            match metadata.lock() {
+                Ok(mut metadata) => metadata.action = Some(action),
+                Err(_) => self.route_errors.push(crate::core::Error::custom(
+                    "http_route_action_invalid",
+                    "动作路由元数据锁不可用",
+                )),
+            }
+        }
+        self
     }
 
     /// 注册 `POST` 路由。
@@ -797,6 +868,16 @@ impl Routes {
         reason = "域、路径前缀、fallback 与 middleware 的组合顺序须在同一处核对"
     )]
     pub fn group(mut self, group: RouteGroup, f: impl FnOnce(Routes) -> Routes) -> Self {
+        let namespace = match crate::http::action::group_namespace(
+            self.active_namespace.as_deref(),
+            group.namespace.as_deref(),
+        ) {
+            Ok(namespace) => namespace,
+            Err(error) => {
+                self.route_errors.push(error);
+                return self;
+            }
+        };
         let prefix = group.prefix.clone();
         let name_prefix = group.name_prefix.clone();
         let domain = match group.domain.clone() {
@@ -812,6 +893,7 @@ impl Routes {
         let child = Routes {
             middleware_registry: self.middleware_registry.clone(),
             active_domain: domain.clone(),
+            active_namespace: namespace,
             registration_order: Arc::clone(&self.registration_order),
             ..Routes::new()
         };
@@ -1172,6 +1254,7 @@ impl Routes {
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let metadata = Arc::new(Mutex::new(MatchedRouteMetadata {
             name: None,
+            action: None,
             path: "/{fallbackPlaceholder}".to_owned(),
             domain: self
                 .active_domain
@@ -1300,6 +1383,13 @@ impl Routes {
     }
 
     pub(crate) fn into_parts(mut self) -> RouteParts {
+        let actions = match final_action_routes(&self.matched_metadata) {
+            Ok(actions) => actions,
+            Err(error) => {
+                self.route_errors.push(error);
+                Vec::new()
+            }
+        };
         let priority = self
             .middleware_registry
             .as_deref()
@@ -1363,11 +1453,75 @@ impl Routes {
             },
             domains,
             names: self.route_names,
+            actions,
             name_errors: self.route_name_errors,
             middleware_errors: self.middleware_errors,
             route_errors: self.route_errors,
         }
     }
+}
+
+fn final_action_routes(
+    metadata: &[Arc<Mutex<MatchedRouteMetadata>>],
+) -> crate::core::Result<Vec<ActionRouteDefinition>> {
+    let mut declarations: Vec<MatchedRouteMetadata> = Vec::new();
+    let mut positions = HashMap::new();
+    for metadata in metadata {
+        let route = snapshot_metadata(metadata)?;
+        if route.fallback {
+            continue;
+        }
+        // 固定集合按 methods.join("|")+domain+uri 无分隔拼接覆盖，保留最初插入位置。
+        // 逐方法都被覆盖但组合键不同的旧声明仍参与上游 refreshActionLookups。
+        let uri = if route.path.trim_matches('/').is_empty() {
+            "/"
+        } else {
+            route.path.trim_matches('/')
+        };
+        let key = format!(
+            "{}{}{}",
+            route.methods.join("|"),
+            route.domain.as_deref().unwrap_or_default(),
+            uri
+        );
+        if let Some(&position) = positions.get(&(route.domain.is_some(), key.clone())) {
+            declarations[position] = route;
+        } else {
+            positions.insert((route.domain.is_some(), key), declarations.len());
+            declarations.push(route);
+        }
+    }
+    let mut actions = Vec::new();
+    let mut visited = HashSet::new();
+    for domain_routes in [true, false] {
+        for route in &declarations {
+            if route.domain.is_some() != domain_routes {
+                continue;
+            }
+            let uri = if route.path.trim_matches('/').is_empty() {
+                "/"
+            } else {
+                route.path.trim_matches('/')
+            };
+            let key = format!(
+                "{}{}{}",
+                route.methods.join("|"),
+                route.domain.as_deref().unwrap_or_default(),
+                uri
+            );
+            if visited.insert(key)
+                && let Some(action) = &route.action
+                && action != "0"
+            {
+                actions.push(ActionRouteDefinition {
+                    action: action.clone(),
+                    path: route.path.clone(),
+                    domain: route.domain.clone(),
+                });
+            }
+        }
+    }
+    Ok(actions)
 }
 
 fn static_request(request: &Request) -> Request {
@@ -1899,4 +2053,203 @@ async fn run_candidate(
         None
     };
     Ok((request, allow))
+}
+
+#[cfg(test)]
+mod action_tests {
+    use super::*;
+    use crate::core::Result;
+    use crate::http::RouteUrlGenerator;
+    use std::collections::BTreeMap;
+
+    async fn handler() -> &'static str {
+        "actual handler"
+    }
+
+    fn urls(routes: Routes) -> Result<RouteUrlGenerator> {
+        let parts = routes.into_parts();
+        assert!(parts.route_errors.is_empty());
+        RouteUrlGenerator::new_with_actions("https://configured.test", parts.names, parts.actions)
+    }
+
+    #[test]
+    fn action_collection_composite_keys_preserve_php_refresh_overwrite_rules() -> Result<()> {
+        // 相同完整方法序列才替换；拆分完全覆盖仍保留上游 allRoutes 的旧组合键。
+        let generator = urls(
+            Routes::new()
+                .on_action("/same", &["GET", "POST"], "Old@go", handler)
+                .on_action("/same", &["GET", "POST"], "New@go", handler)
+                .on_action("/split", &["GET", "POST"], "SplitOld@go", handler)
+                .get_action("/split", "SplitNew@get", handler)
+                .on_action("/split", &["POST"], "SplitNew@post", handler)
+                .on_action("/order", &["GET", "POST"], "OrderOld@go", handler)
+                .on_action("/order", &["POST", "GET"], "OrderNew@go", handler)
+                .on_action("/partial", &["GET", "POST"], "PartialOld@go", handler)
+                .get_action("/partial", "PartialNew@get", handler)
+                .get_action("/anonymous", "Removed@go", handler)
+                .get("/anonymous", handler),
+        )?;
+        let parameters = BTreeMap::new();
+        for action in ["Old@go", "Removed@go"] {
+            assert_eq!(
+                generator
+                    .action(action, &parameters)
+                    .err()
+                    .map(|error| error.code().to_owned())
+                    .as_deref(),
+                Some("http_route_action_not_found")
+            );
+        }
+        for (action, path) in [
+            ("New@go", "same"),
+            ("SplitOld@go", "split"),
+            ("SplitNew@get", "split"),
+            ("SplitNew@post", "split"),
+            ("OrderOld@go", "order"),
+            ("OrderNew@go", "order"),
+            ("PartialOld@go", "partial"),
+            ("PartialNew@get", "partial"),
+        ] {
+            assert_eq!(
+                generator.action(action, &parameters)?,
+                format!("https://configured.test/{path}")
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn action_collection_domain_priority_first_key_and_backslash_asymmetry() -> Result<()> {
+        // 声明原值检查存在、规范key写入，后续带反斜线的动作可以覆盖。
+        let generator = urls(
+            Routes::new()
+                .get_action("/plain", "Shared@go", handler)
+                .group(RouteGroup::new().domain("tenant.test"), |routes| {
+                    routes.get_action("/domain", "Shared@go", handler)
+                })
+                .get_action("/first", "First@go", handler)
+                .get_action("/second", "First@go", handler)
+                .get_action("/slash-first", "Slash@go", handler)
+                .get_action("/slash-second", "\\Slash@go", handler)
+                .get_action("/slash-third", "Slash@go", handler),
+        )?;
+        for (action, expected) in [
+            ("Shared@go", "https://tenant.test/domain"),
+            ("First@go", "https://configured.test/first"),
+            ("Slash@go", "https://configured.test/slash-second"),
+        ] {
+            assert_eq!(generator.action(action, &BTreeMap::new())?, expected);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn action_collection_uses_raw_concatenated_key_and_domain_left_union() -> Result<()> {
+        // PHP 的 domain+uri 无分隔拼接会碰撞；不得改成各字段组成的安全元组。
+        let generator = urls(
+            Routes::new()
+                .group(RouteGroup::new().domain("a.test"), |routes| {
+                    routes.get_action("/bc", "Old@go", handler)
+                })
+                .group(RouteGroup::new().domain("a.testb"), |routes| {
+                    routes.get_action("/c", "New@go", handler)
+                }),
+        )?;
+        assert_eq!(
+            generator
+                .action("Old@go", &BTreeMap::new())
+                .err()
+                .map(|error| error.code().to_owned())
+                .as_deref(),
+            Some("http_route_action_not_found")
+        );
+        assert_eq!(
+            generator.action("New@go", &BTreeMap::new())?,
+            "https://a.testb/c"
+        );
+        let generator = urls(
+            Routes::new()
+                .group(RouteGroup::new().domain("a.test"), |routes| {
+                    routes.get_action("/bc", "Domain@go", handler)
+                })
+                .get_action("/a.testbc", "Plain@go", handler),
+        )?;
+        assert_eq!(
+            generator.action("Domain@go", &BTreeMap::new())?,
+            "https://a.test/bc"
+        );
+        assert_eq!(
+            generator
+                .action("Plain@go", &BTreeMap::new())
+                .err()
+                .map(|error| error.code().to_owned())
+                .as_deref(),
+            Some("http_route_action_not_found")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn action_groups_merge_real_metadata_and_tuple_bypasses_namespace() -> Result<()> {
+        let routes = Routes::new().group(
+            RouteGroup::new()
+                .namespace("App")
+                .prefix("/app")
+                .name_prefix("app."),
+            |routes| {
+                routes.group(
+                    RouteGroup::new().namespace("Admin").prefix("/admin"),
+                    |routes| {
+                        routes
+                            .get_action("/draft", "Draft@show", handler)
+                            .name("draft")
+                            .get_action("/similar", "App\\AdminExtra@show", handler)
+                            .get_action("/tuple", ("External", "show"), handler)
+                            .group(RouteGroup::new().namespace("\\Other"), |routes| {
+                                routes.get_action("/reset", "Invokable", handler)
+                            })
+                    },
+                )
+            },
+        );
+        let metadata: Vec<_> = routes
+            .matched_metadata
+            .iter()
+            .map(snapshot_metadata)
+            .collect::<Result<_>>()?;
+        assert_eq!(
+            metadata[0].action.as_deref(),
+            Some("App\\Admin\\Draft@show")
+        );
+        assert_eq!(metadata[0].name.as_deref(), Some("app.draft"));
+        assert_eq!(metadata[0].path, "/app/admin/draft");
+        assert_eq!(metadata[0].methods, ["GET", "HEAD"]);
+        assert_eq!(metadata[1].action.as_deref(), Some("App\\AdminExtra@show"));
+        assert_eq!(metadata[2].action.as_deref(), Some("External@show"));
+        assert_eq!(metadata[3].action.as_deref(), Some("Other\\Invokable"));
+        let generator = urls(routes)?;
+        assert_eq!(
+            generator.action(("External", "show"), &BTreeMap::new())?,
+            "https://configured.test/app/admin/tuple"
+        );
+        assert_eq!(
+            generator.route("app.draft", &BTreeMap::new())?,
+            "https://configured.test/app/admin/draft"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn invalid_action_registration_and_namespace_accumulate_startup_errors() {
+        for routes in [
+            Routes::new().get_action("/bad", "", handler),
+            Routes::new().group(RouteGroup::new().namespace("App\n"), |routes| {
+                routes.get_action("/bad", "Draft@show", handler)
+            }),
+        ] {
+            let parts = routes.into_parts();
+            assert_eq!(parts.route_errors[0].code(), "http_route_action_invalid");
+            assert!(parts.actions.is_empty());
+        }
+    }
 }

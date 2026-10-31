@@ -27,3 +27,22 @@
 同名参数额外证据：`/tmp/openrust-c04d7-route-audit/duplicate-probe.php`使用真实PHP8.5、Symfony Routing7.4官方RouteCompiler/Route/CompiledRoute及固定Laravel RouteParameterBinder；2026-10-30审查者执行与主控独立复跑均退出0。跨host `{id}.example.test`与path `/{id}`编译成功且绑定为路径值；单个host或path内部重复名分别抛LogicException。Laravel Route/Request仅为最小fixture，此证据不代表完整Laravel HTTP或OpenRust应用验收。
 
 本ADR限定实现及验收已完成；D7真实Route/Resolver与受管理方法声明已通过限定验收：final3完整12门禁、默认695/29 ignored、全特性1403/103 ignored、根PG18/MySQL8.4各64、fresh5/2/2、真实TCP7及不同模型复审；忽略项不算真实服务。根target清零，五旧consumer不变，限定提交以Git为准；完整Routing/Request与previous/Precognition仍开放。后继Session previous依赖本簇，Precognition必须真实验证/分发而非仅信header。R3-E/F旧fallback已验收事实保留，冲突默认语义以本ADR实现后新证据替代。
+
+
+## D10-G：动作身份与URL生成契约（限定子范围已验收）
+
+1. 沿同一真实路由登记链新增 `get_action(path, action, handler)` 与通用 `on_action(path, methods, action, handler)`；GET含HEAD，其他方法/组合/自定义方法复用现on，不另造执行器或URL-only注册表。
+2. 公开owned `RouteAction` 保存字符串与二元组输入形态，支持&str/String及借用/owned二元组转换；方法字符串、裸invokable身份与二元组均与显式Rust handler同次登记，不用函数地址/类型名假反射或声称类字符串自动实例化控制器。
+3. `RouteGroup::namespace`按固定登记规范组合；BootContext公开 `set_root_controller_namespace(namespace)->Result<&mut Self>`只设置最终生成器查询默认根空间，不改路由登记namespace，两者与name_prefix独立。
+4. 同时提供 `RouteUrlGenerator::set_root_controller_namespace(&mut self, namespace)->Result<&mut Self>`，空串清空，仅本实例查询状态变化；clone及已捕获请求快照隔离，索引仍共享不可变Arc，不用全局锁或重建整表。明确这是Rust所有权适配，不声称跨clone共享PHP对象引用。
+5. 实际命中Route提供 `action()->Option<&str>`，可信resolver可用 `with_action`构造元数据但不注册URL；默认动作只来自真实匹配条目，保留上游声明形式，索引另规范化。
+6. 最终动作索引从与匹配同源的完整声明集合派生；实际固定PHP Route/RouteCollection的add/refresh/get/getByAction探针7场景已单次通过：固定源码以methods顺序的管道拼接再直接连接domain与uri所得完整字符串键相同时替换淘汰旧项（不等同三元组相等；无分隔连接碰撞也属同键），分拆逐方法全覆盖或不同methods顺序仍保旧动作索引；域集合先、普通同动作首项，后写前导反斜线的exists/trim不对称可覆盖规范key。保留声明顺序与原形，不用逐方法有效handler过滤代替collection索引，也不改既有请求分派。证据 `/tmp/openrust-c04d10g-collection-probe.output.jsonl`；这是实际集合与Route构造，不是完整Laravel HTTP，前三次helper装载失败保留。
+   补充实际碰撞探针 `/tmp/openrust-c04d10g-collection-collision-probe.output.jsonl` 两案通过：domain/uri无分隔碰撞和domain/ordinary左侧union均可淘汰旧动作。当前Rust请求分派仍按(domain,path)结构化身份保留处理器，与PHP集合碰撞后的隐藏路由不同；本簇仅对应动作索引，此请求分派差异作为Routing后继缺口保留，不宣称全Routing等价。
+7. 同一 `RouteUrlGenerator::action(action,&BTreeMap<String,String>)->Result<String>` 与route共享渲染；只有动作没有name时仍提供完整生成器。root字符串、绝对字符串、二元组及invokable查询按固定formatAction处理。
+8. `Redirector::action/action_with`默认302/空头，先动作生成再to_with，保留原请求借用/Session闪存链，无Session普通跳转可用。
+9. 非法动作通过 `http_route_action_invalid`启动/查询Result失败，未知动作 `http_route_action_not_found`，缺生成器/参数/URL错误沿既有code；不panic，不擅加PHP类名正则，空成员/控制字符等必要Rust输入边界须分类说明。
+10. 当前字符串映射参数/必需段/绝对URL语义共享，不以本簇关闭mixed/positional/UrlRoutable/可选/default/relative生成或完整Controller/URLGenerator。唯一模块与生成helper演示匿名动作路由、真实命中身份与动作跳转，不建假控制器框架。
+11. 核心负责值类型、route/routing/routes/url与Boot装配；桥接及调用方owner负责redirect、HTTP集成测试、唯一模块/模板。共享mod/export、清单/锁、文档与提交单一owner，公有API若发现确切编译障碍先给最小等价调整，不并行互改文件。
+12. 上游固定d52c3b3，窄证据 `/tmp/openrust-c04d10f-next-action-evidence.md`；先一次完成源码/测试/调用方/中文文档，再独审、集中门禁、fresh生成/MySQL与真实TCP，不把契约或静态片段当验收。
+
+D10-G上述限定契约已通过核心/调用方/生成模板、main适用门禁与MySQL及真实TCP验收，资源收尾已完成，限定提交见Git。具体默认824/全特性1611、fresh7/MySQL2+1/TCP10+15与失败保留、不同模型审查、清理证明见[测试记录](../memory/testing.md#c04-d10-g-动作身份与-action-url限定子范围已验收提交见git)。原始集合碰撞的实际dispatch及完整参数族仍按上述边界开放。

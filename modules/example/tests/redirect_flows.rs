@@ -270,6 +270,7 @@ async fn draft_named_route_redirect_retains_flash_and_restores_custom_errors() -
         assert_eq!(aged["old"], json!([]));
         assert_eq!(aged["default"]["present"], false);
         assert_eq!(aged["other"]["present"], false);
+        assert_action_flash(&app).await?;
         Ok(())
     }
     .await;
@@ -379,6 +380,7 @@ async fn plain_and_named_redirect_work_without_session_and_flash_reports_failure
         .await?;
         redirect(&back, "/api/example/draft/plain")?;
         assert_public_refresh_and_guide(&app).await?;
+        assert_public_actions(&app).await?;
         let failed = submit(&app, None, json!({"mode":"only","title":"Alpha"})).await?;
         failed.assert_status(StatusCode::INTERNAL_SERVER_ERROR)?;
         let body: Value = failed.json()?;
@@ -388,6 +390,76 @@ async fn plain_and_named_redirect_work_without_session_and_flash_reports_failure
     .await;
     app.shutdown(tokio::time::Instant::now() + TIMEOUT).await?;
     result
+}
+
+async fn assert_public_actions<A: Application>(app: &TestApp<A>) -> TestResult {
+    for (entry, target, action) in [
+        (
+            "action",
+            "/api/example/draft/actions/42?section=review",
+            "Example\\Draft\\DraftController@show",
+        ),
+        (
+            "action-preview",
+            "/api/example/draft/actions/42/preview?section=review",
+            "Example\\Draft\\PreviewDraftController",
+        ),
+    ] {
+        let response = get(
+            app,
+            &format!("/api/example/draft/{entry}?url=https://untrusted.example"),
+            None,
+            None,
+        )
+        .await?;
+        redirect(&response, target)?;
+        let page = get(app, target, None, None).await?;
+        assert_eq!(
+            state(&page)?,
+            json!({"draft":"示例动作草稿","action":action,"id":"42","old_title":null,"title_error":""})
+        );
+    }
+    Ok(())
+}
+
+async fn assert_action_flash<A: Application>(app: &TestApp<A>) -> TestResult {
+    let response = app
+        .request_with_limits(
+            Request::post("/api/example/draft/action-submit?url=https://untrusted.example")
+                .header("host", "localhost")
+                .header(header::ACCEPT, "text/html")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    r#"{"title":"  Action draft  ","token":"private"}"#,
+                ))?,
+            4096,
+            TIMEOUT,
+        )
+        .await?;
+    response.assert_status(StatusCode::SEE_OTHER)?;
+    assert_eq!(
+        response.headers()[header::LOCATION],
+        "http://localhost/api/example/draft/actions/42?section=review"
+    );
+    assert_eq!(response.headers()["x-example-draft-action"], "review");
+    let cookie = cookie_pair(&response)?;
+    let page = get(
+        app,
+        "/api/example/draft/actions/42?section=review",
+        Some(&cookie),
+        None,
+    )
+    .await?;
+    let current = state(&page)?;
+    assert_eq!(current["action"], "Example\\Draft\\DraftController@show");
+    assert_eq!(current["id"], "42");
+    assert_eq!(current["old_title"], "Action draft");
+    assert_eq!(current["title_error"], "请复核动作草稿标题");
+    let cookie = cookie_pair(&page)?;
+    let aged = state(&get(app, "/api/example/draft/actions/42", Some(&cookie), None).await?)?;
+    assert_eq!(aged["old_title"], Value::Null);
+    assert_eq!(aged["title_error"], "");
+    Ok(())
 }
 
 async fn assert_public_refresh_and_guide<A: Application>(app: &TestApp<A>) -> TestResult {

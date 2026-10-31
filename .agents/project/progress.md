@@ -14,7 +14,9 @@ C04-D10-A公共错误包限定子范围已提交 `27c006a`。[证据及限制](m
 
 C04-D8 previous与显式Precognition限定子范围已完成适用验收：稳定主线门禁、全特性1439 passed/104 ignored、Rust1.97 check、真实PG18/MySQL8.4各67项模块HTTP及各1项previous、所有权PG3/My2、新生成应用5/2/2、真实TCP6项与最终CLI快照1项均有证据。默认workspace以709项有效结果与修后20项doctest按影响复用，非虚报原失败命令exit0。完整Old Input/CSRF/FormRequest、规则集与整个HTTP/Session继续开放。 [证据与限制](memory/testing.md#c04-d8-previous-与-precognition限定子范围已验收)。C04-D9旧输入限定子范围已完成main组合验收：唯一模块与生成helper通过公开API运行，默认750/31 ignored、全特性1491/105 ignored，根双库各72+1、真实TCP六场景与fresh5/2/2具备[证据](memory/testing.md#c04-d9-main-组合限定子范围验收通过)；RedirectResponse、文件输入合并、CSRF/FormRequest仍开放。R2-X d299ca4与R2-Q 850e1a4已获用户main集成授权，已完成main组合真实验收，本地集成提交见Git与[testing](memory/testing.md#r2-qx-main-组合验收通过)；不以此关闭完整配置/Container。
 
-✅ C04-D10-F refresh/away已通过当前适用门禁、fresh普通7/MySQL认证2+公开helper1及真实TCP7/12，资源收尾已完成，限定提交见Git；完整Redirector仍开放。
+✅ C04-D10-F refresh/away已验收并提交ba538ea，当前适用门禁、fresh普通7/MySQL认证2+公开helper1及真实TCP7/12与资源收尾通过；完整Redirector仍开放。
+
+✅ C04-D10-G动作路由身份与action URL已限定验收：定向、双严格Clippy、workspace默认824/34ignored与全特性1611/108ignored、docs/features/deny/MSRV、新构建、fresh普通7/MySQL2+1和真实TCP10/15通过，3专属package清理完成，限定提交见Git。gRPC fixture启动空窗已健壮化并严格重验，原停机失败原因未确证、旧失败保留。完整Routing/Controller/URLGenerator/Redirector仍开放，见[本簇证据](memory/testing.md#c04-d10-g-动作身份与-action-url限定子范围已验收提交见git)。
 
 ## Laravel 1:1 功能与进度概览
 
@@ -33,7 +35,7 @@ C04-D8 previous与显式Precognition限定子范围已完成适用验收：稳�
 | 启动、应用布局 | Laravel应用职责/生命周期与开箱运行 | ✅ 已验收子范围 | R1-S 34dfb5e、R1-E bc3fa01：根lib/server、唯一模块与真实CRUD | 完整安装/升级/部署流程仍须逐项对照 | L004/L007/L010/L011；R1/R13/R14；[证据](memory/testing.md) |
 | Container / Provider / Facade | 统一DI、register→boot、作用域与扩展 | ✅ 已验收子范围 | R2-A/A2/A3、B/C/D已验收，唯一生产Container/Provider、入口scope/TestApp | R2-X保留原factory的extend及公开Session装饰器已完成main组合验收；阶段一Provider编译期发现仅规划，现显式descriptor不是包发现；完整Facade/Container/扩展对应待闭合 | L012–L014/L035；R2；[core](core/core.md)/[facade](core/facade.md) |
 | Configuration | env/领域配置、typed读取/校验与包配置合并 | ✅ 已验收子范围 | R2来源失败/Provider配置；APP_PORT 591142f映射与生成/启动已验收 | R2-Q原始/批量读取与可信错误路径已完成main组合验收；完整L005及缓存/来源/扩展逐项对齐；DB业务设置见增强表 | L005；R2；[core](core/core.md)/[todo](todo.md) |
-| Routing / Middleware / URL | 路由组/域/命名URL/绑定/中间件默认与错误 | ✅ 已验收子范围 | R3-A–F按簇交付；F 163bb49域路由；D7请求匹配/方法声明与fallback纠偏已限定验收 | 模型绑定等剩余C03行为及默认差异不能由A–F整体外推 | L015/L016/L024；R3；[http](core/http.md)/[todo](todo.md) |
+| Routing / Middleware / URL | 路由组/域/命名URL/绑定/中间件默认与错误 | ✅ 已验收子范围 | R3-A–F按簇交付；F 163bb49域路由；D7请求匹配/方法声明与fallback纠偏、D10-G动作身份/namespace/共享action URL已限定验收 | 原串碰撞实际dispatch、模型绑定及其余C03/URL参数行为仍开放，不能由子范围整体外推 | L015/L016/L024；R3；[http](core/http.md)/[todo](todo.md) |
 | Request | 输入来源、typed便捷方法与生命周期 | 🟡 开发中 | C04-A/B1/B2/C及D6/D7/D9各子范围已验收；D10-B真实Request借用的输入闪存与重定向已限定验收并提交 `a2befef`；D10-D捕获同应用URL生成器的请求快照已限定验收，提交见Git | 文件输入并入bag、完整Session/CSRF/FormRequest仍开放 | L019；R3 C04；[B证据](memory/testing.md#c04-d10-b-请求绑定重定向与-session-错误包限定子范围已验收)/[todo](todo.md) |
 | Response / API Resource / 异常 | 原生响应、资源序列化/条件字段、错误渲染 | 🔵 已有实现待1:1对齐 | 类型化响应/envelope与语义状态已交付；D10-B普通与请求绑定重定向已限定验收并提交 `a2befef`；D10-D命名重定向已提交018b778；D10-E scheme/guest/intended通过当前适用验收，限定提交见Git | 完整Resource、命名重定向混合/可选参数缺口、refresh/away本簇通过适用验收，action/signed、missing resolver、stream及异常自动重定向仍待 | L018/L020/L027/L068/L069；R3/R5；[http](core/http.md) |
 | Pagination | Query/Model paginate、simple/cursor、链接与Resource | 🔵 已有实现待1:1对齐 | 现PageParams/手动controller分页；4573234仅登记整改 | 默认15/page解析、直接JSON与Resource links/meta、查询/模型入口及边界 | L059/L068.04；R3→R4/R5；[Spec](todo.md#c04c05-分页整改-spec已授权按依赖领取代码未改) |

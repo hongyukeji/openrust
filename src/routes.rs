@@ -58,6 +58,7 @@ struct RouterLayerRegistry {
 pub struct RouteRegistry {
     builders: Vec<RouteBuilder>,
     middleware: MiddlewareRegistry,
+    root_controller_namespace: Option<String>,
 }
 
 impl RouteRegistry {
@@ -81,6 +82,20 @@ impl BootContext<'_> {
         self.extension_mut::<RouteRegistry>()?
             .builders
             .push(Box::new(builder));
+        Ok(self)
+    }
+
+    /// 设置最终动作 URL 生成器的查询根命名空间；不会修改路由组的登记空间。
+    ///
+    /// 空字符串清空默认空间，控制字符以 `http_route_action_invalid` 返回错误。
+    pub fn set_root_controller_namespace(
+        &mut self,
+        namespace: impl Into<String>,
+    ) -> Result<&mut Self> {
+        let namespace = namespace.into();
+        crate::http::action::validate_namespace(&namespace)?;
+        self.extension_mut::<RouteRegistry>()?
+            .root_controller_namespace = (!namespace.is_empty()).then_some(namespace);
         Ok(self)
     }
 
@@ -346,14 +361,7 @@ pub fn build_router(app: &App) -> Result<Router> {
         if !parts.route_errors.is_empty() {
             return Err(parts.route_errors.remove(0));
         }
-        route_urls = Some(if parts.names.is_empty() {
-            crate::http::RouteUrlGenerator::empty()
-        } else {
-            crate::http::RouteUrlGenerator::new(
-                &app.config().app.url,
-                std::mem::take(&mut parts.names),
-            )?
-        });
+        route_urls = Some(route_url_generator(app, &mut parts)?);
         let app_router = assemble(parts).with_state(app.state().clone());
         crate::http::site::mount(app_router, &app.config().server, app.state().clone())
     }))
@@ -405,6 +413,33 @@ pub fn build_router(app: &App) -> Result<Router> {
         app.state().clone(),
         expose_app_state,
     )))
+}
+
+fn route_url_generator(
+    app: &App,
+    parts: &mut crate::http::routes::RouteParts,
+) -> Result<crate::http::RouteUrlGenerator> {
+    let mut generator = if parts.names.is_empty() && parts.actions.is_empty() {
+        crate::http::RouteUrlGenerator::empty()
+    } else if parts.actions.is_empty() {
+        crate::http::RouteUrlGenerator::new(
+            &app.config().app.url,
+            std::mem::take(&mut parts.names),
+        )?
+    } else {
+        crate::http::RouteUrlGenerator::new_with_actions(
+            &app.config().app.url,
+            std::mem::take(&mut parts.names),
+            std::mem::take(&mut parts.actions),
+        )?
+    };
+    if let Some(namespace) = app
+        .extension::<RouteRegistry>()
+        .and_then(|registry| registry.root_controller_namespace.as_deref())
+    {
+        generator.set_root_controller_namespace(namespace)?;
+    }
+    Ok(generator)
 }
 
 async fn expose_route_urls(

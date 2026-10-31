@@ -13,6 +13,7 @@ pub type RouteResolver = Arc<dyn Fn() -> Result<Option<Route>> + Send + Sync>;
 #[derive(Clone, Debug, PartialEq)]
 pub struct Route {
     name: Option<String>,
+    action: Option<String>,
     uri: String,
     domain: Option<String>,
     methods: Vec<String>,
@@ -30,6 +31,7 @@ impl Route {
     ) -> Self {
         Self {
             name,
+            action: None,
             uri: uri.into(),
             domain,
             methods,
@@ -40,6 +42,18 @@ impl Route {
     /// 路由名称；匿名路由返回 `None`。
     pub fn name(&self) -> Option<&str> {
         self.name.as_deref()
+    }
+
+    /// 实际匹配路由的原始动作声明；普通 handler 路由返回 `None`。
+    pub fn action(&self) -> Option<&str> {
+        self.action.as_deref()
+    }
+
+    /// 为可信 resolver 的快照设置动作元数据；不会登记 URL 或执行控制器。
+    #[must_use]
+    pub fn with_action(mut self, action: impl Into<String>) -> Self {
+        self.action = Some(action.into());
+        self
     }
 
     /// 不含首斜线的声明 URI；根路由返回 `/`。

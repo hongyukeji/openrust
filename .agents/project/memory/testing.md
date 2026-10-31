@@ -1129,3 +1129,17 @@ skill-only提交 `a3b2ca3` 提供显式 `--rebase-usage-budget` 及正式额度�
 - 3个F自有package按实际manifest/fingerprint精确clean，actual0；同名test_app/auth_flows/generated_view仅排除本包unit hash，未泛排其他包。源码/锁/serverCLI/框架与非自有依赖哨兵不变，无Cargo/target锁占用，不清根缓存。登记缓存37,209,677,824→36,771,332,096字节，磁盘空闲107,002,572,800/994,662,584,320字节，满足50/100GB及10/5%策略。
 
 固定Laravel为d52c3b3，Symfony8对象14案实际构造只作ADR-078独立固定比较点；Laravel无已解析composer.lock，不声称锁定该版本或完整PHP HTTP。共享构造器顺序为HTTP范围→空目标→允许状态→头；to先生成目标，与固定上游一致，guest先put/intended先pull未变。核心、调用方、驱动均经不同模型独审，无剩余问题。完整Redirector、action/signed、URL参数其余语义及HTTP/Session/发布全后端矩阵继续开放。
+
+
+## C04-D10-G 动作身份与 action URL（限定子范围已验收，提交见Git）
+
+固定Laravel framework `d52c3b3129e4c8e213c97cdc68f94b0b7d27f181`，Route/RouteCollection真实PHP探针7+2案对应声明方法顺序、完整无分隔拼接键、域优先union及前导反斜线例外；并非完整PHP HTTP。Rust公开RouteAction、get_action/on_action、组namespace、真实Route.action、Boot与生成器本实例根namespace、共享action URL渲染及Redirector.action/action_with；clone/请求快照隔离，无名动作应用亦提供生成器。参数仍限字符串映射/必需段，实际dispatch原串碰撞差异及完整Controller/URLGenerator/Redirector保持开放。
+
+最终运行冻结 `/tmp/openrust-c04d10g-verification-v4/freeze.json` SHA `572f078577a47cf50fdaedc376dfdb171d0f15c6698d702dd1fda1c335bc5b3a`；总索引 `/tmp/openrust-c04d10g-verification-v4/FINAL-HANDOFF.json` SHA `fe4aa672aba5b465c40798861c9b2489ba9cade0ad480c40e4733768f4876ae3`。主控实际核68份关联path/SHA、579项源码均一致；21个执行句柄全部终态，旧失败仍是非零退出，不改写为成功。不同模型对契约/核心/调用方/修复/驱动与最终输入复审无剩余问题。
+
+- 最终定向通过：重定向Session/无Session lib19/9、动作身份/集合/URL单元全特性及无默认特性各11、完整router117/113，均无ignored与源码漂移；HTTP动作4、模块5、CLI快照1已实际通过。fmt/diff、默认与全特性严格Clippy通过，无allow或降阈值。
+- main11项成功证据收齐：workspace默认824 passed/34 ignored，全特性1611 passed/108 ignored，双严格Rustdoc、4种feature、cargo deny、Rust1.97两项MSRV；最终fixture还实际补验all-targets MSRV。忽略项不算真实服务。仅Agent文档提交不影响运行输入；版本间仅文档或cfg测试差异按input-impact精确说明复用，变更unit在最终断言下重新执行，gRPC fixture亦经exact及完整all重验。
+- 本轮新server SHA `b978508bd4ee00d2a69f30be415ef5f8819a4ea89ebe78c0e34feb919feac327`、CLI SHA `53116d02af1d18ee35610c7116ccc1b5bcd1fb64f68fdab924c4c995afc9970c`。fresh普通应用fmt/check/test7通过；MySQL8.4.13认证2与公开helper1分别实际通过，无生成后源码补丁。原MySQL合并summary仍false：auth2已过，public-check日志前RuntimeError具体tag未知，不宣称磁盘根因；独立单项补验绑定同生成源码/helper/锁与本轮双binary，新owned锚库，严格check/exact1及finally清理均通过。补验summary SHA `7d51fd1e617eb2bfe954e4769a0630580a5da7b4d0a12240e5a4ca860dfa9987`。
+- 真实TCP无Session10/MySQL15通过，新增固定动作跳转忽略不可信url、tuple/invokable匿名目标真实action/id、303自定义头、Session输入/错误恢复及再次老化。正常stop/worker退出0，无强杀/超时、监听释放、敏感临时数据移除，所有本轮自有MySQL库created/dropped均true，不触共享服务。
+- 保留五份失败：HTTP缺生成器fixture错预期500（既有Custom契约实际400，修为精确code/status/无Location）；README doc_markdown；unit expect lint；gRPC联合关闭裸connect断言；生成public前置RuntimeError。gRPC仅修已证startup drop/rebind空窗，改公开预绑定listener入口并保留严格stop/join/readiness/关闭一次/双端口拒绝，补角色地址诊断；原停机失败根因未确证，不以通过重验声称已证根因。PHP前三次helper装载失败另保留，不算框架行为失败或通过。
+- 3个本轮真实package精确clean均实际0，回收439,365,632字节；579项运行源码、3份生成源码/锁、新server/CLI、50个精确framework与全部nonowned deps哨兵、旧回执保持不变。登记缓存37,729,984,512→37,290,618,880字节，磁盘空闲107,410,919,424/994,662,584,320字节；无Cargo/target锁。额外绝对.d路径归属预检首次过严，尚未clean即停止并保留；核relative first-source后按精确package/FP/unit hash/.d/真实manifest源解析再执行，不宽排同名测试、不清根缓存。清理回执 `/tmp/openrust-c04d10g-verification-v4/cleanup-result.json` SHA `90ed6ab734648ccb325460aa85db418557a78a9d23d414cd55ceb2330f01aaa7`，清后索引 `POST-CLEANUP-HANDOFF.json` SHA `3e29fe2ad0119ed620b6a02873c9c833e9e2dea50bbcd44fda405aa8671f74cb`；全部23执行句柄终态。PG及全部承诺后端发布矩阵继续开放。

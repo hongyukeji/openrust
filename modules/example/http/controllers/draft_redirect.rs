@@ -37,6 +37,84 @@ pub(crate) async fn back(info: RequestInfo) -> Result<Response> {
         .into_response())
 }
 
+/// 固定业务动作由二元组指定，不读取请求中的任意跳转地址。
+pub(crate) async fn action(info: RequestInfo) -> Result<Response> {
+    Ok(Redirector::from_info(&info)
+        .action(
+            ("Example\\Draft\\DraftController", "show"),
+            &action_parameters(),
+        )?
+        .into_response())
+}
+
+/// 裸 invokable 身份只用于查找已登记路由，执行的仍是显式 Rust handler。
+pub(crate) async fn action_preview(info: RequestInfo) -> Result<Response> {
+    Ok(Redirector::from_info(&info)
+        .action(
+            "\\Example\\Draft\\PreviewDraftController",
+            &action_parameters(),
+        )?
+        .into_response())
+}
+
+fn action_parameters() -> BTreeMap<String, String> {
+    BTreeMap::from([
+        ("id".into(), "42".into()),
+        ("section".into(), "review".into()),
+    ])
+}
+
+/// 匿名动作目标展示真实命中身份和参数，并读取一次性表单状态。
+pub(crate) async fn action_show(
+    info: RequestInfo,
+) -> Result<openrust::http::Json<serde_json::Value>> {
+    let route = info
+        .route()?
+        .ok_or_else(|| openrust::Error::custom("example_draft_route_missing", "草稿路由缺失"))?;
+    let state = serde_json::json!({
+        "draft":"示例动作草稿", "action":route.action(), "id":route.parameter("id"),
+        "old_title":null, "title_error":"",
+    });
+    #[cfg(feature = "session")]
+    let state = if info.has_session() {
+        let mut state = state;
+        state["old_title"] = info.old("title")?.unwrap_or(serde_json::Value::Null);
+        state["title_error"] = serde_json::json!(
+            info.session()?
+                .read_errors()?
+                .get_bag("default")
+                .as_bag()
+                .first(None, None)?
+        );
+        state
+    } else {
+        state
+    };
+    Ok(openrust::http::Json(state))
+}
+
+/// 提交到固定动作目标；普通跳转无需 Session，存在 Session 时延续原 flash 链。
+pub(crate) async fn action_submit(request: Request) -> Result<Response> {
+    let mut headers = HeaderMap::new();
+    headers.insert("x-example-draft-action", HeaderValue::from_static("review"));
+    let redirect = Redirector::from_request(&request).action_with(
+        ("Example\\Draft\\DraftController", "show"),
+        &action_parameters(),
+        StatusCode::SEE_OTHER,
+        headers,
+    )?;
+    #[cfg(feature = "session")]
+    let redirect = {
+        let mut redirect = redirect;
+        if request.info().has_session() {
+            redirect.only_input(&["title"])?;
+            redirect.with_errors(RedirectErrors::Text("请复核动作草稿标题"), "default")?;
+        }
+        redirect
+    };
+    Ok(redirect.into_response())
+}
+
 const DRAFT_GUIDE: &str = "https://laravel.com/docs/11.x/redirects?source=openrust&section=draft#redirecting-to-external-domains";
 
 /// 目标由业务常量指定，不读取请求中的任意外链地址。

@@ -6,6 +6,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Changed
 
+- 增加真实路由动作身份与动作 URL：显式动作和 Rust handler 同次登记，匿名路由也可通过字符串、二元组或裸 invokable 身份查找；请求绑定 `Redirector::action/action_with` 复用同一生成器和原输入/错误闪存链。唯一模块与生成 helper 展示固定动作回跳、真实命中身份及一次性草稿状态；完整参数族、signed 与完整 Redirector 继续保留后继范围。
+
 - 请求绑定重定向新增 `refresh/refresh_with` 与 `away/away_with`：刷新按当前路径生成目标并丢弃 query，外部跳转直接使用目标原值；均复用现有响应构造和输入/错误闪存链。唯一模块通过 POST→同路径 GET 展示草稿，外链使用可信常量；生成 helper 覆盖显式状态/头、刷新后闪存及固定外链，完整 Redirector 仍保留后继范围。
 
 - 请求绑定重定向增加显式协议选择与 `secure`，并提供 Session `guest`/`intended` 及意图读取/设置入口；意图使用普通 Session 属性，先保存或先消费再构造响应。唯一模块与生成 helper 展示非敏感草稿确认回跳、双 Cookie 隔离与一次消费，保留既有输入及错误闪存流程；HTTPS Location 不代表监听器已启用 TLS，完整 Redirector 仍保留后继缺口。

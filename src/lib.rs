@@ -106,8 +106,9 @@ pub mod prelude {
         Action, Cookie, CookieFactory, CookieJar, CookieOptions, CookieResponseExt,
         CookieServiceProvider, Created, DomainParams, Inject, InputNormalization, InputOutcome,
         InputOutcomeMut, InputTruthy, Json, ManagedHandler, NoContent, PageParams, Paginated, Path,
-        Query, Request, RequestInfo, Resource, ResourceActions, Route, RouteGroup, RouteMethods,
-        RouteResolver, RouteUrlGenerator, Routes, Truthy, Validated, handle_precognitive_requests,
+        Query, Request, RequestInfo, Resource, ResourceActions, Route, RouteAction, RouteGroup,
+        RouteMethods, RouteResolver, RouteUrlGenerator, Routes, Truthy, Validated,
+        handle_precognitive_requests,
     };
     pub use crate::i18n::{
         DateFormatStyle, DateTimeFormatStyle, I18n, I18nConfig, I18nFormatError, Locale,

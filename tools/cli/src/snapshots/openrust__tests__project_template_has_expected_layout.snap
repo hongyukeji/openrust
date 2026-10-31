@@ -357,7 +357,7 @@ async fn generated_application_consumes_message_bags_through_business_provider()
     message_bags::assert_message_bags::<GeneratedApplication>(source).await
 }
 
-/// 复用公开 helper 验证命名/确认回跳、刷新、固定外链、HTTPS Location 与错误闪存。
+/// 复用公开 helper 验证匿名动作/命名跳转、确认回跳、刷新、固定外链及错误闪存。
 #[tokio::test]
 async fn generated_application_redirects_to_named_route_and_restores_errors()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -2279,7 +2279,7 @@ use openrust::http::axum::{
     response::{IntoResponse, Response},
 };
 use openrust::http::{
-    Json, RedirectErrors, Redirector, Request as InputRequest, RequestInfo, Routes,
+    Json, RedirectErrors, Redirector, Request as InputRequest, RequestInfo, RouteGroup, Routes,
 };
 use openrust::session::{ErrorBagCodecs, MemorySessionStore, SessionServiceProvider};
 use openrust::support::{
@@ -2315,6 +2315,24 @@ impl ServiceProvider for RedirectRoutes {
         Box::pin(async move {
             app.routes(|routes: Routes| {
                 routes
+                    .group(
+                        RouteGroup::new()
+                            .prefix(format!("{PREFIX}/actions"))
+                            .namespace("Generated\\Draft"),
+                        |drafts| {
+                            drafts
+                                .get_action("/{id}", "DraftController@show", action_page)
+                                .get_action("/{id}/preview", "PreviewDraftController", action_page)
+                        },
+                    )
+                    .get(&format!("{PREFIX}/action"), action_redirect)
+                    .get(&format!("{PREFIX}/action-preview"), action_preview)
+                    .on_action(
+                        &format!("{PREFIX}/action-submit"),
+                        &["POST"],
+                        ("Generated\\Draft\\DraftController", "store"),
+                        action_submit,
+                    )
                     .get(&format!("{PREFIX}/plain"), plain)
                     .get(&format!("{PREFIX}/secure"), secure)
                     .get(&format!("{PREFIX}/guide"), guide)
@@ -2360,6 +2378,55 @@ impl<A: Application> Application for RedirectApplication<A> {
     fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
         A::modules(config)
     }
+}
+
+fn action_parameters() -> BTreeMap<String, String> {
+    BTreeMap::from([
+        ("id".into(), "42".into()),
+        ("section".into(), "review".into()),
+    ])
+}
+async fn action_redirect(info: RequestInfo) -> openrust::Result<Response> {
+    Ok(Redirector::from_info(&info)
+        .action(
+            ("Generated\\Draft\\DraftController", "show"),
+            &action_parameters(),
+        )?
+        .into_response())
+}
+async fn action_preview(info: RequestInfo) -> openrust::Result<Response> {
+    Ok(Redirector::from_info(&info)
+        .action(
+            "\\Generated\\Draft\\PreviewDraftController",
+            &action_parameters(),
+        )?
+        .into_response())
+}
+async fn action_submit(request: InputRequest) -> openrust::Result<Response> {
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        "x-generated-draft-action",
+        HeaderValue::from_static("review"),
+    );
+    let mut redirect = Redirector::from_request(&request).action_with(
+        "\\Generated\\Draft\\DraftController@show",
+        &action_parameters(),
+        StatusCode::SEE_OTHER,
+        headers,
+    )?;
+    redirect.only_input(&["title"])?;
+    redirect.with_errors(RedirectErrors::Text("请复核动作草稿标题"), "default")?;
+    Ok(redirect.into_response())
+}
+async fn action_page(info: RequestInfo) -> openrust::Result<Json<Value>> {
+    let route = info
+        .route()?
+        .ok_or_else(|| openrust::Error::custom("generated_action_route_missing", "动作路由缺失"))?;
+    Ok(Json(json!({
+        "action":route.action(), "id":route.parameter("id"), "name":route.name(),
+        "old_title":info.old("title")?,
+        "title_error":info.session()?.read_errors()?.get_bag("default").as_bag().first(None, None)?,
+    })))
 }
 
 async fn plain(info: RequestInfo) -> openrust::Result<Response> {
@@ -2703,7 +2770,62 @@ async fn assert_refresh_and_away<A: Application>(
     Ok(())
 }
 
-/// 经生成应用 Provider、命名路由与 Session Cookie 验证导航回跳、闪存及错误包。
+async fn assert_actions<A: Application>(
+    app: &TestApp<A>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    for (entry, suffix, action) in [
+        ("action", "42", "Generated\\Draft\\DraftController@show"),
+        (
+            "action-preview",
+            "42/preview",
+            "Generated\\Draft\\PreviewDraftController",
+        ),
+    ] {
+        let response = get(app, &format!("{PREFIX}/{entry}"), None).await?;
+        assert_redirect(
+            &response,
+            &format!("http://localhost{PREFIX}/actions/{suffix}?section=review"),
+        )?;
+        let cookie = cookie_pair(&response)?;
+        let page = get(app, &format!("{PREFIX}/actions/{suffix}"), Some(&cookie)).await?;
+        assert_eq!(
+            data(&page)?,
+            json!({"action":action,"id":"42","name":null,"old_title":null,"title_error":""})
+        );
+    }
+    let response = app
+        .request_with_limits(
+            Request::post(format!("{PREFIX}/action-submit"))
+                .header("host", "localhost")
+                .header(header::ACCEPT, "text/html")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    r#"{"title":"  Action draft  ","token":"private"}"#,
+                ))?,
+            4096,
+            TIMEOUT,
+        )
+        .await?;
+    response.assert_status(StatusCode::SEE_OTHER)?;
+    assert_eq!(
+        response.headers()[header::LOCATION],
+        format!("http://localhost{PREFIX}/actions/42?section=review")
+    );
+    assert_eq!(response.headers()["x-generated-draft-action"], "review");
+    let cookie = cookie_pair(&response)?;
+    let page = get(app, &format!("{PREFIX}/actions/42"), Some(&cookie)).await?;
+    assert_eq!(
+        data(&page)?,
+        json!({"action":"Generated\\Draft\\DraftController@show","id":"42","name":null,"old_title":"Action draft","title_error":"请复核动作草稿标题"})
+    );
+    let cookie = cookie_pair(&page)?;
+    let aged = data(&get(app, &format!("{PREFIX}/actions/42"), Some(&cookie)).await?)?;
+    assert_eq!(aged["old_title"], Value::Null);
+    assert_eq!(aged["title_error"], "");
+    Ok(())
+}
+
+/// 经生成应用 Provider、匿名动作/命名路由与 Session Cookie 验证回跳、闪存及错误包。
 pub async fn assert_request_redirect<A: Application>(
     source: Figment,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -2727,6 +2849,7 @@ pub async fn assert_request_redirect<A: Application>(
         assert!(std::str::from_utf8(plain.body())?.contains("<!DOCTYPE html>"));
         assert_navigation(&app).await?;
         assert_refresh_and_away(&app).await?;
+        assert_actions(&app).await?;
         let first = get(&app, &format!("{PREFIX}/review"), None).await?;
         let cookie = cookie_pair(&first)?;
         let body = json!({"title":"  Ada  ","token":"private"});

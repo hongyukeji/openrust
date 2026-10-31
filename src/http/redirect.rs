@@ -13,7 +13,7 @@ use axum::{
 use crate::support::{ArrayKey, MessageBag, MessageInput, MessageProvider};
 use crate::{Error, Result};
 
-use super::{Request, RequestInfo};
+use super::{Request, RequestInfo, RouteAction};
 
 /// 将已验证的当前请求转换为重定向目标。
 pub struct Redirector<'r> {
@@ -62,6 +62,30 @@ impl<'r> Redirector<'r> {
         headers: HeaderMap,
     ) -> Result<RedirectResponse<'r>> {
         let target = self.info.route_urls()?.route(name, parameters)?;
+        self.to_with(&target, status, headers)
+    }
+
+    /// 按实际登记的控制器动作生成目标，默认 302 和空自定义头，不要求 Session。
+    ///
+    /// 字符串、二元组及裸 invokable 身份沿当前请求的生成器解析；
+    /// 动作或必需参数错误先传播，不退回命名路由或任意 URL。
+    pub fn action(
+        &self,
+        action: impl Into<RouteAction>,
+        parameters: &BTreeMap<String, String>,
+    ) -> Result<RedirectResponse<'r>> {
+        self.action_with(action, parameters, StatusCode::FOUND, HeaderMap::new())
+    }
+
+    /// 按动作、参数、状态与自定义头建立响应，保留原请求的输入和错误闪存借用。
+    pub fn action_with(
+        &self,
+        action: impl Into<RouteAction>,
+        parameters: &BTreeMap<String, String>,
+        status: StatusCode,
+        headers: HeaderMap,
+    ) -> Result<RedirectResponse<'r>> {
+        let target = self.info.route_urls()?.action(action, parameters)?;
         self.to_with(&target, status, headers)
     }
 

@@ -296,8 +296,43 @@ async fn redirect_to_user(info: RequestInfo) -> openrust::Result<Response> {
 
 需要闪存输入时使用 `Redirector::from_request(&request)`；命名跳转返回同一个 `RedirectResponse`，可继续调用 `with_input`、`only_input`、`except_input` 和 `with_errors`，仍借用原请求与 Session。名称或必需参数错误沿用生成器现有错误与 HTTP 500；在应用 HTTP router 之外未捕获生成器时返回 `http_route_url_unavailable`，不会创建全局路由表或静默回退普通路径。
 
-命名重定向沿用现有 `BTreeMap<String, String>`、必需域/路径参数和 query 编码规则；域名模板及 `app.url` 的来源规则不受请求 Host 影响。这是已支持参数形态的接线，不代表 PHP 混合参数、模型/枚举绑定、可选参数或 `missingNamedRouteResolver` 已完成；action 与 signed 重定向仍属后继范围。
+命名重定向沿用现有 `BTreeMap<String, String>`、必需域/路径参数和 query 编码规则；域名模板及 `app.url` 的来源规则不受请求 Host 影响。这是已支持参数形态的接线，不代表 PHP 混合参数、模型/枚举绑定、可选参数或 `missingNamedRouteResolver` 已完成；signed 重定向仍属后继范围。
 
+
+### 按真实路由动作重定向
+
+`Redirector::action(action, &parameters)` 使用当前请求绑定的 `RouteUrlGenerator::action` 先找到实际登记的动作路由，再复用 `to_with` 建立默认302、空自定义头的响应。`action_with(action, &parameters, status, headers)` 提供显式选项；目标可以是匿名路由，不需要 `.name()`，也不会把动作字符串当作路由名称。无 Session 时普通跳转仍可用。
+
+```rust,no_run
+use std::collections::BTreeMap;
+use openrust::http::{Redirector, RequestInfo, RouteGroup, Routes};
+
+async fn show(info: RequestInfo) -> openrust::Result<String> {
+    Ok(info.route()?.and_then(|route| route.action().map(str::to_owned)).unwrap_or_default())
+}
+fn register(routes: Routes) -> Routes {
+    routes.group(RouteGroup::new().prefix("/drafts").namespace("Example\\Draft"), |drafts| {
+        drafts.get_action("/{id}", "DraftController@show", show)
+    })
+}
+async fn return_to_draft(info: RequestInfo) -> openrust::Result<openrust::http::axum::response::Response> {
+    use openrust::http::axum::response::IntoResponse;
+    let parameters = BTreeMap::from([("id".into(), "42".into())]);
+    Ok(Redirector::from_info(&info)
+        .action(("Example\\Draft\\DraftController", "show"), &parameters)?
+        .into_response())
+}
+```
+
+`get_action(path, action, handler)` 登记 GET/HEAD；`on_action(path, &["POST"], action, handler)` 等价地支持其他合法方法、组合及自定义方法，均沿现受管理方法声明链执行。字符串与二元组由公开 owned `RouteAction` 接受；`Route::with_action` 仅供可信 resolver 构造快照，不会登记匹配路由或 URL。
+
+Provider 可调用 `BootContext::set_root_controller_namespace(namespace)` 设置最终生成器的查询默认根空间。提取出的 `RouteUrlGenerator` 也可通过 `set_root_controller_namespace(&mut self, namespace)` 改本实例，空串清空；克隆和已捕获的请求快照保持原查询状态，索引仍共享不可变数据，不通过全局锁传播修改。生成器的 `action` 与命名 `route` 使用同一参数渲染内核。
+
+动作索引按固定上游的完整 methods 序列、domain、URI 声明 key 去除同 key 覆写项，再从域路由优先的最终集合登记动作：普通规范动作保留首项。不同复合方法声明即使在实际分派中分别被后续方法覆盖，也可能仍保留在上游动作 URL 索引；真实 `Route::action()` 始终来自实际选中的 handler，不能反过来从 URL 索引猜测。上游原 controller key 的存在检查与去掉首尾反斜线后的存储不对称，带反斜线的重复声明可能覆盖先项；不将普通首项规则扩称为全部拼写的统一规则。
+
+字符串查询沿生成器的 root namespace；前导反斜线字符串与二元组为绝对动作身份。裸 invokable 类身份按其登记值查询，实际执行的始终是同次声明的 Rust handler，不根据字符串动态创建控制器。组的 `namespace` 影响登记身份，与 URL 查询根空间及名称前缀独立；`Route::action()` 反映真实命中声明。
+
+`from_request` 返回的同一个 `RedirectResponse` 可继续 `with_input/only_input/except_input/with_errors`，保留原请求和 Session 借用。缺生成器沿既有 `http_route_url_unavailable`（400），未知动作沿 `http_route_action_not_found`（500），缺少必需参数沿 `http_route_parameter_missing`（500），其余参数错误沿共享生成器错误；先完成动作生成，再检查响应状态或头。参数继续使用 `BTreeMap<String, String>` 和现有域/路径编码及额外 query；mixed/位置参数、模型绑定、可选/default参数和相对 URL 生成仍是适用后继缺口，不据此宣称完整 `URLGenerator` 或 Redirector 已完成。
 
 ### 刷新当前路径与原样目标
 
@@ -321,7 +356,7 @@ async fn guide(info: RequestInfo) -> openrust::Result<axum::response::Response> 
 }
 ```
 
-普通调用无Session亦可用；从 `from_request` 建立的响应仍借用同一规范化输入与Session，可继续 `with_input/only_input/except_input/with_errors`。这些入口不改变guest先保存、intended先消费后建立响应的顺序，也不代表action、signed或完整Redirector已完成。
+普通调用无Session亦可用；从 `from_request` 建立的响应仍借用同一规范化输入与Session，可继续 `with_input/only_input/except_input/with_errors`。这些入口不改变guest先保存、intended先消费后建立响应的顺序，也不代表signed或完整Redirector已完成。
 
 ### 重定向协议与一次返回意图
 
@@ -347,7 +382,7 @@ async fn login_completed(info: RequestInfo) -> openrust::Result<axum::response::
 }
 ```
 
-返回值仍是借用原请求的 `RedirectResponse`；通过 `from_request` 创建后可继续组合 `with_input/only_input/except_input/with_errors`。返回目标沿既有URL规则，可为外部URL，不自动施加同源限制；应用需要限制来源时应在其业务规则中明确验证。这些入口不代表验证失败自动重定向、`dontFlash`、action、signed或完整Redirector已全部提供。
+返回值仍是借用原请求的 `RedirectResponse`；通过 `from_request` 创建后可继续组合 `with_input/only_input/except_input/with_errors`。返回目标沿既有URL规则，可为外部URL，不自动施加同源限制；应用需要限制来源时应在其业务规则中明确验证。这些入口不代表验证失败自动重定向、`dontFlash`、signed或完整Redirector已全部提供。
 
 `RouteGroup::domain` 可为路由组指定完整域名模式。域模式先于不限定域的路由匹配，与注册顺序无关；同一请求可用 `DomainParams<T>` 读取域标签参数，路径参数仍由 `Path<T>` 单独提取。嵌套组继承父域，显式声明的新域会覆盖父域。域参数只用于路由分派，不能替代租户认证或授权。域名 URL 从登记模板和显式参数生成，scheme/port 仍取自 `app.url`；不会采信当前 `Host` 或 `X-Forwarded-Host`。域名仅支持 ASCII DNS 标签与预先编码的 punycode，不执行 Unicode IDNA 转换，不支持 IP literal 和尾点；域参数必须是单个标签。
 

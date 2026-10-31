@@ -366,6 +366,10 @@ cargo deny check
 
 `errors` 将默认标题错误与 `other` 命名错误一起写入 Session，`custom` 使用模块自己的 `DraftErrors` 和公开 `MessageProvider`/`ErrorBagCodecs` 扩展恢复业务化的首条消息。页面在原 `errors.any()` 流程内使用公开 `errors.hasAny(["title", "summary"])` 查询多个表单字段，有任一默认包字段错误才显示重新提交提示；自定义 `DraftErrors` 的实际 `title` 键与 `has` 行为仍参与查询，`other` 命名摘要错误照常独立展示。Session 已启用时，`GET /api/example/draft/review` 显式读取旧输入与错误包；`GET /example/pages/about` 通过同一请求的公开视图入口展示这些错误，缺失字段显示空字符串。再次请求后 flash 老化，多字段提示随错误一起消失；现有双客户端用例同时核对初始空包、两种错误包的提示和老化后的隐藏。未启用 Session 时普通与首页命名重定向可用；提交的 `only` 模式仍在写入 flash 时报 `session_layer_missing`，指向未挂载审核页的命名跳转则按未知路由报错。
 
+`GET /api/example/draft/action` 用公开 `Redirector::action` 的二元组身份跳转到匿名的 `/api/example/draft/actions/42?section=review`；`/api/example/draft/action-preview` 使用绝对字符串查询裸 invokable 身份，目标为 `/api/example/draft/actions/42/preview?section=review`。目标在 `RouteGroup::namespace("Example\\Draft")` 内通过 `get_action(path, action, handler)` 与真实处理器同次登记，不依赖路由名称，也不设置整个应用的根 namespace。页面展示 `Route::action()` 和实际参数；这些身份不触发动态控制器实例化。
+
+`POST /api/example/draft/action-submit` 用固定二元组调用 `action_with`，返回303、`x-example-draft-action: review`，不读取请求中的任意目标地址。无 Session 时普通动作跳转可用；存在 Session 时仅闪存标题输入并保存复核错误，目标页展示一次后老化。生成 helper 同时展示 tuple、绝对 invokable 和完整字符串查询，沿同一公开 API 验证匿名身份、参数、响应选项和 flash；原命名路由示例仍保留。
+
 `GET /api/example/draft/secure` 对相对首页目标调用公开 `secure`，返回 `https://` 的 Location；示例只验证重定向响应，不跟随请求或宣称当前 HTTP 监听器已启用 TLS。显式状态、头与协议选择可使用 `secure_with` 或 `to_with_scheme`。
 
 `POST /api/example/draft/refresh?discard=once` 通过 `Redirector::from_request(&request).refresh()` 返回同路径的 302，目标不保留 query；客户端随后 GET `/api/example/draft/refresh` 会显示真实草稿内容，不再次刷新。无 Session 时同样可以完成 POST→GET；存在 Session 时，响应继续使用 `with_input` 和 `with_errors` 保存一次性的规范化标题输入与复核提示，展示一次后老化。该示例提交仅含公开草稿字段；`with_input` 闪存完整规范化输入，实际业务筛除敏感字段可沿既有 `only_input`/`except_input`。生成 helper 展示 `refresh_with` 的显式 303 和自定义头，同样验证 query 丢弃、GET 内容及闪存老化。
@@ -376,7 +380,7 @@ cargo deny check
 
 此草稿步骤不登录账户、不授予权限，也不替代既有真实 Session 登录、CSRF 或 CRUD Policy。当前账户登录仍使用原凭据/Origin/Session 流程及 JSON 响应。`guest` 只有 GET、已匹配真实路由且非 `expects_json` 时保存当前完整 URL，其他请求使用 previous；`intended` 的缺失默认是 `/`，显式默认使用 `intended_or`。生成应用的公开测试 helper 保持同一入口，验证 HTTPS Location、双 Cookie 的普通意图持久性、一次消费与默认 `/` 回退，并继续执行原输入、命名错误及视图 flash 老化。
 
-codec 在模块 `ExampleServiceProvider::register` 中通过 `RegisterContext.extend` 追加到 Session Provider 的注册表，保持已有登记。`DraftErrors` 的类型、编解码与业务规则均位于本模块。命名参数当前使用 `BTreeMap<String, String>`；默认状态为 302，自定义状态及响应头使用 `route_with`。示例覆盖手动普通、返回、命名、scheme、刷新、固定外链与 Session 导航回跳；action/signed、URL 参数的其余扩展与自动校验失败重定向仍由后继能力验收。请求局部视图使用同一请求的 `RequestInfo` 与公开 `Views::render_for_request` 入口。
+codec 在模块 `ExampleServiceProvider::register` 中通过 `RegisterContext.extend` 追加到 Session Provider 的注册表，保持已有登记。`DraftErrors` 的类型、编解码与业务规则均位于本模块。命名参数当前使用 `BTreeMap<String, String>`；默认状态为 302，自定义状态及响应头使用 `route_with`。示例覆盖手动普通、返回、命名、动作、scheme、刷新、固定外链与 Session 导航回跳；signed、URL 参数的其余扩展与自动校验失败重定向仍由后继能力验收。请求局部视图使用同一请求的 `RequestInfo` 与公开 `Views::render_for_request` 入口。
 
 “代码存在”仅说明当前可见实现，不能替代本布局 check/test、真实请求与外部服务验收。根基础设施装配、文档链接或 consumer 测试也不自动算作 `modules/example` 的业务代码覆盖。
 

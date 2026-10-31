@@ -112,3 +112,10 @@ URL继续使用 `app.url` 与登记域模式，不采信请求Host；参数仍�
 `refresh/refresh_with` 使用当前请求path后经既有to生成目标，丢弃query，默认302/空头；`away/away_with` 直接交同一响应构造器，保持目标原值。均保留from_info/from_request原借用、无Session可用及输入/错误闪存组合。共享构造器集中校验HTTP范围、空目标、允许重定向状态与类型化头；to按上游先生成目标再构造响应，guest先put/intended先pull的副作用边界不变。Symfony8只作为ADR-078独立固定比较点，不称Laravel已解析依赖。
 
 核心和唯一模块/模板已交付并独审，定向10/main11、新server/CLI、fresh普通7/MySQL认证2+额外公开helper1、无Session/MySQL真实TCP7/12均通过；默认809/34 ignored、全特性1595/108 ignored，忽略项不算真实服务。资源收尾已完成，限定提交见Git。模块POST刷新返回同路径真实GET草稿，首GET读取Session闪存后正常老化；无Session仍可用。外链是受控固定目标，不读取用户URL。完整状态/目标矩阵留核心unit/router，模块、生成与真实TCP分别验证公开接线。执行与证据见当前[todo](../todo.md)。
+
+
+## C04-D10-G 动作身份与 action URL（限定子范围已验收，提交见Git）
+
+`RouteAction`保留字符串与二元组形态；`get_action/on_action`将动作身份与真实handler同次登记，`Route::action`反映真实匹配元数据。组namespace影响声明规范化，Boot默认根namespace与生成器单实例setter影响查询；clone和已捕获请求的namespace独立，索引保持不可变共享。`RouteUrlGenerator::action`与named route复用域/路径/query渲染，匿名动作应用也装配生成器；`Redirector::action/action_with`先生成再构造响应，延续无Session普通跳转和原请求借用闪存链。
+
+固定PHP实际集合探针7+2案只证明集合索引边界：完整原始拼接键覆盖、声明方法顺序、域优先左侧union及前导反斜线不对称。请求分派仍有结构化(domain,path)与PHP碰撞隐藏路由的差异，见[ADR-083](../decisions/adr-083-matched-route-context.md)及[todo](../todo.md)；混合/位置/模型参数、可选段、relative及完整Controller/URLGenerator未完成。字符串动作空成员边界已修并经不同模型delta复审关闭；最终核心11项在两feature组合、router117/113、双严格Clippy及main11项通过，默认824/34ignored、全特性1611/108ignored，ignored不算真实服务。新server/CLI、fresh普通7/MySQL认证2+公开helper1及真实TCP10/15均实际通过，精确专属包清理完成；原错误fixture/lint/gRPC及生成前置失败保持原记录，范围与复用见[当前证据](../memory/testing.md#c04-d10-g-动作身份与-action-url限定子范围已验收提交见git)。不据此关闭完整L020.02。

@@ -2,6 +2,7 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
+pub mod action;
 pub(crate) mod authority;
 #[cfg(feature = "http-client")]
 pub mod client;
@@ -30,6 +31,7 @@ pub mod transport;
 pub mod url;
 
 pub use crate::i18n::RequestLocale;
+pub use action::RouteAction;
 pub use axum;
 #[cfg(feature = "http-client")]
 pub use client::{

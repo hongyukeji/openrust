@@ -222,11 +222,11 @@ async fn rejected_tls(
 #[allow(clippy::too_many_lines)] // 同一真实 TLS/HTTP 生命周期包含共享绑定与联合停机证据。
 async fn real_tls_and_http_share_module_binding_and_one_supervised_shutdown() -> TestResult {
     let materials = Materials::create()?;
-    // 组合公开 API 自行绑定配置地址；先选两个不同随机端口，无独立手动 listener 伪装组合。
-    let http_probe = TcpListener::bind("127.0.0.1:0").await?;
-    let grpc_probe = TcpListener::bind("127.0.0.1:0").await?;
-    let http = http_probe.local_addr()?;
-    let grpc = grpc_probe.local_addr()?;
+    // 将两个预绑定 listener 直接移交同一公开 supervisor，避免释放随机端口后重绑的所有权空窗。
+    let http_listener = TcpListener::bind("127.0.0.1:0").await?;
+    let grpc_listener = TcpListener::bind("127.0.0.1:0").await?;
+    let http = http_listener.local_addr()?;
+    let grpc = grpc_listener.local_addr()?;
     let mut framework = openrust::config::FrameworkConfig::default();
     framework.server.host = http.ip().to_string();
     framework.server.port = http.port();
@@ -263,14 +263,17 @@ async fn real_tls_and_http_share_module_binding_and_one_supervised_shutdown() ->
     let app = Arc::new(builder.build().await?);
     app.app()?.state().resolve::<ShutdownWitness>().await?;
     let readiness = app.app()?.state().resolve::<Readiness>().await?;
-    drop(http_probe);
-    drop(grpc_probe);
     let (stop, signal) = oneshot::channel();
     let running_app = Arc::clone(&app);
     let task = tokio::spawn(async move {
-        openrust::runtime::serve_http_and_grpc_until(running_app.app()?, async move {
-            let _ = signal.await;
-        })
+        openrust::runtime::serve_http_and_grpc_with_listeners_until(
+            running_app.app()?,
+            http_listener,
+            grpc_listener,
+            async move {
+                let _ = signal.await;
+            },
+        )
         .await
     });
     let mut running = Running {
@@ -354,12 +357,15 @@ async fn real_tls_and_http_share_module_binding_and_one_supervised_shutdown() ->
     running.stop().await?;
     assert!(!readiness.is_ready());
     assert_eq!(closed.load(Ordering::SeqCst), 1);
-    for address in [http, grpc] {
+    for (role, address) in [("HTTP", http), ("gRPC", grpc)] {
+        let connection = tokio::time::timeout(BUDGET, TcpStream::connect(address)).await?;
+        let endpoints = connection
+            .as_ref()
+            .ok()
+            .map(|socket| (socket.local_addr(), socket.peer_addr()));
         assert!(
-            tokio::time::timeout(BUDGET, TcpStream::connect(address))
-                .await?
-                .is_err(),
-            "combined listener remained open"
+            connection.is_err(),
+            "combined {role} listener {address} remained open; successful socket local/peer: {endpoints:?}"
         );
     }
     let mut app = Arc::try_unwrap(app).map_err(|_| "combined runner still owns TestApp")?;

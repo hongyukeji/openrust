@@ -103,6 +103,7 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 
 - 依据 [ADR-080](decisions/adr-080-runtime-configuration-scheduling.md) 与 [运行时配置与动态调度计划](plans/runtime-configuration-scheduling.md)；当前 HTTP 主功能簇不抢占，本轮没有代码实现或真实验收。
 - R2：V1必须交付Laravel简洁typed分组DB业务设置与权限保护管理API/CLI（宿主启用可选）；开发者注册字段、管理员后台保存，白名单/权限/完整校验/CAS审计/快照/通知轮询/故障期限封装内部，持久实现依赖R4事务、R7权限审计及适用R8，基础设施启动项不热换；邮件/SMS/支付/存储业务secret加密、driver受控激活或pending_restart，区分DB保存/节点应用。
+- R9/R10 Notification/SMS细化沿[短信渠道与多服务商交付计划](plans/sms-delivery.md)：先SMS-0来源/SDK审计与Notification公开渠道契约，再按前置做具名连接、官方Vonage对应及阶段二国内/其他服务商增强；队列、动态设置和回执复用R10/ADR-080。候选SDK未选型，跨attempt配置版本策略待Spec与既定运行时contract统一；真实发送需获准凭据/号码，当前不抢占D10-G或启动供应商实现。
 - R10：复用Job注册/connection/queue与同一Scheduler；先明确after_commit/同事务及onOneServer/withoutOverlapping，再实现DB动态计划/版本审计/目标队列/允许策略、变更竞争与worker并发。具体公开API与schema先Spec；默认DB队列、Redis显式可选。
 - R14：PG18/MySQL8.4真实多节点、Redis通知中断补偿、DB故障/权限/CAS、任务重试崩溃及仅应用+DB迁移恢复；各簇同步modules/example、生成项目、README/config/测试，未验收不关闭。
 - R15才做可选快速开发模块管理界面；V1先交付Rust公开管理服务/必要traits与Gate/Policy接入，由宿主自定路由/controller显式传认证授权上下文；框架不预置HTTP endpoint，CLI显式复用同服务不绕授权，不引入配置平台、第二总线或平行调度器。
@@ -393,9 +394,11 @@ D7真实Route/Resolver与受管理方法声明已通过限定验收：final3完�
 - main target保留复用；旧QX五生成包、本轮plain/PG生成包及四个本簇已完成测试可执行文件已精确退役，源码/锁/索引/当前二进制及共享库哨兵未变。日志明确Cargo关联test_app/auth_flows产物；不清整target，不碰归属不足的历史缓存。
 - D9 My生成项目已验收，源码/锁/证据保留；如后继需要空间，先核精确package dry-run与占用后再回收其专属再生产物，不为纯Agent文档变化重跑矩阵。
 
-## C04-D10-G 动作路由身份与 action URL（待领取，前置F已验收）
+## C04-D10-H 最终声明集合与真实分派同源化（待领取，前置G限定提交）
 
-只读证据 `/tmp/openrust-c04d10f-next-action-evidence.md` 已核固定登记→有效动作索引→URL→Redirector链；不可把action当route名称别名。领取后先收敛显式动作身份与真实handler同次登记的Rust公共契约、namespace/绝对/二元组/invokable规范化及有效方法覆盖/域优先/同动作首项规则，再实现同一生产元数据、请求Route快照、匿名动作路由URL与Redirector.action。复用现URL参数渲染而非第二生成器；name-only空生成器分支须处理，mixed/可选/相对参数未等价部分保持单列。根命名空间应沿现Provider/配置公开机制，不假定Rust动态反射、函数地址可稳定标识或类字符串能自动调用handler。公共签名尚未定，先Spec，不抢跑实现；唯一模块/模板/公开consumer、固定上游回归和适用门禁/真实TCP随簇交付，完整L020.02/Controller/URL生成器仍开放。
+固定Laravel原始集合的逐method `domain+uri` view与完整methods序列view不同；G已对应动作索引，Rust实际dispatch按(domain,path)仍保留PHP碰撞后应隐藏的handler。后继先Spec统一真实声明来源，分别派生有序逐method分派与完整动作view，不建第二URL-only内核、不强求两view相等；同步真实Route元数据、Allow/OPTIONS、fallback与业务404/405终止边界。匿名无action路由亦须参与，不能仅过滤URL索引。既有PHP7+2实际探针只证明Collection，matcher/Host/path行为须真实验收。
+
+窄只读证据 `/tmp/openrust-c04d10g-next-collection-dispatch-evidence.md`（SHA `f4bc6cdce33ddd93d2966ca9257971300e7137628be5a513707356dafdc3b0c3`）；Spec明确Rust约束/公开API影响/受影响调用方后实施，唯一模块、生成应用、适用门禁/MySQL与真实TCP随簇交付。不以本项关闭完整Routing。signed候选窄证据 `/tmp/openrust-c04d10g-next-signed-evidence.md` 已指出key resolver、relative渲染、raw query前置，后继另收敛，不夹入本簇；两者无硬技术依赖，先修已知分派缺口是明确排序，不假称签名算法依赖它。
 
 ## 发布前全后端兼容性验收
 
