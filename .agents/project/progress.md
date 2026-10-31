@@ -8,9 +8,9 @@
 
 🟡 R2-P Provider完整注册生命周期仍在分支Verify：core125/仓储47/公开Container24及consumer限定通过；修后Cookie9、默认workspace862、全feature1650（68ignored）、双doctest/docs、no-default/MSRV/deny已有新输入回执，root核10日志SHA。生成attempt3普通/TCP/MySQL认证2与独立库集合审计已过，后续Cookie修复已在保留生成项目定向补验plain3/MySQL auth2，无skip、库集合与源码不变。严格Clippy三失败后仍暂停待真实决定，未提交、未合main。
 
-🟡 S-DV有序对象值与Session保存边界：严格session Clippy通过，回收顺序修复经独立静态复审，attempt5 lib563通过/0失败/0忽略。HTTP链http_request12通过、http_session36通过/5项configuration_error，已定位Provider schema漏serializer，core原owner修复，未关闭HTTP行为；module/consumer/生成/真实TCP与MySQL仍待验证。详见todo及attempt5 manifest，不用lib通过替代整簇验收。
+🟡 S-DV任务分支对象值与保存边界：session lib563、HTTP82/模块8/consumer5/CLI1已过；普通生成7、真实MySQL生成认证2（无skip）和根真实TCP6也具有效冻结输入证据。TCP前3次失败保留，用户获准受控探针后单次重验通过，服务正常SIGINT退出/无残留/端口重绑。最终38 caller批修后all-features workspace类型与严格Clippy通过，组合lib/view/真实driver剩余批次在途；尚未提交/合main，不关闭完整Session/Web。
 
-🟡 ST-V Storage visibility：公开UploadPublication仲裁及错误映射静态复审闭合，storage-local/storage-s3 workspace alltargets类型通过。helper类型修复后的获准单次严格Clippy仍失败于S3测试空集合断言lint，已停门禁，local行为测试未跑；真实ACL/慢服务条件仍缺。精确SDK锁图/metadata/deny不替代行为验收；归属与attempt5证据见todo。
+🟡 ST-V任务分支visibility：仲裁/错误映射静态独审闭合，storage-local/storage-s3严格Clippy、local16/公开driver契约3/真实TCP1均过。模块auth/data-exchange特性、S3单元、当前锁deny及MSRV剩余门禁待窗口；真实ACL/迟到Copy后端条件缺失，未把ignored或旧锁结果当通过。尚未提交/合main，见todo。
 
 ✅ R2-CC配置缓存家族已在隔离分支限定提交 `7be446d`：修后默认851/全feature1638（68ignored）、双Clippy/docs、doctest22/24、普通生成8与真实模块/生成应用缓存复启通过；两task temp已回收，混合归属同名包缓存保留待精确核对。未合main，不外推完整Configuration或组合验收。
 
