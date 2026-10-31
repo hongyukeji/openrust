@@ -103,14 +103,22 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 - 审计范围包括完整领域配置说明、env 映射、typed 读取/启动校验、模块配置的公开注册与覆盖；先说明现有能力、真实缺口和依赖，不凭空叠加第二配置层或改变 env 语义。
 - 本项归 R2，依赖只读审计交付与统一 Container/ServiceProvider contract；R1 不混入配置实现改动，当前配置源、默认运行值和 Redis 默认无静默回退保持。 R2-T六类严格读取及`*_or`/`*_or_else`已在同项目任务分支限定提交`b1f4bf7`；仓储43/集合4/模块1/consumer6、严格Clippy3/docs1、fresh普通7+fixture1、真实TCP200/正常关闭及精确产物回收通过，不关闭完整L005.03/main组合门禁。owner `8ca4236f-2c8c-4f7c-887b-8dab60f6e54e`，workspace `wks_44ece7d45e1cfb13`，branch `tasks/config-typed-helpers`，base `a5e6461`，cwd `/Users/Home/.paseo/worktrees/02joa2lr/openrust-config-typed-helpers`；源码与文档工作区干净、target窗口已释放，未合main不得退役worktree。最终owner证据 `/tmp/openrust-config-typed-helpers-final-owner-receipt.json`、root核证 `/tmp/openrust-config-typed-helpers-root-final-audit.json`；聚合登记56.83GB/磁盘可用86.95GB均仅软告警，100GB/5%硬线保持；未知缓存未清。Provider普通/force注册后继真实PHP与Rust候选已交`/tmp/openrust-provider-registration-rust-contract.md`，不同模型审查在途，未实现。
 
+## S-DV 有序对象值与 Session 保存边界（Implement）
+
+- Request 文件家族的实际前置；固定 Laravel 真探针14案表明 Request flashOnly/Except 保留对象到 save，Redirect 则递归剔除，不能在 put/flash 时提前转JSON。冻结Spec `/tmp/openrust-session-data-values-frozen-spec.md`，oracle `/tmp/openrust-request-files-flash-oracle/receipt.json`；只推进通用值/Session保存边界，multipart/DefaultBodyLimit/Storage visibility与MIME继续后继。
+- owner `7611b92b-f279-4a2f-ab5f-d134c2263926`，workspace `wks_1735f33899c42ec3`（既有OpenRust项目），base `9eb54ce02a09b48db31c31b57384976628da4050`，branch `tasks/session-data-values`，cwd `/Users/Home/.paseo/worktrees/02joa2lr/openrust-session-data-values`；common-dir已核同仓。实际正式run已返回running，模型沿现可用经济回退 `gpt-6-sol` medium；不重复本地不可用执行器探测。
+- owned公开值/Session/必要serializer配置与调用方、唯一模块/模板/测试代码/用户说明；manifest/lock/共享Agentdocs及main索引root独占。code-first完成整簇后freeze，先交实际公共签名，ready后不同模型独审与集中验证。未运行Cargo/真实服务，不宣称已实现或验收。
+- 资源：不建新target，后续复用 `/Users/Home/Codes/Rust/openrust/target`；当前仅写代码，不占Cargo/端口/库。构建前重测全登记缓存/预计增量，50GB软/100GB硬、磁盘10%软/5%硬；独立执行者受总控暂停/停止协调，原默认80%额度不变。完成后按真实归属清理，不动未合入分支。
+
 ## R2-P Provider 完整注册生命周期（Verify，未提交）
 
 - 已冻结普通/force与boot前后完整家族；固定Laravel真实正常/失败探针、Rust接口候选及独审在 `/tmp/openrust-provider-registration-{frozen-spec,rust-contract,rust-contract-review}.md`。不以启动前去重代替晚注册；异步register/原位置rebinding、绑定generation与缓存槽同锁准入为明确Rust实现约束；失败已发生贡献按PHP保留，不造Provider全局事务。
 - 同项目workspace `wks_f7e111d2b503053b`，branch `tasks/provider-registration-family`，base `3aba0a3`，cwd `/Users/Home/.paseo/worktrees/02joa2lr/openrust-provider-registration-family`。`04cca925-e59f-42f1-800b-424e7b4cd1b8`负责provider/app/resources与配置owner/schema；`0b1cd54b-3828-4eff-bf97-5c519973a41e`仅负责container.rs及container子目录；既有callers负责其余Provider/模块/consumer/模板迁移，禁止重叠编辑。
 - 共享API已收敛：ServiceProvider::register改BoxFuture；Context涉及绑定/回调的方法原位置await；rebinding在已绑定时立即解析并返回Option<Arc<T>>。configure_after_register改FnOnce(Container)→BoxFuture，原register后覆盖时点不变；启动前建立唯一Container/StartupResources，配置登记当场可读但保留boot前校验，默认合并不得重复应用。
 - 当前冻结96个变更文件，生成验收另外绑定实际运行输入；core125、仓储47、公开Container契约24，以及独立container-extension2、test-app1、config读取consumer6均实际通过。Register重放覆盖后续set的缺陷已修并经不同模型静态复审。默认严格Clippy三次失败后的schema helper已修，但该门禁仍依§5暂停：原请求消失而无真实答复，不以账本预选冒充批准，不重复堆问卷。root精确刷新3个consumer锁，新增包匹配根锁，无第三方升级。
-- 生成验收首轮在view feature调用方遗漏await处失败，原caller已最小修复；第二轮框架已编译通过，但生成bootstrap仍同步。核对冻结模板本已异步，实际日志无CLI重编，确认共享target旧CLI复用，不归因正确模板。前两轮目录/日志/包均保留。attempt3入口 `/tmp/openrust-r2p-generated-acceptance-attempt3/`：HEAD/97 SHA零漂移，CLI仅刷新mtime强制重编，要求真实Compiling记录、binary SHA与生成片段一致后才check；原owner已获下一窗口，不重复启动。TCP/MySQL仍待实际执行，库集合不变不算业务通过。
-- 最近root登记路径小计78.09GB、磁盘可用65.93GB/6.63%，仅软告警，未登记外置target仍不能冒称全量已核；下一命令须重新核量与预计增长，100GB/5%硬线保持；未知缓存不清。派发/停止实际ID入口 `/tmp/openrust-provider-registration-dispatch.json`，总控用正式Paseo stop逐任务协调；不另建Goal/guard，不推送，保留前三个未合分支及证据。
+- 生成首轮view遗漏await已修；第二轮确认共享target旧CLI复用，未误改正确异步模板。attempt3 `/tmp/openrust-r2p-generated-acceptance-attempt3/` 实际强制重编当前CLI并绑定97输入，13阶段通过：普通生成/Provider/TCP/公开fixture、MySQL认证2项无skip；root独立SQL审计前后61库集合摘要一致。前两轮失败保留。其后Cookie生产修复不自动借用此前生成证据，须按逐文件影响核对是否需补验。
+- Cookie当前节读取改has(session)，保留已解析singleton快照；固定PHP真实CookieServiceProvider探针确认早解析不热建，新增身份回归后cookie9、默认workspace lib/tests862、全feature1650/68ignored、doctest22/34ignored及24/40ignored、双warnings-denied docs、no-default/MSRV/deny均有新回执。`/tmp/openrust-r2p-cookie-matrix-handoff.json` 关联10日志，root逐哈希核对全匹配；ignored不计真实服务，严格Clippy仍暂停，因此未提交。
+- 最近owner回执主target76,380,396KiB、磁盘可用101.3GB；其他登记target仍需合计，不能冒称全量已核。下一构建重测合计及预计增长，50GB/10%仅软告警、100GB/5%硬线保持；未知缓存不清。派发/停止ID入口 `/tmp/openrust-provider-registration-dispatch.json`，总控用正式Paseo stop逐任务协调；不另建Goal/guard、不推送、不提前退役未合分支。
 
 ## R2-CC 配置缓存家族（分支已提交7be446d，未合main）
 

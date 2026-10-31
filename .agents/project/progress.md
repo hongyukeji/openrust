@@ -6,7 +6,9 @@
 
 ## 当前功能簇
 
-🟡 R2-P Provider完整注册生命周期正在同项目隔离分支集中验收：core125、仓储47、公开Container契约24及独立consumer限定通过；默认严格Clippy三失败后仍按§5暂停，不把请求消失当批准。普通生成首次check发现view feature调用方漏await，原caller已修，97项输入重新核对无漂移，原执行owner正接第二次生成/TCP/MySQL链；未提交、未合main。
+🟡 R2-P Provider完整注册生命周期仍在分支Verify：core125/仓储47/公开Container24及consumer限定通过；修后Cookie9、默认workspace862、全feature1650（68ignored）、双doctest/docs、no-default/MSRV/deny已有新输入回执，root核10日志SHA。生成attempt3普通/TCP/MySQL认证2与独立库集合审计已过，后续Cookie变更的生成证据复用边界待影响复核。严格Clippy三失败后仍暂停待真实决定，未提交、未合main。
+
+🟡 S-DV有序对象值与Session保存边界已实际派发编码：同项目tasks/session-data-values、基线9eb54ce，不依赖未提交Provider。覆盖Request文件输入前必需的对象身份/保存策略，尚未编码验收；multipart/Storage与完整Request文件家族仍开放，owner/资源见todo。
 
 ✅ R2-CC配置缓存家族已在隔离分支限定提交 `7be446d`：修后默认851/全feature1638（68ignored）、双Clippy/docs、doctest22/24、普通生成8与真实模块/生成应用缓存复启通过；两task temp已回收，混合归属同名包缓存保留待精确核对。未合main，不外推完整Configuration或组合验收。
 
