@@ -190,12 +190,16 @@ pub(crate) async fn bootstrap_for_command<A: Application>(name: &str) -> Result<
 
 async fn bootstrap_with_command<A: Application>(name: Option<&str>) -> Result<App> {
     let loader = bootstrap_config_loader(A::config_namespace())?;
-    let app_config: A::Config = loader.load()?;
+    let sources = loader.sources()?;
+    let app_config: A::Config = sources
+        .figment()
+        .extract()
+        .map_err(crate::config::ConfigError::from)?;
     let mut builder = ProviderBuilder::for_application::<A>(&app_config);
     if let Some(name) = name {
         builder.console_command(name);
     }
-    let runtime = builder.start(loader.figment()?).await?;
+    let runtime = builder.start(sources).await?;
     if let Err(error) = runtime.container().resolve::<A::Config>().await {
         if let Err(cleanup_error) = runtime
             .shutdown(Instant::now() + std::time::Duration::from_secs(5))

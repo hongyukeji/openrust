@@ -429,12 +429,25 @@ H新增实际取证：`/tmp/openrust-c04d10h-matcher/probe.output.jsonl`35案真
 - 资源：15个已登记target约37.4008→38.2540GB，磁盘余10.341%，未触50GB软/100GB硬及磁盘10%/5%；现仅回收生成plain/mysql/mysql-migration精确path packageID产物，禁止全target清理。两处历史约10.6GB缓存仍缺完整退役归属，未删除；生成源码<1MB可保留作为本簇复跑证据。不得将已登记小计称为无遗漏项目总量。
 - 收尾：三个生成包产物按实际归属预检/dry-run后回收526163968B，Cargo会忽略path限定，故不能仅凭pkgid声称隔离；root复核49个删除路径、2109个保护项SHA，源码及主server/CLI/框架/consumer未变，`CLEANUP.json`及`ROOT-CLEANUP-VERIFY.json`留证。未全清target，两处未知历史缓存未碰；生成源码<1MB由root保留供本簇最终复核，后继交接再次评估。全部适用门禁通过后限定本地提交；完整Config、来源初始键序、PHP对象/Closure/资源表示与signed仍开放，常规MySQL结果不关闭发布全后端矩阵。未推送/发布/tag。
 
-### R2 后继：配置来源初始顺序修复（待领取）
+## R2-R02 配置来源初始顺序（限定验收通过）
 
-- 当前 `new(Figment)` 的输入已排序，R2-R01不能恢复此前丢失的来源顺序；本项保持未实现，不能用运行期set测试关闭完整Config对应。
-- 从 `src/config/mod.rs::ConfigLoader::figment` 形成投影之前审计默认值、文件、环境及Provider合并来源，先固定Laravel相应合并/覆盖顺序实证，再收敛同一仓储的有序构造输入；保留现来源metadata、profile和脱敏错误，不建立第二可变配置源。
-- 验证来源首次插入序、覆盖位置、数字/混合键及启动全生命周期，并同步唯一模块、公开consumer、生成应用与文档；PHP对象/Closure/资源表示差异另按分类规则保留，不用本项冒充全部类型等价。
-- 只读候选Spec已取得 `/tmp/openrust-config-source-order-spec.md`，未实现/未验收；领取时按现入口及Rust API便利性收敛，不机械新增多组 `_sources` 方法。R2-R01限定交付后按最新依赖排期，不将本项虚构为URL签名算法的硬前置。
+- 前置`2de050f`，契约ADR-086。不可变ConfigSources、loader单次来源捕获、仓储/Provider/TestApp入口、有序TOML及现生命周期接线已实现；root负责共享文档/清单/索引/提交，callers负责配置核心，services负责调用方及真实验收，均使用既有main工作区，不重派。
+- Rust门禁已通过：首轮142项；最终默认workspace853通过/34忽略，all-feature1642通过/108忽略；双严格Clippy/docs、features、MSRV1.97两组、deny；excluded公开consumer5项及严格Clippy、最终fmt通过。来源PHP操作探针、core/integration/fixture不同模型静态审查均有证据。详见[testing](memory/testing.md#r2-r02-config-sources)。
+- 原Redis租约失败在单例不复现、原三项并发再次失败；具名探针确认两个测试旧namespace碰撞，但未证实生产lease根因。最终仅修fixture时间+PID+原子序号并补固定时钟回归，原业务断言/生产租约不改，原失败与临时探针记录保留。
+- 最终源码绑定566项、门禁19项，root另核25项范围输入；stage2 attempt4 RESULT SHA `c4166e03738c4e506f25c7df9617c371613c6f76551373cb21f051b45e7a267b`。服务驱动v4独审与自有子进程夹具通过，PLAN已ready；只按root逐阶段核回执启动，静态审不代替运行。
+- 普通fresh生成原7项+fixture1项通过，真实TCP已验证生产reader.toml的z_label/a_label声明顺序与GET→POST→GET、exit0及43188释放。回执在`/tmp/openrust-config-source-order-services/`；plain-result SHA `1cfc318371e633428248efe00a1807024f8e7f834e22151005bde4492e0f6c06`，plain-tcp-result SHA `a29731630a2bf6e29e4d5cb486b553daf6f77d0f06d61c24cb3a2468bcc93f38`。
+- 测试专属18文件已回收155316224B；postflight空列表误调用lsof的读取器失败保留，root及独立后验核96保护/42生成/566源码一致。plain包剩余产物已退役；MySQL8.4.13 fresh生成fmt/check及2auth HTTP实际通过，测试库集合前后56项一致，root核4命令/44生成输入与保存的脱敏日志SHA，回执mysql-result SHA `0ec3e72db5815ca11a7a777a16d8ce3834221ce05cad170094927a314af7bd9d`。mysql/migration专属包已退役，shared保护/源码不变；root TCP两实例已通过（初始→写后读及第二进程初始值、exit0/端口释放）。最终STAGE3 SHA `887e49d2c4610ce5adec6204ca1debf31e707a18b0424f82cb91ee8af01f08cc`，root核17日志/8清理回执/566源码/42+44生成输入、3PID退出及两端口释放。限定本地提交见Git，不关闭完整Config。
+- 50GB软/100GB硬与磁盘10%/5%保持。保留活跃main缓存，不删无完整归属的root-site/m5-final历史target。一次性生成包须有同名全范围归属/dry-run/保护项证据；不凭Cargo忽略的path/version限定冒称隔离。
+- 完整Config继续开放：平层TOML顺序不等于Laravel递归配置发现或文件名/目录namespace映射，PHP对象/Closure/资源等表示差异亦未关闭；不重建客户端、不以此替代ADR-080动态Settings或完整signed。
+
+## R2-ENV 端口与缓存环境命名统一（用户已授权，R2-R02提交后立即实施）
+
+- 最新contract覆盖旧端口决定：唯一中性环境入口为`SERVER_PORT`，内部保留`server.port`/`config.server.port`；删除`APP_PORT`及独立`PORT`监听兼容，通用或命名空间fallback也不得暗中映射旧变量。`.env.example`使用`SERVER_PORT=3000`与`APP_URL="http://localhost:${SERVER_PORT}"`；自定义APP命名空间不得改变中性SERVER_PORT领域键。
+- 用户最新纠正以Laravel官方机制/命名为准：`CACHE_STORE`→`cache.default`，撤回先前`CACHE_DEFAULT_STORE`→`cache.default_store`自定义方案；内部配置字段/序列化/读取同样收敛到default，不只对外改名。删除REDIS_DEFAULT_STORE且不新增CACHE_DEFAULT_STORE兼容，旧/撤回键不得借fallback改变选择。缓存代码尚未开始调整，R02冻结输入保持。
+- REDIS_HOST/PORT/PASSWORD/DB只承载连接配置，共用REDIS_DB，不新增REDIS_CACHE_DB。框架默认具名store仍为redis、driver=redis；合法业务自定义store名（包括default）与其他driver继续可用，cache.default须准确引用已登记store；不得机械替换所有default或扩展到DB_*等其他既定键。
+- 顺序：R02冻结源码不动，完成其实际验收/本地提交后立即领取本簇，再推进signed。callers负责ConfigLoader全来源/别名/命名空间、程序配置默认及对应正负例；services负责CLI/生成模板/快照/consumer/唯一模块与运行示例；root串行维护当前文档/ADR、共享清单/索引/提交及独审。当前只读Spec入口`/tmp/openrust-environment-naming-contract-audit.md`，旧port审计保留，不是已实现。
+- 验收覆盖旧端口/缓存键及撤回的CACHE_DEFAULT_STORE不生效、官方CACHE_STORE和SERVER_PORT新规则及自定义命名空间、dotenv URL插值、具名store/自定义driver选择与缺失引用、生成check/test、真实启动端口/URL和Redis缓存，提交前集中执行适用完整门禁。按Spec→Implement→Verify→本地Commit，不推送。
+- 不热改已启动listener、不改真实.env密钥。当前仅存在性核查真实.env不存在；实施时若出现旧端口键，仅安全精确迁移并保护其他内容。普通局部变量不机械替换，历史验收证据原样保留。
 
 ## 发布前全后端兼容性验收
 

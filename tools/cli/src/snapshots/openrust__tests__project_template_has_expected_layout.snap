@@ -286,6 +286,7 @@ use figment::{
     Figment,
     providers::{Format, Serialized, Toml},
 };
+use openrust::config::ConfigSources;
 use openrust::http::axum::{
     body::Body,
     http::{Request, StatusCode},
@@ -301,9 +302,28 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
     .merge(Toml::string(
         "[app]\nname = 'configured-application'\n[server]\nroot_target = 'view:index.html'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
     ));
-    let mut app = TestApp::<GeneratedApplication>::builder(source)
+    let root: serde_json::Value = source.extract()?;
+    let mut entries = root
+        .as_object()
+        .ok_or("生成配置根必须是对象")?
+        .iter()
+        .map(|(key, value)| (key.clone(), value.clone()))
+        .collect::<Vec<_>>();
+    entries.push((
+        "template_order".to_owned(),
+        serde_json::json!({"z_label": "先声明", "a_label": "后声明"}),
+    ));
+    let sources = ConfigSources::from_ordered_entries(entries)?;
+    let mut app = TestApp::<GeneratedApplication>::builder(sources)
         .build()
         .await?;
+    let keys = app.app()?.config_repository().all()?["template_order"]
+        .as_object()
+        .ok_or("有序测试区段必须是对象")?
+        .keys()
+        .cloned()
+        .collect::<Vec<_>>();
+    assert_eq!(keys, ["z_label", "a_label"]);
     let request = Request::builder().uri("/api").body(Body::empty())?;
     app.request(request)
         .await?
@@ -318,6 +338,16 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
     app.app()?
         .config_repository()
         .set("app.name", serde_json::json!("运行期名称"))?;
+    app.app()?
+        .config_repository()
+        .set("template_order.z_label", serde_json::json!("已复核"))?;
+    let keys = app.app()?.config_repository().all()?["template_order"]
+        .as_object()
+        .ok_or("有序测试区段必须是对象")?
+        .keys()
+        .cloned()
+        .collect::<Vec<_>>();
+    assert_eq!(keys, ["z_label", "a_label"]);
     assert_eq!(
         app.app()?.section::<serde_json::Value>("app")?["name"],
         "运行期名称"

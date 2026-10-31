@@ -13,7 +13,8 @@ use figment::{
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
 
-use crate::config::{ConfigError, ConfigSourceError};
+use crate::config::sources::merge_order;
+use crate::config::{ConfigError, ConfigSourceError, ConfigSources};
 use crate::core::{Error, Result};
 
 /// 已注册区段的结构约束；未注册区段不会被全树严格校验误拒。
@@ -172,6 +173,7 @@ struct State {
     figment: Figment,
     raw: Option<Value>,
     sections: BTreeMap<&'static str, Section>,
+    section_order: Vec<&'static str>,
     operations: Vec<PackageOperation>,
     phase: Phase,
     version: u64,
@@ -201,12 +203,14 @@ impl fmt::Debug for ConfigRepository {
 
 impl ConfigRepository {
     /// 保留现有来源及其优先级，开始 Provider 注册阶段。
-    pub fn new(sources: Figment) -> Self {
+    pub fn new(sources: impl Into<ConfigSources>) -> Self {
+        let (figment, raw) = sources.into().into_parts();
         Self {
             inner: Arc::new(Mutex::new(State {
-                figment: sources,
-                raw: None,
+                figment,
+                raw,
                 sections: BTreeMap::new(),
+                section_order: Vec::new(),
                 operations: Vec::new(),
                 phase: Phase::Register,
                 version: 0,
@@ -273,6 +277,7 @@ impl ConfigRepository {
                 validate: validator,
             },
         );
+        state.section_order.push(key);
         state.revision = state.revision.wrapping_add(1);
         Ok(())
     }
@@ -313,19 +318,32 @@ impl ConfigRepository {
 
     /// 补齐 typed 默认值后重放包操作并校验；成功后封闭注册并进入 boot。
     pub fn validate_base(&mut self) -> Result<()> {
-        let (mut candidate, raw, sections, operations, revision) = {
+        let (mut candidate, raw, sections, section_order, operations, revision) = {
             let state = self.lock();
             require_phase(state.phase, Phase::Register)?;
             (
                 state.figment.clone(),
                 state.raw.clone(),
                 state.sections.clone(),
+                state.section_order.clone(),
                 state.operations.clone(),
                 state.revision,
             )
         };
-        for (key, section) in &sections {
+        let mut order = match raw {
+            Some(raw) => raw,
+            None => candidate
+                .extract::<Value>()
+                .map_err(|error| Error::Config(safe_source_error(error, "configuration")))?,
+        };
+        for key in section_order {
+            let section = sections
+                .get(key)
+                .ok_or_else(|| invalid(key, "section order missing"))?;
             candidate = candidate.join(Serialized::default(key, &section.defaults));
+            let mut section_order = read_dot_value(&order, key).cloned().unwrap_or(Value::Null);
+            merge_order(&mut section_order, section.defaults.clone());
+            set_dot_value(&mut order, key, section_order);
         }
         for operation in operations {
             let (key, mut defaults, recursive) = match operation {
@@ -349,22 +367,25 @@ impl ConfigRepository {
                     "package configuration must be object or array",
                 ));
             }
+            // Figment 的 Dict 会排序；包操作取值仍来自当前候选，但键序沿同一原始来源。
+            let current = match read_dot_value(&order, key) {
+                Some(prior) => reorder_like(prior, current),
+                None => current,
+            };
             let original = candidate.find_value(key).ok();
             if recursive {
                 replace_recursive(&mut defaults, current, key)?;
             } else {
                 merge_shallow(&mut defaults, current, key);
             }
+            set_dot_value(&mut order, key, defaults.clone());
             candidate = replace_section(&candidate, key, defaults, original.as_ref())?;
         }
         validate_candidate(&candidate, &sections)?;
         let candidate_raw = candidate
             .extract::<Value>()
             .map_err(|error| Error::Config(safe_source_error(error, "configuration")))?;
-        let candidate_raw = match raw.as_ref() {
-            Some(previous) => reorder_like(previous, candidate_raw),
-            None => candidate_raw,
-        };
+        let candidate_raw = reorder_like(&order, candidate_raw);
         self.publish(
             candidate,
             Some(candidate_raw),
@@ -665,7 +686,7 @@ fn insert_read(result: &mut Vec<(String, Value)>, key: &str, value: Value) {
 }
 
 // Figment 的字典按键排序；启动默认值发布时只采纳其值，不丢弃已经写入的原始键序。
-fn reorder_like(previous: &Value, candidate: Value) -> Value {
+pub(crate) fn reorder_like(previous: &Value, candidate: Value) -> Value {
     match (previous, candidate) {
         (Value::Object(old), Value::Object(mut current)) => {
             let mut ordered = serde_json::Map::new();
@@ -992,7 +1013,7 @@ fn integer_key(key: &str) -> Option<i64> {
     (number.to_string() == key).then_some(number)
 }
 
-fn php_value(entries: Vec<(String, Value)>, empty_array: bool) -> Value {
+pub(crate) fn php_value(entries: Vec<(String, Value)>, empty_array: bool) -> Value {
     if entries.is_empty() {
         return if empty_array {
             Value::Array(Vec::new())
@@ -1008,6 +1029,26 @@ fn php_value(entries: Vec<(String, Value)>, empty_array: bool) -> Value {
         return Value::Array(entries.into_iter().map(|(_, value)| value).collect());
     }
     Value::Object(entries.into_iter().collect())
+}
+
+// 来源中的 JSON 对象也可能以规范数字键表达 PHP 数组；复用写入的键形态规则。
+pub(crate) fn normalize_php_source(value: Value, empty_array: bool) -> Value {
+    match value {
+        Value::Object(items) => php_value(
+            items
+                .into_iter()
+                .map(|(key, value)| (key, normalize_php_source(value, false)))
+                .collect(),
+            empty_array,
+        ),
+        Value::Array(items) => Value::Array(
+            items
+                .into_iter()
+                .map(|value| normalize_php_source(value, false))
+                .collect(),
+        ),
+        value => value,
+    }
 }
 
 fn merge_shallow(defaults: &mut Value, current: Value, _path: &str) {
@@ -2188,6 +2229,94 @@ mod tests {
             .map(|items| items.keys().cloned().collect::<Vec<_>>())
             .ok_or_else(|| invalid("test", "missing written map"))?;
         assert_eq!(after, ["a", "z", "tail"]);
+        Ok(())
+    }
+
+    // 来源原序要穿过 typed 默认补齐、包浅合并、boot 覆盖和冻结后的写入。
+    #[test]
+    fn ordered_sources_survive_defaults_package_boot_and_frozen_write() -> Result<()> {
+        let sources = ConfigSources::from_ordered_entries([
+            ("package", json!({"m": 1, "a": 20})),
+            ("recursive", json!({"m": {"old": 1}, "a": 20})),
+            ("demo", json!({"count": 2, "name": "from-source"})),
+            ("untouched", json!({"z": 1, "a": 2})),
+        ])?;
+        let mut repository = ConfigRepository::new(sources);
+        repository.register_section(
+            TypeId::of::<Settings>(),
+            "demo",
+            defaults(),
+            schema(),
+            validate,
+        )?;
+        repository.register_section(
+            TypeId::of::<bool>(),
+            "zeta",
+            true,
+            SectionSchema::Boolean,
+            |_| Ok(()),
+        )?;
+        repository.register_section(
+            TypeId::of::<u32>(),
+            "alpha",
+            7_u32,
+            SectionSchema::Integer,
+            |_| Ok(()),
+        )?;
+        repository.merge_defaults("package", json!({"z": 0, "a": 10}))?;
+        repository.replace_defaults_recursively(
+            "recursive",
+            json!({"z": 0, "m": {"first": 0}, "a": 10}),
+        )?;
+        repository.validate_base()?;
+        let raw = repository.all()?;
+        assert_eq!(
+            raw.as_object()
+                .map(|items| items.keys().map(String::as_str).collect::<Vec<_>>()),
+            Some(vec![
+                "package",
+                "recursive",
+                "demo",
+                "untouched",
+                "zeta",
+                "alpha"
+            ])
+        );
+        assert_eq!(
+            raw["package"]
+                .as_object()
+                .map(|items| items.keys().map(String::as_str).collect::<Vec<_>>()),
+            Some(vec!["z", "a", "m"])
+        );
+        assert_eq!(raw["package"]["a"], 20);
+        assert_eq!(
+            raw["recursive"]
+                .as_object()
+                .map(|items| items.keys().map(String::as_str).collect::<Vec<_>>()),
+            Some(vec!["z", "m", "a"])
+        );
+        assert_eq!(
+            raw["recursive"]["m"]
+                .as_object()
+                .map(|items| items.keys().map(String::as_str).collect::<Vec<_>>()),
+            Some(vec!["first", "old"])
+        );
+        assert_eq!(
+            raw["demo"]
+                .as_object()
+                .map(|items| items.keys().map(String::as_str).collect::<Vec<_>>()),
+            Some(vec!["count", "name", "items"])
+        );
+        repository.overlay("untouched", json!({"a": 3, "tail": 4}))?;
+        repository.freeze()?;
+        repository.set("untouched.final", json!(5))?;
+        assert_eq!(
+            repository.all()?["untouched"]
+                .as_object()
+                .map(|items| items.keys().map(String::as_str).collect::<Vec<_>>()),
+            Some(vec!["z", "a", "tail", "final"])
+        );
+        assert_eq!(repository.section::<Settings>("demo")?.count, 2);
         Ok(())
     }
 

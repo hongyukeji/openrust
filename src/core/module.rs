@@ -442,7 +442,7 @@ fn safe_source(path: &Path) -> String {
 
 /// 从模块自有 `config/` 目录按固定顺序写入共享配置仓储。
 ///
-/// `config.toml` 先覆盖模块根区段，其他 TOML 文件按相对路径排序；
+/// `config.toml` 先覆盖模块根区段，其他 TOML 文件按相对路径自然排序；
 /// 模块 Provider 可在自己 `boot` 的准确时点调用 [`Self::overlay`][Self::overlay]。
 pub struct ModuleConfigFiles {
     name: String,
@@ -537,7 +537,10 @@ impl ModuleConfigFiles {
         files.sort_by(|left, right| {
             let left_key = left.strip_prefix(&config_dir).unwrap_or(left);
             let right_key = right.strip_prefix(&config_dir).unwrap_or(right);
-            left_key.cmp(right_key)
+            crate::config::natural_name_cmp(
+                &left_key.to_string_lossy(),
+                &right_key.to_string_lossy(),
+            )
         });
         if let Some(index) = files
             .iter()

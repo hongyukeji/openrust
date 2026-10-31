@@ -10,6 +10,20 @@
 
 <a id="r2-r01-config-runtime"></a>
 
+<a id="r2-r02-config-sources"></a>
+
+## R2-R02 配置来源顺序（限定验收通过）
+
+验收输入基线为`2de050f`，限定本地提交见Git。固定Laravel仍为`d52c3b3129e4c8e213c97cdc68f94b0b7d27f181`，来源读取路径沿context长期参考目录。
+
+- 首轮fmt及142项定向测试通过：配置组默认/无默认各70项、模块1项、CLI快照1项；其后仅新增测试非空字符串断言等价改写，生产实现未变，变化用例已精确重验。root输入复用回执`/tmp/openrust-config-source-order-verification/ROOT-INPUT-REUSE.json`保留18项绑定及差异。
+- stage2 attempt2共有11条命令：默认/全feature严格Clippy、默认workspace（853通过/34忽略）、默认/全feature严格docs、no-default检查、MSRV1.97两组、deny与精确变化用例通过；全featureworkspace退出101，已运行部分1445通过/1失败/47忽略，不是完整工作区总数。当时失败为Redis队列attempt用例`queue_lease_lost`，该回执始终保留失败状态；后续结果单独记录如下。
+- 最终逐命令回执`/tmp/openrust-config-source-order-verification/stage2/attempt2/RESULT.json`，SHA `066a58035af9325692b5d2183a6a295d3068dede902a86e76a77eaaa38324ed6`；root复核11日志哈希、18输入及PHP脚本/输出哈希，结果`ROOT-VERIFY.json`明确overall_passed=false。首轮lint失败及全feature失败原日志保留。
+- PHP8.5最小探针只证明固定源码所用的SORT_NATURAL和数组顺序/形态操作，未运行完整LoadConfiguration。输出SHA `8abe00a502dc988129a9a91adc62c40783a425252dccbc0402023661d093e729`。不能用该探针关闭递归配置发现及文件名namespace映射缺口。
+- 后续探针单例通过，原三项并发再次失败；具名并发探针实测两测试请求相同namespace，确认时钟命名碰撞，但不单独证明租约失败根因。临时探针已归档并移除；最小fixture保留时间成分并加入PID/原子序号，新增固定时钟回归，不改生产租约或原业务断言，不同模型窄审无发现。
+- attempt4的原target默认并发4项、target严格Clippy及原完整all-featureworkspace通过，后者1642通过/0失败/108忽略。回执`/tmp/openrust-config-source-order-verification/stage2/attempt4/RESULT.json`，SHA `c4166e03738c4e506f25c7df9617c371613c6f76551373cb21f051b45e7a267b`；root复核3命令日志及19个最终输入，`ROOT-VERIFY.json`留证。本轮未复现原lease失败，不宣称生产根因已修；前两轮失败与临时探针编译错误均保留。
+- 核心及integration的不同模型静态审查无未决确定发现；当前适用Rust门禁、fresh生成/MySQL/真实TCP及资源收尾均已按限定范围闭合。资源驱动v4独审无发现后，普通fresh生成原7项+安装fixture精确1项通过，7命令及42生成输入已核；真实TCP验证生产reader.toml声明序和GET→POST→GET通过，exit0/端口43188释放。回执plain-result SHA `1cfc318371e633428248efe00a1807024f8e7f834e22151005bde4492e0f6c06`、plain-tcp-result SHA `a29731630a2bf6e29e4d5cb486b553daf6f77d0f06d61c24cb3a2468bcc93f38`。MySQL8.4.13 fresh生成4命令及2auth HTTP通过，44生成输入/566源码链与测试库前后56项集合无漂移；保存的脱敏test log SHA `eb6c51d41e022830787d3dec0186f35f38fd98ce54dc9ea1849c112beee1c33d`，原始被过滤输出的SHA不能从保存日志重算。MySQL回执SHA `0ec3e72db5815ca11a7a777a16d8ce3834221ce05cad170094927a314af7bd9d`。root TCP两实例已通过，初始GET→固定写入→更新GET及第二进程恢复初值，正常exit0/43187释放；生成TCP的43188亦释放。最终STAGE3 SHA `887e49d2c4610ce5adec6204ca1debf31e707a18b0424f82cb91ee8af01f08cc`；root独立复核17日志、8清理/核查回执、566源码和42+44生成输入，ROOT-FINAL-VERIFY.json保留。未知历史缓存不删除；约40.406GB已登记target不是未登记缓存的总量，磁盘软线余量约1.13GB，生成重构建尚未排入。
+
 ## R2-R01 配置运行期原始写入（限定验收与资源收尾通过，提交见Git）
 
 范围为同一 `ConfigRepository` 的有序 `set/set_many`、原始值与类型化投影原子发布、启动校验屏障及 App/Provider 共享句柄；`App::section` 读取当前仓储，既解析配置与资源保留启动快照。不包含持久设置、跨节点传播、资源自动重建、完整Config或signed。Figment入口此前丢失的来源初始键序保持后继缺口。

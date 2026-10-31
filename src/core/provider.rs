@@ -5,6 +5,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
 
+#[cfg(test)]
 use figment::Figment;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -12,7 +13,7 @@ use serde_json::Value;
 use tokio::time::Instant;
 
 use crate::config::repository::{ConfigRepository, SectionSchema};
-use crate::config::{ConfigError, FrameworkConfig};
+use crate::config::{ConfigError, ConfigSources, FrameworkConfig};
 
 use super::command::Command;
 use super::container::{Container, ContainerBuilder, Resolver};
@@ -527,7 +528,7 @@ impl ProviderBuilder {
     }
 
     /// 完成全体 register、基础配置、顺序 boot 与最终根解析。
-    pub async fn start(self, sources: Figment) -> Result<ProviderRuntime> {
+    pub async fn start(self, sources: impl Into<ConfigSources>) -> Result<ProviderRuntime> {
         let console_command = self.console_command;
         let mut providers = self.providers;
         Self::append_modules(self.modules, &self.removed, &mut providers)?;

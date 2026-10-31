@@ -96,3 +96,23 @@ fn public_writer_updates_only_its_fixed_business_key() -> Result<(), Box<dyn std
     assert_eq!(repository.get("app.name")?, Some(json!("已复核应用")));
     Ok(())
 }
+
+#[test]
+fn ordered_public_source_keeps_business_keys_after_set() -> Result<(), Box<dyn std::error::Error>> {
+    let sources = openrust::config::ConfigSources::from_ordered_entries([
+        ("reader", json!({"z_label": "先声明", "a_label": "后声明"})),
+        ("app", json!({"name": "原名称", "locale": "zh_CN"})),
+    ])?;
+    let repository = ConfigRepository::new(sources);
+    assert_eq!(
+        config_repository_reading_consumer::public_reader_key_order(&repository)?,
+        ["z_label", "a_label"]
+    );
+    repository.set("reader.z_label", json!("已复核"))?;
+    assert_eq!(
+        config_repository_reading_consumer::public_reader_key_order(&repository)?,
+        ["z_label", "a_label"]
+    );
+    assert_eq!(repository.get("reader.z_label")?, Some(json!("已复核")));
+    Ok(())
+}

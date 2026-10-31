@@ -289,6 +289,79 @@ async fn production_config_greeting_reads_only_the_module_business_key()
 }
 
 #[tokio::test]
+async fn ordered_business_source_survives_module_overlay_and_runtime_set()
+-> Result<(), Box<dyn std::error::Error>> {
+    use openrust::config::ConfigSources;
+    use openrust::testing::TestApp;
+    use std::time::Duration;
+
+    let defaults: serde_json::Value = production_sources(false).extract()?;
+    let defaults = defaults.as_object().ok_or("默认配置根必须是对象")?;
+    let mut entries = defaults
+        .iter()
+        .map(|(key, value)| (key.clone(), value.clone()))
+        .collect::<Vec<_>>();
+    entries.push((
+        "example".to_owned(),
+        serde_json::json!({"greeting": "来源中的问候", "article_summary_origin": null}),
+    ));
+    let sources = ConfigSources::from_ordered_entries(entries)?;
+    let mut app = TestApp::<crate::bootstrap::Server>::builder(sources.clone())
+        .build()
+        .await?;
+    let mut other = TestApp::<crate::bootstrap::Server>::builder(sources)
+        .build()
+        .await?;
+    let keys = |app: &TestApp<crate::bootstrap::Server>| -> Result<Vec<String>, Box<dyn std::error::Error>> {
+        let all = app.app()?.config_repository().all()?;
+        let section = all["example"].as_object().ok_or("example 区段必须是对象")?;
+        Ok(section.keys().cloned().collect())
+    };
+    let first_two = |app: &TestApp<crate::bootstrap::Server>| -> Result<Vec<String>, Box<dyn std::error::Error>> {
+        Ok(keys(app)?.into_iter().take(2).collect())
+    };
+    assert_eq!(first_two(&app)?, ["greeting", "article_summary_origin"]);
+    assert_eq!(
+        app.app()?.config_repository().get("example.greeting")?,
+        Some(serde_json::json!("Hello from modules/example"))
+    );
+    app.app()?
+        .config_repository()
+        .set("example.greeting", serde_json::json!("当前应用已复核"))?;
+    assert_eq!(first_two(&app)?, ["greeting", "article_summary_origin"]);
+    assert_eq!(
+        app.app()?
+            .section::<super::services::ExampleConfig>("example")?
+            .greeting,
+        "当前应用已复核"
+    );
+    let response = app
+        .request(
+            Request::get("/api/example/config-greeting")
+                .header("host", "localhost")
+                .body(Body::empty())?,
+        )
+        .await?;
+    response.assert_status(StatusCode::OK)?;
+    let body: serde_json::Value = serde_json::from_slice(response.body())?;
+    assert_eq!(
+        body["data"],
+        serde_json::json!({"greeting": "当前应用已复核"})
+    );
+    assert_eq!(
+        other.app()?.config_repository().get("example.greeting")?,
+        Some(serde_json::json!("Hello from modules/example"))
+    );
+    assert_eq!(first_two(&other)?, ["greeting", "article_summary_origin"]);
+    other
+        .shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    Ok(())
+}
+
+#[tokio::test]
 async fn production_request_representation_negotiates_html_json_and_rejection()
 -> Result<(), Box<dyn std::error::Error>> {
     use openrust::testing::TestApp;

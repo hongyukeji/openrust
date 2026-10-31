@@ -16,12 +16,17 @@
 
 /// Provider 配置仓储、显式 schema 与启动合并操作。
 pub mod repository;
+mod sources;
+pub use sources::ConfigSources;
+pub(crate) use sources::natural_name_cmp;
+use sources::{CapturedProvider, EnvironmentSnapshot};
 
 use std::fmt;
 use std::path::{Path, PathBuf};
 
 use figment::Figment;
-use figment::providers::{Env, Format, Serialized, Toml};
+use figment::providers::{Env, Serialized};
+use figment::{Metadata, Provider};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
@@ -347,119 +352,78 @@ impl ConfigLoader {
         }
     }
 
-    /// 构建分层 [`Figment`]；显式目录或已发现文件无效时立即失败。
+    /// 构建同一次捕获的有序原始来源与 Figment 投影。
     #[allow(
         clippy::too_many_lines,
         reason = "顺序列出文件、通用别名与命名空间环境层，避免隐藏配置优先级"
     )]
-    pub fn figment(&self) -> Result<Figment, ConfigError> {
-        // 领域配置文件相互独立，按文件名稳定合并；环境差异由 .env 与进程变量表达。
-        let mut figment = Figment::from(Serialized::defaults(FrameworkConfig::default()));
+    pub fn sources(&self) -> Result<ConfigSources, ConfigError> {
+        let defaults = serde_json::to_value(FrameworkConfig::default())
+            .map_err(|_| ConfigError::Invalid("configuration: 默认值无法表示为有序配置".into()))?;
+        let entries = defaults
+            .as_object()
+            .ok_or_else(|| ConfigError::Invalid("configuration: 默认值根必须是对象".into()))?;
+        let mut sources = ConfigSources::from_ordered_entries(entries.clone())?;
         for file in self.domain_files()? {
-            // 已发现的文件必须读取此精确路径，不能向父目录搜索或忽略缺失。
-            figment = figment.merge(Toml::file_exact(file));
+            let content = std::fs::read_to_string(&file).map_err(|_| {
+                ConfigError::Invalid(format!(
+                    "{}: 配置文件无法读取（源值未公开）",
+                    self.config_dir_key
+                ))
+            })?;
+            let table: toml::Table = toml::from_str(&content).map_err(|_| {
+                ConfigError::Invalid(format!(
+                    "{}: TOML 配置无效（源值未公开）",
+                    self.config_dir_key
+                ))
+            })?;
+            let ordered = serde_json::to_value(table).map_err(|_| {
+                ConfigError::Invalid(format!(
+                    "{}: TOML 值无法转换（源值未公开）",
+                    self.config_dir_key
+                ))
+            })?;
+            let serialized = Serialized::defaults(ordered.clone());
+            let captured = CapturedProvider::new(&serialized)?
+                .with_metadata(Metadata::named("TOML file").source(file.as_path()));
+            sources.merge(captured, ordered)?;
         }
-        if let Some(url) = conventional_database_url() {
-            figment = figment.merge(Serialized::defaults(serde_json::json!({
-                "database": { "url": url }
-            })));
+        let environment = EnvironmentSnapshot::capture();
+        if let Some(url) = conventional_database_url(&environment) {
+            let layer = serde_json::json!({ "database": { "url": url } });
+            sources.merge(Serialized::defaults(layer.clone()), layer)?;
         }
-        if let Some(dsn) = conventional_redis_dsn() {
-            figment = figment.merge(Serialized::defaults(serde_json::json!({
-                "cache": { "stores": { "default": { "dsn": dsn } } }
-            })));
+        if let Some(dsn) = conventional_redis_dsn(&environment) {
+            let layer = serde_json::json!({ "cache": { "stores": { "default": { "dsn": dsn } } } });
+            sources.merge(Serialized::defaults(layer.clone()), layer)?;
         }
         #[cfg(feature = "queue")]
-        if let Some(redis_url) = conventional_redis_dsn() {
-            figment = figment.merge(Serialized::defaults(serde_json::json!({
-                "queue": { "redis_url": redis_url }
-            })));
+        if let Some(redis_url) = conventional_redis_dsn(&environment) {
+            let layer = serde_json::json!({ "queue": { "redis_url": redis_url } });
+            sources.merge(Serialized::defaults(layer.clone()), layer)?;
         }
-        let figment = figment
-            .merge(
-                Env::prefixed("")
-                    .only(&[
-                        "PORT",
-                        "DB_TABLE_PREFIX",
-                        "REDIS_DEFAULT_STORE",
-                        "QUEUE_DRIVER",
-                        "MAIL_DRIVER",
-                        "MAIL_SMTP_HOST",
-                        "MAIL_SMTP_PORT",
-                        "MAIL_SMTP_STARTTLS",
-                        "MAIL_SMTP_USERNAME",
-                        "MAIL_SMTP_PASSWORD",
-                        "SMS_ACCOUNT_SID",
-                        "SMS_API_KEY_SID",
-                        "SMS_API_KEY_SECRET",
-                        "SMS_FROM",
-                        "SMS_MESSAGING_SERVICE_SID",
-                        "SMS_DRIVER",
-                        "I18N_DEFAULT_LOCALE",
-                        "SESSION_DRIVER",
-                        "SESSION_COOKIE",
-                        "SESSION_LIFETIME",
-                        "SESSION_EXPIRE_ON_CLOSE",
-                        "SESSION_PATH",
-                        "SESSION_DOMAIN",
-                        "SESSION_SECURE_COOKIE",
-                        "SESSION_HTTP_ONLY",
-                        "SESSION_SAME_SITE",
-                        "SESSION_PARTITIONED_COOKIE",
-                    ])
-                    .map(|key| match key.as_str() {
-                        "PORT" => "server.port".into(),
-                        "DB_TABLE_PREFIX" => "database.table_prefix".into(),
-                        "REDIS_DEFAULT_STORE" => "cache.default_store".into(),
-                        "QUEUE_DRIVER" => "queue.driver".into(),
-                        "MAIL_DRIVER" => "mail.driver".into(),
-                        "MAIL_SMTP_HOST" => "mail.smtp_host".into(),
-                        "MAIL_SMTP_PORT" => "mail.smtp_port".into(),
-                        "MAIL_SMTP_STARTTLS" => "mail.smtp_starttls".into(),
-                        "MAIL_SMTP_USERNAME" => "mail.smtp_username".into(),
-                        "MAIL_SMTP_PASSWORD" => "mail.smtp_password".into(),
-                        "SMS_DRIVER" => "sms.driver".into(),
-                        "SMS_ACCOUNT_SID" => "sms.account_sid".into(),
-                        "SMS_API_KEY_SID" => "sms.api_key_sid".into(),
-                        "SMS_API_KEY_SECRET" => "sms.api_key_secret".into(),
-                        "SMS_FROM" => "sms.from".into(),
-                        "SMS_MESSAGING_SERVICE_SID" => "sms.messaging_service_sid".into(),
-                        "I18N_DEFAULT_LOCALE" => "i18n.default_locale".into(),
-                        "SESSION_DRIVER" => "session.driver".into(),
-                        "SESSION_COOKIE" => "session.cookie".into(),
-                        "SESSION_LIFETIME" => "session.lifetime".into(),
-                        "SESSION_EXPIRE_ON_CLOSE" => "session.expire_on_close".into(),
-                        "SESSION_PATH" => "session.path".into(),
-                        "SESSION_DOMAIN" => "session.domain".into(),
-                        "SESSION_SECURE_COOKIE" => "session.secure".into(),
-                        "SESSION_HTTP_ONLY" => "session.http_only".into(),
-                        "SESSION_SAME_SITE" => "session.same_site".into(),
-                        "SESSION_PARTITIONED_COOKIE" => "session.partitioned".into(),
+        let common = environment.layer(common_environment_path)?;
+        let common_provider = CapturedProvider::new(&Serialized::defaults(common.clone()))?
+            .with_metadata(Env::prefixed("").metadata());
+        sources.merge(common_provider, common)?;
+        let common_nulls = session_environment_nulls(&environment, "", true);
+        sources.merge(Serialized::defaults(common_nulls.clone()), common_nulls)?;
+        let namespaced =
+            environment.layer(|key| namespaced_environment_path(key, &self.namespace))?;
+        let namespaced_provider = CapturedProvider::new(&Serialized::defaults(namespaced.clone()))?
+            .with_metadata(Env::prefixed(&self.namespace).metadata());
+        sources.merge(namespaced_provider, namespaced)?;
+        let namespaced_nulls = session_environment_nulls(&environment, &self.namespace, false);
+        sources.merge(
+            Serialized::defaults(namespaced_nulls.clone()),
+            namespaced_nulls,
+        )?;
+        Ok(sources)
+    }
 
-                        _ => key.into(),
-                    })
-                    .split("."),
-            )
-            .merge(Serialized::defaults(session_environment_nulls("", true)));
-        let figment = figment
-            .merge(
-                Env::prefixed(&self.namespace)
-                    .filter(|key| {
-                        key != "ENV"
-                            && key != "CONFIG_DIR"
-                            && key != "SERVER_PORT"
-                            && !key.as_str().contains("__")
-                    })
-                    .map(|key| flat_environment_path(key.as_str()).into())
-                    .split("."),
-            )
-            .merge(Serialized::defaults(session_environment_nulls(
-                &self.namespace,
-                false,
-            )));
-        // 仅确认来源有效，不在此提前提取尚未注册的领域配置类型。
-        let _: figment::value::Value = figment.extract()?;
-        Ok(figment)
+    /// 返回有损的 Figment 视图；来源原始键序需使用 [`Self::sources`]。
+    pub fn figment(&self) -> Result<Figment, ConfigError> {
+        Ok(self.sources()?.figment().clone())
     }
 
     fn domain_files(&self) -> Result<Vec<PathBuf>, ConfigError> {
@@ -489,7 +453,12 @@ impl ConfigLoader {
                 files.push(path);
             }
         }
-        files.sort();
+        files.sort_by(|a, b| {
+            natural_name_cmp(
+                a.file_name().and_then(|name| name.to_str()).unwrap_or(""),
+                b.file_name().and_then(|name| name.to_str()).unwrap_or(""),
+            )
+        });
         Ok(files)
     }
 
@@ -515,7 +484,11 @@ impl ConfigLoader {
 
 // Laravel env 将未加引号的 null/(null) 视为 null；Figment 默认仍把它当字符串。
 // 只修正本簇声明的 nullable Session 字段，且保留每层环境源的通常优先级。
-fn session_environment_nulls(namespace: &str, conventional: bool) -> serde_json::Value {
+fn session_environment_nulls(
+    environment: &EnvironmentSnapshot,
+    namespace: &str,
+    conventional: bool,
+) -> serde_json::Value {
     let mut fields = serde_json::Map::new();
     for (suffix, field) in [
         ("DRIVER", "driver"),
@@ -531,9 +504,12 @@ fn session_environment_nulls(namespace: &str, conventional: bool) -> serde_json:
         ),
         ("SAME_SITE", "same_site"),
     ] {
-        if std::env::var(format!("{namespace}SESSION_{suffix}")).is_ok_and(|value| {
-            value.eq_ignore_ascii_case("null") || value.eq_ignore_ascii_case("(null)")
-        }) {
+        if environment
+            .get(&format!("{namespace}SESSION_{suffix}"))
+            .is_some_and(|value| {
+                value.eq_ignore_ascii_case("null") || value.eq_ignore_ascii_case("(null)")
+            })
+        {
             fields.insert(field.into(), serde_json::Value::Null);
         }
     }
@@ -542,6 +518,93 @@ fn session_environment_nulls(namespace: &str, conventional: bool) -> serde_json:
     } else {
         serde_json::json!({"session":fields})
     }
+}
+
+fn common_environment_path(key: &str) -> Option<String> {
+    const KEYS: &[&str] = &[
+        "PORT",
+        "DB_TABLE_PREFIX",
+        "REDIS_DEFAULT_STORE",
+        "QUEUE_DRIVER",
+        "MAIL_DRIVER",
+        "MAIL_SMTP_HOST",
+        "MAIL_SMTP_PORT",
+        "MAIL_SMTP_STARTTLS",
+        "MAIL_SMTP_USERNAME",
+        "MAIL_SMTP_PASSWORD",
+        "SMS_ACCOUNT_SID",
+        "SMS_API_KEY_SID",
+        "SMS_API_KEY_SECRET",
+        "SMS_FROM",
+        "SMS_MESSAGING_SERVICE_SID",
+        "SMS_DRIVER",
+        "I18N_DEFAULT_LOCALE",
+        "SESSION_DRIVER",
+        "SESSION_COOKIE",
+        "SESSION_LIFETIME",
+        "SESSION_EXPIRE_ON_CLOSE",
+        "SESSION_PATH",
+        "SESSION_DOMAIN",
+        "SESSION_SECURE_COOKIE",
+        "SESSION_HTTP_ONLY",
+        "SESSION_SAME_SITE",
+        "SESSION_PARTITIONED_COOKIE",
+    ];
+    if !KEYS
+        .iter()
+        .any(|candidate| candidate.eq_ignore_ascii_case(key))
+    {
+        return None;
+    }
+    Some(
+        match key {
+            "PORT" => "server.port",
+            "DB_TABLE_PREFIX" => "database.table_prefix",
+            "REDIS_DEFAULT_STORE" => "cache.default_store",
+            "QUEUE_DRIVER" => "queue.driver",
+            "MAIL_DRIVER" => "mail.driver",
+            "MAIL_SMTP_HOST" => "mail.smtp_host",
+            "MAIL_SMTP_PORT" => "mail.smtp_port",
+            "MAIL_SMTP_STARTTLS" => "mail.smtp_starttls",
+            "MAIL_SMTP_USERNAME" => "mail.smtp_username",
+            "MAIL_SMTP_PASSWORD" => "mail.smtp_password",
+            "SMS_DRIVER" => "sms.driver",
+            "SMS_ACCOUNT_SID" => "sms.account_sid",
+            "SMS_API_KEY_SID" => "sms.api_key_sid",
+            "SMS_API_KEY_SECRET" => "sms.api_key_secret",
+            "SMS_FROM" => "sms.from",
+            "SMS_MESSAGING_SERVICE_SID" => "sms.messaging_service_sid",
+            "I18N_DEFAULT_LOCALE" => "i18n.default_locale",
+            "SESSION_DRIVER" => "session.driver",
+            "SESSION_COOKIE" => "session.cookie",
+            "SESSION_LIFETIME" => "session.lifetime",
+            "SESSION_EXPIRE_ON_CLOSE" => "session.expire_on_close",
+            "SESSION_PATH" => "session.path",
+            "SESSION_DOMAIN" => "session.domain",
+            "SESSION_SECURE_COOKIE" => "session.secure",
+            "SESSION_HTTP_ONLY" => "session.http_only",
+            "SESSION_SAME_SITE" => "session.same_site",
+            "SESSION_PARTITIONED_COOKIE" => "session.partitioned",
+            other => return Some(other.to_ascii_lowercase()),
+        }
+        .to_owned(),
+    )
+}
+
+fn namespaced_environment_path(key: &str, namespace: &str) -> Option<String> {
+    let prefix = key.get(..namespace.len())?;
+    if !prefix.eq_ignore_ascii_case(namespace) {
+        return None;
+    }
+    let name = key.get(namespace.len()..)?;
+    if name.eq_ignore_ascii_case("ENV")
+        || name.eq_ignore_ascii_case("CONFIG_DIR")
+        || name.eq_ignore_ascii_case("SERVER_PORT")
+        || name.contains("__")
+    {
+        return None;
+    }
+    Some(flat_environment_path(name))
 }
 
 fn flat_environment_path(key: &str) -> String {
@@ -581,11 +644,11 @@ fn flat_environment_path(key: &str) -> String {
     }
 }
 
-fn environment_value(key: &str) -> Option<String> {
-    std::env::var(key).ok().filter(|value| !value.is_empty())
+fn environment_value(environment: &EnvironmentSnapshot, key: &str) -> Option<String> {
+    environment.value(key)
 }
 
-fn conventional_database_url() -> Option<String> {
+fn conventional_database_url(environment: &EnvironmentSnapshot) -> Option<String> {
     const KEYS: [&str; 6] = [
         "DB_CONNECTION",
         "DB_HOST",
@@ -594,11 +657,12 @@ fn conventional_database_url() -> Option<String> {
         "DB_USERNAME",
         "DB_PASSWORD",
     ];
-    if !KEYS.iter().any(|key| std::env::var_os(key).is_some()) {
+    if !KEYS.iter().any(|key| environment.present(key)) {
         return None;
     }
 
-    let connection = environment_value("DB_CONNECTION").unwrap_or_else(|| "postgres".to_owned());
+    let connection =
+        environment_value(environment, "DB_CONNECTION").unwrap_or_else(|| "postgres".to_owned());
     let (scheme, default_port) = match connection.as_str() {
         "postgres" => ("postgres", 5432),
         "mysql" => ("mysql", 3306),
@@ -607,25 +671,27 @@ fn conventional_database_url() -> Option<String> {
     let Ok(mut url) = url::Url::parse(&format!("{scheme}://localhost")) else {
         return Some("invalid://".to_owned());
     };
-    let host = environment_value("DB_HOST").unwrap_or_else(|| "127.0.0.1".to_owned());
+    let host = environment_value(environment, "DB_HOST").unwrap_or_else(|| "127.0.0.1".to_owned());
     if url.set_host(Some(&host)).is_err() {
         return Some("invalid://".to_owned());
     }
-    let port = environment_value("DB_PORT").unwrap_or_else(|| default_port.to_string());
+    let port =
+        environment_value(environment, "DB_PORT").unwrap_or_else(|| default_port.to_string());
     if port.parse::<u16>().is_err() || url.set_port(port.parse::<u16>().ok()).is_err() {
         return Some("invalid://".to_owned());
     }
-    if let Some(username) = environment_value("DB_USERNAME")
+    if let Some(username) = environment_value(environment, "DB_USERNAME")
         && url.set_username(&username).is_err()
     {
         return Some("invalid://".to_owned());
     }
-    if let Some(password) = environment_value("DB_PASSWORD")
+    if let Some(password) = environment_value(environment, "DB_PASSWORD")
         && url.set_password(Some(&password)).is_err()
     {
         return Some("invalid://".to_owned());
     }
-    let database = environment_value("DB_DATABASE").unwrap_or_else(|| "openrust".to_owned());
+    let database =
+        environment_value(environment, "DB_DATABASE").unwrap_or_else(|| "openrust".to_owned());
     if url
         .path_segments_mut()
         .map(|mut segments| {
@@ -639,7 +705,7 @@ fn conventional_database_url() -> Option<String> {
     Some(url.into())
 }
 
-fn conventional_redis_dsn() -> Option<String> {
+fn conventional_redis_dsn(environment: &EnvironmentSnapshot) -> Option<String> {
     const KEYS: [&str; 6] = [
         "REDIS_HOST",
         "REDIS_PASSWORD",
@@ -648,37 +714,39 @@ fn conventional_redis_dsn() -> Option<String> {
         "REDIS_DB",
         "REDIS_SCHEME",
     ];
-    if !KEYS.iter().any(|key| std::env::var_os(key).is_some()) {
+    if !KEYS.iter().any(|key| environment.present(key)) {
         return None;
     }
 
-    let scheme = environment_value("REDIS_SCHEME").unwrap_or_else(|| "redis".to_owned());
+    let scheme =
+        environment_value(environment, "REDIS_SCHEME").unwrap_or_else(|| "redis".to_owned());
     if !matches!(scheme.as_str(), "redis" | "rediss") {
         return Some("invalid://".to_owned());
     }
     let Ok(mut url) = url::Url::parse(&format!("{scheme}://localhost")) else {
         return Some("invalid://".to_owned());
     };
-    let host = environment_value("REDIS_HOST").unwrap_or_else(|| "127.0.0.1".to_owned());
+    let host =
+        environment_value(environment, "REDIS_HOST").unwrap_or_else(|| "127.0.0.1".to_owned());
     if url.set_host(Some(&host)).is_err() {
         return Some("invalid://".to_owned());
     }
-    let port = environment_value("REDIS_PORT").unwrap_or_else(|| "6379".to_owned());
+    let port = environment_value(environment, "REDIS_PORT").unwrap_or_else(|| "6379".to_owned());
     if port.parse::<u16>().is_err() || url.set_port(port.parse::<u16>().ok()).is_err() {
         return Some("invalid://".to_owned());
     }
-    if let Some(username) = environment_value("REDIS_USERNAME")
+    if let Some(username) = environment_value(environment, "REDIS_USERNAME")
         && url.set_username(&username).is_err()
     {
         return Some("invalid://".to_owned());
     }
-    if let Some(password) = environment_value("REDIS_PASSWORD")
+    if let Some(password) = environment_value(environment, "REDIS_PASSWORD")
         .filter(|password| !password.eq_ignore_ascii_case("null"))
         && url.set_password(Some(&password)).is_err()
     {
         return Some("invalid://".to_owned());
     }
-    let database = environment_value("REDIS_DB").unwrap_or_else(|| "0".to_owned());
+    let database = environment_value(environment, "REDIS_DB").unwrap_or_else(|| "0".to_owned());
     if database.parse::<u32>().is_err()
         || url
             .path_segments_mut()
@@ -936,6 +1004,58 @@ mod tests {
                 config.app.env,
                 Environment::Test,
                 "env is pinned by the loader"
+            );
+            Ok(())
+        });
+    }
+
+    // 平面文件按自然序覆盖，同一 TOML 的声明键序由 raw 保留；环境最后覆盖原位。
+    #[test]
+    fn ordered_sources_keep_flat_file_toml_and_environment_precedence() {
+        let _environment_guard = crate::lock_test_env();
+        figment::Jail::expect_with(|jail| {
+            jail.create_dir("config")?;
+            jail.create_file("config/part10.toml", "[ordered]\nlast = 10\nshared = 10\n")?;
+            jail.create_file(
+                "config/part2.toml",
+                "[ordered]\nz = 1\na = 2\nshared = 2\nitems = [9, 8]\n",
+            )?;
+            jail.set_env("APP_ORDERED_A", "3");
+            let sources = ConfigLoader::new("config", Environment::Test)
+                .sources()
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            let repository = repository::ConfigRepository::new(sources.clone());
+            let raw = repository
+                .all()
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            assert_eq!(
+                raw.as_object().map(|items| items
+                    .keys()
+                    .take(5)
+                    .map(String::as_str)
+                    .collect::<Vec<_>>()),
+                Some(vec!["app", "server", "api", "log", "i18n"])
+            );
+            let ordered = repository
+                .get("ordered")
+                .map_err(|error| figment::Error::from(error.to_string()))?
+                .ok_or_else(|| figment::Error::from("ordered section missing"))?;
+            assert_eq!(
+                ordered
+                    .as_object()
+                    .map(|items| items.keys().map(String::as_str).collect::<Vec<_>>()),
+                Some(vec!["z", "a", "shared", "items", "last"])
+            );
+            assert_eq!(ordered["a"], 3);
+            assert_eq!(ordered["shared"], 10);
+            assert_eq!(ordered["items"], serde_json::json!([9, 8]));
+            assert_eq!(sources.figment().extract_inner::<u32>("ordered.a")?, 3);
+            assert_eq!(
+                sources
+                    .figment()
+                    .find_metadata("ordered.z")
+                    .map(|metadata| metadata.name.as_ref()),
+                Some("TOML file")
             );
             Ok(())
         });

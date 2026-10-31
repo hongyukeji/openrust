@@ -7,10 +7,12 @@ use std::time::Duration;
 
 use axum::body::Body;
 use axum::http::{Request, Response};
+#[cfg(test)]
 use figment::Figment;
 use tokio::time::Instant;
 use tower::ServiceExt;
 
+use crate::config::ConfigSources;
 use crate::core::container::ContainerBuilder;
 use crate::core::provider::ProviderId;
 use crate::core::{App, Application, Error, ProviderBuilder, Result};
@@ -25,7 +27,7 @@ type Configure = Arc<dyn Fn(&mut ContainerBuilder) -> Result<()> + Send + Sync>;
 ///
 /// 不修改进程环境或当前目录；闭包捕获的外部 `Arc` 由调用方管理，重建不会重置该对象。
 pub struct TestAppBuilder<A: Application> {
-    sources: Figment,
+    sources: ConfigSources,
     removed: Vec<ProviderId>,
     removed_modules: Vec<String>,
     configure: Vec<Configure>,
@@ -70,6 +72,7 @@ impl<A: Application> TestAppBuilder<A> {
     async fn start(&self) -> Result<App> {
         let config: A::Config = self
             .sources
+            .figment()
             .extract()
             .map_err(|_| Error::custom("test_app_config_invalid", "测试应用配置提取失败"))?;
         let mut builder = ProviderBuilder::for_application::<A>(&config);
@@ -100,9 +103,9 @@ pub struct TestApp<A: Application> {
 
 impl<A: Application> TestApp<A> {
     /// 以显式配置源建立蓝图；不读取或修改环境变量。
-    pub fn builder(sources: Figment) -> TestAppBuilder<A> {
+    pub fn builder(sources: impl Into<ConfigSources>) -> TestAppBuilder<A> {
         TestAppBuilder {
-            sources,
+            sources: sources.into(),
             removed: Vec::new(),
             removed_modules: Vec::new(),
             configure: Vec::new(),

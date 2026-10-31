@@ -25,12 +25,37 @@ impl Job for ProbeJob {
     }
 }
 
+static NEXT_NAMESPACE_SEQUENCE: AtomicUsize = AtomicUsize::new(0);
+
 fn namespace() -> String {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_nanos())
         .unwrap_or_default();
-    format!("server-{}", nanos % 1_000_000_000_000_000)
+    namespace_at(nanos)
+}
+
+fn namespace_at(nanos: u128) -> String {
+    let sequence = NEXT_NAMESPACE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    format!(
+        "server-{}-{}-{sequence}",
+        nanos % 1_000_000_000_000_000,
+        std::process::id()
+    )
+}
+
+#[test]
+fn namespace_remains_unique_when_clock_repeats() {
+    let first = namespace_at(0);
+    let second = namespace_at(0);
+    assert_ne!(first, second);
+    assert!(first.len() <= 63 && second.len() <= 63);
+    assert!(
+        first
+            .bytes()
+            .chain(second.bytes())
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+    );
 }
 
 fn redis_url() -> String {

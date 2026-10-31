@@ -21,7 +21,11 @@
 
 核心原始写入在 Register、Boot、Frozen 阶段均可调用。Register/Boot 写入仍受后续启动 schema 校验约束；Frozen 后的写入允许任意可表达的 `serde_json::Value`，后续类型化读取不匹配时返回安全错误。注册、boot overlay 和 freeze 的阶段限制保持不变。`App::config_repository()`、`AppState::config_repository()` 与 Provider 返回同一共享句柄；`App::section<T>` 读取最新仓储。`App::config()`、`AppState::config()`、`App::figment()` 和已经解析的服务保留启动快照，不因内存写入自动重建。`clone()` 共享服务句柄；`all()` 返回独立值快照。
 
-运行期写入值与后续启动阶段的原始键序保存在同一仓储状态内；Figment 投影和来源元数据随同一版本原子发布。现有 `ConfigRepository::new(Figment)` 入口接收的 Figment 字典已经按键排序，无法恢复配置来源最初的对象键序；类型化投影的 map 顺序也受 Figment 字典表示约束。要完整保留来源初始顺序，后继须从 `ConfigLoader::figment()` 形成 Figment 之前传入有序来源值。固定 PHP 8.5.0 的值、键序、列表/混合/稀疏形态见 [golden fixture](../../tests/fixtures/config_runtime_set.json)；PHP 对象、Closure 和资源不属于 `serde_json::Value` 可表达范围，仍是公开差异。
+运行期写入值与后续启动阶段的原始键序保存在同一仓储状态内；Figment 投影和来源元数据随同一版本原子发布。启动使用 `ConfigLoader::sources()` 返回的不可变 `ConfigSources`：默认值、已发现的 TOML 文件和环境层在同一次加载中形成原始值与 Figment 投影。可信应用代码也可用 `ConfigSources::from_ordered_entries([(key, value), …])?` 按输入顺序提供配置，重复根键覆盖原位置；`figment()` 借用对应类型化来源。`ConfigRepository::new`、应用 Provider 与 `TestApp` 可接收这个输入。`ConfigRepository::new(Figment)` 仍可用，但 Figment 的字典已排序，该转换有损，无法恢复原始声明顺序。应用启动的 typed 配置、`App::figment()` 与已解析服务仍是启动快照，后续 raw 写入只更新共享仓储。
+
+有序入口沿现有 `php_entries` / `php_value` 规则表示规范数字键：连续 `0..n` 是列表，反序、稀疏或数字与字符串混合为有序对象，`01` 是字符串键；空根输入是空列表。Figment 要求根为字典，因此纯数字根列表在类型化投影中暂时展开为数字键字典；`ConfigRepository::all()` 保留列表形态。嵌套数组保持数组。原始值与投影值经同一来源验证，构造失败不发布半成品。固定 PHP 8.5.0 的值、键序、列表/混合/稀疏形态见 [golden fixture](../../tests/fixtures/config_runtime_set.json)；PHP 对象、Closure 和资源不属于 `serde_json::Value` 可表达范围，仍是公开差异。
+
+目前 `ConfigLoader` 发现根 `config/` 中的平面 `*.toml`，按文件名自然序加载；文件内表和数组保留 TOML 声明顺序，后加载的同名键覆盖原位置。DB/Redis 分项、通用别名、所选命名空间和 nullable session 环境值都从同一次进程环境捕获构造，环境新键使用稳定映射序；`.env` 仍由启动流程先加载，进程环境优先。固定 Laravel `LoadConfiguration` 会递归发现文件，并按嵌套目录点前缀加 basename 的配置键自然排序。现有 TOML 使用显式领域表，递归发现与文件名到领域的映射尚未对应；平面文件排序不代表完整 Config 加载已等价。
 
 此写入仅供可信应用代码使用，保存在当前进程内；它不写文件或数据库、不跨节点传播，也不刷新 DB、Redis、邮件等已建资源。管理员 Settings、授权、密钥和待重启策略见 [ADR-080](../../.agents/project/decisions/adr-080-runtime-configuration-scheduling.md)，不由此原始写入接口代替。
 

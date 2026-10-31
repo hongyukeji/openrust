@@ -19,6 +19,19 @@ pub fn public_fields(repository: &ConfigRepository) -> Result<Vec<(String, Value
         .get_many_with_defaults(&[("app.name", json!("应用")), ("app.locale", json!("zh_CN"))])
 }
 
+/// 仅展示本 fixture 两个固定业务键在同一配置来源中的出现顺序。
+pub fn public_reader_key_order(repository: &ConfigRepository) -> Result<Vec<String>, ConfigError> {
+    let value = repository.get("reader")?;
+    let Some(Value::Object(fields)) = value else {
+        return Ok(Vec::new());
+    };
+    Ok(fields
+        .keys()
+        .filter(|key| matches!(key.as_str(), "z_label" | "a_label"))
+        .cloned()
+        .collect())
+}
+
 /// 只写入 fixture 自有的固定展示名称。
 pub fn review_display_name(repository: &ConfigRepository) -> openrust::Result<String> {
     repository.set("app.name", json!("已复核应用"))?;
@@ -56,6 +69,18 @@ impl ServiceProvider for ReadingProvider {
                                 let name = review_display_name(&repository)?;
                                 Ok::<_, openrust::Error>(openrust::http::Json(
                                     json!({"name": name}),
+                                ))
+                            }
+                        }
+                    })
+                    .get("/api/config-reading/order", {
+                        let repository = request_repository.clone();
+                        move || {
+                            let repository = repository.clone();
+                            async move {
+                                let keys = public_reader_key_order(&repository)?;
+                                Ok::<_, openrust::Error>(openrust::http::Json(
+                                    json!({"keys": keys}),
                                 ))
                             }
                         }

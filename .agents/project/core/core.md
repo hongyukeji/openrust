@@ -46,13 +46,19 @@ MFA 在候选为迁移时仍解析服务与配置，仅登记延后 schema 检�
 
 限定验收入口见[testing](../memory/testing.md#c04-d10-a-错误包限定子范围已验收)；不据此关闭完整校验器、重定向或视图错误共享。
 
+## R2-R02 有序来源入口（限定验收通过）
+
+`ConfigSources` 是不可变有序原值与Figment投影的同次输入，`ConfigLoader::sources()`供默认引导一次捕获后同时读取应用类型配置和启动Provider；仓储仍只有同一个State与版本。既有`ConfigRepository::new`、`ProviderBuilder::start`和`TestApp::builder`接收该输入，不增加平行启动API。旧Figment输入已丢失的声明顺序不能恢复；运行期set不重建已经解析的资源。
+
+本簇已通过首轮142项、默认workspace853/全feature1642、双严格Clippy/docs、features/MSRV/deny、consumer5项及fresh生成原7+fixture1/MySQL2、真实TCP与资源收尾；命令、忽略项、失败历史及SHA见[本簇验收](../memory/testing.md#r2-r02-config-sources)。来源自然排序不等于完整Laravel配置发现：递归目录、文件名到配置namespace映射及类型表示差异仍为完整Config待办。当前实现不得据此宣称全量Config对应完成。契约见[ADR-086](../decisions/adr-086-config-repository-reading.md)。
+
 ## R2-Q/X 已验收子范围
 
 R2-Q 分支 `850e1a4` 与 R2-X 分支 `d299ca4` 已完成各自限定验收；main 已完成实际组合验收，含双库、TCP和五类fresh生成应用；本地集成提交见Git，证据见[testing](../memory/testing.md#r2-qx-main-组合验收通过)。不代表完整配置/Container/Facade已对应。
 
 - 配置读取复用唯一 `ConfigRepository`：`get` / `get_or` / `has` / `get_many` / `get_many_with_defaults` / `all`。完整字面键优先，缺失与显式 null 分开；批量读取固定同一快照。原始返回值可能含秘密，调用方负责控制输出。无 schema 的来源错误仅保留可信父键；有 schema 时仅保留声明路径，动态 Map 名和来源数组段不回显。见 [ADR-086](../decisions/adr-086-config-repository-reading.md)。
 
-- R2-R01 限定交付：同一仓储的 `set` / 有序 `set_many` 将原始值与 Figment 投影成对发布，`App` / `AppState` / Provider 共享句柄，`App::section` 读取当前值；`App::config` / `figment` 和既解析服务保留启动快照。启动 schema 屏障不等于禁止可信应用代码的运行期原始写入。已通过配置仓储默认/无默认各39项、App句柄1项及模块/CLI/consumer定向，双严格Clippy、工作区845/1632项、docs/features/MSRV/deny、fresh生成/MySQL8.4及真实TCP均有本簇证据；资源收尾通过，限定本地提交见Git；证据见测试基线。进入Figment前已丢失的来源初始键序仍为后继缺口，见唯一todo。
+- R2-R01 限定交付：同一仓储的 `set` / 有序 `set_many` 将原始值与 Figment 投影成对发布，`App` / `AppState` / Provider 共享句柄，`App::section` 读取当前值；`App::config` / `figment` 和既解析服务保留启动快照。启动 schema 屏障不等于禁止可信应用代码的运行期原始写入。已通过配置仓储默认/无默认各39项、App句柄1项及模块/CLI/consumer定向，双严格Clippy、工作区845/1632项、docs/features/MSRV/deny、fresh生成/MySQL8.4及真实TCP均有本簇证据；资源收尾通过，限定本地提交见Git；证据见测试基线。R2-R01的Figment入口不能恢复此前丢失的来源初始键序；R2-R02已对有序来源入口限定验收，既有Figment有损入口仍不能恢复丢失顺序，完整发现/命名映射继续见唯一todo。
 - Container `extend` 复用现有工厂、作用域与发布流程，按顺序装饰原实例；示例 Provider 在首次解析前安装装饰器，并核 boot 与 HTTP 同一实例。可信 Session driver 装饰器通过 `SessionStoreHandle::store()` 取得原 store；该逃生口不能代替请求 Session 状态及其容量/删除检查。见 [ADR-085](../decisions/adr-085-container-binding-extension.md)。
 - `modules/example` 的固定配置键路由与 Container 装饰器是公开调用示范；任意 query 不扩张允许读取的配置键。完整配置修改/动态设置、Provider 自动发现及完整 Container 对应范围继续按唯一 todo 领取，不能因本子范围关闭。
 
