@@ -6,6 +6,10 @@
 
 ## 当前功能簇
 
+🟡 R2-P Provider完整注册生命周期正在同项目隔离分支集中验收：core125、仓储47、公开Container契约24及独立consumer限定通过；默认严格Clippy三失败后仍按§5暂停，不把请求消失当批准。普通生成首次check发现view feature调用方漏await，原caller已修，97项输入重新核对无漂移，原执行owner正接第二次生成/TCP/MySQL链；未提交、未合main。
+
+🟡 R2-CC配置缓存家族与上述验收并行：已有分支Rust/生成/真实复启证据，后续发现并修正“维护命令先bootstrap、再执行清缓存”的生产时点；修后真实验收尚待执行。脚本隔离边界已静态复审关闭，剩构建失败不得使用旧binary、恢复失败不掩盖主失败两项由原owner批修。历史通过不代替新输入通过，完整Config缓存与main组合尚未闭合。
+
 ✅ C04-D10-E scheme/secure与guest/intended已验收并提交6b143ca：定向10/main11、新构建、fresh普通7/MySQL认证2+公开helper1、无Session/MySQL真实TCP4/9场景通过；previous原值与先保存/先消费顺序已修复，唯一模块真实确认回跳不替代认证授权。完整Redirector/L020.02仍开放，见[本簇证据](memory/testing.md#c04-d10-e-scheme-与-guestintended验收中未提交)。
 
 C04-D10-A公共错误包限定子范围已提交 `27c006a`。[证据及限制](memory/testing.md#c04-d10-a-错误包限定子范围已验收)。C04-D10-B请求绑定重定向、Session命名错误包与空库迁移启动修复已通过当前源码门禁、无Session及MySQL8.4真实TCP、普通生成7项/MySQL认证生成2项，已由 `a2befef` 限定提交；纯 Session 测试入口整合限定试点已验收并由 `4023e05` 提交：48→46 入口，26 项全保留；gRPC 联合监听测试的端口所有权空窗已修并通过定向/全特性门禁；PG与全部后端发布矩阵及完整Redirector/Validation仍开放。[B证据及限制](memory/testing.md#c04-d10-b-请求绑定重定向与-session-错误包限定子范围已验收)。
