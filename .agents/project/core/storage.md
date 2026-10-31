@@ -14,3 +14,5 @@
 - `modules/example` 的文章附件流程另用数据库文章行锁串行化 S3 上传和删除；请求 body EOF 与 deadline 以原子状态裁决，deadline 获胜禁止进入 storage 正常 EOF/发布，EOF 获胜则事务锁持有到发布调用收敛。该是业务模块协调 DB/S3 的保证，不是 `StorageDisk` 提供的跨系统事务。CopyObject 已发送后若返回 `storage_publication_uncertain`，远端仍可能迟到完成；进程强杀与 App 关闭期限亦无法承诺无孤儿。
 
 决策和剩余验收要求见 [ADR-050](../decisions/adr-050-storage-drivers.md)。
+
+ST-V来源`2262df9`已由main两父提交`8d18021b630ea10652316e025ef6019c7772bbb0`纳入：公开visibility读写/变更、local安全发布与S3 ACL分类/Copy仲裁的限定组合按[实际验收](../memory/testing.md#st-v-main-限定组合验收)通过。真实ACL启用/禁用bucket正反例、远端迟到CopyObject与Laravel `throw=false`失败值仍开放；被忽略的S3用例不算服务证据。

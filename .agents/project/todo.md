@@ -18,12 +18,14 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 
 ## 当前可领取
 
-当前执行优先级（额度收尾）：①R03/typed/CC/Signed四簇五父main限定组合已交付 `e105dbf`，来源与分支已安全退役，证据见[四簇记录](memory/testing.md#r2-四簇-main-组合限定验收)；②R2-P `4ac8099` 与S-DV `6ffb5c8` 已由三父main提交 `9e5a94198b421987851b3580b27fa90370feeb77` 完成限定组合门禁：默认943/0/34忽略、全特性1748/0/108忽略，双严格Clippy/docs、MSRV、no-default、deny、consumer/生成/MySQL/TCP按[最终记录](memory/testing.md#r2-p-s-dv-main-limited)通过。S-DV与P工作区/分支已安全退役；P两份root文档事实已迁入main，原稿与迁移核对回执保全于 `/tmp/openrust-provider-root-docs-wip-preserved/`，正常退役回执 `/tmp/openrust-provider-registration-safe-retirement.json`。③ST-V继续已编码范围的剩余验证，真实S3 ACL仍开放，不强合未交付代码。不领取新功能簇；两guard worktree受保护。完整Config、Provider发现/Facade、Session/Web、签名URL复杂参数/代理、动态Settings和发布全后端矩阵仍开放。
+当前执行优先级（额度收尾）：①R03/typed/CC/Signed四簇五父main限定组合已交付 `e105dbf`，来源与分支已安全退役，证据见[四簇记录](memory/testing.md#r2-四簇-main-组合限定验收)；②R2-P `4ac8099` 与S-DV `6ffb5c8` 已由三父main提交 `9e5a94198b421987851b3580b27fa90370feeb77` 完成限定组合门禁：默认943/0/34忽略、全特性1748/0/108忽略，双严格Clippy/docs、MSRV、no-default、deny、consumer/生成/MySQL/TCP按[最终记录](memory/testing.md#r2-p-s-dv-main-limited)通过。S-DV与P工作区/分支已安全退役；P两份root文档事实已迁入main，原稿与迁移核对回执保全于 `/tmp/openrust-provider-root-docs-wip-preserved/`，正常退役回执 `/tmp/openrust-provider-registration-safe-retirement.json`。③ST-V来源`2262df9`已由两父提交`8d18021b630ea10652316e025ef6019c7772bbb0`完成main限定组合验收，来源工作区/分支已安全退役；真实S3 ACL、迟到CopyObject、`throw=false`仍开放，见[本簇记录](memory/testing.md#st-v-main-限定组合验收)。不领取新功能簇；两guard worktree受保护。完整Config、Provider发现/Facade、Session/Web、签名URL复杂参数/代理、动态Settings和发布全后端矩阵仍开放。
 
 ### 当前收尾执行窗口
 
-- main Provider/S-DV源码与集中验证已收口，本轮仅同步Agent事实文档；共享target当前由ST-V owner `9d167e52-8548-465c-a835-20d2624985e5` 负责其已编码范围剩余链，root协调实际构建/服务窗口。不以main验收时资源快照替代新阶段预检。
-- ST-V的真实MySQL定向、公开driver/local与TCP已有分支证据；后续适用门禁和真实S3 ACL按其最终回执分开判定，未完成部分保持开放。50GB/10%软与100GB/5%硬阈值、未知缓存归属保护不变。
+- main Provider/S-DV源码与集中验证已收口，本轮仅同步Agent事实文档；ST-V main门禁、真实尾链和确认归属的产物清理均已结束；旧owner与分支已安全退役，后续新阶段仍须独立预检资源。
+- ST-V默认945/34 ignored与全特性1756/111 ignored、双严格Clippy/docs、MSRV、deny、公开consumer及真实MySQL/生成/TCP已有本次main证据；真实S3 ACL、迟到CopyObject与`throw=false`继续开放。50GB/10%软与100GB/5%硬阈值、未知缓存归属保护不变。
+- 本次清理回执`/tmp/openrust-stv-main-cleanup/receipt.json`：根target已正常`cargo clean` exit0，登记3个现存target合计67,485,491,200B→65,982,464B，磁盘可用126,622,199,808B→193,684,373,504B。小生成源码与166个文件哈希保留，外置65,982,464B归属不足未删；两guard工作区和服务/数据库卷未碰。
+
 ### 本轮组合产物回收（已完成）
 
 - 四簇main验收与本地合并后，资源owner `04cca925-e59f-42f1-800b-424e7b4cd1b8` 已核占用并正常执行 `cargo clean`（exit 0，8.89秒）。本轮清理前后根target实测55,298,695,168B→0B，已登记target合计55,494,791,168B→65,982,464B，磁盘可用139,102,576,640B→193,909,436,416B；不同时间采样不与上方验收收口样本混算。外置db-plugin-consumer的65,982,464B归属不足且无CACHEDIR.TAG，未删；源码/WIP/证据哈希前后一致。回执 `/tmp/openrust-four-family-cache-cleanup/RESULT.json` 与 `clean.log`；当时S-DV owner `7611b92b` 获独占根target重建窗口，此为历史采样，当前资源归属见上方收尾执行窗口。
@@ -119,12 +121,11 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 - 审计范围包括完整领域配置说明、env 映射、typed 读取/启动校验、模块配置的公开注册与覆盖；先说明现有能力、真实缺口和依赖，不凭空叠加第二配置层或改变 env 语义。
 - 本项归 R2，依赖只读审计交付与统一 Container/ServiceProvider contract；R1 不混入配置实现改动，当前配置源、默认运行值和 Redis 默认无静默回退保持。 R2-T六类严格读取及`*_or`/`*_or_else`已在同项目任务分支限定提交`b1f4bf7`；仓储43/集合4/模块1/consumer6、严格Clippy3/docs1、fresh普通7+fixture1、真实TCP200/正常关闭及精确产物回收通过，分支证据不关闭完整L005.03；现已通过四簇main限定组合门禁。owner `8ca4236f-2c8c-4f7c-887b-8dab60f6e54e`，workspace `wks_44ece7d45e1cfb13`，branch `tasks/config-typed-helpers`，base `a5e6461`，cwd `/Users/Home/.paseo/worktrees/02joa2lr/openrust-config-typed-helpers`；源码与文档工作区干净、target窗口已释放，原worktree/branch已正常退役，workspace已归档。最终owner证据 `/tmp/openrust-config-typed-helpers-final-owner-receipt.json`、root核证 `/tmp/openrust-config-typed-helpers-root-final-audit.json`；聚合登记56.83GB/磁盘可用86.95GB均仅软告警，100GB/5%硬线保持；未知缓存未清。Provider普通/force注册后继真实PHP与Rust候选已交`/tmp/openrust-provider-registration-rust-contract.md`，不同模型审查在途，未实现。
 
-## ST-V Storage visibility 家族（Verify：local与公开driver/TCP已通过，S3及模块剩余门禁开放）
+## ST-V Storage visibility 家族（main限定组合已交付，完整Storage开放）
 
-- Request文件存储的独立前置，复用唯一Storage manager/default/named disk与流写；按固定Laravel公开visibility写入/读取/修改及disk默认覆盖，保留完整文件输入/MIME后继。冻结Spec `/tmp/openrust-storage-visibility-frozen-spec.md`，来源 `/tmp/openrust-request-file-storage-contract.md`；不是把UploadOptions或客户端MIME当public/服务端推断。
-- owner `9d167e52-8548-465c-a835-20d2624985e5`，workspace `wks_722c52102af7671f`（既有OpenRust项目），branch `tasks/storage-visibility-family`，base `c126de5`，cwd `/Users/Home/.paseo/worktrees/02joa2lr/openrust-storage-visibility-family`。独占storage/配置与受影响调用方/唯一模块/测试/用户说明，不改Session/P共享源码，不改manifest/lock/Agentdocs/main索引。
-- 首轮源码11文件已ready并经terra独审：4 blocker（UUID feature、local硬链接chmod、取消/rename仲裁、畸形ACL误判），UUID已由root修，原owner集中修其余和should-fix，Rust编译/行为尚未验证。root已选精确可选aws-sdk-s3=1.152.0，仅storage-s3启用；metadata新增26版本、原锁无升级/移除，声明MSRV均≤1.97；原allfeatures offline deny只归旧锁输入，root复核lock-resolution SHA与当前锁不同，当前锁需在后续窗口重验deny，不冒充当前锁/编译/真实ACL通过。来源/决策与锁图回执 `/tmp/openrust-storage-s3-acl-{dependency-review.md,root-decision.json,lock-resolution.json}`；root独占三清单文件，真实ACL服务/授权配置未具备。当前不占target/端口/库，ready后delta审查/集中Verify；50GB/10%软与100GB/5%硬、默认额度/停止链路保持，不建重复守护。
-- 内置CAS/ACL分类、公开UploadPublication令牌及不确定错误映射已静态独审闭合；外部consumer负例已补，storage-local/storage-s3 workspace alltargets类型检查通过。第三次Clippy的helper返回类型错误已按用户实际决定改为StoredObject；获准单次attempt5严格复验exit101（1.596秒），仅报tests/server/storage/s3.rs空集合断言lint，20冻结输入无漂移。用户授权的空切片修复后单次attempt6严格Clippy已过；local storage16、公开driver契约3（含组合仲裁负例）、真实TCP上传下载1均过，20SHA无漂移，日志明确当前worktree重编。原owner只读汇总S3/模块auth特性及其余适用门禁，真实ACL仍未验；target已返还S-DV服务链。证据 `/tmp/openrust-storage-visibility-attempt6-manifest.json`。证据 `/tmp/openrust-storage-visibility-attempt5-manifest.json` 与原日志；target已释放。真实ACL/慢服务未验，不把ignored测试当通过。
+- 来源`2262df9`由两父提交`8d18021b630ea10652316e025ef6019c7772bbb0`合入main，来源工作区/分支已按`/tmp/openrust-storage-visibility-safe-retirement.json`安全清理；两guard工作区未动。冻结Spec仍见`/tmp/openrust-storage-visibility-frozen-spec.md`，分支旧失败与修复证据保留于`/tmp/openrust-storage-visibility-attempt{5,6}-manifest.json`，不改写为首次通过。
+- 本次805输入/33日志SHA与独立核证见[ST-V main记录](memory/testing.md#st-v-main-限定组合验收)：双严格Clippy、默认/全特性workspace测试、双docs、no-default、Rust1.97双feature、当前锁deny、公开consumer、唯一模块真实MySQL、生成项目与根TCP均按限定范围通过。ignored不算实服务。
+- 完整Request文件输入、MIME判定、Storage/Filesystem 1:1继续在后继队列；真实S3 ACL启用/禁用bucket、远端迟到CopyObject与Laravel `throw=false`失败值语义尚无等价服务证据，不能从本次local/TCP或被忽略S3用例推断完成。
 
 ## S-DV 有序对象值与 Session 保存边界（main限定组合已交付）
 

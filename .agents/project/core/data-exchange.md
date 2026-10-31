@@ -28,3 +28,5 @@
 - `cargo check --manifest-path tests/consumers/data-exchange/Cargo.toml --locked`
 - `cargo test --manifest-path tests/consumers/data-exchange/Cargo.toml --locked`
 - 完整默认/all-features workspace 门禁与 `cargo deny check` 按 `memory/testing.md` 执行。
+
+ST-V main限定组合`8d18021b630ea10652316e025ef6019c7772bbb0`中，独立公开consumer锁定测试1项与真实MySQL精确`import_batches_are_atomic_idempotent_and_export_is_streamed` 1项均通过，前后数据库schema集合一致；本次结果见[testing](../memory/testing.md#st-v-main-限定组合验收)，不替代完整数据交换服务矩阵。

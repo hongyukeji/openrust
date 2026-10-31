@@ -10,7 +10,7 @@
 
 ✅ R2-P Provider注册生命周期与S-DV Session对象值已完成同一main限定组合：三父提交 `9e5a94198b421987851b3580b27fa90370feeb77` 保留两个来源祖先；默认workspace943通过/34忽略，全特性1748通过/108忽略，双严格Clippy/docs、MSRV、no-default、deny、4个公开consumer测试与3项额外check、普通生成7及公开fixture1、真实MySQL根1和生成认证2、缓存命令/重启、根TCP六场景和清理均按[最终记录](memory/testing.md#r2-p-s-dv-main-limited)通过。分支阶段三次Clippy失败后用户授权的单次重验确已通过，旧失败保留；S-DV与P源分支均已安全退役；P两份root文档事实已迁入main，原稿保全。完整Provider发现/Facade、已服务Router热更新、Container及Session/Web仍开放。
 
-🟡 ST-V任务分支visibility：仲裁/错误映射静态独审闭合，storage-local/storage-s3严格Clippy、local16/公开driver契约3/真实TCP1均过。模块auth/data-exchange特性、S3单元、当前锁deny及MSRV剩余门禁待窗口；真实ACL/迟到Copy后端条件缺失，未把ignored或旧锁结果当通过。尚未提交/合main，见todo。
+✅ ST-V Storage visibility限定子范围已由来源`2262df9`两父合入main `8d18021b630ea10652316e025ef6019c7772bbb0`：805输入/33原日志SHA核对，默认945通过/34忽略、全特性1756通过/111忽略，双严格Clippy/docs、MSRV、no-default、当前锁deny、公开consumer1、根MySQL精确3、普通生成8/MySQL生成2与认证2、根TCP6及正常退出/端口重绑均有[本簇证据](memory/testing.md#st-v-main-限定组合验收)。🔵完整Storage/Filesystem仍开放；真实S3 ACL、迟到CopyObject和`throw=false`差异未实测或未收敛，ignored不算真实服务。
 
 ✅ R2-CC配置缓存家族已在隔离分支限定提交 `7be446d`：修后默认851/全feature1638（68ignored）、双Clippy/docs、doctest22/24、普通生成8与真实模块/生成应用缓存复启通过；两task temp已回收，混合归属同名包缓存保留待精确核对。分支证据不外推完整Configuration；main组合另见本页当前进度。
 ✅ R2-CC配置缓存限定分支验收：官方命令/fresh配置/命中屏障/原子文件/失败资源边界已实现；修后851/1638（all68ignored）、双Clippy/docs、doctest22/24、生成8与真实缓存复启通过，提交见Git。两任务temp已退役，混合归属同名包缓存保留待精确核对；main组合另见本页当前进度，不关闭完整Configuration。

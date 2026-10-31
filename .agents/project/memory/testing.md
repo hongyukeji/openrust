@@ -1,5 +1,16 @@
 # 测试基线
 
+<a id="st-v-main-限定组合验收"></a>
+## ST-V main 限定组合验收
+
+来源`2262df990e134ca94dc153c180ff1f16be95e945`由两父本地提交`8d18021b630ea10652316e025ef6019c7772bbb0`纳入main，提交tree与冻结候选`2cfbe929714854d6cbaaf1f8508cb8fef6245ac8`相同。冻结805个输入SHA、33份实际日志SHA和当前锁依赖由`/tmp/openrust-stv-main-final-index.json`与`/tmp/openrust-stv-main-final-root-audit.json`绑定；第一次runtime临时回执写入错误及第二次缓存副本目录前置失败原证据保留，未将其改写成业务测试通过。
+
+默认workspace945通过/0失败/34忽略；全特性1756通过/0失败/111忽略。双严格workspace Clippy、双`-D warnings`文档、no-default、Rust1.97默认/全特性check、当前锁`cargo deny`、fmt与锁定metadata均退出0。独立`data-exchange`公开consumer实测1/0/0；全特性workspace中`storage_http`真实loopback上传/下载与未授权拒绝用例通过，S3真实服务相关ignored不计通过。唯一模块attachments与租户cleanup真实MySQL精确各1项、`data_exchange_tasks`真实MySQL精确1项均无skip，schema集合前后一致。
+
+全新普通生成项目check/test实际8项通过，并以其binary完成GET `/api` 200、SIGINT退出0和端口重绑；缓存维护与重启脚本在带匹配标记的独立`/tmp/openrust-config-cache-*/app`副本中通过。全新MySQL+auth项目check/test 2项及认证精确2项均通过。根server新构建回执绑定805输入与binary SHA，独立进程真实TCP六步通过（`/tmp/openrust-stv-main-root-tcp/result.json`），exit0、无残留监听、SO_REUSEADDR一次重绑；此六步验证Session链，Storage上传下载由上述`storage_http`真实TCP集成测试证明。尾链最终已登记target67,485,491,200B，磁盘可用126,617,210,880B（12.73%），仅当次采样；50GB软线超出、100GB/5%硬线安全。完整Storage/Filesystem、真实S3 ACL启用/禁用bucket、迟到CopyObject与Laravel`throw=false`失败值仍开放。
+
+本簇验收后确认无Cargo/rustc/rustdoc/server占用和打开的根target文件，带`CACHEDIR.TAG`的非符号链接根target执行`cargo clean` exit0（日志`/tmp/openrust-stv-main-cleanup/clean.log`，SHA256 `f3746a9e818a2de305281f28b270ca103b04a5ba32a7a177482fe7f5ce45d9aa`）。去重登记3个现存target合计67,485,491,200B→65,982,464B，磁盘可用126,622,199,808B→193,684,373,504B；这是清理前后实测，不与上述尾链末次采样混算。外置65,982,464B归属不足未删，五个历史登记路径已退役，两个guard工作区、源码、数据库卷和验收日志未碰。4个本任务小生成源码目录166文件在`/tmp/openrust-stv-main-final-index.json`留有清理前哈希并保留，可再生编译产物已随root target清零；资源回执`/tmp/openrust-stv-main-cleanup/receipt.json`。
+
 <a id="r2-p-s-dv-main-limited"></a>
 ## R2-P / S-DV main 限定组合验收
 
