@@ -22,6 +22,8 @@ C04-D8 previous与显式Precognition限定子范围已完成适用验收：稳�
 
 ✅ T01 Session测试入口整合试点已验收：全仓显式test入口46→45、Session family8→7、源文件10不变；两feature各41项与原26+15逐名对应。双严格Clippy、workspace默认838/34ignored与全特性1625/108ignored、双docs/deny/MSRV通过，生产/模板/锁未改，未重跑真实服务；未证明整体开发显著提速，限定提交见Git。
 
+🟡 Signed URL 家族任务分支限定验收已通过：库7、router4（真实 loopback TCP）、唯一模块1、CLI20、普通生成7；补验严格 Clippy、公开 TestApp1、gRPC宿主check、MySQL8.4认证生成2项无skip通过。TCP异常清理增量有不同模型静态复审；本次生成包已精确回收 316,715,008 B，清后仍超过 50GB 软线；分支本地提交及与 ENV main 的组合门禁仍待。完整 URLGenerator/Redirector、Vapor真实代理与复杂 PHP 参数未关闭。见[分支证据](memory/testing.md#signed-url-家族任务分支定向验收未合入-main)。
+
 ## Laravel 1:1 功能与进度概览
 
 > 更新：2026-10-31；C04-B2本轮适用验收已完成，本簇限定本地提交见Git；不将子簇完成外推整能力。本页是唯一概览入口，详细行为/差异以矩阵为准，执行队列仅在[todo](todo.md)。
@@ -41,7 +43,7 @@ C04-D8 previous与显式Precognition限定子范围已完成适用验收：稳�
 | Configuration | env/领域配置、typed读取/校验与包配置合并 | ✅ 已验收子范围 | R2来源失败/Provider配置；APP_PORT 591142f映射与生成/启动已验收 | R2-Q原始/批量读取已完成main组合验收；R2-R01运行期写入限定交付（仓储/App/模块/consumer、工作区、fresh生成/MySQL/真实TCP及资源收尾），本地提交见Git；R2-R02有序来源限定验收通过：适用Rust门禁、consumer、普通/MySQL生成、生产TOML真实TCP与资源收尾，本地提交见Git；递归发现/文件名命名空间、完整L005及缓存/来源/扩展未闭合；DB业务设置见增强表 | L005；R2；[core](core/core.md)/[todo](todo.md) |
 | Routing / Middleware / URL | 路由组/域/命名URL/绑定/中间件默认与错误 | ✅ 已验收子范围 | R3-A–F按簇交付；F 163bb49域路由；D7请求匹配/方法声明与fallback纠偏、D10-G动作身份/namespace/共享action URL、H真实声明与分派同源化已限定验收 | 模型绑定及其余C03/URL参数行为仍开放，不能由子范围整体外推 | L015/L016/L024；R3；[http](core/http.md)/[todo](todo.md) |
 | Request | 输入来源、typed便捷方法与生命周期 | 🟡 开发中 | C04-A/B1/B2/C及D6/D7/D9各子范围已验收；D10-B真实Request借用的输入闪存与重定向已限定验收并提交 `a2befef`；D10-D捕获同应用URL生成器的请求快照已限定验收，提交见Git | 文件输入并入bag、完整Session/CSRF/FormRequest仍开放 | L019；R3 C04；[B证据](memory/testing.md#c04-d10-b-请求绑定重定向与-session-错误包限定子范围已验收)/[todo](todo.md) |
-| Response / API Resource / 异常 | 原生响应、资源序列化/条件字段、错误渲染 | 🔵 已有实现待1:1对齐 | 类型化响应/envelope与语义状态已交付；D10-B普通与请求绑定重定向已限定验收并提交 `a2befef`；D10-D命名重定向已提交018b778；D10-E scheme/guest/intended通过当前适用验收，限定提交见Git | 完整Resource、命名重定向混合/可选参数缺口、refresh/away本簇通过适用验收，action/signed、missing resolver、stream及异常自动重定向仍待 | L018/L020/L027/L068/L069；R3/R5；[http](core/http.md) |
+| Response / API Resource / 异常 | 原生响应、资源序列化/条件字段、错误渲染 | 🔵 已有实现待1:1对齐 | 类型化响应/envelope与语义状态已交付；D10-B普通与请求绑定重定向已限定验收并提交 `a2befef`；D10-D命名重定向已提交018b778；D10-E scheme/guest/intended通过当前适用验收，限定提交见Git | 完整Resource、命名重定向混合/可选参数缺口、refresh/away本簇通过适用验收，signed已在独立分支限定验收、main未集成；动作其余参数形态、missing resolver、stream及异常自动重定向仍待 | L018/L020/L027/L068/L069；R3/R5；[http](core/http.md) |
 | Pagination | Query/Model paginate、simple/cursor、链接与Resource | 🔵 已有实现待1:1对齐 | 现PageParams/手动controller分页；4573234仅登记整改 | 默认15/page解析、直接JSON与Resource links/meta、查询/模型入口及边界 | L059/L068.04；R3→R4/R5；[Spec](todo.md#c04c05-分页整改-spec已授权按依赖领取代码未改) |
 | Validation / FormRequest | 验证规则、授权、错误与文件验证 | 🔵 已有实现待1:1对齐 | Validate/Validated与模块输入校验已有测试；D10-A消息包已提交，D10-B手动命名错误包闪存已提交；D10-C请求错误视图共享限定验收通过，已提交 `784045c` | 自动验证失败重定向、`dontFlash`、完整FormRequest授权/规则/文件行为 | L026/L019；R3/R7；[http](core/http.md)/[todo](todo.md) |
 | DB / 事务 / Migrations | 连接、事务/savepoint、Schema与迁移生命周期 | 🔵 已有实现待1:1对齐 | SeaORM双库等专项资产；D10-B MySQL8.4空库迁移与MFA启动顺序限定验收通过、待提交 | 失败迁移恢复本轮未实跑；R4完整公开契约与发布全后端边界仍待 | L057/L060/L062；R4；[core](core/core.md)/[todo](todo.md) |

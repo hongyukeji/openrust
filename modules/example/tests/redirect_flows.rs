@@ -44,11 +44,47 @@ impl Application for DraftApplication {
 fn sources() -> Figment {
     Figment::from(Serialized::defaults(openrust::config::FrameworkConfig::default()))
         .merge(Serialized::defaults(json!({
-            "app":{"env":"test","url":"http://localhost"},
+            "app":{"env":"test","url":"http://localhost","key":"example-signed-test-key"},
             "cache":{"default_store":"default","stores":{"default":{"driver":"memory"}}},
             "view":{"directory":std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("modules/example/resources/views"),"auto_reload":false},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}}
         })))
+}
+
+#[tokio::test]
+async fn example_signed_draft_routes_use_public_generator_request_and_middleware() -> TestResult {
+    let mut app = TestApp::<crate::bootstrap::Server>::builder(sources())
+        .build()
+        .await?;
+    let result = async {
+        let issue = get(&app, "/api/example/draft/signed-links", None, None).await?;
+        let links = state(&issue)?;
+        let absolute = links["absolute"].as_str().ok_or("绝对签名链接缺失")?;
+        let path = absolute
+            .strip_prefix("http://localhost")
+            .ok_or("签名链接 origin 错误")?;
+        assert_eq!(state(&get(&app, path, None, None).await?)?["valid"], true);
+        get(&app, &path.replace("/42", "/43"), None, None)
+            .await?
+            .assert_status(StatusCode::FORBIDDEN)?;
+        let relative = links["relative"].as_str().ok_or("相对签名链接缺失")?;
+        assert_eq!(
+            state(&get(&app, relative, None, None).await?)?["valid"],
+            true
+        );
+        get(
+            &app,
+            "/api/example/draft/signed/42?signature=invalid",
+            None,
+            None,
+        )
+        .await?
+        .assert_status(StatusCode::FORBIDDEN)?;
+        Ok(())
+    }
+    .await;
+    app.shutdown(tokio::time::Instant::now() + TIMEOUT).await?;
+    result
 }
 
 #[cfg(feature = "view")]

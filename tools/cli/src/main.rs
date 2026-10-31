@@ -1252,7 +1252,7 @@ fn env_example(
 ) -> String {
     let mut contents = "# 复制为 .env 供本地或部署环境使用。不要提交填入实际值的 .env 文件。\n# 生产环境可使用权限受控的 .env 或部署平台注入的变量；进程环境变量优先。\n# 常用环境值和密钥放在这里；结构化默认值见 config/*.toml。\nAPP_ENV=development\nAPP_NAME=".to_owned();
     contents.push_str(name);
-    contents.push_str("\nAPP_PORT=3000\nAPP_URL=\"http://localhost:${APP_PORT}\"\n\n# 服务\n# APP_SERVER_HOST=127.0.0.1\n# APP_SERVER_PUBLIC_DIR=public\n# APP_SERVER_ROOT_TARGET=file:/index.html\n\n# 仅本地开发需要时取消注释；生产环境保持默认值。\n# APP_SESSION_SECURE=false\n# APP_VIEW_AUTO_RELOAD=true\n\n# 数据库\n");
+    contents.push_str("\nAPP_PORT=3000\nAPP_URL=\"http://localhost:${APP_PORT}\"\n# 签名 URL 使用原始 APP_KEY 字节；生产环境设置不可预测的密钥。\n# APP_KEY=<随机密钥>\n# 轮换时保留旧值用于验签，多个旧值以逗号分隔。\n# APP_PREVIOUS_KEYS=old-one,old-two\n\n# 服务\n# APP_SERVER_HOST=127.0.0.1\n# APP_SERVER_PUBLIC_DIR=public\n# APP_SERVER_ROOT_TARGET=file:/index.html\n\n# 仅本地开发需要时取消注释；生产环境保持默认值。\n# APP_SESSION_SECURE=false\n# APP_VIEW_AUTO_RELOAD=true\n\n# 数据库\n");
     if grpc {
         contents.push_str(
             "\n# 仅本地开发可按需取消注释；生产环境请保持关闭。\n# APP_GRPC_ALLOW_INSECURE_SERVER=true\n",
@@ -2827,6 +2827,8 @@ mod tests {
             .expect("read generated environment example");
         assert!(env_example.contains("APP_NAME=blog"));
         assert!(env_example.contains("APP_PORT=3000\nAPP_URL=\"http://localhost:${APP_PORT}\""));
+        assert!(env_example.contains("# APP_KEY=<随机密钥>"));
+        assert!(env_example.contains("# APP_PREVIOUS_KEYS=old-one,old-two"));
         assert!(env_example.contains("REDIS_HOST=127.0.0.1"));
         assert!(env_example.contains("# DB_CONNECTION=postgres"));
         assert!(env_example.contains("APP_PORT=3000"));

@@ -135,6 +135,28 @@ fn message_bag_routes(routes: Routes) -> Routes {
 
 fn draft_redirect_routes(routes: Routes) -> Routes {
     routes
+        .get(
+            "/api/example/draft/signed-links",
+            controllers::draft_redirect::signed_issue,
+        )
+        .group(RouteGroup::new(), |signed| {
+            signed
+                .get(
+                    "/api/example/draft/signed/{id}",
+                    controllers::draft_redirect::signed_show,
+                )
+                .name("example.draft.signed")
+                .middleware_alias("signed")
+        })
+        .group(RouteGroup::new(), |signed| {
+            signed
+                .get(
+                    "/api/example/draft/signed-relative/{id}",
+                    controllers::draft_redirect::signed_relative_show,
+                )
+                .name("example.draft.signed.relative")
+                .middleware_alias("signed:relative")
+        })
         .group(
             RouteGroup::new()
                 .prefix("/api/example/draft/actions")

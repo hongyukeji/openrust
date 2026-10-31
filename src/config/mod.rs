@@ -612,6 +612,8 @@ fn flat_environment_path(key: &str) -> String {
         "PORT" => "server.port".to_owned(),
         "NAME" => "app.name".to_owned(),
         "URL" => "app.url".to_owned(),
+        "KEY" => "app.key".to_owned(),
+        "PREVIOUS_KEYS" => "app.previous_keys".to_owned(),
         "TIMEZONE" => "app.timezone".to_owned(),
         "SERVER_CORS_ENABLED" => "server.cors.enabled".to_owned(),
         "SERVER_CORS_ALLOWED_ORIGINS" => "server.cors.allowed_origins".to_owned(),

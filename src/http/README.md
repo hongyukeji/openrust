@@ -296,7 +296,17 @@ async fn redirect_to_user(info: RequestInfo) -> openrust::Result<Response> {
 
 需要闪存输入时使用 `Redirector::from_request(&request)`；命名跳转返回同一个 `RedirectResponse`，可继续调用 `with_input`、`only_input`、`except_input` 和 `with_errors`，仍借用原请求与 Session。名称或必需参数错误沿用生成器现有错误与 HTTP 500；在应用 HTTP router 之外未捕获生成器时返回 `http_route_url_unavailable`，不会创建全局路由表或静默回退普通路径。
 
-命名重定向沿用现有 `BTreeMap<String, String>`、必需域/路径参数和 query 编码规则；域名模板及 `app.url` 的来源规则不受请求 Host 影响。这是已支持参数形态的接线，不代表 PHP 混合参数、模型/枚举绑定、可选参数或 `missingNamedRouteResolver` 已完成；signed 重定向仍属后继范围。
+命名重定向沿用现有 `BTreeMap<String, String>`、必需域/路径参数和 query 编码规则；域名模板及 `app.url` 的来源规则不受请求 Host 影响。PHP 混合参数、模型/枚举绑定、可选参数或 `missingNamedRouteResolver` 仍待对应。
+
+### 签名命名 URL
+
+设置 `APP_KEY`（对应 `app.key`）后，`RouteUrlGenerator::signed_route(name, &parameters, true)` 生成永久绝对签名 URL；`temporary_signed_route(name, seconds, &parameters, true)` 将秒数加到当前时刻生成 `expires`。最后参数选 `false` 时生成相对 URL。`signed_route_at` 接受显式 Unix 秒时间戳。`signature` 与 `expires` 不能作为调用方参数；额外参数按键排序并采用 RFC 3986 查询编码，签名附在末尾。普通 URL 无密钥仍可生成。Laravel 基线在 `app.key` 缺失或 null 时使用空字节密钥，Rust 对应此可观察签名结果；空密钥可被任何人复现，生产环境必须设置不可预测的 `APP_KEY`。独立构造且未安装 key resolver 的生成器会返回 `url_signing_key_unavailable`。
+
+框架从同一 `ConfigRepository` 快照按次读取 `app.key` 与 `app.previous_keys`：当前密钥签发，当前及旧密钥验签。配置值作为原始字节使用，字面 `base64:` 前缀与空白不会被解码或裁剪；`APP_PREVIOUS_KEYS` 用逗号分隔，空项和 `0` 按 Laravel 默认环境配置过滤。程序运行期 `ConfigRepository::set` 可以轮换；`set_key_resolver` 与 `with_key_resolver` 可为单个生成器提供回调，已有 clone 与请求快照不随 setter 改变。`SignedLinks` 的 JWT 用途、主体及撤销能力继续独立提供，不参与 URL 签名。
+
+`RequestInfo::has_valid_signature`、`has_valid_relative_signature` 和 `has_valid_signature_while_ignoring` 从原始请求 URI 验签，忽略项按**未解码**查询字段名匹配；另有 `has_valid_signature_ignoring` 回调入口。路由使用 `.middleware_alias("signed")`、`.middleware_alias("signed:relative")` 或 `.middleware_alias("signed:tracking")` 拦截无效签名，返回 403，业务 handler 不运行。Provider 的 `BootContext::signed_url_except(["global"])` 将应用级忽略字段注入本 App 的全部默认与参数化签名层，和局部忽略项合并，另一 App 不受影响。手动组层可用 `ValidateSignature::ignoring/except` 与 `validate_signature_with_options`。`Redirector::signed_route/temporary_signed_route` 提供默认 302；对应 `_with` 入口保留显式状态与头，并继续使用原请求的 flash 借用链。
+
+Rust 的 `BTreeMap<String, String>` 仅覆盖字符串路由参数，不表示 PHP 对象、数组、Enum 参数已等价。固定 PHP 8.5 对 null key 会产生弃用警告；Rust 不产生 PHP 运行时警告，签名结果一致。受信运行时可在 Axum request extensions 放入 `VaporRawQueryString`，验证时优先使用它的原始字节串，signature/expires 仍从实际 query 解析。`RequestInfo` 使用当前可信传输协议、严格 Host 和 `OriginalUri` 的外部路径；`X-Forwarded-Prefix` 头不会单独改写已签路径。Vapor 真实部署注入以及代理剥离前缀的入口适配仍需实际环境验证，不能只凭本地 extension 测试视为已验收。
 
 
 ### 最终声明集合与匹配顺序

@@ -48,6 +48,25 @@ const MAX_HEADER_VALUES: usize = 128;
 const MAX_ACCEPT_BYTES: usize = 16 * 1024;
 const MAX_ACCEPT_ITEMS: usize = 128;
 
+/// 由受信运行时适配器提供的 Vapor 原始查询串。
+///
+/// 该值优先于 URI query 参与签名验证；普通客户端 HTTP 头不能设置此 extension。
+#[derive(Clone)]
+pub struct VaporRawQueryString(String);
+
+impl VaporRawQueryString {
+    /// 原样保存受信入口提供的原始查询字节文本，包括空字符串。
+    pub fn new(raw: impl Into<String>) -> Self {
+        Self(raw.into())
+    }
+}
+
+impl fmt::Debug for VaporRawQueryString {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("VaporRawQueryString([REDACTED])")
+    }
+}
+
 /// 请求的只读快照；可与正文提取器同时使用。
 ///
 /// 快照限制为 64 KiB / 128 个头值，Accept 另限制为 16 KiB / 128 项；
@@ -65,6 +84,7 @@ pub struct RequestInfo {
     secure: std::result::Result<bool, std::sync::Arc<Error>>,
     method: Method,
     uri: Uri,
+    vapor_raw_query: Option<VaporRawQueryString>,
     headers: HeaderMap,
     acceptable: Vec<String>,
     cookies: serde_json::Value,
@@ -133,6 +153,7 @@ impl<S: Send + Sync> FromRequestParts<S> for RequestInfo {
                 .extensions
                 .get::<OriginalUri>()
                 .map_or_else(|| parts.uri.clone(), |original| original.0.clone()),
+            vapor_raw_query: parts.extensions.get::<VaporRawQueryString>().cloned(),
             headers,
             acceptable,
             cookies: parsed.value,
@@ -148,6 +169,42 @@ impl<S: Send + Sync> FromRequestParts<S> for RequestInfo {
 }
 
 impl RequestInfo {
+    pub(crate) fn signing_raw_query(&self) -> Option<&str> {
+        self.vapor_raw_query
+            .as_ref()
+            .map(|raw| raw.0.as_str())
+            .or_else(|| self.uri.query())
+    }
+    /// 验证当前原始请求的绝对 URL 签名。
+    pub fn has_valid_signature(&self) -> Result<bool> {
+        self.route_urls()?.has_valid_signature(self, true, &[])
+    }
+
+    /// 验证当前原始请求的相对 URL 签名。
+    pub fn has_valid_relative_signature(&self) -> Result<bool> {
+        self.route_urls()?.has_valid_signature(self, false, &[])
+    }
+
+    /// 验证签名，同时忽略指定的原始查询字段名。
+    pub fn has_valid_signature_while_ignoring(
+        &self,
+        ignore: &[&str],
+        absolute: bool,
+    ) -> Result<bool> {
+        self.route_urls()?
+            .has_valid_signature(self, absolute, ignore)
+    }
+
+    /// 按原始查询字段名回调决定忽略参数。
+    pub fn has_valid_signature_ignoring(
+        &self,
+        absolute: bool,
+        ignore: impl Fn(&str) -> bool,
+    ) -> Result<bool> {
+        self.route_urls()?
+            .has_valid_signature_ignoring(self, absolute, ignore)
+    }
+
     pub(crate) fn route_urls(&self) -> Result<&super::RouteUrlGenerator> {
         self.route_urls
             .as_ref()

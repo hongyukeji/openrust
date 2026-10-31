@@ -374,6 +374,8 @@ cargo deny check
 
 `GET /api/example/draft/secure` 对相对首页目标调用公开 `secure`，返回 `https://` 的 Location；示例只验证重定向响应，不跟随请求或宣称当前 HTTP 监听器已启用 TLS。显式状态、头与协议选择可使用 `secure_with` 或 `to_with_scheme`。
 
+`GET /api/example/draft/signed-links` 使用公开 `RouteUrlGenerator` 为固定草稿 `42` 生成 5 分钟的绝对及相对签名链接，并展示 `Redirector::signed_route` 的目标；生产使用必须设置不可预测的 `APP_KEY`。`/api/example/draft/signed/{id}` 与 `/api/example/draft/signed-relative/{id}` 分别用框架 `signed`、`signed:relative` middleware 验签后才执行 handler，handler 再通过 `RequestInfo` 公共入口确认。更改草稿编号或查询内容返回 403；不使用现有 `SignedLinks` 的 JWT/撤销协议代替 URL 签名。示例仅供开发者理解路由签名，实际私密草稿仍需独立认证和授权。
+
 `POST /api/example/draft/refresh?discard=once` 通过 `Redirector::from_request(&request).refresh()` 返回同路径的 302，目标不保留 query；客户端随后 GET `/api/example/draft/refresh` 会显示真实草稿内容，不再次刷新。无 Session 时同样可以完成 POST→GET；存在 Session 时，响应继续使用 `with_input` 和 `with_errors` 保存一次性的规范化标题输入与复核提示，展示一次后老化。该示例提交仅含公开草稿字段；`with_input` 闪存完整规范化输入，实际业务筛除敏感字段可沿既有 `only_input`/`except_input`。生成 helper 展示 `refresh_with` 的显式 303 和自定义头，同样验证 query 丢弃、GET 内容及闪存老化。
 
 `GET /api/example/draft/guide` 通过 `away_with` 返回固定官方文档外链、303 和业务响应头；目标中的 query 与 fragment 保持原值，不经过 URL 生成器。地址由业务常量提供，请求中的 `url` 参数不会改变跳转目标。生成 helper 使用默认 302 的 `away`；测试只检查响应，不访问外部站点。`refresh/away` 与显式选项方法均保留原请求的响应闪存借用链，普通跳转无需 Session。
@@ -382,7 +384,7 @@ cargo deny check
 
 此草稿步骤不登录账户、不授予权限，也不替代既有真实 Session 登录、CSRF 或 CRUD Policy。当前账户登录仍使用原凭据/Origin/Session 流程及 JSON 响应。`guest` 只有 GET、已匹配真实路由且非 `expects_json` 时保存当前完整 URL，其他请求使用 previous；`intended` 的缺失默认是 `/`，显式默认使用 `intended_or`。生成应用的公开测试 helper 保持同一入口，验证 HTTPS Location、双 Cookie 的普通意图持久性、一次消费与默认 `/` 回退，并继续执行原输入、命名错误及视图 flash 老化。
 
-codec 在模块 `ExampleServiceProvider::register` 中通过 `RegisterContext.extend` 追加到 Session Provider 的注册表，保持已有登记。`DraftErrors` 的类型、编解码与业务规则均位于本模块。命名参数当前使用 `BTreeMap<String, String>`；默认状态为 302，自定义状态及响应头使用 `route_with`。示例覆盖手动普通、返回、命名、动作、scheme、刷新、固定外链与 Session 导航回跳；signed、URL 参数的其余扩展与自动校验失败重定向仍由后继能力验收。请求局部视图使用同一请求的 `RequestInfo` 与公开 `Views::render_for_request` 入口。
+codec 在模块 `ExampleServiceProvider::register` 中通过 `RegisterContext.extend` 追加到 Session Provider 的注册表，保持已有登记。`DraftErrors` 的类型、编解码与业务规则均位于本模块。命名参数当前使用 `BTreeMap<String, String>`；默认状态为 302，自定义状态及响应头使用 `route_with`。示例覆盖手动普通、返回、命名、动作、scheme、刷新、固定外链、签名 URL 与 Session 导航回跳；URL 参数的其余扩展与自动校验失败重定向仍由后继能力验收。请求局部视图使用同一请求的 `RequestInfo` 与公开 `Views::render_for_request` 入口。
 
 “代码存在”仅说明当前可见实现，不能替代本布局 check/test、真实请求与外部服务验收。根基础设施装配、文档链接或 consumer 测试也不自动算作 `modules/example` 的业务代码覆盖。
 

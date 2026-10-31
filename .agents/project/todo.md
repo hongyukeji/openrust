@@ -449,6 +449,10 @@ H新增实际取证：`/tmp/openrust-c04d10h-matcher/probe.output.jsonl`35案真
 - 验收覆盖旧端口/缓存键及撤回的CACHE_DEFAULT_STORE不生效、官方CACHE_STORE和SERVER_PORT新规则及自定义命名空间、dotenv URL插值、具名store/自定义driver选择与缺失引用、生成check/test、真实启动端口/URL和Redis缓存，提交前集中执行适用完整门禁。按Spec→Implement→Verify→本地Commit，不推送。
 - 不热改已启动listener、不改真实.env密钥。当前仅存在性核查真实.env不存在；实施时若出现旧端口键，仅安全精确迁移并保护其他内容。普通局部变量不机械替换，历史验收证据原样保留。
 
+## Signed URL 家族（独立分支限定验收通过，本地提交见Git，未合入main）
+
+`tasks/signed-url-family` 基于 `af0f62b` 实现命名路由永久/临时签发、请求原始查询验签、`signed` 中间件、当前/旧 key 及运行期配置写入可见；唯一模块、CLI 生成 helper 与公开 TestApp consumer 已接入。分支定向库7、router4（真实 loopback TCP）、模块1、CLI20、普通生成7通过；补验严格 Clippy、公开 TestApp1、gRPC宿主check及 fresh MySQL8.4认证2项无skip通过，TCP 异常清理增量已获不同模型静态复审。见[本簇验收](memory/testing.md#signed-url-家族任务分支定向验收未合入-main)。旧失败保留；fresh MySQL 应用及 migration 精确包产物已回收 316,715,008 B，清后登记聚合仍为 51,551,813,632 B，超过 50GB 软线；未知缓存未清。本簇本地提交见Git；经开发者最终验收后，再与已提交的 ENV main 串行集成并运行 main 完整组合门禁，不将分支定向结果写成 workspace 全过。Vapor 实际代理原始查询/前缀和 PHP 对象、数组、Enum 参数表示仍开放，完整 URLGenerator/Redirector 不关闭。
+
 ## 发布前全后端兼容性验收
 
 日常功能簇与数据库型生成默认真实MySQL8.4；后端专属SQL/驱动/故障或明确方言/迁移/锁风险仍当场必要定向，规则见[当前数据库运行政策](memory/testing.md#当前数据库运行政策)。已在途PG自然结束清理，未开始的常规PG阶段转本节，不删除支持或历史证据。
