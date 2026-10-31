@@ -25,7 +25,7 @@ fn sources() -> Figment {
     Figment::from(Serialized::defaults(config)).merge(Toml::string(
         r#"
 [cache]
-default_store = "default"
+default = "default"
 [cache.stores.default]
 driver = "memory"
 namespace = "default"

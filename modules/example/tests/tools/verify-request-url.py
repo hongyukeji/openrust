@@ -152,7 +152,7 @@ def prepare(root, owned, trusted):
     (config / 'app.toml').write_text(app.replace('localhost:3000', f'localhost:{port}', 1))
     (config / 'application.toml').write_text('modules_root = ' + json.dumps(str(root)) + '\n')
     (config / 'database.toml').write_text('[database]\ntable_prefix="tb_"\n')
-    (config / 'cache.toml').write_text('[cache]\ndefault_store="default"\n[cache.stores.default]\ndriver="memory"\n')
+    (config / 'cache.toml').write_text('[cache]\ndefault="default"\n[cache.stores.default]\ndriver="memory"\n')
     (config / 'security.toml').write_text(
         f'[security.signed_links]\nissuer="http://localhost:{port}"\nactive_key_id="local"\n'
         f'[security.signed_links.keys]\nlocal="{KEY}"\n[security.encryption]\nactive_key_id="local"\n'

@@ -18,7 +18,7 @@ fn sources() -> Figment {
     ))
     .merge(Serialized::defaults(json!({
         "app": {"env": "test"},
-        "cache": {"default_store": "default", "stores": {"default": {"driver": "memory"}}},
+        "cache": {"default": "default", "stores": {"default": {"driver": "memory"}}},
         "security": {"encryption": {
             "active_key_id": "test",
             "keys": {"test": "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}

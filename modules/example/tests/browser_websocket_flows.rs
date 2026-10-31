@@ -152,7 +152,7 @@ impl Fixture {
         let key = "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=";
         let sources=Figment::from(Serialized::defaults(defaults)).merge(Serialized::defaults(serde_json::json!({
             "app":{"env":"test","url":origin},"database":{"url":database.url()},
-            "cache":{"default_store":"default","stores":{"default":{"driver":"memory"}}},
+            "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},
             "storage":{"default_disk":"local","disks":{"local":{"driver":"fs","root":storage.path()}}},
             "auth":{"jwt":{"issuer":origin,"audience":"browser-socket","active_key_id":"test","keys":{"test":key}}},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":origin,"active_key_id":"test","keys":{"test":key}}},

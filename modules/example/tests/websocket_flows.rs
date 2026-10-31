@@ -42,7 +42,7 @@ fn sources(database: &str, ttl: u64, redis: Option<(&str, &str)>) -> Figment {
     let key = "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=";
     let source=Figment::from(Serialized::defaults(framework)).merge(Serialized::defaults(serde_json::json!({
         "app":{"name":"example-cluster","env":"test"},"database":{"url":database},
-        "cache":{"default_store":"default","stores":{"default":{"driver":"memory"}}},
+        "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},
         "auth":{"jwt":{"issuer":"http://example.test","audience":"websocket-tests","active_key_id":"test","keys":{"test":key},"access_ttl_secs":ttl}},
         "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":"http://example.test","active_key_id":"test","keys":{"test":key}}},
         "realtime":{"max_connections":1,"max_message_bytes":256,"heartbeat_interval_secs":1,"allowed_origins":[ORIGIN]}

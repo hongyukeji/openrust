@@ -241,7 +241,7 @@ fn sources() -> Figment {
     config.api.http_status = openrust::config::HttpStatusMode::Semantic;
     Figment::from(Serialized::defaults(config)).merge(Serialized::defaults(json!({
         "app":{"env":"test"},
-        "cache":{"default_store":"default","stores":{"default":{"driver":"memory"}}},
+        "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},
         "security":{"encryption":{"active_key_id":"test","keys":{"test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}}
     })))
 }

@@ -35,7 +35,7 @@ OpenRust 基于 `tokio`、`axum`、`tower` 和 `SeaORM` 构建，采用明确的
 ```bash
 cargo run
 # 可选覆盖监听端口
-APP_PORT=4000 cargo run
+SERVER_PORT=4000 cargo run
 ```
 
 根 `default-members = ["."]`、`default-run = "server"`，默认启动唯一 server。`app/` 保留应用级装配，`modules/` 放业务模块，`bootstrap/app.rs` 装配应用，`routes/` 注册路由；`config/`、`database/`、`public/`、`resources/`、`storage/` 和 `tests/` 都在根目录。
@@ -108,7 +108,7 @@ cargo run
 
 业务 JSON API 根路径为 `/api`，所有子路由统一以 `/api/` 开头并使用 JSON API 响应封装；`/health`、`/ready` 和可选 `/metrics` 保留为运维端点。详细约定见 [HTTP 指南](src/http/README.md)。
 
-应用默认从当前工作目录的 `config/` 读取配置。`APP_PORT=4000 cargo run` 或 `PORT=4000 cargo run` 可覆盖监听端口；若两者同时设置，`APP_PORT` 优先。应用可通过 `Application::config_namespace()` 选择如 `SHOP_` 的变量前缀。框架代码位于根 openrust package，能力模块位于 `src/audit.rs`、`src/config/`、`src/core/`、`src/db/`、`src/http/`、`src/i18n.rs`、`src/mail/`、`src/sms.rs`，以及按 feature 启用的 auth、encryption、signing、queue 和 schedule。每个应用的 TOML/YAML 配置保存在其根目录的 `config/` 中；根唯一 server 同时承担综合示例与集成验收。
+应用默认从当前工作目录的 `config/` 读取配置。`SERVER_PORT=4000 cargo run` 可覆盖内部 `server.port`；`APP_PORT`、独立 `PORT` 和命名空间端口别名不再控制监听。应用可通过 `Application::config_namespace()` 选择如 `SHOP_` 的应用变量前缀，中性的 `SERVER_PORT` 不随此前缀改变。缓存按 Laravel 的 `CACHE_STORE` 读取 `cache.default`，默认选择已登记的 `redis` store；Redis 连接使用 `REDIS_*`，与队列共用 `REDIS_DB`。其他具名 store 按各自配置连接，不能因名称而假定 driver；自定义 `default` 名称仍合法。框架代码位于根 openrust package，能力模块位于 `src/audit.rs`、`src/config/`、`src/core/`、`src/db/`、`src/http/`、`src/i18n.rs`、`src/mail/`、`src/sms.rs`，以及按 feature 启用的 auth、encryption、signing、queue 和 schedule。每个应用的 TOML/YAML 配置保存在其根目录的 `config/` 中；根唯一 server 同时承担综合示例与集成验收。
 
 网站静态文件位于应用的公开目录，默认是工作目录下的 `public/`，目录中的文件按相对 URL 路径提供。生成项目默认启用 `view` feature 并用 `views/index.html` 渲染 `/`；`public/` 仍用于 CSS、图片等静态资源。`[server].public_dir` 可更换静态目录；`[server].root_target` 可设为 `view:index.html`、`file:/index.html`、`forward:/api` 或 `redirect:https://example.com/`。环境变量 `APP_SERVER_PUBLIC_DIR` 和 `APP_SERVER_ROOT_TARGET` 覆盖 TOML；`/api/*` 保留 JSON API，`/ws/*` 用于 WebSocket。视图配置与 API 示例见[视图指南](src/view/README.md)。
 应用数据加密通过可选的 `encryption` feature 启用。注册 `openrust::security::EncryptionServiceProvider`，在 `[security.encryption]` 下配置 32 字节密钥环，并使用 `openrust key generate` 生成本地密钥材料。当前密钥用于加密新值；受控轮换期间，历史密钥用于解密旧值。密钥应保存在版本控制之外。

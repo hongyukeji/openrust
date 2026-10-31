@@ -20,6 +20,8 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 
 执行节奏：先完成本簇代码及配套测试代码，ready_for_verify后由总控安排提交前集中验证；分支限定门禁、main完整组合验收，未通过不提交。不得继续按每个方法/小改动重复跑测试或Clippy；当前在途命令自然结束，已有有效证据按实际影响复用，规则见[集中验证](conventions.md#功能簇提交前集中验证)。
 
+持续提速约束：每次worker交接、门禁结束或阻塞变化时，总控按e25ec75核对关键路径、下一独立簇是否实际编码、重复审查/构建和逐阶段停派、资源归属及释放条件；发现可避免等待立即调整，用现有日志记录前后事实，并向架构协调会话发送一次含瓶颈、调整、下一动作/owner及证据位置的简短事件回执。无变化不发、不高频轮询，不新建计划/Goal/守护；默认20%额度保留及真实授权边界不变。
+
 | 功能簇 | 状态 | 交付与验收 |
 | --- | --- | --- |
 | R1-S 根结构与普通模块挂载 | 已完成结构子交付34dfb5e | 根Laravel职责、同package lib/server、资源内聚、模块公开挂载；按范围实际门禁与独立审查通过后可限定提交，仅结构子交付 |
@@ -440,14 +442,37 @@ H新增实际取证：`/tmp/openrust-c04d10h-matcher/probe.output.jsonl`35案真
 - 50GB软/100GB硬与磁盘10%/5%保持。保留活跃main缓存，不删无完整归属的root-site/m5-final历史target。一次性生成包须有同名全范围归属/dry-run/保护项证据；不凭Cargo忽略的path/version限定冒称隔离。
 - 完整Config继续开放：平层TOML顺序不等于Laravel递归配置发现或文件名/目录namespace映射，PHP对象/Closure/资源等表示差异亦未关闭；不重建客户端、不以此替代ADR-080动态Settings或完整signed。
 
-## R2-ENV 端口与缓存环境命名统一（用户已授权，R2-R02提交后立即实施）
+## R2-ENV 端口与缓存环境命名统一（限定验收通过，提交见Git）
 
 - 最新contract覆盖旧端口决定：唯一中性环境入口为`SERVER_PORT`，内部保留`server.port`/`config.server.port`；删除`APP_PORT`及独立`PORT`监听兼容，通用或命名空间fallback也不得暗中映射旧变量。`.env.example`使用`SERVER_PORT=3000`与`APP_URL="http://localhost:${SERVER_PORT}"`；自定义APP命名空间不得改变中性SERVER_PORT领域键。
-- 用户最新纠正以Laravel官方机制/命名为准：`CACHE_STORE`→`cache.default`，撤回先前`CACHE_DEFAULT_STORE`→`cache.default_store`自定义方案；内部配置字段/序列化/读取同样收敛到default，不只对外改名。删除REDIS_DEFAULT_STORE且不新增CACHE_DEFAULT_STORE兼容，旧/撤回键不得借fallback改变选择。缓存代码尚未开始调整，R02冻结输入保持。
+- 用户最新纠正以Laravel官方机制/命名为准：`CACHE_STORE`→`cache.default`，撤回先前`CACHE_DEFAULT_STORE`→`cache.default_store`自定义方案；内部配置字段/序列化/读取同样收敛到default，不只对外改名。删除REDIS_DEFAULT_STORE且不新增CACHE_DEFAULT_STORE兼容，旧/撤回键不得借fallback改变选择。该contract已落实本簇代码，R02已提交；当前ENV冻结输入待集中验收。
 - REDIS_HOST/PORT/PASSWORD/DB只承载连接配置，共用REDIS_DB，不新增REDIS_CACHE_DB。框架默认具名store仍为redis、driver=redis；合法业务自定义store名（包括default）与其他driver继续可用，cache.default须准确引用已登记store；不得机械替换所有default或扩展到DB_*等其他既定键。
-- 顺序：R02冻结源码不动，完成其实际验收/本地提交后立即领取本簇，再推进signed。callers负责ConfigLoader全来源/别名/命名空间、程序配置默认及对应正负例；services负责CLI/生成模板/快照/consumer/唯一模块与运行示例；root串行维护当前文档/ADR、共享清单/索引/提交及独审。当前只读Spec入口`/tmp/openrust-environment-naming-contract-audit.md`，旧port审计保留，不是已实现。
+- 基线R02 `a875dd7`/契约 `af0f62b`；core和services完成全来源/CLI/模板/consumer/唯一模块及fixture迁移，root限定集成文档/ADR/独立锁文件。两项CLI来源独审缺陷已修，真实源码/模板而非旧命名套壳；当前规则以本段和ADR-016顶部为准。
+- 最终验收`/tmp/openrust-env-verification/FINAL-RESULT.json` SHA `fa7e0dd925c99504cc50143542483fecaf0124e10e3b15ad5b104655ae4c21d7`，root复核`ROOT-FINAL-VERIFY.json`：566输入、21主日志、10回执、plain7命令/43最终输入与MySQL4命令/44输入均核SHA，5 PID不存在且6端口无监听。默认workspace858通过/34忽略，全feature默认并发1647通过/108忽略；CLI22/config73/cache20/lifecycle8及适用strict Clippy/docs/MSRV/no-default/deny/consumer通过，忽略不当实服务。
+- fresh普通7+fixture1、MySQLauth2与同实例测试库前后一致、root/生成TCP读写通过；额外真实HTTP证明SERVER_PORT监听且冲突APP_PORT/PORT未监听、APP_URL由dotenv插值、默认redis/改选memory各真实读写；公开ConfigLoader/Provider探针证明缓存与queue共同REDIS_DB且真实Redis cache/dispatch/run_next。旧编译/读取器/隔离失败保留，最终不放宽原断言。
+- 仅清自有一次性生成/probe包产物，未知root-site/M5 target和活跃缓存保留。已登记target约41.666GB、磁盘余99.316GB（9.985%软告警、5%硬线通过），不把已登记小计冒称未登记缓存全量。consumer锁只离线对齐当前root依赖图，未升级既有包；非host metadata缺WASM缓存不代表host失败。
+
 - 验收覆盖旧端口/缓存键及撤回的CACHE_DEFAULT_STORE不生效、官方CACHE_STORE和SERVER_PORT新规则及自定义命名空间、dotenv URL插值、具名store/自定义driver选择与缺失引用、生成check/test、真实启动端口/URL和Redis缓存，提交前集中执行适用完整门禁。按Spec→Implement→Verify→本地Commit，不推送。
 - 不热改已启动listener、不改真实.env密钥。当前仅存在性核查真实.env不存在；实施时若出现旧端口键，仅安全精确迁移并保护其他内容。普通局部变量不机械替换，历史验收证据原样保留。
+
+## C04-SIGN URL签名完整家族（in_progress，待集中行为验收）
+
+- 前置已提交R2-R02的同仓储get_many/set与现RouteUrlGenerator，稳定基线`af0f62b`；不依赖ENV尚未提交的新API，不改main冻结输入。signed/temporary、absolute/relative、rawquery/ignore/expiry、Request/middleware/Redirector及唯一模块/生成/测试作为同一有意义API家族闭环，不按少数方法反复完整矩阵。
+- 同一OpenRust项目`prj_34a40ee7b674b2b6`，workspace`wks_8f9a9c95fbd31026`标题tasks/signed-url-family；branch`tasks/signed-url-family`；真实worktree`/Users/Home/.paseo/worktrees/02joa2lr/openrust-signed-url-family`，Git common-dir已核同仓。没有另起项目。
+- 正式执行者`6eae4f81-893b-4f7c-8f76-ce7cf531d16f`（Codex gpt-6-sol/medium，ParentAgentId为原总控），已回报Spec写入`/tmp/openrust-signed-url-family-spec.md`并开始Implement；唯一负责该worktree的Rust/调用方/模块/模板及非golden测试，不递归派发、不新Goal/guard、不自动合入main。
+- callers复用为非重叠上游oracle/golden执行者：只写该worktree新增`tests/fixtures/laravel_signed_url.json`及`/tmp/openrust-signed-upstream-oracle/`，实际编写并执行固定Laravel/PHP导出器；不写main/其他Rust文件。已完成27例固定Laravel/PHP8.5实跑及重复字节一致性，交接`/tmp/openrust-signed-upstream-oracle/HANDOFF.md`；golden SHA `bc77dc16619ed6c4cfd77834f006cfdb37207607a5ab1563c3731a245dd0a684`，已通知signed owner消费，非Rust或真实服务验收。
+- Crypto依赖提案及只读审计`/tmp/openrust-signed-dependency-audit.md`已收；root已仅在signed worktree更新manifest/stack：sha2_11别名、hmac/subtle基础依赖及auth/auth-mfa feature引用，MFA算法不改；root已在隔离worktree执行`cargo metadata --offline --format-version 1`成功（0.52s），锁净差异仅openrust根包增加sha2 0.11.1依赖引用一行；无下载/编译/新target，类型/测试门禁仍未执行。main冻结manifest/lock未改。当前不建target、不Cargo/真实服务；资源合计50GB软/100GB硬、磁盘10%/5%，默认额度20%保留不变。root可用正式`paseo stop 6eae4f81-893b-4f7c-8f76-ce7cf531d16f --json`精确停止自有执行者，用户/预算暂停优先，不假定独立会话自动停。
+- 实际交接：owner已提交代码ready清单`/tmp/openrust-signed-url-family-ready-for-verify.md`（未类型/真实服务/commit）；terra整簇审查`/tmp/openrust-signed-independent-review.md`发现应用级except未接全部默认别名、27例oracle仅消费5例生成的安全回归缺口。原owner已一次批修应用级except、27例golden验签/expiry/rawkey、handler计数、空key和Vapor扩展/OriginalUri接线，重新ready_for_verify；terra差异复审已派发。真实Vapor/代理部署及PHP复杂参数表示尚未实测，未等价项保持开放，不将静态ready当完整1:1验收。main ENV验收不受影响。
+- 构建短窗口：ENV consumer/默认并发all完成后services已释放main target，root正式派signed owner单次`CARGO_TARGET_DIR=/Users/Home/Codes/Rust/openrust/target cargo check --locked --offline --lib --no-default-features`；仅复用暖缓存、不新target，首轮exit101/15.629s缺KeyInit导入，原owner补单import后，services直接代跑同命令exit0/6.50s，日志`/tmp/openrust-signed-type-check-retry.log`；仅类型通过，契约/生成/真实服务未验收。target已立即归ENV，减少重复窗口转派。
+- 调度：ENV主线集中Verify时本任务继续Implement；重构建/服务按真实资源错峰，不把Cargo排队变成全员停码。高风险不同模型独审、分支验证及main实际组合验收按已授权范围串行；未经最终集成门槛不把branch通过当main通过，不推送/发布/tag。交付后确认提交在main/无WIP或占用，再正常归档workspace及删除自有分支/worktree，不force清理。
+
+## R2-R03 配置递归发现与文件命名空间（in_progress，独审后批修）
+
+- 前置为已提交R02有序来源；核实不依赖ENV新增公共API后，从已提交e25ec75建立隔离任务，不复制main WIP、不覆盖config/mod.rs冻结输入。ENV命名与同文件冲突在main串行集成时保留最新contract。候选取证`/tmp/openrust-config-discovery-next-spec.md`，固定Laravel LoadConfiguration及对应测试为依据，不将递归扫描等同完整Config。
+- 总控已定无兼容双格式：根/生成应用的领域TOML一次迁移为文件内相对内容，按目录/文件名构成配置命名空间，避免server.server；统一现ConfigSources/仓储/Provider入口，同步CLI、consumer及适用模块资源。模块独立overlay按laravel-modules契约核对，不全仓机械包表。
+- callers已完成`/tmp/openrust-config-discovery-oracle/`固定PHP/Finder探针并修正链接推论：文件链接会遍历，扩展按入口、basename按realpath，目录链接不递归；自然序、碰撞、本机顺序及base浅合并/指定mergeableOptions均有实证。root已发统一contract，不用新配置系统或猜双格式。
+- 实际owner `8b64acae-1c91-4b51-b74b-db4dcc278023`（codex/gpt-6-sol medium），同OpenRust项目workspace`wks_844aa6c8c9ac2f31`，title tasks/config-discovery-family；branch`tasks/config-discovery-family`，cwd`/Users/Home/.paseo/worktrees/02joa2lr/openrust-config-discovery-family`，base`e25ec7589c7662245f9d6cc4390b1fd06a920f1e`，common-dir已核同仓。正式run返回running，派发回执`/tmp/openrust-config-discovery-dispatch.json`，Spec要求`/tmp/openrust-config-discovery-implementation-spec.md`；owner现已回报并由root实查实际diff：配置来源/根TOML、CLI/快照、consumer、唯一模块嵌套配置路由及README共30文件约401增/116删，owner现已交ready_for_verify清单`/tmp/openrust-config-discovery-ready-receipt.json`（31文件、SHA `9fc83c72839b59b9d9e392ee1d0e3324df6ac8c9b38691e7e5b2b1a2a271c0c8`），未Cargo/commit；terra整簇独审已派，报告`/tmp/openrust-config-discovery-independent-review.md`，不能当已验收。
+- 文件范围为配置来源/根领域TOML/CLI及受影响fixture、consumer与唯一模块；清单锁、迁移、共享Agentdocs和main索引root独占。当前只编码/静态检查，不建target、不Cargo或服务；真实测试资源另派，50/100GB及磁盘软硬线/默认20%额度保留不变。不递归、不新Goal/guard。root以`paseo stop 8b64acae-1c91-4b51-b74b-db4dcc278023 --json`精确停自有worker，后续不同模型审查/main组合验收与安全退役保持。
 
 ## 发布前全后端兼容性验收
 

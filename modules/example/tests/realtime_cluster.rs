@@ -41,7 +41,7 @@ fn sources(database: &str, redis: &str, namespace: &str) -> Figment {
     Figment::from(Serialized::defaults(config)).merge(Serialized::defaults(serde_json::json!({
         "app":{"name":"example-cluster","env":"test"},
         "database":{"url":database},
-        "cache":{"default_store":"default","stores":{"default":{"driver":"memory"}}},
+        "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},
         "auth":{"jwt":{"issuer":"http://example.test","audience":"realtime-cluster","active_key_id":"test","keys":{"test":key}}},
         "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":"http://example.test","active_key_id":"test","keys":{"test":key}}},
         "realtime":{"namespace":namespace,"redis_url":redis,"max_connections":1,"allowed_origins":[ORIGIN],"heartbeat_interval_secs":1}

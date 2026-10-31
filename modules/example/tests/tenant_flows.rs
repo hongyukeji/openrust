@@ -87,7 +87,7 @@ impl Fixture {
         framework.api.http_status = openrust::config::HttpStatusMode::Semantic;
         let mut configuration = serde_json::json!({
             "app":{"env":"test"},"database":{"url":database.url()},
-            "cache":{"default_store":"default","stores":{"default":store}},
+            "cache":{"default":"default","stores":{"default":store}},
             "auth":{"jwt":{"issuer":"http://example.test","audience":"tenant-example","active_key_id":"test","keys":{"test":key}}},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":"http://example.test","active_key_id":"test","keys":{"test":key}}}
         });

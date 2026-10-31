@@ -45,7 +45,7 @@ fn sources() -> Figment {
     Figment::from(Serialized::defaults(openrust::config::FrameworkConfig::default()))
         .merge(Serialized::defaults(json!({
             "app":{"env":"test","url":"http://localhost"},
-            "cache":{"default_store":"default","stores":{"default":{"driver":"memory"}}},
+            "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},
             "view":{"directory":std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("modules/example/resources/views"),"auto_reload":false},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}}
         })))

@@ -370,15 +370,17 @@ mod tests {
         let _environment_guard = crate::lock_test_env();
         figment::Jail::expect_with(|jail| {
             jail.set_env("APP_ENV", "");
+            jail.set_env("SERVER_PORT", "");
             jail.set_env("APP_PORT", "");
+            jail.set_env("PORT", "");
             jail.set_env("APP_URL", "");
             jail.clear_env();
             jail.create_file(
                 ".env",
-                "APP_ENV=test\nAPP_PORT=4999\nAPP_URL=\"http://localhost:${APP_PORT}\"\n",
+                "APP_ENV=test\nSERVER_PORT=4999\nAPP_PORT=4888\nPORT=4777\nAPP_URL=\"http://localhost:${SERVER_PORT}\"\n",
             )?;
             jail.set_env("APP_ENV", "production");
-            jail.set_env("APP_PORT", "4001");
+            jail.set_env("SERVER_PORT", "4001");
             let loader = bootstrap_config_loader("APP_")
                 .map_err(|error| figment::Error::from(error.to_string()))?;
             assert_eq!(loader.environment(), Environment::Production);
@@ -396,12 +398,12 @@ mod tests {
         let _environment_guard = crate::lock_test_env();
         figment::Jail::expect_with(|jail| {
             jail.set_env("APP_ENV", "");
-            jail.set_env("APP_PORT", "");
+            jail.set_env("SERVER_PORT", "");
             jail.set_env("APP_URL", "");
             jail.clear_env();
             jail.create_file(
                 ".env",
-                "APP_ENV=production\nAPP_PORT=4999\nAPP_URL=\"http://localhost:${APP_PORT}\"\n",
+                "APP_ENV=production\nSERVER_PORT=4999\nAPP_URL=\"http://localhost:${SERVER_PORT}\"\n",
             )?;
             let loader = bootstrap_config_loader("APP_")
                 .map_err(|error| figment::Error::from(error.to_string()))?;
@@ -411,7 +413,7 @@ mod tests {
                 .map_err(|error| figment::Error::from(error.to_string()))?;
             assert_eq!(config.app.url, "http://localhost:4999");
             assert_eq!(std::env::var("APP_ENV").as_deref(), Ok("production"));
-            assert_eq!(std::env::var("APP_PORT").as_deref(), Ok("4999"));
+            assert_eq!(std::env::var("SERVER_PORT").as_deref(), Ok("4999"));
             assert_eq!(config.server.port, 4999);
             Ok(())
         });
@@ -443,9 +445,9 @@ mod tests {
         figment::Jail::expect_with(|jail| {
             // 在 dotenvy 设置键值前记录两个键，确保 Jail 能恢复其原始值。
             jail.set_env("APP_ENV", "");
-            jail.set_env("APP_PORT", "");
+            jail.set_env("SERVER_PORT", "");
             jail.clear_env();
-            jail.create_file(".env", "APP_ENV=test\nAPP_PORT=4999\n")?;
+            jail.create_file(".env", "APP_ENV=test\nSERVER_PORT=4999\n")?;
             let loader = bootstrap_config_loader("APP_")
                 .map_err(|error| figment::Error::from(error.to_string()))?;
             assert_eq!(loader.environment(), Environment::Test);

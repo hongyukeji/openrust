@@ -8,9 +8,9 @@ Provider 装配的缓存 store 按名称异步构造并缓存；`store/default_s
 
 ```toml
 [cache]
-default_store = "default"
+default = "redis"
 
-[cache.stores.default]
+[cache.stores.redis]
 driver = "redis"
 namespace = "app"
 dsn = "redis://127.0.0.1:6379/"
@@ -28,7 +28,7 @@ loader_timeout_secs = 30
 max_in_flight_refreshes = 64
 ```
 
-启用 Redis 时，在 OpenRust 依赖中选择 `cache-redis` feature。常规配置使用 `REDIS_HOST`、`REDIS_USERNAME`、`REDIS_PASSWORD`、`REDIS_PORT` 和 `REDIS_DB` 分项变量；缓存与队列共用同一 Redis 数据库编号。需要单独 store 或连接时，在 `config/cache.toml` 或对应的 `APP_CACHE_STORES_<NAME>_DSN` 中配置。
+启用 Redis 时，在 OpenRust 依赖中选择 `cache-redis` feature。常规配置使用 `REDIS_HOST`、`REDIS_USERNAME`、`REDIS_PASSWORD`、`REDIS_PORT` 和 `REDIS_DB` 分项变量；缓存与队列共用同一 Redis 数据库编号。`CACHE_STORE` 映射到 `cache.default`，选择的名称必须在 `cache.stores` 中登记；旧 `REDIS_DEFAULT_STORE` 与 `CACHE_DEFAULT_STORE` 均不再选择 store。具名 `redis` 是框架默认，业务可登记名为 `default` 的 memory 或自定义 driver，并用 `CACHE_STORE=default` 选择。需要单独 store 或连接时，在 `config/cache.toml` 或对应的 `APP_CACHE_STORES_<NAME>_DSN` 中配置。
 
 通过 `Inject<Cache>` 或应用状态取得默认服务，`Cache::store("local")` 显式选择命名实例。`get` 返回 JSON 类型化值或 `None`，`set` 支持可选 TTL，`remove` 删除键。零 TTL、空 key 和长度超过 1024 字节的 key 会被拒绝；值编解码、驱动初始化和 I/O 失败都不会伪装成未命中。
 

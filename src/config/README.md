@@ -25,6 +25,8 @@
 
 有序入口沿现有 `php_entries` / `php_value` 规则表示规范数字键：连续 `0..n` 是列表，反序、稀疏或数字与字符串混合为有序对象，`01` 是字符串键；空根输入是空列表。Figment 要求根为字典，因此纯数字根列表在类型化投影中暂时展开为数字键字典；`ConfigRepository::all()` 保留列表形态。嵌套数组保持数组。原始值与投影值经同一来源验证，构造失败不发布半成品。固定 PHP 8.5.0 的值、键序、列表/混合/稀疏形态见 [golden fixture](../../tests/fixtures/config_runtime_set.json)；PHP 对象、Closure 和资源不属于 `serde_json::Value` 可表达范围，仍是公开差异。
 
+环境命名与配置路径遵循当前 `SERVER_PORT → server.port`、`CACHE_STORE → cache.default`。监听端口只读中性 `SERVER_PORT`；`PORT`、`APP_PORT` 及自定义应用命名空间中的端口旧键均不再控制监听。缓存缺省选择具名 `redis` store，根配置的 `[cache.stores.redis]` 使用 Redis driver；`REDIS_HOST`、`REDIS_PORT`、`REDIS_PASSWORD`、`REDIS_DB` 只决定连接，缓存和队列共用 `REDIS_DB`。`REDIS_DEFAULT_STORE` 与已撤回的 `CACHE_DEFAULT_STORE` 不选择 store。`cache.default` 必须引用已登记的 store，业务仍可显式登记并选择名为 `default` 的 memory 或其他 driver。根 `.env.example` 的 `APP_URL` 使用 `${SERVER_PORT}` 插值，进程环境仍优先。
+
 目前 `ConfigLoader` 发现根 `config/` 中的平面 `*.toml`，按文件名自然序加载；文件内表和数组保留 TOML 声明顺序，后加载的同名键覆盖原位置。DB/Redis 分项、通用别名、所选命名空间和 nullable session 环境值都从同一次进程环境捕获构造，环境新键使用稳定映射序；`.env` 仍由启动流程先加载，进程环境优先。固定 Laravel `LoadConfiguration` 会递归发现文件，并按嵌套目录点前缀加 basename 的配置键自然排序。现有 TOML 使用显式领域表，递归发现与文件名到领域的映射尚未对应；平面文件排序不代表完整 Config 加载已等价。
 
 此写入仅供可信应用代码使用，保存在当前进程内；它不写文件或数据库、不跨节点传播，也不刷新 DB、Redis、邮件等已建资源。管理员 Settings、授权、密钥和待重启策略见 [ADR-080](../../.agents/project/decisions/adr-080-runtime-configuration-scheduling.md)，不由此原始写入接口代替。

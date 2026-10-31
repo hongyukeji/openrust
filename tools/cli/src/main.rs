@@ -1252,7 +1252,7 @@ fn env_example(
 ) -> String {
     let mut contents = "# 复制为 .env 供本地或部署环境使用。不要提交填入实际值的 .env 文件。\n# 生产环境可使用权限受控的 .env 或部署平台注入的变量；进程环境变量优先。\n# 常用环境值和密钥放在这里；结构化默认值见 config/*.toml。\nAPP_ENV=development\nAPP_NAME=".to_owned();
     contents.push_str(name);
-    contents.push_str("\nAPP_PORT=3000\nAPP_URL=\"http://localhost:${APP_PORT}\"\n\n# 服务\n# APP_SERVER_HOST=127.0.0.1\n# APP_SERVER_PUBLIC_DIR=public\n# APP_SERVER_ROOT_TARGET=file:/index.html\n\n# 仅本地开发需要时取消注释；生产环境保持默认值。\n# APP_SESSION_SECURE=false\n# APP_VIEW_AUTO_RELOAD=true\n\n# 数据库\n");
+    contents.push_str("\nSERVER_PORT=3000\nAPP_URL=\"http://localhost:${SERVER_PORT}\"\n\n# 服务\n# APP_SERVER_HOST=127.0.0.1\n# APP_SERVER_PUBLIC_DIR=public\n# APP_SERVER_ROOT_TARGET=file:/index.html\n\n# 仅本地开发需要时取消注释；生产环境保持默认值。\n# APP_SESSION_SECURE=false\n# APP_VIEW_AUTO_RELOAD=true\n\n# 数据库\n");
     if grpc {
         contents.push_str(
             "\n# 仅本地开发可按需取消注释；生产环境请保持关闭。\n# APP_GRPC_ALLOW_INSECURE_SERVER=true\n",
@@ -1273,7 +1273,7 @@ fn env_example(
         );
     }
     contents.push_str(
-        "\n# 缓存：默认 store 使用 Redis。\nREDIS_HOST=127.0.0.1\nREDIS_PASSWORD=null\nREDIS_PORT=6379\nREDIS_DB=0\nREDIS_DEFAULT_STORE=default\n\n# 日志、邮件、短信与国际化\nAPP_LOG_LEVEL=info\nMAIL_DRIVER=log\nSMS_DRIVER=log\nI18N_DEFAULT_LOCALE=en\n\n# Redis 队列需启用 queue-redis feature 后再配置；与缓存共用 REDIS_* 连接信息。\n# QUEUE_DRIVER=redis\n",
+        "\n# 缓存：默认具名 redis store 使用 Redis。\nREDIS_HOST=127.0.0.1\nREDIS_PASSWORD=null\nREDIS_PORT=6379\nREDIS_DB=0\nCACHE_STORE=redis\n\n# 日志、邮件、短信与国际化\nAPP_LOG_LEVEL=info\nMAIL_DRIVER=log\nSMS_DRIVER=log\nI18N_DEFAULT_LOCALE=en\n\n# Redis 队列需启用 queue-redis feature 后再配置；与缓存共用 REDIS_* 连接信息。\n# QUEUE_DRIVER=redis\n",
     );
     if auth {
         contents.push_str(
@@ -2313,22 +2313,31 @@ fn prepare_development_redis(workspace_root: &Path, app_dir: &Path) -> anyhow::R
     let Some(cache) = document.get("cache").and_then(toml_edit::Item::as_table) else {
         return Ok(());
     };
-    let configured_store = std::env::var("REDIS_DEFAULT_STORE")
-        .ok()
-        .or_else(|| dotenv.get("REDIS_DEFAULT_STORE").cloned());
-    let store_name = configured_store
-        .as_deref()
-        .or_else(|| cache.get("default_store").and_then(toml_edit::Item::as_str))
-        .unwrap_or("default");
+    let process_store = std::env::var("CACHE_STORE").ok();
+    let store_name = selected_cache_store(
+        cache,
+        process_store.as_deref(),
+        dotenv.get("CACHE_STORE").map(String::as_str),
+    );
     let Some(store) = cache
         .get("stores")
         .and_then(toml_edit::Item::as_table)
-        .and_then(|stores| stores.get(store_name))
+        .and_then(|stores| stores.get(&store_name))
         .and_then(toml_edit::Item::as_table)
     else {
         return Ok(());
     };
-    if store.get("driver").and_then(toml_edit::Item::as_str) != Some("redis") {
+    let driver_env = format!(
+        "APP_CACHE_STORES_{}_DRIVER",
+        store_name.to_ascii_uppercase()
+    );
+    let process_driver = std::env::var(&driver_env).ok();
+    if development_redis_driver(
+        store,
+        process_driver.as_deref(),
+        dotenv.get(&driver_env).map(String::as_str),
+    ) != "redis"
+    {
         return Ok(());
     }
 
@@ -2337,7 +2346,7 @@ fn prepare_development_redis(workspace_root: &Path, app_dir: &Path) -> anyhow::R
     let process_dsn = environment_keys
         .iter()
         .find_map(|key| std::env::var(key).ok());
-    let mut process_redis = std::collections::HashMap::new();
+    let mut redis_environment = dotenv.clone();
     let redis_keys = [
         "REDIS_HOST",
         "REDIS_USERNAME",
@@ -2348,23 +2357,18 @@ fn prepare_development_redis(workspace_root: &Path, app_dir: &Path) -> anyhow::R
     ];
     for key in redis_keys {
         if let Ok(value) = std::env::var(key) {
-            process_redis.insert(key.to_owned(), value);
+            redis_environment.insert(key.to_owned(), value);
         }
     }
     let dotenv_dsn = environment_keys
         .iter()
         .find_map(|key| dotenv.get(*key).cloned());
-    let dsn = process_dsn
-        .or_else(|| redis_dsn_from_environment(&process_redis))
-        .or(dotenv_dsn)
-        .or_else(|| redis_dsn_from_environment(&dotenv))
-        .or_else(|| {
-            store
-                .get("dsn")
-                .and_then(toml_edit::Item::as_str)
-                .map(str::to_owned)
-        })
-        .unwrap_or_else(|| "redis://127.0.0.1:6379/".to_owned());
+    let dsn = development_redis_dsn(
+        &store_name,
+        store,
+        process_dsn.or(dotenv_dsn),
+        &redis_environment,
+    );
 
     let parsed =
         url::Url::parse(&dsn).context("configured Redis connection settings are invalid")?;
@@ -2422,6 +2426,50 @@ fn prepare_development_redis(workspace_root: &Path, app_dir: &Path) -> anyhow::R
         std::thread::sleep(Duration::from_millis(100));
     }
     bail!("Redis development service did not become ready within 10 seconds")
+}
+
+fn selected_cache_store(
+    cache: &toml_edit::Table,
+    process_store: Option<&str>,
+    dotenv_store: Option<&str>,
+) -> String {
+    process_store
+        .or(dotenv_store)
+        .or_else(|| cache.get("default").and_then(toml_edit::Item::as_str))
+        .unwrap_or("redis")
+        .to_owned()
+}
+
+fn development_redis_driver<'a>(
+    store: &'a toml_edit::Table,
+    process_driver: Option<&'a str>,
+    dotenv_driver: Option<&'a str>,
+) -> &'a str {
+    process_driver
+        .or(dotenv_driver)
+        .or_else(|| store.get("driver").and_then(toml_edit::Item::as_str))
+        .unwrap_or("")
+}
+
+fn development_redis_dsn(
+    store_name: &str,
+    store: &toml_edit::Table,
+    explicit_dsn: Option<String>,
+    redis_environment: &std::collections::HashMap<String, String>,
+) -> String {
+    explicit_dsn
+        .or_else(|| {
+            (store_name == "redis")
+                .then(|| redis_dsn_from_environment(redis_environment))
+                .flatten()
+        })
+        .or_else(|| {
+            store
+                .get("dsn")
+                .and_then(toml_edit::Item::as_str)
+                .map(str::to_owned)
+        })
+        .unwrap_or_else(|| "redis://127.0.0.1:6379/".to_owned())
 }
 
 fn redis_dsn_from_environment(
@@ -2702,11 +2750,99 @@ mod tests {
         fs::create_dir_all(app.join("config")).expect("create app config directory");
         fs::write(
             app.join("config/cache.toml"),
-            "[cache]\ndefault_store = 'default'\n[cache.stores.default]\ndriver = 'redis'\ndsn = 'redis://127.0.0.1:6379/'\n",
+            "[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'redis'\ndsn = 'redis://127.0.0.1:6379/'\n",
         )
         .expect("write app config");
         prepare_development_redis(&root, &app).expect("reuse existing Redis");
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn development_redis_selection_uses_cache_store_and_official_default_field() {
+        let source = "[cache]\ndefault = 'memory'\ndefault_store = 'legacy'\n[cache.stores.memory]\ndriver = 'memory'\n[cache.stores.redis]\ndriver = 'redis'\n";
+        let document = source
+            .parse::<toml_edit::DocumentMut>()
+            .expect("parse cache configuration");
+        let cache = document["cache"].as_table().expect("cache table");
+        assert_eq!(selected_cache_store(cache, None, None), "memory");
+        assert_eq!(selected_cache_store(cache, None, Some("redis")), "redis");
+        assert_eq!(
+            selected_cache_store(cache, Some("memory"), Some("redis")),
+            "memory"
+        );
+        let default = "[cache]\ndefault_store = 'legacy'\n[cache.stores.redis]\ndriver = 'redis'\n"
+            .parse::<toml_edit::DocumentMut>()
+            .expect("parse default cache configuration");
+        assert_eq!(
+            selected_cache_store(
+                default["cache"].as_table().expect("cache table"),
+                None,
+                None
+            ),
+            "redis"
+        );
+    }
+
+    #[test]
+    fn development_redis_dsn_only_applies_global_variables_to_named_redis_store() {
+        let document = "[cache.stores.default]\ndriver = 'redis'\ndsn = 'redis://remote.example.test:6380/'\n[cache.stores.local]\ndriver = 'redis'\ndsn = 'redis://127.0.0.1:6379/'\n[cache.stores.redis]\ndriver = 'redis'\ndsn = 'redis://127.0.0.1:6379/'\n"
+            .parse::<toml_edit::DocumentMut>()
+            .expect("parse named Redis stores");
+        let stores = document["cache"]["stores"]
+            .as_table()
+            .expect("stores table");
+        let default_store = stores["default"].as_table().expect("custom store");
+        let local_store = stores["local"].as_table().expect("local store");
+        let redis_store = stores["redis"].as_table().expect("named redis store");
+        assert_eq!(development_redis_driver(redis_store, None, None), "redis");
+        assert_eq!(
+            development_redis_driver(redis_store, None, Some("memory")),
+            "memory"
+        );
+        assert_eq!(
+            development_redis_driver(redis_store, Some("redis"), Some("memory")),
+            "redis"
+        );
+        let memory_document = "[store]\ndriver = 'memory'\n"
+            .parse::<toml_edit::DocumentMut>()
+            .expect("parse memory store");
+        let memory_store = memory_document["store"].as_table().expect("memory store");
+        assert_eq!(
+            development_redis_driver(memory_store, None, Some("redis")),
+            "redis"
+        );
+        let global_local =
+            std::collections::HashMap::from([("REDIS_HOST".to_owned(), "127.0.0.1".to_owned())]);
+        assert_eq!(
+            development_redis_dsn("default", default_store, None, &global_local),
+            "redis://remote.example.test:6380/"
+        );
+        assert_eq!(
+            development_redis_dsn("redis", redis_store, None, &global_local),
+            "redis://127.0.0.1:6379/0"
+        );
+
+        let global_remote = std::collections::HashMap::from([(
+            "REDIS_HOST".to_owned(),
+            "remote.example.test".to_owned(),
+        )]);
+        assert_eq!(
+            development_redis_dsn("local", local_store, None, &global_remote),
+            "redis://127.0.0.1:6379/"
+        );
+        assert_eq!(
+            development_redis_dsn("redis", redis_store, None, &global_remote),
+            "redis://remote.example.test:6379/0"
+        );
+        assert_eq!(
+            development_redis_dsn(
+                "redis",
+                redis_store,
+                Some("redis://explicit.example.test:6381/".to_owned()),
+                &global_local,
+            ),
+            "redis://explicit.example.test:6381/"
+        );
     }
 
     fn assert_module_layout(project: &Path) {
@@ -2826,10 +2962,16 @@ mod tests {
         let env_example = fs::read_to_string(project.join(".env.example"))
             .expect("read generated environment example");
         assert!(env_example.contains("APP_NAME=blog"));
-        assert!(env_example.contains("APP_PORT=3000\nAPP_URL=\"http://localhost:${APP_PORT}\""));
+        assert!(
+            env_example.contains("SERVER_PORT=3000\nAPP_URL=\"http://localhost:${SERVER_PORT}\"")
+        );
         assert!(env_example.contains("REDIS_HOST=127.0.0.1"));
+        assert!(env_example.contains("CACHE_STORE=redis"));
+        assert!(!env_example.contains("REDIS_DEFAULT_STORE"));
+        assert!(!env_example.contains("CACHE_DEFAULT_STORE"));
+        assert!(!env_example.contains("APP_PORT="));
         assert!(env_example.contains("# DB_CONNECTION=postgres"));
-        assert!(env_example.contains("APP_PORT=3000"));
+        assert!(env_example.contains("SERVER_PORT=3000"));
         assert!(env_example.contains("APP_SERVER_PUBLIC_DIR=public"));
         assert!(env_example.contains("APP_SERVER_ROOT_TARGET=file:/index.html"));
         assert!(env_example.contains("MAIL_SMTP_PASSWORD="));

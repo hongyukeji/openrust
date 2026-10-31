@@ -237,7 +237,7 @@ async fn real_tls_and_http_share_module_binding_and_one_supervised_shutdown() ->
     framework.grpc.health_drain_grace_ms = 25;
     let source=Figment::from(Serialized::defaults(framework)).merge(Serialized::defaults(serde_json::json!({
         "app":{"env":"test"},
-        "cache":{"default_store":"default","stores":{"default":{"driver":"memory"}}},
+        "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},
         "security":{"encryption":{"active_key_id":"test","keys":{"test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}}
     })));
     let closed = Arc::new(AtomicUsize::new(0));

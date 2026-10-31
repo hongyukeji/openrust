@@ -8,6 +8,18 @@
 - 已运行PG命令自然结束并完成自有资源清理；未开始的常规PG阶段不再安排，不停删共享PG服务、测试或feature。历史双库证据原样保留，以下历史记录不自动成为新发布范围通过。
 - CI常规数据库job为MySQL；手动`database_scope=release-backends`保留原PG18集成子矩阵，不代表完整发布已验收。后端专属例外按具体风险定向执行并留证；发布积压以[todo](../todo.md#发布前全后端兼容性验收)为准。
 
+## R2-ENV 环境命名（限定验收通过）
+
+输入为main的R2-ENV工作区，不以R02旧证据替代。当前CLI SHA `4c8bbbde8289ddd7d2a24128893e163af073e4daa7131447f7143509e82ae28d`、config/mod.rs SHA `e5354b2220c4d7acc8a18a468e92db7a6c56c3ebe94682e2d0a8fc587a9d366e`。
+
+- `/tmp/openrust-env-verification/logs/`：CLI全22项、配置73项、cache单元20项、lifecycle8项通过；配置重验日志为`config-lib-retry.log`，保留原71通过/2失败记录。dotenv测试未预登记SERVER_PORT导致Jail退出漏恢复，原owner只补测试隔离登记，生产解析和原期望不变。
+- CLI driver覆盖新增fixture首次编译误用Table的FromStr，修为DocumentMut后定向及CLI全组通过，原失败`cli-redis-store-targeted-final.log`保留，不用静态检查替代编译。
+- 不同模型静态审查先修正具名Redis store错误套全局连接，再补环境覆盖driver；最终窄审`/tmp/openrust-env-independent-review-final.md`读到上述最终CLI SHA，原should-fix关闭。纯静态审查不代表生成、监听或Redis已验收。
+- 默认workspace完整日志30组汇总858通过/0失败/34忽略；全feature完整日志54组汇总1647通过/0失败/108忽略，编译链接耗时3分27秒。忽略项不算真实服务通过；后续docs阶段已自然接续，无同矩阵重启。
+- 最终默认并发全feature同样1647通过/108忽略，适用strict Clippy/docs/MSRV1.97/no-default/deny及4个consumer通过。fresh plain7+fixture1、MySQLauth2及测试库集合前后一致、root/生成TCP正常退出和端口释放；生成HTTP额外两场景实证SERVER_PORT覆盖冲突旧键、APP_URL插值、默认redis和改选memory的真实读写，独立公开Provider探针真实Redis验证Cache/Queue共用DB0与dispatch/run_next。
+- 最终清单`/tmp/openrust-env-verification/FINAL-RESULT.json` SHA `fa7e0dd925c99504cc50143542483fecaf0124e10e3b15ad5b104655ae4c21d7`；root一次复核`ROOT-FINAL-VERIFY.json`校验566源、21主日志、10回执、7+4生成命令与43+44最终生成输入，5服务PID消失、6端口释放、无源码漂移。MySQL保存日志有意脱敏，raw/stored SHA分列，不将存储hash冒称原流hash。生成probe在原生成源码上独立记录3文件变更与新hash，旧生成通过不冒充修改后测试；probe另编译和真实HTTP通过。
+- 仅回收task-owned生成/probe package产物，日志与复跑源码保留；未知旧target未动，主缓存保留。已登记target41.666GB、disk余约99.316GB/9.985%，软告警未作硬停机；日常MySQL结果不关闭发布全后端矩阵。限定本地提交见Git。
+
 <a id="r2-r01-config-runtime"></a>
 
 <a id="r2-r02-config-sources"></a>

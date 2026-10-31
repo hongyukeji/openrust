@@ -62,7 +62,7 @@ use std::time::Duration;
 async fn generated_application_installs_config_reading_provider()
 -> Result<(), Box<dyn std::error::Error>> {{
     let source = Figment::from(Serialized::defaults(openrust::config::FrameworkConfig::default()))
-        .merge(Toml::string("[app]\\nname = 'generated-config-reader'\\n[cache.stores.default]\\ndriver = 'memory'\\n[view]\\ndirectory = 'resources/views'\\n"));
+        .merge(Toml::string("[app]\\nname = 'generated-config-reader'\\n[cache]\\ndefault = 'default'\\n[cache.stores.default]\\ndriver = 'memory'\\n[view]\\ndirectory = 'resources/views'\\n"));
     let root: serde_json::Value = source.extract()?;
     let mut entries = root.as_object().ok_or("生成配置根必须是对象")?.iter()
         .map(|(key, value)| (key.clone(), value.clone())).collect::<Vec<_>>();

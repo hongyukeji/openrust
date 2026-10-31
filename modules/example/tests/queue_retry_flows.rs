@@ -58,7 +58,7 @@ impl Fixture {
         let config = Figment::from(Serialized::defaults(openrust::config::FrameworkConfig::default())).merge(Serialized::defaults(serde_json::json!({
             "app":{"env":"test"}, "database":{"url":database.url()},
             "queue":{"driver":if redis_queue {"redis"} else {"database"},"redis_url":redis_url,"redis_namespace":namespace},
-            "cache":{"default_store":"default","stores":{"default":{"driver":"memory"},"example-prefix":{"driver":"redis","namespace":namespace,"dsn":redis_url}}},
+            "cache":{"default":"default","stores":{"default":{"driver":"memory"},"example-prefix":{"driver":"redis","namespace":namespace,"dsn":redis_url}}},
             "storage":{"default_disk":"local","disks":{"local":{"driver":"fs","root":storage.path()}}},
             "auth":{"jwt":{"issuer":"http://example.test","audience":"queue-retry","active_key_id":"test","keys":{"test":key}}},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":"http://example.test","active_key_id":"test","keys":{"test":key}}}

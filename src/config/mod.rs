@@ -9,7 +9,7 @@
 //! 2. `<config-dir>/*.toml` 中按文件名排序的领域配置（跳过旧环境文件名）
 //! 3. Laravel 风格的 `DB_*` / `REDIS_*` 分项连接设置
 //! 4. 本地 `.env` 与进程变量中的应用配置；默认以 `APP_` 为前缀，使用单下划线扁平键
-//!    （`APP_PORT=4000` → `server.port`；`APP_NAME` → `app.name`）
+//!    （`SERVER_PORT=4000` → `server.port`；`APP_NAME` → `app.name`）
 //!
 //! 若进程未设置环境，bootstrap 只会从 `.env` 读取 `APP_ENV` 以选择运行环境。
 //! 所有环境都可从应用工作目录的 `.env` 加载变量；已有进程变量的优先级高于 `.env` 中的值。
@@ -394,7 +394,7 @@ impl ConfigLoader {
             sources.merge(Serialized::defaults(layer.clone()), layer)?;
         }
         if let Some(dsn) = conventional_redis_dsn(&environment) {
-            let layer = serde_json::json!({ "cache": { "stores": { "default": { "dsn": dsn } } } });
+            let layer = serde_json::json!({ "cache": { "stores": { "redis": { "dsn": dsn } } } });
             sources.merge(Serialized::defaults(layer.clone()), layer)?;
         }
         #[cfg(feature = "queue")]
@@ -522,9 +522,9 @@ fn session_environment_nulls(
 
 fn common_environment_path(key: &str) -> Option<String> {
     const KEYS: &[&str] = &[
-        "PORT",
+        "SERVER_PORT",
         "DB_TABLE_PREFIX",
-        "REDIS_DEFAULT_STORE",
+        "CACHE_STORE",
         "QUEUE_DRIVER",
         "MAIL_DRIVER",
         "MAIL_SMTP_HOST",
@@ -558,9 +558,9 @@ fn common_environment_path(key: &str) -> Option<String> {
     }
     Some(
         match key {
-            "PORT" => "server.port",
+            "SERVER_PORT" => "server.port",
             "DB_TABLE_PREFIX" => "database.table_prefix",
-            "REDIS_DEFAULT_STORE" => "cache.default_store",
+            "CACHE_STORE" => "cache.default",
             "QUEUE_DRIVER" => "queue.driver",
             "MAIL_DRIVER" => "mail.driver",
             "MAIL_SMTP_HOST" => "mail.smtp_host",
@@ -599,7 +599,16 @@ fn namespaced_environment_path(key: &str, namespace: &str) -> Option<String> {
     let name = key.get(namespace.len()..)?;
     if name.eq_ignore_ascii_case("ENV")
         || name.eq_ignore_ascii_case("CONFIG_DIR")
-        || name.eq_ignore_ascii_case("SERVER_PORT")
+        || [
+            "SERVER_PORT",
+            "PORT",
+            "CACHE_STORE",
+            "CACHE_DEFAULT",
+            "CACHE_DEFAULT_STORE",
+            "REDIS_DEFAULT_STORE",
+        ]
+        .iter()
+        .any(|excluded| name.eq_ignore_ascii_case(excluded))
         || name.contains("__")
     {
         return None;
@@ -609,7 +618,6 @@ fn namespaced_environment_path(key: &str, namespace: &str) -> Option<String> {
 
 fn flat_environment_path(key: &str) -> String {
     match key {
-        "PORT" => "server.port".to_owned(),
         "NAME" => "app.name".to_owned(),
         "URL" => "app.url".to_owned(),
         "TIMEZONE" => "app.timezone".to_owned(),
@@ -1292,43 +1300,51 @@ mod tests {
     }
 
     #[test]
-    fn application_namespace_values_map_to_sections_and_override_defaults() {
+    fn neutral_server_port_overrides_files_without_legacy_aliases() {
         let _environment_guard = crate::lock_test_env();
         figment::Jail::expect_with(|jail| {
+            jail.clear_env();
+            jail.create_dir("config")?;
+            jail.create_file("config/server.toml", "[server]\nport = 3900")?;
+            let loader = ConfigLoader::new("config", Environment::Test);
             jail.set_env("PORT", "4100");
-            jail.create_dir("empty-config")?;
-            let loader = ConfigLoader::new("empty-config", Environment::Test);
-            assert_eq!(
-                loader
-                    .load_framework()
-                    .map_err(|error| figment::Error::from(error.to_string()))?
-                    .server
-                    .port,
-                4100
-            );
-
-            jail.set_env("APP_SERVER_PORT", "4999");
-            assert_eq!(
-                loader
-                    .load_framework()
-                    .map_err(|error| figment::Error::from(error.to_string()))?
-                    .server
-                    .port,
-                4100
-            );
-
-            jail.set_env("APP_DATABASE_URL", "postgres://custom/database");
             jail.set_env("APP_PORT", "4200");
+            jail.set_env("APP_SERVER_PORT", "4300");
+            assert_eq!(
+                loader
+                    .load_framework()
+                    .map_err(|error| figment::Error::from(error.to_string()))?
+                    .server
+                    .port,
+                3900
+            );
+            jail.set_env("SERVER_PORT", "4400");
+            assert_eq!(
+                loader
+                    .load_framework()
+                    .map_err(|error| figment::Error::from(error.to_string()))?
+                    .server
+                    .port,
+                4400
+            );
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn application_namespace_values_map_to_sections() {
+        let _environment_guard = crate::lock_test_env();
+        figment::Jail::expect_with(|jail| {
+            jail.clear_env();
+            jail.create_dir("empty-config")?;
+            jail.set_env("APP_DATABASE_URL", "postgres://custom/database");
             jail.set_env("APP_LOG_LEVEL", "debug");
             jail.set_env("APP_TIMEZONE", "Asia/Shanghai");
-            assert_eq!(
-                loader
-                    .load_framework()
-                    .map_err(|error| figment::Error::from(error.to_string()))?
-                    .app
-                    .timezone,
-                "Asia/Shanghai"
-            );
+            let loader = ConfigLoader::new("empty-config", Environment::Test);
+            let config = loader
+                .load_framework()
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            assert_eq!(config.app.timezone, "Asia/Shanghai");
             let database: serde_json::Value = loader
                 .figment()
                 .map_err(|error| figment::Error::from(error.to_string()))?
@@ -1339,14 +1355,48 @@ mod tests {
                 .map_err(|error| figment::Error::from(error.to_string()))?
                 .extract_inner("log")?;
             assert_eq!(log["level"], "debug");
-            assert_eq!(
-                loader
-                    .load_framework()
-                    .map_err(|error| figment::Error::from(error.to_string()))?
-                    .server
-                    .port,
-                4200
-            );
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn cache_store_uses_official_key_and_ignores_withdrawn_aliases() {
+        let _environment_guard = crate::lock_test_env();
+        figment::Jail::expect_with(|jail| {
+            jail.clear_env();
+            jail.create_dir("config")?;
+            jail.create_file(
+                "config/cache.toml",
+                "[cache]\ndefault = 'redis'\n[cache.stores.redis]\ndriver = 'redis'\n[cache.stores.default]\ndriver = 'memory'\n",
+            )?;
+            jail.set_env("REDIS_DEFAULT_STORE", "default");
+            jail.set_env("CACHE_DEFAULT_STORE", "default");
+            jail.set_env("APP_CACHE_DEFAULT_STORE", "default");
+            jail.set_env("APP_CACHE_DEFAULT", "default");
+            jail.set_env("APP_CACHE_STORE", "default");
+            let loader = ConfigLoader::new("config", Environment::Test);
+            let initial: CacheConfig = loader
+                .figment()
+                .map_err(|error| figment::Error::from(error.to_string()))?
+                .extract_inner("cache")?;
+            assert_eq!(initial.default, "redis");
+            assert_eq!(initial.stores["redis"].driver, "redis");
+            jail.set_env("CACHE_STORE", "default");
+            let selected: CacheConfig = loader
+                .figment()
+                .map_err(|error| figment::Error::from(error.to_string()))?
+                .extract_inner("cache")?;
+            assert_eq!(selected.default, "default");
+            assert_eq!(selected.stores["default"].driver, "memory");
+            jail.set_env("SHOP_CACHE_STORE", "redis");
+            jail.set_env("SHOP_CACHE_DEFAULT_STORE", "redis");
+            let namespaced: CacheConfig = ConfigLoader::new("config", Environment::Test)
+                .with_namespace("SHOP_")
+                .map_err(|error| figment::Error::from(error.to_string()))?
+                .figment()
+                .map_err(|error| figment::Error::from(error.to_string()))?
+                .extract_inner("cache")?;
+            assert_eq!(namespaced.default, "default");
             Ok(())
         });
     }
@@ -1365,8 +1415,9 @@ mod tests {
             jail.set_env("REDIS_PASSWORD", "redis:secret");
             jail.set_env("REDIS_PORT", "6380");
             jail.set_env("REDIS_DB", "4");
+            jail.set_env("REDIS_CACHE_DB", "9");
             jail.set_env("DB_TABLE_PREFIX", "shop_");
-            jail.set_env("REDIS_DEFAULT_STORE", "shared");
+            jail.set_env("CACHE_STORE", "redis");
             jail.set_env("MAIL_DRIVER", "smtp");
             jail.set_env("MAIL_SMTP_HOST", "mail.example.test");
             jail.set_env("SMS_DRIVER", "log");
@@ -1393,17 +1444,14 @@ mod tests {
                 .figment()
                 .map_err(|error| figment::Error::from(error.to_string()))?
                 .extract_inner("cache")?;
-            let redis_url = url::Url::parse(
-                cache["stores"]["default"]["dsn"]
-                    .as_str()
-                    .unwrap_or_default(),
-            )
-            .map_err(|error| figment::Error::from(error.to_string()))?;
+            let redis_url =
+                url::Url::parse(cache["stores"]["redis"]["dsn"].as_str().unwrap_or_default())
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
             assert_eq!(redis_url.host_str(), Some("cache.example.test"));
             assert_eq!(redis_url.port(), Some(6380));
             assert_eq!(redis_url.path(), "/4");
             assert_eq!(redis_url.password(), Some("redis%3Asecret"));
-            assert_eq!(cache["default_store"], "shared");
+            assert_eq!(cache["default"], "redis");
             let mail: serde_json::Value = loader
                 .figment()
                 .map_err(|error| figment::Error::from(error.to_string()))?
@@ -1462,6 +1510,8 @@ mod tests {
         figment::Jail::expect_with(|jail| {
             jail.set_env("APP_PORT", "4001");
             jail.set_env("SHOP_PORT", "4002");
+            jail.set_env("SERVER_PORT", "4003");
+            jail.set_env("SHOP_SERVER_PORT", "4004");
             jail.set_env("SHOP_ENV", "test");
             jail.set_env("SHOP_CONFIG_DIR", "shop-config");
             jail.create_dir("shop-config")?;
@@ -1473,7 +1523,7 @@ mod tests {
                 .load_framework()
                 .map_err(|error| figment::Error::from(error.to_string()))?;
             assert_eq!(loader.config_dir(), Path::new("shop-config"));
-            assert_eq!(config.server.port, 4002);
+            assert_eq!(config.server.port, 4003);
             assert_eq!(config.server.host, "0.0.0.0");
             Ok(())
         });
@@ -1486,8 +1536,12 @@ mod tests {
             jail.set_env("SHOP_ENV", "");
             jail.set_env("SHOP_PORT", "");
             jail.set_env("APP_PORT", "");
+            jail.set_env("SERVER_PORT", "");
             jail.clear_env();
-            jail.create_file(".env", "SHOP_ENV=test\nSHOP_PORT=4999\nAPP_PORT=4111\n")?;
+            jail.create_file(
+                ".env",
+                "SHOP_ENV=test\nSERVER_PORT=4999\nSHOP_PORT=4111\nAPP_PORT=4222\n",
+            )?;
             let env = dotenv_environment("SHOP_")
                 .map_err(|error| figment::Error::from(error.to_string()))?;
             assert_eq!(env, Environment::Test);

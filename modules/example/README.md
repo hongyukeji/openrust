@@ -179,7 +179,7 @@ curl --noproxy '*' http://127.0.0.1:3000/health
 
 ## 其它公开能力的业务入口
 
-- **默认 Redis 的 tag/SWR**：`GET /api/example/articles/{id}/cached-title/swr` 在主库 owner 授权后使用 `Cache::default_store`、tag 和 `get_stale_while_revalidate`；新鲜期 30 秒、陈旧期 120 秒，文章索引 job 在提交后消费并失效对应 tag。显式默认 Redis 的双库回归已覆盖该业务，不静默回退到 memory。它与 `example-prefix` named driver 是两个示例；两者都不是授权来源，队列未消费时允许旧派生值。
+- **默认 Redis 的 tag/SWR**：`GET /api/example/articles/{id}/cached-title/swr` 在主库 owner 授权后使用 `Cache::default_store`、tag 和 `get_stale_while_revalidate`；新鲜期 30 秒、陈旧期 120 秒，文章索引 job 在提交后消费并失效对应 tag。具名 `redis` store 是框架缺省缓存选择，`CACHE_STORE` 映射到 `cache.default`；显式默认 Redis 的双库回归已覆盖该业务，不静默回退到 memory。它与 `example-prefix` named driver 是两个示例；两者都不是授权来源，队列未消费时允许旧派生值。
 - **本地化预览**：`GET /api/example/reading-summary` 的 [`http/controllers/localization.rs`](http/controllers/localization.rs) 通过 `RequestLocale`、模块消息的 CLDR 复数及 `I18n::format_date/format_datetime` 返回阅读摘要预览；输入为受限 count、RFC3339 at 和 `utc`/`utc+08:00` 固定偏移，不伪装为真实阅读统计或 IANA/DST 时区实现。真实 TCP 测试覆盖英中差异、复数、长日期与跨日边界。
 - **视图发布**：`GET /example/pages/about` 从当前 `RequestInfo` 调用公开的 `Views::render_for_request("example::pages/about.html", &info, ...)`。模板按请求读取默认 `errors.first("title")`、`errors.any()` 和 `other` 命名包的 `first()`/`all()`；无 Session 时为空，Session 中自定义 `DraftErrors` 恢复后仍保留业务首条消息。生产模块优先使用 `resources/views/vendor/example` 发布副本，缺失时回退模块模板；[`tests/view_flows.rs`](tests/view_flows.rs) 的既有真实 TCP 验证覆盖源模板、发布覆盖、回退、转义和错误边界。页面从当前请求共享包读取默认、命名和自定义消息，后续请求按原有 flash 规则老化。
 - **显式种子与重试**：`database/seeders` 实现公开 Seeder，由 `db seed` 或测试显式调用，boot 不写库。种子使用固定负 ID 命名空间、负数 owner ID 和碰撞 fail-closed；不在框架 `users` 表创建种子账户；重复执行保留用户后续编辑。`tests/queue_retry_flows.rs` 使用真实数据库/Redis worker 展示失败退避、恢复、终态与公开重试，不以直接调用 Job 冒充 worker。

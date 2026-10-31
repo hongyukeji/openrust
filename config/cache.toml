@@ -1,7 +1,7 @@
 [cache]
-default_store = "default"
+default = "redis"
 
-[cache.stores.default]
+[cache.stores.redis]
 driver = "redis"
 namespace = "server"
 dsn = "redis://127.0.0.1:6379/"

@@ -143,7 +143,7 @@ fn cookie_auth_source(database_url: &str, origin: &str) -> Figment {
     let key = "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=";
     Figment::from(Serialized::defaults(framework)).merge(Serialized::defaults(json!({
         "app":{"env":"test","url":origin},"database":{"url":database_url},
-        "cache":{"default_store":"default","stores":{"default":{"driver":"memory"}}},
+        "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},
         "auth":{"jwt":{"issuer":origin,"audience":"cookie-account","active_key_id":"test","keys":{"test":key}}},
         "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":origin,"active_key_id":"test","keys":{"test":key}}},
         "session":{"driver":"cookie","secure":false,"cookie":COOKIE_NAME,"same_site":"strict"}

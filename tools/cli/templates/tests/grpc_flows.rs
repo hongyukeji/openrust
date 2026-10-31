@@ -141,7 +141,7 @@ async fn generated_binary_serve_all_runs_http_and_tls_echo_then_stops() -> TestR
     )?;
     std::fs::write(
         config_dir.join("cache.toml"),
-        "[cache.stores.default]\ndriver = 'memory'\n",
+        "[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n",
     )?;
     std::fs::write(
         config_dir.join("view.toml"),

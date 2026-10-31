@@ -83,7 +83,7 @@ impl Fixture {
         let key = "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=";
         let source = Figment::from(Serialized::defaults(defaults)).merge(Serialized::defaults(serde_json::json!({
             "app":{"env":"test"}, "database":{"url":database.url()},
-            "cache":{"default_store":"default","stores":{"default":{"driver":"memory"}}},
+            "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},
             "auth":{"jwt":{"issuer":"http://example.test","audience":"transfer-tests","active_key_id":"test","keys":{"test":key}}},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":"http://example.test","active_key_id":"test","keys":{"test":key}}},
             "storage":{"default_disk":"local","disks":{"local":{"driver":"fs","root":directory.path()}}}

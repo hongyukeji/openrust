@@ -8,7 +8,7 @@
 
 - C04-D1生成模板接入公开Session契约：认证项目装配正式数据库SessionProvider，plain测试才显式追加memory；请求共享句柄、flash/now/null与opaque Cookie往返由生成的request_session/request_cookie helper验证。Session表通过AuthMigration纳入，不能再重复注册独立SessionMigration；本簇最终重验结果见[testing](../memory/testing.md)。
 
-- 应用端口使用 `APP_PORT`（自定义命名空间对应 `<前缀>PORT`），生成 `.env.example` 在 `APP_URL="http://localhost:${APP_PORT}"` 前声明 `APP_PORT=3000`；内部配置字段仍为 `server.port`。
+- 应用端口使用中性的 `SERVER_PORT`，生成 `.env.example` 在 `APP_URL="http://localhost:${SERVER_PORT}"` 前声明 `SERVER_PORT=3000`；内部字段仍为 `server.port`，自定义应用命名空间不改变该环境键。缓存选择使用 `CACHE_STORE`/`cache.default`，默认具名 redis；开发服务发现须使用所选 store 的实际连接，其他具名 Redis store 不套用全局 `REDIS_*`。R2-ENV已通过生成、真实HTTP/Redis与适用工作区门禁，限定证据见memory/testing.md；完整CLI范围仍按todo验收。
 
 - `openrust new <目标目录>` 从源码 workspace 创建独立应用，支持相对/绝对目标，不修改源 workspace；应用拥有自己的 Cargo.lock，本地 framework/tool 路径明确解析。
 - C04-C普通与认证模板均接入CookieServiceProvider和`tests/support/request_cookie.rs`，由正式Provider/Router测试读取、队列、直接响应及删除，使用opaque wire回送；加密缺失仅显式plain选择，不暗降级。普通项目fmt/check/3项测试、认证PG18/MySQL8.4项目各2项及完整CLI20项已实际通过，证据见[testing](../memory/testing.md)。

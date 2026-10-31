@@ -63,7 +63,7 @@ async fn example_record_crud_uses_namespaced_routes_and_portable_field_types() -
         .merge(Serialized::defaults(serde_json::json!({
             "app":{"env":"test"},
             "database":{"url":database.url()},
-            "cache":{"default_store":"default","stores":{"default":{"driver":"memory"}}},
+            "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},
             "auth":{"jwt":{"issuer":"http://example.test","audience":"example-record-tests","active_key_id":"test","keys":{"test":key}}},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":"http://example.test","active_key_id":"test","keys":{"test":key}}}
         })));

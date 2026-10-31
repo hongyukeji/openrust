@@ -102,7 +102,7 @@ async fn generated_auth_routes_run_over_http_with_isolated_database_and_fake_mai
     let link_key =
         base64::Engine::encode(&base64::engine::general_purpose::STANDARD, [0x24_u8; 32]);
     let config = format!(
-        "[database]\nurl = {:?}\n\n[cache]\ndefault_store = \"default\"\n\n[cache.stores.default]\ndriver = \"memory\"\n\n[server]\ntrusted_proxy_ranges = [\"127.0.0.1/32\"]\n\n[auth.jwt]\nissuer = \"http://openrust.test\"\naudience = \"generated-auth-tests\"\nactive_key_id = \"test\"\n\n[auth.jwt.keys]\ntest = {:?}\n\n[security.signed_links]\nissuer = \"http://openrust.test\"\nactive_key_id = \"test-link\"\n\n[security.signed_links.keys]\ntest-link = {:?}\n\n{{encryption_config}}\n\n[view]\ndirectory = \"resources/views\"\n\n[mail]\ndriver = \"log\"\n\n[sms]\ndriver = \"log\"\n",
+        "[database]\nurl = {:?}\n\n[cache]\ndefault = \"default\"\n\n[cache.stores.default]\ndriver = \"memory\"\n\n[server]\ntrusted_proxy_ranges = [\"127.0.0.1/32\"]\n\n[auth.jwt]\nissuer = \"http://openrust.test\"\naudience = \"generated-auth-tests\"\nactive_key_id = \"test\"\n\n[auth.jwt.keys]\ntest = {:?}\n\n[security.signed_links]\nissuer = \"http://openrust.test\"\nactive_key_id = \"test-link\"\n\n[security.signed_links.keys]\ntest-link = {:?}\n\n{{encryption_config}}\n\n[view]\ndirectory = \"resources/views\"\n\n[mail]\ndriver = \"log\"\n\n[sms]\ndriver = \"log\"\n",
         database.url(),
         key,
         link_key
@@ -483,7 +483,7 @@ async fn generated_test_app_overrides_mailer_for_registration() -> TestResult {
     let link_key =
         base64::Engine::encode(&base64::engine::general_purpose::STANDARD, [0x24_u8; 32]);
     let config = format!(
-        "[database]\nurl = {:?}\n[cache.stores.default]\ndriver = 'memory'\n[auth.jwt]\nissuer = 'http://openrust.test'\naudience = 'generated-auth-tests'\nactive_key_id = 'test'\n[auth.jwt.keys]\ntest = {:?}\n[security.signed_links]\nissuer = 'http://openrust.test'\nactive_key_id = 'test-link'\n[security.signed_links.keys]\ntest-link = {:?}\n{{encryption_config}}\n[view]\ndirectory = 'resources/views'\n",
+        "[database]\nurl = {:?}\n[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[auth.jwt]\nissuer = 'http://openrust.test'\naudience = 'generated-auth-tests'\nactive_key_id = 'test'\n[auth.jwt.keys]\ntest = {:?}\n[security.signed_links]\nissuer = 'http://openrust.test'\nactive_key_id = 'test-link'\n[security.signed_links.keys]\ntest-link = {:?}\n{{encryption_config}}\n[view]\ndirectory = 'resources/views'\n",
         database.url(),
         key,
         link_key

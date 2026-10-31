@@ -97,7 +97,7 @@ async fn module_registration_controls_only_its_business_routes()
         ))
         .merge(figment::providers::Serialized::defaults(
             serde_json::json!({
-                "cache": {"default_store": "default", "stores": {"default": {"driver": "memory"}}}
+                "cache": {"default": "default", "stores": {"default": {"driver": "memory"}}}
             }),
         ));
         let app = openrust::App::from_provider_runtime(builder.start(sources).await?)?;
@@ -164,7 +164,7 @@ fn production_sources(semantic: bool) -> figment::Figment {
     figment::Figment::from(figment::providers::Serialized::defaults(framework))
         .merge(figment::providers::Serialized::defaults(serde_json::json!({
             "app": {"env": "test"},
-            "cache": {"default_store": "default", "stores": {"default": {"driver": "memory"}}},
+            "cache": {"default": "default", "stores": {"default": {"driver": "memory"}}},
             "security": {"encryption": {"active_key_id": "test", "keys": {"test": "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}}
         })))
 }

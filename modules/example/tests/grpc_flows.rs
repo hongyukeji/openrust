@@ -14,7 +14,7 @@ async fn enabled_module_registers_real_grpc_business_service() -> TestResult {
     let source = Figment::from(Serialized::defaults(openrust::config::FrameworkConfig::default()))
         .merge(Serialized::defaults(serde_json::json!({
             "app": {"env":"test"},
-            "cache": {"default_store":"default","stores":{"default":{"driver":"memory"}}},
+            "cache": {"default":"default","stores":{"default":{"driver":"memory"}}},
             "security": {"encryption":{"active_key_id":"test","keys":{"test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}},
             "grpc": {"allow_insecure_server":true}
         })));

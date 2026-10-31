@@ -467,7 +467,7 @@ impl Cache {
     /// 返回当前配置选定的默认 store。
     pub async fn default_store(&self) -> Result<CacheStore> {
         let config = self.manager.resolver.section::<CacheConfig>("cache")?;
-        self.store(&config.default_store).await
+        self.store(&config.default).await
     }
 
     /// 按名称异步构造并缓存 store；未知名称不会回退。
@@ -938,10 +938,10 @@ impl CacheServiceProvider {
 }
 
 fn validate_cache_config(config: &CacheConfig) -> Result<()> {
-    validate_store_name(&config.default_store)?;
-    if !config.stores.contains_key(&config.default_store) {
+    validate_store_name(&config.default)?;
+    if !config.stores.contains_key(&config.default) {
         return Err(Error::Config(crate::config::ConfigError::Invalid(
-            "cache.default_store is not configured".into(),
+            "cache.default is not configured".into(),
         )));
     }
     let _ = SingleFlight::new(&config.singleflight)?;
@@ -963,7 +963,7 @@ impl crate::core::ServiceProvider for CacheServiceProvider {
             "cache",
             CacheConfig::default(),
             S::object([
-                ("default_store", S::String),
+                ("default", S::String),
                 (
                     "stores",
                     S::map(S::object([("driver", S::String), ("namespace", S::String)]).open()),
@@ -1075,7 +1075,7 @@ mod provider_tests {
             .provider(CacheServiceProvider::new().with_driver(ProbeDriver(true)));
         let runtime = builder
             .start(Figment::from(Serialized::defaults(json!({"cache": {
-                "default_store": "first",
+                "default": "first",
                 "stores": {"first": {"driver": "memory"}, "second": {"driver": "probe"}}
             }}))))
             .await?;
@@ -1158,7 +1158,7 @@ mod provider_tests {
     }
     fn sources(driver: &str) -> Figment {
         Figment::from(Serialized::defaults(
-            json!({"cache":{"default_store":"first","stores":{"first":{"driver":driver},"second":{"driver":"memory"}}}}),
+            json!({"cache":{"default":"first","stores":{"first":{"driver":driver},"second":{"driver":"memory"}}}}),
         ))
     }
     struct TrackedBackend(Arc<AtomicUsize>);
@@ -1209,7 +1209,7 @@ mod provider_tests {
             .provider(CacheServiceProvider::new().with_driver(TrackedDriver(Arc::clone(&dropped))))
             .provider(FailAfter);
         let source = Figment::from(Serialized::defaults(
-            json!({"cache":{"default_store":"first","stores":{"first":{"driver":"tracked"}}}}),
+            json!({"cache":{"default":"first","stores":{"first":{"driver":"tracked"}}}}),
         ));
         assert!(builder.start(source).await.is_err());
         assert_eq!(dropped.load(Ordering::SeqCst), 1);
@@ -1259,7 +1259,7 @@ mod provider_tests {
         let mut builder = ProviderBuilder::new();
         builder.provider(CacheServiceProvider::new().with_driver(Counted(Arc::clone(&old))));
         let source = Figment::from(Serialized::defaults(
-            json!({"cache":{"default_store":"first","stores":{"first":{"driver":"custom"},"second":{"driver":"custom"}}}}),
+            json!({"cache":{"default":"first","stores":{"first":{"driver":"custom"},"second":{"driver":"custom"}}}}),
         ));
         let runtime = builder.start(source).await?;
         let cache = runtime.container().resolve::<Cache>().await?;
@@ -1324,7 +1324,7 @@ mod provider_tests {
         assert!(
             invalid
                 .start(Figment::from(Serialized::defaults(
-                    json!({"cache":{"default_store":"absent"}})
+                    json!({"cache":{"default":"absent"}})
                 )))
                 .await
                 .is_err()
@@ -2598,21 +2598,21 @@ mod tests {
         assert!(missing.is_err());
 
         let invalid_config = figment::Figment::new().merge(Toml::string(
-            "[cache]\ndefault_store = 'primary'\n[cache.stores.primary]\ndriver = 'memory'\n[cache.singleflight]\nmax_in_flight_keys = 0\n",
+            "[cache]\ndefault = 'primary'\n[cache.stores.primary]\ndriver = 'memory'\n[cache.singleflight]\nmax_in_flight_keys = 0\n",
         ));
         let mut invalid_builder = ProviderBuilder::new();
         invalid_builder.provider(CacheServiceProvider::new());
         assert!(invalid_builder.start(invalid_config).await.is_err());
 
         let invalid_swr = figment::Figment::new().merge(Toml::string(
-            "[cache]\ndefault_store = 'primary'\n[cache.stores.primary]\ndriver = 'memory'\n[cache.swr]\nmax_in_flight_refreshes = 0\n",
+            "[cache]\ndefault = 'primary'\n[cache.stores.primary]\ndriver = 'memory'\n[cache.swr]\nmax_in_flight_refreshes = 0\n",
         ));
         let mut invalid_swr_builder = ProviderBuilder::new();
         invalid_swr_builder.provider(CacheServiceProvider::new());
         assert!(invalid_swr_builder.start(invalid_swr).await.is_err());
 
         let figment = figment::Figment::new().merge(Toml::string(
-            "[cache]\ndefault_store = 'primary'\n[cache.stores.primary]\ndriver = 'memory'\nnamespace = 'main'\n[cache.stores.secondary]\ndriver = 'memory'\nnamespace = 'other'\n",
+            "[cache]\ndefault = 'primary'\n[cache.stores.primary]\ndriver = 'memory'\nnamespace = 'main'\n[cache.stores.secondary]\ndriver = 'memory'\nnamespace = 'other'\n",
         ));
         let mut builder = ProviderBuilder::new();
         builder.provider(CacheServiceProvider::new());
@@ -2650,7 +2650,7 @@ mod tests {
         use figment::providers::{Format, Toml};
 
         let figment = figment::Figment::new().merge(Toml::string(
-            "[cache]\ndefault_store = 'primary'\n[cache.stores.primary]\ndriver = 'custom-test'\nsetting = 'parsed'\n",
+            "[cache]\ndefault = 'primary'\n[cache.stores.primary]\ndriver = 'custom-test'\nsetting = 'parsed'\n",
         ));
         let mut builder = ProviderBuilder::new();
         builder.provider(CacheServiceProvider::new().with_driver(CustomDriver));
@@ -2668,7 +2668,7 @@ mod tests {
         use figment::providers::{Format, Toml};
 
         let figment = figment::Figment::new().merge(Toml::string(
-            "[cache]\ndefault_store = 'primary'\n[cache.stores.primary]\ndriver = 'redis'\ndsn = 'redis://127.0.0.1:1/'\n",
+            "[cache]\ndefault = 'primary'\n[cache.stores.primary]\ndriver = 'redis'\ndsn = 'redis://127.0.0.1:1/'\n",
         ));
         let mut builder = ProviderBuilder::new();
         builder.provider(CacheServiceProvider::new());

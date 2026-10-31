@@ -53,7 +53,7 @@ async fn assert_extension(
     ))
     .merge(figment::providers::Serialized::defaults(
         serde_json::json!({
-            "cache": {"default_store": "default", "stores": {"default": {"driver": "memory"}}}
+            "cache": {"default": "default", "stores": {"default": {"driver": "memory"}}}
         }),
     ));
     let app = openrust::App::from_provider_runtime(builder.start(sources).await?)?;

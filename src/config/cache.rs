@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 #[serde(default)]
 pub struct CacheConfig {
     /// 未显式选择 store 时使用的名称。
-    pub default_store: String,
+    pub default: String,
     /// 按名称登记的缓存实例。
     pub stores: BTreeMap<String, CacheStoreConfig>,
     /// 同进程同键 loader 的资源限制。
@@ -21,7 +21,7 @@ pub struct CacheConfig {
 impl Default for CacheConfig {
     fn default() -> Self {
         Self {
-            default_store: "default".into(),
+            default: "redis".into(),
             stores: BTreeMap::new(),
             singleflight: CacheSingleflightConfig::default(),
             swr: CacheSwrConfig::default(),
@@ -88,5 +88,30 @@ impl std::fmt::Debug for CacheStoreConfig {
             .field("namespace", &self.namespace)
             .field("option_names", &self.options.keys().collect::<Vec<_>>())
             .finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::CacheConfig;
+
+    #[test]
+    fn default_store_selector_serializes_as_official_default_field() -> Result<(), serde_json::Error>
+    {
+        let config = CacheConfig::default();
+        assert_eq!(config.default, "redis");
+        let value = serde_json::to_value(&config)?;
+        assert_eq!(value["default"], "redis");
+        assert!(value.get("default_store").is_none());
+        let selected: CacheConfig = serde_json::from_value(serde_json::json!({
+            "default": "local", "stores": {"local": {"driver": "memory"}}
+        }))?;
+        assert_eq!(selected.default, "local");
+        assert_eq!(selected.stores["local"].driver, "memory");
+        let legacy: CacheConfig = serde_json::from_value(serde_json::json!({
+            "default_store": "legacy"
+        }))?;
+        assert_eq!(legacy.default, "redis");
+        Ok(())
     }
 }

@@ -145,7 +145,7 @@ mod tests {
         let source = Figment::from(Serialized::defaults(openrust::config::FrameworkConfig::default()))
             .merge(Serialized::defaults(serde_json::json!({
             "app": {"env": "test"},
-            "cache": {"default_store": "default", "stores": {"default": {"driver": "memory"}}},
+            "cache": {"default": "default", "stores": {"default": {"driver": "memory"}}},
             "security": {"encryption": {"active_key_id": "test", "keys": {"test": "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}}
         })));
         let runtime = builder.start(source).await?;
@@ -194,7 +194,7 @@ mod tests {
             .merge(Serialized::defaults(serde_json::json!({
                 "modules_root": deployed.path(),
                 "app": {"env": "test"},
-                "cache": {"default_store": "default", "stores": {"default": {"driver": "memory"}}},
+                "cache": {"default": "default", "stores": {"default": {"driver": "memory"}}},
                 "security": {"encryption": {"active_key_id": "test", "keys": {"test": "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}}
             })));
         let mut app = openrust::testing::TestApp::<Server>::builder(source)

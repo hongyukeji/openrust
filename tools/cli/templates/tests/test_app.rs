@@ -36,7 +36,7 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
         openrust::config::FrameworkConfig::default(),
     ))
     .merge(Toml::string(
-        "[app]\nname = 'configured-application'\n[server]\nroot_target = 'view:index.html'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
+        "[app]\nname = 'configured-application'\n[server]\nroot_target = 'view:index.html'\n[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
     ));
     let root: serde_json::Value = source.extract()?;
     let mut entries = root
@@ -123,7 +123,7 @@ async fn generated_application_exposes_request_input_to_business_provider()
         openrust::config::FrameworkConfig::default(),
     ))
     .merge(Toml::string(
-        "[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
+        "[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
     ));
     request_input::assert_request_input::<GeneratedApplication>(source).await
 }
@@ -135,7 +135,7 @@ async fn generated_application_consumes_message_bags_through_business_provider()
         openrust::config::FrameworkConfig::default(),
     ))
     .merge(Toml::string(
-        "[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
+        "[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
     ));
     message_bags::assert_message_bags::<GeneratedApplication>(source).await
 }
@@ -148,7 +148,7 @@ async fn generated_application_redirects_to_named_route_and_restores_errors()
         openrust::config::FrameworkConfig::default(),
     ))
     .merge(Toml::string(
-        "[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
+        "[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
     ));
     request_redirect::assert_request_redirect::<GeneratedApplication>(source).await
 }
@@ -159,7 +159,7 @@ async fn generated_application_exposes_cookie_contract() -> Result<(), Box<dyn s
         openrust::config::FrameworkConfig::default(),
     ))
     .merge(Toml::string(
-        "[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
+        "[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
     ));
     request_cookie::assert_request_cookie::<GeneratedApplication>(source, false).await?;
     Ok(())
@@ -172,7 +172,7 @@ async fn generated_application_exposes_session_lifecycle() -> Result<(), Box<dyn
         openrust::config::FrameworkConfig::default(),
     ))
     .merge(Toml::string(
-        "[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
+        "[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
     ));
     request_session::assert_request_session::<GeneratedApplication>(source, false).await?;
     Ok(())
@@ -185,7 +185,7 @@ async fn generated_original_host_supports_explicit_cookie_session_without_databa
         openrust::config::FrameworkConfig::default(),
     ))
     .merge(Toml::string(
-        "[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
+        "[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
     ));
     let source = source.merge(Serialized::defaults(
         serde_json::json!({"session":{"lottery":[1,1]}}),

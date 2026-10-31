@@ -26,7 +26,7 @@ async fn generated_provider_extends_original_factory_in_boot_and_http()
         openrust::config::FrameworkConfig::default(),
     ))
     .merge(Toml::string(
-        "[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
+        "[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n",
     ));
     let mut app = TestApp::<GeneratedApplication>::builder(source)
         .build()

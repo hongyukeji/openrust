@@ -40,7 +40,7 @@ fn sources(database: &str, store: Option<serde_json::Value>, storage: &std::path
     let key = "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio=";
     let source=Figment::from(Serialized::defaults(framework)).merge(Serialized::defaults(serde_json::json!({
         "app":{"env":"test"},"database":{"url":database},
-        "cache":{"default_store":"default","stores":{"default":{"driver":"memory"}}},
+        "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},
         "storage":{"default_disk":"local","disks":{"local":{"driver":"fs","root":storage}}},
         "auth":{"jwt":{"issuer":"http://example.test","audience":"cache-tests","active_key_id":"test","keys":{"test":key}}},
         "security":{"encryption":{"active_key_id":"test","keys":{"test":key}},"signed_links":{"issuer":"http://example.test","active_key_id":"test","keys":{"test":key}}}
@@ -160,7 +160,7 @@ async fn default_named_projection_preserves_default_and_authorizes_before_cache_
         .app
         .app()?
         .section::<openrust::config::CacheConfig>("cache")?;
-    assert_eq!(config.default_store, "default");
+    assert_eq!(config.default, "default");
     assert_eq!(
         cache.store(ARTICLE_STORE).await?.scope(),
         CacheScope::Process
@@ -277,18 +277,24 @@ async fn explicit_redis_default_runs_business_swr_without_memory_fallback() -> T
             output
         })
     );
-    let source =
-        sources(fixture.database.url(), None, fixture.storage.path()).merge(Serialized::defaults(
-            serde_json::json!({"cache":{"default_store":"default","stores":{
-                "default":{"driver":"redis","namespace":namespace,"dsn":redis_url}
-            }}}),
-        ));
+    let source = sources(fixture.database.url(), None, fixture.storage.path()).merge(
+        Serialized::defaults(serde_json::json!({"cache":{"default":"redis","stores":{
+            "redis":{"driver":"redis","namespace":namespace,"dsn":redis_url}
+        }}})),
+    );
     let mut app = TestApp::<crate::bootstrap::Server>::builder(source)
         .build()
         .await?;
     let cache = app.app()?.state().resolve::<Cache>().await?;
+    assert_eq!(
+        app.app()?
+            .section::<openrust::config::CacheConfig>("cache")?
+            .default,
+        "redis"
+    );
     let store = cache.default_store().await?;
     assert_eq!(store.scope(), CacheScope::Shared);
+    assert_eq!(cache.store("default").await?.scope(), CacheScope::Process);
     let key = cache_key(1, fixture.id);
     let tag = article_tag(1, fixture.id);
     let tagged = store.tagged(&[&tag])?;
@@ -557,7 +563,7 @@ async fn unavailable_explicit_default_redis_does_not_become_example_memory_store
         return Ok(());
     };
     let source=sources(fixture.database.url(),Some(serde_json::json!({"driver":"redis","namespace":"example-closed-redis","dsn":"redis://127.0.0.1:1/"})),fixture.storage.path())
-        .merge(Serialized::defaults(serde_json::json!({"cache":{"default_store":"example-prefix"}})));
+        .merge(Serialized::defaults(serde_json::json!({"cache":{"default":"example-prefix"}})));
     let result = tokio::time::timeout(
         Duration::from_secs(15),
         TestApp::<crate::bootstrap::Server>::builder(source).build(),

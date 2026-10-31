@@ -50,7 +50,7 @@ async fn owner_sse_receives_only_authorized_article_announcement() -> TestResult
     let source = Figment::from(Serialized::defaults(framework)).merge(Serialized::defaults(
         serde_json::json!({
             "app":{"env":"test"}, "database":{"url":database.url()},
-            "cache":{"default_store":"default","stores":{"default":{"driver":"memory"}}},
+            "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},
             "auth":{"jwt":{"issuer":"http://example.test","audience":"realtime-tests","active_key_id":"test","keys":{"test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}},"signed_links":{"issuer":"http://example.test","active_key_id":"test","keys":{"test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}},
             "realtime":{"allowed_origins":["https://example.test"]}

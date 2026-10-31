@@ -92,7 +92,7 @@ impl PrefixBackend {
 #[tokio::main]
 async fn main() -> Result<()> {
     let config = figment::Figment::new().merge(figment::providers::Toml::string(
-        "[cache]\ndefault_store = 'default'\n[cache.stores.default]\ndriver = 'example-prefix'\nkey_prefix = 'example'\n",
+        "[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'example-prefix'\nkey_prefix = 'example'\n",
     ));
     let mut builder = ProviderBuilder::new();
     builder.provider(CacheServiceProvider::new().with_driver(PrefixDriver));
