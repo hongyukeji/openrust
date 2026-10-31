@@ -47,6 +47,8 @@ API评审至少证明：普通项目只配置一个连接即可使用；切换�
 
 ## 对外契约建议
 
+设计原则：择优吸收统一Trait、消息内容Enum与可选策略分离，沿现有SmsDriver/SmsContent/SmsSender演进；普通项目一个默认连接即可发送，指定连接仅增加一次选择，自定义驱动只用公开接口。SDK位于driver内部，不泄漏到业务API；不因示例代码新增平行SmsGateway、async-trait约定、全功能Tokio依赖、短信专属线程池或默认微服务。邮件仍为Notification独立渠道，不实现短信driver。路由、批量、查询和回执按真实能力选用，不把简单发送变成必配策略引擎。性能结论必须有实际环境与供应商限额证据，不按开发机器型号或代码结构承诺吞吐。
+
 1. Notification 为主要业务入口：通知声明渠道、收件人路由、短信内容和排队策略；允许不创建用户模型的按需通知。低层 SMS 仍可直接发送，返回供应商受理回执。拟采用 `to_sms`、`connection(name)` 等名称仅作 Spec 候选，不冒称 Laravel 官方 API。
 2. 沿现有 `SmsSender` 演进具名连接管理，区分连接名称（如 `transactional`）与驱动类型（如 `tencent`），同服务商可多账号。公开 driver/factory 由 Provider 注册，无需修改框架核心或维护穷尽枚举。复用框架既有 Manager 扩展惯例，不添加平行 Sms/SmsManager 内核。
 3. 最小配置为 `SMS_CONNECTION` 选默认具名连接，`SMS_DRIVER` 定义该连接供应商；领域配置保存具名连接与供应商 typed 字段，凭据用 `TENCENT_SMS_*`、`ALIYUN_SMS_*` 等扁平 env。最终映射在 Spec 一次收敛，删除旧 Twilio 专属通用字段，不加无用户的兼容层。开发 log、测试 fake；生产显式选真驱动，禁止静默 log/fake。
