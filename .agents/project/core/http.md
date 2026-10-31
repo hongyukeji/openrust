@@ -119,3 +119,12 @@ URL继续使用 `app.url` 与登记域模式，不采信请求Host；参数仍�
 `RouteAction`保留字符串与二元组形态；`get_action/on_action`将动作身份与真实handler同次登记，`Route::action`反映真实匹配元数据。组namespace影响声明规范化，Boot默认根namespace与生成器单实例setter影响查询；clone和已捕获请求的namespace独立，索引保持不可变共享。`RouteUrlGenerator::action`与named route复用域/路径/query渲染，匿名动作应用也装配生成器；`Redirector::action/action_with`先生成再构造响应，延续无Session普通跳转和原请求借用闪存链。
 
 固定PHP实际集合探针7+2案只证明集合索引边界：完整原始拼接键覆盖、声明方法顺序、域优先左侧union及前导反斜线不对称。请求分派仍有结构化(domain,path)与PHP碰撞隐藏路由的差异，见[ADR-083](../decisions/adr-083-matched-route-context.md)及[todo](../todo.md)；混合/位置/模型参数、可选段、relative及完整Controller/URLGenerator未完成。字符串动作空成员边界已修并经不同模型delta复审关闭；最终核心11项在两feature组合、router117/113、双严格Clippy及main11项通过，默认824/34ignored、全特性1611/108ignored，ignored不算真实服务。新server/CLI、fresh普通7/MySQL认证2+公开helper1及真实TCP10/15均实际通过，精确专属包清理完成；原错误fixture/lint/gRPC及生成前置失败保持原记录，范围与复用见[当前证据](../memory/testing.md#c04-d10-g-动作身份与-action-url限定子范围已验收提交见git)。不据此关闭完整L020.02。
+
+
+## C04-D10-H 最终声明集合与真实分派（限定子范围已验收，提交见Git）
+
+路由登记由同一有序声明保存真实handler、中间件及原始方法/域/路径/动作元数据，再分别派生逐method原始 `domain+uri` 分派view和完整methods序列动作view；不能用逐method幸存项重建动作索引。覆盖保留首次插入位置，域优先union发生在Host过滤前；声明内仍交Axum匹配路径，不新增自定义路径解析器。先遍历非fallback候选，再处理适用fallback，保留真实匹配元数据、内部未命中回退及业务404/405终止边界。
+
+替代方法检查按固定上游GET/HEAD/POST/PUT/PATCH/DELETE/OPTIONS/QUERY顺序，排除当前方法；TRACE/CONNECT可显式登记但不自动列为替代方法。405与合成OPTIONS的Allow分隔格式分别对应固定上游。唯一模块及生成模板以静态summary与动态草稿路由展示公开接线，底层碰撞/隐藏旧handler及中间件的边界留在契约与真实loopback测试，不在业务层重复全矩阵。
+
+核心、调用方及TCP清理修复已不同模型复审，定向/主矩阵、新构建、fresh普通7/MySQL认证2+公开consumer1、应用真实TCP11/16及精确资源收尾通过；原失败和输入复用边界见[testing](../memory/testing.md)。本节仅关闭ADR-083 H限定范围，不关闭完整Routing。

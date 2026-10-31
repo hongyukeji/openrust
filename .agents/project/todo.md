@@ -32,6 +32,8 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 
 ## 后继路由
 
+- **高价值测试精简与入口整合（已授权，待当前H验收提交后领取）**：按[测试分层与入口整合](conventions.md#测试分层与入口整合)先做HTTP/Session小范围试点，核真实编译入口、独有缺陷保护、feature与全局状态/环境隔离，再合并纯行为入口或删确证重复断言；保留安全/一致性/取消并发/真实缺陷回归及真实后端层。只读owner `d10d_example_templates` 已交 `/tmp/openrust-test-entry-pilot-audit.md`：现8个显式Session target，推荐仅将extensions15例以私有模块纳既有http_session26例（预期41例/target8→7），保留全部函数与DB/Redis/环境子进程隔离；尚未实施/计时，不预报提速。实施由单一manifest owner在安全交接点领取，同条件记录文件/用例/target及编译链接执行时间，不按数量配额删或预报倍数，不机械每层复制底层矩阵。
+
 - **宏观主线**：[两阶段框架主线](plans/laravel-rebuild.md#两阶段框架主线)；先验阶段一Laravel+modules核心基线，再做已纳入阶段二通用增强，均是框架main而非产品可选快速开发模块。R0–R16仅技术分解；现增强保留复用，不搬走核心Config/Queue/Scheduler/安全，当前B2不变，发布整理须两阶段既定范围验收。
 
 - **可选模块边界**：原V2版本阶段取消，后台/App需求转入[可选快速开发模块](plans/optional-rapid-development-modules.md#开发与使用边界)，暂不开发，待用户明确开工。R14、两个框架阶段或持续Goal“全部完成”不能自动启动；main只推进框架/唯一示例，不清理现有WIP，不为暂不开发业务模块预建分支或默认合并；已授权框架任务分支按并行规范执行。框架配置管理、Queue/Scheduler及官方扩展继续；官方工具自身界面属于对应可选包，不受业务后台冻结限制。
@@ -394,11 +396,15 @@ D7真实Route/Resolver与受管理方法声明已通过限定验收：final3完�
 - main target保留复用；旧QX五生成包、本轮plain/PG生成包及四个本簇已完成测试可执行文件已精确退役，源码/锁/索引/当前二进制及共享库哨兵未变。日志明确Cargo关联test_app/auth_flows产物；不清整target，不碰归属不足的历史缓存。
 - D9 My生成项目已验收，源码/锁/证据保留；如后继需要空间，先核精确package dry-run与占用后再回收其专属再生产物，不为纯Agent文档变化重跑矩阵。
 
-## C04-D10-H 最终声明集合与真实分派同源化（待领取，前置G限定提交）
+## C04-D10-H 最终声明集合与真实分派同源化（已验收，限定提交见Git）
 
-固定Laravel原始集合的逐method `domain+uri` view与完整methods序列view不同；G已对应动作索引，Rust实际dispatch按(domain,path)仍保留PHP碰撞后应隐藏的handler。后继先Spec统一真实声明来源，分别派生有序逐method分派与完整动作view，不建第二URL-only内核、不强求两view相等；同步真实Route元数据、Allow/OPTIONS、fallback与业务404/405终止边界。匿名无action路由亦须参与，不能仅过滤URL索引。既有PHP7+2实际探针只证明Collection，matcher/Host/path行为须真实验收。
+前置D10-G已提交 `c1f6a03`。root负责contract/共享文档/集成与提交；核心owner `d10c_core_continue`独占声明/分派/动作投影及集中验收；调用方owner `d10d_example_templates`的HTTP/模块/模板改动已停写。v7最终输入已通过双严格Clippy、核心all/no-default各7+5、HTTP7（含真实TCP6请求）、完整router124/120、模块5与CLI快照1；主矩阵11项均通过（默认838/34ignored、全特性1625/108ignored、双docs、4features、deny、两MSRV）。新server/CLI、fresh普通7/MySQL认证2+公开consumer1、应用真实TCP11/16及3专属package精确清理已通过，最终索引与主控复核见testing，限定提交见Git。独审/早期失败/用户§5续验决定及精确复用映射均见testing与 `/tmp/openrust-c04d10h-verification-v4`，不改写旧失败。
 
-窄只读证据 `/tmp/openrust-c04d10g-next-collection-dispatch-evidence.md`（SHA `f4bc6cdce33ddd93d2966ca9257971300e7137628be5a513707356dafdc3b0c3`）；Spec明确Rust约束/公开API影响/受影响调用方后实施，唯一模块、生成应用、适用门禁/MySQL与真实TCP随簇交付。不以本项关闭完整Routing。signed候选窄证据 `/tmp/openrust-c04d10g-next-signed-evidence.md` 已指出key resolver、relative渲染、raw query前置，后继另收敛，不夹入本簇；两者无硬技术依赖，先修已知分派缺口是明确排序，不假称签名算法依赖它。
+固定Laravel原始集合的逐method `domain+uri` view与完整methods序列view不同；G交付时的结构化(domain,path)分派曾保留PHP碰撞后应隐藏的handler；H现已统一真实声明来源，分别派生有序逐method分派与完整动作view，不建第二URL-only内核、不强求两view相等；同步真实Route元数据、Allow/OPTIONS、fallback与业务404/405终止边界。匿名无action路由亦须参与，不能仅过滤URL索引。既有PHP7+2实际探针只证明Collection，matcher/Host/path行为须真实验收。
+
+H新增实际取证：`/tmp/openrust-c04d10h-matcher/probe.output.jsonl`35案真实RouteCollection::match/Request/Route bind及OPTIONS响应通过，统一固定Symfony8.0参考组件，无伪Request；这是匹配与合成OPTIONS证据，不是完整Laravel业务HTTP。确认仅POST存活且无GETfallback时GET/HEAD也应405 Allow:POST，H已纠正原GET/HEAD豁免404；有GETfallback仍先处理。不同模型契约/取证早审已收，root已冻结ADR-083 H契约并启动实现，Rust定向/主门禁、生成/真实服务与资源收尾均已按限定范围通过。
+
+窄只读证据 `/tmp/openrust-c04d10g-next-collection-dispatch-evidence.md`（SHA `f4bc6cdce33ddd93d2966ca9257971300e7137628be5a513707356dafdc3b0c3`）；Spec明确Rust约束/公开API影响/受影响调用方后实施，唯一模块、生成应用、适用门禁/MySQL与真实TCP随簇交付。不以本项关闭完整Routing。signed候选窄证据 `/tmp/openrust-c04d10g-next-signed-evidence.md` 已指出key resolver、relative渲染、raw query前置；补充只读密钥审计 `/tmp/openrust-c04d10h-next-signed-key-contract-audit.md` 核实URL key使用配置原始字节，以及直接hmac0.13与sha2 0.10的digest版本不兼容，后继Spec须收敛依赖/门控，不以现JWT/AES解析器套用。均未实现/运行，后继另收敛，不夹入本簇；两者无硬技术依赖，先修已知分派缺口是明确排序，不假称签名算法依赖它。
 
 ## 发布前全后端兼容性验收
 

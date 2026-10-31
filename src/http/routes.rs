@@ -19,8 +19,26 @@ use crate::http::domain::DomainPattern;
 use crate::http::resource::{Resource, ResourceActions};
 use crate::http::routing::{self, ManagedHandler, MethodEntry, RouteMethods};
 
-type ManagedPathKey = (Option<String>, String);
 type ManagedEntries = Arc<Mutex<Vec<MethodEntry>>>;
+
+// 声明只保留一份处理器、middleware 与原始 Route 元数据；集合投影仅引用其位置。
+struct RouteDeclaration {
+    metadata: Arc<Mutex<MatchedRouteMetadata>>,
+    entries: ManagedEntries,
+}
+
+#[derive(Clone)]
+struct DispatchCandidate {
+    method: Method,
+    domain: Option<DomainPattern>,
+    router: Router<AppState>,
+    probe: Router<AppState>,
+    fallback_scope: Option<String>,
+}
+
+const OFFICIAL_METHODS: [&str; 8] = [
+    "GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "QUERY",
+];
 
 #[derive(Clone, Default)]
 pub(crate) struct MatchedRouteMetadata {
@@ -176,11 +194,7 @@ pub(crate) async fn dispatch_managed(
     let mut request = request;
     if !metadata.runtime_prefix.is_empty() && !metadata.fallback {
         let current = request.uri().clone();
-        let path = current
-            .path()
-            .strip_prefix(&metadata.runtime_prefix)
-            .unwrap_or(current.path());
-        let path = if path.is_empty() { "/" } else { path }.to_owned();
+        let path = route_runtime_path(current.path(), &metadata.runtime_prefix).to_owned();
         let query = current
             .query()
             .map(|query| format!("?{query}"))
@@ -194,6 +208,18 @@ pub(crate) async fn dispatch_managed(
         }
     }
     (entry.handler)(request, state).await
+}
+
+// 已由 Axum 验证完整路径；按前缀段数裁剪可同时保留静态与参数化组的原 nest URI 语义。
+fn route_runtime_path<'a>(path: &'a str, prefix: &str) -> &'a str {
+    let mut remaining = path;
+    for _ in prefix.split('/').filter(|segment| !segment.is_empty()) {
+        let segment = remaining.strip_prefix('/').unwrap_or(remaining);
+        remaining = segment
+            .find('/')
+            .map_or("", |position| &segment[position..]);
+    }
+    if remaining.is_empty() { "/" } else { remaining }
 }
 
 fn snapshot_metadata(
@@ -235,38 +261,8 @@ pub(crate) struct NamedRouteDefinition {
     pub(crate) domain: Option<String>,
 }
 
-struct RootEntry {
-    router: Router<AppState>,
-    paths: Vec<String>,
-    order: u64,
-}
-
-struct FallbackEntry {
-    router: Router<AppState>,
-    scope: String,
-    order: u64,
-}
-
-enum MergeEntry {
-    Root(RootEntry),
-    Domain(DomainEntry),
-    Fallback(FallbackEntry),
-}
-
-#[derive(Clone)]
-pub(crate) struct DomainEntry {
-    pub(crate) pattern: DomainPattern,
-    pub(crate) router: Router<AppState>,
-    pub(crate) fallback: Router<AppState>,
-    pub(crate) fallback_scopes: Vec<String>,
-    paths: Vec<String>,
-    order: u64,
-}
-
 pub(crate) struct RouteParts {
-    pub(crate) router: Router<AppState>,
-    fallbacks: Vec<FallbackEntry>,
-    pub(crate) domains: Vec<DomainEntry>,
+    candidates: Vec<DispatchCandidate>,
     pub(crate) names: Vec<NamedRouteDefinition>,
     pub(crate) actions: Vec<ActionRouteDefinition>,
     pub(crate) name_errors: Vec<String>,
@@ -538,7 +534,10 @@ impl RouteGroup {
 
 /// 收集应用路由；服务器启动时会将其转换为 [`axum::Router`]。
 ///
-/// 每个方法都会消费并返回 `Self`，使路由表可按从上到下的顺序阅读：
+/// 每个方法都会消费并返回 `Self`，使路由表可按从上到下的顺序阅读。
+/// 最终声明同时派生逐方法分派与完整方法动作索引；相同原始集合键覆盖时保留首次位置。
+/// 域表先于普通表合并，普通路径按声明顺序匹配，因此早声明的动态路径可以先于静态路径。
+/// 全部普通候选均未命中后才尝试适用的 fallback；业务处理器返回的 `404`/`405` 是终态。
 ///
 /// ```
 /// use openrust::http::Routes;
@@ -554,29 +553,18 @@ impl RouteGroup {
 /// ```
 #[derive(Default)]
 pub struct Routes {
-    router: Router<AppState>,
-    fallback_router: Router<AppState>,
     last_route: Option<(String, String, Option<String>)>,
     last_metadata: Option<Arc<Mutex<MatchedRouteMetadata>>>,
-    matched_metadata: Vec<Arc<Mutex<MatchedRouteMetadata>>>,
-    fallback_methods: Vec<Arc<Mutex<Vec<MethodEntry>>>>,
-    managed_paths: HashMap<ManagedPathKey, ManagedEntries>,
-    managed_order: Vec<(Option<String>, String, u64)>,
+    declarations: Vec<RouteDeclaration>,
     route_names: Vec<NamedRouteDefinition>,
     active_domain: Option<DomainPattern>,
     active_namespace: Option<String>,
-    domain_entries: Vec<DomainEntry>,
-    root_entries: Vec<RootEntry>,
-    fallback_entries: Vec<FallbackEntry>,
-    registration_order: Arc<std::sync::atomic::AtomicU64>,
-    first_route_order: Option<u64>,
     route_name_errors: Vec<String>,
     middleware_registry: Option<Arc<MiddlewareRegistry>>,
     active_middleware_name: Option<String>,
     middleware_errors: Vec<crate::core::Error>,
     route_errors: Vec<crate::core::Error>,
     fallback_registered: bool,
-    fallback_prefixes: Vec<String>,
 }
 
 impl Routes {
@@ -622,32 +610,12 @@ impl Routes {
             runtime_prefix: String::new(),
             fallback: false,
         }));
-        let key = (
-            self.active_domain
-                .as_ref()
-                .map(|domain| domain.as_str().to_owned()),
-            path.to_owned(),
-        );
-        let order = self
-            .registration_order
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        self.first_route_order.get_or_insert(order);
-        if let Some(existing) = self.managed_paths.get(&key) {
-            let (_, additional) = methods.materialize(&metadata);
-            if let (Ok(mut current), Ok(additional)) = (existing.lock(), additional.lock()) {
-                current.extend(additional.iter().cloned());
-            }
-            self.last_metadata = Some(Arc::clone(&metadata));
-            self.matched_metadata.push(metadata);
-            self.last_route = Some((path.to_owned(), String::new(), key.0));
-            return self;
-        }
         let (_, entries) = methods.materialize(&metadata);
-        self.managed_paths.insert(key.clone(), entries);
-        self.managed_order
-            .push((key.0.clone(), key.1.clone(), order));
-        self.last_metadata = Some(Arc::clone(&metadata));
-        self.matched_metadata.push(metadata);
+        self.declarations.push(RouteDeclaration {
+            metadata: Arc::clone(&metadata),
+            entries,
+        });
+        self.last_metadata = Some(metadata);
         self.last_route = Some((
             path.to_owned(),
             String::new(),
@@ -863,10 +831,6 @@ impl Routes {
 
     /// 以共享属性注册一组嵌套路由。
     #[must_use]
-    #[expect(
-        clippy::too_many_lines,
-        reason = "域、路径前缀、fallback 与 middleware 的组合顺序须在同一处核对"
-    )]
     pub fn group(mut self, group: RouteGroup, f: impl FnOnce(Routes) -> Routes) -> Self {
         let namespace = match crate::http::action::group_namespace(
             self.active_namespace.as_deref(),
@@ -878,10 +842,8 @@ impl Routes {
                 return self;
             }
         };
-        let prefix = group.prefix.clone();
-        let name_prefix = group.name_prefix.clone();
-        let domain = match group.domain.clone() {
-            Some(pattern) => match DomainPattern::parse(&pattern) {
+        let domain = match group.domain.as_deref() {
+            Some(pattern) => match DomainPattern::parse(pattern) {
                 Ok(pattern) => Some(pattern),
                 Err(error) => {
                     self.route_errors.push(error);
@@ -892,28 +854,24 @@ impl Routes {
         };
         let child = Routes {
             middleware_registry: self.middleware_registry.clone(),
-            active_domain: domain.clone(),
+            active_domain: domain,
             active_namespace: namespace,
-            registration_order: Arc::clone(&self.registration_order),
             ..Routes::new()
         };
+        let prefix = group.prefix.clone();
+        let name_prefix = group.name_prefix.clone();
         let mut inner = group.apply(f(child), self.middleware_registry.as_deref());
-        inner.managed_paths = inner
-            .managed_paths
-            .into_iter()
-            .map(|((domain, path), entries)| ((domain, join_route_path(&prefix, &path)), entries))
-            .collect();
-        for (_, path, _) in &mut inner.managed_order {
-            *path = join_route_path(&prefix, path);
-        }
-        for metadata in &inner.matched_metadata {
-            if let Ok(mut metadata) = metadata.lock() {
-                metadata.path = join_route_path(&prefix, &metadata.path);
-                metadata.runtime_prefix = format!("{prefix}{}", metadata.runtime_prefix);
-                metadata.name = metadata
-                    .name
-                    .take()
-                    .map(|name| format!("{name_prefix}{name}"));
+        for declaration in &inner.declarations {
+            match declaration.metadata.lock() {
+                Ok(mut metadata) => {
+                    metadata.path = join_route_path(&prefix, &metadata.path);
+                    metadata.runtime_prefix = format!("{prefix}{}", metadata.runtime_prefix);
+                    metadata.name = metadata
+                        .name
+                        .take()
+                        .map(|name| format!("{name_prefix}{name}"));
+                }
+                Err(_) => inner.route_errors.push(route_context_error()),
             }
         }
         for named in &mut inner.route_names {
@@ -924,307 +882,44 @@ impl Routes {
             *path = join_route_path(&prefix, path);
             *pending_name_prefix = format!("{name_prefix}{pending_name_prefix}");
         }
-        let inner_fallback_prefixes: Vec<_> = inner
-            .fallback_prefixes
-            .iter()
-            .map(|nested| fallback_scope_key(&join_route_path(&prefix, nested)))
-            .collect();
-        let invalid_fallback_scope = inner_fallback_prefixes
-            .iter()
-            .any(|scope| fallback_scope_unsupported(scope))
-            || inner.domain_entries.iter().any(|entry| {
-                entry.fallback_scopes.iter().any(|scope| {
-                    fallback_scope_unsupported(&fallback_scope_key(&join_route_path(
-                        &prefix, scope,
-                    )))
-                })
-            });
-        if invalid_fallback_scope {
-            self.route_errors.push(crate::core::Error::custom(
-                "http_fallback_scope_unsupported",
-                "fallback routes cannot use parameterized or wildcard group prefixes",
-            ));
-            return self;
-        }
-        let nested_router = mount_prefix(&prefix, inner.router);
-        let nested_fallback = mount_prefix(&prefix, inner.fallback_router);
-        if domain.is_none() {
-            if inner_fallback_prefixes
-                .iter()
-                .any(|scope| self.fallback_prefixes.contains(scope))
-            {
-                self.route_errors.push(fallback_duplicate());
-            } else {
-                self.fallback_registered |=
-                    inner_fallback_prefixes.iter().any(|scope| scope == "/");
-                self.fallback_prefixes.extend(inner_fallback_prefixes);
-                self.router = self.router.merge(nested_router);
-                self.fallback_router = self.fallback_router.merge(nested_fallback);
-                self.first_route_order = self.first_route_order.or(inner.first_route_order);
-                for mut entry in inner.root_entries.drain(..) {
-                    entry.router = mount_prefix(&prefix, entry.router);
-                    entry.paths = entry
-                        .paths
-                        .iter()
-                        .map(|path| join_route_path(&prefix, path))
-                        .collect();
-                    self.root_entries.push(entry);
-                }
-                for mut entry in inner.fallback_entries.drain(..) {
-                    entry.scope = fallback_scope_key(&join_route_path(&prefix, &entry.scope));
-                    self.fallback_entries.push(entry);
-                }
-            }
-        } else if let Some(pattern) = domain {
-            for mut entry in inner.root_entries.drain(..) {
-                entry.router = mount_prefix(&prefix, entry.router);
-                self.add_domain(DomainEntry {
-                    pattern: pattern.clone(),
-                    router: entry.router,
-                    fallback: Router::new(),
-                    fallback_scopes: Vec::new(),
-                    paths: entry
-                        .paths
-                        .iter()
-                        .map(|path| join_route_path(&prefix, path))
-                        .collect(),
-                    order: entry.order,
-                });
-            }
-            for entry in inner.fallback_entries.drain(..) {
-                self.add_domain(DomainEntry {
-                    pattern: pattern.clone(),
-                    router: Router::new(),
-                    fallback: entry.router,
-                    fallback_scopes: vec![fallback_scope_key(&join_route_path(
-                        &prefix,
-                        &entry.scope,
-                    ))],
-                    paths: Vec::new(),
-                    order: entry.order,
-                });
-            }
-            let _ = (nested_router, nested_fallback);
-        }
-        for mut entry in inner.domain_entries.drain(..) {
-            entry.router = mount_prefix(&prefix, entry.router);
-            entry.paths = entry
-                .paths
-                .iter()
-                .map(|path| join_route_path(&prefix, path))
-                .collect();
-            entry.fallback_scopes = entry
-                .fallback_scopes
-                .iter()
-                .map(|scope| fallback_scope_key(&join_route_path(&prefix, scope)))
-                .collect();
-            self.add_domain(entry);
-        }
-        self.route_names.extend(inner.route_names);
-        self.route_name_errors.extend(inner.route_name_errors);
-        self.middleware_errors.extend(inner.middleware_errors);
-        self.route_errors.extend(inner.route_errors);
-        self.last_route = inner.last_route;
-        self.last_metadata = inner.last_metadata;
-        self.matched_metadata.extend(inner.matched_metadata);
-        self.fallback_methods.extend(inner.fallback_methods);
-        for (key, entries) in inner.managed_paths {
-            if let Some(existing) = self.managed_paths.get(&key) {
-                if let (Ok(mut current), Ok(additional)) = (existing.lock(), entries.lock()) {
-                    current.extend(additional.iter().cloned());
-                }
-            } else {
-                self.managed_paths.insert(key, entries);
-            }
-        }
-        self.managed_order.extend(inner.managed_order);
+        self.append_declarations(inner);
         self
     }
 
     /// 在同一层级合并另一张路由表。
     #[must_use]
-    #[expect(
-        clippy::too_many_lines,
-        reason = "merge须保留声明顺序、域与fallback组合语义"
-    )]
     pub fn merge(mut self, mut other: Routes) -> Self {
-        if other
-            .fallback_prefixes
-            .iter()
-            .any(|prefix| self.fallback_prefixes.contains(prefix))
-        {
-            self.route_errors.push(crate::core::Error::custom(
-                "http_fallback_duplicate",
-                "only one fallback route can be registered for the same route scope",
-            ));
-        } else if self.active_domain.is_none() {
-            self.fallback_registered |= other.fallback_registered;
-            self.fallback_prefixes
-                .extend(other.fallback_prefixes.clone());
-            self.router = self.router.merge(other.router.clone());
-            self.fallback_router = self.fallback_router.merge(other.fallback_router.clone());
-        }
-        let mut entries: Vec<_> = other
-            .root_entries
-            .drain(..)
-            .map(|entry| (entry.order, MergeEntry::Root(entry)))
-            .chain(
-                other
-                    .domain_entries
-                    .drain(..)
-                    .map(|entry| (entry.order, MergeEntry::Domain(entry))),
-            )
-            .chain(
-                other
-                    .fallback_entries
-                    .drain(..)
-                    .map(|entry| (entry.order, MergeEntry::Fallback(entry))),
-            )
-            .collect();
-        entries.sort_by_key(|(order, _)| *order);
-        for (_, entry) in entries {
-            let order = self
-                .registration_order
-                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            match entry {
-                MergeEntry::Root(mut entry) => {
-                    entry.order = order;
-                    if let Some(pattern) = self.active_domain.clone() {
-                        self.add_domain(DomainEntry {
-                            pattern,
-                            router: entry.router,
-                            fallback: Router::new(),
-                            fallback_scopes: Vec::new(),
-                            paths: entry.paths,
-                            order,
-                        });
-                    } else {
-                        self.root_entries.push(entry);
-                    }
-                }
-                MergeEntry::Domain(mut entry) => {
-                    entry.order = order;
-                    self.add_domain(entry);
-                }
-                MergeEntry::Fallback(mut entry) => {
-                    entry.order = order;
-                    if let Some(pattern) = self.active_domain.clone() {
-                        self.add_domain(DomainEntry {
-                            pattern,
-                            router: Router::new(),
-                            fallback: entry.router,
-                            fallback_scopes: vec![entry.scope],
-                            paths: Vec::new(),
-                            order,
-                        });
-                    } else {
-                        self.fallback_entries.push(entry);
-                    }
-                }
-            }
-        }
         if let Some(pattern) = &self.active_domain {
             for named in &mut other.route_names {
                 if named.domain.is_none() {
                     named.domain = Some(pattern.as_str().to_owned());
                 }
             }
-            for metadata in &other.matched_metadata {
-                if let Ok(mut metadata) = metadata.lock()
-                    && metadata.domain.is_none()
-                {
-                    metadata.domain = Some(pattern.as_str().to_owned());
+            for declaration in &other.declarations {
+                match declaration.metadata.lock() {
+                    Ok(mut metadata) if metadata.domain.is_none() => {
+                        metadata.domain = Some(pattern.as_str().to_owned());
+                    }
+                    Ok(_) => {}
+                    Err(_) => other.route_errors.push(route_context_error()),
                 }
             }
-        }
-        self.route_names.extend(other.route_names);
-        self.last_metadata = other.last_metadata;
-        self.matched_metadata.extend(other.matched_metadata);
-        self.fallback_methods.extend(other.fallback_methods);
-        for ((domain, path), entries) in other.managed_paths {
-            let domain = domain.or_else(|| {
-                self.active_domain
-                    .as_ref()
-                    .map(|pattern| pattern.as_str().to_owned())
-            });
-            let key = (domain.clone(), path);
-            if let Some(existing) = self.managed_paths.get(&key) {
-                if let (Ok(mut current), Ok(additional)) = (existing.lock(), entries.lock()) {
-                    current.extend(additional.iter().cloned());
-                }
-            } else {
-                self.managed_paths.insert(key, entries);
+            if let Some((_, _, domain)) = &mut other.last_route {
+                *domain = domain.take().or_else(|| Some(pattern.as_str().to_owned()));
             }
         }
-        for (domain, path, _) in other.managed_order {
-            let order = self
-                .registration_order
-                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            self.managed_order.push((
-                domain.or_else(|| {
-                    self.active_domain
-                        .as_ref()
-                        .map(|pattern| pattern.as_str().to_owned())
-                }),
-                path,
-                order,
-            ));
-        }
-        self.route_name_errors.extend(other.route_name_errors);
-        self.middleware_errors.extend(other.middleware_errors);
-        self.route_errors.extend(other.route_errors);
-        self.last_route = other.last_route.map(|(path, prefix, domain)| {
-            (
-                path,
-                prefix,
-                domain.or_else(|| {
-                    self.active_domain
-                        .as_ref()
-                        .map(|pattern| pattern.as_str().to_owned())
-                }),
-            )
-        });
+        self.append_declarations(other);
         self
     }
 
-    fn add_domain(&mut self, entry: DomainEntry) {
-        if entry
-            .fallback_scopes
-            .iter()
-            .any(|scope| fallback_scope_unsupported(scope))
-        {
-            self.route_errors.push(crate::core::Error::custom(
-                "http_fallback_scope_unsupported",
-                "fallback routes cannot use parameterized or wildcard group prefixes",
-            ));
-            return;
-        }
-        if self.active_domain.as_ref().map(DomainPattern::as_str) == Some(entry.pattern.as_str())
-            && entry
-                .fallback_scopes
-                .iter()
-                .any(|scope| self.fallback_prefixes.contains(scope))
-        {
-            self.route_errors.push(fallback_duplicate());
-            return;
-        }
-        for existing in &self.domain_entries {
-            if existing.pattern.as_str() != entry.pattern.as_str() {
-                continue;
-            }
-            if entry
-                .fallback_scopes
-                .iter()
-                .any(|scope| existing.fallback_scopes.contains(scope))
-            {
-                self.route_errors.push(fallback_duplicate());
-                return;
-            }
-            // 同一规范域仍须用 Axum 的重叠规则验证，但分派 bucket 不能合并，
-            // 否则后登记的路由会越过中间其他可匹配域的路由。
-            let _ = existing.router.clone().merge(entry.router.clone());
-        }
-        self.domain_entries.push(entry);
+    fn append_declarations(&mut self, other: Routes) {
+        self.declarations.extend(other.declarations);
+        self.route_names.extend(other.route_names);
+        self.route_name_errors.extend(other.route_name_errors);
+        self.middleware_errors.extend(other.middleware_errors);
+        self.route_errors.extend(other.route_errors);
+        self.last_route = other.last_route;
+        self.last_metadata = other.last_metadata;
     }
 
     /// 注册未匹配路由时执行的 fallback handler。
@@ -1248,10 +943,6 @@ impl Routes {
             return self;
         }
         self.fallback_registered = true;
-        self.fallback_prefixes.push("/".to_owned());
-        let order = self
-            .registration_order
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let metadata = Arc::new(Mutex::new(MatchedRouteMetadata {
             name: None,
             action: None,
@@ -1272,46 +963,9 @@ impl Routes {
                 .map(|domain| domain.as_str().to_owned()),
         ));
         self.last_metadata = Some(Arc::clone(&metadata));
-        self.matched_metadata.push(Arc::clone(&metadata));
-        let (_, methods) = routing::get(handler).materialize(&metadata);
-        self.fallback_methods.push(Arc::clone(&methods));
-        let fallback =
-            Router::new().fallback(move |State(state): State<AppState>, mut request: Request| {
-                let methods = Arc::clone(&methods);
-                async move {
-                    if !matches!(*request.method(), Method::GET | Method::HEAD) {
-                        return missed(request, InternalMiss::Method);
-                    }
-                    let routing_uri = crate::http::site::routing_uri(&request).clone();
-                    *request.uri_mut() = routing_uri;
-                    if matches!(*request.method(), Method::GET | Method::HEAD) {
-                        let static_request = static_request(&request);
-                        if let Some(response) =
-                            crate::http::site::try_static_file(state.clone(), static_request).await
-                        {
-                            return response;
-                        }
-                    }
-                    let entries = methods
-                        .lock()
-                        .map(|entries| entries.clone())
-                        .map_err(|_| ());
-                    match entries {
-                        Ok(entries) => dispatch_managed(request, state, &entries).await,
-                        Err(()) => crate::core::Error::custom(
-                            "http_route_context_poisoned",
-                            "请求路由上下文不可用",
-                        )
-                        .into_response(),
-                    }
-                }
-            });
-        self.fallback_router = self.fallback_router.merge(fallback.clone());
-        self.fallback_entries.push(FallbackEntry {
-            router: fallback,
-            scope: "/".to_owned(),
-            order,
-        });
+        let (_, entries) = routing::get(handler).materialize(&metadata);
+        self.declarations
+            .push(RouteDeclaration { metadata, entries });
         self
     }
 
@@ -1343,16 +997,9 @@ impl Routes {
         <L::Service as Service<Request>>::Error: Into<Infallible> + 'static,
         <L::Service as Service<Request>>::Future: Send + 'static,
     {
-        for entries in self.managed_paths.values() {
+        for declaration in &self.declarations {
             routing::layer_entries(
-                entries,
-                layer.clone(),
-                self.active_middleware_name.as_deref(),
-            );
-        }
-        for entries in &self.fallback_methods {
-            routing::layer_entries(
-                entries,
+                &declaration.entries,
                 layer.clone(),
                 self.active_middleware_name.as_deref(),
             );
@@ -1383,75 +1030,33 @@ impl Routes {
     }
 
     pub(crate) fn into_parts(mut self) -> RouteParts {
-        let actions = match final_action_routes(&self.matched_metadata) {
-            Ok(actions) => actions,
-            Err(error) => {
-                self.route_errors.push(error);
-                Vec::new()
-            }
-        };
         let priority = self
             .middleware_registry
             .as_deref()
             .map_or(&[][..], |registry| registry.priority.as_slice());
-        for entries in self.managed_paths.values() {
-            routing::finalize_layers(entries, priority);
+        for declaration in &self.declarations {
+            routing::finalize_layers(&declaration.entries, priority);
         }
-        for entries in &self.fallback_methods {
-            routing::finalize_layers(entries, priority);
-        }
-        let mut registrations = self.managed_order.clone();
-        registrations.sort_by_key(|(_, _, order)| *order);
-        let mut mounted = HashSet::new();
-        for (domain, path, order) in registrations {
-            let key = (domain.clone(), path.clone());
-            if !mounted.insert(key.clone()) {
-                continue;
+        let metadata: crate::core::Result<Vec<_>> = self
+            .declarations
+            .iter()
+            .map(|declaration| snapshot_metadata(&declaration.metadata))
+            .collect();
+        let (actions, candidates) = match metadata.and_then(|metadata| {
+            validate_fallback_scopes(&metadata)?;
+            Ok((
+                final_action_routes(&metadata),
+                compile_candidates(&self.declarations, &metadata)?,
+            ))
+        }) {
+            Ok(parts) => parts,
+            Err(error) => {
+                self.route_errors.push(error);
+                (Vec::new(), Vec::new())
             }
-            let Some(entries) = self.managed_paths.get(&key).cloned() else {
-                continue;
-            };
-            let router = Router::new().route(&path, routing::materialize_shared(&entries));
-            if let Some(domain) = domain {
-                match DomainPattern::parse(&domain) {
-                    Ok(pattern) => self.add_domain(DomainEntry {
-                        pattern,
-                        router,
-                        fallback: Router::new(),
-                        fallback_scopes: Vec::new(),
-                        paths: vec![path],
-                        order,
-                    }),
-                    Err(error) => self.route_errors.push(error),
-                }
-            } else {
-                self.router = self.router.route(
-                    &path,
-                    routing::materialize_shared(&self.managed_paths[&key]),
-                );
-            }
-        }
-        let root = self.active_domain.is_none();
-        let mut domains = self.domain_entries;
-        if let Some(pattern) = self.active_domain {
-            domains.push(DomainEntry {
-                pattern,
-                router: self.router.clone(),
-                fallback: self.fallback_router.clone(),
-                fallback_scopes: self.fallback_prefixes.clone(),
-                paths: Vec::new(),
-                order: self.first_route_order.unwrap_or_default(),
-            });
-        }
-        domains.sort_by_key(|entry| entry.order);
+        };
         RouteParts {
-            router: if root { self.router } else { Router::new() },
-            fallbacks: if root {
-                self.fallback_entries
-            } else {
-                Vec::new()
-            },
-            domains,
+            candidates,
             names: self.route_names,
             actions,
             name_errors: self.route_name_errors,
@@ -1461,67 +1066,165 @@ impl Routes {
     }
 }
 
-fn final_action_routes(
-    metadata: &[Arc<Mutex<MatchedRouteMetadata>>],
-) -> crate::core::Result<Vec<ActionRouteDefinition>> {
-    let mut declarations: Vec<MatchedRouteMetadata> = Vec::new();
+fn route_context_error() -> crate::core::Error {
+    crate::core::Error::custom("http_route_context_poisoned", "请求路由声明不可用")
+}
+
+// PHP 数组覆盖保留首个位置；域表先做左 union，之后才检查当前 host。
+fn declaration_projection(metadata: &[MatchedRouteMetadata], method: Option<&str>) -> Vec<usize> {
     let mut positions = HashMap::new();
-    for metadata in metadata {
-        let route = snapshot_metadata(metadata)?;
-        if route.fallback {
+    let mut ordered = Vec::new();
+    for (index, route) in metadata.iter().enumerate() {
+        if let Some(method) = method
+            && !route.methods.iter().any(|item| item == method)
+        {
             continue;
         }
-        // 固定集合按 methods.join("|")+domain+uri 无分隔拼接覆盖，保留最初插入位置。
-        // 逐方法都被覆盖但组合键不同的旧声明仍参与上游 refreshActionLookups。
-        let uri = if route.path.trim_matches('/').is_empty() {
-            "/"
+        let key = declaration_key(route, method.is_none());
+        let bucket = (route.domain.is_some(), key);
+        if let Some(&position) = positions.get(&bucket) {
+            ordered[position] = index;
         } else {
-            route.path.trim_matches('/')
-        };
-        let key = format!(
-            "{}{}{}",
-            route.methods.join("|"),
-            route.domain.as_deref().unwrap_or_default(),
-            uri
-        );
-        if let Some(&position) = positions.get(&(route.domain.is_some(), key.clone())) {
-            declarations[position] = route;
-        } else {
-            positions.insert((route.domain.is_some(), key), declarations.len());
-            declarations.push(route);
+            positions.insert(bucket, ordered.len());
+            ordered.push(index);
         }
     }
-    let mut actions = Vec::new();
     let mut visited = HashSet::new();
-    for domain_routes in [true, false] {
-        for route in &declarations {
-            if route.domain.is_some() != domain_routes {
-                continue;
-            }
-            let uri = if route.path.trim_matches('/').is_empty() {
-                "/"
-            } else {
-                route.path.trim_matches('/')
-            };
-            let key = format!(
-                "{}{}{}",
-                route.methods.join("|"),
-                route.domain.as_deref().unwrap_or_default(),
-                uri
-            );
-            if visited.insert(key)
-                && let Some(action) = &route.action
-                && action != "0"
+    let mut result = Vec::new();
+    for domain in [true, false] {
+        for &index in &ordered {
+            let route = &metadata[index];
+            if route.domain.is_some() == domain
+                && visited.insert(declaration_key(route, method.is_none()))
             {
-                actions.push(ActionRouteDefinition {
+                result.push(index);
+            }
+        }
+    }
+    result
+}
+
+fn declaration_key(route: &MatchedRouteMetadata, full: bool) -> String {
+    let uri = route.path.trim_matches('/');
+    format!(
+        "{}{}{}",
+        if full {
+            route.methods.join("|")
+        } else {
+            String::new()
+        },
+        route.domain.as_deref().unwrap_or_default(),
+        if uri.is_empty() { "/" } else { uri }
+    )
+}
+
+fn validate_fallback_scopes(metadata: &[MatchedRouteMetadata]) -> crate::core::Result<()> {
+    let mut scopes = HashSet::new();
+    for route in metadata.iter().filter(|route| route.fallback) {
+        let scope = fallback_scope_key(route.runtime_prefix.trim_end_matches('/'));
+        if fallback_scope_unsupported(&scope) {
+            return Err(crate::core::Error::custom(
+                "http_fallback_scope_unsupported",
+                "fallback routes cannot use parameterized or wildcard group prefixes",
+            ));
+        }
+        if !scopes.insert((route.domain.clone(), scope)) {
+            return Err(fallback_duplicate());
+        }
+    }
+    Ok(())
+}
+
+fn compile_candidates(
+    declarations: &[RouteDeclaration],
+    metadata: &[MatchedRouteMetadata],
+) -> crate::core::Result<Vec<DispatchCandidate>> {
+    let methods: std::collections::BTreeSet<_> = metadata
+        .iter()
+        .flat_map(|route| route.methods.iter().cloned())
+        .collect();
+    let mut candidates = Vec::new();
+    for method in methods {
+        let parsed = Method::from_bytes(method.as_bytes()).map_err(|_| {
+            crate::core::Error::custom("http_route_method_invalid", "invalid HTTP method token")
+        })?;
+        for index in declaration_projection(metadata, Some(&method)) {
+            let route = &metadata[index];
+            let entries = &declarations[index].entries;
+            let scope = route.fallback.then(|| {
+                let scope = route.runtime_prefix.trim_end_matches('/');
+                if scope.is_empty() {
+                    "/".to_owned()
+                } else {
+                    scope.to_owned()
+                }
+            });
+            let router = if route.fallback {
+                fallback_router(entries)
+            } else {
+                candidate(Router::new().route(&route.path, routing::materialize_shared(entries)))
+            };
+            let probe = candidate(Router::new().route(
+                &route.path,
+                axum::routing::any(|request: Request| async {
+                    missed(request, InternalMiss::Method)
+                }),
+            ));
+            candidates.push(DispatchCandidate {
+                method: parsed.clone(),
+                domain: route
+                    .domain
+                    .as_deref()
+                    .map(DomainPattern::parse)
+                    .transpose()?,
+                router,
+                probe,
+                fallback_scope: scope,
+            });
+        }
+    }
+    Ok(candidates)
+}
+
+fn fallback_router(entries: &ManagedEntries) -> Router<AppState> {
+    let entries = Arc::clone(entries);
+    Router::new().fallback(move |State(state): State<AppState>, mut request: Request| {
+        let entries = Arc::clone(&entries);
+        async move {
+            *request.uri_mut() = crate::http::site::routing_uri(&request).clone();
+            if let Some(response) =
+                crate::http::site::try_static_file(state.clone(), static_request(&request)).await
+            {
+                return response;
+            }
+            let entries = entries
+                .lock()
+                .map(|entries| entries.clone())
+                .map_err(|_| route_context_error());
+            match entries {
+                Ok(entries) => dispatch_managed(request, state, &entries).await,
+                Err(error) => error.into_response(),
+            }
+        }
+    })
+}
+
+fn final_action_routes(metadata: &[MatchedRouteMetadata]) -> Vec<ActionRouteDefinition> {
+    declaration_projection(metadata, None)
+        .into_iter()
+        .filter_map(|index| {
+            let route = &metadata[index];
+            route
+                .action
+                .as_ref()
+                .filter(|action| action.as_str() != "0")
+                .map(|action| ActionRouteDefinition {
                     action: action.clone(),
                     path: route.path.clone(),
                     domain: route.domain.clone(),
-                });
-            }
-        }
-    }
-    Ok(actions)
+                })
+        })
+        .collect()
 }
 
 fn static_request(request: &Request) -> Request {
@@ -1605,14 +1308,6 @@ fn fallback_scope_unsupported(scope: &str) -> bool {
     scope
         .split('/')
         .any(|segment| segment == "{}" || segment == "*")
-}
-
-fn mount_prefix(prefix: &str, router: Router<AppState>) -> Router<AppState> {
-    if prefix.is_empty() || prefix == "/" {
-        router
-    } else {
-        Router::new().nest(prefix, router)
-    }
 }
 
 fn fallback_duplicate() -> crate::core::Error {
@@ -1705,256 +1400,13 @@ impl RequestSnapshot {
     }
 }
 
-/// 在全部候选路由均确认内部 miss 后执行用户 fallback；handler 返回的状态始终终止分派。
-#[expect(
-    clippy::too_many_lines,
-    reason = "路由候选、方法与 fallback 的分派顺序需在同一处可核对"
-)]
+/// 候选各自使用 Axum 解析路径；集合顺序决定先后，业务响应不以状态码回退。
 pub(crate) fn assemble(parts: RouteParts) -> Router<AppState> {
-    let domains: Vec<_> = parts
-        .domains
-        .into_iter()
-        .map(|entry| {
-            let has_root = entry.fallback_scopes.iter().any(|scope| scope == "/");
-            let exact_fallback = (entry.fallback_scopes.len() == 1).then(|| entry.fallback.clone());
-            let specificity = entry
-                .fallback_scopes
-                .iter()
-                .map(String::len)
-                .max()
-                .unwrap_or_default();
-            let fallback = if entry.fallback_scopes.len() == 1 {
-                mount_prefix(&entry.fallback_scopes[0], entry.fallback)
-            } else {
-                entry.fallback
-            };
-            (
-                entry.pattern,
-                candidate(entry.router),
-                if entry.fallback_scopes.is_empty() {
-                    None
-                } else if has_root {
-                    Some(fallback)
-                } else {
-                    Some(candidate(fallback))
-                },
-                has_root,
-                specificity,
-                entry.fallback_scopes,
-                exact_fallback,
-            )
-        })
-        .collect();
-    let root = candidate(parts.router);
-    let mut fallback_entries = parts.fallbacks;
-    fallback_entries.sort_by_key(|entry| (std::cmp::Reverse(entry.scope.len()), entry.order));
-    let root_fallbacks: Vec<_> = fallback_entries
-        .into_iter()
-        .map(|entry| {
-            let direct = entry.scope == "/";
-            let exact_fallback = entry.router.clone();
-            let router = mount_prefix(&entry.scope, entry.router);
-            (
-                if direct { router } else { candidate(router) },
-                direct,
-                entry.scope,
-                exact_fallback,
-            )
-        })
-        .collect();
+    let candidates = Arc::new(parts.candidates);
     Router::new()
         .fallback(move |State(state): State<AppState>, request: Request| {
-            let domains = domains.clone();
-            let root = root.clone();
-            let root_fallbacks = root_fallbacks.clone();
-            async move {
-                let host = if domains.is_empty() {
-                    None
-                } else {
-                    match authority(request.headers(), request.uri()) {
-                        Ok(host) => Some(host),
-                        Err(error) => return error.into_response(),
-                    }
-                };
-                let snapshot = RequestSnapshot::capture(&request);
-                let mut pending = request;
-                let mut allowed = std::collections::BTreeSet::new();
-                let mut method_miss = false;
-                let mut matched_domains = Vec::new();
-                for (
-                    pattern,
-                    router,
-                    fallback,
-                    root_fallback,
-                    specificity,
-                    scopes,
-                    exact_fallback,
-                ) in &domains
-                {
-                    let Some(values) = host.as_ref().and_then(|host| pattern.captures(host)) else {
-                        continue;
-                    };
-                    if let Some(fallback) = fallback.clone()
-                        && scopes
-                            .iter()
-                            .any(|scope| scope_matches(scope, snapshot.uri.path()))
-                    {
-                        matched_domains.push((
-                            pattern.as_str().to_owned(),
-                            *specificity,
-                            fallback,
-                            values.clone(),
-                            *root_fallback,
-                            exact_fallback
-                                .as_ref()
-                                .filter(|_| {
-                                    scopes.iter().any(|scope| {
-                                        scope.trim_end_matches('/') == snapshot.uri.path()
-                                    })
-                                })
-                                .cloned(),
-                        ));
-                    }
-                    snapshot.restore(&mut pending);
-                    crate::http::domain::set_domain_params(pending.extensions_mut(), values);
-                    match run_candidate(router, state.clone(), pending).await {
-                        Ok((request, allow)) => {
-                            pending = request;
-                            method_miss |= allow.is_some();
-                            collect_allow(&mut allowed, allow);
-                        }
-                        Err(response) => return response,
-                    }
-                }
-                snapshot.restore(&mut pending);
-                match run_candidate(&root, state.clone(), pending).await {
-                    Ok((request, allow)) => {
-                        pending = request;
-                        method_miss |= allow.is_some();
-                        collect_allow(&mut allowed, allow);
-                    }
-                    Err(response) => return response,
-                }
-                let root_target = pending
-                    .extensions_mut()
-                    .remove::<crate::http::site::PendingRootTarget>()
-                    .is_some();
-                // 方法 miss 保留既有 GET/HEAD fallback 与 Allow/405 规则。
-                if root_target
-                    && !method_miss
-                    && snapshot.uri.path() == "/"
-                    && matches!(snapshot.method, Method::GET | Method::HEAD)
-                {
-                    snapshot.restore(&mut pending);
-                    pending
-                        .extensions_mut()
-                        .remove::<crate::http::site::PendingRootTarget>();
-                    return unmatched(pending);
-                }
-                let fallback_possible = !matched_domains.is_empty()
-                    || root_fallbacks
-                        .iter()
-                        .any(|(_, _, scope, _)| scope_matches(scope, pending.uri().path()));
-                if fallback_possible {
-                    allowed.insert("GET".to_owned());
-                    allowed.insert("HEAD".to_owned());
-                }
-                if *pending.method() == Method::OPTIONS && (method_miss || fallback_possible) {
-                    let allow = allow_header(&allowed, true);
-                    let mut response = Response::new(Body::empty());
-                    *response.status_mut() = StatusCode::OK;
-                    if let Ok(value) = axum::http::HeaderValue::from_str(&allow) {
-                        response.headers_mut().insert(ALLOW, value);
-                    }
-                    if let Some(slot) = pending.extensions().get::<crate::http::route::RouteSlot>()
-                    {
-                        let uri = pending.uri().path().trim_matches('/');
-                        let uri = if uri.is_empty() { "/" } else { uri };
-                        if let Err(error) = slot.publish(crate::http::Route::new(
-                            None,
-                            uri,
-                            None,
-                            vec!["OPTIONS".to_owned()],
-                            Vec::new(),
-                        )) {
-                            return error.into_response();
-                        }
-                    }
-                    return response;
-                }
-                if (method_miss || fallback_possible)
-                    && !matches!(*pending.method(), Method::GET | Method::HEAD)
-                {
-                    let mut response = crate::core::Error::custom_with_status(
-                        StatusCode::METHOD_NOT_ALLOWED,
-                        "method_not_allowed",
-                        "method not allowed",
-                    )
-                    .into_response();
-                    if let Ok(value) =
-                        axum::http::HeaderValue::from_str(&allow_header(&allowed, false))
-                    {
-                        response.headers_mut().insert(ALLOW, value);
-                    }
-                    return response;
-                }
-                let mut pattern_order = HashMap::new();
-                for (index, (pattern, ..)) in matched_domains.iter().enumerate() {
-                    pattern_order.entry(pattern.clone()).or_insert(index);
-                }
-                // 域模式之间按首次 fallback 声明顺序；同一域模式内只比较互相覆盖的
-                // 静态 scope，较深前缀先处理，避免根 fallback 吞掉其子组 fallback。
-                matched_domains.sort_by_key(|(pattern, specificity, ..)| {
-                    (pattern_order[pattern], std::cmp::Reverse(*specificity))
-                });
-                for (_, _, fallback, values, direct, exact_fallback) in matched_domains {
-                    snapshot.restore(&mut pending);
-                    crate::http::domain::set_domain_params(pending.extensions_mut(), values);
-                    if direct || exact_fallback.is_some() {
-                        return exact_fallback
-                            .unwrap_or(fallback)
-                            .with_state(state.clone())
-                            .oneshot(pending)
-                            .await
-                            .unwrap_or_else(|never| match never {});
-                    }
-                    match run_candidate(&fallback, state.clone(), pending).await {
-                        Ok((request, _)) => pending = request,
-                        Err(response) => return response,
-                    }
-                }
-                snapshot.restore(&mut pending);
-                for (fallback, direct, scope, exact_fallback) in root_fallbacks {
-                    snapshot.restore(&mut pending);
-                    if direct || scope.trim_end_matches('/') == pending.uri().path() {
-                        return (if direct { fallback } else { exact_fallback })
-                            .with_state(state.clone())
-                            .oneshot(pending)
-                            .await
-                            .unwrap_or_else(|never| match never {});
-                    }
-                    match run_candidate(&fallback, state.clone(), pending).await {
-                        Ok((request, _)) => pending = request,
-                        Err(response) => return response,
-                    }
-                }
-                if method_miss || fallback_possible {
-                    let mut response = crate::core::Error::custom_with_status(
-                        StatusCode::METHOD_NOT_ALLOWED,
-                        "method_not_allowed",
-                        "method not allowed",
-                    )
-                    .into_response();
-                    if !allowed.is_empty()
-                        && let Ok(value) =
-                            axum::http::HeaderValue::from_str(&allow_header(&allowed, false))
-                    {
-                        response.headers_mut().insert(ALLOW, value);
-                    }
-                    return response;
-                }
-                unmatched(pending)
-            }
+            let candidates = Arc::clone(&candidates);
+            async move { dispatch_collection(&candidates, state, request).await }
         })
         .layer(axum::middleware::from_fn(
             |mut request: Request, next: axum::middleware::Next| async move {
@@ -1972,16 +1424,238 @@ pub(crate) fn assemble(parts: RouteParts) -> Router<AppState> {
         ))
 }
 
-fn collect_allow(allowed: &mut std::collections::BTreeSet<String>, allow: Option<String>) {
-    if let Some(allow) = allow {
-        for method in allow
-            .split(',')
-            .map(str::trim)
-            .filter(|method| !method.is_empty())
+async fn dispatch_collection(
+    candidates: &[DispatchCandidate],
+    state: AppState,
+    request: Request,
+) -> Response {
+    let host = if candidates
+        .iter()
+        .any(|candidate| candidate.domain.is_some())
+    {
+        match authority(request.headers(), request.uri()) {
+            Ok(host) => Some(host),
+            Err(error) => return error.into_response(),
+        }
+    } else {
+        None
+    };
+    let snapshot = RequestSnapshot::capture(&request);
+    let mut pending = match run_collection_candidates(
+        candidates,
+        false,
+        host.as_deref(),
+        &snapshot,
+        state.clone(),
+        request,
+    )
+    .await
+    {
+        Ok(request) => request,
+        Err(response) => return response,
+    };
+    let (request, mut allowed) = match alternate_methods(
+        candidates,
+        false,
+        host.as_deref(),
+        &snapshot,
+        state.clone(),
+        pending,
+    )
+    .await
+    {
+        Ok(result) => result,
+        Err(response) => return response,
+    };
+    pending = request;
+    // 显式站点根目标只接管无普通路径方法候选的根 GET/HEAD；消费标记防止 forward 重入。
+    let root_target = pending
+        .extensions_mut()
+        .remove::<crate::http::site::PendingRootTarget>()
+        .is_some();
+    if root_target
+        && allowed.is_empty()
+        && snapshot.uri.path() == "/"
+        && matches!(snapshot.method, Method::GET | Method::HEAD)
+    {
+        snapshot.restore(&mut pending);
+        pending
+            .extensions_mut()
+            .remove::<crate::http::site::PendingRootTarget>();
+        return unmatched(pending);
+    }
+    pending = match run_collection_candidates(
+        candidates,
+        true,
+        host.as_deref(),
+        &snapshot,
+        state.clone(),
+        pending,
+    )
+    .await
+    {
+        Ok(request) => request,
+        Err(response) => return response,
+    };
+    let (mut pending, fallback_allowed) =
+        match alternate_methods(candidates, true, host.as_deref(), &snapshot, state, pending).await
         {
-            allowed.insert(method.to_owned());
+            Ok(result) => result,
+            Err(response) => return response,
+        };
+    allowed.extend(fallback_allowed);
+    if allowed.is_empty() {
+        snapshot.restore(&mut pending);
+        return unmatched(pending);
+    }
+    method_response(&pending, &allowed)
+}
+
+// 同域静态 scope 的深层优先是既有 Rust 组 fallback 适配；各域模式与普通表仍按集合顺序。
+fn ordered_candidates<'a>(
+    candidates: &'a [DispatchCandidate],
+    method: &Method,
+    fallback: bool,
+) -> Vec<&'a DispatchCandidate> {
+    let mut selected: Vec<_> = candidates
+        .iter()
+        .filter(|candidate| {
+            candidate.method == *method && candidate.fallback_scope.is_some() == fallback
+        })
+        .collect();
+    if fallback {
+        let mut patterns = HashMap::new();
+        for (index, candidate) in selected.iter().enumerate() {
+            patterns
+                .entry(candidate.domain.as_ref().map(DomainPattern::as_str))
+                .or_insert(index);
+        }
+        selected.sort_by_key(|candidate| {
+            (
+                patterns[&candidate.domain.as_ref().map(DomainPattern::as_str)],
+                std::cmp::Reverse(candidate.fallback_scope.as_ref().map_or(0, String::len)),
+            )
+        });
+    }
+    selected
+}
+
+fn prepare_candidate(
+    candidate: &DispatchCandidate,
+    host: Option<&str>,
+    snapshot: &RequestSnapshot,
+    request: &mut Request,
+) -> bool {
+    snapshot.restore(request);
+    if let Some(pattern) = &candidate.domain {
+        let Some(values) = host.and_then(|host| pattern.captures(host)) else {
+            return false;
+        };
+        crate::http::domain::set_domain_params(request.extensions_mut(), values);
+    }
+    candidate
+        .fallback_scope
+        .as_ref()
+        .is_none_or(|scope| scope_matches(scope, snapshot.uri.path()))
+}
+
+#[expect(
+    clippy::result_large_err,
+    reason = "终态响应原样传递，与既有 run_candidate 保持一致"
+)]
+async fn run_collection_candidates(
+    candidates: &[DispatchCandidate],
+    fallback: bool,
+    host: Option<&str>,
+    snapshot: &RequestSnapshot,
+    state: AppState,
+    mut pending: Request,
+) -> std::result::Result<Request, Response> {
+    for candidate in ordered_candidates(candidates, &snapshot.method, fallback) {
+        if !prepare_candidate(candidate, host, snapshot, &mut pending) {
+            continue;
+        }
+        match run_candidate(&candidate.router, state.clone(), pending).await {
+            Ok((request, _)) => pending = request,
+            Err(response) => return Err(response),
         }
     }
+    snapshot.restore(&mut pending);
+    Ok(pending)
+}
+
+#[expect(
+    clippy::result_large_err,
+    reason = "路径探测错误原样终止，不执行 handler 或复制请求 body"
+)]
+async fn alternate_methods(
+    candidates: &[DispatchCandidate],
+    fallback: bool,
+    host: Option<&str>,
+    snapshot: &RequestSnapshot,
+    state: AppState,
+    mut pending: Request,
+) -> std::result::Result<(Request, std::collections::BTreeSet<String>), Response> {
+    let mut allowed = std::collections::BTreeSet::new();
+    for method in OFFICIAL_METHODS
+        .into_iter()
+        .filter(|method| *method != snapshot.method.as_str())
+    {
+        let Some(parsed) = Method::from_bytes(method.as_bytes()).ok() else {
+            continue;
+        };
+        for candidate in ordered_candidates(candidates, &parsed, fallback) {
+            if !prepare_candidate(candidate, host, snapshot, &mut pending) {
+                continue;
+            }
+            if fallback {
+                allowed.insert(method.to_owned());
+                break;
+            }
+            match run_candidate(&candidate.probe, state.clone(), pending).await {
+                Ok((request, matched)) => {
+                    pending = request;
+                    if matched.is_some() {
+                        allowed.insert(method.to_owned());
+                        break;
+                    }
+                }
+                Err(response) => return Err(response),
+            }
+        }
+    }
+    snapshot.restore(&mut pending);
+    Ok((pending, allowed))
+}
+
+fn method_response(request: &Request, allowed: &std::collections::BTreeSet<String>) -> Response {
+    let options = *request.method() == Method::OPTIONS;
+    let mut response = if options {
+        Response::new(Body::empty())
+    } else {
+        crate::core::Error::custom_with_status(
+            StatusCode::METHOD_NOT_ALLOWED,
+            "method_not_allowed",
+            "method not allowed",
+        )
+        .into_response()
+    };
+    if let Ok(value) = axum::http::HeaderValue::from_str(&allow_header(allowed, options)) {
+        response.headers_mut().insert(ALLOW, value);
+    }
+    if options && let Some(slot) = request.extensions().get::<crate::http::route::RouteSlot>() {
+        let uri = request.uri().path().trim_matches('/');
+        if let Err(error) = slot.publish(crate::http::Route::new(
+            None,
+            if uri.is_empty() { "/" } else { uri },
+            None,
+            vec!["OPTIONS".to_owned()],
+            Vec::new(),
+        )) {
+            return error.into_response();
+        }
+    }
+    response
 }
 
 fn scope_matches(scope: &str, path: &str) -> bool {
@@ -1989,14 +1663,12 @@ fn scope_matches(scope: &str, path: &str) -> bool {
     scope.is_empty() || path == scope || path.starts_with(&format!("{scope}/"))
 }
 
-fn allow_header(allowed: &std::collections::BTreeSet<String>, exclude_options: bool) -> String {
-    [
-        "GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "QUERY",
-    ]
-    .into_iter()
-    .filter(|method| allowed.contains(*method) && (!exclude_options || *method != "OPTIONS"))
-    .collect::<Vec<_>>()
-    .join(",")
+fn allow_header(allowed: &std::collections::BTreeSet<String>, options: bool) -> String {
+    OFFICIAL_METHODS
+        .into_iter()
+        .filter(|method| allowed.contains(*method))
+        .collect::<Vec<_>>()
+        .join(if options { "," } else { ", " })
 }
 
 #[expect(
@@ -2213,9 +1885,9 @@ mod action_tests {
             },
         );
         let metadata: Vec<_> = routes
-            .matched_metadata
+            .declarations
             .iter()
-            .map(snapshot_metadata)
+            .map(|declaration| snapshot_metadata(&declaration.metadata))
             .collect::<Result<_>>()?;
         assert_eq!(
             metadata[0].action.as_deref(),
@@ -2250,6 +1922,208 @@ mod action_tests {
             let parts = routes.into_parts();
             assert_eq!(parts.route_errors[0].code(), "http_route_action_invalid");
             assert!(parts.actions.is_empty());
+        }
+    }
+}
+
+#[cfg(test)]
+mod collection_tests {
+    use super::*;
+    use crate::core::Result;
+
+    async fn handler() -> &'static str {
+        "声明处理器"
+    }
+
+    fn metadata(routes: &Routes) -> Result<Vec<MatchedRouteMetadata>> {
+        routes
+            .declarations
+            .iter()
+            .map(|declaration| snapshot_metadata(&declaration.metadata))
+            .collect()
+    }
+
+    #[test]
+    fn collection_projection_raw_collision_and_domain_union_apply_before_host() -> Result<()> {
+        // 匿名项也会被拼接碰撞淘汰；不能按 host 过滤后复活普通项。
+        let routes = Routes::new()
+            .get("/a.testbc", handler)
+            .group(RouteGroup::new().domain("a.test"), |routes| {
+                routes.get("/bc", handler)
+            })
+            .group(RouteGroup::new().domain("a.testb"), |routes| {
+                routes.get("/c", handler)
+            })
+            .post("/a.testbc", handler);
+        let metadata = metadata(&routes)?;
+        assert_eq!(declaration_projection(&metadata, Some("GET")), [2]);
+        assert_eq!(declaration_projection(&metadata, Some("HEAD")), [2]);
+        assert_eq!(declaration_projection(&metadata, Some("POST")), [3]);
+        assert_eq!(declaration_projection(&metadata, None), [2, 3]);
+        let parts = routes.into_parts();
+        assert!(parts.route_errors.is_empty());
+        assert!(parts.actions.is_empty());
+        assert_eq!(parts.candidates.len(), 3);
+        Ok(())
+    }
+
+    #[test]
+    fn collection_projection_split_and_partial_keep_original_metadata_and_shared_entries()
+    -> Result<()> {
+        // 方法 view 淘汰处理资格，完整组合 view 仍保留旧动作；不改命中 Route 原 methods。
+        let routes = Routes::new()
+            .on_action("/split", &["GET", "POST"], "Old@go", handler)
+            .get_action("/split", "New@get", handler)
+            .on_action("/split", &["POST"], "New@post", handler)
+            .on_action("/partial", &["GET", "POST"], "Partial@go", handler)
+            .get_action("/partial", "Partial@get", handler);
+        let metadata = metadata(&routes)?;
+        assert_eq!(declaration_projection(&metadata, Some("GET")), [1, 4]);
+        assert_eq!(declaration_projection(&metadata, Some("POST")), [2, 3]);
+        assert_eq!(declaration_projection(&metadata, None), [0, 1, 2, 3, 4]);
+        assert_eq!(metadata[3].methods, ["GET", "POST", "HEAD"]);
+        assert_eq!(metadata[3].action.as_deref(), Some("Partial@go"));
+        for declaration in &routes.declarations {
+            let entries = declaration
+                .entries
+                .lock()
+                .map_err(|_| route_context_error())?;
+            assert!(entries.iter().all(|entry| {
+                entry
+                    .metadata
+                    .as_ref()
+                    .is_some_and(|metadata| Arc::ptr_eq(metadata, &declaration.metadata))
+            }));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn collection_replacement_keeps_first_position_without_static_path_reordering() -> Result<()> {
+        // 同 key 更新只换值；动态/静态路径树优先级不得重新排列候选。
+        let routes = Routes::new()
+            .get("/items/{id}", handler)
+            .get("/items/fixed", handler)
+            .get("/items/{id}", handler)
+            .group(RouteGroup::new().domain("{account}.test"), |routes| {
+                routes.get("/items/{id}", handler)
+            });
+        let metadata = metadata(&routes)?;
+        assert_eq!(declaration_projection(&metadata, Some("GET")), [3, 2, 1]);
+        let parts = routes.into_parts();
+        assert!(parts.route_errors.is_empty());
+        let candidates = ordered_candidates(&parts.candidates, &Method::GET, false);
+        assert_eq!(candidates.len(), 3);
+        assert_eq!(
+            candidates[0].domain.as_ref().map(DomainPattern::as_str),
+            Some("{account}.test")
+        );
+        assert!(candidates[1].domain.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn collection_fallback_uses_same_projection_and_scopes_keep_existing_adapter() -> Result<()> {
+        // fallback 不是绕开集合的独立处理器；被同 key 普通项覆盖后不能复活。
+        let routes = Routes::new()
+            .fallback(handler)
+            .get("/{fallbackPlaceholder}", handler);
+        let metadata = metadata(&routes)?;
+        assert_eq!(declaration_projection(&metadata, Some("GET")), [1]);
+        let parts = routes.into_parts();
+        assert!(parts.route_errors.is_empty());
+        assert!(ordered_candidates(&parts.candidates, &Method::GET, true).is_empty());
+        let parts = Routes::new()
+            .fallback(handler)
+            .group(RouteGroup::new().prefix("/api"), |routes| {
+                routes.fallback(handler)
+            })
+            .group(RouteGroup::new().prefix("/api/v2"), |routes| {
+                routes.fallback(handler)
+            })
+            .into_parts();
+        assert!(parts.route_errors.is_empty());
+        let scopes: Vec<_> = ordered_candidates(&parts.candidates, &Method::GET, true)
+            .iter()
+            .filter_map(|candidate| candidate.fallback_scope.as_deref())
+            .collect();
+        assert_eq!(scopes, ["/api/v2", "/api", "/"]);
+        Ok(())
+    }
+
+    #[test]
+    fn collection_group_merge_updates_single_source_and_rejects_invalid_fallback_scopes()
+    -> Result<()> {
+        // 组路径、域与名字只更新共享声明，参数化 fallback 的原限制仍在构建时报告。
+        let routes = Routes::new().group(
+            RouteGroup::new()
+                .prefix("/api/{version}")
+                .domain("{account}.test")
+                .name_prefix("api."),
+            |routes| {
+                routes.merge(
+                    Routes::new()
+                        .get_action("/items/{id}", "Items@show", handler)
+                        .name("items"),
+                )
+            },
+        );
+        let metadata = metadata(&routes)?;
+        assert_eq!(metadata[0].path, "/api/{version}/items/{id}");
+        assert_eq!(metadata[0].runtime_prefix, "/api/{version}");
+        assert_eq!(metadata[0].domain.as_deref(), Some("{account}.test"));
+        assert_eq!(metadata[0].name.as_deref(), Some("api.items"));
+        let parts = routes.into_parts();
+        assert!(parts.route_errors.is_empty());
+        assert_eq!(parts.names[0].path, parts.actions[0].path);
+        let parts = Routes::new()
+            .group(RouteGroup::new().prefix("/api/{version}"), |routes| {
+                routes.fallback(handler)
+            })
+            .into_parts();
+        assert_eq!(
+            parts.route_errors.first().map(crate::core::Error::code),
+            Some("http_fallback_scope_unsupported")
+        );
+        let parts = Routes::new()
+            .fallback(handler)
+            .merge(Routes::new().fallback(handler))
+            .into_parts();
+        assert_eq!(
+            parts.route_errors.first().map(crate::core::Error::code),
+            Some("http_fallback_duplicate")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn collection_allow_uses_fixed_verbs_and_preserves_two_wire_formats() {
+        // QUERY 保留，TRACE/CONNECT 只允许显式命中；405 与合成 OPTIONS 的空格不同。
+        let methods = ["QUERY", "TRACE", "CONNECT", "PATCH", "POST"]
+            .into_iter()
+            .map(str::to_owned)
+            .collect();
+        assert_eq!(allow_header(&methods, false), "POST, PATCH, QUERY");
+        assert_eq!(allow_header(&methods, true), "POST,PATCH,QUERY");
+        assert_eq!(
+            OFFICIAL_METHODS,
+            [
+                "GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "QUERY"
+            ]
+        );
+    }
+
+    #[test]
+    fn collection_group_runtime_path_keeps_nested_parameter_and_encoded_segments() {
+        // 独立路径候选不能丢失原 Axum nest 对 handler 可见 URI 的裁剪行为。
+        for (path, prefix, expected) in [
+            ("/api/v1/items/a%2Fb", "/api/{version}", "/items/a%2Fb"),
+            ("/api/v1", "/api/{version}", "/"),
+            ("/api/v1/", "/api/{version}", "/"),
+            ("/items/42", "", "/items/42"),
+            ("/api/v1/extra/items", "/api/{version}/extra", "/items"),
+        ] {
+            assert_eq!(route_runtime_path(path, prefix), expected);
         }
     }
 }

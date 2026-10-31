@@ -126,6 +126,13 @@ fn draft_redirect_routes(routes: Routes) -> Routes {
                 .namespace("Example\\Draft"),
             |drafts| {
                 drafts
+                    // 覆盖默认概览；静态路径先于参数路径，按 Laravel 声明顺序匹配。
+                    .get("/summary", controllers::draft_redirect::summary_default)
+                    .get_action(
+                        "/summary",
+                        "DraftSummaryController",
+                        controllers::draft_redirect::summary,
+                    )
                     .get_action(
                         "/{id}",
                         "DraftController@show",
@@ -435,11 +442,6 @@ fn article_routes(routes: Routes, summary_enabled: bool) -> Routes {
         },
     );
     let routes = routes.nest("/api/example", |api| {
-        let api = api
-            .resource_with::<article::Articles>("/articles", |actions| {
-                actions.except(&[openrust::http::Action::Create])
-            })
-            .resource::<controllers::example_record::ExampleRecords>("/records");
         #[cfg(feature = "queue")]
         let api = api
             .get(
@@ -543,6 +545,11 @@ fn article_routes(routes: Routes, summary_enabled: bool) -> Routes {
                     .layer(),
                 ),
         )
+        // export 等静态业务入口先登记，再挂载包含 /articles/{id} 的资源路由。
+        .resource_with::<article::Articles>("/articles", |actions| {
+            actions.except(&[openrust::http::Action::Create])
+        })
+        .resource::<controllers::example_record::ExampleRecords>("/records")
         .layer(openrust::auth::AuthLayer::required(
             openrust::auth::AuthMode::Jwt,
         ))

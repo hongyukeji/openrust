@@ -37,6 +37,21 @@ pub(crate) async fn back(info: RequestInfo) -> Result<Response> {
         .into_response())
 }
 
+/// 默认概览由模块后续登记的业务概览替换，展示同方法同路径的覆盖。
+pub(crate) async fn summary_default() -> openrust::http::Json<serde_json::Value> {
+    openrust::http::Json(serde_json::json!({"source":"默认草稿概览"}))
+}
+
+/// 静态概览应在 /{id} 前登记，避免被当成草稿 ID。
+pub(crate) async fn summary(info: RequestInfo) -> Result<openrust::http::Json<serde_json::Value>> {
+    let route = info
+        .route()?
+        .ok_or_else(|| openrust::Error::custom("example_draft_route_missing", "草稿路由缺失"))?;
+    Ok(openrust::http::Json(
+        serde_json::json!({"source":"模块草稿概览","action":route.action(),"id":route.parameter("id")}),
+    ))
+}
+
 /// 固定业务动作由二元组指定，不读取请求中的任意跳转地址。
 pub(crate) async fn action(info: RequestInfo) -> Result<Response> {
     Ok(Redirector::from_info(&info)

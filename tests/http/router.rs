@@ -30,6 +30,8 @@ type TestResult = Result<(), Box<dyn std::error::Error>>;
 
 #[path = "router/action_redirect.rs"]
 mod action_redirect;
+#[path = "router/collection_dispatch.rs"]
+mod collection_dispatch;
 
 #[derive(Deserialize)]
 struct DomainTenant {
@@ -6796,7 +6798,7 @@ async fn assert_similar_prefix_is_outside_domain_fallback(
             assert_eq!(route, None);
         } else if method == "POST" {
             assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED);
-            assert_eq!(response.headers()[header::ALLOW], "GET,HEAD");
+            assert_eq!(response.headers()[header::ALLOW], "GET, HEAD");
             assert_eq!(route, None);
         } else {
             assert_eq!(response.status(), StatusCode::OK);

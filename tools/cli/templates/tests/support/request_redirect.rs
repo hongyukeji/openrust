@@ -50,6 +50,9 @@ impl ServiceProvider for RedirectRoutes {
                             .namespace("Generated\\Draft"),
                         |drafts| {
                             drafts
+                                // 静态概览先于参数路由；后登记的模块概览替换默认实现。
+                                .get("/summary", summary_default)
+                                .get_action("/summary", "DraftSummaryController", summary_page)
                                 .get_action("/{id}", "DraftController@show", action_page)
                                 .get_action("/{id}/preview", "PreviewDraftController", action_page)
                         },
@@ -107,6 +110,18 @@ impl<A: Application> Application for RedirectApplication<A> {
     fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
         A::modules(config)
     }
+}
+
+async fn summary_default() -> Json<Value> {
+    Json(json!({"source":"默认草稿概览"}))
+}
+async fn summary_page(info: RequestInfo) -> openrust::Result<Json<Value>> {
+    let route = info
+        .route()?
+        .ok_or_else(|| openrust::Error::custom("generated_route_missing", "草稿路由缺失"))?;
+    Ok(Json(
+        json!({"source":"生成草稿概览","action":route.action(),"id":route.parameter("id")}),
+    ))
 }
 
 fn action_parameters() -> BTreeMap<String, String> {
@@ -502,6 +517,11 @@ async fn assert_refresh_and_away<A: Application>(
 async fn assert_actions<A: Application>(
     app: &TestApp<A>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let summary = get(app, &format!("{PREFIX}/actions/summary"), None).await?;
+    assert_eq!(
+        data(&summary)?,
+        json!({"source":"生成草稿概览","action":"Generated\\Draft\\DraftSummaryController","id":null})
+    );
     for (entry, suffix, action) in [
         ("action", "42", "Generated\\Draft\\DraftController@show"),
         (

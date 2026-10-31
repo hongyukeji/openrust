@@ -46,3 +46,19 @@
 12. 上游固定d52c3b3，窄证据 `/tmp/openrust-c04d10f-next-action-evidence.md`；先一次完成源码/测试/调用方/中文文档，再独审、集中门禁、fresh生成/MySQL与真实TCP，不把契约或静态片段当验收。
 
 D10-G上述限定契约已通过核心/调用方/生成模板、main适用门禁与MySQL及真实TCP验收，资源收尾已完成，限定提交见Git。具体默认824/全特性1611、fresh7/MySQL2+1/TCP10+15与失败保留、不同模型审查、清理证明见[测试记录](../memory/testing.md#c04-d10-g-动作身份与-action-url限定子范围已验收提交见git)。原始集合碰撞的实际dispatch及完整参数族仍按上述边界开放。
+
+
+## D10-H：最终声明集合与真实分派（限定范围已验收）
+
+1. 不新增公共路由API。最终group/nest/merge/middleware处理后的真实声明是handler、原方法顺序、metadata与顺序的唯一来源；匿名路由同样参与。私有集合分别派生逐method分派view及G完整methods动作view，不将两者强行相等、不新增URL-only内核。
+2. 逐method按原始domain+uri无分隔键、动作按methods管道拼接+domain+uri键，在域/普通集合内后写覆盖并保留首位置，再域左union。隐藏发生在host验证前，不因host不匹配恢复已淘汰普通handler。partial/split覆盖的实际Route仍保留原methods/action等元数据。
+3. 真实匹配按最终有序候选进行：非fallback声明首匹配，包括更早动态路由先于后静态路由；先试完全部非fallback，再执行首个适用fallback。继续用Axum路径解析与现InternalMiss/RouteSlot恢复，不自写匹配器，不让域fallback抢普通显式route或将业务404/405当miss。
+4. 当前方法无普通或适用fallback后，从幸存方法view忽略MethodValidator求alternate；GET/HEAD亦可405，OPTIONS可合成200，无有效path/host才404。固定Router::$verbs顺序为GET、HEAD、POST、PUT、PATCH、DELETE、OPTIONS、QUERY（排除当前方法），不能沿旧字典序或以TRACE/CONNECT替代QUERY；已显式登记其他方法的直接命中保持，alternate仅依固定列表。405的Allow按固定HttpKernel逗号空格格式，合成OPTIONS按固定Laravel逗号格式；不以token排序掩盖默认输出差异。
+5. 既有scoped fallback、PendingRootTarget静态站点、内部forward、HEAD空体/头保留及资源生命周期边界继续受保护；固定PHP探针未覆盖其Rust适配，不宣称由PHP证据证明。发现真实冲突先核固定对应并记录，不为保旧测试放宽新contract。
+6. 固定PHP8.5真实Illuminate Request、RouteCollection::match/validators/bind及OPTIONS Response已有35案actual0。仅status/name/Allow是逐字段断言，其他输出为观察，闭包不代表业务handler执行，未启动完整Laravel kernel。Symfony8.0三组件为明确固定的参考输入，符合framework版本约束但非已解析composer.lock；来源/许可/文件SHA见 `/tmp/openrust-c04d10h-matcher/provenance.json`。
+7. 根核心owner独占routes.rs/routing.rs及必要url.rs/route.rs/src/routes.rs接线与纯集合unit；调用方owner独占HTTP router测试/README、唯一模块路由与自然业务示例、模板/快照及CHANGELOG。源契约不变时同步实施；清单/锁、共享Agent文档、构建/服务/提交归root串行协调，无新依赖预期。
+8. 纯集合测试覆盖两view与覆盖位置；HTTP真实handler/中间件计数器证明淘汰handler零次、首匹配、元数据/slot、Allow/OPTIONS/fallback/业务终态。模块/生成/TCP只补公开接线与高价值回归，不复制35案全矩阵，不机械新增test target。
+9. 完成源码/测试/调用方/模板/中文文档后集中验证；不同模型复审生产高风险改动，按适用workspace门禁、生成/MySQL及真实Host/path TCP验收、资源收尾后限定本地提交。
+10. 本簇不实现signed或关闭完整Routing/参数族；修正G已记录的真实分派缺口，保留所有G旧证据。内部结构由owner按Rust类型/所有权/异步约束选择，若契约确有编译障碍须给最小等价方案，不凭语言惯用缩减语义。
+
+H补证 `/tmp/openrust-c04d10h-matcher/probe-v2.output.jsonl` 9案actual0，输出SHA `630df0c2b96c93c62c0bf9a5264b042bf1b52d7e9cf4cb1224900fd941f5cde1`：确认QUERY/TRACE/CONNECT直接命中与alternate资格差异、405/OPTIONS原始Allow格式及动态先声明首匹配；旧35案脚本/输出保留。该参考证据不代替Rust实现和业务handler执行验证。

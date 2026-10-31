@@ -393,6 +393,11 @@ async fn plain_and_named_redirect_work_without_session_and_flash_reports_failure
 }
 
 async fn assert_public_actions<A: Application>(app: &TestApp<A>) -> TestResult {
+    let summary = get(app, "/api/example/draft/actions/summary", None, None).await?;
+    assert_eq!(
+        state(&summary)?,
+        json!({"source":"模块草稿概览","action":"Example\\Draft\\DraftSummaryController","id":null})
+    );
     for (entry, target, action) in [
         (
             "action",

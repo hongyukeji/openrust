@@ -368,6 +368,8 @@ cargo deny check
 
 `GET /api/example/draft/action` 用公开 `Redirector::action` 的二元组身份跳转到匿名的 `/api/example/draft/actions/42?section=review`；`/api/example/draft/action-preview` 使用绝对字符串查询裸 invokable 身份，目标为 `/api/example/draft/actions/42/preview?section=review`。目标在 `RouteGroup::namespace("Example\\Draft")` 内通过 `get_action(path, action, handler)` 与真实处理器同次登记，不依赖路由名称，也不设置整个应用的根 namespace。页面展示 `Route::action()` 和实际参数；这些身份不触发动态控制器实例化。
 
+`GET /api/example/draft/actions/summary` 是静态草稿概览：模块先登记默认概览，再用同方法同路径的真实业务动作覆盖；静态概览在 `/{id}` 前声明，返回 `source=模块草稿概览`、真实动作身份与空 `id`，不会被误当作草稿编号。文章 `/articles/export` 等静态业务入口也先于含 `/articles/{id}` 的资源路由登记；路由按声明首匹配，不依赖框架替晚声明静态路径提权。生成 helper 采用相同公开登记方式，验证默认实现被覆盖与静态路径正确命中。
+
 `POST /api/example/draft/action-submit` 用固定二元组调用 `action_with`，返回303、`x-example-draft-action: review`，不读取请求中的任意目标地址。无 Session 时普通动作跳转可用；存在 Session 时仅闪存标题输入并保存复核错误，目标页展示一次后老化。生成 helper 同时展示 tuple、绝对 invokable 和完整字符串查询，沿同一公开 API 验证匿名身份、参数、响应选项和 flash；原命名路由示例仍保留。
 
 `GET /api/example/draft/secure` 对相对首页目标调用公开 `secure`，返回 `https://` 的 Location；示例只验证重定向响应，不跟随请求或宣称当前 HTTP 监听器已启用 TLS。显式状态、头与协议选择可使用 `secure_with` 或 `to_with_scheme`。

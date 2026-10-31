@@ -1146,3 +1146,20 @@ skill-only提交 `a3b2ca3` 提供显式 `--rebase-usage-budget` 及正式额度�
 
 
 D10-G gRPC环境补充：用户报告此前可能在失败期间手动清理Docker并删除全部容器，仅列候选外因，尚无对应时间或连接记录可确认关联。原失败整条all命令时间为2026-10-31 03:38:40–03:41:26 UTC（北京时间11:38:40–11:41:26），没有该用例的独立时间戳或当时listener owner记录。该fixture显式使用memory cache、默认数据库URL为空且无具名库/副本，访问本机HTTP/gRPC与临时生成TLS材料；验证驱动亦剔除继承的DB_/DATABASE等变量，未发现该用例直接依赖容器DB/Redis的证据。因此不能仅凭Docker操作解释本机停机后connect成功。保留原失败、根因未确证及已通过exact/完整all重验，不删保护断言，不重跑已通过矩阵。
+
+
+## C04-D10-H 最终声明集合与真实分派（限定子范围已验收，提交见Git）
+
+固定Laravel framework `d52c3b3129e4c8e213c97cdc68f94b0b7d27f181`；真实PHP matcher35案及独立QUERY/Allow/顺序补证9案通过，仅证明RouteCollection匹配、绑定及合成OPTIONS，不是完整PHP业务HTTP。Symfony8为独立固定比较组件，不冒称Laravel已解析锁。Rust由同一真实声明派生逐method原串分派与完整methods动作view，保留覆盖位置、域优先union在Host过滤前、匿名声明、非fallback优先及终止边界；不以此关闭完整Routing/Controller/URLGenerator/Redirector。
+
+最终冻结 `/tmp/openrust-c04d10h-verification-v4/freeze.json` SHA `ae563056251dd08bd99ea7b9ed38e88ac5b4bc020a0855698191271babfc75c0`；最终索引 `FINAL-HANDOFF.json` SHA `3d89f29ccbec2a1e2d4c71b1732887630a2d06333051ada17a7a2de0147a0461`。主控实际复核74份关联path/SHA及580项冻结运行输入；全部句柄终态，源码/锁稳定。核心、调用方与清理修复不同模型独审无剩余阻断。
+
+- 定向与适用门禁通过：核心collection7/原action5在all及无默认特性各执行，HTTP collection7包含6次真实loopback Host请求，证明旧handler/middleware各0、raw域碰撞与Host前隐藏、GET/HEAD405及OPTIONS、直接POST；完整router124/120、模块5及CLI快照1。双严格Clippy无allow/降阈值；main11项为默认838 passed/34 ignored、全特性1625 passed/108 ignored、双严格Rustdoc、4种feature、cargo deny及Rust1.97两项MSRV。忽略项不算真实服务。
+- 本轮新server SHA `0823c01a91f85b59660ea9128584744d44b8dca707096d548cb7a941dc627efe`、CLI SHA `908604cb93f0d0586214856e5f16c4c5b27eadbfd6cfde8813a5accda15e7f72`。fresh普通应用fmt/check/tests7通过，MySQL8.4.13认证2与独立公开consumer1通过，无生成后Rust补丁；自有库created/dropped均true。
+- 应用真实TCP无Session11/MySQL16通过，H新增自然summary路由验证静态顺序与最终动作覆盖，其余保留已接公共能力；raw碰撞的网络证据由上述HTTP测试中的独立loopback提供，不能从应用11/16项外推全部碰撞矩阵。网络worker/正常stop均0，无强杀/超时，监听释放、敏感临时配置清除、自有MySQL库回收均true；共享服务未删改。
+- 失败记录保留：首轮空体assert lint、提取前helper长度lint、提取后Router未限定的编译错误、旧POST405的Allow断言未同步新格式，以及网络前置错误导入旧common。第三次fixture编码/校验失败曾按§5停下，用户明确选择严格定向重验；类型仅明确为axum::Router，405仅同步为逗号加空格，OPTIONS仍无空格，未弱化断言。编译/网络前置失败不冒称真实请求失败；旧非零回执不改写。
+- 网络前置修复另存 `network-v2/network.py` SHA `2e2cdeae20f1557c31504ca723df184d2dfad1265da132f9adda794dcb34f8a7`，输入绑定SHA `8868c320bd452fd537932a972195c145a326c03f6bcebbf06f7bb8e3a5f2bd80`。入口在子目录引入原v4common，资源HERE不变；旧helper枚举、checked/source/artifact校验未修改，parent/worker前后补验新输入。旧preflight记录为附带provenance而非该驱动四项自动校验对象；主控与独审已另行复算其SHA一致。主矩阵/生成不受此未执行入口修复影响，未伪称重新运行。
+- 最终输入复用按逐source/argv/env影响映射保留：首轮核心/模块/CLI及后续未变生产证据可复用，修改的HTTP harness、失败项、完整router与双严格Clippy在适用最终输入实际补验。Agent文档更新不使Rust证据失效；签名URL及测试入口整合仅有后继只读审计，未混入实现。
+- 3个本轮plain/mysql/publicconsumer package精确clean均实际0，回收437,055,488字节；580项运行输入、生成源码/锁、新server/CLI、50个framework及19,587个保护哨兵与所有非自有依赖不变，无Cargo/target锁。清理回执 `cleanup-result.json` SHA `500a55079fdd1e791f6cad6253e7318f6e40510e89690af186eef2547df5e8da`；登记缓存37,676,105,728→37,239,050,240字节，磁盘可用105,982,365,696/994,662,584,320字节，满足50/100GB与10%/5%规则，保留活跃根缓存。
+
+上述相对证据路径均位于 `/tmp/openrust-c04d10h-verification-v4/`。PG及全部承诺后端发布矩阵、完整Routing与其余HTTP行为继续开放，不能由该子范围或单库日常结果关闭。

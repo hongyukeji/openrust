@@ -299,6 +299,14 @@ async fn redirect_to_user(info: RequestInfo) -> openrust::Result<Response> {
 命名重定向沿用现有 `BTreeMap<String, String>`、必需域/路径参数和 query 编码规则；域名模板及 `app.url` 的来源规则不受请求 Host 影响。这是已支持参数形态的接线，不代表 PHP 混合参数、模型/枚举绑定、可选参数或 `missingNamedRouteResolver` 已完成；signed 重定向仍属后继范围。
 
 
+### 最终声明集合与匹配顺序
+
+真实路由从最终声明派生分派与动作 URL 两种视图；每个方法按原串 `domain + uri` 覆盖同 key，域集合先于普通集合做左侧合并，隐藏发生在 Host 匹配前。完整动作视图按原 methods 序列参与覆盖，因此不同复合方法声明可能仍可用于生成动作 URL，即使其方法已分别被后续声明覆盖；请求中的 `Route` 始终反映实际执行声明的原 methods、action 和参数。
+
+非 fallback 路由按声明顺序首匹配。静态入口应先于宽泛参数入口：例如先登记 `/articles/export`，再挂载含 `/articles/{id}` 的资源路由；框架不会为晚声明的静态路由自动提权。同方法同路径的后续登记替换实际 handler，但保留原 key 的顺序位置。唯一模块与生成 helper 的草稿 `actions/summary` 展示默认概览覆盖及静态路径先登记的写法。
+
+当前方法的全部普通候选均不匹配后才执行适用的 fallback；域 fallback 不能抢后续普通显式路由，业务主动返回404/405不会触发再次兜底。当前方法与 fallback 均无匹配时，只从幸存集合按 GET、HEAD、POST、PUT、PATCH、DELETE、OPTIONS、QUERY（排除当前方法）计算允许方法：GET/HEAD也可返回405，合成OPTIONS返回200。405的 `Allow` 用逗号空格，合成OPTIONS用逗号无空格；显式自定义方法可直接命中，但不自动成为其他请求的 alternate。HEAD空体、静态资源、内部forward及请求路由快照回滚继续沿现公开边界执行。
+
 ### 按真实路由动作重定向
 
 `Redirector::action(action, &parameters)` 使用当前请求绑定的 `RouteUrlGenerator::action` 先找到实际登记的动作路由，再复用 `to_with` 建立默认302、空自定义头的响应。`action_with(action, &parameters, status, headers)` 提供显式选项；目标可以是匿名路由，不需要 `.name()`，也不会把动作字符串当作路由名称。无 Session 时普通跳转仍可用。
@@ -475,7 +483,7 @@ fn routes(routes: Routes) -> Routes {
 }
 ```
 
-注册集合路由和 `{id}` 成员路由前，Resource path 会去掉尾部斜杠；`nest("/posts", …)` 中的空路径会响应 `/posts` 和 `/posts/{id}`。多次调用 `only` 会保留 action 列表的交集。同一完整域、URI 与 HTTP 方法的后注册受管理声明覆盖先注册声明；不兼容的 Axum 路径模式冲突仍由 `build_router` 转为 `http_route_registration_failed` 启动错误。
+注册集合路由和 `{id}` 成员路由前，Resource path 会去掉尾部斜杠；`nest("/posts", …)` 中的空路径会响应 `/posts` 和 `/posts/{id}`。多次调用 `only` 会保留 action 列表的交集。同一完整域、URI 与 HTTP 方法的后注册受管理声明覆盖先注册声明；每条声明独立使用 Axum 校验路径语法，无效的单条路径由 `build_router` 转为 `http_route_registration_failed` 启动错误；不同声明间的合法重叠路径或不同参数名按集合声明顺序匹配。
 
 `PageParams` 默认为 `page=1&per_page=20`；直接提取时接受 `page >= 1`、`1 <= per_page <= 100`，且 offset 不得超过 `i64::MAX`。无效值会返回包含字段级 `errors` 的 `validation_failed` API 封装。`Query<PageParams>` 只负责反序列化，不会校验这些边界。`offset()` 从 0 开始，`limit()` 返回页大小。`Paginated::new(items, params, total)` 使用类型化 `PageMeta` 输出 `{"success": true, "code": "ok", "message": "ok", "data": [...], "meta": {"page": 1, "per_page": 20, "total": 57, "total_pages": 3}}`。
 
