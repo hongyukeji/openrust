@@ -24,6 +24,7 @@
 | [smskit](https://github.com/ciresnave/smskit) | Rust 多供应商统一接口、Twilio/Plivo/AWS、回调与 fallback | 候选参考，不把项目自述当成熟性证明；不整体引入其配置系统/路由层；仅在独立审计合格且确实降低维护成本时复用 adapter |
 | [AWS 官方 Rust SNS SDK](https://docs.aws.amazon.com/sdk-for-rust/latest/dg/rust_sns_code_examples.html) | 官方 Rust SDK 支持 SNS Publish；SNS 可向号码发 SMS | AWS 驱动优先评估官方 SDK，依赖可选 |
 | [Twilio 官方 Rust 指引](https://www.twilio.com/docs/openapi/generating-a-rust-client-for-twilios-api) | 无官方 Rust SDK，可依据 OpenAPI 生成 | 对比现有薄 adapter、受控生成子集与社区 SDK，不为“用了 SDK”强行替换可靠小实现 |
+| [云片官方接口](https://www.yunpian.com/official/document/sms/zh_cn/introduction_brief)、[短信宝官方接口](https://user.smsbao.com/openapi/) | 已核有公开发送接口；用户明确要求支持 | 分别审计官方鉴权/正文模板/返回码/回执，优先合格组件；无合适组件则使用共享HTTP薄适配，短信宝凭据与请求URL不得进日志 |
 | [腾讯社区候选](https://docs.rs/tencentcloud-sms-sdk)、[阿里云社区候选](https://docs.rs/alibaba-cloud-sdk-rust) | 搜索已发现候选；未做源码/维护/实发审计 | 不视作官方或已选型；核许可、维护、async/MSRV、签名、脱敏、端点、超时/重试和依赖体积后决定 |
 
 实施时记录所选 SDK 的精确版本/commit、许可证与官方 API 版本至 stack/交付 Spec。阿里云、腾讯云官方 SDK 目录未列 Rust，不因社区包名称误标官方。候选失败可使用官方协议加现有 HTTP/签名基础组件的薄适配；不自研密码算法，不通过 PHP/Java/Go sidecar 增加默认部署负担。
@@ -40,7 +41,17 @@
 
 日常体验以 Storage 式默认连接和按需指定连接为目标：`sms.send(message)`、`sms.connection("transactional").send(message)`；这只是待 Spec 确认的 Rust API 示意，不是现成可编译接口，也不是 Laravel 官方通用 Sms 门面。默认项目只需一个连接，高级路由不作为必填配置。应用可配置 `register` 等稳定模板别名到各连接审核模板的映射，复用现模板/配置机制，业务无需写死供应商ID；映射缺失或参数不满足供应商schema须明确失败，不隐式降为自由文本或改投别家。
 
-首批交付清单明确为 **Vonage、阿里云、腾讯云、Twilio**；AWS SNS为后继可选驱动。首批是计划范围，不表示四家已实现或真实实发通过。管理员通过宿主后台维护默认连接、启停、账号密钥、签名、模板映射及允许的发送号码等字段；框架提供受权管理方法与校验/激活结果，后台页面和路由由开发者定义。新增驱动代码或编译feature仍需部署，不因动态配置承诺任意代码热加载。
+首批交付扩大为下列14家覆盖目标，云片与短信宝为用户明确必交；AWS SNS由后继调入首批。首批是计划范围，不表示已实现或真实实发通过；按共享契约分组开发、逐服务商验收，不将“主流”解释为已有或未来所有平台无边界承诺。
+
+| 分组 | 首批服务商 |
+| --- | --- |
+| 国内云平台 | 阿里云、腾讯云、华为云、火山引擎、百度智能云、七牛云 |
+| 国内专业短信平台 | 云片（云片网络）、短信宝、容联云通讯、SUBMAIL、极光 |
+| 国际平台与官方渠道 | Vonage、Twilio、AWS SNS |
+
+SMS-0为每家核官方产品/API版本、当前可开通范围、鉴权与签名/模板/回执能力、Rust SDK或薄适配方案、许可和实发外部条件；不能把OpenSpring的Java映射当成Rust驱动。其他OpenSpring已有平台（如京东云、天翼云、网易、创蓝、亿美等）进入覆盖审计清单，若发现目标开发者常用且无替代覆盖则按同一公开扩展机制补入；新增必须有具体清单与验收，不能只写“支持全部主流”。
+
+管理员通过宿主后台维护默认连接、启停、账号密钥、签名、模板映射及允许的发送号码等字段；框架提供受权管理方法与校验/激活结果，后台页面和路由由开发者定义。新增驱动代码或编译feature仍需部署，不因动态配置承诺任意代码热加载。
 
 ## 生命周期、持久化与错误
 
@@ -59,7 +70,7 @@
 | --- | --- | --- |
 | SMS-0 来源与 SDK 决策 | 核固定 Vonage 官方包、现公开调用、OpenSpring/EasySMS；审候选源码/锁/许可，明确默认、错误、schema 与 Rust 差异 | 确定 SDK/薄 adapter 理由、API草案、影响清单与验收，不加未经审计依赖 |
 | SMS-1 渠道与连接契约 | 沿 R9 Notification 与现 SmsDriver 实现具名连接/公开factory，静态配置、文本/模板、log/fake、扩展接线 | 模块/生成项目用公开API；外部自定义driver不改src；默认及错误边界通过 |
-| SMS-2 官方渠道与服务商 | Vonage 官方对应；保留并重验 Twilio；阿里云与腾讯云首批增强，AWS SNS后继独立驱动 | 每个驱动单簇真实受理/回执等适用能力验证，未启用无专属依赖，不因某账号缺失阻断独立驱动 |
+| SMS-2 官方渠道与服务商 | Vonage官方对应；保留并重验Twilio；按首批14家清单分组交付，云片/短信宝明确必交，AWS纳入首批 | 每个驱动单簇真实受理/回执等适用能力验证，未启用无专属依赖，不因某账号缺失阻断独立驱动 |
 | SMS-3 排队与安全重试 | R10事务派发/attempt资源快照、重试配置策略Spec、取消/崩溃/unknown处理、禁止不安全回退 | 先收敛跨attempt连接/账号变更与吊销边界，再验MySQL重启/并发及受理后故障；不虚报exactly-once |
 | SMS-4 动态设置与回执 | 统一DB设置成熟后接入安全激活、多节点、停用/撤销与已定资源代次策略；供应商回执按能力提供 | 真实多节点配置一致、失败保旧、回调验签/归属/重复乱序及宿主公开挂载 |
 | SMS-5 收口 | 文档、env、唯一模块、生成、依赖树、必要真实服务和发布全后端矩阵 | 逐服务商列已实现/已实发/未获外部条件，更新矩阵及本地提交，不推送/发布 |
