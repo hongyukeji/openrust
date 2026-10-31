@@ -12,6 +12,7 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 - Session 属性树的公共读取统一返回 `DataValue`，原始写入保留对象身份；DTO 使用显式 `*_typed` 写入，JSON/DTO 读取使用显式投影并处理不可投影对象。默认 native 编码在保存对象时拒绝且不写后端，json 编码仅接受对象声明的投影；唯一业务模块、生成模板和公开 consumer 同步迁移。本次破坏性 API 调整不承诺 PHP serialize 字节兼容，也不代表完整 Request 文件或 Session 能力已验收。
 
 - 测试应用增加受控 `TestAppBuilder::run_command`，使用同名 console 启动上下文执行命令并在返回前关闭应用；普通 `build` 继续进行正常启动校验。唯一模块的迁移用例经此入口先运行初次迁移，再按原断言检查回滚、重迁移与禁用后的旧表。
+- Storage 增加公开可见性、受控对象发布与 CAS 仲裁基础，本地文件权限和租户附件示例经定向验证；可选 S3 对象 ACL/CopyObject 使用明确连接配置。真实 S3 ACL 正负例、迟到 CopyObject 响应以及 Laravel `throw=false` 返回语义仍未完成验收或对齐，不计为完整 Storage 1:1 交付。
 
 - 监听环境键统一为中性的 `SERVER_PORT → server.port`，移除 `APP_PORT`、独立 `PORT` 和命名空间端口别名；根和生成应用使用 `APP_URL="http://localhost:${SERVER_PORT}"`。缓存按 Laravel 使用 `CACHE_STORE → cache.default`，默认选择已登记的 redis store，移除旧 `REDIS_DEFAULT_STORE`，不引入 `CACHE_DEFAULT_STORE` 别名；Redis 连接与队列共用 `REDIS_DB`，保留其他合法具名 store 和自定义 driver。
 

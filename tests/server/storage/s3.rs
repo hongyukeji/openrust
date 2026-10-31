@@ -5,11 +5,232 @@ use figment::providers::Format;
 use futures_util::{StreamExt, stream};
 use openrust::storage::{
     Storage, StoragePath, StorageServiceProvider, StorageStream, UploadInspector, UploadOptions,
+    Visibility,
 };
 use openrust::{Error, Result, core::ProviderBuilder};
 use std::{sync::Arc, time::Duration};
 
 type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
+
+#[tokio::test]
+#[ignore = "需 ACL-enabled 的隔离真实 S3 bucket 与凭据；默认 ACL-disabled bucket 不可代替"]
+async fn s3_visibility_copy_acl_read_and_change() -> TestResult {
+    let endpoint = std::env::var("OPENRUST_TEST_S3_ENDPOINT")?;
+    let bucket = std::env::var("OPENRUST_TEST_S3_ACL_BUCKET")?;
+    let region = std::env::var("OPENRUST_TEST_S3_REGION")?;
+    let access = std::env::var("OPENRUST_TEST_S3_ACCESS_KEY_ID")?;
+    let secret = std::env::var("OPENRUST_TEST_S3_SECRET_ACCESS_KEY")?;
+    let root = format!("visibility/{}", unique_suffix());
+    let configuration = format!(
+        "[storage]\ndefault_disk = 'media'\n[storage.disks.media]\ndriver = 's3'\nvisibility = 'private'\nbucket = {}\nregion = {}\nendpoint = {}\naccess_key_id = {}\nsecret_access_key = {}\nroot = {}\n",
+        serde_json::to_string(&bucket)?,
+        serde_json::to_string(&region)?,
+        serde_json::to_string(&endpoint)?,
+        serde_json::to_string(&access)?,
+        serde_json::to_string(&secret)?,
+        serde_json::to_string(&root)?
+    );
+    let mut builder = ProviderBuilder::new();
+    builder.provider(StorageServiceProvider::new());
+    let app = openrust::App::from_provider_runtime(
+        builder
+            .start(figment::Figment::new().merge(figment::providers::Toml::string(&configuration)))
+            .await?,
+    )?;
+    let disk = app
+        .state()
+        .resolve::<Storage>()
+        .await?
+        .default_disk()
+        .await?;
+    let path = StoragePath::new("copy acl with spaces/object.bin")?;
+    disk.put_stream(
+        path.clone(),
+        Some("application/octet-stream".into()),
+        Box::pin(stream::iter([Ok(Bytes::from_static(b"public payload"))])),
+        UploadOptions {
+            visibility: Some(Visibility::Public),
+            ..Default::default()
+        },
+        None,
+    )
+    .await?;
+    assert_eq!(disk.visibility(&path).await?, Visibility::Public);
+    disk.set_visibility(&path, Visibility::Private).await?;
+    assert_eq!(disk.visibility(&path).await?, Visibility::Private);
+    disk.put_stream(
+        path.clone(),
+        None,
+        Box::pin(stream::iter([Ok(Bytes::from_static(
+            b"private replacement",
+        ))])),
+        UploadOptions::default(),
+        None,
+    )
+    .await?;
+    assert_eq!(disk.visibility(&path).await?, Visibility::Private);
+    disk.delete(&path).await?;
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "需真实 ACL-disabled bucket；验证明确拒绝且目标对象未发布"]
+async fn s3_acl_disabled_bucket_rejects_public_copy() -> TestResult {
+    let endpoint = std::env::var("OPENRUST_TEST_S3_ENDPOINT")?;
+    let bucket = std::env::var("OPENRUST_TEST_S3_ACL_DISABLED_BUCKET")?;
+    let region = std::env::var("OPENRUST_TEST_S3_REGION")?;
+    let access = std::env::var("OPENRUST_TEST_S3_ACCESS_KEY_ID")?;
+    let secret = std::env::var("OPENRUST_TEST_S3_SECRET_ACCESS_KEY")?;
+    let root = format!("visibility/{}", unique_suffix());
+    let configuration = format!(
+        "[storage]\n[storage.disks.local]\ndriver = 's3'\nbucket = {}\nregion = {}\nendpoint = {}\naccess_key_id = {}\nsecret_access_key = {}\nroot = {}\n",
+        serde_json::to_string(&bucket)?,
+        serde_json::to_string(&region)?,
+        serde_json::to_string(&endpoint)?,
+        serde_json::to_string(&access)?,
+        serde_json::to_string(&secret)?,
+        serde_json::to_string(&root)?
+    );
+    let mut builder = ProviderBuilder::new();
+    builder.provider(StorageServiceProvider::new());
+    let app = openrust::App::from_provider_runtime(
+        builder
+            .start(figment::Figment::new().merge(figment::providers::Toml::string(&configuration)))
+            .await?,
+    )?;
+    let disk = app
+        .state()
+        .resolve::<Storage>()
+        .await?
+        .default_disk()
+        .await?;
+    let path = StoragePath::new("acl-disabled/object.bin")?;
+    let result = disk
+        .put_stream(
+            path.clone(),
+            None,
+            Box::pin(stream::iter([Ok(Bytes::from_static(b"not public"))])),
+            UploadOptions {
+                visibility: Some(Visibility::Public),
+                ..Default::default()
+            },
+            None,
+        )
+        .await;
+    let code = result
+        .err()
+        .ok_or("public copy unexpectedly succeeded")?
+        .code()
+        .to_owned();
+    assert!(matches!(
+        code.as_str(),
+        "storage_acl_disabled" | "storage_acl_access_denied"
+    ));
+    assert!(disk.stat(&path).await.is_err());
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "需 ACL-enabled 真实 S3 与 HTTP 延迟代理：代理须先转发 CopyObject 并在成功响应前延迟超过 30 秒"]
+async fn s3_late_copy_response_keeps_complete_target_and_cleans_staging() -> TestResult {
+    let endpoint = std::env::var("OPENRUST_TEST_S3_ENDPOINT")?;
+    let delayed = std::env::var("OPENRUST_TEST_S3_DELAYED_COPY_ENDPOINT")?;
+    let bucket = std::env::var("OPENRUST_TEST_S3_ACL_BUCKET")?;
+    let region = std::env::var("OPENRUST_TEST_S3_REGION")?;
+    let access = std::env::var("OPENRUST_TEST_S3_ACCESS_KEY_ID")?;
+    let secret = std::env::var("OPENRUST_TEST_S3_SECRET_ACCESS_KEY")?;
+    let root = format!("visibility-late/{}", unique_suffix());
+    let configuration = format!(
+        "[storage]\ndefault_disk = 'normal'\n[storage.disks.normal]\ndriver = 's3'\nbucket = {}\nregion = {}\nendpoint = {}\naccess_key_id = {}\nsecret_access_key = {}\nroot = {}\n[storage.disks.delayed]\ndriver = 's3'\nbucket = {}\nregion = {}\nendpoint = {}\naccess_key_id = {}\nsecret_access_key = {}\nroot = {}\n",
+        serde_json::to_string(&bucket)?,
+        serde_json::to_string(&region)?,
+        serde_json::to_string(&endpoint)?,
+        serde_json::to_string(&access)?,
+        serde_json::to_string(&secret)?,
+        serde_json::to_string(&root)?,
+        serde_json::to_string(&bucket)?,
+        serde_json::to_string(&region)?,
+        serde_json::to_string(&delayed)?,
+        serde_json::to_string(&access)?,
+        serde_json::to_string(&secret)?,
+        serde_json::to_string(&root)?,
+    );
+    let mut builder = ProviderBuilder::new();
+    builder.provider(StorageServiceProvider::new());
+    let app = openrust::App::from_provider_runtime(
+        builder
+            .start(figment::Figment::new().merge(figment::providers::Toml::string(&configuration)))
+            .await?,
+    )?;
+    let storage = app.state().resolve::<Storage>().await?;
+    let normal = storage.disk("normal").await?;
+    let slow = storage.disk("delayed").await?;
+    let path = StoragePath::new("late-copy/object.bin")?;
+    normal
+        .put_stream(
+            path.clone(),
+            None,
+            Box::pin(stream::iter([Ok(Bytes::from_static(b"old object"))])),
+            UploadOptions::default(),
+            None,
+        )
+        .await?;
+    let mut old = normal.open(&path, None).await?;
+    let mut content = Vec::new();
+    while let Some(chunk) = old.body.next().await {
+        content.extend_from_slice(&chunk?);
+    }
+    assert_eq!(content, b"old object");
+    let result = slow
+        .put_stream(
+            path.clone(),
+            None,
+            Box::pin(stream::iter([Ok(Bytes::from_static(
+                b"complete replacement",
+            ))])),
+            UploadOptions {
+                visibility: Some(Visibility::Public),
+                ..Default::default()
+            },
+            None,
+        )
+        .await;
+    assert_eq!(
+        result.err().map(|error| error.code().to_owned()),
+        Some("storage_publication_uncertain".to_owned())
+    );
+    let mut current = normal.open(&path, None).await?;
+    let mut content = Vec::new();
+    while let Some(chunk) = current.body.next().await {
+        content.extend_from_slice(&chunk?);
+    }
+    assert_eq!(content, b"complete replacement");
+    assert_eq!(normal.visibility(&path).await?, Visibility::Public);
+    let client = aws_sdk_s3::Client::from_conf(
+        aws_sdk_s3::Config::builder()
+            .behavior_version_latest()
+            .region(aws_sdk_s3::config::Region::new(region))
+            .endpoint_url(endpoint)
+            .force_path_style(true)
+            .credentials_provider(aws_sdk_s3::config::Credentials::new(
+                access,
+                secret,
+                None,
+                None,
+                "openrust-storage-test",
+            ))
+            .build(),
+    );
+    let staged = client
+        .list_objects_v2()
+        .bucket(&bucket)
+        .prefix(format!("{root}/.openrust-staging/"))
+        .send()
+        .await?;
+    assert_eq!(staged.contents(), &[] as &[aws_sdk_s3::types::Object]);
+    normal.delete(&path).await?;
+    Ok(())
+}
 
 #[tokio::test]
 #[ignore = "需单独启动已开启 bucket versioning 的真实 S3-compatible 服务后显式运行"]

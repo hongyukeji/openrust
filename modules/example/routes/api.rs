@@ -568,6 +568,10 @@ fn article_routes(routes: Routes, summary_enabled: bool) -> Routes {
             .delete(
                 "/articles/{id}/attachment",
                 controllers::attachments::delete,
+            )
+            .put(
+                "/articles/{id}/attachment/visibility",
+                controllers::attachments::set_visibility,
             );
         #[cfg(feature = "encryption")]
         let api = api

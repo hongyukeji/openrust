@@ -19,7 +19,7 @@ use openrust::db::sea_orm::{
 use openrust::http::axum::{body::Body, http::StatusCode};
 use openrust::storage::{
     Storage, StoragePath, StorageReader, StoredObject, UploadContext, UploadInspector,
-    UploadOptions,
+    UploadOptions, Visibility,
 };
 use openrust::tenant::{TenantContext, TenantId};
 use openrust::{Db, Error, Result};
@@ -146,6 +146,22 @@ impl ArticleAttachments {
             .map_err(Error::internal)?
             .ok_or_else(not_found)?;
         Ok(path)
+    }
+
+    /// 在文章所有权检查后修改当前租户的附件可见性。
+    pub(crate) async fn set_visibility(
+        &self,
+        owner_id: i64,
+        article_id: i64,
+        visibility: Visibility,
+    ) -> Result<()> {
+        let path = self.authorized_path(owner_id, article_id).await?;
+        self.storage
+            .default_disk()
+            .await?
+            .set_visibility(&path, visibility)
+            .await
+            .map_err(storage_error)
     }
 
     fn object_path(owner_id: i64, article_id: i64) -> Result<StoragePath> {
@@ -444,6 +460,7 @@ impl ArticleAttachments {
                         Arc::clone(&body_state),
                     ),
                     UploadOptions {
+                        visibility: None,
                         max_bytes: MAX_ATTACHMENT_BYTES,
                         max_chunk_bytes: MAX_ATTACHMENT_CHUNK,
                         allowed_content_types: vec!["text/plain".to_owned()],

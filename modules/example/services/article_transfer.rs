@@ -917,6 +917,7 @@ mod tasks {
                 Some(format.mime().into()),
                 Box::pin(chunks),
                 openrust::storage::UploadOptions {
+                    visibility: None,
                     max_bytes: MAX_TRANSFER_BYTES as u64,
                     max_chunk_bytes: 16 * 1024,
                     allowed_content_types: vec![format.mime().into()],

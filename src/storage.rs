@@ -3,7 +3,16 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
-use std::{collections::BTreeMap, fmt, pin::Pin, sync::Arc, time::Duration};
+use std::{
+    collections::BTreeMap,
+    fmt,
+    pin::Pin,
+    sync::{
+        Arc,
+        atomic::{AtomicU8, Ordering},
+    },
+    time::Duration,
+};
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -16,6 +25,17 @@ pub use crate::config::{StorageConfig, StorageDiskConfig};
 
 /// 存储读取或写入所使用的有序 bytes stream。
 pub type StorageStream = Pin<Box<dyn Stream<Item = Result<Bytes>> + Send + 'static>>;
+
+/// 对象或本地文件的可见性；public 不保证网络可达。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Visibility {
+    /// 由存储服务的公开读取策略访问。
+    Public,
+    /// 仅由授权调用方访问。
+    #[default]
+    Private,
+}
 
 /// 已验证的相对对象 key。
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -87,6 +107,8 @@ pub trait UploadInspector: Send + Sync + 'static {
 /// 约束总上传字节数、单个块的大小和声明的媒体类型。
 #[derive(Debug, Clone)]
 pub struct UploadOptions {
+    /// 覆盖 disk 默认可见性；未指定时使用 disk 配置。
+    pub visibility: Option<Visibility>,
     /// 此次上传允许的最大总字节数。
     pub max_bytes: u64,
     /// 此次上传允许的最大单块字节数。
@@ -98,6 +120,7 @@ pub struct UploadOptions {
 impl Default for UploadOptions {
     fn default() -> Self {
         Self {
+            visibility: None,
             max_bytes: 32 * 1024 * 1024,
             max_chunk_bytes: 1024 * 1024,
             allowed_content_types: Vec::new(),
@@ -125,14 +148,26 @@ pub struct StorageReader {
 /// 应用可实现的文件存储 driver 契约。
 #[async_trait]
 pub trait StorageBackend: Send + Sync + 'static {
-    /// 写入 stream；只有成功完成时目标 key 才可见，失败/取消不能发布部分对象。
+    /// 写入 stream；提交目标前须通过 `UploadCancellation::begin_publication`
+    /// 领取发布权，成功或已知失败时结清令牌。失败/取消不能发布部分对象。
     async fn put(
         &self,
         path: &StoragePath,
         content_type: Option<&str>,
+        visibility: Option<Visibility>,
         body: StorageStream,
         cancellation: UploadCancellation,
     ) -> Result<StorageMetadata>;
+
+    /// 读取对象的实际可见性；不支持时明确失败。
+    async fn visibility(&self, _path: &StoragePath) -> Result<Visibility> {
+        Err(unsupported_storage_capability("visibility reads"))
+    }
+
+    /// 修改对象可见性；不支持时明确失败。
+    async fn set_visibility(&self, _path: &StoragePath, _visibility: Visibility) -> Result<()> {
+        Err(unsupported_storage_capability("visibility changes"))
+    }
 
     /// 打开对象的有序 stream；可选 version 必须精确绑定对象版本。
     async fn open(&self, path: &StoragePath, version: Option<&str>) -> Result<StorageReader>;
@@ -154,31 +189,123 @@ pub trait StorageBackend: Send + Sync + 'static {
     }
 }
 
-/// 上传调用被丢弃时通知 driver 尽力清理未发布数据。
+/// 上传调用在发布仲裁前被丢弃时通知 driver 清理未发布数据。
 pub struct UploadCancellation {
     receiver: tokio::sync::oneshot::Receiver<()>,
+    publication: Arc<AtomicU8>,
 }
+
+const UPLOAD_PENDING: u8 = 0;
+const UPLOAD_CANCELLED: u8 = 1;
+const UPLOAD_PUBLISHING: u8 = 2;
+const UPLOAD_FINISHED: u8 = 3;
+const UPLOAD_FAILED: u8 = 4;
+const UPLOAD_UNCERTAIN: u8 = 5;
 
 impl UploadCancellation {
     /// 等待调用方取消；正常 EOF 不会触发该通知。
     pub async fn cancelled(&mut self) {
         let _ = (&mut self.receiver).await;
     }
+
+    /// 领取最终发布权；取消先赢时目标不得提交。领取后 driver 须完成原子提交，
+    /// 即使调用方 future 已被丢弃也须自行完成或报告结果不确定。
+    pub fn begin_publication(&self) -> Result<UploadPublication> {
+        self.publication
+            .compare_exchange(
+                UPLOAD_PENDING,
+                UPLOAD_PUBLISHING,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            )
+            .map(|_| UploadPublication {
+                state: Arc::clone(&self.publication),
+            })
+            .map_err(|state| match state {
+                UPLOAD_CANCELLED => Error::custom(
+                    "storage_upload_cancelled",
+                    "upload was cancelled before publication",
+                ),
+                _ => Error::internal(std::io::Error::other(
+                    "upload publication was already claimed",
+                )),
+            })
+    }
 }
 
-struct UploadCancellationGuard(Option<tokio::sync::oneshot::Sender<()>>);
+/// 已领取的最终发布权。只在目标完整提交后标记成功；已知失败时标记失败。
+#[must_use = "publication must be completed or failed after the final commit attempt"]
+pub struct UploadPublication {
+    state: Arc<AtomicU8>,
+}
+
+impl UploadPublication {
+    /// 确认完整对象已提交；driver 此后才能返回成功。
+    pub fn complete(self) {
+        self.state.store(UPLOAD_FINISHED, Ordering::Release);
+    }
+
+    /// 确认最终提交失败；已发送但响应丢失时应返回结果不确定错误。
+    pub fn fail(self) {
+        self.state.store(UPLOAD_FAILED, Ordering::Release);
+    }
+
+    /// 最终提交已发出但结果未知；driver 须返回 `storage_publication_uncertain`。
+    pub fn uncertain(self) {
+        self.state.store(UPLOAD_UNCERTAIN, Ordering::Release);
+    }
+}
+
+struct UploadCancellationGuard {
+    sender: Option<tokio::sync::oneshot::Sender<()>>,
+    publication: Arc<AtomicU8>,
+}
 
 impl UploadCancellationGuard {
-    fn complete(&mut self) {
-        self.0.take();
+    fn cancel_pending(&mut self) -> bool {
+        if self
+            .publication
+            .compare_exchange(
+                UPLOAD_PENDING,
+                UPLOAD_CANCELLED,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            )
+            .is_ok()
+        {
+            if let Some(sender) = self.sender.take() {
+                let _ = sender.send(());
+            }
+            true
+        } else {
+            false
+        }
+    }
+
+    fn complete(&mut self) -> Result<()> {
+        let cancelled_here = self.cancel_pending();
+        let _ = self.sender.take();
+        match self.publication.load(Ordering::Acquire) {
+            UPLOAD_FINISHED => Ok(()),
+            UPLOAD_CANCELLED if cancelled_here => Err(Error::custom(
+                "storage_publication_incomplete",
+                "driver returned success without claiming publication",
+            )),
+            UPLOAD_CANCELLED | UPLOAD_PUBLISHING | UPLOAD_UNCERTAIN => Err(Error::custom(
+                "storage_publication_uncertain",
+                "driver reported success without a confirmed publication outcome",
+            )),
+            _ => Err(Error::custom(
+                "storage_publication_incomplete",
+                "driver returned success without completing publication",
+            )),
+        }
     }
 }
 
 impl Drop for UploadCancellationGuard {
     fn drop(&mut self) {
-        if let Some(sender) = self.0.take() {
-            let _ = sender.send(());
-        }
+        let _ = self.cancel_pending();
     }
 }
 
@@ -415,6 +542,7 @@ impl Storage {
                 Ok::<_, Error>(StorageDisk {
                     name: name.to_owned(),
                     backend,
+                    visibility: disk.visibility,
                     max_upload_bytes: config.max_upload_bytes,
                     max_chunk_bytes: config.max_chunk_bytes,
                 })
@@ -429,6 +557,7 @@ impl Storage {
 pub struct StorageDisk {
     name: String,
     backend: Arc<dyn StorageBackend>,
+    visibility: Option<Visibility>,
     max_upload_bytes: u64,
     max_chunk_bytes: usize,
 }
@@ -437,6 +566,23 @@ impl StorageDisk {
     /// 返回 disk 名称。
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    /// 返回 disk 显式配置的默认可见性；None 表示由 backend 决定。
+    pub fn default_visibility(&self) -> Option<Visibility> {
+        self.visibility
+    }
+
+    /// 读取对象实际可见性。
+    pub async fn visibility(&self, path: &StoragePath) -> Result<Visibility> {
+        self.backend.visibility(&tenant_storage_path(path)?).await
+    }
+
+    /// 设置对象实际可见性。
+    pub async fn set_visibility(&self, path: &StoragePath, visibility: Visibility) -> Result<()> {
+        self.backend
+            .set_visibility(&tenant_storage_path(path)?, visibility)
+            .await
     }
 
     /// 返回该 disk 的最大上传字节数。
@@ -503,20 +649,42 @@ impl StorageDisk {
             path: path.clone(),
             content_type: content_type.clone(),
         };
+        let visibility = options.visibility.or(self.visibility);
         let checked_body = checked_upload_stream(body, context.clone(), options, inspector);
         let physical_path = tenant_storage_path(&path)?;
         let (sender, receiver) = tokio::sync::oneshot::channel();
-        let mut cancellation_guard = UploadCancellationGuard(Some(sender));
-        let mut metadata = self
+        let publication = Arc::new(AtomicU8::new(UPLOAD_PENDING));
+        let mut cancellation_guard = UploadCancellationGuard {
+            sender: Some(sender),
+            publication: Arc::clone(&publication),
+        };
+        let result = self
             .backend
             .put(
                 &physical_path,
                 content_type.as_deref(),
+                visibility,
                 checked_body,
-                UploadCancellation { receiver },
+                UploadCancellation {
+                    receiver,
+                    publication: Arc::clone(&publication),
+                },
             )
-            .await?;
-        cancellation_guard.complete();
+            .await;
+        let mut metadata = match result {
+            Ok(metadata) => metadata,
+            Err(error) => {
+                let _ = cancellation_guard.cancel_pending();
+                return Err(match publication.load(Ordering::Acquire) {
+                    UPLOAD_PUBLISHING | UPLOAD_UNCERTAIN | UPLOAD_FINISHED => Error::custom(
+                        "storage_publication_uncertain",
+                        "driver failed after publication began; target state must be checked",
+                    ),
+                    _ => error,
+                });
+            }
+        };
+        cancellation_guard.complete()?;
         if metadata.content_type.is_none() {
             metadata.content_type = content_type;
         }
@@ -730,7 +898,12 @@ impl crate::core::ServiceProvider for StorageServiceProvider {
                     ("default_disk", S::String),
                     ("max_upload_bytes", S::Integer),
                     ("max_chunk_bytes", S::Integer),
-                    ("disks", S::map(S::object([("driver", S::String)]).open())),
+                    (
+                        "disks",
+                        S::map(
+                            S::object([("driver", S::String), ("visibility", S::String)]).open(),
+                        ),
+                    ),
                 ]),
                 |value| {
                     let config: StorageConfig =
@@ -850,6 +1023,7 @@ mod provider_tests {
             &self,
             _: &StoragePath,
             _: Option<&str>,
+            _: Option<super::Visibility>,
             _: StorageStream,
             _: UploadCancellation,
         ) -> Result<StorageMetadata> {
@@ -1082,14 +1256,18 @@ fn unsupported_storage_capability(name: &str) -> Error {
 mod opendal_driver {
     use super::{
         BoxFuture, Error, Result, StorageBackend, StorageDriver, StorageDriverConfig,
-        StorageMetadata, StoragePath, StorageReader, StorageStream, UploadCancellation,
+        StorageMetadata, StoragePath, StorageReader, StorageStream, UploadCancellation, Visibility,
         async_trait, unsupported_storage_capability,
     };
+    #[cfg(test)]
+    use super::{UPLOAD_FAILED, UPLOAD_FINISHED, UPLOAD_PENDING, UploadCancellationGuard};
     use futures_util::StreamExt;
     use opendal::{Operator, services};
     #[cfg(feature = "storage-s3")]
     use serde::de::DeserializeOwned;
     use std::path::PathBuf;
+    #[cfg(test)]
+    use std::sync::atomic::AtomicU8;
     use std::{
         sync::{
             Arc,
@@ -1128,9 +1306,31 @@ mod opendal_driver {
                 } else {
                     std::env::current_dir().map_err(Error::internal)?.join(root)
                 };
+                if std::fs::symlink_metadata(&root)
+                    .is_ok_and(|entry| entry.file_type().is_symlink())
+                {
+                    return Err(Error::custom(
+                        "storage_invalid_root",
+                        "storage root must not be a symlink",
+                    ));
+                }
                 let root = root.to_string_lossy().into_owned();
                 let staging_base = PathBuf::from(&root).join(".openrust-staging");
                 std::fs::create_dir_all(&staging_base).map_err(Error::internal)?;
+                let staging_entry =
+                    std::fs::symlink_metadata(&staging_base).map_err(Error::internal)?;
+                if staging_entry.file_type().is_symlink() || !staging_entry.is_dir() {
+                    return Err(Error::custom(
+                        "storage_invalid_root",
+                        "storage staging root must be a directory",
+                    ));
+                }
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    std::fs::set_permissions(&staging_base, std::fs::Permissions::from_mode(0o700))
+                        .map_err(Error::internal)?;
+                }
                 cleanup_stale_staging(&staging_base)?;
                 let staging = create_staging_directory(&staging_base)?;
                 let staging = staging.to_string_lossy().into_owned();
@@ -1143,6 +1343,9 @@ mod opendal_driver {
                 Ok(Arc::new(OpenDalBackend {
                     operator,
                     staging_path: Some(PathBuf::from(staging)),
+                    local_root: Some(PathBuf::from(root)),
+                    #[cfg(feature = "storage-s3")]
+                    s3_acl: None,
                 }) as Arc<dyn StorageBackend>)
             })
         }
@@ -1268,9 +1471,37 @@ mod opendal_driver {
                 if !operator.info().capability().presign_read {
                     return Err(unsupported_storage_capability("presigned read"));
                 }
+                let acl_config = aws_sdk_s3::Config::builder()
+                    .behavior_version_latest()
+                    .timeout_config(
+                        aws_sdk_s3::config::timeout::TimeoutConfig::builder()
+                            .operation_timeout(Duration::from_secs(30))
+                            .operation_attempt_timeout(Duration::from_secs(30))
+                            .build(),
+                    )
+                    .retry_config(
+                        aws_sdk_s3::config::retry::RetryConfig::standard().with_max_attempts(1),
+                    )
+                    .region(aws_sdk_s3::config::Region::new(region))
+                    .endpoint_url(endpoint)
+                    .force_path_style(true)
+                    .credentials_provider(aws_sdk_s3::config::Credentials::new(
+                        access_key_id,
+                        secret_access_key,
+                        None,
+                        None,
+                        "openrust-storage",
+                    ))
+                    .build();
                 Ok(Arc::new(OpenDalBackend {
                     operator,
                     staging_path: None,
+                    local_root: None,
+                    s3_acl: Some(S3Acl {
+                        client: aws_sdk_s3::Client::from_conf(acl_config),
+                        bucket,
+                        root,
+                    }),
                 }) as Arc<dyn StorageBackend>)
             })
         }
@@ -1289,6 +1520,17 @@ mod opendal_driver {
     pub struct OpenDalBackend {
         operator: Operator,
         staging_path: Option<PathBuf>,
+        local_root: Option<PathBuf>,
+        #[cfg(feature = "storage-s3")]
+        s3_acl: Option<S3Acl>,
+    }
+
+    #[cfg(feature = "storage-s3")]
+    #[derive(Clone)]
+    struct S3Acl {
+        client: aws_sdk_s3::Client,
+        bucket: String,
+        root: String,
     }
 
     impl Drop for OpenDalBackend {
@@ -1378,7 +1620,15 @@ mod opendal_driver {
             let sequence = next_staging_id()?;
             let path = base.join(format!("run-{}-{timestamp}-{sequence}", std::process::id()));
             match std::fs::create_dir(&path) {
-                Ok(()) => return Ok(path),
+                Ok(()) => {
+                    #[cfg(unix)]
+                    {
+                        use std::os::unix::fs::PermissionsExt;
+                        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700))
+                            .map_err(Error::internal)?;
+                    }
+                    return Ok(path);
+                }
                 Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
                 Err(error) => return Err(Error::internal(error)),
             }
@@ -1607,13 +1857,17 @@ mod opendal_driver {
     }
 
     #[cfg(feature = "storage-s3")]
+    #[allow(clippy::too_many_lines)]
     async fn write_s3_object(
         operator: Operator,
+        acl: S3Acl,
         path: String,
         content_type: Option<String>,
+        visibility: Option<Visibility>,
         body: StorageStream,
         mut cancellation: UploadCancellation,
     ) -> Result<StorageMetadata> {
+        use aws_sdk_s3::error::ProvideErrorMetadata;
         // 保留目录不能通过 StoragePath 构造；随机 key 不包含业务或租户标识。
         let staging = format!(".openrust-staging/{}", uuid::Uuid::now_v7());
         let staged = write_object(
@@ -1636,29 +1890,831 @@ mod opendal_driver {
             }
         };
         // EOF 与 finish 已完成，关闭 staging 仍不是 final key 的发布边界。
-        // copy 开始后不再观察取消，也绝不补偿删除 final，避免误删并发合法发布。
-        let result = if cancellation.receiver.try_recv().is_ok() {
-            Err(Error::custom(
-                "storage_upload_cancelled",
-                "upload was cancelled before publication",
-            ))
-        } else {
-            operator
-                .copy(&staging, &path)
-                .await
-                .map(|metadata| {
-                    let mut published = metadata_from_opendal(metadata);
-                    published.size = source.size;
-                    published.content_type = source.content_type;
-                    published
-                })
-                .map_err(|_| Error::custom(
-                    "storage_publication_uncertain",
-                    "S3 发布请求失败，远端可能已提交完整对象；请读取目标确认结果，禁止补偿删除目标",
-                ))
+        // CAS 胜出后将 Copy 与清理交给独立任务，调用方丢弃 future 仍不打断提交。
+        let publication = match cancellation.begin_publication() {
+            Ok(publication) => publication,
+            Err(error) => {
+                cleanup_s3_staging(&operator, &staging).await;
+                return Err(error);
+            }
         };
-        cleanup_s3_staging(&operator, &staging).await;
+        let cleanup_operator = operator.clone();
+        let cleanup_key = staging.clone();
+        let source_key = acl.key(&staging);
+        let mut copy_source = format!("{}/{}", acl.bucket, encode_copy_source(&source_key));
+        if let Some(version) = &source.version {
+            copy_source.push_str("?versionId=");
+            copy_source.push_str(&encode_copy_source(version));
+        }
+        let mut copy = acl
+            .client
+            .copy_object()
+            .bucket(&acl.bucket)
+            .key(acl.key(&path))
+            .copy_source(copy_source)
+            .metadata_directive(aws_sdk_s3::types::MetadataDirective::Copy);
+        if let Some(etag) = &source.etag {
+            copy = copy.copy_source_if_match(etag);
+        }
+        if let Some(visibility) = visibility {
+            copy = copy.acl(visibility.s3_acl());
+        }
+        let publisher = tokio::spawn(async move {
+            let result = copy.send().await
+                .map(|result| StorageMetadata {
+                    size: source.size,
+                    content_type: source.content_type,
+                    etag: result.copy_object_result().and_then(|copy| copy.e_tag()).map(str::to_owned),
+                    version: result.version_id().map(str::to_owned),
+                })
+                .map_err(|error| match error.as_service_error().and_then(ProvideErrorMetadata::code) {
+                    Some("AccessControlListNotSupported" | "InvalidBucketAclWithObjectOwnership" | "AccessDenied" | "AllAccessDisabled") =>
+                        s3_acl_error(error.as_service_error().and_then(ProvideErrorMetadata::code), "copy"),
+                    _ => Error::custom(
+                        "storage_publication_uncertain",
+                        "S3 发布请求失败，远端可能已提交完整对象；请读取目标确认结果，禁止补偿删除目标",
+                    ),
+                });
+            match &result {
+                Ok(_) => publication.complete(),
+                Err(error) if error.code() == "storage_publication_uncertain" => {
+                    publication.uncertain();
+                }
+                Err(_) => publication.fail(),
+            }
+            cleanup_s3_staging(&cleanup_operator, &cleanup_key).await;
+            result
+        });
+        publisher.await.map_err(|_| {
+            Error::custom(
+                "storage_publication_uncertain",
+                "S3 发布任务中断，远端提交状态不确定",
+            )
+        })?
+    }
+
+    #[cfg(feature = "storage-s3")]
+    impl S3Acl {
+        fn key(&self, path: &str) -> String {
+            let prefix = self
+                .root
+                .split('/')
+                .filter(|part| !part.is_empty())
+                .collect::<Vec<_>>()
+                .join("/");
+            if prefix.is_empty() {
+                path.to_owned()
+            } else {
+                format!("{prefix}/{path}")
+            }
+        }
+
+        async fn visibility(&self, path: &StoragePath) -> Result<Visibility> {
+            use aws_sdk_s3::error::ProvideErrorMetadata;
+            let result = self
+                .client
+                .get_object_acl()
+                .bucket(&self.bucket)
+                .key(self.key(path.as_str()))
+                .send()
+                .await
+                .map_err(|error| {
+                    s3_acl_error(
+                        error
+                            .as_service_error()
+                            .and_then(ProvideErrorMetadata::code),
+                        "read",
+                    )
+                })?;
+            classify_s3_acl(result.owner(), result.grants.as_deref())
+        }
+
+        async fn set_visibility(&self, path: &StoragePath, visibility: Visibility) -> Result<()> {
+            use aws_sdk_s3::error::ProvideErrorMetadata;
+            self.client
+                .put_object_acl()
+                .bucket(&self.bucket)
+                .key(self.key(path.as_str()))
+                .acl(visibility.s3_acl())
+                .send()
+                .await
+                .map_err(|error| {
+                    s3_acl_error(
+                        error
+                            .as_service_error()
+                            .and_then(ProvideErrorMetadata::code),
+                        "change",
+                    )
+                })?;
+            Ok(())
+        }
+    }
+
+    #[cfg(feature = "storage-s3")]
+    fn classify_s3_acl(
+        owner: Option<&aws_sdk_s3::types::Owner>,
+        grants: Option<&[aws_sdk_s3::types::Grant]>,
+    ) -> Result<Visibility> {
+        let invalid = || {
+            Error::custom(
+                "storage_acl_invalid_response",
+                "S3 returned an incomplete or unrecognized object ACL",
+            )
+        };
+        if owner.and_then(|owner| owner.id()).is_none_or(str::is_empty) {
+            return Err(invalid());
+        }
+        let grants = grants
+            .filter(|grants| !grants.is_empty())
+            .ok_or_else(invalid)?;
+        let mut public = false;
+        for grant in grants {
+            let grantee = grant.grantee().ok_or_else(invalid)?;
+            let permission = grant.permission().ok_or_else(invalid)?.as_str();
+            if !matches!(
+                permission,
+                "READ" | "FULL_CONTROL" | "READ_ACP" | "WRITE" | "WRITE_ACP"
+            ) {
+                return Err(invalid());
+            }
+            match grantee.r#type().as_str() {
+                "Group" => {
+                    let uri = grantee
+                        .uri()
+                        .filter(|uri| !uri.is_empty())
+                        .ok_or_else(invalid)?;
+                    match uri {
+                        "http://acs.amazonaws.com/groups/global/AllUsers" => {
+                            public |= matches!(permission, "READ" | "FULL_CONTROL");
+                        }
+                        "http://acs.amazonaws.com/groups/global/AuthenticatedUsers"
+                        | "http://acs.amazonaws.com/groups/s3/LogDelivery" => {}
+                        _ => return Err(invalid()),
+                    }
+                }
+                "CanonicalUser" if grantee.id().is_some_and(|id| !id.is_empty()) => {}
+                "AmazonCustomerByEmail"
+                    if grantee
+                        .email_address()
+                        .is_some_and(|email| !email.is_empty()) => {}
+                _ => return Err(invalid()),
+            }
+        }
+        Ok(if public {
+            Visibility::Public
+        } else {
+            Visibility::Private
+        })
+    }
+
+    #[cfg(feature = "storage-s3")]
+    fn s3_acl_error(code: Option<&str>, operation: &str) -> Error {
+        let (stable, message) = match code {
+            Some("AccessControlListNotSupported" | "InvalidBucketAclWithObjectOwnership") => (
+                "storage_acl_disabled",
+                "S3 bucket does not allow object ACLs",
+            ),
+            Some("AccessDenied" | "AllAccessDisabled") => (
+                "storage_acl_access_denied",
+                "S3 object ACL access was denied",
+            ),
+            Some("NoSuchKey" | "NotFound") => {
+                ("storage_object_not_found", "S3 object was not found")
+            }
+            _ => ("storage_acl_failed", "S3 object ACL operation failed"),
+        };
+        Error::custom(stable, format!("{message} during {operation}"))
+    }
+
+    #[cfg(feature = "storage-s3")]
+    impl Visibility {
+        fn s3_acl(self) -> aws_sdk_s3::types::ObjectCannedAcl {
+            match self {
+                Self::Public => aws_sdk_s3::types::ObjectCannedAcl::PublicRead,
+                Self::Private => aws_sdk_s3::types::ObjectCannedAcl::Private,
+            }
+        }
+    }
+
+    #[cfg(feature = "storage-s3")]
+    fn encode_copy_source(value: &str) -> String {
+        let mut encoded = String::new();
+        for byte in value.bytes() {
+            if byte.is_ascii_alphanumeric() || b"-._~/".contains(&byte) {
+                encoded.push(char::from(byte));
+            } else {
+                use std::fmt::Write;
+                let _ = write!(encoded, "%{byte:02X}");
+            }
+        }
+        encoded
+    }
+
+    #[cfg(all(test, feature = "storage-s3"))]
+    #[test]
+    fn copy_source_encodes_reserved_bytes_without_erasing_key_slashes() {
+        assert_eq!(
+            encode_copy_source("prefix/a b/%#?.txt"),
+            "prefix/a%20b/%25%23%3F.txt"
+        );
+        assert_eq!(
+            s3_acl_error(Some("AccessControlListNotSupported"), "copy").code(),
+            "storage_acl_disabled"
+        );
+        assert_eq!(
+            s3_acl_error(Some("AccessDenied"), "change").code(),
+            "storage_acl_access_denied"
+        );
+    }
+
+    #[cfg(all(test, feature = "storage-s3"))]
+    #[test]
+    fn acl_classifier_rejects_missing_fields_and_recognizes_public_grant() -> Result<()> {
+        use aws_sdk_s3::types::{Grant, Grantee, Owner, Permission, Type};
+        let owner = Owner::builder().id("owner").build();
+        let owner_grant = Grant::builder()
+            .grantee(
+                Grantee::builder()
+                    .r#type(Type::CanonicalUser)
+                    .id("owner")
+                    .build()
+                    .map_err(Error::internal)?,
+            )
+            .permission(Permission::FullControl)
+            .build();
+        assert_eq!(
+            classify_s3_acl(Some(&owner), Some(std::slice::from_ref(&owner_grant))).ok(),
+            Some(Visibility::Private)
+        );
+        assert_eq!(
+            classify_s3_acl(None, Some(std::slice::from_ref(&owner_grant)))
+                .err()
+                .map(|e| e.code().to_owned()),
+            Some("storage_acl_invalid_response".to_owned())
+        );
+        assert!(classify_s3_acl(Some(&owner), None).is_err());
+        assert!(classify_s3_acl(Some(&owner), Some(&[Grant::builder().build()])).is_err());
+        let unknown = Grant::builder()
+            .grantee(
+                Grantee::builder()
+                    .r#type(Type::from("FutureGrantee"))
+                    .id("someone")
+                    .build()
+                    .map_err(Error::internal)?,
+            )
+            .permission(Permission::Read)
+            .build();
+        assert!(classify_s3_acl(Some(&owner), Some(&[unknown])).is_err());
+        for uri in [
+            "",
+            "garbage",
+            "http://acs.amazonaws.com/groups/global/Unknown",
+        ] {
+            let grant = Grant::builder()
+                .grantee(
+                    Grantee::builder()
+                        .r#type(Type::Group)
+                        .uri(uri)
+                        .build()
+                        .map_err(Error::internal)?,
+                )
+                .permission(Permission::Read)
+                .build();
+            assert_eq!(
+                classify_s3_acl(Some(&owner), Some(&[grant]))
+                    .err()
+                    .map(|error| error.code().to_owned()),
+                Some("storage_acl_invalid_response".to_owned())
+            );
+        }
+        for uri in [
+            "http://acs.amazonaws.com/groups/global/AuthenticatedUsers",
+            "http://acs.amazonaws.com/groups/s3/LogDelivery",
+        ] {
+            let grant = Grant::builder()
+                .grantee(
+                    Grantee::builder()
+                        .r#type(Type::Group)
+                        .uri(uri)
+                        .build()
+                        .map_err(Error::internal)?,
+                )
+                .permission(Permission::Read)
+                .build();
+            assert_eq!(
+                classify_s3_acl(Some(&owner), Some(&[grant])).ok(),
+                Some(Visibility::Private)
+            );
+        }
+        let public_grant = Grant::builder()
+            .grantee(
+                Grantee::builder()
+                    .r#type(Type::Group)
+                    .uri("http://acs.amazonaws.com/groups/global/AllUsers")
+                    .build()
+                    .map_err(Error::internal)?,
+            )
+            .permission(Permission::Read)
+            .build();
+        assert_eq!(
+            classify_s3_acl(Some(&owner), Some(&[owner_grant, public_grant])).ok(),
+            Some(Visibility::Public)
+        );
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    fn local_parent(
+        root: &std::path::Path,
+        path: &str,
+        visibility: Visibility,
+        create: bool,
+    ) -> Result<(std::os::fd::OwnedFd, String)> {
+        use rustix::fs::{Mode, OFlags, fchmod, fstat, mkdirat, openat};
+        let flags = OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC;
+        let mut directory =
+            openat(rustix::fs::CWD, root, flags, Mode::empty()).map_err(Error::internal)?;
+        let root_stat = fstat(&directory).map_err(Error::internal)?;
+        if visibility == Visibility::Public
+            && !Mode::from_raw_mode(root_stat.st_mode).contains(Mode::XOTH)
+        {
+            return Err(unsupported_storage_capability(
+                "public access through private storage root",
+            ));
+        }
+        let mut parts = path.split('/').peekable();
+        while let Some(part) = parts.next() {
+            if parts.peek().is_none() {
+                return Ok((directory, part.to_owned()));
+            }
+            let next = match openat(&directory, part, flags, Mode::empty()) {
+                Ok(next) => next,
+                Err(rustix::io::Errno::NOENT) if create => {
+                    let mode = local_directory_mode(visibility);
+                    let created = match mkdirat(&directory, part, mode) {
+                        Ok(()) => true,
+                        Err(rustix::io::Errno::EXIST) => false,
+                        Err(error) => return Err(Error::internal(error)),
+                    };
+                    let next =
+                        openat(&directory, part, flags, Mode::empty()).map_err(Error::internal)?;
+                    // 新建目录受 umask 影响；已有目录绝不被放宽。
+                    if created {
+                        fchmod(&next, mode).map_err(Error::internal)?;
+                    }
+                    next
+                }
+                Err(error) => return Err(Error::internal(error)),
+            };
+            if visibility == Visibility::Public {
+                let stat = fstat(&next).map_err(Error::internal)?;
+                if !Mode::from_raw_mode(stat.st_mode).contains(Mode::XOTH) {
+                    return Err(unsupported_storage_capability(
+                        "public access through private parent directory",
+                    ));
+                }
+            }
+            directory = next;
+        }
+        Err(Error::custom(
+            "storage_invalid_path",
+            "storage path is empty",
+        ))
+    }
+
+    #[cfg(unix)]
+    fn local_directory_mode(visibility: Visibility) -> rustix::fs::Mode {
+        use rustix::fs::Mode;
+        let owner = Mode::RUSR | Mode::WUSR | Mode::XUSR;
+        if visibility == Visibility::Public {
+            owner | Mode::RGRP | Mode::XGRP | Mode::ROTH | Mode::XOTH
+        } else {
+            owner
+        }
+    }
+
+    #[cfg(unix)]
+    fn local_file_mode(visibility: Visibility) -> rustix::fs::Mode {
+        use rustix::fs::Mode;
+        let owner = Mode::RUSR | Mode::WUSR;
+        if visibility == Visibility::Public {
+            owner | Mode::RGRP | Mode::ROTH
+        } else {
+            owner
+        }
+    }
+
+    #[cfg(unix)]
+    fn local_regular_single_link(fd: &std::os::fd::OwnedFd) -> Result<rustix::fs::Stat> {
+        let stat = rustix::fs::fstat(fd).map_err(Error::internal)?;
+        if rustix::fs::FileType::from_raw_mode(stat.st_mode) != rustix::fs::FileType::RegularFile
+            || stat.st_nlink != 1
+        {
+            return Err(Error::custom(
+                "storage_unsafe_file",
+                "storage file must be regular and have one hard link",
+            ));
+        }
+        Ok(stat)
+    }
+
+    #[cfg(unix)]
+    fn open_local_file(parent: &std::os::fd::OwnedFd, name: &str) -> Result<std::os::fd::OwnedFd> {
+        let fd = rustix::fs::openat(
+            parent,
+            name,
+            rustix::fs::OFlags::RDONLY | rustix::fs::OFlags::NOFOLLOW | rustix::fs::OFlags::CLOEXEC,
+            rustix::fs::Mode::empty(),
+        )
+        .map_err(Error::internal)?;
+        local_regular_single_link(&fd)?;
+        Ok(fd)
+    }
+
+    #[cfg(unix)]
+    fn publish_local(
+        staged: &std::os::fd::OwnedFd,
+        staging_parent: &std::os::fd::OwnedFd,
+        staging_name: &str,
+        target_parent: &std::os::fd::OwnedFd,
+        target_name: &str,
+        visibility: Visibility,
+        cancellation: &UploadCancellation,
+    ) -> Result<()> {
+        publish_local_with_hook(
+            staged,
+            staging_parent,
+            staging_name,
+            target_parent,
+            target_name,
+            visibility,
+            cancellation,
+            || {},
+            || {},
+        )
+    }
+
+    #[cfg(unix)]
+    #[allow(clippy::too_many_arguments)]
+    fn publish_local_with_hook(
+        staged: &std::os::fd::OwnedFd,
+        staging_parent: &std::os::fd::OwnedFd,
+        staging_name: &str,
+        target_parent: &std::os::fd::OwnedFd,
+        target_name: &str,
+        visibility: Visibility,
+        cancellation: &UploadCancellation,
+        before_claim: impl FnOnce(),
+        after_claim: impl FnOnce(),
+    ) -> Result<()> {
+        rustix::fs::fchmod(staged, local_file_mode(visibility)).map_err(Error::internal)?;
+        before_claim();
+        // CAS 决定取消与发布先后；一旦发布赢，守卫析构不再撤销同步 rename。
+        let publication = cancellation.begin_publication()?;
+        after_claim();
+        let result = rustix::fs::renameat(staging_parent, staging_name, target_parent, target_name)
+            .map_err(Error::internal);
+        if result.is_ok() {
+            publication.complete();
+        } else {
+            publication.fail();
+        }
         result
+    }
+
+    #[cfg(all(test, unix))]
+    #[test]
+    fn cancellation_before_local_rename_preserves_existing_target() -> Result<()> {
+        use std::os::unix::fs::PermissionsExt;
+        let root = tempfile::tempdir().map_err(Error::internal)?;
+        std::fs::set_permissions(root.path(), std::fs::Permissions::from_mode(0o755))
+            .map_err(Error::internal)?;
+        std::fs::create_dir(root.path().join("stage")).map_err(Error::internal)?;
+        std::fs::set_permissions(
+            root.path().join("stage"),
+            std::fs::Permissions::from_mode(0o700),
+        )
+        .map_err(Error::internal)?;
+        std::fs::write(root.path().join("stage/new"), b"new").map_err(Error::internal)?;
+        std::fs::write(root.path().join("target"), b"old").map_err(Error::internal)?;
+        let (stage_parent, stage_name) =
+            local_parent(root.path(), "stage/new", Visibility::Private, false)?;
+        let staged = open_local_file(&stage_parent, &stage_name)?;
+        let (target_parent, target_name) =
+            local_parent(root.path(), "target", Visibility::Public, false)?;
+        let (sender, receiver) = tokio::sync::oneshot::channel();
+        let publication = Arc::new(AtomicU8::new(UPLOAD_PENDING));
+        let guard = UploadCancellationGuard {
+            sender: Some(sender),
+            publication: Arc::clone(&publication),
+        };
+        let cancellation = UploadCancellation {
+            receiver,
+            publication,
+        };
+        drop(guard);
+        let result = publish_local(
+            &staged,
+            &stage_parent,
+            &stage_name,
+            &target_parent,
+            &target_name,
+            Visibility::Public,
+            &cancellation,
+        );
+        assert_eq!(
+            result.err().map(|error| error.code().to_owned()),
+            Some("storage_upload_cancelled".to_owned())
+        );
+        assert_eq!(
+            std::fs::read(root.path().join("target")).map_err(Error::internal)?,
+            b"old"
+        );
+        assert!(root.path().join("stage/new").is_file());
+        Ok(())
+    }
+
+    #[cfg(all(test, unix))]
+    #[test]
+    fn cancellation_during_local_publish_claim_preserves_existing_target() -> Result<()> {
+        use std::sync::Barrier;
+        let root = tempfile::tempdir().map_err(Error::internal)?;
+        std::fs::create_dir(root.path().join("stage")).map_err(Error::internal)?;
+        std::fs::write(root.path().join("stage/new"), b"new").map_err(Error::internal)?;
+        std::fs::write(root.path().join("target"), b"old").map_err(Error::internal)?;
+        let (stage_parent, stage_name) =
+            local_parent(root.path(), "stage/new", Visibility::Private, false)?;
+        let staged = open_local_file(&stage_parent, &stage_name)?;
+        let (target_parent, target_name) =
+            local_parent(root.path(), "target", Visibility::Private, false)?;
+        let (sender, receiver) = tokio::sync::oneshot::channel();
+        let publication = Arc::new(AtomicU8::new(UPLOAD_PENDING));
+        let guard = UploadCancellationGuard {
+            sender: Some(sender),
+            publication: Arc::clone(&publication),
+        };
+        let cancellation = UploadCancellation {
+            receiver,
+            publication,
+        };
+        let reached = Arc::new(Barrier::new(2));
+        let released = Arc::new(Barrier::new(2));
+        let result = std::thread::scope(|scope| {
+            let reached_worker = Arc::clone(&reached);
+            let released_worker = Arc::clone(&released);
+            let staged_ref = &staged;
+            let stage_parent_ref = &stage_parent;
+            let stage_name_ref = &stage_name;
+            let target_parent_ref = &target_parent;
+            let target_name_ref = &target_name;
+            let worker = scope.spawn(move || {
+                publish_local_with_hook(
+                    staged_ref,
+                    stage_parent_ref,
+                    stage_name_ref,
+                    target_parent_ref,
+                    target_name_ref,
+                    Visibility::Private,
+                    &cancellation,
+                    || {
+                        reached_worker.wait();
+                        released_worker.wait();
+                    },
+                    || {},
+                )
+            });
+            reached.wait();
+            drop(guard);
+            released.wait();
+            worker.join().map_err(|_| {
+                Error::internal(std::io::Error::other("local publisher thread panicked"))
+            })?
+        });
+        assert_eq!(
+            result.err().map(|error| error.code().to_owned()),
+            Some("storage_upload_cancelled".to_owned())
+        );
+        assert_eq!(
+            std::fs::read(root.path().join("target")).map_err(Error::internal)?,
+            b"old"
+        );
+        assert!(root.path().join("stage/new").is_file());
+        Ok(())
+    }
+
+    #[cfg(all(test, unix))]
+    #[test]
+    fn local_publish_claim_survives_guard_drop_and_records_failure() -> Result<()> {
+        use std::sync::Barrier;
+        let root = tempfile::tempdir().map_err(Error::internal)?;
+        std::fs::create_dir(root.path().join("stage")).map_err(Error::internal)?;
+        std::fs::write(root.path().join("stage/new"), b"new").map_err(Error::internal)?;
+        std::fs::write(root.path().join("target"), b"old").map_err(Error::internal)?;
+        let (stage_parent, stage_name) =
+            local_parent(root.path(), "stage/new", Visibility::Private, false)?;
+        let staged = open_local_file(&stage_parent, &stage_name)?;
+        let (target_parent, target_name) =
+            local_parent(root.path(), "target", Visibility::Private, false)?;
+        let (sender, receiver) = tokio::sync::oneshot::channel();
+        let publication = Arc::new(AtomicU8::new(UPLOAD_PENDING));
+        let guard = UploadCancellationGuard {
+            sender: Some(sender),
+            publication: Arc::clone(&publication),
+        };
+        let cancellation = UploadCancellation {
+            receiver,
+            publication: Arc::clone(&publication),
+        };
+        let reached = Arc::new(Barrier::new(2));
+        let released = Arc::new(Barrier::new(2));
+        let result = std::thread::scope(|scope| {
+            let reached_worker = Arc::clone(&reached);
+            let released_worker = Arc::clone(&released);
+            let staged_ref = &staged;
+            let stage_parent_ref = &stage_parent;
+            let stage_name_ref = &stage_name;
+            let target_parent_ref = &target_parent;
+            let target_name_ref = &target_name;
+            let worker = scope.spawn(move || {
+                publish_local_with_hook(
+                    staged_ref,
+                    stage_parent_ref,
+                    stage_name_ref,
+                    target_parent_ref,
+                    target_name_ref,
+                    Visibility::Private,
+                    &cancellation,
+                    || {},
+                    || {
+                        reached_worker.wait();
+                        released_worker.wait();
+                    },
+                )
+            });
+            reached.wait();
+            drop(guard);
+            released.wait();
+            worker.join().map_err(|_| {
+                Error::internal(std::io::Error::other("local publisher thread panicked"))
+            })?
+        });
+        result?;
+        assert_eq!(publication.load(Ordering::Acquire), UPLOAD_FINISHED);
+        assert_eq!(
+            std::fs::read(root.path().join("target")).map_err(Error::internal)?,
+            b"new"
+        );
+
+        std::fs::write(root.path().join("stage/failed"), b"failed").map_err(Error::internal)?;
+        let (stage_parent, stage_name) =
+            local_parent(root.path(), "stage/failed", Visibility::Private, false)?;
+        let staged = open_local_file(&stage_parent, &stage_name)?;
+        let (sender, receiver) = tokio::sync::oneshot::channel();
+        let publication = Arc::new(AtomicU8::new(UPLOAD_PENDING));
+        let guard = UploadCancellationGuard {
+            sender: Some(sender),
+            publication: Arc::clone(&publication),
+        };
+        let cancellation = UploadCancellation {
+            receiver,
+            publication: Arc::clone(&publication),
+        };
+        assert!(
+            publish_local(
+                &staged,
+                &stage_parent,
+                &stage_name,
+                &target_parent,
+                "missing/target",
+                Visibility::Private,
+                &cancellation,
+            )
+            .is_err()
+        );
+        drop(guard);
+        assert_eq!(publication.load(Ordering::Acquire), UPLOAD_FAILED);
+        assert_eq!(
+            std::fs::read(root.path().join("target")).map_err(Error::internal)?,
+            b"new"
+        );
+        assert!(root.path().join("stage/failed").is_file());
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    #[allow(clippy::too_many_arguments)]
+    async fn write_local_object(
+        operator: Operator,
+        root: PathBuf,
+        staging: PathBuf,
+        path: String,
+        content_type: Option<String>,
+        requested_visibility: Option<Visibility>,
+        body: StorageStream,
+        mut cancellation: UploadCancellation,
+    ) -> Result<StorageMetadata> {
+        let visibility = requested_visibility.unwrap_or_default();
+        let run_name = staging
+            .file_name()
+            .ok_or_else(|| Error::custom("storage_invalid_root", "staging path has no run name"))?;
+        let key = format!(
+            ".openrust-staging/{}/{}",
+            run_name.to_string_lossy(),
+            uuid::Uuid::now_v7()
+        );
+        let staged_path = root.join(&key);
+        let result = async {
+            let metadata =
+                write_object(operator, key.clone(), content_type, body, &mut cancellation).await?;
+            let (staging_parent, staging_name) =
+                local_parent(&root, &key, Visibility::Private, false)?;
+            let staged = open_local_file(&staging_parent, &staging_name)?;
+            let (target_parent, target_name) = local_parent(&root, &path, visibility, true)?;
+            publish_local(
+                &staged,
+                &staging_parent,
+                &staging_name,
+                &target_parent,
+                &target_name,
+                visibility,
+                &cancellation,
+            )?;
+            Ok(metadata)
+        }
+        .await;
+        if result.is_err() {
+            let _ = tokio::fs::remove_file(&staged_path).await;
+        }
+        result
+    }
+
+    #[cfg(unix)]
+    fn local_visibility(root: &std::path::Path, path: &StoragePath) -> Result<Visibility> {
+        use rustix::fs::Mode;
+        let (parent, name) = local_parent(root, path.as_str(), Visibility::Private, false)?;
+        let file = open_local_file(&parent, &name)?;
+        let stat = local_regular_single_link(&file)?;
+        Ok(if Mode::from_raw_mode(stat.st_mode).contains(Mode::ROTH) {
+            Visibility::Public
+        } else {
+            Visibility::Private
+        })
+    }
+
+    #[cfg(unix)]
+    fn set_local_visibility(
+        root: &std::path::Path,
+        path: &StoragePath,
+        visibility: Visibility,
+    ) -> Result<()> {
+        let (parent, name) = local_parent(root, path.as_str(), visibility, false)?;
+        let file = open_local_file(&parent, &name)?;
+        rustix::fs::fchmod(&file, local_file_mode(visibility)).map_err(Error::internal)
+    }
+
+    #[cfg(not(unix))]
+    #[allow(clippy::too_many_arguments)]
+    async fn write_local_object(
+        operator: Operator,
+        _root: PathBuf,
+        _staging: PathBuf,
+        path: String,
+        content_type: Option<String>,
+        visibility: Option<Visibility>,
+        body: StorageStream,
+        mut cancellation: UploadCancellation,
+    ) -> Result<StorageMetadata> {
+        if visibility.is_some() {
+            return Err(unsupported_storage_capability(
+                "local permissions on this platform",
+            ));
+        }
+        let publication = cancellation.begin_publication()?;
+        let result = write_object(operator, path, content_type, body, &mut cancellation).await;
+        if result.is_ok() {
+            publication.complete();
+        } else {
+            publication.fail();
+        }
+        result
+    }
+
+    #[cfg(not(unix))]
+    fn local_visibility(_root: &std::path::Path, _path: &StoragePath) -> Result<Visibility> {
+        Err(unsupported_storage_capability(
+            "local permissions on this platform",
+        ))
+    }
+
+    #[cfg(not(unix))]
+    fn set_local_visibility(
+        _root: &std::path::Path,
+        _path: &StoragePath,
+        _visibility: Visibility,
+    ) -> Result<()> {
+        Err(unsupported_storage_capability(
+            "local permissions on this platform",
+        ))
     }
 
     #[async_trait]
@@ -1667,21 +2723,49 @@ mod opendal_driver {
             &self,
             path: &StoragePath,
             content_type: Option<&str>,
+            visibility: Option<Visibility>,
             body: StorageStream,
             cancellation: UploadCancellation,
         ) -> Result<StorageMetadata> {
             let operator = self.operator.clone();
             let path = path.as_str().to_owned();
             let content_type = content_type.map(str::to_owned);
+            let local_root = self.local_root.clone();
+            let staging_path = self.staging_path.clone();
             #[cfg(feature = "storage-s3")]
             let s3 = self.staging_path.is_none();
+            #[cfg(feature = "storage-s3")]
+            let s3_acl = self.s3_acl.clone();
             tokio::spawn(async move {
                 #[cfg(feature = "storage-s3")]
                 if s3 {
-                    return write_s3_object(operator, path, content_type, body, cancellation).await;
+                    let acl =
+                        s3_acl.ok_or_else(|| unsupported_storage_capability("S3 ACL client"))?;
+                    return write_s3_object(
+                        operator,
+                        acl,
+                        path,
+                        content_type,
+                        visibility,
+                        body,
+                        cancellation,
+                    )
+                    .await;
                 }
-                let mut cancellation = cancellation;
-                write_object(operator, path, content_type, body, &mut cancellation).await
+                if let (Some(root), Some(staging)) = (local_root, staging_path) {
+                    return write_local_object(
+                        operator,
+                        root,
+                        staging,
+                        path,
+                        content_type,
+                        visibility,
+                        body,
+                        cancellation,
+                    )
+                    .await;
+                }
+                Err(unsupported_storage_capability("local storage"))
             })
             .await
             .map_err(|_| {
@@ -1690,6 +2774,38 @@ mod opendal_driver {
                     "storage upload worker stopped unexpectedly",
                 )
             })?
+        }
+
+        async fn visibility(&self, path: &StoragePath) -> Result<Visibility> {
+            if let Some(root) = &self.local_root {
+                let root = root.clone();
+                let path = path.clone();
+                return tokio::task::spawn_blocking(move || local_visibility(&root, &path))
+                    .await
+                    .map_err(Error::internal)?;
+            }
+            #[cfg(feature = "storage-s3")]
+            if let Some(acl) = &self.s3_acl {
+                return acl.visibility(path).await;
+            }
+            Err(unsupported_storage_capability("visibility reads"))
+        }
+
+        async fn set_visibility(&self, path: &StoragePath, visibility: Visibility) -> Result<()> {
+            if let Some(root) = &self.local_root {
+                let root = root.clone();
+                let path = path.clone();
+                return tokio::task::spawn_blocking(move || {
+                    set_local_visibility(&root, &path, visibility)
+                })
+                .await
+                .map_err(Error::internal)?;
+            }
+            #[cfg(feature = "storage-s3")]
+            if let Some(acl) = &self.s3_acl {
+                return acl.set_visibility(path, visibility).await;
+            }
+            Err(unsupported_storage_capability("visibility changes"))
         }
 
         async fn open(&self, path: &StoragePath, version: Option<&str>) -> Result<StorageReader> {
@@ -1865,6 +2981,183 @@ impl StorageDriver for S3UnavailableDriver {
 #[cfg(test)]
 mod tests {
     use super::StoragePath;
+
+    #[cfg(all(feature = "storage-local", unix))]
+    #[allow(clippy::too_many_lines)]
+    #[tokio::test]
+    async fn local_visibility_applies_before_publication_and_preserves_private_parents()
+    -> crate::Result<()> {
+        use super::{Storage, StorageServiceProvider, StorageStream, UploadOptions, Visibility};
+        use std::os::unix::fs::{PermissionsExt, symlink};
+        let root = tempfile::tempdir().map_err(crate::Error::internal)?;
+        std::fs::set_permissions(root.path(), std::fs::Permissions::from_mode(0o755))
+            .map_err(crate::Error::internal)?;
+        let configuration = format!(
+            "[storage.disks.local]\ndriver = 'fs'\nroot = '{}'\n[storage.disks.public]\ndriver = 'fs'\nroot = '{}'\nvisibility = 'public'\n",
+            root.path().display(),
+            root.path().display()
+        );
+        let mut builder = crate::core::ProviderBuilder::new();
+        builder.provider(StorageServiceProvider::new());
+        let runtime = builder
+            .start(figment::Figment::new().merge(Toml::string(&configuration)))
+            .await?;
+        let disk = runtime
+            .container()
+            .resolve::<Storage>()
+            .await?
+            .default_disk()
+            .await?;
+        let public_disk = runtime
+            .container()
+            .resolve::<Storage>()
+            .await?
+            .disk("public")
+            .await?;
+        assert_eq!(public_disk.default_visibility(), Some(Visibility::Public));
+        let private = StoragePath::new("private/object.bin")?;
+        disk.put_stream(
+            private.clone(),
+            None,
+            Box::pin(stream::iter([Ok(bytes::Bytes::from_static(b"private"))])) as StorageStream,
+            UploadOptions::default(),
+            None,
+        )
+        .await?;
+        assert_eq!(disk.visibility(&private).await?, Visibility::Private);
+        assert_eq!(
+            std::fs::metadata(root.path().join(private.as_str()))
+                .map_err(crate::Error::internal)?
+                .permissions()
+                .mode()
+                & 0o777,
+            0o600
+        );
+        assert!(
+            disk.put_stream(
+                private.clone(),
+                None,
+                Box::pin(stream::iter([Ok(bytes::Bytes::from_static(
+                    b"replacement"
+                ))])) as StorageStream,
+                UploadOptions {
+                    visibility: Some(Visibility::Public),
+                    ..Default::default()
+                },
+                None,
+            )
+            .await
+            .is_err()
+        );
+        assert_eq!(
+            std::fs::read(root.path().join(private.as_str())).map_err(crate::Error::internal)?,
+            b"private"
+        );
+        let public = StoragePath::new("public/object.bin")?;
+        disk.put_stream(
+            public.clone(),
+            None,
+            Box::pin(stream::iter([Ok(bytes::Bytes::from_static(b"public"))])) as StorageStream,
+            UploadOptions {
+                visibility: Some(Visibility::Public),
+                ..Default::default()
+            },
+            None,
+        )
+        .await?;
+        assert_eq!(disk.visibility(&public).await?, Visibility::Public);
+        assert_eq!(
+            std::fs::metadata(root.path().join(public.as_str()))
+                .map_err(crate::Error::internal)?
+                .permissions()
+                .mode()
+                & 0o777,
+            0o644
+        );
+        assert_eq!(
+            std::fs::metadata(root.path().join("public"))
+                .map_err(crate::Error::internal)?
+                .permissions()
+                .mode()
+                & 0o777,
+            0o755
+        );
+        let named = StoragePath::new("named/object.bin")?;
+        public_disk
+            .put_stream(
+                named.clone(),
+                None,
+                Box::pin(stream::iter([Ok(bytes::Bytes::from_static(b"named"))])) as StorageStream,
+                UploadOptions::default(),
+                None,
+            )
+            .await?;
+        assert_eq!(public_disk.visibility(&named).await?, Visibility::Public);
+        assert!(
+            disk.set_visibility(&private, Visibility::Public)
+                .await
+                .is_err()
+        );
+        assert_eq!(disk.visibility(&private).await?, Visibility::Private);
+        disk.set_visibility(&public, Visibility::Private).await?;
+        assert_eq!(disk.visibility(&public).await?, Visibility::Private);
+        std::fs::set_permissions(
+            root.path().join("private"),
+            std::fs::Permissions::from_mode(0o711),
+        )
+        .map_err(crate::Error::internal)?;
+        disk.set_visibility(&private, Visibility::Public).await?;
+        assert_eq!(disk.visibility(&private).await?, Visibility::Public);
+        let external = tempfile::NamedTempFile::new().map_err(crate::Error::internal)?;
+        std::fs::write(external.path(), b"external").map_err(crate::Error::internal)?;
+        std::fs::set_permissions(external.path(), std::fs::Permissions::from_mode(0o600))
+            .map_err(crate::Error::internal)?;
+        std::fs::hard_link(external.path(), root.path().join("public/hardlink.bin"))
+            .map_err(crate::Error::internal)?;
+        let linked = StoragePath::new("public/hardlink.bin")?;
+        assert_eq!(
+            disk.set_visibility(&linked, Visibility::Public)
+                .await
+                .err()
+                .map(|error| error.code().to_owned()),
+            Some("storage_unsafe_file".to_owned())
+        );
+        assert_eq!(
+            std::fs::read(external.path()).map_err(crate::Error::internal)?,
+            b"external"
+        );
+        assert_eq!(
+            std::fs::metadata(external.path())
+                .map_err(crate::Error::internal)?
+                .permissions()
+                .mode()
+                & 0o777,
+            0o600
+        );
+        symlink(root.path().join("public"), root.path().join("linked"))
+            .map_err(crate::Error::internal)?;
+        assert!(
+            disk.visibility(&StoragePath::new("linked/object.bin")?)
+                .await
+                .is_err()
+        );
+        let replacement = tempfile::tempdir().map_err(crate::Error::internal)?;
+        std::fs::write(replacement.path().join("object.bin"), b"outside")
+            .map_err(crate::Error::internal)?;
+        std::fs::rename(root.path().join("public"), root.path().join("moved-public"))
+            .map_err(crate::Error::internal)?;
+        symlink(replacement.path(), root.path().join("public")).map_err(crate::Error::internal)?;
+        assert!(
+            disk.set_visibility(&public, Visibility::Public)
+                .await
+                .is_err()
+        );
+        assert_eq!(
+            std::fs::read(replacement.path().join("object.bin")).map_err(crate::Error::internal)?,
+            b"outside"
+        );
+        Ok(())
+    }
 
     #[cfg(feature = "storage-local")]
     use super::{Storage, StorageServiceProvider, StorageStream, UploadOptions};
