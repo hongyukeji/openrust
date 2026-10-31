@@ -422,6 +422,7 @@ async fn invalid_boot_config_fails_with_the_exact_configuration_field() -> Resul
         ("domain", json!("bad;domain")),
         ("same_site", json!("invalid")),
         ("max_bytes", json!(0)),
+        ("serializer", json!("unknown")),
     ] {
         let mut config = serde_json::to_value(SessionConfig::default()).map_err(Error::internal)?;
         config[field] = change;
@@ -460,6 +461,7 @@ async fn invalid_file_and_final_overlay_are_checked_after_all_valid_overrides() 
         ("cookie", "[session]\ncookie='bad=name'\n"),
         ("same_site", "[session]\nsame_site='invalid'\n"),
         ("path", "[session]\npath='/bad;path'\n"),
+        ("serializer", "[session]\nserializer='unknown'\n"),
     ] {
         let mut file = tempfile::NamedTempFile::new().map_err(Error::internal)?;
         file.write_all(toml.as_bytes()).map_err(Error::internal)?;
@@ -471,6 +473,7 @@ async fn invalid_file_and_final_overlay_are_checked_after_all_valid_overrides() 
         ("lifetime", json!(0)),
         ("same_site", json!("invalid")),
         ("max_bytes", json!(0)),
+        ("serializer", json!("unknown")),
     ] {
         let mut late = json!({});
         late[field] = value;

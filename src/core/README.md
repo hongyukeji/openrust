@@ -88,13 +88,15 @@ match (result, cleanup) {
 
 `TestResponse` 提供状态、响应头、字节和 JSON 读取以及链式断言；断言失败不会回显正文或头值。状态断言遵循应用配置的 `[api] http_status`，默认为 Laravel 式语义状态；仅显式配置 `always_ok` 时才将框架 JSON 错误映射为 HTTP 200。`shutdown(deadline).await` 等待本应用拥有的资源回收；`reset(deadline).await` 先关闭整个旧应用，再用相同蓝图重建，不把根 scoped 缓存清空冒充完整重置。这里的 deadline 只约束旧应用关闭，新应用的启动与路由构建不受同一期限约束。丢弃 `TestApp` 会立即封闭新解析；存活的 `Tokio` runtime 才能继续异步兜底回收。独立 `TestApp` 持有各自容器，捕获的外部共享 `Arc` fixture 由调用方负责重置。实际业务替换与 Provider 移除示例见 [`modules/example`](../../modules/example/README.md)，CLI 生成项目也包含普通 HTTP 与认证测试。进程内请求不替代真实 TCP 验收。
 
+需要从空数据库测试迁移命令时，使用 `TestApp::<A>::builder(sources).run_command("migrate", args).await`：该入口以相同命令名引导并执行一次命令，然后限时回收应用；成功后再用普通 `build()` 验证迁移后的启动与请求。命令失败仍回收资源，命令和回收同时失败时保留命令错误并记录回收错误码；取消执行 future 时沿夹具 Drop 做异步兜底回收。它不返回带命令上下文的应用。
+
 其他 OpenRust package 所依赖的核心契约包括：
 
 - [`Application`]：项目实现一次该 trait，用于描述应用的组装方式。
 - [`ProviderBuilder`] / [`ServiceProvider`] / [`App`] / [`AppState`]：框架、应用模块和第三方 package 使用同一扩展点与容器。`register` 声明绑定和配置区段，`boot` 贡献路由、命令及 middleware。依赖可在所有注册完成后解析；配置覆盖在最终校验前仍可提交。`App::run_command` 允许同一应用依次执行命令；顶层 CLI 在命令结束后调用 `App::shutdown`，HTTP `serve` 在退出时合作取消、限时回收受管资源。
 - [`ModuleManifest`](module.rs) 在编译期声明模块描述，启动时从只读状态源取得启用快照；启用的模块 Provider 展平进入同一注册与顺序 boot 生命周期。`ModuleDescriptor::requires` 声明已编译模块的硬依赖；依赖必须同时启用，循环/缺失/禁用依赖启动失败。依赖拓扑优先于 `priority`，相同优先级按清单声明顺序稳定排序，模块 provider 的 register 与 boot 使用同一顺序；不会自动更改状态文件。`ModuleConfigFiles::overlay` 由模块 Provider 在实际配置时点调用，逐文件写入共享配置仓储。文件状态仅 JSON `true` 启用，缺文件/键不启用，坏 JSON 拒绝；禁用不热卸载、不删除迁移历史。默认模块运行根是进程工作目录，应用可显式传入部署根；编译时 `CARGO_MANIFEST_DIR` 不决定运行时资源位置。模块资源、语言、视图和迁移示例见 [`modules/example`](../../modules/example/README.md)。
 - [`Command`]：应用二进制对外提供的运行时命令（`serve`、`migrate`、`queue work` 等）。命令默认拒绝额外参数；接受参数的命令须实现 `accepts_args`。
-- 控制台入口在引导前确定命令名，Provider 可通过 `BootContext::console_command()` 与 `is_console_command()` 读取本次候选命令。普通 `bootstrap()`、直接 `ProviderBuilder` 与 `TestApp` 均无该上下文。框架按最终匹配的命令实例执行启动前检查；候选名本身不授权跳过校验。内部迁移入口允许空库先执行官方迁移，再由后续正常应用启动校验所需表。
+- 控制台入口在引导前确定命令名，Provider 可通过 `BootContext::console_command()` 与 `is_console_command()` 读取本次候选命令。普通 `bootstrap()`、直接 `ProviderBuilder` 与 `TestApp::build/reset` 均无该上下文；受控的 `TestAppBuilder::run_command` 只引导、执行并关闭同名命令。框架按最终匹配的命令实例执行启动前检查；候选名本身不授权跳过校验。内部迁移入口允许空库先执行官方迁移，再由后续正常应用启动校验所需表。
 - [`Error`] / [`Result`] / [`ApiResponse<T>`] / [`PageMeta`]：统一错误类型、JSON 响应封装和类型化分页元数据。
 - [`ExecutionContext`] / [`ExecutionMetadata`] / [`Cancellation`]：单次 HTTP、命令或 Job 尝试的 task-local 关联信息、时间预算和合作取消；task-local 不自动传播至 `tokio::spawn`。
 - [`RateLimiter`] / [`RateLimitStore`]：固定窗口配额服务契约。存储故障向上传播；超限请求返回 429 和 `Retry-After`；每种实现都需说明共享范围与原子性边界。

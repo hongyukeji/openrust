@@ -108,7 +108,7 @@ impl Validate for CreatePost {
 
 启用 Session 后，GET 真实路由下游返回才记录完整 URL 与可空路由名，不按响应状态过滤。处理器读取 `session.previous_url()` / `previous_route()` 时看到的是此前请求的值；下次同一会话请求才能看到本次记录。匿名路由写入显式 null，HEAD、ajax、prefetch 不更新 previous，但仍正常保存其他 Session 属性。
 
-已确认 Precognition 仍启动 Session、执行 GC 与处理响应 Cookie，只跳过自动 driver.save 和 previous 更新；这不禁止应用自行调用保存，也不承诺其他中间件无副作用。单纯发送头不会跳过保存。公开 previous helper 沿既有 `get` 保留 `Option<Value>` 的缺失/null 区分，setter 沿既有状态与预算检查；`has_previous_uri` 只检查非 null，不解析 URI 对象。业务参考[唯一模块 Session Controller](../../modules/example/http/controllers/session.rs)。
+已确认 Precognition 仍启动 Session、执行 GC 与处理响应 Cookie，只跳过自动 driver.save 和 previous 更新；这不禁止应用自行调用保存，也不承诺其他中间件无副作用。单纯发送头不会跳过保存。公开 previous helper 显式读取纯 JSON，保留 `Option<Value>` 的缺失/null 区分；原始 `Session::get` 返回 `DataValue`。setter 沿既有状态与预算检查；`has_previous_uri` 只检查非 null，不解析 URI 对象。业务参考[唯一模块 Session Controller](../../modules/example/http/controllers/session.rs)。
 
 ## Cookie 读取、队列与响应
 
@@ -139,6 +139,8 @@ JSON 类型优先，包括 GET/HEAD；其他 GET/HEAD 取 query，其他方法�
 正文按 Axum 受限读取，默认2MiB，可由应用显式 `DefaultBodyLimit` 调整；query限制16KiB，URL编码输入最多1024个原始非空字段对，值树最多1024 entries/64层，完整展开键累计20MiB。超限明确拒绝，不截断；非法UTF-8的form/query报400，不用替代字符改写。动态 `Request` 保留 Laravel 畸形JSON为空bag、scalar转数组的语义；typed `Json<T>` 继续严格返回语法400、媒体415和类型422。规范化 typed JSON 仅改写值字符串，保留原始数字词法以支持 Rust `u128` / `i128`，并使用有界额外缓冲。动态 `Request` bags 使用标准 `serde_json::Value` 数值表示；需要保持128位整数精度时选择 typed `Json<T>`，不要先经动态Value往返。
 
 multipart 在显式选择 `Request` 时只保存有界原文，本簇不提供其文本/文件bag合并；需要现有流式上传时使用对应公开上传接口。Cookie 通过独立接口读取；Session、old input/flash、FormRequest及完整文件语义按各自能力交付，不因增加此提取器而自动具备。
+
+启用 Session 后，`RequestInfo::old`、`old_or` 和 `old_all` 返回原始 `DataValue`，同一请求能观察 `flash_input` 中对象的共享身份；缺失键才采用默认值，显式 null 保留。需要 DTO 或响应 JSON 时显式调用 `old_json`、`old_or_json`、`old_all_json`；未指定对象投影时返回安全错误，不把对象当作缺失值。
 
 ### 类型便捷读取
 
@@ -374,7 +376,7 @@ async fn guide(info: RequestInfo) -> openrust::Result<axum::response::Response> 
 
 `intended()` 只在属性缺失时使用 `/`；`intended_or(default)` 接受可转为JSON的默认值，`intended_with(default, status, headers, secure)` 另收响应选项。它先从Session取出并删除，再转换目标、校验响应，转换或响应失败也不恢复已消费值。显式null/false/空串转为空目标，0转为 `/0`，true转为 `/1`，均不使用缺失默认；数值沿现PHP标量转换。数组/对象返回 `redirect_intended_url_invalid`，对应上游URL字符串操作的类型失败；Rust不模拟PHP的null弃用警告，也不支持JSON之外的可字符串化对象。
 
-`get_intended_url() -> Result<Option<Value>>` 原样读取，`None` 是缺失、`Some(Value::Null)` 是已存null；`set_intended_url(value)` 沿Session普通put并返回自身，不预先验证URL。缺Session、关闭或资源预算错误沿现Session传播，无静默内存回退；预算失败保留原属性。示例中的业务应在完成认证或审核后调用 `intended`：
+`get_intended_url() -> Result<Option<Value>>` 显式读取纯 JSON，`None` 是缺失、`Some(Value::Null)` 是已存null；对象须由调用方使用原始 `Session::get`。`set_intended_url(value)` 沿纯数据写入并返回自身，不预先验证URL。缺Session、关闭或资源预算错误沿现Session传播，无静默内存回退；预算失败保留原属性。示例中的业务应在完成认证或审核后调用 `intended`：
 
 ```rust,ignore
 use openrust::http::{Redirector, RequestInfo};

@@ -55,7 +55,7 @@ async fn flash_view_error(
 
 #[cfg(feature = "session")]
 async fn corrupt_view_error(session: openrust::session::Session) -> openrust::Result<&'static str> {
-    session.put(
+    session.put_typed(
         "errors",
         serde_json::json!({"kind":"openrust.view_errors","version":999,"bags":[]}),
     )?;

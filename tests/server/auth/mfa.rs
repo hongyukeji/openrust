@@ -256,8 +256,8 @@ async fn seed_session(
     session: Session,
     FrameworkJson(user_id): FrameworkJson<i64>,
 ) -> Result<FrameworkJson<&'static str>> {
-    session.put("openrust.auth.user_id", user_id)?;
-    session.put("openrust.auth.csrf_hash", "test-csrf")?;
+    session.put_typed("openrust.auth.user_id", user_id)?;
+    session.put_typed("openrust.auth.csrf_hash", "test-csrf")?;
     Ok(FrameworkJson("seeded"))
 }
 

@@ -349,7 +349,7 @@ async fn action_redirect_from_request_keeps_same_session_input_and_errors() -> T
         "https://configured.example:8443/base/drafts/42"
     );
     assert_eq!(
-        session.get_old_input(Some("title"))?,
+        session.get_old_input_json(Some("title"))?,
         Some(serde_json::json!("Draft"))
     );
     assert_eq!(

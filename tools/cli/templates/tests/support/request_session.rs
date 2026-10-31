@@ -9,14 +9,18 @@ use openrust::http::axum::{
         header::{COOKIE, SET_COOKIE},
     },
 };
-use openrust::http::{CookieJar, CookieOptions, Inject, Json, RequestInfo, RouteGroup, Routes};
+use openrust::http::{
+    CookieFactory, CookieJar, CookieOptions, Inject, Json, RequestInfo, RouteGroup, Routes,
+};
 use openrust::session::{
     CookieSessionStore, DatabaseSessionStore, MemorySessionStore, Session, SessionId,
     SessionRecord, SessionRequestContext, SessionServiceProvider, SessionStore, SessionStoreHandle,
     SessionWriteMode, SessionWriteOutcome,
 };
+use openrust::support::{DataObject, DataValue, ObjectEncoding};
 use openrust::testing::{TestApp, TestResponse};
 use serde_json::{Value, json};
+use std::any::Any;
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -146,15 +150,19 @@ async fn set(session: Session, info: RequestInfo) -> openrust::Result<Json<Value
     ensure(session.handler_needs_request()?)?;
     session.set_id(None)?;
     ensure(session.id()? != before)?;
+    // 原始 Session 值在请求内保留，响应边界再显式转成 JSON。
     session
-        .put(PREFERENCE, "preserved")?
-        .put(NULL, Value::Null)?
-        .flash(NOTICE, "next")?
-        .now(NOW, "current")?;
-    info.session()?.put(SHARED, "same request")?;
-    session.put(MEMO, Value::Null)?;
-    session.remember(MEMO, || Ok("computed"))?;
-    session.push(LIST, "first")?;
+        .put(
+            PREFERENCE,
+            openrust::support::DataValue::from_json(json!("preserved"))?,
+        )?
+        .put_typed(NULL, Value::Null)?
+        .flash_typed(NOTICE, "next")?
+        .now_typed(NOW, "current")?;
+    info.session()?.put_typed(SHARED, "same request")?;
+    session.put_typed(MEMO, Value::Null)?;
+    session.remember_typed(MEMO, || Ok("computed"))?;
+    session.push_typed(LIST, "first")?;
     session.increment(COUNT)?;
     Ok(Json(snapshot(&session, &info)?))
 }
@@ -184,15 +192,18 @@ async fn previous_read(
     })))
 }
 async fn advance(session: Session, info: RequestInfo) -> openrust::Result<Json<Value>> {
-    session.remember(MEMO, || Ok("unexpected"))?;
-    session.push(LIST, "second")?;
+    session.remember_typed(MEMO, || Ok("unexpected"))?;
+    session.push_typed(LIST, "second")?;
     session.increment_by(COUNT, 2)?;
     session.decrement(COUNT)?;
     session.decrement_by(COUNT, 2)?;
     Ok(Json(snapshot(&session, &info)?))
 }
 async fn remove(session: Session, info: RequestInfo) -> openrust::Result<Json<Value>> {
-    let removed = session.remove(MEMO)?;
+    let removed = session
+        .remove(MEMO)?
+        .map(|value| value.to_json())
+        .transpose()?;
     let mut data = snapshot(&session, &info)?;
     data["removed"] = json!(removed);
     Ok(Json(data))
@@ -217,22 +228,24 @@ async fn read_old_input(
     info: RequestInfo,
     Inject(calls): Inject<OldInputCalls>,
 ) -> openrust::Result<Json<Value>> {
-    Ok(Json(json!({"all":info.old_all()?,"name":info.old("name")?,
-        "missing":info.old_or("missing", json!("fallback"))?,
-        "business_calls":calls.0.load(Ordering::SeqCst)})))
+    Ok(Json(
+        json!({"all":info.old_all_json()?,"name":info.old_json("name")?,
+        "missing":info.old_or_json("missing", json!("fallback"))?,
+        "business_calls":calls.0.load(Ordering::SeqCst)}),
+    ))
 }
 fn snapshot(session: &Session, info: &RequestInfo) -> openrust::Result<Value> {
     Ok(json!({
         "cookie_name": session.name()?,
         "same_handle": info.has_session() && info.session()?.id()? == session.id()?,
-        "shared_value": session.get(SHARED)? == Some(json!("same request")),
-        "stored_null": session.get_or(NULL, json!("fallback"))? == Value::Null,
-        "preference": session.get(PREFERENCE)?,
-        "notice": session.get(NOTICE)?,
-        "now": session.get(NOW)?,
-        "memo": session.get(MEMO)?,
-        "list": session.get(LIST)?,
-        "count": session.get(COUNT)?,
+        "shared_value": session.get_json(SHARED)? == Some(json!("same request")),
+        "stored_null": session.get_or(NULL, openrust::support::DataValue::from_json(json!("fallback"))?)?.is_null(),
+        "preference": session.get(PREFERENCE)?.map(|value| value.to_json()).transpose()?,
+        "notice": session.get_json(NOTICE)?,
+        "now": session.get_json(NOW)?,
+        "memo": session.get_json(MEMO)?,
+        "list": session.get_json(LIST)?,
+        "count": session.get_json(COUNT)?,
     }))
 }
 
@@ -434,6 +447,7 @@ async fn verify<A: Application, const EXISTING: bool>(source: Figment) -> openru
         verify_request_driver(&app, &name).await?;
         verify_previous(&app, &name).await?;
         verify_old_input(&app, &name).await?;
+        verify_object_codec(&app).await?;
         Ok(())
     }
     .await;
@@ -442,6 +456,81 @@ async fn verify<A: Application, const EXISTING: bool>(source: Figment) -> openru
         .await;
     outcome?;
     shutdown?;
+    Ok(())
+}
+
+struct GeneratedObject;
+
+impl DataObject for GeneratedObject {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn json_projection(&self) -> Option<Value> {
+        Some(json!("generated"))
+    }
+}
+
+async fn verify_object_codec<A: Application, const EXISTING: bool>(
+    app: &TestApp<SessionApplication<A, EXISTING>>,
+) -> openrust::Result<()> {
+    let store = app
+        .app()?
+        .state()
+        .resolve::<SessionStoreHandle>()
+        .await?
+        .store();
+    let jar = CookieJar::new(CookieFactory::default());
+    let session = Session::new(None, store.clone(), None)?;
+    session
+        .set_request_on_handler(SessionRequestContext::new(json!({}), jar.clone())?)
+        .await?;
+    session.start().await?;
+    let object = DataValue::object(GeneratedObject);
+    session.put("contract.object", object.clone())?;
+    ensure(
+        session
+            .get("contract.object")?
+            .is_some_and(|value| value.same_object(&object)),
+    )?;
+    let error = session.save().await.err().ok_or_else(mismatch)?;
+    ensure(error.code() == "data_object_not_serializable")?;
+    ensure(
+        session
+            .get("contract.object")?
+            .is_some_and(|value| value.same_object(&object)),
+    )?;
+    let id = session.id()?;
+    if store.guarantees() == openrust::session::SessionStoreGuarantees::ClientSideSnapshot {
+        ensure(!jar.has_queued(id.as_str(), None)?)?;
+    }
+    ensure(
+        session
+            .handler()?
+            .load(
+                &id,
+                openrust::session::DEFAULT_MAX_BYTES,
+                session.expiry_date()?,
+            )
+            .await?
+            .is_none(),
+    )?;
+    session.set_object_encoding(ObjectEncoding::JsonProjection)?;
+    session.save().await?;
+    let mut cookies = json!({});
+    if store.guarantees() == openrust::session::SessionStoreGuarantees::ClientSideSnapshot {
+        let value = jar.queued(id.as_str(), None)?.ok_or_else(mismatch)?;
+        cookies[id.as_str()] = json!(value.value());
+    }
+    let reloaded = Session::new(Some(id), store, None)?;
+    reloaded
+        .set_request_on_handler(SessionRequestContext::new(
+            cookies,
+            CookieJar::new(CookieFactory::default()),
+        )?)
+        .await?;
+    reloaded.start().await?;
+    ensure(reloaded.get_json("contract.object")? == Some(json!("generated")))?;
     Ok(())
 }
 
@@ -916,12 +1005,12 @@ impl ServiceProvider for OriginalHostRoutes {
     }
 }
 async fn original_write(session: Session) -> openrust::Result<Json<Value>> {
-    session.put("contract.original_host", "persisted")?;
+    session.put_typed("contract.original_host", "persisted")?;
     original_read(session).await
 }
 async fn original_read(session: Session) -> openrust::Result<Json<Value>> {
     Ok(Json(
-        json!({"value":session.get("contract.original_host")?,"snapshot":session.handler()?.guarantees()==openrust::session::SessionStoreGuarantees::ClientSideSnapshot}),
+        json!({"value":session.get_json("contract.original_host")?,"snapshot":session.handler()?.guarantees()==openrust::session::SessionStoreGuarantees::ClientSideSnapshot}),
     ))
 }
 struct OriginalHost<A>(std::marker::PhantomData<fn() -> A>);

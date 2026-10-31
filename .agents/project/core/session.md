@@ -2,6 +2,10 @@
 
 > C04-D1限定子范围已完成适用集成验收，提交以Git为准。契约见 [ADR-082](../decisions/adr-082-session-store-and-flash.md)，唯一执行队列见 [todo](../todo.md)。
 
+## S-DV 对象值与保存边界（分支定向验收通过）
+
+当前属性树公开为 `DataValue`，同请求快照以 `Arc` 保持对象身份；原始写入使用 `put/flash/flash_input`，DTO 使用显式 `*_typed`，JSON/DTO 读取显式投影并拒绝无投影对象。默认 native 编码在 save 遇对象时拒绝且不写后端，json 仅使用对象显式投影；不承诺 PHP serialize 字节兼容。以下 D9 的 `Value` 签名属于历史验收输入，当前签名为 `flash_input(DataValue)`。本簇模块迁移与上游超时具名回归已通过；分支定向验收不等于 main 组合验收，也不关闭完整 Session 能力。
+
 ## D8 previous 与预检保存边界（限定子范围已验收）
 
 `previous_url` / `previous_route` 返回 `Result<Option<Value>>`，保留缺失和显式 null；setter 沿已有属性状态机。GET 在真实 Route 下游返回后记录 full URL 与可空名称，不按状态码过滤；HEAD、ajax、prefetch 和已确认的 Precognition 不更新。resolver 在记录名称时再次读取，保留可替换 resolver 的可观察调用边界。

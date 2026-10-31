@@ -93,7 +93,7 @@ pub(crate) async fn action_show(
     #[cfg(feature = "session")]
     let state = if info.has_session() {
         let mut state = state;
-        state["old_title"] = info.old("title")?.unwrap_or(serde_json::Value::Null);
+        state["old_title"] = info.old_json("title")?.unwrap_or(serde_json::Value::Null);
         state["title_error"] = serde_json::json!(
             info.session()?
                 .read_errors()?
@@ -165,7 +165,7 @@ pub(crate) async fn refreshed(
         let errors = info.session()?.read_errors()?;
         return Ok(openrust::http::Json(json!({
             "draft": "示例草稿",
-            "old_title": info.old("title")?,
+            "old_title": info.old_json("title")?,
             "title_error": errors.get_bag("default").as_bag().first(None, None)?,
         })));
     }
@@ -234,7 +234,7 @@ pub(crate) async fn submit(request: Request) -> Result<Response> {
 pub(crate) async fn review(info: RequestInfo) -> Result<openrust::http::Json<Value>> {
     let errors = info.session()?.read_errors()?;
     Ok(openrust::http::Json(json!({
-        "old": info.old_all()?,
+        "old": info.old_all_json()?,
         "default": {
             "present": errors.has_bag("default"),
             "title": errors.get_bag("default").as_bag().first(Some("title"), None)?,
@@ -252,7 +252,7 @@ const PREVIEW_CONFIRMED: &str = "example.draft.preview_confirmed";
 /// 草稿预览先提示确认；该普通业务状态不是认证、授权或敏感操作的权限门。
 #[cfg(feature = "session")]
 pub(crate) async fn preview(info: RequestInfo) -> Result<Response> {
-    if info.session()?.get(PREVIEW_CONFIRMED)? == Some(Value::Bool(true)) {
+    if info.session()?.get_json(PREVIEW_CONFIRMED)? == Some(Value::Bool(true)) {
         return Ok(openrust::http::Json(json!({
             "draft": "示例草稿",
             "preview_confirmed": true,
@@ -276,7 +276,10 @@ pub(crate) async fn confirmation(info: RequestInfo) -> Result<openrust::http::Js
 /// 确认非敏感预览后消费一次意图；请求正文不能指定任意重定向目标。
 #[cfg(feature = "session")]
 pub(crate) async fn confirm(request: Request) -> Result<Response> {
-    request.info().session()?.put(PREVIEW_CONFIRMED, true)?;
+    request
+        .info()
+        .session()?
+        .put_typed(PREVIEW_CONFIRMED, true)?;
     Ok(Redirector::from_request(&request)
         .intended_or("/api/example/draft/review")?
         .into_response())

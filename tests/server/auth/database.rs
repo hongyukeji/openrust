@@ -72,10 +72,10 @@ async fn current_user(user: CurrentUser, Inject(_marker): Inject<Marker>) -> Res
 
 async fn create_session(session: Session) -> Result<Json<&'static str>> {
     session
-        .put("openrust.auth.user_id", 1_i64)
+        .put("openrust.auth.user_id", 1_i64.into())
         .map_err(openrust::Error::internal)?;
     session
-        .put("openrust.auth.csrf_hash", hex_sha256("csrf-secret"))
+        .put("openrust.auth.csrf_hash", hex_sha256("csrf-secret").into())
         .map_err(openrust::Error::internal)?;
     Ok(Json("created"))
 }
@@ -673,6 +673,7 @@ async fn auth_migration_and_shared_revocation_work_on_the_configured_database() 
         );
     }
     let pat_request = Request::get("/auth/current")
+        .header("host", "localhost")
         .header("authorization", format!("Bearer {issued_pat_raw}"))
         .body(Body::empty())?;
     let pat_response = router_a.clone().oneshot(pat_request).await?;
@@ -692,7 +693,11 @@ async fn auth_migration_and_shared_revocation_work_on_the_configured_database() 
 
     let session_response = router_a
         .clone()
-        .oneshot(Request::get("/auth/session").body(Body::empty())?)
+        .oneshot(
+            Request::get("/auth/session")
+                .header("host", "localhost")
+                .body(Body::empty())?,
+        )
         .await?;
     let set_cookie = session_response
         .headers()
@@ -714,6 +719,7 @@ async fn auth_migration_and_shared_revocation_work_on_the_configured_database() 
             .clone()
             .oneshot(
                 Request::get("/auth/current")
+                    .header("host", "localhost")
                     .header("cookie", &session_cookie)
                     .body(Body::empty())?,
             )
@@ -724,6 +730,7 @@ async fn auth_migration_and_shared_revocation_work_on_the_configured_database() 
         .clone()
         .oneshot(
             Request::post("/auth/current")
+                .header("host", "localhost")
                 .header("cookie", &session_cookie)
                 .body(Body::empty())?,
         )
@@ -738,6 +745,7 @@ async fn auth_migration_and_shared_revocation_work_on_the_configured_database() 
             .clone()
             .oneshot(
                 Request::post("/auth/current")
+                    .header("host", "localhost")
                     .header("cookie", &session_cookie)
                     .header("x-csrf-token", "csrf-secret")
                     .body(Body::empty())?,
@@ -749,6 +757,7 @@ async fn auth_migration_and_shared_revocation_work_on_the_configured_database() 
         .clone()
         .oneshot(
             Request::post("/auth/logout")
+                .header("host", "localhost")
                 .header("cookie", &session_cookie)
                 .body(Body::empty())?,
         )
@@ -757,6 +766,7 @@ async fn auth_migration_and_shared_revocation_work_on_the_configured_database() 
         .clone()
         .oneshot(
             Request::get("/auth/current")
+                .header("host", "localhost")
                 .header("cookie", &session_cookie)
                 .body(Body::empty())?,
         )
@@ -768,6 +778,7 @@ async fn auth_migration_and_shared_revocation_work_on_the_configured_database() 
     );
 
     let pat_request = Request::get("/auth/current")
+        .header("host", "localhost")
         .header("authorization", "Bearer pat-secret")
         .body(Body::empty())?;
     let pat_still_valid = router_b.clone().oneshot(pat_request).await?;
@@ -786,6 +797,7 @@ async fn auth_migration_and_shared_revocation_work_on_the_configured_database() 
         .clone()
         .oneshot(
             Request::get("/auth/current")
+                .header("host", "localhost")
                 .header("authorization", format!("Bearer {issued_pat_raw}"))
                 .body(Body::empty())?,
         )
@@ -955,7 +967,7 @@ async fn auth_flows_run_registration_login_refresh_reset_and_logout_on_the_confi
     let session_store = Arc::new(DatabaseSessionStore::new(db.clone()));
     let session = Session::new(None, session_store.clone(), None)?;
     session.start().await?;
-    session.put("app.preference", "compact")?;
+    session.put_typed("app.preference", "compact")?;
     session.save().await?;
     let old_session_id = session.id()?;
     let stale_request = Session::new(Some(old_session_id.clone()), session_store.clone(), None)?;
@@ -1019,6 +1031,7 @@ async fn auth_flows_run_registration_login_refresh_reset_and_logout_on_the_confi
             .clone()
             .oneshot(
                 Request::get("/auth/current")
+                    .header("host", "localhost")
                     .header("cookie", &session_cookie)
                     .body(Body::empty())?,
             )
@@ -1029,6 +1042,7 @@ async fn auth_flows_run_registration_login_refresh_reset_and_logout_on_the_confi
         .clone()
         .oneshot(
             Request::post("/auth/current")
+                .header("host", "localhost")
                 .header("cookie", &session_cookie)
                 .body(Body::empty())?,
         )
@@ -1043,6 +1057,7 @@ async fn auth_flows_run_registration_login_refresh_reset_and_logout_on_the_confi
             .clone()
             .oneshot(
                 Request::post("/auth/current")
+                    .header("host", "localhost")
                     .header("cookie", &session_cookie)
                     .header("x-csrf-token", session_credentials.csrf_token())
                     .body(Body::empty())?,
@@ -1051,7 +1066,7 @@ async fn auth_flows_run_registration_login_refresh_reset_and_logout_on_the_confi
     )
     .await?;
 
-    stale_request.put("app.stale", true)?;
+    stale_request.put("app.stale", true.into())?;
     assert!(stale_request.save().await.is_err());
     assert!(
         session_store
@@ -1096,6 +1111,7 @@ async fn auth_flows_run_registration_login_refresh_reset_and_logout_on_the_confi
         .clone()
         .oneshot(
             Request::get("/auth/current")
+                .header("host", "localhost")
                 .header("cookie", &session_cookie)
                 .body(Body::empty())?,
         )
@@ -1516,6 +1532,7 @@ async fn policy_grants_and_revocations_are_visible_to_authenticated_routes() -> 
     let token = jwt.issue_access_token(user_id)?;
     let request = || {
         Request::get("/auth/policy")
+            .header("host", "localhost")
             .header("authorization", format!("Bearer {token}"))
             .body(Body::empty())
     };
@@ -1528,6 +1545,7 @@ async fn policy_grants_and_revocations_are_visible_to_authenticated_routes() -> 
         .clone()
         .oneshot(
             Request::get("/auth/policy-authorize")
+                .header("host", "localhost")
                 .header("authorization", format!("Bearer {token}"))
                 .body(Body::empty())?,
         )
@@ -1547,6 +1565,7 @@ async fn policy_grants_and_revocations_are_visible_to_authenticated_routes() -> 
         .clone()
         .oneshot(
             Request::get("/auth/policy-pat")
+                .header("host", "localhost")
                 .header("authorization", format!("Bearer {}", scoped_token.expose()))
                 .body(Body::empty())?,
         )
@@ -1558,6 +1577,7 @@ async fn policy_grants_and_revocations_are_visible_to_authenticated_routes() -> 
         .clone()
         .oneshot(
             Request::get("/auth/policy-pat")
+                .header("host", "localhost")
                 .header(
                     "authorization",
                     format!("Bearer {}", unscoped_token.expose()),

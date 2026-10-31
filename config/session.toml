@@ -9,6 +9,7 @@ lottery = [2, 100]
 expire_on_close = false
 partitioned = false
 max_bytes = 20971520
+serializer = "native"
 
 # 可选的独立数据库实例不会继承 [database] 配置：
 # [database.instances.analytics]

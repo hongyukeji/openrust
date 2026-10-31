@@ -2511,7 +2511,7 @@ async fn guest_anonymous_route_and_intended_use_same_request_session_once() -> T
         "http://example.test/login"
     );
     assert_eq!(
-        session.get("url.intended")?,
+        session.get_json("url.intended")?,
         Some(serde_json::json!(
             "http://example.test/protected?first=one&next=two"
         ))
@@ -2530,7 +2530,7 @@ async fn guest_anonymous_route_and_intended_use_same_request_session_once() -> T
             .await?;
         assert_eq!(response.status(), StatusCode::FOUND);
         assert_eq!(response.headers()[header::LOCATION], expected);
-        assert_eq!(session.get("url.intended")?, None);
+        assert_eq!(session.get_json("url.intended")?, None);
     }
     Ok(())
 }

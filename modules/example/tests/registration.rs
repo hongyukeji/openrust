@@ -860,16 +860,52 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
     use openrust::testing::{TestApp, TestDatabase};
     use std::time::Duration;
 
+    fn migration_command(
+        phase: &'static str,
+        result: openrust::Result<()>,
+    ) -> openrust::Result<()> {
+        result.inspect_err(|error| {
+            eprintln!(
+                "module_migration phase={phase} code={} status={}",
+                error.code(),
+                error.status()
+            );
+        })
+    }
+
     let Ok(admin_url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
         eprintln!("skipping module migration test: OPENRUST_TEST_DATABASE_URL is unset");
         return Ok(());
     };
-    let database = TestDatabase::create::<EmptyMigrator>(&admin_url).await?;
+    eprintln!("module_migration phase=setup");
+    let database = TestDatabase::create::<EmptyMigrator>(&admin_url)
+        .await
+        .inspect_err(|error| {
+            eprintln!(
+                "module_migration phase=create_database code={} status={}",
+                error.code(),
+                error.status()
+            );
+        })?;
+    eprintln!("module_migration phase=database_created");
     let sources = || module_migration_sources(&database);
+    migration_command(
+        "initial_migrate",
+        TestApp::<crate::bootstrap::Server>::builder(sources())
+            .run_command("migrate", Vec::new())
+            .await,
+    )?;
     let mut enabled = TestApp::<crate::bootstrap::Server>::builder(sources())
         .build()
-        .await?;
-    enabled.app()?.run_command("migrate", Vec::new()).await?;
+        .await
+        .inspect_err(|error| {
+            eprintln!(
+                "module_migration phase=build_app code={} status={}",
+                error.code(),
+                error.status()
+            );
+        })?;
+    eprintln!("module_migration phase=read_initial");
     let connection = database.connection()?;
     let table = |name| {
         Statement::from_string(
@@ -920,10 +956,14 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
         let db = enabled.app()?.state().resolve::<openrust::db::Db>().await?;
         let indexes = session_gc_indexes(&connection, &db.table_name("sessions")?).await?;
         assert_eq!(indexes.len(), 1);
-        enabled
-            .app()?
-            .run_command("migrate", vec!["down".to_owned(), "1".to_owned()])
-            .await?;
+        migration_command(
+            "session_gc_down",
+            enabled
+                .app()?
+                .run_command("migrate", vec!["down".to_owned(), "1".to_owned()])
+                .await,
+        )?;
+        eprintln!("module_migration phase=read_after_session_gc_down");
         assert_eq!(
             migration_versions(&connection).await?,
             before_history[..before_down - 1]
@@ -945,10 +985,14 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
         indexes
     };
     let business_history = migration_versions(&connection).await?;
-    enabled
-        .app()?
-        .run_command("migrate", vec!["down".to_owned(), "1".to_owned()])
-        .await?;
+    migration_command(
+        "business_down",
+        enabled
+            .app()?
+            .run_command("migrate", vec!["down".to_owned(), "1".to_owned()])
+            .await,
+    )?;
+    eprintln!("module_migration phase=read_after_business_down");
     connection.query_one_raw(statement.clone()).await?;
     connection.query_one_raw(articles.clone()).await?;
     connection.query_one_raw(article_events.clone()).await?;
@@ -979,10 +1023,14 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
         migration_versions(&connection).await?,
         business_history[..business_history.len() - 1]
     );
-    enabled
-        .app()?
-        .run_command("migrate", vec!["up".to_owned(), "1".to_owned()])
-        .await?;
+    migration_command(
+        "business_up",
+        enabled
+            .app()?
+            .run_command("migrate", vec!["up".to_owned(), "1".to_owned()])
+            .await,
+    )?;
+    eprintln!("module_migration phase=read_after_business_up");
     connection.query_one_raw(statement.clone()).await?;
     connection.query_one_raw(articles.clone()).await?;
     connection.query_one_raw(article_events.clone()).await?;
@@ -1001,10 +1049,14 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
             session_gc_indexes(&connection, &db.table_name("sessions")?).await?,
             Vec::<String>::new()
         );
-        enabled
-            .app()?
-            .run_command("migrate", vec!["up".to_owned(), "1".to_owned()])
-            .await?;
+        migration_command(
+            "session_gc_up",
+            enabled
+                .app()?
+                .run_command("migrate", vec!["up".to_owned(), "1".to_owned()])
+                .await,
+        )?;
+        eprintln!("module_migration phase=read_after_session_gc_up");
         assert_eq!(
             session_gc_indexes(&connection, &db.table_name("sessions")?).await?,
             gc_indexes
@@ -1019,6 +1071,7 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
         connection.query_all_raw(shared_history).await?.len(),
         before_down
     );
+    eprintln!("module_migration phase=shutdown_enabled");
     enabled
         .shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
         .await?;
@@ -1026,7 +1079,11 @@ async fn module_migration_runs_with_framework_and_disable_keeps_existing_table()
     let mut disabled = TestApp::<crate::bootstrap::Server>::builder(sources());
     disabled.remove_module("example");
     let mut disabled = disabled.build().await?;
-    disabled.app()?.run_command("migrate", Vec::new()).await?;
+    migration_command(
+        "disabled_migrate",
+        disabled.app()?.run_command("migrate", Vec::new()).await,
+    )?;
+    eprintln!("module_migration phase=read_disabled");
     connection.query_one_raw(statement).await?;
     connection.query_one_raw(articles).await?;
     connection.query_one_raw(article_events).await?;

@@ -192,12 +192,14 @@ impl ServiceProvider for ExternalSessionExtension {
 }
 
 async fn write(session: Session) -> Result<Json<Value>> {
-    session.put("extension.value", "persisted")?;
+    session.put_typed("extension.value", "persisted")?;
     Ok(Json(json!({ "written": true })))
 }
 
 async fn read(session: Session) -> Result<Json<Value>> {
-    Ok(Json(json!({ "value": session.get("extension.value")? })))
+    Ok(Json(
+        json!({ "value": session.get_json("extension.value")? }),
+    ))
 }
 
 fn failure() -> Error {

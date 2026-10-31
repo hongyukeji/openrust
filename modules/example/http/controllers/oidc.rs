@@ -235,7 +235,7 @@ pub(crate) async fn browser_bind_authorize(
         .find_map(|(key, value)| (key == "state").then(|| value.into_owned()))
         .ok_or(Error::Unauthorized)?;
     // 单个 Session 最多保留一个意图；密码与 code 不进入 Session 或意图表。
-    session.put(
+    session.put_typed(
         PENDING_BIND_KEY,
         PendingBind {
             state_hash: crate::modules::example::services::oidc::state_hash(&state),

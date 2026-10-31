@@ -115,11 +115,13 @@ lifetime = 120
 expire_on_close = false
 partitioned = false
 max_bytes = 20971520
+serializer = "native"
 ```
 
 | 字段 | 默认与行为 |
 | --- | --- |
 | `driver` | `Some("database")`。Rust 配置中的 `None` 明确禁用请求 Session 层，不降级内存。 |
+| `serializer` | `native` 默认保持纯数据记录格式并在保存时拒绝对象；`json` 使用对象显式投影，重载按 PHP 关联数组语义。均不兼容 PHP serialize 字节。 |
 | `cookie` | `None`：按最终 `app.name` 计算 `Str::slug(name, '_') + "_session"`；显式 `Some(name)` 优先。 |
 | `path` / `domain` | `/` / `None`；`domain=None` 不发送 Domain，使用浏览器的 host-only Cookie。 |
 | `secure` | `None`：按可信请求传输推导；`Some(true/false)` 是显式设置。 |
@@ -148,8 +150,8 @@ use serde_json::{Value, json};
 
 async fn store(session: Session, request: Request) -> openrust::Result<Json<Value>> {
     let preference = request.string("preference")?.into_string();
-    session.put("example.preference", preference)?;
-    session.flash("example.notice", "已保存")?;
+    session.put_typed("example.preference", preference)?;
+    session.flash_typed("example.notice", "已保存")?;
     Ok(Json(json!({"saved": true})))
 }
 ```
@@ -161,14 +163,14 @@ async fn store(session: Session, request: Request) -> openrust::Result<Json<Valu
 ### null、缺失与键路径
 
 ```rust
-use serde_json::{Value, json};
 use openrust::session::Session;
+use openrust::support::DataValue;
 
 fn inspect(session: &Session) -> openrust::Result<()> {
-    session.put("example.null", Value::Null)?;
+    session.put("example.null", DataValue::Null)?;
     let existing_null = session.get("example.null")?;       // Some(Null)
     let missing = session.get("example.absent")?;          // None
-    let kept_null = session.get_or("example.null", json!("fallback"))?; // Null
+    let kept_null = session.get_or("example.null", DataValue::from("fallback"))?; // Null
     let typed = session.get_typed::<String>("example.preference")?;
     Ok(())
 }
@@ -184,14 +186,15 @@ fn inspect(session: &Session) -> openrust::Result<()> {
 | `forget` / `flush` | 删除指定字面键或 dot 路径 / 清空全部属性（包含 token 和 flash 元数据）。 |
 | `only` / `except` | 选择顶层字面键 / 从独立快照按删除规则排除；不修改当前属性。 |
 
-这里不展开 `*` 通配符。属性使用 JSON/serde 表示；`all()` 和读出的值是独立快照，空属性根表示为 `[]`。参数或树超限时，批量变更保持原子性。不要直接管理框架 `_flash` 元数据：手动删除尾项后再追加按当前可见整数键计算，不保存 PHP 数组隐藏的 next-free 历史；普通 flash 与稀疏删除语义见[差异说明](../../.agents/project/decisions/adr-082-session-store-and-flash.md)。
+这里不展开 `*` 通配符。属性使用 `DataValue` 单一值树；`all()` 和读出的值是快照，对象通过 `Arc` 保留身份，空属性根表示为 `[]`。参数或树超限时，批量变更保持原子性。不要直接管理框架 `_flash` 元数据：手动删除尾项后再追加按当前可见整数键计算，不保存 PHP 数组隐藏的 next-free 历史；普通 flash 与稀疏删除语义见[差异说明](../../.agents/project/decisions/adr-082-session-store-and-flash.md)。
 
 ## 便捷读写与计数
 
 ```rust
+use openrust::support::DataValue;
 // 已有非 null 值直接返回；缺失或 null 才调用回调并写回。
-let subtotal = session.remember("cart.subtotal", || Ok(120))?;
-session.push("cart.items", "book")?;
+let subtotal = session.remember("cart.subtotal", || Ok(DataValue::from(120_i64)))?;
+session.push("cart.items", DataValue::from("book"))?;
 let quantity = session.increment("cart.quantity")?;
 let adjusted = session.decrement_by("cart.quantity", 2)?;
 let previous_discount = session.remove("cart.discount")?;
@@ -199,7 +202,7 @@ let previous_discount = session.remove("cart.discount")?;
 
 `remember` 保留已有 `false`、`0` 和空字符串。回调返回 null 后，下次仍会计算。回调及序列化时不持状态锁，可以调用同一 Session；回调写入其他键会保留，最终计算值覆盖目标键。回调或序列化失败不撤销其自身已经发生的副作用；这不是跨请求的原子锁或分布式“只计算一次”。
 
-`push` 对缺失、null、false 从空数组追加；字符串、整数等非法目标报错，原属性不变。关联数组、稀疏整数键沿同一PHP数组表示规则追加，不复制另一套集合。`remove` 返回被删除的原值；Rust用 `None` 表示缺失、`Some(Value::Null)` 表示已有null，与现 `get` / `pull` 一致，PHP上游二者均返回null。
+`push` 对缺失、null、false 从空数组追加；字符串、整数等非法目标报错，原属性不变。关联数组、稀疏整数键沿同一PHP数组表示规则追加，不复制另一套集合。`remove` 返回被删除的原值；Rust用 `None` 表示缺失、`Some(DataValue::Null)` 表示已有null，与现 `get` / `pull` 一致，PHP上游二者均返回null。
 
 `increment` / `decrement` 默认步长1，`increment_by` / `decrement_by` 接收显式amount并返回、保存结果。数值字符串、null与布尔值按固定上游运算，整数溢出提升为有限浮点；减法保留先对amount乘以-1的顺序。非法类型或Laravel默认会升级成异常的数值警告返回错误，不悄悄把尾垃圾字符串当作数字；非有限数不能由JSON存储，返回错误且不发布部分属性。数组加数组沿PHP左并集，不是数字求和。业务仍应验证允许的输入类型与计数范围。
 
@@ -294,7 +297,11 @@ fn keep_current_binding(session: &Session) -> openrust::Result<()> {
 
 [示例处理器](../../modules/example/http/controllers/session.rs) 与[模块 HTTP 回归](../../modules/example/tests/session_flows.rs) 使用 `/api/example/session` 的 GET/POST，仅读写示例自己的偏好和提示；支持固定 put/forget/flash/now/keep 操作，不接收任意 Session 键。公开 API 的边界分别见[生命周期测试](../../tests/http/session.rs)、[受管理 HTTP 测试](../../tests/http/session_http.rs)与[数据库存储测试](../../tests/http/session_store.rs)。这些入口对应不同验证层次，不能互相替代。`http_session` 测试入口挂载同目录的 `session_helpers.rs`、`session_source_cases.rs` 与 `session_extensions.rs` 三个私有模块，保留全部生命周期、便捷方法和扩展回归。使用 `cargo test --no-default-features --features session --test http_session` 运行该入口；环境子进程、数据库和 Redis 测试仍使用各自独立入口。
 
-`Session::flash_input(Value)` 将对象或数组写入现有 `_old_input` flash；可用 `get_old_input(None)` 读取完整 bag（缺失为 `[]`），或用 `Some(key)` 在 bag 内按完整字面键优先、其次 dot 路径读取。`get_old_input_or` 仅在缺失时使用默认值，显式 null 保持原值；`has_old_input` 判断整 bag 非空或指定键非 null，false 与 0 均算有值。写入沿唯一 Session 状态机和记录预算，失败不发布部分 flash 元数据。
+`Session::flash_input(DataValue)` 将对象或数组写入现有 `_old_input` flash；可用 `get_old_input(None)` 读取完整 bag（缺失为 `[]`），或用 `Some(key)` 在 bag 内按完整字面键优先、其次 dot 路径读取。`get_old_input_or` 仅在缺失时使用默认值，显式 null 保持原值；`has_old_input` 判断整 bag 非空或指定键非 null，false 与 0 均算有值。写入沿唯一 Session 状态机和记录预算，失败不发布部分 flash 元数据。
+
+`openrust::support::DataValue` 是可保持 PHP 键顺序及共享对象身份的值树。常规 `put`、`flash`、`now`、`push`、`flash_input` 写入同一属性树，`all`、`get`、`get_old_input`、`pull`、`only`、`except` 返回共享对象快照。纯数据便利写入显式命名 `*_typed`，JSON 读取显式命名 `*_json`；`get_typed` 同样拒绝对象，绝不把对象当作 null 或缺失。对象由 `DataObject` 提供类型安全的 `as_any` 下转入口，可用 `DataValue::same_object` 比较同一 `Arc` 身份；Debug 和错误不输出对象内容。
+
+`session.serializer = "native"` 是默认纯数据兼容编码策略；它在 `save` 遇对象时拒绝持久化，不声称与 PHP serialize 字节兼容。`"json"` 仅使用对象显式声明的 `json_projection`；未提供投影的对象仍拒绝。JSON 重载将空对象按 PHP 关联数组解码为 `[]`。`Store::save` 先推进 flash 年龄再编码，因此编码失败不会写后端，但本请求内 flash 已老化。第三方 `json_projection` 在返回前的瞬时分配由实现方负责，框架校验返回值与整树预算。
 
 只读 `RequestInfo::old` / `old_or` / `old_all` 使用同一请求 Session；没有 Session 时按缺失或空 bag 处理。拥有正文的 `Request::flash` / `flash_only` / `flash_except` 使用已经规范化的 `all` / `only` / `except` 快照，`Request::flush` 仅闪存空旧输入，不执行 `Session::flush`。默认 `flash` 不过滤密码；应用需显式 `flash_except(&["password"])`。当前输入不合并上传文件，不能把这里的旧输入称为完整文件输入。Precognition 跳过自动 Session 保存时，本请求的闪存不保证持久化。
 

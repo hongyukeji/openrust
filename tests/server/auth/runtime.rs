@@ -137,10 +137,10 @@ async fn jwt_authentication_uses_the_configured_key_ring_without_session_middlew
 
 async fn create_test_session(session: Session) -> Result<openrust::http::Json<&'static str>> {
     session
-        .put("test.user_id", 42_i64)
+        .put("test.user_id", 42_i64.into())
         .map_err(Error::internal)?;
     session
-        .put("test.csrf_hash", "csrf-secret")
+        .put("test.csrf_hash", "csrf-secret".into())
         .map_err(Error::internal)?;
     Ok(openrust::http::Json("created"))
 }
@@ -153,10 +153,10 @@ async fn delete_test_session(session: Session) -> Result<openrust::http::Json<&'
 async fn rotate_test_session(session: Session) -> Result<openrust::http::Json<&'static str>> {
     session.migrate(true).await.map_err(Error::internal)?;
     session
-        .put("test.user_id", 42_i64)
+        .put("test.user_id", 42_i64.into())
         .map_err(Error::internal)?;
     session
-        .put("test.csrf_hash", "csrf-secret")
+        .put("test.csrf_hash", "csrf-secret".into())
         .map_err(Error::internal)?;
     Ok(openrust::http::Json("rotated"))
 }

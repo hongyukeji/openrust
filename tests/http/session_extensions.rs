@@ -72,7 +72,7 @@ fn conflict<T>(result: Result<T>) {
 #[test]
 fn set_id_retains_bag_and_started_and_invalid_inputs_generate_valid_ids() -> Result<()> {
     let session = session(Arc::new(Probe::default()))?;
-    session.put("owned", "unchanged")?;
+    session.put_typed("owned", "unchanged")?;
     for value in [
         None,
         Some("short"),
@@ -85,13 +85,13 @@ fn set_id_retains_bag_and_started_and_invalid_inputs_generate_valid_ids() -> Res
         assert_ne!(id, previous);
         assert_eq!(id.as_str().len(), 40);
         assert!(id.as_str().bytes().all(|byte| byte.is_ascii_alphanumeric()));
-        assert_eq!(session.get("owned")?, Some(json!("unchanged")));
+        assert_eq!(session.get_json("owned")?, Some(json!("unchanged")));
         assert!(!session.is_started()?);
     }
     let explicit = "A".repeat(40);
     session.set_id(Some(&explicit))?;
     assert_eq!(session.id()?, SessionId::parse(&explicit)?);
-    assert_eq!(session.get("owned")?, Some(json!("unchanged")));
+    assert_eq!(session.get_json("owned")?, Some(json!("unchanged")));
     Ok(())
 }
 
@@ -101,14 +101,14 @@ async fn same_binding_noop_and_switching_back_restore_update_proof() -> Result<(
     let erased: Arc<dyn SessionStore> = origin.clone();
     let session = session(erased.clone())?;
     session.start().await?;
-    session.put("owned", "source")?.save().await?;
+    session.put_typed("owned", "source")?.save().await?;
     session.start().await?;
     let id = session.id()?;
     let other: Arc<dyn SessionStore> = Arc::new(Probe::default());
     assert!(Arc::ptr_eq(&other, &session.set_handler(other.clone())?));
     assert!(Arc::ptr_eq(&other, &session.handler()?));
     assert!(session.is_started()?);
-    assert_eq!(session.get("owned")?, Some(json!("source")));
+    assert_eq!(session.get_json("owned")?, Some(json!("source")));
     assert_eq!(
         code(session.start().await).as_deref(),
         Some("session_rebind_pending")
@@ -137,16 +137,16 @@ async fn explicit_target_collision_preserves_id_and_target_and_allows_later_tran
     let store = Arc::new(Probe::default());
     let source = session(store.clone())?;
     source.start().await?;
-    source.put("owner", "source")?.save().await?;
+    source.put_typed("owner", "source")?.save().await?;
     let target_id = "T".repeat(40);
     let target = session(store.clone())?;
     target.set_id(Some(&target_id))?;
     target.start().await?;
-    target.put("owner", "target")?.save().await?;
+    target.put_typed("owner", "target")?.save().await?;
     source.set_id(Some(&target_id))?;
     conflict(source.save().await);
     assert_eq!(source.id()?, SessionId::parse(&target_id)?);
-    assert_eq!(source.get("owner")?, Some(json!("source")));
+    assert_eq!(source.get_json("owner")?, Some(json!("source")));
     let persisted = store
         .load(&target.id()?, DEFAULT_MAX_BYTES, target.expiry_date()?)
         .await?
@@ -155,7 +155,7 @@ async fn explicit_target_collision_preserves_id_and_target_and_allows_later_tran
     let free = "F".repeat(40);
     source.set_id(Some(&free))?;
     source.save().await?;
-    source.put("after", true)?.save().await?;
+    source.put_typed("after", true)?.save().await?;
     let modes = store.writes.lock().map_err(|_| error())?;
     assert_eq!(
         &modes[modes.len() - 2..],
@@ -170,7 +170,7 @@ async fn revoked_source_cannot_be_copied_to_explicit_other_backend() -> Result<(
     let target = Arc::new(Probe::default());
     let session = session(origin.clone())?;
     session.start().await?;
-    session.put("authenticated", true)?.save().await?;
+    session.put_typed("authenticated", true)?.save().await?;
     origin.delete(&session.id()?).await?;
     session.set_handler(target.clone())?;
     session.set_id(Some(&"N".repeat(40)))?;
@@ -190,7 +190,7 @@ async fn destroy_and_invalidate_tombstones_forbid_old_ids_even_on_another_store(
         let store = Arc::new(Probe::default());
         let session = session(store.clone())?;
         session.start().await?;
-        session.put("owned", "secret")?.save().await?;
+        session.put_typed("owned", "secret")?.save().await?;
         let old = session.id()?;
         if invalidate {
             session.invalidate().await?;
@@ -202,7 +202,7 @@ async fn destroy_and_invalidate_tombstones_forbid_old_ids_even_on_another_store(
         session.set_handler(Arc::new(Probe::default()))?;
         conflict(session.set_id(Some(old.as_str())));
         assert_eq!(
-            session.get("owned")?,
+            session.get_json("owned")?,
             if invalidate {
                 None
             } else {
@@ -287,7 +287,7 @@ async fn explicitly_reaffirming_random_id_disables_collision_retry() -> Result<(
     let store = Arc::new(Probe::default());
     let session = session(store.clone())?;
     let id = session.id()?;
-    session.put("mine", true)?;
+    session.put_typed("mine", true)?;
     let occupant = SessionRecord {
         id: id.clone(),
         data: json!({"occupant":true}),
@@ -299,7 +299,7 @@ async fn explicitly_reaffirming_random_id_disables_collision_retry() -> Result<(
     session.set_id(Some(id.as_str()))?;
     conflict(session.save().await);
     assert_eq!(session.id()?, id);
-    assert_eq!(session.get("mine")?, Some(json!(true)));
+    assert_eq!(session.get_json("mine")?, Some(json!(true)));
     assert!(session.set_id(None).is_ok()); // 显式碰撞不永久撤销。
     Ok(())
 }
@@ -313,7 +313,7 @@ async fn pending_transfer_cannot_destroy_either_binding_or_change_attributes() -
             let erased: Arc<dyn SessionStore> = origin.clone();
             let session = session(erased.clone())?;
             session.start().await?;
-            session.put("owned", "kept")?.save().await?;
+            session.put_typed("owned", "kept")?.save().await?;
             let old = session.id()?;
             if change_store {
                 session.set_handler(target.clone())?;
@@ -321,7 +321,7 @@ async fn pending_transfer_cannot_destroy_either_binding_or_change_attributes() -
                 session.set_id(Some(&"D".repeat(40)))?;
             }
             let selected = session.id()?;
-            let before = session.all()?;
+            let before = session.all_json()?;
             let result = match action {
                 0 => session.invalidate().await,
                 1 => session.migrate(true).await,
@@ -329,7 +329,7 @@ async fn pending_transfer_cannot_destroy_either_binding_or_change_attributes() -
             };
             assert_eq!(code(result).as_deref(), Some("session_rebind_pending"));
             assert_eq!(session.id()?, selected);
-            assert_eq!(session.all()?, before);
+            assert_eq!(session.all_json()?, before);
             assert_eq!(origin.deletes.load(Ordering::SeqCst), 0);
             assert_eq!(target.deletes.load(Ordering::SeqCst), 0);
             assert!(
@@ -484,8 +484,8 @@ async fn request_hooks_require_real_instances_preserve_driver_identity_and_isola
     assert!(Arc::ptr_eq(&first.handler()?, &first.clone().handler()?));
     first.start().await?;
     second.start().await?;
-    first.put("owner", "one")?.save().await?;
-    second.put("owner", "two")?.save().await?;
+    first.put_typed("owner", "one")?.save().await?;
+    second.put_typed("owner", "two")?.save().await?;
     assert_eq!(
         first_jar
             .queued("bound_probe", None)?
@@ -897,9 +897,9 @@ async fn gc_business(
         .lock()
         .map_err(|_| error())?
         .push("business".into());
-    session.put("business", "nonempty")?;
+    session.put_typed("business", "nonempty")?;
     Ok(openrust::http::Json(
-        json!({"value":session.get("business")?}),
+        json!({"value":session.get_json("business")?}),
     ))
 }
 async fn gc_app(lottery: [u32; 2], mode: u8) -> Result<(openrust::App, Arc<GcTrace>)> {

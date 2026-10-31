@@ -64,6 +64,7 @@ lottery = [2, 100]
 expire_on_close = false
 partitioned = false
 max_bytes = 20971520
+serializer = "native"
 
 [database]
 table_prefix = "tb_"

@@ -97,9 +97,9 @@ async fn save_and_reopen(
     expected: &Value,
 ) -> Result<Session> {
     session.save().await?;
-    ensure(session.all()? == *expected)?;
+    ensure(session.all_json()? == *expected)?;
     let next = Session::new(Some(id), store, Some(Expiry::AtDateTime(expiry)))?;
-    ensure(next.start().await? && next.all()? == *expected)?;
+    ensure(next.start().await? && next.all_json()? == *expected)?;
     Ok(next)
 }
 
@@ -122,11 +122,11 @@ async fn forget_empty_list_keeps_attributes_and_persists() -> Result<()> {
     )?;
     let (session, store, id, expiry) = seeded(&case).await?;
     session.forget(&[])?;
-    ensure(session.all()? == case.expected_final_attributes)?;
-    ensure(session.get("one")? == Some(json!(1)))?;
+    ensure(session.all_json()? == case.expected_final_attributes)?;
+    ensure(session.get_json("one")? == Some(json!(1)))?;
     let expected = aged_without_flash(case.expected_final_attributes)?;
     let next = save_and_reopen(&session, store, id, expiry, &expected).await?;
-    ensure(next.get("one")? == Some(json!(1)))
+    ensure(next.get_json("one")? == Some(json!(1)))
 }
 
 #[tokio::test]
@@ -140,11 +140,11 @@ async fn forget_missing_nested_key_keeps_scalar_parent_and_persists() -> Result<
     )?;
     let (session, store, id, expiry) = seeded(&case).await?;
     session.forget(&["a.b"])?;
-    ensure(session.all()? == case.expected_final_attributes)?;
-    ensure(session.get("a")? == Some(json!("scalar")) && session.get("a.b")?.is_none())?;
+    ensure(session.all_json()? == case.expected_final_attributes)?;
+    ensure(session.get_json("a")? == Some(json!("scalar")) && session.get_json("a.b")?.is_none())?;
     let expected = aged_without_flash(case.expected_final_attributes)?;
     let next = save_and_reopen(&session, store, id, expiry, &expected).await?;
-    ensure(next.get("a")? == Some(json!("scalar")) && next.get("a.b")?.is_none())
+    ensure(next.get_json("a")? == Some(json!("scalar")) && next.get_json("a.b")?.is_none())
 }
 
 #[tokio::test]
@@ -162,11 +162,13 @@ async fn forget_flash_value_keeps_tracking_through_save_and_next_request() -> Re
         ]),
     )?;
     let (session, store, id, expiry) = seeded(&case).await?;
-    session.flash("x", "value")?;
-    ensure(session.get("x")? == Some(json!("value")))?;
+    session.flash_typed("x", "value")?;
+    ensure(session.get_json("x")? == Some(json!("value")))?;
     session.forget(&["x"])?;
-    ensure(session.get("x")?.is_none() && session.get("_flash.new")? == Some(json!(["x"])))?;
+    ensure(
+        session.get_json("x")?.is_none() && session.get_json("_flash.new")? == Some(json!(["x"])),
+    )?;
     let next =
         save_and_reopen(&session, store, id, expiry, &case.expected_final_attributes).await?;
-    ensure(!next.exists(&["x"])? && next.get("_flash.old")? == Some(json!(["x"])))
+    ensure(!next.exists(&["x"])? && next.get_json("_flash.old")? == Some(json!(["x"])))
 }

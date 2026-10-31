@@ -159,6 +159,7 @@ impl ServiceProvider for SessionServiceProvider {
                 ("expire_on_close", S::Boolean),
                 ("partitioned", S::Boolean),
                 ("max_bytes", S::Integer),
+                ("serializer", S::String),
             ]),
             |_: &SessionConfig| Ok(()),
         )?;

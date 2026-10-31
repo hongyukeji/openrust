@@ -152,6 +152,11 @@ async fn prepare(layer: &SessionLayer, request: &mut Request) -> Result<Session>
         layer.settings.cookie_name.clone(),
         Arc::clone(&layer.error_bag_codecs),
     )?;
+    session.set_object_encoding(if layer.settings.config.serializer == "json" {
+        crate::support::ObjectEncoding::JsonProjection
+    } else {
+        crate::support::ObjectEncoding::Reject
+    })?;
     let scope = request
         .extensions()
         .get::<Arc<crate::core::container::Scope>>()

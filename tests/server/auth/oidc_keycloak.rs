@@ -1276,11 +1276,13 @@ impl openrust::session::SessionStore for TestSessionStore {
     }
 }
 
-#[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
+#[cfg(all(
+    feature = "session-redis",
+    any(feature = "db-postgres", feature = "db-mysql")
+))]
 async fn test_session_store(
     namespace: &str,
 ) -> std::result::Result<TestSessionStore, Box<dyn StdError>> {
-    #[cfg(feature = "session-redis")]
     if let Ok(redis_url) = std::env::var("OPENRUST_TEST_SESSION_REDIS_URL") {
         return Ok(TestSessionStore::Redis(
             openrust::auth::RedisSessionStore::connect(redis_url, namespace).await?,
@@ -1292,9 +1294,26 @@ async fn test_session_store(
                 .into(),
         );
     }
-    #[cfg(not(feature = "session-redis"))]
-    let _ = namespace;
     Ok(TestSessionStore::Memory(MemoryStore::default()))
+}
+
+#[cfg(all(
+    not(feature = "session-redis"),
+    any(feature = "db-postgres", feature = "db-mysql")
+))]
+fn test_session_store(
+    namespace: &str,
+) -> std::future::Ready<std::result::Result<TestSessionStore, Box<dyn StdError>>> {
+    let _ = namespace;
+    let result = if std::env::var("OPENRUST_REQUIRE_SHARED_SESSION").as_deref() == Ok("1") {
+        Err(
+            "shared-session acceptance requires OPENRUST_TEST_SESSION_REDIS_URL and session-redis"
+                .into(),
+        )
+    } else {
+        Ok(TestSessionStore::Memory(MemoryStore::default()))
+    };
+    std::future::ready(result)
 }
 
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
@@ -2798,13 +2817,13 @@ async fn process_login_callback(
                 return StatusCode::INTERNAL_SERVER_ERROR.into_response();
             }
             if session
-                .put("openrust.auth.mfa.user_id", challenge.user_id())
+                .put("openrust.auth.mfa.user_id", challenge.user_id().into())
                 .is_err()
                 || session
-                    .put("openrust.auth.mfa.challenge", challenge.expose())
+                    .put("openrust.auth.mfa.challenge", challenge.expose().into())
                     .is_err()
                 || session
-                    .put("openrust.auth.mfa.external_handle", handle.expose())
+                    .put("openrust.auth.mfa.external_handle", handle.expose().into())
                     .is_err()
                 || session.save().await.is_err()
             {
@@ -2835,7 +2854,8 @@ async fn process_login_callback(
     {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
-    if session.put("openrust.auth.user_id", user_id).is_err() || session.save().await.is_err() {
+    if session.put_typed("openrust.auth.user_id", user_id).is_err() || session.save().await.is_err()
+    {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     }
     let Ok(session_id) = session.id() else {
@@ -2975,7 +2995,7 @@ async fn process_mfa_callback(
         || session
             .forget(&["openrust.auth.mfa.external_handle"])
             .is_err()
-        || session.put("openrust.auth.user_id", user_id).is_err()
+        || session.put_typed("openrust.auth.user_id", user_id).is_err()
         || session.save().await.is_err()
     {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();

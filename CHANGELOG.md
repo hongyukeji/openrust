@@ -6,6 +6,10 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Changed
 
+- Session 属性树的公共读取统一返回 `DataValue`，原始写入保留对象身份；DTO 使用显式 `*_typed` 写入，JSON/DTO 读取使用显式投影并处理不可投影对象。默认 native 编码在保存对象时拒绝且不写后端，json 编码仅接受对象声明的投影；唯一业务模块、生成模板和公开 consumer 同步迁移。本次破坏性 API 调整不承诺 PHP serialize 字节兼容，也不代表完整 Request 文件或 Session 能力已验收。
+
+- 测试应用增加受控 `TestAppBuilder::run_command`，使用同名 console 启动上下文执行命令并在返回前关闭应用；普通 `build` 继续进行正常启动校验。唯一模块的迁移用例经此入口先运行初次迁移，再按原断言检查回滚、重迁移与禁用后的旧表。
+
 - 监听环境键统一为中性的 `SERVER_PORT → server.port`，移除 `APP_PORT`、独立 `PORT` 和命名空间端口别名；根和生成应用使用 `APP_URL="http://localhost:${SERVER_PORT}"`。缓存按 Laravel 使用 `CACHE_STORE → cache.default`，默认选择已登记的 redis store，移除旧 `REDIS_DEFAULT_STORE`，不引入 `CACHE_DEFAULT_STORE` 别名；Redis 连接与队列共用 `REDIS_DB`，保留其他合法具名 store 和自定义 driver。
 
 - 配置加载增加不可变 `ConfigSources` 与 `ConfigLoader::sources()`，在进入 Figment 投影前保留已有平层 TOML 的声明键序；默认引导一次捕获来源，类型配置和 Provider 复用该输入。仓储、Provider 与 TestApp 沿既有入口接收有序来源，显式 Figment 输入仍是无法恢复历史声明序的有损入口。文件自然排序不等于已实现递归配置发现或文件名命名空间映射，完整 Config 对应继续开放。

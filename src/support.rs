@@ -4,6 +4,7 @@ mod backed_enum;
 pub mod calendar;
 mod collection;
 pub(crate) mod data;
+mod data_value;
 mod finite;
 #[cfg(feature = "session")]
 pub(crate) use finite::Finite;
@@ -22,6 +23,7 @@ pub use calendar::{
     InputInterval, IntervalError, IntervalUnit, ResolvedTimezone, SystemClock, TimezoneInput,
 };
 pub use collection::{ArrayKey, Collection};
+pub use data_value::{DataObject, DataValue, ObjectEncoding};
 pub use fluent::Fluent;
 pub use message_bag::{
     MessageBag, MessageBagContract, MessageInput, MessageJsonOptions, MessageKeys, MessageLookup,

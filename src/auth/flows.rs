@@ -1370,11 +1370,11 @@ async fn bind_session(session: &Session, user_id: i64) -> Result<SessionCredenti
 
     session.migrate(true).await?;
     remove_auth_values(session)?;
-    if let Err(error) = session.put(AUTH_CSRF_HASH_KEY, csrf_hash) {
+    if let Err(error) = session.put_typed(AUTH_CSRF_HASH_KEY, csrf_hash) {
         let _ = remove_auth_values(session);
         return Err(Error::internal(error));
     }
-    if let Err(error) = session.put(AUTH_USER_ID_KEY, user_id) {
+    if let Err(error) = session.put_typed(AUTH_USER_ID_KEY, user_id) {
         let _ = remove_auth_values(session);
         return Err(Error::internal(error));
     }
@@ -1427,7 +1427,7 @@ mod tests {
         let store = Arc::new(MemoryStore::default());
         let session = Session::new(None, store.clone(), None)?;
         session.start().await?;
-        session.put("app.preference", "compact")?;
+        session.put_typed("app.preference", "compact")?;
         session.save().await?;
         let old_id = session.id()?;
         let credentials = bind_session(&session, 42).await?;

@@ -694,7 +694,12 @@ mod tests {
 
         let replacement = Session::new(None, store.clone(), None)?;
         replacement.flash_errors("replacement", &MessageBag::new())?;
-        session.put("errors", replacement.get("errors")?)?;
+        session.put(
+            "errors",
+            replacement.get("errors")?.ok_or_else(|| {
+                crate::Error::custom("session_errors_missing", "替换错误包不存在")
+            })?,
+        )?;
         shared.put("old-only", Box::new(MessageBag::new()))?;
         assert!(session.read_errors()?.has_bag("replacement"));
         assert!(!session.read_errors()?.has_bag("old-only"));
@@ -709,14 +714,18 @@ mod tests {
         assert!(!Arc::ptr_eq(&shared, &current));
         // 值完全相同的整包赋值仍产生新对象，旧句柄不能重新写入Session。
         let identical = session.get("errors")?;
-        session.put("errors", identical)?;
+        session.put(
+            "errors",
+            identical
+                .ok_or_else(|| crate::Error::custom("session_errors_missing", "错误包不存在"))?,
+        )?;
         current.put("same-value-detached", Box::new(MessageBag::new()))?;
         assert!(!session.read_errors()?.has_bag("same-value-detached"));
 
         let missing = Session::new(None, store, None)?;
         let fallback = missing.shared_view_errors()?;
         fallback.put("fallback-only", Box::new(MessageBag::new()))?;
-        assert_eq!(missing.get("errors")?, None);
+        assert!(missing.get("errors")?.is_none());
         assert_eq!(
             render(
                 fallback,
@@ -740,12 +749,12 @@ mod tests {
         let next = Session::new(Some(first.id()?), store.clone(), None)?;
         next.start().await?;
         let shared = next.shared_view_errors()?;
-        let flash_before = next.get("_flash")?;
+        let flash_before = next.get_json("_flash")?;
         shared.put("ordinary-put", Box::new(MessageBag::new()))?;
-        assert_eq!(next.get("_flash")?, flash_before);
+        assert_eq!(next.get_json("_flash")?, flash_before);
         next.save().await?;
         assert_eq!(
-            next.get("errors")?,
+            next.get_json("errors")?,
             None,
             "普通对象put不能延长已经old的flash"
         );
@@ -753,7 +762,11 @@ mod tests {
         third.start().await?;
         assert!(!third.read_errors()?.has_bag("ordinary-put"));
         shared.put("after-age", Box::new(MessageBag::new()))?;
-        assert_eq!(next.get("errors")?, None, "保存老化移除属性后旧对象已断开");
+        assert_eq!(
+            next.get_json("errors")?,
+            None,
+            "保存老化移除属性后旧对象已断开"
+        );
 
         let current = Session::new(None, Arc::new(MemorySessionStore::default()), None)?;
         current.flash_errors("default", &MessageBag::new())?;
@@ -782,7 +795,7 @@ mod tests {
         )?;
         session.flash_errors("default", &MessageBag::new())?;
         let shared = session.shared_view_errors()?;
-        let before = session.all()?;
+        let before = session.all_json()?;
         let mut huge = MessageBag::new();
         huge.add("email", "x".repeat(2048))?;
         let error = shared
@@ -790,14 +803,14 @@ mod tests {
             .err()
             .ok_or_else(|| crate::Error::custom("test_missing_error", "预算必须拒绝写入"))?;
         assert_eq!(error.code(), "session_limits_exceeded");
-        assert_eq!(session.all()?, before);
+        assert_eq!(session.all_json()?, before);
         assert_eq!(render(Arc::clone(&shared), "{{ errors.count() }}")?, "0");
         assert!(
             shared
                 .put("unregistered", Box::new(CustomBag::new()))
                 .is_err()
         );
-        assert_eq!(session.all()?, before);
+        assert_eq!(session.all_json()?, before);
         assert_eq!(
             render(
                 shared,
@@ -861,7 +874,10 @@ mod tests {
         assert!(encode_rejected.load(Ordering::SeqCst));
         assert!(!session.read_errors()?.has_bag("recursive-encode"));
         let raw = session.get("errors")?;
-        session.put("errors", raw)?;
+        session.put(
+            "errors",
+            raw.ok_or_else(|| crate::Error::custom("session_errors_missing", "错误包不存在"))?,
+        )?;
         let restore_rejected = Arc::new(AtomicBool::new(false));
         DECODER_SESSION.with(|slot| {
             *slot.borrow_mut() = Some((session.clone(), Arc::clone(&restore_rejected)));
