@@ -8,7 +8,9 @@
 
 🟡 R2-P Provider完整注册生命周期仍在分支Verify：core125/仓储47/公开Container24及consumer限定通过；修后Cookie9、默认workspace862、全feature1650（68ignored）、双doctest/docs、no-default/MSRV/deny已有新输入回执，root核10日志SHA。生成attempt3普通/TCP/MySQL认证2与独立库集合审计已过，后续Cookie修复已在保留生成项目定向补验plain3/MySQL auth2，无skip、库集合与源码不变。严格Clippy三失败后仍暂停待真实决定，未提交、未合main。
 
-🟡 S-DV有序对象值与Session保存边界已实际派发编码：同项目tasks/session-data-values、基线9eb54ce，不依赖未提交Provider。覆盖Request文件输入前必需的对象身份/保存策略，尚未编码验收；multipart/Storage与完整Request文件家族仍开放，owner/资源见todo。
+🟡 S-DV有序对象值与Session保存边界正双路Implement：canonical get/all/old_input等统一返回DataValue，核心锁/投影/预算独审3个blocker原owner批修，独立caller同步HTTP/Auth/模块/外部测试及生成模板；尚无Cargo/真实服务通过证据，driver也须修早审问题后冻结。不能用JSON get加专用get_value旁路冒称对象等价；完整Request文件/multipart仍后继。
+
+🟡 ST-V Storage visibility家族在独立worktree实际编码：复用唯一Storage，local受限目录句柄权限与S3 SDK ACL/最终复制接线。首轮独审4个blocker正在批修；精确可选AWS SDK新锁metadata/deny通过、Unix rustix复用锁定版本，不算编译或真实ACL验收。现S3 ACL实服务/配置未具备，缺口保持；原owner与唯一文件范围见todo。
 
 ✅ R2-CC配置缓存家族已在隔离分支限定提交 `7be446d`：修后默认851/全feature1638（68ignored）、双Clippy/docs、doctest22/24、普通生成8与真实模块/生成应用缓存复启通过；两task temp已回收，混合归属同名包缓存保留待精确核对。未合main，不外推完整Configuration或组合验收。
 

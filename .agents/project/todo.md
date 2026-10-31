@@ -107,13 +107,14 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 
 - Request文件存储的独立前置，复用唯一Storage manager/default/named disk与流写；按固定Laravel公开visibility写入/读取/修改及disk默认覆盖，保留完整文件输入/MIME后继。冻结Spec `/tmp/openrust-storage-visibility-frozen-spec.md`，来源 `/tmp/openrust-request-file-storage-contract.md`；不是把UploadOptions或客户端MIME当public/服务端推断。
 - owner `9d167e52-8548-465c-a835-20d2624985e5`，workspace `wks_722c52102af7671f`（既有OpenRust项目），branch `tasks/storage-visibility-family`，base `c126de5`，cwd `/Users/Home/.paseo/worktrees/02joa2lr/openrust-storage-visibility-family`。独占storage/配置与受影响调用方/唯一模块/测试/用户说明，不改Session/P共享源码，不改manifest/lock/Agentdocs/main索引。
-- 已通过正式run派发 code-first 实施，未Cargo/服务/验收；先核实际OpenDAL/平台能力，S3缺API给root依赖proposal，缺ACL实服务明确保留，不吞参数或冒称不适用。ready后不同模型独审与集中Verify，当前不占target/端口/库；复用主target，50GB/10%软告警与100GB/5%硬线、默认额度和停止链路同既有任务，不建重复守护/Goal。
+- 首轮源码11文件已ready并经terra独审：4 blocker（UUID feature、local硬链接chmod、取消/rename仲裁、畸形ACL误判），UUID已由root修，原owner集中修其余和should-fix，Rust编译/行为尚未验证。root已选精确可选aws-sdk-s3=1.152.0，仅storage-s3启用；metadata新增26版本、原锁无升级/移除，声明MSRV均≤1.97，allfeatures offline deny通过，不冒充编译/真实ACL通过。来源/决策与锁图回执 `/tmp/openrust-storage-s3-acl-{dependency-review.md,root-decision.json,lock-resolution.json}`；root独占三清单文件，真实ACL服务/授权配置未具备。当前不占target/端口/库，ready后delta审查/集中Verify；50GB/10%软与100GB/5%硬、默认额度/停止链路保持，不建重复守护。
 
 ## S-DV 有序对象值与 Session 保存边界（Implement）
 
 - Request 文件家族的实际前置；固定 Laravel 真探针14案表明 Request flashOnly/Except 保留对象到 save，Redirect 则递归剔除，不能在 put/flash 时提前转JSON。冻结Spec `/tmp/openrust-session-data-values-frozen-spec.md`，oracle `/tmp/openrust-request-files-flash-oracle/receipt.json`；只推进通用值/Session保存边界，multipart/DefaultBodyLimit/Storage visibility与MIME继续后继。
 - owner `7611b92b-f279-4a2f-ab5f-d134c2263926`，workspace `wks_1735f33899c42ec3`（既有OpenRust项目），base `9eb54ce02a09b48db31c31b57384976628da4050`，branch `tasks/session-data-values`，cwd `/Users/Home/.paseo/worktrees/02joa2lr/openrust-session-data-values`；common-dir已核同仓。实际正式run已返回running，模型沿现可用经济回退 `gpt-6-sol` medium；不重复本地不可用执行器探测。
-- owned公开值/Session/必要serializer配置与调用方、唯一模块/模板/测试代码/用户说明；manifest/lock/共享Agentdocs及main索引root独占。code-first完成整簇后freeze，先交实际公共签名，ready后不同模型独审与集中验证。未运行Cargo/真实服务，不宣称已实现或验收。
+- 当前公共签名补充冻结 `/tmp/openrust-session-data-values-canonical-api.md`：canonical get/all/old_input等返回原始DataValue，JSON投影显式，禁止保旧JSON get再只靠get_value读对象。core owner独占src/session、值类型、Session配置/就地unit；复用native `config_runtime_callers` 已实际派发同worktree其余调用方/唯一模块/外部测试/consumer/CLI模板快照/说明，保全core已写caller WIP接续，不重叠编辑。manifest/lock/共享Agentdocs及main索引root独占；整簇freeze后不同模型独审/集中Verify，尚未Cargo或真实服务验收。
+- 验证准备复用P owner `04cca925-e59f-42f1-800b-424e7b4cd1b8`，仅写/tmp的driver/selector，不提前运行。terra旧SHA早审的路径/超时/资源覆盖/selector/库隔离问题已交其按当前版整批修，最终脚本仍须freeze与真实selector绑定，未执行不算证据。
 - 资源：不建新target，后续复用 `/Users/Home/Codes/Rust/openrust/target`；当前仅写代码，不占Cargo/端口/库。构建前重测全登记缓存/预计增量，50GB软/100GB硬、磁盘10%软/5%硬；独立执行者受总控暂停/停止协调，原默认80%额度不变。完成后按真实归属清理，不动未合入分支。
 
 ## R2-P Provider 完整注册生命周期（Verify，未提交）
@@ -124,6 +125,7 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 - 当前冻结96个变更文件，生成验收另外绑定实际运行输入；core125、仓储47、公开Container契约24，以及独立container-extension2、test-app1、config读取consumer6均实际通过。Register重放覆盖后续set的缺陷已修并经不同模型静态复审。默认严格Clippy三次失败后的schema helper已修，但该门禁仍依§5暂停：原请求消失而无真实答复，不以账本预选冒充批准，不重复堆问卷。root精确刷新3个consumer锁，新增包匹配根锁，无第三方升级。
 - 生成首轮view遗漏await已修；第二轮确认共享target旧CLI复用，未误改正确异步模板。attempt3 `/tmp/openrust-r2p-generated-acceptance-attempt3/` 实际强制重编当前CLI并绑定97输入，13阶段通过：普通生成/Provider/TCP/公开fixture、MySQL认证2项无skip；root独立SQL审计前后61库集合摘要一致。前两轮失败保留。其后Cookie生产修复已用保留生成项目补验3项plain及2项真实MySQL auth具名测试，均通过/无skip，97源与生成锁无漂移、前后61库集合一致。`/tmp/openrust-r2p-cookie-generated-supplement/result.json` 与root五日志核验留证，不重跑未受影响生成/CLI/Marker TCP。
 - Cookie当前节读取改has(session)，保留已解析singleton快照；固定PHP真实CookieServiceProvider探针确认早解析不热建，新增身份回归后cookie9、默认workspace lib/tests862、全feature1650/68ignored、doctest22/34ignored及24/40ignored、双warnings-denied docs、no-default/MSRV/deny均有新回执。`/tmp/openrust-r2p-cookie-matrix-handoff.json` 关联10日志，root逐哈希核对全匹配；ignored不计真实服务，严格Clippy仍暂停，因此未提交。
+- 资源补验中的unregistered_count79已确证是对unknown字符串按字符计数，不是79target，原result保留且resource-audit.md纠正；限定main/worktree/tmp扫描无新增target，登记15路径约94.30GB仍为覆盖有界的小计。P补验已收尾8个确证自有测试二进制，释放379,628,016B；root逐项核缺失状态、来源/.d/日志SHA，97源与224保护项由owner前后核不变，生成源码/锁/证据/共享依赖保留，回执 `/tmp/openrust-r2p-generated-cleanup/result.json` 和root-audit.json。
 - 最近owner回执主target76,380,396KiB、磁盘可用101.3GB；其他登记target仍需合计，不能冒称全量已核。下一构建重测合计及预计增长，50GB/10%仅软告警、100GB/5%硬线保持；未知缓存不清。派发/停止ID入口 `/tmp/openrust-provider-registration-dispatch.json`，总控用正式Paseo stop逐任务协调；不另建Goal/guard、不推送、不提前退役未合分支。
 
 ## R2-CC 配置缓存家族（分支已提交7be446d，未合main）
