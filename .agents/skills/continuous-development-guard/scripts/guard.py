@@ -656,7 +656,102 @@ def authorize_full_budget(runtime, config, current, controls, response):
     atomic(path, document)
 
 
-def resume_budget_pause(runtime, config, state, requested_at=None):
+def check_rebase_stop(runtime, requested_at):
+    """本轮新停止优先；旧停止标记由本轮显式启动重新授权。"""
+    disabled = runtime / 'disabled'
+    if disabled.exists() and disabled.stat().st_mtime >= requested_at:
+        raise ValueError('并发停止优先，不建立新基线或启动守护')
+
+
+def prepare_usage_budget_rebase(runtime, config, prior_config, state, resume=False, requested_at=None):
+    """显式新基线核对正式身份、授权与两次额度快照，审计先落盘而不改有效基线。"""
+    requested_at = time.time() if requested_at is None else requested_at
+    check_rebase_stop(runtime, requested_at)
+    if any(config.get(k) != prior_config.get(k) for k in ('agent', 'thread', 'goal_id')):
+        raise ValueError('新基线必须沿用原任务与Goal')
+    if (state.get('percentage_pause') or {}).get('resume_status') in ('activating', 'sending'):
+        raise ValueError('原恢复或发送结果未知，不建立新基线')
+    current = goal(config)
+    remote = bound_goal(config)
+    if (not current or current.get('status') not in ('active', 'paused')
+            or remote.get('status') != current['status']
+            or remote.get('objective') != current.get('objective')
+            or remote.get('createdAt') != current.get('created_at_ms', -1000) // 1000
+            or current['status'] == 'paused' and not resume):
+        raise ValueError('原Goal状态或正式身份不允许建立新基线')
+    controls = percentage_pause_controls(config, allow_old_control=resume)
+    if not controls or not controls.get('last_user_at') or not controls.get('user_key'):
+        raise ValueError('缺少明确新基线授权水位或存在人工控制边界')
+    authorization = {k: controls[k] for k in ('last_user_at', 'user_key')}
+    if any(completed_at({'key': value, 'payload': {}}) is None for value in authorization.values()):
+        raise ValueError('新基线授权水位未知')
+    if any(entry.get('authorization') == authorization for entry in prior_config.get('usage_budget_rebases', [])):
+        raise ValueError('同次新基线授权不能重复使用')
+    first = rpc('account/rateLimits/read', {})
+    candidate = initialize_usage_budget(first, time.time())
+    old = prior_config.get('usage_budget') or {}
+    if (set(candidate['windows']) != set(old.get('windows', {}))
+            or any(item['duration_mins'] != old['windows'][name]['duration_mins']
+                   for name, item in candidate['windows'].items())):
+        raise ValueError('新基线窗口身份或时长漂移')
+    if any(candidate.get(k) != old.get(k) for k in ('account_id', 'limit_id')):
+        raise ValueError('新基线额度账号或limit身份漂移')
+    # 只比较预算与资格字段；展示元数据不构成额度身份。
+    def snapshot(response):
+        return {k: response.get(k) for k in ('accountId', 'ordinaryUsageAllowed', 'rateLimits')}
+    second = rpc('account/rateLimits/read', {})
+    check_rebase_stop(runtime, requested_at)
+    if snapshot(first) != snapshot(second):
+        raise ValueError('两次正式额度快照不一致，不建立新基线')
+    if quota_delay(second, time.time(), config.get('allow_existing_credits', False), candidate):
+        raise ValueError('新基线实际额度不可用或未知')
+    if (goal(config) != current or not binding_valid(config)
+            or percentage_pause_controls(config, allow_old_control=resume) != controls
+            or bound_goal(config) != remote):
+        raise ValueError('新基线核验期间Goal或授权水位变化')
+    proposed = copy.deepcopy(config)
+    # 审计先落盘；检查或写入失败不会改有效基线，失败最多留下未引用的prepared证据。
+    key = hashlib.sha256(json.dumps([config['agent'], config['thread'], config['goal_id'], authorization],
+                                    sort_keys=True).encode()).hexdigest()
+    audit_path = runtime / ('usage-budget-rebase-' + key + '.json')
+    record = {'status': 'prepared', 'rebased_at': candidate['baseline_at'], 'authorization': authorization,
+              'goal': current, 'previous_config': copy.deepcopy(prior_config),
+              'previous_state': copy.deepcopy(state), 'official_snapshot': snapshot(second), 'usage_budget': candidate}
+    if audit_path.exists():
+        raise ValueError('本次新基线授权已有审计记录，需人工核验而不重放')
+    atomic(audit_path, record)
+    proposed['usage_budget'] = candidate
+    proposed['usage_budget_rebases'] = copy.deepcopy(prior_config.get('usage_budget_rebases', [])) + [
+        {'authorization': authorization, 'audit_file': str(audit_path), 'rebased_at': candidate['baseline_at']}]
+    return proposed, authorization
+
+
+def clear_verified_quota_wait(state, config):
+    """正式恢复且额度可用才结束旧等待；普通重启和探测失败保留原计时。"""
+    if ('quota_wait_started_at' not in state and 'quota_wait_expired_at' not in state
+            or (state.get('percentage_pause') or {}).get('resume_status') in ('activating', 'sending')):
+        return False
+    try:
+        current = goal(config)
+        controls = percentage_pause_controls(config)
+        if (not current or current.get('id') != config['goal_id'] or current.get('status') != 'active'
+                or not controls or bound_goal(config).get('status') != 'active'):
+            return False
+        response = rpc('account/rateLimits/read', {})
+        if quota_delay(response, time.time(), config.get('allow_existing_credits', False), effective_usage_budget(config)):
+            return False
+        if (goal(config) != current or not binding_valid(config)
+                or percentage_pause_controls(config) != controls or bound_goal(config).get('status') != 'active'):
+            return False
+    except Exception:
+        return False
+    state.pop('quota_wait_started_at', None)
+    state.pop('quota_wait_expired_at', None)
+    state.pop('quota_check_at', None)
+    return True
+
+
+def resume_budget_pause(runtime, config, state, requested_at=None, rebase_authorization=None):
     """新明确恢复授权只解除守护拥有的原预算暂停，未知操作不重试。"""
     requested_at = time.time() if requested_at is None else requested_at
     def concurrent_stop():
@@ -687,14 +782,15 @@ def resume_budget_pause(runtime, config, state, requested_at=None):
         raise ValueError('没有新的明确恢复授权水位')
     if human_after == human_before:
         grant = (effective_usage_budget(config) or {}).get('_full_budget_once') or {}
-        authorization = grant.get('authorization') or {}
+        authorization = rebase_authorization or grant.get('authorization') or {}
         granted_human = completed_at({'key': authorization.get('last_user_at'), 'payload': {}})
         granted_user = completed_at({'key': authorization.get('user_key'), 'payload': {}})
         if (granted_human != human_after or granted_user is None
                 or not user_before < granted_user <= user_after):
             raise ValueError('同人类水位缺少有效的本次恢复授权')
     response = rpc('account/rateLimits/read', {})
-    if quota_delay(response, time.time(), config.get('allow_existing_credits', False), effective_usage_budget(config)):
+    budget = config['usage_budget'] if rebase_authorization else effective_usage_budget(config)
+    if quota_delay(response, time.time(), config.get('allow_existing_credits', False), budget):
         raise ValueError('实际额度不可用或未知，不恢复原Goal')
     if (concurrent_stop() or goal(config) != current or not binding_valid(config)
             or percentage_pause_controls(config, allow_old_control=True) != controls
@@ -719,6 +815,7 @@ def resume_budget_pause(runtime, config, state, requested_at=None):
     state.pop('goal_control', None)
     state.pop('usage_budget_paused', None)
     state.pop('quota_wait_started_at', None)
+    state.pop('quota_wait_expired_at', None)
     state.pop('quota_check_at', None)
     pause['resume_status'] = 'explicitly_resumed'
     atomic(runtime / 'state.json', state)
@@ -1557,6 +1654,8 @@ def main():
                         help='仅当前任务经用户明确授权消费已有credits，不购买或充值；默认关闭')
     parser.add_argument('--use-full-budget-once', action='store_true',
                         help='仅本次明确授权使用全部可用额度，不更改80%%基准')
+    parser.add_argument('--rebase-usage-budget', action='store_true',
+                        help='用户明确额度重置后，为同任务同账号建立新的默认80%%基线并归档旧证据')
     parser.add_argument('--resume-budget-paused', action='store_true',
                         help='新的明确授权恢复守护自身预算暂停的原Goal；不恢复人工暂停')
     parser.add_argument('--end-full-budget-once', action='store_true',
@@ -1564,10 +1663,12 @@ def main():
     parser.add_argument('--question-model', help='仅当前任务的无工具问答分类模型，须来自现有catalog')
     parser.add_argument('--stop-task', action='store_true', help='同时暂停Goal并中断主控，须用户明确停止')
     args = parser.parse_args()
-    if ((args.use_full_budget_once or args.resume_budget_paused or args.end_full_budget_once)
+    if ((args.use_full_budget_once or args.resume_budget_paused or args.end_full_budget_once or args.rebase_usage_budget)
             and args.command != 'start'):
         parser.error('一次性额度政策选项仅用于start')
-    if args.end_full_budget_once and (args.use_full_budget_once or args.resume_budget_paused):
+    if args.rebase_usage_budget and args.use_full_budget_once:
+        parser.error('新80%基线与一次性完整额度覆盖不能同时授予')
+    if args.end_full_budget_once and (args.use_full_budget_once or args.resume_budget_paused and not args.rebase_usage_budget):
         parser.error('撤销与授予/恢复不能同时使用')
     requested_at = time.time()
     if args.command.startswith('_'):
@@ -1671,7 +1772,7 @@ def main():
             config = config_for(args)
             prior_config = json.loads((runtime / 'config.json').read_text(encoding='utf-8')) if (runtime / 'config.json').exists() else {}
             same_goal = prior_config.get('goal_id') == config['goal_id']
-            if args.resume_budget_paused and (not same_goal or any(
+            if (args.resume_budget_paused or args.rebase_usage_budget) and (not same_goal or any(
                     prior_config.get(k) != config.get(k) for k in ('agent', 'thread'))):
                 raise SystemExit('原Goal或任务绑定已改变，不写入预算/授权，不恢复其他任务')
             config['allow_existing_credits'] = (args.allow_existing_credits if args.allow_existing_credits is not None
@@ -1679,8 +1780,10 @@ def main():
             config['auto_account_recovery'] = True
             config['full_budget_grant_file'] = str(runtime / 'full-budget-once.json')
             config['account_budgets'] = prior_config.get('account_budgets', {}) if same_goal else {}
-            config['usage_budget'] = (prior_config.get('usage_budget') if same_goal else None)
-            if args.resume_budget_paused and not args.use_full_budget_once and not (
+            config['usage_budget'] = copy.deepcopy(prior_config.get('usage_budget')) if same_goal else None
+            if same_goal and 'usage_budget_rebases' in prior_config:
+                config['usage_budget_rebases'] = copy.deepcopy(prior_config['usage_budget_rebases'])
+            if args.resume_budget_paused and not args.rebase_usage_budget and not args.use_full_budget_once and not (
                     effective_usage_budget(config) or {}).get('_full_budget_once'):
                 raise SystemExit('缺少同任务有效的一次性额度授权，不恢复预算暂停')
             if config['usage_budget'] is None:
@@ -1692,7 +1795,14 @@ def main():
             config['question_model'] = (args.question_model or
                                         (prior_config.get('question_model') if same_goal else None) or questions.MODEL)
             current_for_grant = goal(config)
-            if args.end_full_budget_once:
+            rebase_authorization = None
+            if args.rebase_usage_budget:
+                if grant_document(config)[1].get('active') and not args.end_full_budget_once:
+                    raise ValueError('已有完整额度覆盖，建立80%新基线须显式--end-full-budget-once')
+                saved = json.loads((runtime / 'state.json').read_text(encoding='utf-8')) if (runtime / 'state.json').exists() else {}
+                config, rebase_authorization = prepare_usage_budget_rebase(
+                    runtime, config, prior_config, saved, args.resume_budget_paused, requested_at)
+            if args.end_full_budget_once and not args.rebase_usage_budget:
                 end_full_budget(config, 'explicit_revoke')
             if args.use_full_budget_once:
                 if current_for_grant.get('status') == 'paused' and not args.resume_budget_paused:
@@ -1700,11 +1810,19 @@ def main():
                 controls = percentage_pause_controls(config, allow_old_control=args.resume_budget_paused)
                 authorize_full_budget(runtime, config, current_for_grant, controls,
                                       rpc('account/rateLimits/read', {}))
-            atomic(runtime / 'config.json', config)
+            if not args.rebase_usage_budget:
+                atomic(runtime / 'config.json', config)
             if args.resume_budget_paused:
                 saved = json.loads((runtime / 'state.json').read_text(encoding='utf-8'))
-                resume_budget_pause(runtime, config, saved, requested_at)
+                resume_budget_pause(runtime, config, saved, requested_at, rebase_authorization)
+            if args.rebase_usage_budget:
+                check_rebase_stop(runtime, requested_at)
+                atomic(runtime / 'config.json', config)
+                if args.end_full_budget_once:
+                    end_full_budget(config, 'explicit_revoke')
             # 用户明确重新授权start，才可清除之前停止标记并恢复暂停的原目标。
+            if args.rebase_usage_budget:
+                check_rebase_stop(runtime, requested_at)
             (runtime / 'disabled').unlink(missing_ok=True)
             current_goal = goal(config)
             if not current_goal or current_goal['id'] != config['goal_id']:
@@ -1730,11 +1848,7 @@ def main():
             if prior_config.get('goal_id') != config['goal_id']:
                 atomic(runtime / 'state.json', {})
             pending_state = json.loads((runtime / 'state.json').read_text(encoding='utf-8')) if (runtime / 'state.json').exists() else {}
-            if pending_state.pop('quota_wait_expired_at', None) is not None:
-                pending_state.pop('quota_wait_started_at', None)
-                pause = pending_state.get('percentage_pause') or {}
-                if pause.get('resume_status') == 'waiting':
-                    pause['next_quota_at'] = 0
+            clear_verified_quota_wait(pending_state, config)
             apply_task_policy(pending_state, config)
             pending_state.update(status='starting', checked_at=time.time(), updated_at=datetime.now().astimezone().isoformat())
             atomic(runtime / 'state.json', pending_state)

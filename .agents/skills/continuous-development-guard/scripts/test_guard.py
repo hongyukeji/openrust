@@ -1281,7 +1281,7 @@ else:
         self.wait_for(lambda: log.stat().st_size <= recovery.TAIL_BYTES * 2)
         self.call('stop')
 
-    def test_quota_timeout_reaps_processes_and_explicit_start_reopens_wait(self):
+    def test_quota_timeout_reaps_processes_and_plain_restart_preserves_wait(self):
         self.call('start'); self.call('stop')
         state_path = self.runtime / 'state.json'
         state = json.loads(state_path.read_text())
@@ -1298,10 +1298,11 @@ else:
         self.assertFalse(status['guard_alive'])
         before = json.loads((self.runtime / 'config.json').read_text())['usage_budget']
         self.call('start')
-        self.wait_for(lambda: (self.runtime / 'worker.json').exists())
+        self.wait_for(lambda: json.loads(state_path.read_text()).get('status') == 'quota_wait_expired')
+        self.wait_for(lambda: not (self.runtime / 'supervisor.json').exists())
         state = json.loads(state_path.read_text())
-        self.assertNotIn('quota_wait_started_at', state)
-        self.assertNotIn('quota_wait_expired_at', state)
+        self.assertIn('quota_wait_started_at', state)
+        self.assertIn('quota_wait_expired_at', state)
         self.assertEqual(state['dispatch_key'], 'preserve')
         self.assertEqual(json.loads((self.runtime / 'config.json').read_text())['usage_budget'], before)
         self.call('stop')
@@ -1593,7 +1594,7 @@ class FullBudgetOnce(unittest.TestCase):
     def test_public_cli_help_renders_budget_policy_flags(self):
         result = subprocess.run([sys.executable, '-B', str(SCRIPT), '--help'],
                                 capture_output=True, text=True, timeout=5, check=True)
-        for option in ('--use-full-budget-once', '--resume-budget-paused', '--end-full-budget-once'):
+        for option in ('--use-full-budget-once', '--resume-budget-paused', '--end-full-budget-once', '--rebase-usage-budget'):
             self.assertIn(option, result.stdout)
         self.assertIn('80%', result.stdout)
 
@@ -1668,6 +1669,101 @@ class FullBudgetOnce(unittest.TestCase):
                 self.assertIsNone(recovery.grant_document(self.config)[1]['active'])
                 self.current['objective'] = '原完整目标'
         self.assertEqual(self.config['usage_budget'], self.before['usage_budget'])
+
+    def rebase(self, response=None, state=None):
+        with patch.object(recovery, 'percentage_pause_controls', return_value=self.controls), \
+             patch.object(recovery, 'rpc', return_value=response or self.response):
+            return recovery.prepare_usage_budget_rebase(
+                self.runtime, self.config, self.before, state or self.state(), resume=True)
+
+    def test_rebase_early_reset_and_same_window_topup_require_explicit_entry(self):
+        for kind in ('early_reset', 'topup'):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory:
+                self.runtime = Path(directory)
+                response = json.loads(json.dumps(self.response))
+                response['rateLimits']['primary']['usedPercent'] = 0
+                if kind == 'early_reset': response['rateLimits']['primary']['resetsAt'] = 3000
+                unchanged = json.loads(json.dumps(self.config))
+                recovery.refresh_usage_cycles(self.runtime, self.config, response, 1000)
+                self.assertEqual(self.config, unchanged)
+                candidate, authorization = self.rebase(response)
+                self.assertEqual(candidate['usage_budget']['fraction'], '0.8')
+                self.assertEqual(candidate['usage_budget']['windows']['primary']['reserve'], '20.0')
+                self.assertEqual(candidate['account_budgets'], self.before['account_budgets'])
+                self.assertEqual(self.config, unchanged)
+                audit = json.loads(Path(candidate['usage_budget_rebases'][-1]['audit_file']).read_text())
+                self.assertEqual(audit['previous_config'], self.before)
+                self.assertEqual(audit['previous_state']['questions'], {'q': {'status': 'unknown'}})
+                self.assertEqual(audit['authorization'], authorization)
+                self.assertFalse((self.runtime / 'config.json').exists())
+
+    def test_rebase_rejects_inconsistent_unknown_identity_and_hard_limit_without_writes(self):
+        for kind in ('changed', 'unknown', 'identity', 'hard', 'permission', 'paused', 'duration'):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory:
+                runtime = Path(directory)
+                response = json.loads(json.dumps(self.response))
+                second = json.loads(json.dumps(response))
+                if kind == 'changed': second['rateLimits']['primary']['usedPercent'] = 0
+                if kind == 'unknown': response.pop('ordinaryUsageAllowed')
+                if kind == 'identity': response['accountId'] = 'other'
+                if kind == 'hard': response['rateLimits']['spendControlReached'] = True
+                if kind == 'duration': response['rateLimits']['primary']['windowDurationMins'] = 60
+                controls = None if kind == 'permission' else self.controls
+                with patch.object(recovery, 'percentage_pause_controls', return_value=controls), \
+                     patch.object(recovery, 'rpc', side_effect=[response, second]):
+                    with self.assertRaises(ValueError):
+                        recovery.prepare_usage_budget_rebase(runtime, self.config, self.before, self.state(),
+                                                            resume=kind != 'paused')
+                self.assertEqual(list(runtime.iterdir()), [])
+                self.assertEqual(self.config, self.before)
+
+    def test_rebase_resume_default_eighty_percent_and_not_full_budget(self):
+        state = self.state(); state['quota_wait_started_at'] = 1
+        candidate, authorization = self.rebase(state=state)
+        def rpc(method, params):
+            if method == 'thread/goal/set': self.current['status'] = params['status']; return {}
+            return self.response
+        with patch.object(recovery, 'percentage_pause_controls', return_value=self.controls), \
+             patch.object(recovery, 'rpc', side_effect=rpc), patch.object(recovery, 'timeline', return_value={}):
+            recovery.resume_budget_pause(self.runtime, candidate, state, rebase_authorization=authorization)
+        self.assertEqual(self.current['status'], 'active')
+        self.assertNotIn('quota_wait_started_at', state)
+        self.assertEqual(state['questions'], {'q': {'status': 'unknown'}})
+        self.assertEqual(candidate['usage_budget']['fraction'], '0.8')
+        self.assertFalse((self.runtime / 'full-budget-once.json').exists())
+        low = json.loads(json.dumps(self.response)); low['rateLimits']['primary']['usedPercent'] = 90
+        self.assertEqual(recovery.usage_budget_status(low, candidate['usage_budget']), 'usage_budget_reached')
+
+    def test_rebase_depletion_before_resume_does_not_activate_or_commit(self):
+        candidate, authorization = self.rebase()
+        low = json.loads(json.dumps(self.response)); low['rateLimits']['primary']['usedPercent'] = 99
+        state = self.state()
+        with patch.object(recovery, 'percentage_pause_controls', return_value=self.controls), \
+             patch.object(recovery, 'rpc', return_value=low) as calls:
+            with self.assertRaises(ValueError):
+                recovery.resume_budget_pause(self.runtime, candidate, state, rebase_authorization=authorization)
+        self.assertEqual(self.current['status'], 'paused')
+        self.assertFalse((self.runtime / 'config.json').exists())
+        self.assertFalse(any(call.args[0] == 'thread/goal/set' for call in calls.call_args_list))
+
+    def test_verified_active_and_available_recovery_alone_clears_old_quota_wait(self):
+        for kind in ('available', 'depleted', 'paused', 'permission', 'unknown', 'identity', 'unknown_resume'):
+            self.current['status'] = 'paused' if kind == 'paused' else 'active'
+            state = {'quota_wait_started_at': 1, 'quota_wait_expired_at': 3601,
+                     'questions': {'q': {'status': 'unknown'}}, 'attempts': 7}
+            if kind == 'unknown_resume': state['percentage_pause'] = {'resume_status': 'sending'}
+            response = json.loads(json.dumps(self.response))
+            if kind == 'depleted': response['rateLimits']['primary']['usedPercent'] = 99
+            if kind == 'unknown': response.pop('ordinaryUsageAllowed')
+            if kind == 'identity': response['accountId'] = 'other'
+            with self.subTest(kind=kind), \
+                 patch.object(recovery, 'percentage_pause_controls', return_value=None if kind == 'permission' else self.controls), \
+                 patch.object(recovery, 'rpc', return_value=response):
+                self.assertEqual(recovery.clear_verified_quota_wait(state, self.config), kind == 'available')
+            self.assertEqual('quota_wait_started_at' in state, kind != 'available')
+            self.assertEqual('quota_wait_expired_at' in state, kind != 'available')
+            self.assertEqual(state['questions'], {'q': {'status': 'unknown'}})
+            self.assertEqual(state['attempts'], 7)
 
     def state(self):
         return {'usage_budget_paused': True, 'questions': {'q': {'status': 'unknown'}},
@@ -1849,6 +1945,128 @@ class FullBudgetOnce(unittest.TestCase):
                 self.assertFalse(grant_path.exists())
                 self.assertFalse(any(c.args[0] == 'thread/goal/set' for c in calls.call_args_list))
             authorize.assert_not_called()
+
+    def run_rebase_cli(self, failure=None, existing_grant=False):
+        root = self.runtime / 'root'; root.mkdir()
+        self.config.update(agent='6b56ea51-0bb7-44a7-8547-7073f8f2c7e4',
+                           thread='01a175a5-d24c-71f0-86d7-ae693a28931d')
+        self.runtime = root / '.agents/project/guards' / self.config['agent']; self.runtime.mkdir(parents=True)
+        if existing_grant: self.grant()
+        (self.runtime / 'config.json').write_text(json.dumps(self.config))
+        original = (self.runtime / 'config.json').read_bytes()
+        state = self.state(); state.update(quota_wait_started_at=1, quota_wait_expired_at=3601)
+        if failure == 'manual': state.pop('usage_budget_paused')
+        (self.runtime / 'state.json').write_text(json.dumps(state))
+        count = 0
+        def rpc(method, params):
+            nonlocal count
+            if method == 'thread/goal/set': self.current['status'] = params['status']; return {}
+            count += 1
+            response = json.loads(json.dumps(self.response))
+            if failure == 'depleted' and count >= 3: response['rateLimits']['primary']['usedPercent'] = 99
+            return response
+        def launch(*args, **kwargs):
+            (self.runtime / 'supervisor.json').write_text('{}')
+            return type('FakeProcess', (), {'pid': 123, 'poll': lambda _: None})()
+        argv = [str(SCRIPT), 'start', '--agent', self.config['agent'], '--thread', self.config['thread'],
+                '--rebase-usage-budget', '--resume-budget-paused']
+        if existing_grant and failure != 'grant': argv.append('--end-full-budget-once')
+        original_atomic = recovery.atomic
+        def atomic(path, value):
+            if failure == 'audit_write' and path.name.startswith('usage-budget-rebase-'): raise OSError('audit failed')
+            if failure == 'config_write' and path.name == 'config.json': raise OSError('config failed')
+            original_atomic(path, value)
+        with patch.object(recovery, 'ROOT', root), patch.object(sys, 'argv', argv), \
+             patch.object(recovery.platform, 'command'), \
+             patch.object(recovery, 'config_for', side_effect=lambda _: dict(self.config)), \
+             patch.object(recovery, 'percentage_pause_controls', return_value=self.controls), \
+             patch.object(recovery, 'timeline', return_value={}), \
+             patch.object(recovery, 'rpc', side_effect=rpc) as calls, \
+             patch.object(recovery, 'atomic', side_effect=atomic), \
+             patch.object(recovery.subprocess, 'Popen', side_effect=launch):
+            if failure:
+                with self.assertRaises((ValueError, OSError)): recovery.main()
+                self.assertEqual((self.runtime / 'config.json').read_bytes(), original)
+                self.assertEqual(self.current['status'], 'active' if failure == 'config_write' else 'paused')
+                self.assertEqual(any(call.args[0] == 'thread/goal/set' for call in calls.call_args_list), failure == 'config_write')
+                if failure == 'config_write':
+                    saved_state = json.loads((self.runtime / 'state.json').read_text())
+                    self.assertEqual(saved_state['percentage_pause']['resume_status'], 'explicitly_resumed')
+                    self.assertTrue(list(self.runtime.glob('usage-budget-rebase-*.json')))
+            else:
+                recovery.main()
+                saved = json.loads((self.runtime / 'config.json').read_text())
+                self.assertEqual(saved['usage_budget']['fraction'], '0.8')
+                self.assertEqual(saved['account_budgets'], self.config['account_budgets'])
+                self.assertEqual(self.current['status'], 'active')
+                final_state = json.loads((self.runtime / 'state.json').read_text())
+                self.assertEqual(final_state['questions'], state['questions'])
+                self.assertNotIn('quota_wait_started_at', final_state)
+                self.assertNotIn('quota_wait_expired_at', final_state)
+                self.assertFalse(recovery.grant_document(saved)[1].get('active'))
+
+    def test_public_rebase_resume_without_full_budget_and_with_explicit_revoke(self):
+        for grant in (False, True):
+            with self.subTest(existing_grant=grant), tempfile.TemporaryDirectory() as directory:
+                self.runtime = Path(directory); self.current['status'] = 'paused'
+                self.run_rebase_cli(existing_grant=grant)
+
+    def test_public_rebase_failed_checks_never_half_write_baseline_or_activate(self):
+        for kind in ('manual', 'depleted', 'audit_write', 'config_write', 'grant'):
+            with self.subTest(failure=kind), tempfile.TemporaryDirectory() as directory:
+                self.runtime = Path(directory); self.current['status'] = 'paused'
+                self.run_rebase_cli(failure=kind, existing_grant=kind == 'grant')
+
+    def test_active_rebase_new_stop_wins_and_old_stop_does_not_block(self):
+        for phase in ('prepare', 'second_rpc', 'commit', 'old_stop'):
+            with self.subTest(phase=phase), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                self.current['status'] = 'active'
+                self.config.update(agent='6b56ea51-0bb7-44a7-8547-7073f8f2c7e4',
+                                   thread='01a175a5-d24c-71f0-86d7-ae693a28931d')
+                runtime = root / '.agents/project/guards' / self.config['agent']; runtime.mkdir(parents=True)
+                config_path = runtime / 'config.json'; config_path.write_text(json.dumps(self.config))
+                previous = config_path.read_bytes()
+                disabled = runtime / 'disabled'
+                if phase == 'old_stop':
+                    disabled.touch(); os.utime(disabled, (1, 1))
+                configs = 0; quotas = 0
+                def config_for(_):
+                    nonlocal configs
+                    configs += 1
+                    if phase == 'prepare' and configs == 2: disabled.touch()
+                    return dict(self.config)
+                def rpc(method, params):
+                    nonlocal quotas
+                    self.assertEqual(method, 'account/rateLimits/read')
+                    quotas += 1
+                    if phase == 'second_rpc' and quotas == 2: disabled.touch()
+                    return self.response
+                original_atomic = recovery.atomic
+                def atomic(path, value):
+                    original_atomic(path, value)
+                    if phase == 'commit' and path.name.startswith('usage-budget-rebase-'): disabled.touch()
+                def launch(*args, **kwargs):
+                    (runtime / 'supervisor.json').write_text('{}')
+                    return type('FakeProcess', (), {'pid': 123, 'poll': lambda _: None})()
+                argv = [str(SCRIPT), 'start', '--agent', self.config['agent'], '--thread', self.config['thread'],
+                        '--rebase-usage-budget']
+                with patch.object(recovery, 'ROOT', root), patch.object(sys, 'argv', argv), \
+                     patch.object(recovery.platform, 'command'), patch.object(recovery, 'config_for', side_effect=config_for), \
+                     patch.object(recovery, 'percentage_pause_controls', return_value=self.controls), \
+                     patch.object(recovery, 'rpc', side_effect=rpc), patch.object(recovery, 'atomic', side_effect=atomic), \
+                     patch.object(recovery.subprocess, 'Popen', side_effect=launch) as spawn:
+                    if phase == 'old_stop':
+                        recovery.main()
+                        self.assertFalse(disabled.exists())
+                        self.assertNotEqual(config_path.read_bytes(), previous)
+                        spawn.assert_called_once()
+                    else:
+                        with self.assertRaisesRegex(ValueError, '并发停止优先'): recovery.main()
+                        self.assertTrue(disabled.exists())
+                        self.assertEqual(config_path.read_bytes(), previous)
+                        spawn.assert_not_called()
+                self.assertEqual(self.current['status'], 'active')
 
     def ordinary_cli(self, root, text, existing_grant=False):
         self.current['status'] = 'active'
