@@ -7,6 +7,29 @@ fn repository(value: serde_json::Value) -> ConfigRepository {
 }
 
 #[test]
+fn public_typed_reader_is_live_and_rejects_wrong_type() -> Result<(), Box<dyn std::error::Error>> {
+    let repository = repository(json!({"app": {"name": "原名称"}}));
+    assert_eq!(
+        config_repository_reading_consumer::public_display_name(&repository)?,
+        "原名称"
+    );
+    repository.set("app.name", json!("新名称"))?;
+    assert_eq!(
+        config_repository_reading_consumer::public_display_name(&repository)?,
+        "新名称"
+    );
+    repository.set("app.name", json!(7))?;
+    let error = config_repository_reading_consumer::public_display_name(&repository)
+        .expect_err("名称不是字符串时必须报错");
+    assert!(
+        error
+            .to_string()
+            .contains("app.name: expected string, got integer")
+    );
+    Ok(())
+}
+
+#[test]
 fn public_reader_distinguishes_missing_null_and_defaults() -> Result<(), Box<dyn std::error::Error>>
 {
     let repository = repository(json!({

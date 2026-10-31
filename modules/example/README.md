@@ -4,7 +4,7 @@
 
 `modules/example` 是根应用挂载的普通业务模块，供开发者学习如何在 `modules/<业务>/` 调用框架公开 API，以及通过公开 Provider/driver 契约扩展框架。框架、应用宿主和业务模块都在本仓 `main` 开发；这里没有独立 package、bin、启动模式或 example feature，也不复制完整应用骨架。
 
-配置仓储的原始读写语义见[配置说明](../../src/config/README.md)。`GET /api/example/config-greeting` 由模块 Provider 在 boot 捕获共享 `ConfigRepository`，再经[业务服务](services/config_reading.rs)固定读取 `example.greeting`。`POST /api/example/config-greeting/review` 由同一服务将此业务键写为固定的“示例问候语已复核”，随后 GET 可读到新值；请求参数和正文均不能选择键或值。处理器只返回问候语，不输出 `all()` 或其他配置区段。写入仅作用于当前应用内存仓储，不保存到文件、数据库或其他实例，也不会自动重建已解析的类型化业务服务。[模块回归](tests/registration.rs)通过公开 `ConfigSources` 输入非字母顺序的 `example` 业务键，覆盖模块文件覆盖、运行期写入后位置保持、跨请求可见性、第二应用隔离和已解析服务的启动快照。生成器目前只建立空模块目录，不复制本模块；生成应用可显式安装独立 consumer 的 Provider fixture。
+配置仓储的原始读写与严格类型读取语义见[配置说明](../../src/config/README.md)。`GET /api/example/config-greeting` 由模块 Provider 在 boot 捕获共享 `ConfigRepository`，再经[业务服务](services/config_reading.rs)固定读取 `example.greeting`。`POST /api/example/config-greeting/review` 由同一服务将此业务键写为固定的“示例问候语已复核”，随后 GET 可读到新值；请求参数和正文均不能选择键或值。处理器只返回问候语，不输出 `all()` 或其他配置区段。写入仅作用于当前应用内存仓储，不保存到文件、数据库或其他实例，也不会自动重建已解析的类型化业务服务。[模块回归](tests/registration.rs)通过公开 `ConfigSources` 输入非字母顺序的 `example` 业务键，覆盖模块文件覆盖、运行期写入后位置保持、跨请求可见性、第二应用隔离和已解析服务的启动快照。生成器目前只建立空模块目录，不复制本模块；生成应用可显式安装独立 consumer 的 Provider fixture。
 
 **综合示例已贯通当前已实现的公开框架能力。** 文章 HTTP CRUD、事务事件、审计、缓存、存储、账户安全及协议调用均有业务代码和分组验证；tenant 路由通过 `RouteGroup` 演示共享路径前缀与组级认证/授权 middleware。这不表示全部 Laravel 能力已完成。
 

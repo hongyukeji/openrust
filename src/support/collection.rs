@@ -6,6 +6,7 @@ use serde::{
     ser::{SerializeMap, SerializeSeq},
 };
 use serde_json::Value;
+use std::collections::HashMap;
 use std::fmt;
 
 /// PHP 数组的整数键或字符串键。
@@ -220,22 +221,44 @@ impl<T: Serialize> Collection<T> {
     }
 }
 impl Collection<Value> {
+    /// 已存配置专用包装：只接收数组表示，不应用请求输入 bag 的展开预算。
+    pub(crate) fn from_config_array(value: Value) -> Option<Self> {
+        if !matches!(value, Value::Array(_) | Value::Object(_)) {
+            return None;
+        }
+        let mut entries: Vec<(ArrayKey, Value)> = Vec::new();
+        let mut positions: HashMap<ArrayKey, usize> = HashMap::new();
+        for (key, item) in array_entries(value) {
+            let key = key.normalized();
+            if let Some(&index) = positions.get(&key) {
+                entries[index].1 = item;
+            } else {
+                positions.insert(key.clone(), entries.len());
+                entries.push((key, item));
+            }
+        }
+        Some(Self { entries })
+    }
+
     /// 按 PHP 数组转换构造；null 为空，其他标量包装为一个元素。
     pub fn from_value(value: Value) -> Result<Self> {
         super::data::validate_limits(&value)?;
-        let entries = match super::data::cast_json(value) {
-            Value::Array(values) => values
-                .into_iter()
-                .zip(0_i64..)
-                .map(|(value, index)| (ArrayKey::Integer(index), value))
-                .collect(),
-            Value::Object(values) => values
-                .into_iter()
-                .map(|(key, value)| (ArrayKey::from(key), value))
-                .collect(),
-            _ => Vec::new(),
-        };
-        Self::try_from_entries(entries)
+        Self::try_from_entries(array_entries(super::data::cast_json(value)))
+    }
+}
+
+fn array_entries(value: Value) -> Vec<(ArrayKey, Value)> {
+    match value {
+        Value::Array(values) => values
+            .into_iter()
+            .zip(0_i64..)
+            .map(|(value, index)| (ArrayKey::Integer(index), value))
+            .collect(),
+        Value::Object(values) => values
+            .into_iter()
+            .map(|(key, value)| (ArrayKey::from(key), value))
+            .collect(),
+        _ => Vec::new(),
     }
 }
 impl<T: Serialize> Serialize for Collection<T> {

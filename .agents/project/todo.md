@@ -101,7 +101,7 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 
 - 已对照 Goravel 官方源码和现有 ConfigLoader/section<T> 完成只读审计；具名连接/store与类型化读取是已有能力，不能重复实现。
 - 审计范围包括完整领域配置说明、env 映射、typed 读取/启动校验、模块配置的公开注册与覆盖；先说明现有能力、真实缺口和依赖，不凭空叠加第二配置层或改变 env 语义。
-- 本项归 R2，依赖只读审计交付与统一 Container/ServiceProvider contract；R1 不混入配置实现改动，当前配置源、默认运行值和 Redis 默认无静默回退保持。 下一核心typed helpers候选契约已派既有callers核固定Repository真方法/默认与错误、现Rust有序数组与Collection复用，输出`/tmp/openrust-config-typed-helpers-contract.md`；未冻结公开API、未编码或运行Cargo，不以审计关闭L005.03。
+- 本项归 R2，依赖只读审计交付与统一 Container/ServiceProvider contract；R1 不混入配置实现改动，当前配置源、默认运行值和 Redis 默认无静默回退保持。 R2-T已按冻结契约在独立分支实现六类严格读取及默认入口，定向仓储/Collection/模块/consumer与严格Clippy/docs通过；fresh普通生成7+fixture1及真实HTTP已通过，main组合验证仍待执行，不以定向结果关闭L005.03。
 
 ## R2/R10 运行时配置与动态调度（仅规划，按依赖领取）
 

@@ -16,6 +16,30 @@ use serde_json::Value;
 use crate::config::sources::merge_order;
 use crate::config::{ConfigError, ConfigSourceError, ConfigSources};
 use crate::core::{Error, Result};
+use crate::support::Collection;
+
+macro_rules! typed_reader {
+    ($name:ident, $or:ident, $or_else:ident, $output:ty, $convert:ident, $description:literal) => {
+        #[doc = $description]
+        pub fn $name(&self, key: &str) -> std::result::Result<$output, ConfigError> {
+            $convert(key, self.typed_value_or_else(key, || Value::Null)?)
+        }
+
+        #[doc = concat!($description, " 仅当键缺失时使用给定默认值。")]
+        pub fn $or(&self, key: &str, default: Value) -> std::result::Result<$output, ConfigError> {
+            self.$or_else(key, || default)
+        }
+
+        #[doc = concat!($description, " 仅当键缺失时调用一次默认值闭包。")]
+        pub fn $or_else(
+            &self,
+            key: &str,
+            default: impl FnOnce() -> Value,
+        ) -> std::result::Result<$output, ConfigError> {
+            $convert(key, self.typed_value_or_else(key, default)?)
+        }
+    };
+}
 
 /// 已注册区段的结构约束；未注册区段不会被全树严格校验误拒。
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -422,6 +446,63 @@ impl ConfigRepository {
         Ok(self.get(key)?.unwrap_or(default))
     }
 
+    fn typed_value_or_else(
+        &self,
+        key: &str,
+        default: impl FnOnce() -> Value,
+    ) -> std::result::Result<Value, ConfigError> {
+        Ok(self.get(key)?.unwrap_or_else(default))
+    }
+
+    typed_reader!(
+        string,
+        string_or,
+        string_or_else,
+        String,
+        config_string,
+        "严格读取字符串配置。"
+    );
+    typed_reader!(
+        integer,
+        integer_or,
+        integer_or_else,
+        i64,
+        config_integer,
+        "严格读取 i64 整数配置。"
+    );
+    typed_reader!(
+        float,
+        float_or,
+        float_or_else,
+        f64,
+        config_float,
+        "严格读取浮点配置；整数不隐式转换。"
+    );
+    typed_reader!(
+        boolean,
+        boolean_or,
+        boolean_or_else,
+        bool,
+        config_boolean,
+        "严格读取布尔配置。"
+    );
+    typed_reader!(
+        array,
+        array_or,
+        array_or_else,
+        Value,
+        config_array,
+        "严格读取数组配置，保留有序列表或混合键对象。"
+    );
+    typed_reader!(
+        collection,
+        collection_or,
+        collection_or_else,
+        Collection<Value>,
+        config_collection,
+        "严格读取数组配置并转换为保键集合。"
+    );
+
     /// 判断完整字面键或点路径是否存在；显式 null 仍算存在。
     pub fn has(&self, key: &str) -> std::result::Result<bool, ConfigError> {
         Ok(read_value(&self.all()?, key).is_some())
@@ -643,6 +724,73 @@ impl ConfigRepository {
         state.revision = state.revision.wrapping_add(1);
         Ok(())
     }
+}
+
+fn config_type(value: &Value) -> &'static str {
+    match value {
+        Value::Null => "null",
+        Value::Bool(_) => "boolean",
+        Value::Number(number) if number.is_f64() => "float",
+        Value::Number(_) => "integer",
+        Value::String(_) => "string",
+        Value::Array(_) => "array",
+        Value::Object(_) => "object",
+    }
+}
+
+fn config_type_error(key: &str, expected: &str, actual: &Value) -> ConfigError {
+    ConfigError::Invalid(format!(
+        "{key}: expected {expected}, got {}",
+        config_type(actual)
+    ))
+}
+
+fn config_string(key: &str, value: Value) -> std::result::Result<String, ConfigError> {
+    match value {
+        Value::String(text) => Ok(text),
+        other => Err(config_type_error(key, "string", &other)),
+    }
+}
+
+fn config_integer(key: &str, value: Value) -> std::result::Result<i64, ConfigError> {
+    match value {
+        Value::Number(number) if number.is_i64() || number.is_u64() => number
+            .as_i64()
+            .ok_or_else(|| ConfigError::Invalid(format!("{key}: integer exceeds i64 range"))),
+        other => Err(config_type_error(key, "integer", &other)),
+    }
+}
+
+fn config_float(key: &str, value: Value) -> std::result::Result<f64, ConfigError> {
+    match value {
+        Value::Number(number) if number.is_f64() => number
+            .as_f64()
+            .ok_or_else(|| ConfigError::Invalid(format!("{key}: expected float"))),
+        other => Err(config_type_error(key, "float", &other)),
+    }
+}
+
+fn config_boolean(key: &str, value: Value) -> std::result::Result<bool, ConfigError> {
+    match value {
+        Value::Bool(boolean) => Ok(boolean),
+        other => Err(config_type_error(key, "boolean", &other)),
+    }
+}
+
+fn config_array(key: &str, value: Value) -> std::result::Result<Value, ConfigError> {
+    match value {
+        Value::Array(_) | Value::Object(_) => Ok(value),
+        other => Err(config_type_error(key, "array", &other)),
+    }
+}
+
+fn config_collection(
+    key: &str,
+    value: Value,
+) -> std::result::Result<Collection<Value>, ConfigError> {
+    let array = config_array(key, value)?;
+    Collection::from_config_array(array)
+        .ok_or_else(|| ConfigError::Invalid(format!("{key}: expected array")))
 }
 
 // Laravel 只在整个输入 key 上优先查字面键；之后逐段遍历，不查剩余点串。
@@ -1094,6 +1242,189 @@ mod tests {
     use super::*;
     use serde::Deserialize;
     use serde_json::json;
+    use std::cell::Cell;
+
+    #[test]
+    fn strict_typed_readers_follow_laravel_value_kinds() -> Result<()> {
+        let repository = ConfigRepository::new(Figment::from(Serialized::defaults(json!({
+            "s": "hello", "i": 3, "f": 3.5, "b": true,
+            "list": ["x", "y"], "mixed": {"2": "two", "name": "named", "0": "zero"},
+            "none": null, "secret": "private-value"
+        }))));
+        repository.set("u", json!(u64::MAX))?;
+        assert_eq!(repository.string("s")?, "hello");
+        assert_eq!(repository.integer("i")?, 3);
+        assert_eq!(repository.float("f")?, 3.5);
+        assert!(repository.boolean("b")?);
+        assert_eq!(repository.array("list")?, json!(["x", "y"]));
+        assert_eq!(
+            repository.array("mixed")?,
+            json!({"2": "two", "name": "named", "0": "zero"})
+        );
+        assert_eq!(
+            repository.collection("mixed")?.to_value()?,
+            repository.array("mixed")?
+        );
+        assert_eq!(
+            repository.collection("list")?.to_value()?,
+            repository.array("list")?
+        );
+
+        for error in [
+            repository.string("none").err(),
+            repository.string("missing").err(),
+            repository.integer("f").err(),
+            repository.integer("u").err(),
+            repository.float("i").err(),
+            repository.boolean("i").err(),
+            repository.array("i").err(),
+            repository.collection("i").err(),
+            repository.integer("secret").err(),
+        ] {
+            let message = error
+                .ok_or_else(|| invalid("typed", "expected strict type error"))?
+                .to_string();
+            assert!(!message.contains("private-value"));
+            assert!(!message.contains("18446744073709551615"));
+        }
+        assert!(
+            repository
+                .integer("u")
+                .err()
+                .ok_or_else(|| invalid("typed", "expected range error"))?
+                .to_string()
+                .contains("i64 range")
+        );
+        assert!(
+            repository
+                .float("i")
+                .err()
+                .ok_or_else(|| invalid("typed", "expected float error"))?
+                .to_string()
+                .contains("got integer")
+        );
+        assert!(
+            repository
+                .collection("i")
+                .err()
+                .ok_or_else(|| invalid("typed", "expected array error"))?
+                .to_string()
+                .contains("expected array")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn strict_defaults_only_run_for_missing_keys() -> Result<()> {
+        let repository = ConfigRepository::new(Figment::from(Serialized::defaults(json!({
+            "s": "present", "i": 2, "f": 1.5, "b": false, "a": [], "n": null
+        }))));
+        assert_eq!(repository.string_or("s", json!(5))?, "present");
+        assert_eq!(repository.integer_or("i", json!("bad"))?, 2);
+        assert_eq!(repository.float_or("f", json!(1))?, 1.5);
+        assert!(!repository.boolean_or("b", json!("bad"))?);
+        assert_eq!(repository.array_or("a", json!(false))?, json!([]));
+        assert!(repository.collection_or("a", json!(false))?.is_empty());
+
+        let calls = Cell::new(0);
+        assert_eq!(
+            repository.string_or_else("s", || {
+                calls.set(calls.get() + 1);
+                json!("ignored")
+            })?,
+            "present"
+        );
+        assert_eq!(
+            repository.integer_or_else("missing", || {
+                calls.set(calls.get() + 1);
+                json!(4)
+            })?,
+            4
+        );
+        assert_eq!(calls.get(), 1);
+        assert_eq!(
+            repository.string_or("missing", json!("fallback"))?,
+            "fallback"
+        );
+        assert_eq!(repository.float_or("missing", json!(2.5))?, 2.5);
+        assert!(repository.boolean_or("missing", json!(true))?);
+        assert_eq!(
+            repository.array_or("missing", json!({"name": 1}))?,
+            json!({"name": 1})
+        );
+        assert_eq!(
+            repository
+                .collection_or("missing", json!([1]))?
+                .to_value()?,
+            json!([1])
+        );
+        assert!(repository.integer_or("missing", json!("bad")).is_err());
+        assert!(repository.float_or("missing", json!(2)).is_err());
+        assert!(repository.string_or("n", json!("ignored")).is_err());
+        assert!(repository.array_or("n", json!([])).is_err());
+        assert!(repository.collection_or("n", json!([])).is_err());
+        assert!(
+            repository
+                .boolean_or_else("n", || {
+                    calls.set(calls.get() + 1);
+                    json!(true)
+                })
+                .is_err()
+        );
+        assert_eq!(calls.get(), 1);
+        assert_eq!(repository.float_or_else("missing", || json!(2.25))?, 2.25);
+        assert!(!repository.boolean_or_else("missing", || json!(false))?);
+        assert_eq!(
+            repository.array_or_else("missing", || json!([2]))?,
+            json!([2])
+        );
+        assert_eq!(
+            repository
+                .collection_or_else("missing", || json!({"k": 3}))?
+                .to_value()?,
+            json!({"k": 3})
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn config_collection_does_not_inherit_input_bag_limits() -> Result<()> {
+        let repository = ConfigRepository::new(Figment::from(Serialized::defaults(json!({}))));
+        let mut mixed = serde_json::Map::new();
+        mixed.insert("2".to_owned(), json!("two"));
+        mixed.insert("name".to_owned(), json!("named"));
+        mixed.insert("0".to_owned(), json!("zero"));
+        repository.set("mixed", Value::Object(mixed))?;
+        assert_eq!(
+            repository
+                .collection("mixed")?
+                .all()
+                .iter()
+                .map(|(key, _)| key.to_string())
+                .collect::<Vec<_>>(),
+            ["2", "name", "0"]
+        );
+        repository.set("wide", json!(vec![0; 1024]))?;
+        assert_eq!(repository.collection("wide")?.all().len(), 1024);
+        repository.set("wide", json!(vec![0; 1025]))?;
+        assert_eq!(
+            repository.array("wide")?.as_array().map(Vec::len),
+            Some(1025)
+        );
+        assert_eq!(repository.collection("wide")?.all().len(), 1025);
+        for depth in [64, 65] {
+            let mut deep = json!("leaf");
+            for _ in 0..depth {
+                deep = json!([deep]);
+            }
+            repository.set("deep", json!([deep]))?;
+            let collection = repository.collection("deep")?;
+            assert_eq!(collection.all().len(), 1);
+            assert!(collection.get(0_i64).is_some());
+        }
+        assert!(Collection::from_value(json!(vec![0; 1025])).is_err());
+        Ok(())
+    }
 
     #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
     struct Settings {

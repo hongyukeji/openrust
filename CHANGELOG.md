@@ -6,6 +6,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Changed
 
+- 配置仓储新增 `string`、`integer`、`float`、`boolean`、`array`、`collection` 六类严格读取，各提供直接、值默认与惰性默认入口；默认仅用于缺失，显式 null 与类型错误不回退。整数/浮点不宽松转换，错误不回显原值；配置集合复用现有 `Collection`，不把请求输入预算错误施加于已加载配置，其他集合受限操作不变。唯一模块与公开 consumer 展示固定业务键调用。
+
 - 监听环境键统一为中性的 `SERVER_PORT → server.port`，移除 `APP_PORT`、独立 `PORT` 和命名空间端口别名；根和生成应用使用 `APP_URL="http://localhost:${SERVER_PORT}"`。缓存按 Laravel 使用 `CACHE_STORE → cache.default`，默认选择已登记的 redis store，移除旧 `REDIS_DEFAULT_STORE`，不引入 `CACHE_DEFAULT_STORE` 别名；Redis 连接与队列共用 `REDIS_DB`，保留其他合法具名 store 和自定义 driver。
 
 - 配置加载增加不可变 `ConfigSources` 与 `ConfigLoader::sources()`，在进入 Figment 投影前保留已有平层 TOML 的声明键序；默认引导一次捕获来源，类型配置和 Provider 复用该输入。仓储、Provider 与 TestApp 沿既有入口接收有序来源，显式 Figment 输入仍是无法恢复历史声明序的有损入口。文件自然排序不等于已实现递归配置发现或文件名命名空间映射，完整 Config 对应继续开放。

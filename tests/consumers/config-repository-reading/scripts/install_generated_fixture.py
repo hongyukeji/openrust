@@ -87,6 +87,7 @@ async fn generated_application_installs_config_reading_provider()
     let body: serde_json::Value = serde_json::from_slice(response.body())?;
     assert_eq!(body["data"], serde_json::json!({{"name": "已复核应用", "locale": "zh_CN"}}));
     assert_eq!(app.app()?.config_repository().get("app.name")?, Some(serde_json::json!("已复核应用")));
+    assert_eq!(app.app()?.config_repository().string("app.name")?, "已复核应用");
     app.app()?.config_repository().set("reader.z_label", serde_json::json!("已复核"))?;
     assert_eq!(config_repository_reading_consumer::public_reader_key_order(&app.app()?.config_repository())?, ["z_label", "a_label"]);
     let order = app.request(Request::get("/api/config-reading/order").body(Body::empty())?).await?;

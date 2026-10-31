@@ -211,6 +211,8 @@ async fn production_config_greeting_reads_only_the_module_business_key()
         super::services::config_reading::greeting(&missing)?,
         "示例问候语尚未配置"
     );
+    missing.set("example.greeting", serde_json::json!(7))?;
+    assert!(super::services::config_reading::greeting(&missing).is_err());
 
     let mut app = TestApp::<crate::bootstrap::Server>::builder(production_sources(false))
         .build()

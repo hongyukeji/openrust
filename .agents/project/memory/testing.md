@@ -1226,3 +1226,8 @@ D10-G gRPC环境补充：用户报告此前可能在失败期间手动清理Dock
 集中门禁全部实际0：fmt、默认/all-features严格Clippy、默认workspace838 passed/34 ignored及全特性1625 passed/108 ignored、双严格docs、cargo deny、Rust1.97 workspace/all-targets/all-features check；忽略项不算真实服务。全部T01命令无失败，无通过整套单线程掩盖隔离问题。README/CHANGELOG与Agent文档另作纯文档同步，不影响被测Rust行为。
 
 本簇未重跑生成项目、MySQL、PG、网络或服务；H对应生产/模板/依赖输入未变，其历史证据保留，不命名为T01新验收。无新target目录/测试库/监听服务，主控收口采样全登记缓存37,482,668,032字节，磁盘可用105,749,102,592/994,662,584,320字节；预算内保留活跃main缓存，不做整target或openrust包清理。当前免费本地执行器只读查询因49374端口冲突及显式服务health502不可用，按规则回退gpt-6-sol执行，未改服务/端口、全局模型/账户或系统配置。后继扩范围须逐项确认隔离与实际收益，不按数量配额删测试。
+
+
+## R2-T ConfigRepository 严格类型读取（隔离分支限定验收通过）
+
+基线 `a5e6461`；冻结Spec `/tmp/openrust-config-typed-helpers-frozen-spec.md`、最终ready `/tmp/openrust-config-typed-helpers-ready-final.json`。源码独审无确定阻断；集合位置索引显式类型标注修复首次 E0282 后，`/tmp/openrust-config-typed-helpers-verify-batch1-attempt2/receipt.json` 记录 fmt/diff、仓储43、Collection4、模块1、公开consumer6项实际退出0；`/tmp/openrust-config-typed-helpers-clippy-docs/receipt.json` 记录严格Clippy lib/server/consumer各1与Rustdoc1退出0。旧 E0282 与普通生成首轮因驱动假定全新项目已有 Cargo.lock 而失败的回执保留，不能计作生产行为通过。后段最终 `/tmp/openrust-config-typed-helpers-verification-attempt2/FINAL.json`（SHA256 `fb140cf667227fd346fa044f94f6d4119cd002b107c991fd86d2fd95481749b0`）记录12条命令退出0：fresh普通生成 fmt/check/test原7项、安装公开fixture后check/exact1项、根server构建与真实GET `/api/example/config-greeting` 返回200及固定问候语；进程78122收到SIGINT后exit0，端口43228释放，日志有界且源码/二进制稳定。唯一新生成包 `openrust-typed-93492a40e6e9` 精确clean退出0（Cargo回报2121文件/649.1MiB），post dry-run为0项；Cargo `-p` 对path/version限定会忽略，本次唯一随机包名事前核无同名产物，不能把该清理口径扩到已有共享包。全登记资源约55.83→56.83 GB（十进制），结束磁盘可用86,953,000,960字节，超50GB/10%软线但低于100GB/5%硬线；共享缓存未清，旧未知目标不碰。默认数据库无代码改动，本簇不把旧MySQL证据转记为新验收；尚待root最终本地提交及main组合验收，完整L005.03/Collection及发布全后端开放。

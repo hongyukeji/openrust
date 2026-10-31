@@ -46,6 +46,10 @@ MFA 在候选为迁移时仍解析服务与配置，仅登记延后 schema 检�
 
 限定验收入口见[testing](../memory/testing.md#c04-d10-a-错误包限定子范围已验收)；不据此关闭完整校验器、重定向或视图错误共享。
 
+## R2-T 严格类型配置读取（分支限定验收通过）
+
+同一 `ConfigRepository` 增加 `string`、`integer`、`float`、`boolean`、`array`、`collection`，各有值默认 `_or` 与惰性默认 `_or_else`。仅缺失时回退，显式 null 与类型错误不回退；整数仅接 i64 范围的整型，浮点仅接 f64。错误说明路径/预期/实际类型或范围，不回显配置值。数组保留现有混合/稀疏键序；配置集合包装已存在的数组/对象，不重施请求输入 bag 的1024字段/64层预算，但 `Collection` 其他受限操作仍遵现有边界。唯一模块固定业务问候语与公开 consumer/生成 fixture 使用公开入口。仓储43、Collection4、模块1、consumer6及严格Clippy3/Rustdoc1已通过；fresh普通生成7+fixture1、真实HTTP与唯一生成包清理已通过；待root最终提交，分支未合main，不据此关闭完整Collection或L005.03。
+
 ## R2-R02 有序来源入口（限定验收通过）
 
 `ConfigSources` 是不可变有序原值与Figment投影的同次输入，`ConfigLoader::sources()`供默认引导一次捕获后同时读取应用类型配置和启动Provider；仓储仍只有同一个State与版本。既有`ConfigRepository::new`、`ProviderBuilder::start`和`TestApp::builder`接收该输入，不增加平行启动API。旧Figment输入已丢失的声明顺序不能恢复；运行期set不重建已经解析的资源。

@@ -6,12 +6,16 @@
 | --- | --- | --- |
 | `get(key)` | `Option<Value>` | 缺失为 `None`；显式 null 为 `Some(Value::Null)` |
 | `get_or(key, default)` | `Value` | 仅缺失使用默认值 |
+| `string` / `integer` / `float` / `boolean` | `String` / `i64` / `f64` / `bool` | 按原类型严格读取；整数不得超出 `i64`，浮点不接受整数 |
+| `array` / `collection` | `Value` / `Collection<Value>` | 仅接受数组或有序对象，集合保留数字、稀疏及混合键 |
 | `has(key)` | `bool` | null 仍算存在 |
 | `get_many(&[key])` | `Vec<(String, Value)>` | 缺失为 null |
 | `get_many_with_defaults(&[(key, default)])` | `Vec<(String, Value)>` | 每键默认值；null 保留 |
 | `all()` | `Value` | 已发布配置的独立快照 |
 | `set(key, value)` | `()` | 按点路径替换尾项并发布一个版本 |
 | `set_many([(key, value), …])` | `()` | 按迭代顺序处理，整批原子发布一个版本；空批次不变 |
+
+六类严格读取各有 `method(key)`、`method_or(key, Value)` 与 `method_or_else(key, || Value)` 三种入口。仅缺失时使用默认值或调用一次闭包；显式 null、错误类型和非法默认值按相同期望类型返回 `ConfigError::Invalid`，已有键不会检查未使用的默认值。错误只包含键路径、期望和实际类型或 `i64` 范围，不包含配置值。原始来源读取错误原样传播。`array` 保留当前 `serde_json::Value` 列表或对象投影；`collection` 在严格数组检查后包装已有值，不施加请求输入 bag 的 1024 字段/64 层预算。集合后续 `to_value`、`map`、`filter`、`values` 等既有操作仍受其预算约束；空数组原形及 PHP 非 JSON 值不能从当前投影恢复。
 
 查询优先匹配完整字面键，再以点逐段遍历。`a.b` 字面键可覆盖同名嵌套路径的读取；`a.b.c` 不会在中途把 `b.c` 当完整键。数组支持 `items.0.name`，`00`、`+0` 不作为索引零；对象的 `01` 仍是有效命名键。空字符串查询空键，全部配置使用 `all()`。
 

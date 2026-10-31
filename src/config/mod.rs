@@ -85,7 +85,7 @@ pub const ENV_PREFIX: &str = "APP_";
 /// 相对于工作目录、用于保存按领域划分的 TOML 配置文件的目录。
 pub const DEFAULT_CONFIG_DIR: &str = "config";
 
-/// 配置错误。仅可能在 bootstrap 期间发生。
+/// 配置来源、读取及校验错误；启动与运行期读取均可能返回。
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum ConfigError {

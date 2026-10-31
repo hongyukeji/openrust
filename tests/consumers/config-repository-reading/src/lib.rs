@@ -6,11 +6,7 @@ use serde_json::{Value, json};
 
 /// 只向业务展示预先选定的名称；不接受客户端提供的配置路径。
 pub fn public_display_name(repository: &ConfigRepository) -> Result<String, ConfigError> {
-    let value = repository.get_or("app.name", json!("应用"))?;
-    value
-        .as_str()
-        .map(str::to_owned)
-        .ok_or_else(|| ConfigError::Invalid("app.name 必须是字符串".to_owned()))
+    repository.string_or("app.name", json!("应用"))
 }
 
 /// 从同一快照取得固定业务配置，保留首次出现的顺序。
