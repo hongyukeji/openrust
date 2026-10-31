@@ -1163,3 +1163,23 @@ D10-G gRPC环境补充：用户报告此前可能在失败期间手动清理Dock
 - 3个本轮plain/mysql/publicconsumer package精确clean均实际0，回收437,055,488字节；580项运行输入、生成源码/锁、新server/CLI、50个framework及19,587个保护哨兵与所有非自有依赖不变，无Cargo/target锁。清理回执 `cleanup-result.json` SHA `500a55079fdd1e791f6cad6253e7318f6e40510e89690af186eef2547df5e8da`；登记缓存37,676,105,728→37,239,050,240字节，磁盘可用105,982,365,696/994,662,584,320字节，满足50/100GB与10%/5%规则，保留活跃根缓存。
 
 上述相对证据路径均位于 `/tmp/openrust-c04d10h-verification-v4/`。PG及全部承诺后端发布矩阵、完整Routing与其余HTTP行为继续开放，不能由该子范围或单库日常结果关闭。
+
+
+## T01 Session纯行为测试入口整合（限定试点已验收，提交见Git）
+
+基线为H提交 `3065be5`。仅删除Cargo中独立 `http_session_extensions` test声明，并将原文件作为 `http_session` 私有模块；原扩展源文件逐字不变（SHA `f5151ad2603e226fbb1c2f14369f11185d618a170fc8b507fb3e8560c314848b`），不删用例/断言/fixture，不改生产API、依赖、feature、锁或模板。全仓显式test入口46→45，Session family8→7，相关执行入口2→1，family源文件仍10个。环境子进程、真实DB/Redis与其他门控入口保持独立。
+
+最终证据 `/tmp/openrust-session-entry-pilot/FINAL.json` SHA `885625aca6a76bbe6011805e0abeb72b540bd41586aefcea0f1d29dc0a06f7b2`；before/after证据SHA分别 `d896dee473c871fe1a96f32e88ef587fcfb7153f11b20fce6c57b37fc9050dc3`、`5cf18a6edae86fefb4a6e5db1074a0d6af5cc45c18c3cb3460e38f15b1907c38`。主控实际复核35份命令日志SHA/退出0、3份源SHA、两feature的41项完整名字映射以及锁/扩展文件未改；原26+15项只对扩展15项增加 `session_extensions::` 前缀，无重复/漏项。撤销后不得跨store复制、双墓碑、取消/错误不执行业务或save、请求关闭/转移边界等原回归均随完整41项实际执行。
+
+同Rust/Cargo1.99.1、main target、jobs1、incremental0、dev/test debug0及中性环境，session-only与all-features在修改前后均实跑首次/暖缓存no-run、名单与实际用例；两组合各41项、0失败/0忽略。下表为本次墙钟秒数，单样本不代表稳定提速：
+
+| 组合 | no-run首次：前→后 | no-run暖缓存：前→后 | 暖缓存用例执行：前两入口合计→后单入口 |
+| --- | --- | --- | --- |
+| session-only | 11.754→1.097 | 0.164→0.156 | 1.443→1.412 |
+| all-features | 2.299→1.272 | 0.187→0.183 | 1.461→1.405 |
+
+首次基线session-only包含lib/server重编，修改后仅test入口失效，不能同类比较或据此计算提速倍数；warm Cargo timing units为空、test unit sections未分离链接，因此不能声称链接阶段加速。原两个可执行文件大小之和→本次单文件：session-only 23,957,904→21,147,712字节，all-features 37,542,432→33,847,632字节；这是受测文件大小，不是实际磁盘回收量。这里只证明入口减少及回归保全，未证明整体开发速度显著改善。
+
+集中门禁全部实际0：fmt、默认/all-features严格Clippy、默认workspace838 passed/34 ignored及全特性1625 passed/108 ignored、双严格docs、cargo deny、Rust1.97 workspace/all-targets/all-features check；忽略项不算真实服务。全部T01命令无失败，无通过整套单线程掩盖隔离问题。README/CHANGELOG与Agent文档另作纯文档同步，不影响被测Rust行为。
+
+本簇未重跑生成项目、MySQL、PG、网络或服务；H对应生产/模板/依赖输入未变，其历史证据保留，不命名为T01新验收。无新target目录/测试库/监听服务，主控收口采样全登记缓存37,482,668,032字节，磁盘可用105,749,102,592/994,662,584,320字节；预算内保留活跃main缓存，不做整target或openrust包清理。当前免费本地执行器只读查询因49374端口冲突及显式服务health502不可用，按规则回退gpt-6-sol执行，未改服务/端口、全局模型/账户或系统配置。后继扩范围须逐项确认隔离与实际收益，不按数量配额删测试。

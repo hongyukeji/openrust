@@ -20,6 +20,8 @@ C04-D8 previous与显式Precognition限定子范围已完成适用验收：稳�
 
 ✅ C04-D10-H最终声明集合与真实分派同源化已限定验收：双严格Clippy、完整router124/120、主矩阵默认838/34ignored与全特性1625/108ignored、docs/features/deny/MSRV、新构建、fresh普通7/MySQL2+1、应用真实TCP11/16及3专属package精确清理通过。主控复核74份关联SHA/580运行输入；原失败及复用边界保留，限定提交见Git，不关闭完整Routing。
 
+✅ T01 Session测试入口整合试点已验收：全仓显式test入口46→45、Session family8→7、源文件10不变；两feature各41项与原26+15逐名对应。双严格Clippy、workspace默认838/34ignored与全特性1625/108ignored、双docs/deny/MSRV通过，生产/模板/锁未改，未重跑真实服务；未证明整体开发显著提速，限定提交见Git。
+
 ## Laravel 1:1 功能与进度概览
 
 > 更新：2026-10-31；C04-B2本轮适用验收已完成，本簇限定本地提交见Git；不将子簇完成外推整能力。本页是唯一概览入口，详细行为/差异以矩阵为准，执行队列仅在[todo](todo.md)。

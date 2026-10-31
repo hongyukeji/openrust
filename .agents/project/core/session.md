@@ -72,3 +72,8 @@ R2-X新增 `SessionStoreHandle::store()`，供可信Provider装饰器保留原fa
 - Redis8共享Store专项1项命名fixture已实际通过（无失败/忽略/过滤、源码无漂移），覆盖独立连接共享、命名空间隔离、真实TTL、防复活、顺序/NUL及预算。仅使用自有随机命名空间并清理自有ID；不是集群或完整Auth Redis链验收。
 - 当前统一实现的PG18/MySQL8.4完整Auth database target各8项及Redis8完整Auth runtime10项已实际通过，均无失败/忽略/过滤、源码无漂移；两侧数据库隔离锚库已核清理。配置最终覆盖8项、公开生命周期10项与进程内HTTP4项已定向重验通过。根PG18/MySQL8.4完整模块HTTP各53项及生成plain4/认证双库各2项另已实际通过。浏览器原生短TTL双库各4、Keycloak真实主流程各1、模块OIDC各8、新Session及默认入口TLS与最近修复后的完整12stage门禁均已实际通过；精确忽略项、候选映射与清理事实见testing，不继承旧tower证据。
 - 旧输入Request/Session限定子范围已由D9验收；RedirectResponse、上传文件合并、CSRF、blocking、Session cache与其余driver生态按后继矩阵交付；本文件不将基础状态机视为整个 Session 能力完成。
+
+
+## T01 测试入口组织（限定试点已验收）
+
+纯行为扩展已作为私有模块挂入 `http_session`，原扩展文件及全部15项断言保持不变，与原26项在session-only/all-features各实跑41项并逐名对应。Session family入口8→7，源文件仍10个；环境子进程、DB/Redis及其他feature门控入口保持独立，不改变Session运行时能力。适用workspace门禁通过，计时可比性与未重跑真实服务的边界见[testing](../memory/testing.md)；入口减少不等于已证整体开发提速。

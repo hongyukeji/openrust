@@ -32,7 +32,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 
 ## 后继路由
 
-- **高价值测试精简与入口整合（已授权，待当前H验收提交后领取）**：按[测试分层与入口整合](conventions.md#测试分层与入口整合)先做HTTP/Session小范围试点，核真实编译入口、独有缺陷保护、feature与全局状态/环境隔离，再合并纯行为入口或删确证重复断言；保留安全/一致性/取消并发/真实缺陷回归及真实后端层。只读owner `d10d_example_templates` 已交 `/tmp/openrust-test-entry-pilot-audit.md`：现8个显式Session target，推荐仅将extensions15例以私有模块纳既有http_session26例（预期41例/target8→7），保留全部函数与DB/Redis/环境子进程隔离；尚未实施/计时，不预报提速。实施由单一manifest owner在安全交接点领取，同条件记录文件/用例/target及编译链接执行时间，不按数量配额删或预报倍数，不机械每层复制底层矩阵。
+- **高价值测试精简与入口整合（已授权，首轮T01已验收，后继按隔离与收益逐项领取）**：按[测试分层与入口整合](conventions.md#测试分层与入口整合)先做HTTP/Session小范围试点，核真实编译入口、独有缺陷保护、feature与全局状态/环境隔离，再合并纯行为入口或删确证重复断言；保留安全/一致性/取消并发/真实缺陷回归及真实后端层。只读owner `d10d_example_templates` 已交 `/tmp/openrust-test-entry-pilot-audit.md`：现8个显式Session target，推荐仅将extensions15例以私有模块纳既有http_session26例（预期41例/target8→7），保留全部函数与DB/Redis/环境子进程隔离；尚未实施/计时，不预报提速。实施由单一manifest owner在安全交接点领取，同条件记录文件/用例/target及编译链接执行时间，不按数量配额删或预报倍数，不机械每层复制底层矩阵。
 
 - **宏观主线**：[两阶段框架主线](plans/laravel-rebuild.md#两阶段框架主线)；先验阶段一Laravel+modules核心基线，再做已纳入阶段二通用增强，均是框架main而非产品可选快速开发模块。R0–R16仅技术分解；现增强保留复用，不搬走核心Config/Queue/Scheduler/安全，当前B2不变，发布整理须两阶段既定范围验收。
 
@@ -404,7 +404,19 @@ D7真实Route/Resolver与受管理方法声明已通过限定验收：final3完�
 
 H新增实际取证：`/tmp/openrust-c04d10h-matcher/probe.output.jsonl`35案真实RouteCollection::match/Request/Route bind及OPTIONS响应通过，统一固定Symfony8.0参考组件，无伪Request；这是匹配与合成OPTIONS证据，不是完整Laravel业务HTTP。确认仅POST存活且无GETfallback时GET/HEAD也应405 Allow:POST，H已纠正原GET/HEAD豁免404；有GETfallback仍先处理。不同模型契约/取证早审已收，root已冻结ADR-083 H契约并启动实现，Rust定向/主门禁、生成/真实服务与资源收尾均已按限定范围通过。
 
-窄只读证据 `/tmp/openrust-c04d10g-next-collection-dispatch-evidence.md`（SHA `f4bc6cdce33ddd93d2966ca9257971300e7137628be5a513707356dafdc3b0c3`）；Spec明确Rust约束/公开API影响/受影响调用方后实施，唯一模块、生成应用、适用门禁/MySQL与真实TCP随簇交付。不以本项关闭完整Routing。signed候选窄证据 `/tmp/openrust-c04d10g-next-signed-evidence.md` 已指出key resolver、relative渲染、raw query前置；补充只读密钥审计 `/tmp/openrust-c04d10h-next-signed-key-contract-audit.md` 核实URL key使用配置原始字节，以及直接hmac0.13与sha2 0.10的digest版本不兼容，后继Spec须收敛依赖/门控，不以现JWT/AES解析器套用。均未实现/运行，后继另收敛，不夹入本簇；两者无硬技术依赖，先修已知分派缺口是明确排序，不假称签名算法依赖它。
+窄只读证据 `/tmp/openrust-c04d10g-next-collection-dispatch-evidence.md`（SHA `f4bc6cdce33ddd93d2966ca9257971300e7137628be5a513707356dafdc3b0c3`）；Spec明确Rust约束/公开API影响/受影响调用方后实施，唯一模块、生成应用、适用门禁/MySQL与真实TCP随簇交付。不以本项关闭完整Routing。signed候选窄证据 `/tmp/openrust-c04d10g-next-signed-evidence.md` 已指出key resolver、relative渲染、raw query前置；补充只读密钥审计 `/tmp/openrust-c04d10h-next-signed-key-contract-audit.md` 核实URL key使用配置原始字节，以及直接hmac0.13与sha2 0.10的digest版本不兼容，后继Spec须收敛依赖/门控，不以现JWT/AES解析器套用。另 `/tmp/openrust-signed-config-live-dependency-audit.md` 实核启动后ConfigRepository冻结，当前无公开运行期set或请求局部覆盖；每次读取不能凭空实现key轮换。后继须先收敛Laravel核心Config::set/配置可见性与启动资源快照边界，不用ADR-080未来DB动态设置冒充此核心缺口，也不偷偷解冻。均未实现/运行，后继另收敛，不夹入本簇；两者无硬技术依赖，先修已知分派缺口是明确排序，不假称签名算法依赖它。
+
+## T01 Session纯行为测试入口整合（限定试点已验收，提交见Git）
+
+- 前置H已提交 `3065be5` 且工作区干净；本簇只减少重复测试二进制，不改框架生产API、用例函数体、断言、fixture、feature或依赖。
+- 采用已审计试点：将 `tests/http/session_extensions.rs` 作为 `session.rs` 的独立私有模块，移除Cargo对应独立test入口；预期相关26+15例仍全部执行，Session family入口8→7、源文件10个不变，须实证而非静态计数冒充通过。
+- DB/Redis真实后端和环境子进程入口保持独立；禁止用整套单线程掩盖共享状态，不改历史精确filter证据。
+- 执行owner `/root/session_entry_pilot` 唯一写Cargo/test装配和使用main target；root独占共享文档、索引和提交。无分支/worktree，无其他Cargo/服务owner。
+- 先按同工具链/feature/target/中性env记录两入口基线no-run与实际名单/执行，再实现并记录单入口；区分首次失效编译与暖缓存，不清根target，不宣称未测加速或冷缓存可比。
+- 两种feature组合的新单入口41项均已实跑通过，首次/暖缓存名单与原26+15精确映射，extensions仅增加模块前缀；集中workspace门禁均已通过，限定提交见Git。
+- 集中验收覆盖全部41个用例的前后名字映射、session-only/all-features及适用workspace门禁；生产/模板/后端未变的H证据须明确输入影响后才能复用，不冒称新服务测试。
+- 审计依据 `/tmp/openrust-test-entry-pilot-audit.md`；真实计时、删并理由、保留隔离、门禁及资源写入本节/测试记录后限定提交，本试点已验收，完整范围及计时限制见testing。
+- 本地免费执行器只读目录查询失败：默认49374端口被占，显式连接亦无兼容V2 health（502）；未改端口/服务/系统配置，按当前可用能力回退 `gpt-6-sol` medium执行此局部已定任务。全项目缓存50GB软/100GB硬、磁盘10%/5%，共享main缓存保留。
 
 ## 发布前全后端兼容性验收
 

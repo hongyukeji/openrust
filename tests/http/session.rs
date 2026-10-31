@@ -3,6 +3,8 @@
 //! Spy 只模拟测试要求的 store 结果和阻塞点；不代表数据库或 HTTP 验收。
 #![cfg(feature = "session")]
 
+#[path = "session_extensions.rs"]
+mod session_extensions;
 #[path = "session_helpers.rs"]
 mod session_helpers;
 #[path = "session_source_cases.rs"]
