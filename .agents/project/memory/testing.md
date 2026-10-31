@@ -1,5 +1,17 @@
 # 测试基线
 
+## R2-CC 配置缓存（分支限定验收通过）
+
+本簇为 `tasks/config-cache-family` 的分支证据，base `9581a53`，不等同main组合验收。最终18文件输入 `/tmp/openrust-config-cache-command-bootstrap-script-delta2.json` 经不同模型复审，路径误删、dotenv全局污染、模块绕过缓存、晚期命中前环境校验与维护命令bootstrap时点问题均已修；脚本副本保护/独立负例/失败恢复保护经限定复审关闭。静态结论不代替真实运行。
+
+- 当前修后 `/tmp/openrust-config-cache-final-run.json`：config77、lifecycle18、模块1、CLI模板1、双严格Clippy、新server实际Compiling及唯一模块cache/clear/坏TOML/坏缓存命令真实脚本通过。链在生成成功后的错误忽略规则断言停止，保留该失败，不改正确`/bootstrap/cache/*.json`模板。
+- `/tmp/openrust-config-cache-final-resume.json` 从CLI实际重编起续跑；新binary SHA、生成cache JSON忽略与非缓存路径正反验证、生成check/test8/build及真实重启通过，配置源恢复SHA一致；默认workspace lib/tests851通过。root核当前原日志SHA无漂移/截断；最终全特性lib/tests1638通过/68ignored、no-default和Rust1.97全特性workspace/all-targets check均exit0。
+- 旧 `/tmp/openrust-config-cache-gates2.json`、supplemental/extra回执及早期失败保留。原all-features all-targets额外运行复制benchmark失败，不能改称原命令成功；测试目标补验、doctest/docs、MSRV/no-default/deny各有独立记录，最终按变更影响明确复用或补验，不将旧输入冒称当前通过。
+- 修后文档补验 `/tmp/openrust-config-cache-doc-supplement.json`：默认doctest22通过/34ignored，全feature24通过/40ignored，双warnings-denied docs均exit0；旧离线deny仅在manifest/lock/deny.toml SHA一致前提下复用，advisory快照2026-10-30，不声称在线刷新。
+- 最终索引 `/tmp/openrust-config-cache-final-manifest.json`（SHA `73da1b7712e35176dff0bd30b63004d07e7f35f5e6e73603c99b6005c3508119`）；root核61项输入/日志与42个生成文件，`/tmp/openrust-config-cache-root-final-audit.json` 保留当前server与历史不一致的事实。共享target后续构建已替换server，原两脚本开始强制核expected SHA、结束原日志均记同一历史SHA，不能声称现在仍可重算旧binary。
+- `/tmp/openrust-config-cache-cleanup-receipt.json`：两自有temp目录在42文件hash/恢复hash/无symlink或进程占用核对后退役，实测磁盘回收13,570,048B，共享target变化0。Cargo dry-run忽略包URL/版本限定、会清所有同名sample-app，故未实际clean；约1GiB宽范围缓存保留，责任root，下一资源交接先核精确归属再退役，不为回收而删他人产物。
+- 最终cargo fmt --all --check及diff检查通过；限定分支本地提交见Git，尚未合main。缓存命中无数据库路径变化，生成仅普通项目；如复用既有MySQL证据须明确原输入及影响，不声称新缓存全后端验收。完整发布后端、上述混合归属缓存退役及main组合仍开放；文档变化不改冻结Rust输入、不触发无关矩阵重跑。
+
 ## 当前数据库运行政策
 
 - 日常功能簇、main组合及数据库型生成项目默认真实MySQL8.4；普通无数据库生成、真实HTTP和其余适用门禁保持。PG18/MySQL8.4服务与支持范围不删减，编译/features不算真实后端验收。
@@ -1226,3 +1238,28 @@ D10-G gRPC环境补充：用户报告此前可能在失败期间手动清理Dock
 集中门禁全部实际0：fmt、默认/all-features严格Clippy、默认workspace838 passed/34 ignored及全特性1625 passed/108 ignored、双严格docs、cargo deny、Rust1.97 workspace/all-targets/all-features check；忽略项不算真实服务。全部T01命令无失败，无通过整套单线程掩盖隔离问题。README/CHANGELOG与Agent文档另作纯文档同步，不影响被测Rust行为。
 
 本簇未重跑生成项目、MySQL、PG、网络或服务；H对应生产/模板/依赖输入未变，其历史证据保留，不命名为T01新验收。无新target目录/测试库/监听服务，主控收口采样全登记缓存37,482,668,032字节，磁盘可用105,749,102,592/994,662,584,320字节；预算内保留活跃main缓存，不做整target或openrust包清理。当前免费本地执行器只读查询因49374端口冲突及显式服务health502不可用，按规则回退gpt-6-sol执行，未改服务/端口、全局模型/账户或系统配置。后继扩范围须逐项确认隔离与实际收益，不按数量配额删测试。
+
+
+## R2-R03 递归配置发现（任务分支限定验收记录）
+
+`tasks/config-discovery-family` 基于 `e25ec7589c7662245f9d6cc4390b1fd06a920f1e`；本节仅记录独立分支限定验收，本地提交见Git，尚未与 ENV main `2187b6b` 集成。核心覆盖递归 TOML 发现、真实 basename、隐藏文件与目录 symlink 排除、自然序/碰撞范围、根领域相对内容迁移及模块独立overlay接线；同一 `ConfigSources` / 仓储保持来源顺序与点路径。晚到 Provider 默认值浅合并，白名单 `mergeableOptions` 数组对照 PHP 浅合并；只有子文件时按 PHP `after_final` 保留文件前 base 剩余父根覆盖，再重放文件后环境优先与 metadata/profile，模块 overlay 独立。PHP 探针和独立 delta 审查只证明这些指定边界，不代表完整 Config 或动态 Settings。
+
+已实际执行：配置组修后 76 项、CLI 最终 21/21（含相对 cache 1 与当前分支强制重编快照 1）、模块配置与顺序各 1、公开 consumer 完整 6；严格 Clippy、Rustdoc、fmt 均 exit 0。CLI 末次仅将旧 gRPC、security.signed_links、auth.jwt 前缀测试断言改为真实相对配置，原 snapshot 不变。普通 fresh 生成 check/test 7 项及安装公开 consumer 精确 1 项通过；fixture installer 后续只修格式，独立格式检查通过，原具名语义测试不冒充该格式修正后的重跑。旧失败保留：配置环境层4项、模块缺 feature schema、consumer 未链接 Tokio macro、Clippy lint 三轮、共享 target 旧 CLI 可执行文件导致 0 项假通过、当前 CLI 快照注释丢失；均经对应输入批修/定向重验，不将旧结果冒充通过。CLI splitter decor 与 helper 提取分别经不同模型窄复审，无新增确定问题。最终回执 `/tmp/openrust-config-discovery-final-manifest.json` 当前 SHA `cd6483f40f80d73767fa32995064df254b5f5cf31e15617cf4861b40add6304c`（追加 cleanup_audit；35 任务源码及原功能证据未变）；root `/tmp/openrust-config-discovery-root-final-audit.json` 逐项核 128 项哈希一致，覆盖 35 源文件、日志、4 种生成变体及关联回执。helper、CLI decor 和 HTTP runner 的不同模型窄复审无剩余确定问题；纯 Agent 文档/矩阵/变更日志更新不改变已测 Rust 输入。原 verify manifest、ready receipt 和旧失败回执均保留。
+
+`/tmp/openrust-r03-http-report.json` 记录根应用真实 TCP `GET /api/example/config-feature` 为 200、`enabled=true`，server exit 0、临时资源移除；报告绑定 binary/source SHA，仅证明该配置路由。最新 URL/TLS runner `a021…` 的 10/10 独立网络场景、两服务自然 exit 0、无源码漂移和二进制稳定另记，不替代 config-feature 证明。fresh MySQL 无 auth 生成 check/test 的测试实际 0 项，仅算编译；fresh MySQL 8.4 认证生成 `auth_flows` 2/2、0 ignored/skipped，测试库集合 61→61 且哈希一致，未留下本次新库。认证测试使用程序配置，不外推所有文件发现场景。owner 报告三个唯一生成包精确清理 813.2+4.7+424.0 MiB；真实 shell 清理命令均 exit 0、执行者终端回报；原始清理 stdout 未留存，不能独立复算其逐命令日志 SHA。紧邻共享 target `du` 记录 38,753,084→37,691,612 KiB，差 1,061,472 KiB；稍后的主 target 漂移不并入本次精确回收，也不称全 target 已清。登记 16 路径 54.48 GB、磁盘空闲 8.782%，50GB/10% 软警告，100GB/5% 硬线安全；未知 root-site/M5 缓存未碰。当前分支未执行 main 完整 workspace 组合，ENV 新命名尚未集成；历史 main/旧簇证据不转记 R03。完整 V1 Config、typed helpers、配置缓存、动态 Settings、发布全部后端矩阵保持开放。
+
+## R2-T ConfigRepository 严格类型读取（隔离分支限定验收通过）
+
+基线 `a5e6461`；冻结Spec `/tmp/openrust-config-typed-helpers-frozen-spec.md`、最终ready `/tmp/openrust-config-typed-helpers-ready-final.json`。源码独审无确定阻断；集合位置索引显式类型标注修复首次 E0282 后，`/tmp/openrust-config-typed-helpers-verify-batch1-attempt2/receipt.json` 记录 fmt/diff、仓储43、Collection4、模块1、公开consumer6项实际退出0；`/tmp/openrust-config-typed-helpers-clippy-docs/receipt.json` 记录严格Clippy lib/server/consumer各1与Rustdoc1退出0。旧 E0282 与普通生成首轮因驱动假定全新项目已有 Cargo.lock 而失败的回执保留，不能计作生产行为通过。后段最终 `/tmp/openrust-config-typed-helpers-verification-attempt2/FINAL.json`（SHA256 `fb140cf667227fd346fa044f94f6d4119cd002b107c991fd86d2fd95481749b0`）记录12条命令退出0：fresh普通生成 fmt/check/test原7项、安装公开fixture后check/exact1项、根server构建与真实GET `/api/example/config-greeting` 返回200及固定问候语；进程78122收到SIGINT后exit0，端口43228释放，日志有界且源码/二进制稳定。唯一新生成包 `openrust-typed-93492a40e6e9` 精确clean退出0（Cargo回报2121文件/649.1MiB），post dry-run为0项；Cargo `-p` 对path/version限定会忽略，本次唯一随机包名事前核无同名产物，不能把该清理口径扩到已有共享包。全登记资源约55.83→56.83 GB（十进制），结束磁盘可用86,953,000,960字节，超50GB/10%软线但低于100GB/5%硬线；共享缓存未清，旧未知目标不碰。默认数据库无代码改动，本簇不把旧MySQL证据转记为新验收；尚待root最终本地提交及main组合验收，完整L005.03/Collection及发布全后端开放。
+
+## Signed URL 家族：任务分支定向验收（未合入 main）
+
+分支 `tasks/signed-url-family` 基于 `af0f62b28a7a2dce65e07f02ee1026b9e30f8fb3`，本节记录分支限定证据，不是 main 集成或完整框架验收。固定 Laravel framework `d52c3b3129e4c8e213c97cdc68f94b0b7d27f181`；PHP 8.5 fixture 27 案（`tests/fixtures/laravel_signed_url.json` SHA `bc77dc16619ed6c4cfd77834f006cfdb37207607a5ab1563c3731a245dd0a684`），27 个 ID 均被实际库测试引用。最终原功能定向库 7/7、`http_router` 4/4、唯一模块 1/1、CLI 20/20、全新普通生成项目 7/7，均 0 failed/ignored；筛选命令的 filtered 数不计 ignored。首次模块 `--exact` 实跑 0 项，已用具名命令重验 1 项；此前 router、Clippy、CLI 失败及修复记录保留，不改写为首次通过。
+
+公开 `UrlGenerator` 永久/临时签发、`RequestInfo` 原始查询验签、受管 `signed` 中间件、应用级忽略字段和当前/旧 key 验签均有分层测试。唯一模块草稿链接经过公开生成器、请求和 middleware；CLI 模板生成 helper、环境示例及快照已纳入分支。全新普通项目最终 fmt/check/test 实际通过；原回执的生成 helper 哈希文字已更正；执行者报告当时终端同次输出源模板与生成 helper 相同哈希，但生成目录已清，当前无法独立重算。因此保留实际生成测试 7/7，不以当前模板哈希代替已删除生成文件的复验。
+
+真实 TCP 是测试内 Axum Router 绑定 `127.0.0.1:62451`，由 reqwest 经 loopback 请求并带签名 Host，断言签发、有效命中、篡改/过期拒绝、relative、局部与全局 ignore、运行期 key 轮换、旧 key 验签及 handler 副作用；正常优雅关闭后同端口成功重绑。这不等于根 server 或生成应用的跨进程生产部署。TCP 异常路径原先缺总请求时限及失败时受管清理；测试现设置单请求和整体时限，在请求错误、panic、超时及正常结束均受管停止、join、shutdown，并保留原错误；不同模型窄复审无新发现。后续清理增量定向 router 4/4 通过；首次严格 Clippy 因 `redundant_closure` 失败（`/tmp/openrust-signed-clippy-bounded-delta.log`，exit 101），改为 `.map(drop)` 后在最终测试源码上严格 Clippy exit 0。原失败日志保留；warnings-denied lib Rustdoc、Rust 1.97 lib check、fmt/diff 只在各自原输入上通过，未冒称 main 组合门禁。
+
+本簇未改 DB/Redis schema 或 driver。补验使用已有 Docker MySQL 8.4，fresh `--db mysql --auth` 生成项目 `cargo check --tests` 与实际 auth 测试 2/2 通过（0 failed/ignored/filtered、无 skip）；只读残留检查未发现本次新建测试库。该 auth 测试不导入签名 helper，不把它算作 helper 的数据库 HTTP 验证。公开 TestApp consumer 1/1 通过；gRPC consumer 仅宿主 `cargo check` 通过，不称其测试通过。`VAPOR_RAW_QUERY_STRING` 的真实部署注入、代理剥离前缀入口，以及 PHP 对象/数组/Enum 参数形态仍开放；Rust 当前只覆盖 `BTreeMap<String, String>` 字符串参数。完整 URLGenerator/Redirector、main workspace Clippy/tests/docs及适用 feature/MSRV/deny、ENV 合入后的生成与服务验证均未由本分支证实。
+
+分支回执 `/tmp/openrust-signed-final-verify-manifest.md` 当前 SHA `b79b983e921ffa6a7b012ff621183bb8e415afdcbcaa1943daec5a28184f9507`；`/tmp/openrust-signed-root-hash-audit.json` 已只读重核并绑定该修订回执，29 日志和当时 22 文件逐项匹配；更正前审计保留于 `openrust-signed-root-hash-audit-pre-correction.json`。该审计不覆盖后续 TCP 清理代码与日志。独立 delta 复审 `/tmp/openrust-signed-final-delta-review.md` 指出生成 helper 哈希及 TCP 异常清理两个 should-fix；前者笔误已更正，fresh MySQL 项目保留的 helper 与模板同次 SHA `3d7bcfd61ceb3f90dd753ffa768e62f6e562e1cd3f6f6526ed87eb074f716fb3`，但已删除的普通生成目录仍无法独立复算；后者由 `/tmp/openrust-signed-tcp-cleanup-delta-review.md` 静态关闭，最终 Clippy 已实际复验。补验 `/tmp/openrust-signed-supplement-final-manifest.md` 与输入索引 `/tmp/openrust-signed-supplement-input-sha.json` 记录 6 条命令、40 分支文件、44 生成文件、6 原始及 6 脱敏日志；root 逐项核 96 个哈希匹配。此后本节 Agent 文档更新属纯文档输入变化，不使 Rust 测试失效。补验后仅精确清理本次 fresh MySQL 应用与 migration 包，去重 `du` 实测回收 316,715,008 B；登记聚合 51,868,528,640→51,551,813,632 B，磁盘空闲 90,177,208,320→90,423,791,616 B，仍高于 50GB/低于磁盘 10% 软线，未触 100GB/5% 硬线。未知 root-site/M5 与其他共享缓存未清。清理日志与资源回执在补验 manifest，root 已核其当前 SHA `daf523e9e29af8203d2fb500fbbfcd094625bab564b16bf46cf3887af1b4813e`。分支尚未提交/合入，完整 main 组合仍待。

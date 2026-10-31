@@ -20,9 +20,92 @@ use crate::core::{
 use crate::i18n::{I18n, with_request_locale};
 use axum::Router;
 use axum::body::Body;
+use axum::extract::FromRequestParts;
 use axum::extract::{Request, State};
 use axum::http::{HeaderName, HeaderValue, Method, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
+
+/// 签名 URL middleware 的实例选项；忽略集合按原始查询字段名匹配。
+#[derive(Clone, Debug, Default)]
+pub struct ValidateSignature {
+    relative: bool,
+    ignore: Vec<String>,
+    global_except: Vec<String>,
+}
+
+impl ValidateSignature {
+    /// 默认验证绝对 URL。
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// 验证相对 URL。
+    #[must_use]
+    pub fn relative(mut self) -> Self {
+        self.relative = true;
+        self
+    }
+
+    /// 设置当前 middleware 的局部忽略字段。
+    #[must_use]
+    pub fn ignoring(mut self, keys: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        self.ignore = keys.into_iter().map(Into::into).collect();
+        self
+    }
+
+    /// 设置本应用实例的全局忽略字段，由调用方在各签名层共享。
+    #[must_use]
+    pub fn except(mut self, keys: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        self.global_except = keys.into_iter().map(Into::into).collect();
+        self
+    }
+}
+
+/// 默认绝对 URL 验签 middleware；非法签名返回 403，且不调用业务 handler。
+pub async fn validate_signature(request: Request, next: axum::middleware::Next) -> Response {
+    validate_signature_request(ValidateSignature::new(), request, next).await
+}
+
+/// 默认相对 URL 验签 middleware。
+pub async fn validate_relative_signature(
+    request: Request,
+    next: axum::middleware::Next,
+) -> Response {
+    validate_signature_request(ValidateSignature::new().relative(), request, next).await
+}
+
+/// 搭配 `from_fn_with_state` 使用局部忽略项与应用级 except。
+pub async fn validate_signature_with_options(
+    State(options): State<ValidateSignature>,
+    request: Request,
+    next: axum::middleware::Next,
+) -> Response {
+    validate_signature_request(options, request, next).await
+}
+
+async fn validate_signature_request(
+    options: ValidateSignature,
+    request: Request,
+    next: axum::middleware::Next,
+) -> Response {
+    let (mut parts, body) = request.into_parts();
+    let info = match crate::http::RequestInfo::from_request_parts(&mut parts, &()).await {
+        Ok(info) => info,
+        Err(error) => return error.into_response(),
+    };
+    let valid = info.has_valid_signature_ignoring(!options.relative, |key| {
+        options
+            .ignore
+            .iter()
+            .chain(options.global_except.iter())
+            .any(|ignored| ignored == key)
+    });
+    match valid {
+        Ok(true) => next.run(Request::from_parts(parts, body)).await,
+        Ok(false) => crate::core::Error::Forbidden("Invalid signature".into()).into_response(),
+        Err(error) => error.into_response(),
+    }
+}
 use bytes::Bytes;
 use http_body::{Body as HttpBody, Frame, SizeHint};
 use tower_http::catch_panic::CatchPanicLayer;

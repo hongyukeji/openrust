@@ -32,6 +32,8 @@ type TestResult = Result<(), Box<dyn std::error::Error>>;
 mod action_redirect;
 #[path = "router/collection_dispatch.rs"]
 mod collection_dispatch;
+#[path = "router/signed_url.rs"]
+mod signed_url;
 
 #[derive(Deserialize)]
 struct DomainTenant {

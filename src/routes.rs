@@ -59,6 +59,7 @@ pub struct RouteRegistry {
     builders: Vec<RouteBuilder>,
     middleware: MiddlewareRegistry,
     root_controller_namespace: Option<String>,
+    signed_except: Vec<String>,
 }
 
 impl RouteRegistry {
@@ -96,6 +97,23 @@ impl BootContext<'_> {
         crate::http::action::validate_namespace(&namespace)?;
         self.extension_mut::<RouteRegistry>()?
             .root_controller_namespace = (!namespace.is_empty()).then_some(namespace);
+        Ok(self)
+    }
+
+    /// 为本应用的全部默认 `signed` middleware 设置全局忽略字段。
+    ///
+    /// 默认与参数化别名在 router 构建时读取同一列表；另一 App 不受影响。
+    pub fn signed_url_except<I, S>(&mut self, keys: I) -> Result<&mut Self>
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        let except = &mut self.extension_mut::<RouteRegistry>()?.signed_except;
+        for key in keys.into_iter().map(Into::into) {
+            if !except.contains(&key) {
+                except.push(key);
+            }
+        }
         Ok(self)
     }
 
@@ -340,7 +358,11 @@ pub fn build_router(app: &App) -> Result<Router> {
             .extension::<RouteRegistry>()
             .map(|registry| registry.middleware.clone())
             .unwrap_or_default();
-        middleware_registry.install_framework_defaults()?;
+        let signed_except = app
+            .extension::<RouteRegistry>()
+            .map(|registry| registry.signed_except.clone())
+            .unwrap_or_default();
+        middleware_registry.install_framework_defaults(signed_except)?;
         middleware_registry.validate()?;
         let mut routes = Routes::with_middleware_registry(Arc::new(middleware_registry));
         if let Some(registry) = app.extension::<RouteRegistry>() {
@@ -439,6 +461,48 @@ fn route_url_generator(
     {
         generator.set_root_controller_namespace(namespace)?;
     }
+    let repository = app.config_repository();
+    generator.set_key_resolver(move || {
+        let values = repository.get_many(&["app.key", "app.previous_keys"])?;
+        let current = match values.first().map(|(_, value)| value) {
+            Some(serde_json::Value::String(key)) => key.as_bytes().to_vec(),
+            Some(serde_json::Value::Null | serde_json::Value::Bool(false)) | None => Vec::new(),
+            Some(serde_json::Value::Number(number)) => number.to_string().into_bytes(),
+            Some(serde_json::Value::Bool(true)) => b"1".to_vec(),
+            _ => {
+                return Err(Error::custom(
+                    "url_signing_key_invalid",
+                    "app.key must be a scalar value",
+                ));
+            }
+        };
+        let previous = match values.get(1).map(|(_, value)| value) {
+            Some(serde_json::Value::Array(values)) => values
+                .iter()
+                .map(|value| match value {
+                    serde_json::Value::String(key) => Ok(key.as_bytes().to_vec()),
+                    serde_json::Value::Number(number) => Ok(number.to_string().into_bytes()),
+                    _ => Err(Error::custom(
+                        "url_signing_keys_invalid",
+                        "app.previous_keys must contain strings or numbers",
+                    )),
+                })
+                .collect::<Result<Vec<_>>>()?,
+            Some(serde_json::Value::String(keys)) => keys
+                .split(',')
+                .filter(|key| !key.is_empty() && *key != "0")
+                .map(|key| key.as_bytes().to_vec())
+                .collect(),
+            Some(serde_json::Value::Null) | None => Vec::new(),
+            _ => {
+                return Err(Error::custom(
+                    "url_signing_keys_invalid",
+                    "app.previous_keys must be an array",
+                ));
+            }
+        };
+        Ok(crate::http::url::UrlSigningKeys::new(current, previous))
+    });
     Ok(generator)
 }
 

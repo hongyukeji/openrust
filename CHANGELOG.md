@@ -6,9 +6,14 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Changed
 
+- 配置领域 TOML 改为递归发现与按真实文件名建立点路径命名空间，隐藏文件/目录符号链接排除，同名命名空间按实际遍历后项覆盖，再按完整名称自然序加载，不承诺跨平台胜者。根领域文件迁移为相对内容格式，这是一次破坏性配置迁移；模块配置仍沿既有独立 overlay；CLI 生成文件和唯一模块同步调整。同一 `ConfigSources` 仓储保留来源顺序和环境覆盖，晚到 Provider 默认值按浅层合并，白名单数组按已验证的 PHP 规则合并；仅有子文件时保留文件前 base 剩余父区段。完整 Config、typed helpers、配置缓存和动态 Settings 继续开放。
+- 配置仓储新增 `string`、`integer`、`float`、`boolean`、`array`、`collection` 六类严格读取，各提供直接、值默认与惰性默认入口；默认仅用于缺失，显式 null 与类型错误不回退。整数/浮点不宽松转换，错误不回显原值；配置集合复用现有 `Collection`，不把请求输入预算错误施加于已加载配置，其他集合受限操作不变。唯一模块与公开 consumer 展示固定业务键调用。
+- 增加 Laravel 式 `config:cache` / `config:clear`，缓存同一应用 fresh Provider 启动后的最终配置。缓存命中跳过 dotenv、普通配置文件和模块配置重载；维护命令先正常引导再派发，坏缓存不静默回退。默认私有数据文件 `bootstrap/cache/config.json` 是 Rust 表示适配；原子写入、失败清理与资源关闭沿同一生命周期，命令只影响后续启动，不热改已解析客户端。
+
 - 监听环境键统一为中性的 `SERVER_PORT → server.port`，移除 `APP_PORT`、独立 `PORT` 和命名空间端口别名；根和生成应用使用 `APP_URL="http://localhost:${SERVER_PORT}"`。缓存按 Laravel 使用 `CACHE_STORE → cache.default`，默认选择已登记的 redis store，移除旧 `REDIS_DEFAULT_STORE`，不引入 `CACHE_DEFAULT_STORE` 别名；Redis 连接与队列共用 `REDIS_DB`，保留其他合法具名 store 和自定义 driver。
 
-- 配置加载增加不可变 `ConfigSources` 与 `ConfigLoader::sources()`，在进入 Figment 投影前保留已有平层 TOML 的声明键序；默认引导一次捕获来源，类型配置和 Provider 复用该输入。仓储、Provider 与 TestApp 沿既有入口接收有序来源，显式 Figment 输入仍是无法恢复历史声明序的有损入口。文件自然排序不等于已实现递归配置发现或文件名命名空间映射，完整 Config 对应继续开放。
+- 配置加载增加不可变 `ConfigSources` 与 `ConfigLoader::sources()`，在进入 Figment 投影前保留已有平层 TOML 的声明键序；默认引导一次捕获来源，类型配置和 Provider 复用该输入。仓储、Provider 与 TestApp 沿既有入口接收有序来源，显式 Figment 输入仍是无法恢复历史声明序的有损入口。递归发现与文件名命名空间映射见上项；完整 Config 对应继续开放。
+- 命名路由增加永久与临时签名 URL，支持绝对/相对签名、原始查询验签、过期检查及当前/旧应用密钥轮换；`RequestInfo` 与路由 `signed` 中间件提供验证和忽略查询字段入口，无效签名在业务处理前拒绝。唯一模块和生成应用通过公开接口签发并保护草稿链接。当前参数限字符串映射；Vapor 代理原始查询与前缀入口、PHP 对象/数组/Enum 参数表示仍待对应。
 
 - 配置仓储增加运行期 `set` 与有序原子 `set_many`，保留点路径、覆盖位置及稀疏/混合数组；App 与 Provider 共享仓储，`App::section` 读取当前版本，已解析配置及服务保留启动快照。唯一模块展示固定业务键跨请求更新，生成应用与公开 consumer 同步接入；写入不持久化、不跨节点传播、不自动重建资源，来源进入 Figment 前已丢失的初始键序仍是后继缺口。
 

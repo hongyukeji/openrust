@@ -1,15 +1,14 @@
-[cache]
 default = "redis"
 
-[cache.stores.redis]
+[stores.redis]
 driver = "redis"
 namespace = "server"
 dsn = "redis://127.0.0.1:6379/"
 
-[cache.singleflight]
+[singleflight]
 max_in_flight_keys = 128
 max_waiters_per_key = 64
 loader_timeout_secs = 30
 
-[cache.swr]
+[swr]
 max_in_flight_refreshes = 64

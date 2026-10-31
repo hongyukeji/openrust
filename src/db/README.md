@@ -13,15 +13,14 @@ OpenRust 框架的数据库模块。
 openrust = { version = "0.0.0", features = ["db-postgres"] }
 ```
 
-数据库连接默认使用 `DB_CONNECTION`、`DB_HOST`、`DB_PORT`、`DB_DATABASE`、`DB_USERNAME` 和 `DB_PASSWORD`，表前缀使用 `DB_TABLE_PREFIX`。驱动名采用 `postgres` 或 `mysql`，连接信息会在加载时组装为驱动 URL。需要完整 URL 时可在 `[database].url` 或 `APP_DATABASE_URL` 中设置。连接池默认最多 10 个连接、最少 1 个连接，连接超时为 5 秒，获取连接超时为 30 秒。可在 `[database]` 中覆盖这些值，也可使用 `APP_DATABASE_MAX_CONNECTIONS`、`APP_DATABASE_MIN_CONNECTIONS`、`APP_DATABASE_CONNECT_TIMEOUT_SECS` 和 `APP_DATABASE_ACQUIRE_TIMEOUT_SECS`。
+数据库连接默认使用 `DB_CONNECTION`、`DB_HOST`、`DB_PORT`、`DB_DATABASE`、`DB_USERNAME` 和 `DB_PASSWORD`，表前缀使用 `DB_TABLE_PREFIX`。驱动名采用 `postgres` 或 `mysql`，连接信息会在加载时组装为驱动 URL。需要完整 URL 时可在 `config/database.toml` 的 `url` 或 `APP_DATABASE_URL` 中设置。连接池默认最多 10 个连接、最少 1 个连接，连接超时为 5 秒，获取连接超时为 30 秒。可在 `config/database.toml` 中覆盖这些值，也可使用 `APP_DATABASE_MAX_CONNECTIONS`、`APP_DATABASE_MIN_CONNECTIONS`、`APP_DATABASE_CONNECT_TIMEOUT_SECS` 和 `APP_DATABASE_ACQUIRE_TIMEOUT_SECS`。
 
 框架管理的表默认使用 `tb_` 前缀。设置 `table_prefix` 可更改前缀（空字符串表示不使用前缀）；也可以将指定的逻辑表名映射为完整物理表名：
 
 ```toml
-[database]
 table_prefix = "app_"
 
-[database.table_names]
+[table_names]
 users = "accounts"
 ```
 
@@ -46,21 +45,19 @@ impl Application for App {
 只读副本可选配置，但必须与主库使用相同 backend：
 
 ```toml
-[database]
 url = "postgres://app:secret@primary/app"
 read_replicas = ["postgres://app:secret@replica-a/app", "postgres://app:secret@replica-b/app"]
 ```
 
 `Db::connection()` 和 `Db::primary_connection()` 始终返回主库连接。`Db::read_connection()` 会轮询已配置副本；没有副本时返回主库。只应将它用于可接受复制延迟的只读操作；框架不会检查 SQL、重试查询，也不会在出错后回退。`Db::with_primary(future)` 会临时让当前 Tokio task 中此 handle 的 `read_connection()` 返回主库，适用于同一工作单元内先写后读。独立 spawn 的 task 不会继承该作用域。事务、迁移、seed 和框架关键路径始终使用主库。副本连接或 backend 校验失败会导致启动失败。每个副本都有使用相同连接池上限的独立连接池，因此最大总连接数为 `(replicas + 1) * max_connections`。该配置只管理连接；数据库复制、一致性和副本只读权限仍由部署环境负责。
 
-一个应用可以同时配置多个彼此独立的数据库。现有 `[database]` 是默认实例，原有 `Db` 服务继续指向它；具名实例在 `[database.instances.<name>]` 下完整配置，不继承默认 URL、池参数、表名解析或副本。名称须匹配小写 ASCII 字母开头、后续为小写字母/数字/下划线/短横线，且不能使用保留名称 `default`：
+一个应用可以同时配置多个彼此独立的数据库。现有 `config/database.toml` 顶层是默认实例，原有 `Db` 服务继续指向它；具名实例在 `[instances.<name>]` 下完整配置，不继承默认 URL、池参数、表名解析或副本。名称须匹配小写 ASCII 字母开头、后续为小写字母/数字/下划线/短横线，且不能使用保留名称 `default`：
 
 ```toml
-[database]
 url = "postgres://app:password@primary/app"
 table_prefix = "tb_"
 
-[database.instances.analytics]
+[instances.analytics]
 url = "postgres://app:password@analytics/app"
 max_connections = 4
 table_prefix = "analytics_"

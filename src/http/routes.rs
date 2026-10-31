@@ -276,6 +276,7 @@ pub(crate) struct MiddlewareRegistry {
     aliases: HashMap<String, MiddlewareLayerBuilder>,
     groups: HashMap<String, Vec<String>>,
     priority: Vec<String>,
+    signed_except: Vec<String>,
 }
 
 impl Default for MiddlewareRegistry {
@@ -287,12 +288,30 @@ impl Default for MiddlewareRegistry {
                 .into_iter()
                 .map(str::to_owned)
                 .collect(),
+            signed_except: Vec::new(),
         }
     }
 }
 
 impl MiddlewareRegistry {
-    pub(crate) fn install_framework_defaults(&mut self) -> crate::core::Result<()> {
+    pub(crate) fn install_framework_defaults(
+        &mut self,
+        signed_except: Vec<String>,
+    ) -> crate::core::Result<()> {
+        self.signed_except = signed_except;
+        if !self.aliases.contains_key("signed") && !self.groups.contains_key("signed") {
+            let options =
+                super::middleware::ValidateSignature::new().except(self.signed_except.clone());
+            self.alias(
+                "signed".to_owned(),
+                Arc::new(move |routes| {
+                    routes.layer(axum::middleware::from_fn_with_state(
+                        options.clone(),
+                        super::middleware::validate_signature_with_options,
+                    ))
+                }),
+            )?;
+        }
         if !self.aliases.contains_key("precognitive") && !self.groups.contains_key("precognitive") {
             self.alias(
                 "precognitive".to_owned(),
@@ -359,7 +378,10 @@ impl MiddlewareRegistry {
                 "HTTP middleware groups must contain at least one middleware name",
             ));
         }
-        if members.iter().any(|member| !valid_middleware_name(member)) {
+        if members
+            .iter()
+            .any(|member| !valid_middleware_reference(member))
+        {
             return Err(crate::core::Error::custom(
                 "http_middleware_name_invalid",
                 "HTTP middleware names may contain only ASCII letters, digits, dots, underscores and hyphens",
@@ -392,6 +414,40 @@ impl MiddlewareRegistry {
     ) -> crate::core::Result<Vec<(String, MiddlewareLayerBuilder)>> {
         if let Some(alias) = self.aliases.get(name) {
             return Ok(vec![(name.to_owned(), Arc::clone(alias))]);
+        }
+        if let Some(arguments) = name.strip_prefix("signed:") {
+            let mut arguments = arguments.split(',');
+            let first = arguments.next().unwrap_or_default();
+            let relative = first == "relative";
+            let ignore = if relative {
+                arguments.map(str::to_owned).collect::<Vec<_>>()
+            } else {
+                std::iter::once(first)
+                    .chain(arguments)
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>()
+            };
+            if ignore.iter().any(String::is_empty) || (!relative && first.is_empty()) {
+                return Err(crate::core::Error::custom(
+                    "http_middleware_name_invalid",
+                    "signed middleware 参数不能为空",
+                ));
+            }
+            let options = if relative {
+                super::middleware::ValidateSignature::new()
+                    .relative()
+                    .ignoring(ignore)
+            } else {
+                super::middleware::ValidateSignature::new().ignoring(ignore)
+            }
+            .except(self.signed_except.clone());
+            let builder: MiddlewareLayerBuilder = Arc::new(move |routes| {
+                routes.layer(axum::middleware::from_fn_with_state(
+                    options.clone(),
+                    super::middleware::validate_signature_with_options,
+                ))
+            });
+            return Ok(vec![("signed".to_owned(), builder)]);
         }
         let Some(members) = self.groups.get(name) else {
             return Err(crate::core::Error::custom(
@@ -426,6 +482,10 @@ fn valid_middleware_name(name: &str) -> bool {
         && name
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+}
+
+fn valid_middleware_reference(name: &str) -> bool {
+    valid_middleware_name(name) || name.starts_with("signed:")
 }
 
 /// 一组路由共享的 Laravel 式路径前缀与 middleware。

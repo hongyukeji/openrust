@@ -46,11 +46,23 @@ MFA 在候选为迁移时仍解析服务与配置，仅登记延后 schema 检�
 
 限定验收入口见[testing](../memory/testing.md#c04-d10-a-错误包限定子范围已验收)；不据此关闭完整校验器、重定向或视图错误共享。
 
+## R2-T 严格类型配置读取（分支限定验收通过）
+
+同一 `ConfigRepository` 增加 `string`、`integer`、`float`、`boolean`、`array`、`collection`，各有值默认 `_or` 与惰性默认 `_or_else`。仅缺失时回退，显式 null 与类型错误不回退；整数仅接 i64 范围的整型，浮点仅接 f64。错误说明路径/预期/实际类型或范围，不回显配置值。数组保留现有混合/稀疏键序；配置集合包装已存在的数组/对象，不重施请求输入 bag 的1024字段/64层预算，但 `Collection` 其他受限操作仍遵现有边界。唯一模块固定业务问候语与公开 consumer/生成 fixture 使用公开入口。仓储43、Collection4、模块1、consumer6及严格Clippy3/Rustdoc1已通过；fresh普通生成7+fixture1、真实HTTP与唯一生成包清理已通过；待root最终提交，分支未合main，不据此关闭完整Collection或L005.03。
+
 ## R2-R02 有序来源入口（限定验收通过）
 
 `ConfigSources` 是不可变有序原值与Figment投影的同次输入，`ConfigLoader::sources()`供默认引导一次捕获后同时读取应用类型配置和启动Provider；仓储仍只有同一个State与版本。既有`ConfigRepository::new`、`ProviderBuilder::start`和`TestApp::builder`接收该输入，不增加平行启动API。旧Figment输入已丢失的声明顺序不能恢复；运行期set不重建已经解析的资源。
 
 本簇已通过首轮142项、默认workspace853/全feature1642、双严格Clippy/docs、features/MSRV/deny、consumer5项及fresh生成原7+fixture1/MySQL2、真实TCP与资源收尾；命令、忽略项、失败历史及SHA见[本簇验收](../memory/testing.md#r2-r02-config-sources)。来源自然排序不等于完整Laravel配置发现：递归目录、文件名到配置namespace映射及类型表示差异仍为完整Config待办。当前实现不得据此宣称全量Config对应完成。契约见[ADR-086](../decisions/adr-086-config-repository-reading.md)。
+
+## R2-CC 配置缓存（分支限定验收通过）
+
+- 固定 Laravel `ConfigCacheCommand` / `ConfigClearCommand` 与引导顺序，复用同一 Application、Provider、ConfigSources 和 ConfigRepository；公开命令为 `config:cache` / `config:clear`。默认 `bootstrap/cache/config.json` 是 Rust 数据表示适配，不执行 PHP 配置代码；默认 namespace 使用 `APP_CONFIG_CACHE` 选择相对或绝对文件路径。
+- 首次控制台引导与普通应用一致，先加载缓存并执行 Provider register/boot，再派发维护命令；有效缓存屏蔽损坏来源，损坏缓存先报错，不借命令候选提前删除。`config:clear` 仅在实际命令执行时清除选定文件。`config:cache` 在实际命令执行时先清除本次选定文件，经同 Application fresh register/boot 取得最终有序配置；fresh 资源关闭成功后以同目录临时文件写入、同步、原子替换并回读核对。Unix 临时文件权限为0600；配置可能含秘密，不进错误或日志。失败不得保留半文件，其他路径缓存不因探测被删除。
+- 引导先以外部环境快照检查缓存；未命中才独立解析 dotenv，再按选中路径检查一次；仅双重未命中才解析运行环境并读普通配置。dotenv 不写进程全局环境。命中缓存仍执行 Provider 其余职责与类型校验，同仓储 cached 标记在通用模块配置文件发现之前阻止重新读取/覆盖。
+- 命令影响后续启动，不热改已运行 App 或已解析客户端；运行期仓储写入、持久业务 Settings、跨节点激活与完整配置发现仍按各自计划，不能由缓存子簇关闭。R03 与 R2-P 尚未组合集成，不把各分支行为冒称 main 行为。
+- 修后当前输入config77、lifecycle18、模块缓存屏障1、CLI模板1、双严格Clippy、默认workspace lib/tests851项、新server/两项模块真实脚本通过；强制重编CLI后的生成8项及真实重启通过。全特性lib/tests1638通过/68ignored、默认doctest22/34ignored与全特性24/40ignored、双warnings-denied docs及no-default/MSRV通过，离线deny按相同依赖图输入复用。两任务临时目录已回收；Cargo选择范围过宽的同名包缓存未删，归属复核缺口公开保留。限定分支提交见Git，main组合与完整Configuration仍未关闭。
 
 ## R2-Q/X 已验收子范围
 
@@ -85,3 +97,12 @@ R2-A：新增服务工厂错误保留内部source，公开Error Debug仅code/sta
 R2-A2：ConfigLoader::figment现为fallible；显式目录或已发现文件无效即失败，默认未声明且缺目录仍可用内置默认。ConfigLoader Debug/引导日志只暴露来源key；未知字段schema、Provider模块配置合并与单次配置快照仍待对应R2子簇。
 
 R2-A3：缓存工厂结束帧/出向等待边先于结果发布；完成slot不建等待边。scope/root reset先锁内提交状态，锁外通知/释放用户值；同步Wake重入不持State/outcome锁。生产Provider迁移和异步清理边界仍不变。
+
+
+## R2-R03 递归配置发现与晚到 Provider 默认值（任务分支限定验收完成，待提交）
+
+`ConfigLoader` 递归发现领域 TOML，使用真实 basename 建立文件命名空间；隐藏文件和目录 symlink 不作为配置来源，同一命名空间在实际遍历中后项覆盖，再按完整名称自然序加载，不承诺跨文件系统的碰撞胜者。根领域 TOML 一次迁移为相对内容；模块配置沿用既有独立 overlay，新增 feature 文件展示公开读取，CLI 从既有模板拆分并保留格式化键与注释。配置仍由同一 `ConfigSources` / `ConfigRepository` 保存点路径与来源顺序；模块 overlay 保持独立。
+
+晚到 Provider 默认值按浅层合并；`mergeableOptions` 中声明的数组按固定 PHP 边界浅合并。仅发现子文件时，文件前 base 加晚到 section defaults 重建父区段，再重放文件后环境层，保留环境优先、metadata/profile 与 raw/typed 投影；真实 PHP `after_final` 的剩余父 base 根覆盖不被误当缺键。无文件的程序来源沿原 join 路径，不新增第二个公开仓储。当前实证只覆盖指定 Laravel/PHP 场景，不代表完整 Config bootstrap 或全部值类型。
+
+本分支最终定向配置 76、CLI 21、唯一模块 2、公开 consumer 6，严格 Clippy、Rustdoc 和 fmt 均通过；普通 fresh 生成 7 项及安装 consumer 1 项通过。无 auth MySQL 生成只编译、测试 0 项；另以 fresh MySQL 8.4 认证项目实际通过 2 项且无 skip，测试库集合前后一致。真实根 HTTP 单独验证 `GET /api/example/config-feature` 为 200、`enabled=true`、服务 exit 0；URL/TLS runner 另有 10/10 场景、两服务正常退出与来源/二进制稳定，不把后者冒充配置功能 HTTP 证明。执行者终端回报三个唯一生成包清理命令 exit 0，原始 stdout 未留存，不能独立复算逐命令日志 SHA；登记 16 路径 54.48 GB、磁盘空闲 8.782%，触软线未触硬线。本簇本地提交见Git，未合入 ENV main，main 完整组合门禁、完整 V1 Config、typed helpers、配置缓存、动态 Settings 与发布全后端矩阵仍开放。详见[本簇记录](../memory/testing.md#r2-r03-递归配置发现任务分支限定验收记录)。

@@ -128,3 +128,12 @@ URL继续使用 `app.url` 与登记域模式，不采信请求Host；参数仍�
 替代方法检查按固定上游GET/HEAD/POST/PUT/PATCH/DELETE/OPTIONS/QUERY顺序，排除当前方法；TRACE/CONNECT可显式登记但不自动列为替代方法。405与合成OPTIONS的Allow分隔格式分别对应固定上游。唯一模块及生成模板以静态summary与动态草稿路由展示公开接线，底层碰撞/隐藏旧handler及中间件的边界留在契约与真实loopback测试，不在业务层重复全矩阵。
 
 核心、调用方及TCP清理修复已不同模型复审，定向/主矩阵、新构建、fresh普通7/MySQL认证2+公开consumer1、应用真实TCP11/16及精确资源收尾通过；原失败和输入复用边界见[testing](../memory/testing.md)。本节仅关闭ADR-083 H限定范围，不关闭完整Routing。
+
+
+## Signed URL 家族（任务分支验收中，未集成）
+
+`UrlGenerator::signed_route`、`temporary_signed_route` 和 `signed_route_at` 基于已登记命名路由与 `app.key` 原始字节签发 HMAC-SHA256，支持绝对/相对 URL、Unix 到期秒和保留参数拒绝。`RequestInfo::has_valid_signature*` 从原始查询验证签名；当前密钥及 `app.previous_keys` 旧密钥均可验。签名密钥从应用共享的 `ConfigRepository` 解析，运行期配置写入后的签发和验签可见，已构建路由本身仍保持原有声明。
+
+受管路由支持 `signed`、`signed:relative` 与带忽略字段的 `signed:<字段>` 中间件别名，应用级 except 同时作用于默认和带参数别名；无效签名在业务 handler 前拒绝。唯一模块用公开生成器签发草稿链接并在真实路由保护，CLI 生成 helper 和 `.env.example` 提供对应入口。参数目前限 `BTreeMap<String, String>`；Vapor 实际 `VAPOR_RAW_QUERY_STRING` 注入、代理剥离前缀入口，以及 PHP 对象/数组/Enum 路由参数形态仍开放。
+
+任务分支已实际运行库 7、router 4（含同进程 Axum Router 的真实 loopback TCP）、模块 1、CLI 20、普通生成项目 7 项；补验又通过最终 TCP 清理定向 router 4/4、严格 Clippy、公开 TestApp consumer 1、gRPC consumer 宿主 check，以及 fresh MySQL 8.4 认证生成测试 2 项（无 skip）。MySQL 认证测试不导入签名 helper；签名 helper 的运行证据来自普通生成项目。TCP 清理增量已获不同模型静态复审。这些是分支限定证据，不证明根 server/生成应用跨进程部署或 main 组合门禁；分支待本地提交，ENV main 尚未合入。Vapor 真实代理及复杂 PHP 参数仍开放。分项日志与缺口见[Signed 分支验收记录](../memory/testing.md#signed-url-家族任务分支定向验收未合入-main)。

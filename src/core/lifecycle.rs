@@ -11,10 +11,14 @@ use tracing_subscriber::layer::SubscriberExt as _;
 #[cfg(feature = "otel")]
 use tracing_subscriber::util::SubscriberInitExt as _;
 
-use crate::config::{self, ConfigLoader, Environment, LogConfig, LogFormat};
+#[cfg(test)]
+use crate::config::Environment;
+use crate::config::{self, ConfigLoader, LogConfig, LogFormat};
 use crate::core::Cancellation;
 use crate::core::app::{App, Application};
-use crate::core::command::{ConfigShowCommand, HelpCommand};
+use crate::core::command::{
+    ConfigCacheCommand, ConfigClearCommand, ConfigShowCommand, HelpCommand,
+};
 use crate::core::error::{Error, Result};
 use crate::core::provider::{BootContext, ProviderBuilder, ServiceProvider};
 use std::sync::{Arc, Mutex, Weak};
@@ -22,13 +26,15 @@ use tokio::{task::JoinSet, time::Instant};
 
 pub(crate) const MAX_BACKGROUND_TASKS: usize = 256;
 
-struct CoreCommandsProvider;
+struct CoreCommandsProvider<A>(std::marker::PhantomData<A>);
 
-impl ServiceProvider for CoreCommandsProvider {
+impl<A: Application> ServiceProvider for CoreCommandsProvider<A> {
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> crate::core::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             app.command(HelpCommand);
             app.command(ConfigShowCommand);
+            app.command(ConfigCacheCommand::<A>(std::marker::PhantomData));
+            app.command(ConfigClearCommand);
             Ok(())
         })
     }
@@ -178,19 +184,36 @@ impl BackgroundTaskHandle {
 
 /// 从当前工作目录的配置引导启动 `A`。
 pub async fn bootstrap<A: Application>() -> Result<App> {
-    bootstrap_with_command::<A>(None).await
+    bootstrap_with_command::<A>(None, None).await
 }
 
 /// 为实际指定的控制台命令引导启动 `A`，并向 Provider 暴露命令名称。
 ///
 /// 调用方须在启动成功后用相同名称执行 [`App::run_command`]。
 pub(crate) async fn bootstrap_for_command<A: Application>(name: &str) -> Result<App> {
-    bootstrap_with_command::<A>(Some(name)).await
+    bootstrap_with_command::<A>(Some(name), None).await
 }
 
-async fn bootstrap_with_command<A: Application>(name: Option<&str>) -> Result<App> {
-    let loader = bootstrap_config_loader(A::config_namespace())?;
-    let sources = loader.sources()?;
+pub(crate) async fn bootstrap_for_cache<A: Application>(path: std::path::PathBuf) -> Result<App> {
+    bootstrap_with_command::<A>(Some("config:cache"), Some(path)).await
+}
+
+async fn bootstrap_with_command<A: Application>(
+    name: Option<&str>,
+    forced_path: Option<std::path::PathBuf>,
+) -> Result<App> {
+    let namespace = A::config_namespace();
+    let (sources, path, source) = if let Some(path) = forced_path {
+        let external = config::EnvironmentSnapshot::capture();
+        let environment = external.with_dotenv()?;
+        let env = config::selected_environment(namespace, &environment)?;
+        let loader = ConfigLoader::from_snapshot(env, namespace, environment)?;
+        (loader.sources()?, path, "configured")
+    } else {
+        let app_dir = std::env::current_dir()
+            .map_err(|_| config::ConfigError::Invalid("无法定位应用根目录".into()))?;
+        ConfigLoader::resolve_application_sources(&app_dir, namespace)?
+    };
     let app_config: A::Config = sources
         .figment()
         .extract()
@@ -212,9 +235,10 @@ async fn bootstrap_with_command<A: Application>(name: Option<&str>) -> Result<Ap
         }
         return Err(error);
     }
-    let app = App::from_provider_runtime(runtime)?;
+    let mut app = App::from_provider_runtime(runtime)?;
+    app.set_config_cache_path(path);
     init_tracing(&app.config().log);
-    tracing::debug!(env = %app.config().app.env, config_source = loader.config_dir_source(), "provider configuration loaded");
+    tracing::debug!(env = %app.config().app.env, config_source = source, "provider configuration loaded");
     Ok(app)
 }
 
@@ -225,7 +249,7 @@ impl ProviderBuilder {
     pub fn for_application<A: Application>(config: &A::Config) -> Self {
         let mut builder = Self::new();
         builder.app_config::<A::Config>();
-        builder.provider(CoreCommandsProvider);
+        builder.provider(CoreCommandsProvider::<A>(std::marker::PhantomData));
         for provider in A::providers(config) {
             builder.boxed_provider(provider);
         }
@@ -234,18 +258,11 @@ impl ProviderBuilder {
     }
 }
 
+#[cfg(test)]
 fn bootstrap_config_loader(namespace: &str) -> Result<ConfigLoader> {
-    // 先确定运行环境，再加载 `.env` 中的其他键。
-    let env_key = format!("{namespace}ENV");
-    let env = if std::env::var(&env_key).is_ok_and(|value| !value.trim().is_empty()) {
-        Environment::from_env_with_namespace(namespace)?
-    } else {
-        config::dotenv_environment(namespace)?
-    };
-    config::load_dotenv_for_bootstrap()?;
-    Ok(ConfigLoader::from_environment_with_namespace(
-        env, namespace,
-    )?)
+    let environment = config::EnvironmentSnapshot::capture().with_dotenv()?;
+    let env = config::selected_environment(namespace, &environment)?;
+    Ok(ConfigLoader::from_snapshot(env, namespace, environment)?)
 }
 
 /// 安装全局 `tracing` subscriber。第二次调用（例如测试或嵌入式使用）不会执行任何操作。
@@ -364,6 +381,488 @@ mod tests {
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicBool, Ordering};
 
+    struct CommandFixture;
+    impl Application for CommandFixture {
+        type Config = crate::config::NoConfig;
+
+        fn providers(_: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+            vec![Box::new(CommandFixtureProvider)]
+        }
+    }
+
+    struct CommandFixtureProvider;
+    impl ServiceProvider for CommandFixtureProvider {
+        fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
+            app.merge_defaults("package", serde_json::json!({ "items": ["default"] }))
+        }
+
+        fn boot<'a>(
+            &'a self,
+            app: &'a mut BootContext<'_>,
+        ) -> crate::core::BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.overlay("example", serde_json::json!({ "greeting": "boot" }))?;
+                Ok(())
+            })
+        }
+    }
+
+    struct ShopFixture;
+    impl Application for ShopFixture {
+        type Config = crate::config::NoConfig;
+
+        fn config_namespace() -> &'static str {
+            "SHOP_"
+        }
+    }
+
+    #[test]
+    fn custom_namespace_cache_hit_skips_dotenv_and_file_configuration() {
+        let _environment_guard = crate::lock_test_env();
+        figment::Jail::expect_with(|jail| {
+            jail.clear_env();
+            jail.set_env("SHOP_CONFIG_CACHE", "bootstrap/cache/shop.json");
+            jail.set_env("SHOP_ENV", "invalid");
+            jail.create_file(".env", "invalid dotenv line")?;
+            jail.create_dir("bootstrap")?;
+            jail.create_dir("bootstrap/cache")?;
+            let mut value = serde_json::to_value(crate::config::FrameworkConfig::default())
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            value["app"]["name"] = serde_json::json!("shop-cached");
+            jail.create_file(
+                "bootstrap/cache/shop.json",
+                &serde_json::to_string(&value)
+                    .map_err(|error| figment::Error::from(error.to_string()))?,
+            )?;
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            runtime.block_on(async {
+                let app = bootstrap::<ShopFixture>()
+                    .await
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                assert_eq!(app.config().app.name, "shop-cached");
+                app.shutdown(Instant::now() + std::time::Duration::from_secs(5))
+                    .await
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                Ok(())
+            })
+        });
+    }
+
+    #[test]
+    fn clear_removes_only_selected_cache_when_two_paths_exist() {
+        let _environment_guard = crate::lock_test_env();
+        figment::Jail::expect_with(|jail| {
+            jail.clear_env();
+            jail.create_file(".env", "APP_CONFIG_CACHE=bootstrap/cache/alternate.json\n")?;
+            jail.create_dir("bootstrap")?;
+            jail.create_dir("bootstrap/cache")?;
+            let value = serde_json::to_string(&crate::config::FrameworkConfig::default())
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            jail.create_file("bootstrap/cache/config.json", &value)?;
+            jail.create_file("bootstrap/cache/alternate.json", &value)?;
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            runtime.block_on(async {
+                let app = bootstrap::<CommandFixture>()
+                    .await
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                assert!(
+                    app.config_cache_path()
+                        .map_err(|error| figment::Error::from(error.to_string()))?
+                        .ends_with("config.json")
+                );
+                app.run_command("config:cache", Vec::new())
+                    .await
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                assert!(std::path::Path::new("bootstrap/cache/alternate.json").exists());
+                app.run_command("config:clear", Vec::new())
+                    .await
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                app.shutdown(Instant::now() + std::time::Duration::from_secs(5))
+                    .await
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                assert!(!std::path::Path::new("bootstrap/cache/config.json").exists());
+                assert!(std::path::Path::new("bootstrap/cache/alternate.json").exists());
+
+                let alternate = bootstrap::<CommandFixture>()
+                    .await
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                assert!(
+                    alternate
+                        .config_cache_path()
+                        .map_err(|error| figment::Error::from(error.to_string()))?
+                        .ends_with("alternate.json")
+                );
+                alternate
+                    .run_command("config:clear", Vec::new())
+                    .await
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                alternate
+                    .shutdown(Instant::now() + std::time::Duration::from_secs(5))
+                    .await
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                assert!(!std::path::Path::new("bootstrap/cache/alternate.json").exists());
+                Ok(())
+            })
+        });
+    }
+
+    #[test]
+    fn maintenance_commands_reject_corrupt_cache_without_deleting_it() {
+        let _environment_guard = crate::lock_test_env();
+        figment::Jail::expect_with(|jail| {
+            jail.clear_env();
+            jail.create_dir("bootstrap")?;
+            jail.create_dir("bootstrap/cache")?;
+            jail.create_file("bootstrap/cache/config.json", "not json")?;
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            runtime.block_on(async {
+                for name in ["config:clear", "config:cache"] {
+                    let error = bootstrap_for_command::<CommandFixture>(name)
+                        .await
+                        .err()
+                        .ok_or_else(|| figment::Error::from("损坏缓存不得启动维护命令"))?;
+                    assert!(error.to_string().contains("缓存文件格式无效"));
+                    assert_eq!(
+                        std::fs::read("bootstrap/cache/config.json")
+                            .map_err(|error| figment::Error::from(error.to_string()))?,
+                        b"not json"
+                    );
+                }
+                Ok(())
+            })
+        });
+    }
+
+    #[test]
+    fn clear_command_uses_cached_boot_then_removes_only_selected_file() {
+        let _environment_guard = crate::lock_test_env();
+        for broken_dotenv in [true, false] {
+            figment::Jail::expect_with(|jail| {
+                jail.clear_env();
+                jail.create_dir("bootstrap")?;
+                jail.create_dir("bootstrap/cache")?;
+                jail.create_dir("config")?;
+                jail.create_file(
+                    ".env",
+                    if broken_dotenv {
+                        "broken dotenv line"
+                    } else {
+                        "APP_NAME=fresh\n"
+                    },
+                )?;
+                jail.create_file(
+                    "config/app.toml",
+                    if broken_dotenv {
+                        "[app]\nname = 'fresh'\n"
+                    } else {
+                        "broken toml ["
+                    },
+                )?;
+                let mut value = serde_json::to_value(crate::config::FrameworkConfig::default())
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                value["app"]["name"] = serde_json::json!("cached-before-clear");
+                let compiled = serde_json::to_string(&value)
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                jail.create_file("bootstrap/cache/config.json", &compiled)?;
+                jail.create_file("bootstrap/cache/alternate.json", &compiled)?;
+                let runtime = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                runtime.block_on(async {
+                    let app = bootstrap_for_command::<CommandFixture>("config:clear")
+                        .await
+                        .map_err(|error| figment::Error::from(error.to_string()))?;
+                    assert!(app.config_repository().is_cached());
+                    assert_eq!(app.config().app.name, "cached-before-clear");
+                    assert!(std::path::Path::new("bootstrap/cache/config.json").exists());
+                    app.run_command("config:clear", Vec::new())
+                        .await
+                        .map_err(|error| figment::Error::from(error.to_string()))?;
+                    assert!(!std::path::Path::new("bootstrap/cache/config.json").exists());
+                    assert!(std::path::Path::new("bootstrap/cache/alternate.json").exists());
+                    assert_eq!(app.config().app.name, "cached-before-clear");
+                    app.shutdown(Instant::now() + std::time::Duration::from_secs(5))
+                        .await
+                        .map_err(|error| figment::Error::from(error.to_string()))?;
+                    assert!(bootstrap::<CommandFixture>().await.is_err());
+                    Ok(())
+                })
+            });
+        }
+    }
+
+    #[test]
+    fn cache_command_uses_cached_boot_then_fresh_failure_clears_old_file() {
+        let _environment_guard = crate::lock_test_env();
+        for broken_dotenv in [true, false] {
+            figment::Jail::expect_with(|jail| {
+                jail.clear_env();
+                jail.create_dir("bootstrap")?;
+                jail.create_dir("bootstrap/cache")?;
+                jail.create_dir("config")?;
+                jail.create_file(
+                    ".env",
+                    if broken_dotenv {
+                        "broken dotenv line"
+                    } else {
+                        "APP_NAME=fresh\n"
+                    },
+                )?;
+                jail.create_file(
+                    "config/app.toml",
+                    if broken_dotenv {
+                        "[app]\nname = 'fresh'\n"
+                    } else {
+                        "broken toml ["
+                    },
+                )?;
+                let mut value = serde_json::to_value(crate::config::FrameworkConfig::default())
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                value["app"]["name"] = serde_json::json!("cached-before-rebuild");
+                jail.create_file(
+                    "bootstrap/cache/config.json",
+                    &serde_json::to_string(&value)
+                        .map_err(|error| figment::Error::from(error.to_string()))?,
+                )?;
+                let runtime = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                runtime.block_on(async {
+                    let app = bootstrap_for_command::<CommandFixture>("config:cache")
+                        .await
+                        .map_err(|error| figment::Error::from(error.to_string()))?;
+                    assert!(app.config_repository().is_cached());
+                    assert_eq!(app.config().app.name, "cached-before-rebuild");
+                    assert!(std::path::Path::new("bootstrap/cache/config.json").exists());
+                    assert!(app.run_command("config:cache", Vec::new()).await.is_err());
+                    assert!(!std::path::Path::new("bootstrap/cache/config.json").exists());
+                    assert_eq!(app.config().app.name, "cached-before-rebuild");
+                    app.shutdown(Instant::now() + std::time::Duration::from_secs(5))
+                        .await
+                        .map_err(|error| figment::Error::from(error.to_string()))?;
+                    Ok(())
+                })
+            });
+        }
+    }
+
+    #[test]
+    fn absolute_cache_path_does_not_clear_default_file() {
+        let _environment_guard = crate::lock_test_env();
+        figment::Jail::expect_with(|jail| {
+            jail.clear_env();
+            let root =
+                std::env::current_dir().map_err(|error| figment::Error::from(error.to_string()))?;
+            let selected = root.join("alternate.json");
+            jail.set_env("APP_CONFIG_CACHE", selected.to_string_lossy().as_ref());
+            let value = serde_json::to_string(&crate::config::FrameworkConfig::default())
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            jail.create_dir("bootstrap")?;
+            jail.create_dir("bootstrap/cache")?;
+            jail.create_file("bootstrap/cache/config.json", &value)?;
+            jail.create_file("alternate.json", &value)?;
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            runtime.block_on(async {
+                let app = bootstrap::<CommandFixture>()
+                    .await
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                assert_eq!(
+                    app.config_cache_path()
+                        .map_err(|error| figment::Error::from(error.to_string()))?,
+                    selected.as_path()
+                );
+                app.run_command("config:clear", Vec::new())
+                    .await
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                app.shutdown(Instant::now() + std::time::Duration::from_secs(5))
+                    .await
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                assert!(!selected.exists());
+                assert!(root.join("bootstrap/cache/config.json").exists());
+                Ok(())
+            })
+        });
+    }
+
+    #[test]
+    fn cache_command_uses_fresh_application_and_next_boot_reads_compiled_value() {
+        let _environment_guard = crate::lock_test_env();
+        figment::Jail::expect_with(|jail| {
+            jail.clear_env();
+            jail.create_dir("config")?;
+            jail.create_file("config/app.toml", "[app]\nname = 'before'\n")?;
+            jail.create_file(".env", "APP_NAME=before\n")?;
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            runtime.block_on(async {
+                let original = bootstrap_for_command::<CommandFixture>("config:cache")
+                    .await
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                assert_eq!(original.config().app.name, "before");
+                std::fs::write("config/app.toml", "[app]\nname = 'after'\n")
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                std::fs::write(".env", "APP_NAME=after\n")
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                original
+                    .run_command("config:cache", Vec::new())
+                    .await
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                assert_eq!(original.config().app.name, "before");
+                assert!(std::env::var("APP_NAME").is_err());
+                original
+                    .shutdown(Instant::now() + std::time::Duration::from_secs(5))
+                    .await
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                std::fs::write("config/app.toml", "broken toml [")
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                std::fs::write(".env", "broken dotenv line")
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                let cached = bootstrap::<CommandFixture>()
+                    .await
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                assert_eq!(cached.config().app.name, "after");
+                assert_eq!(
+                    cached
+                        .config_repository()
+                        .get("package.items")
+                        .map_err(|error| figment::Error::from(error.to_string()))?,
+                    Some(serde_json::json!(["default"]))
+                );
+                assert_eq!(
+                    cached
+                        .config_repository()
+                        .get("example.greeting")
+                        .map_err(|error| figment::Error::from(error.to_string()))?,
+                    Some(serde_json::json!("boot"))
+                );
+                cached
+                    .run_command("config:clear", Vec::new())
+                    .await
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                cached
+                    .shutdown(Instant::now() + std::time::Duration::from_secs(5))
+                    .await
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                assert!(bootstrap::<CommandFixture>().await.is_err());
+                Ok(())
+            })
+        });
+    }
+
+    #[test]
+    fn failed_fresh_boot_leaves_previous_cache_cleared() {
+        let _environment_guard = crate::lock_test_env();
+        figment::Jail::expect_with(|jail| {
+            jail.clear_env();
+            jail.create_dir("config")?;
+            jail.create_file("config/app.toml", "[app]\nname = 'first'\n")?;
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            runtime.block_on(async {
+                let app = bootstrap::<CommandFixture>()
+                    .await
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                let path = app
+                    .config_cache_path()
+                    .map_err(|error| figment::Error::from(error.to_string()))?
+                    .to_path_buf();
+                crate::config::compiled::write(
+                    &path,
+                    &app.config_repository()
+                        .all()
+                        .map_err(|error| figment::Error::from(error.to_string()))?,
+                )
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+                std::fs::write("config/app.toml", "broken toml [")
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                assert!(app.run_command("config:cache", Vec::new()).await.is_err());
+                assert!(!path.exists());
+                app.shutdown(Instant::now() + std::time::Duration::from_secs(5))
+                    .await
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                Ok(())
+            })
+        });
+    }
+
+    #[test]
+    fn dotenv_cache_path_is_selected_after_environment_loading() {
+        let _environment_guard = crate::lock_test_env();
+        figment::Jail::expect_with(|jail| {
+            jail.clear_env();
+            jail.create_file(
+                ".env",
+                "APP_CONFIG_CACHE=bootstrap/cache/alternate.json\nAPP_CONFIG_DIR=missing-dir\nAPP_ENV=invalid\n",
+            )?;
+            jail.create_dir("bootstrap")?;
+            jail.create_dir("bootstrap/cache")?;
+            let mut value = serde_json::to_value(crate::config::FrameworkConfig::default())
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            value["app"]["name"] = serde_json::json!("alternate-cache");
+            jail.create_file(
+                "bootstrap/cache/alternate.json",
+                &serde_json::to_string(&value)
+                    .map_err(|error| figment::Error::from(error.to_string()))?,
+            )?;
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            runtime.block_on(async {
+                let app = bootstrap::<CommandFixture>()
+                    .await
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                assert_eq!(app.config().app.name, "alternate-cache");
+                app.shutdown(Instant::now() + std::time::Duration::from_secs(5))
+                    .await
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                Ok(())
+            })
+        });
+    }
+
+    #[test]
+    fn cache_miss_still_rejects_invalid_environment_value() {
+        let _environment_guard = crate::lock_test_env();
+        figment::Jail::expect_with(|jail| {
+            jail.clear_env();
+            jail.create_file(
+                ".env",
+                "APP_CONFIG_CACHE=bootstrap/cache/missing.json\nAPP_ENV=invalid\n",
+            )?;
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            runtime.block_on(async {
+                let error = bootstrap::<CommandFixture>()
+                    .await
+                    .err()
+                    .ok_or_else(|| figment::Error::from("无缓存时应拒绝无效 APP_ENV"))?;
+                assert!(error.to_string().contains("APP_ENV"));
+                Ok(())
+            })
+        });
+    }
+
     // 每个闭包执行后，Jail 会恢复工作目录和进程环境。
     #[test]
     fn production_bootstrap_loads_dotenv_without_overriding_process_environment() {
@@ -412,8 +911,8 @@ mod tests {
                 .load_framework()
                 .map_err(|error| figment::Error::from(error.to_string()))?;
             assert_eq!(config.app.url, "http://localhost:4999");
-            assert_eq!(std::env::var("APP_ENV").as_deref(), Ok("production"));
-            assert_eq!(std::env::var("SERVER_PORT").as_deref(), Ok("4999"));
+            assert!(std::env::var("APP_ENV").is_err());
+            assert!(std::env::var("SERVER_PORT").is_err());
             assert_eq!(config.server.port, 4999);
             Ok(())
         });
@@ -443,7 +942,7 @@ mod tests {
     fn development_bootstrap_loads_dotenv_then_resolves_environment() {
         let _environment_guard = crate::lock_test_env();
         figment::Jail::expect_with(|jail| {
-            // 在 dotenvy 设置键值前记录两个键，确保 Jail 能恢复其原始值。
+            // 外部环境保持独立，`.env` 只供本次加载器使用。
             jail.set_env("APP_ENV", "");
             jail.set_env("SERVER_PORT", "");
             jail.clear_env();
@@ -466,7 +965,9 @@ mod tests {
     #[tokio::test]
     async fn provider_boot_without_http_exposes_only_builtin_commands() -> Result<()> {
         let mut builder = ProviderBuilder::new();
-        builder.provider(CoreCommandsProvider);
+        builder.provider(CoreCommandsProvider::<CommandFixture>(
+            std::marker::PhantomData,
+        ));
         let sources = figment::Figment::from(figment::providers::Serialized::defaults(
             crate::config::FrameworkConfig::default(),
         ));
@@ -475,7 +976,10 @@ mod tests {
             .commands()
             .map(crate::core::command::Command::name)
             .collect();
-        assert_eq!(names, ["help", "config show"]);
+        assert_eq!(
+            names,
+            ["help", "config show", "config:cache", "config:clear"]
+        );
         assert_eq!(
             app.run_command("serve", Vec::new())
                 .await

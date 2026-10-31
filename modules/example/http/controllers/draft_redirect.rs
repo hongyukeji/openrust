@@ -7,7 +7,41 @@ use openrust::Error;
 use openrust::Result;
 use openrust::http::axum::http::{HeaderMap, HeaderValue, StatusCode};
 use openrust::http::axum::response::{IntoResponse, Response};
-use openrust::http::{Redirector, Request, RequestInfo};
+use openrust::http::{Redirector, Request, RequestInfo, RouteUrlGenerator};
+
+/// 为固定草稿生成临时绝对与相对签名链接，同时展示 Redirector 包装入口。
+pub(crate) async fn signed_issue(
+    urls: RouteUrlGenerator,
+    info: RequestInfo,
+) -> Result<openrust::http::Json<serde_json::Value>> {
+    let parameters = BTreeMap::from([("id".to_owned(), "42".to_owned())]);
+    let absolute = urls.temporary_signed_route("example.draft.signed", 300, &parameters, true)?;
+    let relative =
+        urls.temporary_signed_route("example.draft.signed.relative", 300, &parameters, false)?;
+    let redirect =
+        Redirector::from_info(&info).signed_route("example.draft.signed", &parameters)?;
+    Ok(openrust::http::Json(
+        serde_json::json!({"absolute":absolute,"relative":relative,"redirect":redirect.target_url()}),
+    ))
+}
+
+/// 实际命中已通过 signed middleware；Request 再次展示公开验签入口。
+pub(crate) async fn signed_show(
+    info: RequestInfo,
+) -> Result<openrust::http::Json<serde_json::Value>> {
+    Ok(openrust::http::Json(
+        serde_json::json!({"draft":"示例草稿","valid":info.has_valid_signature()?}),
+    ))
+}
+
+/// 相对签名不绑定主机；仅供有权限的已知草稿路由使用。
+pub(crate) async fn signed_relative_show(
+    info: RequestInfo,
+) -> Result<openrust::http::Json<serde_json::Value>> {
+    Ok(openrust::http::Json(
+        serde_json::json!({"draft":"示例草稿","valid":info.has_valid_relative_signature()?}),
+    ))
+}
 
 /// 无 Session 时仍可用的普通目标重定向。
 pub(crate) async fn plain(info: RequestInfo) -> Result<Response> {

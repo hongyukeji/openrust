@@ -1,4 +1,3 @@
-[server]
 host = "127.0.0.1"
 port = 3000
 public_dir = "public"
@@ -8,10 +7,10 @@ max_concurrent_requests = 1024
 shutdown_timeout_secs = 10
 metrics_endpoint_enabled = false
 
-[server.compression]
+[compression]
 enabled = true
 
-[server.cors]
+[cors]
 enabled = false
 # 如需启用 CORS，请设置 enabled = true 并列出精确来源：
 # allowed_origins = ["https://example.com"]

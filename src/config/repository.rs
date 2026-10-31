@@ -1,7 +1,7 @@
 //! Provider 共享的版本化配置仓储；区段默认补齐不替代包配置的专用合并操作。
 
 use std::any::TypeId;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fmt;
 use std::sync::{Arc, Mutex, MutexGuard};
 
@@ -13,9 +13,33 @@ use figment::{
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
 
-use crate::config::sources::merge_order;
+use crate::config::sources::{merge_order, mergeable_options};
 use crate::config::{ConfigError, ConfigSourceError, ConfigSources};
 use crate::core::{Error, Result};
+use crate::support::Collection;
+
+macro_rules! typed_reader {
+    ($name:ident, $or:ident, $or_else:ident, $output:ty, $convert:ident, $description:literal) => {
+        #[doc = $description]
+        pub fn $name(&self, key: &str) -> std::result::Result<$output, ConfigError> {
+            $convert(key, self.typed_value_or_else(key, || Value::Null)?)
+        }
+
+        #[doc = concat!($description, " 仅当键缺失时使用给定默认值。")]
+        pub fn $or(&self, key: &str, default: Value) -> std::result::Result<$output, ConfigError> {
+            self.$or_else(key, || default)
+        }
+
+        #[doc = concat!($description, " 仅当键缺失时调用一次默认值闭包。")]
+        pub fn $or_else(
+            &self,
+            key: &str,
+            default: impl FnOnce() -> Value,
+        ) -> std::result::Result<$output, ConfigError> {
+            $convert(key, self.typed_value_or_else(key, default)?)
+        }
+    };
+}
 
 /// 已注册区段的结构约束；未注册区段不会被全树严格校验误拒。
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -172,6 +196,10 @@ enum PackageOperation {
 struct State {
     figment: Figment,
     raw: Option<Value>,
+    file_domains: HashSet<String>,
+    pre_file_base: Option<Value>,
+    after_file_layers: Vec<Value>,
+    cached: bool,
     sections: BTreeMap<&'static str, Section>,
     section_order: Vec<&'static str>,
     operations: Vec<PackageOperation>,
@@ -202,13 +230,23 @@ impl fmt::Debug for ConfigRepository {
 }
 
 impl ConfigRepository {
+    /// 本次启动是否从已编译缓存恢复；模块配置文件在此状态下不得重读。
+    pub fn is_cached(&self) -> bool {
+        self.lock().cached
+    }
+
     /// 保留现有来源及其优先级，开始 Provider 注册阶段。
     pub fn new(sources: impl Into<ConfigSources>) -> Self {
-        let (figment, raw) = sources.into().into_parts();
+        let (figment, raw, file_domains, pre_file_base, after_file_layers, cached) =
+            sources.into().into_parts();
         Self {
             inner: Arc::new(Mutex::new(State {
                 figment,
                 raw,
+                file_domains,
+                pre_file_base,
+                after_file_layers,
+                cached,
                 sections: BTreeMap::new(),
                 section_order: Vec::new(),
                 operations: Vec::new(),
@@ -230,7 +268,8 @@ impl ConfigRepository {
         }
     }
 
-    /// 登记类型化默认值、结构与校验器；默认值不会覆盖现有文件或环境值。
+    /// 登记类型化默认值、结构与校验器；精确文件区段浅合并，
+    /// 仅有子文件时按 Laravel 剩余 base 根写入覆盖，文件后来源仍优先。
     ///
     /// 同名登记一律拒绝，避免忽略后来登记的校验器。
     /// 本操作仅补齐区段默认值，不代表 Laravel 包的浅合并或递归替换操作。
@@ -307,6 +346,9 @@ impl ConfigRepository {
         }
         let mut state = self.lock();
         require_phase(state.phase, Phase::Register)?;
+        if state.cached {
+            return Ok(());
+        }
         state.operations.push(if recursive {
             PackageOperation::Replace(key, defaults)
         } else {
@@ -317,13 +359,32 @@ impl ConfigRepository {
     }
 
     /// 补齐 typed 默认值后重放包操作并校验；成功后封闭注册并进入 boot。
+    #[allow(
+        clippy::too_many_lines,
+        reason = "Provider 校验需保持单次候选构建与原子提交"
+    )]
     pub fn validate_base(&mut self) -> Result<()> {
-        let (mut candidate, raw, sections, section_order, operations, revision) = {
+        let (
+            mut candidate,
+            raw,
+            file_domains,
+            pre_file_base,
+            after_file_layers,
+            cached,
+            sections,
+            section_order,
+            operations,
+            revision,
+        ) = {
             let state = self.lock();
             require_phase(state.phase, Phase::Register)?;
             (
                 state.figment.clone(),
                 state.raw.clone(),
+                state.file_domains.clone(),
+                state.pre_file_base.clone(),
+                state.after_file_layers.clone(),
+                state.cached,
                 state.sections.clone(),
                 state.section_order.clone(),
                 state.operations.clone(),
@@ -340,10 +401,63 @@ impl ConfigRepository {
             let section = sections
                 .get(key)
                 .ok_or_else(|| invalid(key, "section order missing"))?;
-            candidate = candidate.join(Serialized::default(key, &section.defaults));
-            let mut section_order = read_dot_value(&order, key).cloned().unwrap_or(Value::Null);
-            merge_order(&mut section_order, section.defaults.clone());
-            set_dot_value(&mut order, key, section_order);
+            if cached {
+                continue;
+            }
+            if file_domains.contains(key) {
+                let current = read_dot_value(&order, key).cloned().unwrap_or(Value::Null);
+                let (combined, patch) = file_default_patch(key, &section.defaults, &current);
+                if current.is_array() && section.defaults.is_array() {
+                    let original = candidate.find_value(key).ok();
+                    candidate =
+                        replace_section(&candidate, key, combined.clone(), original.as_ref())?;
+                } else if patch.as_object().is_some_and(|entries| !entries.is_empty()) {
+                    candidate = candidate.join(Serialized::default(key, &patch));
+                }
+                for option in mergeable_options(key) {
+                    if section.defaults.get(*option).is_some_and(is_php_array)
+                        && current.get(*option).is_some_and(is_php_array)
+                    {
+                        let option_path = format!("{key}.{option}");
+                        let original = candidate.find_value(&option_path).ok();
+                        let value = combined
+                            .get(*option)
+                            .cloned()
+                            .ok_or_else(|| invalid(&option_path, "merged option missing"))?;
+                        candidate =
+                            replace_section(&candidate, &option_path, value, original.as_ref())?;
+                    }
+                }
+                set_dot_value(&mut order, key, combined);
+            } else if file_domains.iter().any(|path| {
+                path.strip_prefix(key)
+                    .is_some_and(|suffix| suffix.starts_with('.'))
+            }) {
+                let base = pre_file_base
+                    .as_ref()
+                    .ok_or_else(|| invalid(key, "file base missing"))?;
+                let defaults = Figment::from(Serialized::defaults(base.clone()))
+                    .join(Serialized::default(key, &section.defaults));
+                let section_base = defaults
+                    .extract_inner::<Value>(key)
+                    .map_err(|error| Error::Config(safe_source_error(error, key)))?;
+                let mut replay = base.clone();
+                set_dot_value(&mut replay, key, section_base);
+                for layer in &after_file_layers {
+                    merge_order(&mut replay, layer.clone());
+                }
+                let published = read_dot_value(&replay, key)
+                    .cloned()
+                    .ok_or_else(|| invalid(key, "base root missing"))?;
+                set_dot_value(&mut order, key, published.clone());
+                let original = candidate.find_value(key).ok();
+                candidate = replace_section(&candidate, key, published, original.as_ref())?;
+            } else {
+                candidate = candidate.join(Serialized::default(key, &section.defaults));
+                let mut section_order = read_dot_value(&order, key).cloned().unwrap_or(Value::Null);
+                merge_order(&mut section_order, section.defaults.clone());
+                set_dot_value(&mut order, key, section_order);
+            }
         }
         for operation in operations {
             let (key, mut defaults, recursive) = match operation {
@@ -386,6 +500,14 @@ impl ConfigRepository {
             .extract::<Value>()
             .map_err(|error| Error::Config(safe_source_error(error, "configuration")))?;
         let candidate_raw = reorder_like(&order, candidate_raw);
+        for key in &file_domains {
+            if read_dot_value(&candidate_raw, key) != read_dot_value(&order, key) {
+                return Err(invalid(
+                    key,
+                    "file configuration projection differs from raw values",
+                ));
+            }
+        }
         self.publish(
             candidate,
             Some(candidate_raw),
@@ -421,6 +543,63 @@ impl ConfigRepository {
     pub fn get_or(&self, key: &str, default: Value) -> std::result::Result<Value, ConfigError> {
         Ok(self.get(key)?.unwrap_or(default))
     }
+
+    fn typed_value_or_else(
+        &self,
+        key: &str,
+        default: impl FnOnce() -> Value,
+    ) -> std::result::Result<Value, ConfigError> {
+        Ok(self.get(key)?.unwrap_or_else(default))
+    }
+
+    typed_reader!(
+        string,
+        string_or,
+        string_or_else,
+        String,
+        config_string,
+        "严格读取字符串配置。"
+    );
+    typed_reader!(
+        integer,
+        integer_or,
+        integer_or_else,
+        i64,
+        config_integer,
+        "严格读取 i64 整数配置。"
+    );
+    typed_reader!(
+        float,
+        float_or,
+        float_or_else,
+        f64,
+        config_float,
+        "严格读取浮点配置；整数不隐式转换。"
+    );
+    typed_reader!(
+        boolean,
+        boolean_or,
+        boolean_or_else,
+        bool,
+        config_boolean,
+        "严格读取布尔配置。"
+    );
+    typed_reader!(
+        array,
+        array_or,
+        array_or_else,
+        Value,
+        config_array,
+        "严格读取数组配置，保留有序列表或混合键对象。"
+    );
+    typed_reader!(
+        collection,
+        collection_or,
+        collection_or_else,
+        Collection<Value>,
+        config_collection,
+        "严格读取数组配置并转换为保键集合。"
+    );
 
     /// 判断完整字面键或点路径是否存在；显式 null 仍算存在。
     pub fn has(&self, key: &str) -> std::result::Result<bool, ConfigError> {
@@ -645,6 +824,73 @@ impl ConfigRepository {
     }
 }
 
+fn config_type(value: &Value) -> &'static str {
+    match value {
+        Value::Null => "null",
+        Value::Bool(_) => "boolean",
+        Value::Number(number) if number.is_f64() => "float",
+        Value::Number(_) => "integer",
+        Value::String(_) => "string",
+        Value::Array(_) => "array",
+        Value::Object(_) => "object",
+    }
+}
+
+fn config_type_error(key: &str, expected: &str, actual: &Value) -> ConfigError {
+    ConfigError::Invalid(format!(
+        "{key}: expected {expected}, got {}",
+        config_type(actual)
+    ))
+}
+
+fn config_string(key: &str, value: Value) -> std::result::Result<String, ConfigError> {
+    match value {
+        Value::String(text) => Ok(text),
+        other => Err(config_type_error(key, "string", &other)),
+    }
+}
+
+fn config_integer(key: &str, value: Value) -> std::result::Result<i64, ConfigError> {
+    match value {
+        Value::Number(number) if number.is_i64() || number.is_u64() => number
+            .as_i64()
+            .ok_or_else(|| ConfigError::Invalid(format!("{key}: integer exceeds i64 range"))),
+        other => Err(config_type_error(key, "integer", &other)),
+    }
+}
+
+fn config_float(key: &str, value: Value) -> std::result::Result<f64, ConfigError> {
+    match value {
+        Value::Number(number) if number.is_f64() => number
+            .as_f64()
+            .ok_or_else(|| ConfigError::Invalid(format!("{key}: expected float"))),
+        other => Err(config_type_error(key, "float", &other)),
+    }
+}
+
+fn config_boolean(key: &str, value: Value) -> std::result::Result<bool, ConfigError> {
+    match value {
+        Value::Bool(boolean) => Ok(boolean),
+        other => Err(config_type_error(key, "boolean", &other)),
+    }
+}
+
+fn config_array(key: &str, value: Value) -> std::result::Result<Value, ConfigError> {
+    match value {
+        Value::Array(_) | Value::Object(_) => Ok(value),
+        other => Err(config_type_error(key, "array", &other)),
+    }
+}
+
+fn config_collection(
+    key: &str,
+    value: Value,
+) -> std::result::Result<Collection<Value>, ConfigError> {
+    let array = config_array(key, value)?;
+    Collection::from_config_array(array)
+        .ok_or_else(|| ConfigError::Invalid(format!("{key}: expected array")))
+}
+
 // Laravel 只在整个输入 key 上优先查字面键；之后逐段遍历，不查剩余点串。
 fn read_value<'a>(values: &'a Value, key: &str) -> Option<&'a Value> {
     if let Some(value) = read_entry(values, key) {
@@ -672,7 +918,7 @@ fn read_entry<'a>(value: &'a Value, key: &str) -> Option<&'a Value> {
     }
 }
 
-fn read_dot_value<'a>(values: &'a Value, key: &str) -> Option<&'a Value> {
+pub(crate) fn read_dot_value<'a>(values: &'a Value, key: &str) -> Option<&'a Value> {
     key.split('.')
         .try_fold(values, |current, segment| read_entry(current, segment))
 }
@@ -724,7 +970,7 @@ pub(crate) fn reorder_like(previous: &Value, candidate: Value) -> Value {
 }
 
 // Laravel 写入只将完整 key 拆段；即使根上已有字面 "a.b"，也写入 a -> b。
-fn set_dot_value(current: &mut Value, key: &str, value: Value) {
+pub(crate) fn set_dot_value(current: &mut Value, key: &str, value: Value) {
     let parts: Vec<_> = key.split('.').collect();
     let Some((leaf, ancestors)) = parts.split_last() else {
         return;
@@ -830,11 +1076,43 @@ fn preserve_tags(new: &mut FigmentValue, old: &FigmentValue) {
     }
 }
 
-fn replace_section(
+fn overlay_tags(new: &mut FigmentValue, overlay: &FigmentValue) {
+    if new.deserialize::<Value>().ok() == overlay.deserialize::<Value>().ok() {
+        *new = overlay.clone();
+        return;
+    }
+    match (new, overlay) {
+        (FigmentValue::Dict(_, new), FigmentValue::Dict(_, overlay)) => {
+            for (key, value) in overlay {
+                if let Some(existing) = new.get_mut(key) {
+                    overlay_tags(existing, value);
+                }
+            }
+        }
+        (FigmentValue::Array(_, new), FigmentValue::Array(_, overlay)) => {
+            for (existing, value) in new.iter_mut().zip(overlay) {
+                overlay_tags(existing, value);
+            }
+        }
+        _ => {}
+    }
+}
+
+pub(crate) fn replace_section(
     base: &Figment,
     key: &str,
     value: Value,
     old: Option<&FigmentValue>,
+) -> Result<Figment> {
+    replace_section_overlay(base, key, value, old, None)
+}
+
+pub(crate) fn replace_section_overlay(
+    base: &Figment,
+    key: &str,
+    value: Value,
+    old: Option<&FigmentValue>,
+    overlay: Option<&FigmentValue>,
 ) -> Result<Figment> {
     let mut data = base
         .data()
@@ -843,6 +1121,9 @@ fn replace_section(
         .map_err(|error| Error::Config(safe_source_error(error, key)))?;
     if let Some(old) = old {
         preserve_tags(&mut replacement, old);
+    }
+    if let Some(overlay) = overlay {
+        overlay_tags(&mut replacement, overlay);
     }
     let parts: Vec<_> = key.split('.').collect();
     for dict in data.values_mut() {
@@ -1051,7 +1332,7 @@ pub(crate) fn normalize_php_source(value: Value, empty_array: bool) -> Value {
     }
 }
 
-fn merge_shallow(defaults: &mut Value, current: Value, _path: &str) {
+pub(crate) fn merge_shallow(defaults: &mut Value, current: Value, _path: &str) {
     let old = std::mem::take(defaults);
     let empty_array = old.is_array() && current.is_array();
     let mut entries: Vec<(String, Value)> = Vec::new();
@@ -1067,6 +1348,44 @@ fn merge_shallow(defaults: &mut Value, current: Value, _path: &str) {
         }
     }
     *defaults = php_value(entries, empty_array);
+}
+
+// 精确文件区段沿 Laravel base→file 的顶层浅合并；只给 Figment 缺失键打补丁，
+// 避免 join 整个 typed 默认对象把普通嵌套旧项递归补回。
+fn file_default_patch(key: &str, defaults: &Value, current: &Value) -> (Value, Value) {
+    if defaults.is_array() && current.is_array() {
+        let mut combined = defaults.clone();
+        merge_shallow(&mut combined, current.clone(), key);
+        return (combined, Value::Object(serde_json::Map::new()));
+    }
+    let (Some(base), Some(source)) = (defaults.as_object(), current.as_object()) else {
+        return (current.clone(), Value::Object(serde_json::Map::new()));
+    };
+    let mut combined = defaults.clone();
+    merge_shallow(&mut combined, current.clone(), key);
+    let mut patch = serde_json::Map::new();
+    for (name, value) in base {
+        if !source.contains_key(name) {
+            patch.insert(name.clone(), value.clone());
+        }
+    }
+    for option in mergeable_options(key) {
+        if let (Some(old), Some(new)) = (base.get(*option), source.get(*option))
+            && is_php_array(old)
+            && is_php_array(new)
+        {
+            let mut merged = old.clone();
+            merge_shallow(&mut merged, new.clone(), option);
+            if let Some(section) = combined.as_object_mut() {
+                section.insert((*option).to_owned(), merged);
+            }
+        }
+    }
+    (combined, Value::Object(patch))
+}
+
+fn is_php_array(value: &Value) -> bool {
+    value.is_object() || value.is_array()
 }
 
 fn replace_recursive(existing: &mut Value, overlay: Value, path: &str) -> Result<()> {
@@ -1094,6 +1413,189 @@ mod tests {
     use super::*;
     use serde::Deserialize;
     use serde_json::json;
+    use std::cell::Cell;
+
+    #[test]
+    fn strict_typed_readers_follow_laravel_value_kinds() -> Result<()> {
+        let repository = ConfigRepository::new(Figment::from(Serialized::defaults(json!({
+            "s": "hello", "i": 3, "f": 3.5, "b": true,
+            "list": ["x", "y"], "mixed": {"2": "two", "name": "named", "0": "zero"},
+            "none": null, "secret": "private-value"
+        }))));
+        repository.set("u", json!(u64::MAX))?;
+        assert_eq!(repository.string("s")?, "hello");
+        assert_eq!(repository.integer("i")?, 3);
+        assert_eq!(repository.float("f")?, 3.5);
+        assert!(repository.boolean("b")?);
+        assert_eq!(repository.array("list")?, json!(["x", "y"]));
+        assert_eq!(
+            repository.array("mixed")?,
+            json!({"2": "two", "name": "named", "0": "zero"})
+        );
+        assert_eq!(
+            repository.collection("mixed")?.to_value()?,
+            repository.array("mixed")?
+        );
+        assert_eq!(
+            repository.collection("list")?.to_value()?,
+            repository.array("list")?
+        );
+
+        for error in [
+            repository.string("none").err(),
+            repository.string("missing").err(),
+            repository.integer("f").err(),
+            repository.integer("u").err(),
+            repository.float("i").err(),
+            repository.boolean("i").err(),
+            repository.array("i").err(),
+            repository.collection("i").err(),
+            repository.integer("secret").err(),
+        ] {
+            let message = error
+                .ok_or_else(|| invalid("typed", "expected strict type error"))?
+                .to_string();
+            assert!(!message.contains("private-value"));
+            assert!(!message.contains("18446744073709551615"));
+        }
+        assert!(
+            repository
+                .integer("u")
+                .err()
+                .ok_or_else(|| invalid("typed", "expected range error"))?
+                .to_string()
+                .contains("i64 range")
+        );
+        assert!(
+            repository
+                .float("i")
+                .err()
+                .ok_or_else(|| invalid("typed", "expected float error"))?
+                .to_string()
+                .contains("got integer")
+        );
+        assert!(
+            repository
+                .collection("i")
+                .err()
+                .ok_or_else(|| invalid("typed", "expected array error"))?
+                .to_string()
+                .contains("expected array")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn strict_defaults_only_run_for_missing_keys() -> Result<()> {
+        let repository = ConfigRepository::new(Figment::from(Serialized::defaults(json!({
+            "s": "present", "i": 2, "f": 1.5, "b": false, "a": [], "n": null
+        }))));
+        assert_eq!(repository.string_or("s", json!(5))?, "present");
+        assert_eq!(repository.integer_or("i", json!("bad"))?, 2);
+        assert_eq!(repository.float_or("f", json!(1))?, 1.5);
+        assert!(!repository.boolean_or("b", json!("bad"))?);
+        assert_eq!(repository.array_or("a", json!(false))?, json!([]));
+        assert!(repository.collection_or("a", json!(false))?.is_empty());
+
+        let calls = Cell::new(0);
+        assert_eq!(
+            repository.string_or_else("s", || {
+                calls.set(calls.get() + 1);
+                json!("ignored")
+            })?,
+            "present"
+        );
+        assert_eq!(
+            repository.integer_or_else("missing", || {
+                calls.set(calls.get() + 1);
+                json!(4)
+            })?,
+            4
+        );
+        assert_eq!(calls.get(), 1);
+        assert_eq!(
+            repository.string_or("missing", json!("fallback"))?,
+            "fallback"
+        );
+        assert_eq!(repository.float_or("missing", json!(2.5))?, 2.5);
+        assert!(repository.boolean_or("missing", json!(true))?);
+        assert_eq!(
+            repository.array_or("missing", json!({"name": 1}))?,
+            json!({"name": 1})
+        );
+        assert_eq!(
+            repository
+                .collection_or("missing", json!([1]))?
+                .to_value()?,
+            json!([1])
+        );
+        assert!(repository.integer_or("missing", json!("bad")).is_err());
+        assert!(repository.float_or("missing", json!(2)).is_err());
+        assert!(repository.string_or("n", json!("ignored")).is_err());
+        assert!(repository.array_or("n", json!([])).is_err());
+        assert!(repository.collection_or("n", json!([])).is_err());
+        assert!(
+            repository
+                .boolean_or_else("n", || {
+                    calls.set(calls.get() + 1);
+                    json!(true)
+                })
+                .is_err()
+        );
+        assert_eq!(calls.get(), 1);
+        assert_eq!(repository.float_or_else("missing", || json!(2.25))?, 2.25);
+        assert!(!repository.boolean_or_else("missing", || json!(false))?);
+        assert_eq!(
+            repository.array_or_else("missing", || json!([2]))?,
+            json!([2])
+        );
+        assert_eq!(
+            repository
+                .collection_or_else("missing", || json!({"k": 3}))?
+                .to_value()?,
+            json!({"k": 3})
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn config_collection_does_not_inherit_input_bag_limits() -> Result<()> {
+        let repository = ConfigRepository::new(Figment::from(Serialized::defaults(json!({}))));
+        let mut mixed = serde_json::Map::new();
+        mixed.insert("2".to_owned(), json!("two"));
+        mixed.insert("name".to_owned(), json!("named"));
+        mixed.insert("0".to_owned(), json!("zero"));
+        repository.set("mixed", Value::Object(mixed))?;
+        assert_eq!(
+            repository
+                .collection("mixed")?
+                .all()
+                .iter()
+                .map(|(key, _)| key.to_string())
+                .collect::<Vec<_>>(),
+            ["2", "name", "0"]
+        );
+        repository.set("wide", json!(vec![0; 1024]))?;
+        assert_eq!(repository.collection("wide")?.all().len(), 1024);
+        repository.set("wide", json!(vec![0; 1025]))?;
+        assert_eq!(
+            repository.array("wide")?.as_array().map(Vec::len),
+            Some(1025)
+        );
+        assert_eq!(repository.collection("wide")?.all().len(), 1025);
+        for depth in [64, 65] {
+            let mut deep = json!("leaf");
+            for _ in 0..depth {
+                deep = json!([deep]);
+            }
+            repository.set("deep", json!([deep]))?;
+            let collection = repository.collection("deep")?;
+            assert_eq!(collection.all().len(), 1);
+            assert!(collection.get(0_i64).is_some());
+        }
+        assert!(Collection::from_value(json!(vec![0; 1025])).is_err());
+        Ok(())
+    }
 
     #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
     struct Settings {

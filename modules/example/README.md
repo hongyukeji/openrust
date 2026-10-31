@@ -1,10 +1,42 @@
 # 综合业务示例
 
+根应用启用本模块后，可执行 `config:cache`，修改 `config/` 中的示例配置，再重新启动访问 `GET /api/example/config-greeting` 验证缓存值；执行 `config:clear` 并再次启动后读取新值。两个命令只改变后续进程的启动来源，已运行进程的业务服务保持原快照。
+
+冻结本次源码 SHA 清单后构建 `server` 并保留构建日志。先把应用和唯一业务模块复制到自有临时目录，为副本写入与实际目录一致的任务标记，再从仓库根对副本运行真实进程回归。脚本会拒绝无标记目录与不匹配的二进制；只修改副本配置，使用临时缓存路径和端口，并在结束时核对恢复文件的 SHA。构建日志、源码清单和二进制 SHA 应归入同一验收记录：
+
+```sh
+set -e
+freeze_receipt=/path/to/frozen-18-file-sha-receipt.json
+verify_freeze() {
+  python3 -B -c 'import hashlib,json,pathlib,sys; r=json.loads(pathlib.Path(sys.argv[1]).read_text()); changed=[p for p,s in r["files"].items() if hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()!=s]; print("freeze files:",len(r["files"]),"drift:",changed); sys.exit(bool(changed))' "$freeze_receipt"
+}
+case_root="$(mktemp -d /tmp/openrust-config-cache-example.XXXXXX)"
+verify_freeze
+cargo build --locked --offline --bin server > "$case_root/build-server.log" 2>&1
+verify_freeze
+binary="${CARGO_TARGET_DIR:-$PWD/target}/debug/server"
+binary_sha="$(shasum -a 256 "$binary" | cut -d ' ' -f 1)"
+mkdir "$case_root/app"
+rsync -a --exclude='.git' --exclude='target' --exclude='.env' \
+  --exclude='bootstrap/cache' ./ "$case_root/app/"
+python3 -c 'import pathlib, sys; p = pathlib.Path(sys.argv[1]).resolve(strict=True); (p / ".openrust-config-cache-task-root").write_text(str(p) + "\n", encoding="utf-8")' "$case_root/app"
+python3 -B tests/consumers/config-repository-reading/scripts/verify_cache_restart.py \
+  "$case_root/app" "$binary" \
+  modules/example/config/config.toml \
+  'Hello from modules/example' 'Cache updated' \
+  /api/example/config-greeting data.greeting \
+  'Hello from modules/example' 'Cache updated' \
+  --bad-content 'greeting = [' --expected-binary-sha256 "$binary_sha"
+python3 -B tests/consumers/config-repository-reading/scripts/verify_cache_command_bootstrap.py \
+  "$case_root/app" "$binary" \
+  modules/example/config/config.toml --expected-binary-sha256 "$binary_sha"
+```
+
 > 当前源码位于 `modules/example/`，通过统一模块清单与 ServiceProvider 接入；隔离的 example_* 表 CRUD、当前已实现公开能力的业务调用与适用双库验收已由 R1-E 提交 `bc3fa01`。
 
 `modules/example` 是根应用挂载的普通业务模块，供开发者学习如何在 `modules/<业务>/` 调用框架公开 API，以及通过公开 Provider/driver 契约扩展框架。框架、应用宿主和业务模块都在本仓 `main` 开发；这里没有独立 package、bin、启动模式或 example feature，也不复制完整应用骨架。
 
-配置仓储的原始读写语义见[配置说明](../../src/config/README.md)。`GET /api/example/config-greeting` 由模块 Provider 在 boot 捕获共享 `ConfigRepository`，再经[业务服务](services/config_reading.rs)固定读取 `example.greeting`。`POST /api/example/config-greeting/review` 由同一服务将此业务键写为固定的“示例问候语已复核”，随后 GET 可读到新值；请求参数和正文均不能选择键或值。处理器只返回问候语，不输出 `all()` 或其他配置区段。写入仅作用于当前应用内存仓储，不保存到文件、数据库或其他实例，也不会自动重建已解析的类型化业务服务。[模块回归](tests/registration.rs)通过公开 `ConfigSources` 输入非字母顺序的 `example` 业务键，覆盖模块文件覆盖、运行期写入后位置保持、跨请求可见性、第二应用隔离和已解析服务的启动快照。生成器目前只建立空模块目录，不复制本模块；生成应用可显式安装独立 consumer 的 Provider fixture。
+配置仓储的原始读写与严格类型读取语义见[配置说明](../../src/config/README.md)。模块自有的 [`config/feature.toml`](config/feature.toml) 经 `ModuleConfigFiles` overlay 写入 `example.feature`，`GET /api/example/config-feature` 通过公开配置仓储读取其固定 `enabled` 字段；无该文件时返回 `false`。应用配置文件的递归发现另由 `ConfigLoader` 处理，不给模块 overlay 重复包装命名空间。`GET /api/example/config-greeting` 由模块 Provider 在 boot 捕获共享 `ConfigRepository`，再经[业务服务](services/config_reading.rs)固定读取 `example.greeting`。`POST /api/example/config-greeting/review` 由同一服务将此业务键写为固定的“示例问候语已复核”，随后 GET 可读到新值；请求参数和正文均不能选择键或值。处理器只返回问候语，不输出 `all()` 或其他配置区段。写入仅作用于当前应用内存仓储，不保存到文件、数据库或其他实例，也不会自动重建已解析的类型化业务服务。[模块回归](tests/registration.rs)通过公开 `ConfigSources` 输入非字母顺序的 `example` 业务键，覆盖模块文件覆盖、运行期写入后位置保持、跨请求可见性、第二应用隔离和已解析服务的启动快照。生成器目前只建立空模块目录，不复制本模块；生成应用可显式安装独立 consumer 的 Provider fixture。
 
 **综合示例已贯通当前已实现的公开框架能力。** 文章 HTTP CRUD、事务事件、审计、缓存、存储、账户安全及协议调用均有业务代码和分组验证；tenant 路由通过 `RouteGroup` 演示共享路径前缀与组级认证/授权 middleware。这不表示全部 Laravel 能力已完成。
 
@@ -236,6 +268,7 @@ ModuleManifest::from_file(root.join("modules_statuses.json"))
 | mod.rs | 模块声明，保持薄入口 |
 | providers/example.rs | register 登记配置与业务依赖，boot 合并模块配置并贡献路由 |
 | config/config.toml | 在对应 Provider boot 时点覆盖 example 区段的模块配置 |
+| config/feature.toml | 在同一 boot 时点覆盖 example.feature 区段，供固定公开业务读取 |
 | services/message.rs | 实际供控制器调用、测试可替换的问候内容 |
 | routes/api.rs、routes/web.rs | API/页面路由组合，调用 controller |
 | http/controllers/example.rs、article.rs、attachments.rs、welcome.rs、auth.rs、jobs.rs、pages.rs | 实际请求处理 |
@@ -374,6 +407,8 @@ cargo deny check
 
 `GET /api/example/draft/secure` 对相对首页目标调用公开 `secure`，返回 `https://` 的 Location；示例只验证重定向响应，不跟随请求或宣称当前 HTTP 监听器已启用 TLS。显式状态、头与协议选择可使用 `secure_with` 或 `to_with_scheme`。
 
+`GET /api/example/draft/signed-links` 使用公开 `RouteUrlGenerator` 为固定草稿 `42` 生成 5 分钟的绝对及相对签名链接，并展示 `Redirector::signed_route` 的目标；生产使用必须设置不可预测的 `APP_KEY`。`/api/example/draft/signed/{id}` 与 `/api/example/draft/signed-relative/{id}` 分别用框架 `signed`、`signed:relative` middleware 验签后才执行 handler，handler 再通过 `RequestInfo` 公共入口确认。更改草稿编号或查询内容返回 403；不使用现有 `SignedLinks` 的 JWT/撤销协议代替 URL 签名。示例仅供开发者理解路由签名，实际私密草稿仍需独立认证和授权。
+
 `POST /api/example/draft/refresh?discard=once` 通过 `Redirector::from_request(&request).refresh()` 返回同路径的 302，目标不保留 query；客户端随后 GET `/api/example/draft/refresh` 会显示真实草稿内容，不再次刷新。无 Session 时同样可以完成 POST→GET；存在 Session 时，响应继续使用 `with_input` 和 `with_errors` 保存一次性的规范化标题输入与复核提示，展示一次后老化。该示例提交仅含公开草稿字段；`with_input` 闪存完整规范化输入，实际业务筛除敏感字段可沿既有 `only_input`/`except_input`。生成 helper 展示 `refresh_with` 的显式 303 和自定义头，同样验证 query 丢弃、GET 内容及闪存老化。
 
 `GET /api/example/draft/guide` 通过 `away_with` 返回固定官方文档外链、303 和业务响应头；目标中的 query 与 fragment 保持原值，不经过 URL 生成器。地址由业务常量提供，请求中的 `url` 参数不会改变跳转目标。生成 helper 使用默认 302 的 `away`；测试只检查响应，不访问外部站点。`refresh/away` 与显式选项方法均保留原请求的响应闪存借用链，普通跳转无需 Session。
@@ -382,7 +417,7 @@ cargo deny check
 
 此草稿步骤不登录账户、不授予权限，也不替代既有真实 Session 登录、CSRF 或 CRUD Policy。当前账户登录仍使用原凭据/Origin/Session 流程及 JSON 响应。`guest` 只有 GET、已匹配真实路由且非 `expects_json` 时保存当前完整 URL，其他请求使用 previous；`intended` 的缺失默认是 `/`，显式默认使用 `intended_or`。生成应用的公开测试 helper 保持同一入口，验证 HTTPS Location、双 Cookie 的普通意图持久性、一次消费与默认 `/` 回退，并继续执行原输入、命名错误及视图 flash 老化。
 
-codec 在模块 `ExampleServiceProvider::register` 中通过 `RegisterContext.extend` 追加到 Session Provider 的注册表，保持已有登记。`DraftErrors` 的类型、编解码与业务规则均位于本模块。命名参数当前使用 `BTreeMap<String, String>`；默认状态为 302，自定义状态及响应头使用 `route_with`。示例覆盖手动普通、返回、命名、动作、scheme、刷新、固定外链与 Session 导航回跳；signed、URL 参数的其余扩展与自动校验失败重定向仍由后继能力验收。请求局部视图使用同一请求的 `RequestInfo` 与公开 `Views::render_for_request` 入口。
+codec 在模块 `ExampleServiceProvider::register` 中通过 `RegisterContext.extend` 追加到 Session Provider 的注册表，保持已有登记。`DraftErrors` 的类型、编解码与业务规则均位于本模块。命名参数当前使用 `BTreeMap<String, String>`；默认状态为 302，自定义状态及响应头使用 `route_with`。示例覆盖手动普通、返回、命名、动作、scheme、刷新、固定外链、签名 URL 与 Session 导航回跳；URL 参数的其余扩展与自动校验失败重定向仍由后继能力验收。请求局部视图使用同一请求的 `RequestInfo` 与公开 `Views::render_for_request` 入口。
 
 “代码存在”仅说明当前可见实现，不能替代本布局 check/test、真实请求与外部服务验收。根基础设施装配、文档链接或 consumer 测试也不自动算作 `modules/example` 的业务代码覆盖。
 

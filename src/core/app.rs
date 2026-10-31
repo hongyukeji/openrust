@@ -162,6 +162,7 @@ impl std::fmt::Debug for AppState {
 pub struct App {
     state: AppState,
     figment: Figment,
+    config_cache_path: Option<std::path::PathBuf>,
     commands: Vec<Box<dyn Command>>,
     extensions: Extensions,
 }
@@ -190,6 +191,7 @@ impl App {
                 }),
             },
             figment,
+            config_cache_path: None,
             commands: runtime.commands,
             extensions: runtime.extensions,
         })
@@ -215,6 +217,16 @@ impl App {
         &self.figment
     }
 
+    pub(crate) fn set_config_cache_path(&mut self, path: std::path::PathBuf) {
+        self.config_cache_path = Some(path);
+    }
+
+    pub(crate) fn config_cache_path(&self) -> Result<&std::path::Path, ConfigError> {
+        self.config_cache_path
+            .as_deref()
+            .ok_or_else(|| ConfigError::Invalid("应用未提供配置缓存路径".to_owned()))
+    }
+
     /// 从当前配置仓储提取一个区段；运行期原始写入随后可见。
     pub fn section<T: DeserializeOwned>(&self, key: &str) -> Result<T, ConfigError> {
         self.state.inner.config_repository.section(key)
@@ -237,7 +249,7 @@ impl App {
         self.run_command_inner(name, args).await
     }
 
-    async fn run_command_inner(&self, name: &str, args: Vec<String>) -> Result<()> {
+    fn find_command(&self, name: &str, args: &[String]) -> Result<&dyn Command> {
         let available: Vec<&str> = self
             .commands()
             .filter(|command| command.name().split_whitespace().next() == Some(name))
@@ -247,12 +259,13 @@ impl App {
             .commands()
             .filter(|command| {
                 let mut words = command.name().split_whitespace();
-                words.next() == Some(name)
-                    && words
-                        .clone()
-                        .zip(args.iter())
-                        .all(|(word, arg)| word == arg)
-                    && words.count() <= args.len()
+                command.name() == name
+                    || (words.next() == Some(name)
+                        && words
+                            .clone()
+                            .zip(args.iter())
+                            .all(|(word, arg)| word == arg)
+                        && words.count() <= args.len())
             })
             .max_by_key(|command| command.name().split_whitespace().count())
             .ok_or_else(|| {
@@ -271,6 +284,11 @@ impl App {
                     format!("unknown command `{input}`; {hint}"),
                 )
             })?;
+        Ok(command)
+    }
+
+    async fn run_command_inner(&self, name: &str, args: Vec<String>) -> Result<()> {
+        let command = self.find_command(name, &args)?;
         if let Some(checks) = self.extension::<super::provider::DeferredBootChecks>() {
             for check in &checks.0 {
                 if command.type_id() != check.permitted_command {
@@ -278,7 +296,11 @@ impl App {
                 }
             }
         }
-        let consumed = command.name().split_whitespace().count() - 1;
+        let consumed = if command.name() == name {
+            0
+        } else {
+            command.name().split_whitespace().count() - 1
+        };
         let remaining: Vec<String> = args.into_iter().skip(consumed).collect();
         if !command.accepts_args()
             && let Some(argument) = remaining.first()

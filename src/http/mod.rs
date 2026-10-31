@@ -55,6 +55,7 @@ pub use redirect::RedirectErrors;
 pub use redirect::{RedirectResponse, Redirector};
 pub use request::{
     InputNormalization, InputOutcome, InputOutcomeMut, InputTruthy, Request, RequestInfo, Truthy,
+    VaporRawQueryString,
 };
 pub use resource::{Action, Resource, ResourceActions};
 pub use response::{Created, Located, NoContent, PageParams, Paginated};
@@ -64,4 +65,4 @@ pub use routing::{ManagedHandler, RouteMethods};
 pub use serve::{ServeCommand, serve};
 pub use sort::{SortDirection, SortField, SortParams};
 pub use transport::RequestSecurity;
-pub use url::RouteUrlGenerator;
+pub use url::{RouteUrlGenerator, UrlSigningKeys};

@@ -109,53 +109,42 @@ fn session_capability(app: &mut BootContext<'_>) -> Arc<AtomicBool> {
     enabled
 }
 
+fn example_config_schema() -> openrust::config::repository::SectionSchema {
+    use openrust::config::repository::SectionSchema;
+    SectionSchema::object([
+        ("greeting", SectionSchema::String),
+        ("article_summary_origin", SectionSchema::String.nullable()),
+        (
+            "feature",
+            SectionSchema::object([("enabled", SectionSchema::Boolean)]),
+        ),
+        #[cfg(all(
+            feature = "auth-oidc",
+            any(feature = "db-postgres", feature = "db-mysql")
+        ))]
+        (
+            "oidc",
+            SectionSchema::object([
+                ("issuer", SectionSchema::String),
+                ("client_id", SectionSchema::String),
+                (
+                    "client_secret",
+                    SectionSchema::String.nullable().sensitive(),
+                ),
+                ("redirect_uri", SectionSchema::String),
+                ("allow_loopback", SectionSchema::Boolean),
+            ])
+            .nullable(),
+        ),
+    ])
+}
+
 impl ServiceProvider for ExampleServiceProvider {
     fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
         app.config_section(
             "example",
             ExampleConfig::default(),
-            openrust::config::repository::SectionSchema::object([
-                (
-                    "greeting",
-                    openrust::config::repository::SectionSchema::String,
-                ),
-                (
-                    "article_summary_origin",
-                    openrust::config::repository::SectionSchema::String.nullable(),
-                ),
-                #[cfg(all(
-                    feature = "auth-oidc",
-                    any(feature = "db-postgres", feature = "db-mysql")
-                ))]
-                (
-                    "oidc",
-                    openrust::config::repository::SectionSchema::object([
-                        (
-                            "issuer",
-                            openrust::config::repository::SectionSchema::String,
-                        ),
-                        (
-                            "client_id",
-                            openrust::config::repository::SectionSchema::String,
-                        ),
-                        (
-                            "client_secret",
-                            openrust::config::repository::SectionSchema::String
-                                .nullable()
-                                .sensitive(),
-                        ),
-                        (
-                            "redirect_uri",
-                            openrust::config::repository::SectionSchema::String,
-                        ),
-                        (
-                            "allow_loopback",
-                            openrust::config::repository::SectionSchema::Boolean,
-                        ),
-                    ])
-                    .nullable(),
-                ),
-            ]),
+            example_config_schema(),
             ExampleConfig::validate,
         )?;
         app.singleton::<ExampleMessage, _>(|resolver| {

@@ -1,9 +1,36 @@
 use figment::{Figment, providers::Serialized};
 use openrust::config::repository::ConfigRepository;
+use openrust::config::{ConfigLoader, Environment, NoConfig};
+use openrust::core::{Application, ServiceProvider};
+use openrust::testing::TestApp;
 use serde_json::json;
+use std::collections::BTreeMap;
 
 fn repository(value: serde_json::Value) -> ConfigRepository {
     ConfigRepository::new(Figment::from(Serialized::defaults(value)))
+}
+
+#[test]
+fn public_typed_reader_is_live_and_rejects_wrong_type() -> Result<(), Box<dyn std::error::Error>> {
+    let repository = repository(json!({"app": {"name": "原名称"}}));
+    assert_eq!(
+        config_repository_reading_consumer::public_display_name(&repository)?,
+        "原名称"
+    );
+    repository.set("app.name", json!("新名称"))?;
+    assert_eq!(
+        config_repository_reading_consumer::public_display_name(&repository)?,
+        "新名称"
+    );
+    repository.set("app.name", json!(7))?;
+    let error = config_repository_reading_consumer::public_display_name(&repository)
+        .expect_err("名称不是字符串时必须报错");
+    assert!(
+        error
+            .to_string()
+            .contains("app.name: expected string, got integer")
+    );
+    Ok(())
 }
 
 #[test]
@@ -115,4 +142,63 @@ fn ordered_public_source_keeps_business_keys_after_set() -> Result<(), Box<dyn s
     );
     assert_eq!(repository.get("reader.z_label")?, Some(json!("已复核")));
     Ok(())
+}
+
+#[test]
+fn file_discovery_reaches_external_provider_and_app() -> Result<(), Box<dyn std::error::Error>> {
+    let runtime = openrust::tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?;
+    runtime.block_on(async {
+        struct ReadingApplication;
+
+        impl Application for ReadingApplication {
+            type Config = NoConfig;
+
+            fn providers(_: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
+                vec![Box::new(
+                    config_repository_reading_consumer::ReadingProvider,
+                )]
+            }
+        }
+
+        struct FixtureDir(std::path::PathBuf);
+
+        impl Drop for FixtureDir {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_dir_all(&self.0);
+            }
+        }
+
+        let root = std::env::temp_dir().join(format!(
+            "openrust-config-discovery-consumer-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)?
+                .as_nanos()
+        ));
+        std::fs::create_dir(&root)?;
+        let fixture = FixtureDir(root);
+        std::fs::write(
+            fixture.0.join("reader.toml"),
+            "z_label = '先声明'\na_label = '后声明'\n[nested]\nnew = 2\n",
+        )?;
+
+        let sources = ConfigLoader::new(&fixture.0, Environment::Test).sources()?;
+        let mut app = TestApp::<ReadingApplication>::builder(sources)
+            .build()
+            .await?;
+        let repository = app.app()?.config_repository();
+        assert_eq!(repository.get("reader.nested.new")?, Some(json!(2)));
+        let nested: BTreeMap<String, i64> = app.app()?.section("reader.nested")?;
+        assert_eq!(nested.get("new"), Some(&2));
+        assert_eq!(nested.get("old"), None);
+        assert_eq!(
+            config_repository_reading_consumer::public_reader_key_order(&repository)?,
+            ["z_label", "a_label"]
+        );
+        app.shutdown(openrust::tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+            .await?;
+        Ok(())
+    })
 }

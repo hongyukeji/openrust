@@ -58,7 +58,11 @@ enum Builtin {
         grpc: bool,
     },
     /// 以开发模式运行应用。
-    Dev,
+    Dev {
+        /// 应用的配置环境变量命名空间；须与 `Application::config_namespace` 一致。
+        #[arg(long, default_value = "APP_")]
+        config_namespace: String,
+    },
     /// 运行应用的 server 命令。
     Serve,
     /// 生成模型、迁移、邮件、授权策略或后台任务。
@@ -343,7 +347,9 @@ fn run(cli: Cli) -> anyhow::Result<ExitCode> {
             )?;
             Ok(ExitCode::SUCCESS)
         }
-        Some(Builtin::Dev) => run_project(&["serve".to_owned()], true),
+        Some(Builtin::Dev { config_namespace }) => {
+            run_application(&["serve".to_owned()], true, &config_namespace)
+        }
         Some(Builtin::Serve) => run_project(&["serve".to_owned()], false),
         Some(Builtin::Generate {
             kind,
@@ -1252,7 +1258,7 @@ fn env_example(
 ) -> String {
     let mut contents = "# 复制为 .env 供本地或部署环境使用。不要提交填入实际值的 .env 文件。\n# 生产环境可使用权限受控的 .env 或部署平台注入的变量；进程环境变量优先。\n# 常用环境值和密钥放在这里；结构化默认值见 config/*.toml。\nAPP_ENV=development\nAPP_NAME=".to_owned();
     contents.push_str(name);
-    contents.push_str("\nSERVER_PORT=3000\nAPP_URL=\"http://localhost:${SERVER_PORT}\"\n\n# 服务\n# APP_SERVER_HOST=127.0.0.1\n# APP_SERVER_PUBLIC_DIR=public\n# APP_SERVER_ROOT_TARGET=file:/index.html\n\n# 仅本地开发需要时取消注释；生产环境保持默认值。\n# APP_SESSION_SECURE=false\n# APP_VIEW_AUTO_RELOAD=true\n\n# 数据库\n");
+    contents.push_str("\nSERVER_PORT=3000\nAPP_URL=\"http://localhost:${SERVER_PORT}\"\n# 签名 URL 使用原始 APP_KEY 字节；生产环境设置不可预测的密钥。\n# APP_KEY=<随机密钥>\n# 轮换时保留旧值用于验签，多个旧值以逗号分隔。\n# APP_PREVIOUS_KEYS=old-one,old-two\n\n# 服务\n# APP_SERVER_HOST=127.0.0.1\n# APP_SERVER_PUBLIC_DIR=public\n# APP_SERVER_ROOT_TARGET=file:/index.html\n\n# 仅本地开发需要时取消注释；生产环境保持默认值。\n# APP_SESSION_SECURE=false\n# APP_VIEW_AUTO_RELOAD=true\n\n# 数据库\n");
     if grpc {
         contents.push_str(
             "\n# 仅本地开发可按需取消注释；生产环境请保持关闭。\n# APP_GRPC_ALLOW_INSECURE_SERVER=true\n",
@@ -1318,7 +1324,15 @@ fn domain_config_files(contents: &str) -> anyhow::Result<Vec<(String, String)>> 
         .map(|domain| {
             let mut file = toml_edit::DocumentMut::new();
             if let Some(value) = document.remove(&domain) {
-                file.insert(&domain, value);
+                let table = value.as_table().ok_or_else(|| {
+                    anyhow::anyhow!("configuration domain {domain} must be a TOML table")
+                })?;
+                for (name, item) in table {
+                    let key = table.key(name).ok_or_else(|| {
+                        anyhow::anyhow!("configuration domain {domain} lost key {name}")
+                    })?;
+                    file.as_table_mut().insert_formatted(key, item.clone());
+                }
             }
             Ok((format!("config/{domain}.toml"), file.to_string()))
         })
@@ -2269,10 +2283,14 @@ fn print_generated(message: &str) -> anyhow::Result<()> {
 
 /// 执行项目二进制并返回其退出码。
 fn run_project(args: &[String], development: bool) -> anyhow::Result<ExitCode> {
-    run_application(args, development)
+    run_application(args, development, openrust::config::ENV_PREFIX)
 }
 
-fn run_application(args: &[String], development: bool) -> anyhow::Result<ExitCode> {
+fn run_application(
+    args: &[String],
+    development: bool,
+    config_namespace: &str,
+) -> anyhow::Result<ExitCode> {
     let current_dir = std::env::current_dir()?;
     let workspace = framework_workspace(&current_dir)?;
     let (app_dir, _package_name) = application_directory(&workspace, &current_dir)?;
@@ -2282,8 +2300,7 @@ fn run_application(args: &[String], development: bool) -> anyhow::Result<ExitCod
         .args(["run", "--quiet", "--"])
         .args(args);
     if development {
-        command.env("APP_ENV", "development");
-        prepare_development_redis(&workspace.root, &app_dir)?;
+        prepare_development_redis(&workspace.root, &app_dir, config_namespace)?;
     }
     command
         .status()
@@ -2291,102 +2308,15 @@ fn run_application(args: &[String], development: bool) -> anyhow::Result<ExitCod
         .map(exit_code)
 }
 
-#[allow(
-    clippy::too_many_lines,
-    reason = "development Redis discovery, startup, and readiness form one bounded lifecycle"
-)]
-fn prepare_development_redis(workspace_root: &Path, app_dir: &Path) -> anyhow::Result<()> {
-    let mut dotenv = std::collections::HashMap::new();
-    if let Ok(entries) = dotenvy::from_path_iter(app_dir.join(".env")) {
-        for (key, value) in entries.flatten() {
-            dotenv.insert(key, value);
-        }
-    }
-    let config_path = app_dir.join("config/cache.toml");
-    if !config_path.is_file() {
-        return Ok(());
-    }
-    let source = fs::read_to_string(&config_path)?;
-    let document = source
-        .parse::<toml_edit::DocumentMut>()
-        .with_context(|| format!("{} is invalid TOML", config_path.display()))?;
-    let Some(cache) = document.get("cache").and_then(toml_edit::Item::as_table) else {
+fn prepare_development_redis(
+    workspace_root: &Path,
+    app_dir: &Path,
+    config_namespace: &str,
+) -> anyhow::Result<()> {
+    let Some((host, port)) = development_redis_endpoint(app_dir, config_namespace)? else {
         return Ok(());
     };
-    let process_store = std::env::var("CACHE_STORE").ok();
-    let store_name = selected_cache_store(
-        cache,
-        process_store.as_deref(),
-        dotenv.get("CACHE_STORE").map(String::as_str),
-    );
-    let Some(store) = cache
-        .get("stores")
-        .and_then(toml_edit::Item::as_table)
-        .and_then(|stores| stores.get(&store_name))
-        .and_then(toml_edit::Item::as_table)
-    else {
-        return Ok(());
-    };
-    let driver_env = format!(
-        "APP_CACHE_STORES_{}_DRIVER",
-        store_name.to_ascii_uppercase()
-    );
-    let process_driver = std::env::var(&driver_env).ok();
-    if development_redis_driver(
-        store,
-        process_driver.as_deref(),
-        dotenv.get(&driver_env).map(String::as_str),
-    ) != "redis"
-    {
-        return Ok(());
-    }
-
-    let nested_env = format!("APP_CACHE_STORES_{}_DSN", store_name.to_ascii_uppercase());
-    let environment_keys = [nested_env.as_str()];
-    let process_dsn = environment_keys
-        .iter()
-        .find_map(|key| std::env::var(key).ok());
-    let mut redis_environment = dotenv.clone();
-    let redis_keys = [
-        "REDIS_HOST",
-        "REDIS_USERNAME",
-        "REDIS_PASSWORD",
-        "REDIS_PORT",
-        "REDIS_DB",
-        "REDIS_SCHEME",
-    ];
-    for key in redis_keys {
-        if let Ok(value) = std::env::var(key) {
-            redis_environment.insert(key.to_owned(), value);
-        }
-    }
-    let dotenv_dsn = environment_keys
-        .iter()
-        .find_map(|key| dotenv.get(*key).cloned());
-    let dsn = development_redis_dsn(
-        &store_name,
-        store,
-        process_dsn.or(dotenv_dsn),
-        &redis_environment,
-    );
-
-    let parsed =
-        url::Url::parse(&dsn).context("configured Redis connection settings are invalid")?;
-    if parsed.scheme() != "redis" {
-        return Ok(());
-    }
-    let Some(host) = parsed.host_str() else {
-        return Ok(());
-    };
-    let is_loopback = host.eq_ignore_ascii_case("localhost")
-        || host
-            .parse::<std::net::IpAddr>()
-            .is_ok_and(|ip| ip.is_loopback());
-    if !is_loopback {
-        return Ok(());
-    }
-    let port = parsed.port().unwrap_or(6379);
-    if redis_ping(host, port) {
+    if redis_ping(&host, port) {
         return Ok(());
     }
 
@@ -2420,7 +2350,7 @@ fn prepare_development_redis(workspace_root: &Path, app_dir: &Path) -> anyhow::R
         bail!("Docker Compose could not start the configured Redis development service");
     }
     for _ in 0..100 {
-        if redis_ping(host, port) {
+        if redis_ping(&host, port) {
             return Ok(());
         }
         std::thread::sleep(Duration::from_millis(100));
@@ -2428,101 +2358,40 @@ fn prepare_development_redis(workspace_root: &Path, app_dir: &Path) -> anyhow::R
     bail!("Redis development service did not become ready within 10 seconds")
 }
 
-fn selected_cache_store(
-    cache: &toml_edit::Table,
-    process_store: Option<&str>,
-    dotenv_store: Option<&str>,
-) -> String {
-    process_store
-        .or(dotenv_store)
-        .or_else(|| cache.get("default").and_then(toml_edit::Item::as_str))
-        .unwrap_or("redis")
-        .to_owned()
-}
-
-fn development_redis_driver<'a>(
-    store: &'a toml_edit::Table,
-    process_driver: Option<&'a str>,
-    dotenv_driver: Option<&'a str>,
-) -> &'a str {
-    process_driver
-        .or(dotenv_driver)
-        .or_else(|| store.get("driver").and_then(toml_edit::Item::as_str))
-        .unwrap_or("")
-}
-
-fn development_redis_dsn(
-    store_name: &str,
-    store: &toml_edit::Table,
-    explicit_dsn: Option<String>,
-    redis_environment: &std::collections::HashMap<String, String>,
-) -> String {
-    explicit_dsn
-        .or_else(|| {
-            (store_name == "redis")
-                .then(|| redis_dsn_from_environment(redis_environment))
-                .flatten()
-        })
-        .or_else(|| {
-            store
-                .get("dsn")
-                .and_then(toml_edit::Item::as_str)
-                .map(str::to_owned)
-        })
-        .unwrap_or_else(|| "redis://127.0.0.1:6379/".to_owned())
-}
-
-fn redis_dsn_from_environment(
-    environment: &std::collections::HashMap<String, String>,
-) -> Option<String> {
-    const KEYS: [&str; 6] = [
-        "REDIS_HOST",
-        "REDIS_USERNAME",
-        "REDIS_PASSWORD",
-        "REDIS_PORT",
-        "REDIS_DB",
-        "REDIS_SCHEME",
-    ];
-    if !KEYS.iter().any(|key| environment.contains_key(*key)) {
-        return None;
+fn development_redis_endpoint(
+    app_dir: &Path,
+    config_namespace: &str,
+) -> anyhow::Result<Option<(String, u16)>> {
+    let sources = openrust::config::ConfigLoader::application_sources(app_dir, config_namespace)?;
+    let repository = openrust::config::repository::ConfigRepository::new(sources);
+    if repository.get("cache")?.is_none() {
+        return Ok(None);
     }
-    let scheme = environment
-        .get("REDIS_SCHEME")
-        .map_or("redis", String::as_str);
-    if !matches!(scheme, "redis" | "rediss") {
-        return None;
+    let cache: openrust::config::CacheConfig = repository.section("cache")?;
+    let Some(store) = cache.stores.get(&cache.default) else {
+        return Ok(None);
+    };
+    if store.driver != "redis" {
+        return Ok(None);
     }
-    let mut url = url::Url::parse(&format!("{scheme}://localhost")).ok()?;
-    url.set_host(Some(
-        environment
-            .get("REDIS_HOST")
-            .map(String::as_str)
-            .filter(|value| !value.is_empty())
-            .unwrap_or("127.0.0.1"),
-    ))
-    .ok()?;
-    let port = environment
-        .get("REDIS_PORT")
-        .map_or("6379", String::as_str)
-        .parse::<u16>()
-        .ok()?;
-    url.set_port(Some(port)).ok()?;
-    if let Some(username) = environment
-        .get("REDIS_USERNAME")
-        .filter(|value| !value.is_empty())
-    {
-        url.set_username(username).ok()?;
+    let dsn = match store.options.get("dsn") {
+        Some(Value::String(value)) => value.as_str(),
+        Some(_) => bail!("configured Redis connection settings are invalid"),
+        None => "redis://127.0.0.1:6379/",
+    };
+    let parsed =
+        url::Url::parse(dsn).context("configured Redis connection settings are invalid")?;
+    if parsed.scheme() != "redis" {
+        return Ok(None);
     }
-    if let Some(password) = environment
-        .get("REDIS_PASSWORD")
-        .filter(|value| !value.is_empty() && !value.eq_ignore_ascii_case("null"))
-    {
-        url.set_password(Some(password)).ok()?;
-    }
-    let database = environment.get("REDIS_DB").map_or("0", String::as_str);
-    database.parse::<u32>().ok()?;
-    url.path_segments_mut().ok()?.pop_if_empty().push(database);
-    Some(url.into())
+    let Some(host) = parsed.host_str() else {
+        return Ok(None);
+    };
+    let is_loopback = host.eq_ignore_ascii_case("localhost")
+        || host
+            .parse::<std::net::IpAddr>()
+            .is_ok_and(|ip| ip.is_loopback());
+    Ok(is_loopback.then(|| (host.to_owned(), parsed.port().unwrap_or(6379))))
 }
 
 fn redis_ping(host: &str, port: u16) -> bool {
@@ -2563,23 +2432,6 @@ fn exit_code(status: std::process::ExitStatus) -> ExitCode {
 )]
 mod tests {
     use super::*;
-
-    #[test]
-    fn laravel_style_redis_variables_form_a_connection_url() {
-        let environment = std::collections::HashMap::from([
-            ("REDIS_HOST".to_owned(), "cache.example.test".to_owned()),
-            ("REDIS_PASSWORD".to_owned(), "secret:word".to_owned()),
-            ("REDIS_PORT".to_owned(), "6380".to_owned()),
-            ("REDIS_DB".to_owned(), "2".to_owned()),
-        ]);
-        let dsn = redis_dsn_from_environment(&environment)
-            .expect("Redis connection variables should produce a URL");
-        let url = url::Url::parse(&dsn).expect("generated Redis URL should be valid");
-        assert_eq!(url.host_str(), Some("cache.example.test"));
-        assert_eq!(url.port(), Some(6380));
-        assert_eq!(url.path(), "/2");
-        assert_eq!(url.password(), Some("secret%3Aword"));
-    }
 
     fn create_framework_fixture(root: &Path) {
         fs::create_dir_all(root.join("src")).expect("创建框架目录");
@@ -2694,7 +2546,7 @@ mod tests {
         assert!(proto.contains("package grpc_demo.v1;"));
         let config = fs::read_to_string(project.join("config/grpc.toml"))
             .expect("read generated gRPC configuration");
-        assert!(config.contains("[grpc]"));
+        assert!(config.contains("listen_addr = "));
         let env = fs::read_to_string(project.join(".env.example"))
             .expect("read generated environment configuration");
         assert!(env.contains("# APP_GRPC_ALLOW_INSECURE_SERVER=true"));
@@ -2730,7 +2582,7 @@ mod tests {
         let env = fs::read_to_string(project.join(".env.example"))
             .expect("read generated environment example");
         assert!(app.contains("EncryptionServiceProvider"));
-        assert!(config.contains("[security.encryption]"));
+        assert!(config.contains("[encryption]"));
         assert!(env.contains("APP_SECURITY_ENCRYPTION_KEYS_LOCAL="));
         let _ = fs::remove_dir_all(root);
     }
@@ -2742,6 +2594,41 @@ mod tests {
     }
 
     #[test]
+    fn generated_relative_cache_file_exposes_default_driver_and_dsn_to_development() {
+        let root = std::env::temp_dir().join(format!(
+            "openrust-cli-cache-discovery-{}",
+            std::process::id()
+        ));
+        let app = root.join("blog");
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("create temporary test directory");
+        populate_project(&app, "blog", "Blog", None, false, false, false, false)
+            .expect("generate project");
+        let source = fs::read_to_string(app.join("config/cache.toml"))
+            .expect("read generated cache configuration");
+        let document = source
+            .parse::<toml_edit::DocumentMut>()
+            .expect("parse generated cache configuration");
+        let cache = document.as_table();
+        assert_eq!(
+            cache.get("default").and_then(toml_edit::Item::as_str),
+            Some("redis")
+        );
+        let store = cache["stores"]["redis"]
+            .as_table()
+            .expect("generated named store");
+        assert_eq!(
+            store.get("driver").and_then(toml_edit::Item::as_str),
+            Some("redis")
+        );
+        assert_eq!(
+            store.get("dsn").and_then(toml_edit::Item::as_str),
+            Some("redis://127.0.0.1:6379/")
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn development_reuses_a_live_local_redis_without_compose() {
         let root =
             std::env::temp_dir().join(format!("openrust-cli-redis-reuse-{}", std::process::id()));
@@ -2750,98 +2637,370 @@ mod tests {
         fs::create_dir_all(app.join("config")).expect("create app config directory");
         fs::write(
             app.join("config/cache.toml"),
-            "[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'redis'\ndsn = 'redis://127.0.0.1:6379/'\n",
+            "default = 'default'\n[stores.default]\ndriver = 'redis'\ndsn = 'redis://127.0.0.1:6379/'\n",
         )
         .expect("write app config");
-        prepare_development_redis(&root, &app).expect("reuse existing Redis");
+        prepare_development_redis(&root, &app, "APP_").expect("reuse existing Redis");
         let _ = fs::remove_dir_all(root);
     }
 
+    type RedisCase = (
+        &'static str,
+        &'static str,
+        &'static str,
+        &'static str,
+        &'static str,
+        Option<(&'static str, &'static str)>,
+    );
+
+    const CASES: [RedisCase; 10] = [
+        (
+            "nested-memory",
+            "default = 'redis'\n[stores.redis]\ndriver = 'redis'\n",
+            "cache/stores/redis.toml",
+            "driver = 'memory'\n",
+            "",
+            None,
+        ),
+        (
+            "nested-redis",
+            "default = 'redis'\n[stores.redis]\ndriver = 'memory'\n",
+            "cache/stores/redis.toml",
+            "driver = 'redis'\n",
+            "",
+            None,
+        ),
+        (
+            "nested-remote",
+            "default = 'redis'\n[stores.redis]\ndriver = 'redis'\ndsn = 'redis://127.0.0.1:6379/'\n",
+            "cache/stores/redis.toml",
+            "dsn = 'redis://remote.example.test:6380/'\n",
+            "",
+            None,
+        ),
+        (
+            "nested-store",
+            "default = 'custom'\n[stores.redis]\ndriver = 'memory'\n",
+            "cache/stores/custom.toml",
+            "driver = 'redis'\ndsn = 'redis://127.0.0.1:6379/'\n",
+            "",
+            None,
+        ),
+        (
+            "dotenv-redis",
+            "default = 'memory'\n[stores.memory]\ndriver = 'memory'\n[stores.redis]\ndriver = 'redis'\n",
+            "cache/stores/redis.toml",
+            "dsn = 'redis://127.0.0.1:6379/'\n",
+            "CACHE_STORE=redis\n",
+            None,
+        ),
+        (
+            "env-memory",
+            "default = 'memory'\n[stores.memory]\ndriver = 'memory'\n[stores.redis]\ndriver = 'redis'\n",
+            "cache/stores/redis.toml",
+            "dsn = 'redis://127.0.0.1:6379/'\n",
+            "CACHE_STORE=redis\n",
+            Some(("CACHE_STORE", "memory")),
+        ),
+        (
+            "env-driver",
+            "default = 'redis'\n[stores.redis]\ndriver = 'memory'\n",
+            "cache/stores/redis.toml",
+            "driver = 'redis'\n",
+            "",
+            Some(("APP_CACHE_STORES_REDIS_DRIVER", "memory")),
+        ),
+        (
+            "env-dsn",
+            "default = 'redis'\n[stores.redis]\ndriver = 'redis'\n",
+            "cache/stores/redis.toml",
+            "dsn = 'redis://127.0.0.1:6379/'\n",
+            "",
+            Some((
+                "APP_CACHE_STORES_REDIS_DSN",
+                "redis://remote.example.test:6380/",
+            )),
+        ),
+        (
+            "missing-config-env-store",
+            "",
+            "",
+            "",
+            "CACHE_STORE=redis\nAPP_CACHE_STORES_REDIS_DRIVER=redis\nAPP_CACHE_STORES_REDIS_DSN=redis://127.0.0.1:6379/\n",
+            None,
+        ),
+        (
+            "shop-namespace",
+            "default = 'custom'\n[stores.custom]\ndriver = 'memory'\n",
+            "cache/stores/custom.toml",
+            "namespace = 'business'\n",
+            "SHOP_CONFIG_DIR=shop-config\nSHOP_CACHE_STORES_CUSTOM_DRIVER=redis\nSHOP_CACHE_STORES_CUSTOM_DSN=redis://127.0.0.1:6379/\n",
+            Some(("APP_CACHE_STORES_CUSTOM_DRIVER", "memory")),
+        ),
+    ];
+
     #[test]
-    fn development_redis_selection_uses_cache_store_and_official_default_field() {
-        let source = "[cache]\ndefault = 'memory'\ndefault_store = 'legacy'\n[cache.stores.memory]\ndriver = 'memory'\n[cache.stores.redis]\ndriver = 'redis'\n";
-        let document = source
-            .parse::<toml_edit::DocumentMut>()
-            .expect("parse cache configuration");
-        let cache = document["cache"].as_table().expect("cache table");
-        assert_eq!(selected_cache_store(cache, None, None), "memory");
-        assert_eq!(selected_cache_store(cache, None, Some("redis")), "redis");
-        assert_eq!(
-            selected_cache_store(cache, Some("memory"), Some("redis")),
-            "memory"
-        );
-        let default = "[cache]\ndefault_store = 'legacy'\n[cache.stores.redis]\ndriver = 'redis'\n"
-            .parse::<toml_edit::DocumentMut>()
-            .expect("parse default cache configuration");
-        assert_eq!(
-            selected_cache_store(
-                default["cache"].as_table().expect("cache table"),
-                None,
-                None
+    fn dev_accepts_explicit_application_config_namespace() -> Result<(), Box<dyn std::error::Error>>
+    {
+        for (args, expected) in [
+            (vec!["openrust", "dev"], "APP_"),
+            (
+                vec!["openrust", "dev", "--config-namespace", "SHOP_"],
+                "SHOP_",
             ),
-            "redis"
-        );
+        ] {
+            let cli = Cli::try_parse_from(args).expect("解析开发命令");
+            let Some(Builtin::Dev { config_namespace }) = cli.command else {
+                return Err("预期开发命令".into());
+            };
+            assert_eq!(config_namespace, expected);
+        }
+        Ok(())
     }
 
     #[test]
-    fn development_redis_dsn_only_applies_global_variables_to_named_redis_store() {
-        let document = "[cache.stores.default]\ndriver = 'redis'\ndsn = 'redis://remote.example.test:6380/'\n[cache.stores.local]\ndriver = 'redis'\ndsn = 'redis://127.0.0.1:6379/'\n[cache.stores.redis]\ndriver = 'redis'\ndsn = 'redis://127.0.0.1:6379/'\n"
-            .parse::<toml_edit::DocumentMut>()
-            .expect("parse named Redis stores");
-        let stores = document["cache"]["stores"]
-            .as_table()
-            .expect("stores table");
-        let default_store = stores["default"].as_table().expect("custom store");
-        let local_store = stores["local"].as_table().expect("local store");
-        let redis_store = stores["redis"].as_table().expect("named redis store");
-        assert_eq!(development_redis_driver(redis_store, None, None), "redis");
-        assert_eq!(
-            development_redis_driver(redis_store, None, Some("memory")),
-            "memory"
-        );
-        assert_eq!(
-            development_redis_driver(redis_store, Some("redis"), Some("memory")),
-            "redis"
-        );
-        let memory_document = "[store]\ndriver = 'memory'\n"
-            .parse::<toml_edit::DocumentMut>()
-            .expect("parse memory store");
-        let memory_store = memory_document["store"].as_table().expect("memory store");
-        assert_eq!(
-            development_redis_driver(memory_store, None, Some("redis")),
-            "redis"
-        );
-        let global_local =
-            std::collections::HashMap::from([("REDIS_HOST".to_owned(), "127.0.0.1".to_owned())]);
-        assert_eq!(
-            development_redis_dsn("default", default_store, None, &global_local),
-            "redis://remote.example.test:6380/"
-        );
-        assert_eq!(
-            development_redis_dsn("redis", redis_store, None, &global_local),
-            "redis://127.0.0.1:6379/0"
-        );
+    fn development_redis_uses_recursive_config_and_environment_priority()
+    -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(case) = std::env::var_os("OPENRUST_CLI_REDIS_TEST_CASE") {
+            let app = PathBuf::from(
+                std::env::var_os("OPENRUST_CLI_REDIS_TEST_APP").expect("子进程应用目录"),
+            );
+            let namespace = if case == "shop-namespace" {
+                "SHOP_"
+            } else {
+                "APP_"
+            };
+            let actual =
+                development_redis_endpoint(&app, namespace).expect("加载应用的有效缓存配置");
+            let expected = match case.to_str().expect("用例标识") {
+                "nested-memory" | "nested-remote" | "env-memory" | "env-driver" | "env-dsn" => None,
+                "nested-redis"
+                | "nested-store"
+                | "dotenv-redis"
+                | "missing-config-env-store"
+                | "shop-namespace" => Some(("127.0.0.1".to_owned(), 6379)),
+                other => return Err(format!("未知隔离用例: {other}").into()),
+            };
+            assert_eq!(actual, expected);
+            return Ok(());
+        }
 
-        let global_remote = std::collections::HashMap::from([(
-            "REDIS_HOST".to_owned(),
-            "remote.example.test".to_owned(),
-        )]);
-        assert_eq!(
-            development_redis_dsn("local", local_store, None, &global_remote),
-            "redis://127.0.0.1:6379/"
-        );
-        assert_eq!(
-            development_redis_dsn("redis", redis_store, None, &global_remote),
-            "redis://remote.example.test:6379/0"
-        );
-        assert_eq!(
-            development_redis_dsn(
-                "redis",
-                redis_store,
-                Some("redis://explicit.example.test:6381/".to_owned()),
-                &global_local,
+        let root = std::env::temp_dir().join(format!(
+            "openrust-cli-recursive-redis-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        for (case, root_cache, nested_path, nested, dotenv, process_env) in CASES {
+            assert_development_redis_case(
+                &root,
+                case,
+                root_cache,
+                nested_path,
+                nested,
+                dotenv,
+                process_env,
+            );
+        }
+        fs::remove_dir_all(root).expect("清理测试配置");
+        Ok(())
+    }
+
+    #[test]
+    fn development_redis_uses_bootstrap_cache_before_live_sources()
+    -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(case) = std::env::var_os("OPENRUST_CLI_CACHE_TEST_CASE") {
+            let app = PathBuf::from(
+                std::env::var_os("OPENRUST_CLI_CACHE_TEST_APP").expect("子进程应用目录"),
+            );
+            let environment_before = std::env::var_os("APP_ENV");
+            let cache_path_before = std::env::var_os("APP_CONFIG_CACHE");
+            let actual = development_redis_endpoint(&app, "APP_").expect("读取启动缓存");
+            assert_eq!(std::env::var_os("APP_ENV"), environment_before);
+            assert_eq!(std::env::var_os("APP_CONFIG_CACHE"), cache_path_before);
+            let expected = match case.to_str().expect("用例名") {
+                "cached-memory-live-redis"
+                | "cached-memory-bad-live"
+                | "interpolated-production" => None,
+                "cached-redis-live-memory" | "dotenv-selected-cache" | "external-cache-wins" => {
+                    Some(("127.0.0.1".to_owned(), 6379))
+                }
+                other => return Err(format!("未知缓存用例: {other}").into()),
+            };
+            assert_eq!(actual, expected);
+            return Ok(());
+        }
+
+        let root = std::env::temp_dir().join(format!(
+            "openrust-cli-bootstrap-cache-{}",
+            std::process::id()
+        ));
+        let parent_cache_selection = std::env::var_os("APP_CONFIG_CACHE");
+        let parent_environment = std::env::var_os("APP_ENV");
+        let _ = fs::remove_dir_all(&root);
+        for (case, cache_redis, live, dotenv, external_cache) in [
+            (
+                "cached-memory-live-redis",
+                false,
+                "default = 'redis'\n[stores.redis]\ndriver = 'redis'\n",
+                "",
+                None,
             ),
-            "redis://explicit.example.test:6381/"
+            (
+                "cached-redis-live-memory",
+                true,
+                "default = 'memory'\n[stores.memory]\ndriver = 'memory'\n",
+                "",
+                None,
+            ),
+            (
+                "cached-memory-bad-live",
+                false,
+                "invalid = [",
+                "invalid dotenv line",
+                None,
+            ),
+            (
+                "dotenv-selected-cache",
+                true,
+                "invalid = [",
+                "APP_CONFIG_CACHE=alternate/config.json\n",
+                None,
+            ),
+            (
+                "external-cache-wins",
+                true,
+                "invalid = [",
+                "APP_CONFIG_CACHE=wrong/config.json\n",
+                Some("external/config.json"),
+            ),
+            (
+                "interpolated-production",
+                false,
+                "invalid = [",
+                "APP_CONFIG_CACHE=${APP_ENV}/config.json\n",
+                None,
+            ),
+        ] {
+            assert_bootstrap_cache_case(&root, case, cache_redis, live, dotenv, external_cache);
+        }
+        assert_eq!(std::env::var_os("APP_CONFIG_CACHE"), parent_cache_selection);
+        assert_eq!(std::env::var_os("APP_ENV"), parent_environment);
+        fs::remove_dir_all(root).expect("清理配置缓存用例");
+        Ok(())
+    }
+
+    fn assert_bootstrap_cache_case(
+        root: &Path,
+        case: &str,
+        cache_redis: bool,
+        live: &str,
+        dotenv: &str,
+        external_cache: Option<&str>,
+    ) {
+        const TEST: &str = "tests::development_redis_uses_bootstrap_cache_before_live_sources";
+        let app = root.join(case);
+        fs::create_dir_all(app.join("config")).expect("创建配置目录");
+        fs::write(app.join("config/cache.toml"), live).expect("写实时配置");
+        if !dotenv.is_empty() {
+            fs::write(app.join(".env"), dotenv).expect("写环境文件");
+        }
+        let selected = if let Some(path) = external_cache {
+            path
+        } else if case == "interpolated-production" {
+            "production/config.json"
+        } else if case == "dotenv-selected-cache" {
+            "alternate/config.json"
+        } else {
+            "bootstrap/cache/config.json"
+        };
+        let cache_path = app.join(selected);
+        fs::create_dir_all(cache_path.parent().expect("缓存父目录")).expect("创建缓存目录");
+        let mut raw = serde_json::to_value(openrust::config::FrameworkConfig::default())
+            .expect("序列化框架默认值");
+        raw["cache"] = if cache_redis {
+            serde_json::json!({"default":"redis","stores":{"redis":{"driver":"redis","dsn":"redis://127.0.0.1:6379/"}}})
+        } else {
+            serde_json::json!({"default":"memory","stores":{"memory":{"driver":"memory"}}})
+        };
+        fs::write(&cache_path, serde_json::to_vec(&raw).expect("序列化缓存")).expect("写配置缓存");
+        if case == "interpolated-production" {
+            raw["cache"] = serde_json::json!({"default":"redis","stores":{"redis":{"driver":"redis","dsn":"redis://127.0.0.1:6379/"}}});
+            let alternate = app.join("development/config.json");
+            fs::create_dir_all(alternate.parent().expect("另一个缓存父目录"))
+                .expect("创建另一个缓存目录");
+            fs::write(
+                alternate,
+                serde_json::to_vec(&raw).expect("序列化另一个缓存"),
+            )
+            .expect("写另一个缓存");
+        }
+        let mut child = Process::new(std::env::current_exe().expect("测试可执行文件"));
+        child
+            .env_clear()
+            .env("OPENRUST_CLI_CACHE_TEST_CASE", case)
+            .env("OPENRUST_CLI_CACHE_TEST_APP", &app)
+            .args(["--exact", TEST]);
+        if let Some(path) = external_cache {
+            child.env("APP_CONFIG_CACHE", path);
+        }
+        if case == "interpolated-production" {
+            child.env("APP_ENV", "production");
+        }
+        assert!(
+            child.status().expect("运行隔离缓存用例").success(),
+            "{case}"
+        );
+    }
+
+    fn assert_development_redis_case(
+        root: &Path,
+        case: &str,
+        root_cache: &str,
+        nested_path: &str,
+        nested: &str,
+        dotenv: &str,
+        process_env: Option<(&str, &str)>,
+    ) {
+        let app = root.join(case);
+        let config_dir = if case == "shop-namespace" {
+            "shop-config"
+        } else {
+            "config"
+        };
+        fs::create_dir_all(&app).expect("创建应用目录");
+        if !root_cache.is_empty() {
+            let nested_file = app.join(config_dir).join(nested_path);
+            fs::create_dir_all(nested_file.parent().expect("配置父目录"))
+                .expect("创建递归配置目录");
+            fs::write(app.join(config_dir).join("cache.toml"), root_cache).expect("写根缓存配置");
+            fs::write(nested_file, nested).expect("写子缓存配置");
+        }
+        if case == "shop-namespace" {
+            fs::create_dir_all(app.join("config")).expect("创建非目标配置目录");
+            fs::write(
+                app.join("config/cache.toml"),
+                "default = 'redis'\n[stores.redis]\ndriver = 'redis'\ndsn = 'redis://remote.example.test:6380/'\n",
+            )
+            .expect("写非目标配置");
+        }
+        if !dotenv.is_empty() {
+            fs::write(app.join(".env"), dotenv).expect("写环境配置");
+        }
+        let mut child = Process::new(std::env::current_exe().expect("测试可执行文件"));
+        child
+            .env_clear()
+            .env("OPENRUST_CLI_REDIS_TEST_CASE", case)
+            .env("OPENRUST_CLI_REDIS_TEST_APP", &app)
+            .args([
+                "--exact",
+                "tests::development_redis_uses_recursive_config_and_environment_priority",
+            ]);
+        if let Some((key, value)) = process_env {
+            child.env(key, value);
+        }
+        assert!(
+            child.status().expect("运行隔离配置用例").success(),
+            "{case}"
         );
     }
 
@@ -2957,6 +3116,11 @@ mod tests {
         assert!(gitignore.lines().any(|line| line == ".env"));
         assert!(gitignore.lines().any(|line| line == ".env.*"));
         assert!(gitignore.lines().any(|line| line == "/storage/"));
+        assert!(
+            gitignore
+                .lines()
+                .any(|line| line == "/bootstrap/cache/*.json")
+        );
         assert!(gitignore.lines().any(|line| line == "!.env.example"));
         assert!(gitignore.lines().any(|line| line == "!.env.*.example"));
         let env_example = fs::read_to_string(project.join(".env.example"))
@@ -2965,6 +3129,8 @@ mod tests {
         assert!(
             env_example.contains("SERVER_PORT=3000\nAPP_URL=\"http://localhost:${SERVER_PORT}\"")
         );
+        assert!(env_example.contains("# APP_KEY=<随机密钥>"));
+        assert!(env_example.contains("# APP_PREVIOUS_KEYS=old-one,old-two"));
         assert!(env_example.contains("REDIS_HOST=127.0.0.1"));
         assert!(env_example.contains("CACHE_STORE=redis"));
         assert!(!env_example.contains("REDIS_DEFAULT_STORE"));
@@ -3111,7 +3277,7 @@ mod tests {
             assert!(app.contains("SignedLinksServiceProvider"));
             let config = fs::read_to_string(project.join("config/security.toml"))
                 .expect("read generated signing config");
-            assert!(config.contains("[security.signed_links]"));
+            assert!(config.contains("[signed_links]"));
             let env = fs::read_to_string(project.join(".env.example"))
                 .expect("read generated signing environment template");
             assert!(env.contains("APP_SECURITY_SIGNED_LINKS_KEYS_LOCAL="));
@@ -3133,7 +3299,7 @@ mod tests {
             assert!(auth_test.contains("trusted_proxy_ranges"));
             let config = fs::read_to_string(project.join("config/auth.toml"))
                 .expect("read generated auth config");
-            assert!(config.contains("[auth.jwt]"));
+            assert!(config.contains("[jwt]"));
             assert!(config.contains("keys = {}"));
             let env = fs::read_to_string(project.join(".env.example"))
                 .expect("read generated environment example");

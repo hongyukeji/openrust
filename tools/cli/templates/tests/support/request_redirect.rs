@@ -8,7 +8,8 @@ use openrust::http::axum::{
     response::{IntoResponse, Response},
 };
 use openrust::http::{
-    Json, RedirectErrors, Redirector, Request as InputRequest, RequestInfo, RouteGroup, Routes,
+    Json, RedirectErrors, Redirector, Request as InputRequest, RequestInfo, RouteGroup,
+    RouteUrlGenerator, Routes,
 };
 use openrust::session::{ErrorBagCodecs, MemorySessionStore, SessionServiceProvider};
 use openrust::support::{
@@ -66,6 +67,13 @@ impl ServiceProvider for RedirectRoutes {
                         action_submit,
                     )
                     .get(&format!("{PREFIX}/plain"), plain)
+                    .get(&format!("{PREFIX}/signed-issue"), signed_issue)
+                    .group(RouteGroup::new(), |signed| {
+                        signed
+                            .get(&format!("{PREFIX}/signed/{{id}}"), signed_show)
+                            .name("generated.draft.signed")
+                            .middleware_alias("signed")
+                    })
                     .get(&format!("{PREFIX}/secure"), secure)
                     .get(&format!("{PREFIX}/guide"), guide)
                     .get(&format!("{PREFIX}/refresh"), refresh_page)
@@ -175,6 +183,15 @@ async fn action_page(info: RequestInfo) -> openrust::Result<Json<Value>> {
 
 async fn plain(info: RequestInfo) -> openrust::Result<Response> {
     Ok(Redirector::from_info(&info).to("/api")?.into_response())
+}
+async fn signed_issue(urls: RouteUrlGenerator, info: RequestInfo) -> openrust::Result<Json<Value>> {
+    let params = BTreeMap::from([("id".to_owned(), "42".to_owned())]);
+    let target = urls.temporary_signed_route("generated.draft.signed", 300, &params, true)?;
+    let redirect = Redirector::from_info(&info).signed_route("generated.draft.signed", &params)?;
+    Ok(Json(json!({"url":target,"redirect":redirect.target_url()})))
+}
+async fn signed_show(info: RequestInfo) -> openrust::Result<Json<Value>> {
+    Ok(Json(json!({"valid":info.has_valid_signature()?})))
 }
 async fn secure(info: RequestInfo) -> openrust::Result<Response> {
     Ok(Redirector::from_info(&info).secure("/api")?.into_response())
@@ -579,7 +596,7 @@ pub async fn assert_request_redirect<A: Application>(
     source: Figment,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let source = source.merge(figment::providers::Serialized::defaults(
-        json!({"app":{"url":"http://localhost"}}),
+        json!({"app":{"url":"http://localhost","key":"generated-test-key"}}),
     ));
     let mut app = TestApp::<RedirectApplication<A>>::builder(source)
         .build()
@@ -597,6 +614,18 @@ pub async fn assert_request_redirect<A: Application>(
         );
         assert!(std::str::from_utf8(plain.body())?.contains("<!DOCTYPE html>"));
         assert_navigation(&app).await?;
+        let issue = get(&app, &format!("{PREFIX}/signed-issue"), None).await?;
+        let target = data(&issue)?["url"]
+            .as_str()
+            .ok_or("signed URL 缺失")?
+            .to_owned();
+        let path = target
+            .strip_prefix("http://localhost")
+            .ok_or("signed URL origin 错误")?;
+        get(&app, path, None).await?.assert_status(StatusCode::OK)?;
+        get(&app, &path.replace("/42", "/43"), None)
+            .await?
+            .assert_status(StatusCode::FORBIDDEN)?;
         assert_refresh_and_away(&app).await?;
         assert_actions(&app).await?;
         let first = get(&app, &format!("{PREFIX}/review"), None).await?;

@@ -13,6 +13,7 @@
 🟡 ST-V任务分支visibility：仲裁/错误映射静态独审闭合，storage-local/storage-s3严格Clippy、local16/公开driver契约3/真实TCP1均过。模块auth/data-exchange特性、S3单元、当前锁deny及MSRV剩余门禁待窗口；真实ACL/迟到Copy后端条件缺失，未把ignored或旧锁结果当通过。尚未提交/合main，见todo。
 
 ✅ R2-CC配置缓存家族已在隔离分支限定提交 `7be446d`：修后默认851/全feature1638（68ignored）、双Clippy/docs、doctest22/24、普通生成8与真实模块/生成应用缓存复启通过；两task temp已回收，混合归属同名包缓存保留待精确核对。未合main，不外推完整Configuration或组合验收。
+✅ R2-CC配置缓存限定分支验收：官方命令/fresh配置/命中屏障/原子文件/失败资源边界已实现；修后851/1638（all68ignored）、双Clippy/docs、doctest22/24、生成8与真实缓存复启通过，提交见Git。两任务temp已退役，混合归属同名包缓存保留待精确核对；尚未合main，不关闭完整Configuration。
 
 ✅ C04-D10-E scheme/secure与guest/intended已验收并提交6b143ca：定向10/main11、新构建、fresh普通7/MySQL认证2+公开helper1、无Session/MySQL真实TCP4/9场景通过；previous原值与先保存/先消费顺序已修复，唯一模块真实确认回跳不替代认证授权。完整Redirector/L020.02仍开放，见[本簇证据](memory/testing.md#c04-d10-e-scheme-与-guestintended验收中未提交)。
 
@@ -30,6 +31,10 @@ C04-D8 previous与显式Precognition限定子范围已完成适用验收：稳�
 
 ✅ T01 Session测试入口整合试点已验收：全仓显式test入口46→45、Session family8→7、源文件10不变；两feature各41项与原26+15逐名对应。双严格Clippy、workspace默认838/34ignored与全特性1625/108ignored、双docs/deny/MSRV通过，生产/模板/锁未改，未重跑真实服务；未证明整体开发显著提速，限定提交见Git。
 
+🟡 R2-R03 递归配置发现分支限定验收已收：配置76、CLI21、模块2、公开consumer6、严格Clippy/docs、普通fresh生成7+安装consumer1、MySQL8.4认证2无skip通过；无auth MySQL测试0项仅编译。根config-feature HTTP 200/enabled=true/exit0，URL/TLS runner另10/10，证据不混用。owner报告3唯一生成包清理，真实清理命令 exit0 由执行者终端回报，原始 stdout 未留存，登记54.48GB/磁盘8.782%触软线。分支已提交6482a38，当前main为待审MERGE_HEAD候选，尚需完整组合门禁；完整Config/typed helpers/配置缓存/动态Settings/发布全后端未关闭，见[分支证据](memory/testing.md#r2-r03-递归配置发现任务分支限定验收记录)。
+
+🟡 Signed URL 家族任务分支限定验收已通过：库7、router4（真实 loopback TCP）、唯一模块1、CLI20、普通生成7；补验严格 Clippy、公开 TestApp1、gRPC宿主check、MySQL8.4认证生成2项无skip通过。TCP异常清理增量有不同模型静态复审；本次生成包已精确回收 316,715,008 B，清后仍超过 50GB 软线；分支本地提交及与 ENV main 的组合门禁仍待。完整 URLGenerator/Redirector、Vapor真实代理与复杂 PHP 参数未关闭。见[分支证据](memory/testing.md#signed-url-家族任务分支定向验收未合入-main)。
+
 ## Laravel 1:1 功能与进度概览
 
 > 更新：2026-10-31；C04-B2本轮适用验收已完成，本簇限定本地提交见Git；不将子簇完成外推整能力。本页是唯一概览入口，详细行为/差异以矩阵为准，执行队列仅在[todo](todo.md)。
@@ -46,10 +51,10 @@ C04-D8 previous与显式Precognition限定子范围已完成适用验收：稳�
 | --- | --- | --- | --- | --- | --- |
 | 启动、应用布局 | Laravel应用职责/生命周期与开箱运行 | ✅ 已验收子范围 | R1-S 34dfb5e、R1-E bc3fa01：根lib/server、唯一模块与真实CRUD | 完整安装/升级/部署流程仍须逐项对照 | L004/L007/L010/L011；R1/R13/R14；[证据](memory/testing.md) |
 | Container / Provider / Facade | 统一DI、register→boot、作用域与扩展 | ✅ 已验收子范围 | R2-A/A2/A3、B/C/D已验收，唯一生产Container/Provider、入口scope/TestApp | R2-X保留原factory的extend及公开Session装饰器已完成main组合验收；阶段一Provider编译期发现仅规划，现显式descriptor不是包发现；完整Facade/Container/扩展对应待闭合 | L012–L014/L035；R2；[core](core/core.md)/[facade](core/facade.md) |
-| Configuration | env/领域配置、typed读取/校验与包配置合并 | ✅ 已验收子范围 | R2来源失败/Provider配置；历史APP_PORT 591142f已验收，R2-ENV按新授权完成SERVER_PORT与CACHE_STORE/cache.default限定验收（工作区、生成/MySQL、真实HTTP/Redis与收尾） | R2-Q原始/批量读取已完成main组合验收；R2-R01运行期写入限定交付（仓储/App/模块/consumer、工作区、fresh生成/MySQL/真实TCP及资源收尾），本地提交见Git；R2-R02有序来源限定验收通过：适用Rust门禁、consumer、普通/MySQL生成、生产TOML真实TCP与资源收尾，本地提交见Git；递归发现/文件名命名空间、完整L005及缓存/来源/扩展未闭合；DB业务设置见增强表 | L005；R2；[core](core/core.md)/[todo](todo.md) |
+| Configuration | env/领域配置、typed读取/校验与包配置合并 | ✅ 已验收子范围 | R2来源失败/Provider配置；历史APP_PORT 591142f已验收，R2-ENV按新授权完成SERVER_PORT与CACHE_STORE/cache.default限定验收（工作区、生成/MySQL、真实HTTP/Redis与收尾） | R2-Q原始/批量读取已完成main组合验收；R2-R01运行期写入限定交付（仓储/App/模块/consumer、工作区、fresh生成/MySQL/真实TCP及资源收尾），本地提交见Git；R2-R02有序来源限定验收通过：适用Rust门禁、consumer、普通/MySQL生成、生产TOML真实TCP与资源收尾，本地提交见Git；R2-R03递归发现/文件名命名空间仅分支限定验收，main候选待组合验证；完整L005及缓存/来源/扩展未闭合；DB业务设置见增强表 | L005；R2；[core](core/core.md)/[todo](todo.md) |
 | Routing / Middleware / URL | 路由组/域/命名URL/绑定/中间件默认与错误 | ✅ 已验收子范围 | R3-A–F按簇交付；F 163bb49域路由；D7请求匹配/方法声明与fallback纠偏、D10-G动作身份/namespace/共享action URL、H真实声明与分派同源化已限定验收 | 模型绑定及其余C03/URL参数行为仍开放，不能由子范围整体外推 | L015/L016/L024；R3；[http](core/http.md)/[todo](todo.md) |
 | Request | 输入来源、typed便捷方法与生命周期 | 🟡 开发中 | C04-A/B1/B2/C及D6/D7/D9各子范围已验收；D10-B真实Request借用的输入闪存与重定向已限定验收并提交 `a2befef`；D10-D捕获同应用URL生成器的请求快照已限定验收，提交见Git | 文件输入并入bag、完整Session/CSRF/FormRequest仍开放 | L019；R3 C04；[B证据](memory/testing.md#c04-d10-b-请求绑定重定向与-session-错误包限定子范围已验收)/[todo](todo.md) |
-| Response / API Resource / 异常 | 原生响应、资源序列化/条件字段、错误渲染 | 🔵 已有实现待1:1对齐 | 类型化响应/envelope与语义状态已交付；D10-B普通与请求绑定重定向已限定验收并提交 `a2befef`；D10-D命名重定向已提交018b778；D10-E scheme/guest/intended通过当前适用验收，限定提交见Git | 完整Resource、命名重定向混合/可选参数缺口、refresh/away本簇通过适用验收，action/signed、missing resolver、stream及异常自动重定向仍待 | L018/L020/L027/L068/L069；R3/R5；[http](core/http.md) |
+| Response / API Resource / 异常 | 原生响应、资源序列化/条件字段、错误渲染 | 🔵 已有实现待1:1对齐 | 类型化响应/envelope与语义状态已交付；D10-B普通与请求绑定重定向已限定验收并提交 `a2befef`；D10-D命名重定向已提交018b778；D10-E scheme/guest/intended通过当前适用验收，限定提交见Git | 完整Resource、命名重定向混合/可选参数缺口、refresh/away本簇通过适用验收，signed已在独立分支限定验收、main未集成；动作其余参数形态、missing resolver、stream及异常自动重定向仍待 | L018/L020/L027/L068/L069；R3/R5；[http](core/http.md) |
 | Pagination | Query/Model paginate、simple/cursor、链接与Resource | 🔵 已有实现待1:1对齐 | 现PageParams/手动controller分页；4573234仅登记整改 | 默认15/page解析、直接JSON与Resource links/meta、查询/模型入口及边界 | L059/L068.04；R3→R4/R5；[Spec](todo.md#c04c05-分页整改-spec已授权按依赖领取代码未改) |
 | Validation / FormRequest | 验证规则、授权、错误与文件验证 | 🔵 已有实现待1:1对齐 | Validate/Validated与模块输入校验已有测试；D10-A消息包已提交，D10-B手动命名错误包闪存已提交；D10-C请求错误视图共享限定验收通过，已提交 `784045c` | 自动验证失败重定向、`dontFlash`、完整FormRequest授权/规则/文件行为 | L026/L019；R3/R7；[http](core/http.md)/[todo](todo.md) |
 | DB / 事务 / Migrations | 连接、事务/savepoint、Schema与迁移生命周期 | 🔵 已有实现待1:1对齐 | SeaORM双库等专项资产；D10-B MySQL8.4空库迁移与MFA启动顺序限定验收通过、待提交 | 失败迁移恢复本轮未实跑；R4完整公开契约与发布全后端边界仍待 | L057/L060/L062；R4；[core](core/core.md)/[todo](todo.md) |
@@ -97,6 +102,8 @@ C04-D8 previous与显式Precognition限定子范围已完成适用验收：稳�
 - 每次框架开发进度汇报附最新能力状态表，汇报前按当前代码/提交/验收复核；表格格式、适用范围与“1:1 的 Laravel 框架 Rust 版”表述统一遵循[汇报规范](style.md#开发进度汇报)，普通问答不强制附表。
 - overview只摘要；矩阵维护详细源码/测试对应及差异，core/testing保存可复验证据，todo是唯一可领取队列，不在此复制任务或建立第二计划。未验收的整项不得因已交付子簇关闭。
 - [可选快速开发模块/C32/R15冻结](plans/optional-rapid-development-modules.md#开发与使用边界)，R14完成不授权开工；未来分支另定，当前main维护框架及官方可选工具（含自身UI），按依赖推进。AI产品仍未启动，均不计V1框架核心1:1进度。当前不为展示表格切换或中断在途HTTP功能簇。精选扩展的接入/范围与独立验收遵循[生态边界](plans/laravel-rebuild.md#生态边界)，不抵扣核心缺口。
+
+R2-T 严格类型配置读取仅在隔离分支通过仓储43、Collection4、模块1、公开consumer6项及严格Clippy3/Rustdoc1；普通生成7+fixture1、真实HTTP及唯一生成包清理通过，本分支限定交付、尚未合入main，不改变上表已验收main子范围或完整L005缺口。
 
 ## 子簇验证边界
 

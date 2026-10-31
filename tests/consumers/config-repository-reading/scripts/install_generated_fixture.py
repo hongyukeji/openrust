@@ -3,6 +3,7 @@
 import hashlib
 import json
 import re
+import subprocess
 import sys
 import tomllib
 from pathlib import Path
@@ -10,6 +11,17 @@ from pathlib import Path
 
 def digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def formatted_rust(source: str) -> str:
+    return subprocess.run(
+        ["rustfmt", "--edition", "2024"],
+        input=source,
+        text=True,
+        capture_output=True,
+        check=True,
+        timeout=15,
+    ).stdout
 
 
 def main() -> None:
@@ -87,6 +99,7 @@ async fn generated_application_installs_config_reading_provider()
     let body: serde_json::Value = serde_json::from_slice(response.body())?;
     assert_eq!(body["data"], serde_json::json!({{"name": "已复核应用", "locale": "zh_CN"}}));
     assert_eq!(app.app()?.config_repository().get("app.name")?, Some(serde_json::json!("已复核应用")));
+    assert_eq!(app.app()?.config_repository().string("app.name")?, "已复核应用");
     app.app()?.config_repository().set("reader.z_label", serde_json::json!("已复核"))?;
     assert_eq!(config_repository_reading_consumer::public_reader_key_order(&app.app()?.config_repository())?, ["z_label", "a_label"]);
     let order = app.request(Request::get("/api/config-reading/order").body(Body::empty())?).await?;
@@ -113,16 +126,15 @@ async fn generated_application_installs_config_reading_provider()
             1,
         )
     )
-    bootstrap.write_text(
-        source_bootstrap.replace(
-            marker,
-            "        providers.push(Box::new(config_repository_reading_consumer::ReadingProvider));\n"
-            + marker,
-            1,
-        )
+    updated_bootstrap = source_bootstrap.replace(
+        marker,
+        "        providers.push(Box::new(config_repository_reading_consumer::ReadingProvider));\n"
+        + marker,
+        1,
     )
-    test.write_text(test_source)
-    reader.write_text('[reader]\nz_label = "先声明"\na_label = "后声明"\n')
+    bootstrap.write_text(formatted_rust(updated_bootstrap))
+    test.write_text(formatted_rust(test_source))
+    reader.write_text('z_label = "先声明"\na_label = "后声明"\n')
     after = {
         "Cargo.toml": digest(manifest),
         "bootstrap/app.rs": digest(bootstrap),

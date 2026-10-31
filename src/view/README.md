@@ -4,11 +4,15 @@
 
 启用 `view` Cargo feature 并注册 `openrust::view::ViewServiceProvider`，即可使用服务端 HTML 模板。应用模板放在项目根 `views/`，静态 CSS、图片等仍放在 `public/`。
 
-```toml
-[server]
-root_target = "view:index.html"
+`config/server.toml`：
 
-[view]
+```toml
+root_target = "view:index.html"
+```
+
+`config/view.toml`：
+
+```toml
 directory = "views"
 auto_reload = false
 ```

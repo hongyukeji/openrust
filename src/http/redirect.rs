@@ -65,6 +65,62 @@ impl<'r> Redirector<'r> {
         self.to_with(&target, status, headers)
     }
 
+    /// 按名称生成永久签名 URL 并建立默认 302 重定向。
+    pub fn signed_route(
+        &self,
+        name: &str,
+        parameters: &BTreeMap<String, String>,
+    ) -> Result<RedirectResponse<'r>> {
+        self.signed_route_with(name, parameters, StatusCode::FOUND, HeaderMap::new())
+    }
+
+    /// 按名称生成签名 URL，并保留显式状态、头及请求闪存借用。
+    pub fn signed_route_with(
+        &self,
+        name: &str,
+        parameters: &BTreeMap<String, String>,
+        status: StatusCode,
+        headers: HeaderMap,
+    ) -> Result<RedirectResponse<'r>> {
+        let target = self
+            .info
+            .route_urls()?
+            .signed_route(name, parameters, true)?;
+        self.to_with(&target, status, headers)
+    }
+
+    /// 按当前时间加秒数生成临时签名 URL 并建立默认 302 重定向。
+    pub fn temporary_signed_route(
+        &self,
+        name: &str,
+        seconds: i64,
+        parameters: &BTreeMap<String, String>,
+    ) -> Result<RedirectResponse<'r>> {
+        self.temporary_signed_route_with(
+            name,
+            seconds,
+            parameters,
+            StatusCode::FOUND,
+            HeaderMap::new(),
+        )
+    }
+
+    /// 生成临时签名 URL，保留显式状态、头及请求闪存借用。
+    pub fn temporary_signed_route_with(
+        &self,
+        name: &str,
+        seconds: i64,
+        parameters: &BTreeMap<String, String>,
+        status: StatusCode,
+        headers: HeaderMap,
+    ) -> Result<RedirectResponse<'r>> {
+        let target = self
+            .info
+            .route_urls()?
+            .temporary_signed_route(name, seconds, parameters, true)?;
+        self.to_with(&target, status, headers)
+    }
+
     /// 按实际登记的控制器动作生成目标，默认 302 和空自定义头，不要求 Session。
     ///
     /// 字符串、二元组及裸 invokable 身份沿当前请求的生成器解析；

@@ -1,5 +1,6 @@
 /target/
 /storage/
+/bootstrap/cache/*.json
 .env
 .env.*
 !.env.example

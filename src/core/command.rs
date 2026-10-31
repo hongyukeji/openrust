@@ -81,6 +81,67 @@ impl Command for ConfigShowCommand {
     }
 }
 
+/// 清除精确选择的配置缓存文件。
+pub(crate) struct ConfigClearCommand;
+
+impl Command for ConfigClearCommand {
+    fn name(&self) -> &'static str {
+        "config:clear"
+    }
+
+    fn about(&self) -> &'static str {
+        "Clear the compiled configuration"
+    }
+
+    fn run<'a>(&'a self, app: &'a App, _args: Vec<String>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            crate::config::compiled::clear(app.config_cache_path()?)?;
+            print("Configuration cache cleared");
+            Ok(())
+        })
+    }
+}
+
+/// 重新引导同一应用类型，再保存最终配置仓储的完整有序值。
+pub(crate) struct ConfigCacheCommand<A>(pub(crate) std::marker::PhantomData<A>);
+
+impl<A: crate::core::Application> Command for ConfigCacheCommand<A> {
+    fn name(&self) -> &'static str {
+        "config:cache"
+    }
+
+    fn about(&self) -> &'static str {
+        "Compile the configuration for the next startup"
+    }
+
+    fn run<'a>(&'a self, app: &'a App, _args: Vec<String>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            crate::config::compiled::clear(app.config_cache_path()?)?;
+            let fresh = crate::core::lifecycle::bootstrap_for_cache::<A>(
+                app.config_cache_path()?.to_path_buf(),
+            )
+            .await?;
+            let result = fresh
+                .config_repository()
+                .all()
+                .map_err(crate::core::Error::from);
+            let path = fresh.config_cache_path().map(std::path::Path::to_path_buf);
+            let shutdown = fresh
+                .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+                .await;
+            match (result, path, shutdown) {
+                (Err(error), _, _) | (Ok(_), Ok(_), Err(error)) => Err(error),
+                (_, Err(error), _) => Err(error.into()),
+                (Ok(value), Ok(path), Ok(())) => {
+                    crate::config::compiled::write(&path, &value)?;
+                    print("Configuration cached");
+                    Ok(())
+                }
+            }
+        })
+    }
+}
+
 // 命令是允许并预期向 stdout 输出内容的唯一位置。
 #[allow(clippy::print_stdout)]
 fn print(text: &str) {

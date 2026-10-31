@@ -45,8 +45,9 @@ Session默认Cookie名的内部转写数据固定参考 `voku/portable-ascii` 2.
 | 密码哈希 | `argon2` 0.6（Argon2id / PHC） | RustCrypto 实现；随机 salt；参数有界可配置；哈希与验证移入 Tokio blocking pool |
 | 认证与限流 key 摘要 | `sha2` 0.10 + `subtle` 2.6 | Session、PAT、CSRF 与数据库限流 key 存 SHA-256 摘要；CSRF 摘要比较使用常量时间比较。限流摘要仅避免原文持久化，不抵抗低熵 key 猜测 |
 | JWT | `jsonwebtoken` 11.1（`aws_lc_rs`） | 复用成熟 JWT 编解码与验证；避免 `rust_crypto` 带入被安全公告覆盖的 `rsa 0.9`；OpenRust 固定 HS256 并自行验证配置、kid、claims、密钥轮换与刷新凭据语义；MSRV 声明为 1.88，须由 workspace 1.97 验证 |
-| TOTP | `hmac` 0.13 + `sha1` 0.11 + `subtle` 2.6（均仅由 `auth-mfa` 启用） | 按 RFC 6238 实现 HMAC-SHA1 动态截断与常量时间码比较；锁文件中已有对应版本，新增直接依赖用于显式协议实现与 RFC 已知向量测试；seed 继续由现有 `Encryptor` 加密 |
+| TOTP | `hmac` 0.13 + `sha1` 0.11 + `subtle` 2.6（仅 sha1 由 `auth-mfa` 启用，hmac/subtle 同时服务基础 URL 签名） | 按 RFC 6238 实现 HMAC-SHA1 动态截断与常量时间码比较；锁文件中已有对应版本，新增直接依赖用于显式协议实现与 RFC 已知向量测试；seed 继续由现有 `Encryptor` 加密 |
 | 应用数据加密 | `aes-gcm-siv` 0.12.1（AES-256-GCM-SIV / RFC 8452）、`getrandom` 0.3、`base64` 0.22、`zeroize` 1.9.1 | `encryption` feature 固定 32-byte key、随机 nonce、认证 envelope 与 key ID 轮换；显式启用 AEAD crate 的 `zeroize` feature；不复用 JWT 签名密钥 |
+| Laravel URL 签名 | `hmac` 0.13 + `sha2_11`（`sha2` 0.11 别名）+ `subtle` 2.6 | 基础路由提供 HMAC-SHA256 URL 签名及常量时间校验，不依赖可选 JWT signing feature。hmac 0.13 与 sha2 0.11 同用 digest 0.11，现 sha2 0.10 调用方保持原版；MFA 仍为 HMAC-SHA1。默认及 no-default 的实际编译与依赖成本待本簇验收，不因锁内已有版本冒称零成本 |
 | 签名链接 | 既有 `jsonwebtoken` 11.1、`base64` 0.22、`getrandom` 0.3、`sha2` 0.10 | 可选 `signing` feature 固定 HS256 和用途专属 key ring；逐条撤销用 PostgreSQL/MySQL 共享存储；未新增依赖 |
 | JWT、锁与幂等 owner randomness | `base64` 0.22 + 必需依赖 `getrandom` 0.3 | 操作系统 CSPRNG 生成 JWT jti、refresh credential、共享锁、请求幂等 owner token及Session ID；共享锁令该依赖不再按认证/队列/加密 feature 可选。启用std错误集成；Session随机错误仍转安全内部I/O错误，独立consumer不依赖根dev feature统一 |
 

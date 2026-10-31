@@ -1,0 +1,2 @@
+# ModuleConfigFiles 将模块自有 feature.toml 写入共享仓储的 example.feature 区段。
+enabled = true

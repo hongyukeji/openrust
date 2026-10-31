@@ -1,5 +1,8 @@
 [app]
 name = "{{name}}"
+# 签名 URL 使用 APP_KEY 原始字节；生产环境应设置不可预测的密钥。
+# 未配置时 Laravel 基线以空密钥签发，普通 URL 同样可用。
+# 旧密钥可由 APP_PREVIOUS_KEYS=old-one,old-two 或 previous_keys 数组提供，仅用于验签。
 url = "http://localhost:3000"
 timezone = "UTC"
 

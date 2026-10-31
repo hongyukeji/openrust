@@ -1,0 +1,394 @@
+{
+    "runtime_class_files": {
+        "Illuminate\\Routing\\UrlGenerator": "/Users/Home/Codes/Git/laravel-framework-baseline/src/Illuminate/Routing/UrlGenerator.php",
+        "Illuminate\\Http\\Request": "/Users/Home/Codes/Git/laravel-framework-baseline/src/Illuminate/Http/Request.php",
+        "Illuminate\\Routing\\RouteCollection": "/Users/Home/Codes/Git/laravel-framework-baseline/src/Illuminate/Routing/RouteCollection.php",
+        "Illuminate\\Routing\\Route": "/Users/Home/Codes/Git/laravel-framework-baseline/src/Illuminate/Routing/Route.php",
+        "Illuminate\\Support\\Arr": "/Users/Home/Codes/Git/laravel-framework-baseline/src/Illuminate/Collections/Arr.php",
+        "Symfony\\Component\\HttpFoundation\\Request": "/Users/Home/Codes/Git/symfony-http-foundation/Request.php",
+        "Carbon\\Carbon": "/Users/Home/.composer/vendor/nesbot/carbon/src/Carbon/Carbon.php"
+    },
+    "baseline": "d52c3b3129e4c8e213c97cdc68f94b0b7d27f181",
+    "php": "8.5.0",
+    "clock": "2026-10-31T00:00:00Z",
+    "php_binary_sha256": "abe0eff75b3ec3cde0f092428a991633bab18fff252d1ad7943a3efcb612607f",
+    "exporter_sha256": "1addd5f6a1195d0a77c50329670140e66dade3d0d600a1eb23dcecb8426c870a",
+    "symfony_request_sha256": "f46e776e11b640e3e48d86da57b228ecb3b2b57410a5a3e81d7637cee5265e25",
+    "carbon_version": "3.8.4",
+    "source_sha256": {
+        "src/Illuminate/Routing/UrlGenerator.php": "8db3088243b9aa9cf5872fef1e52eddf87c8ebaa59cd75e866feeaa911581412",
+        "src/Illuminate/Routing/RoutingServiceProvider.php": "4727903abba49c9840ba9d7eec3936afc935f353fa9f33a46f7cc1620e00ff47",
+        "src/Illuminate/Http/Request.php": "d790c1dd0576f96aefd748cfcad05ec7fb271e828557e77c47bf83c3231abe25",
+        "src/Illuminate/Routing/RouteCollection.php": "57c293d5fd13273593a8cb62990e365e9cdd7215c7ec56d73840f6033511735a",
+        "src/Illuminate/Routing/Route.php": "cecef297382ad30b0f15c5348bdda253c3e81b6eeaa2b55a0e1abc577629bf54",
+        "src/Illuminate/Routing/RouteUrlGenerator.php": "22d9a0ba253e297cb9a098555d529ab8308f1bd52433c38e06006fdfb759ea36",
+        "src/Illuminate/Collections/Arr.php": "b38b741bc8f59a4c86effe818056136cfe0bf6bb3b28fbbb3cbb989fb3b77c98",
+        "tests/Integration/Routing/UrlSigningTest.php": "d4e95af0dbee6c3e3cc129d093940a42abb3404335e01d7b5be5f276eeeec591",
+        "tests/Routing/RoutingUrlGeneratorTest.php": "b285f708a672b8bb9a5c60d1d9acef2b4097289ec85b0ba8a9dae2550edb73b9"
+    },
+    "cases": [
+        {
+            "caseid": "generate_raw_base64_prefix",
+            "input": {
+                "key": "base64:QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo=",
+                "parameters": {
+                    "article": "42",
+                    "z": "last",
+                    "a": "first"
+                }
+            },
+            "expected": {
+                "url": "https://example.test/article/42?a=first&z=last&signature=3a50fabb90297c1b500f0effa8923b783232d03c06487bafb9e6c5fe59c1f497",
+                "valid": true,
+                "valid_with_decoded_key": false
+            },
+            "error": null,
+            "warnings": []
+        },
+        {
+            "caseid": "generate_raw_whitespace",
+            "input": {
+                "key": "  raw key\t"
+            },
+            "expected": {
+                "url": "https://example.test/article/42?signature=f04ad46b72d39ba486c7703cd6981f4a4c9137fe3ebd283c9cab12abf27912e1",
+                "valid": true,
+                "valid_with_trimmed_key": false
+            },
+            "error": null,
+            "warnings": []
+        },
+        {
+            "caseid": "generate_key_missing_null",
+            "input": {
+                "key": null
+            },
+            "expected": {
+                "url": "https://example.test/article/42?signature=789474e0d451e9194ec20877a9f0765db0f20174b867c2200ce7ea83fa121ea9",
+                "valid": true
+            },
+            "error": null,
+            "warnings": [
+                "hash_hmac(): Passing null to parameter #3 ($key) of type string is deprecated",
+                "hash_hmac(): Passing null to parameter #3 ($key) of type string is deprecated"
+            ]
+        },
+        {
+            "caseid": "generate_key_empty",
+            "input": {
+                "key": ""
+            },
+            "expected": {
+                "url": "https://example.test/article/42?signature=789474e0d451e9194ec20877a9f0765db0f20174b867c2200ce7ea83fa121ea9",
+                "valid": true
+            },
+            "error": null,
+            "warnings": []
+        },
+        {
+            "caseid": "previous_key_zero",
+            "input": {
+                "keys": [
+                    "active",
+                    0
+                ],
+                "verify_key": "0"
+            },
+            "expected": {
+                "url": "https://example.test/article/42?signature=9d4fda5d82eda5f019f7f79e9c14d45de95a66a1730433970a15abf998359bb8",
+                "valid_with_previous_zero": true
+            },
+            "error": null,
+            "warnings": []
+        },
+        {
+            "caseid": "relative_and_absolute",
+            "input": {
+                "key": "raw-key"
+            },
+            "expected": {
+                "url": "/article/42?a=one&b=two&signature=a672ac1ce6751bc1bcca40d204f29197047869a9a23019a28b93a747305317f6",
+                "valid_relative": true,
+                "valid_absolute": false
+            },
+            "error": null,
+            "warnings": []
+        },
+        {
+            "caseid": "query_reordering_and_encoding",
+            "input": {
+                "key": "raw-key"
+            },
+            "expected": {
+                "url": "https://example.test/article/42?a=x%2Fy&z=a%20b&signature=6bd0b815944d1adfb3b9291523583ab65eb8df4b60d002c80b27754a62b84b7d",
+                "valid_original": true,
+                "reordered_url": "https://example.test/article/42?z=a%20b&a=x%2Fy&signature=6bd0b815944d1adfb3b9291523583ab65eb8df4b60d002c80b27754a62b84b7d",
+                "valid_reordered": false
+            },
+            "error": null,
+            "warnings": []
+        },
+        {
+            "caseid": "ignore_list_raw_name",
+            "input": {
+                "key": "raw-key",
+                "ignore": [
+                    "utm"
+                ]
+            },
+            "expected": {
+                "url": "https://example.test/article/42?signature=b69536097f9e7b1531e019688eb6992bda332f5ecca972d1613b5fd6e7e23341&utm=one&keep=two",
+                "ignore_utm": false,
+                "ignore_both": true
+            },
+            "error": null,
+            "warnings": []
+        },
+        {
+            "caseid": "ignore_encoded_name_is_raw",
+            "input": {
+                "key": "raw-key",
+                "ignore": [
+                    "utm",
+                    "%75tm"
+                ]
+            },
+            "expected": {
+                "url": "https://example.test/article/42?signature=b69536097f9e7b1531e019688eb6992bda332f5ecca972d1613b5fd6e7e23341&%75tm=one",
+                "ignore_decoded_name": false,
+                "ignore_raw_name": true
+            },
+            "error": null,
+            "warnings": []
+        },
+        {
+            "caseid": "query_empty_segment",
+            "input": {
+                "key": "raw-key"
+            },
+            "expected": {
+                "url": "https://example.test/article/42?signature=b69536097f9e7b1531e019688eb6992bda332f5ecca972d1613b5fd6e7e23341&",
+                "observed_query": "signature=b69536097f9e7b1531e019688eb6992bda332f5ecca972d1613b5fd6e7e23341&",
+                "correct": true
+            },
+            "error": null,
+            "warnings": []
+        },
+        {
+            "caseid": "sorted_mixed_query_values",
+            "input": {
+                "key": "raw-key",
+                "parameters": {
+                    "article": 42,
+                    "z": null,
+                    "a": 0,
+                    "b": false,
+                    "items": {
+                        "x": 1
+                    }
+                }
+            },
+            "expected": {
+                "url": "https://example.test/article/42?a=0&b=0&items%5Bx%5D=1&signature=366a2a3ebb6a64f952c325b3e58bbd04eb415417dfd339e60761934ce9082fab",
+                "valid": true
+            },
+            "error": null,
+            "warnings": []
+        },
+        {
+            "caseid": "temporary_expiry_fixed_timestamps",
+            "input": {
+                "key": "raw-key",
+                "future": 2000000000,
+                "past": 1
+            },
+            "expected": {
+                "future_url": "https://example.test/article/42?expires=2000000000&signature=d2bc087b45deccf3f006816e713051feb6e6eec9c9c424ccfa318d2837848e3f",
+                "future_valid": true,
+                "past_url": "https://example.test/article/42?expires=1&signature=ca3ac94a79d23daaf3f1dfa743267338cd7b3b354eede1ed4efebde4907d03a9",
+                "past_valid": false
+            },
+            "error": null,
+            "warnings": []
+        },
+        {
+            "caseid": "ignore_predicate",
+            "input": {
+                "key": "raw-key",
+                "predicate": "starts_with_x"
+            },
+            "expected": {
+                "url": "https://example.test/article/42?signature=b69536097f9e7b1531e019688eb6992bda332f5ecca972d1613b5fd6e7e23341&x=1&xtra=2",
+                "valid": true
+            },
+            "error": null,
+            "warnings": []
+        },
+        {
+            "caseid": "raw_query_vapor_override",
+            "input": {
+                "key": "raw-key"
+            },
+            "expected": {
+                "url": "https://example.test/article/42?signature=b69536097f9e7b1531e019688eb6992bda332f5ecca972d1613b5fd6e7e23341&evil=1",
+                "raw_query": "signature=b69536097f9e7b1531e019688eb6992bda332f5ecca972d1613b5fd6e7e23341",
+                "valid_with_override": true
+            },
+            "error": null,
+            "warnings": []
+        },
+        {
+            "caseid": "signature_array",
+            "input": {
+                "signature": [
+                    "bad"
+                ]
+            },
+            "expected": {
+                "correct": false
+            },
+            "error": null,
+            "warnings": []
+        },
+        {
+            "caseid": "signature_empty",
+            "input": {
+                "signature": ""
+            },
+            "expected": {
+                "correct": false
+            },
+            "error": null,
+            "warnings": []
+        },
+        {
+            "caseid": "signature_uppercase",
+            "input": {
+                "signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            },
+            "expected": {
+                "correct": false
+            },
+            "error": null,
+            "warnings": []
+        },
+        {
+            "caseid": "signature_short",
+            "input": {
+                "signature": "abc"
+            },
+            "expected": {
+                "correct": false
+            },
+            "error": null,
+            "warnings": []
+        },
+        {
+            "caseid": "expiry_absent",
+            "input": {
+                "expires": null
+            },
+            "expected": {
+                "not_expired": true
+            },
+            "error": null,
+            "warnings": []
+        },
+        {
+            "caseid": "expiry_empty",
+            "input": {
+                "expires": ""
+            },
+            "expected": {
+                "not_expired": true
+            },
+            "error": null,
+            "warnings": []
+        },
+        {
+            "caseid": "expiry_zero",
+            "input": {
+                "expires": "0"
+            },
+            "expected": {
+                "not_expired": true
+            },
+            "error": null,
+            "warnings": []
+        },
+        {
+            "caseid": "expiry_array",
+            "input": {
+                "expires": [
+                    "1"
+                ]
+            },
+            "expected": {
+                "not_expired": false
+            },
+            "error": null,
+            "warnings": []
+        },
+        {
+            "caseid": "expiry_past",
+            "input": {
+                "expires": "1"
+            },
+            "expected": {
+                "not_expired": false
+            },
+            "error": null,
+            "warnings": []
+        },
+        {
+            "caseid": "expiry_future",
+            "input": {
+                "expires": "2000000000"
+            },
+            "expected": {
+                "not_expired": true
+            },
+            "error": null,
+            "warnings": []
+        },
+        {
+            "caseid": "expiry_nonnumeric",
+            "input": {
+                "expires": "abc"
+            },
+            "expected": {
+                "not_expired": true
+            },
+            "error": null,
+            "warnings": []
+        },
+        {
+            "caseid": "reserved_signature",
+            "input": {
+                "parameters": {
+                    "signature": "x"
+                }
+            },
+            "expected": null,
+            "error": {
+                "class": "InvalidArgumentException",
+                "message": "\"Signature\" is a reserved parameter when generating signed routes. Please rename your route parameter."
+            },
+            "warnings": []
+        },
+        {
+            "caseid": "reserved_expires",
+            "input": {
+                "parameters": {
+                    "expires": "1"
+                }
+            },
+            "expected": null,
+            "error": {
+                "class": "InvalidArgumentException",
+                "message": "\"Expires\" is a reserved parameter when generating signed routes. Please rename your route parameter."
+            },
+            "warnings": []
+        }
+    ]
+}

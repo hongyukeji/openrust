@@ -83,7 +83,7 @@ impl fmt::Display for Environment {
 }
 
 /// `[app]` 区段：应用身份信息。
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AppConfig {
     /// 用于日志和邮件的可读名称。
@@ -92,6 +92,11 @@ pub struct AppConfig {
     pub env: Environment,
     /// 用于构造绝对链接的公开基础 URL。
     pub url: String,
+    /// URL 签名使用的原始应用密钥；不进行 Base64 解码。
+    pub key: Option<String>,
+    /// 仅用于验证旧 URL 签名的密钥。
+    #[serde(deserialize_with = "previous_keys")]
+    pub previous_keys: Vec<String>,
     /// 日期便捷读取的应用默认时区；不修改进程全局时区。
     pub timezone: String,
 }
@@ -102,8 +107,51 @@ impl Default for AppConfig {
             name: "OpenRust".to_owned(),
             env: Environment::Development,
             url: "http://localhost:3000".to_owned(),
+            key: None,
+            previous_keys: Vec::new(),
             timezone: "UTC".to_owned(),
         }
+    }
+}
+
+impl fmt::Debug for AppConfig {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("AppConfig")
+            .field("name", &self.name)
+            .field("env", &self.env)
+            .field("url", &self.url)
+            .field("key", &self.key.as_ref().map(|_| "[REDACTED]"))
+            .field("previous_keys", &"[REDACTED]")
+            .field("timezone", &self.timezone)
+            .finish()
+    }
+}
+
+fn previous_keys<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Vec<String>, D::Error> {
+    let value = serde_json::Value::deserialize(deserializer)?;
+    match value {
+        serde_json::Value::Array(values) => values
+            .into_iter()
+            .map(|value| match value {
+                serde_json::Value::String(value) => Ok(value),
+                serde_json::Value::Number(value) => Ok(value.to_string()),
+                _ => Err(serde::de::Error::custom(
+                    "app.previous_keys must contain strings or numbers",
+                )),
+            })
+            .collect(),
+        serde_json::Value::String(value) => Ok(value
+            .split(',')
+            .filter(|key| !key.is_empty() && *key != "0")
+            .map(str::to_owned)
+            .collect()),
+        serde_json::Value::Null => Ok(Vec::new()),
+        _ => Err(serde::de::Error::custom(
+            "app.previous_keys must be an array or comma-separated string",
+        )),
     }
 }
 

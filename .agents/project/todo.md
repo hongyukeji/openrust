@@ -18,7 +18,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 
 ## 当前可领取
 
-当前执行优先级（额度收尾）：①S-DV最终组合与真实driver；②ST-V已编码范围必要修复和剩余适用验证；③R2-P既有实现收尾。暂停领取新功能簇、worktree、Spec与扩展研究；用户已明确授权本地串行集成signed/R03/typed/CC已验收分支，main组合验证通过后退役；Provider/Session/Storage未验收不强合。guard-reliability与guard-question-continuation两工作区受保护，不集成或清理。默认80%预算保留，不申请full grant；已过同输入证据按影响复用，已验证闭环及时限定提交并清自有产物。
+当前执行优先级（额度收尾）：①将已交付R03、typed、CC、Signed四个分支整合为同一个main候选，冻结后只做一次集中组合验收，验证通过才创建含main原HEAD与四个原分支HEAD的本地多父提交并按归属退役；②S-DV/ST-V/R2-P既有范围收尾。暂停领取新功能簇、worktree、Spec与扩展研究；Provider/Session/Storage未验收不强合。guard-reliability与guard-question-continuation两工作区受保护，不集成或清理。默认80%预算保留，不申请full grant；已过同输入证据按影响复用，已验证闭环及时限定提交并清自有产物。
 
 ### 集中产物回收（已完成，保留原始日志缺口）
 
@@ -130,6 +130,12 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 - 资源：只在已清理的 `/Users/Home/Codes/Rust/openrust/target` 按需重建，jobs2；不占端口/库。构建前重测全登记缓存/预计增量，50GB软/100GB硬、磁盘10%软/5%硬；独立执行者受总控暂停/停止协调，原默认80%额度不变。完成后按真实归属清理，不动未合入分支。
 
 ## R2-P Provider 完整注册生命周期（Verify，未提交）
+## R2-CC 配置缓存家族（分支限定验收，未合main）
+
+- 本分支复用唯一Application/Provider/ConfigSources/ConfigRepository实现config:cache与config:clear。首次命令引导保持正常缓存屏障，实际派发才清选定缓存；fresh启动、资源关闭、原子写/回读、失败无半写、双阶段env与模块屏障同簇验证，不热改在途App。
+- 最终18文件 `/tmp/openrust-config-cache-command-bootstrap-script-delta2.json` 已独立复审。修后默认851、全feature1638/68ignored、双严格Clippy、配置77/生命周期18/模块1/CLI1、no-default/MSRV及普通生成8/两类真实进程脚本通过；ignored不算服务。首链驱动忽略规则断言失败及旧benchmark失败均保留；强制重编CLI的续跑与原失败分开索引。
+- 修后双doctest/docs均通过，离线deny仅复用相同依赖图/策略输入且注明2026-10-30 advisory快照；根fmt/diff通过，限定本地提交见Git。root核61项证据及42生成文件。两任务temp已退役，未实际执行范围过宽的cargo clean，约1GiB同名包缓存留待root下次资源交接按精确归属复核；不误删其他产物。尚未main集成与P/R03组合，发布全后端矩阵保持开放。
+
 
 - 已冻结普通/force与boot前后完整家族；固定Laravel真实正常/失败探针、Rust接口候选及独审在 `/tmp/openrust-provider-registration-{frozen-spec,rust-contract,rust-contract-review}.md`。不以启动前去重代替晚注册；异步register/原位置rebinding、绑定generation与缓存槽同锁准入为明确Rust实现约束；失败已发生贡献按PHP保留，不造Provider全局事务。
 - 同项目workspace `wks_f7e111d2b503053b`，branch `tasks/provider-registration-family`，base `3aba0a3`，cwd `/Users/Home/.paseo/worktrees/02joa2lr/openrust-provider-registration-family`。`04cca925-e59f-42f1-800b-424e7b4cd1b8`负责provider/app/resources与配置owner/schema；`0b1cd54b-3828-4eff-bf97-5c519973a41e`仅负责container.rs及container子目录；既有callers负责其余Provider/模块/consumer/模板迁移，禁止重叠编辑。
@@ -515,7 +521,7 @@ H新增实际取证：`/tmp/openrust-c04d10h-matcher/probe.output.jsonl`35案真
 - 固定PHP实测为准：递归TOML/真实basename/自然序/隐藏与链接边界；同名命名空间按实际遍历后项覆盖，不保证跨平台碰撞胜者。根领域配置一次迁移相对内容；同一Sources/仓储保存点路径及来源，精确文件浅合并/白名单PHParraymerge、仅子文件时最终剩余base根覆盖再重放环境层。模块overlay独立，未引入第二配置系统。
 - 最终回执 `/tmp/openrust-config-discovery-final-manifest.json`（SHA `cd6483f40f80d73767fa32995064df254b5f5cf31e15617cf4861b40add6304c`），root核 `/tmp/openrust-config-discovery-root-final-audit.json` 128项哈希全部匹配；配置76、CLI21、模块2、consumer6、普通生成7+安装fixture1、MySQL8.4认证2无skip且库集合未变、严格Clippy/docs/fmt通过。config-feature HTTP 200/enabledtrue与当前URL/TLS工具10场景分开证明；旧0项/共享旧binary/旧脚本结果不冒称当前通过。生产/工具/CLI和helper经不同模型差异审查；不声明main完整workspace组合通过。
 - 当前无Cargo占用，保留暖target；已登记16路径54.48GB、磁盘8.782%为软警告，100GB/5%硬线未触。三个自有生成包clean exit0只有执行者终端回报，无独立原始stdout日志，不编造清理日志SHA；未知root-site/M5缓存未碰。后继构建按实测预计增长调度，不扩大新target，不全清活跃缓存。
-- 后继：只读准备ENV/signed/R03冲突整合；须开发者最终验收后串行集成与main适用完整组合门禁，不自动合并或提前退役未合入worktree/branch。保留SERVER_PORT、CACHE_STORE/cache.default及默认redis/共享REDIS_DB新contract，不复活旧别名。完整Config、typed helpers、配置缓存/发布、动态Settings及发布全后端矩阵仍开放；详细源码/验收记录见任务分支对应core/testing与Git。
+- 开发者已授权R03、typed、CC、Signed四分支先形成同一个main候选；当前MERGE_HEAD仍指R03，索引中的组合树待集中门禁，不据单分支证据宣布main通过。最终提交须以main原HEAD及四个原source HEAD为真实父提交。保留SERVER_PORT、CACHE_STORE/cache.default及默认redis/共享REDIS_DB新contract，不复活旧别名。完整Config、动态Settings及发布全后端矩阵仍开放；详细源码/验收记录见任务分支对应core/testing与Git。
 
 ## 发布前全后端兼容性验收
 

@@ -10,6 +10,8 @@
 
 [ADR-070](decisions/adr-070-laravel-first-rebuild.md) 已接受全面重写方向；[总计划](plans/laravel-rebuild.md) 定义能力矩阵、Rust 适配、目标目录、R0–R16、验收和模型分工。[执行任务](plans/laravel-rebuild-execution.md) 可直接交给执行 Agent。当前领取项仅在 [todo.md](todo.md)。
 
+R2-T ConfigRepository严格类型读取在基于 `a5e6461` 的独立分支完成源码与定向门禁；普通生成7+fixture1、真实HTTP及唯一生成包清理已通过。仅分支限定验收，待root最终本地提交、尚未合入main；完整Config与main组合门禁继续按todo领取。
+
 ## 运行时配置与动态调度依赖
 
 用户授权目标见 [ADR-080](decisions/adr-080-runtime-configuration-scheduling.md) 与 [运行时配置与动态调度计划](plans/runtime-configuration-scheduling.md)：Laravel配置体验、V1必交typed分组DB业务设置与受权管理API（宿主启用可选）、默认DB队列与动态计划；业务secret加密及driver受控激活/待重启，DB保存和节点应用分别可见。当前仅规划，不切换当前HTTP簇；R2契约/持久基础（依赖R4/R7及适用R8）→R10队列事务/每任务策略/动态管理→R14真实多节点与迁移验收；[可选管理界面暂不开发](plans/optional-rapid-development-modules.md#开发与使用边界)，不得自动进入。公共服务/CLI和示例随各簇交付，内部版本/快照不增加普通读取负担；唯一执行状态仍见todo。
@@ -21,6 +23,8 @@
 C04-D10-E scheme/secure与guest/intended已通过适用集中门禁、fresh生成/MySQL及真实TCP4/9，资源收尾完成，限定提交见Git；D10-D为018b778。E限定提交6b143ca。C04-D10-F refresh/away已通过当前门禁、生成/MySQL与真实TCP7/12，资源收尾完成、限定提交见Git；F已提交ba538ea；动作路由身份与action URL按ADR-083 D10-G已限定验收，主门禁、新构建/fresh生成/MySQL及真实TCP10/15与资源收尾通过，含单实例namespace setter与clone隔离；当前H按ADR-083收口真实声明集合/分派同源化，已完成限定验收：定向/双严格Clippy/完整router及主矩阵11项、新构建/生成/MySQL/真实TCP与资源收尾通过，限定提交见Git；T01已完成限定入口整合并实测名单/计时，未证明整体显著提速；R2-R01按ADR-086已完成同仓储运行期set/set_many、App读取及启动快照限定交付，含工作区/fresh生成/MySQL/真实TCP与资源收尾；当前R2-R02按ADR-086已完成有序来源实现、适用Rust门禁、普通/MySQL生成、真实TCP与资源收尾限定验证；已提交a875dd7，R2-ENV已完成工作区/consumer、fresh普通/MySQL、真实HTTP/Redis与资源收尾限定验收；signed完整家族基于af0f62b隔离实现/修复，R2-R03基于e25ec75隔离编码递归配置发现，main集成/组合验证串行；唯一队列见[todo](todo.md)，action/signed前置与完整Redirector、发布全后端矩阵继续开放，不以薄封装替代缺失底层契约。
 
 C04-D9旧输入限定子范围已完成main组合验收，[证据](memory/testing.md#c04-d9-main-组合限定子范围验收通过)保留；R2-Q/X与守护补丁已在main收口。C04-D10-A纯MessageBag/ViewErrorBag已由`27c006a`限定提交。C04-D10-B请求绑定重定向、Session命名错误包及空库迁移启动修复已通过当前源码门禁、无Session与MySQL8.4真实TCP、普通生成7项及MySQL生成认证2项，已由 `a2befef` 限定提交；证据和未覆盖边界见[testing](memory/testing.md#c04-d10-b-请求绑定重定向与-session-错误包限定子范围已验收)。[测试入口整合小试点](memory/testing.md#session-测试入口整合小试点限定验收通过)已通过适用验收并由 `4023e05` 限定提交：三个纯 Session 测试 target 聚为一个，26 项与独立环境/服务入口保留；联合 gRPC 测试的预绑定 listener 修复及旧配置入口也经真实测试；C04-D10-C请求局部视图错误共享、Session对象身份及模板参数桥接已按限定子范围验收并提交 `784045c`；根目标/fallback、内部forward与HEAD站点边界修复已通过不同模型审查及当前输入门禁、fresh生成与真实TCP。默认workspace798/31 ignored、全特性1571/105 ignored，严格双Clippy/docs、features/deny/MSRV、新server/CLI、普通生成7项、MySQL认证2项与独立公开consumer1项通过；无Session/MySQL8.4.13真实TCP通过并清理自有库/端口。ignored不计真实服务，完整Redirector、Validation/CSRF、HTTP/Session及PG/全部后端发布矩阵仍开放。[最终测试记录](memory/testing.md#c04-d10-c-请求局部视图错误共享验收中未提交)。C04-D10-D命名路由重定向限定子范围已验收，提交见Git：`route/route_with` 复用同应用URL生成器及既有响应/闪存链；v2定向、双严格Clippy及main11项通过，默认workspace802 passed/32 ignored、全特性1576 passed/106 ignored。最终server/CLI、fresh普通7项、MySQL8.4.13认证2项及独立公开helper1项通过；无Session/MySQL真实TCP分别3/4个场景通过，正常停止并释放监听、清理敏感文件及自有数据库。ignored不算真实服务；完整Redirector及L020.02仍开放。见[当前验收](memory/testing.md#c04-d10-d-命名路由重定向当前验收中未提交)。固定参考路径与最新源码区分见context。
+
+R2-R03 递归配置发现独立 `tasks/config-discovery-family` 分支限定验收已收：配置76、CLI21、模块2、公开consumer6、严格Clippy/docs、普通fresh生成7+安装consumer1、MySQL8.4认证2无skip通过；无auth MySQL生成0项只算编译。根config-feature HTTP 200/enabled=true/exit0，另有URL/TLS网络runner10/10，不混同证明。owner报告三个唯一生成包清理，真实清理命令 exit0 由执行者终端回报，原始 stdout 未留存；登记54.48GB/磁盘8.782%软警告。分支已提交6482a38，开发者已授权串行集成；当前main为待审MERGE_HEAD候选，组合门禁未运行。见[唯一待办](todo.md#r2-r03-递归配置发现独立分支限定验收完成待本地提交)与[证据](memory/testing.md#r2-r03-递归配置发现任务分支限定验收记录)，不复用旧main结果冒充本簇通过。
 
 当前验证节奏：先完成代码与配套测试代码，功能簇稳定后在提交前集中验收；分支限定验证、main完整组合门禁。实现期不反复跑测试/Clippy矩阵，无关计划文档不使代码证据失效；按[集中验证](conventions.md#功能簇提交前集中验证)调度。正常空间阈值内受控缓存可跨簇复用，50/100 GB（十进制）及磁盘10%/5%政策不变；不再每簇强制清空target。
 
