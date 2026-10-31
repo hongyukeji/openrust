@@ -172,6 +172,7 @@ enum PackageOperation {
 struct State {
     figment: Figment,
     raw: Option<Value>,
+    cached: bool,
     sections: BTreeMap<&'static str, Section>,
     section_order: Vec<&'static str>,
     operations: Vec<PackageOperation>,
@@ -202,13 +203,19 @@ impl fmt::Debug for ConfigRepository {
 }
 
 impl ConfigRepository {
+    /// 本次启动是否从已编译缓存恢复；模块配置文件在此状态下不得重读。
+    pub fn is_cached(&self) -> bool {
+        self.lock().cached
+    }
+
     /// 保留现有来源及其优先级，开始 Provider 注册阶段。
     pub fn new(sources: impl Into<ConfigSources>) -> Self {
-        let (figment, raw) = sources.into().into_parts();
+        let (figment, raw, cached) = sources.into().into_parts();
         Self {
             inner: Arc::new(Mutex::new(State {
                 figment,
                 raw,
+                cached,
                 sections: BTreeMap::new(),
                 section_order: Vec::new(),
                 operations: Vec::new(),
@@ -307,6 +314,9 @@ impl ConfigRepository {
         }
         let mut state = self.lock();
         require_phase(state.phase, Phase::Register)?;
+        if state.cached {
+            return Ok(());
+        }
         state.operations.push(if recursive {
             PackageOperation::Replace(key, defaults)
         } else {
@@ -318,12 +328,13 @@ impl ConfigRepository {
 
     /// 补齐 typed 默认值后重放包操作并校验；成功后封闭注册并进入 boot。
     pub fn validate_base(&mut self) -> Result<()> {
-        let (mut candidate, raw, sections, section_order, operations, revision) = {
+        let (mut candidate, raw, cached, sections, section_order, operations, revision) = {
             let state = self.lock();
             require_phase(state.phase, Phase::Register)?;
             (
                 state.figment.clone(),
                 state.raw.clone(),
+                state.cached,
                 state.sections.clone(),
                 state.section_order.clone(),
                 state.operations.clone(),
@@ -340,6 +351,9 @@ impl ConfigRepository {
             let section = sections
                 .get(key)
                 .ok_or_else(|| invalid(key, "section order missing"))?;
+            if cached {
+                continue;
+            }
             candidate = candidate.join(Serialized::default(key, &section.defaults));
             let mut section_order = read_dot_value(&order, key).cloned().unwrap_or(Value::Null);
             merge_order(&mut section_order, section.defaults.clone());

@@ -6,6 +6,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Changed
 
+- 增加 Laravel 式 `config:cache` / `config:clear`，缓存同一应用 fresh Provider 启动后的最终配置。缓存命中跳过 dotenv、普通配置文件和模块配置重载；维护命令先正常引导再派发，坏缓存不静默回退。默认私有数据文件 `bootstrap/cache/config.json` 是 Rust 表示适配；原子写入、失败清理与资源关闭沿同一生命周期，命令只影响后续启动，不热改已解析客户端。
+
 - 监听环境键统一为中性的 `SERVER_PORT → server.port`，移除 `APP_PORT`、独立 `PORT` 和命名空间端口别名；根和生成应用使用 `APP_URL="http://localhost:${SERVER_PORT}"`。缓存按 Laravel 使用 `CACHE_STORE → cache.default`，默认选择已登记的 redis store，移除旧 `REDIS_DEFAULT_STORE`，不引入 `CACHE_DEFAULT_STORE` 别名；Redis 连接与队列共用 `REDIS_DB`，保留其他合法具名 store 和自定义 driver。
 
 - 配置加载增加不可变 `ConfigSources` 与 `ConfigLoader::sources()`，在进入 Figment 投影前保留已有平层 TOML 的声明键序；默认引导一次捕获来源，类型配置和 Provider 复用该输入。仓储、Provider 与 TestApp 沿既有入口接收有序来源，显式 Figment 输入仍是无法恢复历史声明序的有损入口。文件自然排序不等于已实现递归配置发现或文件名命名空间映射，完整 Config 对应继续开放。

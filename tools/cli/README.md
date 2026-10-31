@@ -1,6 +1,7 @@
 # OpenRust 命令行
 
 `cli` package 提供命令 `openrust`，用于创建用户应用、生成代码并转发应用命令。无需全局安装或从 registry 获取框架包。
+生成应用和仓库根应用均通过框架内置命令执行 `config:cache` 与 `config:clear`；全局 `openrust` 只转发，缓存位于应用根的 `bootstrap/cache/config.json`，生成的 `.gitignore` 排除该运行产物。
 命令帮助中的说明、分组标题及帮助/版本选项均使用简体中文；命令、参数和配置字段保留原名。
 
 ## 创建和运行应用

@@ -6,6 +6,8 @@
 
 ## 当前功能簇
 
+✅ R2-CC配置缓存限定分支验收：官方命令/fresh配置/命中屏障/原子文件/失败资源边界已实现；修后851/1638（all68ignored）、双Clippy/docs、doctest22/24、生成8与真实缓存复启通过，提交见Git。两任务temp已退役，混合归属同名包缓存保留待精确核对；尚未合main，不关闭完整Configuration。
+
 ✅ C04-D10-E scheme/secure与guest/intended已验收并提交6b143ca：定向10/main11、新构建、fresh普通7/MySQL认证2+公开helper1、无Session/MySQL真实TCP4/9场景通过；previous原值与先保存/先消费顺序已修复，唯一模块真实确认回跳不替代认证授权。完整Redirector/L020.02仍开放，见[本簇证据](memory/testing.md#c04-d10-e-scheme-与-guestintended验收中未提交)。
 
 C04-D10-A公共错误包限定子范围已提交 `27c006a`。[证据及限制](memory/testing.md#c04-d10-a-错误包限定子范围已验收)。C04-D10-B请求绑定重定向、Session命名错误包与空库迁移启动修复已通过当前源码门禁、无Session及MySQL8.4真实TCP、普通生成7项/MySQL认证生成2项，已由 `a2befef` 限定提交；纯 Session 测试入口整合限定试点已验收并由 `4023e05` 提交：48→46 入口，26 项全保留；gRPC 联合监听测试的端口所有权空窗已修并通过定向/全特性门禁；PG与全部后端发布矩阵及完整Redirector/Validation仍开放。[B证据及限制](memory/testing.md#c04-d10-b-请求绑定重定向与-session-错误包限定子范围已验收)。

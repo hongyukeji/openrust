@@ -2957,6 +2957,11 @@ mod tests {
         assert!(gitignore.lines().any(|line| line == ".env"));
         assert!(gitignore.lines().any(|line| line == ".env.*"));
         assert!(gitignore.lines().any(|line| line == "/storage/"));
+        assert!(
+            gitignore
+                .lines()
+                .any(|line| line == "/bootstrap/cache/*.json")
+        );
         assert!(gitignore.lines().any(|line| line == "!.env.example"));
         assert!(gitignore.lines().any(|line| line == "!.env.*.example"));
         let env_example = fs::read_to_string(project.join(".env.example"))

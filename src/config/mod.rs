@@ -11,15 +11,16 @@
 //! 4. 本地 `.env` 与进程变量中的应用配置；默认以 `APP_` 为前缀，使用单下划线扁平键
 //!    （`SERVER_PORT=4000` → `server.port`；`APP_NAME` → `app.name`）
 //!
-//! 若进程未设置环境，bootstrap 只会从 `.env` 读取 `APP_ENV` 以选择运行环境。
-//! 所有环境都可从应用工作目录的 `.env` 加载变量；已有进程变量的优先级高于 `.env` 中的值。
+//! bootstrap 将 `.env` 解析到本次应用的独立快照；外部进程环境优先且不被改写。
 
+pub(crate) mod compiled;
 /// Provider 配置仓储、显式 schema 与启动合并操作。
 pub mod repository;
 mod sources;
+use sources::CapturedProvider;
 pub use sources::ConfigSources;
+pub(crate) use sources::EnvironmentSnapshot;
 pub(crate) use sources::natural_name_cmp;
-use sources::{CapturedProvider, EnvironmentSnapshot};
 
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -216,18 +217,8 @@ pub fn load_dotenv() -> Option<PathBuf> {
     dotenvy::dotenv().ok()
 }
 
-/// 启动时加载应用工作目录中的 `.env`；文件缺失时继续启动，文件无效时安全失败。
-pub(crate) fn load_dotenv_for_bootstrap() -> Result<(), ConfigError> {
-    match dotenvy::from_path(".env") {
-        Ok(()) => Ok(()),
-        Err(error) if error.not_found() => Ok(()),
-        Err(_) => Err(ConfigError::Invalid(
-            "无法加载 .env 文件，请检查文件格式和读取权限".to_owned(),
-        )),
-    }
-}
-
-/// 只从 `.env` 读取所选命名空间的环境键，不修改进程变量。
+/// 测试旧的独立 `.env` 环境选择语义；生产引导使用统一快照。
+#[cfg(test)]
 pub(crate) fn dotenv_environment(namespace: &str) -> Result<Environment, ConfigError> {
     validate_namespace(namespace)?;
     let key = format!("{namespace}ENV");
@@ -266,6 +257,7 @@ pub struct ConfigLoader {
     config_dir_key: String,
     env: Environment,
     namespace: String,
+    environment: Option<EnvironmentSnapshot>,
 }
 
 impl fmt::Debug for ConfigLoader {
@@ -296,9 +288,19 @@ impl ConfigLoader {
         env: Environment,
         namespace: &str,
     ) -> Result<Self, ConfigError> {
+        let mut loader = Self::from_snapshot(env, namespace, EnvironmentSnapshot::capture())?;
+        loader.environment = None;
+        Ok(loader)
+    }
+
+    pub(crate) fn from_snapshot(
+        env: Environment,
+        namespace: &str,
+        environment: EnvironmentSnapshot,
+    ) -> Result<Self, ConfigError> {
         validate_namespace(namespace)?;
         let config_dir_key = format!("{namespace}CONFIG_DIR");
-        let selected = std::env::var_os(&config_dir_key);
+        let selected = environment.get_os(&config_dir_key);
         if selected.as_ref().is_some_and(|value| value.is_empty()) {
             return Err(ConfigError::Invalid(format!(
                 "{config_dir_key}: 配置目录不能为空"
@@ -310,6 +312,7 @@ impl ConfigLoader {
             config_dir_key,
             env,
             namespace: namespace.to_owned(),
+            environment: Some(environment),
         })
     }
 
@@ -321,6 +324,7 @@ impl ConfigLoader {
             config_dir_key: "config_dir".to_owned(),
             env,
             namespace: ENV_PREFIX.to_owned(),
+            environment: None,
         }
     }
 
@@ -388,7 +392,10 @@ impl ConfigLoader {
                 .with_metadata(Metadata::named("TOML file").source(file.as_path()));
             sources.merge(captured, ordered)?;
         }
-        let environment = EnvironmentSnapshot::capture();
+        let environment = self
+            .environment
+            .clone()
+            .unwrap_or_else(EnvironmentSnapshot::capture);
         if let Some(url) = conventional_database_url(&environment) {
             let layer = serde_json::json!({ "database": { "url": url } });
             sources.merge(Serialized::defaults(layer.clone()), layer)?;
@@ -599,6 +606,7 @@ fn namespaced_environment_path(key: &str, namespace: &str) -> Option<String> {
     let name = key.get(namespace.len()..)?;
     if name.eq_ignore_ascii_case("ENV")
         || name.eq_ignore_ascii_case("CONFIG_DIR")
+        || name.eq_ignore_ascii_case("CONFIG_CACHE")
         || [
             "SERVER_PORT",
             "PORT",
@@ -1525,6 +1533,32 @@ mod tests {
             assert_eq!(loader.config_dir(), Path::new("shop-config"));
             assert_eq!(config.server.port, 4003);
             assert_eq!(config.server.host, "0.0.0.0");
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn cache_path_control_keys_do_not_enter_uncached_configuration() {
+        let _environment_guard = crate::lock_test_env();
+        figment::Jail::expect_with(|jail| {
+            jail.clear_env();
+            jail.set_env("APP_CONFIG_CACHE", "bootstrap/cache/private.json");
+            jail.set_env("SHOP_CONFIG_CACHE", "bootstrap/cache/shop.json");
+            jail.create_dir("config")?;
+            let app = ConfigLoader::new("config", Environment::Test)
+                .sources()
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            let shop = ConfigLoader::new("config", Environment::Test)
+                .with_namespace("SHOP_")
+                .and_then(|loader| loader.sources())
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            for sources in [app, shop] {
+                let raw = repository::ConfigRepository::new(sources)
+                    .all()
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                assert!(raw["app"].get("config_cache").is_none());
+                assert!(raw.get("config_cache").is_none());
+            }
             Ok(())
         });
     }

@@ -24,6 +24,7 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 --- .gitignore ---
 /target/
 /storage/
+/bootstrap/cache/*.json
 .env
 .env.*
 !.env.example

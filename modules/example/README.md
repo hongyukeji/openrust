@@ -1,5 +1,37 @@
 # 综合业务示例
 
+根应用启用本模块后，可执行 `config:cache`，修改 `config/` 中的示例配置，再重新启动访问 `GET /api/example/config-greeting` 验证缓存值；执行 `config:clear` 并再次启动后读取新值。两个命令只改变后续进程的启动来源，已运行进程的业务服务保持原快照。
+
+冻结本次源码 SHA 清单后构建 `server` 并保留构建日志。先把应用和唯一业务模块复制到自有临时目录，为副本写入与实际目录一致的任务标记，再从仓库根对副本运行真实进程回归。脚本会拒绝无标记目录与不匹配的二进制；只修改副本配置，使用临时缓存路径和端口，并在结束时核对恢复文件的 SHA。构建日志、源码清单和二进制 SHA 应归入同一验收记录：
+
+```sh
+set -e
+freeze_receipt=/path/to/frozen-18-file-sha-receipt.json
+verify_freeze() {
+  python3 -B -c 'import hashlib,json,pathlib,sys; r=json.loads(pathlib.Path(sys.argv[1]).read_text()); changed=[p for p,s in r["files"].items() if hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()!=s]; print("freeze files:",len(r["files"]),"drift:",changed); sys.exit(bool(changed))' "$freeze_receipt"
+}
+case_root="$(mktemp -d /tmp/openrust-config-cache-example.XXXXXX)"
+verify_freeze
+cargo build --locked --offline --bin server > "$case_root/build-server.log" 2>&1
+verify_freeze
+binary="${CARGO_TARGET_DIR:-$PWD/target}/debug/server"
+binary_sha="$(shasum -a 256 "$binary" | cut -d ' ' -f 1)"
+mkdir "$case_root/app"
+rsync -a --exclude='.git' --exclude='target' --exclude='.env' \
+  --exclude='bootstrap/cache' ./ "$case_root/app/"
+python3 -c 'import pathlib, sys; p = pathlib.Path(sys.argv[1]).resolve(strict=True); (p / ".openrust-config-cache-task-root").write_text(str(p) + "\n", encoding="utf-8")' "$case_root/app"
+python3 -B tests/consumers/config-repository-reading/scripts/verify_cache_restart.py \
+  "$case_root/app" "$binary" \
+  modules/example/config/config.toml \
+  'Hello from modules/example' 'Cache updated' \
+  /api/example/config-greeting data.greeting \
+  'Hello from modules/example' 'Cache updated' \
+  --bad-content 'greeting = [' --expected-binary-sha256 "$binary_sha"
+python3 -B tests/consumers/config-repository-reading/scripts/verify_cache_command_bootstrap.py \
+  "$case_root/app" "$binary" \
+  modules/example/config/config.toml --expected-binary-sha256 "$binary_sha"
+```
+
 > 当前源码位于 `modules/example/`，通过统一模块清单与 ServiceProvider 接入；隔离的 example_* 表 CRUD、当前已实现公开能力的业务调用与适用双库验收已由 R1-E 提交 `bc3fa01`。
 
 `modules/example` 是根应用挂载的普通业务模块，供开发者学习如何在 `modules/<业务>/` 调用框架公开 API，以及通过公开 Provider/driver 契约扩展框架。框架、应用宿主和业务模块都在本仓 `main` 开发；这里没有独立 package、bin、启动模式或 example feature，也不复制完整应用骨架。

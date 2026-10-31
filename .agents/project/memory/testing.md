@@ -1,5 +1,17 @@
 # 测试基线
 
+## R2-CC 配置缓存（分支限定验收通过）
+
+本簇为 `tasks/config-cache-family` 的分支证据，base `9581a53`，不等同main组合验收。最终18文件输入 `/tmp/openrust-config-cache-command-bootstrap-script-delta2.json` 经不同模型复审，路径误删、dotenv全局污染、模块绕过缓存、晚期命中前环境校验与维护命令bootstrap时点问题均已修；脚本副本保护/独立负例/失败恢复保护经限定复审关闭。静态结论不代替真实运行。
+
+- 当前修后 `/tmp/openrust-config-cache-final-run.json`：config77、lifecycle18、模块1、CLI模板1、双严格Clippy、新server实际Compiling及唯一模块cache/clear/坏TOML/坏缓存命令真实脚本通过。链在生成成功后的错误忽略规则断言停止，保留该失败，不改正确`/bootstrap/cache/*.json`模板。
+- `/tmp/openrust-config-cache-final-resume.json` 从CLI实际重编起续跑；新binary SHA、生成cache JSON忽略与非缓存路径正反验证、生成check/test8/build及真实重启通过，配置源恢复SHA一致；默认workspace lib/tests851通过。root核当前原日志SHA无漂移/截断；最终全特性lib/tests1638通过/68ignored、no-default和Rust1.97全特性workspace/all-targets check均exit0。
+- 旧 `/tmp/openrust-config-cache-gates2.json`、supplemental/extra回执及早期失败保留。原all-features all-targets额外运行复制benchmark失败，不能改称原命令成功；测试目标补验、doctest/docs、MSRV/no-default/deny各有独立记录，最终按变更影响明确复用或补验，不将旧输入冒称当前通过。
+- 修后文档补验 `/tmp/openrust-config-cache-doc-supplement.json`：默认doctest22通过/34ignored，全feature24通过/40ignored，双warnings-denied docs均exit0；旧离线deny仅在manifest/lock/deny.toml SHA一致前提下复用，advisory快照2026-10-30，不声称在线刷新。
+- 最终索引 `/tmp/openrust-config-cache-final-manifest.json`（SHA `73da1b7712e35176dff0bd30b63004d07e7f35f5e6e73603c99b6005c3508119`）；root核61项输入/日志与42个生成文件，`/tmp/openrust-config-cache-root-final-audit.json` 保留当前server与历史不一致的事实。共享target后续构建已替换server，原两脚本开始强制核expected SHA、结束原日志均记同一历史SHA，不能声称现在仍可重算旧binary。
+- `/tmp/openrust-config-cache-cleanup-receipt.json`：两自有temp目录在42文件hash/恢复hash/无symlink或进程占用核对后退役，实测磁盘回收13,570,048B，共享target变化0。Cargo dry-run忽略包URL/版本限定、会清所有同名sample-app，故未实际clean；约1GiB宽范围缓存保留，责任root，下一资源交接先核精确归属再退役，不为回收而删他人产物。
+- 最终cargo fmt --all --check及diff检查通过；限定分支本地提交见Git，尚未合main。缓存命中无数据库路径变化，生成仅普通项目；如复用既有MySQL证据须明确原输入及影响，不声称新缓存全后端验收。完整发布后端、上述混合归属缓存退役及main组合仍开放；文档变化不改冻结Rust输入、不触发无关矩阵重跑。
+
 ## 当前数据库运行政策
 
 - 日常功能簇、main组合及数据库型生成项目默认真实MySQL8.4；普通无数据库生成、真实HTTP和其余适用门禁保持。PG18/MySQL8.4服务与支持范围不删减，编译/features不算真实后端验收。

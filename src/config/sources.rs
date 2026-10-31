@@ -19,6 +19,7 @@ use super::repository::{normalize_php_source, php_value, reorder_like};
 pub struct ConfigSources {
     figment: Figment,
     ordered: Option<Value>,
+    cached: bool,
 }
 
 impl ConfigSources {
@@ -51,8 +52,16 @@ impl ConfigSources {
         &self.figment
     }
 
-    pub(crate) fn into_parts(self) -> (Figment, Option<Value>) {
-        (self.figment, self.ordered)
+    pub(crate) fn into_parts(self) -> (Figment, Option<Value>, bool) {
+        (self.figment, self.ordered, self.cached)
+    }
+
+    pub(crate) fn from_cached(ordered: Value) -> Result<Self, ConfigError> {
+        let projected = project_root(&ordered);
+        let figment = Figment::from(figment::providers::Serialized::defaults(projected));
+        let mut sources = Self::checked(figment, ordered)?;
+        sources.cached = true;
+        Ok(sources)
     }
 
     pub(crate) fn checked(figment: Figment, ordered: Value) -> Result<Self, ConfigError> {
@@ -65,6 +74,7 @@ impl ConfigSources {
         Ok(Self {
             figment,
             ordered: Some(ordered),
+            cached: false,
         })
     }
 
@@ -97,6 +107,7 @@ impl From<Figment> for ConfigSources {
         Self {
             figment,
             ordered: None,
+            cached: false,
         }
     }
 }
@@ -165,6 +176,7 @@ impl Provider for CapturedProvider {
 }
 
 /// 在一次迭代中冻结进程环境；保留非 UTF-8 值供安全的按键查询。
+#[derive(Clone)]
 pub(crate) struct EnvironmentSnapshot {
     values: Vec<(OsString, OsString)>,
 }
@@ -174,6 +186,30 @@ impl EnvironmentSnapshot {
         Self {
             values: std::env::vars_os().collect(),
         }
+    }
+
+    pub(crate) fn with_dotenv(&self) -> Result<Self, ConfigError> {
+        let entries = match dotenvy::from_path_iter(".env") {
+            Ok(entries) => entries,
+            Err(error) if error.not_found() => return Ok(self.clone()),
+            Err(_) => return Err(ConfigError::Invalid("无法读取 .env 文件".to_owned())),
+        };
+        let mut merged = self.clone();
+        for entry in entries {
+            let (key, value) =
+                entry.map_err(|_| ConfigError::Invalid(".env 文件格式无效".to_owned()))?;
+            if !merged.present(&key) {
+                merged.values.push((key.into(), value.into()));
+            }
+        }
+        Ok(merged)
+    }
+
+    pub(crate) fn get_os(&self, key: &str) -> Option<&OsStr> {
+        self.values
+            .iter()
+            .find(|(name, _)| name == OsStr::new(key))
+            .map(|(_, value)| value.as_os_str())
     }
 
     pub(crate) fn present(&self, key: &str) -> bool {

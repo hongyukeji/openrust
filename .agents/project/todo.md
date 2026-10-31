@@ -103,6 +103,12 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 - 审计范围包括完整领域配置说明、env 映射、typed 读取/启动校验、模块配置的公开注册与覆盖；先说明现有能力、真实缺口和依赖，不凭空叠加第二配置层或改变 env 语义。
 - 本项归 R2，依赖只读审计交付与统一 Container/ServiceProvider contract；R1 不混入配置实现改动，当前配置源、默认运行值和 Redis 默认无静默回退保持。 R2-T六类严格读取及`*_or`/`*_or_else`已在同项目任务分支限定提交`b1f4bf7`；仓储43/集合4/模块1/consumer6、严格Clippy3/docs1、fresh普通7+fixture1、真实TCP200/正常关闭及精确产物回收通过，不关闭完整L005.03/main组合门禁。owner `8ca4236f-2c8c-4f7c-887b-8dab60f6e54e`，workspace `wks_44ece7d45e1cfb13`，branch `tasks/config-typed-helpers`，base `a5e6461`，cwd `/Users/Home/.paseo/worktrees/02joa2lr/openrust-config-typed-helpers`；源码与文档工作区干净、target窗口已释放，未合main不得退役worktree。最终owner证据 `/tmp/openrust-config-typed-helpers-final-owner-receipt.json`、root核证 `/tmp/openrust-config-typed-helpers-root-final-audit.json`；聚合登记56.83GB/磁盘可用86.95GB均仅软告警，100GB/5%硬线保持；未知缓存未清。Provider普通/force注册后继真实PHP与Rust候选已交`/tmp/openrust-provider-registration-rust-contract.md`，不同模型审查在途，未实现。
 
+## R2-CC 配置缓存家族（分支限定验收，未合main）
+
+- 本分支复用唯一Application/Provider/ConfigSources/ConfigRepository实现config:cache与config:clear。首次命令引导保持正常缓存屏障，实际派发才清选定缓存；fresh启动、资源关闭、原子写/回读、失败无半写、双阶段env与模块屏障同簇验证，不热改在途App。
+- 最终18文件 `/tmp/openrust-config-cache-command-bootstrap-script-delta2.json` 已独立复审。修后默认851、全feature1638/68ignored、双严格Clippy、配置77/生命周期18/模块1/CLI1、no-default/MSRV及普通生成8/两类真实进程脚本通过；ignored不算服务。首链驱动忽略规则断言失败及旧benchmark失败均保留；强制重编CLI的续跑与原失败分开索引。
+- 修后双doctest/docs均通过，离线deny仅复用相同依赖图/策略输入且注明2026-10-30 advisory快照；根fmt/diff通过，限定本地提交见Git。root核61项证据及42生成文件。两任务temp已退役，未实际执行范围过宽的cargo clean，约1GiB同名包缓存留待root下次资源交接按精确归属复核；不误删其他产物。尚未main集成与P/R03组合，发布全后端矩阵保持开放。
+
 ## R2-P Provider 完整注册生命周期（Implement）
 
 - 已冻结普通/force与boot前后完整家族；固定Laravel真实正常/失败探针、Rust接口候选及独审在 `/tmp/openrust-provider-registration-{frozen-spec,rust-contract,rust-contract-review}.md`。不以启动前去重代替晚注册；异步register/原位置rebinding、绑定generation与缓存槽同锁准入为明确Rust实现约束；失败已发生贡献按PHP保留，不造Provider全局事务。

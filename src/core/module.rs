@@ -509,6 +509,9 @@ impl ModuleConfigFiles {
 
     /// 在调用此方法的 Provider boot 时点逐文件覆盖配置。
     pub fn overlay(&self, app: &mut BootContext<'_>) -> Result<()> {
+        if app.config_repository().is_cached() {
+            return Ok(());
+        }
         let config_dir = self.root.join("config");
         let config_metadata = match config_dir.symlink_metadata() {
             Ok(metadata) => metadata,
@@ -615,6 +618,40 @@ impl ModuleConfigFiles {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn cached_module_configuration_skips_invalid_toml_before_discovery() -> Result<()> {
+        struct ConfigModuleProvider(ModuleConfigFiles);
+        impl ServiceProvider for ConfigModuleProvider {
+            fn boot<'a>(
+                &'a self,
+                app: &'a mut BootContext<'_>,
+            ) -> super::super::BoxFuture<'a, Result<()>> {
+                Box::pin(async move { self.0.overlay(app) })
+            }
+        }
+
+        let temporary = tempfile::tempdir().map_err(Error::internal)?;
+        let root = directory(temporary.path(), "example")?;
+        let config = directory(&root, "config")?;
+        std::fs::write(config.join("greeting.toml"), "invalid [").map_err(Error::internal)?;
+        let files = ModuleConfigFiles::new("example", &root)?;
+        let mut value = serde_json::to_value(crate::config::FrameworkConfig::default())
+            .map_err(Error::internal)?;
+        value["example"] = serde_json::json!({ "greeting": { "text": "cached" } });
+        let cached = crate::config::ConfigSources::from_cached(value)?;
+        let mut builder = super::super::ProviderBuilder::new();
+        builder.provider(ConfigModuleProvider(files));
+        let runtime = builder.start(cached).await?;
+        assert_eq!(
+            runtime.config.get("example.greeting.text")?,
+            Some(serde_json::json!("cached"))
+        );
+        runtime
+            .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+            .await?;
+        Ok(())
+    }
 
     fn directory(root: &Path, name: &str) -> Result<PathBuf> {
         let path = root.join(name);

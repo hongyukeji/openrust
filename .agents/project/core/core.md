@@ -52,6 +52,14 @@ MFA 在候选为迁移时仍解析服务与配置，仅登记延后 schema 检�
 
 本簇已通过首轮142项、默认workspace853/全feature1642、双严格Clippy/docs、features/MSRV/deny、consumer5项及fresh生成原7+fixture1/MySQL2、真实TCP与资源收尾；命令、忽略项、失败历史及SHA见[本簇验收](../memory/testing.md#r2-r02-config-sources)。来源自然排序不等于完整Laravel配置发现：递归目录、文件名到配置namespace映射及类型表示差异仍为完整Config待办。当前实现不得据此宣称全量Config对应完成。契约见[ADR-086](../decisions/adr-086-config-repository-reading.md)。
 
+## R2-CC 配置缓存（分支限定验收通过）
+
+- 固定 Laravel `ConfigCacheCommand` / `ConfigClearCommand` 与引导顺序，复用同一 Application、Provider、ConfigSources 和 ConfigRepository；公开命令为 `config:cache` / `config:clear`。默认 `bootstrap/cache/config.json` 是 Rust 数据表示适配，不执行 PHP 配置代码；默认 namespace 使用 `APP_CONFIG_CACHE` 选择相对或绝对文件路径。
+- 首次控制台引导与普通应用一致，先加载缓存并执行 Provider register/boot，再派发维护命令；有效缓存屏蔽损坏来源，损坏缓存先报错，不借命令候选提前删除。`config:clear` 仅在实际命令执行时清除选定文件。`config:cache` 在实际命令执行时先清除本次选定文件，经同 Application fresh register/boot 取得最终有序配置；fresh 资源关闭成功后以同目录临时文件写入、同步、原子替换并回读核对。Unix 临时文件权限为0600；配置可能含秘密，不进错误或日志。失败不得保留半文件，其他路径缓存不因探测被删除。
+- 引导先以外部环境快照检查缓存；未命中才独立解析 dotenv，再按选中路径检查一次；仅双重未命中才解析运行环境并读普通配置。dotenv 不写进程全局环境。命中缓存仍执行 Provider 其余职责与类型校验，同仓储 cached 标记在通用模块配置文件发现之前阻止重新读取/覆盖。
+- 命令影响后续启动，不热改已运行 App 或已解析客户端；运行期仓储写入、持久业务 Settings、跨节点激活与完整配置发现仍按各自计划，不能由缓存子簇关闭。R03 与 R2-P 尚未组合集成，不把各分支行为冒称 main 行为。
+- 修后当前输入config77、lifecycle18、模块缓存屏障1、CLI模板1、双严格Clippy、默认workspace lib/tests851项、新server/两项模块真实脚本通过；强制重编CLI后的生成8项及真实重启通过。全特性lib/tests1638通过/68ignored、默认doctest22/34ignored与全特性24/40ignored、双warnings-denied docs及no-default/MSRV通过，离线deny按相同依赖图输入复用。两任务临时目录已回收；Cargo选择范围过宽的同名包缓存未删，归属复核缺口公开保留。限定分支提交见Git，main组合与完整Configuration仍未关闭。
+
 ## R2-Q/X 已验收子范围
 
 R2-Q 分支 `850e1a4` 与 R2-X 分支 `d299ca4` 已完成各自限定验收；main 已完成实际组合验收，含双库、TCP和五类fresh生成应用；本地集成提交见Git，证据见[testing](../memory/testing.md#r2-qx-main-组合验收通过)。不代表完整配置/Container/Facade已对应。
