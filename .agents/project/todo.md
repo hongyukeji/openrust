@@ -103,19 +103,19 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 - 审计范围包括完整领域配置说明、env 映射、typed 读取/启动校验、模块配置的公开注册与覆盖；先说明现有能力、真实缺口和依赖，不凭空叠加第二配置层或改变 env 语义。
 - 本项归 R2，依赖只读审计交付与统一 Container/ServiceProvider contract；R1 不混入配置实现改动，当前配置源、默认运行值和 Redis 默认无静默回退保持。 R2-T六类严格读取及`*_or`/`*_or_else`已在同项目任务分支限定提交`b1f4bf7`；仓储43/集合4/模块1/consumer6、严格Clippy3/docs1、fresh普通7+fixture1、真实TCP200/正常关闭及精确产物回收通过，不关闭完整L005.03/main组合门禁。owner `8ca4236f-2c8c-4f7c-887b-8dab60f6e54e`，workspace `wks_44ece7d45e1cfb13`，branch `tasks/config-typed-helpers`，base `a5e6461`，cwd `/Users/Home/.paseo/worktrees/02joa2lr/openrust-config-typed-helpers`；源码与文档工作区干净、target窗口已释放，未合main不得退役worktree。最终owner证据 `/tmp/openrust-config-typed-helpers-final-owner-receipt.json`、root核证 `/tmp/openrust-config-typed-helpers-root-final-audit.json`；聚合登记56.83GB/磁盘可用86.95GB均仅软告警，100GB/5%硬线保持；未知缓存未清。Provider普通/force注册后继真实PHP与Rust候选已交`/tmp/openrust-provider-registration-rust-contract.md`，不同模型审查在途，未实现。
 
-## R2-P Provider 完整注册生命周期（Implement）
+## R2-P Provider 完整注册生命周期（Verify，未提交）
 
 - 已冻结普通/force与boot前后完整家族；固定Laravel真实正常/失败探针、Rust接口候选及独审在 `/tmp/openrust-provider-registration-{frozen-spec,rust-contract,rust-contract-review}.md`。不以启动前去重代替晚注册；异步register/原位置rebinding、绑定generation与缓存槽同锁准入为明确Rust实现约束；失败已发生贡献按PHP保留，不造Provider全局事务。
 - 同项目workspace `wks_f7e111d2b503053b`，branch `tasks/provider-registration-family`，base `3aba0a3`，cwd `/Users/Home/.paseo/worktrees/02joa2lr/openrust-provider-registration-family`。`04cca925-e59f-42f1-800b-424e7b4cd1b8`负责provider/app/resources与配置owner/schema；`0b1cd54b-3828-4eff-bf97-5c519973a41e`仅负责container.rs及container子目录；既有callers负责其余Provider/模块/consumer/模板迁移，禁止重叠编辑。
 - 共享API已收敛：ServiceProvider::register改BoxFuture；Context涉及绑定/回调的方法原位置await；rebinding在已绑定时立即解析并返回Option<Arc<T>>。configure_after_register改FnOnce(Container)→BoxFuture，原register后覆盖时点不变；启动前建立唯一Container/StartupResources，配置登记当场可读但保留boot前校验，默认合并不得重复应用。
-- 三路先完成生产/调用方/测试/示例与说明再统一freeze；无Cargo、新target或服务启动，资源窗口空闲不阻塞编码。manifest/lock/共享Agentdocs/main索引与提交仍root独占；最终不同模型独审、定向分支门禁、生成/真实HTTP及main组合验收分开，未验证不得提交或关闭矩阵。
+- 三路生产/调用方/测试/示例已冻结93文件；core125、仓储47、公开Container契约24实际通过。Register操作重放导致后续set被覆盖的缺陷已修，不同模型静态复审关闭该blocker；当前默认严格Clippy第二轮仅剩失效Serialized导入，原owner移除后作第三轮严格复验，通过即连续执行剩余workspace/全特性/docs门禁，失败停批。证据 `/tmp/openrust-r2p-ready-sequencefix.json`、`/tmp/openrust-r2p-clippy-default2.log`；生成/真实HTTP及main组合验收仍未完成。manifest/lock/共享Agentdocs/main索引与提交仍root独占。
 - 当前登记56.83GB及磁盘可用86.95GB仅软告警，100GB/5%硬线保持；未知缓存不清。派发/停止实际ID入口 `/tmp/openrust-provider-registration-dispatch.json`，总控用正式Paseo stop逐任务协调；不另建Goal/guard，不推送，保留前三个未合分支及证据。
 
 ## R2-CC 配置缓存家族（Implement，与R2-P验收并行）
 
 - 稳定main `9581a53` 起点，不依赖未提交R2-P；固定Laravel ConfigCache/Clear、LoadConfiguration/LoadEnvironmentVariables 与现来源/命令机制，完成官方 `config:cache/config:clear`、同Application fresh配置、缓存命中与两阶段env路径、原子文件/失败清除/资源关闭、模块/生成/真实复启验收；Spec `/tmp/openrust-config-cache-frozen-spec.md`，候选与来源 `/tmp/openrust-config-cache-contract.md`，未实现/验收项不得提前关闭L005.04。
 - owner `cbc80e79-d801-4d4e-aef0-c4e7f4551346`，同项目workspace `wks_d752446d3d277b26`，branch `tasks/config-cache-family`，cwd `/Users/Home/.paseo/worktrees/02joa2lr/openrust-config-cache-family`；本lane独占自身源码/模块/模板/说明，manifest/lock/共享Agentdocs与main索引root协调。不复制其他worktree WIP，后继R2-P异步API/R03文件来源在实际集成时组合验证。
-- 当前实际running只编码/静态检查，不Cargo/服务/新target；R2-P由原owner唯一占构建窗口，公开契约两项旧延迟断言已交caller对照固定语义批修，core125与repo43实际通过。全项目50GB/10%软、100GB/5%硬，未知缓存不清；实际派发/停止入口 `/tmp/openrust-config-cache-dispatch.json`，root正式Paseo stop协调，不另建Goal/guard，不推送或自动main合并。
+- 首批15文件已交不同模型独审，发现维护命令可能误删两个缓存、dotenv污染全局环境、模块TOML绕过缓存三项blocker；原owner已实际running批修，范围增加通用module入口及公开回归，不特判example。报告 `/tmp/openrust-config-cache-independent-review.md`；修复后重新冻结、delta复审再集中Verify，目前无编译/行为通过声明。R2-P原owner持共享target窗口，CC只编码/静态检查、不Cargo/服务/新target。全项目50GB/10%软、100GB/5%硬，软线不是全面禁止构建，未知缓存不清；派发/停止入口 `/tmp/openrust-config-cache-dispatch.json`，不另建Goal/guard，不推送或自动main合并。
 
 ## R2/R10 运行时配置与动态调度（仅规划，按依赖领取）
 
