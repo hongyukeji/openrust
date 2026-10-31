@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use figment::{Figment, providers::Serialized};
-use futures_util::StreamExt;
+use futures_util::{FutureExt, StreamExt};
 use openrust::auth::JwtTokens;
 use openrust::db::sea_orm::{ActiveModelTrait, ActiveValue::Set, EntityTrait, TransactionTrait};
 use openrust::db::sea_orm_migration::{MigrationTrait, MigratorTrait};
@@ -100,10 +100,13 @@ impl Fixture {
         ))
     }
     async fn close(mut self) -> TestResult {
-        self.app
+        let shutdown = self
+            .app
             .shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
-            .await?;
-        self.database.close().await?;
+            .await;
+        let database = self.database.close().await;
+        shutdown?;
+        database?;
         Ok(())
     }
 }
@@ -117,6 +120,7 @@ fn request(
     let mut builder = Request::builder()
         .method(method)
         .uri(path)
+        .header("host", "localhost")
         .header("content-type", mime)
         .header(
             "content-disposition",
@@ -629,109 +633,249 @@ async fn cleanup_uses_persisted_tenant_and_rejects_ambient_tenant() -> TestResul
     let Some(fixture) = Fixture::create().await? else {
         return Ok(());
     };
-    let db = fixture.app.app()?.state().resolve::<Db>().await?;
-    let attachments = fixture
-        .app
-        .app()?
-        .state()
-        .resolve::<ArticleAttachments>()
-        .await?;
-    let storage = fixture.app.app()?.state().resolve::<Storage>().await?;
-    let connection = db.primary_connection()?;
-    let id = fixture.article_id;
-    let path = StoragePath::new(format!("example/articles/1/{id}/attachment.txt"))?;
-    let disk = storage.default_disk().await?;
-    let tenant_a = TenantId::new("attachment-tenant-a")?;
-    let tenant_b = TenantId::new("attachment-tenant-b")?;
-    TenantContext::scope(tenant_a.clone(), async {
-        disk.put_body(
-            path.clone(),
-            Some("text/plain".into()),
-            Body::from("tenant A object"),
-            UploadOptions::default(),
-            None,
+    let result = std::panic::AssertUnwindSafe(async {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let tenants = fixture.directory.path().join("tenants");
+            std::fs::create_dir(&tenants)?;
+            std::fs::set_permissions(
+                fixture.directory.path(),
+                std::fs::Permissions::from_mode(0o755),
+            )?;
+            std::fs::set_permissions(&tenants, std::fs::Permissions::from_mode(0o755))?;
+        }
+        let db = fixture.app.app()?.state().resolve::<Db>().await?;
+        let attachments = fixture
+            .app
+            .app()?
+            .state()
+            .resolve::<ArticleAttachments>()
+            .await?;
+        let storage = fixture.app.app()?.state().resolve::<Storage>().await?;
+        let connection = db.primary_connection()?;
+        let id = fixture.article_id;
+        let path = StoragePath::new(format!("example/articles/1/{id}/attachment.txt"))?;
+        let disk = storage.default_disk().await?;
+        let tenant_a = TenantId::new("attachment-tenant-a")?;
+        let tenant_b = TenantId::new("attachment-tenant-b")?;
+        TenantContext::scope(tenant_a.clone(), async {
+            disk.put_body(
+                path.clone(),
+                Some("text/plain".into()),
+                Body::from("tenant A object"),
+                UploadOptions::default(),
+                None,
+            )
+            .await
+        })
+        .await??;
+        TenantContext::scope(tenant_b.clone(), async {
+            disk.put_body(
+                path.clone(),
+                Some("text/plain".into()),
+                Body::from("tenant B object remains"),
+                UploadOptions::default(),
+                None,
+            )
+            .await
+        })
+        .await??;
+        assert_eq!(
+            TenantContext::scope(tenant_a.clone(), disk.visibility(&path)).await??,
+            openrust::storage::Visibility::Private
+        );
+        TenantContext::scope(
+            tenant_b.clone(),
+            disk.set_visibility(&path, openrust::storage::Visibility::Private),
         )
-        .await
-    })
-    .await??;
-    TenantContext::scope(tenant_b.clone(), async {
-        disk.put_body(
-            path.clone(),
-            Some("text/plain".into()),
-            Body::from("tenant B object remains"),
-            UploadOptions::default(),
-            None,
-        )
-        .await
-    })
-    .await??;
-    let transaction = connection.begin().await?;
-    article::Entity::delete_by_id(id).exec(&transaction).await?;
-    TenantContext::scope(tenant_a.clone(), async {
-        attachments.record_deleted(&transaction, 1, id).await
-    })
-    .await??;
-    transaction.commit().await?;
-    let pending = attachment_cleanup::Entity::find_by_id(id)
-        .one(&connection)
+        .await??;
+        assert_eq!(
+            TenantContext::scope(tenant_b.clone(), disk.visibility(&path)).await??,
+            openrust::storage::Visibility::Private
+        );
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let tenants = fixture.directory.path().join("tenants");
+            let private_parents = std::fs::read_dir(&tenants)?
+                .map(|entry| {
+                    let entry = entry?;
+                    let mode = entry.metadata()?.permissions().mode() & 0o777;
+                    Ok::<_, std::io::Error>((entry.path(), mode))
+                })
+                .collect::<std::io::Result<Vec<_>>>()?;
+            assert_eq!(private_parents.len(), 2);
+            assert!(private_parents.iter().all(|(_, mode)| *mode == 0o700));
+            let public_tenant = TenantId::new("attachment-public-tenant")?;
+            TenantContext::scope(public_tenant.clone(), async {
+                disk.put_body(
+                    path.clone(),
+                    Some("text/plain".into()),
+                    Body::from("published tenant object"),
+                    UploadOptions {
+                        visibility: Some(openrust::storage::Visibility::Public),
+                        ..Default::default()
+                    },
+                    None,
+                )
+                .await
+            })
+            .await??;
+            assert_eq!(
+                TenantContext::scope(public_tenant.clone(), disk.visibility(&path)).await??,
+                openrust::storage::Visibility::Public
+            );
+            for (parent, mode) in private_parents {
+                assert_eq!(
+                    std::fs::metadata(parent)?.permissions().mode() & 0o777,
+                    mode
+                );
+            }
+            let visibility_route = format!("{}/visibility", fixture.path());
+            let foreign_owner_response = TenantContext::scope(
+                public_tenant.clone(),
+                fixture.app.request(request(
+                    "PUT",
+                    &visibility_route,
+                    Some(&fixture.other_token),
+                    "application/json",
+                    Body::from(r#"{"visibility":"private"}"#),
+                )?),
+            )
+            .await??;
+            eprintln!(
+                "STV_VISIBILITY phase=foreign_owner status={}",
+                foreign_owner_response.status().as_u16()
+            );
+            foreign_owner_response.assert_status(StatusCode::NOT_FOUND)?;
+            assert_eq!(
+                TenantContext::scope(public_tenant.clone(), disk.visibility(&path)).await??,
+                openrust::storage::Visibility::Public
+            );
+            let owner_response = TenantContext::scope(
+                public_tenant.clone(),
+                fixture.app.request(request(
+                    "PUT",
+                    &visibility_route,
+                    Some(&fixture.owner_token),
+                    "application/json",
+                    Body::from(r#"{"visibility":"private"}"#),
+                )?),
+            )
+            .await??;
+            eprintln!(
+                "STV_VISIBILITY phase=owner status={}",
+                owner_response.status().as_u16()
+            );
+            owner_response.assert_status(StatusCode::NO_CONTENT)?;
+            assert_eq!(
+                TenantContext::scope(public_tenant, disk.visibility(&path)).await??,
+                openrust::storage::Visibility::Private
+            );
+            assert_eq!(
+                TenantContext::scope(tenant_b.clone(), disk.visibility(&path)).await??,
+                openrust::storage::Visibility::Private
+            );
+            let mut other_reader =
+                TenantContext::scope(tenant_b.clone(), disk.open(&path, None)).await??;
+            let mut other_content = Vec::new();
+            while let Some(chunk) = other_reader.body.next().await {
+                other_content.extend_from_slice(&chunk?);
+            }
+            assert_eq!(other_content, b"tenant B object remains");
+        }
+        let transaction = connection.begin().await?;
+        article::Entity::delete_by_id(id).exec(&transaction).await?;
+        TenantContext::scope(tenant_a.clone(), async {
+            attachments.record_deleted(&transaction, 1, id).await
+        })
+        .await??;
+        transaction.commit().await?;
+        let pending = attachment_cleanup::Entity::find_by_id(id)
+            .one(&connection)
+            .await?
+            .ok_or("missing tenant cleanup intent")?;
+        assert_eq!(pending.tenant_id.as_deref(), Some(tenant_a.as_str()));
+        let denied = TenantContext::scope(tenant_b.clone(), async {
+            attachments.cleanup_deleted(1, id).await
+        })
         .await?
-        .ok_or("missing tenant cleanup intent")?;
-    assert_eq!(pending.tenant_id.as_deref(), Some(tenant_a.as_str()));
-    let denied = TenantContext::scope(tenant_b.clone(), async {
-        attachments.cleanup_deleted(1, id).await
+        .err()
+        .ok_or("foreign tenant cleanup should fail")?;
+        assert_eq!(denied.code(), "example_attachment_cleanup_tenant_mismatch");
+        assert!(
+            attachment_cleanup::Entity::find_by_id(id)
+                .one(&connection)
+                .await?
+                .is_some()
+        );
+        assert_eq!(
+            TenantContext::scope(tenant_a.clone(), disk.stat(&path))
+                .await??
+                .size,
+            15
+        );
+        assert_eq!(
+            TenantContext::scope(tenant_b.clone(), disk.stat(&path))
+                .await??
+                .size,
+            23
+        );
+        assert_eq!(
+            TenantContext::scope(tenant_b.clone(), attachments.reconcile_pending())
+                .await?
+                .err()
+                .ok_or("tenant maintenance should fail")?
+                .code(),
+            "example_attachment_cleanup_tenant_mismatch"
+        );
+        assert_eq!(attachments.reconcile_pending().await?, 1);
+        assert!(
+            attachment_cleanup::Entity::find_by_id(id)
+                .one(&connection)
+                .await?
+                .is_none()
+        );
+        assert_eq!(
+            TenantContext::scope(tenant_a, disk.stat(&path))
+                .await?
+                .err()
+                .ok_or("tenant A object should be removed")?
+                .code(),
+            "storage_object_not_found"
+        );
+        assert_eq!(
+            TenantContext::scope(tenant_b, disk.stat(&path))
+                .await??
+                .size,
+            23
+        );
+        Ok::<(), Box<dyn std::error::Error>>(())
     })
-    .await?
-    .err()
-    .ok_or("foreign tenant cleanup should fail")?;
-    assert_eq!(denied.code(), "example_attachment_cleanup_tenant_mismatch");
-    assert!(
-        attachment_cleanup::Entity::find_by_id(id)
-            .one(&connection)
-            .await?
-            .is_some()
-    );
-    assert_eq!(
-        TenantContext::scope(tenant_a.clone(), disk.stat(&path))
-            .await??
-            .size,
-        15
-    );
-    assert_eq!(
-        TenantContext::scope(tenant_b.clone(), disk.stat(&path))
-            .await??
-            .size,
-        23
-    );
-    assert_eq!(
-        TenantContext::scope(tenant_b.clone(), attachments.reconcile_pending())
-            .await?
-            .err()
-            .ok_or("tenant maintenance should fail")?
-            .code(),
-        "example_attachment_cleanup_tenant_mismatch"
-    );
-    assert_eq!(attachments.reconcile_pending().await?, 1);
-    assert!(
-        attachment_cleanup::Entity::find_by_id(id)
-            .one(&connection)
-            .await?
-            .is_none()
-    );
-    assert_eq!(
-        TenantContext::scope(tenant_a, disk.stat(&path))
-            .await?
-            .err()
-            .ok_or("tenant A object should be removed")?
-            .code(),
-        "storage_object_not_found"
-    );
-    assert_eq!(
-        TenantContext::scope(tenant_b, disk.stat(&path))
-            .await??
-            .size,
-        23
-    );
-    fixture.close().await
+    .catch_unwind()
+    .await;
+    let closed = std::panic::AssertUnwindSafe(fixture.close())
+        .catch_unwind()
+        .await;
+    match result {
+        Ok(Ok(())) => match closed {
+            Ok(cleanup) => cleanup,
+            Err(payload) => std::panic::resume_unwind(payload),
+        },
+        Ok(Err(error)) => {
+            if !matches!(closed, Ok(Ok(()))) {
+                eprintln!("STV_FIXTURE_CLEANUP secondary_failure");
+            }
+            Err(error)
+        }
+        Err(payload) => {
+            if !matches!(closed, Ok(Ok(()))) {
+                eprintln!("STV_FIXTURE_CLEANUP secondary_failure");
+            }
+            std::panic::resume_unwind(payload)
+        }
+    }
 }
 
 #[tokio::test]

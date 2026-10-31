@@ -9,6 +9,7 @@ use openrust::http::axum::{
     response::Response,
 };
 use openrust::http::{Created, Inject, Json, Path};
+use openrust::storage::Visibility;
 
 use crate::modules::example::http::requests::attachments::AttachmentUpload;
 use crate::modules::example::services::attachments::ArticleAttachments;
@@ -69,5 +70,22 @@ pub(crate) async fn delete(
     Path(id): Path<i64>,
 ) -> Result<StatusCode> {
     attachments.delete(user.id(), id).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(serde::Deserialize)]
+pub(crate) struct AttachmentVisibilityInput {
+    visibility: Visibility,
+}
+
+pub(crate) async fn set_visibility(
+    user: CurrentUser,
+    Inject(attachments): Inject<ArticleAttachments>,
+    Path(id): Path<i64>,
+    Json(input): Json<AttachmentVisibilityInput>,
+) -> Result<StatusCode> {
+    attachments
+        .set_visibility(user.id(), id, input.visibility)
+        .await?;
     Ok(StatusCode::NO_CONTENT)
 }

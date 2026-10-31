@@ -20,7 +20,7 @@ use figment::{
     Figment,
     providers::{Format, Toml},
 };
-use futures_util::{StreamExt, stream};
+use futures_util::{FutureExt, StreamExt, stream};
 use openrust::testing::TestDatabase;
 use openrust::{
     Cancellation,
@@ -96,6 +96,74 @@ fn context_with_progress(
         }))
 }
 
+fn finish_attempt<T>(
+    result: FrameworkResult<T>,
+    closed: FrameworkResult<()>,
+) -> FrameworkResult<T> {
+    match result {
+        Ok(value) => {
+            closed?;
+            Ok(value)
+        }
+        Err(error) => {
+            if closed.is_err() {
+                eprintln!("STV_DATA_EXCHANGE_ATTEMPT secondary_cleanup_failure");
+            }
+            Err(error)
+        }
+    }
+}
+
+async fn import_in_attempt<F>(
+    context: JobContext,
+    input: ImportTaskInput,
+    options: &ImportTaskOptions,
+    persist_batch: F,
+) -> FrameworkResult<ImportTaskReport>
+where
+    F: for<'a> FnMut(
+            &'a DatabaseTransaction,
+            Vec<Map<String, Value>>,
+        ) -> BoxFuture<'a, FrameworkResult<()>>
+        + Send
+        + 'static,
+{
+    let attempt = context.begin_attempt()?;
+    let result = import_storage_task(attempt.context(), input, options, persist_batch).await;
+    let closed = attempt
+        .shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await;
+    finish_attempt(result, closed)
+}
+
+async fn import_error_in_attempt<F>(
+    context: JobContext,
+    input: ImportTaskInput,
+    options: &ImportTaskOptions,
+    persist_batch: F,
+) -> FrameworkResult<Error>
+where
+    F: for<'a> FnMut(
+            &'a DatabaseTransaction,
+            Vec<Map<String, Value>>,
+        ) -> BoxFuture<'a, FrameworkResult<()>>
+        + Send
+        + 'static,
+{
+    let attempt = context.begin_attempt()?;
+    let result = import_storage_task(attempt.context(), input, options, persist_batch).await;
+    let closed = attempt
+        .shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await;
+    closed?;
+    result.err().ok_or_else(|| {
+        Error::custom(
+            "test_expected_import_failure",
+            "import task unexpectedly succeeded",
+        )
+    })
+}
+
 async fn put_source(app: &App, path: &StoragePath, source: &'static [u8]) -> FrameworkResult<()> {
     app.state()
         .resolve::<Storage>()
@@ -107,6 +175,7 @@ async fn put_source(app: &App, path: &StoragePath, source: &'static [u8]) -> Fra
             Some("text/csv".to_owned()),
             Box::pin(stream::iter([Ok(Bytes::from_static(source))])),
             UploadOptions {
+                visibility: None,
                 max_bytes: 1024 * 1024,
                 max_chunk_bytes: 4096,
                 allowed_content_types: vec!["text/csv".to_owned()],
@@ -179,26 +248,14 @@ fn persist_rows_then_cancel(
     })
 }
 
-#[tokio::test]
 #[allow(
     clippy::too_many_lines,
     reason = "同一真实隔离库验证导入重试、租户隔离与导出生命周期"
 )]
-async fn import_batches_are_atomic_idempotent_and_export_is_streamed()
--> Result<(), Box<dyn std::error::Error>> {
-    let Ok(admin_url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
-        eprintln!("skipping data exchange task integration: OPENRUST_TEST_DATABASE_URL is unset");
-        return Ok(());
-    };
-    let (app, database, _storage_root) = build_app(&admin_url).await?;
+async fn run_data_exchange_flow(app: &App) -> Result<(), Box<dyn std::error::Error>> {
     let storage = app.state().resolve::<Storage>().await?;
     let input_path = StoragePath::new("private/import/source.csv")?;
-    put_source(
-        &app,
-        &input_path,
-        b"email\na@example.test\nb@example.test\n",
-    )
-    .await?;
+    put_source(app, &input_path, b"email\na@example.test\nb@example.test\n").await?;
     let schema = ImportSchema::new(vec![ImportColumn::new("email", "email", CellType::Text)])?;
     let progress = std::sync::Arc::new(tokio::sync::Mutex::new(Vec::new()));
     let options = ImportTaskOptions {
@@ -209,8 +266,8 @@ async fn import_batches_are_atomic_idempotent_and_export_is_streamed()
         report_path: StoragePath::new("private/reports/import.json")?,
         report_retention: Duration::from_secs(60),
     };
-    let report = import_storage_task(
-        &context_with_progress(&app, "import-first", std::sync::Arc::clone(&progress))?,
+    let report = import_in_attempt(
+        context_with_progress(app, "import-first", std::sync::Arc::clone(&progress))?,
         ImportTaskInput {
             disk: "local".to_owned(),
             path: input_path.clone(),
@@ -240,8 +297,8 @@ async fn import_batches_are_atomic_idempotent_and_export_is_streamed()
         "未到保留期限的清理任务不能提前执行"
     );
 
-    let replay = import_storage_task(
-        &context(&app, "import-replay")?,
+    let replay = import_in_attempt(
+        context(app, "import-replay")?,
         ImportTaskInput {
             disk: "local".to_owned(),
             path: input_path.clone(),
@@ -257,9 +314,9 @@ async fn import_batches_are_atomic_idempotent_and_export_is_streamed()
     assert_eq!(replay, report);
 
     let alternate_path = StoragePath::new("private/import/alternate.csv")?;
-    put_source(&app, &alternate_path, b"email\nother@example.test\n").await?;
-    let conflict = import_storage_task(
-        &context(&app, "import-source-conflict")?,
+    put_source(app, &alternate_path, b"email\nother@example.test\n").await?;
+    let conflict = import_error_in_attempt(
+        context(app, "import-source-conflict")?,
         ImportTaskInput {
             disk: "local".to_owned(),
             path: alternate_path,
@@ -271,12 +328,11 @@ async fn import_batches_are_atomic_idempotent_and_export_is_streamed()
         &options,
         persist_rows,
     )
-    .await
-    .expect_err("same import ID must reject a different source");
+    .await?;
     assert_eq!(conflict.code(), "data_exchange_import_conflict");
 
-    let unsupported_version = import_storage_task(
-        &context(&app, "import-source-version")?,
+    let _failure = import_error_in_attempt(
+        context(app, "import-source-version")?,
         ImportTaskInput {
             disk: "local".to_owned(),
             path: input_path.clone(),
@@ -288,41 +344,33 @@ async fn import_batches_are_atomic_idempotent_and_export_is_streamed()
         &options,
         persist_rows,
     )
-    .await;
-    assert!(unsupported_version.is_err());
+    .await?;
 
     let failure_options = ImportTaskOptions {
         report_path: StoragePath::new("private/reports/partial.json")?,
         ..options.clone()
     };
-    let partial_context = context(&app, "import-partial")?;
+    let partial_context = context(app, "import-partial")?;
     let partial_report_path = failure_options.report_path_for_attempt(
         partial_context.id(),
         partial_context.attempt(),
         "customer-import-partial",
     )?;
     FAIL_NEXT_BATCH.store(true, Ordering::SeqCst);
-    assert!(
-        import_storage_task(
-            &partial_context,
-            ImportTaskInput {
-                disk: "local".to_owned(),
-                path: input_path.clone(),
-                version: None,
-                import_id: "customer-import-partial".to_owned(),
-                format: ExchangeFormat::Csv,
-                schema: ImportSchema::new(vec![ImportColumn::new(
-                    "email",
-                    "email",
-                    CellType::Text,
-                )])?,
-            },
-            &failure_options,
-            persist_rows_fail_once,
-        )
-        .await
-        .is_err()
-    );
+    let _failure = import_error_in_attempt(
+        partial_context,
+        ImportTaskInput {
+            disk: "local".to_owned(),
+            path: input_path.clone(),
+            version: None,
+            import_id: "customer-import-partial".to_owned(),
+            format: ExchangeFormat::Csv,
+            schema: ImportSchema::new(vec![ImportColumn::new("email", "email", CellType::Text)])?,
+        },
+        &failure_options,
+        persist_rows_fail_once,
+    )
+    .await?;
     let mut partial_reader = storage
         .disk("local")
         .await?
@@ -335,15 +383,15 @@ async fn import_batches_are_atomic_idempotent_and_export_is_streamed()
     let partial_report: ImportTaskReport = serde_json::from_slice(&partial_bytes)?;
     assert_eq!(partial_report.rows_committed, 1);
     assert!(partial_report.failure_code.is_some());
-    let recover_context = context(&app, "import-recover")?;
+    let recover_context = context(app, "import-recover")?;
     let recovery_report_path = failure_options.report_path_for_attempt(
         recover_context.id(),
         recover_context.attempt(),
         "customer-import-partial",
     )?;
     assert_ne!(recovery_report_path, partial_report_path);
-    let recovered = import_storage_task(
-        &recover_context,
+    let recovered = import_in_attempt(
+        recover_context,
         ImportTaskInput {
             disk: "local".to_owned(),
             path: input_path.clone(),
@@ -375,27 +423,20 @@ async fn import_batches_are_atomic_idempotent_and_export_is_streamed()
         cancelled_context.attempt(),
         "customer-import-cancelled",
     )?;
-    assert!(
-        import_storage_task(
-            &cancelled_context,
-            ImportTaskInput {
-                disk: "local".to_owned(),
-                path: input_path.clone(),
-                version: None,
-                import_id: "customer-import-cancelled".to_owned(),
-                format: ExchangeFormat::Csv,
-                schema: ImportSchema::new(vec![ImportColumn::new(
-                    "email",
-                    "email",
-                    CellType::Text,
-                )])?,
-            },
-            &cancelled_options,
-            persist_rows_then_cancel,
-        )
-        .await
-        .is_err()
-    );
+    let _failure = import_error_in_attempt(
+        cancelled_context,
+        ImportTaskInput {
+            disk: "local".to_owned(),
+            path: input_path.clone(),
+            version: None,
+            import_id: "customer-import-cancelled".to_owned(),
+            format: ExchangeFormat::Csv,
+            schema: ImportSchema::new(vec![ImportColumn::new("email", "email", CellType::Text)])?,
+        },
+        &cancelled_options,
+        persist_rows_then_cancel,
+    )
+    .await?;
     let mut cancelled_reader = storage
         .disk("local")
         .await?
@@ -408,8 +449,8 @@ async fn import_batches_are_atomic_idempotent_and_export_is_streamed()
     let cancelled_report: ImportTaskReport = serde_json::from_slice(&cancelled_bytes)?;
     assert!(cancelled_report.cancelled);
     assert_eq!(cancelled_report.rows_committed, 1);
-    let resumed = import_storage_task(
-        &context(&app, "import-cancel-resume")?,
+    let resumed = import_in_attempt(
+        context(app, "import-cancel-resume")?,
         ImportTaskInput {
             disk: "local".to_owned(),
             path: input_path.clone(),
@@ -426,7 +467,7 @@ async fn import_batches_are_atomic_idempotent_and_export_is_streamed()
 
     let invalid_path = StoragePath::new("private/import/invalid.csv")?;
     put_source(
-        &app,
+        app,
         &invalid_path,
         b"email,age\nbad@example.test,nope\nvalid@example.test,42\n",
     )
@@ -435,8 +476,8 @@ async fn import_batches_are_atomic_idempotent_and_export_is_streamed()
         report_path: StoragePath::new("private/reports/validation-errors.json")?,
         ..options.clone()
     };
-    let invalid_report = import_storage_task(
-        &context(&app, "import-invalid-row")?,
+    let invalid_report = import_in_attempt(
+        context(app, "import-invalid-row")?,
         ImportTaskInput {
             disk: "local".to_owned(),
             path: invalid_path,
@@ -462,7 +503,7 @@ async fn import_batches_are_atomic_idempotent_and_export_is_streamed()
         let tenant_path = StoragePath::new(format!("private/import/{tenant}.csv"))?;
         openrust::tenant::TenantContext::scope(tenant_id.clone(), async {
             put_source(
-                &app,
+                app,
                 &tenant_path,
                 b"email\na@example.test\nb@example.test\n",
             )
@@ -475,8 +516,8 @@ async fn import_batches_are_atomic_idempotent_and_export_is_streamed()
         };
         let tenant_report = openrust::tenant::TenantContext::scope(
             tenant_id,
-            import_storage_task(
-                &context(&app, &format!("import-{tenant}"))?,
+            import_in_attempt(
+                context(app, &format!("import-{tenant}"))?,
                 ImportTaskInput {
                     disk: "local".to_owned(),
                     path: tenant_path,
@@ -512,8 +553,9 @@ async fn import_batches_are_atomic_idempotent_and_export_is_streamed()
     );
 
     let output = StoragePath::new("private/exports/customers.csv")?;
-    let export = export_storage_task(
-        &context(&app, "export")?,
+    let export_attempt = context(app, "export")?.begin_attempt()?;
+    let export_result = export_storage_task(
+        export_attempt.context(),
         "local",
         output.clone(),
         ExchangeFormat::Csv,
@@ -528,7 +570,13 @@ async fn import_batches_are_atomic_idempotent_and_export_is_streamed()
             sink.send(row).await
         },
     )
-    .await?;
+    .await;
+    let export = finish_attempt(
+        export_result,
+        export_attempt
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+            .await,
+    )?;
     assert_eq!(export.rows_written, 1);
     let published_output = StoragePath::new(export.path.clone())?;
     assert_ne!(published_output, output);
@@ -560,17 +608,25 @@ async fn import_batches_are_atomic_idempotent_and_export_is_streamed()
     let lock_key = format!("openrust.data-exchange.object.{lock_suffix}");
     let lock_lease = match locks.acquire(&lock_key, Duration::from_secs(30)).await? {
         openrust::db::LockAcquire::Acquired(lease) => lease,
-        openrust::db::LockAcquire::Busy { .. } => return Err("unexpected busy object lock".into()),
+        openrust::db::LockAcquire::Busy { .. } => {
+            return Err("unexpected busy object lock".into());
+        }
     };
-    let cleanup_error = ImportReportCleanupJob {
+    let cleanup_attempt = context(app, "locked-cleanup")?.begin_attempt()?;
+    let cleanup_result = ImportReportCleanupJob {
         disk: "local".to_owned(),
         path: published_output.as_str().to_owned(),
         expires_at_unix_secs: 0,
     }
-    .handle(context(&app, "locked-cleanup")?)
-    .await
-    .expect_err("cleanup must not pass an active object writer lock");
+    .handle(cleanup_attempt.context().clone())
+    .await;
+    let cleanup_closed = cleanup_attempt
+        .shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await;
+    let cleanup_error =
+        cleanup_result.expect_err("cleanup must not pass an active object writer lock");
     assert_eq!(cleanup_error.code(), "data_exchange_object_busy");
+    cleanup_closed?;
     locks.release(&lock_lease).await?;
     assert!(
         storage
@@ -609,22 +665,28 @@ async fn import_batches_are_atomic_idempotent_and_export_is_streamed()
 
     let cancellation = Cancellation::new();
     cancellation.cancel();
-    let cancelled_context = JobContext::new("export-cancelled", 1, 3, cancellation)?
-        .with_app_state(app.state().clone());
+    let cancelled_attempt = JobContext::new("export-cancelled", 1, 3, cancellation)?
+        .with_app_state(app.state().clone())
+        .begin_attempt()?;
     let cancelled_path = StoragePath::new("private/exports/cancelled.csv")?;
+    let cancelled_result = export_storage_task(
+        cancelled_attempt.context(),
+        "local",
+        cancelled_path.clone(),
+        ExchangeFormat::Csv,
+        vec!["email".to_owned()],
+        &ExportTaskOptions::default(),
+        |_sink| std::future::pending::<FrameworkResult<()>>(),
+    )
+    .await;
+    let cancelled_closed = cancelled_attempt
+        .shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await;
     assert!(
-        export_storage_task(
-            &cancelled_context,
-            "local",
-            cancelled_path.clone(),
-            ExchangeFormat::Csv,
-            vec!["email".to_owned()],
-            &ExportTaskOptions::default(),
-            |_sink| std::future::pending::<FrameworkResult<()>>(),
-        )
-        .await
-        .is_err()
+        cancelled_result.is_err(),
+        "cancelled export task must fail independently of cleanup"
     );
+    cancelled_closed?;
     assert!(
         storage
             .disk("local")
@@ -635,7 +697,7 @@ async fn import_batches_are_atomic_idempotent_and_export_is_streamed()
     );
 
     let cleanup_path = StoragePath::new("private/reports/cleanup-probe.json")?;
-    put_source(&app, &cleanup_path, b"temporary report").await?;
+    put_source(app, &cleanup_path, b"temporary report").await?;
     queue
         .dispatch_with_options(
             "data-exchange-cleanup",
@@ -661,6 +723,51 @@ async fn import_batches_are_atomic_idempotent_and_export_is_streamed()
             .await
             .is_err()
     );
-    drop(database);
     Ok(())
+}
+
+#[tokio::test]
+async fn import_batches_are_atomic_idempotent_and_export_is_streamed()
+-> Result<(), Box<dyn std::error::Error>> {
+    let Ok(admin_url) = std::env::var("OPENRUST_TEST_DATABASE_URL") else {
+        eprintln!("skipping data exchange task integration: OPENRUST_TEST_DATABASE_URL is unset");
+        return Ok(());
+    };
+    let (app, database, _storage_root) = build_app(&admin_url).await?;
+    let outcome = std::panic::AssertUnwindSafe(run_data_exchange_flow(&app))
+        .catch_unwind()
+        .await;
+    let shutdown = std::panic::AssertUnwindSafe(
+        app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5)),
+    )
+    .catch_unwind()
+    .await;
+    let closed = std::panic::AssertUnwindSafe(database.close())
+        .catch_unwind()
+        .await;
+    let cleanup = match (shutdown, closed) {
+        (Ok(Ok(())), Ok(Ok(()))) => Ok(Ok(())),
+        (Err(payload), _) | (_, Err(payload)) => Err(payload),
+        (Ok(Err(error)), _) | (_, Ok(Err(error))) => {
+            Ok(Err(Box::<dyn std::error::Error>::from(error)))
+        }
+    };
+    match outcome {
+        Ok(Ok(())) => match cleanup {
+            Ok(result) => result,
+            Err(payload) => std::panic::resume_unwind(payload),
+        },
+        Ok(Err(error)) => {
+            if !matches!(cleanup, Ok(Ok(()))) {
+                eprintln!("STV_DATA_EXCHANGE_CLEANUP secondary_failure");
+            }
+            Err(error)
+        }
+        Err(payload) => {
+            if !matches!(cleanup, Ok(Ok(()))) {
+                eprintln!("STV_DATA_EXCHANGE_CLEANUP secondary_failure");
+            }
+            std::panic::resume_unwind(payload)
+        }
+    }
 }

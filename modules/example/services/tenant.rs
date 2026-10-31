@@ -167,6 +167,7 @@ impl TenantRecords {
                 Some("text/plain".into()),
                 openrust::http::axum::body::Body::from(record.value),
                 UploadOptions {
+                    visibility: None,
                     max_bytes: 2048,
                     max_chunk_bytes: 2048,
                     allowed_content_types: vec!["text/plain".into()],

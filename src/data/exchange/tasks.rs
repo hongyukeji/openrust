@@ -758,6 +758,7 @@ async fn publish_export_object(
             Some(content_type.clone()),
             body,
             UploadOptions {
+                visibility: None,
                 max_bytes: upload_limit,
                 max_chunk_bytes: chunk_size,
                 allowed_content_types: vec![content_type],
@@ -1070,6 +1071,7 @@ async fn write_retention_marker(
         Some("application/json".to_owned()),
         Box::pin(stream::iter([Ok(Bytes::from(bytes))])),
         UploadOptions {
+            visibility: None,
             max_bytes: 128,
             max_chunk_bytes: 128,
             allowed_content_types: vec!["application/json".to_owned()],
@@ -1142,6 +1144,7 @@ async fn store_report(
         Some("application/json".to_owned()),
         Box::pin(chunks),
         UploadOptions {
+            visibility: None,
             max_bytes: byte_length,
             max_chunk_bytes: chunk_size,
             allowed_content_types: vec!["application/json".to_owned()],
