@@ -101,7 +101,7 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 
 - 已对照 Goravel 官方源码和现有 ConfigLoader/section<T> 完成只读审计；具名连接/store与类型化读取是已有能力，不能重复实现。
 - 审计范围包括完整领域配置说明、env 映射、typed 读取/启动校验、模块配置的公开注册与覆盖；先说明现有能力、真实缺口和依赖，不凭空叠加第二配置层或改变 env 语义。
-- 本项归 R2，依赖只读审计交付与统一 Container/ServiceProvider contract；R1 不混入配置实现改动，当前配置源、默认运行值和 Redis 默认无静默回退保持。 下一核心typed helpers候选契约已派既有callers核固定Repository真方法/默认与错误、现Rust有序数组与Collection复用，输出`/tmp/openrust-config-typed-helpers-contract.md`；未冻结公开API、未编码或运行Cargo，不以审计关闭L005.03。
+- 本项归 R2，依赖只读审计交付与统一 Container/ServiceProvider contract；R1 不混入配置实现改动，当前配置源、默认运行值和 Redis 默认无静默回退保持。 下一核心typed helpers已冻结六类严格读取与`*_or`/`*_or_else`语法适配，Spec `/tmp/openrust-config-typed-helpers-frozen-spec.md`、真实PHP候选/探针 `/tmp/openrust-config-typed-helpers-contract.md`；新owner `8ca4236f-2c8c-4f7c-887b-8dab60f6e54e`已实际running Implement，OpenRust同项目workspace `wks_44ece7d45e1cfb13`，branch `tasks/config-typed-helpers`，base `a5e6461`，cwd `/Users/Home/.paseo/worktrees/02joa2lr/openrust-config-typed-helpers`。独占该worktree仓储/模块/consumer/必要生成fixture与说明，不改manifest/lock/共享Agentdocs；整簇编码后集中Verify，不占Cargo或新建target。复用main暖target须总控分配；当前登记54.48GB/磁盘8.782%为软告警而非硬停，100GB/5%硬线保持。停止链路为总控正式`paseo stop`该ID，结果入口 `/tmp/openrust-config-typed-helpers-dispatch.json`；未验证未提交，不关闭L005.03。
 
 ## R2/R10 运行时配置与动态调度（仅规划，按依赖领取）
 
