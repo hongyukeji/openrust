@@ -33,7 +33,7 @@ C04-D8 previous与显式Precognition限定子范围已完成适用验收：稳�
 
 ✅ T01 Session测试入口整合试点已验收：全仓显式test入口46→45、Session family8→7、源文件10不变；两feature各41项与原26+15逐名对应。双严格Clippy、workspace默认838/34ignored与全特性1625/108ignored、双docs/deny/MSRV通过，生产/模板/锁未改，未重跑真实服务；未证明整体开发显著提速，限定提交见Git。
 
-🟡 R2-R03 递归配置发现分支限定验收已收：配置76、CLI21、模块2、公开consumer6、严格Clippy/docs、普通fresh生成7+安装consumer1、MySQL8.4认证2无skip通过；无auth MySQL测试0项仅编译。根config-feature HTTP 200/enabled=true/exit0，URL/TLS runner另10/10，证据不混用。owner报告3唯一生成包清理，真实清理命令 exit0 由执行者终端回报，原始 stdout 未留存，登记54.48GB/磁盘8.782%触软线。分支已提交6482a38，四簇同树组合的限定验收见当前进度；完整Config/typed helpers/配置缓存/动态Settings/发布全后端未关闭，见[分支证据](memory/testing.md#r2-r03-递归配置发现任务分支限定验收记录)。
+🟡 R2-R03 递归配置发现分支限定验收已收：配置76、CLI21、模块2、公开consumer6、严格Clippy/docs、普通fresh生成7+安装consumer1、MySQL8.4认证2无skip通过；无auth MySQL测试0项仅编译。根config-feature HTTP 200/enabled=true/exit0，URL/TLS runner另10/10，证据不混用。owner报告3唯一生成包清理，真实清理命令 exit0 由执行者终端回报，原始 stdout 未留存，登记54.48GB/磁盘8.782%触软线。分支已提交6482a38，四簇同树组合的限定验收见当前进度；完整Config、typed/cache后继扩展、动态Settings及发布全后端未关闭，见[分支证据](memory/testing.md#r2-r03-递归配置发现任务分支限定验收记录)。
 
 🟡 Signed URL 家族任务分支限定验收已通过：库7、router4（真实 loopback TCP）、唯一模块1、CLI20、普通生成7；补验严格 Clippy、公开 TestApp1、gRPC宿主check、MySQL8.4认证生成2项无skip通过。TCP异常清理增量有不同模型静态复审；本次生成包已精确回收 316,715,008 B，清后仍超过 50GB 软线；分支限定提交及main同树组合已完成，细项见上方组合记录。完整 URLGenerator/Redirector、Vapor真实代理与复杂 PHP 参数未关闭。见[分支证据](memory/testing.md#signed-url-家族任务分支定向验收未合入-main)。
 
