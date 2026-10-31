@@ -6,7 +6,7 @@
 
 ## 当前功能簇
 
-🟡 R2-P Provider完整注册生命周期仍在分支Verify：core125/仓储47/公开Container24及consumer限定通过；修后Cookie9、默认workspace862、全feature1650（68ignored）、双doctest/docs、no-default/MSRV/deny已有新输入回执，root核10日志SHA。生成attempt3普通/TCP/MySQL认证2与独立库集合审计已过，后续Cookie变更的生成证据复用边界待影响复核。严格Clippy三失败后仍暂停待真实决定，未提交、未合main。
+🟡 R2-P Provider完整注册生命周期仍在分支Verify：core125/仓储47/公开Container24及consumer限定通过；修后Cookie9、默认workspace862、全feature1650（68ignored）、双doctest/docs、no-default/MSRV/deny已有新输入回执，root核10日志SHA。生成attempt3普通/TCP/MySQL认证2与独立库集合审计已过，后续Cookie修复已在保留生成项目定向补验plain3/MySQL auth2，无skip、库集合与源码不变。严格Clippy三失败后仍暂停待真实决定，未提交、未合main。
 
 🟡 S-DV有序对象值与Session保存边界已实际派发编码：同项目tasks/session-data-values、基线9eb54ce，不依赖未提交Provider。覆盖Request文件输入前必需的对象身份/保存策略，尚未编码验收；multipart/Storage与完整Request文件家族仍开放，owner/资源见todo。
 
