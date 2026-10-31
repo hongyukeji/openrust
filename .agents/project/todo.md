@@ -18,6 +18,12 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 
 ## 当前可领取
 
+### 集中产物回收（用户最新授权，执行中）
+
+- 资源owner `04cca925-e59f-42f1-800b-424e7b4cd1b8` 独占清理窗口，driver先保存；root已通知S-DV/ST-V/driver禁止新增构建，源码修复与caller迁移继续。root当次核cargo/rustc/rustdoc均无进程；main与两历史target顶层为标准Cargo结构、非symlink。所有target仍须owner按锁/占用/归属复核后实际清，非仅几百MB精准删。
+- 清单基于既有resource_paths、main/worktree/consumer与外置目标去重；共享main target获准完整清后按需重建，未知root-site/M5集中核一次来源后明确清/留理由，不盲删、不无限搁置。保护未合分支源码/WIP、依赖源码、PHP来源、数据库/卷与证据。完整前后总量/disk、删留及dryrun/clean日志交 `/tmp/openrust-concentrated-cache-retirement/RESULT.json`，未交回不虚报已清理。
+- 下一唯一构建目录 `/Users/Home/Codes/Rust/openrust/target`；S-DV/ST-V先ready者由root分配，当前都未获Cargo窗口。跨簇只留下一已安排步骤明确需要的一份缓存，不为历史feature持续堆积；50GB软/100GB硬不变。
+
 执行节奏：先完成本簇代码及配套测试代码，ready_for_verify后由总控安排提交前集中验证；分支限定门禁、main完整组合验收，未通过不提交。不得继续按每个方法/小改动重复跑测试或Clippy；当前在途命令自然结束，已有有效证据按实际影响复用，规则见[集中验证](conventions.md#功能簇提交前集中验证)。
 
 持续提速约束：每次worker交接、门禁结束或阻塞变化时，总控按e25ec75核对关键路径、下一独立簇是否实际编码、重复审查/构建和逐阶段停派、资源归属及释放条件；发现可避免等待立即调整，用现有日志记录前后事实，并向架构协调会话发送一次含瓶颈、调整、下一动作/owner及证据位置的简短事件回执。无变化不发、不高频轮询，不新建计划/Goal/守护；默认20%额度保留及真实授权边界不变。
