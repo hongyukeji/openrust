@@ -1,5 +1,13 @@
 # ADR-016 中性应用配置命名空间与数据库表前缀
 
+## R2-ENV 当前获准命名目标（待R2-R02提交后实施）
+
+用户最新选择覆盖本文较早的端口/缓存环境命名：`SERVER_PORT`→`server.port`，`APP_PORT`及独立`PORT`退出监听配置，不保留通用或命名空间fallback兼容；自定义应用命名空间不改变中性SERVER_PORT。根/生成`.env.example`使用`SERVER_PORT=3000`与`APP_URL="http://localhost:${SERVER_PORT}"`。
+
+缓存按Laravel官方`CACHE_STORE`→`cache.default`，内部字段、序列化、读取与错误路径同步default；删除REDIS_DEFAULT_STORE，不引入已撤回的CACHE_DEFAULT_STORE别名。默认具名redis且driver=redis，业务自定义名default合法；缓存与队列共用REDIS_DB，不增REDIS_CACHE_DB。默认Redis/共享DB是已明确授权的部署选择，与上游原生默认的差异如实记录；不扩改其他DB_*键。
+
+本段是已定contract，不宣称当前代码已切换。当前R2-R02冻结先验收提交，再由[唯一todo](../todo.md)领取R2-ENV，完成来源优先级、dotenv插值、CLI/模板/consumer/唯一模块、当前文档、负例和真实启动/Redis验收后本地提交。旧测试与验收事实保留，不热改在途listener或真实密钥。
+
 > 替代范围见 [ADR-070](adr-070-laravel-first-rebuild.md#替代范围)；本文旧目录/命名/默认值不阻止全面重写。代码是否已迁移以当前实现和 todo.md 为准。
 
 - 状态：Partially Superseded（目标设计由 ADR-070 重新开放；未替代的行为/验收事实保留）

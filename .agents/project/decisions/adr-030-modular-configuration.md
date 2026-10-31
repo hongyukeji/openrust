@@ -1,5 +1,7 @@
 # ADR-030：按能力模块组织配置
 
+> 当前获准环境命名以[ADR-016的R2-ENV目标](adr-016-neutral-application-namespaces.md)为准：官方CACHE_STORE→cache.default，内部字段/序列化/读取同步；REDIS_DEFAULT_STORE和已撤回的CACHE_DEFAULT_STORE不兼容。默认Redis及共享REDIS_DB授权保留，不机械改合法业务store名称。本文较早命名仅保留为旧实现/验收事实；R2-R02冻结提交后才实施，不宣称已完成切换。
+
 > 替代范围见 [ADR-070](adr-070-laravel-first-rebuild.md#替代范围)；本文旧目录/命名/默认值不阻止全面重写。代码是否已迁移以当前实现和 todo.md 为准。
 
 - 状态：Partially Superseded（目标设计由 ADR-070 重新开放；未替代的行为/验收事实保留）

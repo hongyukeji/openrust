@@ -1,5 +1,7 @@
 # ADR-014 缓存驱动、命名实例与公共契约
 
+> 当前获准环境命名以[ADR-016的R2-ENV目标](adr-016-neutral-application-namespaces.md)为准：官方CACHE_STORE→cache.default，内部字段/序列化/读取同步；REDIS_DEFAULT_STORE和已撤回的CACHE_DEFAULT_STORE不兼容。默认Redis及共享REDIS_DB授权保留，不机械改合法业务store名称。本文较早命名仅保留为旧实现/验收事实；R2-R02冻结提交后才实施，不宣称已完成切换。
+
 - 状态：Partially Superseded（标准应用默认值由 [ADR-015](adr-015-redis-default-calibration.md) 校准为 Redis；公共契约继续有效；基础驱动与 F4a–F4c 已实现，跨节点生产负载仍待 v1 最终验收）
 - 日期：2026-10-25
 - 补充：ADR-009 能力驱动扩展原则；标准应用默认值以 ADR-015 的 Redis 决定为准。单机/集群部署边界仍以 ADR-013 为准。
