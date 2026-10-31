@@ -8,7 +8,7 @@
 
 ✅ R03/typed/CC/Signed已完成同一main限定组合；默认/全特性严格Clippy与workspace tests已通过（907/0/34 ignored、1698/0/108 ignored），双docs/MSRV、no-default、deny及生成/MySQL限定证据见最终receipt；五父本地提交为 `e105dbfc58afc330b50e53b75f0b9e1424fa387a`；S-DV/ST-V/P及两guard工作区不纳入。见[组合记录](memory/testing.md#r2-四簇-main-组合限定验收)。
 
-✅ R2-P Provider注册生命周期与S-DV Session对象值已完成同一main限定组合：三父提交 `9e5a94198b421987851b3580b27fa90370feeb77` 保留两个来源祖先；默认workspace943通过/34忽略，全特性1748通过/108忽略，双严格Clippy/docs、MSRV、no-default、deny、4个公开consumer测试与3项额外check、普通生成7及公开fixture1、真实MySQL根1和生成认证2、缓存命令/重启、根TCP六场景和清理均按[最终记录](memory/testing.md#r2-p-s-dv-main-limited)通过。分支阶段三次Clippy失败后用户授权的单次重验确已通过，旧失败保留；S-DV源分支已安全退役，P源分支待两份root文档事实迁移核对后退役。完整Provider发现/Facade、已服务Router热更新、Container及Session/Web仍开放。
+✅ R2-P Provider注册生命周期与S-DV Session对象值已完成同一main限定组合：三父提交 `9e5a94198b421987851b3580b27fa90370feeb77` 保留两个来源祖先；默认workspace943通过/34忽略，全特性1748通过/108忽略，双严格Clippy/docs、MSRV、no-default、deny、4个公开consumer测试与3项额外check、普通生成7及公开fixture1、真实MySQL根1和生成认证2、缓存命令/重启、根TCP六场景和清理均按[最终记录](memory/testing.md#r2-p-s-dv-main-limited)通过。分支阶段三次Clippy失败后用户授权的单次重验确已通过，旧失败保留；S-DV与P源分支均已安全退役；P两份root文档事实已迁入main，原稿保全。完整Provider发现/Facade、已服务Router热更新、Container及Session/Web仍开放。
 
 🟡 ST-V任务分支visibility：仲裁/错误映射静态独审闭合，storage-local/storage-s3严格Clippy、local16/公开driver契约3/真实TCP1均过。模块auth/data-exchange特性、S3单元、当前锁deny及MSRV剩余门禁待窗口；真实ACL/迟到Copy后端条件缺失，未把ignored或旧锁结果当通过。尚未提交/合main，见todo。
 

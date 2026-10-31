@@ -18,7 +18,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 
 ## 当前可领取
 
-当前执行优先级（额度收尾）：①R03/typed/CC/Signed四簇五父main限定组合已交付 `e105dbf`，来源与分支已安全退役，证据见[四簇记录](memory/testing.md#r2-四簇-main-组合限定验收)；②R2-P `4ac8099` 与S-DV `6ffb5c8` 已由三父main提交 `9e5a94198b421987851b3580b27fa90370feeb77` 完成限定组合门禁：默认943/0/34忽略、全特性1748/0/108忽略，双严格Clippy/docs、MSRV、no-default、deny、consumer/生成/MySQL/TCP按[最终记录](memory/testing.md#r2-p-s-dv-main-limited)通过。S-DV工作区/分支已安全退役；P仍有已保全的两份root文档WIP，待事实迁移核对后安全退役。③ST-V继续已编码范围的剩余验证，真实S3 ACL仍开放，不强合未交付代码。不领取新功能簇；两guard worktree受保护。完整Config、Provider发现/Facade、Session/Web、签名URL复杂参数/代理、动态Settings和发布全后端矩阵仍开放。
+当前执行优先级（额度收尾）：①R03/typed/CC/Signed四簇五父main限定组合已交付 `e105dbf`，来源与分支已安全退役，证据见[四簇记录](memory/testing.md#r2-四簇-main-组合限定验收)；②R2-P `4ac8099` 与S-DV `6ffb5c8` 已由三父main提交 `9e5a94198b421987851b3580b27fa90370feeb77` 完成限定组合门禁：默认943/0/34忽略、全特性1748/0/108忽略，双严格Clippy/docs、MSRV、no-default、deny、consumer/生成/MySQL/TCP按[最终记录](memory/testing.md#r2-p-s-dv-main-limited)通过。S-DV与P工作区/分支已安全退役；P两份root文档事实已迁入main，原稿与迁移核对回执保全于 `/tmp/openrust-provider-root-docs-wip-preserved/`，正常退役回执 `/tmp/openrust-provider-registration-safe-retirement.json`。③ST-V继续已编码范围的剩余验证，真实S3 ACL仍开放，不强合未交付代码。不领取新功能簇；两guard worktree受保护。完整Config、Provider发现/Facade、Session/Web、签名URL复杂参数/代理、动态Settings和发布全后端矩阵仍开放。
 
 ### 当前收尾执行窗口
 
