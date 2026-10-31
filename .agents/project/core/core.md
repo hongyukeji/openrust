@@ -4,6 +4,12 @@
 > 更新：2026-10-30
 > 摘要：应用内核当前事实；模块清单支持硬依赖和确定性拓扑启动。
 
+## R2-P Provider 注册生命周期（与 S-DV 的 main 限定组合已验收）
+
+同一 `Container` 在首个 Provider 的异步 `register` 前建立；`RegisterContext` 的绑定、实例、`extend` 与 `rebinding` 在声明位置 `await`，`configure_after_register` 仍在全部初始 register 后、boot 前操作共享容器。普通重复 Provider ID 保留首个；force 重新执行 register，新有效项沿首槽 boot 顺序；App 启动后仍可登记 Provider。register 失败不替换旧索引，boot 失败保留新索引，已发布贡献不伪装成全局事务回滚；失败或取消依受管 deadline 回收资源。
+
+已绑定服务登记 `rebinding` 时立即解析并返回当前实例；登记本身不调用新回调，后续真实重绑在原位执行回调，错误阻止后续 register 语句。绑定 generation 与缓存槽同步准入；旧 `Arc` 可继续使用，后续解析不让旧工厂或等待者填入新槽。配置登记即时可读，来源值优先于默认值；后到 Provider 默认值不回滚先前成功发布的 `merge_defaults` 数组贡献和显式 `set`，启动仍保留校验与缓存屏障。Cookie 已解析单例保持首次快照，晚首次解析可读取新配置。当前只证明重建 Router 可见新贡献；已服务 Router 热更新、Provider 自动发现、完整 Facade/Container 仍开放。来源 `4ac8099`、S-DV来源 `6ffb5c8` 与三父main提交 `9e5a94198b421987851b3580b27fa90370feeb77` 的实际门禁见[组合记录](../memory/testing.md#r2-p-s-dv-main-limited)。
+
 ## 边界
 
 只提供装配、配置、错误、命令与生命周期；不含路由、数据库或任何 driver。依赖：`axum-core`（`IntoResponse`）、`http`、`figment`、`serde`、`tokio`、`tracing`、`toml`。
@@ -14,7 +20,7 @@
 | --- | --- |
 | `app` | `Application { type Config; fn config_namespace(); fn providers(&Config) }`，默认命名空间 `APP_`；`App` 提供 `state`、`config`、`figment`、`commands`、`extension`、`run_command`、显式 `shutdown`；`AppState` 的 `resolve` 异步构造工厂，`get` 仅同步读取已就绪实例。每次命令建立独立 scope，正常返回显式等待清理，调用 future 取消时关闭 guard 交由 App 受管回收；命令可复用同一 App，顶层 CLI 退出时关闭资源。section 解码错误保留安全键路径，不回显值 |
 | `container` | 生产唯一 `ContainerBuilder`/`Container`/`Resolver`/`Scope`：bind/singleton/scoped/instance、dyn 接口、单次构造、环检测、取消和根 reset。HTTP 请求 scope 贯穿 Inject/Auth/RateLimit/响应 body 轮询；命令、Job attempt 与 scheduler trigger 各用独立 scope。`Scope::run` 仅在当前 future 安装同容器 task-local，`Scope::spawn` 在同 scope/显式 ExecutionMetadata 下构造并执行受管任务；普通 `tokio::spawn` 不继承。关闭 App 封闭根生命周期并等待受管清理 |
-| `provider` | `ProviderBuilder` 先完成所有 `ServiceProvider::register`，合并基础配置，顺序执行 `boot`，最后校验配置和贡献并解析 required 服务；Provider 依赖、同类型去重与 boot 顺序明确。资源由 `ResourceOwner` 管理，启动失败或取消后在存活 Tokio runtime 内有界回收；旧 Plugin 启动循环已删除 |
+| `provider` | `ProviderBuilder` 在同一容器中异步顺序执行 `ServiceProvider::register`、启动校验与 `boot`；App 后续公开 register/force 复用同一容器、原位贡献及资源 owner。Provider 依赖、普通同 ID 去重与 boot 顺序明确。资源由 `ResourceOwner` 管理，启动失败或取消后在存活 Tokio runtime 内有界回收；旧 Plugin 启动循环已删除 |
 | `module` | `ModuleDescriptor::requires` 声明已编译模块间硬依赖；启用模块的依赖必须同时编译、启用，重复/自身/循环依赖拒绝。依赖拓扑优先于升序 `priority`，相同优先级保持应用编译清单顺序；模块 Provider register/boot 共享该结果，不自动改写运行启用状态 |
 | `command` | `Command { name, about, accepts_args, run }`；额外参数默认拒绝；内置 `help`、`config show`（密钥遮蔽） |
 | `config` | `src/config/` 已有 app/api/auth/cache/database/logger/mailer/server/signing/sms，queue 与 security 随对应 feature 开启；单一 `ConfigLoader` 合并类型默认值 → 应用根 `config/*.toml` 领域文件（按文件名排序）→ 应用工作目录 `.env` → 进程环境变量；不再加载 `default.toml` 与环境名 TOML。默认 `APP_`；Laravel 风格 `DB_*` / `REDIS_*` 分项连接变量、直接 URL 简写、中性 `SERVER_PORT` → `server.port`、`CACHE_STORE` → `cache.default`、`APP_NAME` / `APP_URL` / `APP_TIMEZONE` 均映射到领域配置（`app.timezone`默认UTC，启动时校验；HTTP日历使用最终Provider配置覆盖后的时区），应用命名空间变量优先（不重命名中性SERVER_PORT/CACHE_STORE，旧端口/缓存别名不回流）；`FrameworkConfig { app, server, api, log, i18n }`，其他能力通过独立 section 读取；数据库、认证、邮件旧模块路径由 re-export 保持；`NoConfig`、`load_dotenv`、`redact_secrets` |
@@ -61,7 +67,7 @@ MFA 在候选为迁移时仍解析服务与配置，仅登记延后 schema 检�
 - 固定 Laravel `ConfigCacheCommand` / `ConfigClearCommand` 与引导顺序，复用同一 Application、Provider、ConfigSources 和 ConfigRepository；公开命令为 `config:cache` / `config:clear`。默认 `bootstrap/cache/config.json` 是 Rust 数据表示适配，不执行 PHP 配置代码；默认 namespace 使用 `APP_CONFIG_CACHE` 选择相对或绝对文件路径。
 - 首次控制台引导与普通应用一致，先加载缓存并执行 Provider register/boot，再派发维护命令；有效缓存屏蔽损坏来源，损坏缓存先报错，不借命令候选提前删除。`config:clear` 仅在实际命令执行时清除选定文件。`config:cache` 在实际命令执行时先清除本次选定文件，经同 Application fresh register/boot 取得最终有序配置；fresh 资源关闭成功后以同目录临时文件写入、同步、原子替换并回读核对。Unix 临时文件权限为0600；配置可能含秘密，不进错误或日志。失败不得保留半文件，其他路径缓存不因探测被删除。
 - 引导先以外部环境快照检查缓存；未命中才独立解析 dotenv，再按选中路径检查一次；仅双重未命中才解析运行环境并读普通配置。dotenv 不写进程全局环境。命中缓存仍执行 Provider 其余职责与类型校验，同仓储 cached 标记在通用模块配置文件发现之前阻止重新读取/覆盖。
-- 命令影响后续启动，不热改已运行 App 或已解析客户端；运行期仓储写入、持久业务 Settings、跨节点激活与完整配置发现仍按各自计划，不能由缓存子簇关闭。R03已同树组合，R2-P仍独立未集成，不把各分支行为冒称 main 行为。
+- 命令影响后续启动，不热改已运行 App 或已解析客户端；运行期仓储写入、持久业务 Settings、跨节点激活与完整配置发现仍按各自计划，不能由缓存子簇关闭。R03与R2-P现已分别经main限定组合交付；本句仅说明缓存子簇自身的行为边界，不将分支数字冒称main结果。
 - 修后当前输入config77、lifecycle18、模块缓存屏障1、CLI模板1、双严格Clippy、默认workspace lib/tests851项、新server/两项模块真实脚本通过；强制重编CLI后的生成8项及真实重启通过。全特性lib/tests1638通过/68ignored、默认doctest22/34ignored与全特性24/40ignored、双warnings-denied docs及no-default/MSRV通过，离线deny按相同依赖图输入复用。两任务临时目录已回收；Cargo选择范围过宽的同名包缓存未删，归属复核缺口公开保留。限定分支提交见Git，main组合与完整Configuration仍未关闭。
 
 ## R2四簇 main 组合（限定验收）
@@ -80,7 +86,7 @@ R2-Q 分支 `850e1a4` 与 R2-X 分支 `d299ca4` 已完成各自限定验收；ma
 
 ## 约束
 
-- Provider 清单由应用在启动前一次确定，后续 Provider 不能动态增删启动清单。
+- 初始 Provider 清单由应用装配；启动后可经公开注册入口追加或 force 重注册 Provider。已服务 Router 不承诺热更新，需显式重建路由才观察新贡献。
 - `Application::Config` 不能是 `()`，用 `NoConfig`。
 - 5xx 错误只输出通用 `message`。
 

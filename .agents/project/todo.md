@@ -18,23 +18,21 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 
 ## 当前可领取
 
-当前执行优先级（额度收尾）：①四个已交付分支的同一main组合已完成限定验收；默认/全特性严格Clippy与workspace tests已通过（907/0/34 ignored、1698/0/108 ignored），双docs/MSRV、no-default、deny、生成项目、公开consumer与真实TCP的限定范围见[组合记录](memory/testing.md#r2-四簇-main-组合限定验收)。最终五父本地提交为 `e105dbfc58afc330b50e53b75f0b9e1424fa387a`；四个来源提交已证明为main祖先，四个干净worktree和本地分支均按正常Git命令退役，对应Paseo workspace已正式归档；②S-DV `6ffb5c8` 与R2-P `4ac8099` 已整合为未提交的同一main候选（保留 `MERGE_HEAD`，最终使用当前main及两个来源提交三个真实父节点）；配置早期发布值/显式set与后登记默认值的顺序修复仍在窄复审，数组贡献不得以弱化断言关闭。组合冻结后只跑一次集中适用门禁，通过才提交。ST-V继续既有收尾，未交付不强合；不领取新功能簇，两guard worktree受保护。完整Config、签名URL复杂参数/代理、动态Settings和发布全后端矩阵仍开放。
+当前执行优先级（额度收尾）：①R03/typed/CC/Signed四簇五父main限定组合已交付 `e105dbf`，来源与分支已安全退役，证据见[四簇记录](memory/testing.md#r2-四簇-main-组合限定验收)；②R2-P `4ac8099` 与S-DV `6ffb5c8` 已由三父main提交 `9e5a94198b421987851b3580b27fa90370feeb77` 完成限定组合门禁：默认943/0/34忽略、全特性1748/0/108忽略，双严格Clippy/docs、MSRV、no-default、deny、consumer/生成/MySQL/TCP按[最终记录](memory/testing.md#r2-p-s-dv-main-limited)通过。S-DV工作区/分支已安全退役；P仍有已保全的两份root文档WIP，待事实迁移核对后安全退役。③ST-V继续已编码范围的剩余验证，真实S3 ACL仍开放，不强合未交付代码。不领取新功能簇；两guard worktree受保护。完整Config、Provider发现/Facade、Session/Web、签名URL复杂参数/代理、动态Settings和发布全后端矩阵仍开放。
 
 ### 当前收尾执行窗口
 
-- main源码唯一写入负责人 `config_runtime_callers`；只修组合中的配置顺序问题，`storage_publication_review` 独立窄审。验收负责人 `04cca925-e59f-42f1-800b-424e7b4cd1b8` 已完成驱动EOF资源监测修复及无服务探针，窄复审通过；最终freeze、精确selectors及完整资源登记未绑定前不执行。
-- ST-V owner `9d167e52-8548-465c-a835-20d2624985e5` 持共享target/jobs2窗口：附件MySQL严格单项1/0/0已通过；后续data-exchange在补auth并按公开 `JobContext::begin_attempt()` 修测试夹具后，真实MySQL精确用例1/0/0、无skip，进程组与隔离库已清理；现续consumer/MSRV及夹具严格Clippy，原失败留证。真实S3 ACL仍未验收，不能以兼容性或mock关闭。
-- 当前唯一构建目录仍为根target；释放ST-V窗口后交main组合。root最新有界实测8路径去重11,693,735,936B、磁盘可用182,325,387,264B（18.33%），负责人已对照既有外置清单未发现额外Cargo target，五个退役路径计0、PHP源码与日志排除；对账 `/tmp/openrust-main-provider-session-resource-reconciliation.json`，实测回执 `/tmp/openrust-main-provider-session-resource-root-sample.json`。不复用下方历史资源数值作为新命令前置。
-
+- main Provider/S-DV源码与集中验证已收口，本轮仅同步Agent事实文档；共享target当前由ST-V owner `9d167e52-8548-465c-a835-20d2624985e5` 负责其已编码范围剩余链，root协调实际构建/服务窗口。不以main验收时资源快照替代新阶段预检。
+- ST-V的真实MySQL定向、公开driver/local与TCP已有分支证据；后续适用门禁和真实S3 ACL按其最终回执分开判定，未完成部分保持开放。50GB/10%软与100GB/5%硬阈值、未知缓存归属保护不变。
 ### 本轮组合产物回收（已完成）
 
-- 四簇main验收与本地合并后，资源owner `04cca925-e59f-42f1-800b-424e7b4cd1b8` 已核占用并正常执行 `cargo clean`（exit 0，8.89秒）。本轮清理前后根target实测55,298,695,168B→0B，已登记target合计55,494,791,168B→65,982,464B，磁盘可用139,102,576,640B→193,909,436,416B；不同时间采样不与上方验收收口样本混算。外置db-plugin-consumer的65,982,464B归属不足且无CACHEDIR.TAG，未删；源码/WIP/证据哈希前后一致。回执 `/tmp/openrust-four-family-cache-cleanup/RESULT.json` 与 `clean.log`；S-DV owner `7611b92b` 已获独占根target、jobs2重建窗口，其他簇不抢占。
+- 四簇main验收与本地合并后，资源owner `04cca925-e59f-42f1-800b-424e7b4cd1b8` 已核占用并正常执行 `cargo clean`（exit 0，8.89秒）。本轮清理前后根target实测55,298,695,168B→0B，已登记target合计55,494,791,168B→65,982,464B，磁盘可用139,102,576,640B→193,909,436,416B；不同时间采样不与上方验收收口样本混算。外置db-plugin-consumer的65,982,464B归属不足且无CACHEDIR.TAG，未删；源码/WIP/证据哈希前后一致。回执 `/tmp/openrust-four-family-cache-cleanup/RESULT.json` 与 `clean.log`；当时S-DV owner `7611b92b` 获独占根target重建窗口，此为历史采样，当前资源归属见上方收尾执行窗口。
 
 ### 集中产物回收（已完成，保留原始日志缺口）
 
 - 资源owner `04cca925-e59f-42f1-800b-424e7b4cd1b8` 独占清理窗口，driver先保存；root已通知S-DV/ST-V/driver禁止新增构建，源码修复与caller迁移继续。root当次核cargo/rustc/rustdoc均无进程；main与两历史target顶层为标准Cargo结构、非symlink。owner已按锁/占用/归属复核后集中清理，非仅几百MB精准删。
 - 清单基于既有resource_paths、main/worktree/consumer与外置目标去重；共享main target获准完整清后按需重建，未知root-site/M5集中核一次来源后明确清/留理由，不盲删、不无限搁置。保护未合分支源码/WIP、依赖源码、PHP来源、数据库/卷与证据。现已完整清13个确认OpenRust target（含主target、root-site/M5及consumer），逐项实测共93,855,621,120B产物归零，登记剩余Cargo缓存65,982,464B；磁盘可用约101.17→193.60GB。PHP参考源码/证据244.76MB单列保留，不算Cargo cache。回执 `/tmp/openrust-concentrated-cache-retirement/RESULT.json`；root实核13路径已无、caller冻结35文件无漂移。auth-pg一项第二轮同basename覆盖两份原始日志，原预期SHA/退出码/字节记录保留且明确不可恢复；其余24份日志SHA核对一致。原失败ROOT-AUDIT及RESULT.log_integrity_audit保留，不改expected hash或重跑伪造历史。
-- 下一唯一构建目录 `/Users/Home/Codes/Rust/openrust/target`；现由S-DV owner `7611b92b` 独占jobs2重建窗口，执行其严格Clippy/docs与真实MySQL定向迁移；ST-V local已验收、只读收敛剩余门禁不占Cargo。跨簇只留下一已安排步骤明确需要的一份缓存，不为历史feature持续堆积；50GB软/100GB硬不变。
+- 下一唯一构建目录 `/Users/Home/Codes/Rust/openrust/target`；该S-DV重建窗口属历史阶段，现S-DV已完成main组合并安全退役；当前target归属以本页收尾窗口和ST-V owner实际交接为准。跨簇只留下一已安排步骤明确需要的一份缓存，不为历史feature持续堆积；50GB软/100GB硬不变。
 
 执行节奏：先完成本簇代码及配套测试代码，ready_for_verify后由总控安排提交前集中验证；分支限定门禁、main完整组合验收，未通过不提交。不得继续按每个方法/小改动重复跑测试或Clippy；当前在途命令自然结束，已有有效证据按实际影响复用，规则见[集中验证](conventions.md#功能簇提交前集中验证)。
 
@@ -128,33 +126,37 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 - 首轮源码11文件已ready并经terra独审：4 blocker（UUID feature、local硬链接chmod、取消/rename仲裁、畸形ACL误判），UUID已由root修，原owner集中修其余和should-fix，Rust编译/行为尚未验证。root已选精确可选aws-sdk-s3=1.152.0，仅storage-s3启用；metadata新增26版本、原锁无升级/移除，声明MSRV均≤1.97；原allfeatures offline deny只归旧锁输入，root复核lock-resolution SHA与当前锁不同，当前锁需在后续窗口重验deny，不冒充当前锁/编译/真实ACL通过。来源/决策与锁图回执 `/tmp/openrust-storage-s3-acl-{dependency-review.md,root-decision.json,lock-resolution.json}`；root独占三清单文件，真实ACL服务/授权配置未具备。当前不占target/端口/库，ready后delta审查/集中Verify；50GB/10%软与100GB/5%硬、默认额度/停止链路保持，不建重复守护。
 - 内置CAS/ACL分类、公开UploadPublication令牌及不确定错误映射已静态独审闭合；外部consumer负例已补，storage-local/storage-s3 workspace alltargets类型检查通过。第三次Clippy的helper返回类型错误已按用户实际决定改为StoredObject；获准单次attempt5严格复验exit101（1.596秒），仅报tests/server/storage/s3.rs空集合断言lint，20冻结输入无漂移。用户授权的空切片修复后单次attempt6严格Clippy已过；local storage16、公开driver契约3（含组合仲裁负例）、真实TCP上传下载1均过，20SHA无漂移，日志明确当前worktree重编。原owner只读汇总S3/模块auth特性及其余适用门禁，真实ACL仍未验；target已返还S-DV服务链。证据 `/tmp/openrust-storage-visibility-attempt6-manifest.json`。证据 `/tmp/openrust-storage-visibility-attempt5-manifest.json` 与原日志；target已释放。真实ACL/慢服务未验，不把ignored测试当通过。
 
-## S-DV 有序对象值与 Session 保存边界（Verify：最终feature组合与真实driver）
+## S-DV 有序对象值与 Session 保存边界（main限定组合已交付）
+
+以下 owner、冻结与失败描述保存分支执行过程，不代表现时运行窗口；最终main状态见本节末尾及顶部组合记录。
 
 - Request 文件家族的实际前置；固定 Laravel 真探针14案表明 Request flashOnly/Except 保留对象到 save，Redirect 则递归剔除，不能在 put/flash 时提前转JSON。冻结Spec `/tmp/openrust-session-data-values-frozen-spec.md`，oracle `/tmp/openrust-request-files-flash-oracle/receipt.json`；只推进通用值/Session保存边界，multipart/DefaultBodyLimit/Storage visibility与MIME继续后继。
-- owner `7611b92b-f279-4a2f-ab5f-d134c2263926`，workspace `wks_1735f33899c42ec3`（既有OpenRust项目），base `9eb54ce02a09b48db31c31b57384976628da4050`，branch `tasks/session-data-values`，cwd `/Users/Home/.paseo/worktrees/02joa2lr/openrust-session-data-values`；common-dir已核同仓。实际正式run已返回running，模型沿现可用经济回退 `gpt-6-sol` medium；不重复本地不可用执行器探测。
-- 当前公共签名补充冻结 `/tmp/openrust-session-data-values-canonical-api.md`：canonical get/all/old_input等返回原始DataValue，JSON投影显式，禁止保旧JSON get再只靠get_value读对象。core owner独占src/session、值类型、Session配置/就地unit；复用native `config_runtime_callers` 已实际派发同worktree其余调用方/唯一模块/外部测试/consumer/CLI模板快照/说明，保全core已写caller WIP接续，不重叠编辑。manifest/lock/共享Agentdocs及main索引root独占；整簇freeze后不同模型独审/集中Verify，当前默认编译子范围已过，行为与真实服务未验收。
+- owner `7611b92b-f279-4a2f-ab5f-d134c2263926`，workspace `wks_1735f33899c42ec3`（既有OpenRust项目），base `9eb54ce02a09b48db31c31b57384976628da4050`，branch `tasks/session-data-values`，cwd `/Users/Home/.paseo/worktrees/02joa2lr/openrust-session-data-values`；common-dir已核同仓。当时正式run状态与模型记录为历史；源工作区/分支现已安全退役，不重复本地不可用执行器探测。
+- 当前公共签名补充冻结 `/tmp/openrust-session-data-values-canonical-api.md`：canonical get/all/old_input等返回原始DataValue，JSON投影显式，禁止保旧JSON get再只靠get_value读对象。core owner独占src/session、值类型、Session配置/就地unit；复用native `config_runtime_callers` 已实际派发同worktree其余调用方/唯一模块/外部测试/consumer/CLI模板快照/说明，保全core已写caller WIP接续，不重叠编辑。manifest/lock/共享Agentdocs及main索引root独占；其后已完成不同模型独审与main集中Verify；当时默认编译子范围不代表最终行为，最终真实服务证据见顶部组合记录。
 - 默认workspace check已实际exit0（140.593秒），前后50SHA无漂移；默认feature仅cache-redis，不证明Session gated源码通过。核心3并发/预算blocker、caller原对象读取及Cookie未排响应/old_or断言均已静态闭合，36 caller最终清单 `/tmp/openrust-session-data-values-callers-ready-final.json`。
 - 严格Clippy已通过；lib首次557通过/2失败已修，第二次559通过/1失败，剩同句柄并发named errors误报busy。同步准入方案独审发现跨线程析构join死锁；已按真实PHP5案与回收顺序Spec完成state.rs整批修复：先释放Operation再析构候选/旧树/输入，成功回调写入保留，失败候选原子回滚，原并发与投影busy断言不弱化。当前仅静态通过，不宣称运行时修复；terra原reviewer已静态复审无blocker（`/tmp/openrust-session-data-values-retirement-independent-review.md`），unwind/返回值及真实I/O取消/poison保留后续验证缺口。原attempt3/4失败保留；attempt5第三次lib已563通过/0失败/0忽略，50输入无漂移；HTTP首轮5项configuration_error已定位并补Provider封闭schema serializer；attempt7严格Clippy通过、HTTP五target共82项全过、模块session_flows8项通过，consumer5项/CLI精确快照1项也通过，attempt7链全部通过。服务链在session+auth+db-mysql严格Clippy因account_security Density→DataValue漏迁移停止，生成/MySQL/TCP未运行；原caller已补公开put_typed写入，旧36caller无漂移，root核新增37th caller；新458输入attempt2服务driver已通过：普通生成check/test7项、MySQL生成check与真实auth2项无skip，状态passed_with_root_tcp_pending；根server新构建已过；首次TCP在启动前因freeze漏modules_statuses.json失败，未发业务请求；root补459输入后build成功，TCP第二次在ready前退出；静态定位runner误用未合R03的领域相对格式，第3次TCP六业务步骤全过且SIGINT exit0，但即时端口重绑失败，总结果仍failed；用户已明确授权先受控socket探针核重用选项再单次严格重验，受控probe已复现plain bind失败/reuseaddr成功并拒绝活监听，root差异复核候选不改六业务断言；此为候选解释非历史唯一根因。新真实buildreceipt绑定runtime-final459，用户获准单次TCP已passed6/6、SIGINT exit0、无残留、重绑1次0.558秒成功；原三失败保留。allfeatures check另暴露runtime.rs四标量调用已显式Into修复，旧37caller无漂移；allfeature第二次又定位database.rs三标量，caller连同Keycloak三处同批修完且其余36caller无漂移；新459最终feature freeze后第3次allfeature类型检查与严格Clippy已过，服务owner续组合lib/view/MySQL/条件Redis批次，失败停，TCP证据按生产未变范围复用，不重跑已过服务driver，core冻结。caller未降断言；schema与测试lint差异分别绑定新freeze。证据 `/tmp/openrust-session-data-values-attempt5-verify-manifest.json`。
-- 当前最终459输入冻结索引 `/tmp/openrust-session-data-values-final-feature-freeze.json`；真实TCP6项/服务退出与端口重绑已通过，生成与MySQL认证2项已通过。最终allfeatures类型/严格Clippy、组合lib676和view7均通过；最终真实认证组首次5过3失败；补Host后auth_database8/8、MFA1/OIDC1/runtime9均过，example_auth_flows整组97过3失败1忽略（迁移internal_error与两项上游超时），整批仍failed，后续driver尚未完成。caller已仅补database.rs的17个Host请求，文件SHA `0c4bfdf4e749f4b00a5bc30bd9eeb789870e207847cdb5ea6c6ef4466ceb05eb`，原断言保留；04已收到新SHA并负责单窗口续验失败组、DB Session与条件Redis，不重跑未受影响前段。
-- 当前最短闭环：组合lib676、view7已过；真实MySQL auth首target5过3失败，原caller仅修17个path-only请求缺Host的fixture候选，保留严格断言。服务owner04已完成认证组续验；两项上游超时的Host fixture修复已定向通过，迁移测试仍需独立诊断。现由core owner7611b92b独占根target续作严格Clippy/docs与真实MySQL定向迁移，不重复已过认证targets。四个失败隔离库已精确清理并恢复schema集合；清理补审明确缺子进程独立PID和删除前表集合，不补造。ST-V owner09并行准备用户授权的Docker S3验收环境；S3兼容不代表对象ACL均支持，环境未实际证明前保留缺口。
+- 分支最终459输入及运行失败历史保留于 `/tmp/openrust-session-data-values-final-feature-freeze.json` 等原证据；Session对象身份/native拒绝/JSON显式投影与caller迁移已在三父main提交 `9e5a94198b421987851b3580b27fa90370feeb77` 的组合门禁重新验证。原MySQL认证/迁移与上游超时失败及后续定向修复不回填旧回执；main最终默认943/全特性1748、真实MySQL/TCP与consumer/生成证据见[最终记录](memory/testing.md#r2-p-s-dv-main-limited)。源worktree/branch已安全退役（`/tmp/openrust-session-data-values-safe-retirement.json`），完整Session/Web仍开放。
 - 资源：只在已清理的 `/Users/Home/Codes/Rust/openrust/target` 按需重建，jobs2；不占端口/库。构建前重测全登记缓存/预计增量，50GB软/100GB硬、磁盘10%软/5%硬；独立执行者受总控暂停/停止协调，原默认80%额度不变。完成后按真实归属清理，不动未合入分支。
 
-## R2-P Provider 完整注册生命周期（分支已提交，main组合候选待验收）
 ## R2-CC 配置缓存家族（分支限定验收历史）
 
 - 本分支复用唯一Application/Provider/ConfigSources/ConfigRepository实现config:cache与config:clear。首次命令引导保持正常缓存屏障，实际派发才清选定缓存；fresh启动、资源关闭、原子写/回读、失败无半写、双阶段env与模块屏障同簇验证，不热改在途App。
 - 最终18文件 `/tmp/openrust-config-cache-command-bootstrap-script-delta2.json` 已独立复审。修后默认851、全feature1638/68ignored、双严格Clippy、配置77/生命周期18/模块1/CLI1、no-default/MSRV及普通生成8/两类真实进程脚本通过；ignored不算服务。首链驱动忽略规则断言失败及旧benchmark失败均保留；强制重编CLI的续跑与原失败分开索引。
-- 修后双doctest/docs均通过，离线deny仅复用相同依赖图/策略输入且注明2026-10-30 advisory快照；根fmt/diff通过，限定本地提交见Git。root核61项证据及42生成文件。两任务temp已退役，未实际执行范围过宽的cargo clean，约1GiB同名包缓存留待root下次资源交接按精确归属复核；不误删其他产物。以上为分支阶段证据；现已与R03/typed/Signed完成main限定组合，P仍独立，发布全后端矩阵保持开放。
+- 修后双doctest/docs均通过，离线deny仅复用相同依赖图/策略输入且注明2026-10-30 advisory快照；根fmt/diff通过，限定本地提交见Git。root核61项证据及42生成文件。两任务temp已退役，未实际执行范围过宽的cargo clean，约1GiB同名包缓存留待root下次资源交接按精确归属复核；不误删其他产物。以上为CC分支阶段证据；CC已与R03/typed/Signed完成四簇main限定组合，P另与S-DV完成三父main限定组合，发布全后端矩阵保持开放。
 
+
+## R2-P Provider 完整注册生命周期（main限定组合已交付）
+
+以下96/97源、生成、资源与Clippy计数保存分支执行过程；当前main结果见顶部组合记录，P源分支仅待保全文档事实核对后安全退役。
 
 - 已冻结普通/force与boot前后完整家族；固定Laravel真实正常/失败探针、Rust接口候选及独审在 `/tmp/openrust-provider-registration-{frozen-spec,rust-contract,rust-contract-review}.md`。不以启动前去重代替晚注册；异步register/原位置rebinding、绑定generation与缓存槽同锁准入为明确Rust实现约束；失败已发生贡献按PHP保留，不造Provider全局事务。
 - 同项目workspace `wks_f7e111d2b503053b`，branch `tasks/provider-registration-family`，base `3aba0a3`，cwd `/Users/Home/.paseo/worktrees/02joa2lr/openrust-provider-registration-family`。`04cca925-e59f-42f1-800b-424e7b4cd1b8`负责provider/app/resources与配置owner/schema；`0b1cd54b-3828-4eff-bf97-5c519973a41e`仅负责container.rs及container子目录；既有callers负责其余Provider/模块/consumer/模板迁移，禁止重叠编辑。
 - 共享API已收敛：ServiceProvider::register改BoxFuture；Context涉及绑定/回调的方法原位置await；rebinding在已绑定时立即解析并返回Option<Arc<T>>。configure_after_register改FnOnce(Container)→BoxFuture，原register后覆盖时点不变；启动前建立唯一Container/StartupResources，配置登记当场可读但保留boot前校验，默认合并不得重复应用。
-- 当前冻结96个变更文件，生成验收另外绑定实际运行输入；core125、仓储47、公开Container契约24，以及独立container-extension2、test-app1、config读取consumer6均实际通过。Register重放覆盖后续set的缺陷已修并经不同模型静态复审。默认严格Clippy三次历史失败保留；用户授权单次重验已通过，源码限定分支提交 `4ac8099`，main组合验证待执行。root精确刷新3个consumer锁，新增包匹配根锁，无第三方升级。
+- 当前冻结96个变更文件，生成验收另外绑定实际运行输入；core125、仓储47、公开Container契约24，以及独立container-extension2、test-app1、config读取consumer6均实际通过。Register重放覆盖后续set的缺陷已修并经不同模型静态复审。默认严格Clippy三次历史失败保留；用户授权单次重验已通过，源码限定分支提交 `4ac8099`；main三父组合提交 `9e5a94198b421987851b3580b27fa90370feeb77` 已通过限定门禁。root精确刷新3个consumer锁，新增包匹配根锁，无第三方升级。
 - 生成首轮view遗漏await已修；第二轮确认共享target旧CLI复用，未误改正确异步模板。attempt3 `/tmp/openrust-r2p-generated-acceptance-attempt3/` 实际强制重编当前CLI并绑定97输入，13阶段通过：普通生成/Provider/TCP/公开fixture、MySQL认证2项无skip；root独立SQL审计前后61库集合摘要一致。前两轮失败保留。其后Cookie生产修复已用保留生成项目补验3项plain及2项真实MySQL auth具名测试，均通过/无skip，97源与生成锁无漂移、前后61库集合一致。`/tmp/openrust-r2p-cookie-generated-supplement/result.json` 与root五日志核验留证，不重跑未受影响生成/CLI/Marker TCP。
-- Cookie当前节读取改has(session)，保留已解析singleton快照；固定PHP真实CookieServiceProvider探针确认早解析不热建，新增身份回归后cookie9、默认workspace lib/tests862、全feature1650/68ignored、doctest22/34ignored及24/40ignored、双warnings-denied docs、no-default/MSRV/deny均有新回执。`/tmp/openrust-r2p-cookie-matrix-handoff.json` 关联10日志，root逐哈希核对全匹配；ignored不计真实服务，严格Clippy按用户授权单次重验通过；以上仍只属分支证据。
+- Cookie当前节读取改has(session)，保留已解析singleton快照；固定PHP真实CookieServiceProvider探针确认早解析不热建，新增身份回归后cookie9、默认workspace lib/tests862、全feature1650/68ignored、doctest22/34ignored及24/40ignored、双warnings-denied docs、no-default/MSRV/deny均有新回执。`/tmp/openrust-r2p-cookie-matrix-handoff.json` 关联10日志，root逐哈希核对全匹配；ignored不计真实服务，严格Clippy按用户授权单次重验通过；本行数字仍只属分支证据，main新结果见顶部组合记录。
 - 资源补验中的unregistered_count79已确证是对unknown字符串按字符计数，不是79target，原result保留且resource-audit.md纠正；限定main/worktree/tmp扫描无新增target，登记15路径约94.30GB仍为覆盖有界的小计。P补验已收尾8个确证自有测试二进制，释放379,628,016B；root逐项核缺失状态、来源/.d/日志SHA，97源与224保护项由owner前后核不变，生成源码/锁/证据/共享依赖保留，回执 `/tmp/openrust-r2p-generated-cleanup/result.json` 和root-audit.json。
-- 最近owner回执主target76,380,396KiB、磁盘可用101.3GB；其他登记target仍需合计，不能冒称全量已核。下一构建重测合计及预计增长，50GB/10%仅软告警、100GB/5%硬线保持；未知缓存不清。派发/停止ID入口 `/tmp/openrust-provider-registration-dispatch.json`，总控用正式Paseo stop逐任务协调；不另建Goal/guard、不推送、不提前退役未合分支。
+- 分支当时owner回执主target76,380,396KiB、磁盘可用101.3GB；其他登记target仍需合计，不能冒称全量已核。后续构建均重新预检合计及预计增长，50GB/10%仅软告警、100GB/5%硬线保持；未知缓存不清。派发/停止ID入口 `/tmp/openrust-provider-registration-dispatch.json`，总控用正式Paseo stop逐任务协调；不另建Goal/guard、不推送、不提前退役未合分支。
 
 ## R2-CC 配置缓存家族（分支提交7be446d；main组合见本页顶部）
 
@@ -163,7 +165,7 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 - 已完成多轮生产批修及历史分支验收：配置77、生命周期16、默认workspace849、双严格Clippy/docs、MSRV/no-default/deny、生成与真实缓存复启具证据；全特性all-targets的额外复制benchmark曾失败，测试目标补验与原失败分别保留，不把整条命令写成通过。后续独审发现维护命令应先正常bootstrap再执行清缓存，原owner已修该生产顺序，18文件新冻结 `/tmp/openrust-config-cache-command-bootstrap-delta.json`；原结果须按输入影响复用，命令/缓存真实验收需新输入重验。
 - 限定分支提交 `7be446d81c6c1aa0269c4f2aa36b0ce5a4e27aa1`，26文件（18实现/用户文档+8共享记录），worktree干净。固定命令引导/fresh/原子缓存/env与模块屏障、生成器和两类真实复启由不同模型审查及实际门禁验证。默认workspace lib/tests851、全feature1638/68ignored、doctest22/34ignored与24/40ignored、双严格Clippy/docs、no-default/MSRV、普通生成8通过；旧offline deny仅复用相同依赖图/策略与2026-10-30 advisory快照。
 - 最终证据 `/tmp/openrust-config-cache-final-manifest.json`（SHA `73da1b7712e35176dff0bd30b63004d07e7f35f5e6e73603c99b6005c3508119`）；root核61项和42生成文件。原driver断言失败/旧benchmark失败保留；共享target后续更换server，原真实脚本首尾SHA与expected一致，不声称现在仍可重算旧binary。
-- 两自有temp目录已退役，磁盘实测回收13,570,048B，共享target变化0；Cargo忽略包URL/版本限定，会清全部同名sample-app，未执行实际clean，约1GiB混合归属缓存由root下次资源交接精确核对，未知产物保护。分支提交时未main集成；现已纳入R03/typed/Signed同树组合，P仍独立；原工作区/分支已正常退役、workspace已归档，发布全后端矩阵保持开放。
+- 两自有temp目录已退役，磁盘实测回收13,570,048B，共享target变化0；Cargo忽略包URL/版本限定，会清全部同名sample-app，未执行实际clean，约1GiB混合归属缓存由root下次资源交接精确核对，未知产物保护。分支提交时未main集成；现已纳入R03/typed/Signed四簇main组合；P后续与S-DV另经main限定组合交付；原工作区/分支已正常退役、workspace已归档，发布全后端矩阵保持开放。
 
 ## R2/R10 运行时配置与动态调度（仅规划，按依赖领取）
 

@@ -2,9 +2,9 @@
 
 > C04-D1限定子范围已完成适用集成验收，提交以Git为准。契约见 [ADR-082](../decisions/adr-082-session-store-and-flash.md)，唯一执行队列见 [todo](../todo.md)。
 
-## S-DV 对象值与保存边界（分支定向验收通过）
+## S-DV 对象值与保存边界（main限定组合已验收）
 
-当前属性树公开为 `DataValue`，同请求快照以 `Arc` 保持对象身份；原始写入使用 `put/flash/flash_input`，DTO 使用显式 `*_typed`，JSON/DTO 读取显式投影并拒绝无投影对象。默认 native 编码在 save 遇对象时拒绝且不写后端，json 仅使用对象显式投影；不承诺 PHP serialize 字节兼容。以下 D9 的 `Value` 签名属于历史验收输入，当前签名为 `flash_input(DataValue)`。本簇模块迁移与上游超时具名回归已通过；分支定向验收不等于 main 组合验收，也不关闭完整 Session 能力。
+当前属性树公开为 `DataValue`，同请求快照以 `Arc` 保持对象身份；原始写入使用 `put/flash/flash_input`，DTO 使用显式 `*_typed`，JSON/DTO 读取显式投影并拒绝无投影对象。默认 native 编码在 save 遇对象时拒绝且不写后端，json 仅使用对象显式投影；不承诺 PHP serialize 字节兼容。以下 D9 的 `Value` 签名属于历史验收输入，当前签名为 `flash_input(DataValue)`。本簇模块迁移与上游超时具名回归已通过；与R2-P的main限定组合已由三父提交 `9e5a94198b421987851b3580b27fa90370feeb77` 交付，完整门禁及真实MySQL/TCP见[组合记录](../memory/testing.md#r2-p-s-dv-main-limited)。不关闭完整Session/Web或全部持久后端范围。
 
 ## D8 previous 与预检保存边界（限定子范围已验收）
 
