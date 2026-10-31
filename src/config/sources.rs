@@ -1,6 +1,7 @@
 //! 同一次加载形成的有序原始配置与类型化来源投影。
 
 use std::cmp::Ordering;
+use std::collections::HashSet;
 use std::ffi::{OsStr, OsString};
 
 use figment::{
@@ -10,7 +11,10 @@ use figment::{
 use serde_json::{Map as JsonMap, Value};
 
 use super::ConfigError;
-use super::repository::{normalize_php_source, php_value, reorder_like};
+use super::repository::{
+    merge_shallow, normalize_php_source, php_value, read_dot_value, reorder_like, replace_section,
+    replace_section_overlay, set_dot_value,
+};
 
 /// 不可变配置来源；原始键序和 Figment 来源元数据来自同一输入。
 ///
@@ -19,6 +23,9 @@ use super::repository::{normalize_php_source, php_value, reorder_like};
 pub struct ConfigSources {
     figment: Figment,
     ordered: Option<Value>,
+    file_domains: HashSet<String>,
+    pre_file_base: Option<Value>,
+    after_file_layers: Vec<Value>,
 }
 
 impl ConfigSources {
@@ -51,8 +58,22 @@ impl ConfigSources {
         &self.figment
     }
 
-    pub(crate) fn into_parts(self) -> (Figment, Option<Value>) {
-        (self.figment, self.ordered)
+    pub(crate) fn into_parts(
+        self,
+    ) -> (
+        Figment,
+        Option<Value>,
+        HashSet<String>,
+        Option<Value>,
+        Vec<Value>,
+    ) {
+        (
+            self.figment,
+            self.ordered,
+            self.file_domains,
+            self.pre_file_base,
+            self.after_file_layers,
+        )
     }
 
     pub(crate) fn checked(figment: Figment, ordered: Value) -> Result<Self, ConfigError> {
@@ -65,6 +86,9 @@ impl ConfigSources {
         Ok(Self {
             figment,
             ordered: Some(ordered),
+            file_domains: HashSet::new(),
+            pre_file_base: None,
+            after_file_layers: Vec::new(),
         })
     }
 
@@ -73,13 +97,32 @@ impl ConfigSources {
         provider: P,
         layer: Value,
     ) -> Result<(), ConfigError> {
-        let candidate = self.figment.clone().merge(provider);
-        let resolved: Value = candidate.extract()?;
+        let captured = CapturedProvider::new(&provider)?;
+        let overlay = Figment::from(captured.clone());
+        let mut candidate = self.figment.clone().merge(captured);
         let mut order = self
             .ordered
             .clone()
             .unwrap_or_else(|| Value::Object(JsonMap::new()));
-        merge_order(&mut order, normalize_php_source(layer, false));
+        let layer = normalize_php_source(layer, false);
+        merge_order(&mut order, layer.clone());
+        if self.pre_file_base.is_some()
+            && let Some(entries) = layer.as_object()
+        {
+            for key in entries.keys() {
+                let value = order.get(key).cloned().ok_or_else(|| {
+                    ConfigError::Invalid("configuration: 环境投影缺少根键".into())
+                })?;
+                let old = candidate.find_value(key).ok();
+                let source = overlay.find_value(key).ok();
+                candidate =
+                    replace_section_overlay(&candidate, key, value, old.as_ref(), source.as_ref())
+                        .map_err(|_| {
+                            ConfigError::Invalid("configuration: 环境投影失败（源值未公开）".into())
+                        })?;
+            }
+        }
+        let resolved: Value = candidate.extract()?;
         let ordered = reorder_like(&order, resolved);
         if candidate.extract::<Value>()? != project_root(&ordered) {
             return Err(ConfigError::Invalid(
@@ -88,7 +131,77 @@ impl ConfigSources {
         }
         self.figment = candidate;
         self.ordered = Some(ordered);
+        if self.pre_file_base.is_some() {
+            self.after_file_layers.push(layer);
+        }
         Ok(())
+    }
+
+    pub(crate) fn merge_file(
+        &mut self,
+        name: &str,
+        file: Value,
+        metadata: Metadata,
+    ) -> Result<(), ConfigError> {
+        let mut ordered = self
+            .ordered
+            .clone()
+            .ok_or_else(|| ConfigError::Invalid("configuration: 文件来源需要有序配置根".into()))?;
+        let pre_file_base = self
+            .pre_file_base
+            .clone()
+            .unwrap_or_else(|| ordered.clone());
+        let file = normalize_php_source(file, false);
+        let mut incoming = file.clone();
+        if let Some(base) = read_dot_value(&ordered, name).filter(|value| {
+            (value.is_object() || value.is_array()) && (file.is_object() || file.is_array())
+        }) {
+            let mut merged = base.clone();
+            merge_shallow(&mut merged, file.clone(), name);
+            for option in mergeable_options(name) {
+                if let (Some(old), Some(new)) = (base.get(*option), file.get(*option))
+                    && (old.is_object() || old.is_array())
+                    && (new.is_object() || new.is_array())
+                {
+                    let mut combined = old.clone();
+                    merge_shallow(&mut combined, new.clone(), option);
+                    if let Some(section) = merged.as_object_mut() {
+                        section.insert((*option).to_owned(), combined);
+                    }
+                }
+            }
+            incoming = merged;
+        }
+        set_dot_value(&mut ordered, name, incoming.clone());
+        let mut file_layer = Value::Object(JsonMap::new());
+        set_dot_value(&mut file_layer, name, file);
+        let captured =
+            CapturedProvider::new(&figment::providers::Serialized::defaults(file_layer))?
+                .with_metadata(metadata);
+        let merged = self.figment.clone().merge(captured);
+        let original = merged.find_value(name).ok();
+        let candidate =
+            replace_section(&merged, name, incoming, original.as_ref()).map_err(|_| {
+                ConfigError::Invalid("configuration: 文件层无法投影（源值未公开）".into())
+            })?;
+        let checked = Self::checked(candidate, ordered)?;
+        self.figment = checked.figment;
+        self.ordered = checked.ordered;
+        self.file_domains.insert(name.to_owned());
+        self.pre_file_base = Some(pre_file_base);
+        Ok(())
+    }
+}
+
+pub(crate) fn mergeable_options(name: &str) -> &'static [&'static str] {
+    match name {
+        "auth" => &["guards", "providers", "passwords"],
+        "broadcasting" | "database" | "queue" => &["connections"],
+        "cache" => &["stores"],
+        "filesystems" => &["disks"],
+        "logging" => &["channels"],
+        "mail" => &["mailers"],
+        _ => &[],
     }
 }
 
@@ -97,6 +210,9 @@ impl From<Figment> for ConfigSources {
         Self {
             figment,
             ordered: None,
+            file_domains: HashSet::new(),
+            pre_file_base: None,
+            after_file_layers: Vec::new(),
         }
     }
 }
@@ -221,7 +337,7 @@ impl EnvironmentSnapshot {
     }
 }
 
-/// 对已发现的平面 TOML 文件名使用 PHP `SORT_NATURAL` 的数字段顺序。
+/// 对映射后的完整配置键使用 PHP `SORT_NATURAL` 的数字段顺序。
 pub(crate) fn natural_name_cmp(left: &str, right: &str) -> Ordering {
     let mut a = left.as_bytes();
     let mut b = right.as_bytes();
@@ -266,6 +382,35 @@ mod tests {
     use super::{ConfigSources, EnvironmentSnapshot, natural_name_cmp};
     use crate::config::repository::ConfigRepository;
     use crate::core::Result;
+
+    #[test]
+    fn file_base_merge_is_shallow_except_laravel_mergeable_option() -> Result<()> {
+        let mut sources = ConfigSources::from_ordered_entries([
+            ("app", json!({"name": "base", "nested": {"old": 1}})),
+            (
+                "cache",
+                json!({"default": "array", "stores": {"array": {"driver": "array"}}, "nested": {"old": 1}}),
+            ),
+        ])?;
+        sources.merge_file(
+            "app",
+            json!({"name": "custom", "nested": {"new": 2}}),
+            figment::Metadata::named("TOML file"),
+        )?;
+        sources.merge_file(
+            "cache",
+            json!({"default": "redis", "stores": {"redis": {"driver": "redis"}}, "nested": {"new": 2}}),
+            figment::Metadata::named("TOML file"),
+        )?;
+        let repository = ConfigRepository::new(sources);
+        assert_eq!(repository.get("app.nested")?, Some(json!({"new": 2})));
+        assert_eq!(repository.get("cache.nested")?, Some(json!({"new": 2})));
+        assert_eq!(
+            repository.get("cache.stores")?,
+            Some(json!({"array": {"driver": "array"}, "redis": {"driver": "redis"}}))
+        );
+        Ok(())
+    }
 
     // 显式输入的覆盖原位、空根和规范数字键必须保留 PHP 数组形态，且 Figment 仍可读取。
     #[test]

@@ -113,6 +113,13 @@ fn config_greeting_routes(
     repository: openrust::config::repository::ConfigRepository,
 ) -> Routes {
     routes
+        .get("/api/example/config-feature", {
+            let repository = repository.clone();
+            move || {
+                let repository = repository.clone();
+                async move { controllers::config_reading::feature(&repository) }
+            }
+        })
         .get("/api/example/config-greeting", {
             let repository = repository.clone();
             move || {

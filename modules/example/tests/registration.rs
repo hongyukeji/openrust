@@ -189,6 +189,22 @@ async fn assert_initial_config_greeting(
     Ok(())
 }
 
+async fn assert_config_feature(
+    app: &mut openrust::testing::TestApp<crate::bootstrap::Server>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let response = app
+        .request(
+            Request::get("/api/example/config-feature")
+                .header("host", "localhost")
+                .body(Body::empty())?,
+        )
+        .await?;
+    response.assert_status(StatusCode::OK)?;
+    let body: serde_json::Value = serde_json::from_slice(response.body())?;
+    assert_eq!(body["data"], serde_json::json!({"enabled": true}));
+    Ok(())
+}
+
 #[tokio::test]
 async fn production_config_greeting_reads_only_the_module_business_key()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -211,10 +227,12 @@ async fn production_config_greeting_reads_only_the_module_business_key()
         super::services::config_reading::greeting(&missing)?,
         "示例问候语尚未配置"
     );
+    assert!(!super::services::config_reading::feature_enabled(&missing)?);
 
     let mut app = TestApp::<crate::bootstrap::Server>::builder(production_sources(false))
         .build()
         .await?;
+    assert_config_feature(&mut app).await?;
     let mut other = TestApp::<crate::bootstrap::Server>::builder(production_sources(false))
         .build()
         .await?;
@@ -325,6 +343,16 @@ async fn ordered_business_source_survives_module_overlay_and_runtime_set()
         app.app()?.config_repository().get("example.greeting")?,
         Some(serde_json::json!("Hello from modules/example"))
     );
+    let feature = app
+        .request(
+            Request::get("/api/example/config-feature")
+                .header("host", "localhost")
+                .body(Body::empty())?,
+        )
+        .await?;
+    feature.assert_status(StatusCode::OK)?;
+    let feature_body: serde_json::Value = serde_json::from_slice(feature.body())?;
+    assert_eq!(feature_body["data"], serde_json::json!({"enabled": true}));
     app.app()?
         .config_repository()
         .set("example.greeting", serde_json::json!("当前应用已复核"))?;

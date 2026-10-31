@@ -85,3 +85,12 @@ R2-A：新增服务工厂错误保留内部source，公开Error Debug仅code/sta
 R2-A2：ConfigLoader::figment现为fallible；显式目录或已发现文件无效即失败，默认未声明且缺目录仍可用内置默认。ConfigLoader Debug/引导日志只暴露来源key；未知字段schema、Provider模块配置合并与单次配置快照仍待对应R2子簇。
 
 R2-A3：缓存工厂结束帧/出向等待边先于结果发布；完成slot不建等待边。scope/root reset先锁内提交状态，锁外通知/释放用户值；同步Wake重入不持State/outcome锁。生产Provider迁移和异步清理边界仍不变。
+
+
+## R2-R03 递归配置发现与晚到 Provider 默认值（任务分支限定验收完成，待提交）
+
+`ConfigLoader` 递归发现领域 TOML，使用真实 basename 建立文件命名空间；隐藏文件和目录 symlink 不作为配置来源，同一命名空间在实际遍历中后项覆盖，再按完整名称自然序加载，不承诺跨文件系统的碰撞胜者。根领域 TOML 一次迁移为相对内容；模块配置沿用既有独立 overlay，新增 feature 文件展示公开读取，CLI 从既有模板拆分并保留格式化键与注释。配置仍由同一 `ConfigSources` / `ConfigRepository` 保存点路径与来源顺序；模块 overlay 保持独立。
+
+晚到 Provider 默认值按浅层合并；`mergeableOptions` 中声明的数组按固定 PHP 边界浅合并。仅发现子文件时，文件前 base 加晚到 section defaults 重建父区段，再重放文件后环境层，保留环境优先、metadata/profile 与 raw/typed 投影；真实 PHP `after_final` 的剩余父 base 根覆盖不被误当缺键。无文件的程序来源沿原 join 路径，不新增第二个公开仓储。当前实证只覆盖指定 Laravel/PHP 场景，不代表完整 Config bootstrap 或全部值类型。
+
+本分支最终定向配置 76、CLI 21、唯一模块 2、公开 consumer 6，严格 Clippy、Rustdoc 和 fmt 均通过；普通 fresh 生成 7 项及安装 consumer 1 项通过。无 auth MySQL 生成只编译、测试 0 项；另以 fresh MySQL 8.4 认证项目实际通过 2 项且无 skip，测试库集合前后一致。真实根 HTTP 单独验证 `GET /api/example/config-feature` 为 200、`enabled=true`、服务 exit 0；URL/TLS runner 另有 10/10 场景、两服务正常退出与来源/二进制稳定，不把后者冒充配置功能 HTTP 证明。执行者终端回报三个唯一生成包清理命令 exit 0，原始 stdout 未留存，不能独立复算逐命令日志 SHA；登记 16 路径 54.48 GB、磁盘空闲 8.782%，触软线未触硬线。本簇本地提交见Git，未合入 ENV main，main 完整组合门禁、完整 V1 Config、typed helpers、配置缓存、动态 Settings 与发布全后端矩阵仍开放。详见[本簇记录](../memory/testing.md#r2-r03-递归配置发现任务分支限定验收记录)。

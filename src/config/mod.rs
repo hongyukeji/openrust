@@ -6,7 +6,7 @@
 //! 配置源按以下顺序合并，后面的层会覆盖前面的层：
 //!
 //! 1. crate 默认值（[`FrameworkConfig::default`]）
-//! 2. `<config-dir>/*.toml` 中按文件名排序的领域配置（跳过旧环境文件名）
+//! 2. `<config-dir>/**/*.toml` 中按相对目录与文件名映射后的完整键自然排序的领域配置
 //! 3. Laravel 风格的 `DB_*` / `REDIS_*` 分项连接设置
 //! 4. 本地 `.env` 与进程变量中的应用配置；默认以 `APP_` 为前缀，使用单下划线扁平键
 //!    （`APP_PORT=4000` → `server.port`；`APP_NAME` → `app.name`）
@@ -364,7 +364,7 @@ impl ConfigLoader {
             .as_object()
             .ok_or_else(|| ConfigError::Invalid("configuration: 默认值根必须是对象".into()))?;
         let mut sources = ConfigSources::from_ordered_entries(entries.clone())?;
-        for file in self.domain_files()? {
+        for (name, file) in self.domain_files()? {
             let content = std::fs::read_to_string(&file).map_err(|_| {
                 ConfigError::Invalid(format!(
                     "{}: 配置文件无法读取（源值未公开）",
@@ -383,10 +383,11 @@ impl ConfigLoader {
                     self.config_dir_key
                 ))
             })?;
-            let serialized = Serialized::defaults(ordered.clone());
-            let captured = CapturedProvider::new(&serialized)?
-                .with_metadata(Metadata::named("TOML file").source(file.as_path()));
-            sources.merge(captured, ordered)?;
+            sources.merge_file(
+                &name,
+                ordered,
+                Metadata::named("TOML file").source(file.as_path()),
+            )?;
         }
         let environment = EnvironmentSnapshot::capture();
         if let Some(url) = conventional_database_url(&environment) {
@@ -426,9 +427,9 @@ impl ConfigLoader {
         Ok(self.sources()?.figment().clone())
     }
 
-    fn domain_files(&self) -> Result<Vec<PathBuf>, ConfigError> {
-        let entries = match std::fs::read_dir(&self.config_dir) {
-            Ok(entries) => entries,
+    fn domain_files(&self) -> Result<Vec<(String, PathBuf)>, ConfigError> {
+        let root = match std::fs::canonicalize(&self.config_dir) {
+            Ok(root) => root,
             Err(error)
                 if !self.explicit_config_dir
                     && error.kind() == std::io::ErrorKind::NotFound
@@ -439,27 +440,63 @@ impl ConfigLoader {
             }
             Err(_) => return Err(self.directory_error()),
         };
-        let mut files = Vec::new();
+        let mut files = std::collections::HashMap::new();
+        self.visit_config_directory(&root, &root, &mut files)?;
+        let mut files = files.into_iter().collect::<Vec<_>>();
+        files.sort_by(|(left, _), (right, _)| natural_name_cmp(left, right));
+        Ok(files)
+    }
+
+    fn visit_config_directory(
+        &self,
+        root: &Path,
+        directory: &Path,
+        files: &mut std::collections::HashMap<String, PathBuf>,
+    ) -> Result<(), ConfigError> {
+        let entries = std::fs::read_dir(directory).map_err(|_| self.directory_error())?;
         for entry in entries {
             let path = entry.map_err(|_| self.directory_error())?.path();
-            if path
-                .extension()
-                .is_some_and(|extension| extension == "toml")
-                && !matches!(
-                    path.file_stem().and_then(|stem| stem.to_str()),
-                    Some("default" | "development" | "test" | "production")
-                )
+            let entry_name = path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .ok_or_else(|| self.directory_error())?;
+            if entry_name.starts_with('.') {
+                continue;
+            }
+            let kind = std::fs::symlink_metadata(&path).map_err(|_| self.directory_error())?;
+            if kind.file_type().is_dir() {
+                self.visit_config_directory(root, &path, files)?;
+            } else if (kind.file_type().is_file() || kind.file_type().is_symlink())
+                && path
+                    .extension()
+                    .is_some_and(|extension| extension == "toml")
             {
-                files.push(path);
+                let real = std::fs::canonicalize(&path).map_err(|_| self.directory_error())?;
+                if !real.is_file() {
+                    continue;
+                }
+                let basename = real
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .ok_or_else(|| self.directory_error())?;
+                let stem = basename.strip_suffix(".toml").unwrap_or(basename);
+                let parent = directory
+                    .strip_prefix(root)
+                    .map_err(|_| self.directory_error())?;
+                let mut parts = parent
+                    .components()
+                    .map(|component| {
+                        component
+                            .as_os_str()
+                            .to_str()
+                            .ok_or_else(|| self.directory_error())
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                parts.push(stem);
+                files.insert(parts.join("."), real);
             }
         }
-        files.sort_by(|a, b| {
-            natural_name_cmp(
-                a.file_name().and_then(|name| name.to_str()).unwrap_or(""),
-                b.file_name().and_then(|name| name.to_str()).unwrap_or(""),
-            )
-        });
-        Ok(files)
+        Ok(())
     }
 
     fn directory_error(&self) -> ConfigError {
@@ -903,14 +940,18 @@ mod tests {
     }
 
     #[test]
-    fn discovered_toml_directory_is_not_silently_ignored() {
+    fn a_directory_named_toml_is_traversed_as_a_directory() {
         let _environment_guard = crate::lock_test_env();
         figment::Jail::expect_with(|jail| {
             jail.create_dir("config/not-a-file.toml")?;
-            assert!(
-                ConfigLoader::new("config", Environment::Test)
-                    .figment()
-                    .is_err()
+            jail.create_file("config/not-a-file.toml/child.toml", "value = 1")?;
+            let loader = ConfigLoader::new("config", Environment::Test);
+            assert_eq!(
+                loader
+                    .domain_files()
+                    .map_err(|error| figment::Error::from(error.to_string()))?
+                    .len(),
+                1
             );
             Ok(())
         });
@@ -972,15 +1013,15 @@ mod tests {
     }
 
     #[test]
-    fn domain_files_override_defaults_and_environment_files_are_ignored() {
+    fn domain_files_override_defaults_and_accept_environment_names() {
         let _environment_guard = crate::lock_test_env();
         figment::Jail::expect_with(|jail| {
             jail.create_dir("config")?;
             jail.create_file(
                 "config/server.toml",
-                "[server]\nport = 4000\nhost = \"0.0.0.0\"\npublic_dir = \"config-public\"\nroot_target = \"file:/home.html\"",
+                "port = 4000\nhost = \"0.0.0.0\"\npublic_dir = \"config-public\"\nroot_target = \"file:/home.html\"",
             )?;
-            jail.create_file("config/test.toml", "[server]\nport = 5000")?;
+            jail.create_file("config/test.toml", "value = 5000")?;
             jail.set_env("APP_SERVER_HOST", "10.0.0.1");
             jail.set_env("APP_SERVER_PUBLIC_DIR", "env-public");
             jail.set_env("APP_SERVER_ROOT_TARGET", "redirect:/welcome");
@@ -993,13 +1034,23 @@ mod tests {
                 .map_err(|e| figment::Error::from(e.to_string()))?;
             assert_eq!(
                 config.server.port, 4000,
-                "domain TOML is loaded and environment-named TOML is ignored"
+                "领域文件按文件名命名且合法的 test.toml 不跳过"
             );
             assert_eq!(config.server.host, "10.0.0.1", "env var overrides files");
             assert_eq!(config.server.public_dir, PathBuf::from("env-public"));
             assert_eq!(config.server.root_target, "redirect:/welcome");
             assert_eq!(config.app.name, "shop");
             assert_eq!(config.app.url, "https://example.test");
+            let sources = loader
+                .sources()
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            let repository = repository::ConfigRepository::new(sources);
+            assert_eq!(
+                repository
+                    .get("test")
+                    .map_err(|error| figment::Error::from(error.to_string()))?,
+                Some(serde_json::json!({"value": 5000}))
+            );
             assert_eq!(
                 config.app.env,
                 Environment::Test,
@@ -1009,18 +1060,18 @@ mod tests {
         });
     }
 
-    // 平面文件按自然序覆盖，同一 TOML 的声明键序由 raw 保留；环境最后覆盖原位。
+    // 文件命名空间按完整键自然序载入，文件内声明顺序与环境覆盖保持原位。
     #[test]
-    fn ordered_sources_keep_flat_file_toml_and_environment_precedence() {
+    fn ordered_sources_keep_file_namespace_and_environment_precedence() {
         let _environment_guard = crate::lock_test_env();
         figment::Jail::expect_with(|jail| {
             jail.create_dir("config")?;
-            jail.create_file("config/part10.toml", "[ordered]\nlast = 10\nshared = 10\n")?;
+            jail.create_file("config/part10.toml", "last = 10\nshared = 10\n")?;
             jail.create_file(
                 "config/part2.toml",
-                "[ordered]\nz = 1\na = 2\nshared = 2\nitems = [9, 8]\n",
+                "z = 1\na = 2\nshared = 2\nitems = [9, 8]\n",
             )?;
-            jail.set_env("APP_ORDERED_A", "3");
+            jail.set_env("APP_PART2_A", "3");
             let sources = ConfigLoader::new("config", Environment::Test)
                 .sources()
                 .map_err(|error| figment::Error::from(error.to_string()))?;
@@ -1037,26 +1088,429 @@ mod tests {
                 Some(vec!["app", "server", "api", "log", "i18n"])
             );
             let ordered = repository
-                .get("ordered")
+                .get("part2")
                 .map_err(|error| figment::Error::from(error.to_string()))?
                 .ok_or_else(|| figment::Error::from("ordered section missing"))?;
             assert_eq!(
                 ordered
                     .as_object()
                     .map(|items| items.keys().map(String::as_str).collect::<Vec<_>>()),
-                Some(vec!["z", "a", "shared", "items", "last"])
+                Some(vec!["z", "a", "shared", "items"])
             );
             assert_eq!(ordered["a"], 3);
-            assert_eq!(ordered["shared"], 10);
+            assert_eq!(ordered["shared"], 2);
             assert_eq!(ordered["items"], serde_json::json!([9, 8]));
-            assert_eq!(sources.figment().extract_inner::<u32>("ordered.a")?, 3);
+            assert_eq!(
+                repository
+                    .get("part10.shared")
+                    .map_err(|error| figment::Error::from(error.to_string()))?,
+                Some(serde_json::json!(10))
+            );
+            assert_eq!(sources.figment().extract_inner::<u32>("part2.a")?, 3);
             assert_eq!(
                 sources
                     .figment()
-                    .find_metadata("ordered.z")
+                    .find_metadata("part2.z")
                     .map(|metadata| metadata.name.as_ref()),
                 Some("TOML file")
             );
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn recursive_namespaces_follow_oracle_natural_order_and_ignore_hidden_entries() {
+        let _environment_guard = crate::lock_test_env();
+        figment::Jail::expect_with(|jail| {
+            jail.create_dir("config")?;
+            jail.create_dir("config/pkg")?;
+            jail.create_dir("config/pkg/deep")?;
+            jail.create_dir("config/.hidden")?;
+            jail.create_file("config/part10.toml", "value = 10")?;
+            jail.create_file("config/part2.toml", "value = 2")?;
+            jail.create_file("config/pkg/item10.toml", "value = 10")?;
+            jail.create_file("config/pkg/item2.toml", "value = 2")?;
+            jail.create_file("config/pkg/deep/x.toml", "value = 1")?;
+            jail.create_file("config/.dot.toml", "value = 0")?;
+            jail.create_file("config/.hidden/inside.toml", "value = 0")?;
+            let loader = ConfigLoader::new("config", Environment::Test);
+            let names = loader
+                .domain_files()
+                .map_err(|error| figment::Error::from(error.to_string()))?
+                .into_iter()
+                .map(|(name, _)| name)
+                .collect::<Vec<_>>();
+            assert_eq!(
+                names,
+                ["part2", "part10", "pkg.deep.x", "pkg.item2", "pkg.item10"]
+            );
+            let sources = loader
+                .sources()
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            assert_eq!(
+                sources
+                    .figment()
+                    .find_metadata("pkg.deep.x.value")
+                    .map(|metadata| metadata.name.as_ref()),
+                Some("TOML file")
+            );
+            let repository = repository::ConfigRepository::new(sources);
+            assert_eq!(
+                repository
+                    .get("pkg.deep.x.value")
+                    .map_err(|error| figment::Error::from(error.to_string()))?,
+                Some(serde_json::json!(1))
+            );
+            assert_eq!(
+                repository
+                    .get("pkg")
+                    .map_err(|error| figment::Error::from(error.to_string()))?,
+                Some(
+                    serde_json::json!({"deep": {"x": {"value": 1}}, "item2": {"value": 2}, "item10": {"value": 10}})
+                )
+            );
+            repository
+                .set("pkg.deep.x.value", serde_json::json!(5))
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            assert_eq!(
+                repository
+                    .get("pkg.deep.x.value")
+                    .map_err(|error| figment::Error::from(error.to_string()))?,
+                Some(serde_json::json!(5))
+            );
+            Ok(())
+        });
+    }
+
+    #[allow(
+        clippy::too_many_lines,
+        reason = "同一 Provider 生命周期需核对文件来源、环境覆盖与 set 后的一致性"
+    )]
+    #[tokio::test]
+    async fn exact_file_sections_keep_shallow_provider_defaults_through_boot_and_set()
+    -> crate::core::Result<()> {
+        use crate::core::{
+            BootContext, BoxFuture, ProviderBuilder, RegisterContext, ServiceProvider,
+        };
+        use repository::SectionSchema;
+
+        struct DefaultsProbe {
+            file_source: bool,
+        }
+
+        impl ServiceProvider for DefaultsProbe {
+            fn register(&self, app: &mut RegisterContext<'_>) -> crate::core::Result<()> {
+                app.config_section(
+                    "fixture",
+                    serde_json::json!({"label": "base", "nested": {"old": 1}}),
+                    SectionSchema::any(),
+                    |_| Ok(()),
+                )?;
+                app.config_section(
+                    "cache",
+                    serde_json::json!({"stores": {"array": {"driver": "array"}}, "nested": {"old": 1}}),
+                    SectionSchema::any(),
+                    |_| Ok(()),
+                )
+            }
+
+            fn boot<'a>(
+                &'a self,
+                app: &'a mut BootContext<'_>,
+            ) -> BoxFuture<'a, crate::core::Result<()>> {
+                Box::pin(async move {
+                    let fixture: serde_json::Value = app.section("fixture")?;
+                    let expected = if self.file_source {
+                        serde_json::json!({"new": 2})
+                    } else {
+                        serde_json::json!({"old": 1, "new": 2})
+                    };
+                    assert_eq!(fixture["nested"], expected);
+                    Ok(())
+                })
+            }
+        }
+
+        struct CacheOnly;
+        impl ServiceProvider for CacheOnly {
+            fn register(&self, app: &mut RegisterContext<'_>) -> crate::core::Result<()> {
+                app.config_section(
+                    "cache",
+                    serde_json::json!({"before": "base", "nested": {"old": 1}, "custom": {"old": 1}}),
+                    SectionSchema::any(),
+                    |_| Ok(()),
+                )
+            }
+        }
+
+        let directory = tempfile::tempdir().map_err(crate::core::Error::internal)?;
+        std::fs::write(directory.path().join("fixture.toml"), "[nested]\nnew = 2\n")
+            .map_err(crate::core::Error::internal)?;
+        std::fs::write(
+            directory.path().join("cache.toml"),
+            "[stores.redis]\ndriver = 'redis'\n[nested]\nnew = 2\n",
+        )
+        .map_err(crate::core::Error::internal)?;
+        let mut sources = ConfigLoader::new(directory.path(), Environment::Test).sources()?;
+        let environment = serde_json::json!({
+            "cache": {"stores": {"redis": {"dsn": "redis://environment"}}, "optional": null}
+        });
+        sources.merge(Serialized::defaults(environment.clone()), environment)?;
+        let profile = sources.figment().profile().clone();
+        let mut builder = ProviderBuilder::new();
+        builder.provider(DefaultsProbe { file_source: true });
+        let runtime = builder.start(sources).await?;
+        let repository = runtime.config();
+        assert_eq!(
+            repository.get("fixture")?,
+            Some(serde_json::json!({"label": "base", "nested": {"new": 2}}))
+        );
+        assert_eq!(repository.get("fixture.nested.old")?, None);
+        assert_eq!(
+            repository.get("cache.stores.array.driver")?,
+            Some(serde_json::json!("array"))
+        );
+        assert_eq!(
+            repository.get("cache.stores.redis.driver")?,
+            Some(serde_json::json!("redis"))
+        );
+        assert_eq!(
+            repository.get("cache.stores.redis.dsn")?,
+            Some(serde_json::json!("redis://environment"))
+        );
+        assert_eq!(
+            repository.get("cache.optional")?,
+            Some(serde_json::Value::Null)
+        );
+        assert_eq!(
+            repository.get("cache.nested")?,
+            Some(serde_json::json!({"new": 2}))
+        );
+        assert_eq!(repository.snapshot().profile(), &profile);
+        assert_eq!(
+            repository
+                .snapshot()
+                .find_metadata("fixture.nested.new")
+                .map(|metadata| metadata.name.as_ref()),
+            Some("TOML file")
+        );
+        repository.set("fixture.nested.new", serde_json::json!(4))?;
+        assert_eq!(
+            repository.get("fixture.nested")?,
+            Some(serde_json::json!({"new": 4}))
+        );
+        assert_eq!(
+            repository.section::<serde_json::Value>("fixture")?["nested"],
+            serde_json::json!({"new": 4})
+        );
+        runtime
+            .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
+            .await?;
+
+        let programmatic = ConfigSources::from_ordered_entries([
+            ("fixture", serde_json::json!({"nested": {"new": 2}})),
+            (
+                "cache",
+                serde_json::json!({"stores": {"redis": {"driver": "redis"}}, "nested": {"new": 2}}),
+            ),
+        ])?;
+        let mut builder = ProviderBuilder::new();
+        builder.provider(DefaultsProbe { file_source: false });
+        let runtime = builder.start(programmatic).await?;
+        assert_eq!(
+            runtime.config().get("fixture.nested")?,
+            Some(serde_json::json!({"old": 1, "new": 2}))
+        );
+        runtime
+            .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
+            .await?;
+
+        let nested = tempfile::tempdir().map_err(crate::core::Error::internal)?;
+        std::fs::create_dir(nested.path().join("cache")).map_err(crate::core::Error::internal)?;
+        std::fs::write(nested.path().join("cache/custom.toml"), "new = 2\n")
+            .map_err(crate::core::Error::internal)?;
+        let mut child_sources = ConfigLoader::new(nested.path(), Environment::Test).sources()?;
+        let child_environment = serde_json::json!({"cache": {"before": "environment"}});
+        child_sources.merge(
+            Serialized::defaults(child_environment.clone()),
+            child_environment,
+        )?;
+        let child_profile = child_sources.figment().profile().clone();
+        let environment_metadata = child_sources
+            .figment()
+            .find_metadata("cache.before")
+            .map(|metadata| metadata.name.to_string());
+        let mut builder = ProviderBuilder::new();
+        builder.provider(CacheOnly);
+        let runtime = builder.start(child_sources).await?;
+        assert_eq!(
+            runtime.config().get("cache.nested.old")?,
+            Some(serde_json::json!(1))
+        );
+        assert_eq!(
+            runtime.config().get("cache.custom")?,
+            Some(serde_json::json!({"old": 1}))
+        );
+        assert_eq!(
+            runtime.config().get("cache.custom.old")?,
+            Some(serde_json::json!(1))
+        );
+        assert_eq!(runtime.config().get("cache.custom.new")?, None);
+        assert_eq!(
+            runtime.config().get("cache.before")?,
+            Some(serde_json::json!("environment"))
+        );
+        assert_eq!(runtime.config().snapshot().profile(), &child_profile);
+        assert_eq!(
+            runtime
+                .config()
+                .snapshot()
+                .find_metadata("cache.before")
+                .map(|metadata| metadata.name.to_string()),
+            environment_metadata
+        );
+        runtime
+            .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
+            .await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn provider_mergeable_options_append_and_renumber_file_arrays() -> crate::core::Result<()>
+    {
+        use crate::core::{
+            BootContext, BoxFuture, ProviderBuilder, RegisterContext, ServiceProvider,
+        };
+        use repository::SectionSchema;
+
+        struct ArrayProbe {
+            defaults: serde_json::Value,
+            expected: serde_json::Value,
+        }
+
+        impl ServiceProvider for ArrayProbe {
+            fn register(&self, app: &mut RegisterContext<'_>) -> crate::core::Result<()> {
+                app.config_section(
+                    "broadcasting",
+                    self.defaults.clone(),
+                    SectionSchema::any(),
+                    |_| Ok(()),
+                )
+            }
+
+            fn boot<'a>(
+                &'a self,
+                app: &'a mut BootContext<'_>,
+            ) -> BoxFuture<'a, crate::core::Result<()>> {
+                Box::pin(async move {
+                    let connections: serde_json::Value = app.section("broadcasting.connections")?;
+                    assert_eq!(connections, self.expected);
+                    Ok(())
+                })
+            }
+        }
+
+        for (defaults, file, expected) in [
+            (
+                serde_json::json!({"connections": [{"driver": "base"}]}),
+                "connections = [{ driver = 'file' }]\n",
+                serde_json::json!([{"driver": "base"}, {"driver": "file"}]),
+            ),
+            (
+                serde_json::json!({"connections": {"0": {"driver": "base"}, "named": {"driver": "keep"}}}),
+                "connections = { '7' = { driver = 'file' }, named = { driver = 'override' } }\n",
+                serde_json::json!({"0": {"driver": "base"}, "named": {"driver": "override"}, "1": {"driver": "file"}}),
+            ),
+        ] {
+            let directory = tempfile::tempdir().map_err(crate::core::Error::internal)?;
+            std::fs::write(directory.path().join("broadcasting.toml"), file)
+                .map_err(crate::core::Error::internal)?;
+            let mut builder = ProviderBuilder::new();
+            builder.provider(ArrayProbe {
+                defaults,
+                expected: expected.clone(),
+            });
+            let runtime = builder
+                .start(ConfigLoader::new(directory.path(), Environment::Test).sources()?)
+                .await?;
+            assert_eq!(
+                runtime.config().get("broadcasting.connections")?,
+                Some(expected.clone())
+            );
+            assert_eq!(
+                runtime
+                    .config()
+                    .section::<serde_json::Value>("broadcasting.connections")?,
+                expected
+            );
+            runtime
+                .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
+                .await?;
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn colliding_mapped_keys_keep_the_last_file_seen_by_directory_iteration() {
+        let _environment_guard = crate::lock_test_env();
+        figment::Jail::expect_with(|jail| {
+            jail.create_dir("config")?;
+            jail.create_dir("config/a")?;
+            jail.create_file("config/a/b.toml", "value = 'nested'")?;
+            jail.create_file("config/a.b.toml", "value = 'flat'")?;
+            let loader = ConfigLoader::new("config", Environment::Test);
+            let files = loader
+                .domain_files()
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            assert_eq!(files.len(), 1);
+            assert_eq!(files[0].0, "a.b");
+            let chosen = std::fs::read_to_string(&files[0].1)
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            let repository = repository::ConfigRepository::new(
+                loader
+                    .sources()
+                    .map_err(|error| figment::Error::from(error.to_string()))?,
+            );
+            let expected = if chosen.contains("flat") {
+                "flat"
+            } else {
+                "nested"
+            };
+            assert_eq!(
+                repository
+                    .get("a.b.value")
+                    .map_err(|error| figment::Error::from(error.to_string()))?,
+                Some(serde_json::json!(expected))
+            );
+            Ok(())
+        });
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn file_links_use_real_basename_while_directory_links_are_not_followed() {
+        use std::os::unix::fs::symlink;
+        let _environment_guard = crate::lock_test_env();
+        figment::Jail::expect_with(|jail| {
+            jail.create_dir("config")?;
+            jail.create_dir("config/real-dir")?;
+            jail.create_dir("outside")?;
+            jail.create_file("config/real-dir/entry.toml", "value = 1")?;
+            jail.create_file("outside/origin.txt", "value = 2")?;
+            symlink("real-dir", "config/alias-dir")
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            symlink("../outside/origin.txt", "config/alias.toml")
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            symlink("config", "linked-config")
+                .map_err(|error| figment::Error::from(error.to_string()))?;
+            let loader = ConfigLoader::new("linked-config", Environment::Test);
+            let names = loader
+                .domain_files()
+                .map_err(|error| figment::Error::from(error.to_string()))?
+                .into_iter()
+                .map(|(name, _)| name)
+                .collect::<Vec<_>>();
+            assert_eq!(names, ["origin.txt", "real-dir.entry"]);
             Ok(())
         });
     }
@@ -1068,7 +1522,7 @@ mod tests {
             jail.set_env(CONFIG_DIR_VAR, "");
             jail.clear_env();
             jail.create_dir("custom")?;
-            jail.create_file("custom/server.toml", "[server]\nport = 4321")?;
+            jail.create_file("custom/server.toml", "port = 4321")?;
             jail.set_env(CONFIG_DIR_VAR, "custom");
             let loader = ConfigLoader::from_env()
                 .map_err(|error| figment::Error::from(error.to_string()))?;
@@ -1092,7 +1546,7 @@ mod tests {
             jail.set_env(CONFIG_DIR_VAR, "");
             jail.clear_env();
             jail.create_dir("config")?;
-            jail.create_file("config/server.toml", "[server]\nport = 4567")?;
+            jail.create_file("config/server.toml", "port = 4567")?;
             let loader = ConfigLoader::from_env()
                 .map_err(|error| figment::Error::from(error.to_string()))?;
             assert_eq!(loader.config_dir(), Path::new("config"));
@@ -1113,7 +1567,7 @@ mod tests {
         let _environment_guard = crate::lock_test_env();
         figment::Jail::expect_with(|jail| {
             jail.create_dir("config")?;
-            jail.create_file("config/server.toml", "[server]\nport = \"not-a-port\"")?;
+            jail.create_file("config/server.toml", "port = \"not-a-port\"")?;
             let error = ConfigLoader::new("config", Environment::Development)
                 .load_framework()
                 .err()
@@ -1189,9 +1643,9 @@ mod tests {
         let _environment_guard = crate::lock_test_env();
         figment::Jail::expect_with(|jail| {
             jail.create_dir("default_config")?;
-            jail.create_file("default_config/api.toml", "[api]")?;
+            jail.create_file("default_config/api.toml", "")?;
             jail.create_dir("config")?;
-            jail.create_file("config/api.toml", "[api]\nhttp_status = \"always_ok\"")?;
+            jail.create_file("config/api.toml", "http_status = \"always_ok\"")?;
             let default_loader = ConfigLoader::new("default_config", Environment::Test);
             assert_eq!(
                 default_loader
@@ -1465,7 +1919,7 @@ mod tests {
             jail.set_env("SHOP_ENV", "test");
             jail.set_env("SHOP_CONFIG_DIR", "shop-config");
             jail.create_dir("shop-config")?;
-            jail.create_file("shop-config/server.toml", "[server]\nhost = \"0.0.0.0\"")?;
+            jail.create_file("shop-config/server.toml", "host = \"0.0.0.0\"")?;
 
             let loader = ConfigLoader::from_env_with_namespace("SHOP_")
                 .map_err(|error| figment::Error::from(error.to_string()))?;

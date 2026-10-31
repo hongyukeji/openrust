@@ -61,16 +61,27 @@ def snapshot(root):
 
 def resources(root):
     sizes = {}
-    for path in [root / 'target', *sorted((root / 'tests/consumers').glob('*/target'))]:
+    target = Path(os.environ.get('CARGO_TARGET_DIR', root / 'target'))
+    if not target.is_absolute():
+        target = root / target
+    paths = [target, root / 'target', *sorted((root / 'tests/consumers').glob('*/target'))]
+    for path in paths:
         if path.exists():
-            result = subprocess.run(['du', '-sk', str(path)], capture_output=True,
+            resolved = str(path.resolve())
+            if resolved in sizes:
+                continue
+            result = subprocess.run(['du', '-sk', resolved], capture_output=True,
                                     text=True, check=True, timeout=10)
-            sizes[str(path)] = int(result.stdout.split()[0]) * 1024
+            sizes[resolved] = int(result.stdout.split()[0]) * 1024
     stat = os.statvfs(root)
     free, total = stat.f_bavail * stat.f_frsize, stat.f_blocks * stat.f_frsize
-    ensure(sum(sizes.values()) < 50 * 1000**3 and free / total >= .10,
-           'resource_soft_limit')
-    return {'target_bytes': sizes, 'disk_free_bytes': free, 'disk_free_fraction': free / total}
+    subtotal = sum(sizes.values())
+    ensure(subtotal < 100 * 1000**3 and free / total >= .05,
+           'resource_hard_limit')
+    return {'target_bytes': sizes, 'disk_free_bytes': free, 'disk_free_fraction': free / total,
+            'partial_target_total_bytes': subtotal,
+            'coverage': '当前worktree目标、CARGO_TARGET_DIR及本worktree consumer目标；不含其他worktree',
+            'soft_warning': subtotal >= 50 * 1000**3 or free / total < .10}
 
 
 def listener_owned(port, process):
@@ -122,10 +133,17 @@ def clear_sensitive(owned):
     ensure(owned.parent.resolve() == Path('/tmp').resolve()
            and owned.name.startswith('openrust-c04d6-url-network-'), 'cleanup_directory_invalid')
     for label in ('trusted', 'untrusted'):
+        cwd = owned / label
         config = owned / label / 'config'
         if config.exists():
             shutil.rmtree(config)
         (owned / label / '.env').unlink(missing_ok=True)
+        (cwd / 'modules_statuses.json').unlink(missing_ok=True)
+        module = cwd / 'modules/example'
+        if module.is_symlink():
+            module.unlink()
+        if (cwd / 'modules').is_dir():
+            (cwd / 'modules').rmdir()
     for name in ('private-key.pem', 'certificate.pem'):
         (owned / name).unlink(missing_ok=True)
 
@@ -142,24 +160,28 @@ def prepare(root, owned, trusted):
         if source.name not in ('session.toml', 'database.toml'):
             (config / source.name).write_bytes(source.read_bytes())
     server = (config / 'server.toml').read_text()
-    ensure(server.count('port = 3000') == 1 and server.count('[server]') == 1
+    ensure(server.count('port = 3000') == 1 and '[server]' not in server
            and 'trusted_proxy_ranges' not in server, 'server_config_template_changed')
     ranges = '["127.0.0.1/32"]' if trusted else '[]'
     (config / 'server.toml').write_text(server.replace('port = 3000', f'port = {port}', 1)
-        .replace('[server]', '[server]\ntrusted_proxy_ranges = ' + ranges, 1))
+        .replace(f'port = {port}', f'port = {port}\ntrusted_proxy_ranges = {ranges}', 1))
     app = (config / 'app.toml').read_text()
     ensure(app.count('localhost:3000') == 1, 'app_config_template_changed')
     (config / 'app.toml').write_text(app.replace('localhost:3000', f'localhost:{port}', 1))
-    (config / 'application.toml').write_text('modules_root = ' + json.dumps(str(root)) + '\n')
-    (config / 'database.toml').write_text('[database]\ntable_prefix="tb_"\n')
-    (config / 'cache.toml').write_text('[cache]\ndefault_store="default"\n[cache.stores.default]\ndriver="memory"\n')
+    (cwd / 'modules_statuses.json').write_text('{"example": true}\n')
+    (cwd / 'modules').mkdir()
+    (cwd / 'modules/example').symlink_to(root / 'modules/example', target_is_directory=True)
+    (config / 'database.toml').write_text('table_prefix="tb_"\n')
+    (config / 'cache.toml').write_text('default_store="default"\n[stores.default]\ndriver="memory"\n')
     (config / 'security.toml').write_text(
-        f'[security.signed_links]\nissuer="http://localhost:{port}"\nactive_key_id="local"\n'
-        f'[security.signed_links.keys]\nlocal="{KEY}"\n[security.encryption]\nactive_key_id="local"\n'
-        f'[security.encryption.keys]\nlocal="{KEY}"\n')
+        f'[signed_links]\nissuer="http://localhost:{port}"\nactive_key_id="local"\n'
+        f'[signed_links.keys]\nlocal="{KEY}"\n[encryption]\nactive_key_id="local"\n'
+        f'[encryption.keys]\nlocal="{KEY}"\n')
     tables = {p.name: tomllib.loads(p.read_text()) for p in config.glob('*.toml')}
-    ensure(tables['application.toml'].get('modules_root') == str(root), 'modules_root_not_top_level')
-    ensure({name: value['database'] for name, value in tables.items() if 'database' in value}
+    ensure(json.loads((cwd / 'modules_statuses.json').read_text()) == {'example': True}
+           and (cwd / 'modules/example').resolve() == root / 'modules/example',
+           'module_root_not_isolated')
+    ensure({name: value for name, value in tables.items() if name == 'database.toml'}
            == {'database.toml': {'table_prefix': 'tb_'}}, 'database_not_isolated')
     ensure(not (config / 'session.toml').exists(), 'session_not_isolated')
     return cwd, config, port
@@ -438,10 +460,14 @@ def worker_main(args):
             (owned / 'source-after.json').write_text(json.dumps(after, sort_keys=True, indent=2) + '\n')
             report['binary_unchanged'] = sha(binary) == args.binary_sha256
             report['after_resources'] = resources(root)
+            build_target = Path(os.environ.get('CARGO_TARGET_DIR', root / 'target'))
+            if not build_target.is_absolute():
+                build_target = root / build_target
+            build_target = str(build_target.resolve())
             old_before = {k: v for k, v in report.get('before_resources', {}).get('target_bytes', {}).items()
-                          if k != str(root / 'target')}
+                          if k != build_target}
             old_after = {k: v for k, v in report['after_resources']['target_bytes'].items()
-                         if k != str(root / 'target')}
+                         if k != build_target}
             ensure(old_before == old_after, 'consumer_targets_changed')
         except Exception as error:
             errors.append(type(error).__name__)

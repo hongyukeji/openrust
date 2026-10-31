@@ -3,6 +3,7 @@
 import hashlib
 import json
 import re
+import subprocess
 import sys
 import tomllib
 from pathlib import Path
@@ -10,6 +11,17 @@ from pathlib import Path
 
 def digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def formatted_rust(source: str) -> str:
+    return subprocess.run(
+        ["rustfmt", "--edition", "2024"],
+        input=source,
+        text=True,
+        capture_output=True,
+        check=True,
+        timeout=15,
+    ).stdout
 
 
 def main() -> None:
@@ -113,16 +125,15 @@ async fn generated_application_installs_config_reading_provider()
             1,
         )
     )
-    bootstrap.write_text(
-        source_bootstrap.replace(
-            marker,
-            "        providers.push(Box::new(config_repository_reading_consumer::ReadingProvider));\n"
-            + marker,
-            1,
-        )
+    updated_bootstrap = source_bootstrap.replace(
+        marker,
+        "        providers.push(Box::new(config_repository_reading_consumer::ReadingProvider));\n"
+        + marker,
+        1,
     )
-    test.write_text(test_source)
-    reader.write_text('[reader]\nz_label = "先声明"\na_label = "后声明"\n')
+    bootstrap.write_text(formatted_rust(updated_bootstrap))
+    test.write_text(formatted_rust(test_source))
+    reader.write_text('z_label = "先声明"\na_label = "后声明"\n')
     after = {
         "Cargo.toml": digest(manifest),
         "bootstrap/app.rs": digest(bootstrap),

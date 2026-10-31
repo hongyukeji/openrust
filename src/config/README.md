@@ -25,7 +25,7 @@
 
 有序入口沿现有 `php_entries` / `php_value` 规则表示规范数字键：连续 `0..n` 是列表，反序、稀疏或数字与字符串混合为有序对象，`01` 是字符串键；空根输入是空列表。Figment 要求根为字典，因此纯数字根列表在类型化投影中暂时展开为数字键字典；`ConfigRepository::all()` 保留列表形态。嵌套数组保持数组。原始值与投影值经同一来源验证，构造失败不发布半成品。固定 PHP 8.5.0 的值、键序、列表/混合/稀疏形态见 [golden fixture](../../tests/fixtures/config_runtime_set.json)；PHP 对象、Closure 和资源不属于 `serde_json::Value` 可表达范围，仍是公开差异。
 
-目前 `ConfigLoader` 发现根 `config/` 中的平面 `*.toml`，按文件名自然序加载；文件内表和数组保留 TOML 声明顺序，后加载的同名键覆盖原位置。DB/Redis 分项、通用别名、所选命名空间和 nullable session 环境值都从同一次进程环境捕获构造，环境新键使用稳定映射序；`.env` 仍由启动流程先加载，进程环境优先。固定 Laravel `LoadConfiguration` 会递归发现文件，并按嵌套目录点前缀加 basename 的配置键自然排序。现有 TOML 使用显式领域表，递归发现与文件名到领域的映射尚未对应；平面文件排序不代表完整 Config 加载已等价。
+`ConfigLoader` 递归发现 `config/**/*.toml`，`config/app.toml` 内直接写 `name = ...`，`config/cache.toml` 内写 `[stores.redis]`；文件相对目录的点路径与文件名形成根配置键，例如应用自有的 `config/shop/feature.toml` 形成可按 `shop.feature.enabled` 读取的嵌套配置。完整映射键按自然序装载，文件内表和数组保持声明顺序。隐藏项忽略；目录符号链接不递归，文件符号链接按入口扩展名筛选、以目标真实 basename 命名。相同映射键由实际目录遍历中最后的文件覆盖，遍历次序依文件系统而定，不保证跨平台胜者。精确文件区段与框架及 Provider 注册的 base 默认值在顶层浅合并；`cache.stores` 等 Laravel `mergeableOptions` 指定选项只再合并一层，数字键按 PHP `array_merge` 追加并重新编号。仅有 `config/cache/custom.toml` 不把 `cache` 视为精确文件区段；若 `cache` 的 base 根仍待发布，最终根写入会覆盖子文件值，随后加载的环境层继续获胜。普通程序来源仍沿既有 typed 默认补齐。Rust TOML 无法表示 PHP 对象、Closure、资源；缺失隐式目录允许使用默认值，显式目录缺失或坏文件安全失败。文件层重建 Figment 投影时按根键保留前序文件来源元数据，环境层再附加自身来源；文件值与未覆盖的来源保持各自元数据，文件层的精确命名空间边界随同一来源进入仓储。DB/Redis 分项与环境层仍按原优先级在单次环境捕获中构造，`.env` 由启动流程先加载。模块 `ModuleConfigFiles` 的 overlay 是独立模块契约，不使用此应用文件命名规则；配置缓存、完整 PHP 值表示仍未验收。
 
 此写入仅供可信应用代码使用，保存在当前进程内；它不写文件或数据库、不跨节点传播，也不刷新 DB、Redis、邮件等已建资源。管理员 Settings、授权、密钥和待重启策略见 [ADR-080](../../.agents/project/decisions/adr-080-runtime-configuration-scheduling.md)，不由此原始写入接口代替。
 

@@ -1318,7 +1318,15 @@ fn domain_config_files(contents: &str) -> anyhow::Result<Vec<(String, String)>> 
         .map(|domain| {
             let mut file = toml_edit::DocumentMut::new();
             if let Some(value) = document.remove(&domain) {
-                file.insert(&domain, value);
+                let table = value.as_table().ok_or_else(|| {
+                    anyhow::anyhow!("configuration domain {domain} must be a TOML table")
+                })?;
+                for (name, item) in table {
+                    let key = table.key(name).ok_or_else(|| {
+                        anyhow::anyhow!("configuration domain {domain} lost key {name}")
+                    })?;
+                    file.as_table_mut().insert_formatted(key, item.clone());
+                }
             }
             Ok((format!("config/{domain}.toml"), file.to_string()))
         })
@@ -2310,21 +2318,10 @@ fn prepare_development_redis(workspace_root: &Path, app_dir: &Path) -> anyhow::R
     let document = source
         .parse::<toml_edit::DocumentMut>()
         .with_context(|| format!("{} is invalid TOML", config_path.display()))?;
-    let Some(cache) = document.get("cache").and_then(toml_edit::Item::as_table) else {
-        return Ok(());
-    };
     let configured_store = std::env::var("REDIS_DEFAULT_STORE")
         .ok()
         .or_else(|| dotenv.get("REDIS_DEFAULT_STORE").cloned());
-    let store_name = configured_store
-        .as_deref()
-        .or_else(|| cache.get("default_store").and_then(toml_edit::Item::as_str))
-        .unwrap_or("default");
-    let Some(store) = cache
-        .get("stores")
-        .and_then(toml_edit::Item::as_table)
-        .and_then(|stores| stores.get(store_name))
-        .and_then(toml_edit::Item::as_table)
+    let Some((store_name, store)) = configured_cache_store(&document, configured_store.as_deref())
     else {
         return Ok(());
     };
@@ -2422,6 +2419,22 @@ fn prepare_development_redis(workspace_root: &Path, app_dir: &Path) -> anyhow::R
         std::thread::sleep(Duration::from_millis(100));
     }
     bail!("Redis development service did not become ready within 10 seconds")
+}
+
+fn configured_cache_store<'a>(
+    document: &'a toml_edit::DocumentMut,
+    configured_store: Option<&str>,
+) -> Option<(String, &'a toml_edit::Table)> {
+    let cache = document.as_table();
+    let store_name = configured_store
+        .or_else(|| cache.get("default_store").and_then(toml_edit::Item::as_str))
+        .unwrap_or("default");
+    let store = cache
+        .get("stores")
+        .and_then(toml_edit::Item::as_table)
+        .and_then(|stores| stores.get(store_name))
+        .and_then(toml_edit::Item::as_table)?;
+    Some((store_name.to_owned(), store))
 }
 
 fn redis_dsn_from_environment(
@@ -2646,7 +2659,7 @@ mod tests {
         assert!(proto.contains("package grpc_demo.v1;"));
         let config = fs::read_to_string(project.join("config/grpc.toml"))
             .expect("read generated gRPC configuration");
-        assert!(config.contains("[grpc]"));
+        assert!(config.contains("listen_addr = "));
         let env = fs::read_to_string(project.join(".env.example"))
             .expect("read generated environment configuration");
         assert!(env.contains("# APP_GRPC_ALLOW_INSECURE_SERVER=true"));
@@ -2682,7 +2695,7 @@ mod tests {
         let env = fs::read_to_string(project.join(".env.example"))
             .expect("read generated environment example");
         assert!(app.contains("EncryptionServiceProvider"));
-        assert!(config.contains("[security.encryption]"));
+        assert!(config.contains("[encryption]"));
         assert!(env.contains("APP_SECURITY_ENCRYPTION_KEYS_LOCAL="));
         let _ = fs::remove_dir_all(root);
     }
@@ -2694,6 +2707,35 @@ mod tests {
     }
 
     #[test]
+    fn generated_relative_cache_file_exposes_default_driver_and_dsn_to_development() {
+        let root = std::env::temp_dir().join(format!(
+            "openrust-cli-cache-discovery-{}",
+            std::process::id()
+        ));
+        let app = root.join("blog");
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("create temporary test directory");
+        populate_project(&app, "blog", "Blog", None, false, false, false, false)
+            .expect("generate project");
+        let source = fs::read_to_string(app.join("config/cache.toml"))
+            .expect("read generated cache configuration");
+        let document = source
+            .parse::<toml_edit::DocumentMut>()
+            .expect("parse generated cache configuration");
+        let (name, store) = configured_cache_store(&document, None).expect("generated named store");
+        assert_eq!(name, "default");
+        assert_eq!(
+            store.get("driver").and_then(toml_edit::Item::as_str),
+            Some("redis")
+        );
+        assert_eq!(
+            store.get("dsn").and_then(toml_edit::Item::as_str),
+            Some("redis://127.0.0.1:6379/")
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn development_reuses_a_live_local_redis_without_compose() {
         let root =
             std::env::temp_dir().join(format!("openrust-cli-redis-reuse-{}", std::process::id()));
@@ -2702,7 +2744,7 @@ mod tests {
         fs::create_dir_all(app.join("config")).expect("create app config directory");
         fs::write(
             app.join("config/cache.toml"),
-            "[cache]\ndefault_store = 'default'\n[cache.stores.default]\ndriver = 'redis'\ndsn = 'redis://127.0.0.1:6379/'\n",
+            "default_store = 'default'\n[stores.default]\ndriver = 'redis'\ndsn = 'redis://127.0.0.1:6379/'\n",
         )
         .expect("write app config");
         prepare_development_redis(&root, &app).expect("reuse existing Redis");
@@ -2969,7 +3011,7 @@ mod tests {
             assert!(app.contains("SignedLinksServiceProvider"));
             let config = fs::read_to_string(project.join("config/security.toml"))
                 .expect("read generated signing config");
-            assert!(config.contains("[security.signed_links]"));
+            assert!(config.contains("[signed_links]"));
             let env = fs::read_to_string(project.join(".env.example"))
                 .expect("read generated signing environment template");
             assert!(env.contains("APP_SECURITY_SIGNED_LINKS_KEYS_LOCAL="));
@@ -2991,7 +3033,7 @@ mod tests {
             assert!(auth_test.contains("trusted_proxy_ranges"));
             let config = fs::read_to_string(project.join("config/auth.toml"))
                 .expect("read generated auth config");
-            assert!(config.contains("[auth.jwt]"));
+            assert!(config.contains("[jwt]"));
             assert!(config.contains("keys = {}"));
             let env = fs::read_to_string(project.join(".env.example"))
                 .expect("read generated environment example");

@@ -1,4 +1,4 @@
-[auth.jwt]
+[jwt]
 issuer = "http://localhost:3000"
 audience = "openrust"
 active_key_id = "local"

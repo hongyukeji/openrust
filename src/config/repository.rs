@@ -1,7 +1,7 @@
 //! Provider 共享的版本化配置仓储；区段默认补齐不替代包配置的专用合并操作。
 
 use std::any::TypeId;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fmt;
 use std::sync::{Arc, Mutex, MutexGuard};
 
@@ -13,7 +13,7 @@ use figment::{
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
 
-use crate::config::sources::merge_order;
+use crate::config::sources::{merge_order, mergeable_options};
 use crate::config::{ConfigError, ConfigSourceError, ConfigSources};
 use crate::core::{Error, Result};
 
@@ -172,6 +172,9 @@ enum PackageOperation {
 struct State {
     figment: Figment,
     raw: Option<Value>,
+    file_domains: HashSet<String>,
+    pre_file_base: Option<Value>,
+    after_file_layers: Vec<Value>,
     sections: BTreeMap<&'static str, Section>,
     section_order: Vec<&'static str>,
     operations: Vec<PackageOperation>,
@@ -204,11 +207,15 @@ impl fmt::Debug for ConfigRepository {
 impl ConfigRepository {
     /// 保留现有来源及其优先级，开始 Provider 注册阶段。
     pub fn new(sources: impl Into<ConfigSources>) -> Self {
-        let (figment, raw) = sources.into().into_parts();
+        let (figment, raw, file_domains, pre_file_base, after_file_layers) =
+            sources.into().into_parts();
         Self {
             inner: Arc::new(Mutex::new(State {
                 figment,
                 raw,
+                file_domains,
+                pre_file_base,
+                after_file_layers,
                 sections: BTreeMap::new(),
                 section_order: Vec::new(),
                 operations: Vec::new(),
@@ -230,7 +237,8 @@ impl ConfigRepository {
         }
     }
 
-    /// 登记类型化默认值、结构与校验器；默认值不会覆盖现有文件或环境值。
+    /// 登记类型化默认值、结构与校验器；精确文件区段浅合并，
+    /// 仅有子文件时按 Laravel 剩余 base 根写入覆盖，文件后来源仍优先。
     ///
     /// 同名登记一律拒绝，避免忽略后来登记的校验器。
     /// 本操作仅补齐区段默认值，不代表 Laravel 包的浅合并或递归替换操作。
@@ -317,13 +325,30 @@ impl ConfigRepository {
     }
 
     /// 补齐 typed 默认值后重放包操作并校验；成功后封闭注册并进入 boot。
+    #[allow(
+        clippy::too_many_lines,
+        reason = "Provider 校验需保持单次候选构建与原子提交"
+    )]
     pub fn validate_base(&mut self) -> Result<()> {
-        let (mut candidate, raw, sections, section_order, operations, revision) = {
+        let (
+            mut candidate,
+            raw,
+            file_domains,
+            pre_file_base,
+            after_file_layers,
+            sections,
+            section_order,
+            operations,
+            revision,
+        ) = {
             let state = self.lock();
             require_phase(state.phase, Phase::Register)?;
             (
                 state.figment.clone(),
                 state.raw.clone(),
+                state.file_domains.clone(),
+                state.pre_file_base.clone(),
+                state.after_file_layers.clone(),
                 state.sections.clone(),
                 state.section_order.clone(),
                 state.operations.clone(),
@@ -340,10 +365,60 @@ impl ConfigRepository {
             let section = sections
                 .get(key)
                 .ok_or_else(|| invalid(key, "section order missing"))?;
-            candidate = candidate.join(Serialized::default(key, &section.defaults));
-            let mut section_order = read_dot_value(&order, key).cloned().unwrap_or(Value::Null);
-            merge_order(&mut section_order, section.defaults.clone());
-            set_dot_value(&mut order, key, section_order);
+            if file_domains.contains(key) {
+                let current = read_dot_value(&order, key).cloned().unwrap_or(Value::Null);
+                let (combined, patch) = file_default_patch(key, &section.defaults, &current);
+                if current.is_array() && section.defaults.is_array() {
+                    let original = candidate.find_value(key).ok();
+                    candidate =
+                        replace_section(&candidate, key, combined.clone(), original.as_ref())?;
+                } else if patch.as_object().is_some_and(|entries| !entries.is_empty()) {
+                    candidate = candidate.join(Serialized::default(key, &patch));
+                }
+                for option in mergeable_options(key) {
+                    if section.defaults.get(*option).is_some_and(is_php_array)
+                        && current.get(*option).is_some_and(is_php_array)
+                    {
+                        let option_path = format!("{key}.{option}");
+                        let original = candidate.find_value(&option_path).ok();
+                        let value = combined
+                            .get(*option)
+                            .cloned()
+                            .ok_or_else(|| invalid(&option_path, "merged option missing"))?;
+                        candidate =
+                            replace_section(&candidate, &option_path, value, original.as_ref())?;
+                    }
+                }
+                set_dot_value(&mut order, key, combined);
+            } else if file_domains.iter().any(|path| {
+                path.strip_prefix(key)
+                    .is_some_and(|suffix| suffix.starts_with('.'))
+            }) {
+                let base = pre_file_base
+                    .as_ref()
+                    .ok_or_else(|| invalid(key, "file base missing"))?;
+                let defaults = Figment::from(Serialized::defaults(base.clone()))
+                    .join(Serialized::default(key, &section.defaults));
+                let section_base = defaults
+                    .extract_inner::<Value>(key)
+                    .map_err(|error| Error::Config(safe_source_error(error, key)))?;
+                let mut replay = base.clone();
+                set_dot_value(&mut replay, key, section_base);
+                for layer in &after_file_layers {
+                    merge_order(&mut replay, layer.clone());
+                }
+                let published = read_dot_value(&replay, key)
+                    .cloned()
+                    .ok_or_else(|| invalid(key, "base root missing"))?;
+                set_dot_value(&mut order, key, published.clone());
+                let original = candidate.find_value(key).ok();
+                candidate = replace_section(&candidate, key, published, original.as_ref())?;
+            } else {
+                candidate = candidate.join(Serialized::default(key, &section.defaults));
+                let mut section_order = read_dot_value(&order, key).cloned().unwrap_or(Value::Null);
+                merge_order(&mut section_order, section.defaults.clone());
+                set_dot_value(&mut order, key, section_order);
+            }
         }
         for operation in operations {
             let (key, mut defaults, recursive) = match operation {
@@ -386,6 +461,14 @@ impl ConfigRepository {
             .extract::<Value>()
             .map_err(|error| Error::Config(safe_source_error(error, "configuration")))?;
         let candidate_raw = reorder_like(&order, candidate_raw);
+        for key in &file_domains {
+            if read_dot_value(&candidate_raw, key) != read_dot_value(&order, key) {
+                return Err(invalid(
+                    key,
+                    "file configuration projection differs from raw values",
+                ));
+            }
+        }
         self.publish(
             candidate,
             Some(candidate_raw),
@@ -672,7 +755,7 @@ fn read_entry<'a>(value: &'a Value, key: &str) -> Option<&'a Value> {
     }
 }
 
-fn read_dot_value<'a>(values: &'a Value, key: &str) -> Option<&'a Value> {
+pub(crate) fn read_dot_value<'a>(values: &'a Value, key: &str) -> Option<&'a Value> {
     key.split('.')
         .try_fold(values, |current, segment| read_entry(current, segment))
 }
@@ -724,7 +807,7 @@ pub(crate) fn reorder_like(previous: &Value, candidate: Value) -> Value {
 }
 
 // Laravel 写入只将完整 key 拆段；即使根上已有字面 "a.b"，也写入 a -> b。
-fn set_dot_value(current: &mut Value, key: &str, value: Value) {
+pub(crate) fn set_dot_value(current: &mut Value, key: &str, value: Value) {
     let parts: Vec<_> = key.split('.').collect();
     let Some((leaf, ancestors)) = parts.split_last() else {
         return;
@@ -830,11 +913,43 @@ fn preserve_tags(new: &mut FigmentValue, old: &FigmentValue) {
     }
 }
 
-fn replace_section(
+fn overlay_tags(new: &mut FigmentValue, overlay: &FigmentValue) {
+    if new.deserialize::<Value>().ok() == overlay.deserialize::<Value>().ok() {
+        *new = overlay.clone();
+        return;
+    }
+    match (new, overlay) {
+        (FigmentValue::Dict(_, new), FigmentValue::Dict(_, overlay)) => {
+            for (key, value) in overlay {
+                if let Some(existing) = new.get_mut(key) {
+                    overlay_tags(existing, value);
+                }
+            }
+        }
+        (FigmentValue::Array(_, new), FigmentValue::Array(_, overlay)) => {
+            for (existing, value) in new.iter_mut().zip(overlay) {
+                overlay_tags(existing, value);
+            }
+        }
+        _ => {}
+    }
+}
+
+pub(crate) fn replace_section(
     base: &Figment,
     key: &str,
     value: Value,
     old: Option<&FigmentValue>,
+) -> Result<Figment> {
+    replace_section_overlay(base, key, value, old, None)
+}
+
+pub(crate) fn replace_section_overlay(
+    base: &Figment,
+    key: &str,
+    value: Value,
+    old: Option<&FigmentValue>,
+    overlay: Option<&FigmentValue>,
 ) -> Result<Figment> {
     let mut data = base
         .data()
@@ -843,6 +958,9 @@ fn replace_section(
         .map_err(|error| Error::Config(safe_source_error(error, key)))?;
     if let Some(old) = old {
         preserve_tags(&mut replacement, old);
+    }
+    if let Some(overlay) = overlay {
+        overlay_tags(&mut replacement, overlay);
     }
     let parts: Vec<_> = key.split('.').collect();
     for dict in data.values_mut() {
@@ -1051,7 +1169,7 @@ pub(crate) fn normalize_php_source(value: Value, empty_array: bool) -> Value {
     }
 }
 
-fn merge_shallow(defaults: &mut Value, current: Value, _path: &str) {
+pub(crate) fn merge_shallow(defaults: &mut Value, current: Value, _path: &str) {
     let old = std::mem::take(defaults);
     let empty_array = old.is_array() && current.is_array();
     let mut entries: Vec<(String, Value)> = Vec::new();
@@ -1067,6 +1185,44 @@ fn merge_shallow(defaults: &mut Value, current: Value, _path: &str) {
         }
     }
     *defaults = php_value(entries, empty_array);
+}
+
+// 精确文件区段沿 Laravel base→file 的顶层浅合并；只给 Figment 缺失键打补丁，
+// 避免 join 整个 typed 默认对象把普通嵌套旧项递归补回。
+fn file_default_patch(key: &str, defaults: &Value, current: &Value) -> (Value, Value) {
+    if defaults.is_array() && current.is_array() {
+        let mut combined = defaults.clone();
+        merge_shallow(&mut combined, current.clone(), key);
+        return (combined, Value::Object(serde_json::Map::new()));
+    }
+    let (Some(base), Some(source)) = (defaults.as_object(), current.as_object()) else {
+        return (current.clone(), Value::Object(serde_json::Map::new()));
+    };
+    let mut combined = defaults.clone();
+    merge_shallow(&mut combined, current.clone(), key);
+    let mut patch = serde_json::Map::new();
+    for (name, value) in base {
+        if !source.contains_key(name) {
+            patch.insert(name.clone(), value.clone());
+        }
+    }
+    for option in mergeable_options(key) {
+        if let (Some(old), Some(new)) = (base.get(*option), source.get(*option))
+            && is_php_array(old)
+            && is_php_array(new)
+        {
+            let mut merged = old.clone();
+            merge_shallow(&mut merged, new.clone(), option);
+            if let Some(section) = combined.as_object_mut() {
+                section.insert((*option).to_owned(), merged);
+            }
+        }
+    }
+    (combined, Value::Object(patch))
+}
+
+fn is_php_array(value: &Value) -> bool {
+    value.is_object() || value.is_array()
 }
 
 fn replace_recursive(existing: &mut Value, overlay: Value, path: &str) -> Result<()> {

@@ -440,6 +440,10 @@ H新增实际取证：`/tmp/openrust-c04d10h-matcher/probe.output.jsonl`35案真
 - 50GB软/100GB硬与磁盘10%/5%保持。保留活跃main缓存，不删无完整归属的root-site/m5-final历史target。一次性生成包须有同名全范围归属/dry-run/保护项证据；不凭Cargo忽略的path/version限定冒称隔离。
 - 完整Config继续开放：平层TOML顺序不等于Laravel递归配置发现或文件名/目录namespace映射，PHP对象/Closure/资源等表示差异亦未关闭；不重建客户端、不以此替代ADR-080动态Settings或完整signed。
 
+## R2-R03 递归配置发现（独立分支限定验收完成，本地提交见Git）
+
+`tasks/config-discovery-family` 基于 `e25ec7589c7` 完成递归领域 TOML 发现、真实 basename/隐藏与 symlink 边界、自然序和碰撞范围、根领域相对内容迁移及模块独立overlay接线，以及同一 ConfigSources 仓储中的晚到 Provider 默认值浅合并、白名单 PHP 数组合并、子文件后剩余父 base 根覆盖和环境优先重放。配置76、CLI最终21、模块2、公开consumer6、严格Clippy/docs、普通fresh生成7及安装consumer1均有定向通过证据；根 config-feature HTTP 200/enabled=true/exit0，URL/TLS 网络runner另有10/10，二者证据分别记录。无auth MySQL生成测试0项仅算编译；fresh MySQL8.4认证2项无skip、测试库前后不变。执行者终端回报3个唯一生成包清理命令exit0，原始stdout未留存；16路径登记54.48GB、磁盘8.782%触软线但未触硬线。本簇本地提交见Git，尚未与ENV或signed合入main，等待开发者最终集成验收；main完整组合门禁未运行。详见[本簇证据](memory/testing.md#r2-r03-递归配置发现任务分支限定验收记录)。完整V1 Config、typed helpers、配置缓存、动态Settings及发布全后端继续开放。
+
 ## R2-ENV 端口与缓存环境命名统一（用户已授权，R2-R02提交后立即实施）
 
 - 最新contract覆盖旧端口决定：唯一中性环境入口为`SERVER_PORT`，内部保留`server.port`/`config.server.port`；删除`APP_PORT`及独立`PORT`监听兼容，通用或命名空间fallback也不得暗中映射旧变量。`.env.example`使用`SERVER_PORT=3000`与`APP_URL="http://localhost:${SERVER_PORT}"`；自定义APP命名空间不得改变中性SERVER_PORT领域键。

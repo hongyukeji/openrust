@@ -5,6 +5,7 @@
 pub(crate) struct ExampleConfig {
     pub(crate) greeting: String,
     pub(crate) article_summary_origin: Option<String>,
+    pub(crate) feature: ExampleFeatureConfig,
     #[cfg(all(
         feature = "auth-oidc",
         any(feature = "db-postgres", feature = "db-mysql")
@@ -17,6 +18,7 @@ impl Default for ExampleConfig {
         Self {
             greeting: "Hello from modules/example".to_owned(),
             article_summary_origin: None,
+            feature: ExampleFeatureConfig::default(),
             #[cfg(all(
                 feature = "auth-oidc",
                 any(feature = "db-postgres", feature = "db-mysql")
@@ -24,6 +26,13 @@ impl Default for ExampleConfig {
             oidc: None,
         }
     }
+}
+
+/// 模块文件提供的固定业务开关。
+#[derive(Default, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub(crate) struct ExampleFeatureConfig {
+    pub(crate) enabled: bool,
 }
 
 impl ExampleConfig {

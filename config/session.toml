@@ -1,4 +1,3 @@
-[session]
 # Cookie名称缺省按最终app.name推导；Secure缺省由可信传输信息决定。
 driver = "database"
 path = "/"
