@@ -111,6 +111,12 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 - 三路先完成生产/调用方/测试/示例与说明再统一freeze；无Cargo、新target或服务启动，资源窗口空闲不阻塞编码。manifest/lock/共享Agentdocs/main索引与提交仍root独占；最终不同模型独审、定向分支门禁、生成/真实HTTP及main组合验收分开，未验证不得提交或关闭矩阵。
 - 当前登记56.83GB及磁盘可用86.95GB仅软告警，100GB/5%硬线保持；未知缓存不清。派发/停止实际ID入口 `/tmp/openrust-provider-registration-dispatch.json`，总控用正式Paseo stop逐任务协调；不另建Goal/guard，不推送，保留前三个未合分支及证据。
 
+## R2-CC 配置缓存家族（Implement，与R2-P验收并行）
+
+- 稳定main `9581a53` 起点，不依赖未提交R2-P；固定Laravel ConfigCache/Clear、LoadConfiguration/LoadEnvironmentVariables 与现来源/命令机制，完成官方 `config:cache/config:clear`、同Application fresh配置、缓存命中与两阶段env路径、原子文件/失败清除/资源关闭、模块/生成/真实复启验收；Spec `/tmp/openrust-config-cache-frozen-spec.md`，候选与来源 `/tmp/openrust-config-cache-contract.md`，未实现/验收项不得提前关闭L005.04。
+- owner `cbc80e79-d801-4d4e-aef0-c4e7f4551346`，同项目workspace `wks_d752446d3d277b26`，branch `tasks/config-cache-family`，cwd `/Users/Home/.paseo/worktrees/02joa2lr/openrust-config-cache-family`；本lane独占自身源码/模块/模板/说明，manifest/lock/共享Agentdocs与main索引root协调。不复制其他worktree WIP，后继R2-P异步API/R03文件来源在实际集成时组合验证。
+- 当前实际running只编码/静态检查，不Cargo/服务/新target；R2-P由原owner唯一占构建窗口，公开契约两项旧延迟断言已交caller对照固定语义批修，core125与repo43实际通过。全项目50GB/10%软、100GB/5%硬，未知缓存不清；实际派发/停止入口 `/tmp/openrust-config-cache-dispatch.json`，root正式Paseo stop协调，不另建Goal/guard，不推送或自动main合并。
+
 ## R2/R10 运行时配置与动态调度（仅规划，按依赖领取）
 
 - 依据 [ADR-080](decisions/adr-080-runtime-configuration-scheduling.md) 与 [运行时配置与动态调度计划](plans/runtime-configuration-scheduling.md)；当前 HTTP 主功能簇不抢占，本轮没有代码实现或真实验收。
