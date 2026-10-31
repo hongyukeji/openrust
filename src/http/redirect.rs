@@ -80,6 +80,45 @@ impl<'r> Redirector<'r> {
         self.to_with_scheme(target, status, headers, None)
     }
 
+    /// 按当前请求路径刷新，以默认302及空自定义头建立响应，不保留query。
+    pub fn refresh(&self) -> Result<RedirectResponse<'r>> {
+        self.refresh_with(StatusCode::FOUND, HeaderMap::new())
+    }
+
+    /// 按当前请求的原编码路径刷新，保留显式状态和自定义头。
+    pub fn refresh_with(
+        &self,
+        status: StatusCode,
+        headers: HeaderMap,
+    ) -> Result<RedirectResponse<'r>> {
+        self.to_with(self.info.path(), status, headers)
+    }
+
+    /// 以默认302及空自定义头直接使用目标，不生成绝对URL或改写协议。
+    ///
+    /// 相对及特殊目标保持原值；空目标、非法状态与不安全Location头仍报错。
+    pub fn away(&self, target: &str) -> Result<RedirectResponse<'r>> {
+        self.away_with(target, StatusCode::FOUND, HeaderMap::new())
+    }
+
+    /// 原样使用目标，保留显式状态、自定义头及当前请求的闪存借用链。
+    pub fn away_with(
+        &self,
+        target: &str,
+        status: StatusCode,
+        headers: HeaderMap,
+    ) -> Result<RedirectResponse<'r>> {
+        Self::create_response(
+            target.to_owned(),
+            status,
+            headers,
+            #[cfg(feature = "session")]
+            self.info,
+            #[cfg(feature = "session")]
+            self.request,
+        )
+    }
+
     /// 显式选择相对目标的协议；合法绝对或特殊 URL 保留原值。
     ///
     /// `None` 沿当前请求协议，`Some(true/false)` 分别使用 HTTPS/HTTP。
@@ -91,9 +130,6 @@ impl<'r> Redirector<'r> {
         headers: HeaderMap,
         secure: Option<bool>,
     ) -> Result<RedirectResponse<'r>> {
-        if !matches!(status.as_u16(), 201 | 301 | 302 | 303 | 307 | 308) {
-            return Err(Error::custom("redirect_status_invalid", "重定向状态码无效"));
-        }
         let location = absolute_target(self.info, target, secure)?;
         Self::create_response(
             location,
@@ -114,6 +150,19 @@ impl<'r> Redirector<'r> {
         #[cfg(feature = "session")] info: &'r RequestInfo,
         #[cfg(feature = "session")] request: Option<&'r Request>,
     ) -> Result<RedirectResponse<'r>> {
+        // 对齐Symfony构造顺序：HTTP范围、空目标、重定向状态，再建立安全头值。
+        if status.as_u16() >= 600 {
+            return Err(Error::custom("redirect_status_invalid", "重定向状态码无效"));
+        }
+        if location.is_empty() {
+            return Err(Error::custom(
+                "redirect_location_invalid",
+                "重定向目标不能为空",
+            ));
+        }
+        if !matches!(status.as_u16(), 201 | 301 | 302 | 303 | 307 | 308) {
+            return Err(Error::custom("redirect_status_invalid", "重定向状态码无效"));
+        }
         let header_value = HeaderValue::from_str(&location)
             .map_err(|_| Error::custom("redirect_location_invalid", "Location 头值无效"))?;
         headers.insert(header::LOCATION, header_value);
@@ -520,6 +569,214 @@ mod tests {
                 domain: None,
             }],
         )
+    }
+
+    #[tokio::test]
+    async fn refresh_uses_original_encoded_path_without_query_and_keeps_options() -> Result<()> {
+        // 只改path来源，不能误用full_url保留query或decoded_path解码路径。
+        for (uri, target) in [
+            ("/?token=drop", "http://example.test"),
+            (
+                "/draft/a%2Fb/?token=drop",
+                "http://example.test/draft/a%2Fb",
+            ),
+        ] {
+            let (mut parts, _) = HttpRequest::get(uri)
+                .header("host", "example.test")
+                .body(Body::empty())
+                .expect("request")
+                .into_parts();
+            let info = RequestInfo::from_request_parts(&mut parts, &()).await?;
+            let redirect = Redirector::from_info(&info);
+            assert_eq!(redirect.refresh()?.target_url(), target);
+            let mut headers = HeaderMap::new();
+            headers.insert("x-refresh-proof", HeaderValue::from_static("kept"));
+            let response = redirect
+                .refresh_with(StatusCode::SEE_OTHER, headers)?
+                .into_response();
+            assert_eq!(response.status(), StatusCode::SEE_OTHER);
+            assert_eq!(response.headers()[header::LOCATION], target);
+            assert_eq!(response.headers()["x-refresh-proof"], "kept");
+            assert_eq!(info.uri().to_string(), uri);
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn away_preserves_raw_targets_and_shared_html_status_header_rules() -> Result<()> {
+        // away必须跳过URL生成，尤其不能把相对目标或任意特殊scheme改成当前root。
+        let info = info(None).await?;
+        let redirect = Redirector::from_info(&info);
+        for target in [
+            "relative/path",
+            "https://outside.test/x",
+            "http://outside.test/x",
+            "//cdn.test/x",
+            "#fragment",
+            "mailto:a@example.test",
+            "foo:bar",
+        ] {
+            let response = redirect.away(target)?.into_response();
+            assert_eq!(response.status(), StatusCode::FOUND);
+            assert_eq!(response.headers()[header::LOCATION], target);
+        }
+        let mut headers = HeaderMap::new();
+        headers.insert("x-away-proof", HeaderValue::from_static("kept"));
+        headers.insert(header::LOCATION, HeaderValue::from_static("ignored"));
+        headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("ignored"));
+        headers.insert(
+            header::CACHE_CONTROL,
+            HeaderValue::from_static("private, max-age=60"),
+        );
+        let response = redirect
+            .away_with(
+                "relative?tag=<b>&quote='\"",
+                StatusCode::MOVED_PERMANENTLY,
+                headers,
+            )?
+            .into_response();
+        assert_eq!(response.status(), StatusCode::MOVED_PERMANENTLY);
+        assert_eq!(
+            response.headers()[header::LOCATION],
+            "relative?tag=<b>&quote='\""
+        );
+        assert_eq!(
+            response.headers()[header::CONTENT_TYPE],
+            "text/html; charset=utf-8"
+        );
+        assert_eq!(
+            response.headers()[header::CACHE_CONTROL],
+            "private, max-age=60"
+        );
+        assert_eq!(response.headers()["x-away-proof"], "kept");
+        let body = to_bytes(response.into_body(), 16384)
+            .await
+            .map_err(Error::internal)?;
+        assert!(
+            String::from_utf8_lossy(&body)
+                .contains("relative?tag=&lt;b&gt;&amp;quote=&#039;&quot;")
+        );
+        assert!(
+            !redirect
+                .away_with("relative", StatusCode::MOVED_PERMANENTLY, HeaderMap::new())?
+                .into_response()
+                .headers()
+                .contains_key(header::CACHE_CONTROL)
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn shared_redirect_constructor_rejects_empty_status_and_unsafe_location_in_order()
+    -> Result<()> {
+        // 对应Symfony parent状态范围→空目标→redirect状态；不把away当安全校验逃生口。
+        let info = info(None).await?;
+        let redirect = Redirector::from_info(&info);
+        for (target, status, code) in [
+            ("", 302, "redirect_location_invalid"),
+            ("", 200, "redirect_location_invalid"),
+            ("", 999, "redirect_status_invalid"),
+            ("relative", 200, "redirect_status_invalid"),
+            ("relative", 304, "redirect_status_invalid"),
+            ("/bad\r\nX-Test: injected", 302, "redirect_location_invalid"),
+            ("/bad\r\nX-Test: injected", 200, "redirect_status_invalid"),
+        ] {
+            assert_eq!(
+                redirect
+                    .away_with(
+                        target,
+                        StatusCode::from_u16(status).map_err(Error::internal)?,
+                        HeaderMap::new()
+                    )
+                    .err()
+                    .expect("invalid redirect")
+                    .code(),
+                code
+            );
+        }
+        assert_eq!(redirect.to("")?.target_url(), "http://example.test");
+        let (mut invalid_parts, _) = HttpRequest::get("/")
+            .header("host", "bad host")
+            .body(Body::empty())
+            .expect("request")
+            .into_parts();
+        let invalid_info = RequestInfo::from_request_parts(&mut invalid_parts, &()).await?;
+        let invalid_redirect = Redirector::from_info(&invalid_info);
+        // generator先于response：同时无效时先传播URL来源错误，away则不读取来源。
+        assert_eq!(
+            invalid_redirect
+                .to_with("/relative", StatusCode::OK, HeaderMap::new())
+                .err()
+                .expect("generation before response")
+                .code(),
+            "http_domain_authority_invalid"
+        );
+        assert_eq!(invalid_redirect.away("relative")?.target_url(), "relative");
+        assert_eq!(
+            redirect
+                .refresh_with(StatusCode::OK, HeaderMap::new())
+                .err()
+                .expect("bad status")
+                .code(),
+            "redirect_status_invalid"
+        );
+        for status in [201, 301, 302, 303, 307, 308] {
+            assert_eq!(
+                redirect
+                    .away_with(
+                        "relative",
+                        StatusCode::from_u16(status).map_err(Error::internal)?,
+                        HeaderMap::new()
+                    )?
+                    .into_response()
+                    .status()
+                    .as_u16(),
+                status
+            );
+        }
+        Ok(())
+    }
+
+    #[cfg(feature = "session")]
+    #[tokio::test]
+    async fn refresh_and_away_keep_original_request_input_and_errors_borrows() -> Result<()> {
+        // 两个新入口必须保留from_request上下文，不以仅Location正确掩盖闪存借用丢失。
+        for refresh in [true, false] {
+            let session = intent_session()?;
+            let mut incoming = HttpRequest::post("/draft?token=drop")
+                .header("host", "example.test")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"title":"draft"}"#))
+                .expect("request");
+            incoming.extensions_mut().insert(session.clone());
+            let request = Request::from_request(incoming, &()).await?;
+            let redirector = Redirector::from_request(&request);
+            let mut response = if refresh {
+                redirector.refresh()?
+            } else {
+                redirector.away("/outside")?
+            };
+            response
+                .with_input()?
+                .with_errors(RedirectErrors::Text("invalid"), "default")?;
+            assert_eq!(
+                session.get_old_input(Some("title"))?,
+                Some(serde_json::json!("draft"))
+            );
+            assert_eq!(
+                session.read_errors()?.default_first(None, None)?,
+                Some("invalid".into())
+            );
+            assert_eq!(
+                response.target_url(),
+                if refresh {
+                    "http://example.test/draft"
+                } else {
+                    "/outside"
+                }
+            );
+        }
+        Ok(())
     }
 
     #[tokio::test]

@@ -5,8 +5,9 @@ use std::collections::BTreeMap;
 #[cfg(feature = "session")]
 use openrust::Error;
 use openrust::Result;
+use openrust::http::axum::http::{HeaderMap, HeaderValue, StatusCode};
 use openrust::http::axum::response::{IntoResponse, Response};
-use openrust::http::{Redirector, RequestInfo};
+use openrust::http::{Redirector, Request, RequestInfo};
 
 /// 无 Session 时仍可用的普通目标重定向。
 pub(crate) async fn plain(info: RequestInfo) -> Result<Response> {
@@ -36,8 +37,56 @@ pub(crate) async fn back(info: RequestInfo) -> Result<Response> {
         .into_response())
 }
 
+const DRAFT_GUIDE: &str = "https://laravel.com/docs/11.x/redirects?source=openrust&section=draft#redirecting-to-external-domains";
+
+/// 目标由业务常量指定，不读取请求中的任意外链地址。
+pub(crate) async fn guide(info: RequestInfo) -> Result<Response> {
+    let mut headers = HeaderMap::new();
+    headers.insert("x-example-guide", HeaderValue::from_static("official"));
+    Ok(Redirector::from_info(&info)
+        .away_with(DRAFT_GUIDE, StatusCode::SEE_OTHER, headers)?
+        .into_response())
+}
+
+/// 提交后刷新到同路径的 GET；刷新目标不携带本次 query。
+pub(crate) async fn refresh(request: Request) -> Result<Response> {
+    let redirect = Redirector::from_request(&request).refresh()?;
+    #[cfg(feature = "session")]
+    let redirect = {
+        let mut redirect = redirect;
+        if request.info().has_session() {
+            redirect.with_input()?;
+            redirect.with_errors(RedirectErrors::Text("请检查草稿标题"), "default")?;
+        }
+        redirect
+    };
+    Ok(redirect.into_response())
+}
+
+/// GET 展示草稿和一次性复核提示，不再次刷新，避免重定向循环。
+pub(crate) async fn refreshed(
+    info: RequestInfo,
+) -> Result<openrust::http::Json<serde_json::Value>> {
+    #[cfg(feature = "session")]
+    if info.has_session() {
+        let errors = info.session()?.read_errors()?;
+        return Ok(openrust::http::Json(json!({
+            "draft": "示例草稿",
+            "old_title": info.old("title")?,
+            "title_error": errors.get_bag("default").as_bag().first(None, None)?,
+        })));
+    }
+    #[cfg(not(feature = "session"))]
+    let _ = info;
+    Ok(openrust::http::Json(serde_json::json!({
+        "draft": "示例草稿",
+        "old_title": null,
+        "title_error": "",
+    })))
+}
+
 #[cfg(feature = "session")]
-use openrust::http::{RedirectErrors, Request};
+use openrust::http::RedirectErrors;
 #[cfg(feature = "session")]
 use openrust::support::{ArrayKey, MessageInput};
 #[cfg(feature = "session")]

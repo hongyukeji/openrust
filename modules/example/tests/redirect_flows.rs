@@ -76,6 +76,48 @@ async fn get<A: Application>(
         .await?)
 }
 
+async fn post_refresh<A: Application>(
+    app: &TestApp<A>,
+    cookie: Option<&str>,
+) -> TestResult<TestResponse> {
+    let mut request = Request::post("/api/example/draft/refresh?discard=once")
+        .header("host", "localhost")
+        .header(header::ACCEPT, "text/html")
+        .header(header::CONTENT_TYPE, "application/json");
+    if let Some(cookie) = cookie {
+        request = request.header(header::COOKIE, cookie);
+    }
+    Ok(app
+        .request_with_limits(
+            request.body(Body::from(r#"{"title":"  Recheck  "}"#))?,
+            4096,
+            TIMEOUT,
+        )
+        .await?)
+}
+
+async fn assert_refreshed_flash<A: Application>(app: &TestApp<A>) -> TestResult {
+    let response = post_refresh(app, None).await?;
+    redirect(&response, "/api/example/draft/refresh")?;
+    let cookie = cookie_pair(&response)?;
+    let page = get(app, "/api/example/draft/refresh", Some(&cookie), None).await?;
+    assert_eq!(
+        state(&page)?,
+        json!({
+            "draft":"示例草稿","old_title":"Recheck","title_error":"请检查草稿标题"
+        })
+    );
+    let cookie = cookie_pair(&page)?;
+    let aged = get(app, "/api/example/draft/refresh", Some(&cookie), None).await?;
+    assert_eq!(
+        state(&aged)?,
+        json!({
+            "draft":"示例草稿","old_title":null,"title_error":""
+        })
+    );
+    Ok(())
+}
+
 async fn submit<A: Application>(
     app: &TestApp<A>,
     cookie: Option<&str>,
@@ -189,6 +231,7 @@ async fn draft_redirect_flash_modes_and_two_clients_age_independently() -> TestR
             state(&a)?["old"],
             json!({"mode":"all","title":"Gamma","token":"visible"})
         );
+        assert_refreshed_flash(&app).await?;
         Ok(())
     }
     .await;
@@ -335,6 +378,7 @@ async fn plain_and_named_redirect_work_without_session_and_flash_reports_failure
         )
         .await?;
         redirect(&back, "/api/example/draft/plain")?;
+        assert_public_refresh_and_guide(&app).await?;
         let failed = submit(&app, None, json!({"mode":"only","title":"Alpha"})).await?;
         failed.assert_status(StatusCode::INTERNAL_SERVER_ERROR)?;
         let body: Value = failed.json()?;
@@ -344,6 +388,43 @@ async fn plain_and_named_redirect_work_without_session_and_flash_reports_failure
     .await;
     app.shutdown(tokio::time::Instant::now() + TIMEOUT).await?;
     result
+}
+
+async fn assert_public_refresh_and_guide<A: Application>(app: &TestApp<A>) -> TestResult {
+    let refreshed = post_refresh(app, None).await?;
+    redirect(&refreshed, "/api/example/draft/refresh")?;
+    let page = get(app, "/api/example/draft/refresh", None, None).await?;
+    assert_eq!(
+        state(&page)?,
+        json!({
+            "draft":"示例草稿","old_title":null,"title_error":""
+        })
+    );
+    let guide = get(
+        app,
+        "/api/example/draft/guide?url=https://untrusted.example.test",
+        None,
+        None,
+    )
+    .await?;
+    guide.assert_status(StatusCode::SEE_OTHER)?;
+    assert_eq!(
+        guide
+            .headers()
+            .get(header::LOCATION)
+            .ok_or("Location missing")?
+            .to_str()?,
+        "https://laravel.com/docs/11.x/redirects?source=openrust&section=draft#redirecting-to-external-domains"
+    );
+    assert_eq!(
+        guide
+            .headers()
+            .get("x-example-guide")
+            .ok_or("guide header missing")?
+            .to_str()?,
+        "official"
+    );
+    Ok(())
 }
 
 async fn confirm<A: Application>(app: &TestApp<A>, cookie: &str) -> TestResult<TestResponse> {

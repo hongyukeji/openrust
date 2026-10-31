@@ -357,7 +357,7 @@ async fn generated_application_consumes_message_bags_through_business_provider()
     message_bags::assert_message_bags::<GeneratedApplication>(source).await
 }
 
-/// 复用公开 helper 验证命名跳转、草稿确认回跳、HTTPS Location 与错误闪存。
+/// 复用公开 helper 验证命名/确认回跳、刷新、固定外链、HTTPS Location 与错误闪存。
 #[tokio::test]
 async fn generated_application_redirects_to_named_route_and_restores_errors()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -2275,7 +2275,7 @@ use openrust::config::SessionConfig;
 use openrust::core::{Application, BootContext, BoxFuture, RegisterContext, ServiceProvider};
 use openrust::http::axum::{
     body::Body,
-    http::{Request, StatusCode, header},
+    http::{HeaderMap, HeaderValue, Request, StatusCode, header},
     response::{IntoResponse, Response},
 };
 use openrust::http::{
@@ -2292,6 +2292,7 @@ use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 const PREFIX: &str = "/__framework_contract/redirect";
 const TIMEOUT: Duration = Duration::from_secs(5);
+const DRAFT_GUIDE: &str = "https://laravel.com/docs/11.x/redirects?source=openrust&section=draft#redirecting-to-external-domains";
 
 struct RedirectRoutes;
 impl ServiceProvider for RedirectRoutes {
@@ -2316,6 +2317,9 @@ impl ServiceProvider for RedirectRoutes {
                 routes
                     .get(&format!("{PREFIX}/plain"), plain)
                     .get(&format!("{PREFIX}/secure"), secure)
+                    .get(&format!("{PREFIX}/guide"), guide)
+                    .get(&format!("{PREFIX}/refresh"), refresh_page)
+                    .post(&format!("{PREFIX}/refresh"), refresh_submit)
                     .get(&format!("{PREFIX}/preview"), preview)
                     .get(&format!("{PREFIX}/confirm"), confirmation)
                     .post(&format!("{PREFIX}/confirm"), confirm)
@@ -2363,6 +2367,31 @@ async fn plain(info: RequestInfo) -> openrust::Result<Response> {
 }
 async fn secure(info: RequestInfo) -> openrust::Result<Response> {
     Ok(Redirector::from_info(&info).secure("/api")?.into_response())
+}
+async fn guide(info: RequestInfo) -> openrust::Result<Response> {
+    Ok(Redirector::from_info(&info)
+        .away(DRAFT_GUIDE)?
+        .into_response())
+}
+async fn refresh_submit(request: InputRequest) -> openrust::Result<Response> {
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        "x-generated-draft-refresh",
+        HeaderValue::from_static("review"),
+    );
+    let mut redirect =
+        Redirector::from_request(&request).refresh_with(StatusCode::SEE_OTHER, headers)?;
+    redirect.with_input()?;
+    redirect.with_errors(RedirectErrors::Text("请检查草稿标题"), "default")?;
+    Ok(redirect.into_response())
+}
+async fn refresh_page(info: RequestInfo) -> openrust::Result<Json<Value>> {
+    let errors = info.session()?.read_errors()?;
+    Ok(Json(json!({
+        "draft":"生成草稿",
+        "old_title":info.old("title")?,
+        "title_error":errors.get_bag("default").as_bag().first(None, None)?,
+    })))
 }
 const PREVIEW_CONFIRMED: &str = "generated.draft.preview_confirmed";
 
@@ -2617,6 +2646,63 @@ async fn assert_navigation<A: Application>(
     Ok(())
 }
 
+async fn assert_refresh_and_away<A: Application>(
+    app: &TestApp<A>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let guide = get(
+        app,
+        &format!("{PREFIX}/guide?url=https://untrusted.example.test"),
+        None,
+    )
+    .await?;
+    assert_redirect(&guide, DRAFT_GUIDE)?;
+    let response = app
+        .request_with_limits(
+            Request::post(format!("{PREFIX}/refresh?discard=once"))
+                .header("host", "localhost")
+                .header(header::ACCEPT, "text/html")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(r#"{"title":"  Recheck  "}"#))?,
+            4096,
+            TIMEOUT,
+        )
+        .await?;
+    response.assert_status(StatusCode::SEE_OTHER)?;
+    assert_eq!(
+        response
+            .headers()
+            .get(header::LOCATION)
+            .ok_or("Location 缺失")?
+            .to_str()?,
+        format!("http://localhost{PREFIX}/refresh")
+    );
+    assert_eq!(
+        response
+            .headers()
+            .get("x-generated-draft-refresh")
+            .ok_or("刷新头缺失")?
+            .to_str()?,
+        "review"
+    );
+    let cookie = cookie_pair(&response)?;
+    let page = get(app, &format!("{PREFIX}/refresh"), Some(&cookie)).await?;
+    assert_eq!(
+        data(&page)?,
+        json!({
+            "draft":"生成草稿","old_title":"Recheck","title_error":"请检查草稿标题"
+        })
+    );
+    let cookie = cookie_pair(&page)?;
+    let aged = get(app, &format!("{PREFIX}/refresh"), Some(&cookie)).await?;
+    assert_eq!(
+        data(&aged)?,
+        json!({
+            "draft":"生成草稿","old_title":null,"title_error":""
+        })
+    );
+    Ok(())
+}
+
 /// 经生成应用 Provider、命名路由与 Session Cookie 验证导航回跳、闪存及错误包。
 pub async fn assert_request_redirect<A: Application>(
     source: Figment,
@@ -2640,6 +2726,7 @@ pub async fn assert_request_redirect<A: Application>(
         );
         assert!(std::str::from_utf8(plain.body())?.contains("<!DOCTYPE html>"));
         assert_navigation(&app).await?;
+        assert_refresh_and_away(&app).await?;
         let first = get(&app, &format!("{PREFIX}/review"), None).await?;
         let cookie = cookie_pair(&first)?;
         let body = json!({"title":"  Ada  ","token":"private"});

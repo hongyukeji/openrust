@@ -1111,3 +1111,21 @@ RequestInfo 的 parts-only 快照、严格 authority 复用、文本头/bearer�
 - 3个自有生成package精确clean实际0，未清根target；清理前后源码/锁/serverCLI/框架与8461个非自有依赖哨兵不变，无Cargo/锁占用。登记缓存37,204,033,536→36,765,954,048字节，磁盘空闲107,083,919,360字节（总994,662,584,320），低于50GB软线并高于10%空闲。
 
 固定PHP方法参考39案及previous边界12案见 `/tmp/openrust-c04d10e-url-values.provenance.json`、`/tmp/openrust-c04d10e-previous-values.provenance.json`；后者替代request/root/response构造边界，不是完整PHP HTTP/Symfony验收。JSON关联数组/任意Stringable对象差异明确；完整Redirector、action/signed/混合URL参数、HTTP/Session及PG/全部后端发布矩阵继续开放。限定本地提交见Git。
+
+
+## 持续开发守护当前验证
+
+skill-only提交 `a3b2ca3` 提供显式 `--rebase-usage-budget` 及正式额度可用后结束旧等待的完整恢复路径。完整测试120项：117通过/3项Windows原生跳过；questions52通过，不同模型复审通过；日志 `/tmp/openrust-guard-upgrade-full.log`、`/tmp/openrust-guard-upgrade-questions.log`。本任务已由所属owner plain重载并核原Goal active、working/task_running及进程/心跳正常，现有baseline `1793413935.123801`、account history与questions摘要前后相同，无full-budget覆盖，默认80%政策保持。当前任务已显式重定，不再次rebase；该纯skill变更不要求重跑D10-F Rust矩阵，未替代任何框架行为验收。
+
+
+<a id="c04-d10-f-refresh-与-away验收中未提交"></a>
+## C04-D10-F refresh 与 away（限定子范围已验收）
+
+最终输入 `/tmp/openrust-c04d10f-verification/freeze.json` SHA `ba5e14b4e8517d9462c9e201e1c77bd20b9f679d54333e32fba43a11aeeedd79`；执行基线a3b2ca3。本簇全部使用新运行门禁与新server/CLI，无旧簇runtime或二进制复用；主控核577项源码、12项辅助输入哈希一致。最终证据索引 `/tmp/openrust-c04d10f-verification/FINAL-HANDOFF.json` SHA `e13bad753fb32457a2086b27a3342322ac978000d1b4816dddab69e560a83016`，全部10个执行句柄终态0，限定提交见Git。
+
+- 定向10阶段全部实际0/source_changed=false：fmt/diff、模块5、CLI快照1、默认/全特性严格Clippy、Session/无Session重定向lib19/9、完整router112/110。具名定向用例无失败或忽略。main11项通过：默认workspace809 passed/34 ignored、全特性1595 passed/108 ignored、双严格Rustdoc、4种feature、cargo deny、Rust1.97两项MSRV；ignored不计真实服务。
+- 新server/CLI构建通过；fresh普通应用fmt/check/test7 passed，MySQL8.4.13 fresh认证2与额外单锚公开helper1项通过，源码和锁稳定，不修补生成后源码。最终真实TCP无Session7/MySQL12场景通过，包含刷新丢query、同路径真实GET、输入/错误首GET恢复后老化、固定外链状态/头/HTML与忽略不可信url；保留E导航意图和错误包正例，不跟随外站或冒称HTTPS listener。
+- 所有执行句柄收齐；网络worker/stop实际0、非强杀/非超时、监听释放与敏感配置移除true，自有MySQL生成/网络库created/dropped=true。无F运行失败，准备期network dryrun变量错误与修后输出保留，不作运行失败或成功的替代证据。
+- 3个F自有package按实际manifest/fingerprint精确clean，actual0；同名test_app/auth_flows/generated_view仅排除本包unit hash，未泛排其他包。源码/锁/serverCLI/框架与非自有依赖哨兵不变，无Cargo/target锁占用，不清根缓存。登记缓存37,209,677,824→36,771,332,096字节，磁盘空闲107,002,572,800/994,662,584,320字节，满足50/100GB及10/5%策略。
+
+固定Laravel为d52c3b3，Symfony8对象14案实际构造只作ADR-078独立固定比较点；Laravel无已解析composer.lock，不声称锁定该版本或完整PHP HTTP。共享构造器顺序为HTTP范围→空目标→允许状态→头；to先生成目标，与固定上游一致，guest先put/intended先pull未变。核心、调用方、驱动均经不同模型独审，无剩余问题。完整Redirector、action/signed、URL参数其余语义及HTTP/Session/发布全后端矩阵继续开放。

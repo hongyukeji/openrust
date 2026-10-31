@@ -2301,12 +2301,133 @@ async fn intended_redirect_response(
         .into_response())
 }
 
+async fn refresh_redirect_response(
+    info: openrust::http::RequestInfo,
+) -> openrust::Result<Response> {
+    let mut headers = axum::http::HeaderMap::new();
+    headers.insert(
+        "x-refresh-proof",
+        axum::http::HeaderValue::from_static("kept"),
+    );
+    Ok(openrust::http::Redirector::from_info(&info)
+        .refresh_with(StatusCode::SEE_OTHER, headers)?
+        .into_response())
+}
+
+async fn away_redirect_response(
+    info: openrust::http::RequestInfo,
+    Path(mode): Path<String>,
+) -> openrust::Result<Response> {
+    let redirect = openrust::http::Redirector::from_info(&info);
+    let response = match mode.as_str() {
+        "empty" => redirect.away("")?,
+        "unsafe" => redirect.away("/bad\r\nX-Test: injected")?,
+        "bad-status" => {
+            redirect.away_with("relative", StatusCode::OK, axum::http::HeaderMap::new())?
+        }
+        "custom" => {
+            let mut headers = axum::http::HeaderMap::new();
+            headers.insert("x-away-proof", axum::http::HeaderValue::from_static("kept"));
+            redirect.away_with("https://outside.test/guide", StatusCode::SEE_OTHER, headers)?
+        }
+        _ => redirect.away("relative?tag=<b>&page=1")?,
+    };
+    Ok(response.into_response())
+}
+
+#[tokio::test]
+async fn refresh_and_away_public_routes_keep_distinct_targets_without_session_provider()
+-> TestResult {
+    // 复用无Session Provider应用，验证真实RequestInfo path和公开错误响应链。
+    let router = intent_redirect_router().await?;
+    for (path, status, location, proof) in [
+        (
+            "/refresh/a%2Fb?token=drop",
+            StatusCode::SEE_OTHER,
+            "http://example.test/refresh/a%2Fb",
+            Some("x-refresh-proof"),
+        ),
+        (
+            "/away/relative",
+            StatusCode::FOUND,
+            "relative?tag=<b>&page=1",
+            None,
+        ),
+        (
+            "/away/custom",
+            StatusCode::SEE_OTHER,
+            "https://outside.test/guide",
+            Some("x-away-proof"),
+        ),
+    ] {
+        let response = router
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .header(header::HOST, "example.test")
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(response.status(), status);
+        assert_eq!(response.headers()[header::LOCATION], location);
+        assert_eq!(
+            response.headers()[header::CONTENT_TYPE],
+            "text/html; charset=utf-8"
+        );
+        if let Some(proof) = proof {
+            assert_eq!(response.headers()[proof], "kept");
+        }
+        let body = to_bytes(response.into_body(), 16384).await?;
+        let html = std::str::from_utf8(&body)?;
+        assert!(
+            html.contains(
+                &location
+                    .replace('&', "&amp;")
+                    .replace('<', "&lt;")
+                    .replace('>', "&gt;")
+            )
+        );
+        if path.starts_with("/refresh") {
+            assert!(!html.contains("token=drop"));
+        }
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn away_public_route_rejects_empty_unsafe_target_and_non_redirect_status() -> TestResult {
+    let router = intent_redirect_router().await?;
+    for (mode, code) in [
+        ("empty", "redirect_location_invalid"),
+        ("unsafe", "redirect_location_invalid"),
+        ("bad-status", "redirect_status_invalid"),
+    ] {
+        let response = router
+            .clone()
+            .oneshot(
+                Request::get(format!("/away/{mode}"))
+                    .header(header::HOST, "example.test")
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert!(!response.headers().contains_key(header::LOCATION));
+        let body = to_bytes(response.into_body(), 16384).await?;
+        let json: serde_json::Value = serde_json::from_slice(&body)?;
+        assert_eq!(json["code"], code);
+    }
+    Ok(())
+}
+
 async fn intent_redirect_router() -> Result<axum::Router, Box<dyn std::error::Error>> {
     let mut builder = openrust::core::ProviderBuilder::new();
     builder
         .provider(HttpServiceProvider)
         .provider(TestRoutes::new(|routes| {
-            let routes = routes.get("/secure", secure_redirect_response);
+            let routes = routes
+                .get("/secure", secure_redirect_response)
+                .get("/refresh/{tail}", refresh_redirect_response)
+                .get("/away/{mode}", away_redirect_response);
             #[cfg(feature = "session")]
             let routes = routes
                 .get("/protected", guest_redirect_response)

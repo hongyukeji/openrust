@@ -126,6 +126,18 @@ fn draft_redirect_routes(routes: Routes) -> Routes {
         )
         .get("/api/example/draft/back", controllers::draft_redirect::back)
         .get(
+            "/api/example/draft/guide",
+            controllers::draft_redirect::guide,
+        )
+        .get(
+            "/api/example/draft/refresh",
+            controllers::draft_redirect::refreshed,
+        )
+        .post(
+            "/api/example/draft/refresh",
+            controllers::draft_redirect::refresh,
+        )
+        .get(
             "/api/example/draft/secure",
             controllers::draft_redirect::secure,
         )

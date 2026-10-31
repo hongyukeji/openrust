@@ -299,6 +299,30 @@ async fn redirect_to_user(info: RequestInfo) -> openrust::Result<Response> {
 命名重定向沿用现有 `BTreeMap<String, String>`、必需域/路径参数和 query 编码规则；域名模板及 `app.url` 的来源规则不受请求 Host 影响。这是已支持参数形态的接线，不代表 PHP 混合参数、模型/枚举绑定、可选参数或 `missingNamedRouteResolver` 已完成；action 与 signed 重定向仍属后继范围。
 
 
+### 刷新当前路径与原样目标
+
+`Redirector::refresh()` 以默认302及空自定义头刷新当前请求路径；`refresh_with(status, headers)` 提供显式状态和头。它按 `RequestInfo::path()` 再走普通 `to_with`：保留原路径百分号编码，裁剪首尾斜线，根路径回当前请求根URL，丢弃原query；不使用解码路径或完整URL。
+
+`away(target)` 默认302及空自定义头；`away_with(target, status, headers)` 原样使用目标，不经过绝对URL生成或协议改写。例如 `away("relative/path")` 保留相对 `Location`，外部URL、`//`、锚点及特殊scheme也保持原值。它不自动施加同源或scheme白名单，业务需要限制目标时应显式验证；“不生成或校验URL”不代表放宽HTTP头安全。
+
+两入口复用唯一响应构造器：允许201/301/302/303/307/308，非法状态沿 `redirect_status_invalid`；空目标与不安全 `Location` 沿 `redirect_location_invalid` 返回错误。共享构造按HTTP状态范围、空目标、允许重定向状态、头值的顺序检查；普通 `to` 先生成URL再校验响应，纠正此前提前检查状态的顺序偏差；URL来源和状态同时无效时先传播URL生成错误。因此 `to("")` 是请求根，`away("")` 则失败。Rust在 `HeaderValue` 构造时拒绝CRLF等非法值，不模拟PHP将此类值暂存于HeaderBag后才在发送边界处理的过程。自定义Location/Content-Type由真实目标和HTML类型覆盖，其他头保留；HTML转义及301缓存规则不变。
+
+```rust,ignore
+use openrust::http::{Redirector, RequestInfo};
+
+async fn reload(info: RequestInfo) -> openrust::Result<axum::response::Response> {
+    use axum::response::IntoResponse;
+    Ok(Redirector::from_info(&info).refresh()?.into_response())
+}
+
+async fn guide(info: RequestInfo) -> openrust::Result<axum::response::Response> {
+    use axum::response::IntoResponse;
+    Ok(Redirector::from_info(&info).away("https://laravel.com/docs")?.into_response())
+}
+```
+
+普通调用无Session亦可用；从 `from_request` 建立的响应仍借用同一规范化输入与Session，可继续 `with_input/only_input/except_input/with_errors`。这些入口不改变guest先保存、intended先消费后建立响应的顺序，也不代表action、signed或完整Redirector已完成。
+
 ### 重定向协议与一次返回意图
 
 `Redirector::to_with_scheme(target, status, headers, secure)` 为相对目标或空目标选择协议：`None` 沿当前请求，`Some(true)` 使用 HTTPS，`Some(false)` 使用 HTTP。`secure(target)` 等价于默认302、空自定义头及 `Some(true)`；`secure_with(target, status, headers)` 接受显式状态和头。合法绝对 URL、`//`、锚点及既有特殊 URL 不被强制改写，`secure("http://external.test/path")` 仍保留 HTTP。该选项不改变请求快照、`app.url` 或命名路由生成器；既有 `to/to_with/route` 保留原默认协议和响应规则。`back` 按固定上游直接用previous建立响应：Session相对字符串保持相对Location，数值/true转为字符串；Referer和fallback仍生成URL。此前把Session previous无条件绝对化的偏差已纠正，HTML/头规则仍复用同一响应构造器。

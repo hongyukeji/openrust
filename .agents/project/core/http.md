@@ -105,3 +105,10 @@ URL继续使用 `app.url` 与登记域模式，不采信请求Host；参数仍�
 固定上游的生产顺序为 guest 先保存再构造响应，intended 先 pull 再转换与构造，失败不撤销既有保存或消费。GET、真实路由、非 `expects_json` 使用完整请求 URL，其余使用 previous；Session truthy previous 保留 JSON 原值，Referer/fallback 经 URL 生成，back 直接响应 previous，不再二次绝对化。缺失使用默认值，显式 null/false/零与空值保持各自语义；数组/对象在消费后返回错误。JSON 对象对应关联数组，不宣称支持任意 PHP Stringable 对象。
 
 唯一模块与生成 helper 已真实接入并验收：定向10/main11、新server/CLI构建、fresh普通7、MySQL8.4.13认证2及额外公开helper1、无Session/MySQL真实TCP4/9场景通过。独立源码/最小修复/验收驱动复审均无剩余问题，Clippy首轮与生成根URL fixture旧失败保留；最后仅模板+快照字面量修复，按固定输入证明复用不受影响运行门禁，新CLI和fresh生成实际重验。资源收尾已完成，限定提交见Git，不关闭完整Redirector/L020.02；[当前证据](../memory/testing.md#c04-d10-e-scheme-与-guestintended验收中未提交)。
+
+
+## C04-D10-F refresh 与 away（限定子范围已验收，提交见Git）
+
+`refresh/refresh_with` 使用当前请求path后经既有to生成目标，丢弃query，默认302/空头；`away/away_with` 直接交同一响应构造器，保持目标原值。均保留from_info/from_request原借用、无Session可用及输入/错误闪存组合。共享构造器集中校验HTTP范围、空目标、允许重定向状态与类型化头；to按上游先生成目标再构造响应，guest先put/intended先pull的副作用边界不变。Symfony8只作为ADR-078独立固定比较点，不称Laravel已解析依赖。
+
+核心和唯一模块/模板已交付并独审，定向10/main11、新server/CLI、fresh普通7/MySQL认证2+额外公开helper1、无Session/MySQL真实TCP7/12均通过；默认809/34 ignored、全特性1595/108 ignored，忽略项不算真实服务。资源收尾已完成，限定提交见Git。模块POST刷新返回同路径真实GET草稿，首GET读取Session闪存后正常老化；无Session仍可用。外链是受控固定目标，不读取用户URL。完整状态/目标矩阵留核心unit/router，模块、生成与真实TCP分别验证公开接线。执行与证据见当前[todo](../todo.md)。

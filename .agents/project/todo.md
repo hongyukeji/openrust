@@ -393,9 +393,9 @@ D7真实Route/Resolver与受管理方法声明已通过限定验收：final3完�
 - main target保留复用；旧QX五生成包、本轮plain/PG生成包及四个本簇已完成测试可执行文件已精确退役，源码/锁/索引/当前二进制及共享库哨兵未变。日志明确Cargo关联test_app/auth_flows产物；不清整target，不碰归属不足的历史缓存。
 - D9 My生成项目已验收，源码/锁/证据保留；如后继需要空间，先核精确package dry-run与占用后再回收其专属再生产物，不为纯Agent文档变化重跑矩阵。
 
-## C04-D10-F refresh/away（待领取，前置E已验收）
+## C04-D10-G 动作路由身份与 action URL（待领取，前置F已验收）
 
-只读来源 `/tmp/openrust-c04d10e-next-readonly-spec.md`：固定 `Redirector.php:57–59,124–126` 与对应测试112–130。候选通过既有请求path与共享响应构造补refresh（不保留query）/away（目标原样，不经过URL生成）及状态/头选项，公开借用/闪存链不变。领取前核Symfony响应构造的空目标/状态/头失败责任，不以“不校验URL”放宽头安全；同簇唯一模块、模板、真实生成/MySQL/TCP与集中门禁随交付。当前不实施、不改变E冻结；action先补同一生产路由动作身份与索引，signed先补URL query HMAC生成/验证，现JWT SignedLinks不能冒充。完整L020.02与C04仍开放。
+只读证据 `/tmp/openrust-c04d10f-next-action-evidence.md` 已核固定登记→有效动作索引→URL→Redirector链；不可把action当route名称别名。领取后先收敛显式动作身份与真实handler同次登记的Rust公共契约、namespace/绝对/二元组/invokable规范化及有效方法覆盖/域优先/同动作首项规则，再实现同一生产元数据、请求Route快照、匿名动作路由URL与Redirector.action。复用现URL参数渲染而非第二生成器；name-only空生成器分支须处理，mixed/可选/相对参数未等价部分保持单列。根命名空间应沿现Provider/配置公开机制，不假定Rust动态反射、函数地址可稳定标识或类字符串能自动调用handler。公共签名尚未定，先Spec，不抢跑实现；唯一模块/模板/公开consumer、固定上游回归和适用门禁/真实TCP随簇交付，完整L020.02/Controller/URL生成器仍开放。
 
 ## 发布前全后端兼容性验收
 
