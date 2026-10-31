@@ -84,3 +84,15 @@ fn all_returns_an_independent_snapshot() -> Result<(), Box<dyn std::error::Error
     assert_eq!(repository.get("app.name")?, Some(json!("原名称")));
     Ok(())
 }
+
+#[test]
+fn public_writer_updates_only_its_fixed_business_key() -> Result<(), Box<dyn std::error::Error>> {
+    let repository = repository(json!({"app": {"name": "原名称", "locale": "zh_CN"}}));
+    assert_eq!(
+        config_repository_reading_consumer::review_display_name(&repository)?,
+        "已复核应用"
+    );
+    assert_eq!(repository.get("app.locale")?, Some(json!("zh_CN")));
+    assert_eq!(repository.get("app.name")?, Some(json!("已复核应用")));
+    Ok(())
+}

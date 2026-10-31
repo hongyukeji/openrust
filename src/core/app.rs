@@ -7,6 +7,7 @@ use std::sync::Arc;
 use figment::Figment;
 use serde::de::DeserializeOwned;
 
+use crate::config::repository::ConfigRepository;
 use crate::config::{ConfigError, FrameworkConfig};
 use crate::core::command::Command;
 use crate::core::container::{Container, Scope};
@@ -57,29 +58,9 @@ pub struct MissingServiceError(pub &'static str);
 
 type Extensions = HashMap<TypeId, Box<dyn Any + Send + Sync>>;
 
-fn extract_section<T: DeserializeOwned>(figment: &Figment, key: &str) -> Result<T, ConfigError> {
-    figment.extract_inner(key).map_err(|source| {
-        let error = ConfigError::from(source);
-        match error {
-            ConfigError::Source(source) if source.missing() => ConfigError::Source(source),
-            ConfigError::Source(source) => {
-                let detail = source.to_string();
-                let detail = if detail == "configuration" {
-                    format!("invalid configuration in `{key}`")
-                } else if detail.starts_with(&format!("{key}.")) || detail == key {
-                    format!("invalid configuration: {detail}")
-                } else {
-                    format!("invalid configuration in `{key}.{detail}`")
-                };
-                ConfigError::Invalid(format!("{detail} (secret values omitted)"))
-            }
-            other => other,
-        }
-    })
-}
-
 struct StateInner {
     framework: FrameworkConfig,
+    config_repository: ConfigRepository,
     services: Container,
     provider_resources: Arc<ResourceOwner>,
 }
@@ -117,9 +98,14 @@ impl AppState {
             self.inner.services.resolve::<T>().await
         }
     }
-    /// 框架配置。
+    /// 启动时解析的框架配置快照；运行期原始写入不重建其中的服务配置。
     pub fn config(&self) -> &FrameworkConfig {
         &self.inner.framework
+    }
+
+    /// 返回与 Provider 和当前应用共享的配置仓储句柄。
+    pub fn config_repository(&self) -> ConfigRepository {
+        self.inner.config_repository.clone()
     }
 
     /// 同步读取已就绪的 `T`；异步工厂尚未解析时返回 `None`。
@@ -172,7 +158,7 @@ impl std::fmt::Debug for AppState {
     }
 }
 
-/// 完整组装后的应用：不可变状态、命令和 crate 扩展。
+/// 完整组装后的应用：共享配置仓储、启动快照、命令和 crate 扩展。
 pub struct App {
     state: AppState,
     figment: Figment,
@@ -198,6 +184,7 @@ impl App {
             state: AppState {
                 inner: Arc::new(StateInner {
                     framework: runtime.framework,
+                    config_repository: runtime.config,
                     services: runtime.container,
                     provider_resources: Arc::new(runtime.resources),
                 }),
@@ -213,19 +200,24 @@ impl App {
         &self.state
     }
 
-    /// 框架配置。
+    /// 启动时解析的框架配置快照；运行期原始写入不重建已有服务。
     pub fn config(&self) -> &FrameworkConfig {
         self.state.config()
     }
 
-    /// 合并后的配置来源，供 `config show` 等命令使用。
+    /// 返回与 Provider 和应用状态共享的配置仓储句柄。
+    pub fn config_repository(&self) -> ConfigRepository {
+        self.state.config_repository()
+    }
+
+    /// 启动时合并的配置来源快照，供 `config show` 等命令使用。
     pub fn figment(&self) -> &Figment {
         &self.figment
     }
 
-    /// 提取一个配置区段。
+    /// 从当前配置仓储提取一个区段；运行期原始写入随后可见。
     pub fn section<T: DeserializeOwned>(&self, key: &str) -> Result<T, ConfigError> {
-        extract_section(&self.figment, key)
+        self.state.inner.config_repository.section(key)
     }
 
     /// 按注册顺序排列的命令。
@@ -351,6 +343,7 @@ mod tests {
     use super::*;
     use crate::core::{BootContext, BoxFuture, ExecutionContext, ProviderBuilder, RegisterContext};
     use figment::providers::Serialized;
+    use serde_json::json;
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -543,6 +536,31 @@ mod tests {
     async fn services_are_typed_and_shared() -> Result<()> {
         let app = start(CounterProvider).await?;
         assert_eq!(app.state().get::<Counter>().map(|c| c.0), Some(7));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn app_config_repository_is_live_shared_and_isolated_from_other_apps() -> Result<()> {
+        let app = start(Empty).await?;
+        let other = start(Empty).await?;
+        let state = app.state().clone();
+        let startup_name = app.config().app.name.clone();
+        let startup_figment = app.figment().clone();
+        app.config_repository().set("runtime.flag", json!(true))?;
+        state
+            .config_repository()
+            .set("app.name", json!("runtime-name"))?;
+        assert!(app.section::<bool>("runtime.flag")?);
+        assert_eq!(app.section::<String>("app.name")?, "runtime-name");
+        assert_eq!(app.config().app.name, startup_name);
+        assert_eq!(
+            startup_figment
+                .extract_inner::<String>("app.name")
+                .map_err(ConfigError::from)?,
+            startup_name
+        );
+        assert!(other.config_repository().get("runtime.flag")?.is_none());
+        assert_ne!(other.section::<String>("app.name")?, "runtime-name");
         Ok(())
     }
 

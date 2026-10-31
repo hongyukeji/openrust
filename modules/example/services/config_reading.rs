@@ -11,3 +11,9 @@ pub(crate) fn greeting(repository: &ConfigRepository) -> Result<String> {
         .map(str::to_owned)
         .ok_or_else(|| Error::custom("example_greeting_invalid", "example.greeting 必须是字符串"))
 }
+
+/// 将业务复核后的固定问候语写入当前应用的配置仓储。
+pub(crate) fn review(repository: &ConfigRepository) -> Result<String> {
+    repository.set("example.greeting", serde_json::json!("示例问候语已复核"))?;
+    greeting(repository)
+}

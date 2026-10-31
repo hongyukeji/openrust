@@ -1,0 +1,491 @@
+{
+  "source": "laravel/framework d52c3b3129e4c8e213c97cdc68f94b0b7d27f181 PHP 8.5.0 Repository::set -> Arr::set",
+  "cases": [
+    {
+      "name": "empty_and_dot",
+      "initial": {},
+      "writes": [
+        [
+          "",
+          "empty"
+        ],
+        [
+          "a..b",
+          1
+        ],
+        [
+          ".head",
+          2
+        ],
+        [
+          "tail.",
+          3
+        ]
+      ],
+      "expected": {
+        "shape": "map",
+        "keys": [
+          [
+            "string",
+            ""
+          ],
+          [
+            "string",
+            "a"
+          ],
+          [
+            "string",
+            "tail"
+          ]
+        ],
+        "values": [
+          {
+            "shape": "map",
+            "keys": [
+              [
+                "string",
+                "head"
+              ]
+            ],
+            "values": [
+              2
+            ]
+          },
+          {
+            "shape": "map",
+            "keys": [
+              [
+                "string",
+                ""
+              ]
+            ],
+            "values": [
+              {
+                "shape": "map",
+                "keys": [
+                  [
+                    "string",
+                    "b"
+                  ]
+                ],
+                "values": [
+                  1
+                ]
+              }
+            ]
+          },
+          {
+            "shape": "map",
+            "keys": [
+              [
+                "string",
+                ""
+              ]
+            ],
+            "values": [
+              3
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "numeric_sparse",
+      "initial": {},
+      "writes": [
+        [
+          "items.2",
+          "two"
+        ],
+        [
+          "items.0",
+          "zero"
+        ],
+        [
+          "items.1",
+          "one"
+        ],
+        [
+          "items.01",
+          "leading"
+        ],
+        [
+          "items.-1",
+          "negative"
+        ],
+        [
+          "items.+1",
+          "plus"
+        ]
+      ],
+      "expected": {
+        "shape": "map",
+        "keys": [
+          [
+            "string",
+            "items"
+          ]
+        ],
+        "values": [
+          {
+            "shape": "map",
+            "keys": [
+              [
+                "int",
+                2
+              ],
+              [
+                "int",
+                0
+              ],
+              [
+                "int",
+                1
+              ],
+              [
+                "string",
+                "01"
+              ],
+              [
+                "int",
+                -1
+              ],
+              [
+                "string",
+                "+1"
+              ]
+            ],
+            "values": [
+              "two",
+              "zero",
+              "one",
+              "leading",
+              "negative",
+              "plus"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "root_numeric_list",
+      "initial": {},
+      "writes": [
+        [
+          "0",
+          "zero"
+        ],
+        [
+          "1",
+          "one"
+        ]
+      ],
+      "expected": {
+        "shape": "list",
+        "keys": [
+          [
+            "int",
+            0
+          ],
+          [
+            "int",
+            1
+          ]
+        ],
+        "values": [
+          "zero",
+          "one"
+        ]
+      }
+    },
+    {
+      "name": "root_numeric_sparse",
+      "initial": {},
+      "writes": [
+        [
+          "2",
+          "two"
+        ],
+        [
+          "0",
+          "zero"
+        ],
+        [
+          "1",
+          "one"
+        ]
+      ],
+      "expected": {
+        "shape": "map",
+        "keys": [
+          [
+            "int",
+            2
+          ],
+          [
+            "int",
+            0
+          ],
+          [
+            "int",
+            1
+          ]
+        ],
+        "values": [
+          "two",
+          "zero",
+          "one"
+        ]
+      }
+    },
+    {
+      "name": "scalar_replace",
+      "initial": {
+        "nil": null,
+        "node": 7
+      },
+      "writes": [
+        [
+          "node.x",
+          1
+        ],
+        [
+          "nil.0",
+          2
+        ],
+        [
+          "node",
+          {
+            "whole": 9
+          }
+        ]
+      ],
+      "expected": {
+        "shape": "map",
+        "keys": [
+          [
+            "string",
+            "nil"
+          ],
+          [
+            "string",
+            "node"
+          ]
+        ],
+        "values": [
+          {
+            "shape": "list",
+            "keys": [
+              [
+                "int",
+                0
+              ]
+            ],
+            "values": [
+              2
+            ]
+          },
+          {
+            "shape": "map",
+            "keys": [
+              [
+                "string",
+                "whole"
+              ]
+            ],
+            "values": [
+              9
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "literal_and_order",
+      "initial": {
+        "a": {
+          "b": "nested"
+        },
+        "a.b": "literal",
+        "first": 1,
+        "second": 2
+      },
+      "writes": [
+        [
+          "a.b",
+          "updated"
+        ],
+        [
+          "second",
+          20
+        ],
+        [
+          "third",
+          3
+        ],
+        [
+          "first",
+          10
+        ]
+      ],
+      "expected": {
+        "shape": "map",
+        "keys": [
+          [
+            "string",
+            "a"
+          ],
+          [
+            "string",
+            "a.b"
+          ],
+          [
+            "string",
+            "first"
+          ],
+          [
+            "string",
+            "second"
+          ],
+          [
+            "string",
+            "third"
+          ]
+        ],
+        "values": [
+          {
+            "shape": "map",
+            "keys": [
+              [
+                "string",
+                "b"
+              ]
+            ],
+            "values": [
+              "updated"
+            ]
+          },
+          "literal",
+          10,
+          20,
+          3
+        ]
+      }
+    },
+    {
+      "name": "nested_mixed",
+      "initial": {
+        "mix": [
+          10,
+          20
+        ]
+      },
+      "writes": [
+        [
+          "mix.4",
+          40
+        ],
+        [
+          "mix.1",
+          21
+        ],
+        [
+          "mix.text",
+          9
+        ],
+        [
+          "mix.3",
+          30
+        ]
+      ],
+      "expected": {
+        "shape": "map",
+        "keys": [
+          [
+            "string",
+            "mix"
+          ]
+        ],
+        "values": [
+          {
+            "shape": "map",
+            "keys": [
+              [
+                "int",
+                0
+              ],
+              [
+                "int",
+                1
+              ],
+              [
+                "int",
+                4
+              ],
+              [
+                "string",
+                "text"
+              ],
+              [
+                "int",
+                3
+              ]
+            ],
+            "values": [
+              10,
+              21,
+              40,
+              9,
+              30
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "batch": {
+    "initial": {
+      "a": 1
+    },
+    "writes": [
+      [
+        "z",
+        1
+      ],
+      [
+        "b",
+        2
+      ],
+      [
+        "a",
+        3
+      ],
+      [
+        "z",
+        4
+      ]
+    ],
+    "expected": {
+      "shape": "map",
+      "keys": [
+        [
+          "string",
+          "a"
+        ],
+        [
+          "string",
+          "z"
+        ],
+        [
+          "string",
+          "b"
+        ]
+      ],
+      "values": [
+        3,
+        4,
+        2
+      ]
+    }
+  }
+}

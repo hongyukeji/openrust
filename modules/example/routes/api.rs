@@ -16,11 +16,8 @@ pub(super) fn register(
 ) -> Routes {
     let routes = routes
         .get("/api/example", controllers::example::show)
-        .name("example.index")
-        .get("/api/example/config-greeting", move || {
-            let repository = repository.clone();
-            async move { controllers::config_reading::show(&repository) }
-        })
+        .name("example.index");
+    let routes = config_greeting_routes(routes, repository)
         .get("/api/example/route-url", controllers::example::route_url);
     let routes = route_context_routes(request_url_routes(routes))
         .get(
@@ -109,6 +106,24 @@ pub(super) fn register(
     )))]
     let _ = capabilities.database;
     routes
+}
+
+fn config_greeting_routes(
+    routes: Routes,
+    repository: openrust::config::repository::ConfigRepository,
+) -> Routes {
+    routes
+        .get("/api/example/config-greeting", {
+            let repository = repository.clone();
+            move || {
+                let repository = repository.clone();
+                async move { controllers::config_reading::show(&repository) }
+            }
+        })
+        .post("/api/example/config-greeting/review", move || {
+            let repository = repository.clone();
+            async move { controllers::config_reading::review(&repository) }
+        })
 }
 
 fn message_bag_routes(routes: Routes) -> Routes {

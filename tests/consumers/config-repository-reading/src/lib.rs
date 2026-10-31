@@ -19,6 +19,12 @@ pub fn public_fields(repository: &ConfigRepository) -> Result<Vec<(String, Value
         .get_many_with_defaults(&[("app.name", json!("应用")), ("app.locale", json!("zh_CN"))])
 }
 
+/// 只写入 fixture 自有的固定展示名称。
+pub fn review_display_name(repository: &ConfigRepository) -> openrust::Result<String> {
+    repository.set("app.name", json!("已复核应用"))?;
+    public_display_name(repository).map_err(Into::into)
+}
+
 /// 生成应用可显式安装的公开 Provider fixture；最终校验读取全部 boot 覆盖后的配置。
 pub struct ReadingProvider;
 
@@ -28,19 +34,32 @@ impl ServiceProvider for ReadingProvider {
             let repository = app.config_repository();
             let request_repository = repository.clone();
             app.routes(move |routes| {
-                routes.get("/api/config-reading", {
-                    let repository = request_repository.clone();
-                    move || {
-                        let repository = repository.clone();
-                        async move {
-                            let name = public_display_name(&repository)?;
-                            let locale = repository.get_or("app.locale", json!("zh_CN"))?;
-                            Ok::<_, openrust::Error>(openrust::http::Json(
-                                json!({"name": name, "locale": locale}),
-                            ))
+                routes
+                    .get("/api/config-reading", {
+                        let repository = request_repository.clone();
+                        move || {
+                            let repository = repository.clone();
+                            async move {
+                                let name = public_display_name(&repository)?;
+                                let locale = repository.get_or("app.locale", json!("zh_CN"))?;
+                                Ok::<_, openrust::Error>(openrust::http::Json(
+                                    json!({"name": name, "locale": locale}),
+                                ))
+                            }
                         }
-                    }
-                })
+                    })
+                    .post("/api/config-reading/review", {
+                        let repository = request_repository.clone();
+                        move || {
+                            let repository = repository.clone();
+                            async move {
+                                let name = review_display_name(&repository)?;
+                                Ok::<_, openrust::Error>(openrust::http::Json(
+                                    json!({"name": name}),
+                                ))
+                            }
+                        }
+                    })
             })?;
             app.validate_at_finalize(move || {
                 Box::pin(async move {

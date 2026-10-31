@@ -314,6 +314,23 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
             "message": "ok",
             "data": {"name": "configured-application"}
         }))?;
+    let startup_name = app.app()?.config().app.name.clone();
+    app.app()?
+        .config_repository()
+        .set("app.name", serde_json::json!("运行期名称"))?;
+    assert_eq!(
+        app.app()?.section::<serde_json::Value>("app")?["name"],
+        "运行期名称"
+    );
+    assert_eq!(app.app()?.config().app.name, startup_name);
+    app.request(Request::get("/api").body(Body::empty())?)
+        .await?
+        .assert_json(&serde_json::json!({
+            "success": true,
+            "code": "ok",
+            "message": "ok",
+            "data": {"name": "configured-application"}
+        }))?;
     let health = Request::builder().uri("/health").body(Body::empty())?;
     app.request(health).await?.assert_status(StatusCode::OK)?;
     let page = app

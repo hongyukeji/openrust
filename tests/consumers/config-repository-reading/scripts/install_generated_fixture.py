@@ -58,6 +58,17 @@ async fn generated_application_installs_config_reading_provider()
     response.assert_status(StatusCode::OK)?;
     let body: serde_json::Value = serde_json::from_slice(response.body())?;
     assert_eq!(body["data"], serde_json::json!({{"name": "generated-config-reader", "locale": "zh_CN"}}));
+    let startup_name = app.app()?.config().app.name.clone();
+    let write = app.request(Request::post("/api/config-reading/review").body(Body::empty())?).await?;
+    write.assert_status(StatusCode::OK)?;
+    let write_body: serde_json::Value = serde_json::from_slice(write.body())?;
+    assert_eq!(write_body["data"], serde_json::json!({{"name": "已复核应用"}}));
+    let response = app.request(Request::get("/api/config-reading").body(Body::empty())?).await?;
+    response.assert_status(StatusCode::OK)?;
+    let body: serde_json::Value = serde_json::from_slice(response.body())?;
+    assert_eq!(body["data"], serde_json::json!({{"name": "已复核应用", "locale": "zh_CN"}}));
+    assert_eq!(app.app()?.config_repository().get("app.name")?, Some(serde_json::json!("已复核应用")));
+    assert_eq!(app.app()?.config().app.name, startup_name);
     app.shutdown(openrust::tokio::time::Instant::now() + Duration::from_secs(5)).await?;
     Ok(())
 }}

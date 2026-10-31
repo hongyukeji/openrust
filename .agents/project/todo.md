@@ -418,6 +418,24 @@ H新增实际取证：`/tmp/openrust-c04d10h-matcher/probe.output.jsonl`35案真
 - 审计依据 `/tmp/openrust-test-entry-pilot-audit.md`；真实计时、删并理由、保留隔离、门禁及资源写入本节/测试记录后限定提交，本试点已验收，完整范围及计时限制见testing。
 - 本地免费执行器只读目录查询失败：默认49374端口被占，显式连接亦无兼容V2 health（502）；未改端口/服务/系统配置，按当前可用能力回退 `gpt-6-sol` medium执行此局部已定任务。全项目缓存50GB软/100GB硬、磁盘10%/5%，共享main缓存保留。
 
+## R2-R01 核心配置运行期原始写入（限定验收完成，本地提交见Git）
+
+- 契约为ADR-086 R2-R01；ADR-080区分可信内存set与部署/管理员Settings边界，不启动动态平台或signed。前置H `3065be5`、T01 `b7afcfe`，本簇main冻结HEAD `f8931f5`；期间SMS限定文档提交不属于本簇源码。
+- 同一仓储有序set/set_many、raw/Figment成对原子发布、Register/Boot/Frozen写入、启动schema屏障及App/Provider共享句柄已实现；App.section live，typed配置/既解析资源保持启动快照。默认/批量/稀疏混合/失败与并发回归及唯一模块、consumer、模板同步交付，无新依赖/manifest/lock变化。
+- core owner `/root/config_runtime_core`（gpt-6-sol/high）四文件实现与首批39+1+39通过；caller owner `/root/config_runtime_callers`（gpt-6-sol/medium）完成模块/consumer/模板及stage2门禁，现仅后继只读Spec；services owner `/root/config_runtime_services`（gpt-6-sol/medium）完成stage3，现独占本簇精确package产物回收。root协调contract/共享文档/索引/限定提交，terra独审全部高风险改动及驱动修复。免费本地接口不可用事实沿T01记录，不重复派发或建新target。
+- stage2最终14命令通过：fmt、模块exact1、CLI exact1、consumer4、双严格Clippy、双workspace845/1632（0失败、34/108 ignored）、双严格docs、no-default、MSRV1.97两组及deny。root已复核15源码SHA与14日志SHA/退出码；App布尔断言及caller两处函数长度lint均修复并保留原失败，不放宽断言。
+- stage3通过：fresh plain7、公开fixture exact1、MySQL8.4.13 auth2，无skip/ignored；root双进程GET默认→POST固定业务键→GET更新，第二进程恢复默认；generated plain同样真实TCP。三进程SIGINT/join/exit0、两端口释放，MySQL同容器端点前后版本/56个TestDatabase型库集合一致，不清旧库、不将旧库归本任务。
+- 证据：`/tmp/openrust-config-runtime-core/verify-stage1/result.json`、`/tmp/openrust-config-runtime-verification/stage2/STAGE2-RESULT.json`、`/tmp/openrust-config-runtime-services/STAGE3-RESULT.json`（SHA `38fbf8b6c457f8c72b5fa1829d59514f15c9bf765cb44b10dc0f5adf20109019`）。root另核565输入、13命令及2TCP日志SHA、PID不存在与端口空闲，回执 `ROOT-VERIFY.json`；PHP固定探针exit0且45097字节输出与golden逐字一致。
+- 资源：15个已登记target约37.4008→38.2540GB，磁盘余10.341%，未触50GB软/100GB硬及磁盘10%/5%；现仅回收生成plain/mysql/mysql-migration精确path packageID产物，禁止全target清理。两处历史约10.6GB缓存仍缺完整退役归属，未删除；生成源码<1MB可保留作为本簇复跑证据。不得将已登记小计称为无遗漏项目总量。
+- 收尾：三个生成包产物按实际归属预检/dry-run后回收526163968B，Cargo会忽略path限定，故不能仅凭pkgid声称隔离；root复核49个删除路径、2109个保护项SHA，源码及主server/CLI/框架/consumer未变，`CLEANUP.json`及`ROOT-CLEANUP-VERIFY.json`留证。未全清target，两处未知历史缓存未碰；生成源码<1MB由root保留供本簇最终复核，后继交接再次评估。全部适用门禁通过后限定本地提交；完整Config、来源初始键序、PHP对象/Closure/资源表示与signed仍开放，常规MySQL结果不关闭发布全后端矩阵。未推送/发布/tag。
+
+### R2 后继：配置来源初始顺序修复（待领取）
+
+- 当前 `new(Figment)` 的输入已排序，R2-R01不能恢复此前丢失的来源顺序；本项保持未实现，不能用运行期set测试关闭完整Config对应。
+- 从 `src/config/mod.rs::ConfigLoader::figment` 形成投影之前审计默认值、文件、环境及Provider合并来源，先固定Laravel相应合并/覆盖顺序实证，再收敛同一仓储的有序构造输入；保留现来源metadata、profile和脱敏错误，不建立第二可变配置源。
+- 验证来源首次插入序、覆盖位置、数字/混合键及启动全生命周期，并同步唯一模块、公开consumer、生成应用与文档；PHP对象/Closure/资源表示差异另按分类规则保留，不用本项冒充全部类型等价。
+- 只读候选Spec已取得 `/tmp/openrust-config-source-order-spec.md`，未实现/未验收；领取时按现入口及Rust API便利性收敛，不机械新增多组 `_sources` 方法。R2-R01限定交付后按最新依赖排期，不将本项虚构为URL签名算法的硬前置。
+
 ## 发布前全后端兼容性验收
 
 日常功能簇与数据库型生成默认真实MySQL8.4；后端专属SQL/驱动/故障或明确方言/迁移/锁风险仍当场必要定向，规则见[当前数据库运行政策](memory/testing.md#当前数据库运行政策)。已在途PG自然结束清理，未开始的常规PG阶段转本节，不删除支持或历史证据。

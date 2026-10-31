@@ -7,3 +7,8 @@ pub(crate) fn show(repository: &ConfigRepository) -> openrust::Result<Json<serde
     let greeting = crate::modules::example::services::config_reading::greeting(repository)?;
     Ok(Json(serde_json::json!({"greeting": greeting})))
 }
+
+pub(crate) fn review(repository: &ConfigRepository) -> openrust::Result<Json<serde_json::Value>> {
+    let greeting = crate::modules::example::services::config_reading::review(repository)?;
+    Ok(Json(serde_json::json!({"greeting": greeting})))
+}

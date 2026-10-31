@@ -8,6 +8,23 @@
 - 已运行PG命令自然结束并完成自有资源清理；未开始的常规PG阶段不再安排，不停删共享PG服务、测试或feature。历史双库证据原样保留，以下历史记录不自动成为新发布范围通过。
 - CI常规数据库job为MySQL；手动`database_scope=release-backends`保留原PG18集成子矩阵，不代表完整发布已验收。后端专属例外按具体风险定向执行并留证；发布积压以[todo](../todo.md#发布前全后端兼容性验收)为准。
 
+<a id="r2-r01-config-runtime"></a>
+
+## R2-R01 配置运行期原始写入（限定验收与资源收尾通过，提交见Git）
+
+范围为同一 `ConfigRepository` 的有序 `set/set_many`、原始值与类型化投影原子发布、启动校验屏障及 App/Provider 共享句柄；`App::section` 读取当前仓储，既解析配置与资源保留启动快照。不包含持久设置、跨节点传播、资源自动重建、完整Config或signed。Figment入口此前丢失的来源初始键序保持后继缺口。
+
+- 固定Laravel `d52c3b3129e4c8e213c97cdc68f94b0b7d27f181`；root实际重跑PHP8.5探针exit0、stderr为空、45097字节输出与golden逐字一致，SHA `aa358ee3b1bc95b52becd117242a72618af5b34a7e9e1c326af0a581d990a85d`，回执 `/tmp/openrust-config-runtime-core/php-final.json`。Rust fixture对应七案例及批量结果，静态对应不是单独的运行通过证明。
+- 首批 `/tmp/openrust-config-runtime-core/verify-stage1/result.json`：fmt、默认仓储39项、App精确1项、无默认仓储39项通过；root复核日志实际数量和四源码SHA。随后App测试仅等价修正布尔断言，caller只提取路由及测试私有步骤，均有定向回归和不同模型窄复审。core生产仓储SHA `923373513d6998357671a798b8972dbabef584985f6a253e93167178d1db94ca` 未变。
+- stage2目录 `/tmp/openrust-config-runtime-verification/stage2`：模块exact1、CLI快照exact1、consumer4项通过；默认/全特性严格Clippy均通过。双workspace实际845/1632项通过、0失败、34/108项ignored，root复核30/54组汇总；ignored不算真实服务。双严格docs、no-default、Rust1.97两组检查及deny亦通过。最终索引 `stage2/STAGE2-RESULT.json` 实际含14条最终有效命令，root逐项复核15输入SHA、14日志SHA及exit0；首批定向证据另列，不把条目数误写为16。原Clippy布尔断言及两处函数长度失败日志保留，不追写成首轮通过。
+- core与caller独审及提取窄复审在 `/tmp/openrust-config-runtime-core/independent-review.md`、`caller-extraction-review.md` 和 `/tmp/openrust-config-runtime-callers-independent-review.md`。驱动四问题修复后，经不同模型稳定快照复审，stage3实际通过；不以旧H/T01结果代替本簇验收。两处历史缓存缺完整退役证据，未清理，活跃main缓存继续复用。
+
+- stage3 `/tmp/openrust-config-runtime-services/STAGE3-RESULT.json` SHA `38fbf8b6c457f8c72b5fa1829d59514f15c9bf765cb44b10dc0f5adf20109019`：fresh plain7项、公开Provider fixture精确1项、MySQL8.4.13认证2项通过且无skip/ignored；同一固定Docker容器的既有凭据仅进程内注入，同端点版本与56个TestDatabase型库名前后集合一致，不归责/删除原有库。root双进程及generated plain真实GET→固定POST→GET更新通过，root第二进程默认值验证隔离；PID90821/90834/91012均正常SIGINT/join/exit0，43187/43188已释放。
+- root独立核565非Markdown输入、13命令日志SHA/exit/前后输入digest、2TCP日志SHA、PID不存在与端口空闲，回执 `ROOT-VERIFY.json`。MySQL日志仅保留闭集测试事件，raw stream SHA不等同可从脱敏日志重算，root复核的是保存日志SHA。首个root只读结果读取器将TCP build误按test读取skip字段而KeyError，按显式命令类别修正后通过，未重跑服务或放宽测试判断。
+- stage3复用main target约37.4008→38.2540GB，新增853.2MB、磁盘余10.341%，不新建target；源码及HEAD无漂移。生成plain/mysql及migration包已按实际归属核对回收，生成源目录<1MB暂留本簇复跑证据；不把历史未明归属缓存当作可删目标，不全清活跃main缓存。该簇是纯内存配置变化，日常真实MySQL按当前政策，PG/其余后端发布矩阵仍未关闭。
+
+- 资源收尾 `/tmp/openrust-config-runtime-services/CLEANUP.json` SHA `aa64721e89ca9223896ace5885257fd345fdf5484e39c2a8954a8879487387f7`：三个生成包取得path package ID后dry-run；Cargo明确忽略path/version限定，因此另核同名产物均本任务归属和创建范围，实际仅49路径删除。main target由22617235456→22091071488B，实测回收526163968B；root复核2109保护项SHA、实际日志SHA及删除路径不存在，回执 `ROOT-CLEANUP-VERIFY.json`。565源码、主manifest/lock、server/CLI及框架/consumer产物不变；磁盘可用103264829440B，未触软线。保留生成源码<1MB及全部证据，由root在下次交接复核退役，不删除未知历史缓存。
+
 <a id="c04-d10-d-命名路由重定向当前验收中未提交"></a>
 
 ## C04-D10-D 命名路由重定向（限定子范围已验收，提交见Git）

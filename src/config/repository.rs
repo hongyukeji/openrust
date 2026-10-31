@@ -170,6 +170,7 @@ enum PackageOperation {
 
 struct State {
     figment: Figment,
+    raw: Option<Value>,
     sections: BTreeMap<&'static str, Section>,
     operations: Vec<PackageOperation>,
     phase: Phase,
@@ -204,6 +205,7 @@ impl ConfigRepository {
         Self {
             inner: Arc::new(Mutex::new(State {
                 figment: sources,
+                raw: None,
                 sections: BTreeMap::new(),
                 operations: Vec::new(),
                 phase: Phase::Register,
@@ -311,11 +313,12 @@ impl ConfigRepository {
 
     /// 补齐 typed 默认值后重放包操作并校验；成功后封闭注册并进入 boot。
     pub fn validate_base(&mut self) -> Result<()> {
-        let (mut candidate, sections, operations, revision) = {
+        let (mut candidate, raw, sections, operations, revision) = {
             let state = self.lock();
             require_phase(state.phase, Phase::Register)?;
             (
                 state.figment.clone(),
+                state.raw.clone(),
                 state.sections.clone(),
                 state.operations.clone(),
                 state.revision,
@@ -355,7 +358,21 @@ impl ConfigRepository {
             candidate = replace_section(&candidate, key, defaults, original.as_ref())?;
         }
         validate_candidate(&candidate, &sections)?;
-        self.publish(candidate, revision, Phase::Register, Phase::Boot, true)
+        let candidate_raw = candidate
+            .extract::<Value>()
+            .map_err(|error| Error::Config(safe_source_error(error, "configuration")))?;
+        let candidate_raw = match raw.as_ref() {
+            Some(previous) => reorder_like(previous, candidate_raw),
+            None => candidate_raw,
+        };
+        self.publish(
+            candidate,
+            Some(candidate_raw),
+            revision,
+            Phase::Register,
+            Phase::Boot,
+            true,
+        )
     }
 
     /// 从当前已发布视图提取区段；包括未注册的应用自有区段。
@@ -429,7 +446,13 @@ impl ConfigRepository {
     ///
     /// 来源或反序列化失败时整体返回安全错误，不发布部分结果。
     pub fn all(&self) -> std::result::Result<Value, ConfigError> {
-        self.snapshot()
+        let state = self.lock();
+        if let Some(raw) = &state.raw {
+            return Ok(raw.clone());
+        }
+        let figment = state.figment.clone();
+        drop(state);
+        figment
             .extract()
             .map_err(|error| safe_source_error(error, "configuration"))
     }
@@ -444,16 +467,73 @@ impl ConfigRepository {
         self.lock().version
     }
 
+    /// 按 Laravel `Arr::set` 的点路径写入一项原始配置。
+    ///
+    /// 可信应用代码可在注册、启动及运行期调用；运行期不会重新校验启动 schema，
+    /// 已解析的服务也不会自动重建。失败时原始值、类型化投影及版本均不改变。
+    pub fn set(&self, key: &str, value: Value) -> Result<()> {
+        self.set_many([(key, value)])
+    }
+
+    /// 按迭代顺序写入多项配置，并以一个版本原子发布。
+    ///
+    /// 空批次不改变版本；重复键保留原位置并以最后写入值为准。
+    pub fn set_many<K>(&self, entries: impl IntoIterator<Item = (K, Value)>) -> Result<()>
+    where
+        K: Into<String>,
+    {
+        let entries: Vec<(String, Value)> = entries
+            .into_iter()
+            .map(|(key, value)| (key.into(), value))
+            .collect();
+        if entries.is_empty() {
+            return Ok(());
+        }
+        let (base, raw, revision, phase) = {
+            let state = self.lock();
+            (
+                state.figment.clone(),
+                state.raw.clone(),
+                state.revision,
+                state.phase,
+            )
+        };
+        let mut raw = match raw {
+            Some(raw) => raw,
+            None => base
+                .extract::<Value>()
+                .map_err(|error| Error::Config(safe_source_error(error, "configuration")))?,
+        };
+        let mut touched = Vec::new();
+        for (key, value) in entries {
+            let head = key.split('.').next().unwrap_or("");
+            if !touched.iter().any(|previous| previous == head) {
+                touched.push(head.to_owned());
+            }
+            set_dot_value(&mut raw, &key, value);
+        }
+        let mut candidate = base;
+        for key in touched {
+            let value = read_entry(&raw, &key)
+                .cloned()
+                .ok_or_else(|| invalid("configuration", "raw projection failed"))?;
+            let original = candidate.find_value(&key).ok();
+            candidate = replace_section(&candidate, &key, value, original.as_ref())?;
+        }
+        self.publish(candidate, Some(raw), revision, phase, phase, true)
+    }
+
     /// 在 boot 时点递归覆盖模块区段；数组按索引替换并保留旧尾。
     ///
     /// 校验整个已注册配置集合后才发布；错误不改变旧视图或版本。
     pub fn overlay(&mut self, section: &str, value: Value) -> Result<()> {
         validate_key(section)?;
-        let (base, sections, revision) = {
+        let (base, raw, sections, revision) = {
             let state = self.lock();
             require_phase(state.phase, Phase::Boot)?;
             (
                 state.figment.clone(),
+                state.raw.clone(),
                 state.sections.clone(),
                 state.revision,
             )
@@ -464,15 +544,33 @@ impl ConfigRepository {
             Err(error) => return Err(Error::Config(safe_source_error(error, section))),
         };
         let original = base.find_value(section).ok();
+        let mut raw = match raw {
+            Some(raw) => raw,
+            None => base
+                .extract::<Value>()
+                .map_err(|error| Error::Config(safe_source_error(error, "configuration")))?,
+        };
+        let mut raw_existing = read_dot_value(&raw, section)
+            .cloned()
+            .unwrap_or(Value::Null);
+        replace_recursive(&mut raw_existing, value.clone(), section)?;
         replace_recursive(&mut existing, value, section)?;
         let candidate = replace_section(&base, section, existing, original.as_ref())?;
         validate_candidate(&candidate, &sections)?;
-        self.publish(candidate, revision, Phase::Boot, Phase::Boot, true)
+        set_dot_value(&mut raw, section, raw_existing);
+        self.publish(
+            candidate,
+            Some(raw),
+            revision,
+            Phase::Boot,
+            Phase::Boot,
+            true,
+        )
     }
 
     /// 最终校验并冻结；重复冻结幂等，之后拒绝注册或覆盖。
     pub fn freeze(&mut self) -> Result<()> {
-        let (candidate, sections, revision) = {
+        let (candidate, raw, sections, revision) = {
             let state = self.lock();
             if state.phase == Phase::Frozen {
                 return Ok(());
@@ -480,12 +578,13 @@ impl ConfigRepository {
             require_phase(state.phase, Phase::Boot)?;
             (
                 state.figment.clone(),
+                state.raw.clone(),
                 state.sections.clone(),
                 state.revision,
             )
         };
         validate_candidate(&candidate, &sections)?;
-        self.publish(candidate, revision, Phase::Boot, Phase::Frozen, false)
+        self.publish(candidate, raw, revision, Phase::Boot, Phase::Frozen, false)
     }
 
     fn lock(&self) -> MutexGuard<'_, State> {
@@ -497,6 +596,7 @@ impl ConfigRepository {
     fn publish(
         &self,
         candidate: Figment,
+        raw: Option<Value>,
         revision: u64,
         before: Phase,
         after: Phase,
@@ -516,6 +616,7 @@ impl ConfigRepository {
             state.version
         };
         state.figment = candidate;
+        state.raw = raw;
         state.phase = after;
         state.version = version;
         state.revision = state.revision.wrapping_add(1);
@@ -550,12 +651,89 @@ fn read_entry<'a>(value: &'a Value, key: &str) -> Option<&'a Value> {
     }
 }
 
+fn read_dot_value<'a>(values: &'a Value, key: &str) -> Option<&'a Value> {
+    key.split('.')
+        .try_fold(values, |current, segment| read_entry(current, segment))
+}
+
 fn insert_read(result: &mut Vec<(String, Value)>, key: &str, value: Value) {
     if let Some((_, previous)) = result.iter_mut().find(|(existing, _)| existing == key) {
         *previous = value;
     } else {
         result.push((key.to_owned(), value));
     }
+}
+
+// Figment 的字典按键排序；启动默认值发布时只采纳其值，不丢弃已经写入的原始键序。
+fn reorder_like(previous: &Value, candidate: Value) -> Value {
+    match (previous, candidate) {
+        (Value::Object(old), Value::Object(mut current)) => {
+            let mut ordered = serde_json::Map::new();
+            for (key, before) in old {
+                if let Some(after) = current.shift_remove(key) {
+                    ordered.insert(key.clone(), reorder_like(before, after));
+                }
+            }
+            ordered.extend(current);
+            Value::Object(ordered)
+        }
+        (Value::Array(old), Value::Array(current)) => Value::Array(
+            current
+                .into_iter()
+                .enumerate()
+                .map(|(index, after)| match old.get(index) {
+                    Some(before) => reorder_like(before, after),
+                    None => after,
+                })
+                .collect(),
+        ),
+        (Value::Array(old), Value::Object(mut current)) => {
+            let mut entries = Vec::with_capacity(current.len());
+            for (index, before) in old.iter().enumerate() {
+                let key = index.to_string();
+                if let Some(after) = current.shift_remove(&key) {
+                    entries.push((key, reorder_like(before, after)));
+                }
+            }
+            entries.extend(current);
+            php_value(entries, true)
+        }
+        (_, current) => current,
+    }
+}
+
+// Laravel 写入只将完整 key 拆段；即使根上已有字面 "a.b"，也写入 a -> b。
+fn set_dot_value(current: &mut Value, key: &str, value: Value) {
+    let parts: Vec<_> = key.split('.').collect();
+    let Some((leaf, ancestors)) = parts.split_last() else {
+        return;
+    };
+    let mut level = std::mem::take(current);
+    let mut parents = Vec::with_capacity(ancestors.len());
+    for head in ancestors {
+        let child = read_entry(&level, head)
+            .filter(|item| item.is_object() || item.is_array())
+            .cloned()
+            .unwrap_or_else(|| Value::Array(Vec::new()));
+        parents.push((*head, level));
+        level = child;
+    }
+    set_php_entry(&mut level, leaf, value);
+    for (head, mut parent) in parents.into_iter().rev() {
+        set_php_entry(&mut parent, head, level);
+        level = parent;
+    }
+    *current = level;
+}
+
+fn set_php_entry(current: &mut Value, key: &str, value: Value) {
+    let mut entries = php_entries(std::mem::take(current));
+    if let Some((_, previous)) = entries.iter_mut().find(|(name, _)| name == key) {
+        *previous = value;
+    } else {
+        entries.push((key.to_owned(), value));
+    }
+    *current = php_value(entries, true);
 }
 
 // 保留 Figment 的原始 tag 与 metadata，仅将已解析的目标 section 发布到 global。
@@ -1221,6 +1399,7 @@ mod tests {
             .find_metadata("demo.name")
             .map(|m| m.name.clone());
         repository.overlay("demo", json!({"count": 42}))?;
+        repository.set("demo.count", json!(43))?;
         assert_eq!(
             before,
             repository
@@ -1602,6 +1781,13 @@ mod tests {
             repository
                 .get_many_with_defaults(&[("valid", Value::Null)])
                 .err(),
+            repository
+                .set("valid", json!("new"))
+                .err()
+                .map(|error| match error {
+                    Error::Config(config) => config,
+                    other => ConfigError::Invalid(other.to_string()),
+                }),
         ];
         for error in errors {
             assert!(error.is_some());
@@ -1778,6 +1964,261 @@ mod tests {
         writer
             .join()
             .map_err(|_| invalid("test", "writer failed"))??;
+        Ok(())
+    }
+
+    fn describe_php_shape(value: &Value) -> Value {
+        match value {
+            Value::Array(items) => json!({
+                "shape": "list",
+                "keys": (0..items.len()).map(|index| json!(["int", index])).collect::<Vec<_>>(),
+                "values": items.iter().map(describe_php_shape).collect::<Vec<_>>()
+            }),
+            Value::Object(items) => json!({
+                "shape": "map",
+                "keys": items.keys().map(|key| match integer_key(key) {
+                    Some(number) => json!(["int", number]),
+                    None => json!(["string", key]),
+                }).collect::<Vec<_>>(),
+                "values": items.values().map(describe_php_shape).collect::<Vec<_>>()
+            }),
+            other => other.clone(),
+        }
+    }
+
+    // 固定 PHP Repository/Arr 的最终值、键序与数组形态，防止 Figment 字典排序掩盖回归。
+    #[test]
+    fn runtime_set_matches_fixed_php_shapes_and_key_order() -> Result<()> {
+        let fixture: Value =
+            serde_json::from_str(include_str!("../../tests/fixtures/config_runtime_set.json"))
+                .map_err(|_| invalid("test", "invalid PHP fixture"))?;
+        let cases = fixture["cases"]
+            .as_array()
+            .ok_or_else(|| invalid("test", "missing PHP cases"))?;
+        for case in cases {
+            let initial = case["initial"].clone();
+            let repository = if initial.as_object().is_some_and(serde_json::Map::is_empty) {
+                ConfigRepository::new(Figment::new())
+            } else {
+                ConfigRepository::new(Figment::from(Serialized::defaults(initial)))
+            };
+            let writes = case["writes"]
+                .as_array()
+                .ok_or_else(|| invalid("test", "missing PHP writes"))?;
+            for write in writes {
+                let key = write[0]
+                    .as_str()
+                    .ok_or_else(|| invalid("test", "invalid PHP write key"))?;
+                repository.set(key, write[1].clone())?;
+            }
+            assert_eq!(
+                describe_php_shape(&repository.all()?),
+                case["expected"],
+                "{}",
+                case["name"]
+            );
+            if case["name"] == "literal_and_order" {
+                assert_eq!(repository.get("a.b")?, Some(json!("literal")));
+                assert_eq!(
+                    repository
+                        .get("a")?
+                        .and_then(|value| value.get("b").cloned()),
+                    Some(json!("updated"))
+                );
+            }
+        }
+        let batch = &fixture["batch"];
+        let repository = ConfigRepository::new(Figment::from(Serialized::defaults(
+            batch["initial"].clone(),
+        )));
+        let writes = batch["writes"]
+            .as_array()
+            .ok_or_else(|| invalid("test", "missing PHP batch"))?
+            .iter()
+            .map(|write| {
+                write[0]
+                    .as_str()
+                    .map(|key| (key.to_owned(), write[1].clone()))
+                    .ok_or_else(|| invalid("test", "invalid PHP batch key"))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        repository.set_many(writes)?;
+        assert_eq!(describe_php_shape(&repository.all()?), batch["expected"]);
+        Ok(())
+    }
+
+    // Register/Boot 写入的稀疏顺序跨默认值发布、覆盖和冻结保持，启动校验仍生效。
+    #[test]
+    fn runtime_set_survives_startup_phases_without_losing_order_or_schema_boundary() -> Result<()> {
+        let mut repository = registered(json!({}))?;
+        repository.set_many([
+            ("sample.2", json!("two")),
+            ("sample.0", json!("zero")),
+            ("sample.1", json!("one")),
+            ("sample.name", json!("named")),
+        ])?;
+        let before = repository.get("sample")?;
+        repository.validate_base()?;
+        assert_eq!(repository.get("sample")?, before);
+        repository.overlay("sample", json!({"name": "boot-name", "extra": true}))?;
+        let sample = repository
+            .get("sample")?
+            .ok_or_else(|| invalid("test", "missing sample"))?;
+        let keys = sample
+            .as_object()
+            .ok_or_else(|| invalid("test", "sample lost sparse shape"))?
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>();
+        assert_eq!(keys, ["2", "0", "1", "name", "extra"]);
+        repository.overlay("demo", json!({"name": "boot"}))?;
+        assert_eq!(repository.get("sample")?, Some(sample.clone()));
+        repository.freeze()?;
+        assert_eq!(repository.get("sample")?, Some(sample));
+        let version = repository.version();
+        repository.set("demo.count", json!("secret-invalid-count"))?;
+        assert_eq!(repository.version(), version + 1);
+        assert_eq!(
+            repository.get("demo.count")?,
+            Some(json!("secret-invalid-count"))
+        );
+        let error = repository
+            .section::<Settings>("demo")
+            .err()
+            .ok_or_else(|| invalid("test", "expected typed decode error"))?;
+        assert!(!error.to_string().contains("secret-invalid-count"));
+
+        let mut invalid_start = registered(json!({}))?;
+        invalid_start.set("demo.count", json!("bad"))?;
+        let version = invalid_start.version();
+        assert!(invalid_start.validate_base().is_err());
+        assert_eq!(invalid_start.version(), version);
+        assert_eq!(invalid_start.get("demo.count")?, Some(json!("bad")));
+
+        let mut numeric_root = ConfigRepository::new(Figment::new());
+        numeric_root.set_many([("0", json!("first")), ("1", json!("second"))])?;
+        let list = numeric_root.all()?;
+        assert!(list.is_array());
+        numeric_root.validate_base()?;
+        numeric_root.freeze()?;
+        assert_eq!(numeric_root.all()?, list);
+        Ok(())
+    }
+
+    // 版本耗尽、旧 revision 与空批次均不能发布部分 raw 或投影。
+    #[test]
+    fn runtime_batch_failure_and_empty_batch_preserve_one_state() -> Result<()> {
+        let repository =
+            ConfigRepository::new(Figment::from(Serialized::defaults(json!({"value": 1}))));
+        let before = repository.all()?;
+        repository.set_many(Vec::<(String, Value)>::new())?;
+        assert_eq!(repository.version(), 0);
+        {
+            let mut state = repository.lock();
+            state.version = u64::MAX;
+        }
+        assert!(
+            repository
+                .set_many([("value", json!(2)), ("other", json!(3))])
+                .is_err()
+        );
+        assert_eq!(repository.all()?, before);
+        assert_eq!(
+            repository
+                .snapshot()
+                .extract_inner::<u32>("value")
+                .map_err(ConfigError::from)?,
+            1
+        );
+        assert_eq!(repository.version(), u64::MAX);
+
+        {
+            let mut state = repository.lock();
+            state.version = 0;
+        }
+        let stale = repository.lock().revision;
+        repository.set("value", json!(4))?;
+        let candidate = repository.snapshot();
+        let raw = repository.all()?;
+        assert!(
+            repository
+                .publish(
+                    candidate,
+                    Some(raw),
+                    stale,
+                    Phase::Register,
+                    Phase::Register,
+                    true
+                )
+                .is_err()
+        );
+        assert_eq!(repository.get("value")?, Some(json!(4)));
+        assert_eq!(repository.version(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn startup_raw_reorder_only_keeps_keys_present_in_candidate() {
+        let previous = json!({"ordered": {"b": 1, "a": 2, "removed": 3}});
+        let candidate = json!({"ordered": {"a": 20, "b": 10, "new": 4}});
+        let result = reorder_like(&previous, candidate);
+        let object = result["ordered"].as_object();
+        assert_eq!(
+            object.map(|items| items.keys().map(String::as_str).collect::<Vec<_>>()),
+            Some(vec!["b", "a", "new"])
+        );
+        assert_eq!(result["ordered"]["a"], 20);
+        assert!(result["ordered"].get("removed").is_none());
+    }
+
+    #[test]
+    fn figment_input_order_limit_is_explicit_before_runtime_writes() -> Result<()> {
+        let repository =
+            ConfigRepository::new(Figment::from(Serialized::defaults(json!({"z": 1, "a": 2}))));
+        let source_order = repository
+            .all()?
+            .as_object()
+            .map(|items| items.keys().cloned().collect::<Vec<_>>())
+            .ok_or_else(|| invalid("test", "missing source map"))?;
+        assert_eq!(source_order, ["a", "z"]);
+        repository.set("tail", json!(3))?;
+        let after = repository
+            .all()?
+            .as_object()
+            .map(|items| items.keys().cloned().collect::<Vec<_>>())
+            .ok_or_else(|| invalid("test", "missing written map"))?;
+        assert_eq!(after, ["a", "z", "tail"]);
+        Ok(())
+    }
+
+    // 批量读取与写入各自只发布一个完整版本；clone 共享服务，旧快照独立。
+    #[test]
+    fn runtime_batch_is_atomic_for_concurrent_readers() -> Result<()> {
+        let repository = ConfigRepository::new(Figment::from(Serialized::defaults(
+            json!({"pair": {"left": 0, "right": 0}}),
+        )));
+        let reader = repository.clone();
+        let old = repository.all()?;
+        let writer = std::thread::spawn(move || -> Result<()> {
+            for value in 1..=64 {
+                repository.set_many([("pair.left", json!(value)), ("pair.right", json!(value))])?;
+                std::thread::yield_now();
+            }
+            Ok(())
+        });
+        for _ in 0..64 {
+            let values = reader.get_many(&["pair.left", "pair.right"])?;
+            assert_eq!(values[0].1, values[1].1);
+            let pair: Value = reader.section("pair")?;
+            assert_eq!(pair["left"], pair["right"]);
+            std::thread::yield_now();
+        }
+        writer
+            .join()
+            .map_err(|_| invalid("test", "writer failed"))??;
+        assert_eq!(old["pair"]["left"], 0);
+        assert_eq!(reader.get("pair.left")?, Some(json!(64)));
+        assert_eq!(reader.version(), 64);
         Ok(())
     }
 }

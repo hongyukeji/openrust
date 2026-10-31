@@ -6,6 +6,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Changed
 
+- 配置仓储增加运行期 `set` 与有序原子 `set_many`，保留点路径、覆盖位置及稀疏/混合数组；App 与 Provider 共享仓储，`App::section` 读取当前版本，已解析配置及服务保留启动快照。唯一模块展示固定业务键跨请求更新，生成应用与公开 consumer 同步接入；写入不持久化、不跨节点传播、不自动重建资源，来源进入 Figment 前已丢失的初始键序仍是后继缺口。
+
 - Session 纯行为扩展测试并入既有 `http_session` 私有模块，保留全部用例与断言；原独立 `http_session_extensions` Cargo 测试入口移除，真实数据库、Redis 和环境子进程入口保持独立。入口减少不等于已证明固定提速。
 
 - 路由按同一最终声明集合派生实际分派与动作 URL 视图，修正原串 domain/URI 碰撞、域左侧合并及声明首匹配；允许方法来自幸存集合，GET/HEAD 的405及合成OPTIONS遵固定上游顺序与头格式。唯一模块与生成 helper 展示草稿概览覆盖、静态先于参数路由；文章静态导出入口提前于资源 show，既有授权与业务断言保留。

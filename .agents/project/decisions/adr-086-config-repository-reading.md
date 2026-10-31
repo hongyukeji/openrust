@@ -1,6 +1,6 @@
-# ADR-086：同一配置仓储的原始读取
+# ADR-086：同一配置仓储的原始读写
 
-状态：限定实现，尚待总控组合验证与接入。
+状态：原始读取已完成main组合验收；R2-R01运行期原始写入已实现并通过限定验收，资源收尾通过，本地提交见Git；完整Config仍未闭合。
 
 ## Spec
 
@@ -25,3 +25,24 @@
 - [Repository](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Config/Repository.php)
 - [Arr](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/src/Illuminate/Collections/Arr.php)
 - [RepositoryTest](https://github.com/laravel/framework/blob/d52c3b3129e4c8e213c97cdc68f94b0b7d27f181/tests/Config/RepositoryTest.php)
+
+
+## R2-R01：核心运行期原始写入
+
+状态：实现及限定行为、工作区门禁、生成/MySQL/真实TCP验收通过；证据见 [测试基线](../memory/testing.md#r2-r01-config-runtime)。来源初始键序及本ADR列明的完整Config缺口继续保留。
+
+1. 固定来源仍为本ADR的Repository/Arr及Config测试；在同一ConfigRepository提供 `set(&self, key: &str, value: Value)` 与按迭代顺序的 `set_many`，沿既有Result/安全错误，不增加依赖、进程全局Facade、第二仓储或管理平台。
+2. 写入按Arr::set逐段处理dot路径，中间scalar/null可替换为数组；尾项整体替换而非递归overlay。空键、空dot段、规范整数、稀疏/混合数组和覆盖原位置须有固定PHP实证；get整键字面优先保持，写入不按literal优先，批量不得BTreeMap重排。
+3. 允许在Register/Boot/Frozen阶段调用核心原始set；freeze继续最终启动校验并封闭注册/boot overlay，原阶段错误保留。启动前set仍在启动时接受已注册schema校验；启动后raw set不套用启动schema拒绝Laravel可存值，typed读取失败按Result脱敏报告。
+4. 同一App各句柄共享，跨App独立；批量先构造完整候选再一次发布，读者只见旧或新。空批次不改版本，非空成功一次递增；来源失败、版本耗尽或并发冲突不发布部分数据。不自动隐藏重试，保留调用边界。
+5. 有序输入及原始值中的键顺序、数组形态不能因Figment字典投影而丢失。若需调整内部表示，权威值与Figment类型化/来源元数据投影必须在同一个State/版本中成对原子发布；不能让原始/类型读取落到两个独立可变配置源，也不能以JSON限制排除可表达的混合或稀疏数组。
+6. App与AppState公开 `config_repository()` 返回同一服务句柄；App.section读取live仓储。Provider/Resolver复用既有句柄，不重建仓储。App.config/figment保留时须明确为启动快照；既解析typed服务、DB/Redis/邮件等资源不因内存set自动重建。
+7. Clone仍为Rust共享服务句柄；独立快照不是Clone，上游PHP对象clone数组复制语义差异明确测试/记录。不增加未经核心来源证实的请求局部配置层；同App后续请求可见核心内存写入。
+8. 本簇不写.env/文件/DB，不跨节点传播、不提供默认管理HTTP、不实现动态Settings资源刷新；ADR-080的部署密钥及管理员白名单/权限/重启政策保持，可信应用代码的内存set与部署管理分责。
+9. 唯一模块沿已有config_reading Provider/服务/路由接线，仅写固定example业务key和常量值，无接受任意key/value的HTTP。验证同App跨请求更新与第二App隔离；生成/公开consumer同步使用同一API，不重做配置系统。
+10. 单元承载dot/批量/数组/顺序与失败边界，真实Provider/App/Resolver验证同句柄、启动校验和旧snapshot/typed服务；模块/生成只验证接线。先固定PHP对应输出，再实际执行适用workspace、生成与真实HTTP验收，不用旧读取证据关闭新set。
+11. PHP对象/Closure/资源与Rust Value的表示差异须明确分类，未实现项保持开放；prepend/push及其他读取快捷方法另列后继，固定Config Repository无内置pull，不凭集合同名方法新增。signed后继才加入key字段/resolver与URL签名，不夹入本簇。
+
+### 来源初始顺序的现存缺口
+
+现有 `ConfigRepository::new(Figment)` 接口接收的 Figment 字典已使用排序映射，无法从该值恢复进入 Figment 前的来源对象插入序。这是现有来源入口的表示缺口，不是 Laravel 行为，也不能据此宣称完整 Config 顺序等价；后继须沿配置加载入口保留来源顺序。本簇必须保留运行期写入的有序值，并验证 Register 写入经过启动默认值、Boot overlay 和 freeze 后仍保持有效键序及稀疏/混合数组形态。同步类型化投影不得复活已替换或删除的旧值，也不得掩盖来源错误。

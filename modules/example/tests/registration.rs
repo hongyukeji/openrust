@@ -169,6 +169,26 @@ fn production_sources(semantic: bool) -> figment::Figment {
         })))
 }
 
+async fn assert_initial_config_greeting(
+    app: &mut openrust::testing::TestApp<crate::bootstrap::Server>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let response = app
+        .request(
+            Request::get("/api/example/config-greeting?key=security.encryption.keys")
+                .header("host", "localhost")
+                .body(Body::empty())?,
+        )
+        .await?;
+    response.assert_status(StatusCode::OK)?;
+    let body: serde_json::Value = serde_json::from_slice(response.body())?;
+    assert_eq!(
+        body["data"],
+        serde_json::json!({"greeting": "Hello from modules/example"})
+    );
+    assert!(!String::from_utf8_lossy(response.body()).contains("KioqKioq"));
+    Ok(())
+}
+
 #[tokio::test]
 async fn production_config_greeting_reads_only_the_module_business_key()
 -> Result<(), Box<dyn std::error::Error>> {
@@ -195,22 +215,74 @@ async fn production_config_greeting_reads_only_the_module_business_key()
     let mut app = TestApp::<crate::bootstrap::Server>::builder(production_sources(false))
         .build()
         .await?;
-    let response = app
+    let mut other = TestApp::<crate::bootstrap::Server>::builder(production_sources(false))
+        .build()
+        .await?;
+    let startup_greeting = app
+        .app()?
+        .state()
+        .get::<super::services::ExampleMessage>()
+        .ok_or("启动时未解析示例业务服务")?
+        .text()
+        .to_owned();
+    assert_initial_config_greeting(&mut app).await?;
+    let reviewed = app
         .request(
-            Request::get("/api/example/config-greeting?key=security.encryption.keys")
+            Request::post("/api/example/config-greeting/review?key=security.encryption.keys")
                 .header("host", "localhost")
                 .body(Body::empty())?,
         )
         .await?;
-    response.assert_status(StatusCode::OK)?;
-    let body: serde_json::Value = serde_json::from_slice(response.body())?;
+    reviewed.assert_status(StatusCode::OK)?;
+    let reviewed_body: serde_json::Value = serde_json::from_slice(reviewed.body())?;
     assert_eq!(
-        body["data"],
-        serde_json::json!({
-            "greeting": "Hello from modules/example"
-        })
+        reviewed_body["data"],
+        serde_json::json!({"greeting": "示例问候语已复核"})
     );
-    assert!(!String::from_utf8_lossy(response.body()).contains("KioqKioq"));
+    assert_eq!(
+        app.app()?.config_repository().get("example.greeting")?,
+        Some(serde_json::json!("示例问候语已复核"))
+    );
+    assert_eq!(
+        app.app()?
+            .section::<super::services::ExampleConfig>("example")?
+            .greeting,
+        "示例问候语已复核"
+    );
+    let refreshed = app
+        .request(
+            Request::get("/api/example/config-greeting")
+                .header("host", "localhost")
+                .body(Body::empty())?,
+        )
+        .await?;
+    refreshed.assert_status(StatusCode::OK)?;
+    let refreshed_body: serde_json::Value = serde_json::from_slice(refreshed.body())?;
+    assert_eq!(refreshed_body["data"], reviewed_body["data"]);
+    assert_eq!(
+        app.app()?
+            .state()
+            .get::<super::services::ExampleMessage>()
+            .ok_or("复核后业务服务意外丢失")?
+            .text(),
+        startup_greeting
+    );
+    let independent = other
+        .request(
+            Request::get("/api/example/config-greeting")
+                .header("host", "localhost")
+                .body(Body::empty())?,
+        )
+        .await?;
+    independent.assert_status(StatusCode::OK)?;
+    let independent_body: serde_json::Value = serde_json::from_slice(independent.body())?;
+    assert_eq!(
+        independent_body["data"],
+        serde_json::json!({"greeting": "Hello from modules/example"})
+    );
+    other
+        .shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
     app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
         .await?;
     Ok(())
