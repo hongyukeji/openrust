@@ -1,5 +1,9 @@
 # 测试基线
 
+## R2 四簇 main 组合限定验收
+
+同一main提交整合 R03 `6482a38`、typed `b1f4bf7`、CC `7be446d`、Signed `c77521f`；原main HEAD `1db5ad6`，五父本地提交 `e105dbfc58afc330b50e53b75f0b9e1424fa387a` 已创建。当前已通过默认/全特性严格Clippy及workspace tests：默认907 passed/0 failed/34 ignored，全特性1698 passed/0 failed/108 ignored；ignored不计真实服务。双Clippy/docs/MSRV、no-default、deny与workspace命令、日志和输入树以 `/tmp/openrust-four-family-main-workspace-clippyfix3/receipt.json` 为准。双warnings-denied docs、MSRV、no-default和deny均exit 0。新生成普通应用7项通过；原一体生成回执的TCP runner阶段失败保留，后续直接诊断记录 `/api` 200、SIGINT exit 0、端口可重绑。新生成MySQL认证应用4阶段均exit 0，auth测试2项无skip，schema集合前后相等。最终索引 `/tmp/openrust-four-family-main-final-handoff.json`（SHA256 `6408da77ed2d77c07567944a82b2c6895a247dd7705cab17b3ae5df1d1613526`）绑定组合树 `e3cef3324da3d82d15e8b19426b0c3d2282e42ec`，804项冻结输入无漂移；外部配置consumer7、生成Provider具名测试1、缓存命令及真实重启脚本均通过，根router signed定向4项含真实TCP，普通生成server直连200/正常关闭/重绑单独留证，不把启动探针替代业务断言。MySQL真实认证2无跳过且库集合前后一致；本批未跑外部Keycloak或PostgreSQL，ignored不计真实服务。收口时无Cargo或生成server进程，target55.76GB触50GB软线、disk空闲138.57GB约13.93%，未触100GB/5%硬线；构建缓存尚待串行回收，未宣称清理完成；完整Config、URL签名复杂参数/代理及发布全后端矩阵仍开放。
+
 ## R2-CC 配置缓存（分支限定验收通过）
 
 本簇为 `tasks/config-cache-family` 的分支证据，base `9581a53`，不等同main组合验收。最终18文件输入 `/tmp/openrust-config-cache-command-bootstrap-script-delta2.json` 经不同模型复审，路径误删、dotenv全局污染、模块绕过缓存、晚期命中前环境校验与维护命令bootstrap时点问题均已修；脚本副本保护/独立负例/失败恢复保护经限定复审关闭。静态结论不代替真实运行。
