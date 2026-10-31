@@ -1284,75 +1284,82 @@ impl GrpcServiceProvider {
     }
 }
 impl crate::core::ServiceProvider for GrpcServiceProvider {
-    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-        use crate::config::repository::SectionSchema as S;
-        let path = || S::String.sensitive();
-        let client_tls = || {
-            S::object([
-                ("ca_certificate_file", path()),
-                ("client_certificate_file", path().nullable()),
-                ("client_private_key_file", path().nullable()),
-                ("domain_name", S::String.nullable()),
-            ])
-            .nullable()
-        };
-        app.config_section(
-            "grpc",
-            GrpcConfig::default(),
-            S::object([
-                ("listen_addr", S::String),
-                (
-                    "tls",
-                    S::object([
-                        ("certificate_file", path()),
-                        ("private_key_file", path()),
-                        ("client_ca_certificate_file", path().nullable()),
-                    ])
-                    .nullable(),
-                ),
-                ("allow_insecure_server", S::Boolean),
-                ("max_concurrent_streams_per_connection", S::Integer),
-                ("max_concurrent_rpcs_per_connection", S::Integer),
-                ("max_concurrent_rpcs", S::Integer),
-                ("max_decoding_message_size_bytes", S::Integer),
-                ("max_encoding_message_size_bytes", S::Integer),
-                ("default_timeout_secs", S::Integer),
-                ("max_timeout_secs", S::Integer),
-                ("max_metadata_size_bytes", S::Integer),
-                ("reflection_enabled", S::Boolean),
-                ("health_drain_grace_ms", S::Integer),
-                (
-                    "clients",
-                    S::map(S::object([
-                        ("endpoint", S::String.sensitive()),
-                        ("tls", client_tls()),
-                    ])),
-                ),
-                ("default_client", S::String.nullable()),
-            ]),
-            GrpcConfig::validate,
-        )?;
-        app.instance(Arc::new(GrpcPluginInstalled));
-        if !app.is_bound::<GrpcServiceRegistry>() {
-            app.instance(Arc::new(GrpcServiceRegistry::default()));
-        }
-        if !app.is_bound::<Readiness>() {
-            app.instance(Arc::new(Readiness::default()));
-        }
-        let clients = self.clients.clone();
-        app.singleton::<GrpcClientRegistry, _>(move |resolver| {
-            let clients = clients.clone();
-            Box::pin(async move {
-                let clients = match clients {
-                    Some(clients) => clients,
-                    None => {
-                        GrpcClientRegistry::from_config(&resolver.section::<GrpcConfig>("grpc")?)?
-                    }
-                };
-                Ok(Arc::new(clients))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut crate::core::RegisterContext<'_>,
+    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            use crate::config::repository::SectionSchema as S;
+            let path = || S::String.sensitive();
+            let client_tls = || {
+                S::object([
+                    ("ca_certificate_file", path()),
+                    ("client_certificate_file", path().nullable()),
+                    ("client_private_key_file", path().nullable()),
+                    ("domain_name", S::String.nullable()),
+                ])
+                .nullable()
+            };
+            app.config_section(
+                "grpc",
+                GrpcConfig::default(),
+                S::object([
+                    ("listen_addr", S::String),
+                    (
+                        "tls",
+                        S::object([
+                            ("certificate_file", path()),
+                            ("private_key_file", path()),
+                            ("client_ca_certificate_file", path().nullable()),
+                        ])
+                        .nullable(),
+                    ),
+                    ("allow_insecure_server", S::Boolean),
+                    ("max_concurrent_streams_per_connection", S::Integer),
+                    ("max_concurrent_rpcs_per_connection", S::Integer),
+                    ("max_concurrent_rpcs", S::Integer),
+                    ("max_decoding_message_size_bytes", S::Integer),
+                    ("max_encoding_message_size_bytes", S::Integer),
+                    ("default_timeout_secs", S::Integer),
+                    ("max_timeout_secs", S::Integer),
+                    ("max_metadata_size_bytes", S::Integer),
+                    ("reflection_enabled", S::Boolean),
+                    ("health_drain_grace_ms", S::Integer),
+                    (
+                        "clients",
+                        S::map(S::object([
+                            ("endpoint", S::String.sensitive()),
+                            ("tls", client_tls()),
+                        ])),
+                    ),
+                    ("default_client", S::String.nullable()),
+                ]),
+                GrpcConfig::validate,
+            )?;
+            app.instance(Arc::new(GrpcPluginInstalled)).await?;
+            if !app.is_bound::<GrpcServiceRegistry>() {
+                app.instance(Arc::new(GrpcServiceRegistry::default()))
+                    .await?;
+            }
+            if !app.is_bound::<Readiness>() {
+                app.instance(Arc::new(Readiness::default())).await?;
+            }
+            let clients = self.clients.clone();
+            app.singleton::<GrpcClientRegistry, _>(move |resolver| {
+                let clients = clients.clone();
+                Box::pin(async move {
+                    let clients = match clients {
+                        Some(clients) => clients,
+                        None => GrpcClientRegistry::from_config(
+                            &resolver.section::<GrpcConfig>("grpc")?,
+                        )?,
+                    };
+                    Ok(Arc::new(clients))
+                })
             })
-        });
-        Ok(())
+            .await?;
+            Ok(())
+        })
     }
     fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {

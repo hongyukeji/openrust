@@ -149,9 +149,14 @@ async fn test_application<A: Application<Config = NoConfig>>()
 
 struct TestInstance<T: Send + Sync + 'static>(std::sync::Arc<T>);
 impl<T: Send + Sync + 'static> openrust::core::ServiceProvider for TestInstance<T> {
-    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
-        app.instance(std::sync::Arc::clone(&self.0));
-        Ok(())
+    fn register<'a>(
+        &'a self,
+        app: &'a mut openrust::core::RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.instance(std::sync::Arc::clone(&self.0)).await?;
+            Ok(())
+        })
     }
 }
 
@@ -190,7 +195,10 @@ impl JwtSettings {
     }
 }
 impl openrust::core::ServiceProvider for JwtSettings {
-    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
-        app.merge_defaults("auth.jwt", self.0.clone())
+    fn register<'a>(
+        &'a self,
+        app: &'a mut openrust::core::RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move { app.merge_defaults("auth.jwt", self.0.clone()) })
     }
 }

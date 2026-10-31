@@ -691,20 +691,26 @@ mod provider_command_tests {
     async fn schedule_list_resolves_factory_scheduler() -> Result<()> {
         struct SchedulerProvider;
         impl ServiceProvider for SchedulerProvider {
-            fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-                app.singleton::<Scheduler, _>(|resolver| {
-                    Box::pin(async move {
-                        let db = crate::db::Db::default();
-                        Ok(Arc::new(Scheduler::new(
-                            db.clone(),
-                            crate::queue::Queue::new(db),
-                            Vec::new(),
-                            crate::config::QueueConfig::default(),
-                            resolver.scope_factory(),
-                        )))
+            fn register<'a>(
+                &'a self,
+                app: &'a mut RegisterContext<'_>,
+            ) -> crate::core::BoxFuture<'a, Result<()>> {
+                Box::pin(async move {
+                    app.singleton::<Scheduler, _>(|resolver| {
+                        Box::pin(async move {
+                            let db = crate::db::Db::default();
+                            Ok(Arc::new(Scheduler::new(
+                                db.clone(),
+                                crate::queue::Queue::new(db),
+                                Vec::new(),
+                                crate::config::QueueConfig::default(),
+                                resolver.scope_factory(),
+                            )))
+                        })
                     })
-                });
-                Ok(())
+                    .await?;
+                    Ok(())
+                })
             }
         }
         let mut builder = ProviderBuilder::new();

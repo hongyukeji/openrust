@@ -1,7 +1,7 @@
 //! 应用组装入口：[`Application`]、[`App`] 和 [`AppState`]。
 
 use std::any::{Any, TypeId, type_name};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use figment::Figment;
@@ -13,7 +13,9 @@ use crate::core::command::Command;
 use crate::core::container::{Container, Scope};
 use crate::core::error::{Error, Result};
 use crate::core::module::ModuleManifest;
-use crate::core::provider::{ProviderRuntime, ServiceProvider};
+use crate::core::provider::{
+    BootContext, ProviderId, ProviderRuntime, RegisterContext, ServiceProvider, check_dependencies,
+};
 use crate::core::resources::ResourceOwner;
 
 /// 每个项目实现一次，返回统一 Provider 清单。
@@ -165,6 +167,7 @@ pub struct App {
     config_cache_path: Option<std::path::PathBuf>,
     commands: Vec<Box<dyn Command>>,
     extensions: Extensions,
+    providers: Vec<Box<dyn ServiceProvider>>,
 }
 
 impl App {
@@ -194,7 +197,84 @@ impl App {
             config_cache_path: None,
             commands: runtime.commands,
             extensions: runtime.extensions,
+            providers: runtime.providers,
         })
+    }
+
+    /// 登记新的 Provider；同类型已登记时返回首次身份，不重复执行生命周期。
+    pub async fn register_provider<P: ServiceProvider>(
+        &mut self,
+        provider: P,
+    ) -> Result<ProviderId> {
+        self.boxed_register_provider(Box::new(provider), false)
+            .await
+    }
+
+    /// 显式重新登记同类型 Provider；成功后保留原 boot 槽位并立即启动新实例。
+    pub async fn force_register_provider<P: ServiceProvider>(
+        &mut self,
+        provider: P,
+    ) -> Result<ProviderId> {
+        self.boxed_register_provider(Box::new(provider), true).await
+    }
+
+    /// 登记运行期盒装 Provider，供动态模块装配使用。
+    pub async fn boxed_register_provider(
+        &mut self,
+        provider: Box<dyn ServiceProvider>,
+        force: bool,
+    ) -> Result<ProviderId> {
+        let id = provider.id();
+        if self.state.inner.services.is_terminated() {
+            return Err(Error::custom("container_closed", "容器已关闭"));
+        }
+        let index = self.providers.iter().position(|active| active.id() == id);
+        if index.is_some() && !force {
+            return Ok(id);
+        }
+        let ready: HashSet<_> = self
+            .providers
+            .iter()
+            .map(|active| active.id().type_id)
+            .collect();
+        check_dependencies(provider.as_ref(), &ready)?;
+        let mut config = self.state.config_repository();
+        let mut required = Vec::new();
+        provider
+            .register(&mut RegisterContext::live(
+                &self.state.inner.services,
+                &mut config,
+                &mut required,
+                id,
+                force,
+            ))
+            .await?;
+        if let Some(index) = index {
+            self.providers[index] = provider;
+        } else {
+            self.providers.push(provider);
+        }
+        let provider = self.providers[index.unwrap_or(self.providers.len() - 1)].as_ref();
+        let mut finalizers = Vec::new();
+        provider
+            .boot(&mut BootContext {
+                console_command: None,
+                container: &self.state.inner.services,
+                config: &mut config,
+                resources: self.state.inner.provider_resources.registrar(),
+                required: &mut required,
+                extensions: &mut self.extensions,
+                commands: &mut self.commands,
+                finalizers: &mut finalizers,
+            })
+            .await?;
+        for finalize in finalizers {
+            finalize().await?;
+        }
+        for resolve in required {
+            resolve(&self.state.inner.services).await?;
+        }
+        Ok(id)
     }
 
     /// 提供给 HTTP 处理器、任务和命令的共享状态。
@@ -380,9 +460,11 @@ mod tests {
 
     struct CounterProvider;
     impl ServiceProvider for CounterProvider {
-        fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-            app.instance(Arc::new(Counter(7)));
-            Ok(())
+        fn register<'a>(&'a self, app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.instance(Arc::new(Counter(7))).await?;
+                Ok(())
+            })
         }
     }
 
@@ -497,29 +579,32 @@ mod tests {
     }
 
     impl ServiceProvider for ScopedCommandProvider {
-        fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-            let created = Arc::clone(&self.created);
-            let cleaned = Arc::clone(&self.cleaned);
-            let cleaned_notify = self.cleaned_notify.clone();
-            app.scoped::<usize, _>(move |resolver| {
-                let created = Arc::clone(&created);
-                let cleaned = Arc::clone(&cleaned);
-                let cleaned_notify = cleaned_notify.clone();
-                Box::pin(async move {
-                    let id = created.fetch_add(1, Ordering::SeqCst) + 1;
-                    resolver.resources()?.on_shutdown(move || {
-                        Box::pin(async move {
-                            cleaned.fetch_add(1, Ordering::SeqCst);
-                            if let Some(notify) = cleaned_notify {
-                                notify.notify_one();
-                            }
-                            Ok(())
-                        })
-                    })?;
-                    Ok(Arc::new(id))
+        fn register<'a>(&'a self, app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                let created = Arc::clone(&self.created);
+                let cleaned = Arc::clone(&self.cleaned);
+                let cleaned_notify = self.cleaned_notify.clone();
+                app.scoped::<usize, _>(move |resolver| {
+                    let created = Arc::clone(&created);
+                    let cleaned = Arc::clone(&cleaned);
+                    let cleaned_notify = cleaned_notify.clone();
+                    Box::pin(async move {
+                        let id = created.fetch_add(1, Ordering::SeqCst) + 1;
+                        resolver.resources()?.on_shutdown(move || {
+                            Box::pin(async move {
+                                cleaned.fetch_add(1, Ordering::SeqCst);
+                                if let Some(notify) = cleaned_notify {
+                                    notify.notify_one();
+                                }
+                                Ok(())
+                            })
+                        })?;
+                        Ok(Arc::new(id))
+                    })
                 })
-            });
-            Ok(())
+                .await?;
+                Ok(())
+            })
         }
 
         fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
@@ -970,9 +1055,15 @@ mod tests {
     {
         struct ScopedProvider;
         impl ServiceProvider for ScopedProvider {
-            fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-                app.scoped::<usize, _>(|_| Box::pin(async { Ok(Arc::new(7)) }));
-                Ok(())
+            fn register<'a>(
+                &'a self,
+                app: &'a mut RegisterContext<'_>,
+            ) -> BoxFuture<'a, Result<()>> {
+                Box::pin(async move {
+                    app.scoped::<usize, _>(|_| Box::pin(async { Ok(Arc::new(7)) }))
+                        .await?;
+                    Ok(())
+                })
             }
         }
         let app = start(ScopedProvider).await?;

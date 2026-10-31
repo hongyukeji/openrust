@@ -31,9 +31,15 @@ mod tests {
     }
     struct BusinessProvider;
     impl ServiceProvider for BusinessProvider {
-        fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-            app.instance::<dyn Greeting>(Arc::new(FixedGreeting("production")));
-            Ok(())
+        fn register<'a>(
+            &'a self,
+            app: &'a mut RegisterContext<'_>,
+        ) -> openrust::core::BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.instance::<dyn Greeting>(Arc::new(FixedGreeting("production")))
+                    .await?;
+                Ok(())
+            })
         }
         fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
             Box::pin(async move {
@@ -75,14 +81,22 @@ mod tests {
     -> std::result::Result<(), Box<dyn std::error::Error>> {
         let mut first_builder = TestApp::<Example>::builder(source());
         first_builder.configure_after_register(|bindings| {
-            bindings.instance::<dyn Greeting>(Arc::new(FixedGreeting("first")));
-            Ok(())
+            Box::pin(async move {
+                bindings
+                    .instance::<dyn Greeting>(Arc::new(FixedGreeting("first")))
+                    .await?;
+                Ok(())
+            })
         });
         let mut first = first_builder.build().await?;
         let mut second_builder = TestApp::<Example>::builder(source());
         second_builder.configure_after_register(|bindings| {
-            bindings.instance::<dyn Greeting>(Arc::new(FixedGreeting("second")));
-            Ok(())
+            Box::pin(async move {
+                bindings
+                    .instance::<dyn Greeting>(Arc::new(FixedGreeting("second")))
+                    .await?;
+                Ok(())
+            })
         });
         let mut second = second_builder.build().await?;
         for (app, message) in [(&first, "first"), (&second, "second")] {

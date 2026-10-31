@@ -67,22 +67,30 @@ enum Probe {
 
 struct CustomSqliteProvider;
 impl ServiceProvider for CustomSqliteProvider {
-    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-        app.singleton::<Db, _>(|resolver| {
-            Box::pin(async move {
-                let connection = Database::connect("sqlite::memory:")
-                    .await
-                    .map_err(Error::internal)?;
-                let closing = connection.clone();
-                resolver.resources()?.on_shutdown(move || {
-                    Box::pin(async move { closing.close_by_ref().await.map_err(Error::internal) })
-                })?;
-                let db = Db::default();
-                db.initialize(connection)?;
-                Ok(std::sync::Arc::new(db))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.singleton::<Db, _>(|resolver| {
+                Box::pin(async move {
+                    let connection = Database::connect("sqlite::memory:")
+                        .await
+                        .map_err(Error::internal)?;
+                    let closing = connection.clone();
+                    resolver.resources()?.on_shutdown(move || {
+                        Box::pin(
+                            async move { closing.close_by_ref().await.map_err(Error::internal) },
+                        )
+                    })?;
+                    let db = Db::default();
+                    db.initialize(connection)?;
+                    Ok(std::sync::Arc::new(db))
+                })
             })
-        });
-        Ok(())
+            .await?;
+            Ok(())
+        })
     }
 }
 

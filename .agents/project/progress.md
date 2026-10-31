@@ -8,9 +8,9 @@
 
 ✅ R03/typed/CC/Signed已完成同一main限定组合；默认/全特性严格Clippy与workspace tests已通过（907/0/34 ignored、1698/0/108 ignored），双docs/MSRV、no-default、deny及生成/MySQL限定证据见最终receipt；五父本地提交为 `e105dbfc58afc330b50e53b75f0b9e1424fa387a`；S-DV/ST-V/P及两guard工作区不纳入。见[组合记录](memory/testing.md#r2-四簇-main-组合限定验收)。
 
-🟡 R2-P Provider完整注册生命周期仍在分支Verify：core125/仓储47/公开Container24及consumer限定通过；修后Cookie9、默认workspace862、全feature1650（68ignored）、双doctest/docs、no-default/MSRV/deny已有新输入回执，root核10日志SHA。生成attempt3普通/TCP/MySQL认证2与独立库集合审计已过，后续Cookie修复已在保留生成项目定向补验plain3/MySQL auth2，无skip、库集合与源码不变。严格Clippy三失败后仍暂停待真实决定，未提交、未合main。
+🟡 R2-P Provider完整注册生命周期已限定分支提交 `4ac8099`，现与S-DV处于同一未提交main组合候选，组合验证尚未完成。分支证据：core125/仓储47/公开Container24及consumer限定通过；修后Cookie9、默认workspace862、全feature1650（68ignored）、双doctest/docs、no-default/MSRV/deny已有新输入回执，root核10日志SHA。生成attempt3普通/TCP/MySQL认证2与独立库集合审计已过，后续Cookie修复已在保留生成项目定向补验plain3/MySQL auth2，无skip、库集合与源码不变。严格Clippy三次历史失败保留；用户授权的单次重验已通过，分支已提交，main仍待组合门禁。
 
-🟡 S-DV任务分支对象值与保存边界：session lib563、HTTP82/模块8/consumer5/CLI1已过；普通生成7、真实MySQL生成认证2（无skip）和根真实TCP6也具有效冻结输入证据。TCP前3次失败保留，用户获准受控探针后单次重验通过，服务正常SIGINT退出/无残留/端口重绑。最终38 caller批修后all-features workspace类型与严格Clippy通过，组合lib/view/真实driver剩余批次在途；尚未提交/合main，不关闭完整Session/Web。
+🟡 S-DV任务分支对象值与保存边界：session lib563、HTTP82/模块8/consumer5/CLI1已过；普通生成7、真实MySQL生成认证2（无skip）和根真实TCP6也具有效冻结输入证据。TCP前3次失败保留，用户获准受控探针后单次重验通过，服务正常SIGINT退出/无残留/端口重绑。最终38 caller批修后all-features workspace类型与严格Clippy通过，组合lib/view/真实driver剩余批次在途；分支限定提交 `6ffb5c8` 已完成；main合并候选待组合验收及提交，不关闭完整Session/Web。
 
 🟡 ST-V任务分支visibility：仲裁/错误映射静态独审闭合，storage-local/storage-s3严格Clippy、local16/公开driver契约3/真实TCP1均过。模块auth/data-exchange特性、S3单元、当前锁deny及MSRV剩余门禁待窗口；真实ACL/迟到Copy后端条件缺失，未把ignored或旧锁结果当通过。尚未提交/合main，见todo。
 

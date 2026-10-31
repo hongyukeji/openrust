@@ -238,6 +238,7 @@ impl Fixture {
     fn request(&self) -> Result<Request<Body>> {
         Request::builder()
             .uri(format!("/api/example/articles/{}/summary", self.article_id))
+            .header("host", "localhost")
             .header("authorization", format!("Bearer {}", self.token))
             .extension(ConnectInfo(std::net::SocketAddr::from((
                 [127, 0, 0, 1],

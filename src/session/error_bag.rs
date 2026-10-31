@@ -464,7 +464,7 @@ mod tests {
 
     fn encode_custom(bag: &CustomBag) -> Result<Value> {
         if let Some(session) = &bag.reentry {
-            let _ = session.get("errors")?;
+            let _ = session.get_json("errors")?;
         }
         Ok(json!({"message":"saved"}))
     }
@@ -472,7 +472,7 @@ mod tests {
     fn decode_custom(value: Value) -> Result<CustomBag> {
         DECODER_REENTRY.with(|slot| -> Result<()> {
             if let Some(session) = slot.borrow().as_ref() {
-                let _ = session.get("errors")?;
+                let _ = session.get_json("errors")?;
             }
             Ok(())
         })?;
@@ -508,7 +508,7 @@ mod tests {
         let mut named = MessageBag::new();
         named.add("other", "value")?;
         session.flash_errors("update", &named)?;
-        let raw = session.get("errors")?;
+        let raw = session.get_json("errors")?;
         let _ = DECODER_REENTRY.with(|slot| slot.replace(Some(session.clone())));
         let restored = codecs.decode_view(raw)?;
         let _ = DECODER_REENTRY.with(|slot| slot.replace(None));
@@ -532,21 +532,21 @@ mod tests {
     #[test]
     fn malformed_and_unknown_envelopes_fail_without_mutating_session() -> Result<()> {
         let (session, _) = configured()?;
-        session.put("errors", json!({"kind":KIND,"version":2,"bags":[]}))?;
-        let before = session.get("errors")?;
+        session.put_typed("errors", json!({"kind":KIND,"version":2,"bags":[]}))?;
+        let before = session.get_json("errors")?;
         assert!(session.flash_errors("default", &MessageBag::new()).is_err());
-        assert_eq!(session.get("errors")?, before);
-        session.put("errors", json!({"kind":KIND,"version":1,"bags":[{"key":{"string":"old"},"bag":{"type":"unknown.codec","version":1,"payload":{}}}]}))?;
-        let before = session.get("errors")?;
+        assert_eq!(session.get_json("errors")?, before);
+        session.put_typed("errors", json!({"kind":KIND,"version":1,"bags":[{"key":{"string":"old"},"bag":{"type":"unknown.codec","version":1,"payload":{}}}]}))?;
+        let before = session.get_json("errors")?;
         assert!(session.flash_errors("new", &MessageBag::new()).is_err());
-        assert_eq!(session.get("errors")?, before);
-        session.put("errors", json!({"kind":KIND,"version":1,"bags":[{"key":{"string":"old"},"bag":{"type":"example.custom","version":1,"payload":{"message":"bad"}}}]}))?;
+        assert_eq!(session.get_json("errors")?, before);
+        session.put_typed("errors", json!({"kind":KIND,"version":1,"bags":[{"key":{"string":"old"},"bag":{"type":"example.custom","version":1,"payload":{"message":"bad"}}}]}))?;
         assert!(session.read_errors().is_err());
-        let before = session.get("errors")?;
+        let before = session.get_json("errors")?;
         session.flash_errors("new", &MessageBag::new())?;
-        assert_ne!(session.get("errors")?, before);
+        assert_ne!(session.get_json("errors")?, before);
         assert!(session.read_errors().is_err());
-        session.put("errors", json!("legacy wrong type"))?;
+        session.put_typed("errors", json!("legacy wrong type"))?;
         session.flash_errors("default", &MessageBag::new())?;
         assert!(session.read_errors()?.has_bag("default"));
         Ok(())
@@ -562,11 +562,11 @@ mod tests {
             "test_session".into(),
             Arc::new(ErrorBagCodecs::new()),
         )?;
-        let before = session.all()?;
+        let before = session.all_json()?;
         let mut oversized = MessageBag::new();
         oversized.set_format("x".repeat(1024));
         assert!(session.flash_errors("default", &oversized).is_err());
-        assert_eq!(session.all()?, before);
+        assert_eq!(session.all_json()?, before);
         Ok(())
     }
 

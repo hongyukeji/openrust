@@ -95,7 +95,7 @@ async fn controlled_id(
     session: openrust::session::Session,
 ) -> openrust::Result<openrust::http::Json<Value>> {
     session.set_id(Some("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ"))?;
-    session.put("example.cookie_probe", "ordinary")?;
+    session.put_typed("example.cookie_probe", "ordinary")?;
     Ok(openrust::http::Json(json!({"ready":true})))
 }
 async fn run_case<const MODE: u8>() -> TestResult {

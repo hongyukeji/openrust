@@ -20,22 +20,29 @@ pub(crate) struct HeartbeatRun {
 }
 
 impl ServiceProvider for JobsServiceProvider {
-    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-        app.instance(Arc::new(HeartbeatSequence(AtomicU64::new(0))));
-        app.scoped::<HeartbeatRun, _>(|resolver| {
-            Box::pin(async move {
-                let sequence = resolver.resolve::<HeartbeatSequence>().await?;
-                let id = sequence.0.fetch_add(1, Ordering::Relaxed) + 1;
-                resolver.resources()?.on_shutdown(move || {
-                    Box::pin(async move {
-                        tracing::info!(run_id = id, "example heartbeat attempt closed");
-                        Ok(())
-                    })
-                })?;
-                Ok(Arc::new(HeartbeatRun { id }))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.instance(Arc::new(HeartbeatSequence(AtomicU64::new(0))))
+                .await?;
+            app.scoped::<HeartbeatRun, _>(|resolver| {
+                Box::pin(async move {
+                    let sequence = resolver.resolve::<HeartbeatSequence>().await?;
+                    let id = sequence.0.fetch_add(1, Ordering::Relaxed) + 1;
+                    resolver.resources()?.on_shutdown(move || {
+                        Box::pin(async move {
+                            tracing::info!(run_id = id, "example heartbeat attempt closed");
+                            Ok(())
+                        })
+                    })?;
+                    Ok(Arc::new(HeartbeatRun { id }))
+                })
             })
-        });
-        Ok(())
+            .await?;
+            Ok(())
+        })
     }
 
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
@@ -65,9 +72,15 @@ mod tests {
     async fn heartbeat_uses_a_new_scoped_run_for_each_attempt() -> Result<()> {
         struct ContributionsProvider;
         impl ServiceProvider for ContributionsProvider {
-            fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-                app.instance(Arc::new(QueueContributions::default()));
-                Ok(())
+            fn register<'a>(
+                &'a self,
+                app: &'a mut RegisterContext<'_>,
+            ) -> openrust::core::BoxFuture<'a, Result<()>> {
+                Box::pin(async move {
+                    app.instance(Arc::new(QueueContributions::default()))
+                        .await?;
+                    Ok(())
+                })
             }
         }
         let mut builder = ProviderBuilder::new();

@@ -462,58 +462,70 @@ fn database_handles(config: &DatabaseConfig) -> Result<Databases> {
 }
 
 impl crate::core::ServiceProvider for DatabaseServiceProvider {
-    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-        app.config_section(
-            "database",
-            DatabaseConfig::default(),
-            database_schema(),
-            validate_config,
-        )?;
-        app.singleton::<DatabaseConfig, _>(|resolver| {
-            Box::pin(async move { Ok(Arc::new(resolver.section::<DatabaseConfig>("database")?)) })
-        });
-        app.singleton::<Databases, _>(|resolver| {
-            Box::pin(async move {
-                let config = resolver.section::<DatabaseConfig>("database")?;
-                let databases = database_handles(&config)?;
-                let resources = resolver.resources()?;
-                for name in databases.names() {
-                    let handle = databases.get(&name)?;
-                    let instance = if name == "default" {
-                        DatabaseInstanceConfig::from(&config)
-                    } else {
-                        config.instances.get(&name).cloned().ok_or_else(|| {
-                            Error::custom(
-                                "database_config_missing",
-                                "registered instance configuration missing",
-                            )
-                        })?
-                    };
-                    if name == "default" && instance.url.is_none() {
-                        continue;
+    fn register<'a>(
+        &'a self,
+        app: &'a mut crate::core::RegisterContext<'_>,
+    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.config_section(
+                "database",
+                DatabaseConfig::default(),
+                database_schema(),
+                validate_config,
+            )?;
+            app.singleton::<DatabaseConfig, _>(|resolver| {
+                Box::pin(
+                    async move { Ok(Arc::new(resolver.section::<DatabaseConfig>("database")?)) },
+                )
+            })
+            .await?;
+            app.singleton::<Databases, _>(|resolver| {
+                Box::pin(async move {
+                    let config = resolver.section::<DatabaseConfig>("database")?;
+                    let databases = database_handles(&config)?;
+                    let resources = resolver.resources()?;
+                    for name in databases.names() {
+                        let handle = databases.get(&name)?;
+                        let instance = if name == "default" {
+                            DatabaseInstanceConfig::from(&config)
+                        } else {
+                            config.instances.get(&name).cloned().ok_or_else(|| {
+                                Error::custom(
+                                    "database_config_missing",
+                                    "registered instance configuration missing",
+                                )
+                            })?
+                        };
+                        if name == "default" && instance.url.is_none() {
+                            continue;
+                        }
+                        connect_instance_managed(&handle, &instance, &name, Some(&resources))
+                            .await?;
                     }
-                    connect_instance_managed(&handle, &instance, &name, Some(&resources)).await?;
-                }
-                Ok(Arc::new(databases))
+                    Ok(Arc::new(databases))
+                })
             })
-        });
-        app.singleton::<Db, _>(|resolver| {
-            Box::pin(async move {
-                Ok(Arc::new(
-                    resolver.resolve::<Databases>().await?.default_database(),
-                ))
+            .await?;
+            app.singleton::<Db, _>(|resolver| {
+                Box::pin(async move {
+                    Ok(Arc::new(
+                        resolver.resolve::<Databases>().await?.default_database(),
+                    ))
+                })
             })
-        });
-        app.singleton::<RateLimiter, _>(|resolver| {
-            Box::pin(async move {
-                let db = resolver.resolve::<Db>().await?;
-                Ok(Arc::new(RateLimiter::new(DatabaseRateLimitStore::new(
-                    (*db).clone(),
-                ))))
+            .await?;
+            app.singleton::<RateLimiter, _>(|resolver| {
+                Box::pin(async move {
+                    let db = resolver.resolve::<Db>().await?;
+                    Ok(Arc::new(RateLimiter::new(DatabaseRateLimitStore::new(
+                        (*db).clone(),
+                    ))))
+                })
             })
-        });
-        app.require::<Databases>();
-        Ok(())
+            .await?;
+            app.require::<Databases>();
+            Ok(())
+        })
     }
 
     fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
@@ -1029,16 +1041,22 @@ mod provider_tests {
 
     struct LateReadiness(Arc<AtomicUsize>);
     impl crate::core::ServiceProvider for LateReadiness {
-        fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-            let calls = Arc::clone(&self.0);
-            app.singleton::<crate::core::Readiness, _>(move |_| {
-                let calls = Arc::clone(&calls);
-                Box::pin(async move {
-                    calls.fetch_add(1, Ordering::SeqCst);
-                    Ok(Arc::new(crate::core::Readiness::default()))
+        fn register<'a>(
+            &'a self,
+            app: &'a mut crate::core::RegisterContext<'_>,
+        ) -> crate::core::BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                let calls = Arc::clone(&self.0);
+                app.singleton::<crate::core::Readiness, _>(move |_| {
+                    let calls = Arc::clone(&calls);
+                    Box::pin(async move {
+                        calls.fetch_add(1, Ordering::SeqCst);
+                        Ok(Arc::new(crate::core::Readiness::default()))
+                    })
                 })
-            });
-            Ok(())
+                .await?;
+                Ok(())
+            })
         }
     }
 
@@ -1058,14 +1076,20 @@ mod provider_tests {
 
     struct BrokenReadiness;
     impl crate::core::ServiceProvider for BrokenReadiness {
-        fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-            app.singleton::<crate::core::Readiness, _>(|resolver| {
-                Box::pin(async move {
-                    resolver.resolve::<u128>().await?;
-                    Ok(Arc::new(crate::core::Readiness::default()))
+        fn register<'a>(
+            &'a self,
+            app: &'a mut crate::core::RegisterContext<'_>,
+        ) -> crate::core::BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.singleton::<crate::core::Readiness, _>(|resolver| {
+                    Box::pin(async move {
+                        resolver.resolve::<u128>().await?;
+                        Ok(Arc::new(crate::core::Readiness::default()))
+                    })
                 })
-            });
-            Ok(())
+                .await?;
+                Ok(())
+            })
         }
     }
 

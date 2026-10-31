@@ -6,9 +6,14 @@ use crate::routes;
 
 struct ReadinessProvider;
 impl ServiceProvider for ReadinessProvider {
-    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-        app.instance(Arc::new(openrust::core::Readiness::default()));
-        Ok(())
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.instance(Arc::new(openrust::core::Readiness::default())).await?;
+            Ok(())
+        })
     }
 }
 

@@ -112,17 +112,28 @@ impl SmsDriver for CaptureSms {
 
 struct CaptureMailerProvider(CaptureMailer);
 impl openrust::core::ServiceProvider for CaptureMailerProvider {
-    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
-        app.instance(Arc::new(Mailer::new(self.0.clone())));
-        Ok(())
+    fn register<'a>(
+        &'a self,
+        app: &'a mut openrust::core::RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.instance(Arc::new(Mailer::new(self.0.clone()))).await?;
+            Ok(())
+        })
     }
 }
 
 struct CaptureSmsProvider(CaptureSms);
 impl openrust::core::ServiceProvider for CaptureSmsProvider {
-    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
-        app.instance(Arc::new(SmsSender::new(self.0.clone())));
-        Ok(())
+    fn register<'a>(
+        &'a self,
+        app: &'a mut openrust::core::RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.instance(Arc::new(SmsSender::new(self.0.clone())))
+                .await?;
+            Ok(())
+        })
     }
 }
 

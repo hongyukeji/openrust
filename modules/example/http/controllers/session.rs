@@ -4,6 +4,7 @@ use crate::modules::example::providers::session::{PROBE_COOKIE, REPLY_COOKIE};
 use openrust::http::axum::http::StatusCode;
 use openrust::http::{CookieJar, CookieOptions, Json, Request, RequestInfo};
 use openrust::session::Session;
+use openrust::support::{DataObject, DataValue, ObjectEncoding};
 use openrust::{Error, Result};
 use serde_json::{Value, json};
 use std::sync::Arc;
@@ -17,6 +18,18 @@ const PREVIOUS_VISITS: &str = "example.session.previous_visits";
 const MAX_VALUE_BYTES: usize = 256;
 const MAX_LIST_ITEMS: usize = 8;
 
+struct PreferenceToken;
+
+impl DataObject for PreferenceToken {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn json_projection(&self) -> Option<Value> {
+        Some(json!("projected"))
+    }
+}
+
 /// 仅读取示例自己的偏好与提示，不暴露会话身份或其他业务属性。
 pub(crate) async fn show(session: Session) -> Result<Json<Value>> {
     Ok(Json(snapshot(&session)?))
@@ -25,10 +38,10 @@ pub(crate) async fn show(session: Session) -> Result<Json<Value>> {
 /// 从同一请求的 Session 读取旧输入，保持显式 null 与缺失的区别。
 pub(crate) async fn old_input(info: RequestInfo) -> Result<Json<Value>> {
     Ok(Json(json!({
-        "all": info.old_all()?,
-        "name": info.old("name")?,
-        "nickname": info.old("nickname")?,
-        "missing_default": info.old_or("missing", json!("fallback"))?,
+        "all": info.old_all_json()?,
+        "name": info.old_json("name")?,
+        "nickname": info.old_json("nickname")?,
+        "missing_default": info.old_or_json("missing", json!("fallback"))?,
     })))
 }
 
@@ -50,7 +63,7 @@ pub(crate) async fn previous(session: Session, info: RequestInfo) -> Result<Json
         "url": session.previous_url()?, "route": session.previous_route()?,
         "has_uri": session.has_previous_uri()?,
         "route_exists": session.exists(&["_previous.route"])?,
-        "visits": session.get(PREVIOUS_VISITS)?,
+        "visits": session.get_json(PREVIOUS_VISITS)?,
         "attempting": info.is_attempting_precognition()?, "confirmed": info.is_precognitive()
     })))
 }
@@ -74,32 +87,41 @@ pub(crate) async fn store(
     let mut extension = None;
     match action.as_str() {
         "put" => {
-            session.put(PREFERENCE, input_value(&request)?)?;
+            session.put_typed(PREFERENCE, input_value(&request)?)?;
+        }
+        "put_value" => {
+            let value = DataValue::from_json(Value::String(input_value(&request)?))?;
+            session.put(PREFERENCE, value)?;
+            let raw = session.get(PREFERENCE)?.ok_or_else(state_invalid)?;
+            extension = Some(json!({"raw": raw.to_json()?}));
+        }
+        "object_native" | "object_json" => {
+            extension = Some(store_object(&session, &action).await?);
         }
         "forget" => {
             session.forget(&[PREFERENCE])?;
         }
         "flash" => {
-            session.flash(NOTICE, input_value(&request)?)?;
+            session.flash_typed(NOTICE, input_value(&request)?)?;
         }
         "now" => {
-            session.now(NOTICE, input_value(&request)?)?;
+            session.now_typed(NOTICE, input_value(&request)?)?;
         }
         "keep" => {
             // reflash 会延长所有业务的提示；此处只保留示例自己的提示。
             session.keep(&[NOTICE])?;
         }
         "memo_null" => {
-            session.put(MEMO, Value::Null)?;
+            session.put_typed(MEMO, Value::Null)?;
         }
         "memo_seed" => {
-            session.put(MEMO, input_value(&request)?)?;
+            session.put_typed(MEMO, input_value(&request)?)?;
         }
         "remember" => {
-            session.remember(MEMO, || Ok("computed"))?;
+            session.remember_typed(MEMO, || Ok("computed"))?;
         }
         "push" => {
-            let list = session.get(LIST)?;
+            let list = session.get_json(LIST)?;
             let size = match list {
                 None | Some(Value::Null) => 0,
                 Some(Value::Array(items)) => items.len(),
@@ -112,7 +134,7 @@ pub(crate) async fn store(
                     "示例 Session 列表已满",
                 ));
             }
-            session.push(LIST, input_value(&request)?)?;
+            session.push_typed(LIST, input_value(&request)?)?;
         }
         "increment" => {
             session.increment(COUNT)?;
@@ -127,7 +149,12 @@ pub(crate) async fn store(
             session.decrement_by(COUNT, 2)?;
         }
         "remove" => {
-            removed = Some(session.remove(MEMO)?);
+            removed = Some(
+                session
+                    .remove(MEMO)?
+                    .map(|value| value.to_json())
+                    .transpose()?,
+            );
         }
         "extensions" => extension = Some(extension_snapshot(&session)?),
         "probe" => extension = Some(probe_snapshot(&session, &jar, &request)?),
@@ -143,6 +170,25 @@ pub(crate) async fn store(
         data["extension"] = extension;
     }
     Ok(Json(data))
+}
+
+async fn store_object(session: &Session, action: &str) -> Result<Value> {
+    let value = DataValue::Object(Arc::new(PreferenceToken));
+    session.put(PREFERENCE, value.clone())?;
+    let stored = session.get(PREFERENCE)?.ok_or_else(state_invalid)?;
+    let same_object = value.same_object(&stored);
+    if action == "object_native" {
+        let native_save_rejected = session
+            .save()
+            .await
+            .err()
+            .is_some_and(|error| error.code() == "data_object_not_serializable");
+        session.forget(&[PREFERENCE])?;
+        Ok(json!({"same_object":same_object,"native_save_rejected":native_save_rejected}))
+    } else {
+        session.set_object_encoding(ObjectEncoding::JsonProjection)?;
+        Ok(json!({"same_object":same_object}))
+    }
 }
 
 fn input_value(request: &Request) -> Result<String> {
@@ -175,7 +221,7 @@ fn snapshot(session: &Session) -> Result<Value> {
 }
 
 fn owned_list(session: &Session) -> Result<Option<Vec<String>>> {
-    match session.get(LIST)? {
+    match session.get_json(LIST)? {
         None | Some(Value::Null) => Ok(None),
         Some(Value::Array(items)) if items.len() <= MAX_LIST_ITEMS => items
             .into_iter()
@@ -190,7 +236,7 @@ fn owned_list(session: &Session) -> Result<Option<Vec<String>>> {
 }
 
 fn owned_count(session: &Session) -> Result<Option<i64>> {
-    match session.get(COUNT)? {
+    match session.get_json(COUNT)? {
         None | Some(Value::Null) => Ok(None),
         Some(Value::Number(value)) => value.as_i64().map(Some).ok_or_else(state_invalid),
         _ => Err(state_invalid()),
@@ -207,9 +253,12 @@ fn state_invalid() -> Error {
 
 fn owned_value(session: &Session, key: &str) -> Result<Option<Value>> {
     match session.get(key)? {
-        value @ (None | Some(Value::Null)) => Ok(value),
-        Some(Value::String(value)) if value.len() <= MAX_VALUE_BYTES => {
+        None | Some(DataValue::Null) => Ok(None),
+        Some(DataValue::String(value)) if value.len() <= MAX_VALUE_BYTES => {
             Ok(Some(Value::String(value)))
+        }
+        Some(value @ DataValue::Object(_)) if key == PREFERENCE => {
+            value.project(ObjectEncoding::JsonProjection).map(Some)
         }
         _ => Err(Error::custom_with_status(
             StatusCode::INTERNAL_SERVER_ERROR,

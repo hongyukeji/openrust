@@ -33,13 +33,114 @@ fn request(path: &str, accept: Option<&str>) -> Request<Body> {
 #[test]
 fn old_input_without_session_is_missing_and_uses_default() {
     let info = inspect(request("/", None)).expect("info");
-    assert_eq!(info.old_all().expect("old bag"), serde_json::json!([]));
-    assert_eq!(info.old("name").expect("old value"), None);
+    assert!(matches!(info.old_all().expect("old bag"),
+        openrust::support::DataValue::Array(values) if values.is_empty()));
+    assert!(info.old("name").expect("old value").is_none());
     assert_eq!(
-        info.old_or("name", serde_json::json!("fallback"))
-            .expect("old default"),
+        info.old_or(
+            "name",
+            openrust::support::DataValue::String("fallback".into())
+        )
+        .expect("old default")
+        .to_json()
+        .expect("json"),
         serde_json::json!("fallback")
     );
+    assert_eq!(
+        info.old_all_json().expect("json bag"),
+        serde_json::json!([])
+    );
+    assert_eq!(info.old_json("name").expect("json value"), None);
+}
+
+#[cfg(feature = "session")]
+struct Avatar;
+
+#[cfg(feature = "session")]
+impl openrust::support::DataObject for Avatar {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    fn json_projection(&self) -> Option<serde_json::Value> {
+        Some(serde_json::json!("avatar"))
+    }
+}
+
+#[cfg(feature = "session")]
+#[tokio::test]
+async fn old_input_retains_same_object_then_reads_explicit_json_after_reload()
+-> openrust::Result<()> {
+    use openrust::session::{MemorySessionStore, Session};
+    use openrust::support::{DataValue, ObjectEncoding};
+    use std::sync::Arc;
+
+    let store = Arc::new(MemorySessionStore::default());
+    let session = Session::new(None, store.clone(), None)?;
+    session.start().await?;
+    let object = DataValue::object(Avatar);
+    let mut input = DataValue::Array(Vec::new());
+    input.set("profile.avatar", object.clone())?;
+    input.set("nil", DataValue::Null)?;
+    session.flash_input(input)?;
+    let mut wire = request("/", None);
+    wire.extensions_mut().insert(session.clone());
+    let (mut parts, _) = wire.into_parts();
+    let info = RequestInfo::from_request_parts(&mut parts, &()).await?;
+    let raw = info
+        .old("profile.avatar")?
+        .ok_or_else(|| openrust::Error::custom("old_input_missing", "旧输入对象缺失"))?;
+    assert!(raw.same_object(&object));
+    assert!(
+        info.old_or("profile.avatar", DataValue::String("fallback".into()))?
+            .same_object(&object)
+    );
+    assert!(
+        info.old_all()?
+            .get("profile.avatar")?
+            .is_some_and(|value| value.same_object(&object))
+    );
+    assert_eq!(
+        info.old_json("profile.avatar")
+            .err()
+            .map(|error| error.code().to_owned()),
+        Some("data_object_not_serializable".into())
+    );
+    assert_eq!(
+        info.old_all_json()
+            .err()
+            .map(|error| error.code().to_owned()),
+        Some("data_object_not_serializable".into())
+    );
+    assert!(
+        info.old_or("nil", DataValue::String("fallback".into()))?
+            .is_null()
+    );
+    assert_eq!(
+        info.old_or_json("absent", serde_json::json!("fallback"))?,
+        serde_json::json!("fallback")
+    );
+    assert_eq!(
+        info.old_or_json("nil", serde_json::json!("fallback"))?,
+        serde_json::Value::Null
+    );
+
+    session.set_object_encoding(ObjectEncoding::JsonProjection)?;
+    session.save().await?;
+    let loaded = Session::new(Some(session.id()?), store, None)?;
+    loaded.start().await?;
+    let mut wire = request("/", None);
+    wire.extensions_mut().insert(loaded);
+    let (mut parts, _) = wire.into_parts();
+    let info = RequestInfo::from_request_parts(&mut parts, &()).await?;
+    assert_eq!(
+        info.old_json("profile.avatar")?,
+        Some(serde_json::json!("avatar"))
+    );
+    assert!(
+        matches!(info.old("profile.avatar")?, Some(DataValue::String(value)) if value == "avatar")
+    );
+    Ok(())
 }
 
 #[test]

@@ -18,7 +18,7 @@ R2-T ConfigRepository严格类型读取已由独立分支 `b1f4bf7` 限定验收
 
 ## 执行校准
 
-当前R2-P完整Provider注册家族、S-DV对象Session与ST-V Storage仍为独立未交付工作，不纳入R03/typed/CC/Signed的main组合。四簇main组合默认/全特性严格Clippy与workspace tests已通过（907/0/34 ignored、1698/0/108 ignored）；双docs/MSRV、no-default、deny和生成/MySQL限定证据见组合记录；五父本地提交 `e105dbfc58afc330b50e53b75f0b9e1424fa387a` 仅关闭本轮限定集成。唯一队列见[todo](todo.md)。
+R2-P `4ac8099` 与 S-DV `6ffb5c8` 均已完成分支限定提交，现为同一未提交main组合候选，待组合审查与门禁；ST-V Storage仍独立未交付，不计入既有R03/typed/CC/Signed主线验收。四簇main组合默认/全特性严格Clippy与workspace tests已通过（907/0/34 ignored、1698/0/108 ignored）；双docs/MSRV、no-default、deny和生成/MySQL限定证据见组合记录；五父本地提交 `e105dbfc58afc330b50e53b75f0b9e1424fa387a` 仅关闭本轮限定集成。唯一队列见[todo](todo.md)。
 
 C04-D10-E scheme/secure与guest/intended已通过适用集中门禁、fresh生成/MySQL及真实TCP4/9，资源收尾完成，限定提交见Git；D10-D为018b778。E限定提交6b143ca。C04-D10-F refresh/away已通过当前门禁、生成/MySQL与真实TCP7/12，资源收尾完成、限定提交见Git；F已提交ba538ea；动作路由身份与action URL按ADR-083 D10-G已限定验收，主门禁、新构建/fresh生成/MySQL及真实TCP10/15与资源收尾通过，含单实例namespace setter与clone隔离；当前H按ADR-083收口真实声明集合/分派同源化，已完成限定验收：定向/双严格Clippy/完整router及主矩阵11项、新构建/生成/MySQL/真实TCP与资源收尾通过，限定提交见Git；T01已完成限定入口整合并实测名单/计时，未证明整体显著提速；R2-R01按ADR-086已完成同仓储运行期set/set_many、App读取及启动快照限定交付，含工作区/fresh生成/MySQL/真实TCP与资源收尾；当前R2-R02按ADR-086已完成有序来源实现、适用Rust门禁、普通/MySQL生成、真实TCP与资源收尾限定验证；已提交a875dd7，R2-ENV已完成工作区/consumer、fresh普通/MySQL、真实HTTP/Redis与资源收尾限定验收；signed完整家族基于af0f62b隔离实现/修复，R2-R03基于e25ec75隔离编码递归配置发现，main集成/组合验证串行；唯一队列见[todo](todo.md)，action/signed前置与完整Redirector、发布全后端矩阵继续开放，不以薄封装替代缺失底层契约。
 

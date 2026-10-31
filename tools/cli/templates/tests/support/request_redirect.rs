@@ -26,20 +26,26 @@ const DRAFT_GUIDE: &str = "https://laravel.com/docs/11.x/redirects?source=openru
 
 struct RedirectRoutes;
 impl ServiceProvider for RedirectRoutes {
-    fn register(&self, app: &mut RegisterContext<'_>) -> openrust::Result<()> {
-        app.extend::<ErrorBagCodecs, _>(|original, _resolver| {
-            Box::pin(async move {
-                let mut codecs = (*original).clone();
-                codecs.register::<GeneratedErrors>(
-                    "generated.redirect-errors",
-                    1,
-                    encode_errors,
-                    decode_errors,
-                )?;
-                Ok(Arc::new(codecs))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.extend::<ErrorBagCodecs, _>(|original, _resolver| {
+                Box::pin(async move {
+                    let mut codecs = (*original).clone();
+                    codecs.register::<GeneratedErrors>(
+                        "generated.redirect-errors",
+                        1,
+                        encode_errors,
+                        decode_errors,
+                    )?;
+                    Ok(Arc::new(codecs))
+                })
             })
-        });
-        Ok(())
+            .await?;
+            Ok(())
+        })
     }
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
@@ -176,7 +182,7 @@ async fn action_page(info: RequestInfo) -> openrust::Result<Json<Value>> {
         .ok_or_else(|| openrust::Error::custom("generated_action_route_missing", "动作路由缺失"))?;
     Ok(Json(json!({
         "action":route.action(), "id":route.parameter("id"), "name":route.name(),
-        "old_title":info.old("title")?,
+        "old_title":info.old_json("title")?,
         "title_error":info.session()?.read_errors()?.get_bag("default").as_bag().first(None, None)?,
     })))
 }
@@ -217,7 +223,7 @@ async fn refresh_page(info: RequestInfo) -> openrust::Result<Json<Value>> {
     let errors = info.session()?.read_errors()?;
     Ok(Json(json!({
         "draft":"生成草稿",
-        "old_title":info.old("title")?,
+        "old_title":info.old_json("title")?,
         "title_error":errors.get_bag("default").as_bag().first(None, None)?,
     })))
 }
@@ -225,7 +231,7 @@ const PREVIEW_CONFIRMED: &str = "generated.draft.preview_confirmed";
 
 // 仅为非敏感草稿预览记录确认；不创建用户身份或替代 Auth/Policy。
 async fn preview(info: RequestInfo) -> openrust::Result<Response> {
-    if info.session()?.get(PREVIEW_CONFIRMED)? == Some(Value::Bool(true)) {
+    if info.session()?.get_json(PREVIEW_CONFIRMED)? == Some(Value::Bool(true)) {
         return Ok(Json(json!({"draft":"生成草稿","preview_confirmed":true})).into_response());
     }
     Ok(Redirector::from_info(&info)
@@ -238,7 +244,10 @@ async fn confirmation(info: RequestInfo) -> openrust::Result<Json<Value>> {
     ))
 }
 async fn confirm(request: InputRequest) -> openrust::Result<Response> {
-    request.info().session()?.put(PREVIEW_CONFIRMED, true)?;
+    request
+        .info()
+        .session()?
+        .put_typed(PREVIEW_CONFIRMED, true)?;
     Ok(Redirector::from_request(&request)
         .intended()?
         .into_response())
@@ -255,7 +264,7 @@ async fn submit(request: InputRequest) -> openrust::Result<Response> {
 async fn review(info: RequestInfo) -> openrust::Result<Json<Value>> {
     let errors = info.session()?.read_errors()?;
     Ok(Json(json!({
-        "old": info.old_all()?,
+        "old": info.old_all_json()?,
         "default_present": errors.has_bag("default"),
         "default_title": errors.get_bag("default").as_bag().first(Some("title"), None)?,
         "other_present": errors.has_bag("other"),

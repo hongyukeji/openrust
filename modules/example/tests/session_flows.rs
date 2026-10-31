@@ -628,6 +628,51 @@ async fn module_session_preferences_flash_keep_and_request_isolation() -> TestRe
 }
 
 #[tokio::test]
+async fn module_session_public_value_tree_persists_pure_business_preference() -> TestResult {
+    let mut app = TestApp::<SessionApplication>::builder(sources())
+        .build()
+        .await?;
+    let outcome: TestResult = async {
+        let initial = request(&app, None, None).await?;
+        let cookie = cookie_pair(&initial)?;
+        let written = request(
+            &app,
+            Some(json!({"action":"put_value","value":"tree"})),
+            Some(&cookie),
+        )
+        .await?;
+        let mut expected = data(Some("tree"), None, Some("put_value"));
+        expected["extension"] = json!({"raw":"tree"});
+        success(&written, &expected)?;
+        let cookie = cookie_pair(&written)?;
+        success(
+            &request(&app, None, Some(&cookie)).await?,
+            &data(Some("tree"), None, None),
+        )?;
+        let native = request(&app, Some(json!({"action":"object_native"})), Some(&cookie)).await?;
+        let mut expected = data(None, None, Some("object_native"));
+        expected["extension"] = json!({"same_object":true,"native_save_rejected":true});
+        success(&native, &expected)?;
+        let cookie = cookie_pair(&native)?;
+        let projected = request(&app, Some(json!({"action":"object_json"})), Some(&cookie)).await?;
+        let mut expected = data(Some("projected"), None, Some("object_json"));
+        expected["extension"] = json!({"same_object":true});
+        success(&projected, &expected)?;
+        let cookie = cookie_pair(&projected)?;
+        success(
+            &request(&app, None, Some(&cookie)).await?,
+            &data(Some("projected"), None, None),
+        )?;
+        Ok(())
+    }
+    .await;
+    let shutdown = app.shutdown(tokio::time::Instant::now() + TIMEOUT).await;
+    outcome?;
+    shutdown?;
+    Ok(())
+}
+
+#[tokio::test]
 #[allow(clippy::too_many_lines)] // 固定业务键的跨请求状态序列保持在同一 Cookie 与 fixture 中。
 async fn module_session_store_helpers_use_fixed_business_keys_across_requests() -> TestResult {
     let mut app = TestApp::<SessionApplication>::builder(sources())

@@ -780,27 +780,33 @@ impl I18nServiceProvider {
 }
 
 impl crate::core::ServiceProvider for I18nServiceProvider {
-    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-        use crate::config::repository::SectionSchema;
-        app.config_section(
-            "i18n",
-            I18nConfig::default(),
-            SectionSchema::object([
-                ("default_locale", SectionSchema::String),
-                ("fallback_locale", SectionSchema::String),
-            ]),
-            |_| Ok(()),
-        )?;
-        let catalog = self.catalog.clone();
-        app.singleton::<I18n, _>(move |resolver| {
-            let catalog = catalog.clone();
-            Box::pin(async move {
-                let config = resolver.section::<I18nConfig>("i18n")?;
-                Ok(Arc::new(I18n::new(config, catalog)?))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut crate::core::RegisterContext<'_>,
+    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            use crate::config::repository::SectionSchema;
+            app.config_section(
+                "i18n",
+                I18nConfig::default(),
+                SectionSchema::object([
+                    ("default_locale", SectionSchema::String),
+                    ("fallback_locale", SectionSchema::String),
+                ]),
+                |_| Ok(()),
+            )?;
+            let catalog = self.catalog.clone();
+            app.singleton::<I18n, _>(move |resolver| {
+                let catalog = catalog.clone();
+                Box::pin(async move {
+                    let config = resolver.section::<I18nConfig>("i18n")?;
+                    Ok(Arc::new(I18n::new(config, catalog)?))
+                })
             })
-        });
-        app.require::<I18n>();
-        Ok(())
+            .await?;
+            app.require::<I18n>();
+            Ok(())
+        })
     }
 
     fn boot<'a>(

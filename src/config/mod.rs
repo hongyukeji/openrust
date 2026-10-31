@@ -1286,19 +1286,33 @@ mod tests {
         }
 
         impl ServiceProvider for DefaultsProbe {
-            fn register(&self, app: &mut RegisterContext<'_>) -> crate::core::Result<()> {
-                app.config_section(
-                    "fixture",
-                    serde_json::json!({"label": "base", "nested": {"old": 1}}),
-                    SectionSchema::any(),
-                    |_| Ok(()),
-                )?;
-                app.config_section(
-                    "cache",
-                    serde_json::json!({"stores": {"array": {"driver": "array"}}, "nested": {"old": 1}}),
-                    SectionSchema::any(),
-                    |_| Ok(()),
-                )
+            fn register<'a>(
+                &'a self,
+                app: &'a mut RegisterContext<'_>,
+            ) -> BoxFuture<'a, crate::core::Result<()>> {
+                Box::pin(async move {
+                    app.config_section(
+                        "fixture",
+                        serde_json::json!({"label": "base", "nested": {"old": 1}}),
+                        SectionSchema::any(),
+                        |_| Ok(()),
+                    )?;
+                    let fixture: serde_json::Value = app.config_repository().section("fixture")?;
+                    assert_eq!(
+                        fixture["nested"],
+                        if self.file_source {
+                            serde_json::json!({"new": 2})
+                        } else {
+                            serde_json::json!({"old": 1, "new": 2})
+                        }
+                    );
+                    app.config_section(
+                        "cache",
+                        serde_json::json!({"stores": {"array": {"driver": "array"}}, "nested": {"old": 1}}),
+                        SectionSchema::any(),
+                        |_| Ok(()),
+                    )
+                })
             }
 
             fn boot<'a>(
@@ -1320,13 +1334,23 @@ mod tests {
 
         struct CacheOnly;
         impl ServiceProvider for CacheOnly {
-            fn register(&self, app: &mut RegisterContext<'_>) -> crate::core::Result<()> {
-                app.config_section(
-                    "cache",
-                    serde_json::json!({"before": "base", "nested": {"old": 1}, "custom": {"old": 1}}),
-                    SectionSchema::any(),
-                    |_| Ok(()),
-                )
+            fn register<'a>(
+                &'a self,
+                app: &'a mut RegisterContext<'_>,
+            ) -> BoxFuture<'a, crate::core::Result<()>> {
+                Box::pin(async move {
+                    app.config_section(
+                        "cache",
+                        serde_json::json!({"before": "base", "nested": {"old": 1}, "custom": {"old": 1}}),
+                        SectionSchema::any(),
+                        |_| Ok(()),
+                    )?;
+                    assert_eq!(
+                        app.config_repository().get("cache.custom")?,
+                        Some(serde_json::json!({"old": 1}))
+                    );
+                    Ok(())
+                })
             }
         }
 
@@ -1462,6 +1486,122 @@ mod tests {
         Ok(())
     }
 
+    use crate::core::{BootContext, BoxFuture, ProviderBuilder, RegisterContext, ServiceProvider};
+    use repository::SectionSchema;
+    use serde_json::{Value, json};
+
+    struct PackageDefaults;
+    impl ServiceProvider for PackageDefaults {
+        fn register<'a>(
+            &'a self,
+            app: &'a mut RegisterContext<'_>,
+        ) -> BoxFuture<'a, crate::core::Result<()>> {
+            Box::pin(async move {
+                app.merge_defaults("demo", json!({"from_a": 1, "same": "A"}))?;
+                app.merge_defaults("demo.items", json!([1]))?;
+                app.config_repository().set_many([
+                    ("demo.override", json!("changed")),
+                    ("demo.manual", json!("set")),
+                    ("demo.nullish", Value::Null),
+                    ("demo.child.new", json!(2)),
+                    ("demo.atomic", json!([4])),
+                ])?;
+                assert_eq!(app.config_repository().get("demo.from_a")?, Some(json!(1)));
+                assert_eq!(app.config_repository().get("demo.items")?, Some(json!([1])));
+                assert_eq!(app.config_repository().get("demo.same")?, Some(json!("A")));
+                assert_eq!(app.config_repository().version(), 1);
+                Ok(())
+            })
+        }
+    }
+
+    struct SectionDefaults;
+    impl ServiceProvider for SectionDefaults {
+        fn register<'a>(
+            &'a self,
+            app: &'a mut RegisterContext<'_>,
+        ) -> BoxFuture<'a, crate::core::Result<()>> {
+            Box::pin(async move {
+                app.config_section(
+                    "demo",
+                    json!({
+                        "from_b": "base", "same": "B", "override": "B", "manual": "B",
+                        "nullish": "B", "child": {"old": 1}, "items": [9], "atomic": [9]
+                    }),
+                    SectionSchema::any(),
+                    |_: &Value| Ok(()),
+                )?;
+                let section: Value = app.config_repository().section("demo")?;
+                assert_eq!(
+                    section,
+                    json!({
+                        "from_a": 1, "from_b": "environment", "same": "A",
+                        "override": "changed", "manual": "set", "nullish": null,
+                        "child": {"old": 1, "new": 2}, "items": [1, 9], "atomic": [4]
+                    })
+                );
+                assert_eq!(
+                    app.config_repository().get("demo.items")?,
+                    Some(json!([1, 9]))
+                );
+                assert_eq!(app.config_repository().version(), 1);
+                Ok(())
+            })
+        }
+
+        fn boot<'a>(
+            &'a self,
+            app: &'a mut BootContext<'_>,
+        ) -> BoxFuture<'a, crate::core::Result<()>> {
+            Box::pin(async move {
+                let section: Value = app.section("demo")?;
+                assert_eq!(section["items"], json!([1, 9]));
+                assert_eq!(section["atomic"], json!([4]));
+                assert_eq!(section["from_a"], json!(1));
+                assert_eq!(section["same"], json!("A"));
+                assert_eq!(section["manual"], json!("set"));
+                assert_eq!(section["nullish"], Value::Null);
+                Ok(())
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn child_file_section_keeps_earlier_provider_merge_and_set() -> crate::core::Result<()> {
+        let directory = tempfile::tempdir().map_err(crate::core::Error::internal)?;
+        std::fs::create_dir(directory.path().join("demo")).map_err(crate::core::Error::internal)?;
+        std::fs::write(directory.path().join("demo/child.toml"), "new = 2\n")
+            .map_err(crate::core::Error::internal)?;
+        let mut sources = ConfigLoader::new(directory.path(), Environment::Test).sources()?;
+        let environment = json!({"demo": {"from_b": "environment", "override": "origin"}});
+        sources.merge(Serialized::defaults(environment.clone()), environment)?;
+        let profile = sources.figment().profile().clone();
+        let environment_metadata = sources
+            .figment()
+            .find_metadata("demo.from_b")
+            .map(|metadata| metadata.name.to_string());
+        let mut builder = ProviderBuilder::new();
+        builder.provider(PackageDefaults);
+        builder.provider(SectionDefaults);
+        let runtime = builder.start(sources).await?;
+        assert_eq!(runtime.config().snapshot().profile(), &profile);
+        assert_eq!(runtime.config().get("demo.items")?, Some(json!([1, 9])));
+        assert_eq!(runtime.config().get("demo.nullish")?, Some(Value::Null));
+        assert_eq!(runtime.config().version(), 2);
+        assert_eq!(
+            runtime
+                .config()
+                .snapshot()
+                .find_metadata("demo.from_b")
+                .map(|metadata| metadata.name.to_string()),
+            environment_metadata
+        );
+        runtime
+            .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
+            .await?;
+        Ok(())
+    }
+
     #[tokio::test]
     async fn provider_mergeable_options_append_and_renumber_file_arrays() -> crate::core::Result<()>
     {
@@ -1476,13 +1616,18 @@ mod tests {
         }
 
         impl ServiceProvider for ArrayProbe {
-            fn register(&self, app: &mut RegisterContext<'_>) -> crate::core::Result<()> {
-                app.config_section(
-                    "broadcasting",
-                    self.defaults.clone(),
-                    SectionSchema::any(),
-                    |_| Ok(()),
-                )
+            fn register<'a>(
+                &'a self,
+                app: &'a mut RegisterContext<'_>,
+            ) -> BoxFuture<'a, crate::core::Result<()>> {
+                Box::pin(async move {
+                    app.config_section(
+                        "broadcasting",
+                        self.defaults.clone(),
+                        SectionSchema::any(),
+                        |_| Ok(()),
+                    )
+                })
             }
 
             fn boot<'a>(

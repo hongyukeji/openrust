@@ -43,11 +43,16 @@ pub struct ViewServiceProvider;
 pub struct OptionalViewServiceProvider;
 
 impl crate::core::ServiceProvider for OptionalViewServiceProvider {
-    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-        if app.source_has_section("view")? {
-            crate::core::ServiceProvider::register(&ViewServiceProvider, app)?;
-        }
-        Ok(())
+    fn register<'a>(
+        &'a self,
+        app: &'a mut crate::core::RegisterContext<'_>,
+    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            if app.source_has_section("view")? {
+                crate::core::ServiceProvider::register(&ViewServiceProvider, app).await?;
+            }
+            Ok(())
+        })
     }
 
     fn boot<'a>(
@@ -64,25 +69,31 @@ impl crate::core::ServiceProvider for OptionalViewServiceProvider {
 }
 
 impl crate::core::ServiceProvider for ViewServiceProvider {
-    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-        use crate::config::repository::SectionSchema;
-        app.config_section(
-            "view",
-            ViewConfig::default(),
-            SectionSchema::object([
-                ("directory", SectionSchema::String),
-                ("auto_reload", SectionSchema::Boolean),
-            ]),
-            |_| Ok(()),
-        )?;
-        app.singleton::<Views, _>(|resolver| {
-            Box::pin(async move {
-                let config = resolver.section::<ViewConfig>("view")?;
-                Ok(Arc::new(configured_views(config)?))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut crate::core::RegisterContext<'_>,
+    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            use crate::config::repository::SectionSchema;
+            app.config_section(
+                "view",
+                ViewConfig::default(),
+                SectionSchema::object([
+                    ("directory", SectionSchema::String),
+                    ("auto_reload", SectionSchema::Boolean),
+                ]),
+                |_| Ok(()),
+            )?;
+            app.singleton::<Views, _>(|resolver| {
+                Box::pin(async move {
+                    let config = resolver.section::<ViewConfig>("view")?;
+                    Ok(Arc::new(configured_views(config)?))
+                })
             })
-        });
-        app.require::<Views>();
-        Ok(())
+            .await?;
+            app.require::<Views>();
+            Ok(())
+        })
     }
 
     fn boot<'a>(

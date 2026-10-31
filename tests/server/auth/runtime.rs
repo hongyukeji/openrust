@@ -137,10 +137,10 @@ async fn jwt_authentication_uses_the_configured_key_ring_without_session_middlew
 
 async fn create_test_session(session: Session) -> Result<openrust::http::Json<&'static str>> {
     session
-        .put("test.user_id", 42_i64)
+        .put("test.user_id", 42_i64.into())
         .map_err(Error::internal)?;
     session
-        .put("test.csrf_hash", "csrf-secret")
+        .put("test.csrf_hash", "csrf-secret".into())
         .map_err(Error::internal)?;
     Ok(openrust::http::Json("created"))
 }
@@ -153,10 +153,10 @@ async fn delete_test_session(session: Session) -> Result<openrust::http::Json<&'
 async fn rotate_test_session(session: Session) -> Result<openrust::http::Json<&'static str>> {
     session.migrate(true).await.map_err(Error::internal)?;
     session
-        .put("test.user_id", 42_i64)
+        .put("test.user_id", 42_i64.into())
         .map_err(Error::internal)?;
     session
-        .put("test.csrf_hash", "csrf-secret")
+        .put("test.csrf_hash", "csrf-secret".into())
         .map_err(Error::internal)?;
     Ok(openrust::http::Json("rotated"))
 }
@@ -719,9 +719,14 @@ async fn duplicate_auth_provider_keeps_first_authenticator() -> TestResult {
 
 struct TestInstance<T: Send + Sync + 'static>(std::sync::Arc<T>);
 impl<T: Send + Sync + 'static> openrust::core::ServiceProvider for TestInstance<T> {
-    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
-        app.instance(std::sync::Arc::clone(&self.0));
-        Ok(())
+    fn register<'a>(
+        &'a self,
+        app: &'a mut openrust::core::RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.instance(std::sync::Arc::clone(&self.0)).await?;
+            Ok(())
+        })
     }
 }
 
@@ -760,8 +765,11 @@ impl JwtSettings {
     }
 }
 impl openrust::core::ServiceProvider for JwtSettings {
-    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
-        app.merge_defaults("auth.jwt", self.0.clone())
+    fn register<'a>(
+        &'a self,
+        app: &'a mut openrust::core::RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move { app.merge_defaults("auth.jwt", self.0.clone()) })
     }
 }
 

@@ -36,6 +36,8 @@ python3 -B tests/consumers/config-repository-reading/scripts/verify_cache_comman
 
 `modules/example` 是根应用挂载的普通业务模块，供开发者学习如何在 `modules/<业务>/` 调用框架公开 API，以及通过公开 Provider/driver 契约扩展框架。框架、应用宿主和业务模块都在本仓 `main` 开发；这里没有独立 package、bin、启动模式或 example feature，也不复制完整应用骨架。
 
+`ServiceProvider::register` 返回 `BoxFuture`，依赖绑定使用 `RegisterContext` 的异步 `instance`、`singleton` 等方法并在登记位置 `await?`。应用启动后可用 `App::register_provider` 登记新 Provider；相同类型普通登记保留首次实例，显式 `force_register_provider` 则重新执行登记并更新后续解析的服务。已持有的 `Arc` 保留原实例。现有模块回归以 `ExampleMessage` 和 `GET /api/example` 验证同一应用中的更新；已构建的 HTTP Router 是快照，业务应在构建 Router 前完成需要反映在路由表中的登记。
+
 配置仓储的原始读写与严格类型读取语义见[配置说明](../../src/config/README.md)。模块自有的 [`config/feature.toml`](config/feature.toml) 经 `ModuleConfigFiles` overlay 写入 `example.feature`，`GET /api/example/config-feature` 通过公开配置仓储读取其固定 `enabled` 字段；无该文件时返回 `false`。应用配置文件的递归发现另由 `ConfigLoader` 处理，不给模块 overlay 重复包装命名空间。`GET /api/example/config-greeting` 由模块 Provider 在 boot 捕获共享 `ConfigRepository`，再经[业务服务](services/config_reading.rs)固定读取 `example.greeting`。`POST /api/example/config-greeting/review` 由同一服务将此业务键写为固定的“示例问候语已复核”，随后 GET 可读到新值；请求参数和正文均不能选择键或值。处理器只返回问候语，不输出 `all()` 或其他配置区段。写入仅作用于当前应用内存仓储，不保存到文件、数据库或其他实例，也不会自动重建已解析的类型化业务服务。[模块回归](tests/registration.rs)通过公开 `ConfigSources` 输入非字母顺序的 `example` 业务键，覆盖模块文件覆盖、运行期写入后位置保持、跨请求可见性、第二应用隔离和已解析服务的启动快照。生成器目前只建立空模块目录，不复制本模块；生成应用可显式安装独立 consumer 的 Provider fixture。
 
 **综合示例已贯通当前已实现的公开框架能力。** 文章 HTTP CRUD、事务事件、审计、缓存、存储、账户安全及协议调用均有业务代码和分组验证；tenant 路由通过 `RouteGroup` 演示共享路径前缀与组级认证/授权 middleware。这不表示全部 Laravel 能力已完成。
@@ -106,6 +108,8 @@ POST 接收如 `{"action":"put","value":"blue"}` 的 JSON。示例仅操作 `exa
 `extensions` 是受信任服务端选择的扩展示例：只重申当前合法 ID、生成随机 ID，并把实际 handler 赋回自身验证同绑定不变；正文不能指定任意 ID 或后端。返回值仅含身份是否改变、同 Arc 与请求依赖的布尔结果，不包含凭据。`probe` 只接受 `one`/`two`，通过现 Cookie 队列写入示例探针，不属于认证数据。
 
 [`providers/session.rs`](providers/session.rs) 给出调用方显式安装的请求驱动与 Provider。默认模块不会安装它或覆盖宿主已有 store；示例 fixture 明确选择 memory 或当前公开 Db，委托底层原子 load/write/delete，不另建 Session 属性。hook 在每请求实例中读取解密 Cookie 快照并排回执 Cookie；两组 Cookie 的交错请求验证不串 scope。真实 TCP fixture 另启同根 Application、显式选择同数据库连接的请求驱动，主认证 App 保持默认数据库 driver。包装器将存储保证、认证支持能力及请求绑定委托给实际底层驱动；不能只委托读写而把客户端快照误报为服务器存储。此方案不具备通用 Container factory 装饰能力，不冒称可以保留并装饰任意既有 factory。
+
+`POST /api/example/session` 的 `put_value` 操作用固定业务偏好键演示 `DataValue::from_json`、原始 `Session::put/get` 与显式 `to_json`。`object_native` 在同一请求用公开 `DataObject` 检查对象句柄身份和默认保存拒绝；`object_json` 为同一固定业务对象选择显式 JSON 持久投影，并由下一请求读取投影值。请求正文不能传入对象或自选 Session 键，响应只含受限业务状态与布尔验证结果。
 
 ### 请求级过期回收
 
@@ -297,8 +301,10 @@ use super::services::ExampleMessage;
 
 let mut fixture = TestApp::<crate::bootstrap::Server>::builder(production_sources(false));
 fixture.configure_after_register(|bindings| {
-    bindings.instance(Arc::new(ExampleMessage::new("A test-owned business message")));
-    Ok(())
+    Box::pin(async move {
+        bindings.instance(Arc::new(ExampleMessage::new("A test-owned business message"))).await?;
+        Ok(())
+    })
 });
 let mut app = fixture.build().await?;
 let response = app.request(Request::get("/api/example").header("host", "localhost").body(Body::empty())?).await?;
@@ -308,7 +314,7 @@ assert_eq!(json["data"]["message"], "A test-owned business message");
 app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5)).await?;
 ```
 
-替换在全体 Provider register 完成后、容器封口前生效。示例同时创建未替换与替换后的两个应用，检查内容互不污染；每个应用都显式 `shutdown` 等待框架拥有的异步资源关闭。完整 reset 会关闭再重建应用；闭包故意共享的外部 `Arc` 不会自动清空。
+替换在全体 Provider register 完成后、基础配置校验及 boot 前生效。示例同时创建未替换与替换后的两个应用，检查内容互不污染；每个应用都显式 `shutdown` 等待框架拥有的异步资源关闭。完整 reset 会关闭再重建应用；闭包故意共享的外部 `Arc` 不会自动清空。
 
 第二项测试用 `remove_module("example")` 从本次启动清单移除业务模块，确认 `/api/example` 不存在而 `/health` 保留。默认语义状态直接返回 HTTP 404，响应正文 `code = "not_found"`；另有显式 `always_ok` 模式回归保护可选覆盖。
 

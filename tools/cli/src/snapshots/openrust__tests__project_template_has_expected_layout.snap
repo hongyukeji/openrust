@@ -1,6 +1,6 @@
 ---
 source: tools/cli/src/main.rs
-assertion_line: 2818
+assertion_line: 3113
 expression: snapshot
 ---
 --- Cargo.toml ---
@@ -119,6 +119,7 @@ lottery = [2, 100]
 expire_on_close = false
 partitioned = false
 max_bytes = 20971520
+serializer = "native"
 
 --- config/i18n.toml ---
 default_locale = "en"
@@ -149,9 +150,14 @@ use crate::routes;
 
 struct ReadinessProvider;
 impl ServiceProvider for ReadinessProvider {
-    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-        app.instance(Arc::new(openrust::core::Readiness::default()));
-        Ok(())
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.instance(Arc::new(openrust::core::Readiness::default())).await?;
+            Ok(())
+        })
     }
 }
 
@@ -282,12 +288,68 @@ use figment::{
     providers::{Format, Serialized, Toml},
 };
 use openrust::config::ConfigSources;
+use openrust::core::{BoxFuture, RegisterContext, ServiceProvider};
 use openrust::http::axum::{
     body::Body,
     http::{Request, StatusCode},
 };
 use openrust::testing::TestApp;
 use std::time::Duration;
+
+struct RuntimeGreeting(&'static str);
+
+struct RuntimeGreetingProvider(&'static str);
+
+impl ServiceProvider for RuntimeGreetingProvider {
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.instance(std::sync::Arc::new(RuntimeGreeting(self.0)))
+                .await?;
+            Ok(())
+        })
+    }
+}
+
+#[tokio::test]
+async fn generated_application_exposes_runtime_provider_registration()
+-> Result<(), Box<dyn std::error::Error>> {
+    let source = Figment::from(Serialized::defaults(openrust::config::FrameworkConfig::default()))
+        .merge(Toml::string("[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n"));
+    let configuration: bootstrap::Configuration = source.extract()?;
+    let builder =
+        openrust::core::ProviderBuilder::for_application::<GeneratedApplication>(&configuration);
+    let mut app = openrust::App::from_provider_runtime(builder.start(source).await?)?;
+    let first = app
+        .register_provider(RuntimeGreetingProvider("初次登记"))
+        .await?;
+    let old = app.state().resolve::<RuntimeGreeting>().await?;
+    assert_eq!(old.0, "初次登记");
+    assert_eq!(
+        app.register_provider(RuntimeGreetingProvider("忽略重复"))
+            .await?,
+        first
+    );
+    assert_eq!(
+        app.state().resolve::<RuntimeGreeting>().await?.0,
+        "初次登记"
+    );
+    assert_eq!(
+        app.force_register_provider(RuntimeGreetingProvider("强制更新"))
+            .await?,
+        first
+    );
+    assert_eq!(old.0, "初次登记");
+    assert_eq!(
+        app.state().resolve::<RuntimeGreeting>().await?.0,
+        "强制更新"
+    );
+    app.shutdown(openrust::tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    Ok(())
+}
 
 #[tokio::test]
 async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std::error::Error>> {
@@ -1326,14 +1388,18 @@ use openrust::http::axum::{
         header::{COOKIE, SET_COOKIE},
     },
 };
-use openrust::http::{CookieJar, CookieOptions, Inject, Json, RequestInfo, RouteGroup, Routes};
+use openrust::http::{
+    CookieFactory, CookieJar, CookieOptions, Inject, Json, RequestInfo, RouteGroup, Routes,
+};
 use openrust::session::{
     CookieSessionStore, DatabaseSessionStore, MemorySessionStore, Session, SessionId,
     SessionRecord, SessionRequestContext, SessionServiceProvider, SessionStore, SessionStoreHandle,
     SessionWriteMode, SessionWriteOutcome,
 };
+use openrust::support::{DataObject, DataValue, ObjectEncoding};
 use openrust::testing::{TestApp, TestResponse};
 use serde_json::{Value, json};
+use std::any::Any;
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -1360,31 +1426,37 @@ struct PreviousCalls(AtomicUsize);
 struct OldInputCalls(AtomicUsize);
 
 impl ServiceProvider for SessionRoutes {
-    fn register(&self, app: &mut RegisterContext<'_>) -> openrust::Result<()> {
-        app.instance(Arc::new(PreviousCalls::default()));
-        app.instance(Arc::new(OldInputCalls::default()));
-        // fixture 已明确选择 plain array 或 auth database；不是装饰任意已有 factory。
-        app.singleton::<SessionStoreHandle, _>(|resolver| {
-            Box::pin(async move {
-                let config = resolver.section::<SessionConfig>("session")?;
-                let backend: Arc<dyn SessionStore> = match config.driver.as_deref() {
-                    Some("array") => Arc::new(MemorySessionStore::default()),
-                    Some("cookie") => Arc::new(CookieSessionStore::new(
-                        config.lifetime,
-                        config.expire_on_close,
-                    )?),
-                    Some("database") => Arc::new(DatabaseSessionStore::new(
-                        (*resolver.resolve::<openrust::db::Db>().await?).clone(),
-                    )),
-                    _ => return Err(mismatch()),
-                };
-                Ok(Arc::new(SessionStoreHandle::new(ContractRequestDriver {
-                    backend,
-                    context: None,
-                })))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.instance(Arc::new(PreviousCalls::default())).await?;
+            app.instance(Arc::new(OldInputCalls::default())).await?;
+            // fixture 已明确选择 plain array 或 auth database；不是装饰任意已有 factory。
+            app.singleton::<SessionStoreHandle, _>(|resolver| {
+                Box::pin(async move {
+                    let config = resolver.section::<SessionConfig>("session")?;
+                    let backend: Arc<dyn SessionStore> = match config.driver.as_deref() {
+                        Some("array") => Arc::new(MemorySessionStore::default()),
+                        Some("cookie") => Arc::new(CookieSessionStore::new(
+                            config.lifetime,
+                            config.expire_on_close,
+                        )?),
+                        Some("database") => Arc::new(DatabaseSessionStore::new(
+                            (*resolver.resolve::<openrust::db::Db>().await?).clone(),
+                        )),
+                        _ => return Err(mismatch()),
+                    };
+                    Ok(Arc::new(SessionStoreHandle::new(ContractRequestDriver {
+                        backend,
+                        context: None,
+                    })))
+                })
             })
-        });
-        Ok(())
+            .await?;
+            Ok(())
+        })
     }
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
@@ -1463,15 +1535,19 @@ async fn set(session: Session, info: RequestInfo) -> openrust::Result<Json<Value
     ensure(session.handler_needs_request()?)?;
     session.set_id(None)?;
     ensure(session.id()? != before)?;
+    // 原始 Session 值在请求内保留，响应边界再显式转成 JSON。
     session
-        .put(PREFERENCE, "preserved")?
-        .put(NULL, Value::Null)?
-        .flash(NOTICE, "next")?
-        .now(NOW, "current")?;
-    info.session()?.put(SHARED, "same request")?;
-    session.put(MEMO, Value::Null)?;
-    session.remember(MEMO, || Ok("computed"))?;
-    session.push(LIST, "first")?;
+        .put(
+            PREFERENCE,
+            openrust::support::DataValue::from_json(json!("preserved"))?,
+        )?
+        .put_typed(NULL, Value::Null)?
+        .flash_typed(NOTICE, "next")?
+        .now_typed(NOW, "current")?;
+    info.session()?.put_typed(SHARED, "same request")?;
+    session.put_typed(MEMO, Value::Null)?;
+    session.remember_typed(MEMO, || Ok("computed"))?;
+    session.push_typed(LIST, "first")?;
     session.increment(COUNT)?;
     Ok(Json(snapshot(&session, &info)?))
 }
@@ -1501,15 +1577,18 @@ async fn previous_read(
     })))
 }
 async fn advance(session: Session, info: RequestInfo) -> openrust::Result<Json<Value>> {
-    session.remember(MEMO, || Ok("unexpected"))?;
-    session.push(LIST, "second")?;
+    session.remember_typed(MEMO, || Ok("unexpected"))?;
+    session.push_typed(LIST, "second")?;
     session.increment_by(COUNT, 2)?;
     session.decrement(COUNT)?;
     session.decrement_by(COUNT, 2)?;
     Ok(Json(snapshot(&session, &info)?))
 }
 async fn remove(session: Session, info: RequestInfo) -> openrust::Result<Json<Value>> {
-    let removed = session.remove(MEMO)?;
+    let removed = session
+        .remove(MEMO)?
+        .map(|value| value.to_json())
+        .transpose()?;
     let mut data = snapshot(&session, &info)?;
     data["removed"] = json!(removed);
     Ok(Json(data))
@@ -1534,22 +1613,24 @@ async fn read_old_input(
     info: RequestInfo,
     Inject(calls): Inject<OldInputCalls>,
 ) -> openrust::Result<Json<Value>> {
-    Ok(Json(json!({"all":info.old_all()?,"name":info.old("name")?,
-        "missing":info.old_or("missing", json!("fallback"))?,
-        "business_calls":calls.0.load(Ordering::SeqCst)})))
+    Ok(Json(
+        json!({"all":info.old_all_json()?,"name":info.old_json("name")?,
+        "missing":info.old_or_json("missing", json!("fallback"))?,
+        "business_calls":calls.0.load(Ordering::SeqCst)}),
+    ))
 }
 fn snapshot(session: &Session, info: &RequestInfo) -> openrust::Result<Value> {
     Ok(json!({
         "cookie_name": session.name()?,
         "same_handle": info.has_session() && info.session()?.id()? == session.id()?,
-        "shared_value": session.get(SHARED)? == Some(json!("same request")),
-        "stored_null": session.get_or(NULL, json!("fallback"))? == Value::Null,
-        "preference": session.get(PREFERENCE)?,
-        "notice": session.get(NOTICE)?,
-        "now": session.get(NOW)?,
-        "memo": session.get(MEMO)?,
-        "list": session.get(LIST)?,
-        "count": session.get(COUNT)?,
+        "shared_value": session.get_json(SHARED)? == Some(json!("same request")),
+        "stored_null": session.get_or(NULL, openrust::support::DataValue::from_json(json!("fallback"))?)?.is_null(),
+        "preference": session.get(PREFERENCE)?.map(|value| value.to_json()).transpose()?,
+        "notice": session.get_json(NOTICE)?,
+        "now": session.get_json(NOW)?,
+        "memo": session.get_json(MEMO)?,
+        "list": session.get_json(LIST)?,
+        "count": session.get_json(COUNT)?,
     }))
 }
 
@@ -1751,6 +1832,7 @@ async fn verify<A: Application, const EXISTING: bool>(source: Figment) -> openru
         verify_request_driver(&app, &name).await?;
         verify_previous(&app, &name).await?;
         verify_old_input(&app, &name).await?;
+        verify_object_codec(&app).await?;
         Ok(())
     }
     .await;
@@ -1759,6 +1841,81 @@ async fn verify<A: Application, const EXISTING: bool>(source: Figment) -> openru
         .await;
     outcome?;
     shutdown?;
+    Ok(())
+}
+
+struct GeneratedObject;
+
+impl DataObject for GeneratedObject {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn json_projection(&self) -> Option<Value> {
+        Some(json!("generated"))
+    }
+}
+
+async fn verify_object_codec<A: Application, const EXISTING: bool>(
+    app: &TestApp<SessionApplication<A, EXISTING>>,
+) -> openrust::Result<()> {
+    let store = app
+        .app()?
+        .state()
+        .resolve::<SessionStoreHandle>()
+        .await?
+        .store();
+    let jar = CookieJar::new(CookieFactory::default());
+    let session = Session::new(None, store.clone(), None)?;
+    session
+        .set_request_on_handler(SessionRequestContext::new(json!({}), jar.clone())?)
+        .await?;
+    session.start().await?;
+    let object = DataValue::object(GeneratedObject);
+    session.put("contract.object", object.clone())?;
+    ensure(
+        session
+            .get("contract.object")?
+            .is_some_and(|value| value.same_object(&object)),
+    )?;
+    let error = session.save().await.err().ok_or_else(mismatch)?;
+    ensure(error.code() == "data_object_not_serializable")?;
+    ensure(
+        session
+            .get("contract.object")?
+            .is_some_and(|value| value.same_object(&object)),
+    )?;
+    let id = session.id()?;
+    if store.guarantees() == openrust::session::SessionStoreGuarantees::ClientSideSnapshot {
+        ensure(!jar.has_queued(id.as_str(), None)?)?;
+    }
+    ensure(
+        session
+            .handler()?
+            .load(
+                &id,
+                openrust::session::DEFAULT_MAX_BYTES,
+                session.expiry_date()?,
+            )
+            .await?
+            .is_none(),
+    )?;
+    session.set_object_encoding(ObjectEncoding::JsonProjection)?;
+    session.save().await?;
+    let mut cookies = json!({});
+    if store.guarantees() == openrust::session::SessionStoreGuarantees::ClientSideSnapshot {
+        let value = jar.queued(id.as_str(), None)?.ok_or_else(mismatch)?;
+        cookies[id.as_str()] = json!(value.value());
+    }
+    let reloaded = Session::new(Some(id), store, None)?;
+    reloaded
+        .set_request_on_handler(SessionRequestContext::new(
+            cookies,
+            CookieJar::new(CookieFactory::default()),
+        )?)
+        .await?;
+    reloaded.start().await?;
+    ensure(reloaded.get_json("contract.object")? == Some(json!("generated")))?;
     Ok(())
 }
 
@@ -2233,12 +2390,12 @@ impl ServiceProvider for OriginalHostRoutes {
     }
 }
 async fn original_write(session: Session) -> openrust::Result<Json<Value>> {
-    session.put("contract.original_host", "persisted")?;
+    session.put_typed("contract.original_host", "persisted")?;
     original_read(session).await
 }
 async fn original_read(session: Session) -> openrust::Result<Json<Value>> {
     Ok(Json(
-        json!({"value":session.get("contract.original_host")?,"snapshot":session.handler()?.guarantees()==openrust::session::SessionStoreGuarantees::ClientSideSnapshot}),
+        json!({"value":session.get_json("contract.original_host")?,"snapshot":session.handler()?.guarantees()==openrust::session::SessionStoreGuarantees::ClientSideSnapshot}),
     ))
 }
 struct OriginalHost<A>(std::marker::PhantomData<fn() -> A>);
@@ -2339,20 +2496,26 @@ const DRAFT_GUIDE: &str = "https://laravel.com/docs/11.x/redirects?source=openru
 
 struct RedirectRoutes;
 impl ServiceProvider for RedirectRoutes {
-    fn register(&self, app: &mut RegisterContext<'_>) -> openrust::Result<()> {
-        app.extend::<ErrorBagCodecs, _>(|original, _resolver| {
-            Box::pin(async move {
-                let mut codecs = (*original).clone();
-                codecs.register::<GeneratedErrors>(
-                    "generated.redirect-errors",
-                    1,
-                    encode_errors,
-                    decode_errors,
-                )?;
-                Ok(Arc::new(codecs))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.extend::<ErrorBagCodecs, _>(|original, _resolver| {
+                Box::pin(async move {
+                    let mut codecs = (*original).clone();
+                    codecs.register::<GeneratedErrors>(
+                        "generated.redirect-errors",
+                        1,
+                        encode_errors,
+                        decode_errors,
+                    )?;
+                    Ok(Arc::new(codecs))
+                })
             })
-        });
-        Ok(())
+            .await?;
+            Ok(())
+        })
     }
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
@@ -2489,7 +2652,7 @@ async fn action_page(info: RequestInfo) -> openrust::Result<Json<Value>> {
         .ok_or_else(|| openrust::Error::custom("generated_action_route_missing", "动作路由缺失"))?;
     Ok(Json(json!({
         "action":route.action(), "id":route.parameter("id"), "name":route.name(),
-        "old_title":info.old("title")?,
+        "old_title":info.old_json("title")?,
         "title_error":info.session()?.read_errors()?.get_bag("default").as_bag().first(None, None)?,
     })))
 }
@@ -2530,7 +2693,7 @@ async fn refresh_page(info: RequestInfo) -> openrust::Result<Json<Value>> {
     let errors = info.session()?.read_errors()?;
     Ok(Json(json!({
         "draft":"生成草稿",
-        "old_title":info.old("title")?,
+        "old_title":info.old_json("title")?,
         "title_error":errors.get_bag("default").as_bag().first(None, None)?,
     })))
 }
@@ -2538,7 +2701,7 @@ const PREVIEW_CONFIRMED: &str = "generated.draft.preview_confirmed";
 
 // 仅为非敏感草稿预览记录确认；不创建用户身份或替代 Auth/Policy。
 async fn preview(info: RequestInfo) -> openrust::Result<Response> {
-    if info.session()?.get(PREVIEW_CONFIRMED)? == Some(Value::Bool(true)) {
+    if info.session()?.get_json(PREVIEW_CONFIRMED)? == Some(Value::Bool(true)) {
         return Ok(Json(json!({"draft":"生成草稿","preview_confirmed":true})).into_response());
     }
     Ok(Redirector::from_info(&info)
@@ -2551,7 +2714,10 @@ async fn confirmation(info: RequestInfo) -> openrust::Result<Json<Value>> {
     ))
 }
 async fn confirm(request: InputRequest) -> openrust::Result<Response> {
-    request.info().session()?.put(PREVIEW_CONFIRMED, true)?;
+    request
+        .info()
+        .session()?
+        .put_typed(PREVIEW_CONFIRMED, true)?;
     Ok(Redirector::from_request(&request)
         .intended()?
         .into_response())
@@ -2568,7 +2734,7 @@ async fn submit(request: InputRequest) -> openrust::Result<Response> {
 async fn review(info: RequestInfo) -> openrust::Result<Json<Value>> {
     let errors = info.session()?.read_errors()?;
     Ok(Json(json!({
-        "old": info.old_all()?,
+        "old": info.old_all_json()?,
         "default_present": errors.has_bag("default"),
         "default_title": errors.get_bag("default").as_bag().first(Some("title"), None)?,
         "other_present": errors.has_bag("other"),

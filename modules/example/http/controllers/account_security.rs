@@ -105,7 +105,7 @@ pub(crate) async fn set_preference(
     Json(input): Json<PreferenceInput>,
 ) -> Result<Response> {
     session
-        .put(DENSITY_KEY, input.density)
+        .put_typed(DENSITY_KEY, input.density)
         .map_err(Error::internal)?;
     Ok(private(serde_json::json!({"density":input.density})))
 }

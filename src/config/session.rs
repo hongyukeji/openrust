@@ -30,6 +30,8 @@ pub struct SessionConfig {
     pub partitioned: bool,
     /// 整体持久编码字节上限，默认20MiB，只能明确调低。
     pub max_bytes: usize,
+    /// 对象保存策略：`native` 拒绝对象，`json` 使用对象显式投影。
+    pub serializer: String,
 }
 
 impl SessionConfig {
@@ -53,6 +55,9 @@ impl SessionConfig {
         }
         if self.max_bytes == 0 || self.max_bytes > Self::MAX_BYTES {
             return Err(invalid("max_bytes", &self.max_bytes.to_string()));
+        }
+        if !matches!(self.serializer.as_str(), "native" | "json") {
+            return Err(invalid("serializer", &self.serializer));
         }
         self.validate_cookie_defaults()
     }
@@ -110,6 +115,7 @@ impl Default for SessionConfig {
             expire_on_close: false,
             partitioned: false,
             max_bytes: Self::MAX_BYTES,
+            serializer: "native".into(),
         }
     }
 }
@@ -129,6 +135,7 @@ impl std::fmt::Debug for SessionConfig {
             .field("expire_on_close", &self.expire_on_close)
             .field("partitioned", &self.partitioned)
             .field("max_bytes", &self.max_bytes)
+            .field("serializer", &self.serializer)
             .finish()
     }
 }

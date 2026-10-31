@@ -69,7 +69,7 @@ mod tests {
         let handle = SessionStoreHandle::new(MemorySessionStore::default());
         let session = Session::new(None, Arc::new(MemorySessionStore::default()), None)?;
         session.start().await?;
-        session.put(crate::auth::database::AUTH_USER_ID_KEY, 42_i64)?;
+        session.put_typed(crate::auth::database::AUTH_USER_ID_KEY, 42_i64)?;
         session.save().await?;
         assert!(handle.authorized_until(&session, 42).await? > std::time::SystemTime::now());
         Ok(())
@@ -88,7 +88,7 @@ mod tests {
             )?)
             .await?;
         session.start().await?;
-        session.put(crate::auth::database::AUTH_USER_ID_KEY, 42_i64)?;
+        session.put_typed(crate::auth::database::AUTH_USER_ID_KEY, 42_i64)?;
         let protection_error = session
             .require_authenticated_storage()
             .err()
@@ -126,7 +126,7 @@ mod tests {
         )?;
         session.set_request_on_handler(context).await?;
         session.start().await?;
-        session.put(crate::auth::database::AUTH_USER_ID_KEY, 42_i64)?;
+        session.put_typed(crate::auth::database::AUTH_USER_ID_KEY, 42_i64)?;
         session.save().await?;
         jar.flush_queued_cookies()?;
         session.set_name("excluded")?;
@@ -140,7 +140,7 @@ mod tests {
 
         let session = Session::new(None, Arc::new(MemorySessionStore::default()), None)?;
         session.start().await?;
-        session.put(crate::auth::database::AUTH_USER_ID_KEY, 42_i64)?;
+        session.put_typed(crate::auth::database::AUTH_USER_ID_KEY, 42_i64)?;
         session.save().await?;
         session.set_handler(Arc::new(CookieSessionStore::new(2, false)?))?;
         session
@@ -164,7 +164,7 @@ mod tests {
         let session = Session::new(None, Arc::new(MemorySessionStore::default()), None)?;
         let jar = crate::http::CookieJar::new(crate::http::CookieFactory::default());
         session.start().await?;
-        session.put("preference", "compact")?;
+        session.put_typed("preference", "compact")?;
         session.save().await?;
         session.set_handler(Arc::new(CookieSessionStore::new(2, false)?))?;
         session

@@ -717,48 +717,54 @@ fn validate_storage_config(config: &StorageConfig) -> Result<()> {
 }
 
 impl crate::core::ServiceProvider for StorageServiceProvider {
-    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-        use crate::config::repository::SectionSchema as S;
-        app.config_section(
-            "storage",
-            serde_json::json!({}),
-            S::object([
-                ("default_disk", S::String),
-                ("max_upload_bytes", S::Integer),
-                ("max_chunk_bytes", S::Integer),
-                ("disks", S::map(S::object([("driver", S::String)]).open())),
-            ]),
-            |value| {
-                let config: StorageConfig =
-                    serde_json::from_value(value.clone()).map_err(|_| {
-                        Error::Config(crate::config::ConfigError::Invalid(
-                            "storage configuration is invalid".into(),
-                        ))
-                    })?;
-                validate_storage_config(&config)
-            },
-        )?;
-        let custom = self.drivers.clone();
-        app.singleton::<Storage, _>(move |resolver| {
-            let custom = custom.clone();
-            Box::pin(async move {
-                let mut drivers = StorageDrivers::default();
-                #[cfg(feature = "storage-local")]
-                drivers.register(FsDriver)?;
-                #[cfg(not(feature = "storage-local"))]
-                drivers.register(LocalUnavailableDriver)?;
-                #[cfg(feature = "storage-s3")]
-                drivers.register(S3Driver)?;
-                #[cfg(not(feature = "storage-s3"))]
-                drivers.register(S3UnavailableDriver)?;
-                for driver in custom {
-                    drivers.register_shared(driver)?;
-                }
-                Ok(Arc::new(Storage::managed(resolver, drivers)))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut crate::core::RegisterContext<'_>,
+    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            use crate::config::repository::SectionSchema as S;
+            app.config_section(
+                "storage",
+                serde_json::json!({}),
+                S::object([
+                    ("default_disk", S::String),
+                    ("max_upload_bytes", S::Integer),
+                    ("max_chunk_bytes", S::Integer),
+                    ("disks", S::map(S::object([("driver", S::String)]).open())),
+                ]),
+                |value| {
+                    let config: StorageConfig =
+                        serde_json::from_value(value.clone()).map_err(|_| {
+                            Error::Config(crate::config::ConfigError::Invalid(
+                                "storage configuration is invalid".into(),
+                            ))
+                        })?;
+                    validate_storage_config(&config)
+                },
+            )?;
+            let custom = self.drivers.clone();
+            app.singleton::<Storage, _>(move |resolver| {
+                let custom = custom.clone();
+                Box::pin(async move {
+                    let mut drivers = StorageDrivers::default();
+                    #[cfg(feature = "storage-local")]
+                    drivers.register(FsDriver)?;
+                    #[cfg(not(feature = "storage-local"))]
+                    drivers.register(LocalUnavailableDriver)?;
+                    #[cfg(feature = "storage-s3")]
+                    drivers.register(S3Driver)?;
+                    #[cfg(not(feature = "storage-s3"))]
+                    drivers.register(S3UnavailableDriver)?;
+                    for driver in custom {
+                        drivers.register_shared(driver)?;
+                    }
+                    Ok(Arc::new(Storage::managed(resolver, drivers)))
+                })
             })
-        });
-        app.require::<Storage>();
-        Ok(())
+            .await?;
+            app.require::<Storage>();
+            Ok(())
+        })
     }
 
     fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {

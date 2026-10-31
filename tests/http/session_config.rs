@@ -95,20 +95,26 @@ impl ServiceProvider for Late {
 struct DbResolutions(AtomicUsize);
 struct DbTrap;
 impl ServiceProvider for DbTrap {
-    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-        let count = Arc::new(DbResolutions::default());
-        app.instance(count.clone());
-        app.singleton::<Db, _>(move |_| {
-            count.0.fetch_add(1, Ordering::SeqCst);
-            Box::pin(async {
-                Err::<Arc<Db>, _>(Error::custom_with_status(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "session_config_test_db_resolved",
-                    "禁用 Session 不应解析 Db",
-                ))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            let count = Arc::new(DbResolutions::default());
+            app.instance(count.clone()).await?;
+            app.singleton::<Db, _>(move |_| {
+                count.0.fetch_add(1, Ordering::SeqCst);
+                Box::pin(async {
+                    Err::<Arc<Db>, _>(Error::custom_with_status(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "session_config_test_db_resolved",
+                        "禁用 Session 不应解析 Db",
+                    ))
+                })
             })
-        });
-        Ok(())
+            .await?;
+            Ok(())
+        })
     }
 }
 struct TestRoutes;
@@ -422,6 +428,7 @@ async fn invalid_boot_config_fails_with_the_exact_configuration_field() -> Resul
         ("domain", json!("bad;domain")),
         ("same_site", json!("invalid")),
         ("max_bytes", json!(0)),
+        ("serializer", json!("unknown")),
     ] {
         let mut config = serde_json::to_value(SessionConfig::default()).map_err(Error::internal)?;
         config[field] = change;
@@ -460,6 +467,7 @@ async fn invalid_file_and_final_overlay_are_checked_after_all_valid_overrides() 
         ("cookie", "[session]\ncookie='bad=name'\n"),
         ("same_site", "[session]\nsame_site='invalid'\n"),
         ("path", "[session]\npath='/bad;path'\n"),
+        ("serializer", "[session]\nserializer='unknown'\n"),
     ] {
         let mut file = tempfile::NamedTempFile::new().map_err(Error::internal)?;
         file.write_all(toml.as_bytes()).map_err(Error::internal)?;
@@ -471,6 +479,7 @@ async fn invalid_file_and_final_overlay_are_checked_after_all_valid_overrides() 
         ("lifetime", json!(0)),
         ("same_site", json!("invalid")),
         ("max_bytes", json!(0)),
+        ("serializer", json!("unknown")),
     ] {
         let mut late = json!({});
         late[field] = value;

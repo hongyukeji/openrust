@@ -649,23 +649,29 @@ struct AttemptTracker {
 struct AttemptInstance(usize);
 struct AttemptBindings(Arc<AttemptTracker>);
 impl openrust::core::ServiceProvider for AttemptBindings {
-    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> FrameworkResult<()> {
-        app.instance(Arc::clone(&self.0));
-        app.scoped::<AttemptInstance, _>(|resolver| {
-            Box::pin(async move {
-                let tracker = resolver.resolve::<AttemptTracker>().await?;
-                let id = tracker.next.fetch_add(1, Ordering::SeqCst) + 1;
-                resolver.resources()?.on_shutdown(move || {
-                    Box::pin(async move {
-                        tracker.closed.fetch_add(1, Ordering::SeqCst);
-                        tracker.cleanup.notify_one();
-                        Ok(())
-                    })
-                })?;
-                Ok(Arc::new(AttemptInstance(id)))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut openrust::core::RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, FrameworkResult<()>> {
+        Box::pin(async move {
+            app.instance(Arc::clone(&self.0)).await?;
+            app.scoped::<AttemptInstance, _>(|resolver| {
+                Box::pin(async move {
+                    let tracker = resolver.resolve::<AttemptTracker>().await?;
+                    let id = tracker.next.fetch_add(1, Ordering::SeqCst) + 1;
+                    resolver.resources()?.on_shutdown(move || {
+                        Box::pin(async move {
+                            tracker.closed.fetch_add(1, Ordering::SeqCst);
+                            tracker.cleanup.notify_one();
+                            Ok(())
+                        })
+                    })?;
+                    Ok(Arc::new(AttemptInstance(id)))
+                })
             })
-        });
-        Ok(())
+            .await?;
+            Ok(())
+        })
     }
 }
 #[derive(serde::Deserialize)]

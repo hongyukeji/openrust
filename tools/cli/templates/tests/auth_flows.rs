@@ -85,9 +85,14 @@ impl MailDriver for CaptureMailer {
 struct CaptureMailerProvider(CaptureMailer);
 
 impl openrust::core::ServiceProvider for CaptureMailerProvider {
-    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
-        app.instance(Arc::new(Mailer::new(self.0.clone())));
-        Ok(())
+    fn register<'a>(
+        &'a self,
+        app: &'a mut openrust::core::RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.instance(Arc::new(Mailer::new(self.0.clone()))).await?;
+            Ok(())
+        })
     }
 }
 
@@ -497,8 +502,11 @@ async fn generated_test_app_overrides_mailer_for_registration() -> TestResult {
     let input_source = source.clone();
     let mut builder = openrust::testing::TestApp::<GeneratedApplication>::builder(source);
     builder.configure_after_register(move |bindings| {
-        bindings.instance(Arc::new(Mailer::new(captured.clone())));
-        Ok(())
+        let captured = captured.clone();
+        Box::pin(async move {
+            bindings.instance(Arc::new(Mailer::new(captured))).await?;
+            Ok(())
+        })
     });
     let mut app = builder.build().await?;
     let result = bounded_auth_business(async {

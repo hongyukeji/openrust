@@ -21,8 +21,11 @@ struct ViewRoutes;
 
 #[cfg(feature = "session")]
 impl openrust::core::ServiceProvider for ViewRoutes {
-    fn register(&self, _app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
-        Ok(())
+    fn register<'a>(
+        &'a self,
+        _app: &'a mut openrust::core::RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move { Ok(()) })
     }
 
     fn boot<'a>(
@@ -55,7 +58,7 @@ async fn flash_view_error(
 
 #[cfg(feature = "session")]
 async fn corrupt_view_error(session: openrust::session::Session) -> openrust::Result<&'static str> {
-    session.put(
+    session.put_typed(
         "errors",
         serde_json::json!({"kind":"openrust.view_errors","version":999,"bags":[]}),
     )?;

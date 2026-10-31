@@ -46,14 +46,57 @@ impl SessionStore for ExternalSessionStore {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::{any::Any, sync::Arc};
 
     use openrust::Result;
     use openrust::session::{Expiry, Session, SessionStore};
+    use openrust::support::{DataObject, DataValue, ObjectEncoding};
     use serde_json::json;
     use time::Duration;
 
     use super::ExternalSessionStore;
+
+    struct ConsumerValue;
+
+    impl DataObject for ConsumerValue {
+        fn as_any(&self) -> &dyn Any {
+            self
+        }
+
+        fn json_projection(&self) -> Option<serde_json::Value> {
+            Some(json!({"kind":"consumer"}))
+        }
+    }
+
+    #[tokio::test]
+    async fn external_crate_keeps_raw_object_identity_until_explicit_save_policy() -> Result<()> {
+        let store = Arc::new(ExternalSessionStore::default());
+        let session = Session::new(None, store.clone(), None)?;
+        session.start().await?;
+        let object = DataValue::object(ConsumerValue);
+        session.put("consumer.object", object.clone())?;
+        let stored = session.get("consumer.object")?.ok_or_else(|| {
+            openrust::Error::custom("session_consumer_missing_object", "对象未写入")
+        })?;
+        assert!(stored.same_object(&object));
+        assert_eq!(
+            session
+                .save()
+                .await
+                .err()
+                .map(|error| error.code().to_owned()),
+            Some("data_object_not_serializable".into())
+        );
+        session.set_object_encoding(ObjectEncoding::JsonProjection)?;
+        session.save().await?;
+        let restored = Session::new(Some(session.id()?), store, None)?;
+        restored.start().await?;
+        assert_eq!(
+            restored.get_json("consumer.object")?,
+            Some(json!({"kind":"consumer"}))
+        );
+        Ok(())
+    }
 
     #[tokio::test]
     async fn external_store_preserves_session_and_rejects_revoked_update() -> Result<()> {
@@ -68,14 +111,19 @@ mod tests {
         assert!(id.as_str().bytes().all(|byte| byte.is_ascii_alphanumeric()));
         first.start().await?;
         first
-            .put("profile.mode", "compact")?
-            .flash("notice", "next")?;
+            .put_typed("profile.mode", "compact")?
+            .flash_typed("notice", "next")?;
         assert_eq!(
             first.get_typed::<String>("profile.mode")?,
             Some("compact".into())
         );
-        assert_eq!(first.remember("helpers.cached", || Ok(7))?, json!(7));
-        first.push("helpers.list", "consumer")?;
+        assert_eq!(
+            first
+                .remember_typed("helpers.cached", || Ok(7))?
+                .to_json()?,
+            json!(7)
+        );
+        first.push_typed("helpers.list", "consumer")?;
         assert_eq!(first.increment("helpers.counter")?, json!(1));
         assert_eq!(first.decrement_by("helpers.counter", 2)?, json!(-1));
         first.set_name("consumer_session")?;
@@ -84,13 +132,19 @@ mod tests {
 
         let second = Session::new(Some(id.clone()), store.clone(), expiry)?;
         second.start().await?;
-        assert_eq!(second.get("helpers.list")?, Some(json!(["consumer"])));
-        assert_eq!(second.remove("helpers.cached")?, Some(json!(7)));
+        assert_eq!(second.get_json("helpers.list")?, Some(json!(["consumer"])));
+        assert_eq!(
+            second
+                .remove("helpers.cached")?
+                .map(|value| value.to_json())
+                .transpose()?,
+            Some(json!(7))
+        );
         assert_eq!(
             second.get_typed::<String>("profile.mode")?,
             Some("compact".into())
         );
-        assert_eq!(second.get("notice")?, Some(json!("next")));
+        assert_eq!(second.get_json("notice")?, Some(json!("next")));
         second.save().await?;
 
         store.delete(&id).await?;

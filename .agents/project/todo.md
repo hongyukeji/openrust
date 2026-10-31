@@ -18,7 +18,13 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 
 ## 当前可领取
 
-当前执行优先级（额度收尾）：①四个已交付分支的同一main组合已完成限定验收；默认/全特性严格Clippy与workspace tests已通过（907/0/34 ignored、1698/0/108 ignored），双docs/MSRV、no-default、deny、生成项目、公开consumer与真实TCP的限定范围见[组合记录](memory/testing.md#r2-四簇-main-组合限定验收)。最终五父本地提交为 `e105dbfc58afc330b50e53b75f0b9e1424fa387a`；四个来源提交已证明为main祖先，四个干净worktree和本地分支均按正常Git命令退役，对应Paseo workspace已正式归档；②S-DV/ST-V/R2-P既有范围收尾。Provider/Session/Storage未验收不强合，两guard worktree受保护。完整Config、签名URL复杂参数/代理、动态Settings和发布全后端矩阵仍开放。
+当前执行优先级（额度收尾）：①四个已交付分支的同一main组合已完成限定验收；默认/全特性严格Clippy与workspace tests已通过（907/0/34 ignored、1698/0/108 ignored），双docs/MSRV、no-default、deny、生成项目、公开consumer与真实TCP的限定范围见[组合记录](memory/testing.md#r2-四簇-main-组合限定验收)。最终五父本地提交为 `e105dbfc58afc330b50e53b75f0b9e1424fa387a`；四个来源提交已证明为main祖先，四个干净worktree和本地分支均按正常Git命令退役，对应Paseo workspace已正式归档；②S-DV `6ffb5c8` 与R2-P `4ac8099` 已整合为未提交的同一main候选（保留 `MERGE_HEAD`，最终使用当前main及两个来源提交三个真实父节点）；配置早期发布值/显式set与后登记默认值的顺序修复仍在窄复审，数组贡献不得以弱化断言关闭。组合冻结后只跑一次集中适用门禁，通过才提交。ST-V继续既有收尾，未交付不强合；不领取新功能簇，两guard worktree受保护。完整Config、签名URL复杂参数/代理、动态Settings和发布全后端矩阵仍开放。
+
+### 当前收尾执行窗口
+
+- main源码唯一写入负责人 `config_runtime_callers`；只修组合中的配置顺序问题，`storage_publication_review` 独立窄审。验收负责人 `04cca925-e59f-42f1-800b-424e7b4cd1b8` 已完成驱动EOF资源监测修复及无服务探针，窄复审通过；最终freeze、精确selectors及完整资源登记未绑定前不执行。
+- ST-V owner `9d167e52-8548-465c-a835-20d2624985e5` 持共享target/jobs2窗口：附件MySQL严格单项1/0/0已通过；后续data-exchange在补auth并按公开 `JobContext::begin_attempt()` 修测试夹具后，真实MySQL精确用例1/0/0、无skip，进程组与隔离库已清理；现续consumer/MSRV及夹具严格Clippy，原失败留证。真实S3 ACL仍未验收，不能以兼容性或mock关闭。
+- 当前唯一构建目录仍为根target；释放ST-V窗口后交main组合。root最新有界实测8路径去重11,693,735,936B、磁盘可用182,325,387,264B（18.33%），负责人已对照既有外置清单未发现额外Cargo target，五个退役路径计0、PHP源码与日志排除；对账 `/tmp/openrust-main-provider-session-resource-reconciliation.json`，实测回执 `/tmp/openrust-main-provider-session-resource-root-sample.json`。不复用下方历史资源数值作为新命令前置。
 
 ### 本轮组合产物回收（已完成）
 
@@ -133,7 +139,7 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 - 当前最短闭环：组合lib676、view7已过；真实MySQL auth首target5过3失败，原caller仅修17个path-only请求缺Host的fixture候选，保留严格断言。服务owner04已完成认证组续验；两项上游超时的Host fixture修复已定向通过，迁移测试仍需独立诊断。现由core owner7611b92b独占根target续作严格Clippy/docs与真实MySQL定向迁移，不重复已过认证targets。四个失败隔离库已精确清理并恢复schema集合；清理补审明确缺子进程独立PID和删除前表集合，不补造。ST-V owner09并行准备用户授权的Docker S3验收环境；S3兼容不代表对象ACL均支持，环境未实际证明前保留缺口。
 - 资源：只在已清理的 `/Users/Home/Codes/Rust/openrust/target` 按需重建，jobs2；不占端口/库。构建前重测全登记缓存/预计增量，50GB软/100GB硬、磁盘10%软/5%硬；独立执行者受总控暂停/停止协调，原默认80%额度不变。完成后按真实归属清理，不动未合入分支。
 
-## R2-P Provider 完整注册生命周期（Verify，未提交）
+## R2-P Provider 完整注册生命周期（分支已提交，main组合候选待验收）
 ## R2-CC 配置缓存家族（分支限定验收历史）
 
 - 本分支复用唯一Application/Provider/ConfigSources/ConfigRepository实现config:cache与config:clear。首次命令引导保持正常缓存屏障，实际派发才清选定缓存；fresh启动、资源关闭、原子写/回读、失败无半写、双阶段env与模块屏障同簇验证，不热改在途App。
@@ -144,9 +150,9 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 - 已冻结普通/force与boot前后完整家族；固定Laravel真实正常/失败探针、Rust接口候选及独审在 `/tmp/openrust-provider-registration-{frozen-spec,rust-contract,rust-contract-review}.md`。不以启动前去重代替晚注册；异步register/原位置rebinding、绑定generation与缓存槽同锁准入为明确Rust实现约束；失败已发生贡献按PHP保留，不造Provider全局事务。
 - 同项目workspace `wks_f7e111d2b503053b`，branch `tasks/provider-registration-family`，base `3aba0a3`，cwd `/Users/Home/.paseo/worktrees/02joa2lr/openrust-provider-registration-family`。`04cca925-e59f-42f1-800b-424e7b4cd1b8`负责provider/app/resources与配置owner/schema；`0b1cd54b-3828-4eff-bf97-5c519973a41e`仅负责container.rs及container子目录；既有callers负责其余Provider/模块/consumer/模板迁移，禁止重叠编辑。
 - 共享API已收敛：ServiceProvider::register改BoxFuture；Context涉及绑定/回调的方法原位置await；rebinding在已绑定时立即解析并返回Option<Arc<T>>。configure_after_register改FnOnce(Container)→BoxFuture，原register后覆盖时点不变；启动前建立唯一Container/StartupResources，配置登记当场可读但保留boot前校验，默认合并不得重复应用。
-- 当前冻结96个变更文件，生成验收另外绑定实际运行输入；core125、仓储47、公开Container契约24，以及独立container-extension2、test-app1、config读取consumer6均实际通过。Register重放覆盖后续set的缺陷已修并经不同模型静态复审。默认严格Clippy三次失败后的schema helper已修，但该门禁仍依§5暂停：原请求消失而无真实答复，不以账本预选冒充批准，不重复堆问卷。root精确刷新3个consumer锁，新增包匹配根锁，无第三方升级。
+- 当前冻结96个变更文件，生成验收另外绑定实际运行输入；core125、仓储47、公开Container契约24，以及独立container-extension2、test-app1、config读取consumer6均实际通过。Register重放覆盖后续set的缺陷已修并经不同模型静态复审。默认严格Clippy三次历史失败保留；用户授权单次重验已通过，源码限定分支提交 `4ac8099`，main组合验证待执行。root精确刷新3个consumer锁，新增包匹配根锁，无第三方升级。
 - 生成首轮view遗漏await已修；第二轮确认共享target旧CLI复用，未误改正确异步模板。attempt3 `/tmp/openrust-r2p-generated-acceptance-attempt3/` 实际强制重编当前CLI并绑定97输入，13阶段通过：普通生成/Provider/TCP/公开fixture、MySQL认证2项无skip；root独立SQL审计前后61库集合摘要一致。前两轮失败保留。其后Cookie生产修复已用保留生成项目补验3项plain及2项真实MySQL auth具名测试，均通过/无skip，97源与生成锁无漂移、前后61库集合一致。`/tmp/openrust-r2p-cookie-generated-supplement/result.json` 与root五日志核验留证，不重跑未受影响生成/CLI/Marker TCP。
-- Cookie当前节读取改has(session)，保留已解析singleton快照；固定PHP真实CookieServiceProvider探针确认早解析不热建，新增身份回归后cookie9、默认workspace lib/tests862、全feature1650/68ignored、doctest22/34ignored及24/40ignored、双warnings-denied docs、no-default/MSRV/deny均有新回执。`/tmp/openrust-r2p-cookie-matrix-handoff.json` 关联10日志，root逐哈希核对全匹配；ignored不计真实服务，严格Clippy仍暂停，因此未提交。
+- Cookie当前节读取改has(session)，保留已解析singleton快照；固定PHP真实CookieServiceProvider探针确认早解析不热建，新增身份回归后cookie9、默认workspace lib/tests862、全feature1650/68ignored、doctest22/34ignored及24/40ignored、双warnings-denied docs、no-default/MSRV/deny均有新回执。`/tmp/openrust-r2p-cookie-matrix-handoff.json` 关联10日志，root逐哈希核对全匹配；ignored不计真实服务，严格Clippy按用户授权单次重验通过；以上仍只属分支证据。
 - 资源补验中的unregistered_count79已确证是对unknown字符串按字符计数，不是79target，原result保留且resource-audit.md纠正；限定main/worktree/tmp扫描无新增target，登记15路径约94.30GB仍为覆盖有界的小计。P补验已收尾8个确证自有测试二进制，释放379,628,016B；root逐项核缺失状态、来源/.d/日志SHA，97源与224保护项由owner前后核不变，生成源码/锁/证据/共享依赖保留，回执 `/tmp/openrust-r2p-generated-cleanup/result.json` 和root-audit.json。
 - 最近owner回执主target76,380,396KiB、磁盘可用101.3GB；其他登记target仍需合计，不能冒称全量已核。下一构建重测合计及预计增长，50GB/10%仅软告警、100GB/5%硬线保持；未知缓存不清。派发/停止ID入口 `/tmp/openrust-provider-registration-dispatch.json`，总控用正式Paseo stop逐任务协调；不另建Goal/guard、不推送、不提前退役未合分支。
 

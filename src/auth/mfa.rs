@@ -744,21 +744,27 @@ impl MfaService {
 pub struct MfaServiceProvider;
 
 impl crate::core::ServiceProvider for MfaServiceProvider {
-    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-        app.singleton::<MfaService, _>(|resolver| {
-            Box::pin(async move {
-                let db = resolver.resolve::<Db>().await?;
-                resolver.resolve::<Passwords>().await?;
-                let encryptor = resolver.resolve::<Encryptor>().await?;
-                let limiter = resolver.resolve::<RateLimiter>().await?;
-                Ok(std::sync::Arc::new(MfaService::new(
-                    (*db).clone(),
-                    (*encryptor).clone(),
-                    (*limiter).clone(),
-                )))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut crate::core::RegisterContext<'_>,
+    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.singleton::<MfaService, _>(|resolver| {
+                Box::pin(async move {
+                    let db = resolver.resolve::<Db>().await?;
+                    resolver.resolve::<Passwords>().await?;
+                    let encryptor = resolver.resolve::<Encryptor>().await?;
+                    let limiter = resolver.resolve::<RateLimiter>().await?;
+                    Ok(std::sync::Arc::new(MfaService::new(
+                        (*db).clone(),
+                        (*encryptor).clone(),
+                        (*limiter).clone(),
+                    )))
+                })
             })
-        });
-        Ok(())
+            .await?;
+            Ok(())
+        })
     }
 
     fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {

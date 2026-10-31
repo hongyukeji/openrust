@@ -75,109 +75,122 @@ fn configured(config: ExampleConfig) -> Result<ExampleOidcConfig> {
         .oidc
         .ok_or_else(|| Error::custom("example_oidc_unconfigured", "外部身份登录尚未配置"))
 }
+fn oidc_target_policy(config: &ExampleOidcConfig, issuer: &url::Url) -> Result<HttpTargetPolicy> {
+    let host = match issuer.host().ok_or_else(invalid)? {
+        url::Host::Domain(host) => host.to_owned(),
+        url::Host::Ipv4(ip) => ip.to_string(),
+        url::Host::Ipv6(ip) => ip.to_string(),
+    };
+    let port = issuer.port_or_known_default().ok_or_else(invalid)?;
+    let mut policy = HttpTargetPolicy::new();
+    if config.allow_loopback && loopback(issuer) {
+        let network = if host
+            .parse::<std::net::IpAddr>()
+            .map_err(|_| invalid())?
+            .is_ipv4()
+        {
+            "127.0.0.0/8"
+        } else {
+            "::1/128"
+        };
+        policy
+            .allow_internal(&host, network.parse().map_err(|_| invalid())?, [port])
+            .map_err(|_| invalid())?;
+    } else {
+        policy.allow_host(&host).map_err(|_| invalid())?;
+        policy.allow_port(port).map_err(|_| invalid())?;
+    }
+    Ok(policy)
+}
 struct Discovered(Arc<OidcProvider>);
 pub(crate) struct ExampleOidcServiceProvider;
 impl ServiceProvider for ExampleOidcServiceProvider {
-    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-        app.singleton::<Discovered, _>(|resolver| {
-            Box::pin(async move {
-                let config = configured(resolver.section::<ExampleConfig>("example")?)?;
-                config.validate()?;
-                let environment = resolver.section::<openrust::config::AppConfig>("app")?.env;
-                if environment == openrust::config::Environment::Production && config.allow_loopback
-                {
-                    return Err(invalid());
-                }
-                let issuer = url::Url::parse(&config.issuer).map_err(|_| invalid())?;
-                let host = match issuer.host().ok_or_else(invalid)? {
-                    url::Host::Domain(host) => host.to_owned(),
-                    url::Host::Ipv4(ip) => ip.to_string(),
-                    url::Host::Ipv6(ip) => ip.to_string(),
-                };
-                let port = issuer.port_or_known_default().ok_or_else(invalid)?;
-                let mut policy = HttpTargetPolicy::new();
-                if config.allow_loopback && loopback(&issuer) {
-                    let network = if host
-                        .parse::<std::net::IpAddr>()
-                        .map_err(|_| invalid())?
-                        .is_ipv4()
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.singleton::<Discovered, _>(|resolver| {
+                Box::pin(async move {
+                    let config = configured(resolver.section::<ExampleConfig>("example")?)?;
+                    config.validate()?;
+                    let environment = resolver.section::<openrust::config::AppConfig>("app")?.env;
+                    if environment == openrust::config::Environment::Production
+                        && config.allow_loopback
                     {
-                        "127.0.0.0/8"
-                    } else {
-                        "::1/128"
-                    };
-                    policy
-                        .allow_internal(&host, network.parse().map_err(|_| invalid())?, [port])
-                        .map_err(|_| invalid())?;
-                } else {
-                    policy.allow_host(&host).map_err(|_| invalid())?;
-                    policy.allow_port(port).map_err(|_| invalid())?;
-                }
-                let client = HttpClient::restricted(
-                    HttpClientConfig {
-                        connect_timeout: Duration::from_secs(5),
-                        timeout: Duration::from_secs(15),
-                        max_response_bytes: 1024 * 1024,
-                        proxy: None,
-                    },
-                    policy,
-                )
-                .map_err(|_| invalid())?;
-                let dependency = client
-                    .dependency(
-                        "example-oidc",
-                        DependencyPolicy {
-                            max_in_flight: 4,
-                            max_waiting: 4,
-                            circuit_breaker: None,
+                        return Err(invalid());
+                    }
+                    let issuer = url::Url::parse(&config.issuer).map_err(|_| invalid())?;
+                    let policy = oidc_target_policy(&config, &issuer)?;
+                    let client = HttpClient::restricted(
+                        HttpClientConfig {
+                            connect_timeout: Duration::from_secs(5),
+                            timeout: Duration::from_secs(15),
+                            max_response_bytes: 1024 * 1024,
+                            proxy: None,
                         },
+                        policy,
                     )
                     .map_err(|_| invalid())?;
-                let provider = OidcProvider::discover(
-                    &config.issuer,
-                    PROVIDER_NAME,
-                    config.client_id,
-                    config.client_secret,
-                    &config.redirect_uri,
-                    ["profile".into(), "email".into()],
-                    Duration::from_secs(30),
-                    dependency,
-                )
-                .await?;
-                Ok(Arc::new(Discovered(Arc::new(provider))))
+                    let dependency = client
+                        .dependency(
+                            "example-oidc",
+                            DependencyPolicy {
+                                max_in_flight: 4,
+                                max_waiting: 4,
+                                circuit_breaker: None,
+                            },
+                        )
+                        .map_err(|_| invalid())?;
+                    let provider = OidcProvider::discover(
+                        &config.issuer,
+                        PROVIDER_NAME,
+                        config.client_id,
+                        config.client_secret,
+                        &config.redirect_uri,
+                        ["profile".into(), "email".into()],
+                        Duration::from_secs(30),
+                        dependency,
+                    )
+                    .await?;
+                    Ok(Arc::new(Discovered(Arc::new(provider))))
+                })
             })
-        });
-        app.scoped::<OidcAccount, _>(|resolver| {
-            Box::pin(async move {
-                let provider = resolver.resolve::<Discovered>().await?;
-                let db = resolver.resolve::<Db>().await?;
-                let auth = resolver.resolve::<AuthFlows>().await?;
-                let encryptor = resolver.resolve::<Encryptor>().await?;
-                let issuer = provider.0.issuer().to_owned();
-                let redirect_uri =
-                    configured(resolver.section::<ExampleConfig>("example")?)?.redirect_uri;
-                let origin =
-                    url::Url::parse(&resolver.section::<openrust::config::AppConfig>("app")?.url)
-                        .map_err(|_| invalid())?
-                        .origin()
-                        .ascii_serialization();
-                let external: Arc<dyn ExternalIdentityProvider> = provider.0.clone();
-                Ok(Arc::new(OidcAccount {
-                    flows: ExternalIdentityFlows::new(
-                        (*db).clone(),
-                        (*auth).clone(),
-                        (*encryptor).clone(),
-                        [external],
-                    )?,
-                    issuer,
-                    db,
-                    auth,
-                    origin,
-                    redirect_uri,
-                }))
+            .await?;
+            app.scoped::<OidcAccount, _>(|resolver| {
+                Box::pin(async move {
+                    let provider = resolver.resolve::<Discovered>().await?;
+                    let db = resolver.resolve::<Db>().await?;
+                    let auth = resolver.resolve::<AuthFlows>().await?;
+                    let encryptor = resolver.resolve::<Encryptor>().await?;
+                    let issuer = provider.0.issuer().to_owned();
+                    let redirect_uri =
+                        configured(resolver.section::<ExampleConfig>("example")?)?.redirect_uri;
+                    let origin = url::Url::parse(
+                        &resolver.section::<openrust::config::AppConfig>("app")?.url,
+                    )
+                    .map_err(|_| invalid())?
+                    .origin()
+                    .ascii_serialization();
+                    let external: Arc<dyn ExternalIdentityProvider> = provider.0.clone();
+                    Ok(Arc::new(OidcAccount {
+                        flows: ExternalIdentityFlows::new(
+                            (*db).clone(),
+                            (*auth).clone(),
+                            (*encryptor).clone(),
+                            [external],
+                        )?,
+                        issuer,
+                        db,
+                        auth,
+                        origin,
+                        redirect_uri,
+                    }))
+                })
             })
-        });
-        Ok(())
+            .await?;
+            Ok(())
+        })
     }
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {

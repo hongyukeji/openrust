@@ -2513,7 +2513,7 @@ async fn guest_anonymous_route_and_intended_use_same_request_session_once() -> T
         "http://example.test/login"
     );
     assert_eq!(
-        session.get("url.intended")?,
+        session.get_json("url.intended")?,
         Some(serde_json::json!(
             "http://example.test/protected?first=one&next=two"
         ))
@@ -2532,7 +2532,7 @@ async fn guest_anonymous_route_and_intended_use_same_request_session_once() -> T
             .await?;
         assert_eq!(response.status(), StatusCode::FOUND);
         assert_eq!(response.headers()[header::LOCATION], expected);
-        assert_eq!(session.get("url.intended")?, None);
+        assert_eq!(session.get_json("url.intended")?, None);
     }
     Ok(())
 }
@@ -3123,16 +3123,22 @@ async fn route_rate_limit_uses_scoped_custom_keys_and_returns_retry_after() -> T
 async fn rate_limit_and_handler_share_the_request_scoped_factory() -> TestResult {
     struct ScopedLimiter(Arc<AtomicUsize>);
     impl openrust::core::ServiceProvider for ScopedLimiter {
-        fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
-            let calls = Arc::clone(&self.0);
-            app.scoped::<RateLimiter, _>(move |_| {
-                let calls = Arc::clone(&calls);
-                Box::pin(async move {
-                    calls.fetch_add(1, Ordering::SeqCst);
-                    Ok(Arc::new(RateLimiter::new(TestRateStore::default())))
+        fn register<'a>(
+            &'a self,
+            app: &'a mut openrust::core::RegisterContext<'_>,
+        ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+            Box::pin(async move {
+                let calls = Arc::clone(&self.0);
+                app.scoped::<RateLimiter, _>(move |_| {
+                    let calls = Arc::clone(&calls);
+                    Box::pin(async move {
+                        calls.fetch_add(1, Ordering::SeqCst);
+                        Ok(Arc::new(RateLimiter::new(TestRateStore::default())))
+                    })
                 })
-            });
-            Ok(())
+                .await?;
+                Ok(())
+            })
         }
     }
     async fn handler(Inject(_limiter): Inject<RateLimiter>) -> &'static str {
@@ -4896,15 +4902,21 @@ async fn default_status_mode_uses_semantic_http_codes() -> TestResult {
 
 struct FailingI18nProvider;
 impl openrust::core::ServiceProvider for FailingI18nProvider {
-    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
-        app.scoped::<openrust::i18n::I18n, _>(|_| {
-            Box::pin(async {
-                Err(openrust::Error::internal(std::io::Error::other(
-                    "i18n service unavailable",
-                )))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut openrust::core::RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.scoped::<openrust::i18n::I18n, _>(|_| {
+                Box::pin(async {
+                    Err(openrust::Error::internal(std::io::Error::other(
+                        "i18n service unavailable",
+                    )))
+                })
             })
-        });
-        Ok(())
+            .await?;
+            Ok(())
+        })
     }
 }
 
@@ -4946,9 +4958,14 @@ async fn i18n_resolution_errors_keep_request_status_mode_and_id() -> TestResult 
 
 struct TestInstance<T: Send + Sync + 'static>(std::sync::Arc<T>);
 impl<T: Send + Sync + 'static> openrust::core::ServiceProvider for TestInstance<T> {
-    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
-        app.instance(std::sync::Arc::clone(&self.0));
-        Ok(())
+    fn register<'a>(
+        &'a self,
+        app: &'a mut openrust::core::RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.instance(std::sync::Arc::clone(&self.0)).await?;
+            Ok(())
+        })
     }
 }
 
@@ -5397,10 +5414,16 @@ impl IdentityProvider {
     }
 }
 impl openrust::core::ServiceProvider for IdentityProvider {
-    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
-        let factory = Arc::clone(&self.0);
-        app.scoped::<RequestIdentity, _>(move |resolver| factory(resolver));
-        Ok(())
+    fn register<'a>(
+        &'a self,
+        app: &'a mut openrust::core::RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            let factory = Arc::clone(&self.0);
+            app.scoped::<RequestIdentity, _>(move |resolver| factory(resolver))
+                .await?;
+            Ok(())
+        })
     }
 }
 struct SharedHttpLayer;
@@ -5438,42 +5461,49 @@ struct NetworkScopeEvents {
 }
 struct NetworkScopeProvider(Arc<NetworkScopeProbe>);
 impl openrust::core::ServiceProvider for NetworkScopeProvider {
-    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
-        app.instance(Arc::clone(&self.0));
-        app.scoped::<NetworkScopedResource, _>(|resolver| {
-            Box::pin(async move {
-                let probe = resolver.resolve::<NetworkScopeProbe>().await?;
-                let id = probe.next.fetch_add(1, Ordering::SeqCst) + 1;
-                resolver.resources()?.on_shutdown(move || {
-                    Box::pin(async move {
-                        probe.cleanup_starts.fetch_add(1, Ordering::SeqCst);
-                        probe.started.send(id).map_err(openrust::Error::internal)?;
-                        let permit = probe
-                            .release
-                            .acquire()
-                            .await
-                            .map_err(openrust::Error::internal)?;
-                        permit.forget();
-                        probe.cleanup_finishes.fetch_add(1, Ordering::SeqCst);
-                        probe
-                            .completed
-                            .send(id)
-                            .map_err(openrust::Error::internal)?;
-                        Ok(())
-                    })
-                })?;
-                Ok(Arc::new(NetworkScopedResource(id)))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut openrust::core::RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.instance(Arc::clone(&self.0)).await?;
+            app.scoped::<NetworkScopedResource, _>(|resolver| {
+                Box::pin(async move {
+                    let probe = resolver.resolve::<NetworkScopeProbe>().await?;
+                    let id = probe.next.fetch_add(1, Ordering::SeqCst) + 1;
+                    resolver.resources()?.on_shutdown(move || {
+                        Box::pin(async move {
+                            probe.cleanup_starts.fetch_add(1, Ordering::SeqCst);
+                            probe.started.send(id).map_err(openrust::Error::internal)?;
+                            let permit = probe
+                                .release
+                                .acquire()
+                                .await
+                                .map_err(openrust::Error::internal)?;
+                            permit.forget();
+                            probe.cleanup_finishes.fetch_add(1, Ordering::SeqCst);
+                            probe
+                                .completed
+                                .send(id)
+                                .map_err(openrust::Error::internal)?;
+                            Ok(())
+                        })
+                    })?;
+                    Ok(Arc::new(NetworkScopedResource(id)))
+                })
             })
-        });
-        app.scoped::<NetworkScopedIdentity, _>(|resolver| {
-            Box::pin(async move {
-                let probe = resolver.resolve::<NetworkScopeProbe>().await?;
-                Ok(Arc::new(NetworkScopedIdentity(
-                    probe.next.fetch_add(1, Ordering::SeqCst) + 1,
-                )))
+            .await?;
+            app.scoped::<NetworkScopedIdentity, _>(|resolver| {
+                Box::pin(async move {
+                    let probe = resolver.resolve::<NetworkScopeProbe>().await?;
+                    Ok(Arc::new(NetworkScopedIdentity(
+                        probe.next.fetch_add(1, Ordering::SeqCst) + 1,
+                    )))
+                })
             })
-        });
-        Ok(())
+            .await?;
+            Ok(())
+        })
     }
     fn boot<'a>(
         &'a self,

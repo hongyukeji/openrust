@@ -383,18 +383,21 @@ impl<'r> Redirector<'r> {
         headers: HeaderMap,
         secure: Option<bool>,
     ) -> Result<RedirectResponse<'r>> {
-        let value = self
-            .info
-            .session()?
-            .pull_or("url.intended", default.into())?;
-        if value.is_array() || value.is_object() {
+        let value = match self.info.session()?.pull("url.intended")? {
+            Some(value) => value,
+            None => crate::support::DataValue::from_json(default.into())?,
+        };
+        if matches!(
+            &value,
+            crate::support::DataValue::Array(_) | crate::support::DataValue::Object(_)
+        ) {
             return Err(Error::custom(
                 "redirect_intended_url_invalid",
                 "Session intended URL 必须是标量或null",
             ));
         }
         self.to_with_scheme(
-            &crate::support::scalars::string(&value),
+            &crate::support::scalars::string(&value.to_json()?),
             status,
             headers,
             secure,
@@ -404,13 +407,15 @@ impl<'r> Redirector<'r> {
     /// 原样读取意图地址；缺失与显式null保持可区分。
     #[cfg(feature = "session")]
     pub fn get_intended_url(&self) -> Result<Option<serde_json::Value>> {
-        self.info.session()?.get("url.intended")
+        self.info.session()?.get_json("url.intended")
     }
 
     /// 存储普通Session属性，不提前验证URL；返回自身供继续组合。
     #[cfg(feature = "session")]
     pub fn set_intended_url(&self, value: impl Into<serde_json::Value>) -> Result<&Self> {
-        self.info.session()?.put("url.intended", value.into())?;
+        self.info
+            .session()?
+            .put_typed("url.intended", value.into())?;
         Ok(self)
     }
 }
@@ -443,7 +448,7 @@ impl RedirectResponse<'_> {
                 "需要完整 Request 才能 flash 输入",
             )
         })?;
-        self.info.session()?.flash_input(request.all())?;
+        self.info.session()?.flash_input_typed(request.all())?;
         Ok(self)
     }
 
@@ -456,7 +461,9 @@ impl RedirectResponse<'_> {
                 "需要完整 Request 才能 flash 输入",
             )
         })?;
-        self.info.session()?.flash_input(request.only(keys)?)?;
+        self.info
+            .session()?
+            .flash_input_typed(request.only(keys)?)?;
         Ok(self)
     }
 
@@ -469,7 +476,9 @@ impl RedirectResponse<'_> {
                 "需要完整 Request 才能 flash 输入",
             )
         })?;
-        self.info.session()?.flash_input(request.except(keys)?)?;
+        self.info
+            .session()?
+            .flash_input_typed(request.except(keys)?)?;
         Ok(self)
     }
 
@@ -840,7 +849,7 @@ mod tests {
                 .with_input()?
                 .with_errors(RedirectErrors::Text("invalid"), "default")?;
             assert_eq!(
-                session.get_old_input(Some("title"))?,
+                session.get_old_input_json(Some("title"))?,
                 Some(serde_json::json!("draft"))
             );
             assert_eq!(
@@ -1044,7 +1053,7 @@ mod tests {
         let info = intent_info(&empty, "HEAD", false, &[("referer", "0")]).await?;
         Redirector::from_info(&info).guest("/login")?;
         assert_eq!(
-            empty.get("url.intended")?,
+            empty.get_json("url.intended")?,
             Some(serde_json::json!("http://example.test"))
         );
         Ok(())
@@ -1061,7 +1070,7 @@ mod tests {
             (serde_json::json!({"route":"/draft"}), None),
         ] {
             let session = intent_session()?;
-            session.put("_previous.url", value.clone())?;
+            session.put_typed("_previous.url", value.clone())?;
             let first = intent_info(&session, "POST", false, &[]).await?;
             let redirect = Redirector::from_info(&first);
             assert_eq!(
@@ -1132,7 +1141,7 @@ mod tests {
             serde_json::json!(""),
         ] {
             let session = intent_session()?;
-            session.put("_previous.url", value)?;
+            session.put_typed("_previous.url", value)?;
             let info = intent_info(&session, "HEAD", true, &[]).await?;
             let redirect = Redirector::from_info(&info);
             redirect.guest("/login")?;
@@ -1212,6 +1221,39 @@ mod tests {
 
     #[cfg(feature = "session")]
     #[tokio::test]
+    async fn intended_existing_value_skips_invalid_default_conversion() -> Result<()> {
+        let session = intent_session()?;
+        let info = intent_info(&session, "GET", false, &[]).await?;
+        let redirect = Redirector::from_info(&info);
+        let oversized_default = serde_json::json!(vec![0_i32; 1_025]);
+
+        redirect.set_intended_url("/saved")?;
+        assert_eq!(
+            redirect
+                .intended_or(oversized_default.clone())?
+                .target_url(),
+            "http://example.test/saved"
+        );
+        assert_eq!(redirect.get_intended_url()?, None);
+        assert_eq!(
+            redirect
+                .intended_or(oversized_default.clone())
+                .err()
+                .map(|error| error.code().to_owned()),
+            Some("data_value_limits_exceeded".to_owned())
+        );
+        assert_eq!(redirect.get_intended_url()?, None);
+        redirect.set_intended_url(serde_json::Value::Null)?;
+        assert_eq!(
+            redirect.intended_or(oversized_default)?.target_url(),
+            "http://example.test"
+        );
+        assert_eq!(redirect.get_intended_url()?, None);
+        Ok(())
+    }
+
+    #[cfg(feature = "session")]
+    #[tokio::test]
     async fn intended_order_keeps_writes_and_consumption_after_response_failure() -> Result<()> {
         let session = intent_session()?;
         let info = intent_info(&session, "GET", true, &[]).await?;
@@ -1264,7 +1306,7 @@ mod tests {
         let store = std::sync::Arc::new(crate::session::MemorySessionStore::default());
         let session = crate::session::Session::new(None, store.clone(), None)?;
         session.start().await?;
-        session.flash("notice", "once")?;
+        session.flash_typed("notice", "once")?;
         let mut incoming = HttpRequest::post("/form")
             .header("host", "example.test")
             .header("content-type", "application/json")
@@ -1279,7 +1321,7 @@ mod tests {
             .with_input()?
             .with_errors(RedirectErrors::Text("invalid"), "default")?;
         assert_eq!(
-            session.get_old_input(Some("title"))?,
+            session.get_old_input_json(Some("title"))?,
             Some(serde_json::json!("draft"))
         );
         assert_eq!(session.read_errors()?.count(), 1);
@@ -1288,11 +1330,11 @@ mod tests {
         session.save().await?;
         let next = crate::session::Session::new(Some(session.id()?), store.clone(), None)?;
         next.start().await?;
-        assert_eq!(next.get("notice")?, Some(serde_json::json!("once")));
+        assert_eq!(next.get_json("notice")?, Some(serde_json::json!("once")));
         next.save().await?;
         let last = crate::session::Session::new(Some(next.id()?), store, None)?;
         last.start().await?;
-        assert_eq!(last.get("notice")?, None);
+        assert_eq!(last.get_json("notice")?, None);
         let info = intent_info(&last, "GET", false, &[]).await?;
         let redirect = Redirector::from_info(&info);
         assert_eq!(
@@ -1330,7 +1372,7 @@ mod tests {
         let info = intent_info(&session, "GET", true, &[]).await?;
         let redirect = Redirector::from_info(&info);
         redirect.set_intended_url("/original")?;
-        let before = session.all()?;
+        let before = session.all_json()?;
         assert_eq!(
             redirect
                 .set_intended_url("x".repeat(1024))
@@ -1339,7 +1381,7 @@ mod tests {
                 .code(),
             "session_limits_exceeded"
         );
-        assert_eq!(session.all()?, before);
+        assert_eq!(session.all_json()?, before);
         let (mut parts, _) = HttpRequest::get(format!("/protected?token={}", "x".repeat(1024)))
             .header("host", "example.test")
             .body(Body::empty())
@@ -1356,7 +1398,7 @@ mod tests {
                 .code(),
             "session_limits_exceeded"
         );
-        assert_eq!(session.all()?, before);
+        assert_eq!(session.all_json()?, before);
         session.close();
         assert_eq!(
             redirect.intended().err().expect("closed").code(),
@@ -1437,7 +1479,7 @@ mod tests {
             .with_input()?
             .with_errors(RedirectErrors::Text("invalid"), "default")?;
         assert_eq!(
-            session.get_old_input(Some("title"))?,
+            session.get_old_input_json(Some("title"))?,
             Some(serde_json::json!("draft"))
         );
         assert_eq!(
@@ -1627,12 +1669,12 @@ mod tests {
             .with_input()?
             .with_errors(RedirectErrors::Text("invalid"), "default")?;
         assert_eq!(
-            session.get_old_input(Some("password"))?,
+            session.get_old_input_json(Some("password"))?,
             Some(serde_json::json!("manual"))
         );
         assert_eq!(
             session
-                .get("_old_input")?
+                .get_json("_old_input")?
                 .and_then(|value| value.get("password").cloned()),
             Some(serde_json::json!("manual"))
         );

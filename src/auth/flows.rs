@@ -1120,46 +1120,52 @@ impl Default for AuthFlowsServiceProvider {
 }
 
 impl crate::core::ServiceProvider for AuthFlowsServiceProvider {
-    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-        let lifetime = self.refresh_lifetime;
-        let policy = self.code_policy;
-        if !(1..=31_536_000).contains(&lifetime.num_seconds()) {
-            return Err(Error::Config(crate::config::ConfigError::Invalid(
-                "auth flow refresh lifetime must be between 1 second and 365 days".into(),
-            )));
-        }
-        app.scoped::<AuthFlows, _>(move |resolver| {
-            Box::pin(async move {
-                let db = resolver.resolve::<Db>().await?;
-                let passwords = resolver.resolve::<Passwords>().await?;
-                let jwt = resolver.resolve::<JwtTokens>().await?;
-                let refresh = resolver.resolve::<RefreshTokens>().await?;
-                let codes = resolver.resolve::<VerificationCodes>().await?;
-                let limiter = resolver.resolve::<RateLimiter>().await?;
-                let flows = AuthFlows::new(
-                    (*db).clone(),
-                    (*passwords).clone(),
-                    (*jwt).clone(),
-                    (*refresh).clone(),
-                    (*codes).clone(),
-                    (*limiter).clone(),
-                )
-                .with_refresh_lifetime(lifetime)
-                .with_code_policy(policy);
-                #[cfg(feature = "auth-mfa")]
-                let flows = {
-                    let mfa = if resolver.is_bound::<MfaService>()? {
-                        Some((*resolver.resolve::<MfaService>().await?).clone())
-                    } else {
-                        None
+    fn register<'a>(
+        &'a self,
+        app: &'a mut crate::core::RegisterContext<'_>,
+    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            let lifetime = self.refresh_lifetime;
+            let policy = self.code_policy;
+            if !(1..=31_536_000).contains(&lifetime.num_seconds()) {
+                return Err(Error::Config(crate::config::ConfigError::Invalid(
+                    "auth flow refresh lifetime must be between 1 second and 365 days".into(),
+                )));
+            }
+            app.scoped::<AuthFlows, _>(move |resolver| {
+                Box::pin(async move {
+                    let db = resolver.resolve::<Db>().await?;
+                    let passwords = resolver.resolve::<Passwords>().await?;
+                    let jwt = resolver.resolve::<JwtTokens>().await?;
+                    let refresh = resolver.resolve::<RefreshTokens>().await?;
+                    let codes = resolver.resolve::<VerificationCodes>().await?;
+                    let limiter = resolver.resolve::<RateLimiter>().await?;
+                    let flows = AuthFlows::new(
+                        (*db).clone(),
+                        (*passwords).clone(),
+                        (*jwt).clone(),
+                        (*refresh).clone(),
+                        (*codes).clone(),
+                        (*limiter).clone(),
+                    )
+                    .with_refresh_lifetime(lifetime)
+                    .with_code_policy(policy);
+                    #[cfg(feature = "auth-mfa")]
+                    let flows = {
+                        let mfa = if resolver.is_bound::<MfaService>()? {
+                            Some((*resolver.resolve::<MfaService>().await?).clone())
+                        } else {
+                            None
+                        };
+                        flows.with_mfa(mfa)
                     };
-                    flows.with_mfa(mfa)
-                };
-                Ok(Arc::new(flows))
+                    Ok(Arc::new(flows))
+                })
             })
-        });
-        app.require::<AuthFlows>();
-        Ok(())
+            .await?;
+            app.require::<AuthFlows>();
+            Ok(())
+        })
     }
 
     fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
@@ -1177,36 +1183,45 @@ mod provider_tests {
 
     struct Dependencies(Arc<std::sync::atomic::AtomicUsize>);
     impl crate::core::ServiceProvider for Dependencies {
-        fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-            use base64::Engine as _;
-            let db = Db::default();
-            let passwords = Passwords::new(crate::config::PasswordConfig::default())?;
-            app.instance(Arc::new(db.clone()));
-            app.instance(Arc::new(passwords.clone()));
-            app.instance(Arc::new(RefreshTokens::new(db.clone())));
-            app.instance(Arc::new(VerificationCodes::new(
-                crate::auth::DatabaseVerificationCodeStore::new(db.clone()),
-                passwords,
-            )));
-            app.instance(Arc::new(RateLimiter::new(
-                crate::db::DatabaseRateLimitStore::new(db),
-            )));
-            let counter = Arc::clone(&self.0);
-            app.scoped::<JwtTokens, _>(move |_| {
-                let index = counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                Box::pin(async move {
-                    let secret = base64::engine::general_purpose::STANDARD
-                        .encode([if index == 0 { 1 } else { 2 }; 32]);
-                    let config = crate::config::JwtConfig::new(
-                        "i",
-                        "a",
-                        "key",
-                        std::collections::BTreeMap::from([("key".into(), secret)]),
-                    );
-                    Ok(Arc::new(JwtTokens::new(config)?))
+        fn register<'a>(
+            &'a self,
+            app: &'a mut crate::core::RegisterContext<'_>,
+        ) -> crate::core::BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                use base64::Engine as _;
+                let db = Db::default();
+                let passwords = Passwords::new(crate::config::PasswordConfig::default())?;
+                app.instance(Arc::new(db.clone())).await?;
+                app.instance(Arc::new(passwords.clone())).await?;
+                app.instance(Arc::new(RefreshTokens::new(db.clone())))
+                    .await?;
+                app.instance(Arc::new(VerificationCodes::new(
+                    crate::auth::DatabaseVerificationCodeStore::new(db.clone()),
+                    passwords,
+                )))
+                .await?;
+                app.instance(Arc::new(RateLimiter::new(
+                    crate::db::DatabaseRateLimitStore::new(db),
+                )))
+                .await?;
+                let counter = Arc::clone(&self.0);
+                app.scoped::<JwtTokens, _>(move |_| {
+                    let index = counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    Box::pin(async move {
+                        let secret = base64::engine::general_purpose::STANDARD
+                            .encode([if index == 0 { 1 } else { 2 }; 32]);
+                        let config = crate::config::JwtConfig::new(
+                            "i",
+                            "a",
+                            "key",
+                            std::collections::BTreeMap::from([("key".into(), secret)]),
+                        );
+                        Ok(Arc::new(JwtTokens::new(config)?))
+                    })
                 })
-            });
-            Ok(())
+                .await?;
+                Ok(())
+            })
         }
     }
 
@@ -1238,14 +1253,20 @@ mod provider_tests {
     struct BrokenMfa;
     #[cfg(feature = "auth-mfa")]
     impl crate::core::ServiceProvider for BrokenMfa {
-        fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-            app.singleton::<MfaService, _>(|resolver| {
-                Box::pin(async move {
-                    let _ = resolver.resolve::<u128>().await?;
-                    Err(Error::custom("test", "unreachable"))
+        fn register<'a>(
+            &'a self,
+            app: &'a mut crate::core::RegisterContext<'_>,
+        ) -> crate::core::BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.singleton::<MfaService, _>(|resolver| {
+                    Box::pin(async move {
+                        let _ = resolver.resolve::<u128>().await?;
+                        Err(Error::custom("test", "unreachable"))
+                    })
                 })
-            });
-            Ok(())
+                .await?;
+                Ok(())
+            })
         }
     }
     #[cfg(feature = "auth-mfa")]
@@ -1370,11 +1391,11 @@ async fn bind_session(session: &Session, user_id: i64) -> Result<SessionCredenti
 
     session.migrate(true).await?;
     remove_auth_values(session)?;
-    if let Err(error) = session.put(AUTH_CSRF_HASH_KEY, csrf_hash) {
+    if let Err(error) = session.put_typed(AUTH_CSRF_HASH_KEY, csrf_hash) {
         let _ = remove_auth_values(session);
         return Err(Error::internal(error));
     }
-    if let Err(error) = session.put(AUTH_USER_ID_KEY, user_id) {
+    if let Err(error) = session.put_typed(AUTH_USER_ID_KEY, user_id) {
         let _ = remove_auth_values(session);
         return Err(Error::internal(error));
     }
@@ -1427,7 +1448,7 @@ mod tests {
         let store = Arc::new(MemoryStore::default());
         let session = Session::new(None, store.clone(), None)?;
         session.start().await?;
-        session.put("app.preference", "compact")?;
+        session.put_typed("app.preference", "compact")?;
         session.save().await?;
         let old_id = session.id()?;
         let credentials = bind_session(&session, 42).await?;

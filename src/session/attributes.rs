@@ -32,7 +32,7 @@ THE SOFTWARE.
 
 use crate::{
     Error, Result,
-    support::{data, scalars},
+    support::{DataValue, data, scalars},
 };
 use http::StatusCode;
 use serde_json::{Map, Value};
@@ -44,7 +44,10 @@ const MAX_KEY_BYTES: usize = 20 * 1024 * 1024;
 
 /// 当前请求共享的 Session 属性；快照只由同一棵值树产生。
 #[derive(Clone)]
-pub(crate) struct Attributes(Value);
+pub(crate) enum Attributes {
+    Pure(DataValue),
+    Rich(DataValue),
+}
 
 impl std::fmt::Debug for Attributes {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -59,22 +62,245 @@ impl Attributes {
             return Err(invalid());
         }
         validate(&value)?;
-        Ok(Self(empty_root(value)))
+        Ok(Self::Pure(DataValue::from_json(empty_root(value))?))
     }
 
     /// 返回完整属性快照，不输出内部共享引用。
-    pub(crate) fn all(&self) -> Value {
-        self.0.clone()
+    pub(crate) fn all(&self) -> Result<Value> {
+        match self {
+            Self::Pure(value) | Self::Rich(value) => value.to_json(),
+        }
+    }
+
+    /// 包含共享对象身份的完整属性快照。
+    pub(crate) fn all_value(&self) -> DataValue {
+        match self {
+            Self::Pure(value) | Self::Rich(value) => value.clone(),
+        }
+    }
+
+    /// 只供请求内容量预检；对象占位值不允许传给 store。
+    pub(crate) fn budget_json(&self) -> Result<Value> {
+        match self {
+            Self::Pure(value) | Self::Rich(value) => value.budget_json(),
+        }
+    }
+
+    /// 按 PHP `array_replace` 合并已加载的顶层属性，保留现存对象身份。
+    pub(crate) fn merge_loaded(&mut self, incoming: Value) -> Result<()> {
+        if matches!(self, Self::Pure(_)) {
+            *self = Self::new(super::merge_attributes(self.all()?, incoming)?)?;
+            return Ok(());
+        }
+        let DataValue::Array(entries) = DataValue::from_json(incoming)? else {
+            return Err(invalid());
+        };
+        let mut candidate = self.all_value();
+        let DataValue::Array(ref mut current) = candidate else {
+            return Err(invalid());
+        };
+        for (key, value) in entries {
+            if let Some((_, existing)) = current.iter_mut().find(|(existing, _)| existing == &key) {
+                *existing = value;
+            } else {
+                current.push((key, value));
+            }
+        }
+        candidate.validate()?;
+        *self = Self::Rich(candidate);
+        Ok(())
+    }
+
+    /// 原始对象与纯数据沿同一属性树读取。
+    pub(crate) fn get_value(&self, key: &str) -> Result<Option<DataValue>> {
+        self.check_lookup_paths(&[key])?;
+        match self {
+            Self::Pure(value) | Self::Rich(value) => Ok(value.get(key)?.cloned()),
+        }
+    }
+
+    fn check_lookup_paths(&self, keys: &[&str]) -> Result<()> {
+        check_keys(keys)?;
+        let value = match self {
+            Self::Pure(value) | Self::Rich(value) => value,
+        };
+        for key in keys {
+            if value.direct(key).is_none() {
+                check_path(key)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// 原始对象写入；所有变更在同一树内原子发布。
+    pub(crate) fn put_value(&mut self, key: &str, value: DataValue) -> Result<()> {
+        check_keys(&[key])?;
+        let mut candidate = self.all_value();
+        candidate.set(key, value)?;
+        *self = Self::Rich(candidate);
+        Ok(())
+    }
+
+    /// 顺序批量原始写入，任一失败则不发布部分结果。
+    pub(crate) fn put_many_value(&mut self, values: &[(String, DataValue)]) -> Result<()> {
+        check_keys(
+            &values
+                .iter()
+                .map(|(key, _)| key.as_str())
+                .collect::<Vec<_>>(),
+        )?;
+        let mut candidate = self.clone();
+        for (key, value) in values {
+            candidate.put_value(key, value.clone())?;
+        }
+        *self = candidate;
+        Ok(())
+    }
+
+    /// 在原始 PHP 数组末尾追加，保留已有对象身份。
+    pub(crate) fn push_value(&mut self, key: &str, value: DataValue) -> Result<()> {
+        let current = self.get_value(key)?.unwrap_or(DataValue::Array(Vec::new()));
+        let mut entries = match current {
+            DataValue::Array(entries) => entries,
+            DataValue::Null | DataValue::Bool(false) => Vec::new(),
+            _ => return Err(invalid()),
+        };
+        let next = entries
+            .iter()
+            .filter_map(|(key, _)| match key {
+                crate::support::ArrayKey::Integer(value) => Some(*value),
+                crate::support::ArrayKey::String(_) => None,
+            })
+            .max()
+            .map_or(Some(0), |value| value.checked_add(1))
+            .ok_or_else(invalid)?;
+        entries.push((crate::support::ArrayKey::Integer(next), value));
+        self.put_value(key, DataValue::Array(entries))
+    }
+
+    /// 返回原始值并删除，保留对象共享身份。
+    pub(crate) fn pull_value(&mut self, key: &str) -> Result<Option<DataValue>> {
+        let value = self.get_value(key)?;
+        self.forget(&[key])?;
+        Ok(value)
+    }
+
+    /// 按顶层字面键选择，不对对象作编码投影。
+    pub(crate) fn only_value(&self, keys: &[&str]) -> Result<DataValue> {
+        check_keys(keys)?;
+        let DataValue::Array(entries) = self.all_value() else {
+            return Err(invalid());
+        };
+        Ok(DataValue::Array(
+            entries
+                .into_iter()
+                .filter(|(key, _)| keys.contains(&key.to_string().as_str()))
+                .collect(),
+        ))
+    }
+
+    /// 从独立值快照移除指定键。
+    pub(crate) fn except_value(&self, keys: &[&str]) -> Result<DataValue> {
+        check_keys(keys)?;
+        let mut candidate = self.all_value();
+        for key in keys {
+            candidate.forget(key)?;
+        }
+        Ok(candidate)
+    }
+
+    /// 通用对象闪存写入，使用同一 `_flash` 元数据。
+    pub(crate) fn flash_value(&mut self, key: &str, value: DataValue) -> Result<()> {
+        let mut candidate = self.clone();
+        candidate.put_value(key, value)?;
+        candidate.rich_push_flash("_flash.new", key)?;
+        candidate.rich_remove_old(key)?;
+        *self = candidate;
+        Ok(())
+    }
+
+    /// 原始对象仅在当前请求可读，本次保存按 old flash 老化。
+    pub(crate) fn now_value(&mut self, key: &str, value: DataValue) -> Result<()> {
+        let mut candidate = self.clone();
+        candidate.put_value(key, value)?;
+        candidate.rich_push_flash("_flash.old", key)?;
+        *self = candidate;
+        Ok(())
+    }
+
+    /// 原始旧输入读取；对象 clone 保持同一 Arc 身份。
+    pub(crate) fn old_input_value(&self, key: Option<&str>) -> Result<Option<DataValue>> {
+        let bag = self
+            .get_value("_old_input")?
+            .unwrap_or(DataValue::Array(Vec::new()));
+        if !bag.is_array() {
+            return Err(invalid());
+        }
+        match key {
+            None => Ok(Some(bag)),
+            Some(key) => Ok(bag.get(key)?.cloned()),
+        }
+    }
+
+    /// 对象写入旧输入并登记 flash，不建立额外旁路。
+    pub(crate) fn flash_input_value(&mut self, value: DataValue) -> Result<()> {
+        if !value.is_array() {
+            return Err(invalid());
+        }
+        self.flash_value("_old_input", value)
+    }
+
+    fn rich_push_flash(&mut self, path: &str, key: &str) -> Result<()> {
+        let mut current = self
+            .get_value(path)?
+            .unwrap_or(DataValue::Array(Vec::new()));
+        let DataValue::Array(ref mut entries) = current else {
+            return Err(invalid());
+        };
+        let next = entries
+            .iter()
+            .filter_map(|(key, _)| match key {
+                crate::support::ArrayKey::Integer(value) => Some(*value),
+                crate::support::ArrayKey::String(_) => None,
+            })
+            .max()
+            .map_or(Some(0), |value| value.checked_add(1))
+            .ok_or_else(invalid)?;
+        entries.push((
+            crate::support::ArrayKey::Integer(next),
+            DataValue::String(key.to_owned()),
+        ));
+        self.put_value(path, current)
+    }
+
+    fn rich_remove_old(&mut self, key: &str) -> Result<()> {
+        let old = self
+            .get_value("_flash.old")?
+            .unwrap_or(DataValue::Array(Vec::new()));
+        let DataValue::Array(mut entries) = old else {
+            return Err(invalid());
+        };
+        entries.retain(
+            |(_, value)| !matches!(value, DataValue::String(candidate) if candidate == key),
+        );
+        self.put_value("_flash.old", DataValue::Array(entries))
     }
 
     /// 完整字面键优先，其次 dot；显式 null 保留为 `Some(Null)`。
     pub(crate) fn get(&self, key: &str) -> Result<Option<Value>> {
-        check_lookup_keys(&self.0, &[key])?;
-        Ok(read(&self.0, key).cloned())
+        self.get_value(key)?
+            .map(|value| value.to_json())
+            .transpose()
     }
 
     /// 先定位顶层旧输入 bag，再在 bag 内按字面键优先读取。
     pub(crate) fn old_input(&self, key: Option<&str>) -> Result<Option<Value>> {
+        if matches!(self, Self::Rich(_)) {
+            return self
+                .old_input_value(key)?
+                .map(|value| value.to_json())
+                .transpose();
+        }
         let bag = self
             .get("_old_input")?
             .unwrap_or_else(|| Value::Array(Vec::new()));
@@ -92,28 +318,36 @@ impl Attributes {
 
     /// 所有键均存在；null 也存在，空列表为 true。
     pub(crate) fn exists(&self, keys: &[&str]) -> Result<bool> {
-        check_lookup_keys(&self.0, keys)?;
-        Ok(keys.iter().all(|key| read(&self.0, key).is_some()))
+        self.check_lookup_paths(keys)?;
+        keys.iter().try_fold(true, |result, key| {
+            Ok(result && self.get_value(key)?.is_some())
+        })
     }
 
     /// 所有键均存在且非 null；false、0、空串保留为存在。
     pub(crate) fn has(&self, keys: &[&str]) -> Result<bool> {
-        check_lookup_keys(&self.0, keys)?;
-        Ok(keys
-            .iter()
-            .all(|key| read(&self.0, key).is_some_and(|value| !value.is_null())))
+        self.check_lookup_paths(keys)?;
+        keys.iter().try_fold(true, |result, key| {
+            Ok(result && self.get_value(key)?.is_some_and(|value| !value.is_null()))
+        })
     }
 
     /// 至少一个键存在且非 null；空列表为 false。
     pub(crate) fn has_any(&self, keys: &[&str]) -> Result<bool> {
-        check_lookup_keys(&self.0, keys)?;
-        Ok(keys
-            .iter()
-            .any(|key| read(&self.0, key).is_some_and(|value| !value.is_null())))
+        self.check_lookup_paths(keys)?;
+        for key in keys {
+            if self.get_value(key)?.is_some_and(|value| !value.is_null()) {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
     /// 设置 dot 路径；失败不改变原属性。
     pub(crate) fn put(&mut self, key: &str, value: Value) -> Result<()> {
+        if matches!(self, Self::Rich(_)) {
+            return self.put_value(key, DataValue::from_json(value)?);
+        }
         self.change(|candidate| set(candidate, key, value))
     }
 
@@ -127,6 +361,14 @@ impl Attributes {
             .map(|(key, _)| key.as_str())
             .collect::<Vec<_>>();
         check_keys(&keys)?;
+        if matches!(self, Self::Rich(_)) {
+            let mut candidate = self.clone();
+            for (key, value) in values {
+                candidate.put(key, value.clone())?;
+            }
+            *self = candidate;
+            return Ok(());
+        }
         self.change(|candidate| {
             for (key, value) in values {
                 set(candidate, key, value.clone())?;
@@ -137,6 +379,11 @@ impl Attributes {
 
     /// 返回原值并删除；null 与缺失不同。
     pub(crate) fn pull(&mut self, key: &str) -> Result<Option<Value>> {
+        if matches!(self, Self::Rich(_)) {
+            let value = self.get(key)?;
+            self.forget(&[key])?;
+            return Ok(value);
+        }
         check_keys(&[key])?;
         self.change(|candidate| {
             let value = read(candidate, key).cloned();
@@ -148,11 +395,39 @@ impl Attributes {
     /// PHP 数组追加；null/false 可转为空数组，其他标量拒绝。
     pub(crate) fn push(&mut self, key: &str, value: Value) -> Result<()> {
         check_keys(&[key])?;
+        if matches!(self, Self::Rich(_)) {
+            let current = self.get_value(key)?.unwrap_or(DataValue::Array(Vec::new()));
+            let mut entries = match current {
+                DataValue::Array(entries) => entries,
+                DataValue::Null | DataValue::Bool(false) => Vec::new(),
+                _ => return Err(invalid()),
+            };
+            let next = entries
+                .iter()
+                .filter_map(|(key, _)| match key {
+                    crate::support::ArrayKey::Integer(value) => Some(*value),
+                    crate::support::ArrayKey::String(_) => None,
+                })
+                .max()
+                .map_or(Some(0), |value| value.checked_add(1))
+                .ok_or_else(invalid)?;
+            entries.push((
+                crate::support::ArrayKey::Integer(next),
+                DataValue::from_json(value)?,
+            ));
+            return self.put_value(key, DataValue::Array(entries));
+        }
         self.change(|candidate| push(candidate, key, value))
     }
 
     /// 按 PHP 数值或数组加法计算并写入；失败保持原属性。
     pub(crate) fn increment(&mut self, key: &str, amount: &Value) -> Result<Value> {
+        if matches!(self, Self::Rich(_)) {
+            let previous = self.get(key)?.unwrap_or_else(|| Value::from(0));
+            let result = scalars::add(&previous, amount).ok_or_else(invalid)?;
+            self.put(key, result.clone())?;
+            return Ok(result);
+        }
         let previous = self.get(key)?.unwrap_or_else(|| Value::from(0));
         let value = scalars::add(&previous, amount).ok_or_else(invalid)?;
         self.put(key, value.clone())?;
@@ -162,6 +437,14 @@ impl Attributes {
     /// 删除完整字面键或 dot 路径；缺失键不报错。
     pub(crate) fn forget(&mut self, keys: &[&str]) -> Result<()> {
         check_keys(keys)?;
+        if let Self::Rich(value) = self {
+            let mut candidate = value.clone();
+            for key in keys {
+                candidate.forget(key)?;
+            }
+            *value = candidate;
+            return Ok(());
+        }
         self.change(|candidate| {
             for key in keys {
                 forget(candidate, key)?;
@@ -172,6 +455,10 @@ impl Attributes {
 
     /// 清空全部属性，包含 token 和 flash 元数据。
     pub(crate) fn flush(&mut self) -> Result<()> {
+        if matches!(self, Self::Rich(_)) {
+            *self = Self::Pure(DataValue::Array(Vec::new()));
+            return Ok(());
+        }
         self.change(|candidate| {
             *candidate = Value::Array(Vec::new());
             Ok(())
@@ -180,6 +467,14 @@ impl Attributes {
 
     /// 立即可读且延续到下一次请求的值；保留 new 列表的重复项。
     pub(crate) fn flash(&mut self, key: &str, value: Value) -> Result<()> {
+        if matches!(self, Self::Rich(_)) {
+            let mut candidate = self.clone();
+            candidate.put(key, value)?;
+            candidate.rich_push_flash("_flash.new", key)?;
+            candidate.rich_remove_old(key)?;
+            *self = candidate;
+            return Ok(());
+        }
         check_keys(&[key])?;
         self.change(|candidate| {
             set(candidate, key, value)?;
@@ -198,6 +493,13 @@ impl Attributes {
 
     /// 仅在当前请求可读；下一次 age 删除。
     pub(crate) fn now(&mut self, key: &str, value: Value) -> Result<()> {
+        if matches!(self, Self::Rich(_)) {
+            let mut candidate = self.clone();
+            candidate.put(key, value)?;
+            candidate.rich_push_flash("_flash.old", key)?;
+            *self = candidate;
+            return Ok(());
+        }
         check_keys(&[key])?;
         self.change(|candidate| {
             set(candidate, key, value)?;
@@ -207,6 +509,13 @@ impl Attributes {
 
     /// 将所有 old 合并到 new，并清空 old；包括由 now 标记的键。
     pub(crate) fn reflash(&mut self) -> Result<()> {
+        if matches!(self, Self::Rich(_)) {
+            return self.rich_flash_update(|metadata| {
+                let old = array(read_or_empty(metadata, "_flash.old"))?;
+                merge_new(metadata, old)?;
+                set(metadata, "_flash.old", Value::Array(Vec::new()))
+            });
+        }
         self.change(|candidate| {
             let old = array(read_or_empty(candidate, "_flash.old"))?;
             merge_new(candidate, old)?;
@@ -217,6 +526,16 @@ impl Attributes {
     /// 保留指定键；空列表不等于 reflash。
     pub(crate) fn keep(&mut self, keys: &[&str]) -> Result<()> {
         check_keys(keys)?;
+        if matches!(self, Self::Rich(_)) {
+            return self.rich_flash_update(|metadata| {
+                let keys = keys
+                    .iter()
+                    .map(|key| Value::String((*key).to_owned()))
+                    .collect::<Vec<_>>();
+                merge_new(metadata, array(Value::Array(keys.clone()))?)?;
+                remove_old(metadata, &keys)
+            });
+        }
         self.change(|candidate| {
             let keys = keys
                 .iter()
@@ -229,6 +548,23 @@ impl Attributes {
 
     /// 推进一次 flash 年龄；每次显式 save 都应调用一次，不做幂等去重。
     pub(crate) fn age(&mut self) -> Result<()> {
+        if matches!(self, Self::Rich(_)) {
+            let mut candidate = self.clone();
+            let old = candidate
+                .get_value("_flash.old")?
+                .unwrap_or(DataValue::Array(Vec::new()))
+                .to_json()?;
+            for key in cast_values(old) {
+                candidate.rich_forget_php_key(&key)?;
+            }
+            let new = candidate
+                .get_value("_flash.new")?
+                .unwrap_or(DataValue::Array(Vec::new()));
+            candidate.put_value("_flash.old", new)?;
+            candidate.put_value("_flash.new", DataValue::Array(Vec::new()))?;
+            *self = candidate;
+            return Ok(());
+        }
         self.change(|candidate| {
             let old = read_or_empty(candidate, "_flash.old");
             // Store::forget 先执行 PHP (array) cast，不要求整项元数据是字符串列表。
@@ -244,8 +580,24 @@ impl Attributes {
     /// 按顶层字面键选择，并保持原属性顺序；不解释 dot。
     pub(crate) fn only(&self, keys: &[&str]) -> Result<Value> {
         check_keys(keys)?;
+        if let Self::Rich(value) = self {
+            let DataValue::Array(entries) = value else {
+                return Err(invalid());
+            };
+            return DataValue::Array(
+                entries
+                    .iter()
+                    .filter(|(key, _)| keys.contains(&key.to_string().as_str()))
+                    .cloned()
+                    .collect(),
+            )
+            .to_json();
+        }
+        let Self::Pure(value) = self else {
+            return Err(invalid());
+        };
         let mut result = Map::new();
-        for (key, value) in entries(self.0.clone()) {
+        for (key, value) in entries(value.to_json()?) {
             if keys.contains(&key.as_str()) {
                 result.insert(key, value);
             }
@@ -258,7 +610,17 @@ impl Attributes {
     /// 从独立快照删除字面键或 dot 路径，不修改当前属性。
     pub(crate) fn except(&self, keys: &[&str]) -> Result<Value> {
         check_keys(keys)?;
-        let mut result = self.0.clone();
+        if let Self::Rich(value) = self {
+            let mut result = value.clone();
+            for key in keys {
+                result.forget(key)?;
+            }
+            return result.to_json();
+        }
+        let Self::Pure(value) = self else {
+            return Err(invalid());
+        };
+        let mut result = value.to_json()?;
         for key in keys {
             forget(&mut result, key)?;
         }
@@ -267,11 +629,42 @@ impl Attributes {
     }
 
     fn change<T>(&mut self, mutation: impl FnOnce(&mut Value) -> Result<T>) -> Result<T> {
-        let mut candidate = self.0.clone();
+        let Self::Pure(value) = self else {
+            return Err(invalid());
+        };
+        let mut candidate = value.to_json()?;
         let result = mutation(&mut candidate)?;
         validate(&candidate)?;
-        self.0 = empty_root(candidate);
+        *value = DataValue::from_json(empty_root(candidate))?;
         Ok(result)
+    }
+
+    fn rich_flash_update(&mut self, mutation: impl FnOnce(&mut Value) -> Result<()>) -> Result<()> {
+        let flash = self
+            .get_value("_flash")?
+            .unwrap_or(DataValue::Array(Vec::new()))
+            .to_json()?;
+        let mut metadata = Value::Object(Map::new());
+        set(&mut metadata, "_flash", flash)?;
+        mutation(&mut metadata)?;
+        let updated = read(&metadata, "_flash").cloned().ok_or_else(invalid)?;
+        self.put_value("_flash", DataValue::from_json(updated)?)
+    }
+
+    fn rich_forget_php_key(&mut self, value: &Value) -> Result<()> {
+        let direct_key = match value {
+            Value::String(value) => value.clone(),
+            Value::Null => String::new(),
+            Value::Bool(value) => i64::from(*value).to_string(),
+            Value::Number(_) => scalars::integer(value).to_string(),
+            Value::Array(_) | Value::Object(_) => return Err(invalid()),
+        };
+        let key = if self.all_value().direct(&direct_key).is_some() {
+            direct_key
+        } else {
+            scalars::string(value)
+        };
+        self.forget(&[&key])
     }
 }
 
@@ -550,9 +943,9 @@ mod tests {
         assert!(attributes.exists(&[&key])?);
         assert!(attributes.has(&[&key])?);
         assert!(attributes.has_any(&[&key])?);
-        assert_eq!(attributes.only(&[&key])?, attributes.all());
+        assert_eq!(attributes.only(&[&key])?, attributes.all()?);
         assert_eq!(attributes.except(&[&key])?, json!([]));
-        let before = attributes.all();
+        let before = attributes.all()?;
         assert_eq!(
             attributes
                 .put(&key, json!("replacement"))
@@ -560,7 +953,7 @@ mod tests {
                 .map(|error| error.code().to_owned()),
             Some("session_limits_exceeded".to_owned())
         );
-        assert_eq!(attributes.all(), before);
+        assert_eq!(attributes.all()?, before);
         let missing = format!("{key}.missing");
         assert_eq!(
             attributes
@@ -569,9 +962,9 @@ mod tests {
                 .map(|error| error.code().to_owned()),
             Some("session_limits_exceeded".to_owned())
         );
-        assert_eq!(attributes.all(), before);
+        assert_eq!(attributes.all()?, before);
         assert_eq!(attributes.pull(&key)?, Some(json!("literal")));
-        assert_eq!(attributes.all(), json!([]));
+        assert_eq!(attributes.all()?, json!([]));
         assert_eq!(attributes.only(&[&key])?, json!([]));
         for error in [
             attributes.get(&key).err(),
@@ -584,10 +977,47 @@ mod tests {
         ] {
             assert_eq!(error.ok_or_else(invalid)?.code(), "session_limits_exceeded");
         }
-        assert_eq!(attributes.all(), json!([]));
+        assert_eq!(attributes.all()?, json!([]));
         attributes = Attributes::new(before)?;
         attributes.forget(&[&key])?;
-        assert_eq!(attributes.all(), json!([]));
+        assert_eq!(attributes.all()?, json!([]));
+        Ok(())
+    }
+
+    #[test]
+    fn multi_key_presence_prechecks_every_path_before_short_circuit() -> Result<()> {
+        let deep = std::iter::repeat_n("x", MAX_DEPTH + 1)
+            .collect::<Vec<_>>()
+            .join(".");
+        let attributes = Attributes::new(json!({"present":1,"nil":null}))?;
+        for keys in [
+            ["missing", deep.as_str()],
+            [deep.as_str(), "missing"],
+            ["nil", deep.as_str()],
+            [deep.as_str(), "nil"],
+            ["present", deep.as_str()],
+            [deep.as_str(), "present"],
+        ] {
+            for result in [
+                attributes.exists(&keys),
+                attributes.has(&keys),
+                attributes.has_any(&keys),
+            ] {
+                assert_eq!(
+                    result.err().map(|error| error.code().to_owned()),
+                    Some("session_limits_exceeded".to_owned())
+                );
+            }
+        }
+        let mut values = Map::new();
+        values.insert(deep.clone(), Value::Bool(true));
+        values.insert("nil".into(), Value::Null);
+        let literal = Attributes::new(Value::Object(values))?;
+        for keys in [["nil", deep.as_str()], [deep.as_str(), "nil"]] {
+            assert!(literal.exists(&keys)?);
+            assert!(!literal.has(&keys)?);
+            assert!(literal.has_any(&keys)?);
+        }
         Ok(())
     }
 
@@ -635,7 +1065,7 @@ mod tests {
         attributes.put("a.b", json!("  value  "))?;
         attributes.put_many(&[("a.b".into(), json!(2)), ("a".into(), json!(1))])?;
         assert_eq!(attributes.get("a")?, Some(json!(1)));
-        let before = attributes.all();
+        let before = attributes.all()?;
         let too_deep = std::iter::repeat_n("x", MAX_DEPTH + 1)
             .collect::<Vec<_>>()
             .join(".");
@@ -645,12 +1075,12 @@ mod tests {
             .ok_or_else(invalid)?;
         assert_eq!(error.status(), StatusCode::PAYLOAD_TOO_LARGE);
         assert_eq!(error.code(), "session_limits_exceeded");
-        assert_eq!(attributes.all(), before);
+        assert_eq!(attributes.all()?, before);
         attributes.put("raw", json!("  value  "))?;
         assert_eq!(attributes.get("raw")?, Some(json!("  value  ")));
         attributes.flush()?;
-        assert_eq!(attributes.all(), json!([]));
-        assert_eq!(Attributes::new(json!({}))?.all(), json!([]));
+        assert_eq!(attributes.all()?, json!([]));
+        assert_eq!(Attributes::new(json!({}))?.all()?, json!([]));
         Ok(())
     }
 
@@ -738,11 +1168,11 @@ mod tests {
             Some(json!({"0":1,"3":false,"5":0,"7":1.25,"8":[1]}))
         );
         attributes.age()?;
-        let before = attributes.all();
+        let before = attributes.all()?;
         let error = attributes.age().err().ok_or_else(invalid)?;
         assert_eq!(error.code(), "session_data_invalid");
         assert_eq!(error.status(), StatusCode::INTERNAL_SERVER_ERROR);
-        assert_eq!(attributes.all(), before);
+        assert_eq!(attributes.all()?, before);
         Ok(())
     }
 
@@ -753,7 +1183,7 @@ mod tests {
         )?;
         attributes.age()?;
         assert_eq!(
-            attributes.all(),
+            attributes.all()?,
             json!({"keep":1,"_flash":{"old":[],"new":[]}})
         );
         let mut float =
@@ -799,10 +1229,10 @@ mod tests {
     fn malformed_metadata_and_all_resource_failures_are_atomic_and_safe() -> Result<()> {
         let mut attributes =
             Attributes::new(json!({"secret":"SENSITIVE","_flash":{"new":[],"old":null}}))?;
-        let before = attributes.all();
+        let before = attributes.all()?;
         let error = attributes.flash("x", json!(1)).err().ok_or_else(invalid)?;
         assert_eq!(error.code(), "session_data_invalid");
-        assert_eq!(attributes.all(), before);
+        assert_eq!(attributes.all()?, before);
         assert!(!format!("{attributes:?}").contains("SENSITIVE"));
         assert!(!format!("{error:?}").contains("SENSITIVE"));
         let too_many = vec!["x"; MAX_KEYS + 1];
@@ -813,19 +1243,19 @@ mod tests {
                 .map(|error| error.code().to_owned()),
             Some("session_limits_exceeded".into())
         );
-        assert_eq!(attributes.all(), before);
+        assert_eq!(attributes.all()?, before);
         let full = (0..MAX_KEYS)
             .map(|index| (format!("k{index}"), Value::Null))
             .collect::<Map<_, _>>();
         let mut full = Attributes::new(Value::Object(full))?;
-        let before = full.all();
+        let before = full.all()?;
         assert_eq!(
             full.put("extra", json!(1))
                 .err()
                 .map(|error| error.code().to_owned()),
             Some("session_limits_exceeded".into())
         );
-        assert_eq!(full.all(), before);
+        assert_eq!(full.all()?, before);
         let long = "x".repeat(MAX_KEY_BYTES + 1);
         assert_eq!(
             full.get(&long).err().map(|error| error.code().to_owned()),

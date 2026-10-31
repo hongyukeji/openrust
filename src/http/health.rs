@@ -55,13 +55,19 @@ mod tests {
     struct TestReadiness(Readiness);
 
     impl ServiceProvider for TestReadiness {
-        fn register(&self, app: &mut RegisterContext<'_>) -> crate::core::Result<()> {
-            let readiness = self.0.clone();
-            app.singleton::<Readiness, _>(move |_| {
-                let readiness = readiness.clone();
-                Box::pin(async move { Ok(std::sync::Arc::new(readiness)) })
-            });
-            Ok(())
+        fn register<'a>(
+            &'a self,
+            app: &'a mut RegisterContext<'_>,
+        ) -> crate::core::BoxFuture<'a, crate::core::Result<()>> {
+            Box::pin(async move {
+                let readiness = self.0.clone();
+                app.singleton::<Readiness, _>(move |_| {
+                    let readiness = readiness.clone();
+                    Box::pin(async move { Ok(std::sync::Arc::new(readiness)) })
+                })
+                .await?;
+                Ok(())
+            })
         }
     }
 

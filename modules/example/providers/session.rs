@@ -130,23 +130,29 @@ impl ExampleSessionDriverProvider {
     }
 }
 impl ServiceProvider for ExampleSessionDriverProvider {
-    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-        let database = self.database;
-        app.singleton::<SessionStoreHandle, _>(move |resolver| {
-            Box::pin(async move {
-                let backend: Arc<dyn SessionStore> = if database {
-                    Arc::new(DatabaseSessionStore::new(
-                        (*resolver.resolve::<openrust::db::Db>().await?).clone(),
-                    ))
-                } else {
-                    Arc::new(MemorySessionStore::default())
-                };
-                Ok(Arc::new(SessionStoreHandle::new(
-                    ExampleSessionDriver::new(backend),
-                )))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            let database = self.database;
+            app.singleton::<SessionStoreHandle, _>(move |resolver| {
+                Box::pin(async move {
+                    let backend: Arc<dyn SessionStore> = if database {
+                        Arc::new(DatabaseSessionStore::new(
+                            (*resolver.resolve::<openrust::db::Db>().await?).clone(),
+                        ))
+                    } else {
+                        Arc::new(MemorySessionStore::default())
+                    };
+                    Ok(Arc::new(SessionStoreHandle::new(
+                        ExampleSessionDriver::new(backend),
+                    )))
+                })
             })
-        });
-        Ok(())
+            .await?;
+            Ok(())
+        })
     }
 }
 

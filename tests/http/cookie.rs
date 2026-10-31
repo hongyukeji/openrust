@@ -70,9 +70,15 @@ fn response_cookie_composition_preserves_envelope_and_unencoded_value() {
 
 struct CookieRoutes;
 impl openrust::core::ServiceProvider for CookieRoutes {
-    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
-        app.instance(std::sync::Arc::new(tokio::sync::Notify::new()));
-        Ok(())
+    fn register<'a>(
+        &'a self,
+        app: &'a mut openrust::core::RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.instance(std::sync::Arc::new(tokio::sync::Notify::new()))
+                .await?;
+            Ok(())
+        })
     }
     fn boot<'a>(
         &'a self,
@@ -367,6 +373,65 @@ async fn factory_uses_final_session_section_without_auth_and_explicit_factory_wi
                 openrust::http::SameSite::Strict
             })
         );
+        runtime
+            .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(2))
+            .await?;
+    }
+    Ok(())
+}
+
+struct EarlyCookieFactoryProbe(
+    std::sync::Arc<tokio::sync::Mutex<Option<std::sync::Arc<CookieFactory>>>>,
+);
+impl openrust::core::ServiceProvider for EarlyCookieFactoryProbe {
+    fn register<'a>(
+        &'a self,
+        app: &'a mut openrust::core::RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            let early = app
+                .rebinding::<CookieFactory, _>(|_, _| Box::pin(async { Ok(()) }))
+                .await?
+                .expect("Cookie factory is bound before probe registration");
+            *self.0.lock().await = Some(early);
+            Ok(())
+        })
+    }
+}
+
+#[tokio::test]
+async fn early_cookie_factory_resolution_keeps_singleton_snapshot_after_late_session_overlay()
+-> openrust::Result<()> {
+    for explicit in [false, true] {
+        let mut supplied = CookieFactory::default();
+        supplied.set_default_path_and_domain(
+            "/explicit".to_owned(),
+            None,
+            Some(true),
+            Some(openrust::http::SameSite::Lax),
+        )?;
+        let provider = if explicit {
+            openrust::http::CookieServiceProvider::plain().with_factory(supplied)
+        } else {
+            openrust::http::CookieServiceProvider::plain()
+        };
+        let early = std::sync::Arc::new(tokio::sync::Mutex::new(None));
+        let mut builder = openrust::core::ProviderBuilder::new();
+        builder
+            .provider(provider)
+            .provider(EarlyCookieFactoryProbe(early.clone()))
+            .provider(LateSessionDefaults);
+        let runtime = builder.start(figment::Figment::new()).await?;
+        let before_boot = early.lock().await.clone().expect("early factory");
+        let after_boot = runtime.container().resolve::<CookieFactory>().await?;
+        assert!(std::sync::Arc::ptr_eq(&before_boot, &after_boot));
+        for factory in [&before_boot, &after_boot] {
+            let cookie = factory.make("example", "value", 0, CookieOptions::default())?;
+            assert_eq!(cookie.path(), if explicit { "/explicit" } else { "/" });
+            assert_eq!(cookie.domain(), None);
+            assert_eq!(cookie.secure(), if explicit { Some(true) } else { None });
+            assert_eq!(cookie.same_site(), Some(openrust::http::SameSite::Lax));
+        }
         runtime
             .shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(2))
             .await?;

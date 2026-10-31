@@ -4,9 +4,9 @@ OpenRust 框架的应用内核。
 
 ## 容器与 Provider 生命周期
 
-`openrust::core::container` 提供 `ContainerBuilder`、`Container`、`Resolver` 与 `Scope`。`Resolver` 使用弱容器句柄，延迟解析时容器已释放则报告 `container_closed`，避免 singleton 保存解析器造成引用环。类型键支持 `dyn Trait`，`bind` 每次创建，`singleton` 同容器共享，`scoped` 同生命周期共享，`instance` 注册已有 `Arc`。同类型后注册覆盖前定义；定义经 `build` 封闭，不使用 PHP 反射构造。
+`openrust::core::container` 提供 `ContainerBuilder`、`Container`、`Resolver` 与 `Scope`。`Resolver` 使用弱容器句柄，延迟解析时容器已释放则报告 `container_closed`，避免 singleton 保存解析器造成引用环。类型键支持 `dyn Trait`，`bind` 每次创建，`singleton` 同容器共享，`scoped` 同生命周期共享，`instance` 注册已有 `Arc`。同类型后注册覆盖前定义；`build` 建立唯一容器后，Provider 注册仍可在同一容器动态重绑，不使用 PHP 反射构造。重绑使各 scope 的旧缓存失效；已交给调用方的旧 `Arc` 和在途引用仍有效，新解析按新定义构造。绑定版本与缓存槽准入同锁核验，旧构造不能回填新槽。
 
-`RegisterContext::extend::<T, _>` 保留原 factory，再把异步装饰器依登记顺序作用于其结果；可在 `bind` 前登记，也可包装外部 `Arc<dyn Trait>`。装饰器接收旧 `Arc<T>` 与 `Resolver`，返回 `BoxFuture<'static, Result<Arc<T>>>`。同类型 factory 覆盖仍保留未解析服务的持久装饰链；`forget_extenders::<T>` 清除未来构造的持久链，不撤销已缓存服务。`rebinding::<T, _>` 在缓存更新后通知监听者。已缓存 singleton/instance 可通过 `Container::extend(...).await` 或 `BootContext::extend(...).await` 即时变换；变换失败保留旧缓存，通知失败则新值已发布。同步登记的显式 `instance` 装饰在所有 Provider `register` 后、任一 `boot` 前按登记顺序执行，直接使用 builder 时由首次异步 `resolve` 执行；待执行时同步 `get_ready` 不返回旧值。
+`RegisterContext::extend::<T, _>(...).await?` 保留原 factory，再把异步装饰器依登记顺序作用于其结果；可在 `bind` 前登记，也可包装外部 `Arc<dyn Trait>`。装饰器接收旧 `Arc<T>` 与 `Resolver`，返回 `BoxFuture<'static, Result<Arc<T>>>`。同类型 factory 覆盖仍保留未解析服务的持久装饰链；`forget_extenders::<T>().await?` 清除未来构造的持久链，不撤销已缓存服务。`rebinding::<T, _>(...).await?` 登记监听者；服务已绑定时立即解析并返回当前 `Arc`，后续缓存更新按顺序通知。回调错误在当前 `register` 位置短路，不延迟到 `register` 返回后。已缓存 singleton/instance 可通过 `Container::extend(...).await` 或 `BootContext::extend(...).await` 即时变换；变换失败保留旧缓存，通知失败则新值已发布。`ServiceProvider::register` 返回 `BoxFuture`，绑定、实例、装饰与通知均在原调用位置 `await?`；已完成的贡献即使后续操作失败也不回滚。直接使用 `ContainerBuilder` 时，显式 `instance` 的待执行装饰仍在首次异步 `resolve` 执行；待执行时同步 `get_ready` 不返回旧值。
 
 ```rust,ignore
 app.extend::<dyn Driver, _>(|original, resolver| {
@@ -14,7 +14,7 @@ app.extend::<dyn Driver, _>(|original, resolver| {
         let dependency = resolver.resolve::<Dependency>().await?;
         Ok(Arc::new(ObservedDriver::new(original, dependency)) as Arc<dyn Driver>)
     })
-});
+}).await?;
 ```
 
 运行期 `Container::extend` 处理 singleton/instance 与根 scope 当前值，不主动替换其他活跃请求 scope 的缓存；请求内用 `Scope::extend` 只装饰该 scope 的 scoped/bind 服务，singleton 仍归应用。已返回调用方的旧 `Arc` 不会自动变成新值。此异步时点和多活跃 scope 是 Rust 适配；alias/contextual 等 Container 后继契约仍开放。唯一业务示例在 `modules/example/providers/example.rs` 装饰配置驱动的 `ExampleMessage`，`/api/example/container-extension` 展示原 greeting、装饰标记及 boot/HTTP 同一服务实例。CLI 新建应用只有空模块清单，不自动复制该业务模块；应用可按 Provider 模式注册自己的装饰器。
@@ -23,7 +23,7 @@ app.extend::<dyn Driver, _>(|original, resolver| {
 
 缓存工厂在成功、失败或取消时先结束构造帧并清除已结束的等待边，再发布结果；已完成服务不再创建等待关系。scope关闭和根reset的唤醒、用户值释放都在容器内部锁之外执行，允许Waker同步重入。
 
-生产 `bootstrap` 使用同一 `Container`：`Application::providers` 给出清单，`ProviderBuilder` 先执行所有 `register`，再合并基础配置、顺序执行 `boot`，最后校验配置与贡献并解析必需服务。请求 `Inject<T>` 从请求 `Scope` 异步解析；每次命令使用独立 scope，Provider 使用同一应用容器。`AppState::get<T>` 仅同步读取已就绪的实例，首次工厂构造使用 `resolve<T>().await`。应用、请求 scope、受管任务和连接池通过 `ResourceOwner` 在共同期限内关闭，错误不会静默忽略。
+生产 `bootstrap` 使用同一 `Container`：`Application::providers` 给出清单，`ProviderBuilder` 先建立唯一容器，依清单顺序执行异步 `register`，经基础配置校验后依 active 顺序 `boot`，最后校验配置与贡献并解析必需服务。普通重复具体 Provider 类型只保留首次实例，显式 `force_provider` 则重新执行 `register`，成功后在原首次 boot 槽位替换实例。`App::register_provider` 与 `force_register_provider` 在启动后使用相同容器；新实例注册成功便立即 boot。注册失败不更新 Provider 索引，但此前贡献可见；boot 失败保留新索引和贡献，普通重复不会重试 boot。请求 `Inject<T>` 从请求 `Scope` 异步解析；每次命令使用独立 scope，Provider 使用同一应用容器。`AppState::get<T>` 仅同步读取已就绪的实例，首次工厂构造使用 `resolve<T>().await`。启动阶段及运行期 Provider 登记的资源都归同一应用 `ResourceOwner`；force 不提前关闭旧资源，失败 boot 已登记的资源仍在统一 shutdown deadline 内逆序回收。启动 register/校验失败或启动 future 取消时，已提前解析的 root scoped 资源与 Provider 资源共用同一回收期限；关闭开始后拒绝新 Provider 登记。请求 scope、受管任务和连接池也遵循该共同期限，错误不会静默忽略。配置区段及包默认值在各次注册后即对后续解析可见，已有来源值始终高于 Provider 默认值；不同 Provider 可以按登记顺序对同一包区段贡献默认值，schema/校验器只允许原 owner 显式 force 替换。最终仍经过 `validate_base` 校验，包操作仅应用一次；`App::config()`/`figment()` 保持启动快照，`config_repository()`/`section()` 读取运行期仓储，不自动重建既有服务。运行期路由贡献可被随后 `build_router` 读取；已运行的 Axum Router 是快照，其实时可见性仍待固定上游真实 HTTP 对照。
 
 ## 入口作用域与资源回收
 
@@ -84,9 +84,11 @@ match (result, cleanup) {
 
 ### 测试应用
 
-`openrust::testing::TestApp<A>` 使用与生产相同的 `Application::providers`、`ProviderBuilder` 和 Router。测试显式传入 `Figment`，不修改全局环境或工作目录。`remove_provider(ProviderId)` 在注册前调整清单；`configure_after_register` 在所有 Provider 注册后、容器封口前覆盖绑定，因此后续 `boot` 能读取替代服务。测试可通过 `request` 发起进程内请求，默认总期限五秒、响应体上限 1 MiB；`request_with_limits` 可调整这两个预算，`raw_response` 保留流式正文并由调用方消费或丢弃。
+`openrust::testing::TestApp<A>` 使用与生产相同的 `Application::providers`、`ProviderBuilder` 和 Router。测试显式传入 `Figment`，不修改全局环境或工作目录。`remove_provider(ProviderId)` 在注册前调整清单；`configure_after_register` 在所有 Provider 注册后、boot 前通过同一 `Container` 异步覆盖绑定，因此后续 `boot` 能读取替代服务。测试可通过 `request` 发起进程内请求，默认总期限五秒、响应体上限 1 MiB；`request_with_limits` 可调整这两个预算，`raw_response` 保留流式正文并由调用方消费或丢弃。
 
 `TestResponse` 提供状态、响应头、字节和 JSON 读取以及链式断言；断言失败不会回显正文或头值。状态断言遵循应用配置的 `[api] http_status`，默认为 Laravel 式语义状态；仅显式配置 `always_ok` 时才将框架 JSON 错误映射为 HTTP 200。`shutdown(deadline).await` 等待本应用拥有的资源回收；`reset(deadline).await` 先关闭整个旧应用，再用相同蓝图重建，不把根 scoped 缓存清空冒充完整重置。这里的 deadline 只约束旧应用关闭，新应用的启动与路由构建不受同一期限约束。丢弃 `TestApp` 会立即封闭新解析；存活的 `Tokio` runtime 才能继续异步兜底回收。独立 `TestApp` 持有各自容器，捕获的外部共享 `Arc` fixture 由调用方负责重置。实际业务替换与 Provider 移除示例见 [`modules/example`](../../modules/example/README.md)，CLI 生成项目也包含普通 HTTP 与认证测试。进程内请求不替代真实 TCP 验收。
+
+需要从空数据库测试迁移命令时，使用 `TestApp::<A>::builder(sources).run_command("migrate", args).await`：该入口以相同命令名引导并执行一次命令，然后限时回收应用；成功后再用普通 `build()` 验证迁移后的启动与请求。命令失败仍回收资源，命令和回收同时失败时保留命令错误并记录回收错误码；取消执行 future 时沿夹具 Drop 做异步兜底回收。它不返回带命令上下文的应用。
 
 其他 OpenRust package 所依赖的核心契约包括：
 
@@ -94,7 +96,7 @@ match (result, cleanup) {
 - [`ProviderBuilder`] / [`ServiceProvider`] / [`App`] / [`AppState`]：框架、应用模块和第三方 package 使用同一扩展点与容器。`register` 声明绑定和配置区段，`boot` 贡献路由、命令及 middleware。依赖可在所有注册完成后解析；配置覆盖在最终校验前仍可提交。`App::run_command` 允许同一应用依次执行命令；顶层 CLI 在命令结束后调用 `App::shutdown`，HTTP `serve` 在退出时合作取消、限时回收受管资源。
 - [`ModuleManifest`](module.rs) 在编译期声明模块描述，启动时从只读状态源取得启用快照；启用的模块 Provider 展平进入同一注册与顺序 boot 生命周期。`ModuleDescriptor::requires` 声明已编译模块的硬依赖；依赖必须同时启用，循环/缺失/禁用依赖启动失败。依赖拓扑优先于 `priority`，相同优先级按清单声明顺序稳定排序，模块 provider 的 register 与 boot 使用同一顺序；不会自动更改状态文件。`ModuleConfigFiles::overlay` 由模块 Provider 在实际配置时点调用，逐文件写入共享配置仓储。文件状态仅 JSON `true` 启用，缺文件/键不启用，坏 JSON 拒绝；禁用不热卸载、不删除迁移历史。默认模块运行根是进程工作目录，应用可显式传入部署根；编译时 `CARGO_MANIFEST_DIR` 不决定运行时资源位置。模块资源、语言、视图和迁移示例见 [`modules/example`](../../modules/example/README.md)。
 - [`Command`]：应用二进制对外提供的运行时命令（`serve`、`migrate`、`queue work` 等）。命令默认拒绝额外参数；接受参数的命令须实现 `accepts_args`。
-- 控制台入口在引导前确定命令名，Provider 可通过 `BootContext::console_command()` 与 `is_console_command()` 读取本次候选命令。普通 `bootstrap()`、直接 `ProviderBuilder` 与 `TestApp` 均无该上下文。框架按最终匹配的命令实例执行启动前检查；候选名本身不授权跳过校验。内部迁移入口允许空库先执行官方迁移，再由后续正常应用启动校验所需表。
+- 控制台入口在引导前确定命令名，Provider 可通过 `BootContext::console_command()` 与 `is_console_command()` 读取本次候选命令。普通 `bootstrap()`、直接 `ProviderBuilder` 与 `TestApp::build/reset` 均无该上下文；受控的 `TestAppBuilder::run_command` 只引导、执行并关闭同名命令。框架按最终匹配的命令实例执行启动前检查；候选名本身不授权跳过校验。内部迁移入口允许空库先执行官方迁移，再由后续正常应用启动校验所需表。
 - [`Error`] / [`Result`] / [`ApiResponse<T>`] / [`PageMeta`]：统一错误类型、JSON 响应封装和类型化分页元数据。
 - [`ExecutionContext`] / [`ExecutionMetadata`] / [`Cancellation`]：单次 HTTP、命令或 Job 尝试的 task-local 关联信息、时间预算和合作取消；task-local 不自动传播至 `tokio::spawn`。
 - [`RateLimiter`] / [`RateLimitStore`]：固定窗口配额服务契约。存储故障向上传播；超限请求返回 429 和 `Retry-After`；每种实现都需说明共享范围与原子性边界。

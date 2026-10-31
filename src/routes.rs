@@ -220,45 +220,51 @@ impl BootContext<'_> {
 pub struct HttpServiceProvider;
 
 impl crate::core::ServiceProvider for HttpServiceProvider {
-    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-        use crate::config::repository::SectionSchema as Schema;
-        let strings = || Schema::array(Schema::String);
-        let schema = Schema::object([
-            ("host", Schema::String),
-            ("port", Schema::Integer),
-            ("public_dir", Schema::String),
-            ("root_target", Schema::String),
-            ("request_timeout_secs", Schema::Integer),
-            ("max_concurrent_requests", Schema::Integer),
-            ("shutdown_timeout_secs", Schema::Integer),
-            ("metrics_endpoint_enabled", Schema::Boolean),
-            ("trusted_proxy_ranges", strings()),
-            (
-                "compression",
-                Schema::object([("enabled", Schema::Boolean)]),
-            ),
-            (
-                "cors",
-                Schema::object([
-                    ("enabled", Schema::Boolean),
-                    ("allowed_origins", strings()),
-                    ("allowed_methods", strings()),
-                    ("allowed_headers", strings()),
-                    ("expose_headers", strings()),
-                    ("allow_credentials", Schema::Boolean),
-                    ("max_age_secs", Schema::Integer),
-                ]),
-            ),
-        ]);
-        app.config_section(
-            "server",
-            crate::config::ServerConfig::default(),
-            schema,
-            validate_http_config,
-        )?;
-        app.instance(Arc::new(health::ServerReadiness::default()));
-        app.instance(Arc::new(HttpPluginInstalled));
-        Ok(())
+    fn register<'a>(
+        &'a self,
+        app: &'a mut crate::core::RegisterContext<'_>,
+    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            use crate::config::repository::SectionSchema as Schema;
+            let strings = || Schema::array(Schema::String);
+            let schema = Schema::object([
+                ("host", Schema::String),
+                ("port", Schema::Integer),
+                ("public_dir", Schema::String),
+                ("root_target", Schema::String),
+                ("request_timeout_secs", Schema::Integer),
+                ("max_concurrent_requests", Schema::Integer),
+                ("shutdown_timeout_secs", Schema::Integer),
+                ("metrics_endpoint_enabled", Schema::Boolean),
+                ("trusted_proxy_ranges", strings()),
+                (
+                    "compression",
+                    Schema::object([("enabled", Schema::Boolean)]),
+                ),
+                (
+                    "cors",
+                    Schema::object([
+                        ("enabled", Schema::Boolean),
+                        ("allowed_origins", strings()),
+                        ("allowed_methods", strings()),
+                        ("allowed_headers", strings()),
+                        ("expose_headers", strings()),
+                        ("allow_credentials", Schema::Boolean),
+                        ("max_age_secs", Schema::Integer),
+                    ]),
+                ),
+            ]);
+            app.config_section(
+                "server",
+                crate::config::ServerConfig::default(),
+                schema,
+                validate_http_config,
+            )?;
+            app.instance(Arc::new(health::ServerReadiness::default()))
+                .await?;
+            app.instance(Arc::new(HttpPluginInstalled)).await?;
+            Ok(())
+        })
     }
 
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> crate::core::BoxFuture<'a, Result<()>> {

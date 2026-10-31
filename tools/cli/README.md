@@ -122,6 +122,8 @@ curl --noproxy '*' http://127.0.0.1:3000/api/orders
 
 未选择数据库、加密或 gRPC 的普通项目会生成 `tests/test_app.rs`：通过与生产同一 Provider 清单和 Router 的 `TestApp` 验证 `/api`、`/health`，使用显式内存 cache 与 view 目录，不要求 Redis 服务。数据库项目需真实数据库配置；加密项目需显式密钥；gRPC 项目生成自己的 `tests/grpc_flows.rs`，启动生成二进制的 `serve all`，用临时 TLS 证书验证真实 HTTP、Echo RPC、证书拒绝和信号停机。`TestApp` 公共 API 仍可用于这些应用，测试须自行提供相应配置。启用认证的应用会另生成 `tests/auth_flows.rs`，其中既有真实 TCP HTTP 集成，也有隔离数据库和 fake 邮件驱动的 `TestApp` 注册请求；启用 `--auth-mfa` 时还验证生成路由的 MFA 挑战与恢复码。运行数据库测试前，设置 `OPENRUST_TEST_DATABASE_URL` 为可创建和删除测试库的 PostgreSQL 或 MySQL 管理连接；变量缺失时测试会跳过数据库路径，不能视为真实数据库验收通过。新生成项目应执行 `cargo fmt --all --check`、`cargo check` 与 `cargo test`；涉及数据库的测试还须在相应真实服务上实际运行。
 
+生成的 Provider 在 `register` 中返回 `BoxFuture`，绑定服务时调用异步 `RegisterContext::instance` 等方法并 `await?`。测试替换使用 `TestAppBuilder::configure_after_register`，其回调接收与生产相同的 `Container` 共享句柄，返回 `BoxFuture<'static, Result<()>>`；框架在全体 Provider 登记后、基础配置校验和 boot 前等待回调完成。运行期业务 Provider 可经 `App::register_provider` 登记，显式重新登记使用 `force_register_provider`。
+
 应用默认安装 `I18nServiceProvider`。`config/i18n.toml` 中的 `i18n.default_locale` 与 `i18n.fallback_locale` 设定默认语言和回退；请求的 `Accept-Language` 选择受支持的语言。应用可通过 `MessageCatalog` 扩展 JSON 消息资源。
 
 ## API、worker 与 scheduler

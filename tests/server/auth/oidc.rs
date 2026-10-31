@@ -392,7 +392,7 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
     let session_store = SessionStoreHandle::new(memory_store.clone());
     let session = Session::new(None, Arc::new(memory_store.clone()), None)?;
     session.start().await?;
-    session.put("openrust.auth.user_id", user_id)?;
+    session.put_typed("openrust.auth.user_id", user_id)?;
     session.save().await?;
     let first_session_id = session.id()?;
     external
@@ -506,7 +506,7 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
     let second_refresh = second_credentials.refresh_token().expose().to_owned();
     let second_session = Session::new(None, Arc::new(memory_store.clone()), None)?;
     second_session.start().await?;
-    second_session.put("openrust.auth.user_id", user_id)?;
+    second_session.put_typed("openrust.auth.user_id", user_id)?;
     second_session.save().await?;
     let second_session_id = second_session.id()?;
     external
@@ -718,7 +718,7 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
     let retry_session_store = SessionStoreHandle::new(retry_store_wrapper.clone());
     let retry_session = Session::new(None, Arc::new(retry_store_wrapper), None)?;
     retry_session.start().await?;
-    retry_session.put("openrust.auth.user_id", retry_user_id)?;
+    retry_session.put_typed("openrust.auth.user_id", retry_user_id)?;
     retry_session.save().await?;
     let retry_session_id = retry_session.id()?;
     assert!(
@@ -975,7 +975,7 @@ async fn external_identity_flows_enforce_browser_binding_single_use_and_explicit
     let local_only_sessions = SessionStoreHandle::new(local_only_store.clone());
     let local_only_session = Session::new(None, Arc::new(local_only_store.clone()), None)?;
     local_only_session.start().await?;
-    local_only_session.put("openrust.auth.user_id", local_only_user)?;
+    local_only_session.put_typed("openrust.auth.user_id", local_only_user)?;
     local_only_session.save().await?;
     let local_only_session_id = local_only_session.id()?;
     external
@@ -1193,7 +1193,7 @@ async fn verify_external_mfa_completion(
     let sessions = SessionStoreHandle::new(session_store.clone());
     let session = Session::new(None, Arc::new(session_store.clone()), None)?;
     session.start().await?;
-    session.put("openrust.auth.user_id", user_id)?;
+    session.put_typed("openrust.auth.user_id", user_id)?;
     session.save().await?;
     let session_id = session.id()?;
     external
@@ -1343,8 +1343,13 @@ async fn expire_request(
 
 struct TestInstance<T: Send + Sync + 'static>(std::sync::Arc<T>);
 impl<T: Send + Sync + 'static> openrust::core::ServiceProvider for TestInstance<T> {
-    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
-        app.instance(std::sync::Arc::clone(&self.0));
-        Ok(())
+    fn register<'a>(
+        &'a self,
+        app: &'a mut openrust::core::RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.instance(std::sync::Arc::clone(&self.0)).await?;
+            Ok(())
+        })
     }
 }

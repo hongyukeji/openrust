@@ -21,11 +21,11 @@ use super::module::ModuleManifest;
 use super::resources::{ResourceOwner, ResourceRegistrar};
 use super::{BoxFuture, Error, Result};
 
-type Extensions = HashMap<TypeId, Box<dyn Any + Send + Sync>>;
-type Required = Box<dyn Fn(&Container) -> BoxFuture<'_, Result<()>> + Send + Sync>;
-type Finalizer = Box<dyn FnOnce() -> BoxFuture<'static, Result<()>> + Send>;
+pub(crate) type Extensions = HashMap<TypeId, Box<dyn Any + Send + Sync>>;
+pub(crate) type Required = Box<dyn Fn(&Container) -> BoxFuture<'_, Result<()>> + Send + Sync>;
+pub(crate) type Finalizer = Box<dyn FnOnce() -> BoxFuture<'static, Result<()>> + Send>;
 type AppConfigRegistration = Box<dyn FnOnce(&mut ContainerBuilder, ConfigRepository) + Send>;
-type BindingOverride = Box<dyn FnOnce(&mut ContainerBuilder) -> Result<()> + Send>;
+type BindingOverride = Box<dyn FnOnce(Container) -> BoxFuture<'static, Result<()>> + Send>;
 type DeferredBootValidator = Box<dyn Fn() -> BoxFuture<'static, Result<()>> + Send + Sync>;
 
 pub(crate) struct DeferredBootCheck {
@@ -39,7 +39,7 @@ pub(crate) struct DeferredBootChecks(pub(crate) Vec<DeferredBootCheck>);
 /// Provider 的具体 Rust 类型身份；错误消息只公开类型名。
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ProviderId {
-    type_id: TypeId,
+    pub(crate) type_id: TypeId,
     name: &'static str,
 }
 
@@ -71,8 +71,8 @@ pub trait ServiceProvider: Send + Sync + 'static {
     }
 
     /// 仅登记绑定、配置 schema 与默认值，不解析服务或贡献路由。
-    fn register(&self, _app: &mut RegisterContext<'_>) -> Result<()> {
-        Ok(())
+    fn register<'a>(&'a self, _app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async { Ok(()) })
     }
 
     /// 所有 Provider 注册且基础配置验证后依序启动。
@@ -83,16 +83,35 @@ pub trait ServiceProvider: Send + Sync + 'static {
 
 /// Provider 注册阶段可访问的受限接口。
 pub struct RegisterContext<'a> {
-    bindings: &'a mut ContainerBuilder,
+    container: &'a Container,
     config: &'a mut ConfigRepository,
     required: &'a mut Vec<Required>,
     owner: ProviderId,
+    force: bool,
+}
+
+impl<'a> RegisterContext<'a> {
+    pub(crate) fn live(
+        container: &'a Container,
+        config: &'a mut ConfigRepository,
+        required: &'a mut Vec<Required>,
+        owner: ProviderId,
+        force: bool,
+    ) -> Self {
+        Self {
+            container,
+            config,
+            required,
+            owner,
+            force,
+        }
+    }
 }
 
 impl RegisterContext<'_> {
     /// 判断已有 Provider 是否已登记服务，供默认绑定遵循应用覆盖顺序。
     pub fn is_bound<T: ?Sized + Send + Sync + 'static>(&self) -> bool {
-        self.bindings.contains::<T>()
+        self.container.contains::<T>()
     }
 
     /// 判断原始来源是否声明区段，供可选领域 Provider 选择是否安装。
@@ -105,58 +124,61 @@ impl RegisterContext<'_> {
     }
 
     /// 每次解析构造新实例。
-    pub fn bind<T, F>(&mut self, factory: F)
+    pub async fn bind<T, F>(&mut self, factory: F) -> Result<()>
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
     {
-        self.bindings.bind(factory);
+        self.container.bind(factory).await
     }
 
     /// 在应用内共享成功构造的实例。
-    pub fn singleton<T, F>(&mut self, factory: F)
+    pub async fn singleton<T, F>(&mut self, factory: F) -> Result<()>
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
     {
-        self.bindings.singleton(factory);
+        self.container.singleton(factory).await
     }
 
     /// 在一个请求、任务或命令 scope 内共享实例。
-    pub fn scoped<T, F>(&mut self, factory: F)
+    pub async fn scoped<T, F>(&mut self, factory: F) -> Result<()>
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
     {
-        self.bindings.scoped(factory);
+        self.container.scoped(factory).await
     }
 
     /// 登记已存在的共享实例。
-    pub fn instance<T: ?Sized + Send + Sync + 'static>(&mut self, value: Arc<T>) {
-        self.bindings.instance(value);
+    pub async fn instance<T: ?Sized + Send + Sync + 'static>(
+        &mut self,
+        value: Arc<T>,
+    ) -> Result<()> {
+        self.container.instance(value).await
     }
 
     /// 保留原 factory 并登记装饰；显式 instance 的异步链在所有 register 后、boot 前执行。
-    pub fn extend<T, F>(&mut self, extender: F)
+    pub async fn extend<T, F>(&mut self, extender: F) -> Result<()>
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(Arc<T>, Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
     {
-        self.bindings.extend::<T, F>(extender);
+        self.container.extend::<T, F>(extender).await
     }
 
     /// 登记新缓存发布后的通知；通知可解析同型服务。
-    pub fn rebinding<T, F>(&mut self, callback: F)
+    pub async fn rebinding<T, F>(&mut self, callback: F) -> Result<Option<Arc<T>>>
     where
         T: ?Sized + Send + Sync + 'static,
         F: Fn(Resolver, Arc<T>) -> BoxFuture<'static, Result<()>> + Send + Sync + 'static,
     {
-        self.bindings.rebinding::<T, F>(callback);
+        self.container.rebinding::<T, F>(callback).await
     }
 
     /// 清除持久装饰链；不撤销显式 instance 的即时链。
-    pub fn forget_extenders<T: ?Sized + Send + Sync + 'static>(&mut self) {
-        self.bindings.forget_extenders::<T>();
+    pub async fn forget_extenders<T: ?Sized + Send + Sync + 'static>(&mut self) -> Result<()> {
+        self.container.forget_extenders::<T>().await
     }
 
     /// 声明启动完成前必须成功解析的服务根。
@@ -177,13 +199,19 @@ impl RegisterContext<'_> {
     where
         T: Serialize + DeserializeOwned + Send + Sync + 'static,
     {
-        self.config
-            .register_section(self.owner.type_id, key, defaults, schema, validate)
+        self.config.register_section_for(
+            self.owner.type_id,
+            self.force,
+            key,
+            defaults,
+            schema,
+            validate,
+        )
     }
 
     /// 排入 Laravel 包配置的浅层默认合并。
     pub fn merge_defaults(&mut self, key: &'static str, defaults: Value) -> Result<()> {
-        self.config.merge_defaults(key, defaults)
+        self.config.merge_defaults_for(key, defaults)
     }
 
     /// 排入 Laravel 包配置的递归默认合并。
@@ -192,20 +220,20 @@ impl RegisterContext<'_> {
         key: &'static str,
         defaults: Value,
     ) -> Result<()> {
-        self.config.replace_defaults_recursively(key, defaults)
+        self.config.replace_defaults_recursively_for(key, defaults)
     }
 }
 
 /// Provider 启动阶段的解析、模块覆盖和领域贡献入口。
 pub struct BootContext<'a> {
-    console_command: Option<&'a str>,
-    container: &'a Container,
-    config: &'a mut ConfigRepository,
-    resources: ResourceRegistrar,
-    required: &'a mut Vec<Required>,
-    extensions: &'a mut Extensions,
-    commands: &'a mut Vec<Box<dyn Command>>,
-    finalizers: &'a mut Vec<Finalizer>,
+    pub(crate) console_command: Option<&'a str>,
+    pub(crate) container: &'a Container,
+    pub(crate) config: &'a mut ConfigRepository,
+    pub(crate) resources: ResourceRegistrar,
+    pub(crate) required: &'a mut Vec<Required>,
+    pub(crate) extensions: &'a mut Extensions,
+    pub(crate) commands: &'a mut Vec<Box<dyn Command>>,
+    pub(crate) finalizers: &'a mut Vec<Finalizer>,
 }
 
 impl BootContext<'_> {
@@ -330,6 +358,7 @@ pub struct ProviderRuntime {
     pub(crate) resources: ResourceOwner,
     pub(crate) extensions: Extensions,
     pub(crate) commands: Vec<Box<dyn Command>>,
+    pub(crate) providers: Vec<Box<dyn ServiceProvider>>,
 }
 
 impl ProviderRuntime {
@@ -365,29 +394,48 @@ impl ProviderRuntime {
 #[derive(Default)]
 pub struct ProviderBuilder {
     console_command: Option<String>,
-    providers: Vec<Box<dyn ServiceProvider>>,
+    providers: Vec<ProviderEntry>,
     modules: ModuleManifest,
     removed: HashSet<ProviderId>,
     app_config: Option<AppConfigRegistration>,
     binding_overrides: Vec<BindingOverride>,
 }
 
-fn ordered_providers(
-    providers: Vec<Box<dyn ServiceProvider>>,
-) -> Result<Vec<Box<dyn ServiceProvider>>> {
-    let mut seen = HashSet::new();
-    let mut ordered = Vec::new();
-    for provider in providers {
-        if seen.insert(provider.id().type_id) {
-            ordered.push(provider);
+struct ProviderEntry {
+    provider: Box<dyn ServiceProvider>,
+    force: bool,
+}
+
+pub(crate) fn check_dependencies(
+    provider: &dyn ServiceProvider,
+    ready: &HashSet<TypeId>,
+) -> Result<()> {
+    for dependency in provider.dependencies() {
+        if !ready.contains(&dependency.type_id) {
+            return Err(Error::custom(
+                "provider_order_invalid",
+                format!(
+                    "{} 必须在 {} 之后启动",
+                    provider.id().name(),
+                    dependency.name()
+                ),
+            ));
         }
     }
-    let all: HashSet<_> = ordered
+    Ok(())
+}
+
+fn ordered_providers(providers: &[ProviderEntry]) -> Result<()> {
+    let all: HashSet<_> = providers
         .iter()
-        .map(|provider| provider.id().type_id)
+        .map(|entry| entry.provider.id().type_id)
         .collect();
     let mut ready = HashSet::new();
-    for provider in &ordered {
+    for entry in providers {
+        let provider = &entry.provider;
+        if !entry.force && ready.contains(&provider.id().type_id) {
+            continue;
+        }
         for dependency in provider.dependencies() {
             if !all.contains(&dependency.type_id) {
                 return Err(Error::custom(
@@ -408,24 +456,58 @@ fn ordered_providers(
         }
         ready.insert(provider.id().type_id);
     }
-    Ok(ordered)
+    Ok(())
 }
 
-struct StartupResources(Option<ResourceOwner>);
+struct StartupResources {
+    owner: Option<ResourceOwner>,
+    container: Option<Container>,
+}
 
 impl StartupResources {
     fn new() -> Self {
-        Self(Some(ResourceOwner::new()))
+        Self {
+            owner: Some(ResourceOwner::new()),
+            container: None,
+        }
     }
 
     fn owner(&self) -> Result<&ResourceOwner> {
-        self.0.as_ref().ok_or_else(|| {
+        self.owner.as_ref().ok_or_else(|| {
             Error::custom("provider_resources_transferred", "启动资源所有权已经交接")
         })
     }
 
+    fn attach_container(&mut self, container: &Container) {
+        self.container = Some(container.clone());
+    }
+
+    async fn shutdown(&self, deadline: Instant) -> Result<()> {
+        let Some(container) = &self.container else {
+            return self.owner()?.shutdown(deadline).await;
+        };
+        container.seal_root();
+        self.owner()?.seal();
+        let (root, provider) = tokio::join!(
+            container.shutdown_root(deadline),
+            self.owner()?.shutdown(deadline)
+        );
+        match (root, provider) {
+            (Err(error), Err(cleanup_error)) => {
+                tracing::error!(
+                    code = cleanup_error.code(),
+                    "provider resource cleanup also failed"
+                );
+                Err(error)
+            }
+            (Err(error), Ok(())) => Err(error),
+            (Ok(()), result) => result,
+        }
+    }
+
     fn into_owner(mut self) -> Result<ResourceOwner> {
-        self.0.take().ok_or_else(|| {
+        self.container = None;
+        self.owner.take().ok_or_else(|| {
             Error::custom("provider_resources_transferred", "启动资源所有权已经交接")
         })
     }
@@ -433,15 +515,26 @@ impl StartupResources {
 
 impl Drop for StartupResources {
     fn drop(&mut self) {
-        let Some(owner) = self.0.take() else {
+        let Some(owner) = self.owner.take() else {
             return;
         };
+        let container = self.container.take();
+        if let Some(container) = &container {
+            container.seal_root();
+        }
+        owner.seal();
         if let Ok(runtime) = tokio::runtime::Handle::try_current() {
             runtime.spawn(async move {
-                if let Err(error) = owner
-                    .shutdown(Instant::now() + Duration::from_secs(5))
-                    .await
-                {
+                let deadline = Instant::now() + Duration::from_secs(5);
+                let (root, provider) = if let Some(container) = container {
+                    tokio::join!(
+                        async move { container.shutdown_root(deadline).await },
+                        owner.shutdown(deadline)
+                    )
+                } else {
+                    (Ok(()), owner.shutdown(deadline).await)
+                };
+                for error in [root.err(), provider.err()].into_iter().flatten() {
                     tracing::error!(
                         code = error.code(),
                         "cancelled provider startup cleanup failed"
@@ -470,19 +563,39 @@ impl ProviderBuilder {
 
     /// 添加 Provider；同具体类型重复登记保留第一项。
     pub fn provider(&mut self, provider: impl ServiceProvider) -> &mut Self {
-        self.providers.push(Box::new(provider));
+        self.providers.push(ProviderEntry {
+            provider: Box::new(provider),
+            force: false,
+        });
         self
     }
 
     /// 加入已盒装的应用 Provider，保留具体类型身份。
     pub fn boxed_provider(&mut self, provider: Box<dyn ServiceProvider>) -> &mut Self {
-        self.providers.push(provider);
+        self.providers.push(ProviderEntry {
+            provider,
+            force: false,
+        });
+        self
+    }
+
+    /// 显式重注册同类型 Provider；保留首次 boot 槽位。
+    pub fn force_provider(&mut self, provider: impl ServiceProvider) -> &mut Self {
+        self.boxed_force_provider(Box::new(provider))
+    }
+
+    /// 显式重注册已盒装 Provider。
+    pub fn boxed_force_provider(&mut self, provider: Box<dyn ServiceProvider>) -> &mut Self {
+        self.providers.push(ProviderEntry {
+            provider,
+            force: true,
+        });
         self
     }
 
     /// 在启动前从清单移除具体 Provider 类型；依赖关系随后重新校验。
     pub fn remove_provider(&mut self, id: ProviderId) -> &mut Self {
-        self.providers.retain(|provider| provider.id() != id);
+        self.providers.retain(|entry| entry.provider.id() != id);
         self.removed.insert(id);
         self
     }
@@ -499,12 +612,12 @@ impl ProviderBuilder {
         self
     }
 
-    /// 全体 Provider 注册后、容器封口前覆盖类型化服务绑定。
+    /// 全体 Provider 注册后、boot 前覆盖类型化服务绑定。
     ///
-    /// 测试 fake 使用与生产相同的容器和启动顺序；回调只运行一次，不能解析服务。
+    /// 测试 fake 使用与生产相同的容器和启动顺序；回调只运行一次。
     pub fn configure_after_register<F>(&mut self, configure: F) -> &mut Self
     where
-        F: FnOnce(&mut ContainerBuilder) -> Result<()> + Send + 'static,
+        F: FnOnce(Container) -> BoxFuture<'static, Result<()>> + Send + 'static,
     {
         self.binding_overrides.push(Box::new(configure));
         self
@@ -532,34 +645,51 @@ impl ProviderBuilder {
         let console_command = self.console_command;
         let mut providers = self.providers;
         Self::append_modules(self.modules, &self.removed, &mut providers)?;
-        let providers = ordered_providers(providers)?;
+        ordered_providers(&providers)?;
         let mut bindings = ContainerBuilder::new();
         let mut config = ConfigRepository::new(sources);
+        let mut resources = StartupResources::new();
         if let Some(register_config) = self.app_config {
             register_config(&mut bindings, config.clone());
         }
-        let mut required = Vec::new();
-        for provider in &providers {
-            provider.register(&mut RegisterContext {
-                bindings: &mut bindings,
-                config: &mut config,
-                required: &mut required,
-                owner: provider.id(),
-            })?;
-        }
-        for configure in self.binding_overrides {
-            configure(&mut bindings)?;
-        }
-        let resources = StartupResources::new();
         bindings.context(config.clone(), resources.owner()?.registrar());
-        config.validate_base()?;
         let container = bindings.build();
+        resources.attach_container(&container);
+        let mut required = Vec::new();
+        let mut active: Vec<Box<dyn ServiceProvider>> = Vec::new();
+        let mut active_index = HashMap::new();
         let mut extensions = Extensions::new();
         let mut commands = Vec::new();
         let mut finalizers = Vec::new();
         let result = async {
+            for entry in providers {
+                let provider = entry.provider;
+                let id = provider.id();
+                if active_index.contains_key(&id.type_id) && !entry.force {
+                    continue;
+                }
+                provider
+                    .register(&mut RegisterContext::live(
+                        &container,
+                        &mut config,
+                        &mut required,
+                        id,
+                        entry.force,
+                    ))
+                    .await?;
+                if let Some(&index) = active_index.get(&id.type_id) {
+                    active[index] = provider;
+                } else {
+                    active_index.insert(id.type_id, active.len());
+                    active.push(provider);
+                }
+            }
+            for configure in self.binding_overrides {
+                configure(container.clone()).await?;
+            }
+            config.validate_base()?;
             container.initialize_extensions().await?;
-            for provider in &providers {
+            for provider in &active {
                 provider
                     .boot(&mut BootContext {
                         console_command: console_command.as_deref(),
@@ -573,26 +703,13 @@ impl ProviderBuilder {
                     })
                     .await?;
             }
-            config.freeze()?;
-            for validate in finalizers {
-                validate().await?;
-            }
-            let framework: FrameworkConfig = config
-                .snapshot()
-                .extract()
-                .map_err(|error| Error::Config(ConfigError::from(error)))?;
-            framework.app.resolved_timezone()?;
-            for resolve in required {
-                resolve(&container).await?;
-            }
-            Ok(framework)
+            finalize_startup(&mut config, finalizers, required, &container).await
         }
         .await;
         let framework = match result {
             Ok(framework) => framework,
             Err(error) => {
                 let shutdown = resources
-                    .owner()?
                     .shutdown(Instant::now() + Duration::from_secs(5))
                     .await;
                 if let Err(cleanup_error) = shutdown {
@@ -612,42 +729,50 @@ impl ProviderBuilder {
             resources: resources.into_owner()?,
             extensions,
             commands,
+            providers: active,
         })
     }
 
     fn append_modules(
         modules: ModuleManifest,
         removed: &HashSet<ProviderId>,
-        providers: &mut Vec<Box<dyn ServiceProvider>>,
+        providers: &mut Vec<ProviderEntry>,
     ) -> Result<()> {
-        let mut owners: HashMap<TypeId, &'static str> = HashMap::new();
-        let mut existing: HashSet<TypeId> = providers
-            .iter()
-            .map(|provider| provider.id().type_id)
-            .collect();
         for module in modules.prepare()? {
-            let module_name = module.name;
             for provider in module.providers {
                 let id = provider.id();
                 if removed.contains(&id) {
                     continue;
                 }
-                if !existing.insert(id.type_id) {
-                    let previous = owners.get(&id.type_id).copied().unwrap_or("应用清单");
-                    return Err(Error::custom(
-                        "module_provider_conflict",
-                        format!(
-                            "Provider {} 同时属于 {previous} 与 {module_name}",
-                            id.name()
-                        ),
-                    ));
-                }
-                owners.insert(id.type_id, module_name);
-                providers.push(provider);
+                providers.push(ProviderEntry {
+                    provider,
+                    force: false,
+                });
             }
         }
         Ok(())
     }
+}
+
+async fn finalize_startup(
+    config: &mut ConfigRepository,
+    finalizers: Vec<Finalizer>,
+    required: Vec<Required>,
+    container: &Container,
+) -> Result<FrameworkConfig> {
+    config.freeze()?;
+    for validate in finalizers {
+        validate().await?;
+    }
+    let framework: FrameworkConfig = config
+        .snapshot()
+        .extract()
+        .map_err(|error| Error::Config(ConfigError::from(error)))?;
+    framework.app.resolved_timezone()?;
+    for resolve in required {
+        resolve(container).await?;
+    }
+    Ok(framework)
 }
 
 #[cfg(test)]
@@ -712,15 +837,17 @@ mod tests {
     struct Observe(Arc<Mutex<Vec<&'static str>>>);
 
     impl ServiceProvider for Base {
-        fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-            self.0.lock().unwrap().push("base.register");
-            app.instance(Arc::new(41usize));
-            app.config_section(
-                "service",
-                serde_json::json!({ "name": "base", "enabled": true }),
-                SectionSchema::any(),
-                |_| Ok(()),
-            )
+        fn register<'a>(&'a self, app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                self.0.lock().unwrap().push("base.register");
+                app.instance(Arc::new(41usize)).await?;
+                app.config_section(
+                    "service",
+                    serde_json::json!({ "name": "base", "enabled": true }),
+                    SectionSchema::any(),
+                    |_| Ok(()),
+                )
+            })
         }
 
         fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
@@ -737,9 +864,11 @@ mod tests {
             vec![ProviderId::of::<Base>()]
         }
 
-        fn register(&self, _app: &mut RegisterContext<'_>) -> Result<()> {
-            self.0.lock().unwrap().push("overlay.register");
-            Ok(())
+        fn register<'a>(&'a self, _app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                self.0.lock().unwrap().push("overlay.register");
+                Ok(())
+            })
         }
 
         fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
@@ -794,10 +923,12 @@ mod tests {
     struct OverrideObserved(Arc<AtomicUsize>);
 
     impl ServiceProvider for OverrideObserved {
-        fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-            app.instance(Arc::new(String::from("production")));
-            app.require::<String>();
-            Ok(())
+        fn register<'a>(&'a self, app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.instance(Arc::new(String::from("production"))).await?;
+                app.require::<String>();
+                Ok(())
+            })
         }
 
         fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
@@ -814,10 +945,12 @@ mod tests {
         let boots = Arc::new(AtomicUsize::new(0));
         let mut builder = ProviderBuilder::new();
         builder.provider(OverrideObserved(Arc::clone(&boots)));
-        builder.configure_after_register(|bindings| {
-            assert!(bindings.contains::<String>());
-            bindings.instance(Arc::new(String::from("fake")));
-            Ok(())
+        builder.configure_after_register(|container| {
+            Box::pin(async move {
+                assert!(container.contains::<String>());
+                container.instance(Arc::new(String::from("fake"))).await?;
+                Ok(())
+            })
         });
         let runtime = builder.start(Figment::new()).await?;
         assert_eq!(boots.load(Ordering::SeqCst), 1);
@@ -859,31 +992,34 @@ mod tests {
     struct LateFactory(Arc<AtomicUsize>);
 
     impl ServiceProvider for LateFactory {
-        fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-            app.config_section(
-                "late",
-                serde_json::json!({"value": "base"}),
-                SectionSchema::any(),
-                |_| Ok(()),
-            )?;
-            let calls = Arc::clone(&self.0);
-            app.singleton::<String, _>(move |resolver| {
-                let calls = Arc::clone(&calls);
-                Box::pin(async move {
-                    let config: Value = resolver.section("late")?;
-                    resolver.resources()?.on_shutdown(move || {
-                        Box::pin(async move {
-                            calls.fetch_add(1, Ordering::SeqCst);
-                            Ok(())
-                        })
-                    })?;
-                    Ok(Arc::new(
-                        config["value"].as_str().unwrap_or_default().to_owned(),
-                    ))
+        fn register<'a>(&'a self, app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.config_section(
+                    "late",
+                    serde_json::json!({"value": "base"}),
+                    SectionSchema::any(),
+                    |_| Ok(()),
+                )?;
+                let calls = Arc::clone(&self.0);
+                app.singleton::<String, _>(move |resolver| {
+                    let calls = Arc::clone(&calls);
+                    Box::pin(async move {
+                        let config: Value = resolver.section("late")?;
+                        resolver.resources()?.on_shutdown(move || {
+                            Box::pin(async move {
+                                calls.fetch_add(1, Ordering::SeqCst);
+                                Ok(())
+                            })
+                        })?;
+                        Ok(Arc::new(
+                            config["value"].as_str().unwrap_or_default().to_owned(),
+                        ))
+                    })
                 })
-            });
-            app.require::<String>();
-            Ok(())
+                .await?;
+                app.require::<String>();
+                Ok(())
+            })
         }
 
         fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
@@ -916,13 +1052,15 @@ mod tests {
     struct ModuleAfter(Arc<Mutex<Vec<String>>>);
 
     impl ServiceProvider for ModuleBefore {
-        fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-            app.config_section(
+        fn register<'a>(&'a self, app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.config_section(
                 "sample",
                 serde_json::json!({"name":"Default","items":["a","b","c"],"settings":{"value":"default"}}),
                 SectionSchema::any(),
                 |_| Ok(()),
             )
+            })
         }
 
         fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
@@ -1016,12 +1154,17 @@ mod tests {
         struct Consumer(Arc<Mutex<Vec<&'static str>>>);
 
         impl ServiceProvider for Producer {
-            fn register(&self, _app: &mut RegisterContext<'_>) -> Result<()> {
-                self.0
-                    .lock()
-                    .map_err(|_| Error::custom("test_event_lock", "测试事件锁已中毒"))?
-                    .push("producer.register");
-                Ok(())
+            fn register<'a>(
+                &'a self,
+                _app: &'a mut RegisterContext<'_>,
+            ) -> BoxFuture<'a, Result<()>> {
+                Box::pin(async move {
+                    self.0
+                        .lock()
+                        .map_err(|_| Error::custom("test_event_lock", "测试事件锁已中毒"))?
+                        .push("producer.register");
+                    Ok(())
+                })
             }
 
             fn boot<'a>(&'a self, _app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
@@ -1037,12 +1180,17 @@ mod tests {
         }
 
         impl ServiceProvider for Consumer {
-            fn register(&self, _app: &mut RegisterContext<'_>) -> Result<()> {
-                self.0
-                    .lock()
-                    .map_err(|_| Error::custom("test_event_lock", "测试事件锁已中毒"))?
-                    .push("consumer.register");
-                Ok(())
+            fn register<'a>(
+                &'a self,
+                _app: &'a mut RegisterContext<'_>,
+            ) -> BoxFuture<'a, Result<()>> {
+                Box::pin(async move {
+                    self.0
+                        .lock()
+                        .map_err(|_| Error::custom("test_event_lock", "测试事件锁已中毒"))?
+                        .push("consumer.register");
+                    Ok(())
+                })
             }
 
             fn boot<'a>(&'a self, _app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
@@ -1201,5 +1349,385 @@ mod tests {
             .map_err(Error::internal)?;
         assert_eq!(calls.load(Ordering::SeqCst), 1);
         Ok(())
+    }
+
+    struct RegistrationProbe {
+        value: usize,
+        events: Arc<Mutex<Vec<String>>>,
+        fail_register: bool,
+        fail_boot: bool,
+    }
+
+    impl ServiceProvider for RegistrationProbe {
+        fn register<'a>(&'a self, app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                self.events
+                    .lock()
+                    .unwrap()
+                    .push(format!("register:{}", self.value));
+                app.instance(Arc::new(self.value)).await?;
+                if self.fail_register {
+                    return Err(Error::custom("registration_probe_failed", "登记失败"));
+                }
+                Ok(())
+            })
+        }
+
+        fn boot<'a>(&'a self, _app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                self.events
+                    .lock()
+                    .unwrap()
+                    .push(format!("boot:{}", self.value));
+                if self.fail_boot {
+                    return Err(Error::custom("registration_probe_boot_failed", "启动失败"));
+                }
+                Ok(())
+            })
+        }
+    }
+
+    fn probe(value: usize, events: &Arc<Mutex<Vec<String>>>) -> RegistrationProbe {
+        RegistrationProbe {
+            value,
+            events: Arc::clone(events),
+            fail_register: false,
+            fail_boot: false,
+        }
+    }
+
+    #[tokio::test]
+    async fn force_before_boot_registers_twice_but_boots_last_in_first_slot() -> Result<()> {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let mut builder = ProviderBuilder::new();
+        builder.provider(probe(1, &events));
+        builder.provider(probe(99, &events));
+        builder.force_provider(probe(2, &events));
+        let runtime = builder.start(Figment::new()).await?;
+        assert_eq!(*runtime.container().resolve::<usize>().await?, 2);
+        assert_eq!(
+            *events.lock().unwrap(),
+            ["register:1", "register:2", "boot:2"]
+        );
+        runtime
+            .shutdown(Instant::now() + Duration::from_secs(1))
+            .await
+    }
+
+    #[tokio::test]
+    async fn live_force_keeps_failed_registration_contributions_and_boot_index() -> Result<()> {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let mut builder = ProviderBuilder::new();
+        builder.provider(probe(1, &events));
+        let mut app =
+            crate::core::App::from_provider_runtime(builder.start(Figment::new()).await?)?;
+        let old = app.state().resolve::<usize>().await?;
+        assert_eq!(
+            app.register_provider(probe(99, &events)).await?,
+            ProviderId::of::<RegistrationProbe>()
+        );
+        assert_eq!(*app.state().resolve::<usize>().await?, 1);
+        let mut failed_register = probe(2, &events);
+        failed_register.fail_register = true;
+        assert_eq!(
+            app.force_register_provider(failed_register)
+                .await
+                .err()
+                .map(|error| error.code().to_owned()),
+            Some("registration_probe_failed".to_owned())
+        );
+        assert_eq!(*app.state().resolve::<usize>().await?, 2);
+        assert_eq!(*old, 1);
+        assert_eq!(
+            app.register_provider(probe(88, &events)).await?,
+            ProviderId::of::<RegistrationProbe>()
+        );
+        let mut failed_boot = probe(3, &events);
+        failed_boot.fail_boot = true;
+        assert_eq!(
+            app.force_register_provider(failed_boot)
+                .await
+                .err()
+                .map(|error| error.code().to_owned()),
+            Some("registration_probe_boot_failed".to_owned())
+        );
+        assert_eq!(*app.state().resolve::<usize>().await?, 3);
+        assert_eq!(
+            app.register_provider(probe(77, &events)).await?,
+            ProviderId::of::<RegistrationProbe>()
+        );
+        assert_eq!(
+            *events.lock().unwrap(),
+            ["register:1", "boot:1", "register:2", "register:3", "boot:3"]
+        );
+        app.shutdown(Instant::now() + Duration::from_secs(1))
+            .await?;
+        assert_eq!(
+            app.register_provider(probe(4, &events))
+                .await
+                .err()
+                .map(|error| error.code().to_owned()),
+            Some("container_closed".to_owned())
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn live_rebinding_error_stops_register_before_later_contributions() -> Result<()> {
+        struct FailingRebinding(Arc<AtomicUsize>);
+        impl ServiceProvider for FailingRebinding {
+            fn register<'a>(
+                &'a self,
+                app: &'a mut RegisterContext<'_>,
+            ) -> BoxFuture<'a, Result<()>> {
+                Box::pin(async move {
+                    self.0.fetch_add(1, Ordering::SeqCst);
+                    let _ = app
+                        .rebinding::<usize, _>(|_, _| {
+                            Box::pin(async {
+                                Err(Error::custom("rebinding_probe_failed", "重绑回调失败"))
+                            })
+                        })
+                        .await?;
+                    app.instance(Arc::new(2usize)).await?;
+                    app.instance(Arc::new(55u64)).await?;
+                    Ok(())
+                })
+            }
+        }
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let mut builder = ProviderBuilder::new();
+        builder.provider(probe(1, &events));
+        let mut app =
+            crate::core::App::from_provider_runtime(builder.start(Figment::new()).await?)?;
+        let calls = Arc::new(AtomicUsize::new(0));
+        for expected in 1..=2 {
+            let error = app
+                .register_provider(FailingRebinding(Arc::clone(&calls)))
+                .await
+                .err();
+            assert_eq!(
+                error.map(|error| error.code().to_owned()),
+                Some("rebinding_probe_failed".to_owned())
+            );
+            assert_eq!(calls.load(Ordering::SeqCst), expected);
+            assert!(!app.state().container().contains::<u64>());
+        }
+        app.shutdown(Instant::now() + Duration::from_secs(1)).await
+    }
+
+    #[tokio::test]
+    async fn live_force_keeps_old_and_failed_boot_resources_until_shared_shutdown() -> Result<()> {
+        struct ResourceProbe(usize, Arc<Mutex<Vec<usize>>>, bool);
+        impl ServiceProvider for ResourceProbe {
+            fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+                Box::pin(async move {
+                    let value = self.0;
+                    let cleaned = Arc::clone(&self.1);
+                    app.resources().on_shutdown(move || {
+                        Box::pin(async move {
+                            cleaned.lock().unwrap().push(value);
+                            Ok(())
+                        })
+                    })?;
+                    if self.2 {
+                        return Err(Error::custom("resource_probe_boot_failed", "启动失败"));
+                    }
+                    Ok(())
+                })
+            }
+        }
+        let cleaned = Arc::new(Mutex::new(Vec::new()));
+        let mut builder = ProviderBuilder::new();
+        builder.provider(ResourceProbe(1, Arc::clone(&cleaned), false));
+        let mut app =
+            crate::core::App::from_provider_runtime(builder.start(Figment::new()).await?)?;
+        app.force_register_provider(ResourceProbe(2, Arc::clone(&cleaned), false))
+            .await?;
+        assert!(cleaned.lock().unwrap().is_empty());
+        let error = app
+            .force_register_provider(ResourceProbe(3, Arc::clone(&cleaned), true))
+            .await
+            .err();
+        assert_eq!(
+            error.map(|error| error.code().to_owned()),
+            Some("resource_probe_boot_failed".to_owned())
+        );
+        assert!(cleaned.lock().unwrap().is_empty());
+        app.shutdown(Instant::now() + Duration::from_secs(1))
+            .await?;
+        assert_eq!(*cleaned.lock().unwrap(), [3, 2, 1]);
+        Ok(())
+    }
+
+    struct EarlyScopedStartup {
+        cleaned: Arc<AtomicUsize>,
+        entered: Arc<tokio::sync::Notify>,
+        release: Option<Arc<tokio::sync::Notify>>,
+        fail_register: bool,
+    }
+
+    impl ServiceProvider for EarlyScopedStartup {
+        fn register<'a>(&'a self, app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                let cleaned = Arc::clone(&self.cleaned);
+                app.scoped::<usize, _>(move |resolver| {
+                    let cleaned = Arc::clone(&cleaned);
+                    Box::pin(async move {
+                        resolver.resources()?.on_shutdown(move || {
+                            Box::pin(async move {
+                                cleaned.fetch_add(1, Ordering::SeqCst);
+                                Ok(())
+                            })
+                        })?;
+                        Ok(Arc::new(7))
+                    })
+                })
+                .await?;
+                let ready = app
+                    .rebinding::<usize, _>(|_, _| Box::pin(async { Ok(()) }))
+                    .await?;
+                assert_eq!(ready.as_deref(), Some(&7));
+                self.entered.notify_one();
+                if let Some(release) = &self.release {
+                    release.notified().await;
+                }
+                if self.fail_register {
+                    Err(Error::custom("early_register_failed", "提前解析后登记失败"))
+                } else {
+                    Ok(())
+                }
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn failed_register_cleans_early_root_scoped_resource_once() {
+        let cleaned = Arc::new(AtomicUsize::new(0));
+        let mut builder = ProviderBuilder::new();
+        builder.provider(EarlyScopedStartup {
+            cleaned: Arc::clone(&cleaned),
+            entered: Arc::new(tokio::sync::Notify::new()),
+            release: None,
+            fail_register: true,
+        });
+        let error = builder.start(Figment::new()).await.err();
+        assert_eq!(
+            error.map(|error| error.code().to_owned()),
+            Some("early_register_failed".to_owned())
+        );
+        assert_eq!(cleaned.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn cancelled_register_cleans_early_root_scoped_resource_once() -> Result<()> {
+        let cleaned = Arc::new(AtomicUsize::new(0));
+        let entered = Arc::new(tokio::sync::Notify::new());
+        let mut builder = ProviderBuilder::new();
+        builder.provider(EarlyScopedStartup {
+            cleaned: Arc::clone(&cleaned),
+            entered: Arc::clone(&entered),
+            release: Some(Arc::new(tokio::sync::Notify::new())),
+            fail_register: false,
+        });
+        let task = tokio::spawn(async move { builder.start(Figment::new()).await });
+        tokio::time::timeout(Duration::from_secs(1), entered.notified())
+            .await
+            .map_err(Error::internal)?;
+        task.abort();
+        let _ = task.await;
+        tokio::time::timeout(Duration::from_secs(1), async {
+            while cleaned.load(Ordering::SeqCst) == 0 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .map_err(Error::internal)?;
+        assert_eq!(cleaned.load(Ordering::SeqCst), 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn failed_base_validation_cleans_early_root_scoped_resource_once() {
+        struct InvalidConfig;
+        impl ServiceProvider for InvalidConfig {
+            fn register<'a>(
+                &'a self,
+                app: &'a mut RegisterContext<'_>,
+            ) -> BoxFuture<'a, Result<()>> {
+                Box::pin(async move {
+                    app.config_section(
+                        "invalid",
+                        String::from("text"),
+                        SectionSchema::Boolean,
+                        |_| Ok(()),
+                    )
+                })
+            }
+        }
+        let cleaned = Arc::new(AtomicUsize::new(0));
+        let mut builder = ProviderBuilder::new();
+        builder.provider(EarlyScopedStartup {
+            cleaned: Arc::clone(&cleaned),
+            entered: Arc::new(tokio::sync::Notify::new()),
+            release: None,
+            fail_register: false,
+        });
+        builder.provider(InvalidConfig);
+        assert!(builder.start(Figment::new()).await.is_err());
+        assert_eq!(cleaned.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn source_value_wins_default_during_early_make_and_late_force() -> Result<()> {
+        struct PortProbe(Arc<AtomicUsize>);
+        impl ServiceProvider for PortProbe {
+            fn register<'a>(
+                &'a self,
+                app: &'a mut RegisterContext<'_>,
+            ) -> BoxFuture<'a, Result<()>> {
+                Box::pin(async move {
+                    app.config_section(
+                        "probe",
+                        serde_json::json!({"port":3000}),
+                        SectionSchema::any(),
+                        |_| Ok(()),
+                    )?;
+                    let seen = Arc::clone(&self.0);
+                    app.singleton::<u16, _>(move |resolver| {
+                        let seen = Arc::clone(&seen);
+                        Box::pin(async move {
+                            let value: Value = resolver.section("probe")?;
+                            let port = value["port"]
+                                .as_u64()
+                                .ok_or_else(|| Error::custom("probe_port_missing", "端口缺失"))?;
+                            let port = u16::try_from(port)
+                                .map_err(|_| Error::custom("probe_port_invalid", "端口越界"))?;
+                            seen.store(usize::from(port), Ordering::SeqCst);
+                            Ok(Arc::new(port))
+                        })
+                    })
+                    .await?;
+                    let _ = app
+                        .rebinding::<u16, _>(|_, _| Box::pin(async { Ok(()) }))
+                        .await?;
+                    Ok(())
+                })
+            }
+        }
+        let seen = Arc::new(AtomicUsize::new(0));
+        let sources = Figment::from(figment::providers::Serialized::defaults(
+            serde_json::json!({"probe":{"port":8080}}),
+        ));
+        let mut builder = ProviderBuilder::new();
+        builder.provider(PortProbe(Arc::clone(&seen)));
+        let mut app = crate::core::App::from_provider_runtime(builder.start(sources).await?)?;
+        assert_eq!(seen.load(Ordering::SeqCst), 8080);
+        assert_eq!(*app.state().resolve::<u16>().await?, 8080);
+        app.force_register_provider(PortProbe(Arc::clone(&seen)))
+            .await?;
+        assert_eq!(seen.load(Ordering::SeqCst), 8080);
+        assert_eq!(app.section::<Value>("probe")?["port"], 8080);
+        app.shutdown(Instant::now() + Duration::from_secs(1)).await
     }
 }

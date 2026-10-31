@@ -56,7 +56,9 @@ enum Lifetime {
     Scoped,
 }
 
+#[derive(Clone)]
 struct Binding {
+    generation: u64,
     name: &'static str,
     pending: Vec<Extender>,
     lifetime: Lifetime,
@@ -64,7 +66,7 @@ struct Binding {
     instance: Option<Value>,
 }
 
-/// 注册服务定义；消费 builder 后得到不再重绑的容器。
+/// 注册启动阶段服务定义；消费 builder 后得到可动态重绑的同一容器。
 #[derive(Default)]
 pub struct ContainerBuilder {
     bindings: HashMap<TypeId, Binding>,
@@ -120,6 +122,7 @@ impl ContainerBuilder {
         self.bindings.insert(
             TypeId::of::<T>(),
             Binding {
+                generation: 0,
                 name: type_name::<T>(),
                 pending: Vec::new(),
                 lifetime: Lifetime::Singleton,
@@ -158,6 +161,7 @@ impl ContainerBuilder {
         self.bindings.insert(
             TypeId::of::<T>(),
             Binding {
+                generation: 0,
                 name: type_name::<T>(),
                 pending: Vec::new(),
                 lifetime,
@@ -175,8 +179,8 @@ impl ContainerBuilder {
     pub fn build(self) -> Container {
         Container {
             inner: Arc::new(Inner {
-                bindings: self.bindings,
                 state: Mutex::new(State {
+                    bindings: self.bindings,
                     extensions: self.extensions,
                     ..State::default()
                 }),
@@ -220,6 +224,8 @@ impl ScopeStatus {
 
 #[derive(Default)]
 struct State {
+    bindings: HashMap<TypeId, Binding>,
+    next_generation: u64,
     next_id: u64,
     terminated: bool,
     root_scope: u64,
@@ -263,7 +269,6 @@ impl State {
 }
 
 struct Inner {
-    bindings: HashMap<TypeId, Binding>,
     state: Mutex<State>,
     reset: tokio::sync::Mutex<()>,
     config: Option<ConfigRepository>,
@@ -445,6 +450,141 @@ impl ScopeFactory {
 }
 
 impl Container {
+    async fn replace_binding(&self, service: TypeId, mut binding: Binding) -> Result<()> {
+        let name = binding.name;
+        let (previous, removed, operations, notify) = {
+            let mut state = lock(&self.inner.state);
+            if state.terminated {
+                return Err(container_error("container_closed", "容器已关闭"));
+            }
+            state.next_generation = state.next_generation.checked_add(1).ok_or_else(|| {
+                container_error("container_capacity_exceeded", "服务绑定版本已耗尽")
+            })?;
+            binding.generation = state.next_generation;
+            let notify = state
+                .extensions
+                .resolved
+                .iter()
+                .any(|key| key.service == service)
+                && state.extensions.has_rebinding_listeners(service);
+            state.extensions.discard_pending(service);
+            state
+                .extensions
+                .resolved
+                .retain(|key| key.service != service);
+            let operations = state.extensions.discard_operations(service);
+            state.edges.retain(|(from, to), _| {
+                !operations.iter().any(|operation| {
+                    let id = operation.attempt_id();
+                    *from == id || *to == id
+                })
+            });
+            let keys: Vec<_> = state
+                .slots
+                .keys()
+                .filter(|key| key.service == service)
+                .copied()
+                .collect();
+            let removed: Vec<_> = keys
+                .into_iter()
+                .filter_map(|key| state.slots.remove(&key))
+                .collect();
+            let previous = state.bindings.insert(service, binding);
+            (previous, removed, operations, notify)
+        };
+        for operation in &operations {
+            operation.release();
+        }
+        drop(previous);
+        drop(removed);
+        drop(operations);
+        if notify {
+            let resolver = {
+                let state = lock(&self.inner.state);
+                self.resolver(
+                    state.root_scope,
+                    Arc::clone(&state.root_closed),
+                    state.root_resources.registrar(),
+                )
+            };
+            let value = resolver.resolve_value(service, name).await?;
+            resolver
+                .notify_rebinding(&self.inner, service, value)
+                .await?;
+        }
+        Ok(())
+    }
+
+    async fn register<T, F>(&self, lifetime: Lifetime, factory: F) -> Result<()>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        let factory = Arc::new(factory);
+        self.replace_binding(
+            TypeId::of::<T>(),
+            Binding {
+                generation: 0,
+                name: type_name::<T>(),
+                pending: Vec::new(),
+                lifetime,
+                factory: Arc::new(move |resolver| {
+                    let factory = Arc::clone(&factory);
+                    Box::pin(async move { Ok(Arc::new(factory(resolver).await?) as Value) })
+                }),
+                instance: None,
+            },
+        )
+        .await
+    }
+
+    /// 动态注册每次解析均调用的工厂；覆盖后新解析使用新定义。
+    pub async fn bind<T, F>(&self, factory: F) -> Result<()>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        self.register::<T, F>(Lifetime::Bind, factory).await
+    }
+
+    /// 动态注册同一容器共享的服务，清除旧缓存。
+    pub async fn singleton<T, F>(&self, factory: F) -> Result<()>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        self.register::<T, F>(Lifetime::Singleton, factory).await
+    }
+
+    /// 动态注册各 scope 独立共享的服务，清除所有旧 scope 缓存。
+    pub async fn scoped<T, F>(&self, factory: F) -> Result<()>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(Resolver) -> BoxFuture<'static, Result<Arc<T>>> + Send + Sync + 'static,
+    {
+        self.register::<T, F>(Lifetime::Scoped, factory).await
+    }
+
+    /// 动态登记现成实例；旧引用继续有效，新解析取得此实例。
+    pub async fn instance<T: ?Sized + Send + Sync + 'static>(&self, value: Arc<T>) -> Result<()> {
+        let stored: Value = Arc::new(Arc::clone(&value));
+        self.replace_binding(
+            TypeId::of::<T>(),
+            Binding {
+                generation: 0,
+                name: type_name::<T>(),
+                pending: Vec::new(),
+                lifetime: Lifetime::Singleton,
+                factory: Arc::new(move |_| {
+                    let value = Arc::clone(&stored);
+                    Box::pin(async move { Ok(value) })
+                }),
+                instance: Some(Arc::new(value)),
+            },
+        )
+        .await
+    }
+
     /// 创建可由长寿命服务持有、但不延长容器寿命的 scope 工厂。
     pub fn scope_factory(&self) -> ScopeFactory {
         ScopeFactory {
@@ -461,7 +601,9 @@ impl Container {
     }
     /// 检查实例或工厂绑定是否存在，不执行构造。
     pub fn contains<T: ?Sized + Send + Sync + 'static>(&self) -> bool {
-        self.inner.bindings.contains_key(&TypeId::of::<T>())
+        lock(&self.inner.state)
+            .bindings
+            .contains_key(&TypeId::of::<T>())
     }
 
     pub(crate) fn is_terminated(&self) -> bool {
@@ -470,7 +612,7 @@ impl Container {
 
     /// 同步读取显式登记实例；待执行或正在执行的装饰不会泄漏旧值。
     pub fn get_instance<T: ?Sized + Send + Sync + 'static>(&self) -> Option<Arc<T>> {
-        self.inner
+        lock(&self.inner.state)
             .bindings
             .get(&TypeId::of::<T>())?
             .instance
@@ -485,7 +627,7 @@ impl Container {
             return None;
         }
         let service = TypeId::of::<T>();
-        let binding = self.inner.bindings.get(&service)?;
+        let binding = state.bindings.get(&service)?;
         let scope = match binding.lifetime {
             Lifetime::Bind => return None,
             Lifetime::Singleton => u64::MAX,
@@ -515,12 +657,12 @@ impl Container {
 
     /// 已注册服务类型数量。
     pub fn len(&self) -> usize {
-        self.inner.bindings.len()
+        lock(&self.inner.state).bindings.len()
     }
 
     /// 容器尚无绑定时返回 `true`。
     pub fn is_empty(&self) -> bool {
-        self.inner.bindings.is_empty()
+        lock(&self.inner.state).bindings.is_empty()
     }
 
     /// 在根生命周期解析；`scoped` 在根也会共享，符合 Laravel 行为。
@@ -924,26 +1066,43 @@ impl Resolver {
                 chain.push(name);
                 return Err(container_error("service_cycle", chain.join(" → ")));
             }
-            let binding = container.inner.bindings.get(&key).ok_or_else(|| {
-                container_error(
-                    "service_not_bound",
-                    format!(
-                        "未绑定服务：{}",
-                        self.chain
-                            .iter()
-                            .filter(|(_, _, active)| active.load(Ordering::Acquire))
-                            .map(|(_, n, _)| *n)
-                            .chain(std::iter::once(name))
-                            .collect::<Vec<_>>()
-                            .join(" → ")
-                    ),
-                )
-            })?;
-            if !binding.pending.is_empty() {
-                self.initialize_instance(&container.inner, key, binding)
-                    .await?;
+            let binding = {
+                let state = lock(&container.inner.state);
+                state.bindings.get(&key).cloned().ok_or_else(|| {
+                    container_error(
+                        "service_not_bound",
+                        format!(
+                            "未绑定服务：{}",
+                            self.chain
+                                .iter()
+                                .filter(|(_, _, active)| active.load(Ordering::Acquire))
+                                .map(|(_, n, _)| *n)
+                                .chain(std::iter::once(name))
+                                .collect::<Vec<_>>()
+                                .join(" → ")
+                        ),
+                    )
+                })?
+            };
+            if !binding.pending.is_empty()
+                && let Err(error) = self
+                    .initialize_instance(&container.inner, key, &binding)
+                    .await
+            {
+                if error.code() == "binding_replaced" {
+                    return self.resolve_value(key, name).await;
+                }
+                return Err(error);
             }
             if binding.lifetime == Lifetime::Scoped && self.captive {
+                let stale = lock(&container.inner.state)
+                    .bindings
+                    .get(&key)
+                    .map(|current| current.generation)
+                    != Some(binding.generation);
+                if stale {
+                    return self.resolve_value(key, name).await;
+                }
                 return Err(container_error(
                     "captive_scope_dependency",
                     format!("singleton 不能捕获 scoped 服务 `{name}`"),
@@ -963,9 +1122,15 @@ impl Resolver {
                 child.resources = container.inner.resources.clone();
             }
             let value = if binding.lifetime == Lifetime::Bind {
-                self.transient(binding, child, key, name, activity).await?
+                match self.transient(&binding, child, key, name, activity).await? {
+                    Some(value) => value,
+                    None => return self.resolve_value(key, name).await,
+                }
             } else {
-                self.cached(binding, child, key, name, activity).await?
+                match self.cached(&binding, child, key, name, activity).await? {
+                    Some(value) => value,
+                    None => return self.resolve_value(key, name).await,
+                }
             };
             if self.closed.closed.load(Ordering::Acquire) {
                 return Err(container_error("scope_closed", "生命周期已关闭"));
@@ -981,7 +1146,7 @@ impl Resolver {
         service: TypeId,
         name: &'static str,
         activity: Arc<AtomicBool>,
-    ) -> Result<Value> {
+    ) -> Result<Option<Value>> {
         let container = self.container()?;
         // singleton 不能和 root scoped 共用一个缓存键。
         let key = CacheKey {
@@ -992,10 +1157,15 @@ impl Resolver {
                 self.scope
             },
         };
-        let (attempt, owner, _edge) = self.admit_cached(&container.inner, key, name).await?;
+        let Some((attempt, owner, _edge)) = self
+            .admit_cached(&container.inner, key, name, binding.generation)
+            .await?
+        else {
+            return Ok(None);
+        };
         if !owner {
             return tokio::select! {
-                result = attempt.wait() => result,
+                result = attempt.wait() => result.map(Some),
                 () = self.closed.wait_closed() => Err(container_error("scope_closed", "生命周期已关闭")),
             };
         }
@@ -1012,7 +1182,7 @@ impl Resolver {
             .map(|(_, _, active)| (attempt.id, Arc::clone(active)));
         let outcome = tokio::select! {
             result = child.construct_value(binding, key) => result,
-            closed = attempt.wait() => return closed,
+            closed = attempt.wait() => return closed.map(Some),
             () = self.closed.wait_closed() => return Err(container_error("scope_closed", "生命周期已关闭")),
         };
         match outcome {
@@ -1023,12 +1193,12 @@ impl Resolver {
                     self.notify_rebinding(&container.inner, service, Arc::clone(&value))
                         .await?;
                 }
-                Ok(value)
+                Ok(Some(value))
             }
             Err(error) => {
                 let failure = Failure::initialization(name, error);
                 guard.finish(Err(failure));
-                attempt.wait().await
+                attempt.wait().await.map(Some)
             }
         }
     }
@@ -1044,6 +1214,295 @@ mod tests {
 
     trait Greeting: Send + Sync {
         fn greet(&self) -> &'static str;
+    }
+
+    #[tokio::test]
+    async fn stale_binding_snapshot_cannot_enter_replacement_slot() -> Result<()> {
+        let mut builder = ContainerBuilder::new();
+        builder.singleton::<usize, _>(|_| Box::pin(async { Ok(Arc::new(1)) }));
+        let container = builder.build();
+        let old = lock(&container.inner.state)
+            .bindings
+            .get(&TypeId::of::<usize>())
+            .cloned()
+            .unwrap();
+        let resolver = {
+            let state = lock(&container.inner.state);
+            container.resolver(
+                state.root_scope,
+                Arc::clone(&state.root_closed),
+                state.root_resources.registrar(),
+            )
+        };
+        container
+            .singleton::<usize, _>(|_| Box::pin(async { Ok(Arc::new(2)) }))
+            .await?;
+        let stale = resolver
+            .cached(
+                &old,
+                resolver.clone(),
+                TypeId::of::<usize>(),
+                type_name::<usize>(),
+                Arc::new(AtomicBool::new(true)),
+            )
+            .await?;
+        assert!(stale.is_none());
+        assert_eq!(*container.resolve::<usize>().await?, 2);
+        assert_eq!(*container.get_ready::<usize>().unwrap(), 2);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn old_attempt_waiters_finish_without_filling_new_slot() -> Result<()> {
+        let started = Arc::new(Notify::new());
+        let release = Arc::new(Notify::new());
+        let mut builder = ContainerBuilder::new();
+        let notice = Arc::clone(&started);
+        let finish = Arc::clone(&release);
+        builder.singleton::<usize, _>(move |_| {
+            let notice = Arc::clone(&notice);
+            let finish = Arc::clone(&finish);
+            Box::pin(async move {
+                notice.notify_one();
+                finish.notified().await;
+                Ok(Arc::new(1))
+            })
+        });
+        let container = builder.build();
+        let owner = container.clone();
+        let task = tokio::spawn(async move { owner.resolve::<usize>().await });
+        started.notified().await;
+        let mut waiter = Box::pin(container.resolve::<usize>());
+        tokio::select! { biased; _ = &mut waiter => panic!("旧构造尚未完成"), () = tokio::task::yield_now() => {} }
+        container
+            .singleton::<usize, _>(|_| Box::pin(async { Ok(Arc::new(2)) }))
+            .await?;
+        let new = container.resolve::<usize>().await?;
+        assert_eq!(*new, 2);
+        release.notify_one();
+        assert_eq!(*task.await.unwrap()?, 1);
+        assert_eq!(*waiter.await?, 1);
+        assert!(Arc::ptr_eq(&new, &container.resolve::<usize>().await?));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn rebinding_releases_operation_waiter_without_waiting_for_old_extender() -> Result<()> {
+        let mut builder = ContainerBuilder::new();
+        builder.instance(Arc::new(1usize));
+        let container = builder.build();
+        let started = Arc::new(Notify::new());
+        let release = Arc::new(Notify::new());
+        let notice = Arc::clone(&started);
+        let blocked = Arc::clone(&release);
+        let old = container.clone();
+        let old_task = tokio::spawn(async move {
+            old.extend::<usize, _>(move |value, _| {
+                let notice = Arc::clone(&notice);
+                let blocked = Arc::clone(&blocked);
+                Box::pin(async move {
+                    notice.notify_one();
+                    blocked.notified().await;
+                    Ok(Arc::new(*value + 100))
+                })
+            })
+            .await
+        });
+        started.notified().await;
+        let mut waiter = Box::pin(
+            container
+                .extend::<usize, _>(|value, _| Box::pin(async move { Ok(Arc::new(*value + 10)) })),
+        );
+        tokio::select! { biased; _ = &mut waiter => panic!("旧 operation 仍在运行"), () = tokio::task::yield_now() => {} }
+        container.instance(Arc::new(2usize)).await?;
+        tokio::time::timeout(Duration::from_secs(1), waiter)
+            .await
+            .map_err(|_| Error::custom("operation_waiter_stuck", "新定义等待者未在期限内完成"))??;
+        assert_eq!(*container.resolve::<usize>().await?, 12);
+        assert!(!old_task.is_finished());
+        old_task.abort();
+        assert!(old_task.await.unwrap_err().is_cancelled());
+        assert_eq!(*container.resolve::<usize>().await?, 12);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn live_rebinding_keeps_new_definition_after_callback_error() -> Result<()> {
+        let mut builder = ContainerBuilder::new();
+        builder.instance(Arc::new(1usize));
+        let container = builder.build();
+        let calls = Arc::new(AtomicUsize::new(0));
+        let count = Arc::clone(&calls);
+        let current = container
+            .rebinding::<usize, _>(move |_, value| {
+                let count = Arc::clone(&count);
+                Box::pin(async move {
+                    count.fetch_add(*value, Ordering::SeqCst);
+                    Err(Error::custom("rebinding_failed", "回调拒绝"))
+                })
+            })
+            .await?;
+        assert_eq!(current.as_deref(), Some(&1));
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+        let error = container.instance(Arc::new(2usize)).await.unwrap_err();
+        assert_eq!(error.code(), "rebinding_failed");
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+        assert_eq!(*container.resolve::<usize>().await?, 2);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn live_rebinding_without_listener_does_not_eagerly_make_factory() -> Result<()> {
+        let mut builder = ContainerBuilder::new();
+        builder.instance(Arc::new(1usize));
+        let container = builder.build();
+        assert_eq!(*container.resolve::<usize>().await?, 1);
+        let calls = Arc::new(AtomicUsize::new(0));
+        let count = Arc::clone(&calls);
+        container
+            .singleton::<usize, _>(move |_| {
+                let count = Arc::clone(&count);
+                Box::pin(async move {
+                    count.fetch_add(1, Ordering::SeqCst);
+                    Err(Error::custom("new_factory_failed", "新工厂失败"))
+                })
+            })
+            .await?;
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+        assert_eq!(
+            container.resolve::<usize>().await.unwrap_err().code(),
+            "service_initialization_failed"
+        );
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn rebinding_registration_makes_bound_singleton_and_transient() -> Result<()> {
+        let singleton_calls = Arc::new(AtomicUsize::new(0));
+        let transient_calls = Arc::new(AtomicUsize::new(0));
+        let mut builder = ContainerBuilder::new();
+        let first = Arc::clone(&singleton_calls);
+        builder.singleton::<usize, _>(move |_| {
+            let first = Arc::clone(&first);
+            Box::pin(async move { Ok(Arc::new(first.fetch_add(1, Ordering::SeqCst) + 1)) })
+        });
+        let second = Arc::clone(&transient_calls);
+        builder.bind::<String, _>(move |_| {
+            let second = Arc::clone(&second);
+            Box::pin(async move {
+                Ok(Arc::new(format!(
+                    "{}",
+                    second.fetch_add(1, Ordering::SeqCst) + 1
+                )))
+            })
+        });
+        let container = builder.build();
+        let singleton = container
+            .rebinding::<usize, _>(|_, _| Box::pin(async { Ok(()) }))
+            .await?;
+        let transient = container
+            .rebinding::<String, _>(|_, _| Box::pin(async { Ok(()) }))
+            .await?;
+        assert_eq!(singleton.as_deref(), Some(&1));
+        assert_eq!(transient.as_deref().map(String::as_str), Some("1"));
+        assert_eq!(singleton_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(transient_calls.load(Ordering::SeqCst), 1);
+        assert!(Arc::ptr_eq(
+            &singleton.unwrap(),
+            &container.resolve::<usize>().await?
+        ));
+        assert_eq!(container.resolve::<String>().await?.as_str(), "2");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn rebinding_registration_unbound_and_failed_make_keep_listener() -> Result<()> {
+        let container = ContainerBuilder::new().build();
+        let calls = Arc::new(AtomicUsize::new(0));
+        let count = Arc::clone(&calls);
+        assert!(
+            container
+                .rebinding::<u8, _>(move |_, _| {
+                    let count = Arc::clone(&count);
+                    Box::pin(async move {
+                        count.fetch_add(1, Ordering::SeqCst);
+                        Ok(())
+                    })
+                })
+                .await?
+                .is_none()
+        );
+        container.instance(Arc::new(1u8)).await?;
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+        container.resolve::<u8>().await?;
+        container.instance(Arc::new(2u8)).await?;
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let mut builder = ContainerBuilder::new();
+        let tries = Arc::clone(&attempts);
+        builder.singleton::<usize, _>(move |_| {
+            let tries = Arc::clone(&tries);
+            Box::pin(async move {
+                if tries.fetch_add(1, Ordering::SeqCst) == 0 {
+                    Err(Error::custom("first_make_failed", "首次构造失败"))
+                } else {
+                    Ok(Arc::new(3))
+                }
+            })
+        });
+        let container = builder.build();
+        let notifications = Arc::new(AtomicUsize::new(0));
+        let notified = Arc::clone(&notifications);
+        let error = container
+            .rebinding::<usize, _>(move |_, _| {
+                let notified = Arc::clone(&notified);
+                Box::pin(async move {
+                    notified.fetch_add(1, Ordering::SeqCst);
+                    Ok(())
+                })
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(error.code(), "service_initialization_failed");
+        assert_eq!(notifications.load(Ordering::SeqCst), 0);
+        assert_eq!(*container.resolve::<usize>().await?, 3);
+        container.instance(Arc::new(4usize)).await?;
+        assert_eq!(notifications.load(Ordering::SeqCst), 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn live_scoped_rebinding_invalidates_root_and_child_caches() -> Result<()> {
+        let mut builder = ContainerBuilder::new();
+        builder.scoped::<usize, _>(|_| Box::pin(async { Ok(Arc::new(1)) }));
+        let container = builder.build();
+        let scope = container.scope()?;
+        let old_root = container.resolve::<usize>().await?;
+        let old_child = scope.resolve::<usize>().await?;
+        container
+            .scoped::<usize, _>(|_| Box::pin(async { Ok(Arc::new(2)) }))
+            .await?;
+        assert_eq!(*old_root, 1);
+        assert_eq!(*old_child, 1);
+        assert_eq!(*container.resolve::<usize>().await?, 2);
+        assert_eq!(*scope.resolve::<usize>().await?, 2);
+        scope
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await?;
+        container
+            .shutdown_root(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await?;
+        assert_eq!(
+            container
+                .instance(Arc::new(3usize))
+                .await
+                .unwrap_err()
+                .code(),
+            "container_closed"
+        );
+        Ok(())
     }
     struct Hello;
     impl Greeting for Hello {

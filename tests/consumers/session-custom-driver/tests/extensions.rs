@@ -104,8 +104,8 @@ async fn external_hook_instances_are_request_local_and_explicit_transfer_stays_p
     assert!(!Arc::ptr_eq(&first.handler()?, &second.handler()?));
     first.start().await?;
     second.start().await?;
-    first.put("consumer.value", "owned")?.save().await?;
-    second.put("consumer.value", "other")?.save().await?;
+    first.put_typed("consumer.value", "owned")?.save().await?;
+    second.put_typed("consumer.value", "other")?.save().await?;
     assert_eq!(
         first_jar
             .queued("consumer_reply", None)?
@@ -128,7 +128,7 @@ async fn external_hook_instances_are_request_local_and_explicit_transfer_stays_p
     first.save().await?;
     let restored = Session::new(Some(first.id()?), transferred, None)?;
     restored.start().await?;
-    assert_eq!(restored.get("consumer.value")?, Some(json!("owned")));
+    assert_eq!(restored.get_json("consumer.value")?, Some(json!("owned")));
     assert!(
         backend
             .load(

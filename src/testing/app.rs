@@ -13,15 +13,15 @@ use tokio::time::Instant;
 use tower::ServiceExt;
 
 use crate::config::ConfigSources;
-use crate::core::container::ContainerBuilder;
+use crate::core::container::Container;
 use crate::core::provider::ProviderId;
-use crate::core::{App, Application, Error, ProviderBuilder, Result};
+use crate::core::{App, Application, BoxFuture, Error, ProviderBuilder, Result};
 
 use super::response::TestResponse;
 
 const DEFAULT_MAX_BYTES: usize = 1024 * 1024;
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5);
-type Configure = Arc<dyn Fn(&mut ContainerBuilder) -> Result<()> + Send + Sync>;
+type Configure = Arc<dyn Fn(Container) -> BoxFuture<'static, Result<()>> + Send + Sync>;
 
 /// 显式配置、Provider 选择及可重复执行的测试替换蓝图。
 ///
@@ -47,10 +47,10 @@ impl<A: Application> TestAppBuilder<A> {
         self
     }
 
-    /// 在全体 register 后、容器封口前替换绑定；reset 时重新运行此闭包。
+    /// 在全体 register 后、基础校验及 boot 前替换绑定；reset 时重新运行此闭包。
     pub fn configure_after_register<F>(&mut self, configure: F) -> &mut Self
     where
-        F: Fn(&mut ContainerBuilder) -> Result<()> + Send + Sync + 'static,
+        F: Fn(Container) -> BoxFuture<'static, Result<()>> + Send + Sync + 'static,
     {
         self.configure.push(Arc::new(configure));
         self
@@ -69,13 +69,51 @@ impl<A: Application> TestAppBuilder<A> {
         Ok(fixture)
     }
 
+    /// 以实际命令名引导并执行一次命令，随后限时关闭应用。
+    ///
+    /// 启动上下文与执行使用同一 `name`；不返回带命令上下文的应用。
+    /// 普通 [`Self::build`] 与 [`TestApp::reset`] 始终执行完整启动校验。
+    /// 命令失败时仍等待关闭；若命令与关闭均失败，返回命令错误并记录关闭错误码。
+    pub async fn run_command(self, name: &str, args: Vec<String>) -> Result<()> {
+        let app = self.start_with_command(Some(name)).await?;
+        // 复用 TestApp 的 Drop：执行 future 被取消时立即封口，并在运行时兜底回收。
+        let mut fixture = TestApp {
+            app: Some(app),
+            router: None,
+            active: AtomicBool::new(false),
+            blueprint: self,
+        };
+        let result = fixture
+            .app
+            .as_ref()
+            .ok_or_else(|| Error::custom("test_app_closed", "测试应用尚未启动"))?
+            .run_command(name, args)
+            .await;
+        let cleanup = fixture.shutdown(Instant::now() + DEFAULT_TIMEOUT).await;
+        match (result, cleanup) {
+            (Err(error), Err(cleanup_error)) => {
+                tracing::warn!(code = cleanup_error.code(), "测试命令失败后的回收失败");
+                Err(error)
+            }
+            (Err(error), Ok(())) | (Ok(()), Err(error)) => Err(error),
+            (Ok(()), Ok(())) => Ok(()),
+        }
+    }
+
     async fn start(&self) -> Result<App> {
+        self.start_with_command(None).await
+    }
+
+    async fn start_with_command(&self, name: Option<&str>) -> Result<App> {
         let config: A::Config = self
             .sources
             .figment()
             .extract()
             .map_err(|_| Error::custom("test_app_config_invalid", "测试应用配置提取失败"))?;
         let mut builder = ProviderBuilder::for_application::<A>(&config);
+        if let Some(name) = name {
+            builder.console_command(name);
+        }
         for id in &self.removed {
             builder.remove_provider(*id);
         }
@@ -84,7 +122,7 @@ impl<A: Application> TestAppBuilder<A> {
         }
         for configure in &self.configure {
             let configure = Arc::clone(configure);
-            builder.configure_after_register(move |bindings| configure(bindings));
+            builder.configure_after_register(move |container| configure(container));
         }
         App::from_provider_runtime(builder.start(self.sources.clone()).await?)
     }
@@ -228,7 +266,7 @@ impl<A: Application> Drop for TestApp<A> {
 mod tests {
     use super::*;
     use crate::config::{FrameworkConfig, NoConfig};
-    use crate::core::{BootContext, BoxFuture, RegisterContext, ServiceProvider};
+    use crate::core::{BootContext, BoxFuture, Command, RegisterContext, ServiceProvider};
     use crate::http::{HttpServiceProvider, Inject};
     use axum::http::StatusCode;
     use axum::response::IntoResponse;
@@ -247,42 +285,50 @@ mod tests {
     struct Label(&'static str);
     struct BusinessProvider;
     impl ServiceProvider for BusinessProvider {
-        fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-            app.instance(Arc::new(Label("production")));
-            app.instance(Arc::new(Fixture::default()));
-            app.scoped::<Lease, _>(|resolver| {
-                Box::pin(async move {
-                    let fixture = resolver.resolve::<Fixture>().await?;
-                    fixture.created.fetch_add(1, Ordering::SeqCst);
-                    resolver.resources()?.on_shutdown(move || {
-                        Box::pin(async move {
-                            let gate = fixture
-                                .cleanup_gate
-                                .lock()
-                                .map_err(|_| Error::custom("fixture_lock_failed", "夹具锁不可用"))?
-                                .clone();
-                            fixture.cleaning.notify_one();
-                            if let Some(gate) = gate {
-                                gate.acquire_owned()
-                                    .await
-                                    .map_err(Error::internal)?
-                                    .forget();
-                            }
-                            fixture.closed.fetch_add(1, Ordering::SeqCst);
-                            fixture.changed.notify_one();
-                            if fixture.fail.load(Ordering::SeqCst) {
-                                return Err(Error::custom(
-                                    "fixture_cleanup_failed",
-                                    "夹具关闭失败",
-                                ));
-                            }
-                            Ok(())
-                        })
-                    })?;
-                    Ok(Arc::new(Lease))
+        fn register<'a>(
+            &'a self,
+            app: &'a mut RegisterContext<'_>,
+        ) -> crate::core::BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.instance(Arc::new(Label("production"))).await?;
+                app.instance(Arc::new(Fixture::default())).await?;
+                app.scoped::<Lease, _>(|resolver| {
+                    Box::pin(async move {
+                        let fixture = resolver.resolve::<Fixture>().await?;
+                        fixture.created.fetch_add(1, Ordering::SeqCst);
+                        resolver.resources()?.on_shutdown(move || {
+                            Box::pin(async move {
+                                let gate = fixture
+                                    .cleanup_gate
+                                    .lock()
+                                    .map_err(|_| {
+                                        Error::custom("fixture_lock_failed", "夹具锁不可用")
+                                    })?
+                                    .clone();
+                                fixture.cleaning.notify_one();
+                                if let Some(gate) = gate {
+                                    gate.acquire_owned()
+                                        .await
+                                        .map_err(Error::internal)?
+                                        .forget();
+                                }
+                                fixture.closed.fetch_add(1, Ordering::SeqCst);
+                                fixture.changed.notify_one();
+                                if fixture.fail.load(Ordering::SeqCst) {
+                                    return Err(Error::custom(
+                                        "fixture_cleanup_failed",
+                                        "夹具关闭失败",
+                                    ));
+                                }
+                                Ok(())
+                            })
+                        })?;
+                        Ok(Arc::new(Lease))
+                    })
                 })
-            });
-            Ok(())
+                .await?;
+                Ok(())
+            })
         }
         fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
             Box::pin(async move {
@@ -332,9 +378,12 @@ mod tests {
         let fixture = Arc::clone(fixture);
         let mut builder = TestApp::<Example>::builder(source());
         builder.configure_after_register(move |bindings| {
-            bindings.instance(Arc::clone(&fixture));
-            bindings.instance(Arc::new(Label(label)));
-            Ok(())
+            let fixture = Arc::clone(&fixture);
+            Box::pin(async move {
+                bindings.instance(fixture).await?;
+                bindings.instance(Arc::new(Label(label))).await?;
+                Ok(())
+            })
         });
         builder
     }
@@ -510,10 +559,13 @@ mod tests {
         let mut builder = TestApp::<Example>::builder(source());
         let fail_start = Arc::clone(&fail);
         builder.configure_after_register(move |_| {
-            if fail_start.load(Ordering::SeqCst) {
-                return Err(Error::custom("fixture_start_failed", "夹具启动失败"));
-            }
-            Ok(())
+            let fail_start = Arc::clone(&fail_start);
+            Box::pin(async move {
+                if fail_start.load(Ordering::SeqCst) {
+                    return Err(Error::custom("fixture_start_failed", "夹具启动失败"));
+                }
+                Ok(())
+            })
         });
         let mut app = builder.build().await?;
         fail.store(true, Ordering::SeqCst);
@@ -535,6 +587,256 @@ mod tests {
         assert_eq!(fixture.created.load(Ordering::SeqCst), 1);
         assert_eq!(fixture.closed.load(Ordering::SeqCst), 1);
         drop(raw);
+        Ok(())
+    }
+
+    #[derive(Default)]
+    struct CommandFixture {
+        ready: AtomicBool,
+        fail_command: AtomicBool,
+        fail_cleanup: AtomicBool,
+        runs: AtomicUsize,
+        closed: AtomicUsize,
+        command_started: tokio::sync::Notify,
+        cleanup_started: tokio::sync::Notify,
+        cleanup_finished: tokio::sync::Notify,
+        command_gate: std::sync::Mutex<Option<Arc<tokio::sync::Semaphore>>>,
+        cleanup_gate: std::sync::Mutex<Option<Arc<tokio::sync::Semaphore>>>,
+        command_state: std::sync::Mutex<Option<crate::core::AppState>>,
+    }
+
+    struct MigrateProbe;
+    impl Command for MigrateProbe {
+        fn name(&self) -> &'static str {
+            "migrate"
+        }
+
+        fn about(&self) -> &'static str {
+            "测试迁移命令"
+        }
+
+        fn run<'a>(&'a self, app: &'a App, _: Vec<String>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                let fixture = app.state().resolve::<CommandFixture>().await?;
+                fixture.runs.fetch_add(1, Ordering::SeqCst);
+                let gate = fixture
+                    .command_gate
+                    .lock()
+                    .map_err(|_| Error::custom("fixture_lock_failed", "夹具锁不可用"))?
+                    .clone();
+                if gate.is_some() {
+                    *fixture
+                        .command_state
+                        .lock()
+                        .map_err(|_| Error::custom("fixture_lock_failed", "夹具锁不可用"))? =
+                        Some(app.state().clone());
+                }
+                fixture.command_started.notify_one();
+                if let Some(gate) = gate {
+                    gate.acquire_owned()
+                        .await
+                        .map_err(Error::internal)?
+                        .forget();
+                }
+                if fixture.fail_command.load(Ordering::SeqCst) {
+                    return Err(Error::custom("fixture_command_failed", "测试命令失败"));
+                }
+                fixture.ready.store(true, Ordering::SeqCst);
+                Ok(())
+            })
+        }
+    }
+
+    struct CommandProvider;
+    impl ServiceProvider for CommandProvider {
+        fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                let fixture = app.resolve::<CommandFixture>().await?;
+                let closing = Arc::clone(&fixture);
+                app.resources().on_shutdown(move || {
+                    Box::pin(async move {
+                        let gate = closing
+                            .cleanup_gate
+                            .lock()
+                            .map_err(|_| Error::custom("fixture_lock_failed", "夹具锁不可用"))?
+                            .clone();
+                        closing.cleanup_started.notify_one();
+                        if let Some(gate) = gate {
+                            gate.acquire_owned()
+                                .await
+                                .map_err(Error::internal)?
+                                .forget();
+                        }
+                        closing.closed.fetch_add(1, Ordering::SeqCst);
+                        closing.cleanup_finished.notify_one();
+                        if closing.fail_cleanup.load(Ordering::SeqCst) {
+                            return Err(Error::custom("fixture_cleanup_failed", "测试关闭失败"));
+                        }
+                        Ok(())
+                    })
+                })?;
+                if !app.is_console_command("migrate") && !fixture.ready.load(Ordering::SeqCst) {
+                    return Err(Error::custom("fixture_schema_missing", "测试表尚未迁移"));
+                }
+                app.command(MigrateProbe);
+                Ok(())
+            })
+        }
+    }
+
+    struct CommandExample;
+    impl Application for CommandExample {
+        type Config = NoConfig;
+
+        fn providers(_: &NoConfig) -> Vec<Box<dyn ServiceProvider>> {
+            vec![Box::new(HttpServiceProvider), Box::new(CommandProvider)]
+        }
+    }
+
+    fn command_builder(fixture: &Arc<CommandFixture>) -> TestAppBuilder<CommandExample> {
+        let shared = Arc::clone(fixture);
+        let mut builder = TestApp::<CommandExample>::builder(source());
+        builder.configure_after_register(move |bindings| {
+            let shared = Arc::clone(&shared);
+            Box::pin(async move {
+                bindings.instance(shared).await?;
+                Ok(())
+            })
+        });
+        builder
+    }
+
+    #[tokio::test]
+    async fn command_builder_uses_same_name_and_normal_build_checks_schema() -> Result<()> {
+        let fixture = Arc::new(CommandFixture::default());
+        let error = command_builder(&fixture)
+            .build()
+            .await
+            .err()
+            .ok_or_else(|| Error::custom("fixture_expected_failure", "普通启动未拒绝空表"))?;
+        assert_eq!(error.code(), "fixture_schema_missing");
+        assert_eq!(fixture.closed.load(Ordering::SeqCst), 1);
+        let error = command_builder(&fixture)
+            .run_command("other", Vec::new())
+            .await
+            .err()
+            .ok_or_else(|| Error::custom("fixture_expected_failure", "其他命令未检查空表"))?;
+        assert_eq!(error.code(), "fixture_schema_missing");
+        assert_eq!(fixture.runs.load(Ordering::SeqCst), 0);
+        assert_eq!(fixture.closed.load(Ordering::SeqCst), 2);
+        command_builder(&fixture)
+            .run_command("migrate", Vec::new())
+            .await?;
+        assert_eq!(fixture.runs.load(Ordering::SeqCst), 1);
+        assert_eq!(fixture.closed.load(Ordering::SeqCst), 3);
+        let mut normal = command_builder(&fixture).build().await?;
+        normal.shutdown(Instant::now() + DEFAULT_TIMEOUT).await?;
+        assert_eq!(fixture.closed.load(Ordering::SeqCst), 4);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn command_builder_closes_after_command_and_cleanup_failures() -> Result<()> {
+        let failing_command = Arc::new(CommandFixture::default());
+        failing_command.fail_command.store(true, Ordering::SeqCst);
+        let error = command_builder(&failing_command)
+            .run_command("migrate", Vec::new())
+            .await
+            .err()
+            .ok_or_else(|| Error::custom("fixture_expected_failure", "命令未失败"))?;
+        assert_eq!(error.code(), "fixture_command_failed");
+        assert_eq!(failing_command.closed.load(Ordering::SeqCst), 1);
+        assert!(!failing_command.ready.load(Ordering::SeqCst));
+
+        let failing_cleanup = Arc::new(CommandFixture::default());
+        failing_cleanup.fail_cleanup.store(true, Ordering::SeqCst);
+        let error = command_builder(&failing_cleanup)
+            .run_command("migrate", Vec::new())
+            .await
+            .err()
+            .ok_or_else(|| Error::custom("fixture_expected_failure", "关闭未失败"))?;
+        assert_eq!(error.code(), "resource_shutdown_failed");
+        assert_eq!(failing_cleanup.runs.load(Ordering::SeqCst), 1);
+        assert_eq!(failing_cleanup.closed.load(Ordering::SeqCst), 1);
+
+        let failing_both = Arc::new(CommandFixture::default());
+        failing_both.fail_command.store(true, Ordering::SeqCst);
+        failing_both.fail_cleanup.store(true, Ordering::SeqCst);
+        let error = command_builder(&failing_both)
+            .run_command("migrate", Vec::new())
+            .await
+            .err()
+            .ok_or_else(|| Error::custom("fixture_expected_failure", "命令和关闭未失败"))?;
+        assert_eq!(error.code(), "fixture_command_failed");
+        assert_eq!(failing_both.runs.load(Ordering::SeqCst), 1);
+        assert_eq!(failing_both.closed.load(Ordering::SeqCst), 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn cancelled_command_and_cleanup_close_once() -> Result<()> {
+        let running = Arc::new(CommandFixture::default());
+        let command_gate = Arc::new(tokio::sync::Semaphore::new(0));
+        *running
+            .command_gate
+            .lock()
+            .map_err(|_| Error::custom("fixture_lock_failed", "夹具锁不可用"))? =
+            Some(Arc::clone(&command_gate));
+        let mut command = Box::pin(command_builder(&running).run_command("migrate", Vec::new()));
+        tokio::time::timeout(DEFAULT_TIMEOUT, async {
+            tokio::select! {
+                result = &mut command => result,
+                () = running.command_started.notified() => Ok(()),
+            }
+        })
+        .await
+        .map_err(Error::internal)??;
+        drop(command);
+        let state = running
+            .command_state
+            .lock()
+            .map_err(|_| Error::custom("fixture_lock_failed", "夹具锁不可用"))?
+            .take()
+            .ok_or_else(|| Error::custom("fixture_state_missing", "命令未保存应用状态"))?;
+        assert_eq!(
+            state
+                .resolve::<CommandFixture>()
+                .await
+                .err()
+                .as_ref()
+                .map(Error::code),
+            Some("container_closed")
+        );
+        tokio::time::timeout(DEFAULT_TIMEOUT, running.cleanup_finished.notified())
+            .await
+            .map_err(Error::internal)?;
+        assert_eq!(running.closed.load(Ordering::SeqCst), 1);
+        assert_eq!(running.runs.load(Ordering::SeqCst), 1);
+        assert!(!running.ready.load(Ordering::SeqCst));
+
+        let closing = Arc::new(CommandFixture::default());
+        let cleanup_gate = Arc::new(tokio::sync::Semaphore::new(0));
+        *closing
+            .cleanup_gate
+            .lock()
+            .map_err(|_| Error::custom("fixture_lock_failed", "夹具锁不可用"))? =
+            Some(Arc::clone(&cleanup_gate));
+        let mut command = Box::pin(command_builder(&closing).run_command("migrate", Vec::new()));
+        tokio::time::timeout(DEFAULT_TIMEOUT, async {
+            tokio::select! {
+                result = &mut command => result,
+                () = closing.cleanup_started.notified() => Ok(()),
+            }
+        })
+        .await
+        .map_err(Error::internal)??;
+        drop(command);
+        cleanup_gate.add_permits(1);
+        tokio::time::timeout(DEFAULT_TIMEOUT, closing.cleanup_finished.notified())
+            .await
+            .map_err(Error::internal)?;
+        assert_eq!(closing.runs.load(Ordering::SeqCst), 1);
+        assert_eq!(closing.closed.load(Ordering::SeqCst), 1);
         Ok(())
     }
 }

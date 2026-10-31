@@ -363,76 +363,88 @@ impl Default for AuthServiceProvider {
 }
 
 impl crate::core::ServiceProvider for AuthServiceProvider {
-    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-        use crate::config::repository::SectionSchema as S;
-        app.config_section(
-            "auth.password",
-            PasswordConfig::default(),
-            S::object([
-                ("memory_kib", S::Integer),
-                ("iterations", S::Integer),
-                ("parallelism", S::Integer),
-            ]),
-            |config| Passwords::new(config.clone()).map(|_| ()),
-        )?;
-        let authenticator = Arc::clone(&self.authenticator);
-        let database_authenticator = self.database_authenticator.clone();
-        app.singleton::<AuthService, _>(move |resolver| {
-            let authenticator = Arc::clone(&authenticator);
-            let database_authenticator = database_authenticator.clone();
-            Box::pin(async move {
-                if let Some(database_authenticator) = database_authenticator {
-                    let db = resolver.resolve::<Db>().await?;
-                    if !matches!(db.backend()?, DbBackend::Postgres | DbBackend::MySql) {
-                        return Err(Error::Config(ConfigError::Invalid(
-                            "the default authenticator supports PostgreSQL and MySQL only".into(),
-                        )));
+    fn register<'a>(
+        &'a self,
+        app: &'a mut crate::core::RegisterContext<'_>,
+    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            use crate::config::repository::SectionSchema as S;
+            app.config_section(
+                "auth.password",
+                PasswordConfig::default(),
+                S::object([
+                    ("memory_kib", S::Integer),
+                    ("iterations", S::Integer),
+                    ("parallelism", S::Integer),
+                ]),
+                |config| Passwords::new(config.clone()).map(|_| ()),
+            )?;
+            let authenticator = Arc::clone(&self.authenticator);
+            let database_authenticator = self.database_authenticator.clone();
+            app.singleton::<AuthService, _>(move |resolver| {
+                let authenticator = Arc::clone(&authenticator);
+                let database_authenticator = database_authenticator.clone();
+                Box::pin(async move {
+                    if let Some(database_authenticator) = database_authenticator {
+                        let db = resolver.resolve::<Db>().await?;
+                        if !matches!(db.backend()?, DbBackend::Postgres | DbBackend::MySql) {
+                            return Err(Error::Config(ConfigError::Invalid(
+                                "the default authenticator supports PostgreSQL and MySQL only"
+                                    .into(),
+                            )));
+                        }
+                        database_authenticator.initialize((*db).clone())?;
                     }
-                    database_authenticator.initialize((*db).clone())?;
-                }
-                Ok(Arc::new(AuthService { authenticator }))
+                    Ok(Arc::new(AuthService { authenticator }))
+                })
             })
-        });
-        let capacity = self.password_operation_capacity;
-        app.singleton::<Passwords, _>(move |resolver| {
-            Box::pin(async move {
-                let config = resolver.section::<PasswordConfig>("auth.password")?;
-                Ok(Arc::new(Passwords::with_max_concurrent_operations(
-                    config, capacity,
-                )?))
+            .await?;
+            let capacity = self.password_operation_capacity;
+            app.singleton::<Passwords, _>(move |resolver| {
+                Box::pin(async move {
+                    let config = resolver.section::<PasswordConfig>("auth.password")?;
+                    Ok(Arc::new(Passwords::with_max_concurrent_operations(
+                        config, capacity,
+                    )?))
+                })
             })
-        });
-        app.singleton::<RefreshTokens, _>(|resolver| {
-            Box::pin(async move {
-                let db = resolver.resolve::<Db>().await?;
-                Ok(Arc::new(RefreshTokens::new((*db).clone())))
+            .await?;
+            app.singleton::<RefreshTokens, _>(|resolver| {
+                Box::pin(async move {
+                    let db = resolver.resolve::<Db>().await?;
+                    Ok(Arc::new(RefreshTokens::new((*db).clone())))
+                })
             })
-        });
-        app.singleton::<PersonalAccessTokens, _>(|resolver| {
-            Box::pin(async move {
-                let db = resolver.resolve::<Db>().await?;
-                Ok(Arc::new(PersonalAccessTokens::new((*db).clone())))
+            .await?;
+            app.singleton::<PersonalAccessTokens, _>(|resolver| {
+                Box::pin(async move {
+                    let db = resolver.resolve::<Db>().await?;
+                    Ok(Arc::new(PersonalAccessTokens::new((*db).clone())))
+                })
             })
-        });
-        app.singleton::<Policy, _>(|resolver| {
-            Box::pin(async move {
-                let db = resolver.resolve::<Db>().await?;
-                Ok(Arc::new(Policy::new((*db).clone())))
+            .await?;
+            app.singleton::<Policy, _>(|resolver| {
+                Box::pin(async move {
+                    let db = resolver.resolve::<Db>().await?;
+                    Ok(Arc::new(Policy::new((*db).clone())))
+                })
             })
-        });
-        app.singleton::<VerificationCodes, _>(|resolver| {
-            Box::pin(async move {
-                let db = resolver.resolve::<Db>().await?;
-                let passwords = resolver.resolve::<Passwords>().await?;
-                Ok(Arc::new(VerificationCodes::new(
-                    DatabaseVerificationCodeStore::new((*db).clone()),
-                    (*passwords).clone(),
-                )))
+            .await?;
+            app.singleton::<VerificationCodes, _>(|resolver| {
+                Box::pin(async move {
+                    let db = resolver.resolve::<Db>().await?;
+                    let passwords = resolver.resolve::<Passwords>().await?;
+                    Ok(Arc::new(VerificationCodes::new(
+                        DatabaseVerificationCodeStore::new((*db).clone()),
+                        (*passwords).clone(),
+                    )))
+                })
             })
-        });
-        app.require::<AuthService>();
-        app.require::<Passwords>();
-        Ok(())
+            .await?;
+            app.require::<AuthService>();
+            app.require::<Passwords>();
+            Ok(())
+        })
     }
 
     fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
@@ -842,9 +854,14 @@ mod provider_tests {
 
     #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
     impl ServiceProvider for RealCustomDbProvider {
-        fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-            app.instance(Arc::clone(&self.db));
-            Ok(())
+        fn register<'a>(
+            &'a self,
+            app: &'a mut crate::core::RegisterContext<'_>,
+        ) -> crate::core::BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.instance(Arc::clone(&self.db)).await?;
+                Ok(())
+            })
         }
 
         fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
@@ -946,9 +963,14 @@ mod provider_tests {
 
     struct CustomDbProvider;
     impl ServiceProvider for CustomDbProvider {
-        fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-            app.instance(Arc::new(Db::default()));
-            Ok(())
+        fn register<'a>(
+            &'a self,
+            app: &'a mut crate::core::RegisterContext<'_>,
+        ) -> crate::core::BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.instance(Arc::new(Db::default())).await?;
+                Ok(())
+            })
         }
     }
     struct CleanupProbe(Arc<std::sync::atomic::AtomicBool>);
@@ -1012,18 +1034,25 @@ mod provider_tests {
         }
         struct ScopedTokens(Arc<std::sync::atomic::AtomicUsize>);
         impl ServiceProvider for ScopedTokens {
-            fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-                app.instance(Arc::new(AuthService {
-                    authenticator: Arc::new(RejectAuthenticator),
-                }));
-                let counter = Arc::clone(&self.0);
-                app.scoped::<JwtTokens, _>(move |_| {
-                    let index = counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                    Box::pin(
-                        async move { Ok(Arc::new(make_tokens(if index == 0 { 1 } else { 2 })?)) },
-                    )
-                });
-                Ok(())
+            fn register<'a>(
+                &'a self,
+                app: &'a mut crate::core::RegisterContext<'_>,
+            ) -> crate::core::BoxFuture<'a, Result<()>> {
+                Box::pin(async move {
+                    app.instance(Arc::new(AuthService {
+                        authenticator: Arc::new(RejectAuthenticator),
+                    }))
+                    .await?;
+                    let counter = Arc::clone(&self.0);
+                    app.scoped::<JwtTokens, _>(move |_| {
+                        let index = counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                        Box::pin(async move {
+                            Ok(Arc::new(make_tokens(if index == 0 { 1 } else { 2 })?))
+                        })
+                    })
+                    .await?;
+                    Ok(())
+                })
             }
             fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
                 Box::pin(async move {

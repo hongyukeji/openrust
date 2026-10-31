@@ -244,21 +244,27 @@ async fn real_tls_and_http_share_module_binding_and_one_supervised_shutdown() ->
     let observed = Arc::clone(&closed);
     let mut builder = TestApp::<crate::bootstrap::Server>::builder(source);
     builder.configure_after_register(move |bindings| {
-        bindings.instance(Arc::new(ExampleMessage::new(MESSAGE)));
         let closed = Arc::clone(&observed);
-        bindings.singleton::<ShutdownWitness, _>(move |resolver| {
-            let closed = Arc::clone(&closed);
-            Box::pin(async move {
-                resolver.resources()?.on_shutdown(move || {
+        Box::pin(async move {
+            bindings
+                .instance(Arc::new(ExampleMessage::new(MESSAGE)))
+                .await?;
+            bindings
+                .singleton::<ShutdownWitness, _>(move |resolver| {
+                    let closed = Arc::clone(&closed);
                     Box::pin(async move {
-                        closed.fetch_add(1, Ordering::SeqCst);
-                        Ok(())
+                        resolver.resources()?.on_shutdown(move || {
+                            Box::pin(async move {
+                                closed.fetch_add(1, Ordering::SeqCst);
+                                Ok(())
+                            })
+                        })?;
+                        Ok(Arc::new(ShutdownWitness))
                     })
-                })?;
-                Ok(Arc::new(ShutdownWitness))
-            })
-        });
-        Ok(())
+                })
+                .await?;
+            Ok(())
+        })
     });
     let app = Arc::new(builder.build().await?);
     app.app()?.state().resolve::<ShutdownWitness>().await?;

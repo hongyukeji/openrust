@@ -52,9 +52,14 @@ struct Captured {
 }
 struct Routes(Arc<Captured>);
 impl ServiceProvider for Routes {
-    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-        app.instance(self.0.clone());
-        Ok(())
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.instance(self.0.clone()).await?;
+            Ok(())
+        })
     }
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
@@ -75,16 +80,16 @@ impl ServiceProvider for Routes {
     }
 }
 async fn one(session: Session) -> Result<Json<Value>> {
-    session.put("value", "one")?;
+    session.put_typed("value", "one")?;
     read(session).await
 }
 async fn two(session: Session) -> Result<Json<Value>> {
-    session.put("value", "two")?;
+    session.put_typed("value", "two")?;
     read(session).await
 }
 async fn read(session: Session) -> Result<Json<Value>> {
     Ok(Json(
-        json!({"value":session.get("value")?,"snapshot":session.handler()?.guarantees()==SessionStoreGuarantees::ClientSideSnapshot}),
+        json!({"value":session.get_json("value")?,"snapshot":session.handler()?.guarantees()==SessionStoreGuarantees::ClientSideSnapshot}),
     ))
 }
 async fn renew(session: Session) -> Result<Json<Value>> {
@@ -105,7 +110,7 @@ async fn cancel(
     jar: CookieJar,
     Inject(captured): Inject<Captured>,
 ) -> Result<Json<Value>> {
-    session.put("value", "cancelled")?;
+    session.put_typed("value", "cancelled")?;
     *captured.session.lock().map_err(|_| fail())? = Some(session);
     *captured.jar.lock().map_err(|_| fail())? = Some(jar);
     if let Some(entered) = captured.entered.lock().map_err(|_| fail())?.take() {
@@ -615,8 +620,8 @@ async fn queued_cookie_origin_survives_explicit_transfer_and_repeated_start() ->
         .await?;
     session.start().await?;
     session
-        .put("value", "nonempty")?
-        .put("other", 7)?
+        .put_typed("value", "nonempty")?
+        .put_typed("other", 7)?
         .save()
         .await?;
     let original = session.id()?;
@@ -630,13 +635,13 @@ async fn queued_cookie_origin_survives_explicit_transfer_and_repeated_start() ->
     session.set_id(Some(&"X".repeat(40)))?;
     session.save().await?;
     session.start().await?;
-    assert_eq!(session.get("value")?, Some(json!("nonempty")));
-    assert_eq!(session.get("other")?, Some(json!(7)));
+    assert_eq!(session.get_json("value")?, Some(json!("nonempty")));
+    assert_eq!(session.get_json("other")?, Some(json!(7)));
     session.migrate(true).await?;
     session.save().await?;
     session.start().await?;
-    assert_eq!(session.get("value")?, Some(json!("nonempty")));
-    assert_eq!(session.get("other")?, Some(json!(7)));
+    assert_eq!(session.get_json("value")?, Some(json!("nonempty")));
+    assert_eq!(session.get_json("other")?, Some(json!(7)));
     Ok(())
 }
 
@@ -704,7 +709,7 @@ async fn cookie_delete_uses_exact_path_and_failed_migration_flushes_all_response
 
 #[cfg(feature = "auth")]
 async fn auth_save_failed(session: Session, jar: CookieJar) -> Result<Response> {
-    session.put("openrust.auth.user_id", 42_i64)?;
+    session.put_typed("openrust.auth.user_id", 42_i64)?;
     jar.queue(CookieFactory::default().make(
         "queued_private",
         "secret",

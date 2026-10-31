@@ -140,97 +140,110 @@ impl SessionServiceProvider {
     }
 }
 impl ServiceProvider for SessionServiceProvider {
-    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-        use crate::config::repository::SectionSchema as S;
-        app.instance(Arc::clone(&self.error_bag_codecs));
-        app.config_section(
-            "session",
-            SessionConfig::default(),
-            S::object([
-                ("driver", S::String.nullable()),
-                ("cookie", S::String.nullable()),
-                ("path", S::String),
-                ("domain", S::String.nullable()),
-                ("secure", S::Boolean.nullable()),
-                ("http_only", S::Boolean),
-                ("same_site", S::String.nullable()),
-                ("lifetime", S::Integer),
-                ("lottery", S::array(S::Integer)),
-                ("expire_on_close", S::Boolean),
-                ("partitioned", S::Boolean),
-                ("max_bytes", S::Integer),
-            ]),
-            |_: &SessionConfig| Ok(()),
-        )?;
-        let repository = app.config_repository();
-        app.singleton::<SessionSettings, _>(move |_| {
-            let repository = repository.clone();
-            Box::pin(async move { Ok(Arc::new(SessionSettings::read(&repository)?)) })
-        });
-        let custom = self.store.clone();
-        app.singleton::<SessionStoreHandle, _>(move |resolver| {
-            let custom = custom.clone();
-            Box::pin(async move {
-                let settings = resolver.resolve::<SessionSettings>().await?;
-                let store: Arc<dyn SessionStore> = if let Some(store) = custom {
-                    store
-                } else {
-                    match settings.config.driver.as_deref() {
-                        Some("database") => Arc::new(DatabaseSessionStore::new(
-                            (*resolver.resolve::<crate::db::Db>().await?).clone(),
-                        )),
-                        Some("array") => Arc::new(MemorySessionStore::default()),
-                        Some("cookie") => Arc::new(CookieSessionStore::new(
-                            settings.config.lifetime,
-                            settings.config.expire_on_close,
-                        )?),
-                        _ => {
-                            return Err(Error::custom(
-                                "session_config_invalid",
-                                "Session driver要求公开with_store实现",
-                            ));
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            use crate::config::repository::SectionSchema as S;
+            app.instance(Arc::clone(&self.error_bag_codecs)).await?;
+            app.config_section(
+                "session",
+                SessionConfig::default(),
+                S::object([
+                    ("driver", S::String.nullable()),
+                    ("cookie", S::String.nullable()),
+                    ("path", S::String),
+                    ("domain", S::String.nullable()),
+                    ("secure", S::Boolean.nullable()),
+                    ("http_only", S::Boolean),
+                    ("same_site", S::String.nullable()),
+                    ("lifetime", S::Integer),
+                    ("lottery", S::array(S::Integer)),
+                    ("expire_on_close", S::Boolean),
+                    ("partitioned", S::Boolean),
+                    ("max_bytes", S::Integer),
+                    ("serializer", S::String),
+                ]),
+                |_: &SessionConfig| Ok(()),
+            )?;
+            let repository = app.config_repository();
+            app.singleton::<SessionSettings, _>(move |_| {
+                let repository = repository.clone();
+                Box::pin(async move { Ok(Arc::new(SessionSettings::read(&repository)?)) })
+            })
+            .await?;
+            let custom = self.store.clone();
+            app.singleton::<SessionStoreHandle, _>(move |resolver| {
+                let custom = custom.clone();
+                Box::pin(async move {
+                    let settings = resolver.resolve::<SessionSettings>().await?;
+                    let store: Arc<dyn SessionStore> = if let Some(store) = custom {
+                        store
+                    } else {
+                        match settings.config.driver.as_deref() {
+                            Some("database") => Arc::new(DatabaseSessionStore::new(
+                                (*resolver.resolve::<crate::db::Db>().await?).clone(),
+                            )),
+                            Some("array") => Arc::new(MemorySessionStore::default()),
+                            Some("cookie") => Arc::new(CookieSessionStore::new(
+                                settings.config.lifetime,
+                                settings.config.expire_on_close,
+                            )?),
+                            _ => {
+                                return Err(Error::custom(
+                                    "session_config_invalid",
+                                    "Session driver要求公开with_store实现",
+                                ));
+                            }
                         }
-                    }
-                };
-                Ok(Arc::new(SessionStoreHandle(store)))
+                    };
+                    Ok(Arc::new(SessionStoreHandle(store)))
+                })
             })
-        });
-        app.scoped::<SessionSlot, _>(|_| Box::pin(async { Ok(Arc::new(SessionSlot::default())) }));
-        app.scoped::<Session, _>(|resolver| {
-            Box::pin(async move {
-                let slot = resolver.resolve::<SessionSlot>().await?;
-                Ok(Arc::new(slot.0.get().cloned().ok_or_else(missing)?))
+            .await?;
+            app.scoped::<SessionSlot, _>(|_| {
+                Box::pin(async { Ok(Arc::new(SessionSlot::default())) })
             })
-        });
-        let ready = Ready::default();
-        app.instance(Arc::new(ready.clone()));
-        app.singleton::<Installed, _>(move |resolver| {
-            let ready = ready.clone();
-            Box::pin(async move {
-                let settings = resolver.resolve::<SessionSettings>().await?;
-                let error_bag_codecs = resolver.resolve::<super::ErrorBagCodecs>().await?;
-                let layer = if settings.config.driver.is_some() {
-                    let store = resolver.resolve::<SessionStoreHandle>().await?;
-                    Some(super::middleware::SessionLayer {
-                        settings: (*settings).clone(),
-                        store: store.0.clone(),
-                        error_bag_codecs,
-                    })
-                } else {
-                    None
-                };
-                ready.0.set(layer).map_err(|_| {
-                    Error::custom_with_status(
-                        http::StatusCode::INTERNAL_SERVER_ERROR,
-                        "session_layer_invalid",
-                        "Session层重复装配",
-                    )
-                })?;
-                Ok(Arc::new(Installed))
+            .await?;
+            app.scoped::<Session, _>(|resolver| {
+                Box::pin(async move {
+                    let slot = resolver.resolve::<SessionSlot>().await?;
+                    Ok(Arc::new(slot.0.get().cloned().ok_or_else(missing)?))
+                })
             })
-        });
-        app.require::<Installed>();
-        Ok(())
+            .await?;
+            let ready = Ready::default();
+            app.instance(Arc::new(ready.clone())).await?;
+            app.singleton::<Installed, _>(move |resolver| {
+                let ready = ready.clone();
+                Box::pin(async move {
+                    let settings = resolver.resolve::<SessionSettings>().await?;
+                    let error_bag_codecs = resolver.resolve::<super::ErrorBagCodecs>().await?;
+                    let layer = if settings.config.driver.is_some() {
+                        let store = resolver.resolve::<SessionStoreHandle>().await?;
+                        Some(super::middleware::SessionLayer {
+                            settings: (*settings).clone(),
+                            store: store.0.clone(),
+                            error_bag_codecs,
+                        })
+                    } else {
+                        None
+                    };
+                    ready.0.set(layer).map_err(|_| {
+                        Error::custom_with_status(
+                            http::StatusCode::INTERNAL_SERVER_ERROR,
+                            "session_layer_invalid",
+                            "Session层重复装配",
+                        )
+                    })?;
+                    Ok(Arc::new(Installed))
+                })
+            })
+            .await?;
+            app.require::<Installed>();
+            Ok(())
+        })
     }
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {

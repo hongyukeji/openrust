@@ -83,7 +83,7 @@ async fn builtin_cookie_driver_is_consumable_and_wrappers_preserve_snapshot_guar
             .supports_session_authentication("consumer_session")
     );
     session.start().await?;
-    session.put("consumer.value", "owned")?.save().await?;
+    session.put_typed("consumer.value", "owned")?.save().await?;
     let id = session.id()?;
     let data = queue
         .queued(id.as_str(), None)?
@@ -101,6 +101,6 @@ async fn builtin_cookie_driver_is_consumable_and_wrappers_preserve_snapshot_guar
         )?)
         .await?;
     replayed.start().await?;
-    assert_eq!(replayed.get("consumer.value")?, Some(json!("owned")));
+    assert_eq!(replayed.get_json("consumer.value")?, Some(json!("owned")));
     Ok(())
 }

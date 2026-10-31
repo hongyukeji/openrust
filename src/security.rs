@@ -199,28 +199,34 @@ impl std::fmt::Debug for Encryptor {
 pub struct EncryptionServiceProvider;
 
 impl crate::core::ServiceProvider for EncryptionServiceProvider {
-    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-        use crate::config::repository::SectionSchema;
-        app.config_section(
-            "security.encryption",
-            serde_json::json!({}),
-            SectionSchema::object([
-                ("active_key_id", SectionSchema::String),
-                (
-                    "keys",
-                    SectionSchema::map(SectionSchema::String.sensitive()),
-                ),
-            ]),
-            |_| Ok(()),
-        )?;
-        app.singleton::<Encryptor, _>(|resolver| {
-            Box::pin(async move {
-                let config = resolver.section::<EncryptionConfig>("security.encryption")?;
-                Ok(Arc::new(Encryptor::new(config)?))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut crate::core::RegisterContext<'_>,
+    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            use crate::config::repository::SectionSchema;
+            app.config_section(
+                "security.encryption",
+                serde_json::json!({}),
+                SectionSchema::object([
+                    ("active_key_id", SectionSchema::String),
+                    (
+                        "keys",
+                        SectionSchema::map(SectionSchema::String.sensitive()),
+                    ),
+                ]),
+                |_| Ok(()),
+            )?;
+            app.singleton::<Encryptor, _>(|resolver| {
+                Box::pin(async move {
+                    let config = resolver.section::<EncryptionConfig>("security.encryption")?;
+                    Ok(Arc::new(Encryptor::new(config)?))
+                })
             })
-        });
-        app.require::<Encryptor>();
-        Ok(())
+            .await?;
+            app.require::<Encryptor>();
+            Ok(())
+        })
     }
 
     fn boot<'a>(

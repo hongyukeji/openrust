@@ -91,9 +91,14 @@ struct Control {
 }
 struct TestRoutes(Arc<Control>);
 impl ServiceProvider for TestRoutes {
-    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-        app.instance(self.0.clone());
-        Ok(())
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.instance(self.0.clone()).await?;
+            Ok(())
+        })
     }
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
@@ -142,28 +147,28 @@ async fn shared(
     info: RequestInfo,
     Inject(other): Inject<Session>,
 ) -> Result<Json<Value>> {
-    session.put("test.shared.one", 1)?;
+    session.put_typed("test.shared.one", 1)?;
     let from_info = info.session()?;
-    from_info.put("test.shared.two", 2)?;
-    other.put("test.shared.three", 3)?;
+    from_info.put_typed("test.shared.two", 2)?;
+    other.put_typed("test.shared.three", 3)?;
     Ok(Json(json!({"has_session":info.has_session(),
-        "info_reads_one":from_info.get("test.shared.one")? == Some(json!(1)),
-        "injected_reads_two":other.get("test.shared.two")? == Some(json!(2)),
-        "extractor_reads_three":session.get("test.shared.three")? == Some(json!(3))})))
+        "info_reads_one":from_info.get_json("test.shared.one")? == Some(json!(1)),
+        "injected_reads_two":other.get_json("test.shared.two")? == Some(json!(2)),
+        "extractor_reads_three":session.get_json("test.shared.three")? == Some(json!(3))})))
 }
 async fn flash(session: Session) -> Result<Json<Value>> {
     session
-        .flash("test.notice", "next")?
-        .now("test.instant", "current")?;
+        .flash_typed("test.notice", "next")?
+        .now_typed("test.instant", "current")?;
     Ok(Json(json!({"created":true})))
 }
 async fn inspect(session: Session) -> Result<Json<Value>> {
     Ok(Json(
-        json!({"notice":session.get("test.notice")?, "instant":session.get("test.instant")?, "after_error":session.get("test.after_error")?}),
+        json!({"notice":session.get_json("test.notice")?, "instant":session.get_json("test.instant")?, "after_error":session.get_json("test.after_error")?}),
     ))
 }
 async fn handler_error(session: Session) -> Result<Json<Value>> {
-    session.put("test.after_error", "persisted")?;
+    session.put_typed("test.after_error", "persisted")?;
     Err(Error::custom_with_status(
         StatusCode::INTERNAL_SERVER_ERROR,
         "session_test_handler_failed",
@@ -171,7 +176,7 @@ async fn handler_error(session: Session) -> Result<Json<Value>> {
     ))
 }
 async fn cancel(session: Session, Inject(control): Inject<Control>) -> Result<Json<Value>> {
-    session.put("test.cancelled", "not persisted")?;
+    session.put_typed("test.cancelled", "not persisted")?;
     *control.leaked.lock().map_err(|_| invalid())? = Some(session);
     if let Some(entered) = control.entered.lock().map_err(|_| invalid())?.take() {
         entered.send(()).map_err(|()| invalid())?;
@@ -183,7 +188,7 @@ async fn unsaved(
     jar: CookieJar,
     Inject(control): Inject<Control>,
 ) -> Result<impl IntoResponse> {
-    session.put("test.unsaved", "private original body")?;
+    session.put_typed("test.unsaved", "private original body")?;
     *control.leaked.lock().map_err(|_| invalid())? = Some(session.clone());
     *control.jar.lock().map_err(|_| invalid())? = Some(jar.clone());
     jar.queue(
@@ -986,7 +991,7 @@ async fn cancelled_handler_never_background_saves_and_closes_a_leaked_handle() -
             .ok_or_else(invalid)?;
         check(
             leaked
-                .put("late", true)
+                .put_typed("late", true)
                 .err()
                 .is_some_and(|error| error.code() == "session_closed"),
         )?;
@@ -1040,12 +1045,12 @@ impl ServiceProvider for RenameSessionRoutes {
 async fn rename_session(session: Session, Inject(control): Inject<Control>) -> Result<Json<Value>> {
     *control.leaked.lock().map_err(|_| invalid())? = Some(session.clone());
     let previous = session
-        .get("rename_count")?
+        .get_json("rename_count")?
         .and_then(|value| value.as_i64())
         .unwrap_or(0);
     session
         .set_name("renamed_session")?
-        .put("rename_count", previous + 1)?;
+        .put_typed("rename_count", previous + 1)?;
     Ok(Json(json!({"previous":previous,"name":session.name()?})))
 }
 
@@ -1088,7 +1093,7 @@ async fn set_name_changes_real_response_cookie_but_inbound_still_uses_configurat
             let called = AtomicUsize::new(0);
             check(
                 leaked
-                    .remember("closed_missing", || {
+                    .remember_typed("closed_missing", || {
                         called.fetch_add(1, Ordering::SeqCst);
                         Ok(1)
                     })
@@ -1096,7 +1101,7 @@ async fn set_name_changes_real_response_cookie_but_inbound_still_uses_configurat
             )?;
             check(called.load(Ordering::SeqCst) == 0)?;
             check(leaked.increment("counter").is_err())?;
-            check(leaked.push("list", 1).is_err())?;
+            check(leaked.push_typed("list", 1).is_err())?;
             check(leaked.remove("counter").is_err())?;
             check(leaked.set_name("closed_name").is_err())?;
         }

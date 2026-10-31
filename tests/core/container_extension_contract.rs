@@ -224,16 +224,22 @@ async fn pending_instance_failure_retries_only_uncommitted_operation() -> Result
 
 struct RegisterInstance(Arc<AtomicBool>);
 impl ServiceProvider for RegisterInstance {
-    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-        app.instance(Arc::new(1usize));
-        app.extend::<usize, _>(|old, resolver| {
-            Box::pin(async move {
-                Ok(Arc::new(
-                    *old + usize::from(*resolver.resolve::<bool>().await?),
-                ))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.instance(Arc::new(1usize)).await?;
+            app.extend::<usize, _>(|old, resolver| {
+                Box::pin(async move {
+                    Ok(Arc::new(
+                        *old + usize::from(*resolver.resolve::<bool>().await?),
+                    ))
+                })
             })
-        });
-        Ok(())
+            .await?;
+            Ok(())
+        })
     }
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
@@ -247,21 +253,40 @@ impl ServiceProvider for RegisterInstance {
 }
 struct RegisterLater;
 impl ServiceProvider for RegisterLater {
-    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-        app.instance(Arc::new(true));
-        Ok(())
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.instance(Arc::new(true)).await?;
+            Ok(())
+        })
     }
 }
 
-// preboot 装饰需要后序 Provider 的 register 贡献，并须先于第一项 boot 可观察。
+// Provider 的 live extend 会当场装饰已绑定 instance；依赖必须先登记，失败时不得 boot。
+// ContainerBuilder 的延迟操作另由 pending_instance_operations_* 用例覆盖。
 #[tokio::test]
-async fn provider_initializes_pending_instances_after_all_registers_before_any_boot() -> Result<()>
-{
+async fn provider_live_extender_requires_pre_registered_dependency_before_boot() -> Result<()> {
     let booted = Arc::new(AtomicBool::new(false));
     let mut builder = ProviderBuilder::new();
     builder
         .provider(RegisterInstance(Arc::clone(&booted)))
         .provider(RegisterLater);
+    let error = builder
+        .start(Figment::from(Serialized::defaults(
+            FrameworkConfig::default(),
+        )))
+        .await
+        .err()
+        .ok_or_else(|| Error::custom("unexpected_provider_ready", "缺失依赖时意外启动"))?;
+    assert_eq!(error.code(), "service_not_bound");
+    assert!(!booted.load(Ordering::SeqCst));
+
+    let mut builder = ProviderBuilder::new();
+    builder
+        .provider(RegisterLater)
+        .provider(RegisterInstance(Arc::clone(&booted)));
     let runtime = builder
         .start(Figment::from(Serialized::defaults(
             FrameworkConfig::default(),
@@ -1113,48 +1138,60 @@ fn ordered_a(
 }
 
 impl ServiceProvider for OrderedInstances {
-    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-        app.instance(Arc::new(OrderedA(1)));
-        app.instance(Arc::new(OrderedB(10)));
-        app.rebinding::<OrderedA, _>({
-            let events = Arc::clone(&self.0);
-            let resolve_dependency = self.1;
-            move |resolver, value| {
-                let events = Arc::clone(&events);
-                Box::pin(async move {
-                    assert!(Arc::ptr_eq(&value, &resolver.resolve::<OrderedA>().await?));
-                    if resolve_dependency && value.0 == 2 {
-                        assert_eq!(resolver.resolve::<OrderedB>().await?.0, 11);
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.instance(Arc::new(OrderedA(1))).await?;
+            app.instance(Arc::new(OrderedB(10))).await?;
+            let _ = app
+                .rebinding::<OrderedA, _>({
+                    let events = Arc::clone(&self.0);
+                    let resolve_dependency = self.1;
+                    move |resolver, value| {
+                        let events = Arc::clone(&events);
+                        Box::pin(async move {
+                            assert!(Arc::ptr_eq(&value, &resolver.resolve::<OrderedA>().await?));
+                            if resolve_dependency && value.0 == 2 {
+                                assert_eq!(resolver.resolve::<OrderedB>().await?.0, 10);
+                            }
+                            record_event(&events, format!("callback-a:{}", value.0));
+                            Ok(())
+                        })
                     }
-                    record_event(&events, format!("callback-a:{}", value.0));
-                    Ok(())
                 })
-            }
-        });
-        app.rebinding::<OrderedB, _>({
-            let events = Arc::clone(&self.0);
-            move |resolver, value| {
-                let events = Arc::clone(&events);
-                Box::pin(async move {
-                    assert!(Arc::ptr_eq(&value, &resolver.resolve::<OrderedB>().await?));
-                    record_event(&events, format!("callback-b:{}", value.0));
-                    Ok(())
+                .await?;
+            let _ = app
+                .rebinding::<OrderedB, _>({
+                    let events = Arc::clone(&self.0);
+                    move |resolver, value| {
+                        let events = Arc::clone(&events);
+                        Box::pin(async move {
+                            assert!(Arc::ptr_eq(&value, &resolver.resolve::<OrderedB>().await?));
+                            record_event(&events, format!("callback-b:{}", value.0));
+                            Ok(())
+                        })
+                    }
                 })
-            }
-        });
-        app.extend::<OrderedA, _>(ordered_a(Arc::clone(&self.0)));
-        app.extend::<OrderedB, _>({
-            let events = Arc::clone(&self.0);
-            move |old, _| {
-                let events = Arc::clone(&events);
-                Box::pin(async move {
-                    record_event(&events, format!("extend-b:{}", old.0));
-                    Ok(Arc::new(OrderedB(old.0 + 1)))
-                })
-            }
-        });
-        app.extend::<OrderedA, _>(ordered_a(Arc::clone(&self.0)));
-        Ok(())
+                .await?;
+            app.extend::<OrderedA, _>(ordered_a(Arc::clone(&self.0)))
+                .await?;
+            app.extend::<OrderedB, _>({
+                let events = Arc::clone(&self.0);
+                move |old, _| {
+                    let events = Arc::clone(&events);
+                    Box::pin(async move {
+                        record_event(&events, format!("extend-b:{}", old.0));
+                        Ok(Arc::new(OrderedB(old.0 + 1)))
+                    })
+                }
+            })
+            .await?;
+            app.extend::<OrderedA, _>(ordered_a(Arc::clone(&self.0)))
+                .await?;
+            Ok(())
+        })
     }
 
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
@@ -1200,9 +1237,9 @@ async fn provider_pending_instance_operations_preserve_cross_type_registration_o
     Ok(())
 }
 
-// 通知显式解析另一类型时可触发其惰性队列，默认 preboot 游标必须跳过已提交操作而不重复副作用。
+// live A 扩展当场通知并解析尚未扩展的 B，后续 B、A 扩展各自只执行一次。
 #[tokio::test]
-async fn provider_pending_dependency_resolution_initializes_lazily_without_duplicate_drain()
+async fn provider_live_dependency_resolution_observes_current_order_without_duplicate_drain()
 -> Result<()> {
     let events = Arc::new(Mutex::new(Vec::new()));
     let mut builder = ProviderBuilder::new();
@@ -1219,9 +1256,9 @@ async fn provider_pending_dependency_resolution_initializes_lazily_without_dupli
         actual,
         [
             "extend-a:1",
+            "callback-a:2",
             "extend-b:10",
             "callback-b:11",
-            "callback-a:2",
             "extend-a:2",
             "callback-a:3"
         ]

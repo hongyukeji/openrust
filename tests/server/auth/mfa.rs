@@ -256,8 +256,8 @@ async fn seed_session(
     session: Session,
     FrameworkJson(user_id): FrameworkJson<i64>,
 ) -> Result<FrameworkJson<&'static str>> {
-    session.put("openrust.auth.user_id", user_id)?;
-    session.put("openrust.auth.csrf_hash", "test-csrf")?;
+    session.put_typed("openrust.auth.user_id", user_id)?;
+    session.put_typed("openrust.auth.csrf_hash", "test-csrf")?;
     Ok(FrameworkJson("seeded"))
 }
 
@@ -963,14 +963,22 @@ impl JwtSettings {
     }
 }
 impl openrust::core::ServiceProvider for JwtSettings {
-    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
-        app.merge_defaults("auth.jwt", self.0.clone())
+    fn register<'a>(
+        &'a self,
+        app: &'a mut openrust::core::RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move { app.merge_defaults("auth.jwt", self.0.clone()) })
     }
 }
 
 struct PasswordSettings(openrust::auth::PasswordConfig);
 impl openrust::core::ServiceProvider for PasswordSettings {
-    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
-        app.merge_defaults("auth.password", serde_json::json!({"memory_kib":self.0.memory_kib,"iterations":self.0.iterations,"parallelism":self.0.parallelism}))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut openrust::core::RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.merge_defaults("auth.password", serde_json::json!({"memory_kib":self.0.memory_kib,"iterations":self.0.iterations,"parallelism":self.0.parallelism}))
+        })
     }
 }
