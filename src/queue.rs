@@ -1301,77 +1301,85 @@ impl QueueServiceProvider {
 }
 
 impl crate::core::ServiceProvider for QueueServiceProvider {
-    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-        use crate::config::repository::SectionSchema as S;
-        app.config_section(
-            "queue",
-            crate::config::QueueConfig::default(),
-            S::object([
-                ("default_connection", S::String),
-                (
-                    "connections",
-                    S::map(S::object([
-                        ("driver", S::String),
-                        ("redis_url", S::String.nullable().sensitive()),
-                        ("redis_namespace", S::String.nullable()),
-                        ("options", S::any().sensitive()),
-                    ])),
-                ),
-                ("driver", S::String),
-                ("redis_url", S::String.nullable().sensitive()),
-                ("redis_namespace", S::String.nullable()),
-                ("poll_interval_millis", S::Integer),
-                ("lease_secs", S::Integer),
-                ("job_timeout_secs", S::Integer),
-                ("worker_concurrency", S::Integer),
-                ("shutdown_timeout_secs", S::Integer),
-            ]),
-            validate_config,
-        )?;
-        let contributions = Arc::clone(&self.contributions);
-        app.instance(Arc::clone(&contributions));
-        app.singleton::<crate::config::QueueConfig, _>(|resolver| {
-            Box::pin(async move {
-                Ok(Arc::new(
-                    resolver.section::<crate::config::QueueConfig>("queue")?,
-                ))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut crate::core::RegisterContext<'_>,
+    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            use crate::config::repository::SectionSchema as S;
+            app.config_section(
+                "queue",
+                crate::config::QueueConfig::default(),
+                S::object([
+                    ("default_connection", S::String),
+                    (
+                        "connections",
+                        S::map(S::object([
+                            ("driver", S::String),
+                            ("redis_url", S::String.nullable().sensitive()),
+                            ("redis_namespace", S::String.nullable()),
+                            ("options", S::any().sensitive()),
+                        ])),
+                    ),
+                    ("driver", S::String),
+                    ("redis_url", S::String.nullable().sensitive()),
+                    ("redis_namespace", S::String.nullable()),
+                    ("poll_interval_millis", S::Integer),
+                    ("lease_secs", S::Integer),
+                    ("job_timeout_secs", S::Integer),
+                    ("worker_concurrency", S::Integer),
+                    ("shutdown_timeout_secs", S::Integer),
+                ]),
+                validate_config,
+            )?;
+            let contributions = Arc::clone(&self.contributions);
+            app.instance(Arc::clone(&contributions)).await?;
+            app.singleton::<crate::config::QueueConfig, _>(|resolver| {
+                Box::pin(async move {
+                    Ok(Arc::new(
+                        resolver.section::<crate::config::QueueConfig>("queue")?,
+                    ))
+                })
             })
-        });
-        app.singleton::<Queue, _>(move |resolver| {
-            Box::pin(async move {
-                let contributions = resolver.resolve::<QueueContributions>().await?;
-                Ok(Arc::new(Queue {
-                    driver: None,
-                    manager: Some(Arc::new(QueueManager {
-                        resolver,
-                        contributions,
-                        connections: std::sync::Mutex::new(HashMap::new()),
-                        shutdown: std::sync::atomic::AtomicBool::new(false),
-                        generation: std::sync::atomic::AtomicU64::new(0),
-                    })),
-                }))
+            .await?;
+            app.singleton::<Queue, _>(move |resolver| {
+                Box::pin(async move {
+                    let contributions = resolver.resolve::<QueueContributions>().await?;
+                    Ok(Arc::new(Queue {
+                        driver: None,
+                        manager: Some(Arc::new(QueueManager {
+                            resolver,
+                            contributions,
+                            connections: std::sync::Mutex::new(HashMap::new()),
+                            shutdown: std::sync::atomic::AtomicBool::new(false),
+                            generation: std::sync::atomic::AtomicU64::new(0),
+                        })),
+                    }))
+                })
             })
-        });
-        app.singleton::<crate::schedule::Scheduler, _>(move |resolver| {
-            Box::pin(async move {
-                let contributions = resolver.resolve::<QueueContributions>().await?;
-                let db = resolver.resolve::<Db>().await?;
-                let queue = resolver.resolve::<Queue>().await?;
-                let config = resolver.section::<crate::config::QueueConfig>("queue")?;
-                Ok(Arc::new(
-                    crate::schedule::Scheduler::new(
-                        (*db).clone(),
-                        (*queue).clone(),
-                        contributions.schedules(),
-                        config,
-                        resolver.scope_factory(),
-                    )
-                    .with_live_contributions(contributions),
-                ))
+            .await?;
+            app.singleton::<crate::schedule::Scheduler, _>(move |resolver| {
+                Box::pin(async move {
+                    let contributions = resolver.resolve::<QueueContributions>().await?;
+                    let db = resolver.resolve::<Db>().await?;
+                    let queue = resolver.resolve::<Queue>().await?;
+                    let config = resolver.section::<crate::config::QueueConfig>("queue")?;
+                    Ok(Arc::new(
+                        crate::schedule::Scheduler::new(
+                            (*db).clone(),
+                            (*queue).clone(),
+                            contributions.schedules(),
+                            config,
+                            resolver.scope_factory(),
+                        )
+                        .with_live_contributions(contributions),
+                    ))
+                })
             })
-        });
-        app.require::<Queue>();
-        Ok(())
+            .await?;
+            app.require::<Queue>();
+            Ok(())
+        })
     }
     fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
@@ -1402,11 +1410,17 @@ mod provider_tests {
         struct FactoryValue(u8);
         struct FactoryProvider;
         impl ServiceProvider for FactoryProvider {
-            fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-                app.singleton::<FactoryValue, _>(|_| {
-                    Box::pin(async { Ok(Arc::new(FactoryValue(7))) })
-                });
-                Ok(())
+            fn register<'a>(
+                &'a self,
+                app: &'a mut crate::core::RegisterContext<'_>,
+            ) -> crate::core::BoxFuture<'a, Result<()>> {
+                Box::pin(async move {
+                    app.singleton::<FactoryValue, _>(|_| {
+                        Box::pin(async { Ok(Arc::new(FactoryValue(7))) })
+                    })
+                    .await?;
+                    Ok(())
+                })
             }
         }
         #[derive(serde::Deserialize)]
@@ -1448,18 +1462,27 @@ mod provider_tests {
         struct Scoped;
         struct Provider;
         impl ServiceProvider for Provider {
-            fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-                app.scoped::<Scoped, _>(|resolver| {
-                    Box::pin(async move {
-                        resolver.resources()?.on_shutdown(|| {
-                            Box::pin(async {
-                                Err(Error::custom("cleanup_failure", "sensitive cleanup detail"))
-                            })
-                        })?;
-                        Ok(Arc::new(Scoped))
+            fn register<'a>(
+                &'a self,
+                app: &'a mut crate::core::RegisterContext<'_>,
+            ) -> crate::core::BoxFuture<'a, Result<()>> {
+                Box::pin(async move {
+                    app.scoped::<Scoped, _>(|resolver| {
+                        Box::pin(async move {
+                            resolver.resources()?.on_shutdown(|| {
+                                Box::pin(async {
+                                    Err(Error::custom(
+                                        "cleanup_failure",
+                                        "sensitive cleanup detail",
+                                    ))
+                                })
+                            })?;
+                            Ok(Arc::new(Scoped))
+                        })
                     })
-                });
-                Ok(())
+                    .await?;
+                    Ok(())
+                })
             }
         }
         #[derive(serde::Deserialize)]
@@ -1879,9 +1902,14 @@ mod provider_tests {
 
     struct OverrideContributions(Arc<QueueContributions>);
     impl ServiceProvider for OverrideContributions {
-        fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-            app.instance(Arc::clone(&self.0));
-            Ok(())
+        fn register<'a>(
+            &'a self,
+            app: &'a mut crate::core::RegisterContext<'_>,
+        ) -> crate::core::BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.instance(Arc::clone(&self.0)).await?;
+                Ok(())
+            })
         }
     }
     #[tokio::test]

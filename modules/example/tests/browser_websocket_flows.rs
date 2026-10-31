@@ -162,18 +162,24 @@ impl Fixture {
         let ttl = time::Duration::seconds(i64::try_from(ttl)?);
         let mut builder = TestApp::<crate::bootstrap::Server>::builder(sources);
         builder.configure_after_register(move |bindings| {
-            bindings.singleton::<openrust::session::SessionStoreHandle, _>(move |resolver| {
-                Box::pin(async move {
-                    let db = resolver.resolve::<Db>().await?;
-                    Ok(std::sync::Arc::new(
-                        openrust::session::SessionStoreHandle::new(ShortSessionStore {
-                            inner: openrust::session::DatabaseSessionStore::new((*db).clone()),
-                            ttl,
-                        }),
-                    ))
-                })
-            });
-            Ok(())
+            Box::pin(async move {
+                bindings
+                    .singleton::<openrust::session::SessionStoreHandle, _>(move |resolver| {
+                        Box::pin(async move {
+                            let db = resolver.resolve::<Db>().await?;
+                            Ok(std::sync::Arc::new(
+                                openrust::session::SessionStoreHandle::new(ShortSessionStore {
+                                    inner: openrust::session::DatabaseSessionStore::new(
+                                        (*db).clone(),
+                                    ),
+                                    ttl,
+                                }),
+                            ))
+                        })
+                    })
+                    .await?;
+                Ok(())
+            })
         });
         let app = builder.build().await?;
         let flows = app.app()?.state().resolve::<AuthFlows>().await?;

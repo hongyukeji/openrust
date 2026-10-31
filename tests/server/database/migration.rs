@@ -61,64 +61,73 @@ struct CustomConnectionProvider {
 }
 
 impl openrust::core::ServiceProvider for CustomConnectionProvider {
-    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> FrameworkResult<()> {
-        let lock_url = self.lock_url.clone();
-        app.merge_defaults(
-            "database",
-            serde_json::to_value(DatabaseConfig::default()).map_err(Error::internal)?,
-        )?;
-        app.singleton::<Db, _>(move |resolver| {
-            let lock_url = lock_url.clone();
-            Box::pin(async move {
-                let config = resolver.section::<DatabaseConfig>("database")?;
-                let names = DatabaseTableNames::new(
-                    config.table_prefix.clone(),
-                    config.table_names.clone(),
-                )?;
-                let db = Db::with_table_names(names);
-                let url = config.url.as_ref().ok_or_else(|| {
-                    Error::custom("missing_database_url", "database.url is required")
-                })?;
-                let mysql = url.starts_with("mysql:");
-                #[cfg(feature = "db-mysql")]
-                let mut options = ConnectOptions::new(url.clone());
-                #[cfg(not(feature = "db-mysql"))]
-                let options = ConnectOptions::new(url.clone());
-                if mysql {
+    fn register<'a>(
+        &'a self,
+        app: &'a mut openrust::core::RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, FrameworkResult<()>> {
+        Box::pin(async move {
+            let lock_url = self.lock_url.clone();
+            app.merge_defaults(
+                "database",
+                serde_json::to_value(DatabaseConfig::default()).map_err(Error::internal)?,
+            )?;
+            app.singleton::<Db, _>(move |resolver| {
+                let lock_url = lock_url.clone();
+                Box::pin(async move {
+                    let config = resolver.section::<DatabaseConfig>("database")?;
+                    let names = DatabaseTableNames::new(
+                        config.table_prefix.clone(),
+                        config.table_names.clone(),
+                    )?;
+                    let db = Db::with_table_names(names);
+                    let url = config.url.as_ref().ok_or_else(|| {
+                        Error::custom("missing_database_url", "database.url is required")
+                    })?;
+                    let mysql = url.starts_with("mysql:");
                     #[cfg(feature = "db-mysql")]
-                    {
-                        options.map_sqlx_mysql_opts(|mysql| {
-                            mysql.ssl_mode(sqlx::mysql::MySqlSslMode::Required)
-                        });
-                        options.after_connect(|connection| {
-                            Box::pin(async move {
-                                connection
-                                    .execute_unprepared("SET time_zone = '+00:00'")
-                                    .await?;
-                                Ok(())
-                            })
-                        });
+                    let mut options = ConnectOptions::new(url.clone());
+                    #[cfg(not(feature = "db-mysql"))]
+                    let options = ConnectOptions::new(url.clone());
+                    if mysql {
+                        #[cfg(feature = "db-mysql")]
+                        {
+                            options.map_sqlx_mysql_opts(|mysql| {
+                                mysql.ssl_mode(sqlx::mysql::MySqlSslMode::Required)
+                            });
+                            options.after_connect(|connection| {
+                                Box::pin(async move {
+                                    connection
+                                        .execute_unprepared("SET time_zone = '+00:00'")
+                                        .await?;
+                                    Ok(())
+                                })
+                            });
+                        }
                     }
-                }
-                let connection = Database::connect(options).await.map_err(Error::internal)?;
-                let closing = connection.clone();
-                resolver.resources()?.on_shutdown(move || {
-                    Box::pin(async move { closing.close_by_ref().await.map_err(Error::internal) })
-                })?;
-                db.initialize(connection)?;
-                db.configure_migration_lock_url(lock_url.unwrap_or_else(|| url.clone()))?;
-                Ok(std::sync::Arc::new(db))
+                    let connection = Database::connect(options).await.map_err(Error::internal)?;
+                    let closing = connection.clone();
+                    resolver.resources()?.on_shutdown(move || {
+                        Box::pin(
+                            async move { closing.close_by_ref().await.map_err(Error::internal) },
+                        )
+                    })?;
+                    db.initialize(connection)?;
+                    db.configure_migration_lock_url(lock_url.unwrap_or_else(|| url.clone()))?;
+                    Ok(std::sync::Arc::new(db))
+                })
             })
-        });
-        app.singleton::<RateLimiter, _>(|resolver| {
-            Box::pin(async move {
-                let db = resolver.resolve::<Db>().await?;
-                Ok(std::sync::Arc::new(RateLimiter::new(
-                    DatabaseRateLimitStore::new((*db).clone()),
-                )))
+            .await?;
+            app.singleton::<RateLimiter, _>(|resolver| {
+                Box::pin(async move {
+                    let db = resolver.resolve::<Db>().await?;
+                    Ok(std::sync::Arc::new(RateLimiter::new(
+                        DatabaseRateLimitStore::new((*db).clone()),
+                    )))
+                })
             })
-        });
-        Ok(())
+            .await?;
+            Ok(())
+        })
     }
 }
 

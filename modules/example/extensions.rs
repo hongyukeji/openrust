@@ -18,7 +18,7 @@ use openrust::{
 #[cfg(test)]
 use openrust::{
     config::Environment,
-    core::container::{ContainerBuilder, Resolver},
+    core::container::{Container, Resolver},
     mail::{MailDriver, Mailer, lettre::Message},
     sms::{SmsDriver, SmsMessage, SmsReceipt, SmsSender},
 };
@@ -168,29 +168,34 @@ impl CapturedDeliveries {
     ///
     /// 标准 Mailer/SMS Provider 保留各自 schema；只有测试主动调用才替换绑定。
     /// 工厂及实际发送时都校验环境，生产环境拒绝捕获。
-    pub fn install(&self, bindings: &mut ContainerBuilder) {
+    pub async fn install(&self, bindings: &Container) -> Result<()> {
         let captured = self.clone();
-        bindings.singleton::<Mailer, _>(move |resolver| {
-            let captured = captured.clone();
-            Box::pin(async move {
-                ensure_capture_allowed(&resolver)?;
-                Ok(Arc::new(Mailer::new(CaptureMailDriver {
-                    captured,
-                    resolver,
-                })))
+        bindings
+            .singleton::<Mailer, _>(move |resolver| {
+                let captured = captured.clone();
+                Box::pin(async move {
+                    ensure_capture_allowed(&resolver)?;
+                    Ok(Arc::new(Mailer::new(CaptureMailDriver {
+                        captured,
+                        resolver,
+                    })))
+                })
             })
-        });
+            .await?;
         let captured = self.clone();
-        bindings.singleton::<SmsSender, _>(move |resolver| {
-            let captured = captured.clone();
-            Box::pin(async move {
-                ensure_capture_allowed(&resolver)?;
-                Ok(Arc::new(SmsSender::new(CaptureSmsDriver {
-                    captured,
-                    resolver,
-                })))
+        bindings
+            .singleton::<SmsSender, _>(move |resolver| {
+                let captured = captured.clone();
+                Box::pin(async move {
+                    ensure_capture_allowed(&resolver)?;
+                    Ok(Arc::new(SmsSender::new(CaptureSmsDriver {
+                        captured,
+                        resolver,
+                    })))
+                })
             })
-        });
+            .await?;
+        Ok(())
     }
 }
 

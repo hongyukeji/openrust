@@ -128,8 +128,13 @@ async fn article_precognition_uses_real_database_without_constructing_or_writing
         let mail = captured.clone();
         let mut builder = TestApp::<super::bootstrap::Server>::builder(source);
         builder.configure_after_register(move |bindings| {
-            bindings.instance(Arc::new(openrust::mail::Mailer::new(mail.clone())));
-            Ok(())
+            let mail = mail.clone();
+            Box::pin(async move {
+                bindings
+                    .instance(Arc::new(openrust::mail::Mailer::new(mail)))
+                    .await?;
+                Ok(())
+            })
         });
         let mut app = builder.build().await?;
         let outcome = run(&app, &captured).await;

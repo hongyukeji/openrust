@@ -23,9 +23,15 @@ struct SharedLocksProvider(Db);
 
 #[cfg(feature = "cache-redis")]
 impl ServiceProvider for SharedLocksProvider {
-    fn register(&self, app: &mut RegisterContext<'_>) -> openrust::Result<()> {
-        app.instance(std::sync::Arc::new(SharedLocks::new(self.0.clone())));
-        Ok(())
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.instance(std::sync::Arc::new(SharedLocks::new(self.0.clone())))
+                .await?;
+            Ok(())
+        })
     }
 }
 

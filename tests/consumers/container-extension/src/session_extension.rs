@@ -162,21 +162,28 @@ impl ServiceProvider for ExternalSessionExtension {
         vec![ProviderId::of::<SessionServiceProvider>()]
     }
 
-    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-        let probe = Arc::clone(&self.0);
-        app.extend::<SessionStoreHandle, _>(move |old, _| {
-            let probe = Arc::clone(&probe);
-            Box::pin(async move {
-                let original = old.store();
-                *probe.original.lock().map_err(|_| failure())? = Some(Arc::downgrade(&original));
-                probe.decorated.fetch_add(1, Ordering::SeqCst);
-                Ok(Arc::new(SessionStoreHandle::new(ObservedStore {
-                    inner: original,
-                    probe,
-                })))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            let probe = Arc::clone(&self.0);
+            app.extend::<SessionStoreHandle, _>(move |old, _| {
+                let probe = Arc::clone(&probe);
+                Box::pin(async move {
+                    let original = old.store();
+                    *probe.original.lock().map_err(|_| failure())? =
+                        Some(Arc::downgrade(&original));
+                    probe.decorated.fetch_add(1, Ordering::SeqCst);
+                    Ok(Arc::new(SessionStoreHandle::new(ObservedStore {
+                        inner: original,
+                        probe,
+                    })))
+                })
             })
-        });
-        Ok(())
+            .await?;
+            Ok(())
+        })
     }
 
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {

@@ -1637,12 +1637,12 @@ fn generate_job(values: &[String], project_dir: &Path) -> anyhow::Result<()> {
             bail!("job handler is already registered: {module}");
         }
         append_sorted_module_content(&modules, &format!("pub mod {module};"))?.replace(
-            "        Ok(())",
-            &format!("        {registration}\n        Ok(())"),
+            "            Ok(())",
+            &format!("            {registration}\n            Ok(())"),
         )
     } else {
         format!(
-            "{}\npub mod {module};\n\nuse std::sync::Arc;\nuse openrust::core::{{RegisterContext, Result, ServiceProvider}};\nuse openrust::queue::QueueContributions;\n\n/// 注册应用的后台任务。\npub struct JobsServiceProvider(Arc<QueueContributions>);\n\nimpl JobsServiceProvider {{\n    /// 使用队列 Provider 的共享贡献目录。\n    pub fn new(contributions: Arc<QueueContributions>) -> Self {{ Self(contributions) }}\n}}\n\nimpl ServiceProvider for JobsServiceProvider {{\n    fn register(&self, _app: &mut RegisterContext<'_>) -> Result<()> {{\n        self.0.register_job::<crate::jobs::{module}::{type_name}>()?;\n        Ok(())\n    }}\n}}\n",
+            "{}\npub mod {module};\n\nuse std::sync::Arc;\nuse openrust::core::{{RegisterContext, Result, ServiceProvider}};\nuse openrust::queue::QueueContributions;\n\n/// 注册应用的后台任务。\npub struct JobsServiceProvider(Arc<QueueContributions>);\n\nimpl JobsServiceProvider {{\n    /// 使用队列 Provider 的共享贡献目录。\n    pub fn new(contributions: Arc<QueueContributions>) -> Self {{ Self(contributions) }}\n}}\n\nimpl ServiceProvider for JobsServiceProvider {{\n    fn register<'a>(&'a self, _app: &'a mut RegisterContext<'_>) -> openrust::core::BoxFuture<'a, Result<()>> {{\n        Box::pin(async move {{\n            self.0.register_job::<crate::jobs::{module}::{type_name}>()?;\n            Ok(())\n        }})\n    }}\n}}\n",
             modules.trim_end(),
         )
     };

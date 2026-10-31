@@ -153,33 +153,39 @@ impl JwtTokens {
 pub struct JwtServiceProvider;
 
 impl crate::core::ServiceProvider for JwtServiceProvider {
-    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-        use crate::config::repository::SectionSchema as S;
-        app.config_section(
-            "auth.jwt",
-            serde_json::json!({}),
-            S::object([
-                ("issuer", S::String),
-                ("audience", S::String),
-                ("active_key_id", S::String),
-                ("keys", S::map(S::String.sensitive())),
-                ("access_ttl_secs", S::Integer),
-                ("max_valid_ttl_secs", S::Integer),
-            ]),
-            |value| {
-                let config: JwtConfig = serde_json::from_value(value.clone())
-                    .map_err(|_| invalid_config("auth.jwt configuration is invalid"))?;
-                JwtTokens::new(config).map(|_| ())
-            },
-        )?;
-        app.singleton::<JwtTokens, _>(|resolver| {
-            Box::pin(async move {
-                let config = resolver.section::<JwtConfig>("auth.jwt")?;
-                Ok(Arc::new(JwtTokens::new(config)?))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut crate::core::RegisterContext<'_>,
+    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            use crate::config::repository::SectionSchema as S;
+            app.config_section(
+                "auth.jwt",
+                serde_json::json!({}),
+                S::object([
+                    ("issuer", S::String),
+                    ("audience", S::String),
+                    ("active_key_id", S::String),
+                    ("keys", S::map(S::String.sensitive())),
+                    ("access_ttl_secs", S::Integer),
+                    ("max_valid_ttl_secs", S::Integer),
+                ]),
+                |value| {
+                    let config: JwtConfig = serde_json::from_value(value.clone())
+                        .map_err(|_| invalid_config("auth.jwt configuration is invalid"))?;
+                    JwtTokens::new(config).map(|_| ())
+                },
+            )?;
+            app.singleton::<JwtTokens, _>(|resolver| {
+                Box::pin(async move {
+                    let config = resolver.section::<JwtConfig>("auth.jwt")?;
+                    Ok(Arc::new(JwtTokens::new(config)?))
+                })
             })
-        });
-        app.require::<JwtTokens>();
-        Ok(())
+            .await?;
+            app.require::<JwtTokens>();
+            Ok(())
+        })
     }
     fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {

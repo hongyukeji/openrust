@@ -291,54 +291,60 @@ impl SignedLinksServiceProvider {
 }
 
 impl crate::core::ServiceProvider for SignedLinksServiceProvider {
-    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-        use crate::config::repository::SectionSchema as S;
-        if self.config.is_none() {
-            app.config_section(
-                "security.signed_links",
-                serde_json::json!({}),
-                S::object([
-                    ("issuer", S::String),
-                    ("active_key_id", S::String),
-                    ("keys", S::map(S::String.sensitive())),
-                    ("max_ttl_secs", S::Integer),
-                ]),
-                |value| {
-                    let config: SignedLinksConfig = serde_json::from_value(value.clone())
-                        .map_err(|_| invalid_config("signed-link configuration is invalid"))?;
-                    SignedLinks::new(config).map(|_| ())
-                },
-            )?;
-        }
-        let config = self.config.clone();
-        let database = self.database.clone();
-        let database_from_app = self.database_from_app;
-        let revocations = self.revocations.clone();
-        app.singleton::<SignedLinks, _>(move |resolver| {
-            let config = config.clone();
-            let database = database.clone();
-            let revocations = revocations.clone();
-            Box::pin(async move {
-                let config = match config {
-                    Some(config) => config,
-                    None => resolver.section::<SignedLinksConfig>("security.signed_links")?,
-                };
-                let mut service = SignedLinks::new(config)?;
-                if let Some(store) = revocations {
-                    service.revocations = Some(store);
-                } else if let Some(db) = database {
-                    db.backend()?;
-                    service = service.with_database_revocations(db);
-                } else if database_from_app {
-                    let db = resolver.resolve::<crate::db::Db>().await?;
-                    db.backend()?;
-                    service = service.with_database_revocations((*db).clone());
-                }
-                Ok(Arc::new(service))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut crate::core::RegisterContext<'_>,
+    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            use crate::config::repository::SectionSchema as S;
+            if self.config.is_none() {
+                app.config_section(
+                    "security.signed_links",
+                    serde_json::json!({}),
+                    S::object([
+                        ("issuer", S::String),
+                        ("active_key_id", S::String),
+                        ("keys", S::map(S::String.sensitive())),
+                        ("max_ttl_secs", S::Integer),
+                    ]),
+                    |value| {
+                        let config: SignedLinksConfig = serde_json::from_value(value.clone())
+                            .map_err(|_| invalid_config("signed-link configuration is invalid"))?;
+                        SignedLinks::new(config).map(|_| ())
+                    },
+                )?;
+            }
+            let config = self.config.clone();
+            let database = self.database.clone();
+            let database_from_app = self.database_from_app;
+            let revocations = self.revocations.clone();
+            app.singleton::<SignedLinks, _>(move |resolver| {
+                let config = config.clone();
+                let database = database.clone();
+                let revocations = revocations.clone();
+                Box::pin(async move {
+                    let config = match config {
+                        Some(config) => config,
+                        None => resolver.section::<SignedLinksConfig>("security.signed_links")?,
+                    };
+                    let mut service = SignedLinks::new(config)?;
+                    if let Some(store) = revocations {
+                        service.revocations = Some(store);
+                    } else if let Some(db) = database {
+                        db.backend()?;
+                        service = service.with_database_revocations(db);
+                    } else if database_from_app {
+                        let db = resolver.resolve::<crate::db::Db>().await?;
+                        db.backend()?;
+                        service = service.with_database_revocations((*db).clone());
+                    }
+                    Ok(Arc::new(service))
+                })
             })
-        });
-        app.require::<SignedLinks>();
-        Ok(())
+            .await?;
+            app.require::<SignedLinks>();
+            Ok(())
+        })
     }
     fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {

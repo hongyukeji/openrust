@@ -23,16 +23,22 @@ use std::{io::Cursor, sync::Arc};
 
 pub(crate) struct ArticleTransferProvider;
 impl ServiceProvider for ArticleTransferProvider {
-    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-        app.singleton::<ArticleTransfer, _>(|resolver| {
-            Box::pin(async move {
-                Ok(Arc::new(ArticleTransfer::new(
-                    resolver.resolve::<Db>().await?,
-                    resolver.resolve::<ArticleWriter>().await?,
-                )))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.singleton::<ArticleTransfer, _>(|resolver| {
+                Box::pin(async move {
+                    Ok(Arc::new(ArticleTransfer::new(
+                        resolver.resolve::<Db>().await?,
+                        resolver.resolve::<ArticleWriter>().await?,
+                    )))
+                })
             })
-        });
-        Ok(())
+            .await?;
+            Ok(())
+        })
     }
     #[cfg(all(feature = "data-exchange-tasks", feature = "storage-local"))]
     fn boot<'a>(

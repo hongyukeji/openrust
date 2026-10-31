@@ -20,16 +20,26 @@ use tonic::{Request, Response, Status};
 
 struct TokensProvider(openrust::auth::JwtTokens);
 impl ServiceProvider for TokensProvider {
-    fn register(&self, app: &mut RegisterContext<'_>) -> openrust::Result<()> {
-        app.instance(Arc::new(self.0.clone()));
-        Ok(())
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.instance(Arc::new(self.0.clone())).await?;
+            Ok(())
+        })
     }
 }
 struct RegistryProvider(GrpcServiceRegistry);
 impl ServiceProvider for RegistryProvider {
-    fn register(&self, app: &mut RegisterContext<'_>) -> openrust::Result<()> {
-        app.instance(Arc::new(self.0.clone()));
-        Ok(())
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.instance(Arc::new(self.0.clone())).await?;
+            Ok(())
+        })
     }
 }
 struct RouteProvider<F>(F);

@@ -66,35 +66,39 @@ async fn application(
     // 不替换生产任务、调度器或队列；仅通过公开测试 hook 为现业务 scoped 依赖加观测。
     builder.configure_after_register(move |bindings| {
         let probe = Arc::clone(&probe);
-        bindings.scoped::<HeartbeatRun, _>(move |resolver| {
-            let probe = Arc::clone(&probe);
-            Box::pin(async move {
-                let id = probe.constructed.fetch_add(1, Ordering::SeqCst) + 1;
-                resolver.resources()?.on_shutdown(move || {
+        Box::pin(async move {
+            bindings
+                .scoped::<HeartbeatRun, _>(move |resolver| {
+                    let probe = Arc::clone(&probe);
                     Box::pin(async move {
-                        let inserted = probe
-                            .closed
-                            .lock()
-                            .map_err(|_| {
-                                openrust::Error::custom(
-                                    "heartbeat_probe_lock_failed",
-                                    "heartbeat probe unavailable",
-                                )
-                            })?
-                            .insert(id);
-                        if !inserted {
-                            return Err(openrust::Error::custom(
-                                "heartbeat_cleanup_repeated",
-                                "heartbeat cleanup repeated",
-                            ));
-                        }
-                        Ok(())
+                        let id = probe.constructed.fetch_add(1, Ordering::SeqCst) + 1;
+                        resolver.resources()?.on_shutdown(move || {
+                            Box::pin(async move {
+                                let inserted = probe
+                                    .closed
+                                    .lock()
+                                    .map_err(|_| {
+                                        openrust::Error::custom(
+                                            "heartbeat_probe_lock_failed",
+                                            "heartbeat probe unavailable",
+                                        )
+                                    })?
+                                    .insert(id);
+                                if !inserted {
+                                    return Err(openrust::Error::custom(
+                                        "heartbeat_cleanup_repeated",
+                                        "heartbeat cleanup repeated",
+                                    ));
+                                }
+                                Ok(())
+                            })
+                        })?;
+                        Ok(Arc::new(HeartbeatRun { id }))
                     })
-                })?;
-                Ok(Arc::new(HeartbeatRun { id }))
-            })
-        });
-        Ok(())
+                })
+                .await?;
+            Ok(())
+        })
     });
     Ok(builder.build().await?)
 }

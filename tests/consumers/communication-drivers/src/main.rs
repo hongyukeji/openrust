@@ -26,38 +26,45 @@ struct ApplicationCommunicationProvider {
     counts: DeliveryCounts,
 }
 impl ServiceProvider for ApplicationCommunicationProvider {
-    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-        let counts = self.counts.clone();
-        app.singleton::<Mailer, _>(move |resolver| {
-            let counts = counts.clone();
-            Box::pin(async move {
-                let config: ProviderConfig = resolver.section("mail")?;
-                if config.driver != "example" {
-                    return Err(Error::custom(
-                        "example_provider_invalid",
-                        "the communication consumer requires its example drivers",
-                    ));
-                }
-                Ok(Arc::new(Mailer::new(ExampleMailDriver(counts.email))))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            let counts = self.counts.clone();
+            app.singleton::<Mailer, _>(move |resolver| {
+                let counts = counts.clone();
+                Box::pin(async move {
+                    let config: ProviderConfig = resolver.section("mail")?;
+                    if config.driver != "example" {
+                        return Err(Error::custom(
+                            "example_provider_invalid",
+                            "the communication consumer requires its example drivers",
+                        ));
+                    }
+                    Ok(Arc::new(Mailer::new(ExampleMailDriver(counts.email))))
+                })
             })
-        });
-        let counts = self.counts.clone();
-        app.singleton::<SmsSender, _>(move |resolver| {
-            let counts = counts.clone();
-            Box::pin(async move {
-                let config: ProviderConfig = resolver.section("sms")?;
-                if config.driver != "example" {
-                    return Err(Error::custom(
-                        "example_provider_invalid",
-                        "the communication consumer requires its example drivers",
-                    ));
-                }
-                Ok(Arc::new(SmsSender::new(ExampleSmsDriver(counts.sms))))
+            .await?;
+            let counts = self.counts.clone();
+            app.singleton::<SmsSender, _>(move |resolver| {
+                let counts = counts.clone();
+                Box::pin(async move {
+                    let config: ProviderConfig = resolver.section("sms")?;
+                    if config.driver != "example" {
+                        return Err(Error::custom(
+                            "example_provider_invalid",
+                            "the communication consumer requires its example drivers",
+                        ));
+                    }
+                    Ok(Arc::new(SmsSender::new(ExampleSmsDriver(counts.sms))))
+                })
             })
-        });
-        app.require::<Mailer>();
-        app.require::<SmsSender>();
-        Ok(())
+            .await?;
+            app.require::<Mailer>();
+            app.require::<SmsSender>();
+            Ok(())
+        })
     }
 }
 

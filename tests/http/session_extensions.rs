@@ -560,9 +560,14 @@ fn request_context_has_exact_cookie_names_bounded_ownership_and_redacted_debug()
 
 struct CaptureSession(Arc<Mutex<Option<Session>>>);
 impl openrust::core::ServiceProvider for CaptureSession {
-    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> Result<()> {
-        app.instance(self.0.clone());
-        Ok(())
+    fn register<'a>(
+        &'a self,
+        app: &'a mut openrust::core::RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.instance(self.0.clone()).await?;
+            Ok(())
+        })
     }
     fn boot<'a>(
         &'a self,
@@ -873,9 +878,14 @@ impl SessionStore for GcDriver {
 }
 struct GcRoutes(Arc<GcTrace>);
 impl openrust::core::ServiceProvider for GcRoutes {
-    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> Result<()> {
-        app.instance(self.0.clone());
-        Ok(())
+    fn register<'a>(
+        &'a self,
+        app: &'a mut openrust::core::RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.instance(self.0.clone()).await?;
+            Ok(())
+        })
     }
     fn boot<'a>(
         &'a self,

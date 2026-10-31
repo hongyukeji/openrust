@@ -109,104 +109,120 @@ fn session_capability(app: &mut BootContext<'_>) -> Arc<AtomicBool> {
     enabled
 }
 
+fn register_example_schema(app: &mut RegisterContext<'_>) -> Result<()> {
+    app.config_section(
+        "example",
+        ExampleConfig::default(),
+        openrust::config::repository::SectionSchema::object([
+            (
+                "greeting",
+                openrust::config::repository::SectionSchema::String,
+            ),
+            (
+                "article_summary_origin",
+                openrust::config::repository::SectionSchema::String.nullable(),
+            ),
+            #[cfg(all(
+                feature = "auth-oidc",
+                any(feature = "db-postgres", feature = "db-mysql")
+            ))]
+            (
+                "oidc",
+                openrust::config::repository::SectionSchema::object([
+                    (
+                        "issuer",
+                        openrust::config::repository::SectionSchema::String,
+                    ),
+                    (
+                        "client_id",
+                        openrust::config::repository::SectionSchema::String,
+                    ),
+                    (
+                        "client_secret",
+                        openrust::config::repository::SectionSchema::String
+                            .nullable()
+                            .sensitive(),
+                    ),
+                    (
+                        "redirect_uri",
+                        openrust::config::repository::SectionSchema::String,
+                    ),
+                    (
+                        "allow_loopback",
+                        openrust::config::repository::SectionSchema::Boolean,
+                    ),
+                ])
+                .nullable(),
+            ),
+        ]),
+        ExampleConfig::validate,
+    )?;
+    Ok(())
+}
+
 impl ServiceProvider for ExampleServiceProvider {
-    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-        app.config_section(
-            "example",
-            ExampleConfig::default(),
-            openrust::config::repository::SectionSchema::object([
-                (
-                    "greeting",
-                    openrust::config::repository::SectionSchema::String,
-                ),
-                (
-                    "article_summary_origin",
-                    openrust::config::repository::SectionSchema::String.nullable(),
-                ),
-                #[cfg(all(
-                    feature = "auth-oidc",
-                    any(feature = "db-postgres", feature = "db-mysql")
-                ))]
-                (
-                    "oidc",
-                    openrust::config::repository::SectionSchema::object([
-                        (
-                            "issuer",
-                            openrust::config::repository::SectionSchema::String,
-                        ),
-                        (
-                            "client_id",
-                            openrust::config::repository::SectionSchema::String,
-                        ),
-                        (
-                            "client_secret",
-                            openrust::config::repository::SectionSchema::String
-                                .nullable()
-                                .sensitive(),
-                        ),
-                        (
-                            "redirect_uri",
-                            openrust::config::repository::SectionSchema::String,
-                        ),
-                        (
-                            "allow_loopback",
-                            openrust::config::repository::SectionSchema::Boolean,
-                        ),
-                    ])
-                    .nullable(),
-                ),
-            ]),
-            ExampleConfig::validate,
-        )?;
-        app.singleton::<ExampleMessage, _>(|resolver| {
-            Box::pin(async move {
-                let config = resolver.section::<ExampleConfig>("example")?;
-                Ok(Arc::new(ExampleMessage::new(config.greeting)))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            register_example_schema(app)?;
+            app.singleton::<ExampleMessage, _>(|resolver| {
+                Box::pin(async move {
+                    let config = resolver.section::<ExampleConfig>("example")?;
+                    Ok(Arc::new(ExampleMessage::new(config.greeting)))
+                })
             })
-        });
-        app.extend::<ExampleMessage, _>(|original, _resolver| {
-            Box::pin(async move { Ok(Arc::new(original.with_binding_extension())) })
-        });
-        #[cfg(feature = "session")]
-        app.extend::<openrust::session::ErrorBagCodecs, _>(|original, _resolver| {
-            Box::pin(async move {
-                let mut codecs = (*original).clone();
-                codecs.register::<crate::modules::example::services::draft_errors::DraftErrors>(
-                    "example.draft-review",
-                    1,
-                    crate::modules::example::services::draft_errors::encode,
-                    crate::modules::example::services::draft_errors::decode,
-                )?;
-                Ok(Arc::new(codecs))
+            .await?;
+            app.extend::<ExampleMessage, _>(|original, _resolver| {
+                Box::pin(async move { Ok(Arc::new(original.with_binding_extension())) })
             })
-        });
-        #[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
-        app.singleton::<ArticleWriter, _>(|resolver| {
-            Box::pin(async move {
-                Ok(Arc::new(ArticleWriter::new(
-                    resolver.resolve::<openrust::Db>().await?,
-                    resolver.resolve::<openrust::events::Events>().await?,
-                    #[cfg(feature = "queue")]
-                    resolver
-                        .resolve::<openrust::notifications::Notifier>()
-                        .await?,
-                )))
+            .await?;
+            #[cfg(feature = "session")]
+            app.extend::<openrust::session::ErrorBagCodecs, _>(|original, _resolver| {
+                Box::pin(async move {
+                    let mut codecs = (*original).clone();
+                    codecs
+                        .register::<crate::modules::example::services::draft_errors::DraftErrors>(
+                            "example.draft-review",
+                            1,
+                            crate::modules::example::services::draft_errors::encode,
+                            crate::modules::example::services::draft_errors::decode,
+                        )?;
+                    Ok(Arc::new(codecs))
+                })
             })
-        });
-        #[cfg(feature = "http-client")]
-        app.singleton::<ArticleSummaryService, _>(|resolver| {
-            Box::pin(async move {
-                let config = resolver.section::<ExampleConfig>("example")?;
-                let origin = config.article_summary_origin.ok_or_else(|| {
-                    openrust::Error::custom(
-                        "example_article_summary_not_configured",
-                        "文章摘要上游尚未配置",
-                    )
-                })?;
-                Ok(Arc::new(ArticleSummaryService::new(&origin)?))
+            .await?;
+            #[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
+            app.singleton::<ArticleWriter, _>(|resolver| {
+                Box::pin(async move {
+                    Ok(Arc::new(ArticleWriter::new(
+                        resolver.resolve::<openrust::Db>().await?,
+                        resolver.resolve::<openrust::events::Events>().await?,
+                        #[cfg(feature = "queue")]
+                        resolver
+                            .resolve::<openrust::notifications::Notifier>()
+                            .await?,
+                    )))
+                })
             })
-        });
-        Ok(())
+            .await?;
+            #[cfg(feature = "http-client")]
+            app.singleton::<ArticleSummaryService, _>(|resolver| {
+                Box::pin(async move {
+                    let config = resolver.section::<ExampleConfig>("example")?;
+                    let origin = config.article_summary_origin.ok_or_else(|| {
+                        openrust::Error::custom(
+                            "example_article_summary_not_configured",
+                            "文章摘要上游尚未配置",
+                        )
+                    })?;
+                    Ok(Arc::new(ArticleSummaryService::new(&origin)?))
+                })
+            })
+            .await?;
+            Ok(())
+        })
     }
 
     #[allow(clippy::too_many_lines, reason = "模块 boot 同时装配业务资源和路由")]

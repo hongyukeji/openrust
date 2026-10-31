@@ -448,9 +448,11 @@ async fn create(Inject(_posts): Inject<Posts>, Validated(Json(input)): Validated
 
 struct PostServiceProvider;
 impl ServiceProvider for PostServiceProvider {
-    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-        app.instance(Arc::new(Posts));
-        Ok(())
+    fn register<'a>(&'a self, app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.instance(Arc::new(Posts)).await?;
+            Ok(())
+        })
     }
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {

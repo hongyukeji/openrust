@@ -183,11 +183,16 @@ impl<M> ServiceProvider for MigrationServiceProvider<M>
 where
     M: MigratorTrait + Send + Sync + 'static,
 {
-    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-        if !app.is_bound::<MigrationCatalog>() {
-            app.instance(Arc::new(MigrationCatalog::default()));
-        }
-        Ok(())
+    fn register<'a>(
+        &'a self,
+        app: &'a mut crate::core::RegisterContext<'_>,
+    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            if !app.is_bound::<MigrationCatalog>() {
+                app.instance(Arc::new(MigrationCatalog::default())).await?;
+            }
+            Ok(())
+        })
     }
 
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {

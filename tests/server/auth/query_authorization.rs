@@ -676,9 +676,14 @@ async fn tenant_scope_is_trusted_and_shared_between_real_api_nodes() -> TestResu
 
 struct TestInstance<T: Send + Sync + 'static>(std::sync::Arc<T>);
 impl<T: Send + Sync + 'static> openrust::core::ServiceProvider for TestInstance<T> {
-    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
-        app.instance(std::sync::Arc::clone(&self.0));
-        Ok(())
+    fn register<'a>(
+        &'a self,
+        app: &'a mut openrust::core::RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.instance(std::sync::Arc::clone(&self.0)).await?;
+            Ok(())
+        })
     }
 }
 

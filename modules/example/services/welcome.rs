@@ -18,17 +18,23 @@ use openrust::{
 /// 注册欢迎业务服务，复用当前应用最终绑定的通信服务。
 pub(crate) struct WelcomeServiceProvider;
 impl ServiceProvider for WelcomeServiceProvider {
-    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-        app.singleton::<WelcomeService, _>(|resolver| {
-            Box::pin(async move {
-                Ok(Arc::new(WelcomeService {
-                    mailer: resolver.resolve::<Mailer>().await?,
-                    #[cfg(test)]
-                    sms: resolver.resolve::<SmsSender>().await?,
-                }))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.singleton::<WelcomeService, _>(|resolver| {
+                Box::pin(async move {
+                    Ok(Arc::new(WelcomeService {
+                        mailer: resolver.resolve::<Mailer>().await?,
+                        #[cfg(test)]
+                        sms: resolver.resolve::<SmsSender>().await?,
+                    }))
+                })
             })
-        });
-        Ok(())
+            .await?;
+            Ok(())
+        })
     }
 }
 

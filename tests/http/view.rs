@@ -21,8 +21,11 @@ struct ViewRoutes;
 
 #[cfg(feature = "session")]
 impl openrust::core::ServiceProvider for ViewRoutes {
-    fn register(&self, _app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
-        Ok(())
+    fn register<'a>(
+        &'a self,
+        _app: &'a mut openrust::core::RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move { Ok(()) })
     }
 
     fn boot<'a>(

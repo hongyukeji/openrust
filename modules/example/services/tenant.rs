@@ -20,28 +20,34 @@ const TTL: Duration = Duration::from_secs(60);
 pub(crate) const TENANT_QUEUE: &str = "example-tenant";
 pub(crate) struct TenantServiceProvider;
 impl ServiceProvider for TenantServiceProvider {
-    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-        app.scoped::<TenantRecords, _>(|resolver| {
-            Box::pin(async move {
-                Ok(Arc::new(TenantRecords {
-                    db: resolver.resolve::<Db>().await?,
-                    cache: resolver.resolve::<Cache>().await?,
-                    #[cfg(any(feature = "storage-local", feature = "storage-s3"))]
-                    storage: if resolver.is_bound::<Storage>()? {
-                        Some(resolver.resolve::<Storage>().await?)
-                    } else {
-                        None
-                    },
-                    #[cfg(feature = "queue")]
-                    queue: if resolver.is_bound::<Queue>()? {
-                        Some(resolver.resolve::<Queue>().await?)
-                    } else {
-                        None
-                    },
-                }))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.scoped::<TenantRecords, _>(|resolver| {
+                Box::pin(async move {
+                    Ok(Arc::new(TenantRecords {
+                        db: resolver.resolve::<Db>().await?,
+                        cache: resolver.resolve::<Cache>().await?,
+                        #[cfg(any(feature = "storage-local", feature = "storage-s3"))]
+                        storage: if resolver.is_bound::<Storage>()? {
+                            Some(resolver.resolve::<Storage>().await?)
+                        } else {
+                            None
+                        },
+                        #[cfg(feature = "queue")]
+                        queue: if resolver.is_bound::<Queue>()? {
+                            Some(resolver.resolve::<Queue>().await?)
+                        } else {
+                            None
+                        },
+                    }))
+                })
             })
-        });
-        Ok(())
+            .await?;
+            Ok(())
+        })
     }
     #[cfg(feature = "queue")]
     fn boot<'a>(

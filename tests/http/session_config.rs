@@ -95,20 +95,26 @@ impl ServiceProvider for Late {
 struct DbResolutions(AtomicUsize);
 struct DbTrap;
 impl ServiceProvider for DbTrap {
-    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-        let count = Arc::new(DbResolutions::default());
-        app.instance(count.clone());
-        app.singleton::<Db, _>(move |_| {
-            count.0.fetch_add(1, Ordering::SeqCst);
-            Box::pin(async {
-                Err::<Arc<Db>, _>(Error::custom_with_status(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "session_config_test_db_resolved",
-                    "禁用 Session 不应解析 Db",
-                ))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            let count = Arc::new(DbResolutions::default());
+            app.instance(count.clone()).await?;
+            app.singleton::<Db, _>(move |_| {
+                count.0.fetch_add(1, Ordering::SeqCst);
+                Box::pin(async {
+                    Err::<Arc<Db>, _>(Error::custom_with_status(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "session_config_test_db_resolved",
+                        "禁用 Session 不应解析 Db",
+                    ))
+                })
             })
-        });
-        Ok(())
+            .await?;
+            Ok(())
+        })
     }
 }
 struct TestRoutes;

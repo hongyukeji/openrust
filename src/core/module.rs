@@ -708,9 +708,14 @@ mod tests {
     async fn activation_file_is_snapshotted_per_application_start() -> Result<()> {
         struct MarkerProvider;
         impl ServiceProvider for MarkerProvider {
-            fn register(&self, app: &mut super::super::RegisterContext<'_>) -> Result<()> {
-                app.instance(Arc::new(42_u32));
-                Ok(())
+            fn register<'a>(
+                &'a self,
+                app: &'a mut super::super::RegisterContext<'_>,
+            ) -> crate::core::BoxFuture<'a, Result<()>> {
+                Box::pin(async move {
+                    app.instance(Arc::new(42_u32)).await?;
+                    Ok(())
+                })
             }
         }
 

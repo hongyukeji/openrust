@@ -10,17 +10,23 @@ use openrust::{Db, Result};
 pub(crate) struct ArticleAttachmentsProvider;
 
 impl ServiceProvider for ArticleAttachmentsProvider {
-    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-        app.singleton::<ArticleAttachments, _>(|resolver| {
-            Box::pin(async move {
-                Ok(Arc::new(ArticleAttachments::new(
-                    resolver.resolve::<Db>().await?,
-                    resolver.resolve::<Storage>().await?,
-                    resolver.resources()?,
-                )))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.singleton::<ArticleAttachments, _>(|resolver| {
+                Box::pin(async move {
+                    Ok(Arc::new(ArticleAttachments::new(
+                        resolver.resolve::<Db>().await?,
+                        resolver.resolve::<Storage>().await?,
+                        resolver.resources()?,
+                    )))
+                })
             })
-        });
-        Ok(())
+            .await?;
+            Ok(())
+        })
     }
 
     fn boot<'a>(

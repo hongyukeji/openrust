@@ -382,14 +382,20 @@ fn scoped_unique_key(key: &str, channel: &str) -> String {
 pub struct NotificationsServiceProvider;
 
 impl crate::core::ServiceProvider for NotificationsServiceProvider {
-    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-        app.singleton::<Notifier, _>(|resolver| {
-            Box::pin(async move {
-                let queue = resolver.resolve::<Queue>().await?;
-                Ok(std::sync::Arc::new(Notifier::new((*queue).clone())))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut crate::core::RegisterContext<'_>,
+    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.singleton::<Notifier, _>(|resolver| {
+                Box::pin(async move {
+                    let queue = resolver.resolve::<Queue>().await?;
+                    Ok(std::sync::Arc::new(Notifier::new((*queue).clone())))
+                })
             })
-        });
-        Ok(())
+            .await?;
+            Ok(())
+        })
     }
 
     fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
@@ -464,18 +470,25 @@ mod provider_service_tests {
             sms: Arc<AtomicUsize>,
         }
         impl crate::core::ServiceProvider for DeliveryProvider {
-            fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-                let count = Arc::clone(&self.mail);
-                app.singleton::<Mailer, _>(move |_| {
-                    let count = Arc::clone(&count);
-                    Box::pin(async move { Ok(Arc::new(Mailer::new(MailSink(count)))) })
-                });
-                let count = Arc::clone(&self.sms);
-                app.singleton::<SmsSender, _>(move |_| {
-                    let count = Arc::clone(&count);
-                    Box::pin(async move { Ok(Arc::new(SmsSender::new(SmsSink(count)))) })
-                });
-                Ok(())
+            fn register<'a>(
+                &'a self,
+                app: &'a mut crate::core::RegisterContext<'_>,
+            ) -> crate::core::BoxFuture<'a, Result<()>> {
+                Box::pin(async move {
+                    let count = Arc::clone(&self.mail);
+                    app.singleton::<Mailer, _>(move |_| {
+                        let count = Arc::clone(&count);
+                        Box::pin(async move { Ok(Arc::new(Mailer::new(MailSink(count)))) })
+                    })
+                    .await?;
+                    let count = Arc::clone(&self.sms);
+                    app.singleton::<SmsSender, _>(move |_| {
+                        let count = Arc::clone(&count);
+                        Box::pin(async move { Ok(Arc::new(SmsSender::new(SmsSink(count)))) })
+                    })
+                    .await?;
+                    Ok(())
+                })
             }
         }
         let mail_count = Arc::new(AtomicUsize::new(0));
@@ -564,18 +577,24 @@ mod provider_tests {
     }
     struct QueueBinding(Arc<AtomicUsize>);
     impl ServiceProvider for QueueBinding {
-        fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-            let calls = Arc::clone(&self.0);
-            app.singleton::<Queue, _>(move |_| {
-                let calls = Arc::clone(&calls);
-                Box::pin(async move {
-                    Ok(Arc::new(Queue::with_driver(
-                        Driver(calls),
-                        &crate::config::QueueConfig::default(),
-                    )?))
+        fn register<'a>(
+            &'a self,
+            app: &'a mut RegisterContext<'_>,
+        ) -> crate::core::BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                let calls = Arc::clone(&self.0);
+                app.singleton::<Queue, _>(move |_| {
+                    let calls = Arc::clone(&calls);
+                    Box::pin(async move {
+                        Ok(Arc::new(Queue::with_driver(
+                            Driver(calls),
+                            &crate::config::QueueConfig::default(),
+                        )?))
+                    })
                 })
-            });
-            Ok(())
+                .await?;
+                Ok(())
+            })
         }
     }
     #[tokio::test]
@@ -598,11 +617,17 @@ mod provider_tests {
     }
     struct BrokenQueue;
     impl ServiceProvider for BrokenQueue {
-        fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-            app.singleton::<Queue, _>(|_| {
-                Box::pin(async { Err(Error::custom("broken_driver", "private-queue-secret")) })
-            });
-            Ok(())
+        fn register<'a>(
+            &'a self,
+            app: &'a mut RegisterContext<'_>,
+        ) -> crate::core::BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.singleton::<Queue, _>(|_| {
+                    Box::pin(async { Err(Error::custom("broken_driver", "private-queue-secret")) })
+                })
+                .await?;
+                Ok(())
+            })
         }
     }
     #[tokio::test]

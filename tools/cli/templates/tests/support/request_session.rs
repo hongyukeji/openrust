@@ -43,31 +43,37 @@ struct PreviousCalls(AtomicUsize);
 struct OldInputCalls(AtomicUsize);
 
 impl ServiceProvider for SessionRoutes {
-    fn register(&self, app: &mut RegisterContext<'_>) -> openrust::Result<()> {
-        app.instance(Arc::new(PreviousCalls::default()));
-        app.instance(Arc::new(OldInputCalls::default()));
-        // fixture 已明确选择 plain array 或 auth database；不是装饰任意已有 factory。
-        app.singleton::<SessionStoreHandle, _>(|resolver| {
-            Box::pin(async move {
-                let config = resolver.section::<SessionConfig>("session")?;
-                let backend: Arc<dyn SessionStore> = match config.driver.as_deref() {
-                    Some("array") => Arc::new(MemorySessionStore::default()),
-                    Some("cookie") => Arc::new(CookieSessionStore::new(
-                        config.lifetime,
-                        config.expire_on_close,
-                    )?),
-                    Some("database") => Arc::new(DatabaseSessionStore::new(
-                        (*resolver.resolve::<openrust::db::Db>().await?).clone(),
-                    )),
-                    _ => return Err(mismatch()),
-                };
-                Ok(Arc::new(SessionStoreHandle::new(ContractRequestDriver {
-                    backend,
-                    context: None,
-                })))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.instance(Arc::new(PreviousCalls::default())).await?;
+            app.instance(Arc::new(OldInputCalls::default())).await?;
+            // fixture 已明确选择 plain array 或 auth database；不是装饰任意已有 factory。
+            app.singleton::<SessionStoreHandle, _>(|resolver| {
+                Box::pin(async move {
+                    let config = resolver.section::<SessionConfig>("session")?;
+                    let backend: Arc<dyn SessionStore> = match config.driver.as_deref() {
+                        Some("array") => Arc::new(MemorySessionStore::default()),
+                        Some("cookie") => Arc::new(CookieSessionStore::new(
+                            config.lifetime,
+                            config.expire_on_close,
+                        )?),
+                        Some("database") => Arc::new(DatabaseSessionStore::new(
+                            (*resolver.resolve::<openrust::db::Db>().await?).clone(),
+                        )),
+                        _ => return Err(mismatch()),
+                    };
+                    Ok(Arc::new(SessionStoreHandle::new(ContractRequestDriver {
+                        backend,
+                        context: None,
+                    })))
+                })
             })
-        });
-        Ok(())
+            .await?;
+            Ok(())
+        })
     }
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {

@@ -163,44 +163,51 @@ impl SmsSender {
 pub struct SmsServiceProvider;
 
 impl crate::core::ServiceProvider for SmsServiceProvider {
-    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-        use crate::config::repository::SectionSchema;
-        app.config_section(
-            "sms",
-            SmsConfig::default(),
-            SectionSchema::object([
-                ("driver", SectionSchema::String),
-                ("account_sid", SectionSchema::String.nullable().sensitive()),
-                ("api_key_sid", SectionSchema::String.nullable().sensitive()),
-                (
-                    "api_key_secret",
-                    SectionSchema::String.nullable().sensitive(),
-                ),
-                ("from", SectionSchema::String.nullable().sensitive()),
-                (
-                    "messaging_service_sid",
-                    SectionSchema::String.nullable().sensitive(),
-                ),
-            ]),
-            |_| Ok(()),
-        )?;
-        app.singleton::<SmsConfig, _>(|resolver| {
-            Box::pin(async move { Ok(Arc::new(resolver.section::<SmsConfig>("sms")?)) })
-        });
-        app.singleton::<SmsSender, _>(|resolver| {
-            Box::pin(async move {
-                let config = resolver.section::<SmsConfig>("sms")?;
-                let env = resolver.section::<crate::config::Environment>("app.env")?;
-                if env == crate::config::Environment::Production && config.driver == "log" {
-                    return Err(Error::Config(ConfigError::Invalid(
-                        "sms.driver=log is not allowed in production".into(),
-                    )));
-                }
-                Ok(Arc::new(configured_sender(&config)?))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut crate::core::RegisterContext<'_>,
+    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            use crate::config::repository::SectionSchema;
+            app.config_section(
+                "sms",
+                SmsConfig::default(),
+                SectionSchema::object([
+                    ("driver", SectionSchema::String),
+                    ("account_sid", SectionSchema::String.nullable().sensitive()),
+                    ("api_key_sid", SectionSchema::String.nullable().sensitive()),
+                    (
+                        "api_key_secret",
+                        SectionSchema::String.nullable().sensitive(),
+                    ),
+                    ("from", SectionSchema::String.nullable().sensitive()),
+                    (
+                        "messaging_service_sid",
+                        SectionSchema::String.nullable().sensitive(),
+                    ),
+                ]),
+                |_| Ok(()),
+            )?;
+            app.singleton::<SmsConfig, _>(|resolver| {
+                Box::pin(async move { Ok(Arc::new(resolver.section::<SmsConfig>("sms")?)) })
             })
-        });
-        app.require::<SmsSender>();
-        Ok(())
+            .await?;
+            app.singleton::<SmsSender, _>(|resolver| {
+                Box::pin(async move {
+                    let config = resolver.section::<SmsConfig>("sms")?;
+                    let env = resolver.section::<crate::config::Environment>("app.env")?;
+                    if env == crate::config::Environment::Production && config.driver == "log" {
+                        return Err(Error::Config(ConfigError::Invalid(
+                            "sms.driver=log is not allowed in production".into(),
+                        )));
+                    }
+                    Ok(Arc::new(configured_sender(&config)?))
+                })
+            })
+            .await?;
+            app.require::<SmsSender>();
+            Ok(())
+        })
     }
 
     fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {

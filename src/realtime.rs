@@ -590,72 +590,78 @@ impl Default for RealtimeServiceProvider {
     }
 }
 impl crate::core::ServiceProvider for RealtimeServiceProvider {
-    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-        use crate::config::repository::SectionSchema as S;
-        app.config_section(
-            "realtime",
-            RealtimeConfig::default(),
-            S::object([
-                ("max_connections", S::Integer),
-                ("max_queue_messages", S::Integer),
-                ("max_queue_bytes", S::Integer),
-                ("max_total_queue_bytes", S::Integer),
-                ("max_message_bytes", S::Integer),
-                ("heartbeat_interval_secs", S::Integer),
-                ("max_connection_age_secs", S::Integer),
-                ("namespace", S::String),
-                ("allowed_origins", S::array(S::String)),
-                ("redis_url", S::String.nullable().sensitive()),
-            ]),
-            |config: &RealtimeConfig| {
-                config
-                    .validate()
-                    .map_err(|error| Error::custom("invalid_realtime_config", error))
-            },
-        )?;
-        let explicit = self.config.clone();
-        let supplied = self.transport.clone();
-        app.singleton::<Realtime, _>(move |resolver| {
-            let explicit = explicit.clone();
-            let supplied = supplied.clone();
-            Box::pin(async move {
-                let config = match explicit {
-                    Some(config) => config,
-                    None => resolver.section::<RealtimeConfig>("realtime")?,
-                };
-                config
-                    .validate()
-                    .map_err(|error| Error::custom("invalid_realtime_config", error))?;
-                let app_config = resolver.section::<crate::config::AppConfig>("app")?;
-                #[cfg(feature = "realtime-redis")]
-                let transport = match (supplied, config.redis_url()) {
-                    (Some(transport), _) => Some(transport),
-                    (None, Some(url)) => Some(Arc::new(RedisRealtimeTransport::connect(url)?)
-                        as Arc<dyn RealtimeTransport>),
-                    (None, None) => None,
-                };
-                #[cfg(not(feature = "realtime-redis"))]
-                let transport = supplied;
-                if config.redis_url().is_some() && transport.is_none() {
-                    return Err(Error::custom(
-                        "realtime_transport_unavailable",
-                        "Redis 实时驱动不可用或 realtime-redis feature 未启用",
-                    ));
-                }
-                Ok(Arc::new(Realtime(Arc::new(RealtimeInner {
-                    node_id: Uuid::now_v7().to_string(),
-                    app_name: app_config.name,
-                    connection_slots: Arc::new(Semaphore::new(config.max_connections)),
-                    queued_bytes: Arc::new(Semaphore::new(config.max_total_queue_bytes)),
-                    config,
-                    transport,
-                    connections: Mutex::new(HashMap::new()),
-                    connection_count: AtomicUsize::new(0),
-                    accepting: AtomicBool::new(true),
-                }))))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut crate::core::RegisterContext<'_>,
+    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            use crate::config::repository::SectionSchema as S;
+            app.config_section(
+                "realtime",
+                RealtimeConfig::default(),
+                S::object([
+                    ("max_connections", S::Integer),
+                    ("max_queue_messages", S::Integer),
+                    ("max_queue_bytes", S::Integer),
+                    ("max_total_queue_bytes", S::Integer),
+                    ("max_message_bytes", S::Integer),
+                    ("heartbeat_interval_secs", S::Integer),
+                    ("max_connection_age_secs", S::Integer),
+                    ("namespace", S::String),
+                    ("allowed_origins", S::array(S::String)),
+                    ("redis_url", S::String.nullable().sensitive()),
+                ]),
+                |config: &RealtimeConfig| {
+                    config
+                        .validate()
+                        .map_err(|error| Error::custom("invalid_realtime_config", error))
+                },
+            )?;
+            let explicit = self.config.clone();
+            let supplied = self.transport.clone();
+            app.singleton::<Realtime, _>(move |resolver| {
+                let explicit = explicit.clone();
+                let supplied = supplied.clone();
+                Box::pin(async move {
+                    let config = match explicit {
+                        Some(config) => config,
+                        None => resolver.section::<RealtimeConfig>("realtime")?,
+                    };
+                    config
+                        .validate()
+                        .map_err(|error| Error::custom("invalid_realtime_config", error))?;
+                    let app_config = resolver.section::<crate::config::AppConfig>("app")?;
+                    #[cfg(feature = "realtime-redis")]
+                    let transport = match (supplied, config.redis_url()) {
+                        (Some(transport), _) => Some(transport),
+                        (None, Some(url)) => Some(Arc::new(RedisRealtimeTransport::connect(url)?)
+                            as Arc<dyn RealtimeTransport>),
+                        (None, None) => None,
+                    };
+                    #[cfg(not(feature = "realtime-redis"))]
+                    let transport = supplied;
+                    if config.redis_url().is_some() && transport.is_none() {
+                        return Err(Error::custom(
+                            "realtime_transport_unavailable",
+                            "Redis 实时驱动不可用或 realtime-redis feature 未启用",
+                        ));
+                    }
+                    Ok(Arc::new(Realtime(Arc::new(RealtimeInner {
+                        node_id: Uuid::now_v7().to_string(),
+                        app_name: app_config.name,
+                        connection_slots: Arc::new(Semaphore::new(config.max_connections)),
+                        queued_bytes: Arc::new(Semaphore::new(config.max_total_queue_bytes)),
+                        config,
+                        transport,
+                        connections: Mutex::new(HashMap::new()),
+                        connection_count: AtomicUsize::new(0),
+                        accepting: AtomicBool::new(true),
+                    }))))
+                })
             })
-        });
-        Ok(())
+            .await?;
+            Ok(())
+        })
     }
     fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {

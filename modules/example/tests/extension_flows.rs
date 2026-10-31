@@ -107,8 +107,8 @@ async fn welcome_service_captures_real_business_content_only_after_explicit_call
     let capture = captured.clone();
     let mut builder = ServerApp::builder(sources());
     builder.configure_after_register(move |bindings| {
-        capture.install(bindings);
-        Ok(())
+        let capture = capture.clone();
+        Box::pin(async move { capture.install(&bindings).await })
     });
     let mut app = builder.build().await?;
     let welcome = app.app()?.state().resolve::<WelcomeService>().await?;
@@ -144,8 +144,8 @@ async fn invalid_destinations_are_rejected_before_any_channel_sends() -> Result<
     let capture = captured.clone();
     let mut builder = ServerApp::builder(sources());
     builder.configure_after_register(move |bindings| {
-        capture.install(bindings);
-        Ok(())
+        let capture = capture.clone();
+        Box::pin(async move { capture.install(&bindings).await })
     });
     let mut app = builder.build().await?;
     for (email, phone) in [
@@ -183,13 +183,20 @@ async fn welcome_transport_failures_propagate_without_claiming_atomic_delivery()
         let capture = captured.clone();
         let mut builder = ServerApp::builder(sources());
         builder.configure_after_register(move |bindings| {
-            capture.install(bindings);
-            if mail_fails {
-                bindings.instance(Arc::new(Mailer::new(FailingMail)));
-            } else {
-                bindings.instance(Arc::new(SmsSender::new(FailingSms)));
-            }
-            Ok(())
+            let capture = capture.clone();
+            Box::pin(async move {
+                capture.install(&bindings).await?;
+                if mail_fails {
+                    bindings
+                        .instance(Arc::new(Mailer::new(FailingMail)))
+                        .await?;
+                } else {
+                    bindings
+                        .instance(Arc::new(SmsSender::new(FailingSms)))
+                        .await?;
+                }
+                Ok(())
+            })
         });
         let mut app = builder.build().await?;
         let error = app
@@ -227,8 +234,8 @@ async fn capture_installation_is_explicit_and_rejects_production() -> Result<()>
         serde_json::json!({"app":{"env":"production"}}),
     )));
     builder.configure_after_register(move |bindings| {
-        capture.install(bindings);
-        Ok(())
+        let capture = capture.clone();
+        Box::pin(async move { capture.install(&bindings).await })
     });
     assert!(builder.build().await.is_err());
     // 不调用 install 时，标准 Provider 保持自身 driver；服务装配本身不会捕获或发送欢迎消息。
@@ -265,8 +272,7 @@ async fn capture_rechecks_environment_after_a_later_boot_overlay() -> Result<()>
         .provider(super::services::welcome::WelcomeServiceProvider)
         .provider(LateProduction);
     builder.configure_after_register(move |bindings| {
-        capture.install(bindings);
-        Ok(())
+        Box::pin(async move { capture.install(&bindings).await })
     });
     let runtime = builder.start(sources()).await?;
     let error = runtime

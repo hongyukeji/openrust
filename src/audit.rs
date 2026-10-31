@@ -306,24 +306,30 @@ impl AuditServiceProvider {
 }
 
 impl crate::core::ServiceProvider for AuditServiceProvider {
-    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-        let sink = self.sink.clone();
-        let policy = self.policy.clone();
-        app.singleton::<Audit, _>(move |resolver| {
-            let sink = sink.clone();
-            let policy = policy.clone();
-            Box::pin(async move {
-                let sink: Arc<dyn AuditSink> = match sink {
-                    Some(sink) => sink,
-                    None => Arc::new(DatabaseAuditSink::new(
-                        (*resolver.resolve::<Db>().await?).clone(),
-                    )),
-                };
-                Ok(Arc::new(Audit { sink, policy }))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut crate::core::RegisterContext<'_>,
+    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            let sink = self.sink.clone();
+            let policy = self.policy.clone();
+            app.singleton::<Audit, _>(move |resolver| {
+                let sink = sink.clone();
+                let policy = policy.clone();
+                Box::pin(async move {
+                    let sink: Arc<dyn AuditSink> = match sink {
+                        Some(sink) => sink,
+                        None => Arc::new(DatabaseAuditSink::new(
+                            (*resolver.resolve::<Db>().await?).clone(),
+                        )),
+                    };
+                    Ok(Arc::new(Audit { sink, policy }))
+                })
             })
-        });
-        app.require::<Audit>();
-        Ok(())
+            .await?;
+            app.require::<Audit>();
+            Ok(())
+        })
     }
 
     fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
@@ -873,9 +879,14 @@ mod tests {
     async fn provider_registers_the_database_sink_service() -> Result<()> {
         struct DatabaseBinding;
         impl crate::core::ServiceProvider for DatabaseBinding {
-            fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-                app.instance(Arc::new(Db::default()));
-                Ok(())
+            fn register<'a>(
+                &'a self,
+                app: &'a mut crate::core::RegisterContext<'_>,
+            ) -> crate::core::BoxFuture<'a, Result<()>> {
+                Box::pin(async move {
+                    app.instance(Arc::new(Db::default())).await?;
+                    Ok(())
+                })
             }
         }
         let mut builder = crate::core::ProviderBuilder::new();

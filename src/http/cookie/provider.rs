@@ -53,33 +53,40 @@ impl CookieServiceProvider {
 #[derive(Clone, Default)]
 pub(crate) struct CookieRuntime(pub(crate) Option<super::middleware::CookieLayer>);
 impl ServiceProvider for CookieServiceProvider {
-    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-        if self.except.len() > 1024
-            || self.except.iter().map(String::len).sum::<usize>() > 64 * 1024
-        {
-            return Err(super::cookie_limits_error());
-        }
-        let explicit = self.factory.clone();
-        let repository = app.config_repository();
-        app.singleton::<CookieFactory, _>(move |_| {
-            let explicit = explicit.clone();
-            let repository = repository.clone();
-            Box::pin(async move {
-                let factory = match explicit {
-                    Some(factory) => factory,
-                    None => factory_from_repository(&repository)?,
-                };
-                Ok(Arc::new(factory))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            if self.except.len() > 1024
+                || self.except.iter().map(String::len).sum::<usize>() > 64 * 1024
+            {
+                return Err(super::cookie_limits_error());
+            }
+            let explicit = self.factory.clone();
+            let repository = app.config_repository();
+            app.singleton::<CookieFactory, _>(move |_| {
+                let explicit = explicit.clone();
+                let repository = repository.clone();
+                Box::pin(async move {
+                    let factory = match explicit {
+                        Some(factory) => factory,
+                        None => factory_from_repository(&repository)?,
+                    };
+                    Ok(Arc::new(factory))
+                })
             })
-        });
-        app.require::<CookieFactory>();
-        app.scoped::<CookieJar, _>(|resolver| {
-            Box::pin(async move {
-                let factory = resolver.resolve::<CookieFactory>().await?;
-                Ok(Arc::new(CookieJar::new((*factory).clone())))
+            .await?;
+            app.require::<CookieFactory>();
+            app.scoped::<CookieJar, _>(|resolver| {
+                Box::pin(async move {
+                    let factory = resolver.resolve::<CookieFactory>().await?;
+                    Ok(Arc::new(CookieJar::new((*factory).clone())))
+                })
             })
-        });
-        Ok(())
+            .await?;
+            Ok(())
+        })
     }
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
@@ -128,7 +135,7 @@ fn factory_from_repository(
         same_site: Option<String>,
     }
     let mut factory = CookieFactory::default();
-    if repository.source_has_section("session")? {
+    if repository.has("session")? {
         let config: Defaults = repository.section("session")?;
         let defaults = crate::config::SessionConfig {
             path: config.path.unwrap_or_else(|| "/".to_owned()),

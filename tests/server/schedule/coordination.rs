@@ -357,25 +357,31 @@ impl Job for TriggeredJob {
 }
 struct TriggerProvider(std::sync::Arc<TriggerObservations>);
 impl openrust::core::ServiceProvider for TriggerProvider {
-    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> FrameworkResult<()> {
-        let observations = std::sync::Arc::clone(&self.0);
-        app.instance(std::sync::Arc::clone(&observations));
-        app.scoped::<TriggerValue, _>(|resolver| {
-            Box::pin(async move {
-                use std::sync::atomic::Ordering;
-                let observations = resolver.resolve::<TriggerObservations>().await?;
-                let id = observations.next.fetch_add(1, Ordering::SeqCst) + 1;
-                resolver.resources()?.on_shutdown(move || {
-                    Box::pin(async move {
-                        observations.closed.fetch_add(1, Ordering::SeqCst);
-                        observations.cleaned.notify_one();
-                        Ok(())
-                    })
-                })?;
-                Ok(std::sync::Arc::new(TriggerValue(id)))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut openrust::core::RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, FrameworkResult<()>> {
+        Box::pin(async move {
+            let observations = std::sync::Arc::clone(&self.0);
+            app.instance(std::sync::Arc::clone(&observations)).await?;
+            app.scoped::<TriggerValue, _>(|resolver| {
+                Box::pin(async move {
+                    use std::sync::atomic::Ordering;
+                    let observations = resolver.resolve::<TriggerObservations>().await?;
+                    let id = observations.next.fetch_add(1, Ordering::SeqCst) + 1;
+                    resolver.resources()?.on_shutdown(move || {
+                        Box::pin(async move {
+                            observations.closed.fetch_add(1, Ordering::SeqCst);
+                            observations.cleaned.notify_one();
+                            Ok(())
+                        })
+                    })?;
+                    Ok(std::sync::Arc::new(TriggerValue(id)))
+                })
             })
-        });
-        Ok(())
+            .await?;
+            Ok(())
+        })
     }
 }
 

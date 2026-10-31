@@ -493,9 +493,14 @@ mod tests {
 
     struct Second;
     impl ServiceProvider for Second {
-        fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-            app.instance(Arc::new(AtomicBool::new(false)));
-            Ok(())
+        fn register<'a>(
+            &'a self,
+            app: &'a mut crate::core::RegisterContext<'_>,
+        ) -> crate::core::BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.instance(Arc::new(AtomicBool::new(false))).await?;
+                Ok(())
+            })
         }
         fn boot<'a>(
             &'a self,

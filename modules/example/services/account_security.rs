@@ -11,34 +11,40 @@ use std::sync::Arc;
 
 pub(crate) struct AccountSecurityProvider;
 impl ServiceProvider for AccountSecurityProvider {
-    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-        // AuthFlows 是 request-scoped，业务包装不能在 singleton 中捕获它。
-        app.scoped::<AccountSecurity, _>(|resolver| {
-            Box::pin(async move {
-                let config = resolver.section::<openrust::config::AppConfig>("app")?;
-                let url = url::Url::parse(&config.url).map_err(|_| {
-                    Error::custom(
-                        "example_account_origin_invalid",
-                        "app.url 必须是公开 HTTP(S) 地址",
-                    )
-                })?;
-                if !matches!(url.scheme(), "http" | "https")
-                    || url.host_str().is_none()
-                    || !url.username().is_empty()
-                    || url.password().is_some()
-                {
-                    return Err(Error::custom(
-                        "example_account_origin_invalid",
-                        "app.url 必须是公开 HTTP(S) 地址",
-                    ));
-                }
-                Ok(Arc::new(AccountSecurity {
-                    flows: resolver.resolve::<AuthFlows>().await?,
-                    origin: url.origin().ascii_serialization(),
-                }))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            // AuthFlows 是 request-scoped，业务包装不能在 singleton 中捕获它。
+            app.scoped::<AccountSecurity, _>(|resolver| {
+                Box::pin(async move {
+                    let config = resolver.section::<openrust::config::AppConfig>("app")?;
+                    let url = url::Url::parse(&config.url).map_err(|_| {
+                        Error::custom(
+                            "example_account_origin_invalid",
+                            "app.url 必须是公开 HTTP(S) 地址",
+                        )
+                    })?;
+                    if !matches!(url.scheme(), "http" | "https")
+                        || url.host_str().is_none()
+                        || !url.username().is_empty()
+                        || url.password().is_some()
+                    {
+                        return Err(Error::custom(
+                            "example_account_origin_invalid",
+                            "app.url 必须是公开 HTTP(S) 地址",
+                        ));
+                    }
+                    Ok(Arc::new(AccountSecurity {
+                        flows: resolver.resolve::<AuthFlows>().await?,
+                        origin: url.origin().ascii_serialization(),
+                    }))
+                })
             })
-        });
-        Ok(())
+            .await?;
+            Ok(())
+        })
     }
 }
 

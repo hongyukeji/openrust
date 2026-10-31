@@ -171,43 +171,49 @@ impl EventsServiceProvider {
 }
 
 impl crate::core::ServiceProvider for EventsServiceProvider {
-    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-        let registrations = self.registrations.listeners.clone();
-        app.singleton::<Events, _>(move |resolver| {
-            #[cfg(not(feature = "queue"))]
-            let _ = resolver;
-            let registrations = registrations.clone();
-            Box::pin(async move {
-                #[cfg(feature = "queue")]
-                let mut queue: Option<Arc<crate::queue::Queue>> = None;
-                let mut listeners = Vec::with_capacity(registrations.len());
-                for registration in &registrations {
-                    match registration {
-                        ListenerRegistration::Direct(listener) => {
-                            listeners.push(Arc::clone(listener));
-                        }
-                        #[cfg(feature = "queue")]
-                        ListenerRegistration::Queued { build } => {
-                            if queue.is_none() {
-                                if !resolver.is_bound::<crate::queue::Queue>()? {
-                                    return Err(Error::custom(
-                                        "events_require_queue",
-                                        "queued listeners require a Queue binding",
-                                    ));
-                                }
-                                queue = Some(resolver.resolve::<crate::queue::Queue>().await?);
+    fn register<'a>(
+        &'a self,
+        app: &'a mut crate::core::RegisterContext<'_>,
+    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            let registrations = self.registrations.listeners.clone();
+            app.singleton::<Events, _>(move |resolver| {
+                #[cfg(not(feature = "queue"))]
+                let _ = resolver;
+                let registrations = registrations.clone();
+                Box::pin(async move {
+                    #[cfg(feature = "queue")]
+                    let mut queue: Option<Arc<crate::queue::Queue>> = None;
+                    let mut listeners = Vec::with_capacity(registrations.len());
+                    for registration in &registrations {
+                        match registration {
+                            ListenerRegistration::Direct(listener) => {
+                                listeners.push(Arc::clone(listener));
                             }
-                            if let Some(queue) = &queue {
-                                listeners.push(build((**queue).clone()));
+                            #[cfg(feature = "queue")]
+                            ListenerRegistration::Queued { build } => {
+                                if queue.is_none() {
+                                    if !resolver.is_bound::<crate::queue::Queue>()? {
+                                        return Err(Error::custom(
+                                            "events_require_queue",
+                                            "queued listeners require a Queue binding",
+                                        ));
+                                    }
+                                    queue = Some(resolver.resolve::<crate::queue::Queue>().await?);
+                                }
+                                if let Some(queue) = &queue {
+                                    listeners.push(build((**queue).clone()));
+                                }
                             }
                         }
                     }
-                }
-                Ok(Arc::new(Events { listeners }))
+                    Ok(Arc::new(Events { listeners }))
+                })
             })
-        });
-        app.require::<Events>();
-        Ok(())
+            .await?;
+            app.require::<Events>();
+            Ok(())
+        })
     }
 
     fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
@@ -514,9 +520,14 @@ mod queued_tests {
 
     struct QueueBinding(Queue);
     impl ServiceProvider for QueueBinding {
-        fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-            app.instance(Arc::new(self.0.clone()));
-            Ok(())
+        fn register<'a>(
+            &'a self,
+            app: &'a mut RegisterContext<'_>,
+        ) -> crate::core::BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.instance(Arc::new(self.0.clone())).await?;
+                Ok(())
+            })
         }
     }
 
@@ -597,9 +608,14 @@ mod queued_tests {
 
     struct LateQueue(Queue);
     impl crate::core::ServiceProvider for LateQueue {
-        fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-            app.instance(Arc::new(self.0.clone()));
-            Ok(())
+        fn register<'a>(
+            &'a self,
+            app: &'a mut crate::core::RegisterContext<'_>,
+        ) -> crate::core::BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.instance(Arc::new(self.0.clone())).await?;
+                Ok(())
+            })
         }
     }
 
@@ -661,14 +677,20 @@ mod queued_tests {
 
     struct BrokenQueue;
     impl crate::core::ServiceProvider for BrokenQueue {
-        fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-            app.singleton::<Queue, _>(|resolver| {
-                Box::pin(async move {
-                    let _ = resolver.resolve::<u128>().await?;
-                    Err(crate::Error::custom("test", "unreachable"))
+        fn register<'a>(
+            &'a self,
+            app: &'a mut crate::core::RegisterContext<'_>,
+        ) -> crate::core::BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.singleton::<Queue, _>(|resolver| {
+                    Box::pin(async move {
+                        let _ = resolver.resolve::<u128>().await?;
+                        Err(crate::Error::custom("test", "unreachable"))
+                    })
                 })
-            });
-            Ok(())
+                .await?;
+                Ok(())
+            })
         }
     }
 

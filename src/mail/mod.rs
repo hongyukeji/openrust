@@ -105,44 +105,51 @@ impl Mailer {
 pub struct MailerServiceProvider;
 
 impl crate::core::ServiceProvider for MailerServiceProvider {
-    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-        use crate::config::repository::SectionSchema;
-        app.config_section(
-            "mail",
-            MailConfig::default(),
-            SectionSchema::object([
-                ("driver", SectionSchema::String),
-                ("smtp_host", SectionSchema::String.nullable()),
-                ("smtp_port", SectionSchema::Integer),
-                ("smtp_starttls", SectionSchema::Boolean),
-                (
-                    "smtp_username",
-                    SectionSchema::String.nullable().sensitive(),
-                ),
-                (
-                    "smtp_password",
-                    SectionSchema::String.nullable().sensitive(),
-                ),
-            ]),
-            |_| Ok(()),
-        )?;
-        app.singleton::<MailConfig, _>(|resolver| {
-            Box::pin(async move { Ok(Arc::new(resolver.section::<MailConfig>("mail")?)) })
-        });
-        app.singleton::<Mailer, _>(|resolver| {
-            Box::pin(async move {
-                let config = resolver.section::<MailConfig>("mail")?;
-                let env = resolver.section::<crate::config::Environment>("app.env")?;
-                if env == crate::config::Environment::Production && config.driver == "log" {
-                    return Err(Error::Config(ConfigError::Invalid(
-                        "mail.driver=log is not allowed in production".into(),
-                    )));
-                }
-                Ok(Arc::new(configured_mailer(&config)?))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut crate::core::RegisterContext<'_>,
+    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            use crate::config::repository::SectionSchema;
+            app.config_section(
+                "mail",
+                MailConfig::default(),
+                SectionSchema::object([
+                    ("driver", SectionSchema::String),
+                    ("smtp_host", SectionSchema::String.nullable()),
+                    ("smtp_port", SectionSchema::Integer),
+                    ("smtp_starttls", SectionSchema::Boolean),
+                    (
+                        "smtp_username",
+                        SectionSchema::String.nullable().sensitive(),
+                    ),
+                    (
+                        "smtp_password",
+                        SectionSchema::String.nullable().sensitive(),
+                    ),
+                ]),
+                |_| Ok(()),
+            )?;
+            app.singleton::<MailConfig, _>(|resolver| {
+                Box::pin(async move { Ok(Arc::new(resolver.section::<MailConfig>("mail")?)) })
             })
-        });
-        app.require::<Mailer>();
-        Ok(())
+            .await?;
+            app.singleton::<Mailer, _>(|resolver| {
+                Box::pin(async move {
+                    let config = resolver.section::<MailConfig>("mail")?;
+                    let env = resolver.section::<crate::config::Environment>("app.env")?;
+                    if env == crate::config::Environment::Production && config.driver == "log" {
+                        return Err(Error::Config(ConfigError::Invalid(
+                            "mail.driver=log is not allowed in production".into(),
+                        )));
+                    }
+                    Ok(Arc::new(configured_mailer(&config)?))
+                })
+            })
+            .await?;
+            app.require::<Mailer>();
+            Ok(())
+        })
     }
 
     fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {

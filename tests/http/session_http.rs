@@ -91,9 +91,14 @@ struct Control {
 }
 struct TestRoutes(Arc<Control>);
 impl ServiceProvider for TestRoutes {
-    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-        app.instance(self.0.clone());
-        Ok(())
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.instance(self.0.clone()).await?;
+            Ok(())
+        })
     }
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {

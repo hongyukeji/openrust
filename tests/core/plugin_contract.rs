@@ -32,19 +32,32 @@ async fn provider_route(Inject(greeting): Inject<Greeting>) -> String {
 }
 struct GreetingProvider;
 impl ServiceProvider for GreetingProvider {
-    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-        app.instance(Arc::new(Greeting("provided")));
-        Ok(())
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.instance(Arc::new(Greeting("provided"))).await?;
+            Ok(())
+        })
     }
 }
 struct ConsumerProvider;
 impl ServiceProvider for ConsumerProvider {
-    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-        app.singleton::<ConsumerConfig, _>(|resolver| {
-            Box::pin(async move { Ok(Arc::new(resolver.section::<ConsumerConfig>("consumer")?)) })
-        });
-        app.instance(Arc::new(AtomicBool::new(false)));
-        Ok(())
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.singleton::<ConsumerConfig, _>(|resolver| {
+                Box::pin(
+                    async move { Ok(Arc::new(resolver.section::<ConsumerConfig>("consumer")?)) },
+                )
+            })
+            .await?;
+            app.instance(Arc::new(AtomicBool::new(false))).await?;
+            Ok(())
+        })
     }
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
@@ -143,16 +156,26 @@ async fn missing_provider_dependency_fails_before_boot() {
 }
 struct FirstValue;
 impl ServiceProvider for FirstValue {
-    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-        app.instance(Arc::new(String::from("first")));
-        Ok(())
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.instance(Arc::new(String::from("first"))).await?;
+            Ok(())
+        })
     }
 }
 struct SecondValue;
 impl ServiceProvider for SecondValue {
-    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-        app.instance(Arc::new(String::from("second")));
-        Ok(())
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.instance(Arc::new(String::from("second"))).await?;
+            Ok(())
+        })
     }
 }
 #[tokio::test]
@@ -165,10 +188,15 @@ async fn later_provider_instance_replaces_previous_binding() -> Result<()> {
 }
 struct RepeatedValue;
 impl ServiceProvider for RepeatedValue {
-    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-        app.instance(Arc::new(String::from("first")));
-        app.instance(Arc::new(String::from("second")));
-        Ok(())
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.instance(Arc::new(String::from("first"))).await?;
+            app.instance(Arc::new(String::from("second"))).await?;
+            Ok(())
+        })
     }
 }
 #[tokio::test]
@@ -181,9 +209,14 @@ async fn repeated_instance_registration_replaces_by_type_deterministically() -> 
 }
 struct RepeatedCommand;
 impl ServiceProvider for RepeatedCommand {
-    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-        app.instance(Arc::new(AtomicBool::new(false)));
-        Ok(())
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.instance(Arc::new(AtomicBool::new(false))).await?;
+            Ok(())
+        })
     }
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
@@ -244,16 +277,21 @@ async fn invalid_unregistered_provider_config_reports_only_parent_without_echoin
 }
 struct RegisteredInvalidConfigProvider;
 impl ServiceProvider for RegisteredInvalidConfigProvider {
-    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-        app.config_section(
-            "consumer",
-            InvalidConfig { port: 8080 },
-            openrust::config::repository::SectionSchema::object([(
-                "port",
-                openrust::config::repository::SectionSchema::Any,
-            )]),
-            |_| Ok(()),
-        )
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.config_section(
+                "consumer",
+                InvalidConfig { port: 8080 },
+                openrust::config::repository::SectionSchema::object([(
+                    "port",
+                    openrust::config::repository::SectionSchema::Any,
+                )]),
+                |_| Ok(()),
+            )
+        })
     }
 }
 #[tokio::test]

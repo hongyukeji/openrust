@@ -156,6 +156,98 @@ async fn module_registration_controls_only_its_business_routes()
     Ok(())
 }
 
+struct LateExampleMessage(&'static str);
+
+impl openrust::core::ServiceProvider for LateExampleMessage {
+    fn register<'a>(
+        &'a self,
+        app: &'a mut openrust::core::RegisterContext<'_>,
+    ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.instance(std::sync::Arc::new(super::services::ExampleMessage::new(
+                self.0,
+            )))
+            .await?;
+            Ok(())
+        })
+    }
+}
+
+#[tokio::test]
+async fn module_business_uses_runtime_provider_rebinding_after_boot()
+-> Result<(), Box<dyn std::error::Error>> {
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(openrust::db::DatabaseServiceProvider)
+        .provider(openrust::cache::CacheServiceProvider::new())
+        .provider(FrameworkRoutes)
+        .module_manifest(
+            openrust::core::ModuleManifest::new()
+                .module(super::descriptor(
+                    false,
+                    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")),
+                ))
+                .enable("example"),
+        );
+    let source = figment::Figment::from(figment::providers::Serialized::defaults(
+        openrust::config::FrameworkConfig::default(),
+    ))
+    .merge(figment::providers::Serialized::defaults(
+        serde_json::json!({
+            "cache": {"default": "default", "stores": {"default": {"driver": "memory"}}}
+        }),
+    ));
+    let mut app = openrust::App::from_provider_runtime(builder.start(source).await?)?;
+    let original = app
+        .state()
+        .resolve::<super::services::ExampleMessage>()
+        .await?;
+    assert_eq!(original.text(), "Hello from modules/example");
+    let first = app
+        .register_provider(LateExampleMessage("已登记业务消息"))
+        .await?;
+    assert_eq!(
+        first,
+        app.register_provider(LateExampleMessage("重复消息"))
+            .await?
+    );
+    assert_eq!(
+        app.state()
+            .resolve::<super::services::ExampleMessage>()
+            .await?
+            .text(),
+        "已登记业务消息"
+    );
+    assert_eq!(
+        first,
+        app.force_register_provider(LateExampleMessage("强制更新消息"))
+            .await?
+    );
+    assert_eq!(original.text(), "Hello from modules/example");
+    assert_eq!(
+        app.state()
+            .resolve::<super::services::ExampleMessage>()
+            .await?
+            .text(),
+        "强制更新消息"
+    );
+    let response = openrust::http::build_router(&app)?
+        .oneshot(
+            Request::get("/api/example")
+                .header("host", "localhost")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    let body: serde_json::Value =
+        serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await?)?;
+    assert_eq!(body["data"]["message"], "强制更新消息");
+    app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+        .await?;
+    Ok(())
+}
+
 fn production_sources(semantic: bool) -> figment::Figment {
     let mut framework = openrust::config::FrameworkConfig::default();
     if semantic {
@@ -487,10 +579,14 @@ async fn production_html_representation_escapes_business_message()
 
     let mut builder = TestApp::<crate::bootstrap::Server>::builder(production_sources(false));
     builder.configure_after_register(|bindings| {
-        bindings.instance(Arc::new(super::services::ExampleMessage::new(
-            "<script>alert('x' & \"y\")</script>",
-        )));
-        Ok(())
+        Box::pin(async move {
+            bindings
+                .instance(Arc::new(super::services::ExampleMessage::new(
+                    "<script>alert('x' & \"y\")</script>",
+                )))
+                .await?;
+            Ok(())
+        })
     });
     let mut app = builder.build().await?;
     let response = app
@@ -523,10 +619,14 @@ async fn production_testapp_replaces_business_dependency_without_changing_routes
         .await?;
     let mut fixture = TestApp::<crate::bootstrap::Server>::builder(production_sources(false));
     fixture.configure_after_register(|bindings| {
-        bindings.instance(Arc::new(ExampleMessage::new(
-            "A test-owned business message",
-        )));
-        Ok(())
+        Box::pin(async move {
+            bindings
+                .instance(Arc::new(ExampleMessage::new(
+                    "A test-owned business message",
+                )))
+                .await?;
+            Ok(())
+        })
     });
     let mut replaced = fixture.build().await?;
     for (app, expected) in [

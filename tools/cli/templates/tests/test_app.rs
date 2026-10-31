@@ -23,12 +23,68 @@ use figment::{
     providers::{Format, Serialized, Toml},
 };
 use openrust::config::ConfigSources;
+use openrust::core::{BoxFuture, RegisterContext, ServiceProvider};
 use openrust::http::axum::{
     body::Body,
     http::{Request, StatusCode},
 };
 use openrust::testing::TestApp;
 use std::time::Duration;
+
+struct RuntimeGreeting(&'static str);
+
+struct RuntimeGreetingProvider(&'static str);
+
+impl ServiceProvider for RuntimeGreetingProvider {
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.instance(std::sync::Arc::new(RuntimeGreeting(self.0)))
+                .await?;
+            Ok(())
+        })
+    }
+}
+
+#[tokio::test]
+async fn generated_application_exposes_runtime_provider_registration()
+-> Result<(), Box<dyn std::error::Error>> {
+    let source = Figment::from(Serialized::defaults(openrust::config::FrameworkConfig::default()))
+        .merge(Toml::string("[cache]\ndefault = 'default'\n[cache.stores.default]\ndriver = 'memory'\n[view]\ndirectory = 'resources/views'\n"));
+    let configuration: bootstrap::Configuration = source.extract()?;
+    let builder =
+        openrust::core::ProviderBuilder::for_application::<GeneratedApplication>(&configuration);
+    let mut app = openrust::App::from_provider_runtime(builder.start(source).await?)?;
+    let first = app
+        .register_provider(RuntimeGreetingProvider("初次登记"))
+        .await?;
+    let old = app.state().resolve::<RuntimeGreeting>().await?;
+    assert_eq!(old.0, "初次登记");
+    assert_eq!(
+        app.register_provider(RuntimeGreetingProvider("忽略重复"))
+            .await?,
+        first
+    );
+    assert_eq!(
+        app.state().resolve::<RuntimeGreeting>().await?.0,
+        "初次登记"
+    );
+    assert_eq!(
+        app.force_register_provider(RuntimeGreetingProvider("强制更新"))
+            .await?,
+        first
+    );
+    assert_eq!(old.0, "初次登记");
+    assert_eq!(
+        app.state().resolve::<RuntimeGreeting>().await?.0,
+        "强制更新"
+    );
+    app.shutdown(openrust::tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    Ok(())
+}
 
 #[tokio::test]
 async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std::error::Error>> {

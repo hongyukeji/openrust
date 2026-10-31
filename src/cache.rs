@@ -957,48 +957,54 @@ fn validate_cache_config(config: &CacheConfig) -> Result<()> {
 }
 
 impl crate::core::ServiceProvider for CacheServiceProvider {
-    fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-        use crate::config::repository::SectionSchema as S;
-        app.config_section(
-            "cache",
-            CacheConfig::default(),
-            S::object([
-                ("default", S::String),
-                (
-                    "stores",
-                    S::map(S::object([("driver", S::String), ("namespace", S::String)]).open()),
-                ),
-                (
-                    "singleflight",
-                    S::object([
-                        ("max_in_flight_keys", S::Integer),
-                        ("max_waiters_per_key", S::Integer),
-                        ("loader_timeout_secs", S::Integer),
-                    ]),
-                ),
-                ("swr", S::object([("max_in_flight_refreshes", S::Integer)])),
-            ]),
-            validate_cache_config,
-        )?;
-        let custom = self.drivers.clone();
-        app.singleton::<Cache, _>(move |resolver| {
-            let custom = custom.clone();
-            Box::pin(async move {
-                let mut drivers = CacheDrivers::default();
-                drivers.register(MemoryDriver)?;
-                drivers.register(FileDriver)?;
-                #[cfg(feature = "cache-redis")]
-                drivers.register(RedisDriver)?;
-                #[cfg(not(feature = "cache-redis"))]
-                drivers.register(RedisUnavailableDriver)?;
-                for driver in custom {
-                    drivers.register_shared(driver)?;
-                }
-                Ok(Arc::new(Cache::managed(resolver, drivers)))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut crate::core::RegisterContext<'_>,
+    ) -> crate::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            use crate::config::repository::SectionSchema as S;
+            app.config_section(
+                "cache",
+                CacheConfig::default(),
+                S::object([
+                    ("default", S::String),
+                    (
+                        "stores",
+                        S::map(S::object([("driver", S::String), ("namespace", S::String)]).open()),
+                    ),
+                    (
+                        "singleflight",
+                        S::object([
+                            ("max_in_flight_keys", S::Integer),
+                            ("max_waiters_per_key", S::Integer),
+                            ("loader_timeout_secs", S::Integer),
+                        ]),
+                    ),
+                    ("swr", S::object([("max_in_flight_refreshes", S::Integer)])),
+                ]),
+                validate_cache_config,
+            )?;
+            let custom = self.drivers.clone();
+            app.singleton::<Cache, _>(move |resolver| {
+                let custom = custom.clone();
+                Box::pin(async move {
+                    let mut drivers = CacheDrivers::default();
+                    drivers.register(MemoryDriver)?;
+                    drivers.register(FileDriver)?;
+                    #[cfg(feature = "cache-redis")]
+                    drivers.register(RedisDriver)?;
+                    #[cfg(not(feature = "cache-redis"))]
+                    drivers.register(RedisUnavailableDriver)?;
+                    for driver in custom {
+                        drivers.register_shared(driver)?;
+                    }
+                    Ok(Arc::new(Cache::managed(resolver, drivers)))
+                })
             })
-        });
-        app.require::<Cache>();
-        Ok(())
+            .await?;
+            app.require::<Cache>();
+            Ok(())
+        })
     }
 
     fn boot<'a>(&'a self, app: &'a mut crate::core::BootContext<'_>) -> BoxFuture<'a, Result<()>> {
@@ -1027,9 +1033,14 @@ mod provider_tests {
 
     struct ReadinessProvider(Arc<crate::core::Readiness>);
     impl ServiceProvider for ReadinessProvider {
-        fn register(&self, app: &mut crate::core::RegisterContext<'_>) -> Result<()> {
-            app.instance(Arc::clone(&self.0));
-            Ok(())
+        fn register<'a>(
+            &'a self,
+            app: &'a mut crate::core::RegisterContext<'_>,
+        ) -> crate::core::BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.instance(Arc::clone(&self.0)).await?;
+                Ok(())
+            })
         }
     }
 

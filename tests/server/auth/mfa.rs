@@ -963,14 +963,22 @@ impl JwtSettings {
     }
 }
 impl openrust::core::ServiceProvider for JwtSettings {
-    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
-        app.merge_defaults("auth.jwt", self.0.clone())
+    fn register<'a>(
+        &'a self,
+        app: &'a mut openrust::core::RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move { app.merge_defaults("auth.jwt", self.0.clone()) })
     }
 }
 
 struct PasswordSettings(openrust::auth::PasswordConfig);
 impl openrust::core::ServiceProvider for PasswordSettings {
-    fn register(&self, app: &mut openrust::core::RegisterContext<'_>) -> openrust::Result<()> {
-        app.merge_defaults("auth.password", serde_json::json!({"memory_kib":self.0.memory_kib,"iterations":self.0.iterations,"parallelism":self.0.parallelism}))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut openrust::core::RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.merge_defaults("auth.password", serde_json::json!({"memory_kib":self.0.memory_kib,"iterations":self.0.iterations,"parallelism":self.0.parallelism}))
+        })
     }
 }

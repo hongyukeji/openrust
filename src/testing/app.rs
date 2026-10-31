@@ -13,15 +13,15 @@ use tokio::time::Instant;
 use tower::ServiceExt;
 
 use crate::config::ConfigSources;
-use crate::core::container::ContainerBuilder;
+use crate::core::container::Container;
 use crate::core::provider::ProviderId;
-use crate::core::{App, Application, Error, ProviderBuilder, Result};
+use crate::core::{App, Application, BoxFuture, Error, ProviderBuilder, Result};
 
 use super::response::TestResponse;
 
 const DEFAULT_MAX_BYTES: usize = 1024 * 1024;
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5);
-type Configure = Arc<dyn Fn(&mut ContainerBuilder) -> Result<()> + Send + Sync>;
+type Configure = Arc<dyn Fn(Container) -> BoxFuture<'static, Result<()>> + Send + Sync>;
 
 /// 显式配置、Provider 选择及可重复执行的测试替换蓝图。
 ///
@@ -47,10 +47,10 @@ impl<A: Application> TestAppBuilder<A> {
         self
     }
 
-    /// 在全体 register 后、容器封口前替换绑定；reset 时重新运行此闭包。
+    /// 在全体 register 后、基础校验及 boot 前替换绑定；reset 时重新运行此闭包。
     pub fn configure_after_register<F>(&mut self, configure: F) -> &mut Self
     where
-        F: Fn(&mut ContainerBuilder) -> Result<()> + Send + Sync + 'static,
+        F: Fn(Container) -> BoxFuture<'static, Result<()>> + Send + Sync + 'static,
     {
         self.configure.push(Arc::new(configure));
         self
@@ -84,7 +84,7 @@ impl<A: Application> TestAppBuilder<A> {
         }
         for configure in &self.configure {
             let configure = Arc::clone(configure);
-            builder.configure_after_register(move |bindings| configure(bindings));
+            builder.configure_after_register(move |container| configure(container));
         }
         App::from_provider_runtime(builder.start(self.sources.clone()).await?)
     }
@@ -247,42 +247,50 @@ mod tests {
     struct Label(&'static str);
     struct BusinessProvider;
     impl ServiceProvider for BusinessProvider {
-        fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-            app.instance(Arc::new(Label("production")));
-            app.instance(Arc::new(Fixture::default()));
-            app.scoped::<Lease, _>(|resolver| {
-                Box::pin(async move {
-                    let fixture = resolver.resolve::<Fixture>().await?;
-                    fixture.created.fetch_add(1, Ordering::SeqCst);
-                    resolver.resources()?.on_shutdown(move || {
-                        Box::pin(async move {
-                            let gate = fixture
-                                .cleanup_gate
-                                .lock()
-                                .map_err(|_| Error::custom("fixture_lock_failed", "夹具锁不可用"))?
-                                .clone();
-                            fixture.cleaning.notify_one();
-                            if let Some(gate) = gate {
-                                gate.acquire_owned()
-                                    .await
-                                    .map_err(Error::internal)?
-                                    .forget();
-                            }
-                            fixture.closed.fetch_add(1, Ordering::SeqCst);
-                            fixture.changed.notify_one();
-                            if fixture.fail.load(Ordering::SeqCst) {
-                                return Err(Error::custom(
-                                    "fixture_cleanup_failed",
-                                    "夹具关闭失败",
-                                ));
-                            }
-                            Ok(())
-                        })
-                    })?;
-                    Ok(Arc::new(Lease))
+        fn register<'a>(
+            &'a self,
+            app: &'a mut RegisterContext<'_>,
+        ) -> crate::core::BoxFuture<'a, Result<()>> {
+            Box::pin(async move {
+                app.instance(Arc::new(Label("production"))).await?;
+                app.instance(Arc::new(Fixture::default())).await?;
+                app.scoped::<Lease, _>(|resolver| {
+                    Box::pin(async move {
+                        let fixture = resolver.resolve::<Fixture>().await?;
+                        fixture.created.fetch_add(1, Ordering::SeqCst);
+                        resolver.resources()?.on_shutdown(move || {
+                            Box::pin(async move {
+                                let gate = fixture
+                                    .cleanup_gate
+                                    .lock()
+                                    .map_err(|_| {
+                                        Error::custom("fixture_lock_failed", "夹具锁不可用")
+                                    })?
+                                    .clone();
+                                fixture.cleaning.notify_one();
+                                if let Some(gate) = gate {
+                                    gate.acquire_owned()
+                                        .await
+                                        .map_err(Error::internal)?
+                                        .forget();
+                                }
+                                fixture.closed.fetch_add(1, Ordering::SeqCst);
+                                fixture.changed.notify_one();
+                                if fixture.fail.load(Ordering::SeqCst) {
+                                    return Err(Error::custom(
+                                        "fixture_cleanup_failed",
+                                        "夹具关闭失败",
+                                    ));
+                                }
+                                Ok(())
+                            })
+                        })?;
+                        Ok(Arc::new(Lease))
+                    })
                 })
-            });
-            Ok(())
+                .await?;
+                Ok(())
+            })
         }
         fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
             Box::pin(async move {
@@ -332,9 +340,12 @@ mod tests {
         let fixture = Arc::clone(fixture);
         let mut builder = TestApp::<Example>::builder(source());
         builder.configure_after_register(move |bindings| {
-            bindings.instance(Arc::clone(&fixture));
-            bindings.instance(Arc::new(Label(label)));
-            Ok(())
+            let fixture = Arc::clone(&fixture);
+            Box::pin(async move {
+                bindings.instance(fixture).await?;
+                bindings.instance(Arc::new(Label(label))).await?;
+                Ok(())
+            })
         });
         builder
     }
@@ -510,10 +521,13 @@ mod tests {
         let mut builder = TestApp::<Example>::builder(source());
         let fail_start = Arc::clone(&fail);
         builder.configure_after_register(move |_| {
-            if fail_start.load(Ordering::SeqCst) {
-                return Err(Error::custom("fixture_start_failed", "夹具启动失败"));
-            }
-            Ok(())
+            let fail_start = Arc::clone(&fail_start);
+            Box::pin(async move {
+                if fail_start.load(Ordering::SeqCst) {
+                    return Err(Error::custom("fixture_start_failed", "夹具启动失败"));
+                }
+                Ok(())
+            })
         });
         let mut app = builder.build().await?;
         fail.store(true, Ordering::SeqCst);

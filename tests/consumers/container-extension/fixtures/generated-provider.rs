@@ -20,24 +20,31 @@ struct GeneratedResponse {
 pub struct GeneratedExtensionProvider;
 
 impl ServiceProvider for GeneratedExtensionProvider {
-    fn register(&self, app: &mut RegisterContext<'_>) -> Result<()> {
-        app.singleton::<GeneratedMessage, _>(|_| {
-            Box::pin(async {
-                Ok(Arc::new(GeneratedMessage {
-                    text: "from original factory".to_owned(),
-                    extended: false,
-                }))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.singleton::<GeneratedMessage, _>(|_| {
+                Box::pin(async {
+                    Ok(Arc::new(GeneratedMessage {
+                        text: "from original factory".to_owned(),
+                        extended: false,
+                    }))
+                })
             })
-        });
-        app.extend::<GeneratedMessage, _>(|original, _| {
-            Box::pin(async move {
-                Ok(Arc::new(GeneratedMessage {
-                    text: original.text.clone(),
-                    extended: true,
-                }))
+            .await?;
+            app.extend::<GeneratedMessage, _>(|original, _| {
+                Box::pin(async move {
+                    Ok(Arc::new(GeneratedMessage {
+                        text: original.text.clone(),
+                        extended: true,
+                    }))
+                })
             })
-        });
-        Ok(())
+            .await?;
+            Ok(())
+        })
     }
 
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {

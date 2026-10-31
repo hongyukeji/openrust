@@ -2,6 +2,52 @@ use figment::{Figment, providers::Serialized};
 use openrust::config::repository::ConfigRepository;
 use serde_json::json;
 
+struct LateReader(&'static str);
+
+impl openrust::core::ServiceProvider for LateReader {
+    fn register<'a>(
+        &'a self,
+        app: &'a mut openrust::core::RegisterContext<'_>,
+    ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.instance(std::sync::Arc::new(self.0)).await?;
+            Ok(())
+        })
+    }
+}
+
+#[test]
+fn external_consumer_registers_and_forces_provider_on_same_application()
+-> Result<(), Box<dyn std::error::Error>> {
+    openrust::tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?
+        .block_on(async {
+            let source = Figment::from(Serialized::defaults(
+                openrust::config::FrameworkConfig::default(),
+            ))
+            .merge(Serialized::defaults(json!({"app": {"name": "外部读取者"}})));
+            let mut builder = openrust::core::ProviderBuilder::new();
+            builder.provider(config_repository_reading_consumer::ReadingProvider);
+            let mut app = openrust::App::from_provider_runtime(builder.start(source).await?)?;
+            assert_eq!(app.section::<String>("app.name")?, "外部读取者");
+            let first = app.register_provider(LateReader("初次登记")).await?;
+            let old = app.state().resolve::<&'static str>().await?;
+            assert_eq!(*old, "初次登记");
+            assert_eq!(app.register_provider(LateReader("忽略重复")).await?, first);
+            assert_eq!(*app.state().resolve::<&'static str>().await?, "初次登记");
+            assert_eq!(
+                app.force_register_provider(LateReader("重新登记")).await?,
+                first
+            );
+            assert_eq!(*old, "初次登记");
+            assert_eq!(*app.state().resolve::<&'static str>().await?, "重新登记");
+            app.shutdown(openrust::tokio::time::Instant::now() + std::time::Duration::from_secs(5))
+                .await?;
+            Ok::<(), Box<dyn std::error::Error>>(())
+        })
+}
+
 fn repository(value: serde_json::Value) -> ConfigRepository {
     ConfigRepository::new(Figment::from(Serialized::defaults(value)))
 }

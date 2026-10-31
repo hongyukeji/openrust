@@ -25,20 +25,26 @@ const DRAFT_GUIDE: &str = "https://laravel.com/docs/11.x/redirects?source=openru
 
 struct RedirectRoutes;
 impl ServiceProvider for RedirectRoutes {
-    fn register(&self, app: &mut RegisterContext<'_>) -> openrust::Result<()> {
-        app.extend::<ErrorBagCodecs, _>(|original, _resolver| {
-            Box::pin(async move {
-                let mut codecs = (*original).clone();
-                codecs.register::<GeneratedErrors>(
-                    "generated.redirect-errors",
-                    1,
-                    encode_errors,
-                    decode_errors,
-                )?;
-                Ok(Arc::new(codecs))
+    fn register<'a>(
+        &'a self,
+        app: &'a mut RegisterContext<'_>,
+    ) -> openrust::core::BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            app.extend::<ErrorBagCodecs, _>(|original, _resolver| {
+                Box::pin(async move {
+                    let mut codecs = (*original).clone();
+                    codecs.register::<GeneratedErrors>(
+                        "generated.redirect-errors",
+                        1,
+                        encode_errors,
+                        decode_errors,
+                    )?;
+                    Ok(Arc::new(codecs))
+                })
             })
-        });
-        Ok(())
+            .await?;
+            Ok(())
+        })
     }
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, openrust::Result<()>> {
         Box::pin(async move {
