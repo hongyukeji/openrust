@@ -18,11 +18,11 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 
 ## 当前可领取
 
-### 集中产物回收（用户最新授权，执行中）
+### 集中产物回收（已完成，保留原始日志缺口）
 
-- 资源owner `04cca925-e59f-42f1-800b-424e7b4cd1b8` 独占清理窗口，driver先保存；root已通知S-DV/ST-V/driver禁止新增构建，源码修复与caller迁移继续。root当次核cargo/rustc/rustdoc均无进程；main与两历史target顶层为标准Cargo结构、非symlink。所有target仍须owner按锁/占用/归属复核后实际清，非仅几百MB精准删。
-- 清单基于既有resource_paths、main/worktree/consumer与外置目标去重；共享main target获准完整清后按需重建，未知root-site/M5集中核一次来源后明确清/留理由，不盲删、不无限搁置。保护未合分支源码/WIP、依赖源码、PHP来源、数据库/卷与证据。完整前后总量/disk、删留及dryrun/clean日志交 `/tmp/openrust-concentrated-cache-retirement/RESULT.json`，未交回不虚报已清理。
-- 下一唯一构建目录 `/Users/Home/Codes/Rust/openrust/target`；S-DV/ST-V先ready者由root分配，当前都未获Cargo窗口。跨簇只留下一已安排步骤明确需要的一份缓存，不为历史feature持续堆积；50GB软/100GB硬不变。
+- 资源owner `04cca925-e59f-42f1-800b-424e7b4cd1b8` 独占清理窗口，driver先保存；root已通知S-DV/ST-V/driver禁止新增构建，源码修复与caller迁移继续。root当次核cargo/rustc/rustdoc均无进程；main与两历史target顶层为标准Cargo结构、非symlink。owner已按锁/占用/归属复核后集中清理，非仅几百MB精准删。
+- 清单基于既有resource_paths、main/worktree/consumer与外置目标去重；共享main target获准完整清后按需重建，未知root-site/M5集中核一次来源后明确清/留理由，不盲删、不无限搁置。保护未合分支源码/WIP、依赖源码、PHP来源、数据库/卷与证据。现已完整清13个确认OpenRust target（含主target、root-site/M5及consumer），逐项实测共93,855,621,120B产物归零，登记剩余Cargo缓存65,982,464B；磁盘可用约101.17→193.60GB。PHP参考源码/证据244.76MB单列保留，不算Cargo cache。回执 `/tmp/openrust-concentrated-cache-retirement/RESULT.json`；root实核13路径已无、caller冻结35文件无漂移。auth-pg一项第二轮同basename覆盖两份原始日志，原预期SHA/退出码/字节记录保留且明确不可恢复；其余24份日志SHA核对一致。原失败ROOT-AUDIT及RESULT.log_integrity_audit保留，不改expected hash或重跑伪造历史。
+- 下一唯一构建目录 `/Users/Home/Codes/Rust/openrust/target`；已给S-DV core owner首次workspace类型检查窗口（jobs2），ST-V不占Cargo、保持代码冻结待独审。跨簇只留下一已安排步骤明确需要的一份缓存，不为历史feature持续堆积；50GB软/100GB硬不变。
 
 执行节奏：先完成本簇代码及配套测试代码，ready_for_verify后由总控安排提交前集中验证；分支限定门禁、main完整组合验收，未通过不提交。不得继续按每个方法/小改动重复跑测试或Clippy；当前在途命令自然结束，已有有效证据按实际影响复用，规则见[集中验证](conventions.md#功能簇提交前集中验证)。
 
@@ -115,13 +115,14 @@ Twilio 实发缺授权账号/凭据/目标；其他供应商与生态包实测�
 - owner `9d167e52-8548-465c-a835-20d2624985e5`，workspace `wks_722c52102af7671f`（既有OpenRust项目），branch `tasks/storage-visibility-family`，base `c126de5`，cwd `/Users/Home/.paseo/worktrees/02joa2lr/openrust-storage-visibility-family`。独占storage/配置与受影响调用方/唯一模块/测试/用户说明，不改Session/P共享源码，不改manifest/lock/Agentdocs/main索引。
 - 首轮源码11文件已ready并经terra独审：4 blocker（UUID feature、local硬链接chmod、取消/rename仲裁、畸形ACL误判），UUID已由root修，原owner集中修其余和should-fix，Rust编译/行为尚未验证。root已选精确可选aws-sdk-s3=1.152.0，仅storage-s3启用；metadata新增26版本、原锁无升级/移除，声明MSRV均≤1.97，allfeatures offline deny通过，不冒充编译/真实ACL通过。来源/决策与锁图回执 `/tmp/openrust-storage-s3-acl-{dependency-review.md,root-decision.json,lock-resolution.json}`；root独占三清单文件，真实ACL服务/授权配置未具备。当前不占target/端口/库，ready后delta审查/集中Verify；50GB/10%软与100GB/5%硬、默认额度/停止链路保持，不建重复守护。
 
-## S-DV 有序对象值与 Session 保存边界（Implement）
+## S-DV 有序对象值与 Session 保存边界（Verify：首次类型诊断）
 
 - Request 文件家族的实际前置；固定 Laravel 真探针14案表明 Request flashOnly/Except 保留对象到 save，Redirect 则递归剔除，不能在 put/flash 时提前转JSON。冻结Spec `/tmp/openrust-session-data-values-frozen-spec.md`，oracle `/tmp/openrust-request-files-flash-oracle/receipt.json`；只推进通用值/Session保存边界，multipart/DefaultBodyLimit/Storage visibility与MIME继续后继。
 - owner `7611b92b-f279-4a2f-ab5f-d134c2263926`，workspace `wks_1735f33899c42ec3`（既有OpenRust项目），base `9eb54ce02a09b48db31c31b57384976628da4050`，branch `tasks/session-data-values`，cwd `/Users/Home/.paseo/worktrees/02joa2lr/openrust-session-data-values`；common-dir已核同仓。实际正式run已返回running，模型沿现可用经济回退 `gpt-6-sol` medium；不重复本地不可用执行器探测。
 - 当前公共签名补充冻结 `/tmp/openrust-session-data-values-canonical-api.md`：canonical get/all/old_input等返回原始DataValue，JSON投影显式，禁止保旧JSON get再只靠get_value读对象。core owner独占src/session、值类型、Session配置/就地unit；复用native `config_runtime_callers` 已实际派发同worktree其余调用方/唯一模块/外部测试/consumer/CLI模板快照/说明，保全core已写caller WIP接续，不重叠编辑。manifest/lock/共享Agentdocs及main索引root独占；整簇freeze后不同模型独审/集中Verify，尚未Cargo或真实服务验收。
 - 验证准备复用P owner `04cca925-e59f-42f1-800b-424e7b4cd1b8`，仅写/tmp的driver/selector，不提前运行。terra旧SHA早审的路径/超时/资源覆盖/selector/库隔离问题已交其按当前版整批修，最终脚本仍须freeze与真实selector绑定，未执行不算证据。
-- 资源：不建新target，后续复用 `/Users/Home/Codes/Rust/openrust/target`；当前仅写代码，不占Cargo/端口/库。构建前重测全登记缓存/预计增量，50GB软/100GB硬、磁盘10%软/5%硬；独立执行者受总控暂停/停止协调，原默认80%额度不变。完成后按真实归属清理，不动未合入分支。
+- 已冻结45个源码/调用方文件及5个构建输入，50 SHA清单 `/tmp/openrust-session-data-values-combined-freeze.json`；core三项并发/预算blocker已静态闭合，caller RequestInfo原对象读取与生成保存边界8文件delta由terra复审。core owner获首次 `cargo check --locked --offline --workspace --all-targets` 窗口，失败完整收诊断后停，不等通用服务driver收口，不冒充测试已通过。
+- 资源：只在已清理的 `/Users/Home/Codes/Rust/openrust/target` 按需重建，jobs2；不占端口/库。构建前重测全登记缓存/预计增量，50GB软/100GB硬、磁盘10%软/5%硬；独立执行者受总控暂停/停止协调，原默认80%额度不变。完成后按真实归属清理，不动未合入分支。
 
 ## R2-P Provider 完整注册生命周期（Verify，未提交）
 
