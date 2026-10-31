@@ -8,7 +8,7 @@
 
 🟡 R2-P Provider完整注册生命周期正在同项目隔离分支集中验收：core125、仓储47、公开Container契约24及独立consumer限定通过；默认严格Clippy三失败后仍按§5暂停，不把请求消失当批准。普通生成首次check发现view feature调用方漏await，原caller已修，97项输入重新核对无漂移，原执行owner正接第二次生成/TCP/MySQL链；未提交、未合main。
 
-🟡 R2-CC配置缓存家族与上述验收并行：已有分支Rust/生成/真实复启证据，后续发现并修正“维护命令先bootstrap、再执行清缓存”的生产时点；修后真实验收尚待执行。脚本隔离边界已静态复审关闭，剩构建失败不得使用旧binary、恢复失败不掩盖主失败两项由原owner批修。历史通过不代替新输入通过，完整Config缓存与main组合尚未闭合。
+✅ R2-CC配置缓存家族已在隔离分支限定提交 `7be446d`：修后默认851/全feature1638（68ignored）、双Clippy/docs、doctest22/24、普通生成8与真实模块/生成应用缓存复启通过；两task temp已回收，混合归属同名包缓存保留待精确核对。未合main，不外推完整Configuration或组合验收。
 
 ✅ C04-D10-E scheme/secure与guest/intended已验收并提交6b143ca：定向10/main11、新构建、fresh普通7/MySQL认证2+公开helper1、无Session/MySQL真实TCP4/9场景通过；previous原值与先保存/先消费顺序已修复，唯一模块真实确认回跳不替代认证授权。完整Redirector/L020.02仍开放，见[本簇证据](memory/testing.md#c04-d10-e-scheme-与-guestintended验收中未提交)。
 
