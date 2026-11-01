@@ -42,6 +42,7 @@ pub mod database;
 pub mod grpc;
 pub mod logger;
 pub mod mailer;
+pub mod modules;
 #[cfg(feature = "queue")]
 pub mod queue;
 #[cfg(feature = "realtime")]
@@ -65,6 +66,7 @@ pub use database::{DatabaseConfig, DatabaseInstanceConfig};
 pub use grpc::{GrpcClientConfig, GrpcClientTlsConfig, GrpcConfig, GrpcServerTlsConfig};
 pub use logger::{LogConfig, LogFormat};
 pub use mailer::MailConfig;
+pub use modules::{FileModuleActivatorConfig, ModuleActivatorsConfig, ModulesConfig};
 #[cfg(feature = "queue")]
 pub use queue::{QueueConfig, QueueConnectionConfig, QueueDriverKind};
 #[cfg(feature = "realtime")]
@@ -191,6 +193,8 @@ pub struct FrameworkConfig {
     pub api: ApiConfig,
     /// `[log]` 区段。
     pub log: LogConfig,
+    /// `[modules]` 激活器配置，状态文件与业务资源根独立。
+    pub modules: ModulesConfig,
     /// `I18nPlugin` 使用的 `[i18n]` locale 默认值。
     pub i18n: crate::i18n::I18nConfig,
     /// `[realtime]` 区段；仅在启用 `realtime` feature 时存在。
@@ -1356,10 +1360,10 @@ mod tests {
             assert_eq!(
                 raw.as_object().map(|items| items
                     .keys()
-                    .take(5)
+                    .take(6)
                     .map(String::as_str)
                     .collect::<Vec<_>>()),
-                Some(vec!["app", "server", "api", "log", "i18n"])
+                Some(vec!["app", "server", "api", "log", "modules", "i18n"])
             );
             let ordered = repository
                 .get("part2")

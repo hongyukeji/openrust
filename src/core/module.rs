@@ -4,8 +4,6 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use serde_json::Value;
-
 use super::{BootContext, Error, Result, ServiceProvider};
 
 /// 已编译模块的静态描述；只包含应用启动可选择的 Rust 代码。
@@ -66,11 +64,13 @@ impl ModuleDescriptor {
     }
 }
 
-/// 每次应用启动读取一次的模块启用来源。
-pub trait ModuleActivator: Send + Sync + 'static {
-    /// 返回启用名称；实现必须在错误时保留原始状态，不自行改写。
-    fn enabled(&self) -> Result<HashSet<String>>;
-}
+mod activator;
+mod commands;
+mod repository;
+
+pub use activator::{FileModuleActivator, ModuleActivationSnapshot, ModuleActivator};
+pub(crate) use commands::register_commands;
+pub use repository::{Module, ModuleLifecycleEvent, ModuleLifecyclePhase, ModuleRepository};
 
 #[derive(Default)]
 struct ExplicitActivator {
@@ -83,50 +83,22 @@ impl ModuleActivator for ExplicitActivator {
     }
 }
 
-/// 只读兼容固定模块包的 JSON 激活状态；状态写入与管理命令属于 R13。
-pub struct FileModuleActivator {
-    path: PathBuf,
+#[derive(Clone)]
+pub(crate) struct ModuleMetadata {
+    name: String,
+    root: PathBuf,
+    priority: i32,
+    loaded: bool,
 }
 
-impl FileModuleActivator {
-    /// 建立文件状态源；每次 App 构建重新读取，不缓存跨 App 状态。
-    pub fn new(path: impl Into<PathBuf>) -> Self {
-        Self { path: path.into() }
-    }
+pub(crate) struct ModuleRepositorySeed {
+    metadata: Vec<ModuleMetadata>,
+    activator: Arc<dyn ModuleActivator>,
 }
 
-impl ModuleActivator for FileModuleActivator {
-    fn enabled(&self) -> Result<HashSet<String>> {
-        let contents = match std::fs::read_to_string(&self.path) {
-            Ok(contents) => contents,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(HashSet::new()),
-            Err(_) => {
-                return Err(Error::custom(
-                    "module_state_unreadable",
-                    "模块启用状态文件无法读取",
-                ));
-            }
-        };
-        if contents.trim().is_empty() {
-            return Ok(HashSet::new());
-        }
-        let state: Value = serde_json::from_str(&contents)
-            .map_err(|_| Error::custom("module_state_invalid", "模块启用状态不是有效 JSON"))?;
-        let entries = match state {
-            Value::Object(entries) => entries,
-            Value::Array(entries) if entries.is_empty() => return Ok(HashSet::new()),
-            _ => {
-                return Err(Error::custom(
-                    "module_state_invalid",
-                    "模块启用状态必须是对象或空数组",
-                ));
-            }
-        };
-        Ok(entries
-            .into_iter()
-            .filter_map(|(name, state)| (state == Value::Bool(true)).then_some(name))
-            .collect())
-    }
+pub(crate) struct PreparedModules {
+    pub modules: Vec<ModuleDescriptor>,
+    pub seed: ModuleRepositorySeed,
 }
 
 /// 已编译模块目录和独立的运行启用源。
@@ -135,6 +107,7 @@ pub struct ModuleManifest {
     explicit: ExplicitActivator,
     activators: HashMap<String, Arc<dyn ModuleActivator>>,
     selected: String,
+    explicit_selected: bool,
     disabled: HashSet<String>,
 }
 
@@ -152,6 +125,7 @@ impl ModuleManifest {
             explicit: ExplicitActivator::default(),
             activators: HashMap::new(),
             selected: "explicit".into(),
+            explicit_selected: true,
             disabled: HashSet::new(),
         }
     }
@@ -163,6 +137,24 @@ impl ModuleManifest {
             .activators
             .insert("file".to_owned(), Arc::new(FileModuleActivator::new(path)));
         "file".clone_into(&mut manifest.selected);
+        manifest.explicit_selected = false;
+        manifest
+    }
+
+    /// 从同次应用配置选择激活器；状态路径相对应用根，未登记驱动在准备时明确失败。
+    pub fn from_config(
+        application_root: impl AsRef<Path>,
+        config: &crate::config::ModulesConfig,
+    ) -> Self {
+        let selected = &config.activators.file.statuses_file;
+        let path = if selected.is_absolute() {
+            selected.clone()
+        } else {
+            application_root.as_ref().join(selected)
+        };
+        let mut manifest = Self::from_file(path);
+        manifest.selected.clone_from(&config.activator);
+        manifest.explicit_selected = false;
         manifest
     }
 
@@ -186,7 +178,7 @@ impl ModuleManifest {
         self
     }
 
-    /// 注册应用自定义的只读启用源；同名或保留名称拒绝。
+    /// 注册应用自定义启用源；驱动可显式支持写入，同名或保留名称拒绝。
     pub fn register_activator(
         &mut self,
         name: impl Into<String>,
@@ -206,6 +198,7 @@ impl ModuleManifest {
     /// 选择本次启动的启用源；未注册名称在准备阶段失败，不回退。
     pub fn use_activator(&mut self, name: impl Into<String>) -> &mut Self {
         self.selected = name.into();
+        self.explicit_selected = self.selected == "explicit";
         self
     }
 
@@ -214,31 +207,58 @@ impl ModuleManifest {
         find_module(&self.modules, name)
     }
 
+    #[cfg(test)]
     pub(crate) fn prepare(self) -> Result<Vec<ModuleDescriptor>> {
-        let mut enabled = if self.selected == "explicit" {
-            self.explicit.enabled()?
+        self.prepare_runtime().map(|prepared| prepared.modules)
+    }
+
+    pub(crate) fn prepare_runtime(self) -> Result<PreparedModules> {
+        let activator: Arc<dyn ModuleActivator> = if self.explicit_selected {
+            Arc::new(self.explicit)
         } else {
-            self.activators
-                .get(&self.selected)
-                .ok_or_else(|| Error::custom("module_activator_missing", "模块启用源未登记"))?
-                .enabled()?
+            Arc::clone(
+                self.activators
+                    .get(&self.selected)
+                    .ok_or_else(|| Error::custom("module_activator_missing", "模块启用源未登记"))?,
+            )
         };
-        enabled.retain(|name| {
+        let snapshot = activator.snapshot()?;
+        let mut modules = self.modules;
+        validate_module_identities(&modules)?;
+        let mut selected_names: HashSet<&'static str> = if self.explicit_selected {
+            snapshot
+                .enabled()
+                .iter()
+                .map(|name| {
+                    find_module(&modules, name)
+                        .map(|module| module.name)
+                        .ok_or_else(|| Error::custom("module_not_compiled", "启用模块没有编译入口"))
+                })
+                .collect::<Result<_>>()?
+        } else {
+            // 文件键与模块仓储查找是不同合同；只查 canonical 名，不把旧孤立键当编译项。
+            modules
+                .iter()
+                .filter(|module| snapshot.is_enabled(module.name))
+                .map(|module| module.name)
+                .collect()
+        };
+        let activator: Arc<dyn ModuleActivator> = if self.explicit_selected {
+            Arc::new(ExplicitActivator {
+                enabled: selected_names
+                    .iter()
+                    .map(|name| (*name).to_owned())
+                    .collect(),
+            })
+        } else {
+            activator
+        };
+        selected_names.retain(|name| {
             !self
                 .disabled
                 .iter()
                 .any(|disabled| disabled.eq_ignore_ascii_case(name))
         });
-        let mut modules = self.modules;
-        validate_module_identities(&modules)?;
-        let selected_names = enabled
-            .iter()
-            .map(|name| {
-                find_module(&modules, name)
-                    .map(|module| module.name)
-                    .ok_or_else(|| Error::custom("module_not_compiled", "启用模块没有编译入口"))
-            })
-            .collect::<Result<HashSet<_>>>()?;
         let selected_module_indexes: Vec<_> = modules
             .iter()
             .enumerate()
@@ -262,7 +282,25 @@ impl ModuleManifest {
             }
         }
 
-        order_selected_modules(modules, &selected_module_indexes)
+        let metadata = modules
+            .iter()
+            .map(|module| {
+                Ok(ModuleMetadata {
+                    name: module.name.to_owned(),
+                    root: std::path::absolute(&module.root)
+                        .map_err(|_| Error::custom("module_root_invalid", "无法锚定模块资源根"))?,
+                    priority: module.priority,
+                    loaded: selected_names.contains(module.name),
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+        Ok(PreparedModules {
+            modules: order_selected_modules(modules, &selected_module_indexes)?,
+            seed: ModuleRepositorySeed {
+                metadata,
+                activator,
+            },
+        })
     }
 }
 

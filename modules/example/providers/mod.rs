@@ -7,6 +7,7 @@
 ))]
 mod attachments;
 mod example;
+pub(crate) mod module_state;
 #[cfg(all(
     feature = "auth",
     feature = "storage-local",

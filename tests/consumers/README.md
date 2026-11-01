@@ -8,6 +8,7 @@
 | `communication-drivers` | 邮件与短信自定义 driver 的应用 Plugin 接入 |
 | `data-exchange` | 独立下游数据交换 API |
 | `db-custom-sqlite` | SeaORM SQLite 的受限自定义连接边界 |
+| [`module-activation`](module-activation/README.md) | 向fresh普通应用安装公开模块持久启停fixture，验证原Application与三次启动，不新增Cargo package |
 | `grpc` | gRPC 组合、TLS、真实 TCP 与 Envoy 多节点路由 |
 | `query-authorization` | 下游类型化查询授权 API |
 | `queue-custom-driver` | 公开队列 driver 扩展 |

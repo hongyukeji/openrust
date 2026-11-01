@@ -41,6 +41,7 @@ impl<A: Application> ServiceProvider for CoreCommandsProvider<A> {
                 marker: std::marker::PhantomData,
             });
             app.command(ConfigClearCommand);
+            super::module::register_commands(app);
             Ok(())
         })
     }

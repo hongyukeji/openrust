@@ -6,6 +6,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Changed
 
+- 已编译模块增加同一容器中的 `ModuleRepository`、文件持久启停及 `module:enable/disable/list`；可编辑 `config/modules.rs` 独立配置状态文件，部署根统一为 `application_root`。启停经同一 Events 发送具名生命周期事件，当前加载资源保持，下次启动使用新状态；文件写入采用稳定锁与原子替换。唯一示例和生成模板同步接入；运行发现、交互选择与完整模块管理继续开放。
+
 - 根应用信息响应移到 `app/http/controllers/`，由 `routes/api.rs` 经应用 Provider 登记，框架移除专属 `framework_routes` 入口；根与生成应用分开 Web/API 路由文件并保留既有路径及响应。bootstrap 只保留启动装配，宿主测试主体归 `tests/server/`，必要 Rust 私有测试挂载保持。
 - 根 `app/` 支持普通应用 Controller/Model/Provider 开发，与可选模块共用同一内核；`bootstrap/providers.rs` 登记应用 Provider，默认框架 Provider 在统一 Builder 中装配，生成器同步应用结构与 Provider 自动登记。显式包清单不等同自动发现；deferred/eager 缓存、默认欢迎页及完整模块管理仍有后继范围。
 - 默认应用配置转为已编译的 `config/*.rs` / `ConfigManifest`，dotenv 快照就绪后向同一仓储求值；模块沿相同机制。TOML 保留为显式可选 source，typed/factory 通过同仓储提供且不可序列化配置明确拒绝缓存。显式 `ConfigSources::merge_ordered_entries` 覆盖沿同次环境上下文、保留未覆盖的 profile 数据与元数据，并拒绝修改已编译缓存；旧 Figment 有损输入不伪造代码配置环境或恢复历史键序。console 专属环境文件选择和缓存屏障同步调用方；应用已有默认字段与可选分支在根/生成配置中显式展开；`ConfigContext::get/require`按清单顺序读取已完成区段及同次最终覆盖，`application_code_sources_with_overrides`在单次求值前接纳根键覆盖。端口与应用身份的缺省依赖保持单一来源，显式领域覆盖优先；晚merge/运行期set不热重算。模块沿原递归候选/CAS发布，生成Job同步接入queue配置并保留已有文件。前向、自依赖、typed冲突及越界上下文明确失败；本次不代表完整Laravel配置、模块管理或driver全量对应。

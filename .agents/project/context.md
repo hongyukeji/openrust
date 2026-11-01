@@ -3,14 +3,14 @@
 > 当前代码与目标：旧 `app/example/` 过渡结构已迁至 `modules/example/`；R2-M 模块闭环与 R1-E 当前综合示例均已有真实验收及提交。R2-N 模块硬依赖图和确定性启动顺序已由 48be854 提交；R3-A/B/C/D 已按范围验收并提交；R3-E fallback 已验收并由 dab80d4 提交。完整模块管理和 Laravel 1:1 范围仍按 [ADR-001](decisions/adr-001-framework-principles.md) 与活跃队列推进。
 
 > 受众：AI Agent
-> 更新：2026-10-31
+> 更新：2026-11-02
 > 摘要：正式目标为 Laravel + laravel-modules 的 Rust 1:1 实现。R1-E、R2-N 与 R3-A/B/C/D/E/F 已按适用范围交付并保留验收证据。R3 HTTP/Web 和完整 Laravel/laravel-modules 能力矩阵仍未完成。
 
 ## 当前状态
 
 2026-11-02 接管校准：当前对话为唯一框架集成总控，旧总控/旧守护保持停止。九份来源及未提交/未追踪代码已归档保全，来源 worktree 与 workspace 已正常退役，当前仅 main；六个已归档任务分支活动别名已安全退役，source/WIP保护引用与完整bundle保留。本批限定源码、生成与真实服务验收已收齐，本地集成提交 `9035a00`，清理后优先配置整改，详见唯一 todo 顶部的接管状态与 `tmp/takeover-20261102/`。另一个已获用户授权的 skill owner 正收口 Codex 原生守护适配，本总控不并改该范围，不把开发中适配当已启用。默认80%政策与旧账本保持；本对话已可通过正式额度工具读取共享账号窗口，数值以当次回执为准；不rebase/fullgrant，不改变默认80%及旧账本。
 
-配置可编辑默认值与有序依赖已由d952199限定提交；本次bootstrap测试组织与固定/api宿主职责也已完成源码、生成/consumer、完整适用门禁、真实MySQL/MFA与TCP/TLS限定验收，见[应用职责证据](memory/testing.md#应用启动与固定api宿主职责限定验收)，本次提交以Git为准。下一停点为模块状态路径、持久启停/发现与统一Provider；DB能力门控及完整ADR-001继续开放。
+配置d952199与应用职责161bfcf已限定提交。模块持久启停、独立状态路径、同容器管理/事件已完成限定验收及产物清理，提交事实见Git；默认1081/35 ignored、全特性1923/112，fresh普通12/MySQL3/MFA2、根真实MySQL1与三进程启停/缓存通过，见[模块管理证据](memory/testing.md#模块持久启停与同容器管理限定验收)。下一停点为module.json运行发现与Provider/files绑定；DB能力门控及完整ADR-001继续开放。
 
 用户已纠正应用边界：根app按Laravel支持常规Controller/Model/Provider业务开发，modules可选并存且共用同一内核；bootstrap承担启动，app/mod.rs仅必要模块导出。原“业务只能modules、根app只装配”限制失效，源码/生成器整改按唯一todo推进，历史验收不改写。
 

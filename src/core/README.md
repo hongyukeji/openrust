@@ -103,7 +103,7 @@ match (result, cleanup) {
 
 - [`Application`]：项目实现一次该 trait，用于描述应用的组装方式。
 - [`ProviderBuilder`] / [`ServiceProvider`] / [`App`] / [`AppState`]：框架、应用模块和第三方 package 使用同一扩展点与容器。`register` 声明绑定和配置区段，`boot` 贡献路由、命令及 middleware。依赖可在所有注册完成后解析；配置覆盖在最终校验前仍可提交。`App::run_command` 允许同一应用依次执行命令；顶层 CLI 在命令结束后调用 `App::shutdown`，HTTP `serve` 在退出时合作取消、限时回收受管资源。
-- [`ModuleManifest`](module.rs) 在编译期声明模块描述，启动时从只读状态源取得启用快照；启用的模块 Provider 展平进入同一注册与顺序 boot 生命周期。`ModuleDescriptor::requires` 声明已编译模块的硬依赖；依赖必须同时启用，循环/缺失/禁用依赖启动失败。依赖拓扑优先于 `priority`，相同优先级按清单声明顺序稳定排序，模块 provider 的 register 与 boot 使用同一顺序；不会自动更改状态文件。`ModuleConfigFiles::overlay` 由模块 Provider 在实际配置时点调用，逐文件写入共享配置仓储。文件状态仅 JSON `true` 启用，缺文件/键不启用，坏 JSON 拒绝；禁用不热卸载、不删除迁移历史。默认模块运行根是进程工作目录，应用可显式传入部署根；编译时 `CARGO_MANIFEST_DIR` 不决定运行时资源位置。模块资源、语言、视图和迁移示例见 [`modules/example`](../../modules/example/README.md)。
+- [`ModuleManifest`](module.rs) 声明已编译模块及激活器；启用模块的 Provider 进入同一 register/boot 管线，全量 metadata（含未加载模块）与激活器由同一 Container 的 `ModuleRepository` 共享。`ModuleDescriptor::requires` 保留启用依赖校验与拓扑排序；普通启停不级联修改依赖状态，也不删除迁移历史。资源根、独立状态路径与文件边界见 [模块激活配置](../config/README.md#模块激活与运行根)，业务接线见 [`modules/example`](../../modules/example/README.md)。
 - [`Command`]：应用二进制对外提供的运行时命令（`serve`、`migrate`、`queue work` 等）。命令默认拒绝额外参数；接受参数的命令须实现 `accepts_args`。
 - 控制台入口在引导前确定命令名，Provider 可通过 `BootContext::console_command()` 与 `is_console_command()` 读取本次候选命令。普通 `bootstrap()`、直接 `ProviderBuilder` 与 `TestApp::build/reset` 均无该上下文；受控的 `TestAppBuilder::run_command` 只引导、执行并关闭同名命令。框架按最终匹配的命令实例执行启动前检查；候选名本身不授权跳过校验。内部迁移入口允许空库先执行官方迁移，再由后续正常应用启动校验所需表。
 - [`Error`] / [`Result`] / [`ApiResponse<T>`] / [`PageMeta`]：统一错误类型、JSON 响应封装和类型化分页元数据。
@@ -112,6 +112,33 @@ match (result, cleanup) {
 - [`Readiness`]：进程 listener 生命周期状态，并允许 Provider 注册有界异步依赖探针；HTTP `/ready` 聚合探针结果，`is_ready()` 本身仍只表示 listener 状态。
 - `config`：应用在根 `config/*.rs` 声明可编辑配置，经 `Application::config()` 返回显式 `ConfigManifest`。加载器先建立所选 dotenv 与外部环境快照，再求值已编译配置函数，发布到唯一 `ConfigRepository`；不运行时扫描 Rust。模块使用相同代码配置机制；需要 TOML 时显式注册可选 source，不再默认扫描 `config/*.toml`。`APP_NAME`、`APP_URL` 和命名空间读取沿公开 `ConfigContext` 与统一来源优先级；缓存命中跳过 dotenv 和配置函数，遇不可序列化 typed/factory 必须明确拒绝，不能静默丢弃。Rust 代码修改需要重新编译，环境配置修改需要重启；`src/config/` 定义框架类型与加载机制，根 `config/` 定义应用策略。
 - [`lifecycle`]：启动顺序、优雅停机信号与应用后台刷新任务回收。
+
+### 编译模块与持久启停
+
+`Application::modules` 在一次启动中只产生一份清单。`ModuleRepository::all()` 按声明顺序返回所有已编译模块，包含 disabled；`find` 返回 `Option<Module>`，`find_or_fail` 返回 `Result<Module>`，查找先匹配大小写不敏感的精确名称，再尝试 Studly 名。状态写入始终使用声明名的精确键。它是编译 catalog，不扫描 `module.json` 或运行期编译/装入 crate。只接入启用模块的 Provider；未启用模块的缺失资源根不会因此成为已加载资源。
+
+`Module::is_loaded()` 是本 App 的加载快照，`is_enabled()`、`is_disabled()` 和 `has_status(bool)` 读取当前持久状态。`enable().await` / `disable().await` 派发前事件、持久化，再派发后事件；`set_active(bool)` 直接写而不派发这四事件。已有 `ModuleManifest::enable/disable` 仍只改变当前启动输入，不是持久管理接口。
+
+```rust
+use openrust::core::ModuleRepository;
+# async fn change(app: &openrust::App) -> openrust::Result<()> {
+let modules = app.state().resolve::<ModuleRepository>().await?;
+let module = modules.find_or_fail("example")?;
+let loaded = module.is_loaded();
+module.disable().await?;
+assert!(!module.is_enabled()?);
+assert_eq!(module.is_loaded(), loaded);
+# Ok(())
+# }
+```
+
+核心命令为 `module:list`、`module:enable 名称…` 与 `module:disable 名称…`。启停支持 `--all/-a`、`--no-interaction/-n`；all 包含 disabled、覆盖显式名单，空 catalog 的 all 成功。全部名称先验证，再保留顺序和重复项执行；单项事件或写入异常停止后续项，已经提交的前项不回滚。`module:list --only enabled|disabled|priority` 按状态过滤；priority 只列 enabled，并支持 `--direction asc|desc`。TTY 搜索选择及通用批命令的 false/非零聚合仍待实现，不冒充完整上游交互。
+
+命令仍完成同一应用的完整 bootstrap，坏 JSON、缺失启用模块/依赖、资源或服务启动失败也会阻挡管理命令；修复这些启动输入后再运行，不提供第二启动器或自动绕过。停用后当前 App 继续持有原 Provider/路由和资源，下一 App 才按新状态加载；状态查询与已加载事实需要分别观察。
+
+生命周期通知沿同一 `Events` 服务派发 `ModuleLifecycleEvent`，阶段是 enabling/enabled/disabling/disabled，名称为 `modules.<声明名转小写>.<阶段>`。用 `EventsServiceProvider::listen_named::<ModuleLifecycleEvent, _>("modules.*.enabled", callback)` 登记命名/通配监听；回调返回 `EventPropagation::Stop` 只停止当前传播，不取消启停动作，返回 Err 则传播异常。前事件失败不写，写失败不发后事件，后事件失败时状态已经提交。它与原 typed/queued 监听共用注册顺序；不要另外注册空的同类型 Provider 覆盖业务监听器。
+
+模块句柄复用弱 Resolver 访问同一根事件服务；命令和资源继续沿既有生命周期回收。调用方仍需协调并发停机与管理操作，不能依赖并发 `shutdown` 提供状态文件提交的原子屏障。文件锁/替换、hardlink 等价和 Windows 原生待验边界见 [配置说明](../config/README.md#模块激活与运行根)。
 
 应用内核位于根 `openrust` package 的 `src/core/`；`config`、`http`、`db`、`auth` 和 `mail` 是同一 package 中的兄弟 Rust 模块。应用依赖公开的 `openrust` package。CLI、proc-macro 和可复用测试工具继续作为独立 workspace package，维持工具与构建边界。
 

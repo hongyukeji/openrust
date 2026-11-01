@@ -982,6 +982,11 @@ pub struct Resolver {
 }
 
 impl Resolver {
+    // 长寿命的模块管理句柄只保留既有弱容器；事件使用当前根上下文，不续用已关闭的旧scoped代。
+    pub(crate) async fn resolve_root<T: ?Sized + Send + Sync + 'static>(&self) -> Result<Arc<T>> {
+        self.container()?.resolve::<T>().await
+    }
+
     /// 取得同一容器的弱 scope 工厂，用于 scheduler 等长寿命服务创建独立入口。
     pub fn scope_factory(&self) -> ScopeFactory {
         ScopeFactory {

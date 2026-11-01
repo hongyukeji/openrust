@@ -1,6 +1,7 @@
 /target/
 /storage/
 /bootstrap/cache/*.json
+**/.modules_statuses.json.lock
 .env
 .env.*
 !.env.example

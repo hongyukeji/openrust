@@ -12,8 +12,19 @@ pub(crate) struct ArticleChanged {
     pub(crate) action: &'static str,
 }
 
+/// 供隔离 fixture 显式装配文章事件；生产 descriptor 复用 register 追加到唯一 Provider。
+#[allow(
+    dead_code,
+    reason = "保留隔离 fixture 的显式装配入口，生产使用共享 Provider"
+)]
 pub(crate) fn provider() -> EventsServiceProvider {
     let mut provider = EventsServiceProvider::new();
+    register(&mut provider);
+    provider
+}
+
+/// 在既有事件 Provider 上追加监听器，保留直接/队列监听的原顺序。
+pub(crate) fn register(provider: &mut EventsServiceProvider) {
     provider.listen::<ArticleChanged, _>(|event, context| {
         Box::pin(async move {
             let transaction = context.transaction().ok_or_else(|| {
@@ -45,5 +56,4 @@ pub(crate) fn provider() -> EventsServiceProvider {
             })
         },
     );
-    provider
 }

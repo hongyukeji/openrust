@@ -154,6 +154,6 @@ impl<A: crate::core::Application> Command for ConfigCacheCommand<A> {
 
 // 命令是允许并预期向 stdout 输出内容的唯一位置。
 #[allow(clippy::print_stdout)]
-fn print(text: &str) {
+pub(crate) fn print(text: &str) {
     println!("{text}");
 }

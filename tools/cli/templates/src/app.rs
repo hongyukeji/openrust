@@ -3,12 +3,13 @@ use openrust::prelude::*;
 
 mod providers;
 
-/// 应用自己的运行时模块根；默认从当前工作目录解析。
+/// 应用运行根锚点与独立的模块激活配置；默认从当前工作目录解析。
 #[derive(Default, serde::Deserialize)]
 #[serde(default)]
 pub struct Configuration {
     pub database: openrust::config::DatabaseConfig,
-    pub modules_root: Option<std::path::PathBuf>,
+    pub modules: openrust::config::ModulesConfig,
+    pub application_root: Option<std::path::PathBuf>,
 }
 
 pub struct {{type_name}};
@@ -27,9 +28,10 @@ impl Application for {{type_name}} {
     fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
         crate::modules::manifest(
             config
-                .modules_root
+                .application_root
                 .as_deref()
                 .unwrap_or(std::path::Path::new(".")),
+            &config.modules,
         )
     }
 }

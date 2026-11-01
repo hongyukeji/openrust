@@ -1,5 +1,23 @@
 # 测试基线
 
+## 模块持久启停与同容器管理限定验收
+
+2026-11-02，161bfcf后继。固定laravel-modules v13.2.0 / 59714840708a2aece19e810764473f53227c35fe的FileActivator、Module、BaseCommand及Enable/Disable/List源码与测试；来源映射见`tmp/module-persistence-20261102/upstream-correspondence.md`。本簇只完成已编译catalog的持久管理，不把它称module.json运行发现，不关闭B001/B007/B012或完整Modules。
+
+同一次ModuleManifest产生全量metadata与所选激活器，ModuleRepository复用同一Container和弱Resolver；每次派发解析当前根Events，支持强制重绑与根scope更新。四阶段具名事件沿原Events，前异常/取消不写，Stop只停传播，后异常保已提交结果，直接set_active不发四事件。当前loaded与持久enabled分别观察，不热挂卸资源；并发shutdown没有全局文件提交原子屏障。根/生成config/modules.rs及application_root分开资源根和状态文件，CLI只在实际绑定管理仓储的应用登记，裸内核原断言保留。多名预检、重复顺序、all覆盖/空all、异常中断及only/direction可选值边界有回归。
+
+文件驱动保留精确键/非布尔值与未知项；锁内重读、原子替换、显式reset及合法配置符号链接纳入本簇。顺序操作曾偶发busy；本机std探针直接证明复制描述符可在原File关闭后留锁，显式unlock能释放，具体spawn/fork窗口仅推断。修为成功取锁即建立RAII、后置校验受同一guard保护、Drop显式unlock；确定性回归同时检查副本存活与独立新owner，生产竞争仍明确busy。模块定向34/0通过，包含真实子进程锁与隔离cwd。硬链接别名等价、Windows原生及其他平台运行证据仍开放。
+
+最终fmt、默认/全特性严格Clippy、workspace tests、拒警Rustdoc均exit0，回执`*-final4.json`；默认1081 passed/35 ignored，全特性1923/112，跨target重复不计唯一行为数。no-default lib、精确Rust1.97.0与cargo-deny复用`*-final3.json`，后续仅CLI锁忽略/快照/断言及consumer fixture变化，框架lib/依赖/Cargo锁未变。三次早期Clippy失败、用户续作后一次严格通过、事件测试误放queue模块、配置顺序旧断言及裸内核命令差异均保留原回执，修复不删断言/加lint豁免。路由helper内联后整文件SHA恢复原冻结字节。
+
+唯一example真实宿主三App完整state/事件JSON、HTTP状态及状态路径断言通过；独审指出失败分支缺少async shutdown，现所有可失败检查返回Result，已建立实例逆序逐一尝试关闭。fresh普通最终check/test/build通过12项，含新模块consumer确实执行1项、配置consumer1、Container1及应用9；原Application全部hooks转发，仅追加已编译模块。前两次fresh因错误fixture输入失败：补app.url没有解决；实际为把serde(flatten)的driver选项误包在options对象，memory明确拒绝未知选项，修正源fixture而不改框架校验。旧失败及各fresh源码均保留。MySQL/生成Job原QueueContributions3项、MFA2项、根真实MySQL综合精确1项通过，无ignored；未受影响的其他数据库领域证据按原范围复用。
+
+根真实三进程使用任务隔离部署目录和独立状态文件：禁用不卸载当前路由，下个实例模块404且宿主API200，再启用不热挂第二实例，第三次启动恢复；canonical写入、未知原值、默认状态文件不变、事件记录仅进程内均验证。三个服务exit0且端口释放，MySQL前后集合无增删。最初缓存runner错配旧包名二进制的`validated-services-config-cache-restart.json`不计通过；首次同源探针临时目录前缀被拒亦不计。仅`source-matched-config-cache-restart-final.json`绑定combined-plain-validated源码与实际二进制SHA，验证cache创建/重启/坏dotenv屏障/clear后重读通过。
+
+767运行输入分阶段冻结，快照版本及原失败均保留；源码与最终证据独审无确定blocker，完整exit/耗时/日志SHA/复用边界在`tmp/module-persistence-20261102/`。生成源码/证据包SHA344479a60b9dae0910818b20faa824794a8aa202b835ff063879f09443c53e54，排除target、非example dotenv及运行缓存。完成main/根服务后正常清理30,420,819,968B→0；fresh/缓存结束再经byte-mode占用检查及cargo clean dry-run/clean清10,211,336,192B→0，磁盘可用201,763,201,024B。源码/WIP、服务及证据保留，下一模块发现按需重建唯一target。
+
+本地提交事实见Git，不push/tag/release。运行发现/Provider/files绑定、TTY交互、通用false批结果、完整Provider、DB能力门控及Laravel核心/官方可选生态仍在唯一todo。独立guard_native_codex_impl的skill WIP未混入本簇，未部署、不重启旧守护，不操作其Goal/账本，也不外推原生支持已生效。
+
 ## 应用启动与固定API宿主职责限定验收
 
 2026-11-02，配置提交d952199后继。固定framework d52c3b3129e4c8e213c97cdc68f94b0b7d27f181、docs 960eedf0911155ad16326ade49c0ea5d18eda0b8，对应L007.02/.03、L011.02、L015.01的职责子范围。具体源码与上游测试锚点见`tmp/application-responsibilities-20261102/upstream-correspondence.md`。框架src/routes.rs移除宿主framework_routes/framework_info，响应归根app Controller；AppServiceProvider→公开BootContext::routes→bootstrap::routes→api相对声明→Controller。API前缀与组在bootstrap配置；routes/mod仅Rust模块导出，Web保既有全局fallback与显式web组边界，不以本次关闭完整Web默认工作流。name/version端点为宿主应用增强，不冒称Laravel内置。

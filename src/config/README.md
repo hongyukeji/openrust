@@ -40,6 +40,25 @@ assert_eq!(sources.figment().extract_inner::<String>("app.url")?, "http://localh
 
 可选 `[server.trusted_hosts]` 配置 Laravel 主机信任列表：缺省不启用；启用后 `at` 缺省由 `app.url` 主机生成 PCRE 模式，`subdomains` 默认 `true`。`at = []` 加 `subdomains = false` 表示空模式列表，不限制主机。应用或模块 Provider 可经 `BootContext::trust_hosts` / `trust_hosts_with` 覆盖静态配置。模式与物理/代理 Host 的校验顺序见 [HTTP 说明](../http/README.md#可信主机)。
 
+## 模块激活与运行根
+
+根应用和生成应用的 [`config/modules.rs`](../../config/modules.rs) 显式提供以下策略；`modules` 是同一配置仓储内的区段，不是另一份状态仓储：
+
+| 配置键 | 默认值 | 代码配置读取的部署变量 |
+| --- | --- | --- |
+| `modules.activator` | `file` | `MODULES_ACTIVATOR` |
+| `modules.activators.file.statuses-file` | `modules_statuses.json` | `MODULES_STATUSES_FILE` |
+
+`Configuration.application_root` 是应用运行根锚点，缺省为当前工作目录；模块资源仍从该根下的 `modules/<模块名>/` 解析。`ModuleManifest::from_config(&root, &config.modules)` 将状态文件的相对路径锚定到同一应用根，绝对路径保持原值。例如可将状态单独放在 `state/modules.json`，而不移动模块源码、语言或视图。不会自动搬迁旧状态文件；`APP_CONFIG_DIR` 也不会替应用选择资源根。生成的 `modules::manifest(root, &config.modules)` 使用同一入口。
+
+`file` 通过已编译清单选择；自定义激活器须先用 `register_activator` 登记，未知名称启动失败。源码清单中的 `ModuleManifest::enable/disable` 只调整本次构建，持久写使用 [模块管理服务与命令](../core/README.md#编译模块与持久启停)。普通只读自定义激活器的写操作明确拒绝，不回退到默认文件。
+
+状态文件只认模块声明名的精确键和 JSON 布尔 `true`；缺文件、缺键、null 或其他值不启用，损坏 JSON 不当作空文件覆写。`Module::is_disabled()` 是启用判断的否定；`has_status(false)` 则按精确布尔规则比较，缺失/null 视为 false，其他非布尔值不等于 false。未知键和值会保留，但不会成为可执行模块。模块加载是每次 App 的快照；持久状态读取与写入不更改当前已加载的 Provider、路由或迁移历史。配置缓存可固定激活器及状态路径，**不缓存状态 JSON 内容**；改选路径后如已启用配置缓存，须显式重建或清除缓存。
+
+文件写在协作式 sidecar 锁内重读，保留其他键，经同目录临时文件同步后原子替换；忙锁报 `module_state_busy`，由调用方决定重试。事件和用户回调不在文件锁内执行；替换是提交点，提交后的事件失败不回滚状态。路径按符号链接目标协作；不同 hardlink 路径的等价锁定/替换语义及 Windows 原生文件系统行为仍待验收，不作已支持保证。与并发 `shutdown` 之间也不保证原子提交屏障；应用应协调管理动作与停机，而不是把一次生命周期检查当作事务锁。
+
+本批只管理编译清单中的模块 catalog；`module.json` 运行发现、源码根扫描及动态 Rust 代码加载不由这些配置提供。
+
 ## 应用环境身份
 
 `app.env` 保存精确环境名称。未声明时按固定 Laravel `LoadConfiguration` 回调缺省为 `production`；Rust `config/app.rs` 函数或显式选择的 `config/app.toml` 可声明环境，外部进程 `APP_ENV` 优先于 `.env` 和代码/文件配置。根 `.env.example` 和 CLI 生成的 `.env.example` 显式选用 `development`，因此开发模板不会受到缺省值变化影响。`APP_ENV=local`、`development`、`dev`、`test`、`testing` 及自定义 `staging` 均保持不同身份，大小写和显式空字符串也保留。配置缓存命中时使用缓存内的 `app.env`。

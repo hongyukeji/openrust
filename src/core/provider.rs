@@ -17,7 +17,7 @@ use crate::config::{ConfigError, ConfigSources, FrameworkConfig};
 
 use super::command::Command;
 use super::container::{Container, ContainerBuilder, Resolver};
-use super::module::ModuleManifest;
+use super::module::{ModuleManifest, ModuleRepository, ModuleRepositorySeed};
 use super::resources::{ResourceOwner, ResourceRegistrar};
 use super::{BoxFuture, Error, Result};
 
@@ -412,6 +412,7 @@ pub struct ProviderBuilder {
     providers: Vec<ProviderEntry>,
     default_providers: Option<(usize, crate::core::DefaultProviders)>,
     modules: ModuleManifest,
+    modules_configured: bool,
     removed: HashSet<ProviderId>,
     app_config: Option<AppConfigRegistration>,
     binding_overrides: Vec<BindingOverride>,
@@ -631,6 +632,7 @@ impl ProviderBuilder {
     /// 声明已编译模块和本次启动的启用来源；与应用 Provider 共用一个生命周期。
     pub fn module_manifest(&mut self, manifest: ModuleManifest) -> &mut Self {
         self.modules = manifest;
+        self.modules_configured = true;
         self
     }
 
@@ -691,7 +693,32 @@ impl ProviderBuilder {
                 });
             providers.splice(position..position, entries);
         }
-        Self::append_modules(self.modules, &self.removed, &mut providers)?;
+        let module_seed = Arc::new(Self::append_modules(
+            self.modules,
+            &self.removed,
+            &mut providers,
+        )?);
+        if self.modules_configured {
+            let events = crate::events::EventsServiceProvider::new();
+            // 收齐清单后再补默认值，不能让空同类型 Provider 吞掉应用/模块的原监听器。
+            if !self.removed.contains(&events.id())
+                && !providers
+                    .iter()
+                    .any(|entry| entry.provider.id() == events.id())
+            {
+                providers.insert(
+                    0,
+                    ProviderEntry {
+                        provider: Box::new(events),
+                        force: false,
+                    },
+                );
+            }
+            bindings.singleton::<ModuleRepository, _>(move |resolver| {
+                let seed = Arc::clone(&module_seed);
+                Box::pin(async move { Ok(Arc::new(ModuleRepository::from_seed(seed, resolver))) })
+            });
+        }
         ordered_providers(&providers)?;
         let mut resources = StartupResources::new();
         if let Some(register_config) = self.app_config {
@@ -785,8 +812,9 @@ impl ProviderBuilder {
         modules: ModuleManifest,
         removed: &HashSet<ProviderId>,
         providers: &mut Vec<ProviderEntry>,
-    ) -> Result<()> {
-        for module in modules.prepare()? {
+    ) -> Result<ModuleRepositorySeed> {
+        let prepared = modules.prepare_runtime()?;
+        for module in prepared.modules {
             for provider in module.providers {
                 let id = provider.id();
                 if removed.contains(&id) {
@@ -798,7 +826,7 @@ impl ProviderBuilder {
                 });
             }
         }
-        Ok(())
+        Ok(prepared.seed)
     }
 }
 

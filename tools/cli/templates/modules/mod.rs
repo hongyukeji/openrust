@@ -2,7 +2,10 @@
 
 use openrust::core::ModuleManifest;
 
-/// 登记已编译模块；从运行工作目录读取 `modules_statuses.json`。
-pub fn manifest(root: &std::path::Path) -> ModuleManifest {
-    ModuleManifest::from_file(root.join("modules_statuses.json"))
+/// 登记已编译模块；状态文件按独立配置解析，资源路径仍使用同一应用根。
+pub fn manifest(
+    root: &std::path::Path,
+    config: &openrust::config::ModulesConfig,
+) -> ModuleManifest {
+    ModuleManifest::from_config(root, config)
 }

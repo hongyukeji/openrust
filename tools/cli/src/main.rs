@@ -721,6 +721,10 @@ fn populate_project_with_mfa(
             include_str!("../templates/config/mail.rs").to_owned(),
         ),
         (
+            "config/modules.rs",
+            include_str!("../templates/config/modules.rs").to_owned(),
+        ),
+        (
             "config/queue.rs",
             include_str!("../templates/config/queue.rs").to_owned(),
         ),
@@ -3259,13 +3263,10 @@ mod tests {
         assert!(app_test.contains("../modules/mod.rs"));
         let module_manifest = fs::read_to_string(project.join("modules/mod.rs"))
             .expect("read generated module manifest");
-        assert!(
-            module_manifest.contains("pub fn manifest(root: &std::path::Path) -> ModuleManifest")
-        );
-        assert!(module_manifest.contains("ModuleManifest::from_file("));
+        assert!(module_manifest.contains("config: &openrust::config::ModulesConfig"));
+        assert!(module_manifest.contains("ModuleManifest::from_config(root, config)"));
         assert!(!module_manifest.contains("CARGO_MANIFEST_DIR"));
-        assert!(module_manifest.contains("root.join(\"modules_statuses.json\")"));
-        assert!(module_manifest.contains("modules_statuses.json"));
+        assert!(!module_manifest.contains("root.join(\"modules_statuses.json\")"));
         assert!(!module_manifest.contains(".enable("));
         let statuses: serde_json::Value = serde_json::from_str(
             &fs::read_to_string(project.join("modules_statuses.json"))
@@ -3279,7 +3280,8 @@ mod tests {
         assert!(application.contains("fn modules("));
         assert!(application.contains("crate::modules::manifest("));
         assert!(application.contains("config"));
-        assert!(application.contains(".modules_root"));
+        assert!(application.contains(".application_root"));
+        assert!(application.contains("&config.modules"));
         assert!(application.contains(".as_deref()"));
         let main = fs::read_to_string(project.join("src/main.rs"))
             .expect("read generated application entry");
@@ -3316,6 +3318,7 @@ mod tests {
             "config/database.rs",
             "config/log.rs",
             "config/mail.rs",
+            "config/modules.rs",
             "config/queue.rs",
             "config/realtime.rs",
             "config/security.rs",
@@ -3396,6 +3399,12 @@ mod tests {
         assert!(config_manifest.contains("if view::ENABLED"));
         let view = fs::read_to_string(project.join("config/view.rs")).expect("read view defaults");
         assert!(view.contains("ENABLED: bool = true"));
+        assert!(config_manifest.contains(".section(\"modules\", modules::config)"));
+        let modules = fs::read_to_string(project.join("config/modules.rs"))
+            .expect("read independent module activation configuration");
+        assert!(modules.contains("MODULES_ACTIVATOR"));
+        assert!(modules.contains("MODULES_STATUSES_FILE"));
+        assert!(modules.contains("modules_statuses.json"));
     }
 
     #[test]
@@ -3430,6 +3439,7 @@ mod tests {
             "config/server.rs",
             "config/session.rs",
             "config/i18n.rs",
+            "config/modules.rs",
             "src/main.rs",
             "bootstrap/app.rs",
             "modules/mod.rs",
@@ -3457,6 +3467,11 @@ mod tests {
         insta::assert_snapshot!(snapshot);
         let gitignore =
             fs::read_to_string(project.join(".gitignore")).expect("read generated gitignore");
+        assert!(
+            gitignore
+                .lines()
+                .any(|line| line == "**/.modules_statuses.json.lock")
+        );
         assert!(gitignore.lines().any(|line| line == ".env"));
         assert!(gitignore.lines().any(|line| line == ".env.*"));
         assert!(gitignore.lines().any(|line| line == "/storage/"));

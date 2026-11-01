@@ -10,12 +10,14 @@ mod providers;
 #[serde(default)]
 pub(crate) struct Configuration {
     database: openrust::config::DatabaseConfig,
-    modules_root: Option<std::path::PathBuf>,
+    pub modules: openrust::config::ModulesConfig,
+    // 运行时应用根锚点，供所有模块资源解析；不再兼作状态文件配置。
+    application_root: Option<std::path::PathBuf>,
 }
 
 impl Configuration {
     fn application_root(&self) -> std::path::PathBuf {
-        self.modules_root
+        self.application_root
             .clone()
             .unwrap_or_else(|| std::path::PathBuf::from("."))
     }
@@ -42,7 +44,7 @@ impl Application for Server {
 
     fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
         let root = config.application_root();
-        openrust::core::ModuleManifest::from_file(root.join("modules_statuses.json")).module(
+        openrust::core::ModuleManifest::from_config(&root, &config.modules).module(
             crate::modules::example::descriptor(config.uses_database(), root),
         )
     }

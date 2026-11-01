@@ -61,7 +61,7 @@ async fn no_database_host_keeps_example_but_omits_session_route() -> Result<()> 
     let mut config = FrameworkConfig::default();
     config.api.http_status = HttpStatusMode::Semantic;
     let source = Figment::from(Serialized::defaults(config)).merge(Serialized::defaults(json!({
-        "modules_root": root.path(),
+        "application_root": root.path(),
         "app": {"env": "test"},
         "cache": {"default": "default", "stores": {"default": {"driver": "memory"}}},
         "security": {"encryption": {"active_key_id": "test", "keys": {
@@ -183,7 +183,7 @@ async fn late_driver_overlay_controls_actual_example_session_route() -> Result<(
         let mut config = FrameworkConfig::default();
         config.api.http_status = HttpStatusMode::Semantic;
         let source = Figment::from(Serialized::defaults(config)).merge(Serialized::defaults(json!({
-            "modules_root":root.path(), "late_driver":final_driver,
+            "application_root":root.path(), "late_driver":final_driver,
             "app":{"env":"test"}, "session":{"driver":initial,"secure":false},
             "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}}
@@ -251,7 +251,7 @@ async fn explicit_cookie_without_database_uses_original_host_provider_and_persis
     let mut config = FrameworkConfig::default();
     config.api.http_status = HttpStatusMode::Semantic;
     let source = Figment::from(Serialized::defaults(config)).merge(Serialized::defaults(json!({
-        "modules_root":root.path(), "app":{"env":"test"},
+        "application_root":root.path(), "app":{"env":"test"},
         "session":{"driver":"cookie","cookie":"host_cookie_session","secure":false},
         "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},
         "security":{"encryption":{"active_key_id":"test","keys":{"test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}}

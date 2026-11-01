@@ -119,7 +119,19 @@ python3 -B modules/example/tests/browser_cookie_session.py \
 
 ## 从真实调用链开始
 
-根 [`src/main.rs`](../../src/main.rs) 声明应用宿主和已编译模块，然后运行 `bootstrap::Server`。[`bootstrap/app.rs`](../../bootstrap/app.rs) 的 `Application::modules` 返回模块清单，加入 [`descriptor`](mod.rs)；根 [`modules_statuses.json`](../../modules_statuses.json) 的 `example: true` 决定本次启动启用。descriptor 将 [`ExampleServiceProvider`](providers/example.rs)、自定义缓存 driver、以及适用数据库能力的任务/迁移/种子、文章事件和欢迎业务 Provider 纳入同一 register/boot 生命周期；禁用模块不会登记这些 Provider。默认模块根为进程工作目录，可由显式配置 `modules_root` 指定部署根；状态、配置、语言、视图和发布资源均从同一根解析。根 [`routes/api.rs`](../../routes/api.rs) 声明宿主自己的应用 API，通过根应用 Controller 提供信息；根 Web 与模块业务分别由对应路由文件登记，框架库不包含宿主 handler。
+根 [`src/main.rs`](../../src/main.rs) 声明应用宿主和已编译模块，然后运行 `bootstrap::Server`。[`bootstrap/app.rs`](../../bootstrap/app.rs) 的 `Application::modules` 通过 `ModuleManifest::from_config(&root, &config.modules)` 加入 [`descriptor`](mod.rs)。`Configuration.application_root` 锚定运行资源根，模块资源位于其 `modules/example/` 下；[`config/modules.rs`](../../config/modules.rs) 的 `modules.activators.file.statuses-file` 独立选择状态文件，默认是应用根的 `modules_statuses.json`。只有声明名 `example` 的 JSON `true` 决定下次启动加载；禁用不热卸载当前 Provider，也不删除数据。descriptor 将业务 Provider、自定义缓存 driver、适用数据库能力及唯一合并的事件 Provider 纳入同一 register/boot 生命周期。根 [`routes/api.rs`](../../routes/api.rs) 的宿主信息 API 独立于示例模块，停用示例后仍存在。
+
+`GET /api/example/module-state` 经公开 `Inject<ModuleRepository>` 与共享日志服务返回 `data` 中的 `name`、`enabled`、`loaded`、`events`。这是只读业务接口，持久写只通过核心命令或公开模块管理 API。`ModuleStateServiceProvider` 与 descriptor 的同一个 `EventsServiceProvider` 共享日志；命名监听 `modules.example.*` 追加生命周期事件，适用时再向该 Provider 追加原文章事务/队列监听，不另建事件 bus。
+
+```bash
+cargo run -- module:list
+cargo run -- module:disable example --no-interaction
+cargo run -- module:enable example --no-interaction
+```
+
+独立 CLI 命令是新进程；事件日志仅记录本 App 内的派发，不接收其他进程的事件广播。一个已加载 App 内执行 `app.run_command("module:disable", vec!["example".to_owned()]).await?` 后，状态端点仍可返回 `enabled=false, loaded=true`；新 App 不再挂示例路由，但宿主 `/api` 继续可用。再次启用不热挂先前未加载的 App，后续新 App 才恢复示例。对应[三实例回归](tests/module_activation_flows.rs)使用临时应用根、独立状态文件和真实 `bootstrap::Server`，源码用于验证上述流程，不在真实根状态文件上操作。
+
+本批 catalog 只包含已编译模块，不是 `module.json` 运行发现；TTY 搜索选择仍待实现。文件的 hardlink 等价及 Windows 原生行为尚未验收，启停与并发 `shutdown` 不提供原子提交屏障，详见[模块配置边界](../../src/config/README.md#模块激活与运行根)。
 
 [`ExampleServiceProvider::register`](providers/example.rs) 登记 `example` 类型化配置/schema 和业务依赖工厂；其 `boot` 调用 `BootContext::code_config` 求值模块 [`config/mod.rs`](config/mod.rs)，按显式选项读取同仓储 typed 策略，再贡献 [`routes::register`](routes/mod.rs)。后续业务工厂读取共享配置仓储，`greeting` 用于响应文字。模块配置在 Provider 的 boot 时点接入；显式 TOML overlay 的旧回归 fixture 保留在 `tests/fixtures/config/`。
 
@@ -221,19 +233,19 @@ fn register(routes: Routes) -> Routes { routes.get("/api/orders", index) }
 async fn index() -> Json<Vec<&'static str>> { Json(vec!["first-order"]) }
 ```
 
-在根 `modules/mod.rs` 声明 `pub(crate) mod orders;`，并在应用 `Application::modules` 中将 `modules::orders::descriptor(root)` 加入 `ModuleManifest::from_file(root.join("modules_statuses.json")).module(...)`；状态 JSON 设为 `{"orders":true}` 才启用。编译声明与运行时启用分开，只有已声明且启用的模块进入唯一 Provider 清单。部署时从应用根启动，或显式提供同一 `modules_root`；编译机路径不参与运行时查找。
+在根 `modules/mod.rs` 声明 `pub(crate) mod orders;`，并在应用 `Application::modules` 中将 `modules::orders::descriptor(&root)` 加入 `ModuleManifest::from_config(&root, &config.modules).module(...)`；状态 JSON 设为 `{"orders":true}` 才启用。编译声明与运行时启用分开，只有已声明且启用的模块进入唯一 Provider 清单。部署时从应用根启动，或显式提供同一 `application_root`；编译机路径不参与运行时查找。
 
 若 `orders` 在启动时必须读取 `shared` 模块注册的服务，两个模块都要编译声明并启用，消费者用 `requires` 表达硬依赖：
 
 ```rust
-ModuleManifest::from_file(root.join("modules_statuses.json"))
-    .module(modules::shared::descriptor(root))
-    .module(modules::orders::descriptor(root).requires("shared"));
+ModuleManifest::from_config(&root, &config.modules)
+    .module(modules::shared::descriptor(&root))
+    .module(modules::orders::descriptor(&root).requires("shared"));
 ```
 
 依赖模块先于消费者完成 Provider 注册与 boot；该关系优先于 `priority`，可启动模块之间仍按升序 priority 和清单声明顺序稳定排序。未编译、未启用、自依赖、重复依赖和循环会使应用构建失败，框架不会自动改写启用状态。Cargo 管理 crate/features 依赖，`requires` 只处理应用模块间的运行装配依赖。
 
-业务路由留在业务模块，静态列表只说明注册，不代替完整 CRUD。register 阶段绑定服务，所有 Provider 注册后依序 boot；第三方依赖仍由 Cargo 解析。禁用只影响后续应用启动，不对已运行进程热卸载；更完整的生成、发布和模块管理命令仍待后继实现。
+业务路由留在业务模块，静态列表只说明注册，不代替完整 CRUD。register 阶段绑定服务，所有 Provider 注册后依序 boot；第三方依赖仍由 Cargo 解析。禁用只影响后续应用启动，不对已运行进程热卸载；`module.json` 运行发现、模块生成/发布及 TTY 管理交互仍待后继实现。
 
 ## 模块里各类代码写在哪里
 

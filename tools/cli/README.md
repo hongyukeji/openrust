@@ -46,7 +46,7 @@ cargo run -p cli -- g migration labels slug:string
 
 ## 接入自己的业务模块
 
-新项目包含空的编译清单 `modules/mod.rs` 与内容为 `{}` 的 `modules_statuses.json`。`src/main.rs` 与生成的集成测试声明同一编译入口，`bootstrap/app.rs` 的 `Application::modules` 将运行根传入 `manifest(root)`。默认不复制框架仓库的综合示例，也没有第二个容器或应用入口。认证 TCP 测试同样通过 `ProviderBuilder::for_application` 使用生产 Provider/模块清单。
+新项目包含空的编译清单 `modules/mod.rs` 与内容为 `{}` 的 `modules_statuses.json`。`src/main.rs` 与生成的集成测试声明同一编译入口，`bootstrap/app.rs` 的 `Application::modules` 将应用运行根和模块配置传入 `manifest(root, &config.modules)`。默认不复制框架仓库的综合示例，也没有第二个容器或应用入口。认证 TCP 测试同样通过 `ProviderBuilder::for_application` 使用生产 Provider/模块清单。
 
 例如在生成应用创建 `modules/orders/mod.rs`，仅使用公开 API：
 
@@ -79,9 +79,10 @@ async fn index() -> Json<std::collections::BTreeMap<&'static str, &'static str>>
 
 ```rust
 pub mod orders;
+use openrust::config::ModulesConfig;
 use openrust::core::ModuleManifest;
-pub fn manifest(root: &std::path::Path) -> ModuleManifest {
-    ModuleManifest::from_file(root.join("modules_statuses.json"))
+pub fn manifest(root: &std::path::Path, config: &ModulesConfig) -> ModuleManifest {
+    ModuleManifest::from_config(root, config)
         .module(orders::descriptor(root))
 }
 ```
@@ -95,14 +96,28 @@ pub fn manifest(root: &std::path::Path) -> ModuleManifest {
 若 `orders` 必须使用另一个业务模块提供的服务，可在应用清单声明依赖：
 
 ```rust
-ModuleManifest::from_file(root.join("modules_statuses.json"))
+ModuleManifest::from_config(root, config)
     .module(orders::descriptor(root).requires("shared"))
     .module(shared::descriptor(root))
 ```
 
 同时在 `modules_statuses.json` 中启用 `orders` 和 `shared`。启用的模块依赖缺少编译声明、未启用或构成循环时启动失败；框架不自动编辑启用状态。依赖图优先于模块 `priority`，同一批就绪模块仍按 priority 和清单顺序稳定排列。
 
-源码声明、注册清单与状态文件属于应用配置，无需修改框架 `src/` 或依赖清单。默认状态文件和模块资源路径相对于运行工作目录，与代码配置编译清单职责分开。请从部署应用根启动；`cargo --manifest-path` 本身不会替应用切换运行工作目录，从其他目录执行时不能假定它读取项目根。TestApp 的显式 Figment 不会改变这一资源根约定，也不修改全局 cwd/env。生成应用已有 `Configuration.modules_root` 可设置绝对运行根；`Application::modules(config)` 将其同时传入状态文件与所有模块 descriptor；`APP_CONFIG_DIR` 只覆盖配置目录，不会自动替模块选择资源根。缺少文件或键表示关闭；`false`、字符串 `"true"`、数字等非 JSON `true` 值也关闭。损坏 JSON 会使启动失败，框架不会覆盖原文件；可读状态变更在下次应用构建才生效，当前实例不热卸载。此处没有新增状态管理写命令。
+源码声明、注册清单与状态文件属于应用配置，无需修改框架 `src/`。`Configuration.application_root` 是运行应用根锚点，默认当前工作目录，模块资源据此解析；`config/modules.rs` 独立提供 `modules.activator` 和 `modules.activators.file.statuses-file`，缺省为 `file` 与 `modules_statuses.json`，部署变量是 `MODULES_ACTIVATOR`、`MODULES_STATUSES_FILE`。状态路径可相对应用根或为绝对路径，不自动迁移旧文件。`APP_CONFIG_DIR` 不改变模块资源根，`cargo --manifest-path` 也不会自动切工作目录。声明名的精确 JSON `true` 才启用，坏 JSON 拒绝且不覆盖；未知状态键不成为可执行模块。
+
+从应用根使用持久管理命令：
+
+```bash
+cargo run -- module:list
+cargo run -- module:list --only priority --direction desc
+cargo run -- module:disable orders --no-interaction
+cargo run -- module:enable orders shared --no-interaction
+cargo run -- module:enable --all
+```
+
+启停先校验全部名称，再按输入顺序执行；重复名字保留，`--all/-a` 覆盖显式名单并包含 disabled，空 all 成功。单项异常中断后续项，已写前项不回滚。`module:list --only enabled|disabled` 按状态过滤；默认列全部已编译模块的名称、状态、路径和优先级。TTY 搜索选择尚未实现，无名字且未选 all 时明确失败。
+
+管理命令也走完整应用 bootstrap，坏状态或依赖服务启动失败需要先修复；它们不绕过启动校验。写入只改变持久状态及未来 App 的加载选择，当前已加载 Provider、路由和资源保持；全局 CLI 也可将同名命令转发给选中的应用。文件原子替换不等于与并发 `shutdown` 形成原子屏障；hardlink 路径等价与 Windows 原生行为仍待验，详见[模块激活说明](../../src/config/README.md#模块激活与运行根)。
 
 启动后请求 `/api/orders`；默认语义状态成功 envelope 的 `data.module` 为 `"orders"`。在生成的普通应用 `tests/test_app.rs` 中，可沿用已有 `TestApp<bootstrap::应用类型>` 和显式测试来源，对该路径调用 `request` 后 `assert_json`，再显式 `shutdown`。`TestAppBuilder::remove_module("orders")` 只移除本次测试应用的模块；默认缺失路由返回 HTTP 404 和正文 `code="not_found"`；只有显式设置 `always_ok` 才返回 HTTP 200。
 
@@ -114,7 +129,7 @@ cargo run
 curl --noproxy '*' http://127.0.0.1:3000/api/orders
 ```
 
-模块根必须在部署目录真实存在；默认相对路径在启动时解析，也可显式传入配置的绝对运行根，不能绑定编译机源码位置；编译声明与运行时启用分别维护。禁用影响新应用启动，不热卸载当前应用。模块私有资源、配置、迁移与测试留在该模块内部，通过公开 Provider 接口接入。普通模块共享当前应用 Cargo 依赖解析；第三方业务包仍在应用清单声明，Provider 不隔离依赖版本或 feature。这是手工业务模块接入，未提供 R13 的完整模块生成、发布和管理命令。
+模块根必须在部署目录真实存在；默认相对路径在启动时解析，也可显式传入配置的绝对运行根，不能绑定编译机源码位置；编译声明与运行时启用分别维护。禁用影响新应用启动，不热卸载当前应用。模块私有资源、配置、迁移与测试留在该模块内部，通过公开 Provider 接口接入。普通模块共享当前应用 Cargo 依赖解析；第三方业务包仍在应用清单声明，Provider 不隔离依赖版本或 feature。这是已编译模块接入与持久状态管理；`module.json` 运行发现、源码根扫描、完整模块生成和发布命令仍待后继交付。
 
 ## 生成代码
 

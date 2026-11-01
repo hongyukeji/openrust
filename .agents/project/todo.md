@@ -34,6 +34,22 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 - skill 本批仅接纳旧142/61测试及不同模型最终独审九SHA完全匹配的版本，精确快照与索引整合证据在同目录。后续 ended-grant/Codex 原生适配由另一个获用户授权的 owner 在同 skill 收口，未部署，完整工作文件保持；本轮最小恢复判定补丁及并发漂移报告已保全 `/tmp/openrust-guard-recovery-consistency.*`。不再并改，不重启旧守护，不把开发中适配当已生效。
 - 默认80%预算政策和旧账号历史、问答/发送账本保持，未rebase/fullgrant或伪复用旧授权；本对话已可正式读取共享账号窗口，数值按当次回执汇报；不重算基线。成功验收的自有服务进程与端口已收尾，数据库集合无增删；完成簇根target已正常清零：48,729,780,224B→0，磁盘可用202,384,363,520B；源码/生成fixture/证据保留，下一配置簇按需复用同一路径。
 
+### 模块持久启停簇（161bfcf 后继，限定验收）
+
+1. 固定nWidart5971484的FileActivator/Module/BaseCommand/Enable/Disable/List及对应测试；先闭环已编译模块的持久管理，随后实现module.json运行发现/Provider绑定，不把本簇catalog称发现或关闭B001/B007/B012。
+2. 同一ModuleActivator扩展snapshot/set_active_by_name/delete/reset，旧只读driver默认明确拒写；Snapshot保留未知键/非布尔值，exact键has_status(false)区分缺失/null与Other，is_disabled=!is_enabled。程序化enable仍走原find规则，文件状态只查canonical精确键，孤立旧键忽略。
+3. File写以稳定sidecar std try_lock、锁内重读、同目录临时文件同步后原子替换，锁不跨事件/用户回调；busy明确失败可重试，set/delete损坏不覆写，显式reset可按官方清除坏状态，其他键/原值保留；并发/原子性是质量增强而非上游已有保证；普通文件及配置符号链接目标纳入本簇，硬链接别名等价与Windows原生门禁仍开放；rename为提交点，后事件失败不得假称未写。
+4. 新ModuleRepository/Module只保存同一次manifest的全量metadata与所选activator，不复制Provider或重调Application::modules；同Container懒构造，Module对象保可共享管理句柄及既有Weak Resolver（每次操作从同一容器解析当前Events），当前loaded快照与持久状态分别可见，不热挂卸资源。
+5. 同一Events增加typed named/wildcard监听及dispatch_named、Continue/Stop结果：Stop仅停本次传播而动作继续，Err异常传播；原typed/queued顺序与错误契约保持。Module enabling/enabled/disabling/disabled名称为modules.<lower>.<phase>，直接set_active无四事件，不建第二bus。
+6. 模块清单显式接入时提供同Container管理服务；全量Provider收齐后仅无EventsServiceProvider且未显式移除时补空fallback，不吞原模块/应用监听器。普通无模块ProviderBuilder保持原行为，模块服务factory不额外启动App。
+7. 核心命令module:enable/disable支持多名、-a/--all及显式非交互；名称全部先验，再逐项执行，重复不去重，--all覆盖显式名单、空all成功，异常停止后项并保前项。module:list支持only/direction官方选项。TTY搜索选择及通用批命令false聚合单列后继，不冒充完整CLI。
+8. 命令仍走唯一完整bootstrap，坏JSON/模块或服务故障不会另造绕过启动器；手工恢复坏配置与官方启动失败边界明确。活跃App原Provider/路由/迁移资源保持，下一App按新状态选择。
+9. 可编辑config/modules.rs只展开本批真正实现的activator与activators.file.statuses-file；默认应用根modules_statuses.json，允许独立相对/绝对路径，不自动迁移旧文件。应用根输入modules_root纠正为application_root，资源根与状态文件不再混用；模块源码根/扫描配置随后发现簇交付。
+10. 同步根/生成bootstrap、唯一示例的事件与持久管理真实调用、consumer/生成测试、README与changelog；所有旧modules_root活跃调用按归属迁移，历史证据不机械替换。无新依赖/Cargo写，守护WIP不触碰。
+11. root独占core公共contract/provider/events/commands/config类型、docs/index/Cargo/服务；file worker仅新activator文件及内置测试；app worker仅根/模板接线、配置与受影响宿主fixture路径。完整配套冻结后集中门禁、真实进程启停重启/状态/资源/错误/并发验收，验证通过才本地提交。
+
+当前停点：767运行输入冻结、完整适用门禁及fresh普通12/MySQL3/MFA2、根MySQL1和真实三进程通过；模块定向34含跨进程锁通过，独审资源回收与锁释放整改已闭合。生成源码/证据保全、两个完成缓存均正常清零，所有实现owner停写，root独占索引进入本地提交；事实见Git与[限定验收](memory/testing.md#模块持久启停与同容器管理限定验收)。旧失败/无效cache回执不计通过。下一步只领取本行后继module.json运行发现/Provider/files绑定；TTY/硬链接/Windows等明确开放，不关闭完整B001/B007/B012。skill由guard_native_codex_impl独占，不并改或启用。
+
 ### 当前应用职责子簇（限定验收，本次提交以Git为准）
 
 根/生成的Controller拥有固定API响应，bootstrap负责API前缀与中间件组，routes/api.rs只声明相对路径，Rust mod仅导出；bootstrap两项真实测试主体已迁tests并保留private挂载，新增禁用模块仍保宿主API与通用HTTP无应用API的回归。完整门禁、fresh普通11/MySQL3/MFA2、根综合MySQL1、真实API/模块/TCP/TLS通过；源/证据独审无blocker，owner均停写，target已正常清零，生成源码与证据已归档。详见[应用职责验收](memory/testing.md#应用启动与固定api宿主职责限定验收)。下一模块状态/持久启停/发现先Spec，不追加输入延迟本次提交。
@@ -66,7 +82,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 | APP_NAME/APP_URL等跨领域单一来源、有序依赖与显式独立身份 | 同owner，与配置同批 | 所属配置+必要公开依赖读取contract，consumer/缓存/生成同步 | 已编码并限定验收：代码默认传播、SERVER_PORT/APP_URL、独立source覆盖、空值非法与缓存/fresh通过；既有token/链接不自动重签，完整配置仍开放 |
 | bootstrap及同类正式入口测试/fixture职责 | 新配置owner，既有应用布局后继 | 真实测试主体迁tests，不复制宿主/扩大API | 已迁移原两测试并新增宿主/模块边界断言；完整门禁和真实服务限定验收通过，提交以Git为准 |
 | 固定/api宿主内容及同类业务反向依赖 | layout应用/路由owner，与既有app职责整改合批 | app/controllers处理内容、routes/api.rs声明、AppServiceProvider公开挂载；src仅通用路由机制 | 已移除库专属端点，根/生成Controller与bootstrap真实接线；consumer、fresh普通/MySQL/MFA、真实TCP/TLS通过，完整路由仍开放 |
-| 模块状态路径/发现注册/持久启停/统一Provider | 新配置owner与root contract，既有模块整改 | 现ModuleManifest/FileActivator扩展，不造新内核 | 固定上游核对在途；路径/命令/依赖/资源/迁移缺失行为待实现验收 |
+| 模块状态路径/发现注册/持久启停/统一Provider | 新配置owner与root contract，既有模块整改 | 现ModuleManifest/FileActivator扩展，不造新内核 | 已完成持久启停/独立状态路径/非交互命令事件限定验收与清理；提交事实见Git，运行发现/metadata Provider/files绑定随后，TTY/硬链接/Windows及完整模块管理仍开放 |
 | 数据库通用能力门控与驱动选择/运行时启用分层 | layout应用装配owner，root收敛Cargo/公开contract；同类整改后继 | bootstrap/app/模块/auth/通用层/模板/consumer，专属方言保留后端cfg | 待设计实施；no-default、MySQL/PG、未编译/未知驱动拒绝、迁移注册及扩展验证待验 |
 | 标准应用队列开箱体验与精简构建分层 | layout配置/模板owner + root队列contract/Cargo单一调度；关联R10既有队列能力 | 根/new标准能力、config/queue.rs、具名连接/env/Provider/worker统一接线 | 已确认待实现；默认DB和可选Redis真实派发→worker、精简错误/无副作用及生成待验 |
 

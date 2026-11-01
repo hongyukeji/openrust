@@ -31,7 +31,8 @@ pub(crate) use execution::CancelOnDrop;
 pub use execution::{Cancellation, ExecutionContext, ExecutionMetadata, with_execution_context};
 pub use lifecycle::{bootstrap, shutdown_signal};
 pub use module::{
-    FileModuleActivator, ModuleActivator, ModuleConfigFiles, ModuleDescriptor, ModuleManifest,
+    FileModuleActivator, Module, ModuleActivationSnapshot, ModuleActivator, ModuleConfigFiles,
+    ModuleDescriptor, ModuleLifecycleEvent, ModuleLifecyclePhase, ModuleManifest, ModuleRepository,
 };
 pub use plugin::BoxFuture;
 pub use provider::{

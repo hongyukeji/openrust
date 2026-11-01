@@ -123,7 +123,7 @@ impl Fixture {
         let mut framework = openrust::config::FrameworkConfig::default();
         framework.api.http_status = openrust::config::HttpStatusMode::Semantic;
         let source_config = Figment::from(Serialized::defaults(framework)).merge(Serialized::defaults(serde_json::json!({
-            "app":{"env":"test"},"modules_root":directory.path(),
+            "app":{"env":"test"},"application_root":directory.path(),
             "cache":{"default":"default","stores":{"default":{"driver":"memory"}}},
             "security":{"encryption":{"active_key_id":"test","keys":{"test":"KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}},
             "view":{"directory":app_views,"auto_reload":true},

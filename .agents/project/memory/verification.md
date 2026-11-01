@@ -1,5 +1,7 @@
 # 验收口径
 
+模块持久启停已完成同一容器、唯一示例、生成应用与真实MySQL/三进程的[限定验收](testing.md#模块持久启停与同容器管理限定验收)。编译catalog不等于运行发现；阶段冻结版本、无效回执排除及未受影响证据复用逐项列明，完整Modules与ADR-001仍开放。
+
 当前 Env/Request-MIME、应用内核与部分 Query 的 main 组合限定证据见 [本批验收](testing.md#当前-main-组合限定验收)。默认/全 feature 门禁、生成、MySQL、TCP/TLS 与来源保全分别绑定实际输入；无完整 Laravel/Modules 或全后端交付推断。原失败、忽略和未部署 skill WIP 保留。
 
 ## C04-D10-B 当前限定核验

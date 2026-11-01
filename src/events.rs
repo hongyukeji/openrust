@@ -20,6 +20,7 @@ use crate::{
 #[derive(Clone, Copy)]
 pub struct EventContext<'a> {
     transaction: Option<&'a DatabaseTransaction>,
+    name: Option<&'a str>,
 }
 
 impl<'a> EventContext<'a> {
@@ -27,10 +28,28 @@ impl<'a> EventContext<'a> {
     pub const fn transaction(&self) -> Option<&'a DatabaseTransaction> {
         self.transaction
     }
+
+    /// 命名派发时的完整事件名称；普通类型派发返回 `None`。
+    pub const fn event_name(&self) -> Option<&'a str> {
+        self.name
+    }
+}
+
+/// 命名监听器对当前传播的控制；停止传播不等于取消触发该事件的业务操作。
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum EventPropagation {
+    /// 继续调用后续匹配的监听器。
+    Continue,
+    /// 当前事件不再调用后续监听器，派发仍成功返回。
+    Stop,
 }
 
 trait ErasedListener: Send + Sync {
     fn event_type(&self) -> TypeId;
+
+    fn accepts_name(&self, _name: Option<&str>) -> bool {
+        true
+    }
 
     fn is_queued(&self) -> bool {
         false
@@ -40,7 +59,21 @@ trait ErasedListener: Send + Sync {
         &'a self,
         event: &'a dyn Any,
         transaction: Option<&'a DatabaseTransaction>,
+        name: Option<&'a str>,
     ) -> BoxFuture<'a, Result<()>>;
+
+    fn call_named<'a>(
+        &'a self,
+        event: &'a dyn Any,
+        transaction: Option<&'a DatabaseTransaction>,
+        name: &'a str,
+    ) -> BoxFuture<'a, Result<EventPropagation>> {
+        let pending = self.call(event, transaction, Some(name));
+        Box::pin(async move {
+            pending.await?;
+            Ok(EventPropagation::Continue)
+        })
+    }
 }
 
 struct TypedListener<E, F> {
@@ -61,6 +94,7 @@ where
         &'a self,
         event: &'a dyn Any,
         transaction: Option<&'a DatabaseTransaction>,
+        name: Option<&'a str>,
     ) -> BoxFuture<'a, Result<()>> {
         let Some(event) = event.downcast_ref::<E>() else {
             return Box::pin(async {
@@ -70,8 +104,85 @@ where
                 ))
             });
         };
-        (self.handler)(event, EventContext { transaction })
+        (self.handler)(event, EventContext { transaction, name })
     }
+}
+
+struct NamedListener<E, F> {
+    pattern: String,
+    handler: F,
+    marker: PhantomData<fn(&E)>,
+}
+
+impl<E, F> ErasedListener for NamedListener<E, F>
+where
+    E: Any + Send + Sync + 'static,
+    F: for<'a> Fn(&'a E, EventContext<'a>) -> BoxFuture<'a, Result<EventPropagation>> + Send + Sync,
+{
+    fn event_type(&self) -> TypeId {
+        TypeId::of::<E>()
+    }
+
+    fn accepts_name(&self, name: Option<&str>) -> bool {
+        name.is_some_and(|name| wildcard_name_matches(&self.pattern, name))
+    }
+
+    fn call<'a>(
+        &'a self,
+        event: &'a dyn Any,
+        transaction: Option<&'a DatabaseTransaction>,
+        name: Option<&'a str>,
+    ) -> BoxFuture<'a, Result<()>> {
+        let pending = self.call_named(event, transaction, name.unwrap_or_default());
+        Box::pin(async move { pending.await.map(|_| ()) })
+    }
+
+    fn call_named<'a>(
+        &'a self,
+        event: &'a dyn Any,
+        transaction: Option<&'a DatabaseTransaction>,
+        name: &'a str,
+    ) -> BoxFuture<'a, Result<EventPropagation>> {
+        let Some(event) = event.downcast_ref::<E>() else {
+            return Box::pin(async {
+                Err(Error::custom(
+                    "event_type_mismatch",
+                    "事件监听器的载荷类型不匹配",
+                ))
+            });
+        };
+        (self.handler)(
+            event,
+            EventContext {
+                transaction,
+                name: Some(name),
+            },
+        )
+    }
+}
+
+// 对应命名事件的完整匹配：只有 * 是通配符，其他字符（包括 ?）按字面值处理。
+fn wildcard_name_matches(pattern: &str, name: &str) -> bool {
+    let (pattern, name) = (pattern.as_bytes(), name.as_bytes());
+    let (mut cursor, mut position, mut retry) = (0, 0, 0);
+    let mut star = None;
+    while position < name.len() {
+        if cursor < pattern.len() && pattern[cursor] == b'*' {
+            star = Some(cursor);
+            cursor += 1;
+            retry = position;
+        } else if cursor < pattern.len() && pattern[cursor] == name[position] {
+            cursor += 1;
+            position += 1;
+        } else if let Some(previous) = star {
+            retry += 1;
+            position = retry;
+            cursor = previous + 1;
+        } else {
+            return false;
+        }
+    }
+    pattern[cursor..].iter().all(|byte| *byte == b'*')
 }
 
 #[derive(Clone)]
@@ -90,6 +201,26 @@ struct ListenerRegistrations {
 }
 
 impl ListenerRegistrations {
+    fn listen_named<E, F>(&mut self, pattern: impl Into<String>, handler: F) -> &mut Self
+    where
+        E: Any + Send + Sync + 'static,
+        F: for<'a> Fn(&'a E, EventContext<'a>) -> BoxFuture<'a, Result<EventPropagation>>
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.listeners
+            .push(ListenerRegistration::Direct(Arc::new(NamedListener::<
+                E,
+                F,
+            > {
+                pattern: pattern.into(),
+                handler,
+                marker: PhantomData,
+            })));
+        self
+    }
+
     /// 为一种具体事件类型注册异步监听器。
     pub fn listen<E, F>(&mut self, handler: F) -> &mut Self
     where
@@ -145,6 +276,21 @@ impl EventsServiceProvider {
     /// 创建空的事件 Provider。
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// 在同一有序事件链登记命名监听器；`*` 匹配任意片段，名称区分大小写。
+    ///
+    /// 返回 `Stop` 只停止当前传播；错误向派发调用者传播。普通类型派发不调用此监听器。
+    pub fn listen_named<E, F>(&mut self, pattern: impl Into<String>, handler: F) -> &mut Self
+    where
+        E: Any + Send + Sync + 'static,
+        F: for<'a> Fn(&'a E, EventContext<'a>) -> BoxFuture<'a, Result<EventPropagation>>
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.registrations.listen_named::<E, F>(pattern, handler);
+        self
     }
 
     /// 按调用顺序注册直接监听器。
@@ -251,6 +397,7 @@ where
         &'a self,
         event: &'a dyn Any,
         transaction: Option<&'a DatabaseTransaction>,
+        _name: Option<&'a str>,
     ) -> BoxFuture<'a, Result<()>> {
         let Some(event) = event.downcast_ref::<E>() else {
             return Box::pin(async {
@@ -284,6 +431,23 @@ pub struct Events {
 }
 
 impl Events {
+    /// 按完整名称和载荷类型派发；类型监听器与匹配的命名监听器共用原注册顺序。
+    ///
+    /// `Stop` 不取消业务动作；首个错误停止派发并传播给调用方。此方法不跨进程广播。
+    pub async fn dispatch_named<E>(&self, name: &str, event: &E) -> Result<()>
+    where
+        E: Any + Send + Sync + 'static,
+    {
+        for listener in &self.listeners {
+            if listener.event_type() == TypeId::of::<E>()
+                && listener.accepts_name(Some(name))
+                && listener.call_named(event, None, name).await? == EventPropagation::Stop
+            {
+                break;
+            }
+        }
+        Ok(())
+    }
     /// 按注册顺序将事件发送给匹配的监听器。
     ///
     /// 首个监听器错误会停止派发并向调用方传播。此操作仅在当前进程中执行，不会持久化，
@@ -341,8 +505,11 @@ impl Events {
         E: Any + Send + Sync + 'static,
     {
         for listener in &self.listeners {
-            if listener.event_type() == TypeId::of::<E>() && !listener.is_queued() {
-                listener.call(event, transaction).await?;
+            if listener.event_type() == TypeId::of::<E>()
+                && listener.accepts_name(None)
+                && !listener.is_queued()
+            {
+                listener.call(event, transaction, None).await?;
             }
         }
         Ok(())
@@ -357,8 +524,8 @@ impl Events {
         E: Any + Send + Sync + 'static,
     {
         for listener in &self.listeners {
-            if listener.event_type() == TypeId::of::<E>() {
-                listener.call(event, transaction).await?;
+            if listener.event_type() == TypeId::of::<E>() && listener.accepts_name(None) {
+                listener.call(event, transaction, None).await?;
             }
         }
         Ok(())
@@ -446,6 +613,78 @@ mod tests {
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner),
             0
+        );
+        Ok(())
+    }
+    #[test]
+    fn named_patterns_match_full_case_sensitive_names_and_only_star_is_special() {
+        for (pattern, name, expected) in [
+            ("modules.*.enabled", "modules.blog.enabled", true),
+            ("modules.*.enabled", "modules.a.b.enabled", true),
+            ("modules.*.enabled", "prefix.modules.blog.enabled", false),
+            ("Modules.*", "modules.blog.enabled", false),
+            ("modules.?.enabled", "modules.a.enabled", false),
+            ("modules.?.enabled", "modules.?.enabled", true),
+            ("*", "", true),
+            ("a**b", "ab", true),
+            ("é*", "éß", true),
+            ("a*b", "ac", false),
+            ("", "x", false),
+        ] {
+            assert_eq!(
+                super::wildcard_name_matches(pattern, name),
+                expected,
+                "{pattern:?} / {name:?}"
+            );
+        }
+    }
+
+    // 防止命名监听泄入普通派发，或为新名字建立另一条丢失旧类型监听器的事件链。
+    #[tokio::test]
+    async fn typed_and_named_listeners_share_order_and_receive_the_current_name()
+    -> crate::Result<()> {
+        let calls = Arc::new(Mutex::new(Vec::new()));
+        let mut provider = EventsServiceProvider::new();
+        let typed = Arc::clone(&calls);
+        provider.listen::<Probe, _>(move |event, context| {
+            let typed = Arc::clone(&typed);
+            Box::pin(async move {
+                typed
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .push(format!("typed:{}:{:?}", event.0, context.event_name()));
+                Ok(())
+            })
+        });
+        let named = Arc::clone(&calls);
+        provider.listen_named::<Probe, _>("modules.*.enabled", move |event, context| {
+            let named = Arc::clone(&named);
+            Box::pin(async move {
+                named
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .push(format!("named:{}:{:?}", event.0, context.event_name()));
+                Ok(super::EventPropagation::Continue)
+            })
+        });
+        let events = events(provider).await?;
+        events.dispatch(&Probe(1)).await?;
+        events
+            .dispatch_named("modules.blog.disabled", &Probe(2))
+            .await?;
+        events
+            .dispatch_named("modules.blog.enabled", &Probe(3))
+            .await?;
+        assert_eq!(
+            *calls
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+            [
+                "typed:1:None",
+                "typed:2:Some(\"modules.blog.disabled\")",
+                "typed:3:Some(\"modules.blog.enabled\")",
+                "named:3:Some(\"modules.blog.enabled\")",
+            ]
         );
         Ok(())
     }

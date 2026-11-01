@@ -52,14 +52,22 @@ async fn module_resources_follow_configured_runtime_root() -> Result<()> {
     std::fs::create_dir_all(module.join("resources/views")).map_err(openrust::Error::internal)?;
     std::fs::create_dir_all(deployed.path().join("resources/lang/vendor/example"))
         .map_err(openrust::Error::internal)?;
+    std::fs::create_dir_all(deployed.path().join("state")).map_err(openrust::Error::internal)?;
+    // 默认位置故意关闭；若启动忽略独立状态路径，下面真实模块路由断言会失败。
     std::fs::write(
         deployed.path().join("modules_statuses.json"),
+        "{\"example\":false}\n",
+    )
+    .map_err(openrust::Error::internal)?;
+    std::fs::write(
+        deployed.path().join("state/modules.json"),
         "{\"example\":true}\n",
     )
     .map_err(openrust::Error::internal)?;
     let source = Figment::from(Serialized::defaults(openrust::config::FrameworkConfig::default()))
         .merge(Serialized::defaults(serde_json::json!({
-            "modules_root": deployed.path(),
+            "application_root": deployed.path(),
+            "modules": {"activator": "file", "activators": {"file": {"statuses-file": "state/modules.json"}}},
             "app": {"env": "test"},
             "cache": {"default": "default", "stores": {"default": {"driver": "memory"}}},
             "security": {"encryption": {"active_key_id": "test", "keys": {"test": "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}}
@@ -112,7 +120,7 @@ async fn disabled_example_keeps_application_api_and_removes_module_api() -> Resu
         openrust::config::FrameworkConfig::default(),
     ))
     .merge(Serialized::defaults(serde_json::json!({
-        "modules_root": deployed.path(),
+        "application_root": deployed.path(),
         "app": {"name": "Host without example", "env": "test"},
         "cache": {"default": "default", "stores": {"default": {"driver": "memory"}}},
         "security": {"encryption": {"active_key_id": "test", "keys": {

@@ -64,7 +64,6 @@ mod cookie_auth_flows;
 mod cookie_flows;
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]
 pub(crate) mod database;
-#[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
 mod events;
 #[cfg(all(
     test,
@@ -97,6 +96,9 @@ mod localization_flows;
 mod message_bag_flows;
 #[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
 mod models;
+#[cfg(test)]
+#[path = "tests/module_activation_flows.rs"]
+mod module_activation_flows;
 #[cfg(all(
     test,
     feature = "auth-oidc",
@@ -229,11 +231,22 @@ pub(crate) fn descriptor(
     uses_database: bool,
     application_root: std::path::PathBuf,
 ) -> openrust::core::ModuleDescriptor {
+    let state_log = std::sync::Arc::new(providers::module_state::ModuleStateLog::default());
+    #[allow(unused_mut, reason = "文章监听器仅在适用的认证/数据库 feature 下追加")]
+    let mut events = providers::module_state::events_provider(std::sync::Arc::clone(&state_log));
+    #[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
+    if uses_database {
+        events::article::register(&mut events);
+    }
     let descriptor = openrust::core::ModuleDescriptor::new(
         "example",
         application_root.join("modules/example"),
         0,
     )
+    .provider(providers::module_state::ModuleStateServiceProvider::new(
+        state_log,
+    ))
+    .provider(events)
     .provider(providers::ExampleServiceProvider::new(application_root))
     .provider(extensions::PrefixCacheServiceProvider);
     #[cfg(feature = "grpc")]
@@ -247,12 +260,6 @@ pub(crate) fn descriptor(
         all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql"))
     ))]
     let descriptor = descriptor.provider(services::welcome::WelcomeServiceProvider);
-    #[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
-    let descriptor = if uses_database {
-        descriptor.provider(events::article::provider())
-    } else {
-        descriptor
-    };
     #[cfg(all(feature = "auth", any(feature = "db-postgres", feature = "db-mysql")))]
     let descriptor = if uses_database {
         descriptor.provider(services::account_security::AccountSecurityProvider)

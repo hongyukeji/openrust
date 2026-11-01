@@ -10,6 +10,7 @@ pub mod grpc;
 pub mod i18n;
 pub mod log;
 pub mod mail;
+pub mod modules;
 #[cfg(feature = "queue")]
 pub mod queue;
 #[cfg(feature = "realtime")]
@@ -33,6 +34,7 @@ pub fn boot() -> openrust::config::ConfigManifest {
         .section("database", database::config)
         .section("i18n", i18n::config)
         .section("mail", mail::config)
+        .section("modules", modules::config)
         .section("session", session::config)
         .section("sms", sms::config)
         .section("storage", storage::config)

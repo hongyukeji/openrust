@@ -14,13 +14,7 @@ pub(super) fn register(
     capabilities: &RouteCapabilities,
     repository: openrust::config::repository::ConfigRepository,
 ) -> Routes {
-    let routes = routes
-        .get("/api/example", controllers::example::show)
-        .name("example.index")
-        .get(
-            "/api/example/exception",
-            controllers::example::exception_example,
-        );
+    let routes = example_routes(routes);
     let routes = config_greeting_routes(routes, repository)
         .get("/api/example/route-url", controllers::example::route_url);
     let routes = route_context_routes(request_url_routes(routes))
@@ -113,6 +107,20 @@ pub(super) fn register(
     )))]
     let _ = capabilities.database;
     routes
+}
+
+fn example_routes(routes: Routes) -> Routes {
+    routes
+        .get("/api/example", controllers::example::show)
+        .name("example.index")
+        .get(
+            "/api/example/module-state",
+            crate::modules::example::providers::module_state::show,
+        )
+        .get(
+            "/api/example/exception",
+            controllers::example::exception_example,
+        )
 }
 
 fn config_greeting_routes(

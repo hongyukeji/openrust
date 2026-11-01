@@ -5,6 +5,7 @@ Cargo.lock.bak
 /storage/*
 !/storage/README.md
 /bootstrap/cache/*.json
+**/.modules_statuses.json.lock
 
 # Generated projects and spikes
 /tmp/
