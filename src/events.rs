@@ -370,6 +370,31 @@ impl crate::core::ServiceProvider for EventsServiceProvider {
     }
 }
 
+/// 仅补空事件服务；独立类型身份避免抢占随后嵌套登记的真实监听 Provider。
+pub(crate) struct DefaultEventsServiceProvider;
+
+impl crate::core::ServiceProvider for DefaultEventsServiceProvider {
+    fn register<'a>(
+        &'a self,
+        app: &'a mut crate::core::RegisterContext<'_>,
+    ) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            if !app.is_bound::<Events>() {
+                app.singleton::<Events, _>(|_| {
+                    Box::pin(async {
+                        Ok(Arc::new(Events {
+                            listeners: Vec::new(),
+                        }))
+                    })
+                })
+                .await?;
+                app.require::<Events>();
+            }
+            Ok(())
+        })
+    }
+}
+
 #[cfg(feature = "queue")]
 struct QueuedListener<E, J, F> {
     queue: crate::queue::Queue,

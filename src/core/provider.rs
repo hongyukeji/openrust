@@ -21,6 +21,8 @@ use super::module::{ModuleManifest, ModuleRepository, ModuleRepositorySeed};
 use super::resources::{ResourceOwner, ResourceRegistrar};
 use super::{BoxFuture, Error, Result};
 
+pub(crate) mod registration;
+
 pub(crate) type Extensions = HashMap<TypeId, Box<dyn Any + Send + Sync>>;
 
 /// `TestAppBuilder` 启动身份；只有最终 Testing 环境可使用 CSRF 测试豁免。
@@ -73,6 +75,14 @@ pub trait ServiceProvider: Send + Sync + 'static {
         Vec::new()
     }
 
+    /// 声明需参与静态依赖预检的子 Provider 身份，不自动执行它们的生命周期。
+    ///
+    /// 声明必须无副作用；register 返回前须实际登记或复用这些子项。
+    /// Rust 无法在执行异步回调前反射其注册类型；没有外部类型依赖时可保留空声明。
+    fn nested_providers(&self) -> Vec<ProviderId> {
+        Vec::new()
+    }
+
     /// 仅登记绑定、配置 schema 与默认值，不解析服务或贡献路由。
     fn register<'a>(&'a self, _app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async { Ok(()) })
@@ -91,6 +101,8 @@ pub struct RegisterContext<'a> {
     required: &'a mut Vec<Required>,
     owner: ProviderId,
     force: bool,
+    registry: &'a mut registration::ProviderRegistry,
+    live_boot: Option<registration::LiveBoot<'a>>,
 }
 
 impl<'a> RegisterContext<'a> {
@@ -100,6 +112,8 @@ impl<'a> RegisterContext<'a> {
         required: &'a mut Vec<Required>,
         owner: ProviderId,
         force: bool,
+        registry: &'a mut registration::ProviderRegistry,
+        live_boot: Option<registration::LiveBoot<'a>>,
     ) -> Self {
         Self {
             container,
@@ -107,11 +121,55 @@ impl<'a> RegisterContext<'a> {
             required,
             owner,
             force,
+            registry,
+            live_boot,
         }
     }
 }
 
 impl RegisterContext<'_> {
+    /// 即时注册子 Provider；返回前完成其 register，启动阶段不提前 boot。
+    pub async fn register_provider<P: ServiceProvider>(
+        &mut self,
+        provider: P,
+    ) -> Result<ProviderId> {
+        self.boxed_register_provider(Box::new(provider), false)
+            .await
+    }
+
+    /// 强制注册子 Provider；成功替换原槽位，失败保留旧实例和已发布贡献。
+    pub async fn force_register_provider<P: ServiceProvider>(
+        &mut self,
+        provider: P,
+    ) -> Result<ProviderId> {
+        self.boxed_register_provider(Box::new(provider), true).await
+    }
+
+    /// 在同一注册执行器处理盒装子 Provider；不创建另一容器或独立 boot 管线。
+    pub async fn boxed_register_provider(
+        &mut self,
+        provider: Box<dyn ServiceProvider>,
+        force: bool,
+    ) -> Result<ProviderId> {
+        registration::register(
+            self.registry,
+            provider,
+            force,
+            self.container,
+            self.config,
+            self.required,
+            self.live_boot
+                .as_mut()
+                .map(registration::LiveBoot::reborrow),
+        )
+        .await
+    }
+
+    /// 读取同一次注册过程的配置仓储；前序 register 写入立即可见。
+    pub fn config_repository(&self) -> ConfigRepository {
+        self.config.clone()
+    }
+
     /// 判断已有 Provider 是否已登记服务，供默认绑定遵循应用覆盖顺序。
     pub fn is_bound<T: ?Sized + Send + Sync + 'static>(&self) -> bool {
         self.container.contains::<T>()
@@ -125,10 +183,6 @@ impl RegisterContext<'_> {
     /// 判断原始来源是否声明区段，供可选领域 Provider 选择是否安装。
     pub fn source_has_section(&self, key: &str) -> Result<bool> {
         self.config.source_has_section(key).map_err(Error::from)
-    }
-
-    pub(crate) fn config_repository(&self) -> ConfigRepository {
-        self.config.clone()
     }
 
     /// 每次解析构造新实例。
@@ -372,7 +426,7 @@ pub struct ProviderRuntime {
     pub(crate) resources: ResourceOwner,
     pub(crate) extensions: Extensions,
     pub(crate) commands: Vec<Box<dyn Command>>,
-    pub(crate) providers: Vec<Box<dyn ServiceProvider>>,
+    pub(crate) providers: registration::ProviderRegistry,
 }
 
 impl ProviderRuntime {
@@ -442,14 +496,22 @@ pub(crate) fn check_dependencies(
     Ok(())
 }
 
-fn ordered_providers(providers: &[ProviderEntry]) -> Result<()> {
+fn ordered_providers(providers: &[ProviderEntry], removed: &HashSet<ProviderId>) -> Result<()> {
     let all: HashSet<_> = providers
         .iter()
-        .map(|entry| entry.provider.id().type_id)
+        .filter(|entry| !removed.contains(&entry.provider.id()))
+        .flat_map(|entry| {
+            std::iter::once(entry.provider.id()).chain(entry.provider.nested_providers())
+        })
+        .filter(|id| !removed.contains(id))
+        .map(|id| id.type_id)
         .collect();
     let mut ready = HashSet::new();
     for entry in providers {
         let provider = &entry.provider;
+        if removed.contains(&provider.id()) {
+            continue;
+        }
         if !entry.force && ready.contains(&provider.id().type_id) {
             continue;
         }
@@ -471,6 +533,13 @@ fn ordered_providers(providers: &[ProviderEntry]) -> Result<()> {
                 ));
             }
         }
+        ready.extend(
+            provider
+                .nested_providers()
+                .into_iter()
+                .filter(|id| !removed.contains(id))
+                .map(|id| id.type_id),
+        );
         ready.insert(provider.id().type_id);
     }
     Ok(())
@@ -700,7 +769,7 @@ impl ProviderBuilder {
         )?);
         if self.modules_configured {
             let events = crate::events::EventsServiceProvider::new();
-            // 收齐清单后再补默认值，不能让空同类型 Provider 吞掉应用/模块的原监听器。
+            // 独立默认类型只补空服务，不占用 nested 真实 EventsServiceProvider 的去重身份。
             if !self.removed.contains(&events.id())
                 && !providers
                     .iter()
@@ -709,7 +778,7 @@ impl ProviderBuilder {
                 providers.insert(
                     0,
                     ProviderEntry {
-                        provider: Box::new(events),
+                        provider: Box::new(crate::events::DefaultEventsServiceProvider),
                         force: false,
                     },
                 );
@@ -719,7 +788,7 @@ impl ProviderBuilder {
                 Box::pin(async move { Ok(Arc::new(ModuleRepository::from_seed(seed, resolver))) })
             });
         }
-        ordered_providers(&providers)?;
+        ordered_providers(&providers, &self.removed)?;
         let mut resources = StartupResources::new();
         if let Some(register_config) = self.app_config {
             register_config(&mut bindings, config.clone());
@@ -728,8 +797,7 @@ impl ProviderBuilder {
         let container = bindings.build();
         resources.attach_container(&container);
         let mut required = Vec::new();
-        let mut active: Vec<Box<dyn ServiceProvider>> = Vec::new();
-        let mut active_index = HashMap::new();
+        let mut active = registration::ProviderRegistry::new(self.removed.clone());
         let mut extensions = Extensions::new();
         if self.testing_boot {
             extensions.insert(TypeId::of::<TestingBoot>(), Box::new(TestingBoot));
@@ -738,33 +806,23 @@ impl ProviderBuilder {
         let mut finalizers = Vec::new();
         let result = async {
             for entry in providers {
-                let provider = entry.provider;
-                let id = provider.id();
-                if active_index.contains_key(&id.type_id) && !entry.force {
-                    continue;
-                }
-                provider
-                    .register(&mut RegisterContext::live(
-                        &container,
-                        &mut config,
-                        &mut required,
-                        id,
-                        entry.force,
-                    ))
-                    .await?;
-                if let Some(&index) = active_index.get(&id.type_id) {
-                    active[index] = provider;
-                } else {
-                    active_index.insert(id.type_id, active.len());
-                    active.push(provider);
-                }
+                registration::register(
+                    &mut active,
+                    entry.provider,
+                    entry.force,
+                    &container,
+                    &mut config,
+                    &mut required,
+                    None,
+                )
+                .await?;
             }
             for configure in self.binding_overrides {
                 configure(container.clone()).await?;
             }
             config.validate_base()?;
             container.initialize_extensions().await?;
-            for provider in &active {
+            for provider in active.iter() {
                 provider
                     .boot(&mut BootContext {
                         console_command: console_command.as_deref(),

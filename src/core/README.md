@@ -32,7 +32,32 @@ app.extend::<dyn Driver, _>(|original, resolver| {
 
 缓存工厂在成功、失败或取消时先结束构造帧并清除已结束的等待边，再发布结果；已完成服务不再创建等待关系。scope关闭和根reset的唤醒、用户值释放都在容器内部锁之外执行，允许Waker同步重入。
 
-生产 `bootstrap` 使用同一 `Container`：`Application::default_providers` 从同次配置仓储选取框架默认清单，已编译包经 `package_providers` 显式接入，`Application::providers` 仅给出应用清单，模块清单随后接入；`ProviderBuilder` 先建立唯一容器，依清单顺序执行异步 `register`，经基础配置校验后依 active 顺序 `boot`，最后校验配置与贡献并解析必需服务。普通重复具体 Provider 类型只保留首次实例，显式 `force_provider` 则重新执行 `register`，成功后在原首次 boot 槽位替换实例。`App::register_provider` 与 `force_register_provider` 在启动后使用相同容器；新实例注册成功便立即 boot。注册失败不更新 Provider 索引，但此前贡献可见；boot 失败保留新索引和贡献，普通重复不会重试 boot。请求 `Inject<T>` 从请求 `Scope` 异步解析；每次命令使用独立 scope，Provider 使用同一应用容器。`AppState::get<T>` 仅同步读取已就绪的实例，首次工厂构造使用 `resolve<T>().await`。启动阶段及运行期 Provider 登记的资源都归同一应用 `ResourceOwner`；force 不提前关闭旧资源，失败 boot 已登记的资源仍在统一 shutdown deadline 内逆序回收。启动 register/校验失败或启动 future 取消时，已提前解析的 root scoped 资源与 Provider 资源共用同一回收期限；关闭开始后拒绝新 Provider 登记。请求 scope、受管任务和连接池也遵循该共同期限，错误不会静默忽略。配置区段及包默认值在各次注册后即对后续解析可见，已有来源值始终高于 Provider 默认值；不同 Provider 可以按登记顺序对同一包区段贡献默认值，schema/校验器只允许原 owner 显式 force 替换。最终仍经过 `validate_base` 校验，包操作仅应用一次；`App::config()`/`figment()` 保持启动快照，`config_repository()`/`section()` 读取运行期仓储，不自动重建既有服务。运行期路由贡献可被随后 `build_router` 读取；已运行的 Axum Router 是快照，其实时可见性仍待固定上游真实 HTTP 对照。
+生产 `bootstrap` 使用同一 `Container`：`Application::default_providers` 从同次配置仓储选取框架默认清单，已编译包经 `package_providers` 显式接入，`Application::providers` 仅给出应用清单，模块清单随后接入；`ProviderBuilder` 先建立唯一容器，依清单顺序执行异步 `register`，经基础配置校验后依 active 顺序 `boot`，最后校验配置与贡献并解析必需服务。普通重复具体 Provider 类型只保留首次实例，显式 `force_provider` 则重新执行 `register`，成功后在原首次 boot 槽位替换实例。`App::register_provider` 与 `force_register_provider` 在启动后使用相同容器；新实例注册成功便立即 boot。当前失败 Provider 的索引不更新，已成功登记的子项和此前贡献仍可见；boot 失败保留新索引和贡献，普通重复不会重试 boot。请求 `Inject<T>` 从请求 `Scope` 异步解析；每次命令使用独立 scope，Provider 使用同一应用容器。`AppState::get<T>` 仅同步读取已就绪的实例，首次工厂构造使用 `resolve<T>().await`。启动阶段及运行期 Provider 登记的资源都归同一应用 `ResourceOwner`；force 不提前关闭旧资源，失败 boot 已登记的资源仍在统一 shutdown deadline 内逆序回收。启动 register/校验失败或启动 future 取消时，已提前解析的 root scoped 资源与 Provider 资源共用同一回收期限；关闭开始后拒绝新 Provider 登记。请求 scope、受管任务和连接池也遵循该共同期限，错误不会静默忽略。配置区段及包默认值在各次注册后即对后续解析可见，已有来源值始终高于 Provider 默认值；不同 Provider 可以按登记顺序对同一包区段贡献默认值，schema/校验器只允许原 owner 显式 force 替换。最终仍经过 `validate_base` 校验，包操作仅应用一次；`App::config()`/`figment()` 保持启动快照，`config_repository()`/`section()` 读取运行期仓储，不自动重建既有服务。运行期路由贡献可被随后 `build_router` 读取；已运行的 Axum Router 是快照，其实时可见性仍待固定上游真实 HTTP 对照。
+
+### register 中登记子 Provider
+
+`RegisterContext::register_provider`、`force_register_provider` 和 `boxed_register_provider` 与 App 对应入口共用同一注册执行器。父 register 中 await 子注册后才继续下一语句；正常启动时子 register 不提前 boot，全部 register 完成后按实际登记顺序 boot。首次注册时子先完成并进入清单，父随后进入；已有父类型的force仍保首次槽位。已启动 App 的子注册则在返回前完成 register/boot，父才继续。不要手工调用另一 Provider 的 register 或 boot。
+
+```rust
+use openrust::core::{BoxFuture, RegisterContext, Result, ServiceProvider};
+struct ChildProvider;
+impl ServiceProvider for ChildProvider {}
+struct FeatureProvider;
+impl ServiceProvider for FeatureProvider {
+    fn register<'a>(&'a self, app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            app.register_provider(ChildProvider).await?;
+            Ok(())
+        })
+    }
+}
+```
+
+同类型普通子注册去重，force 成功后保留首次槽位；父失败不会撤销已经成功的子及其发布贡献。启动整体失败/取消走原资源关闭，运行期失败的已发布资源继续由同一 App 的 shutdown 回收。进行中的新类型递归登记报 `provider_registration_cycle`；取消释放进行中标记，已登记实例不丢失。已有实例的非force查询仍返回旧身份。测试移除约束覆盖同一次启动中的嵌套 force；已启动 App 的显式运行期注册仍按原接口处理。
+
+`config_repository()` 返回同一次注册的仓储句柄，子写入可由父后续读取；不重建既有客户端。原平面 Provider 依赖预检保留，子自身在调用点检查前置依赖。若外部 Provider 通过类型依赖引用子项，父通过 `ServiceProvider::nested_providers()` 纯声明这些身份；预检按其出现位置处理，父 register 返回前还核对它们是否实际登记或复用，不能拿声明代替执行。Rust 无法预先反射异步回调中的注册类型，未声明的未来类型仍不在预检图内；该显式声明是此依赖增强的必要适配，不冒充 Laravel 自动拓扑。
+
+模块所需的空 Events 默认服务使用独立内部 Provider 身份，只补未绑定的服务，不抢占真实 `EventsServiceProvider` 的去重位置；后续嵌套监听 Provider 正常替换默认绑定。显式移除真实事件 Provider 同时抑制默认补位。唯一示例的父 Provider 与生成应用公开 fixture 均通过此管线接入，模块 JSON 发现与 files/alias 加载仍有后继范围。
 
 ## 入口作用域与资源回收
 

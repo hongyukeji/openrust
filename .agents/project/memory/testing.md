@@ -1,5 +1,17 @@
 # 测试基线
 
+## 同内核嵌套 Provider 注册限定验收
+
+2026-11-02，7f60560后继；固定Laravel Application::register/markAsRegistered及ModulesServiceProvider注册调用位置，来源见`tmp/module-discovery-upstream-contract.md`及同名evidence目录。RegisterContext即时注册子Provider与App/启动共用唯一Registry、Container与执行器；startup统一boot屏障，live子boot完成后父继续，首次槽位/force失败/取消/cycle/TestApp mask均保原契约。nested_providers纯身份声明是Rust无法反射异步回调的必要适配，并在父成功后验证真实登记；不是另一执行队列或自动拓扑。唯一example改由普通父Provider真实注册原独立子项，fallback Events不占真实EventsProvider身份。模块JSON发现、class aliases、files及完整Provider发现仍未实现。
+
+771运行输入最终冻结，10项final2门禁全部exit0：fmt、默认/全特性严格workspace Clippy、workspace test（1099/35 ignored、1940/112）、双拒警Rustdoc、no-default lib、精确Rust1.97.0、deny。初轮编译及Clippy新测试规范错误分别保留；初轮all测试揭示原Session late-overlay引用嵌套child被静态预检遗漏，保留原测试与断言，新增纯身份声明、真实登记核验及三回归后重跑全矩阵通过。不以早期all失败回执宣称通过，最终只计*-final2。
+
+根真实MySQL8.4认证精确1通过；fresh普通check/test/build通过，12项包括配置1、公开Container1、模块1、应用9。Container fixture父两次真实注册同child，registrations=1且原factory/extend/boot全部断言保留；fresh MySQL认证/Job3及MFA2通过。相同fresh源码与二进制SHA的配置缓存/坏dotenv/clear复启通过。根真实隔离部署三实例证明当前loaded不热更新、下一启动404/再启200、禁用模块保宿主API、独立状态文件及未知旧值保留；三个进程正常退出且端口释放。MySQL前后数据库集合无增删，不触碰既有库。ignored不作真实服务证据，不外推PG/Windows或整个Modules完成。
+
+最终不同模型只读审查`/tmp/nested-provider-final-evidence-review.md`核771输入漂移0、回执/日志SHA一致且限定范围无确定blocker；此前contract/declaration两份审查同时保留。全部命令/exit/耗时/资源/失败留存于`tmp/nested-providers-20261102/`。最后仅项目验收/状态文档更新，复用未变化运行输入门禁。源码owner停写；skill独立writer WIP完全排除，不部署、不重启旧守护、不操作其Goal/账本。
+
+完成主矩阵后第一轮target已清零，再完成fresh及全部服务后核无构建进程/target句柄，正常cargo clean dry-run及clean均exit0：8,879,177,728B→0，磁盘可用201,574,379,520B。生成源码和回执包SHA a1845bf378b4ba1b1065cf6939b07821fc0d7975f435e2f9e956d4227d90ab90，原生成目录亦保留。仅本地提交，不push/tag/release；下一功能簇按需重建同一target，模块发现、DB门控及完整ADR-001继续唯一todo。
+
 ## 模块持久启停与同容器管理限定验收
 
 2026-11-02，161bfcf后继。固定laravel-modules v13.2.0 / 59714840708a2aece19e810764473f53227c35fe的FileActivator、Module、BaseCommand及Enable/Disable/List源码与测试；来源映射见`tmp/module-persistence-20261102/upstream-correspondence.md`。本簇只完成已编译catalog的持久管理，不把它称module.json运行发现，不关闭B001/B007/B012或完整Modules。

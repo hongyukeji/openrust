@@ -1,5 +1,8 @@
 # 验收口径
 
+同内核嵌套Provider注册已通过[限定验收](testing.md#同内核嵌套-provider-注册限定验收)：最终门禁、唯一模块、fresh与真实MySQL/跨进程证据匹配771冻结输入；子身份预检修复保留原断言。正常清零缓存、本地提交以Git为准，module.json发现仍开放。
+
+
 模块持久启停已完成同一容器、唯一示例、生成应用与真实MySQL/三进程的[限定验收](testing.md#模块持久启停与同容器管理限定验收)。编译catalog不等于运行发现；阶段冻结版本、无效回执排除及未受影响证据复用逐项列明，完整Modules与ADR-001仍开放。
 
 当前 Env/Request-MIME、应用内核与部分 Query 的 main 组合限定证据见 [本批验收](testing.md#当前-main-组合限定验收)。默认/全 feature 门禁、生成、MySQL、TCP/TLS 与来源保全分别绑定实际输入；无完整 Laravel/Modules 或全后端交付推断。原失败、忽略和未部署 skill WIP 保留。

@@ -10,7 +10,7 @@
 
 2026-11-02 接管校准：当前对话为唯一框架集成总控，旧总控/旧守护保持停止。九份来源及未提交/未追踪代码已归档保全，来源 worktree 与 workspace 已正常退役，当前仅 main；六个已归档任务分支活动别名已安全退役，source/WIP保护引用与完整bundle保留。本批限定源码、生成与真实服务验收已收齐，本地集成提交 `9035a00`，清理后优先配置整改，详见唯一 todo 顶部的接管状态与 `tmp/takeover-20261102/`。另一个已获用户授权的 skill owner 正收口 Codex 原生守护适配，本总控不并改该范围，不把开发中适配当已启用。默认80%政策与旧账本保持；本对话已可通过正式额度工具读取共享账号窗口，数值以当次回执为准；不rebase/fullgrant，不改变默认80%及旧账本。
 
-配置d952199与应用职责161bfcf已限定提交。模块持久启停、独立状态路径、同容器管理/事件已完成限定验收及产物清理，提交事实见Git；默认1081/35 ignored、全特性1923/112，fresh普通12/MySQL3/MFA2、根真实MySQL1与三进程启停/缓存通过，见[模块管理证据](memory/testing.md#模块持久启停与同容器管理限定验收)。下一停点为module.json运行发现与Provider/files绑定；DB能力门控及完整ADR-001继续开放。
+配置d952199与应用职责161bfcf已限定提交。模块持久启停、独立状态路径、同容器管理/事件已完成限定验收及产物清理，提交事实见Git；默认1081/35 ignored、全特性1923/112，fresh普通12/MySQL3/MFA2、根真实MySQL1与三进程启停/缓存通过，见[模块管理证据](memory/testing.md#模块持久启停与同容器管理限定验收)。同内核嵌套Provider注册前置已通过限定验收和资源收尾，本地提交以Git为准，见[嵌套注册证据](memory/testing.md#同内核嵌套-provider-注册限定验收)；下一module.json运行发现与Provider/files绑定；DB能力门控及完整ADR-001继续开放。
 
 用户已纠正应用边界：根app按Laravel支持常规Controller/Model/Provider业务开发，modules可选并存且共用同一内核；bootstrap承担启动，app/mod.rs仅必要模块导出。原“业务只能modules、根app只装配”限制失效，源码/生成器整改按唯一todo推进，历史验收不改写。
 

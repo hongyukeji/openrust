@@ -3,11 +3,15 @@
 use openrust::Result;
 use openrust::core::{BootContext, BoxFuture, RegisterContext, ServiceProvider};
 use openrust::http::{Inject, Json};
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
 
 struct GeneratedMessage {
     text: String,
     extended: bool,
+    registrations: Arc<AtomicUsize>,
 }
 
 #[derive(serde::Serialize)]
@@ -15,21 +19,41 @@ struct GeneratedResponse {
     message: String,
     extended: bool,
     same_boot_instance: bool,
+    registrations: usize,
 }
 
 pub struct GeneratedExtensionProvider;
 
 impl ServiceProvider for GeneratedExtensionProvider {
+    fn register<'a>(&'a self, app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            let registrations = Arc::new(AtomicUsize::new(0));
+            app.register_provider(GeneratedExtensionChild(Arc::clone(&registrations)))
+                .await?;
+            app.register_provider(GeneratedExtensionChild(registrations))
+                .await?;
+            Ok(())
+        })
+    }
+}
+
+struct GeneratedExtensionChild(Arc<AtomicUsize>);
+
+impl ServiceProvider for GeneratedExtensionChild {
     fn register<'a>(
         &'a self,
         app: &'a mut RegisterContext<'_>,
     ) -> openrust::core::BoxFuture<'a, Result<()>> {
         Box::pin(async move {
-            app.singleton::<GeneratedMessage, _>(|_| {
-                Box::pin(async {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            let registrations = Arc::clone(&self.0);
+            app.singleton::<GeneratedMessage, _>(move |_| {
+                let registrations = Arc::clone(&registrations);
+                Box::pin(async move {
                     Ok(Arc::new(GeneratedMessage {
                         text: "from original factory".to_owned(),
                         extended: false,
+                        registrations,
                     }))
                 })
             })
@@ -39,6 +63,7 @@ impl ServiceProvider for GeneratedExtensionProvider {
                     Ok(Arc::new(GeneratedMessage {
                         text: original.text.clone(),
                         extended: true,
+                        registrations: Arc::clone(&original.registrations),
                     }))
                 })
             })
@@ -61,6 +86,7 @@ impl ServiceProvider for GeneratedExtensionProvider {
                                 message: message.text.clone(),
                                 extended: message.extended,
                                 same_boot_instance: Arc::ptr_eq(&message, &boot_message),
+                                registrations: message.registrations.load(Ordering::SeqCst),
                             })
                         }
                     },

@@ -4,6 +4,10 @@
 > 更新：2026-11-02
 > 摘要：应用内核当前事实；模块清单支持硬依赖和确定性拓扑启动。
 
+## 嵌套 Provider 注册（限定验收）
+
+同一内部ProviderRegistry用于启动和已启动App，RegisterContext新增即时register_provider/force/boxed入口及公开config_repository句柄。成功子项先入有效序列；startup统一register屏障后boot，live子项在父下一语句前boot。force首槽、失败贡献、原实例及进行中RAII取消标记由同一执行器处理；启动mask覆盖嵌套force，运行期显式注册保原接口。默认空Events改用不同ProviderId补位，真实嵌套Events不被吞。唯一模块和生成consumer实际调用、完整适用门禁、生成应用及真实MySQL/三进程均已通过[限定验收](../memory/testing.md#同内核嵌套-provider-注册限定验收)，完成产物清理；本地提交以Git为准。nested_providers纯声明给原静态预检补足外部引用的子身份，执行后校验真实登记；未声明的未来类型无法反射，完整依赖/发现仍开放。
+
 ## 模块持久管理（限定验收）
 
 同一次 ModuleManifest 解析生成已编译 catalog 与加载标记，ModuleRepository 复用该 seed 和所选 ModuleActivator，不复制 Provider。文件驱动保留原始键和值，状态按 canonical 精确键读取；管理 find 支持原有大小写/Studly 查找。写操作稳定侧锁内重读并原子替换，显式 reset 可删除坏状态；无自动恢复。启停具名事件沿同一 Events，弱 Resolver 每次从当前根容器取事件服务，兼容重绑定与根 scope 更新；前事件失败/取消不写，后事件失败保留已提交状态，Stop 仅停止传播。并发 shutdown 与文件写入没有全局原子屏障。

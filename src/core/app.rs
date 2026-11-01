@@ -1,7 +1,7 @@
 //! 应用组装入口：[`Application`]、[`App`] 和 [`AppState`]。
 
 use std::any::{Any, TypeId, type_name};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use figment::Figment;
@@ -14,7 +14,8 @@ use crate::core::container::{Container, Scope};
 use crate::core::error::{Error, Result};
 use crate::core::module::ModuleManifest;
 use crate::core::provider::{
-    BootContext, ProviderId, ProviderRuntime, RegisterContext, ServiceProvider, check_dependencies,
+    ProviderId, ProviderRuntime, ServiceProvider,
+    registration::{self, LiveBoot, ProviderRegistry},
 };
 use crate::core::resources::ResourceOwner;
 
@@ -227,7 +228,7 @@ pub struct App {
     config_cache_path: Option<std::path::PathBuf>,
     commands: Vec<Box<dyn Command>>,
     extensions: Extensions,
-    providers: Vec<Box<dyn ServiceProvider>>,
+    providers: ProviderRegistry,
 }
 
 impl App {
@@ -284,57 +285,22 @@ impl App {
         provider: Box<dyn ServiceProvider>,
         force: bool,
     ) -> Result<ProviderId> {
-        let id = provider.id();
-        if self.state.inner.services.is_terminated() {
-            return Err(Error::custom("container_closed", "容器已关闭"));
-        }
-        let index = self.providers.iter().position(|active| active.id() == id);
-        if index.is_some() && !force {
-            return Ok(id);
-        }
-        let ready: HashSet<_> = self
-            .providers
-            .iter()
-            .map(|active| active.id().type_id)
-            .collect();
-        check_dependencies(provider.as_ref(), &ready)?;
         let mut config = self.state.config_repository();
         let mut required = Vec::new();
-        provider
-            .register(&mut RegisterContext::live(
-                &self.state.inner.services,
-                &mut config,
-                &mut required,
-                id,
-                force,
-            ))
-            .await?;
-        if let Some(index) = index {
-            self.providers[index] = provider;
-        } else {
-            self.providers.push(provider);
-        }
-        let provider = self.providers[index.unwrap_or(self.providers.len() - 1)].as_ref();
-        let mut finalizers = Vec::new();
-        provider
-            .boot(&mut BootContext {
-                console_command: None,
-                container: &self.state.inner.services,
-                config: &mut config,
+        registration::register(
+            &mut self.providers,
+            provider,
+            force,
+            &self.state.inner.services,
+            &mut config,
+            &mut required,
+            Some(LiveBoot {
                 resources: self.state.inner.provider_resources.registrar(),
-                required: &mut required,
                 extensions: &mut self.extensions,
                 commands: &mut self.commands,
-                finalizers: &mut finalizers,
-            })
-            .await?;
-        for finalize in finalizers {
-            finalize().await?;
-        }
-        for resolve in required {
-            resolve(&self.state.inner.services).await?;
-        }
-        Ok(id)
+            }),
+        )
+        .await
     }
 
     /// 提供给 HTTP 处理器、任务和命令的共享状态。

@@ -473,3 +473,7 @@ codec 在模块 `ExampleServiceProvider::register` 中通过 `RegisterContext.ex
 D7 工具使用有界原始 TCP 读取 HEAD 响应直到 EOF，完整解析响应头并确认没有额外正文，且路由 before/after 两个标记均正确；方法 miss 只证明路由 middleware 未执行，不据此推断私有共享 slot。来源快照与二进制 SHA256 分别证明检查对象未变化，二者本身不能证明该二进制由该快照构建；验收须附记录构建命令、来源快照摘要及产物摘要的实际构建记录，将构建与后续网络结果关联。
 
 账户示例的 `/account/session/*` 路由也只在宿主实际登记 Session 且最终驱动启用时接入 `cookies`、`session` 别名；仅启用数据库或认证编译能力不会强制 Session。JWT 及普通模块 API 仍可在无 Session 的宿主中运行。
+
+### 模块父 Provider 与独立子项
+
+编译 descriptor 只登记 `ExampleModuleServiceProvider`。它在 register 中按原条件和顺序 await 框架的 `register_provider`，状态日志、真实事件监听、业务路由及适用数据库/队列等子项仍各自保有 ProviderId 与真正的 register/boot；父 Provider 不手工转调它们的生命周期。禁用模块不构造这些运行状态；测试移除业务子项仍生效，不能被父重新装回。此接线为后续 module.json 的普通 ModuleServiceProvider 工作流提供前置，不代表运行发现已实现。

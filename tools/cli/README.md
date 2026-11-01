@@ -135,6 +135,8 @@ curl --noproxy '*' http://127.0.0.1:3000/api/orders
 
 生成项目默认在 `app/providers/app.rs` 实现 `AppServiceProvider`，由 `bootstrap/providers.rs` 实际登记。框架默认 Provider 由统一启动链按配置与编译 feature 安装；应用清单只写应用专属 Provider，模块继续走相同管线。当前编译期包 Provider 可显式登记，Cargo 包自动发现和 ProviderRepository 的 eager/deferred 缓存尚待后继对应。
 
+应用 Provider 可在 `register` 中 `app.register_provider(ChildProvider).await?`，子项与根清单共用唯一注册/boot 管线和类型去重。启动时仍先完成全部 register 再 boot；不要手工转调子 Provider 的生命周期。真实公开生成 fixture 见 [Container consumer](../../tests/consumers/container-extension/README.md)。
+
 `make:controller PostController` 在 `app/http/controllers/` 生成控制器类型并登记 Rust 模块，具体处理函数由开发者实现后在 `routes/web.rs` 或 `routes/api.rs` 注册；`make:provider CatalogServiceProvider` 在 `app/providers/` 生成 `register`/`boot` 骨架，并自动加入 `bootstrap/providers.rs`。`make:model Post` 在 `app/models/` 创建 SeaORM 模型，允许暂不声明字段；它们都拒绝覆盖同名文件。原有 `generate model` 继续在 `app/models/_entities/` 生成字段驱动的 SeaORM entity；`generate migration` 在 `database/migrations/` 生成迁移并写入 registry。字段支持 `string`、`text`、`integer`、`big_integer`、`boolean`、`date_time`、`json` 和 `references`，在字段类型后加 `?` 表示可空。model 使用单数名称，表名采用简单英语复数；migration 接受表名。被引用表须在外键迁移前创建。
 
 两个数据库生成命令均支持 `--uuid-id` 与 `--soft-delete`，model 与对应迁移须使用相同选项。UUID 使用 UUIDv7，并同时为应用与 migration package 启用 `db-uuid`；软删除增加可空 UTC `deleted_at`，只提供显式 `Entity::not_deleted()` scope，不改变普通 `Entity::find()`。

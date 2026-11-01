@@ -34,6 +34,22 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 - skill 本批仅接纳旧142/61测试及不同模型最终独审九SHA完全匹配的版本，精确快照与索引整合证据在同目录。后续 ended-grant/Codex 原生适配由另一个获用户授权的 owner 在同 skill 收口，未部署，完整工作文件保持；本轮最小恢复判定补丁及并发漂移报告已保全 `/tmp/openrust-guard-recovery-consistency.*`。不再并改，不重启旧守护，不把开发中适配当已生效。
 - 默认80%预算政策和旧账号历史、问答/发送账本保持，未rebase/fullgrant或伪复用旧授权；本对话已可正式读取共享账号窗口，数值按当次回执汇报；不重算基线。成功验收的自有服务进程与端口已收尾，数据库集合无增删；完成簇根target已正常清零：48,729,780,224B→0，磁盘可用202,384,363,520B；源码/生成fixture/证据保留，下一配置簇按需复用同一路径。
 
+### 模块运行发现前置：同内核嵌套 Provider 注册（限定验收）
+
+1. 固定framework Application::register 与 nWidart ModulesServiceProvider::registerModules；真实加载是parent register中注册child及随后files，不能以direct register/boot转调构造第二生命周期。下一metadata发现必须依赖此入口；本前置不称发现已完成。
+2. RegisterContext新增register_provider/force_register_provider/boxed_register_provider，返回ProviderId，与App对应入口同义；前者必须await后才执行父回调下一语句，不缓冲成boot或延后队列。
+3. 唯一内部ProviderRegistry保存有效实例、首次槽位与正在register身份，启动Builder和已启动App复用同一注册执行器；相同类型非force返回原身份，force register成功替换原槽位，失败保旧实例及已发布贡献。
+4. 正常启动子register在父register返回前完成；成功子先进入有效顺序，父随后入列，统一register屏障后按实际有效顺序boot。已boot App动态注册时，子register/boot在父下一语句前完成，父也正常即时boot，不另建Container。
+5. 父register失败不伪称回滚已经成功的子及绑定；父boot失败保新实例，启动整体失败与取消仍按原资源owner/deadline关闭。动态调用未来被取消时保全已有Registry，不能mem::take后遗失原App Provider。
+6. 重入注册同一进行中类型返回稳定cycle错误；取消必须释放进行中标记，不持任何Registry锁执行用户callback。显式Provider依赖和原平面预检断言保留，嵌套child在调用点核已注册依赖，不捏造上游自动拓扑。外部依赖引用的子ID由ServiceProvider::nested_providers纯声明补入原预检位置，parent返回前校验真实已登记；Rust不能预先反射异步回调，未声明的未来类型不冒称可自动发现。原Session late-overlay依赖及断言保持，不以改依赖目标求绿。
+7. TestApp移除的ProviderId对嵌套注册同样生效，不能由parent悄悄重新装回；静态/嵌套/运行期注册复用同一去重来源。同一次启动中的显式force不能绕过该mask；已启动App的显式运行期注册沿原App接口。
+8. 所选module启用仍仅生产一份描述。唯一example改为一个普通ExampleModuleServiceProvider在register中按原顺序注册原有child，原child保独立身份和真正生命周期；不改root默认DB/队列/HTTP语义，不把本前置当DB能力门控已完成。
+9. 同步RegisterContext取得配置仓储句柄的公开入口，复用已有同一ConfigRepository；不添加另一配置或模块注册中心。现模块Events fallback不得吞nested真实监听，按现默认行为保管理服务可用并验证强制重绑。
+10. 根公共contract、provider/app/相关core文件、共享docs/index/Cargo由root独占；example worker仅模块装配适配与其测试，独审只读。禁止改独立skill WIP；不新建worktree、不push。
+11. 收齐源码、配套测试、唯一模块、必要生成公开fixture/文档后冻结，集中验嵌套顺序/相同类型/force失败/取消/cycle/mask/动态已boot顺序、原门禁与fresh/MySQL实际文章事件队列、正常清理和本地提交；之后继续module.json/Provider/files绑定，不以此前置关闭B001/B007/B012。
+
+当前停点：771输入冻结、最终10门禁和独立只读审查通过，默认1099/35 ignored、全特性1940/112；fresh普通12/MySQL3/MFA2、根MySQL精确1及三进程启停/缓存复启通过。原Session晚覆盖依赖/断言保留，先修子身份声明再重跑完整门禁；生成源码归档、target正常清零，本地提交以Git为准，见[限定证据](memory/testing.md#同内核嵌套-provider-注册限定验收)。下一步module.json运行发现/编译Provider及files绑定，不关闭完整B001/B007/B012；独立skill owner仍独占其WIP。
+
 ### 模块持久启停簇（161bfcf 后继，限定验收）
 
 1. 固定nWidart5971484的FileActivator/Module/BaseCommand/Enable/Disable/List及对应测试；先闭环已编译模块的持久管理，随后实现module.json运行发现/Provider绑定，不把本簇catalog称发现或关闭B001/B007/B012。
@@ -48,7 +64,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 10. 同步根/生成bootstrap、唯一示例的事件与持久管理真实调用、consumer/生成测试、README与changelog；所有旧modules_root活跃调用按归属迁移，历史证据不机械替换。无新依赖/Cargo写，守护WIP不触碰。
 11. root独占core公共contract/provider/events/commands/config类型、docs/index/Cargo/服务；file worker仅新activator文件及内置测试；app worker仅根/模板接线、配置与受影响宿主fixture路径。完整配套冻结后集中门禁、真实进程启停重启/状态/资源/错误/并发验收，验证通过才本地提交。
 
-当前停点：767运行输入冻结、完整适用门禁及fresh普通12/MySQL3/MFA2、根MySQL1和真实三进程通过；模块定向34含跨进程锁通过，独审资源回收与锁释放整改已闭合。生成源码/证据保全、两个完成缓存均正常清零，所有实现owner停写，root独占索引进入本地提交；事实见Git与[限定验收](memory/testing.md#模块持久启停与同容器管理限定验收)。旧失败/无效cache回执不计通过。下一步只领取本行后继module.json运行发现/Provider/files绑定；TTY/硬链接/Windows等明确开放，不关闭完整B001/B007/B012。skill由guard_native_codex_impl独占，不并改或启用。
+当前停点：767运行输入冻结、完整适用门禁及fresh普通12/MySQL3/MFA2、根MySQL1和真实三进程通过；模块定向34含跨进程锁通过，独审资源回收与锁释放整改已闭合。生成源码/证据保全、两个完成缓存均正常清零，所有实现owner停写，本地提交7f60560；事实见Git与[限定验收](memory/testing.md#模块持久启停与同容器管理限定验收)。旧失败/无效cache回执不计通过。下一步只领取本行后继module.json运行发现/Provider/files绑定；TTY/硬链接/Windows等明确开放，不关闭完整B001/B007/B012。skill由guard_native_codex_impl独占，不并改或启用。
 
 ### 当前应用职责子簇（限定验收，本次提交以Git为准）
 

@@ -45,7 +45,8 @@ async fn generated_provider_extends_original_factory_in_boot_and_http()
             "data": {
                 "message": "from original factory",
                 "extended": true,
-                "same_boot_instance": true
+                "same_boot_instance": true,
+                "registrations": 1
             }
         }))?;
     app.shutdown(openrust::tokio::time::Instant::now() + Duration::from_secs(5))

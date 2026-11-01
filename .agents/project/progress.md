@@ -6,7 +6,7 @@
 
 ## 当前功能簇
 
-配置d952199与应用职责161bfcf已限定提交。模块持久启停、独立状态路径、同容器管理/事件已完成限定验收及产物清理，提交事实见Git；默认1081/35 ignored、全特性1923/112，fresh普通12/MySQL3/MFA2、根真实MySQL1与三进程启停/缓存通过，见[模块管理证据](memory/testing.md#模块持久启停与同容器管理限定验收)。下一停点为module.json运行发现与Provider/files绑定；DB能力门控及完整ADR-001继续开放。
+配置d952199与应用职责161bfcf已限定提交。模块持久启停、独立状态路径、同容器管理/事件已完成限定验收及产物清理，提交事实见Git；默认1081/35 ignored、全特性1923/112，fresh普通12/MySQL3/MFA2、根真实MySQL1与三进程启停/缓存通过，见[模块管理证据](memory/testing.md#模块持久启停与同容器管理限定验收)。同内核嵌套Provider注册前置已通过限定验收和资源收尾，本地提交以Git为准，见[嵌套注册证据](memory/testing.md#同内核嵌套-provider-注册限定验收)；下一module.json运行发现与Provider/files绑定；DB能力门控及完整ADR-001继续开放。
 
 本批 Env/Request-MIME、TrustedHosts、应用/代码配置/Provider、异常、Web/CSRF与部分Query已完成限定组合验收，本地集成提交 `9035a00`。真实来源保全、双workspace门禁、生成、MySQL、TCP/TLS及开放差异见[本批证据](memory/testing.md#当前-main-组合限定验收)。下一步按唯一todo优先配置默认值/单一来源等整改，不将本批通过等同完整1:1。
 
