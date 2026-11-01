@@ -132,6 +132,8 @@ curl --noproxy '*' http://127.0.0.1:3000/api/orders
 
 生成应用的 `tests/support/request_input.rs` 经生产 Provider 清单追加受管理 `Routes::route(path, http::routing::get(...).post(...))`，验证真实路由名称、`route_is`、最终 URI/方法和缺参数默认值。直接使用 Axum `Router` / `MethodRouter` 属于原生逃生口，不具有上述受管理声明的匹配上下文保证。显式 `Routes::fallback` 按 Laravel 仅接受 GET/HEAD；POST 等方法没有对应业务路由时返回方法不允许；OPTIONS 存在可用方法时合成空响应与 Allow。
 
+生成应用的 URL helper 同时调用 `Request::client_ip/client_ips/base_url`：没有注入连接信息的进程内请求分别得到 `None`、空列表和空前缀。真实连接经 `server.trusted_proxy_ranges` 指定可信代理，`server.trusted_proxy_headers` 使用公开 `TrustedProxyHeaders` 的位集合选择可采用的转发头；URL、协议、主机、端口和前缀由框架的同一请求上下文提供，应用不自行读取转发头作为可信数据。helper 的无连接断言不代表真实代理 TCP 验收。
+
 ### 生成项目的消息包参考
 
 普通生成应用的 `tests/support/message_bags.rs` 通过测试业务Provider和TestApp演示公开MessageBag/ViewErrorBag、递归合并及JSON选项；`tests/test_app.rs` 调用此入口。它只注册测试路由，不增加默认生产接口。数据库认证模板使用独立的 `tests/auth_flows.rs`，不自动运行此helper；业务可参考唯一 `modules/example` 中的生产模块调用。

@@ -64,6 +64,12 @@ async fn serve_listener_inner<F>(
 where
     F: Future<Output = ()>,
 {
+    // PHP 的 laravel_cloud() 仅识别宿主环境中的精确字符串 `1`；启动时捕获一次。
+    let router = if std::env::var("LARAVEL_CLOUD").is_ok_and(|value| value == "1") {
+        router.layer(axum::Extension(super::CloudIngress))
+    } else {
+        router
+    };
     let readiness = state.try_get::<super::health::ServerReadiness>()?;
     let _readiness_guard = readiness.begin_listening();
     let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();

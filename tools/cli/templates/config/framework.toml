@@ -15,7 +15,7 @@ request_timeout_secs = 30
 max_concurrent_requests = 1024
 shutdown_timeout_secs = 10
 metrics_endpoint_enabled = false
-trusted_proxy_ranges = []
+# 显式设置 trusted_proxy_ranges = [] 可关闭平台自动代理；省略则沿框架默认策略。
 
 [server.compression]
 enabled = true

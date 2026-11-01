@@ -1493,7 +1493,25 @@ async fn dispatch_collection(
         .iter()
         .any(|candidate| candidate.domain.is_some())
     {
-        match authority(request.headers(), request.uri()) {
+        match request
+            .extensions()
+            .get::<super::proxy::ProxySnapshot>()
+            .cloned()
+            .unwrap_or_else(|| {
+                super::proxy::ProxySnapshot::capture(
+                    request.headers(),
+                    request.uri(),
+                    request.extensions(),
+                    Some(&state.config().server),
+                )
+            })
+            .context()
+            .and_then(|origin| {
+                origin.host()?.map_or_else(
+                    || authority(request.headers(), request.uri()),
+                    |(host, _)| Ok(host),
+                )
+            }) {
             Ok(host) => Some(host),
             Err(error) => return error.into_response(),
         }

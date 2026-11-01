@@ -149,7 +149,7 @@ async fn cookie_app(
 ) -> openrust::Result<openrust::App> {
     let mut config = openrust::config::FrameworkConfig::default();
     config.api.http_status = openrust::config::HttpStatusMode::Semantic;
-    config.server.trusted_proxy_ranges = vec!["127.0.0.1/32".to_owned()];
+    config.server.trusted_proxy_ranges = Some(vec!["127.0.0.1/32".to_owned()]);
     let mut builder = openrust::core::ProviderBuilder::new();
     builder
         .provider(openrust::http::HttpServiceProvider)
@@ -235,7 +235,7 @@ async fn origin_form_secure_defaults_use_trusted_transport_and_preserve_explicit
     use std::net::SocketAddr;
     let app = cookie_app(openrust::http::CookieServiceProvider::plain()).await?;
     let router = openrust::http::build_router(&app)?;
-    for (peer, proto, explicit, expected) in [
+    for (peer, proto, native_tls, expected) in [
         ("127.0.0.1:80", "https", None, true),
         ("192.0.2.1:80", "https", None, false),
         ("127.0.0.1:80", "ssl", None, true),
@@ -245,7 +245,7 @@ async fn origin_form_secure_defaults_use_trusted_transport_and_preserve_explicit
         ("127.0.0.1:80", "1", None, true),
         ("127.0.0.1:80", "unknown", None, false),
         ("192.0.2.1:80", "http", Some(true), true),
-        ("127.0.0.1:80", "https", Some(false), false),
+        ("127.0.0.1:80", "https", Some(false), true),
     ] {
         let mut request = Wire::builder()
             .uri("/security")
@@ -256,7 +256,7 @@ async fn origin_form_secure_defaults_use_trusted_transport_and_preserve_explicit
         request
             .extensions_mut()
             .insert(ConnectInfo(peer.parse::<SocketAddr>().expect("peer")));
-        if let Some(secure) = explicit {
+        if let Some(secure) = native_tls {
             request
                 .extensions_mut()
                 .insert(openrust::http::RequestSecurity::new(secure));

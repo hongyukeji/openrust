@@ -137,6 +137,8 @@ async fn inspect_url(mut request: InputRequest) -> openrust::Result<Json<serde_j
         "root": request.root()?, "url": request.url()?, "full_url": full_url,
         "after": request.full_url()?, "scheme": request.scheme()?,
         "http_host": request.http_host()?, "port": request.port()?,
+        "base_url": request.base_url()?, "client_ip": request.client_ip()?,
+        "client_ips": request.client_ips()?,
         "decoded_path": request.decoded_path()?, "segments": request.segments()?,
         "segment": request.segment(2)?, "zero": request.segment(0)?,
         "is": request.is(&["test/*"])?, "full_url_is": request.full_url_is(&["*/test/request-url*"])?,
@@ -248,6 +250,9 @@ pub async fn assert_request_input<A: Application>(
             assert_eq!(data["scheme"], "http");
             assert_eq!(data["http_host"], "example.test:8080");
             assert_eq!(data["port"], 8080);
+            assert_eq!(data["base_url"], "");
+            assert_eq!(data["client_ip"], serde_json::Value::Null);
+            assert_eq!(data["client_ips"], serde_json::json!([]));
             assert_eq!(data["decoded_path"], "test/request-url");
             assert_eq!(data["segments"], serde_json::json!(["test", "request-url"]));
             assert_eq!(data["segment"], "request-url");

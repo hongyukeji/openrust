@@ -25,8 +25,11 @@ pub struct ServerConfig {
     pub metrics_endpoint_enabled: bool,
     /// 允许提供 `X-Forwarded-For` 的代理 IP 地址或 CIDR。
     ///
-    /// 列表为空时忽略所有转发头，并使用 socket 对端地址。
-    pub trusted_proxy_ranges: Vec<String>,
+    /// `None` 为官方未配置；显式空列表禁止 Forge/Vapor/Cloud 自动信任。
+    /// 普通 Host 未配置时仍只采用 socket 对端地址。
+    pub trusted_proxy_ranges: Option<Vec<String>>,
+    /// 可信代理可提供的转发头位掩码；默认使用 Laravel 的 X-Forwarded 集合。
+    pub trusted_proxy_headers: u8,
     /// 响应压缩设置。
     pub compression: CompressionConfig,
     /// 跨域请求设置。
@@ -51,7 +54,8 @@ impl Default for ServerConfig {
             max_concurrent_requests: 1024,
             shutdown_timeout_secs: 10,
             metrics_endpoint_enabled: false,
-            trusted_proxy_ranges: Vec::new(),
+            trusted_proxy_ranges: None,
+            trusted_proxy_headers: crate::http::TrustedProxyHeaders::DEFAULT,
             compression: CompressionConfig::default(),
             cors: CorsConfig::default(),
         }

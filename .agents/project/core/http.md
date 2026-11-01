@@ -32,6 +32,12 @@ Session请求层已接入统一领域；D1限定验收范围、真实网络/双�
 
 唯一模块、生成helper、main门禁、真实双库和TCP已完成[限定验收](../memory/testing.md#c04-d9-main-组合限定子范围验收通过)。文件输入合并、RedirectResponse与CSRF/FormRequest仍开放。
 
+## C04-G 可信代理请求上下文（main限定子范围已验收）
+
+`ServerConfig`的代理范围使用`Option<Vec<String>>`，缺省与显式空列表分别保留固定上游的平台自动规则与禁用语义；头集合默认62。HTTP入口发布同一请求代理快照，`RequestInfo`、`ClientIp`、域路由、重定向与签名共用客户端链、协议、主机、端口和前缀。公开请求端口为`i64`，监听端口仍为`u16`；可信proto先于物理TLS回退。Cloud仅接受受信宿主标记，普通客户端头不触发。
+
+Forwarded quoted-pair解码、IPv6双头的原文本冲突及显式端口不急切求值scheme三项已修，并获不同模型静态复审；当前默认/全特性workspace、双严格Clippy/docs、生成普通8项/MySQL认证2项与定向公开接线、真实TCP三案及资源收尾通过，不声明完整代理/TrustedHosts/云部署已完成。当前输入、失败保留与持久证据见[唯一队列](../todo.md#c04-g-trustproxies-请求上下文verify)；旧/tmp摘要不能替代本轮验收。
+
 ## 当前实现
 
 | 模块 | 内容 |

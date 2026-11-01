@@ -1,12 +1,10 @@
 //! 由实际连接与可信代理确定请求的安全传输属性。
-use std::net::SocketAddr;
-
 use crate::Result;
-use axum::extract::{Request, connect_info::ConnectInfo};
+use axum::extract::Request;
 
 /// 原生 TLS 适配器在进入应用 Router 前写入的可信传输属性。
 ///
-/// 它优先于代理头和 URI，不应由客户端输入或未受信任的请求头构造。
+/// 它是实际 TLS 回退状态；来自可信代理的协议头按 Symfony 规则优先。
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RequestSecurity(bool);
 impl RequestSecurity {
@@ -20,32 +18,26 @@ impl RequestSecurity {
     }
 }
 
-pub(crate) fn is_secure(request: &Request) -> Result<bool> {
-    is_secure_parts(request.headers(), request.extensions())
-}
+/// 受信宿主声明此请求来自 Laravel Cloud；普通 HTTP 头不能设置此标记。
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct CloudIngress;
 
-pub(crate) fn is_secure_parts(
-    headers: &axum::http::HeaderMap,
-    extensions: &axum::http::Extensions,
-) -> Result<bool> {
-    if let Some(security) = extensions.get::<RequestSecurity>() {
-        return Ok(security.is_secure());
-    }
-    let peer = extensions.get::<ConnectInfo<SocketAddr>>();
-    let state = extensions.get::<crate::core::AppState>();
-    if let (Some(peer), Some(state)) = (peer, state)
-        && super::client_ip::trusts_peer(peer.0.ip(), &state.config().server.trusted_proxy_ranges)?
-        && let Some(value) = headers.get("x-forwarded-proto")
-    {
-        // 与 HeaderBag 首物理值、可信值列表首 token 的语义一致。
-        let value = std::str::from_utf8(value.as_bytes()).unwrap_or_default();
-        let first = value
-            .split(',')
-            .next()
-            .unwrap_or_default()
-            .trim_matches([' ', '\t', '\n', '\r', '\0', '\x0b'])
-            .to_ascii_lowercase();
-        return Ok(matches!(first.as_str(), "https" | "on" | "ssl" | "1"));
-    }
-    Ok(false)
+pub(crate) fn is_secure(request: &Request) -> Result<bool> {
+    request
+        .extensions()
+        .get::<super::proxy::ProxySnapshot>()
+        .cloned()
+        .unwrap_or_else(|| {
+            super::proxy::ProxySnapshot::capture(
+                request.headers(),
+                request.uri(),
+                request.extensions(),
+                request
+                    .extensions()
+                    .get::<crate::core::AppState>()
+                    .map(|state| &state.config().server),
+            )
+        })
+        .context()?
+        .secure()
 }

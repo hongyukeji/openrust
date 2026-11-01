@@ -6,6 +6,8 @@
 
 ## 当前功能簇
 
+✅ C04-G TrustProxies已完成main限定子范围验收：默认/全特性workspace963/1775通过、34/111忽略，双严格Clippy/docs、精确MSRV/no-default/deny、公开consumer/唯一模块、fresh普通8项/MySQL认证2项及真实TCP补充3案均通过；三项代理差异经不同模型复审关闭，专属缓存回收后仅保留下一环境簇所需主缓存。PHP8.2参考低于Symfony官方最低版本、MySQL无事前schema基线、逐案Rust映射与真实Cloud部署缺口明确保留；完整能力不关闭。见[本簇验收](memory/testing.md#c04-g-trustproxies-main-限定验收)，提交号以Git为准。
+
 C04-F Request文件家族及MIME续作完成任务分支限定验收：MIME续作默认955/34忽略、全特性1770/111忽略，公开consumer、生成应用、真实MySQL与TCP通过；本次任务分支限定交付，尚未集成main，原生Fileinfo、Windows与完整Files仍开放。见[本簇证据](memory/testing.md#c04-f-request文件家族分支限定验收)。
 
 ✅ R03/typed/CC/Signed已完成同一main限定组合；默认/全特性严格Clippy与workspace tests已通过（907/0/34 ignored、1698/0/108 ignored），双docs/MSRV、no-default、deny及生成/MySQL限定证据见最终receipt；五父本地提交为 `e105dbfc58afc330b50e53b75f0b9e1424fa387a`；S-DV/ST-V/P及两guard工作区不纳入。见[组合记录](memory/testing.md#r2-四簇-main-组合限定验收)。

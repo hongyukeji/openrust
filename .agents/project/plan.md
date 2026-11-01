@@ -18,6 +18,8 @@ R2-T ConfigRepository严格类型读取已由独立分支 `b1f4bf7` 限定验收
 
 ## 执行校准
 
+C04-G TrustProxies已完成当前main限定子范围验收与专属产物回收，提交号以Git为准；452项源码和日志已核，生成/真实TCP/MySQL及公开接线完成，PHP运行时与逐案映射等限制见[验收记录](memory/testing.md#c04-g-trustproxies-main-限定验收)。当前环境身份簇在同仓独立worktree实际编码，不占Cargo窗口；TrustedHosts待环境前置和公共契约收敛。C04-F/MIME仍为任务分支交付，未自动合入main。
+
 用户本轮已明确恢复原完整Laravel+laravel-modules计划，解除仅收尾/不领取新簇限制；当前C04-F Request文件家族与MIME续作已完成任务分支限定验证，本次任务分支限定交付，均尚未集成main；owner、冻结输入及开放边界见唯一[todo](todo.md#c04-f-request-files)和[测试记录](memory/testing.md#c04-f-request文件家族分支限定验收)。沿用原Goal、默认80%预算及20%保留，不新建守护、不重算基线，不启动冻结产品。
 
 R2-P `4ac8099` 与 S-DV `6ffb5c8` 已由三父提交 `9e5a94198b421987851b3580b27fa90370feeb77` 完成main限定组合门禁；ST-V `2262df9` 后由两父提交 `8d18021b630ea10652316e025ef6019c7772bbb0` 完成main限定组合门禁；真实S3 ACL、迟到CopyObject及`throw=false`仍开放，见[本簇记录](memory/testing.md#st-v-main-限定组合验收)。S-DV与P均已完成工作区/分支安全退役，P文档事实已迁入main并保全原稿，完整Provider/Container/Session仍开放。四簇main组合默认/全特性严格Clippy与workspace tests已通过（907/0/34 ignored、1698/0/108 ignored）；双docs/MSRV、no-default、deny和生成/MySQL限定证据见组合记录；五父本地提交 `e105dbfc58afc330b50e53b75f0b9e1424fa387a` 仅关闭本轮限定集成。唯一队列见[todo](todo.md)。

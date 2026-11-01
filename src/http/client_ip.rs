@@ -1,12 +1,10 @@
 //! 支持可信代理的客户端地址提取。
 
-use std::net::{IpAddr, SocketAddr};
+use std::net::IpAddr;
 
 use crate::core::{AppState, Error, Result};
-use axum::extract::{FromRequestParts, Request, connect_info::ConnectInfo};
-use http::{HeaderMap, header::HeaderName, request::Parts};
-
-const X_FORWARDED_FOR: HeaderName = HeaderName::from_static("x-forwarded-for");
+use axum::extract::{FromRequestParts, Request};
+use http::request::Parts;
 
 /// 根据 socket 对端地址和已配置的可信代理解析出的请求客户端 IP。
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -19,14 +17,24 @@ impl ClientIp {
     }
 
     pub(crate) fn from_request(request: &Request, state: &AppState) -> Result<Self> {
-        let peer = request
+        request
             .extensions()
-            .get::<ConnectInfo<SocketAddr>>()
-            .ok_or_else(|| Error::internal(MissingConnectInfo))?
-            .0
-            .ip();
-        let ranges = parse_ranges(&state.config().server.trusted_proxy_ranges)?;
-        resolve_client_ip(peer, request.headers(), &ranges).map(Self)
+            .get::<super::proxy::ProxySnapshot>()
+            .cloned()
+            .unwrap_or_else(|| {
+                super::proxy::ProxySnapshot::capture(
+                    request.headers(),
+                    request.uri(),
+                    request.extensions(),
+                    Some(&state.config().server),
+                )
+            })
+            .context()?
+            .client_ips()?
+            .first()
+            .copied()
+            .map(Self)
+            .ok_or_else(|| Error::internal(MissingConnectInfo))
     }
 }
 
@@ -35,58 +43,91 @@ impl FromRequestParts<AppState> for ClientIp {
 
     #[allow(clippy::unused_async_trait_impl)]
     async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self> {
-        let peer = parts
+        parts
             .extensions
-            .get::<ConnectInfo<SocketAddr>>()
-            .ok_or_else(|| Error::internal(MissingConnectInfo))?
-            .0
-            .ip();
-        let ranges = parse_ranges(&state.config().server.trusted_proxy_ranges)?;
-        resolve_client_ip(peer, &parts.headers, &ranges).map(Self)
+            .get::<super::proxy::ProxySnapshot>()
+            .cloned()
+            .unwrap_or_else(|| {
+                super::proxy::ProxySnapshot::capture(
+                    &parts.headers,
+                    &parts.uri,
+                    &parts.extensions,
+                    Some(&state.config().server),
+                )
+            })
+            .context()?
+            .client_ips()?
+            .first()
+            .copied()
+            .map(Self)
+            .ok_or_else(|| Error::internal(MissingConnectInfo))
     }
 }
 
 /// 在服务器开始接受请求前校验可信代理配置。
-pub(crate) fn validate_trusted_proxy_ranges(ranges: &[String]) -> Result<()> {
-    parse_ranges(ranges).map(|_| ())
+pub(crate) fn validate_trusted_proxy_ranges(ranges: Option<&[String]>) -> Result<()> {
+    ranges.map_or(Ok(()), |ranges| parse_ranges(ranges).map(|_| ()))
 }
 
-pub(crate) fn trusts_peer(peer: IpAddr, ranges: &[String]) -> Result<bool> {
-    Ok(parse_ranges(ranges)?
+#[cfg(test)]
+pub(crate) fn filter_client_ips(
+    chain: &[String],
+    peer: IpAddr,
+    trusted: &[IpRange],
+) -> Vec<IpAddr> {
+    filter_client_ip_strings(chain, peer, trusted)
+        .into_iter()
+        .filter_map(|address| address.parse().ok())
+        .collect()
+}
+
+pub(crate) fn filter_client_ip_strings(
+    chain: &[String],
+    peer: IpAddr,
+    trusted: &[IpRange],
+) -> Vec<String> {
+    let mut addresses = chain
         .iter()
-        .any(|range| range.contains(peer)))
-}
-
-fn resolve_client_ip(peer: IpAddr, headers: &HeaderMap, trusted: &[IpRange]) -> Result<IpAddr> {
-    if !trusted.iter().any(|range| range.contains(peer)) {
-        return Ok(peer);
-    }
-    let mut chain = Vec::new();
-    for header in headers.get_all(&X_FORWARDED_FOR) {
-        let value = header
-            .to_str()
-            .map_err(|_| Error::BadRequest("invalid X-Forwarded-For header".into()))?;
-        for entry in value.split(',') {
-            let address = entry
-                .trim()
-                .parse::<IpAddr>()
-                .map_err(|_| Error::BadRequest("invalid X-Forwarded-For header".into()))?;
-            chain.push(address);
+        .filter_map(|value| {
+            let value = value.trim();
+            let value = if value.contains('.') {
+                value
+                    .find(':')
+                    .filter(|index| *index > 0)
+                    .map_or(value, |index| &value[..index])
+            } else if let Some(rest) = value.strip_prefix('[') {
+                rest.split_once(']').map_or(rest, |(address, _)| address)
+            } else {
+                value
+            };
+            value.parse::<IpAddr>().ok().map(|_| value.to_owned())
+        })
+        .collect::<Vec<_>>();
+    addresses.push(peer.to_string());
+    let mut first_trusted = None;
+    addresses.retain(|address| {
+        if address
+            .parse()
+            .is_ok_and(|parsed| trusted.iter().any(|range| range.contains(parsed)))
+        {
+            if first_trusted.is_none() {
+                first_trusted = Some(address.clone());
+            }
+            false
+        } else {
+            true
         }
+    });
+    addresses.reverse();
+    if addresses.is_empty() {
+        first_trusted.into_iter().collect()
+    } else {
+        addresses
     }
-
-    let mut client = peer;
-    for hop in chain.into_iter().rev() {
-        if !trusted.iter().any(|range| range.contains(client)) {
-            break;
-        }
-        client = hop;
-    }
-    Ok(client)
 }
 
 #[derive(Clone, Copy, Debug)]
-struct IpRange {
+pub(crate) struct IpRange {
     address: IpAddr,
     prefix: u8,
 }
@@ -114,7 +155,7 @@ impl IpRange {
         Ok(Self { address, prefix })
     }
 
-    fn contains(self, address: IpAddr) -> bool {
+    pub(crate) fn contains(self, address: IpAddr) -> bool {
         match (self.address, address) {
             (IpAddr::V4(network), IpAddr::V4(address)) => {
                 let mask = if self.prefix == 0 {
@@ -137,8 +178,16 @@ impl IpRange {
     }
 }
 
-fn parse_ranges(values: &[String]) -> Result<Vec<IpRange>> {
-    values.iter().map(|value| IpRange::parse(value)).collect()
+pub(crate) fn parse_ranges(values: &[String]) -> Result<Vec<IpRange>> {
+    values
+        .iter()
+        .map(|value| match value.as_str() {
+            "*" | "**" => Ok(vec![IpRange::parse("0.0.0.0/0")?, IpRange::parse("::/0")?]),
+            "REMOTE_ADDR" => Ok(Vec::new()),
+            _ => Ok(vec![IpRange::parse(value)?]),
+        })
+        .collect::<Result<Vec<_>>>()
+        .map(|groups| groups.into_iter().flatten().collect())
 }
 
 #[cfg(test)]
@@ -147,27 +196,13 @@ mod tests {
     use std::net::Ipv4Addr;
 
     #[test]
-    fn untrusted_peers_cannot_supply_a_forwarded_address() -> Result<()> {
-        let peer = IpAddr::V4(Ipv4Addr::new(203, 0, 113, 4));
-        let headers = HeaderMap::from_iter([(
-            X_FORWARDED_FOR.clone(),
-            "198.51.100.9".parse().map_err(Error::internal)?,
-        )]);
-        assert_eq!(resolve_client_ip(peer, &headers, &[])?, peer);
-        Ok(())
-    }
-
-    #[test]
     fn trusted_proxy_chain_is_walked_from_the_peer_toward_the_client() -> Result<()> {
         let peer = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 3));
         let trusted = parse_ranges(&["10.0.0.0/8".to_owned()])?;
-        let headers = HeaderMap::from_iter([(
-            X_FORWARDED_FOR.clone(),
-            "198.51.100.9, 10.0.0.2".parse().map_err(Error::internal)?,
-        )]);
+        let chain = ["198.51.100.9".to_owned(), "10.0.0.2".to_owned()];
         assert_eq!(
-            resolve_client_ip(peer, &headers, &trusted)?,
-            IpAddr::V4(Ipv4Addr::new(198, 51, 100, 9))
+            filter_client_ips(&chain, peer, &trusted),
+            [IpAddr::V4(Ipv4Addr::new(198, 51, 100, 9))]
         );
         Ok(())
     }
@@ -176,15 +211,17 @@ mod tests {
     fn spoofed_prefix_before_the_client_is_not_selected() -> Result<()> {
         let peer = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 3));
         let trusted = parse_ranges(&["10.0.0.0/8".to_owned()])?;
-        let headers = HeaderMap::from_iter([(
-            X_FORWARDED_FOR.clone(),
-            "192.0.2.99, 198.51.100.9, 10.0.0.2"
-                .parse()
-                .map_err(Error::internal)?,
-        )]);
+        let chain = [
+            "192.0.2.99".to_owned(),
+            "198.51.100.9".to_owned(),
+            "10.0.0.2".to_owned(),
+        ];
         assert_eq!(
-            resolve_client_ip(peer, &headers, &trusted)?,
-            IpAddr::V4(Ipv4Addr::new(198, 51, 100, 9))
+            filter_client_ips(&chain, peer, &trusted),
+            [
+                IpAddr::V4(Ipv4Addr::new(198, 51, 100, 9)),
+                IpAddr::V4(Ipv4Addr::new(192, 0, 2, 99))
+            ]
         );
         Ok(())
     }
@@ -202,21 +239,20 @@ mod tests {
     }
 
     #[test]
-    fn malformed_forwarding_header_is_rejected_only_for_trusted_peers() -> Result<()> {
+    fn invalid_forwarded_ip_is_filtered_but_valid_port_forms_survive() -> Result<()> {
         let trusted_peer = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 3));
         let trusted = parse_ranges(&["10.0.0.0/8".to_owned()])?;
-        let headers = HeaderMap::from_iter([(
-            X_FORWARDED_FOR.clone(),
-            "not-an-ip".parse().map_err(Error::internal)?,
-        )]);
-        assert!(resolve_client_ip(trusted_peer, &headers, &trusted).is_err());
+        let chain = [
+            "not-an-ip".to_owned(),
+            "198.51.100.9:123".to_owned(),
+            "[2001:db8::1]:456".to_owned(),
+        ];
         assert_eq!(
-            resolve_client_ip(
-                IpAddr::V4(Ipv4Addr::new(203, 0, 113, 4)),
-                &headers,
-                &trusted
-            )?,
-            IpAddr::V4(Ipv4Addr::new(203, 0, 113, 4))
+            filter_client_ips(&chain, trusted_peer, &trusted),
+            [
+                "2001:db8::1".parse::<IpAddr>().map_err(Error::internal)?,
+                "198.51.100.9".parse::<IpAddr>().map_err(Error::internal)?
+            ]
         );
         Ok(())
     }

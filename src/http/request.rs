@@ -82,6 +82,7 @@ impl fmt::Debug for VaporRawQueryString {
 #[derive(Clone)]
 pub struct RequestInfo {
     secure: std::result::Result<bool, std::sync::Arc<Error>>,
+    proxy: super::proxy::ProxySnapshot,
     method: Method,
     uri: Uri,
     vapor_raw_query: Option<VaporRawQueryString>,
@@ -118,6 +119,9 @@ impl<S: Send + Sync> FromRequestParts<S> for RequestInfo {
             None => super::cookie::parse_headers(&parts.headers)?,
         };
         let mut headers = parts.headers.clone();
+        if super::proxy::platform_host(&parts.headers, &parts.uri) {
+            headers.remove("x-forwarded-host");
+        }
         if let Some(original) = parts.extensions.get::<super::cookie::OriginalCookies>() {
             headers.remove(http::header::COOKIE);
             for value in &original.headers {
@@ -145,9 +149,29 @@ impl<S: Send + Sync> FromRequestParts<S> for RequestInfo {
             parts.extensions.insert(std::sync::Arc::clone(&errors));
             errors
         };
+        let proxy = parts
+            .extensions
+            .get::<super::proxy::ProxySnapshot>()
+            .cloned()
+            .unwrap_or_else(|| {
+                super::proxy::ProxySnapshot::capture(
+                    &parts.headers,
+                    &parts.uri,
+                    &parts.extensions,
+                    parts
+                        .extensions
+                        .get::<crate::core::AppState>()
+                        .map(|state| &state.config().server),
+                )
+            });
+        let secure = proxy
+            .0
+            .as_ref()
+            .map_err(std::sync::Arc::clone)
+            .and_then(|origin| origin.secure().map_err(std::sync::Arc::new));
         Ok(Self {
-            secure: super::transport::is_secure_parts(&parts.headers, &parts.extensions)
-                .map_err(std::sync::Arc::new),
+            secure,
+            proxy,
             method: parts.method.clone(),
             uri: parts
                 .extensions
@@ -399,7 +423,35 @@ impl RequestInfo {
 
     /// 校验 Host 与绝对 URI authority，并返回不含端口的主机名。
     pub fn host(&self) -> Result<String> {
-        authority(&self.headers, &self.uri)
+        if let Some((host, _)) = self.proxy_context()?.host()? {
+            Ok(host)
+        } else {
+            authority(&self.headers, &self.uri)
+        }
+    }
+
+    pub(crate) fn proxy_context(&self) -> Result<&super::proxy::ProxyContext> {
+        self.proxy
+            .0
+            .as_ref()
+            .map(std::sync::Arc::as_ref)
+            .map_err(|error| match error.as_ref() {
+                Error::Config(crate::config::ConfigError::Invalid(message)) => {
+                    Error::Config(crate::config::ConfigError::Invalid(message.clone()))
+                }
+                Error::BadRequest(message) => Error::BadRequest(message.clone()),
+                _ => Error::internal(error.clone()),
+            })
+    }
+
+    /// 返回当前请求中第一个非可信代理 IP；无 socket 信息的独立快照返回空值。
+    pub fn client_ip(&self) -> Result<Option<std::net::IpAddr>> {
+        Ok(self.proxy_context()?.client_ips()?.first().copied())
+    }
+
+    /// 返回按 Symfony 规则过滤并从最近非可信代理到原始客户端排列的 IP。
+    pub fn client_ips(&self) -> Result<Vec<std::net::IpAddr>> {
+        self.proxy_context()?.client_ips()
     }
 
     /// 返回首个同名文本头；非法名称或非 UTF-8 值返回稳定的 400 错误。

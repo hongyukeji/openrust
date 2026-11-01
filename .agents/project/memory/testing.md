@@ -1,5 +1,20 @@
 # 测试基线
 
+<a id="c04-g-trustproxies-main-限定验收"></a>
+## C04-G TrustProxies main 限定验收
+
+当前main候选基于`266e746`；452个Rust/TOML/snapshot/lock输入聚合SHA `792d4b783cc6d55423cf98255f8c5d052e280f892c3ef0b6b30cba9709bc125c`，实际命令、退出码、耗时及日志SHA保存在`.agents/project/guards/6b56ea51-0bb7-44a7-8547-7073f8f2c7e4/proxy-evidence-v3/receipt.json`。修后定向、公开consumer/模块、CLI快照、默认/全特性workspace、双严格Clippy/docs、no-default、精确已装Rust1.97.0及deny均已通过。Docker未运行导致的Redis失败、错误test target、v2测试类型推断错误与`+1.97`别名误触工具链下载后中止均保留原记录，不回填为原命令成功。现仅使用已装精确版本且禁自动安装。
+
+不同模型静态复审已关闭quoted-pair解码、IPv6原文本冲突及显式port惰性scheme三项；固定上游来源、修后副本及报告在同任务`evidence-recovery-review/`。新真实PHP40案两轮exit0、输出相同SHA `6203c72a5c5cc32f9d25b7a1c8745ef160d742035f2a217798ed2bc949b072a9`，不等于恢复旧59案；实际PHP8.2低于Symfony8声明最低8.4，属于所用真实方法的有限动态参考，不称官方支持runtime或完整应用验收。逐案Rust映射的partial/no-exact范围明确保留。
+
+根server SHA `fabd7b52890341631bfb2205d1cd76b0be3314a2fb8b8ff7d2328a2b21c6b81c`；旧URL/TLS网络工具10项通过、source_changed为空、binary未变，工具自身明确不证明完整TrustProxies。新增唯一模块公开TCP3案通过：可信quoted-pair与客户端链/Host/Port/Prefix读取、IPv6双头原文本冲突400、显式空代理列表忽略伪造头；服务正常exit0且敏感配置清除，回执`proxy_tcp_report.json`及`proxy_tcp_untrusted_report.json`。807项全Git冻结窗口核无漂移；首次自写TOML夹具放错mask位置导致未就绪的失败保留，修后结果独立记录。
+
+fresh普通生成check/test通过，实际8项、0 ignored；fresh MySQL认证check及真实auth 2项通过、0 ignored且无skip。未采MySQL事前schema集合，不能声称前后集合相等；事后60个匹配schema的命名时间均早于本轮，没有本轮命名残留，检查方法与指纹见`mysql_schema_after.json`。这是清理证据的有限边界，不推导其他会话数据未变。最终`final_handoff.json`绑定36份日志、452项源码零漂移；默认workspace963通过/34忽略，全特性1775通过/111忽略，ignored不算真实服务。
+
+专属生成target 3,896,115,200B及本轮consumer target 1,801,461,760B已dry-run后正常clean归零；采样登记产物44,658,880,512B→38,929,108,992B，最终磁盘可用174,562,840,576B。该登记数不含另行标注保留的未知外置65,982,464B，不能冒称包含它的全项目总数。根target仅保留给已实际安排的环境身份簇Verify；生成源码84文件哈希、日志和上游参考保留，服务/数据卷未清理。根输入和全部日志由root最终审计后限定本地提交，提交号见Git。
+
+本节只关闭当前代理快照、公开读取及其已实测子范围；完整Request/TrustedHosts、原生TLS、真实Cloud部署、发布后端矩阵仍开放。mask0、Cloud非1/伪客户端头、port00及超过i64的逐案Rust回归映射仍不完整，源码/有限PHP参考不冒称逐项测试已闭合；Symfony合法引号转义已覆盖，不外推全部非法语法宽容行为。MIME仍为任务分支交付，未合main。
+
 <a id="c04-f-request文件家族分支限定验收"></a>
 ## C04-F Request文件家族分支限定验收
 

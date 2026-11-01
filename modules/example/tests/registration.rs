@@ -1418,6 +1418,9 @@ async fn production_request_url_uses_original_uri_and_current_query_bag()
         assert_eq!(data["address"]["scheme"], "http");
         assert_eq!(data["address"]["http_host"], "localhost:8080");
         assert_eq!(data["address"]["port"], 8080);
+        assert_eq!(data["address"]["base_url"], "");
+        assert_eq!(data["address"]["client_ip"], serde_json::Value::Null);
+        assert_eq!(data["address"]["client_ips"], serde_json::json!([]));
         assert_eq!(data["address"]["decoded_path"], "api/example/request-url");
         assert_eq!(
             data["address"]["segments"],
@@ -1465,6 +1468,55 @@ async fn production_request_url_uses_original_uri_and_current_query_bag()
         .await?;
     response.assert_status(StatusCode::BAD_REQUEST)?;
     assert!(!String::from_utf8_lossy(response.body()).contains("never-echo"));
+    app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    Ok(())
+}
+
+// 证明普通业务模块读取的是公开可信代理上下文，不自行解析转发头。
+#[tokio::test]
+async fn production_request_url_reads_trusted_proxy_context()
+-> Result<(), Box<dyn std::error::Error>> {
+    use openrust::http::{TrustedProxyHeaders, axum::extract::connect_info::ConnectInfo};
+    use openrust::testing::TestApp;
+    use std::{net::SocketAddr, time::Duration};
+
+    let sources = production_sources(false).merge(figment::providers::Serialized::defaults(
+        serde_json::json!({"server": {
+            "trusted_proxy_ranges": ["10.0.0.0/8"],
+            "trusted_proxy_headers": TrustedProxyHeaders::DEFAULT
+        }}),
+    ));
+    let mut app = TestApp::<crate::bootstrap::Server>::builder(sources)
+        .build()
+        .await?;
+    let response = app
+        .request(
+            Request::get("/api/example/request-url?label=public&page=1")
+                .header("host", "internal.test:8080")
+                .header("x-forwarded-for", "198.51.100.8")
+                .header("x-forwarded-host", "public.test")
+                .header("x-forwarded-port", "8443")
+                .header("x-forwarded-proto", "https")
+                .header("x-forwarded-prefix", "/gateway")
+                .extension(ConnectInfo("10.0.0.2:42000".parse::<SocketAddr>()?))
+                .body(Body::empty())?,
+        )
+        .await?;
+    response.assert_status(StatusCode::OK)?;
+    let json: serde_json::Value = serde_json::from_slice(response.body())?;
+    let address = &json["data"]["address"];
+    assert_eq!(address["client_ip"], "198.51.100.8");
+    assert_eq!(address["client_ips"], serde_json::json!(["198.51.100.8"]));
+    assert_eq!(address["base_url"], "/gateway");
+    assert_eq!(address["scheme"], "https");
+    assert_eq!(address["http_host"], "public.test:8443");
+    assert_eq!(address["port"], 8443);
+    assert_eq!(address["root"], "https://public.test:8443/gateway");
+    assert_eq!(
+        address["full_url"],
+        "https://public.test:8443/gateway/api/example/request-url?label=public&page=1"
+    );
     app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
         .await?;
     Ok(())

@@ -9,33 +9,58 @@ impl RequestInfo {
             .as_ref()
             .map(|secure| if *secure { "https" } else { "http" })
             .map_err(|error| match error.as_ref() {
-                // 当前快照唯一可能的配置失败来自可信代理 CIDR 解析。
                 Error::Config(crate::config::ConfigError::Invalid(message)) => {
                     Error::Config(crate::config::ConfigError::Invalid(message.clone()))
                 }
+                Error::BadRequest(message) => Error::BadRequest(message.clone()),
                 _ => Error::internal(error.clone()),
             })
     }
 
     /// 返回显式端口，缺失时采用实际协议的默认端口。
-    pub fn port(&self) -> Result<u16> {
-        let (_, port) = crate::http::authority::authority_with_port(&self.headers, &self.uri)?;
-        Ok(port.unwrap_or(if self.scheme()? == "https" { 443 } else { 80 }))
+    pub fn port(&self) -> Result<i64> {
+        let (_, direct_port) =
+            crate::http::authority::authority_with_port(&self.headers, &self.uri)?;
+        let proxy = self.proxy_context()?;
+        if let Some(port) = proxy.port()? {
+            return Ok(port);
+        }
+        let proxy_host = proxy.host()?;
+        let port = if let Some((_, port)) = proxy_host {
+            port
+        } else {
+            direct_port.map(i64::from)
+        };
+        if let Some(port) = port {
+            return Ok(port);
+        }
+        Ok(if self.scheme()? == "https" { 443 } else { 80 })
     }
 
     /// 返回严格校验的主机与非默认端口；IPv6 保留方括号。
     pub fn http_host(&self) -> Result<String> {
-        let (host, port) = crate::http::authority::authority_with_port(&self.headers, &self.uri)?;
+        let host = self.host()?;
+        let port = self.port()?;
         let default = if self.scheme()? == "https" { 443 } else { 80 };
         Ok(match port {
-            Some(port) if port != default => format!("{host}:{port}"),
+            port if port != default => format!("{host}:{port}"),
             _ => host,
         })
     }
 
-    /// 返回协议与主机；当前应用不推断代理前缀或脚本目录。
+    /// 返回协议、主机和可信代理前缀；路径信息仍是应用内层路径。
     pub fn root(&self) -> Result<String> {
-        Ok(format!("{}://{}", self.scheme()?, self.http_host()?))
+        Ok(format!(
+            "{}://{}{}",
+            self.scheme()?,
+            self.http_host()?,
+            self.base_url()?
+        ))
+    }
+
+    /// 返回可信代理声明的应用基础路径；没有可信前缀时为空串。
+    pub fn base_url(&self) -> Result<String> {
+        self.proxy_context()?.prefix()
     }
 
     /// 返回不含查询串且去掉尾斜线的请求 URL。
@@ -200,6 +225,7 @@ pub(super) fn bounded_url(url: String) -> Result<String> {
 mod tests {
     use super::*;
     use axum::extract::FromRequestParts;
+    use axum::extract::connect_info::ConnectInfo;
 
     async fn info(uri: &str, host: &str, secure: bool) -> RequestInfo {
         let request = axum::http::Request::builder()
@@ -216,6 +242,80 @@ mod tests {
         RequestInfo::from_request_parts(&mut parts, &())
             .await
             .expect("request snapshot")
+    }
+
+    #[tokio::test]
+    async fn invalid_trusted_host_keeps_port_scheme_and_prefix_independent() {
+        let request = axum::http::Request::builder()
+            .uri("/path")
+            .header("host", "internal.test")
+            .header("x-forwarded-host", "bad/host")
+            .header("x-forwarded-prefix", "/edge")
+            .body(())
+            .expect("static request fixture");
+        let (mut parts, ()) = request.into_parts();
+        parts.extensions.insert(ConnectInfo(
+            "10.0.0.1:8080"
+                .parse::<std::net::SocketAddr>()
+                .expect("static socket"),
+        ));
+        let config = crate::config::ServerConfig {
+            trusted_proxy_ranges: Some(vec!["REMOTE_ADDR".into()]),
+            ..crate::config::ServerConfig::default()
+        };
+        let snapshot = crate::http::proxy::ProxySnapshot::capture(
+            &parts.headers,
+            &parts.uri,
+            &parts.extensions,
+            Some(&config),
+        );
+        parts.extensions.insert(snapshot);
+        let info = RequestInfo::from_request_parts(&mut parts, &())
+            .await
+            .expect("request snapshot");
+        assert_eq!(
+            info.host().expect_err("bad host must fail").status(),
+            StatusCode::BAD_REQUEST
+        );
+        assert_eq!(info.port().expect("independent port"), 80);
+        assert_eq!(info.scheme().expect("independent scheme"), "http");
+        assert_eq!(info.base_url().expect("independent prefix"), "/edge");
+    }
+
+    #[tokio::test]
+    async fn explicit_port_does_not_evaluate_conflicting_scheme() {
+        let request = axum::http::Request::builder()
+            .uri("/path")
+            .header("host", "internal.test:8080")
+            .header("x-forwarded-proto", "https")
+            .header("forwarded", "proto=http")
+            .body(())
+            .expect("static request fixture");
+        let (mut parts, ()) = request.into_parts();
+        parts.extensions.insert(ConnectInfo(
+            "10.0.0.1:8080"
+                .parse::<std::net::SocketAddr>()
+                .expect("static socket"),
+        ));
+        let config = crate::config::ServerConfig {
+            trusted_proxy_ranges: Some(vec!["REMOTE_ADDR".into()]),
+            trusted_proxy_headers: crate::http::TrustedProxyHeaders::PROTO
+                | crate::http::TrustedProxyHeaders::FORWARDED,
+            ..crate::config::ServerConfig::default()
+        };
+        parts
+            .extensions
+            .insert(crate::http::proxy::ProxySnapshot::capture(
+                &parts.headers,
+                &parts.uri,
+                &parts.extensions,
+                Some(&config),
+            ));
+        let info = RequestInfo::from_request_parts(&mut parts, &())
+            .await
+            .expect("request snapshot");
+        assert!(info.scheme().is_err());
+        assert_eq!(info.port().expect("explicit port"), 8080);
     }
 
     #[tokio::test]

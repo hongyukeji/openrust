@@ -67,7 +67,7 @@ async fn address(request: Request) -> openrust::Result<Json<serde_json::Value>> 
 
 `full_url()`按原始查询串规范化：顶层键排序，空格编码为`%20`，数组使用显式索引；`full_url_with_query`和`full_url_without_query`使用当前query输入，反映GET/HEAD的`merge`或`replace`，不混入POST正文。增参为顶层覆盖而非深合并；删参先匹配完整顶层键，再处理点路径。固定Laravel在当前query bag为空时以原始`fullUrl`为基础追加问号；因此GET `replace({})`清空输入但原URI仍有query时，增参保留上游可能出现第二个问号的行为。若需完全替换原请求地址，应由应用明确构造目标URL。地址可能含业务敏感参数，应用应按用途选择返回字段，不将完整URL写入公开日志。
 
-`root()`返回协议和主机；`http_host()`保留非默认端口，`port()`返回显式或协议默认端口。实际安全状态沿`RequestSecurity`或可信peer/proto链确定，未信任转发头不生效；代理Host/Port/Prefix的完整支持尚未交付。`decoded_path()`百分号解码但保留加号，`segments()`解码后分段，`segment(1)`从第一段起；非法UTF-8显式报错。`is`和`full_url_is`采用区分大小写的星号模式。`prefetch`仅识别对应头值完整等于prefetch。
+`root()`返回协议、主机与可信代理前缀；`base_url()`返回前缀，`http_host()`保留非默认端口，`port()`返回显式 Host 或可信转发端口，未指定时才按协议取默认端口；显式端口不因无关的协议头冲突而失败。`client_ip()`/`client_ips()`与域路由、重定向和签名共用请求代理快照。可信代理的协议头优先于物理TLS；无可信协议头时才采用`RequestSecurity`。`decoded_path()`百分号解码但保留加号，`segments()`解码后分段，`segment(1)`从第一段起；非法UTF-8显式报错。`is`和`full_url_is`采用区分大小写的星号模式。`prefetch`仅识别对应头值完整等于prefetch。
 
 查询原文限制16KiB/1024字段，编码和完整URL限制128KiB；模式最多128项、合计16KiB，超限显式413。Session previous 与可选 Precognition 的接入方式见下节；完整 FormRequest、URI 对象及官方前端包不由 URL helper 隐式提供。
 
@@ -122,7 +122,7 @@ impl Validate for CreatePost {
 
 工厂默认 path `/`、httpOnly=true、SameSite=Lax，domain 与 secure 未指定。有 Session 配置时读取最终共享配置；`with_cookie_config` 在对应 Provider boot 时覆盖，后续显式 overlay 按原 Provider 顺序生效，`with_factory` 仅覆盖 Cookie 工厂。最终配置冻结后才装配 Session 层，避免原生 Session 与 Cookie 工厂使用不同快照。当前 Session 自身默认 secure=true，不能据此声称所有 Session 默认已与上游完成对齐。
 
-secure 未指定时，原生 TLS 宿主可注入 `RequestSecurity`；代理部署仅接受现有可信代理配置匹配的 peer 所发首个 `X-Forwarded-Proto` 值的首个逗号 token，`https/on/ssl/1` 表示安全传输。客户端自行构造的 HTTPS URI 不证明 TLS，非可信来源的转发头不生效；显式 secure=false 保持覆盖。应用无需另建代理信任配置。
+secure 未指定时，原生 TLS 宿主可注入 `RequestSecurity`；可信代理提供的首个 `X-Forwarded-Proto` token 优先，`https/on/ssl/1` 表示安全传输，可信空值为不安全。客户端自行构造的 HTTPS URI 不证明 TLS，非可信来源的转发头不生效；显式 secure=false 保持覆盖。应用无需另建代理信任配置。
 
 受管理 Router 保留原始 Cookie 头供严格认证重复检查，给 Session 与 Cookie 读取提供同一解密视图；`RequestInfo::header` 仍是原始 wire 逃生口。原生 Axum Router 或未安装 Provider 的入口不自动具有这些保护。wire 解析保留 PHP SAPI 的 raw URL decode 与重复键规则，不等同于表单 `parse_str`；非法 UTF-8 返回 400，输入树及响应预算超限返回 413，非法应用参数返回 500，均不回显值。响应先排队再加密，失败不输出部分 Cookie，也不回退明文。
 
@@ -193,7 +193,7 @@ async fn preview(request: Request) -> openrust::Result<Json<serde_json::Value>> 
 
 `[server.compression] enabled = true` 会根据 `Accept-Encoding` 协商 gzip 和 Brotli；设置为 `false` 可关闭压缩。`[server.cors]` 默认禁用。启用时，将 `enabled` 设为 `true`，并配置 `allowed_origins = ["https://example.com"]`（未启用 credentials 时也可用 `["*"]`）。Methods、request headers、exposed headers、credentials 和预检 `max_age_secs` 均可配置。具体 origin 必须是 `http://` 或 `https://`，后接主机和可选端口，不可包含路径、查询参数或尾部斜杠。CORS 列表中不能混用通配符和具体值；启用 credentials 时，methods、request headers 和 exposed headers 也不能使用通配符。路由构建时若发现配置无效，会返回包含配置 key 和转义值的错误。CORS layer 包裹 timeout layer，因此 408 响应仍保留允许来源信息。`build_router(&App)` 返回 `Result<Router>`；`serve` 会先构建 router，再绑定 listener。
 
-`[server].trusted_proxy_ranges` 默认为空。条目接受 IP 地址或 CIDR。若直接 socket peer 位于配置范围内，`ClientIp` 会解析 `X-Forwarded-For`，从右向左遍历可信代理链，并返回第一个不可信地址；否则忽略转发头。可信范围配置无效时 router 构建失败；来自可信 peer 的转发值格式错误时返回 bad-request 响应封装。
+`[server].trusted_proxy_ranges` 未配置为 `None`，普通 Host 不信任代理；显式 `[]` 禁止平台自动信任。可配置 IP/CIDR、`REMOTE_ADDR`、`*`/`**` 双栈全范围；未配置且 Host 为 Forge/Vapor 后缀时遵循上游自动代理规则，但禁用该入口的 `X-Forwarded-Host`。`trusted_proxy_headers` 默认数值 62，可用公开 `TrustedProxyHeaders` 位常量选择 X-Forwarded 单项、AWS ELB 子集或 RFC `Forwarded`。只有可信 socket peer 的转发事实生效；客户端 IP 链剔除可信代理，Host/Port/Proto/Prefix 共用请求入口发布的快照。无效 CIDR/mask 在 router 构建时失败；冲突转发头在读取受影响属性时返回错误，不影响其他属性。`X-Forwarded-Port` 保留 PHP 非数字转为 0、空值回退协议端口的结果；请求公开端口类型为 `i64`，监听端口仍为 `u16`。Laravel Cloud 由受信宿主 `CloudIngress` request extension 声明，`serve` 在 listener 启动时仅当 `LARAVEL_CLOUD=1` 捕获并注入；普通 HTTP 头不能冒充。真实 Cloud 平台环境尚未验证。
 
 使用 route layer 可应用共享固定窗口配额。应用必须注册 `RateLimiter`，通常通过 `DatabaseServiceProvider` 注册；存储故障会失败关闭。每个 scope 应对应一个 endpoint/policy，并在所有路由实例中使用相同的 limit/window。`by_user` 要求先添加认证 layer，使其先于限流 layer 执行；允许匿名请求的路由也可使用 `by_user_or_client_ip`。
 

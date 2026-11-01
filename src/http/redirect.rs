@@ -571,9 +571,10 @@ fn absolute_target(info: &RequestInfo, target: &str, secure: Option<bool>) -> Re
     let root = match secure {
         None => info.root()?,
         Some(secure) => format!(
-            "{}://{}",
+            "{}://{}{}",
             if secure { "https" } else { "http" },
-            info.http_host()?
+            info.http_host()?,
+            info.base_url()?
         ),
     };
     let (path, query) = target

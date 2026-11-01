@@ -467,6 +467,8 @@ codec 在模块 `ExampleServiceProvider::register` 中通过 `RegisterContext.ex
 
 `GET /api/example/request-url?label=public&page=1` 与同地址的 POST 经普通模块路由调用 `Request` 的 `root/url/full_url`、`scheme/http_host/port`、`decoded_path/segments/segment`、`is/full_url_is`、`prefetch` 及查询增删方法。演示仅接受无查询或上述固定公开查询，其它查询返回 400；不回显 Cookie、Authorization 或正文。
 
+`address` 也通过公开 `client_ip/client_ips/base_url` 展示同一请求的客户端链与代理前缀；无 socket 对端的进程内请求可能没有客户端地址。代理信任范围和头集合由宿主配置，模块只消费框架已确定的上下文，不自行解析转发头或信任客户端声明。
+
 `address` 展示原请求；`merged` 和 `replaced_with_query` 展示当前输入修改后的查询投影。非 JSON GET 的 `merge/replace` 修改当前 query bag，因此影响 `full_url_with_query/full_url_without_query`；`full_url` 始终来自原始 URI。输入来源优先判断 JSON：带 JSON Content-Type 的 GET 与 POST 均修改 JSON 正文输入，不混入地址查询。`/api/example/route-url` 则展示按命名路由生成出站链接，与读取当前入站请求地址分属不同职责。进程内测试不代表真实 TCP/TLS 已验收。
 
 

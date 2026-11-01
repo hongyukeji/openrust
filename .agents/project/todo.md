@@ -38,11 +38,21 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 - 资源：本轮已完成归属/进程/打开句柄核查与正常Cargo清理，根target实测29,937,872,896B→0，磁盘可用167,465,619,456B→197,155,180,544B（19.821%）；回执`/tmp/openrust-request-files-final-cleanup-retry/receipt.json`。首轮因缺缓存标记安全中止的回执保留；确认归属后exclusive create标准CACHEDIR.TAG，dry-run及正常clean均exit0；全项目50GB软/100GB硬与磁盘10%软/5%硬保持。后续仅经root核归属/占用后清可再生产物，保未知外置缓存、guard工作区、服务和数据卷。
 - 开放边界：任务分支限定交付，尚未集成main；完整Symfony MIME、真实S3 ACL/迟到CopyObject、Storage `throw=false`、Windows原生取消清理及Laravel完整Request/Filesystem能力继续未完成，不因本簇限定验证关闭。
 
-### C04-G TrustProxies 请求上下文（Implement）
+<a id="c04-g-trustproxies-请求上下文verify"></a>
+### C04-G TrustProxies 请求上下文（main限定子范围已验收）
 
-- 前置：既有peer/CIDR、URL/路由/签名机制；MIME任务分支先完成提交，不并写其冻结输入。官方对应L019.06，完整可信Hosts另按依赖核对，不用新增getter冒充完整代理机制。
-- 范围：可信范围与header策略、IPv4/IPv6客户端链、scheme/host/port/prefix在同一请求上下文发布，Request/路由/redirect/signed消费者读同一事实；无信任默认忽略伪造转发头，实际默认/冲突/平台分支按固定上游取证后收敛。
-- 当前owner：`/root/config_runtime_callers`在main负责唯一生产上下文、代理策略及定向测试编码（`src/http`及必要`src/config/server.rs`），不与冻结MIME任务分支并写；`/root/request_files_services_prepare`只读核固定Laravel/Symfony与真实PHP oracle；已完成候选审计`/tmp/openrust-request-http-next-family-candidate.md`。生产owner已领取Implement，未建target/worktree、不占Cargo；先完成整簇源码与测试代码，ready后集中验证。root负责冻结公共contract及后续文件归属，必要不同模型独审与集中门禁保持。
+- 本轮实际完成源码、唯一模块/consumer/模板与文档、不同模型复审及集中门禁；提交号以Git为准。完整Request/TrustedHosts/云部署不关闭，MIME任务分支未合main。后继当前领取环境身份簇，见下节。
+- 最终452构建输入聚合SHA `792d4b783cc6d55423cf98255f8c5d052e280f892c3ef0b6b30cba9709bc125c`，36份日志哈希和原失败核对完整；持久回执`guards/6b56ea51-0bb7-44a7-8547-7073f8f2c7e4/proxy-evidence-v3/`。默认/全特性workspace、双严格Clippy/docs、精确MSRV/no-default/deny、公开调用、fresh普通8/MySQL认证2与新增真实TCP3案通过；旧URL/TLS工具10项只证明其声明范围。
+- quoted-pair解码、IPv6原文本冲突及显式port不急切计算scheme三项修后独审关闭。新PHP40案两轮结果相同，但PHP8.2低于Symfony8官方最低8.4；旧/tmp59案与旧freeze缺失，不当作恢复或当前验收。mask0等逐案Rust映射缺口保留，见[测试事实与限制](memory/testing.md#c04-g-trustproxies-main-限定验收)。
+- 原Docker未运行导致的Redis失败、错误test target及测试类型推断错误保留；现有Docker服务恢复后精确/完整workspace通过。误用`+1.97`别名触发自动下载已中止，未报成功、不擅清全局状态；改用已装精确`1.97.0`且禁自动安装后通过。
+- MySQL事前schema基线未采，不宣称前后集合相等；事后没有本轮命名时间残留。生成/consumer专属target已clean归零；登记产物采样44.659GB→38.929GB，未知外置65,982,464B单列保留，不能从该登记数假报完整总量。根target仅给已实际启动环境身份簇复用，下一统一构建目录仍根target。
+- 原Goal沿用，默认百分比80%/保留20%；用户明确批准当前账号基准48%/保留9.6个百分点，旧账号历史与38问答保全，不fullgrant/rebase重放、不推送/发布。运行PID非长期契约，按实际guard状态核验，不沿旧句柄重派任务。
+
+### 环境身份保真（Implement，与代理验收并行）
+
+- owner `/root/environment_identity`（gpt-6-sol/medium），branch `tasks/environment-identity`，base `266e746f3b99ce3172b1b025d5ab688ee3e4360d`；同OpenRust项目`prj_34a40ee7b674b2b6`的workspace `wks_e62dea2c5a1a719f`，cwd `/Users/Home/.paseo/worktrees/02joa2lr/openrust-environment-identity`，common-dir已核同仓且起点干净。
+- 范围：精确、自定义app.env身份与来源，按固定上游核环境默认和查询，消除local/dev/development及test/testing被合并的语义偏差；沿现配置/Provider体系同步调用方、唯一模块、模板、公开consumer与测试代码，不另造测试进程标记。与当前代理未提交API无依赖。
+- code-first整簇编码，ready后不同模型复审及集中Verify；暂不Cargo、不服务、不新target。共享manifest/lock/Agentdocs/提交及main集成归root。后继TrustedHosts的固定只读Spec已具备，仍须本簇及C04-G真实收口、PCRE/公共入口contract收敛后才实施；不把Spec当交付。
 
 ### 上轮收尾执行窗口（已完成）
 

@@ -236,7 +236,8 @@ impl crate::core::ServiceProvider for HttpServiceProvider {
                 ("max_concurrent_requests", Schema::Integer),
                 ("shutdown_timeout_secs", Schema::Integer),
                 ("metrics_endpoint_enabled", Schema::Boolean),
-                ("trusted_proxy_ranges", strings()),
+                ("trusted_proxy_ranges", strings().nullable()),
+                ("trusted_proxy_headers", Schema::Integer),
                 (
                     "compression",
                     Schema::object([("enabled", Schema::Boolean)]),
@@ -271,7 +272,8 @@ impl crate::core::ServiceProvider for HttpServiceProvider {
         Box::pin(async move {
             let config: crate::config::ServerConfig = app.section("server")?;
             validate_http_config(&config)?;
-            validate_trusted_proxy_ranges(&config.trusted_proxy_ranges)?;
+            validate_trusted_proxy_ranges(config.trusted_proxy_ranges.as_deref())?;
+            crate::http::proxy::validate_headers(config.trusted_proxy_headers)?;
             let _ = app.resolve::<health::ServerReadiness>().await?;
             app.command(ServeCommand);
             app.routes(health::routes)?;
@@ -357,7 +359,8 @@ pub(crate) struct HttpPluginInstalled;
 /// 此函数会将其转换为启动错误 `http_route_registration_failed`。直接调用底层 Axum 构建 API
 /// 不在此错误转换范围内。
 pub fn build_router(app: &App) -> Result<Router> {
-    validate_trusted_proxy_ranges(&app.config().server.trusted_proxy_ranges)?;
+    validate_trusted_proxy_ranges(app.config().server.trusted_proxy_ranges.as_deref())?;
+    crate::http::proxy::validate_headers(app.config().server.trusted_proxy_headers)?;
     let mut route_urls = None;
     let mut stateful = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let mut middleware_registry = app
@@ -526,6 +529,16 @@ async fn expose_app_state(
     mut request: Request,
     next: Next,
 ) -> Response {
+    if crate::http::proxy::platform_host(request.headers(), request.uri()) {
+        request.headers_mut().remove("x-forwarded-host");
+    }
+    let proxy = crate::http::proxy::ProxySnapshot::capture(
+        request.headers(),
+        request.uri(),
+        request.extensions(),
+        Some(&state.config().server),
+    );
+    request.extensions_mut().insert(proxy);
     let scope = match state.container().scope() {
         Ok(scope) => Arc::new(scope),
         Err(error) => return error.into_response(),
