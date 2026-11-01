@@ -18,6 +18,8 @@ R2-T ConfigRepository严格类型读取已由独立分支 `b1f4bf7` 限定验收
 
 ## 执行校准
 
+已授权框架范围的本地任务持续允许总控串行集成 main，不再逐分支申请确认；当前批次先整合环境身份及 Request/MIME 源码、解决冲突，再执行同一组合门禁，通过后提交和安全退役。真实验证、WIP/索引归属及来源映射保持，不推送/发布/tag或改写已推历史。
+
 C04-G TrustProxies已完成当前main限定子范围验收与专属产物回收，提交号以Git为准；452项源码和日志已核，生成/真实TCP/MySQL及公开接线完成，PHP运行时与逐案映射等限制见[验收记录](memory/testing.md#c04-g-trustproxies-main-限定验收)。当前环境身份簇在同仓独立worktree实际编码，不占Cargo窗口；TrustedHosts待环境前置和公共契约收敛。C04-F/MIME仍为任务分支交付，未自动合入main。
 
 用户本轮已明确恢复原完整Laravel+laravel-modules计划，解除仅收尾/不领取新簇限制；当前C04-F Request文件家族与MIME续作已完成任务分支限定验证，本次任务分支限定交付，均尚未集成main；owner、冻结输入及开放边界见唯一[todo](todo.md#c04-f-request-files)和[测试记录](memory/testing.md#c04-f-request文件家族分支限定验收)。沿用原Goal、默认80%预算及20%保留，不新建守护、不重算基线，不启动冻结产品。
