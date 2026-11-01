@@ -23,7 +23,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 <a id="c04-f-request-files"></a>
 ### C04-F Request文件家族（分支限定验收通过，main待集成）
 
-- 当前续作：原owner `/root/config_runtime_callers`已领取MIME契约收敛，读取固定Laravel/Symfony实际检测器与扩展表、优先级/失败语义和Rust实现候选，结果`/tmp/openrust-request-mime-contract.md`。暂不改源码或新建工作区/target；有限内容签名不是完整MIME。root收到短Spec后冻结公共contract并安排实现，已提交`2f90127`不冒称该缺口完成。
+- 当前续作（收口）：MIME 家族21文件冻结v7，608构建输入零漂移；15代码门禁通过，默认workspace955/34忽略、全特性1770/111忽略，双严格Clippy/docs/MSRV/no-default/deny通过。services九阶段fresh生成/真实TCP/MySQL链全部exit0，回执`/tmp/openrust-request-mime-services-prepare/run-20261101T080437Z/receipt.json`；生成test_app8/TCP1、Request fixture1、真实MySQL模块1均通过，无新增库残留。原owner `/root/config_runtime_callers`正汇总最终证据，services owner `/root/request_files_services_prepare`已完成本轮target清理：30,115,557,376B→0，磁盘16.968%→19.971%，未知外置65,982,464B保留，回执`/tmp/openrust-request-mime-final-cleanup-retry/receipt.json`；源码保持冻结，待限定任务分支提交；不冒称已合main或完整Request对应完成。受控gate已修复Duration::ZERO测试竞争；原失败保留。首Request历史默认数纠正为945/34（原922漏计CLI父23），旧全特性1760/111不变。守护独立修复已合main `31a6d38`，plain重载PID71755，原Goal active、working/task_running及三项存活/心跳均true；默认0.8/baseline1793413935.123801、账号历史、已结束grant保留，38问答ID无丢失，四行因正常复核变化。
 
 - 已创建限定任务分支本地提交`2f901272ec6fcc8cdd7d3a2b4ec6624a7445aaaf`（43文件），提交信息校验与工作区干净检查通过。源码未合入main；保留任务工作区等待最终验收，暂不退役分支。
 
@@ -31,7 +31,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 - 同仓任务位置：OpenRust项目`prj_34a40ee7b674b2b6`，workspace `wks_748133ad70032a5e`，branch `tasks/request-files-family`，base `a9b057e78f35c42955dd99401526a5d1eda60ba1`，cwd `/Users/Home/.paseo/worktrees/02joa2lr/openrust-request-files-family`。原核心owner `/root/config_runtime_callers`，当前生成/真实服务owner `/root/request_files_services_prepare`；root独占索引、依赖/锁、共享文档和提交。
 - 范围：唯一Request管线的multipart、递归文件树、DataValue身份、UploadedFile独立reader/暂存与取消清理、store字符串路径、闪存/Redirect公开链路，贯通唯一模块、consumer、生成模板和文档。Spec `/tmp/openrust-request-files-family-spec.md`；固定Laravel/Symfony实际行为优先，普通选择自主，不造独立上传内核。
 - 流式契约：网络正文读一次，沿原Axum默认/覆盖/禁用限额；小正文内存、越阈值受管暂存，multipart逐chunk写入。异步`content()`受管reader与`content_bytes(max)`显式投影，原文32MiB/结构化8MiB额外预算属可配置Rust资源策略，不能冒称Laravel默认。writer/在途open/read均持文件与路径owner，取消后小ReadBuf续读保持缓存/offset。
-- 已核代码门禁：Request lib41、http_input38、公开consumer Session2、CLI23均通过；默认workspace922通过/34忽略，全特性1760通过/111忽略，双严格Clippy/docs、no-default、Rust1.97和deny均通过。CLI子进程摘要已去重；无服务环境的忽略/跳过不算真实后端。root日志SHA审计`/tmp/openrust-request-files-code-gates-root-audit.json`、`/tmp/openrust-request-files-all-features-root-audit.json`；原失败记录保留，测试数量不是整体完成率。
+- 已核代码门禁：Request lib41、http_input38、公开consumer Session2、CLI23均通过；默认workspace945通过/34忽略，全特性1760通过/111忽略，双严格Clippy/docs、no-default、Rust1.97和deny均通过。CLI子进程摘要已去重；无服务环境的忽略/跳过不算真实后端。root日志SHA审计`/tmp/openrust-request-files-code-gates-root-audit.json`、`/tmp/openrust-request-files-all-features-root-audit.json`；原失败记录保留，测试数量不是整体完成率。
 - 最终808冻结`/tmp/openrust-request-files-generated-json-freeze.json`，tree `e8ff0cac0e66bfa04a92ea5aaa165fce307904cf`，36候选文件；全部SHA无漂移。相对全特性已过输入仅模块multipart用例失败清理与模板/快照三路径变化，生产`src/`、manifest、locks不变；受影响server测试严格Clippy、CLI/生成/MySQL已补验。证据索引`/tmp/openrust-request-files-final-evidence-index.json`。
 - 最终真实链已通过：CLI主23、全新生成应用check/test_app8+TCP1、Request精确1/TCP精确1、唯一模块附件真实MySQL精确1且无skip；同MySQL server UUID和schema集合前后相等，进程组无残留。最终wrapper`/tmp/openrust-request-files-services-third-20261101T042452Z/receipt.json`、driver`/tmp/openrust-request-files-services-prepare/run-20261101T042456Z/receipt.json`；旧模板JSON失败和首次临时fixture编译失败原证据保留，不能改写为原命令通过。生成源码已由成功driver清理，不能现时重算原字节。
 - 依赖root已统一：Axum官方multipart、基础tempfile仅新增multer3.1.0；http-body-util提升基础direct。12 consumer实际native metadata校准，11锁仅补该direct边，全部既有包版本集合不变；证据`/tmp/openrust-request-files-consumer-direct-lock-sync/receipt.json`。最初离线wasm解析与未缓存平台依赖失败均保留，不能冒称成功。
@@ -77,9 +77,9 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 - **可选模块边界**：原V2版本阶段取消，后台/App需求转入[可选快速开发模块](plans/optional-rapid-development-modules.md#开发与使用边界)，暂不开发，待用户明确开工。R14、两个框架阶段或持续Goal“全部完成”不能自动启动；main只推进框架/唯一示例，不清理现有WIP，不为暂不开发业务模块预建分支或默认合并；已授权框架任务分支按并行规范执行。框架配置管理、Queue/Scheduler及官方扩展继续；官方工具自身界面属于对应可选包，不受业务后台冻结限制。
 
 - 阶段一R2公共声明/覆盖/错误契约→R13包发现与生成工具：[Provider编译期发现Spec](plans/laravel-rebuild.md#r2r13-provider-编译期发现-spec)（L044.02/模块M016），复用R2-M/N清单、拓扑和register→boot；仅规划未实现，不抢占当前HTTP。
-  - 当前前置只读Spec：复用已交付Q会话 `ea706795-768f-43c9-9a56-33b38c0abfac`，只核公开声明/退出/覆盖/错误与现ModuleManifest接线，无源码/构建/新分支变更；候选Spec已交，auto/explicit同Provider重复是否应去重需补核固定Application::register/force与RegisterProviders顺序，不能把上游正常重复误判冲突；root冻结后才分配实施，不能把显式清单冒称自动发现已完成。 后续重复注册契约与真实PHP证据已收：`/tmp/openrust-provider-discovery-registration-contract.md`、`/tmp/openrust-provider-registration-oracle/receipt.json`；普通重复首次实例、force启动前/后与dont-discover不阻止显式均由真方法实跑并重放一致，configured三段顺序仍仅源码证据。未实现发现/force生命周期，不以探针关闭Rust缺口。
+  - 当前前置只读Spec：复用已交付Q会话 `ea706795-768f-43c9-9a56-33b38c0abfac`，只核公开声明/退出/覆盖/错误与现ModuleManifest接线，无源码/构建/新分支变更；候选Spec已交，auto/explicit同Provider重复是否应去重需补核固定Application::register/force与RegisterProviders顺序，不能把上游正常重复误判冲突；root冻结后才分配实施，不能把显式清单冒称自动发现已完成。 后续重复注册契约与真实PHP证据已收：`/tmp/openrust-provider-discovery-registration-contract.md`、`/tmp/openrust-provider-registration-oracle/receipt.json`；普通重复首次实例、force启动前/后与dont-discover不阻止显式均由真方法实跑并重放一致，configured三段顺序仍仅源码证据。自动发现仍未实现；普通/force生命周期已由R2-P `4ac8099`及main组合`9e5a941`限定交付，见[当前core事实](core/core.md)，不能继续把该历史探针结论当作force待实现。
 
-- 阶段一R2容器完整Binding后继（矩阵L012.02）：D3接线实证现API只有后注册覆盖，缺保留任意原factory的Laravel extend。按固定上游补通用公开装饰、生命周期/已解析singleton/多次顺序/错误与资源归属，贯通显式custom Session driver、模块及生成应用；D3已知Db/Memory fixture不关闭此项，不新建专属装饰内核，不抢占当前HTTP。
+- 阶段一R2容器Binding历史缺口（矩阵L012.02）：保留原factory的公开`extend`及作用域/实例装饰已由R2-X `d299ca4`与Q/X main组合限定验收，并在当前core事实记录；不再按旧D3结论重复领取。完整Binding/Container其余上游对应仍按矩阵逐项闭合，不由已完成子范围外推。
 
 - 阶段二R11 MQTT按[总计划可选扩展契约](plans/laravel-rebuild.md#r11-明确待办mqtt-可选服务端与客户端)排期：client/Broker按需独立引入，沿既有Provider加载，client操作/订阅CLI/Broker CLI才产生网络副作用；仅规划，不抢占当前HTTP簇。
 

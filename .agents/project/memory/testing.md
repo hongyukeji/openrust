@@ -5,7 +5,7 @@
 
 任务分支`tasks/request-files-family`基于`a9b057e`，最终冻结树`e8ff0cac0e66bfa04a92ea5aaa165fce307904cf`，808个输入和36个候选文件SHA均无漂移；最终证据索引`/tmp/openrust-request-files-final-evidence-index.json`核39份原始日志SHA。此为分支限定验证，任务分支限定交付，尚未集成main。原失败回执未覆盖；最后相对全特性通过输入仅模块测试失败清理和生成模板/快照三路径变化，生产`src/`、清单和锁不变，受影响server测试严格Clippy及CLI/生成/MySQL已补验。
 
-Request库41、`http_input`38、公开test-app consumer Session2、最终CLI主测试23均通过；CLI嵌套摘要不重复计数。默认workspace922通过/34忽略，全特性1760通过/111忽略；双严格Clippy与警告拒绝Rustdoc、no-default、Rust1.97和deny适用门禁按代码审计`/tmp/openrust-request-files-code-gates-root-audit.json`与全特性审计`/tmp/openrust-request-files-all-features-root-audit.json`通过。ignored或无服务环境跳过不算真实后端验收。
+Request库41、`http_input`38、公开test-app consumer Session2、最终CLI主测试23均通过；CLI嵌套摘要不重复计数。旧最终索引曾把父CLI的23项再次扣除而记922；按原日志逐Running/Doc-tests段最后summary复核，959项原始摘要扣14项嵌套为945。更正证据`/tmp/openrust-request-mime-counter-historical-audit.json`保留每binary行号和日志SHA；旧索引/原日志未改写。默认workspace945通过/34忽略，全特性1760通过/111忽略；双严格Clippy与警告拒绝Rustdoc、no-default、Rust1.97和deny适用门禁按代码审计`/tmp/openrust-request-files-code-gates-root-audit.json`与全特性审计`/tmp/openrust-request-files-all-features-root-audit.json`通过。ignored或无服务环境跳过不算真实后端验收。
 
 最终真实链`/tmp/openrust-request-files-services-third-20261101T042452Z/receipt.json`中，CLI23、全新生成项目check及`test_app`8、真实TCP1、Request精确1/TCP精确1均通过；唯一模块multipart附件真实MySQL精确1项无skip，隔离库集合前后相等且同一server UUID。进程组均无残留，生成应用源码已由driver清理，现不能重算其原字节，保留命令、fixture SHA和日志。正文沿原Axum默认/覆盖/禁用限额读取；原文32 MiB、结构化8 MiB是可调整Rust资源预算，不冒称Laravel默认。任务结束清理回执`/tmp/openrust-request-files-final-cleanup-retry/receipt.json`记录正常Cargo清理exit0，根target实测29,937,872,896B→0，磁盘可用167,465,619,456B→197,155,180,544B；原缺缓存标记中止记录保留，归属核定后恢复标准标记，未动未知外置缓存。源码冻结后的最终变更仅为Agent事实文档与依赖说明，不影响已执行Rust门禁；真实服务细节以driver回执`/tmp/openrust-request-files-services-prepare/run-20261101T042456Z/receipt.json`为准。完整Symfony MIME、真实S3 ACL、迟到CopyObject、Storage `throw=false`和Windows原生取消清理仍开放，不能关闭整个Request/Files。
 
@@ -1295,3 +1295,15 @@ D10-G gRPC环境补充：用户报告此前可能在失败期间手动清理Dock
 本簇未改 DB/Redis schema 或 driver。补验使用已有 Docker MySQL 8.4，fresh `--db mysql --auth` 生成项目 `cargo check --tests` 与实际 auth 测试 2/2 通过（0 failed/ignored/filtered、无 skip）；只读残留检查未发现本次新建测试库。该 auth 测试不导入签名 helper，不把它算作 helper 的数据库 HTTP 验证。公开 TestApp consumer 1/1 通过；gRPC consumer 仅宿主 `cargo check` 通过，不称其测试通过。`VAPOR_RAW_QUERY_STRING` 的真实部署注入、代理剥离前缀入口，以及 PHP 对象/数组/Enum 参数形态仍开放；Rust 当前只覆盖 `BTreeMap<String, String>` 字符串参数。完整 URLGenerator/Redirector、main workspace Clippy/tests/docs及适用 feature/MSRV/deny、ENV 合入后的生成与服务验证均未由本分支证实。
 
 分支回执 `/tmp/openrust-signed-final-verify-manifest.md` 当前 SHA `b79b983e921ffa6a7b012ff621183bb8e415afdcbcaa1943daec5a28184f9507`；`/tmp/openrust-signed-root-hash-audit.json` 已只读重核并绑定该修订回执，29 日志和当时 22 文件逐项匹配；更正前审计保留于 `openrust-signed-root-hash-audit-pre-correction.json`。该审计不覆盖后续 TCP 清理代码与日志。独立 delta 复审 `/tmp/openrust-signed-final-delta-review.md` 指出生成 helper 哈希及 TCP 异常清理两个 should-fix；前者笔误已更正，fresh MySQL 项目保留的 helper 与模板同次 SHA `3d7bcfd61ceb3f90dd753ffa768e62f6e562e1cd3f6f6526ed87eb074f716fb3`，但已删除的普通生成目录仍无法独立复算；后者由 `/tmp/openrust-signed-tcp-cleanup-delta-review.md` 静态关闭，最终 Clippy 已实际复验。补验 `/tmp/openrust-signed-supplement-final-manifest.md` 与输入索引 `/tmp/openrust-signed-supplement-input-sha.json` 记录 6 条命令、40 分支文件、44 生成文件、6 原始及 6 脱敏日志；root 逐项核 96 个哈希匹配。此后本节 Agent 文档更新属纯文档输入变化，不使 Rust 测试失效。补验后仅精确清理本次 fresh MySQL 应用与 migration 包，去重 `du` 实测回收 316,715,008 B；登记聚合 51,868,528,640→51,551,813,632 B，磁盘空闲 90,177,208,320→90,423,791,616 B，仍高于 50GB/低于磁盘 10% 软线，未触 100GB/5% 硬线。未知 root-site/M5 与其他共享缓存未清。清理日志与资源回执在补验 manifest，root 已核其当前 SHA `daf523e9e29af8203d2fb500fbbfcd094625bab564b16bf46cf3887af1b4813e`。分支尚未提交/合入，完整 main 组合仍待。
+
+### 守护可靠性限定集成（2026-11-01）
+
+源提交`8fa7cad281f19510e3f1f60fa4911b26bf8dafe1`的7个skill文件限定集成至main `31a6d38`，保留原todo/testing WIP。复用来源完整guard131（3项Windows原生跳过）、questions61和预算35的验收及terra独审结论；本次提交校验与diff通过，不重跑无关Rust门禁。未集成被拒绝的`cd487bb`。
+
+公开plain stop/start后新PID71755，正式原Goal active；guard/supervisor/heartbeat均true，working/task_running且已发生重载后的真实工具调用。前后核验`/tmp/openrust-guard-reliability-reload-before.json`与`/tmp/openrust-guard-reliability-reload-after.json`：原baseline1793413935.123801/fraction0.8、账号历史与已结束grant一致；38问答ID无丢失，四行因运行中正常复核变化，未要求或宣称账本SHA不变。未rebase/fullgrant/重建Goal；旧缺失暂停历史的自动恢复边界仍开放。
+
+### MIME 任务分支验证与产物回收（2026-11-01）
+
+冻结v7的608项构建输入复核无漂移，代码15门禁通过，默认workspace955 passed/34 ignored，全特性1770 passed/111 ignored；回执`/tmp/openrust-request-mime-code-verification-v7/receipt.json`。fresh生成、真实TCP与MySQL九阶段全exit0，回执`/tmp/openrust-request-mime-services-prepare/run-20261101T080437Z/receipt.json`，无新增库残留。仍是任务分支限定证据，未证明main集成或完整Request/Filesystem已完成。
+
+确认本轮归属、无进程/打开句柄后，正常Cargo dry-run与clean均exit0；根target30,115,557,376B→0，磁盘可用增加29,867,966,464B、16.968%→19.971%。未知外置65,982,464B、源码、数据库卷和日志保留。清理回执`/tmp/openrust-request-mime-final-cleanup-retry/receipt.json` SHA256 `49405499ac040bc6779687558f9704e40070865975e86302a0bce19d66c8409c`；首轮仅lsof解码失败，未clean，原回执保留。后续实现按需重建，不为纯Agent文档变化重跑Rust门禁。
