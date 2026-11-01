@@ -23,6 +23,8 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 <a id="c04-f-request-files"></a>
 ### C04-F Request文件家族（分支限定验收通过，main待集成）
 
+- 当前续作：原owner `/root/config_runtime_callers`已领取MIME契约收敛，读取固定Laravel/Symfony实际检测器与扩展表、优先级/失败语义和Rust实现候选，结果`/tmp/openrust-request-mime-contract.md`。暂不改源码或新建工作区/target；有限内容签名不是完整MIME。root收到短Spec后冻结公共contract并安排实现，已提交`2f90127`不冒称该缺口完成。
+
 - 已创建限定任务分支本地提交`2f901272ec6fcc8cdd7d3a2b4ec6624a7445aaaf`（43文件），提交信息校验与工作区干净检查通过。源码未合入main；保留任务工作区等待最终验收，暂不退役分支。
 
 - 沿用原完整Goal、默认80%可用/20%保留和原baseline；不新建Goal/守护，不启动冻结产品，不push/tag/发布。
@@ -34,7 +36,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 - 最终真实链已通过：CLI主23、全新生成应用check/test_app8+TCP1、Request精确1/TCP精确1、唯一模块附件真实MySQL精确1且无skip；同MySQL server UUID和schema集合前后相等，进程组无残留。最终wrapper`/tmp/openrust-request-files-services-third-20261101T042452Z/receipt.json`、driver`/tmp/openrust-request-files-services-prepare/run-20261101T042456Z/receipt.json`；旧模板JSON失败和首次临时fixture编译失败原证据保留，不能改写为原命令通过。生成源码已由成功driver清理，不能现时重算原字节。
 - 依赖root已统一：Axum官方multipart、基础tempfile仅新增multer3.1.0；http-body-util提升基础direct。12 consumer实际native metadata校准，11锁仅补该direct边，全部既有包版本集合不变；证据`/tmp/openrust-request-files-consumer-direct-lock-sync/receipt.json`。最初离线wasm解析与未缓存平台依赖失败均保留，不能冒称成功。
 - 资源：本轮已完成归属/进程/打开句柄核查与正常Cargo清理，根target实测29,937,872,896B→0，磁盘可用167,465,619,456B→197,155,180,544B（19.821%）；回执`/tmp/openrust-request-files-final-cleanup-retry/receipt.json`。首轮因缺缓存标记安全中止的回执保留；确认归属后exclusive create标准CACHEDIR.TAG，dry-run及正常clean均exit0；全项目50GB软/100GB硬与磁盘10%软/5%硬保持。后续仅经root核归属/占用后清可再生产物，保未知外置缓存、guard工作区、服务和数据卷。
-- 开放边界：任务分支任务分支限定交付，尚未集成main；完整Symfony MIME、真实S3 ACL/迟到CopyObject、Storage `throw=false`、Windows原生取消清理及Laravel完整Request/Filesystem能力继续未完成，不因本簇限定验证关闭。
+- 开放边界：任务分支限定交付，尚未集成main；完整Symfony MIME、真实S3 ACL/迟到CopyObject、Storage `throw=false`、Windows原生取消清理及Laravel完整Request/Filesystem能力继续未完成，不因本簇限定验证关闭。
 
 ### 上轮收尾执行窗口（已完成）
 
