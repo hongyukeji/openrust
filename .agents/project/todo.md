@@ -18,9 +18,18 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 
 ## 当前可领取
 
-当前执行优先级（额度收尾）：①R03/typed/CC/Signed四簇五父main限定组合已交付 `e105dbf`，来源与分支已安全退役，证据见[四簇记录](memory/testing.md#r2-四簇-main-组合限定验收)；②R2-P `4ac8099` 与S-DV `6ffb5c8` 已由三父main提交 `9e5a94198b421987851b3580b27fa90370feeb77` 完成限定组合门禁：默认943/0/34忽略、全特性1748/0/108忽略，双严格Clippy/docs、MSRV、no-default、deny、consumer/生成/MySQL/TCP按[最终记录](memory/testing.md#r2-p-s-dv-main-limited)通过。S-DV与P工作区/分支已安全退役；P两份root文档事实已迁入main，原稿与迁移核对回执保全于 `/tmp/openrust-provider-root-docs-wip-preserved/`，正常退役回执 `/tmp/openrust-provider-registration-safe-retirement.json`。③ST-V来源`2262df9`已由两父提交`8d18021b630ea10652316e025ef6019c7772bbb0`完成main限定组合验收，来源工作区/分支已安全退役；真实S3 ACL、迟到CopyObject、`throw=false`仍开放，见[本簇记录](memory/testing.md#st-v-main-限定组合验收)。不领取新功能簇；两guard worktree受保护。完整Config、Provider发现/Facade、Session/Web、签名URL复杂参数/代理、动态Settings和发布全后端矩阵仍开放。
+当前执行优先级（恢复完整计划）：①R03/typed/CC/Signed四簇五父main限定组合已交付 `e105dbf`，来源与分支已安全退役，证据见[四簇记录](memory/testing.md#r2-四簇-main-组合限定验收)；②R2-P `4ac8099` 与S-DV `6ffb5c8` 已由三父main提交 `9e5a94198b421987851b3580b27fa90370feeb77` 完成限定组合门禁：默认943/0/34忽略、全特性1748/0/108忽略，双严格Clippy/docs、MSRV、no-default、deny、consumer/生成/MySQL/TCP按[最终记录](memory/testing.md#r2-p-s-dv-main-limited)通过。S-DV与P工作区/分支已安全退役；P两份root文档事实已迁入main，原稿与迁移核对回执保全于 `/tmp/openrust-provider-root-docs-wip-preserved/`，正常退役回执 `/tmp/openrust-provider-registration-safe-retirement.json`。③ST-V来源`2262df9`已由两父提交`8d18021b630ea10652316e025ef6019c7772bbb0`完成main限定组合验收，来源工作区/分支已安全退役；真实S3 ACL、迟到CopyObject、`throw=false`仍开放，见[本簇记录](memory/testing.md#st-v-main-限定组合验收)。本轮用户已明确恢复完整计划，覆盖此前仅收尾限制；当前领取下方C04-F Request文件家族，先完整编码再集中验收。两guard worktree受保护。完整Config、Provider发现/Facade、Session/Web、签名URL复杂参数/代理、动态Settings和发布全后端矩阵仍开放。
 
-### 当前收尾执行窗口
+<a id="c04-f-request-files"></a>
+### C04-F Request文件家族（Spec → Implement）
+
+- 用户已恢复原完整Goal；不新建Goal或守护，不放开额度，默认80%可用/20%保留与原baseline不变。
+- owner `/root/config_runtime_callers`（复用现有gpt-6-sol执行者）；OpenRust项目`prj_34a40ee7b674b2b6`下workspace `wks_748133ad70032a5e`，branch `tasks/request-files-family`，base `a9b057e78f35c42955dd99401526a5d1eda60ba1`，cwd `/Users/Home/.paseo/worktrees/02joa2lr/openrust-request-files-family`。
+- 范围：沿唯一Request提取管线实现multipart/递归文件树、file/all_files/has_file与UploadedFile所有权/有效性/独立reader/取消清理，贯通唯一模块、公开consumer、生成调用方和文档；以固定Laravel/Symfony实际行为收敛Spec，普通选择自主，禁止独立上传内核或无界缓存。MIME猜测/扩展、hash_name/store与throw=false的依赖须明确，不以客户端声明或本地visibility代替。
+- Spec入口 `/tmp/openrust-request-files-family-spec.md`；先完成生产/调用方/测试代码，暂不Cargo或新建target。依赖清单/锁、共享Agent文档、资源和main集成由root协调；ready后不同模型审查并集中适用门禁。默认真实MySQL，后端专属例外/发布全后端边界不变。
+- 资源：本任务尚未构建；下一获准验证使用统一根target，先检查去重缓存总量与预计增长，50GB软/100GB硬和磁盘10%软/5%硬不变。冻结业务后台/独立AI产品仍不启动，不push/tag/发布。
+
+### 上轮收尾执行窗口（已完成）
 
 - main Provider/S-DV源码与集中验证已收口，本轮仅同步Agent事实文档；ST-V main门禁、真实尾链和确认归属的产物清理均已结束；旧owner与分支已安全退役，后续新阶段仍须独立预检资源。
 - ST-V默认945/34 ignored与全特性1756/111 ignored、双严格Clippy/docs、MSRV、deny、公开consumer及真实MySQL/生成/TCP已有本次main证据；真实S3 ACL、迟到CopyObject与`throw=false`继续开放。50GB/10%软与100GB/5%硬阈值、未知缓存归属保护不变。
