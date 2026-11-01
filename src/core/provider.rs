@@ -83,7 +83,15 @@ pub trait ServiceProvider: Send + Sync + 'static {
         Vec::new()
     }
 
-    /// 仅登记绑定、配置 schema 与默认值，不解析服务或贡献路由。
+    /// 声明运行元数据可能选择的已编译子身份；不承诺实际登记，也不执行工厂。
+    ///
+    /// 候选只在当前项之后参与类型可达性预检；依赖方执行前仍检查真实 Registry。
+    /// 用于无法在异步 register 前反射的条件加载，不能代替必登记的 `nested_providers`。
+    fn possible_nested_providers(&self) -> Vec<ProviderId> {
+        Vec::new()
+    }
+
+    /// 登记绑定、配置 schema 与默认值；显式解析沿同一容器，路由贡献留在 boot。
     fn register<'a>(&'a self, _app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async { Ok(()) })
     }
@@ -173,6 +181,11 @@ impl RegisterContext<'_> {
     /// 判断已有 Provider 是否已登记服务，供默认绑定遵循应用覆盖顺序。
     pub fn is_bound<T: ?Sized + Send + Sync + 'static>(&self) -> bool {
         self.container.contains::<T>()
+    }
+
+    /// 从同一容器显式解析服务；提前构造的资源仍由当前应用统一回收。
+    pub async fn resolve<T: ?Sized + Send + Sync + 'static>(&self) -> Result<Arc<T>> {
+        self.container.resolve::<T>().await
     }
 
     /// 当前应用的MIME检测登记器；Provider晚注册的后续请求立即可见。
@@ -477,6 +490,10 @@ struct ProviderEntry {
     force: bool,
 }
 
+// 占用显式模块装配的清单位置；启动前换成真实包 Provider，不执行占位回调。
+struct ModuleRegistrationSlot;
+impl ServiceProvider for ModuleRegistrationSlot {}
+
 pub(crate) fn check_dependencies(
     provider: &dyn ServiceProvider,
     ready: &HashSet<TypeId>,
@@ -501,12 +518,15 @@ fn ordered_providers(providers: &[ProviderEntry], removed: &HashSet<ProviderId>)
         .iter()
         .filter(|entry| !removed.contains(&entry.provider.id()))
         .flat_map(|entry| {
-            std::iter::once(entry.provider.id()).chain(entry.provider.nested_providers())
+            std::iter::once(entry.provider.id())
+                .chain(entry.provider.nested_providers())
+                .chain(entry.provider.possible_nested_providers())
         })
         .filter(|id| !removed.contains(id))
         .map(|id| id.type_id)
         .collect();
     let mut ready = HashSet::new();
+    let mut conditional = HashSet::new();
     for entry in providers {
         let provider = &entry.provider;
         if removed.contains(&provider.id()) {
@@ -522,7 +542,7 @@ fn ordered_providers(providers: &[ProviderEntry], removed: &HashSet<ProviderId>)
                     format!("{} 缺少依赖 {}", provider.id().name(), dependency.name()),
                 ));
             }
-            if !ready.contains(&dependency.type_id) {
+            if !ready.contains(&dependency.type_id) && !conditional.contains(&dependency.type_id) {
                 return Err(Error::custom(
                     "provider_order_invalid",
                     format!(
@@ -541,6 +561,13 @@ fn ordered_providers(providers: &[ProviderEntry], removed: &HashSet<ProviderId>)
                 .map(|id| id.type_id),
         );
         ready.insert(provider.id().type_id);
+        conditional.extend(
+            provider
+                .possible_nested_providers()
+                .into_iter()
+                .filter(|id| !removed.contains(id))
+                .map(|id| id.type_id),
+        );
     }
     Ok(())
 }
@@ -700,6 +727,14 @@ impl ProviderBuilder {
 
     /// 声明已编译模块和本次启动的启用来源；与应用 Provider 共用一个生命周期。
     pub fn module_manifest(&mut self, manifest: ModuleManifest) -> &mut Self {
+        self.providers
+            .retain(|entry| entry.provider.id() != ProviderId::of::<ModuleRegistrationSlot>());
+        if manifest.has_discovery() {
+            self.providers.push(ProviderEntry {
+                provider: Box::new(ModuleRegistrationSlot),
+                force: false,
+            });
+        }
         self.modules = manifest;
         self.modules_configured = true;
         self
@@ -762,11 +797,7 @@ impl ProviderBuilder {
                 });
             providers.splice(position..position, entries);
         }
-        let module_seed = Arc::new(Self::append_modules(
-            self.modules,
-            &self.removed,
-            &mut providers,
-        )?);
+        let module_seed = Self::append_modules(self.modules, &self.removed, &mut providers)?;
         if self.modules_configured {
             let events = crate::events::EventsServiceProvider::new();
             // 独立默认类型只补空服务，不占用 nested 真实 EventsServiceProvider 的去重身份。
@@ -783,10 +814,15 @@ impl ProviderBuilder {
                     },
                 );
             }
-            bindings.singleton::<ModuleRepository, _>(move |resolver| {
-                let seed = Arc::clone(&module_seed);
-                Box::pin(async move { Ok(Arc::new(ModuleRepository::from_seed(seed, resolver))) })
-            });
+            if let Some(module_seed) = module_seed {
+                let module_seed = Arc::new(module_seed);
+                bindings.singleton::<ModuleRepository, _>(move |resolver| {
+                    let seed = Arc::clone(&module_seed);
+                    Box::pin(
+                        async move { Ok(Arc::new(ModuleRepository::from_seed(seed, resolver))) },
+                    )
+                });
+            }
         }
         ordered_providers(&providers, &self.removed)?;
         let mut resources = StartupResources::new();
@@ -870,7 +906,27 @@ impl ProviderBuilder {
         modules: ModuleManifest,
         removed: &HashSet<ProviderId>,
         providers: &mut Vec<ProviderEntry>,
-    ) -> Result<ModuleRepositorySeed> {
+    ) -> Result<Option<ModuleRepositorySeed>> {
+        if modules.has_discovery() {
+            let provider = modules.into_discovery_provider().ok_or_else(|| {
+                Error::custom("module_manifest_invalid", "运行发现清单缺少编译绑定表")
+            })?;
+            if !removed.contains(&provider.id()) {
+                let position = providers
+                    .iter()
+                    .position(|entry| {
+                        entry.provider.id() == ProviderId::of::<ModuleRegistrationSlot>()
+                    })
+                    .ok_or_else(|| {
+                        Error::custom("module_manifest_slot_missing", "运行发现包缺少清单注册位置")
+                    })?;
+                providers[position] = ProviderEntry {
+                    provider: Box::new(provider),
+                    force: false,
+                };
+            }
+            return Ok(None);
+        }
         let prepared = modules.prepare_runtime()?;
         for module in prepared.modules {
             for provider in module.providers {
@@ -884,7 +940,7 @@ impl ProviderBuilder {
                 });
             }
         }
-        Ok(prepared.seed)
+        Ok(Some(prepared.seed))
     }
 }
 

@@ -49,6 +49,7 @@ fn database_host_selects_one_session_provider_even_without_auth() -> Result<()> 
 #[tokio::test]
 async fn no_database_host_keeps_example_but_omits_session_route() -> Result<()> {
     let root = tempfile::tempdir().map_err(Error::internal)?;
+    crate::modules::example::write_discovery_fixture(root.path())?;
     let module = root.path().join("modules/example");
     for directory in ["config", "lang", "resources/views"] {
         std::fs::create_dir_all(module.join(directory)).map_err(Error::internal)?;
@@ -132,16 +133,12 @@ impl Application for LateDriverApp {
         providers
     }
     fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
-        let root = config.server.application_root();
-        Server::modules(&config.server).module(
-            openrust::core::ModuleDescriptor::new(
-                "session_late_overlay",
-                root.join("modules/session_late_overlay"),
-                1,
-            )
-            .requires("example")
-            .provider(LateDriver(config.late_driver.clone())),
-        )
+        let driver = config.late_driver.clone();
+        Server::modules(&config.server)
+            .compiled_provider::<LateDriver, _>("LateDriverServiceProvider", move |_| {
+                Ok(LateDriver(driver.clone()))
+            })
+            .possible_providers([ProviderId::of::<LateDriver>()])
     }
 }
 struct LateDriver(Option<String>);
@@ -167,6 +164,7 @@ async fn late_driver_overlay_controls_actual_example_session_route() -> Result<(
         (Some("array"), None, StatusCode::NOT_FOUND),
     ] {
         let root = tempfile::tempdir().map_err(Error::internal)?;
+        crate::modules::example::write_discovery_fixture(root.path())?;
         for directory in [
             "modules/example/config",
             "modules/example/lang",
@@ -175,6 +173,10 @@ async fn late_driver_overlay_controls_actual_example_session_route() -> Result<(
         ] {
             std::fs::create_dir_all(root.path().join(directory)).map_err(Error::internal)?;
         }
+        std::fs::write(
+            root.path().join("modules/session_late_overlay/module.json"),
+            r#"{"name":"session_late_overlay","priority":1,"providers":["LateDriverServiceProvider"],"files":[]}"#,
+        ).map_err(Error::internal)?;
         std::fs::write(
             root.path().join("modules_statuses.json"),
             r#"{"example":true,"session_late_overlay":true}"#,
@@ -239,6 +241,7 @@ fn explicit_non_database_driver_selects_once_without_database() -> Result<()> {
 async fn explicit_cookie_without_database_uses_original_host_provider_and_persists_both_cookies()
 -> Result<()> {
     let root = tempfile::tempdir().map_err(Error::internal)?;
+    crate::modules::example::write_discovery_fixture(root.path())?;
     for directory in ["config", "lang", "resources/views"] {
         std::fs::create_dir_all(root.path().join("modules/example").join(directory))
             .map_err(Error::internal)?;

@@ -514,9 +514,14 @@ impl ServiceProvider for ResourceChild {
                 })
                 .await?;
             // 现有公开 rebinding 登记会立即解析已有绑定，真实创建受管资源。
-            let _ = context
+            let rebound = context
                 .rebinding::<Managed, _>(|_, _| Box::pin(async { Ok(()) }))
-                .await?;
+                .await?
+                .ok_or_else(|| {
+                    Error::custom("fixture_binding_missing", "已有资源绑定应可立即解析")
+                })?;
+            let resolved = context.resolve::<Managed>().await?;
+            assert!(Arc::ptr_eq(&rebound, &resolved));
             Ok(())
         })
     }

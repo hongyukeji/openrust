@@ -46,64 +46,35 @@ cargo run -p cli -- g migration labels slug:string
 
 ## 接入自己的业务模块
 
-新项目包含空的编译清单 `modules/mod.rs` 与内容为 `{}` 的 `modules_statuses.json`。`src/main.rs` 与生成的集成测试声明同一编译入口，`bootstrap/app.rs` 的 `Application::modules` 将应用运行根和模块配置传入 `manifest(root, &config.modules)`。默认不复制框架仓库的综合示例，也没有第二个容器或应用入口。认证 TCP 测试同样通过 `ProviderBuilder::for_application` 使用生产 Provider/模块清单。
+新应用的 `modules/mod.rs` 使用 `ModuleManifest::discover_from_config(root, config)`；`Application::modules` 只装配一次清单，与应用共用唯一 Container 和 Provider 生命周期。根 app 仍支持常规应用开发，模块是可并存的业务组织。默认不复制框架示例。
 
-例如在生成应用创建 `modules/orders/mod.rs`，仅使用公开 API：
-
-```rust
-use openrust::core::{BootContext, BoxFuture, ModuleDescriptor, Result, ServiceProvider};
-use openrust::http::{Json, Routes};
-
-struct OrdersServiceProvider;
-impl ServiceProvider for OrdersServiceProvider {
-    fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
-        Box::pin(async move {
-            app.routes(|routes: Routes| routes.get("/api/orders", index))?;
-            Ok(())
-        })
-    }
-}
-pub fn descriptor(root: &std::path::Path) -> ModuleDescriptor {
-    ModuleDescriptor::new(
-        "orders",
-        root.join("modules/orders"),
-        0,
-    ).provider(OrdersServiceProvider)
-}
-async fn index() -> Json<std::collections::BTreeMap<&'static str, &'static str>> {
-    Json(std::collections::BTreeMap::from([("module", "orders")]))
-}
-```
-
-在应用的 `modules/mod.rs` 声明已编译模块，并保留默认文件激活源：
+在 `modules/orders/mod.rs` 编译自己的公开 Provider，再在 `modules/mod.rs` 登记 metadata 名称到 Rust 工厂的绑定：
 
 ```rust
 pub mod orders;
 use openrust::config::ModulesConfig;
 use openrust::core::ModuleManifest;
 pub fn manifest(root: &std::path::Path, config: &ModulesConfig) -> ModuleManifest {
-    ModuleManifest::from_config(root, config)
-        .module(orders::descriptor(root))
+    ModuleManifest::discover_from_config(root, config)
+        .compiled_provider("OrdersServiceProvider", |_| Ok(orders::OrdersServiceProvider))
 }
 ```
 
-在应用根 `modules_statuses.json` 中启用它：
+`OrdersServiceProvider` 实现普通 `ServiceProvider`，路由和资源沿公开接口贡献，不手工转调其他 Provider 的生命周期。在 `modules/orders/module.json` 写运行声明：
 
 ```json
-{"orders": true}
+{"name":"orders","priority":0,"providers":["OrdersServiceProvider"],"files":[]}
 ```
 
-若 `orders` 必须使用另一个业务模块提供的服务，可在应用清单声明依赖：
+应用根 `modules_statuses.json` 中的 `{"orders":true}` 选择加载。已发现但没有编译绑定的 disabled 模块仍可被持久启用；缺失实现到实际加载时明确失败。Rust 不执行磁盘上的任意 `.rs` 或运行时编译 crate。
 
-```rust
-ModuleManifest::from_config(root, config)
-    .module(orders::descriptor(root).requires("shared"))
-    .module(shared::descriptor(root))
-```
+`config/modules.rs` 的 `paths.modules` 默认 `modules`（本项目获准目录约定），可用 `MODULES_PATH` 部署覆盖；`scan.enabled` 默认 false、`scan.paths` 默认 `["vendor/*/*"]`。额外位置可由 `add_location` 添加；依次扫描每个位置的直接子模块 `module.json`，保重复来源和声明顺序。状态路径另由 `activators.file.statuses-file` 控制，默认应用根 `modules_statuses.json`，部署变量 `MODULES_STATUSES_FILE`。相对路径基于 `Configuration.application_root`，不绑定编译机源码位置。
 
-同时在 `modules_statuses.json` 中启用 `orders` 和 `shared`。启用的模块依赖缺少编译声明、未启用或构成循环时启动失败；框架不自动编辑启用状态。依赖图优先于模块 `priority`，同一批就绪模块仍按 priority 和清单顺序稳定排列。
+Metadata 在包 Provider 的 register 中读取前序已发布配置；禁用模块的坏 JSON 也会失败。启用项按固定 PHP 普通比较排序 priority（缺失/null 为 0），providers 递归展开并按 PHP 真值过滤，再进入同一注册器。同一 Provider 类型普通登记只执行一次；声明重复可多次构造。JSON `module_directory` 只覆盖文件包含目录；Provider 常规资源通过同一 ModuleRepository 的模块路径读取，仍取清单所在目录。工厂的 `ModuleLoadContext::directory()` 使用仓储同名最后来源，不把文件目录混入资源路径。
 
-源码声明、注册清单与状态文件属于应用配置，无需修改框架 `src/`。`Configuration.application_root` 是运行应用根锚点，默认当前工作目录，模块资源据此解析；`config/modules.rs` 独立提供 `modules.activator` 和 `modules.activators.file.statuses-file`，缺省为 `file` 与 `modules_statuses.json`，部署变量是 `MODULES_ACTIVATOR`、`MODULES_STATUSES_FILE`。状态路径可相对应用根或为绝对路径，不自动迁移旧文件。`APP_CONFIG_DIR` 不改变模块资源根，`cargo --manifest-path` 也不会自动切工作目录。声明名的精确 JSON `true` 才启用，坏 JSON 拒绝且不覆盖；未知状态键不成为可执行模块。
+`files` 必须通过 `compiled_file`（应用根路径）或 `compiled_module_file`（metadata 模块目录路径）绑定实现 `ModuleFile` 的初始化器。所有 eager Provider register 完成后、正常 boot 前执行这些文件；同一解析路径一次。回调共用当前 Container/ConfigRepository，前序副作用没有事务回滚。PHP 类 aliases 尚无等价 Rust 编译接线，非空有效 alias 表明确失败；完整 deferred ProviderRepository、模块生成/发布和 TTY 交互仍开放。
+
+`ModuleExecution` 默认每 App 独立，可显式共享文件和 Manifest 执行边界；并发文件初始化等待当前 owner 完成，失败/取消使该文件后续明确失败，重新执行需新会话。这是 Rust 异步安全适配，区别于 PHP 捕获异常后仍可跳过已包含文件；不把操作系统进程当永久一次。递归检测只覆盖同一异步调用链；tokio::spawn不继承task-local，初始化器不得跨新任务等待自身同一文件。共享 Manifest 的空启用快照也缓存，空仓储 catalog 允许后续扫描；不热挂卸已加载资源。`ModuleRepository::get_path()` 读取同仓储当前主路径，但不重新执行既有 Provider。
 
 从应用根使用持久管理命令：
 
@@ -111,25 +82,13 @@ ModuleManifest::from_config(root, config)
 cargo run -- module:list
 cargo run -- module:list --only priority --direction desc
 cargo run -- module:disable orders --no-interaction
-cargo run -- module:enable orders shared --no-interaction
-cargo run -- module:enable --all
+cargo run -- module:enable orders --no-interaction
+cargo run -- module:enable --all --no-interaction
 ```
 
-启停先校验全部名称，再按输入顺序执行；重复名字保留，`--all/-a` 覆盖显式名单并包含 disabled，空 all 成功。单项异常中断后续项，已写前项不回滚。`module:list --only enabled|disabled` 按状态过滤；默认列全部已编译模块的名称、状态、路径和优先级。TTY 搜索选择尚未实现，无名字且未选 all 时明确失败。
+全部名称先检查，再逐项写入；重复保留，`--all` 覆盖显式名单，异常保留前项并中断。管理命令仍完成唯一应用 bootstrap；坏 metadata 或启用项加载失败不会另开绕过启动器。现 App 的 Provider/路由不热卸载，下一独立执行才按新状态加载。
 
-管理命令也走完整应用 bootstrap，坏状态或依赖服务启动失败需要先修复；它们不绕过启动校验。写入只改变持久状态及未来 App 的加载选择，当前已加载 Provider、路由和资源保持；全局 CLI 也可将同名命令转发给选中的应用。文件原子替换不等于与并发 `shutdown` 形成原子屏障；hardlink 路径等价与 Windows 原生行为仍待验，详见[模块激活说明](../../src/config/README.md#模块激活与运行根)。
-
-启动后请求 `/api/orders`；默认语义状态成功 envelope 的 `data.module` 为 `"orders"`。在生成的普通应用 `tests/test_app.rs` 中，可沿用已有 `TestApp<bootstrap::应用类型>` 和显式测试来源，对该路径调用 `request` 后 `assert_json`，再显式 `shutdown`。`TestAppBuilder::remove_module("orders")` 只移除本次测试应用的模块；默认缺失路由返回 HTTP 404 和正文 `code="not_found"`；只有显式设置 `always_ok` 才返回 HTTP 200。
-
-```bash
-cargo check
-cargo test
-cargo run
-# 另一终端请求；这一步才提供 TCP 证据。
-curl --noproxy '*' http://127.0.0.1:3000/api/orders
-```
-
-模块根必须在部署目录真实存在；默认相对路径在启动时解析，也可显式传入配置的绝对运行根，不能绑定编译机源码位置；编译声明与运行时启用分别维护。禁用影响新应用启动，不热卸载当前应用。模块私有资源、配置、迁移与测试留在该模块内部，通过公开 Provider 接口接入。普通模块共享当前应用 Cargo 依赖解析；第三方业务包仍在应用清单声明，Provider 不隔离依赖版本或 feature。这是已编译模块接入与持久状态管理；`module.json` 运行发现、源码根扫描、完整模块生成和发布命令仍待后继交付。
+程序化 `ModuleManifest::new/from_file/from_config().module(ModuleDescriptor)` 仍支持显式清单和已授权 requires 拓扑增强；这是独立的显式输入方式，不能混入运行发现清单或冒称上游 Manifest 自动拓扑。
 
 ## 生成代码
 

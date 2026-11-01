@@ -44,9 +44,7 @@ impl Application for Server {
 
     fn modules(config: &Self::Config) -> openrust::core::ModuleManifest {
         let root = config.application_root();
-        openrust::core::ModuleManifest::from_config(&root, &config.modules).module(
-            crate::modules::example::descriptor(config.uses_database(), root),
-        )
+        crate::modules::example::manifest(config.uses_database(), &root, &config.modules)
     }
 }
 

@@ -71,18 +71,18 @@ R2交共享Provider/Container、配置注册和模块依赖/贡献基础；R13�
 
 | ID / 导航 | 固定上游行为与证据 | OpenRust 对应与差异边界 | 验收 |
 | --- | --- | --- | --- |
-| B001 / M005,M021 | Repository 扫描路径内 `module.json`，Manifest 另从扫描路径收集启用模块；不是只读取目录名。[S1][S2] | 编译入口收集公开模块描述；运行清单选择已编译模块。`modules/<snake_case>` 是用户约定；未经编译模块不得假装可执行 | T01 |
+| B001 / M005,M021 | Repository 扫描路径内 `module.json`，Manifest 另从扫描路径收集启用模块；不是只读取目录名。[S1][S2] | 已实现配置路径扫描metadata与命名编译绑定的[限定子范围](../memory/testing.md#模块运行发现与编译文件限定验收)；仓储/Provider资源取manifest目录，仅files使用module_directory覆盖。完整glob/非有限JSON/平台边界继续开放；modules小写为用户约定，不执行未编译Rust | T01 |
 | B002 / M019,M021 | `find` 先不区分大小写精确匹配，再 Studly 名回退；找不到 `findOrFail` 抛 ModuleNotFoundException。[S2][U1] | 保留身份查找顺序，Rust 路径名与显示名分开；错误含模块身份，不返回空模块 | T02 |
-| B003 / M008,M021 | FileActivator 没有状态键则 disabled；只有严格布尔 true 才 enabled。[S3][U2] | 缺失记录不默认启用；生成成功后的 active 标记是另一操作，不混同无记录默认值 | T03 |
+| B003 / M008,M021 | FileActivator 没有状态键则 disabled；只有严格布尔 true 才 enabled。[S3][U2] | 缺失记录不默认启用；已发现旧实现fresh读盘与固定构造期实例快照不同，B003待优先整改；自身写失败内存语义、数字键与array_is_list归B003/B004，不用旧测试关闭 | T03 |
 | B004 / M008,M021 | 状态文件缺失、空白为无状态；损坏 JSON、非对象及非空列表报错并保留文件；空列表可读为空。[S3][U2] | 兼容导入状态解析必须保留这些可观察边界；诊断给路径/类别，不覆写损坏证据 | T04 |
 | B005 / M018,M020 | enable/disable 改 activator；Module 发 enabling→enabled 或 disabling→disabled，setActive 直接更新不等于完整事件操作。[S3][S4][U3] | 管理结果和事件分开验证；失败不得发成功事件。运行状态改变不等于卸载当前 App | T05 |
 | B006 / M018,M020 | 多名称先 validateModules 再执行；无参数且非交互失败；`--all` 展开；动作失败汇总非零退出。[S5][U3] | CLI 语法可采用 Rust CLI 表达，但名称校验先于写状态；操作性失败不虚报事务式全回滚 | T06 |
-| B007 / M016 | Manifest providers→Laravel ProviderRepository；先 aliases，后 providers，再 include files。`Module::register/boot` 已 deprecated，包不调用。[S1][S4][S6] | 只有一个 ServiceProvider 生命周期；不能复活旧 Module register/boot 作为第二内核。别把历史 Module boot 事件当正常加载必发 | T07 |
-| B008 / M016,M021 | Manifest 仅启用模块，按 priority 升序（缺省0），保留各模块 providers 数组顺序。[S1] | 先模块 priority，后模块内 provider 顺序；全体 register 后统一 boot。相同 priority 使用声明稳定顺序并记录 Rust 差异 | T08 |
+| B007 / M016 | Manifest providers→Laravel ProviderRepository；先 aliases，后 providers，再 include files。`Module::register/boot` 已 deprecated，包不调用。[S1][S4][S6] | 命名编译工厂/真正嵌套注册及ModuleFile已接唯一内核；aliases与完整ProviderRepository eager构造/编译缓存、deferred仍未交付，不复活deprecated Module生命周期，不以子范围关闭T07 | T07 |
+| B008 / M016,M021 | Manifest 仅启用模块，按 priority 升序（缺省0），保留各模块 providers 数组顺序。[S1] | 有限JSON默认PHP8.5/precision14的Zend比较驱动、Manifest排序/Repository排序/显示分别实测2068向量；全register后boot，非有限数值与全PHP环境仍缺口 | T08 |
 | B009 / M016,M021 | 已读加载路径没有 requires 拓扑、缺失/环校验或启停级联；priority 不等于依赖图。[S1][S2] | 不捏造上游依赖排序。显式 provider 依赖诊断属共享 R2 合同，不能偷偷改变无依赖模块 priority 顺序 | T09 |
 | B010 / M019,M021 | Repository 扫描同小写名称后者覆盖；Manifest 独立扫描不提供同样的唯一身份验证。[S1][S2] | 编译注册同名/规范化碰撞选启动报错，列双方来源；这是明确的安全增强差异，不能声称上游本来拒绝 | T10 |
 | B011 / M019 | 同 alias 后加载模块获胜；上游 PHP AliasLoader 是类名别名，不是服务 binding 别名。[S1] | Rust import/type alias 处理语法映射；运行服务别名另属 Container。不得把一个替代另一个便宣称全覆盖 | T11 |
-| B012 / M008,M016 | 自定义 activator 名缺失、class 不存在启动明确失败；repository singleton 延迟读取路径配置。[S7][U4] | 公开 activator trait/选择配置；未注册 driver 报错，不回退文件/内存。仓储按 App 隔离，不复制 PHP 进程 static cache | T12 |
+| B012 / M008,M016 | 自定义 activator 名缺失、class 不存在启动明确失败；repository singleton 延迟读取路径配置。[S7][U4] | 公开 activator trait/选择配置；未注册 driver 报错，不回退文件/内存。默认App独立执行边界，可显式ModuleExecution共享Manifest/canonical files一次状态；不等同OS进程永久缓存，异步失败封闭差异公开记录 | T12 |
 | B013 / M018,M021 | disable 仅写状态，无代码移除/路由撤销逻辑；Manifest/Repository 还存在进程缓存。[S1][S2][S4] | 选定新启动构建启用快照：当前运行 App 不热卸载，新 App 不注册禁用模块；CLI 明示需重启，不许诺 PHP 式热加载 | T13 |
 | B014 / M018,M021 | delete 删除状态和模块目录，并发 deleting/deleted；不是数据库 rollback。[S4] | 删除命令作为 R13 独立破坏性操作实现；拒绝越界路径，尊重仓库 WIP/授权；禁用/卸载均不自动删表 | T14 |
 | B015 / M010 | generator 校验路径与已存在模块；无 force 拒绝覆盖；先渲染全部 stub 验证，再删除既有目标；生成结束写 active 状态并发 created。[S8] | 生成源代码、声明清单与状态可验证；目录 `modules`、snake_case、无独立应用骨架为用户约定。失败不能报告已完整接入 | T15 |

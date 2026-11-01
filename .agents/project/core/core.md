@@ -4,6 +4,12 @@
 > 更新：2026-11-02
 > 摘要：应用内核当前事实；模块清单支持硬依赖和确定性拓扑启动。
 
+## module.json 运行发现（限定验收）
+
+包Provider在register读取同仓储路径/状态并发现元数据（仓储/Provider资源取manifest实际目录，仅files使用module_directory覆盖），命名编译工厂注册真正Provider，随后编译ModuleFile初始化；根/生成模板及唯一example已接线。条件候选仅参与可达性，实际依赖仍核Registry。Module::priority改为原始JSON值，Manifest/Repository排序与CLI显示分别按固定PHP契约实现；2068真实PHP向量已在最终默认/全特性对照通过。显式ModuleExecution保存同执行的Manifest/文件状态，初始化并发等待、错误/取消封闭、同链重入报错；跨tokio::spawn不自动传播。完整适用门禁、fresh/真实MySQL/TCP及资源收尾已通过[限定验收](../memory/testing.md#模块运行发现与编译文件限定验收)，本地提交以Git为准。
+
+class aliases与完整deferred加载、非有限JSON值、非UTF8 wildcard组件仍缺口；本机两原始字节目录fixture被OS errno92拒绝，只标平台无法执行，不冒称scanner通过。原失败与修复回执位于tmp/module-discovery-20261102/，仅本地提交事实以Git为准；旧FileActivator实例快照/数值键等B003/B004先纠正，再DB门控。skill仍独立owner独占。
+
 ## 嵌套 Provider 注册（限定验收）
 
 同一内部ProviderRegistry用于启动和已启动App，RegisterContext新增即时register_provider/force/boxed入口及公开config_repository句柄。成功子项先入有效序列；startup统一register屏障后boot，live子项在父下一语句前boot。force首槽、失败贡献、原实例及进行中RAII取消标记由同一执行器处理；启动mask覆盖嵌套force，运行期显式注册保原接口。默认空Events改用不同ProviderId补位，真实嵌套Events不被吞。唯一模块和生成consumer实际调用、完整适用门禁、生成应用及真实MySQL/三进程均已通过[限定验收](../memory/testing.md#同内核嵌套-provider-注册限定验收)，完成产物清理；本地提交以Git为准。nested_providers纯声明给原静态预检补足外部引用的子身份，执行后校验真实登记；未声明的未来类型无法反射，完整依赖/发现仍开放。

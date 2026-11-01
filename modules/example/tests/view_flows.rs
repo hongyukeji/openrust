@@ -96,6 +96,7 @@ struct Page {
 impl Fixture {
     async fn start() -> TestResult<Self> {
         let directory = tempfile::tempdir()?;
+        crate::modules::example::write_discovery_fixture(directory.path())?;
         let module = directory.path().join("modules/example");
         let source = module.join("resources/views/pages/about.html");
         let published = directory

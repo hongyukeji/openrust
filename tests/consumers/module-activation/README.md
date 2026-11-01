@@ -12,7 +12,7 @@ cargo test --manifest-path /path/to/fresh-application/Cargo.toml \
 
 安装器核对生成应用的 workspace `openrust` 路径、当前模板结构、目录归属与符号链接，拒绝重复安装。它仅新增生成应用的 `tests/module_activation.rs`，不改 manifest 或生产 Provider；回执记录类型和文件 SHA。正式验收应确认实际执行一个测试，不能将过滤后的零测试当作通过。
 
-fixture 编译生成应用真实的 `app/bootstrap/config/modules/routes` 入口，包装原 Application 并完整转发配置、默认/包/额外/应用 Provider 及 bootstrap 开关，只向原模块清单追加一个已编译的 `ActivationFixture`。其 Provider 通过公开 API 组贡献 `/api/module-fixture`。这证明编译 catalog 的持久管理，**不证明 `module.json` 运行发现、未编译代码加载或完整模块管理矩阵**。
+fixture 编译生成应用真实的 `app/bootstrap/config/modules/routes` 入口，包装原 Application 并完整转发其 hooks，只追加命名编译绑定及独立运行 module.json。真实运行发现 ActivationFixture 后，其 Provider 贡献 `/api/module-fixture`；重复 Provider 声明由内核去重，重复文件路径由同一执行会话初始化一次，HTTP 经 Inject 检查计数。原持久状态、跨 App loaded 和路由断言保留。这不证明未编译代码加载、class aliases、deferred加载或完整模块管理矩阵。
 
 测试从原应用 `config()` 取得清单，再用公开 `application_code_sources_with_overrides` 指定包含显式应用身份/URL的 Testing、独立 `application_root`、`state/modules.json` 与 memory 缓存。来源加载以私有临时目录和独立命名空间为根，没有该目录的 dotenv 文件，不读取生成应用或框架部署的 dotenv，不改它们的状态文件；不要求真实 DB/Redis。memory store 按既有扁平选项结构配置，不使用额外 `options` 子表。
 

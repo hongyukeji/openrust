@@ -48,6 +48,7 @@ async fn module_resources_follow_configured_runtime_root() -> Result<()> {
     use openrust::http::axum::{body::Body, http::Request};
 
     let deployed = tempfile::tempdir().map_err(openrust::Error::internal)?;
+    crate::modules::example::write_discovery_fixture(deployed.path())?;
     let module = deployed.path().join("modules/example");
     std::fs::create_dir_all(module.join("resources/views")).map_err(openrust::Error::internal)?;
     std::fs::create_dir_all(deployed.path().join("resources/lang/vendor/example"))
@@ -109,6 +110,7 @@ async fn disabled_example_keeps_application_api_and_removes_module_api() -> Resu
     };
 
     let deployed = tempfile::tempdir().map_err(openrust::Error::internal)?;
+    crate::modules::example::write_discovery_fixture(deployed.path())?;
     std::fs::create_dir_all(deployed.path().join("modules/example"))
         .map_err(openrust::Error::internal)?;
     std::fs::write(

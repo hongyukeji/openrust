@@ -32,7 +32,8 @@ pub use execution::{Cancellation, ExecutionContext, ExecutionMetadata, with_exec
 pub use lifecycle::{bootstrap, shutdown_signal};
 pub use module::{
     FileModuleActivator, Module, ModuleActivationSnapshot, ModuleActivator, ModuleConfigFiles,
-    ModuleDescriptor, ModuleLifecycleEvent, ModuleLifecyclePhase, ModuleManifest, ModuleRepository,
+    ModuleDescriptor, ModuleExecution, ModuleFile, ModuleLifecycleEvent, ModuleLifecyclePhase,
+    ModuleLoadContext, ModuleManifest, ModuleRepository,
 };
 pub use plugin::BoxFuture;
 pub use provider::{

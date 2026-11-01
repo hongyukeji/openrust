@@ -14,7 +14,7 @@ mod routes;
 use bootstrap::__GENERATED_APPLICATION__ as Original;
 use openrust::config::{ConfigLoader, ConfigManifest, ConfigSources};
 use openrust::core::{
-    Application, BootContext, BoxFuture, DefaultProviders, Module, ModuleDescriptor,
+    Application, BootContext, BoxFuture, DefaultProviders, Module, ModuleFile, RegisterContext,
     ModuleManifest, ModuleRepository, ServiceProvider,
 };
 use openrust::http::{
@@ -29,6 +29,7 @@ use serde_json::{Value, json};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
 
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 const MODULE_NAME: &str = "ActivationFixture";
@@ -68,11 +69,9 @@ impl Application for ActivationApplication {
     }
 
     fn modules(config: &Self::Config) -> ModuleManifest {
-        let root = config.application_root.as_deref().unwrap_or(Path::new("."));
-        Original::modules(config).module(
-            ModuleDescriptor::new(MODULE_NAME, root.join("modules/activation_fixture"), 0)
-                .provider(ActivationProvider),
-        )
+        Original::modules(config)
+            .compiled_provider("ActivationProvider", |_| Ok(ActivationProvider))
+            .compiled_module_file(MODULE_NAME, "module_init.rs", ActivationFile(Arc::new(AtomicUsize::new(0))))
     }
 }
 
@@ -92,8 +91,27 @@ impl ServiceProvider for ActivationProvider {
     }
 }
 
-async fn module_response() -> &'static str {
-    "compiled activation fixture"
+struct ActivationFile(Arc<AtomicUsize>);
+struct FileMarker(Arc<AtomicUsize>);
+impl ModuleFile for ActivationFile {
+    fn initialize<'a>(&'a self, app: &'a mut RegisterContext<'_>) -> BoxFuture<'a, openrust::Result<()>> {
+        Box::pin(async move {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            app.instance(Arc::new(FileMarker(Arc::clone(&self.0)))).await?;
+            let marker = app.resolve::<FileMarker>().await?;
+            if !Arc::ptr_eq(&marker.0, &self.0) {
+                return Err(openrust::Error::custom("module_initializer_container_changed", "文件初始化没有使用同一容器"));
+            }
+            Ok(())
+        })
+    }
+}
+
+async fn module_response(openrust::http::Inject(marker): openrust::http::Inject<FileMarker>) -> openrust::Result<&'static str> {
+    if marker.0.load(Ordering::SeqCst) != 1 {
+        return Err(openrust::Error::custom("module_initializer_duplicate", "模块编译文件没有遵守 include_once"));
+    }
+    Ok("compiled activation fixture")
 }
 
 fn ensure(condition: bool, message: &'static str) -> TestResult {
@@ -159,6 +177,8 @@ async fn generated_application_persists_module_activation_without_hot_resource_c
 -> TestResult {
     let mut root = OwnedTempRoot::new()?;
     fs::create_dir_all(root.path.join("modules/activation_fixture"))?;
+    fs::write(root.path.join("modules/activation_fixture/module.json"), br#"{"name":"ActivationFixture","priority":0,"providers":[["ActivationProvider"],"ActivationProvider"],"files":["module_init.rs","./module_init.rs"]}"#)?;
+    fs::write(root.path.join("modules/activation_fixture/module_init.rs"), "// 已编译初始化的运行路径凭证\n")?;
     fs::create_dir(root.path.join("state"))?;
     fs::write(
         root.path.join("state/modules.json"),

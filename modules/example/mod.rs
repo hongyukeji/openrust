@@ -99,6 +99,7 @@ mod models;
 #[cfg(test)]
 #[path = "tests/module_activation_flows.rs"]
 mod module_activation_flows;
+mod module_init;
 #[cfg(test)]
 #[path = "tests/module_provider_flows.rs"]
 mod module_provider_flows;
@@ -229,7 +230,33 @@ mod view_flows;
 #[path = "tests/websocket_flows.rs"]
 mod websocket_flows;
 
-/// 本模块的编译描述；启用状态由应用 `ModuleManifest` 决定。
+/// 将运行声明绑定到已编译实现；普通启动不再硬编码声明为已发现模块。
+pub(crate) fn manifest(
+    uses_database: bool,
+    application_root: &std::path::Path,
+    config: &openrust::config::ModulesConfig,
+) -> openrust::core::ModuleManifest {
+    use openrust::core::ServiceProvider;
+    let possible =
+        providers::ExampleModuleServiceProvider::new(uses_database, application_root.to_path_buf())
+            .nested_providers();
+    openrust::core::ModuleManifest::discover_from_config(application_root, config)
+        .compiled_provider::<providers::ExampleModuleServiceProvider, _>(
+            "ExampleModuleServiceProvider",
+            move |context| {
+                Ok(providers::ExampleModuleServiceProvider::new(
+                    uses_database,
+                    context.application_root().to_path_buf(),
+                )
+                .with_module_repository())
+            },
+        )
+        .possible_providers(possible)
+        .compiled_module_file("example", "module_init.rs", module_init::ExampleModuleInit)
+}
+
+/// 程序化测试仍可显式选择编译描述；生产启动使用 metadata 发现清单。
+#[cfg(test)]
 pub(crate) fn descriptor(
     uses_database: bool,
     application_root: std::path::PathBuf,
@@ -246,7 +273,15 @@ pub(crate) fn descriptor(
 mod session_flows;
 
 #[cfg(test)]
+#[path = "tests/discovery_fixture.rs"]
+mod discovery_fixture;
+#[cfg(test)]
+pub(crate) use discovery_fixture::write as write_discovery_fixture;
+#[cfg(test)]
 #[path = "tests/config_sources.rs"]
 mod config_sources;
+#[cfg(test)]
+#[path = "tests/module_discovery_flows.rs"]
+mod module_discovery_flows;
 #[cfg(test)]
 pub(crate) use config_sources::application_sources as test_sources;

@@ -66,7 +66,10 @@ pub use database::{DatabaseConfig, DatabaseInstanceConfig};
 pub use grpc::{GrpcClientConfig, GrpcClientTlsConfig, GrpcConfig, GrpcServerTlsConfig};
 pub use logger::{LogConfig, LogFormat};
 pub use mailer::MailConfig;
-pub use modules::{FileModuleActivatorConfig, ModuleActivatorsConfig, ModulesConfig};
+pub use modules::{
+    FileModuleActivatorConfig, ModuleActivatorsConfig, ModulePathsConfig, ModuleScanConfig,
+    ModulesConfig,
+};
 #[cfg(feature = "queue")]
 pub use queue::{QueueConfig, QueueConnectionConfig, QueueDriverKind};
 #[cfg(feature = "realtime")]

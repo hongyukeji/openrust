@@ -1,7 +1,8 @@
-//! 已编译模块的激活器和独立持久状态路径；源码发现配置尚未进入本批。
+//! 模块源码发现、激活器和独立持久状态路径。
 
 use openrust::config::{
-    ConfigContext, ConfigError, FileModuleActivatorConfig, ModuleActivatorsConfig, ModulesConfig,
+    ConfigContext, ConfigError, FileModuleActivatorConfig, ModuleActivatorsConfig,
+    ModulePathsConfig, ModuleScanConfig, ModulesConfig,
 };
 
 /// 默认状态文件相对应用根解析；可选择独立相对路径或绝对路径，不自动迁移已有文件。
@@ -11,6 +12,10 @@ use openrust::config::{
 )]
 pub fn config(ctx: &ConfigContext) -> Result<ModulesConfig, ConfigError> {
     Ok(ModulesConfig {
+        paths: ModulePathsConfig {
+            modules: ctx.env_or("MODULES_PATH", "modules").into(),
+        },
+        scan: ModuleScanConfig::default(),
         activator: ctx.env_or("MODULES_ACTIVATOR", "file"),
         activators: ModuleActivatorsConfig {
             file: FileModuleActivatorConfig {

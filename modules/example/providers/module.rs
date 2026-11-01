@@ -11,14 +11,22 @@ use std::sync::Arc;
 pub(crate) struct ExampleModuleServiceProvider {
     uses_database: bool,
     application_root: PathBuf,
+    module_repository: bool,
 }
 
 impl ExampleModuleServiceProvider {
     pub(crate) fn new(uses_database: bool, application_root: PathBuf) -> Self {
         Self {
             uses_database,
+            module_repository: false,
             application_root,
         }
+    }
+
+    /// 普通发现路径在实际业务 boot 中通过同一模块仓储读取资源根。
+    pub(crate) fn with_module_repository(mut self) -> Self {
+        self.module_repository = true;
+        self
     }
 
     #[cfg(any(feature = "queue", feature = "db-postgres", feature = "db-mysql"))]
@@ -162,8 +170,13 @@ impl ServiceProvider for ExampleModuleServiceProvider {
             app.register_provider(module_state::ModuleStateServiceProvider::new(state_log))
                 .await?;
             app.register_provider(events).await?;
-            app.register_provider(ExampleServiceProvider::new(self.application_root.clone()))
-                .await?;
+            let business = ExampleServiceProvider::new(self.application_root.clone());
+            let business = if self.module_repository {
+                business.with_module_repository()
+            } else {
+                business
+            };
+            app.register_provider(business).await?;
             app.register_provider(example::extensions::PrefixCacheServiceProvider)
                 .await?;
             #[cfg(feature = "grpc")]

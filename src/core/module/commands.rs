@@ -128,11 +128,11 @@ impl Command for ListCommand {
                         "priority 排序的 direction 不能为 null",
                     )
                 })?;
-                if direction == "desc" {
-                    modules.sort_by_key(|module| std::cmp::Reverse(module.priority()));
-                } else {
-                    modules.sort_by_key(Module::priority);
-                }
+                super::priority::sort_repository_priority(
+                    &mut modules,
+                    Module::priority,
+                    direction == "desc",
+                )?;
             }
             let mut output = String::from("状态 / 名称\t路径 / 优先级\n");
             for module in modules {
@@ -146,7 +146,7 @@ impl Command for ListCommand {
                     "[{status}] {}\t{} [{}]",
                     module.name(),
                     module.path().display(),
-                    module.priority()
+                    super::priority::priority_label(module.priority())?
                 );
             }
             crate::core::command::print(output.trim_end());

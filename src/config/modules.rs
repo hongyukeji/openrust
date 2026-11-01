@@ -8,6 +8,10 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ModulesConfig {
+    /// 模块源码主路径；相对应用根解析，与持久状态文件独立。
+    pub paths: ModulePathsConfig,
+    /// 主路径以外的显式扫描位置。
+    pub scan: ModuleScanConfig,
     /// 从清单中选择的激活器名称。
     pub activator: String,
     /// 各激活器的部署参数。
@@ -17,8 +21,45 @@ pub struct ModulesConfig {
 impl Default for ModulesConfig {
     fn default() -> Self {
         Self {
+            paths: ModulePathsConfig::default(),
+            scan: ModuleScanConfig::default(),
             activator: "file".to_owned(),
             activators: ModuleActivatorsConfig::default(),
+        }
+    }
+}
+
+/// 模块资源路径；Rust 项目使用已获准的 `modules/` 大小写约定。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ModulePathsConfig {
+    /// 主模块目录，默认 `modules`。
+    pub modules: PathBuf,
+}
+
+impl Default for ModulePathsConfig {
+    fn default() -> Self {
+        Self {
+            modules: PathBuf::from("modules"),
+        }
+    }
+}
+
+/// 额外模块扫描；保留路径顺序和重复项，不等同运行未编译源码。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ModuleScanConfig {
+    /// 默认关闭额外扫描，主模块目录始终参与发现。
+    pub enabled: bool,
+    /// 启用后追加的位置，默认 `vendor/*/*`，每个位置继续匹配直接子模块。
+    pub paths: Vec<PathBuf>,
+}
+
+impl Default for ModuleScanConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            paths: vec![PathBuf::from("vendor/*/*")],
         }
     }
 }

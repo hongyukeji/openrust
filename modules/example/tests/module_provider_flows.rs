@@ -15,6 +15,7 @@ use std::time::Duration;
 #[tokio::test]
 async fn removing_business_child_does_not_remove_module_parent_or_restore_child() -> Result<()> {
     let root = tempfile::tempdir().map_err(Error::internal)?;
+    crate::modules::example::write_discovery_fixture(root.path())?;
     for directory in ["config", "lang", "resources/views"] {
         std::fs::create_dir_all(root.path().join("modules/example").join(directory))
             .map_err(Error::internal)?;

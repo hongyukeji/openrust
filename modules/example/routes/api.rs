@@ -114,6 +114,10 @@ fn example_routes(routes: Routes) -> Routes {
         .get("/api/example", controllers::example::show)
         .name("example.index")
         .get(
+            "/api/example/module-initialization",
+            crate::modules::example::module_init::show,
+        )
+        .get(
             "/api/example/module-state",
             crate::modules::example::providers::module_state::show,
         )

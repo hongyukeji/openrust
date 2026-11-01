@@ -55,9 +55,9 @@ impl ServiceProvider for FeatureProvider {
 
 同类型普通子注册去重，force 成功后保留首次槽位；父失败不会撤销已经成功的子及其发布贡献。启动整体失败/取消走原资源关闭，运行期失败的已发布资源继续由同一 App 的 shutdown 回收。进行中的新类型递归登记报 `provider_registration_cycle`；取消释放进行中标记，已登记实例不丢失。已有实例的非force查询仍返回旧身份。测试移除约束覆盖同一次启动中的嵌套 force；已启动 App 的显式运行期注册仍按原接口处理。
 
-`config_repository()` 返回同一次注册的仓储句柄，子写入可由父后续读取；不重建既有客户端。原平面 Provider 依赖预检保留，子自身在调用点检查前置依赖。若外部 Provider 通过类型依赖引用子项，父通过 `ServiceProvider::nested_providers()` 纯声明这些身份；预检按其出现位置处理，父 register 返回前还核对它们是否实际登记或复用，不能拿声明代替执行。Rust 无法预先反射异步回调中的注册类型，未声明的未来类型仍不在预检图内；该显式声明是此依赖增强的必要适配，不冒充 Laravel 自动拓扑。
+`RegisterContext::resolve<T>()` 显式解析同一容器的服务，提前创建的受管资源仍随同一启动失败/取消或应用关闭回收；文件初始化也可直接调用。`config_repository()` 返回同一次注册的仓储句柄，子写入可由父后续读取；不重建既有客户端。原平面 Provider 依赖预检保留，子自身在调用点检查前置依赖。若外部 Provider 通过类型依赖引用子项，父通过 `ServiceProvider::nested_providers()` 纯声明这些身份；预检按其出现位置处理，父 register 返回前还核对它们是否实际登记或复用，不能拿声明代替执行。Rust 无法预先反射异步回调中的注册类型，未声明的未来类型仍不在预检图内；该显式声明是此依赖增强的必要适配，不冒充 Laravel 自动拓扑。
 
-模块所需的空 Events 默认服务使用独立内部 Provider 身份，只补未绑定的服务，不抢占真实 `EventsServiceProvider` 的去重位置；后续嵌套监听 Provider 正常替换默认绑定。显式移除真实事件 Provider 同时抑制默认补位。唯一示例的父 Provider 与生成应用公开 fixture 均通过此管线接入，模块 JSON 发现与 files/alias 加载仍有后继范围。
+模块所需的空 Events 默认服务使用独立内部 Provider 身份，只补未绑定的服务，不抢占真实 `EventsServiceProvider` 的去重位置；后续嵌套监听 Provider 正常替换默认绑定。显式移除真实事件 Provider 同时抑制默认补位。唯一示例的父 Provider 与生成应用公开 fixture 均通过此管线接入，模块 JSON 发现与编译 files 初始化沿此管线接入；class aliases 与完整 deferred 加载仍有后继范围。
 
 ## 入口作用域与资源回收
 
@@ -140,7 +140,13 @@ match (result, cleanup) {
 
 ### 编译模块与持久启停
 
-`Application::modules` 在一次启动中只产生一份清单。`ModuleRepository::all()` 按声明顺序返回所有已编译模块，包含 disabled；`find` 返回 `Option<Module>`，`find_or_fail` 返回 `Result<Module>`，查找先匹配大小写不敏感的精确名称，再尝试 Studly 名。状态写入始终使用声明名的精确键。它是编译 catalog，不扫描 `module.json` 或运行期编译/装入 crate。只接入启用模块的 Provider；未启用模块的缺失资源根不会因此成为已加载资源。
+`Application::modules` 在一次启动中只产生一份清单。`ModuleManifest::discover_from_config` 在包 Provider 的 register 中扫描 `module.json`，读取同一 `ConfigRepository` 已发布路径；`compiled_provider` 把运行名称映射到已编译类型工厂，真实调用即时进入唯一注册器。未编译 disabled 元数据可发现并持久启用，实际加载缺失绑定时失败。重复声明不预先去重，Provider 去重仍归唯一内核；仓储同名项以后来源覆盖，lookup 先大小写不敏感精确匹配，再 Studly 回退。状态写 canonical 精确键，不运行未编译 Rust。
+
+`get_path()` 动态读取配置而不重扫既有快照。`possible_nested_providers` 仅声明条件可达类型，原平面 missing/order 预检保留；候选未被选择时不能满足真实登记点的依赖。必登记的 `nested_providers` 仍在父成功后核实际登记。
+
+`ModuleFile` 是显式编译的初始化器，在模块 eager Provider 注册后、普通 boot 前执行，按解析路径 `include_once`；不建立文件私有生命周期。`compiled_module_file` 跟随元数据的文件包含目录覆盖，`compiled_file` 则按应用根绑定。`ModuleExecution` 默认每 App 独立，可由多个 App 共享；共享时并发等待，失败/取消明确封闭未完成文件，新会话才可重试，这是 Rust 异步安全差异。共享 Manifest 即使空也复用，空 catalog 可再扫描；不提供热卸载。PHP 类 aliases 明确未实现，非空表拒绝；完整 deferred `ProviderRepository` 亦不由 eager 注册替代。运行发现与文件初始化的使用方法见 [CLI 模块说明](../../tools/cli/README.md#接入自己的业务模块)。
+
+显式程序化 `ModuleDescriptor` 清单仍保留 requires/priority 增强，与发现输入不可混用，不将增强拓扑称为上游 Manifest 排序。
 
 `Module::is_loaded()` 是本 App 的加载快照，`is_enabled()`、`is_disabled()` 和 `has_status(bool)` 读取当前持久状态。`enable().await` / `disable().await` 派发前事件、持久化，再派发后事件；`set_active(bool)` 直接写而不派发这四事件。已有 `ModuleManifest::enable/disable` 仍只改变当前启动输入，不是持久管理接口。
 

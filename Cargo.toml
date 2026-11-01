@@ -67,7 +67,8 @@ ipnet = "2.11"
 bytes = "1.11"
 futures-util = "0.3"
 serde = { version = "1.0", features = ["derive"] }
-serde_json = { version = "1.0", features = ["preserve_order"] }
+serde_json = { version = "1.0", features = ["preserve_order", "float_roundtrip"] }
+glob = "0.3.3"
 thiserror = "2.0"
 anyhow = "1.0"
 tracing = "0.1"
@@ -178,6 +179,7 @@ sea-orm.workspace = true
 sea-orm-migration.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+glob.workspace = true
 redis = { workspace = true, optional = true }
 hmac.workspace = true
 sha1 = { workspace = true, optional = true }

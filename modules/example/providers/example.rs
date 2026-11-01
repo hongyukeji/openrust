@@ -16,15 +16,25 @@ use openrust::db::sea_orm::{EntityTrait, QuerySelect};
 /// 将综合示例路由接入 Provider 引导阶段。
 pub(crate) struct ExampleServiceProvider {
     root: std::path::PathBuf,
+    directory: std::path::PathBuf,
+    module_repository: bool,
     runtime_policy_enabled: bool,
 }
 
 impl ExampleServiceProvider {
     pub(crate) fn new(root: std::path::PathBuf) -> Self {
         Self {
+            directory: root.join("modules/example"),
+            module_repository: false,
             root,
             runtime_policy_enabled: false,
         }
+    }
+
+    /// 与官方普通模块 Provider 一样，到 boot 使用模块仓储的真实目录。
+    pub(crate) fn with_module_repository(mut self) -> Self {
+        self.module_repository = true;
+        self
     }
 
     /// 显式开启进程本地 typed 配置演示；启用后该应用不能写配置缓存。
@@ -82,9 +92,9 @@ async fn register_binding_extension_route(app: &mut BootContext<'_>) -> Result<(
 async fn overlay_example_config_and_register_resources(
     app: &mut BootContext<'_>,
     application_root: &std::path::Path,
+    root: &std::path::Path,
     runtime_policy_enabled: bool,
 ) -> Result<()> {
-    let root = application_root.join("modules/example");
     app.code_config(&crate::modules::example::config::boot())?;
     if runtime_policy_enabled {
         app.code_config(&crate::modules::example::config::runtime_policy_manifest())?;
@@ -117,7 +127,7 @@ async fn overlay_example_config_and_register_resources(
     }
     #[cfg(feature = "view")]
     if app.is_bound::<openrust::view::Views>() {
-        let files = openrust::core::ModuleConfigFiles::new("example", &root)?;
+        let files = openrust::core::ModuleConfigFiles::new("example", root)?;
         let source = files.resource("resources/views")?;
         let published = application_root.join("resources/views/vendor/example");
         app.resolve::<openrust::view::Views>()
@@ -290,9 +300,19 @@ impl ServiceProvider for ExampleServiceProvider {
     fn boot<'a>(&'a self, app: &'a mut BootContext<'_>) -> BoxFuture<'a, Result<()>> {
         Box::pin(async move {
             register_example_middleware(app)?;
+            let directory = if self.module_repository {
+                app.resolve::<openrust::core::ModuleRepository>()
+                    .await?
+                    .find_or_fail("example")?
+                    .path()
+                    .to_path_buf()
+            } else {
+                self.directory.clone()
+            };
             overlay_example_config_and_register_resources(
                 app,
                 &self.root,
+                &directory,
                 self.runtime_policy_enabled,
             )
             .await?;

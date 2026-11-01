@@ -66,10 +66,16 @@ impl ModuleDescriptor {
 
 mod activator;
 mod commands;
+mod discovery;
+mod execution;
+mod loading;
+mod priority;
 mod repository;
 
 pub use activator::{FileModuleActivator, ModuleActivationSnapshot, ModuleActivator};
 pub(crate) use commands::register_commands;
+pub use execution::ModuleExecution;
+pub use loading::{ModuleFile, ModuleLoadContext};
 pub use repository::{Module, ModuleLifecycleEvent, ModuleLifecyclePhase, ModuleRepository};
 
 #[derive(Default)]
@@ -87,13 +93,14 @@ impl ModuleActivator for ExplicitActivator {
 pub(crate) struct ModuleMetadata {
     name: String,
     root: PathBuf,
-    priority: i32,
+    priority: serde_json::Value,
     loaded: bool,
 }
 
 pub(crate) struct ModuleRepositorySeed {
     metadata: Vec<ModuleMetadata>,
     activator: Arc<dyn ModuleActivator>,
+    application_root: PathBuf,
 }
 
 pub(crate) struct PreparedModules {
@@ -103,6 +110,10 @@ pub(crate) struct PreparedModules {
 
 /// 已编译模块目录和独立的运行启用源。
 pub struct ModuleManifest {
+    discovery: Option<loading::DiscoveryBindings>,
+    config_managed: bool,
+    application_root: PathBuf,
+    application_root_error: bool,
     modules: Vec<ModuleDescriptor>,
     explicit: ExplicitActivator,
     activators: HashMap<String, Arc<dyn ModuleActivator>>,
@@ -120,7 +131,13 @@ impl Default for ModuleManifest {
 impl ModuleManifest {
     /// 建立空清单；未显式启用的模块不参与应用启动。
     pub fn new() -> Self {
+        let root = std::env::current_dir();
+        let application_root_error = root.is_err();
         Self {
+            discovery: None,
+            config_managed: false,
+            application_root: root.unwrap_or_default(),
+            application_root_error,
             modules: Vec::new(),
             explicit: ExplicitActivator::default(),
             activators: HashMap::new(),
@@ -153,6 +170,14 @@ impl ModuleManifest {
             application_root.as_ref().join(selected)
         };
         let mut manifest = Self::from_file(path);
+        match std::path::absolute(application_root.as_ref()) {
+            Ok(root) => {
+                manifest.application_root = root;
+                manifest.application_root_error = false;
+            }
+            Err(_) => manifest.application_root_error = true,
+        }
+        manifest.config_managed = true;
         manifest.selected.clone_from(&config.activator);
         manifest.explicit_selected = false;
         manifest
@@ -197,6 +222,7 @@ impl ModuleManifest {
 
     /// 选择本次启动的启用源；未注册名称在准备阶段失败，不回退。
     pub fn use_activator(&mut self, name: impl Into<String>) -> &mut Self {
+        self.config_managed = false;
         self.selected = name.into();
         self.explicit_selected = self.selected == "explicit";
         self
@@ -213,6 +239,7 @@ impl ModuleManifest {
     }
 
     pub(crate) fn prepare_runtime(self) -> Result<PreparedModules> {
+        self.validate_application_root()?;
         let activator: Arc<dyn ModuleActivator> = if self.explicit_selected {
             Arc::new(self.explicit)
         } else {
@@ -289,7 +316,7 @@ impl ModuleManifest {
                     name: module.name.to_owned(),
                     root: std::path::absolute(&module.root)
                         .map_err(|_| Error::custom("module_root_invalid", "无法锚定模块资源根"))?,
-                    priority: module.priority,
+                    priority: module.priority.into(),
                     loaded: selected_names.contains(module.name),
                 })
             })
@@ -299,8 +326,21 @@ impl ModuleManifest {
             seed: ModuleRepositorySeed {
                 metadata,
                 activator,
+                application_root: self.application_root,
             },
         })
+    }
+}
+
+impl ModuleManifest {
+    fn validate_application_root(&self) -> Result<()> {
+        if self.application_root_error {
+            return Err(Error::custom(
+                "module_application_root_invalid",
+                "无法锚定模块应用根路径",
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -457,6 +497,18 @@ fn studly(name: &str) -> String {
         }
     }
     result
+}
+
+fn metadata_index(entries: &[ModuleMetadata], name: &str) -> Option<usize> {
+    entries
+        .iter()
+        .position(|entry| entry.name.eq_ignore_ascii_case(name))
+        .or_else(|| {
+            let candidate = studly(name);
+            entries
+                .iter()
+                .position(|entry| entry.name.eq_ignore_ascii_case(&candidate))
+        })
 }
 
 fn find_module<'a>(modules: &'a [ModuleDescriptor], name: &str) -> Option<&'a ModuleDescriptor> {

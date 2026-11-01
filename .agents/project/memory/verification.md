@@ -1,5 +1,8 @@
 # 验收口径
 
+模块运行发现、命名编译Provider及files已通过[限定验收](testing.md#模块运行发现与编译文件限定验收)：最终749输入、完整主门禁/fresh/MySQL/TCP及PHP2068向量匹配。两Mac原始字节FS分支未执行，旧FileActivator实例快照、完整ProviderRepository/aliases等明确开放；不能以已绿旧输入覆盖官方双路径。
+
+
 同内核嵌套Provider注册已通过[限定验收](testing.md#同内核嵌套-provider-注册限定验收)：最终门禁、唯一模块、fresh与真实MySQL/跨进程证据匹配771冻结输入；子身份预检修复保留原断言。正常清零缓存、本地提交以Git为准，module.json发现仍开放。
 
 

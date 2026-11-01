@@ -1,14 +1,14 @@
 //! 同一次模块清单的管理句柄；持久状态与本 App 已加载的 Provider 分开。
 
 use std::fmt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::core::container::Resolver;
 use crate::core::{Error, Result};
 use crate::events::Events;
 
-use super::{ModuleActivationSnapshot, ModuleMetadata, ModuleRepositorySeed, studly};
+use super::{ModuleActivationSnapshot, ModuleMetadata, ModuleRepositorySeed, metadata_index};
 
 struct RepositoryState {
     seed: Arc<ModuleRepositorySeed>,
@@ -28,6 +28,16 @@ impl ModuleRepository {
         }
     }
 
+    /// 从同一配置仓储读取当前主模块路径；改变路径不重扫已加载清单或卸载资源。
+    pub fn get_path(&self) -> Result<PathBuf> {
+        let config: crate::config::ModulesConfig = self.state.resolver.section("modules")?;
+        Ok(if config.paths.modules.is_absolute() {
+            config.paths.modules
+        } else {
+            self.state.seed.application_root.join(config.paths.modules)
+        })
+    }
+
     /// 返回全部已编译模块，包含本次未加载的模块，保持声明顺序。
     pub fn all(&self) -> Vec<Module> {
         (0..self.state.seed.metadata.len())
@@ -41,15 +51,7 @@ impl ModuleRepository {
     /// 先按不区分大小写的精确名称查找，再按 Studly 名回退。
     pub fn find(&self, name: &str) -> Option<Module> {
         let entries = &self.state.seed.metadata;
-        let index = entries
-            .iter()
-            .position(|entry| entry.name.eq_ignore_ascii_case(name))
-            .or_else(|| {
-                let candidate = studly(name);
-                entries
-                    .iter()
-                    .position(|entry| entry.name.eq_ignore_ascii_case(&candidate))
-            })?;
+        let index = metadata_index(entries, name)?;
         Some(Module {
             state: Arc::clone(&self.state),
             index,
@@ -88,11 +90,11 @@ impl ModuleRepository {
     /// 对启用模块按优先级排序；仅 `desc` 降序，其他值沿上游使用升序。
     pub fn get_ordered(&self, direction: &str) -> Result<Vec<Module>> {
         let mut modules = self.get_by_status(true)?;
-        if direction == "desc" {
-            modules.sort_by_key(|module| std::cmp::Reverse(module.priority()));
-        } else {
-            modules.sort_by_key(Module::priority);
-        }
+        super::priority::sort_repository_priority(
+            &mut modules,
+            Module::priority,
+            direction == "desc",
+        )?;
         Ok(modules)
     }
 
@@ -138,14 +140,14 @@ impl Module {
         &self.metadata().name
     }
 
-    /// 本次清单记录的资源根；未加载模块不要求该目录已经存在。
+    /// 当前仓储模块的清单所在目录；不使用 Manifest 文件包含目录的覆盖值。
     pub fn path(&self) -> &Path {
         &self.metadata().root
     }
 
-    /// 编译清单中的启动优先级。
-    pub fn priority(&self) -> i32 {
-        self.metadata().priority
+    /// module.json 的原始优先级；缺失为 null，Manifest 排序另按 null→0 规则读取。
+    pub fn priority(&self) -> &serde_json::Value {
+        &self.metadata().priority
     }
 
     /// 本 App 是否已加载该模块；不会随着持久状态写入热更新。

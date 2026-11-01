@@ -57,7 +57,7 @@ assert_eq!(sources.figment().extract_inner::<String>("app.url")?, "http://localh
 
 文件写在协作式 sidecar 锁内重读，保留其他键，经同目录临时文件同步后原子替换；忙锁报 `module_state_busy`，由调用方决定重试。事件和用户回调不在文件锁内执行；替换是提交点，提交后的事件失败不回滚状态。路径按符号链接目标协作；不同 hardlink 路径的等价锁定/替换语义及 Windows 原生文件系统行为仍待验收，不作已支持保证。与并发 `shutdown` 之间也不保证原子提交屏障；应用应协调管理动作与停机，而不是把一次生命周期检查当作事务锁。
 
-本批只管理编译清单中的模块 catalog；`module.json` 运行发现、源码根扫描及动态 Rust 代码加载不由这些配置提供。
+`paths.modules` 默认 modules（获准目录约定），`scan.enabled` 默认 false、`scan.paths` 默认 vendor/*/*；主路径与状态文件独立。运行发现读取 module.json，按声明调用已编译 Provider/文件初始化绑定，不能执行未编译 Rust。MODULES_PATH 覆盖主路径；metadata读取在包register，仓储get_path动态读当前配置，不热挂卸资源。
 
 ## 应用环境身份
 

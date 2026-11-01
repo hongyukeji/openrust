@@ -312,10 +312,10 @@ pub fn config(_ctx: &ConfigContext) -> Result<I18nConfig, ConfigError> {
 }
 
 --- config/modules.rs ---
-//! 已编译模块的激活器和独立持久状态路径；源码发现配置尚未进入本批。
+//! 模块源码发现、激活器和独立持久状态路径。
 
 use openrust::config::{
-    ConfigContext, ConfigError, FileModuleActivatorConfig, ModuleActivatorsConfig, ModulesConfig,
+    ConfigContext, ConfigError, FileModuleActivatorConfig, ModuleActivatorsConfig, ModulePathsConfig, ModuleScanConfig, ModulesConfig,
 };
 
 /// 默认状态文件相对应用根解析；可选择独立相对路径或绝对路径，不自动迁移已有文件。
@@ -325,6 +325,10 @@ use openrust::config::{
 )]
 pub fn config(ctx: &ConfigContext) -> Result<ModulesConfig, ConfigError> {
     Ok(ModulesConfig {
+        paths: ModulePathsConfig {
+            modules: ctx.env_or("MODULES_PATH", "modules").into(),
+        },
+        scan: ModuleScanConfig::default(),
         activator: ctx.env_or("MODULES_ACTIVATOR", "file"),
         activators: ModuleActivatorsConfig {
             file: FileModuleActivatorConfig {
@@ -403,16 +407,16 @@ pub(crate) fn routes(routes: Routes) -> Routes {
 }
 
 --- modules/mod.rs ---
-//! 已编译业务模块的应用清单；声明代码与本次启动启用分别维护。
+//! 运行模块清单与显式编译绑定；元数据发现不执行未编译源码。
 
 use openrust::core::ModuleManifest;
 
-/// 登记已编译模块；状态文件按独立配置解析，资源路径仍使用同一应用根。
+/// 从同一配置发现 module.json；Provider 与初始化文件须显式登记编译绑定。
 pub fn manifest(
     root: &std::path::Path,
     config: &openrust::config::ModulesConfig,
 ) -> ModuleManifest {
-    ModuleManifest::from_config(root, config)
+    ModuleManifest::discover_from_config(root, config)
 }
 
 --- modules_statuses.json ---
@@ -3626,7 +3630,7 @@ pub async fn assert_request_redirect<A: Application>(
 
 `routes/api.rs` 只声明相对路径，由 `bootstrap/app.rs` 统一装配 `/api` 前缀与 `api` middleware 组；需要会话的 Web 路由在 `routes/web.rs` 显式声明 `web` 组。默认 `/api` 路由使用 `app/providers/app.rs` 中公开 Handler 扩展选择统一 JSON 错误包装；更改 API 前缀时同步更改该判定。HTML/Web 路由保持自身异常表现。`APP_DEBUG=false` 默认关闭服务端错误详情，非法布尔值使启动失败。
 
-`modules/mod.rs` 静态声明业务代码，通过 `manifest(root, &config.modules)` 返回 `ModuleManifest::from_config(root, config)`；`bootstrap/app.rs` 的 `Application::modules` 使用同一清单。`Configuration.application_root` 是部署时应用根，模块资源从该根下解析；`config/modules.rs` 独立提供 `modules.activator` 与 `modules.activators.file.statuses-file`，默认 `file` / `modules_statuses.json`，部署变量是 `MODULES_ACTIVATOR` / `MODULES_STATUSES_FILE`。状态路径可相对应用根或为绝对路径，不自动搬迁旧文件。精确声明名的 JSON `true` 才启用，坏 JSON 启动失败且不被覆盖；文件未知键不会变成可执行模块。模块共用唯一容器和 register/boot 生命周期，不扫描 `module.json`、运行期 Rust 源码或自动加载 crate。
+`modules/mod.rs` 显式编译业务代码并登记命名Provider/文件初始化绑定，`manifest(root, &config.modules)` 返回 `ModuleManifest::discover_from_config(root, config)`；`Application::modules` 使用同一清单。包register读取当前配置的module.json，disabled元数据仍会解析，未编译disabled模块可持久启用，实际加载时缺少绑定明确失败。config/modules.rs的paths.modules默认modules、scan.enabled默认false、scan.paths默认vendor/*/*；MODULES_PATH可覆盖主目录。activators.file.statuses-file独立选择持久状态文件，默认应用根modules_statuses.json，MODULES_STATUSES_FILE部署覆盖。相对路径按application_root，不自动搬迁旧文件。metadata.module_directory只覆盖files包含目录；工厂ModuleLoadContext::directory取仓储真实模块目录，普通Provider到boot通过同一ModuleRepository读取资源；不是运行未编译Rust或自动加载crate。files经显式ModuleFile实现，真实Provider注册后、boot前按解析路径一次初始化，共用同Container。class aliases和完整deferred加载仍有明确缺口，不能以Container alias替代。
 
 应用提供 `module:list`、`module:enable 名称…`、`module:disable 名称…`，支持启停 `--all/-a`、`--no-interaction/-n` 与 list 的 `--only` / `--direction`。先验全部名称，异常停止后项、已提交前项保留；TTY 搜索选择仍待实现。命令沿完整 bootstrap，不能绕过坏状态或依赖服务失败。持久状态与当前 `Module::is_loaded()` 快照分别观察：禁用不卸载现有 Provider/路由，启用不热挂当前未加载模块，下一 App 按新状态选择。文件 hardlink 等价和 Windows 原生行为仍待验，模块管理与并发 `shutdown` 也不保证原子提交屏障。
 

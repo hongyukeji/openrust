@@ -34,6 +34,21 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 - skill 本批仅接纳旧142/61测试及不同模型最终独审九SHA完全匹配的版本，精确快照与索引整合证据在同目录。后续 ended-grant/Codex 原生适配由另一个获用户授权的 owner 在同 skill 收口，未部署，完整工作文件保持；本轮最小恢复判定补丁及并发漂移报告已保全 `/tmp/openrust-guard-recovery-consistency.*`。不再并改，不重启旧守护，不把开发中适配当已生效。
 - 默认80%预算政策和旧账号历史、问答/发送账本保持，未rebase/fullgrant或伪复用旧授权；本对话已可正式读取共享账号窗口，数值按当次回执汇报；不重算基线。成功验收的自有服务进程与端口已收尾，数据库集合无增删；完成簇根target已正常清零：48,729,780,224B→0，磁盘可用202,384,363,520B；源码/生成fixture/证据保留，下一配置簇按需复用同一路径。
 
+### module.json 运行发现与编译绑定（限定验收）
+
+1. 固定nWidart5971484正常ModulesServiceProvider::registerModules：aliases→同内核Provider加载→files；不使用deprecated Module::register/boot，也不重新执行Application::modules。
+2. 同一次应用启动扫描配置路径的module.json，主路径与额外scan路径独立于statuses-file；Repository get_path从同一ConfigRepository动态读当前路径，Manifest捕获扫描快照，不承诺热卸载。
+3. 原始JSON字段保留，disabled坏JSON仍先解析；启动Manifest保重复来源和provider声明，lookup按lowercase最后项覆盖。providers递归flatten/PHP falsy过滤；priority比较按固定PHP语义取证，不以i32限制冒称上游默认。
+4. Rust静态代码须显式编译：公开命名Provider工厂表供metadata引用，真实register仍走39086cf统一执行器。缺失编译绑定在启用模块实际加载时失败，禁用模块仍可被发现并持久启用。
+5. files采用显式编译初始化绑定并公开PHP execution与Rust App生存期适配，不能执行未编译.rs；复用同Container/配置，保先前副作用与include_once解析路径去重，不伪称任意源码执行等价。
+6. PHP class aliases不能偷换为Container aliases；未有可证明等价的Rust机制须保明确缺口，不能静默忽略或宣布B011完成。deferred ProviderRepository完整机制亦保原队列，不以eager子注册覆盖。
+7. 根公共contract、module.rs/repository/provider/config类型、Cargo/lock、共享docs/index/服务由root独占；parser worker仅新discovery.rs，readonly审查不写源码。skill独立writer仍独占，不live/Goal/账本操作。
+8. 根bootstrap、可编辑config/生成模板、唯一example module.json与实际Provider/files调用、公开fresh consumer及原断言同步完成后冻结；集中适用门禁、真实服务/重启及独立审查，通过后本地提交并正常清理。未闭合保持WIP，不追加后继簇延迟提交。
+
+当前停点：最终749输入及attempt6十门禁、fresh普通12/MySQL3/MFA2、根MySQL1/三进程/缓存复启、PHP2068向量与独审均通过，源码与证据归档、完成缓存及独占PHP镜像正常清理，本地提交以Git为准，见[限定验收](memory/testing.md#模块运行发现与编译文件限定验收)。两项Mac nonUTF8 FS分支只证能力不足、不计scanner已验；aliases、完整ProviderRepository eager编译/构造缓存与deferred、非有限JSON、完整POSIX glob/非UTF8通配及完整Modules仍开放。三个旧绿/失败阶段与官方双路径纠正均保留，未删断言降门禁。skill继续独立owner独占，不部署/Goal/账本操作；嵌套前置39086cf。
+
+后继确认整改（归既有B003/T03，不加入当前冻结输入）：固定FileActivator.php构造时readJson保存modulesStatuses；当前7f60560 driver每次snapshot读盘，跨进程改动在现App立即可见，默认行为不符。恢复实例级快照、自身set/reset/delete及失败后内存语义，核PHP数字键转array_is_list与空表序列化边界，保已授权锁内合并/原子写增强；外部实时读取如保留须显式扩展而非默认file。三进程旧enabled热读证据只证明Rust既有增强，不作固定官方缓存验收。完成当前发现批提交后优先此项，再DB门控，来源tmp/module-discovery-20261102/upstream-field-boundaries/src/Activators/FileActivator.php。
+
 ### 模块运行发现前置：同内核嵌套 Provider 注册（限定验收）
 
 1. 固定framework Application::register 与 nWidart ModulesServiceProvider::registerModules；真实加载是parent register中注册child及随后files，不能以direct register/boot转调构造第二生命周期。下一metadata发现必须依赖此入口；本前置不称发现已完成。

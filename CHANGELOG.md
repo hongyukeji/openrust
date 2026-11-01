@@ -6,6 +6,7 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Changed
 
+- 模块运行发现读取可配置路径中的 module.json，经命名编译工厂在包 register 接入同一 Provider 内核；编译文件初始化支持解析路径一次与显式共享执行会话，唯一示例/生成应用同步接线。PHP 弱类型优先级、仓储排序与显示分别对应；class aliases、完整 deferred 加载及非有限 JSON 表示缺口明确保留。
 - `RegisterContext` 增加同内核嵌套 Provider 注册及配置仓储句柄；启动与已启动 App 共用去重、force、失败和取消状态，子 register 真实 await、boot 遵循原生命周期。唯一模块与生成 consumer 通过父 Provider 注册独立子项；空 Events 默认绑定采用独立身份，避免吞掉后续真实监听。
 
 - 已编译模块增加同一容器中的 `ModuleRepository`、文件持久启停及 `module:enable/disable/list`；可编辑 `config/modules.rs` 独立配置状态文件，部署根统一为 `application_root`。启停经同一 Events 发送具名生命周期事件，当前加载资源保持，下次启动使用新状态；文件写入采用稳定锁与原子替换。唯一示例和生成模板同步接入；运行发现、交互选择与完整模块管理继续开放。

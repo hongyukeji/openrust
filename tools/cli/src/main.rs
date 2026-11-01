@@ -3264,7 +3264,7 @@ mod tests {
         let module_manifest = fs::read_to_string(project.join("modules/mod.rs"))
             .expect("read generated module manifest");
         assert!(module_manifest.contains("config: &openrust::config::ModulesConfig"));
-        assert!(module_manifest.contains("ModuleManifest::from_config(root, config)"));
+        assert!(module_manifest.contains("ModuleManifest::discover_from_config(root, config)"));
         assert!(!module_manifest.contains("CARGO_MANIFEST_DIR"));
         assert!(!module_manifest.contains("root.join(\"modules_statuses.json\")"));
         assert!(!module_manifest.contains(".enable("));

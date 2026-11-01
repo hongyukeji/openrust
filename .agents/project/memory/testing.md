@@ -1,5 +1,23 @@
 # 测试基线
 
+## 模块运行发现与编译文件限定验收
+
+2026-11-02，39086cf后继；固定Modules5971484、Laravel d52c3b3及PHP8.5.0。源码证据`tmp/module-discovery-upstream-evidence/`、`tmp/module-discovery-20261102/upstream-field-boundaries/`与同目录优先级取证；主路径/额外scan、原始metadata、PHP标量名称、providers flatten/falsy、同名仓储赢家均进入真实包register。命名编译工厂通过唯一内核注册Provider，编译ModuleFile在eager register后、boot前执行；RegisterContext::resolve沿同一容器，已有资源identity及失败/取消回收断言保留。Explicit ModuleDescriptor增强独立保留，不混入发现清单或称上游拓扑。
+
+仓储与Provider普通module_path资源取真实manifest目录，只有files使用可覆盖module_directory；字段转换推迟到实际包含，disabled/空files不提前拒绝。唯一example业务boot实际解析同ModuleRepository，真实宿主使用原目录语言值与包含目录诱饵、仅override位置存在的初始化文件，分别证明资源根/文件根；两次App独立验证source与application-root发布目录，不强迫现I18n未承诺的逐键合并。生成应用新增真实metadata与命名Provider/编译文件，重复声明/路径保留，HTTP与同Container.resolve/Arc计数验证实际初始化一次。
+
+749输入最终冻结，attempt6十门禁全exit0：fmt、默认/全特性严格Clippy、workspace tests（harness汇总1141 passed/35 ignored、1983/112）、双拒警Rustdoc、no-default lib、精确Rust1.97.0、deny。各target/CLI子进程存在重叠，不作唯一行为数。两项非UTF8文件系统用例仅通过能力预检：本机create_dir原始字节名被errno92拒绝，没有执行scanner分支；保原断言并明确诊断，Linux文件系统仍待验，不能将两条计成字节路径已通过。纯OsStr实际匹配器回归已执行，不替代FS证据。
+
+固定PHP8.5.0/64位/precision14的临时Docker镜像实际生成2068组Manifest/Repository排序及显示向量，源码fixture被默认/全features实际对照通过；另跑标量名称与目录拼接探针。镜像digest、脚本/输入/输出SHA见priority-oracle-provenance及metadata-scalar-oracle。不是完整上游包测试或任意PHP ini/全部数值语义。非有限JSON如1e999当前Value表示拒绝是未实现缺口，不归为不适用；完整POSIX glob/非UTF8通配、aliases、完整ProviderRepository eager构造/编译缓存与deferred仍开放。
+
+失败与自纠均保留：attempt1/2新增lint与测试引用错误；attempt3实际PHP发现数组`a>b`须交换操作数，修Repository方向而不改oracle；Mac两FS失败定位为fixture在scan前已被OS拒绝。attempt4新宿主测试错误假设published与source逐键合并，改为两次真实App保所有行为检查后attempt5通过。随后主动复核官方链发现双路径混用/名称过度校验，拒绝用已绿旧输入背书，修为实际Repo目录及使用点转换，attempt6重新完整通过。attempt3/4/5/6的SHA、可匹配源码包及原日志均保全，不回填旧失败。
+
+最终root真实MySQL8.4认证精确1；fresh普通check/test/build及12项、MySQL认证/Job3、MFA2全部通过。相同fresh源码/二进制SHA的config cache/坏dotenv/clear重启通过。隔离根部署三进程实际Provider/files、宿主API保留与下次路由变化通过，三实例正常退出、端口释放；MySQL数据库集合前后0增0删。现App热读外部状态仅为既有Rust行为事实，**不当上游缓存证据**：已确认FileActivator固定实例快照与当前fresh读盘不符，唯一todo B003为本批提交后优先项，未混入冻结输入。
+
+不同模型最终只读报告`/tmp/openrust-discovery-final-evidence-review.md`核749输入漂移0、所有适用receipt/log SHA和实际计数一致，限定范围无确定blocker。显式ModuleExecution共享Manifest空快照及文件完成状态，异步等待/失败/取消/同链cycle已运行；失败封闭与PHP caught-throw后skip不同，属于公开异步安全适配；tokio::spawn不继承task-local，跨任务自等待不作已解主张。此子范围不关闭整个B001/B007/B012、Windows/全后端或ADR-001。
+
+源码owner停写，完整生成源码/回执包SHA eca38aa68311a31890b41b7098eb0b1eeb90c09c3664e7db152b89f6e464121e，原目录仍保留。主缓存35,712,675,840B→0后进行fresh，最终确认无进程/target句柄，再正常clean dry-run+clean：9,004,273,664B→0、磁盘可用200,558,010,368B；本任务原先不存在的PHP oracle镜像772,442,516B确认无容器占用后正常移除，共享DB服务未动。完整回执位于tmp/module-discovery-20261102/。最终只更新Agent状态/验收文档，复用未变化运行输入证据；仅本地提交。skill独立owner WIP不覆盖/混入，不部署、不重启旧守护、不操作其Goal/账本，默认80%与原额度基线不变。
+
 ## 同内核嵌套 Provider 注册限定验收
 
 2026-11-02，7f60560后继；固定Laravel Application::register/markAsRegistered及ModulesServiceProvider注册调用位置，来源见`tmp/module-discovery-upstream-contract.md`及同名evidence目录。RegisterContext即时注册子Provider与App/启动共用唯一Registry、Container与执行器；startup统一boot屏障，live子boot完成后父继续，首次槽位/force失败/取消/cycle/TestApp mask均保原契约。nested_providers纯身份声明是Rust无法反射异步回调的必要适配，并在父成功后验证真实登记；不是另一执行队列或自动拓扑。唯一example改由普通父Provider真实注册原独立子项，fallback Events不占真实EventsProvider身份。模块JSON发现、class aliases、files及完整Provider发现仍未实现。

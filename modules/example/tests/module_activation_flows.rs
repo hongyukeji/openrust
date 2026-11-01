@@ -18,6 +18,7 @@ const MODULE_STATE: &str = "/api/example/module-state";
 
 fn deployment() -> Result<tempfile::TempDir> {
     let root = tempfile::tempdir().map_err(Error::internal)?;
+    crate::modules::example::write_discovery_fixture(root.path())?;
     for directory in [
         "modules/example/config",
         "modules/example/lang",
