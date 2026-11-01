@@ -1,6 +1,6 @@
 ---
 source: tools/cli/src/main.rs
-assertion_line: 3276
+assertion_line: 3388
 expression: snapshot
 ---
 --- Cargo.toml ---
@@ -68,7 +68,7 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 </html>
 
 --- config/mod.rs ---
-//! 应用代码配置清单；每个区段由 Rust 函数求值。
+//! 应用代码配置清单；按声明顺序单次求值，每个区段可读取已完成依赖。
 
 pub mod api;
 pub mod app;
@@ -76,108 +76,236 @@ pub mod auth;
 pub mod cache;
 pub mod database;
 pub mod i18n;
+pub mod log;
 pub mod mail;
 pub mod security;
 pub mod server;
 pub mod session;
 pub mod sms;
+pub mod storage;
 pub mod view;
 
-/// 登记应用默认配置；运行环境覆盖仍由统一配置仓储处理。
+// queue.rs 与 realtime.rs 是尚未声明的可选配置源码。启用时须同步依赖 feature、
+// pub mod 声明、下方 section 和实际 Provider；generate job 会接入 queue 配置。
+
+/// 登记默认配置；显式文件、环境及前置覆写通过同一仓储参与依赖读取。
 pub fn boot() -> openrust::config::ConfigManifest {
-    openrust::config::ConfigManifest::new()
-        .section("app", app::config)
+    let manifest = openrust::config::ConfigManifest::new()
         .section("server", server::config)
+        .section("app", app::config)
         .section("api", api::config)
+        .section("log", log::config)
         .section("cache", cache::config)
         .section("database", database::config)
         .section("i18n", i18n::config)
         .section("mail", mail::config)
         .section("session", session::config)
         .section("sms", sms::config)
+        .section("storage", storage::config)
         .section("auth", auth::config)
-        .section("security", security::config)
-        .section("view", view::config)
+        .section("security", security::config);
+    // 只控制默认区段声明；显式来源仍可让 OptionalViewServiceProvider 启用视图。
+    let manifest = if view::ENABLED {
+        manifest.section("view", view::config)
+    } else {
+        manifest
+    };
+    manifest
 }
 
 --- config/app.rs ---
-//! 应用身份默认值。
+//! 应用身份默认值；依赖清单中已完成的 server 区段。
 
-use openrust::config::{AppConfig, ConfigContext, ConfigError};
+use openrust::config::{AppConfig, ConfigContext, ConfigError, Environment};
 
-/// 在同次 dotenv 快照上求值应用身份。
+/// 在同次 dotenv 快照上求值；其他领域通过仓储继承应用身份。
 pub fn config(ctx: &ConfigContext) -> Result<AppConfig, ConfigError> {
+    let url = match ctx.env("APP_URL") {
+        // 显式空值也是显式配置，保留给统一校验处理。
+        Some(url) => url,
+        None => format!("http://localhost:{}", ctx.require::<u16>("server.port")?),
+    };
     Ok(AppConfig {
         name: ctx.env_or("APP_NAME", "blog"),
+        env: Environment::Production,
         debug: ctx.bool_or("APP_DEBUG", false)?,
-        url: ctx.env_or("APP_URL", "http://localhost:3000"),
-        ..AppConfig::default()
+        url,
+        // None 不提供应用签名密钥；部署可由 APP_KEY 覆写，源码不保存密钥。
+        key: None,
+        previous_keys: Vec::new(),
+        timezone: "UTC".to_owned(),
     })
 }
 
 --- config/cache.rs ---
-//! Redis 缓存默认值与公开 store 配置。
+//! Redis 缓存与同进程加载限制的应用默认值。
 
-use openrust::config::{CacheConfig, CacheStoreConfig, ConfigContext, ConfigError};
+use openrust::config::{
+    CacheConfig, CacheSingleflightConfig, CacheStoreConfig, CacheSwrConfig, ConfigContext,
+    ConfigError,
+};
+use std::collections::BTreeMap;
 
-/// 使用统一 Redis URL 与 Laravel 风格 `CACHE_STORE` 选择。
-#[allow(clippy::unnecessary_wraps, reason = "保持 ConfigManifest 配置函数统一的可失败契约")]
+/// 仅展示可选本机 store，默认不加入 store 表，不改变 redis 选择及初始化行为。
+const LOCAL_STORES_ENABLED: bool = false;
+
+/// 使用统一 Redis URL；store 的 driver 还须实际编译并登记。
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "保持 ConfigManifest 配置函数统一的可失败契约"
+)]
 pub fn config(ctx: &ConfigContext) -> Result<CacheConfig, ConfigError> {
-    let mut cache = CacheConfig {
-        default: ctx.env_or("CACHE_STORE", "redis"),
-        ..CacheConfig::default()
-    };
-    cache.stores.insert(
+    let mut stores = BTreeMap::from([(
         "redis".to_owned(),
         CacheStoreConfig {
             driver: "redis".to_owned(),
             namespace: "blog".to_owned(),
-            options: std::collections::BTreeMap::from([(
+            // driver 专属选项；memory 可用空表，file 使用 path，非所有 driver 都读取 dsn。
+            options: BTreeMap::from([(
                 "dsn".to_owned(),
                 serde_json::Value::String(ctx.env_or("REDIS_URL", "redis://127.0.0.1:6379/")),
             )]),
         },
-    );
-    Ok(cache)
+    )]);
+    if LOCAL_STORES_ENABLED {
+        stores.insert(
+            "memory".to_owned(),
+            CacheStoreConfig {
+                driver: "memory".to_owned(),
+                namespace: "local".to_owned(),
+                options: BTreeMap::new(),
+            },
+        );
+        stores.insert(
+            "file".to_owned(),
+            CacheStoreConfig {
+                driver: "file".to_owned(),
+                namespace: "local".to_owned(),
+                options: BTreeMap::from([(
+                    "path".to_owned(),
+                    serde_json::json!("storage/framework/cache"),
+                )]),
+            },
+        );
+    }
+    Ok(CacheConfig {
+        default: ctx.env_or("CACHE_STORE", "redis"),
+        stores,
+        singleflight: CacheSingleflightConfig {
+            max_in_flight_keys: 128,
+            max_waiters_per_key: 64,
+            loader_timeout_secs: 30,
+        },
+        swr: CacheSwrConfig {
+            max_in_flight_refreshes: 64,
+        },
+    })
 }
 
 --- config/server.rs ---
-//! HTTP 服务默认值。
+//! HTTP listener、可信请求边界和中间件的应用默认值。
 
-use openrust::config::{ConfigContext, ConfigError, ServerConfig};
+use openrust::config::{
+    CompressionConfig, ConfigContext, ConfigError, CorsConfig, ServerConfig, TrustedHostsConfig,
+};
 
-/// 保留当前根站点目标与 listener 默认值。
-///
-/// 如需限制主机，在返回前设置 `server.trusted_hosts` 为
-/// `Some(openrust::config::TrustedHostsConfig { at: None, subdomains: true })`；
-/// `at: None` 从 `app.url` 推导主域，默认不启用此限制。
-#[allow(clippy::unnecessary_wraps, reason = "保持 ConfigManifest 配置函数统一的可失败契约")]
+/// 只控制默认是否声明可信主机策略；显式来源仍可设置 `server.trusted_hosts`。
+const TRUST_HOSTS_ENABLED: bool = false;
+
+/// 根应用默认提供 public/index.html；生成应用可选用视图目标。
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "保持 ConfigManifest 配置函数统一的可失败契约"
+)]
 pub fn config(_ctx: &ConfigContext) -> Result<ServerConfig, ConfigError> {
-    let mut server = ServerConfig::default();
-    server.root_target = "view:index.html".to_owned();
-    Ok(server)
+    Ok(ServerConfig {
+        host: "127.0.0.1".to_owned(),
+        port: 3000,
+        public_dir: "public".into(),
+        root_target: "view:index.html".to_owned(),
+        request_timeout_secs: 30,
+        max_concurrent_requests: 1024,
+        shutdown_timeout_secs: 10,
+        // 还需编译 metrics feature；声明配置不会编译或启动可选能力。
+        metrics_endpoint_enabled: false,
+        // None 未配置；Some(Vec::new()) 显式禁止平台自动信任；Some 列表信任指定 IP/CIDR。
+        trusted_proxy_ranges: None,
+        trusted_proxy_headers: openrust::http::TrustedProxyHeaders::DEFAULT,
+        // at=None 使用最终 app.url 主机；subdomains=true 追加该主机及所有层级子域。
+        // at=Some(vec!["^example\\.com$".to_owned()]) 可显式选择 PCRE 模式体。
+        trusted_hosts: if TRUST_HOSTS_ENABLED {
+            Some(TrustedHostsConfig {
+                at: None,
+                subdomains: true,
+            })
+        } else {
+            None
+        },
+        compression: CompressionConfig { enabled: true },
+        cors: CorsConfig {
+            enabled: false,
+            // ["*"] 允许任意来源；携带凭据时必须使用精确来源。
+            allowed_origins: Vec::new(),
+            allowed_methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+                .map(str::to_owned)
+                .to_vec(),
+            allowed_headers: ["content-type", "authorization", "x-request-id"]
+                .map(str::to_owned)
+                .to_vec(),
+            expose_headers: vec!["x-request-id".to_owned()],
+            allow_credentials: false,
+            max_age_secs: 600,
+        },
+    })
 }
 
 --- config/session.rs ---
-//! Session 默认值。
+//! Session 持久化和 Cookie 的应用默认值。
 
 use openrust::config::{ConfigContext, ConfigError, SessionConfig};
 
-/// 使用框架公开的 Session 默认设置。
-#[allow(clippy::unnecessary_wraps, reason = "保持 ConfigManifest 配置函数统一的可失败契约")]
+/// Provider 注册与每条路由选择 session 中间件仍为独立步骤。
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "保持 ConfigManifest 配置函数统一的可失败契约"
+)]
 pub fn config(_ctx: &ConfigContext) -> Result<SessionConfig, ConfigError> {
-    Ok(SessionConfig::default())
+    Ok(SessionConfig {
+        // None 明确不启用 Session；database 仍须数据库及迁移。
+        driver: Some("database".to_owned()),
+        // None 从最终 app.name 推导 Cookie 名称。
+        cookie: None,
+        path: "/".to_owned(),
+        // None 不指定 Cookie Domain，使用请求主机。
+        domain: None,
+        // None 依可信请求传输信息推导 Secure；Some 显式固定该属性。
+        secure: None,
+        http_only: true,
+        // None 省略 SameSite；可选 lax、strict、none。
+        same_site: Some("lax".to_owned()),
+        lifetime: 120,
+        lottery: [2, 100],
+        expire_on_close: false,
+        partitioned: false,
+        // 20 MiB 为框架硬上限；应用只能调低。
+        max_bytes: 20 * 1024 * 1024,
+        // native 拒绝对象；json 仅保存对象显式投影。
+        serializer: "native".to_owned(),
+    })
 }
 
 --- config/i18n.rs ---
-//! 国际化默认值。
+//! 默认语言及消息回退的应用默认值。
 
 use openrust::config::{ConfigContext, ConfigError};
+use openrust::i18n::{I18nConfig, Locale};
 
-/// 默认及回退 locale 均为英文。
-#[allow(clippy::unnecessary_wraps, reason = "保持 ConfigManifest 配置函数统一的可失败契约")]
-pub fn config(_ctx: &ConfigContext) -> Result<openrust::i18n::I18nConfig, ConfigError> {
-    Ok(openrust::i18n::I18nConfig::default())
+/// Locale 由公开解析入口校验和规范化；消息目录仍须包含所选语言。
+pub fn config(_ctx: &ConfigContext) -> Result<I18nConfig, ConfigError> {
+    Ok(I18nConfig {
+        default_locale: Locale::new("en")?,
+        fallback_locale: Locale::new("en")?,
+    })
 }
 
 --- src/main.rs ---

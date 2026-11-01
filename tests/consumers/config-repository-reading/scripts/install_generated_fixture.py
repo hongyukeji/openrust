@@ -66,11 +66,13 @@ def main() -> None:
     module_marker = "pub mod app;"
     section_marker = '.section("app", app::config)'
     cache_marker = 'default: ctx.env_or("CACHE_STORE", "redis"),'
+    cache_stores_marker = '    if LOCAL_STORES_ENABLED {'
     if (
         source_providers.count(provider_marker) != 1
         or source_config_manifest.count(module_marker) != 1
         or source_config_manifest.count(section_marker) != 1
         or source_cache_config.count(cache_marker) != 1
+        or source_cache_config.count(cache_stores_marker) != 1
         or source_manifest.count("[dependencies]\n") != 1
     ):
         raise SystemExit("生成模板结构不符合预期")
@@ -95,9 +97,10 @@ use std::time::Duration;
 #[tokio::test]
 async fn generated_application_installs_config_reading_provider()
 -> Result<(), Box<dyn std::error::Error>> {{
-    let sources = ConfigLoader::application_code_sources(
+    let sources = ConfigLoader::application_code_sources_with_overrides(
         env!("CARGO_MANIFEST_DIR"), "APP_", None, &GeneratedApplication::config(),
-    )?.merge_ordered_entries([("app", serde_json::json!({{"env": "testing"}}))])?;
+        [("app", serde_json::json!({{"env": "testing"}}))],
+    )?;
     assert_eq!(
         sources.figment().extract_inner::<openrust::config::Environment>("app.env")?,
         openrust::config::Environment::Testing,
@@ -169,10 +172,10 @@ async fn generated_application_installs_config_reading_provider()
         'default: "default".to_owned(),',
         1,
     ).replace(
-        "    cache.stores.insert(",
-        '    cache.stores.insert("default".to_owned(), CacheStoreConfig { '
+        cache_stores_marker,
+        '    stores.insert("default".to_owned(), CacheStoreConfig { '
         'driver: "memory".to_owned(), namespace: "config-reader-fixture".to_owned(), '
-        'options: std::collections::BTreeMap::new() });\n    cache.stores.insert(',
+        'options: std::collections::BTreeMap::new() });\n' + cache_stores_marker,
         1,
     ))
     updated_test = formatted_rust(test_source)

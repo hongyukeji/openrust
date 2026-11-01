@@ -41,3 +41,5 @@ python3 -B tests/consumers/config-repository-reading/scripts/verify_cache_restar
 总控生成全新应用后，从本分支根运行 `python3 -B tests/consumers/config-repository-reading/scripts/install_generated_fixture.py <生成应用目录> "$PWD"`。脚本先检查生成应用的 `openrust` 依赖确实指向当前框架目录，以及测试文件和 `config/reader.rs` 均不存在，再在自有生成副本的 manifest、Provider 清单、Rust 配置清单/缓存区段与测试中安装 fixture；回执逐文件记录安装前状态及安装后 SHA-256。随后在生成应用执行 `cargo check` 和 `cargo test generated_application_installs_config_reading_provider`；实际过滤应出现一个测试，不能用裸函数名配 `--exact` 导致零测试通过。
 
 `ordered_source_overrides_keep_original_environment_for_module_config` 验证公开 `merge_ordered_entries` 在覆盖来源后仍向模块代码配置传递最初 dotenv 快照，并保留 typed 工厂；修改副本 `.env` 不触发第二次读取。typed/raw 路径冲突明确拒绝，缓存来源拒绝覆盖由框架同一语义组验证。
+
+公开依赖回归通过 `application_code_sources_with_overrides` 在函数求值前注入端口、应用名与独立 issuer，验证下游只读最终所属值、函数仅执行一次；求值后的 merge 保持快照，不隐式重算。生成读取 fixture 也在求值前显式选择 Testing 环境。

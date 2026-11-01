@@ -9,12 +9,13 @@ pub(crate) fn application_sources(figment: &figment::Figment) -> openrust::Resul
         .clone()
         .extract::<serde_json::Map<String, serde_json::Value>>()
         .map_err(openrust::config::ConfigError::from)?;
-    let base = ConfigLoader::application_code_sources(
+    // 旧 fixture 明确提供的完整快照在函数求值前覆盖；不代表应用默认继承测试。
+    ConfigLoader::application_code_sources_with_overrides(
         env!("CARGO_MANIFEST_DIR"),
         "APP_",
         None,
         &crate::bootstrap::Server::config(),
-    )?;
-    // 原 fixture 的完整最终快照优先，null/disabled/memory 保持其服务隔离策略。
-    base.merge_ordered_entries(entries).map_err(Into::into)
+        entries,
+    )
+    .map_err(Into::into)
 }

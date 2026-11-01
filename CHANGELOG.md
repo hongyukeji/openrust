@@ -7,7 +7,7 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 ### Changed
 
 - 根 `app/` 支持普通应用 Controller/Model/Provider 开发，与可选模块共用同一内核；`bootstrap/providers.rs` 登记应用 Provider，默认框架 Provider 在统一 Builder 中装配，生成器同步应用结构与 Provider 自动登记。显式包清单不等同自动发现；deferred/eager 缓存、默认欢迎页及完整模块管理仍有后继范围。
-- 默认应用配置转为已编译的 `config/*.rs` / `ConfigManifest`，dotenv 快照就绪后向同一仓储求值；模块沿相同机制。TOML 保留为显式可选 source，typed/factory 通过同仓储提供且不可序列化配置明确拒绝缓存。显式 `ConfigSources::merge_ordered_entries` 覆盖沿同次环境上下文、保留未覆盖的 profile 数据与元数据，并拒绝修改已编译缓存；旧 Figment 有损输入不伪造代码配置环境或恢复历史键序。console 专属环境文件选择和缓存屏障同步调用方；全部应用可编辑默认项展示及跨领域最终配置依赖另待整改，不能以代码配置入口代替完整对应。
+- 默认应用配置转为已编译的 `config/*.rs` / `ConfigManifest`，dotenv 快照就绪后向同一仓储求值；模块沿相同机制。TOML 保留为显式可选 source，typed/factory 通过同仓储提供且不可序列化配置明确拒绝缓存。显式 `ConfigSources::merge_ordered_entries` 覆盖沿同次环境上下文、保留未覆盖的 profile 数据与元数据，并拒绝修改已编译缓存；旧 Figment 有损输入不伪造代码配置环境或恢复历史键序。console 专属环境文件选择和缓存屏障同步调用方；应用已有默认字段与可选分支在根/生成配置中显式展开；`ConfigContext::get/require`按清单顺序读取已完成区段及同次最终覆盖，`application_code_sources_with_overrides`在单次求值前接纳根键覆盖。端口与应用身份的缺省依赖保持单一来源，显式领域覆盖优先；晚merge/运行期set不热重算。模块沿原递归候选/CAS发布，生成Job同步接入queue配置并保留已有文件。前向、自依赖、typed冲突及越界上下文明确失败；本次不代表完整Laravel配置、模块管理或driver全量对应。
 - 异常处理增加应用作用域 report/render、HTML/JSON 协商和最终响应回调；浏览器验证失败经同一 Session 保存错误包与过滤敏感字段后的旧输入，API envelope 通过公开策略显式配置，应用宿主决定全局路径策略；示例模块只登记自己的异常报告、渲染及响应扩展，不覆盖宿主谓词。`dont_flash` 支持点路径/数组；框架 Json/Validated 提取链在DTO失败前绑定规范输入，原生 Axum 逃生提取器不自动获得该保证。
 - 默认 web/api 路由组分工：Cookie、Session 与请求伪造保护按路由组接入，匿名 Web 非安全请求也受保护；同源快速路径、测试豁免与 multipart 正文复用保留明确边界。未匹配路由或方法不进入该组的 Session 生命周期；匹配业务返回错误仍按原生命周期保存。
 - 开发者运行产物使用中性保留名：`.staging`、`.data-exchange-retention` 与缓存私有命名等；旧名称仅保留拒绝保护，不自动改名或删除现有文件/对象。Local staging 仅接管有有效所有权标记的目录，无法确认的既有目录明确拒绝；旧清理payload不得套用新前缀误删。现有部署与bucket生命周期规则需按实际归属显式迁移。

@@ -1,5 +1,23 @@
 # 测试基线
 
+## 配置可编辑默认值与有序依赖限定验收
+
+2026-11-02，基线c52ba8f后继配置簇；固定framework d52c3b3129e4c8e213c97cdc68f94b0b7d27f181、docs 960eedf0911155ad16326ade49c0ea5d18eda0b8。对应L005.01/.03/.04子范围，来源/测试锚点及必要Rust差异见`tmp/config-defaults-20261102/upstream-correspondence.md`。ConfigContext get/require、根键求值前覆盖、单次来源捕获/重放、模块候选/CAS、根/生成配置字段和Job配置接线沿同一ConfigSources/Repository/Provider；无新依赖或第二内核。声明顺序是显式编译manifest，前向/自依赖拒绝；JWT/签名默认身份继承为授权增强，不冒充Laravel核心默认。
+
+配置定向119、模块投影2、公开consumer11、CLI27通过。main集中fmt、默认/全特性严格Clippy、workspace tests、拒警Rustdoc、no-default lib、精确Rust1.97.0及cargo-deny十项全部exit0，最终回执`*-attempt3.json`；默认各target报告1047 passed/35 ignored，全特性1884/112，重叠入口不计唯一行为数。首轮配置测试118案中1个新typed预检fixture因空根规范化失败，修为仅整个空根数组可承载typed路径，保留嵌套/非空冲突断言后119通过。Clippy两轮分别揭示默认及全feature的代码规范/注释问题，提取helper、补标点/借用，不降门禁。快照只接纳六份配置渲染变化，逐段与模板精确一致，其余不变；独立delta审查无新增blocker。
+
+普通fresh check/test/build通过；最终修复后的installer又在另一个从零生成应用check/test通过，共11项（配置consumer1、Container1、应用9），无ignored。旧cache.stores.insert注入点已随模板变为stores表，新增唯一marker预检防静默未注入。初次configuration_error与误用字面点键导致Production/Testing断言失败均保留，恢复根app对象并正确注入memory store后通过；没有删除环境或HTTP断言。最终来源`final-fixture-*`回执，不用手改生成副本替代源installer证明。生成时父目录不存在的runner失败及后续修正也分别保留。
+
+真实同一生成二进制完成config:cache、重启、坏dotenv屏障、clear后重读，见`services-config-cache-restart`。在已保全的普通生成源码中仅修改server.port默认8123与app.name默认，再用实际manifest执行8类探针：代码默认、SERVER_PORT、独立JWTissuer、独立audience/JWTissuer/signedissuer、显式APP_URL、显式空URL、求值前覆盖、非法端口。独立覆盖沿公开根对象source API，值断言完整；首次使用不受支持的APP_AUTH_JWT_ISSUER映射失败保留，后续不声称该env别名已支持。空URL保留到后续统一校验，不把空值视缺失；非法端口在依赖读取前拒绝。晚merge不重算的永久公开consumer回归同样通过。
+
+真实MySQL8.4 fresh认证/邮件覆盖/Job原QueueContributions共3项通过，无ignored。根bin server149/20 ignored、example_auth_flows151/20、server集成164/20分别通过，存在重复模块用例，不相加。数据库集合前后无增删。根真实TCP Request及Cookie TLS通过；TLS首次runner证据路径被拒绝且未进入网络，使用规定/tmp前缀路径后通过，证据`/tmp/openrust-c04c-tls-config-defaults-20261102.json`。成功服务均正常exit0、端口释放，初轮和最终停止回执独立保留。编排脚本缺cli变量的失败发生在后续命令前，修正后只续未执行项，不重写旧回执。
+
+执行时653输入冻结经独审及最终哈希核一致，运行源码此后未改；最后仅更新本节及项目状态/变更说明。所有日志/命令/exit/耗时/资源与SHA位于`tmp/config-defaults-20261102/`。实现/独审owner均停写；原生守护六文件仍属独立owner WIP，未覆盖/提交/部署，旧总控和守护保持停止。首次fixture错误归因和误改点键的判断已撤回，不以错误说明替代事实。
+
+生成源码及证据完整打包`generated-source-and-evidence.tar.gz`，SHA3242fc666b9e87209accc3da1f4cb269342abe41cfe40e0f6f39e6a8f3610cad。确认服务/构建停止后，三组生成package正常cargo clean dry-run及实际clean均成功：根target38,516,436,992B→37,283,803,136B，磁盘可用163,844,558,848B→164,923,183,104B。只保留同一main根target供紧接的bootstrap/app及固定API簇复用，未留额外target；保护全部源码/WIP、依赖源码、共享服务与证据，明细`generated-retirement.json`。
+
+本地提交以Git为准，不push/tag/release。完整Config/env加密/动态Settings、默认MySQL+Redis依赖体验、bootstrap/app、固定API归属、模块持久启停/发现、DB门控、全后端/原生Windows及完整ADR-001仍开放。字段展开、有限服务或上述测试通过不等于Laravel+Modules全部1:1完成。
+
 ## 当前 main 组合限定验收
 
 2026-11-02 收齐本批 Env/Request-MIME、TrustedHosts、中性运行命名、应用代码配置与 Provider、Handler、Web/CSRF、部分 Query 的组合证据。基线 `317e2f6`、环境来源 `8d5e635`；Request/MIME 与其他来源的祖先或三方等价映射保留于 `tmp/controller-handoff-20261102/` 及各 integration 目录。本节对应本地集成树，提交以 Git 为准，不代表完整 Laravel、Modules 或 R4/C07 已完成。

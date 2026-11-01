@@ -1,4 +1,4 @@
-//! 应用代码配置清单；每个区段由 Rust 函数求值。
+//! 应用代码配置清单；按声明顺序单次求值，每个区段可读取已完成依赖。
 
 pub mod api;
 pub mod app;
@@ -8,27 +8,47 @@ pub mod database;
 #[cfg(feature = "grpc")]
 pub mod grpc;
 pub mod i18n;
+pub mod log;
 pub mod mail;
+#[cfg(feature = "queue")]
+pub mod queue;
+#[cfg(feature = "realtime")]
+pub mod realtime;
 pub mod security;
 pub mod server;
 pub mod session;
 pub mod sms;
+pub mod storage;
+#[cfg(feature = "view")]
+pub mod view;
 
-/// 登记应用默认配置；运行环境覆盖仍由统一配置仓储处理。
+/// 登记默认配置；显式文件、环境及前置覆写通过同一仓储参与依赖读取。
 pub fn boot() -> openrust::config::ConfigManifest {
     let manifest = openrust::config::ConfigManifest::new()
-        .section("app", app::config)
         .section("server", server::config)
+        .section("app", app::config)
         .section("api", api::config)
+        .section("log", log::config)
         .section("cache", cache::config)
         .section("database", database::config)
         .section("i18n", i18n::config)
         .section("mail", mail::config)
         .section("session", session::config)
         .section("sms", sms::config)
+        .section("storage", storage::config)
         .section("auth", auth::config)
         .section("security", security::config);
+    #[cfg(feature = "queue")]
+    let manifest = manifest.section("queue", queue::config);
+    #[cfg(feature = "realtime")]
+    let manifest = manifest.section("realtime", realtime::config);
     #[cfg(feature = "grpc")]
     let manifest = manifest.section("grpc", grpc::config);
+    #[cfg(feature = "view")]
+    let manifest = if view::ENABLED {
+        manifest.section("view", view::config)
+    } else {
+        manifest
+    };
     manifest
 }

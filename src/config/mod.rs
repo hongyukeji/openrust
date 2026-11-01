@@ -15,7 +15,7 @@
 
 mod code;
 pub(crate) mod compiled;
-pub use code::{ConfigContext, ConfigManifest};
+pub use code::{ConfigContext, ConfigDependencyError, ConfigManifest};
 /// Provider 配置仓储、显式 schema 与启动合并操作。
 pub mod repository;
 mod sources;
@@ -92,6 +92,9 @@ pub const DEFAULT_CONFIG_DIR: &str = "config";
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum ConfigError {
+    /// 同步代码配置依赖读取错误，类别由内核生成且不含源值。
+    #[error("{0}")]
+    Dependency(ConfigDependencyError),
     /// 值缺失、类型错误或文件无法解析。
     /// 错误消息保留安全的键路径和错误类别，但省略源值。
     #[error("{0}")]
@@ -297,7 +300,8 @@ impl fmt::Debug for ConfigLoader {
 impl ConfigLoader {
     /// 按应用启动时的缓存优先级读取来源。
     ///
-    /// 缓存命中时不解析 `.env` 或 TOML；相对目录和缓存路径以 `app_dir` 为根。
+    /// 外部环境早命中时跳过 dotenv；dotenv 选择路径的晚命中已读取所选文件。
+    /// 两类命中均跳过 TOML 与代码配置；相对目录和缓存路径以 `app_dir` 为根。
     pub fn application_sources(
         app_dir: impl AsRef<Path>,
         namespace: &str,
@@ -308,7 +312,7 @@ impl ConfigLoader {
 
     /// 为控制台启动读取配置；`console_environment` 仅选择存在的 `.env.<名称>` 文件。
     ///
-    /// 配置缓存命中时不会读取任何 dotenv 文件。最终应用环境由加载后的配置决定。
+    /// 外部环境早命中跳过 dotenv，晚命中已读取所选文件；最终环境由配置决定。
     pub fn console_application_sources(
         app_dir: impl AsRef<Path>,
         namespace: &str,
@@ -334,16 +338,61 @@ impl ConfigLoader {
         .map(|(sources, _, _)| sources)
     }
 
+    /// 在代码函数求值前提供全局原始覆盖；依赖读取和最终来源均以此层为最高优先级。
+    ///
+    /// 非空覆盖与已编译配置缓存不兼容；空覆盖等价于 `application_code_sources`。
+    pub fn application_code_sources_with_overrides<K: Into<String>>(
+        app_dir: impl AsRef<Path>,
+        namespace: &str,
+        console_environment: Option<&str>,
+        manifest: &ConfigManifest,
+        entries: impl IntoIterator<Item = (K, serde_json::Value)>,
+    ) -> Result<ConfigSources, ConfigError> {
+        let overrides = entries
+            .into_iter()
+            .map(|(key, value)| (key.into(), value))
+            .collect::<Vec<_>>();
+        Self::resolve_application_sources_with_overrides(
+            app_dir.as_ref(),
+            namespace,
+            console_environment,
+            Some(manifest),
+            &overrides,
+        )
+        .map(|(sources, _, _)| sources)
+    }
+
     pub(crate) fn resolve_application_sources(
         app_dir: &Path,
         namespace: &str,
         console_environment: Option<&str>,
         manifest: Option<&ConfigManifest>,
     ) -> Result<(ConfigSources, PathBuf, &'static str), ConfigError> {
+        Self::resolve_application_sources_with_overrides(
+            app_dir,
+            namespace,
+            console_environment,
+            manifest,
+            &[],
+        )
+    }
+
+    fn resolve_application_sources_with_overrides(
+        app_dir: &Path,
+        namespace: &str,
+        console_environment: Option<&str>,
+        manifest: Option<&ConfigManifest>,
+        overrides: &[(String, serde_json::Value)],
+    ) -> Result<(ConfigSources, PathBuf, &'static str), ConfigError> {
         validate_namespace(namespace)?;
         let external = EnvironmentSnapshot::capture();
         let early_path = compiled::selected_path_from(app_dir, namespace, &external)?;
         if let Some(cached) = compiled::load(&early_path)? {
+            if !overrides.is_empty() {
+                return Err(ConfigError::Invalid(
+                    "已编译配置缓存不允许求值前覆盖".to_owned(),
+                ));
+            }
             if manifest.is_some_and(ConfigManifest::has_typed) {
                 return Err(ConfigError::Invalid(
                     "已编译配置含运行期 Rust 类型，不能加载配置缓存".to_owned(),
@@ -355,6 +404,11 @@ impl ConfigLoader {
         let environment = external.with_dotenv_at(&dotenv_path)?;
         let path = compiled::selected_path_from(app_dir, namespace, &environment)?;
         if let Some(cached) = compiled::load(&path)? {
+            if !overrides.is_empty() {
+                return Err(ConfigError::Invalid(
+                    "已编译配置缓存不允许求值前覆盖".to_owned(),
+                ));
+            }
             if manifest.is_some_and(ConfigManifest::has_typed) {
                 return Err(ConfigError::Invalid(
                     "已编译配置含运行期 Rust 类型，不能加载配置缓存".to_owned(),
@@ -380,7 +434,7 @@ impl ConfigLoader {
             "configured"
         };
         let sources = if let Some(manifest) = manifest {
-            loader.code_sources(manifest)?
+            loader.sources_inner(Some(manifest), manifest.includes_toml(), overrides)?
         } else {
             loader.sources()?
         };
@@ -491,25 +545,26 @@ impl ConfigLoader {
     }
 
     /// 构建同一次捕获的有序原始来源与 Figment 投影。
-    #[allow(
-        clippy::too_many_lines,
-        reason = "顺序列出文件、通用别名与命名空间环境层，避免隐藏配置优先级"
-    )]
     pub fn sources(&self) -> Result<ConfigSources, ConfigError> {
-        self.sources_inner(None, true)
+        self.sources_inner(None, true, &[])
     }
 
     pub(crate) fn code_sources(
         &self,
         manifest: &ConfigManifest,
     ) -> Result<ConfigSources, ConfigError> {
-        self.sources_inner(Some(manifest), manifest.includes_toml())
+        self.sources_inner(Some(manifest), manifest.includes_toml(), &[])
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "一次捕获文件与环境后按同一优先级重放，保持依赖视图与最终发布一致"
+    )]
     fn sources_inner(
         &self,
         manifest: Option<&ConfigManifest>,
         include_toml: bool,
+        overrides: &[(String, serde_json::Value)],
     ) -> Result<ConfigSources, ConfigError> {
         let defaults = serde_json::to_value(FrameworkConfig::default())
             .map_err(|_| ConfigError::Invalid("configuration: 默认值无法表示为有序配置".into()))?;
@@ -522,10 +577,10 @@ impl ConfigLoader {
             .clone()
             .unwrap_or_else(EnvironmentSnapshot::capture);
         if let Some(manifest) = manifest {
-            let context = ConfigContext::new(environment.clone());
-            manifest.apply(&mut sources, &context)?;
-            sources.set_code_context(context);
+            manifest.validate()?;
         }
+        let mut file_layers = Vec::new();
+        let mut environment_layers = Vec::new();
         let files = if include_toml {
             self.domain_files()?
         } else {
@@ -550,45 +605,79 @@ impl ConfigLoader {
                     self.config_dir_key
                 ))
             })?;
-            sources.merge_file(
-                &name,
+            file_layers.push((
+                name,
                 ordered,
                 Metadata::named("TOML file").source(file.as_path()),
-            )?;
+            ));
         }
         if let Some(url) = conventional_database_url(&environment) {
             let layer = serde_json::json!({ "database": { "url": url } });
-            sources.merge(Serialized::defaults(layer.clone()), layer)?;
+            environment_layers.push((
+                CapturedProvider::new(&Serialized::defaults(layer.clone()))?,
+                layer,
+            ));
         }
         if let Some(dsn) = conventional_redis_dsn(&environment) {
             let layer = serde_json::json!({ "cache": { "stores": { "redis": { "dsn": dsn } } } });
-            sources.merge(Serialized::defaults(layer.clone()), layer)?;
+            environment_layers.push((
+                CapturedProvider::new(&Serialized::defaults(layer.clone()))?,
+                layer,
+            ));
         }
         #[cfg(feature = "queue")]
         if let Some(redis_url) = conventional_redis_dsn(&environment) {
             let layer = serde_json::json!({ "queue": { "redis_url": redis_url } });
-            sources.merge(Serialized::defaults(layer.clone()), layer)?;
+            environment_layers.push((
+                CapturedProvider::new(&Serialized::defaults(layer.clone()))?,
+                layer,
+            ));
         }
         let common = environment.layer(common_environment_path)?;
         let common_provider = CapturedProvider::new(&Serialized::defaults(common.clone()))?
             .with_metadata(Env::prefixed("").metadata());
-        sources.merge(common_provider, common)?;
+        environment_layers.push((common_provider, common));
         let common_nulls = session_environment_nulls(&environment, "", true);
-        sources.merge(Serialized::defaults(common_nulls.clone()), common_nulls)?;
+        environment_layers.push((
+            CapturedProvider::new(&Serialized::defaults(common_nulls.clone()))?,
+            common_nulls,
+        ));
         let namespaced =
             environment.layer(|key| namespaced_environment_path(key, &self.namespace))?;
         let namespaced_provider = CapturedProvider::new(&Serialized::defaults(namespaced.clone()))?
             .with_metadata(Env::prefixed(&self.namespace).metadata());
-        sources.merge(namespaced_provider, namespaced)?;
+        environment_layers.push((namespaced_provider, namespaced));
         let namespaced_nulls = session_environment_nulls(&environment, &self.namespace, false);
-        sources.merge(
-            Serialized::defaults(namespaced_nulls.clone()),
+        environment_layers.push((
+            CapturedProvider::new(&Serialized::defaults(namespaced_nulls.clone()))?,
             namespaced_nulls,
-        )?;
+        ));
         if self.pin_env {
             let selected = serde_json::json!({ "app": { "env": self.env.as_str() } });
-            sources.merge(Serialized::defaults(selected.clone()), selected)?;
+            environment_layers.push((
+                CapturedProvider::new(&Serialized::defaults(selected.clone()))?,
+                selected,
+            ));
         }
+        let final_view = |base: &ConfigSources| -> Result<ConfigSources, ConfigError> {
+            let mut view = base.clone();
+            for (name, value, metadata) in &file_layers {
+                view.merge_file(name, value.clone(), metadata.clone())?;
+            }
+            for (provider, value) in &environment_layers {
+                view.merge(provider.clone(), value.clone())?;
+            }
+            if !overrides.is_empty() {
+                view = view.merge_ordered_entries(overrides.iter().cloned())?;
+            }
+            Ok(view)
+        };
+        if let Some(manifest) = manifest {
+            let context = ConfigContext::new(environment);
+            manifest.apply(&mut sources, &context, final_view)?;
+            sources.set_code_context(context);
+        }
+        sources = final_view(&sources)?;
         sources.validate_typed_paths()?;
         Ok(sources)
     }

@@ -14,7 +14,7 @@ use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
 
 use crate::config::code::TypedValue;
-use crate::config::code::{ConfigContext, ConfigManifest, EvaluatedEntry};
+use crate::config::code::{ConfigContext, ConfigManifest, EvaluatedEntry, ReadView};
 use crate::config::sources::{merge_order, mergeable_options};
 use crate::config::sources::{paths_overlap, raw_path_conflicts};
 use crate::config::{ConfigError, ConfigSourceError, ConfigSources};
@@ -1006,6 +1006,10 @@ impl ConfigRepository {
     /// 在 Provider boot 时用同次环境快照原子应用模块代码配置。
     ///
     /// 已编译缓存跳过可序列化函数；含 Rust 类型的模块清单拒绝缓存。
+    #[allow(
+        clippy::too_many_lines,
+        reason = "保留单一快照、依赖候选、schema及CAS发布的原子边界"
+    )]
     pub fn apply_code_manifest(
         &mut self,
         manifest: &ConfigManifest,
@@ -1041,47 +1045,65 @@ impl ConfigRepository {
         }
         let context = context
             .ok_or_else(|| invalid("configuration", "missing code configuration environment"))?;
-        let evaluated = manifest.evaluate(&context).map_err(Error::from)?;
-        if evaluated.is_empty() {
-            return Ok(());
-        }
         let mut raw = raw
             .take()
             .ok_or_else(|| invalid("configuration", "missing raw configuration"))?;
-        for entry in evaluated {
-            match entry {
-                EvaluatedEntry::Section(key, value) => {
-                    validate_key(&key)?;
-                    let mut existing = match candidate.extract_inner::<Value>(&key) {
-                        Ok(value) => value,
-                        Err(error) if error.missing() => Value::Null,
-                        Err(error) => return Err(Error::Config(safe_source_error(error, &key))),
-                    };
-                    let mut raw_existing =
-                        read_dot_value(&raw, &key).cloned().unwrap_or(Value::Null);
-                    replace_recursive(&mut existing, value.clone(), &key)?;
-                    replace_recursive(&mut raw_existing, value, &key)?;
-                    let original = candidate.find_value(&key).ok();
-                    candidate = replace_section(&candidate, &key, existing, original.as_ref())?;
-                    set_dot_value(&mut raw, &key, raw_existing);
-                }
-                EvaluatedEntry::Typed(key, value) => {
-                    validate_key(&key)?;
-                    if typed.keys().any(|existing| paths_overlap(existing, &key)) {
-                        return Err(invalid(
-                            "configuration",
-                            "typed configuration paths overlap",
-                        ));
-                    }
-                    typed.insert(key, value);
-                }
-            }
-        }
-        if typed.keys().any(|key| raw_path_conflicts(&raw, key)) {
+        manifest.validate().map_err(Error::from)?;
+        if manifest
+            .typed_keys()
+            .any(|key| typed.keys().any(|existing| paths_overlap(existing, key)))
+        {
             return Err(invalid(
                 "configuration",
-                "raw and typed configuration paths overlap",
+                "typed configuration paths overlap",
             ));
+        }
+        let initial = ReadView {
+            raw: raw.clone(),
+            typed: typed.keys().cloned().collect(),
+        };
+        let evaluated = manifest
+            .evaluate_with(&context, initial, |entry| {
+                match entry {
+                    EvaluatedEntry::Section(key, value) => {
+                        let mut existing = match candidate.extract_inner::<Value>(&key) {
+                            Ok(value) => value,
+                            Err(error) if error.missing() => Value::Null,
+                            Err(error) => return Err(safe_source_error(error, &key)),
+                        };
+                        let mut raw_existing =
+                            read_dot_value(&raw, &key).cloned().unwrap_or(Value::Null);
+                        replace_recursive(&mut existing, value.clone(), &key)
+                            .map_err(code_merge_error)?;
+                        replace_recursive(&mut raw_existing, value, &key)
+                            .map_err(code_merge_error)?;
+                        let original = candidate.find_value(&key).ok();
+                        candidate = replace_section(&candidate, &key, existing, original.as_ref())
+                            .map_err(code_merge_error)?;
+                        set_dot_value(&mut raw, &key, raw_existing);
+                    }
+                    EvaluatedEntry::Typed(key, value) => {
+                        if typed.keys().any(|existing| paths_overlap(existing, &key)) {
+                            return Err(ConfigError::Invalid(
+                                "代码配置类型路径重复（源值未公开）".to_owned(),
+                            ));
+                        }
+                        typed.insert(key, value);
+                    }
+                }
+                if typed.keys().any(|key| raw_path_conflicts(&raw, key)) {
+                    return Err(ConfigError::Invalid(
+                        "代码配置类型路径与原始值冲突（源值未公开）".to_owned(),
+                    ));
+                }
+                Ok(ReadView {
+                    raw: raw.clone(),
+                    typed: typed.keys().cloned().collect(),
+                })
+            })
+            .map_err(Error::from)?;
+        if evaluated == 0 {
+            return Ok(());
         }
         validate_candidate(&candidate, &sections)?;
         let mut state = self.lock();
@@ -1627,6 +1649,13 @@ fn safe_source_error_with_schema(
     ConfigError::Source(ConfigSourceError { message, missing })
 }
 
+fn code_merge_error(error: Error) -> ConfigError {
+    match error {
+        Error::Config(error) => error,
+        _ => ConfigError::Invalid("模块代码配置覆盖失败（源值未公开）".to_owned()),
+    }
+}
+
 fn invalid(path: &str, rule: &str) -> Error {
     Error::Config(ConfigError::Invalid(format!("{path}: {rule}")))
 }
@@ -1886,6 +1915,116 @@ mod tests {
     use serde::Deserialize;
     use serde_json::json;
     use std::cell::Cell;
+
+    fn code_repository(raw: &Value) -> Result<ConfigRepository> {
+        let entries = raw
+            .as_object()
+            .cloned()
+            .ok_or_else(|| invalid("test", "expected object"))?;
+        let mut sources = ConfigSources::from_ordered_entries(entries)?;
+        sources.set_code_context(ConfigContext::new(
+            crate::config::EnvironmentSnapshot::capture(),
+        ));
+        let mut repository = ConfigRepository::new(sources);
+        repository.validate_base()?;
+        Ok(repository)
+    }
+
+    #[test]
+    fn module_dependencies_read_recursive_boot_candidate_and_publish_once() -> Result<()> {
+        let mut repository = code_repository(
+            &json!({"app":{"name":"boot-app"},"package":{"items":[1,2,3],"nested":{"old":1}}}),
+        )?;
+        let version = repository.version();
+        let manifest = ConfigManifest::new()
+            .section("package", |_| Ok(json!({"items":[9],"nested":{"new":2}})))
+            .typed("package.runtime", |_| Ok(17_u16))
+            .section("consumer", |context| {
+                assert_eq!(context.require::<Vec<u8>>("package.items")?, vec![9, 2, 3]);
+                assert_eq!(
+                    context.require::<Value>("package.nested")?,
+                    json!({"old":1,"new":2})
+                );
+                assert!(context.get::<Value>("package.runtime").is_err());
+                Ok(json!({"name":context.require::<String>("app.name")?}))
+            });
+        repository.apply_code_manifest(&manifest, None)?;
+        assert_eq!(repository.version(), version + 1);
+        assert_eq!(repository.string("consumer.name")?, "boot-app");
+        assert_eq!(repository.get("package.items")?, Some(json!([9, 2, 3])));
+        assert_eq!(
+            repository.typed::<u16>("package.runtime")?.as_deref(),
+            Some(&17)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn module_dependency_failure_does_not_publish_a_partial_candidate() -> Result<()> {
+        let mut repository = code_repository(&json!({"package":{"number":1}}))?;
+        let before = repository.all()?;
+        let version = repository.version();
+        let manifest = ConfigManifest::new()
+            .section("package", |_| Ok(json!({"number":2})))
+            .section("consumer", |context| {
+                Ok(json!({"value":context.require::<String>("package.number")?}))
+            });
+        assert!(repository.apply_code_manifest(&manifest, None).is_err());
+        assert_eq!(repository.all()?, before);
+        assert_eq!(repository.version(), version);
+        Ok(())
+    }
+
+    #[test]
+    fn module_dependency_snapshot_and_cas_keep_concurrent_write_without_partial_publish()
+    -> Result<()> {
+        let mut repository = code_repository(&json!({"package":{"number":1}}))?;
+        let version = repository.version();
+        let writer = repository.clone();
+        let manifest = ConfigManifest::new()
+            .section("package", move |_| {
+                writer
+                    .set("concurrent", json!(true))
+                    .map_err(code_merge_error)?;
+                Ok(json!({"number":2}))
+            })
+            .section("consumer", |context| {
+                assert_eq!(context.get::<bool>("concurrent")?, None);
+                assert_eq!(context.require::<u8>("package.number")?, 2);
+                Ok(json!({"ok":true}))
+            });
+        let error = repository
+            .apply_code_manifest(&manifest, None)
+            .err()
+            .map(|error| error.to_string())
+            .unwrap_or_default();
+        assert!(error.contains("concurrent configuration update"));
+        assert_eq!(repository.get("package.number")?, Some(json!(1)));
+        assert_eq!(repository.get("consumer")?, None);
+        assert!(repository.boolean("concurrent")?);
+        assert_eq!(repository.version(), version + 1);
+        Ok(())
+    }
+
+    #[test]
+    fn module_existing_typed_overlap_is_preflighted_before_side_effects() -> Result<()> {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let mut repository = code_repository(&json!({}))?;
+        repository
+            .apply_code_manifest(&ConfigManifest::new().typed("runtime", |_| Ok(1_u8)), None)?;
+        let count = Arc::new(AtomicUsize::new(0));
+        let called = count.clone();
+        let manifest = ConfigManifest::new()
+            .section("first", move |_| {
+                called.fetch_add(1, Ordering::SeqCst);
+                Ok(json!({}))
+            })
+            .typed("runtime.child", |_| Ok(2_u8));
+        assert!(repository.apply_code_manifest(&manifest, None).is_err());
+        assert_eq!(count.load(Ordering::SeqCst), 0);
+        assert_eq!(repository.typed::<u8>("runtime")?.as_deref(), Some(&1));
+        Ok(())
+    }
 
     #[test]
     fn cached_source_does_not_replay_register_defaults() -> Result<()> {

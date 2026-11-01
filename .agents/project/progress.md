@@ -1,10 +1,12 @@
 # 当前交付与验证
 
 > 受众：AI Agent
-> 更新：2026-10-31
+> 更新：2026-11-02
 > 摘要：R0 已固定上游；R1-S、R2-A/A2/A3、R2-B/C/D/M/N、R1-E 与 R3-A/B/C/D 均已按子簇完成适用门禁；R3-D 真实 HTTP、生成应用和安全复审证据见 `memory/testing.md`。完整 Laravel/laravel-modules 行为矩阵继续推进。
 
 ## 当前功能簇
+
+配置可编辑默认值与有序依赖已完成限定验收：同一ConfigContext/Repository的get/require、求值前根键覆盖、模块候选/CAS、根/生成默认字段及Job配置接线；生产源码、唯一模块、consumer、fresh/缓存/MySQL/TCP证据见[配置验收](memory/testing.md#配置可编辑默认值与有序依赖限定验收)。下一停点为bootstrap/app测试组织与固定/api宿主归属，模块持久启停/发现、DB能力门控及完整ADR-001继续开放。
 
 本批 Env/Request-MIME、TrustedHosts、应用/代码配置/Provider、异常、Web/CSRF与部分Query已完成限定组合验收，本地集成提交 `9035a00`。真实来源保全、双workspace门禁、生成、MySQL、TCP/TLS及开放差异见[本批证据](memory/testing.md#当前-main-组合限定验收)。下一步按唯一todo优先配置默认值/单一来源等整改，不将本批通过等同完整1:1。
 

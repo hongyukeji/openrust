@@ -215,25 +215,24 @@ fn public_console_loader_selects_file_without_changing_plain_application_loader(
     std::fs::write(fixture.0.join(".env"), "CONSUMER_NAME=plain\n")?;
     std::fs::write(fixture.0.join(".env.local"), "CONSUMER_NAME=local\n")?;
     let plain = ConfigLoader::application_sources(&fixture.0, "CONSUMER_")?;
-    let console = ConfigLoader::console_application_sources(
-        &fixture.0,
-        "CONSUMER_",
-        Some("local"),
-    )?;
-    assert_eq!(plain.figment().extract_inner::<String>("app.name")?, "plain");
-    assert_eq!(console.figment().extract_inner::<String>("app.name")?, "local");
+    let console =
+        ConfigLoader::console_application_sources(&fixture.0, "CONSUMER_", Some("local"))?;
+    assert_eq!(
+        plain.figment().extract_inner::<String>("app.name")?,
+        "plain"
+    );
+    assert_eq!(
+        console.figment().extract_inner::<String>("app.name")?,
+        "local"
+    );
     std::fs::write(fixture.0.join(".env.local"), "CONSUMER_SUFFIX=from-code\n")?;
     let manifest = ConfigManifest::new()
         .section("app", |ctx| {
             Ok(json!({"name": ctx.env_or("CONSUMER_SUFFIX", "missing")}))
         })
         .typed("reader.factory", |_| Ok(17_u32));
-    let coded = ConfigLoader::application_code_sources(
-        &fixture.0,
-        "CONSUMER_",
-        Some("local"),
-        &manifest,
-    )?;
+    let coded =
+        ConfigLoader::application_code_sources(&fixture.0, "CONSUMER_", Some("local"), &manifest)?;
     let coded = ConfigRepository::new(coded);
     assert_eq!(coded.string("app.name")?, "from-code");
     assert_eq!(coded.typed::<u32>("reader.factory")?.as_deref(), Some(&17));
@@ -251,9 +250,9 @@ fn file_discovery_reaches_external_provider_and_app() -> Result<(), Box<dyn std:
         impl Application for ReadingApplication {
             type Config = NoConfig;
 
-        fn default_providers() -> openrust::core::DefaultProviders {
-            openrust::core::DefaultProviders::empty()
-        }
+            fn default_providers() -> openrust::core::DefaultProviders {
+                openrust::core::DefaultProviders::empty()
+            }
 
             fn providers(_: &Self::Config) -> Vec<Box<dyn ServiceProvider>> {
                 vec![Box::new(
@@ -309,8 +308,10 @@ fn ordered_source_overrides_keep_original_environment_for_module_config()
 -> Result<(), Box<dyn std::error::Error>> {
     struct ModuleConfig;
     impl ServiceProvider for ModuleConfig {
-        fn boot<'a>(&'a self, app: &'a mut openrust::core::BootContext<'_>)
-        -> openrust::BoxFuture<'a, openrust::Result<()>> {
+        fn boot<'a>(
+            &'a self,
+            app: &'a mut openrust::core::BootContext<'_>,
+        ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
             Box::pin(async move {
                 app.code_config(&ConfigManifest::new().section("module", |context| {
                     Ok(json!({"token": context.env_or("CONSUMER_TOKEN", "missing")}))
@@ -320,8 +321,11 @@ fn ordered_source_overrides_keep_original_environment_for_module_config()
         }
     }
     let root = std::path::Path::new("/tmp").join(format!(
-        "openrust-config-overlay-{}-{}", std::process::id(),
-        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_nanos(),
+        "openrust-config-overlay-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_nanos(),
     ));
     std::fs::create_dir(&root)?;
     let result = (|| -> Result<(), Box<dyn std::error::Error>> {
@@ -330,24 +334,113 @@ fn ordered_source_overrides_keep_original_environment_for_module_config()
             .section("reader", |_| Ok(json!({"name": "base", "keep": true})))
             .typed("consumer.factory", |_| Ok(17_u32));
         let base = ConfigLoader::application_code_sources(&root, "APP_", None, &manifest)?;
-        let merged = base.clone().merge_ordered_entries([
-            ("reader", json!({"name": "override", "z": 1, "a": 2})),
-        ])?;
-        assert!(base.merge_ordered_entries([("consumer", json!({"factory": 2}))]).is_err());
+        let merged = base
+            .clone()
+            .merge_ordered_entries([("reader", json!({"name": "override", "z": 1, "a": 2}))])?;
+        assert!(
+            base.merge_ordered_entries([("consumer", json!({"factory": 2}))])
+                .is_err()
+        );
         std::fs::write(root.join(".env"), "CONSUMER_TOKEN=changed-after-load\n")?;
-        openrust::tokio::runtime::Builder::new_current_thread().enable_all().build()?.block_on(async {
-            let mut builder = openrust::core::ProviderBuilder::new();
-            builder.provider(ModuleConfig);
-            let app = openrust::App::from_provider_runtime(builder.start(merged).await?)?;
-            let repository = app.config_repository();
-            assert_eq!(repository.string("reader.name")?, "override");
-            assert!(repository.boolean("reader.keep")?);
-            assert_eq!(repository.string("module.token")?, "captured-once");
-            assert_eq!(repository.typed::<u32>("consumer.factory")?.as_deref(), Some(&17));
-            app.shutdown(openrust::tokio::time::Instant::now() + std::time::Duration::from_secs(1)).await?;
-            Ok::<_, Box<dyn std::error::Error>>(())
-        })
+        openrust::tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()?
+            .block_on(async {
+                let mut builder = openrust::core::ProviderBuilder::new();
+                builder.provider(ModuleConfig);
+                let app = openrust::App::from_provider_runtime(builder.start(merged).await?)?;
+                let repository = app.config_repository();
+                assert_eq!(repository.string("reader.name")?, "override");
+                assert!(repository.boolean("reader.keep")?);
+                assert_eq!(repository.string("module.token")?, "captured-once");
+                assert_eq!(
+                    repository.typed::<u32>("consumer.factory")?.as_deref(),
+                    Some(&17)
+                );
+                app.shutdown(
+                    openrust::tokio::time::Instant::now() + std::time::Duration::from_secs(1),
+                )
+                .await?;
+                Ok::<_, Box<dyn std::error::Error>>(())
+            })
     })();
     std::fs::remove_dir_all(&root)?;
     result
+}
+
+// 防止跨领域默认读取到覆盖前的值，或晚快照覆盖偷偷重算已执行的函数。
+#[test]
+fn ordered_dependencies_read_pre_overrides_once_and_late_merge_stays_snapshot()
+-> Result<(), Box<dyn std::error::Error>> {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+    struct FixtureDir(std::path::PathBuf);
+    impl Drop for FixtureDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+    let root = std::env::temp_dir().join(format!(
+        "openrust-dependency-consumer-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_nanos(),
+    ));
+    std::fs::create_dir(&root)?;
+    let fixture = FixtureDir(root);
+    let calls = Arc::new(AtomicUsize::new(0));
+    let server_calls = Arc::clone(&calls);
+    let app_calls = Arc::clone(&calls);
+    let auth_calls = Arc::clone(&calls);
+    let manifest = ConfigManifest::new()
+        .section("server", move |_| {
+            server_calls.fetch_add(1, Ordering::SeqCst);
+            Ok(json!({"port": 9090}))
+        })
+        .section("app", move |context| {
+            app_calls.fetch_add(1, Ordering::SeqCst);
+            Ok(json!({
+                "name": "code-default",
+                "url": format!("http://localhost:{}", context.require::<u16>("server.port")?),
+            }))
+        })
+        .section("auth", move |context| {
+            auth_calls.fetch_add(1, Ordering::SeqCst);
+            Ok(json!({"jwt": {
+                "audience": context.require::<String>("app.name")?,
+                "issuer": context.require::<String>("app.url")?,
+            }}))
+        });
+    let sources = ConfigLoader::application_code_sources_with_overrides(
+        &fixture.0,
+        "DEPENDENCY_CONSUMER_",
+        None,
+        &manifest,
+        [
+            ("server", json!({"port": 8123})),
+            ("app", json!({"name": "single-source"})),
+            (
+                "auth",
+                json!({"jwt": {"issuer": "https://independent.test"}}),
+            ),
+        ],
+    )?;
+    let repository = ConfigRepository::new(sources.clone());
+    assert_eq!(repository.string("app.name")?, "single-source");
+    assert_eq!(repository.string("app.url")?, "http://localhost:8123");
+    assert_eq!(repository.string("auth.jwt.audience")?, "single-source");
+    assert_eq!(
+        repository.string("auth.jwt.issuer")?,
+        "https://independent.test"
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 3);
+    let late = sources.merge_ordered_entries([("app", json!({"name": "late-explicit"}))])?;
+    let late = ConfigRepository::new(late);
+    assert_eq!(late.string("app.name")?, "late-explicit");
+    assert_eq!(late.string("auth.jwt.audience")?, "single-source");
+    assert_eq!(calls.load(Ordering::SeqCst), 3);
+    Ok(())
 }

@@ -713,8 +713,20 @@ fn populate_project_with_mfa(
             include_str!("../templates/config/i18n.rs").to_owned(),
         ),
         (
+            "config/log.rs",
+            include_str!("../templates/config/log.rs").to_owned(),
+        ),
+        (
             "config/mail.rs",
             include_str!("../templates/config/mail.rs").to_owned(),
+        ),
+        (
+            "config/queue.rs",
+            include_str!("../templates/config/queue.rs").to_owned(),
+        ),
+        (
+            "config/realtime.rs",
+            include_str!("../templates/config/realtime.rs").to_owned(),
         ),
         (
             "config/security.rs",
@@ -731,6 +743,10 @@ fn populate_project_with_mfa(
         (
             "config/sms.rs",
             include_str!("../templates/config/sms.rs").to_owned(),
+        ),
+        (
+            "config/storage.rs",
+            include_str!("../templates/config/storage.rs").to_owned(),
         ),
         (
             "config/view.rs",
@@ -880,7 +896,7 @@ fn code_config_manifest(grpc: bool) -> String {
         .replace(
             "{{grpc_registration}}",
             if grpc {
-                "        .section(\"grpc\", grpc::config)\n"
+                "    let manifest = manifest.section(\"grpc\", grpc::config);\n"
             } else {
                 ""
             },
@@ -1660,6 +1676,7 @@ fn generate_job(values: &[String], project_dir: &Path) -> anyhow::Result<()> {
     } else {
         String::new()
     };
+    let (updated_config_manifest, queue_config_missing) = prepare_queue_configuration(project_dir)?;
     let updated_migration = register_queue_migration(&migration_registry)?;
     let updated_app_manifest = enable_feature_source(&app_manifest, "queue", &app_manifest_path)?;
     let updated_migration_manifest =
@@ -1704,6 +1721,7 @@ fn generate_job(values: &[String], project_dir: &Path) -> anyhow::Result<()> {
             modules.trim_end(),
         )
     };
+    write_queue_configuration(project_dir, &updated_config_manifest, queue_config_missing)?;
     fs::write(&job_file, render_job(&type_name, &module))?;
     fs::write(&module_file, updated_modules)?;
     fs::write(&main_file, updated_main)?;
@@ -1716,6 +1734,79 @@ fn generate_job(values: &[String], project_dir: &Path) -> anyhow::Result<()> {
     fs::write(&migration_lib_path, updated_migration)?;
     print_generated(&format!("Generated job `{module}`."))?;
     Ok(())
+}
+
+// 在任何写入前准备配置清单；用户已有 queue.rs 保留，冲突清单明确拒绝。
+fn prepare_queue_configuration(project_dir: &Path) -> anyhow::Result<(String, bool)> {
+    let config_manifest = fs::read_to_string(project_dir.join("config/mod.rs"))
+        .context("job generation requires the application code configuration manifest")?;
+    let updated_manifest = register_queue_config(&config_manifest)?;
+    let queue_config_missing = match fs::symlink_metadata(project_dir.join("config/queue.rs")) {
+        Ok(metadata) if metadata.is_file() => false,
+        Ok(_) => bail!("queue configuration path is not a file"),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => true,
+        Err(error) => return Err(error.into()),
+    };
+    Ok((updated_manifest, queue_config_missing))
+}
+
+// 与生成器其他产物一起在所有预检完成后写入；已有可编辑 queue.rs 不覆盖。
+fn write_queue_configuration(
+    project_dir: &Path,
+    manifest: &str,
+    create_queue: bool,
+) -> anyhow::Result<()> {
+    if create_queue {
+        fs::write(
+            project_dir.join("config/queue.rs"),
+            include_str!("../templates/config/queue.rs"),
+        )?;
+    }
+    fs::write(project_dir.join("config/mod.rs"), manifest)?;
+    Ok(())
+}
+
+// 只接受生成清单的唯一公开插入点，不猜测任意 Rust 源码或覆写用户配置。
+fn register_queue_config(source: &str) -> anyhow::Result<String> {
+    let declaration = "pub mod queue;";
+    let registration = ".section(\"queue\", queue::config)";
+    let declarations = source
+        .lines()
+        .filter(|line| line.trim() == declaration)
+        .count();
+    let registrations = source.matches(registration).count();
+    if declarations > 1 || registrations > 1 {
+        bail!("queue configuration has ambiguous declarations or registrations");
+    }
+    let compact: String = source
+        .chars()
+        .filter(|character| !character.is_whitespace())
+        .collect();
+    if compact.matches(".section(\"queue\",").count() != registrations
+        || compact.matches("modqueue;").count() != declarations
+    {
+        bail!(
+            "queue configuration uses a custom declaration or registration; register it explicitly"
+        );
+    }
+    let mut updated = source.to_owned();
+    if declarations == 0 {
+        let anchor = "pub mod mail;";
+        if source.lines().filter(|line| line.trim() == anchor).count() != 1
+            || source.matches(anchor).count() != 1
+        {
+            bail!("configuration manifest has a missing or ambiguous module insertion point");
+        }
+        updated = updated.replace(anchor, &format!("{anchor}\n{declaration}"));
+    }
+    if registrations == 0 {
+        let anchor = ".section(\"storage\", storage::config)";
+        if source.matches(anchor).count() != 1 {
+            bail!("configuration manifest has a missing or ambiguous section insertion point");
+        }
+        updated = updated.replace(anchor, &format!("{anchor}\n        {registration}"));
+    }
+    Ok(updated)
 }
 
 fn render_job(type_name: &str, module: &str) -> String {
@@ -2709,7 +2800,10 @@ mod tests {
         assert!(proto.contains("package grpc_demo.v1;"));
         let config = fs::read_to_string(project.join("config/grpc.rs"))
             .expect("read generated gRPC configuration");
-        assert!(config.contains("GrpcConfig::default()"));
+        assert!(config.contains("max_concurrent_rpcs: 1024"));
+        assert!(config.contains("allow_insecure_server: false"));
+        assert!(config.contains("GrpcServerTlsConfig {"));
+        assert!(config.contains("GrpcClientTlsConfig {"));
         let env = fs::read_to_string(project.join(".env.example"))
             .expect("read generated environment configuration");
         assert!(env.contains("# APP_GRPC_ALLOW_INSECURE_SERVER=true"));
@@ -3192,14 +3286,7 @@ mod tests {
         assert!(!project.join("config/development.toml").exists());
     }
 
-    #[test]
-    fn project_template_has_expected_layout() {
-        let root = std::env::temp_dir().join(format!("openrust-cli-{}", std::process::id()));
-        let project = root.join("blog");
-        let _ = fs::remove_dir_all(&root);
-        fs::create_dir_all(&root).expect("create temporary test directory");
-        populate_project(&project, "blog", "Blog", None, false, false, false, false)
-            .expect("generate project");
+    fn assert_generated_application_files(project: &Path) {
         for path in [
             "Cargo.toml",
             ".gitignore",
@@ -3220,6 +3307,17 @@ mod tests {
             "config/server.rs",
             "config/session.rs",
             "config/i18n.rs",
+            "config/api.rs",
+            "config/auth.rs",
+            "config/database.rs",
+            "config/log.rs",
+            "config/mail.rs",
+            "config/queue.rs",
+            "config/realtime.rs",
+            "config/security.rs",
+            "config/sms.rs",
+            "config/storage.rs",
+            "config/view.rs",
             "tests/test_app.rs",
             "tests/support/request_input.rs",
             "tests/support/message_bags.rs",
@@ -3230,7 +3328,42 @@ mod tests {
         ] {
             assert!(project.join(path).is_file(), "missing generated {path}");
         }
+    }
+
+    fn assert_generated_configuration(project: &Path) {
+        let config_manifest =
+            fs::read_to_string(project.join("config/mod.rs")).expect("read configuration manifest");
+        let server = config_manifest
+            .find(".section(\"server\"")
+            .expect("server declaration");
+        let app = config_manifest
+            .find(".section(\"app\"")
+            .expect("app declaration");
+        let auth = config_manifest
+            .find(".section(\"auth\"")
+            .expect("auth declaration");
+        let security = config_manifest
+            .find(".section(\"security\"")
+            .expect("security declaration");
+        assert!(server < app && app < auth && app < security);
+        assert!(!config_manifest.contains("pub mod queue;"));
+        assert!(!config_manifest.contains("pub mod realtime;"));
+        assert!(config_manifest.contains("if view::ENABLED"));
+        let view = fs::read_to_string(project.join("config/view.rs")).expect("read view defaults");
+        assert!(view.contains("ENABLED: bool = true"));
+    }
+
+    #[test]
+    fn project_template_has_expected_layout() {
+        let root = std::env::temp_dir().join(format!("openrust-cli-{}", std::process::id()));
+        let project = root.join("blog");
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("create temporary test directory");
+        populate_project(&project, "blog", "Blog", None, false, false, false, false)
+            .expect("generate project");
+        assert_generated_application_files(&project);
         assert_module_layout(&project);
+        assert_generated_configuration(&project);
         let routes = fs::read_to_string(project.join("routes/web.rs")).expect("read routes");
         assert!(routes.contains("crate::app::http::controllers::home::index"));
         let application = fs::read_to_string(project.join("bootstrap/app.rs"))
@@ -3371,7 +3504,7 @@ mod tests {
             assert!(
                 fs::read_to_string(project.join("config/database.rs"))
                     .expect("read database domain config")
-                    .contains("DatabaseConfig::default()")
+                    .contains("DatabaseConfig {")
             );
             assert!(
                 fs::read_to_string(project.join("database/migrations/src/lib.rs"))
@@ -3824,6 +3957,11 @@ mod tests {
         )
         .expect("generate database project");
         assert!(Cli::try_parse_from(["openrust", "generate", "job", "welcome_email"]).is_ok());
+        let queue_path = project.join("config/queue.rs");
+        let queue_source = fs::read_to_string(&queue_path)
+            .expect("read queue defaults")
+            .replace("worker_concurrency: 1", "worker_concurrency: 3");
+        fs::write(&queue_path, &queue_source).expect("customize queue defaults");
         generate_job(&["welcome_email".to_owned()], &project).expect("generate job");
         let source = fs::read_to_string(project.join("app/jobs/welcome_email.rs"))
             .expect("read generated job");
@@ -3856,6 +3994,19 @@ mod tests {
             .expect("read migration manifest");
         assert!(migration_manifest.contains("\"queue\""));
         generate_job(&["audit".to_owned()], &project).expect("generate second job");
+        assert_eq!(
+            fs::read_to_string(&queue_path).expect("read queue after jobs"),
+            queue_source
+        );
+        let config_manifest = fs::read_to_string(project.join("config/mod.rs"))
+            .expect("read queue configuration registration");
+        assert_eq!(config_manifest.matches("pub mod queue;").count(), 1);
+        assert_eq!(
+            config_manifest
+                .matches(".section(\"queue\", queue::config)")
+                .count(),
+            1
+        );
         let modules =
             fs::read_to_string(project.join("app/jobs/mod.rs")).expect("read jobs module");
         assert_eq!(modules.matches("pub struct JobsServiceProvider").count(), 1);
@@ -3876,6 +4027,88 @@ mod tests {
                 .count(),
             before
         );
+        fs::remove_file(&queue_path).expect("remove temporary queue config to simulate older app");
+        generate_job(&["retry".to_owned()], &project).expect("restore missing queue config");
+        assert_eq!(
+            fs::read_to_string(&queue_path).expect("read restored queue defaults"),
+            include_str!("../templates/config/queue.rs"),
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn queue_config_registration_is_idempotent_and_rejects_custom_or_ambiguous_sources() {
+        let original = code_config_manifest(false);
+        let registered = register_queue_config(&original).expect("register queue");
+        assert_eq!(
+            register_queue_config(&registered).expect("keep queue"),
+            registered
+        );
+        for source in [
+            format!("{registered}\npub mod queue;\n"),
+            original.replace("pub mod mail;", "mod queue;\npub mod mail;"),
+            original.replace(
+                ".section(\"storage\", storage::config)",
+                ".section(\"queue\", custom_queue)\n        .section(\"storage\", storage::config)",
+            ),
+            original.replace("pub mod mail;", "pub mod mailer;"),
+            original.replace(".section(\"storage\", storage::config)", ""),
+        ] {
+            assert!(register_queue_config(&source).is_err());
+        }
+    }
+
+    #[test]
+    fn job_generator_rejects_config_conflict_before_any_mutation() {
+        let root = std::env::temp_dir().join(format!(
+            "openrust-cli-queue-config-conflict-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("create temporary test directory");
+        let project = root.join("blog");
+        populate_project(
+            &project,
+            "blog",
+            "Blog",
+            Some(DatabaseBackend::Mysql),
+            false,
+            false,
+            false,
+            false,
+        )
+        .expect("generate database project");
+        let config_path = project.join("config/mod.rs");
+        let config = fs::read_to_string(&config_path)
+            .expect("read manifest")
+            .replace(
+                ".section(\"storage\", storage::config)",
+                ".section(\"queue\", custom_queue)",
+            );
+        fs::write(&config_path, config).expect("customize manifest");
+        let paths = [
+            "Cargo.toml",
+            "config/mod.rs",
+            "config/queue.rs",
+            "app/jobs/mod.rs",
+            "bootstrap/providers.rs",
+            "src/main.rs",
+            "database/migrations/Cargo.toml",
+            "database/migrations/src/lib.rs",
+        ];
+        let before: Vec<_> = paths
+            .iter()
+            .map(|path| fs::read(project.join(path)).expect("read before"))
+            .collect();
+        assert!(generate_job(&["delivery".to_owned()], &project).is_err());
+        assert!(!project.join("app/jobs/delivery.rs").exists());
+        for (path, expected) in paths.iter().zip(before) {
+            assert_eq!(
+                fs::read(project.join(path)).expect("read after"),
+                expected,
+                "mutated {path}"
+            );
+        }
         let _ = fs::remove_dir_all(root);
     }
 

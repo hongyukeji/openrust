@@ -6,6 +6,38 @@
 
 `.typed("example.runtime_policy", factory)` 可保存不可序列化 Rust 类型或工厂闭包，由 `ConfigRepository::typed::<T>(key)` 返回共享 `Arc<T>`；调用与资源关闭仍由 Provider/Container 负责。raw `all()` 只返回可序列化视图，不能代表 typed 值；同名及会互相遮蔽的父子路径写入被拒绝。模块 Provider 可在 boot 时调用 `BootContext::code_config(&manifest)`，沿用应用同一次环境快照并原子发布配置；缓存命中时跳过模块代码求值，含 typed 清单则明确拒绝缓存加载和创建。可序列化配置继续由现有 `config:cache` 写入最终值快照；失败不写半成品。
 
+### 顺序依赖与求值前覆盖
+
+`ConfigContext::get::<T>(key)` 返回 `Result<Option<T>>`；`require::<T>(key)` 要求路径存在。它们只读取同一次求值中已经完成的区段及捕获的最终覆盖层，不执行后面的函数。清单应先声明被依赖的区段：应用清单先 `server`，再 `app`，最后 `auth`、`security`。修改所属应用的端口默认值即可改变未显式配置的 `app.url`；JWT 与签名链接缺省身份再读取该应用值，独立覆写继续优先。这些身份继承是应用增强，不是 Laravel 核心的 JWT 配置。
+
+自读当前区段、读取尚未完成的相交声明、跨线程读取或在函数返回后使用捕获的 context 均明确失败；不从框架回退值掩盖依赖错误。双向依赖在首个前向读取处被拒绝，不自动分析或执行未来回调。错误只保留可信声明/已知路径与类别，不回显部署值或任意输入键；`env` 快照本身仍可克隆使用。
+
+缺失与显式 null 不相同：`get::<serde_json::Value>` 对存在的 null 返回 `Some(Value::Null)`，`get::<Option<String>>` 返回 `Some(None)`，`require::<Option<String>>` 返回 `None`；按 `String` 读取 null 返回类型错误。typed/工厂路径不能通过这两个原始读取接口序列化读取。
+
+```rust
+use openrust::config::{ConfigLoader, ConfigManifest};
+use serde_json::json;
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+let manifest = ConfigManifest::new()
+    .section("server", |_| Ok(json!({"port": 3000})))
+    .section("app", |ctx| Ok(json!({
+        "url": format!("http://localhost:{}", ctx.require::<u16>("server.port")?),
+    })));
+let sources = ConfigLoader::application_code_sources_with_overrides(
+    std::env::current_dir()?, "DOC_", None, &manifest,
+    [("server", json!({"port": 8123}))],
+)?;
+assert_eq!(sources.figment().extract_inner::<String>("app.url")?, "http://localhost:8123");
+# Ok(())
+# }
+```
+
+求值前覆盖是最终高于环境的显式全局原始层；文件、环境和该层只解析/捕获一次，依赖候选与最后发布复用相同合并规则。已有 `merge_ordered_entries` 和运行期 `ConfigRepository::set` 仍为求值后的快照变更，不自动重算已执行函数、重建客户端或更改既有 token/签名。非空前置覆盖遇配置缓存明确拒绝，须先清缓存；空覆盖与原 loader 等价。
+
+模块代码从本次 boot 仓储快照读取并按现有递归覆盖候选求值，校验及 revision/CAS 成功后一次发布；它不预读后续模块。应用文件的浅合并与模块 boot 覆盖是两个既有来源边界，不能互换。显式 Rust 清单替代 PHP 文件执行属于必要编译适配；有序依赖读取不构成第二仓储或独立 DI。
+
+根与生成项目的配置文件显式列出已实现的可编辑默认策略及可选分支；字段可编辑不代表对应 driver 已编译、Provider 已激活或外部连接已可用。根 `config/view.rs` 的 `ENABLED=false` 只控制是否默认声明该代码区段；显式来源含 view 仍可启用原 OptionalView Provider，生成应用默认声明 view。queue/realtime 等模板保留实际编译门控；生成 Job 后同步接入已启用的 queue 配置，不把普通 new 改成默认启用所有能力。
+
 可选 `[server.trusted_hosts]` 配置 Laravel 主机信任列表：缺省不启用；启用后 `at` 缺省由 `app.url` 主机生成 PCRE 模式，`subdomains` 默认 `true`。`at = []` 加 `subdomains = false` 表示空模式列表，不限制主机。应用或模块 Provider 可经 `BootContext::trust_hosts` / `trust_hosts_with` 覆盖静态配置。模式与物理/代理 Host 的校验顺序见 [HTTP 说明](../http/README.md#可信主机)。
 
 ## 应用环境身份
@@ -18,7 +50,7 @@
 
 现有邮件、短信的 `log` driver 和示例模块的 OIDC loopback/本地捕获限制继续使用独立的 `enforces_production_safety()` 策略；它对 `prod`、大小写变体和首尾空白仍执行旧生产保护。该安全策略不改变上述 Laravel 精确环境查询结果。
 
-应用二进制的控制台入口接受 `--env local` 或 `--env=local`，并尝试读取实际存在的 `.env.local`。找不到时再按外部 `APP_ENV`（自定义命名空间对应 `<PREFIX>ENV`）尝试专属文件，最后读取普通 `.env`；不会先从普通 `.env` 取环境名再反推专属文件。外部变量始终优先，最终应用身份仍以配置的 `app.env` 为准，控制台参数本身不强制改写身份。配置缓存命中时完全跳过 dotenv 文件；`config:cache` 的 fresh 引导沿用本次控制台文件选择。普通 `lifecycle::bootstrap` 不读取进程参数；嵌入式控制台可用 `lifecycle::bootstrap_for_console` 或 `run_with_args` 显式传参。
+应用二进制的控制台入口接受 `--env local` 或 `--env=local`，并尝试读取实际存在的 `.env.local`。找不到时再按外部 `APP_ENV`（自定义命名空间对应 `<PREFIX>ENV`）尝试专属文件，最后读取普通 `.env`；不会先从普通 `.env` 取环境名再反推专属文件。外部变量始终优先，最终应用身份仍以配置的 `app.env` 为准，控制台参数本身不强制改写身份。缓存路径由外部环境早命中时跳过 dotenv；由所选 dotenv 提供路径的晚命中已读取该文件；两种命中均不再执行配置函数。`config:cache` 的 fresh 引导沿用本次控制台文件选择。普通 `lifecycle::bootstrap` 不读取进程参数；嵌入式控制台可用 `lifecycle::bootstrap_for_console` 或 `run_with_args` 显式传参。
 
 ## 配置缓存
 

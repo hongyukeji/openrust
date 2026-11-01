@@ -1,27 +1,63 @@
-//! Redis 缓存默认值与公开 store 配置。
+//! Redis 缓存与同进程加载限制的应用默认值。
 
-use openrust::config::{CacheConfig, CacheStoreConfig, ConfigContext, ConfigError};
+use openrust::config::{
+    CacheConfig, CacheSingleflightConfig, CacheStoreConfig, CacheSwrConfig, ConfigContext,
+    ConfigError,
+};
+use std::collections::BTreeMap;
 
-/// 使用统一 Redis URL 与 Laravel 风格 `CACHE_STORE` 选择。
+/// 仅展示可选本机 store，默认不加入 store 表，不改变 redis 选择及初始化行为。
+const LOCAL_STORES_ENABLED: bool = false;
+
+/// 使用统一 Redis URL；store 的 driver 还须实际编译并登记。
 #[allow(
     clippy::unnecessary_wraps,
     reason = "保持 ConfigManifest 配置函数统一的可失败契约"
 )]
 pub fn config(ctx: &ConfigContext) -> Result<CacheConfig, ConfigError> {
-    let mut cache = CacheConfig {
-        default: ctx.env_or("CACHE_STORE", "redis"),
-        ..CacheConfig::default()
-    };
-    cache.stores.insert(
+    let mut stores = BTreeMap::from([(
         "redis".to_owned(),
         CacheStoreConfig {
             driver: "redis".to_owned(),
             namespace: "server".to_owned(),
-            options: std::collections::BTreeMap::from([(
+            // driver 专属选项；memory 可用空表，file 使用 path，非所有 driver 都读取 dsn。
+            options: BTreeMap::from([(
                 "dsn".to_owned(),
                 serde_json::Value::String(ctx.env_or("REDIS_URL", "redis://127.0.0.1:6379/")),
             )]),
         },
-    );
-    Ok(cache)
+    )]);
+    if LOCAL_STORES_ENABLED {
+        stores.insert(
+            "memory".to_owned(),
+            CacheStoreConfig {
+                driver: "memory".to_owned(),
+                namespace: "local".to_owned(),
+                options: BTreeMap::new(),
+            },
+        );
+        stores.insert(
+            "file".to_owned(),
+            CacheStoreConfig {
+                driver: "file".to_owned(),
+                namespace: "local".to_owned(),
+                options: BTreeMap::from([(
+                    "path".to_owned(),
+                    serde_json::json!("storage/framework/cache"),
+                )]),
+            },
+        );
+    }
+    Ok(CacheConfig {
+        default: ctx.env_or("CACHE_STORE", "redis"),
+        stores,
+        singleflight: CacheSingleflightConfig {
+            max_in_flight_keys: 128,
+            max_waiters_per_key: 64,
+            loader_timeout_secs: 30,
+        },
+        swr: CacheSwrConfig {
+            max_in_flight_refreshes: 64,
+        },
+    })
 }

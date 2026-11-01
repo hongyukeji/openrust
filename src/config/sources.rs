@@ -12,7 +12,7 @@ use figment::{
 use serde_json::{Map as JsonMap, Value};
 
 use super::ConfigError;
-use super::code::{ConfigContext, TypedValue};
+use super::code::{ConfigContext, ReadView, TypedValue};
 use super::repository::{
     merge_shallow, normalize_php_source, php_value, read_dot_value, reorder_like, replace_section,
     replace_section_overlay, set_dot_value,
@@ -269,6 +269,16 @@ impl ConfigSources {
         self.merge_file(name, value, Metadata::named("Rust configuration"))
     }
 
+    pub(crate) fn read_view(&self) -> Result<ReadView, ConfigError> {
+        Ok(ReadView {
+            raw: self
+                .ordered
+                .clone()
+                .ok_or_else(|| ConfigError::Invalid("代码配置缺少原始视图".to_owned()))?,
+            typed: self.typed.keys().cloned().collect(),
+        })
+    }
+
     pub(crate) fn set_code_context(&mut self, context: ConfigContext) {
         self.code_context = Some(context);
     }
@@ -310,6 +320,10 @@ pub(crate) fn paths_overlap(left: &str, right: &str) -> bool {
 }
 
 pub(crate) fn raw_path_conflicts(raw: &Value, typed_key: &str) -> bool {
+    // 空来源根按 PHP 数组投影成 []，尚未占用任何命名路径；嵌套数组仍会遮蔽子路径。
+    if raw.as_array().is_some_and(Vec::is_empty) {
+        return false;
+    }
     let mut current = raw;
     for part in typed_key.split('.') {
         let Some(next) = current.as_object().and_then(|map| map.get(part)) else {
@@ -547,6 +561,40 @@ mod tests {
     use super::{ConfigSources, EnvironmentSnapshot, natural_name_cmp};
     use crate::config::repository::ConfigRepository;
     use crate::core::Result;
+
+    #[test]
+    fn empty_raw_root_allows_typed_paths_without_relaxing_array_or_scalar_conflicts() -> Result<()>
+    {
+        let mut sources = ConfigSources::from_ordered_entries(Vec::<(String, Value)>::new())?;
+        assert_eq!(sources.read_view()?.raw, json!([]));
+        sources.insert_typed("runtime.policy", std::sync::Arc::new(17_u8))?;
+        sources.validate_typed_paths()?;
+        let repository = ConfigRepository::new(sources);
+        assert_eq!(repository.all()?, json!([]));
+        assert_eq!(
+            repository.typed::<u8>("runtime.policy")?.as_deref(),
+            Some(&17)
+        );
+
+        for raw in [json!([]), json!({}), json!({"unrelated":[]})] {
+            assert!(!super::raw_path_conflicts(&raw, "runtime.policy"));
+        }
+        for raw in [
+            json!([1]),
+            json!([{}]),
+            json!(null),
+            json!(false),
+            json!(0),
+            json!("value"),
+            json!({"runtime":[]}),
+            json!({"runtime":[1]}),
+            json!({"runtime":null}),
+            json!({"runtime":{"policy":[]}}),
+        ] {
+            assert!(super::raw_path_conflicts(&raw, "runtime.policy"));
+        }
+        Ok(())
+    }
 
     #[test]
     fn ordered_overrides_preserve_code_context_profile_metadata_and_typed_boundaries() -> Result<()>

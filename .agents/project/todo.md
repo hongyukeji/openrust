@@ -32,16 +32,34 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 - 九份真实来源、六份 WIP、11 个 source refs、完整历史 bundle 全部保全；所有非 main worktree 与两个缺失 guard 登记已正常移除，八个来源 workspace 已正式归档，当前仅 main。证据 `tmp/controller-handoff-20261102/`，不重复 merge 或删除。六个任务分支活动别名已退役：两条按祖先正常删除，其余在核实同对象保护引用、完整bundle、无worktree后以带旧值的compare-and-swap移除别名；所有原提交与WIP仍可达，回执 `tmp/takeover-20261102/archived-task-branch-retirement.json`。危险 `cd487bb` 只归档保全，绝不合入。
 - 源码/调用方/模板/唯一模块本批冻结，shared docs/index/Cargo/service 均由新总控独占。旧失败不回填通过，真实 MySQL 与 TCP/TLS 已闭合限定范围；完整 Query/ORM、Provider包发现、配置默认依赖、模块管理、全后端与集群等仍开放，不因本批通过关闭。最终记录 `tmp/takeover-20261102/`。
 - skill 本批仅接纳旧142/61测试及不同模型最终独审九SHA完全匹配的版本，精确快照与索引整合证据在同目录。后续 ended-grant/Codex 原生适配由另一个获用户授权的 owner 在同 skill 收口，未部署，完整工作文件保持；本轮最小恢复判定补丁及并发漂移报告已保全 `/tmp/openrust-guard-recovery-consistency.*`。不再并改，不重启旧守护，不把开发中适配当已生效。
-- 默认80%预算政策和旧账号历史、问答/发送账本保持，未rebase/fullgrant或伪复用旧授权；当前对话无正式剩余额度读数。成功验收的自有服务进程与端口已收尾，数据库集合无增删；完成簇根target已正常清零：48,729,780,224B→0，磁盘可用202,384,363,520B；源码/生成fixture/证据保留，下一配置簇按需复用同一路径。
+- 默认80%预算政策和旧账号历史、问答/发送账本保持，未rebase/fullgrant或伪复用旧授权；官方额度最新读取剩余33%，为共享账号窗口快照；不重算基线。成功验收的自有服务进程与端口已收尾，数据库集合无增删；完成簇根target已正常清零：48,729,780,224B→0，磁盘可用202,384,363,520B；源码/生成fixture/证据保留，下一配置簇按需复用同一路径。
 
 ### 当前组合提交后的首批：应用配置可编辑默认值整改
 
 本整改与既有应用/模块布局项共同闭环，执行映射只维护本页：
 
+#### 当前配置簇 Spec（c52ba8f 后继，主控已收敛）
+
+1. 固定来源为 Laravel `LoadConfiguration` 顺序加载、Repository 读取及官方 configuration 章节；JWT/签名 issuer 的默认继承为用户授权增强，不冒充 Laravel 核心默认。沿唯一 ConfigManifest/ConfigSources/Repository，不另建内核。
+2. 保留 manifest 声明顺序，每个 section/typed 函数同步且仅调用一次；全部名称/重复/typed-typed冲突先验，raw/typed动态冲突在候选中拒绝。失败不发布半成品；原有 section 兄弟值与 typed 子路径可并存。
+3. 增加 `ConfigContext::get<T>(key) -> Result<Option<T>, ConfigError>` 与 `require<T>(key) -> Result<T, ConfigError>`，仅读可序列化配置；缺失、显式 null、类型错误区分。读取已完成区段与最终同次来源；自读/未完成相交声明明确失败，不用 Default/高层覆盖掩盖前向或循环错误，不自动执行未来回调。
+4. 同步读取作用域以 Weak 绑定并核执行线程，退出作用域/跨线程返回稳定脱敏错误；环境快照读取仍可克隆。用户函数不在不可重入锁内执行；内部安全错误用不可由应用伪造的私有字段载体保留类别，任意用户错误继续脱敏。
+5. TOML/环境层只捕获解析一次，在独立读取候选中用原合并方法重放；不把 tail 写入累计代码底层。最终发布与依赖视图同一算法，保键序/profile/metadata、浅合并/mergeableOptions/typed冲突。
+6. 新增 `application_code_sources_with_overrides(..., entries)` 求值前全局原始覆盖，最终高于环境；迁移实际示例/生成桥接中需要该语义的调用。晚 `merge_ordered_entries`/Config::set 保持快照，不自动重建资源/重签token。非空前置覆盖遇缓存明确拒绝，不静默忽略。
+7. 保留现有两阶段缓存路径：外部环境早命中不读dotenv，dotenv选路径晚命中已读所选dotenv；两种命中均不执行配置函数。typed/工厂缓存拒绝不变。
+8. 模块求值读取同次 boot 仓储快照，按原递归覆盖构建内部依赖视图，保原 schema/CAS 一次发布；不伪称根配置可读未来模块，也不把应用文件浅合并套给模块。
+9. 根/生成 manifest 声明 server→app→auth/security；APP_NAME/APP_URL只由app读取，缺URL继承最终server.port；JWT/签名默认继承最终app值，独立域覆写保持。运行期字段/工厂不因默认继承自动热重算。
+10. 显式展开已实现的根/模板/唯一模块可编辑字段及Option/feature分支；不预建未实现生态配置或借本簇启新driver。View常量仅控制默认是否声明（根false/new true），显式来源仍可启用，不能称强制关闭。
+11. 所有源码/配套测试/示例/模板/文档收齐后集中验证：依赖顺序/空值/失败原子性/单次副作用/覆盖/模块/CAS/cache，修改单一默认后的传播，独立覆写，fresh普通/MySQL、缓存重启及main完整适用门禁；未验保持WIP。
+12. owner：新总控收敛公共contract、调用方与共享docs/index/Cargo/服务；kernel worker只实现已定内核接口，defaults worker只展开根/模块/模板与生成清单，按文件归属同main并行，禁碰独立native guard WIP。
+
+当前停点：本配置簇适用验收全部通过，限定产物已正常清理，本地提交以Git为准；运行时653输入冻结一致，完整记录`tmp/config-defaults-20261102/`。新总控独占索引，两个实现owner与独审均已停写。普通fresh最终installer11项、MySQL3项、真实缓存/根服务及8类修改默认探针通过；早期fixture注入/探针别名/runner参数失败独立保留。之后按用户顺序领取bootstrap/app与固定API职责，不夹带新driver或模块命令延迟本次提交。
+
+
 | 整类范围 | owner与批次 | 代码/差异落点 | 验证与提交状态 |
 | --- | --- | --- | --- |
-| 所有应用可编辑默认项、嵌套/feature配置、模块实际需要及生成模板 | 新总控协调的单一配置owner，当前组合提交后首批 | 根config、CLI模板、同一ConfigManifest/Repository | 待编码；不得用字段展开冒全部1:1 |
-| APP_NAME/APP_URL等跨领域单一来源、有序依赖与显式独立身份 | 同owner，与配置同批 | 所属配置+必要公开依赖读取contract，consumer/缓存/生成同步 | 待编码；无env/仅代码默认/环境source/独立覆写/空值非法及token链接影响均待验 |
+| 所有应用可编辑默认项、嵌套/feature配置、模块实际需要及生成模板 | 新总控协调的单一配置owner，当前组合提交后首批 | 根config、CLI模板、同一ConfigManifest/Repository | 已编码并限定验收；完整对应仍开放，见本页Spec及testing配置证据 |
+| APP_NAME/APP_URL等跨领域单一来源、有序依赖与显式独立身份 | 同owner，与配置同批 | 所属配置+必要公开依赖读取contract，consumer/缓存/生成同步 | 已编码并限定验收：代码默认传播、SERVER_PORT/APP_URL、独立source覆盖、空值非法与缓存/fresh通过；既有token/链接不自动重签，完整配置仍开放 |
 | bootstrap及同类正式入口测试/fixture职责 | 新配置owner，既有应用布局后继 | 真实测试主体迁tests，不复制宿主/扩大API | 待实施；真实生产装配断言保留后验证 |
 | 固定/api宿主内容及同类业务反向依赖 | layout应用/路由owner，与既有app职责整改合批 | app/controllers处理内容、routes/api.rs声明、AppServiceProvider公开挂载；src仅通用路由机制 | 已核当前src/routes.rs framework_routes/framework_info硬内置；待迁移和真实宿主/生成/consumer验收 |
 | 模块状态路径/发现注册/持久启停/统一Provider | 新配置owner与root contract，既有模块整改 | 现ModuleManifest/FileActivator扩展，不造新内核 | 固定上游核对在途；路径/命令/依赖/资源/迁移缺失行为待实现验收 |
@@ -76,11 +94,11 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 - 公开地址补充覆盖根及模板app/auth/security：app.url、auth.jwt.issuer、security.signed_links.issuer复用同一已解析应用地址默认策略，不复制三份拼接。显式APP_URL及各领域独立issuer覆写保留，issuer不得按每请求Host或动态listener推导；公开地址/issuer变化对既有token和签名链接的验证影响必须明确。
 - 分类核查生产源码、应用配置、模板、文档、测试fixture中的localhost:3000及127.0.0.1:3000；固定测试输入和明确默认断言可保留，不能为rg清零损坏测试。框架AppConfig::default安全回退、程序化使用、缓存命中与未配置路径按职责检查，不盲替换或删除无环境回退。增加同端口/显式URL三域一致、独立issuer覆写、缓存复启及生成应用对应验证。
 - 复用dotenv快照、ConfigManifest及唯一ConfigRepository/Provider；核环境覆盖、代码默认、框架安全回退、typed/factory与cache责任，不复制校验，不降低端口/安全校验，不把显式空值随意当缺失，不隐改所有下游类型Default。逐领域按固定Laravel文档/源码对照，字段展开不是完整1:1验收。
-- 同批同步根/生成模板及必要调用方说明，保留root_target等有意差异；写高价值回归：无env默认、仅SERVER_PORT、直接修改应用server默认、显式APP_URL优先、非法端口/空值、嵌套选项、配置缓存、fresh生成check/test。先代码及测试代码收齐，再集中适用验证，通过才本地提交；目前仅已确认待实现，不报已改/已验证。
+- 同批同步根/生成模板及必要调用方说明，保留root_target等有意差异；写高价值回归：无env默认、仅SERVER_PORT、直接修改应用server默认、显式APP_URL优先、非法端口/空值、嵌套选项、配置缓存、fresh生成check/test。本簇源码/配套已收齐并通过集中适用验收；证据见[配置验收](memory/testing.md#配置可编辑默认值与有序依赖限定验收)，本次本地提交以Git为准，完整配置与其余整改继续开放。
 
 - 本批配置/应用、Web/CSRF、Handler、方向文档与来源三方整合已由 `9035a00` 收口，原 owner 均交接停写、工作区已退役；旧过程和失败见本批验收及来源归档，不再按旧 Implement/冻结状态派发。
 - CLI dev代码配置依赖预热缺口：任意Rust配置不能由工具静态解析，应用端有效配置/依赖准备桥接尚未实现；保留显式TOML/环境可判定旧路径，code-config不伪造预热成功，后继R13继续交付真实公开桥接。不得输出带secret完整config以实现预热。
-- 默认Rust代码配置整改已进入Implement：核心owner `/root/environment_dotenv_console`沿`tasks/environment-dotenv-console`续作；根/模块config与new模板owner 本对话后续指定的单一配置owner，公开接口已冻结并实际交接。默认config/*.rs显式manifest、dotenv先求值、同一仓储typed/factory与缓存明确拒绝边界；旧TOML只作显式可选source，默认迁移未完成前不称1:1通过。
+- 默认Rust代码配置入口已由9035a00整合；本次新总控与kernel/defaults worker完成可编辑默认值、有序依赖、模板与调用方限定验收，worker均交接停写；旧来源分支已归档，不按旧owner重复派发。TOML仍仅显式source，完整配置能力不关闭。
 - Exceptions/Handler整改已启动owner `/root/trust_proxies_resume`，branch`tasks/exception-handler-family`、base`317e2f6`、workspace`wks_262bd3f349a55c4e`、cwd `/Users/Home/.paseo/worktrees/02joa2lr/openrust-exception-handler-family`；按固定C06实现逐类型report/render与HTML/JSON/响应定制，先Spec收敛再完整编码。原TrustedHosts 23文件main WIP已交接，仅静态格式检查，未行为验证。
 - 长期WIP恢复：neutral 17文件与dotenv 9文件已从任务HEAD生成binary diff并保全逐文件SHA、来源base/branch，位于ignored `guards/6b56ea51-0bb7-44a7-8547-7073f8f2c7e4/wip-source-bundles/`；仅恢复/集成输入，不代表提交或验收。dotenv临时Spec也已保全，不依赖/tmp存活。
 - 根app职责与生成器整改（用户已纠正旧限制）：根app支持Laravel常规Controller/Model/Provider开发，modules可选并存，bootstrap承担启动，app/mod.rs仅必要Rust模块导出，唯一示例仍modules/example。已实际领取Implement：owner 本对话后续指定的单一配置owner，branch `tasks/laravel-application-layout`，base`317e2f6`，同OpenRust项目workspace `wks_28801f43943cf00e`，cwd `/Users/Home/.paseo/worktrees/02joa2lr/openrust-laravel-application-layout`。独占app/bootstrap/routes和tools/cli生成器/模板，dotenv持config/mod与core/lifecycle/command，TrustedHosts持HTTP/Provider；src/main.rs/lib.rs必要交叉先由总控串行协调。须交付真实应用开发/生成源码及测试代码，最终统一验证；本条政策落库不代表实现完成。

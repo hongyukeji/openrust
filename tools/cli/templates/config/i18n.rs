@@ -1,9 +1,12 @@
-//! 国际化默认值。
+//! 默认语言及消息回退的应用默认值。
 
 use openrust::config::{ConfigContext, ConfigError};
+use openrust::i18n::{I18nConfig, Locale};
 
-/// 默认及回退 locale 均为英文。
-#[allow(clippy::unnecessary_wraps, reason = "保持 ConfigManifest 配置函数统一的可失败契约")]
-pub fn config(_ctx: &ConfigContext) -> Result<openrust::i18n::I18nConfig, ConfigError> {
-    Ok(openrust::i18n::I18nConfig::default())
+/// Locale 由公开解析入口校验和规范化；消息目录仍须包含所选语言。
+pub fn config(_ctx: &ConfigContext) -> Result<I18nConfig, ConfigError> {
+    Ok(I18nConfig {
+        default_locale: Locale::new("en")?,
+        fallback_locale: Locale::new("en")?,
+    })
 }
