@@ -10,6 +10,10 @@ Session请求层已接入统一领域；D1限定验收范围、真实网络/双�
 
 基于 `axum` 0.8 + `tower-http`。提供路由约定、提取器、默认中间件、`/health` 与 `serve`；`[api].http_status` 默认 `semantic`，统一 JSON envelope 保留 HTTP 状态，只有显式 `always_ok` 才映射为 200。core 已提供 `RateLimiter`，DatabaseServiceProvider 提供双库共享 store，AuthFlows 与显式 `RateLimitLayer` 已复用它。OpenAPI schema 与 `/docs` 尚未实现。
 
+## C04-F任务分支限定范围
+
+唯一`Request`提取管线在任务分支解析multipart、递归文件树，公开`file/all_files/has_file`与受管`UploadedFile`；同一正文单次读取，原文经独立reader或显式有界`content_bytes(max)`访问。原文32 MiB、结构化8 MiB为可调整的Rust资源预算，不是Laravel默认；越阈值暂存、reader克隆与取消清理、纯输入闪存和混合回调以[分支证据](../memory/testing.md#c04-f-request文件家族分支限定验收)限定。默认/全特性workspace、公开consumer、生成项目、真实MySQL和TCP已验证；完整MIME、真实S3 ACL、迟到Copy、`throw=false`与Windows原生暂存取消未验。该分支任务分支限定交付，尚未集成main，完整Request/Files仍开放。
+
 ## D7验收边界
 
 真实请求Route/Resolver与受管理`RouteMethods`已按[ADR-083](../decisions/adr-083-matched-route-context.md)完成限定验收；D7真实Route/Resolver与受管理方法声明已通过限定验收：final3完整12门禁、默认695/29 ignored、全特性1403/103 ignored、根PG18/MySQL8.4各64、fresh5/2/2、真实TCP7及不同模型复审；忽略项不算真实服务。根target清零，五旧consumer不变，限定提交以Git为准；完整Routing/Request与previous/Precognition仍开放。[证据](../memory/testing.md#c04-d7-真实路由上下文限定子范围已验收)。旧R3-E/F中与新契约冲突的任意方法fallback、方法miss优先于fallback和域/path同名拒绝已纠正，旧验收记录只保留历史事实。
@@ -40,7 +44,7 @@ Session请求层已接入统一领域；D1限定验收范围、真实网络/双�
 | `response` | `Created<T>` → 默认 201（显式 `always_ok` 时为 200），`with_location` 返回 `Result<Located<T>>`（非法值 → 500 包装）；`NoContent` → 200 成功包装并省略 `data`；无载荷的错误包装也省略 `data`，已有载荷保持原样；直接提取 `PageParams` 默认 1/20，并校验页数、每页 1..=100 与 offset 不超过 `i64::MAX`；`Paginated<T>` 输出 `data` 与 `meta` |
 | `request` | `RequestInfo` 是 parts-only 快照，使用 OriginalUri 路径并与 Json 正文提取共存；host 复用域路由 authority，header/bearer 文本解码失败返回稳定错误，Debug 不暴露 URI/头。协商按 ADR-078 固定 Laravel 13.39/Symfony 8 的参数规范、质量排序、格式别名与匹配方向；headers 64KiB/128值、Accept 16KiB/128项超限拒绝。完整输入/Session/FormRequest 不由此簇覆盖 |
 | `request` URL（C04-D6 限定子范围已验收） | Info提供请求origin、完整URL、路径解码/分段、星号匹配与prefetch；拥有唯一query bag的Request提供增删query。原始OriginalUri规范化与可变query来源分开，JSON来源优先于GET/HEAD；地址沿现严格authority和实际/可信proxy proto快照，不从URI https推TLS。128KiB输出及UTF-8适配见[ADR-078](../decisions/adr-078-request-inspection.md)。真实PHP两线差分、完整12门禁、唯一模块、fresh5/2/2、根双库各63与真实TCP/TLS代理10场景均通过，详见[testing](../memory/testing.md#c04-d6-request-url限定子范围已验收)；不关闭完整Request或Session。 |
-| `request` 输入（C04-B1 已验收） | body-owning `Request` 复用RequestInfo和query/json/form bags；typed Json/Query共享默认trim/null策略，原文Bytes不变。InputNormalization作为Tower Layer或extensions覆盖；PHP bracket/键规则、动态读取修改及typed query转换按ADR-079，multipart/Session/高级typed helpers仍未由本簇交付。 |
+| `request` 输入（C04-B1 已验收） | main已验收的B1 `Request`复用RequestInfo和query/json/form bags；typed Json/Query共享默认trim/null策略。C04-F任务分支新增受管原文reader及multipart文件树，详见上节；该变更任务分支限定交付，尚未集成main，不能当成当前main公开API。InputNormalization作为Tower Layer或extensions覆盖；PHP bracket/键规则、动态读取修改及typed query转换按ADR-079。 |
 | `request` 类型读取（C04-B2 已验收） | Request与Fluent复用下层support的data/scalar内核；Stringable、保键Collection、BackedEnum与InputNumber承载类型读取，条件结果明确区分主callback假值回自身与default直接返回。Collection JSON边界拒绝非有限浮点，标量cast仍保留；HTTP trait实现留在HTTP层，无support反向依赖。日期/区间已接公开入口，CalendarContext来自最终app.timezone与现extensions覆盖，每次date读clock；FixedClock对应Carbon test-now、SystemClock使用生产语义，两种参考分列。固定source scanner、POSIX尾规则、格式字节/错误边界与公开入口已通过本簇定向、workspace/feature/MSRV、真实双库、生成应用、TCP和不同模型复审；不代表完整Carbon工具箱或完整C04验收。 |
 | Cookie（C04-C 已验收） | [ADR-081](../decisions/adr-081-request-response-cookies.md)：独立wire解析、direct-key bag、请求隔离CookieJar、值工厂及现响应组合；队列先附加再复用Encryptor加密，旧key解密/当前key写入、叶名认证、错误与预算边界明确。最终Session配置延迟装配、原始凭据重复检查、可信transport和空domain响应identity已回归；workspace/feature/MSRV/deny/docs、根PG18/MySQL8.4各48项、三个生成项目及真实TLS均通过，证据见[testing](../memory/testing.md)。显式plain不提供保护，不代表完整Laravel web默认栈、Session/flash/CSRF已完成。 |
 | Cookie/Session保护接线（C04-D4限定范围已验收） | Cookie中间件向请求写入无密钥的私有保护事实，Session公开raw context构造不能自报可信；实际认证与最终保存核完整性。Cookie/Session机制自身的prepare/save/保护/预算错误响应统一no-store与pragma no-cache，不搬旧响应Cookie、长度或正文；正常响应不变。真实Router红绿、双库Auth与TLS终止代理/HTTP浏览器证据按[testing](../memory/testing.md)分别记录，D4完整门禁/生成在47cd7b8限定子范围已收口；完整Session仍未完成。 |
@@ -85,7 +89,7 @@ CORS 预检（`OPTIONS` 且带 `Access-Control-Request-Method`）保持 tower-ht
 
 `Redirector::from_info(&RequestInfo)` 借用请求来源并构建普通 `to/back` 响应；`Redirector::from_request(&Request)` 另可读取同一规范化输入。`RedirectResponse` 经 `IntoResponse` 输出目标 `Location`、HTML 正文和文本类型，默认 302；允许状态、目标与 HTTP 头失败通过 `Result` 传播。`back` 按有效 Referer、Session previous、有效 fallback、请求根选择；目标解析不使用响应状态推断路由命中。普通重定向不依赖 Session；需要闪存时 `with_input/only_input/except_input` 以及 `with_errors` 使用当前 Session，缺 Session 返回错误。
 
-`with_errors` 支持 `RedirectErrors::Text/Entries/Provider`，将命名包写入 Session `errors`，下一请求经 `RequestInfo::session()?.read_errors()?` 读取；同一请求的旧输入使用 `old_all/old`。手动输入闪存不应用异常处理器 `dontFlash`，敏感字段由业务显式排除；文件输入未并入规范化输入 bag。Session codec 在属性锁外执行，写入候选须通过类型、格式与单次预算校验后才发布；自定义类型通过 Provider 的公开 `ErrorBagCodecs` 扩展登记，内置包无需配置。唯一模块的 `draft_redirect` 路由与 `draft_errors` 服务展示业务调用和跨请求恢复，生成测试在 CLI 模板中提供同类公开消费。
+`with_errors` 支持 `RedirectErrors::Text/Entries/Provider`，将命名包写入 Session `errors`，下一请求经 `RequestInfo::session()?.read_errors()?` 读取；同一请求的旧输入使用 `old_all/old`。手动输入闪存不应用异常处理器 `dontFlash`，敏感字段由业务显式排除；main中该旧描述仍成立；C04-F任务分支新增文件与输入混合树及纯输入闪存分流，尚未集成main。Session codec 在属性锁外执行，写入候选须通过类型、格式与单次预算校验后才发布；自定义类型通过 Provider 的公开 `ErrorBagCodecs` 扩展登记，内置包无需配置。唯一模块的 `draft_redirect` 路由与 `draft_errors` 服务展示业务调用和跨请求恢复，生成测试在 CLI 模板中提供同类公开消费。
 
 本簇当前源码通过严格默认/全特性门禁、无Session真实TCP、MySQL8.4私有库TCP与缺MFA表启动拒绝；普通生成应用7项含重定向公开helper，MySQL生成2项仅认证回归，PG常规验收保留发布矩阵。证据与旧失败见[限定验收](../memory/testing.md#c04-d10-b-请求绑定重定向与-session-错误包限定子范围已验收)。不据此关闭完整 Redirector、异常 `dontFlash` 或验证失败自动重定向；D10-C请求局部视图共享已另行限定验收并提交 `784045c`，见[view](view.md)。
 

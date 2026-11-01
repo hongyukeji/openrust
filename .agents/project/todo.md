@@ -18,16 +18,23 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 
 ## 当前可领取
 
-当前执行优先级（恢复完整计划）：①R03/typed/CC/Signed四簇五父main限定组合已交付 `e105dbf`，来源与分支已安全退役，证据见[四簇记录](memory/testing.md#r2-四簇-main-组合限定验收)；②R2-P `4ac8099` 与S-DV `6ffb5c8` 已由三父main提交 `9e5a94198b421987851b3580b27fa90370feeb77` 完成限定组合门禁：默认943/0/34忽略、全特性1748/0/108忽略，双严格Clippy/docs、MSRV、no-default、deny、consumer/生成/MySQL/TCP按[最终记录](memory/testing.md#r2-p-s-dv-main-limited)通过。S-DV与P工作区/分支已安全退役；P两份root文档事实已迁入main，原稿与迁移核对回执保全于 `/tmp/openrust-provider-root-docs-wip-preserved/`，正常退役回执 `/tmp/openrust-provider-registration-safe-retirement.json`。③ST-V来源`2262df9`已由两父提交`8d18021b630ea10652316e025ef6019c7772bbb0`完成main限定组合验收，来源工作区/分支已安全退役；真实S3 ACL、迟到CopyObject、`throw=false`仍开放，见[本簇记录](memory/testing.md#st-v-main-限定组合验收)。本轮用户已明确恢复完整计划，覆盖此前仅收尾限制；当前领取下方C04-F Request文件家族，先完整编码再集中验收。两guard worktree受保护。完整Config、Provider发现/Facade、Session/Web、签名URL复杂参数/代理、动态Settings和发布全后端矩阵仍开放。
+当前执行优先级（恢复完整计划）：①R03/typed/CC/Signed四簇五父main限定组合已交付 `e105dbf`，来源与分支已安全退役，证据见[四簇记录](memory/testing.md#r2-四簇-main-组合限定验收)；②R2-P `4ac8099` 与S-DV `6ffb5c8` 已由三父main提交 `9e5a94198b421987851b3580b27fa90370feeb77` 完成限定组合门禁：默认943/0/34忽略、全特性1748/0/108忽略，双严格Clippy/docs、MSRV、no-default、deny、consumer/生成/MySQL/TCP按[最终记录](memory/testing.md#r2-p-s-dv-main-limited)通过。S-DV与P工作区/分支已安全退役；P两份root文档事实已迁入main，原稿与迁移核对回执保全于 `/tmp/openrust-provider-root-docs-wip-preserved/`，正常退役回执 `/tmp/openrust-provider-registration-safe-retirement.json`。③ST-V来源`2262df9`已由两父提交`8d18021b630ea10652316e025ef6019c7772bbb0`完成main限定组合验收，来源工作区/分支已安全退役；真实S3 ACL、迟到CopyObject、`throw=false`仍开放，见[本簇记录](memory/testing.md#st-v-main-限定组合验收)。本轮用户已明确恢复完整计划，覆盖此前仅收尾限制；当前下方C04-F Request文件家族已完成任务分支限定验证，待main组合验收。两guard worktree受保护。完整Config、Provider发现/Facade、Session/Web、签名URL复杂参数/代理、动态Settings和发布全后端矩阵仍开放。
 
 <a id="c04-f-request-files"></a>
-### C04-F Request文件家族（Spec → Implement）
+### C04-F Request文件家族（分支限定验收通过，main待集成）
 
-- 用户已恢复原完整Goal；不新建Goal或守护，不放开额度，默认80%可用/20%保留与原baseline不变。
-- owner `/root/config_runtime_callers`（复用现有gpt-6-sol执行者）；OpenRust项目`prj_34a40ee7b674b2b6`下workspace `wks_748133ad70032a5e`，branch `tasks/request-files-family`，base `a9b057e78f35c42955dd99401526a5d1eda60ba1`，cwd `/Users/Home/.paseo/worktrees/02joa2lr/openrust-request-files-family`。
-- 范围：沿唯一Request提取管线实现multipart/递归文件树、file/all_files/has_file与UploadedFile所有权/有效性/独立reader/取消清理，贯通唯一模块、公开consumer、生成调用方和文档；以固定Laravel/Symfony实际行为收敛Spec，普通选择自主，禁止独立上传内核或无界缓存。MIME猜测/扩展、hash_name/store与throw=false的依赖须明确，不以客户端声明或本地visibility代替。
-- Spec入口 `/tmp/openrust-request-files-family-spec.md`；先完成生产/调用方/测试代码，暂不Cargo或新建target。依赖清单/锁、共享Agent文档、资源和main集成由root协调；ready后不同模型审查并集中适用门禁。默认真实MySQL，后端专属例外/发布全后端边界不变。
-- 资源：本任务尚未构建；下一获准验证使用统一根target，先检查去重缓存总量与预计增长，50GB软/100GB硬和磁盘10%软/5%硬不变。冻结业务后台/独立AI产品仍不启动，不push/tag/发布。
+- 已创建限定任务分支本地提交`2f901272ec6fcc8cdd7d3a2b4ec6624a7445aaaf`（43文件），提交信息校验与工作区干净检查通过。源码未合入main；保留任务工作区等待最终验收，暂不退役分支。
+
+- 沿用原完整Goal、默认80%可用/20%保留和原baseline；不新建Goal/守护，不启动冻结产品，不push/tag/发布。
+- 同仓任务位置：OpenRust项目`prj_34a40ee7b674b2b6`，workspace `wks_748133ad70032a5e`，branch `tasks/request-files-family`，base `a9b057e78f35c42955dd99401526a5d1eda60ba1`，cwd `/Users/Home/.paseo/worktrees/02joa2lr/openrust-request-files-family`。原核心owner `/root/config_runtime_callers`，当前生成/真实服务owner `/root/request_files_services_prepare`；root独占索引、依赖/锁、共享文档和提交。
+- 范围：唯一Request管线的multipart、递归文件树、DataValue身份、UploadedFile独立reader/暂存与取消清理、store字符串路径、闪存/Redirect公开链路，贯通唯一模块、consumer、生成模板和文档。Spec `/tmp/openrust-request-files-family-spec.md`；固定Laravel/Symfony实际行为优先，普通选择自主，不造独立上传内核。
+- 流式契约：网络正文读一次，沿原Axum默认/覆盖/禁用限额；小正文内存、越阈值受管暂存，multipart逐chunk写入。异步`content()`受管reader与`content_bytes(max)`显式投影，原文32MiB/结构化8MiB额外预算属可配置Rust资源策略，不能冒称Laravel默认。writer/在途open/read均持文件与路径owner，取消后小ReadBuf续读保持缓存/offset。
+- 已核代码门禁：Request lib41、http_input38、公开consumer Session2、CLI23均通过；默认workspace922通过/34忽略，全特性1760通过/111忽略，双严格Clippy/docs、no-default、Rust1.97和deny均通过。CLI子进程摘要已去重；无服务环境的忽略/跳过不算真实后端。root日志SHA审计`/tmp/openrust-request-files-code-gates-root-audit.json`、`/tmp/openrust-request-files-all-features-root-audit.json`；原失败记录保留，测试数量不是整体完成率。
+- 最终808冻结`/tmp/openrust-request-files-generated-json-freeze.json`，tree `e8ff0cac0e66bfa04a92ea5aaa165fce307904cf`，36候选文件；全部SHA无漂移。相对全特性已过输入仅模块multipart用例失败清理与模板/快照三路径变化，生产`src/`、manifest、locks不变；受影响server测试严格Clippy、CLI/生成/MySQL已补验。证据索引`/tmp/openrust-request-files-final-evidence-index.json`。
+- 最终真实链已通过：CLI主23、全新生成应用check/test_app8+TCP1、Request精确1/TCP精确1、唯一模块附件真实MySQL精确1且无skip；同MySQL server UUID和schema集合前后相等，进程组无残留。最终wrapper`/tmp/openrust-request-files-services-third-20261101T042452Z/receipt.json`、driver`/tmp/openrust-request-files-services-prepare/run-20261101T042456Z/receipt.json`；旧模板JSON失败和首次临时fixture编译失败原证据保留，不能改写为原命令通过。生成源码已由成功driver清理，不能现时重算原字节。
+- 依赖root已统一：Axum官方multipart、基础tempfile仅新增multer3.1.0；http-body-util提升基础direct。12 consumer实际native metadata校准，11锁仅补该direct边，全部既有包版本集合不变；证据`/tmp/openrust-request-files-consumer-direct-lock-sync/receipt.json`。最初离线wasm解析与未缓存平台依赖失败均保留，不能冒称成功。
+- 资源：本轮已完成归属/进程/打开句柄核查与正常Cargo清理，根target实测29,937,872,896B→0，磁盘可用167,465,619,456B→197,155,180,544B（19.821%）；回执`/tmp/openrust-request-files-final-cleanup-retry/receipt.json`。首轮因缺缓存标记安全中止的回执保留；确认归属后exclusive create标准CACHEDIR.TAG，dry-run及正常clean均exit0；全项目50GB软/100GB硬与磁盘10%软/5%硬保持。后续仅经root核归属/占用后清可再生产物，保未知外置缓存、guard工作区、服务和数据卷。
+- 开放边界：任务分支任务分支限定交付，尚未集成main；完整Symfony MIME、真实S3 ACL/迟到CopyObject、Storage `throw=false`、Windows原生取消清理及Laravel完整Request/Filesystem能力继续未完成，不因本簇限定验证关闭。
 
 ### 上轮收尾执行窗口（已完成）
 

@@ -1,5 +1,15 @@
 # 测试基线
 
+<a id="c04-f-request文件家族分支限定验收"></a>
+## C04-F Request文件家族分支限定验收
+
+任务分支`tasks/request-files-family`基于`a9b057e`，最终冻结树`e8ff0cac0e66bfa04a92ea5aaa165fce307904cf`，808个输入和36个候选文件SHA均无漂移；最终证据索引`/tmp/openrust-request-files-final-evidence-index.json`核39份原始日志SHA。此为分支限定验证，任务分支限定交付，尚未集成main。原失败回执未覆盖；最后相对全特性通过输入仅模块测试失败清理和生成模板/快照三路径变化，生产`src/`、清单和锁不变，受影响server测试严格Clippy及CLI/生成/MySQL已补验。
+
+Request库41、`http_input`38、公开test-app consumer Session2、最终CLI主测试23均通过；CLI嵌套摘要不重复计数。默认workspace922通过/34忽略，全特性1760通过/111忽略；双严格Clippy与警告拒绝Rustdoc、no-default、Rust1.97和deny适用门禁按代码审计`/tmp/openrust-request-files-code-gates-root-audit.json`与全特性审计`/tmp/openrust-request-files-all-features-root-audit.json`通过。ignored或无服务环境跳过不算真实后端验收。
+
+最终真实链`/tmp/openrust-request-files-services-third-20261101T042452Z/receipt.json`中，CLI23、全新生成项目check及`test_app`8、真实TCP1、Request精确1/TCP精确1均通过；唯一模块multipart附件真实MySQL精确1项无skip，隔离库集合前后相等且同一server UUID。进程组均无残留，生成应用源码已由driver清理，现不能重算其原字节，保留命令、fixture SHA和日志。正文沿原Axum默认/覆盖/禁用限额读取；原文32 MiB、结构化8 MiB是可调整Rust资源预算，不冒称Laravel默认。任务结束清理回执`/tmp/openrust-request-files-final-cleanup-retry/receipt.json`记录正常Cargo清理exit0，根target实测29,937,872,896B→0，磁盘可用167,465,619,456B→197,155,180,544B；原缺缓存标记中止记录保留，归属核定后恢复标准标记，未动未知外置缓存。源码冻结后的最终变更仅为Agent事实文档与依赖说明，不影响已执行Rust门禁；真实服务细节以driver回执`/tmp/openrust-request-files-services-prepare/run-20261101T042456Z/receipt.json`为准。完整Symfony MIME、真实S3 ACL、迟到CopyObject、Storage `throw=false`和Windows原生取消清理仍开放，不能关闭整个Request/Files。
+
+
 <a id="st-v-main-限定组合验收"></a>
 ## ST-V main 限定组合验收
 
