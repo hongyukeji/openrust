@@ -1,5 +1,17 @@
 # 配置仓储原始读写
 
+## 应用环境身份
+
+`app.env` 保存精确环境名称。未声明时按固定 Laravel `LoadConfiguration` 回调缺省为 `production`；`config/app.toml` 可声明环境，外部进程 `APP_ENV` 优先于 `.env` 和配置文件。根 `.env.example` 和 CLI 生成的 `.env.example` 显式选用 `development`，因此开发模板不会受到缺省值变化影响。`APP_ENV=local`、`development`、`dev`、`test`、`testing` 及自定义 `staging` 均保持不同身份，大小写和显式空字符串也保留。配置缓存命中时使用缓存内的 `app.env`。
+
+`App::environment()` 和 `AppState::environment()` 返回启动时名称；`environment_matches(["local", "stag*"])` 按 Laravel `Str::is` 的大小写敏感 `*` 模式检查。`is_local()` 只匹配 `local`，`is_production()` 只匹配 `production`，`running_unit_tests()` 只匹配 `testing`。Rust 将 PHP 的返回值重载与可变参数拆成独立读取和模式匹配方法；不从 Rust 测试进程状态猜测 `running_unit_tests`。已运行应用的配置仓储可以被显式写入，但这些启动身份查询使用启动快照，不重建旧服务。
+
+`ConfigLoader::environment_override()` 只报告显式指定的环境；`None` 表示最终身份由配置文件或默认值决定。最终名称从 `load_framework().app.env` 或已启动应用的 `environment()` 读取，避免把缺省提示误当作文件环境。`Environment` 按精确名称比较与哈希，即使使用 `Custom("production")` 构造也与 `Production` 表示同一值。
+
+现有邮件、短信的 `log` driver 和示例模块的 OIDC loopback/本地捕获限制继续使用独立的 `enforces_production_safety()` 策略；它对 `prod`、大小写变体和首尾空白仍执行旧生产保护。该安全策略不改变上述 Laravel 精确环境查询结果。
+
+固定 Laravel `EnvironmentDetector` 接受 CLI `--env` 和 `--env=` 覆盖应用环境，并由 `LoadEnvironmentVariables` 尝试 `.env.<名称>`；当前 OpenRust 命令入口尚未提供这组参数，也尚未按环境名选专属 dotenv 文件。此簇先保持现有 `.env` 单文件读取和缓存屏障；自定义环境名不会被拼入文件路径，因此不会扩大文件读取边界。CLI 完整对应须在后续命令与 dotenv 文件选择簇验收。
+
 ## 配置缓存
 
 应用二进制执行 `config:cache` 时，框架先清除本次选定的旧缓存，再用同一 `Application` 类型重新 bootstrap，完成所有 Provider 的 register、boot、最终校验，写入唯一配置仓储的最终有序值。`config:clear` 只清除该文件。默认文件是应用根的 `bootstrap/cache/config.json`；`APP_CONFIG_CACHE` 或应用自定命名空间的 `<PREFIX>CONFIG_CACHE` 可选绝对路径或相对应用根的路径。全局 `openrust` CLI 将这两个命令转发给应用二进制。

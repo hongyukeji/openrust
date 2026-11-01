@@ -21,7 +21,7 @@ type ServerApp = TestApp<crate::bootstrap::Server>;
 
 fn sources() -> Figment {
     let mut config = FrameworkConfig::default();
-    config.app.env = Environment::Test;
+    config.app.env = Environment::Testing;
     Figment::from(Serialized::defaults(config)).merge(Toml::string(
         r#"
 [cache]

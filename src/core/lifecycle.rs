@@ -822,6 +822,7 @@ mod tests {
             let mut value = serde_json::to_value(crate::config::FrameworkConfig::default())
                 .map_err(|error| figment::Error::from(error.to_string()))?;
             value["app"]["name"] = serde_json::json!("alternate-cache");
+            value["app"]["env"] = serde_json::json!("Cached-Staging");
             jail.create_file(
                 "bootstrap/cache/alternate.json",
                 &serde_json::to_string(&value)
@@ -836,6 +837,7 @@ mod tests {
                     .await
                     .map_err(|error| figment::Error::from(error.to_string()))?;
                 assert_eq!(app.config().app.name, "alternate-cache");
+                assert_eq!(app.environment().as_str(), "Cached-Staging");
                 app.shutdown(Instant::now() + std::time::Duration::from_secs(5))
                     .await
                     .map_err(|error| figment::Error::from(error.to_string()))?;
@@ -845,7 +847,7 @@ mod tests {
     }
 
     #[test]
-    fn cache_miss_still_rejects_invalid_environment_value() {
+    fn cache_miss_preserves_custom_environment_value() {
         let _environment_guard = crate::lock_test_env();
         figment::Jail::expect_with(|jail| {
             jail.clear_env();
@@ -858,11 +860,12 @@ mod tests {
                 .build()
                 .map_err(|error| figment::Error::from(error.to_string()))?;
             runtime.block_on(async {
-                let error = bootstrap::<CommandFixture>()
+                let app = bootstrap::<CommandFixture>()
                     .await
-                    .err()
-                    .ok_or_else(|| figment::Error::from("无缓存时应拒绝无效 APP_ENV"))?;
-                assert!(error.to_string().contains("APP_ENV"));
+                    .map_err(|error| figment::Error::from(error.to_string()))?;
+                assert_eq!(app.environment().as_str(), "invalid");
+                assert!(!app.is_local());
+                assert!(!app.running_unit_tests());
                 Ok(())
             })
         });
@@ -887,7 +890,10 @@ mod tests {
             jail.set_env("SERVER_PORT", "4001");
             let loader = bootstrap_config_loader("APP_")
                 .map_err(|error| figment::Error::from(error.to_string()))?;
-            assert_eq!(loader.environment(), Environment::Production);
+            assert_eq!(
+                loader.environment_override(),
+                Some(&Environment::Production)
+            );
             let config = loader
                 .load_framework()
                 .map_err(|error| figment::Error::from(error.to_string()))?;
@@ -911,7 +917,10 @@ mod tests {
             )?;
             let loader = bootstrap_config_loader("APP_")
                 .map_err(|error| figment::Error::from(error.to_string()))?;
-            assert_eq!(loader.environment(), Environment::Production);
+            assert_eq!(
+                loader.environment_override(),
+                Some(&Environment::Production)
+            );
             let config = loader
                 .load_framework()
                 .map_err(|error| figment::Error::from(error.to_string()))?;
@@ -954,7 +963,7 @@ mod tests {
             jail.create_file(".env", "APP_ENV=test\nSERVER_PORT=4999\n")?;
             let loader = bootstrap_config_loader("APP_")
                 .map_err(|error| figment::Error::from(error.to_string()))?;
-            assert_eq!(loader.environment(), Environment::Test);
+            assert_eq!(loader.environment_override(), Some(&Environment::Test));
             assert_eq!(
                 loader
                     .load_framework()

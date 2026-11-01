@@ -34,6 +34,10 @@ fn external_consumer_registers_and_forces_provider_on_same_application()
             let mut builder = openrust::core::ProviderBuilder::new();
             builder.provider(config_repository_reading_consumer::ReadingProvider);
             let mut app = openrust::App::from_provider_runtime(builder.start(source).await?)?;
+            assert_eq!(app.environment().as_str(), "production");
+            assert!(app.environment_matches(["pro*"]));
+            assert!(app.is_production());
+            assert!(!app.running_unit_tests());
             assert_eq!(app.section::<String>("app.name")?, "外部读取者");
             let first = app.register_provider(LateReader("初次登记")).await?;
             let old = app.state().resolve::<&'static str>().await?;

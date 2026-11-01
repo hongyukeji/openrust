@@ -8,7 +8,7 @@ use figment::Figment;
 use serde::de::DeserializeOwned;
 
 use crate::config::repository::ConfigRepository;
-use crate::config::{ConfigError, FrameworkConfig};
+use crate::config::{ConfigError, Environment, FrameworkConfig};
 use crate::core::command::Command;
 use crate::core::container::{Container, Scope};
 use crate::core::error::{Error, Result};
@@ -103,6 +103,31 @@ impl AppState {
     /// 启动时解析的框架配置快照；运行期原始写入不重建其中的服务配置。
     pub fn config(&self) -> &FrameworkConfig {
         &self.inner.framework
+    }
+
+    /// 返回启动时绑定的精确应用环境名称。
+    pub fn environment(&self) -> &Environment {
+        &self.inner.framework.app.env
+    }
+
+    /// 按大小写敏感的 `*` 通配规则检查任一环境模式。
+    pub fn environment_matches<'a>(&self, patterns: impl IntoIterator<Item = &'a str>) -> bool {
+        self.environment().matches(patterns)
+    }
+
+    /// 仅当环境名称精确为 `local` 时返回 `true`。
+    pub fn is_local(&self) -> bool {
+        self.environment().is_local()
+    }
+
+    /// 仅当环境名称精确为 `production` 时返回 `true`。
+    pub fn is_production(&self) -> bool {
+        self.environment().is_production()
+    }
+
+    /// 仅当已启动应用的环境精确为 `testing` 时返回 `true`。
+    pub fn running_unit_tests(&self) -> bool {
+        self.environment().running_unit_tests()
     }
 
     /// 返回与 Provider 和当前应用共享的配置仓储句柄。
@@ -285,6 +310,31 @@ impl App {
     /// 启动时解析的框架配置快照；运行期原始写入不重建已有服务。
     pub fn config(&self) -> &FrameworkConfig {
         self.state.config()
+    }
+
+    /// 返回启动时绑定的精确应用环境名称。
+    pub fn environment(&self) -> &Environment {
+        self.state.environment()
+    }
+
+    /// 按大小写敏感的 `*` 通配规则检查任一环境模式。
+    pub fn environment_matches<'a>(&self, patterns: impl IntoIterator<Item = &'a str>) -> bool {
+        self.state.environment_matches(patterns)
+    }
+
+    /// 仅当环境名称精确为 `local` 时返回 `true`。
+    pub fn is_local(&self) -> bool {
+        self.state.is_local()
+    }
+
+    /// 仅当环境名称精确为 `production` 时返回 `true`。
+    pub fn is_production(&self) -> bool {
+        self.state.is_production()
+    }
+
+    /// 仅当已启动应用的环境精确为 `testing` 时返回 `true`。
+    pub fn running_unit_tests(&self) -> bool {
+        self.state.running_unit_tests()
     }
 
     /// 返回与 Provider 和应用状态共享的配置仓储句柄。
@@ -643,6 +693,11 @@ mod tests {
     async fn services_are_typed_and_shared() -> Result<()> {
         let app = start(CounterProvider).await?;
         assert_eq!(app.state().get::<Counter>().map(|c| c.0), Some(7));
+        assert_eq!(app.environment().as_str(), "production");
+        assert!(app.is_production());
+        assert!(!app.is_local());
+        assert!(!app.running_unit_tests());
+        assert!(app.state().environment_matches(["pro*"]));
         Ok(())
     }
 

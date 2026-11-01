@@ -196,7 +196,7 @@ impl crate::core::ServiceProvider for SmsServiceProvider {
                 Box::pin(async move {
                     let config = resolver.section::<SmsConfig>("sms")?;
                     let env = resolver.section::<crate::config::Environment>("app.env")?;
-                    if env == crate::config::Environment::Production && config.driver == "log" {
+                    if env.enforces_production_safety() && config.driver == "log" {
                         return Err(Error::Config(ConfigError::Invalid(
                             "sms.driver=log is not allowed in production".into(),
                         )));

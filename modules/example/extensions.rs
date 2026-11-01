@@ -201,7 +201,10 @@ impl CapturedDeliveries {
 
 #[cfg(test)]
 fn ensure_capture_allowed(resolver: &Resolver) -> Result<()> {
-    if resolver.section::<Environment>("app.env")? == Environment::Production {
+    if resolver
+        .section::<Environment>("app.env")?
+        .enforces_production_safety()
+    {
         return Err(Error::custom(
             "example_capture_production_forbidden",
             "production 禁止本地捕获通信驱动",

@@ -6,6 +6,8 @@ OpenRust 的重要变更记录于此，格式遵循 [Keep a Changelog](https://k
 
 ### Changed
 
+- 应用环境保留精确名称、自定义值、大小写与空字符串；未指定配置时默认 `production`。公开环境匹配与 `is_local` / `is_production` / `running_unit_tests` 按固定 Laravel 语义查询，既有生产安全保护使用独立派生策略。Loader 改用 `environment_override()` 区分显式覆盖与最终文件/缓存环境；环境值不再 `Copy`，同名值的相等性、哈希与序列化一致。唯一模块、公开消费者与生成测试夹具同步；骨架显式 `development`、CLI 环境参数及专属 dotenv 的进一步对齐仍开放。
+
 - 配置领域 TOML 改为递归发现与按真实文件名建立点路径命名空间，隐藏文件/目录符号链接排除，同名命名空间按实际遍历后项覆盖，再按完整名称自然序加载，不承诺跨平台胜者。根领域文件迁移为相对内容格式，这是一次破坏性配置迁移；模块配置仍沿既有独立 overlay；CLI 生成文件和唯一模块同步调整。同一 `ConfigSources` 仓储保留来源顺序和环境覆盖，晚到 Provider 默认值按浅层合并，白名单数组按已验证的 PHP 规则合并；仅有子文件时保留文件前 base 剩余父区段。完整 Config 和动态 Settings 继续开放；typed helpers 与配置缓存的限定子范围已另行交付。
 - 配置仓储新增 `string`、`integer`、`float`、`boolean`、`array`、`collection` 六类严格读取，各提供直接、值默认与惰性默认入口；默认仅用于缺失，显式 null 与类型错误不回退。整数/浮点不宽松转换，错误不回显原值；配置集合复用现有 `Collection`，不把请求输入预算错误施加于已加载配置，其他集合受限操作不变。唯一模块与公开 consumer 展示固定业务键调用。
 - 增加 Laravel 式 `config:cache` / `config:clear`，缓存同一应用 fresh Provider 启动后的最终配置。缓存命中跳过 dotenv、普通配置文件和模块配置重载；维护命令先正常引导再派发，坏缓存不静默回退。默认私有数据文件 `bootstrap/cache/config.json` 是 Rust 表示适配；原子写入、失败清理与资源关闭沿同一生命周期，命令只影响后续启动，不热改已解析客户端。

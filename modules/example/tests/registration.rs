@@ -101,6 +101,10 @@ async fn module_registration_controls_only_its_business_routes()
             }),
         ));
         let app = openrust::App::from_provider_runtime(builder.start(sources).await?)?;
+        assert_eq!(app.environment().as_str(), "production");
+        assert!(app.environment_matches(["local", "pro*"]));
+        assert!(app.is_production());
+        assert!(!app.running_unit_tests());
         assert_eq!(
             app.state()
                 .container()

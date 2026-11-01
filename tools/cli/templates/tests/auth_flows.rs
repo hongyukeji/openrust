@@ -37,6 +37,12 @@ use testing::TestDatabase;
 
 type TestResult<T = ()> = std::result::Result<T, Box<dyn StdError>>;
 
+fn test_configuration() -> openrust::config::FrameworkConfig {
+    let mut config = openrust::config::FrameworkConfig::default();
+    config.app.env = openrust::config::Environment::Testing;
+    config
+}
+
 #[derive(Clone, Default)]
 struct CaptureMailer {
     messages: Arc<Mutex<Vec<String>>>,
@@ -113,7 +119,7 @@ async fn generated_auth_routes_run_over_http_with_isolated_database_and_fake_mai
         link_key
     );
     let figment = Figment::from(Serialized::defaults(
-        openrust::config::FrameworkConfig::default(),
+        test_configuration(),
     ))
     .merge(Toml::string(&config));
     let application_config = figment.extract::<bootstrap::Configuration>()?;
@@ -494,7 +500,7 @@ async fn generated_test_app_overrides_mailer_for_registration() -> TestResult {
         link_key
     );
     let source = Figment::from(Serialized::defaults(
-        openrust::config::FrameworkConfig::default(),
+        test_configuration(),
     ))
     .merge(Toml::string(&config));
     let mail = CaptureMailer::default();
