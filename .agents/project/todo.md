@@ -3,7 +3,7 @@
 > 当前代码与目标：业务示例已迁至 `modules/example/` 并经模块清单接入；R1-E CRUD/能力门禁已由 bc3fa01 提交；附件 PG/MySQL 全量各 15/15，真实 MinIO CopyObject 延迟响应时的双库删除竞争各 1/1；deadline/EOF 原子仲裁后，远端结果不确定的迟到发布仍属未保证边界。OIDC 确认页已完成 Chromium/mock 分支验收，真实 Keycloak/双库 `AlwaysOk` 错误密码、已消费 state 与成功夹证各 1/1；Collector PostgreSQL 隔离 sink 的 delivery/unavailable 各 1/1 且保留 16 MiB 限制，runner 路径和 fixture run ID 已修正。R2-N 已由 48be854 提交；R3-A/B/C/D/E/F 已按适用范围验收，C04-A/B1/B2/C已按子簇验收，后继C04-D Session/flash与Web栈契约待领取。
 
 > 受众：AI Agent
-> 更新：2026-10-29
+> 更新：2026-11-02
 > 摘要：Laravel + laravel-modules 的 Rust 1:1 实现唯一活跃队列；R0旧基线已记录，模块包逐项盘点待补；R1-S、R2-A至R2-N及 R1-E 真实 CRUD/当前公开能力示例已分别交付；R1-E 提交 bc3fa01。R2-N 由 48be854 提交；R3-A 语义 HTTP 状态默认已按子簇交付，继续 R3 HTTP/Web 路由、请求、资源与异常行为矩阵。远端结果不确定后的迟到发布边界保留。
 
 ## 领取规则
@@ -28,8 +28,8 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 
 ### 本批组合交付与清理停点
 
-- 本对话为唯一框架集成总控；旧总控与旧守护保持停止，不迁移其 Goal 或额度授权。main 组合已收齐最终适用门禁、真实服务与独审，本地提交以 Git 为准；基线 `317e2f6`、环境来源 `8d5e635`，无未解决冲突。完整证据与开放边界见 [本批验收](memory/testing.md#当前-main-组合限定验收)。
-- 九份真实来源、六份 WIP、11 个 source refs、完整历史 bundle 全部保全；所有非 main worktree 与两个缺失 guard 登记已正常移除，八个来源 workspace 已正式归档，当前仅 main。证据 `tmp/controller-handoff-20261102/`，不重复 merge 或删除。六个任务分支暂因普通 `-d` 拒绝保留，待本地集成提交后按祖先/等价映射串行安全处置；危险 `cd487bb` 只归档保全，绝不合入。
+- 本对话为唯一框架集成总控；旧总控与旧守护保持停止，不迁移其 Goal 或额度授权。main 组合已收齐最终适用门禁、真实服务与独审，本地集成提交 `9035a00`；基线 `317e2f6`、环境来源 `8d5e635`，MERGE 已结束。完整证据与开放边界见 [本批验收](memory/testing.md#当前-main-组合限定验收)。
+- 九份真实来源、六份 WIP、11 个 source refs、完整历史 bundle 全部保全；所有非 main worktree 与两个缺失 guard 登记已正常移除，八个来源 workspace 已正式归档，当前仅 main。证据 `tmp/controller-handoff-20261102/`，不重复 merge 或删除。六个任务分支活动别名已退役：两条按祖先正常删除，其余在核实同对象保护引用、完整bundle、无worktree后以带旧值的compare-and-swap移除别名；所有原提交与WIP仍可达，回执 `tmp/takeover-20261102/archived-task-branch-retirement.json`。危险 `cd487bb` 只归档保全，绝不合入。
 - 源码/调用方/模板/唯一模块本批冻结，shared docs/index/Cargo/service 均由新总控独占。旧失败不回填通过，真实 MySQL 与 TCP/TLS 已闭合限定范围；完整 Query/ORM、Provider包发现、配置默认依赖、模块管理、全后端与集群等仍开放，不因本批通过关闭。最终记录 `tmp/takeover-20261102/`。
 - skill 本批仅接纳旧142/61测试及不同模型最终独审九SHA完全匹配的版本，精确快照与索引整合证据在同目录。后续 ended-grant/Codex 原生适配由另一个获用户授权的 owner 在同 skill 收口，未部署，完整工作文件保持；本轮最小恢复判定补丁及并发漂移报告已保全 `/tmp/openrust-guard-recovery-consistency.*`。不再并改，不重启旧守护，不把开发中适配当已生效。
 - 默认80%预算政策和旧账号历史、问答/发送账本保持，未rebase/fullgrant或伪复用旧授权；当前对话无正式剩余额度读数。成功验收的自有服务进程与端口已收尾，数据库集合无增删；完成簇根target已正常清零：48,729,780,224B→0，磁盘可用202,384,363,520B；源码/生成fixture/证据保留，下一配置簇按需复用同一路径。
@@ -78,11 +78,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 - 复用dotenv快照、ConfigManifest及唯一ConfigRepository/Provider；核环境覆盖、代码默认、框架安全回退、typed/factory与cache责任，不复制校验，不降低端口/安全校验，不把显式空值随意当缺失，不隐改所有下游类型Default。逐领域按固定Laravel文档/源码对照，字段展开不是完整1:1验收。
 - 同批同步根/生成模板及必要调用方说明，保留root_target等有意差异；写高价值回归：无env默认、仅SERVER_PORT、直接修改应用server默认、显式APP_URL优先、非法端口/空值、嵌套选项、配置缓存、fresh生成check/test。先代码及测试代码收齐，再集中适用验证，通过才本地提交；目前仅已确认待实现，不报已改/已验证。
 
-- main配置/应用源码整合已实际启动：原config执行者恢复被thread limit拒绝后未重试创建，复用本对话后续指定的单一配置owner独占main生产源码窗口。它已保全核心14路径、应用72路径（含全部未跟踪新增和删除）及main-before85路径，保全manifest SHA `4eb5f99f…`，正在逐文件三方整合；root只维护本页，方向文档不动。不运行测试、改MERGE_HEAD或创建提交。
-- 默认web组/CSRF纠偏已启动：新建agent因thread limit失败后未重复创建，实际复用已完成的`/root/neutral_runtime_names`；新cwd `/Users/Home/.paseo/worktrees/02joa2lr/openrust-web-csrf-family`、branch`tasks/web-csrf-family`、base`317e2f6`、workspace`wks_66ccb1270e9ba166`。固定新PreventRequestForgery源码核对后成组编码，异常419接Handler，组/入口顺序与TrustedHosts/Session最终串行合；无Cargo/新target。
-- config核心与app/生成代码均已交接未测WIP，ConfigManifest/模块code_config/typed缓存拒绝、根与模板Rust领域配置及显式factory路径等待总控同批源整合；旧分支源码保留，不将静态diff检查当类型/运行通过。
-- 方向文档窗口已交架构协调会话：旧ADR与方向计划/AGENTS等13路径WIP已冻结并按SHA保全到ignored `guards/6b56ea51-0bb7-44a7-8547-7073f8f2c7e4/direction-docs-freeze/`，等待唯一ADR001收敛候选；总控只维护本页及实际进度/证据，不再写旧决策或另建方向计划。源码owner不受冻结影响。
-- 编码阶段产物已集中回收：资源owner root核Cargo进程/打开句柄和标准cache tag后，正常`cargo clean` exit0/9.287s；根target实测51,524,333,568→0B，disk free154,563,383,296→205,800,988,672B。回执`guards/6b56ea51-0bb7-44a7-8547-7073f8f2c7e4/code-first-cache-retirement/RESULT.json`；首次preflight签名拼写误判未清理已单列保存。未知外置65,982,464B保留，不将根target统计冒作完整项目总量。下一构建目录仍根target，当前无构建排程。
+- 本批配置/应用、Web/CSRF、Handler、方向文档与来源三方整合已由 `9035a00` 收口，原 owner 均交接停写、工作区已退役；旧过程和失败见本批验收及来源归档，不再按旧 Implement/冻结状态派发。
 - CLI dev代码配置依赖预热缺口：任意Rust配置不能由工具静态解析，应用端有效配置/依赖准备桥接尚未实现；保留显式TOML/环境可判定旧路径，code-config不伪造预热成功，后继R13继续交付真实公开桥接。不得输出带secret完整config以实现预热。
 - 默认Rust代码配置整改已进入Implement：核心owner `/root/environment_dotenv_console`沿`tasks/environment-dotenv-console`续作；根/模块config与new模板owner 本对话后续指定的单一配置owner，公开接口已冻结并实际交接。默认config/*.rs显式manifest、dotenv先求值、同一仓储typed/factory与缓存明确拒绝边界；旧TOML只作显式可选source，默认迁移未完成前不称1:1通过。
 - Exceptions/Handler整改已启动owner `/root/trust_proxies_resume`，branch`tasks/exception-handler-family`、base`317e2f6`、workspace`wks_262bd3f349a55c4e`、cwd `/Users/Home/.paseo/worktrees/02joa2lr/openrust-exception-handler-family`；按固定C06实现逐类型report/render与HTML/JSON/响应定制，先Spec收敛再完整编码。原TrustedHosts 23文件main WIP已交接，仅静态格式检查，未行为验证。
@@ -103,12 +99,14 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 - 中性运行命名整改由`/root/neutral_runtime_names`在`tasks/neutral-runtime-names`（base`317e2f6`）独立code-first实施，范围为storage/cache/dataexchange/工具运行路径命名；17文件代码已修B1/S1：未知既有`.staging`拒绝接管，新建目录写归属标记；旧持久清理payload缺省版本拒绝自动删除，新派发版本2及独立去重key；原owner交SHA清单`4b17a144…`，不同模型delta静态复审已关闭B1/S1；17文件已无冲突三方并入main工作区候选并保全source-mapping，未改索引/提交，行为验收仍后置；不运行常规矩阵，待最终统一验收。
 
 
-当前执行优先级（恢复完整计划）：①R03/typed/CC/Signed四簇五父main限定组合已交付 `e105dbf`，来源与分支已安全退役，证据见[四簇记录](memory/testing.md#r2-四簇-main-组合限定验收)；②R2-P `4ac8099` 与S-DV `6ffb5c8` 已由三父main提交 `9e5a94198b421987851b3580b27fa90370feeb77` 完成限定组合门禁：默认943/0/34忽略、全特性1748/0/108忽略，双严格Clippy/docs、MSRV、no-default、deny、consumer/生成/MySQL/TCP按[最终记录](memory/testing.md#r2-p-s-dv-main-limited)通过。S-DV与P工作区/分支已安全退役；P两份root文档事实已迁入main，原稿与迁移核对回执保全于 `/tmp/openrust-provider-root-docs-wip-preserved/`，正常退役回执 `/tmp/openrust-provider-registration-safe-retirement.json`。③ST-V来源`2262df9`已由两父提交`8d18021b630ea10652316e025ef6019c7772bbb0`完成main限定组合验收，来源工作区/分支已安全退役；真实S3 ACL、迟到CopyObject、`throw=false`仍开放，见[本簇记录](memory/testing.md#st-v-main-限定组合验收)。本轮用户已明确恢复完整计划，覆盖此前仅收尾限制；当前下方C04-F Request文件家族已完成任务分支限定验证，待main组合验收。两guard worktree受保护。完整Config、Provider发现/Facade、Session/Web、签名URL复杂参数/代理、动态Settings和发布全后端矩阵仍开放。
+当前执行优先级（恢复完整计划）：①R03/typed/CC/Signed四簇五父main限定组合已交付 `e105dbf`，来源与分支已安全退役，证据见[四簇记录](memory/testing.md#r2-四簇-main-组合限定验收)；②R2-P `4ac8099` 与S-DV `6ffb5c8` 已由三父main提交 `9e5a94198b421987851b3580b27fa90370feeb77` 完成限定组合门禁：默认943/0/34忽略、全特性1748/0/108忽略，双严格Clippy/docs、MSRV、no-default、deny、consumer/生成/MySQL/TCP按[最终记录](memory/testing.md#r2-p-s-dv-main-limited)通过。S-DV与P工作区/分支已安全退役；P两份root文档事实已迁入main，原稿与迁移核对回执保全于 `/tmp/openrust-provider-root-docs-wip-preserved/`，正常退役回执 `/tmp/openrust-provider-registration-safe-retirement.json`。③ST-V来源`2262df9`已由两父提交`8d18021b630ea10652316e025ef6019c7772bbb0`完成main限定组合验收，来源工作区/分支已安全退役；真实S3 ACL、迟到CopyObject、`throw=false`仍开放，见[本簇记录](memory/testing.md#st-v-main-限定组合验收)。本轮用户已明确恢复完整计划，覆盖此前仅收尾限制；下方C04-F Request文件家族与MIME已由 `9035a00` 完成main限定组合验收，来源及guard worktree登记均已安全退役。完整Config、Provider发现/Facade、Session/Web、签名URL复杂参数/代理、动态Settings和发布全后端矩阵仍开放。
 
 <a id="c04-f-request-files"></a>
-### C04-F Request文件家族（分支限定验收通过，main待集成）
+### C04-F Request文件家族（main限定子范围已交付9035a00）
 
-- 当前续作（收口）：MIME 家族21文件冻结v7，608构建输入零漂移；15代码门禁通过，默认workspace955/34忽略、全特性1770/111忽略，双严格Clippy/docs/MSRV/no-default/deny通过。services九阶段fresh生成/真实TCP/MySQL链全部exit0，回执`/tmp/openrust-request-mime-services-prepare/run-20261101T080437Z/receipt.json`；生成test_app8/TCP1、Request fixture1、真实MySQL模块1均通过，无新增库残留。原owner `/root/config_runtime_callers`正汇总最终证据，services owner `/root/request_files_services_prepare`已完成本轮target清理：30,115,557,376B→0，磁盘16.968%→19.971%，未知外置65,982,464B保留，回执`/tmp/openrust-request-mime-final-cleanup-retry/receipt.json`；源码保持冻结，已限定提交`5e2ec6b`（28文件，含7份Agent事实文档）；不冒称已合main或完整Request对应完成。受控gate已修复Duration::ZERO测试竞争；原失败保留。首Request历史默认数纠正为945/34（原922漏计CLI父23），旧全特性1760/111不变。守护独立修复已合main `31a6d38`，plain重载PID71755，原Goal active、working/task_running及三项存活/心跳均true；默认0.8/baseline1793413935.123801、账号历史、已结束grant保留，38问答ID无丢失，四行因正常复核变化。
+当前main状态以 `9035a00` 及[本批验收](memory/testing.md#当前-main-组合限定验收)为准；以下保留来源分支验收事实，旧owner/Goal/守护运行态与“未集成”描述均已被本次交付和退役替代，不据此唤醒旧任务。
+
+- 来源分支收口：MIME 家族21文件冻结v7，608构建输入零漂移；15代码门禁通过，默认workspace955/34忽略、全特性1770/111忽略，双严格Clippy/docs/MSRV/no-default/deny通过。services九阶段fresh生成/真实TCP/MySQL链全部exit0，回执`/tmp/openrust-request-mime-services-prepare/run-20261101T080437Z/receipt.json`；生成test_app8/TCP1、Request fixture1、真实MySQL模块1均通过，无新增库残留。原owner `/root/config_runtime_callers`正汇总最终证据，services owner `/root/request_files_services_prepare`已完成本轮target清理：30,115,557,376B→0，磁盘16.968%→19.971%，未知外置65,982,464B保留，回执`/tmp/openrust-request-mime-final-cleanup-retry/receipt.json`；源码保持冻结，已限定提交`5e2ec6b`（28文件，含7份Agent事实文档）；不冒称已合main或完整Request对应完成。受控gate已修复Duration::ZERO测试竞争；原失败保留。首Request历史默认数纠正为945/34（原922漏计CLI父23），旧全特性1760/111不变。守护独立修复已合main `31a6d38`，plain重载PID71755，原Goal active、working/task_running及三项存活/心跳均true；默认0.8/baseline1793413935.123801、账号历史、已结束grant保留，38问答ID无丢失，四行因正常复核变化。
 
 - 已创建限定任务分支本地提交`2f901272ec6fcc8cdd7d3a2b4ec6624a7445aaaf`（43文件），提交信息校验与工作区干净检查通过。源码未合入main；保留任务工作区等待main组合验收，完成集成后安全退役，不再等待逐分支许可。
 
@@ -123,7 +121,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 - MIME续作集中产物已按归属和占用核查后正常`cargo clean`（exit0）：根target实测30,115,557,376B→0，磁盘可用168,778,330,112B（16.968%）→198,646,296,576B（19.971%）；未知外置65,982,464B保留。回执`/tmp/openrust-request-mime-final-cleanup-retry/receipt.json`；首轮lsof解码失败未清理的原证据仍保留，不把Cargo逻辑字节当磁盘实际回收。
 - 依赖root已统一：Axum官方multipart、基础tempfile仅新增multer3.1.0；http-body-util提升基础direct。12 consumer实际native metadata校准，11锁仅补该direct边，全部既有包版本集合不变；证据`/tmp/openrust-request-files-consumer-direct-lock-sync/receipt.json`。最初离线wasm解析与未缓存平台依赖失败均保留，不能冒称成功。
 - 资源：本轮已完成归属/进程/打开句柄核查与正常Cargo清理，根target实测29,937,872,896B→0，磁盘可用167,465,619,456B→197,155,180,544B（19.821%）；回执`/tmp/openrust-request-files-final-cleanup-retry/receipt.json`。首轮因缺缓存标记安全中止的回执保留；确认归属后exclusive create标准CACHEDIR.TAG，dry-run及正常clean均exit0；全项目50GB软/100GB硬与磁盘10%软/5%硬保持。后续仅经root核归属/占用后清可再生产物，保未知外置缓存、guard工作区、服务和数据卷。
-- 开放边界：任务分支限定交付，尚未集成main；Symfony原生Fileinfo后端、Windows默认检测与原生取消清理、完整MIME与文件验证、真实S3 ACL/迟到CopyObject、Storage `throw=false`、Laravel完整Request/Filesystem能力继续未完成，不因本簇限定验证关闭。
+- 开放边界：已完成main限定组合交付；Symfony原生Fileinfo后端、Windows默认检测与原生取消清理、完整MIME与文件验证、真实S3 ACL/迟到CopyObject、Storage `throw=false`、Laravel完整Request/Filesystem能力继续未完成，不因本簇限定验证关闭。
 
 <a id="c04-g-trustproxies-请求上下文verify"></a>
 ### C04-G TrustProxies 请求上下文（main限定子范围已验收）
@@ -192,33 +190,37 @@ R1-S → R2基础 → R2-M模块闭环 → R1-E当前CRUD/能力贯通；R2后�
 
 ## 23项静态纠偏的唯一执行映射
 
-来源[固定行为整改对照](plans/laravel-rebuild.md#执行偏离的纠正)。下列不是验收结论；已实现偏离优先于新增增强，沿既有阶段成组补代码、调用方、示例、模板和测试代码，运行后置。未分配项由总控按依赖领取，不虚报有执行者。
+来源[固定行为整改对照](plans/laravel-rebuild.md#执行偏离的纠正)。2026-11-02 已将三域46项审计逐项去重归入本表、既有C04-F/G和阶段二，不增第二队列。报告与manifest SHA核一致；取证来源仍为固定framework `d52c3b3`、docs `960eedf`，原草稿priority-five和旧行号不改变用户首批配置→bootstrap/app→固定API→模块启停/发现→DB门控顺序。
 
-| 项 | 既有阶段 | owner与当前边界 |
-| --- | --- | --- |
-| 1 app与modules | R1/R2/R13 | laravel_application_layout Implement |
-| 2 Rust代码配置 | R2/R13 | environment_dotenv_console核心、layout应用/模板 Implement |
-| 3 Exceptions/Handler | R3 C06/R12 | trust_proxies_resume 已冻结 17 文件 Implement/WIP，待 main 源码整合与统一验收 |
-| 4 web组/CSRF | R3 C04/R7 | neutral_runtime_names复用实现，HTTP419/层顺序与Handler owner交接 |
-| 5 分页/API Resource | R3 C04/C05→R4 C07→R5 C09 | R4 C07 QueryBuilder 基础已领取，分页与 API Resource 仍按原依赖后继；既有分页整改 Spec 不另建体系 |
-| 6 逐迁移连接/事务/事件 | R4–R6 C10 | 总控按真实DB前置领取 |
-| 7 Queue afterCommit | R10 C19 | 总控按R4事务前置领取 |
-| 8 每任务调度锁策略 | R10 C20 | 总控后继，统一slot不算完成 |
-| 9 Storage throw/ACL/迟到发布 | R8 C15 | 总控后继；neutral命名不关闭此项 |
-| 10 named guard/provider、Gate/Policy | R7 C12/C13 | 总控依HTTP/Session前置领取 |
-| 11 URL复杂参数 | R3 C03/C04 | 总控后继，简单golden不算全量 |
-| 12 Encrypt/Hash drivers | R7 C13 | 总控后继，算法强弱不豁免官方能力 |
-| 13 Query/Eloquent | R4/R5 C07–C09 | trust_proxies_resume 复用执行者在 `tasks/query-builder-family`（base `317e2f6`，worktree `/Users/Home/.paseo/worktrees/02joa2lr/openrust-query-builder-family`）实现 R4 C07 QueryBuilder 基础；仅 code-first WIP，不关闭 ORM/R5，SeaORM 不冒等价 |
-| 14 Factory/SQLite | R6 C10/C11 | 总控后继，seed/custom driver不冒完整能力 |
-| 15 Container/Facade/发现 | R2/R13 C02 | 总控按稳定Provider接口领取 |
-| 16 FormRequest生命周期 | R3 C04/R7 | 总控按Handler/Web/权限前置领取 |
-| 17 Cache Repository契约 | R8 C14 | 总控后继，现tags等资产保留 |
-| 18 Events/Bus完整派发 | R10 C18/C19 | 总控后继，typed listener不冒全量 |
-| 19 Mail/Mailable/Notifications | R9/R10 C17 | 总控后继，真实外部条件缺口保留 |
-| 20 Views/I18n | R9 C16 | 总控后继，Rust模板语法差异分类 |
-| 21 CLI/模块管理/独立安装 | R1/R2/R6/R13 C26/C28 | layout仅app生成子范围，其余总控后继 |
-| 22 Process/Context/HTTP client | R11/R12 C21/C25 | 总控后继，入口资产不冒逐方法完成 |
-| 23 动态命名限流 | R3/R7 C13 | 总控后继，固定窗口不冒全契约 |
+“确认缺口”不否定既有资产；“已编码待验”仅指未具当前contract证据的子行为；“已验子范围”不关闭全家族。必要Rust适配须写具体编译/类型/所有权/async约束与等价证据，不能据其省略功能。用户特约/授权增强与完成状态分别记录。原报告中“无运行期Provider注册”和本批“仅WIP”已纠正，历史真实验收保持。
+
+| 项 | 既有阶段 | owner与当前边界 | 审计归并与稳定矩阵 |
+| --- | --- | --- | --- |
+| 1 app与modules | R1/R2/R13 | 新总控协调；9035a00交付应用/模块同内核与生成子范围；bootstrap测试归属、固定API与模块完整管理仍按首批表整改 | 根app/modules并存为用户特约，不等于Modules全量完成 |
+| 2 Rust代码配置 | R2/R13 | 新总控协调；生产Rust manifest/dotenv/typed/cache子范围已验；当前新总控Spec：可编辑默认值、最终配置依赖与开发预检 | foundation:F6【确认缺口】L005.02/03；services:redis_default【用户特约，官方应用默认另核】L005/C14；显式编译manifest/typed工厂拒绝缓存为必要Rust适配 |
+| 3 Exceptions/Handler | R3 C06/R12 | 新总控协调；9035a00已验应用/模块report/render/respond限定链；完整异常行为继续逐项核 | http:assets:handler【已验子范围】L027.02/03/04 |
+| 4 web组/CSRF/Session | R3 C04/R7 | 新总控协调；9035a00已验显式组/419/默认边界；分布式Session blocking等仍开放 | http:assets:web【已验子范围】L017.02/03/04；http:assets:session【已有已验资产＋blocking确认缺口】L025.04 |
+| 5 分页/API Resource | R3 C04/C05→R4 C07→R5 C09 | 新总控协调；沿既有分页Spec补Resource分页链接/meta与真正NoContent，不重造Query底座 | http:2【确认缺口，Query子范围已验】L059.02/03/05/06 L068.03/04/06；http:3【确认缺口】L020.01/03 |
+| 6 逐迁移连接/事务/事件 | R4–R6 C10 | 新总控协调；现Db/迁移已验资产保留；逐迁移连接、嵌套事务及回调按真实DB前置补齐 | services:db_tx【既有资产保留，未闭合子行为待核/待验】C07/C08/C19；services:migration【确认缺口】C10 |
+| 7 Queue afterCommit | R10 C19 | 新总控协调；按R4事务前置领取，事务内持久写入不替代提交回调 | services:after_commit【确认缺口】C19 |
+| 8 每任务调度锁策略 | R10 C20 | 新总控协调；统一slot资产保留，补每任务withoutOverlapping/onOneServer语义 | services:schedule【确认缺口】C20 |
+| 9 Storage throw/ACL/迟到发布 | R8 C15 | 新总控协调；已有visibility/presign限定验收保留；ACL/迟到发布/throw=false与copy/move仍开放 | services:storage_throw【确认缺口，Result仅为Rust形式】C15；services:storage_visibility【已有资产＋未验子行为/确认缺口】C15 |
+| 10 named guard/provider、Gate/Policy | R7 C12/C13 | 新总控协调；依HTTP/Session前置补named manager/Gate，现JWT/Session/RBAC资产不抹除 | http:5【确认缺口】L051.07/08 L052.02/04/05 |
+| 11 URL复杂参数/路由绑定 | R3 C03/C04 | 新总控协调；简单golden不算全量；Request已有已验范围见C04-F/G，完整路由/绑定仍开放 | http:1【resource/apiResource七动作确认缺口】L018.04 L015.03/05；http:9【复杂参数/隐式绑定确认缺口】L015.05 L024.03/04/06；http:assets:request【已验子范围＋明确Rust资源/async适配】L019.02–07 |
+| 12 Encrypt/Hash drivers | R7 C13 | 新总控协调；补官方算法/选择与key默认工作流，保AAD/key-ring/容量增强，不改用户真实.env | foundation:F5【确认缺口】L054.02；http:6【确认缺口＋授权增强保留】L054.02/03 L055.02/03/04 |
+| 13 Query/Eloquent | R4/R5 C07–C09 | 新总控协调；9035a00默认SELECT *、真实count/分页/隔离已验；cursor、完整Query/ORM仍开放，不以SeaORM抵扣 | http:assets:query【已验子范围＋cursor缺口】L059.02/03/05；services:query【同一子范围，cursor确认缺口】C07/L059；services:eloquent【确认缺口】C08/C09 |
+| 14 Factory/SQLite | R6 C10/C11 | 新总控协调；seed/custom driver资产保留，不冒充Factory state/关系或完整SQLite | services:factory【确认缺口】C10/C11 |
+| 15 Container/Facade/发现 | R2/R13 C02 | 新总控协调；运行期register/force、extend/rebinding/scoped已验；contextual/tag/call、嵌套注册、deferred与包自动发现仍缺 | foundation:F1【确认缺口】L012.02/03/04；foundation:F2【已验注册子范围＋deferred/发现缺口】L013.02/03/04 L044.02；foundation:facade【完整对应待核】L014.03/04 L079.03 |
+| 16 FormRequest生命周期 | R3 C04/R7 | 新总控协调；沿Handler/Web/权限补prepare/authorize/validated与完整规则 | http:4【确认缺口】L026.03/05/07/10/12 |
+| 17 Cache Repository契约 | R8 C14 | 新总控协调；现tags/driver资产保留，补原子add/increment/flexible等契约 | services:cache【确认缺口】C14 |
+| 18 Events/Bus完整派发 | R10 C18/C19 | 新总控协调；typed/queued及chain/batch既有资产保留；until/defer/subscribe/afterResponse等未闭合 | services:bus【已编码资产/未闭合子行为待验及缺口】C18/C19；services:events【同类分类，确认缺口保留】C18/C19 |
+| 19 Mail/Mailable/Notifications | R9/R10 C17 | 新总控协调；补Mailable/Notifiable/channel完整语义；SMS直发增强保留，真实外部条件单列 | services:mailable【确认缺口】C17；services:notification【确认缺口】C17；services:sms【授权增强＋未验供应商范围】C17 |
+| 20 Views/I18n | R9 C16 | 新总控协调；保请求错误包与ICU资产，补composer/creator/share及Laravel替换/choice | http:7【确认缺口】L021.03/04；http:8【确认缺口＋ICU授权增强】L041.02/03；http:assets:view_errors【已验子范围，完整三领域待核】L021/L026/L027 |
+| 21 CLI/模块管理/独立安装 | R1/R2/R6/R13 C26/C28 | 新总控协调；app生成/Provider自动登记已验；嵌套命名、持久模块命令/事件/发现、测试部署工作流按既有项补齐 | foundation:F3【确认缺口】M018/M020 B005/B006；foundation:F4【嵌套命名缺口，自动登记已存在】L007.03 L013.02；foundation:testing【分项缺口/待核，TestApp隔离库资产保留】L074.03/04；foundation:deployment【入口缺口/编译等价待核，config cache已验】L010.04/05 |
+| 22 Process/Context/HTTP client | R11/R12 C21/C25 | 新总控协调；HTTP/context入口资产不等于逐方法契约；按既有网络/进程前置补齐 | services:http_client【已有资产＋未验子行为/缺口】C21/C25；services:http_fake【确认缺口】C21/C25；services:process【确认缺口】C21/C25；services:context【确认缺口，task-local仅Rust形式】C21/C25 |
+| 23 动态命名限流 | R3/R7 C13 | 新总控协调；固定窗口不冒全契约，按既有计划后继 | 本次46项无新增独立发现，不删除原范围 |
+
+`services:optional_ecosystem`【分包待核】直接归本页既有“官方能力全量交付”及阶段二，稳定ID L071–073、L080/081、L087/089/090/091/095/099/101与覆盖计划；官方工具自身UI仍必交，核心资产不抵扣。`services:enhancements`【用户特约/授权增强】归既有R11/R12及各领域计划，MQTT/gRPC/Settings/正文加密/SMS保留并融入统一机制；不启动冻结业务模块或独立AI产品。
 
 ## 必须带入新矩阵的现有缺口
 

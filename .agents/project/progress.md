@@ -6,7 +6,7 @@
 
 ## 当前功能簇
 
-本批 Env/Request-MIME、TrustedHosts、应用/代码配置/Provider、异常、Web/CSRF与部分Query已完成限定组合验收，本地提交以Git为准。真实来源保全、双workspace门禁、生成、MySQL、TCP/TLS及开放差异见[本批证据](memory/testing.md#当前-main-组合限定验收)。下一步按唯一todo优先配置默认值/单一来源等整改，不将本批通过等同完整1:1。
+本批 Env/Request-MIME、TrustedHosts、应用/代码配置/Provider、异常、Web/CSRF与部分Query已完成限定组合验收，本地集成提交 `9035a00`。真实来源保全、双workspace门禁、生成、MySQL、TCP/TLS及开放差异见[本批证据](memory/testing.md#当前-main-组合限定验收)。下一步按唯一todo优先配置默认值/单一来源等整改，不将本批通过等同完整1:1。
 
 ✅ C04-G TrustProxies已完成main限定子范围验收：默认/全特性workspace963/1775通过、34/111忽略，双严格Clippy/docs、精确MSRV/no-default/deny、公开consumer/唯一模块、fresh普通8项/MySQL认证2项及真实TCP补充3案均通过；三项代理差异经不同模型复审关闭，专属缓存回收后仅保留下一环境簇所需主缓存。PHP8.2参考低于Symfony官方最低版本、MySQL无事前schema基线、逐案Rust映射与真实Cloud部署缺口明确保留；完整能力不关闭。见[本簇验收](memory/testing.md#c04-g-trustproxies-main-限定验收)，提交号以Git为准。
 

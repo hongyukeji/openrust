@@ -287,7 +287,7 @@ Cookie模板与受控快照修复相对上述runtime快照只改这两个CLI生�
 
 失败与修复事实保留：§5三次路由整组失败后，用户明确选择修复精确前缀分派后重验；approved1精确1/1、路由94/94通过。普通路径非法UTF8、fallback空捕获和scope尾斜线已修；final1资源根子路径404回归最小修复后资源16/16/路由94/94通过；final2旧Provider重复路由错误断言改成真实HTTP后注册覆盖，测试返回错误类型编译问题亦修正。final3完整通过。默认Clippy前两轮11项和2项测试lint已修，第三轮严格通过，没有删除业务断言、降低`-D warnings`或跳过目标。
 
-旧部分验收保留在`/tmp/openrust-c04d7-preflight3-independent-evidence-index-v2.json`（`99141a96b89c3df6544e4cf45abab4ff21736d668b51a1db1fae314a18971fda`）；只证明当时源码且根清理尾stdout缺失，不代替final3。最终final3已完整封存根清理检查，旧证据缺口没有通过补造成功行消除。不同模型源码与实证复审均无blocker/should-fix。最终收尾仅改项目文档，不改已验收运行源码；限定本地提交以Git为准，不push/tag/release。
+旧部分验收保留在`/tmp/openrust-c04d7-preflight3-independent-evidence-index-v2.json`（`99141a96b89c3df6544e4cf45abab4ff21736d668b51a1db1fae314a18971fda`）；只证明当时源码且根清理尾stdout缺失，不代替final3。最终final3已完整封存根清理检查，旧证据缺口没有通过补造成功行消除。不同模型源码与实证复审均无blocker/should-fix。最终收尾仅改项目文档，不改已验收运行源码；限定本地集成提交 `9035a00`，不push/tag/release。
 
 ## C04-D6 Request URL（限定子范围已验收）
 
