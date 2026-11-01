@@ -26,6 +26,8 @@ Windows 的 `.cmd` / `.bat` 只通过同目录已有 npm package 的唯一 `bin`
 
 运行中steer可能没有新的task_started，生命周期最后仍为user_message。timeline只在最新用户消息之后实际观察到工具调用时设置post_user_activity；下一条用户消息清除该标记。问答入口及最终复核可据此重新分类已有普通问卷，仍核正式绑定、当前完整pending、Goal/控制、用户消息与预算；不将该标记用作普通恢复派发或代替语义授权，无后续活动、取消、暂停与敏感审批仍等待。此修复不增加模型轮询，稳定请求仍每语义版本最多一次分类。本机真实steer场景的D8严格Clippy重验普通问卷已按精确ID自动提交为answered，并从正式pending列表消失，原Goal仍active、主控running；此证据只证明该真实问卷路径，不承诺敏感审批可代答。
 
+自动Goal续作的原始`response_item`用户消息仅在`internal_chat_message_metadata_passthrough.content_item_kinds`精确为`["goal.internal_context"]`时忽略；正文标签和SDK时间不证明来源。问卷只承认原始元数据精确为`["user.text"]`的完整文本输入及其后工具活动；缺失/混合来源、非文本输入、日志尾部缺口或中断均等待。连续追加只在已验证输入至当前尾不超过512KiB、此前已消费区间完整摘要相同时继承；超出可证范围或冷启动尾内没有可信输入即保守等待。未知取消持续阻断自动续发，直到后续可信用户输入及工具活动。
+
 无人值守优先由AI在提问前处理信息充分的普通开发决策；弹窗适配仅处理原已授权目标内的普通选择题。首次观察原始待答问卷后至少等待60秒，已发现待答期间每60秒复核，其余常规监测仍为120秒，故不是从界面显示时精确倒数。新问卷最多调用一次轻量分类；用户先答、停止/暂停或请求/Goal/线程版本变化会撤销。没有推荐标签也可由该次AI给出推荐；无把握不猜。
 
 2026-10-29按本机正式接口、安装代码及隔离线程实际核实：
@@ -42,6 +44,8 @@ Windows 的 `.cmd` / `.bat` 只通过同目录已有 npm package 的唯一 `bin`
 - 若Goal blocked或存在模型blocked控制，本次同一分类还须根据Goal、当前阻塞说明及最近用户上下文明确确认“只等待本普通问答”，否则保留真实阻塞；普通协调策略仍可回答但不恢复Goal。题面本身不能证明不存在外部条件。精确答案已确认成功后，持控制锁重新核对原Goal完整版本、正式blocked状态、控制版本与用户/线程绑定及pending清空，才记录恢复意图并用`thread/goal/set`恢复active；用户paused/取消、新block、目标变化、答案或恢复结果不明均不重发，不修改GoalDB或注入继续消息。普通答题与恢复active不等于开发推进；ledger另记录后续新turn/tools证据。
 - 稳定请求哈希、Goal身份/目标/状态、用户文本语义、控制与分类策略参与版本；有完整文本摘要时不将消息时间戳作为语义变化，缺摘要则保留事件/SDK时间戳以免忽略新输入。activeTurn、自然进度和批次增减不产生新分类版本。每ID仅保留4版本缓存；淘汰旧缓存不会阻止新上下文复核，不设终身分类次数或一小时四次冷却。同版本缓存保留期间只分类一次，无变化轮询不调用模型；每次分类和发送仍核正式额度与任务预算。旧evaluation_retry_at在重新处理时清除，已发送或未知意图仍绝不重发。用户对具体请求已作真实决定时由主控直接记录续作，不等守护分类；权限、信息缺失、暂停和SDK混批保护保持。
 - 发送与stop共用控制锁；发送前再次读取Goal、线程绑定、当前原始pending和停止标记，只提交一个完整精确ID。协议没有对Goal版本/请求内容的条件写或CAS，外部客户端仍可能在最终复核与提交间改变目标；请求已答通常由Paseo拒绝，未知结果保留意图不重试。不能声称消除了所有跨客户端竞态。
+
+正式Paseo `asyncQuestions` 的同会话记录现在只读导出每个异步ID的`pending`、`dismissed`、`resolved`或`unknown`，不导出答案正文。请求从pending消失时，账本以`request_dismissed`、`request_resolved_elsewhere`、`request_disappeared_unknown`或`request_resolution_unknown`记录结构原因；`resolved`只表示正式记录已解除，不证明守护提交成功。短暂turn或activeTurn快照变化会取消当前发送尝试，但首次观察时间与同语义分类缓存保留，下一次完整稳定快照可重试。已dismissed的同ID及任何已有`send_at`的记录不可重放。正式桥在发送或等待回执异常后可二次只读查询该ID的resolution并记录`delivery_phase`、`formal_resolution`诊断；无确认回执一律`unknown`且不重发。正式`lastUserMessageAt`可能是守护答案或协调消息，单独不足以证明真人授权或排除日志尾部未知输入。
 
 启动及动作前的Goal交叉核对允许仅updated_at_ms计量时间变化；本地ID、状态、创建时间、完整目标必须前后一致，协议身份及状态亦须匹配。时间戳放行不影响发送前完整快照、停止标记与授权检查。
 
@@ -120,7 +124,7 @@ Windows 的 `.cmd` / `.bat` 只通过同目录已有 npm package 的唯一 `bin`
 
 热重载：先普通`stop`，再`start`。已有有效grant继续生效，`already_running`不改政策。新授予用`start --use-full-budget-once --allow-existing-credits`；暂停原Goal还须显式加`--resume-budget-paused`。恢复仅接受state中`usage_budget_paused=true`、`percentage_pause.resume_status=waiting`（或旧控制水位已取消自动恢复的`cancelled`）且完整Goal版本相同的守护自有暂停，并要求新的正式用户水位；缺失来源、人工暂停、在途激活/发送未知、权限等待均拒绝。通过正式`thread/goal/get`校验后，持久化activating再用`thread/goal/set`激活原Goal；确认active才标记完成，保留问答与发送幂等。新授权可解除其前的旧控制水位，授权之后的新控制不得清除。恢复入口本身不伪造答卷或发送继续消息，后续由原守护正常判定推进。
 
-`stop --stop-task`和`finish`结束grant；普通stop保留以便重载。正式窗口全部资格不可用且无获准可用credits时记actual_quota_exhausted，撤销覆盖并暂停原Goal，不自动等reset再用同次授权。额度未知或硬限继续保守等待，仍受既有一小时有界退出约束；账号或Goal身份变化撤销覆盖并保留硬边界。结束记录作为防重摘要保留，同一正式用户水位不能重复发放已结束grant。
+`stop --stop-task`和`finish`结束grant；普通stop保留以便重载。正式窗口全部资格不可用且无获准可用credits时记actual_quota_exhausted，永久撤销本次覆盖；守护按原80%预算登记自有暂停并在既有一小时上限内监测正式新周期，同Goal、原账号、控制水位和保留线均核实后可自动恢复，绝不重新启用该grant。旧版耗尽后直接paused且未登记暂停所有权的状态继续拒绝自动恢复；SDK用户水位可由内部消息推进，不能证明新的真人授权。额度未知或硬限继续保守等待；账号或Goal身份变化撤销覆盖并保留硬边界。结束记录作为防重摘要保留，同一正式用户水位不能重复发放已结束grant。
 
 回滚默认政策：普通`stop`后运行`start --end-full-budget-once`。这只撤销grant，原80%基线和历史沿用；如原Goal已预算暂停，默认政策仍触线时不会恢复，不应通过清state、删grant文件或重建Goal绕过。若恢复RPC结果未知，activating记录保留并等待核实，不能重复start尝试。正式协议没有CAS，最后核对与外部客户端写入之间仍有既存竞态；隔离测试不等于真实账号额度或真实恢复验收。
 

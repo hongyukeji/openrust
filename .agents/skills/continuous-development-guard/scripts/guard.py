@@ -254,35 +254,90 @@ def user_text_context(key, message):
 
 
 def timeline(path):
-    """只使用原线程生命周期；新输入和取消使旧恢复依据失效。"""
+    """只沿连续日志继承原线程输入；自动Goal注入不能冒充新用户消息。"""
     global _TIMELINE_CACHE
     path = Path(path)
+    def signature(value):
+        return (value.st_dev, value.st_ino, value.st_size, value.st_mtime_ns, value.st_ctime_ns)
     info = path.stat()
-    identity = (str(path.resolve()), info.st_ino, info.st_size, info.st_mtime_ns)
+    identity = (str(path.resolve()), *signature(info))
     if identity == _TIMELINE_CACHE[0]:
         return _TIMELINE_CACHE[1]
+    previous = _TIMELINE_CACHE
     last = None
     tools = 0
     semantic_blocked = False
     goal_control = None
     user_context = None
     post_user_activity = False
+    input_provenance = 'unknown'
+    abort_barrier = False
+    abort_recovery_user = False
+    proof_start = None
     with path.open('rb') as source:
-        size = source.seek(0, os.SEEK_END)
-        source.seek(max(0, size - TAIL_BYTES))
-        if size > TAIL_BYTES:
-            source.readline()
-        while line := source.readline():
-            offset = source.tell()
+        opened = os.fstat(source.fileno())
+        if signature(opened) != signature(info):
+            _TIMELINE_CACHE = (None, None)
+            return None
+        size = opened.st_size
+        tail_start = max(0, size - TAIL_BYTES)
+        continuous = (len(previous) == 5 and previous[0] is not None
+                      and previous[0][:3] == identity[:3]
+                      and size > previous[2] and previous[0][3] == previous[2]
+                      and previous[3] is not None and size - previous[3] <= TAIL_BYTES
+                      and tail_start <= previous[2])
+        window_start = previous[3] if continuous else tail_start
+        source.seek(window_start)
+        window = source.read(size - window_start)
+        if (len(window) != size - window_start
+                or signature(os.fstat(source.fileno())) != signature(opened)
+                or signature(path.stat()) != signature(opened)):
+            _TIMELINE_CACHE = (None, None)
+            return None
+        parse_start = 0
+        if continuous:
+            old_length = previous[2] - window_start
+            old_bytes = window[:old_length]
+            if not old_bytes.endswith(b'\n') or hashlib.sha256(old_bytes).digest() != previous[4]:
+                _TIMELINE_CACHE = (None, None)
+                return None
+            parse_start = old_length
+            proof_start = window_start
+            last = dict(previous[1]) if previous[1] else None
+            if last:
+                tools = last['tools']
+                semantic_blocked = last['semantic_blocked']
+                goal_control = last['goal_control']
+                user_context = last['user_context']
+                post_user_activity = last['post_user_activity']
+                input_provenance = last['input_provenance']
+                abort_barrier = last['abort_barrier']
+                abort_recovery_user = last['abort_recovery_user']
+        elif window_start:
+            first_end = window.find(b'\n')
+            parse_start = first_end + 1 if first_end >= 0 else len(window)
+        cursor = window_start + parse_start
+        for line in window[parse_start:].splitlines(keepends=True):
+            line_start = cursor
+            cursor += len(line)
+            offset = cursor
             try:
                 row = json.loads(line)
             except (json.JSONDecodeError, UnicodeDecodeError):
+                user_context = None
+                post_user_activity = False
+                input_provenance = 'unknown'
+                abort_recovery_user = False
+                proof_start = None
                 continue
             payload = row.get('payload', {})
             if row.get('type') == 'response_item' and payload.get('type') in ('function_call', 'custom_tool_call'):
                 tools += 1
                 if user_context is not None:
                     post_user_activity = True
+                    if abort_barrier and abort_recovery_user and input_provenance == 'verified_user':
+                        abort_barrier = False
+                        abort_recovery_user = False
                 explicit = explicit_goal_status(payload)
                 if explicit is not None:
                     semantic_blocked = explicit == 'blocked'
@@ -290,6 +345,10 @@ def timeline(path):
                                     'source': [str(path.resolve()), info.st_ino], 'offset': offset}
             if (row.get('type') == 'response_item' and payload.get('type') == 'message'
                     and payload.get('role') == 'user'):
+                metadata = payload.get('internal_chat_message_metadata_passthrough')
+                kinds = metadata.get('content_item_kinds') if isinstance(metadata, dict) else None
+                if kinds == ['goal.internal_context']:
+                    continue
                 # 正式问答steer也可能仅写response_item；精确保留答复，非文本输入不得冒充它。
                 parts = payload.get('content')
                 plain = (isinstance(parts, list) and bool(parts)
@@ -298,6 +357,9 @@ def timeline(path):
                 message = ''.join(p['text'] for p in parts) if plain else None
                 user_context = user_text_context(row.get('timestamp'), message)
                 post_user_activity = False
+                input_provenance = 'verified_user' if kinds == ['user.text'] and plain else 'unknown'
+                abort_recovery_user = input_provenance == 'verified_user'
+                proof_start = line_start if input_provenance == 'verified_user' else None
                 last = {'kind': 'user_message', 'key': row.get('timestamp'),
                         'payload': {'type': 'user_message', 'message': message}, 'tools': tools}
             if row.get('type') != 'event_msg':
@@ -307,16 +369,40 @@ def timeline(path):
                 attachments = payload.get('images') or payload.get('local_images') or payload.get('attachments')
                 user_context = user_text_context(row['timestamp'], None if attachments else payload.get('message'))
                 post_user_activity = False
+                input_provenance = 'unknown'
+                abort_recovery_user = False
+                proof_start = None
+            if kind == 'turn_aborted':
+                user_context = None
+                post_user_activity = False
+                input_provenance = 'unknown'
+                abort_barrier = True
+                abort_recovery_user = False
+                proof_start = None
             if kind in ('task_started', 'task_complete', 'turn_aborted', 'user_message'):
                 if kind == 'task_started':
                     tools = 0
                 last = {'kind': kind, 'key': row['timestamp'], 'payload': payload, 'tools': tools}
+        if proof_start is not None and size - proof_start > TAIL_BYTES:
+            user_context = None
+            post_user_activity = False
+            input_provenance = 'unknown'
+            proof_start = None
+        if (signature(os.fstat(source.fileno())) != signature(opened)
+                or signature(path.stat()) != signature(opened)):
+            _TIMELINE_CACHE = (None, None)
+            return None
     if last is not None:
         last['semantic_blocked'] = semantic_blocked
         last['goal_control'] = goal_control
         last['user_context'] = user_context
         last['post_user_activity'] = post_user_activity
-    _TIMELINE_CACHE = (identity, last)
+        last['input_provenance'] = input_provenance
+        last['abort_barrier'] = abort_barrier
+        last['abort_recovery_user'] = abort_recovery_user
+    consumed = window[proof_start - window_start:] if proof_start is not None else b''
+    _TIMELINE_CACHE = (identity, last, size, proof_start,
+                       hashlib.sha256(consumed).digest() if proof_start is not None else None)
     return last
 
 
@@ -355,8 +441,11 @@ def decision(agent, current_goal, turn, config, now):
     status = current_goal['status']
     if status in ('complete', 'paused'):
         return status
-    if turn and turn['kind'] == 'turn_aborted':
-        return 'stopped'
+    if turn and (turn['kind'] == 'turn_aborted' or turn.get('abort_barrier')
+                 or ('input_provenance' in turn and
+                     (turn['input_provenance'] != 'verified_user' or turn.get('post_user_activity') is not True))):
+        # 正式事件未标明取消来源；人工取消与运行器中断都不能据active Goal自动重发。
+        return 'needs_attention'
     if agent.get('PendingPermissions') or status == 'budget_limited':
         return 'needs_attention'
     if agent.get('Status') not in ('idle', 'error', 'closed'):
@@ -558,6 +647,22 @@ def full_budget_end_reason(config):
     if document.get('active') or not grants:
         return None
     return max(grants, key=lambda g: g['granted_at']).get('reason')
+
+
+def exhausted_grant_matches(config, current):
+    """耗尽只结束一次性授权；回落原预算仍须匹配同一正式目标和账号。"""
+    _, document = grant_document(config)
+    if document.get('active') or not current or not config.get('usage_budget'):
+        return False
+    grants = [g for g in document.get('grants', {}).values()
+              if all(g.get(k) == config.get(k) for k in ('agent', 'thread', 'goal_id'))]
+    if not grants:
+        return False
+    grant = max(grants, key=lambda g: g['granted_at'])
+    budget = config['usage_budget']
+    return (grant.get('status') == 'ended' and grant.get('reason') == 'actual_quota_exhausted'
+            and all(grant.get('goal', {}).get(k) == current.get(k) for k in ('id', 'created_at_ms', 'objective'))
+            and all(grant.get(k) == budget.get(k) for k in ('account_id', 'limit_id')))
 
 
 def effective_usage_budget(config):
@@ -1026,22 +1131,23 @@ def _monitor_percentage_pause(runtime, state, config, current, now):
         return 'percentage_pause_controls_changed'
     if now < pause.get('next_quota_at', 0):
         return 'percentage_reset_wait'
-    if full_budget_end_reason(config) in ('actual_quota_exhausted', 'account_identity_changed',
-                                        'task_identity_changed', 'goal_identity_changed'):
+    end_reason = full_budget_end_reason(config)
+    if (end_reason in ('account_identity_changed', 'task_identity_changed', 'goal_identity_changed')
+            or end_reason == 'actual_quota_exhausted' and not exhausted_grant_matches(config, current)):
         return 'percentage_pause_not_owned'
     response = rpc('account/rateLimits/read', {})
     budget = effective_usage_budget(config)
     if budget.get('_invalid_grant'):
         return 'percentage_pause_not_owned'
     if not budget.get('_full_budget_once'):
-        if pause.get('account_recovery'):
+        if pause.get('account_recovery') and end_reason != 'actual_quota_exhausted':
             refresh_account_budget(runtime, config, response, now)
         refresh_usage_cycles(runtime, config, response, now)
     apply_task_policy(state, config)
     budget = effective_usage_budget(config)
     full_budget = bool(budget.get('_full_budget_once'))
     status = usage_budget_status(response, budget)
-    if full_budget_end_reason(config) == 'actual_quota_exhausted':
+    if full_budget_end_reason(config) == 'actual_quota_exhausted' and not exhausted_grant_matches(config, current):
         return 'percentage_pause_not_owned'
     if status == 'usage_budget_unknown':
         pause['next_quota_at'] = (budget_wait_deadline(pause, response, now)
@@ -1325,7 +1431,13 @@ def worker(runtime, parent_pid):
                         refresh_account_budget(runtime, config, response, time.time())
                     refresh_usage_cycles(runtime, config, response, time.time())
                 apply_task_policy(state, config)
-                floor = usage_budget_status(response, effective_usage_budget(config))
+                checked_budget = effective_usage_budget(config)
+                floor = usage_budget_status(response, checked_budget)
+                if (checked_budget.get('_full_budget_once')
+                        and full_budget_end_reason(config) == 'actual_quota_exhausted'):
+                    # 本次100%授权已经耗尽；后续只按原80%预算判定和等待。
+                    refresh_usage_cycles(runtime, config, response, time.time())
+                    floor = usage_budget_status(response, effective_usage_budget(config))
                 state['usage_budget_checked_at'] = time.time()
                 if floor in ('usage_budget_reached', 'usage_budget_window_changed', 'usage_budget_credits_changed'):
                     unknown_resume = (state.get('percentage_pause') or {}).get('resume_status') in ('activating', 'sending')
@@ -1341,9 +1453,6 @@ def worker(runtime, parent_pid):
                         state['percentage_pause']['resume_status'] = 'superseded_boundary'
                     record('needs_attention', reason=floor, usage_budget_paused=True)
                     if pause_at_usage_budget(runtime, config):
-                        if full_budget_end_reason(config) == 'actual_quota_exhausted':
-                            record('paused', reason='actual_quota_exhausted')
-                            return
                         if not unknown_resume and owned_percentage_pause(runtime, state, config, before, windows):
                             record('quota_wait', reason='percentage_reset_wait', usage_budget_paused=True,
                                    quota_check_at=state['percentage_pause']['next_quota_at'])
@@ -1400,6 +1509,7 @@ def worker(runtime, parent_pid):
                           'permissions_pending' if agent.get('PendingPermissions') else
                           'budget_limited' if current['status'] == 'budget_limited' else
                           'explicit_goal_control' if turn and turn.get('semantic_blocked') else
+                          'turn_aborted_unclassified' if turn and turn['kind'] == 'turn_aborted' else
                           'input_or_authentication_required')
                 record(action, reason=reason)
                 sleep_until(runtime, CHECK_INTERVAL)

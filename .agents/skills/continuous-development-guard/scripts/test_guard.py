@@ -46,7 +46,7 @@ class Decisions(unittest.TestCase):
     def test_terminal_and_human_control_override_recovery(self):
         for state in ('paused', 'complete'):
             self.assertEqual(self.decide(goal={'id': 'g', 'status': state}), state)
-        self.assertEqual(self.decide(turn=dict(self.turn, kind='turn_aborted')), 'stopped')
+        self.assertEqual(self.decide(turn=dict(self.turn, kind='turn_aborted')), 'needs_attention')
         self.assertEqual(self.decide(agent=dict(self.agent, PendingPermissions=[1])), 'needs_attention')
         self.assertEqual(self.decide(goal={'id': 'other', 'status': 'active'}), 'needs_attention')
         self.assertEqual(self.decide(agent=dict(self.agent, Status='running')), 'working')
@@ -99,10 +99,97 @@ class Decisions(unittest.TestCase):
             self.assertEqual(self.decide(goal=blocked, turn=turn), 'recover_error')
             self.assertEqual(self.decide(goal=blocked, turn=turn, agent=dict(self.agent, Status='running')), 'working')
             self.assertEqual(self.decide(goal=blocked, turn=dict(turn, kind='user_message')), 'needs_attention')
-            self.assertEqual(self.decide(goal=blocked, turn=dict(turn, kind='turn_aborted')), 'stopped')
+            self.assertEqual(self.decide(goal=blocked, turn=dict(turn, kind='turn_aborted')), 'needs_attention')
             self.assertEqual(self.decide(goal=blocked, turn=turn, agent=dict(self.agent, PendingPermissions=[1])), 'needs_attention')
         for message in ('401 unauthorized', 'authentication invalid', '403 permission denied', '401 unauthorized; quota exceeded'):
             self.assertEqual(self.decide(goal=blocked, turn=dict(self.turn, payload={'error': {'message': message}})), 'needs_attention')
+
+    def test_ambiguous_abort_keeps_supervisor_and_requires_new_activity(self):
+        with tempfile.TemporaryDirectory() as folder:
+            runtime = Path(folder)
+            rollout = runtime / 'rollout.jsonl'
+            config = {'agent': 'a', 'thread': 't', 'rollout': str(rollout), 'goal_id': 'g'}
+            (runtime / 'config.json').write_text(json.dumps(config))
+            clock = [time.time()]
+            rows = [
+                {'type': 'event_msg', 'timestamp': '2026-10-31T00:00:00Z',
+                 'payload': {'type': 'turn_aborted'}},
+            ]
+
+            def write_rows():
+                rollout.write_text(''.join(json.dumps(row) + '\n' for row in rows))
+
+            write_rows()
+            observations = []
+
+            def waiting(*_):
+                observations.append(json.loads((runtime / 'state.json').read_text()))
+                if len(observations) == 1:
+                    rows.extend([
+                        {'type': 'event_msg', 'timestamp': '2026-10-31T00:01:00Z',
+                         'payload': {'type': 'task_started'}},
+                        {'type': 'response_item', 'timestamp': '2026-10-31T00:01:00.5Z',
+                         'payload': {'type': 'message', 'role': 'user',
+                             'content': [{'type': 'input_text', 'text': '继续原任务'}],
+                             'internal_chat_message_metadata_passthrough': {'content_item_kinds': ['user.text']}}},
+                        {'type': 'response_item', 'timestamp': '2026-10-31T00:01:01Z',
+                         'payload': {'type': 'function_call', 'name': 'functions.exec'}},
+                        {'type': 'event_msg', 'timestamp': '2026-10-31T00:01:02Z',
+                         'payload': {'type': 'task_complete', 'error': {'message': 'runner transport failed'}}},
+                    ])
+                    write_rows()
+                elif len(observations) == 2:
+                    clock[0] += 180
+                else:
+                    (runtime / 'disabled').touch()
+
+            def dispatched(_command):
+                return {}
+
+            with patch.object(recovery, 'binding_valid', return_value=True), \
+                 patch.object(recovery, 'inspect', return_value=self.agent), \
+                 patch.object(recovery, 'goal', return_value=self.goal), \
+                 patch.object(recovery, 'bound_goal', return_value={'status': 'active'}), \
+                 patch.object(recovery, 'notify', return_value=True), \
+                 patch.object(recovery, 'rpc', return_value={
+                     'ordinaryUsageAllowed': True, 'rateLimits': {'primary': {'usedPercent': 1}}}) as remote, \
+                 patch.object(recovery, 'run_json', side_effect=dispatched) as send, \
+                 patch.object(recovery.time, 'time', side_effect=lambda: clock[0]), \
+                 patch.object(recovery, 'sleep_until', side_effect=waiting):
+                recovery.worker(runtime, os.getppid())
+            self.assertEqual(observations[0]['status'], 'needs_attention')
+            self.assertEqual(observations[0]['reason'], 'turn_aborted_unclassified')
+            self.assertIsNotNone(observations[0]['next_check_at'])
+            self.assertEqual(observations[1]['status'], 'backoff')
+            self.assertEqual(observations[2]['status'], 'sent')
+            send.assert_called_once()
+            self.assertEqual(remote.call_args.args[0], 'account/rateLimits/read')
+
+    def test_ambiguous_abort_never_dispatches_without_new_turn(self):
+        for status in ('active', 'blocked', 'paused'):
+            with self.subTest(status=status), tempfile.TemporaryDirectory() as folder:
+                runtime = Path(folder)
+                (runtime / 'config.json').write_text(json.dumps(
+                    {'agent': 'a', 'thread': 't', 'rollout': 'r', 'goal_id': 'g'}))
+                observations = []
+
+                def waiting(*_):
+                    observations.append(json.loads((runtime / 'state.json').read_text()))
+                    (runtime / 'disabled').touch()
+
+                with patch.object(recovery, 'binding_valid', return_value=True), \
+                     patch.object(recovery, 'inspect', return_value=self.agent), \
+                     patch.object(recovery, 'goal', return_value=dict(self.goal, status=status)), \
+                     patch.object(recovery, 'timeline', return_value=dict(self.turn, kind='turn_aborted')), \
+                     patch.object(recovery, 'notify', return_value=True), \
+                     patch.object(recovery, 'rpc') as remote, \
+                     patch.object(recovery, 'run_json') as send, \
+                     patch.object(recovery, 'sleep_until', side_effect=waiting):
+                    recovery.worker(runtime, os.getppid())
+                state = observations[0] if observations else json.loads((runtime / 'state.json').read_text())
+                self.assertEqual(state['status'], 'paused' if status == 'paused' else 'needs_attention')
+                remote.assert_not_called()
+                send.assert_not_called()
 
     def test_running_and_auth_controls_override_usage_limited_enum(self):
         limited = {'id': 'g', 'status': 'usage_limited'}
@@ -132,6 +219,156 @@ class Decisions(unittest.TestCase):
                          'payload': {'type': 'user_message', 'message': '先暂停'}})
             path.write_text('\n'.join(json.dumps(r) for r in rows))
             self.assertFalse(recovery.timeline(path)['post_user_activity'])
+
+    def test_goal_continuation_keeps_verified_user_context_and_tool_activity(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'rollout'
+            rows = [
+                {'type': 'event_msg', 'timestamp': 'old', 'payload': {'type': 'task_started', 'pad': 'x' * 1000}},
+                {'type': 'response_item', 'timestamp': 'human', 'payload': {'type': 'message', 'role': 'user',
+                    'content': [{'type': 'input_text', 'text': '继续已授权任务'}],
+                    'internal_chat_message_metadata_passthrough': {'content_item_kinds': ['user.text']}}},
+                {'type': 'response_item', 'timestamp': 'tool', 'payload': {'type': 'function_call', 'name': 'exec'}},
+            ]
+            path.write_text('\n'.join(json.dumps(row) for row in rows) + '\n')
+            with patch.object(recovery, 'TAIL_BYTES', 800):
+                initial = recovery.timeline(path)
+            rows.append({'type': 'response_item', 'timestamp': 'goal', 'payload': {'type': 'message', 'role': 'user',
+                'content': [{'type': 'input_text', 'text': '<codex_internal_context source="goal">继续</codex_internal_context>'}],
+                'internal_chat_message_metadata_passthrough': {'content_item_kinds': ['goal.internal_context']}}})
+            rows.append({'type': 'event_msg', 'timestamp': 'next', 'payload': {'type': 'task_started'}})
+            path.write_text('\n'.join(json.dumps(row) for row in rows) + '\n')
+            with patch.object(recovery, 'TAIL_BYTES', 800):
+                continued = recovery.timeline(path)
+            self.assertEqual(continued['user_context'], initial['user_context'])
+            self.assertTrue(continued['post_user_activity'])
+            self.assertEqual(continued['input_provenance'], 'verified_user')
+
+    def test_goal_tag_in_real_user_text_and_unknown_metadata_are_not_trusted(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'rollout'
+            base = {'type': 'response_item', 'timestamp': 'human', 'payload': {'type': 'message', 'role': 'user',
+                'content': [{'type': 'input_text', 'text': '继续'}],
+                'internal_chat_message_metadata_passthrough': {'content_item_kinds': ['user.text']}}}
+            path.write_text(json.dumps(base) + '\n')
+            first = recovery.timeline(path)
+            for kinds in (['user.text'], ['goal.internal_context', 'user.text'], None):
+                with self.subTest(kinds=kinds):
+                    payload = {'type': 'message', 'role': 'user',
+                        'content': [{'type': 'input_text', 'text': '<codex_internal_context source="goal">先暂停</codex_internal_context>'}]}
+                    if kinds is not None:
+                        payload['internal_chat_message_metadata_passthrough'] = {'content_item_kinds': kinds}
+                    path.write_text(json.dumps(base) + '\n' + json.dumps({'type': 'response_item',
+                        'timestamp': str(kinds), 'payload': payload}) + '\n')
+                    turn = recovery.timeline(path)
+                    if turn is None:
+                        turn = recovery.timeline(path)  # 同inode重写先丢弃旧快照，下一轮重建。
+                    self.assertNotEqual(turn['user_context'], first['user_context'])
+                    self.assertFalse(turn['post_user_activity'])
+                    self.assertEqual(turn['input_provenance'], 'verified_user' if kinds == ['user.text'] else 'unknown')
+
+    def test_tail_gap_cannot_inherit_verified_user_context(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'rollout'
+            path.write_text(json.dumps({'type': 'response_item', 'timestamp': 'human', 'payload': {
+                'type': 'message', 'role': 'user', 'content': [{'type': 'input_text', 'text': '继续'}],
+                'internal_chat_message_metadata_passthrough': {'content_item_kinds': ['user.text']}}}) + '\n')
+            self.assertEqual(recovery.timeline(path)['input_provenance'], 'verified_user')
+            with patch.object(recovery, 'TAIL_BYTES', 128):
+                with path.open('a') as output:
+                    for n in range(10):
+                        output.write(json.dumps({'type': 'event_msg', 'timestamp': str(n),
+                            'payload': {'type': 'task_started', 'pad': 'x' * 128}}) + '\n')
+                    output.write(json.dumps({'type': 'event_msg', 'timestamp': 'end',
+                        'payload': {'type': 'task_complete'}}) + '\n')
+                turn = recovery.timeline(path)
+            self.assertEqual(turn['input_provenance'], 'unknown')
+            self.assertIsNone(turn['user_context'])
+
+    def test_abort_invalidates_context_even_after_internal_goal_turn(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'rollout'
+            rows = [
+                {'type': 'response_item', 'timestamp': 'human', 'payload': {'type': 'message', 'role': 'user',
+                    'content': [{'type': 'input_text', 'text': '继续'}],
+                    'internal_chat_message_metadata_passthrough': {'content_item_kinds': ['user.text']}}},
+                {'type': 'response_item', 'timestamp': 'tool', 'payload': {'type': 'function_call', 'name': 'exec'}},
+                {'type': 'event_msg', 'timestamp': 'abort', 'payload': {'type': 'turn_aborted'}},
+                {'type': 'response_item', 'timestamp': 'goal', 'payload': {'type': 'message', 'role': 'user',
+                    'content': [{'type': 'input_text', 'text': '继续'}],
+                    'internal_chat_message_metadata_passthrough': {'content_item_kinds': ['goal.internal_context']}}},
+                {'type': 'event_msg', 'timestamp': 'next', 'payload': {'type': 'task_started'}},
+            ]
+            path.write_text('\n'.join(json.dumps(row) for row in rows) + '\n')
+            turn = recovery.timeline(path)
+            self.assertEqual(turn['input_provenance'], 'unknown')
+            self.assertFalse(turn['post_user_activity'])
+            self.assertIsNone(turn['user_context'])
+            self.assertTrue(turn['abort_barrier'])
+            self.assertEqual(self.decide(turn=turn), 'needs_attention')
+            with path.open('a') as output:
+                output.write(json.dumps({'type': 'event_msg', 'timestamp': 'complete',
+                    'payload': {'type': 'task_complete', 'completed_at': 0}}) + '\n')
+            runtime = Path(folder) / 'runtime'
+            runtime.mkdir()
+            (runtime / 'config.json').write_text(json.dumps({'agent': 'a', 'thread': 't',
+                'rollout': str(path), 'goal_id': 'g'}))
+            def finish_check(*_):
+                (runtime / 'disabled').touch()
+            with patch.object(recovery, 'binding_valid', return_value=True), \
+                 patch.object(recovery, 'inspect', return_value=self.agent), \
+                 patch.object(recovery, 'goal', return_value=self.goal), \
+                 patch.object(recovery, 'notify', return_value=True), \
+                 patch.object(recovery, 'rpc') as remote, \
+                 patch.object(recovery, 'run_json') as send, \
+                 patch.object(recovery, 'sleep_until', side_effect=finish_check):
+                recovery.worker(runtime, os.getppid())
+            send.assert_not_called()
+            remote.assert_not_called()
+
+    def test_same_inode_prefix_rewrite_does_not_reuse_old_user_authorization(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'rollout'
+            def human(message):
+                return {'type': 'response_item', 'timestamp': 'human', 'payload': {'type': 'message', 'role': 'user',
+                    'content': [{'type': 'input_text', 'text': message}],
+                    'internal_chat_message_metadata_passthrough': {'content_item_kinds': ['user.text']}}}
+            suffix = [{'type': 'response_item', 'timestamp': 'tool', 'payload': {'type': 'function_call', 'name': 'exec'}},
+                      {'type': 'event_msg', 'timestamp': 'end', 'payload': {'type': 'task_complete', 'pad': 'x' * 200}}]
+            path.write_text('\n'.join(json.dumps(row) for row in [human('继续'), *suffix]) + '\n')
+            before = recovery.timeline(path)
+            path.write_text('\n'.join(json.dumps(row) for row in [human('暂停'), *suffix]) + '\n')
+            with path.open('a') as output:
+                output.write(json.dumps({'type': 'event_msg', 'timestamp': 'next',
+                    'payload': {'type': 'task_started'}}) + '\n')
+            self.assertIsNone(recovery.timeline(path))
+            after = recovery.timeline(path)
+            self.assertNotEqual(after['user_context'], before['user_context'])
+            self.assertEqual(after['user_context']['message'], '暂停')
+
+    def test_rewrite_during_parse_cannot_pair_old_events_with_new_digest(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'rollout'
+            rows = [
+                {'type': 'response_item', 'timestamp': 'human', 'payload': {'type': 'message', 'role': 'user',
+                    'content': [{'type': 'input_text', 'text': '继续'}],
+                    'internal_chat_message_metadata_passthrough': {'content_item_kinds': ['user.text']}}},
+                {'type': 'response_item', 'timestamp': 'tool', 'payload': {'type': 'function_call', 'name': 'exec'}},
+                {'type': 'event_msg', 'timestamp': 'end', 'payload': {'type': 'task_complete', 'pad': 'x' * 200}},
+            ]
+            path.write_text('\n'.join(json.dumps(row) for row in rows) + '\n')
+            recovery.timeline(path)
+            with path.open('a') as output:
+                output.write(json.dumps({'type': 'response_item', 'timestamp': 'next-tool',
+                    'payload': {'type': 'function_call', 'name': 'exec'}}) + '\n')
+            original = recovery.explicit_goal_status
+            def rewrite_during_parse(payload):
+                path.write_text(path.read_text().replace(json.dumps('继续')[1:-1],
+                                                         json.dumps('暂停')[1:-1], 1))
+                return original(payload)
+            with patch.object(recovery, 'explicit_goal_status', side_effect=rewrite_during_parse):
+                self.assertIsNone(recovery.timeline(path))
+            self.assertEqual(recovery.timeline(path)['user_context']['message'], '暂停')
 
     def test_explicit_goal_block_is_preserved_in_timeline_across_later_runner_error(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -204,6 +441,10 @@ class Decisions(unittest.TestCase):
             self.assertFalse(recovered['semantic_blocked'])
             self.assertNotIn('goal_control', state)
             self.assertIn('control_watermark', state)
+            append('response_item', {'type': 'message', 'role': 'user',
+                                    'content': [{'type': 'input_text', 'text': '继续原任务'}],
+                                    'internal_chat_message_metadata_passthrough': {'content_item_kinds': ['user.text']}}, 'human-resume')
+            append('response_item', {'type': 'function_call', 'name': 'functions.exec'}, 'human-tool')
             append('event_msg', {'type': 'task_complete', 'error': {'message': '429'}}, 'later-error')
             # 旧blocked仍在512KiB尾部，跨worker重启仍不污染后续429。
             state = json.loads(json.dumps(state))
@@ -1192,10 +1433,25 @@ else:
         self.fail('未在期限内达到预期进程状态')
 
     def tearDown(self):
+        signalled_owned_supervisor = False
         if self.runtime.exists():
             (self.runtime / 'disabled').touch()
+            supervisor_path = self.runtime / 'supervisor.json'
+            if supervisor_path.exists():
+                supervisor = json.loads(supervisor_path.read_text())
+                # SIGKILL回归的监督进程有30秒重启冷却；直接通知本fixture的已验证进程退出。
+                with patch.object(recovery, 'SCRIPT', self.script):
+                    owned = recovery.supervisor_alive(supervisor, self.runtime)
+                if owned:
+                    signalled_owned_supervisor = True
+                    try:
+                        os.kill(supervisor['pid'], signal.SIGTERM)
+                    except ProcessLookupError:
+                        pass
             self.wait_for(lambda: not (self.runtime / 'supervisor.json').exists(), timeout=45)
         self.temp.cleanup()
+        if getattr(self, 'require_owned_signal', False):
+            self.assertTrue(signalled_owned_supervisor)
 
     def test_binding_mismatch_cannot_enrol(self):
         value = json.loads(self.record.read_text())
@@ -1325,6 +1581,7 @@ else:
         os.kill(old, signal.SIGKILL)
         self.wait_for(lambda: json.loads((self.runtime / 'worker.json').read_text())['pid'] != old, timeout=40)
         self.assertEqual(json.loads(self.call('start').stdout)['status'], 'already_running')
+        self.require_owned_signal = True
 
     def test_stop_wins_while_start_is_registering(self):
         (self.root / 'pause-inspect').touch()
@@ -1793,7 +2050,7 @@ class FullBudgetOnce(unittest.TestCase):
         self.assertEqual([p for m, p in calls if m == 'thread/goal/set'], [{'threadId': 't', 'status': 'active'}])
         with self.assertRaises(ValueError): recovery.resume_budget_pause(self.runtime, self.config, state)
 
-    def monitor_full_budget(self, response, *, controls_changed=False):
+    def monitor_full_budget(self, response, *, controls_changed=False, now=1000):
         state = self.state()
         state['percentage_pause'].update(controls=dict(self.controls), windows={'primary': '2000'},
                                          next_quota_at=0, account_id='account', account_recovery=True)
@@ -1810,8 +2067,101 @@ class FullBudgetOnce(unittest.TestCase):
              patch.object(recovery, 'run_json') as send, \
              patch.object(recovery, 'login_revision', return_value=None):
             outcome = recovery.monitor_percentage_pause(self.runtime, state, self.config,
-                                                         dict(self.current), 1000)
+                                                         dict(self.current), now)
         return outcome, state, calls, send.call_count
+
+    def test_exhausted_grant_waits_under_default_budget_then_resumes_after_verified_cycle(self):
+        self.grant()
+        exhausted = json.loads(json.dumps(self.response))
+        exhausted['ordinaryUsageAllowed'] = False
+        exhausted['rateLimits']['primary']['usedPercent'] = 100
+        self.assertEqual(self.status(exhausted), 'usage_budget_reached')
+        grant_path, ended = recovery.grant_document(self.config)
+        grant_bytes = grant_path.read_bytes()
+        self.assertEqual(next(iter(ended['grants'].values()))['reason'], 'actual_quota_exhausted')
+        for kind in ('exhausted', 'reserve', 'unknown', 'manual'):
+            snapshot = json.loads(json.dumps(exhausted))
+            if kind == 'reserve':
+                snapshot.update(ordinaryUsageAllowed=True)
+                snapshot['rateLimits']['primary']['usedPercent'] = 90
+            elif kind == 'unknown':
+                snapshot.pop('ordinaryUsageAllowed')
+            elif kind == 'manual':
+                snapshot.update(ordinaryUsageAllowed=True)
+                snapshot['rateLimits']['primary'].update(usedPercent=75, resetsAt=4000)
+            outcome, _, calls, sends = self.monitor_full_budget(
+                snapshot, controls_changed=kind == 'manual', now=2500)
+            self.assertNotEqual(outcome, 'percentage_resumed', kind)
+            self.assertNotIn('thread/goal/set', calls, kind)
+            self.assertEqual(sends, 0, kind)
+        available = json.loads(json.dumps(self.response))
+        available['rateLimits']['primary'].update(usedPercent=75, resetsAt=4000)
+        outcome, state, calls, sends = self.monitor_full_budget(available, now=2500)
+        self.assertEqual(outcome, 'percentage_resumed')
+        self.assertEqual(state['percentage_pause']['resume_status'], 'sent')
+        self.assertEqual(calls.count('thread/goal/set'), 1)
+        self.assertEqual(sends, 1)
+        self.assertEqual(grant_path.read_bytes(), grant_bytes)
+        self.assertFalse(recovery.effective_usage_budget(self.config).get('_full_budget_once'))
+
+    def test_exhaustion_worker_keeps_guard_owned_wait_without_send(self):
+        self.grant()
+        self.current['status'] = 'active'
+        exhausted = json.loads(json.dumps(self.response))
+        exhausted['ordinaryUsageAllowed'] = False
+        exhausted['rateLimits']['primary']['usedPercent'] = 100
+        (self.runtime / 'config.json').write_text(json.dumps(self.config))
+        observed = []
+        def remote(method, params):
+            if method == 'thread/goal/set':
+                self.current['status'] = params['status']
+                return {}
+            return exhausted
+        def finish_wait(*_):
+            observed.append(json.loads((self.runtime / 'state.json').read_text()))
+            (self.runtime / 'disabled').touch()
+        with patch.object(recovery, 'rpc', side_effect=remote), \
+             patch.object(recovery, 'percentage_pause_controls', return_value=self.controls), \
+             patch.object(recovery, 'binding_valid', return_value=True), \
+             patch.object(recovery, 'run_json') as send, \
+             patch.object(recovery, 'publish_registry'), \
+             patch.object(recovery, 'notify', return_value=False), \
+             patch.object(recovery, 'sleep_until', side_effect=finish_wait):
+            recovery.worker(self.runtime, os.getppid())
+        state = observed[0]
+        self.assertEqual(state['status'], 'quota_wait')
+        self.assertEqual(state['percentage_pause']['resume_status'], 'waiting')
+        self.assertEqual(state['percentage_pause']['windows'], {'primary': '2000'})
+        self.assertEqual(recovery.full_budget_end_reason(self.config), 'actual_quota_exhausted')
+        self.assertFalse(any(call.args[0][:2] == ['paseo', 'send'] for call in send.call_args_list))
+
+    def test_legacy_exhaustion_does_not_treat_sdk_watermark_as_new_human_authorization(self):
+        self.grant()
+        exhausted = json.loads(json.dumps(self.response))
+        exhausted['ordinaryUsageAllowed'] = False
+        exhausted['rateLimits']['primary']['usedPercent'] = 100
+        self.assertEqual(self.status(exhausted), 'usage_budget_reached')
+        grant_path, _ = recovery.grant_document(self.config)
+        grant_bytes = grant_path.read_bytes()
+        available = json.loads(json.dumps(self.response))
+        available['rateLimits']['primary'].update(usedPercent=75, resetsAt=4000)
+        state = {'reason': 'actual_quota_exhausted', 'usage_budget_paused': True,
+                 'questions': {'q': {'status': 'unknown'}}}
+        for kind in ('internal_watermark', 'human_pause'):
+            with self.subTest(kind=kind):
+                controls = dict(self.controls, last_user_at='2026-10-31T12:01:00Z',
+                                user_key='2026-10-31T12:01:00Z',
+                                control='paused' if kind == 'human_pause' else None)
+                with patch.object(recovery, 'percentage_pause_controls', return_value=controls), \
+                     patch.object(recovery, 'rpc', return_value=available) as rpc:
+                    with self.assertRaises(ValueError):
+                        recovery.resume_budget_pause(self.runtime, self.config, dict(state))
+                rpc.assert_not_called()
+        self.assertEqual(self.current['status'], 'paused')
+        self.assertNotIn('percentage_pause', state)
+        self.assertEqual(state['questions'], {'q': {'status': 'unknown'}})
+        self.assertEqual(grant_path.read_bytes(), grant_bytes)
+        self.assertFalse(recovery.effective_usage_budget(self.config).get('_full_budget_once'))
 
     def test_owned_pause_resumes_at_ninety_without_reset_or_credit_reserve(self):
         # 原credits参与预算，已耗尽仍有普通资格；不能残留旧credits保留线。
@@ -1888,7 +2238,7 @@ class FullBudgetOnce(unittest.TestCase):
         reset = json.loads(json.dumps(self.response))
         reset['rateLimits']['primary']['resetsAt'] = 4000
         outcome, _, calls, _ = self.monitor_full_budget(reset)
-        self.assertEqual(outcome, 'percentage_pause_not_owned')
+        self.assertEqual(outcome, 'percentage_reset_wait')
         self.assertNotIn('thread/goal/set', calls)
 
     def run_resume_cli(self, has_grant, same_human=False):

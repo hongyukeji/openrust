@@ -41,7 +41,8 @@ class Questions(unittest.TestCase):
         self.state = {}
         self.config = {'agent': 'agent', 'thread': 'thread', 'goal_id': 'goal', 'rollout': 'rollout'}
         self.current = {'id': 'goal', 'status': 'active', 'objective': '编写当前功能的测试', 'updated_at_ms': 1}
-        self.turn = {'kind': 'task_complete', 'key': 'turn'}
+        self.turn = {'kind': 'task_complete', 'key': 'turn',
+                     'input_provenance': 'verified_user', 'post_user_activity': True}
         self.agent = {'Id': 'agent', 'Cwd': str(guard.ROOT), 'PendingPermissions': [request()],
                       'QuestionBinding': {'id': 'agent', 'thread': 'thread', 'activeTurn': {'turnId': 'turn'},
                                           'lastUserMessageAt': None}}
@@ -60,6 +61,14 @@ class Questions(unittest.TestCase):
             return questions.step(self.runtime, self.state, self.config, self.agent,
                                   self.current, self.turn, self.api, self.classifier)
 
+    def test_unknown_input_origin_cannot_make_old_question_ready(self):
+        self.assertFalse(questions.question_turn_ready({'kind': 'task_complete', 'key': 'later',
+            'input_provenance': 'unknown', 'post_user_activity': True}))
+        self.assertFalse(questions.question_turn_ready({'kind': 'task_complete', 'key': 'later',
+            'input_provenance': 'verified_user', 'post_user_activity': False}))
+        self.assertTrue(questions.question_turn_ready({'kind': 'task_complete', 'key': 'later',
+            'input_provenance': 'verified_user', 'post_user_activity': True}))
+
     def test_questions_share_task_credit_policy_and_model_without_global_changes(self):
         self.config.update(allow_existing_credits=True, question_model='gpt-6.1-sol')
         self.step(10)
@@ -76,6 +85,30 @@ class Questions(unittest.TestCase):
         self.assertEqual(self.step(60), 'question_answered')
         self.api.answer_question.assert_called_once()
         self.classifier.assert_called_once()
+
+    def test_goal_continuation_does_not_starve_stable_pending_question(self):
+        path = self.runtime / 'rollout'
+        human = {'type': 'response_item', 'timestamp': 'human', 'payload': {'type': 'message', 'role': 'user',
+            'content': [{'type': 'input_text', 'text': '继续已授权开发'}],
+            'internal_chat_message_metadata_passthrough': {'content_item_kinds': ['user.text']}}}
+        tool = {'type': 'response_item', 'timestamp': 'tool', 'payload': {'type': 'function_call', 'name': 'exec'}}
+        path.write_text('\n'.join(json.dumps(row) for row in (human, tool)) + '\n')
+        self.config['rollout'] = str(path)
+        self.api.timeline.side_effect = lambda _: guard.timeline(path)
+        self.turn = guard.timeline(path)
+        self.agent['Status'] = 'running'
+        self.assertEqual(self.step(0), 'question_wait')
+        goal = {'type': 'response_item', 'timestamp': 'goal', 'payload': {'type': 'message', 'role': 'user',
+            'content': [{'type': 'input_text', 'text': '<codex_internal_context source="goal">继续</codex_internal_context>初始标签可伪造'}],
+            'internal_chat_message_metadata_passthrough': {'content_item_kinds': ['goal.internal_context']}}}
+        started = {'type': 'event_msg', 'timestamp': 'next', 'payload': {'type': 'task_started'}}
+        with path.open('a') as output:
+            output.write('\n'.join(json.dumps(row) for row in (goal, started)) + '\n')
+        self.turn = guard.timeline(path)
+        self.agent['QuestionBinding']['activeTurn'] = {'turnId': 'next'}
+        self.assertEqual(self.step(60), 'question_answered')
+        self.api.answer_question.assert_called_once()
+        self.assertEqual(self.classifier.call_count, 1)
 
     def test_new_user_input_without_subsequent_activity_does_not_classify_or_answer(self):
         self.turn.update(kind='user_message', post_user_activity=False)
@@ -172,6 +205,59 @@ class Questions(unittest.TestCase):
                     self.api.answer_question.assert_not_called()
                 self.assertEqual(self.classifier.call_count, 2 if change == 'request' else 1)
 
+    def test_dismissed_async_request_is_not_an_answer_or_retried(self):
+        self.agent['PendingPermissions'] = [request(True)]
+        self.agent['QuestionOrigins'] = {'permission-item': {'type': 'agentMessage', 'id': 'item',
+            'delivery': 'async', 'questions': [{'title': '纯函数单元测试如何组织？',
+                                                  'options': ['一个大文件', '按模块分组']}]}}
+        self.assertEqual(self.step(0), 'question_wait')
+        self.agent['PendingPermissions'] = []
+        self.agent['QuestionStates'] = {'permission-item': 'dismissed'}
+        self.step(120)
+        row = self.state['questions']['permission-item']
+        self.assertEqual((row['status'], row['reason']), ('dismissed', 'request_dismissed'))
+        self.assertIsNone(row.get('send_at'))
+        self.api.answer_question.assert_not_called()
+        self.agent['PendingPermissions'] = [request(True)]
+        self.step(180)
+        self.api.answer_question.assert_not_called()
+
+    def test_disappeared_without_formal_resolution_is_unknown(self):
+        self.assertEqual(self.step(0), 'question_wait')
+        self.agent['PendingPermissions'] = []
+        self.agent['QuestionStates'] = {}
+        self.step(120)
+        row = self.state['questions']['permission-item']
+        self.assertEqual((row['status'], row['reason']), ('cancelled', 'request_disappeared_unknown'))
+        self.api.answer_question.assert_not_called()
+
+    def test_unavailable_resolution_can_be_diagnosed_after_sdk_recovers(self):
+        self.agent['PendingPermissions'] = [request(True)]
+        self.agent['QuestionOrigins'] = {'permission-item': {'type': 'agentMessage', 'id': 'item',
+            'delivery': 'async', 'questions': [{'title': '纯函数单元测试如何组织？',
+                                                  'options': ['一个大文件', '按模块分组']}]}}
+        self.step(0)
+        self.agent['PendingPermissions'] = []
+        self.agent['QuestionStates'] = None
+        self.step(120)
+        self.assertEqual(self.state['questions']['permission-item']['reason'], 'request_resolution_unknown')
+        self.agent['QuestionStates'] = {'permission-item': 'dismissed'}
+        self.step(180)
+        self.assertEqual(self.state['questions']['permission-item']['status'], 'dismissed')
+        self.api.answer_question.assert_not_called()
+
+    def test_changed_active_turn_retries_after_stable_snapshot(self):
+        self.assertEqual(self.step(0), 'question_wait')
+        unstable = copy.deepcopy(self.agent)
+        unstable['QuestionBinding']['activeTurn'] = {'turnId': 'another'}
+        self.api.inspect.side_effect = [unstable, self.agent, self.agent]
+        self.assertEqual(self.step(120), 'question_wait')
+        self.assertEqual(self.state['questions']['permission-item']['reason'], 'sdk_binding_changed')
+        self.api.answer_question.assert_not_called()
+        self.assertEqual(self.step(180), 'question_answered')
+        self.api.answer_question.assert_called_once()
+        self.classifier.assert_called_once()
+
     def test_sending_intent_is_durable_and_unknown_result_never_retried(self):
         self.step(0)
         def fail(*args):
@@ -183,6 +269,30 @@ class Questions(unittest.TestCase):
         self.step(900)
         self.api.answer_question.assert_called_once()
         self.classifier.assert_called_once()
+
+    def test_delivery_error_phase_is_recorded_without_replay(self):
+        self.step(0)
+        self.api.answer_question.side_effect = questions.SubmissionOutcomeUnknown(
+            'delivery_outcome_unknown', 'sdk_error', 'resolved')
+        self.assertEqual(self.step(120), 'question_unknown')
+        row = self.state['questions']['permission-item']
+        self.assertEqual((row['delivery_phase'], row['formal_resolution']),
+                         ('delivery_outcome_unknown', 'resolved'))
+        self.step(180)
+        self.api.answer_question.assert_called_once()
+
+    def test_bridge_error_diagnostic_is_allowlisted(self):
+        failure = subprocess.CalledProcessError(1, ['bridge'], stderr=json.dumps({
+            'phase': 'delivery_outcome_unknown', 'reason': 'sdk_error',
+            'formalResolution': 'resolved', 'secret': 'discard'}).encode())
+        self.api.run_json_command_text = Mock(side_effect=failure)
+        with self.assertRaises(questions.SubmissionOutcomeUnknown) as result:
+            questions.submit(self.config, request(), {'answers': {'布局': '按模块分组'}},
+                             self.agent['QuestionBinding'], [request()], self.api)
+        self.assertEqual((result.exception.phase, result.exception.reason,
+                          result.exception.resolution),
+                         ('delivery_outcome_unknown', 'sdk_error', 'resolved'))
+        self.assertNotIn('secret', str(result.exception))
 
     def test_reject_secret_foreign_or_mixed_approval_schema(self):
         for mutation in ('secret', 'mixed', 'foreign', 'duplicate_header'):
@@ -777,7 +887,7 @@ class BridgeSubmission(unittest.TestCase):
                        'answer': {'answers': {'布局': '按模块分组'}}}
             target = root / 'sent.json'
             bridge = Path(questions.__file__).with_name('guard_paseo.cjs')
-            for mode in ('valid', 'guide', 'new_question', 'new_tool', 'changed_binding', 'missing_answer', 'request_prefix', 'batch', 'batch_tampered', 'batch_missing', 'batch_arbitrary', 'batch_sync'):
+            for mode in ('valid', 'guide', 'new_question', 'new_tool', 'changed_binding', 'missing_answer', 'request_prefix', 'duplicate_pending', 'batch', 'batch_tampered', 'batch_missing', 'batch_arbitrary', 'batch_sync'):
                 with self.subTest(mode=mode):
                     current = copy.deepcopy(snapshot)
                     submission = copy.deepcopy(payload)
@@ -792,6 +902,9 @@ class BridgeSubmission(unittest.TestCase):
                         second = copy.deepcopy(first); second['id'] = 'permission-second'
                         second['input']['questions'][0]['options'] = []
                         current['pendingPermissions'] = [first, second]
+                        current['persistence']['metadata']['asyncQuestions'] = [
+                            {'item': {'type': 'agentMessage', 'delivery': 'async', 'id': 'item'}},
+                            {'item': {'type': 'agentMessage', 'delivery': 'async', 'id': 'second'}}]
                         rows = {first['id']: {'answer': {'answers': {'Question 1': '按模块分组'}}},
                                 second['id']: {'answer': {'answers': {'Question 1': questions.SELF_DECISION}}}}
                         combined = questions.batch_answer(current['pendingPermissions'], rows)
@@ -810,6 +923,9 @@ class BridgeSubmission(unittest.TestCase):
                     if mode == 'changed_binding': current['lastUserMessageAt'] = 'new'
                     if mode == 'missing_answer': submission['answer'] = {'answers': {}}
                     if mode == 'request_prefix': current['pendingPermissions'][0]['id'] += '-different'
+                    if mode == 'duplicate_pending':
+                        current['pendingPermissions'].append(copy.deepcopy(req))
+                        submission['pending'] = copy.deepcopy(current['pendingPermissions'])
                     env = dict(os.environ, QUESTION_SNAPSHOT=json.dumps(current), QUESTION_SENT=str(target))
                     result = subprocess.run(['node', str(bridge), str(root), agent_id, json.dumps(submission)],
                                             env=env, capture_output=True, text=True, timeout=10)
@@ -819,6 +935,76 @@ class BridgeSubmission(unittest.TestCase):
                     else:
                         self.assertNotEqual(result.returncode, 0)
                         self.assertFalse(target.exists())
+            async_snapshot = copy.deepcopy(snapshot)
+            async_snapshot['pendingPermissions'] = [request(True)]
+            async_snapshot['persistence']['metadata']['asyncQuestions'] = [
+                {'item': {'type': 'agentMessage', 'delivery': 'async', 'id': 'item',
+                          'questions': [{'title': '纯函数单元测试如何组织？', 'options': ['一个大文件', '按模块分组']}]}},
+                {'item': {'type': 'agentMessage', 'delivery': 'async', 'id': 'old'}, 'resolution': 'dismissed'},
+                {'item': {'type': 'agentMessage', 'delivery': 'async', 'id': 'answered'}, 'resolution': ['A']}]
+            env = dict(os.environ, QUESTION_SNAPSHOT=json.dumps(async_snapshot), QUESTION_SENT=str(target))
+            result = subprocess.run(['node', str(bridge), str(root), agent_id],
+                                    env=env, capture_output=True, text=True, timeout=10, check=True)
+            data = json.loads(result.stdout)
+            self.assertEqual(data['questionStates'], {'permission-item': 'pending',
+                'permission-old': 'dismissed', 'permission-answered': 'resolved'})
+            self.assertEqual(list(data['questionOrigins']), ['permission-item'])
+            for resolution in ('dismissed', ['按模块分组']):
+                with self.subTest(duplicate_resolution=resolution):
+                    duplicate = copy.deepcopy(async_snapshot)
+                    duplicate['persistence']['metadata']['asyncQuestions'].append({
+                        'item': copy.deepcopy(duplicate['persistence']['metadata']['asyncQuestions'][0]['item']),
+                        'resolution': resolution})
+                    env = dict(os.environ, QUESTION_SNAPSHOT=json.dumps(duplicate), QUESTION_SENT=str(target))
+                    inspected = subprocess.run(['node', str(bridge), str(root), agent_id],
+                                               env=env, capture_output=True, text=True, timeout=10, check=True)
+                    data = json.loads(inspected.stdout)
+                    self.assertEqual(data['questionStates']['permission-item'], 'unknown')
+                    self.assertNotIn('permission-item', data['questionOrigins'])
+                    target.unlink(missing_ok=True)
+                    async_req = duplicate['pendingPermissions'][0]
+                    submission = {'request': async_req, 'pending': [async_req], 'binding': binding,
+                                  'cwd': str(root), 'answer': {'answers': {'Question 1': '按模块分组'}}}
+                    submitted = subprocess.run(['node', str(bridge), str(root), agent_id, json.dumps(submission)],
+                                               env=env, capture_output=True, text=True, timeout=10)
+                    self.assertNotEqual(submitted.returncode, 0)
+                    self.assertFalse(target.exists())
+
+    @unittest.skipUnless(shutil.which('node'), '需要已有Node；不安装')
+    def test_async_side_effect_then_receipt_error_keeps_unknown_diagnostic(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            utils = root / 'node_modules/@getpaseo/cli/dist/utils'
+            utils.mkdir(parents=True)
+            (root / 'package.json').write_text('{"type":"module"}')
+            (utils / 'daemon-target.js').write_text('export function selectDaemonTarget(){return {}}')
+            (utils / 'client.js').write_text(
+                "import fs from 'node:fs';let sent=false;export async function connectToDaemon(){return {"
+                "fetchAgent:async()=>{const a=JSON.parse(process.env.QUESTION_SNAPSHOT);if(sent){a.pendingPermissions=[];"
+                "a.persistence.metadata.asyncQuestions=[{item:{type:'agentMessage',delivery:'async',id:'item'},"
+                "resolution:['按模块分组']}]}return {agent:a}},"
+                "respondToPermissionAndWait:async()=>{sent=true;fs.writeFileSync(process.env.QUESTION_SENT,'sent');throw Error('receipt lost')},"
+                "close:async()=>{}}}")
+            agent_id = '00000000-0000-0000-0000-000000000001'
+            req = request(True)
+            binding = {'id': agent_id, 'thread': 'thread', 'activeTurn': None, 'lastUserMessageAt': None}
+            snapshot = {'id': agent_id, 'provider': 'codex', 'cwd': str(root), 'archivedAt': None,
+                        'persistence': {'sessionId': 'thread', 'metadata': {'threadId': 'thread',
+                            'asyncQuestions': [{'item': {'type': 'agentMessage', 'delivery': 'async', 'id': 'item'}}]}},
+                        'runtimeInfo': {'sessionId': 'thread'}, 'pendingPermissions': [req]}
+            payload = {'request': req, 'pending': [req], 'binding': binding, 'cwd': str(root),
+                       'answer': {'answers': {'Question 1': '按模块分组'}}}
+            target = root / 'sent.txt'
+            bridge = Path(questions.__file__).with_name('guard_paseo.cjs')
+            env = dict(os.environ, QUESTION_SNAPSHOT=json.dumps(snapshot), QUESTION_SENT=str(target))
+            result = subprocess.run(['node', str(bridge), str(root), agent_id, json.dumps(payload)],
+                                    env=env, capture_output=True, text=True, timeout=10)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertTrue(target.exists())
+            diagnostic = json.loads(result.stderr)
+            self.assertEqual((diagnostic['phase'], diagnostic['formalResolution']),
+                             ('delivery_outcome_unknown', 'resolved'))
+            self.assertNotIn('receipt lost', result.stderr)
 
 
 class NativePaseo(unittest.TestCase):

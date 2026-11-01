@@ -3,6 +3,8 @@
 const { pathToFileURL } = require('node:url');
 const path = require('node:path');
 const { isDeepStrictEqual } = require('node:util');
+let phase = 'connect';
+let formalResolution = 'unavailable';
 (async () => {
   const [base, agent, submission] = process.argv.slice(2);
   if (!base || !/^[a-f0-9-]{36}$/.test(agent || '')) throw new Error('Invalid binding');
@@ -10,7 +12,9 @@ const { isDeepStrictEqual } = require('node:util');
   const { connectToDaemon } = await import(pathToFileURL(path.join(utils, 'client.js')).href);
   const { selectDaemonTarget } = await import(pathToFileURL(path.join(utils, 'daemon-target.js')).href);
   const client = await connectToDaemon({ target: selectDaemonTarget({}) });
+  let completed = false;
   try {
+    phase = 'snapshot';
     const result = await client.fetchAgent({ agentId: agent });
     const a = result?.agent;
     if (!a || a.id !== agent || a.provider !== 'codex') throw new Error('Agent identity changed');
@@ -18,10 +22,21 @@ const { isDeepStrictEqual } = require('node:util');
     if (!session || session !== a.runtimeInfo?.sessionId || session !== a.persistence?.metadata?.threadId)
       throw new Error('Session identity changed');
     if (submission) {
+      phase = 'validate';
       const expected = JSON.parse(submission);
       const binding = { id: a.id, thread: session, activeTurn: a.activeTurn ?? null, lastUserMessageAt: a.lastUserMessageAt ?? null };
       const pending = (a.pendingPermissions ?? []).find(p => p.id === expected.request.id);
+      const pendingIds = (a.pendingPermissions ?? []).map(p => p.id);
+      const asyncRecords = a.persistence?.metadata?.asyncQuestions;
+      const uniqueAsyncOrigin = p => {
+        if (p.name !== 'request_user_input_async') return true;
+        const matches = (Array.isArray(asyncRecords) ? asyncRecords : []).filter(r =>
+          r.item?.type === 'agentMessage' && r.item.delivery === 'async' && 'permission-' + r.item.id === p.id);
+        return matches.length === 1 && matches[0].resolution === undefined;
+      };
       if (!isDeepStrictEqual(a.pendingPermissions ?? [], expected.pending)
+          || new Set(pendingIds).size !== pendingIds.length
+          || (a.pendingPermissions ?? []).some(p => !uniqueAsyncOrigin(p))
           || a.archivedAt || a.cwd !== expected.cwd || !isDeepStrictEqual(binding, expected.binding) || !isDeepStrictEqual(pending, expected.request)
           || pending?.kind !== 'question' || !['request_user_input', 'request_user_input_async'].includes(pending?.name)
           || (a.pendingPermissions ?? []).some(p => p.kind !== 'question' || p.provider !== 'codex'
@@ -53,20 +68,60 @@ const { isDeepStrictEqual } = require('node:util');
         throw new Error('Incomplete answer');
       }
       // 直接用CLI同一正式客户端函数；不走CLI的前缀匹配与首项fallback。
-      await client.respondToPermissionAndWait(agent, pending.id, { behavior: 'allow', updatedInput: expected.answer }, { timeoutMs: 10000 });
+      phase = 'delivery_outcome_unknown';
+      try {
+        await client.respondToPermissionAndWait(agent, pending.id, { behavior: 'allow', updatedInput: expected.answer }, { timeoutMs: 10000 });
+      } catch (error) {
+        // 回执异常可能发生在正式响应已落库之后；只诊断，不把二次读取当作本次成功回执。
+        try {
+          const after = (await client.fetchAgent({ agentId: agent }))?.agent;
+          if (after?.id === agent && after.persistence?.sessionId === session
+              && after.persistence?.metadata?.threadId === session) {
+            const record = after.persistence.metadata.asyncQuestions?.find(r => 'permission-' + r.item?.id === pending.id);
+            formalResolution = !record ? 'absent' : record.resolution === undefined ? 'pending'
+              : record.resolution === 'dismissed' ? 'dismissed'
+                : Array.isArray(record.resolution) ? 'resolved' : 'unknown';
+          }
+        } catch { formalResolution = 'unavailable'; }
+        throw error;
+      }
+      completed = true;
       console.log(JSON.stringify({ answered: pending.id }));
       return;
     }
     const questionOrigins = {};
-    for (const record of a.persistence?.metadata?.asyncQuestions ?? []) {
+    const asyncRecords = a.persistence?.metadata?.asyncQuestions;
+    const questionStates = Array.isArray(asyncRecords) ? {} : null;
+    for (const record of Array.isArray(asyncRecords) ? asyncRecords : []) {
       const item = record.item;
-      if (record.resolution === undefined && item?.type === 'agentMessage' && item.delivery === 'async'
+      if (item?.type !== 'agentMessage' || item.delivery !== 'async' || typeof item.id !== 'string') continue;
+      const id = 'permission-' + item.id;
+      if (Object.hasOwn(questionStates, id)) {
+        questionStates[id] = 'unknown';
+        delete questionOrigins[id];
+      } else if (record.resolution === undefined) {
+        questionStates[id] = 'pending';
+      } else if (record.resolution === 'dismissed') {
+        questionStates[id] = 'dismissed';
+      } else {
+        questionStates[id] = Array.isArray(record.resolution) ? 'resolved' : 'unknown';
+      }
+      if (questionStates[id] === 'pending' && record.resolution === undefined
           && (a.pendingPermissions ?? []).some(p => p.id === 'permission-' + item.id))
         questionOrigins['permission-' + item.id] = item;
     }
     console.log(JSON.stringify({ id: a.id, provider: a.provider, cwd: a.cwd,
       thread: session, archivedAt: a.archivedAt, status: a.status,
       activeTurn: a.activeTurn ?? null, lastUserMessageAt: a.lastUserMessageAt ?? null,
-      pendingPermissions: a.pendingPermissions ?? [], questionOrigins }));
-  } finally { await client.close(); }
-})().catch(() => { console.error('Paseo question snapshot unavailable'); process.exitCode = 1; });
+      pendingPermissions: a.pendingPermissions ?? [], questionOrigins, questionStates }));
+    completed = true;
+  } finally {
+    // 正式提交和输出已完成后，连接关闭异常不能抹掉成功回执。
+    try { await client.close(); } catch (error) { if (!completed) throw error; }
+  }
+})().catch(error => {
+  const known = new Set(['Invalid binding', 'Agent identity changed', 'Session identity changed',
+    'Question changed', 'Incomplete batch', 'Incomplete answer', 'Batch changed']);
+  console.error(JSON.stringify({ phase, reason: known.has(error?.message) ? error.message : 'sdk_error', formalResolution }));
+  process.exitCode = 1;
+});
