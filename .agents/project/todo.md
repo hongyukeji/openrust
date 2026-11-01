@@ -23,7 +23,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 <a id="c04-f-request-files"></a>
 ### C04-F Request文件家族（分支限定验收通过，main待集成）
 
-- 当前续作（收口）：MIME 家族21文件冻结v7，608构建输入零漂移；15代码门禁通过，默认workspace955/34忽略、全特性1770/111忽略，双严格Clippy/docs/MSRV/no-default/deny通过。services九阶段fresh生成/真实TCP/MySQL链全部exit0，回执`/tmp/openrust-request-mime-services-prepare/run-20261101T080437Z/receipt.json`；生成test_app8/TCP1、Request fixture1、真实MySQL模块1均通过，无新增库残留。原owner `/root/config_runtime_callers`正汇总最终证据，services owner `/root/request_files_services_prepare`已完成本轮target清理：30,115,557,376B→0，磁盘16.968%→19.971%，未知外置65,982,464B保留，回执`/tmp/openrust-request-mime-final-cleanup-retry/receipt.json`；源码保持冻结，待限定任务分支提交；不冒称已合main或完整Request对应完成。受控gate已修复Duration::ZERO测试竞争；原失败保留。首Request历史默认数纠正为945/34（原922漏计CLI父23），旧全特性1760/111不变。守护独立修复已合main `31a6d38`，plain重载PID71755，原Goal active、working/task_running及三项存活/心跳均true；默认0.8/baseline1793413935.123801、账号历史、已结束grant保留，38问答ID无丢失，四行因正常复核变化。
+- 当前续作（收口）：MIME 家族21文件冻结v7，608构建输入零漂移；15代码门禁通过，默认workspace955/34忽略、全特性1770/111忽略，双严格Clippy/docs/MSRV/no-default/deny通过。services九阶段fresh生成/真实TCP/MySQL链全部exit0，回执`/tmp/openrust-request-mime-services-prepare/run-20261101T080437Z/receipt.json`；生成test_app8/TCP1、Request fixture1、真实MySQL模块1均通过，无新增库残留。原owner `/root/config_runtime_callers`正汇总最终证据，services owner `/root/request_files_services_prepare`已完成本轮target清理：30,115,557,376B→0，磁盘16.968%→19.971%，未知外置65,982,464B保留，回执`/tmp/openrust-request-mime-final-cleanup-retry/receipt.json`；源码保持冻结，已限定提交`5e2ec6b`（28文件，含7份Agent事实文档）；不冒称已合main或完整Request对应完成。受控gate已修复Duration::ZERO测试竞争；原失败保留。首Request历史默认数纠正为945/34（原922漏计CLI父23），旧全特性1760/111不变。守护独立修复已合main `31a6d38`，plain重载PID71755，原Goal active、working/task_running及三项存活/心跳均true；默认0.8/baseline1793413935.123801、账号历史、已结束grant保留，38问答ID无丢失，四行因正常复核变化。
 
 - 已创建限定任务分支本地提交`2f901272ec6fcc8cdd7d3a2b4ec6624a7445aaaf`（43文件），提交信息校验与工作区干净检查通过。源码未合入main；保留任务工作区等待最终验收，暂不退役分支。
 
@@ -37,6 +37,12 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 - 依赖root已统一：Axum官方multipart、基础tempfile仅新增multer3.1.0；http-body-util提升基础direct。12 consumer实际native metadata校准，11锁仅补该direct边，全部既有包版本集合不变；证据`/tmp/openrust-request-files-consumer-direct-lock-sync/receipt.json`。最初离线wasm解析与未缓存平台依赖失败均保留，不能冒称成功。
 - 资源：本轮已完成归属/进程/打开句柄核查与正常Cargo清理，根target实测29,937,872,896B→0，磁盘可用167,465,619,456B→197,155,180,544B（19.821%）；回执`/tmp/openrust-request-files-final-cleanup-retry/receipt.json`。首轮因缺缓存标记安全中止的回执保留；确认归属后exclusive create标准CACHEDIR.TAG，dry-run及正常clean均exit0；全项目50GB软/100GB硬与磁盘10%软/5%硬保持。后续仅经root核归属/占用后清可再生产物，保未知外置缓存、guard工作区、服务和数据卷。
 - 开放边界：任务分支限定交付，尚未集成main；完整Symfony MIME、真实S3 ACL/迟到CopyObject、Storage `throw=false`、Windows原生取消清理及Laravel完整Request/Filesystem能力继续未完成，不因本簇限定验证关闭。
+
+### C04-G TrustProxies 请求上下文（Implement）
+
+- 前置：既有peer/CIDR、URL/路由/签名机制；MIME任务分支先完成提交，不并写其冻结输入。官方对应L019.06，完整可信Hosts另按依赖核对，不用新增getter冒充完整代理机制。
+- 范围：可信范围与header策略、IPv4/IPv6客户端链、scheme/host/port/prefix在同一请求上下文发布，Request/路由/redirect/signed消费者读同一事实；无信任默认忽略伪造转发头，实际默认/冲突/平台分支按固定上游取证后收敛。
+- 当前owner：`/root/config_runtime_callers`在main负责唯一生产上下文、代理策略及定向测试编码（`src/http`及必要`src/config/server.rs`），不与冻结MIME任务分支并写；`/root/request_files_services_prepare`只读核固定Laravel/Symfony与真实PHP oracle；已完成候选审计`/tmp/openrust-request-http-next-family-candidate.md`。生产owner已领取Implement，未建target/worktree、不占Cargo；先完成整簇源码与测试代码，ready后集中验证。root负责冻结公共contract及后续文件归属，必要不同模型独审与集中门禁保持。
 
 ### 上轮收尾执行窗口（已完成）
 

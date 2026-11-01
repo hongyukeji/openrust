@@ -15,7 +15,7 @@
 | R2-CC 分支历史 | `7be446d` 的限定分支证据保留；已纳入四簇main限定组合交付，最终五父提交 `e105dbfc58afc330b50e53b75f0b9e1424fa387a`，主线结果以组合验收记录为准。 |
 | R2-P / S-DV main限定组合 | Provider `4ac8099` 与 Session对象值 `6ffb5c8` 已由三父本地提交 `9e5a94198b421987851b3580b27fa90370feeb77` 合入main。默认/全特性workspace分别943/1748通过、34/108忽略；双严格Clippy/docs、MSRV、no-default、deny、公开consumer、fresh生成、真实MySQL与根TCP六场景按[最终记录](memory/testing.md#r2-p-s-dv-main-limited)通过。旧分支失败和用户授权的单次Clippy重验仍按原证据保留；S-DV与P均已安全退役，P两份root文档事实已迁入main并保全原稿，不关闭完整Provider/Container/Session。 |
 | 独立实现 | S-DV来源 `6ffb5c8` 已与R2-P在main限定组合交付，原分支子范围证据仍保留；S-DV工作区/本地分支已安全退役。ST-V来源 `2262df9` 已由两父提交 `8d18021b630ea10652316e025ef6019c7772bbb0` 合入main并通过限定组合门禁；真实S3 ACL、迟到CopyObject和`throw=false`失败值语义仍开放，来源工作区与分支已按退役回执安全清理。见[本簇记录](memory/testing.md#st-v-main-限定组合验收)。 |
-| 当前功能簇 | C04-F请求文件已完成任务分支限定验证，main待集成，详见本页固定约束与唯一todo。R03 `6482a38`、typed `b1f4bf7`、CC `7be446d`、Signed `c77521f` 已完成同一main限定组合交付；最终五父本地提交为 `e105dbfc58afc330b50e53b75f0b9e1424fa387a`；实际组合证据见验收记录。SERVER_PORT/server.port、CACHE_STORE/cache.default、默认redis/共享REDIS_DB、递归相对TOML、缓存命中屏障、typed helpers与签名URL同树保留。完整Config、Routing/Redirector及发布全后端矩阵仍开放。 |
+| 当前功能簇 | C04-F请求文件及MIME续作已完成任务分支限定验证，本次任务分支限定交付，main待集成，详见本页固定约束与唯一todo。R03 `6482a38`、typed `b1f4bf7`、CC `7be446d`、Signed `c77521f` 已完成同一main限定组合交付；最终五父本地提交为 `e105dbfc58afc330b50e53b75f0b9e1424fa387a`；实际组合证据见验收记录。SERVER_PORT/server.port、CACHE_STORE/cache.default、默认redis/共享REDIS_DB、递归相对TOML、缓存命中屏障、typed helpers与签名URL同树保留。完整Config、Routing/Redirector及发布全后端矩阵仍开放。 |
 | R2-T 分支历史 | `b1f4bf7` 的仓储、Collection、模块、consumer、生成与TCP限定证据保留；已纳入四簇main限定组合交付，完整L005.03仍开放。 |
 | 目标授权 | [ADR-070](decisions/adr-070-laravel-first-rebuild.md)：Laravel固定基线为1:1行为标准，laravel-modules为正式模块化范围，Goravel仅跨语言实现参考；允许全面重写，无历史兼容义务 |
 | 当前完成边界 | 原认证/数据/队列/缓存/存储/实时/gRPC/视图等有专项证据；完整生产/集群/最低版本仍有缺口，新目标不能继承为已验收 |
@@ -23,7 +23,7 @@
 
 ## 固定约束
 
-本轮用户已恢复完整既有计划，覆盖此前额度仅收尾限制；C04-F Request文件家族已完成任务分支限定验收，任务分支限定交付，尚未集成main，见[测试记录](memory/testing.md#c04-f-request文件家族分支限定验收)。原Goal、默认80%可用/20%保留与预算baseline沿用，不授予full-budget，不新建守护；已交付合并/清理事实保留。
+本轮用户已恢复完整既有计划，覆盖此前额度仅收尾限制；C04-F Request文件家族与MIME续作已完成任务分支限定验收，本次任务分支限定交付，均尚未集成main，见[测试记录](memory/testing.md#c04-f-request文件家族分支限定验收)。原Goal、默认80%可用/20%保留与预算baseline沿用，不授予full-budget，不新建守护；已交付合并/清理事实保留。
 
 本机相关参考仓库共同父目录为 `/Users/Home/Codes/Git/`：`laravel-framework/` 是官方框架实现，`laravel-docs/` 是官方文档，`laravel/` 仅指官方应用骨架；固定验收 checkout 分别为 `laravel-framework-baseline/`、`laravel-docs-baseline/`。平级迁移及 linked worktree repair 已核完成，五个仓库工作区均干净；应用骨架本次 HEAD 为 `9ffef3bc4241e3cc333ef267258a404d0d95f194`，未安装 Composer 依赖。执行者不重复迁移或创建旧路径。本次拉取 framework 官方 `13.x` HEAD 为 `5a787ee008553a35206de2918d5242626ddeaed2`，docs HEAD 为 `960eedf0911155ad16326ade49c0ea5d18eda0b8`；固定验收 commit 仍为 framework `d52c3b3129e4c8e213c97cdc68f94b0b7d27f181`、docs `960eedf0911155ad16326ade49c0ea5d18eda0b8`，不随最新源码拉取静默升级。新取证/执行脚本读取固定 baseline，不能用应用骨架替代框架，也不再读取 `/tmp` 旧 Laravel 源码；冻结历史输出与 provenance 保留原路径事实。旧副本先核 owner/占用、无WIP后再安全回收，证据不当缓存删除。
 

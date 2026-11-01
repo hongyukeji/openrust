@@ -1304,6 +1304,8 @@ D10-G gRPC环境补充：用户报告此前可能在失败期间手动清理Dock
 
 ### MIME 任务分支验证与产物回收（2026-11-01）
 
+限定本地提交`5e2ec6b`位于`tasks/request-files-family`，28文件（21候选与7份Agent事实文档），工作区干净；尚未集成main。完整索引`/tmp/openrust-request-mime-final-evidence-index.json` SHA256 `002254eb43c595ff82c5fd308c44c238180239f930df71639beb37b122a31342`核对24份本轮日志与清理回执；原生Fileinfo/Windows、完整MIME及S3 ACL/迟到CopyObject/throw=false仍开放。
+
 冻结v7的608项构建输入复核无漂移，代码15门禁通过，默认workspace955 passed/34 ignored，全特性1770 passed/111 ignored；回执`/tmp/openrust-request-mime-code-verification-v7/receipt.json`。fresh生成、真实TCP与MySQL九阶段全exit0，回执`/tmp/openrust-request-mime-services-prepare/run-20261101T080437Z/receipt.json`，无新增库残留。仍是任务分支限定证据，未证明main集成或完整Request/Filesystem已完成。
 
 确认本轮归属、无进程/打开句柄后，正常Cargo dry-run与clean均exit0；根target30,115,557,376B→0，磁盘可用增加29,867,966,464B、16.968%→19.971%。未知外置65,982,464B、源码、数据库卷和日志保留。清理回执`/tmp/openrust-request-mime-final-cleanup-retry/receipt.json` SHA256 `49405499ac040bc6779687558f9704e40070865975e86302a0bce19d66c8409c`；首轮仅lsof解码失败，未clean，原回执保留。后续实现按需重建，不为纯Agent文档变化重跑Rust门禁。
