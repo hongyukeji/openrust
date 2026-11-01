@@ -8,6 +8,8 @@
 
 ## 领取规则
 
+已授权框架范围内本地 main 集成沿用用户持续授权，不重复询问；先组合本批源码再集中验证，通过后限定提交及安全退役。当前环境身份`8d5e635`与 Request/MIME`5e2ec6b`已获本批明确合入授权，组合前保全所有WIP/证据，root独占main索引。
+
 先核对 Git/WIP、代理/进程、[执行校准](plan.md#执行校准) 与 [ADR-070](decisions/adr-070-laravel-first-rebuild.md)。按总控依赖图领取；契约明确、前置满足的独立功能簇可在本地任务分支/worktree并行，各自完成 Spec → Implement → Verify → Commit，main集成与组合门禁串行。整体依赖见 [R0–R16](plans/laravel-rebuild.md#5-按依赖实施)，不按旧 M5/M6 顺序执行。
 
 ## 从零重建与并行执行授权
@@ -25,7 +27,7 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 
 - 当前续作（收口）：MIME 家族21文件冻结v7，608构建输入零漂移；15代码门禁通过，默认workspace955/34忽略、全特性1770/111忽略，双严格Clippy/docs/MSRV/no-default/deny通过。services九阶段fresh生成/真实TCP/MySQL链全部exit0，回执`/tmp/openrust-request-mime-services-prepare/run-20261101T080437Z/receipt.json`；生成test_app8/TCP1、Request fixture1、真实MySQL模块1均通过，无新增库残留。原owner `/root/config_runtime_callers`正汇总最终证据，services owner `/root/request_files_services_prepare`已完成本轮target清理：30,115,557,376B→0，磁盘16.968%→19.971%，未知外置65,982,464B保留，回执`/tmp/openrust-request-mime-final-cleanup-retry/receipt.json`；源码保持冻结，已限定提交`5e2ec6b`（28文件，含7份Agent事实文档）；不冒称已合main或完整Request对应完成。受控gate已修复Duration::ZERO测试竞争；原失败保留。首Request历史默认数纠正为945/34（原922漏计CLI父23），旧全特性1760/111不变。守护独立修复已合main `31a6d38`，plain重载PID71755，原Goal active、working/task_running及三项存活/心跳均true；默认0.8/baseline1793413935.123801、账号历史、已结束grant保留，38问答ID无丢失，四行因正常复核变化。
 
-- 已创建限定任务分支本地提交`2f901272ec6fcc8cdd7d3a2b4ec6624a7445aaaf`（43文件），提交信息校验与工作区干净检查通过。源码未合入main；保留任务工作区等待最终验收，暂不退役分支。
+- 已创建限定任务分支本地提交`2f901272ec6fcc8cdd7d3a2b4ec6624a7445aaaf`（43文件），提交信息校验与工作区干净检查通过。源码未合入main；保留任务工作区等待main组合验收，完成集成后安全退役，不再等待逐分支许可。
 
 - 沿用原完整Goal、默认80%可用/20%保留和原baseline；不新建Goal/守护，不启动冻结产品，不push/tag/发布。
 - 同仓任务位置：OpenRust项目`prj_34a40ee7b674b2b6`，workspace `wks_748133ad70032a5e`，branch `tasks/request-files-family`，base `a9b057e78f35c42955dd99401526a5d1eda60ba1`，cwd `/Users/Home/.paseo/worktrees/02joa2lr/openrust-request-files-family`。原核心owner `/root/config_runtime_callers`，当前生成/真实服务owner `/root/request_files_services_prepare`；root独占索引、依赖/锁、共享文档和提交。
@@ -41,18 +43,20 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 <a id="c04-g-trustproxies-请求上下文verify"></a>
 ### C04-G TrustProxies 请求上下文（main限定子范围已验收）
 
-- 本轮实际完成源码、唯一模块/consumer/模板与文档、不同模型复审及集中门禁；提交号以Git为准。完整Request/TrustedHosts/云部署不关闭，MIME任务分支未合main。后继当前领取环境身份簇，见下节。
+- 本轮源码、唯一模块/consumer/模板与文档、不同模型复审及集中门禁已由本地提交`772eae4`收口，提交校验通过；该提交后main工作区干净。完整Request/TrustedHosts/云部署不关闭，MIME任务分支未合main。后继当前领取环境身份簇，见下节。
 - 最终452构建输入聚合SHA `792d4b783cc6d55423cf98255f8c5d052e280f892c3ef0b6b30cba9709bc125c`，36份日志哈希和原失败核对完整；持久回执`guards/6b56ea51-0bb7-44a7-8547-7073f8f2c7e4/proxy-evidence-v3/`。默认/全特性workspace、双严格Clippy/docs、精确MSRV/no-default/deny、公开调用、fresh普通8/MySQL认证2与新增真实TCP3案通过；旧URL/TLS工具10项只证明其声明范围。
 - quoted-pair解码、IPv6原文本冲突及显式port不急切计算scheme三项修后独审关闭。新PHP40案两轮结果相同，但PHP8.2低于Symfony8官方最低8.4；旧/tmp59案与旧freeze缺失，不当作恢复或当前验收。mask0等逐案Rust映射缺口保留，见[测试事实与限制](memory/testing.md#c04-g-trustproxies-main-限定验收)。
 - 原Docker未运行导致的Redis失败、错误test target及测试类型推断错误保留；现有Docker服务恢复后精确/完整workspace通过。误用`+1.97`别名触发自动下载已中止，未报成功、不擅清全局状态；改用已装精确`1.97.0`且禁自动安装后通过。
 - MySQL事前schema基线未采，不宣称前后集合相等；事后没有本轮命名时间残留。生成/consumer专属target已clean归零；登记产物采样44.659GB→38.929GB，未知外置65,982,464B单列保留，不能从该登记数假报完整总量。根target仅给已实际启动环境身份簇复用，下一统一构建目录仍根target。
 - 原Goal沿用，默认百分比80%/保留20%；用户明确批准当前账号基准48%/保留9.6个百分点，旧账号历史与38问答保全，不fullgrant/rebase重放、不推送/发布。运行PID非长期契约，按实际guard状态核验，不沿旧句柄重派任务。
 
-### 环境身份保真（Implement，与代理验收并行）
+### 环境身份保真（分支已交付，main组合待验）
 
-- owner `/root/environment_identity`（gpt-6-sol/medium），branch `tasks/environment-identity`，base `266e746f3b99ce3172b1b025d5ab688ee3e4360d`；同OpenRust项目`prj_34a40ee7b674b2b6`的workspace `wks_e62dea2c5a1a719f`，cwd `/Users/Home/.paseo/worktrees/02joa2lr/openrust-environment-identity`，common-dir已核同仓且起点干净。
-- 范围：精确、自定义app.env身份与来源，按固定上游核环境默认和查询，消除local/dev/development及test/testing被合并的语义偏差；沿现配置/Provider体系同步调用方、唯一模块、模板、公开consumer与测试代码，不另造测试进程标记。与当前代理未提交API无依赖。
-- code-first整簇编码，ready后不同模型复审及集中Verify；暂不Cargo、不服务、不新target。共享manifest/lock/Agentdocs/提交及main集成归root。后继TrustedHosts的固定只读Spec已具备，仍须本簇及C04-G真实收口、PCRE/公共入口contract收敛后才实施；不把Spec当交付。
+- 本地提交`8d5e635`已完成16文件限定交付（15源码/模板输入及CHANGELOG），提交校验通过、任务工作区干净；owner `/root/environment_identity`已交接，不再运行Cargo。分支`tasks/environment-identity`，base`266e746`，OpenRust项目workspace`wks_e62dea2c5a1a719f`，cwd `/Users/Home/.paseo/worktrees/02joa2lr/openrust-environment-identity`。
+- 精确保留环境名、大小写/空值，官方精确谓词与独立生产保护分开；Loader以`environment_override`标识显式覆盖，最终身份来自加载配置；同名值Eq/Hash/serde一致。三项修复和模板快照增量经不同模型复审通过。
+- 最终15输入diff SHA `24266a44489fbd567d2e2a86f6baeb009ddf071b7289b02f5dc49356f429d9af`；配置97/core136/示例33/consumer8、严格Clippy/docs、受影响feature编译、普通生成8/MySQL认证2及CLI快照/认证模板通过，真实数据库65→65且集合SHA不变，无skip。27次命令/25份日志和158份证据输入已保全到主工作区ignored `guards/6b56ea51-0bb7-44a7-8547-7073f8f2c7e4/environment-identity-evidence/`。
+- 用户已明确批准与Request/MIME`5e2ec6b`同批main集成，并持续授权后续已批准框架任务直接本地集成；先整合所有源码、解决冲突再集中组合验证，不逐分支重复矩阵，不创建未验证中间合并提交。root独占共享索引；主target仅保留给本批组合。CLI `--env`/专属dotenv、骨架显式development等差异继续开放，见[分支证据](memory/testing.md#environment-identity-branch)。
+- TrustedHosts源码/PCRE取证及短契约已备，等待前置真实集成后进入实现；不能把Spec或分支通过当main通过。
 
 ### 上轮收尾执行窗口（已完成）
 

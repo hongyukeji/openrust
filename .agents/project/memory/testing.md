@@ -1,5 +1,14 @@
 # 测试基线
 
+<a id="environment-identity-branch"></a>
+## 环境身份保真分支限定验收
+
+`tasks/environment-identity`从`266e746`派生，限定提交`8d5e635`，15个源码/模板输入diff SHA `24266a44489fbd567d2e2a86f6baeb009ddf071b7289b02f5dc49356f429d9af`；额外CHANGELOG为root纯文档。主工作区ignored `guards/6b56ea51-0bb7-44a7-8547-7073f8f2c7e4/environment-identity-evidence/`保全158文件，含`INPUT.json`、`FINAL.json`、`COMMANDS.json`（27次命令与退出码/阶段输入、25原日志SHA，未记录的精确耗时为null）和3份生成输入归档40/40/44文件；root逐文件复核无漂移。固定Laravel来源与不同模型三项修复、模板增量复审在同任务`environment-identity-review/`。
+
+实际分支定向：配置97、core136、server示例33、公开consumer8、同名值身份回归；严格workspace/all-target Clippy、workspace docs、OIDC/MySQL/SMTP/Twilio受影响feature check通过。fresh普通check/test8与fresh MySQL认证check/test2通过，0 ignored、无skip；MySQL前后65个库、集合SHA `0def270dab2fa099bb8e025513b8f8beca7846fdc6709e5f00955dbcec8b0313`相同。CLI模板与快照各1通过；旧lib示例过滤0项不当通过，后续实际server示例33项单列。首次Clippy测试expect、普通生成默认production保护触发的8失败、旧快照失败保留，修后对应结果独立记录；测试夹具显式Testing，不放宽生产默认或安全保护。
+
+本簇保留精确名称与官方环境谓词；旧生产安全别名使用独立派生策略，不冒称Laravel环境匹配。Loader只读显式覆盖，不把缺省选择当最终文件环境；同名值相等/哈希与serde一致。现有`.env.example`显式development、CLI `--env`/`.env.<env>`、完整启动环境检测仍开放。生成源码脱敏归档保留；共享根target末次约49.28GB留给已安排的main组合验收，不是新target配额。本节只证明分支限定交付；当前与MIME组成同一候选后才执行main门禁，不自动将旧分支测试转记main通过。
+
 <a id="c04-g-trustproxies-main-限定验收"></a>
 ## C04-G TrustProxies main 限定验收
 
