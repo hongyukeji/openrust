@@ -10,7 +10,7 @@ mod config;
 mod bootstrap;
 #[path = "../../../modules/mod.rs"]
 mod modules;
-#[path = "../../../routes/web.rs"]
+#[path = "../../../routes/mod.rs"]
 mod routes;
 
 #[path = "precognition_flows.rs"]

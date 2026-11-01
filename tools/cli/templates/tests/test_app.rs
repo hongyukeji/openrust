@@ -17,7 +17,7 @@ mod request_input;
 mod request_redirect;
 #[path = "support/request_session.rs"]
 mod request_session;
-#[path = "../routes/web.rs"]
+#[path = "../routes/mod.rs"]
 mod routes;
 
 use bootstrap::OpenRustGeneratedApplication as GeneratedApplication;
@@ -189,14 +189,16 @@ async fn generated_application_serves_api_and_health() -> Result<(), Box<dyn std
         "运行期名称"
     );
     assert_eq!(app.app()?.config().app.name, startup_name);
-    app.request(Request::get("/api").body(Body::empty())?)
-        .await?
-        .assert_json(&serde_json::json!({
-            "success": true,
-            "code": "ok",
-            "message": "ok",
-            "data": {"name": "configured-application"}
-        }))?;
+    let api = app
+        .request(Request::get("/api").body(Body::empty())?)
+        .await?;
+    assert!(api.headers().get("set-cookie").is_none());
+    api.assert_json(&serde_json::json!({
+        "success": true,
+        "code": "ok",
+        "message": "ok",
+        "data": {"name": "configured-application"}
+    }))?;
     let health = Request::builder().uri("/health").body(Body::empty())?;
     app.request(health).await?.assert_status(StatusCode::OK)?;
     let page = app

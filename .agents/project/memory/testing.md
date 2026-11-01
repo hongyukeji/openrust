@@ -1,5 +1,23 @@
 # 测试基线
 
+## 应用启动与固定API宿主职责限定验收
+
+2026-11-02，配置提交d952199后继。固定framework d52c3b3129e4c8e213c97cdc68f94b0b7d27f181、docs 960eedf0911155ad16326ade49c0ea5d18eda0b8，对应L007.02/.03、L011.02、L015.01的职责子范围。具体源码与上游测试锚点见`tmp/application-responsibilities-20261102/upstream-correspondence.md`。框架src/routes.rs移除宿主framework_routes/framework_info，响应归根app Controller；AppServiceProvider→公开BootContext::routes→bootstrap::routes→api相对声明→Controller。API前缀与组在bootstrap配置；routes/mod仅Rust模块导出，Web保既有全局fallback与显式web组边界，不以本次关闭完整Web默认工作流。name/version端点为宿主应用增强，不冒称Laravel内置。
+
+bootstrap原两项真实宿主/模块资源根测试迁至tests/server/bootstrap.rs，资源根原断言保留；新增完整动态应用身份envelope、禁用模块后宿主API仍可用/模块404/无Session Cookie。registration fixture改用真实应用Provider，并验证只装通用HTTP宿主的/api404、health200。根/CLI/普通及认证/MFA/Job/两消费者编译入口同步routes/mod.rs；生成API仍保持JWT/PAT/MFA外部路径及layer顺序，fallback全局，未隐式给API启动Session。必要private cfg/path不扩大生产公共API，没有第二启动内核或框架反向引用宿主。
+
+完整编码和配套收齐后，fmt、默认/全特性严格Clippy、workspace tests、拒警Rustdoc、no-default lib、精确Rust1.97.0及cargo-deny均exit0。default各target报告1050 passed/35 ignored，all1887/112；目标间存在重复，不作为唯一行为数。CLI首次仅预期快照失败26/1，其余断言保留；七个变化段逐一等于对应模板渲染、未变化段不动，后续完整workspace含CLI27通过。生产与测试静态独审、CLI独审无blocker。756冻结输入在执行末尾及证据独审逐项SHA匹配，之后仅更新本节及项目状态。
+
+fresh普通应用check/test/build通过11项，无ignored；配置读取与Container消费者各1及应用9均走最终生成入口，真实配置缓存创建/重启/坏dotenv屏障/清除后重读通过。fresh MySQL认证、邮件覆盖及生成Job复用原QueueContributions共3通过；新增fresh MFA应用check和真实MySQL2通过，含模板已生成的MFA流程。根example_auth_flows精确综合真实流程1通过，无ignored；复用前簇未受影响的完整数据库领域证据，不把本次精确范围外推成全后端/集群验收。
+
+根真实TCP直接断言/api完整name/version envelope及无Set-Cookie，另请求/api/example业务消息通过；Request与Cookie TLS通过，输出`/tmp/openrust-c04c-tls-application-routes-20261102.json`。两个自有进程均exit0、监听释放；数据库集合前后added/removed为空。全部命令/exit/耗时/日志SHA/资源与业务回执见`tmp/application-responsibilities-20261102/`。
+
+清理前只读lsof文本解码遇非UTF8文件名而失败，未执行清理；shell编排继续后主控在软线前停止自有编排、让子命令自然结束，不中断共享服务。中止时根测试只有日志无完整退出回执，未计成功，续跑的services-root-mysql-final有完整exit0。占用检查改为原始bytes路径匹配，确认无构建/产物句柄后正常cargo clean dry-run+clean：48,604,307,456B→0、磁盘153,671,860,224B→201,919,569,920B。没有删除源码/WIP或降低门禁；错误与停止回执独立保留。
+
+MFA/根服务验收后再次确认无占用，最终正常清理target12,371,316,736B→0，磁盘189,830,238,208B→201,898,565,632B，见completed-target-retirement.json。唯一生成源码与证据包SHA cc7716cefd88c88c8b132781e29597c6ebec1bae3d3bf1e9918fca1d98c462df，原生成源码也保留。根target仅留空目录，后继模块簇按需重建同一路径。
+
+本地提交以Git为准，不push/tag/release。独立原生守护owner六文件仍WIP且未混入本簇，不部署或重启旧守护；全部旧来源、保护refs/bundle保留。完整应用生成、Provider发现/生命周期、模块持久启停/发现、DB能力门控及Laravel核心/官方可选生态继续唯一todo；本次不声称完整ADR-001交付。
+
 ## 配置可编辑默认值与有序依赖限定验收
 
 2026-11-02，基线c52ba8f后继配置簇；固定framework d52c3b3129e4c8e213c97cdc68f94b0b7d27f181、docs 960eedf0911155ad16326ade49c0ea5d18eda0b8。对应L005.01/.03/.04子范围，来源/测试锚点及必要Rust差异见`tmp/config-defaults-20261102/upstream-correspondence.md`。ConfigContext get/require、根键求值前覆盖、单次来源捕获/重放、模块候选/CAS、根/生成配置字段和Job配置接线沿同一ConfigSources/Repository/Provider；无新依赖或第二内核。声明顺序是显式编译manifest，前向/自依赖拒绝；JWT/签名默认身份继承为授权增强，不冒充Laravel核心默认。

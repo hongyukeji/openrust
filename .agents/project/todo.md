@@ -32,7 +32,11 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 - 九份真实来源、六份 WIP、11 个 source refs、完整历史 bundle 全部保全；所有非 main worktree 与两个缺失 guard 登记已正常移除，八个来源 workspace 已正式归档，当前仅 main。证据 `tmp/controller-handoff-20261102/`，不重复 merge 或删除。六个任务分支活动别名已退役：两条按祖先正常删除，其余在核实同对象保护引用、完整bundle、无worktree后以带旧值的compare-and-swap移除别名；所有原提交与WIP仍可达，回执 `tmp/takeover-20261102/archived-task-branch-retirement.json`。危险 `cd487bb` 只归档保全，绝不合入。
 - 源码/调用方/模板/唯一模块本批冻结，shared docs/index/Cargo/service 均由新总控独占。旧失败不回填通过，真实 MySQL 与 TCP/TLS 已闭合限定范围；完整 Query/ORM、Provider包发现、配置默认依赖、模块管理、全后端与集群等仍开放，不因本批通过关闭。最终记录 `tmp/takeover-20261102/`。
 - skill 本批仅接纳旧142/61测试及不同模型最终独审九SHA完全匹配的版本，精确快照与索引整合证据在同目录。后续 ended-grant/Codex 原生适配由另一个获用户授权的 owner 在同 skill 收口，未部署，完整工作文件保持；本轮最小恢复判定补丁及并发漂移报告已保全 `/tmp/openrust-guard-recovery-consistency.*`。不再并改，不重启旧守护，不把开发中适配当已生效。
-- 默认80%预算政策和旧账号历史、问答/发送账本保持，未rebase/fullgrant或伪复用旧授权；官方额度最新读取剩余33%，为共享账号窗口快照；不重算基线。成功验收的自有服务进程与端口已收尾，数据库集合无增删；完成簇根target已正常清零：48,729,780,224B→0，磁盘可用202,384,363,520B；源码/生成fixture/证据保留，下一配置簇按需复用同一路径。
+- 默认80%预算政策和旧账号历史、问答/发送账本保持，未rebase/fullgrant或伪复用旧授权；本对话已可正式读取共享账号窗口，数值按当次回执汇报；不重算基线。成功验收的自有服务进程与端口已收尾，数据库集合无增删；完成簇根target已正常清零：48,729,780,224B→0，磁盘可用202,384,363,520B；源码/生成fixture/证据保留，下一配置簇按需复用同一路径。
+
+### 当前应用职责子簇（限定验收，本次提交以Git为准）
+
+根/生成的Controller拥有固定API响应，bootstrap负责API前缀与中间件组，routes/api.rs只声明相对路径，Rust mod仅导出；bootstrap两项真实测试主体已迁tests并保留private挂载，新增禁用模块仍保宿主API与通用HTTP无应用API的回归。完整门禁、fresh普通11/MySQL3/MFA2、根综合MySQL1、真实API/模块/TCP/TLS通过；源/证据独审无blocker，owner均停写，target已正常清零，生成源码与证据已归档。详见[应用职责验收](memory/testing.md#应用启动与固定api宿主职责限定验收)。下一模块状态/持久启停/发现先Spec，不追加输入延迟本次提交。
 
 ### 当前组合提交后的首批：应用配置可编辑默认值整改
 
@@ -60,8 +64,8 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 | --- | --- | --- | --- |
 | 所有应用可编辑默认项、嵌套/feature配置、模块实际需要及生成模板 | 新总控协调的单一配置owner，当前组合提交后首批 | 根config、CLI模板、同一ConfigManifest/Repository | 已编码并限定验收；完整对应仍开放，见本页Spec及testing配置证据 |
 | APP_NAME/APP_URL等跨领域单一来源、有序依赖与显式独立身份 | 同owner，与配置同批 | 所属配置+必要公开依赖读取contract，consumer/缓存/生成同步 | 已编码并限定验收：代码默认传播、SERVER_PORT/APP_URL、独立source覆盖、空值非法与缓存/fresh通过；既有token/链接不自动重签，完整配置仍开放 |
-| bootstrap及同类正式入口测试/fixture职责 | 新配置owner，既有应用布局后继 | 真实测试主体迁tests，不复制宿主/扩大API | 待实施；真实生产装配断言保留后验证 |
-| 固定/api宿主内容及同类业务反向依赖 | layout应用/路由owner，与既有app职责整改合批 | app/controllers处理内容、routes/api.rs声明、AppServiceProvider公开挂载；src仅通用路由机制 | 已核当前src/routes.rs framework_routes/framework_info硬内置；待迁移和真实宿主/生成/consumer验收 |
+| bootstrap及同类正式入口测试/fixture职责 | 新配置owner，既有应用布局后继 | 真实测试主体迁tests，不复制宿主/扩大API | 已迁移原两测试并新增宿主/模块边界断言；完整门禁和真实服务限定验收通过，提交以Git为准 |
+| 固定/api宿主内容及同类业务反向依赖 | layout应用/路由owner，与既有app职责整改合批 | app/controllers处理内容、routes/api.rs声明、AppServiceProvider公开挂载；src仅通用路由机制 | 已移除库专属端点，根/生成Controller与bootstrap真实接线；consumer、fresh普通/MySQL/MFA、真实TCP/TLS通过，完整路由仍开放 |
 | 模块状态路径/发现注册/持久启停/统一Provider | 新配置owner与root contract，既有模块整改 | 现ModuleManifest/FileActivator扩展，不造新内核 | 固定上游核对在途；路径/命令/依赖/资源/迁移缺失行为待实现验收 |
 | 数据库通用能力门控与驱动选择/运行时启用分层 | layout应用装配owner，root收敛Cargo/公开contract；同类整改后继 | bootstrap/app/模块/auth/通用层/模板/consumer，专属方言保留后端cfg | 待设计实施；no-default、MySQL/PG、未编译/未知驱动拒绝、迁移注册及扩展验证待验 |
 | 标准应用队列开箱体验与精简构建分层 | layout配置/模板owner + root队列contract/Cargo单一调度；关联R10既有队列能力 | 根/new标准能力、config/queue.rs、具名连接/env/Provider/worker统一接线 | 已确认待实现；默认DB和可选Redis真实派发→worker、精简错误/无副作用及生成待验 |
@@ -101,12 +105,12 @@ R2-M 模块闭环、R1-E 综合示例与 R2-N 模块依赖顺序均已在 main �
 - 默认Rust代码配置入口已由9035a00整合；本次新总控与kernel/defaults worker完成可编辑默认值、有序依赖、模板与调用方限定验收，worker均交接停写；旧来源分支已归档，不按旧owner重复派发。TOML仍仅显式source，完整配置能力不关闭。
 - Exceptions/Handler整改已启动owner `/root/trust_proxies_resume`，branch`tasks/exception-handler-family`、base`317e2f6`、workspace`wks_262bd3f349a55c4e`、cwd `/Users/Home/.paseo/worktrees/02joa2lr/openrust-exception-handler-family`；按固定C06实现逐类型report/render与HTML/JSON/响应定制，先Spec收敛再完整编码。原TrustedHosts 23文件main WIP已交接，仅静态格式检查，未行为验证。
 - 长期WIP恢复：neutral 17文件与dotenv 9文件已从任务HEAD生成binary diff并保全逐文件SHA、来源base/branch，位于ignored `guards/6b56ea51-0bb7-44a7-8547-7073f8f2c7e4/wip-source-bundles/`；仅恢复/集成输入，不代表提交或验收。dotenv临时Spec也已保全，不依赖/tmp存活。
-- 根app职责与生成器整改（用户已纠正旧限制）：根app支持Laravel常规Controller/Model/Provider开发，modules可选并存，bootstrap承担启动，app/mod.rs仅必要Rust模块导出，唯一示例仍modules/example。已实际领取Implement：owner 本对话后续指定的单一配置owner，branch `tasks/laravel-application-layout`，base`317e2f6`，同OpenRust项目workspace `wks_28801f43943cf00e`，cwd `/Users/Home/.paseo/worktrees/02joa2lr/openrust-laravel-application-layout`。独占app/bootstrap/routes和tools/cli生成器/模板，dotenv持config/mod与core/lifecycle/command，TrustedHosts持HTTP/Provider；src/main.rs/lib.rs必要交叉先由总控串行协调。须交付真实应用开发/生成源码及测试代码，最终统一验证；本条政策落库不代表实现完成。
-  - 当前组合提交后同项补bootstrap测试组织：将bootstrap/app.rs测试主体迁到合适tests入口，保留真实Server/Provider/HTTP与模块运行根断言；只在Rust私有可见性/编译入口确需时保留薄cfg/path声明，不扩大生产API、不复制启动内核，不把全部源码unit tests判违规。模板/调用方按影响同步。
+- 根app职责与生成器整改的原来源已由9035a00整合并安全归档；配置默认依赖由d952199限定提交。本次新总控与root-app/generator worker按同main文件归属完成应用API、bootstrap测试组织及调用方/模板验收，owner均交接停写，旧worktree不再作为活跃来源。完整应用/CLI及其余矩阵继续开放。
+  - bootstrap测试组织本次已限定验收：原两测试主体迁tests/server/bootstrap.rs，真实Server/Provider/HTTP与模块运行根断言保留；仅私有宿主访问所需cfg/path，不扩大生产API、不复制启动内核。模板/调用方同步；不将所有框架unit tests判违规。
   - 同项补模块启停布局决策：root倾向“编译manifest + 可配置持久activator + 统一Provider”互补，不能以注释mod/删Provider替代enable/disable/发现/依赖/资源生命周期。固定nWidart v13.2.0 commit5971484实际取证已完成，回执 `tmp/module-activation-layout-review.md`（SHA `974447b79208d145e51b1c0c4b907db8ba4ee3d4cc2182861827008c6c3e5216`）。root决策保上游应用根modules_statuses.json默认，公开独立statuses-file配置允许modules/modules_statuses.json；不把modules_root资源根当状态路径替代，持久enable/disable管理仍未实现待补，不以路径可配关闭完整管理能力。
   - 后继实施同owner布局/模块范围，覆盖根/生成模板、路径配置/状态持久命令、依赖与Provider启动、缺失状态行为及旧文件显式迁移；不自动移动用户已有状态文件，不删未合WIP。当前只方案核对，保持冻结组合先验收提交，不新Goal/守护。
   - 同类入口排查范围包含bootstrap/app/routes/config及CLI生成正式入口：仅搬应用装配/HTTP测试主体、fixture和示例特判，保留正常框架unit tests与普通app业务能力；必要薄cfg挂载明确Rust原因。模块同时核路径/清单硬编码、持久状态对Provider/路由/资源真实控制及依赖错误，不以截图路径移动关闭整类问题。
-  - 固定/api职责整改已实核：`src/routes.rs::framework_routes/framework_info`内置GET /api并返回app.name+框架版本，当前`routes/web.rs`调用它，AppServiceProvider经公开app.routes挂载。后继将具体内容归根app/http/controllers与必要服务，声明归routes/api.rs并由公开应用Provider装配；补必要Rust模块导出，不让框架引用宿主Controller。不删除API分组/前缀/异常协商等通用能力，不搬走模块业务。
+  - 固定/api职责本次已限定验收：原库内置内容归根app/http/controllers/application_info.rs，routes/api.rs相对声明，AppServiceProvider经bootstrap前缀/组公开挂载。根/生成及consumer同步，库不反向引用宿主；通用API分组/异常协商、health/readiness/metrics和模块业务保留。
   - 同类核查内核宿主/示例端点、路径业务特判和反向依赖；health/readiness/metrics按官方来源及既有授权语义判断，不能路径相似即删除。同步根装配/CLI模板/consumer/唯一示例/README与测试，走真实应用路由验证，不仅测试旧framework_routes；bootstrap测试迁移同owner协调。当前不扩大冻结组合，先现批提交再本项代码闭环。
 
 

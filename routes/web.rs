@@ -1,8 +1,5 @@
-//! 框架基础路由；业务路由由应用模块通过公开 `ServiceProvider` 注册。
+//! 根应用 Web 路由；默认静态首页由 server 配置挂载，可在此追加应用页面。
 
 pub(crate) fn register(routes: openrust::http::Routes) -> openrust::http::Routes {
-    routes.group(
-        openrust::http::RouteGroup::new().middleware_group("api"),
-        openrust::routes::framework_routes,
-    )
+    routes
 }

@@ -8,7 +8,7 @@ mod bootstrap;
 mod config;
 {{grpc_module}}#[path = "../modules/mod.rs"]
 mod modules;
-#[path = "../routes/web.rs"]
+#[path = "../routes/mod.rs"]
 mod routes;
 {{database_module}}
 fn main() -> std::process::ExitCode {

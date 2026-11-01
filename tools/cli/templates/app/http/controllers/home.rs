@@ -1,4 +1,4 @@
-//! 默认应用控制器；可从 `routes/web.rs` 直接注册。
+//! 默认应用控制器；可从 `routes/api.rs` 直接注册。
 
 use openrust::core::{ApiResponse, AppState};
 use openrust::http::axum::extract::State;

@@ -11,7 +11,7 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use crate::core::exception_handler::ExceptionRegistry;
-use crate::core::{ApiResponse, App, AppState, BootContext, Error, Result};
+use crate::core::{App, AppState, BootContext, Error, Result};
 use crate::core::{ExceptionHandler, ExceptionRequest};
 use axum::Router;
 use axum::body::Body;
@@ -32,22 +32,6 @@ pub use crate::http::routes::Routes;
 use crate::http::routes::{MiddlewareLayerBuilder, MiddlewareRegistry, assemble};
 use crate::http::serve::ServeCommand;
 use crate::http::trusted_hosts::TrustedHostsSnapshot;
-
-/// 注册根宿主的框架信息 API `GET /api`。
-///
-/// 该路由面向仓库集成宿主；网站根路径由 HTTP 静态站点配置独立管理。
-pub fn framework_routes(routes: Routes) -> Routes {
-    routes.get("/api", framework_info)
-}
-
-async fn framework_info(
-    State(state): State<AppState>,
-) -> ApiResponse<std::collections::BTreeMap<&'static str, String>> {
-    ApiResponse::success(std::collections::BTreeMap::from([
-        ("name", state.config().app.name.clone()),
-        ("version", env!("CARGO_PKG_VERSION").to_owned()),
-    ]))
-}
 
 type RouteBuilder = Box<dyn Fn(Routes) -> Routes + Send + Sync>;
 type RouterLayerBuilder = Box<dyn Fn(Router) -> Result<Router> + Send + Sync>;

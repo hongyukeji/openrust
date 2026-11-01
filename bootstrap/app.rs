@@ -48,87 +48,22 @@ impl Application for Server {
     }
 }
 
+/// 装配应用 API 的统一前缀与无状态中间件组，再加载应用 Web 声明。
+pub(crate) fn routes(routes: openrust::http::Routes) -> openrust::http::Routes {
+    let routes = routes.group(
+        openrust::http::RouteGroup::new()
+            .prefix("/api")
+            .middleware_group("api"),
+        crate::routes::api::register,
+    );
+    crate::routes::web::register(routes)
+}
+
 #[cfg(all(test, feature = "session"))]
 #[path = "../tests/server/session/host_without_database.rs"]
 mod host_without_database;
 
+// 私有宿主类型只通过测试子模块访问；生产入口不承载测试主体或扩大可见性。
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use figment::{Figment, providers::Serialized};
-    use openrust::ServiceExt;
-
-    #[tokio::test]
-    async fn default_provider_manifest_serves_framework_route() -> Result<()> {
-        let builder =
-            openrust::core::ProviderBuilder::for_application::<Server>(&Configuration::default());
-        let source = Figment::from(Serialized::defaults(openrust::config::FrameworkConfig::default()))
-            .merge(Serialized::defaults(serde_json::json!({
-            "app": {"env": "test"},
-            "cache": {"default": "default", "stores": {"default": {"driver": "memory"}}},
-            "security": {"encryption": {"active_key_id": "test", "keys": {"test": "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}}
-        })));
-        let runtime = builder
-            .start(crate::modules::example::test_sources(&(source))?)
-            .await?;
-        let app = openrust::App::from_provider_runtime(runtime)?;
-        let router = openrust::http::build_router(&app)?;
-        let response = router
-            .oneshot(
-                openrust::http::axum::http::Request::builder()
-                    .uri("/api")
-                    .header("host", "localhost")
-                    .body(openrust::http::axum::body::Body::empty())
-                    .map_err(openrust::Error::internal)?,
-            )
-            .await
-            .map_err(openrust::Error::internal)?;
-        assert_eq!(
-            response.status(),
-            openrust::http::axum::http::StatusCode::OK
-        );
-        app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(1))
-            .await
-    }
-
-    #[tokio::test]
-    async fn module_resources_follow_configured_runtime_root() -> Result<()> {
-        use openrust::http::axum::{body::Body, http::Request};
-
-        let deployed = tempfile::tempdir().map_err(openrust::Error::internal)?;
-        let module = deployed.path().join("modules/example");
-        std::fs::create_dir_all(module.join("resources/views"))
-            .map_err(openrust::Error::internal)?;
-        std::fs::create_dir_all(deployed.path().join("resources/lang/vendor/example"))
-            .map_err(openrust::Error::internal)?;
-        std::fs::write(
-            deployed.path().join("modules_statuses.json"),
-            "{\"example\":true}\n",
-        )
-        .map_err(openrust::Error::internal)?;
-        let source = Figment::from(Serialized::defaults(openrust::config::FrameworkConfig::default()))
-            .merge(Serialized::defaults(serde_json::json!({
-                "modules_root": deployed.path(),
-                "app": {"env": "test"},
-                "cache": {"default": "default", "stores": {"default": {"driver": "memory"}}},
-                "security": {"encryption": {"active_key_id": "test", "keys": {"test": "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio="}}}
-            })));
-        let mut app = openrust::testing::TestApp::<Server>::builder(
-            crate::modules::example::test_sources(&(source))?,
-        )
-        .build()
-        .await?;
-        let response = app
-            .request(
-                Request::get("/api/example")
-                    .header("host", "localhost")
-                    .body(Body::empty())
-                    .map_err(openrust::Error::internal)?,
-            )
-            .await?;
-        let json: serde_json::Value = response.json()?;
-        assert_eq!(json["data"]["message"], "Hello from modules/example");
-        app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
-            .await
-    }
-}
+#[path = "../tests/server/bootstrap.rs"]
+mod tests;

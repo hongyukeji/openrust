@@ -33,3 +33,12 @@ impl Application for {{type_name}} {
         )
     }
 }
+
+/// 在启动装配中指定 API 前缀与无状态组，再登记应用 Web 路由和全局 fallback。
+pub(crate) fn routes(routes: Routes) -> Routes {
+    let routes = routes.group(
+        RouteGroup::new().prefix("/api").middleware_group("api"),
+        crate::routes::api::register,
+    );
+    crate::routes::web::register(routes)
+}

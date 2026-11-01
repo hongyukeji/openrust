@@ -84,7 +84,7 @@ mod bootstrap;
 mod config;
 #[path = "../modules/mod.rs"]
 mod modules;
-#[path = "../routes/web.rs"]
+#[path = "../routes/mod.rs"]
 mod routes;
 
 use bootstrap::{match.group(1)} as GeneratedApplication;

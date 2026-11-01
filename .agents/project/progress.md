@@ -6,7 +6,7 @@
 
 ## 当前功能簇
 
-配置可编辑默认值与有序依赖已完成限定验收：同一ConfigContext/Repository的get/require、求值前根键覆盖、模块候选/CAS、根/生成默认字段及Job配置接线；生产源码、唯一模块、consumer、fresh/缓存/MySQL/TCP证据见[配置验收](memory/testing.md#配置可编辑默认值与有序依赖限定验收)。下一停点为bootstrap/app测试组织与固定/api宿主归属，模块持久启停/发现、DB能力门控及完整ADR-001继续开放。
+配置可编辑默认值与有序依赖已由d952199限定提交；本次bootstrap测试组织与固定/api宿主职责也已完成源码、生成/consumer、完整适用门禁、真实MySQL/MFA与TCP/TLS限定验收，见[应用职责证据](memory/testing.md#应用启动与固定api宿主职责限定验收)，本次提交以Git为准。下一停点为模块状态路径、持久启停/发现与统一Provider；DB能力门控及完整ADR-001继续开放。
 
 本批 Env/Request-MIME、TrustedHosts、应用/代码配置/Provider、异常、Web/CSRF与部分Query已完成限定组合验收，本地集成提交 `9035a00`。真实来源保全、双workspace门禁、生成、MySQL、TCP/TLS及开放差异见[本批证据](memory/testing.md#当前-main-组合限定验收)。下一步按唯一todo优先配置默认值/单一来源等整改，不将本批通过等同完整1:1。
 

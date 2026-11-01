@@ -14,7 +14,7 @@ impl ServiceProvider for AppServiceProvider {
                     request.path() == "/api" || request.path().starts_with("/api/")
                 });
             })?;
-            app.routes(crate::routes::register)?;
+            app.routes(crate::bootstrap::routes)?;
             Ok(())
         })
     }

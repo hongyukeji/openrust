@@ -72,22 +72,6 @@ async fn module_exception_handler_renders_typed_error() -> Result<(), Box<dyn st
     Ok(())
 }
 
-struct FrameworkRoutes;
-impl openrust::core::ServiceProvider for FrameworkRoutes {
-    fn boot<'a>(
-        &'a self,
-        app: &'a mut openrust::core::BootContext<'_>,
-    ) -> openrust::BoxFuture<'a, openrust::Result<()>> {
-        Box::pin(async move {
-            app.exceptions(|handler| {
-                handler.api_envelope_when(|request, _| request.path().starts_with("/api"));
-            })?;
-            app.routes(openrust::routes::framework_routes)?;
-            Ok(())
-        })
-    }
-}
-
 #[cfg(all(
     feature = "auth-oidc",
     any(feature = "db-postgres", feature = "db-mysql")
@@ -153,7 +137,7 @@ async fn module_registration_controls_only_its_business_routes()
             .provider(openrust::http::CookieServiceProvider::plain())
             .provider(openrust::db::DatabaseServiceProvider)
             .provider(openrust::cache::CacheServiceProvider::new())
-            .provider(FrameworkRoutes);
+            .provider(crate::app::providers::AppServiceProvider);
         let manifest = openrust::core::ModuleManifest::new().module(super::descriptor(
             false,
             std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")),
@@ -261,7 +245,7 @@ async fn module_business_uses_runtime_provider_rebinding_after_boot()
         .provider(openrust::http::CookieServiceProvider::plain())
         .provider(openrust::db::DatabaseServiceProvider)
         .provider(openrust::cache::CacheServiceProvider::new())
-        .provider(FrameworkRoutes)
+        .provider(crate::app::providers::AppServiceProvider)
         .module_manifest(
             openrust::core::ModuleManifest::new()
                 .module(super::descriptor(
@@ -1838,6 +1822,47 @@ async fn production_route_context_keeps_matched_identity_across_business_boundar
     assert_eq!(json["data"]["id"], "43");
     assert_eq!(json["data"]["default"], "public-default");
     app.shutdown(tokio::time::Instant::now() + Duration::from_secs(5))
+        .await?;
+    Ok(())
+}
+
+// 只装通用 HTTP Provider 的宿主不会被框架强加应用信息 API。
+#[tokio::test]
+async fn generic_http_host_has_no_application_information_route()
+-> Result<(), Box<dyn std::error::Error>> {
+    let mut builder = openrust::core::ProviderBuilder::new();
+    builder
+        .provider(HttpServiceProvider)
+        .provider(openrust::http::CookieServiceProvider::plain())
+        .provider(openrust::cache::CacheServiceProvider::new());
+    let source = figment::Figment::from(figment::providers::Serialized::defaults(
+        openrust::config::FrameworkConfig::default(),
+    ))
+    .merge(figment::providers::Serialized::defaults(
+        serde_json::json!({
+            "cache": {"default":"fixture","stores":{"fixture":{"driver":"memory"}}}
+        }),
+    ));
+    let app = openrust::App::from_provider_runtime(builder.start(source).await?)?;
+    let router = openrust::http::build_router(&app)?;
+    let response = router
+        .clone()
+        .oneshot(
+            Request::get("/api")
+                .header("host", "localhost")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    let health = router
+        .oneshot(
+            Request::get("/health")
+                .header("host", "localhost")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(health.status(), StatusCode::OK);
+    app.shutdown(tokio::time::Instant::now() + std::time::Duration::from_secs(5))
         .await?;
     Ok(())
 }

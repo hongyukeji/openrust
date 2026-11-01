@@ -2,6 +2,8 @@
 
 OpenRust 框架基于 `axum` 和 `tower` 构建的 HTTP 层。
 
+应用自己的 API 由应用 Controller 与 `routes/api.rs` 通过 Provider 登记；框架 HTTP 层只负责通用路由与请求生命周期，不内置宿主的名称/版本响应。根应用示例见[应用职责](../../app/README.md)。
+
 ## 异常报告与渲染
 
 Provider 的 `BootContext::exceptions` 在同一应用内配置 `ExceptionHandler`。`Error::internal(source)` 保留原始具体异常，报告与渲染回调按类型和来源链匹配；`render` 返回 `None` 时继续下一项，最终 `respond` 可定制完整原生 Response。请求错误默认按 `RequestInfo::expects_json` 使用的 Accept 与 AJAX/PJAX 规则选择 JSON 或 HTML，非 debug 的内部错误隐藏 source。应用可通过 `api_envelope_when` 对 `/api` 等明确路径保留统一错误 envelope；这是公开响应策略，不把所有 Web 异常强制转为 JSON。`app.debug` 来自服务端配置，客户端头不能启用。

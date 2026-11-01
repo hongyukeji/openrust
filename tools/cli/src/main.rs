@@ -765,7 +765,15 @@ fn populate_project_with_mfa(
             "modules_statuses.json",
             include_str!("../templates/modules_statuses.json").to_owned(),
         ),
-        ("routes/web.rs", routes_source(auth, auth_mfa)),
+        (
+            "routes/mod.rs",
+            include_str!("../templates/src/routes.rs").to_owned(),
+        ),
+        ("routes/api.rs", api_routes_source(auth, auth_mfa)),
+        (
+            "routes/web.rs",
+            include_str!("../templates/routes/web.rs").to_owned(),
+        ),
         ("bootstrap/providers.rs", providers_source(database, grpc)),
         (
             "app/http/mod.rs",
@@ -1086,8 +1094,8 @@ fn providers_source(database: Option<DatabaseBackend>, grpc: bool) -> String {
     include_str!("../templates/src/providers.rs").replace("{{application_providers}}", &additions)
 }
 
-fn routes_source(auth: bool, auth_mfa: bool) -> String {
-    let mut source = include_str!("../templates/src/routes.rs").to_owned();
+fn api_routes_source(auth: bool, auth_mfa: bool) -> String {
+    let mut source = include_str!("../templates/routes/api.rs").to_owned();
     let (registration, handler) = if auth {
         let login_handler = if auth_mfa {
             mfa_login_handler()
@@ -1100,33 +1108,27 @@ fn routes_source(auth: bool, auth_mfa: bool) -> String {
             String::new()
         };
         (
-            "    routes\n        .get(\"/api/me\", current_user)\n        .layer(openrust::auth::AuthLayer::required(\n            openrust::auth::AuthMode::Jwt,\n        ))\n        .post(\"/api/auth/register\", auth_register)\n        .post(\n            \"/api/auth/request-email-verification\",\n            auth_request_email_verification,\n        )\n        .post(\"/api/auth/verify-email\", auth_verify_email)\n        .post(\"/api/auth/login\", auth_login)\n        .post(\"/api/auth/refresh\", auth_refresh)\n        .post(\"/api/auth/logout\", auth_logout)\n        .post(\"/api/auth/password-reset\", auth_request_password_reset)\n        .post(\"/api/auth/password-reset/confirm\", auth_reset_password)\n        .get(\"/api\", root)\n        .merge(Routes::new().get(\"/api/me/pat\", current_user).layer(\n            openrust::auth::AuthLayer::required(openrust::auth::AuthMode::PersonalAccessToken),\n        ))".to_owned(),
+            "    routes\n        .get(\"/me\", current_user)\n        .layer(openrust::auth::AuthLayer::required(\n            openrust::auth::AuthMode::Jwt,\n        ))\n        .post(\"/auth/register\", auth_register)\n        .post(\n            \"/auth/request-email-verification\",\n            auth_request_email_verification,\n        )\n        .post(\"/auth/verify-email\", auth_verify_email)\n        .post(\"/auth/login\", auth_login)\n        .post(\"/auth/refresh\", auth_refresh)\n        .post(\"/auth/logout\", auth_logout)\n        .post(\"/auth/password-reset\", auth_request_password_reset)\n        .post(\"/auth/password-reset/confirm\", auth_reset_password)\n        .get(\"/\", root)\n        .merge(Routes::new().get(\"/me/pat\", current_user).layer(\n            openrust::auth::AuthLayer::required(openrust::auth::AuthMode::PersonalAccessToken),\n        ))".to_owned(),
             include_str!("../templates/src/auth_routes.rs")
                 .replace("{{login_handler}}", login_handler.trim_end())
                 .replace("{{mfa_handler}}", mfa_handler.trim_end()),
         )
     } else {
-        ("    routes.get(\"/api\", root)".to_owned(), String::new())
+        ("    routes.get(\"/\", root)".to_owned(), String::new())
     };
     let registration = if auth_mfa {
         registration.replace(
-            ".post(\"/api/auth/login\", auth_login)",
-            ".post(\"/api/auth/login\", auth_login)\n        .post(\"/api/auth/mfa/login\", auth_mfa_login)",
+            ".post(\"/auth/login\", auth_login)",
+            ".post(\"/auth/login\", auth_login)\n        .post(\"/auth/mfa/login\", auth_mfa_login)",
         )
         .replace(
-            ".get(\"/api\", root)",
-            ".get(\"/api\", root)\n        .merge(\n            Routes::new()\n                .post(\"/api/auth/mfa/enrollment\", auth_mfa_enrollment)\n                .post(\n                    \"/api/auth/mfa/enrollment/confirm\",\n                    auth_mfa_enrollment_confirm,\n                )\n                .post(\"/api/auth/mfa/disable\", auth_mfa_disable)\n                .post(\"/api/auth/mfa/recovery-codes\", auth_mfa_recovery_codes)\n                .layer(openrust::auth::AuthLayer::required(\n                    openrust::auth::AuthMode::Jwt,\n                )),\n        )",
+            ".get(\"/\", root)",
+            ".get(\"/\", root)\n        .merge(\n            Routes::new()\n                .post(\"/auth/mfa/enrollment\", auth_mfa_enrollment)\n                .post(\n                    \"/auth/mfa/enrollment/confirm\",\n                    auth_mfa_enrollment_confirm,\n                )\n                .post(\"/auth/mfa/disable\", auth_mfa_disable)\n                .post(\"/auth/mfa/recovery-codes\", auth_mfa_recovery_codes)\n                .layer(openrust::auth::AuthLayer::required(\n                    openrust::auth::AuthMode::Jwt,\n                )),\n        )",
         )
     } else {
         registration
     };
     source = source.replace("{{routes}}", &registration);
-    if !auth {
-        source = source.replace(
-            "routes.get(\"/api\", root)\n        .fallback(not_found)",
-            "routes.get(\"/api\", root).fallback(not_found)",
-        );
-    }
     source.replace("{{auth_handler}}", handler.trim_end())
 }
 
@@ -1627,13 +1629,13 @@ fn register_job_module_in_auth_test(test_source: String) -> anyhow::Result<Strin
     if registered == 1 {
         Ok(test_source)
     } else {
-        let anchor = "#[path = \"../routes/web.rs\"]\nmod routes;";
+        let anchor = "#[path = \"../routes/mod.rs\"]\nmod routes;";
         if test_source.matches(anchor).count() != 1 {
             bail!("authentication test source does not match the generated template");
         }
         Ok(test_source.replace(
-        "#[path = \"../routes/web.rs\"]\nmod routes;",
-        "#[path = \"../routes/web.rs\"]\nmod routes;\n#[path = \"../app/jobs/mod.rs\"]\nmod jobs;",
+        "#[path = \"../routes/mod.rs\"]\nmod routes;",
+        "#[path = \"../routes/mod.rs\"]\nmod routes;\n#[path = \"../app/jobs/mod.rs\"]\nmod jobs;",
     ))
     }
 }
@@ -2057,7 +2059,7 @@ fn generate_controller(name: &str, project_dir: &Path) -> anyhow::Result<()> {
     }
     let registry = project_dir.join("app/http/controllers/mod.rs");
     let source = format!(
-        "//! 应用控制器。\n\n/// `{type_name}` 控制器；在 `routes/web.rs` 中注册其处理方法。\npub struct {type_name};\n"
+        "//! 应用控制器。\n\n/// `{type_name}` 控制器；在 `routes/web.rs` 或 `routes/api.rs` 中注册其处理方法。\npub struct {type_name};\n"
     );
     fs::write(&file, source)?;
     append_sorted_module(
@@ -3300,6 +3302,8 @@ mod tests {
             "app/providers/mod.rs",
             "modules/mod.rs",
             "modules_statuses.json",
+            "routes/mod.rs",
+            "routes/api.rs",
             "routes/web.rs",
             "config/mod.rs",
             "config/app.rs",
@@ -3327,6 +3331,47 @@ mod tests {
             "AGENTS.md",
         ] {
             assert!(project.join(path).is_file(), "missing generated {path}");
+        }
+    }
+
+    fn assert_generated_route_layout(project: &Path) {
+        let entry = fs::read_to_string(project.join("routes/mod.rs")).expect("read route module");
+        assert!(entry.contains("pub mod api;"));
+        assert!(entry.contains("pub mod web;"));
+        assert!(!entry.contains("fn register("));
+        assert!(!entry.contains(".get("));
+        assert!(!entry.contains(".fallback("));
+        let api = fs::read_to_string(project.join("routes/api.rs")).expect("read API routes");
+        assert!(!api.contains(".prefix("));
+        assert!(!api.contains(".middleware_group("));
+        let bootstrap =
+            fs::read_to_string(project.join("bootstrap/app.rs")).expect("read routing bootstrap");
+        assert!(bootstrap.contains("pub(crate) fn routes(routes: Routes) -> Routes"));
+        assert!(bootstrap.contains(".prefix(\"/api\").middleware_group(\"api\")"));
+        assert!(bootstrap.contains("crate::routes::api::register"));
+        assert!(bootstrap.contains("crate::routes::web::register(routes)"));
+        assert!(api.contains(".get(\"/\", root)"));
+        assert!(!api.contains(".get(\"/api"));
+        assert!(!api.contains(".post(\"/api"));
+        assert!(!api.contains(".fallback("));
+        assert!(!api.contains("middleware_group(\"web\")"));
+        assert!(!api.contains("middleware_alias(\"session\")"));
+        let web = fs::read_to_string(project.join("routes/web.rs")).expect("read Web routes");
+        assert!(web.contains(".fallback(not_found)"));
+        assert!(!web.contains("AuthLayer"));
+        assert!(!web.contains("middleware_group(\"api\")"));
+        let provider = fs::read_to_string(project.join("app/providers/app.rs"))
+            .expect("read application Provider");
+        assert!(provider.contains("app.routes(crate::bootstrap::routes)?;"));
+        for path in ["src/main.rs", "tests/test_app.rs", "tests/auth_flows.rs"] {
+            if project.join(path).is_file() {
+                let source = fs::read_to_string(project.join(path)).expect("read route caller");
+                assert!(
+                    source.contains("#[path = \"../routes/mod.rs\"]\nmod routes;"),
+                    "{path}"
+                );
+                assert!(!source.contains("../routes/web.rs"), "{path}");
+            }
         }
     }
 
@@ -3364,7 +3409,8 @@ mod tests {
         assert_generated_application_files(&project);
         assert_module_layout(&project);
         assert_generated_configuration(&project);
-        let routes = fs::read_to_string(project.join("routes/web.rs")).expect("read routes");
+        assert_generated_route_layout(&project);
+        let routes = fs::read_to_string(project.join("routes/api.rs")).expect("read API routes");
         assert!(routes.contains("crate::app::http::controllers::home::index"));
         let application = fs::read_to_string(project.join("bootstrap/app.rs"))
             .expect("read application bootstrap");
@@ -3388,6 +3434,8 @@ mod tests {
             "bootstrap/app.rs",
             "modules/mod.rs",
             "modules_statuses.json",
+            "routes/mod.rs",
+            "routes/api.rs",
             "routes/web.rs",
             "tests/test_app.rs",
             "tests/support/request_input.rs",
@@ -3558,6 +3606,7 @@ mod tests {
                 false,
             )
             .expect("generate database-backed auth project");
+            assert_generated_route_layout(&project);
             let manifest = fs::read_to_string(project.join("Cargo.toml"))
                 .expect("read generated app manifest");
             assert!(manifest.contains(feature));
@@ -3614,17 +3663,17 @@ mod tests {
                 .expect("read generated signing environment template");
             assert!(env.contains("APP_SECURITY_SIGNED_LINKS_KEYS_LOCAL="));
             assert!(!app.contains("SessionPlugin::new()"));
-            let routes =
-                fs::read_to_string(project.join("routes/web.rs")).expect("read generated routes");
+            let routes = fs::read_to_string(project.join("routes/api.rs"))
+                .expect("read generated API routes");
             assert!(routes.contains("AuthLayer::required("));
             assert!(routes.contains("AuthMode::Jwt"));
-            assert!(routes.contains("/api/me/pat"));
+            assert!(routes.contains("/me/pat"));
             assert!(routes.contains("AuthMode::PersonalAccessToken"));
             assert!(routes.contains("CurrentUser"));
-            assert!(routes.contains("/api/auth/register"));
-            assert!(routes.contains("/api/auth/verify-email"));
-            assert!(routes.contains("/api/auth/refresh"));
-            assert!(routes.contains("/api/auth/password-reset/confirm"));
+            assert!(routes.contains("/auth/register"));
+            assert!(routes.contains("/auth/verify-email"));
+            assert!(routes.contains("/auth/refresh"));
+            assert!(routes.contains("/auth/password-reset/confirm"));
             assert!(routes.contains("ClientIp"));
             let auth_test = fs::read_to_string(project.join("tests/auth_flows.rs"))
                 .expect("read generated auth HTTP integration test");
@@ -3708,6 +3757,7 @@ mod tests {
                 false,
             )
             .expect("generate MFA project");
+            assert_generated_route_layout(&project);
             let app =
                 fs::read_to_string(project.join("bootstrap/app.rs")).expect("read generated app");
             assert!(app.contains("providers::application_providers(config)"));
@@ -3718,9 +3768,9 @@ mod tests {
                     .contains("AuthMfaMigration")
             );
             assert!(
-                fs::read_to_string(project.join("routes/web.rs"))
-                    .expect("routes")
-                    .contains("/api/auth/mfa/login")
+                fs::read_to_string(project.join("routes/api.rs"))
+                    .expect("API routes")
+                    .contains("/auth/mfa/login")
             );
         }
         let _ = fs::remove_dir_all(root);
@@ -3963,6 +4013,7 @@ mod tests {
             .replace("worker_concurrency: 1", "worker_concurrency: 3");
         fs::write(&queue_path, &queue_source).expect("customize queue defaults");
         generate_job(&["welcome_email".to_owned()], &project).expect("generate job");
+        assert_generated_route_layout(&project);
         let source = fs::read_to_string(project.join("app/jobs/welcome_email.rs"))
             .expect("read generated job");
         assert!(source.contains("WelcomeEmailJob"));

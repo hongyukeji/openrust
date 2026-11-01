@@ -10,7 +10,7 @@ mod modules;
 #[path = "../../../app/mod.rs"]
 mod app;
 
-#[path = "../../../routes/web.rs"]
+#[path = "../../../routes/mod.rs"]
 mod routes;
 
 #[cfg(any(feature = "db-postgres", feature = "db-mysql"))]

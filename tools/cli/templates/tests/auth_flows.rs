@@ -14,7 +14,7 @@ mod request_cookie;
 mod request_input;
 #[path = "support/request_session.rs"]
 mod request_session;
-#[path = "../routes/web.rs"]
+#[path = "../routes/mod.rs"]
 mod routes;
 #[path = "../database/seeders.rs"]
 mod seed;

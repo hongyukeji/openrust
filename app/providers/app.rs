@@ -3,7 +3,7 @@
 use openrust::core::{BootContext, BoxFuture, ServiceProvider};
 use openrust::prelude::*;
 
-/// 根应用路由与异常呈现的启动钩子。
+/// 根应用路由清单与异常呈现的启动钩子。
 pub struct AppServiceProvider;
 
 impl ServiceProvider for AppServiceProvider {
@@ -14,7 +14,7 @@ impl ServiceProvider for AppServiceProvider {
                     request.path() == "/api" || request.path().starts_with("/api/")
                 });
             })?;
-            app.routes(crate::routes::register)?;
+            app.routes(crate::bootstrap::routes)?;
             Ok(())
         })
     }
